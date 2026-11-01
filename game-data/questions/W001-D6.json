@@ -344,7 +344,39 @@
           "seal": "21b62038f39fcb4d99699b5fe1cf586b3b3bd5b952dbccf5b518ccfc6a9422bf"
         }
       ],
-      "vhpSeal": "d704222a05a7c05e42b874d0e7775f3499a2c66a5a79cd3d571c80ad7b4b3c3d"
+      "vhpSeal": "d704222a05a7c05e42b874d0e7775f3499a2c66a5a79cd3d571c80ad7b4b3c3d",
+      "result": {
+        "void": false,
+        "option": 2,
+        "value": "1,214",
+        "dataHash": "2d34397a1374c4069015d70f4a703fd328c7e632a2a4a5186faaf0f34b828792",
+        "resolvedAt": "2026-11-01T09:48:05.520Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40676357,
+          "decidedHeight": 40701726,
+          "readings": [
+            40692525,
+            40693467,
+            40694702,
+            40695880,
+            40696932,
+            40698278,
+            40699533,
+            40700540,
+            40701590
+          ],
+          "readingsInWindow": 9,
+          "values": {
+            "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": {
+              "release": "143097108562279",
+              "end": "147083354317588",
+              "change": "+2.79%",
+              "height": 40692525
+            }
+          }
+        }
+      }
     },
     {
       "id": "W001-D6-3",
@@ -685,7 +717,39 @@
           "seal": "607bfb91a5015b1141a529312b82bebf561d81c31ba8a3650adfd53948394f5e"
         }
       ],
-      "vhpSeal": "645de0a7e95e825ba488d847d994079fed6f24c2f2262083fdbf33786c2aa41e"
+      "vhpSeal": "645de0a7e95e825ba488d847d994079fed6f24c2f2262083fdbf33786c2aa41e",
+      "result": {
+        "void": false,
+        "option": 3,
+        "value": "748",
+        "dataHash": "2d34397a1374c4069015d70f4a703fd328c7e632a2a4a5186faaf0f34b828792",
+        "resolvedAt": "2026-11-01T09:48:05.520Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40676357,
+          "decidedHeight": 40701745,
+          "readings": [
+            40692525,
+            40693467,
+            40694702,
+            40695880,
+            40696932,
+            40698278,
+            40699533,
+            40700540,
+            40701590
+          ],
+          "readingsInWindow": 9,
+          "values": {
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": {
+              "release": "86278225680888",
+              "end": "88749323770409",
+              "change": "+2.86%",
+              "height": 40692525
+            }
+          }
+        }
+      }
     },
     {
       "id": "W001-D6-5",

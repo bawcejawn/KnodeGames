@@ -96,6 +96,8 @@ a { color: var(--violet); }
 .btn-wallet.connected { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
 
 .demo-note { background: var(--sun-soft); color: var(--ink); font-size: .92rem; padding: 8px 0; text-align: center; }
+#live-error.demo-note { background: color-mix(in srgb, var(--tang) 28%, var(--paper)); }
+#live-error .wrap { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
 
 /* ───── ads ───── */
 .ad { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--muted); border: 1.5px dashed var(--line); border-radius: var(--r-md); background: repeating-linear-gradient(135deg, transparent 0 12px, color-mix(in srgb, var(--line) 35%, transparent) 12px 13px); }

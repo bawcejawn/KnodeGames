@@ -1630,13 +1630,17 @@
     const retryBtn = $("#live-retry");
     if (retryBtn) retryBtn.addEventListener("click", () => location.reload());
     const wantDemo = /[?&]demo\b/.test(location.search);
+    let ready = false;
     if (wantDemo) {
-      try { await loadDemoScript(); await setupDemo(); }
+      try { await loadDemoScript(); setupDemo(); ready = true; }
       catch (e) { showLiveError(e.message || "Couldn't load demo data"); }
     } else {
+      // Fail closed: never call setupDemo() when deployment.json is missing or broken.
       const dep = await fetchJson(DATA + "deployment.json").catch(() => null);
       if (!dep || !dep.contract || !lib.Contract) {
-        showLiveError(!dep ? "Couldn't load the live game config." : "The wallet libraries didn't load.");
+        showLiveError(!dep || !dep.contract
+          ? "Couldn't load the live game config (game-data/deployment.json)."
+          : "The wallet libraries didn't load.");
       } else {
         S.dep = dep;
         try {
@@ -1647,11 +1651,13 @@
           try { await loadLive(); } catch (e) { toast(`Couldn't reach the Koinos network: ${e.message}`, 8000); }
           setInterval(async () => { try { await loadLive(); S.board[S.week] = undefined; renderPlay(); } catch {} await updateLive(); renderPlay(); if (!$("#view-results").hidden) renderResults(); }, 60000);
           updateLive().then(() => { renderPlay(); if (!$("#view-results").hidden) renderResults(); });
+          ready = true;
         } catch (e) {
           showLiveError(`Couldn't start the live game: ${e.message || e}`);
         }
       }
     }
+    if (!ready) return;
     $("#producers-link").href = EXPLORER_PRODUCERS;
     $("#schedule").textContent = `Your time: new questions ${localHour(12)} Monday to Saturday, answers close ${localHour(0)}. Winners are final Tuesdays at ${localHour(12)}.`;
     renderAll();

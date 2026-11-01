@@ -1,6 +1,6 @@
 /* Knode Games Swap — swap VHP for the desk's KOIN, 1:1 minus the fee.
    A static page: it reads the desk contract on the Koinos chain, and the swap is signed by the visitor's own wallet (Kondor or KOIN Vault, see wallet.js)
-   wallet as ONE transaction (approve the VHP + swap). With no desk deployed yet (or ?demo), it runs a preview. */
+   wallet as ONE transaction (approve the VHP + swap). Preview only with ?demo; a missing deployment fails closed. */
 (() => {
   "use strict";
 
@@ -253,6 +253,7 @@
   // ═══════════════ demo ═══════════════
   function setupDemo() {
     S.demo = true;
+    const err = $("#live-error"); if (err) err.hidden = true;
     $("#demo-note").hidden = false;
     const now = Date.now();
     S.st = {
@@ -297,12 +298,17 @@
     const retryBtn = $("#live-retry");
     if (retryBtn) retryBtn.addEventListener("click", () => location.reload());
     const wantDemo = /[?&]demo\b/.test(location.search);
+    let ready = false;
     if (wantDemo) {
       setupDemo();
+      ready = true;
     } else {
+      // Fail closed: never call setupDemo() when desk-data/deployment.json is missing or broken.
       const dep = await fetchJson(DEPLOYMENT).catch(() => null);
       if (!dep || !dep.contract || !lib.Contract) {
-        showLiveError(!dep ? "Couldn't load the live desk config." : "The wallet libraries didn't load.");
+        showLiveError(!dep || !dep.contract
+          ? "Couldn't load the live desk config (desk-data/deployment.json)."
+          : "The wallet libraries didn't load.");
       } else {
         S.dep = dep;
         S.provider = new lib.Provider([dep.rpc || RPC]);
@@ -318,8 +324,10 @@
         S.desk = new lib.Contract({ id: dep.contract, abi: DESK_ABI, provider: S.provider });
         $("#foot-contract").replaceChildren("Desk contract ", el("a", { href: EXPLORER_ADDRESS + dep.contract, target: "_blank", rel: "noopener" }, short(dep.contract)));
         try { await loadLive(); } catch (e) { toast(`Couldn't reach the Koinos network: ${e.message}`, 8000); }
+        ready = true;
       }
     }
+    if (!ready) return;
     renderAll();
     // Refresh every 30 s: the available KOIN grows as the desk's node produces blocks.
     setInterval(async () => { try { await loadLive(); renderAll(); } catch {} }, S.demo ? 4000 : 30000);

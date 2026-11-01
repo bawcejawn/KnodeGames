@@ -376,7 +376,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 3,
+      "chainDataHash": "0x2d34397a1374c4069015d70f4a703fd328c7e632a2a4a5186faaf0f34b828792"
     },
     {
       "id": "W001-D6-3",
@@ -749,7 +751,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 4,
+      "chainDataHash": "0x2d34397a1374c4069015d70f4a703fd328c7e632a2a4a5186faaf0f34b828792"
     },
     {
       "id": "W001-D6-5",

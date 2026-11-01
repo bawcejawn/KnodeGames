@@ -15,14 +15,14 @@
     "1412": 47,
     "1413": 25
   },
-  "producerScannedTo": 40707263,
+  "producerScannedTo": 40708343,
   "settings": "{\"min_stake\":\"100000000\",\"min_stake_next\":\"0\",\"min_stake_next_week\":\"0\",\"max_sponsor_rc\":\"200000000\",\"min_sponsor_rc\":\"0\",\"paused\":false}",
-  "sealedAt": 40707260,
+  "sealedAt": 40708338,
   "desk": {
     "settings": "{\"fee_bps\":300,\"min_swap\":\"100000000\",\"max_swap\":\"0\",\"paused\":false,\"timelock\":\"172800000\"}",
-    "koin": "135234599716",
+    "koin": "136083485458",
     "koinOut": "291097000000",
-    "at": 1793543649360
+    "at": 1793547057940
   },
   "deskProducerKey": "AzCYCDLDa49PPVHKk60xQbOErS6XY1TcEA8bkSo8Sk6E",
   "notified": [
@@ -36,5 +36,5 @@
     "2026-10-31": "513530302",
     "2026-11-01": "189598934"
   },
-  "seal": "601c68041d741cacdfc21d60bad13aa6996cf4ba30db5f378dc0f10252119bf2"
+  "seal": "af4deb1025edbfaec5f88614fd111c34755e06c4f41cb121ca5ce1dad1bbc9ba"
 }

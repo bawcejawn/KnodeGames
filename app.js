@@ -1,6 +1,6 @@
 /* Knode Games website — a static page: everything is read from the Koinos chain and the bot's public
    question files (game-data/), and every action is signed by the player's own wallet (Kondor or KOIN Vault).
-   With no deployment yet (or ?demo in the address), it runs a preview on sample data. */
+   Preview sample data runs only with ?demo in the address. A missing deployment fails closed (retry banner). */
 (() => {
   "use strict";
 
@@ -329,10 +329,11 @@
     const bal = async (id) => big(((await tok(id).functions.balance_of({ owner: a })).result || {}).value);
     S.balances = { vhp: await bal(S.dep.vhp), koin: await bal(S.dep.koin) };
     // rewards waiting in finished weeks
-    // Every finished week (audit W1-02: not only the last six), a few at a time, newest first.
+    // Newest finished weeks first (audit W1-02: not only the last six). Cap the scan so reconnect
+    // does not hammer RPC; 26 weeks covers a season of unclaimed rewards for current launch cadence.
     const fin = num(S.st.totals?.weeks_finalized);
     const claims = [], history = [];
-    const weeks = []; for (let w = fin - 1; w >= 0 && weeks.length < 104; w--) weeks.push(w);
+    const weeks = []; for (let w = fin - 1; w >= 0 && weeks.length < 26; w--) weeks.push(w);
     for (let i = 0; i < weeks.length; i += 6) {
       await Promise.all(weeks.slice(i, i + 6).map(async (w) => {
         const [p, wk] = await Promise.all([read("get_player", { player: a, week: String(w) }), read("get_week", { week: String(w) })]);
@@ -1487,7 +1488,7 @@
     tickerTop = blocks[0].h;
   }
 
-  // ═══════════════ demo data ═══════════════
+  // ═══════════════ demo data (only with ?demo — never a silent live fallback) ═══════════════
   let demoTop = 0, demoSeed = 7;
   const drnd = () => ((demoSeed = (demoSeed * 16807) % 2147483647) / 2147483647);
   const DEMO_PRODUCERS = ["1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW", "1KoinosNodeA9xQ2sPp3rX7mW1vD4k8Lz", "13mJx9ZbYqT2wE5rU8iO1pA4sD7fG0hJ", "1Burn4ndChi11FoGata3PoolQ8vX2nM5", "1Knode9PooL4demoXXXXXXXXXXXXXXXXX"];
@@ -1498,8 +1499,33 @@
     for (let i = 0; i < 7; i++) { const h = demoTop - i; out.push({ h, signer: DEMO_PRODUCERS[(h * 7 + (h % 5)) % DEMO_PRODUCERS.length] }); }
     return out;
   }
+  /** Load demo-data.js only for an explicit ?demo preview (kept off the production first paint). */
+  function loadDemoScript() {
+    if (window.KPRED_DEMO) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = BASE + "demo-data.js";
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error("Couldn't load demo data"));
+      document.head.appendChild(s);
+    });
+  }
+  function showLiveError(reason) {
+    const box = $("#live-error");
+    if (!box) return;
+    box.hidden = false;
+    const msg = $("#live-error-msg");
+    if (msg) msg.textContent = reason || "Couldn't load the live game settings. Check your connection and try again.";
+    const demo = $("#demo-note");
+    if (demo) demo.hidden = true;
+  }
+  function hideLiveError() {
+    const box = $("#live-error");
+    if (box) box.hidden = true;
+  }
   function setupDemo() {
     S.demo = true;
+    hideLiveError();
     $("#demo-note").hidden = false;
     const qs = (window.KPRED_DEMO?.questions || []);
     const last = Math.max(...qs.map((q) => q.lockHeight));
@@ -1601,20 +1627,30 @@
       },
     });
     route();
+    const retryBtn = $("#live-retry");
+    if (retryBtn) retryBtn.addEventListener("click", () => location.reload());
     const wantDemo = /[?&]demo\b/.test(location.search);
-    let dep = null;
-    if (!wantDemo) dep = await fetchJson(DATA + "deployment.json").catch(() => null);
-    if (!dep || !dep.contract || !lib.Contract) {
-      setupDemo();
+    if (wantDemo) {
+      try { await loadDemoScript(); await setupDemo(); }
+      catch (e) { showLiveError(e.message || "Couldn't load demo data"); }
     } else {
-      S.dep = dep;
-      S.abi = await fetchJson(ABI_URL);
-      S.provider = gentle(new lib.Provider([dep.rpc || RPC]));
-      initWallet();
-      S.game = new lib.Contract({ id: dep.contract, abi: S.abi, provider: S.provider });
-      try { await loadLive(); } catch (e) { toast(`Couldn't reach the Koinos network: ${e.message}`, 8000); }
-      setInterval(async () => { try { await loadLive(); S.board[S.week] = undefined; renderPlay(); } catch {} await updateLive(); renderPlay(); if (!$("#view-results").hidden) renderResults(); }, 60000);
-      updateLive().then(() => { renderPlay(); if (!$("#view-results").hidden) renderResults(); });
+      const dep = await fetchJson(DATA + "deployment.json").catch(() => null);
+      if (!dep || !dep.contract || !lib.Contract) {
+        showLiveError(!dep ? "Couldn't load the live game config." : "The wallet libraries didn't load.");
+      } else {
+        S.dep = dep;
+        try {
+          S.abi = await fetchJson(ABI_URL);
+          S.provider = gentle(new lib.Provider([dep.rpc || RPC]));
+          initWallet();
+          S.game = new lib.Contract({ id: dep.contract, abi: S.abi, provider: S.provider });
+          try { await loadLive(); } catch (e) { toast(`Couldn't reach the Koinos network: ${e.message}`, 8000); }
+          setInterval(async () => { try { await loadLive(); S.board[S.week] = undefined; renderPlay(); } catch {} await updateLive(); renderPlay(); if (!$("#view-results").hidden) renderResults(); }, 60000);
+          updateLive().then(() => { renderPlay(); if (!$("#view-results").hidden) renderResults(); });
+        } catch (e) {
+          showLiveError(`Couldn't start the live game: ${e.message || e}`);
+        }
+      }
     }
     $("#producers-link").href = EXPLORER_PRODUCERS;
     $("#schedule").textContent = `Your time: new questions ${localHour(12)} Monday to Saturday, answers close ${localHour(0)}. Winners are final Tuesdays at ${localHour(12)}.`;
@@ -1622,7 +1658,7 @@
     loadAds();
     renderBoard(S.week).then(() => renderPlay()).catch(() => {});
     ticker();
-    setInterval(ticker, S.demo ? 3000 : 6000);
+    setInterval(ticker, S.demo ? 3000 : 10000);
     setInterval(() => renderPlay(), 30000);
   }
   start();

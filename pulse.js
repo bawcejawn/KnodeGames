@@ -105,7 +105,7 @@
   (async () => {
     try { await refresh(true); } catch { say("Couldn't reach the Koinos network. Trying again in a moment…"); }
     supplies();
-    setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 20000);
+    setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 30000);
     setInterval(() => { if (now) $("p-ago").textContent = `${Math.max(0, Math.round((Date.now() - now) / 1000))} s ago`; }, 1000);
     setInterval(() => { if (!document.hidden) supplies(); }, 300000);
     if (window.KNames) window.KNames.onChange(() => { if (B) refresh().catch(() => {}); });

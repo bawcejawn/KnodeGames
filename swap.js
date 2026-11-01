@@ -288,25 +288,37 @@
     $("#swap-form").addEventListener("submit", doSwap);
     $("#amount").addEventListener("input", renderQuote);
     $("#max").addEventListener("click", setMax);
+    const showLiveError = (reason) => {
+      const box = $("#live-error"); if (!box) return;
+      box.hidden = false;
+      const msg = $("#live-error-msg"); if (msg) msg.textContent = reason || "Couldn't load the live desk settings.";
+      const demo = $("#demo-note"); if (demo) demo.hidden = true;
+    };
+    const retryBtn = $("#live-retry");
+    if (retryBtn) retryBtn.addEventListener("click", () => location.reload());
     const wantDemo = /[?&]demo\b/.test(location.search);
-    const dep = wantDemo ? null : await fetchJson(DEPLOYMENT).catch(() => null);
-    if (!dep || !dep.contract || !lib.Contract) {
+    if (wantDemo) {
       setupDemo();
     } else {
-      S.dep = dep;
-      S.provider = new lib.Provider([dep.rpc || RPC]);
-      if (window.KWallet) window.KWallet.init({
-        provider: S.provider, toast, chainId: dep.chainId, payer: dep.payer, sponsor: dep.sponsor,
-        onChange: async (addr) => {
-          S.account = addr; S.vhp = null;
-          if (addr) { toast(`Connected ${short(addr)} with ${window.KWallet.label()}`); await loadBalance().catch(() => {}); }
-          else toast("Wallet disconnected");
-          renderAll();
-        },
-      });
-      S.desk = new lib.Contract({ id: dep.contract, abi: DESK_ABI, provider: S.provider });
-      $("#foot-contract").replaceChildren("Desk contract ", el("a", { href: EXPLORER_ADDRESS + dep.contract, target: "_blank", rel: "noopener" }, short(dep.contract)));
-      try { await loadLive(); } catch (e) { toast(`Couldn't reach the Koinos network: ${e.message}`, 8000); }
+      const dep = await fetchJson(DEPLOYMENT).catch(() => null);
+      if (!dep || !dep.contract || !lib.Contract) {
+        showLiveError(!dep ? "Couldn't load the live desk config." : "The wallet libraries didn't load.");
+      } else {
+        S.dep = dep;
+        S.provider = new lib.Provider([dep.rpc || RPC]);
+        if (window.KWallet) window.KWallet.init({
+          provider: S.provider, toast, chainId: dep.chainId, payer: dep.payer, sponsor: dep.sponsor,
+          onChange: async (addr) => {
+            S.account = addr; S.vhp = null;
+            if (addr) { toast(`Connected ${short(addr)} with ${window.KWallet.label()}`); await loadBalance().catch(() => {}); }
+            else toast("Wallet disconnected");
+            renderAll();
+          },
+        });
+        S.desk = new lib.Contract({ id: dep.contract, abi: DESK_ABI, provider: S.provider });
+        $("#foot-contract").replaceChildren("Desk contract ", el("a", { href: EXPLORER_ADDRESS + dep.contract, target: "_blank", rel: "noopener" }, short(dep.contract)));
+        try { await loadLive(); } catch (e) { toast(`Couldn't reach the Koinos network: ${e.message}`, 8000); }
+      }
     }
     renderAll();
     // Refresh every 30 s: the available KOIN grows as the desk's node produces blocks.

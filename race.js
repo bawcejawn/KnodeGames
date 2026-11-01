@@ -426,7 +426,7 @@
     setInterval(() => { if (!document.hidden) loadBoard(); }, 300000);
     setInterval(() => { if (!document.hidden && raceContract) loadMine(); }, 60000);
     let shown = M.raceIndex(Date.now());
-    setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 6000);   // new blocks every ~3 s: a light top-up
+    setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 12000);   // new blocks every ~3 s: light top-up (12 s keeps UX smooth without hammering RPC)
     setInterval(() => {
       if (!B) return;
       // A new race starts by itself: every horse back to 0, the last one goes to the results.

@@ -86,6 +86,9 @@
   <div class="demo-note" id="demo-note" hidden>
     <div class="wrap">Preview with sample data from real Koinos blocks. Nothing here is sent to the chain.</div>
   </div>
+  <div class="demo-note" id="live-error" hidden>
+    <div class="wrap"><span id="live-error-msg">Couldn't load the live game settings.</span> <button type="button" id="live-retry" class="btn btn-ghost btn-small">Try again</button> Preview only: add <code>?demo</code> to the address.</div>
+  </div>
 
   <div class="wrap">
   </div>
@@ -420,18 +423,17 @@
 
   <script src="https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js" integrity="sha384-IAL9o3r4bQJvWhvszkorFINY2ct4LBA/LvyXE9NSOPCyYB25BsFV12JITA7Gxbk6" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js" integrity="sha384-WOeNFfSdOron0s4x9jdzLtA7Ic7RSqZCXZAaeQd6HRL6WezQp0KAtIF2XSa+11TL" crossorigin="anonymous"></script>
-  <script src="demo-data.js"></script>
-  <script src="extras.js"></script>
-  <script src="guest.js"></script>
-  <script src="wallet.js"></script>
-  <script src="names.js"></script>
-  <script src="header-wallet.js"></script>
-  <script src="nav.js"></script>
-  <script src="stake-panel.js"></script>
-  <script src="app.js"></script>
-  <script src="board.js"></script>
-  <script src="leaders.js"></script>
-  <script src="race-math.js"></script>
-  <script src="results.js"></script>
+  <script defer src="extras.js"></script>
+  <script defer src="guest.js"></script>
+  <script defer src="wallet.js"></script>
+  <script defer src="names.js"></script>
+  <script defer src="header-wallet.js"></script>
+  <script defer src="nav.js"></script>
+  <script defer src="stake-panel.js"></script>
+  <script defer src="app.js"></script>
+  <script defer src="board.js"></script>
+  <script defer src="leaders.js"></script>
+  <script defer src="race-math.js"></script>
+  <script defer src="results.js"></script>
 </body>
 </html>

@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>Knode Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<title>Knode Admin (local only)</title>
 <style>
   :root { --bg: #f6f7f9; --panel: #fff; --ink: #14181f; --muted: #5b6573; --line: #dde1e7; --accent: #2457d6; --ok: #127a43; --warn: #a35a00; --bad: #b42318; --code: #0f1420; --codeink: #dfe6f2; }
   @media (prefers-color-scheme: dark) { :root { --bg: #0f1218; --panel: #171b23; --ink: #e8ecf2; --muted: #9aa5b4; --line: #2a303b; --accent: #7aa2ff; --ok: #4cc38a; --warn: #f0a540; --bad: #ff7b72; --code: #0a0d12; --codeink: #d6deea; } }
@@ -42,7 +43,7 @@
 <body>
 <header>
   <h1>Knode Admin</h1>
-  <p class="sub">Runs on this computer only. Every button runs the same command you would type; anything that sends is previewed first.</p>
+  <p class="sub">Local only (<code>npm run admin</code> → 127.0.0.1). Every button runs the same command you would type; anything that sends is previewed first. Do not expose this UI on a public URL.</p>
   <div id="banner" class="banner" hidden></div>
 </header>
 <main>

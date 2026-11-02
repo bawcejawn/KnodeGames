@@ -3,7 +3,7 @@
 > Purpose: Rules for how games hold, account for and pay out VHP/KOIN.
 > Funds safety is the top priority. When in doubt, don't move funds.
 > Last updated: 2026-11-02
-> Sources: `DECISIONS.md` (D-003, D-016, D-018 – D-029, D-034, D-036), Vault, Hub, Race, Block X and Survivor chats.
+> Sources: `DECISIONS.md` (D-003, D-016, D-018 – D-029, D-034, D-036), all 12 chats.
 > How the contract does it (entry points, formulas, timing) lives in `platform/ARCHITECTURE.md` → Vault v6. This file says what must be true.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict · ❓ unknown
@@ -30,8 +30,8 @@
 2. **Rewards earned by node:** {{TBD: which producer(s) earn for the vault}}
 3. **Platform fee:** 5% of gross rewards, collected with `claim-fee-vhp all`. 💬 Vault
 4. **Split between games:** by each game's staked weight for the week (`weightFor`).
-5. **Staked players:** share their game's bucket; Race-style medals for the top 30% by headcount (D-034). {{TBD: per-game rule}}
-6. **Free-play prizes:** fixed VHP per game (Race 2 + 1, Bracket 2 + 1, Survivor 4 + 2); start date ⚠️ C-10.
+5. **Staked players:** share their game's bucket; Race-style medals for the top 30% by headcount (D-034). Per game: Fantasy top 30% of stakers (D-059); Combo best 10 cards (D-060); Golf 7 × holes − strokes (D-056); Bracket and Last Node by points (D-057, D-054)
+6. **Free-play prizes:** fixed VHP per game (Race 2 + 1, Bracket 2 + 1, Survivor 4 + 2); start date ⚠️ C-10. No free prize: Combo (stake-only), Fantasy, Weekly Rival (records only), Golf practice; Last Node ❓
 7. **Player claims:** `claim_game` per week; the site batches up to 10 claims in one transaction and looks back 52 weeks.
 
 ## Stake Rules
@@ -58,7 +58,9 @@
 - **v6 reads:** stake reads must use the v6 ABI and fail fast on a non-v6 chain; never treat a read failure as "not staked" (V4, I-036).
 - **Before any game pays prizes from its file:** the final file must not hinge on a single run with no hold (I-034).
 - **Write once, copy forward:** each week's vault file is written once; later runs copy published weeks forward unchanged; a file whose stakes were read late is held. 💬 Survivor
-- **Points:** places beyond 255 collapse to 1 point. 💬 Survivor
+- **Points:** dense rank onto 255…1; past 255 distinct places the best 254 stay exact and the rest share 1. Rows hold only players with ≥ 1 point; a week with no qualifying players may still get a file with empty rows (Golf). 💬 Survivor, Bracket, Golf
+- **Holds and misses:** a game may publish a `HOLD-W<week>.json` instead of paying (Last Node watch-and-hold, released by `LASTNODE_RELEASE_WEEKS`); a week still unreadable 3 days after it ends is final as missed, with no file (Bracket `vault: "missed"`); any stake disagreement between nodes = unknown = no file (Combo); forged or unverified cards block that week's file (Combo). The vault bot must honour HOLD files and verify that every staked board player is in the file (I-064). 💬 Last Node, Bracket, Combo
+- **Stake reads:** `get_game_player(player, game, week)` returns `{player, entry{stake, voided, points, claimed, reward, prize_place, peak_stake}, active_stake, week_stake}`; `get_player` returns `stake_other`; minimum from `get_state` `config.min_stake` / `min_stake_next` / `min_stake_next_week`, never below 1 VHP, read on two agreeing nodes. A file is published only in a later run than the final board, and only if that run leaves last week's files unchanged (Last Node). 💬 Bracket, Golf, Last Node
 - **Trust boundary:** files in `games-data` can't prove their own days or stake lists, so the vault must recompute each season from the chain before paying (I-051). Refused prize posts must raise an alert (I-052).
 - **Stake test** must match the vault's `post_results` / `post_prize_winners` and `bot/vault.ts`. Staked: `peak_stake` (or `active_stake` when there's no entry) is at least that week's minimum (`min_stake`, or `min_stake_next` from `min_stake_next_week`). 💬 Race
 

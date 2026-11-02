@@ -3,7 +3,7 @@
 > Purpose: One-page summary of what Knode Games is today.
 > Owner: Owner (Questions chat also acts as Hub/site chat — ❓ confirm)
 > Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X, Swap Desk and Survivor chat exports, 2026-11-02; Swap Desk facts date from 16–28 Oct), checked against the repo
+> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (all 12 chat exports — Questions, Vault, Hub, Race, Block X, Swap Desk, Survivor, Last Node Standing, Block Golf, Producer Bracket, Fantasy, Combo Card — 2026-11-02; Swap Desk facts date from 16–28 Oct), checked against the repo
 > on branch `picks` and on GitHub `main` (as fetched 2026-11-02 13:37 PT). Where they differ, the branch is named.
 
 **Legend:** ✅ verified in repo (file named) · 💬 from chat only, not verified · ⚠️ conflict, see `DECISIONS.md` → Contradictions · ❓ unknown
@@ -22,6 +22,7 @@ Knode Games is a set of node-based games on the Koinos blockchain, served as a s
 | Vault build folder | `C:\kprediction-vault`: Git worktree on `vault-v6`, used only for vault builds and uploads; `.env` copied from `C:\kprediction`; frozen (D-025) | 💬 Vault chat |
 | Combo checkout | `C:\kg-combo-preview`: a second Git checkout for Combo | 💬 Block X |
 | Test checkout | `C:\kprediction-test` (created 30 Oct): testnet work and Repo Lens audits | 💬 Survivor |
+| Fantasy practice clone | `C:\kprediction-fantasy`: Fantasy testnet practice only; practice tooling must never touch `C:\kprediction` (mainnet keys, scheduled tasks) | 💬 Fantasy |
 | Testnet staking page | `stake-testnet.html` | 💬 |
 | Owner checklist (artifact) | a Claude artifact with a Today list, backed by its `tasks` database — https://claude.ai/artifact/Qjk951Qvntsa15yrhJ2db6 | 💬 Race chat ⚠️ I-032 |
 | Network | Koinos mainnet | ✅ `*-data/deployment.json` |
@@ -34,14 +35,14 @@ Vault ids and results sources ✅ `game-data/deployment.json` (`vaultGames`, `ma
 | 1 | Daily Questions ("Knode questions game") | {{TBD}} | live, built into the vault; stake buttons stay on `index.html`; `withdraw_from` doesn't apply to game 1 💬 Hub | live Five questions Mon–Sat at 12:00 UTC (types: producer quartiles, group block counts, transactions in a window, largest gap, average interval; templates M1, M4, M5, M7, M10; model v5; `hashRule` 2; at most 30 a week). Answers close 00:00 UTC; Sunday is results day; corrections until Mon 12:00; winners final Tue 12:00 when on time. Rewards: see D-045 💬 Swap Desk |
 | 2 | Who Signs Block X | Staked + Free | Picks contract live; ready to announce; status bar on `blockx.html` (`picks`); reaches `main` with the Block X launch PR after game 2 is applied 💬 | soon Picks contract: announced with 1 change per pick; `apply` allowed from Sun 1 Nov 21:23 UTC — not yet reported done (I-040). Split launch: goes live prize-free first (D-036). Repo Lens round 10 GO (`a55390f`), round 11 GO (`3472d8c`). Runbook `docs/blockx/MAINNET-LAUNCH.md` ✅ on `picks` **Not announced to players yet** (owner, 2 Nov); the on-chain announce on the Picks contract is a separate step |
 | 3 | Survivor | Staked + Free, two boards (C-13 resolved); 2-week seasons, prizes 4 + 2 VHP (D-020, D-051) | Runs on the Picks contract as game 3 (not yet registered). Branch `survivor` @ `a8a1979` ✅ pushed, **not merged, nothing deployed**; `FIRST_DAY` unset ✅; Repo Lens pass 4 and a testnet season still to do (I-050). Season 1 date ⚠️ C-18 | soon ✅ |
-| 4 | Fantasy Producers | Staked; free ❓ | in audit fix-checks, after the vault 💬 | soon |
-| 5 | Rival (Picks only) | Staked | in audit fix-checks, after the vault 💬 Hub | not listed |
-| 6 | Block Golf | Staked (after the vault); free ❓ | in audits. No contract of its own: scored from every game's board; practice scorecards ship with Block X 💬 | soon |
+| 4 | Fantasy Producers (team) | Staked: top 30% of Fantasy stakers share the game's part; no free prize mentioned ❓ | Branch `fantasy` @ `2bee805` ✅ (pushed, not merged); testnet practice deployed; Repo Lens fix-check not yet run; launch #13 in the old order (D-059) | soon |
+| 5 | Weekly Rival (Picks only) | Records only, no prize; a match counts only when both players are staked (D-059) | with Fantasy; not a vault game (✅ absent from `vaultGames`) | not listed |
+| 6 | Block Golf | Staked (only players staked in Golf count); free practice weeks with no prizes (D-056) | No contract or picks of its own: scored from other games' weekly boards. Branch `golf` @ `6b2200a` ✅ (pushed, not merged); practice planned with Block X; staked after `game-add 6` | soon |
 | 7 | Producer Race | Staked + Free (D-034) | live with status bar (PR #44 ✅ merged on `main`); vault `game-add` pending (C-12 resolved) | live |
-| 8 | Combo Card | Staked; free ❓ | in audits; last in line, needs the Picks v2 CARD upgrade 💬 | not listed Picks v2 release `92d555d0…` (37,689 bytes); testnet contract `1PQZWWHb…` (game 98); upgrade commands on branch `combo` @ `5052fa6` 💬 Block X |
-| 9 | Producer Bracket | Staked + Free; 1-week seasons, prizes 2 + 1 VHP (D-019) | ready to announce 💬 | not listed |
+| 8 | Combo Card | Staked only (D-060) | Branch `combo` @ `c8c652e` ✅ (pushed, not merged); Repo Lens fix-check 4 pending; needs the Picks v2 upgrade (`92d555d0…`, 37,689 bytes) after Block X launches; testnet contract `1PQZWWHb…` (game 98) | not listed |
+| 9 | Producer Bracket | Staked + Free; 1-week seasons, prizes 2 + 1 VHP (D-019, D-057) | Branch `kg-09-bracket` @ `ee676ea` ✅ (pushed, not merged); Repo Lens audit not yet run (⚠️ C-20); home of the VHP standard (D-058) | not listed |
 | 10–12 | ❓ unused | | | |
-| 13 | Last Node Standing | Staked; free ❓ | in audits, rows only 💬 | not listed |
+| 13 | Last Node Standing | Staked; free play and board without a free prize ❓ (vault file has empty `first`/`second`) | Branch `lastnode` @ `adf95be` ✅ (pushed, not merged); round-3 review pending; needs the VHP sampler running 48 h first (I-059) | not listed |
 
 Launch order and pace: ⚠️ C-14. Game specs go in `.ai/games/{{TBD}}.md`.
 
@@ -83,8 +84,8 @@ Note: "Producer race" was removed from the site footer (💬); the game itself i
 
 ## Branches — 💬 Hub, Vault chats
 - `main`: the live site. `picks`: development; merges `main` from time to time; the admin page lives there. `vault-v6` (frozen) and its backup `vault-v6-next`. `survivor`: Survivor testnet season and audit.
-- Data branches: `race-data`, `race-samples` (`vhp-samples.json`), `blocks-data`, `games-data`, `names-data` (`names.json`), `testnet-data`.
-- Other work branches: `combo` (Picks v2 upgrade commands), `lastnode`, `survivor` (contains Build 3's `picks`, `main` as of 28 Oct, Survivor, and later `picks` merges `6e22c73`, `c50d423`). AI chats may push to `picks` (several do), so always pull before pushing; `main` changes only through PRs the owner merges (D-026). 💬 Block X
+- Data branches: `race-data`, `race-samples` (`vhp-samples.json`; **doesn't exist yet** ✅ — I-059), `bracket-history` (100 days of mainnet data, ~22 MB — keep), `blocks-data`, `games-data`, `names-data` (`names.json`), `testnet-data`.
+- Other work branches: `combo` (Picks v2 upgrade commands), `lastnode`, `golf`, `kg-09-bracket`, `fantasy`, `survivor` (contains Build 3's `picks`, `main` as of 28 Oct, Survivor, and later `picks` merges `6e22c73`, `c50d423`). AI chats may push to `picks` (several do), so always pull before pushing; `main` changes only through PRs the owner merges (D-026). 💬 Block X
 - `vault-v6` is merged into `main` (PR #51 ✅) but **not into `picks`** ✅ — see I-019.
 
 ## Testnet
@@ -112,8 +113,13 @@ All three use Docker volumes `<project>-basedir` via `docker-compose.override.ym
 | Block X and Picks | Block X (game 2), the Picks contract, Mana sponsor v3, publish checks for race and Block X data, Repo Lens rounds | 💬 |
 | Hub (site / captain chat, session `0173PPUsRKcFfG89XdWYy7LD`) | shared site files: `board.js`, `stake-panel.js`, `styles.css`, `games.*`, the tab bar, `stake.html`; the admin page; names; cross-chat coordination | 💬 |
 | Survivor | Survivor (Build 4): rules, recorder, publish checks, testnet kit, Repo Lens rounds; may push to `survivor` | 💬 |
-| Fantasy, Combo Card, Bracket, Last Node Standing | one chat per game | 💬 |
-| Repo Lens | the owner's AI audit chat: receives a zip (`00-COMMIT.txt` + `00-FIXCHECK-PROMPT.md`), returns a Claude Docs report | 💬 |
+| Last Node Standing | game 13 (`lastnode`); may push `lastnode` | 💬 |
+| Block Golf | game 6 (`golf`) | 💬 |
+| Producer Bracket | game 9 (`kg-09-bracket`) and the platform-wide VHP standard | 💬 |
+| Fantasy Producers | games 4 and 5 (`fantasy`); may push `fantasy` | 💬 |
+| Combo Card | game 8 and Picks v2 (`combo`); may push `combo` | 💬 |
+| — | No other chats: the sponsor work was spread across these chats (owner, 2 Nov) | owner |
+| Repo Lens (external) | **not part of Knode Games**: the owner's separate audit project. Game chats send it audit or fix-check packages (a zip with `00-COMMIT.txt` + `00-FIXCHECK-PROMPT.md`) and get a Claude Docs report back | owner, 2 Nov |
 | Unnamed chat (session `0173PPUrAJx3x5GM6g8LJmND`) | changed the tab bar and guest-wallet text | 💬 Race chat |
 | Sponsor v2 chat | {{TBD}} | 💬 named in archive |
 | {{TBD}} | {{TBD}} | |

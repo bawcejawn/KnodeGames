@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, newest first. This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "Superseded by D-XXX".
 > Last updated: 2026-11-02
-> Sources: owner in chat (2026-11-02), `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X, Swap Desk and Survivor chats), repo branches `picks` and `main`.
+> Sources: owner in chat (2026-11-02), `.ai/archive/CHAT_KNOWLEDGE.md` (all 12 chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict · ❓ unknown
 
@@ -62,6 +62,14 @@
 | D-050 | ❓ | Site content trims | active |
 | D-051 | 2026-10-27/30 | Survivor rules | active (pending audit pass 4) |
 | D-052 | 2026-11-02 | Announce every game before Friday | active |
+| D-053 | 2026-11-02 | The Mana sponsor is the only payer; Mana Station shelved | active |
+| D-054 | 2026-10-28/30 | Last Node Standing rules | active (pending round-3 review) |
+| D-055 | 2026-10-30 | Last Node watch-and-hold and its accepted trade-off | active |
+| D-056 | 2026-10-28 | Block Golf redesign and rules | active |
+| D-057 | 2026-10-28/29 | Producer Bracket rules | active (pending audit) |
+| D-058 | 2026-10-28 | The KnodeGames VHP standard | active |
+| D-059 | 2026-10-27/29 | Fantasy Producers and Weekly Rival rules | active (pending fix-check) |
+| D-060 | ❓ | Combo Card rules | active (pending fix-check 4) |
 
 ---
 
@@ -298,6 +306,58 @@
 - **Effect:** settles C-14 in favour of launching together this week (over D-032's one game per Monday). Readiness differs per game: see I-050 (Survivor), I-016 (Combo, Last Node), I-019 (admin vault buttons).
 - **Source:** owner
 
+## D-053 — The Mana sponsor is the only payer; Mana Station shelved
+- **Date:** 2026-11-02 (owner) · **Decision:** Use the Mana sponsor for now — it is the easiest and best solution. The Mana Station idea is scratched for now, to revisit another time.
+
+## D-054 — Last Node Standing rules
+- **Field:** from the race card at 12:00 UTC the day before (or the next leg's card if taken before picks open); nodes at ≥ 20 blocks an hour by VHP, at most 23; h = (kTop/k)(1 − c/√k)/(1 − c/√kTop), 4 decimals, c on a 0–2.5 grid from 20,000 seeded simulations.
+- **Form:** 48 h of blocks ÷ the blocks the VHP share gives, hour by hour against that hour's average VHP from 5-minute samples; kept within 0.80–1.20; at least 24 usable hours. **Launch gate:** no field without form on mainnet unless `LASTNODE_ALLOW_NO_FORM=true`; the owner chose to wait for the sampler.
+- **Picks:** one per event: a start node plus an optional backup, before the start; the backup takes over at the start node's first cut if still standing (one jump). Cuts hourly from 14:00 UTC; rounds target 13:55 UTC; picks open 24 h ahead, lock 13:50 UTC.
+- **Points:** 1 per cut survived, +5 for riding the last node without jumping or +3 after a jump. Board: points, then rides, then fewer jumps; exact ties share. The field grows organically.
+- **Race-time cut:** VHP added after the field card can only lower a multiplier; each window is judged by the first race card at or after its end (with none 2 h later, the latest card by its end); hours recorded ~30 min after they end.
+- **Process:** wait for clean reviews and audits before any merge to `main`; don't touch `picks/assembly/Picks.ts`.
+- **Source:** 💬 Last Node
+
+## D-055 — Last Node watch-and-hold and its accepted trade-off
+- **Decision:** Flag a node at weekly z ≥ 3.4 with at least 2 wins, or z ≥ 5 in one event it won (blocks count in every window, also after the cut; noise = leave-one-out over-dispersion). The vault file is held until released with `LASTNODE_RELEASE_WEEKS` (digits and commas only), enforced by the publish job too.
+- **Accepted (owner, 30 Oct, N-6):** a 3% form-skimmer is caught in ~13% of weeks, one gamed event in ~98%, and honest weeks are held 1–1.5% of the time; tests pin these rates.
+- **Source:** 💬 Last Node
+
+## D-056 — Block Golf redesign and rules
+- **Date:** 2026-10-28 (owner) · **Decision:** Every live game is a par-4 hole; a player's place on that game's weekly board sets their strokes: 1st (if scored) 1, top 5% 2, top 25% 3, top 65% 4, top 90% 5, the rest or scored 0 → 6, didn't play → 7 (lost ball); ties share the middle place. The 27 Oct "guess the block gap" design is dropped (on real data, gaps were luck).
+- **Mulligan:** the worst *played* hole is dropped (not a lost ball). All holes count the same. The question-game hole keeps Golf's simpler rule.
+- **Practice:** free scorecards from the Block X launch week, no prizes; every scorer counts; 3 players make a hole. No testnet run — practice weeks on mainnet are the trial. Games join the course automatically from the Monday after they go live.
+- **Staked weeks:** only players staked in Block Golf count, weighted by VHP staked (a player's own stake never moves them); a hole needs 5 stakers AND 10 VHP (Claude's defaults; owner can change). Points = 7 × counted holes − strokes; rows only with ≥ 1 point; a week with no staked scorers still gets an empty file.
+- **Finality:** final 12 h after the week, once every hole is final and the run had no read problem; a hole not final by 60 h is skipped; from 66 h a read problem no longer blocks; a staked hole is final only after stakes are read after the week ends. `GOLF_STAKED_FROM_WEEK` fixes practice vs staked per week, can't change once published, refused until the v6 ABI is merged.
+- **Source:** 💬 Block Golf
+
+## D-057 — Producer Bracket rules
+- **Bracket:** the whole bracket is one number (bit n = "the lower seed wins matchup n"; bye bits 0; sizes 8/16/32; `NUMBER_MAX` 2³¹−1). Seeding Saturday 12:00 UTC; lock Sunday 23:55 UTC; one round per UTC day from Monday. Under 8 producers → no bracket; 8–11 → 8; 12–15 → 16 with byes; 16–31 → top 16; 32+ → 32.
+- **Seeding and matchups:** averageVhp over 28,800 blocks on two agreeing nodes (biggest = seed 1; not seeded within 24 h → void). Matchup by baseline + credit; index = credited ÷ expected; exact tie → lower seed. Forfeit (S-5, owner yes): a seed whose baseline is under 0.5 × its seeding VHP loses; both forfeit → the index decides. No producer left out unless below minimum production; Knode's own nodes play (29 Oct). The vault never forfeits (its VHP is players' stakes, recorded as `pooled`).
+- **Points:** 1/2/4/8/16 by round, +2 for the champion; byes score nothing. Tie-break: points → right champion → more right winners → who submitted first (last-change time, 29 Oct); same block shares.
+- **Players:** staked = at least the vault minimum (1 VHP) in this game; staked at the week's start stays staked that week. Free prize 2 + 1 VHP; tied 1st share all 3; a single 1st → tied 2nd share 1; at most 10 per place; minimum play one bracket with ≥ 1 point; guests eligible. Free play board shows the top 6.
+- **Source:** 💬 Bracket
+
+## D-058 — The KnodeGames VHP standard
+- **Date:** 2026-10-28 · **Decision:** Option A — exact VHP from the chain's own events. Every game measures VHP the same way (`vhp-standard.js`); multipliers stay game-specific. Details: `ARCHITECTURE.md` → VHP standard.
+- **Source:** 💬 Bracket
+
+## D-059 — Fantasy Producers and Weekly Rival rules
+- **Team (27–29 Oct):** pick 5 different producers costing ≤ 100 from the week's price list; first is captain ×2. Each day a producer scores 100 × signed ÷ expected, at most 130; the week is the sum of 7 days. One change a day (swap one, or move the captain); picks lock 5 min before each day; a team that breaks a rule is ignored and the previous team plays; late joiners score 0 for earlier days. Each week starts fresh; last week's team carries into Monday only if it fits the new prices.
+- **Prices:** 20 + 1.5 × (form − median form), clamped 8–40; published with its sha256 Saturday 00:00 UTC from the previous 7 days, never remade. Teams can be planned up to 7 days ahead. Knode's two nodes stay in the pool, disclosed.
+- **Prizes:** the top 30% of Fantasy stakers with ≥ 1 point share Fantasy's part; vault points 255 for the best week, one less per lower distinct score, never below 1, ranked among stakers only. A week is final 12 h after it ends.
+- **Weekly Rival:** one challenge a week (changeable until the week's first lock); a match counts only if both had a team all 7 days and both are staked; records keep made and received apart; no prize. An all-time table (total, weeks played, best week), no prize.
+- **Other:** practice on the testnet scored on mainnet blocks (1 test day = 1 hour, with robots); the page must feel inviting, professional and fun, and explain every number; Terms section 3 (`terms.html`). Standing rule from this chat: new games launch on a Monday.
+- **Producer names:** the Fantasy chat's signed-claim plan was superseded by D-030 (Koinos @names).
+- **Source:** 💬 Fantasy
+
+## D-060 — Combo Card rules
+- **Legs:** Win, Show, Top half (on 6-hour Race races) and Block X; up to 3 legs per race (one of each); one leg per producer per card. Race legs lock 25 min before the start, open 24 h ahead; Block X legs lock 500 blocks before the target, open 28,800 ahead.
+- **Cards:** 3 a day, each changeable up to 3 times; the game runs at 6 legs (contract allows 10). Worth = clamp(0.5 / chance, 0.25, 3); Block X keeps ×3 as its cap. Points by legs: 2→3, 3→7, 4→15, 5→30, 6→60 (… 10→960); no point cap. 10% rule kept (RL-16); a horse missing from standings is void, dropped (RL-15).
+- **Players:** stake-only; at least 1 full point in the week; a week = best 10 cards; ties: more hits, the earlier last hit, address. Vault points by board rank.
+- **Order and security:** the CARD upgrade goes on chain after Block X launches. Build the verify job (owner, 30 Oct, FC3-3). Unresolved legs never let a card score. Vault files are write-once; published final cards are immutable.
+- **Source:** 💬 Combo
+
 ---
 
 ## Contradictions Register
@@ -323,4 +383,8 @@ Repo wins per D-002 unless the owner rules otherwise. "Ruling" = what the docs c
 | C-16 | Race vault file final? | Race: week 1 vault file is final with free winners. Block X (B1-1): while `race.ts` uses the v5 ABI, the vault file is never final | ✅ `race-data:vault/W1.json` is `final: true`, `rows: []`, `first`/`second` set; ✅ `race.ts` still loads the v5 ABI on `main` | ❓ Did week 1 go final because no staked rows were needed? Are its free winners to be paid (D-029: no free prizes until the vault is fully live)? |
 | C-17 | Desk daily payout cap | Swap Desk (28 Oct): set one, ~25% of the float (~120 KOIN) | Questions, Hub: no daily payout cap (D-007) | ✅ Resolved: the later decision (D-007, no cap) stands |
 | C-18 | Survivor Season 1 start | Vault: announce 7–13 Nov, apply 9–15 Nov, Season 1 Mon 16 Nov | Survivor (30 Oct): owner still to choose the start Monday; pass-4 audit, testnet season and Picks registration still to do. ✅ branch `survivor` not merged, `FIRST_DAY` unset, `games.json` "soon" | ❓ Owner decision; 16 Nov looks tight (I-050) |
-| C-19 | Owner's testnet node | Vault: `bot --testnet` targets a local Harbinger node (`.env.testnet`, `testnet-data/`) | Survivor: the owner has no testnet node and uses the Koinos Foundation public API | ❓ Is there a local Harbinger node? |
+| C-19 | Owner's testnet node | Vault: `bot --testnet` targets a local Harbinger node (`.env.testnet`, `testnet-data/`) | Survivor: the owner has no testnet node and uses the Koinos Foundation public API | ❓ Is there a local Harbinger node? Golf: testnet workflow removed ("owner: no testnet"). Fantasy: KF public testnet, local practice server. Combo: `.env.testnet` and `testnet-data/` exist in `C:\kprediction` |
+| C-20 | Bracket readiness | Vault: game 9 "ready to announce" | Bracket (29 Oct): Repo Lens audit not run; branch `kg-09-bracket` ✅ not merged; nothing deployed | ❓ The vault side may be ready, but the game itself isn't audited |
+| C-21 | Producer names | Fantasy (29 Oct): producers register names with a signed claim via a GitHub issue | Hub (30 Oct, D-030): signed claim removed; Koinos @names | ✅ Resolved: the later decision (D-030) stands |
+| C-22 | Fantasy vault source | Fantasy: source `games-data:fantasy` (files `fantasy/vault/W<week>.json`) | `vaultGames["4"]` = `games-data:fantasy/vault` ✅ on `main`; other games also end in `/vault` | ❓ Likely just shorthand; Fantasy chat to confirm with the Vault chat |
+| C-23 | Launch order | Golf (28 Oct): Block X with Golf practice Mon 9 Nov → Survivor → Vault v6 late Nov → Golf staked → LNS → Bracket → Fantasy → Combo. Fantasy: launch only once vault and Picks are audited and live | D-052 (owner, 2 Nov): announce every game before Friday | ✅ Resolved by the owner's latest decision (D-052); readiness gaps in I-065 |

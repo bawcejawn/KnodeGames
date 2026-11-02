@@ -1447,7 +1447,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
   - **CI:** the "Resolver tests" workflow runs `npm run test:audit` on Linux on every push to `lastnode`, and is the authoritative run. Scheduled workflows run only from `main`, which is why `race-samples.yml` (on `picks`) isn't running.
   - **Tests:** built for Linux (bash, Python 3). On Windows, the Last Node tests import files by file URL, find Python as `python3`, `python` or `py`, and skip bash-only steps with a reason. Other games' tests still need Linux.
   - **Picks build:** sometimes fails with EAGAIN from protoc or yarn; rerun it.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ARCHITECTURE.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -1488,7 +1488,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
     - `tests/audit/lib/platform.mjs`: `PY`, `withPython`, `withBash`.
     - `tests/audit/lib/quiet.mjs`: mutes recorder narration (`LASTNODE_TEST_LOG=1` shows it).
     - `tests/audit/lastnode-ports.test.mjs`: Python/JavaScript parity fuzz.
-- **Status:** unsorted
+- **Status:** Filed → platform/ARCHITECTURE.md, standards/VAULT_STANDARD.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -1519,7 +1519,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
     - No push to `main` or deploy without the owner's OK; standing OK to push `lastnode`.
     - Never touch mainnet from testnet paths. Never print or ask for keys. Don't touch `picks/assembly/Picks.ts`.
   - **Owner preferences:** beginner-level explanations, a "Today" checklist, copy-paste PowerShell with `cd C:\kprediction` and `git branch --show-current` in every block, and keep asking questions.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md (2026-11-02)
 
 ---
 
@@ -1539,7 +1539,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
     - Full suite: 718 tests, 708 pass, 0 fail, 5 skipped, 5 TODO (other games' owner decisions).
     - Last Node tests: 109 on Linux; on Windows, 85 pass and 24 skip.
   - **Project docs:** `claude/lastnode/FIXCHECK-2-FIXES.md`, `claude/lastnode/FIXCHECK-3-PROMPT.md` (the round-3 reviewer prompt), and the earlier `FIXCHECK-1-*` and `TESTNET.md`.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md, PLATFORM.md, KOINOS.md; game spec pending in .ai/games/ (2026-11-02)
 
 ---
 
@@ -1557,7 +1557,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
   7. Set `LASTNODE_ENABLED=true`; leave `LASTNODE_ALLOW_NO_FORM` unset. `LASTNODE_PICKS` defaults to the mainnet Picks address.
   8. Watch the first live day (the publish job's chain client has never run against a real node).
   9. Staked prizes start once Vault v6 is live; free play and the board work before then.
-- **Status:** unsorted
+- **Status:** Filed → platform/ROADMAP.md (2026-11-02)
 
 ---
 
@@ -1574,7 +1574,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
   - **Windows:** other games' tests (heal, the Block X publish shells, the yml JSON-form tests) fail on Windows; that's expected, they need Linux.
   - **`games.yml` conflict:** taken from `picks`, which dropped `lastnode`'s 3-try push loop in that file (Last Node's own push loop is unchanged).
   - **Out of date with `picks`:** `lastnode` is behind `picks` (`3472d8c`); resync after Block X lands on `main`.
-- **Status:** unsorted
+- **Status:** Filed → platform/OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -1593,7 +1593,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
   - [ ] Write the steps for setting the GitHub variables.
   - [ ] Watch the first live runs.
   - [ ] Tell the Vault chat: the vault file format, what HOLD files mean, and that the vault bot should verify the staked list.
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md (2026-11-02)
 
 ---
 
@@ -1631,7 +1631,7 @@ Block Golf (Build 6, game 6): a platform-wide golf course scored from every othe
     | 13 | Last Node Standing |
 
   - The owner works in finance, is new to running code, and uses a Windows PC with the repo at `C:\kprediction`. They want plain explanations, a checklist with a Today list, and to keep being asked questions.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ARCHITECTURE.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -1670,7 +1670,7 @@ Block Golf (Build 6, game 6): a platform-wide golf course scored from every othe
     - Results file: `{game:6, week, final:true, rows:[{player, points}], first:[], second:[]}`.
     - The Vault bot (`bot/vault.ts` on `vault-v6-next`) names files `W${week}.json` with no padding (confirmed 29 Oct).
   - **Runbook:** `docs/GOLF.md`. Testnet workflow and `testnet/golf.json` were removed (owner: no testnet).
-- **Status:** unsorted
+- **Status:** Filed → platform/ARCHITECTURE.md, standards/VAULT_STANDARD.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -1710,7 +1710,7 @@ Block Golf (Build 6, game 6): a platform-wide golf course scored from every othe
     - A staked hole becomes final only after the stakes are read once the week has ended.
     - Final weeks are frozen.
   - **Practice or staked** is set by the GitHub variable `GOLF_STAKED_FROM_WEEK`. It is fixed per week when the week is first recorded, can't be changed once published, and is refused until the v6 ABI is merged.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md (2026-11-02)
 
 ---
 
@@ -1727,7 +1727,7 @@ Block Golf (Build 6, game 6): a platform-wide golf course scored from every othe
   - **Tests:** full suite 471 pass, 0 fail (481 in all, with 5 skipped and 5 known TODOs). Golf has 29 recorder tests and 26 math/page tests.
   - **Decisions per wallet per day across the platform:** ~26 after the redesign (Golf needs no picks), with a Sunday peak of ~30–35. It was ~35 a day with an ~85–90 Sunday peak under the old design.
   - **Previews:** the "Block Golf Preview" artifact (sample players, view-as switcher) and the "KnodeGames Owner Checklist" artifact (db capability, collection `tasks`).
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md, PLATFORM.md, KOINOS.md; game spec pending in .ai/games/ (2026-11-02)
 
 ---
 
@@ -1760,7 +1760,7 @@ Block Golf (Build 6, game 6): a platform-wide golf course scored from every othe
     - Survivor must recompute standings at the week's last season day with `survivor-math`.
     - Bracket must read its W file, not the 1,000-row board.
     - Also: Last Node Standing, Fantasy, Combo.
-- **Status:** unsorted
+- **Status:** Filed → platform/ROADMAP.md (2026-11-02)
 
 ---
 
@@ -1776,7 +1776,7 @@ Block Golf (Build 6, game 6): a platform-wide golf course scored from every othe
   - The defaults `MIN_FIELD=5` and `MIN_FIELD_VHP=10` should be revisited once there is real stake data.
   - The question-game field rule differs from that game's own board. The owner chose to keep Golf's simpler rule.
   - Whether 25 Mana a day is enough for heavy players still needs measuring on testnet. Guests can't fall back to their own Mana.
-- **Status:** unsorted
+- **Status:** Filed → platform/OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -1791,7 +1791,7 @@ Block Golf (Build 6, game 6): a platform-wide golf course scored from every othe
   - [ ] Add each later game's hole reader when it launches.
   - [ ] Optional: stop the "vault file has no rows" problem line repeating every hour.
   - [ ] Owner checklist items left: t28 (review the preview) and t30 (turn on Golf practice).
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md (2026-11-02)
 
 ---
 
@@ -1815,7 +1815,7 @@ Producer Bracket (Build 9, game 9): a weekly knockout bracket of Koinos block pr
   - Vault v6 code on branches `vault-v6` and `vault-v6-next` (latest seen `6e1c139`); not merged into `main` during this chat. `vault-v6-next` `game-data/deployment.json` has `vaultGames["9"] = {name: "Producer Bracket", results: "games-data:bracket/vault"}`.
   - The Mana sponsor pays for every game play on KnodeGames, guests included.
   - Rules (CLAUDE.md): never push, merge, deploy, upload a contract or change chain settings without asking; never ask for, print or store a private key or WIF; recorders run with no secrets, read two nodes, use irreversible blocks, and publish through a job that runs no repo code.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ARCHITECTURE.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -1870,7 +1870,7 @@ Producer Bracket (Build 9, game 9): a weekly knockout bracket of Koinos block pr
   - **Vault v6 read fields:**
     - `get_game_player(player, game, week)` returns `{player, entry{stake, voided, points, claimed, reward, prize_place, peak_stake}, active_stake, week_stake}`.
     - `get_state` gives `config.min_stake`, `min_stake_next`, `min_stake_next_week`.
-- **Status:** unsorted
+- **Status:** Filed → platform/ARCHITECTURE.md, standards/VAULT_STANDARD.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -1905,7 +1905,7 @@ Producer Bracket (Build 9, game 9): a weekly knockout bracket of Koinos block pr
     - Brackets sent in the same block share; the all-time board shares ties.
   - Owner instructions are given as full PowerShell blocks (with the `cd`) or click-by-click steps.
   - The 3 sampling branches may be deleted; keep `bracket-history`.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md (2026-11-02)
 
 ---
 
@@ -1932,7 +1932,7 @@ Producer Bracket (Build 9, game 9): a weekly knockout bracket of Koinos block pr
     - Race and Block X aren't on the standard yet. To switch, they use cardVhp `k` with the card credit, and averages for everything about others. Block X becomes min(3, topAvg ÷ your cardVhp).
     - The Block X files moved to the repo root on this branch (`blockx.html`, `blockx.js`, `blockx-math.js`).
     - cardVhp replaces the random-sample check in `claude/handicap-anti-gaming.md`.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md, PLATFORM.md, KOINOS.md; game spec pending in .ai/games/ (2026-11-02)
 
 ---
 
@@ -1953,7 +1953,7 @@ Producer Bracket (Build 9, game 9): a weekly knockout bracket of Koinos block pr
      - Add a sponsor allowlist row for game 9 picks.
      - Set `games.json` to live.
   5. Switch the Race and Block X to the VHP standard.
-- **Status:** unsorted
+- **Status:** Filed → platform/ROADMAP.md (2026-11-02)
 
 ---
 
@@ -1970,7 +1970,7 @@ Producer Bracket (Build 9, game 9): a weekly knockout bracket of Koinos block pr
   - A whale withdrawing during a day can still sink the Vault's matchup index. This is inherent to a pooled producer, and disclosed.
   - The 3 sampling branches (`bracket-sampler`, `bracket-samples`, `bracket-history-sampler`) still exist; the delete was refused with a 403, and the owner has GitHub UI steps.
   - The serial audit test `bot.vhp-read-failure.test.ts` failed once; it passes alone and on rerun (timing).
-- **Status:** unsorted
+- **Status:** Filed → platform/OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -1988,7 +1988,7 @@ Producer Bracket (Build 9, game 9): a weekly knockout bracket of Koinos block pr
   - [ ] Race and Block X chats: adopt cardVhp `k` with the card credit, and average-based numbers for others.
   - [ ] After the first live recorder run: read the `effective VHP cross-check` log line and pin the check.
   - [ ] Launch: announce in Picks and the Vault, add the sponsor allowlist row, set `games.json` to live.
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md (2026-11-02)
 
 ---
 
@@ -2047,7 +2047,7 @@ Fantasy Producers (Build 5, game 4, plus Weekly Rival, game 5): draft five Koino
 
   - Vault rule: a player counts as staked in a game only with at least 1 VHP staked in that game that week. Each game's weekly vault file holds rows of `{player, points 1–255}`.
   - The owner wants step-by-step PowerShell instructions, plain language, and an owner checklist with a "Today" list (the Docs artifact "KnodeGames owner checklist", https://claude.ai/artifact/AuEhQTJXF25Ce5nNnthCYa). The owner also wants to keep being asked questions.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ARCHITECTURE.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -2122,7 +2122,7 @@ Fantasy Producers (Build 5, game 4, plus Weekly Rival, game 5): draft five Koino
     - Race cards: `cards: "github"` reads the live race-data; `"local"` is for the rehearsal.
     - The rehearsal's fake chain answers `effective_balance_of`.
     - Practice files live in `testnet-data/fantasy/`, which git ignores: `keys.env`, `config.json`, `picks/`, `race/`, `data/`, `bots.json`.
-- **Status:** unsorted
+- **Status:** Filed → platform/ARCHITECTURE.md, standards/VAULT_STANDARD.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -2174,7 +2174,7 @@ Fantasy Producers (Build 5, game 4, plus Weekly Rival, game 5): draft five Koino
     - Never paste keys into chat or GitHub.
     - Test keys are for play money only, and the kit never signs for mainnet.
     - New games launch on a Monday.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md (2026-11-02)
 
 ---
 
@@ -2226,7 +2226,7 @@ Fantasy Producers (Build 5, game 4, plus Weekly Rival, game 5): draft five Koino
     - `names.yml` checks each claim in a job with no write token, then publishes only `names.json` to the `names-data` branch.
     - `names.js` gives `KNames.of(address)`. The short address always shows next to the name.
     - Rules: 3 to 24 characters; unique, with lookalike names counted as the same; reserved words; one change every 7 days; the owner can hide or unhide a name.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md, PLATFORM.md, KOINOS.md; game spec pending in .ai/games/ (2026-11-02)
 
 ---
 
@@ -2245,7 +2245,7 @@ Fantasy Producers (Build 5, game 4, plus Weekly Rival, game 5): draft five Koino
     6. Register Picks games 4 and 5 on mainnet (a 48-hour wait), with the settings `KFantasyMath.games()` prints.
     7. Merge. Set `FANTASY_ENABLED=true`. Add the page to the menus, `site-seo.mjs` and the sitemap, and remove `noindex`. The first price list comes out the Saturday before the launch Monday.
   - The Hub chat builds producer names on their own branch, with their own audit. Every game shows them once they're live.
-- **Status:** unsorted
+- **Status:** Filed → platform/ROADMAP.md (2026-11-02)
 
 ---
 
@@ -2261,7 +2261,7 @@ Fantasy Producers (Build 5, game 4, plus Weekly Rival, game 5): draft five Koino
   - **The owner's practice run stopped** at about 2:05pm PT on 29 Oct, partway through test week 1. No full test week has finished yet.
   - **Not yet independently checked:** the FX-1 to FX-10 fixes, and everything added since (planning ahead, the page rebuild, the merge, the kit).
   - **Open question for the owner:** add a Telegram reminder alongside the on-page one?
-- **Status:** unsorted
+- **Status:** Filed → platform/OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -2280,7 +2280,7 @@ Fantasy Producers (Build 5, game 4, plus Weekly Rival, game 5): draft five Koino
   - [ ] Fantasy chat: re-merge `picks` before the final merge.
   - [ ] Fantasy chat: keep `claude/builds/05-fantasy-plan.md` and the owner checklist up to date.
   - [ ] Before mainnet: register games 4 and 5 (48 hours); set `FANTASY_ENABLED`; add the page to the menus and SEO and remove `noindex`; afterwards empty and retire the test wallets.
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md (2026-11-02)
 
 ---
 
@@ -2314,7 +2314,7 @@ Combo Card (Build 8, game 8 on the Picks contract): a staked parlay game of 2–
   - **Tooling:** AssemblyScript with `@koinos/sdk-as` 1.5.1, koilib 9.4.1, Node 22 pinned in CI, pinned protobufjs helpers in `tools/pbjs-helpers`. `yarn protoc` sometimes fails with EAGAIN: rerun.
   - **Vault v6:** ABI `game/abi/kpred-v6.koilib.json`; `get_state` → `v6_rule_week_plus_one` (live); `get_game_player` → `week_stake`. Results file `{game, week, final, rows:[{player, points 1..255}], first:[], second:[]}`; week 0 began 2026-10-19 00:00 UTC.
   - **Tests at `c8c652e`:** contract 71; `npm run test:audit` 747 pass, 0 fail (5 todo, 6 skipped); browser 7; workflow guard 8.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ARCHITECTURE.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -2355,7 +2355,7 @@ Combo Card (Build 8, game 8 on the Picks contract): a staked parlay game of 2–
     - `tools/combo-testnet.mjs`: `keys`, `upload`, `build`, `status`, `schedule`, `upgrade`, `announce`, `apply`, `cards` (`--fresh`, `--sponsor <addr>`, `--send`).
     - `bot/picks.ts` accepts v1 or v2. Once `picks-data/deployment.json` has `wasmSha256` = v2, it refuses v1. New commands: `upgrade-schedule`, `upgrade-upload`, `upgrade-clear`. A mainnet send needs `--mainnet`, `CONFIRM_MAINNET=yes` and `--code 92d555d0`; checks run on two nodes, and the upload window is judged on chain time.
   - **Switches and sponsor:** `"cards": true` in `picks-data/deployment.json` is one switch for the page and the sponsor. Sponsor v3 takes 640 argument bytes; card argument types `0x030101130113`.
-- **Status:** unsorted
+- **Status:** Filed → platform/ARCHITECTURE.md, standards/VAULT_STANDARD.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -2377,7 +2377,7 @@ Combo Card (Build 8, game 8 on the Picks contract): a staked parlay game of 2–
   - **Page:** shorter page; the Quick card is kept.
   - **Security:** build the verify job (owner, 2026-10-30, FC3-3) rather than accept Block X's level of trust. Unresolved legs never let a card score (a miss decides, otherwise void). Vault files are write-once; published final cards are immutable.
   - **Rules for Claude:** never print or paste keys (WIFs); testnet tools never touch mainnet; nothing on chain without the owner; pushing `combo` is OK; ask before deploying or scheduling an upgrade.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md (2026-11-02)
 
 ---
 
@@ -2404,7 +2404,7 @@ Combo Card (Build 8, game 8 on the Picks contract): a staked parlay game of 2–
     | Upload of v2 | owner | 3.2528 |
 
     Mainnet upload estimate: 1.2 Mana per KB + 10 (about 55 for v2).
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md, PLATFORM.md, KOINOS.md; game spec pending in .ai/games/ (2026-11-02)
 
 ---
 
@@ -2426,7 +2426,7 @@ Combo Card (Build 8, game 8 on the Picks contract): a staked parlay game of 2–
      8. announce game 8, wait 48 h, `apply_game`.
   4. A testnet upgrade rehearsal (route B, the shared `12xNetHp…` contract) once the Block X and Last Node chats are done with it.
   5. Go live: Actions variable `COMBO_ENABLED = true` and `"cards": true` in `picks-data/deployment.json`.
-- **Status:** unsorted
+- **Status:** Filed → platform/ROADMAP.md (2026-11-02)
 
 ---
 
@@ -2442,7 +2442,7 @@ Combo Card (Build 8, game 8 on the Picks contract): a staked parlay game of 2–
   - **Not yet reviewed:** the verify job's design. The publish check's `COMBO_VERIFY` switch is set only by the workflow (tests run without it). A flaky node can hold an honest run for one hour.
   - **Coordination:** `bot/picks.ts` (Block X's tool) was changed on `combo`; the Block X chat was told. A local merge of `picks` `b301bfa` may not have been pushed: check the branch.
   - **Owner's PC:** an unfinished Last Node merge in `C:\kprediction`.
-- **Status:** unsorted
+- **Status:** Filed → platform/OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -2458,6 +2458,6 @@ Combo Card (Build 8, game 8 on the Picks contract): a staked parlay game of 2–
   - [ ] At Combo launch: Picks pick row 0.2 → 0.25 Mana (chain row and the site's `sponsor.rcLimits`), then `mana-report` on mainnet.
   - [ ] Keep `bot/games/vhp-inflows.mjs` identical to `blockx.ts` (a test enforces it); port any future Block X decoder change.
   - [ ] Merge `picks` into `combo` again before the final merge to `main`.
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md (2026-11-02)
 
 ---

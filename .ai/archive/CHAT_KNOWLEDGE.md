@@ -208,7 +208,7 @@ The KnodeGames Vault (game contract v6): audits, emergency build, seed, testnet 
     - Its settings file is `testnet/vault.json` on `main`.
   - **Testnet resource prices (2026-10-29):** compute 6 per tick, disk 7,130 per byte, network 1,079 per byte. Mainnet prices are higher: the v6 upload cost 46.84 KOIN of Mana on mainnet against 7.53 on testnet.
   - **Site:** knodegames.com, served from the root of `main`. The testnet staking page is `stake-testnet.html`.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md (2026-11-02); testnet details and resource prices not yet in KOINOS.md
 
 ---
 
@@ -265,7 +265,7 @@ The KnodeGames Vault (game contract v6): audits, emergency build, seed, testnet 
   - **Measured on testnet:** heaviest player call 4.63 M ticks (a deposit that closes a 13-game week, 1.6% of the per-transaction limit); 16-row post 1.50 M; finalize of 16 places 1.75 M; claim 2.44 M; withdraw 1.72 M; upload disk 86,257 B. Upper bounds: 50 rows ≈ 4.7 M ticks; 500-place finalize ≈ 55 M (19%). See `docs/TESTNET-V6-RESULTS.md`.
   - **Stake panel (Hub):** `stake-panel.js`, `stake-page.js`, `stake-testnet*.js`, `stake.html` and `stake-testnet.html`, merged in PRs #41 and #42. Its interface matches the v6 ABI field for field (checked by script).
   - **Admin page:** `admin/actions.ts`, PR #43 into `picks`. Its mainnet "Knode Vault (v6)" buttons match the bot's commands.
-- **Status:** unsorted
+- **Status:** Filed → platform/ARCHITECTURE.md (2026-11-02)
 
 ---
 
@@ -287,7 +287,7 @@ The KnodeGames Vault (game contract v6): audits, emergency build, seed, testnet 
     - Freeze `vault-v6` after the fingerprint check; don't rebuild or pull in `C:\kprediction-vault` before an upload.
     - Pushing the backup branch `vault-v6-next` is established practice.
   - **Mana cost per call:** ticks × compute price + disk bytes × disk price + network bytes × network price.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md (2026-11-02)
 
 ---
 
@@ -313,7 +313,7 @@ The KnodeGames Vault (game contract v6): audits, emergency build, seed, testnet 
       - **B1-1:** `GAME_ABI` → `kpred-v6.koilib.json`.
       - **B1-5:** check v6 once per run and per node, cached.
   - The **`games-data` branch** exists, with folders blockx, survivor, fantasy, combo, bracket, lastnode and golf.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ARCHITECTURE.md, DECISIONS.md (2026-11-02)
 
 ---
 
@@ -333,7 +333,7 @@ The KnodeGames Vault (game contract v6): audits, emergency build, seed, testnet 
   - **Mon 9 Nov:** v6 rules and the 2 + 1 VHP free prizes start.
   - **Mon 16 Nov 12:00 UTC:** first vault close. Corrections are possible for 24 h after each seal; the 5% fee is collected with `claim-fee-vhp all`.
   - **Later:** Survivor (window above), then Fantasy, Golf, Combo and Last Node as each clears.
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md, DECISIONS.md; ROADMAP.md not yet updated (2026-11-02)
 
 ---
 
@@ -355,7 +355,7 @@ The KnodeGames Vault (game contract v6): audits, emergency build, seed, testnet 
   - **No bot support for the Koinos Foundation testnet copy yet.** Planned: a flag that reads `testnet/vault.json`, added on `main` after v6.
   - **`C:\kprediction` (`picks` branch)** has uncommitted changes, including `picks-data/deployment.json` showing as deleted. The Block X chat should check this.
   - **The `vault-v6` folder's `deployment.json` still names `api.koinos.io`.** Consider switching it to armana.
-- **Status:** unsorted
+- **Status:** Filed → platform/OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -375,7 +375,7 @@ The KnodeGames Vault (game contract v6): audits, emergency build, seed, testnet 
   - [ ] After the first close (16 Nov): check status, the buckets, the free prizes and the fee.
   - [ ] Keep the emergency steps at hand: `upgrade --safe` (`e84fec49…`), sponsor limit 0, pause.
   - **Project docs to carry over:** `claude/vault-v6-live.md`, `claude/vault-v6-testnet-results.md`, `claude/handoff-hub-vault-testnet-check.md`, `claude/handoff-sponsor-v6-day.md`, `claude/handoff-vault-results.md`, `claude/handoff-stake-in-every-game.md`, `claude/audit-vault-v6-*`, and `docs/UPGRADE-V6.md` and `docs/V6-PLAN.md` in the repository.
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md, OPENISSUES.md (2026-11-02)
 
 ---
 

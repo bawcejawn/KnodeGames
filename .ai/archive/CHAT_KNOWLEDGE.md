@@ -1991,3 +1991,295 @@ Producer Bracket (Build 9, game 9): a weekly knockout bracket of Koinos block pr
 - **Status:** unsorted
 
 ---
+
+## Chat: Fantasy Producers (exported 2026-11-02)
+
+Fantasy Producers (Build 5, game 4, plus Weekly Rival, game 5): draft five Koinos block producers under a salary cap, captain one, and score daily on how reliably they sign their blocks. State as of 2026-10-30:
+- Branch `fantasy`, last commit `2bee805`, with `picks` merged in; pushed, not merged to main.
+- Testnet practice deployed.
+- Repo Lens fix-check package ready, not yet run.
+
+---
+
+### Fantasy Producers: PLATFORM
+- **Date:** 2026-11-02
+- **Source chat:** Fantasy Producers
+- **Category:** fact
+- **Content:**
+  - Domain knodegames.com, live since 28 Oct 2026. Pages are at the repo root, not under `/site/`; `site/` holds only redirects, and pages must never be added there (`claude/site-at-root.md`).
+  - Repo `bawcejawn/Knode`. Data branches:
+    - `games-data` (`blockx/`, `fantasy/`);
+    - `race-data`;
+    - `blocks-data`;
+    - `picks-data/deployment.json` (the Picks contract address).
+  - Two folders on the owner's PC:
+    - `C:\kprediction` holds mainnet keys and scheduled tasks. Practice tooling must never touch it.
+    - `C:\kprediction-fantasy` is a separate clone for Fantasy testnet practice.
+  - Testnet: the Koinos Foundation testnet (public API, Telegram faucet `@KoinosTestnetFaucetBot`, 100 tKOIN a day). It has only one block producer.
+  - Mainnet reads: two nodes must agree, `koinos.armana.io` (primary) and `api.koinosblocks.com` (check).
+  - Shared site pieces:
+    - `styles.css` tokens: moss `--violet` #2F6B4F, navy #14213D, sun #F2B33D, tang #FF8A4C, paper #F3F1EA.
+    - Fonts: Bricolage Grotesque (display), Atkinson Hyperlegible (body), Archivo with a width axis (numbers).
+    - Scripts: `nav.js`, `wallet.js` (Kondor, KOIN Vault, guest), `header-wallet.js`, `stake-panel.js`.
+    - Tools: `tools/site-nav.mjs` writes the menus into every page; `tools/site-seo.mjs` handles SEO and the sitemap.
+  - Page rules:
+    - one strict CSP meta tag per page, and no inline scripts;
+    - CDN scripts are pinned by integrity hash (koilib 9.4.1, kondor-js 1.3.0);
+    - everything is built with `textContent`, never from HTML strings.
+  - Shared stake panel `stake-panel.js` (`claude/stake-panel.md`):
+    - mounted with `KStake.mount(el, { game: id })` from the page's own script;
+    - hidden until Vault v6 is live;
+    - actions: Stake (`deposit_to`), Withdraw (`withdraw_from`), Move (`move_stake`), Claim (`claim_game`).
+  - Game ids:
+
+    | Id | Game |
+    |---|---|
+    | 1 | Question game |
+    | 2 | Block X |
+    | 3 | Survivor |
+    | 4 | Fantasy team |
+    | 5 | Weekly Rival |
+    | 6 | Block Golf |
+    | 7 | Race |
+    | 8 | Combo Card |
+    | 9 | Bracket |
+    | 13 | Last Node Standing |
+
+  - Vault rule: a player counts as staked in a game only with at least 1 VHP staked in that game that week. Each game's weekly vault file holds rows of `{player, points 1–255}`.
+  - The owner wants step-by-step PowerShell instructions, plain language, and an owner checklist with a "Today" list (the Docs artifact "KnodeGames owner checklist", https://claude.ai/artifact/AuEhQTJXF25Ce5nNnthCYa). The owner also wants to keep being asked questions.
+- **Status:** unsorted
+
+---
+
+### Fantasy Producers: ARCHITECTURE
+- **Date:** 2026-11-02
+- **Source chat:** Fantasy Producers
+- **Category:** fact
+- **Content:**
+  - **Files on branch `fantasy`** (at the repo root since the merge with `picks`):
+
+    | File | What it does |
+    |---|---|
+    | `fantasy-math.js` | Shared rules and scoring, run by both the page and the recorder. Real clock, plus a fast test clock via `KFantasyMath.withClock({day, genesis, sheetBefore})`. |
+    | `bot/games/fantasy.ts` | Read-only recorder. Holds no key; publishes `games-data/fantasy/`. |
+    | `fantasy.html`, `fantasy.js`, `fantasy.css` | The game page. `noindex`, and not in the menus until launch. |
+    | `.github/workflows/games.yml` | Runs the Fantasy step behind `FANTASY_ENABLED`, with `continue-on-error`, so Fantasy never blocks Block X. |
+    | `bot/fantasy-test.ts`, `tools/fantasy-testnet/` | The testnet practice kit: `fake-chains.mjs`, `test-wallet.js`, `testnet.css`, `rehearse.mjs`. |
+    | `docs/fantasy/README.md`, `TESTNET.md`, `FIXCHECK-PROMPT.md` | The game's docs. |
+
+  - **Picks contract**, audited release sha `700c296a1064b904299c156061d6caf8fcabd0b1765968903f29d89d2426c594`:
+    - Pick kinds: 1 = one address, 2 = a list of 2 to 10, 3 = a number.
+    - Lock mode 2 (time): target = round × round_size + offset. Picks are refused from target − lead, with lead at least 5 minutes. Picks open `ahead` before the target.
+    - Each game sets `max_changes` and `max_picks_per_day`.
+    - A game needs a `name` of 1 to 40 bytes, or `announce_game` reverts.
+    - Registering a game: announce, wait out the admin wait, then apply.
+  - **Fantasy's Picks games:**
+    - Game 4 (the team): a list of 5, captain first. Round = UTC day number. Locks 5 minutes before the day; opens 7 days ahead.
+    - Game 5 (Weekly Rival): one address. Round = the day number of the week's Monday (rounds are days, offset 0), so the settings never depend on genesis.
+  - **What the recorder publishes:**
+
+    | File | Contents |
+    |---|---|
+    | `index.json` | Settings, plus `vaultBasis`: `"all"` or `"staked"`. |
+    | `days.json` | Final days and today so far. Each producer: `[signed, expected, index]`. |
+    | `W###.json` | One file per week. A final week keeps each team as positions on that week's price list, and its `picks` is emptied. |
+    | `rivals.json` | Weekly Rival records. |
+    | `alltime.json` | All-time totals. |
+    | `board.json` | `week`, `lastWeek`, `rivals`, `mostChallenged`, `allTime`. |
+    | `vault/W<week>.json` | `{game:4, week, final:true, rows, first:[], second:[]}`. |
+
+  - **Recorder safety:**
+    - Only irreversible blocks, and both mainnet nodes must agree.
+    - A day is final only when every hour that had blocks also has a race card (FX-5).
+    - A week is final only when all 7 days' blocks and picks are read, the rivals and stakes are read, and 12 hours have passed (FX-1).
+    - If a week still isn't final 2 days after it ends, the recorder raises an `ALERT`; the vault's deadline is 3 days.
+    - Unfinished weeks are retried for 8 weeks (FX-6).
+  - **Vault file:**
+    - Written only once the vault's ABI has `get_game_player`.
+    - Stakes come from `get_game_player` (`week_stake` or `entry.stake` ≥ 1 VHP), read on both nodes.
+    - The vault's source name for Fantasy is `games-data:fantasy`.
+  - **`games.yml` safety:**
+    - The record job stops if `games-data` exists but can't be fetched (FX-2).
+    - File names are read line by line (BX-34).
+    - The publish allowlist covers `blockx/`, `blockx/vault/`, `fantasy/` and `fantasy/vault/`, and each game's files get a shape check.
+    - P### and `vault/W*` files are written once and never replaced, now including `fantasy/vault`.
+    - Fantasy files are compared with the published branch: a price list, a final week, counted rival weeks, rival records, all-time totals and vault files can't change.
+    - Fantasy files may be up to 8 MB; every other file 2 MB.
+    - A final day must have `checked == 2`.
+  - **Race cards** (`bot/race.ts`, after the merge with `picks`):
+    - A card's VHP is the highest *effective* VHP over 6 hours of samples (`windowHigh`, BX-38), read with `effective_balance_of`.
+    - A card made from fewer than 12 samples is flagged with `samples`. Block X skips flagged cards; Fantasy currently uses them.
+    - Fantasy finds the card in force with `F.cardAt` and works out each producer's expected blocks per hour.
+  - **Testnet kit:**
+    - Hybrid: picks go to a testnet copy of the Picks contract, and scoring reads mainnet blocks, read only.
+    - The testnet Picks build (`picks/scripts/build-testnet.cjs --owner`) changes exactly 3 lines: the owner, a 10-minute admin wait and a 24-hour apply window.
+    - A local server on 127.0.0.1:8380:
+      - checks the host, the origin and a session token;
+      - signs only Fantasy team and rival picks;
+      - serves only top-level js/css/svg/png/webmanifest files and `media/`: no JSON, no subfolders, never keys or config.
+    - Commands: `setup`, `status`, `fund`, `picks-build`, `picks-upload`, `games`, `week`, `team`, `rival`, `record`, `bots`, `site`, `run [--bots] [--no-open]`.
+    - Robots p2 to p6: value, big names, random, chaser, late joiner.
+    - Race cards: `cards: "github"` reads the live race-data; `"local"` is for the rehearsal.
+    - The rehearsal's fake chain answers `effective_balance_of`.
+    - Practice files live in `testnet-data/fantasy/`, which git ignores: `keys.env`, `config.json`, `picks/`, `race/`, `data/`, `bots.json`.
+- **Status:** unsorted
+
+---
+
+### Fantasy Producers: DECISIONS
+- **Date:** 2026-11-02
+- **Source chat:** Fantasy Producers
+- **Category:** decision
+- **Content:**
+  - **2026-10-27:**
+    - Plain handicap; salary from last week's form; budget 100; captain ×2; at most 130 points a day.
+    - Knode's two nodes stay in the pool, disclosed on the page.
+    - Moving the captain counts as the day's one change.
+    - The bot checks each team's budget against the published price list.
+    - Prizes are paid on the weekly total.
+    - Weekly Rival keeps records only.
+    - Late joiners are allowed; days before they join score 0.
+    - No rush: launch only once the vault and Picks are audited and live.
+    - Simulation option S3 approved.
+  - **2026-10-28:**
+    - Practice on the testnet, scored on mainnet blocks. 1 test day = 1 hour, with robots.
+    - Ids 4 and 5. Five producers per team.
+    - An **all-time table** (total, weeks played, best week).
+    - A rival match counts only when both players are staked: a Knode Games stake before the vault, staked in Fantasy once the vault is live.
+    - Terms, section 3: Knode runs its own nodes the same whatever the game; Knode Games can't control others' staking or unstaking; rival records and the all-time table carry no prize.
+  - **Changes Claude made, owner told (28 Oct):**
+    - Each week starts fresh: Monday's team can be any valid team. Last week's team carries into Monday only if it fits the new prices.
+    - Vault points: 255 for the best week, one less for each lower distinct score. Ties keep the same points, never below 1, ranked among stakers only.
+    - Rival rounds are days.
+  - **2026-10-29, nothing should feel rushed:**
+    - The price list is made on **Saturday 00:00 UTC**, 2 days before the week, from the 7 days before.
+    - A team or a change can be planned for any day up to 7 days ahead, and changed until that day's own lock.
+    - The page warns when changing an earlier day would make a planned day break the one-change rule.
+    - The page reminds players when next week's prices are out and their Monday team won't play.
+    - The testnet runs in proportion: its price list comes 2 test hours early.
+  - **2026-10-29, why picking late gives no edge** (explained on the page):
+    - prices are fixed before anyone can pick;
+    - expected blocks follow each producer's VHP every hour;
+    - the chain locks picks 5 minutes before the day;
+    - the only fresh information is node health, which everyone sees.
+  - **2026-10-29:** the page must feel inviting, professional, fun and like fantasy football, be easy to understand, and explain every number in plain words.
+  - **2026-10-29, producer names:**
+    - Producers register their own real names, shared across every game.
+    - Proof: the producer signs a message with the producer wallet. No new contract.
+    - Automatic rules, and the owner can hide any name.
+    - It's a separate feature that Fantasy doesn't wait for. The owner handed it to the Hub chat.
+  - **2026-10-29:** the Fantasy fix-check runs in Repo Lens.
+  - **Standing rules:**
+    - Push or deploy only with the owner's OK. Pushing the `fantasy` branch is approved; merging to main is not.
+    - Never paste keys into chat or GitHub.
+    - Test keys are for play money only, and the kit never signs for mainnet.
+    - New games launch on a Monday.
+- **Status:** unsorted
+
+---
+
+### Fantasy Producers: GAME-SPECIFIC
+- **Date:** 2026-11-02
+- **Source chat:** Fantasy Producers
+- **Category:** fact
+- **Content:**
+  - **Rules:**
+    - Pick 5 different producers from the week's price list, costing 100 or less. The first is the captain (×2).
+    - Each day a producer scores 100 × blocks signed ÷ blocks expected, at most 130.
+    - A week's score is the sum of its 7 days.
+    - A team carries on until it's changed.
+    - One change a day: swap one producer, or move the captain.
+    - Picks lock 5 minutes before each day starts.
+    - A team that breaks a rule is ignored, and the previous team plays.
+  - **Prices:** 20 + 1.5 × (form − median form), clamped to 8–40. Published with its sha256 and never remade. The pool is the race field when the price list is made.
+  - **Prizes:** the top 30% of Fantasy stakers with at least 1 point share Fantasy's part of the vault's weekly reward. A week is final 12 hours after it ends.
+  - **Weekly Rival:**
+    - One challenge a week, which can be changed until the week's first lock.
+    - Any number of players can challenge you.
+    - A match counts only if both players had a team all 7 days and both are staked.
+    - Records keep challenges made and received apart. No prize.
+  - **Page** (rebuilt 29 Oct):
+    - **Scoreboard:** a lineup-lock countdown showing the lock and start times, your points, place, today's score and rival, and a "Your move" line.
+    - **Sticky tabs:** My team, Players, My week, Rival, League, Help.
+    - **The pitch:** your five as SVG shirts in formation, coloured from a hash of each address, with initials. The captain plays up front with a gold "C".
+    - **Planning:** "Plan:" day buttons marked "next up", "team set" or "not set", and a one-change counter.
+    - **Players list:**
+      - Columns: Cost, Avg points, Yesterday, and Today with "signed X of Y blocks".
+      - Steady or Swingy under each name, from the blocks the producer is due each day (at least 150, 40 or 10 blocks, or fewer).
+      - Sorts: Cost, Avg points, Best value, Steadiest, Today. A search box.
+      - A "What these numbers mean" panel and a picking tip.
+    - **My week:** a fixture strip with a bar per day, out of 780 (a fair-share day is 600).
+    - **Rival:** a head-to-head card.
+    - **League:** a podium for the top 3.
+    - **Help:** a 4-step quick guide that can be dismissed, and a Questions section.
+    - localStorage holds UI flags only, read and written inside try/catch.
+  - **Testnet:**
+    - The Picks copy is `1DZX8RVrXmG6VBYBHZi9QF3VyM7CYwSsPw`, with games 4 and 5 in force.
+    - Genesis 1793293200000: test week 1 started at 10:00am PT on Thu 29 Oct.
+    - Practice page: `http://127.0.0.1:8380/site/fantasy-testnet.html`.
+  - **Small producers swing:** Knode Swap is due about 2 blocks per test hour, so 3 blocks scores 150 and none scores 0. Its form came out at 129, which gave it the top price of 40.
+  - The Fantasy Terms are in the root `terms.html`, section 3.
+  - **Tests:** on the merged branch 522 pass and 1 fails. The one failure, `site.mobile-nav.test.mjs`, comes from `picks` (script order on blockx.html).
+  - **Producer names plan** (`claude/producer-names.md`):
+    - A claim page, `names.html`, where the producer signs: `Knode Games producer name: <name> | <address> | <YYYY-MM-DD>`.
+    - Claims arrive through a GitHub issue form, or the owner adds one with `npm run names -- add`.
+    - `names.yml` checks each claim in a job with no write token, then publishes only `names.json` to the `names-data` branch.
+    - `names.js` gives `KNames.of(address)`. The short address always shows next to the name.
+    - Rules: 3 to 24 characters; unique, with lookalike names counted as the same; reserved words; one change every 7 days; the owner can hide or unhide a name.
+- **Status:** unsorted
+
+---
+
+### Fantasy Producers: ROADMAP
+- **Date:** 2026-11-02
+- **Source chat:** Fantasy Producers
+- **Category:** fact
+- **Content:**
+  - In the launch order (`claude/launch-order.md`), Fantasy is #13: after Vault v6 (#9), Block Golf staked, Last Node Standing and Bracket, and before Combo Card.
+  - Path to launch:
+    1. The Repo Lens fix-check (prompt and package ready).
+    2. Fix what it finds, then have it re-checked.
+    3. Re-run the simulation on a full week of real mainnet data, mainly to test small, swingy producers and the price formula.
+    4. The owner finishes a full test week and the roll into week 2: final scores, vault points, rival results, the All time tab.
+    5. The Picks contract goes live on mainnet (#6). Vault v6 goes live with Fantasy registered as staked game 4 and `games-data:fantasy` in `vaultGames`.
+    6. Register Picks games 4 and 5 on mainnet (a 48-hour wait), with the settings `KFantasyMath.games()` prints.
+    7. Merge. Set `FANTASY_ENABLED=true`. Add the page to the menus, `site-seo.mjs` and the sitemap, and remove `noindex`. The first price list comes out the Saturday before the launch Monday.
+  - The Hub chat builds producer names on their own branch, with their own audit. Every game shows them once they're live.
+- **Status:** unsorted
+
+---
+
+### Fantasy Producers: OPEN ISSUES
+- **Date:** 2026-11-02
+- **Source chat:** Fantasy Producers
+- **Category:** open question
+- **Content:**
+  - **Race cards now use the highest VHP over 6 hours (BX-38).** A producer whose VHP drops is expected to sign more blocks than it can for up to 6 hours, so it scores below 100. Fantasy also still scores with flagged low-sample cards. Both questions are in the fix-check prompt.
+  - **Small producers swing even on mainnet.** Is there an edge in cheap, noisy producers? Is a price set from 7 noisy days fair? This needs the real-data simulation.
+  - **Live race cards are sometimes made late** (about 28 minutes after the hour). Check that day finality copes with this in production.
+  - **`site.mobile-nav.test.mjs` fails on `picks`.** This is for the Block X chat: on `blockx.html`, `nav.js` must come after the wallet scripts.
+  - **The owner's practice run stopped** at about 2:05pm PT on 29 Oct, partway through test week 1. No full test week has finished yet.
+  - **Not yet independently checked:** the FX-1 to FX-10 fixes, and everything added since (planning ahead, the page rebuild, the merge, the kit).
+  - **Open question for the owner:** add a Telegram reminder alongside the on-page one?
+- **Status:** unsorted
+
+---
+
+### Fantasy Producers: TODOS
+- **Date:** 2026-11-02
+- **Source chat:** Fantasy Producers
+- **Category:** open question
+- **Content:**
+  - [ ] Owner: run the Repo Lens fix-check with `knode-fantasy-fixcheck.zip` (it contains `00-FIXCHECK-PROMPT.md`; also in the project as `claude/fantasy/FIXCHECK-PROMPT.md`) and send the report back.
+  - [ ] Owner: restart practice (`cd C:\kprediction-fantasy`, `git pull`, `npm ci`, `npm run fantasy-test -- run --bots`). Leave it running until at least one test week is final, work through "What to try" in `docs/fantasy/TESTNET.md`, and send the output of `npm run fantasy-test -- status`.
+  - [ ] Owner: tell the Block X chat about the failing mobile-nav test.
+  - [ ] Owner: tell the Vault chat Fantasy's source: `games-data:fantasy`, files `fantasy/vault/W<week>.json`, game 4 (may already be done).
+  - [ ] Fantasy chat: fix the Repo Lens findings and write a fix list.
+  - [ ] Fantasy chat: decide with the owner how Fantasy treats flagged or low-sample race cards.
+  - [ ] Fantasy chat: re-run the simulation on real data.
+  - [ ] Fantasy chat: re-merge `picks` before the final merge.
+  - [ ] Fantasy chat: keep `claude/builds/05-fantasy-plan.md` and the owner checklist up to date.
+  - [ ] Before mainnet: register games 4 and 5 (48 hours); set `FANTASY_ENABLED`; add the page to the menus and SEO and remove `noindex`; afterwards empty and retire the test wallets.
+- **Status:** unsorted
+
+---

@@ -11,8 +11,7 @@
 
 ## Today
 - [ ] Answer C-02: which sponsor caps are live — the chat's 1,000-a-day set or the code's 5,000-a-day set? — P1 — C-02, C-03, D-008
-- [ ] Tell the Block X chat the vault upload is done, so it ships V4, B1-1 and B1-5 — P2
-- [ ] Step 8 — apply Block X on the Picks contract: `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet` must show 1 change (allowed since Sun 1 Nov, 1:23 PM PT; not reported done) — P2 — I-040
+- [ ] Decide when Block X goes public (not announced to players yet), then step 8 — apply Block X on the Picks contract: `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet` must show 1 change (allowed since Sun 1 Nov, 1:23 PM PT; not reported done) — P2 — I-040
 - [ ] Before Block X is published: `npm run sponsor -- mana-report` on mainnet; raise the pick row if mainnet is more than ~1.5× testnet — P2 — D-038
 - [ ] Check that the "Knode question release" task's NextRunTime shows 3:45 AM local (11:45 UTC) after the 1 Nov clock change — P2 — D-047
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
@@ -71,7 +70,7 @@
 | Update Race page and home-page rules for the live vault | Race chat | 2026-11-02 | I-027 |
 | Merge `picks` into `main` with Race files resolved when Block X is ready; weekly check of `vault/W<week>.json` and `race.yml` runs | Race chat | 2026-11-02 | I-031 |
 | Set `PINNED_PICKS` to `1LmgqB…`, record Repo Lens round 11, open the Block X launch PR (`picks` → `main`) after game 2 is applied | Block X chat | 2026-11-02 | I-040 |
-| v6-day fixes: `GAME_ABI` → `kpred-v6.koilib.json`, drop the early return, fail-fast v6 check, a 50-player v5-chain test, a fix-check | Block X chat (after you tell it) | 2026-11-02 | I-033, I-036 |
+| v6-day fixes: `GAME_ABI` → `kpred-v6.koilib.json`, drop the early return, fail-fast v6 check, a 50-player v5-chain test, a fix-check | Block X chat (told 2 Nov) | 2026-11-02 | I-033, I-036 |
 | After launch: B1-4, B1-6, B1-7, B1-8, then a short fix-check | Block X chat | 2026-11-02 | I-037, I-038 |
 | Every new game page mounts `KStake.badge` at the top of `<main>`, full panel lower | each game chat | 2026-11-02 | D-031 |
 | Bot support for the testnet copy (`testnet/vault.json`) | Vault chat | 2026-11-02 | I-014 |
@@ -93,6 +92,7 @@
 | Race status badge merged (PR #44) | 2026-11-02 | — |
 | Repo name confirmed: `bawcejawn/KnodeGames` | 2026-11-02 | C-06 |
 | Block X chat knowledge filed; sponsor version and caps settled | 2026-11-02 | C-01, C-02 |
+| Block X chat told the vault upload is done (it ships V4, B1-1, B1-5) | 2026-11-02 | owner |
 | Swap Desk chat knowledge filed; C-04, C-05, C-11, C-17 settled | 2026-11-02 | — |
 | Real swap tested on the site (3,000 VHP) | ≤ 2026-11-02 | Questions chat |
 | Stale copy `C:\Users\alcat\repos\Knode` deleted | ≤ 2026-11-02 | Questions chat |

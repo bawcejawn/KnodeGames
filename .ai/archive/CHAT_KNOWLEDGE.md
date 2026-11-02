@@ -1596,3 +1596,181 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
 - **Status:** unsorted
 
 ---
+
+## Chat: Combo Card (exported 2026-11-02)
+
+Combo Card (Build 8, game 8 on the Picks contract): a staked parlay game of 2–6 legs (the contract allows 10), Picks v2 (the CARD type), the recorder, the new verify job, the page, the Picks v2 upgrade commands and the Repo Lens rounds. State as of 2026-10-30. The last commit on `combo` is `c8c652e`; it is pushed but not merged, and nothing is deployed.
+
+---
+
+### Combo Card: PLATFORM
+- **Date:** 2026-11-02
+- **Source chat:** Combo Card
+- **Category:** fact
+- **Content:**
+  - **Branch:** `combo` in `bawcejawn/Knode`. It was rebuilt on `picks` (Repo Lens RL-10) and has `picks` merged through `b301bfa` (rounds 8–9 and `main`). Claude may push to `combo`; deploying or scheduling an upgrade needs the owner's OK.
+  - **Chain:** Koinos mainnet, chain id `EiBZK_GGVP0H_fXVAM3j6EAuz3-B-l3ejxRSewi7qIBfSA==`; blocks about 3 s apart. Mainnet nodes: `https://koinos.armana.io` (primary) and `https://api.koinosblocks.com` (check node); every on-chain check must agree on both.
+  - **Mainnet addresses:**
+    - Owner `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717`.
+    - Picks contract `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` (v1, `700c296a…`).
+    - Mana sponsor `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` (v3, `b61ac238`).
+    - Game `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr`; race `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K`; Knode Swap `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR`.
+    - VHP `12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq`; KOIN `19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK`.
+  - **Testnet:**
+    - Sponsor `1Dg8zKeHFRvEZeF1o4thSUs6eC2zHNg7qC`; it is switched OFF again after the card measurement.
+    - Combo-only Picks v2 test contract `1PQZWWHbGnzHQW99frzJLmQLZ4Lwpjj8rX` (testnet build `83b251bb…`), test game 98 "Combo test".
+    - Shared Block X testnet Picks contract `12xNetHp…`. Test player `19B9gUwbD9aJeDYRjJGMLzQ8PnRhCmpNX3`.
+  - **Owner's PC:**
+    - `C:\kprediction` holds the keys and settings (`.env`, `.env.testnet`, `testnet/blockx.json`, `testnet-data/`). On 2026-10-30 it was left with an unfinished merge of Last Node files from another chat: leave it to that chat.
+    - `C:\kg-combo-preview` is the Combo copy. Combo testnet tools run there with `--home C:\kprediction`.
+    - Commands run in PowerShell. Common ports are taken; the page preview used 47863.
+  - **Tooling:** AssemblyScript with `@koinos/sdk-as` 1.5.1, koilib 9.4.1, Node 22 pinned in CI, pinned protobufjs helpers in `tools/pbjs-helpers`. `yarn protoc` sometimes fails with EAGAIN: rerun.
+  - **Vault v6:** ABI `game/abi/kpred-v6.koilib.json`; `get_state` → `v6_rule_week_plus_one` (live); `get_game_player` → `week_stake`. Results file `{game, week, final, rows:[{player, points 1..255}], first:[], second:[]}`; week 0 began 2026-10-19 00:00 UTC.
+  - **Tests at `c8c652e`:** contract 71; `npm run test:audit` 747 pass, 0 fail (5 todo, 6 skipped); browser 7; workflow guard 8.
+- **Status:** unsorted
+
+---
+
+### Combo Card: ARCHITECTURE
+- **Date:** 2026-11-02
+- **Source chat:** Combo Card
+- **Category:** fact
+- **Content:**
+  - **Picks v2:** release sha256 `92d555d0680157854452e35162c1b1c5c100904996194b8c1c848df50e5e1c3d` (37,689 bytes). v2 ABI sha256 `cea9b073…`; v1 ABI `8efa3ad4…`.
+    - kind 4 = CARD: a pick is a card of 2..`max_legs` legs `{code, round, producer}`; `list_size` = the hard maximum, 10.
+    - Each leg type has its own lock clock (`lock_mode`, `round_size`, `round_offset`, `lead`, `ahead`).
+    - The chain refuses a card unless every leg is open, and a change once any stored leg has locked. One leg per leg type per round; a producer once per card.
+    - A card's round is its slot (UTC day × 3 + slot); it can be made or changed only on that day.
+    - `announce_game` (48 h) adds or loosens leg types; `tighten_game` switches one off, locks it earlier, opens it later or lowers `max_legs`.
+    - No funds: it holds no tokens and never pays Mana; all three overrides stay on.
+    - Upgrade: owner + `schedule_upgrade(sha256)` → 48 h → a 7-day window to upload → `schedule_upgrade` with an empty hash.
+  - **Shared math** (site root, plain browser JS): `race-math.js`, `blockx-math.js`, `combo-math.js` (globals `KRaceMath`, `KBlockX`, `KCombo`).
+    - Race chances from a seeded simulation (`TRIALS = 16000`); Block X chance = the producer's VHP share. `f100Of` rounds down; `MISSING_F100 = 100` (×1 for a producer missing from the card).
+    - Price cards: `usableCard` (a field, at least 12 samples, at most 3 h old); `flagsFor(card, who)` per producer (a flag on that producer, or the top in doubt); `priceCard(races, t, who)`, `cardAfter`.
+    - `finalWorth`: the lowest check-card worth if more than 10% below the worth when sent. `withMoved` adds VHP moved into the producer to both check cards.
+    - `legResult`: hit / miss / void / unresolved / pending. `sortLegs`: by code, round, producer. `toVaultPoints`: board places onto 255…1.
+  - **Shared scoring:** `bot/games/combo-score.mjs` (no dependencies). `makeScorer({race, targets, head, agreed, movedInto, problems, errors, moveMargin})` returns `score(card, fixed, day, mode)` (live / verify / moved) and `recheck(card, day, chain)`. Used by both the recorder and the verify job.
+  - **Recorder** `bot/games/combo.ts`, hourly at :52 (after race :37 and Block X :47):
+    - Reads every slot of last week and this week on two nodes, which must agree. A slot is fixed when both nodes' irreversible block is past its day.
+    - Head: the slower node's. A node more than 30 min behind the runner's clock stops the run; 10 min of slack ahead.
+    - Published fixed slots and their final cards are kept while the chain holds exactly those cards (`chainKey`); a failed read keeps the published copy.
+    - `recheck()` every run: "forged" → off the boards, no Vault file for that week; "unchecked" → no Vault file this run only.
+    - Stakes: Vault v6 on both nodes; any disagreement = unknown = no Vault file.
+    - Output in `games-data/combo/`: `index.json` (day list, append-only); `D<day>.json` + `D<day>-<k>.json` parts (at most 1,000 cards each; part 0 has `parts`); `board.json` (today and this week 2,000 rows, all-time 1,000, last week 6,000; over that: error, no Vault file); `vault/W<week>.json` (write-once, when the week is final 12 h after it ends, within 3 days).
+    - Deadline: 2 days after the week ends. A leg still undecided whose source published past it becomes unresolved; if the source stopped, the card waits with an error.
+  - **Workflow** `.github/workflows/combo.yml`, three jobs:
+    1. **record:** read-only token, `npm ci`, runs the recorder, uploads the `combo-data` artifact.
+    2. **verify:** read-only token, installs nothing, runs plain `node tools/combo-verify.mjs` with `bot/games/vhp-inflows.mjs` (a copy of Block X's moved-VHP decoder, kept identical by a test). It confirms each newly fixed slot against `list_picks` on two nodes (JSON-RPC) and re-scores every new final card. It hands on `name sha256` lines as a job output.
+    3. **publish:** write token, no repository code. Shape and exact-JSON byte checks (Node 22), per-file holds, immutability. Card checks against the published race-data and Block X files. The Vault file is checked against the published board, and the board against a recount of the published day files. Only day files the verify job confirmed are published (`COMBO_VERIFY: required`). Day parts no longer written are removed. Pushes `combo/` only.
+    - It shares the `knode-games` concurrency group with `games.yml`.
+  - **Page:** `combo.html`, `combo.js` at the site root (`knodegames.com/combo.html`). CSP copied from `blockx.html`. Stake check through Vault v6. Send is blocked for guests, unstaked wallets, stale data, and in the last 2 minutes of a UTC day. Double sends are prevented; a wallet switch clears the stake. The page checks the leg-type clocks on chain.
+  - **Tools:**
+    - `tools/combo-testnet.mjs`: `keys`, `upload`, `build`, `status`, `schedule`, `upgrade`, `announce`, `apply`, `cards` (`--fresh`, `--sponsor <addr>`, `--send`).
+    - `bot/picks.ts` accepts v1 or v2. Once `picks-data/deployment.json` has `wasmSha256` = v2, it refuses v1. New commands: `upgrade-schedule`, `upgrade-upload`, `upgrade-clear`. A mainnet send needs `--mainnet`, `CONFIRM_MAINNET=yes` and `--code 92d555d0`; checks run on two nodes, and the upload window is judged on chain time.
+  - **Switches and sponsor:** `"cards": true` in `picks-data/deployment.json` is one switch for the page and the sponsor. Sponsor v3 takes 640 argument bytes; card argument types `0x030101130113`.
+- **Status:** unsorted
+
+---
+
+### Combo Card: DECISIONS
+- **Date:** 2026-11-02
+- **Source chat:** Combo Card
+- **Category:** decision
+- **Content:**
+  - **Legs:** Win, Show, Top half (on 6-hour Producer Race races) and Block X. Up to 3 legs per race (one Win, one Show, one Top half). One leg per producer per card, Block X included.
+  - **Locks:** race legs lock 25 min before the start and open 24 h ahead; Block X legs lock 500 blocks before the target and open 28,800 ahead.
+  - **Cards:** 3 a day, each changeable up to 3 times. The game runs at 6 legs; the contract allows 10.
+  - **Worth:** clamp(0.5 / chance, 0.25, 3); Block X keeps ×3 as its cap.
+  - **Points:** base by legs 2→3, 3→7, 4→15, 5→30, 6→60, 7→120, 8→240, 9→480, 10→960. No point cap.
+  - **10% rule** kept (RL-16). A horse missing from the standings: void, dropped (RL-15 kept).
+  - **Players:** stake-only game; at least 1 full point in the week to count. A week = the best 10 cards; ties: more hits, the earlier last hit, address.
+  - **Vault points** by board place (rank), not score bands: the Vault uses order only (Repo Lens agreed).
+  - **Mana:** the sponsor pays for cards. The Picks pick row rises 0.2 → 0.25 Mana at Combo launch (runbook step 7); Block X stays at 0.2.
+  - **Order:** the CARD contract upgrade goes on chain after Block X launches.
+  - **Page:** shorter page; the Quick card is kept.
+  - **Security:** build the verify job (owner, 2026-10-30, FC3-3) rather than accept Block X's level of trust. Unresolved legs never let a card score (a miss decides, otherwise void). Vault files are write-once; published final cards are immutable.
+  - **Rules for Claude:** never print or paste keys (WIFs); testnet tools never touch mainnet; nothing on chain without the owner; pushing `combo` is OK; ask before deploying or scheduling an upgrade.
+- **Status:** unsorted
+
+---
+
+### Combo Card: GAME-SPECIFIC
+- **Date:** 2026-11-02
+- **Source chat:** Combo Card
+- **Category:** fact
+- **Content:**
+  - **Results:** a race leg is unresolved if the race was missed, voided or not checked on two nodes. A Block X leg is decided by the target's signer when `checked === 2`, even if Block X voided the target; without an agreed signer it is unresolved.
+  - **Moved VHP:** read on both nodes from the lock card's block − 25 to the target. Both nodes report a non-canonical transfer → unresolved. Only one does, or a read fails → hold, ending at min(block + 3 days, Vault window − 6 h).
+  - **Pricing:** no usable price card in the 3 h before sending → the card is void. No lock or after card → the leg is unresolved.
+  - **Finality:** final once the slot is fixed and every leg is decided, or as soon as a leg misses.
+  - **Testnet Mana:**
+
+    | Transaction | Paid by | Mana |
+    |---|---|---|
+    | Card, 2 legs | player | 0.0588 |
+    | Card, 6 legs | player | 0.0726 |
+    | Card, 10 legs | player | 0.0916 |
+    | Change of a card | player | 0.0538 |
+    | Card, 6 legs | sponsor | 0.1313 |
+    | Card, 10 legs | sponsor | 0.1457 (1.37× under 0.2) |
+    | Single Block X pick | sponsor | 0.116 |
+    | Upload of v2 | owner | 3.2528 |
+
+    Mainnet upload estimate: 1.2 Mana per KB + 10 (about 55 for v2).
+- **Status:** unsorted
+
+---
+
+### Combo Card: ROADMAP
+- **Date:** 2026-11-02
+- **Source chat:** Combo Card
+- **Category:** idea
+- **Content:**
+  1. Repo Lens fix-check 4 on `combo` @ `c8c652e` (project doc `claude/audit-combo-fixcheck4-prompt.md`, package `combo-fixcheck4-package.zip`). It covers the verify job and the upgrade commands for the first time.
+  2. Merge `picks` into `combo` again, then `combo` into `main` once the audits pass.
+  3. After Block X launches, the Picks v2 upgrade (runbook "Later: the Picks v2 upgrade" in `docs/blockx/MAINNET-LAUNCH.md`):
+     1. publish the source and build;
+     2. `upgrade-schedule`;
+     3. 48 h later, `upgrade-upload`;
+     4. `upgrade-clear`;
+     5. a PR writing v2's `wasmSha256`, `uploadTx` and `uploadedAt` into `picks-data/deployment.json`;
+     6. `status --mainnet`;
+     7. sponsor Picks row 0.25 and a `mana-report` check;
+     8. announce game 8, wait 48 h, `apply_game`.
+  4. A testnet upgrade rehearsal (route B, the shared `12xNetHp…` contract) once the Block X and Last Node chats are done with it.
+  5. Go live: Actions variable `COMBO_ENABLED = true` and `"cards": true` in `picks-data/deployment.json`.
+- **Status:** unsorted
+
+---
+
+### Combo Card: OPEN ISSUES
+- **Date:** 2026-11-02
+- **Source chat:** Combo Card
+- **Category:** open question
+- **Content:**
+  - **FC-11 / FC2-14:** the live run time (record + verify) is not measured; choose the concurrency group or cron offset after measuring.
+  - **FC-12:** live race-data cards must carry `samples`. They do only once the race recorder from `picks` publishes race-data; until then every card is void (the recorder raises an error).
+  - **FC2-13:** nothing writes `wasmSha256` automatically; it is runbook step 5.
+  - **Accepted:** FC3-9 (a lagging check node stops recording) and FC2-19 (clock edges can hold a file for one run).
+  - **Not yet reviewed:** the verify job's design. The publish check's `COMBO_VERIFY` switch is set only by the workflow (tests run without it). A flaky node can hold an honest run for one hour.
+  - **Coordination:** `bot/picks.ts` (Block X's tool) was changed on `combo`; the Block X chat was told. A local merge of `picks` `b301bfa` may not have been pushed: check the branch.
+  - **Owner's PC:** an unfinished Last Node merge in `C:\kprediction`.
+- **Status:** unsorted
+
+---
+
+### Combo Card: TODOS
+- **Date:** 2026-11-02
+- **Source chat:** Combo Card
+- **Category:** open question
+- **Content:**
+  - [ ] Owner: send fix-check 4 to Repo Lens and return the report and test zip; then fix its findings (FC4-x).
+  - [ ] Ask the Block X chat to name `upgrade-schedule`, `upgrade-upload` and `upgrade-clear` in runbook steps 2–4.
+  - [ ] Measure a live hourly run (record + verify) before going live.
+  - [ ] Testnet upgrade rehearsal (route B) with the new `bot/picks.ts` upgrade commands.
+  - [ ] At Combo launch: Picks pick row 0.2 → 0.25 Mana (chain row and the site's `sponsor.rcLimits`), then `mana-report` on mainnet.
+  - [ ] Keep `bot/games/vhp-inflows.mjs` identical to `blockx.ts` (a test enforces it); port any future Block X decoder change.
+  - [ ] Merge `picks` into `combo` again before the final merge to `main`.
+- **Status:** unsorted
+
+---

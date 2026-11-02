@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, newest first. This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "Superseded by D-XXX".
 > Last updated: 2026-11-02
-> Sources: owner in chat (2026-11-02), `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub and Race chats), repo branches `picks` and `main`.
+> Sources: owner in chat (2026-11-02), `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race and Block X chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict · ❓ unknown
 
@@ -45,6 +45,13 @@
 | D-033 | 2026-10-27 | Build 2: Race Show scoring, home page, dapp name | active |
 | D-034 | 2026-10-28/29 | Producer Race: stakes, ranking, ties, prizes, medals | active |
 | D-035 | 2026-10-29 | The Race chat owns all Race files | active |
+| D-036 | ❓ | Split launch: Block X live prize-free first | active |
+| D-037 | 2026-10-30 | One change per pick | active |
+| D-038 | ❓ | Picks sponsor row 0.2 Mana; 0.25 at Combo launch | active |
+| D-039 | ❓ | The swap desk pays its own Mana | active |
+| D-040 | ❓ | Block X: neighbour-time rule removed; BX-137 accepted | active |
+| D-041 | ❓ | V4, B1-1, B1-5 shipped on the v6 upload day; status bar rides the Block X launch PR | active |
+| D-042 | ❓ | Engineering standing rules | active |
 
 ---
 
@@ -202,6 +209,34 @@
 - **Date:** 2026-10-29 · **Decision:** The Race chat owns all Race files (list in `PLATFORM.md` → Chats); other chats send Race requests through the owner. Written rule: `claude/owners-race.md`.
 - **Source:** 💬 Race, Hub chats
 
+## D-036 — Split launch: Block X live prize-free first
+- **Decision:** Contracts first. Block X goes live prize-free; the scoring fixes happen off-chain before Vault v6 prizes (fix list: I-042).
+- **Source:** 💬 Block X
+
+## D-037 — One change per pick
+- **Date:** 2026-10-30 (owner) · **Decision:** One change per pick instead of 5; the page says "change it once". ✅ `blockx-math.js` `maxChanges: 1` on `picks`.
+- **Source:** 💬 Block X
+
+## D-038 — Picks sponsor row 0.2 Mana; 0.25 at Combo launch
+- **Decision:** The Picks `pick` row is 0.2 Mana (chain row and the site's `rcLimits`). Raise it to 0.25 at Combo launch, not now: testnet 6-leg and 10-leg cards used 0.1313 and 0.1457 Mana, only 1.37× under 0.2, below the 1.5× headroom rule. Block X single picks (0.116 Mana) are fine at 0.2.
+- **Source:** 💬 Block X
+
+## D-039 — The swap desk pays its own Mana
+- **Decision:** The swap pays its own Mana (PR #39); picks are sponsored (PR #40); sponsor-only change in PR #38. ✅ `desk-data/deployment.json` `payer: self`.
+- **Source:** 💬 Block X
+
+## D-040 — Block X: neighbour-time rule removed; BX-137 accepted
+- **Decision:** The neighbour-time rule was removed because it caused honest stalls; the BX-97 week-end re-read moved to before prizes. BX-137 accepted: the test clock variables aren't refused in GitHub Actions, because CI runs the tests there.
+- **Source:** 💬 Block X
+
+## D-041 — V4, B1-1, B1-5 on the v6 upload day; status bar rides the Block X launch PR
+- **Decision:** V4, B1-1 and B1-5 were held until the v6 upload day (any earlier change would be outside the Repo Lens GO, and it is race-card code). The Hub's status bar goes to `main` in the Block X launch PR, not a separate PR.
+- **Source:** 💬 Block X
+
+## D-042 — Engineering standing rules
+- **Decision:** Root-cause fixes, and a blind review before each Repo Lens round. Mainnet steps one at a time, as PowerShell blocks for `C:\kprediction`. If a key or WIF is ever pasted, tell the owner to rotate it. (Merging and pushing rules: D-026. Keys: D-003.)
+- **Source:** 💬 Block X
+
 ---
 
 ## Contradictions Register
@@ -209,18 +244,19 @@ Repo wins per D-002 unless the owner rules otherwise. "Ruling" = what the docs c
 
 | ID | Topic | Archive (chat) says | Repo says | Ruling / action |
 |----|-------|---------------------|-----------|-----------------|
-| C-01 | Sponsor version on chain | Questions: v2 `fa4659e6`. Vault: v3 `b61ac238` live (PR #38 merged) | `picks` record: v3 uploaded 2026-10-30. `main` record (`sponsor-data/deployment.json`): still v2, uploaded 2026-10-27 | Likely v3; `main`'s record looks stale. ❓ Confirm with `npm run sponsor -- status` |
-| C-02 | Sponsor caps (per tx / player-day / player-week / all-day / free-day) | 3 / 10 / 65 / 1,000 / 300 | `bot/sponsor.ts` defaults: 1 / 25 / 150 / 5,000 / 2,000 (owner 2026-10-28/29); v2 rollback can't exceed 1,000/day | **Owner decision needed.** Live on-chain values unknown Hub (D-028): 25 / 150 per wallet, "no extra cap" — per-wallet values now agreed by repo + Hub; everyone-day and free-day totals still ❓ |
+| C-01 | Sponsor version on chain | Questions: v2 `fa4659e6`. Vault, Hub, Block X: v3 `b61ac238` live | `picks` record: v3, upload tx `0x122040b7…`, 2026-10-30 ✅. `main` record: still v2 | ✅ Resolved 2026-11-02: v3 is live. `main`'s record is stale (I-043) |
+| C-02 | Sponsor caps (per tx / player-day / player-week / all-day / free-day) | 3 / 10 / 65 / 1,000 / 300 | `bot/sponsor.ts` defaults: 1 / 25 / 150 / 5,000 / 2,000 (owner 2026-10-28/29); v2 rollback can't exceed 1,000/day | **Owner decision needed.** Live on-chain values unknown Hub (D-028): 25 / 150 per wallet, "no extra cap" — per-wallet values now agreed by repo + Hub; everyone-day and free-day totals still ❓ Block X (30 Oct): sponsor ON with 1 / 25 / 150 / 5,000 / 2,000, vault switch off. ✅ Resolved 2026-11-02: repo, Hub and Block X agree; the Questions chat's set is outdated. Confirm on chain with `npm run sponsor -- status` before the vault switch |
 | C-03 | Sponsor wallet KOIN | 5,000 KOIN | `bot/sponsor.ts` comment: at least 25,000 KOIN to fund 5,000/day | Tied to C-02. ❓ Check balance Hub: KOIN to be sized from measured use once everything is live |
-| C-04 | Site read RPC | Questions: site uses `api.koinos.io` (Armana CORS failures). Vault: Armana is default (`main` switched 2026-10-28); `api.koinos.io` returns HTML errors | `app.js`, `swap.js`, `header-wallet.js` all hard-code `koinos.armana.io`; game/desk/race deployments use Armana, sponsor/picks use `api.koinos.io` | Repo (`picks` branch): Armana. ❓ GitHub `main` may differ (branch `armana-rpc` exists) |
+| C-04 | Site read RPC | Questions: site uses `api.koinos.io` (Armana CORS failures). Vault: Armana is default (`main` switched 2026-10-28); `api.koinos.io` returns HTML errors | `app.js`, `swap.js`, `header-wallet.js` all hard-code `koinos.armana.io`; game/desk/race deployments use Armana, sponsor/picks use `api.koinos.io` | Repo (`picks` branch): Armana. ❓ GitHub `main` may differ (branch `armana-rpc` exists) Block X lists `api.koinos.io` as mainnet RPC, with Armana and `api.koinosblocks.com` |
 | C-05 | `rcLimitOther` | 3 Mana | `game-data/deployment.json`: 1 Mana (audit SP-17); game `maxSponsorRc` 2 Mana | Repo: 1 Mana |
 | C-06 | Repo name | Questions: `bawcejawn/KnodeGames`. Vault: `bawcejawn/Knode` | local `origin` still `bawcejawn/Knode.git` | ✅ Resolved 2026-11-02: GitHub says the repo moved to `bawcejawn/KnodeGames` (old URL redirects) |
 | C-07 | Platform name | "KnodeGames" | mixed | Resolved by D-001: "Knode Games" |
 | C-08 | Week boundary time | Week 2 closes Mon 2 Nov 21:00 UTC | genesis Mon 19 Oct 00:00 UTC, 7-day weeks, 12 h close delay, 24 h settle | ❓ Explain where 21:00 UTC comes from (bot schedule?). Vault chat's first vault close is Mon 16 Nov 12:00 UTC, which matches genesis + close delay Hub/Race: weeks run Mon–Mon 00:00 UTC, week 0 = Mon 19 Oct, so vault week 2 = Mon 2 Nov — the Questions chat's "Week 3" is the same week counted from 1. The 21:00 UTC time is still unexplained |
 | C-09 | Vault | questions game is `Q_GAME = 1` in the Vault | `main`: Vault v6 is the game contract `1Mpmf2…`, upgraded in place 2026-11-02 (`eed38f7c…`) | ✅ Resolved 2026-11-02: game 1 is built into the vault |
-| C-10 | When new prize rules start | Questions: 40/60 split + 2 VHP free prize from Week 3 (Mon 2 Nov), `reward_rule_week_plus_one=3`. Vault: v6 rules + 2 + 1 VHP free prizes from Mon 9 Nov (`v6_rule_week_plus_one`) | not checked | ❓ Are these two different rules (v5 reward rule vs v6 rules)? Which free prize applies to the questions game, and from when? Hub (D-029): no free-game prizes until the vault is fully live. Race: its week 1 vault file is final with 1st/2nd free winners, while the Race page still says prizes start once the vault is live |
+| C-10 | When new prize rules start | Questions: 40/60 split + 2 VHP free prize from Week 3 (Mon 2 Nov), `reward_rule_week_plus_one=3`. Vault: v6 rules + 2 + 1 VHP free prizes from Mon 9 Nov (`v6_rule_week_plus_one`) | not checked | ❓ Are these two different rules (v5 reward rule vs v6 rules)? Which free prize applies to the questions game, and from when? Hub (D-029): no free-game prizes until the vault is fully live. Race: its week 1 vault file is final with 1st/2nd free winners, while the Race page still says prizes start once the vault is live Block X (D-036): Block X goes live prize-free; prizes after v6 and the scoring fixes |
 | C-11 | Bot wallet | Vault: "bot wallet" `1JSTwo…` | `docs/history/AUDIT-2026-10-19.md` lists `1JSTwo…` as the Operator; current operator is `1HsM33…` | ❓ Is `1JSTwo…` the old operator, or still in use? Race chat's owner checklist says "empty the old bot and test wallets" — supports old-operator reading |
 | C-12 | Race status | Vault: game 7 "ready to announce" | `games.json`: Race "live"; PR #44 badge ✅ merged | ✅ Resolved 2026-11-02 (Hub): Race is live as a game; its vault registration (`game-add 7`) is pending |
 | C-13 | Survivor type | Hub: "a free game" | Vault (D-018): Survivor added `--staked --free` | ❓ Staked + free, or free only? |
 | C-14 | Launch pace and order | Hub: Mondays, one at a time; order Block X + Race → Block X live → Survivor → Golf staked → LNS → Bracket → Fantasy → Combo. Vault: announce 2, 7, 9 (+8, 13 if cleared) together by Fri 6 Nov; launch as many as are ready (D-024) | — | ❓ Owner decision |
 | C-15 | Seed owner move | Race chat's owner checklist: "move the seed and Desk owner" | Vault: seed owner already handed to `1K8VV…` on 30 Oct ✅ `seedOwner` on `main` | ❓ Stale checklist item, or a further move (e.g. to the hardware wallet)? |
+| C-16 | Race vault file final? | Race: week 1 vault file is final with free winners. Block X (B1-1): while `race.ts` uses the v5 ABI, the vault file is never final | ✅ `race-data:vault/W1.json` is `final: true`, `rows: []`, `first`/`second` set; ✅ `race.ts` still loads the v5 ABI on `main` | ❓ Did week 1 go final because no staked rows were needed? Are its free winners to be paid (D-029: no free prizes until the vault is fully live)? |

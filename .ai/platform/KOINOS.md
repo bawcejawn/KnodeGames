@@ -2,7 +2,7 @@
 
 > Purpose: Koinos chain facts this project depends on. Verify before relying on anything time-sensitive.
 > Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub and Race chats), repo branches `picks` and `main`.
+> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race and Block X chats), repo branches `picks` and `main`.
 > Project contract addresses live in `PLATFORM.md`; vault mechanics in `ARCHITECTURE.md`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict (see `DECISIONS.md`) · ❓ unknown
@@ -32,15 +32,18 @@
 | Contract | Address | Notes |
 |----------|---------|-------|
 | Vault v6 test copy | `1MXay5pSvPNzc8sBcZAMWfqaY4T9DkBvLn` | 10-minute weeks; close delay and notice 2 min; min stake 1 VHP. Owner = operator = seed = `1GtQHbDsC2yAEguR6uNQpjksuon2kxyJbr` (key in gitignored `testnet-v6/keys.json`, I-017); ~129 tKOIN after top-up 30 Oct. Games 2 and 7 active; 3–6 and 8–13 ("Test game N") stopped. No bot: a week closes only when a player acts or someone calls `close_week`. Settings: `testnet/vault.json` on `main`. 💬 Vault |
-| Picks (testnet) | `12xNetHpajRi8Xrv4ub8MbMWWjC2q7VrX5` | 💬 Hub |
+| Picks (testnet, Block X) | `12xNetHpajRi8Xrv4ub8MbMWWjC2q7VrX5` | 💬 Hub, Block X |
+| Picks v2 (testnet, Combo) | `1PQZWWHbGnzHQW99frzJLmQLZ4Lwpjj8rX` | game 98 💬 Block X |
+| Testnet Mana sponsor | `1Dg8zKeHFRvEZeF1o4thSUs6eC2zHNg7qC` | OFF; still allowlists Combo's Picks v2 (I-041) 💬 Block X |
 
 ## Concepts Used by Knode Games
-- **Mana:** the per-account resource that pays for transactions. Testnet resource prices (2026-10-29): compute 6 per tick, disk 7,130 per byte, network 1,079 per byte; mainnet prices are higher. Cost formula and measured costs: `ARCHITECTURE.md` → Measured on testnet. 💬 Vault
+- **Mana:** the per-account resource that pays for transactions. Testnet resource prices (2026-10-29): compute 6 per tick, disk 7,130 per byte, network 1,079 per byte; mainnet prices are higher. Cost formula and measured costs: `ARCHITECTURE.md` → Measured on testnet. 💬 Vault. Mainnet upload Mana pricing used by the sponsor tool: 1.2 per KB + 10. 💬 Block X
 - **Block production / VHP:** {{TBD}}
 - **Contract payer / sponsorship:** a transaction can name a payer contract; Knode Games uses its own Mana sponsor (see `ARCHITECTURE.md`). KOIN Vault picks its own payer, so it can't use the sponsor. 💬
 - **Irreversible blocks:** Knode Games results count only irreversible blocks, matched on two nodes. 💬 Race
 - **Storage ordering:** the real chain orders keys bytewise (confirmed on testnet, audit V2-14); MockVM needs `tools/mockvm-bytewise.cjs` to match. 💬 Vault
-- **Contract upgrades:** {{TBD}}
+- **Contract upgrades:** project contracts use a schedule → 48 h → upload-within-7-days pattern (vault: `ARCHITECTURE.md` → Vault v6; Picks: `ARCHITECTURE.md` → Picks contract).
+- **Time units:** vault genesis is 1792368000 in seconds (1792368000000 in milliseconds) = Mon 19 Oct 2026 00:00 UTC. 💬 Block X, Hub
 
 ## Wallets Supported
 | Wallet | Desktop | Mobile | Notes |

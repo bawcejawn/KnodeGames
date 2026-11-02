@@ -3,7 +3,7 @@
 > Purpose: Rules for how games hold, account for and pay out VHP/KOIN.
 > Funds safety is the top priority. When in doubt, don't move funds.
 > Last updated: 2026-11-02
-> Sources: `DECISIONS.md` (D-003, D-016, D-018 – D-029, D-034), Vault, Hub and Race chats.
+> Sources: `DECISIONS.md` (D-003, D-016, D-018 – D-029, D-034, D-036), Vault, Hub, Race and Block X chats.
 > How the contract does it (entry points, formulas, timing) lives in `platform/ARCHITECTURE.md` → Vault v6. This file says what must be true.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict · ❓ unknown
@@ -53,7 +53,10 @@
   - `skipped`: rounds left out.
 - **Timing:** due 3 days after the week ends; corrections allowed for 24 h after each seal and refused once finalizing starts.
 - **Fail closed:** publish no final file if the contract or ABI is missing, `get_state` is empty, any stake read fails, or two nodes disagree. 💬 Race
-- **Never final early:** refuse `final` for a week that hasn't ended; refuse any change to a published final file.
+- **Never final early:** refuse `final` for a week that hasn't ended; refuse any change to a published final file — such a change refuses the whole run.
+- **Publish checks** (`vault_ok`, 💬 Block X): correct game id; rows ordered with points 1–255; `first` / `second` ≤ 10; no wallet twice; final only after the week ends. Bytes must be canonical (`JSON.stringify(JSON.parse(text))+"\n"`), ≤ 2 MB, no nested folders. A vault file that fails is held on its own with a warning, while the game's other files still publish. General publish rules: `platform/ARCHITECTURE.md` → Publish checks.
+- **v6 reads:** stake reads must use the v6 ABI and fail fast on a non-v6 chain; never treat a read failure as "not staked" (V4, I-036).
+- **Before any game pays prizes from its file:** the final file must not hinge on a single run with no hold (I-034).
 - **Stake test** must match the vault's `post_results` / `post_prize_winners` and `bot/vault.ts`. Staked: `peak_stake` (or `active_stake` when there's no entry) is at least that week's minimum (`min_stake`, or `min_stake_next` from `min_stake_next_week`). 💬 Race
 
 ## Admin Powers

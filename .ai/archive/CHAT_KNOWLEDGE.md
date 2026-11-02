@@ -761,7 +761,7 @@ Who Signs Block X (game 2), the Picks contract, Mana sponsor v3, the publish che
     - `npm run test:audit`: last 644 tests, 634 pass, 0 fail, 5 todo, 5 skipped (the skips are pwsh-only).
     - Also `test:audit:serial`, `test:resolver`, and `cd sponsor && npm test`.
   - **Repo Lens** is the owner's AI auditor. It gets a zip (`00-COMMIT.txt` + `00-FIXCHECK-PROMPT.md`) and returns a Claude Docs report.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ARCHITECTURE.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -814,7 +814,7 @@ Who Signs Block X (game 2), the Picks contract, Mana sponsor v3, the publish che
     - `blockx.html` has the Hub's `#stake-badge`; `KStake.badge(…, {game: 2})` is called in `setupStake`, mainnet only.
     - The Block X testnet page uses `testnet-wallet.js`; the staking testnet page uses `stake-testnet-wallet.js`.
   - **Picks upgrade path:** owner `schedule_upgrade(sha256)`, then 48 hours, then an owner-signed upload within 7 days, then `schedule_upgrade` with an empty hash. The three overrides stay on.
-- **Status:** unsorted
+- **Status:** Filed → platform/ARCHITECTURE.md, standards/VAULT_STANDARD.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -840,7 +840,7 @@ Who Signs Block X (game 2), the Picks contract, Mana sponsor v3, the publish che
     - Never handle keys or WIFs (if one is pasted, tell the owner to rotate it).
     - Never push to main, merge, deploy, upload or change chain settings without asking.
     - Plain language, and a "Today" checklist in every reply.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md (2026-11-02)
 
 ---
 
@@ -860,7 +860,7 @@ Who Signs Block X (game 2), the Picks contract, Mana sponsor v3, the publish che
     - Measured results are in `docs/blockx/TESTNET-RESULTS.md`.
   - **Vault game ids:** Block X 2, Survivor 3, Fantasy 4, Golf 6, Race 7, Combo 8, Bracket 9, Last Node Standing 13.
   - **Vault week 0:** Mon 19 Oct 2026 00:00 UTC (genesis 1792368000).
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ROADMAP.md, KOINOS.md; game spec pending in .ai/games/ (2026-11-02)
 
 ---
 
@@ -889,7 +889,7 @@ Who Signs Block X (game 2), the Picks contract, Mana sponsor v3, the publish che
      7. Raise the pick row to 0.25 (`mana-limit picks:pick 0.1457 --limit 0.25 --save`, the site PR, `config --send`).
      8. Announce game 8, wait 48 hours, `apply_game`.
   9. **Before prizes:** BX-97/BX-88 week-end re-read on both nodes, BX-105 board freeze, BX-72 VHP decoder, BX-118 race card clock, BX-115, BX-116, BX-120, SP-59, G-K-1.
-- **Status:** unsorted
+- **Status:** Filed → platform/ROADMAP.md, TODOS.md (2026-11-02)
 
 ---
 
@@ -910,7 +910,7 @@ Who Signs Block X (game 2), the Picks contract, Mana sponsor v3, the publish che
   - **BX-129:** until step 8 is applied, the chain allows 5 changes while the page says 1.
   - **BX-127:** the Block X record job fails until game 2 is applied.
   - **Todo tests:** BXS-1, G-K-1, FC3-VHP-2, WEB3-23, WEB3-31.
-- **Status:** unsorted
+- **Status:** Filed → platform/OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -935,6 +935,6 @@ Who Signs Block X (game 2), the Picks contract, Mana sponsor v3, the publish che
   - [ ] The Combo upgrade commands reach `picks` / `main` only after Combo's Repo Lens review and merge.
   - [ ] Before prizes: the BX-97/88, BX-105, BX-72, BX-118, BX-115/116/120 and SP-59 items, and the B1-2 / B1-3 decisions for game 7.
   - **Project docs to carry over:** `claude/blockx/FIXCHECK-PROMPT.md`, `claude/handoff-sponsor-v6-day.md`, `claude/blockx/SPONSOR-TESTNET.md`, `claude/blockx/README.md`. In the repository: `docs/blockx/MAINNET-LAUNCH.md`, `docs/blockx/TESTNET-RESULTS.md`, `docs/history/AUDIT-2026-10-28-repolens-blockx.md`.
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md, OPENISSUES.md (2026-11-02)
 
 ---

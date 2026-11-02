@@ -2,7 +2,7 @@
 
 > Purpose: How the pieces fit together. Describe, don't prescribe.
 > Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub and Race chats), checked against branches `picks` and `main` on 2026-11-02.
+> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race and Block X chats), checked against branches `picks` and `main` on 2026-11-02.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict (see `DECISIONS.md`) · ❓ unknown
 
@@ -67,9 +67,10 @@ Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GE
 - `rcLimitOther` (stake, approve, etc.): ⚠️ C-05 (repo 1 Mana; chat 3 Mana)
 - Per-action limit: picks `pick` 0.2 Mana — ✅ (`rcLimits`, `sponsor-data/mana-limits.json`)
 - Answer-only transactions are sponsored for any wallet within the free sub-cap; everything else is for real players only and fails closed — 💬
-- Caps (per tx / player-day / player-week / everyone-day / free-day): ⚠️ C-02
+- Caps (per tx / player-day / player-week / everyone-day / free-day): 1 / 25 / 150 / 5,000 / 2,000; sponsor ON, vault switch off — 💬 Block X, as of 30 Oct (C-02 resolved)
 - **Vault switch (v3):** `config.game_has_vault`. While off, the sponsor never calls `get_game_player` and refuses vault calls with `VAULT_NOT_LIVE`. The tool reads `get_state` `config.v6_rule_week_plus_one` from two nodes. — 💬 Vault chat
 - **Caution:** a plain `config` resets the caps to defaults, so always pass the current caps. — 💬 Vault chat
+- **Sponsor tool rules** (💬 Block X): `capsOf` keeps 0; `tighterCaps` takes the lowest of both nodes and the default; `allowedBuilds` mainnet [v3, v2]; `codeOn` checks two nodes; the SP-50 swap check runs only on v3; `mana-limit --limit X` needs X ≥ 1.25 × the observed most and ≤ the per-tx cap; `TESTNET_PICKS` / `TESTNET_PICKS_CARDS=yes` are testnet only.
 - Sponsor v3 allows every vault player call, `move_stake` included. Per-action caps must be above 0, so blocking moves on chain would need a tiny cap (I-021). — 💬 Hub
 
 ### Bots / Automation
@@ -77,6 +78,7 @@ Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GE
 |----------------|--------------------|--------------|----------|-----------|
 | Main bot | hourly GitHub Action | posts results, seals, finalizes 24 h after the seal, looks back 12 closed weeks; skips posting/closing/finalizing in safe mode; `pagePlayers()` stops on a repeated address; `upgradeGuard()` refuses a normal upgrade matching the safe build. Uses `koinos.armana.io`, `api.koinosblocks.com` as `RPC_CHECK` | `bot/bot.ts`, `bot/vault.ts`, `bot/chain.ts`, `.github/workflows/bot.yml` | files ✅, rest 💬 |
 | Race recorder | hourly at minute 37 while `RACE_ENABLED=true` | Job `record` (read-only token, no secrets, runs repo code); job `publish` (write token, runs no repo code, shape-checks every file with embedded Python, pushes only to `race-data`). Only irreversible blocks count; blocks, picks and stakes must match on two nodes (`RPC`, `RPC_CHECK`). Files: `index.json`, `W<NNN>.json`, `board.json`, `vault/W<week>.json`. Fails if last run's files can't be read (fresh start only when the branch is missing). Refuses a `final` vault file before the week ends and any change to a final file. Fails closed (no final file) on missing ABI/contract, empty `get_state`, failed stake reads or node disagreement | `bot/race.ts`, `.github/workflows/race.yml`, shared rules in `race-math.js` | 💬 Race chat |
+| Block X recorder | {{TBD}} | `canonicalTransferValue` / `NonCanonicalTransfer`; a target is voided at once only if both nodes report it, otherwise held and voided at the 3-day edge; reads short receipt pages on (BX-90); no vault file past its 3-day window (BX-92); reads only top-level `W###.json` race cards (`vault/` invisible to it) | `bot/games/blockx.ts`, `.github/workflows/games.yml` | 💬 Block X |
 | Names bot | hourly | Jobs: check (read-only), publish (no repo code), reply; gated by `vars.NAMES_ENABLED`; scheduled only, never triggered by issues. 8 s read timeout (a node that times out is skipped for the run), 7-minute run deadline. Nicknames read 20 at a time within 240 s, named wallets and producers first; both nodes must agree; a failed read keeps the old value. Pool names from Fogata `get_pool_params` (entry 2396056273, field 1). `names.json` kept under 900 kB (publish limit 1 MB). Owner command: `npm run names -- remove <address>` | `bot/names.ts`, `.github/workflows/names.yml` ✅ | 💬 Hub |
 | Bot `--testnet` | manual | targets the local Harbinger node (`127.0.0.1:8081`, `.env.testnet`, `testnet-data/`) — **not** the Koinos Foundation copy | `bot/bot.ts` | 💬 |
 | Sponsor tool | manual | L-4 fix, default free cap 300 (⚠️ C-02), keeps guest flag, status shows VHP | `bot/sponsor.ts` | ⚠️ |
@@ -137,6 +139,20 @@ Mana cost per call = ticks × compute price + disk bytes × disk price + network
   - Tools: bot, desk, sponsor, picks, racepicks, names. Vault area: Sunday upgrade steps (status, apply, clear); Add a game (with season field); post / seal / finalize; correct / unprize / void; collect the 5% VHP fee. Also Wallet names, and "Vault v6 trial (local node)" (`--testnet` reaches only the local Harbinger node).
   - The vault buttons answer "Unknown command" until `vault-v6` is merged into `picks` (I-019).
 
+### Publish checks (`games.yml`, `games-testnet.yml`, `race.yml`, `race-samples.yml`) — 💬 Block X
+Recorders are JavaScript writing `JSON.stringify(x)+"\n"`; publish checks are Python. Every publish job:
+1. `find` refusals: symlinks, unexpected files or folders, files over 2 MB (`race.yml` allows only `$IN/vault` and `vault/W[0-9]{1,4}.json`).
+2. An inline `node -e` check: raw bytes must equal `JSON.stringify(JSON.parse(text))+"\n"` (regular files only, path after `--`, walks subfolders).
+3. Python checks: `js_safe` (numbers within ±2^53−1, finite, no integer-valued floats, depth ≤ 64); type-strict `isaddr`, `one()`, `same()`; ASCII `[0-9]` only, never `\d` (a guard test enforces this, including `python3 -c` / `python3 -I -c` one-liners).
+4. `setup-node` 22, SHA-pinned.
+- **Append-only history:** a published card never changes (BX-44); index weeks are append-only, a new week only for cw−1..cw (race: cw−1..cw+1); W targets only for the current or just-ended week, never after P is published; height = round × 2400 + 0, its time ≤ now and inside the week. A run that rewrites history is held whole.
+- **`race.yml` record job:** `git ls-remote --exit-code refs/heads/race-data` (exit 2 = first run; any other error stops); `ls-tree -r -z` into a file, then a `read -d ''` loop; fetches W / index / board / `vault/`, plus `race-samples`.
+- **`race.ts`:** samples and cards take the lower of the two nodes' reads; `topInDoubt` re-runs the floor with 0.5% tolerance; supply cap, clock check (BX-89), early check-head (BX-114), lag bound (BX-101). Boards rank by vault stake (`stakedOf`); the old "holds 1 VHP" read (`rawRead`) was removed. `readStaked` still loads `GAME_ABI` = v5 (`game/abi/kpred.koilib.json`) ✅ on `main` and `picks`, so stake reads throw "still v5" (I-033).
+
+### Picks contract — 💬 Block X
+- **Upgrade path:** owner `schedule_upgrade(sha256)` → 48 h → owner-signed upload within 7 days → `schedule_upgrade` with an empty hash. The three overrides stay on.
+- **Site:** `blockx-math.js` `MAINNET_GAME = {id:2, round:2400, offset:0, lead:100, ahead:28900, picksPerDay:30, maxChanges:1}` ✅; `wallet.js` `PINNED_PICKS = ""` ✅, set at publish; `blockx.html` calls `KStake.badge(…, {game: 2})` in `setupStake`, mainnet only; the Block X testnet page uses `testnet-wallet.js`.
+
 ### CI guards — 💬 Hub
 - `tests/audit/site.ci-deps.test.mjs` (run by `workflow-guard.yml` ✅): bans issue triggers, `write-all`, `secrets: inherit` and `toJSON(secrets)` in any case; issue permissions only in `names.yml`. Regex-based (I-022).
 - `bot/workflow.test.ts`: no `${{ }}` inside run scripts; no job output named `run`.
@@ -147,6 +163,8 @@ Mana cost per call = ticks × compute price + disk bytes × disk price + network
 - `npm run bot -- testnet-v6`: one-command testnet check → `testnet-v6/report.md`.
 - `bot/rehearse-v6.ts`: rehearsal on a snapshot (`vault-snapshot`, then `rehearse-v6`).
 - `tools/mode-switch.cjs`: one shared parser for `Mode.ts`.
+- `npm run picks` (💬 Block X): keys, build-testnet, status, upload, announce, apply, pause, lock-test, mana-test; on branch `combo` only: upgrade-schedule, upgrade-upload, upgrade-clear. `npm run sponsor`: status, upload, config, enable, disable, mana-report, mana-limit, site-limits, watch, payer. All dry runs by default; mainnet needs `--send --mainnet`.
+- Tests (💬 Block X, as of 30 Oct): `npm run test:audit` — 644 tests, 634 pass, 0 fail, 5 todo, 5 skipped (pwsh-only); also `test:audit:serial`, `test:resolver`, `cd sponsor && npm test`.
 
 ## Repository Layout
 {{TBD: full folder map}} — top level includes site files at root, `bot/`, `game/`, `desk/`, `sponsor/`, `race/`, `picks/`, `node/`, `tests/`, `docs/`, `*-data/` (✅).

@@ -12,6 +12,8 @@
 ## Today
 - [ ] Answer C-02: which sponsor caps are live — the chat's 1,000-a-day set or the code's 5,000-a-day set? — P1 — C-02, C-03, D-008
 - [ ] Tell the Block X chat the vault upload is done, so it ships V4, B1-1 and B1-5 — P2
+- [ ] Step 8 — apply Block X on the Picks contract: `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet` must show 1 change (allowed since Sun 1 Nov, 1:23 PM PT; not reported done) — P2 — I-040
+- [ ] Before Block X is published: `npm run sponsor -- mana-report` on mainnet; raise the pick row if mainnet is more than ~1.5× testnet — P2 — D-038
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
 - [ ] Ask the Vault and Hub chats to get `vault-v6` merged into `picks` (or confirm another way to run `game-add`) before Friday — P2 — I-019
 - [ ] Run the push block so `main` gets the updated docs — P3
@@ -21,6 +23,8 @@
 - [ ] `game-add` games 2, 7 and 9 (`--staked --free --send`), plus 8 and 13 if cleared — P2 — D-024 — due Fri 6 Nov, 4 PM PT
 - [ ] Right after the first `game-add`: switch the sponsor to the vault — `npm run sponsor -- status`, copy the caps exactly, run the `config` preview (must show "vault (v6) live: no → yes" with caps unchanged), then `--send`, then `status` again — P1 — C-02 (a plain `config` resets caps)
 - [ ] `game-apply` each game 48 h after announcing — P2 — due before Sun 8 Nov, 4 PM PT
+- [ ] Merge the Block X launch PR (`picks` → `main`) when the Block X chat opens it; then send the Hub the PR link and confirm the phone-width bar screenshot reached it — P2
+- [ ] Optional (Repo Lens asked): on the PC, `npm ci --ignore-scripts && npm run test:audit:serial` — P4
 - [ ] Retry creating an @name on `names.html` and report the result — P3 — I-020
 - [ ] Check the Race status badge on the live Race page at phone width (PR #44 is already merged) — P4
 - [ ] Delete old node basedir folders, only if `heal.log` is clean — P3 — I-008 — on or after Wed 4 Nov, 17:30 UTC (9:30 AM PT)
@@ -44,9 +48,12 @@
 
 - [ ] Decide launch pace and order (C-14) and Survivor's type (C-13) — P2
 - [ ] Decide which owner checklist is the source of truth (I-032) — P3
+- [ ] Before game 7 prizes: decide B1-2 (I-034), B1-3 free-prize farming (I-035), and back-fill vs "no prize" for not-final weeks (I-033) — P1
+- [ ] Step 10: a full day after Block X launches, set per-action Mana limits (`mana-report --save`, `site-limits --send`, a PR, `config --send`); again a day after the sponsor's vault switch (`claude/handoff-sponsor-v6-day.md`) — P3
+- [ ] Combo launch: Picks v2 upgrade (see ROADMAP), then raise the pick row to 0.25 and check with `mana-report` — P3 — D-038
 - [ ] Optional: decide the on-chain `move_stake` sponsor cap (I-021); pick retention features (see ROADMAP) — P4
 - [ ] From the Race chat's owner checklist: empty the old bot and test wallets (C-11); pin the Desk node key; clean up the stale folder/branch (which one ❓); move the seed and Desk owner (⚠️ C-15); launch announcement; analytics decision; ads and the SwarmTales listing — P3
-- [ ] Carry the Hub and Race chats' project docs into `.ai/`: `claude/launch-order.md`, `claude/stake-panel.md`, `claude/producer-names.md`, `claude/handoff-status-bar-testnet.md`, `claude/names-fixcheck*-prompt.md`, `claude/audit-names-prompt.md`, `claude/domain-knodegames.md`, `claude/site-at-root.md`, `claude/admin-page.md`, `claude/race-vault.md`, `claude/owners-race.md`, `claude/builds/02-hub-and-race-show.md`; repo `docs/NAMES.md`, `docs/ADMIN.md`, `race/README.md` (vault results section) — P3 — I-009
+- [ ] Carry the Hub and Race chats' project docs into `.ai/`: `claude/launch-order.md`, `claude/stake-panel.md`, `claude/producer-names.md`, `claude/handoff-status-bar-testnet.md`, `claude/names-fixcheck*-prompt.md`, `claude/audit-names-prompt.md`, `claude/domain-knodegames.md`, `claude/site-at-root.md`, `claude/admin-page.md`, `claude/race-vault.md`, `claude/owners-race.md`, `claude/builds/02-hub-and-race-show.md`; repo `docs/NAMES.md`, `docs/ADMIN.md`, `race/README.md` (vault results section); Block X: `claude/blockx/FIXCHECK-PROMPT.md`, `claude/blockx/SPONSOR-TESTNET.md`, `claude/blockx/README.md`, repo `docs/blockx/MAINNET-LAUNCH.md`, `docs/blockx/TESTNET-RESULTS.md`, `docs/history/AUDIT-2026-10-28-repolens-blockx.md` — P3 — I-009
 
 ## Waiting on Someone Else
 | Item | Waiting on | Since | Link |
@@ -56,7 +63,9 @@
 | Remove the legacy claim workflow; add a YAML parser to the CI guard | Hub chat | 2026-11-02 | I-026, I-022 |
 | Update Race page and home-page rules for the live vault | Race chat | 2026-11-02 | I-027 |
 | Merge `picks` into `main` with Race files resolved when Block X is ready; weekly check of `vault/W<week>.json` and `race.yml` runs | Race chat | 2026-11-02 | I-031 |
-| Open the Block X launch PR (`picks` → `main`) after game 2 is applied | Block X chat | 2026-11-02 | — |
+| Set `PINNED_PICKS` to `1LmgqB…`, record Repo Lens round 11, open the Block X launch PR (`picks` → `main`) after game 2 is applied | Block X chat | 2026-11-02 | I-040 |
+| v6-day fixes: `GAME_ABI` → `kpred-v6.koilib.json`, drop the early return, fail-fast v6 check, a 50-player v5-chain test, a fix-check | Block X chat (after you tell it) | 2026-11-02 | I-033, I-036 |
+| After launch: B1-4, B1-6, B1-7, B1-8, then a short fix-check | Block X chat | 2026-11-02 | I-037, I-038 |
 | Every new game page mounts `KStake.badge` at the top of `<main>`, full panel lower | each game chat | 2026-11-02 | D-031 |
 | Bot support for the testnet copy (`testnet/vault.json`) | Vault chat | 2026-11-02 | I-014 |
 | Ship V4, B1-1, B1-5 | Block X chat (after you tell it) | 2026-11-02 | — |
@@ -76,3 +85,4 @@
 | Five stake-panel fixes (PR #46) and three admin fixes (PR #43) | 2026-11-02 | I-012, I-013 |
 | Race status badge merged (PR #44) | 2026-11-02 | — |
 | Repo name confirmed: `bawcejawn/KnodeGames` | 2026-11-02 | C-06 |
+| Block X chat knowledge filed; sponsor version and caps settled | 2026-11-02 | C-01, C-02 |

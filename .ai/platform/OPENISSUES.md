@@ -4,7 +4,7 @@
 > Rule: When an issue is resolved, move it to "Closed" with the date and where the answer was recorded
 > (usually a D-XXX entry in DECISIONS.md). Never delete an issue.
 > Last updated: 2026-11-02
-> Sources: `ROADMAP.md`, `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub and Race chats), repo branches `picks` and `main`.
+> Sources: `ROADMAP.md`, `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race and Block X chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified · 💬 chat only · ⚠️ conflict · ❓ unknown
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
@@ -43,6 +43,17 @@ Tracked in `DECISIONS.md` → Contradictions Register (C-01 to C-XX). Not duplic
 | I-030 | P3 | Race / RPC | If `RPC_CHECK` is turned off, stakes are classified on one node only, with no warning | Race chat | 2026-11-02 | 💬 Race |
 | I-031 | P3 | merges | Block X (on `picks`) changes the same Race files (`bot/race.ts`, `race.yml`, `tests/audit/race-recorder.test.mjs`). The Race chat resolves the conflicts by hand when Block X is ready to merge | Race + Block X chats | 2026-11-02 | 💬 Race |
 | I-032 | P3 | docs | Two owner checklists exist: `.ai/platform/TODOS.md` and the Race chat's checklist artifact (with its own `tasks` database). Decide which one is the source of truth (D-002 suggests the repo) | owner | 2026-11-02 | 💬 Race |
+| I-033 | P1 | Race / vault | B1-1: `race.ts` uses the v5 ABI ✅, so stake reads throw and the Race vault file is never final for staked rows. Fix on the v6 upload day (D-041). Weeks that pass stay not-final; past weeks need a back-fill or a "no prize" decision | Block X / Race chats; owner decision | 2026-11-02 | 💬 Block X ⚠️ C-16 |
+| I-034 | P1 | Race / vault | B1-2 (High before game 7 prizes): a final vault file is decided by one run and locked forever; it isn't re-derived from the `W###` files and has no 12-hour hold | Race chat | 2026-11-02 | 💬 Block X |
+| I-035 | P2 | prizes | B1-3: free-prize farming by many empty wallets on sponsored picks. Owner decision; related test BXS-1 | owner | 2026-11-02 | 💬 Block X |
+| I-036 | P3 | Race / vault | V4: a non-v6 chain reads as "not staked" without an error. Fix: drop the `v6_rule_week_plus_one` early return (`race.ts` ~line 297) and add a fail-fast v6 check once per run and per node | Block X chat (v6 upload day) | 2026-11-02 | 💬 Block X |
+| I-037 | P4 | Race recorder | B1-4: a vault file over 2 MB, non-canonical or with a nested folder still stops the whole race run, cards included. B1-5: stake reads run before the race files are written, with retries per wallet — a failing node could pass the 30-minute job limit and lose that hour's cards | Block X chat | 2026-11-02 | 💬 Block X |
+| I-038 | P4 | tidy | B1-6: stale `race.ts` header comment. B1-7: `bot.yml` has `\d` in two Python row checks and the guard doesn't scan `bot.yml`. B1-8: two test-clock variable names in the `race.yml` publish | Block X chat (after launch) | 2026-11-02 | 💬 Block X |
+| I-039 | P4 | tests | Todo tests: BXS-1, G-K-1, FC3-VHP-2, WEB3-23, WEB3-31 | Block X chat | 2026-11-02 | 💬 Block X |
+| I-040 | P2 | Block X | Step 8 (apply game 2 on the Picks contract) not reported done. Until then: the chain allows 5 changes while the page says 1 (BX-129), and the Block X record job fails (BX-127) | owner | 2026-11-02 | 💬 Block X |
+| I-041 | P4 | testnet | Testnet sponsor `1Dg8zKeH…` is OFF and still allowlists Combo's Picks v2. Before Block X testnet use: `config --testnet --send` without the `TESTNET_PICKS*` env vars | Block X chat | 2026-11-02 | 💬 Block X |
+| I-042 | P2 | Block X prizes | Before Block X prizes: BX-97/BX-88 week-end re-read on both nodes, BX-105 board freeze, BX-72 VHP decoder, BX-118 race card clock, BX-115, BX-116, BX-120, SP-59, G-K-1 | Block X chat | 2026-11-02 | 💬 Block X |
+| I-043 | P3 | records | `main`'s `sponsor-data/deployment.json` still records sponsor v2 (✅); `picks` has v3. Corrects itself when `picks` merges into `main` | — | 2026-11-02 | ✅ repo |
 
 ## Closed
 | ID | Issue | Closed | Resolution / where recorded |

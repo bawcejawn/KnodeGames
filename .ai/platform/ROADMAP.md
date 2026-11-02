@@ -2,7 +2,7 @@
 
 > Purpose: What's next, in order. Not a promise — a plan.
 > Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub and Race chats). Not yet archived: Block X, Survivor,
+> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race and Block X chats). Not yet archived: Survivor,
 > Fantasy, Combo, Bracket, Last Node Standing, Repo Lens, sponsor chats.
 > This file holds milestones. Step-by-step actions live in `TODOS.md`; problems in `OPENISSUES.md`.
 
@@ -11,6 +11,7 @@
 ## Scheduled
 | When (UTC) | What | Confidence |
 |------------|------|-----------|
+| Sun 1 Nov, 21:23 | Block X can be applied on the Picks contract (step 8) | 💬 Block X |
 | Mon 2 Nov, 21:00 | Week 2 closes, Week 3 starts (new prize rules, D-010) | 💬 ⚠️ C-08 |
 | Wed 4 Nov, 17:30 | Delete old node basedir folders if `heal.log` is clean | 💬 |
 | Sat 7 Nov, 00:00 (Fri 6 Nov, 4 PM PT) | Deadline to announce (`game-add`) games 2, 7, 9 (+8, 13 if cleared) | 💬 Vault ⚠️ C-14 |
@@ -26,6 +27,7 @@
 | Resolve open contradictions (C-01 – C-15) | owner | owner answers (planned once all chats are archived) | {{TBD}} |
 | Get `vault-v6` into `picks` so admin vault buttons work | Vault + Hub chats | — | before Fri 6 Nov (I-019) |
 | Launch week: `game-add` → sponsor vault switch → `game-apply` | owner | I-019 | see Scheduled |
+| Block X launch: step 8 apply → Mana check → step 9 publish (`PINNED_PICKS`, Repo Lens round 11, `picks` → `main` PR). Expect ~6 hours of targets voided ("no handicap card") while samples fill | owner + Block X chat | I-040 | {{TBD}} |
 | Retest "+ Add another account" with the real Kondor extension (fix `80cef45` is live; create/import the 2nd account in Kondor first) | owner | — | {{TBD}} |
 | Delete `diag-health` branch in the GitHub UI | owner | — | {{TBD}} |
 | Wallet handovers: new owner on hardware wallet, cold treasury (D-013) | owner | — | ❓ "this weekend" |
@@ -35,7 +37,9 @@
 |------|------------|-------|
 | Full platform audit (D-014) | owner go-ahead | |
 | Game launch sequence | C-14 (pace/order) | Hub order: Block X (2) + Race (7) added first → Block X live with Block Golf practice scorecards → Survivor → Block Golf staked → LNS → Bracket → Fantasy → Combo (after Picks v2 CARD). Vault plan: 2, 7, 9 together, then Survivor, Fantasy, Golf, Combo, LNS as each clears |
-| Block X launch PR (`picks` → `main`) | game 2 applied; Race file merge (I-031) | Block X chat |
+| Block X launch PR (`picks` → `main`) | game 2 applied; Race file merge (I-031) | Block X chat; carries the Hub status bar (D-041) |
+| Block X prizes | v6 live; fixes in I-042; B1 decisions (I-033 – I-035) | prize-free until then (D-036) |
+| Picks v2 upgrade (for Combo, game 8) | Combo Repo Lens review merged | `MAINNET-LAUNCH.md` "Later": publish source + reproducible build → `upgrade-schedule --code 92d555d0` → 48 h → `upgrade-upload` → `upgrade-clear` → record in `picks-data/deployment.json` by PR (FC2-13) → `status` → pick row 0.25 → announce game 8, 48 h, `apply_game` |
 | Send message to the KOIN Vault developer | owner sends | content {{TBD}} |
 
 ## Later
@@ -63,6 +67,8 @@
 | Race two boards, vault file, medals for earners (PR #34) | ❓ | 💬 Race |
 | Vault v6 audited and rehearsed (162/162 specs, 38/38 node tests); testnet check | ≤ 2026-10-30 | 💬 Vault |
 | Vault v6 announced (tx `0x1220db16…8af`) | 2026-10-30 | 💬 Vault |
+| Picks contract uploaded to mainnet; sponsor v3 uploaded (PRs #38, #39, #40) | 2026-10-30 | ✅ records on `picks` |
+| Block X: Repo Lens round 10 GO (`a55390f`), round 11 GO (`3472d8c`); game 2 announced with 1 change per pick | ≤ 2026-11-01 | 💬 Block X |
 | Staking hub, status bars, @name page, `NAMES_ENABLED` live | 2026-10-30 | 💬 Hub |
 | Vault v6 uploaded; chain-check all ✔, holdings unchanged at 21,120.07528353 | 2026-11-02 02:33 UTC | 💬 Vault; ✅ code hash on `main` |
 | `vault-v6` merged into `main` (PR #51) | ≤ 2026-11-02 | ✅ |

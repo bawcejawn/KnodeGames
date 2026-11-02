@@ -625,22 +625,31 @@ test("record job: last run's files are read; a missing branch starts fresh; any 
   assert.ok(fs.existsSync(path.join(got.prev, "W002.json")) && fs.existsSync(path.join(got.prev, "board.json")));
 });
 
-test("vault: with this repository's v5 contract ABI the stakes can't be read: the file is never final (fails closed)", async () => {
-  const abi = JSON.parse(fs.readFileSync(path.resolve(APP, "game/abi/kpred.koilib.json"), "utf8"));
-  const { NO_V6_ABI } = await import(path.resolve(APP, "bot/race.ts"));
+test("vault (B1-1 / V4 / B1-5): on a chain without get_game_player (v5) the stake reads fail fast, once per node; the cards still publish and the file is never final", async () => {
+  const abiText = fs.readFileSync(path.resolve(APP, "game/abi/kpred.koilib.json"), "utf8");
+  assert.ok(JSON.parse(abiText).methods.get_game_player, "race.ts reads stakes with the v6 ABI");
+  assert.equal(abiText, fs.readFileSync(path.resolve(APP, "game/abi/kpred-v6.koilib.json"), "utf8"), "the same ABI as Block X reads");
+  const src = fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8");
+  assert.match(src, /game\/abi\/kpred\.koilib\.json/);
+  assert.doesNotMatch(src, /return \{ staked: false, earning: false \};\s*\/\/ the contract on chain isn't v6/, "no early 'not v6 yet' answer (V4)");
   const { dir } = await weekTwoDone();
   const out = tmp();
+  // A v5 chain: every contract read fails (no such entry point). Count them.
+  let reads = 0;
+  const v5 = () => Object.assign(node(U("2026-11-09T05:37Z")), { async readContract() { reads++; throw new Error("unknown entry point"); } });
   const log = console.log; const lines = []; console.log = (x) => lines.push(String(x));
+  const t0 = Date.now();
   try {
-    // The recorder's own stake reader (no stakedOf), against the made-up chain.
-    await run({ p: node(U("2026-11-09T05:37Z")), check: node(U("2026-11-09T05:37Z")), prev: dir, out, vhpOf, raceContract: "x",
-      picksOf: async () => [] });
+    await run({ p: v5(), check: v5(), prev: dir, out, vhpOf, raceContract: "x", picksOf: async () => [] });
   } finally { console.log = log; }
-  if (abi.methods.get_game_player) return;                          // the v6 ABI has landed: covered by the other tests
-  assert.equal(vaultOf(out).final, false);
-  assert.equal(lines.filter((l) => l.includes(NO_V6_ABI)).length, 1, "one warning a run, not one per wallet");
+  assert.ok(Date.now() - t0 < 20000, "fails fast (about 2 s of retry per node, not a minute per wallet)");
+  assert.ok(reads > 0 && reads <= 4, `at most 2 tries on each of the 2 nodes, whatever the number of players (got ${reads})`);
+  assert.equal(vaultOf(out).final, false, "never final while stakes can't be read");
+  assert.equal(lines.filter((l) => l.includes("stake reads failed on a node")).length, 1, "one warning a run, not one per wallet");
+  assert.ok(fs.existsSync(path.join(out, "W002.json")), "the race files are still written");
   const board = JSON.parse(fs.readFileSync(path.join(out, "board.json"), "utf8"));
   assert.ok(board.lastWeek.rows.every((r) => r.ranked === false), "the boards show everyone on Free play meanwhile");
+  assert.ok(shapeOk(out), "and pass the publish check");
 });
 
 test("boards: each row's place on its own board (Staked or Free play), tied wallets sharing it", async () => {

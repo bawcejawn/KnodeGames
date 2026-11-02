@@ -259,6 +259,8 @@ type Opts = {
 
 // ── the picks contract and the game (read only) ──
 const RACE_ABI = () => JSON.parse(fs.readFileSync(new URL("../race/abi/race.koilib.json", import.meta.url), "utf8"));
+// Repo Lens B1-1 (round 11): the deployed game's ABI, v6 since the upload on 2026-11-02 (the same as
+// kpred-v6.koilib.json, which Block X reads; a test checks they match).
 const GAME_ABI = () => JSON.parse(fs.readFileSync(new URL("../game/abi/kpred.koilib.json", import.meta.url), "utf8"));
 const GAME = (() => { try { return JSON.parse(fs.readFileSync(new URL("../game-data/deployment.json", import.meta.url), "utf8")).contract as string; } catch { return ""; } })();
 function defaultRaceContract(): string | null {
@@ -283,20 +285,34 @@ async function readPicks(node: any, contract: string, raceNo: number): Promise<P
  *  player has no entry that week) at least that week's minimum stake. A wallet staked at the start of a week stays
  *  staked that week even if it withdraws. Before the vault (v6) is live nobody is staked; a failed read throws. */
 const vaultState = new WeakMap<object, Promise<any>>();
-export const NO_V6_ABI = "game/abi/kpred.koilib.json has no get_game_player (still v5): Race stakes can't be read";
+/** Repo Lens B1-5 (round 11): once a node fails a stake read, every other stake read on it fails at once for the rest of
+ *  the run (one warning; the vault file isn't final this run; the next hour tries again). So a node that answers the
+ *  head but not the vault can't push the hourly run past its time limit and cost that hour's race cards. */
+const nodeDown = new WeakMap<object, string>();
+const STAKE_TRIES = 2;                                       // about 2 s of retry, not withRetry's default minute
+export const NO_V6_ABI = "game/abi/kpred.koilib.json has no get_game_player: Race stakes can't be read";
 async function readStaked(node: any, who: string, week: number): Promise<Stand> {
   const abi = GAME_ABI();
   if (!GAME) throw Object.assign(new Error("game-data/deployment.json gives no contract: Race stakes can't be read"), { once: true });
-  // This repository's contract ABI is still v5: it can't tell whether the vault is live, so it can't say who is free.
-  // Throwing keeps the vault file from being final (the boards show everyone on Free play, with one warning a run).
   if (!abi.methods?.get_game_player) throw Object.assign(new Error(NO_V6_ABI), { once: true });
+  const down = nodeDown.get(node);
+  if (down) throw Object.assign(new Error(down), { once: true });
   const c = new Contract({ id: GAME, abi, provider: node });
-  if (!vaultState.has(node)) vaultState.set(node, withRetry("vault state", () => (c.functions as any).get_state({})));
-  const cfg = (await vaultState.get(node))?.result?.config;
-  if (!cfg) { vaultState.delete(node); throw Object.assign(new Error("the vault's get_state came back empty: Race stakes can't be read"), { once: true }); }
-  if (!(Number(cfg.v6_rule_week_plus_one || 0) > 0)) return { staked: false, earning: false };   // the contract on chain isn't v6 yet
-  const r: any = await withRetry(`Race stake of ${who}`, () => (c.functions as any).get_game_player({ player: who, game: VAULT_GAME, week: String(week) }));
-  return { staked: stakedFrom(cfg, r?.result ?? {}, week), earning: earningFrom(cfg, r?.result ?? {}, week) };
+  try {
+    if (!vaultState.has(node)) vaultState.set(node, withRetry("vault state", () => (c.functions as any).get_state({}), STAKE_TRIES));
+    const cfg = (await vaultState.get(node))?.result?.config;
+    if (!cfg) throw new Error("get_state came back empty");
+    // Review V4 (round 10): no early "not v6 yet" answer. On a chain without get_game_player (v5) this read fails, so the
+    // vault file can't go final with everyone counted free. Right after the v6 upload, v6_rule_week_plus_one stays 0
+    // until v6's first transaction; get_game_player already answers then (no stake, which is true), and
+    // stakedFrom / earningFrom keep their own guard.
+    const r: any = await withRetry(`Race stake of ${who}`, () => (c.functions as any).get_game_player({ player: who, game: VAULT_GAME, week: String(week) }), STAKE_TRIES);
+    return { staked: stakedFrom(cfg, r?.result ?? {}, week), earning: earningFrom(cfg, r?.result ?? {}, week) };
+  } catch (e) {
+    const m = `the vault's stake reads failed on a node (${String((e as Error).message || e).slice(0, 160)}): Race stakes can't be read this run`;
+    nodeDown.set(node, m);
+    throw Object.assign(new Error(m), { once: true });
+  }
 }
 /** staked: on the Staked board (peak stake that week at least the minimum: can't win the free prize). earning: this
  *  week's counted stake (week_stake, the lowest) at least the minimum, so the vault takes its points; a wallet staked

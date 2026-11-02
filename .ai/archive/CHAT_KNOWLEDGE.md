@@ -1596,3 +1596,201 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
 - **Status:** unsorted
 
 ---
+
+## Chat: Block Golf (exported 2026-11-02)
+
+Block Golf (Build 6, game 6): a platform-wide golf course scored from every other game's weekly leaderboard. State as of 2026-10-29. Branch `golf` (built on `picks`), last commit after `3099006` (docs follow-up); pushed, not merged, nothing deployed.
+
+---
+
+### Block Golf: PLATFORM
+- **Date:** 2026-11-02
+- **Source chat:** Block Golf
+- **Category:** fact
+- **Content:**
+  - Game week: Monday 00:00 UTC to Monday 00:00 UTC. Vault week 0 began Mon 19 Oct 2026 00:00 UTC (`GENESIS = 1792368000000`); week = floor((t − genesis) / 7 days).
+  - About 3 s per block: ~1,200 an hour, ~28,800 a day.
+  - Recorder nodes: RPC `https://koinos.armana.io`, check node `https://api.koinosblocks.com`. `api.koinos.io` stopped answering on 28 Oct.
+  - Data branches: `race-data` (`board.json`, `W###.json`, `index.json`); `games-data` with one folder per game (`blockx/`, `survivor/`, `bracket/`, `golf/`); `testnet-data`.
+  - Real block history: `data/blocks-compact.csv.gz` (3.46M mainnet blocks, ~123 days), read with `readCompact()` in `common.ts`.
+  - Sponsor caps (owner, 28 Oct): 25 Mana a day and 150 a week per wallet. They count each transaction's Mana limit (1 per action), not the Mana it burns (~0.3).
+  - Picks contract hard limits: at most 50 picks per game per day, 50 changes, 32 games, list size 10; lead at least 100 blocks or 5 min; ahead at most 35 days.
+  - Game ids:
+
+    | Id | Game |
+    |---|---|
+    | 1 | Questions |
+    | 2 | Block X |
+    | 3 | Survivor |
+    | 4 | Fantasy |
+    | 5 | Fantasy Rival (records only) |
+    | 6 | Block Golf |
+    | 7 | Race |
+    | 8 | Combo |
+    | 9 | Bracket |
+    | 13 | Last Node Standing |
+
+  - The owner works in finance, is new to running code, and uses a Windows PC with the repo at `C:\kprediction`. They want plain explanations, a checklist with a Today list, and to keep being asked questions.
+- **Status:** unsorted
+
+---
+
+### Block Golf: ARCHITECTURE
+- **Date:** 2026-11-02
+- **Source chat:** Block Golf
+- **Category:** fact
+- **Content:**
+  - **`site/golf-math.js`** (`KGolf`, shared by the page and the recorder):
+    - Constants: `PAR=4`, `LOST=7`, `MIN_FIELD=5`, `PRACTICE_MIN_FIELD=3`, `MIN_FIELD_VHP=10`.
+    - Functions: `strokesFor`, `scoreHole`, `card`, `cards`, `rule`, `courseFor`, `shareText`, `weightOf`.
+    - All integer math. Moves to the repo root with the site-at-root change.
+  - **`bot/games/golf.ts`** (`npm run golf`) has no picks of its own; it reads other games' published results.
+    - Readers: `questions` (the contract, read on two nodes), `race` (the `race-data` board), `blockx` (the `games-data` board). The Survivor and Bracket readers were removed after the audit.
+    - Exports: `run`, `sourcesFromGames`, `stakersFrom`, `minStakeFor`, `vaultFile`.
+    - It refuses to start if the last run's files exist but can't be read, so it never mistakes a read failure for a fresh start.
+  - **Output in `games-data/golf/`:**
+    - `index.json`: `weeks`, `course` {id: joinWeek}, `stakedFromWeek`.
+    - `W###.json`: `final`, `practice`, `holes[]` (status, why, field, rows `[addr, score, scored, weight]`), `cards[]`.
+    - `board.json`: the shared shape, with columns `pts`, `topar`, `holes`, `lost`.
+    - `vault/W<n>.json`: unpadded.
+  - **`.github/workflows/golf.yml`:** hourly at :57, concurrency group `knode-golf`. Off until `GOLF_ENABLED=true`.
+    - The record job uses a read-only token and a `has_branch` check (`ls-remote --exit-code`).
+    - The publish job runs no repo code.
+      - Its Python shape check verifies `start` and `end` against the week, and rebuilds the vault rows from the W cards.
+      - Its history check refuses: rewriting a final week; a shrinking week list; changed join weeks; a changed `stakedFromWeek`; changing a vault file already sent.
+      - Pushes are retried 3 times.
+  - **Page `site/golf.html`, `golf.js`, `golf.css`:**
+    - Shows the week on a navy score panel and the scorecard with paper-card marks (birdie circled, bogey boxed).
+    - Also: mulligan, skipped and in-play holes, links to games not yet played this week, the shared `board.js` leaderboard (Staked / Free play), a copyable share line, and a How-it-works stroke key.
+    - Read-only, with strict CSP and nothing built from HTML.
+  - **`site/games.json`:** the Block Golf entry has a `board` config, with status `soon`. `index.html`'s CSP now allows `games-data/`, and the pinned CSP test was updated.
+  - **Block X `games.yml`:** its publish step now retries the push 3 times, since Golf also pushes `games-data`.
+  - **Vault v6 interface:**
+    - A staker is `get_game_player(player, 6, week).week_stake` ≥ `minStakeFor(week)`. The minimum is `config.min_stake`, or `min_stake_next` from `min_stake_next_week`, and never below 1 VHP. It is read from `get_state` on two nodes, which must agree.
+    - Results file: `{game:6, week, final:true, rows:[{player, points}], first:[], second:[]}`.
+    - The Vault bot (`bot/vault.ts` on `vault-v6-next`) names files `W${week}.json` with no padding (confirmed 29 Oct).
+  - **Runbook:** `docs/GOLF.md`. Testnet workflow and `testnet/golf.json` were removed (owner: no testnet).
+- **Status:** unsorted
+
+---
+
+### Block Golf: DECISIONS
+- **Date:** 2026-11-02
+- **Source chat:** Block Golf
+- **Category:** decision
+- **Content:**
+  - **Redesign (owner, 28 Oct):** every live game is a par-4 hole, and a player's place on that game's weekly board sets their strokes. The 27 Oct "guess the block gap" design is dropped.
+  - **Strokes by place** (ties share the middle place):
+
+    | Place | Strokes |
+    |---|---|
+    | 1st, if the player scored | 1 |
+    | Top 5% | 2 |
+    | Top 25% | 3 |
+    | Top 65% | 4 |
+    | Top 90% | 5 |
+    | The rest, or played but scored 0 | 6 |
+    | Didn't play | 7 (lost ball) |
+
+  - **Mulligan:** the worst *played* hole is dropped; a lost ball can't be dropped.
+  - **Holes:** every hole counts the same.
+  - **Practice:** free practice scorecards from the Block X launch week, with no prizes.
+  - **Launch early, not last:** practice with Block X, staked right after Vault v6. Games join the course automatically from the Monday after they go live; no manual or contract change is needed.
+  - **Practice weeks:** every player who scored counts; 3 players make a hole.
+  - **No testnet run.** The practice weeks on mainnet are the trial.
+  - **Staked weeks:** only players **staked in Block Golf** that week count ("absolutely").
+    - Count **VHP staked, not wallets**. A player counts as one unit among the others' stake, so their own stake never moves them.
+    - A hole needs **5 stakers AND 10 VHP** among its scorers. These are Claude's defaults; the owner can change them.
+  - **Question-game hole:** keeps Block Golf's simple rule.
+  - **Points to the vault:** 7 × counted holes − strokes. Rows hold only players with at least 1 point. A week with no staked scorers still gets a file, with empty rows.
+  - **Finality:**
+    - A week is final 12 h after it ends, once every hole is final and the run had no read problem.
+    - A hole that isn't final by 60 h is skipped; the Race uses its board's final-race standings at 60 h.
+    - From 66 h, a read problem no longer blocks the week.
+    - A staked hole becomes final only after the stakes are read once the week has ended.
+    - Final weeks are frozen.
+  - **Practice or staked** is set by the GitHub variable `GOLF_STAKED_FROM_WEEK`. It is fixed per week when the week is first recorded, can't be changed once published, and is refused until the v6 ABI is merged.
+- **Status:** unsorted
+
+---
+
+### Block Golf: GAME-SPECIFIC
+- **Date:** 2026-11-02
+- **Source chat:** Block Golf
+- **Category:** fact
+- **Content:**
+  - **Dropped design, for reference:** on 123 days of real blocks, the gap to an online producer's next block is pure luck. Offline producers (~5% of holes) and pace against the card were the real signals; chain-watchers won ~88% of weeks. Not built.
+  - **Audit trail** (all fixed):
+    - First audit: 5 High, 4 Medium, 5 Low (H1–H5, M1–M4, L1–L5).
+    - Fix-checks N1–N4, S1–S4 and V1–V5, then a last fix-check N1: one 10-VHP wallet could make a hole on its own.
+    - Accepted residual: real stake in extra wallets that play and score low nudges everyone above them up a little. It costs locked stake and earns little.
+  - **Tests:** full suite 471 pass, 0 fail (481 in all, with 5 skipped and 5 known TODOs). Golf has 29 recorder tests and 26 math/page tests.
+  - **Decisions per wallet per day across the platform:** ~26 after the redesign (Golf needs no picks), with a Sunday peak of ~30–35. It was ~35 a day with an ~85–90 Sunday peak under the old design.
+  - **Previews:** the "Block Golf Preview" artifact (sample players, view-as switcher) and the "KnodeGames Owner Checklist" artifact (db capability, collection `tasks`).
+- **Status:** unsorted
+
+---
+
+### Block Golf: ROADMAP
+- **Date:** 2026-11-02
+- **Source chat:** Block Golf
+- **Category:** fact
+- **Content:**
+  - **Launch order (28 Oct):**
+    1. v5
+    2. Sponsor caps
+    3. Domain
+    4. Guest wallet
+    5. Questions + Race Show (Mon 2 Nov)
+    6. Sponsor v3 + Picks upload
+    7. **Block X, with Block Golf practice (Mon 9 Nov)**
+    8. Survivor
+    9. **Vault v6 (aim: late Nov)**
+    10. **Block Golf staked**
+    11. Last Node Standing
+    12. Bracket
+    13. Fantasy
+    14. Combo
+    15. Sponsor KOIN sizing
+  - **Practice launch:**
+    - After `picks` merges: `git mv site/golf.* golf.*`, change the import to `../../golf-math.js`, point tests at `${APP}/<file>`, run the full suite, and merge.
+    - Set `games.json` to `live` with href `golf.html`, add Block Golf to `tools/site-nav.mjs`, set `GOLF_ENABLED=true`, and run once.
+  - **Staked launch:** v6 live → v6 merged → register game 6 (48 h) → set `GOLF_STAKED_FROM_WEEK`. The `vaultGames` line is `"6": { "name": "Block Golf", "results": "games-data:golf/vault" }`.
+  - **Later holes:** each game adds its reader plus a test in its own build.
+    - Survivor must recompute standings at the week's last season day with `survivor-math`.
+    - Bracket must read its W file, not the 1,000-row board.
+    - Also: Last Node Standing, Fantasy, Combo.
+- **Status:** unsorted
+
+---
+
+### Block Golf: OPEN ISSUES
+- **Date:** 2026-11-02
+- **Source chat:** Block Golf
+- **Category:** open question
+- **Content:**
+  - Block Golf is blocked on Block X going live: sponsor v3 (ceiling, fix-check, upload), the Picks upload and testnet trial, the 48 h announcement, and `GAMES_ENABLED`.
+  - The `picks` branch and every game branch must move to the site root before merging (`claude/site-at-root.md`).
+  - Staked Block Golf needs Vault v6 live: rehearsal, audits, then the 48 h notice.
+  - Early practice weeks will have small fields: 3 holes leave only 2 counted after the mulligan. Real Race data on 28 Oct had 2 players, neither ranked.
+  - The defaults `MIN_FIELD=5` and `MIN_FIELD_VHP=10` should be revisited once there is real stake data.
+  - The question-game field rule differs from that game's own board. The owner chose to keep Golf's simpler rule.
+  - Whether 25 Mana a day is enough for heavy players still needs measuring on testnet. Guests can't fall back to their own Mana.
+- **Status:** unsorted
+
+---
+
+### Block Golf: TODOS
+- **Date:** 2026-11-02
+- **Source chat:** Block Golf
+- **Category:** open question
+- **Content:**
+  - [ ] Rebase `golf` after `picks` merges, move it to the site root, run the full suite, and open the PR/merge with the owner's OK.
+  - [ ] Set Block Golf live in `games.json`, add it to the nav, and set `GOLF_ENABLED=true` (practice, with Block X).
+  - [ ] At v6: register game 6, set `GOLF_STAKED_FROM_WEEK`, and confirm the Vault reads `games-data:golf/vault`.
+  - [ ] Add each later game's hole reader when it launches.
+  - [ ] Optional: stop the "vault file has no rows" problem line repeating every hour.
+  - [ ] Owner checklist items left: t28 (review the preview) and t30 (turn on Golf practice).
+- **Status:** unsorted
+
+---

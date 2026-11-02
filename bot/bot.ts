@@ -13,6 +13,17 @@
  *   npm run bot -- rehearse [--weeks 3]       run whole weeks on a simulated chain built from real block history
  *   npm run bot -- chain-check                read-only: code fingerprints, switches, owners, chain id
  *   npm run bot -- verify-results [--days 3]  on your PC: recount posted results from YOUR OWN node (127.0.0.1 only)
+ *   npm run bot -- games                      the vault's games (v6), their stakes, weeks and announcements
+ *   npm run bot -- vault-snapshot [--out f]   read-only: save the live contract's state to a file (for rehearse-v6)
+ *   npm run bot -- rehearse-v6 [--snapshot f] [--weeks 3] [--reward 90]   the v6 upgrade on a copy of that state
+ *   npm run bot -- testnet-v6 [status]        the Vault's testnet check: Mana of the heaviest calls, key order (testnet only)
+ *   Vault v6 commands (dry run unless --send; bot/README.md has the details):
+ *     owner     game-add <id> "<name>" [--staked] [--free] [--season <weeks>] · game-apply <id> · game-stop <id>
+ *               game-correct <id> <week> <player> <points> · game-unprize <id> <week> <player> · game-void <id> <week>
+ *               claim-fee-vhp [to] [VHP|all]
+ *     operator  game-post <id> <week> [<folder or branch:folder>] · game-seal <id> <week> · game-finalize <id> <week>
+ *     player    stake <id> <VHP> · stake-koin <id> <KOIN> · unstake <id> <VHP|all> · move <from id> <to id> <VHP|all>
+ *               claim-game <id> <week>
  *
  * Keys come only from the environment (.env on your PC, or GitHub secrets for the scheduled bot):
  *   OPERATOR_WIF   the bot's key: posts and resolves questions, pays for its own transactions. It cannot move funds.
@@ -30,7 +41,7 @@ import crypto from "node:crypto";
 import { spawnSync, execSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { Signer, Provider, Contract } from "koilib";
-import { Chain, KoinosChain, SimChain, Call, showKoin, toSat, loadAbi } from "./chain.ts";
+import { Chain, KoinosChain, SimChain, Call, showKoin, toSat, loadAbi, pagePlayers } from "./chain.ts";
 import { tokenAbi } from "./token-abi.ts";
 import { readCsv, syncBlocks, fetchRange, readVhp, MAINNET_VHP, type Blk } from "../common.ts";
 import { chainOutcome, scoreQuestion, storedOutcome, paramsHashOf, vhpSubjects, type VhpReading } from "../resolver.ts";
@@ -38,6 +49,7 @@ import { pobAbi } from "./token-abi.ts";
 import { formatProduction, loadSigners, signerFromBlockItem, type SignedBlock } from "./production.ts";
 import { contractManaVerdict } from "./mana.ts";
 import { contractMetadata, checkMeta, sha256OfMeta, type Check } from "./chaincheck.ts";
+import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, type VaultCtx } from "./vault.ts";
 
 // ───────────────────────── settings ─────────────────────────
 
@@ -136,6 +148,8 @@ type BotState = {
   vhpLists?: Record<string, { n: number; last: number }>;
   /** The Desk as last seen (audit D1-04): its settings, KOIN balance and total KOIN paid out by swaps. */
   desk?: { settings: string; koin: string; koinOut: string; at: number };
+  /** The vault's game list as last seen (v6): a change is reported once. */
+  games?: string;
 };
 const vhpKey = (q: any) => String(q.paramsHash ?? "").toLowerCase();
 /** Records the list the bot just sealed. */
@@ -267,6 +281,12 @@ async function sendOp(ctx: Ctx, what: string, calls: Call[], opts: { sponsored?:
   return r.ok;
 }
 
+/** The bot's context as the vault passes need it (bot/vault.ts). */
+const vaultCtx = (ctx: Ctx): VaultCtx => ({
+  chain: ctx.chain, operator: ctx.operator, dryRun: ctx.dryRun, problems: ctx.problems, quiet: ctx.quiet,
+  deployment: readJson(ctx.P.deployment, null),
+});
+
 // ═══════════════════════════════ the tick ═══════════════════════════════
 
 export async function tick(ctx: Ctx) {
@@ -310,9 +330,16 @@ export async function tick(ctx: Ctx) {
     try { await fn(); } catch (e) { ctx.problems.push(`${name} failed: ${(e as Error).message ?? e}`); log(`  ✖ ${name} failed: ${(e as Error).message ?? e}`); }
     save();
   };
+  // The withdrawals-only build refuses new questions, closes and finalizing (fix-check 2, V2-2): don't spend Mana on
+  // calls it always refuses. Recording results (resolving, settling, other games' results) goes on.
+  const safe = !!st0.raw.safe_mode;
+  if (safe) log("  The vault runs the WITHDRAWALS-ONLY build: no new questions, closes or finalizing; results are still recorded.");
   await step("resolving questions", () => resolvePass(ctx, bs));
-  await step("posting questions", () => postPass(ctx, bs));
-  await step("closing / finalizing", () => closeFinalizePass(ctx));
+  if (!safe) await step("posting questions", () => postPass(ctx, bs));
+  if (!safe) await step("closing / finalizing", () => closeFinalizePass(ctx));
+  // v6: other games' results (posted once their week is final) and their weeks' finalization. Skipped on v5.
+  await step("other games' results", () => vaultResultsPass(vaultCtx(ctx), (what, calls) => sendOp(ctx, what, calls)));
+  if (!safe) await step("finalizing other games", () => vaultFinalizePass(vaultCtx(ctx), (what, calls) => sendOp(ctx, what, calls)));
   // The alerts run before the settle pass (audit L-6): a week with a great many entries to settle must never delay an
   // alert about an announced upgrade or owner change. The settle pass also has its own time budget.
   await step("health check", () => healthPass(ctx, bs));
@@ -407,7 +434,10 @@ async function healthPass(ctx: Ctx, bs: BotState) {
   //    from the close time that corrections move, so a week held open by repeated corrections is reported too.
   const w = st.weeksClosed;
   const wk = (await ctx.chain.read("get_week", { week: String(w) })).week ?? {};
-  if (st.time > closeAt(st, w, wk) + 3 * HOUR_MS) {
+  if (st.raw.safe_mode) {
+    // The withdrawals-only build closes nothing: not an alarm (fix-check 3, V3-4).
+    if (st.time > closeAt(st, w, wk)) log(`  Safe mode: closes are paused (week ${w} waits for the normal build).`);
+  } else if (st.time > closeAt(st, w, wk) + 3 * HOUR_MS) {
     ctx.problems.push(`Week ${w} is overdue to close (${num(wk.questions) - num(wk.resolved)} question(s) still open).`);
   } else if (st.time > weekEnd(st, w) + st.closeDelay + 3 * HOUR_MS && num(wk.last_resolved_time) > weekEnd(st, w)) {
     ctx.problems.push(`Week ${w} is still open ${((st.time - weekEnd(st, w) - st.closeDelay) / HOUR_MS).toFixed(0)} h after its normal close: its latest result or correction was at ${utc(num(wk.last_resolved_time))}. Only the owner key can change results; if you did not, your admin key may be compromised.`);
@@ -471,6 +501,9 @@ async function healthPass(ctx: Ctx, bs: BotState) {
     if (o !== 0 && o !== 1000) ownerAlert(`orphan-outcome:${id}:${o}:${q?.data_hash ?? ""}`, `Orphan question #${id} (it matches no question file) has outcome ${o} on chain, not VOID. Only the operator key or the owner key can set that: if you did not, a key may be compromised. The owner can void it with correct_question.`);
   }
   if (ctx.desk) await deskHealth(ctx, bs, ownerAlert);
+  // v6: game announcements, changes to the game list, owner corrections and voided game weeks.
+  const view = await vaultView(ctx.chain);
+  if (view) bs.games = vaultAlerts(view, st, await recentGameWeeks(ctx.chain, view, st.weeksClosed), ownerAlert, bs.games);
   bs.notified = [...still];
   if (st.c.operator && st.c.operator !== ctx.operator.getAddress() && ctx.chain.kind === "koinos" && E.OPERATOR_WIF)
     ctx.problems.push(`The contract's operator is ${st.c.operator}, not this bot (${ctx.operator.getAddress()}).`);
@@ -950,14 +983,7 @@ async function closeFinalizePass(ctx: Ctx) {
 // ───────────── settle everyone who answered ─────────────
 
 export async function allPlayers(chain: Chain, week: number) {
-  const rows: any[] = [];
-  let start = "";
-  for (;;) {
-    const page = (await chain.read("list_players", { start, limit: 50, week: String(week) })).rows ?? [];
-    rows.push(...page);
-    if (page.length < 50) return rows;
-    start = page[page.length - 1].address;
-  }
+  return pagePlayers(chain, week);   // stops with an error rather than loop (fix-check 2, V2-1)
 }
 
 const FREE_SETTLE_MAX = 20;
@@ -1046,7 +1072,8 @@ export async function status(ctx: Ctx) {
   const { height, lib } = await ctx.chain.head();
   const t = st.t;
   const holdings = big(st.raw.vhp_balance) + big(st.raw.koin_balance);
-  const owed = ["total_stake", "seed_vhp", "seed_koin", "owner_share", "creator_fee", "pots_outstanding"].reduce((s, k) => s + big(t[k]), 0n);
+  // v6 adds the fee owed in VHP and the buckets waiting to roll over (both 0 before v6).
+  const owed = ["total_stake", "seed_vhp", "seed_koin", "owner_share", "creator_fee", "pots_outstanding", "fee_vhp", "games_rolled"].reduce((s, k) => s + big(t[k]), 0n);
   const now = st.time;
   const w = now < st.genesis ? 0 : Math.floor((now - st.genesis) / st.weekLen);
   const inH = (ms: number) => `${((ms - now) / HOUR_MS).toFixed(1)} h`;
@@ -1055,7 +1082,7 @@ export async function status(ctx: Ctx) {
     : `Week ${w + 1}: ends ${utc(weekEnd(st, w))} (in ${inH(weekEnd(st, w))}); results final ${utc(weekEnd(st, w) + st.closeDelay)}`);
   log(`Weeks closed ${st.weeksClosed}, finalized ${st.weeksFinalized}; questions posted ${st.nextId}`);
   log(`Holdings  ${showKoin(holdings)}  (VHP ${showKoin(st.raw.vhp_balance)} + KOIN ${showKoin(st.raw.koin_balance)})   contract Mana ${showKoin(st.raw.mana)}`);
-  log(`Owed      ${showKoin(owed)}  = stakes ${showKoin(t.total_stake)} + seed ${showKoin(big(t.seed_vhp) + big(t.seed_koin))} + producer fee ${showKoin(t.creator_fee)} + unclaimed pots ${showKoin(t.pots_outstanding)}${big(t.owner_share) > 0n ? ` + old owner share ${showKoin(t.owner_share)}` : ""}`);
+  log(`Owed      ${showKoin(owed)}  = stakes ${showKoin(t.total_stake)} + seed ${showKoin(big(t.seed_vhp) + big(t.seed_koin))} + producer fee ${showKoin(big(t.creator_fee) + big(t.fee_vhp))} + unclaimed pots ${showKoin(t.pots_outstanding)}${big(t.games_rolled) > 0n ? ` + buckets rolling over ${showKoin(t.games_rolled)}` : ""}${big(t.owner_share) > 0n ? ` + old owner share ${showKoin(t.owner_share)}` : ""}`);
   log(`Earned since the last close (not yet split): ${showKoin(holdings - owed)}${big(t.rolled_over) > 0n ? `  (includes ${showKoin(t.rolled_over)} carried over from a week with no winners; no fee on that part)` : ""}`);
   for (let k = Math.max(0, st.weeksClosed - 2); k <= Math.min(w, st.weeksClosed); k++) {
     const r = await ctx.chain.read("get_week", { week: String(k) });
@@ -1070,6 +1097,7 @@ export async function status(ctx: Ctx) {
     log(`  open question #${q.chainId} (answers close ${utc(q.lockTime)}, in ${inH(q.lockTime)}): ${q.text}`);
     for (const o of q.options) log(`      ${String.fromCharCode(65 + o.index)}) ${o.label}`);
   }
+  await vaultStatus(ctx.chain, log);
   await logLiveProduction(ctx, lib, now);
   if (ctx.chain.kind === "koinos") log(`Bot wallet ${ctx.operator.getAddress()} Mana ${showKoin(await ctx.chain.mana(ctx.operator.getAddress()))}`);
 }
@@ -1095,6 +1123,7 @@ async function logLiveProduction(ctx: Ctx, lib: number, nowMs: number) {
 // ═══════════════════════════════ deploy ═══════════════════════════════
 
 const WASM = "game/build/release/contract.wasm";
+const SAFE_WASM = "game/build/safe/contract.wasm";   // the withdrawals-only emergency build (npm run build:safe)
 
 // Koinos mainnet system contracts (KOIN and VHP confirmed against the explorer). The game contract itself never uses
 // these: on-chain it asks the chain for "koin", "vhp" and "pob" by name. The bot only needs KOIN and VHP to approve
@@ -1261,9 +1290,31 @@ async function deploy(send: boolean) {
 // (stakes, weeks, the seed) stays. Steps:
 //   upgrade status            what is announced, and whether the local build matches it
 //   upgrade schedule          announce the local build (game/build/release/contract.wasm); the 48 hours start
+//                             add --safe (to every step) for the withdrawals-only build, game/build/safe/contract.wasm
 //   upgrade apply             after the 48 hours: upload exactly that build, then clear the notice
 //   upgrade cancel            withdraw the announcement
-async function upgrade(sub: string | undefined, send: boolean, botPays = false) {
+/** Why this local build must not be announced or uploaded ("" = fine). Normal: never the withdrawals-only build (by its
+ *  file or the pinned fingerprint), and assembly/Mode.ts must be the normal one. Safe: exactly the pinned fingerprint.
+ *  Never the test build. (Fix-check VN-10, V2-3, V3-10, V3-12.) */
+export function upgradeGuard(wasm: Buffer, safe: boolean, dep: any, safeFile: Buffer | null, modeTs: string): string {
+  const sha = (b: Buffer) => crypto.createHash("sha256").update(b).digest("hex");
+  const h = sha(wasm);
+  if (wasm.indexOf(Buffer.from("TEST LEDGER", "utf16le")) !== -1) return "This is the TEST build (simulated token ledger). Run `npm run build` in the game folder.";
+  if (safe) {
+    if (!dep.safeWasmSha256) return "game-data/deployment.json has no safeWasmSha256: the withdrawals-only build's fingerprint must be pinned there first.";
+    if (h !== dep.safeWasmSha256) return `${SAFE_WASM} has sha256 ${h}, not the pinned withdrawals-only build ${dep.safeWasmSha256} (game-data/deployment.json safeWasmSha256).`;
+    return "";
+  }
+  if ((safeFile && sha(safeFile) === h) || (dep.safeWasmSha256 && h === dep.safeWasmSha256))
+    return `${WASM} is the withdrawals-only build. In the game folder run: npm run build, then npm run check.`;
+  // The switch line itself, not a comment (V3-10, C4-1): exactly one live SAFE_MODE declaration, and it is false.
+  if (!createRequire(import.meta.url)("../tools/mode-switch.cjs").isNormal(modeTs))
+    return "game/assembly/Mode.ts is not the normal build's (SAFE_MODE must be false). Restore it (git checkout game/assembly/Mode.ts), then npm run build and npm run check.";
+  return "";
+}
+
+async function upgrade(sub: string | undefined, send: boolean, botPays = false, safe = false) {
+  const WASM_FILE = safe ? SAFE_WASM : WASM;
   const P = paths(E.GEN_DIR ?? "game-data");
   const dep = readJson(P.deployment, null);
   if (!dep?.contract) throw new Error(`${P.deployment} not found — deploy first.`);
@@ -1271,9 +1322,13 @@ async function upgrade(sub: string | undefined, send: boolean, botPays = false) 
   const mainnet = isMainnet(rpc);
   pinDeployment("game", dep, rpc, P.deployment);
   if (send && mainnet && E.CONFIRM_MAINNET !== "yes") throw new Error("MAINNET: add CONFIRM_MAINNET=yes to .env first.");
-  if (!fs.existsSync(WASM)) throw new Error(`${WASM} not found — in the game folder run: npm test && npm run check`);
-  const wasm = fs.readFileSync(WASM);
-  if (wasm.indexOf(Buffer.from("TEST LEDGER", "utf16le")) !== -1) throw new Error("This is the TEST build (simulated token ledger). Run `npm run build` in the game folder.");
+  // Cancelling needs no local build (fix-check 3, V3-9).
+  if (sub === "cancel") return act("owner", "cancel_upgrade", {}, send);
+  if (!fs.existsSync(WASM_FILE)) throw new Error(`${WASM_FILE} not found — in the game folder run: ${safe ? "npm run build:safe" : "npm test && npm run check"}`);
+  const wasm = fs.readFileSync(WASM_FILE);
+  // The local-build guards stop schedule and apply; status only reports them (fix-check 3, V3-9).
+  const guard = upgradeGuard(wasm, safe, dep, fs.existsSync(SAFE_WASM) ? fs.readFileSync(SAFE_WASM) : null, fs.readFileSync("game/assembly/Mode.ts", "utf8"));
+  if (guard && sub && sub !== "status") throw new Error(guard);
   const local = "0x" + sha256hex(wasm);
   const chain = new KoinosChain(rpc, dep.contract);
   const st = await chain.read("get_state", {});
@@ -1282,9 +1337,10 @@ async function upgrade(sub: string | undefined, send: boolean, botPays = false) 
   const eta = Number(up.eta ?? 0);
   const now = Number(st.time ?? Date.now());
   log(`Contract           ${dep.contract} on ${rpc}${mainnet ? "  ⚠ MAINNET" : ""}`);
-  log(`Local build        ${WASM}, ${(wasm.length / 1024).toFixed(1)} KB, sha256 ${local}`);
+  log(`Local build        ${WASM_FILE}${safe ? " (WITHDRAWALS-ONLY emergency build)" : ""}, ${(wasm.length / 1024).toFixed(1)} KB, sha256 ${local}`);
   log(eta > 0 ? `Announced          sha256 ${announced}, can be uploaded from ${utc(eta)}${now >= eta ? " (now)" : ` (in ${((eta - now) / HOUR_MS).toFixed(1)} h)`}` : "Announced          nothing");
   if (eta > 0) log(announced === local ? "                   ✔ matches the local build" : "                   ✖ does NOT match the local build");
+  if (guard) log(`                   ✖ ${guard}`);
 
   if (!sub || sub === "status") return;
   if (sub === "schedule") {
@@ -1292,7 +1348,6 @@ async function upgrade(sub: string | undefined, send: boolean, botPays = false) 
     log(`\nThis announces the local build. Players see it on chain (and the bot emails you): they have 48 hours to withdraw if they disagree.`);
     return act("owner", "schedule_upgrade", { hash: local }, send);
   }
-  if (sub === "cancel") return act("owner", "cancel_upgrade", {}, send);
   if (sub !== "apply") throw new Error("upgrade status | schedule | apply | cancel");
 
   if (eta === 0) throw new Error("Nothing is announced. Run: npm run bot -- upgrade schedule --send   (then wait 48 hours)");
@@ -1316,8 +1371,10 @@ async function upgrade(sub: string | undefined, send: boolean, botPays = false) 
   const abiText = JSON.stringify(loadAbi());
   const mana = BigInt(await provider.getAccountRc(payer.getAddress()));
   const rcLimit = (mana * 95n) / 100n;
-  log(`Pays the Mana      ${botPays ? "bot" : "owner"} wallet ${payer.getAddress()} (has ${showKoin(mana)} Mana; an upload needs about 60)`);
-  if (mana < toSat(60)) throw new Error(`The ${botPays ? "bot" : "owner"} wallet needs about 60 Mana for the upload. Add KOIN to it and let the Mana refill${botPays ? "" : " (or use --bot-pays, then move the KOIN out of the bot wallet afterwards)"}.`);
+  // Upload Mana grows with the code's size: about 60 KOIN for v5's 57.7 KB, so v6's ~82 KB needs about 85 (+5 margin).
+  const needKoin = Math.ceil((wasm.length / 57_699) * 60) + 5;
+  log(`Pays the Mana      ${botPays ? "bot" : "owner"} wallet ${payer.getAddress()} (has ${showKoin(mana)} Mana; this upload needs about ${needKoin})`);
+  if (mana < toSat(needKoin)) throw new Error(`The ${botPays ? "bot" : "owner"} wallet needs about ${needKoin} Mana for this upload (${(wasm.length / 1024).toFixed(1)} KB). Add KOIN to it and let the Mana refill${botPays ? "" : " (or use --bot-pays, then move the KOIN out of the bot wallet afterwards)"}.`);
   if (!send) { log("\nDry run only — nothing was sent. Add --send to upload."); return; }
   log(`\n1/2 Uploading the announced code (owner authorizes, ${botPays ? "bot" : "owner"} wallet pays) ...`);
   const c = new Contract({ id: dep.contract, abi: loadAbi(), provider, signer: owner, bytecode: new Uint8Array(wasm) });
@@ -1558,16 +1615,52 @@ async function act(role: string, method: string, args: any, send: boolean): Prom
   const calls: Call[] = [];
   // Deposits pull tokens with transfer(from → contract), which the token only allows after an approve in the same transaction.
   const pull: Record<string, [string, string]> = { seed_deposit_vhp: [dep.vhp, "VHP"], seed_deposit_koin: [dep.koin, "KOIN"], deposit_vhp: [dep.vhp, "VHP"], deposit_koin: [dep.koin, "KOIN"] };
+  // v6: staking in another game pulls VHP, or KOIN when `koin` is set.
+  if (method === "deposit_to") pull.deposit_to = args.koin ? [dep.koin, "KOIN"] : [dep.vhp, "VHP"];
   if (pull[method]) calls.push({ contract: pull[method][0], abi: tokenAbi, method: "approve", args: { owner: signer.getAddress(), spender: dep.contract, value: String(args.amount) } });
   calls.push({ method, args });
   log(`As ${role} (${signer.getAddress()}) on ${rpc}, to the game contract ${dep.contract}:`);
   for (const c of calls) log(`  ${c.contract ? `${pull[method][1]}.` : ""}${c.method} ${JSON.stringify(c.args)}`);
-  if (method === "seed_deposit_koin" || method === "deposit_koin") log(`  note: moving KOIN needs this wallet's Mana ≥ the amount (${showKoin(args.amount)}); the Mana moves with it.`);
+  if (method === "seed_deposit_koin" || method === "deposit_koin" || (method === "deposit_to" && args.koin)) log(`  note: moving KOIN needs this wallet's Mana ≥ the amount (${showKoin(args.amount)}); the Mana moves with it.`);
   if (!send) { log("\nDry run only — nothing was sent. Add --send to send it."); return false; }
   const r = await chain.send(calls, [signer], { rcLimitKoin: 5 });
   log(r.ok ? `✔ done (Mana used ${showKoin(r.rcUsed)})  transaction ${r.txId}` : `✖ ${r.error}`);
   if (!r.ok) process.exitCode = 1;
   return r.ok;
+}
+
+/** The game contract on the network in deployment.json (read-only use). */
+function gameChain(): KoinosChain {
+  const P = paths(E.GEN_DIR ?? "game-data");
+  const dep = readJson(P.deployment, null);
+  if (!dep?.contract) throw new Error(`${P.deployment} not found — deploy first.`);
+  const rpc = E.RPC ?? dep.rpc;
+  pinDeployment("game", dep, rpc, P.deployment);
+  return new KoinosChain(rpc, dep.contract);
+}
+
+/** Runs a vault pass (bot/vault.ts) by hand with one role's key: a dry run unless `sendIt`. */
+async function vaultCommand(role: string, sendIt: boolean, fn: (v: VaultCtx, send: (what: string, calls: Call[]) => Promise<boolean>) => Promise<void>) {
+  const P = paths(E.GEN_DIR ?? "game-data");
+  const dep = readJson(P.deployment, null);
+  const chain = gameChain();
+  if (sendIt && isMainnet(chain.rpc) && E.CONFIRM_MAINNET !== "yes") throw new Error("MAINNET: add CONFIRM_MAINNET=yes to .env first.");
+  const r0 = ROLES[role];
+  const wif = E[r0.key] ?? (r0.fallback ? E[r0.fallback] : undefined);
+  if (!wif) throw new Error(`${r0.key} is missing from .env`);
+  const signer = Signer.fromWif(wif);
+  signer.provider = chain.provider;
+  log(`As ${role} (${signer.getAddress()}) on ${chain.rpc}, to the game contract ${chain.contractId}:`);
+  const problems: string[] = [];
+  await fn({ chain, operator: signer, dryRun: !sendIt, problems, deployment: dep }, async (what, calls) => {
+    if (!sendIt) { log(`  [dry run] would send: ${what}`); for (const c of calls) log(`      ${c.method} ${JSON.stringify(c.args)}`); return true; }
+    const r = await chain.send(calls, [signer], { rcLimitKoin: 5 });
+    log(r.ok ? `  ✔ ${what}  (Mana used ${showKoin(r.rcUsed)})  transaction ${r.txId}` : `  ✖ ${what}: ${r.error}`);
+    if (!r.ok) process.exitCode = 1;
+    return r.ok;
+  });
+  for (const pr of problems) log(`  ⚠ ${pr}`);
+  if (!sendIt) log("\nDry run only — nothing was sent. Add --send to send it.");
 }
 
 /** Friendly commands (amounts in whole KOIN / VHP). Each is a dry run unless --send is added. */
@@ -1634,6 +1727,73 @@ async function friendly(cmd: string, a: string[], send: boolean): Promise<boolea
     case "sponsor-limit": await act("owner", "set_sponsor_limit", { max_sponsor_rc: units(need(0, "KOIN of Mana (0 = off)")), min_sponsor_rc: units(a[1] && !a[1].startsWith("--") ? a[1] : "0") }, send); return true;
     case "min-stake": await act("owner", "set_min_stake", { min_stake: whole(need(0, "VHP (whole number, at least 1)")) }, send); return true;
     case "pause": await act("owner", "set_paused", { paused: need(0, "on or off") === "on" }, send); return true;
+
+    // ─────────── Vault v6: games ───────────
+    case "games": await vaultStatus(gameChain(), log); return true;
+    case "game-add": {
+      // game-add <id> "<name>" [--staked] [--free] [--season <weeks>]   announce a game (48-hour notice)
+      const id = Number(need(0, "game id (2 or more)")), name = need(1, "game name");
+      const si = a.indexOf("--season"), season = si >= 0 ? Number(a[si + 1]) : 1;
+      if (!a.includes("--staked") && !a.includes("--free")) throw new Error("say what the game has: --staked (a stake bucket), --free (a free prize) or both");
+      log(`This starts the 48-hour notice; the bot will email you about it (expected). After it, within 7 days:  npm run bot -- game-apply ${id} --send`);
+      await act("owner", "propose_game", { game: id, name, staked: a.includes("--staked"), free_prize: a.includes("--free"), season_weeks: season }, send); return true;
+    }
+    case "game-apply": await act("owner", "apply_game", { game: Number(need(0, "game id")) }, send); return true;
+    case "game-stop": {
+      log("The game takes no new stakes from now and earns through this week. Players keep full access to their stake and can still claim what they won.");
+      await act("owner", "deactivate_game", { game: Number(need(0, "game id")) }, send); return true;
+    }
+    case "game-correct": await act("owner", "correct_result", { game: Number(need(0, "game id")), week: need(1, "week"), player: need(2, "player address"), points: Number(need(3, "points (0 removes the player)")), remove_prize: false }, send); return true;
+    case "game-unprize": await act("owner", "correct_result", { game: Number(need(0, "game id")), week: need(1, "week"), player: need(2, "player address"), points: 0, remove_prize: true }, send); return true;
+    case "game-void": {
+      log("The week's bucket rolls over within the game and its prize goes back to the pool.");
+      await act("owner", "void_game_week", { game: Number(need(0, "game id")), week: need(1, "week") }, send); return true;
+    }
+    case "game-post": {
+      // game-post <id> <week> [<folder or branch:folder>]   post a game's week from its results file, then seal it
+      const id = Number(need(0, "game id")), w = Number(need(1, "week")), src = a[2] && !a[2].startsWith("--") ? a[2] : undefined;
+      await vaultCommand("operator", send, (v, s) => vaultResultsPass(v, s, { game: id, week: w, source: src })); return true;
+    }
+    case "game-seal": await act("operator", "seal_results", { game: Number(need(0, "game id")), week: need(1, "week") }, send); return true;
+    case "game-finalize": await act("operator", "finalize_game_week", { game: Number(need(0, "game id")), week: need(1, "week") }, send); return true;
+    case "claim-fee-vhp": {
+      const to = a[0] && !a[0].startsWith("--") && a[0] !== "all" && !/^[0-9.]+$/.test(a[0]) ? a[0] : me("owner");
+      const amt = a.find((x, i) => i <= 1 && (x === "all" || /^[0-9.]+$/.test(x))) ?? "all";
+      const owed = big((await gameChain().read("get_state", {})).totals?.fee_vhp);
+      const amount = amt === "all" ? owed.toString() : units(amt);
+      if (big(amount) === 0n) throw new Error("No fee is owed in VHP yet.");
+      log(`Fee owed in VHP: ${showKoin(owed)}; claiming ${showKoin(amount)} to ${to}`);
+      await act("owner", "claim_fee_vhp", { to, amount }, send); return true;
+    }
+
+    // ─────────── Vault v6: a player's stake in other games ───────────
+    case "stake": await act("player", "deposit_to", { from: me("player"), game: Number(need(0, "game id")), amount: whole(need(1, "VHP (whole number)")), koin: false }, send); return true;
+    case "stake-koin": await act("player", "deposit_to", { from: me("player"), game: Number(need(0, "game id")), amount: whole(need(1, "KOIN (whole number)")), koin: true }, send); return true;
+    case "unstake": {
+      const id = Number(need(0, "game id")), amt = need(1, "VHP (or: all)");
+      if (id === 1) throw new Error("The question game uses: npm run bot -- withdraw <VHP|all>");
+      let amount = amt === "all" ? "" : units(amt);
+      if (!amount) {
+        const p = (await gameChain().read("get_game_player", { player: me("player"), game: id, week: "0" })).player ?? {};
+        amount = (big(p.stake) + big(p.pending)).toString();
+        if (amount === "0") throw new Error("This wallet has nothing staked in that game.");
+      }
+      await act("player", "withdraw_from", { to: me("player"), game: id, amount }, send); return true;
+    }
+    case "move": {
+      const from = Number(need(0, "from game id")), to = Number(need(1, "to game id")), amt = need(2, "VHP (or: all)");
+      let amount = amt === "all" ? "" : units(amt);
+      if (!amount) {
+        const c = gameChain();
+        const p = from === 1 ? (await c.read("get_player", { player: me("player"), week: "0" })).player ?? {}
+          : (await c.read("get_game_player", { player: me("player"), game: from, week: "0" })).player ?? {};
+        amount = (big(p.stake) + big(p.pending)).toString();
+        if (amount === "0") throw new Error("This wallet has nothing staked in that game.");
+      }
+      log("No tokens move. The stake counts in the new game from next Monday; taking all of this week's stake out of a game ends your week there.");
+      await act("player", "move_stake", { player: me("player"), from_game: from, to_game: to, amount }, send); return true;
+    }
+    case "claim-game": await act("player", "claim_game", { player: me("player"), game: Number(need(0, "game id")), week: need(1, "week") }, send); return true;
   }
   return false;
 }
@@ -1921,11 +2081,15 @@ async function main() {
     for (const kv of rest.slice(1)) { const m = kv.match(/^([a-z_]+)=(.*)$/); if (m) args[m[1]] = m[2]; }
     return act(opt("--as", "owner")!, rest[0], args, flag("--send"));
   }
-  if (cmd === "upgrade") return upgrade(rest[0] && !rest[0].startsWith("--") ? rest[0] : undefined, flag("--send"), flag("--bot-pays"));
+  if (cmd === "upgrade") return upgrade(rest[0] && !rest[0].startsWith("--") ? rest[0] : undefined, flag("--send"), flag("--bot-pays"), flag("--safe"));
   if (cmd === "chain-check") return chainCheck();
   if (cmd === "verify-results") return verifyResults(Number(opt("--days", "3")), opt("--rpc"));
   if (await friendly(cmd, rest, flag("--send"))) return;
   if (cmd === "rehearse") { const { rehearse } = await import("./rehearse.ts"); return rehearse({ weeks: Number(opt("--weeks", "3")), verbose: flag("--verbose") }); }
+  // Vault v6: copy the live contract's state to a file (read-only, no key), and rehearse the upgrade on that copy.
+  if (cmd === "vault-snapshot") { const { snapshotCommand } = await import("./rehearse-v6.ts"); return snapshotCommand(gameChain(), opt("--out", "v5-snapshot.json")!); }
+  if (cmd === "testnet-v6") { const { testnetV6 } = await import("./testnet-v6.ts"); return testnetV6(rest.filter((a) => !a.startsWith("--"))); }
+  if (cmd === "rehearse-v6") { const { rehearseCommand } = await import("./rehearse-v6.ts"); return rehearseCommand(opt("--snapshot", "v5-snapshot.json")!, Number(opt("--weeks", "3")), opt("--reward")); }
   throw new Error(`Unknown command "${cmd}". See bot/README.md for the list of commands.`);
 }
 

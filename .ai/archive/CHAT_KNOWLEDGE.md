@@ -724,3 +724,217 @@ The Producer Race (game 7): Build 2 (Knode Games rename, Games hub, Race Show), 
 - **Status:** Filed → platform/TODOS.md (2026-11-02)
 
 ---
+
+## Chat: Block X and Picks (exported 2026-11-02)
+
+Who Signs Block X (game 2), the Picks contract, Mana sponsor v3, the publish checks for the race and Block X data, and the Repo Lens rounds. State as of 2026-10-30 (last commit on `picks`: `3e08c58`). This chat never saw the result of step 8 (applying game 2).
+
+---
+
+### Block X and Picks: PLATFORM
+- **Date:** 2026-11-02
+- **Source chat:** Block X and Picks
+- **Category:** fact
+- **Content:**
+  - **Branches and process**
+    - Work branch `picks`; Claude may push to it. `main` changes only through PRs the owner merges. Other chats also push to `picks`, so always pull before pushing.
+    - The owner's checkout is `C:\kprediction`; a second checkout for Combo is `C:\kg-combo-preview`. Once the checkout was on `lastnode` and a tool ran old code: check `git checkout picks` / `git log --oneline -1` before running tools.
+  - **Chain**
+    - Mainnet RPC `https://api.koinos.io`, plus `koinos.armana.io` and `api.koinosblocks.com` (the second node, `RPC_CHECK`).
+    - Testnet `https://testnet.koinosfoundation.org`.
+  - **Mainnet contracts**
+    - Mana sponsor v3: wasm `b61ac238…`, upload tx `0x122040b7…72`, 2026-10-30.
+      - ON, with caps 1 Mana per tx; 25 per player per day; 150 per player per week; 5,000 for everyone per day; 2,000 a day for free players. The vault switch is off.
+      - Picks is allowlisted with a `pick` row of 0.2 Mana (20,000,000; observed 11,600,000).
+    - Picks: `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm`, wasm `700c296a…`, upload tx `0x12207d67…d809`, 2026-10-30T20:35:42Z.
+      - Owner `1635QUr…H717`. The upload key was deleted after the upload.
+      - The contract's `authorize` refuses everything except an owner-approved upgrade.
+  - **Testnet sponsor** `1Dg8zKeHFRvEZeF1o4thSUs6eC2zHNg7qC`
+    - It is OFF, still allowlisting Combo's Picks v2 `1PQZWWHbGnzHQW99frzJLmQLZ4Lwpjj8rX`.
+    - Before using it for the Block X testnet again (Picks `12xNetHpajRi8Xrv4ub8MbMWWjC2q7VrX5`), run `config --testnet --send` without the `TESTNET_PICKS*` env vars.
+  - **Tools** (all dry runs by default; mainnet needs `--send --mainnet`)
+    - `npm run picks`: keys, build-testnet, status, upload, announce, apply, pause, lock-test, mana-test. On the `combo` branch only: upgrade-schedule, upgrade-upload, upgrade-clear.
+    - `npm run sponsor`: status, upload, config, enable, disable, mana-report, mana-limit, site-limits, watch, payer.
+  - **Data branches:** `race-data` (index, board, W###, `vault/W<week>.json`), `race-samples` (`vhp-samples.json`), `games-data` (`blockx/…`).
+  - **Publish workflows:** `games.yml`, `games-testnet.yml`, `race.yml`, `race-samples.yml`.
+  - **Tests**
+    - `npm run test:audit`: last 644 tests, 634 pass, 0 fail, 5 todo, 5 skipped (the skips are pwsh-only).
+    - Also `test:audit:serial`, `test:resolver`, and `cd sponsor && npm test`.
+  - **Repo Lens** is the owner's AI auditor. It gets a zip (`00-COMMIT.txt` + `00-FIXCHECK-PROMPT.md`) and returns a Claude Docs report.
+- **Status:** unsorted
+
+---
+
+### Block X and Picks: ARCHITECTURE
+- **Date:** 2026-11-02
+- **Source chat:** Block X and Picks
+- **Category:** fact
+- **Content:**
+  - **Why the publish checks look the way they do:** the recorders (`bot/games/blockx.ts`, `bot/race.ts`) are JavaScript and write `JSON.stringify(x)+"\n"`. The publish checks are Python.
+  - **The publish job, in all four workflows**
+    1. `find` refusals: symlinks, unexpected files or folders, files over 2 MB. `race.yml` allows only `$IN/vault` and `vault/W[0-9]{1,4}.json`.
+    2. An inline `node -e` check: the raw bytes must equal `JSON.stringify(JSON.parse(text))+"\n"`. Regular files only, path after `--`, and it walks subfolders.
+    3. Python checks:
+       - `js_safe`: numbers within ±2^53−1, finite, no integer-valued floats, depth ≤ 64;
+       - type-strict `isaddr`, `one()` and `same()`;
+       - ASCII `[0-9]` only, never `\d`. A guard test enforces this, including `python3 -c` / `python3 -I -c` one-liners.
+    4. `setup-node` 22, SHA-pinned, in every publish job.
+  - **Published history is append-only**
+    - A published card never changes (BX-44).
+    - Index weeks are append-only; a new week only for cw−1..cw (the race allows cw−1..cw+1).
+    - W targets: new rounds only for the current or just-ended week, never after P is published. Height = round × 2400 + 0, and its time is ≤ now and inside the week.
+    - A run that rewrites history is held whole.
+  - **race.yml, the record job**
+    - `git ls-remote --exit-code refs/heads/race-data`: exit 2 means the first run; any other error stops the run.
+    - `ls-tree -r -z` into a file, then a `read -d ''` loop. It fetches W/index/board and `vault/`, plus `race-samples`.
+  - **race.yml, the publish job**
+    - Python `vault_ok` checks the vault file: game 7, rows ordered with points 1–255, first/second ≤ 10, no wallet twice, final only after the week ends.
+    - A vault file that fails `js_safe`/`vault_ok` is held on its own with a warning; the race files still publish (blind review V1).
+    - A vault file already published as final never changes; changing it refuses the whole run.
+  - **race.ts**
+    - Samples and cards take the lower of the two nodes' reads. `topInDoubt` uses a floor re-run with 0.5% tolerance.
+    - Also: a supply cap, a clock check (BX-89), an early check-head (BX-114) and a lag bound (BX-101).
+    - Boards: Staked / Free play, with `boardPlace` and `earns` (0 nothing, 1–2 a free prize place, 3 a staked share). Ranking is the vault stake (`stakedOf`).
+    - The old "holds 1 VHP" read (`rawRead`) was removed; each pick's 5th field is always 0.
+    - `readStaked` uses `GAME_ABI` = v5 (`game/abi/kpred.koilib.json`, no `get_game_player`), so it throws "still v5". Everyone shows on Free play and the vault file is never final.
+  - **Block X recorder**
+    - `canonicalTransferValue` / `NonCanonicalTransfer`.
+    - A target is voided at once only if both nodes report it; otherwise it's held and voided at the 3-day edge.
+    - Short receipt pages are read on (BX-90). No vault file past its 3-day window (BX-92).
+    - Block X reads only top-level `W###.json` race cards; `vault/` is invisible to it.
+  - **Sponsor tool**
+    - `capsOf` keeps 0. `tighterCaps` takes the lowest of both nodes and the default.
+    - `allowedBuilds` mainnet [v3, v2]. `codeOn` checks two nodes. The SP-50 swap check runs only on v3.
+    - `mana-limit --limit X` needs X ≥ 1.25 × the observed most and ≤ the per-tx cap.
+    - Testnet only: `TESTNET_PICKS` / `TESTNET_PICKS_CARDS=yes`.
+    - Mainnet upload Mana pricing: 1.2 per KB + 10.
+  - **Site**
+    - `blockx-math.js`: `MAINNET_GAME = {id:2, round:2400, offset:0, lead:100, ahead:28900, picksPerDay:30, maxChanges:1}`.
+    - `wallet.js`: `PINNED_PICKS = ""`, to be set at publish.
+    - `blockx.html` has the Hub's `#stake-badge`; `KStake.badge(…, {game: 2})` is called in `setupStake`, mainnet only.
+    - The Block X testnet page uses `testnet-wallet.js`; the staking testnet page uses `stake-testnet-wallet.js`.
+  - **Picks upgrade path:** owner `schedule_upgrade(sha256)`, then 48 hours, then an owner-signed upload within 7 days, then `schedule_upgrade` with an empty hash. The three overrides stay on.
+- **Status:** unsorted
+
+---
+
+### Block X and Picks: DECISIONS
+- **Date:** 2026-11-02
+- **Source chat:** Block X and Picks
+- **Category:** decision
+- **Content:**
+  - **Split launch:** contracts first. Block X goes live prize-free; the scoring fixes happen off-chain before Vault v6 prizes.
+  - **One change per pick** (owner), instead of 5. The page says "change it once".
+  - **Picks `pick` sponsor row: 0.2 Mana** (chain row and the site's `rcLimits`).
+  - **Raise the row to 0.25 Mana at Combo launch, not now.**
+    - Testnet, sponsored, game 98: a 6-leg card used 0.1313 Mana and a 10-leg card 0.1457. That's only 1.37× under 0.2, below the 1.5× rule.
+    - Block X single picks (0.116 Mana) are fine at 0.2.
+  - **PRs merged to main:** #38 (sponsor-only), #39 (the swap pays its own Mana), #40 (picks sponsored).
+  - **Neighbour-time rule removed:** it caused honest stalls. The BX-97 week-end re-read moved to before prizes.
+  - **BX-137 accepted:** the test clock variables aren't refused in GitHub Actions, because CI runs the tests there.
+  - **V4, B1-1 and B1-5 held until the v6 upload day.** Any change now is outside the Repo Lens GO, and this is race-card code.
+  - **The Hub's status bar** goes to main in the Block X launch PR; no separate PR.
+  - **Standing rules**
+    - Root-cause fixes, and a blind review before each Repo Lens round.
+    - Mainnet steps one at a time, as PowerShell blocks for `C:\kprediction`.
+    - Never handle keys or WIFs (if one is pasted, tell the owner to rotate it).
+    - Never push to main, merge, deploy, upload or change chain settings without asking.
+    - Plain language, and a "Today" checklist in every reply.
+- **Status:** unsorted
+
+---
+
+### Block X and Picks: GAME-SPECIFIC
+- **Date:** 2026-11-02
+- **Source chat:** Block X and Picks
+- **Category:** fact
+- **Content:**
+  - **Who Signs Block X (game 2)**
+    - Announced with 1 change per pick; can be applied from 2026-11-01 21:23:34 UTC (Sun 1:23 pm Pacific).
+    - Repo Lens: round 10 GO at a55390f; round 11 GO at 3472d8c (nothing must be fixed).
+    - Record: `docs/history/AUDIT-2026-10-28-repolens-blockx.md` (rounds 5–10 and the blind reviews; round 11 not yet written). Runbook: `docs/blockx/MAINNET-LAUNCH.md`.
+  - **Producer Race (game 7):** the weekly vault results file is `race-data/vault/W<week>.json` (Race chat).
+  - **Combo Card (game 8)**
+    - Picks v2 release `92d555d0680157854452e35162c1b1c5c100904996194b8c1c848df50e5e1c3d` (37,689 bytes).
+    - Testnet contract `1PQZWWHb…`, game 98. The upgrade commands are on `combo` @ 5052fa6.
+    - Measured results are in `docs/blockx/TESTNET-RESULTS.md`.
+  - **Vault game ids:** Block X 2, Survivor 3, Fantasy 4, Golf 6, Race 7, Combo 8, Bracket 9, Last Node Standing 13.
+  - **Vault week 0:** Mon 19 Oct 2026 00:00 UTC (genesis 1792368000).
+- **Status:** unsorted
+
+---
+
+### Block X and Picks: ROADMAP
+- **Date:** 2026-11-02
+- **Source chat:** Block X and Picks
+- **Category:** fact
+- **Content:**
+  1. **Step 8** (from Sun 1:23 pm PT): `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet`. It must show 1 change.
+  2. **Mana check:** `npm run sponsor -- mana-report` on mainnet (BX-123). Raise the pick row if mainnet is more than ~1.5× testnet.
+  3. **Step 9, publish**
+     - Set `PINNED_PICKS` in `wallet.js` to `1LmgqB…`, and record Repo Lens round 11.
+     - Open the `picks` → `main` PR; the owner merges.
+     - Expect about 6 hours of targets voided ("no handicap card") while the samples fill.
+  4. **Hub:** send it the launch PR link (the status bar comes with it).
+  5. **After launch:** Repo Lens tidy items B1-4, B1-6, B1-7, B1-8, then a short fix-check.
+  6. **Step 10:** after a full day of play, per-action Mana limits (`mana-report --save`, `site-limits --send`, a PR, `config --send`). Again a day after the sponsor's v6 switch (`claude/handoff-sponsor-v6-day.md`).
+  7. **v6 upload day:** B1-1 + V4 + B1-5 together, with a test and a short fix-check.
+  8. **Picks v2 upgrade**, in `MAINNET-LAUNCH.md` "Later: the Picks v2 upgrade":
+     1. Publish the source and a reproducible build.
+     2. `upgrade-schedule --send --mainnet --code 92d555d0`, then wait 48 hours.
+     3. `upgrade-upload`.
+     4. `upgrade-clear`.
+     5. Write `wasmSha256` / `uploadTx` / `uploadedAt` into `picks-data/deployment.json` by a PR to main (FC2-13).
+     6. `status --mainnet`.
+     7. Raise the pick row to 0.25 (`mana-limit picks:pick 0.1457 --limit 0.25 --save`, the site PR, `config --send`).
+     8. Announce game 8, wait 48 hours, `apply_game`.
+  9. **Before prizes:** BX-97/BX-88 week-end re-read on both nodes, BX-105 board freeze, BX-72 VHP decoder, BX-118 race card clock, BX-115, BX-116, BX-120, SP-59, G-K-1.
+- **Status:** unsorted
+
+---
+
+### Block X and Picks: OPEN ISSUES
+- **Date:** 2026-11-02
+- **Source chat:** Block X and Picks
+- **Category:** open question
+- **Content:**
+  - **B1-1 (before game 7 prizes):** race.ts uses the v5 ABI, so stake reads always throw and the vault file is never final. Weeks that pass stay not-final; past weeks need a back-fill or a "no prize" decision.
+  - **B1-2 (before game 7 prizes; High at that stage):** a final vault file is decided by one run and locked forever. It isn't re-derived from the W### files, and there's no 12-hour hold.
+  - **B1-3 (owner decision):** free-prize farming by many empty wallets on sponsored picks. The related todo test for Block X is BXS-1.
+  - **B1-4 (Low):** a vault file over 2 MB, not in canonical byte form, or with a nested folder still stops the whole race run, cards included.
+  - **B1-5 (Low):** stake reads run before the race files are written, with retries per wallet. A failing node could pass the 30-minute job limit and lose that hour's cards.
+  - **V4:** a non-v6 chain reads as "not staked" without an error. Fix: drop the `v6_rule_week_plus_one` early return (race.ts about line 297), with a fail-fast v6 check once per run and per node.
+  - **B1-6:** the race.ts header comment is stale.
+  - **B1-7:** `bot.yml` has `\d` in two Python row checks, and the guard doesn't scan `bot.yml`.
+  - **B1-8:** two test-clock variable names in the race.yml publish.
+  - **BX-129:** until step 8 is applied, the chain allows 5 changes while the page says 1.
+  - **BX-127:** the Block X record job fails until game 2 is applied.
+  - **Todo tests:** BXS-1, G-K-1, FC3-VHP-2, WEB3-23, WEB3-31.
+- **Status:** unsorted
+
+---
+
+### Block X and Picks: TODOS
+- **Date:** 2026-11-02
+- **Source chat:** Block X and Picks
+- **Category:** open question
+- **Content:**
+  - [ ] Owner: step 8, apply game 2 on mainnet and confirm 1 change. Not reported as done in this chat.
+  - [ ] Owner: mainnet `npm run sponsor -- mana-report` before publishing.
+  - [ ] Claude: set `PINNED_PICKS`, record Repo Lens round 11, open the `picks` → `main` PR. Owner: merge it.
+  - [ ] Send the Hub the launch PR link, and confirm the phone-width screenshot of the bar reached it.
+  - [ ] Optional, owner: `npm ci --ignore-scripts && npm run test:audit:serial` on the PC (Repo Lens asked).
+  - [ ] After launch: B1-4 (run the find, size and byte checks on `vault/` inside the hold, with a test), B1-6, B1-7, B1-8, then a short fix-check.
+  - [ ] v6 upload day (ask the Vault chat for the date):
+    - `GAME_ABI` → `kpred-v6.koilib.json`;
+    - drop the early return;
+    - a fail-fast v6 check;
+    - a test: a v5 chain with 50 players finishes, the cards publish, the vault file stays not final;
+    - a fix-check.
+  - [ ] Combo launch: raise the pick row to 0.25 (chain and site `rcLimits`), then check with `mana-report`.
+  - [ ] The Combo upgrade commands reach `picks` / `main` only after Combo's Repo Lens review and merge.
+  - [ ] Before prizes: the BX-97/88, BX-105, BX-72, BX-118, BX-115/116/120 and SP-59 items, and the B1-2 / B1-3 decisions for game 7.
+  - **Project docs to carry over:** `claude/blockx/FIXCHECK-PROMPT.md`, `claude/handoff-sponsor-v6-day.md`, `claude/blockx/SPONSOR-TESTNET.md`, `claude/blockx/README.md`. In the repository: `docs/blockx/MAINNET-LAUNCH.md`, `docs/blockx/TESTNET-RESULTS.md`, `docs/history/AUDIT-2026-10-28-repolens-blockx.md`.
+- **Status:** unsorted
+
+---

@@ -938,3 +938,284 @@ Who Signs Block X (game 2), the Picks contract, Mana sponsor v3, the publish che
 - **Status:** Filed → platform/TODOS.md, OPENISSUES.md (2026-11-02)
 
 ---
+
+## Chat: Swap Desk (exported 2026-11-02)
+
+Knode Swap (the VHP→KOIN desk), the three nodes on the owner's PC, self-healing and alerts, on-time question release, who pays Mana, and the game v5 / Desk v2 upgrade. The chat ran 2026-10-16 to 2026-10-28; facts are as of then (the repo and site were later renamed to KnodeGames / knodegames.com).
+
+---
+
+### Swap Desk: PLATFORM
+- **Date:** 2026-11-02
+- **Source chat:** Swap Desk
+- **Category:** fact
+- **Content:**
+  - **Repo and hosting**
+    - The repo was `bawcejawn/Knode` and stays **public**. Public means GitHub Actions and Pages cost nothing.
+    - The owner's working copy is `C:\kprediction`. Run `npm` from there.
+    - The site was on GitHub Pages and deploys from `main`.
+    - Chain: Koinos mainnet, chain id `EiBZK_GGVP0H_fXVAM3j6EAuz3-B-l3ejxRSewi7qIBfSA==`.
+  - **RPC nodes**
+    - Bot and local tools: `https://koinos.armana.io`. The bot reads repo variable `vars.RPC`, which defaults to Armana. Locally, set it for a PowerShell session with `$env:RPC = "https://koinos.armana.io"`.
+    - Site: `https://api.koinos.io`. It sometimes returns HTML error pages.
+    - Second, independent check (`RPC_CHECK`): `https://api.koinosblocks.com`.
+  - **Addresses**
+    - Game: `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr`
+    - Desk: `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR`
+    - Owner, treasury and seed owner: `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717`
+    - Operator (bot): `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv`, rotated in on 2026-10-26.
+    - Old operator: `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ`, retired. Its key is still in the owner's local `.env`.
+    - Mana sponsor: `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8`
+    - Race picks: `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K`
+    - KOIN: `19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK`
+    - VHP: `12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq`
+    - PoB: `159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv`
+    - Desk producer key: `AzCYCDLDa49PPVHKk60xQbOErS6XY1TcEA8bkSo8Sk6E`
+    - Game producer key: `Ak0vGklNyfkjroA5_nT04sfBy_IkloaNbXYiOClcjMm3`
+  - **Code fingerprints** (live since 2026-10-28, about 19:25 UTC)
+    - Game v5: `c17066ae988d204fd43d43f662ad87fcdc38170419943c20b5164a5bd34dd784`, replacing v3 `917708a7…`.
+    - Desk v2: `309506ccfaadd3427e937aa88cd34c9ea2a9e6088e49e51f014d546489dd5f35`, replacing v1 `05039d74…`.
+    - Sponsor v2: `fa4659e65c6156da3dde34238e0545a489a8b7f00cdf51df9bf79517a0019f33`.
+  - **Nodes on the owner's PC** (Docker Compose on Windows)
+
+    | Node | Folder | RPC port |
+    |---|---|---|
+    | Desk | `C:\kpred-desk-node\koinos` (basedir `C:\kpred-desk-node\basedir`) | 8100 |
+    | Game | `C:\kpred-node\koinos` (basedir `C:\kpred-node\basedir`) | 8080 |
+    | Personal | `C:\koinos-personal\koinos` | 8090 |
+
+    - The desk node uses P2P port 8908 and Compose project `kpred-desk-node`.
+    - Images: chain v1.5.2, block_store v1.1.0, p2p v1.3.0, block_producer v1.3.1.
+    - **Never delete `basedir\block_producer`**: it holds `private.key`.
+  - **GitHub Actions**
+    - `bot.yml` (Kpred bot): runs hourly at :07, plus a daily release run at `48 11 * * 1-6`.
+      - Jobs: blocks-in, tick, publish, blocks-out.
+      - `OPERATOR_WIF` lives in the `bot` environment, which only `main` can use.
+    - `race.yml`: hourly at :37.
+    - `watch.yml`: every 15 minutes. It emails once if `vars.PERSONAL_PRODUCER` hasn't produced a block for 30+ minutes, then again every 3 hours.
+    - `heal-alert.yml`: started by the owner's PC. It fails on purpose so GitHub emails the owner.
+  - **Windows scheduled tasks on the owner's PC**
+    - Both run through `conhost --headless`, so no window flashes.
+    - "Knode self-heal" runs every 20 minutes.
+    - "Knode question release" runs daily 11:45–14:05 UTC, every 5 minutes. Its start time is stored in UTC, so daylight saving time doesn't move it.
+  - **Secrets**
+    - Kept in `C:\kprediction\.env`. Never paste them into chat or GitHub.
+    - `GITHUB_ALERT_TOKEN` is a fine-grained PAT for `bawcejawn/Knode` only, with Actions read/write. It's used by `heal.mjs` and `release-kick.mjs`.
+  - **Costs**
+    - Public repo: free.
+    - A private repo would use roughly 15–18k Actions minutes a month, about $75–120 a month (estimate). Pages and environments would also need Pro.
+    - A custom domain costs about $10–20 a year and doesn't affect Actions.
+- **Status:** unsorted
+
+---
+
+### Swap Desk: ARCHITECTURE
+- **Date:** 2026-11-02
+- **Source chat:** Swap Desk
+- **Category:** fact
+- **Content:**
+  - **Game contract**
+    - Daily `compound` burns returned KOIN into VHP.
+      - It keeps `seed_koin + creator_fee` as KOIN.
+      - It is capped by the contract's Mana. Minted KOIN arrives with equal Mana (checked in the Koinos KOIN contract source).
+    - `set_sponsor_limit(max, min)`: owner only, takes effect at once. `max_sponsor_rc = 0` means the contract pays for no one.
+    - Code upgrades have a 48 h timelock. In v5 an announcement expires 7 days after its timelock.
+  - **Desk contract (Knode Swap)**
+    - Swaps VHP → KOIN at 1:1 minus 3%. The fee is capped at 10%.
+    - `authorize` refuses every outside token move and every Mana payment.
+    - A swap pays at most min(desk KOIN, desk Mana).
+    - Withdrawals go to the treasury only. Treasury and code changes have a 48 h timelock.
+    - The desk refuses its own address as owner or treasury.
+    - Desk v2 adds:
+      - a two-step owner handover;
+      - a daily payout cap, which starts with no cap;
+      - 48 h waits for a lower fee, a higher cap or a new key;
+      - a 7-day expiry on announcements.
+  - **Mana sponsor**
+    - Pays only for listed player actions: on the game, the desk, race picks, and approvals to the game or desk.
+    - Answers and picks are free for any wallet, inside a free sub-cap. Everything else needs at least 1 VHP or a stake.
+    - Caps are counted in rc_limits: per transaction, per player per day and per week, and for everyone per day (hard cap 1,000).
+    - It never pays for operator or owner actions.
+  - **Bot tick order:** resolve → post → close/finalize → health checks → settle → compound. Then it publishes `game-data/`.
+    - Release: when within 12 minutes of release, `postPass` waits for 12:00 UTC (`releaseWaitMs`), with one bounded retry.
+    - Mana tally: the bot records what its own wallet spends per UTC day in `game-data/bot-state.json` → `manaByDay`, keeping 60 days.
+    - Settles: the bot first asks the contract to pay. If the contract declines, the bot pays itself, up to `MAX_BOT_PAID_SETTLES` (10 per run). The cap is lifted in the last hours before `settle_end`, and `BOT_MANA_FLOOR` still applies.
+  - **`bot/release-kick.mjs`** (owner's PC)
+    - 11:50–11:58 UTC: starts `bot.yml` unless a run is already active.
+    - 12:06–14:00 UTC: checks that `game-data/questions/W###-D#.json` is on `main`, using the public API with no token.
+      - Starts the bot again at most every 12 minutes.
+      - Emails once at 12:20.
+      - Marks the day done as soon as the file is there.
+    - Day label: genesis is Monday 2026-10-19 00:00 UTC. Labels are `W{week:03}-D{day}`, with Monday = D1. Sunday has no questions.
+  - **`bot/heal.mjs`** (owner's PC)
+    - Restarts a node (`docker compose down`, then `up -d`) when it is more than 200 blocks behind and not moving, or silent on two checks in a row.
+      - 50-minute cooldown between restarts.
+      - Stops after 3 restarts in 6 hours and emails "check by hand".
+    - A block store that started 3+ times in 20 minutes is a crash loop: it emails instead of restarting. Auto-repair was added later by another session.
+    - Every heal emails the owner through `heal-alert.yml`.
+  - **Repair scripts**
+    - `node/repair-desk-data.ps1` copies the game node's `block_store\db` and `chain\blockchain` onto the desk node.
+      - The old data is kept as `…-broken-<stamp>`.
+      - Keys, p2p and config are never touched.
+      - The game node is always restarted.
+    - `node/repair-node-data.ps1` is the general version, added later.
+  - **Site payer flow** (`site/wallet.js`, `sendKondor`)
+    - If the sponsor covers every operation and `would_pay` says yes, the sponsor is the payer and the player is the payee. The rcLimit is 1 for an answer or pick, 3 for anything else.
+    - Otherwise the player's own wallet is named as payer. A transaction that comes back re-pointed to the game contract is refused.
+    - KOIN Vault picks its own payer.
+    - The site re-reads chain state and questions every minute.
+    - From 12:00 UTC until the day's questions appear it shows "Today's questions are on their way". If they're more than 2 hours late it says "running late".
+  - **Commands**
+    - `npm run bot -- …`: status, chain-check, upgrade, sponsor-limit, node-status…
+    - `npm run desk -- …`: status, node-status, key-status, fund, withdraw, daily-cap, upgrade, treasury…
+    - `npm run sponsor -- …`: status, config, enable, disable, payer.
+    - `npm run heal`
+    - `npm run admin`
+- **Status:** unsorted
+
+---
+
+### Swap Desk: DECISIONS
+- **Date:** 2026-11-02
+- **Source chat:** Swap Desk
+- **Category:** decision
+- **Content:**
+  - **2026-10-16 · Swap desk design:** a separate contract with a flat 3% fee. The desk node's VHP, fees included, produces blocks, and that refills the KOIN on offer ("burn without burning"). It is kept separate from game and personal funds.
+  - **Treasury:** stays the owner wallet for now. It can be changed later, with the 48 h timelock.
+  - **2026-10-23 · Self-heal:** checks every 20 minutes and emails on every heal. The watchdog is based on the personal node.
+  - **Site:**
+    - Koinosscan replaced the KoinosProof footer link.
+    - The song was removed from the Learn page.
+    - The "Swap now or wait" calculator and the "added since you opened" stat were removed.
+  - **2026-10-23 · Upgrade path:** skip v4 and go straight to game v5 together with Desk v2.
+  - **2026-10-28 · On-time questions:** questions must come out at 12:00 UTC on the dot, for the site's integrity. This added:
+    - an 11:48 release run;
+    - the bot waiting for 12:00;
+    - a backup starter on the owner's PC.
+  - **2026-10-28 · Bot Mana:** the bot wallet pays its own Mana (post, resolve, compound, settle). The owner tops up its KOIN; target 50 KOIN.
+  - **2026-10-28 · Player Mana:** the sponsor pays for every player transaction; past the caps, players pay their own (PR #28, merged). The owner chose not to set the game's `max_sponsor_rc` to 0 for now; it stays at 2 KOIN on chain and in `deployment.json`.
+  - **2026-10-28 · Repo:** stays public.
+  - **2026-10-28 · Release task:** runs only 11:45–14:05 UTC each day, stored in UTC so daylight saving can't move it.
+  - **Finding:** adding seed KOIN does not increase the VHP that's producing. At steady state the idle KOIN is about 5 × the daily Mana spend. The fix is to stop others spending the contract's Mana.
+- **Status:** unsorted
+
+---
+
+### Swap Desk: GAME-SPECIFIC
+- **Date:** 2026-11-02
+- **Source chat:** Swap Desk
+- **Category:** fact
+- **Content:**
+  - **Schedule (UTC)**
+    - Weeks run Monday 00:00 to Monday 00:00.
+    - Questions come out Monday–Saturday at 12:00. Answers close at 00:00. Sunday is results day.
+    - Corrections are allowed until Monday 12:00. Winners are final Tuesday 12:00 when everything runs on time.
+  - **Questions:** five a day.
+    - Types: producer quartiles, group block counts, transactions in a window, largest gap, average interval.
+    - Templates M1, M4, M5, M7, M10; model v5; `hashRule` 2.
+    - v5 allows at most 30 questions a week.
+  - **v5 rewards** (from week 3, starting 2026-11-02)
+    - Take the 5% fee.
+    - Take a 2 VHP free-player prize: 1 VHP each to the best 2 free players.
+    - Split the rest: 40% to basket A (place weight × stake, capped at 10 VHP per wallet) and 60% to basket B (place weight × full stake).
+    - Winners are the top 30% of staked players with at least 1 point. Minimum stake: 1 VHP.
+  - **Game snapshot, 2026-10-28 13:41 UTC**
+    - Holding: VHP 21,622 + KOIN 546.6. Contract Mana: 174.9.
+    - Owed: 22,151.7 in total:
+
+      | Item | Amount |
+      |---|---|
+      | Stakes | 21,011 |
+      | Seed | 1,050 (1,000 VHP + 50 KOIN) |
+      | Producer fee | 4.54 |
+      | Pots | 86.17 |
+
+    - Week 1: gain 90.71, pot 86.17, 1 winner.
+  - **Compounding**
+    - It ran every day from Oct 20 to Oct 27.
+    - The bot's "day" is 28,800 blocks, so each compound comes about 1 hour later than the last.
+    - About 317 KOIN went uncompounded because the contract's Mana was spent on others' transactions.
+  - **Desk snapshot, 2026-10-28**
+    - 478.18 KOIN and 20,720 VHP producing.
+    - 2 swaps so far: 3,001 VHP in, 2,910.97 KOIN out, 90.03 VHP in fees.
+  - **Mana costs, measured**
+
+    | Action | Mana |
+    |---|---|
+    | Simple call | ~0.21 |
+    | Each write | ~0.02 |
+    | Answer or pick | ~0.3 |
+    | `deposit_koin` | ~1.38 |
+    | `compound` | ~1.08 |
+    | Game v5 upload | 26.8 |
+    | `cancel_upgrade` | ~0.25 |
+
+  - **Daily Mana budget (estimate)**
+    - Bot: about 5–6 Mana a day. Hold 50 KOIN.
+    - Sponsor: about 3 Mana per active player per day. Hold 5 × the daily use.
+    - The 1,000-a-day cap covers about 100 fully active players. Keep 5,000 KOIN in the sponsor.
+- **Status:** unsorted
+
+---
+
+### Swap Desk: ROADMAP
+- **Date:** 2026-11-02
+- **Source chat:** Swap Desk
+- **Category:** idea
+- **Content:**
+  - A custom domain. It also unblocks guest play, which is held back by the shared github.io origin.
+  - Sponsor v3: a generic allowlist. It could also pay for operator transactions if one wallet should cover everything; that needs an audit.
+  - Replace the Mana estimates with measured numbers: `manaByDay` plus the sponsor's daily use, after a week. See `claude/mana-budget.md` in the project.
+  - Optional: compound at a fixed time each day instead of every 28,800 blocks.
+  - Wallet handovers after v5 (`docs/WALLETS.md`).
+  - Launch kit: week 1 is for testing; weeks 2–3 push the number of players.
+- **Status:** unsorted
+
+---
+
+### Swap Desk: OPEN ISSUES
+- **Date:** 2026-11-02
+- **Source chat:** Swap Desk
+- **Category:** open question
+- **Content:**
+  - **The game contract still pays Mana for others.** Its `max_sponsor_rc` is 2 KOIN, so KOIN Vault or Kondor "free Mana" users can still spend the contract's Mana.
+    - The fix is `npm run bot -- sponsor-limit 0 --send`, which the owner has postponed.
+    - If it's done, set `game-data/deployment.json` `maxSponsorRc` to `"0"` at the same time. Otherwise the bot emails a settings alert.
+  - **The sponsor caps are probably too tight.**
+    - The per-transaction cap may still be 1, while stakes and claims ask for 3, so those fall back to the player's own Mana.
+    - Staked answers now count against the per-player day cap of 10.
+    - Suggested (not applied): `--per-tx 3 --per-player-day 16 --per-player-week 90 --per-day 1000 --free-per-day 300 --min-vhp 1`.
+  - **The desk's daily payout cap isn't set yet** after Desk v2. Suggestion: about 25% of the float, around 120 KOIN.
+  - **The bot wallet's Mana (`1HsM33…`) hasn't been confirmed.**
+  - **A flaky audit test:** one run failed and then passed on re-run (PR #28).
+  - **api.koinos.io** sometimes returns HTML error pages, and the site uses it.
+  - **Desk node incident, Oct 22–23**
+    - The desk's block-store database was damaged. Requests for missing blocks hit a nil-pointer panic in `GetBlocksByHeight`, and the store crashed and restarted over and over.
+    - It was repaired from the game node's data on 2026-10-24 00:39 UTC.
+    - The old data is kept as `…-broken-20261023-1739` (about 50 GB).
+  - **`status` can mislead:** its "last produced" line reads a cached `bot-state.json`. The audit suggested scanning recent block signers instead.
+- **Status:** unsorted
+
+---
+
+### Swap Desk: TODOS
+- **Date:** 2026-11-02
+- **Source chat:** Swap Desk
+- **Category:** open question
+- **Content:**
+  - [ ] Compare `npm run bot -- status` with `before-upgrade.txt`.
+  - [ ] Set the desk's daily cap: `npm run desk -- daily-cap <KOIN> --send`.
+  - [ ] Check that the first "Kpred bot" run after v5 is green.
+  - [ ] Top up the bot wallet `1HsM33…` to about 50 KOIN.
+  - [ ] Remove the old `OPERATOR_WIF` (`1JSTwo…`) from the local `.env` and move that wallet's leftover KOIN to the owner.
+  - [ ] Decide on `sponsor-limit 0` and the new sponsor caps, or roll back the site's payer change (a one-step revert).
+  - [ ] Once the desk has run a full day without freezing, delete `C:\kpred-desk-node\basedir\block_store\db-broken-20261023-1739` and `chain\blockchain-broken-20261023-1739`.
+  - [ ] After the Nov 1 clock change, check that NextRunTime for "Knode question release" shows 3:45 AM local time (11:45 UTC).
+  - [ ] Watch `node\release-kick.log` and `node\heal.log` for the first few days.
+  - [ ] Test a real swap on the site with Kondor, about 1 VHP.
+  - [ ] After a week, recompute the daily Mana budget from `manaByDay` and `npm run sponsor -- status`.
+  - [ ] Delete `C:\Users\alcat\repos\Knode` and the `diag-health` branch. (The Questions chat reports the folder as already deleted.)
+  - [ ] Wallet handovers, per `docs/WALLETS.md`.
+- **Status:** unsorted
+
+---

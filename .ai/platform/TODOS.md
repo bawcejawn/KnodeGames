@@ -13,9 +13,7 @@
 - [ ] Answer C-02: which sponsor caps are live — the chat's 1,000-a-day set or the code's 5,000-a-day set? — P1 — C-02, C-03, D-008
 - [ ] Decide when Block X goes public (not announced to players yet), then step 8 — apply Block X on the Picks contract: `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet` must show 1 change (allowed since Sun 1 Nov, 1:23 PM PT; not reported done) — P2 — I-040
 - [ ] Before Block X is published: `npm run sponsor -- mana-report` on mainnet; raise the pick row if mainnet is more than ~1.5× testnet — P2 — D-038
-- [ ] Check that the "Knode question release" task's NextRunTime shows 3:45 AM local (11:45 UTC) after the 1 Nov clock change — P2 — D-047
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
-- [ ] Ask the Vault and Hub chats to get `vault-v6` merged into `picks` (or confirm another way to run `game-add`) before Friday — P2 — I-019
 - [ ] Run the push block so `main` gets the updated docs — P3
 
 ## This Week
@@ -77,6 +75,7 @@
 | Every new game page mounts `KStake.badge` at the top of `<main>`, full panel lower | each game chat | 2026-11-02 | D-031 |
 | Bot support for the testnet copy (`testnet/vault.json`) | Vault chat | 2026-11-02 | I-014 |
 | Ship V4, B1-1, B1-5 | Block X chat (told 2 Nov) | 2026-11-02 | — |
+| Merge `vault-v6` into `picks` so the admin vault buttons work | Vault chat (told 2 Nov) | 2026-11-02 | I-019 |
 | Fix pass-4 findings, fix-check, push to `survivor`; update the brief, `claude/builds/04-survivor-plan.md` and checklist artifact task t06 | Survivor chat | 2026-11-02 | I-050 |
 
 ## Done
@@ -97,6 +96,7 @@
 | Block X chat knowledge filed; sponsor version and caps settled | 2026-11-02 | C-01, C-02 |
 | Block X chat told the vault upload is done (it ships V4, B1-1, B1-5) | 2026-11-02 | owner |
 | Survivor chat knowledge filed; C-13, C-14 settled | 2026-11-02 | D-051, D-052 |
+| Question-release task checked: NextRunTime 3:45 AM local (11:45 UTC) after the clock change | 2026-11-02 | D-047 |
 | Swap Desk chat knowledge filed; C-04, C-05, C-11, C-17 settled | 2026-11-02 | — |
 | Real swap tested on the site (3,000 VHP) | ≤ 2026-11-02 | Questions chat |
 | Stale copy `C:\Users\alcat\repos\Knode` deleted | ≤ 2026-11-02 | Questions chat |

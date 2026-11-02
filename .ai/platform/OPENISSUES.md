@@ -4,7 +4,7 @@
 > Rule: When an issue is resolved, move it to "Closed" with the date and where the answer was recorded
 > (usually a D-XXX entry in DECISIONS.md). Never delete an issue.
 > Last updated: 2026-11-02
-> Sources: `ROADMAP.md`, `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X and Swap Desk chats), repo branches `picks` and `main`.
+> Sources: `ROADMAP.md`, `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X, Swap Desk and Survivor chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified · 💬 chat only · ⚠️ conflict · ❓ unknown
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
@@ -60,6 +60,14 @@ Tracked in `DECISIONS.md` → Contradictions Register (C-01 to C-XX). Not duplic
 | I-047 | P4 | tests | A flaky audit test: failed once, passed on re-run (PR #28) | — | 2026-11-02 | 💬 Swap Desk |
 | I-048 | P4 | tools | `npm run bot -- status` "last produced" reads a cached `bot-state.json`; the audit suggested scanning recent block signers instead | — | 2026-11-02 | 💬 Swap Desk |
 | I-049 | P4 | game 1 | Compounding drifts ~1 hour later each day (the bot's "day" is 28,800 blocks). Optional: compound at a fixed time | owner decision | 2026-11-02 | 💬 Swap Desk |
+| I-050 | P2 | Survivor | Launch prerequisites not done (as of 30 Oct): Repo Lens pass 4 on `a8a1979`, fixes + fix-check, a testnet season, game 3 registered on the Picks contract, `FIRST_DAY` set, `survivor` merged (owner OK), Games menu and `games.json` live | owner + Survivor chat | 2026-11-02 | 💬 Survivor, ✅ branch state ⚠️ C-18 |
+| I-051 | P1 | vault / prizes | Forged days or stake lists in `games-data` can't be caught without the chain, so the vault must recompute each season from the chain before paying | Vault chat | 2026-11-02 | 💬 Survivor |
+| I-052 | P2 | vault | `vault.ts` should alert when a prize post is refused | Vault chat (owner to tell it) | 2026-11-02 | 💬 Survivor |
+| I-053 | P3 | Survivor audit | For audit pass 4: can a board change mid-season (staking in week 2, withdrawing) be exploited? Can the per-board nets or ends be gamed with cheap wallets? Can the clock checks refuse legitimate output (UTC midnight, the correction window, a lagging job clock)? | Repo Lens | 2026-11-02 | 💬 Survivor |
+| I-054 | P3 | Block X publish | Block X's Python check runs without `-I`, and uses `\|\| true` on listings (S3-21, S3-22); Block X's tests pin those lines | Block X chat (owner to tell it) | 2026-11-02 | 💬 Survivor |
+| I-055 | P3 | Survivor | Accepted risks: ~10k one-day wallets push a season file past 2 MB (it stops updating, alert fires); a UTC day with no blocks can't be recorded; VHP balances are read at each node's head; a check node hanging after its first read (N7) is bounded only by the step limit; lookalike producer addresses (S3-27); pre-launch guest-wallet text (S3-26); a Block X publish failure also stops Survivor; the test server times rounds by the PC clock | — (accepted) | 2026-11-02 | 💬 Survivor |
+| I-056 | P3 | Survivor / site | Leaderboards and Results need a Survivor `board.json` and a Results adapter | Survivor + Hub chats | 2026-11-02 | 💬 Survivor |
+| I-057 | P4 | tests | Survivor rehearsal flake: the fake testnet sometimes reports a pick "not mined" within its 2-min wait; rerun | — | 2026-11-02 | 💬 Survivor |
 
 ## Closed
 | ID | Issue | Closed | Resolution / where recorded |

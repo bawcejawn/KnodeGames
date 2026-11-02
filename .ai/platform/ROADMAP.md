@@ -2,7 +2,7 @@
 
 > Purpose: What's next, in order. Not a promise — a plan.
 > Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X and Swap Desk chats). Not yet archived: Survivor,
+> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X, Swap Desk and Survivor chats). Not yet archived:
 > Fantasy, Combo, Bracket, Last Node Standing, Repo Lens, sponsor chats.
 > This file holds milestones. Step-by-step actions live in `TODOS.md`; problems in `OPENISSUES.md`.
 
@@ -17,7 +17,8 @@
 | Sat 7 Nov, 00:00 (Fri 6 Nov, 4 PM PT) | Deadline to announce (`game-add`) games 2, 7, 9 (+8, 13 if cleared) | 💬 Vault ⚠️ C-14 |
 | Mon 9 Nov, 00:00 (Sun 8 Nov, 4 PM PT) | Deadline to `game-apply` | 💬 Vault |
 | Mon 9 Nov | v6 rules and 2 + 1 VHP free prizes start | 💬 Vault ⚠️ C-10 |
-| Sat 7 – Fri 13 Nov | Survivor announce window (apply Mon 9 – Sun 15 Nov) | 💬 Vault |
+| Before Fri 6 Nov | Owner goal: every game announced, so all are playable next week (D-052) | owner |
+| Sat 7 – Fri 13 Nov | Survivor announce window (apply Mon 9 – Sun 15 Nov) | 💬 Vault ⚠️ C-18 |
 | Tue 10 Nov, 21:00 | First payout under the v5 rules | 💬 |
 | Mon 16 Nov, 12:00 | First vault close; Survivor Season 1 starts (vault week 4) | 💬 Vault |
 
@@ -38,6 +39,7 @@
 | Full platform audit (D-014) | owner go-ahead | |
 | Game launch sequence | C-14 (pace/order) | Hub order: Block X (2) + Race (7) added first → Block X live with Block Golf practice scorecards → Survivor → Block Golf staked → LNS → Bracket → Fantasy → Combo (after Picks v2 CARD). Vault plan: 2, 7, 9 together, then Survivor, Fantasy, Golf, Combo, LNS as each clears |
 | Block X launch PR (`picks` → `main`) | game 2 applied; Race file merge (I-031) | Block X chat; carries the Hub status bar (D-041) |
+| Survivor launch path | I-050 | Repo Lens pass 4 → fixes + fix-check → testnet season → register game 3 on the Picks contract → set `FIRST_DAY` to the launch Monday, merge `survivor` (owner OK) → vault live (done) → Games menu + `games.json` live → `board.json` + Results adapter (I-056) |
 | Block X prizes | v6 live; fixes in I-042; B1 decisions (I-033 – I-035) | prize-free until then (D-036) |
 | Picks v2 upgrade (for Combo, game 8) | Combo Repo Lens review merged | `MAINNET-LAUNCH.md` "Later": publish source + reproducible build → `upgrade-schedule --code 92d555d0` → 48 h → `upgrade-upload` → `upgrade-clear` → record in `picks-data/deployment.json` by PR (FC2-13) → `status` → pick row 0.25 → announce game 8, 48 h, `apply_game` |
 | Send message to the KOIN Vault developer | owner sends | content {{TBD}} |

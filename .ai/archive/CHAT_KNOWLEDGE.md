@@ -1245,7 +1245,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
     - `npm run test:audit:serial`: 673 tests, 663 pass, 0 fail; the rest are todo or skipped.
     - The rehearsal (`node --import tsx tools/survivor-testnet/rehearse.mjs`) passes and reproduces the audited build.
     - A fuzz of 150 seasons with random stakes found 0 Python/JS disagreements.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ARCHITECTURE.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -1292,7 +1292,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
     - The local server keeps the test keys and signs only Survivor picks. 1 test KOIN stands in for 1 VHP.
     - It takes an exclusive (`wx`) lock and releases it on Ctrl+C. It refuses device names and symlinks, and strips `PICKS_*` env vars.
   - **Docs:** `docs/SURVIVOR.md`, `docs/SURVIVOR-TESTNET.md`, `docs/SURVIVOR-CODE-WALKTHROUGH.md`, `docs/SURVIVOR-RUNBOOK.md`.
-- **Status:** unsorted
+- **Status:** Filed → platform/ARCHITECTURE.md, standards/VAULT_STANDARD.md (2026-11-02)
 
 ---
 
@@ -1324,7 +1324,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
     - SV-A10, two boards: free players must not reduce staked players' chance to win, and must not get more than the free prize. Each board has its own safety net and its own end, and the free board counts only wallets that can still win.
     - SV-A19: a knockout by an invalid pick (a producer not in the field, or one already used) can't win.
   - **Left to the Block X chat:** Block X's python check runs without `-I`, and its `|| true` on listings (S3-21, S3-22). Block X's tests pin those lines.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md, OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -1368,7 +1368,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
     | 10 | about day 11 |
     | 50 | about day 13 |
     | 200 | about 4 still in on day 14; the ranking decides |
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md (D-051), ARCHITECTURE.md; game spec pending in .ai/games/ (2026-11-02)
 
 ---
 
@@ -1384,7 +1384,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
   5. Vault v6 must be live: it pays the free prizes and the staked points.
   6. Add Survivor to the Games menu and set `games.json` to live.
   7. Leaderboards and Results: Survivor needs a `board.json` and a Results adapter.
-- **Status:** unsorted
+- **Status:** Filed → platform/ROADMAP.md (2026-11-02)
 
 ---
 
@@ -1408,7 +1408,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
     - Can a board change mid-season be exploited (staking in week 2, or withdrawing)?
     - Can the per-board nets or ends be gamed with cheap wallets?
     - Can the clock checks refuse legitimate output (UTC midnight, the correction window, a job clock that lags the chain)?
-- **Status:** unsorted
+- **Status:** Filed → platform/OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -1422,7 +1422,7 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
   - [ ] Fix the pass-4 findings, get a fix-check, and push to `survivor`. Then update the brief, `claude/builds/04-survivor-plan.md` and the checklist artifact (task t06).
   - [ ] Tell the Block X chat about python `-I` and `|| true` (S3-21, S3-22).
   - [ ] Tell the Vault chat that `vault.ts` should alert when a prize post is refused.
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md (2026-11-02)
 
 ---
 

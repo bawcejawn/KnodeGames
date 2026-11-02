@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, newest first. This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "Superseded by D-XXX".
 > Last updated: 2026-11-02
-> Sources: owner in chat (2026-11-02), `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X and Swap Desk chats), repo branches `picks` and `main`.
+> Sources: owner in chat (2026-11-02), `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X, Swap Desk and Survivor chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict · ❓ unknown
 
@@ -41,7 +41,7 @@
 | D-029 | ❓ | Prize and liability rules | active |
 | D-030 | 2026-10-30 | Names: one Koinos @name per wallet | active |
 | D-031 | 2026-10-30 | Staking UX: simple, share %, badge on every game page | active |
-| D-032 | ❓ | New games launch on Mondays, one at a time | ⚠️ disputed (C-14) |
+| D-032 | ❓ | New games launch on Mondays, one at a time | superseded by D-052 |
 | D-033 | 2026-10-27 | Build 2: Race Show scoring, home page, dapp name | active |
 | D-034 | 2026-10-28/29 | Producer Race: stakes, ranking, ties, prizes, medals | active |
 | D-035 | 2026-10-29 | The Race chat owns all Race files | active |
@@ -60,6 +60,8 @@
 | D-048 | 2026-10-23 | Self-heal and alerts | active |
 | D-049 | 2026-10-23 | Skip v4: game v5 with Desk v2 | done (superseded by Vault v6) |
 | D-050 | ❓ | Site content trims | active |
+| D-051 | 2026-10-27/30 | Survivor rules | active (pending audit pass 4) |
+| D-052 | 2026-11-02 | Announce every game before Friday | active |
 
 ---
 
@@ -281,6 +283,21 @@
 - **Decision:** Koinosscan replaced the KoinosProof footer link; the song was removed from the Learn page; the "Swap now or wait" calculator and the "added since you opened" stat were removed.
 - **Source:** 💬 Swap Desk
 
+## D-051 — Survivor rules
+- **27 Oct:** the handicap comes from recent blocks, not VHP: h = kTop ÷ k, where k is the producer's own blocks over days d−8 … d−2 (a VHP handicap would put producers signing only 75–80% of their share in the out-zone ~90% of days). Ties at the out-zone line are safe. A prize needs 1 VHP (or a stake) at every daily check. Knode's two producers stay in the field, disclosed on the page. Launch waits for the other launch pieces.
+- **28 Oct:** a season needs 3+ players with 2+ valid picks; a player knocked out by a missed pick gets no prize; no promise that Knode-run wallets stay out (open market); testnet first, then the audit bot; Survivor is the second new game to launch.
+- **29 Oct:** a staked board and a free board; the free prize goes only to players free in both weeks of the season (still needs 1 VHP); staked weekly points come from season standings at each week's end; Survivor waits for the Hub's shared stake panel.
+- **30 Oct:** SV-A2 — the 3-player minimum stays. SV-A10 — free players must not reduce staked players' chances or get more than the free prize; each board has its own safety net and end, and the free board counts only wallets that can still win. SV-A19 — a knockout by an invalid pick (not in the field, or already used) can't win.
+- **Game rules as built:** 14 UTC-day seasons, Monday to Monday. One producer per UTC day; picks lock 5 min before 00:00 UTC and open 7 days ahead; up to 5 changes and 20 picks a day; join by picking day 1. Out-zone = floor(field × (12 + day) ÷ 52) (17 producers: 4,4,4,5,5,5,6,6,6,7,7,7,8,8). Field = producers with 280+ blocks in the 7-day window. 2 lives; a life is lost for an out-zone pick, no pick, a producer not in the field, or one already used (each producer once a season). Each board's safety net saves only out-zone losses; a board ends after the day that leaves 2 or fewer counted players (if more than 2 started), when none is left, or after day 14; the final comes 12 h after both boards end. Ranking: lasted longest, then lives, then total score. Free prize 4 / 2 VHP, ties split, only for players free in both weeks, holding 1 VHP at every check, not knocked out by a missed or invalid pick, in a season with 3+ such players. Staked vault points come from the staked board; points collapse to 1 beyond 255 places.
+- **Simulation** (field of 17, `claude/builds/04-survivor-sim.mjs`): 10 players → ends about day 11; 50 → about day 13; 200 → ~4 still in on day 14, ranking decides.
+- **Source:** 💬 Survivor. Full spec belongs in `.ai/games/` (not yet written); repo `docs/SURVIVOR.md` ✅ on branch `survivor`.
+
+## D-052 — Announce every game before Friday
+- **Date:** 2026-11-02 (owner, this chat)
+- **Decision:** Get all the games announced before Friday 6 Nov, so everything is upgraded and available to play the following week.
+- **Effect:** settles C-14 in favour of launching together this week (over D-032's one game per Monday). Readiness differs per game: see I-050 (Survivor), I-016 (Combo, Last Node), I-019 (admin vault buttons).
+- **Source:** owner
+
 ---
 
 ## Contradictions Register
@@ -300,8 +317,10 @@ Repo wins per D-002 unless the owner rules otherwise. "Ruling" = what the docs c
 | C-10 | When new prize rules start | Questions: 40/60 split + 2 VHP free prize from Week 3 (Mon 2 Nov), `reward_rule_week_plus_one=3`. Vault: v6 rules + 2 + 1 VHP free prizes from Mon 9 Nov (`v6_rule_week_plus_one`) | not checked | ❓ Are these two different rules (v5 reward rule vs v6 rules)? Which free prize applies to the questions game, and from when? Hub (D-029): no free-game prizes until the vault is fully live. Race: its week 1 vault file is final with 1st/2nd free winners, while the Race page still says prizes start once the vault is live Block X (D-036): Block X goes live prize-free; prizes after v6 and the scoring fixes Swap Desk (D-045): the Questions game's v5 rule pays 1 + 1 VHP to free players from the week of 2 Nov. Likely reading: game 1 from 2 Nov; vault games 2 + 1 from 9 Nov. ❓ Confirm |
 | C-11 | Bot wallet | Vault: "bot wallet" `1JSTwo…` | `docs/history/AUDIT-2026-10-19.md` lists `1JSTwo…` as Operator; current operator `1HsM33…` | ✅ Resolved 2026-11-02 (Swap Desk): `1JSTwo…` is the old operator, retired 26 Oct; its key still sits in the local `.env` (I-045) |
 | C-12 | Race status | Vault: game 7 "ready to announce" | `games.json`: Race "live"; PR #44 badge ✅ merged | ✅ Resolved 2026-11-02 (Hub): Race is live as a game; its vault registration (`game-add 7`) is pending |
-| C-13 | Survivor type | Hub: "a free game" | Vault (D-018): Survivor added `--staked --free` | ❓ Staked + free, or free only? |
-| C-14 | Launch pace and order | Hub: Mondays, one at a time; order Block X + Race → Block X live → Survivor → Golf staked → LNS → Bracket → Fantasy → Combo. Vault: announce 2, 7, 9 (+8, 13 if cleared) together by Fri 6 Nov; launch as many as are ready (D-024) | — | ❓ Owner decision |
+| C-13 | Survivor type | Hub: "a free game" | Vault (D-018): Survivor added `--staked --free` | ✅ Resolved 2026-11-02 (Survivor, 29 Oct): staked board + free board (D-051) |
+| C-14 | Launch pace and order | Hub: Mondays, one at a time; order Block X + Race → Block X live → Survivor → Golf staked → LNS → Bracket → Fantasy → Combo. Vault: announce 2, 7, 9 (+8, 13 if cleared) together by Fri 6 Nov; launch as many as are ready (D-024) | — | ❓ Owner decision Survivor: "the second new game to launch" and "launch waits for the other launch pieces" — fits the Hub's order ✅ Resolved 2026-11-02 by the owner: announce every game before Friday (D-052) |
 | C-15 | Seed owner move | Race chat's owner checklist: "move the seed and Desk owner" | Vault: seed owner already handed to `1K8VV…` on 30 Oct ✅ `seedOwner` on `main` | ❓ Stale checklist item, or a further move (e.g. to the hardware wallet)? Swap Desk (to 28 Oct): seed owner was the owner wallet; Vault moved it 30 Oct. Likely the checklist's seed item is stale and only the Desk owner move remains (I-001) |
 | C-16 | Race vault file final? | Race: week 1 vault file is final with free winners. Block X (B1-1): while `race.ts` uses the v5 ABI, the vault file is never final | ✅ `race-data:vault/W1.json` is `final: true`, `rows: []`, `first`/`second` set; ✅ `race.ts` still loads the v5 ABI on `main` | ❓ Did week 1 go final because no staked rows were needed? Are its free winners to be paid (D-029: no free prizes until the vault is fully live)? |
 | C-17 | Desk daily payout cap | Swap Desk (28 Oct): set one, ~25% of the float (~120 KOIN) | Questions, Hub: no daily payout cap (D-007) | ✅ Resolved: the later decision (D-007, no cap) stands |
+| C-18 | Survivor Season 1 start | Vault: announce 7–13 Nov, apply 9–15 Nov, Season 1 Mon 16 Nov | Survivor (30 Oct): owner still to choose the start Monday; pass-4 audit, testnet season and Picks registration still to do. ✅ branch `survivor` not merged, `FIRST_DAY` unset, `games.json` "soon" | ❓ Owner decision; 16 Nov looks tight (I-050) |
+| C-19 | Owner's testnet node | Vault: `bot --testnet` targets a local Harbinger node (`.env.testnet`, `testnet-data/`) | Survivor: the owner has no testnet node and uses the Koinos Foundation public API | ❓ Is there a local Harbinger node? |

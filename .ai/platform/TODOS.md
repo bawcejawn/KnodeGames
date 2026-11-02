@@ -44,12 +44,14 @@
 - [ ] Confirm the GitHub repo name (`KnodeGames` or `Knode`) — P4 — C-06
 - [ ] Explain the 21:00 UTC week boundary — P4 — C-08
 - [ ] Delete the `diag-health` branch in the GitHub UI — P4 — I-010
-- [ ] Survivor: announce Sat 7–Fri 13 Nov, `game-apply` Mon 9–Sun 15 Nov — P2 — D-020
+- [ ] Survivor: announce Sat 7–Fri 13 Nov, `game-apply` Mon 9–Sun 15 Nov — P2 — D-020 ⚠️ C-18: first finish I-050
+- [ ] Survivor: in `C:\kprediction-test`, `git pull`, `npm ci`, check `git log -1 --oneline` shows `a8a1979`, run Repo Lens pass 4 and send back `AUDIT-SURVIVOR-REPORT-4.md` — P2 — I-050
+- [ ] Choose Survivor's Season 1 start Monday — P2 — C-18
+- [ ] Tell the Block X chat about S3-21 / S3-22 (python `-I`, `|| true`) and the Vault chat that `vault.ts` should alert on a refused prize post — P3 — I-054, I-052
 - [ ] After the first vault close (Mon 16 Nov, 12:00 UTC / 4:00 AM PT): check status, the buckets, the free prizes, and collect the fee with `claim-fee-vhp all` — P1
 - [ ] Then Fantasy, Golf, Combo and Last Node as each clears audits — P3
 - [ ] Carry the Vault chat's project docs into `.ai/`: `claude/vault-v6-live.md`, `claude/vault-v6-testnet-results.md`, `claude/handoff-*.md`, `claude/audit-vault-v6-*`, `docs/UPGRADE-V6.md`, `docs/V6-PLAN.md` — P3 — I-009
 
-- [ ] Decide launch pace and order (C-14) and Survivor's type (C-13) — P2
 - [ ] Decide which owner checklist is the source of truth (I-032) — P3
 - [ ] Before game 7 prizes: decide B1-2 (I-034), B1-3 free-prize farming (I-035), and back-fill vs "no prize" for not-final weeks (I-033) — P1
 - [ ] Step 10: a full day after Block X launches, set per-action Mana limits (`mana-report --save`, `site-limits --send`, a PR, `config --send`); again a day after the sponsor's vault switch (`claude/handoff-sponsor-v6-day.md`) — P3
@@ -59,7 +61,7 @@
 - [ ] Possibly already done ❓: compare `npm run bot -- status` with `before-upgrade.txt`; check the first "Kpred bot" run after v5 was green — P4
 - [ ] Optional: decide the on-chain `move_stake` sponsor cap (I-021); pick retention features (see ROADMAP) — P4
 - [ ] From the Race chat's owner checklist: empty the old bot and test wallets (C-11); pin the Desk node key; clean up the stale folder/branch (which one ❓); move the seed and Desk owner (⚠️ C-15); launch announcement; analytics decision; ads and the SwarmTales listing — P3
-- [ ] Carry the Hub and Race chats' project docs into `.ai/`: `claude/launch-order.md`, `claude/stake-panel.md`, `claude/producer-names.md`, `claude/handoff-status-bar-testnet.md`, `claude/names-fixcheck*-prompt.md`, `claude/audit-names-prompt.md`, `claude/domain-knodegames.md`, `claude/site-at-root.md`, `claude/admin-page.md`, `claude/race-vault.md`, `claude/owners-race.md`, `claude/builds/02-hub-and-race-show.md`; repo `docs/NAMES.md`, `docs/ADMIN.md`, `race/README.md` (vault results section); Block X: `claude/blockx/FIXCHECK-PROMPT.md`, `claude/blockx/SPONSOR-TESTNET.md`, `claude/blockx/README.md`, repo `docs/blockx/MAINNET-LAUNCH.md`, `docs/blockx/TESTNET-RESULTS.md`, `docs/history/AUDIT-2026-10-28-repolens-blockx.md` — P3 — I-009
+- [ ] Carry the Hub and Race chats' project docs into `.ai/`: `claude/launch-order.md`, `claude/stake-panel.md`, `claude/producer-names.md`, `claude/handoff-status-bar-testnet.md`, `claude/names-fixcheck*-prompt.md`, `claude/audit-names-prompt.md`, `claude/domain-knodegames.md`, `claude/site-at-root.md`, `claude/admin-page.md`, `claude/race-vault.md`, `claude/owners-race.md`, `claude/builds/02-hub-and-race-show.md`; repo `docs/NAMES.md`, `docs/ADMIN.md`, `race/README.md` (vault results section); Block X: `claude/blockx/FIXCHECK-PROMPT.md`, `claude/blockx/SPONSOR-TESTNET.md`, `claude/blockx/README.md`, repo `docs/blockx/MAINNET-LAUNCH.md`, `docs/blockx/TESTNET-RESULTS.md`, `docs/history/AUDIT-2026-10-28-repolens-blockx.md`; Survivor: `claude/audit-survivor-prompt.md`, `claude/builds/04-survivor-plan.md`, `claude/builds/04-survivor-sim.mjs`, repo `docs/SURVIVOR*.md` — P3 — I-009
 
 ## Waiting on Someone Else
 | Item | Waiting on | Since | Link |
@@ -74,7 +76,8 @@
 | After launch: B1-4, B1-6, B1-7, B1-8, then a short fix-check | Block X chat | 2026-11-02 | I-037, I-038 |
 | Every new game page mounts `KStake.badge` at the top of `<main>`, full panel lower | each game chat | 2026-11-02 | D-031 |
 | Bot support for the testnet copy (`testnet/vault.json`) | Vault chat | 2026-11-02 | I-014 |
-| Ship V4, B1-1, B1-5 | Block X chat (after you tell it) | 2026-11-02 | — |
+| Ship V4, B1-1, B1-5 | Block X chat (told 2 Nov) | 2026-11-02 | — |
+| Fix pass-4 findings, fix-check, push to `survivor`; update the brief, `claude/builds/04-survivor-plan.md` and checklist artifact task t06 | Survivor chat | 2026-11-02 | I-050 |
 
 ## Done
 | Item | Done | Link |
@@ -93,6 +96,7 @@
 | Repo name confirmed: `bawcejawn/KnodeGames` | 2026-11-02 | C-06 |
 | Block X chat knowledge filed; sponsor version and caps settled | 2026-11-02 | C-01, C-02 |
 | Block X chat told the vault upload is done (it ships V4, B1-1, B1-5) | 2026-11-02 | owner |
+| Survivor chat knowledge filed; C-13, C-14 settled | 2026-11-02 | D-051, D-052 |
 | Swap Desk chat knowledge filed; C-04, C-05, C-11, C-17 settled | 2026-11-02 | — |
 | Real swap tested on the site (3,000 VHP) | ≤ 2026-11-02 | Questions chat |
 | Stale copy `C:\Users\alcat\repos\Knode` deleted | ≤ 2026-11-02 | Questions chat |

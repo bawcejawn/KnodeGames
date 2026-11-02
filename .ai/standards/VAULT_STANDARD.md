@@ -3,7 +3,7 @@
 > Purpose: Rules for how games hold, account for and pay out VHP/KOIN.
 > Funds safety is the top priority. When in doubt, don't move funds.
 > Last updated: 2026-11-02
-> Sources: `DECISIONS.md` (D-003, D-016, D-018 – D-029, D-034, D-036), Vault, Hub, Race and Block X chats.
+> Sources: `DECISIONS.md` (D-003, D-016, D-018 – D-029, D-034, D-036), Vault, Hub, Race, Block X and Survivor chats.
 > How the contract does it (entry points, formulas, timing) lives in `platform/ARCHITECTURE.md` → Vault v6. This file says what must be true.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict · ❓ unknown
@@ -57,6 +57,9 @@
 - **Publish checks** (`vault_ok`, 💬 Block X): correct game id; rows ordered with points 1–255; `first` / `second` ≤ 10; no wallet twice; final only after the week ends. Bytes must be canonical (`JSON.stringify(JSON.parse(text))+"\n"`), ≤ 2 MB, no nested folders. A vault file that fails is held on its own with a warning, while the game's other files still publish. General publish rules: `platform/ARCHITECTURE.md` → Publish checks.
 - **v6 reads:** stake reads must use the v6 ABI and fail fast on a non-v6 chain; never treat a read failure as "not staked" (V4, I-036).
 - **Before any game pays prizes from its file:** the final file must not hinge on a single run with no hold (I-034).
+- **Write once, copy forward:** each week's vault file is written once; later runs copy published weeks forward unchanged; a file whose stakes were read late is held. 💬 Survivor
+- **Points:** places beyond 255 collapse to 1 point. 💬 Survivor
+- **Trust boundary:** files in `games-data` can't prove their own days or stake lists, so the vault must recompute each season from the chain before paying (I-051). Refused prize posts must raise an alert (I-052).
 - **Stake test** must match the vault's `post_results` / `post_prize_winners` and `bot/vault.ts`. Staked: `peak_stake` (or `active_stake` when there's no entry) is at least that week's minimum (`min_stake`, or `min_stake_next` from `min_stake_next_week`). 💬 Race
 
 ## Admin Powers

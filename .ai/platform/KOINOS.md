@@ -2,7 +2,7 @@
 
 > Purpose: Koinos chain facts this project depends on. Verify before relying on anything time-sensitive.
 > Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race and Block X chats), repo branches `picks` and `main`.
+> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X and Survivor chats), repo branches `picks` and `main`.
 > Project contract addresses live in `PLATFORM.md`; vault mechanics in `ARCHITECTURE.md`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict (see `DECISIONS.md`) · ❓ unknown
@@ -16,13 +16,13 @@
 | Second node for cross-checks (`RPC_CHECK`) | `https://api.koinosblocks.com` | 💬 Questions |
 | Testnet (Koinos Foundation) RPC | `https://testnet.koinosfoundation.org` | 💬 Vault |
 | Testnet chain id | `EiAIKVvm6-V2qmsmUvPJy09vCCLbtn9lHFpwrJbcTIEWRQ==` | 💬 Vault |
-| Local test node | Harbinger on the owner's PC, `127.0.0.1:8081` (used by `bot --testnet`, `.env.testnet`, `testnet-data/`) | 💬 Vault |
+| Local test node | Harbinger on the owner's PC, `127.0.0.1:8081` (used by `bot --testnet`, `.env.testnet`, `testnet-data/`) | 💬 Vault ⚠️ C-19: the Survivor chat says the owner has no testnet node and uses the public API |
 | Block explorer | {{TBD}} | |
 
 ## Tokens & System Contracts
 | Item | Mainnet address | Testnet address | Notes |
 |------|-----------------|-----------------|-------|
-| KOIN | `19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK` ✅ | tKOIN `1FaSvLjQJsCJKq5ybmGsMMQs8RQYyVv8ju` 💬 | testnet faucet: @KoinosTestnetFaucetBot on Telegram 💬 |
+| KOIN | `19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK` ✅ | tKOIN `1FaSvLjQJsCJKq5ybmGsMMQs8RQYyVv8ju` 💬 | testnet faucet: @KoinosTestnetFaucetBot on Telegram, `/faucet <address>` gives 100 test KOIN a day — enough for a 50 KOIN contract upload plus ~6 KOIN per test player 💬 Vault, Survivor |
 | VHP | `12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq` ✅ | `17n12ktwN79sR6ia9DDgCfmw77EgpbTyBi` 💬 | |
 | PoB (proof of burn) | `159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv` ✅ | {{TBD}} | |
 | Koinos Nicknames (@names) | `1KD9Es7LBBjA1FY3ViCgQJ7e6WH1ipKbhz` 💬 | {{TBD}} | ~2,137 names on 30 Oct; reads used: `verify_valid_name`, `get_address`; mint `{to, token_id: hex(name)}` 💬 Hub |
@@ -43,7 +43,7 @@
 - **Irreversible blocks:** Knode Games results count only irreversible blocks, matched on two nodes. 💬 Race
 - **Storage ordering:** the real chain orders keys bytewise (confirmed on testnet, audit V2-14); MockVM needs `tools/mockvm-bytewise.cjs` to match. 💬 Vault
 - **Contract upgrades:** project contracts use a schedule → 48 h → upload-within-7-days pattern (vault: `ARCHITECTURE.md` → Vault v6; Picks: `ARCHITECTURE.md` → Picks contract).
-- **Time units:** vault genesis is 1792368000 in seconds (1792368000000 in milliseconds) = Mon 19 Oct 2026 00:00 UTC. 💬 Block X, Hub
+- **Time units:** vault genesis is 1792368000 in seconds (1792368000000 in milliseconds) = UTC day 20745 = Mon 19 Oct 2026 00:00 UTC. 💬 Block X, Hub, Survivor
 
 ## Wallets Supported
 | Wallet | Desktop | Mobile | Notes |

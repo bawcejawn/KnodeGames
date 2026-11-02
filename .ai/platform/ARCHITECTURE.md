@@ -2,7 +2,7 @@
 
 > Purpose: How the pieces fit together. Describe, don't prescribe.
 > Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race and Block X chats), checked against branches `picks` and `main` on 2026-11-02.
+> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X and Swap Desk chats), checked against branches `picks` and `main` on 2026-11-02.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict (see `DECISIONS.md`) · ❓ unknown
 
@@ -36,7 +36,9 @@ Owner PC: 3 Docker nodes (desk, game, personal) + self-heal
 | `swap.js` | swap page; skips its own `#connect` handler when the header menu owns the button (`aria-haspopup="menu"`) | 💬 |
 
 - Hosting: GitHub Pages from repo root, custom domain via `CNAME` — ✅
-- Read RPC: ⚠️ C-04 (chat says `api.koinos.io`; `app.js`, `swap.js`, `header-wallet.js` hard-code `koinos.armana.io`)
+- Read RPC: `koinos.armana.io`, hard-coded in `app.js`, `swap.js`, `header-wallet.js` ✅ on `main` and `picks` (C-04 resolved). The bot reads repo variable `vars.RPC` (defaults to Armana); locally set `$env:RPC` 💬 Swap Desk
+- The site re-reads chain state and questions every minute; from 12:00 UTC until the day's questions appear it shows "Today's questions are on their way", and "running late" after 2 hours 💬 Swap Desk
+- Payer flow (`sendKondor`): sponsor is payer only if it covers every operation and `would_pay` says yes; otherwise the player's own wallet is payer; a transaction re-pointed to the game contract is refused 💬 Swap Desk
 - Chain reads queued 4 at a time — 💬
 - Service worker never caches game or race data; strict CSP: no inline scripts or handlers, only pinned CDN scripts, content built with `textContent` only — 💬 Race chat
 
@@ -76,16 +78,20 @@ Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GE
 ### Bots / Automation
 | Bot / workflow | Trigger / schedule | What it does | Location | Confidence |
 |----------------|--------------------|--------------|----------|-----------|
-| Main bot | hourly GitHub Action | posts results, seals, finalizes 24 h after the seal, looks back 12 closed weeks; skips posting/closing/finalizing in safe mode; `pagePlayers()` stops on a repeated address; `upgradeGuard()` refuses a normal upgrade matching the safe build. Uses `koinos.armana.io`, `api.koinosblocks.com` as `RPC_CHECK` | `bot/bot.ts`, `bot/vault.ts`, `bot/chain.ts`, `.github/workflows/bot.yml` | files ✅, rest 💬 |
+| Main bot ("Kpred bot", `bot.yml`) | hourly at :07, plus a daily release run `48 11 * * 1-6` ✅ | Jobs: blocks-in, tick, publish, blocks-out. Tick order: resolve → post → close/finalize → health checks → settle → compound, then publishes `game-data/`. Release: within 12 min of release, `postPass` waits for 12:00 UTC (`releaseWaitMs`), one bounded retry. Records its own Mana per UTC day in `game-data/bot-state.json` → `manaByDay` (60 days) ✅. Settles: asks the contract to pay first; if it declines the bot pays, up to `MAX_BOT_PAID_SETTLES` (10 per run), lifted in the last hours before `settle_end`; `BOT_MANA_FLOOR` still applies 💬 Swap Desk |
+| Main bot (vault duties) | hourly GitHub Action | posts results, seals, finalizes 24 h after the seal, looks back 12 closed weeks; skips posting/closing/finalizing in safe mode; `pagePlayers()` stops on a repeated address; `upgradeGuard()` refuses a normal upgrade matching the safe build. Uses `koinos.armana.io`, `api.koinosblocks.com` as `RPC_CHECK` | `bot/bot.ts`, `bot/vault.ts`, `bot/chain.ts`, `.github/workflows/bot.yml` | files ✅, rest 💬 |
 | Race recorder | hourly at minute 37 while `RACE_ENABLED=true` | Job `record` (read-only token, no secrets, runs repo code); job `publish` (write token, runs no repo code, shape-checks every file with embedded Python, pushes only to `race-data`). Only irreversible blocks count; blocks, picks and stakes must match on two nodes (`RPC`, `RPC_CHECK`). Files: `index.json`, `W<NNN>.json`, `board.json`, `vault/W<week>.json`. Fails if last run's files can't be read (fresh start only when the branch is missing). Refuses a `final` vault file before the week ends and any change to a final file. Fails closed (no final file) on missing ABI/contract, empty `get_state`, failed stake reads or node disagreement | `bot/race.ts`, `.github/workflows/race.yml`, shared rules in `race-math.js` | 💬 Race chat |
 | Block X recorder | {{TBD}} | `canonicalTransferValue` / `NonCanonicalTransfer`; a target is voided at once only if both nodes report it, otherwise held and voided at the 3-day edge; reads short receipt pages on (BX-90); no vault file past its 3-day window (BX-92); reads only top-level `W###.json` race cards (`vault/` invisible to it) | `bot/games/blockx.ts`, `.github/workflows/games.yml` | 💬 Block X |
 | Names bot | hourly | Jobs: check (read-only), publish (no repo code), reply; gated by `vars.NAMES_ENABLED`; scheduled only, never triggered by issues. 8 s read timeout (a node that times out is skipped for the run), 7-minute run deadline. Nicknames read 20 at a time within 240 s, named wallets and producers first; both nodes must agree; a failed read keeps the old value. Pool names from Fogata `get_pool_params` (entry 2396056273, field 1). `names.json` kept under 900 kB (publish limit 1 MB). Owner command: `npm run names -- remove <address>` | `bot/names.ts`, `.github/workflows/names.yml` ✅ | 💬 Hub |
 | Bot `--testnet` | manual | targets the local Harbinger node (`127.0.0.1:8081`, `.env.testnet`, `testnet-data/`) — **not** the Koinos Foundation copy | `bot/bot.ts` | 💬 |
 | Sponsor tool | manual | L-4 fix, default free cap 300 (⚠️ C-02), keeps guest flag, status shows VHP | `bot/sponsor.ts` | ⚠️ |
-| Self-heal | every 20 min | repairs a crash-looping node via `node/repair-node-data.ps1` | `bot/heal.mjs` | file ✅, schedule 💬 |
+| Watchdog | every 15 min ✅ | emails once if `vars.PERSONAL_PRODUCER` hasn't produced for 30+ min, then every 3 hours | `.github/workflows/watch.yml` | 💬 Swap Desk |
+| Release kick (owner's PC) | 11:50–14:00 UTC | 11:50–11:58 starts `bot.yml` unless a run is active; 12:06–14:00 checks `game-data/questions/W###-D#.json` is on `main` (public API, no token), restarts the bot at most every 12 min, emails once at 12:20, marks the day done when the file appears. Day labels `W{week:03}-D{day}`, Monday = D1, no questions Sunday | `bot/release-kick.mjs` | 💬 Swap Desk |
+| Heal alert | started by the owner's PC | fails on purpose so GitHub emails the owner | `.github/workflows/heal-alert.yml` | 💬 Swap Desk |
+| Self-heal | every 20 min | repairs a crash-looping node via `node/repair-node-data.ps1` | `bot/heal.mjs` | file ✅, schedule 💬 Restarts a node (`docker compose down`, `up -d`) when 200+ blocks behind and not moving, or silent on two checks; 50-min cooldown; stops after 3 restarts in 6 h and emails "check by hand"; a block store started 3+ times in 20 min is a crash loop (emails; auto-repair added later); every heal emails via `heal-alert.yml` 💬 Swap Desk |
 | Other workflows | {{TBD}} | {{TBD}} | `.github/workflows/` (15 files) | ✅ list |
 
-Node scripts present (✅): `node/repair-node-data.ps1`, `node/move-node-to-volume.ps1`; `node/repair-desk-data.ps1` removed.
+Node scripts present (✅): `node/repair-node-data.ps1` (general repair), `node/move-node-to-volume.ps1`; `node/repair-desk-data.ps1` (copied the game node's `block_store\db` and `chain\blockchain` onto the desk node, kept old data as `…-broken-<stamp>`, never touched keys/p2p/config) was later removed.
 
 ### Data
 - On-chain state: {{TBD}}
@@ -98,6 +104,17 @@ Node scripts present (✅): `node/repair-node-data.ps1`, `node/move-node-to-volu
 ### Infrastructure
 - Nodes: 3 on the owner's PC, Docker volumes — 💬 (details in `PLATFORM.md`)
 - Old basedir folders kept until 2026-11-04 — 💬
+
+## Game contract duties kept from v5 — 💬 Swap Desk (✅ where marked)
+- Daily `compound` burns returned KOIN into VHP, keeping `seed_koin + creator_fee` as KOIN; capped by the contract's own Mana (minted KOIN arrives with equal Mana). The bot's "day" is 28,800 blocks, so compounds drift ~1 hour later each day. ~317 KOIN went uncompounded by 28 Oct because others' transactions spent the contract's Mana (I-044).
+- `set_sponsor_limit(max, min)`: owner only, immediate; `max_sponsor_rc = 0` means the contract pays for no one. Still in the v6 code ✅ (`game/assembly/Kpred.ts`, at most 10 KOIN per free transaction); currently 2 KOIN ✅ (`maxSponsorRc`).
+
+## Desk contract (Knode Swap) — 💬 Swap Desk
+- Swaps VHP → KOIN 1:1 minus the fee (3%, capped at 10%); a swap pays at most min(desk KOIN, desk Mana).
+- `authorize` refuses every outside token move and every Mana payment; the desk refuses its own address as owner or treasury.
+- Withdrawals go to the treasury only; treasury and code changes have a 48 h timelock.
+- Desk v2 adds a two-step owner handover, a daily payout cap (starts uncapped; D-007), 48 h waits for a lower fee, higher cap or new key, and a 7-day expiry on announcements.
+- The desk node's VHP (fees included) produces blocks, refilling the KOIN on offer (D-044).
 
 ## Vault v6 (the game contract) — 💬 Vault chat unless marked
 - **Builds:** live `eed38f7c…` (86,114 bytes) ✅; emergency withdrawals-only `e84fec49…` (84,688 bytes) ✅ `safeWasmSha256`, built with `npm run build:safe`, which flips `SAFE_MODE` in `game/assembly/Mode.ts`.
@@ -125,6 +142,7 @@ Player-call arguments (💬 Hub): `deposit_to {from, game, amount, koin}` · `wi
 
 ### Measured on testnet (see `docs/TESTNET-V6-RESULTS.md`)
 Heaviest player call 4.63 M ticks (a deposit closing a 13-game week, 1.6% of the per-transaction limit); 16-row post 1.50 M; finalize of 16 places 1.75 M; claim 2.44 M; withdraw 1.72 M; upload disk 86,257 B. Upper bounds: 50 rows ≈ 4.7 M ticks; 500-place finalize ≈ 55 M (19%). v6 upload cost 46.84 KOIN of Mana on mainnet vs 7.53 on testnet.
+Measured on mainnet (💬 Swap Desk, Oct): simple call ~0.21; each write ~0.02; answer or pick ~0.3; `deposit_koin` ~1.38; `compound` ~1.08; game v5 upload 26.8; `cancel_upgrade` ~0.25 Mana. Bot spend from `manaByDay` ✅: ~1.9–5.1 Mana a day (31 Oct – 2 Nov).
 Mana cost per call = ticks × compute price + disk bytes × disk price + network bytes × network price.
 
 ### Hub pages
@@ -163,6 +181,7 @@ Recorders are JavaScript writing `JSON.stringify(x)+"\n"`; publish checks are Py
 - `npm run bot -- testnet-v6`: one-command testnet check → `testnet-v6/report.md`.
 - `bot/rehearse-v6.ts`: rehearsal on a snapshot (`vault-snapshot`, then `rehearse-v6`).
 - `tools/mode-switch.cjs`: one shared parser for `Mode.ts`.
+- `npm run bot` (💬 Swap Desk): status, chain-check, upgrade, sponsor-limit, node-status… · `npm run desk`: status, node-status, key-status, fund, withdraw, daily-cap, upgrade, treasury… · `npm run heal` · `npm run admin`.
 - `npm run picks` (💬 Block X): keys, build-testnet, status, upload, announce, apply, pause, lock-test, mana-test; on branch `combo` only: upgrade-schedule, upgrade-upload, upgrade-clear. `npm run sponsor`: status, upload, config, enable, disable, mana-report, mana-limit, site-limits, watch, payer. All dry runs by default; mainnet needs `--send --mainnet`.
 - Tests (💬 Block X, as of 30 Oct): `npm run test:audit` — 644 tests, 634 pass, 0 fail, 5 todo, 5 skipped (pwsh-only); also `test:audit:serial`, `test:resolver`, `cd sponsor && npm test`.
 

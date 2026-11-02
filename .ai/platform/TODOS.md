@@ -14,6 +14,7 @@
 - [ ] Tell the Block X chat the vault upload is done, so it ships V4, B1-1 and B1-5 — P2
 - [ ] Step 8 — apply Block X on the Picks contract: `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet` must show 1 change (allowed since Sun 1 Nov, 1:23 PM PT; not reported done) — P2 — I-040
 - [ ] Before Block X is published: `npm run sponsor -- mana-report` on mainnet; raise the pick row if mainnet is more than ~1.5× testnet — P2 — D-038
+- [ ] Check that the "Knode question release" task's NextRunTime shows 3:45 AM local (11:45 UTC) after the 1 Nov clock change — P2 — D-047
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
 - [ ] Ask the Vault and Hub chats to get `vault-v6` merged into `picks` (or confirm another way to run `game-add`) before Friday — P2 — I-019
 - [ ] Run the push block so `main` gets the updated docs — P3
@@ -30,7 +31,10 @@
 - [ ] Delete old node basedir folders, only if `heal.log` is clean — P3 — I-008 — on or after Wed 4 Nov, 17:30 UTC (9:30 AM PT)
 - [ ] Retest "+ Add another account" with the real Kondor extension — P2 — I-004 — due {{TBD}}
 - [ ] Confirm which sponsor version is live on chain (v2 or v3) — P2 — C-01 (unblocks I-005) — due {{TBD}}
-- [ ] Wallet handovers: new owner on a hardware wallet, cold treasury — P1 — I-001, D-013 — target this weekend ❓ (7–8 Nov)
+- [ ] Wallet handovers per `docs/WALLETS.md`: new owner on a hardware wallet, cold treasury — P1 — I-001, D-013 — target this weekend ❓ (7–8 Nov)
+- [ ] Remove the old operator key (`1JSTwo…`) from `.env` and move its leftover KOIN to the owner — P1 — I-045
+- [ ] Top up the bot wallet `1HsM33…` to ~50 KOIN and confirm its Mana — P3 — I-046
+- [ ] Watch `node\release-kick.log` and `node\heal.log` for the first few days — P3
 - [ ] Confirm `reward_rule_week_plus_one=3` on chain — P2 — I-003, D-010 — due before Tue 10 Nov, 21:00 UTC (1:00 PM PT), the first v5 payout
 
 ## Later
@@ -51,6 +55,9 @@
 - [ ] Before game 7 prizes: decide B1-2 (I-034), B1-3 free-prize farming (I-035), and back-fill vs "no prize" for not-final weeks (I-033) — P1
 - [ ] Step 10: a full day after Block X launches, set per-action Mana limits (`mana-report --save`, `site-limits --send`, a PR, `config --send`); again a day after the sponsor's vault switch (`claude/handoff-sponsor-v6-day.md`) — P3
 - [ ] Combo launch: Picks v2 upgrade (see ROADMAP), then raise the pick row to 0.25 and check with `mana-report` — P3 — D-038
+- [ ] Decide `sponsor-limit 0` for the game/vault contract (stop it paying Mana for others) — P2 — I-044
+- [ ] Recompute the daily Mana budget from `manaByDay` and `npm run sponsor -- status` after a week of play (`claude/mana-budget.md`) — P3
+- [ ] Possibly already done ❓: compare `npm run bot -- status` with `before-upgrade.txt`; check the first "Kpred bot" run after v5 was green — P4
 - [ ] Optional: decide the on-chain `move_stake` sponsor cap (I-021); pick retention features (see ROADMAP) — P4
 - [ ] From the Race chat's owner checklist: empty the old bot and test wallets (C-11); pin the Desk node key; clean up the stale folder/branch (which one ❓); move the seed and Desk owner (⚠️ C-15); launch announcement; analytics decision; ads and the SwarmTales listing — P3
 - [ ] Carry the Hub and Race chats' project docs into `.ai/`: `claude/launch-order.md`, `claude/stake-panel.md`, `claude/producer-names.md`, `claude/handoff-status-bar-testnet.md`, `claude/names-fixcheck*-prompt.md`, `claude/audit-names-prompt.md`, `claude/domain-knodegames.md`, `claude/site-at-root.md`, `claude/admin-page.md`, `claude/race-vault.md`, `claude/owners-race.md`, `claude/builds/02-hub-and-race-show.md`; repo `docs/NAMES.md`, `docs/ADMIN.md`, `race/README.md` (vault results section); Block X: `claude/blockx/FIXCHECK-PROMPT.md`, `claude/blockx/SPONSOR-TESTNET.md`, `claude/blockx/README.md`, repo `docs/blockx/MAINNET-LAUNCH.md`, `docs/blockx/TESTNET-RESULTS.md`, `docs/history/AUDIT-2026-10-28-repolens-blockx.md` — P3 — I-009
@@ -86,3 +93,7 @@
 | Race status badge merged (PR #44) | 2026-11-02 | — |
 | Repo name confirmed: `bawcejawn/KnodeGames` | 2026-11-02 | C-06 |
 | Block X chat knowledge filed; sponsor version and caps settled | 2026-11-02 | C-01, C-02 |
+| Swap Desk chat knowledge filed; C-04, C-05, C-11, C-17 settled | 2026-11-02 | — |
+| Real swap tested on the site (3,000 VHP) | ≤ 2026-11-02 | Questions chat |
+| Stale copy `C:\Users\alcat\repos\Knode` deleted | ≤ 2026-11-02 | Questions chat |
+| Set a desk daily payout cap — **cancelled** (no cap, D-007) | 2026-11-02 | C-17 |

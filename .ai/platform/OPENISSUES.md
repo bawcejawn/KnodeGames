@@ -4,7 +4,7 @@
 > Rule: When an issue is resolved, move it to "Closed" with the date and where the answer was recorded
 > (usually a D-XXX entry in DECISIONS.md). Never delete an issue.
 > Last updated: 2026-11-02
-> Sources: `ROADMAP.md`, `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race and Block X chats), repo branches `picks` and `main`.
+> Sources: `ROADMAP.md`, `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X and Swap Desk chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified · 💬 chat only · ⚠️ conflict · ❓ unknown
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
@@ -15,14 +15,14 @@ Tracked in `DECISIONS.md` → Contradictions Register (C-01 to C-XX). Not duplic
 ## Open
 | ID | Priority | Area | Issue | Waiting on | Opened | Source |
 |----|----------|------|-------|------------|--------|--------|
-| I-001 | P1 | wallets | Wallet handovers: move ownership to a new hardware-wallet owner and set up a cold treasury. Owner and desk treasury are currently the same address (`1635QU…`) ✅ | owner | 2026-11-02 | 💬 D-013; target "this weekend" ❓ |
+| I-001 | P1 | wallets | Wallet handovers: move ownership to a new hardware-wallet owner and set up a cold treasury. Owner and desk treasury are currently the same address (`1635QU…`) ✅ | owner | 2026-11-02 | 💬 D-013; target "this weekend" ❓ Procedure: `docs/WALLETS.md` ✅ |
 | I-002 | P1 | security | Give the go-ahead for the full platform audit | owner | 2026-11-02 | 💬 D-014 |
 | I-003 | P2 | game 1 | Confirm `reward_rule_week_plus_one=3` is set on chain before the first v5 payout (Tue 10 Nov, 21:00 UTC) | owner | 2026-11-02 | 💬 D-010; not verified on chain |
 | I-004 | P2 | site / wallet | Retest "+ Add another account" with the real Kondor extension (fix `80cef45` is live; create or import the 2nd account in Kondor first) | owner | 2026-11-02 | 💬 |
 | I-005 | P2 | sponsor | Next sponsor version: guest prize claims and the L-3 fix. Blocked until the live sponsor version is confirmed (C-01) | sponsor + Vault v6 chats | 2026-11-02 | 💬 ⚠️ C-01 |
 | I-006 | P3 | site / RPC | Read provider still on Armana (browser CORS failures seen). Consider moving to `api.koinos.io` — in `picks`, `app.js` and `swap.js` use Armana too, not only `header-wallet.js` | owner decision | 2026-11-02 | 💬 ⚠️ C-04 |
 | I-007 | P3 | wallets | KOIN Vault picks its own payer, so its users can't use the Mana sponsor. Owner to send the message to the KOIN Vault developer — also ask whether the dapp name can change from "Knode" to "Knode Games" (D-033, checklist t27) | owner | 2026-11-02 | 💬 |
-| I-008 | P3 | nodes | Delete old node basedir folders on or after Wed 4 Nov, 17:30 UTC, only if `heal.log` is clean | owner | 2026-11-02 | 💬 |
+| I-008 | P3 | nodes | Delete old node basedir folders on or after Wed 4 Nov, 17:30 UTC, only if `heal.log` is clean. Also the desk's broken data from the 22–23 Oct incident (`…\block_store\db-broken-20261023-1739` and `…\chain\blockchain-broken-20261023-1739`, ~50 GB) | owner | 2026-11-02 | 💬 Questions, Swap Desk |
 | I-009 | P3 | docs | Only the Questions chat is archived. Vault v6, Race, sponsor and new-game chats still need exporting into `CHAT_KNOWLEDGE.md` | owner | 2026-11-02 | |
 | I-010 | P4 | GitHub | Delete the `diag-health` branch in the GitHub UI (AI proxy blocks branch deletion) | owner | 2026-11-02 | 💬 |
 | I-014 | P3 | bot / testnet | No bot support for the Koinos Foundation testnet copy. Planned: a flag that reads `testnet/vault.json`, added on `main` after v6 | Vault chat | 2026-11-02 | 💬 |
@@ -54,6 +54,12 @@ Tracked in `DECISIONS.md` → Contradictions Register (C-01 to C-XX). Not duplic
 | I-041 | P4 | testnet | Testnet sponsor `1Dg8zKeH…` is OFF and still allowlists Combo's Picks v2. Before Block X testnet use: `config --testnet --send` without the `TESTNET_PICKS*` env vars | Block X chat | 2026-11-02 | 💬 Block X |
 | I-042 | P2 | Block X prizes | Before Block X prizes: BX-97/BX-88 week-end re-read on both nodes, BX-105 board freeze, BX-72 VHP decoder, BX-118 race card clock, BX-115, BX-116, BX-120, SP-59, G-K-1 | Block X chat | 2026-11-02 | 💬 Block X |
 | I-043 | P3 | records | `main`'s `sponsor-data/deployment.json` still records sponsor v2 (✅); `picks` has v3. Corrects itself when `picks` merges into `main` | — | 2026-11-02 | ✅ repo |
+| I-044 | P2 | Mana | The game/vault contract still pays Mana for others: `max_sponsor_rc` is 2 KOIN ✅, so KOIN Vault or Kondor "free Mana" users can spend the contract's Mana — ~317 KOIN went uncompounded by 28 Oct. Fix: `npm run bot -- sponsor-limit 0 --send` and set `maxSponsorRc` to `"0"` in `game-data/deployment.json` at the same time (or the bot emails a settings alert). Owner postponed (D-046) | owner decision | 2026-11-02 | 💬 Swap Desk, ✅ repo |
+| I-045 | P1 | keys | The retired operator `1JSTwo…`'s key is still in the local `.env`; remove it and move that wallet's leftover KOIN to the owner | owner | 2026-11-02 | 💬 Swap Desk |
+| I-046 | P3 | Mana | The bot wallet `1HsM33…`'s KOIN/Mana hasn't been confirmed; target ~50 KOIN (D-046) | owner | 2026-11-02 | 💬 Swap Desk |
+| I-047 | P4 | tests | A flaky audit test: failed once, passed on re-run (PR #28) | — | 2026-11-02 | 💬 Swap Desk |
+| I-048 | P4 | tools | `npm run bot -- status` "last produced" reads a cached `bot-state.json`; the audit suggested scanning recent block signers instead | — | 2026-11-02 | 💬 Swap Desk |
+| I-049 | P4 | game 1 | Compounding drifts ~1 hour later each day (the bot's "day" is 28,800 blocks). Optional: compound at a fixed time | owner decision | 2026-11-02 | 💬 Swap Desk |
 
 ## Closed
 | ID | Issue | Closed | Resolution / where recorded |
@@ -61,6 +67,9 @@ Tracked in `DECISIONS.md` → Contradictions Register (C-01 to C-XX). Not duplic
 | I-012 | Five stake-panel fixes | 2026-11-02 | Done in PR #46 ✅ merged on `main` (busy-Mana message and 0.5 cap, `weightFor`, wallet race, refresh after actions, 2nd-place prize) |
 | I-013 | Three admin-page fixes | 2026-11-02 | Done in PR #43 ✅ merged into `picks` (season field, local-node wording, `stake-testnet.html`) |
 | — | Race chat: "PR #44 (status bar) not merged yet" | 2026-11-02 | Out of date: PR #44 ✅ merged on `main`; `#stake-badge` is on `race.html` |
+| — | Swap Desk: sponsor caps "probably too tight" (per-tx 1 while stakes and claims asked for 3; 10 per player per day) | 2026-11-02 | Superseded by sponsor v3 caps (C-02, C-05) |
+| — | Swap Desk: desk daily payout cap not set | 2026-11-02 | Superseded: no daily cap (D-007, C-17) |
+| — | Desk node block-store crash loop, 22–23 Oct (nil-pointer panic in `GetBlocksByHeight`) | 2026-11-02 | Repaired from the game node's data on 24 Oct 00:39 UTC; leftover data in I-008 💬 Swap Desk |
 | I-011 | Stale worktrees `C:\kg-combo-preview` and `C:\kprediction-vault` | 2026-11-02 | **Corrected, not an issue.** "Prunable" was an artifact of the AI's sandbox, which can't see Windows `C:\` paths. The Vault chat confirms `C:\kprediction-vault` is in use and frozen (D-025). Do not clean up either worktree. |
 | I-018 | `.ai` library nested as `.ai/.ai/…` on `main` | 2026-11-02 | Fixed by the Vault chat at 13:03 PT (commit `30a5d90`) ✅ |
 | — | Vault chat: `picks-data/deployment.json` showing as deleted in `C:\kprediction` | 2026-11-02 | Not seen: `git status` on 2026-11-02 shows no deleted files on `picks` ✅ |

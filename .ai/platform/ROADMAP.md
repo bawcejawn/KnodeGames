@@ -2,7 +2,7 @@
 
 > Purpose: What's next, in order. Not a promise — a plan.
 > Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race and Block X chats). Not yet archived: Survivor,
+> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X and Swap Desk chats). Not yet archived: Survivor,
 > Fantasy, Combo, Bracket, Last Node Standing, Repo Lens, sponsor chats.
 > This file holds milestones. Step-by-step actions live in `TODOS.md`; problems in `OPENISSUES.md`.
 
@@ -46,7 +46,10 @@
 - Next sponsor version: guest prize claims and the L-3 fix — coordinate with the sponsor and Vault v6 chats. ⚠️ sponsor version itself disputed (C-01)
 - Consider moving `header-wallet.js` read provider off Armana to `api.koinos.io` (⚠️ C-04: `app.js` and `swap.js` also use Armana in `picks`)
 - Games marked "soon" in `games.json`: Who Signs Block X, Survivor, Fantasy Producers, Block Golf — plans {{TBD}}
-- Size the sponsor's KOIN from measured use once everything is live (D-028, C-03)
+- Size the sponsor's KOIN from measured use once everything is live (D-028, C-03). Swap Desk's estimates to replace: bot ~5–6 Mana a day (hold 50 KOIN); sponsor ~3 Mana per active player per day (hold 5 × daily use)
+- Optional: compound at a fixed time each day (I-049)
+- Idea: a sponsor that also pays operator transactions, so one wallet covers everything (needs an audit) 💬 Swap Desk
+- Launch kit: week 1 for testing, weeks 2–3 to grow the player count 💬 Swap Desk
 - Retention ideas offered by the Hub, not yet chosen by the owner: streaks, a "Your week" card, a claim reminder dot, a weekly recap page, badges next to names
 - Launch announcement; analytics decision; ads and the SwarmTales listing (Race chat's owner checklist)
 - Bot support for the Koinos Foundation testnet copy (I-014)
@@ -55,7 +58,11 @@
 ## Done
 | Item | Completed | Notes |
 |------|-----------|-------|
+| Desk node repaired after the block-store crash loop | 2026-10-24 | 💬 Swap Desk |
+| Self-heal and alerts live | 2026-10-23 | 💬 Swap Desk |
+| Operator rotated to `1HsM33…` | 2026-10-26 | 💬 Swap Desk |
 | Game v5 + Desk v2 upgrade | 2026-10-28 | ✅ `upgradedAt` in deployment files |
+| Sponsor pays player Mana (PR #28); on-time 12:00 UTC question release | 2026-10-28 | 💬 Swap Desk; release cron ✅ |
 | Race contract upload | 2026-10-27 | ✅ |
 | Sponsor upload (v3 per repo) | 2026-10-30 | ⚠️ C-01; Vault + Hub say v3 live (PR #38) |
 | Picks contract upload | 2026-10-30 | ✅ |

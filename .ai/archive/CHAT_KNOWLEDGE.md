@@ -1005,7 +1005,7 @@ Knode Swap (the VHP→KOIN desk), the three nodes on the owner's PC, self-healin
     - Public repo: free.
     - A private repo would use roughly 15–18k Actions minutes a month, about $75–120 a month (estimate). Pages and environments would also need Pro.
     - A custom domain costs about $10–20 a year and doesn't affect Actions.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ARCHITECTURE.md (2026-11-02)
 
 ---
 
@@ -1071,7 +1071,7 @@ Knode Swap (the VHP→KOIN desk), the three nodes on the owner's PC, self-healin
     - `npm run sponsor -- …`: status, config, enable, disable, payer.
     - `npm run heal`
     - `npm run admin`
-- **Status:** unsorted
+- **Status:** Filed → platform/ARCHITECTURE.md (2026-11-02)
 
 ---
 
@@ -1097,7 +1097,7 @@ Knode Swap (the VHP→KOIN desk), the three nodes on the owner's PC, self-healin
   - **2026-10-28 · Repo:** stays public.
   - **2026-10-28 · Release task:** runs only 11:45–14:05 UTC each day, stored in UTC so daylight saving can't move it.
   - **Finding:** adding seed KOIN does not increase the VHP that's producing. At steady state the idle KOIN is about 5 × the daily Mana spend. The fix is to stop others spending the contract's Mana.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md (2026-11-02)
 
 ---
 
@@ -1154,7 +1154,7 @@ Knode Swap (the VHP→KOIN desk), the three nodes on the owner's PC, self-healin
     - Bot: about 5–6 Mana a day. Hold 50 KOIN.
     - Sponsor: about 3 Mana per active player per day. Hold 5 × the daily use.
     - The 1,000-a-day cap covers about 100 fully active players. Keep 5,000 KOIN in the sponsor.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ARCHITECTURE.md, DECISIONS.md (2026-11-02)
 
 ---
 
@@ -1169,7 +1169,7 @@ Knode Swap (the VHP→KOIN desk), the three nodes on the owner's PC, self-healin
   - Optional: compound at a fixed time each day instead of every 28,800 blocks.
   - Wallet handovers after v5 (`docs/WALLETS.md`).
   - Launch kit: week 1 is for testing; weeks 2–3 push the number of players.
-- **Status:** unsorted
+- **Status:** Filed → platform/ROADMAP.md (2026-11-02)
 
 ---
 
@@ -1194,7 +1194,7 @@ Knode Swap (the VHP→KOIN desk), the three nodes on the owner's PC, self-healin
     - It was repaired from the game node's data on 2026-10-24 00:39 UTC.
     - The old data is kept as `…-broken-20261023-1739` (about 50 GB).
   - **`status` can mislead:** its "last produced" line reads a cached `bot-state.json`. The audit suggested scanning recent block signers instead.
-- **Status:** unsorted
+- **Status:** Filed → platform/OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -1216,6 +1216,6 @@ Knode Swap (the VHP→KOIN desk), the three nodes on the owner's PC, self-healin
   - [ ] After a week, recompute the daily Mana budget from `manaByDay` and `npm run sponsor -- status`.
   - [ ] Delete `C:\Users\alcat\repos\Knode` and the `diag-health` branch. (The Questions chat reports the folder as already deleted.)
   - [ ] Wallet handovers, per `docs/WALLETS.md`.
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md, OPENISSUES.md (2026-11-02)
 
 ---

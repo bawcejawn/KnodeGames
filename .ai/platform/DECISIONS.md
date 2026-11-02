@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, newest first. This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "Superseded by D-XXX".
 > Last updated: 2026-11-02
-> Sources: owner in chat (2026-11-02), `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race and Block X chats), repo branches `picks` and `main`.
+> Sources: owner in chat (2026-11-02), `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X and Swap Desk chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict · ❓ unknown
 
@@ -19,7 +19,7 @@
 | D-007 | ❓ | Swap desk: 3% fee, no daily payout cap | active |
 | D-008 | ❓ | Mana sponsor daily hard cap | ⚠️ disputed (C-02) |
 | D-009 | ❓ | Guest play on (web and mobile) | active |
-| D-010 | ❓ | New prize rules start Week 3 | ⚠️ disputed (C-10) |
+| D-010 | ❓ | New prize rules start Week 3 | active — details in D-045; C-10 likely explained |
 | D-011 | ❓ | Rules page in tabs; Race removed from footer; hourly VHP refresh | active |
 | D-012 | ❓ | GitHub: one secret, no PR requirement | active |
 | D-013 | ❓ | Wallet handovers done by owner | pending |
@@ -52,6 +52,14 @@
 | D-040 | ❓ | Block X: neighbour-time rule removed; BX-137 accepted | active |
 | D-041 | ❓ | V4, B1-1, B1-5 shipped on the v6 upload day; status bar rides the Block X launch PR | active |
 | D-042 | ❓ | Engineering standing rules | active |
+| D-043 | 2026-10-28 | The repo stays public | active |
+| D-044 | 2026-10-16 | Swap desk design | active |
+| D-045 | ❓ | Questions game v5 rewards | active |
+| D-046 | 2026-10-28 | Who pays Mana: bot, players, game contract | active (see I-044) |
+| D-047 | 2026-10-28 | Questions release at 12:00 UTC on the dot | active |
+| D-048 | 2026-10-23 | Self-heal and alerts | active |
+| D-049 | 2026-10-23 | Skip v4: game v5 with Desk v2 | done (superseded by Vault v6) |
+| D-050 | ❓ | Site content trims | active |
 
 ---
 
@@ -237,6 +245,42 @@
 - **Decision:** Root-cause fixes, and a blind review before each Repo Lens round. Mainnet steps one at a time, as PowerShell blocks for `C:\kprediction`. If a key or WIF is ever pasted, tell the owner to rotate it. (Merging and pushing rules: D-026. Keys: D-003.)
 - **Source:** 💬 Block X
 
+## D-043 — The repo stays public
+- **Date:** 2026-10-28 · **Decision:** `bawcejawn/KnodeGames` stays public, so GitHub Actions and Pages cost nothing (a private repo would cost ~$75–120 a month, estimate).
+- **Source:** 💬 Swap Desk
+
+## D-044 — Swap desk design
+- **Date:** 2026-10-16
+- **Decision:** A separate contract with a flat 3% fee. The desk node's VHP (fees included) produces blocks, which refills the KOIN on offer ("burn without burning"). Kept separate from game and personal funds. The treasury stays the owner wallet for now; changing it has a 48 h timelock.
+- **Source:** 💬 Swap Desk
+
+## D-045 — Questions game v5 rewards
+- **Decision (from the week starting Mon 2 Nov):** take the 5% fee; take a 2 VHP free-player prize (1 VHP each to the best 2 free players); split the rest 40% to basket A (place weight × stake, capped at 10 VHP per wallet) and 60% to basket B (place weight × full stake). Winners are the top 30% of staked players with at least 1 point; minimum stake 1 VHP.
+- **Note:** this is the "40/60 split" of D-010. Applies to game 1; vault games' free prizes follow D-029 (C-10).
+- **Source:** 💬 Swap Desk
+
+## D-046 — Who pays Mana: bot, players, game contract
+- **Date:** 2026-10-28
+- **Decision:** The bot wallet pays its own Mana (post, resolve, compound, settle); the owner tops up its KOIN, target 50. The sponsor pays for every player transaction; past the caps, players pay their own (PR #28). The owner chose not to set the game contract's `max_sponsor_rc` to 0 for now — it stays 2 KOIN ✅ on chain record and in `deployment.json`.
+- **Finding behind it:** adding seed KOIN does not increase producing VHP; at steady state idle KOIN ≈ 5 × the daily Mana spend; the fix is to stop others spending the contract's Mana (I-044).
+- **Source:** 💬 Swap Desk
+
+## D-047 — Questions release at 12:00 UTC on the dot
+- **Date:** 2026-10-28 · **Decision:** For the site's integrity, questions come out at exactly 12:00 UTC: an 11:48 release run, the bot waiting for 12:00, and a backup starter on the owner's PC. The PC task runs only 11:45–14:05 UTC and is stored in UTC so daylight saving can't move it.
+- **Source:** 💬 Swap Desk; release cron ✅ `bot.yml`
+
+## D-048 — Self-heal and alerts
+- **Date:** 2026-10-23 · **Decision:** Nodes are checked every 20 minutes and every heal emails the owner; the down-alert watchdog is based on the personal node.
+- **Source:** 💬 Swap Desk
+
+## D-049 — Skip v4: game v5 with Desk v2
+- **Date:** 2026-10-23 · **Decision:** Go straight to game v5 together with Desk v2 (live 28 Oct ~19:25 UTC; game v5 replaced v3 `917708a7…`, Desk v2 replaced v1 `05039d74…`). Game v5 has since been upgraded to Vault v6.
+- **Source:** 💬 Swap Desk; hashes ✅ deployment files
+
+## D-050 — Site content trims
+- **Decision:** Koinosscan replaced the KoinosProof footer link; the song was removed from the Learn page; the "Swap now or wait" calculator and the "added since you opened" stat were removed.
+- **Source:** 💬 Swap Desk
+
 ---
 
 ## Contradictions Register
@@ -245,18 +289,19 @@ Repo wins per D-002 unless the owner rules otherwise. "Ruling" = what the docs c
 | ID | Topic | Archive (chat) says | Repo says | Ruling / action |
 |----|-------|---------------------|-----------|-----------------|
 | C-01 | Sponsor version on chain | Questions: v2 `fa4659e6`. Vault, Hub, Block X: v3 `b61ac238` live | `picks` record: v3, upload tx `0x122040b7…`, 2026-10-30 ✅. `main` record: still v2 | ✅ Resolved 2026-11-02: v3 is live. `main`'s record is stale (I-043) |
-| C-02 | Sponsor caps (per tx / player-day / player-week / all-day / free-day) | 3 / 10 / 65 / 1,000 / 300 | `bot/sponsor.ts` defaults: 1 / 25 / 150 / 5,000 / 2,000 (owner 2026-10-28/29); v2 rollback can't exceed 1,000/day | **Owner decision needed.** Live on-chain values unknown Hub (D-028): 25 / 150 per wallet, "no extra cap" — per-wallet values now agreed by repo + Hub; everyone-day and free-day totals still ❓ Block X (30 Oct): sponsor ON with 1 / 25 / 150 / 5,000 / 2,000, vault switch off. ✅ Resolved 2026-11-02: repo, Hub and Block X agree; the Questions chat's set is outdated. Confirm on chain with `npm run sponsor -- status` before the vault switch |
-| C-03 | Sponsor wallet KOIN | 5,000 KOIN | `bot/sponsor.ts` comment: at least 25,000 KOIN to fund 5,000/day | Tied to C-02. ❓ Check balance Hub: KOIN to be sized from measured use once everything is live |
-| C-04 | Site read RPC | Questions: site uses `api.koinos.io` (Armana CORS failures). Vault: Armana is default (`main` switched 2026-10-28); `api.koinos.io` returns HTML errors | `app.js`, `swap.js`, `header-wallet.js` all hard-code `koinos.armana.io`; game/desk/race deployments use Armana, sponsor/picks use `api.koinos.io` | Repo (`picks` branch): Armana. ❓ GitHub `main` may differ (branch `armana-rpc` exists) Block X lists `api.koinos.io` as mainnet RPC, with Armana and `api.koinosblocks.com` |
-| C-05 | `rcLimitOther` | 3 Mana | `game-data/deployment.json`: 1 Mana (audit SP-17); game `maxSponsorRc` 2 Mana | Repo: 1 Mana |
+| C-02 | Sponsor caps (per tx / player-day / player-week / all-day / free-day) | 3 / 10 / 65 / 1,000 / 300 | `bot/sponsor.ts` defaults: 1 / 25 / 150 / 5,000 / 2,000 (owner 2026-10-28/29); v2 rollback can't exceed 1,000/day | **Owner decision needed.** Live on-chain values unknown Hub (D-028): 25 / 150 per wallet, "no extra cap" — per-wallet values now agreed by repo + Hub; everyone-day and free-day totals still ❓ Block X (30 Oct): sponsor ON with 1 / 25 / 150 / 5,000 / 2,000, vault switch off. ✅ Resolved 2026-11-02: repo, Hub and Block X agree; the Questions chat's set is outdated. Confirm on chain with `npm run sponsor -- status` before the vault switch Swap Desk explains the Questions numbers: they were the sponsor v2-era caps (hard cap 1,000/day) |
+| C-03 | Sponsor wallet KOIN | 5,000 KOIN | `bot/sponsor.ts` comment: at least 25,000 KOIN to fund 5,000/day | Tied to C-02. ❓ Check balance Hub: KOIN to be sized from measured use once everything is live Swap Desk: hold 5 × daily use — 5,000 KOIN covered the old 1,000/day cap (~100 fully active players); the v3 cap of 5,000/day implies more. Balance still ❓ |
+| C-04 | Site read RPC | Questions: site uses `api.koinos.io`. Swap Desk (to 28 Oct): site on `api.koinos.io`, bot on Armana. Vault: `main` switched to Armana 28 Oct. Block X: lists both | ✅ `app.js`, `swap.js`, `header-wallet.js` use `koinos.armana.io` on both `main` and `picks` | ✅ Resolved 2026-11-02 (D-002, repo wins): site and bot read from Armana. Whether to move back is I-006 |
+| C-05 | `rcLimitOther` | 3 Mana | `game-data/deployment.json`: 1 Mana (audit SP-17); game `maxSponsorRc` 2 Mana | ✅ Resolved 2026-11-02: 3 was the sponsor v2-era site value (Swap Desk); repo now 1 |
 | C-06 | Repo name | Questions: `bawcejawn/KnodeGames`. Vault: `bawcejawn/Knode` | local `origin` still `bawcejawn/Knode.git` | ✅ Resolved 2026-11-02: GitHub says the repo moved to `bawcejawn/KnodeGames` (old URL redirects) |
 | C-07 | Platform name | "KnodeGames" | mixed | Resolved by D-001: "Knode Games" |
-| C-08 | Week boundary time | Week 2 closes Mon 2 Nov 21:00 UTC | genesis Mon 19 Oct 00:00 UTC, 7-day weeks, 12 h close delay, 24 h settle | ❓ Explain where 21:00 UTC comes from (bot schedule?). Vault chat's first vault close is Mon 16 Nov 12:00 UTC, which matches genesis + close delay Hub/Race: weeks run Mon–Mon 00:00 UTC, week 0 = Mon 19 Oct, so vault week 2 = Mon 2 Nov — the Questions chat's "Week 3" is the same week counted from 1. The 21:00 UTC time is still unexplained |
+| C-08 | Week boundary time | Week 2 closes Mon 2 Nov 21:00 UTC | genesis Mon 19 Oct 00:00 UTC, 7-day weeks, 12 h close delay, 24 h settle | ❓ Explain where 21:00 UTC comes from (bot schedule?). Vault chat's first vault close is Mon 16 Nov 12:00 UTC, which matches genesis + close delay Hub/Race: weeks run Mon–Mon 00:00 UTC, week 0 = Mon 19 Oct, so vault week 2 = Mon 2 Nov — the Questions chat's "Week 3" is the same week counted from 1. The 21:00 UTC time is still unexplained Swap Desk: answers close 00:00 UTC, Sunday is results day, corrections until Mon 12:00, winners final Tue 12:00 UTC — so a Tue 21:00 payout time is still unexplained |
 | C-09 | Vault | questions game is `Q_GAME = 1` in the Vault | `main`: Vault v6 is the game contract `1Mpmf2…`, upgraded in place 2026-11-02 (`eed38f7c…`) | ✅ Resolved 2026-11-02: game 1 is built into the vault |
-| C-10 | When new prize rules start | Questions: 40/60 split + 2 VHP free prize from Week 3 (Mon 2 Nov), `reward_rule_week_plus_one=3`. Vault: v6 rules + 2 + 1 VHP free prizes from Mon 9 Nov (`v6_rule_week_plus_one`) | not checked | ❓ Are these two different rules (v5 reward rule vs v6 rules)? Which free prize applies to the questions game, and from when? Hub (D-029): no free-game prizes until the vault is fully live. Race: its week 1 vault file is final with 1st/2nd free winners, while the Race page still says prizes start once the vault is live Block X (D-036): Block X goes live prize-free; prizes after v6 and the scoring fixes |
-| C-11 | Bot wallet | Vault: "bot wallet" `1JSTwo…` | `docs/history/AUDIT-2026-10-19.md` lists `1JSTwo…` as the Operator; current operator is `1HsM33…` | ❓ Is `1JSTwo…` the old operator, or still in use? Race chat's owner checklist says "empty the old bot and test wallets" — supports old-operator reading |
+| C-10 | When new prize rules start | Questions: 40/60 split + 2 VHP free prize from Week 3 (Mon 2 Nov), `reward_rule_week_plus_one=3`. Vault: v6 rules + 2 + 1 VHP free prizes from Mon 9 Nov (`v6_rule_week_plus_one`) | not checked | ❓ Are these two different rules (v5 reward rule vs v6 rules)? Which free prize applies to the questions game, and from when? Hub (D-029): no free-game prizes until the vault is fully live. Race: its week 1 vault file is final with 1st/2nd free winners, while the Race page still says prizes start once the vault is live Block X (D-036): Block X goes live prize-free; prizes after v6 and the scoring fixes Swap Desk (D-045): the Questions game's v5 rule pays 1 + 1 VHP to free players from the week of 2 Nov. Likely reading: game 1 from 2 Nov; vault games 2 + 1 from 9 Nov. ❓ Confirm |
+| C-11 | Bot wallet | Vault: "bot wallet" `1JSTwo…` | `docs/history/AUDIT-2026-10-19.md` lists `1JSTwo…` as Operator; current operator `1HsM33…` | ✅ Resolved 2026-11-02 (Swap Desk): `1JSTwo…` is the old operator, retired 26 Oct; its key still sits in the local `.env` (I-045) |
 | C-12 | Race status | Vault: game 7 "ready to announce" | `games.json`: Race "live"; PR #44 badge ✅ merged | ✅ Resolved 2026-11-02 (Hub): Race is live as a game; its vault registration (`game-add 7`) is pending |
 | C-13 | Survivor type | Hub: "a free game" | Vault (D-018): Survivor added `--staked --free` | ❓ Staked + free, or free only? |
 | C-14 | Launch pace and order | Hub: Mondays, one at a time; order Block X + Race → Block X live → Survivor → Golf staked → LNS → Bracket → Fantasy → Combo. Vault: announce 2, 7, 9 (+8, 13 if cleared) together by Fri 6 Nov; launch as many as are ready (D-024) | — | ❓ Owner decision |
-| C-15 | Seed owner move | Race chat's owner checklist: "move the seed and Desk owner" | Vault: seed owner already handed to `1K8VV…` on 30 Oct ✅ `seedOwner` on `main` | ❓ Stale checklist item, or a further move (e.g. to the hardware wallet)? |
+| C-15 | Seed owner move | Race chat's owner checklist: "move the seed and Desk owner" | Vault: seed owner already handed to `1K8VV…` on 30 Oct ✅ `seedOwner` on `main` | ❓ Stale checklist item, or a further move (e.g. to the hardware wallet)? Swap Desk (to 28 Oct): seed owner was the owner wallet; Vault moved it 30 Oct. Likely the checklist's seed item is stale and only the Desk owner move remains (I-001) |
 | C-16 | Race vault file final? | Race: week 1 vault file is final with free winners. Block X (B1-1): while `race.ts` uses the v5 ABI, the vault file is never final | ✅ `race-data:vault/W1.json` is `final: true`, `rows: []`, `first`/`second` set; ✅ `race.ts` still loads the v5 ABI on `main` | ❓ Did week 1 go final because no staked rows were needed? Are its free winners to be paid (D-029: no free prizes until the vault is fully live)? |
+| C-17 | Desk daily payout cap | Swap Desk (28 Oct): set one, ~25% of the float (~120 KOIN) | Questions, Hub: no daily payout cap (D-007) | ✅ Resolved: the later decision (D-007, no cap) stands |

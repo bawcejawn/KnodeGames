@@ -586,3 +586,141 @@ The KnodeGames site and Hub (captain) chat. Covers the domain and the site moved
 - **Status:** unsorted
 
 ---
+
+## Chat: KG 02 · Hub + Race Show (exported 2026-11-02)
+
+The Producer Race (game 7): Build 2 (Knode Games rename, Games hub, Race Show), the staked and free boards, the Race's weekly Vault results file, medals for earners, the shared stake panel and the status bar. This chat owns the Race.
+
+---
+
+### KG 02 · Hub + Race Show: PLATFORM
+- **Date:** 2026-11-02
+- **Source chat:** KG 02 · Hub + Race Show
+- **Category:** fact
+- **Content:**
+  - **Name and site:** Knode Games (two words on pages; "Knode" before Build 2, and "KnodeGames" in early Build 2 text). Live at https://knodegames.com on GitHub Pages, with the site files at the repo root (PR #31).
+  - **Repository:** `bawcejawn/Knode` (now `bawcejawn/KnodeGames`). One branch and PR per build; the owner merges. Claude never pushes to `main` without the owner's OK.
+  - **Vault:** game contract `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr`, upgraded in place to the Knode Games Vault (v6). The v6 ABI is on `main`, and the Race's first weekly Vault file (week 1) went final.
+  - **Vault game ids:** 1 Daily Questions, 2 Who Signs Block X, 3 Survivor, 4 Fantasy Producers, 6 Block Golf, 7 Producer Race, 8 Combo Card, 9 Producer Bracket, 13 Last Node Standing.
+  - **Weeks:** week 0 began Mon 19 Oct 2026 00:00 UTC (`GENESIS` 1792368000000). Weeks run Monday to Monday UTC; week = floor((t − genesis) / 7 days).
+  - **Who owns what:**
+    - The Race chat (`KG 02 · Hub + Race Show`, session `0173PPUtFZWbkCLXcA57bDGS`) owns the Producer Race.
+    - The site/Hub chat (session `0173PPUsRKcFfG89XdWYy7LD`) owns the shared site files: `board.js`, `stake-panel.js`, `styles.css`, `games.*`, the tab bar and `stake.html`.
+    - Another chat (session `0173PPUrAJx3x5GM6g8LJmND`) changed the tab bar and the guest-wallet text.
+    - The written rule is in `claude/owners-race.md`.
+  - **Owner checklist:** a Claude artifact with a Today list (https://claude.ai/artifact/Qjk951Qvntsa15yrhJ2db6), backed by the `tasks` collection in its database.
+  - **Owner preferences:** explain plainly (the owner works in finance and is new to running code), keep asking questions, keep the checklist up to date.
+- **Status:** unsorted
+
+---
+
+### KG 02 · Hub + Race Show: ARCHITECTURE
+- **Date:** 2026-11-02
+- **Source chat:** KG 02 · Hub + Race Show
+- **Category:** fact
+- **Content:**
+  - **Race recorder:** `bot/race.ts`, run by `.github/workflows/race.yml` hourly at minute 37 while `RACE_ENABLED=true`.
+    - Two jobs. `record` has a read-only token and no secrets, and runs the repo's code. `publish` has the write token, runs no repo code, shape-checks every file with embedded Python, and pushes only to the `race-data` branch.
+    - Only irreversible blocks count. Blocks and picks must match on two nodes (`RPC` and `RPC_CHECK`); stake reads come from the Vault and must agree on both nodes for the Vault file.
+    - Files on `race-data`: `index.json`, `W<NNN>.json` (race weeks), `board.json`, `vault/W<week>.json` (unpadded week number).
+    - If the last run's files can't be read, the record job fails. A missing branch is the only case where it starts fresh.
+    - Publish refuses a `final` Vault file for a week that hasn't ended, by the runner's own clock (`RACE_CHECK_NOW` is for tests only). It also refuses any change to a Vault file already published as final (exact `cmp`, plus a JSON `final` check).
+    - Shared rules in `race-math.js`: `standings`, `winners`, `shows`, `POINTS {win:3, show:1}`, the handicap math. The page and the recorder both use it.
+  - **Pick row:** `[player, horse, time, won 0/1, 0, show 0/1]`. Field 5 used to mean "may be ranked"; it is now always 0 and no wallet is read for it. Picks recorded before Show existed are back-filled from the stored standings.
+  - **`board.json` rows:** `{a, pts, correct, shows, picks, ranked, boardPlace, earns}`.
+    - `ranked`: on the Staked board.
+    - `boardPlace`: the place on the wallet's own board, shared by ties (1, 1, 3…).
+    - `earns`: 1 or 2 = free-prize place, 3 = a share of the staked bucket, 0 = nothing. Nonzero only on This week and Last week.
+  - **Vault results file:** `race-data:vault/W<week>.json`, the source string for `vaultGames."7".results` being `race-data:vault`:
+    `{"game":7,"week":N,"final":bool,"rows":[{"player","points"}],"first":[],"second":[],"skipped":[]}`
+    - `rows`: staked players with at least 1 point, as 255, 254, … per tied group.
+    - `first` / `second`: free players, at most 10 each.
+    - `skipped`: races left out.
+  - **Stake test** (matches the Vault contract's `post_results` / `post_prize_winners` and `bot/vault.ts`):
+    - Staked: `peak_stake` (or `active_stake` when there's no entry) is at least that week's minimum (`min_stake`, or `min_stake_next` from `min_stake_next_week`).
+    - Earning: `week_stake` is at least the minimum.
+  - **Fails closed** (no final file) when the repo ABI has no `get_game_player`, `deployment.json` has no contract, `get_state` comes back empty, any stake read fails, or the two nodes disagree. A failure of the whole read is reported once a run.
+  - **Site:**
+    - `board.js` (`KBoard`): Today / This week / Last week / All time, with Staked and Free play tabs. `boardPlace` came from the picks branch (audit BX-41). `freeWinners` decides Free play medals; the optional `earned(row, weekly)` decides Staked medals, so only rows that earn get one.
+    - `stake-panel.js` (`KStake`, Hub PRs #32/#33/#35/#41): `mount(el, {game})` gives Stake (approve + `deposit_to`), Withdraw (`withdraw_from`, always offered), Move (`move_stake`) and Claim (`claim_game`). Claims follow the Vault's `claimableG` / `rewardOfG` and look back 52 weeks, including weeks before a game restart. `badge(el, {game})` shows the "Staked · X VHP / Playing free" bar.
+    - `race.html`: `#stake-badge` at the top of `<main>` (PR #44), and the `#stake` panel spot lower down. The Games page's "Where to stake" list links to `race.html#stake`, so that id must stay.
+    - `games.html`, `games.js`, `games.json` make up the hub list (`games.json` is validated). `tools/site-nav.mjs` writes the tab bar into every page, and a test keeps every copy identical. `tools/site-seo.mjs` writes the share tags. The service worker never caches game or race data.
+    - Strict CSP: no inline scripts or handlers, only pinned CDN scripts, content built with `textContent` only.
+- **Status:** unsorted
+
+---
+
+### KG 02 · Hub + Race Show: DECISIONS
+- **Date:** 2026-11-02
+- **Source chat:** KG 02 · Hub + Race Show
+- **Category:** decision
+- **Content:**
+  - **Build 2 (27 Oct):** Race Show scores win 3, show 1 (2nd or 3rd with at least one step). The welcome page stays the home page and lists every game. No "New" tag on games. The KOIN Vault dapp name stays "Knode", and the connect text says "approve Knode (KnodeGames)", until the KOIN Vault developer is asked.
+  - **Every game takes stakes (28 Oct):** the Race is set up in the Vault as `--staked --free`. Staked players are those staked in game 7 that week; everyone else (guests included) is free. Staked players share the game's bucket; free players play for 2 VHP and 1 VHP.
+  - **Race ranking:** points, then wins, then picks placed. Wallets still tied share the place. The Daily Questions tie-breaks were dropped (option A, 28 Oct).
+  - **Ties:** a tie for 1st shares all 3 VHP and 2nd stays empty. When more than 10 tie for a place, the 10 with the earliest first pick that week share it and the rest get nothing.
+  - **Free prize:** any free player can win; no VHP holding or minimum play is required.
+  - **A race that won't finalize** is skipped 12 hours after its week ends. Its picks don't count, and it is listed in `skipped`.
+  - **Medals (29 Oct):** only wallets that earn get one, and only on the weekly boards. Free play: the paid 1st and 2nd. Staked: the Vault's top 30% by headcount, rounded up, with a tied group taken whole.
+  - **Ownership (29 Oct):** the Race chat owns all Race files. Other chats send Race requests through the owner.
+  - **Status bar (30 Oct):** the badge sits at the top of every game page, with the full panel lower down (Hub, owner-approved).
+- **Status:** unsorted
+
+---
+
+### KG 02 · Hub + Race Show: GAME-SPECIFIC
+- **Date:** 2026-11-02
+- **Source chat:** KG 02 · Hub + Race Show
+- **Category:** fact
+- **Content:**
+  - **Producer Race:** four 6-hour races a day (00, 06, 12, 18 UTC). Each race has 6 one-hour legs with hourly handicap cards; races recorded before 27 Oct have 3 cards. Results need irreversible blocks that match on both nodes.
+  - **Race contract:** picks lock when a race starts. Up to 5 picks a day, changes included; the sponsor pays the Mana. The `pick.at` time is the latest pick or change, and it decides the more-than-10 tie rule.
+  - **Live status (2 Nov):** week 1 Vault file `{"final":true,"rows":[],"first":["1Fdg4H…"],"second":["1MVRxw…"],"skipped":[]}`. `lastWeek` on the board matches it: places 1 and 2 have `earns` 1 and 2.
+  - **Merged PRs from this chat:** #23 (Build 2: rename, Games hub, Race Show, tab bar), #34 (two boards, Vault file, review fixes, medals for earners). **Open PR:** #44 (status bar).
+- **Status:** unsorted
+
+---
+
+### KG 02 · Hub + Race Show: ROADMAP
+- **Date:** 2026-11-02
+- **Source chat:** KG 02 · Hub + Race Show
+- **Category:** fact
+- **Content:**
+  - **Block X (`picks` branch):** it changes the same three Race files: `bot/race.ts` (anti-gaming handicap: effective VHP, random samples, 6-hour high, production floor, BX fixes), `race.yml` and `tests/audit/race-recorder.test.mjs`. The Race chat resolves the conflicts by hand when Block X is ready to merge.
+  - **Other game chats** (Survivor, Fantasy, Golf, Combo, Bracket, Last Node Standing) use `KStake.mount` and `KStake.badge` and write their own Vault files (`claude/handoff-vault-results.md`, `claude/handoff-stake-in-every-game.md`).
+  - **Free-prize wording** across the site should be updated now that the Vault is live. The Race page still says "both start once the vault is live".
+- **Status:** unsorted
+
+---
+
+### KG 02 · Hub + Race Show: OPEN ISSUES
+- **Date:** 2026-11-02
+- **Source chat:** KG 02 · Hub + Race Show
+- **Category:** open question
+- **Content:**
+  - PR #44 (status bar) is not merged yet.
+  - The Block X merge with the Race files is still to do.
+  - The Race page describes the Vault as "not yet live" (rules text in `race.html` and the `index.html` Race rules). It needs updating now that v6 is live.
+  - The panel's "Staked board" label is based on `peak_stake`. A wallet that withdrew below the minimum mid-week ends up with no bucket share and no free prize; the shared panel should explain this.
+  - The board reads `get_game_player` once per wallet per run across All time. Fine at current scale, but it grows with players.
+  - If `RPC_CHECK` is turned off, stakes are classified on one node only, with no warning.
+- **Status:** unsorted
+
+---
+
+### KG 02 · Hub + Race Show: TODOS
+- **Date:** 2026-11-02
+- **Source chat:** KG 02 · Hub + Race Show
+- **Category:** open question
+- **Content:**
+  - [ ] Owner: review and merge PR #44, then confirm the badge on the live Race page at phone width.
+  - [ ] Race chat: update the Race page and home-page rules for the live Vault (two boards active, prizes paid).
+  - [ ] Race chat: merge `picks` into `main` with the Race files resolved when Block X is ready, then re-run all suites and open the PR.
+  - [ ] Race chat: each week, check `vault/W<week>.json` is final with sensible `first`, `second` and `rows`, and that `race.yml` runs succeed.
+  - [ ] Owner: ask the KOIN Vault developer whether the dapp name can change to "Knode Games" (checklist t27).
+  - [ ] Owner, from the checklist: full platform audit; new owner key on a hardware wallet; cold treasury for the Desk; move the seed and Desk owner; empty the old bot and test wallets; pin the Desk node key; clean up old node data and the stale folder/branch; launch announcement; analytics decision; ads and the SwarmTales listing.
+  - [ ] Keep the reference docs current: `claude/race-vault.md` (status), `claude/owners-race.md` (ownership), `claude/stake-panel.md` (panel).
+  - **Project docs to carry over:** `claude/race-vault.md`, `claude/owners-race.md`, `claude/stake-panel.md`, `claude/builds/02-hub-and-race-show.md`, and `race/README.md` (the "Weekly results for the KnodeGames Vault" section) in the repository.
+- **Status:** unsorted
+
+---

@@ -1425,3 +1425,174 @@ Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publi
 - **Status:** unsorted
 
 ---
+
+### Last Node Standing: PLATFORM
+- **Date:** 2026-11-02
+- **Source chat:** Last Node Standing
+- **Category:** fact
+- **Content:**
+  - **Chain:** Koinos mainnet. RPC `https://koinos.armana.io` (primary) and `https://api.koinosblocks.com` (check node). Testnet paths refuse the mainnet chain id.
+  - **Repo:** `bawcejawn/Knode`. The owner's clone is `C:\kprediction` (Windows, PowerShell), and several chats share it.
+  - **Branches:**
+    - `main`: the live site at the repo root (never `site/`), served at knodegames.com.
+    - `picks`: Block X, the Picks tooling and the VHP sampler; not merged into `main` yet.
+    - `lastnode`: this game.
+    - `games-data`: recorder output.
+    - `race-data`: hourly race cards.
+    - `race-samples`: 5-minute VHP samples; doesn't exist yet.
+  - **Live mainnet contracts:**
+    - **Picks:** `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm`, uploaded 2026-10-30 20:35 UTC. Game 2 (Block X) announced; it goes on 2026-11-01 21:23 UTC.
+    - **Game / Vault:** `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr`. Owner `1635QUr…H717`; genesis 2026-10-19 00:00 UTC (`1792368000000`); minimum stake 1 VHP.
+    - **Sponsor (Mana):** live; covers the Picks `pick` row.
+  - **CI:** the "Resolver tests" workflow runs `npm run test:audit` on Linux on every push to `lastnode`, and is the authoritative run. Scheduled workflows run only from `main`, which is why `race-samples.yml` (on `picks`) isn't running.
+  - **Tests:** built for Linux (bash, Python 3). On Windows, the Last Node tests import files by file URL, find Python as `python3`, `python` or `py`, and skip bash-only steps with a reason. Other games' tests still need Linux.
+  - **Picks build:** sometimes fails with EAGAIN from protoc or yarn; rerun it.
+- **Status:** unsorted
+
+---
+
+### Last Node Standing: ARCHITECTURE
+- **Date:** 2026-11-02
+- **Source chat:** Last Node Standing
+- **Category:** fact
+- **Content:**
+  - **Rules** (`lastnode-math.js`, shared by the page and the recorder):
+    - `KLastNode` is game 13; `forGame()` gives other timings. Game 13 cuts hourly from 14:00 UTC daily. Game 94 is the testnet fast game (20-minute cuts, an event every 4 hours). Game 33 is the testnet copy of the real timing.
+    - Round `OFFSET = (PHASE − LOCK_BEFORE + LEAD) mod PERIOD`: each round targets 13:55 UTC with a 5-minute lead. Picks open 24 h ahead and lock at 13:50 UTC.
+    - Picks registration: kind 2, list_size 2, lock_mode 2 (time), round_size 1 day, lead 5 minutes, ahead 24 h, 5 changes, 10 picks a day.
+  - **Recorder** (`bot/games/lastnode.ts`):
+    - Read-only on the chain, no keys. Reads two nodes, irreversible blocks only, and they must match.
+    - Writes `games-data/lastnode/D<day>.json`, `index.json`, `board.json`, `vault/W<week>.json` and `vault/HOLD-W<week>.json`.
+    - `finish()` exits once the files are written.
+    - Testnet mode (`--testnet --game N`) uses `TESTNET_*` env names and writes only inside `testnet-data/`.
+  - **Workflow** (`.github/workflows/lastnode.yml`):
+    - **record** job: a read-only token and no secrets. Fetches race-data, games-data and the race-samples history (a snapshot every 6 h, 60 h back).
+    - **publish** job: runs no repository code. A Python shape check, then the `histcheck.py` heredoc with Python ports of `cuts_from` (with `hh`), `player_result`, `board_rows`, `vault_scores`, `race_cut`, `watch_week` and `js_round`.
+    - The publish job has its own stdlib Python Koinos JSON-RPC client: `chain.get_head_info`, `block_store.get_blocks_by_height` (200-block pages) and `chain.read_contract` (`list_picks`, entry 2118033200, hand-written protobuf, base64url). Its timeout is 20 minutes.
+  - **What the publish job re-checks on two nodes:**
+    - **New hours:** boundary blocks and every field node's count.
+    - **New hour-0 picks:** exactly `list_picks`; picks at or after the lock are dropped.
+    - **A new field:** must come from the event's race card (the first card from 12:00 UTC the day before until picks open), with every node's VHP, kh and node set from that card, and every h from the formula at the field's c.
+  - **Other publish rules:**
+    - A vault file is published only in a later run than the final board, and only if that run leaves last week's files unchanged.
+    - "Final" needs every event done or void, and 12 hours after the week ends.
+    - Write-once history: published fields, picks, hours, finished events and a final week can't change.
+    - Only JS-safe numbers.
+    - Status files use `\n` line endings; every failure is printed and the run fails once, at the end.
+  - **Still trusted to the record job:** c, each node's form r, and the staked-wallet list (the v6 `get_game_player` ABI isn't in the repo).
+  - **Page** (`lastnode.js`, `lastnode.html`): uses the chain's clock; live windows follow the recorder's card rule; it sends only one transaction, a Picks `pick` of [start, backup].
+  - **Test infrastructure:**
+    - `tests/audit/lastnode-vault.helpers.mjs`: `publisher()` runs the real publish shell against a bare repo; also `chainFor`, `fieldCard`, `dayFile`, `gamed`.
+    - `tests/audit/lastnode-form.helpers.mjs`.
+    - `tests/audit/lib/fake-koinos-rpc.py`: a fake two-node RPC (`/a`, `/b`).
+    - `tests/audit/lib/platform.mjs`: `PY`, `withPython`, `withBash`.
+    - `tests/audit/lib/quiet.mjs`: mutes recorder narration (`LASTNODE_TEST_LOG=1` shows it).
+    - `tests/audit/lastnode-ports.test.mjs`: Python/JavaScript parity fuzz.
+- **Status:** unsorted
+
+---
+
+### Last Node Standing: DECISIONS
+- **Date:** 2026-11-02
+- **Source chat:** Last Node Standing
+- **Category:** decision
+- **Content:**
+  - **Field:**
+    - Taken from the race card at 12:00 UTC the day before (or the next leg's card, if it was taken before picks open).
+    - Nodes at ≥ 20 blocks an hour by VHP, at most 23.
+    - h = (kTop/k)(1 − c/√k)/(1 − c/√kTop), 4 decimals; c on a 0–2.5 grid from 20,000 seeded simulations.
+  - **Form:** 48 h of blocks ÷ the blocks the VHP share gives, hour by hour against that hour's average VHP from the 5-minute samples. Kept within 0.80–1.20; at least 24 usable hours.
+  - **Picks:** one per event, a start node plus an optional backup, before the start. The backup takes over automatically at the start node's first cut, if still standing; one jump.
+  - **Points and board:**
+    - 1 per cut survived, plus +5 for riding the last node without jumping or +3 after a jump.
+    - Board order: points, then rides, then fewer jumps; exact ties share a place.
+    - The field grows organically.
+  - **Race-time cut:** VHP added after the field card can only lower a multiplier. Each window is judged by the first race card taken at or after its end; with no such card 2 h later, the latest card by its end. Hours are recorded about 30 minutes after they end.
+  - **Watch-and-hold:**
+    - Flag a node at weekly z ≥ 3.4 with at least 2 wins, or at z ≥ 5 in one event it won.
+    - Blocks count in every window, also after the node's cut; noise is a leave-one-out over-dispersion estimate.
+    - The vault file is held until released with `LASTNODE_RELEASE_WEEKS` (digits and commas only), and the publish job enforces this too.
+  - **Owner accepted the N-6 trade-off (2026-10-30):** a 3% form-skimmer is caught in about 13% of weeks, one gamed event in about 98%, and honest weeks are held 1–1.5% of the time. Tests pin these rates.
+  - **Launch gate:** no field without form on mainnet unless `LASTNODE_ALLOW_NO_FORM=true`. The owner chose to wait for the sampler.
+  - **Process:**
+    - Wait for clean reviews and audits before any merge to `main`.
+    - No push to `main` or deploy without the owner's OK; standing OK to push `lastnode`.
+    - Never touch mainnet from testnet paths. Never print or ask for keys. Don't touch `picks/assembly/Picks.ts`.
+  - **Owner preferences:** beginner-level explanations, a "Today" checklist, copy-paste PowerShell with `cd C:\kprediction` and `git branch --show-current` in every block, and keep asking questions.
+- **Status:** unsorted
+
+---
+
+### Last Node Standing: GAME-SPECIFIC
+- **Date:** 2026-11-02
+- **Source chat:** Last Node Standing
+- **Category:** fact
+- **Content:**
+  - **Game ids:** 13 is mainnet; 94 is the testnet fast game; 33 is the testnet real timing (`testnet/lastnode.json`).
+  - **Vault file:** `{game:13, week, final:true, rows:[{player, points 1–255}], first:[], second:[]}`. Rows are wallets staked in game 13 that week with at least 1 point. Written from 12 h to 3 days after the week ends; no file before Vault v6.
+  - **Reviews:**
+    - Round 1: LNF-1 to LNF-31.
+    - Round 2 (`FIXCHECK-LASTNODE-2.md`): N-1 to N-12, L-1 to L-12, I-1 to I-9. All fixed except L-9 (not done), L-7 (partly), and I-3 to I-6 and I-8 (Info, not changed).
+    - Write-up: `docs/lastnode/FIXCHECK-2-FIXES.md`.
+  - **State:**
+    - `lastnode` @ `adf95be`, which includes the `picks` merge at `d3203f1` (`picks` has since moved to `3472d8c`).
+    - Full suite: 718 tests, 708 pass, 0 fail, 5 skipped, 5 TODO (other games' owner decisions).
+    - Last Node tests: 109 on Linux; on Windows, 85 pass and 24 skip.
+  - **Project docs:** `claude/lastnode/FIXCHECK-2-FIXES.md`, `claude/lastnode/FIXCHECK-3-PROMPT.md` (the round-3 reviewer prompt), and the earlier `FIXCHECK-1-*` and `TESTNET.md`.
+- **Status:** unsorted
+
+---
+
+### Last Node Standing: ROADMAP
+- **Date:** 2026-11-02
+- **Source chat:** Last Node Standing
+- **Category:** idea
+- **Content:**
+  1. Clean round-3 review of Last Node (fix → re-review until clean).
+  2. Clean Block X review (round 11, in the Block X chat).
+  3. Merge `picks` into `main` with the owner's OK. This starts the VHP sampler (`race-samples.yml`, with the existing `RACE_ENABLED=true`).
+  4. Announce game 13 on the mainnet Picks contract, then apply it after 48 h. Needs the owner key; can overlap with step 5.
+  5. 48 h of sampler readings.
+  6. PR `lastnode` into `main` with the owner's OK.
+  7. Set `LASTNODE_ENABLED=true`; leave `LASTNODE_ALLOW_NO_FORM` unset. `LASTNODE_PICKS` defaults to the mainnet Picks address.
+  8. Watch the first live day (the publish job's chain client has never run against a real node).
+  9. Staked prizes start once Vault v6 is live; free play and the board work before then.
+- **Status:** unsorted
+
+---
+
+### Last Node Standing: OPEN ISSUES
+- **Date:** 2026-11-02
+- **Source chat:** Last Node Standing
+- **Category:** warning
+- **Content:**
+  - **Remaining trust (N-1):** c, form r and the staked list aren't re-checked by the publish job. The vault bot should check that every staked board player is in the vault file. Whether the vault bot honours HOLD files isn't in this repo.
+  - **N-6:** a steady 3% form-skim over a week is largely undetectable (accepted). Possible later fixes: a 4-week rolling check, or a shorter or recency-weighted form window.
+  - **Chain client:** the publish job's JSON-RPC client is untested on real mainnet nodes (field types, paging, base64url padding).
+  - **L-9:** sample averages aren't time-weighted.
+  - **Simulation limits:** the fast game leans toward small nodes; form weighs all 48 hours the same.
+  - **Windows:** other games' tests (heal, the Block X publish shells, the yml JSON-form tests) fail on Windows; that's expected, they need Linux.
+  - **`games.yml` conflict:** taken from `picks`, which dropped `lastnode`'s 3-try push loop in that file (Last Node's own push loop is unchanged).
+  - **Out of date with `picks`:** `lastnode` is behind `picks` (`3472d8c`); resync after Block X lands on `main`.
+- **Status:** unsorted
+
+---
+
+### Last Node Standing: TODOS
+- **Date:** 2026-11-02
+- **Source chat:** Last Node Standing
+- **Category:** open question
+- **Content:**
+  - [ ] Owner: send `claude/lastnode/FIXCHECK-3-PROMPT.md` to the reviewer and return the report. Before each session, run `git branch --show-current` and `git log --oneline -1`: expect `lastnode` and `adf95be` or newer.
+  - [ ] Owner: later, run the game-13 announce and apply with the owner key, and set the GitHub variables.
+  - [ ] Fix the round-3 findings.
+  - [ ] Prepare the game-13 announce/apply commands for mainnet Picks (`bot/picks.ts` registers only Block X on mainnet so far).
+  - [ ] Confirm the sponsor covers game-13 picks.
+  - [ ] Resync `lastnode` with `main` after the `picks` merge.
+  - [ ] Open the `lastnode` → `main` PR.
+  - [ ] Write the steps for setting the GitHub variables.
+  - [ ] Watch the first live runs.
+  - [ ] Tell the Vault chat: the vault file format, what HOLD files mean, and that the vault bot should verify the staked list.
+- **Status:** unsorted
+
+---

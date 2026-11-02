@@ -1794,3 +1794,200 @@ Block Golf (Build 6, game 6): a platform-wide golf course scored from every othe
 - **Status:** unsorted
 
 ---
+
+## Chat: Producer Bracket (exported 2026-11-02)
+
+Producer Bracket (Build 9, game 9): a weekly knockout bracket of Koinos block producers, picked as one number on the Picks contract; staked game with a free-play prize. Branch `kg-09-bracket` (built on `picks`, `main` merged in), last commit `ee676ea`; pushed, not merged, nothing deployed. Also the home of the platform-wide **KnodeGames VHP standard**.
+
+---
+
+### Producer Bracket: PLATFORM
+- **Date:** 2026-11-02
+- **Source chat:** Producer Bracket
+- **Category:** fact
+- **Content:**
+  - Repo `bawcejawn/Knode` (renamed from Kprediction). Since main's PR #31 the site sits at the repo root (knodegames.com); `site/*.html` are redirect stubs only.
+  - Koinos mainnet RPC `https://koinos.armana.io`; check node `https://api.koinosblocks.com` (`RPC_CHECK`). `api.koinos.io` is dead.
+  - The cloud workspace and the owner's linked PC both block Koinos node traffic (DNS / proxy 403): live chain reads only run in GitHub Actions.
+  - VHP contract `12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq`. Vault contract and producer `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` (`game-data/deployment.json`).
+  - KnodeGames week 0 = Monday 2026-10-19 00:00 UTC (`GENESIS = 1792368000000`); the Vault's week number = the KnodeGames week.
+  - Data branches: `games-data` (one folder per game, e.g. `games-data:bracket/`); `bracket-history` (100 days of mainnet data, ~22 MB): keep.
+  - Vault v6 code on branches `vault-v6` and `vault-v6-next` (latest seen `6e1c139`); not merged into `main` during this chat. `vault-v6-next` `game-data/deployment.json` has `vaultGames["9"] = {name: "Producer Bracket", results: "games-data:bracket/vault"}`.
+  - The Mana sponsor pays for every game play on KnodeGames, guests included.
+  - Rules (CLAUDE.md): never push, merge, deploy, upload a contract or change chain settings without asking; never ask for, print or store a private key or WIF; recorders run with no secrets, read two nodes, use irreversible blocks, and publish through a job that runs no repo code.
+- **Status:** unsorted
+
+---
+
+### Producer Bracket: ARCHITECTURE
+- **Date:** 2026-11-02
+- **Source chat:** Producer Bracket
+- **Category:** fact
+- **Content:**
+  - **The KnodeGames VHP standard** (`vhp-standard.js` at the root, `KVhp`; docs `docs/VHP-STANDARD.md` and project `claude/vhp-standard.md`):
+    - **Source:** VHP is rebuilt block by block from the VHP contract's events (transfers, mints, the ~4.08 VHP each block burns from its signer; the block reward is paid in KOIN). Reverted transactions are skipped. Anchors are balance reads pinned to one block, on two nodes that must agree. A fork check compares block ids.
+    - **Effective VHP:** received VHP counts only after 20 blocks; removed VHP stops at once. `effective(a,H) = max(0, before(a,H) − received in H−19…H−1)`. PoB reads it before the block's own transactions. The contract's `effective_balance_of` is entry point `0x629f31e6`.
+    - **Constants:** `DELAY_BLOCKS` 20, `ACTIVE_BLOCKS` 7200, `CARD_BLOCKS` 7200, `SEED_BLOCKS` 28800, `MIN_K` 10 (expected blocks in a 6-hour race to be in the field), `Q_SCALE` 1e15.
+    - **cardVhp + card credit + average totals (always together):**
+      - A producer's own numbers set its multiplier: `vhp` (the highest effective VHP over 7,200 blocks) or `k = 7200 × cardVhp ÷ Σavg`.
+      - Each scored block is worth multiplier × `min(1, cardVhp ÷ effective then)` (`cardCredit`).
+      - Anything about other producers uses averages: the total, `topAvg`, the field split `kAvg`.
+    - **Baseline + credit**, for judging after the fact:
+      - Baseline = effective VHP at the window's start.
+      - Expected = baseline × Σ over the window's blocks of 1 ÷ the active set's effective VHP.
+      - Credited = Σ over the blocks it signed of `min(1, baseline ÷ VHP then)`.
+    - **averageVhp** over 28,800 blocks, for seeding and fields.
+    - Functions: `vhpDeltas`, `vhpBook`, `activeAt`, `fieldOf`, `cardAt`, `cardCredit`, `averageCard`, `windowStats`, `expectedBlocks`.
+    - Rule: never use cardVhp alone, and never take a multiplier from an average-based number.
+  - **`bot/vhp-chain.ts`** (shared recorder reads):
+    - `chainNode(provider)`: `chain(from, to)` reads blocks with receipts (4 workers, 50 blocks a call); `balance(a)` returns `{v, eff?, h, id}`, read while the head stays unchanged.
+    - The `effective_balance_of` cross-check can be skipped: one failure turns it off for the run, with a warning.
+    - `heightAt`; `bookFor(n, fromH, toH, also)` returns `{c, book, effCheck: {n, atNext, atHead, skipped}}`. A match at h+1 or at h is accepted; neither stops the run, as do a below-zero rebuild or a fork.
+    - About 400 blocks/s with 4 parallel reads.
+  - **Bracket files** (branch `kg-09-bracket`):
+    - `bracket-math.js` (`KBracketMath`). Page script order: `vhp-standard.js`, `bracket-math.js`, `board.js`, `bracket.js`.
+    - `bot/games/bracket.ts` (the recorder, `npm run bracket`); `bracket.html` / `bracket.js` (the page, `ROOT = "./"`).
+    - `.github/workflows/games.yml`: the Bracket step (`continue-on-error`) and the publish job (a Python shape check with no repo code, then a push loop that includes `vault/`). `ls-remote` checks tell a missing branch from a fetch error.
+  - **Files the recorder writes:**
+    - Week file v4: `{v, week, start, end, status, seeding, picks, days, results, points, void?, staked: {checked, list, held?} | null, vault?: "missed"}`.
+    - Seeding: `{at, cardAt, size, seeds, vhp, totalVhp, out, pooled, hash}` (SHA-256, covering `pooled`).
+    - Hours: `{from, to, n, by, cr, w, q, checked: 2}`.
+    - Boards: up to 2,000 rows each, with `ranked` set to true or false.
+    - Vault file `bracket/vault/W<week>.json` = `{game: 9, week, final: true, rows: [{player, points 1–255}], first: [], second: []}`.
+  - **Recorder limits:** at most 6 hours of chain a run, 4 parallel reads; it refuses to write if last run's files are missing; fetch errors stop the run.
+  - **Shared code:**
+    - `board.js`: options `free: {show, prize}` and `hide`; Free play now uses a game's shared `place` (ties) when the game gives one.
+    - `wallet.js` `guestPicks`: a sponsored guest wallet for picks.
+  - **Tests:**
+    - `tests/audit/vhp-standard.test.mjs` (8): a line-by-line port of the VHP contract matched on 3,000 random histories; the S-1, S-2 and F-3 cases.
+    - `site.bracket.test.mjs` (25); `bracket-recorder.test.mjs` (22).
+    - `bracket-vault-abi.test.mjs` (2): reads the real Vault v6 ABI through a fake node.
+  - **Simulation tools** (`tools/sim/bracket/`): `sim.mjs`, `hist.mjs`, `replay.mjs` (the real recorder over the 8-day sample `data/bracket-vhp-sample.json.gz`), `sample-vhp.ts`, `analyze-vhp.mjs`, `history-vhp.ts`, `history-analyze.mjs`, `live-effective.ts` (a one-off live check).
+  - `docs/bracket/README.md`: the reviewer guide (rules, data flow, trust model, history).
+  - **Copied from `vault-v6-next` (`6e1c139`):**
+    - `game/abi/kpred.koilib.json`: `get_game_player` (entry point 267077419) and `get_state`.
+    - `game-data/deployment.json`.
+  - **Vault v6 read fields:**
+    - `get_game_player(player, game, week)` returns `{player, entry{stake, voided, points, claimed, reward, prize_place, peak_stake}, active_stake, week_stake}`.
+    - `get_state` gives `config.min_stake`, `min_stake_next`, `min_stake_next_week`.
+- **Status:** unsorted
+
+---
+
+### Producer Bracket: DECISIONS
+- **Date:** 2026-11-02
+- **Source chat:** Producer Bracket
+- **Category:** decision
+- **Content:**
+  - The whole bracket is stored as one number: bit n = "the lower seed wins matchup n"; bye bits must be 0; sizes 8, 16 or 32; `NUMBER_MAX` = 2³¹−1.
+  - Seeding Saturday 12:00 UTC; lock Sunday 23:55 UTC (~36 h of picking); one round per UTC day from Monday.
+  - Fewer than 8 producers means no bracket that week. 12–15 producers get 16 slots with byes. The 32-producer bracket is ready from launch.
+  - Option A: exact VHP from the chain's own events (2026-10-28).
+  - The VHP standard: every game measures VHP the same way; multipliers stay game-specific (2026-10-28).
+  - **Player rule:**
+    - A staked player has at least the Vault's minimum stake (1 VHP) staked in this game.
+    - A player staked at the start of a week stays staked that week.
+    - Boards rank players staked in this game.
+  - **Forfeit (S-5), owner yes:**
+    - A seed whose baseline is under 0.5 × its seeding VHP loses the matchup.
+    - If both seeds forfeit, the index decides.
+  - **No producer left out:** no producer is left out unless it misses the minimum block production. Our own nodes play too (2026-10-29).
+  - **The Vault never forfeits:** its VHP is players' withdrawable stakes; it is recorded as `pooled`.
+  - **Free play prize:**
+    - 2 VHP for 1st, 1 VHP for 2nd.
+    - Players tied for 1st share all 3 VHP.
+    - If 1st is a single player, players tied for 2nd share 1 VHP.
+    - At most 10 a place; more than 10 tied → that place and those below stay empty.
+    - Minimum play: one bracket with at least 1 point.
+    - Guests are eligible.
+  - **Tie-break:**
+    - Order: points → a right champion → more right winners → **who submitted first** (the pick's last-change time) (2026-10-29).
+    - Brackets sent in the same block share; the all-time board shares ties.
+  - Owner instructions are given as full PowerShell blocks (with the `cd`) or click-by-click steps.
+  - The 3 sampling branches may be deleted; keep `bracket-history`.
+- **Status:** unsorted
+
+---
+
+### Producer Bracket: GAME-SPECIFIC
+- **Date:** 2026-11-02
+- **Source chat:** Producer Bracket
+- **Category:** fact
+- **Content:**
+  - **Picks game settings:** game 9, NUMBER kind, TIME lock, `round_size` 7 days, `round_offset` = GENESIS mod WEEK (round = week + 2963), lead ≥ 5 min, ahead ≤ 36 h, 20 picks a day, 20 changes.
+  - **Sizes:** under 8 → no bracket; 8–11 → 8 (Mon–Wed); 12–15 → 16 with byes; 16–31 → top 16 (Mon–Thu); 32+ → 32 (Mon–Fri).
+  - **Seeding:** averageVhp over 28,800 blocks, on two nodes that must agree; biggest average = seed 1. Not seeded within 24 h → void.
+  - **Matchup:** baseline + credit; index = credited ÷ expected; an exact tie goes to the lower seed.
+  - **Points:** 1/2/4/8/16 by round, +2 for the champion (max 14 / 34 / 82). Byes score nothing.
+  - **Stakes and finality:**
+    - Stakes are read on both nodes once the week starts (for the live boards) and again at the close ("held" = the Vault's peak-stake rule).
+    - The week is final 12 h after its last round, once the close read is in.
+    - Still unreadable 3 days after the week ends → final as `vault: "missed"`, with no file.
+  - **Vault rows:** dense-ranked onto 1–255; past 255 distinct places, the best 254 stay exact and the rest share 1.
+  - **Boards:** the Staked tab shows staked players and anyone who withdrew during the week; the Free play tab shows the top 6.
+  - **Evidence:**
+    - The rebuild matched all 780 race-card VHP readings.
+    - 100 days of history: 0 node disagreements; the better seed won 54.0% of 113 matchups; a "last week's form" bracket averaged 14.8 points against 4.8 for random picks.
+  - **For the other games:**
+    - Race and Block X aren't on the standard yet. To switch, they use cardVhp `k` with the card credit, and averages for everything about others. Block X becomes min(3, topAvg ÷ your cardVhp).
+    - The Block X files moved to the repo root on this branch (`blockx.html`, `blockx.js`, `blockx-math.js`).
+    - cardVhp replaces the random-sample check in `claude/handicap-anti-gaming.md`.
+- **Status:** unsorted
+
+---
+
+### Producer Bracket: ROADMAP
+- **Date:** 2026-11-02
+- **Source chat:** Producer Bracket
+- **Category:** idea
+- **Content:**
+  1. Run the RepoLens audit with `claude/audit-bracket-prompt.md` (branch `kg-09-bracket`, commit `ee676ea`). Expected:
+     - site tests 176 (175 pass, 1 TODO);
+     - serial audit 457 (447 pass, 0 fail, 5 skipped, 5 TODO);
+     - the replay passes.
+  2. Fix the findings, then a fix-check prompt.
+  3. Merge Vault v6 into `main`, then update the Bracket branch from `main` (recommended; the owner hasn't answered).
+  4. Launch steps:
+     - Announce game 9 in Picks (48 h timelock).
+     - Announce game 9 in the Vault as staked + free_prize with 1-week seasons (48 h).
+     - Add a sponsor allowlist row for game 9 picks.
+     - Set `games.json` to live.
+  5. Switch the Race and Block X to the VHP standard.
+- **Status:** unsorted
+
+---
+
+### Producer Bracket: OPEN ISSUES
+- **Date:** 2026-11-02
+- **Source chat:** Producer Bracket
+- **Category:** open question
+- **Content:**
+  - **S-3 / F-7:** the `effective_balance_of` read-only call has never been seen live. Pin which block it uses after the first real recorder run (the logged `effCheck`).
+  - **F-2 (Low):** hiding VHP on the seeding day lowers a producer's forfeit bar. It costs a better seed and a day's rewards; accepted.
+  - **F-10:**
+    - Final weeks are re-scored on every load, so a scoring rule change after launch must apply only from a stated week.
+    - Stake reads aren't pinned to a block; the two-node comparison catches drift.
+  - A whale withdrawing during a day can still sink the Vault's matchup index. This is inherent to a pooled producer, and disclosed.
+  - The 3 sampling branches (`bracket-sampler`, `bracket-samples`, `bracket-history-sampler`) still exist; the delete was refused with a 403, and the owner has GitHub UI steps.
+  - The serial audit test `bot.vhp-read-failure.test.ts` failed once; it passes alone and on rerun (timing).
+- **Status:** unsorted
+
+---
+
+### Producer Bracket: TODOS
+- **Date:** 2026-11-02
+- **Source chat:** Producer Bracket
+- **Category:** open question
+- **Content:**
+  - [ ] Owner: run RepoLens with the Bracket audit prompt and bring back `AUDIT-BRACKET-REPORT.md`.
+  - [ ] Fix the audit findings, rerun all suites and the replay, and write a fix-check prompt.
+  - [ ] Vault chat: register game 9 as staked + free_prize with 1-week seasons (the owner has sent this).
+  - [ ] Merge Vault v6 into `main`, then update `kg-09-bracket` from `main`.
+  - [ ] Owner: delete `bracket-sampler`, `bracket-samples` and `bracket-history-sampler` on GitHub (keep `bracket-history`).
+  - [ ] Block X chat: tell it its files moved to the repo root.
+  - [ ] Race and Block X chats: adopt cardVhp `k` with the card credit, and average-based numbers for others.
+  - [ ] After the first live recorder run: read the `effective VHP cross-check` log line and pin the check.
+  - [ ] Launch: announce in Picks and the Vault, add the sponsor allowlist row, set `games.json` to live.
+- **Status:** unsorted
+
+---

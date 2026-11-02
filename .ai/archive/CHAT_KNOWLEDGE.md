@@ -378,3 +378,211 @@ The KnodeGames Vault (game contract v6): audits, emergency build, seed, testnet 
 - **Status:** unsorted
 
 ---
+
+## Chat: HUB (exported 2026-11-02)
+
+The KnodeGames site and Hub (captain) chat. Covers the domain and the site moved to the repo root, the shared stake panel, status bars and staking hub, the testnet staking page, wallet names (Koinos @names and pool names), the admin page and cross-chat coordination. Covers up to Fri 30 Oct 2026.
+
+---
+
+### HUB: PLATFORM
+- **Date:** 2026-11-02
+- **Source chat:** HUB
+- **Category:** fact
+- **Content:**
+  - **Domain:** knodegames.com is registered at Cloudflare and served by GitHub Pages from the **repo root**; `/site/` was removed by PR #31 (PR #30 set up the domain).
+    - DNS: 4 A and 4 AAAA records on `@`, plus `www` CNAME → `bawcejawn.github.io`, all grey cloud (DNS only).
+  - **Branches:**
+    - `main` is the live site.
+    - `picks` is the development branch. It merges `main` from time to time, and the admin page lives there.
+    - Data branches: `race-data`, `blocks-data`, `games-data`, `names-data` (`names.json`), `testnet-data`.
+  - **Admin page (owner's PC):**
+    - Start it from `C:\kprediction` with `git checkout picks`, `git pull`, `npm ci`, `npm run admin`.
+    - It opens a local link with a one-time key.
+  - **Chat ownership:**
+    - **Race chat (KG 02 · Hub + Race Show)** owns `bot/race.ts`, `race.html`, `race.js`, `race-math.js`, `race.yml`, `race/`, the `race-data` branch and the race tests. The Hub doesn't edit them; requests go through the owner.
+    - **Vault chat** owns the `vault-v6` branch and the testnet copy's owner and operator steps.
+    - Block X, Combo, LNS, Bracket, Fantasy and Survivor each have their own chat.
+    - **Repo Lens** is the audit chat.
+  - **Game id registry:** 1 Question, 2 Block X, 3 Survivor, 4 Fantasy, 5 Rival (Picks only), 6 Block Golf, 7 Race, 8 Combo, 9 Bracket, 13 Last Node Standing.
+  - **Vault weeks:** week 0 began Mon 19 Oct 2026 00:00 UTC (genesis 1792368000000), so week 2 is Mon 2 Nov.
+  - **Koinos Nicknames contract:** `1KD9Es7LBBjA1FY3ViCgQJ7e6WH1ipKbhz`. Total supply was about 2,137 names on 30 Oct.
+  - **Testnet Picks contract:** `12xNetHpajRi8Xrv4ub8MbMWWjC2q7VrX5`.
+  - **Live on 30 Oct:** Sponsor v3 on mainnet, the Picks contract on mainnet, `NAMES_ENABLED=true` (set by the owner), the staking hub, status bars, and the @name page.
+- **Status:** unsorted
+
+---
+
+### HUB: ARCHITECTURE
+- **Date:** 2026-11-02
+- **Source chat:** HUB
+- **Category:** fact
+- **Content:**
+  - **koilib 9.4.1 in the browser:**
+    - The bundle puts `Provider`, `Signer` and `utils` on `window` itself, not on `window.koinos`. Code must fall back to `window`.
+    - The header wallet missed this, which caused "getChainId of null" on names.html and stake.html. Fixed in PR #49.
+    - Kondor `signMessage` signs sha256 of the text. Verify with `Signer.recoverAddress`.
+  - **wallet.js (`KWallet`):**
+    - Each page must call `KWallet.init({ provider, chainId, payer, sponsor })` from `game-data/deployment.json`; the header only does a default init.
+    - `sponsorFor()` uses the Mana sponsor only when every operation is covered (`covers[0]` is the game).
+    - `move_stake` (`0x7c268e69`) is never sponsored.
+  - **Vault v6 player calls:**
+    - `deposit_to 0x7bb5c436 {from, game, amount, koin}`
+    - `withdraw_from 0x5b0aaef8 {to, game, amount}`
+    - `move_stake 0x7c268e69 {player, from_game, to_game, amount}`
+    - `claim_game 0x4107e3ab {player, game, week}`
+  - **Vault v6 reads:**
+    - `get_game_player 0xfeb472b`, `get_game 0x6f8d72cf`, `get_state 0x3d02a349`, `list_games 0x2efa793`, `get_player 0x37ce3085`, `list_players 0x44d79744`.
+    - The vault is live when `config.v6_rule_week_plus_one > 0`.
+    - `game_object` field `next_stake` is 13 and `next_week` is 14.
+  - **Token entry points:** approve `0x74e21680`, balance_of `0x5c721497`.
+  - **stake-panel.js (`KStake`):**
+    - Functions: `mount` (game-page panel), `mountList`, `badge` (staked/free status bar), `status`, `overview(who)`, `send(action, a)` (up to 10 claims in one transaction), `sayError`.
+    - After any action it fires `kstake:changed`, which refreshes the bar, list and panels.
+    - Only the latest refresh renders (a generation counter).
+    - `per100()` uses the vault's `weightFor` until a week's weight is saved.
+    - `claimable()`: 2nd place gets `prize_second` as is; it is 0 when 1st place is tied.
+    - A busy-Mana refusal (code 104) says "wait a minute and try again".
+    - On a `kg-network=testnet` page it uses `testnet/vault.json` and `KTestStakeWallet`.
+  - **stake.html (staking hub):**
+    - Summary: staked, in your wallet, rewards.
+    - Games tab: one card per game with your stake, the game total, your share % and bar, and a status chip.
+    - Stake, Withdraw and Move open as inline forms with quick amounts (1/10/100/Max; 25%/50%/All).
+    - Rewards tab with Claim all.
+    - `#g<id>` opens that game's Stake form.
+    - The page sets up the wallet with the sponsor, as the game pages do.
+  - **stake-testnet.html:**
+    - Public, noindex. Its wallet is `stake-testnet-wallet.js`.
+    - The wallet signs only the 4 vault player calls on the test vault, plus an approve directly before a `deposit_to`.
+    - It refuses mainnet, requires the signed operations to equal the built ones, and caps Mana at 0.5 per transaction.
+  - **names.html ("Your Koinos @name"):**
+    - Typing runs a live `verify_valid_name` read. The contract answers "@x is available" for a good name; otherwise it errors with the reason (for example "already exists", "similar to the existing name …", "words must start with a lowercase letter").
+    - Create mints `{to, token_id: hex(name)}` through `KWallet.send`, using the player's own Mana.
+    - Success is confirmed with `get_address`, and `KNames.setLocal` shows the name on that device at once.
+  - **names.js (`KNames`):**
+    - Display order: pool name → older Knode Games name → **Koinos @name** (the @name wins). The short address is always shown with the name.
+    - Rules: `fold` (lookalike pairs cl/nn/rn/ri/ii/vv, with cl→d run again after digits), `reserved` (knode*, Koinos + Group/Team/Support/Admin/Official/Network/Labs/Foundation…), `addressLike`, `okNick`, `okPool`.
+    - Pages ignore a `names.json` over 2 MB.
+  - **bot/names.ts and the hourly `names.yml` workflow:**
+    - Jobs: check (read-only), publish (no repository code), reply. Gated by `vars.NAMES_ENABLED`. Scheduled only, never triggered by issues.
+    - Chain reads time out after 8 s, and a node that times out is skipped for the rest of the run. The whole run has a 7-minute deadline, and the process exits when done.
+    - Nicknames are read 20 at a time within 240 s, named wallets and producers first. Both nodes must agree, and a failed read keeps the old value.
+    - **Pool names:** Fogata `get_pool_params` (entry 2396056273), field 1. The producer address is the pool contract. Stored as `pools`.
+    - `names.json` is kept under 900 kB (the publish limit is 1 MB). Owner command: `npm run names -- remove <address>`.
+  - **CI guards:**
+    - `tests/audit/site.ci-deps.test.mjs` bans issue triggers, `write-all`, `secrets: inherit` and `toJSON(secrets)` in any case. Issue permissions are allowed only in `names.yml`. `workflow-guard.yml` runs it.
+    - `bot/workflow.test.ts`: no `${{ }}` inside run scripts, and no job output may be named `run`.
+  - **Admin page (`admin/actions.ts`, on `picks`):**
+    - Tools: bot, desk, sponsor, picks, racepicks, names.
+    - Vault area: Sunday upgrade steps (status, apply, clear); Add a game (with a season field); post/seal/finalize; correct/unprize/void; collect the 5% VHP fee.
+    - Also a Wallet names area, and "Vault v6 trial (local node)". Its `--testnet` reaches only the local Harbinger node.
+  - **Sponsor v3 on chain** allows every vault player call, `move_stake` included. Per-action caps must be above 0, so blocking moves on chain would need a tiny cap.
+- **Status:** unsorted
+
+---
+
+### HUB: DECISIONS
+- **Date:** 2026-11-02
+- **Source chat:** HUB
+- **Category:** decision
+- **Content:**
+  - **Prizes:**
+    - A prize shortfall is cut and never owed later.
+    - Balances always cover total liabilities.
+    - Free-game rewards are extra and come second to stakers.
+    - No free-game prizes until the vault is fully live.
+  - **Sponsor:**
+    - Caps are 25 Mana per wallet per day and 150 per week, with no extra cap.
+    - Its KOIN is sized from measured use once everything is live.
+    - The Mana sponsor pays for **stake, withdraw and claim, never for moving stake** (owner, 30 Oct).
+  - **Names:** one name per wallet, the **Koinos @name**.
+    - The signed Knode Games name claim plus GitHub step was removed from the site (owner, 30 Oct); older claims are still honoured.
+    - Producers show their pool names.
+    - The owner accepts the lookalike false positives (Clover/Dover, Mario/Mano; "Node 123456" refused as address-like).
+  - **Staking UX:** easy, functional and simple. Stake, withdraw, move and claim take a couple of taps. Show the share % against the game total.
+  - **Working rules:**
+    - Merge only on the owner's explicit "merge N"; never push to `main` or deploy otherwise.
+    - Keys are never pasted; they stay in `.env`. Mainnet sends need `CONFIRM_MAINNET`.
+    - New games launch on Mondays, one at a time.
+    - No daily payout cap on the Desk.
+- **Status:** unsorted
+
+---
+
+### HUB: GAME-SPECIFIC
+- **Date:** 2026-11-02
+- **Source chat:** HUB
+- **Category:** fact
+- **Content:**
+  - **Question (1):** live on v5 and moves into the vault with v6. Its stake buttons stay on `index.html`; `withdraw_from` doesn't apply to game 1.
+  - **Block X (2):**
+    - The status bar is on `blockx.html` (on `picks`).
+    - It reaches `main` with the Block X launch PR (`picks` → `main`) once game 2 is applied.
+    - No prizes until the vault is live.
+  - **Race (7):**
+    - Live, with the status bar (PR #44).
+    - Testnet play-through on the test copy: stake, move, withdraw and a claim of 0.95 VHP for week 163 all worked.
+  - **Survivor (3):** a free game, next after Block X. Testnet season and audit on the `survivor` branch. Seasons are 2 weeks (`--season 2`).
+  - **Block Golf (6):** no contract of its own; it's scored from every game's board. Practice scorecards come with Block X; staked after the vault.
+  - **Combo (8):** last in line. It needs the Picks v2 CARD upgrade. Testnet cards: 6 legs 0.1313 Mana, 10 legs 0.1457.
+  - **Bracket (9), LNS (13), Fantasy (4) / Rival (5):** staked, after the vault. Each is in audit fix-checks in its own chat.
+- **Status:** unsorted
+
+---
+
+### HUB: ROADMAP
+- **Date:** 2026-11-02
+- **Source chat:** HUB
+- **Category:** idea
+- **Content:**
+  1. Apply the Vault v6 upgrade (admin → Knode Vault steps 1–3, with `docs/UPGRADE-V6.md`).
+  2. Merge `vault-v6` into `picks` / `main`; the admin's vault buttons need it.
+  3. Add the games to the vault: Block X (2) and Race (7) first.
+  4. Block X goes live, with Block Golf practice scorecards.
+  5. Survivor.
+  6. Block Golf staked → LNS → Bracket → Fantasy → Combo (after Picks v2 CARD).
+  7. Size the sponsor's KOIN from measured use.
+  - **Retention ideas offered (the owner hasn't chosen):** streaks, a "Your week" card, a claim reminder dot, a weekly recap page, badges next to names.
+- **Status:** unsorted
+
+---
+
+### HUB: OPEN ISSUES
+- **Date:** 2026-11-02
+- **Source chat:** HUB
+- **Category:** open question
+- **Content:**
+  - **PN-30:** the @name mint hasn't been confirmed end to end with a real wallet. The owner was retrying "primeproducer" after PR #49; the result isn't recorded.
+  - The admin's vault buttons answer "Unknown command" until `vault-v6` is merged into `picks`.
+  - Sponsor v3 would still pay for a `move_stake` sent outside the site. Blocking it on chain needs a tiny per-action cap (the owner's call).
+  - **PN-8 / C2-4:** the CI guard is regex-based and misses rare YAML spellings (indent digits, tags, anchors). Add a YAML parser before anyone else gets write access.
+  - **Info items:**
+    - C2-3: a node that is slow once is skipped for the whole names run.
+    - C1-7: nickname updates freeze near 1 MB.
+  - **The panel's "Connect wallet after connecting" race** is fixed by reasoning (generation counter) and was never reproduced.
+  - **When `picks` merges `main`:** keep both testnet-wallet exceptions in the guard tests.
+  - **`docs/NAMES.md`:** the old claim workflow is still documented as legacy.
+- **Status:** unsorted
+
+---
+
+### HUB: TODOS
+- **Date:** 2026-11-02
+- **Source chat:** HUB
+- **Category:** open question
+- **Content:**
+  - [ ] Owner: retry creating an @name on names.html and report the result.
+  - [ ] Owner: after the vault upgrade, tell the Hub so it can check the staking hub, bars and panels on mainnet.
+  - [ ] Owner: Add a game 2 and 7 (then the others as their chats are ready).
+  - [ ] Owner (optional): decide the on-chain move-stake sponsor cap; pick retention features.
+  - [ ] Hub: verify staking on mainnet after v6.
+  - [ ] Hub: remove the legacy claim workflow, the issue template and the claim CLI. This drops the `issues` permissions.
+  - [ ] Hub: add a YAML parser to the CI guard.
+  - [ ] Every new game page: mount `KStake.badge(el, {game: id})` at the top of `<main>`, with the full panel lower.
+  - [ ] Block X chat: open the launch PR (`picks` → `main`) after game 2 is applied.
+  - [ ] Vault chat: add bot support for the testnet copy (`testnet/vault.json`) on `main`.
+  - **Done since the VAULT chat's list:** the five panel fixes (PR #46: busy-Mana message and cap 0.5, `weightFor`, wallet race, refresh after actions, 2nd-place prize) and the three admin fixes (PR #43: season field, local-node wording, `stake-testnet.html`).
+  - **Project docs to carry over:** `claude/launch-order.md`, `claude/stake-panel.md`, `claude/producer-names.md`, `claude/handoff-status-bar-testnet.md`, `claude/names-fixcheck-prompt.md`, `claude/names-fixcheck2-prompt.md`, `claude/audit-names-prompt.md`, `claude/domain-knodegames.md`, `claude/site-at-root.md`, `claude/admin-page.md`; in the repo, `docs/NAMES.md` and `docs/ADMIN.md`.
+- **Status:** unsorted
+
+---

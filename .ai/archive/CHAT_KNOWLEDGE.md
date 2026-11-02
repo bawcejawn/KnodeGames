@@ -1219,3 +1219,209 @@ Knode Swap (the VHP→KOIN desk), the three nodes on the owner's PC, self-healin
 - **Status:** Filed → platform/TODOS.md, OPENISSUES.md (2026-11-02)
 
 ---
+
+## Chat: Survivor (exported 2026-11-02)
+
+Survivor (Build 4, game 3 on the Picks contract): rules, the recorder, the publish checks, the testnet kit and the Repo Lense rounds. State as of 2026-10-30. The last commit on `survivor` is `a8a1979`; it is pushed but not merged, and nothing is deployed.
+
+---
+
+### Survivor: PLATFORM
+- **Date:** 2026-11-02
+- **Source chat:** Survivor
+- **Category:** fact
+- **Content:**
+  - **Branch:** `survivor` in `bawcejawn/Knode`.
+    - It contains Build 3's `picks`, `main` (merged 28 Oct) and Survivor, plus later merges of `picks` (`6e22c73`, and `c50d423` with Block X round 6).
+    - Claude may push to `survivor`. A merge to `main` and any deploy need the owner's explicit OK.
+  - **Checkouts:** the live game runs from `C:\kprediction`. The test copy, created 30 Oct, is `C:\kprediction-test`; it is used for the testnet and for Repo Lense audits.
+  - **Testnet:** the Koinos Foundation testnet (`testnet.koinosfoundation.org`) through its public API; the owner has no testnet node.
+    - Funding comes from the Telegram faucet bot: `/faucet <address>` gives 100 test KOIN a day.
+    - That covers 50 KOIN for the contract upload plus 6 KOIN per test player.
+  - **Test page ports:** the page runs at `127.0.0.1:8370`, or the next free port. It never uses 8090 (the owner's node) or 8350 (Block X).
+  - **Picks fingerprints:** the audited build sha256 is `700c296a…c594`; the audited `Picks.ts` sha256 is `444209c1…83d6`; protoc is pinned to 21.12. The tooling uses koilib 9.4.1.
+  - **Tests at `a8a1979`:**
+    - Site tests: 201, all pass.
+    - `npm run test:audit:serial`: 673 tests, 663 pass, 0 fail; the rest are todo or skipped.
+    - The rehearsal (`node --import tsx tools/survivor-testnet/rehearse.mjs`) passes and reproduces the audited build.
+    - A fuzz of 150 seasons with random stakes found 0 Python/JS disagreements.
+- **Status:** unsorted
+
+---
+
+### Survivor: ARCHITECTURE
+- **Date:** 2026-11-02
+- **Source chat:** Survivor
+- **Category:** fact
+- **Content:**
+  - **`survivor-math.js`** (repo root) is shared by the page and the recorder.
+    - `KSurvivor.withConfig` is the test clock; tests pin the mainnet values.
+    - `playSeason(days, staked)` plays two boards and returns `ends: {staked, free}`.
+    - `weekRows(days, k, staked, board)` gives one board's rows for week k.
+    - `outByMissing` treats knockouts logged `n` (no pick), `f` (not in field) or `u` (already used) as unable to win a prize.
+  - **Recorder `bot/games/survivor.ts`** (no keys):
+    - Nodes: mainnet seasons need two nodes, compared on settings only. A check node that is down doesn't stop the run; days seen by one node are re-checked later, oldest first.
+    - Time limits: an 8-min budget (`SURVIVOR_BUDGET_MS`); a day that starts within the budget is kept. A hard stop for chain reads comes 4 min after the budget.
+    - Folder swap: it stages the new output in a side folder and moves the old one aside as `.survivor-old-<hash>`; `recoverOut` repairs an interrupted swap.
+    - It writes v2 season files with a `stakes` array, and keeps every season player's picks, in or out.
+    - `boardOf(sf)` returns the union of staked wallets.
+    - Vault reads: `vaultSettings`, `vaultMismatch`, `readStaked`, and `readRanked` (using `stake_other`).
+  - **Vault v6 use:**
+    - `get_game_player` returns peak_stake and active_stake; `get_player` returns `stake_other`.
+    - `min_stake` and `min_stake_next` set the stake needed.
+    - Week 0 is UTC day 20745.
+    - Results go to `games-data:survivor/vault/W<week>.json`. Each file is written once; published weeks are copied forward from the last run unchanged.
+  - **Publish job `.github/workflows/games.yml`:**
+    - Python replays every season (`play`, rank, prizes, `week_rows`) to mirror the JS, and refuses any other result.
+    - It checks everything against the job's own clock (`CHECK_NOW_MS`), with 1 h of slack. A vault file whose stakes were read late is held.
+    - The index's season list is append-only, and listed seasons must have started. Season 1's start can still move while no season is listed.
+    - A single failing file is dropped on its own (exit 3). Files over 2 MB are dropped with an alert. Published vault files aren't checked again.
+    - The Survivor step runs only `if: !cancelled() && steps.prev.outcome == 'success'`.
+    - Limits: the job 45 min, the Block X step 25 min, the Survivor step 15 min. A failed recorder's files are left out.
+    - The whole workflow stays off until `GAMES_ENABLED=true`.
+  - **Page `survivor.html` + `survivor.js`:**
+    - It shows the chain clock, and pauses picking until picks are read cleanly or while the game settings are paused.
+    - `canPickDay` returns false once the season is over or the player's board has ended.
+    - Sent picks are tracked per wallet and day, and dropped after 3 min unseen, with a note.
+    - It warns before a player picks their own producer, and shows a no-field note and a guest note.
+  - **Testnet kit `bot/survivor-test.ts`** (`npm run survivor-test`) **and `tools/survivor-testnet/`** (`fake-testnet.mjs`, `rehearse.mjs`):
+    - It refuses mainnet by node name and by chain id, and uploads are bound to the testnet chain id.
+    - It reproduces the audited build before patching it. The testnet Picks build is the audited source with two constants changed: the test owner, and a 10-min admin wait.
+    - Game 3 on testnet uses 1-hour rounds and 50 picks a day.
+    - Six test players: p1 is the owner's; p2–p6 are robots, and p6 skips every third round.
+    - The local server keeps the test keys and signs only Survivor picks. 1 test KOIN stands in for 1 VHP.
+    - It takes an exclusive (`wx`) lock and releases it on Ctrl+C. It refuses device names and symlinks, and strips `PICKS_*` env vars.
+  - **Docs:** `docs/SURVIVOR.md`, `docs/SURVIVOR-TESTNET.md`, `docs/SURVIVOR-CODE-WALKTHROUGH.md`, `docs/SURVIVOR-RUNBOOK.md`.
+- **Status:** unsorted
+
+---
+
+### Survivor: DECISIONS
+- **Date:** 2026-11-02
+- **Source chat:** Survivor
+- **Category:** decision
+- **Content:**
+  - **27 Oct**
+    - The handicap comes from recent blocks, not VHP: h = kTop ÷ k, where k is the producer's own blocks over days d−8 … d−2. (With a VHP handicap, three producers that sign only 75–80% of their VHP share would land in the out-zone about 90% of days.)
+    - Seasons last two weeks, with prizes of 4 VHP and 2 VHP.
+    - Ties at the out-zone line are safe.
+    - A prize needs 1 VHP (or a stake) at every daily check.
+    - Knode's two producers stay in the field, and the page discloses it.
+    - Launch waits for the other launch pieces.
+  - **28 Oct**
+    - A season needs 3+ players with 2+ valid picks.
+    - A player knocked out by a missed pick gets no prize.
+    - There is no promise that Knode-run wallets stay out of Survivor; it is an open market.
+    - Testnet first, then the audit bot.
+    - Survivor is the second new game to launch.
+  - **29 Oct**
+    - Every game takes stakes (Vault v6), with a staked board and a free board.
+    - The free prize goes only to players who were free in both weeks of the season, and it still needs 1 VHP.
+    - Staked weekly points come from the season standings at each week's end.
+    - Survivor waits for the Hub's shared stake panel.
+  - **30 Oct**
+    - SV-A2 residual: the 3-player minimum stays.
+    - SV-A10, two boards: free players must not reduce staked players' chance to win, and must not get more than the free prize. Each board has its own safety net and its own end, and the free board counts only wallets that can still win.
+    - SV-A19: a knockout by an invalid pick (a producer not in the field, or one already used) can't win.
+  - **Left to the Block X chat:** Block X's python check runs without `-I`, and its `|| true` on listings (S3-21, S3-22). Block X's tests pin those lines.
+- **Status:** unsorted
+
+---
+
+### Survivor: GAME-SPECIFIC
+- **Date:** 2026-11-02
+- **Source chat:** Survivor
+- **Category:** fact
+- **Content:**
+  - **Season:** 14 UTC days, Monday to Monday. `FIRST_DAY` is `null` until launch.
+  - **Picks:** one producer per UTC day.
+    - Picks lock 5 min before 00:00 UTC and open 7 days ahead.
+    - Up to 5 changes and 20 picks a day.
+    - A player joins by picking for day 1.
+  - **Out-zone:** floor(field × (12 + day) ÷ 52). With 17 producers that is 4,4,4,5,5,5,6,6,6,7,7,7,8,8. A tie at the line is safe.
+  - **Field:** producers with 280+ blocks in the 7-day window.
+  - **Lives:** 2. A player loses a life for:
+    - a pick in the out-zone;
+    - no pick;
+    - a producer not in the field;
+    - a producer already used (each producer can be picked once a season).
+  - **Boards:** staked (staked in Survivor in either week of the season) and free.
+    - Each board has its own safety net, which saves only out-zone losses.
+    - A board ends after the day that leaves 2 or fewer of its counted players (if more than 2 started), when none is left, or after day 14.
+    - The season ends when both boards have ended; the final comes 12 h later.
+  - **Ranking:** lasted longest, then lives, then total score.
+  - **Free prize:** 4 / 2 VHP, ties split. It goes only to players who:
+    - were free in both weeks;
+    - held 1 VHP at every check;
+    - were not knocked out by a missed or invalid pick;
+    - played in a season with 3+ such players.
+  - **Staked:** weekly vault points come from the staked board's standings. Points collapse to 1 beyond 255 places.
+  - **Game 3 registration:**
+    - kind 1, list_size 1, lock_mode 2;
+    - round_size 86,400,000, round_offset 0;
+    - lead 300,000, ahead 604,800,000;
+    - max_changes 5, 20 picks a day, enabled.
+  - **Simulation** (field of 17; script `claude/builds/04-survivor-sim.mjs`):
+
+    | Players | Season ends |
+    |---|---|
+    | 10 | about day 11 |
+    | 50 | about day 13 |
+    | 200 | about 4 still in on day 14; the ranking decides |
+- **Status:** unsorted
+
+---
+
+### Survivor: ROADMAP
+- **Date:** 2026-11-02
+- **Source chat:** Survivor
+- **Category:** idea
+- **Content:**
+  1. Run Repo Lense pass 4 on `a8a1979` with the brief `claude/audit-survivor-prompt.md`; it produces `AUDIT-SURVIVOR-REPORT-4.md`. Then fix and get an independent fix-check.
+  2. Play a testnet season (`docs/SURVIVOR-TESTNET.md`).
+  3. Make the Picks contract live on mainnet (done 30 Oct per the Block X and Picks chat), then register game 3 with the settings above.
+  4. Set `FIRST_DAY` to the launch Monday, then commit and merge (owner OK needed).
+  5. Vault v6 must be live: it pays the free prizes and the staked points.
+  6. Add Survivor to the Games menu and set `games.json` to live.
+  7. Leaderboards and Results: Survivor needs a `board.json` and a Results adapter.
+- **Status:** unsorted
+
+---
+
+### Survivor: OPEN ISSUES
+- **Date:** 2026-11-02
+- **Source chat:** Survivor
+- **Category:** warning
+- **Content:**
+  - **Known and accepted:**
+    - Forged days or stake lists in games-data can't be caught without the chain, so the vault must recompute each season from the chain before paying.
+    - About 10k one-day wallets push a season file past 2 MB; that file then stops updating and an alert fires.
+    - A UTC day with no blocks can't be recorded.
+    - VHP balances are read at each node's head.
+    - A check node that hangs after its first read (N7) is bounded only by the step limit.
+    - Lookalike producer addresses (S3-27).
+    - The pre-launch "guest wallet" text (S3-26).
+    - A Block X publish failure also stops Survivor (picks' design).
+    - The test server times rounds with the PC clock.
+  - **Rehearsal flake:** the fake testnet sometimes reports a pick "not mined" within its 2-minute wait; rerun it.
+  - **For audit pass 4 to check:**
+    - Can a board change mid-season be exploited (staking in week 2, or withdrawing)?
+    - Can the per-board nets or ends be gamed with cheap wallets?
+    - Can the clock checks refuse legitimate output (UTC midnight, the correction window, a job clock that lags the chain)?
+- **Status:** unsorted
+
+---
+
+### Survivor: TODOS
+- **Date:** 2026-11-02
+- **Source chat:** Survivor
+- **Category:** open question
+- **Content:**
+  - [ ] Owner: in `C:\kprediction-test`, run `git pull`, then `npm ci`, then `git log -1 --oneline` and check it shows `a8a1979`. Then run Repo Lense and send back `AUDIT-SURVIVOR-REPORT-4.md`.
+  - [ ] Owner: choose the Season 1 start Monday.
+  - [ ] Fix the pass-4 findings, get a fix-check, and push to `survivor`. Then update the brief, `claude/builds/04-survivor-plan.md` and the checklist artifact (task t06).
+  - [ ] Tell the Block X chat about python `-I` and `|| true` (S3-21, S3-22).
+  - [ ] Tell the Vault chat that `vault.ts` should alert when a prize post is refused.
+- **Status:** unsorted
+
+---

@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, newest first. This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "Superseded by D-XXX".
 > Last updated: 2026-11-02
-> Sources: owner in chat (2026-11-02), `.ai/archive/CHAT_KNOWLEDGE.md` (Questions and Vault chats), repo branches `picks` and `main`.
+> Sources: owner in chat (2026-11-02), `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub and Race chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict · ❓ unknown
 
@@ -35,6 +35,16 @@
 | D-023 | ❓ | Announce on a weekend, upload on Monday | active |
 | D-024 | ❓ | Launch games as soon as ready; vault upgrades need 48 h notice | active |
 | D-025 | ❓ | Branch hygiene for `vault-v6` | active |
+| D-026 | ❓ | Merges only on the owner's explicit OK | active |
+| D-027 | 2026-10-30 | Sponsor pays stake, withdraw and claim — never `move_stake` | active |
+| D-028 | ❓ | Sponsor caps 25 Mana per wallet per day, 150 per week | active (feeds C-02) |
+| D-029 | ❓ | Prize and liability rules | active |
+| D-030 | 2026-10-30 | Names: one Koinos @name per wallet | active |
+| D-031 | 2026-10-30 | Staking UX: simple, share %, badge on every game page | active |
+| D-032 | ❓ | New games launch on Mondays, one at a time | ⚠️ disputed (C-14) |
+| D-033 | 2026-10-27 | Build 2: Race Show scoring, home page, dapp name | active |
+| D-034 | 2026-10-28/29 | Producer Race: stakes, ranking, ties, prizes, medals | active |
+| D-035 | 2026-10-29 | The Race chat owns all Race files | active |
 
 ---
 
@@ -145,6 +155,53 @@
 - **Decision:** Freeze `vault-v6` after the fingerprint check; don't rebuild or pull in `C:\kprediction-vault` before an upload. Pushing the backup branch `vault-v6-next` is established practice.
 - **Source:** 💬 Vault chat
 
+## D-026 — Merges only on the owner's explicit OK
+- **Decision:** One branch and PR per build. Merge only on the owner's explicit "merge N"; AI chats never push to `main` or deploy otherwise.
+- **Source:** 💬 Hub, Race chats
+
+## D-027 — Sponsor pays stake, withdraw and claim — never `move_stake`
+- **Date:** 2026-10-30 (owner) · **Source:** 💬 Hub. On-chain gap: see I-021.
+
+## D-028 — Sponsor caps 25 Mana per wallet per day, 150 per week
+- **Decision:** 25 Mana per wallet per day and 150 per week, with no extra cap. The sponsor's KOIN is sized from measured use once everything is live.
+- **Note:** matches `bot/sponsor.ts` defaults; the everyone-per-day and free-per-day totals remain open in C-02.
+- **Source:** 💬 Hub
+
+## D-029 — Prize and liability rules
+- **Decision:** A prize shortfall is cut and never owed later. Balances always cover total liabilities. Free-game rewards are extra and come second to stakers. No free-game prizes until the vault is fully live (⚠️ timing: C-10).
+- **Source:** 💬 Hub. Standard: `standards/VAULT_STANDARD.md`
+
+## D-030 — Names: one Koinos @name per wallet
+- **Date:** 2026-10-30 (owner)
+- **Decision:** One name per wallet: the Koinos @name. The signed Knode Games name claim + GitHub step was removed from the site; older claims are still honoured. Producers show their pool names. Lookalike false positives are accepted (Clover/Dover, Mario/Mano; "Node 123456" refused as address-like).
+- **Source:** 💬 Hub
+
+## D-031 — Staking UX: simple, share %, badge on every game page
+- **Date:** 2026-10-30 (owner-approved)
+- **Decision:** Stake, withdraw, move and claim take a couple of taps; show the share % against the game total. The status badge sits at the top of every game page, with the full panel lower down.
+- **Source:** 💬 Hub, Race chats
+
+## D-032 — New games launch on Mondays, one at a time ⚠️
+- **Decision (Hub):** new games launch on Mondays, one at a time.
+- **Conflict:** the Vault chat plans to add games 2, 7 and 9 (plus 8 and 13 if cleared) together this week (D-024). See C-14.
+
+## D-033 — Build 2: Race Show scoring, home page, dapp name
+- **Date:** 2026-10-27
+- **Decision:** Race Show scores win 3, show 1 (2nd or 3rd with at least one step). The welcome page stays the home page and lists every game. No "New" tag on games. The KOIN Vault dapp name stays "Knode", with connect text "approve Knode (KnodeGames)", until the KOIN Vault developer is asked (I-007).
+- **Source:** 💬 Race chat
+
+## D-034 — Producer Race: stakes, ranking, ties, prizes, medals
+- **Stakes (28 Oct):** the Race is set up as `--staked --free`. Staked = staked in game 7 that week; everyone else (guests included) plays free. Staked players share the game's bucket; free players play for 2 VHP and 1 VHP; any free player can win (no holding or minimum play).
+- **Ranking (28 Oct):** points, then wins, then picks placed; wallets still tied share the place. Daily Questions tie-breaks dropped (option A).
+- **Ties:** a tie for 1st shares all 3 VHP and 2nd stays empty. More than 10 tied for a place: the 10 with the earliest first pick that week share it; the rest get nothing.
+- **Unfinalized race:** skipped 12 hours after its week ends; its picks don't count; listed in `skipped`.
+- **Medals (29 Oct):** only wallets that earn, only on weekly boards. Free play: paid 1st and 2nd. Staked: the vault's top 30% by headcount, rounded up, tied groups taken whole.
+- **Source:** 💬 Race chat. Full game spec belongs in `.ai/games/` (not yet written).
+
+## D-035 — The Race chat owns all Race files
+- **Date:** 2026-10-29 · **Decision:** The Race chat owns all Race files (list in `PLATFORM.md` → Chats); other chats send Race requests through the owner. Written rule: `claude/owners-race.md`.
+- **Source:** 💬 Race, Hub chats
+
 ---
 
 ## Contradictions Register
@@ -153,14 +210,17 @@ Repo wins per D-002 unless the owner rules otherwise. "Ruling" = what the docs c
 | ID | Topic | Archive (chat) says | Repo says | Ruling / action |
 |----|-------|---------------------|-----------|-----------------|
 | C-01 | Sponsor version on chain | Questions: v2 `fa4659e6`. Vault: v3 `b61ac238` live (PR #38 merged) | `picks` record: v3 uploaded 2026-10-30. `main` record (`sponsor-data/deployment.json`): still v2, uploaded 2026-10-27 | Likely v3; `main`'s record looks stale. ❓ Confirm with `npm run sponsor -- status` |
-| C-02 | Sponsor caps (per tx / player-day / player-week / all-day / free-day) | 3 / 10 / 65 / 1,000 / 300 | `bot/sponsor.ts` defaults: 1 / 25 / 150 / 5,000 / 2,000 (owner 2026-10-28/29); v2 rollback can't exceed 1,000/day | **Owner decision needed.** Live on-chain values unknown |
-| C-03 | Sponsor wallet KOIN | 5,000 KOIN | `bot/sponsor.ts` comment: at least 25,000 KOIN to fund 5,000/day | Tied to C-02. ❓ Check balance |
+| C-02 | Sponsor caps (per tx / player-day / player-week / all-day / free-day) | 3 / 10 / 65 / 1,000 / 300 | `bot/sponsor.ts` defaults: 1 / 25 / 150 / 5,000 / 2,000 (owner 2026-10-28/29); v2 rollback can't exceed 1,000/day | **Owner decision needed.** Live on-chain values unknown Hub (D-028): 25 / 150 per wallet, "no extra cap" — per-wallet values now agreed by repo + Hub; everyone-day and free-day totals still ❓ |
+| C-03 | Sponsor wallet KOIN | 5,000 KOIN | `bot/sponsor.ts` comment: at least 25,000 KOIN to fund 5,000/day | Tied to C-02. ❓ Check balance Hub: KOIN to be sized from measured use once everything is live |
 | C-04 | Site read RPC | Questions: site uses `api.koinos.io` (Armana CORS failures). Vault: Armana is default (`main` switched 2026-10-28); `api.koinos.io` returns HTML errors | `app.js`, `swap.js`, `header-wallet.js` all hard-code `koinos.armana.io`; game/desk/race deployments use Armana, sponsor/picks use `api.koinos.io` | Repo (`picks` branch): Armana. ❓ GitHub `main` may differ (branch `armana-rpc` exists) |
 | C-05 | `rcLimitOther` | 3 Mana | `game-data/deployment.json`: 1 Mana (audit SP-17); game `maxSponsorRc` 2 Mana | Repo: 1 Mana |
-| C-06 | Repo name | Questions: `bawcejawn/KnodeGames`. Vault: `bawcejawn/Knode` | local `origin` still `bawcejawn/Knode.git` | ❓ Confirm rename on GitHub |
+| C-06 | Repo name | Questions: `bawcejawn/KnodeGames`. Vault: `bawcejawn/Knode` | local `origin` still `bawcejawn/Knode.git` | ✅ Resolved 2026-11-02: GitHub says the repo moved to `bawcejawn/KnodeGames` (old URL redirects) |
 | C-07 | Platform name | "KnodeGames" | mixed | Resolved by D-001: "Knode Games" |
-| C-08 | Week boundary time | Week 2 closes Mon 2 Nov 21:00 UTC | genesis Mon 19 Oct 00:00 UTC, 7-day weeks, 12 h close delay, 24 h settle | ❓ Explain where 21:00 UTC comes from (bot schedule?). Vault chat's first vault close is Mon 16 Nov 12:00 UTC, which matches genesis + close delay |
+| C-08 | Week boundary time | Week 2 closes Mon 2 Nov 21:00 UTC | genesis Mon 19 Oct 00:00 UTC, 7-day weeks, 12 h close delay, 24 h settle | ❓ Explain where 21:00 UTC comes from (bot schedule?). Vault chat's first vault close is Mon 16 Nov 12:00 UTC, which matches genesis + close delay Hub/Race: weeks run Mon–Mon 00:00 UTC, week 0 = Mon 19 Oct, so vault week 2 = Mon 2 Nov — the Questions chat's "Week 3" is the same week counted from 1. The 21:00 UTC time is still unexplained |
 | C-09 | Vault | questions game is `Q_GAME = 1` in the Vault | `main`: Vault v6 is the game contract `1Mpmf2…`, upgraded in place 2026-11-02 (`eed38f7c…`) | ✅ Resolved 2026-11-02: game 1 is built into the vault |
-| C-10 | When new prize rules start | Questions: 40/60 split + 2 VHP free prize from Week 3 (Mon 2 Nov), `reward_rule_week_plus_one=3`. Vault: v6 rules + 2 + 1 VHP free prizes from Mon 9 Nov (`v6_rule_week_plus_one`) | not checked | ❓ Are these two different rules (v5 reward rule vs v6 rules)? Which free prize applies to the questions game, and from when? |
-| C-11 | Bot wallet | Vault: "bot wallet" `1JSTwo…` | `docs/history/AUDIT-2026-10-19.md` lists `1JSTwo…` as the Operator; current operator is `1HsM33…` | ❓ Is `1JSTwo…` the old operator, or still in use? |
-| C-12 | Race status | Vault: game 7 "ready to announce" | `games.json` (`picks`): Race "live" | ❓ Live as a free game outside the vault, not yet staked? |
+| C-10 | When new prize rules start | Questions: 40/60 split + 2 VHP free prize from Week 3 (Mon 2 Nov), `reward_rule_week_plus_one=3`. Vault: v6 rules + 2 + 1 VHP free prizes from Mon 9 Nov (`v6_rule_week_plus_one`) | not checked | ❓ Are these two different rules (v5 reward rule vs v6 rules)? Which free prize applies to the questions game, and from when? Hub (D-029): no free-game prizes until the vault is fully live. Race: its week 1 vault file is final with 1st/2nd free winners, while the Race page still says prizes start once the vault is live |
+| C-11 | Bot wallet | Vault: "bot wallet" `1JSTwo…` | `docs/history/AUDIT-2026-10-19.md` lists `1JSTwo…` as the Operator; current operator is `1HsM33…` | ❓ Is `1JSTwo…` the old operator, or still in use? Race chat's owner checklist says "empty the old bot and test wallets" — supports old-operator reading |
+| C-12 | Race status | Vault: game 7 "ready to announce" | `games.json`: Race "live"; PR #44 badge ✅ merged | ✅ Resolved 2026-11-02 (Hub): Race is live as a game; its vault registration (`game-add 7`) is pending |
+| C-13 | Survivor type | Hub: "a free game" | Vault (D-018): Survivor added `--staked --free` | ❓ Staked + free, or free only? |
+| C-14 | Launch pace and order | Hub: Mondays, one at a time; order Block X + Race → Block X live → Survivor → Golf staked → LNS → Bracket → Fantasy → Combo. Vault: announce 2, 7, 9 (+8, 13 if cleared) together by Fri 6 Nov; launch as many as are ready (D-024) | — | ❓ Owner decision |
+| C-15 | Seed owner move | Race chat's owner checklist: "move the seed and Desk owner" | Vault: seed owner already handed to `1K8VV…` on 30 Oct ✅ `seedOwner` on `main` | ❓ Stale checklist item, or a further move (e.g. to the hardware wallet)? |

@@ -12,13 +12,17 @@
 ## Today
 - [ ] Answer C-02: which sponsor caps are live — the chat's 1,000-a-day set or the code's 5,000-a-day set? — P1 — C-02, C-03, D-008
 - [ ] Tell the Block X chat the vault upload is done, so it ships V4, B1-1 and B1-5 — P2
-- [ ] Run the push block so `main` gets the updated platform docs — P3
+- [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
+- [ ] Ask the Vault and Hub chats to get `vault-v6` merged into `picks` (or confirm another way to run `game-add`) before Friday — P2 — I-019
+- [ ] Run the push block so `main` gets the updated docs — P3
 
 ## This Week
 - [ ] Ask the Combo Card and Last Node Standing chats whether they're cleared for mainnet — P2 — I-016
 - [ ] `game-add` games 2, 7 and 9 (`--staked --free --send`), plus 8 and 13 if cleared — P2 — D-024 — due Fri 6 Nov, 4 PM PT
 - [ ] Right after the first `game-add`: switch the sponsor to the vault — `npm run sponsor -- status`, copy the caps exactly, run the `config` preview (must show "vault (v6) live: no → yes" with caps unchanged), then `--send`, then `status` again — P1 — C-02 (a plain `config` resets caps)
 - [ ] `game-apply` each game 48 h after announcing — P2 — due before Sun 8 Nov, 4 PM PT
+- [ ] Retry creating an @name on `names.html` and report the result — P3 — I-020
+- [ ] Check the Race status badge on the live Race page at phone width (PR #44 is already merged) — P4
 - [ ] Delete old node basedir folders, only if `heal.log` is clean — P3 — I-008 — on or after Wed 4 Nov, 17:30 UTC (9:30 AM PT)
 - [ ] Retest "+ Add another account" with the real Kondor extension — P2 — I-004 — due {{TBD}}
 - [ ] Confirm which sponsor version is live on chain (v2 or v3) — P2 — C-01 (unblocks I-005) — due {{TBD}}
@@ -38,11 +42,22 @@
 - [ ] Then Fantasy, Golf, Combo and Last Node as each clears audits — P3
 - [ ] Carry the Vault chat's project docs into `.ai/`: `claude/vault-v6-live.md`, `claude/vault-v6-testnet-results.md`, `claude/handoff-*.md`, `claude/audit-vault-v6-*`, `docs/UPGRADE-V6.md`, `docs/V6-PLAN.md` — P3 — I-009
 
+- [ ] Decide launch pace and order (C-14) and Survivor's type (C-13) — P2
+- [ ] Decide which owner checklist is the source of truth (I-032) — P3
+- [ ] Optional: decide the on-chain `move_stake` sponsor cap (I-021); pick retention features (see ROADMAP) — P4
+- [ ] From the Race chat's owner checklist: empty the old bot and test wallets (C-11); pin the Desk node key; clean up the stale folder/branch (which one ❓); move the seed and Desk owner (⚠️ C-15); launch announcement; analytics decision; ads and the SwarmTales listing — P3
+- [ ] Carry the Hub and Race chats' project docs into `.ai/`: `claude/launch-order.md`, `claude/stake-panel.md`, `claude/producer-names.md`, `claude/handoff-status-bar-testnet.md`, `claude/names-fixcheck*-prompt.md`, `claude/audit-names-prompt.md`, `claude/domain-knodegames.md`, `claude/site-at-root.md`, `claude/admin-page.md`, `claude/race-vault.md`, `claude/owners-race.md`, `claude/builds/02-hub-and-race-show.md`; repo `docs/NAMES.md`, `docs/ADMIN.md`, `race/README.md` (vault results section) — P3 — I-009
+
 ## Waiting on Someone Else
 | Item | Waiting on | Since | Link |
 |------|------------|-------|------|
 | Next sponsor version: guest prize claims and the L-3 fix | sponsor + Vault v6 chats (after C-01) | 2026-11-02 | I-005 |
-| Five stake-panel fixes and three admin-page fixes | Hub chat | 2026-11-02 | I-012, I-013 |
+| Verify staking on mainnet after v6 | Hub chat (after you tell it) | 2026-11-02 | — |
+| Remove the legacy claim workflow; add a YAML parser to the CI guard | Hub chat | 2026-11-02 | I-026, I-022 |
+| Update Race page and home-page rules for the live vault | Race chat | 2026-11-02 | I-027 |
+| Merge `picks` into `main` with Race files resolved when Block X is ready; weekly check of `vault/W<week>.json` and `race.yml` runs | Race chat | 2026-11-02 | I-031 |
+| Open the Block X launch PR (`picks` → `main`) after game 2 is applied | Block X chat | 2026-11-02 | — |
+| Every new game page mounts `KStake.badge` at the top of `<main>`, full panel lower | each game chat | 2026-11-02 | D-031 |
 | Bot support for the testnet copy (`testnet/vault.json`) | Vault chat | 2026-11-02 | I-014 |
 | Ship V4, B1-1, B1-5 | Block X chat (after you tell it) | 2026-11-02 | — |
 
@@ -57,3 +72,7 @@
 | Clean up stale Git worktrees — **cancelled**, not needed | 2026-11-02 | I-011 |
 | Vault v6 uploaded (Mon 2 Nov, 02:33 UTC) | 2026-11-02 | D-023 |
 | `.ai/.ai/` nesting on `main` fixed (by the Vault chat) | 2026-11-02 | I-018 |
+| Vault chat knowledge filed into the platform docs | 2026-11-02 | — |
+| Five stake-panel fixes (PR #46) and three admin fixes (PR #43) | 2026-11-02 | I-012, I-013 |
+| Race status badge merged (PR #44) | 2026-11-02 | — |
+| Repo name confirmed: `bawcejawn/KnodeGames` | 2026-11-02 | C-06 |

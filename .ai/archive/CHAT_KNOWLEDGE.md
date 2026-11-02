@@ -208,7 +208,7 @@ The KnodeGames Vault (game contract v6): audits, emergency build, seed, testnet 
     - Its settings file is `testnet/vault.json` on `main`.
   - **Testnet resource prices (2026-10-29):** compute 6 per tick, disk 7,130 per byte, network 1,079 per byte. Mainnet prices are higher: the v6 upload cost 46.84 KOIN of Mana on mainnet against 7.53 on testnet.
   - **Site:** knodegames.com, served from the root of `main`. The testnet staking page is `stake-testnet.html`.
-- **Status:** Filed → platform/PLATFORM.md (2026-11-02); testnet details and resource prices not yet in KOINOS.md
+- **Status:** Filed → platform/PLATFORM.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -333,7 +333,7 @@ The KnodeGames Vault (game contract v6): audits, emergency build, seed, testnet 
   - **Mon 9 Nov:** v6 rules and the 2 + 1 VHP free prizes start.
   - **Mon 16 Nov 12:00 UTC:** first vault close. Corrections are possible for 24 h after each seal; the 5% fee is collected with `claim-fee-vhp all`.
   - **Later:** Survivor (window above), then Fantasy, Golf, Combo and Last Node as each clears.
-- **Status:** Filed → platform/TODOS.md, DECISIONS.md; ROADMAP.md not yet updated (2026-11-02)
+- **Status:** Filed → platform/ROADMAP.md, TODOS.md, DECISIONS.md (2026-11-02)
 
 ---
 
@@ -409,7 +409,7 @@ The KnodeGames site and Hub (captain) chat. Covers the domain and the site moved
   - **Koinos Nicknames contract:** `1KD9Es7LBBjA1FY3ViCgQJ7e6WH1ipKbhz`. Total supply was about 2,137 names on 30 Oct.
   - **Testnet Picks contract:** `12xNetHpajRi8Xrv4ub8MbMWWjC2q7VrX5`.
   - **Live on 30 Oct:** Sponsor v3 on mainnet, the Picks contract on mainnet, `NAMES_ENABLED=true` (set by the owner), the staking hub, status bars, and the @name page.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -477,7 +477,7 @@ The KnodeGames site and Hub (captain) chat. Covers the domain and the site moved
     - Vault area: Sunday upgrade steps (status, apply, clear); Add a game (with a season field); post/seal/finalize; correct/unprize/void; collect the 5% VHP fee.
     - Also a Wallet names area, and "Vault v6 trial (local node)". Its `--testnet` reaches only the local Harbinger node.
   - **Sponsor v3 on chain** allows every vault player call, `move_stake` included. Per-action caps must be above 0, so blocking moves on chain would need a tiny cap.
-- **Status:** unsorted
+- **Status:** Filed → platform/ARCHITECTURE.md, KOINOS.md (2026-11-02)
 
 ---
 
@@ -505,7 +505,7 @@ The KnodeGames site and Hub (captain) chat. Covers the domain and the site moved
     - Keys are never pasted; they stay in `.env`. Mainnet sends need `CONFIRM_MAINNET`.
     - New games launch on Mondays, one at a time.
     - No daily payout cap on the Desk.
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md, standards/VAULT_STANDARD.md (2026-11-02)
 
 ---
 
@@ -526,7 +526,7 @@ The KnodeGames site and Hub (captain) chat. Covers the domain and the site moved
   - **Block Golf (6):** no contract of its own; it's scored from every game's board. Practice scorecards come with Block X; staked after the vault.
   - **Combo (8):** last in line. It needs the Picks v2 CARD upgrade. Testnet cards: 6 legs 0.1313 Mana, 10 legs 0.1457.
   - **Bracket (9), LNS (13), Fantasy (4) / Rival (5):** staked, after the vault. Each is in audit fix-checks in its own chat.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md; game specs pending in .ai/games/ (2026-11-02)
 
 ---
 
@@ -543,7 +543,7 @@ The KnodeGames site and Hub (captain) chat. Covers the domain and the site moved
   6. Block Golf staked → LNS → Bracket → Fantasy → Combo (after Picks v2 CARD).
   7. Size the sponsor's KOIN from measured use.
   - **Retention ideas offered (the owner hasn't chosen):** streaks, a "Your week" card, a claim reminder dot, a weekly recap page, badges next to names.
-- **Status:** unsorted
+- **Status:** Filed → platform/ROADMAP.md (2026-11-02)
 
 ---
 
@@ -562,7 +562,7 @@ The KnodeGames site and Hub (captain) chat. Covers the domain and the site moved
   - **The panel's "Connect wallet after connecting" race** is fixed by reasoning (generation counter) and was never reproduced.
   - **When `picks` merges `main`:** keep both testnet-wallet exceptions in the guard tests.
   - **`docs/NAMES.md`:** the old claim workflow is still documented as legacy.
-- **Status:** unsorted
+- **Status:** Filed → platform/OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -583,7 +583,7 @@ The KnodeGames site and Hub (captain) chat. Covers the domain and the site moved
   - [ ] Vault chat: add bot support for the testnet copy (`testnet/vault.json`) on `main`.
   - **Done since the VAULT chat's list:** the five panel fixes (PR #46: busy-Mana message and cap 0.5, `weightFor`, wallet race, refresh after actions, 2nd-place prize) and the three admin fixes (PR #43: season field, local-node wording, `stake-testnet.html`).
   - **Project docs to carry over:** `claude/launch-order.md`, `claude/stake-panel.md`, `claude/producer-names.md`, `claude/handoff-status-bar-testnet.md`, `claude/names-fixcheck-prompt.md`, `claude/names-fixcheck2-prompt.md`, `claude/audit-names-prompt.md`, `claude/domain-knodegames.md`, `claude/site-at-root.md`, `claude/admin-page.md`; in the repo, `docs/NAMES.md` and `docs/ADMIN.md`.
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md, OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -610,7 +610,7 @@ The Producer Race (game 7): Build 2 (Knode Games rename, Games hub, Race Show), 
     - The written rule is in `claude/owners-race.md`.
   - **Owner checklist:** a Claude artifact with a Today list (https://claude.ai/artifact/Qjk951Qvntsa15yrhJ2db6), backed by the `tasks` collection in its database.
   - **Owner preferences:** explain plainly (the owner works in finance and is new to running code), keep asking questions, keep the checklist up to date.
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, ARCHITECTURE.md (2026-11-02)
 
 ---
 
@@ -646,7 +646,7 @@ The Producer Race (game 7): Build 2 (Knode Games rename, Games hub, Race Show), 
     - `race.html`: `#stake-badge` at the top of `<main>` (PR #44), and the `#stake` panel spot lower down. The Games page's "Where to stake" list links to `race.html#stake`, so that id must stay.
     - `games.html`, `games.js`, `games.json` make up the hub list (`games.json` is validated). `tools/site-nav.mjs` writes the tab bar into every page, and a test keeps every copy identical. `tools/site-seo.mjs` writes the share tags. The service worker never caches game or race data.
     - Strict CSP: no inline scripts or handlers, only pinned CDN scripts, content built with `textContent` only.
-- **Status:** unsorted
+- **Status:** Filed → platform/ARCHITECTURE.md, standards/VAULT_STANDARD.md (2026-11-02)
 
 ---
 
@@ -664,7 +664,7 @@ The Producer Race (game 7): Build 2 (Knode Games rename, Games hub, Race Show), 
   - **Medals (29 Oct):** only wallets that earn get one, and only on the weekly boards. Free play: the paid 1st and 2nd. Staked: the Vault's top 30% by headcount, rounded up, with a tied group taken whole.
   - **Ownership (29 Oct):** the Race chat owns all Race files. Other chats send Race requests through the owner.
   - **Status bar (30 Oct):** the badge sits at the top of every game page, with the full panel lower down (Hub, owner-approved).
-- **Status:** unsorted
+- **Status:** Filed → platform/DECISIONS.md (2026-11-02)
 
 ---
 
@@ -677,7 +677,7 @@ The Producer Race (game 7): Build 2 (Knode Games rename, Games hub, Race Show), 
   - **Race contract:** picks lock when a race starts. Up to 5 picks a day, changes included; the sponsor pays the Mana. The `pick.at` time is the latest pick or change, and it decides the more-than-10 tie rule.
   - **Live status (2 Nov):** week 1 Vault file `{"final":true,"rows":[],"first":["1Fdg4H…"],"second":["1MVRxw…"],"skipped":[]}`. `lastWeek` on the board matches it: places 1 and 2 have `earns` 1 and 2.
   - **Merged PRs from this chat:** #23 (Build 2: rename, Games hub, Race Show, tab bar), #34 (two boards, Vault file, review fixes, medals for earners). **Open PR:** #44 (status bar).
-- **Status:** unsorted
+- **Status:** Filed → platform/PLATFORM.md, DECISIONS.md, KOINOS.md; Race spec pending in .ai/games/ (2026-11-02)
 
 ---
 
@@ -689,7 +689,7 @@ The Producer Race (game 7): Build 2 (Knode Games rename, Games hub, Race Show), 
   - **Block X (`picks` branch):** it changes the same three Race files: `bot/race.ts` (anti-gaming handicap: effective VHP, random samples, 6-hour high, production floor, BX fixes), `race.yml` and `tests/audit/race-recorder.test.mjs`. The Race chat resolves the conflicts by hand when Block X is ready to merge.
   - **Other game chats** (Survivor, Fantasy, Golf, Combo, Bracket, Last Node Standing) use `KStake.mount` and `KStake.badge` and write their own Vault files (`claude/handoff-vault-results.md`, `claude/handoff-stake-in-every-game.md`).
   - **Free-prize wording** across the site should be updated now that the Vault is live. The Race page still says "both start once the vault is live".
-- **Status:** unsorted
+- **Status:** Filed → platform/ROADMAP.md, OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -704,7 +704,7 @@ The Producer Race (game 7): Build 2 (Knode Games rename, Games hub, Race Show), 
   - The panel's "Staked board" label is based on `peak_stake`. A wallet that withdrew below the minimum mid-week ends up with no bucket share and no free prize; the shared panel should explain this.
   - The board reads `get_game_player` once per wallet per run across All time. Fine at current scale, but it grows with players.
   - If `RPC_CHECK` is turned off, stakes are classified on one node only, with no warning.
-- **Status:** unsorted
+- **Status:** Filed → platform/OPENISSUES.md (2026-11-02)
 
 ---
 
@@ -721,6 +721,6 @@ The Producer Race (game 7): Build 2 (Knode Games rename, Games hub, Race Show), 
   - [ ] Owner, from the checklist: full platform audit; new owner key on a hardware wallet; cold treasury for the Desk; move the seed and Desk owner; empty the old bot and test wallets; pin the Desk node key; clean up old node data and the stale folder/branch; launch announcement; analytics decision; ads and the SwarmTales listing.
   - [ ] Keep the reference docs current: `claude/race-vault.md` (status), `claude/owners-race.md` (ownership), `claude/stake-panel.md` (panel).
   - **Project docs to carry over:** `claude/race-vault.md`, `claude/owners-race.md`, `claude/stake-panel.md`, `claude/builds/02-hub-and-race-show.md`, and `race/README.md` (the "Weekly results for the KnodeGames Vault" section) in the repository.
-- **Status:** unsorted
+- **Status:** Filed → platform/TODOS.md (2026-11-02)
 
 ---

@@ -2,7 +2,7 @@
 
 > Purpose: How the pieces fit together. Describe, don't prescribe.
 > Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions and Vault chats), checked against branch `picks` and GitHub `main` on 2026-11-02.
+> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub and Race chats), checked against branches `picks` and `main` on 2026-11-02.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict (see `DECISIONS.md`) · ❓ unknown
 
@@ -24,16 +24,21 @@ Owner PC: 3 Docker nodes (desk, game, personal) + self-heal
 ### Frontend (repo root, static files)
 | File | Role | Confidence |
 |------|------|-----------|
-| `wallet.js` (KWallet) | Kondor, KOIN Vault, Guest. `localStorage` holds only public data: `kw-accounts` (`{kind, address}` list), `kw-active`, `kw-kind` — never keys | 💬 (file exists ✅) |
+| `wallet.js` (KWallet) | Kondor, KOIN Vault, Guest. `localStorage` holds only public data: `kw-accounts` (`{kind, address}` list), `kw-active`, `kw-kind` — never keys. Each page must call `KWallet.init({ provider, chainId, payer, sponsor })` from `game-data/deployment.json` (the header only does a default init). `sponsorFor()` uses the sponsor only when every operation is covered (`covers[0]` is the game); `move_stake` is never sponsored (D-027) | 💬 (file exists ✅) |
 | `header-wallet.js` | shared header wallet menu; reuses `#connect` inside `.top-row`; list / switch / add / forget / disconnect | 💬 (file exists ✅) |
 | `guest.js` | play-only browser key (IndexedDB first, `localStorage` fallback), pinned to the sponsor and game, never holds funds | 💬 (file exists ✅) |
 | `sw.js` | network-first shell cache `knode-shell-v7`; site changes need no cache bump | ✅ |
 | `app.js` | questions game UI; `legacyLabelsOk` rebuilds labels for pre-hashRule-2 questions; per-week question numbers; welcome page is landing; precise Mana errors | ✅ `legacyLabelsOk` present; rest 💬 |
+| `board.js` (KBoard) | Today / This week / Last week / All time, with Staked and Free play tabs; `boardPlace` from audit BX-41; `freeWinners` decides Free play medals, optional `earned(row, weekly)` decides Staked medals | 💬 Race chat |
+| `names.html` / `names.js` (KNames) | "Your Koinos @name": live `verify_valid_name` read while typing; Create mints `{to, token_id: hex(name)}` via `KWallet.send` with the player's own Mana; confirmed with `get_address`; `KNames.setLocal` shows it at once. Display order: pool name → older Knode Games name → Koinos @name (wins); short address always shown. Rules: `fold` (lookalikes cl/nn/rn/ri/ii/vv, cl→d re-run after digits), `reserved` (knode*, Koinos + Group/Team/Support/Admin/Official/…), `addressLike`, `okNick`, `okPool`. Pages ignore a `names.json` over 2 MB | files ✅, rest 💬 Hub |
+| `games.html` / `games.js` / `games.json` | the Games hub list; `games.json` is validated | ✅ files |
+| `tools/site-nav.mjs`, `tools/site-seo.mjs` | write the tab bar into every page (a test keeps copies identical) and the share tags | 💬 Race chat |
 | `swap.js` | swap page; skips its own `#connect` handler when the header menu owns the button (`aria-haspopup="menu"`) | 💬 |
 
 - Hosting: GitHub Pages from repo root, custom domain via `CNAME` — ✅
 - Read RPC: ⚠️ C-04 (chat says `api.koinos.io`; `app.js`, `swap.js`, `header-wallet.js` hard-code `koinos.armana.io`)
 - Chain reads queued 4 at a time — 💬
+- Service worker never caches game or race data; strict CSP: no inline scripts or handlers, only pinned CDN scripts, content built with `textContent` only — 💬 Race chat
 
 ### Wallets
 - **Kondor** (kondor-js 1.3.0, always loaded from CDN) — 💬
@@ -53,7 +58,7 @@ See `PLATFORM.md` → Core Components for addresses and hashes.
 | Race | {{TBD}} | {{TBD}} | {{TBD}} | ✅ address only |
 | Picks | {{TBD}} | {{TBD}} | {{TBD}} | ✅ address only |
 
-Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC, 7-day weeks, close delay 12 h, settle 24 h, min stake 1 VHP (`100000000`), max sponsored Mana per tx 2 (`maxSponsorRc 200000000`).
+Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GENESIS` 1792368000000), weeks Monday to Monday UTC, week = floor((t − genesis) / 7 days), so vault week 0 = Mon 19 Oct and week 2 = Mon 2 Nov (💬 Hub, Race; see C-08), close delay 12 h, settle 24 h, min stake 1 VHP (`100000000`), max sponsored Mana per tx 2 (`maxSponsorRc 200000000`).
 
 ### Mana Sponsor
 - Sponsor covers: game, VHP, KOIN, race, picks contracts — ✅ `game-data/deployment.json` (`sponsor.covers`)
@@ -65,11 +70,14 @@ Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC, 7-d
 - Caps (per tx / player-day / player-week / everyone-day / free-day): ⚠️ C-02
 - **Vault switch (v3):** `config.game_has_vault`. While off, the sponsor never calls `get_game_player` and refuses vault calls with `VAULT_NOT_LIVE`. The tool reads `get_state` `config.v6_rule_week_plus_one` from two nodes. — 💬 Vault chat
 - **Caution:** a plain `config` resets the caps to defaults, so always pass the current caps. — 💬 Vault chat
+- Sponsor v3 allows every vault player call, `move_stake` included. Per-action caps must be above 0, so blocking moves on chain would need a tiny cap (I-021). — 💬 Hub
 
 ### Bots / Automation
 | Bot / workflow | Trigger / schedule | What it does | Location | Confidence |
 |----------------|--------------------|--------------|----------|-----------|
 | Main bot | hourly GitHub Action | posts results, seals, finalizes 24 h after the seal, looks back 12 closed weeks; skips posting/closing/finalizing in safe mode; `pagePlayers()` stops on a repeated address; `upgradeGuard()` refuses a normal upgrade matching the safe build. Uses `koinos.armana.io`, `api.koinosblocks.com` as `RPC_CHECK` | `bot/bot.ts`, `bot/vault.ts`, `bot/chain.ts`, `.github/workflows/bot.yml` | files ✅, rest 💬 |
+| Race recorder | hourly at minute 37 while `RACE_ENABLED=true` | Job `record` (read-only token, no secrets, runs repo code); job `publish` (write token, runs no repo code, shape-checks every file with embedded Python, pushes only to `race-data`). Only irreversible blocks count; blocks, picks and stakes must match on two nodes (`RPC`, `RPC_CHECK`). Files: `index.json`, `W<NNN>.json`, `board.json`, `vault/W<week>.json`. Fails if last run's files can't be read (fresh start only when the branch is missing). Refuses a `final` vault file before the week ends and any change to a final file. Fails closed (no final file) on missing ABI/contract, empty `get_state`, failed stake reads or node disagreement | `bot/race.ts`, `.github/workflows/race.yml`, shared rules in `race-math.js` | 💬 Race chat |
+| Names bot | hourly | Jobs: check (read-only), publish (no repo code), reply; gated by `vars.NAMES_ENABLED`; scheduled only, never triggered by issues. 8 s read timeout (a node that times out is skipped for the run), 7-minute run deadline. Nicknames read 20 at a time within 240 s, named wallets and producers first; both nodes must agree; a failed read keeps the old value. Pool names from Fogata `get_pool_params` (entry 2396056273, field 1). `names.json` kept under 900 kB (publish limit 1 MB). Owner command: `npm run names -- remove <address>` | `bot/names.ts`, `.github/workflows/names.yml` ✅ | 💬 Hub |
 | Bot `--testnet` | manual | targets the local Harbinger node (`127.0.0.1:8081`, `.env.testnet`, `testnet-data/`) — **not** the Koinos Foundation copy | `bot/bot.ts` | 💬 |
 | Sponsor tool | manual | L-4 fix, default free cap 300 (⚠️ C-02), keeps guest flag, status shows VHP | `bot/sponsor.ts` | ⚠️ |
 | Self-heal | every 20 min | repairs a crash-looping node via `node/repair-node-data.ps1` | `bot/heal.mjs` | file ✅, schedule 💬 |
@@ -82,6 +90,8 @@ Node scripts present (✅): `node/repair-node-data.ps1`, `node/move-node-to-volu
 - Off-chain: `game-data/`, `desk-data/` (has `v1UploadTx` ✅), `sponsor-data/`, `race-data/`, `picks-data/`, `games.json` — ✅
 - Vault results: `W${week}.json` (unpadded) from each game's `vaultGames` source — ✅ sources on `main`; naming 💬. Branch `games-data` holds folders blockx, survivor, fantasy, combo, bracket, lastnode, golf — 💬
 - Race: `race.yml` holds back a vault `W<week>.json` that fails `vault_ok`, with a warning; a final vault file can never change — 💬
+- Race pick row: `[player, horse, time, won 0/1, 0, show 0/1]` (field 5 always 0 now; pre-Show picks back-filled). `board.json` rows: `{a, pts, correct, shows, picks, ranked, boardPlace, earns}` — `ranked` = on the Staked board; `boardPlace` shared by ties (1, 1, 3…); `earns` 1/2 = free-prize place, 3 = staked bucket share, 0 = nothing (nonzero only on This week / Last week) — 💬 Race chat
+- Vault results file format and the stake test: see `standards/VAULT_STANDARD.md`
 
 ### Infrastructure
 - Nodes: 3 on the owner's PC, Docker volumes — 💬 (details in `PLATFORM.md`)
@@ -106,7 +116,9 @@ Node scripts present (✅): `node/repair-node-data.ps1`, `node/move-node-to-volu
 | Group | Entry points |
 |-------|--------------|
 | Vault calls | `deposit_to` 0x7bb5c436 · `withdraw_from` 0x5b0aaef8 · `move_stake` 0x7c268e69 · `claim_game` 0x4107e3ab · `finalize_game_week` 0xec300c11 |
-| Reads | `get_game_player` 0x0feb472b · `get_player` 0x37ce3085 · `get_state` 0x3d02a349 · `list_games` 0x02efa793 · `get_game` 0x6f8d72cf |
+| Reads | `get_game_player` 0x0feb472b · `get_player` 0x37ce3085 · `get_state` 0x3d02a349 · `list_games` 0x02efa793 · `get_game` 0x6f8d72cf · `list_players` 0x44d79744 (💬 Hub) |
+
+Player-call arguments (💬 Hub): `deposit_to {from, game, amount, koin}` · `withdraw_from {to, game, amount}` · `move_stake {player, from_game, to_game, amount}` · `claim_game {player, game, week}`. The vault is live when `config.v6_rule_week_plus_one > 0`. `game_object` fields: `next_stake` 13, `next_week` 14.
 | Token | `approve` 0x74e21680 · `balance_of` 0x5c721497 |
 
 ### Measured on testnet (see `docs/TESTNET-V6-RESULTS.md`)
@@ -114,8 +126,20 @@ Heaviest player call 4.63 M ticks (a deposit closing a 13-game week, 1.6% of the
 Mana cost per call = ticks × compute price + disk bytes × disk price + network bytes × network price.
 
 ### Hub pages
-- Stake panel: `stake-panel.js`, `stake-page.js`, `stake-testnet*.js`, `stake.html`, `stake-testnet.html` (PRs #41, #42); matches the v6 ABI field for field (script-checked). — files ✅, rest 💬
-- Admin page: `admin/actions.ts` (PR #43 into `picks`); mainnet "Knode Vault (v6)" buttons match the bot's commands. — 💬
+- Stake panel: `stake-panel.js`, `stake-page.js`, `stake-testnet*.js`, `stake.html`, `stake-testnet.html` (PRs #32, #33, #35, #41, #42, #46 ✅); matches the v6 ABI field for field (script-checked). — files ✅, rest 💬
+  - `KStake` API: `mount(el, {game})` (Stake = approve + `deposit_to`; Withdraw always offered; Move; Claim), `mountList`, `badge(el, {game})` ("Staked · X VHP / Playing free" bar), `status`, `overview(who)`, `send(action, a)` (up to 10 claims per transaction), `sayError`.
+  - After any action it fires `kstake:changed`; only the latest refresh renders (generation counter). `per100()` uses the vault's `weightFor` until a week's weight is saved. Claims follow the vault's `claimableG` / `rewardOfG` and look back 52 weeks, including weeks before a restart. `claimable()`: 2nd place gets `prize_second` as is; 0 when 1st is tied. Busy-Mana (code 104) says "wait a minute and try again". On a `kg-network=testnet` page it uses `testnet/vault.json` and `KTestStakeWallet`.
+  - `stake.html` (staking hub): summary (staked, in wallet, rewards); Games tab with one card per game (your stake, game total, share % and bar, status chip); inline Stake / Withdraw / Move forms with quick amounts (1/10/100/Max; 25%/50%/All); Rewards tab with Claim all; `#g<id>` opens that game's Stake form; wallet set up with the sponsor.
+  - `stake-testnet.html`: public, noindex; `stake-testnet-wallet.js` signs only the 4 vault player calls on the test vault plus an approve right before `deposit_to`; refuses mainnet; signed operations must equal the built ones; Mana capped at 0.5 per transaction.
+  - `race.html`: `#stake-badge` at the top of `<main>` (✅), `#stake` panel lower; the Games page links to `race.html#stake`, so that id must stay.
+- Admin page: `admin/actions.ts`, `admin/server.ts`, `admin/index.html` (PR #43 ✅ merged into `picks`); mainnet "Knode Vault (v6)" buttons match the bot's commands. — 💬
+  - Start on the owner's PC: in `C:\kprediction`, `git checkout picks`, `git pull`, `npm ci`, `npm run admin`; opens a local link with a one-time key. Docs: `docs/ADMIN.md` (on `picks` ✅).
+  - Tools: bot, desk, sponsor, picks, racepicks, names. Vault area: Sunday upgrade steps (status, apply, clear); Add a game (with season field); post / seal / finalize; correct / unprize / void; collect the 5% VHP fee. Also Wallet names, and "Vault v6 trial (local node)" (`--testnet` reaches only the local Harbinger node).
+  - The vault buttons answer "Unknown command" until `vault-v6` is merged into `picks` (I-019).
+
+### CI guards — 💬 Hub
+- `tests/audit/site.ci-deps.test.mjs` (run by `workflow-guard.yml` ✅): bans issue triggers, `write-all`, `secrets: inherit` and `toJSON(secrets)` in any case; issue permissions only in `names.yml`. Regex-based (I-022).
+- `bot/workflow.test.ts`: no `${{ }}` inside run scripts; no job output named `run`.
 
 ## Stack & Tooling — 💬 Vault chat
 - AssemblyScript (`@koinos/sdk-as` 1.5.1), as-pect with MockVM, koilib 9.4.1, protoc 21.12 (pinned and checksummed by `tools/protoc-pin.cjs`), Node 22, tsx.
@@ -137,6 +161,6 @@ Mana cost per call = ticks × compute price + disk bytes × disk price + network
 
 ## Known Constraints
 - Hosting must cost $0 — 💬
-- Armana caused browser CORS failures (likely burst rate limits) — 💬 Questions chat
+- Armana caused browser CORS failures (likely burst rate limits) — 💬 Questions chat. RPC endpoints: `KOINOS.md`
 - `api.koinos.io` returns HTML error pages intermittently; override with `$env:RPC = "https://koinos.armana.io"` where a `deployment.json` still names it — 💬 Vault chat (⚠️ C-04)
 - The proxy used by AI chats blocks GitHub branch deletion and log downloads (403); owner does those in the GitHub UI — 💬

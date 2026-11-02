@@ -3,8 +3,8 @@
 > Purpose: One-page summary of what Knode Games is today.
 > Owner: Owner (Questions chat also acts as Hub/site chat — ❓ confirm)
 > Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions and Vault chat exports, 2026-11-02), checked against the repo
-> on branch `picks` and on GitHub `main` (as fetched 2026-11-02 13:01 PT). Where they differ, the branch is named.
+> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub and Race chat exports, 2026-11-02), checked against the repo
+> on branch `picks` and on GitHub `main` (as fetched 2026-11-02 13:37 PT). Where they differ, the branch is named.
 
 **Legend:** ✅ verified in repo (file named) · 💬 from chat only, not verified · ⚠️ conflict, see `DECISIONS.md` → Contradictions · ❓ unknown
 
@@ -16,10 +16,12 @@ Knode Games is a set of node-based games on the Koinos blockchain, served as a s
 | Item | Value | Confidence |
 |------|-------|-----------|
 | Website | https://knodegames.com (GitHub Pages, served from repo root) | ✅ `CNAME` |
-| Repository | `github.com/bawcejawn/KnodeGames` (old names `Knode`, `kprediction` redirect) | ⚠️ C-06 |
+| Domain & DNS | registered at Cloudflare; GitHub Pages serves the repo root (PR #30 domain, PR #31 removed `/site/`). DNS: 4 A + 4 AAAA records on `@`, `www` CNAME → `bawcejawn.github.io`, all DNS only (grey cloud) | 💬 Hub |
+| Repository | `github.com/bawcejawn/KnodeGames` (old names `Knode`, `kprediction` redirect) | ✅ GitHub "repository moved" notice on push, 2026-11-02 (C-06 resolved) |
 | Local folder | `C:\kprediction` (stale copy `C:\Users\alcat\repos\Knode` deleted) | 💬 |
 | Vault build folder | `C:\kprediction-vault`: Git worktree on `vault-v6`, used only for vault builds and uploads; `.env` copied from `C:\kprediction`; frozen (D-025) | 💬 Vault chat |
 | Testnet staking page | `stake-testnet.html` | 💬 |
+| Owner checklist (artifact) | a Claude artifact with a Today list, backed by its `tasks` database — https://claude.ai/artifact/Qjk951Qvntsa15yrhJ2db6 | 💬 Race chat ⚠️ I-032 |
 | Network | Koinos mainnet | ✅ `*-data/deployment.json` |
 
 ## Games
@@ -27,19 +29,21 @@ Vault ids and results sources ✅ `game-data/deployment.json` (`vaultGames`, `ma
 
 | Vault id | Game | Type (Staked / Free play) | Status | Site list (`games.json`, `picks`) |
 |----------|------|---------------------------|--------|-----------------------------------|
-| 1 | Daily Questions ("Knode questions game") | {{TBD}} | live, built into the vault | live |
-| 2 | Who Signs Block X | Staked + Free | Picks contract live; ready to announce 💬 | soon |
-| 3 | Survivor | Staked + Free; 2-week seasons, prizes 4 + 2 VHP (D-020) | announce 7–13 Nov, Season 1 from Mon 16 Nov 💬 | soon |
-| 4 | Fantasy Producers | Staked; free ❓ | in audits 💬 | soon |
-| 5 | ❓ not listed anywhere | | | |
-| 6 | Block Golf | Staked; free ❓ | in audits 💬 | soon |
-| 7 | Producer Race | Staked + Free | ready to announce 💬 | live ⚠️ C-12 |
-| 8 | Combo Card | Staked; free ❓ | in audits 💬 | not listed |
+| 1 | Daily Questions ("Knode questions game") | {{TBD}} | live, built into the vault; stake buttons stay on `index.html`; `withdraw_from` doesn't apply to game 1 💬 Hub | live |
+| 2 | Who Signs Block X | Staked + Free | Picks contract live; ready to announce; status bar on `blockx.html` (`picks`); reaches `main` with the Block X launch PR after game 2 is applied 💬 | soon |
+| 3 | Survivor | Staked + Free (⚠️ C-13); 2-week seasons, prizes 4 + 2 VHP (D-020) | announce 7–13 Nov, Season 1 from Mon 16 Nov; testnet season and audit on branch `survivor` 💬 | soon |
+| 4 | Fantasy Producers | Staked; free ❓ | in audit fix-checks, after the vault 💬 | soon |
+| 5 | Rival (Picks only) | Staked | in audit fix-checks, after the vault 💬 Hub | not listed |
+| 6 | Block Golf | Staked (after the vault); free ❓ | in audits. No contract of its own: scored from every game's board; practice scorecards ship with Block X 💬 | soon |
+| 7 | Producer Race | Staked + Free (D-034) | live with status bar (PR #44 ✅ merged on `main`); vault `game-add` pending (C-12 resolved) | live |
+| 8 | Combo Card | Staked; free ❓ | in audits; last in line, needs the Picks v2 CARD upgrade 💬 | not listed |
 | 9 | Producer Bracket | Staked + Free; 1-week seasons, prizes 2 + 1 VHP (D-019) | ready to announce 💬 | not listed |
 | 10–12 | ❓ unused | | | |
 | 13 | Last Node Standing | Staked; free ❓ | in audits, rows only 💬 | not listed |
 
-Game specs go in `.ai/games/{{TBD}}.md`.
+Launch order and pace: ⚠️ C-14. Game specs go in `.ai/games/{{TBD}}.md`.
+
+Live on the site since 30 Oct (💬 Hub): staking hub (`stake.html`), status bars, the @name page (`names.html`, `NAMES_ENABLED=true`).
 
 Note: "Producer race" was removed from the site footer (💬); the game itself is still listed as live in `games.json` (✅).
 
@@ -69,12 +73,17 @@ Note: "Producer race" was removed from the site footer (💬); the game itself i
 | Operator / bot | `set_operator` target | `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv` | ✅ `game-data/deployment.json` |
 | Mana sponsor | pays Mana for game plays | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | ✅; KOIN balance ⚠️ C-03 |
 | Seed owner | owns the vault seed (two-step handover, done 2026-10-30) | `1K8VV1utXfomeXHeifrwgLpBjUG6Ldkw2Z` | ✅ `seedOwner` on `main` |
-| Bot wallet | {{TBD}} | `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ` | ⚠️ C-11 |
+| Bot wallet (likely the old operator) | to be emptied, per the Race chat's owner checklist | `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ` | ⚠️ C-11 |
 | New owner (hardware wallet) | {{TBD}} | {{TBD}} | ❓ pending |
 | Cold treasury | {{TBD}} | {{TBD}} | ❓ pending |
 
+## Branches — 💬 Hub, Vault chats
+- `main`: the live site. `picks`: development; merges `main` from time to time; the admin page lives there. `vault-v6` (frozen) and its backup `vault-v6-next`. `survivor`: Survivor testnet season and audit.
+- Data branches: `race-data`, `blocks-data`, `games-data`, `names-data` (`names.json`), `testnet-data`.
+- `vault-v6` is merged into `main` (PR #51 ✅) but **not into `picks`** ✅ — see I-019.
+
 ## Testnet
-- Koinos Foundation testnet holds a Vault v6 test copy: `1MXay5pSvPNzc8sBcZAMWfqaY4T9DkBvLn` (10-minute weeks). Settings: `testnet/vault.json` on `main`. Details belong in `KOINOS.md` (not yet filed). — 💬 Vault chat
+- Koinos Foundation testnet holds a Vault v6 test copy and a Picks test contract; addresses and settings in `KOINOS.md`. — 💬 Vault, Hub
 
 ## Nodes (owner's PC, Docker — no IPs or ports recorded)
 | Node | Folder | Confidence |
@@ -89,10 +98,12 @@ All three use Docker volumes `<project>-basedir` via `docker-compose.override.ym
 | Chat name | Owns which files/areas | Confidence |
 |-----------|------------------------|-----------|
 | Questions | game 1, site, Mana sponsor, guest play, nodes and operations | 💬 |
-| Race (KG 02 · Hub + Race Show) | {{TBD}} | ❓ |
+| Race (KG 02 · Hub + Race Show, session `0173PPUtFZWbkCLXcA57bDGS`) | all Race files: `bot/race.ts`, `race.html`, `race.js`, `race-math.js`, `race.yml`, `race/`, the `race-data` branch, Race tests (D-035). Rule written in `claude/owners-race.md` | 💬 |
 | Vault | Vault v6 contract, seed, game registry, bot vault code, testnet copy | 💬 |
 | Block X | Block X / Picks; ships V4, B1-1, B1-5 after the vault upload | 💬 |
-| Hub | stake panel and admin page | 💬 |
-| Combo Card, Last Node Standing | those games | 💬 |
+| Hub (site / captain chat, session `0173PPUsRKcFfG89XdWYy7LD`) | shared site files: `board.js`, `stake-panel.js`, `styles.css`, `games.*`, the tab bar, `stake.html`; the admin page; names; cross-chat coordination | 💬 |
+| Survivor, Fantasy, Combo Card, Bracket, Last Node Standing | one chat per game | 💬 |
+| Repo Lens | audit chat | 💬 |
+| Unnamed chat (session `0173PPUrAJx3x5GM6g8LJmND`) | changed the tab bar and guest-wallet text | 💬 Race chat |
 | Sponsor v2 chat | {{TBD}} | 💬 named in archive |
 | {{TBD}} | {{TBD}} | |

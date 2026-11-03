@@ -26,7 +26,7 @@ linux("M-H-n1: an honest second run after a field is published is accepted (fiel
   const race = raceFiles([card(start - 26 * 3600000)]);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mh-n1-"));
   const go = (now) => run({ p: "m", check: null, prev: dir, out: dir, raceDir: race, picksContract: null, windowOf: async () => ({ from: 0, to: 0, counts: {} }),
-    hoursOf: async (_n, _a, n) => Array.from({ length: n }, () => ({})), picksOf: async () => [], rankedOf: async (w) => new Set(w), trials: 200, allowNoForm: true, now: { time: now, libTime: now } });   // N-10 launch gate: this test has no samples, so the owner's override
+    hoursOf: async (_n, _a, n) => Array.from({ length: n }, () => ({})), picksOf: async () => [], rankedOf: async (w) => new Set(w), stakedOf: async () => null, trials: 200, allowNoForm: true, now: { time: now, libTime: now } });   // N-10 launch gate: this test has no samples, so the owner's override
   const pub = publisher();
   await go(opens + 3 * 3600000 + 60000);                      // run 1: the field (form given up on, so it is set now)
   const files = (d) => Object.fromEntries(fs.readdirSync(d).filter((f) => f.endsWith(".json")).map((f) => [f, JSON.parse(fs.readFileSync(path.join(d, f), "utf8"))]));

@@ -30,6 +30,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { readVhp, MAINNET_VHP, withRetry } from "../../common.ts";
+// The vault (v6) stake reader Who Signs Block X uses (audited there: BX-61, BX-63, BX-82): get_game_player per wallet,
+// peak and counted stake, v6-live check, nothing cached on a failed read.
+import { vaultReader, stakedSet } from "./blockx.ts";
 await import("../../race-math.js");
 await import("../../lastnode-math.js");
 const M: any = (globalThis as any).KRaceMath;
@@ -79,7 +82,12 @@ type Opts = {
   /** Form: blocks per hour on a node over [t0, t0 + n h) (tests pass fake nodes). */
   hoursOf?: (node: any, t0: number, n: number, signal?: AbortSignal) => Promise<Record<string, number>[]>;
   picksOf?: (node: any, round: number) => Promise<Pick[]>;
-  rankedOf?: (who: string[]) => Promise<Set<string>>;
+  /** The wallets STAKED in this game for a week (the Staked board; owner, 3 Nov): peak stake at least the vault's
+   *  minimum (Free play is everyone else). Tests pass a fake; the default reads the vault. */
+  rankedOf?: (who: string[], week: number) => Promise<Set<string>>;
+  /** Free play prize (owner, 3 Nov): for a week's candidates, who was staked in this game (peak, both nodes) and who
+   *  may win (holds 1 VHP, or 1 VHP staked in Knode Games; both nodes). Tests pass a fake. */
+  freeOf?: (week: number, who: string[]) => Promise<{ staked: Set<string>; ok: Set<string> }>;
   /** Vault v6: the wallets with at least 1 VHP staked in this game for a vault week (null = can't tell yet). */
   stakedOf?: (week: number, who: string[]) => Promise<Set<string> | null>;
   trials?: number;
@@ -423,21 +431,52 @@ export function vaultScores(ranked: { a: string; pts: number; rides: number; jum
   const rank = new Map(groups.map((g, i) => [g, Math.max(1, Math.min(255, groups.length) - i)]));
   return rows.map((r) => ({ player: r.a, points: rank.get(key(r))! }));
 }
-async function readRanked(node: any, who: string[]): Promise<Set<string>> {
+/** Free play prize (owner, 3 Nov: "require at least 1 VHP"): a free winner holds at least 1 VHP, or has at least
+ *  1 VHP staked in Knode Games (get_player: stake + pending + stake_other, v6). A failed read is an error, never "no".
+ *  Exported for the tests. */
+export async function readFreeOk(node: any, who: string[], game = GAME, abiOf = GAME_ABI): Promise<Set<string>> {
   const out = new Set<string>();
   if (!who.length) return out;
   const vhp = (await readVhp(node, MAINNET_VHP, who)).values;
+  const c = game ? new Contract({ id: game, abi: abiOf(), provider: node }) : null;
   for (const a of who) {
     if (BigInt(vhp[a] || "0") >= ONE_VHP) { out.add(a); continue; }
-    if (!GAME) continue;
-    try {
-      const c = new Contract({ id: GAME, abi: GAME_ABI(), provider: node });
-      const r: any = await withRetry(`Knode player ${a}`, () => (c.functions as any).get_player({ player: a, week: "0" }));
-      const p = r?.result?.player ?? {};
-      if (BigInt(p.stake || "0") + BigInt(p.pending || "0") > 0n) out.add(a);
-    } catch { /* not ranked */ }
+    if (!c) continue;
+    const r: any = await withRetry(`Knode player ${a}`, () => (c.functions as any).get_player({ player: a, week: "0" }));
+    if (!r || !("result" in r)) throw new Error(`no answer reading ${a}'s Knode Games stake`);
+    const p = r.result?.player ?? {};
+    if (BigInt(p.stake || "0") + BigInt(p.pending || "0") + BigInt(p.stake_other || "0") >= ONE_VHP) out.add(a);
   }
   return out;
+}
+/** The vault file's free places from a week's free prizes (as Who Signs Block X's vaultFile): 1st is every wallet at
+ *  place 1 (two or more tied for 1st cover 2nd too, so 2nd is then empty); the vault takes at most 10 wallets a place,
+ *  so a bigger tie leaves that place empty (its VHP stays in the pool) and says so. Exported for the tests. */
+export const VAULT_MAX_PER_PLACE = 10;
+export function freePlaces(prizes: { player: string; place: number }[]): { first: string[]; second: string[]; problems: string[] } {
+  const problems: string[] = [];
+  let first = [...new Set(prizes.filter((x) => x.place === 1).map((x) => x.player))].sort();
+  let second = first.length >= 2 ? [] : [...new Set(prizes.filter((x) => x.place !== 1).map((x) => x.player))].sort();
+  if (first.length > VAULT_MAX_PER_PLACE) { problems.push(`${first.length} wallets tied for 1st (the Vault takes at most ${VAULT_MAX_PER_PLACE}); 1st left empty`); first = []; }
+  if (second.length > VAULT_MAX_PER_PLACE) { problems.push(`${second.length} wallets tied for 2nd (the Vault takes at most ${VAULT_MAX_PER_PLACE}); 2nd left empty`); second = []; }
+  return { first, second, problems };
+}
+/** The week's free winners: the board's rows in order, each candidate (at least 3 events and 1 point) checked in
+ *  batches of 25 until 1st and 2nd are settled (the next unchecked candidate can't tie the last winner). */
+export async function freeWinners(rows: { a: string; pts: number; rides: number; jumps: number; events: number }[],
+  status: (who: string[]) => Promise<{ staked: Set<string>; ok: Set<string> }>) {
+  const cands = rows.filter((r) => r.pts >= 1 && r.events >= L.FREE_MIN_EVENTS).map((r) => ({ player: r.a, pts: r.pts, rides: r.rides, jumps: r.jumps, events: r.events }));
+  const key = (r: any) => `${r.pts}|${r.rides}|${r.jumps}`;
+  const known = new Map<string, boolean>();
+  for (let n = 0; ; n += 25) {
+    const chunk = cands.slice(n, n + 25).map((r) => r.player);
+    if (chunk.length) { const st = await status(chunk); for (const a of chunk) known.set(a, !st.staked.has(a) && st.ok.has(a)); }
+    const read = cands.slice(0, n + 25);
+    const prizes = L.freePrizes(read, (a: string) => known.get(a) === true);
+    const next = cands[read.length];
+    const last = prizes.length ? read.find((r) => r.player === prizes[prizes.length - 1].player) : null;
+    if (!next || (prizes.length >= L.FREE_AMOUNTS.length && last && key(next) !== key(last))) return { prizes, ...freePlaces(prizes) };
+  }
 }
 const sameCounts = (x: Window, y: Window) => x.from === y.from && x.to === y.to && JSON.stringify(Object.entries(x.counts).sort()) === JSON.stringify(Object.entries(y.counts).sort());
 const samePicks = (x: Pick[], y: Pick[]) => { const k = (r: Pick[]) => JSON.stringify([...r].sort((u, v) => (u[0] < v[0] ? -1 : u[0] > v[0] ? 1 : 0))); return k(x) === k(y); };
@@ -524,7 +563,15 @@ export async function run(o: Opts) {
   }
   const picksRead = o.picksOf ?? (contract ? (node: any, r: number) => readPicks(node, contract, r) : null);
   const pMain = o.pp ?? o.p, pCheck = o.pp ? (o.pcheck ?? null) : o.check;
-  const rankedRead = o.rankedOf ?? ((who: string[]) => readRanked(o.p, who));
+  // The Staked board (owner, 3 Nov): staked in THIS game that week (peak stake at least the vault's minimum, as the
+  // vault decides who may win the free prize). Everyone else is Free play. One vault reader per run (cached reads).
+  const vaultOnce = vaultReader(GAME || null, L.GAME_ID);
+  const rankedRead = o.rankedOf ?? (async (who: string[], week: number) => stakedSet(await vaultOnce(o.p, who, week)));
+  const freeStatus = o.freeOf ?? (async (week: number, who: string[]) => {
+    const staked = await stakedOnBoth(async (n) => stakedSet(await vaultOnce(n, who, week)), o.p, o.check);
+    const ok = await stakedOnBoth((n) => readFreeOk(n, who), o.p, o.check);
+    return { staked: staked ?? new Set<string>(), ok: ok ?? new Set<string>() };
+  });
   console.log(`now ${new Date(now.time).toISOString()}, irreversible to ${new Date(now.libTime).toISOString()}`);
 
   const idx = readJson(PREV, "index.json");
@@ -624,7 +671,7 @@ export async function run(o: Opts) {
     for (const row of df.picks["0"] || []) by.set(row[0], { start: row[1], backup: row[3] ?? null });
     const entrants = [...by.entries()].filter(([, m]) => m.start);
     // Ranked flags are read again whenever the event moved this run, else kept from the last run.
-    const ranked = touched.has(df.day) && entrants.length ? await rankedRead(entrants.map(([a]) => a)) : new Set<string>((df.players || []).filter((p) => p.ranked).map((p) => p.a));
+    const ranked = touched.has(df.day) && entrants.length ? await rankedRead(entrants.map(([a]) => a), df.week) : new Set<string>((df.players || []).filter((p) => p.ranked).map((p) => p.a));
     df.players = entrants.map(([a, m]) => ({ a, r: L.playerResult(df.field, res, m) })).filter((x) => x.r.entered).map(({ a, r }) => ({
       a, start: r.start, jumpTo: r.jumpTo, out: r.out, survived: r.survived, rode: r.rode, jumped: r.jumped, points: r.points, ranked: ranked.has(a),
     })).sort((x, y) => y.points - x.points || (x.a < y.a ? -1 : 1));
@@ -646,10 +693,24 @@ export async function run(o: Opts) {
   if (lw >= 0) {
     const evs = [...days.values()].filter(inWeek(lw));
     const complete = evs.length > 0 && evs.every((df) => df.done || df.void) && coversWeek(evs, lw, firstStart);
+    const willBeFinal = now.time >= L.weekStart(nowW) + CORRECTION_MS && complete;
+    // Free play (owner, 3 Nov): the Staked board is whoever was staked in this game at any time that week (the vault's
+    // rule). A day's flags are read while it is recorded, so a wallet that staked later in the week is read again here,
+    // once, in the run that makes the week final (the final board is frozen after that).
+    const prevBoard = readJson(PREV, "board.json"), prevFinal = prevBoard?.lastWeek?.week === lw && prevBoard?.lastWeek?.final === true;
+    if (willBeFinal && !prevFinal) {
+      const who = [...new Set(evs.flatMap((df) => (df.void ? [] : df.players.map((p) => p.a))))];
+      if (who.length) {
+        try {
+          const st = await rankedRead(who, lw);
+          for (const df of evs) if (!df.void) for (const p of df.players) if (p.ranked !== st.has(p.a)) { p.ranked = st.has(p.a); touched.add(df.day); }
+        } catch (e) { problems.push(`week ${lw}: the Staked board couldn't be read again (${(e as Error).message}); tried again next run`); }
+      }
+    }
     lwRows = view(rowsOf(inWeek(lw)));
     // Fix-check L-4: board.json shows last week's top 2,000 too; the vault file is built from the whole list (and the
     // publish job checks it against the day files, not against board.json).
-    lastWeek = { week: lw, start: L.weekStart(lw), final: now.time >= L.weekStart(nowW) + CORRECTION_MS && complete, rows: lwRows.slice(0, BOARD_ROWS) };
+    lastWeek = { week: lw, start: L.weekStart(lw), final: willBeFinal, rows: lwRows.slice(0, BOARD_ROWS) };
   }
   const board = {
     v: 1, updated: new Date(now.time).toISOString(),
@@ -664,12 +725,22 @@ export async function run(o: Opts) {
   // ── the vault file (hand-off from the Vault v6 chat, 2026-10-28) ──
   // Once last week is final (12 h after it ends, inside the Vault's 3-day window): one file for the hourly bot to post.
   // rows: wallets staked in this game for that week with at least 1 point, scores keeping the board's order and ties.
-  // first / second: empty (a staked game: no free prize). Not on the testnet (practice has no vault).
+  // first / second: the Free play board's 1st and 2nd (owner, 3 Nov). Not on the testnet (practice has no vault).
   let vault: any = null;
   if (!o.practice && lastWeek && lastWeek.final && now.time < L.weekStart(nowW) + 3 * L.DAY) {
     const players = lwRows.filter((r: any) => r.pts >= 1).map((r: any) => r.a);
     const staked = await (o.stakedOf ? o.stakedOf(lw, players) : stakedOnBoth((n) => readStakedV6(n, lw, players), o.p, o.check)).catch((e: Error) => { problems.push(`vault file for week ${lw}: ${e.message} (tried again next run)`); return null; });
-    if (staked) vault = { game: L.GAME_ID, week: lw, final: true, rows: vaultScores(lwRows.filter((r: any) => staked.has(r.a))), first: [], second: [] };
+    if (staked) {
+      // Free play prize (owner, 3 Nov; D-081, D-082): 2 + 1 VHP to the week's best free players, from the start.
+      const fw = await freeWinners(lwRows.filter((r: any) => !staked.has(r.a)), (who) => freeStatus(lw, who)).catch((e: Error) => { problems.push(`vault file for week ${lw}: free winners: ${e.message} (tried again next run)`); return null; });
+      if (fw) {
+        for (const pr of fw.problems) problems.push(`vault file for week ${lw}: ${pr}`);
+        vault = { game: L.GAME_ID, week: lw, final: true, rows: vaultScores(lwRows.filter((r: any) => staked.has(r.a))), first: fw.first, second: fw.second };
+        // The page's medals: the free winners as settled here (only what the vault file pays).
+        const paid = new Set([...fw.first, ...fw.second]);
+        lastWeek.prizes = fw.prizes.filter((x: any) => paid.has(x.player)).map((x: any) => ({ player: x.player, place: x.place, vhp: x.vhp }));
+      }
+    }
     else if (!o.stakedOf) console.log(`week ${lw} is final; no vault file yet (the game contract has no per-game stakes before v6)`);
   }
   // ── watch-and-hold (owner, 2026-10-29; fix-check LNF-8/LNF-9) ──
@@ -684,7 +755,13 @@ export async function run(o: Opts) {
       hold = { game: L.GAME_ID, week: lw, nodes: flags, why: "signed well above its multiplier across the week's races and won at least 2: held for the owner's review" };
       problems.push(`week ${lw}'s vault file is HELD for review: ${flags.map((f) => `${f.a} (${f.q}× expected, ${f.wins} wins)`).join("; ")}. Release it with: gh variable set LASTNODE_RELEASE_WEEKS --body "${lw}"`);
       vault = null;
+      if (lastWeek) delete lastWeek.prizes;         // no medals while the week is held
     }
+  }
+  // The medals stay for the rest of the week once the vault file's window has passed (the same winners).
+  if (lastWeek && !lastWeek.prizes && !hold) {
+    const pb = readJson(PREV, "board.json")?.lastWeek;
+    if (pb && pb.week === lw && Array.isArray(pb.prizes) && pb.prizes.length && !o.practice) lastWeek.prizes = pb.prizes;
   }
 
   // ── 6. write ──

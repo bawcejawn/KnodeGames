@@ -22,7 +22,12 @@
       "line": "Draft 5 producers under a salary cap, with a captain who scores double." },
     { "id": "golf", "name": "Block Golf", "kinds": ["staked"], "status": "soon", "href": "",
       "line": "Nine holes a day: guess how many blocks until a producer signs its next one." },
-    { "id": "lastnode", "name": "Last Node Standing", "kinds": ["staked"], "status": "soon", "href": "",
-      "line": "Pick a node. Every hour the slowest is knocked out; jump once if yours goes. Ride the last node standing." }
+    { "id": "lastnode", "name": "Last Node Standing", "kinds": ["free", "staked"], "status": "soon", "href": "",
+      "line": "Pick a node. Every hour the slowest is knocked out; jump once if yours goes. Ride the last node standing.",
+      "board": { "data": "games-data/lastnode/board.json",
+        "unranked": "The Staked board is for wallets with at least 1 VHP staked in Last Node Standing that week.",
+        "free": { "show": 6, "minDays": 3, "prize": "1st and 2nd at the end of the week win 2 and 1 VHP (3 or more events, at least 1 point, 1 VHP held or staked)." },
+        "columns": [{ "key": "pts", "label": "Points" }, { "key": "rides", "label": "Rides" },
+                    { "key": "jumps", "label": "Jumps", "wide": true }, { "key": "events", "label": "Events", "wide": true }] } }
   ]
 }

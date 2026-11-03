@@ -55,7 +55,8 @@
   const $ = (id) => document.getElementById(id);
   const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (v == null) continue; if (k === "text") e.textContent = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids) if (c != null) e.append(c); return e; };
   const isAddr = (a) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
-  const nameOf = (a) => (isAddr(a) ? NAMES[a] || a.slice(0, 5) + "…" + a.slice(-4) : "–");
+  // Producer and player nicknames (D-078): names.js (KNames.of), else the built-in names and the short address.
+  const nameOf = (a) => (!isAddr(a) ? "–" : window.KNames && typeof window.KNames.of === "function" ? window.KNames.of(a) : NAMES[a] || a.slice(0, 5) + "…" + a.slice(-4));
   const fmt = (n, d = 0) => Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
   const clock = (t) => new Date(t).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   const dayTime = (t) => new Date(t).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
@@ -581,10 +582,22 @@
     summary: (r) => `${fmt(r.pts)} pts · ${fmt(r.rides)} ride${r.rides === 1 ? "" : "s"}`,
     name: nameOf, link: (a) => EXPLORER + a,
     me: (r, place) => `${place ? `You: #${place} with` : "Your score (only you see this):"} ${fmt(r.pts)} points from ${fmt(r.events)} event${r.events === 1 ? "" : "s"} (${fmt(r.rides)} rides, ${fmt(r.jumps)} jumps).`,
-    unranked: TESTNET ? "On the testnet, wallets holding at least 1 test KOIN are ranked. Nothing here is paid." : "To be ranked, hold at least 1 VHP or stake in KnodeGames. Weekly rewards go to players staked in this game.",
+    unranked: TESTNET ? "On the testnet, wallets holding at least 1 test KOIN are ranked. Nothing here is paid." : "The Staked board is for wallets with at least 1 VHP staked in Last Node Standing that week. Everyone else plays on Free play.",
+    // Free play (owner, 3 Nov; D-081): its own board, and the weekly 2 + 1 VHP prize from the start.
+    free: TESTNET ? null : { show: 6, prize: `1st and 2nd at the end of the week win 2 and 1 VHP (${L.FREE_MIN_EVENTS} or more events, at least 1 point, and a wallet holding 1 VHP or with 1 VHP staked in Knode Games).` },
+    // Medals: last week's free winners as the recorder settled them (board.json lastWeek.prizes; ties share).
+    freeWinners: (part) => new Map((part && Array.isArray(part.prizes) ? part.prizes : []).filter((x) => x && isAddr(x.player) && (x.place === 1 || x.place === 2)).map((x) => [x.player, x.place])),
   }) : null;
   function renderBoard() { if (lb && board) { $("board-box").hidden = false; lb.setMe(me() || ""); lb.set(board); } }
   if (W && W.subscribe) W.subscribe(() => { renderWallet(); loadMine().then(render); renderBoard(); });
+  // Names arrive once per page (names.json): redraw what shows a producer or a player.
+  if (window.KNames && typeof window.KNames.onChange === "function") window.KNames.onChange(() => { for (const f of [render, renderBoard]) { try { f(); } catch { /* drawn later */ } } });
+  // Staking in Last Node Standing (owner, 3 Nov: Staked and Free play boards): the site's shared stake panel and the
+  // staked / free status bar, for game 13. They stay hidden until the vault has the game. Never on the testnet page.
+  if (!TESTNET && window.KStake) {
+    if (typeof window.KStake.badge === "function" && $("stake-badge")) window.KStake.badge($("stake-badge"), { game: L.GAME_ID });
+    if (typeof window.KStake.mount === "function" && $("lastnode-stake")) window.KStake.mount($("lastnode-stake"), { game: L.GAME_ID });
+  }
 
   // ── start ──
   (async () => {

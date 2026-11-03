@@ -76,3 +76,19 @@ withPython("N-1: the publish job's field check accepts every field makeField giv
   const bad = JSON.parse(py(names, "[(globals().__setitem__('CARDS', [c['card']]), errs.clear(), check_field_card('D.json', c['j']), list(errs))[3] for c in json.load(sys.stdin)]", nudged));
   assert.ok(bad.every((e) => e.some((m) => /handicap isn't the formula's/.test(m))), JSON.stringify(bad.filter((e) => !e.length).length));
 });
+
+withPython("Free play: the publish job's free_prizes and free_places give the recorder's first and second (400 random boards)", async () => {
+  const { freePlaces } = await import(pathToFileURL(path.resolve(APP, "bot/games/lastnode.ts")).href);
+  const R = L.rng(9), boards = [];
+  for (let k = 0; k < 400; k++) {
+    const n = 1 + Math.floor(R.next() * 30);
+    const rows = Array.from({ length: n }, (_, i) => ({ a: "1" + (i.toString(36) + "w".repeat(40)).slice(0, 33), pts: Math.floor(R.next() * 6), rides: Math.floor(R.next() * 2), jumps: Math.floor(R.next() * 2), events: 1 + Math.floor(R.next() * 7) }))
+      .sort((x, y) => y.pts - x.pts || y.rides - x.rides || x.jumps - y.jumps || (x.a < y.a ? -1 : 1));
+    const ok = rows.filter(() => R.next() < 0.7).map((r) => r.a);
+    boards.push({ rows, ok });
+  }
+  const want = boards.map(({ rows, ok }) => { const s = new Set(ok); const p = freePlaces(L.freePrizes(rows.map((r) => ({ ...r, player: r.a })), (a) => s.has(a))); return [p.first, p.second]; });
+  const got = JSON.parse(py(["free_prizes", "free_places", "FREE_MIN_EVENTS", "FREE_AMOUNTS"], "[list(free_places(free_prizes(b['rows'], lambda a, s=set(b['ok']): a in s))) for b in json.load(sys.stdin)]", boards));
+  assert.deepEqual(got, want);
+  assert.ok(want.filter(([f, s]) => f.length >= 2).length >= 5 && want.filter(([f, s]) => s.length >= 2).length >= 5, "ties in both places are in the sample");
+});

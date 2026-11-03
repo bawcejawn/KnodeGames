@@ -75,7 +75,7 @@ function picksOf({ tamperOffset = null } = {}) {
 const rankedOf = async (who) => new Set(who.filter((a) => a !== DAVE));
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "lastnode-"));
 const quiet = async (f) => { const log = console.log; console.log = () => {}; try { return await f(); } finally { console.log = log; } };
-const go = (o) => quiet(() => run({ p: "main", check: "check", raceDir: raceDir(), picksContract: "1PicksPicksPicksPicksPicksPicks", windowOf: windowOf(), picksOf: picksOf(), rankedOf, trials: 400, allowNoForm: true, ...o }));   // the launch gate has its own tests (M-F-3)
+const go = (o) => quiet(() => run({ p: "main", check: "check", raceDir: raceDir(), picksContract: "1PicksPicksPicksPicksPicksPicks", windowOf: windowOf(), picksOf: picksOf(), rankedOf, stakedOf: async () => null, trials: 400, allowNoForm: true, ...o }));   // the launch gate has its own tests (M-F-3)
 const dayFile = (out) => JSON.parse(fs.readFileSync(path.join(out, `D${DAY}.json`), "utf8"));
 
 test("a whole event: field from the day-before card, three cuts, players' points", async () => {
@@ -142,13 +142,13 @@ test("the field is published the day before, when picks open; no card by the loc
   assert.equal(d.field.nodes.length, 4); assert.equal(d.hours.length, 0);
   assert.ok(Number.isFinite(d.field.c) && d.field.nodes[0].h === 1);
   const out2 = tmp();
-  await quiet(() => run({ p: "main", check: "check", out: out2, raceDir: raceDir({ withCard: false }), picksContract: null, windowOf: windowOf(), rankedOf, trials: 400,
+  await quiet(() => run({ p: "main", check: "check", out: out2, raceDir: raceDir({ withCard: false }), picksContract: null, windowOf: windowOf(), rankedOf, stakedOf: async () => null, trials: 400,
     now: { time: EV.start, libTime: EV.start } }));
   const v = dayFile(out2);
   assert.equal(v.field, null); assert.match(v.void, /no race card/); assert.deepEqual(v.players, []);
   // Before the lock it just waits (no file yet).
   const out3 = tmp();
-  await quiet(() => run({ p: "main", check: null, out: out3, raceDir: raceDir({ withCard: false }), picksContract: null, windowOf: windowOf(), rankedOf, trials: 400,
+  await quiet(() => run({ p: "main", check: null, out: out3, raceDir: raceDir({ withCard: false }), picksContract: null, windowOf: windowOf(), rankedOf, stakedOf: async () => null, trials: 400,
     now: { time: EV.lock - 1, libTime: EV.lock - 1 } }));
   assert.ok(!fs.existsSync(path.join(out3, `D${DAY}.json`)));
 });

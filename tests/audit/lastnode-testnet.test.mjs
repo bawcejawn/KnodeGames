@@ -55,7 +55,7 @@ const picksOf = async (node, round) => {
 test("the fast game: field, 20-minute cuts, backup, points; picks from the testnet, blocks from mainnet", async () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "lns-tn-"));
   const r = await run({ p: "main", check: "check", pp: "testnet", pcheck: null, game: L0.FAST_GAME, picksContract: "1PicksPicksPicksPicksPicksPicks",
-    raceDir: raceDir(), out, windowOf, hoursOf, picksOf, rankedOf: async (w) => new Set(w), trials: 300, allowNoForm: true, now: { time: EV.start + 70 * 60000, libTime: EV.start + 61 * 60000 } });
+    raceDir: raceDir(), out, windowOf, hoursOf, picksOf, rankedOf: async (w) => new Set(w), stakedOf: async () => null, trials: 300, allowNoForm: true, now: { time: EV.start + 70 * 60000, libTime: EV.start + 61 * 60000 } });
   assert.deepEqual(r.problems, []);
   const d = JSON.parse(fs.readFileSync(path.join(out, "D2026-11-03T08.json"), "utf8"));
   assert.equal(d.hours.length, 3); assert.equal(d.winner, N4);
@@ -85,7 +85,7 @@ test("practice mode starts with the event running at the first run and never rea
   const win = async (node, t0, t1) => { seen.push(t0); return windowOf(node, t0, t1); };
   const now = EV.start + 30 * 60000;
   await run({ p: "main", check: "check", pp: "testnet", pcheck: null, game: L0.FAST_GAME, practice: true, picksContract: "1PicksPicksPicksPicksPicksPicks",
-    raceDir: raceDir(), out, windowOf: win, hoursOf, picksOf, rankedOf: async (w) => new Set(w), trials: 300, now: { time: now, libTime: now - 60000 } });
+    raceDir: raceDir(), out, windowOf: win, hoursOf, picksOf, rankedOf: async (w) => new Set(w), stakedOf: async () => null, trials: 300, now: { time: now, libTime: now - 60000 } });
   assert.ok(seen.every((t) => t >= EV.start), "no window before the current event");
   const idx = JSON.parse(fs.readFileSync(path.join(out, "index.json"), "utf8"));
   assert.equal(idx.since, EV.start);
@@ -93,7 +93,7 @@ test("practice mode starts with the event running at the first run and never rea
   // A later run keeps the same start.
   const later = EV.start + 5 * 3600000;
   await run({ p: "main", check: "check", pp: "testnet", pcheck: null, game: L0.FAST_GAME, practice: true, picksContract: "1PicksPicksPicksPicksPicksPicks",
-    raceDir: raceDir(), prev: out, out, windowOf: win, hoursOf, picksOf, rankedOf: async (w) => new Set(w), trials: 300, now: { time: later, libTime: later - 60000 } });
+    raceDir: raceDir(), prev: out, out, windowOf: win, hoursOf, picksOf, rankedOf: async (w) => new Set(w), stakedOf: async () => null, trials: 300, now: { time: later, libTime: later - 60000 } });
   assert.equal(JSON.parse(fs.readFileSync(path.join(out, "index.json"), "utf8")).since, EV.start);
 });
 

@@ -37,9 +37,16 @@ A testnet practice copy runs on the owner's PC (`docs/lastnode/TESTNET.md`).
   - 1 for each cut your node survives;
   - +5 for riding the last node without jumping, +3 after a jump.
 - **Board:** points, then rides, then fewer jumps; exact ties share the place.
+- **Two boards (owner, 3 Nov; D-081, D-082):**
+  - **Staked:** wallets with at least the vault's minimum (1 VHP) staked in game 13 at any time that week (the vault's rule: `peak_stake`, else `active_stake`). They share the game's weekly bucket.
+  - **Free play:** everyone else, guests included. It pays a weekly prize from the start: **2 VHP for 1st, 1 VHP for 2nd**.
+  - **Who can win the free prize:** not staked in game 13 that week, at least **3 of the week's events** entered, at least 1 point, and the wallet **holds 1 VHP or has 1 VHP staked in Knode Games** (owner, 3 Nov: "require at least 1 VHP"; makes farming with many empty wallets cost something).
+  - **Places** follow the board's order among the wallets that can win. **Ties** split the places they cover, as Who Signs Block X: two tied for 1st get 1.5 VHP each and 2nd is empty; a tie for 2nd splits 1 VHP; more than 10 wallets in a place leaves it empty (the vault's limit), and its VHP stays in the pool.
+  - **Re-reads:** a day's staked flags are read while the day is recorded, and the whole week is read again once, in the run that makes it final.
+  - **The page** shows both boards, the shared stake panel and the staked / free status bar, and last week's free winners (`board.json` → `lastWeek.prizes`).
 
 ## Weekly results to the Vault (v6)
-- **File:** `games-data:lastnode/vault/W<week>.json` with `{ game: 13, week, final: true, rows, first: [], second: [] }`.
+- **File:** `games-data:lastnode/vault/W<week>.json` with `{ game: 13, week, final: true, rows, first, second }`. `first` / `second` are the Free play board's winners (above); a wallet is never in both `rows` and a free place. Register the game with `game-add 13 "Last Node Standing" --staked --free --season 1`; its free-prize switch (D-082) stays on.
 - **rows:** wallets whose `week_stake` in game 13 is at least the vault's minimum stake for that week (1 VHP unless you change it; vault `get_game_player` and `get_state`) and that have at least 1 point. Stakes are read on both mainnet nodes; any difference holds the file to the next run.
 - **Scores:** whole numbers 1–255 that keep the board's order and ties. Over 255 different places, the top 254 keep their tie-breaks and the rest share 1.
 - **When it is written:** once the week is final (12 h after it ends, every event of it finished or void), and only within the Vault's 3-day window. The publish job checks that finality itself (fix-check N-3) and publishes the vault file only in a **later** run than the final board, when last week's files are already on games-data and unchanged (so one run can't add hours and file the week together).
@@ -47,8 +54,14 @@ A testnet practice copy runs on the owner's PC (`docs/lastnode/TESTNET.md`).
 - **Publishing:** the publish step takes only last week's file, from 12 hours to 3 days after the week ends.
   - Its rows must be exactly what last week's day files give (`vaultScores` for the wallets it lists), and those day files are replayed and can't be rewritten once published (fix-check LNF-1, LNF-2).
   - It never replaces a published vault file; a different copy, a file that doesn't match, or no file by the end of the 3 days fails the run so you are told.
-  - A file with no rows while the week has scoring players is not published (the week's bucket stays in the game if no file arrives).
-  - The publish job doesn't read stakes yet (the v6 vault's `get_game_player` isn't in this repository's ABI), so it can't tell an omitted wallet from an unstaked one: the Vault's own bot should check that every board player staked in game 13 that week is in the file (hand-off to the Vault chat).
+  - A file with no rows while staked players scored is not published (the recorder couldn't read the stakes; it tries again).
+  - **The publish job reads the stakes itself** (3 Nov), on both nodes, with its own client:
+    - the vault's `get_state` gives the minimum;
+    - `get_game_player` (game 13, that week) gives each scoring wallet's counted and peak stake;
+    - for free candidates: the VHP token's `balance_of`, and the vault's `get_player` (stake + pending + stake_other).
+    - `rows`, `first` and `second` must be exactly what the day files and those reads give.
+    - If the two nodes disagree, or a read fails, the file waits for the next run.
+  - **Watch-and-hold holds the whole file:** no staked rows and no free winners until you release the week. If it isn't released within the vault's 3 days, the week's bucket stays in the game and its free prize goes back to the pool.
 
 ## Where the code is
 | File | What |
@@ -74,7 +87,7 @@ A testnet practice copy runs on the owner's PC (`docs/lastnode/TESTNET.md`).
   - new hour-0 picks: exactly the Picks contract's `list_picks` for the event's round on both nodes (only picks before the lock);
   - a new field: from the event's race card (the first taken from 12:00 UTC the day before until picks open), every node's VHP and expected blocks from it, the nodes the card's VHP puts in the field, and every handicap from the formula at the field's c.
   - Anything it can't read refuses the run (tried again next run).
-- **Still trusted to the record job (documented):** the field's c (the calibration runs 20,000 simulated events) and each node's form (48 hours of blocks against the race-samples readings), both bounded (c on its grid, form 0.80–1.20); and which wallets are staked (above). Watch-and-hold catches a form that is far off, and the race-samples readings come from their own workflow.
+- **Still trusted to the record job (documented):** the field's c (the calibration runs 20,000 simulated events) and each node's form (48 hours of blocks against the race-samples readings), both bounded (c on its grid, form 0.80–1.20). (Who is staked, and who may win the free prize, is now read again by the publish job: above.) Watch-and-hold catches a form that is far off, and the race-samples readings come from their own workflow.
 - **Known limits (documented):**
   - The page's live standings use blocks that may not be irreversible yet.
   - The field's fairness depends on the race card.

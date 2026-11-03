@@ -317,7 +317,7 @@
       GAME: g, GAME_ID: g.id, PICKS_GAME, CUT, LEAD, OFFSET, AHEAD, PERIOD, PHASE, LOCK_BEFORE, MAX_FIELD,
       HOUR, DAY, WEEK, GENESIS, MIN_KH, FORM_HOURS, FORM_MIN, FORM_MAX, FORM_MIN_HOURS, formOf, BONUS, SEED, TRIALS, H_SCALE, START_HOUR: PERIOD === DAY ? PHASE / HOUR : null,
       roundOf, roundTime, lockTime, isOpen, eventOf, nextEvent, pickable, nextEntry, cardTotal, raceCut, weekOf, weekStart, rng, handicapOf, calibrate, makeField, hInt,
-      cutsFrom, playerResult, board, places, forGame, MAINNET_GAME, FAST_GAME, REAL_TEST_GAME,
+      cutsFrom, playerResult, board, places, freePrizes, FREE_MIN_EVENTS, FREE_AMOUNTS, forGame, MAINNET_GAME, FAST_GAME, REAL_TEST_GAME,
     };
   }
 
@@ -342,6 +342,29 @@
       if (!p || p.pts !== r.pts || p.rides !== r.rides || p.jumps !== r.jumps) place = i + 1;
       return { ...r, place };
     });
+  }
+
+  // ── the Free play prize (owner, 3 Nov; D-081/D-082): 2 VHP for 1st, 1 VHP for 2nd each week ──
+  /** A free player's entries in the week to qualify, and the prize amounts (VHP) for 1st and 2nd. */
+  const FREE_MIN_EVENTS = 3, FREE_AMOUNTS = Object.freeze([2, 1]);
+  /** The week's free prizes. rows: the week's board, best first ({ player, pts, rides, jumps, events }); eligible(a):
+   *  may wallet a win a free prize (not staked in this game that week; holds 1 VHP or has a Knode Games stake; the
+   *  recorder reads both on two nodes). Qualifying: at least FREE_MIN_EVENTS events and at least 1 point. Places among
+   *  the qualifying players by the board's order (points, rides, fewer jumps); tied players split the VHP of the places
+   *  they cover (two tied for 1st: 1.5 VHP each, and no 2nd), as Who Signs Block X. Returns [{ player, place, vhp }]. */
+  function freePrizes(rows, eligible, amounts = FREE_AMOUNTS) {
+    const ranked = places(rows.filter((r) => r && r.pts >= 1 && r.events >= FREE_MIN_EVENTS && eligible(r.player)));
+    const out = [];
+    for (let i = 0; i < ranked.length && i < amounts.length; ) {
+      let j = i;
+      while (j + 1 < ranked.length && ranked[j + 1].place === ranked[i].place) j++;
+      let pot = 0;
+      for (let k = i; k <= j && k < amounts.length; k++) pot += amounts[k];
+      const each = Math.floor((pot / (j - i + 1)) * 1e8) / 1e8;   // VHP has 8 decimals; round down
+      for (let k = i; k <= j; k++) out.push({ player: ranked[k].player, place: ranked[k].place, vhp: each });
+      i = j + 1;
+    }
+    return out;
   }
 
   root.KLastNode = forGame(MAINNET_GAME);

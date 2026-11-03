@@ -92,7 +92,8 @@ test("(guard) every origin the pages fetch or load from is allowed (connect-src 
     const html = read(p), c = cspOf(html);
     const conn = srcList(c, "connect-src");
     // The Block X testnet page reaches only the testnet node and its own data branch: never mainnet, never KOIN Vault.
-    if (/<meta name="kg-network" content="testnet">/.test(html) && /blockx/.test(p)) {
+    // Last Node Standing's testnet page shares the Block X testnet node and data branch, and declares it reads mainnet.
+    if (/<meta name="kg-network" content="testnet">/.test(html) && /blockx|lastnode/.test(p)) {
       const tn = json("testnet/blockx.json");
       if (!allows(conn, tn.rpc + "/")) missing.push(`${p}: connect-src lacks the testnet node ${tn.rpc}`);
       if (!allows(conn, tn.data + "blockx-2/board.json")) missing.push(`${p}: connect-src lacks the testnet data branch`);

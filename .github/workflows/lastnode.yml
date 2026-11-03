@@ -135,6 +135,9 @@ jobs:
           LASTNODE_RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
           # The Picks contract game 13 is played on (picks-data/deployment.json on main).
           LASTNODE_PICKS: ${{ vars.LASTNODE_PICKS || '1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm' }}
+          # The vault (game contract, v6) and the VHP token, for the vault file's stakes and free winners (Free play, 3 Nov).
+          LASTNODE_VAULT: ${{ vars.LASTNODE_VAULT || '1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr' }}
+          LASTNODE_VHP: ${{ vars.LASTNODE_VHP || '12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq' }}
           # Watch-and-hold (fix-check N-9): the weeks you released after review, as the record job.
           LASTNODE_RELEASE_WEEKS: ${{ vars.LASTNODE_RELEASE_WEEKS || '' }}
         run: |
@@ -234,7 +237,10 @@ jobs:
                   assert j["week"] == now_w - 1, "%s: only last week's file (week %d) may be published" % (f, now_w - 1)
                   assert now >= ws + 12 * HOUR, "%s: before the week is final" % f
                   if now >= ws + 3 * 24 * HOUR + HOUR: print("::warning::%s arrived after the Vault's 3 days; not published." % f); skip.append(f); continue
-                  assert j["first"] == [] and j["second"] == [], f
+                  # Free play prize (owner, 3 Nov): 1st and 2nd of the Free play board, at most 10 wallets each, never a staked row.
+                  assert all(type(j[k]) is list and len(j[k]) <= 10 and all(isa(x) for x in j[k]) and len(set(j[k])) == len(j[k]) for k in ("first", "second")), f
+                  assert not (set(j["first"]) & set(j["second"])) and not ((set(j["first"]) | set(j["second"])) & {x["player"] for x in j["rows"]}), f
+                  assert not (len(j["first"]) >= 2 and j["second"]), f
                   rs = j["rows"]
                   assert type(rs) is list and len(rs) <= 100000 and all(type(x) is dict and set(x) == {"player", "points"} and isa(x["player"]) and type(x["points"]) is int and 1 <= x["points"] <= 255 for x in rs), f
                   assert len({x["player"] for x in rs}) == len(rs) and all(rs[i]["points"] >= rs[i + 1]["points"] for i in range(len(rs) - 1)), f
@@ -248,6 +254,9 @@ jobs:
                   assert all(rows_ok(j[k]) for k in ("today", "week", "allTime")), f
                   lw = j["lastWeek"]
                   assert lw is None or (rows_ok(lw) and type(lw.get("final")) is bool and nat(lw.get("week"))), f
+                  # Free play (3 Nov): last week's free winners for the page's medals (what the vault file pays).
+                  assert lw is None or "prizes" not in lw or (type(lw["prizes"]) is list and len(lw["prizes"]) <= 20 and all(type(x) is dict and set(x) == {"player", "place", "vhp"}
+                      and isa(x["player"]) and x["place"] in (1, 2) and num(x["vhp"]) and 0 < x["vhp"] <= 3 for x in lw["prizes"])), f
                   continue
               if f == "index.json":
                   assert set(j) == {"v", "updated", "days", "contract", "game"} and j["v"] == 1 and type(j["days"]) is list and len(j["days"]) < 5000, f
@@ -657,6 +666,104 @@ jobs:
           vfiles = [f for f in (sorted(os.listdir(os.path.join(d, "vault"))) if os.path.isdir(os.path.join(d, "vault")) else []) if f == "W%d.json" % (now_w - 1)]
           if ((ib and ib.get("final") is True) or vfiles) and not complete: bad("board.json: last week is called final (or its vault file is filed) before every event of it is finished or void, or before 12 hours after it ended")
           final = bool((ib and ib.get("final")) or (pb and pb.get("final")))
+          # ── the vault file's players, read again on the chain (fix-check N-1 "staked list"; Free play, owner 3 Nov) ──
+          # Who is staked in game 13 for the week (get_game_player on the vault: `week_stake` is what earns; the most the wallet
+          # had that week, `peak`, decides who can't win the free prize), and whether a free winner holds 1 VHP or has 1 VHP
+          # staked in Knode Games (the VHP token's balance_of; the vault's get_player: stake + pending + stake_other).
+          VAULT = os.environ.get("LASTNODE_VAULT") or ""
+          VHP = os.environ.get("LASTNODE_VHP") or ""
+          ONE_VHP = 100000000
+          FREE_MIN_EVENTS, FREE_AMOUNTS = 3, (2, 1)
+          def call_on(url, contract, entry, args):
+              r = rpc(url, "chain.read_contract", {"contract_id": contract, "entry_point": entry, "args": base64.urlsafe_b64encode(args).decode().rstrip("=")})
+              raw = r.get("result") or ""
+              return pb_fields(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
+          def pb_addr(field, a): b = b58_bytes(a); return pb_varint(field << 3 | 2) + pb_varint(len(b)) + b
+          def first_of(fields, n, default=0):
+              for f, v in fields:
+                  if f == n: return v
+              return default
+          _state = {}
+          def vault_min(url, week):
+              """The vault's minimum stake for a week (get_state → config: min_stake 9, min_stake_next 13, min_stake_next_week 14),
+              and whether v6 is live (v6_rule_week_plus_one, 21)."""
+              if url not in _state:
+                  cfg = pb_fields(first_of(call_on(url, VAULT, 1023583049, b""), 1, b""))
+                  if not first_of(cfg, 1, b""): raise RuntimeError("no answer reading the vault's state on %s" % url)
+                  _state[url] = cfg
+              cfg = _state[url]
+              nxt, frm = first_of(cfg, 13), first_of(cfg, 14)
+              m = nxt if nxt > 0 and week >= frm else first_of(cfg, 9)
+              return (first_of(cfg, 21) > 0), (m if m > 0 else ONE_VHP)
+          _gp = {}
+          def game_player(url, a, week):
+              """(counted stake, peak) of wallet a in game 13 for a week, as Who Signs Block X reads it (vaultView)."""
+              k = (url, a, week)
+              if k not in _gp:
+                  fs = call_on(url, VAULT, 267077419, pb_addr(1, a) + pb_varint(2 << 3) + pb_varint(13) + pb_varint(3 << 3) + pb_varint(week))
+                  entry = first_of(fs, 2, None)
+                  if entry is not None:
+                      e = pb_fields(entry); peak = max(first_of(e, 7), first_of(e, 1))
+                  else: peak = first_of(fs, 3)
+                  _gp[k] = (first_of(fs, 4), peak)
+              return _gp[k]
+          def free_ok(url, a):
+              """Holds at least 1 VHP, or has at least 1 VHP staked in Knode Games."""
+              if first_of(call_on(url, VHP, 1550980247, pb_addr(1, a)), 1) >= ONE_VHP: return True
+              p = pb_fields(first_of(call_on(url, VAULT, 936259717, pb_addr(1, a) + pb_varint(2 << 3) + pb_varint(0)), 1, b""))
+              return first_of(p, 1) + first_of(p, 2) + first_of(p, 6) >= ONE_VHP
+          def on_both(fn):
+              """fn(url) on both nodes; they must agree (else RuntimeError: the vault file waits for the next run)."""
+              if len(RPCS) < 2 or RPCS[0] == RPCS[1]: raise RuntimeError("two different nodes are needed (LASTNODE_RPC, LASTNODE_RPC_CHECK)")
+              a, b = fn(RPCS[0]), fn(RPCS[1])
+              if a != b: raise RuntimeError("the two nodes disagree")
+              return a
+          def free_prizes(rows, eligible):
+              """Port of lastnode-math.js freePrizes: places among qualifying free players; ties split the places they cover."""
+              q = [r for r in rows if r["pts"] >= 1 and r["events"] >= FREE_MIN_EVENTS and eligible(r["a"])]
+              place, ranked = 0, []
+              for i, r in enumerate(q):
+                  p = q[i - 1] if i else None
+                  if not p or (p["pts"], p["rides"], p["jumps"]) != (r["pts"], r["rides"], r["jumps"]): place = i + 1
+                  ranked.append((r["a"], place))
+              out, i = [], 0
+              while i < len(ranked) and i < len(FREE_AMOUNTS):
+                  j = i
+                  while j + 1 < len(ranked) and ranked[j + 1][1] == ranked[i][1]: j += 1
+                  for k in range(i, j + 1): out.append({"player": ranked[k][0], "place": ranked[k][1]})
+                  i = j + 1
+              return out
+          def free_places(prizes):
+              """Port of the recorder's freePlaces (10 wallets a place at most; two or more tied for 1st leave 2nd empty)."""
+              first = sorted({x["player"] for x in prizes if x["place"] == 1})
+              second = [] if len(first) >= 2 else sorted({x["player"] for x in prizes if x["place"] != 1})
+              return (first if len(first) <= 10 else []), (second if len(second) <= 10 else [])
+          def vault_expected(want, week):
+              """What last week's vault file must hold: (rows, first, second), from the day files' board and the chain."""
+              live, mn = on_both(lambda u: vault_min(u, week))
+              if not live: raise RuntimeError("the vault isn't v6 on chain yet")
+              scoring = [r for r in want if r["pts"] >= 1]
+              gp = {r["a"]: on_both(lambda u, a=r["a"]: game_player(u, a, week)) for r in scoring}
+              earning = {a for a, (ws, pk) in gp.items() if ws >= mn}
+              rows = vault_scores([r for r in want if r["a"] in earning])
+              free_rows = [r for r in want if r["a"] not in earning]
+              ok = {}
+              def eligible(a):
+                  if a not in ok: ok[a] = gp[a][1] < mn and on_both(lambda u: free_ok(u, a))
+                  return ok[a]
+              # Read only as far as the places need (as the recorder): stop once 1st and 2nd are settled.
+              cands = [r for r in free_rows if r["pts"] >= 1 and r["events"] >= FREE_MIN_EVENTS]
+              key = lambda r: (r["pts"], r["rides"], r["jumps"])
+              n = 0
+              while True:
+                  n += 25
+                  read = cands[:n]
+                  prizes = free_prizes(read, eligible)
+                  nxt = cands[n] if n < len(cands) else None
+                  last = next((r for r in read if prizes and r["a"] == prizes[-1]["player"]), None)
+                  if nxt is None or (len(prizes) >= len(FREE_AMOUNTS) and last and key(nxt) != key(last)): break
+              first, second = free_places(prizes)
+              return rows, first, second, earning
           # ── watch-and-hold, as the recorder's watchWeek (fix-check N-9: the publish job enforces it too) ──
           import re
           REL = (os.environ.get("LASTNODE_RELEASE_WEEKS") or "").replace(" ", "")
@@ -711,13 +818,15 @@ jobs:
               if not (pb and pb.get("final")) or lw_changed: lines.append("%s hold" % f); continue
               # N-9: a week the rule flags, or one already held on games-data, isn't filed until the owner releases it.
               if lw not in released and (flags or pub_hold or inc_hold): lines.append("%s held" % f); continue
-              listed = {x["player"] for x in j["rows"]}
-              scoring = {r["a"] for r in want if r["pts"] >= 1}
-              # No rows while the week has scoring players: the stakes may not have been read (audit LN-2). Not published; the
-              # recorder tries again next run (the Vault keeps the bucket in the game if no file comes).
-              if not listed and scoring: lines.append("%s empty" % f); continue
-              exp = vault_scores([r for r in want if r["a"] in listed])                       # LNF-1: points, not only order
-              if not listed <= scoring or j["rows"] != exp: lines.append("%s bad" % f); print("::error::vault/%s: its rows aren't what last week's day files give" % f)
+              # Fix-check N-1 / Free play (owner, 3 Nov): the rows (staked players' points), and 1st and 2nd of the Free play
+              # board, must be exactly what last week's day files and the chain give. The stakes are read here, on both nodes.
+              try: erows, efirst, esecond, earning = vault_expected(want, int(now_w - 1))
+              except Exception as e:
+                  lines.append("%s wait" % f); print("::warning::vault/%s couldn't be checked on the chain (%s); tried again next run" % (f, str(e)[:200])); continue
+              # No rows while staked players scored: the recorder couldn't read the stakes (audit LN-2). Not published; it tries again.
+              if not j["rows"] and erows: lines.append("%s empty" % f); continue
+              if j["rows"] != erows: lines.append("%s bad" % f); print("::error::vault/%s: its rows aren't what last week's day files give, with the stakes read on chain" % f)
+              elif [j["first"], j["second"]] != [efirst, esecond]: lines.append("%s bad" % f); print("::error::vault/%s: its free winners (first/second) aren't what last week's Free play board gives" % f)
               else: lines.append("%s ok" % f)
           # LNF-12: the Vault's 3 days end with no file while the week had scoring players: say so (the run fails at the end).
           ws = WEEK0 + now_w * WEEK
@@ -788,6 +897,7 @@ jobs:
                 hold) echo "Holding $name until last week's final board is published and unchanged (next run)." ;;
                 held) heldw="$heldw $name" ;;
                 empty) echo "::warning::$name has no rows while last week has scoring players; not published (tried again next run)." ;;
+                wait) echo "::warning::$name couldn't be checked on the chain this run; not published (tried again next run)." ;;
                 *) vbad="$vbad $name" ;;
               esac
             done

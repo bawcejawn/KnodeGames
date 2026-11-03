@@ -52,6 +52,7 @@ def parse(b):
 B64 = lambda b: base64.urlsafe_b64encode(b).decode().rstrip("=")
 UNB64 = lambda s: base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 LIST_PICKS = 2118033200
+GET_STATE, GET_GAME_PLAYER, GET_PLAYER, BALANCE_OF = 1023583049, 267077419, 936259717, 1550980247
 
 def fixture(node):
     j = json.load(open(FIX))
@@ -84,9 +85,30 @@ def answer(node, method, p):
                           "block": {"id": "0x1220" + "%060x" % h, "header": {"previous": "0x00", "height": str(h), "timestamp": str(t), "signer": s}}})
         return {"block_items": items}
     if method == "chain.read_contract":
-        if int(p["entry_point"]) != LIST_PICKS: raise ValueError("unknown entry point")
         args = dict()
         for f, v in parse(UNB64(p["args"])): args[f] = v
+        ep = int(p["entry_point"])
+        # The vault (v6) and the VHP token, for the vault file's stakes and free winners (fixture "vault", "vhp", "knode"):
+        #   "vault": {"min": n, "live": true, "players": {"<week>:<addr>": {"week_stake": n, "peak": n, "active": n}}}
+        #   "vhp": {"<addr>": n}   "knode": {"<addr>": {"stake": n, "pending": n, "stake_other": n}}
+        v = j.get("vault") or {}
+        if ep == GET_STATE:
+            cfg = ld(1, b58dec("1" + "o" * 33)) + vi(9, int(v.get("min", 100000000))) + (vi(21, 4) if v.get("live", True) else b"")
+            return {"result": B64(ld(1, cfg))}
+        if ep == GET_GAME_PLAYER:
+            if args.get(2) != 13: raise ValueError("only game 13 here")
+            x = (v.get("players") or {}).get("%d:%s" % (args.get(3, 0), b58enc(args.get(1, b""))))
+            if not x: return {}
+            out = (ld(2, vi(1, int(x.get("peak", 0))) + vi(7, int(x.get("peak", 0)))) if x.get("entry", True) else b"") + vi(3, int(x.get("active", 0))) + vi(4, int(x.get("week_stake", 0)))
+            return {"result": B64(out)} if out else {}
+        if ep == GET_PLAYER:
+            x = (j.get("knode") or {}).get(b58enc(args.get(1, b"")))
+            if not x: return {}
+            return {"result": B64(ld(1, vi(1, int(x.get("stake", 0))) + vi(2, int(x.get("pending", 0))) + vi(6, int(x.get("stake_other", 0)))))}
+        if ep == BALANCE_OF:
+            n = int((j.get("vhp") or {}).get(b58enc(args.get(1, b"")), 0))
+            return {"result": B64(vi(1, n))} if n else {}
+        if ep != LIST_PICKS: raise ValueError("unknown entry point")
         game, rnd, after, limit = args.get(1, 0), args.get(2, 0), args.get(3, b""), args.get(4, 0)
         rows = sorted((j.get("picks") or {}).get("%d:%d" % (game, rnd), []), key=lambda r: b58dec(r[0]))
         if after: rows = [r for r in rows if b58dec(r[0]) > after]

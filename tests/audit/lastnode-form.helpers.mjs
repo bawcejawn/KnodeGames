@@ -46,5 +46,5 @@ export function samplesDir(vhpOf = () => ({ [N1]: 4000, [N2]: 2000, [N3]: 1000, 
   return d;
 }
 export const base = (extra) => ({ p: "main", check: "check", game: L0.FAST_GAME, picksContract: null, samplesDir: samplesDir(), windowOf: async () => { throw new Error("not irreversible yet"); },
-  picksOf: async () => [], rankedOf: async (w) => new Set(w), trials: 300, allowNoForm: true, ...extra });   // the launch gate has its own tests (M-F-3)
+  picksOf: async () => [], rankedOf: async (w) => new Set(w), stakedOf: async () => null, trials: 300, allowNoForm: true, ...extra });   // the launch gate has its own tests (M-F-3)
 

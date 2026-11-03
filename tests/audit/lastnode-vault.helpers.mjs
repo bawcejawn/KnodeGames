@@ -46,14 +46,19 @@ export function fakeNode(fixtureFile) {
 export const PICKS_CONTRACT = A("K");
 export const FILLER = A("z");                   // a producer outside the field
 /** The honest chain for some days: every window of their whole event (dayFile's blocks, the rest by FILLER) and PICKS. */
-export function chainFor(days, { picks = PICKS, boost = {} } = {}) {
-  const windows = [], pk = {};
+/** The vault (v6) in the fake chain: P1, P2 and P3 staked in game 13 (1 VHP) in every week the days fall in; P4 isn't
+ *  (the vault file's rows: P1, P2, P3). Free winners need a wallet that holds 1 VHP (vhp) or a Knode Games stake. */
+export const VAULT_C = A("V"), VHP_C = A("W");
+export function chainFor(days, { picks = PICKS, boost = {}, stakers = [P1, P2, P3], vhp = {}, knode = {}, extra = {} } = {}) {
+  const windows = [], pk = {}, players = {};
+  for (const day of days) { const w = L.weekOf(Date.parse(`${day}T14:00:00Z`)); for (const a of stakers) players[`${w}:${a}`] = { week_stake: 100000000, peak: 100000000, active: 100000000 }; }
+  Object.assign(players, extra);
   for (const day of days) {
     const d = dayFile(day, picks, { hours: NODES.length - 1, boost });
     for (const h of d.hours) windows.push({ from: h.from, to: h.to, t0: d.start + h.i * 3600000, counts: h.blocks });
     pk[`13:${L.eventOf(day).round}`] = picks.map(([w, s0, b]) => [w, b ? [s0, b] : [s0], d.start - 3600000]);
   }
-  return { windows, picks: pk };
+  return { windows, picks: pk, vault: { min: 100000000, live: true, players }, vhp, knode };
 }
 /** The race card a day's field comes from (12:00 UTC the day before): the 11 test nodes. */
 export function fieldCard(day) {
@@ -72,7 +77,7 @@ export function publisher() {
   fs.writeFileSync(fixture, JSON.stringify({ windows: [] }));
   const node = fakeNode(fixture);
   const env = { ...process.env, HOME: root, GIT_CONFIG_NOSYSTEM: "1", FAKE_REMOTE: remote, GH_TOKEN: "x", KG_TEST_NOW: AT(4, 13),
-    LASTNODE_RPC: node.a, LASTNODE_RPC_CHECK: node.b, LASTNODE_PICKS: PICKS_CONTRACT };
+    LASTNODE_RPC: node.a, LASTNODE_RPC_CHECK: node.b, LASTNODE_PICKS: PICKS_CONTRACT, LASTNODE_VAULT: VAULT_C, LASTNODE_VHP: VHP_C };
   execFileSync("git", ["init", "-q", "--bare", remote], { env });
   let n = 0, chainSet = false;
   return {

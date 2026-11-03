@@ -1,30 +1,35 @@
-# Fix-check prompt, round 11 (very short): Block X prize-free go / no-go after the main merge
+# Fix-check prompt, round 12 (very short): the v6-day Race stake change
 
-Copy everything below the line into Repo Lens. Give it the package `knode-fixcheck-12.zip` (the repository
-`bawcejawn/Knode` at the commit in `00-COMMIT.txt`, branch `picks`, with this prompt as `00-FIXCHECK-PROMPT.md`).
+Copy everything below the line into Repo Lens. Give it the package `knode-fixcheck-13.zip` (the repository
+`bawcejawn/KnodeGames` at the commit in `00-COMMIT.txt`, branch `picks`, with this prompt as `00-FIXCHECK-PROMPT.md`).
 
 ---
 
-You are an independent security auditor. Your report "Block X Prize-Free: Round-10 Go/No-Go (Knode picks @ a55390f)"
-said **GO at a55390f**, with one condition (BX-138): `picks` has since merged `main` (c52a649, b301bfa), which changes
-`race.yml` and `bot/race.ts` (the Race Vault results file `vault/W<week>.json`, game 7, and a stricter race-data
-fetch). Get that diff fix-checked before launching from it.
+You are an independent security auditor. Your report "Block X Prize-Free: Round-11 Go/No-Go (Knode picks @ 3472d8c)"
+said GO and left three items for the day Vault v6 went live: B1-1 (race.ts read stakes with the v5 ABI), V4 (a chain
+that isn't v6 read as "not staked" without an error) and B1-5 (per-wallet retries could push the hourly run past its
+time limit and lose that hour's race cards).
 
-**Since a55390f:**
-- The merge itself. Conflicts were resolved by keeping both sides. Every round 8–9 publish check now also covers
-  `vault/`, `vault_ok` uses `[0-9]`, and the old "holds 1 VHP" plain-balance read is gone (ranking is the vault stake).
-- A blind review of the merged race code (record: "Blind review of the merge (BX-138)" in
-  `docs/history/AUDIT-2026-10-28-repolens-blockx.md`) found nothing must-fix. Fixed anyway:
-  - **V1:** a vault file that fails its check is held on its own, with a warning; the race files still publish, and a
-    final vault file still never changes;
-  - **V2:** the record job lists race-data with `ls-tree -z` into a file;
-  - **V3:** `ls-remote` uses `refs/heads/race-data` exactly.
-  - V4 (a pre-v6 chain read as "not staked") is marked before prizes.
-- **BX-136:** the `\d` guard also checks `python3 -c` / `python3 -I -c` one-liners.
-- Docs only: the round-10 record, and a runbook section for the later Picks v2 upgrade (Combo Card, FC2-13).
+**Vault v6 is now live on mainnet** (2026-11-02). `picks` merged the vault branch (e7887b6); `game/abi/kpred.koilib.json`
+is now the v6 ABI, byte-identical to `kpred-v6.koilib.json` (which Block X reads).
 
-**Scope: `git diff a55390f HEAD -- .github/workflows bot/race.ts tests/audit` only.** Block X scores with the cards
-`race.ts` writes. Send no transaction to any chain.
+**The change (d7fad7c, `bot/race.ts` and one test):**
+- B1-1: stakes are read with the deployed ABI (`kpred.koilib.json`); a test checks it equals `kpred-v6.koilib.json`.
+- V4: the early `return { staked: false }` when `v6_rule_week_plus_one` is 0 is gone. Right after the upload that field
+  stays 0 until v6's first transaction, but `get_game_player` already answers then (no stake, which is true).
+  `stakedFrom` / `earningFrom` keep their own guard.
+- B1-5: `get_state` and `get_game_player` take 2 tries (about 2 s), not 6. The first failure on a node marks it down
+  for the rest of the run: every other stake read on it fails at once with one warning. A failed read counts as not
+  staked on the boards and keeps the vault file from being final; the race files are still written and published.
+- Test: a v5-like chain (every contract read fails) with players. The run finishes fast, makes at most 4 reads, gives
+  one warning, writes the race files (they pass the publish check) and leaves the vault file not final. It fails on
+  e7887b6.
+
+**Context, not a question:** before this change, `main` already had the v6 ABI but not V4. Its recorder published
+`race-data/vault/W1.json` as final at 2026-11-02 23:17 UTC: `rows: []` plus free-play first and second. Nobody could
+stake that week. Whether week 1 is paid is the Vault's `PRIZES_FROM_WEEK` decision.
+
+**Scope: `git diff e7887b6 HEAD -- bot/race.ts tests/audit`.** Send no transaction to any chain.
 
 ```
 npm ci --ignore-scripts
@@ -33,5 +38,5 @@ npm run test:audit:serial
 
 ## The one question
 
-**Block X live prize-free from this commit: go / no-go.** If no-go, name only what must be fixed for that verdict.
-Put everything else in one Low/Info table, marked "before prizes" where it belongs.
+**Can this change stop or delay the race cards Block X scores with, or make a vault file final when it shouldn't be?**
+Go / no-go for merging it to `main`. If no-go, name only what must be fixed. Put everything else in one Low/Info table.

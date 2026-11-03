@@ -78,7 +78,7 @@
 | D-065 | 2026-11-02 | Survivor Season 1 starts Mon 16 Nov | active |
 | D-066 | 2026-11-02 | Public testnet only; three mainnet nodes | active |
 | D-067 | 2026-11-02 | Block X: nothing announced yet; redo or apply only when ready | active |
-| D-068 | 2026-11-02 | Free prizes are per week; multi-week seasons pay once, at season end | active |
+| D-068 | 2026-11-02 | Free prizes are per week; multi-week seasons pay once, at season end | active (rule); Survivor's free prize paused by D-080 |
 | D-069 | 2026-11-02 | Questions game Week 3 pays its on-chain v5 free prize (1 + 1 VHP); no upgrade | active |
 | D-070 | 2026-11-02 | Apply Block X (game 2) on the Picks contract now | done |
 | D-071 | 2026-11-02 | Fantasy, Last Node, Combo and Golf are staked-only for now | active |
@@ -89,7 +89,8 @@
 | D-076 | 2026-11-03 | Success targets: 1,000,000 VHP in the pool; sponsor outgrown | active |
 | D-077 | 2026-11-03 | Questions, Race and Block X pay from next week's results; add more games as they launch | active |
 | D-078 | 2026-11-03 | Every game shows producer nicknames | active |
-| D-079 | 2026-11-03 | Every game has its own Free play and Staked leaderboards | active |
+| D-079 | 2026-11-03 | Every game has its own Free play and Staked leaderboards | active, except Combo, Golf, Survivor (D-080) |
+| D-080 | 2026-11-03 | No free play for Combo, Block Golf or Survivor for now; free play everywhere once the seed is bigger | active |
 
 ---
 
@@ -452,6 +453,12 @@
 ## D-079 — Every game has its own Free play and Staked leaderboards
 - **Date:** 2026-11-03 (owner) · **Decision:** Every game has its **own** two leaderboards — **Staked** and **Free play** — built directly from that game's own results and players' picks. This is a standard for every game, including the staked-only games (Fantasy, Block Golf, Combo, Last Node): their Free play board ranks free players even though it pays no prize for now (D-071). Each game's boards also appear on the Leaders page.
 - **Open:** Combo's page currently lets only staked wallets send cards, so its Free play board would stay empty unless free play is allowed there (I-074).
+
+
+## D-080 — No free play for Combo, Block Golf or Survivor for now
+- **Date:** 2026-11-03 (owner) · **Decision:** **Combo Card, Block Golf and Survivor have no free play for now** — no Free play board and no free prize; only staked players play and rank. **Free play will open on all the games once a bigger VHP seed is in place**, so every free reward is covered.
+- **Changes:** Survivor was Staked + Free with a 4 + 2 VHP season prize (D-051, D-068) — it is now **staked only**: register it as `game-add 3 "Survivor" --staked --season 2` (**no `--free`**, unlike `docs/UPGRADE-V6.md`), and its free board is switched off. D-079's "both boards on every game" excludes these three for now.
+- **Free play today:** Daily Questions, Block X, Producer Race, Producer Bracket (Free board + 2 + 1 VHP prize); Fantasy and Last Node (Free board, no prize — ❓ owner to confirm).
 
 ---
 

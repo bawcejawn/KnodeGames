@@ -45,7 +45,7 @@
 ## 4. Reward distribution rules
 1. **Source:** rewards come only from the vault's block production — never from new money (D-016, D-073).
 2. **Fee:** a flat **5%** of gross rewards, taken first.
-3. **Free prizes:** **2 VHP for 1st, 1 VHP for 2nd, per week**, on every free game (Questions, Block X, Survivor, Race, Bracket), starting with the vault week of Mon 9 Nov (D-062). Multi-week seasons pay once at season end (Survivor 4 + 2, D-068). Nothing is paid for weeks before the vault start (D-063). One exception: the Questions game's week of 2–9 Nov pays its on-chain 1 + 1 VHP (D-069).
+3. **Free prizes:** **2 VHP for 1st, 1 VHP for 2nd, per week**, on every free game (Questions, Block X, Race, Bracket — Survivor, Combo and Golf have no free play for now, D-080), starting with the vault week of Mon 9 Nov (D-062). Multi-week seasons pay once at season end (Survivor 4 + 2, D-068). Nothing is paid for weeks before the vault start (D-063). One exception: the Questions game's week of 2–9 Nov pays its on-chain 1 + 1 VHP (D-069).
 4. **Staked-only games** (Fantasy, Golf, Combo, Last Node) pay no free prize for now (D-071).
 5. **Stakers come first.** Free rewards are extra; **a shortfall is cut and never owed later** (D-029).
 6. **The rest is split across staked games** by each game's share of the stake that week; each game splits its part by its own written rules.

@@ -14,7 +14,7 @@
 | **Free play** | everyone else, guests included — on **every** game (D-079); the 2 + 1 VHP prize applies only on games with a free prize (GAME_STANDARD §2) | the top 6 |
 
 - Labels are exactly **"Staked"** and **"Free play"** on every game (D-031).
-- **Both boards on every game, built from that game's own results and picks** (D-079). On a staked-only game (D-071) the Free play board ranks free players but pays no prize — the page says so.
+- **Both boards on every game, built from that game's own results and picks** (D-079) — **except Combo Card, Block Golf and Survivor, which have a Staked board only for now** (D-080). On Fantasy and Last Node the Free play board ranks free players but pays no prize — the page says so.
 - **Every game's boards are listed on the Leaders page** (a `board` entry in `games.json`).
 
 ## 2. Periods
@@ -53,4 +53,4 @@
 - Pages ignore a `names.json` over 2 MB.
 
 ## 8. Open
-- ❓ Combo lets only staked wallets send cards today, so its Free play board would be empty (I-074).
+- Free play boards for Combo, Golf and Survivor open with a bigger seed (D-080).

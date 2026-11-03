@@ -40,13 +40,13 @@ Knode Games runs free and staked prediction games on the Koinos blockchain, powe
 | Live on the site | Daily Questions, Producer Race, the swap desk, the staking hub (`stake.html`), status bars, the @name page (`names.html`) | ✅ `games.json` / 💬 |
 
 ## Games
-Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` on `main`. Every game is stakeable (D-018). **Free-play prizes on every free game — Questions, Block X, Survivor, Race, Bracket: 2 VHP for 1st, 1 VHP for 2nd, starting when the vault starts** (D-062); Fantasy, Golf, Combo and Last Node are staked-only for now (D-071). Nothing is announced to players until it's built, audited and ready (D-064).
+Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` on `main`. Every game is stakeable (D-018). **Free-play prizes on every free game — Questions, Block X, Survivor, Race, Bracket: 2 VHP for 1st, 1 VHP for 2nd, starting when the vault starts** (D-062); Fantasy and Last Node pay stakers only (D-071); **Combo, Golf and Survivor have no free play at all for now** (D-080); free play opens everywhere with a bigger seed. Nothing is announced to players until it's built, audited and ready (D-064).
 
 | Id | Game | Play | Rules | Status (2 Nov) | Code |
 |----|------|------|-------|----------------|------|
 | 1 | Daily Questions | Staked + Free | D-045, D-047, D-062 | live; built into the vault | `main` |
 | 2 | Who Signs Block X | Staked + Free | D-036 – D-041, D-070 | **applied on the Picks contract** (2 Nov 👤); not announced to players (D-064); launches prize-free first; next: round-12 fix-check, launch PR, vault `game-add 2` | `picks` |
-| 3 | Survivor | Staked + Free, two boards | D-051, D-065 | Season 1 **Mon 16 Nov** (D-065); audit pass 4, testnet season, Picks registration still to do (I-050); prize 4 + 2 VHP per season, paid at season end (D-068) | `survivor` @ `a8a1979` ✅ |
+| 3 | Survivor | **Staked only** (D-080 — free play paused until a bigger seed); 2-week seasons | D-051, D-065, D-080 | Season 1 **Mon 16 Nov** (D-065); audit pass 4, testnet season, Picks registration still to do (I-050); register **without `--free`** | `survivor` @ `a8a1979` ✅ |
 | 4 | Fantasy Producers | Staked only (D-071) | D-059 | fix-check, full test week, real-data simulation to do | `fantasy` @ `2bee805` ✅ |
 | 5 | Weekly Rival | records only, no prize; not a vault game ✅ | D-059 | ships with Fantasy | `fantasy` |
 | 6 | Block Golf | Staked only (D-071); free practice weeks, no prize | D-056 | practice with Block X; staked after `game-add 6` | `golf` @ `6b2200a` ✅ |

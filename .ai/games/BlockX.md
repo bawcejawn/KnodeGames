@@ -31,8 +31,8 @@ Guess which block producer will sign a future target block. Simple to play, root
 
 ## Current status (2 Nov)
 - **Applied on the Picks contract** — owner completed step 8 and the follow-ups 👤. Not yet announced to players (D-064, D-067).
-- Repo Lens rounds 10 and 11: GO 💬. The v6-day fix `d7fad7c` is pushed; a **round-12 fix-check** prompt is ready on `picks` (`be2c20d`) ✅.
-- Next: the launch PR (step 9) and the vault `game-add 2`.
+- Repo Lens rounds 10, 11 and **12: GO** 👤. **Launch PR #57 merged into `main` on 3 Nov** ✅ — the page, `PINNED_PICKS` and the Race v6 fix are live code; `games.json` still says "soon" ✅.
+- Next: the VHP sampler running, `GAMES_ENABLED` for the recorder ❓, the announcement, and the vault `game-add 2`.
 
 ## Known issues
 - **I-042 (before prizes):** BX-97/BX-88 week-end re-read on both nodes, BX-105 board freeze, BX-72 VHP decoder, BX-118 race card clock, BX-115, BX-116, BX-120, SP-59, G-K-1.

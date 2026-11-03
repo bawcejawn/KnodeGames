@@ -27,7 +27,7 @@
 ## In-progress systems
 | System | Where it stands | Next step |
 |--------|-----------------|-----------|
-| **Block X (game 2)** | applied on Picks; `PINNED_PICKS` set; launch **PR #57** (`picks` → `main`) open | Repo Lens **round 12** → GO → merge #57 → vault `game-add 2` → announce |
+| **Block X (game 2)** | applied on Picks; **Repo Lens round 12 GO; launch PR #57 merged** (3 Nov 15:10 UTC) — Block X code, `PINNED_PICKS` and the Race v6 stake fix are on `main`; site still lists it "soon" | announce to players → vault `game-add 2` → `GAMES_ENABLED=true` for the recorder ❓ (Block X chat) |
 | **Vault game registration** | only game 1 is in the vault | `game-add` the ready games (Race first) **by Fri 6 Nov 4 PM PT**; apply 48 h later so they earn from Mon 9 Nov |
 | **Sponsor vault switch** | off | run right after the first `game-add`, passing the caps exactly |
 | **Site "Week 1" refresh** | Race `PRIZES_FROM_WEEK = 3` done (PR #56) | show 9 Nov as Week 1 site-wide; replace "vault not yet live" text (I-069, I-027) |
@@ -43,7 +43,7 @@ Staked-only for now: Fantasy, Golf, Combo, Last Node (D-071). Free 2 + 1 VHP pri
 
 ## Known blockers
 1. **Audits not run yet.** Five games wait on Repo Lens (Block X round 12, Survivor pass 4, Last Node round 3, Bracket, Fantasy, Combo fix-check 4). Starting today. Nothing is announced until each passes (D-064).
-2. **PR #57 must merge before several games can move.** It brings Block X to `main` and **starts the VHP sampler** (`race-samples.yml` only runs from `main`). Until then:
+2. ~~PR #57 must merge~~ — **merged 3 Nov.** The VHP sampler workflow (`race-samples.yml`, every 5 min) is now on `main`; its first runs hadn't started at 15:12 UTC. Last Node's 48 h of samples counts from its first good run (I-059).
    - Last Node can't launch (needs 48 h of samples),
    - Combo cards would all be void, and Fantasy pricing lacks samples (I-059),
    - Block Golf practice can't start.
@@ -54,7 +54,7 @@ Staked-only for now: Fantasy, Golf, Combo, Last Node (D-071). Free 2 + 1 VHP pri
 Not blocking: the main node (Armana) has short outages — the bot stops and catches up next hour; a fallback node is on hold.
 
 ## Highest priorities
-1. **Repo Lens round 12 for Block X → merge PR #57.** Unblocks the sampler, Block Golf practice and Block X itself.
+1. ~~Repo Lens round 12 for Block X → merge PR #57~~ — **done 3 Nov.** Next for Block X: confirm the sampler is running, announce, `game-add 2`.
 2. **`game-add` the Race (7) by Fri 6 Nov 4 PM PT**, then the sponsor vault switch, then `game-apply` before Sun 8 Nov, so the Race earns and pays from Mon 9 Nov. Add Block X and any other game that has passed its audit.
 3. **Race prize fixes (I-034) and the farming decision (I-035)** before its first paid week.
 4. **Site "Week 1" refresh** before Mon 9 Nov (I-069).
@@ -65,4 +65,4 @@ Not blocking: the main node (Armana) has short outages — the bot stops and cat
 ## Watch list
 - **Tue 10 Nov ~12:07 UTC:** first Questions payout under the v5 split; free players get 1 + 1 VHP for that week (D-069).
 - **Mon 16 Nov 12:00 UTC:** first vault close with other games in it — check status, buckets, free prizes and the fee.
-- **PR #50** — **closed without merging** (3 Nov); branch kept; useful parts to be rebuilt after #57 (I-072, handoff `claude/handoff-pr50-salvage.md`). **PR #57** (Block X launch) — **don't merge until round 12 is GO** (owner).
+- **PR #50** — **closed, not merged, and stays that way** (owner, 3 Nov); branch kept; useful parts to be rebuilt now that #57 is in (I-072, handoff `claude/handoff-pr50-salvage.md`). **PR #57** (Block X launch) — **don't merge until round 12 is GO** (owner).

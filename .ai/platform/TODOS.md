@@ -10,8 +10,8 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today
-- [ ] Send the Block X round-12 fix-check (prompt on `picks`, `be2c20d`) to Repo Lens and return the report — P2 — I-033 — **tomorrow (3 Nov)**
-- [ ] Decide when Block X goes public: after the round-12 fix-check, the launch PR (`picks` → `main`) and the vault `game-add 2` — P2 — D-064, D-070
+- [x] ~~Block X round-12 fix-check~~ — GO; PR #57 merged (3 Nov) — I-033
+- [ ] Block X next: check the VHP sampler runs green (Actions → "race-samples"), ask the Block X chat whether `GAMES_ENABLED` needs setting, announce to players, then vault `game-add 2` — P2 — D-064, D-070
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
 - [ ] Run the push block so `main` gets the updated docs — P3
 
@@ -94,6 +94,7 @@
 |------|------|------|
 | `reward_rule_week_plus_one=3` confirmed on chain | 2026-11-02 | I-003 |
 | Accepted Week 3's 1 + 1 VHP free prize for the Questions game (no upgrade) | 2026-11-02 | D-069 |
+| **Block X Repo Lens round 12 GO; launch PR #57 merged** (sampler + Race v6 fix now on `main`) | 2026-11-03 | I-033, I-059 |
 | Block X Picks status checked: announced 30 Oct, applicable since 1 Nov, not applied | 2026-11-02 | I-070 |
 | **Block X applied on the Picks contract** (step 8) and its follow-ups (status, Mana check) | 2026-11-02 | D-070, I-040 |
 | `vault-v6` merged into `picks`; Block X pushed `d7fad7c` | 2026-11-02 | I-019, I-033 |

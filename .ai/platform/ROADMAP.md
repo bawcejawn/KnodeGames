@@ -36,7 +36,7 @@ Times in UTC, with Pacific time where it helps.
 | Game | Path | Waiting on |
 |------|------|-----------|
 | Producer Race (7) | `game-add 7` → apply → paid from vault start | ready (I-033/I-034 before staked prizes) |
-| Block X (2) | step 8 → Mana check → `PINNED_PICKS`, launch PR (carries the Hub status bar and starts the VHP sampler) → announce → live prize-free → prizes after the I-042 fixes | I-040, I-070 |
+| Block X (2) | ~~step 8~~ ✅ → ~~Mana check, `PINNED_PICKS`, launch PR #57~~ ✅ (3 Nov) → sampler running → announce → vault `game-add 2` → live prize-free → prizes after the I-042 fixes | readiness (D-064) |
 | Block Golf (6) | practice: after `picks` merges, move Golf files to the site root, full suite, merge, `GOLF_ENABLED=true`. Staked: v6 merged into `golf` → register game 6 (48 h) → set `GOLF_STAKED_FROM_WEEK` | Block X live; I-060 |
 | Survivor (3) | Repo Lens pass 4 → fixes + fix-check → testnet season → register game 3 on Picks → set `FIRST_DAY` = Mon 16 Nov, merge → menu + `games.json` live → `board.json` + Results adapter | I-050, I-056 |
 | Last Node Standing (13) | clean round-3 review → `picks` in `main` (sampler starts) → announce game 13 on Picks, apply after 48 h → 48 h of sampler readings → `lastnode` → `main` → `LASTNODE_ENABLED=true` → watch day 1 | I-058, I-059 |

@@ -474,3 +474,10 @@ test("audit BX-35 / BX-38: a target scores the LOWER multiplier of the lock's ca
   const r2 = await quiet(() => run({ p: "main", check: "check", out: tmp(), raceDir: flagged, picksContract: "1P", blockOf: blockOf(), picksOf: picksOf(), rankedOf, head: { height: lib + 60, time: T(lib + 60), lib } }));
   assert.ok([...r2.weeks.values()].flatMap((w) => w.targets).every((t) => t.void || t.picks.every((p) => p[3] === 0)));
 });
+
+test("PRIZES_FROM_WEEK: the repository variable reaches the recorder, and only a plain week number turns prizes on", async () => {
+  const { prizesFromEnv } = await import(path.resolve(APP, "bot/games/blockx.ts"));
+  assert.deepEqual(["3", " 12 ", "0", "", undefined, "abc", "3.5", "-1", "1e3", "99999"].map(prizesFromEnv), [3, 12, 0, null, null, null, null, null, null, null]);
+  const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
+  assert.match(yml, /PRIZES_FROM_WEEK: \$\{\{ vars\.PRIZES_FROM_WEEK \}\}/);
+});

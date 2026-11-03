@@ -794,6 +794,8 @@ export function vaultFile(game: number, week: number, prizes: { player: string; 
   return { file: { game, week, final: true, rows, first, second }, problems };
 }
 
+/** PRIZES_FROM_WEEK (a repository variable): a plain week number 0-9999, else no prizes at all (fails closed). */
+export const prizesFromEnv = (v: string | undefined) => (v && /^[0-9]{1,4}$/.test(v.trim()) ? Number(v.trim()) : null);
 export type NetConfig = { v: 1; network: "koinos-foundation-testnet"; chainId: string | null; rpc: string; koin: string; picks: string | null; vhp: string | null; prizesFromWeek: number | null;
   data: string; games: { id: number; name: string; round: number; offset: number; lead: number; ahead: number; picksPerDay: number; maxChanges: number }[] };
 export const MAINNET_CHAIN_ID = "EiBZK_GGVP0H_fXVAM3j6EAuz3-B-l3ejxRSewi7qIBfSA==";
@@ -813,7 +815,7 @@ async function main() {
     // Audit BX-59: never quietly down to one node on mainnet; ALLOW_ONE_NODE=yes says so out loud.
     if (!RPC_CHECK && E.ALLOW_ONE_NODE !== "yes") throw new Error("no second node (RPC_CHECK is off, missing or the same as RPC): Block X needs two on mainnet. Set RPC_CHECK, or ALLOW_ONE_NODE=yes to run on one node.");
     if (!RPC_CHECK) console.log("::warning::running on ONE node (ALLOW_ONE_NODE=yes): blocks, picks and stakes are not cross-checked");
-    const r = await run({ p: new Provider([RPC]), check: RPC_CHECK ? new Provider([RPC_CHECK]) : null, prizesFromWeek: E.PRIZES_FROM_WEEK ? Number(E.PRIZES_FROM_WEEK) : null });
+    const r = await run({ p: new Provider([RPC]), check: RPC_CHECK ? new Provider([RPC_CHECK]) : null, prizesFromWeek: prizesFromEnv(E.PRIZES_FROM_WEEK) });
     return r;
   }
   // Testnet: one game of the config. Never touches mainnet files: data goes to BLOCKX_OUT (default testnet-data/blockx-<id>).

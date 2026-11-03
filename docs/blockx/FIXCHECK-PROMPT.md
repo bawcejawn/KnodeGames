@@ -25,11 +25,16 @@ is now the v6 ABI, byte-identical to `kpred-v6.koilib.json` (which Block X reads
   one warning, writes the race files (they pass the publish check) and leaves the vault file not final. It fails on
   e7887b6.
 
+**Also in scope (small):** `games.yml` passes the repository variable `PRIZES_FROM_WEEK` to the Block X recorder, which
+lists the free prize only for weeks from it. Unset (today) means no prizes. `prizesFromEnv` accepts only a plain week
+number 0–9999; anything else means no prizes. The owner sets it to the "from week" the vault shows once game 2 is applied
+there. Test: `tests/audit/blockx-recorder.test.mjs` (last test).
+
 **Context, not a question:** before this change, `main` already had the v6 ABI but not V4. Its recorder published
 `race-data/vault/W1.json` as final at 2026-11-02 23:17 UTC: `rows: []` plus free-play first and second. Nobody could
 stake that week. Whether week 1 is paid is the Vault's `PRIZES_FROM_WEEK` decision.
 
-**Scope: `git diff e7887b6 HEAD -- bot/race.ts tests/audit`.** Send no transaction to any chain.
+**Scope: `git diff e7887b6 HEAD -- bot/race.ts bot/games/blockx.ts .github/workflows/games.yml tests/audit`.** Send no transaction to any chain.
 
 ```
 npm ci --ignore-scripts

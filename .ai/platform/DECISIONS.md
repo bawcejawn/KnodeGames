@@ -114,7 +114,7 @@
 - **Date:** 2026-11-02 · **Status:** active · **Area:** process
 - **Decision:** Facts in `.ai/` override chat memory. Where the archive conflicts with repo files, the repo file wins and the conflict is logged below.
 - **Consequences:** Chats read `.ai/` first and file new knowledge through `archive/CHAT_KNOWLEDGE.md`.
-- **Clarified 3 Nov (library cleanup; one wording for every file — owner to confirm ❓):** when sources disagree, the order is:
+- **Clarified 3 Nov (library cleanup; one wording for every file — confirmed by the owner 3 Nov ✅ 👤):** when sources disagree, the order is:
   1. the owner's own words;
   2. `DECISIONS.md`;
   3. what is verified in the code or on chain (✅) — for facts about what is actually built;

@@ -281,11 +281,11 @@ const pages = fs.readdirSync(APP).filter((f) => f.endsWith(".html"));
 const read = (f) => fs.readFileSync(`${APP}/${f}`, "utf8");
 test("every page that loads names.js may read names-data, and loads it before its own page script", () => {
   const users = pages.filter((p) => /<script src="names\.js"><\/script>/.test(read(p)));
-  assert.deepEqual(users.sort(), ["blockx.html", "index.html", "names.html", "node.html", "pulse.html"]);
+  assert.deepEqual(users.sort(), ["blockx.html", "index.html", "names.html", "node.html", "pulse.html", "race.html"]);
   for (const p of users) {
     const h = read(p);
     assert.match(h.match(/connect-src ([^;"]*)/)[1], /https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/names-data\//, p);
-    const own = { "blockx.html": "blockx.js", "index.html": "app.js", "pulse.html": "pulse.js", "node.html": "node-page.js", "names.html": "names-page.js" }[p];
+    const own = { "blockx.html": "blockx.js", "index.html": "app.js", "pulse.html": "pulse.js", "node.html": "node-page.js", "names.html": "names-page.js", "race.html": "race.js" }[p];
     assert.ok(h.indexOf('src="names.js"') < h.indexOf(`src="${own}"`), `${p}: names.js before ${own}`);
   }
   assert.match(read("index.html"), /src="names\.js"[\s\S]*src="results\.js"/, "results.js (on index.html) can use it too");
@@ -304,7 +304,8 @@ test("names.html creates a Koinos @name through the player's own wallet, and not
 test("the pages that show producers use KNames (with their old fallback if names.js is missing)", () => {
   for (const [f, re] of [["app.js", /window\.KNames\.of\(a\)/], ["app.js", /window\.KNames\.of\(b\.signer\)/], ["pulse.js", /window\.KNames\.of\(a\)/],
     ["node-page.js", /window\.KNames\.of\(a\)/], ["node-page.js", /window\.KNames\.of\(addr\)/], ["results.js", /window\.KNames\.of\(a\)/],
-    ["blockx.js", /window\.KNames\.of\(a\)/], ["blockx.js", /window\.KNames\.onChange\(/]]) {
+    ["blockx.js", /window\.KNames\.of\(a\)/], ["blockx.js", /window\.KNames\.onChange\(/],
+    ["race.js", /const nameOf = \(a\) => \(window\.KNames \? window\.KNames\.of\(a\)/], ["race.js", /window\.KNames\.onChange\(/]]) {
     assert.match(read(f), re, f);
   }
 });

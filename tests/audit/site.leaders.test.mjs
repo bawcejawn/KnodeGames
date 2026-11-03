@@ -67,3 +67,42 @@ test("Staked / Free play: the same two board names in every game, fixed in board
   assert.match(read("app.js"), /\[\["main", L\.staked\], \["free", L\.free\]\]/, "the question table uses the same names");
   for (const f of ["race.js", "leaders.js", "games.json"]) assert.doesNotMatch(read(f), /main: "|"main":|VHP players/, `${f}: no per-game board names`);
 });
+
+// Block X on the Leaders page (2026-11-03): points stored in hundredths (scale 100, shown with 2 decimals), free medals
+// from last week's frozen prize list when final, else this week's rows by the game's rule (3+ days, > 0 points, ties share).
+test("Block X board: scale 100, frozen last-week prizes, this week's medals by the prize rule", () => {
+  const g = JSON.parse(read("games.json")).games.find((x) => x.id === "blockx");
+  assert.equal(g.board.data, "games-data/blockx/board.json");
+  assert.equal(g.board.scale, 100);
+  assert.equal(g.board.free.minDays, 3);
+  const js = read("leaders.js");
+  assert.match(js, /scale: b\.scale === 100 \? 100 : 1/, "only 100 is allowed");
+  assert.match(js, /part\.final === true && Array\.isArray\(part\.prizes\)/, "last week's medals come from the frozen list");
+  assert.match(js, /\{ \.\.\.c, d: 2 \}/, "the points column shows 2 decimals");
+  assert.match(read("board.js"), /fmt\(r\[c\.key\], c\.d\)/);
+});
+
+test("Block X board: the medal rule picks the right players (run in a sandbox)", async () => {
+  const vm = await import("node:vm");
+  const src = read("leaders.js");
+  const body = src.slice(src.indexOf("function freeWinnersFor"), src.indexOf("  let games ="));
+  const box = {};
+  vm.runInNewContext(body + "\nthis.f = freeWinnersFor; this.s = scaled;", box);
+  const cfg = { main: "pts", scale: 100, free: { minDays: 3 } };
+  const fw = box.f(cfg);
+  const rows = [
+    { a: "A", pts: 300, correct: 3, lastCorrect: 5, days: 2 },   // too few days
+    { a: "B", pts: 250, correct: 2, lastCorrect: 4, days: 3 },
+    { a: "C", pts: 250, correct: 2, lastCorrect: 4, days: 4 },   // tie with B → both 1st
+    { a: "D", pts: 100, correct: 1, lastCorrect: 2, days: 5 },   // 3rd row → place 3, no medal
+    { a: "E", pts: 0, correct: 0, days: 6 },
+  ];
+  const m = fw(null, rows, true);
+  assert.deepEqual(JSON.parse(JSON.stringify([...m.entries()])), [["B", 1], ["C", 1]]);
+  assert.equal(fw(null, rows, false).size, 0, "no medals on today / all-time");
+  const last = fw({ final: true, prizes: [{ player: "D", place: 1 }, { player: "E", place: 2 }] }, rows, true);
+  assert.deepEqual(JSON.parse(JSON.stringify([...last.entries()])), [["D", 1], ["E", 2]], "a final week uses its frozen prize list");
+  const d = box.s({ v: 1, week: { rows: [{ a: "A", pts: 179, correct: 2 }] } }, cfg);
+  assert.equal(d.week.rows[0].pts, 1.79);
+  assert.equal(d.week.rows[0].correct, 2, "count columns aren't scaled");
+});

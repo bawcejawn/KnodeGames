@@ -38,7 +38,7 @@ Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` 
 | Id | Game | Play | Rules | Status (2 Nov) | Code |
 |----|------|------|-------|----------------|------|
 | 1 | Daily Questions | Staked + Free | D-045, D-047, D-062 | live; built into the vault | `main` |
-| 2 | Who Signs Block X | Staked + Free | D-036 – D-041 | not announced to players (D-067); launches prize-free first; step 8 + launch PR pending (I-040) | `picks` |
+| 2 | Who Signs Block X | Staked + Free | D-036 – D-041, D-070 | **applied on the Picks contract** (2 Nov 👤); not announced to players (D-064); launches prize-free first; next: round-12 fix-check, launch PR, vault `game-add 2` | `picks` |
 | 3 | Survivor | Staked + Free, two boards | D-051, D-065 | Season 1 **Mon 16 Nov** (D-065); audit pass 4, testnet season, Picks registration still to do (I-050); prize 4 + 2 VHP per season, paid at season end (D-068) | `survivor` @ `a8a1979` ✅ |
 | 4 | Fantasy Producers | Staked; free prize ❓ | D-059 | fix-check, full test week, real-data simulation to do | `fantasy` @ `2bee805` ✅ |
 | 5 | Weekly Rival | records only, no prize; not a vault game ✅ | D-059 | ships with Fantasy | `fantasy` |
@@ -48,7 +48,7 @@ Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` 
 | 9 | Producer Bracket | Staked + Free, 1-week seasons | D-019, D-057 | audit not yet run | `kg-09-bracket` @ `ee676ea` ✅ |
 | 13 | Last Node Standing | Staked; free play, prize ❓ | D-054, D-055 | round-3 review; needs 48 h of sampler data (I-059) | `lastnode` @ `adf95be` ✅ |
 
-Ids 10–12 are unused. All unlaunched branches are pushed, not merged, and nothing from them is deployed ✅. Launch paths per game: `ROADMAP.md`. Readiness gaps: I-065.
+Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Survivor, FantasyProducers, BlockGolf, ComboCard, ProducerBracket, LastNodeStanding). Ids 10–12 are unused. All unlaunched branches are pushed, not merged, and nothing from them is deployed ✅. Launch paths per game: `ROADMAP.md`. Readiness gaps: I-065.
 
 ## Contracts (Koinos mainnet)
 | Contract | Address | Code | State | |

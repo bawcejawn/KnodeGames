@@ -10,11 +10,8 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today
-- [ ] Block X: decide — apply the existing Picks announcement (game 2) before ~Sun 8 Nov 1:23 PM PT if the best build is ready, or let it lapse and announce again later (48 h) — P2 — I-070, D-067
-- [ ] Tell the Block X chat it can push `d7fad7c` (V4 / B1-5) now — the Vault chat confirmed it's safe — P2 — I-033
-- [ ] Tell the Hub or Race chat to set `PRIZES_FROM_WEEK = 3` on the site — P2 — I-069
-- [ ] Decide when Block X goes public (not announced to players yet), then step 8 — apply Block X on the Picks contract: `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet` must show 1 change (allowed since Sun 1 Nov, 1:23 PM PT; not reported done) — P2 — I-040
-- [ ] Before Block X is published: `npm run sponsor -- mana-report` on mainnet; raise the pick row if mainnet is more than ~1.5× testnet — P2 — D-038
+- [ ] Send the Block X round-12 fix-check (prompt on `picks`, `be2c20d`) to Repo Lens and return the report — P2 — I-033
+- [ ] Decide when Block X goes public: after the round-12 fix-check, the launch PR (`picks` → `main`) and the vault `game-add 2` — P2 — D-064, D-070
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
 - [ ] Run the push block so `main` gets the updated docs — P3
 
@@ -83,7 +80,7 @@
 | Every new game page mounts `KStake.badge` at the top of `<main>`, full panel lower | each game chat | 2026-11-02 | D-031 |
 | Bot support for the testnet copy (`testnet/vault.json`) | Vault chat | 2026-11-02 | I-014 |
 | Ship V4, B1-1, B1-5 | Block X chat (told 2 Nov) | 2026-11-02 | — |
-| Merge `vault-v6` into `picks` so the admin vault buttons work | Vault chat (told 2 Nov) | 2026-11-02 | I-019 |
+| Set `PRIZES_FROM_WEEK = 3` on the site | Race chat (aware, 2 Nov) | 2026-11-02 | I-069 |
 | Last Node: fix round-3 findings; prepare game-13 announce/apply for mainnet Picks; confirm the sponsor covers game-13 picks; resync with `main` after the `picks` merge; open the `lastnode` → `main` PR; write the GitHub-variable steps | Last Node chat | 2026-11-02 | I-058, I-059 |
 | Golf: rebase `golf` after `picks` merges, move to site root, full suite, PR; at v6 register game 6 and set `GOLF_STAKED_FROM_WEEK` | Golf chat | 2026-11-02 | I-060 |
 | Bracket: fix audit findings, rerun suites and replay, fix-check; update `kg-09-bracket` from `main`; after the first live run pin the `effCheck` | Bracket chat | 2026-11-02 | I-061 |
@@ -98,6 +95,9 @@
 | `reward_rule_week_plus_one=3` confirmed on chain | 2026-11-02 | I-003 |
 | Accepted Week 3's 1 + 1 VHP free prize for the Questions game (no upgrade) | 2026-11-02 | D-069 |
 | Block X Picks status checked: announced 30 Oct, applicable since 1 Nov, not applied | 2026-11-02 | I-070 |
+| **Block X applied on the Picks contract** (step 8) and its follow-ups (status, Mana check) | 2026-11-02 | D-070, I-040 |
+| `vault-v6` merged into `picks`; Block X pushed `d7fad7c` | 2026-11-02 | I-019, I-033 |
+| Game documentation written (`.ai/games/`, 9 files) | 2026-11-02 | — |
 | Payout time settled: Tue 12:00 UTC (≈ 12:07 with the bot); the 21:00 was a reminder time | 2026-11-02 | I-066, C-08 |
 | Answered C-02, C-03, C-10, C-15, C-16, C-18, C-19, C-20; C-22 checked in code | 2026-11-02 | D-061 – D-067 |
 | Survivor Season 1 date chosen: Mon 16 Nov | 2026-11-02 | D-065 |

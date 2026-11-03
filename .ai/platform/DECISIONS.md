@@ -80,6 +80,7 @@
 | D-067 | 2026-11-02 | Block X: nothing announced yet; redo or apply only when ready | active |
 | D-068 | 2026-11-02 | Free prizes are per week; multi-week seasons pay once, at season end | active |
 | D-069 | 2026-11-02 | Questions game Week 3 pays its on-chain v5 free prize (1 + 1 VHP); no upgrade | active |
+| D-070 | 2026-11-02 | Apply Block X (game 2) on the Picks contract now | done |
 
 ---
 
@@ -401,6 +402,10 @@
 
 ## D-069 — Questions game Week 3 pays its on-chain v5 free prize
 - **Date:** 2026-11-02 (owner) · **Decision:** Accept it. The Questions game's Week 3 (Mon 2 – Mon 9 Nov, paid Tue 10 Nov ≈ 12:07 UTC) pays free players the v5 free prize already fixed on chain (`reward_rule_week_plus_one=3`): up to 2 VHP from that week's pot — best score 1 VHP, the 2nd score's players share 1 VHP (a tie for best splits all 2; a lone free scorer gets 1 and the other 1 goes to basket B; nobody qualifies → all to basket B). No contract upgrade. This is a one-week exception to D-062/D-063 for game 1 only; every free game, game 1 included, pays 2 + 1 VHP from Mon 9 Nov (v6). Resolves C-25 and I-067.
+
+
+## D-070 — Apply Block X (game 2) on the Picks contract now
+- **Date:** 2026-11-02 (owner) · **Decision:** Apply the existing Picks announcement (made 30 Oct) inside its window rather than letting it lapse. Done the same day, with the follow-up steps. This puts game 2's settings in force on the Picks contract only; announcing to players and the vault `game-add 2` still follow D-064.
 
 ---
 

@@ -1,41 +1,34 @@
-# Fix-check prompt, round 12 (very short): the v6-day Race stake change
+# Fix-check prompt, round 13 (very short): RV-1 and the commits after the round-12 package
 
-Copy everything below the line into Repo Lens. Give it the package `knode-fixcheck-13.zip` (the repository
+Copy everything below the line into Repo Lens. Give it the package `knode-fixcheck-14.zip` (the repository
 `bawcejawn/KnodeGames` at the commit in `00-COMMIT.txt`, branch `picks`, with this prompt as `00-FIXCHECK-PROMPT.md`).
 
 ---
 
-You are an independent security auditor. Your report "Block X Prize-Free: Round-11 Go/No-Go (Knode picks @ 3472d8c)"
-said GO and left three items for the day Vault v6 went live: B1-1 (race.ts read stakes with the v5 ABI), V4 (a chain
-that isn't v6 read as "not staked" without an error) and B1-5 (per-wallet retries could push the hourly run past its
-time limit and lose that hour's race cards).
+You are an independent security auditor. Your report "Race Stakes on v6: Round-12 Go/No-Go (Knode picks @ 4a6e872)"
+said GO for d7fad7c and asked for two things: fix RV-1 soon, and review the five later commits (RV-5).
 
-**Vault v6 is now live on mainnet** (2026-11-02). `picks` merged the vault branch (e7887b6); `game/abi/kpred.koilib.json`
-is now the v6 ABI, byte-identical to `kpred-v6.koilib.json` (which Block X reads).
+**RV-1, fixed:** `bot/race.ts` (run and `--sample`) and `bot/games/blockx.ts` now end their entry with
+`.then(() => process.exit(process.exitCode ?? 0), (e) => { …; process.exit(1); })`, so a node that never answers can't
+keep the process alive after the work is done. Test `tests/audit/repolens-r12-process-exit.test.mjs`: both entries,
+and the mechanism with the repository's own `withRetry` against a hung TCP node in a separate process (alive without
+the exit, ends with it).
 
-**The change (d7fad7c, `bot/race.ts` and one test):**
-- B1-1: stakes are read with the deployed ABI (`kpred.koilib.json`); a test checks it equals `kpred-v6.koilib.json`.
-- V4: the early `return { staked: false }` when `v6_rule_week_plus_one` is 0 is gone. Right after the upload that field
-  stays 0 until v6's first transaction, but `get_game_player` already answers then (no stake, which is true).
-  `stakedFrom` / `earningFrom` keep their own guard.
-- B1-5: `get_state` and `get_game_player` take 2 tries (about 2 s), not 6. The first failure on a node marks it down
-  for the rest of the run: every other stake read on it fails at once with one warning. A failed read counts as not
-  staked on the boards and keeps the vault file from being final; the race files are still written and published.
-- Test: a v5-like chain (every contract read fails) with players. The run finishes fast, makes at most 4 reads, gives
-  one warning, writes the race files (they pass the publish check) and leaves the vault file not final. It fails on
-  e7887b6.
+**The commits after 4a6e872 (RV-5):**
+- `games.yml` passes the repository variable `PRIZES_FROM_WEEK` to the Block X recorder. `prizesFromEnv` accepts only
+  a plain week number 0–9999; unset or anything else means no prizes. Test: the last test in `blockx-recorder.test.mjs`.
+- `bot/sponsor.ts` `mana-report` (read-only, sends nothing): `readBlocks` splits a 100-block range a node won't answer
+  (it returned an HTML error page on mainnet, on both nodes) in halves down to single blocks, retries a single block 3
+  times, and never skips a block (one that still fails stops the report). The second-node check uses it too. Test in
+  `sponsor.tool.test.ts`.
+- `wallet.js`: `PINNED_PICKS` = the mainnet Picks contract `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` (runbook step 9;
+  guests may make KnodeGames picks only there). Test in `site.guest.test.mjs` pins it to `picks-data/deployment.json`.
+- Docs: the round-11 and round-12 records, and the round-12 prompt.
 
-**Also in scope (small):** `games.yml` passes the repository variable `PRIZES_FROM_WEEK` to the Block X recorder, which
-lists the free prize only for weeks from it. Unset (today) means no prizes. `prizesFromEnv` accepts only a plain week
-number 0–9999; anything else means no prizes. The owner sets it to the "from week" the vault shows once game 2 is applied
-there. Test: `tests/audit/blockx-recorder.test.mjs` (last test).
+**Context:** game 2 is applied on mainnet (1 change per pick). The Race chat is merging `picks` into `main` for the
+Block X launch; the owner merges only after this round says GO.
 
-**Context, not a question:** before this change, `main` already had the v6 ABI but not V4. Its recorder published
-`race-data/vault/W1.json` as final at 2026-11-02 23:17 UTC: `rows: []` plus free-play first and second. Nobody could
-stake that week. The Vault chat confirms week 1 is skipped: the vault posts a game's results only from the week it
-earns (`earnedWeek` in `bot/vault.ts`), and game 7 isn't applied yet (it earns from vault week 3, Mon 9 Nov).
-
-**Scope: `git diff e7887b6 HEAD -- bot/race.ts bot/games/blockx.ts .github/workflows/games.yml tests/audit`.** Send no transaction to any chain.
+**Scope: `git diff 4a6e872 HEAD -- bot wallet.js .github/workflows tests/audit`.** Send no transaction to any chain.
 
 ```
 npm ci --ignore-scripts
@@ -44,5 +37,5 @@ npm run test:audit:serial
 
 ## The one question
 
-**Can this change stop or delay the race cards Block X scores with, or make a vault file final when it shouldn't be?**
-Go / no-go for merging it to `main`. If no-go, name only what must be fixed. Put everything else in one Low/Info table.
+**Block X launch from this commit (merge `picks` into `main`): go / no-go.** If no-go, name only what must be fixed.
+Put everything else in one Low/Info table.

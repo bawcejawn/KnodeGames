@@ -12,6 +12,7 @@
 |------|-------|
 | `PLATFORM.md` | this overview |
 | `ARCHITECTURE.md` | how the pieces work: site, contracts, bots, workflows, data, tests |
+| `DEPENDENCIES.md` | how vault, leaderboards, rewards, swap desk, wallets, games and user accounts connect |
 | `DECISIONS.md` | every decision (D-xxx) and every contradiction (C-xx) |
 | `ROADMAP.md` | milestones and launch paths |
 | `OPENISSUES.md` / `TODOS.md` | problems (I-xxx) and the owner's action list |

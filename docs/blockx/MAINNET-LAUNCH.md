@@ -237,7 +237,9 @@ npm run picks -- apply 2 --send --mainnet
 npm run picks -- status --mainnet
 ```
 
-The last `status` must list **2 Who Signs Block X: ON, every 2400 blocks, locks 100 before**.
+The last `status` must list **2 Who Signs Block X: ON, every 2400 blocks, locks 100 before … 30 picks a day, 1
+changes** (audit BX-129: the page already says "change it once"; the contract enforces it only from the apply, so the
+Block X page is published only after this `status` shows 1).
 
 **Then check the 0.2 Mana pick row against mainnet prices (audit BX-123).** The 0.2 comes from testnet, and mainnet
 can cost more (the Picks upload cost 8.7 × its testnet cost; storage-heavy uploads differ most). Before step 9, run
@@ -275,6 +277,38 @@ with at least 20 measured transactions (2 × the most used). Run it again a day 
 the sponsor then makes one more read per transaction, and the Picks `pick` row's 0.2 Mana is 2.2 × a testnet number
 (blind review, round 5). `site-limits --send` writes the website's copy: Claude
 opens the pull request to `main`; once merged and live, `npm run sponsor -- config --send`.
+
+## Later: the Picks v2 upgrade (Combo Card, after Block X launches)
+
+v2 is `92d555d0680157854452e35162c1b1c5c100904996194b8c1c848df50e5e1c3d` (the Combo chat's release; full steps in
+`picks/README.md` on the `combo` branch). It replaces the code at the same address (`1LmgqB…`), signed by the owner.
+
+1. Publish the v2 source and a reproducible build; check its sha256 is the one above.
+2. **Announce** (owner): `npm run picks -- upgrade-schedule` (dry run), then
+   `npm run picks -- upgrade-schedule --send --mainnet --code 92d555d0`. Wait 48 hours; the upload must follow within
+   7 days.
+3. **Upload** (owner): `npm run picks -- upgrade-upload` (dry run), then
+   `npm run picks -- upgrade-upload --send --mainnet --code 92d555d0`. It checks on two nodes that the code's sha256 is
+   v2's and all three overrides are on, and prints the three lines for step 5.
+4. **Clear** (owner): `npm run picks -- upgrade-clear` (dry run), then `npm run picks -- upgrade-clear --send --mainnet`.
+   It clears the announced hash, so the same bytes can't be uploaded again (audit CC-A3).
+5. **Write v2's sha256 into `picks-data/deployment.json` (Repo Lens FC2-13).** Use the three lines `upgrade-upload`
+   printed: `"wasmSha256"` = `92d555d0680157854452e35162c1b1c5c100904996194b8c1c848df50e5e1c3d`, and `"uploadTx"` /
+   `"uploadedAt"` from the upgrade upload. Nothing writes this by itself. Claude opens the pull request to `main`.
+   Until it is merged, `bot/picks.ts` still accepts v1 on chain. Once it is merged, it accepts only v2 and refuses v1,
+   which would be a downgrade.
+6. Run `npm run picks -- status --mainnet`: it must name the v2 code and show game 2 unchanged (1 change per pick).
+7. **The sponsor's Picks `pick` Mana row (FC-13).** On testnet (2026-10-30, sponsored, game 98) a 6-leg card used
+   0.1313 Mana and a 10-leg card 0.1457. Under the 0.2 row that's only 1.37× headroom (the target is 1.5×), so raise the
+   row to 0.25 before cards go live:
+   `npm run sponsor -- mana-limit picks:pick 0.1457 --source "testnet sponsored 10-leg Combo card 2026-10-30" --limit 0.25 --save`,
+   then Claude opens the pull request for the site's `sponsor.rcLimits`, and after it merges,
+   `npm run sponsor -- config --send`. Check a real mainnet card with `npm run sponsor -- mana-report` a day after
+   launch.
+8. Only then announce game 8 (Combo Card). Wait 48 hours, then `apply_game`.
+
+The upgrade commands (`upgrade-schedule`, `upgrade-upload`, `upgrade-clear`) are on the `combo` branch (5052fa6). They
+reach `picks` and `main` only when Combo merges, after Repo Lens has reviewed them.
 
 ## Every hour
 

@@ -427,3 +427,105 @@ findings, all fixed:
 Tested directly: `tests/audit/repolens-r8-canonical.test.mjs` runs the exact line from each of the four workflows
 against honest and crafted files. Testnet only, accepted: a bad run could set testnet `cards.json` `startHeight` high
 and quietly stop that testnet game recording (it doesn't stall publishing).
+
+## Round 9 (Repo Lens go/no-go @ 6990323, 2026-10-30): NO-GO, "one fix in one file, then GO"
+
+Report: "Block X Prize-Free: Round-9 Go/No-Go (Knode picks @ 6990323)". The round-8 byte check is confirmed for
+everything it targets, in all four workflows. The blind verifier found no other place where a value Python accepts can
+make an honest run be refused, except this one:
+
+| ID | Finding | Status |
+|---|---|---|
+| BX-128 | Python's `\d` matches every Unicode digit (`٤٠٠`, `４００`); `loadSamples` (JavaScript `\d`, 0–9 only) drops such a sample, so one bad run stalls race-samples for ~7 h 50 min | **Fixed**: every `\d` in the four publish steps' Python is `[0-9]`; the auditor's test passes, and a guard test refuses any `\d` there again |
+| BX-129 | The page says "change it once" before the announced config is applied | Runbook: publish only after step 8's `status` shows 1 change |
+| BX-130 | The other `\d` regexes (iso, ymd, race id) | **Fixed** with BX-128 |
+| BX-131 | Publish jobs used the runner's own Node | **Fixed**: `setup-node` 22 (pinned) in all four publish jobs |
+| BX-132 | Old samples between +60 s and +10 min | One-time transition; none needed |
+| BX-133 | Two commits after the package (announce record, testnet sponsor option) | In the next fix-check's scope |
+
+## Round 10 (Repo Lens go/no-go @ a55390f, 2026-10-30): GO at a55390f, with one launch condition
+
+Report: "Block X Prize-Free: Round-10 Go/No-Go (Knode picks @ a55390f)". BX-128 and BX-130 are fixed for the whole
+family. The `\d` guard catches a planted regression, and BX-131 is fixed. Both BX-133 commits were checked: one is
+docs only, the other is testnet only.
+
+| ID | Finding | Status |
+|---|---|---|
+| BX-138 | Launch condition: `picks` has since merged `main` (c52a649, b301bfa), which changes `race.yml` and `bot/race.ts` (the Race Vault results file, the stricter race-data fetch). The round 8–9 fixes survive, but the new code wasn't reviewed | Blind review of `git diff a55390f HEAD -- .github/workflows bot/race.ts`, then a Repo Lens fix-check (round 11) of that diff before launch |
+| BX-136 | The `\d` guard didn't look inside `python3 -c` one-liners | **Fixed**: the guard checks them too (`python3 -c` and `python3 -I -c`) |
+| BX-137 | `CHECK_NOW_MS` / `RACE_CHECK_NOW` let tests set the publish clock | Accepted: the workflows never set them, and CI runs the tests inside GitHub Actions, so refusing them there would break CI |
+| BX-129, BX-123 / BX-127 | Runbook steps | As recorded |
+
+Not part of Block X, recorded here because it's in the same runbook: Repo Lens FC2-13 (Combo Card). The Picks v2
+upgrade must write v2's `wasmSha256` into `picks-data/deployment.json`. It is step 5 of "Later: the Picks v2 upgrade"
+in `docs/blockx/MAINNET-LAUNCH.md`.
+
+**Blind review of the merge (BX-138, 2026-10-30).** Scope: `git diff a55390f b301bfa -- .github/workflows/race.yml
+bot/race.ts`. Verdict: nothing must be fixed before prize-free Block X goes live. No check was weakened. The vault
+files are written exactly as `JSON.stringify` + newline, and the fetch of `vault/` paths is anchored. Its findings:
+
+| ID | Finding | Status |
+|---|---|---|
+| V1 | Low: one bad vault file (a recorder bug) failed the whole publish, cards included, for up to a week | **Fixed**: a vault file that fails its check is held on its own with a warning (no file means no prize). The race files still publish, and a final file still never changes. Tests: the shape check and an end-to-end publish |
+| V2 | Info: the record job's `for f in $(git ls-tree …)` split names on spaces, and a failed `ls-tree` didn't fail the step | **Fixed**: `ls-tree -z` goes to a file first, then a `read -d ''` loop |
+| V3 | Info: `ls-remote --heads … race-data` also matched `x/race-data` | **Fixed**: `refs/heads/race-data` exactly |
+| V4 | Info: if the chain isn't Vault v6 yet, the stake read says "not staked" without an error, so a week could go final with everyone free | **Before prizes**: refuse (throw) unless the chain is v6. Today the repository ABI has no `get_game_player`, so the read throws and the file stays not final |
+
+## Round 11 (Repo Lens go/no-go @ 3472d8c, 2026-10-30): GO, nothing must be fixed
+
+Report: "Block X Prize-Free: Round-11 Go/No-Go (Knode picks @ 3472d8c)". The `main` merge didn't touch how race cards
+are taken or checked. The new Race Vault file can't stop the cards in any honest run: 12,001 generated boards and vault
+files all passed the publish check.
+
+| ID | Finding | Status |
+|---|---|---|
+| B1-1 | race.ts read stakes with the v5 ABI | **Fixed on v6 day** (d7fad7c): the deployed v6 ABI |
+| B1-2 | A final vault file is decided by one run (no 12 h hold, not re-derived from W###) | **Before game 7 prizes** (Vault/Race chats) |
+| B1-3 | Free-prize farming by many empty wallets | **Before game 7 prizes** (owner decision) |
+| B1-4 | Size, byte-form and name errors in `vault/` still stop the whole race run | After launch (Low) |
+| B1-5 | Per-wallet stake retries could exceed the job limit | **Fixed on v6 day** (d7fad7c): 2 tries, then the node is skipped for the run |
+| B1-6, B1-7, B1-8 | Stale comment; `\d` in `bot.yml`; two test-clock names | After launch (Info) |
+
+**v6 day (2026-11-02).** Vault v6 is live. V4 (the review's early "not v6" answer) was dropped with B1-1 and B1-5
+(d7fad7c). `PRIZES_FROM_WEEK` now comes from a repository variable (be2c20d). Both are in Repo Lens round 12
+(`knode-fixcheck-13.zip`). The Mana report reads big blocks in smaller ranges (a1e546f). Game 2 was applied on
+mainnet: 1 change per pick, confirmed on two nodes.
+
+## Round 11 (Repo Lens go/no-go @ 3472d8c, 2026-10-30): GO, nothing must be fixed
+
+Report: "Block X Prize-Free: Round-11 Go/No-Go (Knode picks @ 3472d8c)". The main merge doesn't touch how race cards
+are taken or checked, and the Race Vault file can't stop the race cards in an honest run (a verbatim copy of the publish
+step plus 12,001 generated boards and vault files all passed).
+
+| ID | Stage | Finding | Status |
+|---|---|---|---|
+| B1-1 | Before game 7 prizes | race.ts read stakes with the v5 ABI | **Fixed** on the v6 day (d7fad7c): the deployed v6 ABI |
+| B1-2 | Before game 7 prizes | A final vault file is decided by one run; it isn't re-derived from the W### files, and there's no 12 h hold | Open (Race / Vault chats) |
+| B1-3 | Owner decision | Free-prize farming by many empty wallets | Open |
+| B1-4 | Low | A vault file over 2 MB, not in canonical form, or in a nested folder still stops the whole race run | Open: after launch |
+| B1-5 | Low | Per-wallet stake retries could push the run past its time limit | **Fixed** (d7fad7c): 2 tries, then that node is skipped for the run |
+| B1-6, B1-7, B1-8 | Info | Stale comment; `\d` in `bot.yml`; two test-clock names | Open: after launch |
+
+V4 from the round-10 blind review is fixed in d7fad7c (no early "not v6" answer). Round 12 (the v6-day change and
+`PRIZES_FROM_WEEK`) is with Repo Lens at be2c20d.
+
+**Mainnet, 2026-11-02:** game 2 applied on the Picks contract (0.26 Mana). `status` on two nodes shows it ON, every
+2,400 blocks, locks 100 before, 30 picks a day, 1 change per pick (BX-129 closed; BX-127 clears on the next recorder
+run). `mana-report` (fixed in a1e546f to split block ranges a node won't answer) found no sponsored transactions yet.
+Block X isn't public, so the price check (BX-123) runs after a day of play (runbook step 10).
+
+## Round 12 (Repo Lens go/no-go @ 4a6e872, 2026-11-03): GO for merging d7fad7c to main
+
+Report: "Race Stakes on v6: Round-12 Go/No-Go (Knode picks @ 4a6e872)". The change can't stop or delay the race cards:
+the stake reads only make step 3 shorter, and the files are written after it whatever they did. It can't make a vault
+file final when it shouldn't be: an unread wallet, or a second node that disagrees, keeps it not final. B1-1 and V4 are
+fixed. B1-5 is fixed for failing nodes; for hanging ones, see RV-1.
+
+| ID | Severity | Finding | Status |
+|---|---|---|---|
+| RV-1 | Medium (older gap) | A node that accepts a connection and never answers keeps `race.ts` alive after its work is done (`withRetry` stops waiting, but the request stays open), so that hour's files are never uploaded | **Fixed**: `race.ts` (run and `--sample`) and `blockx.ts` exit when their work resolves. Test `repolens-r12-process-exit`: both entries, plus the mechanism with the repository's own `withRetry` against a hung node in a separate process |
+| RV-2 | Low | The node-down flag is set by any stake-read failure, even one specific to a single wallet | Open: confirm with the Vault chat that `get_game_player` never reverts for a valid address |
+| RV-3 | Low | While a node's stake reads fail, every wallet shows on Free play for that hour | Accepted: it recovers the next hour |
+| RV-4 | Info | The B1-5 test's fake node fails at once, so it can't show a hang | Covered by the RV-1 test |
+| RV-5 | Info | Five later `picks` commits weren't in the package | In round 13 |
+| RV-6 | Info | `W1.json` matches what this code would write | None (week 1 is skipped by the Vault) |

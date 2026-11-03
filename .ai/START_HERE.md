@@ -1,12 +1,27 @@
 # Start Here — Onboarding to Knode Games
 
 > For any AI (or person) joining the project. Read this first, then follow the reading order.
+> **Where this lives:** every file named below is in the **`.ai/`** folder at the root of the repo (this file is `.ai/START_HERE.md`). Paths like `platform/RULES.md` mean `.ai/platform/RULES.md`.
 
 ## What Knode Games is
 Free and staked prediction games on the Koinos blockchain, powered by our own block-producing nodes. Players pick producers, blocks and races; correct calls climb a weekly leaderboard for each game. All staked VHP sits in one vault, which produces blocks as the Knode Games Pool. Each week's rewards, after a flat 5% fee, pay free-game prizes (2 VHP / 1 VHP) and are split across the staked games. **Funds safety comes first:** only the vault holds tokens, and stakes are always withdrawable.
 
-- Site: https://knodegames.com · Repo: `github.com/bawcejawn/KnodeGames` (public)
+- Site: https://knodegames.com · Repo: `github.com/bawcejawn/KnodeGames` (public; old names `Knode` and `kprediction` still redirect).
+- The owner's copy of the repo is **`C:\kprediction`** on their Windows PC — it holds the keys (`.env`) and runs the tools. Other chats share that folder.
 - The owner works in finance and is new to running code.
+- **Times are UTC unless marked PT.** The owner is in Pacific time; game weeks run Monday 00:00 to Monday 00:00 UTC.
+
+## Where knowledge lives
+1. **This `.ai/` library** — the source of truth.
+2. **Handoff notes in the KnodeGames Claude project** (`claude/*.md`, e.g. `claude/handoff-sponsor-v6-day.md`) — detailed instructions chats leave for each other. Check them for anything about your game or task.
+3. **The repo's own `docs/`** — runbooks for the code (e.g. `docs/UPGRADE-V6.md`, `docs/blockx/MAINNET-LAUNCH.md`). If they disagree with `.ai/`, `.ai/` wins — log it.
+
+## Branches and how work ships
+- **`main`** is the live site; the bot also commits game data there. **Never push code to `main` yourself.**
+- **Your work goes on a branch**: your game's branch (`survivor`, `fantasy`, `golf`, `kg-09-bracket`, `combo`, `lastnode`), or a new branch from `main` for site or docs fixes.
+- **To ship: open a pull request into `main`. Its tests must pass. The owner merges it** — that is the "explicit OK". Tell the owner what changed in plain words.
+- **Which branch the owner's folder is on:** normally **`picks`**, which is where the owner runs the tools from (`git pull` first). If `git branch --show-current` prints something unexpected, stop and ask.
+- **Tests:** `npm run test:audit` (built for Linux; many tests skip or fail on Windows by design). Site tests: `node --test tests/audit/site.*.test.mjs`.
 
 ## Reading order
 1. **`platform/CURRENT_STATE.md`** — what's done, in progress, blocked and next, as of its date; then **`platform/PRIORITIES.md`** — what matters most.
@@ -25,7 +40,9 @@ Don't read `archive/CHAT_KNOWLEDGE.md` to learn the project — it's an inbox of
 The full list — including what must never change casually — is in **`platform/RULES.md`**. The essentials:
 - **Never ask for, print, store or handle private keys or seed phrases.** Keys live only in the owner's `.env`. If one is pasted, tell the owner to rotate it.
 - **Never push to `main`, merge, deploy, upload a contract or change chain settings without the owner's explicit OK.**
-- **Mainnet sends are dry runs** unless `--send`, and need `--mainnet` plus `CONFIRM_MAINNET=yes`. One step at a time.
+- **Every mainnet tool is a dry run unless you add `--send`.** Always show the owner the dry run first, then the send — one step at a time. The Picks tool (`npm run picks`) also needs `--mainnet` (and `CONFIRM_MAINNET=yes` in `.env`); the bot, desk and sponsor tools (`npm run bot | desk | sponsor`) need only `--send`.
+- **Check the node in the dry run.** If it says `api.koinos.io`, set `$env:RPC = "https://koinos.armana.io"` in that PowerShell window first (that node has been unreliable).
+- **Emergencies** (a bad send, a stuck game, a node down, a leaked key): send nothing more, tell the owner at once. Tools that exist: `npm run bot -- game-stop <id> --send` stops one game (players keep their stake); the vault's emergency path is in `standards/VAULT_STANDARD.md` §8 and `docs/UPGRADE-V6.md` ("If something goes wrong"). A full runbook is still to be written.
 - **Don't delete anything** (files, folders, branches) without firm confirmation that it's safe.
 - **Nothing is announced to players until it's built, audited and ready** (D-064).
 - **Never mention Chainge.** Vortex is the bridge.

@@ -112,4 +112,4 @@ VHP holder → Swap Desk → KOIN back (−3%) → the desk's VHP keeps producin
 - **Koinos Nicknames** — @names for display (D-030).
 
 ## 8. Open
-- ❓ Free boards for the staked-only games later (D-071).
+- Free play **boards** exist on every game (D-079); free **prizes** for the staked-only games may come later (D-071).

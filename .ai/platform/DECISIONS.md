@@ -89,6 +89,7 @@
 | D-076 | 2026-11-03 | Success targets: 1,000,000 VHP in the pool; sponsor outgrown | active |
 | D-077 | 2026-11-03 | Questions, Race and Block X pay from next week's results; add more games as they launch | active |
 | D-078 | 2026-11-03 | Every game shows producer nicknames | active |
+| D-079 | 2026-11-03 | Every game has its own Free play and Staked leaderboards | active |
 
 ---
 
@@ -446,6 +447,11 @@
 
 ## D-078 — Every game shows producer nicknames
 - **Date:** 2026-11-03 (owner) · **Decision:** Every game page shows producers (and players) by their nickname — pool name or Koinos @name — with the short address beside it, using the shared names system (`names.js`, `KNames.of`). It's a standard, not an option: new games ship with it, and existing pages without it (Block X, Producer Race) get it.
+
+
+## D-079 — Every game has its own Free play and Staked leaderboards
+- **Date:** 2026-11-03 (owner) · **Decision:** Every game has its **own** two leaderboards — **Staked** and **Free play** — built directly from that game's own results and players' picks. This is a standard for every game, including the staked-only games (Fantasy, Block Golf, Combo, Last Node): their Free play board ranks free players even though it pays no prize for now (D-071). Each game's boards also appear on the Leaders page.
+- **Open:** Combo's page currently lets only staked wallets send cards, so its Free play board would stay empty unless free play is allowed there (I-074).
 
 ---
 

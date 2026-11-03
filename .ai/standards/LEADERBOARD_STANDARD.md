@@ -1,7 +1,7 @@
 # Knode Games — Leaderboard Standard
 
 > **Purpose:** how every game's leaderboard is built, ranked, published and shown, so all boards look and behave the same.
-> **Applies to:** every game, through the shared `board.js` (`KBoard`).
+> **Applies to:** every game, through the shared `board.js` (`KBoard`). **Every game has both boards** (D-079).
 > **Last updated:** 2026-11-02
 > **Built from:** `platform/DECISIONS.md` (D-xxx) and the shared board as the Race, Hub and game chats built it.
 
@@ -11,10 +11,11 @@
 | Board | Who appears | Shown |
 |-------|-------------|-------|
 | **Staked** | players staked in *this game* that week (≥ 1 VHP), plus anyone who withdrew during the week — so the board doesn't silently drop them | all ranked rows (cap below) |
-| **Free play** | everyone else, guests included — only for games with a free prize (GAME_STANDARD §2) | the top 6 |
+| **Free play** | everyone else, guests included — on **every** game (D-079); the 2 + 1 VHP prize applies only on games with a free prize (GAME_STANDARD §2) | the top 6 |
 
 - Labels are exactly **"Staked"** and **"Free play"** on every game (D-031).
-- A game that is staked-only (D-071) shows the Staked board only.
+- **Both boards on every game, built from that game's own results and picks** (D-079). On a staked-only game (D-071) the Free play board ranks free players but pays no prize — the page says so.
+- **Every game's boards are listed on the Leaders page** (a `board` entry in `games.json`).
 
 ## 2. Periods
 - Tabs: **Today**, **This week**, **Last week**, **All time** (games may omit Today when it makes no sense).
@@ -52,4 +53,4 @@
 - Pages ignore a `names.json` over 2 MB.
 
 ## 8. Open
-- ❓ Whether staked-only games (D-071) get a Free play board later — keep the board ready for it.
+- ❓ Combo lets only staked wallets send cards today, so its Free play board would be empty (I-074).

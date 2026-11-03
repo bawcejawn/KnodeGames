@@ -20,7 +20,7 @@ A platform-wide "course": every other live game is a par-4 hole, and how well yo
 - **Finality:** final 12 h after the week once every hole is final and the run had no read problem; a hole not final by 60 h is skipped; from 66 h a read problem no longer blocks; staked holes only after stakes are read post-week; final weeks are frozen. 💬
 
 ## Rewards
-- **Staked only** — only players staked in Block Golf that week count. Share of Golf's part of the vault's weekly reward. 💬
+- **Staked only for now** (D-071) — only players staked in Block Golf that week count; a free option may be added later. 👤 Share of Golf's part of the vault's weekly reward. 💬
 - **Practice weeks** have no prizes. 💬
 
 ## Dependencies

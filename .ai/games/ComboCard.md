@@ -19,7 +19,7 @@ A staked "parlay" game: combine several predictions from the Producer Race and B
 - **A week** = a player's best 10 cards; ties: more hits, the earlier last hit, address. Vault points by board rank. 💬
 
 ## Rewards
-- **Staked only** — no free prize (D-060). A player needs at least 1 full point in the week. Share of Combo's part of the vault's weekly reward. 💬
+- **Staked only for now** — no free prize (D-060, D-071); a free option may be added later. 👤 A player needs at least 1 full point in the week. Share of Combo's part of the vault's weekly reward. 💬
 
 ## Dependencies
 - **Picks v2** (CARD type, release `92d555d0…`, 37,689 bytes): schedule → 48 h → upload within 7 days → clear, after Block X launches (D-060). 💬

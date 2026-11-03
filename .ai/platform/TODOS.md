@@ -10,7 +10,7 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today
-- [ ] Send the Block X round-12 fix-check (prompt on `picks`, `be2c20d`) to Repo Lens and return the report — P2 — I-033
+- [ ] Send the Block X round-12 fix-check (prompt on `picks`, `be2c20d`) to Repo Lens and return the report — P2 — I-033 — **tomorrow (3 Nov)**
 - [ ] Decide when Block X goes public: after the round-12 fix-check, the launch PR (`picks` → `main`) and the vault `game-add 2` — P2 — D-064, D-070
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
 - [ ] Run the push block so `main` gets the updated docs — P3
@@ -51,7 +51,7 @@
 - [ ] Carry the Vault chat's project docs into `.ai/`: `claude/vault-v6-live.md`, `claude/vault-v6-testnet-results.md`, `claude/handoff-*.md`, `claude/audit-vault-v6-*`, `docs/UPGRADE-V6.md`, `docs/V6-PLAN.md` — P3 — I-009
 
 - [ ] Decide which owner checklist is the source of truth (I-032) — P3
-- [ ] Run the pending Repo Lens audits and return the reports: Survivor pass 4 (above), Last Node round 3 (`claude/lastnode/FIXCHECK-3-PROMPT.md`; branch `lastnode`, expect `adf95be` or newer), Bracket (`claude/audit-bracket-prompt.md` → `AUDIT-BRACKET-REPORT.md`), Fantasy fix-check (`knode-fantasy-fixcheck.zip`), Combo fix-check 4 (`claude/audit-combo-fixcheck4-prompt.md`) — P1 — I-065 (owner said: wait on audit status until all chats are collected)
+- [ ] Run the pending Repo Lens audits and return the reports: Survivor pass 4 (above), Last Node round 3 (`claude/lastnode/FIXCHECK-3-PROMPT.md`; branch `lastnode`, expect `adf95be` or newer), Bracket (`claude/audit-bracket-prompt.md` → `AUDIT-BRACKET-REPORT.md`), Fantasy fix-check (`knode-fantasy-fixcheck.zip`), Combo fix-check 4 (`claude/audit-combo-fixcheck4-prompt.md`) — P1 — I-065 — **starting tomorrow (3 Nov)**
 - [ ] Restart Fantasy practice in `C:\kprediction-fantasy` until one test week is final, then send `npm run fantasy-test -- status` — P3 — I-062
 - [ ] Golf owner checklist items: t28 (review the "Block Golf Preview" artifact) and t30 (turn on Golf practice, with Block X) — P3
 - [ ] Tell the Block X chat: the mobile-nav test failing on `picks` (I-062), its files moved to the repo root on the Bracket branch, and name `upgrade-schedule` / `upgrade-upload` / `upgrade-clear` in runbook steps 2–4 (Combo asked) — P3

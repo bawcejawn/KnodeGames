@@ -81,6 +81,7 @@
 | D-068 | 2026-11-02 | Free prizes are per week; multi-week seasons pay once, at season end | active |
 | D-069 | 2026-11-02 | Questions game Week 3 pays its on-chain v5 free prize (1 + 1 VHP); no upgrade | active |
 | D-070 | 2026-11-02 | Apply Block X (game 2) on the Picks contract now | done |
+| D-071 | 2026-11-02 | Fantasy, Last Node, Combo and Golf are staked-only for now | active |
 
 ---
 
@@ -406,6 +407,10 @@
 
 ## D-070 — Apply Block X (game 2) on the Picks contract now
 - **Date:** 2026-11-02 (owner) · **Decision:** Apply the existing Picks announcement (made 30 Oct) inside its window rather than letting it lapse. Done the same day, with the follow-up steps. This puts game 2's settings in force on the Picks contract only; announcing to players and the vault `game-add 2` still follow D-064.
+
+
+## D-071 — Fantasy, Last Node, Combo and Golf are staked-only for now
+- **Date:** 2026-11-02 (owner) · **Decision:** Fantasy Producers (4), Block Golf (6), Combo Card (8) and Last Node Standing (13) are staked-only for now: no free board prize. Keep the design open so a free option can be added later. The free 2 + 1 VHP prize (D-062) applies to the free games: Daily Questions, Block X, Survivor (per season, D-068), Producer Race and Producer Bracket. Weekly Rival stays records-only.
 
 ---
 

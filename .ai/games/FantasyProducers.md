@@ -20,7 +20,7 @@ Fantasy football for block producers: draft five producers under a salary cap, c
 
 ## Rewards
 - **Staked:** the top 30% of Fantasy stakers with ≥ 1 point share Fantasy's part of the vault's weekly reward. Vault points: 255 for the best week, one less per lower distinct score, never below 1, ranked among stakers only. 💬
-- **Free prize:** none described in the Fantasy rules; the owner's rule is 2 + 1 VHP on every free game (D-062) — whether Fantasy has a free board is ❓.
+- **Free prize:** none — Fantasy is **staked-only for now**; a free option may be added later (D-071). 👤
 - **Weekly Rival and the all-time table:** records only, no prize. 💬
 
 ## Dependencies

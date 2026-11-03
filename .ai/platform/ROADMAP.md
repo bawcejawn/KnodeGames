@@ -57,6 +57,7 @@ Order: the owner's goal is every game, each in its best version (D-052, D-064). 
 
 ## Ideas, not scheduled
 - Mana Station (shelved, D-053).
+- A free option for Fantasy, Block Golf, Combo and Last Node (staked-only for now, D-071).
 - Next sponsor version: guest prize claims and the L-3 fix.
 - Compound at a fixed time each day (I-049).
 - A sponsor that also pays operator transactions (needs an audit).

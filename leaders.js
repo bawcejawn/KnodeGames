@@ -14,7 +14,7 @@
   const RAW = "https://raw.githubusercontent.com/bawcejawn/Knode/";
   const EXPLORER = "https://koinosscan.com/address/";
   const $ = (id) => document.getElementById(id);
-  const fmt = (x) => (typeof x === "number" && isFinite(x) ? x.toLocaleString("en-US") : "–");
+  const fmt = (x, d = 0) => (typeof x === "number" && isFinite(x) ? x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }) : "–");
   const short = (a) => (typeof a === "string" && a.length > 12 ? a.slice(0, 4) + "…" + a.slice(-4) : String(a || ""));
   const me = () => (W && W.address) || "";
 
@@ -38,14 +38,47 @@
       columns: cols.map((c) => ({ key: c.key, label: c.label, wide: c.wide === true })),
       unit: typeof b.unit === "string" && b.unit.length <= 12 ? b.unit : "pts",
       unranked: typeof b.unranked === "string" && b.unranked.length <= 160 ? b.unranked : "",
+      // `scale`: the recorder stores the points column in whole hundredths (Block X: pts 179 = 1.79 points). Only 100 is
+      // allowed; the points column (the first) is divided by it and shown with 2 decimals. Count columns stay as they are.
+      scale: b.scale === 100 ? 100 : 1,
       // Free play: wallets without VHP or a stake get their own board, top `show` listed (3 to 10), the rest private.
       // The board names (Staked / Free play) are fixed in board.js for every game; games.json can't change them.
       free: b.free && typeof b.free === "object" ? {
         show: Number.isInteger(b.free.show) && b.free.show >= 3 && b.free.show <= 10 ? b.free.show : 6,
         prize: typeof b.free.prize === "string" && b.free.prize.length <= 160 ? b.free.prize : "",
+        // `minDays`: a free medal this week needs picks on at least this many days (Block X: 3), as in the game's prize rule.
+        minDays: Number.isInteger(b.free.minDays) && b.free.minDays >= 1 && b.free.minDays <= 7 ? b.free.minDays : 0,
       } : null,
       main: cols[0].key,
     };
+  }
+
+  /** Free-play medals (1st / 2nd), the same rule as the game's own page (blockx.js freeWinners, audit BX-14):
+      a final last week → the recorder's frozen prize list (lastWeek.prizes); otherwise the rows as they stand now,
+      counting only rows with more than 0 points (and picks on minDays+ days when set); ties share a place. */
+  function freeWinnersFor(cfg) {
+    return (part, rows, weekly) => {
+      const m = new Map();
+      if (!weekly) return m;
+      if (part && part.final === true && Array.isArray(part.prizes)) {
+        for (const p of part.prizes) if (p && typeof p.player === "string") m.set(p.player, Math.min(2, Math.max(1, Number(p.place) || 2)));
+        return m;
+      }
+      const ok = rows.filter((r) => (Number(r[cfg.main]) || 0) > 0 && (!cfg.free.minDays || (Number(r.days) || 0) >= cfg.free.minDays));
+      let place = 0;
+      ok.forEach((r, i) => {
+        const p = ok[i - 1];
+        if (!p || p[cfg.main] !== r[cfg.main] || p.correct !== r.correct || p.lastCorrect !== r.lastCorrect) place = i + 1;
+        if (place <= 2) m.set(r.a, place);
+      });
+      return m;
+    };
+  }
+  /** Board data with the points column divided by `scale` (the board then shows it with 2 decimals). */
+  function scaled(d, cfg) {
+    if (cfg.scale === 1 || !d) return d;
+    const fix = (part) => (part && Array.isArray(part.rows) ? { ...part, rows: part.rows.map((r) => (r && typeof r === "object" ? { ...r, [cfg.main]: (Number(r[cfg.main]) || 0) / cfg.scale } : r)) } : part);
+    return { ...d, today: fix(d.today), week: fix(d.week), lastWeek: fix(d.lastWeek), allTime: fix(d.allTime) };
   }
 
   let games = [{ id: "questions", name: "Daily Questions" }];
@@ -77,19 +110,20 @@
       b = {
         box, note, data: null,
         lb: window.KBoard.create(box, {
-          label: `${g.name} leaderboard`, columns: cfg.columns, name: (a) => (window.KNames ? window.KNames.of(a) : short(a)), link: (a) => EXPLORER + a,
+          label: `${g.name} leaderboard`, columns: cfg.columns.map((c, i) => (i === 0 && cfg.scale === 100 ? { ...c, d: 2 } : c)), name: (a) => (window.KNames ? window.KNames.of(a) : short(a)), link: (a) => EXPLORER + a,
           scored: (r) => (r[cfg.main] ?? 0) > 0,
-          summary: (r) => `${fmt(r[cfg.main] ?? 0)} ${cfg.columns[0].label.toLowerCase()}`,
-          me: (r, place) => `${place ? `You: #${place} with` : "Your score (only you see this):"} ${fmt(r[cfg.main] ?? 0)} ${cfg.columns[0].label.toLowerCase()}.`,
+          summary: (r) => `${fmt(r[cfg.main] ?? 0, cfg.scale === 100 ? 2 : 0)} ${cfg.columns[0].label.toLowerCase()}`,
+          me: (r, place) => `${place ? `You: #${place} with` : "Your score (only you see this):"} ${fmt(r[cfg.main] ?? 0, cfg.scale === 100 ? 2 : 0)} ${cfg.columns[0].label.toLowerCase()}.`,
           unranked: cfg.unranked,
-          free: cfg.free,
+          free: cfg.free ? { show: cfg.free.show, prize: cfg.free.prize } : null,
+          freeWinners: cfg.free ? freeWinnersFor(cfg) : undefined,
         }),
       };
       boards.set(id, b);
     }
     panel.replaceChildren(b.note, b.box);
     b.lb.setMe(me());
-    try { const d = await fetchJson(cfg.url); if (d && d.v === 1) { b.data = d; b.lb.set(d); } }
+    try { const d = await fetchJson(cfg.url); if (d && d.v === 1) { b.data = d; b.lb.set(scaled(d, cfg)); } }
     catch { if (!b.data) b.note.textContent = "Couldn't load this leaderboard right now. Trying again when you come back to it."; }
   }
 

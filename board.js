@@ -38,7 +38,8 @@
     for (const c of kids) if (c) e.append(c);
     return e;
   }
-  const fmt = (x) => (typeof x === "number" && isFinite(x) ? x.toLocaleString("en-US") : "–");
+  // A column may set `d` (0 to 2): show exactly that many decimals (Block X points in hundredths: 1.79, 2.00).
+  const fmt = (x, d) => (typeof x === "number" && isFinite(x) ? (Number.isInteger(d) && d >= 0 && d <= 2 ? x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }) : x.toLocaleString("en-US")) : "–");
   const short = (a) => (typeof a === "string" && a.length > 12 ? a.slice(0, 4) + "…" + a.slice(-4) : String(a || ""));
   const day = (t) => new Date(t).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
@@ -102,7 +103,7 @@
         return el("tr", { class: [topOk(r, pl) ? "top" : "", r.a === who ? "me" : ""].join(" ").trim() || null },
           el("td", { text: medalOk(r, pl) ? MEDAL[pl - 1] : String(pl) }),
           el("td", { class: "mono" }, href ? el("a", { href, target: "_blank", rel: "noopener noreferrer", text: o.name(r.a) }) : el("span", { text: o.name(r.a) })),
-          ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key]) })));
+          ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key], c.d) })));
       }));
       if (!ranked.length) body.replaceChildren(el("tr", {}, el("td", { colspan: String(2 + o.columns.length), class: "ago", text: "No ranked players yet." })));
       const row = who && rows.find((r) => r && r.a === who);
@@ -125,7 +126,7 @@
       body.replaceChildren(...shown.map((r, i) => el("tr", { class: [medal(r, i) ? "top" : "", r.a === who ? "me" : ""].join(" ").trim() || null },
         el("td", { text: medal(r, i) ? MEDAL[medal(r, i) - 1] : String(r.boardPlace || i + 1) }),
         el("td", { class: "mono" }, el("span", { text: o.name(r.a) })),
-        ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key]) })))));
+        ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key], c.d) })))));
       if (!shown.length) body.replaceChildren(el("tr", {}, el("td", { colspan: String(2 + o.columns.length), class: "ago", text: "No free-play scores yet." })));
       const row = who && rows.find((r) => r && r.a === who);
       const place = row && !row.ranked && free.includes(row) ? (Number.isInteger(row.boardPlace) && row.boardPlace > 0 ? row.boardPlace : free.indexOf(row) + 1) : 0;   // audit BX-41: ties share

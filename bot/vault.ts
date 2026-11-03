@@ -24,6 +24,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import type { Signer } from "koilib";
 import { showKoin, type Chain, type Call } from "./chain.ts";
+import { readSwitches, prizeOn, type Switches } from "./free-prizes.ts";
 
 export const Q_GAME = 1;
 export const MAX_ROWS = 50;                   // results per post_results call (the contract's limit)
@@ -45,6 +46,9 @@ export type VaultCtx = {
   deployment?: any;
   /** Reads a results file; tests pass their own. Default: `<branch>:<folder>` from git, or a folder on disk. */
   readResults?: (source: string, week: number) => any | null;
+  /** The owner's free-prize switches (bot/free-prizes.ts); null = none published. Throws when they can't be read.
+   *  Tests pass their own. Default: the prize-settings branch from git. */
+  readPrizeSwitches?: () => Switches | null;
 };
 export type Send = (what: string, calls: Call[]) => Promise<boolean>;
 const log = (ctx: VaultCtx, ...a: any[]) => { if (!ctx.quiet) console.log(...a); };
@@ -150,6 +154,9 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
   const k = await clock(ctx.chain);
   const cfg = ctx.deployment?.vaultGames ?? {};
   const read = ctx.readResults ?? readResultsFile;
+  // The owner's free-prize switches (D-082), read once per run. Unreadable → free winners wait (fail closed).
+  let switches: { s: Switches | null } | { error: string } | undefined;
+  const sw = () => (switches ??= (() => { try { return { s: (ctx.readPrizeSwitches ?? (() => readSwitches().s))() }; } catch (e: any) { return { error: String(e?.message ?? e) }; } })());
   for (const g of view.games) {
     const id = num(g.id);
     if (id === Q_GAME || (only && only.game !== id)) continue;
@@ -191,7 +198,24 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
     } else if ((r.rows ?? []).length) log(ctx, `  ${name} has no stake bucket: its ${r.rows.length} row(s) of points are not sent`);
     // Prize winners, on the last week of the game's season only, each a free player there.
     const places: Array<{ place: number; players: string[] }> = [];
-    if (g.free_prize && (gw.closed ? big(gw.prize) > 0n : seasonEnds(g, w))) {
+    const prizeWeek = g.free_prize && (gw.closed ? big(gw.prize) > 0n : seasonEnds(g, w));
+    let holdSeal = false;
+    if (prizeWeek && ((r.first ?? []).length || (r.second ?? []).length)) {
+      const x = sw();
+      if ("error" in x) {
+        // Fail closed for the prize only (Repo Lens FP-2): the staked players' points still go out; the winners and the
+        // seal wait so the winners can be posted once the switches read. Under 6 hours before the deadline, seal
+        // without winners: the prize returns to the pool and the stakers' week is kept.
+        const late = due - k.time < 6 * HOUR_MS;
+        ctx.problems.push(`${name} week ${w}: the free-prize switches (prize-settings) can't be read (${x.error}). Staked points posted; ${late ? "under 6 h to the deadline, so sealed WITHOUT free winners (the prize goes back to the pool)" : `free winners and the seal held until it reads (due ${utc(due)})`}.`);
+        r.first = []; r.second = [];
+        holdSeal = !late;
+      } else if (!prizeOn(x.s, id, w, num(g.season_weeks), k.genesis, k.weekLen)) {
+        log(ctx, `  ${name} week ${w}: free prize switched off by the owner: no winners posted (the vault returns the prize to the pool)`);
+        r.first = []; r.second = [];
+      }
+    }
+    if (prizeWeek) {
       for (const [place, list] of [[1, r.first ?? []], [2, r.second ?? []]] as Array<[number, string[]]>) {
         const fresh: string[] = [];
         for (const a of list) {
@@ -219,7 +243,8 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
       if (!ok) break;
       ok = await send(`${name} week ${w}: prize place ${pl.place} → ${pl.players.join(", ")}`, [{ method: "post_prize_winners", args: { game: id, week: String(w), place: pl.place, players: pl.players } }]);
     }
-    if (ok) await send(`${name} week ${w}: seal the results (the owner can correct them for 24 h)`, [{ method: "seal_results", args: { game: id, week: String(w) } }]);
+    if (ok && holdSeal) log(ctx, `  ${name} week ${w}: seal held (free-prize switches unreadable)`);
+    if (ok && !holdSeal) await send(`${name} week ${w}: seal the results (the owner can correct them for 24 h)`, [{ method: "seal_results", args: { game: id, week: String(w) } }]);
   }
 }
 

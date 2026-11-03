@@ -1,6 +1,6 @@
 # Producer Race (game 7)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Race "KG 02 · Hub + Race Show", Hub, Vault, Block X chats), `DECISIONS.md` (D-033 – D-035, D-062, D-063), the repo. **Last updated:** 2026-11-02.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Race "KG 02 · Hub + Race Show", Hub, Vault, Block X chats), `DECISIONS.md` (D-033 – D-035, D-062, D-063, D-078), the repo. **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -29,10 +29,11 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 - Two nodes (`RPC`, `RPC_CHECK`) and the `race-data` branch. ✅
 - Vault v6: registration (`game-add 7`, then apply) before it earns; stake reads via `get_game_player`. ✅
 - Site: `race.html` with `#stake-badge` (PR #44 ✅) and the shared panel; `board.js`; the Games page link to `race.html#stake`. ✅
+- **Nicknames (D-078):** `race.html` loads `names.js` before `race.js` and allows `names-data` in its CSP. `race.js`'s `nameOf` shows `KNames.of(address)` (name · short address) for every producer and player: horses, card, paddock, feed, results, pick lists and both boards. It redraws on `KNames.onChange` and falls back to the old built-in names if `names.js` is missing. Display only. 💬 (PR, 3 Nov)
 - The VHP sampler (`race-samples.yml`) feeds handicap cards for other games (I-059).
 
-## Current status (2 Nov)
-**Live as a game.** Not yet registered in the vault: applied between Wed 4 and Sun 8 Nov, it earns from vault week 3 (Mon 9 Nov). The Race chat knows to set `PRIZES_FROM_WEEK = 3`. The v6-ABI stake fix `d7fad7c` (B1-1) is pushed to `picks` ✅, with Block X's round-12 fix-check pending. 👤 / 💬
+## Current status (3 Nov)
+**Live as a game.** Not yet registered in the vault: applied between Wed 4 and Sun 8 Nov, it earns from vault week 3 (Mon 9 Nov). `PRIZES_FROM_WEEK = 3` is on main (PR #56) ✅. The v6-ABI stake fix `d7fad7c` (B1-1) and the RV-1 process exit reached main with the Block X launch merge (PR #57, Repo Lens round 13 GO) ✅. Nicknames on the page (D-078): PR open. 👤 / 💬
 
 ## Known issues
 - **I-034 (P1 before prizes):** a final vault file is decided by one run and locked forever, with no 12-hour hold.

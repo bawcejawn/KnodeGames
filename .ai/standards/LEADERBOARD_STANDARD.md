@@ -42,7 +42,7 @@
 - The vault's points come from the final board but are published separately (VAULT_STANDARD).
 
 ## 6. Display
-- **Names:** the producer's or pool's name, else the older Knode Games name, else the player's **Koinos @name** (the @name wins), with the **short address always shown** next to it (D-030). Lookalike names are folded; reserved words refused.
+- **Names (required on every game, D-078):** the producer's or pool's name, else the older Knode Games name, else the player's **Koinos @name** (the @name wins), with the **short address always shown** next to it (D-030). Lookalike names are folded; reserved words refused.
 - Highlight the connected wallet's own row.
 - Built with `textContent` only; works at phone width.
 - Explain every column in plain words (D-059).

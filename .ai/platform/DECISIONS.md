@@ -88,6 +88,7 @@
 | D-075 | 2026-11-03 | Knode Games is not gambling | active |
 | D-076 | 2026-11-03 | Success targets: 1,000,000 VHP in the pool; sponsor outgrown | active |
 | D-077 | 2026-11-03 | Questions, Race and Block X pay from next week's results; add more games as they launch | active |
+| D-078 | 2026-11-03 | Every game shows producer nicknames | active |
 
 ---
 
@@ -441,6 +442,10 @@
 - **Date:** 2026-11-03 (owner) · **Decision:** Daily Questions (game 1, built into the vault), Producer Race (7) and Who Signs Block X (2) are all in the vault so paying begins with the week of **Mon 9 Nov** (vault week 3). Other games are added as they launch.
 - **How:** `game-add 2` and `game-add 7` (`--staked --free`) → sponsor vault switch → 48 h → `game-apply 2` and `game-apply 7` before Mon 9 Nov 00:00 UTC (`docs/UPGRADE-V6.md` §6–7); then set the repo variable `PRIZES_FROM_WEEK = 3` for Block X.
 - **Changes D-036:** Block X no longer stays prize-free until its "before prizes" list (I-042) is done. Safety net: the owner has 24 h after each seal to correct, unprize or void results before they finalize.
+
+
+## D-078 — Every game shows producer nicknames
+- **Date:** 2026-11-03 (owner) · **Decision:** Every game page shows producers (and players) by their nickname — pool name or Koinos @name — with the short address beside it, using the shared names system (`names.js`, `KNames.of`). It's a standard, not an option: new games ship with it, and existing pages without it (Block X, Producer Race) get it.
 
 ---
 

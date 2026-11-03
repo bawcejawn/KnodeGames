@@ -57,6 +57,7 @@ Every game that publishes results **must**:
 - Uses the shared wallet (`KWallet.init` with the deployment's payer and sponsor) and the guest wallet where free play is offered (D-009).
 - Shows the **status badge** (`KStake.badge`) at the top of `<main>` and the full stake panel (`KStake.mount`) lower down (D-031); uses "Staked" / "Free play" labels.
 - Uses the shared leaderboard (`board.js`) per `LEADERBOARD_STANDARD.md`.
+- **Shows every producer and player by nickname** — loads `names.js` before the page's own script, allows names-data in its CSP, and displays `KNames.of(address)` (name with the short address), re-rendering on `KNames.onChange` (D-078).
 - Explains every number in plain words; feels inviting, professional and fun (D-059); works at phone width.
 - Uses the chain's clock for locks and countdowns.
 

@@ -16,11 +16,11 @@ Times in UTC, with Pacific time where it helps.
 |------|------|-|
 | Wed 4 Nov, 17:30 (9:30 AM PT) | Earliest time to remove old node data folders — only if `heal.log` is clean (I-008) | 💬 |
 | Thu 5 Nov, 15:51 (7:51 AM PT) | Games 2 and 7 become applicable in the vault; apply before Sun 8 Nov 4 PM PT | ✅ tx |
-| Fri 6 Nov, ~noon PT | **Latest** `game-add` for a game to pay from 9 Nov (48 h, then apply before Sun 4 PM PT) — Bracket, if its audit passes (D-052, gated by D-064) | 👤 / 💬 Vault |
+| Fri 6 Nov, ~noon PT | **Latest** `game-add` for a game to pay from 9 Nov — Bracket, if its audit passes (D-052, gated by D-064). Why noon: the apply can only happen 48 h after the `game-add` and must land before Sun 4 PM PT (Mon 00:00 UTC). A `game-add` at Fri 4 PM PT (the Vault chat's latest time) becomes applicable exactly at Sun 4 PM, which leaves no margin; noon leaves ~4 h | 👤 / 💬 Vault |
 | Wed 4 – Sun 8 Nov | Vault: a game applied in this window earns from vault week 3 (Mon 9 Nov); apply 48 h after its `game-add` | 💬 Vault |
 | ~~Sun 8 Nov, ~21:23 (1:23 PM PT)~~ | ~~Block X's existing Picks announcement probably stops being applicable (I-070)~~ — moot: it was applied 2 Nov (D-070) | ✅ |
 | **Mon 9 Nov, 00:00** | **The vault starts paying:** v6 rules begin; 2 + 1 VHP free prizes begin on the games whose free prize is on (D-062, D-081, D-082); players see this as **"Week 1"** (D-063) | 👤 / 💬 |
-| Tue 10 Nov, 10 AM PT | First weekly review (`WEEKLY_REVIEW.md`) | 👤 |
+| Tue 10 Nov, 10 AM PT | First weekly review (`WEEKLY_REVIEW.md`) | owner + library chat |
 | Tue 10 Nov, 12:00 (4 AM PT) | Questions game Week 3 winners final; the bot pays out ≈ 12:07. First week with the v5 split; free players get 1 + 1 VHP (D-069) | ✅ chain, 👤 |
 | Sat 7 – Fri 13 Nov | Survivor announce window; apply Mon 9 – Sun 15 Nov | 💬 |
 | Fri 13 Nov | Vault bot checks done (I-051, I-052, I-064) | 💬 Vault |

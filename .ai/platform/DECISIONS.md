@@ -78,7 +78,7 @@
 | D-065 | 2026-11-02 | Survivor Season 1 starts Mon 16 Nov | active |
 | D-066 | 2026-11-02 | Public testnet only; three mainnet nodes | active |
 | D-067 | 2026-11-02 | Block X: nothing announced yet; redo or apply only when ready | done — applied on Picks (D-070), live 3 Nov, vault `game-add 2` sent 3 Nov |
-| D-068 | 2026-11-02 | Free prizes are per week; multi-week seasons pay once, at season end | active (rule); Survivor's free prize off for now (D-081, held by the D-082 switch) |
+| D-068 | 2026-11-02 | Free prizes are per week; multi-week seasons pay once, at season end | active (rule); Survivor's free prize was paused by D-080, now off for now under D-081 (held by the D-082 switch) |
 | D-069 | 2026-11-02 | Questions game Week 3 pays its on-chain v5 free prize (1 + 1 VHP); no upgrade | active |
 | D-070 | 2026-11-02 | Apply Block X (game 2) on the Picks contract now | done |
 | D-071 | 2026-11-02 | Fantasy, Last Node, Combo and Golf are staked-only for now | superseded by D-081 (every game has Free play) |

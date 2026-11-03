@@ -32,7 +32,7 @@ Guess which block producer will sign a future target block. Simple to play, root
 ## Current status (3 Nov)
 - **Live for players** ✅: Games page (PR #58), menus and home page (PR #59); `GAMES_ENABLED = true`. The recorder's first run (16:12 UTC, by hand) was green in both jobs; its first week files hold 19 past targets, all void ("no handicap card") — expected until cards and samples fill. ✅
 - **Vault:** `game-add 2 "Who Signs Block X" --staked --free` announced 3 Nov (tx `0x122082c6…e71760e3`), applicable from Thu 5 Nov 15:51 UTC. After the apply: repo variable `PRIZES_FROM_WEEK = 3` (Settings → Secrets and variables → Actions → Variables). 👤
-- **Pays from vault week 3** (Mon 9 – Mon 16 Nov), the week closes Mon 16 Nov; the bot posts and seals the results within 3 days, then the owner has 24 h to correct (D-077). The I-042 items are ranked by what could mispay in that week; see "Before the first paid week" below.
+- **Pays from vault week 3** (Mon 9 – Mon 16 Nov), the week closes Mon 16 Nov; the bot posts and seals the results within 3 days (the Block X chat expects the first seal ~Tue 17 Nov), then the owner has 24 h to correct (D-077). The I-042 items are ranked by what could mispay in that week; see "Before the first paid week" below.
 - **Nicknames (D-078, I-073):** `blockx.html` loads `names.js`; every producer and player shows as `KNames.of` (name · short address, wrapped, never cut off). **Merged (PR #60)** ✅
 ## Before the first paid week (I-042, D-077)
 Fixes planned before the week-3 seal (each with a test and a Repo Lens fix-check):

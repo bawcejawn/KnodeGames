@@ -38,6 +38,8 @@
 - [ ] Top up the bot wallet `1HsM33…` to ~50 KOIN and confirm its Mana — P3 — I-046
 - [ ] Watch `node\release-kick.log` and `node\heal.log` for the first few days — P3
 
+- [ ] Confirm the phone-width status-bar screenshot reached the Hub chat (from the Block X launch item) — P4
+
 ## Later
 - [ ] Give the go-ahead for the full platform audit — P1 — I-002, D-014
 - [ ] Decide the site's read RPC (Armana or `api.koinos.io`) — P3 — I-006, C-04
@@ -92,8 +94,9 @@
 | Block X on the Leaders page (PR #63) and the sampler docs (PR #61) merged | 2026-11-03 | I-074, I-059 |
 | Race nicknames merged (PR #62; conflict with Block X's test resolved) | 2026-11-03 | I-073 ✅ |
 | "Run the push block so `main` gets the docs" — **cancelled**: docs now go to `main` only through PRs the owner merges (D-026); 3 Nov docs went in as PRs #61, #64, #68–#71 | 2026-11-03 | TD-03 |
-| `game-add` games 2 and 7 sent (applicable Thu 5 Nov 15:51 UTC) | 2026-11-03 | D-077 |
-| Sponsor switched to the vault, caps unchanged ("Vault (v6): live") | 2026-11-03 | D-061 |
+| `game-add` games 2 and 7 sent (applicable Thu 5 Nov 15:51 UTC). The original item also listed 9, and 8 and 13 "if cleared" (D-024, due Fri 6 Nov 4 PM PT): 9 is tracked in This Week; 8 and 13 wait for their audits (I-016) | 2026-11-03 | D-077, D-024 |
+| Sponsor switched to the vault, caps unchanged ("Vault (v6): live"). Steps used: `npm run sponsor -- status`, copy the caps exactly (D-061), `config` preview showing "vault (v6) live: no → yes" with caps unchanged, then `--send`, then `status` again | 2026-11-03 | D-061 |
+| Confirm which sponsor version is live (v2 or v3) — settled: v3 `b61ac238…` (C-01; unblocked I-005) | 2026-11-02 | C-01 |
 | Block X launch PR (#57, `picks` → `main`) merged; Hub told via the Block X prompt | 2026-11-03 | I-040 |
 | All chats exported and filed (the I-009 export item) | 2026-11-02 | I-009 ✅ |
 | Merge `picks` into `main` with Race files resolved when Block X is ready; weekly check of `vault/W<week>.json` and `race.yml` runs — done with PR #57 (the weekly `vault/W<week>.json` and `race.yml` check continues in the weekly review) | 2026-11-03 | I-031 |

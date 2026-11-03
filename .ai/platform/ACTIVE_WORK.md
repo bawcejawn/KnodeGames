@@ -64,7 +64,7 @@
 ### Next Work
 - **Owner — Thu–Sun:** `npm run bot -- game-apply 2 --send`, `game-apply 7 --send`, `games`; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT**.
 - Each other game: `game-add` once audited, **always with `--free`**; set its free-prize switch off first where no prize yet (D-082). Survivor: `game-add 3 "Survivor" --staked --free --season 2`.
-- **Producer Bracket (9)** could pay from 9 Nov only if `game-add 9` goes out by **Fri 6 Nov 4 PM PT**. Its audit hasn't run, and nothing is added before it passes (D-064), so it most likely starts a week later.
+- **Producer Bracket (9)** could pay from 9 Nov only if `game-add 9` goes out by **Fri 6 Nov ~noon PT** (the Vault chat said 4 PM PT; noon leaves time to apply before Sun 4 PM PT, see ROADMAP). Its first audit was requested 3 Nov; nothing is added before it passes (D-064), so it may well start a week later.
 - **Mon 16 Nov 12:00 UTC:** first vault close with other games in it — check status, buckets, free prizes, fee.
 
 ## Leaderboards

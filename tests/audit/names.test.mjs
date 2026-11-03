@@ -281,11 +281,11 @@ const pages = fs.readdirSync(APP).filter((f) => f.endsWith(".html"));
 const read = (f) => fs.readFileSync(`${APP}/${f}`, "utf8");
 test("every page that loads names.js may read names-data, and loads it before its own page script", () => {
   const users = pages.filter((p) => /<script src="names\.js"><\/script>/.test(read(p)));
-  assert.deepEqual(users.sort(), ["index.html", "names.html", "node.html", "pulse.html"]);
+  assert.deepEqual(users.sort(), ["blockx.html", "index.html", "names.html", "node.html", "pulse.html"]);
   for (const p of users) {
     const h = read(p);
     assert.match(h.match(/connect-src ([^;"]*)/)[1], /https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/names-data\//, p);
-    const own = { "index.html": "app.js", "pulse.html": "pulse.js", "node.html": "node-page.js", "names.html": "names-page.js" }[p];
+    const own = { "blockx.html": "blockx.js", "index.html": "app.js", "pulse.html": "pulse.js", "node.html": "node-page.js", "names.html": "names-page.js" }[p];
     assert.ok(h.indexOf('src="names.js"') < h.indexOf(`src="${own}"`), `${p}: names.js before ${own}`);
   }
   assert.match(read("index.html"), /src="names\.js"[\s\S]*src="results\.js"/, "results.js (on index.html) can use it too");
@@ -303,7 +303,8 @@ test("names.html creates a Koinos @name through the player's own wallet, and not
 
 test("the pages that show producers use KNames (with their old fallback if names.js is missing)", () => {
   for (const [f, re] of [["app.js", /window\.KNames\.of\(a\)/], ["app.js", /window\.KNames\.of\(b\.signer\)/], ["pulse.js", /window\.KNames\.of\(a\)/],
-    ["node-page.js", /window\.KNames\.of\(a\)/], ["node-page.js", /window\.KNames\.of\(addr\)/], ["results.js", /window\.KNames\.of\(a\)/]]) {
+    ["node-page.js", /window\.KNames\.of\(a\)/], ["node-page.js", /window\.KNames\.of\(addr\)/], ["results.js", /window\.KNames\.of\(a\)/],
+    ["blockx.js", /window\.KNames\.of\(a\)/], ["blockx.js", /window\.KNames\.onChange\(/]]) {
     assert.match(read(f), re, f);
   }
 });
@@ -417,4 +418,11 @@ test("pool names: read from real get_pool_params replies (mainnet, 30 Oct)", () 
   assert.equal(N.poolNameFrom(""), null);
   assert.equal(N.poolNameFrom("EgA"), null, "no field 1");
   assert.equal(N.poolNameFrom("CgVhYg"), null, "cut short");
+});
+
+test("D-078 (I-073): Block X shows every producer and player through nameOf, which uses KNames.of (short address without names.js)", () => {
+  const js = read("blockx.js");
+  assert.equal([...js.matchAll(/\.slice\(0, 5\) \+ "…"/g)].length, 1, "one place shortens an address: nameOf's fallback");
+  assert.match(js, /const nameOf = \(a\) => \(!isAddr\(a\) \? "–" : window\.KNames && typeof window\.KNames\.of === "function" \? window\.KNames\.of\(a\)/);
+  assert.doesNotMatch(read("blockx-testnet.html"), /src="names\.js"/, "the testnet page keeps short addresses (mainnet names don't apply there)");
 });

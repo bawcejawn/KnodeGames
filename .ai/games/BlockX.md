@@ -1,6 +1,6 @@
 # Who Signs Block X (game 2)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Block X and Picks, Race, Bracket, Combo, Vault chats), `DECISIONS.md` (D-036 – D-041, D-062, D-064, D-067), the owner's status checks, the repo. **Last updated:** 2026-11-02.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Block X and Picks, Race, Bracket, Combo, Vault chats), `DECISIONS.md` (D-036 – D-041, D-062, D-064, D-067), the owner's status checks, the repo. **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -30,16 +30,26 @@ Guess which block producer will sign a future target block. Simple to play, root
 - Vault v6 `game-add 2` for staking. ✅ registry entry exists
 
 ## Current status (3 Nov)
-- **Applied on the Picks contract** — owner completed step 8 and the follow-ups 👤. Not yet announced to players (D-064, D-067).
-- Repo Lens rounds 10, 11 and **12: GO** 👤. **Launch PR #57 merged into `main` on 3 Nov** ✅ — the page, `PINNED_PICKS` and the Race v6 fix are live code; `games.json` still says "soon" ✅.
-- Next: the VHP sampler running, `GAMES_ENABLED` for the recorder ❓, the announcement, and the vault `game-add 2`.
+- **Live for players** ✅: Games page (PR #58), menus and home page (PR #59); `GAMES_ENABLED = true`. The recorder's first run (16:12 UTC, by hand) was green in both jobs; its first week files hold 19 past targets, all void ("no handicap card") — expected until cards and samples fill. ✅
+- **Vault:** `game-add 2 "Who Signs Block X" --staked --free` announced 3 Nov (tx `0x122082c6…e71760e3`), applicable from Thu 5 Nov 15:51 UTC. After the apply: repo variable `PRIZES_FROM_WEEK = 3` (Settings → Secrets and variables → Actions → Variables). 👤
+- **Pays from vault week 3** (Mon 9 – Mon 16 Nov), first seal ~Tue 17 Nov (D-077). The I-042 items are ranked by what could mispay in that week; see "Before the first paid week" below.
+- **Nicknames (D-078, I-073):** `blockx.html` loads `names.js`; every producer and player shows as `KNames.of` (name · short address, wrapped, never cut off). PR open. ✅
+## Before the first paid week (I-042, D-077)
+Fixes planned before the week-3 seal (each with a test and a Repo Lens fix-check):
+1. **Week-end re-read** (BX-88, BX-97, BX-98, G-K-1): before a week's prize file is first written, every target of the week is re-read from both nodes and compared whole (signer, time, picks, points, void, card); any difference holds the prize file.
+2. **Race card clock** (BX-118): the race publish job refuses a new card dated in the future.
+3. **Board freeze** (BX-105): once a week's prize file exists, that week's board can't change.
+4. **Void alert** (BX-72): every target voided for a non-standard VHP transfer is listed in the run's warnings, so they can be checked in the 24-hour correction window.
+
+Check in the correction window (game-correct / game-unprize / game-void): non-standard-transfer voids (BX-72), the free-prize winners for many-wallet farming (BXS-1), close finishes where a ~1% card shift could swap places (BX-115), and void rows near the week edge (BX-120). SP-59 and BX-116 can't mispay.
 
 ## Known issues
-- **I-042 (before prizes):** BX-97/BX-88 week-end re-read on both nodes, BX-105 board freeze, BX-72 VHP decoder, BX-118 race card clock, BX-115, BX-116, BX-120, SP-59, G-K-1.
+- **I-042:** see above.
 - **I-037 / I-038:** B1-4 vault-file edge cases; B1-6 stale header; B1-7 `\d` in `bot.yml`; B1-8 test-clock names.
 - **I-054:** Python check without `-I`, `|| true` on listings (S3-21, S3-22).
-- **I-062:** `site.mobile-nav.test.mjs` fails on `picks` (`nav.js` must load after the wallet scripts on `blockx.html`).
+- **I-062 (mobile-nav):** passes on `main` since the launch merge ✅ (`site.mobile-nav.test.mjs`).
 - **I-031:** shares Race files; merged by hand.
+- **Flaky test:** `bot.vhp-read-failure.test.ts` fails now and then in the full parallel run, passes alone.
 
 ## Future plans
 - Launch PR and per-action Mana limits a day after launch (step 10).

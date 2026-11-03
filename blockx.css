@@ -67,7 +67,8 @@
 .bx-chip.picked { border: 2px solid var(--mint); }
 .bx-chip:disabled { cursor: default; opacity: .6; }
 .bx-dot { width: 14px; height: 14px; border-radius: 4px; background: var(--c, #888); }
-.bx-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A nickname always comes with its short address (KNames.of): wrap instead of cutting it off (D-078). */
+.bx-name { font-weight: 700; overflow-wrap: anywhere; line-height: 1.3; }
 .bx-share { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bx-mult { font-family: var(--num); font-weight: 800; font-variant-numeric: tabular-nums; }
 .bx-t-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
@@ -88,6 +89,7 @@
 .bx-res-row .you { font-weight: 700; white-space: nowrap; }
 .bx-res-row .you.ok { color: var(--mint); } .bx-res-row .you.no { color: var(--rose); }
 .bx-mrow { display: grid; grid-template-columns: 14px minmax(0, 1fr) 90px auto; gap: 10px; align-items: center; padding: 7px 0; font-size: 14px; }
+@media (max-width: 560px) { .bx-mrow { grid-template-columns: 14px minmax(0, 1fr) 44px auto; gap: 8px; } }
 .bx-mbar { height: 8px; border-radius: 99px; background: var(--paper); overflow: hidden; }
 .bx-mbar i { display: block; height: 100%; background: var(--c, #888); width: var(--w, 0%); }
 .bx-how { margin-top: 30px; }

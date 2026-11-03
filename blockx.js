@@ -20,7 +20,9 @@
   const $ = (id) => document.getElementById(id);
   const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (v == null) continue; if (k === "text") e.textContent = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids) if (c != null) e.append(c); return e; };
   const isAddr = (a) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
-  const nameOf = (a) => (isAddr(a) ? NAMES[a] || a.slice(0, 5) + "…" + a.slice(-4) : "–");
+  // Producer and player nicknames (D-078): names.js (KNames.of: the name with the short address, never the name
+  // alone). Without it (the testnet page doesn't load it), the short address.
+  const nameOf = (a) => (!isAddr(a) ? "–" : window.KNames && typeof window.KNames.of === "function" ? window.KNames.of(a) : NAMES[a] || a.slice(0, 5) + "…" + a.slice(-4));
   const fmt = (n, d = 0) => Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
   const pts = (h) => fmt(h / 100, 2);
   const clock = (t) => new Date(t).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
@@ -552,6 +554,10 @@
     if ($("wallet-btn")) $("wallet-btn").addEventListener("click", walletMenu);
     if ($("cta")) $("cta").addEventListener("click", () => (me() ? goPick() : startPlaying()));
     renderWallet(); readMana();
+    // Names arrive once per page (names.json): redraw everything that shows a producer or a player.
+    if (window.KNames && typeof window.KNames.onChange === "function") window.KNames.onChange(() => {
+      for (const f of [() => renderChain(), () => renderTargets(true), renderMults, renderResults, renderBoard, renderWallet]) { try { f(); } catch { /* not loaded yet: drawn later */ } }
+    });
     const picksReady = setupPicks().catch(() => {});
     setupStake();
     try { await readHead(); say(""); } catch { say("Couldn't reach the Koinos network. Trying again in a moment…"); }

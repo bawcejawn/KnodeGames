@@ -21,6 +21,7 @@
    - End every reply with a **Today** checklist, and keep asking questions.
    - The name is **"Knode Games"** (two words). Times are UTC unless marked PT.
 9. **Mark what you know:** ✅ verified in the repo · 💬 from a chat · 👤 owner said · ❓ unknown. Never present a guess as a fact.
+10. **Your work list lives in GitHub:** at the start of every session, read your chat's section of `platform/CHAT_REQUESTS.md` (and §2, for every game chat) and work its open items in order (D-089). Report finished items in your session-end report. Don't wait for separate messages.
 
 ## 2. The handoff: how every chat ends a piece of work
 Every chat ends a piece of work, or a session, with the **session-end report** in `platform/SESSION_END_PROCESS.md`. It has five parts: what changed, what was completed, documentation to update, what the next AI should know, and current blockers. The owner pastes it into the library chat, which files it into `.ai/` in one docs PR and logs any contradiction as a **C-xx**.
@@ -40,7 +41,7 @@ Before anything else:
 
 Your area: <area>. You own: <files/folders, from PLATFORM.md "Chats and ownership">. You don't own: game files, the vault contract, or other chats' files. Send requests for those through the owner.
 
-Today's task: <one or two sentences, or "none yet — tell me what you found">.
+Today's task: your open items in .ai/platform/CHAT_REQUESTS.md (your section), plus: <anything extra, or "nothing else">.
 
 First reply:
 - Up to 10 lines: what you understand about your area now (live, in progress, blocked), with D-/I- numbers.
@@ -71,7 +72,7 @@ Every game must meet the standards:
 
 You own only your game's files. Shared files (board.js, games.json, site-nav, the bot's vault code) belong to other chats. Ask through the owner, or ship the smallest change in your PR and say so clearly.
 
-Today's task: <task>.
+Today's task: your open items in .ai/platform/CHAT_REQUESTS.md (your section and §2), plus: <anything extra, or "nothing else">.
 
 First reply:
 - Where the game stands: branch and commit, tests, audits, launch blockers, with I- numbers.

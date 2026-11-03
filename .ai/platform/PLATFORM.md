@@ -11,6 +11,7 @@
 | File | Holds |
 |------|-------|
 | `CURRENT_STATE.md` | dated snapshot: completed, in progress, blockers, priorities |
+| `CHAT_REQUESTS.md` | each chat's open work list (D-089); the owner's one start message for every chat |
 | `ACTIVE_WORK.md` | the same work split by area (platform, games, vault, leaderboards, rewards, swap desk): current, blocked, next |
 | `PLATFORM.md` | this overview |
 | `ARCHITECTURE.md` | how the pieces work: site, contracts, bots, workflows, data, tests |

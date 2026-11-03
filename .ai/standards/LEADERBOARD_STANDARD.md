@@ -17,6 +17,8 @@
 - **Both boards on every game, built from that game's own results and picks** (D-079) — **on every game, with no exceptions** (D-081). Where the free prize is off (Combo, Golf, Survivor, Fantasy for now), the Free play board ranks free players for standings only and the page must say no VHP is paid.
 - **Every game's boards are listed on the Leaders page** (a `board` entry in `games.json`).
 
+- **`board.json` for the vault check** (I-079, PR #74): every staked game publishes `board.json` next to its vault folder (or the path is set as `vaultGames.<id>.board` in `game-data/deployment.json`). It has a `lastWeek` whose week is the vault week, and each row has the wallet, a `points` field and a place, for Staked and Free rows. The vault bot holds a game's week if the board is missing, unreadable, for the wrong week, or doesn't match the vault file (every staked wallet with points in the file; every file wallet on the board, in board order).
+
 ## 2. Periods
 - Tabs: **Today**, **This week**, **Last week**, **All time** (games may omit Today when it makes no sense).
 - A week runs **Monday 00:00 to Monday 00:00 UTC**. Week numbers in files follow the vault (week 0 = Mon 19 Oct); **players see the week of Mon 9 Nov as "Week 1"** (D-063).

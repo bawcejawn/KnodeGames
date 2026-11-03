@@ -96,6 +96,10 @@
 | D-083 | 2026-11-03 | New contract owner = a cold key (option A); multisig later | active — runbook in PR #73 |
 | D-084 | 2026-11-03 | The operator key stays on GitHub only; removed from the PC | active — runbook in PR #73 |
 | D-085 | 2026-11-03 | The sponsor keeps its 25,000 KOIN (may grow); the hot-key risk is accepted for now | active |
+| D-086 | 2026-11-03 | Bracket: the Knode Games Pool stays in the field and is protected; forfeits judged on a day-long average | active — to build (R-BR-2) |
+| D-087 | 2026-11-03 | Bracket: same-block identical picks share the place; text fixed; commit-reveal maybe later | active |
+| D-088 | 2026-11-03 | Bracket launches when its fix-check passes; no 9 Nov target | active |
+| D-089 | 2026-11-03 | Work is handed to chats through `CHAT_REQUESTS.md` in the repo, not by separate chat messages | active |
 
 ---
 
@@ -511,6 +515,21 @@
 
 ## D-085 — The sponsor keeps 25,000 KOIN; its hot-key risk is accepted for now
 - **Date:** 2026-11-03 (owner, through the Vault chat) · **Decision:** the Mana sponsor wallet (`1ByDDS…`) keeps its 25,000 KOIN, which may grow (D-061, D-076). The risk is recorded and accepted for now: `SPONSOR_WIF` is always on the PC and has no timelock, so anyone holding it could move the KOIN at once. A lower balance with weekly top-ups was offered as an option and not taken for now.
+
+## D-086 — Bracket: the Knode Games Pool stays in the field, protected
+- **Date:** 2026-11-03 (owner, after Repo Lens #E-3) · **Decision:** the Knode Games Pool (the vault, a block producer) stays in the Producer Bracket field. It is protected against vault deposits and withdrawals timed around a round's start (H-4): a pooled producer is judged on the day's average or minimum effective VHP, not a single block. Forfeits for every producer are judged on the day's time-weighted average effective VHP (H-5), so throwing a matchup costs a day of real VHP. The page text is fixed to match.
+- **Not chosen:** keeping the Pool out of the field (the auditor's simplest option).
+- **Needs:** the Bracket chat builds it with tests (R-BR-2); the fix-check reviews it.
+
+## D-087 — Bracket: same-block copies share the place
+- **Date:** 2026-11-03 (owner) · **Decision:** keep "the earlier pick wins" as the tie-break. Identical brackets picked in the same block share the place (including a vault value and a free-prize place). Low risk in practice. Fix the code comment and the page text that say otherwise (H-6). A copy-proof commit-reveal scheme may come later with a Picks contract upgrade.
+
+## D-088 — Bracket: launches when ready
+- **Date:** 2026-11-03 (owner) · **Decision:** no 9 Nov target. The Producer Bracket launches (vault `game-add 9`, free-prize switch ON) when its Repo Lens #E-3 fixes pass a fix-check, and `BRACKET_PRIZES_FROM_WEEK` is set after the fixes, before its first paying week ends. Replaces the "try for 9 Nov" plan (3 Nov).
+
+## D-089 — Chats get their work from `CHAT_REQUESTS.md`
+- **Date:** 2026-11-03 (owner) · **Decision:** "the source of everything lives in GitHub, not in chats." Each chat's open work is listed in `.ai/platform/CHAT_REQUESTS.md`. The owner sends every chat the same short start message (§1 of that file). Chats report back with the session-end report, and the library chat keeps the file current. Rules that apply to every game go into the standards, not into messages.
+- **Private audit reports** stay in the Claude project, since the repo is public; the repo names findings by id only.
 
 ---
 

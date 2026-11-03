@@ -54,7 +54,7 @@
 | **Site "Week 1" refresh** | Race `PRIZES_FROM_WEEK = 3` done (PR #56) | show 9 Nov as Week 1 site-wide; replace "vault not yet live" text (I-069, I-027) |
 | **Survivor (3)** | branch `survivor` @ `a8a1979`, not merged | Repo Lens pass 4 → testnet season → register game 3 → Season 1 **Mon 16 Nov** (D-065). Free board stays; free prize off (D-081) |
 | **Last Node Standing (13)** | branch `lastnode` @ `adf95be` | round-3 review; needs 48 h of sampler data; add a Free board **with** the 2 + 1 prize (decided, D-081); **still to decide:** how its free winners are picked (proposal in `claude/lastnode/FREE-PLAY-PROPOSAL.md`) |
-| **Producer Bracket (9)** | branch `kg-09-bracket` @ `ee676ea` (behind `main`) | first Repo Lens audit (prompt ready); to pay from 9 Nov, `game-add 9` by **Fri 6 Nov noon PT** |
+| **Producer Bracket (9)** | branch `kg-09-bracket` @ `5b2492e`; **Repo Lens #E-3: fix first** (2 Critical, 6 High) | fixes (R-BR-1, R-BR-2) → fix-check → merge `main` → launch **when ready** (D-088; no 9 Nov target) |
 | **Fantasy Producers (4)** | branch `fantasy` @ `2bee805`; testnet practice deployed | fix-check; a full test week; real-data simulation; add a Free board (no prize yet) |
 | **Combo Card (8)** | branch `combo` @ `c8c652e` | fix-check 4; then the Picks v2 upgrade; let free players send cards (I-074) |
 | **Block Golf (6)** | branch `golf` @ `6b2200a` | practice with Block X (the 3 Nov morning snapshot said Golf practice couldn't start without the sampler; `BlockGolf.md` says it waited on Block X going live — ❓ Golf chat to confirm); add a Free board (no prize yet); staked after `game-add 6` |
@@ -95,7 +95,7 @@ Full order and reasons: `PRIORITIES.md`.
 4. **Vault bot checks (PR #74): Repo Lens, then merge by Fri 13 Nov** (I-051, I-052, I-064).
 5. **Site "Week 1" refresh** before Mon 9 Nov (I-069).
 6. **Survivor pass 4 and testnet season** to hold the Mon 16 Nov start.
-7. **Bracket audit** (to try for 9 Nov), then the remaining audits: Last Node, Fantasy, Combo.
+7. **Bracket fixes** after its audit (fix first; launches when ready, D-088), then the remaining audits: Last Node, Fantasy, Combo.
 
 ## Watch list
 - **Thu 5 Nov 15:51 UTC:** games 2 and 7 become applicable (reminder set for 9 AM PT).

@@ -38,7 +38,8 @@
     for (const c of kids) if (c) e.append(c);
     return e;
   }
-  const fmt = (x) => (typeof x === "number" && isFinite(x) ? x.toLocaleString("en-US") : "–");
+  // A column may set `d` (0 to 2): show exactly that many decimals (Block X points in hundredths: 1.79, 2.00).
+  const fmt = (x, d) => (typeof x === "number" && isFinite(x) ? (Number.isInteger(d) && d >= 0 && d <= 2 ? x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }) : x.toLocaleString("en-US")) : "–");
   const short = (a) => (typeof a === "string" && a.length > 12 ? a.slice(0, 4) + "…" + a.slice(-4) : String(a || ""));
   const day = (t) => new Date(t).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
@@ -49,7 +50,9 @@
   }
 
   function create(host, opt) {
-    const id = "kb" + ++n, o = Object.assign({ columns: [], name: short, scored: () => true, summary: () => "", me: null, link: null, unranked: "" }, opt || {});
+    // Wallet names (names.js, when the page loads it): "Name · 1Abc12…wxyz", else the short address.
+    const named = (a) => (window.KNames ? window.KNames.of(a) : short(a));
+    const id = "kb" + ++n, o = Object.assign({ columns: [], name: named, scored: () => true, summary: () => "", me: null, link: null, unranked: "" }, opt || {});
     let data = null, mode = "week", who = "", kind = "main";
     // The two boards have the same names in every game (owner, 2026-10-28): KBoard.LABELS, never set per game.
     const F = o.free ? { show: Number.isInteger(o.free.show) ? o.free.show : 6, prize: typeof o.free.prize === "string" ? o.free.prize : "", main: LABELS.staked, label: LABELS.free } : null;
@@ -77,6 +80,8 @@
       el("div", { class: "table-scroll" }, el("table", { class: "hist kb-table" }, el("thead", {}, head), body)),
       mine);
 
+    // Redraw once the wallet names arrive (names.js), if this page loads it.
+    if (window.KNames && window.KNames.onChange) window.KNames.onChange(() => { if (data) render(); });
     function render() {
       const part = partOf(data, mode), rows = (part && Array.isArray(part.rows)) ? part.rows : [];
       const weekly = mode === "week" || mode === "last";
@@ -98,7 +103,7 @@
         return el("tr", { class: [topOk(r, pl) ? "top" : "", r.a === who ? "me" : ""].join(" ").trim() || null },
           el("td", { text: medalOk(r, pl) ? MEDAL[pl - 1] : String(pl) }),
           el("td", { class: "mono" }, href ? el("a", { href, target: "_blank", rel: "noopener noreferrer", text: o.name(r.a) }) : el("span", { text: o.name(r.a) })),
-          ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key]) })));
+          ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key], c.d) })));
       }));
       if (!ranked.length) body.replaceChildren(el("tr", {}, el("td", { colspan: String(2 + o.columns.length), class: "ago", text: "No ranked players yet." })));
       const row = who && rows.find((r) => r && r.a === who);
@@ -121,7 +126,7 @@
       body.replaceChildren(...shown.map((r, i) => el("tr", { class: [medal(r, i) ? "top" : "", r.a === who ? "me" : ""].join(" ").trim() || null },
         el("td", { text: medal(r, i) ? MEDAL[medal(r, i) - 1] : String(r.boardPlace || i + 1) }),
         el("td", { class: "mono" }, el("span", { text: o.name(r.a) })),
-        ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key]) })))));
+        ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key], c.d) })))));
       if (!shown.length) body.replaceChildren(el("tr", {}, el("td", { colspan: String(2 + o.columns.length), class: "ago", text: "No free-play scores yet." })));
       const row = who && rows.find((r) => r && r.a === who);
       const place = row && !row.ranked && free.includes(row) ? (Number.isInteger(row.boardPlace) && row.boardPlace > 0 ? row.boardPlace : free.indexOf(row) + 1) : 0;   // audit BX-41: ties share

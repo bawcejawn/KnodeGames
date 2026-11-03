@@ -29,7 +29,9 @@
   const $ = (id) => document.getElementById(id);
   const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === "text") e.textContent = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids) if (c != null) e.append(c); return e; };
   const say = (t) => { $("status").textContent = t; };
-  const nameOf = (a) => NAMES[a] || a.slice(0, 5) + "…" + a.slice(-4);
+  // Nicknames (D-078): the shared names system shows "name · 1Abc12…wxyz" (pool name, Koinos @name or Knode Games name);
+  // the old built-in names and short address stay as the fallback if names.js didn't load.
+  const nameOf = (a) => (window.KNames ? window.KNames.of(a) : NAMES[a] || a.slice(0, 5) + "…" + a.slice(-4));
   /** A pick scored a show (its horse finished 2nd or 3rd): the recorder's 6th field, or for races recorded before
    *  Show existed, worked out from the race's stored standings with the same rule (race-math.js). */
   const isShow = (result, p) => !p[3] && (p.length > 5 ? p[5] === 1 : !!result && Array.isArray(result.standings) && M.shows(result.standings).includes(p[1]));
@@ -410,6 +412,9 @@
   }
   function renderBoard() { if (lb && board) { lb.setMe(me() || ""); lb.set(board); } }
   if (W && W.subscribe) W.subscribe(() => { loadMine(); renderBoard(); });
+  // When the names list arrives or changes, redraw everything that shows a producer or player: the horses, card,
+  // feed and results (render), the pick lists and the leaderboard.
+  if (window.KNames && window.KNames.onChange) window.KNames.onChange(() => { render(); renderPicks(true); renderBoard(); });
 
   const setMode = (m) => { histMode = m; $("h-today").setAttribute("aria-pressed", String(m === "today")); $("h-week").setAttribute("aria-pressed", String(m === "week")); renderHistory(); };
   $("h-today").onclick = () => setMode("today");
@@ -445,4 +450,6 @@
 
   // Stake in the Race (vault game 7): the shared panel stays hidden until the Knode Games vault (v6) is live.
   if (window.KStake) window.KStake.mount(document.getElementById("stake"), { game: 7 });
+  // The staked / free status bar at the top of the page (Hub, PR #41): links to the full staking page.
+  if (window.KStake && window.KStake.badge) window.KStake.badge(document.getElementById("stake-badge"), { game: 7 });
 })();

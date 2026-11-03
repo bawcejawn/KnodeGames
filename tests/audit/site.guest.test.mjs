@@ -268,8 +268,9 @@ test("the header's guest switch stays off while deployment.json says the player 
   assert.ok(btn && "disabled" in btn.attrs);
 });
 
-test("guests make KnodeGames picks only on the pinned Picks contract (empty until it is on mainnet)", () => {
-  assert.match(walletSrc, /const PINNED_PICKS = "";/, "not pinned before the Picks contract is live");
+test("guests make KnodeGames picks only on the pinned Picks contract (the mainnet one in picks-data/deployment.json)", () => {
+  const dep = JSON.parse(fs.readFileSync(`${APP}/picks-data/deployment.json`, "utf8"));
+  assert.match(walletSrc, new RegExp(`const PINNED_PICKS = "${dep.contract}";`), "pinned to the live mainnet Picks contract");
   assert.match(walletSrc, /const guestPicks = \(\) => \(W\.chainId === MAINNET_CHAIN_ID \? \(PINNED_PICKS \|\| null\)/);
   const start = walletSrc.indexOf("  function checkGuestTx("), end = walletSrc.indexOf("\n  }\n", start) + 4;
   const ctx = { BigInt, Number, Error, ANSWER };

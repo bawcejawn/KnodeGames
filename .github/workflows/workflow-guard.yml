@@ -4,9 +4,9 @@ name: Workflow guard
 
 on:
   push:
-    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/combo-recorder.test.mjs", "tests/audit/repolens-combo-recorder.test.mjs", "tests/audit/combo-verify.test.mjs", "tests/audit/repolens-fc-combo/**", "tools/combo-verify.mjs", "bot/games/combo-score.mjs", "bot/games/vhp-inflows.mjs"]
+    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/combo-recorder.test.mjs", "tests/audit/repolens-combo-recorder.test.mjs", "tests/audit/combo-verify.test.mjs", "tests/audit/repolens-fc-combo/**", "tools/combo-verify.mjs", "bot/games/combo-score.mjs", "bot/games/vhp-inflows.mjs", "tests/audit/site.ci-deps.test.mjs"]
   pull_request:
-    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/combo-recorder.test.mjs", "tests/audit/repolens-combo-recorder.test.mjs", "tests/audit/combo-verify.test.mjs", "tests/audit/repolens-fc-combo/**", "tools/combo-verify.mjs", "bot/games/combo-score.mjs", "bot/games/vhp-inflows.mjs"]
+    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/combo-recorder.test.mjs", "tests/audit/repolens-combo-recorder.test.mjs", "tests/audit/combo-verify.test.mjs", "tests/audit/repolens-fc-combo/**", "tools/combo-verify.mjs", "bot/games/combo-score.mjs", "bot/games/vhp-inflows.mjs", "tests/audit/site.ci-deps.test.mjs"]
   workflow_dispatch: {}
 
 permissions:
@@ -25,6 +25,9 @@ jobs:
           node-version: 22
       - run: node --experimental-strip-types --test bot/workflow.test.ts
       - run: npm ci --no-audit --no-fund --ignore-scripts
+      # The trigger, permission and secrets guard (issue triggers, write tokens, secrets), also for workflow-only changes
+      # (audit PN-9).
+      - run: node --test tests/audit/site.ci-deps.test.mjs
       # The publish job's own tests (they run its shell and merge code against a scratch repository).
       - run: node --import tsx --test --test-concurrency=1 tests/audit/*publish*.test.ts tests/audit/*publish*.test.mjs tests/audit/published-files.test.ts
       # Combo's publish step (combo.yml) and its tests (fix-check FC-20).

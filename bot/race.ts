@@ -255,10 +255,13 @@ type Opts = {
    *  passes Date.now; the offline tests (fake chains in the future) leave it out. */
   clock?: () => number;
   stakedOf?: (node: any, who: string, week: number) => Promise<boolean>;   // staked in the Race in the vault (tests)
+  prizesFrom?: number;                                                // the tests' PRIZES_FROM_WEEK
 };
 
 // ── the picks contract and the game (read only) ──
 const RACE_ABI = () => JSON.parse(fs.readFileSync(new URL("../race/abi/race.koilib.json", import.meta.url), "utf8"));
+// Repo Lens B1-1 (round 11): the deployed game's ABI, v6 since the upload on 2026-11-02 (the same as
+// kpred-v6.koilib.json, which Block X reads; a test checks they match).
 const GAME_ABI = () => JSON.parse(fs.readFileSync(new URL("../game/abi/kpred.koilib.json", import.meta.url), "utf8"));
 const GAME = (() => { try { return JSON.parse(fs.readFileSync(new URL("../game-data/deployment.json", import.meta.url), "utf8")).contract as string; } catch { return ""; } })();
 function defaultRaceContract(): string | null {
@@ -283,20 +286,34 @@ async function readPicks(node: any, contract: string, raceNo: number): Promise<P
  *  player has no entry that week) at least that week's minimum stake. A wallet staked at the start of a week stays
  *  staked that week even if it withdraws. Before the vault (v6) is live nobody is staked; a failed read throws. */
 const vaultState = new WeakMap<object, Promise<any>>();
-export const NO_V6_ABI = "game/abi/kpred.koilib.json has no get_game_player (still v5): Race stakes can't be read";
+/** Repo Lens B1-5 (round 11): once a node fails a stake read, every other stake read on it fails at once for the rest of
+ *  the run (one warning; the vault file isn't final this run; the next hour tries again). So a node that answers the
+ *  head but not the vault can't push the hourly run past its time limit and cost that hour's race cards. */
+const nodeDown = new WeakMap<object, string>();
+const STAKE_TRIES = 2;                                       // about 2 s of retry, not withRetry's default minute
+export const NO_V6_ABI = "game/abi/kpred.koilib.json has no get_game_player: Race stakes can't be read";
 async function readStaked(node: any, who: string, week: number): Promise<Stand> {
   const abi = GAME_ABI();
   if (!GAME) throw Object.assign(new Error("game-data/deployment.json gives no contract: Race stakes can't be read"), { once: true });
-  // This repository's contract ABI is still v5: it can't tell whether the vault is live, so it can't say who is free.
-  // Throwing keeps the vault file from being final (the boards show everyone on Free play, with one warning a run).
   if (!abi.methods?.get_game_player) throw Object.assign(new Error(NO_V6_ABI), { once: true });
+  const down = nodeDown.get(node);
+  if (down) throw Object.assign(new Error(down), { once: true });
   const c = new Contract({ id: GAME, abi, provider: node });
-  if (!vaultState.has(node)) vaultState.set(node, withRetry("vault state", () => (c.functions as any).get_state({})));
-  const cfg = (await vaultState.get(node))?.result?.config;
-  if (!cfg) { vaultState.delete(node); throw Object.assign(new Error("the vault's get_state came back empty: Race stakes can't be read"), { once: true }); }
-  if (!(Number(cfg.v6_rule_week_plus_one || 0) > 0)) return { staked: false, earning: false };   // the contract on chain isn't v6 yet
-  const r: any = await withRetry(`Race stake of ${who}`, () => (c.functions as any).get_game_player({ player: who, game: VAULT_GAME, week: String(week) }));
-  return { staked: stakedFrom(cfg, r?.result ?? {}, week), earning: earningFrom(cfg, r?.result ?? {}, week) };
+  try {
+    if (!vaultState.has(node)) vaultState.set(node, withRetry("vault state", () => (c.functions as any).get_state({}), STAKE_TRIES));
+    const cfg = (await vaultState.get(node))?.result?.config;
+    if (!cfg) throw new Error("get_state came back empty");
+    // Review V4 (round 10): no early "not v6 yet" answer. On a chain without get_game_player (v5) this read fails, so the
+    // vault file can't go final with everyone counted free. Right after the v6 upload, v6_rule_week_plus_one stays 0
+    // until v6's first transaction; get_game_player already answers then (no stake, which is true), and
+    // stakedFrom / earningFrom keep their own guard.
+    const r: any = await withRetry(`Race stake of ${who}`, () => (c.functions as any).get_game_player({ player: who, game: VAULT_GAME, week: String(week) }), STAKE_TRIES);
+    return { staked: stakedFrom(cfg, r?.result ?? {}, week), earning: earningFrom(cfg, r?.result ?? {}, week) };
+  } catch (e) {
+    const m = `the vault's stake reads failed on a node (${String((e as Error).message || e).slice(0, 160)}): Race stakes can't be read this run`;
+    nodeDown.set(node, m);
+    throw Object.assign(new Error(m), { once: true });
+  }
 }
 /** staked: on the Staked board (peak stake that week at least the minimum: can't win the free prize). earning: this
  *  week's counted stake (week_stake, the lowest) at least the minimum, so the vault takes its points; a wallet staked
@@ -320,7 +337,8 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
   return min > 0n && peak >= min;
 }
 /** One run. Exported for the tests, which pass fake nodes. */
-export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock }: Opts) {
+export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom }: Opts) {
+  prizesFromWeek = prizesFrom ?? PRIZES_FROM_WEEK;
   if (prev !== undefined) PREV = prev;
   if (out !== undefined) OUT = out;
   // Cards: effective VHP (audit BX-3 b). Who is ranked is the vault stake (stakedOf), not a VHP balance.
@@ -579,7 +597,8 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
       const st = await staked(a, stakeWeek);
       rows.push({ a, pts: x.correct * M.POINTS.win + x.shows * M.POINTS.show, correct: x.correct, shows: x.shows, picks: x.picks, ranked: st.staked, earning: st.earning });
     }
-    return withEarns(withPlaces(rank(rows)), weekly ? firstPicks(all, from, to) : null);
+    // Prizes and bucket shares only for weeks the Race earns in the vault (PRIZES_FROM_WEEK).
+    return withEarns(withPlaces(rank(rows)), weekly && stakeWeek >= prizesFromWeek ? firstPicks(all, from, to) : null);
   };
   const pub = (rows: Row[]) => rows.map(({ earning, ...r }) => r);   // board.json rows: the published fields only
   const lastRows = wNow > 0 ? await build(M.weekStart(wNow - 1), M.weekStart(wNow), wNow - 1, true) : [];
@@ -597,6 +616,10 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
 /** The Producer Race's game number in the KnodeGames Vault, the vault's limit of wallets per prize place, and its
  *  points range for staked players' rows. */
 export const VAULT_GAME = 7;
+/** The first vault week the Race earns in (owner, 2026-11-02: game 7 is applied in the vault and earns from week 3, Mon
+ *  9 Nov 2026). Earlier weeks: no free-prize places, no staked rows and no medals (the vault skips them anyway). */
+export const PRIZES_FROM_WEEK = 3;
+let prizesFromWeek = PRIZES_FROM_WEEK;
 export const MAX_PRIZE_WINNERS = 10;
 export const MAX_ROW_POINTS = 255;
 type VaultRow = { player: string; points: number };
@@ -715,6 +738,8 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   for (const r of wf.races) if (r.result?.final && Array.isArray(r.result.picks)) for (const x of r.result.picks) {
     const t = Number(x[2]); if (!firstPick.has(x[0]) || t < firstPick.get(x[0])!) firstPick.set(x[0], t);
   }
+  // Before the Race earns in the vault: a final file with nothing to pay (the vault skips those weeks anyway).
+  if (w < prizesFromWeek) return { ...file, final: true, skipped: open.map((r) => r.id) };
   const places = prizePlaces(rows, firstPick), staked = stakedRows(rows);
   for (const n of [...places.notes, ...staked.notes]) problems.push(`vault week ${w}: ${n}`);
   return { ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: open.map((r) => r.id) };
@@ -810,5 +835,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   if (!RPC_CHECK && E.ALLOW_ONE_NODE !== "yes") { console.error(`error: no second node (RPC_CHECK is off, missing or the same as RPC): the race needs two. Set RPC_CHECK, or ALLOW_ONE_NODE=yes to run on one node.`); process.exit(1); }
   if (!RPC_CHECK) console.log("::warning::running on ONE node (ALLOW_ONE_NODE=yes): cards and results are not cross-checked");
   const nodes = { p: new Provider([RPC]), check: RPC_CHECK ? new Provider([RPC_CHECK]) : null };
-  (process.argv.includes("--sample") ? sample(nodes) : run({ ...nodes, clock: Date.now })).catch((e) => { console.error(`error: ${String((e && e.message) || e).replace(/[\r\n]+/g, " ").replace(/::/g, ": ").slice(0, 500)}`); process.exit(1); });
+  // Repo Lens RV-1 (round 12): exit once the work is done. withRetry stops waiting for a node that never answers, but its
+  // request stays open and would keep this process alive until the job's 30-minute limit, so that hour's files would
+  // never be uploaded.
+  (process.argv.includes("--sample") ? sample(nodes) : run({ ...nodes, clock: Date.now })).then(() => process.exit(process.exitCode ?? 0), (e) => { console.error(`error: ${String((e && e.message) || e).replace(/[\r\n]+/g, " ").replace(/::/g, ": ").slice(0, 500)}`); process.exit(1); });
 }

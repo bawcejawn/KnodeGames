@@ -286,3 +286,22 @@ test("audit SP-37 (round 4): the vault-live setting comes from the game's state,
   assert.equal(await vaultLiveOn("https://a.example", "g", true, async () => false), false);
   delete process.env.RPC_CHECK;
 });
+
+test("mana-report: a block range a node won't answer (error page) is split down to single blocks; every block is still read", async () => {
+  const { readBlocks } = await import("../../bot/sponsor.ts");
+  const BIG = 1037;                                        // one block whose answer is too big in any range over 8 blocks
+  let calls = 0;
+  const provider = { async call(_m: string, a: any) {
+    calls++;
+    const h = Number(a.ancestor_start_height), n = a.num_blocks;
+    if (h <= BIG && BIG < h + n && n > 8) throw new Error("invalid json response body: Unexpected token '<'");
+    return { block_items: Array.from({ length: n }, (_, i) => ({ block_height: String(h + i) })) };
+  } };
+  const noWait = (_l: string, f: () => Promise<any>) => f();
+  const items = await readBlocks(provider, "0xhead", 1000, 100, noWait);
+  assert.deepEqual(items.map((x: any) => Number(x.block_height)), Array.from({ length: 100 }, (_, i) => 1000 + i));
+  assert.ok(calls < 30, `a few extra calls, not one per block (${calls})`);
+  // A block no node will answer even alone: the report stops with an error (it never skips blocks silently).
+  const dead = { async call() { throw new Error("invalid json response body"); } };
+  await assert.rejects(readBlocks(dead, "0xhead", 1000, 4, noWait));
+});

@@ -23,7 +23,8 @@
     "picks": "tsx bot/picks.ts",
     "testnet-site": "node tools/testnet-site.mjs",
     "test:browser": "node --test tests/browser/*.test.cjs",
-    "combo": "tsx bot/games/combo.ts"
+    "combo": "tsx bot/games/combo.ts",
+    "names": "tsx bot/names.ts"
   },
   "dependencies": {
     "koilib": "9.4.1"

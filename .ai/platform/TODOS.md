@@ -15,7 +15,7 @@
 - [x] ~~Send the Vault chat its two prompts~~ — sent 3 Nov; answers: PR #73 (wallets) and PR #74 (vault bot checks)
 - [ ] Send the **Bracket audit** prompt to Repo Lens (`claude/prompts-2026-11-03-vault-checks-bracket-audit.md`) — P2 — I-061
 - [x] ~~Merge the docs cleanup PR~~ — #72 merged 3 Nov
-- [ ] **Review PR #73** (new `docs/WALLETS.md` + weekend runbook) and merge it before Friday — P1 — I-001, D-083
+- [ ] **PR #73** (new `docs/WALLETS.md` + weekend runbook): an independent check found 3 High issues (shared recovery words for owner and treasury; no way to send the new owner KOIN; no emergency path between 4b and 5b). **Sent back to the Vault chat** (`claude/prompts-2026-11-03-boards-owners-vault-reply.md`); merge only after the fixes, before Friday — P1 — I-001, D-083
 - [ ] **Send PR #74 to Repo Lens** with `claude/audit-vault-bot-checks-prompt.md`; merge after GO, by Fri 13 Nov — P1 — I-051, I-052, I-064
 - [ ] Send the `board.json` prompt to the Bracket, Last Node, Combo, Survivor, Fantasy and Golf chats — P2 — I-079
 - [ ] Tell the Block X chat (picks owner handover, I-076) and the Race chat (racepicks owner change, I-077) — P2

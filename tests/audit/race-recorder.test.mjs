@@ -122,7 +122,7 @@ test("results: races before the recorder's first card are not listed; a later ra
 const W1 = "1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv", W2 = "16ixK5DgvcojcZLvxyYWhHFcRXfhfrHbpL", W3 = "1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8", GUEST = "1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717";
 const RACE00 = M.raceIndex(U("2026-11-02T00:00Z"));
 /** Picks for race 00:00 on Nov 2: W1 and GUEST pick the real winner, W2 and W3 another horse. */
-async function picksRun(at, prev, { winnerFor = null, theirs = null, custom = null, failFor = null, staked = [], stakeFail = null, checkStaked = null } = {}) {
+async function picksRun(at, prev, { winnerFor = null, theirs = null, custom = null, failFor = null, staked = [], stakeFail = null, checkStaked = null, prizesFrom = 0 } = {}) {
   const out = tmp();
   const picks = (winner) => custom || [[W1, winner, 1], [W2, P[3], 2], [W3, P[3], 3], [GUEST, winner, 4]];
   const picksOf = async (node, r) => (r !== RACE00 ? [] : node === checkNode && theirs ? theirs : picks(winnerFor));
@@ -130,7 +130,7 @@ async function picksRun(at, prev, { winnerFor = null, theirs = null, custom = nu
   const vhp = async (who) => Object.fromEntries(who.map((a) => [a, a === GUEST ? "0" : a === W3 ? "50000000" : String(5e8)]));   // W3: 0.5 VHP
   const playerOf = async (n, who, week) => { if (who === failFor) throw new Error("node timeout"); return ({ stake: who === W3 ? 10n : 0n, answers: { [W1]: 3, [W2]: 9, [W3]: 1, [GUEST]: 5 }[who] ?? 0, points: { [W1]: 2, [W2]: 7, [W3]: 1, [GUEST]: 4 }[who] ?? 0 }); };
   const log = console.log; console.log = () => {};
-  try { await run({ p: pNode, check: checkNode, prev, out, vhpOf: async (w) => ({ ...(await vhpOf(w)), ...(await vhp(w)) }), raceContract: "x", picksOf, playerOf,
+  try { await run({ p: pNode, check: checkNode, prev, out, vhpOf: async (w) => ({ ...(await vhpOf(w)), ...(await vhp(w)) }), raceContract: "x", picksOf, playerOf, prizesFrom,
     // Staked in the Race (the vault's test), by wallet; the check node may say otherwise, or a read may fail.
     stakedOf: async (n, who) => { if (who === stakeFail) throw new Error("node timeout"); return (n === checkNode && checkStaked ? checkStaked : staked).includes(who); } }); } finally { console.log = log; }
   return out;
@@ -626,4 +626,20 @@ test("earns: in the recorder's board, weekly boards only; >10 free tied: the 10 
     const d = tmp(), j = JSON.parse(JSON.stringify(board)); Object.assign(j.week.rows[0], bad);
     fs.writeFileSync(path.join(d, "board.json"), JSON.stringify(j)); assert.equal(shapeOk(d), false, JSON.stringify(bad));
   }
+});
+
+test("prizes from week: the Race earns in the vault from week 3; earlier weeks pay nothing and show no medals", async () => {
+  const { PRIZES_FROM_WEEK } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(PRIZES_FROM_WEEK, 3, "owner, 2026-11-02: game 7 earns from vault week 3 (Mon 9 Nov 2026)");
+  // The made-up week 2 with prizes starting at week 3: final, but nothing in it, and no medals on the boards.
+  const { dir } = await weekTwoDone();
+  const out = await picksRun(U("2026-11-09T05:37Z"), dir, { staked: [W1], prizesFrom: 3 });
+  assert.deepEqual(vaultOf(out), { game: 7, week: 2, final: true, rows: [], first: [], second: [], skipped: [] });
+  assert.ok(shapeOk(out));
+  const board = JSON.parse(fs.readFileSync(path.join(out, "board.json"), "utf8"));
+  assert.ok(board.lastWeek.rows.length > 0 && board.lastWeek.rows.every((r) => r.earns === 0), "no medals before prizes start");
+  // From the start week on, the usual places.
+  const { dir: d2 } = await weekTwoDone();
+  const o2 = await picksRun(U("2026-11-09T05:37Z"), d2, { staked: [W1], prizesFrom: 2 });
+  assert.deepEqual(vaultOf(o2).first, [GUEST]);
 });

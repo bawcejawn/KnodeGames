@@ -145,7 +145,7 @@
   const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 
   const STATUS = { live: "Live", launching: "Launching", planned: "Not live yet", testnet: "Testnet" };
-  const EFFECT = { none: ["Read-only", ""], files: ["Edits files on this PC", "files"], chain: ["Changes the blockchain", "chain"] };
+  const EFFECT = { none: ["Read-only", ""], files: ["Edits files (this PC or GitHub)", "files"], chain: ["Changes the blockchain", "chain"] };
   let CAT = null, running = false;
   const history_ = [];
 

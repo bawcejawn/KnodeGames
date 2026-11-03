@@ -18,8 +18,9 @@
  *   npm run prizes -- list                     the switches now and for next week
  *   npm run prizes -- on  <game> [--send]      free prize on from next Monday 00:00 UTC
  *   npm run prizes -- off <game> [--send]      free prize off from next Monday 00:00 UTC
+ *   … --send --from <week>                     optional: refuse unless the change is still for that week
  *
- * Without --send nothing is published (a preview).
+ * Without --send nothing is published (a preview). Nothing is published between Sunday 23:30 and Monday 00:30 UTC.
  */
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -35,6 +36,14 @@ export const GAMES: Record<string, string> = {
   "8": "Combo Card", "9": "Producer Bracket", "13": "Last Node Standing",
 };
 const MAX_CHANGES = 200;
+const ISO_UTC = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{3})?Z$/;
+/** Repo Lens FP-3 / FP-4: no publishing within 30 minutes of Monday 00:00 UTC, so a slow PC clock or a preview and a
+ *  send either side of midnight can't land a change in the wrong week. */
+export const QUIET_MS = 30 * 60_000;
+export function nearWeekEdge(now: number, genesis = GENESIS_MS, weekLen = WEEK_MS): boolean {
+  const into = (now - genesis) % weekLen;
+  return into < QUIET_MS || weekLen - into < QUIET_MS;
+}
 
 export type Change = { from: number; on: boolean; set: string };
 export type Switches = { v: 1; games: Record<string, Change[]> };
@@ -51,7 +60,8 @@ export function checkSwitches(s: any): string {
     if (!Array.isArray(list) || list.length > MAX_CHANGES) return `game ${id}: changes must be a list (at most ${MAX_CHANGES})`;
     let last = -1;
     for (const c of list as any[]) {
-      if (!c || !Number.isInteger(c.from) || c.from < 0 || typeof c.on !== "boolean" || typeof c.set !== "string" || !Number.isFinite(Date.parse(c.set)))
+      // Repo Lens FP-7: `set` is a strict UTC ISO time (read the same everywhere).
+      if (!c || !Number.isInteger(c.from) || c.from < 0 || typeof c.on !== "boolean" || typeof c.set !== "string" || !ISO_UTC.test(c.set) || !Number.isFinite(Date.parse(c.set)))
         return `game ${id}: each change needs from (a week), on (true/false) and set (a time)`;
       if (c.from < last) return `game ${id}: changes must be in week order`;
       last = c.from;
@@ -142,7 +152,9 @@ export function listText(s: Switches | null, now: number): string {
 
 async function main(argv: string[]) {
   const send = argv.includes("--send");
-  const a = argv.filter((x) => x !== "--send");
+  const fi = argv.indexOf("--from");
+  const wantFrom = fi >= 0 ? Number(argv[fi + 1]) : null;
+  const a = argv.filter((x, i) => x !== "--send" && x !== "--from" && !(fi >= 0 && i === fi + 1));
   const now = Date.now();
   if (a[0] === "list" || !a[0]) { console.log(listText(readSwitches().s, now)); return; }
   if (a[0] !== "on" && a[0] !== "off") { console.log("Commands: list · on <game> [--send] · off <game> [--send]"); process.exitCode = 1; return; }
@@ -151,8 +163,10 @@ async function main(argv: string[]) {
   const { s, base } = readSwitches();
   const { next, from } = setSwitch(s ?? empty(), game, a[0] === "on", now);
   const what = `${GAMES[String(game)]} (game ${game}) free prize ${a[0]} from week ${from}`;
-  console.log(`${what}: starts ${day(weekStart(from))} 00:00 UTC. This week (${from - 1}) keeps ${state(switchFor(s, game, from - 1))}.`);
+  console.log(`${what}: starts ${day(weekStart(from))} 00:00 UTC (week ${from}). This week (${from - 1}) keeps ${state(switchFor(s, game, from - 1))}.`);
+  if (nearWeekEdge(now)) throw new Error("It's within 30 minutes of Monday 00:00 UTC (the week change). Nothing published: try again after 00:30 UTC.");
   if (!send) { console.log("Preview only: nothing published. Add --send to publish."); return; }
+  if (wantFrom !== null && wantFrom !== from) throw new Error(`The change would now start week ${from}, not week ${wantFrom} as previewed. Nothing published: preview again.`);
   publish(next, base, what);
 }
 

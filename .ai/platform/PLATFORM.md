@@ -19,6 +19,7 @@
 | `ROADMAP.md` | milestones and launch paths |
 | `OPENISSUES.md` / `TODOS.md` | problems (I-xxx) and the owner's action list |
 | `KOINOS.md` | chain facts, testnet, gotchas |
+| `PRIORITIES.md` | what to work on next — P1 / P2 / P3 by the value it creates |
 | `TECHNICAL_DEBT.md` | shortcuts, unfinished systems, temporary fixes and risks, ranked by severity |
 | `DOCUMENTATION_GAPS.md` | what's missing, contradictory or incomplete in this library, ranked |
 | `FOUNDER_INTENT.md` | why the founder built it: why Koinos, why VHP, principles, success and failure |

@@ -9,7 +9,7 @@ Free and staked prediction games on the Koinos blockchain, powered by our own bl
 - The owner works in finance and is new to running code.
 
 ## Reading order
-1. **`platform/CURRENT_STATE.md`** — what's done, in progress, blocked and next, as of its date.
+1. **`platform/CURRENT_STATE.md`** — what's done, in progress, blocked and next, as of its date; then **`platform/PRIORITIES.md`** — what matters most.
 2. **`platform/PLATFORM.md`** — the one-page picture: games, contracts, money, wallets, branches, who owns what.
 3. **`platform/DECISIONS.md`** — every decision (D-xxx). **This file wins** if anything disagrees.
 4. **`platform/TODOS.md`** and **`platform/OPENISSUES.md`** — what's happening now and what's broken or waiting.

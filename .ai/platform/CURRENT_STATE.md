@@ -27,8 +27,8 @@
 ## In-progress systems
 | System | Where it stands | Next step |
 |--------|-----------------|-----------|
-| **Block X (game 2)** | applied on Picks; **Repo Lens round 12 GO; launch PR #57 merged** (3 Nov 15:10 UTC) — Block X code, `PINNED_PICKS` and the Race v6 stake fix are on `main`; site still lists it "soon" | announce to players → vault `game-add 2` → `GAMES_ENABLED=true` for the recorder ❓ (Block X chat) |
-| **Vault game registration** | only game 1 is in the vault | `game-add` the ready games (Race first) **by Fri 6 Nov 4 PM PT**; apply 48 h later so they earn from Mon 9 Nov |
+| **Block X (game 2)** | applied on Picks; round 12 GO; PR #57 merged; **live on the Games page** (PR #58) and recorder on (`GAMES_ENABLED`), prize-free until it's in the vault | `game-add 2` today → apply Thu–Sun → pays from Mon 9 Nov (D-077) |
+| **Vault game registration** | only game 1 is in the vault | `game-add` 2 and 7 today, apply Thu–Sun, so Questions, Race and Block X pay from Mon 9 Nov (D-077) |
 | **Sponsor vault switch** | off | run right after the first `game-add`, passing the caps exactly |
 | **Site "Week 1" refresh** | Race `PRIZES_FROM_WEEK = 3` done (PR #56) | show 9 Nov as Week 1 site-wide; replace "vault not yet live" text (I-069, I-027) |
 | **Survivor (3)** | branch `survivor` @ `a8a1979`, not merged | Repo Lens pass 4 → testnet season → register game 3 → Season 1 **Mon 16 Nov** (D-065) |

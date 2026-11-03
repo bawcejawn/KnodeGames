@@ -53,6 +53,7 @@
 8. **Players claim their rewards** (`claim_game`); the vault never pushes funds to wallets.
 9. **A prize needs a final, verified results file.** A missed, held or disputed week pays nothing until resolved.
 10. **There is no Knode Games token** (D-072).
+11. **Not gambling:** no wagers, odds or player-funded pots on any game; stakes are never at risk (D-075).
 
 ## 5. Architecture rules
 1. **Cost $0:** a static site on GitHub Pages; the repo stays **public** (D-005, D-043).

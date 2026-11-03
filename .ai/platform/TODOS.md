@@ -27,7 +27,8 @@
 - [ ] Delete old node basedir folders, only if `heal.log` is clean — P3 — I-008 — on or after Wed 4 Nov, 17:30 UTC (9:30 AM PT)
 - [ ] Retest "+ Add another account" with the real Kondor extension — P2 — I-004 — due {{TBD}}
 - [ ] Confirm which sponsor version is live on chain (v2 or v3) — P2 — C-01 (unblocks I-005) — due {{TBD}}
-- [ ] Wallet moves per `docs/WALLETS.md` — P1 — I-001, D-013 — target this weekend ❓ (7–8 Nov):
+- [ ] **Before the wallet moves:** get `docs/WALLETS.md` rewritten — it's from 26 Oct and would hand the seed back to the owner (DOCUMENTATION_GAPS #1) — P1
+- [ ] Wallet moves per `docs/WALLETS.md` (once updated) — P1 — I-001, D-013 — target this weekend ❓ (7–8 Nov):
   - new **owner** on a hardware wallet — the owner wallet `1635QU…` currently owns the game/vault, the desk and the Picks contract (each change is two-step or timelocked);
   - a **cold treasury** for the desk (48 h timelock);
   - the seed is **already moved** (`1K8VV…`, 30 Oct) — nothing to do

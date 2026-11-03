@@ -19,6 +19,7 @@
 | `ROADMAP.md` | milestones and launch paths |
 | `OPENISSUES.md` / `TODOS.md` | problems (I-xxx) and the owner's action list |
 | `KOINOS.md` | chain facts, testnet, gotchas |
+| `DOCUMENTATION_GAPS.md` | what's missing, contradictory or incomplete in this library, ranked |
 | `FOUNDER_INTENT.md` | why the founder built it: why Koinos, why VHP, principles, success and failure |
 | `VISION.md` | why, for whom, principles, brand |
 | `../standards/` | rules every game and the vault must follow |

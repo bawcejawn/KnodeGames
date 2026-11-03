@@ -85,6 +85,8 @@
 | D-072 | 2026-11-02 | No Knode Games token for now | active |
 | D-073 | 2026-11-02 | The vault produces blocks as the Knode Games Pool | active |
 | D-074 | 2026-11-02 | Multi-game staking is allowed and encouraged | active |
+| D-075 | 2026-11-03 | Knode Games is not gambling | active |
+| D-076 | 2026-11-03 | Success targets: 1,000,000 VHP in the pool; sponsor outgrown | active |
 
 ---
 
@@ -425,6 +427,13 @@
 
 ## D-074 — Multi-game staking is allowed and encouraged
 - **Date:** 2026-11-02 (owner) · **Decision:** A player may stake in any number of games at the same time, and the site should encourage it. Each game needs its own minimum of 1 VHP; stakes are kept per game in the vault, and `move_stake` moves VHP between games (not sponsored, D-027). The staking hub shows every game a wallet is staked in, each game's total and the wallet's share (D-031).
+
+
+## D-075 — Knode Games is not gambling
+- **Date:** 2026-11-03 (owner) · **Decision:** No wagers, odds or player-funded pots, on any game; stakes are never at risk. Rewards come only from the vault's block production, never from other players' losses. Extends the Race's rule to the whole platform. See `FOUNDER_INTENT.md`.
+
+## D-076 — Success targets
+- **Date:** 2026-11-03 (owner) · **Decision:** First target: **over 1,000,000 VHP staked in the Knode Games Pool** (more is welcome). A second sign of success: needing to enlarge the free Mana sponsor because of overwhelming demand.
 
 ---
 

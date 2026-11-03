@@ -82,6 +82,7 @@
 | Every new game page mounts `KStake.badge` at the top of `<main>`, full panel lower | each game chat | 2026-11-02 | D-031 |
 | Bot support for the testnet copy (`testnet/vault.json`) | Vault chat | 2026-11-02 | I-014 |
 | Ship V4, B1-1, B1-5 | Block X chat (told 2 Nov) | 2026-11-02 | — |
+| Producer nicknames on the Block X page (load `names.js`, CSP for names-data, `KNames.of` on every producer) — owner request | Block X chat (prompt sent 3 Nov) | 2026-11-03 | I-073 |
 | Last Node: fix round-3 findings; prepare game-13 announce/apply for mainnet Picks; confirm the sponsor covers game-13 picks; resync with `main` after the `picks` merge; open the `lastnode` → `main` PR; write the GitHub-variable steps | Last Node chat | 2026-11-02 | I-058, I-059 |
 | Golf: rebase `golf` after `picks` merges, move to site root, full suite, PR; at v6 register game 6 and set `GOLF_STAKED_FROM_WEEK` | Golf chat | 2026-11-02 | I-060 |
 | Bracket: fix audit findings, rerun suites and replay, fix-check; update `kg-09-bracket` from `main`; after the first live run pin the `effCheck` | Bracket chat | 2026-11-02 | I-061 |
@@ -95,6 +96,7 @@
 |------|------|------|
 | `reward_rule_week_plus_one=3` confirmed on chain | 2026-11-02 | I-003 |
 | Accepted Week 3's 1 + 1 VHP free prize for the Questions game (no upgrade) | 2026-11-02 | D-069 |
+| Block X in the top Games menu, the phone More sheet and on the home page (PR #59, deployed 16:09 UTC) | 2026-11-03 | D-077 |
 | Vault: games 2 and 7 announced (`game-add`, 3 Nov); sponsor switched to the vault — "Vault (v6): live", caps unchanged; VHP sampler running (first run 15:58 UTC ✅) | 2026-11-03 | D-077, I-059 |
 | Block X live on the Games page (PR #58); `GAMES_ENABLED = true` set — recorder runs hourly at :47 | 2026-11-03 | D-077 |
 | **Block X Repo Lens round 12 GO; launch PR #57 merged** (sampler + Race v6 fix now on `main`) | 2026-11-03 | I-033, I-059 |

@@ -58,11 +58,13 @@
 ### Blocked Work
 - `game-apply 2` and `7` **can't run before Thu 5 Nov 15:51 UTC** (48 h timelock). Reminder set for Thu 9 AM PT.
 - **Vault bot checks** before paying other games: honour HOLD files, verify staked lists, alert on refused prize posts (I-052, I-064); recompute from the chain (I-051).
-- **Free-prize switch** (D-082) built on **PR #65**, not merged — Repo Lens first (funds-related).
+- **Free-prize switch** (D-082) built on **PR #65**, not merged — Repo Lens first (funds-related). Vault side checked ✅ (3 Nov): unwon prizes roll fee-free into the next week's pot; no effect on liabilities or the seed.
+- **Vault bot checks** (I-051, I-052, I-064) are due **Fri 13 Nov**. The Vault chat offers to build them; owner to decide who.
 
 ### Next Work
 - 👤 Thu–Sun: `npm run bot -- game-apply 2 --send`, `game-apply 7 --send`, `games`; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT**.
 - Each other game: `game-add` once audited, **always with `--free`**; set its free-prize switch off first where no prize yet (D-082). Survivor: `game-add 3 "Survivor" --staked --free --season 2`.
+- **Producer Bracket (9)** could pay from 9 Nov only if `game-add 9` goes out by **Fri 6 Nov 4 PM PT**. Its audit hasn't run, and nothing is added before it passes (D-064), so it most likely starts a week later.
 - **Mon 16 Nov 12:00 UTC:** first vault close with other games in it — check status, buckets, free prizes, fee.
 
 ## Leaderboards

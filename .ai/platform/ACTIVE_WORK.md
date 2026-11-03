@@ -16,12 +16,12 @@
 
 ### Blocked Work
 - **Sampler cadence** — GitHub runs this repo's frequent schedules about hourly, not every 5 min. Too few samples would flag Block X cards and slow Last Node's 48 h (I-059, TD-07). Owner ran it by hand 3 Nov (green); the Block X chat decides on the cadence, then recheck.
-- **`docs/WALLETS.md`** is stale and would hand the seed back to the owner — must be rewritten **before** the weekend wallet moves (DOCUMENTATION_GAPS #1).
+- ~~`docs/WALLETS.md` is stale~~ — **rewritten in PR #73** (Vault chat, 3 Nov); the owner reviews and merges it before the weekend moves.
 - **PR #50** — closed, **not to be merged** (👤); useful parts to be rebuilt (I-072).
 
 ### Next Work
 - Site **"Week 1" refresh** before Mon 9 Nov (I-069, I-027).
-- **Owner — wallet moves this weekend** (after `docs/WALLETS.md` is rewritten): owner to a hardware wallet, cold desk treasury, move the old operator's KOIN and remove its key (I-001, I-045, TD-01).
+- **Owner — wallet moves this weekend** (runbook in `docs/WALLETS.md`, PR #73): Fri step 0 + new cold-key owner (D-083) + cold treasury; Sat sweep the old operator (I-045); Sun after every `game-apply`, start the vault and Desk handovers; Mon/Tue accept. Operator becomes GitHub-only (D-084). (Was: "owner to a hardware wallet" — not possible with today's tools, I-075.)
 - Fallback node (Cloudflare Tunnel) — **on hold** (👤).
 
 ## Games
@@ -57,9 +57,9 @@
 
 ### Blocked Work
 - `game-apply 2` and `7` **can't run before Thu 5 Nov 15:51 UTC** (48 h timelock). Reminder set for Thu 9 AM PT.
-- **Vault bot checks** before paying other games: honour HOLD files, verify staked lists, alert on refused prize posts (I-052, I-064); recompute from the chain (I-051).
+- **Vault bot checks** before paying other games: **built in PR #74** (HOLD files, board cross-check, refusal alerts, two-run rule); Repo Lens, then merge by Fri 13 Nov. Points recompute later (I-080).
 - **Free-prize switch** (D-082) **merged 3 Nov (PR #65)** after Repo Lens (GO; FP-2 fixed). **Owner:** set the starting values and the ruleset (`FREE_PRIZE_SWITCH.md`). Vault side checked ✅ (3 Nov): unwon prizes roll fee-free into the next week's pot; no effect on liabilities or the seed.
-- **Vault bot checks** (I-051, I-052, I-064) are due **Fri 13 Nov**. The Vault chat offers to build them; owner to decide who.
+- Every staked game must publish `board.json` for PR #74's check (I-079): Bracket, Last Node, Combo, Survivor, Fantasy, Golf chats to confirm.
 
 ### Next Work
 - **Owner — Thu–Sun:** `npm run bot -- game-apply 2 --send`, `game-apply 7 --send`, `games`; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT**.
@@ -98,7 +98,7 @@
 - **Swap Desk v2** live at `1FKTpX…`: 3% fee, no daily payout cap (D-007); runs from the desk node.
 
 ### Blocked Work
-- **Desk treasury = the owner's hot wallet** `1635QU…` (TD-01). The cold treasury waits for the `docs/WALLETS.md` rewrite.
+- **Desk treasury = the owner's hot wallet** `1635QU…` (TD-01). The cold treasury move starts Fri 6 Nov (PR #73 runbook, 48 h timelock); it must finish before the Desk owner handover.
 
 ### Next Work
 - **Owner — this weekend:** cold desk treasury (48 h timelock), owner on a hardware wallet (I-001).

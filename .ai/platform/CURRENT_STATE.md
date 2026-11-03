@@ -58,8 +58,8 @@
 | **Fantasy Producers (4)** | branch `fantasy` @ `2bee805`; testnet practice deployed | fix-check; a full test week; real-data simulation; add a Free board (no prize yet) |
 | **Combo Card (8)** | branch `combo` @ `c8c652e` | fix-check 4; then the Picks v2 upgrade; let free players send cards (I-074) |
 | **Block Golf (6)** | branch `golf` @ `6b2200a` | practice with Block X (the 3 Nov morning snapshot said Golf practice couldn't start without the sampler; `BlockGolf.md` says it waited on Block X going live — ❓ Golf chat to confirm); add a Free board (no prize yet); staked after `game-add 6` |
-| **Vault bot checks** | not built | Vault chat (prompt ready): HOLD files, staked lists, refused-post alerts, recompute (I-051, I-052, I-064). Due **Fri 13 Nov** |
-| **Wallet moves** | seed done | rewrite `docs/WALLETS.md` first (it's stale); then a hardware-wallet owner, a cold desk treasury, and retiring the old operator key, this weekend |
+| **Vault bot checks** | **built, PR #74** (Vault chat, 3 Nov; GitHub checks green; not merged) | Repo Lens (prompt `claude/audit-vault-bot-checks-prompt.md`) → merge by **Fri 13 Nov**. Every staked game must publish `board.json` (I-079) |
+| **Wallet moves** | seed done; **new `docs/WALLETS.md` and weekend runbook in PR #73** (not merged) | owner reviews #73 → **Fri 6 Nov:** step 0 (read-only check), create the cold-key owner (D-083) and cold treasury, start the treasury move → Sat: sweep the old operator → Sun: after every `game-apply`, start the vault and Desk handovers → Mon/Tue: accept. Picks and Race picks later (I-076, I-077) |
 
 **Free play on every game** (D-081):
 - **2 + 1 VHP free prizes:** Questions, Block X, Race, Bracket and Last Node, from Mon 9 Nov or each game's launch (D-062).
@@ -83,7 +83,7 @@
 3. **Race prizes need two fixes first:** the vault file must not be decided by a single run with no hold (I-034), and the free-prize farming question (I-035) needs an owner decision. Block X has its own "before prizes" list (I-042).
 4. **The vault bot needs its checks** before the first close with other games: honour HOLD files, verify staked lists, alert on refused prize posts (I-052, I-064), and recompute from the chain (I-051).
 5. **Combo needs the Picks v2 upgrade** (D-060). Block X has launched, so this can now be planned.
-6. **`docs/WALLETS.md` is stale.** It must be rewritten before any wallet move (I-001).
+6. ~~`docs/WALLETS.md` is stale~~ — rewritten in PR #73; it must be **merged before** any wallet move (I-001).
 
 Not blocking: the main node (Armana) has short outages; the bot stops and catches up the next hour. A fallback node is on hold.
 
@@ -91,8 +91,8 @@ Not blocking: the main node (Armana) has short outages; the bot stops and catche
 Full order and reasons: `PRIORITIES.md`.
 1. **Apply games 2 and 7, Thu 5 – Sun 8 Nov** (above), so Questions, Race and Block X pay from Mon 9 Nov (D-077).
 2. **Race prize fixes (I-034) and the farming decision (I-035)** before its first paid week closes (Mon 16 Nov).
-3. **Rewrite `docs/WALLETS.md`, then the wallet moves this weekend** (I-001, I-045).
-4. **Vault bot checks by Fri 13 Nov** (I-051, I-052, I-064).
+3. **Review and merge PR #73 (`docs/WALLETS.md`), then the wallet moves this weekend** (I-001, I-045; D-083, D-084).
+4. **Vault bot checks (PR #74): Repo Lens, then merge by Fri 13 Nov** (I-051, I-052, I-064).
 5. **Site "Week 1" refresh** before Mon 9 Nov (I-069).
 6. **Survivor pass 4 and testnet season** to hold the Mon 16 Nov start.
 7. **Bracket audit** (to try for 9 Nov), then the remaining audits: Last Node, Fantasy, Combo.

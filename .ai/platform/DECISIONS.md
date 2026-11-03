@@ -93,6 +93,9 @@
 | D-080 | 2026-11-03 | No free play for Combo, Block Golf or Survivor for now; free play everywhere once the seed is bigger | superseded by D-081 (same day) |
 | D-081 | 2026-11-03 | Every game has Free play; free VHP prizes only on some games until the owner switches them on | active |
 | D-082 | 2026-11-03 | A free-prize on/off switch per game in the admin panel, effective from the next week | active — merged (PR #65, 3 Nov) |
+| D-083 | 2026-11-03 | New contract owner = a cold key (option A); multisig later | active — runbook in PR #73 |
+| D-084 | 2026-11-03 | The operator key stays on GitHub only; removed from the PC | active — runbook in PR #73 |
+| D-085 | 2026-11-03 | The sponsor keeps its 25,000 KOIN (may grow); the hot-key risk is accepted for now | active |
 
 ---
 
@@ -494,6 +497,20 @@
 - **Later, if needed:** a vault upgrade (48 h notice) could read a per-game switch at the close, so an "off" game sets aside 0.
 - **Audit:** Repo Lens review 3 Nov — GO after FP-2 (fixed) and FP-1 (a GitHub ruleset on `prize-settings`: no deletion, no force-push — owner to add once the branch exists). Also fixed: no publishing within 30 min of Monday 00:00 UTC (FP-3/FP-4), strict UTC times (FP-7).
 - **Status:** **merged 3 Nov (PR #65).** The `prize-settings` branch is created by the first ON/OFF send. Starting settings and how to use it: `FREE_PRIZE_SWITCH.md`.
+
+## D-083 — The new contract owner is a cold key; multisig later
+- **Date:** 2026-11-03 (owner, through the Vault chat) · **Decision:** option A. The new owner wallet is created in Kondor in a fresh Chrome profile, with its recovery words on paper (two copies). Its key goes into `.env` only on the day of an owner action, then comes out again. A 2-of-3 multisig owner goes on the roadmap.
+- **Why not a hardware wallet:** nothing available today can sign these owner actions from one. All the tools sign with a key from `.env`; Kondor has no Ledger or Trezor support; Manuscript (Ledger/Trezor through MetaMask) isn't released or verified for contract calls (❓); a separate machine (option B) was judged more effort. Answers I-075 (💬 Vault chat, 3 Nov).
+- **Trade-off:** owner actions (fee claim, `game-add`, sponsor limits, emergency pause) are slower, because the key must be loaded first. Malware running during an owner action could still take it.
+- **Runbook:** `docs/WALLETS.md` (PR #73, not merged yet).
+
+## D-084 — The operator stays on GitHub only
+- **Date:** 2026-11-03 (owner, through the Vault chat) · **Decision:** the operator key (`1HsM33…`) lives only in the GitHub secret `OPERATOR_WIF`. The PC keeps no operator key.
+- **Found on the way (💬 Vault chat):** `npm run bot -- status` on the PC printed "Bot wallet 1JSTwo…" (30 Oct – 2 Nov). So the PC's `OPERATOR_WIF` is most likely the **old** operator key, and operator commands from the PC are refused on chain ("operator only") ❓ (to confirm in step 0 of the runbook).
+- **Consequence:** the admin page's weekly vault buttons (manual `game-post`, `game-seal`, `game-finalize`) won't work from the PC; the hourly bot on GitHub does that work.
+
+## D-085 — The sponsor keeps 25,000 KOIN; its hot-key risk is accepted for now
+- **Date:** 2026-11-03 (owner, through the Vault chat) · **Decision:** the Mana sponsor wallet (`1ByDDS…`) keeps its 25,000 KOIN, which may grow (D-061, D-076). The risk is recorded and accepted for now: `SPONSOR_WIF` is always on the PC and has no timelock, so anyone holding it could move the KOIN at once. A lower balance with weekly top-ups was offered as an option and not taken for now.
 
 ---
 

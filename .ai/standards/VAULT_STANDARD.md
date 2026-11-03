@@ -73,6 +73,14 @@
 - the final file must not hinge on a single run with no hold (I-034);
 - the vault recomputes what it can from the chain, since `games-data` files can't prove their own days or stake lists (I-051);
 - the vault bot honours HOLD files, verifies that every staked board player is in the file, and alerts on a refused prize post (I-052, I-064).
+  - **Built in PR #74 (3 Nov, not merged; Repo Lens first):**
+    - HOLD files (unreadable = held);
+    - the results file is cross-checked against the game's `board.json` (`lastWeek` = the vault week; every staked wallet with points must be in the file; every file wallet on the board, in board order; a missing, unreadable or wrong-week board holds the week);
+    - a refused post or seal is alerted, and that week stops without a seal and isn't retried blindly;
+    - a file is posted only after the identical file was read on an earlier run at least 30 minutes before. A file that changes is held for good, and the owner checks it and posts it by hand (`game-post`).
+  - A manual `game-post` applies every check except the two-run wait.
+  - **So every staked game must publish `board.json` next to its vault folder** (rows with `points` and a place), or set `vaultGames.<id>.board` (I-079).
+  - Points themselves aren't recomputed in the bot yet (I-080).
 
 ## 7. Timing
 - A game applied in week W earns from W + 1; results are posted for registered games only, for weeks they earn (`from_week <= w`) ✅.

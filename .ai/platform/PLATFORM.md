@@ -87,17 +87,17 @@ Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Surv
 ## Wallets (public addresses only — never keys)
 | Role | Address | State | |
 |------|---------|-------|-|
-| Owner (game/vault, desk, Picks) | `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717` | to move to a hardware wallet (I-001) | ✅ |
+| Owner (game/vault, desk, Picks) | `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717` | to hand the vault and the Desk to a new **cold-key** owner this weekend (D-083, runbook PR #73); Picks and Race picks stay for now (I-076, I-077) | ✅ |
 | Desk treasury | same as owner | to move to a cold treasury, 48 h timelock (I-001) | ✅ |
 | Seed owner | `1K8VV1utXfomeXHeifrwgLpBjUG6Ldkw2Z` | dedicated wallet since 30 Oct — done | ✅ |
-| Operator (bot) | `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv` | rotated in 26 Oct; pays its own Mana, target 50 KOIN (D-046); balance unconfirmed (I-046) | ✅ |
-| Mana sponsor | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | 25,000 KOIN (D-061) | ✅ / 👤 |
-| Old operator (retired) | `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ` | key still in local `.env`; move its leftover KOIN, then remove the key (I-045) | 💬 |
-| New owner (hardware) | ❓ | not created yet | |
+| Operator (bot) | `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv` | rotated in 26 Oct; pays its own Mana, target 50 KOIN (D-046); balance unconfirmed (I-046); **GitHub-only** (D-084) | ✅ |
+| Mana sponsor | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | 25,000 KOIN (D-061); hot key, risk accepted (D-085) | ✅ / 👤 |
+| Old operator (retired) | `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ` | key still in local `.env` (most likely as `OPERATOR_WIF`, D-084 ❓); ~100 KOIN left; sweep it, then remove the key (I-045) | 💬 |
+| New owner (cold key, D-083) | ❓ | to be created Fri 6 Nov (runbook step 1) | |
 | Cold treasury | ❓ | not created yet | |
 | Producer public keys | desk `AzCYCDLD…`, game `Ak0vGklN…` | — | ✅ |
 
-Procedure for moves: `docs/WALLETS.md` ✅ exists but is **stale and unsafe as written** (it would hand the seed back to the owner wallet). Rewrite it before any move (I-001).
+Procedure for moves: ~~`docs/WALLETS.md` is stale and unsafe as written~~ — **rewritten in PR #73** (Vault chat, 3 Nov; not merged): wallet inventory, on-chain rules, never-list, and the weekend runbook Fri 6 – Tue 10 Nov. Contract keys `CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF` have no power while the upload rules are on; `RACE_WIF` still does. All four belong in offline backup (💬 Vault).
 
 ## The owner's PC
 - **Folders:** `C:\kprediction` (main checkout; keys in `.env`; scheduled tasks — always check the branch first) · `C:\kprediction-vault` (worktree on `vault-v6`, frozen, D-025) · `C:\kg-combo-preview` (Combo) · `C:\kprediction-test` (testnet and audits) · `C:\kprediction-fantasy` (Fantasy practice only). 💬

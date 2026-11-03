@@ -18,7 +18,7 @@
 | TD-04 | 🔐 | **The retired operator's key is still in `.env`** | A forgotten key with KOIN on it is a free target | Move its KOIN, then remove the key | I-045 |
 | TD-05 | 📜 | **The game/vault contract still pays Mana for other people's transactions** (`max_sponsor_rc` = 2 KOIN) | ~317 KOIN of compounding lost by 28 Oct; the drain continues while it's on | `sponsor-limit 0` with `maxSponsorRc: "0"` in the same change | I-044, D-046 |
 | TD-06 | 🚧 | ~~Race staking reads still use the old contract interface on `main`~~ — **paid down 3 Nov:** the v6 fix (`d7fad7c`) reached `main` with PR #57 | — | — | I-033 |
-| TD-07 | 🚧 | ~~The VHP sampler isn't running~~ — **running since 3 Nov 15:58 UTC** (first run green) | Last Node's 48 h clock started | Keep an eye on its runs | I-059 |
+| TD-07 | 🚧 | ~~The VHP sampler isn't running~~ — **running since 3 Nov 15:58 UTC** (first run green) | Last Node's 48 h clock started | Keep an eye on its runs — **only 1 run by 16:41 UTC**; GitHub throttles `*/5` schedules (watch `*/15` runs ~hourly), so samples may fall short of 12 per 6 h | I-059 |
 | TD-08 | 📈 | **All three block producers, plus the question-release backup, run on one home PC and internet line** | A power or internet cut stops the Knode Games Pool's production (smaller rewards), the desk's production and the 12:00 release backup at the same time | Accept for now; later, a second machine or a hosted backup node for the pool | D-048, D-047 |
 
 ## Medium

@@ -43,7 +43,7 @@ Staked-only for now: Fantasy, Golf, Combo, Last Node (D-071). No free play on Co
 
 ## Known blockers
 1. **Audits not run yet.** Five games wait on Repo Lens (Block X round 12, Survivor pass 4, Last Node round 3, Bracket, Fantasy, Combo fix-check 4). Starting today. Nothing is announced until each passes (D-064).
-2. ~~PR #57 must merge~~ — **merged 3 Nov.** The VHP sampler workflow (`race-samples.yml`, every 5 min) is now on `main`; its first runs hadn't started at 15:12 UTC. Last Node's 48 h of samples counts from its first good run (I-059).
+2. ~~PR #57 must merge~~ — **merged 3 Nov.** The VHP sampler workflow (`race-samples.yml`, every 5 min) is now on `main`; its first runs hadn't started at 15:12 UTC. Last Node's 48 h of samples counts from its first good run (I-059). **First run 15:58 UTC (green); no second run by 16:41** — GitHub runs frequent schedules late (`watch.yml`, every 15 min on paper, runs about hourly), so samples may be too thin for Block X cards (12 per 6 h).
    - Last Node can't launch (needs 48 h of samples),
    - Combo cards would all be void, and Fantasy pricing lacks samples (I-059),
    - Block Golf practice can't start.

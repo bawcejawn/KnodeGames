@@ -1,10 +1,13 @@
 # Knode Games — Architecture
 
-> Purpose: How the pieces fit together. Describe, don't prescribe.
-> Last updated: 2026-11-02
+> Purpose: How the pieces fit together. Describe, don't prescribe — rules live in `DECISIONS.md` and `../standards/`.
+> Last updated: 2026-11-02 (consolidated: duplicate bot rows merged, test results gathered into one section, owner answers applied)
 > Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (all 12 chats), checked against branches `picks` and `main` on 2026-11-02.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict (see `DECISIONS.md`) · ❓ unknown
+
+## Contents
+1. System diagram · 2. Layers (frontend, wallets, contracts, Mana sponsor, bots, data, infrastructure) · 3. Game contract duties kept from v5 · 4. Desk contract · 5. Vault v6 (entry points, measured costs, Hub pages, publish checks, Survivor kit, VHP standard, Picks contract, CI guards) · 6. Stack & tooling · 7. Tests · 8. Repository layout · 9. Security boundaries · 10. Known constraints
 
 ## System Diagram
 ```
@@ -57,7 +60,7 @@ See `PLATFORM.md` → Core Components for addresses and hashes.
 |----------|---------|-------------|----------|-----------|
 | Game / Vault | v6 (upgraded in place from v5) | yes — 48 h notice for any vault upgrade (D-024) | 48 h (`timelockLength 172800000`) | ✅ |
 | Desk | v2 | {{TBD}} | 48 h | ✅ |
-| Sponsor | v3 per repo / v2 per chat | {{TBD}} | {{TBD}} | ⚠️ C-01 |
+| Sponsor | v3 (v2 kept as rollback) | {{TBD}} | {{TBD}} | ✅ C-01 resolved |
 | Race | {{TBD}} | {{TBD}} | {{TBD}} | ✅ address only |
 | Picks | {{TBD}} | {{TBD}} | {{TBD}} | ✅ address only |
 
@@ -67,7 +70,7 @@ Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GE
 - Sponsor covers: game, VHP, KOIN, race, picks contracts — ✅ `game-data/deployment.json` (`sponsor.covers`)
 - Site payer: `payer: "sponsor"`, guest flag on — ✅
 - `rcLimit` (answers): 1 Mana — ✅ / 💬 agree
-- `rcLimitOther` (stake, approve, etc.): ⚠️ C-05 (repo 1 Mana; chat 3 Mana)
+- `rcLimitOther` (stake, approve, etc.): 1 Mana ✅ (3 was the v2-era value; C-05 resolved)
 - Per-action limit: picks `pick` 0.2 Mana — ✅ (`rcLimits`, `sponsor-data/mana-limits.json`)
 - Answer-only transactions are sponsored for any wallet within the free sub-cap; everything else is for real players only and fails closed — 💬
 - Caps (per tx / player-day / player-week / everyone-day / free-day): 1 / 25 / 150 / 5,000 / 2,000; sponsor ON, vault switch off — 💬 Block X, as of 30 Oct (C-02 resolved)
@@ -79,8 +82,7 @@ Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GE
 ### Bots / Automation
 | Bot / workflow | Trigger / schedule | What it does | Location | Confidence |
 |----------------|--------------------|--------------|----------|-----------|
-| Main bot ("Kpred bot", `bot.yml`) | hourly at :07, plus a daily release run `48 11 * * 1-6` ✅ | Jobs: blocks-in, tick, publish, blocks-out. Tick order: resolve → post → close/finalize → health checks → settle → compound, then publishes `game-data/`. Release: within 12 min of release, `postPass` waits for 12:00 UTC (`releaseWaitMs`), one bounded retry. Records its own Mana per UTC day in `game-data/bot-state.json` → `manaByDay` (60 days) ✅. Settles: asks the contract to pay first; if it declines the bot pays, up to `MAX_BOT_PAID_SETTLES` (10 per run), lifted in the last hours before `settle_end`; `BOT_MANA_FLOOR` still applies 💬 Swap Desk |
-| Main bot (vault duties) | hourly GitHub Action | posts results, seals, finalizes 24 h after the seal, looks back 12 closed weeks; skips posting/closing/finalizing in safe mode; `pagePlayers()` stops on a repeated address; `upgradeGuard()` refuses a normal upgrade matching the safe build. Uses `koinos.armana.io`, `api.koinosblocks.com` as `RPC_CHECK` | `bot/bot.ts`, `bot/vault.ts`, `bot/chain.ts`, `.github/workflows/bot.yml` | files ✅, rest 💬 |
+| Main bot ("Kpred bot", `bot.yml`) | hourly at :07, plus a daily release run `48 11 * * 1-6` ✅ | Jobs: blocks-in, tick, publish, blocks-out. Tick order: resolve → post → close/finalize → health checks → settle → compound, then publishes `game-data/`. Release: within 12 min of release, `postPass` waits for 12:00 UTC (`releaseWaitMs`), one bounded retry. Records its own Mana per UTC day in `game-data/bot-state.json` → `manaByDay` (60 days) ✅. Settles: asks the contract to pay first; if it declines the bot pays, up to `MAX_BOT_PAID_SETTLES` (10 per run), lifted in the last hours before `settle_end`; `BOT_MANA_FLOOR` still applies 💬 Swap Desk | **Vault duties:** posts results, seals, finalizes 24 h after the seal, looks back 12 closed weeks; skips posting/closing/finalizing in safe mode; `pagePlayers()` stops on a repeated address; `upgradeGuard()` refuses a normal upgrade matching the safe build. Uses `koinos.armana.io`, `api.koinosblocks.com` as `RPC_CHECK` | `bot/bot.ts`, `bot/vault.ts`, `bot/chain.ts`, `.github/workflows/bot.yml` | files ✅, rest 💬 |
 | Race recorder | hourly at minute 37 while `RACE_ENABLED=true` | Job `record` (read-only token, no secrets, runs repo code); job `publish` (write token, runs no repo code, shape-checks every file with embedded Python, pushes only to `race-data`). Only irreversible blocks count; blocks, picks and stakes must match on two nodes (`RPC`, `RPC_CHECK`). Files: `index.json`, `W<NNN>.json`, `board.json`, `vault/W<week>.json`. Fails if last run's files can't be read (fresh start only when the branch is missing). Refuses a `final` vault file before the week ends and any change to a final file. Fails closed (no final file) on missing ABI/contract, empty `get_state`, failed stake reads or node disagreement | `bot/race.ts`, `.github/workflows/race.yml`, shared rules in `race-math.js` | 💬 Race chat |
 | Block X recorder | {{TBD}} | `canonicalTransferValue` / `NonCanonicalTransfer`; a target is voided at once only if both nodes report it, otherwise held and voided at the 3-day edge; reads short receipt pages on (BX-90); no vault file past its 3-day window (BX-92); reads only top-level `W###.json` race cards (`vault/` invisible to it) | `bot/games/blockx.ts`, `.github/workflows/games.yml` | 💬 Block X |
 | Survivor recorder (not deployed) | with `games.yml` | No keys. Mainnet seasons need two nodes, compared on settings only; a down check node doesn't stop the run, days seen by one node are re-checked later. 8-min budget (`SURVIVOR_BUDGET_MS`), hard stop for chain reads 4 min later. Stages output in a side folder, keeps the old as `.survivor-old-<hash>`, `recoverOut` repairs an interrupted swap. Writes v2 season files with a `stakes` array, keeping every player's picks. Vault reads: `vaultSettings`, `vaultMismatch`, `readStaked`, `readRanked` (`get_player` → `stake_other`) | `bot/games/survivor.ts`, shared rules `survivor-math.js` (`KSurvivor`), page `survivor.html` / `survivor.js` | 💬 Survivor (branch `survivor`) |
@@ -90,8 +92,8 @@ Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GE
 | Fantasy recorder (not deployed) | `games.yml` step behind `FANTASY_ENABLED`, `continue-on-error` | Read-only, no key. Day final only when every hour with blocks has a race card (FX-5); week final when all 7 days, rivals and stakes are read and 12 h have passed (FX-1); `ALERT` if not final 2 days after the week; unfinished weeks retried 8 weeks (FX-6). Publishes `games-data/fantasy/` `index.json` (`vaultBasis`), `days.json`, `W###.json`, `rivals.json`, `alltime.json`, `board.json`, `vault/W<week>.json`; Fantasy files may be up to 8 MB | `bot/games/fantasy.ts`, `fantasy-math.js` (`KFantasyMath`), `docs/fantasy/` | 💬 Fantasy |
 | Combo recorder + verify (not deployed) | `combo.yml` hourly at :52 (after race :37, Block X :47), shares the `knode-games` group | Three jobs: record (read-only, runs the recorder), **verify** (read-only, installs nothing, `tools/combo-verify.mjs` confirms each new fixed slot against `list_picks` on two nodes and re-scores new final cards), publish (no repo code; byte checks, per-file holds, immutability; only verify-confirmed day files, `COMBO_VERIFY: required`). Slot fixed when both nodes' irreversible block is past its day; head = the slower node; a node 30+ min behind stops the run. "Forged" cards leave the boards and block that week's vault file. Output `games-data/combo/` with day parts (≤ 1,000 cards), boards, `vault/W<week>.json` | `bot/games/combo.ts`, `bot/games/combo-score.mjs`, `combo-math.js` (`KCombo`), `bot/games/vhp-inflows.mjs` (kept identical to Block X's decoder by a test) | 💬 Combo |
 | Names bot | hourly | Jobs: check (read-only), publish (no repo code), reply; gated by `vars.NAMES_ENABLED`; scheduled only, never triggered by issues. 8 s read timeout (a node that times out is skipped for the run), 7-minute run deadline. Nicknames read 20 at a time within 240 s, named wallets and producers first; both nodes must agree; a failed read keeps the old value. Pool names from Fogata `get_pool_params` (entry 2396056273, field 1). `names.json` kept under 900 kB (publish limit 1 MB). Owner command: `npm run names -- remove <address>` | `bot/names.ts`, `.github/workflows/names.yml` ✅ | 💬 Hub |
-| Bot `--testnet` | manual | targets the local Harbinger node (`127.0.0.1:8081`, `.env.testnet`, `testnet-data/`) — **not** the Koinos Foundation copy | `bot/bot.ts` | 💬 |
-| Sponsor tool | manual | L-4 fix, default free cap 300 (⚠️ C-02), keeps guest flag, status shows VHP | `bot/sponsor.ts` | ⚠️ |
+| Bot `--testnet` | manual | targets the local Harbinger node (`127.0.0.1:8081`, `.env.testnet`, `testnet-data/`) — **not** the Koinos Foundation copy | `bot/bot.ts` | 💬 **Unused: the owner runs no testnet node** (D-066, I-068) |
+| Sponsor tool | manual | L-4 fix, default free cap 2,000 a day in v3 (300 was v2-era; D-061), keeps guest flag, status shows VHP | `bot/sponsor.ts` | ✅ / 💬 |
 | Watchdog | every 15 min ✅ | emails once if `vars.PERSONAL_PRODUCER` hasn't produced for 30+ min, then every 3 hours | `.github/workflows/watch.yml` | 💬 Swap Desk |
 | Release kick (owner's PC) | 11:50–14:00 UTC | 11:50–11:58 starts `bot.yml` unless a run is active; 12:06–14:00 checks `game-data/questions/W###-D#.json` is on `main` (public API, no token), restarts the bot at most every 12 min, emails once at 12:20, marks the day done when the file appears. Day labels `W{week:03}-D{day}`, Monday = D1, no questions Sunday | `bot/release-kick.mjs` | 💬 Swap Desk |
 | Heal alert | started by the owner's PC | fails on purpose so GitHub emails the owner | `.github/workflows/heal-alert.yml` | 💬 Swap Desk |
@@ -110,7 +112,8 @@ Node scripts present (✅): `node/repair-node-data.ps1` (general repair), `node/
 - Vault results file format and the stake test: see `standards/VAULT_STANDARD.md`
 
 ### Infrastructure
-- Nodes: 3 on the owner's PC, Docker volumes — 💬 (details in `PLATFORM.md`)
+- Nodes: 3 mainnet nodes on the owner's PC, Docker Compose on Windows, Docker volumes; no testnet nodes (D-066). Images (as of Oct): chain v1.5.2, block_store v1.1.0, p2p v1.3.0, block_producer v1.3.1 — 💬 (folders in `PLATFORM.md`)
+- `GITHUB_ALERT_TOKEN` (in the local `.env`): a fine-grained token for this repo only, Actions read/write, used by `heal.mjs` and `release-kick.mjs` — 💬
 - Old basedir folders kept until 2026-11-04 — 💬
 
 ## Game contract duties kept from v5 — 💬 Swap Desk (✅ where marked)
@@ -151,6 +154,7 @@ Player-call arguments (💬 Hub): `deposit_to {from, game, amount, koin}` · `wi
 ### Measured on testnet (see `docs/TESTNET-V6-RESULTS.md`)
 Heaviest player call 4.63 M ticks (a deposit closing a 13-game week, 1.6% of the per-transaction limit); 16-row post 1.50 M; finalize of 16 places 1.75 M; claim 2.44 M; withdraw 1.72 M; upload disk 86,257 B. Upper bounds: 50 rows ≈ 4.7 M ticks; 500-place finalize ≈ 55 M (19%). v6 upload cost 46.84 KOIN of Mana on mainnet vs 7.53 on testnet.
 Measured on mainnet (💬 Swap Desk, Oct): simple call ~0.21; each write ~0.02; answer or pick ~0.3; `deposit_koin` ~1.38; `compound` ~1.08; game v5 upload 26.8; `cancel_upgrade` ~0.25 Mana. Bot spend from `manaByDay` ✅: ~1.9–5.1 Mana a day (31 Oct – 2 Nov).
+Combo cards on testnet (player-paid): 2 legs 0.0588, 6 legs 0.0726, 10 legs 0.0916, a change 0.0538; Picks v2 upload 3.2528 on testnet, ~55 estimated on mainnet (💬 Combo). Sponsored figures: D-038.
 Mana cost per call = ticks × compute price + disk bytes × disk price + network bytes × network price.
 
 ### Hub pages
@@ -212,9 +216,21 @@ Recorders are JavaScript writing `JSON.stringify(x)+"\n"`; publish checks are Py
 - `tools/mode-switch.cjs`: one shared parser for `Mode.ts`.
 - `npm run bot` (💬 Swap Desk): status, chain-check, upgrade, sponsor-limit, node-status… · `npm run desk`: status, node-status, key-status, fund, withdraw, daily-cap, upgrade, treasury… · `npm run heal` · `npm run admin`.
 - `npm run picks` (💬 Block X): keys, build-testnet, status, upload, announce, apply, pause, lock-test, mana-test; on branch `combo` only: upgrade-schedule, upgrade-upload, upgrade-clear. `npm run sponsor`: status, upload, config, enable, disable, mana-report, mana-limit, site-limits, watch, payer. All dry runs by default; mainnet needs `--send --mainnet`.
-- Other test counts by branch (💬 each chat): `lastnode` @ `adf95be` 718 tests, 708 pass; `golf` 481 (471 pass); `kg-09-bracket` serial audit 457 (447 pass), site 176; `fantasy` merged 522 pass, 1 fail (`site.mobile-nav.test.mjs`, from `picks`); `combo` @ `c8c652e` `test:audit` 747 pass, contract 71. Tests are built for Linux; on Windows several games' tests fail by design. CI "Resolver tests" runs `npm run test:audit` on Linux for pushes to `lastnode`. `yarn protoc` sometimes fails with EAGAIN — rerun.
-- Tests at `survivor` @ `a8a1979` (💬 Survivor): site tests 201 pass; `test:audit:serial` 673 tests, 663 pass, 0 fail (rest todo/skipped); the rehearsal reproduces the audited build; a 150-season random-stake fuzz found 0 Python/JS disagreements.
-- Tests (💬 Block X, as of 30 Oct): `npm run test:audit` — 644 tests, 634 pass, 0 fail, 5 todo, 5 skipped (pwsh-only); also `test:audit:serial`, `test:resolver`, `cd sponsor && npm test`.
+
+## Tests
+How to run: `npm run test:audit` (also `test:audit:serial`, `test:resolver`, `cd sponsor && npm test`); tests are built for Linux — on Windows several games' tests fail or skip by design. CI "Resolver tests" runs `npm run test:audit` on Linux for pushes to `lastnode`. `yarn protoc` sometimes fails with EAGAIN — rerun.
+
+| Branch / commit | Result (as reported) | |
+|-----------------|----------------------|-|
+| Questions chat (latest run) | `tests/audit/*` 531 pass, 0 fail, 3 TODO (`tests/audit/` has 110 files ✅) | 💬 |
+| `picks` (Block X, 30 Oct) | 644 tests: 634 pass, 0 fail, 5 todo, 5 skipped (pwsh-only) | 💬 |
+| `survivor` @ `a8a1979` | site 201 pass; serial 673 (663 pass, 0 fail); rehearsal reproduces the audited build; 150-season fuzz 0 Python/JS disagreements | 💬 |
+| `lastnode` @ `adf95be` | 718 tests, 708 pass, 0 fail; Last Node 109 on Linux | 💬 |
+| `golf` | 481 tests, 471 pass, 0 fail | 💬 |
+| `kg-09-bracket` @ `ee676ea` | serial 457 (447 pass), site 176 | 💬 |
+| `fantasy` (merged with `picks`) | 522 pass, 1 fail (`site.mobile-nav.test.mjs`, from `picks`, I-062) | 💬 |
+| `combo` @ `c8c652e` | `test:audit` 747 pass, 0 fail; contract 71; browser 7; guard 8 | 💬 |
+| Vault v6 | 162/162 specs, 38/38 node tests | 💬 |
 
 ## Repository Layout
 {{TBD: full folder map}} — top level includes site files at root, `bot/`, `game/`, `desk/`, `sponsor/`, `race/`, `picks/`, `node/`, `tests/`, `docs/`, `*-data/` (✅).
@@ -225,10 +241,8 @@ Recorders are JavaScript writing `JSON.stringify(x)+"\n"`; publish checks are Py
 - Branch ruleset: restrict deletions, block force pushes; no PR requirement (it would block the bot) — 💬
 - Mainnet sends need `CONFIRM_MAINNET=yes`; commands are dry runs unless `--send` — 💬 (D-004)
 - Audit process: {{TBD}}
-- Tests: `node --import tsx --test --test-concurrency=1 tests/audit/*.test.ts tests/audit/*.test.mjs` — last reported 531 pass / 0 fail / 3 TODO (💬, not re-run; `tests/audit/` has 110 files ✅)
 
 ## Known Constraints
 - Hosting must cost $0 — 💬
 - Armana caused browser CORS failures (likely burst rate limits) — 💬 Questions chat. RPC endpoints: `KOINOS.md`
-- `api.koinos.io` returns HTML error pages intermittently; override with `$env:RPC = "https://koinos.armana.io"` where a `deployment.json` still names it — 💬 Vault chat (⚠️ C-04)
 - The proxy used by AI chats blocks GitHub branch deletion and log downloads (403); owner does those in the GitHub UI — 💬

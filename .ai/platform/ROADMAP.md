@@ -1,104 +1,81 @@
 # Knode Games — Roadmap
 
-> Purpose: What's next, in order. Not a promise — a plan.
-> Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Vault, Hub, Race, Block X, Swap Desk, Survivor, Last Node Standing, Block Golf, Producer Bracket, Fantasy and Combo Card chats) — all chats; there are no others (owner, 2 Nov). Previously listed as not yet archived:
-> Fantasy, Combo, Bracket, Last Node Standing, Repo Lens, sponsor chats.
-> This file holds milestones. Step-by-step actions live in `TODOS.md`; problems in `OPENISSUES.md`.
+> **Purpose:** milestones and the path each game takes to launch. A plan, not a promise.
+> **Last updated:** 2026-11-02 (consolidated)
+> **Sources:** all 12 chat exports, the owner's answers on 2 Nov, and the repo.
+> Step-by-step owner actions live in `TODOS.md`; problems in `OPENISSUES.md`; the rules each step must meet in `../standards/`.
 
-**Legend:** ✅ verified · 💬 chat only · ⚠️ conflict · ❓ unknown
+**Legend:** ✅ verified · 💬 from a chat · 👤 owner said so · ⚠️ open contradiction · ❓ unknown
 
-## Scheduled
-| When (UTC) | What | Confidence |
-|------------|------|-----------|
-| Sun 1 Nov, 21:23 | Block X can be applied on the Picks contract (step 8) | 💬 Block X |
-| Mon 2 Nov, 21:00 | Week 2 closes, Week 3 starts (new prize rules, D-010) | 💬 ⚠️ C-08 |
-| Wed 4 Nov, 17:30 | Delete old node basedir folders if `heal.log` is clean | 💬 |
-| Sat 7 Nov, 00:00 (Fri 6 Nov, 4 PM PT) | Deadline to announce (`game-add`) games 2, 7, 9 (+8, 13 if cleared) | 💬 Vault ⚠️ C-14 |
-| Mon 9 Nov, 00:00 (Sun 8 Nov, 4 PM PT) | Deadline to `game-apply` | 💬 Vault |
-| Mon 9 Nov | v6 rules and 2 + 1 VHP free prizes start | 💬 Vault ⚠️ C-10 |
-| Before Fri 6 Nov | Owner goal: every game announced, so all are playable next week (D-052) | owner |
-| Sat 7 – Fri 13 Nov | Survivor announce window (apply Mon 9 – Sun 15 Nov) | 💬 Vault ⚠️ C-18 |
-| Tue 10 Nov, 21:00 | First payout under the v5 rules | 💬 |
-| Mon 16 Nov, 12:00 | First vault close; Survivor Season 1 starts (vault week 4) | 💬 Vault |
+**Ground rule (D-064):** nothing is announced to players until it is built, audited and ready — the best version only. Dates below are targets; readiness decides.
 
-## Now (in progress)
-| Item | Owner | Blocked by | Target |
-|------|-------|------------|--------|
-| Resolve open contradictions (C-01 – C-15) | owner | owner answers (planned once all chats are archived) | {{TBD}} |
-| Get `vault-v6` into `picks` so admin vault buttons work | Vault + Hub chats | — | before Fri 6 Nov (I-019) |
-| Launch week: `game-add` → sponsor vault switch → `game-apply` | owner | I-019 | see Scheduled |
-| Block X launch: step 8 apply → Mana check → step 9 publish (`PINNED_PICKS`, Repo Lens round 11, `picks` → `main` PR). Expect ~6 hours of targets voided ("no handicap card") while samples fill | owner + Block X chat | I-040 | {{TBD}} |
-| Retest "+ Add another account" with the real Kondor extension (fix `80cef45` is live; create/import the 2nd account in Kondor first) | owner | — | {{TBD}} |
-| Delete `diag-health` branch in the GitHub UI | owner | — | {{TBD}} |
-| Wallet handovers: new owner on hardware wallet, cold treasury (D-013) | owner | — | ❓ "this weekend" |
+## Key dates
+Times in UTC, with Pacific time where it helps.
 
-## Next (ready to start)
-| Item | Depends on | Notes |
-|------|------------|-------|
-| Full platform audit (D-014) | owner go-ahead | |
-| Game launch sequence | C-14 (pace/order) | Hub order: Block X (2) + Race (7) added first → Block X live with Block Golf practice scorecards → Survivor → Block Golf staked → LNS → Bracket → Fantasy → Combo (after Picks v2 CARD). Vault plan: 2, 7, 9 together, then Survivor, Fantasy, Golf, Combo, LNS as each clears |
-| Block X launch PR (`picks` → `main`) | game 2 applied; Race file merge (I-031) | Block X chat; carries the Hub status bar (D-041) |
-| Last Node launch path | I-058, I-059 | clean round-3 review → `picks` merged to `main` (starts the sampler) → announce game 13 on Picks, apply after 48 h → 48 h of sampler readings → `lastnode` → `main` PR (owner OK) → `LASTNODE_ENABLED=true` (leave `LASTNODE_ALLOW_NO_FORM` unset) → watch the first live day; staked prizes once v6 is live |
-| Block Golf launch path | Block X live; I-060 | practice: after `picks` merges, move Golf files to the root, full suite, merge; `games.json` live, nav entry, `GOLF_ENABLED=true`. Staked: v6 merged → register game 6 (48 h) → set `GOLF_STAKED_FROM_WEEK`. Later games each add a hole reader |
-| Bracket launch path | Repo Lens audit (C-20) | audit → fixes + fix-check → update `kg-09-bracket` from `main` → announce game 9 in Picks (48 h) and in the vault as staked + free prize, 1-week seasons (48 h) → sponsor allowlist row for game 9 picks → `games.json` live |
-| Fantasy launch path | Repo Lens fix-check; I-062 | fix-check → fixes → real-data simulation → a full test week → register Picks games 4 and 5 (48 h) → merge, `FANTASY_ENABLED=true`, menus/SEO, remove `noindex`; first price list the Saturday before the launch Monday |
-| Combo launch path | fix-check 4; Picks v2 upgrade | fix-check 4 → re-merge `picks`, then `combo` → `main` → Picks v2 upgrade after Block X (see row above) → testnet upgrade rehearsal (route B) → `COMBO_ENABLED=true` and `"cards": true` |
-| Survivor launch path | I-050 | Repo Lens pass 4 → fixes + fix-check → testnet season → register game 3 on the Picks contract → set `FIRST_DAY` to the launch Monday, merge `survivor` (owner OK) → vault live (done) → Games menu + `games.json` live → `board.json` + Results adapter (I-056) |
-| Block X prizes | v6 live; fixes in I-042; B1 decisions (I-033 – I-035) | prize-free until then (D-036) |
-| Picks v2 upgrade (for Combo, game 8) | Combo Repo Lens review merged | `MAINNET-LAUNCH.md` "Later": publish source + reproducible build → `upgrade-schedule --code 92d555d0` → 48 h → `upgrade-upload` → `upgrade-clear` → record in `picks-data/deployment.json` by PR (FC2-13) → `status` → pick row 0.25 → announce game 8, 48 h, `apply_game` |
-| Send message to the KOIN Vault developer | owner sends | content {{TBD}} |
+| When | What | |
+|------|------|-|
+| Wed 4 Nov, 17:30 (9:30 AM PT) | Earliest time to remove old node data folders — only if `heal.log` is clean (I-008) | 💬 |
+| Fri 6 Nov, 4 PM PT | **Target** to announce (`game-add`) the games that are ready (D-052, gated by D-064) | 👤 |
+| Sun 8 Nov, 4 PM PT | Last moment to `game-apply` games announced by Friday, so they earn from Mon 9 Nov | 💬 |
+| **Mon 9 Nov, 00:00** | **The vault starts:** v6 rules begin; 2 + 1 VHP free prizes begin on every free game (D-062); players see this as **"Week 1"** (D-063) | 👤 / 💬 |
+| Tue 10 Nov | First payout under the Questions game's on-chain rule — time and prize rule to be confirmed (I-066, I-067) | ⚠️ C-08, C-25 |
+| Sat 7 – Fri 13 Nov | Survivor announce window; apply Mon 9 – Sun 15 Nov | 💬 |
+| **Mon 16 Nov** | **Survivor Season 1 starts** (D-065); first vault close at 12:00 | 👤 / 💬 |
 
-## Later
-- Next sponsor version: guest prize claims and the L-3 fix — coordinate with the sponsor and Vault v6 chats. ⚠️ sponsor version itself disputed (C-01)
-- Consider moving `header-wallet.js` read provider off Armana to `api.koinos.io` (⚠️ C-04: `app.js` and `swap.js` also use Armana in `picks`)
-- Games marked "soon" in `games.json`: Who Signs Block X, Survivor, Fantasy Producers, Block Golf — plans {{TBD}}
-- Size the sponsor's KOIN from measured use once everything is live (D-028, C-03). Swap Desk's estimates to replace: bot ~5–6 Mana a day (hold 50 KOIN); sponsor ~3 Mana per active player per day (hold 5 × daily use)
-- Optional: compound at a fixed time each day (I-049)
-- Idea: a sponsor that also pays operator transactions, so one wallet covers everything (needs an audit) 💬 Swap Desk
-- Launch kit: week 1 for testing, weeks 2–3 to grow the player count 💬 Swap Desk
-- Mana Station: shelved for now, revisit later (D-053)
-- Race and Block X onto the VHP standard (D-058)
-- Possible Fantasy Telegram reminder (owner question, I-062); Last Node later fixes for N-6 (4-week rolling check)
-- Retention ideas offered by the Hub, not yet chosen by the owner: streaks, a "Your week" card, a claim reminder dot, a weekly recap page, badges next to names
-- Launch announcement; analytics decision; ads and the SwarmTales listing (Race chat's owner checklist)
-- Bot support for the Koinos Foundation testnet copy (I-014)
-- {{TBD: items from chats not yet archived}}
+## Now — launch week (2–8 Nov)
+| Step | Who | Blocked by | |
+|------|-----|-----------|-|
+| Merge `vault-v6` into `picks`, so the admin page's vault buttons work | Vault chat (asked 2 Nov) | — | I-019 |
+| Fix the Questions game payout timing properly | Questions chat | owner wants it fixed, not explained | I-066 |
+| Make the Questions game's free prize follow D-062 (no 1 + 1 before the vault starts) | Vault + Questions chats | needs an on-chain check | I-067 |
+| Block X: confirm whether any on-chain announcement exists (cancel and redo, or apply when ready); step 8; Mana check; launch PR `picks` → `main` | owner + Block X chat | readiness (D-064, D-067) | I-040, I-070 |
+| `game-add` → switch the sponsor to the vault (copy the caps exactly) → `game-apply`, for each ready game | owner | I-019 | D-061 |
+| UI refresh: week of 9 Nov shown as "Week 1"; vault "not yet live" wording replaced | Hub + Race chats | — | I-069, I-027 |
+| Wallet moves: hardware-wallet owner, cold treasury, retire the old operator | owner | — | I-001, I-045 |
+
+## Next — each game's path to launch
+| Game | Path | Waiting on |
+|------|------|-----------|
+| Producer Race (7) | `game-add 7` → apply → paid from vault start | ready (I-033/I-034 before staked prizes) |
+| Block X (2) | step 8 → Mana check → `PINNED_PICKS`, launch PR (carries the Hub status bar and starts the VHP sampler) → announce → live prize-free → prizes after the I-042 fixes | I-040, I-070 |
+| Block Golf (6) | practice: after `picks` merges, move Golf files to the site root, full suite, merge, `GOLF_ENABLED=true`. Staked: v6 merged into `golf` → register game 6 (48 h) → set `GOLF_STAKED_FROM_WEEK` | Block X live; I-060 |
+| Survivor (3) | Repo Lens pass 4 → fixes + fix-check → testnet season → register game 3 on Picks → set `FIRST_DAY` = Mon 16 Nov, merge → menu + `games.json` live → `board.json` + Results adapter | I-050, I-056 |
+| Last Node Standing (13) | clean round-3 review → `picks` in `main` (sampler starts) → announce game 13 on Picks, apply after 48 h → 48 h of sampler readings → `lastnode` → `main` → `LASTNODE_ENABLED=true` → watch day 1 | I-058, I-059 |
+| Producer Bracket (9) | Repo Lens audit → fixes + fix-check → update from `main` → announce in Picks and the vault (48 h each) → sponsor allowlist row → `games.json` live | I-061 |
+| Fantasy (4) + Rival (5) | fix-check → fixes → real-data simulation → a full test week → register Picks games 4 and 5 (48 h) → merge, `FANTASY_ENABLED=true`, menus, remove `noindex`; first price list the Saturday before launch | I-062 |
+| Combo Card (8) | fix-check 4 → re-merge `picks` → Picks v2 upgrade after Block X (publish source + build → `upgrade-schedule --code 92d555d0` → 48 h → `upgrade-upload` → `upgrade-clear` → record in `picks-data/deployment.json` by PR → pick row 0.25 Mana) → announce game 8 (48 h) → `COMBO_ENABLED=true`, `"cards": true` | I-063 |
+
+Order: the owner's goal is every game, each in its best version (D-052, D-064). Earlier chat orders (Hub, Golf, Vault) are superseded (C-14, C-23).
+
+## After launch
+- Block X and Race prize fixes before their staked prizes (I-033 – I-035, I-042).
+- Race and Block X onto the VHP standard (D-058).
+- Size the sponsor's KOIN from measured use (bot ~5–6 Mana a day, sponsor ~3 Mana per active player per day, hold 5 × daily use) and recheck the 25-a-day per-wallet cap for heavy players (D-028, D-061, I-060).
+- Per-action Mana limits a day after Block X launches, and again a day after the sponsor's vault switch.
+- Full platform audit when the owner gives the go-ahead (D-014).
+- Launch announcement, analytics decision, ads, the SwarmTales listing (from the owner checklist) 💬.
+- Write each game's spec into `.ai/games/` (rules now live in DECISIONS).
+
+## Ideas, not scheduled
+- Mana Station (shelved, D-053).
+- Next sponsor version: guest prize claims and the L-3 fix.
+- Compound at a fixed time each day (I-049).
+- A sponsor that also pays operator transactions (needs an audit).
+- Retention: streaks, a "Your week" card, a claim reminder dot, a weekly recap page, badges next to names.
+- Fantasy Telegram reminder; Last Node 4-week rolling form check.
+- Bot support for the public-testnet vault copy (I-014).
 
 ## Done
-| Item | Completed | Notes |
-|------|-----------|-------|
-| Desk node repaired after the block-store crash loop | 2026-10-24 | 💬 Swap Desk |
-| Self-heal and alerts live | 2026-10-23 | 💬 Swap Desk |
-| Operator rotated to `1HsM33…` | 2026-10-26 | 💬 Swap Desk |
-| Game v5 + Desk v2 upgrade | 2026-10-28 | ✅ `upgradedAt` in deployment files |
-| Sponsor pays player Mana (PR #28); on-time 12:00 UTC question release | 2026-10-28 | 💬 Swap Desk; release cron ✅ |
-| Race contract upload | 2026-10-27 | ✅ |
-| Sponsor upload (v3 per repo) | 2026-10-30 | ⚠️ C-01; Vault + Hub say v3 live (PR #38) |
-| Picks contract upload | 2026-10-30 | ✅ |
-| Nodes moved to Docker volumes; self-heal every 20 min | ❓ | 💬 |
-| "+ Add another account" fix (`80cef45`) | ❓ | 💬 live; owner retest pending |
-| Swap page double-tap disconnect fix | ❓ | 💬 |
-| Build 2: rename, Games hub, Race Show, tab bar (PR #23) | 2026-10-27 | 💬 Race |
-| Domain on GitHub Pages; site moved to repo root (PRs #30, #31) | ❓ | 💬 Hub |
-| Race two boards, vault file, medals for earners (PR #34) | ❓ | 💬 Race |
-| Vault v6 audited and rehearsed (162/162 specs, 38/38 node tests); testnet check | ≤ 2026-10-30 | 💬 Vault |
-| Vault v6 announced (tx `0x1220db16…8af`) | 2026-10-30 | 💬 Vault |
-| Picks contract uploaded to mainnet; sponsor v3 uploaded (PRs #38, #39, #40) | 2026-10-30 | ✅ records on `picks` |
-| Block X: Repo Lens round 10 GO (`a55390f`), round 11 GO (`3472d8c`); game 2 announced with 1 change per pick | ≤ 2026-11-01 | 💬 Block X |
-| Staking hub, status bars, @name page, `NAMES_ENABLED` live | 2026-10-30 | 💬 Hub |
-| Vault v6 uploaded; chain-check all ✔, holdings unchanged at 21,120.07528353 | 2026-11-02 02:33 UTC | 💬 Vault; ✅ code hash on `main` |
-| `vault-v6` merged into `main` (PR #51) | ≤ 2026-11-02 | ✅ |
-| Race week 1 vault results file final | 2026-11-02 | 💬 Race |
-| Stake panel fixes (PR #46), Race badge (PR #44), wallet provider fix (PR #49) | ≤ 2026-11-02 | ✅ merged on `main` |
-| Admin page fixes (PR #43) | ≤ 2026-11-02 | ✅ merged into `picks` |
-| `.ai/` library created | 2026-11-02 | |
-
-## Launch Checklist (per game)
-- [ ] Spec written in `.ai/games/`
-- [ ] Meets GAME_STANDARD.md
-- [ ] Tested on {{TBD: testnet / mainnet small amounts}}
-- [ ] Audit passed ({{TBD: audit process}})
-- [ ] Leaderboard meets LEADERBOARD_STANDARD.md
-- [ ] Vault integration meets VAULT_STANDARD.md
-- [ ] Announced
+| What | When | |
+|------|------|-|
+| Self-heal and alerts | 23 Oct | 💬 |
+| Desk node repaired after its crash loop | 24 Oct | 💬 |
+| Operator rotated to `1HsM33…` | 26 Oct | 💬 |
+| Race contract; Build 2 (rename, Games hub, Race Show) | 27 Oct | ✅ / 💬 |
+| Game v5 + Desk v2; sponsor pays player Mana; on-time 12:00 UTC release | 28 Oct | ✅ |
+| Domain live; site moved to the repo root | by 28 Oct | 💬 |
+| Picks contract and sponsor v3 uploaded; staking hub, status bars, @name page live; seed 20,000 VHP deposited, seed owner moved | 30 Oct | ✅ / 💬 |
+| Block X Repo Lens rounds 10 and 11: GO | by 1 Nov | 💬 |
+| **Vault v6 uploaded** (02:33 UTC), holdings unchanged; merged into `main` (PR #51) | 2 Nov | ✅ |
+| Stake panel fixes (PR #46), Race badge (PR #44), wallet provider fix (PR #49); admin fixes (PR #43, `picks`) | by 2 Nov | ✅ |
+| `.ai/` library created; all 12 chats archived and filed; contradictions answered | 2 Nov | ✅ |

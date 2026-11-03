@@ -1,125 +1,111 @@
 # Knode Games — Platform Overview
 
-> Purpose: One-page summary of what Knode Games is today.
-> Owner: Owner (Questions chat also acts as Hub/site chat — ❓ confirm)
-> Last updated: 2026-11-02
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (all 12 chat exports — Questions, Vault, Hub, Race, Block X, Swap Desk, Survivor, Last Node Standing, Block Golf, Producer Bracket, Fantasy, Combo Card — 2026-11-02; Swap Desk facts date from 16–28 Oct), checked against the repo
-> on branch `picks` and on GitHub `main` (as fetched 2026-11-02 13:37 PT). Where they differ, the branch is named.
+> **Purpose:** the one-page picture of what Knode Games is today: games, contracts, money, wallets, machines, branches and who owns what.
+> **Last updated:** 2026-11-02 (consolidated)
+> **Sources:** the 12 chat exports in `.ai/archive/CHAT_KNOWLEDGE.md`, the owner's answers on 2 Nov, and the repo (`main` and `picks`, checked 2 Nov).
+> **Rule:** if this file disagrees with `DECISIONS.md`, `DECISIONS.md` wins (D-002).
 
-**Legend:** ✅ verified in repo (file named) · 💬 from chat only, not verified · ⚠️ conflict, see `DECISIONS.md` → Contradictions · ❓ unknown
+**Legend:** ✅ verified in the repo · 💬 from a chat, not verified · 👤 owner said so · ⚠️ open contradiction (see `DECISIONS.md`) · ❓ unknown
+
+## The library
+| File | Holds |
+|------|-------|
+| `PLATFORM.md` | this overview |
+| `ARCHITECTURE.md` | how the pieces work: site, contracts, bots, workflows, data, tests |
+| `DECISIONS.md` | every decision (D-xxx) and every contradiction (C-xx) |
+| `ROADMAP.md` | milestones and launch paths |
+| `OPENISSUES.md` / `TODOS.md` | problems (I-xxx) and the owner's action list |
+| `KOINOS.md` | chain facts, testnet, gotchas |
+| `VISION.md` | why, for whom, principles, brand |
+| `../standards/` | rules every game and the vault must follow |
+| `../archive/CHAT_KNOWLEDGE.md` | raw chat exports (an inbox, not a source of truth) |
 
 ## Summary
-Knode Games is a set of node-based games on the Koinos blockchain, served as a static site.
-{{TBD: 2–3 sentence public description}}
+Knode Games runs free and staked prediction games on the Koinos blockchain, powered by its own block-producing nodes. Players pick producers, blocks and races; correct calls climb a weekly leaderboard for each game. All staked VHP sits in one vault that produces blocks. Each week's rewards, after a flat 5% fee, pay the free-game prizes (2 VHP for 1st, 1 VHP for 2nd) and are split across the staked games by each game's share of the stake. Funds safety comes first: only the vault holds tokens, and stakes are always withdrawable. 👤
 
-## Live Links
-| Item | Value | Confidence |
-|------|-------|-----------|
-| Website | https://knodegames.com (GitHub Pages, served from repo root) | ✅ `CNAME` |
-| Domain & DNS | registered at Cloudflare; GitHub Pages serves the repo root (PR #30 domain, PR #31 removed `/site/`). DNS: 4 A + 4 AAAA records on `@`, `www` CNAME → `bawcejawn.github.io`, all DNS only (grey cloud) | 💬 Hub |
-| Repository | `github.com/bawcejawn/KnodeGames` (old names `Knode`, `kprediction` redirect) | ✅ GitHub "repository moved" notice on push, 2026-11-02 (C-06 resolved) Kept **public** so Actions and Pages stay free (D-043) |
-| Local folder | `C:\kprediction` (stale copy `C:\Users\alcat\repos\Knode` deleted) | 💬 Always check the branch before running tools (`git checkout picks`, `git log --oneline -1`): a tool once ran old code from `lastnode` 💬 Block X |
-| Vault build folder | `C:\kprediction-vault`: Git worktree on `vault-v6`, used only for vault builds and uploads; `.env` copied from `C:\kprediction`; frozen (D-025) | 💬 Vault chat |
-| Combo checkout | `C:\kg-combo-preview`: a second Git checkout for Combo | 💬 Block X |
-| Test checkout | `C:\kprediction-test` (created 30 Oct): testnet work and Repo Lens audits | 💬 Survivor |
-| Fantasy practice clone | `C:\kprediction-fantasy`: Fantasy testnet practice only; practice tooling must never touch `C:\kprediction` (mainnet keys, scheduled tasks) | 💬 Fantasy |
-| Testnet staking page | `stake-testnet.html` | 💬 |
-| Owner checklist (artifact) | a Claude artifact with a Today list, backed by its `tasks` database — https://claude.ai/artifact/Qjk951Qvntsa15yrhJ2db6 | 💬 Race chat ⚠️ I-032 |
-| Network | Koinos mainnet | ✅ `*-data/deployment.json` |
+## Live
+| Item | Value | |
+|------|-------|-|
+| Website | https://knodegames.com — GitHub Pages, served from the repo root | ✅ `CNAME` |
+| Domain & DNS | registered at Cloudflare; 4 A + 4 AAAA records on `@`, `www` CNAME → `bawcejawn.github.io`, all DNS-only (grey cloud) | 💬 |
+| Repository | `github.com/bawcejawn/KnodeGames` (old names `Knode`, `kprediction` redirect); kept **public** so Actions and Pages stay free (D-043) | ✅ |
+| Network | Koinos mainnet (chain facts: `KOINOS.md`) | ✅ |
+| Live on the site | Daily Questions, Producer Race, the swap desk, the staking hub (`stake.html`), status bars, the @name page (`names.html`) | ✅ `games.json` / 💬 |
 
 ## Games
-Vault ids and results sources ✅ `game-data/deployment.json` (`vaultGames`, `main`). Every game is stakeable (D-018).
+Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` on `main`. Every game is stakeable (D-018). **Free-play prizes on every free game: 2 VHP for 1st, 1 VHP for 2nd, starting when the vault starts** (D-062). Nothing is announced to players until it's built, audited and ready (D-064).
 
-| Vault id | Game | Type (Staked / Free play) | Status | Site list (`games.json`, `picks`) |
-|----------|------|---------------------------|--------|-----------------------------------|
-| 1 | Daily Questions ("Knode questions game") | {{TBD}} | live, built into the vault; stake buttons stay on `index.html`; `withdraw_from` doesn't apply to game 1 💬 Hub | live Five questions Mon–Sat at 12:00 UTC (types: producer quartiles, group block counts, transactions in a window, largest gap, average interval; templates M1, M4, M5, M7, M10; model v5; `hashRule` 2; at most 30 a week). Answers close 00:00 UTC; Sunday is results day; corrections until Mon 12:00; winners final Tue 12:00 when on time. Rewards: see D-045 💬 Swap Desk |
-| 2 | Who Signs Block X | Staked + Free | Picks contract live; ready to announce; status bar on `blockx.html` (`picks`); reaches `main` with the Block X launch PR after game 2 is applied 💬 | soon Picks contract: announced with 1 change per pick; `apply` allowed from Sun 1 Nov 21:23 UTC — not yet reported done (I-040). Split launch: goes live prize-free first (D-036). Repo Lens round 10 GO (`a55390f`), round 11 GO (`3472d8c`). Runbook `docs/blockx/MAINNET-LAUNCH.md` ✅ on `picks` **Not announced to players yet** (owner, 2 Nov); the on-chain announce on the Picks contract is a separate step |
-| 3 | Survivor | Staked + Free, two boards (C-13 resolved); 2-week seasons, prizes 4 + 2 VHP (D-020, D-051) | Runs on the Picks contract as game 3 (not yet registered). Branch `survivor` @ `a8a1979` ✅ pushed, **not merged, nothing deployed**; `FIRST_DAY` unset ✅; Repo Lens pass 4 and a testnet season still to do (I-050). Season 1 date ⚠️ C-18 | soon ✅ |
-| 4 | Fantasy Producers (team) | Staked: top 30% of Fantasy stakers share the game's part; no free prize mentioned ❓ | Branch `fantasy` @ `2bee805` ✅ (pushed, not merged); testnet practice deployed; Repo Lens fix-check not yet run; launch #13 in the old order (D-059) | soon |
-| 5 | Weekly Rival (Picks only) | Records only, no prize; a match counts only when both players are staked (D-059) | with Fantasy; not a vault game (✅ absent from `vaultGames`) | not listed |
-| 6 | Block Golf | Staked (only players staked in Golf count); free practice weeks with no prizes (D-056) | No contract or picks of its own: scored from other games' weekly boards. Branch `golf` @ `6b2200a` ✅ (pushed, not merged); practice planned with Block X; staked after `game-add 6` | soon |
-| 7 | Producer Race | Staked + Free (D-034) | live with status bar (PR #44 ✅ merged on `main`); vault `game-add` pending (C-12 resolved) | live |
-| 8 | Combo Card | Staked only (D-060) | Branch `combo` @ `c8c652e` ✅ (pushed, not merged); Repo Lens fix-check 4 pending; needs the Picks v2 upgrade (`92d555d0…`, 37,689 bytes) after Block X launches; testnet contract `1PQZWWHb…` (game 98) | not listed |
-| 9 | Producer Bracket | Staked + Free; 1-week seasons, prizes 2 + 1 VHP (D-019, D-057) | Branch `kg-09-bracket` @ `ee676ea` ✅ (pushed, not merged); Repo Lens audit not yet run (⚠️ C-20); home of the VHP standard (D-058) | not listed |
-| 10–12 | ❓ unused | | | |
-| 13 | Last Node Standing | Staked; free play and board without a free prize ❓ (vault file has empty `first`/`second`) | Branch `lastnode` @ `adf95be` ✅ (pushed, not merged); round-3 review pending; needs the VHP sampler running 48 h first (I-059) | not listed |
+| Id | Game | Play | Rules | Status (2 Nov) | Code |
+|----|------|------|-------|----------------|------|
+| 1 | Daily Questions | Staked + Free | D-045, D-047, D-062 | live; built into the vault | `main` |
+| 2 | Who Signs Block X | Staked + Free | D-036 – D-041 | not announced to players (D-067); launches prize-free first; step 8 + launch PR pending (I-040) | `picks` |
+| 3 | Survivor | Staked + Free, two boards | D-051, D-065 | Season 1 **Mon 16 Nov** (D-065); audit pass 4, testnet season, Picks registration still to do (I-050); prize ⚠️ C-24 | `survivor` @ `a8a1979` ✅ |
+| 4 | Fantasy Producers | Staked; free prize ❓ | D-059 | fix-check, full test week, real-data simulation to do | `fantasy` @ `2bee805` ✅ |
+| 5 | Weekly Rival | records only, no prize; not a vault game ✅ | D-059 | ships with Fantasy | `fantasy` |
+| 6 | Block Golf | Staked; free practice weeks (no prize) | D-056 | practice with Block X; staked after `game-add 6` | `golf` @ `6b2200a` ✅ |
+| 7 | Producer Race | Staked + Free | D-033 – D-035 | live as a game; vault `game-add 7` pending | `main` |
+| 8 | Combo Card | Staked only | D-060 | fix-check 4; needs the Picks v2 upgrade after Block X | `combo` @ `c8c652e` ✅ |
+| 9 | Producer Bracket | Staked + Free, 1-week seasons | D-019, D-057 | audit not yet run | `kg-09-bracket` @ `ee676ea` ✅ |
+| 13 | Last Node Standing | Staked; free play, prize ❓ | D-054, D-055 | round-3 review; needs 48 h of sampler data (I-059) | `lastnode` @ `adf95be` ✅ |
 
-Launch order and pace: ⚠️ C-14. Game specs go in `.ai/games/{{TBD}}.md`.
+Ids 10–12 are unused. All unlaunched branches are pushed, not merged, and nothing from them is deployed ✅. Launch paths per game: `ROADMAP.md`. Readiness gaps: I-065.
 
-Live on the site since 30 Oct (💬 Hub): staking hub (`stake.html`), status bars, the @name page (`names.html`, `NAMES_ENABLED=true`).
+## Contracts (Koinos mainnet)
+| Contract | Address | Code | State | |
+|----------|---------|------|-------|-|
+| Game / **Vault v6** (game 1 built in) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` | `eed38f7c…` (was v5 `c17066ae…`) | live, upgraded in place 2026-11-02 02:29 UTC | ✅ |
+| Vault emergency build | — | `e84fec49…` (withdrawals only) | standby, not deployed (D-021) | ✅ |
+| Mana sponsor v3 | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | `b61ac238…` (v2 `fa4659e6…` kept as rollback) | live; vault switch still off | ✅ `picks` record (`main`'s record stale, I-043) |
+| Picks | `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` | `700c296a…` (v2 `92d555d0…` planned for Combo) | uploaded 2026-10-30; only an owner-approved upgrade is accepted | ✅ |
+| Race picks | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` | `61e8f212…` | uploaded 2026-10-27 | ✅ |
+| Swap Desk v2 | `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR` | `309506cc…` | live since 2026-10-28 | ✅ |
 
-Note: "Producer race" was removed from the site footer (💬); the game itself is still listed as live in `games.json` (✅).
+## Money
+- **Platform fee:** a flat 5% of gross rewards, collected with `claim-fee-vhp all` (rules: D-029, `standards/VAULT_STANDARD.md`).
+- **Free-play prizes:** 2 VHP 1st, 1 VHP 2nd on every free game, from the vault's start (D-062). Nothing is paid for weeks before that (D-063).
+- **Staked rewards:** split across staked games by each game's share of stake; each game ranks its own stakers (per-game rules in DECISIONS).
+- **Mana sponsor:** 25,000 KOIN in the wallet; 5,000 Mana a day for everyone; 25 a day and 150 a week per wallet; 1 per transaction; 2,000 a day for free players (D-061, D-028). It pays stake, withdraw, claim and plays — never `move_stake` (D-027). Mana Station is shelved (D-053).
+- **Swap desk:** VHP → KOIN at a flat 3% fee, no daily payout cap (D-007, D-044); liquidity ~1,050 KOIN on 2 Nov 💬.
+- **Running costs:** $0 hosting (D-005); domain ~$10–20 a year 💬.
+- **Snapshots** 💬 (dated, will go stale):
+  - 2 Nov, at the v6 upload: vault holdings 21,120.07528353; seed 21,050 VHP.
+  - 28 Oct, game v5: VHP 21,622 + KOIN 546.6 held vs 22,151.7 owed (stakes 21,011; seed 1,050; fee 4.54; pots 86.17). Desk: 478.18 KOIN, 20,720 VHP producing; 2 swaps (3,001 VHP in, 2,910.97 KOIN out).
 
-## Core Components (Koinos mainnet)
-| Component | Address | Code hash | Status | Confidence |
-|-----------|---------|-----------|--------|-----------|
-| Game / Vault v6 (questions game built in as game 1) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` | `eed38f7c…` (v5 `c17066ae…` before) | live, upgraded in place 2026-11-02 02:29 UTC | ✅ `game-data/deployment.json` on `main` (C-09 resolved) |
-| Vault emergency build (withdrawals only, not deployed) | — | `e84fec49…` | standby (D-021) | ✅ `safeWasmSha256` on `main` |
-| Swap Desk v2 | `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR` | `309506cc…` | live, upgraded 2026-10-28 | ✅ `desk-data/deployment.json` |
-| Mana sponsor | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | v3 `b61ac238…`, upload tx `0x122040b7…` (2026-10-30) | live, ON; vault switch off (as of 30 Oct) | ✅ `picks` record; C-01 resolved. `main`'s record still says v2 (I-043) |
-| Race | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` | `61e8f212…` | uploaded 2026-10-27 | ✅ `race-data/deployment.json` |
-| Picks | `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` | `700c296a…` | uploaded 2026-10-30 | ✅ `picks-data/deployment.json`. Upload tx `0x12207d67…d809` ✅. Owner `1635QU…`; the upload key was deleted after upload; `authorize` refuses everything except an owner-approved upgrade 💬 Block X |
+## Wallets (public addresses only — never keys)
+| Role | Address | State | |
+|------|---------|-------|-|
+| Owner (game/vault, desk, Picks) | `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717` | to move to a hardware wallet (I-001) | ✅ |
+| Desk treasury | same as owner | to move to a cold treasury, 48 h timelock (I-001) | ✅ |
+| Seed owner | `1K8VV1utXfomeXHeifrwgLpBjUG6Ldkw2Z` | dedicated wallet since 30 Oct — done | ✅ |
+| Operator (bot) | `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv` | rotated in 26 Oct; pays its own Mana, target 50 KOIN (D-046); balance unconfirmed (I-046) | ✅ |
+| Mana sponsor | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | 25,000 KOIN (D-061) | ✅ / 👤 |
+| Old operator (retired) | `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ` | key still in local `.env`; move its leftover KOIN, then remove the key (I-045) | 💬 |
+| New owner (hardware) | ❓ | not created yet | |
+| Cold treasury | ❓ | not created yet | |
+| Producer public keys | desk `AzCYCDLD…`, game `Ak0vGklN…` | — | ✅ |
 
-## Fees & Economics (summary only — details in DECISIONS.md)
-- Swap desk fee: 3% per swap, no daily payout cap — ✅ `desk-data/deployment.json` (`feeBps: 300`) / 💬
-- Platform fee: 5%, collected from the vault with `claim-fee-vhp all` — 💬 Vault chat
-- Reward distribution: 40/60 split from Week 3 (Mon 2 Nov) — 💬 (split details ❓)
-- Free-play prize: 2 VHP from Week 3 (Questions chat) vs 2 + 1 VHP from Mon 9 Nov (Vault chat) — ⚠️ C-10
-- Cost model (💬 Swap Desk): public repo is free; a private repo would need ~15–18k Actions minutes a month (~$75–120 a month, estimate) plus Pro for Pages and environments; the domain costs ~$10–20 a year.
-- Snapshot 2026-10-28 13:41 UTC (💬 Swap Desk): game held VHP 21,622 + KOIN 546.6 against 22,151.7 owed (stakes 21,011; seed 1,050 = 1,000 VHP + 50 KOIN; producer fee 4.54; pots 86.17). Week 1: gain 90.71, pot 86.17, 1 winner. Desk: 478.18 KOIN, 20,720 VHP producing; 2 swaps, 3,001 VHP in, 2,910.97 KOIN out, 90.03 VHP fees.
-- Seed: 20,000 VHP deposited 2026-10-30, total 21,050 VHP; vault holdings 21,120.07528353 at the v6 upload — 💬 Vault chat, snapshot
-- Swap desk liquidity: ~1,050 KOIN; 3,001 VHP swapped so far (owner tested a 3,000 VHP swap) — 💬, snapshot 2026-11-02
+Procedure for moves: `docs/WALLETS.md` ✅.
 
-## Wallets & Roles (public addresses only — never keys or secrets)
-| Role | Purpose | Address | Confidence |
-|------|---------|---------|-----------|
-| Owner | contract owner (game, desk) | `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717` | ✅ |
-| Treasury (desk) | currently the same address as owner; withdrawals go only here; changing it has a 48 h timelock | `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717` | ✅ — handover pending (D-013) |
-| Operator / bot | `set_operator` target | `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv` | ✅ `game-data/deployment.json` Rotated in 2026-10-26; pays its own Mana, target 50 KOIN (D-046) 💬 Swap Desk |
-| Mana sponsor | pays Mana for game plays | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | ✅; KOIN balance ⚠️ C-03 |
-| Seed owner | owns the vault seed (two-step handover, done 2026-10-30) | `1K8VV1utXfomeXHeifrwgLpBjUG6Ldkw2Z` | ✅ `seedOwner` on `main` |
-| Old operator (retired 2026-10-26) | replaced by `1HsM33…`; its key is still in the owner's local `.env`; leftover KOIN to move to the owner | `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ` | 💬 Swap Desk (C-11 resolved) |
-| New owner (hardware wallet) | {{TBD}} | {{TBD}} | ❓ pending |
-| Cold treasury | {{TBD}} | {{TBD}} | ❓ pending |
+## The owner's PC
+- **Folders:** `C:\kprediction` (main checkout; keys in `.env`; scheduled tasks — always check the branch first) · `C:\kprediction-vault` (worktree on `vault-v6`, frozen, D-025) · `C:\kg-combo-preview` (Combo) · `C:\kprediction-test` (testnet and audits) · `C:\kprediction-fantasy` (Fantasy practice only). 💬
+- **Nodes:** three mainnet nodes in Docker on Windows — desk `C:\kpred-desk-node`, game `C:\kpred-node`, personal `C:\koinos-personal` — and **no testnet nodes** (D-066). Volumes `<project>-basedir`. **Never delete `basedir\block_producer`: it holds `private.key`.** Ports are deliberately not written down (public repo). 💬 / 👤
+- **Scheduled tasks:** "Knode self-heal" every 20 min; "Knode question release" 11:45–14:05 UTC every 5 min, stored in UTC (next run checked 2 Nov: 3:45 AM local ✅ 👤).
 
-## Branches — 💬 Hub, Vault chats
-- `main`: the live site. `picks`: development; merges `main` from time to time; the admin page lives there. `vault-v6` (frozen) and its backup `vault-v6-next`. `survivor`: Survivor testnet season and audit.
-- Data branches: `race-data`, `race-samples` (`vhp-samples.json`; **doesn't exist yet** ✅ — I-059), `bracket-history` (100 days of mainnet data, ~22 MB — keep), `blocks-data`, `games-data`, `names-data` (`names.json`), `testnet-data`.
-- Other work branches: `combo` (Picks v2 upgrade commands), `lastnode`, `golf`, `kg-09-bracket`, `fantasy`, `survivor` (contains Build 3's `picks`, `main` as of 28 Oct, Survivor, and later `picks` merges `6e22c73`, `c50d423`). AI chats may push to `picks` (several do), so always pull before pushing; `main` changes only through PRs the owner merges (D-026). 💬 Block X
-- `vault-v6` is merged into `main` (PR #51 ✅) but **not into `picks`** ✅ — see I-019.
+## Branches
+- `main`: the live site; changes only through PRs the owner merges (D-026). Scheduled workflows run only from here.
+- `picks`: development — Block X, Picks tooling, the admin page, the VHP sampler. Not yet merged into `main`; `vault-v6` not yet merged into it (I-019).
+- Game branches: `survivor`, `fantasy`, `golf`, `kg-09-bracket`, `combo`, `lastnode`. Vault: `vault-v6` (frozen), `vault-v6-next` (backup).
+- Data branches: `race-data`, `games-data`, `blocks-data`, `names-data`, `testnet-data`, `bracket-history` (keep). `race-samples` doesn't exist yet ✅ (I-059).
 
-## Testnet
-- Koinos Foundation testnet holds a Vault v6 test copy and a Picks test contract; addresses and settings in `KOINOS.md`. — 💬 Vault, Hub
+## Chats and ownership
+| Chat | Owns |
+|------|------|
+| Questions | game 1, site basics, guest play, nodes and operations |
+| Hub (site / captain) | shared site files (`board.js`, `stake-panel.js`, `styles.css`, `games.*`, tab bar, `stake.html`), the admin page, names, coordination |
+| Race (KG 02 · Hub + Race Show) | every Race file (D-035) |
+| Vault | Vault v6, seed, game registry, the bot's vault code |
+| Block X and Picks | Block X, the Picks contract, sponsor v3, publish checks |
+| Swap Desk | the desk, nodes, self-heal, question release (ran 16–28 Oct) |
+| Survivor · Last Node Standing · Block Golf · Producer Bracket (+ VHP standard) · Fantasy (+ Rival) · Combo Card (+ Picks v2) | their game and branch |
 
-## Nodes (owner's PC, Docker — no IPs or ports recorded)
-| Node | Folder | Confidence |
-|------|--------|-----------|
-| Desk | `C:\kpred-desk-node` | 💬 |
-| Game | `C:\kpred-node` | 💬 |
-| Personal | `C:\koinos-personal` | 💬 |
-
-All three use Docker volumes `<project>-basedir` via `docker-compose.override.yml` (💬). Docker Compose on Windows; images chain v1.5.2, block_store v1.1.0, p2p v1.3.0, block_producer v1.3.1 (💬 Swap Desk, as of Oct). **Never delete `basedir\block_producer`: it holds `private.key`.** Producer public keys: desk `AzCYCDLD…`, game `Ak0vGklN…` ✅ deployment files. Ports are deliberately not recorded here (public repo).
-
-### Automation on the owner's PC — 💬 Swap Desk
-- Windows scheduled tasks, both via `conhost --headless` (no window): "Knode self-heal" every 20 min; "Knode question release" daily 11:45–14:05 UTC every 5 min, stored in UTC so daylight saving can't move it.
-- `GITHUB_ALERT_TOKEN` (in `.env`): fine-grained PAT for this repo only, Actions read/write; used by `heal.mjs` and `release-kick.mjs`. Owner reported ~96% of expected blocks produced (💬, snapshot).
-
-## Chats / Workstreams
-| Chat name | Owns which files/areas | Confidence |
-|-----------|------------------------|-----------|
-| Questions | game 1, site, Mana sponsor, guest play, nodes and operations | 💬 |
-| Race (KG 02 · Hub + Race Show, session `0173PPUtFZWbkCLXcA57bDGS`) | all Race files: `bot/race.ts`, `race.html`, `race.js`, `race-math.js`, `race.yml`, `race/`, the `race-data` branch, Race tests (D-035). Rule written in `claude/owners-race.md` | 💬 |
-| Vault | Vault v6 contract, seed, game registry, bot vault code, testnet copy | 💬 |
-| Block X and Picks | Block X (game 2), the Picks contract, Mana sponsor v3, publish checks for race and Block X data, Repo Lens rounds | 💬 |
-| Hub (site / captain chat, session `0173PPUsRKcFfG89XdWYy7LD`) | shared site files: `board.js`, `stake-panel.js`, `styles.css`, `games.*`, the tab bar, `stake.html`; the admin page; names; cross-chat coordination | 💬 |
-| Survivor | Survivor (Build 4): rules, recorder, publish checks, testnet kit, Repo Lens rounds; may push to `survivor` | 💬 |
-| Last Node Standing | game 13 (`lastnode`); may push `lastnode` | 💬 |
-| Block Golf | game 6 (`golf`) | 💬 |
-| Producer Bracket | game 9 (`kg-09-bracket`) and the platform-wide VHP standard | 💬 |
-| Fantasy Producers | games 4 and 5 (`fantasy`); may push `fantasy` | 💬 |
-| Combo Card | game 8 and Picks v2 (`combo`); may push `combo` | 💬 |
-| — | No other chats: the sponsor work was spread across these chats (owner, 2 Nov) | owner |
-| Repo Lens (external) | **not part of Knode Games**: the owner's separate audit project. Game chats send it audit or fix-check packages (a zip with `00-COMMIT.txt` + `00-FIXCHECK-PROMPT.md`) and get a Claude Docs report back | owner, 2 Nov |
-| Unnamed chat (session `0173PPUrAJx3x5GM6g8LJmND`) | changed the tab bar and guest-wallet text | 💬 Race chat |
-| Sponsor v2 chat | {{TBD}} | 💬 named in archive |
-| {{TBD}} | {{TBD}} | |
+No other chats exist; sponsor work was spread across these 👤. **Repo Lens is not part of Knode Games** — it is the owner's separate audit project that game chats send packages to 👤.

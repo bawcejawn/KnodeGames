@@ -10,7 +10,8 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today
-- [ ] Answer C-02: which sponsor caps are live — the chat's 1,000-a-day set or the code's 5,000-a-day set? — P1 — C-02, C-03, D-008
+- [ ] Answer the three open contradictions: C-24 (Survivor prize 4 + 2 or 2 + 1?); C-08 and C-25 go to the chats (I-066, I-067) — P2
+- [ ] Ask the Vault and Questions chats to check what the Questions game will pay at its first payout (I-067), and the Block X chat whether game 2 is already announced on chain (I-070) — P1
 - [ ] Decide when Block X goes public (not announced to players yet), then step 8 — apply Block X on the Picks contract: `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet` must show 1 change (allowed since Sun 1 Nov, 1:23 PM PT; not reported done) — P2 — I-040
 - [ ] Before Block X is published: `npm run sponsor -- mana-report` on mainnet; raise the pick row if mainnet is more than ~1.5× testnet — P2 — D-038
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
@@ -28,8 +29,12 @@
 - [ ] Delete old node basedir folders, only if `heal.log` is clean — P3 — I-008 — on or after Wed 4 Nov, 17:30 UTC (9:30 AM PT)
 - [ ] Retest "+ Add another account" with the real Kondor extension — P2 — I-004 — due {{TBD}}
 - [ ] Confirm which sponsor version is live on chain (v2 or v3) — P2 — C-01 (unblocks I-005) — due {{TBD}}
-- [ ] Wallet handovers per `docs/WALLETS.md`: new owner on a hardware wallet, cold treasury — P1 — I-001, D-013 — target this weekend ❓ (7–8 Nov)
-- [ ] Remove the old operator key (`1JSTwo…`) from `.env` and move its leftover KOIN to the owner — P1 — I-045
+- [ ] Wallet moves per `docs/WALLETS.md` — P1 — I-001, D-013 — target this weekend ❓ (7–8 Nov):
+  - new **owner** on a hardware wallet — the owner wallet `1635QU…` currently owns the game/vault, the desk and the Picks contract (each change is two-step or timelocked);
+  - a **cold treasury** for the desk (48 h timelock);
+  - the seed is **already moved** (`1K8VV…`, 30 Oct) — nothing to do
+- [ ] Old operator `1JSTwo…`: move its leftover KOIN to the owner first, then remove its key from `.env` — P1 — I-045
+- [ ] After launch: empty and retire the test wallets (Fantasy practice wallets; old bot/test wallets from the owner checklist) — P3
 - [ ] Top up the bot wallet `1HsM33…` to ~50 KOIN and confirm its Mana — P3 — I-046
 - [ ] Watch `node\release-kick.log` and `node\heal.log` for the first few days — P3
 - [ ] Confirm `reward_rule_week_plus_one=3` on chain — P2 — I-003, D-010 — due before Tue 10 Nov, 21:00 UTC (1:00 PM PT), the first v5 payout
@@ -42,9 +47,8 @@
 - [ ] Confirm the GitHub repo name (`KnodeGames` or `Knode`) — P4 — C-06
 - [ ] Explain the 21:00 UTC week boundary — P4 — C-08
 - [ ] Delete the `diag-health` branch in the GitHub UI — P4 — I-010
-- [ ] Survivor: announce Sat 7–Fri 13 Nov, `game-apply` Mon 9–Sun 15 Nov — P2 — D-020 ⚠️ C-18: first finish I-050
+- [ ] Survivor: announce Sat 7–Fri 13 Nov, `game-apply` Mon 9–Sun 15 Nov, Season 1 Mon 16 Nov — P2 — D-065; only once I-050 is done (D-064)
 - [ ] Survivor: in `C:\kprediction-test`, `git pull`, `npm ci`, check `git log -1 --oneline` shows `a8a1979`, run Repo Lens pass 4 and send back `AUDIT-SURVIVOR-REPORT-4.md` — P2 — I-050
-- [ ] Choose Survivor's Season 1 start Monday — P2 — C-18
 - [ ] Tell the Block X chat about S3-21 / S3-22 (python `-I`, `|| true`) and the Vault chat that `vault.ts` should alert on a refused prize post — P3 — I-054, I-052
 - [ ] After the first vault close (Mon 16 Nov, 12:00 UTC / 4:00 AM PT): check status, the buckets, the free prizes, and collect the fee with `claim-fee-vhp all` — P1
 - [ ] Then Fantasy, Golf, Combo and Last Node as each clears audits — P3
@@ -63,7 +67,7 @@
 - [ ] Recompute the daily Mana budget from `manaByDay` and `npm run sponsor -- status` after a week of play (`claude/mana-budget.md`) — P3
 - [ ] Possibly already done ❓: compare `npm run bot -- status` with `before-upgrade.txt`; check the first "Kpred bot" run after v5 was green — P4
 - [ ] Optional: decide the on-chain `move_stake` sponsor cap (I-021); pick retention features (see ROADMAP) — P4
-- [ ] From the Race chat's owner checklist: empty the old bot and test wallets (C-11); pin the Desk node key; clean up the stale folder/branch (which one ❓); move the seed and Desk owner (⚠️ C-15); launch announcement; analytics decision; ads and the SwarmTales listing — P3
+- [ ] From the Race chat's owner checklist: pin the Desk node key; clean up the stale folder/branch (which one ❓); move the Desk owner (part of the wallet moves above; the seed is already done, C-15); launch announcement; analytics decision; ads and the SwarmTales listing — P3
 - [ ] Carry the Hub and Race chats' project docs into `.ai/`: `claude/launch-order.md`, `claude/stake-panel.md`, `claude/producer-names.md`, `claude/handoff-status-bar-testnet.md`, `claude/names-fixcheck*-prompt.md`, `claude/audit-names-prompt.md`, `claude/domain-knodegames.md`, `claude/site-at-root.md`, `claude/admin-page.md`, `claude/race-vault.md`, `claude/owners-race.md`, `claude/builds/02-hub-and-race-show.md`; repo `docs/NAMES.md`, `docs/ADMIN.md`, `race/README.md` (vault results section); Block X: `claude/blockx/FIXCHECK-PROMPT.md`, `claude/blockx/SPONSOR-TESTNET.md`, `claude/blockx/README.md`, repo `docs/blockx/MAINNET-LAUNCH.md`, `docs/blockx/TESTNET-RESULTS.md`, `docs/history/AUDIT-2026-10-28-repolens-blockx.md`; Survivor: `claude/audit-survivor-prompt.md`, `claude/builds/04-survivor-plan.md`, `claude/builds/04-survivor-sim.mjs`, repo `docs/SURVIVOR*.md`; Last Node `claude/lastnode/*`, `docs/lastnode/FIXCHECK-2-FIXES.md`; Golf `docs/GOLF.md`; Bracket `docs/bracket/README.md`, `docs/VHP-STANDARD.md`, `claude/vhp-standard.md`; Fantasy `docs/fantasy/*`, `claude/builds/05-fantasy-plan.md`, `claude/producer-names.md`; Combo `claude/audit-combo-fixcheck4-prompt.md`, `claude/combo/*` — P3 — I-009
 
 ## Waiting on Someone Else
@@ -92,6 +96,8 @@
 ## Done
 | Item | Done | Link |
 |------|------|------|
+| Answered C-02, C-03, C-10, C-15, C-16, C-18, C-19, C-20; C-22 checked in code | 2026-11-02 | D-061 – D-067 |
+| Survivor Season 1 date chosen: Mon 16 Nov | 2026-11-02 | D-065 |
 | `.ai/` library created | 2026-11-02 | — |
 | Platform docs generated from the Questions chat; contradictions logged | 2026-11-02 | DECISIONS.md → Contradictions |
 | `OPENISSUES.md` filled | 2026-11-02 | OPENISSUES.md |

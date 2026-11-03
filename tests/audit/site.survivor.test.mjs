@@ -212,7 +212,10 @@ test("the simulated design: 14 days, 2 lives, each producer once, 4 VHP + 2 VHP"
 const html = read("survivor.html");
 test("the page: same CSP and integrity-pinned scripts as the other game pages, no inline scripts or handlers", () => {
   const csp = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)[1];
-  assert.equal(csp, /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(read("blockx.html"))[1]);
+  // Block X's policy plus one exact file: the owner's free-prize switches (D-082), read-only.
+  const SWITCHES = " https://raw.githubusercontent.com/bawcejawn/Knode/prize-settings/free-prizes.json";
+  assert.equal(csp.split(SWITCHES).length, 2, "the switches file is allowed exactly once");
+  assert.equal(csp.replace(SWITCHES, ""), /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(read("blockx.html"))[1]);
   assert.ok(csp.includes("https://raw.githubusercontent.com/bawcejawn/Knode/games-data/") && csp.includes("https://raw.githubusercontent.com/bawcejawn/Knode/blocks-data/"));
   assert.ok(!/<script>(?!\s*<\/script>)|<script(?![^>]*\bsrc=)[^>]*>/.test(html), "no inline scripts");
   assert.ok(!/\son[a-z]+=/i.test(html), "no inline handlers");
@@ -272,7 +275,7 @@ test("two boards (owner, 28 Oct): staked players can't win the free prize; the p
   assert.match(html, /id="board-staked"/);
   assert.match(html, /id="stake-panel" hidden/, "a slot for the shared stake panel (Hub)");
   assert.match(js, /S\.rank\(r\.players\.filter\(\(x\) => !!x\.staked === \(board === "staked"\)\)\)/, "places are counted within each board");
-  assert.match(js, /r\.final && board === "free" \? r\.prizes : \[\]/, "the free prize shows on the free board only");
+  assert.match(js, /r\.final && board === "free" && pays\(season\.season\) \? r\.prizes : \[\]/, "the free prize shows on the free board only, and only in a season that pays it");
 });
 
 test("Repo Lense S2-5, S2-6, S2-16, S2-17: page clock only forward; own pick listed at once; doubles flagged; no stale read wins", () => {
@@ -325,4 +328,25 @@ test("owner, 30 Oct: a knockout by a pick that couldn't count (not in the field,
   const won = plain(S.prizes(players)).map((x) => x.player);
   assert.ok(!won.includes(U2) && !won.includes(U3), "out by 'f' or 'u': no prize");
   assert.ok(S.outByMissing({ outN: 4, log: "ssff" }) && S.outByMissing({ outN: 2, log: "sn" }) && !S.outByMissing({ outN: 3, log: "oso" }));
+});
+
+test("owner, 3 Nov (D-081, D-082): the Free play board stays, its prize is off until switched on for both weeks of a season", () => {
+  const FIRST = 20773;                                   // Mon 16 Nov 2026 = vault week 4; Season 2 = weeks 6 and 7
+  const at = (iso) => new Date(iso).toISOString();
+  const sw = (list) => ({ v: 1, games: { 3: list } });
+  assert.equal(S.freePrizeOn(null, 1, FIRST), false, "switches not read or none published: the page says no VHP");
+  assert.equal(S.freePrizeOn(sw([{ from: 4, on: false, set: at("2026-11-10") }]), 1, FIRST), false, "switched off before Season 1");
+  assert.equal(S.freePrizeOn({ v: 1, games: {} }, 1, FIRST), false, "no explicit switch for game 3: the page doesn't promise");
+  const on5 = sw([{ from: 4, on: false, set: at("2026-11-10") }, { from: 5, on: true, set: at("2026-11-18") }]);
+  assert.equal(S.freePrizeOn(on5, 1, FIRST), false, "switched on for the season's 2nd week only: Season 1 doesn't pay");
+  assert.equal(S.freePrizeOn(on5, 2, FIRST), true, "Season 2 (weeks 6-7) pays");
+  assert.equal(S.freePrizeOn(sw([{ from: 4, on: true, set: at("2026-11-17") }]), 1, FIRST), false, "a change set after its week started never counts");
+  assert.equal(S.freePrizeOn(sw([{ from: 4, on: true, set: at("2026-11-10") }, { from: 7, on: false, set: at("2026-11-25") }]), 2, FIRST), false, "switched off for Season 2's 2nd week");
+  assert.equal(S.withConfig({ day: 3600000, firstDay: 10 }).freePrizeOn(null, 1), true, "test clock: no vault weeks, the testnet kit keeps playing prizes");
+  const html = read("survivor.html"), js = read("survivor.js");
+  assert.match(html, /<p id="prize-off"><b>Prizes\.<\/b> <b>The Free play board pays no VHP for now\.<\/b>/, "says plainly: no VHP on the Free play board");
+  assert.match(html, /<p id="prize-on" hidden>/, "the prize text is hidden until a season pays");
+  assert.match(html, /id="lede-prize"> The Free play board pays no VHP for now/);
+  assert.doesNotMatch(html, /Free, with 4 VHP and 2 VHP prizes/, "the old promise is gone");
+  assert.match(js, /prize-settings\/free-prizes\.json/, "the page reads the owner's switches");
 });

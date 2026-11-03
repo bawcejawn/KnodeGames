@@ -14,6 +14,8 @@
   const RPC = NET ? new URL(NET.rpc, location.href).href : "https://koinos.armana.io";
   const DATA = NET ? NET.data : "https://raw.githubusercontent.com/bawcejawn/Knode/games-data/survivor/";
   const EXPLORER = NET ? null : "https://koinosscan.com/address/";
+  // The owner's free-prize switches (D-082): the page reads them to say whether this season's Free play board pays VHP.
+  const PRIZES_URL = NET ? null : "https://raw.githubusercontent.com/bawcejawn/Knode/prize-settings/free-prizes.json";
   // Knode's own two producers are in the field like any other (owner's decision 2026-10-27; disclosed on the page).
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Swap" };
   const ROOT = new URL("./", location.href);            // the pages sit at the site root
@@ -43,6 +45,9 @@
   let season = null;               // the current (or last) season file
   let B = null;                    // recent blocks (chain-blocks.js)
   let picksContract = null, myPicks = new Map(), usage = null, sending = false;
+  let switches = null;             // free-prizes.json (null: not read, or none published: the page then says no VHP)
+  /** Does season n's Free play board pay VHP? Only when the owner's switch is on for both of its weeks (D-081/D-082). */
+  const pays = (n) => Number.isInteger(n) && S.freePrizeOn(switches, n);
   const drafts = new Map();
 
   // The chain's clock, not the viewer's, decides the lock: the page reads the chain's head time and keeps the
@@ -63,6 +68,7 @@
       const f = await fetchJson(DATA + "fields.json");
       if (f && f.v === 1 && Array.isArray(f.fields)) fields = new Map(f.fields.filter((x) => x && Number.isInteger(x.day) && Array.isArray(x.field)).map((x) => [x.day, x]));
     } catch { /* none yet */ }
+    if (PRIZES_URL) { try { switches = await fetchJson(PRIZES_URL); } catch { switches = null; } }
     const se = S.seasonOf(today());
     season = null;
     if (se) {
@@ -371,18 +377,28 @@
     const rows = S.rank(r.players.filter((x) => !!x.staked === (board === "staked")));
     $("board-note").textContent = board === "staked"
       ? `${rows.length} staked player${rows.length === 1 ? "" : "s"}. Each week the vault pays the top 30% of that week's staked players (those still in when the week began) from Survivor's bucket; they can't win the free prize.`
-      : `${rows.length} free player${rows.length === 1 ? "" : "s"}. Free players play for the season prize: up to 4 VHP for 1st and 2 VHP for 2nd (less in a week the vault's prize money runs short).`;
+      : pays(season.season) ? `${rows.length} free player${rows.length === 1 ? "" : "s"}. Free players play for the season prize: up to 4 VHP for 1st and 2 VHP for 2nd (less in a week the vault's prize money runs short).`
+      : `${rows.length} free player${rows.length === 1 ? "" : "s"}. The Free play board pays no VHP for now: it's for the standings only.`;
     const medal = ["🥇", "🥈"];
-    $("prizes").replaceChildren(...(r.final && board === "free" ? r.prizes : []).map((p) => el("div", { class: "champ" }, el("b", { text: `${medal[p.place - 1] || "🥈"} ${fmt(p.vhp, p.vhp % 1 ? 2 : 0)} VHP` }), el("span", { class: "mono", text: nameOf(p.player) }))));
+    $("prizes").replaceChildren(...(r.final && board === "free" && pays(season.season) ? r.prizes : []).map((p) => el("div", { class: "champ" }, el("b", { text: `${medal[p.place - 1] || "🥈"} ${fmt(p.vhp, p.vhp % 1 ? 2 : 0)} VHP` }), el("span", { class: "mono", text: nameOf(p.player) }))));
     $("standings-rows").replaceChildren(...rows.slice(0, 100).map((x) => el("tr", { class: `${x.outN === null ? "" : "gone"} ${x.a === who ? "me" : ""}` },
       el("td", { class: "num", text: String(x.place) }),
-      el("td", { class: "mono" }, addrLink(x.a), x.eligible || x.staked ? null : el("span", { class: "ago", title: "Didn't hold 1 VHP at every daily check: can't win a prize", text: " · no prize" })),
+      el("td", { class: "mono" }, addrLink(x.a), x.eligible || x.staked ? null : el("span", { class: "ago", title: "Didn't hold 1 VHP at every daily check: doesn't count for the free board's safety net or end, and can't win a prize", text: " · no 1 VHP" })),
       el("td", { class: "lives", "aria-label": `${x.lives} lives`, text: x.outN === null ? hearts(x.lives) : `out day ${x.outN}` }),
       el("td", { class: "num", text: fmt(x.total, 1) }),
       el("td", { class: "num hide-sm", text: String(x.used.length) }))));
     const mine = mySeason();
     const myBoard = mine ? S.rank(r.players.filter((x) => !!x.staked === !!mine.staked)).find((x) => x.a === mine.a) : null;
-    $("me-line").textContent = !who ? "" : !mine ? "You're not in this season." : `You: #${myBoard.place} on the ${mine.staked ? "Staked" : "Free play"} board, ${mine.outN === null ? `${mine.lives} ${mine.lives === 1 ? "life" : "lives"} left` : `out on day ${mine.outN}`}, ${mine.used.length} producer${mine.used.length === 1 ? "" : "s"} used.${mine.staked ? " You're staked in Survivor this season: you share its weekly bucket, not the free prize." : mine.eligible ? "" : " You didn't hold 1 VHP at every daily check, so you can't win a prize this season."}`;
+    $("me-line").textContent = !who ? "" : !mine ? "You're not in this season." : `You: #${myBoard.place} on the ${mine.staked ? "Staked" : "Free play"} board, ${mine.outN === null ? `${mine.lives} ${mine.lives === 1 ? "life" : "lives"} left` : `out on day ${mine.outN}`}, ${mine.used.length} producer${mine.used.length === 1 ? "" : "s"} used.${mine.staked ? " You're staked in Survivor this season: you share its weekly bucket, not the free prize." : mine.eligible ? "" : ` You didn't hold 1 VHP at every daily check, so you don't count for the free board's safety net or end${pays(season.season) ? " and can't win a prize" : ""} this season.`}`;
+  }
+
+  /** The page's prize text says "no VHP for now" until the owner switches the free prize on for this season. */
+  function renderPrizeText() {
+    const se = S.seasonOf(today()), n = se ? se.season : 1, on = pays(n), next = !on && pays(n + 1);
+    $("prize-off").hidden = on; $("prize-on").hidden = !on;
+    $("lede-prize").textContent = on ? " Free play pays 4 VHP and 2 VHP each season; staked players share Survivor's weekly vault bucket."
+      : next ? " The Free play board pays no VHP this season; from next season it pays 4 VHP and 2 VHP. Staked players share Survivor's weekly vault bucket."
+      : " The Free play board pays no VHP for now; staked players share Survivor's weekly vault bucket.";
   }
 
   // ── tomorrow's handicaps ──
@@ -411,12 +427,12 @@
   (async () => {
     const picksReady = setupPicks().catch(() => {});
     await loadData();
-    renderField(); renderStandings(); renderDays(true);
+    renderField(); renderStandings(); renderDays(true); renderPrizeText();
     await picksReady;
     await refreshBlocks(true);
     renderDays(true);
     setInterval(() => { if (!document.hidden) refreshBlocks(); }, 60000);
-    setInterval(() => { if (!document.hidden) loadData().then(() => { renderField(); renderStandings(); renderDays(); renderToday(); }); }, 300000);
+    setInterval(() => { if (!document.hidden) loadData().then(() => { renderField(); renderStandings(); renderDays(); renderToday(); renderPrizeText(); }); }, 300000);
     setInterval(() => { if (!document.hidden && picksContract) loadMine(); }, 60000);
     // A tab that comes back after a while reads the picks again before offering Pick (Repo Lense S3-15).
     document.addEventListener("visibilitychange", () => { if (!document.hidden && picksContract) { if (Date.now() - mineAt > 60000) mineOk = false; loadMine(); } });

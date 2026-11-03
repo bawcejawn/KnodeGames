@@ -32,7 +32,17 @@ you.
    ```
 
    Commit, open a PR, and merge it at least 7 days before that Monday, so players can pick day 1 ahead.
-4. The vault (Build 1, v6) pays the season prizes: 4 VHP and 2 VHP per two-week season.
+4. The vault (Build 1, v6) pays Survivor's staked bucket every week, and the free season prize (4 VHP and 2 VHP)
+   only while the owner's free-prize switch is on for game 3. **It is off for now** (owner, 3 Nov 2026, D-081):
+   - Needs PR #65 (the switch, D-082) merged and running in the bot **before Season 1's winners are due** (after
+     vault week 5, i.e. from Mon 30 Nov). Without it the bot posts the winners the recorder lists.
+   - Switch game 3 off **before vault week 4 starts (Mon 16 Nov 00:00 UTC)**: a change counts from the next week only,
+     so do it by Sun 15 Nov: `npm run prizes -- off 3`, check the preview, then `--send`.
+     Check with `npm run prizes -- list` that game 3 shows "next week: off".
+   - Then add the game with the prize allowed: `game-add 3 "Survivor" --staked --free --season 2` (the recorder refuses
+     a vault entry without `--staked --free` or with other than 2-week seasons).
+   - To turn the prize on later: `npm run prizes -- on 3 --send`. It first pays the first season whose two weeks both
+     start after the change; the page then shows the prize by itself.
    - The recorder publishes one results file per vault week at `games-data:survivor/vault/W<week>.json` (vault week 0
      began Monday 19 Oct 2026). A season's first week has no winners; its last week lists the season's 1st and 2nd.
    - Each file also lists `rows`: Survivor's staked players with their points for that week (the vault pays its

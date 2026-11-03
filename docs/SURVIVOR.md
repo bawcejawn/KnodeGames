@@ -9,7 +9,7 @@ season. The last players standing win the season's prize.
 | Kind | Free (the Knode Mana sponsor pays the Mana; no entry fee, no wager) |
 | Season | 14 UTC days, Monday 00:00 to Monday 00:00 |
 | Picks | One a day, on the KnodeGames Picks contract (game 3). Each day locks at 23:55 UTC the night before and opens 7 days ahead |
-| Prizes | 4 VHP for 1st and 2 VHP for 2nd each season, paid by the Knode Games vault once it is live |
+| Prizes | Free play board: **no VHP for now** (owner, 3 Nov, D-081); the owner can switch on 4 VHP for 1st and 2 VHP for 2nd each season (D-082). Staked board: Survivor's weekly vault bucket |
 | Page | `survivor.html` |
 | Status | Built and audited on branch `survivor`. Not launched: waits for the Picks contract (Build 3) and the vault (Build 1) |
 
@@ -96,11 +96,19 @@ Equal on all three: the same place.
   the vault their points (the season standings when the week ends, 255 for 1st, one less per place, never below 1;
   only players still in when the week began). The vault pays the top 30%. A stake in another game doesn't count here,
   and a wallet that withdraws mid-week stays staked that week. Staked players can't win the free prize.
-- **Free players:** everyone else. They play for the free prize below.
+- **Free players:** everyone else. The Free play board ranks them; it pays no VHP for now (below).
 - Stake, withdraw or move a stake with the shared stake panel (built by the site chat; it appears on the page when the
   vault v6 is live).
 
-**Prizes (free players).** 4 VHP for 1st and 2 VHP for 2nd. Tied players split the prizes of the places they cover. You can win only
+**Free prize: off for now (owner, 3 Nov 2026, D-081).** The Free play board stays and ranks free players, but pays no
+VHP until the owner switches the free prize on with the free-prize switch (D-082: `npm run prizes -- on 3 --send`, or
+the admin panel). A switch takes effect from the next vault week, and a season pays only if it was on for both of its
+weeks. The recorder still lists each season's 1st and 2nd in its vault files; the bot holds them back while the switch
+is off (the vault returns that prize to the pool), so switching on needs no code change. The page reads the same
+switches file (`prize-settings:free-prizes.json`) and shows the prize only for a season it pays; if it can't read the
+file it says no VHP.
+
+**Prizes (free players, once switched on).** 4 VHP for 1st and 2 VHP for 2nd. Tied players split the prizes of the places they cover. You can win only
 if all of these hold:
 - you held at least 1 VHP (or a Knode Games stake) at every daily check while you were in the season;
 - you weren't knocked out by a pick that couldn't count (a missed pick, a producer not in the field, or one already
@@ -112,8 +120,8 @@ A stake counts only from 1 VHP, the same as a wallet balance.
 If more than 10 wallets tie for a place, that place's prize isn't paid (the vault pays at most 10 wallets per place)
 and returns to the pool.
 
-These rules stop people from farming the prize with empty or idle wallets. Prizes are paid by the vault once it is
-live; until then the page says so.
+These rules stop people from farming the prize with empty or idle wallets. The 1 VHP rule also decides who counts for
+the free board's safety net and end, prize or not.
 
 **Knode's own producers.** Knode Games runs two of the producers (the Knode pool and Knode Swap nodes). They are in the
 field like any other producer and can be picked. The page says so.

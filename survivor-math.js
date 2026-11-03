@@ -103,6 +103,32 @@
     }
     const seasonStartDay = (season, first = FIRST_DAY) => (Number.isInteger(first) ? first + (season - 1) * SEASON_DAYS : null);
 
+    // ── the free-prize switch (owner, 3 Nov 2026: D-081, D-082) ──
+    /** Does season `season` pay the free prize? The owner switches each game's free prize on or off from the next
+     *  vault week (bot/free-prizes.ts, the prize-settings branch); a season pays only if it is on for both of its
+     *  weeks. This is the page's view and it errs toward "no": it says yes only when the switches file was read and
+     *  game 3 is switched ON (explicitly) for both weeks. The bot decides what is paid; the page never promises more.
+     *  A test clock has no vault weeks: there the prize stays on (the testnet kit plays prizes). */
+    const VAULT_GENESIS_DAY = 20745, VAULT_WEEK_DAYS = 7;
+    function switchOn(s, w) {
+      const list = s && s.games && typeof s.games === "object" ? s.games[String(GAME_ID)] : null;
+      if (!Array.isArray(list)) return null;
+      let on = null;
+      for (const c of list) {
+        if (!c || !Number.isInteger(c.from) || c.from > w || typeof c.on !== "boolean") continue;
+        const set = Date.parse(c.set);
+        if (Number.isFinite(set) && set < (VAULT_GENESIS_DAY + c.from * VAULT_WEEK_DAYS) * MAINNET_DAY) on = c.on;
+      }
+      return on;
+    }
+    function freePrizeOn(switches, season, first = FIRST_DAY) {
+      if (DAY !== MAINNET_DAY) return true;
+      const start = seasonStartDay(season, first);
+      if (start === null || !switches || switches.v !== 1) return false;
+      const w = Math.floor((start - VAULT_GENESIS_DAY) / VAULT_WEEK_DAYS);
+      return switchOn(switches, w) === true && switchOn(switches, w + 1) === true;
+    }
+
     // ── the field ──
     /** The days whose blocks set day d's handicap: d−8 … d−2. */
     const formDays = (d) => Array.from({ length: FORM_DAYS }, (_, i) => d - FORM_GAP - FORM_DAYS + 1 + i);
@@ -268,7 +294,7 @@
     return Object.freeze({
       DAY, GAME_ID, SEASON_DAYS, LIVES, USES, FORM_DAYS, FORM_GAP, MIN_FORM, LEAD_MS, AHEAD_MS, PICKS_PER_DAY, MAX_CHANGES,
       PRIZES, MIN_PRIZE_PLAYERS, MIN_VALID_PICKS, CODE, WEEK_DAYS, CORRECTION_MS, FIRST_DAY, OUT_FLOOR, MAINNET: DAY === MAINNET_DAY && OUT_FLOOR === 0,
-      dayIndex, dayStart, dayLabel, isMonday, isSeasonStart, lockTime, isOpen, openDays, seasonOf, seasonStartDay,
+      dayIndex, dayStart, dayLabel, isMonday, isSeasonStart, lockTime, isOpen, openDays, seasonOf, seasonStartDay, freePrizeOn,
       formDays, fieldFor, outSize, scoreDay, playSeason, rank, prizes, validPicks, outByMissing, weekRows,
       withConfig,
     });

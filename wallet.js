@@ -254,9 +254,8 @@
   const PINNED_RACE = "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K";
   const guestGame = () => (W.chainId === MAINNET_CHAIN_ID ? PINNED_GAME : (W.gameContract || null));
   const guestRace = () => (W.chainId === MAINNET_CHAIN_ID ? (PINNED_RACE || null) : ((W.sponsor && W.sponsor.race) || null));
-  // The KnodeGames Picks contract (picks-data/deployment.json), pinned the same way once it is on mainnet. Until then
-  // guests can't make KnodeGames picks (empty = none).
-  const PINNED_PICKS = "";
+  // The KnodeGames Picks contract (picks-data/deployment.json), pinned the same way (live on mainnet since 2026-10-30).
+  const PINNED_PICKS = "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm";   // the mainnet Picks contract (picks-data/deployment.json)
   const guestPicks = () => (W.chainId === MAINNET_CHAIN_ID ? (PINNED_PICKS || null) : ((W.sponsor && W.sponsor.picks) || null));
   /** A guest may sign only free play: game answers, picks on the race contract, and KnodeGames picks. */
   const guestOp = (o, game, race, picks) => !!(o && o.call_contract && ((game && o.call_contract.contract_id === game && Number(o.call_contract.entry_point) === ANSWER)

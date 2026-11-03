@@ -35,6 +35,17 @@
 - **Payer:** a transaction can name a payer contract; Knode Games uses its own Mana sponsor. KOIN Vault picks its own payer, so its users can't use the sponsor (I-007). 💬
 - **Upgrades:** the project's contracts use schedule → 48 h → upload within 7 days → clear (details per contract in `ARCHITECTURE.md`). 💬
 - **Time:** vault genesis = 1792368000 s = 1792368000000 ms = UTC day 20745 = Mon 19 Oct 2026 00:00 UTC; week = floor((t − genesis) / 7 days), Monday to Monday. Players will see the week of Mon 9 Nov as "Week 1" (D-063). ✅ / 💬
+- **Three week labels — check which one a chat means:**
+
+  | Week | Vault number (files, `W<n>.json`, contract) | Questions game label (v5, counts from 1) | What players will see (D-063) |
+  |------|------|------|------|
+  | 19–26 Oct | 0 | Week 1 | — |
+  | 26 Oct – 2 Nov | 1 | Week 2 | — |
+  | 2–9 Nov | 2 | Week 3 | — |
+  | 9–16 Nov | 3 | Week 4 | Week 1 |
+  | 16–23 Nov | 4 | Week 5 | Week 2 |
+
+  On chain: `reward_rule_week_plus_one = 3` (v5 split from vault week 2) and `v6_rule_week_plus_one = 4` (v6 rules from vault week 3, Mon 9 Nov) ✅ read by the Questions chat, 2 Nov. 💬
 
 ## Testnet
 The project uses **only the public Koinos Foundation testnet**; the owner runs no testnet nodes (D-066).

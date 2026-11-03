@@ -382,7 +382,7 @@
 
 ## D-063 — The week of 9 Nov is "Week 1"; earlier weeks don't pay
 - **Date:** 2026-11-02 (owner) · **Decision:** A UI refresh makes the week starting Mon 9 Nov the real "Week 1" for players. Weeks before it — including the Race's final week-1 vault file with free winners — pay no free prizes.
-- **How (to confirm with the Hub chat):** on-chain and file week numbers stay as they are (vault week 0 = 19 Oct, so 9 Nov is vault week 3); only what players see changes (I-069). ❓
+- **How (confirmed by the Vault chat, 2 Nov):** on-chain and file week numbers stay as they are. The vault posts results only for games registered in it and only for weeks they earn (`earnedWeek`: `from_week <= w`), so it never reads Race weeks 1 or 2. A game applied Wed 4 – Sun 8 Nov earns from vault week 3 (Mon 9 Nov). The site should set `PRIZES_FROM_WEEK = 3` (I-069). Week labels differ by source — see `KOINOS.md` → Time.
 
 ## D-064 — Announce only the built, audited, best version
 - **Date:** 2026-11-02 (owner) · **Decision:** Don't announce anything until we're confident it is built and ready to release, so we announce only the correct and best version. Friday 6 Nov (D-052) stays the target, not a deadline.
@@ -430,7 +430,7 @@ Repo wins over chats (D-002); the owner's answers win over both.
 | C-13 | Survivor type | staked board + free board | Survivor chat |
 | C-14 | Launch pace | every game, each when ready | owner (D-052, D-064) |
 | C-15 | "Move the seed" | stale — the seed owner moved 30 Oct | owner |
-| C-16 | Race week 1 free winners | not paid; 9 Nov becomes Week 1 | owner (D-063) |
+| C-16 | Race week 1 free winners | not paid: the vault never reads Race weeks 1–2 (game 7 isn't registered yet and earns from vault week 3); `rows: []` was expected because nobody can stake in the Race before game 7 is applied | owner (D-063), Vault chat |
 | C-17 | Desk payout cap | no daily cap | later decision (D-007) |
 | C-18 | Survivor Season 1 | Mon 16 Nov | owner (D-065) |
 | C-19 | Testnet node | none; public testnet only | owner (D-066) |

@@ -10,7 +10,9 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today
-- [ ] (Owner is asking) the Block X chat whether game 2 is already announced on chain (I-070) — P1
+- [ ] Block X: decide — apply the existing Picks announcement (game 2) before ~Sun 8 Nov 1:23 PM PT if the best build is ready, or let it lapse and announce again later (48 h) — P2 — I-070, D-067
+- [ ] Tell the Block X chat it can push `d7fad7c` (V4 / B1-5) now — the Vault chat confirmed it's safe — P2 — I-033
+- [ ] Tell the Hub or Race chat to set `PRIZES_FROM_WEEK = 3` on the site — P2 — I-069
 - [ ] Decide when Block X goes public (not announced to players yet), then step 8 — apply Block X on the Picks contract: `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet` must show 1 change (allowed since Sun 1 Nov, 1:23 PM PT; not reported done) — P2 — I-040
 - [ ] Before Block X is published: `npm run sponsor -- mana-report` on mainnet; raise the pick row if mainnet is more than ~1.5× testnet — P2 — D-038
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
@@ -19,7 +21,7 @@
 ## This Week
 - [ ] Ask the Combo Card and Last Node Standing chats whether they're cleared for mainnet — P2 — I-016
 - [ ] `game-add` games 2, 7 and 9 (`--staked --free --send`), plus 8 and 13 if cleared — P2 — D-024 — due Fri 6 Nov, 4 PM PT
-- [ ] Right after the first `game-add`: switch the sponsor to the vault — `npm run sponsor -- status`, copy the caps exactly, run the `config` preview (must show "vault (v6) live: no → yes" with caps unchanged), then `--send`, then `status` again — P1 — C-02 (a plain `config` resets caps)
+- [ ] Right after the first `game-add`: switch the sponsor to the vault — `npm run sponsor -- status`, copy the caps exactly (D-061), run the `config` preview (must show "vault (v6) live: no → yes" with caps unchanged), then `--send`, then `status` again. If `status` already warns "the game is Vault v6 now, but the sponsor still treats it as v5", doing it before the first `game-add` is harmless too (Vault chat) — P1
 - [ ] `game-apply` each game 48 h after announcing — P2 — due before Sun 8 Nov, 4 PM PT
 - [ ] Merge the Block X launch PR (`picks` → `main`) when the Block X chat opens it; then send the Hub the PR link and confirm the phone-width bar screenshot reached it — P2
 - [ ] Optional (Repo Lens asked): on the PC, `npm ci --ignore-scripts && npm run test:audit:serial` — P4
@@ -95,6 +97,7 @@
 |------|------|------|
 | `reward_rule_week_plus_one=3` confirmed on chain | 2026-11-02 | I-003 |
 | Accepted Week 3's 1 + 1 VHP free prize for the Questions game (no upgrade) | 2026-11-02 | D-069 |
+| Block X Picks status checked: announced 30 Oct, applicable since 1 Nov, not applied | 2026-11-02 | I-070 |
 | Payout time settled: Tue 12:00 UTC (≈ 12:07 with the bot); the 21:00 was a reminder time | 2026-11-02 | I-066, C-08 |
 | Answered C-02, C-03, C-10, C-15, C-16, C-18, C-19, C-20; C-22 checked in code | 2026-11-02 | D-061 – D-067 |
 | Survivor Season 1 date chosen: Mon 16 Nov | 2026-11-02 | D-065 |

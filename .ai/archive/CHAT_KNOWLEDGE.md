@@ -2472,3 +2472,17 @@ Combo Card (Build 8, game 8 on the Picks contract): a staked parlay game of 2–
 - **Status:** Filed → platform/TODOS.md (2026-11-02)
 
 ---
+
+---
+
+## Owner-relayed answers (2026-11-02)
+
+### Answers: Block X status and Vault chat
+- **Date:** 2026-11-02
+- **Source chat:** owner (relaying the Block X and Vault chats, plus `npm run picks -- status --mainnet`)
+- **Category:** fact
+- **Content:**
+  - Picks status (owner's shell): code `700c296a…` ✔, overrides ON, 2 nodes agree, owner `1635QU…`, no games registered, game 2 announced and applicable from 2026-11-01T21:23:34.750Z, contract Mana 0.
+  - Block X chat: announced 30 Oct by the owner (block 40,659,263); window probably to ~8 Nov 21:23 UTC; not announced in the vault.
+  - Vault chat: the vault never reads Race W1/W2 (`earnedWeek`, `from_week <= w`); game 7 applied 4–8 Nov earns from vault week 3; set `PRIZES_FROM_WEEK = 3`; `rows: []` expected; `d7fad7c` fine to push; sponsor switch right after the first `game-add` (or before, if `status` warns it still treats the game as v5).
+- **Status:** Filed → platform/OPENISSUES.md (I-033, I-069, I-070), DECISIONS.md (D-063, C-16), KOINOS.md (week labels), ROADMAP.md, TODOS.md (2026-11-02)

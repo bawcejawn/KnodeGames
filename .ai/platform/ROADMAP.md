@@ -16,7 +16,8 @@ Times in UTC, with Pacific time where it helps.
 |------|------|-|
 | Wed 4 Nov, 17:30 (9:30 AM PT) | Earliest time to remove old node data folders — only if `heal.log` is clean (I-008) | 💬 |
 | Fri 6 Nov, 4 PM PT | **Target** to announce (`game-add`) the games that are ready (D-052, gated by D-064) | 👤 |
-| Sun 8 Nov, 4 PM PT | Last moment to `game-apply` games announced by Friday, so they earn from Mon 9 Nov | 💬 |
+| Wed 4 – Sun 8 Nov | Vault: a game applied in this window earns from vault week 3 (Mon 9 Nov); apply 48 h after its `game-add` | 💬 Vault |
+| Sun 8 Nov, ~21:23 (1:23 PM PT) | Block X's existing Picks announcement probably stops being applicable ❓ (I-070) | 💬 Block X |
 | **Mon 9 Nov, 00:00** | **The vault starts:** v6 rules begin; 2 + 1 VHP free prizes begin on every free game (D-062); players see this as **"Week 1"** (D-063) | 👤 / 💬 |
 | Tue 10 Nov, 12:00 (4 AM PT) | Questions game Week 3 winners final; the bot pays out ≈ 12:07. First week with the v5 split; free players get 1 + 1 VHP (D-069) | ✅ chain, 👤 |
 | Sat 7 – Fri 13 Nov | Survivor announce window; apply Mon 9 – Sun 15 Nov | 💬 |

@@ -1,6 +1,6 @@
 # Fantasy Producers (game 4) and Weekly Rival (game 5)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Fantasy Producers chat), `DECISIONS.md` (D-059), the repo (branch `fantasy`). **Last updated:** 2026-11-02.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Fantasy Producers chat), `DECISIONS.md` (D-059), the repo (branch `fantasy`). **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose

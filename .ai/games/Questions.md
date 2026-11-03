@@ -1,6 +1,6 @@
 # Daily Questions (game 1)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Swap Desk, Vault, Hub chats), `DECISIONS.md` (D-045, D-047, D-062, D-069), the repo. **Last updated:** 2026-11-02.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Swap Desk, Vault, Hub chats), `DECISIONS.md` (D-045, D-047, D-062, D-069), the repo. **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified in the repo or on chain · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose

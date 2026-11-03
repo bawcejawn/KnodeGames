@@ -4,34 +4,30 @@
 > Rule: Tick items off, don't delete them; move finished items to "Done" with the date.
 > Link each item to its issue or decision where one exists (I-XXX in OPENISSUES.md, D-XXX / C-XX in DECISIONS.md),
 > so the details live in one place.
-> Last updated: 2026-11-02
+> Last updated: 2026-11-03 afternoon (cleanup: finished items moved to Done with the date; nothing deleted)
 > Times are shown in UTC and in your time (PT).
 
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today
-- [x] ~~Block X round-12 fix-check~~ — GO; PR #57 merged (3 Nov) — I-033
-- [ ] **Vault: apply Block X (2) and the Race (7)** — announced 3 Nov (tx `0x122082c6…` and `0x1220d394…`), applicable from **Thu 5 Nov 15:51 UTC (7:51 AM PT)**; apply before Sun 8 Nov 4 PM PT; then repo variable `PRIZES_FROM_WEEK = 3` — P1 — D-077 (reminder Thu 9 AM PT)
-- [ ] Tell the game chats about **D-081** (every game has Free play): Survivor — keep the free board; prize held by the switch (D-082); Fantasy, Last Node — add a free board; Combo — let free players send cards; Golf — free board, no prize — P2 — I-074
-- [ ] Repo Lens on **PR #65** (free-prize switch), then merge; set the switch **off** for 3, 4, 6, 8 before each is added — P2 — D-082
-- [ ] Review PR #63 (Block X on the Leaders page) and PR #61 (sampler docs) — P3
-- [ ] Ask the Race chat to add producer nicknames to the Race page (D-078, I-073) — P3
+- [ ] **Free-prize switch: set the starting values** — ON for 2, 7, 9, 13; OFF for 3, 4, 6, 8 (`FREE_PRIZE_SWITCH.md` §4–5); then the GitHub ruleset on `prize-settings` (no deletion, no force-push) — P1 — D-082
+- [ ] **Switch the PC folder to `main`** (all of `picks` is in `main`; `npm run prizes` is only on `main`) — confirm with the library chat first — P2
+- [ ] Send the **Vault chat** its two prompts (`claude/prompts-2026-11-03-vault-wallets-and-checks.md`): rewrite `docs/WALLETS.md` and plan the wallet moves; build the vault bot checks (due Fri 13 Nov) — P1 — I-001, I-051, I-052, I-064
+- [ ] Send the **Bracket audit** prompt to Repo Lens (`claude/prompts-2026-11-03-vault-checks-bracket-audit.md`) — P2 — I-061
+- [ ] Merge the docs cleanup PR — P3
+- [ ] Tell the game chats about **D-081** (every game has Free play): Survivor — keep the free board; prize held by the switch (D-082); Fantasy, Last Node — add a free board; Combo — let free players send cards; Golf — free board, no prize — prompts ready in the project: `claude/prompts-2026-11-03-free-play.md` — P2 — I-074
 - [ ] Ask the Block X chat which items on its "before prizes" list (I-042) could mispay in the first paid week, and watch the 24 h correction window after each seal — P1 — D-077
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
-- [ ] Run the push block so `main` gets the updated docs — P3
 
 ## This Week
+- [ ] **Vault: apply Block X (2) and the Race (7)** — announced 3 Nov (tx `0x122082c6…` and `0x1220d394…`), applicable from **Thu 5 Nov 15:51 UTC (7:51 AM PT)**; apply before Sun 8 Nov 4 PM PT; then repo variable `PRIZES_FROM_WEEK = 3` — P1 — D-077 (reminder Thu 9 AM PT)
+- [ ] `game-add 9` (Bracket) **only if its audit passes** — by Fri 6 Nov noon PT to pay from 9 Nov (`--staked --free`; switch ON) — P2 — D-064, D-082. ~~`game-add` games 2 and 7~~ ✅ 3 Nov
 - [ ] Ask the Combo Card and Last Node Standing chats whether they're cleared for mainnet — P2 — I-016
-- [ ] `game-add` games 2, 7 and 9 (`--staked --free --send`), plus 8 and 13 if cleared — P2 — D-024 — due Fri 6 Nov, 4 PM PT
-- [ ] Right after the first `game-add`: switch the sponsor to the vault — `npm run sponsor -- status`, copy the caps exactly (D-061), run the `config` preview (must show "vault (v6) live: no → yes" with caps unchanged), then `--send`, then `status` again. If `status` already warns "the game is Vault v6 now, but the sponsor still treats it as v5", doing it before the first `game-add` is harmless too (Vault chat) — P1
-- [ ] `game-apply` each game 48 h after announcing — P2 — due before Sun 8 Nov, 4 PM PT
-- [ ] Merge the Block X launch PR (`picks` → `main`) when the Block X chat opens it; then send the Hub the PR link and confirm the phone-width bar screenshot reached it — P2
 - [ ] Optional (Repo Lens asked): on the PC, `npm ci --ignore-scripts && npm run test:audit:serial` — P4
 - [ ] Retry creating an @name on `names.html` and report the result — P3 — I-020
 - [ ] Check the Race status badge on the live Race page at phone width (PR #44 is already merged) — P4
 - [ ] Delete old node basedir folders, only if `heal.log` is clean — P3 — I-008 — on or after Wed 4 Nov, 17:30 UTC (9:30 AM PT)
 - [ ] Retest "+ Add another account" with the real Kondor extension — P2 — I-004 — due {{TBD}}
-- [ ] Confirm which sponsor version is live on chain (v2 or v3) — P2 — C-01 (unblocks I-005) — due {{TBD}}
 - [ ] **Before the wallet moves:** get `docs/WALLETS.md` rewritten — it's from 26 Oct and would hand the seed back to the owner (DOCUMENTATION_GAPS #1) — P1
 - [ ] Wallet moves per `docs/WALLETS.md` (once updated) — P1 — I-001, D-013 — target this weekend ❓ (7–8 Nov):
   - new **owner** on a hardware wallet — the owner wallet `1635QU…` currently owns the game/vault, the desk and the Picks contract (each change is two-step or timelocked);
@@ -46,10 +42,8 @@
 - [ ] Give the go-ahead for the full platform audit — P1 — I-002, D-014
 - [ ] Decide the site's read RPC (Armana or `api.koinos.io`) — P3 — I-006, C-04
 - [ ] Send the message to the KOIN Vault developer — P3 — I-007
-- [ ] Export the Vault v6, Race, sponsor and new-game chats into `CHAT_KNOWLEDGE.md` — P3 — I-009
-- [ ] Confirm the GitHub repo name (`KnodeGames` or `Knode`) — P4 — C-06
 - [ ] Delete the `diag-health` branch in the GitHub UI — P4 — I-010
-- [ ] Survivor: announce Sat 7–Fri 13 Nov, `game-apply` Mon 9–Sun 15 Nov, Season 1 Mon 16 Nov — P2 — D-065; only once I-050 is done (D-064)
+- [ ] Survivor: announce Sat 7–Fri 13 Nov, `game-apply` Mon 9–Sun 15 Nov, Season 1 Mon 16 Nov ; vault `game-add 3 "Survivor" --staked --free --season 2` with its free-prize switch OFF (D-081, D-082) — P2 — D-065; only once I-050 is done (D-064)
 - [ ] Survivor: in `C:\kprediction-test`, `git pull`, `npm ci`, check `git log -1 --oneline` shows `a8a1979`, run Repo Lens pass 4 and send back `AUDIT-SURVIVOR-REPORT-4.md` — P2 — I-050
 - [ ] Tell the Block X chat about S3-21 / S3-22 (python `-I`, `|| true`) and the Vault chat that `vault.ts` should alert on a refused prize post — P3 — I-054, I-052
 - [ ] After the first vault close (Mon 16 Nov, 12:00 UTC / 4:00 AM PT): check status, the buckets, the free prizes, and collect the fee with `claim-fee-vhp all` — P1
@@ -57,7 +51,7 @@
 - [ ] Carry the Vault chat's project docs into `.ai/`: `claude/vault-v6-live.md`, `claude/vault-v6-testnet-results.md`, `claude/handoff-*.md`, `claude/audit-vault-v6-*`, `docs/UPGRADE-V6.md`, `docs/V6-PLAN.md` — P3 — I-009
 
 - [ ] Decide which owner checklist is the source of truth (I-032) — P3
-- [ ] Run the pending Repo Lens audits and return the reports: Survivor pass 4 (above), Last Node round 3 (`claude/lastnode/FIXCHECK-3-PROMPT.md`; branch `lastnode`, expect `adf95be` or newer), Bracket (`claude/audit-bracket-prompt.md` → `AUDIT-BRACKET-REPORT.md`), Fantasy fix-check (`knode-fantasy-fixcheck.zip`), Combo fix-check 4 (`claude/audit-combo-fixcheck4-prompt.md`) — P1 — I-065 — **starting tomorrow (3 Nov)**
+- [ ] Run the pending Repo Lens audits and return the reports: Survivor pass 4 (above), Last Node round 3 (`claude/lastnode/FIXCHECK-3-PROMPT.md`; branch `lastnode`, expect `adf95be` or newer), Bracket (`claude/audit-bracket-prompt.md` → `AUDIT-BRACKET-REPORT.md`), Fantasy fix-check (`knode-fantasy-fixcheck.zip`), Combo fix-check 4 (`claude/audit-combo-fixcheck4-prompt.md`) — P1 — I-065 — started 3 Nov; Bracket's audit uses the updated prompt `claude/prompts-2026-11-03-vault-checks-bracket-audit.md`
 - [ ] Restart Fantasy practice in `C:\kprediction-fantasy` until one test week is final, then send `npm run fantasy-test -- status` — P3 — I-062
 - [ ] Golf owner checklist items: t28 (review the "Block Golf Preview" artifact) and t30 (turn on Golf practice, with Block X) — P3
 - [ ] Tell the Block X chat: the mobile-nav test failing on `picks` (I-062), its files moved to the repo root on the Bracket branch, and name `upgrade-schedule` / `upgrade-upload` / `upgrade-clear` in runbook steps 2–4 (Combo asked) — P3
@@ -79,16 +73,12 @@
 | Verify staking on mainnet after v6 | Hub chat (after you tell it) | 2026-11-02 | — |
 | Remove the legacy claim workflow; add a YAML parser to the CI guard | Hub chat | 2026-11-02 | I-026, I-022 |
 | Update Race page and home-page rules for the live vault | Race chat | 2026-11-02 | I-027 |
-| Merge `picks` into `main` with Race files resolved when Block X is ready; weekly check of `vault/W<week>.json` and `race.yml` runs | Race chat | 2026-11-02 | I-031 |
-| Set `PINNED_PICKS` to `1LmgqB…`, record Repo Lens round 11, open the Block X launch PR (`picks` → `main`) after game 2 is applied | Block X chat | 2026-11-02 | I-040 |
-| v6-day fixes: `GAME_ABI` → `kpred-v6.koilib.json`, drop the early return, fail-fast v6 check, a 50-player v5-chain test, a fix-check | Block X chat (told 2 Nov) | 2026-11-02 | I-033, I-036 |
 | After launch: B1-4, B1-6, B1-7, B1-8, then a short fix-check | Block X chat | 2026-11-02 | I-037, I-038 |
 | Every new game page mounts `KStake.badge` at the top of `<main>`, full panel lower | each game chat | 2026-11-02 | D-031 |
 | Bot support for the testnet copy (`testnet/vault.json`) | Vault chat | 2026-11-02 | I-014 |
-| Ship V4, B1-1, B1-5 | Block X chat (told 2 Nov) | 2026-11-02 | — |
-| Producer nicknames on the Block X page (load `names.js`, CSP for names-data, `KNames.of` on every producer) — owner request | Block X chat (prompt sent 3 Nov) | 2026-11-03 | I-073 |
+| Ship V4, B1-1, B1-5 | Block X chat (told 2 Nov) — ❓ likely shipped with PR #57; the Block X chat to confirm | 2026-11-02 | — |
 | Last Node: fix round-3 findings; prepare game-13 announce/apply for mainnet Picks; confirm the sponsor covers game-13 picks; resync with `main` after the `picks` merge; open the `lastnode` → `main` PR; write the GitHub-variable steps | Last Node chat | 2026-11-02 | I-058, I-059 |
-| Golf: rebase `golf` after `picks` merges, move to site root, full suite, PR; at v6 register game 6 and set `GOLF_STAKED_FROM_WEEK` | Golf chat | 2026-11-02 | I-060 |
+| Golf: rebase `golf` now that `picks` is in `main` (3 Nov), move to site root, full suite, PR; at v6 register game 6 and set `GOLF_STAKED_FROM_WEEK` | Golf chat | 2026-11-02 | I-060 |
 | Bracket: fix audit findings, rerun suites and replay, fix-check; update `kg-09-bracket` from `main`; after the first live run pin the `effCheck` | Bracket chat | 2026-11-02 | I-061 |
 | Fantasy: fix Repo Lens findings; decide flagged cards with owner; real-data simulation; re-merge `picks` | Fantasy chat | 2026-11-02 | I-062 |
 | Combo: fix FC4 findings; measure a live hourly run; testnet upgrade rehearsal (route B); re-merge `picks` before the final merge | Combo chat | 2026-11-02 | I-063 |
@@ -98,6 +88,18 @@
 ## Done
 | Item | Done | Link |
 |------|------|------|
+| Free-prize switch (D-082): Repo Lens GO (FP-2 fixed), **merged PR #65** | 2026-11-03 | D-082 |
+| Block X on the Leaders page (PR #63) and the sampler docs (PR #61) merged | 2026-11-03 | I-074, I-059 |
+| Race nicknames merged (PR #62; conflict with Block X's test resolved) | 2026-11-03 | I-073 ✅ |
+| "Run the push block so `main` gets the docs" — **cancelled**: docs now go to `main` only through PRs the owner merges (D-026); 3 Nov docs went in as PRs #61, #64, #68–#71 | 2026-11-03 | TD-03 |
+| `game-add` games 2 and 7 sent (applicable Thu 5 Nov 15:51 UTC) | 2026-11-03 | D-077 |
+| Sponsor switched to the vault, caps unchanged ("Vault (v6): live") | 2026-11-03 | D-061 |
+| Block X launch PR (#57, `picks` → `main`) merged; Hub told via the Block X prompt | 2026-11-03 | I-040 |
+| All chats exported and filed (the I-009 export item) | 2026-11-02 | I-009 ✅ |
+| Merge `picks` into `main` with Race files resolved when Block X is ready; weekly check of `vault/W<week>.json` and `race.yml` runs — done with PR #57 (the weekly `vault/W<week>.json` and `race.yml` check continues in the weekly review) | 2026-11-03 | I-031 |
+| Set `PINNED_PICKS` to `1LmgqB…`, record Repo Lens round 11, open the Block X launch PR (`picks` → `main`) after game 2 is applied — done: `PINNED_PICKS` set ✅ on `main`, launch PR #57 merged | 2026-11-03 | I-040 |
+| v6-day fixes: `GAME_ABI` → `kpred-v6.koilib.json`, drop the early return, fail-fast v6 check, a 50-player v5-chain test, a fix-check — `GAME_ABI` now the v6 interface on `main` ✅ (TD-06); fix-check was round 12 | 2026-11-03 | I-033, I-036 |
+| Producer nicknames on the Block X page (load `names.js`, CSP for names-data, `KNames.of` on every producer) — owner request — done (PR #60) | 2026-11-03 | I-073 |
 | `reward_rule_week_plus_one=3` confirmed on chain | 2026-11-02 | I-003 |
 | Accepted Week 3's 1 + 1 VHP free prize for the Questions game (no upgrade) | 2026-11-02 | D-069 |
 | Block X recorder (`games.yml`) run by hand: green | 2026-11-03 | — |

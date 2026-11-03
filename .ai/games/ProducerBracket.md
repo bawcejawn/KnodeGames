@@ -1,6 +1,6 @@
 # Producer Bracket (game 9)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Producer Bracket chat), `DECISIONS.md` (D-019, D-057, D-058, D-062), the repo (branch `kg-09-bracket`). **Last updated:** 2026-11-02.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Producer Bracket chat), `DECISIONS.md` (D-019, D-057, D-058, D-062), the repo (branch `kg-09-bracket`). **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -24,7 +24,7 @@ A weekly knockout tournament of Koinos block producers, like a March Madness bra
 - **Free play: 2 VHP for 1st, 1 VHP for 2nd** (D-019, D-062). Tied for 1st share all 3 VHP; a single 1st → tied 2nd share 1 VHP; at most 10 per place (more than 10 tied → that place and below stay empty). Minimum play: one bracket with ≥ 1 point. Guests eligible. 1-week seasons. 💬
 
 ## Dependencies
-- **Picks contract:** announce game 9 (48 h). **Vault:** announce game 9 as staked + free prize, 1-week seasons (48 h); results `games-data:bracket/vault/W<week>.json` ✅ `vaultGames`.
+- **Picks contract:** announce game 9 (48 h). **Vault:** `game-add 9 "Producer Bracket" --staked --free --season 1` (48 h; by Fri 6 Nov noon PT to pay from 9 Nov), free-prize switch ON (D-082); results `games-data:bracket/vault/W<week>.json` ✅ `vaultGames`.
 - A **sponsor allowlist row** for game 9 picks. 💬
 - The VHP standard (`vhp-standard.js`, `bot/vhp-chain.ts`) and the VHP contract's `effective_balance_of`. 💬
 - Recorder `bot/games/bracket.ts` in `games.yml`; data branch `bracket-history` (keep) ✅.
@@ -40,4 +40,4 @@ Branch `kg-09-bracket` @ `ee676ea` ✅ — pushed, **not merged, nothing deploye
 - A flaky test (`bot.vhp-read-failure.test.ts`).
 
 ## Future plans
-Repo Lens audit → fixes and fix-check → update the branch from `main` → announce in Picks and the vault → sponsor row → `games.json` live. Then help move the Race and Block X onto the VHP standard. Block Golf will read the Bracket's weekly file (not the 1,000-row board).
+Repo Lens audit → fixes and fix-check → update the branch from `main` → announce in Picks and the vault → sponsor row → `games.json` live. Then help move the Race and Block X onto the VHP standard. Block Golf will read the Bracket's weekly file (not the board, which is capped at 1,000 rows, `MAX_BOARD_ROWS` ✅).

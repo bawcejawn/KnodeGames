@@ -3,7 +3,7 @@
   "orphans": [],
   "lastCompound": 40748599,
   "warnings": [],
-  "lastProduced": 40752902,
+  "lastProduced": 40754451,
   "producedByDay": {
     "1407": 62,
     "1408": 52,
@@ -13,39 +13,39 @@
     "1412": 47,
     "1413": 46,
     "1414": 66,
-    "1415": 1
+    "1415": 4
   },
-  "producerScannedTo": 40753162,
+  "producerScannedTo": 40754481,
   "settings": "{\"min_stake\":\"100000000\",\"min_stake_next\":\"0\",\"min_stake_next_week\":\"0\",\"max_sponsor_rc\":\"200000000\",\"min_sponsor_rc\":\"0\",\"paused\":false}",
-  "sealedAt": 40753161,
+  "sealedAt": 40754479,
   "desk": {
     "settings": "{\"fee_bps\":300,\"min_swap\":\"100000000\",\"max_swap\":\"0\",\"paused\":false,\"timelock\":\"172800000\"}",
-    "koin": "167494829784",
+    "koin": "167919346334",
     "koinOut": "291097000000",
-    "at": 1793685057830
+    "at": 1793689148950
   },
   "deskProducerKey": "AzCYCDLDa49PPVHKk60xQbOErS6XY1TcEA8bkSo8Sk6E",
   "notified": [],
   "vhpLists": {
     "9a209a71c8e3059de50b5f9aa3d763c82f4632a010c8e5c6f9c79c53ec99f009": {
-      "n": 4,
-      "last": 40753221
+      "n": 5,
+      "last": 40754540
     },
     "5f7116e912f3a231f616a43c77a1dafb4af2e1c8de61519e9ce3e1d8e1769e15": {
-      "n": 4,
-      "last": 40753221
+      "n": 5,
+      "last": 40754540
     },
     "ae7f96249a76feb5123ca8c0a7f132b98c9aa1d2102a056034ac6f083955a1b8": {
-      "n": 4,
-      "last": 40753221
+      "n": 5,
+      "last": 40754540
     },
     "513dbf8e6fbae91e6a23364c10644f6f804bd04db8827abed881bdf20a4bfa2e": {
-      "n": 4,
-      "last": 40753221
+      "n": 5,
+      "last": 40754540
     },
     "90afb91f09d9dbfc5331f2eee908d42b1eb941a6cbd51e0c3fb47789b5641e69": {
-      "n": 4,
-      "last": 40753221
+      "n": 5,
+      "last": 40754540
     }
   },
   "manaByDay": {
@@ -58,5 +58,5 @@
     "2026-11-03": "115416299"
   },
   "games": "[[1,true,true,true,0,0,0]]",
-  "seal": "e199f0b536206892add4c33b909f75a5ef5514576e288e157ced10364d8c6431"
+  "seal": "94bad03a03850fb238e74450d183afc187e76460f82be53516361b84b2c0e453"
 }

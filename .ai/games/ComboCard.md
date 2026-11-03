@@ -38,3 +38,7 @@ Branch `combo` @ `c8c652e` ✅ — pushed, **not merged, nothing deployed**. Tes
 
 ## Future plans
 Fix-check 4 → re-merge `picks` → merge `combo` → Picks v2 upgrade (after Block X) → raise the pick row to 0.25 and check with `mana-report` → testnet upgrade rehearsal → announce game 8 (48 h) → `COMBO_ENABLED=true`. Block Golf adds a Combo hole once it launches.
+
+## Update 3 Nov — Free play (D-081)
+Every game now has a **Free play board**. This game gets one for **standings only — no free VHP prize** until the owner switches it on. The page must say so.
+Today Combo's page lets only staked wallets send cards (I-074); it must accept free players for the board to fill.

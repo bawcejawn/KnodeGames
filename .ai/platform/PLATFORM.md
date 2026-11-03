@@ -40,20 +40,20 @@ Knode Games runs free and staked prediction games on the Koinos blockchain, powe
 | Live on the site | Daily Questions, Producer Race, the swap desk, the staking hub (`stake.html`), status bars, the @name page (`names.html`) | ✅ `games.json` / 💬 |
 
 ## Games
-Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` on `main`. Every game is stakeable (D-018). **Free-play prizes on every free game — Questions, Block X, Survivor, Race, Bracket: 2 VHP for 1st, 1 VHP for 2nd, starting when the vault starts** (D-062); Fantasy and Last Node pay stakers only (D-071); **Combo, Golf and Survivor have no free play at all for now** (D-080); free play opens everywhere with a bigger seed. Nothing is announced to players until it's built, audited and ready (D-064).
+Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` on `main`. Every game is stakeable (D-018). **Every game has Free play (a Free play board) — D-081.** Free VHP prizes (2 for 1st, 1 for 2nd per week, from the vault's start, D-062) are on for Questions, Block X, Race, Bracket and Last Node; **Combo, Golf, Survivor and Fantasy have a Free board with no prize** until the owner switches it on. Last Node pays the free prize from the start. Nothing is announced to players until it's built, audited and ready (D-064).
 
 | Id | Game | Play | Rules | Status (2 Nov) | Code |
 |----|------|------|-------|----------------|------|
 | 1 | Daily Questions | Staked + Free | D-045, D-047, D-062 | live; built into the vault | `main` |
 | 2 | Who Signs Block X | Staked + Free | D-036 – D-041, D-070 | **applied on the Picks contract** (2 Nov 👤); not announced to players (D-064); launches prize-free first; next: round-12 fix-check, launch PR, vault `game-add 2` | `picks` |
-| 3 | Survivor | **Staked only** (D-080 — free play paused until a bigger seed); 2-week seasons | D-051, D-065, D-080 | Season 1 **Mon 16 Nov** (D-065); audit pass 4, testnet season, Picks registration still to do (I-050); register **without `--free`** | `survivor` @ `a8a1979` ✅ |
-| 4 | Fantasy Producers | Staked only (D-071) | D-059 | fix-check, full test week, real-data simulation to do | `fantasy` @ `2bee805` ✅ |
+| 3 | Survivor | Staked + Free board, **no free prize yet** (D-081); 2-week seasons | D-051, D-065, D-081 | Season 1 **Mon 16 Nov** (D-065); audit pass 4, testnet season, Picks registration still to do (I-050); register **with `--free`**, free-prize switch off (D-082) | `survivor` @ `a8a1979` ✅ |
+| 4 | Fantasy Producers | Staked + Free board, **no free prize yet** (D-081) | D-059 | fix-check, full test week, real-data simulation to do | `fantasy` @ `2bee805` ✅ |
 | 5 | Weekly Rival | records only, no prize; not a vault game ✅ | D-059 | ships with Fantasy | `fantasy` |
-| 6 | Block Golf | Staked only (D-071); free practice weeks, no prize | D-056 | practice with Block X; staked after `game-add 6` | `golf` @ `6b2200a` ✅ |
+| 6 | Block Golf | Staked + Free board, **no free prize yet** (D-081); free practice weeks | D-056 | practice with Block X; staked after `game-add 6` | `golf` @ `6b2200a` ✅ |
 | 7 | Producer Race | Staked + Free | D-033 – D-035 | live as a game; vault `game-add 7` pending | `main` |
-| 8 | Combo Card | Staked only (D-071) | D-060 | fix-check 4; needs the Picks v2 upgrade after Block X | `combo` @ `c8c652e` ✅ |
+| 8 | Combo Card | Staked + Free board, **no free prize yet** (D-081) | D-060 | fix-check 4; needs the Picks v2 upgrade after Block X | `combo` @ `c8c652e` ✅ |
 | 9 | Producer Bracket | Staked + Free, 1-week seasons | D-019, D-057 | audit not yet run | `kg-09-bracket` @ `ee676ea` ✅ |
-| 13 | Last Node Standing | Staked only (D-071) | D-054, D-055 | round-3 review; needs 48 h of sampler data (I-059) | `lastnode` @ `adf95be` ✅ |
+| 13 | Last Node Standing | Staked + Free, **free prize from the start** (D-081) | D-054, D-055 | round-3 review; needs 48 h of sampler data (I-059) | `lastnode` @ `adf95be` ✅ |
 
 Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Survivor, FantasyProducers, BlockGolf, ComboCard, ProducerBracket, LastNodeStanding). Ids 10–12 are unused. All unlaunched branches are pushed, not merged, and nothing from them is deployed ✅. Launch paths per game: `ROADMAP.md`. Readiness gaps: I-065.
 

@@ -44,3 +44,6 @@ Branch `golf` @ `6b2200a` ✅ — pushed, **not merged, nothing deployed**; `gam
 
 ## Future plans
 Practice: after `picks` merges, move Golf files to the root, run the full suite, merge, set `games.json` live, add to the nav, `GOLF_ENABLED=true`. Staked: register game 6 and set `GOLF_STAKED_FROM_WEEK`. Add each new game's hole reader as it launches (Survivor must recompute standings at the week's last season day; Bracket reads its W file).
+
+## Update 3 Nov — Free play (D-081)
+Every game now has a **Free play board**. This game gets one for **standings only — no free VHP prize** until the owner switches it on. The page must say so.

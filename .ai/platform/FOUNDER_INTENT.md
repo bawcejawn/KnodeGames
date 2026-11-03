@@ -31,7 +31,7 @@
 - **Self-sustaining at $0 running cost,** with tasteful, non-intrusive ads for revenue (no adult content). 👤
 - **The founder plays too** — staking a larger amount of their own VHP as a regular player once satisfied it's safe. 👤
 - **Community backing** — hoped-for seed support from a Koinos fund. 👤
-- Left open for later: free boards for the staked-only games (D-071), a Knode Games token (D-072), Mana Station (D-053).
+- Left open for later: a Knode Games token (D-072), Mana Station (D-053). ~~Free boards for the staked-only games (D-071)~~ — decided 3 Nov: every game has Free play; free prizes are switched on per game when the seed allows (D-081, D-082).
 
 ## Core principles
 1. **Funds are never at risk.** Security first, then correctness and accuracy. 👤 (D-003, D-016)

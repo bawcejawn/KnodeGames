@@ -22,7 +22,7 @@
 7. **Guest wallets never hold funds** — they are play-only keys (D-009).
 8. **The Mana sponsor holds only its own KOIN**, for Mana (D-061).
 9. **Every contract upgrade** passes the owner's audits and a rehearsal before upload (D-017).
-10. **Mainnet sends are dry runs** unless `--send`, need `--mainnet` and `CONFIRM_MAINNET=yes`, and go one step at a time (D-004).
+10. **Mainnet sends are dry runs unless `--send`**; every chain tool also needs `CONFIRM_MAINNET=yes` in `.env`, and the Picks tool (`npm run picks`) alone also needs `--mainnet` on the command line ✅ (code checked 3 Nov). They go one step at a time (D-004).
 
 ## 2. Vault requirements
 1. **Address:** `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` — the game contract, upgraded in place to Vault v6. It is also the **Knode Games Pool** block producer (D-073).
@@ -45,7 +45,7 @@
 ## 4. Reward distribution rules
 1. **Source:** rewards come only from the vault's block production — never from new money (D-016, D-073).
 2. **Fee:** a flat **5%** of gross rewards, taken first.
-3. **Free prizes:** **2 VHP for 1st, 1 VHP for 2nd, per week**, on the games with the free prize switched on (Questions, Block X, Race, Bracket, Last Node). Every game has a Free play board, but Survivor, Combo, Golf and Fantasy pay no free prize until the owner switches it on (D-081). Prizes start with the vault week of Mon 9 Nov (D-062). Multi-week seasons pay once at season end (Survivor 4 + 2, D-068). Nothing is paid for weeks before the vault start (D-063). One exception: the Questions game's week of 2–9 Nov pays its on-chain 1 + 1 VHP (D-069).
+3. **Free prizes:** **2 VHP for 1st, 1 VHP for 2nd, per week**, on the games with the free prize switched on (Questions, Block X, Race, Bracket, Last Node). Every game has a Free play board, but Survivor, Combo, Golf and Fantasy pay no free prize until the owner switches it on (D-081). Prizes start with the vault week of Mon 9 Nov (D-062). Multi-week seasons pay once at season end (D-068; Survivor's would be 4 + 2, off for now). Nothing is paid for weeks before the vault start (D-063). One exception: the Questions game's week of 2–9 Nov pays its on-chain 1 + 1 VHP (D-069).
 4. **A Free play board without a prize** must say so on the page; nothing is owed for weeks played before its prize is switched on (D-081).
 5. **Stakers come first.** Free rewards are extra; **a shortfall is cut and never owed later** (D-029).
 6. **The rest is split across staked games** by each game's share of the stake that week; each game splits its part by its own written rules.

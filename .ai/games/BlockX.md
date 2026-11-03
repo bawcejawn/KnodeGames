@@ -18,12 +18,12 @@ Guess which block producer will sign a future target block. Simple to play, root
 - The recorder (`bot/games/blockx.ts`) voids a target at once only if both nodes report a non-canonical transfer; otherwise it holds and voids at the 3-day edge. Published cards never change (BX-44). 💬
 
 ## Rewards
-- **Launches prize-free** (D-036). Prizes start only after the "before prizes" fixes (I-042) and its vault registration.
+- **Launched prize-free** on 3 Nov (D-036). Prizes start with the week of Mon 9 Nov (D-077), once game 2 is applied in the vault. The "before prizes" list (I-042) must be checked before that first paid week closes (Mon 16 Nov). ~~Prizes start only after the I-042 fixes~~ (superseded by D-077).
 - Then: staked share of the bucket, and the free prize **2 VHP 1st, 1 VHP 2nd** (D-062). 💬 / 👤
 
 ## Dependencies
 - **Picks contract** `1LmgqB…` (code `700c296a…`) ✅ — **game 2 applied 2 Nov** 👤.
-- Race handicap cards (`race-data`) and the VHP sampler (`race-samples.yml`, on `main` since 3 Nov; first runs pending, I-059). ✅
+- Race handicap cards (`race-data`) and the VHP sampler (`race-samples.yml`, on `main` since 3 Nov; running since 15:58 UTC; GitHub may run it only about hourly — cadence to decide, I-059). ✅
 - `games.yml` (off until `GAMES_ENABLED=true`) and its publish checks. ✅
 - The Mana sponsor's Picks row (0.2 Mana). ✅
 - The launch PR `picks` → `main` — **merged 3 Nov** (PR #57): `PINNED_PICKS = 1LmgqB…` and the Hub status bar are on `main`. ✅
@@ -32,8 +32,8 @@ Guess which block producer will sign a future target block. Simple to play, root
 ## Current status (3 Nov)
 - **Live for players** ✅: Games page (PR #58), menus and home page (PR #59); `GAMES_ENABLED = true`. The recorder's first run (16:12 UTC, by hand) was green in both jobs; its first week files hold 19 past targets, all void ("no handicap card") — expected until cards and samples fill. ✅
 - **Vault:** `game-add 2 "Who Signs Block X" --staked --free` announced 3 Nov (tx `0x122082c6…e71760e3`), applicable from Thu 5 Nov 15:51 UTC. After the apply: repo variable `PRIZES_FROM_WEEK = 3` (Settings → Secrets and variables → Actions → Variables). 👤
-- **Pays from vault week 3** (Mon 9 – Mon 16 Nov), first seal ~Tue 17 Nov (D-077). The I-042 items are ranked by what could mispay in that week; see "Before the first paid week" below.
-- **Nicknames (D-078, I-073):** `blockx.html` loads `names.js`; every producer and player shows as `KNames.of` (name · short address, wrapped, never cut off). PR open. ✅
+- **Pays from vault week 3** (Mon 9 – Mon 16 Nov), the week closes Mon 16 Nov; the bot posts and seals the results within 3 days (the Block X chat expects the first seal ~Tue 17 Nov), then the owner has 24 h to correct (D-077). The I-042 items are ranked by what could mispay in that week; see "Before the first paid week" below.
+- **Nicknames (D-078, I-073):** `blockx.html` loads `names.js`; every producer and player shows as `KNames.of` (name · short address, wrapped, never cut off). **Merged (PR #60)** ✅
 ## Before the first paid week (I-042, D-077)
 Fixes planned before the week-3 seal (each with a test and a Repo Lens fix-check):
 1. **Week-end re-read** (BX-88, BX-97, BX-98, G-K-1): before a week's prize file is first written, every target of the week is re-read from both nodes and compared whole (signer, time, picks, points, void, card); any difference holds the prize file.
@@ -52,7 +52,8 @@ Check in the correction window (game-correct / game-unprize / game-void): non-st
 - **Flaky test:** `bot.vhp-read-failure.test.ts` fails now and then in the full parallel run, passes alone.
 
 ## Future plans
-- Launch PR and per-action Mana limits a day after launch (step 10).
+- ~~Launch PR~~ (merged, PR #57) and per-action Mana limits a day after launch (step 10).
+- A Free play board is live; the free prize is ON (D-081, D-082).
 - Move to the VHP standard (D-058).
 - Block Golf practice scorecards ship with Block X (D-056).
 - The Picks v2 (CARD) upgrade for Combo comes after Block X launches.

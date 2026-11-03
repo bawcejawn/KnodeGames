@@ -3,7 +3,7 @@
   "orphans": [],
   "lastCompound": 40748599,
   "warnings": [],
-  "lastProduced": 40771369,
+  "lastProduced": 40772376,
   "producedByDay": {
     "1407": 62,
     "1408": 52,
@@ -13,16 +13,16 @@
     "1412": 47,
     "1413": 46,
     "1414": 66,
-    "1415": 28
+    "1415": 30
   },
-  "producerScannedTo": 40771566,
+  "producerScannedTo": 40772736,
   "settings": "{\"min_stake\":\"100000000\",\"min_stake_next\":\"0\",\"min_stake_next_week\":\"0\",\"max_sponsor_rc\":\"200000000\",\"min_sponsor_rc\":\"0\",\"paused\":false}",
-  "sealedAt": 40771566,
+  "sealedAt": 40772735,
   "desk": {
     "settings": "{\"fee_bps\":300,\"min_swap\":\"100000000\",\"max_swap\":\"0\",\"paused\":false,\"timelock\":\"172800000\"}",
-    "koin": "178108092189",
+    "koin": "178957183034",
     "koinOut": "291097000000",
-    "at": 1793742022200
+    "at": 1793745540160
   },
   "deskProducerKey": "AzCYCDLDa49PPVHKk60xQbOErS6XY1TcEA8bkSo8Sk6E",
   "notified": [
@@ -40,5 +40,5 @@
     "2026-11-03": "492989686"
   },
   "games": "[[1,true,true,true,0,0,0]]",
-  "seal": "f661ae80f37f2060e1010b2a99c7a0e467b46f0720cb08ec94c5667b3171c826"
+  "seal": "9e29d8ec51da6459456c0aa893c78a710e33c9d41a79917c56db091e609befb8"
 }

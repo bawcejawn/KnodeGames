@@ -12,9 +12,9 @@
 ## Today
 - [x] ~~Block X round-12 fix-check~~ — GO; PR #57 merged (3 Nov) — I-033
 - [ ] **Vault: apply Block X (2) and the Race (7)** — announced 3 Nov (tx `0x122082c6…` and `0x1220d394…`), applicable from **Thu 5 Nov 15:51 UTC (7:51 AM PT)**; apply before Sun 8 Nov 4 PM PT; then repo variable `PRIZES_FROM_WEEK = 3` — P1 — D-077 (reminder Thu 9 AM PT)
-- [ ] Tell the game chats about **D-081** (every game has Free play): Survivor — keep the free board, prize off, register without `--free`; Fantasy, Last Node — add a free board; Combo — let free players send cards; Golf — free board, no prize — P2 — I-074
+- [ ] Tell the game chats about **D-081** (every game has Free play): Survivor — keep the free board; prize held by the switch (D-082); Fantasy, Last Node — add a free board; Combo — let free players send cards; Golf — free board, no prize — P2 — I-074
 - [ ] Decide: does Last Node's Free board pay 2 + 1 VHP from the start? — P3 — D-081
-- [ ] Ask the Vault chat: can a game's free prize be switched on later in place, or does it need a new timelocked step? — P2 — D-081
+- [ ] Repo Lens on **PR #65** (free-prize switch), then merge; set the switch **off** for 3, 4, 6, 8 before each is added — P2 — D-082
 - [ ] Review PR #63 (Block X on the Leaders page) and PR #61 (sampler docs) — P3
 - [ ] Ask the Race chat to add producer nicknames to the Race page (D-078, I-073) — P3
 - [ ] Ask the Block X chat which items on its "before prizes" list (I-042) could mispay in the first paid week, and watch the 24 h correction window after each seal — P1 — D-077

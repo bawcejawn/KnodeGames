@@ -58,11 +58,11 @@
 ### Blocked Work
 - `game-apply 2` and `7` **can't run before Thu 5 Nov 15:51 UTC** (48 h timelock). Reminder set for Thu 9 AM PT.
 - **Vault bot checks** before paying other games: honour HOLD files, verify staked lists, alert on refused prize posts (I-052, I-064); recompute from the chain (I-051).
-- ❓ **Switching on a free prize later** (D-081): can it be turned on in place for a game registered without `--free`, or does it need a new timelocked step? Ask the Vault chat.
+- **Free-prize switch** (D-082) built on **PR #65**, not merged — Repo Lens first (funds-related).
 
 ### Next Work
 - 👤 Thu–Sun: `npm run bot -- game-apply 2 --send`, `game-apply 7 --send`, `games`; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT**.
-- Each other game: `game-add` once audited — **`--free` only where the free prize is on** (D-081). Survivor: `game-add 3 "Survivor" --staked --season 2`.
+- Each other game: `game-add` once audited, **always with `--free`**; set its free-prize switch off first where no prize yet (D-082). Survivor: `game-add 3 "Survivor" --staked --free --season 2`.
 - **Mon 16 Nov 12:00 UTC:** first vault close with other games in it — check status, buckets, free prizes, fee.
 
 ## Leaderboards
@@ -85,7 +85,7 @@
 
 ### Blocked Work
 - **Race prizes** need I-034 (no final file from a single run without a hold) and the free-prize farming question I-035 (❓ owner) before the first paid week.
-- Free prizes on Combo, Golf, Survivor and Fantasy are **off** until the owner switches them on (D-081). ❓ Last Node's free prize.
+- Free prizes on Combo, Golf, Survivor and Fantasy are **off** until the owner switches them on (D-081) — with the admin switch once PR #65 is in (D-082). ❓ Last Node's free prize.
 
 ### Next Work
 - Watch the first paid week's seal and its 24 h correction window (Mon 16 Nov).

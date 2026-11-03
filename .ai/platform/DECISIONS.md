@@ -92,6 +92,7 @@
 | D-079 | 2026-11-03 | Every game has its own Free play and Staked leaderboards | active — on every game again (D-081) |
 | D-080 | 2026-11-03 | No free play for Combo, Block Golf or Survivor for now; free play everywhere once the seed is bigger | superseded by D-081 (same day) |
 | D-081 | 2026-11-03 | Every game has Free play; free VHP prizes only on some games until the owner switches them on | active |
+| D-082 | 2026-11-03 | A free-prize on/off switch per game in the admin panel, effective from the next week | built, PR #65 (not merged) |
 
 ---
 
@@ -467,9 +468,16 @@
 - **Free VHP prize (2 + 1 per week) now:** Daily Questions, Block X, Producer Race, Producer Bracket.
 - **Free board, no prize (for now):** Combo Card, Block Golf, Survivor, Fantasy Producers.
 - **Last Node Standing:** Free play + Staked (owner, 3 Nov). ❓ Whether its Free board pays the prize from the start or joins the no-prize group is not stated.
-- **Changes:** Survivor keeps its free board but its free prize stays off (no 4 + 2 season prize for now); register it **without `--free`** (`game-add 3 "Survivor" --staked --season 2`). Fantasy and Last Node branches were built without free boards — their chats must add one. Combo's page lets only staked wallets send cards today (I-074), so it needs a change to accept free players.
+- **Changes:** Survivor keeps its free board but its free prize stays off (no 4 + 2 season prize for now). ~~Register it without `--free`~~ — **superseded by D-082:** every game is added **with** `--free`, and the switch keeps the prize off. Fantasy and Last Node branches were built without free boards — their chats must add one. Combo's page lets only staked wallets send cards today (I-074), so it needs a change to accept free players.
 - **Staked play is unchanged:** each game joins the vault for staked rewards when it's audited and ready (D-064).
-- ❓ **How "switching on" works on chain:** a game registered without `--free` — can its free prize be turned on later in place, or does it need a new vault step (and the 48 h timelock)? To confirm with the Vault chat before the first such game is added.
+- ~~❓ How "switching on" works on chain~~ — **answered (code ✅ `Kpred.ts`):** the vault fixes `free_prize` when a game is applied; changing it means deactivate → `propose_game` → 48 h → `apply_game`, which can cost stakers a week. Hence D-082.
+
+## D-082 — A free-prize switch per game, from the next week
+- **Date:** 2026-11-03 (owner) · **Decision:** the admin panel gets an easy **Free prize ON / OFF** for every game; the owner can give or take away free-play VHP prizes at any time, and a change **only takes effect from the following week**.
+- **How (owner chose the bot switch, not a contract change):** every game is added to the vault **with** the free prize allowed (`game-add … --free`). The switch is `free-prizes.json` on the `prize-settings` branch (the owner's git login, like names-data). The vault bot posts a week's free winners only if the switch is on; **off** → it seals with no winners and the vault returns that prize to the pool. A change made in week W counts from W + 1; a change dated after its week started never counts; a 2-week season pays only if the switch was on for both weeks. If the switch can't be read, the bot posts nothing for that game and reports it (fail closed).
+- **Limits:** the switch can only hold back a prize the vault allows, never pay more. While off, the vault still sets aside that game's 3 VHP a week from the seed's part and then returns it to the pool; in a seed shortfall the set-aside shrinks the other games' prizes in proportion. Anyone with push access could edit the branch (the same trust as the results files).
+- **Commands:** admin panel → Knode Vault → Free prizes; or `npm run prizes -- list | on <game> | off <game> [--send]`.
+- **Status:** built on PR #65, **not merged** — funds-related, so Repo Lens first (D-017). Before it's live, **turn the switch OFF** for Combo (8), Golf (6), Survivor (3) and Fantasy (4) before each is added to the vault.
 
 ---
 

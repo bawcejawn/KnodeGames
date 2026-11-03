@@ -30,7 +30,7 @@
 1. **Deposit:** whole VHP only; KOIN may be burned 1:1 into VHP on deposit (`deposit_to`).
 2. **Earn:** the vault's VHP produces blocks as the **Knode Games Pool** — the vault address `1Mpmf2…` is the producer (D-073), run by the game node; block rewards accrue to the vault.
 3. **Fee:** a flat **5%** of gross rewards, collected with `claim-fee-vhp all`.
-4. **Free prizes:** 2 + 1 VHP per week on each free game (D-062); multi-week seasons pay once at season end (D-068); every game has a Free play board, but Combo, Golf, Survivor and Fantasy pay no free prize until the owner switches it on (D-081) — register them without `--free`, and their results files leave `first` / `second` empty; Last Node ❓.
+4. **Free prizes:** 2 + 1 VHP per week on each free game (D-062); multi-week seasons pay once at season end (D-068); every game has a Free play board, but Combo, Golf, Survivor and Fantasy pay no free prize until the owner switches it on (D-081) — they are still added **with** `--free`, and the owner's **free-prize switch** (D-082) keeps the prize off; Last Node ❓.
 5. **Split:** the rest goes to the staked games by each game's staked weight for the week (`weightFor`).
 6. **Within a game:** by the game's own rules from its results file (Race medals top 30%, Fantasy top 30%, Combo best 10 cards, Golf 7 × holes − strokes, Bracket / Last Node / Survivor by points).
 7. **Claim:** `claim_game` per game and week; the site batches up to 10 claims and looks back 52 weeks.
@@ -95,7 +95,8 @@
 - [ ] The game meets `GAME_STANDARD.md` (audited, ready — D-064)
 - [ ] `vaultGames` source set; results file produced and fail-closed as in §6
 - [ ] Page shows the badge and stake panel (D-031)
-- [ ] `game-add` with the right flags (`--staked`, `--free` only for games whose free prize is on (D-081), `--season N`)
+- [ ] `game-add` with `--staked --free --season N` (every game, D-082)
+- [ ] Free-prize switch set (D-082): **off** for games without a free prize yet — before the game's first week
 - [ ] Sponsor vault switch on (first game only), caps passed exactly
 - [ ] `game-apply` 48 h later, within 7 days
 - [ ] First week's file checked final and sensible

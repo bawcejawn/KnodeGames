@@ -23,7 +23,7 @@ A two-week elimination game: pick one producer a day and avoid the ones that fal
 - Simulation (field of 17): 10 players → ends about day 11; 50 → about day 13; 200 → ~4 still in on day 14, ranking decides. 💬
 
 ## Rewards
-- **Free play: yes, standings only** (D-081, replaces D-080) — the Free play board stays; its **4 + 2 VHP season prize (D-068) is off** until the owner switches it on. Before launch the page must say no VHP is paid on the Free board, and the results file must leave `first` / `second` empty. 👤
+- **Free play: yes, standings only** (D-081, replaces D-080) — the Free play board stays; its **4 + 2 VHP season prize (D-068) is off** until the owner switches it on. Before launch the page must say no VHP is paid on the Free board, and the owner's free-prize switch (D-082) must be **off** for game 3 so no winners are posted; the vault entry still uses `--free`. 👤
 - Free-prize winners must have been free in both weeks, held 1 VHP at every daily check, not been knocked out by a missed or invalid pick, and played in a season with 3+ such players (SV-A10, SV-A19). 💬
 - **Staked:** points to the vault from the staked board (D-051). 💬
 

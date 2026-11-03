@@ -46,7 +46,7 @@ Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` 
 |----|------|------|-------|----------------|------|
 | 1 | Daily Questions | Staked + Free | D-045, D-047, D-062 | live; built into the vault | `main` |
 | 2 | Who Signs Block X | Staked + Free | D-036 – D-041, D-070 | **applied on the Picks contract** (2 Nov 👤); not announced to players (D-064); launches prize-free first; next: round-12 fix-check, launch PR, vault `game-add 2` | `picks` |
-| 3 | Survivor | Staked + Free board, **no free prize yet** (D-081); 2-week seasons | D-051, D-065, D-081 | Season 1 **Mon 16 Nov** (D-065); audit pass 4, testnet season, Picks registration still to do (I-050); register **without `--free`** | `survivor` @ `a8a1979` ✅ |
+| 3 | Survivor | Staked + Free board, **no free prize yet** (D-081); 2-week seasons | D-051, D-065, D-081 | Season 1 **Mon 16 Nov** (D-065); audit pass 4, testnet season, Picks registration still to do (I-050); register **with `--free`**, free-prize switch off (D-082) | `survivor` @ `a8a1979` ✅ |
 | 4 | Fantasy Producers | Staked + Free board, **no free prize yet** (D-081) | D-059 | fix-check, full test week, real-data simulation to do | `fantasy` @ `2bee805` ✅ |
 | 5 | Weekly Rival | records only, no prize; not a vault game ✅ | D-059 | ships with Fantasy | `fantasy` |
 | 6 | Block Golf | Staked + Free board, **no free prize yet** (D-081); free practice weeks | D-056 | practice with Block X; staked after `game-add 6` | `golf` @ `6b2200a` ✅ |

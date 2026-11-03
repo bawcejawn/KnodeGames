@@ -47,7 +47,7 @@ New contracts **must not** hold player tokens unless the owner decides otherwise
 - **Mana payment:** the sponsor pays stake, withdraw, claim and game plays — never `move_stake` (D-027). KOIN Vault users pay their own Mana (it picks its own payer).
 
 ## 6. Keys and sends
-- **Keys** live only in `.env` on the owner's PC; never pasted into chat or GitHub; never printed, stored or asked for by an AI chat. A key that is pasted anywhere is rotated (D-003, D-042).
+- **Keys** live only in `.env` on the owner's PC — except, after the weekend moves, the **owner key**, which is kept cold and loaded into `.env` only on the day of an owner action (D-083), and the **operator key**, which lives only in GitHub (D-084); never pasted into chat or GitHub; never printed, stored or asked for by an AI chat. A key that is pasted anywhere is rotated (D-003, D-042).
 - GitHub holds **one** secret: `OPERATOR_WIF`, in the `bot` environment, usable only from `main` (D-012).
 - **Every mainnet send:** mainnet sends are dry runs unless `--send`; every chain tool also needs `CONFIRM_MAINNET=yes` in `.env`, and the Picks tool (`npm run picks`) alone also needs `--mainnet` on the command line ✅ (code checked 3 Nov). It runs one step at a time (D-004, D-042).
 - Testnet tools must refuse mainnet (by node name and chain id); test keys are play money only, and test wallets are emptied and retired after launch.

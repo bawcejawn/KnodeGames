@@ -465,9 +465,9 @@
 
 ## D-081 — Every game has Free play; free VHP prizes only where the owner has switched them on
 - **Date:** 2026-11-03 (owner, replaces D-080) · **Decision:** **All games have a Free play mode** — free players can play and rank on that game's own Free play leaderboard (D-079 applies to every game again). **Not every game pays free VHP prizes yet:** the games the owner had marked "no free play" — **Combo Card, Block Golf, Survivor and Fantasy Producers** — have Free play for **leaderboard standings only, no free VHP prize**. When the seed is ready, the owner **switches on the free prize** for those games one at a time.
-- **Free VHP prize (2 + 1 per week) now:** Daily Questions, Block X, Producer Race, Producer Bracket.
+- **Free VHP prize (2 + 1 per week) now:** Daily Questions, Block X, Producer Race, Producer Bracket, Last Node Standing.
 - **Free board, no prize (for now):** Combo Card, Block Golf, Survivor, Fantasy Producers.
-- **Last Node Standing:** Free play + Staked (owner, 3 Nov). ❓ Whether its Free board pays the prize from the start or joins the no-prize group is not stated.
+- **Last Node Standing:** Free play + Staked, **with the 2 + 1 VHP free prize from the start** (owner, 3 Nov).
 - **Changes:** Survivor keeps its free board but its free prize stays off (no 4 + 2 season prize for now). ~~Register it without `--free`~~ — **superseded by D-082:** every game is added **with** `--free`, and the switch keeps the prize off. Fantasy and Last Node branches were built without free boards — their chats must add one. Combo's page lets only staked wallets send cards today (I-074), so it needs a change to accept free players.
 - **Staked play is unchanged:** each game joins the vault for staked rewards when it's audited and ready (D-064).
 - ~~❓ How "switching on" works on chain~~ — **answered (code ✅ `Kpred.ts`):** the vault fixes `free_prize` when a game is applied; changing it means deactivate → `propose_game` → 48 h → `apply_game`, which can cost stakers a week. Hence D-082.

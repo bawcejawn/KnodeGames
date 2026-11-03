@@ -44,13 +44,14 @@ test("CC-C1 (b): a failed read of today's cards must not show card 1 as free and
   } finally { await t.browser.close(); }
 });
 
-// Repo Lens RL-4 (page side), with the Vault v6 live: a wallet with no stake in the Combo Card this week is refused; a
-// staked one can send (the CC-C1 tests above run staked).
-test("RL-4: before the Vault v6 is live, nobody is staked: Send stays off", { timeout: 60000 }, async () => {
+// Every game has Free play (owner, 2026-11-03, D-081; replaces RL-4's "refused"): before the Vault v6 is live nobody is
+// staked, and anyone can still send a card; the page says it counts on the Free play board, which pays no VHP for now.
+test("D-081: before the Vault v6 is live, nobody is staked: a free player can send, on the Free play board (no VHP for now)", { timeout: 60000 }, async () => {
+  await H.awayFromMidnight();
   const t = await H.open({ legs: H.openLegs(Date.now()) });
   try {
     const { page } = t;
-    await page.waitForFunction(() => /Send card/.test(document.getElementById("send").textContent) && /Stake at least 1 VHP/.test(document.getElementById("send").title), null, { timeout: 20000 });
-    assert.strictEqual(await page.$eval("#send", (b) => b.disabled), true);
+    await page.waitForFunction(() => /Send card 1 of 3/.test(document.getElementById("send").textContent) && !document.getElementById("send").disabled, null, { timeout: 20000 });
+    await page.waitForFunction(() => /Free play board, which pays no VHP for now/.test(document.getElementById("which-board").textContent), null, { timeout: 20000 });
   } finally { await t.browser.close(); }
 });

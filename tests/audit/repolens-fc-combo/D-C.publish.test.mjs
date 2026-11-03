@@ -90,7 +90,8 @@ test("D-C-1: a Vault file is judged against a published board whose lastWeek agr
   fs.rmSync(path.join(out, "vault"), { recursive: true, force: true });
   const MAL = "1MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM", b = read(out, "board.json");
   assert.equal(b.lastWeek.final, true);
-  b.lastWeek.rows = [{ a: MAL, place: 1, pts: 99999, hits: 1, cards: 1, best: 99999, days: 1, lastHit: 0, staked: true, ranked: true }];
+  // (Combo, D-081: board rows carry boardPlace, the place on the player's own board.)
+  b.lastWeek.rows = [{ a: MAL, place: 1, boardPlace: 1, pts: 99999, hits: 1, cards: 1, best: 99999, days: 1, lastHit: 0, staked: true, ranked: true }];
   fs.writeFileSync(path.join(out, "board.json"), JSON.stringify(b));
   const remote = remoteWith(out);                                    // the bad run's board is published (no Vault file in it)
   const IN = asIncoming(out); fs.mkdirSync(path.join(IN, "combo/vault"), { recursive: true });

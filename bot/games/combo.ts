@@ -24,9 +24,12 @@
  *     this machine's clock (Repo Lens RL-5), a leg still without a result is void, but only when its source has
  *     published something after it (a later race with a result, a later Block X target). Otherwise its recorder has
  *     stopped: the card waits and an error is raised, never a silent void (Repo Lens RL-9).
- *  5. Players. Only wallets with at least the vault's minimum (1 VHP) staked in the Combo Card that week count (the
- *     owner's player rule). Stakes are read from the Vault (v6) through its own ABI after its get_state check, on both
- *     nodes, which must agree on staked or not (fix-check FC-3, FC2-12). Unknown stakes: no Vault file this run.
+ *  5. Players. Everyone can play (owner, 2026-11-03, D-081). Wallets with at least the vault's minimum (1 VHP) staked in
+ *     the Combo Card that week rank on the Staked board and share the Combo Card's bucket (the Vault file's rows);
+ *     everyone else ranks on the Free play board, whose top 2 are the Vault file's first / second (freeWinners in
+ *     combo-math.js). The Vault bot pays those only while the owner's free-prize switch for game 8 is on (D-082): off
+ *     for now, and the page says so. Stakes are read from the Vault (v6) through its own ABI after its get_state check,
+ *     on both nodes, which must agree on staked or not (fix-check FC-3, FC2-12). Unknown stakes: no Vault file this run.
  *  6. Weeks. A card counts in the KnodeGames week of its slot day; a player's week = the sum of their best 10 cards.
  *     The week is final 12 hours after it ends, once every slot of it is fixed and every card final. Then the Vault
  *     file vault/W<week>.json is written ONCE (never again once published), within the Vault's 3 days.
@@ -349,6 +352,7 @@ export async function run(o: Opts) {
   // Stakes per (week, player), read once per run (CC-B6): the Vault v6 on both nodes, the lower stake wins (RL-4).
   const vault = vaultReader(KNODE, C.GAME_ID);
   const stakeCache = new Map<number, Map<string, boolean> | null>();
+  const freeCache = new Map<number, Map<string, boolean | null>>();
   // Fix-check FC-3: any disagreement between the nodes (live, the minimum, any wallet's stake) is UNKNOWN, as Block X
   // does: no Vault file that run, and an error. One node can never drop a staked player.
   let vaultLive = true;
@@ -362,8 +366,17 @@ export async function run(o: Opts) {
     const on = (v: any, x: string) => { const s = v.players.get(x)?.week; return s === undefined ? null : s > 0n && s >= v.min; };
     const bad = who.filter((x) => on(a, x) === null || on(a, x) !== on(b, x));
     if (bad.length) { problems.push(`stakes for week ${w}: the two nodes disagree about ${bad.length} wallet(s), e.g. ${bad[0]}`); return null; }
+    // D-081, Block X's prize rule: a wallet staked in the Combo Card at ANY point that week (its peak) can't win the
+    // Free play prize. The two nodes must agree here too, or that wallet's prize eligibility is unknown.
+    const peakOn = (v: any, x: string) => { const s = v.players.get(x)?.peak; return s === undefined ? null : s >= v.min; };
+    let fw = freeCache.get(w); if (!fw) { fw = new Map(); freeCache.set(w, fw); }
+    for (const x of who) { const pa = peakOn(a, x), pb = peakOn(b, x); fw.set(x, pa === null || pa !== pb ? null : !pa); }
     return new Map(who.map((x) => [x, on(a, x) === true] as [string, boolean]));
   }
+  /** Never staked in the Combo Card that week (eligible for the Free play prize): true / false / null (unknown).
+   *  (Tests passing stakedOf: everyone not staked.) */
+  const freeOf = (w: number, x: string, staked: boolean | null): boolean | null =>
+    staked === null ? null : staked ? false : o.stakedOf ? true : freeCache.get(w)?.get(x) ?? null;
   /** FC2-11: whether the Vault v6 is live, on both nodes, even when no row needed a stake read. */
   async function vaultLiveOnBoth(w: number): Promise<boolean> {
     if (o.stakedOf) return true;
@@ -389,10 +402,23 @@ export async function run(o: Opts) {
     const ranked = C.places(C.board(rows));
     const shown = ranked.filter((x: any, i: number) => i < cap || keepAll(x));
     const st = w === null || !shown.length ? null : await stakes(w, shown.map((x: any) => x.player));
-    return shown.map((x: any) => {
+    const out = shown.map((x: any) => {
       const staked = st ? st.get(x.player) ?? null : null;
-      return { a: x.player, place: x.place, pts: x.pts, hits: x.hits, cards: x.cards, best: x.best, days: x.days, lastHit: x.lastHit, staked, ranked: staked === true };
+      const free = w === null ? null : freeOf(w, x.player, staked);
+      return { a: x.player, place: x.place, boardPlace: 0, pts: x.pts, hits: x.hits, cards: x.cards, best: x.best, days: x.days, lastHit: x.lastHit, staked, free, ranked: staked === true };
     });
+    // boardPlace: the place on the player's own board (Staked: ranked; Free play: everyone else; D-079, D-081), ties
+    // shared as on the board (Block X's BX-41).
+    for (const own of [true, false]) {
+      let place = 0, prev: any = null, i = 0;
+      for (const r of out) {
+        if (r.ranked !== own) continue;
+        i++;
+        if (!prev || prev.pts !== r.pts || prev.hits !== r.hits || prev.lastHit !== r.lastHit) place = i;
+        r.boardPlace = place; prev = r;
+      }
+    }
+    return out;
   };
   const day0 = today * M.DAY, lw = nowW - 1;
   const weekDone = (w: number) => {
@@ -455,14 +481,14 @@ export async function run(o: Opts) {
     if (tooMany) errors.push(`vault week ${lw}: more than ${LAST_WEEK_ROWS} players have a point, more than board.json can hold; no Vault file (tell Claude)`);
     else if (badWeeks.has(lw)) errors.push(`vault week ${lw}: a published final card doesn't match its sources (see above); no Vault file`);
     else if (uncheckedWeeks.has(lw)) errors.push(`vault week ${lw}: a published final card can't be checked this run (see above); no Vault file this run`);
-    else if (lastWeek.rows.some((r: any) => r.staked === null)) errors.push(`vault week ${lw}: stakes in the Combo Card couldn't be read on both nodes, or they disagree; no Vault file this run (tried again next run)`);
+    else if (lastWeek.rows.some((r: any) => r.staked === null || (r.pts >= C.MIN_WEEK_PTS && r.free === null))) errors.push(`vault week ${lw}: stakes in the Combo Card couldn't be read on both nodes, or they disagree; no Vault file this run (tried again next run)`);
     else if (!vaultLive || !(await vaultLiveOnBoth(lw))) problems.push(`vault week ${lw}: the Vault v6 isn't live (or the nodes don't agree it is); no Vault file (fix-check FC-21, FC2-11)`);
     else {
-      const rows = lastWeek.rows.map((r: any) => ({ player: r.a, pts: r.pts, place: r.place, staked: r.staked }));
+      const rows = lastWeek.rows.map((r: any) => ({ player: r.a, pts: r.pts, place: r.place, hits: r.hits, lastHit: r.lastHit, days: r.days, staked: r.staked, free: r.free }));
       const vf = C.vaultFile(lw, true, rows);
       fs.writeFileSync(path.join(OUT, "vault", `W${lw}.json`), JSON.stringify(vf) + "\n");
       vaultWritten.push(lw);
-      console.log(`week ${lw} final: vault/W${lw}.json with ${vf.rows.length} player(s)`);
+      console.log(`week ${lw} final: vault/W${lw}.json with ${vf.rows.length} staked player(s), free play 1st ${vf.first.length}, 2nd ${vf.second.length}`);
     }
   }
   if (lastWeek && lastWeek.final && !published && head.time > vaultEnd && head.time <= vaultEnd + 2 * 3600000) errors.push(`vault week ${lw}: no results file was published within the Vault's 3 days; none is written now`);

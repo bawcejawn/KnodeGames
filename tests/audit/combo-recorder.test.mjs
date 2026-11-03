@@ -186,7 +186,7 @@ test("a card sent before any race card existed is void (race-data has later card
   assert.ok(mon.cards.every((c) => c.priceAt === null && c.state === "final" && c.outcome === "void"));
 });
 
-test("boards: best 10 cards; the week turns final 12 hours after it ends; the Vault file lists players with 1+ point, staked only", async () => {
+test("boards: best 10 cards; the week turns final 12 hours after it ends; the Vault file: staked players with 1+ point as rows, the Free play board's top 2 as first / second", async () => {
   // Every day of week 3, then Monday and Tuesday of week 4 (Sunday's cards settle on Monday).
   const { out } = await days(D3, D3 + 8, 13);
   const board = read(out, "board.json");
@@ -198,7 +198,10 @@ test("boards: best 10 cards; the week turns final 12 hours after it ends; the Va
   assert.equal(a.pts, alicePts);
   assert.equal(a.staked, true); assert.equal(c.staked, false); assert.equal(c.ranked, false);
   const v = read(out, "vault/W3.json");
-  assert.deepEqual(plain(v), { game: 8, week: 3, final: true, rows: [{ player: ALICE, points: 255 }], first: [], second: [] }, "Bob has 0 points, Carol isn't staked");
+  // (Owner, 2026-11-03, D-081: Carol, not staked, plays on the Free play board and is its first; the Vault bot holds
+  // first / second back while the free-prize switch for game 8 is off, D-082.)
+  assert.ok(c.pts >= C.MIN_WEEK_PTS && c.days >= C.MIN_PRIZE_DAYS);
+  assert.deepEqual(plain(v), { game: 8, week: 3, final: true, rows: [{ player: ALICE, points: 255 }], first: [CAROL], second: [] }, "Bob has 0 points; Carol isn't staked: the Free play board's only eligible player");
 });
 
 test("the week isn't final, and no Vault file is written, before 12 hours after it ends or while a card is pending", async () => {
@@ -346,6 +349,14 @@ test("combo.yml's publish check: real files pass; duplicates, bad outcomes, chan
   assert.ok(bad((d) => edit(d, D, (j) => { j.slots[0].cards.pop(); })), "a card dropped from a published fixed slot");
   assert.ok(bad((d) => edit(d, "vault/W3.json", (j) => { j.rows[0].player = CAROL; }), (p) => fs.rmSync(path.join(p, "vault"), { recursive: true })), "a Vault row that isn't on the published final board");
   assert.ok(bad((d) => fs.writeFileSync(path.join(d, dName(D3 - 30)), JSON.stringify({ v: 2, day: D3 - 30, start: (D3 - 30) * M.DAY, parts: 1, slots: [] }))), "a new file for an old day");
+  // D-081: first / second are the published Free play board's top 2, recomputed from the published day files.
+  assert.deepEqual(read(prev, "vault/W3.json").first, [CAROL]);
+  const noVault = (p) => fs.rmSync(path.join(p, "vault"), { recursive: true });
+  assert.ok(bad((d) => edit(d, "vault/W3.json", (j) => { j.first = [ALICE]; }), noVault), "a staked player as the Free play board's winner");
+  assert.ok(bad((d) => edit(d, "vault/W3.json", (j) => { j.first = []; }), noVault), "the Free play winner left out");
+  assert.ok(bad((d) => edit(d, "vault/W3.json", (j) => { j.second = [BOB]; }), noVault), "a second place with no points");
+  const unknown = (j) => { const r = j.lastWeek.rows.find((x) => x.a === CAROL); r.staked = null; r.ranked = false; };
+  assert.ok(bad((d) => edit(d, "board.json", unknown), (p) => { noVault(p); edit(p, "board.json", unknown); }), "a winner the published board doesn't show as a free player");
 });
 
 // ── fix-check 2026-10-28 ──

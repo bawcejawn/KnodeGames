@@ -132,7 +132,11 @@ jobs:
           }
           if fetch_branch games-data; then
             { git ls-tree --name-only FETCH_HEAD:combo 2>/dev/null || true; } | while IFS= read -r f; do
-              if [[ "$f" =~ ^D[0-9]{5}(-[0-9]{1,3})?\.json$ ]]; then git show "FETCH_HEAD:combo/$f" > "$RUNNER_TEMP/pub/combo/$f"; fi
+              if [[ "$f" =~ ^(board|D[0-9]{5}(-[0-9]{1,3})?)\.json$ ]]; then git show "FETCH_HEAD:combo/$f" > "$RUNNER_TEMP/pub/combo/$f"; fi
+            done
+            mkdir -p "$RUNNER_TEMP/pub/combo/vault"
+            { git ls-tree --name-only FETCH_HEAD:combo/vault 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then git show "FETCH_HEAD:combo/vault/$f" > "$RUNNER_TEMP/pub/combo/vault/$f"; fi
             done
             { git ls-tree --name-only FETCH_HEAD:blockx 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^W[0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:blockx/$f" > "$RUNNER_TEMP/blockx/$f"; fi
@@ -152,7 +156,7 @@ jobs:
           set -euo pipefail
           node tools/combo-verify.mjs "$RUNNER_TEMP/incoming/combo" "$RUNNER_TEMP/pub/combo" "$RUNNER_TEMP/race" "$RUNNER_TEMP/blockx" "$RUNNER_TEMP/approved.txt"
           # Only names and sha256 the verifier wrote: one "D<day>[-<k>].json <64 hex>" per line.
-          if grep -Evxq 'D[0-9]{5}(-[0-9]{1,3})?\.json [0-9a-f]{64}' "$RUNNER_TEMP/approved.txt"; then echo "::error::unexpected verifier output"; exit 1; fi
+          if grep -Evxq '(D[0-9]{5}(-[0-9]{1,3})?|vault/W[0-9]+)\.json [0-9a-f]{64}' "$RUNNER_TEMP/approved.txt"; then echo "::error::unexpected verifier output"; exit 1; fi
           eof="EOF_$(openssl rand -hex 16)"
           { echo "approved<<$eof"; cat "$RUNNER_TEMP/approved.txt"; echo "$eof"; } >> "$GITHUB_OUTPUT"
 
@@ -310,10 +314,12 @@ jobs:
                   if type(cs) is not list or len(cs) > 100000 or not all(card_ok(c, s["round"], day, s["fixed"]) for c in cs): return False
                   if len({c["player"] for c in cs}) != len(cs): return False
               return True
-          ROW = {"a", "place", "pts", "hits", "cards", "best", "days", "lastHit", "staked", "ranked"}
+          # (D-081: boardPlace, the place on the player's own board, Staked or Free play.)
+          ROW = {"a", "place", "boardPlace", "pts", "hits", "cards", "best", "days", "lastHit", "staked", "free", "ranked"}
           def rows_ok(rows):
-              return type(rows) is list and len(rows) <= 100000 and all(type(x) is dict and set(x) == ROW and isaddr(x["a"]) and all(nat(x[k]) for k in ("place", "pts", "hits", "cards", "best", "days", "lastHit"))
-                  and x["place"] >= 1 and x["staked"] in (None, True, False) and type(x["staked"]) in (type(None), bool) and x["ranked"] is (x["staked"] is True) for x in rows) and len({x["a"] for x in rows}) == len(rows)
+              return type(rows) is list and len(rows) <= 100000 and all(type(x) is dict and set(x) == ROW and isaddr(x["a"]) and all(nat(x[k]) for k in ("place", "boardPlace", "pts", "hits", "cards", "best", "days", "lastHit"))
+                  and x["place"] >= 1 and x["boardPlace"] >= 1 and x["staked"] in (None, True, False) and type(x["staked"]) in (type(None), bool) and x["ranked"] is (x["staked"] is True)
+                  and type(x["free"]) in (type(None), bool) and not (x["staked"] is True and x["free"] is not False) for x in rows) and len({x["a"] for x in rows}) == len(rows)
           def board_ok(j):
               if type(j) is not dict or set(j) != {"v", "updated", "today", "week", "lastWeek", "allTime"} or not same(j["v"], 1) or not iso.fullmatch(str(j["updated"])): return False
               t, w, lw, at = j["today"], j["week"], j["lastWeek"], j["allTime"]
@@ -349,10 +355,10 @@ jobs:
                   for s in slots:
                       for c in s["cards"]:
                           if c["state"] != "final" or c["outcome"] == "void": continue
-                          b = by.setdefault(c["player"], {"list": [], "hits": 0, "lastHit": 0})
-                          b["list"].append(c["pts"])
+                          b = by.setdefault(c["player"], {"list": [], "hits": 0, "lastHit": 0, "days": set()})
+                          b["list"].append(c["pts"]); b["days"].add(s["round"] // CARDS_PER_DAY)
                           if c["outcome"] == "hit": b["hits"] += 1; b["lastHit"] = max(b["lastHit"], c["settled"])
-              out = [{"a": a, "pts": sum(sorted(b["list"], reverse=True)[:BEST]), "hits": b["hits"], "lastHit": b["lastHit"]} for a, b in by.items()]
+              out = [{"a": a, "pts": sum(sorted(b["list"], reverse=True)[:BEST]), "hits": b["hits"], "lastHit": b["lastHit"], "days": len(b["days"])} for a, b in by.items()]
               out.sort(key=lambda r: (-r["pts"], -r["hits"], r["lastHit"] or float("inf"), r["a"]))
               place = 0
               for i, r in enumerate(out):
@@ -378,11 +384,11 @@ jobs:
           # 1b. Fix-check 3 FC3-3: in the workflow (COMBO_VERIFY=required, set above) a day file is published only if the
           #     verify job confirmed it, by name and sha256. (The publish-step tests run this script without the
           #     workflow's env and test the verify job on its own: tests/audit/combo-verify.test.mjs.)
+          import hashlib
+          ok_files = {}
           if os.environ.get("COMBO_VERIFY") == "required":
-              import hashlib
-              ok_files = {}
               for line in os.environ.get("VERIFIED", "").splitlines():
-                  m = re.fullmatch(r"(D[0-9]{5}(?:-[0-9]{1,3})?\.json) ([0-9a-f]{64})", line)
+                  m = re.fullmatch(r"(D[0-9]{5}(?:-[0-9]{1,3})?\.json|vault/W[0-9]+\.json) ([0-9a-f]{64})", line)
                   if m: ok_files[m.group(1)] = m.group(2)
               for f in names:
                   if part_of(f) and ("combo/" + f) not in held and ok_files.get(f) != hashlib.sha256(open(os.path.join(d, f), "rb").read()).hexdigest():
@@ -540,12 +546,16 @@ jobs:
               name = "combo/vault/" + f
               j = load(os.path.join(vdir, f))
               if not (type(j) is dict and set(j) == {"game", "week", "final", "rows", "first", "second"} and same(j["game"], 8) and nat(j["week"]) and f == "W%d.json" % j["week"]
-                      and j["final"] is True and same(j["first"], []) and same(j["second"], []) and type(j["rows"]) is list and len(j["rows"]) <= 100000
+                      and j["final"] is True and type(j["first"]) is list and type(j["second"]) is list and all(isaddr(a) for a in j["first"] + j["second"])
+                      and type(j["rows"]) is list and len(j["rows"]) <= 100000
                       and all(type(r) is dict and set(r) == {"player", "points"} and isaddr(r["player"]) and type(r["points"]) is int and 1 <= r["points"] <= 255 for r in j["rows"])
                       and len({r["player"] for r in j["rows"]}) == len(j["rows"])):
                   hold(name, "not the Vault file's shape", True); continue
               w = j["week"]; end = GENESIS + (w + 1) * WEEK
               if os.path.isfile(os.path.join(pub, "vault", f)): continue                  # write-once: the push step skips it
+              # D-081: its stake flags (Staked, Free play prize) confirmed by the verify job against the Vault (two nodes).
+              if os.environ.get("COMBO_VERIFY") == "required" and ok_files.get("vault/" + f) != hashlib.sha256(open(os.path.join(vdir, f), "rb").read()).hexdigest():
+                  hold(name, "not confirmed by the verify job (its stake flags; see its log)", False); continue
               if w != cw - 1 or not (end <= now <= end + 3 * DAY): hold(name, "not the week that just ended, within the Vault's 3 days, by this job's clock", w != cw); continue
               if not (type(plw) is dict and board_ok(pb) and same(plw["week"], w) and plw["final"] is True and now >= end + 12 * HOUR): hold(name, "its week isn't final on the published board yet", False); continue
               truth = week_board(w)
@@ -558,6 +568,21 @@ jobs:
               distinct = sorted({t["place"] for t in ok}); rank = {pl: max(1, 255 - i) for i, pl in enumerate(distinct)}
               want = [{"player": t["a"], "points": rank[t["place"]]} for t in ok]
               if not same(j["rows"], want): hold(name, "its rows aren't the published final board's staked players with 1+ point, by place", True); continue
+              # D-081: first / second, the Free play board's winners (combo-math.js freeWinners): players the published
+              # board shows as not staked (False) and never staked that week (free True), with 1+ point and cards on 3+
+              # days, ranked as the board; ties share a place; 2nd only when one wallet holds 1st; a place over 10 wallets
+              # stays empty. (The stake flags themselves are confirmed by the verify job against the Vault, two nodes.)
+              free = [t for t in truth if rows.get(t["a"], {}).get("staked") is False and rows.get(t["a"], {}).get("free") is True and t["pts"] >= MIN_WEEK_PTS and t["days"] >= 3]
+              groups = []
+              for t in free:
+                  if groups and (groups[-1][0]["pts"], groups[-1][0]["hits"], groups[-1][0]["lastHit"]) == (t["pts"], t["hits"], t["lastHit"]): groups[-1].append(t)
+                  elif len(groups) < 2: groups.append([t])
+                  else: break
+              w1 = sorted(t["a"] for t in groups[0]) if groups else []
+              w2 = sorted(t["a"] for t in groups[1]) if len(groups) > 1 and len(w1) == 1 else []
+              if len(w1) > 10: w1 = []
+              if len(w2) > 10: w2 = []
+              if not (same(j["first"], w1) and same(j["second"], w2)): hold(name, "its first / second aren't the published Free play board's top 2", True); continue
           open(heldf, "w").write("".join(x + "\n" for x in held))
           open(heldf + ".drop", "w").write("".join(x + "\n" for x in drops))
           print("combo files checked")

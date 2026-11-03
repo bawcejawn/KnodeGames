@@ -314,14 +314,42 @@
     const rank = new Map(distinct.map((v, i) => [v, Math.max(1, 255 - i)]));
     return placeList.map((v) => rank.get(v));
   }
-  /** Combo Card's file for the Vault: staked game, so rows only (no free prizes). boardRows: the week's board in
-   *  order, each { player, pts (hundredths), place, staked (true / false / null) }. Listed: players staked in the
-   *  Combo Card that week (staked === true) with at least 1 full point (owner, 2026-10-28), by board place. */
+  /** The Free play board's weekly winners (owner, 2026-11-03, D-081): the free board is every player not staked in
+   *  the Combo Card that week. Eligible, as Block X's prize rule (BX-14): never staked in the Combo Card at any point
+   *  that week (free === true: its peak stake stayed under the minimum), at least 1 full point (MIN_WEEK_PTS) and cards
+   *  on at least MIN_PRIZE_DAYS days. Ranked like the board (points, then cards that hit,
+   *  then the earlier last hit; equal on all three: a shared place). first: everyone at the top place; second: the
+   *  next place, only when one wallet holds the first (2 or more tied for first share both prizes, as Block X). A place
+   *  with more than VAULT_MAX_PER_PLACE wallets is left empty (the Vault takes at most 10; its prize returns to the
+   *  pool). The Vault posts them only while the owner's free-prize switch for game 8 is on (D-082); off for now.
+   *  rows: [{ player, pts, hits, lastHit, days, staked, free }]. */
+  const MIN_PRIZE_DAYS = 3, VAULT_MAX_PER_PLACE = 10;
+  function freeWinners(rows) {
+    const ok = (rows || []).filter((r) => r && r.staked === false && r.free === true && isAddr(r.player) && Number.isSafeInteger(r.pts) && r.pts >= MIN_WEEK_PTS &&
+      Number.isSafeInteger(r.days) && r.days >= MIN_PRIZE_DAYS && Number.isSafeInteger(r.hits) && Number.isSafeInteger(r.lastHit));
+    ok.sort((a, b) => b.pts - a.pts || b.hits - a.hits || (a.lastHit || Infinity) - (b.lastHit || Infinity) || (a.player < b.player ? -1 : a.player > b.player ? 1 : 0));
+    const at = [];
+    for (let i = 0; i < ok.length && at.length < 2; ) {
+      let j = i;
+      while (j + 1 < ok.length && ok[j + 1].pts === ok[i].pts && ok[j + 1].hits === ok[i].hits && ok[j + 1].lastHit === ok[i].lastHit) j++;
+      at.push(ok.slice(i, j + 1).map((r) => r.player).sort());
+      i = j + 1;
+    }
+    let first = at[0] || [], second = first.length === 1 ? at[1] || [] : [];
+    if (first.length > VAULT_MAX_PER_PLACE) first = [];
+    if (second.length > VAULT_MAX_PER_PLACE) second = [];
+    return { first, second };
+  }
+  /** Combo Card's file for the Vault. boardRows: the week's board in order, each { player, pts (hundredths), place,
+   *  hits, lastHit, days, staked (true / false / null), free (never staked that week: true / false / null) }. rows: players staked in the Combo Card that week
+   *  (staked === true) with at least 1 full point (owner, 2026-10-28), by board place. first / second: the Free play
+   *  board's winners (freeWinners), always computed; the Vault bot holds them back while the free-prize switch is off. */
   const MIN_WEEK_PTS = 100;   // 1 point, in hundredths
   function vaultFile(week, final, boardRows) {
     const ok = (boardRows || []).filter((r) => r && r.staked === true && Number.isSafeInteger(r.pts) && r.pts >= MIN_WEEK_PTS && isAddr(r.player) && Number.isSafeInteger(r.place));
     const pts = toVaultPoints(ok.map((r) => r.place));
-    return { game: GAME_ID, week, final: final === true, rows: ok.map((r, i) => ({ player: r.player, points: pts[i] })), first: [], second: [] };
+    const { first, second } = freeWinners(boardRows);
+    return { game: GAME_ID, week, final: final === true, rows: ok.map((r, i) => ({ player: r.player, points: pts[i] })), first, second };
   }
 
   // ── share ──
@@ -337,6 +365,6 @@
     isWindow, slotKey, slotRound, dayOfRound, utcDay, lockOf, legOpen, cardLockTime, cardProblem,
     CARD_MAX_AGE_MS, MIN_CARD_SAMPLES, TRIALS, MISSING_F100, usableCard, flagsFor, priceCard, cardAfter, withMoved, sortLegs,
     raceChances, factorOf, priceLeg, finalWorth, legLockTime, pointsFor, potential, legResult, board, places, shareText,
-    vaultWeek, toVaultPoints, vaultFile, MIN_WEEK_PTS,
+    vaultWeek, toVaultPoints, vaultFile, freeWinners, MIN_WEEK_PTS, MIN_PRIZE_DAYS, VAULT_MAX_PER_PLACE,
   };
 })(typeof window !== "undefined" ? window : globalThis);

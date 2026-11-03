@@ -208,6 +208,25 @@ test("leaderboard: best 10 cards, ties by hits then the earlier last hit", () =>
   assert.equal(b[3].player, "D"); assert.equal(b[3].pts, 0);
 });
 
+test("free play winners (D-081): the Free play board's top 2, players not staked with a point and cards on 3+ days; ties share", () => {
+  const P = (i) => "1" + String(i).padStart(33, "A").replace(/0/g, "B");
+  const r = (i, pts, o = {}) => ({ player: P(i), pts, hits: 1, lastHit: 1000 + i, days: 3, staked: false, ...o });
+  assert.deepEqual(plain(C.freeWinners([r(1, 500), r(2, 400), r(3, 300)])), { first: [P(1)], second: [P(2)] });
+  // Staked (or not yet known), under 1 point, or cards on fewer than 3 days: not eligible.
+  assert.deepEqual(plain(C.freeWinners([r(1, 900, { staked: true }), r(2, 800, { staked: null }), r(3, 99), r(4, 700, { days: 2 }), r(5, 100), r(6, 100, { lastHit: 2000 })])), { first: [P(5)], second: [P(6)] });
+  // Two tied for first share both prizes: no second (as Block X).
+  assert.deepEqual(plain(C.freeWinners([r(1, 500, { lastHit: 7 }), r(2, 500, { lastHit: 7 }), r(3, 400)])), { first: [P(1), P(2)], second: [] });
+  // Tied for second share it.
+  assert.deepEqual(plain(C.freeWinners([r(1, 500), r(2, 400, { lastHit: 7 }), r(3, 400, { lastHit: 7 })])), { first: [P(1)], second: [P(2), P(3)] });
+  // More than 10 in a place: that place stays empty (the Vault takes at most 10).
+  const many = Array.from({ length: 11 }, (_, i) => r(i + 2, 400, { lastHit: 7 }));
+  assert.deepEqual(plain(C.freeWinners([r(1, 500), ...many])), { first: [P(1)], second: [] });
+  assert.equal(C.MIN_PRIZE_DAYS, 3); assert.equal(C.VAULT_MAX_PER_PLACE, 10);
+  // In the Vault file: a wallet is staked (rows) or free (first / second), never both.
+  const f = plain(C.vaultFile(2, true, [{ ...r(1, 900, { staked: true }), place: 1 }, { ...r(2, 500), place: 2 }]));
+  assert.deepEqual(f.rows, [{ player: P(1), points: 255 }]); assert.deepEqual(f.first, [P(2)]); assert.deepEqual(f.second, []);
+});
+
 test("vault file: staked players with at least 1 full point, by board place onto 1..255 (ties share; fix-check FC-17); no free prizes", () => {
   const W = C.vaultWeek(Date.parse("2026-11-03T10:00:00Z"));
   assert.equal(W, 2); assert.equal(C.vaultWeek(Date.parse("2026-10-19T00:00:00Z")), 0); assert.equal(C.vaultWeek(Date.parse("2026-10-25T23:59:59Z")), 0);
@@ -258,13 +277,17 @@ test("combo page: sends only a Combo card through the Picks contract's pick, onl
   assert.match(js, /Number\(game\.kind\) !== 4 \|\| !game\.enabled\) return;/);
   assert.match(js, /pdep\.cards !== true/, "the page goes live only with \"cards\": true, the same switch as the sponsor");
   assert.match(js, /b\.disabled = !cardsLive \|\| sending \|\| !!why \|\| !okCard;/);
-  // Stake-only: guests and wallets the Vault says aren't staked are refused before anything is signed.
-  assert.match(js, /W\.kind === "guest"\) why = "The Combo Card is a staked game/);
-  assert.match(js, /stake === false\) why = "Stake at least 1 VHP in the Combo Card to play\. A stake made this week counts from next week\."/);
+  // Every game has Free play (owner, 2026-11-03, D-081): guests and unstaked wallets can send; the stake only decides the
+  // board (Staked or Free play), and the page says the Free play board pays no VHP for now.
+  assert.doesNotMatch(js, /W\.kind === "guest"\) (why|\{ toast) = "The Combo Card is a staked game/);
+  assert.doesNotMatch(js, /stake !== true\) \{ toast/);
+  assert.match(js, /stake === false \? "Free play: your cards count on the Free play board, which pays no VHP for now\./);
+  assert.match(js, /free: \{ show: 6, prize: "The Free play board pays no VHP for now\." \}/);
   assert.match(js, /return w > 0n && w >= minStakeFor\(cfg, week\);/, "the stake that counts this week only (CC-C5), at least the vault's minimum");
   assert.match(js, /new URL\("game\/abi\/kpred-v6\.koilib\.json", ROOT\)/, "read with the Vault v6 ABI (Repo Lens RL-4)");
-  assert.match(js, /stake === null\) why = "Reading your stake/, "an unknown stake blocks Send");
-  assert.match(js, /if \(stake !== true\) \{ toast = /, "sendCard itself refuses an unstaked or unknown stake (RL-22)");
+  assert.doesNotMatch(js, /stake === null\) why = "Reading your stake/, "an unknown stake no longer blocks Send (D-081)");
+  // (RL-22's re-checks inside sendCard stay for the slot, the day and fresh prices; the stake check is gone: D-081.)
+  assert.match(js, /if \(!fresh\) \{ toast = "Waiting for a fresh Producer Race card\. Nothing was sent\."/);
   assert.match(js, /if \(sending\) return;\n    sending = true;/, "a double-click can't send twice (RL-21)");
   // CC-C1: the slots are replaced only after every read succeeded; unknown slots or a new UTC day block sending;
   // the target slot is re-read on chain right before signing and must be empty or exactly the card being changed.

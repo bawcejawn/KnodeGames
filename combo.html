@@ -273,7 +273,7 @@
 
   <main class="pr">
     <h1>Combo Card</h1>
-    <p class="lede">Stack 2 to 6 calls on one card from the next day's races and Block X targets. Every leg has to hit. Harder legs and longer cards pay more points. A staked game: stake at least 1 VHP in the Combo Card to play.</p>
+    <p class="lede">Stack 2 to 6 calls on one card from the next day's races and Block X targets. Every leg has to hit. Harder legs and longer cards pay more points. Anyone can play: staked players (at least 1 VHP staked in the Combo Card) rank on the Staked board, everyone else on the Free play board.</p>
     <p class="soon" id="cards-soon"><b>Preview.</b> Build and share cards now. Sending them opens when the Combo upgrade of the Knode Games Picks contract is live.</p>
     <p class="status" id="status" role="status">Reading the chain…</p>
 
@@ -306,6 +306,7 @@
             <p class="ladder-note" id="ladder-note"></p>
             <p class="toast" id="toast" role="status" aria-live="polite"></p>
             <p class="warn" id="problem" role="alert"></p>
+            <p class="note" id="which-board" role="status"></p>
             <div class="acts">
               <button class="go" type="button" id="send" disabled>Send card (soon)</button>
               <button class="sm" type="button" id="quick">🎲 Quick card</button>
@@ -332,7 +333,7 @@
 
     <section class="card" id="board-box" hidden>
       <div id="combo-board"></div>
-      <p class="note">A week is the sum of your best 10 cards. Ties go to more cards that hit, then the earlier last hit. The top 30% of staked players with at least 1 point share the Combo Card bucket. A week is final 12 hours after it ends, once every leg is final.</p>
+      <p class="note">A week is the sum of your best 10 cards. Ties go to more cards that hit, then the earlier last hit. The top 30% of staked players with at least 1 point share the Combo Card bucket. The Free play board ranks everyone else; <b>it pays no VHP for now</b>. A week is final 12 hours after it ends, once every leg is final.</p>
     </section>
 
     <details class="card explain" id="how">

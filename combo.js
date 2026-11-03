@@ -402,9 +402,6 @@
     let why = null;
     if (!cardsLive) why = "Cards open when the Combo upgrade of the Picks contract is live.";
     else if (!who) why = "Connect a wallet to send a card.";
-    else if (W && W.kind === "guest") why = "The Combo Card is a staked game: connect Kondor or KOIN Vault.";
-    else if (stake === false) why = "Stake at least 1 VHP in the Combo Card to play. A stake made this week counts from next week.";
-    else if (stake === null) why = "Reading your stake in the Combo Card… (it must be read before a card can be sent)";
     else if (slotsDay === null) why = "Reading your cards from the chain…";
     else if (!fresh) why = "Waiting for a fresh Producer Race card (one comes every hour): prices must be under 3 hours old.";
     else if (nearMidnight()) why = "A new UTC day starts in under 2 minutes: send your card after 00:00 UTC.";
@@ -414,6 +411,12 @@
     else if (!okCard) why = null;
     b.textContent = !cardsLive ? "Send card (soon)" : sending ? "Sending…" : editing !== null ? `Send changes to card ${editing + 1}` : slot !== null ? `Send card ${slot + 1} of 3` : "Send card";
     b.disabled = !cardsLive || sending || !!why || !okCard;
+    // Every game has Free play (owner, 2026-11-03, D-081): anyone can send a card; the stake only decides the board.
+    const wb = $("which-board");
+    if (wb) wb.textContent = !cardsLive || !who ? ""
+      : stake === true ? "You're staked in the Combo Card this week: your cards count on the Staked board."
+      : stake === false ? "Free play: your cards count on the Free play board, which pays no VHP for now. Stake at least 1 VHP in the Combo Card to play on the Staked board (a stake counts from the next week)."
+      : "";
     b.title = why || "";
     if (cardsLive && why && legs.length >= C.MIN_LEGS && !toast) $("problem").textContent = why;
   }
@@ -442,8 +445,6 @@
     const who = me(), slot = targetSlot();
     if (!cardsLive || !who || slot === null || legs.length < C.MIN_LEGS) return;
     // Repo Lens RL-22: the refusals are checked here too, not only as a disabled button.
-    if (W && W.kind === "guest") { toast = "The Combo Card is a staked game: connect Kondor or KOIN Vault."; render(); return; }
-    if (stake !== true) { toast = stake === false ? "Stake at least 1 VHP in the Combo Card to play." : "Your stake couldn't be read yet. Nothing was sent; try again."; render(); return; }
     if (!fresh) { toast = "Waiting for a fresh Producer Race card. Nothing was sent."; render(); return; }
     const day = slotsDay;
     try { await readHead(); } catch { /* the last head */ }
@@ -578,7 +579,11 @@
     summary: (r) => `${pts(r.pts)} pts · ${fmt(r.hits)} of ${fmt(r.cards)} cards hit`,
     name: nameOf, link: (a) => EXPLORER + a,
     me: (r, place) => `${place ? `You: #${place} with` : "Your score:"} ${pts(r.pts)} points from your best ${Math.min(C.BEST, r.cards)} cards (${fmt(r.hits)} of ${fmt(r.cards)} hit).`,
-    unranked: "To be ranked, stake at least 1 VHP in the Combo Card.",
+    unranked: "The Staked board is for wallets with at least 1 VHP staked in the Combo Card that week.",
+    // D-081: the Free play board ranks everyone else; no VHP is paid on it for now (the owner's switch, D-082), so no
+    // medals are shown.
+    free: { show: 6, prize: "The Free play board pays no VHP for now." },
+    freeWinners: () => new Map(),
   }) : null;
   async function loadBoard() {
     try { const b = await fetchJson(DATA + "board.json"); if (b && b.v === 1 && lb) { board = b; $("board-box").hidden = false; lb.setMe(me() || ""); lb.set(board); } } catch { /* not running yet */ }

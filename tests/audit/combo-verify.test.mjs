@@ -96,7 +96,7 @@ test("verify: list_picks is encoded and decoded exactly as koilib does with the 
 
 test("verify: an honest run's day files are all confirmed", async () => {
   const h = await honest(), r = await verifyOf(h);
-  assert.deepEqual(r.problems, []);
+  assert.deepEqual(r.problems.filter((x) => x.day !== null), [], "no day file held (the Vault file waits for its board to be published: its own test below)");
   assert.ok(approvedDays(r).has(dn(D3)), "Monday (two final cards on a newly fixed slot) is confirmed");
   for (const x of r.approved) assert.equal(x.sha256, crypto.createHash("sha256").update(fs.readFileSync(path.join(h.out, x.name))).digest("hex"));
 });
@@ -136,7 +136,7 @@ test("verify: a day with nothing newly fixed or final needs no chain read and is
   for (const f of fs.readdirSync(h.out)) if (/^D\d{5}/.test(f)) fs.copyFileSync(path.join(h.out, f), path.join(pub, f));
   const down = { async call() { throw new Error("no answer"); } };
   const r = await verifyOf(h, { published: pub, p: down, check: down });
-  assert.deepEqual(r.problems, []);
+  assert.deepEqual(r.problems.filter((x) => x.day !== null), [], "no day file held (the Vault file waits for its board to be published: its own test below)");
   assert.ok(approvedDays(r).has(dn(D3)));
 });
 
@@ -167,4 +167,30 @@ test("verify: with COMBO_VERIFY=required the publish check publishes only the da
   assert.ok(h2.includes(`combo/${dn(D3)}`), "an unconfirmed day file is held");
   const h3 = runCheck(days.map((f) => `${f} ${"0".repeat(64)}`).join("\n"));
   assert.ok(h3.includes(`combo/${dn(D3)}`), "a day file whose bytes aren't the confirmed ones is held");
+});
+
+test("verify (D-081): a new Vault file is confirmed only if the published board's stake flags are the Vault's, on both nodes", async () => {
+  const t = M.weekStart(4) + 13 * 3600000, out = tmp(), race = raceDir(), bx = blockxDir();
+  const stake = (p) => (p === ALICE ? 200000000n : 0n);                       // Alice staked, Bob free
+  await quiet(() => run({ p: node({ t, cards: twoCards, stake }), check: node({ t, cards: twoCards, stake }), out, raceDir: race, blockxDir: bx, picksContract: PICKS, knodeGame: VAULT, now: t, vhpMovesOf: async () => 0n }));
+  assert.ok(fs.existsSync(path.join(out, "vault", "W3.json")));
+  const lw = read(out, "board.json").lastWeek.rows;
+  assert.deepEqual([lw.find((r) => r.a === ALICE).staked, lw.find((r) => r.a === BOB).staked, lw.find((r) => r.a === BOB).free], [true, false, true]);
+  const pub = tmp(); fs.copyFileSync(path.join(out, "board.json"), path.join(pub, "board.json"));   // the board was published first
+  const go = (pubDir, s = stake) => V.verify({ incoming: out, published: pubDir, race, blockx: bx, picks: PICKS, vault: VAULT, now: t,
+    p: vnode(node({ t, cards: twoCards, stake: s })), check: vnode(node({ t, cards: twoCards, stake: s })), vhpMovesOf: async () => 0n });
+  const ok = await go(pub);
+  assert.ok(ok.approved.some((x) => x.name === "vault/W3.json"), JSON.stringify(ok.problems));
+  // The published board marks Bob staked (a bad run moving a free player onto the Staked board): not confirmed.
+  const bad = tmp(); fs.copyFileSync(path.join(out, "board.json"), path.join(bad, "board.json"));
+  edit(bad, "board.json", (j) => { const r = j.lastWeek.rows.find((x) => x.a === BOB); r.staked = true; r.ranked = true; r.free = false; });
+  const r1 = await go(bad);
+  assert.ok(!r1.approved.some((x) => x.name === "vault/W3.json") && r1.problems.some((x) => x.alert && /stake flags/.test(x.why)));
+  // Or marks staked Alice free (to drop her from rows and put her on the Free play board): not confirmed.
+  const bad2 = tmp(); fs.copyFileSync(path.join(out, "board.json"), path.join(bad2, "board.json"));
+  edit(bad2, "board.json", (j) => { const r = j.lastWeek.rows.find((x) => x.a === ALICE); r.staked = false; r.ranked = false; r.free = true; });
+  assert.ok(!(await go(bad2)).approved.some((x) => x.name === "vault/W3.json"));
+  // The board isn't published yet: held without blame.
+  const r3 = await go(tmp());
+  assert.ok(!r3.approved.some((x) => x.name === "vault/W3.json") && r3.problems.every((x) => !x.alert));
 });

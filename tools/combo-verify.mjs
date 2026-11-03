@@ -6,7 +6,9 @@
  *   - a slot fixed for the first time holds exactly the cards the Picks contract has for it (who, legs, time,
  *     changes), read on both nodes once the day is irreversibly over on both;
  *   - every card that turns final is what bot/games/combo-score.mjs (the recorder's own scoring) gives for it: its
- *     price card, results, worths (Block X with the VHP moved in, read here on both nodes), points and settled time.
+ *     price card, results, worths (Block X with the VHP moved in, read here on both nodes), points and settled time;
+ *   - a new Vault file: the published board's stake flags for that week (staked; free = never staked that week, for
+ *     the Free play prize, D-081) are the Vault's own, read on both nodes.
  * It writes the names and sha256 of the day files it confirms; the publish job publishes no other day file.
  *
  *   node tools/combo-verify.mjs <incoming combo/> <published combo/> <race-data/> <published blockx/> <out file>
@@ -202,7 +204,59 @@ export async function verify(o) {
     if (why) problems.push({ day, why, alert });
     else for (const f of files) approved.push({ name: f, sha256: sha(path.join(o.incoming, f)) });
   }
+  // A new Vault file (D-081): the publish job judges it against the PUBLISHED board, whose stake flags (staked, and
+  // free = never staked that week) only the recorder set. Here they are read again from the Vault on both nodes, for
+  // every row of that week with a point; the file is confirmed only if every flag is the chain's.
+  const vdir = path.join(o.incoming, "vault");
+  for (const f of fs.existsSync(vdir) ? fs.readdirSync(vdir).filter((x) => /^W[0-9]+\.json$/.test(x)) : []) {
+    if (fs.existsSync(path.join(o.published, "vault", f))) continue;            // write-once: the publish job skips it
+    const name = `vault/${f}`, week = Number(f.slice(1, -5)), board = load(path.join(o.published, "board.json"));
+    const rows = board?.lastWeek?.week === week && Array.isArray(board.lastWeek.rows) ? board.lastWeek.rows.filter((r) => r && Number(r.pts) >= C.MIN_WEEK_PTS) : null;
+    if (!rows) { problems.push({ day: null, file: name, why: `${name}: the published board doesn't show week ${week} yet`, alert: false }); continue; }
+    try {
+      if (!o.p || !o.check || !o.vault) throw new Error("two nodes and the Vault's address are needed");
+      const views = [];
+      for (const n of [o.p, o.check]) views.push(await vaultView(n, o.vault, rows.map((r) => r.a), week));
+      const [a, b] = views;
+      if (!a.live || !b.live || a.min !== b.min) throw new Error("the Vault v6 isn't live on both nodes, or they disagree about its minimum");
+      const flags = (v, x) => { const p = v.players.get(x); return p ? { staked: p.week > 0n && p.week >= v.min, free: !(p.peak >= v.min) } : null; };
+      const bad = rows.find((r) => { const x = flags(a, r.a), y = flags(b, r.a); return !x || !y || x.staked !== y.staked || x.free !== y.free || r.staked !== x.staked || (r.free !== x.free && !(r.staked === true && r.free === false)); });
+      if (bad) { problems.push({ day: null, file: name, why: `${name}: the published board's stake flags for ${bad.a} aren't the Vault's (two nodes)`, alert: true }); continue; }
+      approved.push({ name, sha256: sha(path.join(vdir, f)) });
+    } catch (e) { problems.push({ day: null, file: name, why: `${name} can't be confirmed this run (${String(e.message ?? e).slice(0, 160)})`, alert: false }); }
+  }
   return { approved, problems };
+}
+
+// ── the Vault v6 (game/abi/kpred-v6.koilib.json), just what the stake flags need ──
+const GET_STATE = 1023583049, GET_GAME_PLAYER = 267077419;
+const u64 = (fs_, f) => { const x = fs_.find(([g]) => g === f); return x ? BigInt(x[1]) : 0n; };
+/** As blockx.ts vaultView: live (v6_rule_week_plus_one), the week's minimum, and each wallet's week_stake and peak. */
+export async function vaultView(node, vault, who, week) {
+  const st = await node.call("chain.read_contract", { contract_id: vault, entry_point: GET_STATE, args: "" });
+  const cfgB = fields(Buffer.from(st?.result ?? "", "base64")).find(([f]) => f === 1)?.[1];
+  if (!cfgB) throw new Error("no answer reading the Vault's state");
+  const cfg = fields(cfgB);
+  if (!cfg.some(([f]) => f === 1)) throw new Error("no owner in the Vault's state");
+  const next = u64(cfg, 13), from = Number(u64(cfg, 14));
+  let min = next > 0n && week >= from ? next : u64(cfg, 9);
+  const live = u64(cfg, 21) > 0n;
+  if (min <= 0n) min = 100000000n;
+  const players = new Map();
+  if (!live) return { live, min, players };
+  for (const x of new Set(who)) {
+    const a = decodeBase58(x);
+    const args = Buffer.from([0x0a, ...varint(a.length), ...a, 0x10, ...varint(C.GAME_ID), 0x18, ...varint(week)]).toString("base64url");
+    const r = await node.call("chain.read_contract", { contract_id: vault, entry_point: GET_GAME_PLAYER, args });
+    if (!r || !("result" in r)) throw new Error(`no answer reading ${x}'s stake`);
+    const g = fields(Buffer.from(r.result ?? "", "base64"));
+    const entry = g.find(([f]) => f === 2)?.[1];
+    const act = u64(g, 3), wk = u64(g, 4);
+    let peak = act;
+    if (entry) { const e = fields(entry); const ps = u64(e, 7), sk = u64(e, 1); peak = ps > sk ? ps : sk; }
+    players.set(x, { week: wk, peak });
+  }
+  return { live, min, players };
 }
 
 async function main() {
@@ -210,10 +264,12 @@ async function main() {
   if (!outFile) throw new Error("usage: node tools/combo-verify.mjs <incoming combo/> <published combo/> <race-data/> <blockx/> <out file>");
   const dep = load(new URL("../picks-data/deployment.json", import.meta.url));
   const picks = isAddr(dep?.contract) ? dep.contract : null;
+  const gdep = load(new URL("../game-data/deployment.json", import.meta.url));
+  const vault = isAddr(gdep?.contract) ? gdep.contract : null;
   const p = process.env.RPC ? rpcNode(process.env.RPC) : null, check = process.env.RPC_CHECK ? rpcNode(process.env.RPC_CHECK) : null;
   if (p && check && p.url.replace(/\/+$/, "").toLowerCase() === check.url.replace(/\/+$/, "").toLowerCase()) throw new Error("RPC and RPC_CHECK are the same node");
-  const r = await verify({ incoming, published, race, blockx, p, check, picks, now: Number(process.env.CHECK_NOW_MS) || undefined });
-  for (const x of r.problems) console.log(`${x.alert ? "::error::" : "::warning::"}day ${x.day}: ${x.why}; its files are held`);
+  const r = await verify({ incoming, published, race, blockx, p, check, picks, vault, now: Number(process.env.CHECK_NOW_MS) || undefined });
+  for (const x of r.problems) console.log(`${x.alert ? "::error::" : "::warning::"}${x.day === null ? "" : `day ${x.day}: `}${x.why}; held`);
   fs.writeFileSync(outFile, r.approved.map((x) => `${x.name} ${x.sha256}\n`).join(""));
   console.log(`${r.approved.length} day file(s) confirmed, ${r.problems.length} day(s) held.`);
 }

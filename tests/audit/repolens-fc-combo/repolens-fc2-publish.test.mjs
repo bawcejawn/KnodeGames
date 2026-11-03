@@ -153,7 +153,8 @@ test("D-C-1 (corrected): the Vault file that matches a made-up published board i
   await quiet(() => run({ p: "p", check: "c", head: headAt(now), out, raceDir: raceDir(), blockxDir: blockxDir(), picksContract: "1P", cardsOf: oneCard([{ code: C.WIN, round: mon18, producer: H1 }, { code: C.SHOW, round: mon18, producer: H2 }]), stakedOf: staked }));
   fs.rmSync(path.join(out, "vault"), { recursive: true, force: true });
   const MAL = "1MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM", b = read(out, "board.json");
-  b.lastWeek.rows = [{ a: MAL, place: 1, pts: 99999, hits: 1, cards: 1, best: 99999, days: 1, lastHit: 0, staked: true, ranked: true }];
+  // (Combo, D-081: board rows carry boardPlace, the place on the player's own board.)
+  b.lastWeek.rows = [{ a: MAL, place: 1, boardPlace: 1, pts: 99999, hits: 1, cards: 1, best: 99999, days: 1, lastHit: 0, staked: true, ranked: true }];
   fs.writeFileSync(path.join(out, "board.json"), JSON.stringify(b) + "\n");
   const remote = remoteWith(out);
   const IN = asIncoming(out); fs.mkdirSync(path.join(IN, "combo/vault"), { recursive: true });

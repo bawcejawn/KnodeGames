@@ -30,7 +30,7 @@ Free and staked prediction games on the Koinos blockchain, powered by our own bl
 4. **`platform/TODOS.md`** and **`platform/OPENISSUES.md`** — what's happening now and what's broken or waiting.
 5. **`platform/DEPENDENCIES.md`** — how the vault, games, leaderboards, rewards, wallets and swap desk connect.
 6. **The game you're working on** — `games/<Game>.md`.
-7. **The standards that apply** — `standards/GAME_STANDARD.md` first, then `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`.
+7. **The standards that apply** — `standards/GAME_STANDARD.md` first, then `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`. How every chat starts and hands work back: `standards/AI_CHAT_STARTER.md`.
 8. **Before any big decision:** `platform/FOUNDER_INTENT.md` (why this exists) and `platform/RULES.md` (what never changes casually).
 9. **Only when needed:** `platform/ARCHITECTURE.md` (how things work in detail), `platform/KOINOS.md` (chain facts, testnet), `platform/ROADMAP.md` (plans), `platform/VISION.md` (why and brand).
 
@@ -59,4 +59,5 @@ The full list — including what must never change casually — is in **`platfor
 - Problems get an **I-xxx** in `OPENISSUES.md`; owner actions go in `TODOS.md`.
 - If two sources disagree, log a **C-xx** contradiction in `DECISIONS.md`; the repo wins over chat notes, and the owner wins over both.
 - Mark what you know: ✅ verified in the repo · 💬 from a chat · 👤 owner said · ❓ unknown.
+- End each piece of work with the **handoff** in `standards/AI_CHAT_STARTER.md` §2; the library chat files it.
 - New knowledge from a chat can be appended to `archive/CHAT_KNOWLEDGE.md` and filed later.

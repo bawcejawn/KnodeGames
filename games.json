@@ -9,7 +9,7 @@
         "columns": [{ "key": "pts", "label": "Points" }, { "key": "correct", "label": "Wins" }, { "key": "shows", "label": "Shows" }, { "key": "picks", "label": "Picks", "wide": true }] } },
     { "id": "questions", "name": "Daily Questions", "kinds": ["free", "staked"], "status": "live", "href": "index.html#play",
       "line": "Answer quick questions about block producers, Monday to Saturday. Stake VHP to share the weekly rewards." },
-    { "id": "blockx", "name": "Who Signs Block X", "kinds": ["free"], "status": "soon", "href": "",
+    { "id": "blockx", "name": "Who Signs Block X", "kinds": ["free"], "status": "live", "href": "blockx.html",
       "line": "Pick the producer for the next 12 milestone blocks, about 2 hours apart." },
     { "id": "survivor", "name": "Survivor", "kinds": ["free"], "status": "soon", "href": "",
       "line": "One producer a day, two lives, four-week seasons. Last one standing wins." },

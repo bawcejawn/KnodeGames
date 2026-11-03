@@ -283,13 +283,76 @@ test("workflow: the recorder holds no secret and no write token; only the publis
   assert.doesNotMatch(yml, /\n\s*(pull_request|push):/);
   assert.match(rec, /permissions:\s*\n\s*contents:\s*read/); assert.match(rec, /persist-credentials:\s*false/); assert.match(rec, /npm ci\b[^\n]*--ignore-scripts/);
   assert.match(pub, /permissions:\s*\n\s*contents:\s*write/);
-  assert.doesNotMatch(pub, /actions\/checkout|\bnpm\b|\bnpx\b|\btsx\b|node\s/, "publish runs no repository code");
+  // (Round 8: the publish job runs one inline `node -e` check, the recorders' own JSON form; never a repository file.)
+  assert.doesNotMatch(pub, /actions\/checkout|\bnpm\b|\bnpx\b|\btsx\b|node\s+(--import|--require|-r\s|[\w./-]+\.(m?js|cjs|ts)\b)/, "publish runs no repository code");
   const pushes = pub.split("\n").filter((l) => /git push/.test(l));
   assert.equal(pushes.length, 1); assert.match(pushes[0], /"\$commit:refs\/heads\/race-data"$/); assert.doesNotMatch(pub, /--force/);
   assert.match(pub, /-type l/, "symlinks refused");
 });
 
 test.after(() => { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });
+
+test("audit BX-4 / BX-37 / BX-55 (round 3): VHP is combined producer by producer: one that differs counts at the LOWER read and is flagged on the card; the card is still made", async () => {
+  const at = U("2026-11-02T05:37Z"), log = console.log;
+  const off = (f, who = P[1]) => async (w) => Object.fromEntries(w.map((a) => [a, String(Math.round((VHP[P.indexOf(a)] || 0) * 1e8 * (a === who ? f : 1)))]));
+  const go = async (f, who) => {
+    const out = tmp(); let r; console.log = () => {};
+    try { r = await run({ p: node(at), check: node(at), prev: "", out, vhpOf, vhpCheckOf: off(f, who), raceContract: null }); } finally { console.log = log; }
+    return { r, out };
+  };
+  const one = await go(1.5);
+  const card = race(one.out, "2026-11-02T06").cards[0], all = [...card.field, ...card.paddock];
+  assert.ok(card, "one producer's disagreement no longer holds the card for everyone");
+  assert.ok(all.find((x) => x.a === P[1]).vhp < 375, "P[1] is not lifted to the other node's higher read");
+  assert.deepEqual(card.flagged, [P[1]], "and it is flagged on the card");
+  assert.ok(one.r.problems.some((x) => /disagree on .*VHP/.test(x)));
+  const top = await go(10, P[0]);                         // one node says the top producer has 10x: the lower read counts
+  const c2 = race(top.out, "2026-11-02T06").cards[0], all2 = [...c2.field, ...c2.paddock];
+  assert.ok(all2.find((x) => x.a === P[0]).vhp <= 400, "never the inflated read");
+  assert.deepEqual(c2.flagged, [P[0]]);
+  const same = await go(1);
+  assert.equal(race(same.out, "2026-11-02T06").cards[0].flagged, undefined, "no flag when the nodes agree");
+});
+
+test("audit BX-36: the 6 hours of blocks behind the card must match on both nodes; a node that drops a signer gets no card made", async () => {
+  const at = U("2026-11-02T05:37Z"), log = console.log, out = tmp();
+  const liar = node(at); const call = liar.call.bind(liar);
+  liar.call = async (m, a) => { const r = await call(m, a); for (const it of r.block_items) if (it.block.header.signer === P[2]) it.block.header.signer = P[0]; return r; };
+  let r; console.log = () => {};
+  try { r = await run({ p: liar, check: node(at), prev: "", out, vhpOf, raceContract: null }); } finally { console.log = log; }
+  assert.ok(r.problems.some((x) => /disagree about the last 6 hours of blocks/.test(x)));
+  assert.ok(!fs.existsSync(path.join(out, "W002.json")) || !race(out, "2026-11-02T06").cards[0], "no card");
+});
+
+test("audit BX-3 b: the card uses each producer's highest sampled VHP of the last 6 hours (moving VHP away before a card doesn't pay)", async () => {
+  const at = U("2026-11-02T05:37Z"), prev = tmp();
+  // P[3] (140 VHP) looked like 400 VHP at a sample 2 hours ago, and now reads 140 (it moved VHP away).
+  fs.writeFileSync(path.join(prev, "vhp-samples.json"), JSON.stringify({ v: 1, updated: "2026-11-02T03:37:00.000Z",
+    samples: [{ at: at - 2 * H, height: 5000, vhp: { [P[3]]: String(400 * 1e8) } }, { at: at - 7 * H, height: 4000, vhp: { [P[2]]: String(900 * 1e8) } }] }));
+  const out = await hourly(at, prev);
+  const card = race(out, "2026-11-02T06").cards[0], all = [...card.field, ...card.paddock];
+  assert.equal(card.samples, 1, "the card says how many samples it used (fewer than 12: Block X won't score with it)");
+  assert.equal(all.find((x) => x.a === P[3]).vhp, 400, "the 6-hour high, not the low read now");
+  // P[2]: its 900 sample is older than 6 hours and ignored. (It may rise a little above 200: with P[3] counted at 400,
+  // P[2]'s real share of blocks is above its card share, and rule 3 lifts it to what its production supports.)
+  const v2 = all.find((x) => x.a === P[2]).vhp;
+  assert.ok(v2 >= 200 && v2 < 600, `a sample older than 6 hours is ignored, not its 900 (${v2})`);
+});
+
+test("audit BX-44: race cards have exact shapes, and a published card can never change", async () => {
+  const a = await hourly(U("2026-11-02T05:37Z"), "");
+  const run2 = (dir, pub) => { try { execFileSync("python3", ["-c", checkPy, dir, pub], { stdio: "pipe" }); return true; } catch { return false; } };
+  assert.ok(run2(a, a), "the same files again: fine");
+  const w = week(a), changed = tmp(), w2 = JSON.parse(JSON.stringify(w));
+  const r = w2.races.find((x) => x.cards.some(Boolean)); const i = r.cards.findIndex(Boolean);
+  r.cards[i] = { ...r.cards[i], c: r.cards[i].c + 1 };
+  fs.writeFileSync(path.join(changed, "W002.json"), JSON.stringify(w2));
+  assert.equal(run2(changed, a), false, "a published card would change");
+  const extra = tmp(), w3 = JSON.parse(JSON.stringify(w)); const r3 = w3.races.find((x) => x.cards.some(Boolean));
+  r3.cards[r3.cards.findIndex(Boolean)].field[0].evil = 1;
+  fs.writeFileSync(path.join(extra, "W002.json"), JSON.stringify(w3));
+  assert.equal(shapeOk(extra), false, "an extra key in a card row");
+});
 
 // ── the KnodeGames Vault's results file (race-data/vault/W<week>.json, game 7) ──
 const VW = "2026-11-02T00";                                   // the race with picks, in week 2
@@ -372,7 +435,11 @@ test("vault: a file published as final is never rewritten, even if the week's da
   assert.equal(fs.readFileSync(path.join(later, "vault", "W2.json"), "utf8"), before);
 });
 
-test("publish check: refuses vault files that are wrong in any way, and a final file for a week that hasn't ended", async () => {
+// Blind review V1 (round 10): a wrong vault file is held on its own (the check drops vault/ and passes the rest), so it
+// never stops the race cards. held(d): the check passed and took vault/ out; kept(d): it passed and left vault/ in.
+const held = (d, now) => shapeOk(d, now) && !fs.existsSync(path.join(d, "vault"));
+const kept = (d, now) => shapeOk(d, now) && fs.existsSync(path.join(d, "vault"));
+test("publish check: holds vault files that are wrong in any way, and a final file for a week that hasn't ended; the race files still publish", async () => {
   const { dir } = await weekTwoDone();
   const out = await picksRun(U("2026-11-09T05:37Z"), dir);
   const good = vaultOf(out);
@@ -380,7 +447,7 @@ test("publish check: refuses vault files that are wrong in any way, and a final 
   const A = Array.from({ length: 11 }, (_, i) => "1" + String.fromCharCode(65 + i).repeat(33));
   const row = (player, points) => ({ player, points });
   const okRows = { ...good, first: [], second: [], rows: [row(W1, 255), row(W2, 254), row(W3, 254)] };
-  assert.ok((() => { const d = tmp(); fs.mkdirSync(path.join(d, "vault")); fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify(okRows)); return shapeOk(d); })(), "staked rows are fine");
+  assert.ok((() => { const d = tmp(); fs.mkdirSync(path.join(d, "vault")); fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify(okRows)); return kept(d); })(), "staked rows are fine");
   const cases = [
     { ...good, game: 2 }, { ...good, first: A }, { ...good, second: [GUEST] }, { ...good, final: false },
     { ...good, first: [W1, W2], second: [W3] }, { ...good, first: ["<img src=x>"] }, { ...good, extra: 1 }, { ...good, final: 1 },
@@ -392,14 +459,16 @@ test("publish check: refuses vault files that are wrong in any way, and a final 
   ];
   for (const c of cases) {
     const d = tmp(); fs.mkdirSync(path.join(d, "vault")); fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify(c));
-    assert.equal(shapeOk(d), false, JSON.stringify(c));
+    assert.ok(held(d), JSON.stringify(c));
   }
   const named = tmp(); fs.mkdirSync(path.join(named, "vault")); fs.writeFileSync(path.join(named, "vault", "W3.json"), JSON.stringify(good));
-  assert.equal(shapeOk(named), false, "the file name must match its week");
+  assert.ok(held(named), "the file name must match its week");
   // Week 2 ends Mon 9 Nov 00:00 UTC: by the runner's clock just before then, a final file is refused; a waiting one is fine.
-  assert.equal(shapeOk(out, String(Date.parse("2026-11-08T23:59Z") / 1000)), false);
+  const early = tmp(); fs.cpSync(out, early, { recursive: true });
+  assert.ok(held(early, String(Date.parse("2026-11-08T23:59Z") / 1000)));
+  assert.ok(fs.readdirSync(early).some((f) => /^W[0-9]{3}\.json$/.test(f)), "the week files stay and publish");
   const waiting = tmp(); fs.mkdirSync(path.join(waiting, "vault")); fs.writeFileSync(path.join(waiting, "vault", "W2.json"), JSON.stringify({ ...good, final: false, first: [], second: [] }));
-  assert.ok(shapeOk(waiting, String(Date.parse("2026-11-08T23:59Z") / 1000)));
+  assert.ok(kept(waiting, String(Date.parse("2026-11-08T23:59Z") / 1000)));
   assert.doesNotMatch(yml.replace(/RACE_CHECK_NOW"\) or time\.time\(\)/, ""), /RACE_CHECK_NOW/, "the workflow never sets the check's clock");
 });
 
@@ -514,9 +583,19 @@ test("publish job: a final file stays locked even when it was stored pretty-prin
   const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
   const { dir } = await weekTwoDone();
   const out = await picksRun(U("2026-11-09T05:37Z"), dir);
-  fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify(vaultOf(out), null, 2));     // "final": true, with a space
+  const v = vaultOf(out);
+  // Round 8 (BX-122): the publish job itself never writes a pretty-printed file: it isn't the recorder's own form.
+  fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify(v, null, 2));
+  const pretty = publish(out, bare);
+  assert.equal(pretty.ok, false); assert.match(pretty.out, /recorders own JSON form/);
+  // But one already on the branch (put there some other way) still locks: "final": true, with a space.
+  fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify(v) + "\n");
   assert.ok(publish(out, bare).ok);
-  fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify({ ...vaultOf(out), first: [W3], second: [] }));
+  const wt = tmp(); execFileSync("git", ["clone", "-q", "-b", "race-data", bare, wt]);
+  fs.writeFileSync(path.join(wt, "vault", "W2.json"), JSON.stringify(v, null, 2));
+  const g = (...a) => execFileSync("git", ["-C", wt, "-c", "user.name=t", "-c", "user.email=t@t", ...a]);
+  g("commit", "-qam", "pretty"); g("push", "-q", "origin", "race-data");
+  fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify({ ...v, first: [W3], second: [] }) + "\n");
   const r = publish(out, bare);
   assert.equal(r.ok, false); assert.match(r.out, /Refusing to change vault\/W2\.json/);
 });
@@ -546,22 +625,31 @@ test("record job: last run's files are read; a missing branch starts fresh; any 
   assert.ok(fs.existsSync(path.join(got.prev, "W002.json")) && fs.existsSync(path.join(got.prev, "board.json")));
 });
 
-test("vault: with this repository's v5 contract ABI the stakes can't be read: the file is never final (fails closed)", async () => {
-  const abi = JSON.parse(fs.readFileSync(path.resolve(APP, "game/abi/kpred.koilib.json"), "utf8"));
-  const { NO_V6_ABI } = await import(path.resolve(APP, "bot/race.ts"));
+test("vault (B1-1 / V4 / B1-5): on a chain without get_game_player (v5) the stake reads fail fast, once per node; the cards still publish and the file is never final", async () => {
+  const abiText = fs.readFileSync(path.resolve(APP, "game/abi/kpred.koilib.json"), "utf8");
+  assert.ok(JSON.parse(abiText).methods.get_game_player, "race.ts reads stakes with the v6 ABI");
+  assert.equal(abiText, fs.readFileSync(path.resolve(APP, "game/abi/kpred-v6.koilib.json"), "utf8"), "the same ABI as Block X reads");
+  const src = fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8");
+  assert.match(src, /game\/abi\/kpred\.koilib\.json/);
+  assert.doesNotMatch(src, /return \{ staked: false, earning: false \};\s*\/\/ the contract on chain isn't v6/, "no early 'not v6 yet' answer (V4)");
   const { dir } = await weekTwoDone();
   const out = tmp();
+  // A v5 chain: every contract read fails (no such entry point). Count them.
+  let reads = 0;
+  const v5 = () => Object.assign(node(U("2026-11-09T05:37Z")), { async readContract() { reads++; throw new Error("unknown entry point"); } });
   const log = console.log; const lines = []; console.log = (x) => lines.push(String(x));
+  const t0 = Date.now();
   try {
-    // The recorder's own stake reader (no stakedOf), against the made-up chain.
-    await run({ p: node(U("2026-11-09T05:37Z")), check: node(U("2026-11-09T05:37Z")), prev: dir, out, vhpOf, raceContract: "x",
-      picksOf: async () => [] });
+    await run({ p: v5(), check: v5(), prev: dir, out, vhpOf, raceContract: "x", picksOf: async () => [] });
   } finally { console.log = log; }
-  if (abi.methods.get_game_player) return;                          // the v6 ABI has landed: covered by the other tests
-  assert.equal(vaultOf(out).final, false);
-  assert.equal(lines.filter((l) => l.includes(NO_V6_ABI)).length, 1, "one warning a run, not one per wallet");
+  assert.ok(Date.now() - t0 < 20000, "fails fast (about 2 s of retry per node, not a minute per wallet)");
+  assert.ok(reads > 0 && reads <= 4, `at most 2 tries on each of the 2 nodes, whatever the number of players (got ${reads})`);
+  assert.equal(vaultOf(out).final, false, "never final while stakes can't be read");
+  assert.equal(lines.filter((l) => l.includes("stake reads failed on a node")).length, 1, "one warning a run, not one per wallet");
+  assert.ok(fs.existsSync(path.join(out, "W002.json")), "the race files are still written");
   const board = JSON.parse(fs.readFileSync(path.join(out, "board.json"), "utf8"));
   assert.ok(board.lastWeek.rows.every((r) => r.ranked === false), "the boards show everyone on Free play meanwhile");
+  assert.ok(shapeOk(out), "and pass the publish check");
 });
 
 test("boards: each row's place on its own board (Staked or Free play), tied wallets sharing it", async () => {
@@ -626,6 +714,25 @@ test("earns: in the recorder's board, weekly boards only; >10 free tied: the 10 
     const d = tmp(), j = JSON.parse(JSON.stringify(board)); Object.assign(j.week.rows[0], bad);
     fs.writeFileSync(path.join(d, "board.json"), JSON.stringify(j)); assert.equal(shapeOk(d), false, JSON.stringify(bad));
   }
+});
+
+test("blind review V1 (round 10): the publish job holds a bad vault file and still pushes the race files; a final one never changes", async () => {
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const { dir } = await weekTwoDone();
+  const out = await picksRun(U("2026-11-09T05:37Z"), dir);
+  const v = vaultOf(out);
+  fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify({ ...v, first: [W1], second: [W1] }) + "\n");   // a wallet twice
+  const r = publish(out, bare);
+  assert.ok(r.ok, r.out); assert.match(r.out, /vault results held, not published this run: vault\/W2\.json/);
+  const files = execFileSync("git", ["--git-dir", bare, "ls-tree", "-r", "--name-only", "race-data"]).toString().split("\n");
+  assert.ok(files.includes("W002.json") && files.includes("board.json"), "the race files are published");
+  assert.ok(!files.some((f) => f.startsWith("vault/")), "the bad vault file isn't");
+  // A good final file publishes; a later changed one is still refused outright (the lock holds).
+  const again = await picksRun(U("2026-11-09T05:37Z"), dir);
+  assert.ok(publish(again, bare).ok);
+  fs.writeFileSync(path.join(again, "vault", "W2.json"), JSON.stringify({ ...vaultOf(again), first: [W3], second: [] }) + "\n");
+  const ch = publish(again, bare);
+  assert.equal(ch.ok, false); assert.match(ch.out, /Refusing to change vault\/W2\.json/);
 });
 
 test("prizes from week: the Race earns in the vault from week 3; earlier weeks pay nothing and show no medals", async () => {

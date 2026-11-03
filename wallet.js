@@ -279,6 +279,16 @@
   const RESTORE_WARN = "Only paste a key you backed up yourself. Anyone who gives you a key can take it back.";
   // Audit (guest) L-3: what a guest sees when the sponsor won't pay (never Kondor or KOIN Vault advice).
   const GUEST_NO_FREE = "Free answers are used up for today — try again after 00:00 UTC (5pm PT), or connect a wallet.";
+  // Audit SP-18: say which limit it was. The free pool is released by the hour (sponsor v3), so "this hour" first.
+  const guestRefusal = (m) =>
+    /switched off/i.test(m) ? "Free play is paused for now (the Mana sponsor is switched off). Try again later, or connect a wallet."   // audit SP-43
+    : /free-player|free answers|FREE_USED_UP|free play/i.test(m) ? "Today's free play is used up for this hour — more opens on the hour (UTC). Try again then, or connect a wallet."
+      : /this player's daily/i.test(m) ? "This guest has used its free Mana for today — try again after 00:00 UTC (5pm PT)."
+      : /weekly/i.test(m) ? "This guest has used its free Mana for this week — try again Monday (00:00 UTC)."
+      : /today's sponsored mana is used up/i.test(m) ? GUEST_NO_FREE
+      : /mana limit above|per-transaction cap|what these actions may ask/i.test(m) ? "The page asked for more Mana than the sponsor allows for this action (the site is being updated). Try again in a few minutes."
+      : /insufficient|\brc\b|rc_limit|resource/i.test(m) ? "The network turned this down for lack of Mana. Nothing happened; try again in a few minutes."
+      : GUEST_NO_FREE;
   // Audit (guest) L-5: on Koinos mainnet a guest only ever names the live Knode Games sponsor as payer and only answers on the
   // Knode Games question game, whatever deployment.json says (pinned like the chain id).
   const PINNED_SPONSOR = "1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8", PINNED_GAME = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
@@ -287,19 +297,38 @@
   const PINNED_RACE = "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K";
   const guestGame = () => (W.chainId === MAINNET_CHAIN_ID ? PINNED_GAME : (W.gameContract || null));
   const guestRace = () => (W.chainId === MAINNET_CHAIN_ID ? (PINNED_RACE || null) : ((W.sponsor && W.sponsor.race) || null));
-  /** A guest may sign only free play: game answers, and picks on the race contract. */
-  const guestOp = (o, game, race) => !!(o && o.call_contract && ((game && o.call_contract.contract_id === game && Number(o.call_contract.entry_point) === ANSWER)
-    || (race && o.call_contract.contract_id === race && Number(o.call_contract.entry_point) === PICK)));
+  // The KnodeGames Picks contract (picks-data/deployment.json), pinned the same way (live on mainnet since 2026-10-30).
+  const PINNED_PICKS = "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm";   // the mainnet Picks contract (picks-data/deployment.json)
+  const guestPicks = () => (W.chainId === MAINNET_CHAIN_ID ? (PINNED_PICKS || null) : ((W.sponsor && W.sponsor.picks) || null));
+  /** A guest may sign only free play: game answers, picks on the race contract, and KnodeGames picks. */
+  const guestOp = (o, game, race, picks) => !!(o && o.call_contract && ((game && o.call_contract.contract_id === game && Number(o.call_contract.entry_point) === ANSWER)
+    || (race && o.call_contract.contract_id === race && Number(o.call_contract.entry_point) === PICK)
+    || (picks && o.call_contract.contract_id === picks && Number(o.call_contract.entry_point) === PICK)));
   // Owner switch: guest play is on only when game-data/deployment.json has "sponsor": { ..., "guest": true }. Keep it off
   // the site now has its own domain (knodegames.com), so no other Pages site shares its storage.
   // Pages that set the wallet up without the sponsor (swap, burn, the info pages) still offer guest play: the header
   // reads game-data/deployment.json and passes its sponsor settings here (setGuestConfig), so the switch is the same
   // everywhere. A guest still signs only free play (answers and race picks); anything else is refused with a reason.
   const guestCfg = () => (W.sponsor && W.sponsor.guest === true ? W.sponsor : W.guestConfig && W.guestConfig.guest === true ? W.guestConfig : null);
-  const guestOn = () => !!guestCfg();
+  // Audit BX-1 / BX-40 / BX-51: guest keys exist only on Knode Games' own address (and this computer, for testing). Not
+  // a list of bad addresses (*.github.io, a trailing dot, file: pages would slip past one) but the few good ones.
+  // Everywhere else every guest path is closed: create, restore, backup, reconnect, switch and sign never touch the key.
+  const GUEST_ORIGINS = ["knodegames.com", "www.knodegames.com", "localhost", "127.0.0.1"];
+  const guestOrigin = () => {
+    // Audit BX-67: https only on knodegames.com; plain http only on this computer (localhost, 127.0.0.1).
+    try {
+      const l = window.location, h = String((l && l.hostname) || "");
+      if (!l || !GUEST_ORIGINS.includes(h)) return false;
+      return l.protocol === "https:" || (l.protocol === "http:" && (h === "localhost" || h === "127.0.0.1"));
+    } catch { return false; }
+  };
+  const NO_GUEST = () => Promise.reject(new Error("Guest play is only on knodegames.com."));
+  const guestLib = () => (guestOrigin() && window.KGuest ? window.KGuest
+    : { load: NO_GUEST, create: NO_GUEST, restore: NO_GUEST, forget: NO_GUEST, signer: NO_GUEST, backupWif: NO_GUEST, isWif: () => false, lastAddress: () => null });
+  const guestOn = () => guestOrigin() && !!guestCfg();
   // Ready only while the sponsor pays (deployment.json "payer": "sponsor"): the page's own setting, or the header's copy.
   const guestPayer = () => (W.sponsor && W.sponsor.guest === true ? W.payer : W.guestConfig ? W.guestConfig.payer : "self");
-  const guestReady = () => { const g = guestCfg(); return !!(window.KGuest && g && typeof g.address === "string" && g.address && guestPayer() === "sponsor"); };
+  const guestReady = () => { const g = guestCfg(); return !!(guestOrigin() && window.KGuest && g && typeof g.address === "string" && g.address && guestPayer() === "sponsor"); };
   function guestOption(pick) {
     if (!window.KGuest || !guestOn()) return null;   // guest.js missing, or guest play switched off (every page loads it; a guest signs only answers and picks)
     const ready = guestReady();
@@ -312,13 +341,13 @@
   }
   async function connectGuest() {
     close();
-    let g = await window.KGuest.load();
+    let g = await guestLib().load();
     const isNew = !g;
     if (!g) {
       // Audit (guest) M-2: a guest this device had before is gone (the browser cleared it): say so, don't silently start over.
-      const last = window.KGuest.lastAddress && window.KGuest.lastAddress();
+      const last = guestLib().lastAddress && guestLib().lastAddress();
       if (last) return guestMissing(last);
-      g = await window.KGuest.create();
+      g = await guestLib().create();
     }
     setAddress("guest", g.address);
     if (isNew) guestWelcome(g.address);
@@ -332,7 +361,7 @@
           h("button", { class: "kw-btn", type: "button", onclick: async () => { resolve(await restoreGuest()); } }, "Restore from backup"),
           h("button", { class: "kw-btn", type: "button", onclick: async () => {
             close();
-            try { const g = await window.KGuest.create(); setAddress("guest", g.address); guestWelcome(g.address); resolve(g.address); }
+            try { const g = await guestLib().create(); setAddress("guest", g.address); guestWelcome(g.address); resolve(g.address); }
             catch (e) { W.toast && W.toast(String(e.message || e), 8000); resolve(null); }
           } }, "Start a new guest")));
       onClose = () => resolve(null);
@@ -349,7 +378,7 @@
   }
   async function backupGuest() {
     // Audit (guest) L-4: read the key fresh, and show it only if it is the guest this page is connected as.
-    const wif = await window.KGuest.backupWif();
+    const wif = await guestLib().backupWif();
     if (!wif) { close(); W.toast && W.toast("No guest key on this device.", 6000); return; }
     let keyAddress = null;
     try { keyAddress = lib.Signer.fromWif(wif).getAddress(); } catch { /* unreadable */ }
@@ -375,10 +404,10 @@
     return new Promise((resolve) => {
       const go = h("button", { class: "kw-btn", type: "button", onclick: async () => {
         try {
-          if (!window.KGuest.isWif(input.value)) { status.textContent = "That isn't a valid private key (WIF)."; return; }
+          if (!guestLib().isWif(input.value)) { status.textContent = "That isn't a valid private key (WIF)."; return; }
           if (!window.confirm(`${RESTORE_WARN} Continue?`)) return;
-          if (await window.KGuest.load() && !window.confirm("This replaces the guest already on this device. Make sure it's backed up. Continue?")) return;
-          const g = await window.KGuest.restore(input.value);
+          if (await guestLib().load() && !window.confirm("This replaces the guest already on this device. Make sure it's backed up. Continue?")) return;
+          const g = await guestLib().restore(input.value);
           input.value = "";
           setAddress("guest", g.address); close(); resolve(g.address);
         } catch (e) { status.textContent = String(e.message || e); }
@@ -398,7 +427,7 @@
         h("button", { class: "kw-btn", type: "button", onclick: () => { close(); disconnect(); } }, "Disconnect"),
         h("button", { class: "kw-btn kw-danger", type: "button", onclick: async () => {
           if (!window.confirm("Forget this guest? Without a backup its points and any prize are gone for good.")) return;
-          await window.KGuest.forget(); close(); forget(W.address); W.toast && W.toast("Guest forgotten on this device.", 6000);
+          await guestLib().forget(); close(); forget(W.address); W.toast && W.toast("Guest forgotten on this device.", 6000);
         } }, "Forget this guest")),
       h("p", {}, "Want to stake and share the weekly pool? ", h("a", { href: "get.html" }, "Get a wallet and VHP"), "."));
   }
@@ -425,32 +454,34 @@
   async function sendGuest(label, ops) {
     const sp = sponsorFor(ops);
     const game = guestGame();
-    const race = guestRace();
+    const race = guestRace(), picks = guestPicks();
     // What a guest may sign is checked first, so a swap or a stake gets "connect a real wallet", not a sponsor message.
-    const freeOnly = !!game && ops.length > 0 && ops.every((o) => guestOp(o, game, race));
+    const freeOnly = !!game && ops.length > 0 && ops.every((o) => guestOp(o, game, race, picks));
     if (!freeOnly) throw guestCant(ops);
     if (W.chainId === MAINNET_CHAIN_ID && (!sp || sp.address !== PINNED_SPONSOR || !Array.isArray(sp.covers) || !sp.covers.includes(PINNED_GAME)))
       throw new Error("Guest play is paused: the page's Mana sponsor settings aren't the live Knode Games sponsor. Nothing was sent.");
     if (!sp) throw new Error("Guest play works on the game pages. Nothing was sent.");
-    const rcLimit = String(sp.rcLimit || "100000000");
-    if (!(await sponsorSaysYes(sp, rcLimit, true))) throw new Error(GUEST_NO_FREE);
-    const signer = await window.KGuest.signer();
+    const rcLimit = rcFor(sp, ops, String(sp.rcLimit || "100000000"));
+    // Audit SP-34: the sponsor's own reason (e.g. "released on the hour"), worded for a guest.
+    const yes = await sponsorAnswer(sp, rcLimit, gamesOfOps(sp, ops), true);
+    if (!yes.ok) throw new Error(yes.reason ? guestRefusal(yes.reason) : GUEST_NO_FREE);
+    const signer = await guestLib().signer();
     if (signer.getAddress() !== W.address) throw new Error("The guest key on this device changed. Reconnect as a guest.");
     signer.provider = W.provider;
     const tx = new lib.Transaction({ signer, provider: W.provider, options: { payer: sp.address, payee: W.address, rcLimit, chainId: W.chainId } });
     for (const op of ops) await tx.pushOperation(op);
     const prepared = await tx.prepare({ payer: sp.address, payee: W.address, rcLimit, chainId: W.chainId });
-    checkGuestTx(prepared, { sponsor: sp.address, payee: W.address, chainId: W.chainId, game, race, rcLimit });
+    checkGuestTx(prepared, { sponsor: sp.address, payee: W.address, chainId: W.chainId, game, race, picks, rcLimit });
     W.status && W.status(`Sending “${label}” (free: the Mana sponsor pays)…`);
     tx.transaction = await tx.sign();
-    checkGuestTx(tx.transaction, { sponsor: sp.address, payee: W.address, chainId: W.chainId, game, race, rcLimit });
+    checkGuestTx(tx.transaction, { sponsor: sp.address, payee: W.address, chainId: W.chainId, game, race, picks, rcLimit });
     let receipt;
     try { receipt = await tx.send(); }
     catch (e) {
       // Never retried with the guest's own Mana (it has none). A sponsor refusal gets the guest message; a game error
       // (e.g. "answers for this question are closed") is shown as is.
       const m = String((e && e.message) || e);
-      if (/SPONSOR|insufficient|\brc\b|rc_limit|mana|payer|authori[sz]/i.test(m)) throw new Error(GUEST_NO_FREE);
+      if (/SPONSOR|insufficient|\brc\b|rc_limit|mana|payer|authori[sz]/i.test(m)) throw new Error(guestRefusal(m));
       throw e;
     }
     if (receipt && receipt.reverted) throw new Error(JSON.stringify(receipt.logs || "the contract refused it"));
@@ -480,11 +511,12 @@
     if (want.chainId && hd.chain_id !== want.chainId) throw new Error("The transaction is for another chain. Nothing was sent.");
     if (BigInt(hd.rc_limit || 0) > BigInt(want.rcLimit)) throw new Error("The transaction asks for more Mana than expected. Nothing was sent.");
     const ops = tx.operations || [];
-    // (self-contained: answers on the game, or picks (0x8ce33c6c) on the pinned race contract)
+    // (self-contained: answers on the game, or picks (0x8ce33c6c) on the pinned race or KnodeGames Picks contract)
     const ok = (o) => !!(o && o.call_contract && ((want.game && o.call_contract.contract_id === want.game && Number(o.call_contract.entry_point) === ANSWER)
-      || (want.race && o.call_contract.contract_id === want.race && Number(o.call_contract.entry_point) === 0x8ce33c6c)));
+      || (want.race && o.call_contract.contract_id === want.race && Number(o.call_contract.entry_point) === 0x8ce33c6c)
+      || (want.picks && o.call_contract.contract_id === want.picks && Number(o.call_contract.entry_point) === 0x8ce33c6c)));
     if (!ops.length || !ops.every(ok))
-      throw new Error("A guest signs only game answers and race picks. Nothing was sent.");
+      throw new Error("A guest signs only game answers and picks. Nothing was sent.");
   }
 
   /** Disconnect: ends the KOIN Vault session and forgets every remembered account on this device. */
@@ -530,13 +562,14 @@
   async function sendKondor(label, ops, opts = {}) {
     const sp = !opts.gamePays ? sponsorFor(ops) : null;
     // A transaction made only of game answers is sponsored for any wallet (free play), within the sponsor's caps.
-    // Free play (game answers, race picks) is sponsored for any wallet, within the sponsor's caps.
+    // Free play (game answers, race picks, KnodeGames picks with sponsor v3) is sponsored for any wallet, within the sponsor's caps.
     const answerOnly = !!sp && ops.every((o) => o.call_contract && ((o.call_contract.contract_id === sp.covers[0] && Number(o.call_contract.entry_point) === ANSWER)
-      || (sp.race && o.call_contract.contract_id === sp.race && Number(o.call_contract.entry_point) === PICK)));
+      || (sp.race && o.call_contract.contract_id === sp.race && Number(o.call_contract.entry_point) === PICK)
+      || (sp.picks && o.call_contract.contract_id === sp.picks && Number(o.call_contract.entry_point) === PICK)));
     // Answers are light (rcLimit, 1 Mana); staking, withdrawing, swapping and claiming do much more in one transaction
-    // (approve, transfer, burn, stake), so they ask for rcLimitOther (default 3 Mana).
-    const rcLimit = sp ? String(answerOnly ? (sp.rcLimit || "100000000") : (sp.rcLimitOther || "300000000")) : null;
-    if (sp && await sponsorSaysYes(sp, rcLimit, answerOnly)) {
+    // (approve, transfer, burn, stake), so they ask for rcLimitOther (audit SP-17: the sponsor's per-transaction cap, 1 Mana).
+    const rcLimit = sp ? rcFor(sp, ops, String(answerOnly ? (sp.rcLimit || "100000000") : (sp.rcLimitOther || "100000000"))) : null;
+    if (sp && (await sponsorAnswer(sp, rcLimit, gamesOfOps(sp, ops), answerOnly)).ok) {
       try { return await sendKondorWith(label, ops, { ...opts, sponsor: sp.address, rcLimit }); }
       catch (e) {
         // The network turned the sponsored transaction down before it was included (nothing happened, nothing was
@@ -548,13 +581,19 @@
     }
     // Not sponsored: the player's own Mana, always named as payer (owner, 2026-10-28: the game contract pays for no one,
     // so Kondor's free Mana option, which names the game, would only be refused).
-    return sendKondorWith(label, ops, { ...opts, ownMana: true });
+    // Audit BX-10: an explicit Mana limit (not "all of it"): 1 Mana for answers and picks, 10 for anything else, never
+    // more than the account has. The chain charges only what is used; the limit is only held aside until it settles.
+    let own = answerOnly || (ops.length && ops.every((o) => o.call_contract && [ANSWER, PICK].includes(Number(o.call_contract.entry_point)))) ? 100000000n : 1000000000n;
+    try { const have = BigInt(await W.provider.getAccountRc(W.address)); if (have > 0n && have < own) own = have; } catch { /* keep the limit */ }
+    return sendKondorWith(label, ops, { ...opts, ownMana: true, rcLimit: own.toString() });
   }
 
   async function sendKondorWith(label, ops, opts = {}) {
     const signer = window.kondor.getSigner(W.address);
     try { signer.provider = W.provider; } catch {}
-    const options = opts.sponsor ? { payer: opts.sponsor, payee: W.address, rcLimit: opts.rcLimit } : opts.ownMana ? { payer: W.address } : null;
+    // Audit BXW-2: name the chain in the transaction (not re-read from the node by koilib) when the page knows it.
+    const chain = W.chainId ? { chainId: W.chainId } : {};
+    const options = opts.sponsor ? { payer: opts.sponsor, payee: W.address, rcLimit: opts.rcLimit, ...chain } : opts.ownMana ? { payer: W.address, ...(opts.rcLimit ? { rcLimit: opts.rcLimit } : {}), ...chain } : null;
     const tx = new lib.Transaction({ signer, provider: W.provider, ...(options ? { options } : {}) });
     for (const op of ops) await tx.pushOperation(op);
     W.status && W.status(`Confirm “${label}” in Kondor…`);
@@ -564,6 +603,8 @@
         throw new Error("Kondor did not hand back a signed transaction, so the page can't check who pays the Mana. Nothing was sent; try again, or claim later.");
       }
       tx.transaction = signed;
+      // Audit BXW-2: send only what the page built: this chain, no higher Mana limit, the same operations.
+      checkSigned(signed, ops, opts.rcLimit || null);
       const payer = signed.header && signed.header.payer;
       // ownMana: never the game contract. The sponsor (when chosen) or the player may pay.
       const okPayers = opts.sponsor ? [opts.sponsor, W.address] : [W.address];
@@ -585,9 +626,31 @@
     return null;
   }
 
+  /** The signed transaction is for this chain (when the page knows it), asks for no more Mana than the page set (when
+   *  it set a limit), and carries exactly the operations the page built (same contracts, entry points and arguments). */
+  /** Audit BX-50: arguments compared as bytes, so a wallet that re-encodes the same bytes (padding, base64 flavour)
+   *  isn't refused; anything else must match exactly. */
+  function sameArgs(x, y) {
+    const bytes = (v) => { if (v instanceof Uint8Array) return v; try { return lib.utils.decodeBase64url(String(v || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")); } catch { return null; } };
+    const a = bytes(x), b = bytes(y);
+    if (!a || !b) return String(x || "") === String(y || "");
+    return a.length === b.length && a.every((v, i) => v === b[i]);
+  }
+  function checkSigned(signed, ops, rcLimit) {
+    const hd = signed && signed.header;
+    if (!hd) throw new Error("Kondor handed back a transaction without a header. Nothing was sent.");
+    if (W.chainId && hd.chain_id !== W.chainId) throw new Error("The signed transaction is for another chain. Nothing was sent.");
+    if (rcLimit != null && BigInt(hd.rc_limit || 0) > BigInt(rcLimit)) throw new Error("Kondor raised the Mana limit. Nothing was sent.");
+    const got = signed.operations || [];
+    const same = (a, b) => !!(a && b && a.call_contract && b.call_contract && a.call_contract.contract_id === b.call_contract.contract_id
+      && Number(a.call_contract.entry_point) === Number(b.call_contract.entry_point) && sameArgs(a.call_contract.args, b.call_contract.args));
+    if (got.length !== ops.length || ops.some((o, i) => !same(o, got[i]))) throw new Error("Kondor changed what is signed. Nothing was sent.");
+  }
+
   // ── Mana sponsor (sponsor/README.md) ──
   // deployment.json "payer": "sponsor" (the sponsor wallet pays the Mana) or "self" (players' own Mana; also the default).
-  // "sponsor": { address, covers: [game, desk, vhp, koin], rcLimit (answers), rcLimitOther (everything else) }. The sponsor contract decides on chain; the page
+  // "sponsor": { address, covers: [game, desk, vhp, koin], rcLimit (answers), rcLimitOther (everything else), rcLimits (v3:
+  // each action's own limit) }. The sponsor contract decides on chain; the page
   // only picks it when every operation is one it pays for and its caps (would_pay) say yes, else the player's own Mana.
   // Answers are sponsored for any wallet (free play); everything else only for wallets with VHP or a stake.
   const APPROVE = 0x74e21680, MOVE_STAKE = 0x7c268e69, WOULD_PAY = 0xda1fd8f5, ANSWER = 0x0db52f40, CLAIM = 0xdd1b3c31, PICK = 0x8ce33c6c;
@@ -605,18 +668,77 @@
     }
     return sp;
   }
-  /** would_pay(account, rc_limit, answer_only): true only when the sponsor answers yes (any error: no). */
-  async function sponsorSaysYes(sp, rcLimit, answerOnly) {
+  /** Sponsor v3 (owner, 2026-10-28): each action's own Mana limit ("rcLimits": "contract:entry" → Mana, from the
+   *  sponsor's mana-report). When every operation has one, ask for their sum (never more than the old limit), so a
+   *  0.05-Mana pick counts about 0.1 against the caps instead of 1. Otherwise the old limit, as before. */
+  function rcFor(sp, ops, fallback) {
+    const m = sp && sp.rcLimits;
+    if (!m || typeof m !== "object") return fallback;
+    let sum = 0n;
+    for (const o of ops) {
+      const c = o && o.call_contract;
+      const k = c && `${c.contract_id}:${(Number(c.entry_point) >>> 0).toString(16).padStart(8, "0")}`;
+      const v = k && m[k];
+      if (typeof v !== "string" || !/^[1-9][0-9]{0,15}$/.test(v)) return fallback;
+      sum += BigInt(v);
+    }
+    return String(sum < BigInt(fallback) ? sum : BigInt(fallback));
+  }
+  /** The calls' games for would_pay (audit SP-22, SP-38: as the sponsor's authorize reads them): race picks are game
+   *  7; a KnodeGames pick and the vault's own calls (deposit_to, withdraw_from, move_stake, claim_game) name it in
+   *  argument field 2. Every game of a batch, at most 4. */
+  function gameOfOps(sp, ops) { return gamesOfOps(sp, ops)[0] || 0; }
+  const VAULT_CALLS = [0x7bb5c436, 0x5b0aaef8, 0x7c268e69, 0x4107e3ab];
+  function gamesOfOps(sp, ops) {
+    const out = [], game = sp.game || (Array.isArray(sp.covers) ? sp.covers[0] : null);
+    for (const o of ops) {
+      const c = o && o.call_contract;
+      if (!c) continue;
+      const e = Number(c.entry_point) >>> 0;
+      let g = 0;
+      if (sp.race && c.contract_id === sp.race && e === PICK) g = 7;
+      else if ((sp.picks && c.contract_id === sp.picks && e === PICK) || (game && c.contract_id === game && VAULT_CALLS.includes(e))) g = varintField(c.args, 2);
+      if (g > 0 && !out.includes(g) && out.length < 4) out.push(g);
+    }
+    return out;
+  }
+  /** The first varint in protobuf field `want` of base64url (or byte) arguments, else 0. */
+  function varintField(args, want) {
+    let b;
+    try { b = typeof args === "string" ? lib.utils.decodeBase64url(args) : args instanceof Uint8Array ? args : new Uint8Array(0); } catch { return 0; }
+    let i = 0;
+    const vint = () => { let v = 0, sh = 0, k = 0; for (;;) { if (i >= b.length || k > 4) return -1; const x = b[i++]; v += (x & 0x7f) * 2 ** sh; sh += 7; k++; if (!(x & 0x80)) return v; } };
+    while (i < b.length) {
+      const tag = vint(); if (tag < 0) return 0;
+      const f = Math.floor(tag / 8), wt = tag % 8;
+      if (wt === 0) { const v = vint(); if (v < 0) return 0; if (f === want) return v > 0xffffffff ? 0 : v; }
+      else if (wt === 2) { const n = vint(); if (n < 0 || i + n > b.length) return 0; i += n; }
+      else if (wt === 1) i += 8; else if (wt === 5) i += 4; else return 0;
+    }
+    return 0;
+  }
+  /** would_pay(account, rc_limit, game) with answer_only and games: { ok, reason } from the sponsor (any error: not ok, no reason).
+   *  Audit SP-40: answer_only (field 3) is still sent for free play, so a rollback to sponsor v2 keeps guests playing;
+   *  v3 ignores it. Audit SP-38: every game of the batch (field 5, one entry each). */
+  async function sponsorAnswer(sp, rcLimit, games, answerOnly) {
     try {
       const acct = lib.utils.decodeBase58(W.address);
       const bytes = [0x0a, acct.length, ...acct, 0x10];
-      let v = BigInt(rcLimit);
-      do { let b = Number(v & 0x7fn); v >>= 7n; if (v > 0n) b |= 0x80; bytes.push(b); } while (v > 0n);
-      if (answerOnly) bytes.push(0x18, 0x01);   // field 3 (answer_only) = true
+      const push = (v) => { v = BigInt(v); do { let x = Number(v & 0x7fn); v >>= 7n; if (v > 0n) x |= 0x80; bytes.push(x); } while (v > 0n); };
+      push(rcLimit);
+      if (answerOnly) bytes.push(0x18, 0x01);                       // field 3 (answer_only), for v2
+      for (const g of games || []) { bytes.push(0x28); push(g); }   // field 5 (games), sponsor v3
       const r = await withTimeout(W.provider.readContract({ contract_id: sp.address, entry_point: WOULD_PAY, args: lib.utils.encodeBase64url(new Uint8Array(bytes)) }), 6000, "timeout");
       const out = r && r.result ? lib.utils.decodeBase64url(r.result) : new Uint8Array(0);
-      return out.length >= 2 && out[0] === 0x08 && out[1] === 0x01;   // field 1 (ok) = true
-    } catch { return false; }
+      const ok = out.length >= 2 && out[0] === 0x08 && out[1] === 0x01;   // field 1 (ok) = true
+      let reason = "";
+      for (let i = 0; i < out.length;) {   // field 2 (reason), a string
+        const tag = out[i++];
+        if (tag === 0x12) { const n = out[i++]; reason = String.fromCharCode(...out.subarray(i, i + n)); break; }   // the sponsor's reasons are plain ASCII
+        if ((tag & 7) === 0) { while (i < out.length && (out[i++] & 0x80)); } else break;
+      }
+      return { ok, reason };
+    } catch { return { ok: false, reason: "" }; }
   }
 
   async function sendVault(label, ops, opts = {}) {
@@ -669,7 +791,7 @@
     W.guestConfig = cfg && typeof cfg === "object" && typeof cfg.address === "string"
       ? { address: cfg.address, guest: cfg.guest === true, payer: dep.payer === "sponsor" ? "sponsor" : "self" } : null;
     if (store.get(localStorage, "kw-kind") === "guest" && guestReady() && !W.address)
-      window.KGuest.load().then((g) => { if (g && !W.address) setAddress("guest", g.address); }).catch(() => {});
+      guestLib().load().then((g) => { if (g && !W.address) setAddress("guest", g.address); }).catch(() => {});
     notify();
   }
 
@@ -693,7 +815,7 @@
     store.set(sessionStorage, "kw-vault", null);
     // A guest chosen on this device comes back by itself (its key never left the browser).
     if (store.get(localStorage, "kw-kind") === "guest" && guestReady()) {
-      window.KGuest.load().then((g) => { if (g && !W.address) setAddress("guest", g.address); }).catch(() => {});
+      guestLib().load().then((g) => { if (g && !W.address) setAddress("guest", g.address); }).catch(() => {});
     }
     // The account that was active on this device comes back on every page (address only; nothing is asked of the
     // wallet until something has to be signed). A guest account comes back only where its key is (above).

@@ -3,17 +3,17 @@
 > **Purpose:** one way to start every AI chat, so all chats build on the same library, follow the same rules and hand their work back the same way. No chat works on its own.
 > **Applies to:** every new chat working on Knode Games: platform, game, audit, bug fix or architecture.
 > **Last updated:** 2026-11-03
-> **How to use it:** copy the prompt for the kind of chat you're starting (§3), fill in the `<…>` parts, and paste it as the chat's first message. Each prompt points the chat back to this file for the shared rules (§1) and the handoff (§2).
+> **How to use it:** copy the prompt for the kind of chat you're starting (§3), fill in the `<…>` parts, and paste it as the chat's first message. Each prompt points the chat back to this file for the shared rules (§1) and to `platform/SESSION_END_PROCESS.md` for how to end.
 
 ---
 
 ## 1. Shared rules for every chat
 1. **The `.ai/` library is the source of truth.** Read `.ai/START_HERE.md` first and follow its reading order. Where docs disagree, `platform/DECISIONS.md` wins, then the repo, then chat notes. The owner wins over all of them.
-2. **One owner per area.** Each area belongs to one chat (`platform/PLATFORM.md` → "Chats and ownership"; D-035). Work only on your area's files. If you need a change in another chat's files, write the request in your handoff (§2) and the owner passes it on.
+2. **One owner per area.** Each area belongs to one chat (`platform/PLATFORM.md` → "Chats and ownership"; D-035). Work only on your area's files. If you need a change in another chat's files, write the request in your session-end report and the owner passes it on.
 3. **Work on a branch, ship by pull request.** Use your area's branch, or a new branch from `main`. Open a PR into `main`; its tests must pass. **Only the owner merges** (D-026). Never push to `main`.
 4. **Funds and keys:** never ask for, print or store keys or seed phrases. Every mainnet tool is a dry run until `--send`, one step at a time, dry run first (`platform/RULES.md` §1). Anything touching funds, contracts or the vault passes an audit before it ships (D-017).
 5. **Standards apply to every game:** `standards/GAME_STANDARD.md`, `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`. Examples: nicknames on every page (D-078); Staked and Free play boards on every game (D-079, D-081); free prizes held by the owner's switch (D-082); the VHP standard (D-058).
-6. **No new decisions on your own.** If something needs a decision, ask the owner. Then record it as a proposed **D-xxx** in your handoff. The library chat files it.
+6. **No new decisions on your own.** If something needs a decision, ask the owner. Then record it as a proposed **D-xxx** in your session-end report. The library chat files it.
 7. **Nothing is announced to players until it's built, audited and ready** (D-064). Nothing is deleted without firm confirmation that it's safe.
 8. **Working with the owner:**
    - Explain every step from zero, in plain words, for someone new to code.
@@ -23,22 +23,7 @@
 9. **Mark what you know:** ✅ verified in the repo · 💬 from a chat · 👤 owner said · ❓ unknown. Never present a guess as a fact.
 
 ## 2. The handoff: how every chat ends a piece of work
-When a piece of work is done, or the chat is about to stop, it writes a **handoff** in this shape. The owner pastes it into the library chat, which files it into `.ai/`. Or, if the owner asks, the chat saves it to the Claude project as `claude/<area>/HANDOFF-<yyyy-mm-dd>.md`.
-
-```
-HANDOFF — <chat name> — <date, UTC>
-Area / branch / PR: <e.g. Survivor · survivor @ <commit> · PR #NN (open, not merged)>
-Done:            <what changed, plain words, one line each>
-State now:       <what is live, what is on a branch, what is waiting>
-Decisions asked: <questions for the owner, or "none">
-Decisions made:  <proposed D-xxx with the owner's words and date, or "none">
-New issues:      <proposed I-xxx: problem, priority P1–P4, who should fix it>
-Owner actions:   <steps for the owner, with dates and deadlines>
-Needs from other chats: <chat → exact request, or "none">
-Docs to update:  <which .ai/ files are now out of date, and why>
-```
-
-**Library chat:** files each handoff into the right `.ai/` files, opens one docs PR, and logs any contradiction as a **C-xx**.
+Every chat ends a piece of work, or a session, with the **session-end report** in `platform/SESSION_END_PROCESS.md`. It has five parts: what changed, what was completed, documentation to update, what the next AI should know, and current blockers. The owner pastes it into the library chat, which files it into `.ai/` in one docs PR and logs any contradiction as a **C-xx**.
 
 ## 3. Starter prompts
 
@@ -50,7 +35,7 @@ You're joining Knode Games as the <area> chat (e.g. Hub / site, Swap Desk, bot a
 
 Before anything else:
 1. Read .ai/START_HERE.md and follow its reading order (CURRENT_STATE, PRIORITIES, ACTIVE_WORK, PLATFORM, DECISIONS, TODOS, OPENISSUES, DEPENDENCIES).
-2. Read .ai/standards/AI_CHAT_STARTER.md §1 (shared rules) and §2 (handoff). Follow both.
+2. Read .ai/standards/AI_CHAT_STARTER.md §1 (shared rules) and .ai/platform/SESSION_END_PROCESS.md (how to end the session). Follow both.
 3. Read every standard in .ai/standards/ that touches <area>, and check the Claude project's claude/*.md handoffs for <area>.
 
 Your area: <area>. You own: <files/folders, from PLATFORM.md "Chats and ownership">. You don't own: game files, the vault contract, or other chats' files. Send requests for those through the owner.
@@ -72,7 +57,7 @@ You're joining Knode Games as the <Game name> (game <id>) chat. Repo: github.com
 
 Before anything else:
 1. Read .ai/START_HERE.md and follow its reading order.
-2. Read .ai/standards/AI_CHAT_STARTER.md §1 (shared rules) and §2 (handoff). Follow both.
+2. Read .ai/standards/AI_CHAT_STARTER.md §1 (shared rules) and .ai/platform/SESSION_END_PROCESS.md (how to end the session). Follow both.
 3. Read .ai/games/<GameFile>.md, then .ai/standards/GAME_STANDARD.md, VAULT_STANDARD.md, LEADERBOARD_STANDARD.md and TOKEN_STANDARD.md.
 4. Check the Claude project's claude/<game>/ notes and recent prompts (claude/prompts-*.md).
 
@@ -143,7 +128,7 @@ The problem: <what happened, when (UTC), where you saw it: a workflow run link, 
 Issue number: <I-xxx, or "new">.
 
 Before anything else:
-1. Read .ai/START_HERE.md (Rules and Branches sections), and .ai/standards/AI_CHAT_STARTER.md §1 and §2.
+1. Read .ai/START_HERE.md (Rules and Branches sections), .ai/standards/AI_CHAT_STARTER.md §1 and .ai/platform/SESSION_END_PROCESS.md.
 2. Read .ai/platform/OPENISSUES.md and TECHNICAL_DEBT.md for this problem. It may already be known.
 3. Find which chat owns the broken area (PLATFORM.md "Chats and ownership").
 
@@ -154,8 +139,8 @@ How to work:
    - The likely cause, with evidence (logs, code lines).
 2. Propose the smallest fix and a test that fails before it and passes after.
 3. Wait for my go. Then fix it on a new branch from main (or the owner's branch for that area), run the tests, and open a PR. Don't merge.
-4. If the fix is in another chat's files, write it as a request in your handoff instead.
-5. End with the handoff (§2), with the I- number updated or proposed.
+4. If the fix is in another chat's files, write it as a request in your session-end report instead.
+5. End with the session-end report (SESSION_END_PROCESS.md), with the I- number updated or proposed.
 
 Never "fix" by deleting data, rewriting published history, editing a final results file, or retrying a mainnet send.
 ```
@@ -168,7 +153,7 @@ You're the architecture chat for Knode Games: design only, no building. Repo: gi
 
 Before anything else:
 1. Read .ai/START_HERE.md and the full reading order, including FOUNDER_INTENT.md, RULES.md, ARCHITECTURE.md, DEPENDENCIES.md and KOINOS.md.
-2. Read every file in .ai/standards/, and .ai/standards/AI_CHAT_STARTER.md §1 and §2.
+2. Read every file in .ai/standards/ (including AI_CHAT_STARTER.md §1) and .ai/platform/SESSION_END_PROCESS.md.
 3. Read .ai/platform/TECHNICAL_DEBT.md and ROADMAP.md.
 
 The question: <what needs designing, and why now>.
@@ -199,6 +184,6 @@ Write no code and open no PRs. A diagram is welcome if it helps.
 | Get a branch or PR reviewed before merging | 3.3 Audit |
 | Fix one thing that's broken | 3.4 Bug fixing |
 | Decide how something big should work before anyone builds it | 3.5 Architecture |
-| File what chats did into `.ai/` | the library chat: paste the handoffs (§2) |
+| File what chats did into `.ai/` | the library chat: paste the session-end reports |
 
-**Restarting an existing chat** (it ran out of context): use the same starter, add "You are continuing; your last handoff was: <paste>", and ask it to read `ACTIVE_WORK.md` for its area first.
+**Restarting an existing chat** (it ran out of context): use the same starter, add "You are continuing; your last session-end report was: <paste>", and ask it to read `ACTIVE_WORK.md` for its area first.

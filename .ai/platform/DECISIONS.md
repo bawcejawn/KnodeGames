@@ -78,6 +78,7 @@
 | D-065 | 2026-11-02 | Survivor Season 1 starts Mon 16 Nov | active |
 | D-066 | 2026-11-02 | Public testnet only; three mainnet nodes | active |
 | D-067 | 2026-11-02 | Block X: nothing announced yet; redo or apply only when ready | active |
+| D-068 | 2026-11-02 | Free prizes are per week; multi-week seasons pay once, at season end | active |
 
 ---
 
@@ -376,7 +377,7 @@
 
 ## D-062 — 2 + 1 VHP free prizes on every free game, from the vault's start
 - **Date:** 2026-11-02 (owner) · **Decision:** Every free game pays 2 VHP for 1st and 1 VHP for 2nd, and they all start when the vault starts (the v6 rules week, Mon 9 Nov). Supersedes the Questions game's 1 + 1 from 2 Nov (D-045) and D-010.
-- **Open:** Survivor's 4 + 2 for a 2-week season (D-020, D-051) — does it become 2 + 1? (C-24). The Questions game's on-chain rule may already pay 1 + 1 from 2 Nov (C-25, I-067).
+- **Survivor:** settled by D-068 (C-24). The Questions game's on-chain rule may already pay 1 + 1 from 2 Nov (C-25, I-067).
 
 ## D-063 — The week of 9 Nov is "Week 1"; earlier weeks don't pay
 - **Date:** 2026-11-02 (owner) · **Decision:** A UI refresh makes the week starting Mon 9 Nov the real "Week 1" for players. Weeks before it — including the Race's final week-1 vault file with free winners — pay no free prizes.
@@ -394,6 +395,9 @@
 ## D-067 — Block X: nothing announced yet; redo or apply only when ready
 - **Date:** 2026-11-02 (owner) · **Decision:** Nothing about Block X has been announced to players. If an earlier on-chain announcement of game 2 exists on the Picks contract (the Block X chat reported one, applicable from Sun 1 Nov 21:23 UTC), either cancel it and announce again, or apply it only when the best build is ready (I-070).
 
+## D-068 — Free prizes are per week; multi-week seasons pay once, at season end
+- **Date:** 2026-11-02 (owner) · **Decision:** The free prize is 2 + 1 VHP per week. A game with a 2-week season, like Survivor, pays 4 + 2 VHP for the season, paid once to the season's winners when the season ends — not split into weekly payouts. Confirms D-020 and D-051.
+
 ---
 
 ## Contradictions
@@ -403,8 +407,7 @@ Repo wins over chats (D-002); the owner's answers win over both.
 | ID | Topic | What disagrees | Next step |
 |----|-------|----------------|-----------|
 | C-08 | Questions payout time | Chats say the first v5 payout is Tue 21:00 UTC; the schedule says winners are final Tue 12:00 UTC (week ends Mon 00:00; close delay 12 h; settle 24 h) | Owner: fix it properly (I-066) |
-| C-24 | Survivor free prize | Survivor rules: 4 + 2 VHP per 2-week season (D-051) vs owner: 2 + 1 VHP on every free game (D-062) | Owner: does Survivor become 2 + 1, per season or per week? |
-| C-25 | Questions game free prize on chain | Swap Desk: the v5 rule on chain (`reward_rule_week_plus_one=3`) pays 1 + 1 VHP to free players from the week of 2 Nov vs owner: no free prizes before the vault starts (D-062, D-063) | Vault + Questions chats: check what the contract will pay on the first payout (I-067) |
+| C-25 | Questions game free prize on chain | Swap Desk: the v5 rule on chain (`reward_rule_week_plus_one=3`) pays 1 + 1 VHP to free players from the week of 2 Nov vs owner: no free prizes before the vault starts (D-062, D-063) | Vault + Questions chats: check what the contract will pay on the first payout (I-067). Owner believes it shouldn't pay free players now; owner is asking the chats |
 
 ### Resolved
 | ID | Topic | Resolution | How |
@@ -431,3 +434,4 @@ Repo wins over chats (D-002); the owner's answers win over both.
 | C-21 | Producer names | Koinos @names | later decision (D-030) |
 | C-22 | Fantasy results path | same place: the vault bot reads `games-data:fantasy/vault/W<week>.json`, which is where Fantasy writes | code ✅ (`bot/vault.ts`, `bot/games/fantasy.ts`) |
 | C-23 | Launch order | superseded by D-052 / D-064 | owner |
+| C-24 | Survivor free prize | 2 + 1 per week = 4 + 2 per 2-week season, paid once at season end | owner (D-068) |

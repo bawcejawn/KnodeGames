@@ -31,7 +31,7 @@
 3. **Platform fee:** 5% of gross rewards, collected with `claim-fee-vhp all`. 💬 Vault
 4. **Split between games:** by each game's staked weight for the week (`weightFor`).
 5. **Staked players:** share their game's bucket; Race-style medals for the top 30% by headcount (D-034). Per game: Fantasy top 30% of stakers (D-059); Combo best 10 cards (D-060); Golf 7 × holes − strokes (D-056); Bracket and Last Node by points (D-057, D-054)
-6. **Free-play prizes:** 2 VHP for 1st, 1 VHP for 2nd on every free game, starting when the vault starts, Mon 9 Nov (D-062); nothing for earlier weeks (D-063). Survivor's 4 + 2 per season: ⚠️ C-24. No free prize: Combo (stake-only), Fantasy, Weekly Rival (records only), Golf practice; Last Node ❓
+6. **Free-play prizes:** 2 VHP for 1st, 1 VHP for 2nd on every free game, starting when the vault starts, Mon 9 Nov (D-062); nothing for earlier weeks (D-063). Multi-week seasons pay once at season end: Survivor 4 + 2 per 2-week season (D-068). No free prize: Combo (stake-only), Fantasy, Weekly Rival (records only), Golf practice; Last Node ❓
 7. **Player claims:** `claim_game` per week; the site batches up to 10 claims in one transaction and looks back 52 weeks.
 
 ## Stake Rules

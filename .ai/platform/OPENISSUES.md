@@ -10,7 +10,7 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Contradictions
-Tracked in `DECISIONS.md` → Contradictions (open: C-08, C-24, C-25). Not duplicated here.
+Tracked in `DECISIONS.md` → Contradictions (open: C-08, C-25). Not duplicated here.
 
 ## Open
 | ID | Priority | Area | Issue | Waiting on | Opened | Source |
@@ -77,7 +77,7 @@ Tracked in `DECISIONS.md` → Contradictions (open: C-08, C-24, C-25). Not dupli
 | I-064 | P2 | vault | Vault-side checks other chats asked for: verify every staked board player appears in a game's vault file; honour `HOLD-W*.json`; alert on a refused prize post (I-052) | Vault chat | 2026-11-02 | 💬 Last Node, Survivor |
 | I-065 | P1 | launch | Readiness gap for the Friday target (D-052); nothing is announced until ready (D-064). Audits still to run: Survivor pass 4, Last Node round 3, Bracket audit, Fantasy fix-check, Combo fix-check 4. Also: Last Node needs 48 h of sampler data (I-059); Combo needs the Picks v2 upgrade after Block X; Golf staked needs v6 merged into its branch. Only the Race (and Block X, once step 8 + launch PR are done) are ready now | owner + game chats | 2026-11-02 | 💬 all game chats, ✅ branch states |
 | I-066 | P2 | game 1 | The Questions game's payout time: chats say Tue 21:00 UTC, the schedule says winners are final Tue 12:00 UTC. Owner wants it fixed properly, not just explained — find the source of 21:00 and make code, site and docs agree | Questions chat | 2026-11-02 | 👤 C-08 |
-| I-067 | P1 | game 1 / prizes | The Questions game's on-chain v5 rule (`reward_rule_week_plus_one=3`) may pay 1 + 1 VHP to free players from the week of 2 Nov, but the owner decided free prizes start with the vault and earlier weeks don't pay (D-062, D-063). Check what the contract will actually pay at the first payout, and change the setting if needed | Vault + Questions chats | 2026-11-02 | ⚠️ C-25 |
+| I-067 | P1 | game 1 / prizes | The Questions game's on-chain v5 rule (`reward_rule_week_plus_one=3`) may pay 1 + 1 VHP to free players from the week of 2 Nov, but the owner decided free prizes start with the vault and earlier weeks don't pay (D-062, D-063). The owner believes it shouldn't pay free players now. Check what the contract will actually pay at the first payout, and change the setting if needed | Vault + Questions chats | 2026-11-02 | ⚠️ C-25 |
 | I-068 | P4 | tooling | `bot --testnet` and the admin page's "Vault v6 trial (local node)" target a local Harbinger testnet node the owner doesn't run (D-066). Retarget them to the public testnet or remove them | Vault + Hub chats | 2026-11-02 | 👤 |
 | I-069 | P2 | site | UI refresh: show the week of Mon 9 Nov as "Week 1" across the site (on-chain numbering unchanged), and replace "vault not yet live" wording (with I-027) | Hub + Race chats | 2026-11-02 | 👤 D-063 |
 | I-070 | P2 | Block X | The Block X chat reported game 2 announced on the Picks contract (applicable from Sun 1 Nov 21:23 UTC); the owner says nothing was announced. Check the chain: if an announcement exists, cancel and redo it, or apply only when the best build is ready (D-067). Ask whether it expires after 7 days | Block X chat | 2026-11-02 | 👤 |

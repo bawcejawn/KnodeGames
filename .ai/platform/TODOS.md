@@ -10,8 +10,7 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today
-- [ ] Answer the three open contradictions: C-24 (Survivor prize 4 + 2 or 2 + 1?); C-08 and C-25 go to the chats (I-066, I-067) — P2
-- [ ] Ask the Vault and Questions chats to check what the Questions game will pay at its first payout (I-067), and the Block X chat whether game 2 is already announced on chain (I-070) — P1
+- [ ] (Owner is asking) the Vault and Questions chats to check what the Questions game will pay at its first payout (I-067), and the Block X chat whether game 2 is already announced on chain (I-070) — P1
 - [ ] Decide when Block X goes public (not announced to players yet), then step 8 — apply Block X on the Picks contract: `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet` must show 1 change (allowed since Sun 1 Nov, 1:23 PM PT; not reported done) — P2 — I-040
 - [ ] Before Block X is published: `npm run sponsor -- mana-report` on mainnet; raise the pick row if mainnet is more than ~1.5× testnet — P2 — D-038
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
@@ -98,6 +97,7 @@
 |------|------|------|
 | Answered C-02, C-03, C-10, C-15, C-16, C-18, C-19, C-20; C-22 checked in code | 2026-11-02 | D-061 – D-067 |
 | Survivor Season 1 date chosen: Mon 16 Nov | 2026-11-02 | D-065 |
+| Survivor prize settled: 4 + 2 per season, paid at season end | 2026-11-02 | D-068 |
 | `.ai/` library created | 2026-11-02 | — |
 | Platform docs generated from the Questions chat; contradictions logged | 2026-11-02 | DECISIONS.md → Contradictions |
 | `OPENISSUES.md` filled | 2026-11-02 | OPENISSUES.md |

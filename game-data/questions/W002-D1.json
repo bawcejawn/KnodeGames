@@ -531,7 +531,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1,
+      "chainDataHash": "0xe2ef6eafccae9b5cef390746410ae3f18c5d96728c9ae41e22713c3a03d0e46b"
     },
     {
       "id": "W002-D1-4",

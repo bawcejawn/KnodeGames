@@ -470,3 +470,46 @@ files are written exactly as `JSON.stringify` + newline, and the fetch of `vault
 | V2 | Info: the record job's `for f in $(git ls-tree …)` split names on spaces, and a failed `ls-tree` didn't fail the step | **Fixed**: `ls-tree -z` goes to a file first, then a `read -d ''` loop |
 | V3 | Info: `ls-remote --heads … race-data` also matched `x/race-data` | **Fixed**: `refs/heads/race-data` exactly |
 | V4 | Info: if the chain isn't Vault v6 yet, the stake read says "not staked" without an error, so a week could go final with everyone free | **Before prizes**: refuse (throw) unless the chain is v6. Today the repository ABI has no `get_game_player`, so the read throws and the file stays not final |
+
+## Round 11 (Repo Lens go/no-go @ 3472d8c, 2026-10-30): GO, nothing must be fixed
+
+Report: "Block X Prize-Free: Round-11 Go/No-Go (Knode picks @ 3472d8c)". The `main` merge didn't touch how race cards
+are taken or checked. The new Race Vault file can't stop the cards in any honest run: 12,001 generated boards and vault
+files all passed the publish check.
+
+| ID | Finding | Status |
+|---|---|---|
+| B1-1 | race.ts read stakes with the v5 ABI | **Fixed on v6 day** (d7fad7c): the deployed v6 ABI |
+| B1-2 | A final vault file is decided by one run (no 12 h hold, not re-derived from W###) | **Before game 7 prizes** (Vault/Race chats) |
+| B1-3 | Free-prize farming by many empty wallets | **Before game 7 prizes** (owner decision) |
+| B1-4 | Size, byte-form and name errors in `vault/` still stop the whole race run | After launch (Low) |
+| B1-5 | Per-wallet stake retries could exceed the job limit | **Fixed on v6 day** (d7fad7c): 2 tries, then the node is skipped for the run |
+| B1-6, B1-7, B1-8 | Stale comment; `\d` in `bot.yml`; two test-clock names | After launch (Info) |
+
+**v6 day (2026-11-02).** Vault v6 is live. V4 (the review's early "not v6" answer) was dropped with B1-1 and B1-5
+(d7fad7c). `PRIZES_FROM_WEEK` now comes from a repository variable (be2c20d). Both are in Repo Lens round 12
+(`knode-fixcheck-13.zip`). The Mana report reads big blocks in smaller ranges (a1e546f). Game 2 was applied on
+mainnet: 1 change per pick, confirmed on two nodes.
+
+## Round 11 (Repo Lens go/no-go @ 3472d8c, 2026-10-30): GO, nothing must be fixed
+
+Report: "Block X Prize-Free: Round-11 Go/No-Go (Knode picks @ 3472d8c)". The main merge doesn't touch how race cards
+are taken or checked, and the Race Vault file can't stop the race cards in an honest run (a verbatim copy of the publish
+step plus 12,001 generated boards and vault files all passed).
+
+| ID | Stage | Finding | Status |
+|---|---|---|---|
+| B1-1 | Before game 7 prizes | race.ts read stakes with the v5 ABI | **Fixed** on the v6 day (d7fad7c): the deployed v6 ABI |
+| B1-2 | Before game 7 prizes | A final vault file is decided by one run; it isn't re-derived from the W### files, and there's no 12 h hold | Open (Race / Vault chats) |
+| B1-3 | Owner decision | Free-prize farming by many empty wallets | Open |
+| B1-4 | Low | A vault file over 2 MB, not in canonical form, or in a nested folder still stops the whole race run | Open: after launch |
+| B1-5 | Low | Per-wallet stake retries could push the run past its time limit | **Fixed** (d7fad7c): 2 tries, then that node is skipped for the run |
+| B1-6, B1-7, B1-8 | Info | Stale comment; `\d` in `bot.yml`; two test-clock names | Open: after launch |
+
+V4 from the round-10 blind review is fixed in d7fad7c (no early "not v6" answer). Round 12 (the v6-day change and
+`PRIZES_FROM_WEEK`) is with Repo Lens at be2c20d.
+
+**Mainnet, 2026-11-02:** game 2 applied on the Picks contract (0.26 Mana). `status` on two nodes shows it ON, every
+2,400 blocks, locks 100 before, 30 picks a day, 1 change per pick (BX-129 closed; BX-127 clears on the next recorder
+run). `mana-report` (fixed in a1e546f to split block ranges a node won't answer) found no sponsored transactions yet.
+Block X isn't public, so the price check (BX-123) runs after a day of play (runbook step 10).

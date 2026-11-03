@@ -32,7 +32,8 @@ there. Test: `tests/audit/blockx-recorder.test.mjs` (last test).
 
 **Context, not a question:** before this change, `main` already had the v6 ABI but not V4. Its recorder published
 `race-data/vault/W1.json` as final at 2026-11-02 23:17 UTC: `rows: []` plus free-play first and second. Nobody could
-stake that week. Whether week 1 is paid is the Vault's `PRIZES_FROM_WEEK` decision.
+stake that week. The Vault chat confirms week 1 is skipped: the vault posts a game's results only from the week it
+earns (`earnedWeek` in `bot/vault.ts`), and game 7 isn't applied yet (it earns from vault week 3, Mon 9 Nov).
 
 **Scope: `git diff e7887b6 HEAD -- bot/race.ts bot/games/blockx.ts .github/workflows/games.yml tests/audit`.** Send no transaction to any chain.
 

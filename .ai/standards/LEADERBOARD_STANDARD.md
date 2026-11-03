@@ -2,7 +2,7 @@
 
 > **Purpose:** how every game's leaderboard is built, ranked, published and shown, so all boards look and behave the same.
 > **Applies to:** every game, through the shared `board.js` (`KBoard`). **Every game has both boards** (D-079).
-> **Last updated:** 2026-11-02
+> **Last updated:** 2026-11-03
 > **Built from:** `platform/DECISIONS.md` (D-xxx) and the shared board as the Race, Hub and game chats built it.
 
 **Words:** **must** = required · **should** = expected · ❓ = not yet decided
@@ -37,7 +37,7 @@
 ## 5. Data
 - Source: the game's published `board.json` on its data branch, written by the recorder and checked by the publish job (GAME_STANDARD §6).
 - Shared row shape (Race reference): `{a, pts, correct, shows, picks, ranked, boardPlace, earns}`; games add their own columns (e.g. Golf: `pts`, `topar`, `holes`, `lost`).
-- Size: up to 2,000 rows per board (Bracket, Combo); over the cap → error, no vault file (Combo).
+- Size: a capped number of rows per board: Bracket 1,000 (`MAX_BOARD_ROWS`), Combo 2,000 a week and 1,000 all-time ✅ (branches checked 3 Nov); over the cap → error, no vault file (Combo).
 - Updates hourly with the recorder. **Final weeks are frozen** — a published final board never changes.
 - Numbers JS-safe (within ±2⁵³−1, no integer-valued floats).
 - The vault's points come from the final board but are published separately (VAULT_STANDARD).

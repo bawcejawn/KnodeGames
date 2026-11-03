@@ -1,7 +1,7 @@
 # Knode Games — Dependencies
 
 > **Purpose:** how the seven parts of Knode Games connect — Vault, Leaderboards, Rewards, Swap Desk, Wallets, Games and User Accounts — so a change to one part shows what it can affect.
-> **Last updated:** 2026-11-02
+> **Last updated:** 2026-11-03 (free play on every game, D-081; the free-prize switch, D-082; sampler running)
 > **Built from:** `DECISIONS.md` (D-xxx), `ARCHITECTURE.md`, the standards in `../standards/`, and the repo. Detail lives there; this file shows the links.
 
 **Legend:** ✅ verified in the repo · 💬 from a chat · ❓ unknown · **→** "depends on / sends to"
@@ -74,14 +74,14 @@ Read across: how the row part depends on or feeds the column part.
 | 9 | Recorders → Leaderboard | publish job (no repo code) writes `board.json`, final weeks frozen | LEADERBOARD_STANDARD §5 | a bad file is held; others still publish |
 | 10 | Leaderboard → Vault | weekly results file `W<week>.json` from the game's `vaultGames` source; the bot posts it | VAULT_STANDARD §6 | missing after 3 days → week missed, no pay; HOLD files pause payment |
 | 11 | Vault → Chain | the vault's VHP produces blocks as the Knode Games Pool, through the game node on the owner's PC | D-073 | node down → fewer blocks, smaller rewards; stakes untouched |
-| 12 | Vault → Rewards | block rewards − 5% fee → free prizes (2 + 1 per week per free game) → the rest split across staked games by weight | D-029, D-062, D-071 | shortfall is cut, never owed |
+| 12 | Vault → Rewards | block rewards − 5% fee → free prizes (2 + 1 per week per game with its free prize allowed; the D-082 switch decides whether winners are posted) → the rest split across staked games by weight | D-029, D-062, D-081, D-082 | shortfall is cut, never owed |
 | 13 | Rewards → Wallet | the player claims (`claim_game`, up to 10 per transaction, 52 weeks back); the vault never pushes funds | TOKEN_STANDARD §5 | unclaimed rewards wait in the vault |
 | 14 | Games → Games | Block Golf reads other games' boards; Combo reads Race and Block X results; Block X and Last Node read Race handicap cards; Fantasy and Last Node need the VHP sampler | D-056, D-060, I-059 | an upstream game's failure voids or skips the downstream hole, leg or card |
 | 15 | Swap Desk ↔ Vault | **no link**: separate contracts, separate node, separate funds | D-044 | one can stop without affecting the other |
 
 ## 5. End-to-end flows
 **Free player (no funds)**
-Guest or any wallet → picks or answers, Mana paid by the sponsor → recorder → Free play board → top 2 named in the vault file's `first` / `second` → 2 + 1 VHP (D-062) → claimed into the wallet. *Only on free games: Questions, Block X, Survivor, Race, Bracket (D-071).*
+Guest or any wallet → picks or answers, Mana paid by the sponsor → recorder → Free play board → top 2 named in the vault file's `first` / `second` → 2 + 1 VHP (D-062) → claimed into the wallet. *The bot posts the free winners only when that game's free-prize switch is ON (D-082): today Questions (built in), Block X, Race, Bracket, Last Node. Combo, Golf, Survivor and Fantasy have the board but no prize for now (D-081). An unpaid prize returns, fee-free, to the next week's pot. (Was D-071: "only on free games" — superseded.)*
 
 **Staked player**
 Kondor or KOIN Vault → `approve` + `deposit_to` into game N → plays → recorder reads the stake (Staked board) → vault file `rows` with points → vault splits the game's share → `claim_game`. Players can stake in as many games as they like, 1 VHP minimum each — encouraged (D-074). Withdraw any time; withdrawing below 1 VHP mid-week forfeits that week (I-028).
@@ -97,7 +97,7 @@ VHP holder → Swap Desk → KOIN back (−3%) → the desk's VHP keeps producin
 |------------------|---------------------|-------------------------|
 | A Koinos node (one of two) | final results, stake reads, vault files (fail closed) | stakes, withdrawals, picks |
 | The Mana sponsor | free (guest) play; sponsored stake/claim | paid transactions with the player's own Mana |
-| The VHP sampler (not running yet, I-059) | Last Node launch; Fantasy and Combo price cards | Questions, Race, Block X targets after warm-up |
+| The VHP sampler (running since 3 Nov 15:58 UTC; cadence watched, I-059) | Last Node launch; Fantasy and Combo price cards | Questions, Race, Block X targets after warm-up |
 | The Race | Combo race legs, Block X / Last Node handicap cards, the Golf Race hole | Questions, the vault, withdrawals |
 | A game's recorder | that game's board and vault file (week may be missed after 3 days) | every other game; the vault |
 | The game node on the owner's PC | the Knode Games Pool's block production → smaller rewards | all stakes and withdrawals |
@@ -112,4 +112,4 @@ VHP holder → Swap Desk → KOIN back (−3%) → the desk's VHP keeps producin
 - **Koinos Nicknames** — @names for display (D-030).
 
 ## 8. Open
-- Free play **boards** exist on every game (D-079); free **prizes** for the staked-only games may come later (D-071).
+- Free play **boards** exist on every game (D-079, D-081); free **prizes** are per game and switched by the owner, from the next week (D-082, `FREE_PRIZE_SWITCH.md`). ~~Free prizes for the staked-only games may come later (D-071)~~ — superseded.

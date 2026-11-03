@@ -3,10 +3,10 @@
 > Purpose: Record of decisions made, newest first. This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "superseded by D-XXX" in the index.
 > Consolidated 2026-11-02: the owner's answers to the open contradictions are recorded as D-061 – D-067.
-> Last updated: 2026-11-02
+> Last updated: 2026-11-03 (cleanup: statuses brought up to date; nothing removed — superseded entries are marked, not deleted)
 > Sources: owner in chat (2026-11-02), `.ai/archive/CHAT_KNOWLEDGE.md` (all 12 chats), repo branches `picks` and `main`.
 
-**Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict · ❓ unknown
+**Legend:** ✅ verified in repo · 💬 chat only · 👤 owner said · ⚠️ was a conflict (see the C-xx named next to it; all are resolved unless listed under Open) · ❓ unknown
 
 ## Index
 | ID | Date | Title | Status |
@@ -30,7 +30,7 @@
 | D-017 | 2026-10-29 | Owner's own audit programs count as the audit | active |
 | D-018 | ❓ | Every game is stakeable | active |
 | D-019 | 2026-10-30 | Producer Bracket: staked + free prize, 1-week seasons | active |
-| D-020 | ❓ | Survivor: 2-week seasons, Season 1 from Mon 16 Nov | active (date confirmed by D-065; prize ⚠️ C-24) |
+| D-020 | ❓ | Survivor: 2-week seasons, Season 1 from Mon 16 Nov | active (date confirmed by D-065; prize settled by D-068 — C-24 resolved; free prize off for now, D-081) |
 | D-021 | ❓ | Keep a withdrawals-only emergency build | active |
 | D-022 | 2026-10-30 | Vault seed: 20,000 VHP from a dedicated seed owner | active |
 | D-023 | ❓ | Announce on a weekend, upload on Monday | active |
@@ -46,7 +46,7 @@
 | D-033 | 2026-10-27 | Build 2: Race Show scoring, home page, dapp name | active |
 | D-034 | 2026-10-28/29 | Producer Race: stakes, ranking, ties, prizes, medals | active |
 | D-035 | 2026-10-29 | The Race chat owns all Race files | active |
-| D-036 | ❓ | Split launch: Block X live prize-free first | active |
+| D-036 | ❓ | Split launch: Block X live prize-free first | done — Block X went live prize-free (3 Nov); prizes from 9 Nov per D-077 |
 | D-037 | 2026-10-30 | One change per pick | active |
 | D-038 | ❓ | Picks sponsor row 0.2 Mana; 0.25 at Combo launch | active |
 | D-039 | ❓ | The swap desk pays its own Mana | active |
@@ -62,14 +62,14 @@
 | D-049 | 2026-10-23 | Skip v4: game v5 with Desk v2 | done (superseded by Vault v6) |
 | D-050 | ❓ | Site content trims | active |
 | D-051 | 2026-10-27/30 | Survivor rules | active (pending audit pass 4) |
-| D-052 | 2026-11-02 | Announce every game before Friday | target only — gated by D-064 |
+| D-052 | 2026-11-02 | Announce every game before Friday | target only — gated by D-064 (each game launches when audited and ready) |
 | D-053 | 2026-11-02 | The Mana sponsor is the only payer; Mana Station shelved | active |
 | D-054 | 2026-10-28/30 | Last Node Standing rules | active (pending round-3 review) |
 | D-055 | 2026-10-30 | Last Node watch-and-hold and its accepted trade-off | active |
 | D-056 | 2026-10-28 | Block Golf redesign and rules | active |
 | D-057 | 2026-10-28/29 | Producer Bracket rules | active (pending audit) |
 | D-058 | 2026-10-28 | The KnodeGames VHP standard | active |
-| D-059 | 2026-10-27/29 | Fantasy Producers and Weekly Rival rules | active (pending fix-check) |
+| D-059 | 2026-10-27/29 | Fantasy Producers and Weekly Rival rules | active (pending fix-check); its "launch on a Monday" line is superseded by D-052 / D-064 |
 | D-060 | ❓ | Combo Card rules | active (pending fix-check 4) |
 | D-061 | 2026-11-02 | Sponsor funding and daily cap | active |
 | D-062 | 2026-11-02 | 2 + 1 VHP free prizes on every free game, from the vault's start | active |
@@ -77,11 +77,11 @@
 | D-064 | 2026-11-02 | Announce only the built, audited, best version | active |
 | D-065 | 2026-11-02 | Survivor Season 1 starts Mon 16 Nov | active |
 | D-066 | 2026-11-02 | Public testnet only; three mainnet nodes | active |
-| D-067 | 2026-11-02 | Block X: nothing announced yet; redo or apply only when ready | active |
-| D-068 | 2026-11-02 | Free prizes are per week; multi-week seasons pay once, at season end | active (rule); Survivor's free prize paused by D-080 |
+| D-067 | 2026-11-02 | Block X: nothing announced yet; redo or apply only when ready | done — applied on Picks (D-070), live 3 Nov, vault `game-add 2` sent 3 Nov |
+| D-068 | 2026-11-02 | Free prizes are per week; multi-week seasons pay once, at season end | active (rule); Survivor's free prize was paused by D-080, now off for now under D-081 (held by the D-082 switch) |
 | D-069 | 2026-11-02 | Questions game Week 3 pays its on-chain v5 free prize (1 + 1 VHP); no upgrade | active |
 | D-070 | 2026-11-02 | Apply Block X (game 2) on the Picks contract now | done |
-| D-071 | 2026-11-02 | Fantasy, Last Node, Combo and Golf are staked-only for now | active |
+| D-071 | 2026-11-02 | Fantasy, Last Node, Combo and Golf are staked-only for now | superseded by D-081 (every game has Free play) |
 | D-072 | 2026-11-02 | No Knode Games token for now | active |
 | D-073 | 2026-11-02 | The vault produces blocks as the Knode Games Pool | active |
 | D-074 | 2026-11-02 | Multi-game staking is allowed and encouraged | active |
@@ -92,7 +92,7 @@
 | D-079 | 2026-11-03 | Every game has its own Free play and Staked leaderboards | active — on every game again (D-081) |
 | D-080 | 2026-11-03 | No free play for Combo, Block Golf or Survivor for now; free play everywhere once the seed is bigger | superseded by D-081 (same day) |
 | D-081 | 2026-11-03 | Every game has Free play; free VHP prizes only on some games until the owner switches them on | active |
-| D-082 | 2026-11-03 | A free-prize on/off switch per game in the admin panel, effective from the next week | built, PR #65 (not merged) |
+| D-082 | 2026-11-03 | A free-prize on/off switch per game in the admin panel, effective from the next week | active — merged (PR #65, 3 Nov) |
 
 ---
 
@@ -107,6 +107,15 @@
 - **Date:** 2026-11-02 · **Status:** active · **Area:** process
 - **Decision:** Facts in `.ai/` override chat memory. Where the archive conflicts with repo files, the repo file wins and the conflict is logged below.
 - **Consequences:** Chats read `.ai/` first and file new knowledge through `archive/CHAT_KNOWLEDGE.md`.
+- **Clarified 3 Nov (library cleanup; one wording for every file — owner to confirm ❓):** when sources disagree, the order is:
+  1. the owner's own words;
+  2. `DECISIONS.md`;
+  3. what is verified in the code or on chain (✅) — for facts about what is actually built;
+  4. the other `.ai/` files;
+  5. the repo's `docs/` runbooks;
+  6. chat notes and handoffs (`claude/*.md`, `archive/`).
+
+  A disagreement is logged as a C-xx and the lower source is fixed.
 - **Source:** owner, this chat
 
 ## D-003 — Funds safety first; keys never leave `.env`
@@ -131,7 +140,7 @@
 ## D-008 — Mana sponsor daily hard cap ⚠️
 - **Decision (chat):** hard cap of 1,000 Mana a day for everyone.
 - **Conflict:** repo `bot/sponsor.ts` records owner decisions of 2026-10-28/29 for 5,000 a day. See C-02.
-- **Status:** disputed until the owner confirms.
+- **Status:** ~~disputed until the owner confirms~~ — **superseded by D-061** (5,000 a day; C-02 resolved).
 
 ## D-009 — Guest play on (web and mobile)
 - **Source:** 💬 Questions chat; `guest: true` ✅ `game-data/deployment.json`
@@ -139,7 +148,7 @@
 ## D-010 — New prize rules start Week 3
 - **Decision:** The 40/60 split and the 2 VHP free prize start in Week 3 (Mon 2 Nov 2026). `reward_rule_week_plus_one=3` is set on chain.
 - **Uncertain:** exact meaning of the 40/60 split ❓; on-chain value not verified 💬.
-- **Conflict:** the Vault chat says the v6 rules and the 2 + 1 VHP free prizes start Mon 9 Nov. See C-10.
+- **Conflict:** the Vault chat says the v6 rules and the 2 + 1 VHP free prizes start Mon 9 Nov. See C-10. **Resolved:** superseded by D-062 (2 + 1 from the vault's start, Mon 9 Nov) and D-069 (the Questions game's Week 3 pays its on-chain v5 prize).
 
 ## D-011 — Site: Rules tabs, footer, VHP refresh
 - **Decision:** Rules page simplified into tabs (Knode Game, Race, Swap); "Producer race" removed from the footer; VHP balance refreshes every hour.
@@ -212,11 +221,11 @@
 
 ## D-028 — Sponsor caps 25 Mana per wallet per day, 150 per week
 - **Decision:** 25 Mana per wallet per day and 150 per week, with no extra cap. The sponsor's KOIN is sized from measured use once everything is live.
-- **Note:** matches `bot/sponsor.ts` defaults; the everyone-per-day and free-per-day totals remain open in C-02.
+- **Note:** matches `bot/sponsor.ts` defaults. The everyone-per-day and free-per-day totals were open in C-02 — **settled by D-061** (5,000 and 2,000 a day).
 - **Source:** 💬 Hub
 
 ## D-029 — Prize and liability rules
-- **Decision:** A prize shortfall is cut and never owed later. Balances always cover total liabilities. Free-game rewards are extra and come second to stakers. No free-game prizes until the vault is fully live (⚠️ timing: C-10).
+- **Decision:** A prize shortfall is cut and never owed later. Balances always cover total liabilities. Free-game rewards are extra and come second to stakers. No free-game prizes until the vault is fully live (timing settled by D-062: from the vault's start; C-10 resolved).
 - **Source:** 💬 Hub. Standard: `standards/VAULT_STANDARD.md`
 
 ## D-030 — Names: one Koinos @name per wallet
@@ -244,14 +253,15 @@
 - **Ties:** a tie for 1st shares all 3 VHP and 2nd stays empty. More than 10 tied for a place: the 10 with the earliest first pick that week share it; the rest get nothing.
 - **Unfinalized race:** skipped 12 hours after its week ends; its picks don't count; listed in `skipped`.
 - **Medals (29 Oct):** only wallets that earn, only on weekly boards. Free play: paid 1st and 2nd. Staked: the vault's top 30% by headcount, rounded up, tied groups taken whole.
-- **Source:** 💬 Race chat. Full game spec belongs in `.ai/games/` (not yet written).
+- **Source:** 💬 Race chat. Full game spec: `.ai/games/ProducerRace.md`.
 
 ## D-035 — The Race chat owns all Race files
-- **Date:** 2026-10-29 · **Decision:** The Race chat owns all Race files (list in `PLATFORM.md` → Chats); other chats send Race requests through the owner. Written rule: `claude/owners-race.md`.
+- **Date:** 2026-10-29 · **Decision:** The Race chat owns all Race files (the list is in `claude/owners-race.md`; `PLATFORM.md` → Chats and ownership names the chat); other chats send Race requests through the owner. Written rule: `claude/owners-race.md`.
 - **Source:** 💬 Race, Hub chats
 
 ## D-036 — Split launch: Block X live prize-free first
 - **Decision:** Contracts first. Block X goes live prize-free; the scoring fixes happen off-chain before Vault v6 prizes (fix list: I-042).
+- **Outcome (3 Nov):** done — Block X went live prize-free. D-077 then set its prizes to start with the week of Mon 9 Nov; the I-042 list is what must be checked before that first paid week closes (Mon 16 Nov).
 - **Source:** 💬 Block X
 
 ## D-037 — One change per pick
@@ -323,7 +333,7 @@
 - **30 Oct:** SV-A2 — the 3-player minimum stays. SV-A10 — free players must not reduce staked players' chances or get more than the free prize; each board has its own safety net and end, and the free board counts only wallets that can still win. SV-A19 — a knockout by an invalid pick (not in the field, or already used) can't win.
 - **Game rules as built:** 14 UTC-day seasons, Monday to Monday. One producer per UTC day; picks lock 5 min before 00:00 UTC and open 7 days ahead; up to 5 changes and 20 picks a day; join by picking day 1. Out-zone = floor(field × (12 + day) ÷ 52) (17 producers: 4,4,4,5,5,5,6,6,6,7,7,7,8,8). Field = producers with 280+ blocks in the 7-day window. 2 lives; a life is lost for an out-zone pick, no pick, a producer not in the field, or one already used (each producer once a season). Each board's safety net saves only out-zone losses; a board ends after the day that leaves 2 or fewer counted players (if more than 2 started), when none is left, or after day 14; the final comes 12 h after both boards end. Ranking: lasted longest, then lives, then total score. Free prize 4 / 2 VHP, ties split, only for players free in both weeks, holding 1 VHP at every check, not knocked out by a missed or invalid pick, in a season with 3+ such players. Staked vault points come from the staked board; points collapse to 1 beyond 255 places.
 - **Simulation** (field of 17, `claude/builds/04-survivor-sim.mjs`): 10 players → ends about day 11; 50 → about day 13; 200 → ~4 still in on day 14, ranking decides.
-- **Source:** 💬 Survivor. Full spec belongs in `.ai/games/` (not yet written); repo `docs/SURVIVOR.md` ✅ on branch `survivor`.
+- **Source:** 💬 Survivor. Full spec: `.ai/games/Survivor.md`; repo `docs/SURVIVOR.md` ✅ on branch `survivor`. **Note (3 Nov):** the free prize 4 / 2 VHP is off for now (D-081); the rule is kept for when it's switched on.
 
 ## D-052 — Announce every game before Friday
 - **Date:** 2026-11-02 (owner, this chat)
@@ -372,7 +382,7 @@
 - **Prices:** 20 + 1.5 × (form − median form), clamped 8–40; published with its sha256 Saturday 00:00 UTC from the previous 7 days, never remade. Teams can be planned up to 7 days ahead. Knode's two nodes stay in the pool, disclosed.
 - **Prizes:** the top 30% of Fantasy stakers with ≥ 1 point share Fantasy's part; vault points 255 for the best week, one less per lower distinct score, never below 1, ranked among stakers only. A week is final 12 h after it ends.
 - **Weekly Rival:** one challenge a week (changeable until the week's first lock); a match counts only if both had a team all 7 days and both are staked; records keep made and received apart; no prize. An all-time table (total, weeks played, best week), no prize.
-- **Other:** practice on the testnet scored on mainnet blocks (1 test day = 1 hour, with robots); the page must feel inviting, professional and fun, and explain every number; Terms section 3 (`terms.html`). Standing rule from this chat: new games launch on a Monday.
+- **Other:** practice on the testnet scored on mainnet blocks (1 test day = 1 hour, with robots); the page must feel inviting, professional and fun, and explain every number; Terms section 3 (`terms.html`). Standing rule from this chat: new games launch on a Monday — **superseded by D-052 / D-064** (each game launches when audited and ready; vault weeks still start on Mondays).
 - **Producer names:** the Fantasy chat's signed-claim plan was superseded by D-030 (Koinos @names).
 - **Source:** 💬 Fantasy
 
@@ -408,6 +418,7 @@
 
 ## D-067 — Block X: nothing announced yet; redo or apply only when ready
 - **Date:** 2026-11-02 (owner) · **Decision:** Nothing about Block X has been announced to players. If an earlier on-chain announcement of game 2 exists on the Picks contract (the Block X chat reported one, applicable from Sun 1 Nov 21:23 UTC), either cancel it and announce again, or apply it only when the best build is ready (I-070).
+- **Outcome:** done — applied on Picks 2 Nov (D-070); Repo Lens round 12 GO; live on the site 3 Nov (PRs #57–#59); vault `game-add 2` sent 3 Nov (applicable Thu 5 Nov 15:51 UTC).
 
 ## D-068 — Free prizes are per week; multi-week seasons pay once, at season end
 - **Date:** 2026-11-02 (owner) · **Decision:** The free prize is 2 + 1 VHP per week. A game with a 2-week season, like Survivor, pays 4 + 2 VHP for the season, paid once to the season's winners when the season ends — not split into weekly payouts. Confirms D-020 and D-051.
@@ -422,6 +433,7 @@
 
 ## D-071 — Fantasy, Last Node, Combo and Golf are staked-only for now
 - **Date:** 2026-11-02 (owner) · **Decision:** Fantasy Producers (4), Block Golf (6), Combo Card (8) and Last Node Standing (13) are staked-only for now: no free board prize. Keep the design open so a free option can be added later. The free 2 + 1 VHP prize (D-062) applies to the free games: Daily Questions, Block X, Survivor (per season, D-068), Producer Race and Producer Bracket. Weekly Rival stays records-only.
+- **Superseded by D-081 (3 Nov):** every game now has a Free play board. Free VHP prizes: on for Questions, Block X, Race, Bracket, Last Node; off for now (board only) for Combo, Golf, Survivor, Fantasy — the D-082 switch holds them. Weekly Rival is still records-only.
 
 
 ## D-072 — No Knode Games token for now
@@ -454,6 +466,7 @@
 
 ## D-079 — Every game has its own Free play and Staked leaderboards
 - **Date:** 2026-11-03 (owner) · **Decision:** Every game has its **own** two leaderboards — **Staked** and **Free play** — built directly from that game's own results and players' picks. This is a standard for every game, including the staked-only games (Fantasy, Block Golf, Combo, Last Node): their Free play board ranks free players even though it pays no prize for now (D-071). Each game's boards also appear on the Leaders page.
+- **Update (D-081, same day):** "staked-only games" no longer exists. Every game has Free play; the free prize is on for Last Node, and off for now for Fantasy, Golf, Combo and Survivor (held by the D-082 switch).
 - **Open:** Combo's page currently lets only staked wallets send cards, so its Free play board would stay empty unless free play is allowed there (I-074).
 
 
@@ -474,12 +487,13 @@
 
 ## D-082 — A free-prize switch per game, from the next week
 - **Date:** 2026-11-03 (owner) · **Decision:** the admin panel gets an easy **Free prize ON / OFF** for every game; the owner can give or take away free-play VHP prizes at any time, and a change **only takes effect from the following week**.
-- **How (owner chose the bot switch, not a contract change):** every game is added to the vault **with** the free prize allowed (`game-add … --free`). The switch is `free-prizes.json` on the `prize-settings` branch (the owner's git login, like names-data). The vault bot posts a week's free winners only if the switch is on; **off** → it seals with no winners and the vault returns that prize to the pool. A change made in week W counts from W + 1; a change dated after its week started never counts; a 2-week season pays only if the switch was on for both weeks. If the switch can't be read, the bot posts nothing for that game and reports it (fail closed).
+- **How (owner chose the bot switch, not a contract change):** every game is added to the vault **with** the free prize allowed (`game-add … --free`). The switch is `free-prizes.json` on the `prize-settings` branch (the owner's git login, like names-data). The vault bot posts a week's free winners only if the switch is on; **off** → it seals with no winners and the vault returns that prize to the pool. A change made in week W counts from W + 1; a change dated after its week started never counts; a 2-week season pays only if the switch was on for both weeks. If the switch can't be read, the bot still posts the staked players' points, holds only the free winners and the seal, and reports it; under 6 h before the results deadline it seals without winners, so stakers never lose a week (Repo Lens FP-2, fixed before merge).
 - **Limits:** the switch can only hold back a prize the vault allows, never pay more. While off, the vault still sets aside that game's 3 VHP a week from the seed's part and then returns it to the pool; in a seed shortfall the set-aside shrinks the other games' prizes in proportion. Anyone with push access could edit the branch (the same trust as the results files).
 - **Commands:** admin panel → Knode Vault → Free prizes; or `npm run prizes -- list | on <game> | off <game> [--send]`.
 - **Vault check (Vault chat, 3 Nov, against the live v6 code ✅):** a sealed week with 0 winners finalizes cleanly. `finishGameWeek` moves the prize from `pots_outstanding` to `rolled_over`, and the next close counts it **fee-free** into the next week's pot. Nothing on chain requires winners before a seal or finalize. The stake bucket is separate and unaffected. Season games hold the prize through the season. No effect on liabilities, `seed_vhp` or `seedFree`; the VHP never leaves the vault. The shortfall effect is acceptable for now: the seed is ~99.9% of producing VHP, so its part (~85–90 VHP a week after the fee) far exceeds 9 games × 3 VHP = 27. A cut needs weekly rewards under ~30 VHP or stakes rivaling the seed. Games not applied yet cost nothing.
 - **Later, if needed:** a vault upgrade (48 h notice) could read a per-game switch at the close, so an "off" game sets aside 0.
-- **Status:** built on PR #65, **not merged** — funds-related, so Repo Lens first (D-017). Before it's live, **turn the switch OFF** for Combo (8), Golf (6), Survivor (3) and Fantasy (4) before each is added to the vault.
+- **Audit:** Repo Lens review 3 Nov — GO after FP-2 (fixed) and FP-1 (a GitHub ruleset on `prize-settings`: no deletion, no force-push — owner to add once the branch exists). Also fixed: no publishing within 30 min of Monday 00:00 UTC (FP-3/FP-4), strict UTC times (FP-7).
+- **Status:** **merged 3 Nov (PR #65).** The `prize-settings` branch is created by the first ON/OFF send. Starting settings and how to use it: `FREE_PRIZE_SWITCH.md`.
 
 ---
 

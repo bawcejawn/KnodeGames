@@ -1,6 +1,6 @@
 # Combo Card (game 8)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Combo Card, Block X and Picks chats), `DECISIONS.md` (D-038, D-060), the repo (branch `combo`). **Last updated:** 2026-11-02.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Combo Card, Block X and Picks chats), `DECISIONS.md` (D-038, D-060), the repo (branch `combo`). **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -19,7 +19,7 @@ A staked "parlay" game: combine several predictions from the Producer Race and B
 - **A week** = a player's best 10 cards; ties: more hits, the earlier last hit, address. Vault points by board rank. 💬
 
 ## Rewards
-- **Staked only for now** — no free prize (D-060, D-071); a free option may be added later. 👤 A player needs at least 1 full point in the week. Share of Combo's part of the vault's weekly reward. 💬
+- **Staked:** staked players share Combo's part (D-060). ~~Staked only for now (D-071)~~ — superseded: Combo also has a Free play board, no free prize yet (D-081; update below). 👤 A player needs at least 1 full point in the week. Share of Combo's part of the vault's weekly reward. 💬
 
 ## Dependencies
 - **Picks v2** (CARD type, release `92d555d0…`, 37,689 bytes): schedule → 48 h → upload within 7 days → clear, after Block X launches (D-060). 💬
@@ -33,7 +33,7 @@ Branch `combo` @ `c8c652e` ✅ — pushed, **not merged, nothing deployed**. Tes
 
 ## Known issues
 - **I-063:** live run time (record + verify) unmeasured; nothing writes v2's `wasmSha256` automatically (runbook step 5); the verify job's design is unreviewed; a local `picks` merge (`b301bfa`) may not be pushed; `bot/picks.ts` changed on `combo` (Block X told).
-- **I-059:** void cards until the sampler runs.
+- **I-059:** void cards until the sampler has samples. It runs since 3 Nov; its cadence is being checked.
 - Accepted: FC3-9 (a lagging check node stops recording), FC2-19 (clock edges can hold a file one run).
 
 ## Future plans

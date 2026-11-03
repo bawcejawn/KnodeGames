@@ -2,7 +2,7 @@
 
 > **Purpose:** what must always be true about how Knode Games holds, accounts for and pays out staked VHP. **Funds safety comes first: when in doubt, don't move funds** (D-003, D-016).
 > **Applies to:** the vault contract, the bot's vault code, and every game that sends results to the vault.
-> **Last updated:** 2026-11-02 (consolidated)
+> **Last updated:** 2026-11-03 (games 2 and 7 announced; every results file fills free winners; D-081 / D-082)
 > **Built from:** `platform/DECISIONS.md` (D-xxx), the Vault, Race, Survivor, Bracket, Golf, Last Node and Combo chats, and the repo. How the contract works in detail: `platform/ARCHITECTURE.md` → Vault v6. Tokens and keys: `TOKEN_STANDARD.md`.
 
 **Words:** **must** = required · **should** = expected · ✅ verified in the repo · ❓ = not yet decided
@@ -12,7 +12,7 @@
 |------|-------|
 | Contract | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` — the game contract, upgraded in place to Vault v6 on 2 Nov ✅ |
 | Builds | live `eed38f7c…`; emergency withdrawals-only `e84fec49…` ✅ |
-| Games | game 1 (Daily Questions) built in; results sources for 2, 3, 4, 6, 7, 8, 9, 13 in `vaultGames` ✅; none registered yet beyond game 1 |
+| Games | game 1 (Daily Questions) built in; results sources for 2, 3, 4, 6, 7, 8, 9, 13 in `vaultGames` ✅; games **2 (Block X) and 7 (Race) announced 3 Nov**, applicable Thu 5 Nov 15:51 UTC; the rest not yet added |
 | Seed | 21,050 VHP, seed owner `1K8VV…` (D-022) |
 | Producer | the **Knode Games Pool** = the vault address, via the game node (D-073) |
 | First paying week | vault week 3 (Mon 9 Nov) for games applied Wed 4 – Sun 8 Nov (D-062, D-063) |
@@ -58,7 +58,7 @@
  "skipped": [ … ]}             // optional: rounds left out
 ```
 - `rows`: staked players with ≥ 1 point, dense-ranked onto 255 … 1 (ties share; past 255 places the best 254 stay exact and the rest share 1). A week with no qualifying players may still get a file with empty rows.
-- Staked-only games leave `first` and `second` empty.
+- **Every game fills `first` and `second`** with its free winners, even when its free prize is off. The owner's free-prize switch (D-082, `platform/FREE_PRIZE_SWITCH.md`) decides whether the bot posts them. ~~Staked-only games leave `first` and `second` empty~~ (D-071, superseded by D-081 / D-082).
 
 **Every results file must:**
 - be published **only after the week ends**, and for staked rows only after the stakes are read once the week has ended;

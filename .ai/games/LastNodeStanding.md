@@ -1,6 +1,6 @@
 # Last Node Standing (game 13)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Last Node Standing chat), `DECISIONS.md` (D-054, D-055), the repo (branch `lastnode`). **Last updated:** 2026-11-02.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Last Node Standing chat), `DECISIONS.md` (D-054, D-055), the repo (branch `lastnode`). **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -20,11 +20,11 @@ A daily elimination event among block producers: each hour the weakest node (by 
 - **Watch-and-hold:** a node at weekly z ≥ 3.4 with 2+ wins, or z ≥ 5 in one event it won, is flagged; the week's vault file is held until released with `LASTNODE_RELEASE_WEEKS` (D-055). 💬
 
 ## Rewards
-- **Staked:** vault file `{game: 13, week, final, rows: [{player, points 1–255}], first: [], second: []}` — rows are wallets staked in game 13 that week with ≥ 1 point; written 12 h to 3 days after the week ends. 💬
+- **Staked:** vault file `{game: 13, week, final, rows: [{player, points 1–255}], first: [], second: []}` as built — rows are wallets staked in game 13 that week with ≥ 1 point; **to change:** `first` / `second` must now hold the free winners (D-081, next line); written 12 h to 3 days after the week ends. 💬
 - **Free play:** **yes — Free play and Staked boards** (D-081, 3 Nov; was staked-only, D-071). **The Free board pays the 2 + 1 VHP weekly prize from the start** (owner, 3 Nov): the results file fills `first` / `second`, and the free-prize switch (D-082) stays on for game 13. The branch was built staked-only — the Last Node chat must add the free board. 👤
 
 ## Dependencies
-- **The VHP sampler** (`race-samples.yml`): 48 h of readings before launch; no field without form unless `LASTNODE_ALLOW_NO_FORM=true`, and the owner chose to wait (D-054). Not running yet ✅ (I-059).
+- **The VHP sampler** (`race-samples.yml`): 48 h of readings before launch; no field without form unless `LASTNODE_ALLOW_NO_FORM=true`, and the owner chose to wait (D-054). ~~Not running yet~~ — running since 3 Nov 15:58 UTC ✅; whether GitHub runs it often enough for the 48 h is being checked (I-059).
 - **Picks contract:** game 13 announce (owner key) → 48 h → apply; `bot/picks.ts` registers only Block X on mainnet so far. 💬
 - Race cards (`race-data`), two nodes, `lastnode.yml` with its own publish-job JSON-RPC client. 💬
 - Vault v6 (staked list, HOLD files — I-064); sponsor coverage for game-13 picks to confirm. 💬
@@ -38,4 +38,4 @@ Branch `lastnode` @ `adf95be` ✅ — pushed, **not merged, nothing deployed**; 
 - Windows: other games' tests need Linux (expected).
 
 ## Future plans
-Clean round-3 review → `picks` merged to `main` (starts the sampler) → announce game 13 on Picks, apply after 48 h → 48 h of sampler data → `lastnode` → `main` (owner OK) → `LASTNODE_ENABLED=true` → watch the first live day. Later: a 4-week rolling form check or a shorter form window against slow skimming.
+Clean round-3 review → ~~`picks` merged to `main` (starts the sampler)~~ ✅ 3 Nov → add the Free play board and free-winner rule (D-081; proposal `claude/lastnode/FREE-PLAY-PROPOSAL.md`) → announce game 13 on Picks, apply after 48 h → 48 h of sampler data → `lastnode` → `main` (owner OK) → `LASTNODE_ENABLED=true` → watch the first live day. Later: a 4-week rolling form check or a shorter form window against slow skimming.

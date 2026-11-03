@@ -24,7 +24,7 @@ Knode Games has **no token of its own** (D-072). The possibility stays open for 
 | **Mana sponsor** (`1ByDDS…`) | its own KOIN, for Mana only | never holds player funds (D-061) |
 | **Picks, Race picks** | nothing | hold no tokens and never pay Mana ✅ |
 | **Guest wallets** | nothing | play-only keys; never hold funds |
-| Owner, treasury, seed owner, operator | their own funds | separate wallets for separate roles; moves follow `docs/WALLETS.md` |
+| Owner, treasury, seed owner, operator | their own funds | separate wallets for separate roles; moves follow `docs/WALLETS.md` — **stale: rewrite before any move** (I-001) |
 
 New contracts **must not** hold player tokens unless the owner decides otherwise and the vault standard's invariants are kept.
 
@@ -49,7 +49,7 @@ New contracts **must not** hold player tokens unless the owner decides otherwise
 ## 6. Keys and sends
 - **Keys** live only in `.env` on the owner's PC; never pasted into chat or GitHub; never printed, stored or asked for by an AI chat. A key that is pasted anywhere is rotated (D-003, D-042).
 - GitHub holds **one** secret: `OPERATOR_WIF`, in the `bot` environment, usable only from `main` (D-012).
-- **Every mainnet send** is a dry run unless `--send`, needs `--mainnet` on the command line and `CONFIRM_MAINNET=yes` in `.env`, and runs one step at a time (D-004, D-042).
+- **Every mainnet send:** mainnet sends are dry runs unless `--send`; every chain tool also needs `CONFIRM_MAINNET=yes` in `.env`, and the Picks tool (`npm run picks`) alone also needs `--mainnet` on the command line ✅ (code checked 3 Nov). It runs one step at a time (D-004, D-042).
 - Testnet tools must refuse mainnet (by node name and chain id); test keys are play money only, and test wallets are emptied and retired after launch.
 - A retired key is removed only after its wallet's leftover funds are moved (I-045).
 

@@ -8,7 +8,7 @@
 ---
 
 ## 1. Shared rules for every chat
-1. **The `.ai/` library is the source of truth.** Read `.ai/START_HERE.md` first and follow its reading order. Where docs disagree, `platform/DECISIONS.md` wins, then the repo, then chat notes. The owner wins over all of them.
+1. **The `.ai/` library is the source of truth.** Read `.ai/START_HERE.md` first and follow its reading order. Where sources disagree, the order is: the owner's own words → `DECISIONS.md` → what's verified in the code or on chain (✅) → the other `.ai/` files → the repo's `docs/` → chat notes and handoffs (D-002).
 2. **One owner per area.** Each area belongs to one chat (`platform/PLATFORM.md` → "Chats and ownership"; D-035). Work only on your area's files. If you need a change in another chat's files, write the request in your session-end report and the owner passes it on.
 3. **Work on a branch, ship by pull request.** Use your area's branch, or a new branch from `main`. Open a PR into `main`; its tests must pass. **Only the owner merges** (D-026). Never push to `main`.
 4. **Funds and keys:** never ask for, print or store keys or seed phrases. Every mainnet tool is a dry run until `--send`, one step at a time, dry run first (`platform/RULES.md` §1). Anything touching funds, contracts or the vault passes an audit before it ships (D-017).

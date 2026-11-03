@@ -10,7 +10,7 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Contradictions
-Tracked in `DECISIONS.md` → Contradictions (open: C-25). Not duplicated here.
+Tracked in `DECISIONS.md` → Contradictions (none open). Not duplicated here.
 
 ## Open
 | ID | Priority | Area | Issue | Waiting on | Opened | Source |
@@ -75,7 +75,6 @@ Tracked in `DECISIONS.md` → Contradictions (open: C-25). Not duplicated here.
 | I-063 | P3 | Combo | FC-11/FC2-14: live run time (record + verify) not measured; pick the concurrency group or cron offset after. FC2-13: nothing writes v2's `wasmSha256` automatically (runbook step 5). Accepted: FC3-9, FC2-19. The verify job's design hasn't been reviewed. `bot/picks.ts` (Block X's tool) was changed on `combo`; a local merge of `picks` `b301bfa` may not have been pushed | Combo chat | 2026-11-02 | 💬 Combo |
 | I-064 | P2 | vault | Vault-side checks other chats asked for: verify every staked board player appears in a game's vault file; honour `HOLD-W*.json`; alert on a refused prize post (I-052) | Vault chat | 2026-11-02 | 💬 Last Node, Survivor |
 | I-065 | P1 | launch | Readiness gap for the Friday target (D-052); nothing is announced until ready (D-064). Audits still to run: Survivor pass 4, Last Node round 3, Bracket audit, Fantasy fix-check, Combo fix-check 4. Also: Last Node needs 48 h of sampler data (I-059); Combo needs the Picks v2 upgrade after Block X; Golf staked needs v6 merged into its branch. Only the Race (and Block X, once step 8 + launch PR are done) are ready now | owner + game chats | 2026-11-02 | 💬 all game chats, ✅ branch states |
-| I-067 | P1 | game 1 / prizes | ✅ Checked on chain 2026-11-02: `reward_rule_week_plus_one=3`, `v6_rule_week_plus_one=4`, and neither can be changed (set once after each upgrade; no setter). So Week 2 (index 1, paid Tue 3 Nov) pays free players **nothing** (`pot_free` 0, confirmed), but Week 3 (index 2, 2–9 Nov, paid Tue 10 Nov) **will pay free players up to 2 VHP** under v5: best score alone 1 VHP, the 2nd score's players share 1 VHP; a tie for best splits all 2 VHP; only one free scorer gets 1 VHP and the other 1 VHP goes to basket B; nobody qualifies → all 2 VHP to basket B. Free player = never held the minimum stake that week, ≥ 2 answers counted, ≥ 1 point. It comes out of that week's pot (stakers' share), not extra money. From Week 4 (index 3, Mon 9 Nov) v6 pays 2 + 1. This contradicts D-062/D-063 for one week. Only a contract upgrade could stop it (48 h timelock, landing before the Mon 9 Nov 12:00 close). Owner to decide: accept the one week of 1 + 1, or upgrade | owner | 2026-11-02 | ✅ chain + `game/assembly/Kpred.ts` (`rewardRule`, `freePrizeOf`, finalize); ⚠️ C-25 |
 | I-068 | P4 | tooling | `bot --testnet` and the admin page's "Vault v6 trial (local node)" target a local Harbinger testnet node the owner doesn't run (D-066). Retarget them to the public testnet or remove them | Vault + Hub chats | 2026-11-02 | 👤 |
 | I-069 | P2 | site | UI refresh: show the week of Mon 9 Nov as "Week 1" across the site (on-chain numbering unchanged), and replace "vault not yet live" wording (with I-027) | Hub + Race chats | 2026-11-02 | 👤 D-063 |
 | I-070 | P2 | Block X | The Block X chat reported game 2 announced on the Picks contract (applicable from Sun 1 Nov 21:23 UTC); the owner says nothing was announced. Check the chain: if an announcement exists, cancel and redo it, or apply only when the best build is ready (D-067). Ask whether it expires after 7 days | Block X chat | 2026-11-02 | 👤 |
@@ -83,6 +82,7 @@ Tracked in `DECISIONS.md` → Contradictions (open: C-25). Not duplicated here.
 ## Closed
 | ID | Issue | Closed | Resolution / where recorded |
 |----|-------|--------|-----------------------------|
+| I-067 | Questions game free prize at the first v5 payout | 2026-11-02 | ✅ chain: Week 3 pays free players 1 + 1 VHP (fixed on chain); owner accepted, no upgrade (D-069, C-25) |
 | I-003 | Confirm `reward_rule_week_plus_one=3` on chain | 2026-11-02 | ✅ `get_state`: `reward_rule_week_plus_one` 3, `v6_rule_week_plus_one` 4 (Questions chat). What it pays: I-067 |
 | I-066 | Questions payout time (Tue 21:00 vs Tue 12:00 UTC) | 2026-11-02 | 21:00 UTC was never in code or on the site: it was the time of a Questions-chat check-in reminder (1 PM PT) that leaked into chat notes. Code, contract, bot, site and README all say winners are final Tue 12:00 UTC on time (week ends Mon 00:00; close after 12 h; settle 24 h). On chain, Week 2 closed Mon 2 Nov 12:02 and settles until Tue 3 Nov 12:02; the hourly bot (:07) finalizes right after, so payouts are ready ≈ Tue 12:07 UTC (4:07 AM PT). Docs fixed; the check-in moved to Tue 10 Nov 13:15 UTC. C-08 |
 | I-012 | Five stake-panel fixes | 2026-11-02 | Done in PR #46 ✅ merged on `main` (busy-Mana message and 0.5 cap, `weightFor`, wallet race, refresh after actions, 2nd-place prize) |

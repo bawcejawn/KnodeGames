@@ -18,7 +18,7 @@ Times in UTC, with Pacific time where it helps.
 | Fri 6 Nov, 4 PM PT | **Target** to announce (`game-add`) the games that are ready (D-052, gated by D-064) | 👤 |
 | Sun 8 Nov, 4 PM PT | Last moment to `game-apply` games announced by Friday, so they earn from Mon 9 Nov | 💬 |
 | **Mon 9 Nov, 00:00** | **The vault starts:** v6 rules begin; 2 + 1 VHP free prizes begin on every free game (D-062); players see this as **"Week 1"** (D-063) | 👤 / 💬 |
-| Tue 10 Nov, 12:00 (4 AM PT) | Questions game Week 3 winners final; the bot pays out ≈ 12:07. First week with the v5 split; free players get 1 + 1 VHP unless the owner upgrades first (I-067) | ✅ chain; ⚠️ C-25 |
+| Tue 10 Nov, 12:00 (4 AM PT) | Questions game Week 3 winners final; the bot pays out ≈ 12:07. First week with the v5 split; free players get 1 + 1 VHP (D-069) | ✅ chain, 👤 |
 | Sat 7 – Fri 13 Nov | Survivor announce window; apply Mon 9 – Sun 15 Nov | 💬 |
 | **Mon 16 Nov** | **Survivor Season 1 starts** (D-065); first vault close at 12:00 | 👤 / 💬 |
 
@@ -26,7 +26,6 @@ Times in UTC, with Pacific time where it helps.
 | Step | Who | Blocked by | |
 |------|-----|-----------|-|
 | Merge `vault-v6` into `picks`, so the admin page's vault buttons work | Vault chat (asked 2 Nov) | — | I-019 |
-| Make the Questions game's free prize follow D-062 (no 1 + 1 before the vault starts) | owner | checked: the chain will pay 1 + 1 for Week 3; only an upgrade before Mon 9 Nov 12:00 UTC changes that | I-067 |
 | Block X: confirm whether any on-chain announcement exists (cancel and redo, or apply when ready); step 8; Mana check; launch PR `picks` → `main` | owner + Block X chat | readiness (D-064, D-067) | I-040, I-070 |
 | `game-add` → switch the sponsor to the vault (copy the caps exactly) → `game-apply`, for each ready game | owner | I-019 | D-061 |
 | UI refresh: week of 9 Nov shown as "Week 1"; vault "not yet live" wording replaced | Hub + Race chats | — | I-069, I-027 |

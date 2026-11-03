@@ -10,7 +10,6 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today
-- [ ] Decide: let Week 3 pay free players 1 + 1 VHP (the chain will, by itself), or upgrade the contract before Mon 9 Nov 12:00 UTC to stop it — P1 — I-067, C-25
 - [ ] (Owner is asking) the Block X chat whether game 2 is already announced on chain (I-070) — P1
 - [ ] Decide when Block X goes public (not announced to players yet), then step 8 — apply Block X on the Picks contract: `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet` must show 1 change (allowed since Sun 1 Nov, 1:23 PM PT; not reported done) — P2 — I-040
 - [ ] Before Block X is published: `npm run sponsor -- mana-report` on mainnet; raise the pick row if mainnet is more than ~1.5× testnet — P2 — D-038
@@ -95,6 +94,7 @@
 | Item | Done | Link |
 |------|------|------|
 | `reward_rule_week_plus_one=3` confirmed on chain | 2026-11-02 | I-003 |
+| Accepted Week 3's 1 + 1 VHP free prize for the Questions game (no upgrade) | 2026-11-02 | D-069 |
 | Payout time settled: Tue 12:00 UTC (≈ 12:07 with the bot); the 21:00 was a reminder time | 2026-11-02 | I-066, C-08 |
 | Answered C-02, C-03, C-10, C-15, C-16, C-18, C-19, C-20; C-22 checked in code | 2026-11-02 | D-061 – D-067 |
 | Survivor Season 1 date chosen: Mon 16 Nov | 2026-11-02 | D-065 |

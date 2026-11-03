@@ -79,6 +79,7 @@
 | D-066 | 2026-11-02 | Public testnet only; three mainnet nodes | active |
 | D-067 | 2026-11-02 | Block X: nothing announced yet; redo or apply only when ready | active |
 | D-068 | 2026-11-02 | Free prizes are per week; multi-week seasons pay once, at season end | active |
+| D-069 | 2026-11-02 | Questions game Week 3 pays its on-chain v5 free prize (1 + 1 VHP); no upgrade | active |
 
 ---
 
@@ -377,7 +378,7 @@
 
 ## D-062 — 2 + 1 VHP free prizes on every free game, from the vault's start
 - **Date:** 2026-11-02 (owner) · **Decision:** Every free game pays 2 VHP for 1st and 1 VHP for 2nd, and they all start when the vault starts (the v6 rules week, Mon 9 Nov). Supersedes the Questions game's 1 + 1 from 2 Nov (D-045) and D-010.
-- **Survivor:** settled by D-068 (C-24). The Questions game's on-chain rule may already pay 1 + 1 from 2 Nov (C-25, I-067).
+- **Survivor:** settled by D-068 (C-24). The Questions game's Week 3 (2–9 Nov) pays its on-chain 1 + 1 VHP; the owner accepted it (D-069).
 
 ## D-063 — The week of 9 Nov is "Week 1"; earlier weeks don't pay
 - **Date:** 2026-11-02 (owner) · **Decision:** A UI refresh makes the week starting Mon 9 Nov the real "Week 1" for players. Weeks before it — including the Race's final week-1 vault file with free winners — pay no free prizes.
@@ -398,6 +399,9 @@
 ## D-068 — Free prizes are per week; multi-week seasons pay once, at season end
 - **Date:** 2026-11-02 (owner) · **Decision:** The free prize is 2 + 1 VHP per week. A game with a 2-week season, like Survivor, pays 4 + 2 VHP for the season, paid once to the season's winners when the season ends — not split into weekly payouts. Confirms D-020 and D-051.
 
+## D-069 — Questions game Week 3 pays its on-chain v5 free prize
+- **Date:** 2026-11-02 (owner) · **Decision:** Accept it. The Questions game's Week 3 (Mon 2 – Mon 9 Nov, paid Tue 10 Nov ≈ 12:07 UTC) pays free players the v5 free prize already fixed on chain (`reward_rule_week_plus_one=3`): up to 2 VHP from that week's pot — best score 1 VHP, the 2nd score's players share 1 VHP (a tie for best splits all 2; a lone free scorer gets 1 and the other 1 goes to basket B; nobody qualifies → all to basket B). No contract upgrade. This is a one-week exception to D-062/D-063 for game 1 only; every free game, game 1 included, pays 2 + 1 VHP from Mon 9 Nov (v6). Resolves C-25 and I-067.
+
 ---
 
 ## Contradictions
@@ -406,11 +410,11 @@ Repo wins over chats (D-002); the owner's answers win over both.
 ### Open
 | ID | Topic | What disagrees | Next step |
 |----|-------|----------------|-----------|
-| C-25 | Questions game free prize on chain | ✅ Chain (2026-11-02): `reward_rule_week_plus_one=3` is fixed, so Week 3 (2–9 Nov, paid Tue 10 Nov) pays free players 1 + 1 VHP (up to 2 VHP from that week's pot); Week 2 pays none; v6 2 + 1 from Mon 9 Nov. Owner rule (D-062, D-063): no free prizes before the vault starts | Owner: accept one week of 1 + 1, or a contract upgrade before Mon 9 Nov 12:00 UTC (I-067) |
 
 ### Resolved
 | ID | Topic | Resolution | How |
 |----|-------|-----------|-----|
+| C-25 | Questions game free prize on chain | Week 3 pays the v5 1 + 1 VHP as fixed on chain; v6 2 + 1 from Mon 9 Nov | owner, 2026-11-02 (D-069) |
 | C-08 | Questions payout time | Tue 12:00 UTC on time (≈ 12:07 when the hourly bot finalizes); 21:00 came from a chat check-in reminder, not code | chain + repo, Questions chat 2026-11-02 (I-066) |
 | C-01 | Sponsor version | v3 `b61ac238…` is live; `main`'s record is stale (I-043) | repo + 3 chats |
 | C-02 | Sponsor caps | 1 / 25 / 150 / 5,000 / 2,000 Mana; the 1,000/day set was the v2 era | owner (D-061), repo |

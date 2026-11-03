@@ -93,6 +93,7 @@ Tracked in `DECISIONS.md` → Contradictions (none open). Not duplicated here.
 | I-019 | Admin page vault buttons needed `vault-v6` in `picks` | 2026-11-02 | ✅ merged into `picks` by the Vault chat (`e7887b6`) |
 | I-040 | Block X step 8 (apply game 2 on the Picks contract) | 2026-11-02 | 👤 owner applied game 2 and completed the follow-up steps; BX-129 (5 changes) and BX-127 (record job failing) no longer apply |
 | I-070 | Block X's existing Picks announcement | 2026-11-02 | 👤 owner chose to apply it (D-070) — done |
+| I-071 | P3 | repo | PR #50 "Ship-week cleanup: wallet lock map, fail-closed site, SW shell" (`cursor/ship-cleanup-audit-4bdd` → `main`) is open and appears in no chat export — confirm who owns it and whether it's still wanted before merging | owner | 2026-11-03 | ✅ GitHub |
 | I-011 | Stale worktrees `C:\kg-combo-preview` and `C:\kprediction-vault` | 2026-11-02 | **Corrected, not an issue.** "Prunable" was an artifact of the AI's sandbox, which can't see Windows `C:\` paths. The Vault chat confirms `C:\kprediction-vault` is in use and frozen (D-025). Do not clean up either worktree. |
 | I-018 | `.ai` library nested as `.ai/.ai/…` on `main` | 2026-11-02 | Fixed by the Vault chat at 13:03 PT (commit `30a5d90`) ✅ |
 | — | Vault chat: `picks-data/deployment.json` showing as deleted in `C:\kprediction` | 2026-11-02 | Not seen: `git status` on 2026-11-02 shows no deleted files on `picks` ✅ |

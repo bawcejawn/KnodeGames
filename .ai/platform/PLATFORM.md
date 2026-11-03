@@ -10,6 +10,7 @@
 ## The library
 | File | Holds |
 |------|-------|
+| `CURRENT_STATE.md` | dated snapshot: completed, in progress, blockers, priorities |
 | `PLATFORM.md` | this overview |
 | `ARCHITECTURE.md` | how the pieces work: site, contracts, bots, workflows, data, tests |
 | `DEPENDENCIES.md` | how vault, leaderboards, rewards, swap desk, wallets, games and user accounts connect |

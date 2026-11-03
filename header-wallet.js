@@ -8,7 +8,8 @@
   "use strict";
   const W = window.KWallet;
   if (!W || typeof document === "undefined") return;
-  const lib = window.koilib || window.koinos || null;
+  // The koilib browser bundle puts Provider, Signer and utils on window itself (not on window.koinos).
+  const lib = window.koilib || window.koinos || (window.Provider ? window : null);
   const short = (a) => (a ? a.slice(0, 5) + "…" + a.slice(-4) : "");
   const KIND = { kondor: "Kondor", vault: "KOIN Vault", guest: "Guest" };
 
@@ -72,7 +73,9 @@
   }
   function paint() {
     if (!btn) return;
-    btn.textContent = W.address ? (W.kind === "guest" ? `Guest ${short(W.address)}` : short(W.address)) : "Connect wallet";
+    // Your own wallet: its Knode Games name or @nickname if it has one (names.js; the full address is in the title).
+    const mine = W.address && window.KNames ? window.KNames.name(W.address) : "";
+    btn.textContent = W.address ? (W.kind === "guest" ? `Guest ${short(W.address)}` : mine || short(W.address)) : "Connect wallet";
     btn.classList.toggle("connected", !!W.address);
     btn.title = W.address ? `${KIND[W.kind] || "Wallet"}: ${W.address}` : "Connect a Koinos wallet";
     if (!menu.hidden) renderMenu();
@@ -100,6 +103,7 @@
   }
 
   W.subscribe(() => paint());
+  if (window.KNames && window.KNames.onChange) window.KNames.onChange(() => paint());
   // Pages that set the wallet up themselves (game, swap, burn, Mana) call init with their own settings; init may run
   // more than once, so set it up here too for every other page.
   W.init({ provider: lib && lib.Provider ? new lib.Provider(["https://koinos.armana.io"]) : null, toast });

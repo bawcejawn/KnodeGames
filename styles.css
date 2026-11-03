@@ -754,3 +754,39 @@ body[data-view="welcome"] .foot .eco { display: none; }
 /* Phone More sheet: group headings across the grid. */
 .more-panel .ms-h { grid-column: 1 / -1; margin: 8px 4px 0; font-size: .74rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .more-panel .ms-h:first-child { margin-top: 0; }
+
+/* ── shared "stake in this game" panel (stake-panel.js) ── */
+.kstake h3 { margin: 0 0 10px; }
+.kstake-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+.kstake-stats > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+.kstake-stats span { font-size: .8rem; }
+.kstake-stats b { font-size: 1.05rem; overflow-wrap: anywhere; }
+.kstake-status { margin: 6px 0; font-weight: 700; }
+.kstake-explain { margin: 6px 0 12px; }
+.kstake-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.kstake-claims { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
+.kstake-claims li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.kstake-claims .btn { padding: 8px 16px; }
+.kstake-note { margin: 10px 0 0; }
+.kstake-list { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 8px; }
+.kstake-list li { padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; }
+.kstake-list-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.kstake-list-head .btn { padding: 8px 14px; }
+.kstake-list-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-weight: 700; font-size: .92rem; }
+.kstake-list-stats small { font-weight: 400; }
+.kstake-dialog select { width: 100%; padding: 10px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
+@media (max-width: 520px) { .kstake-stats { gap: 6px; } .kstake-stats > div { padding: 8px 10px; } .kstake-stats span { font-size: .72rem; } .kstake-stats b { font-size: .95rem; } }
+
+/* ── producer names (names.js): a name is always shown with the short address ── */
+.kn-addr { font-family: ui-monospace, Consolas, monospace; font-size: .85em; color: var(--muted); }
+/* ── staked / free status bar (stake-panel.js KStake.badge): the top of every game page ── */
+.kbadge { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 14px; margin: 0 0 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; }
+.kbadge .kb-dot { width: 10px; height: 10px; border-radius: 99px; background: var(--muted); flex: none; }
+.kbadge.staked { border-color: var(--mint, #2f9e6b); background: color-mix(in srgb, var(--mint, #2f9e6b) 9%, var(--surface)); }
+.kbadge.staked .kb-dot { background: var(--mint, #2f9e6b); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mint, #2f9e6b) 25%, transparent); }
+.kbadge .kb-main b { font-weight: 800; }
+.kbadge .kb-amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+.kbadge .kb-sub { color: var(--muted); flex: 1 1 220px; }
+.kbadge .kb-link { font-weight: 700; white-space: nowrap; margin-left: auto; }
+.g-stake { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.g-stake.on { color: var(--mint-ink, #1f7a4d); border-color: var(--mint, #2f9e6b); }

@@ -168,8 +168,12 @@ test("IMP2-FRAME-4 (holds) every signing page is behind the frame-buster", () =>
     const own = [...html.matchAll(/<script src="([^"/:]+\.js)"/g)].map((m) => m[1]);
     const usesWallet = own.some((f) => f !== "wallet.js" && /KWallet|window\.kondor/.test(fs.readFileSync(`${APP}/${f}`, "utf8")));
     if (usesWallet) {
-      assert.ok(own.includes("wallet.js"), `IMP2-FRAME-4: ${p} signs without loading wallet.js (no frame-buster)`);
-      const wi = own.indexOf("wallet.js");
+      // The one exception: the testnet pages sign with their own testnet wallet (testnet-wallet.js for Block X,
+      // stake-testnet-wallet.js for staking), each with its own frame-buster, never the mainnet wallet.
+      const buster = !/<meta name="kg-network" content="testnet">/.test(html) ? "wallet.js" : own.includes("testnet-wallet.js") ? "testnet-wallet.js" : "stake-testnet-wallet.js";
+      assert.ok(own.includes(buster), `IMP2-FRAME-4: ${p} signs without loading ${buster} (no frame-buster)`);
+      if (buster !== "wallet.js") assert.match(fs.readFileSync(`${APP}/${buster}`, "utf8"), /if \(window\.top !== window\.self\)/, `${buster} has the frame-buster`);
+      const wi = own.indexOf(buster);
       for (const f of own.slice(0, wi)) assert.ok(!/KWallet|window\.kondor/.test(fs.readFileSync(`${APP}/${f}`, "utf8")), `IMP2-FRAME-4: ${p} runs ${f} before the frame-buster`);
     }
   }

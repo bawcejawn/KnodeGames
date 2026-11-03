@@ -47,10 +47,33 @@ prize. Nothing in this game holds or moves tokens.
    to one block; fork check on block ids; cross-check against the contract's `effective_balance_of` (skipped with a
    warning if a node can't answer it as a read-only call — not yet seen live).
 3. Both nodes must produce identical hours, seeding, picks and stakes, or nothing is written.
-4. The publish job runs **no repo code**: a Python shape check of every file, then a push to `games-data:bracket/`.
+4. The publish job runs **no repo code** (the same rules Block X earned in its audit rounds):
+   - every file must be exactly the recorder's own JSON form and JavaScript-safe (BX-95 / BX-112 / BX-122);
+   - a strict shape check of every file;
+   - **published history is kept**: a published seeding, recorded hour, checked pick list or final week never changes,
+     and `index.json`'s week list only grows — a run that tries is held whole, with an alert (as BX-88);
+   - a **Vault file is judged against the published branch**: it is published only once its week is final there, it
+     must equal what that published final week gives (rows, first, second, rebuilt in the job), and only within 3 days
+     of the week's end; Vault files are write-once (as BX-79 / BX-81).
 5. The page (`bracket.html`, `bracket.js`) reads only those published files and the Picks contract; it signs only a
    `pick` for game 9's current round (wallet, or a sponsored guest wallet).
 6. The Vault bot (branch `vault-v6-next`, `bot/vault.ts`) reads `games-data:bracket/vault/W<week>.json` and posts it.
+
+## Leaderboards (leaderboard standard)
+- Rows `{a, place, boardPlace, pts, champion, correct, ranked, earns}`: places on the player's own board (ties share);
+  `earns` 1 / 2 = the free prize's 1st / 2nd, 3 = a share of the Staked bucket (the top 30% by headcount, rounded up,
+  tied groups whole), 0 = nothing — only on This week / Last week and only from `BRACKET_PRIZES_FROM_WEEK` (a repository
+  variable: the first week the Vault pays game 9; unset → no medals, no prize lists).
+- `lastWeek.prizes` (once final): `[{player, place, vhp}]` by the Vault's payout rule (Leaders page medals).
+- **Final weeks are frozen**: a later run keeps a final week's stored results and points (a rule change never rewrites one).
+- `games.json` has the Bracket's `board` entry (`earns: true`, `hide: ["today"]`); `leaders.js` reads both options.
+
+## Launch (owner, only after the Repo Lens audit passes — D-064)
+1. Announce game 9 in Picks (48 h).
+2. Vault: `game-add 9 "Producer Bracket" --staked --free --season 1` (48 h); the free-prize switch for game 9 stays ON (D-082).
+3. Set `BRACKET_PRIZES_FROM_WEEK` to game 9's first paying week.
+4. Sponsor allowlist row for game 9 picks.
+5. `games.json`: Bracket `status` → `live`, `href` → `bracket.html` (its Leaders board then shows).
 
 ## Review history
 - Card-era audit and two fix-checks → replaced by exact VHP (option A).

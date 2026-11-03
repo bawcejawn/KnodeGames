@@ -160,7 +160,7 @@ test("the race page shows no odds, no wagers, no payouts", () => {
   for (const f of ["race.js", "race.html", "race-math.js"]) assert.doesNotMatch(read(f), /\bodds\b|\bpays\s+\d|\bpaysFor\b|\bwager|\bbet\b/i, f);
 });
 
-test("the race page sends only one thing: the wallet's own pick on the race contract, through the wallet", () => {
+test("the race page sends only one thing itself: the wallet's own pick on the race contract, through the wallet", () => {
   for (const f of ["race-math.js", "chain-blocks.js"]) assert.doesNotMatch(read(f), /\.send\(|signTransaction|sendTransaction|onlyOperation/, f);
   const js = read("race.js");
   const sends = [...js.matchAll(/\.send\(/g)];
@@ -170,7 +170,7 @@ test("the race page sends only one thing: the wallet's own pick on the race cont
   assert.doesNotMatch(js, /signTransaction|sendTransaction|privateKey|wif/i);
   assert.match(js, /if \(Date\.now\(\) >= M\.raceStart\(index\)\)/, "the page also refuses a started race (the chain enforces it)");
   assert.match(read("race.js"), /localStorage\.removeItem\("pr-guesses-v1"\)/);
-  assert.match(read("race.html"), /<script src="race-math\.js"><\/script>\s*<script src="board\.js"><\/script>\s*<script src="race\.js"><\/script>/);
+  assert.match(read("race.html"), /<script src="race-math\.js"><\/script>\s*<script src="board\.js"><\/script>\s*<script src="stake-panel\.js"><\/script>\s*<script src="race\.js"><\/script>/);
 });
 
 test("the shared leaderboard (board.js) only draws: no network, no storage, no wallet, no HTML from data", () => {
@@ -188,4 +188,18 @@ test("the pick lists for upcoming races are never empty once any card exists: a 
   const js = read("race.js");
   assert.match(js, /const fieldOf = \(r\) => \(r\.cards && !r\.provisional && M\.cardForLeg\(r\.cards, 0\)\) \|\| latest\(\);/);
   assert.match(js, /const latest = \(\) => \{ const lr = raceObj\(cur\); return \(lr\.cards && M\.cardForLeg\(lr\.cards, M\.legOf\(lr\.start, Date\.now\(\), M\.legsOf\(lr\.cards\)\)\)\) \|\| prov; \};/);
+});
+
+test("race page: medals only for wallets that earn (the recorder's earns), on both boards", () => {
+  const js = read("race.js"), b = read("board.js");
+  assert.match(js, /freeWinners: \(part, free, weekly\) => new Map\(weekly \? free\.filter\(\(r\) => r\.earns === 1 \|\| r\.earns === 2\)/);
+  assert.match(js, /earned: \(r, weekly\) => weekly && r\.earns === 3/);
+  assert.match(b, /const medalOk = \(r, p\) => \(o\.earned \? !!o\.earned\(r, weekly\) && p <= 3 : p <= 3 && o\.scored\(r\)\)/);
+});
+
+test("race page: the staked / free status bar sits at the top of the page, for game 7", () => {
+  const h = read("race.html"), js = read("race.js");
+  assert.match(h, /<main class="pr">\s*<div id="stake-badge" hidden><\/div>\s*<h1>Producer Race<\/h1>/);
+  assert.match(js, /window\.KStake\.badge\(document\.getElementById\("stake-badge"\), \{ game: 7 \}\)/);
+  assert.ok(h.indexOf('id="stake-badge"') < h.indexOf('id="stake"'), "the bar above the full stake panel");
 });

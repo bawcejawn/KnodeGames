@@ -237,7 +237,7 @@ test("files: only the expected names, sizes and fields", async () => {
   assert.ok(names.includes("W003.json") && names.includes("board.json") && names.includes("index.json"));
   assert.ok(names.every((f) => /^(index|board|W\d{3})\.json$/.test(f)), names.join());
   const idx = JSON.parse(fs.readFileSync(path.join(dir, "index.json"), "utf8"));
-  assert.deepEqual(Object.keys(idx).sort(), ["contract", "game", "updated", "v", "weeks"]); assert.equal(idx.game, B.GAME_ID);
+  assert.deepEqual(Object.keys(idx).sort(), ["contract", "game", "prizesFromWeek", "updated", "v", "weeks"]); assert.equal(idx.game, B.GAME_ID);
   const wf = readW(dir);
   assert.deepEqual(Object.keys(wf).sort(), ["days", "end", "picks", "points", "results", "seeding", "staked", "start", "status", "v", "week"]);
   assert.ok(fs.statSync(path.join(dir, "W003.json")).size < 200000);
@@ -248,12 +248,18 @@ import { execFileSync } from "node:child_process";
 const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
 const pys = [...yml.matchAll(/<<'PY'\n([\s\S]*?)\n\s*PY\n/g)].map((m) => m[1].split("\n").map((l) => l.replace(/^ {10}/, "")).join("\n"));
 const bracketPy = pys.find((p) => p.includes("bracket files ok"));
-const shapeOk = (dir) => { try { execFileSync("python3", ["-c", bracketPy, dir], { stdio: "pipe" }); return true; } catch { return false; } };
+// The publish job's Bracket check: `pub` = the published branch's bracket folder (default: the same files, as if this
+// run's files were already published), `now` = the job's clock (default: the test week's Friday, after the final).
+const NOW = B.roundDay(W, 4) + 13 * H;
+const checkRun = (dir, { pub = dir, now = NOW, held = "" } = {}) => execFileSync("python3", ["-c", bracketPy, dir, pub, held], { stdio: "pipe", env: { ...process.env, CHECK_NOW_MS: String(now) } }).toString();
+const shapeOk = (dir, opt) => { try { checkRun(dir, opt); return true; } catch { return false; } };
 
 test("workflow: records the bracket with the same prev/out/race folders and publishes only its own files", () => {
   assert.ok(bracketPy, "a bracket shape check in the publish job");
   assert.match(yml, /run: npm run bracket\n\s+env:\n\s+RPC: .*\n\s+RPC_CHECK: .*\n\s+BRACKET_PREV: \$\{\{ runner\.temp \}\}\/prev\/bracket\n\s+BRACKET_OUT: \$\{\{ runner\.temp \}\}\/games-data\/bracket\n/);
-  assert.match(yml, /for g in blockx bracket; do/);
+  assert.match(yml, /"\$IN"\/bracket\/\*\.json "\$IN"\/bracket\/vault\/\*\.json/, "the push loop takes the Bracket's files (vault files write-once)");
+  assert.match(yml, /git show "FETCH_HEAD:bracket\/vault\/\$f" > "\$RUNNER_TEMP\/prev\/bracket\/vault\/\$f"/);
+  assert.match(yml, /\/usr\/bin\/python3 - "\$IN\/bracket" "\$PUB\/bracket" "\$HELD" <<'PY'/);
   assert.doesNotMatch(yml.split("publish:")[1], /npm |npx |tsx /, "the publish job runs no repository code");
 });
 
@@ -288,10 +294,8 @@ test("F-3: a last-run file that went missing stops the run instead of wiping his
   await assert.rejects(quiet(() => run({ p: "main", check: "check", prev: dir, out: tmp(), head: headAt(B.seedTime(W) + 2 * H), ...o })), /missing; refusing to write/);
   const d2 = await lockedWeek(o); fs.rmSync(path.join(d2, "index.json"));
   await assert.rejects(quiet(() => run({ p: "main", check: "check", prev: d2, out: tmp(), head: headAt(B.seedTime(W) + 2 * H), ...o })), /index\.json is missing/);
-  const wfy = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
-  assert.match(wfy, /git ls-remote --exit-code --heads "\$url" "\$1"/);
-  assert.match(wfy, /if \[ "\$rc" -eq 2 \]; then return 1; fi\n\s+echo "::error::Couldn't read the \$1 branch/);
-  assert.doesNotMatch(wfy, /git fetch -q --depth 1 [^\n]*2>\/dev\/null; then/, "a failed fetch is never read as 'no branch'");
+  // (A failed read of the published branch that looked like "no history" can't publish over it either: the publish
+  //  check holds any run that changes published history — see "published history" below.)
 });
 test("F-4: decisions use the irreversible block's time; a node far ahead can't void a week; the nodes must agree on it", async () => {
   const field = fieldOf(17), race = raceDir(field, { skip: (t) => t >= B.seedTime(W) - 6 * H && t < B.seedTime(W) + 12 * H });
@@ -327,10 +331,8 @@ test("F-5: the Picks game must have the bracket's shape; picks timed at or after
 });
 test("F-6 / F-7: each recorder step can fail alone; leaderboards are capped at 1,000 rows", async () => {
   const wfy = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
-  assert.match(wfy, /- name: Record Who Signs Block X\n\s+continue-on-error: true/);
   assert.match(wfy, /- name: Record the Producer Bracket\n\s+continue-on-error: true/);
-  assert.match(wfy, /if not os\.path\.isdir\(d\): print\("no blockx files"\); sys\.exit\(0\)/);
-  assert.match(wfy, /for g in blockx bracket; do\n\s+\[ -d "\$IN\/\$g" \] \|\| continue/);
+  assert.match(wfy, /if not os\.path\.isdir\(d\): print\("no bracket files"\); sys\.exit\(0\)/);
   const field = fieldOf(17), race = raceDir(field);
   const many = Array.from({ length: 1500 }, (_, i) => ({ player: ("1Many" + [0, 1, 2].map((k) => B58[Math.floor(i / 58 ** k) % 58]).join("")).padEnd(34, "x"), number: i % 3, time: 5 }));
   const o = { raceDir: race, picksContract: addr(60), nodeOf: nodeOf(signerFn(field)), picksOf: picksOf(many) };
@@ -419,7 +421,7 @@ test("vault file: written once the week is final, with only staked players; none
   assert.equal(badV((j) => { j.first = [j.rows[0].player]; j.second = []; }), false, "a staked row can't also win the free prize");
   assert.equal(badV((j) => { j.first = Array.from({ length: 11 }, (_, i) => P(20 + i)); j.second = []; }), false, "at most 10 a place");
   assert.equal(badV((j) => { j.first = [P(20), P(21)]; j.second = [P(22)]; }), false, "a tie for 1st shares all 3 VHP: no 2nd");
-  assert.ok(badV((j) => { j.first = [P(20)]; j.second = [P(21), P(22)]; }), "1st and a tie for 2nd is fine");
+  assert.equal(badV((j) => { j.first = [P(20)]; j.second = [P(21), P(22)]; }), false, "the right shape, but not what the published final week gives");
   assert.equal(badV((j) => { j.final = false; }), false);
 });
 
@@ -505,4 +507,72 @@ test("fix-check F-1: the Vault (a pooled producer: players' withdrawable stakes)
   assert.ok(s.seeds.includes(addr(2)), "the Vault is seeded like any producer");
   assert.deepEqual(s.pooled, [addr(2)]);
   assert.ok(shapeOk(dir));
+});
+
+test("publish check: a Vault file waits for its week to be final on the published branch, and published history can't change", async () => {
+  const field = fieldOf(17), signer = signerFn(field);
+  const rows = [{ player: P(1), number: 0, time: 1 }, { player: P(2), number: 5, time: 2 }, { player: P(3), number: 9, time: 3 }];
+  const o = { picksContract: addr(60), nodeOf: nodeOf(signer), picksOf: picksOf(rows), stakedOf: async (_n, ps) => ps.filter((p) => p !== P(2)) };
+  const d = tmp();
+  await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), ...o }));
+  await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 60000), ...o }));
+  const mid = tmp(); fs.cpSync(d, mid, { recursive: true });           // the branch as published mid-week
+  for (let i = 0; i < 40; i++) await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(NOW), ...o }));
+  assert.ok(fs.existsSync(path.join(d, "vault", `W${W}.json`)));
+  // the branch doesn't yet have the final week: the vault file is held, quietly ("not yet"), and published next run
+  const hf = path.join(tmp(), "held"); fs.writeFileSync(hf, "");
+  checkRun(d, { pub: mid, held: hf });
+  const held = fs.readFileSync(hf, "utf8").split("\n").filter(Boolean);
+  assert.deepEqual(held, [`bracket/vault/W${W}.json`], "held without an alert");
+  // once the final week is published: accepted
+  assert.ok(shapeOk(d, { pub: d }));
+  // too late: more than 3 days after the week ends
+  assert.equal(shapeOk(d, { pub: d, now: B.weekStart(W + 1) + 3 * DAY + 1 }), false);
+  // published history: a final week, a seeding or a recorded hour that changes holds the whole run, with an alert
+  const tamper = (mut) => { const x = tmp(); fs.cpSync(d, x, { recursive: true }); const f = path.join(x, `W${String(W).padStart(3, "0")}.json`); const j = JSON.parse(fs.readFileSync(f, "utf8")); mut(j); fs.writeFileSync(f, JSON.stringify(j) + "\n"); const h = path.join(tmp(), "held"); fs.writeFileSync(h, ""); checkRun(x, { pub: d, held: h }); return fs.readFileSync(h, "utf8"); };
+  assert.match(tamper((j) => { j.points[0][1] += 1; }), /!alert/, "a final week changed");
+  const tamperMid = (mut) => { const x = tmp(); fs.cpSync(mid, x, { recursive: true }); const f = path.join(x, `W${String(W).padStart(3, "0")}.json`); const j = JSON.parse(fs.readFileSync(f, "utf8")); mut(j); fs.writeFileSync(f, JSON.stringify(j) + "\n"); const h = path.join(tmp(), "held"); fs.writeFileSync(h, ""); checkRun(x, { pub: mid, held: h, now: B.lockTime(W) + 60000 }); return fs.readFileSync(h, "utf8"); };
+  assert.match(tamperMid((j) => { j.seeding.vhp[0] += 1; }), /!alert/, "the seeding changed");
+  assert.equal(tamperMid(() => {}), "", "an unchanged run passes");
+});
+
+test("board rows follow the leaderboard standard: boardPlace and earns (medals only from the week the Vault pays)", async () => {
+  const field = fieldOf(17), signer = signerFn(field);
+  const rows = [{ player: P(1), number: 0, time: 1 }, { player: P(2), number: 5, time: 2 }, { player: P(3), number: 9, time: 3 }, { player: P(4), number: 0, time: 4 }];
+  const go = async (prizesFromWeek) => {
+    const o = { picksContract: addr(60), nodeOf: nodeOf(signer), picksOf: picksOf(rows), stakedOf: async (_n, ps) => ps.filter((p) => p === P(1) || p === P(3)), prizesFromWeek };
+    const d = tmp();
+    await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), ...o }));
+    await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 60000), ...o }));
+    for (let i = 0; i < 40; i++) await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(NOW), ...o }));
+    return { d, board: JSON.parse(fs.readFileSync(path.join(d, "board.json"), "utf8")) };
+  };
+  const off = await go(null);
+  assert.ok(off.board.week.rows.every((r) => r.earns === 0), "no from-week: nobody is marked as earning");
+  assert.ok(off.board.week.rows.every((r) => r.boardPlace === r.place && r.boardPlace >= 1));
+  const on = await go(W);
+  const wr = on.board.week.rows, free = wr.filter((r) => !r.ranked), staked = wr.filter((r) => r.ranked);
+  const vf = JSON.parse(fs.readFileSync(path.join(on.d, "vault", `W${W}.json`), "utf8"));
+  assert.deepEqual(free.filter((r) => r.earns === 1).map((r) => r.a).sort(), vf.first, "the Free play medal is the Vault file's 1st");
+  assert.deepEqual(free.filter((r) => r.earns === 2).map((r) => r.a).sort(), vf.second);
+  const scored = staked.filter((r) => r.pts >= 1).length;
+  assert.ok(staked.filter((r) => r.earns === 3).length >= Math.min(scored, Math.ceil(scored * 0.3)), "the Staked top 30% (rounded up) earn");
+  assert.ok(shapeOk(on.d), "the publish check accepts the board");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(on.d, "index.json"), "utf8")).prizesFromWeek, W);
+});
+
+test("final weeks are frozen: a later run keeps the stored results and points as they are", async () => {
+  const field = fieldOf(17), signer = signerFn(field);
+  const rows = [{ player: P(1), number: 0, time: 1 }, { player: P(2), number: 5, time: 2 }];
+  const o = { picksContract: addr(60), nodeOf: nodeOf(signer), picksOf: picksOf(rows), stakedOf: async (_n, ps) => ps };
+  const d = tmp();
+  await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), ...o }));
+  await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 60000), ...o }));
+  for (let i = 0; i < 40; i++) await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(NOW), ...o }));
+  const f = path.join(d, `W${String(W).padStart(3, "0")}.json`), wf = JSON.parse(fs.readFileSync(f, "utf8"));
+  assert.equal(wf.status, "final");
+  // as if the scoring rules had changed since: the stored points stay; re-scoring would give other numbers
+  wf.points = wf.points.map((x) => [x[0], Math.min(x[1] + 1, 14), x[2], x[3]]); fs.writeFileSync(f, JSON.stringify(wf) + "\n");
+  await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(NOW + H), ...o }));
+  assert.deepEqual(JSON.parse(fs.readFileSync(f, "utf8")).points, wf.points);
 });

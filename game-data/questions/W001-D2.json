@@ -569,9 +569,154 @@
             "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2172902327606"
           },
           "seal": "2d6ac5a7e9f1145b137a814f0ae378fb9cc13ea963fe4073f3104f71fe64e5d2"
+        },
+        {
+          "height": 40612982,
+          "readAt": "2026-10-29T05:41:18.014Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2171677396816"
+          },
+          "seal": "011eeb047498ee065e78bd2d5c4cbfeea975a807b6bb3124c480abce08db3157"
+        },
+        {
+          "height": 40614242,
+          "readAt": "2026-10-29T06:47:12.088Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2170452462507"
+          },
+          "seal": "cb4579d6b4b6f18b2ef96fddcf95230853e3acab58ef6345dc9bf3c28c4ec96f"
+        },
+        {
+          "height": 40615634,
+          "readAt": "2026-10-29T07:57:32.885Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2168410893054"
+          },
+          "seal": "6fe5d27da56b5113008d22d9cc7fdef6e3c8263424189fcf01abc2e6dca8f2c9"
+        },
+        {
+          "height": 40616669,
+          "readAt": "2026-10-29T08:49:43.501Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2168410893054"
+          },
+          "seal": "ac7a829203077726c732b1e0d66190e8a7b3dcc1324b031566f6c1a39841628a"
+        },
+        {
+          "height": 40617720,
+          "readAt": "2026-10-29T09:46:09.157Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2168002576637"
+          },
+          "seal": "94bb6c61da0bc9c27e5a6f2424b91618e0ac7c509fb65c173caf3a7b20b0696b"
+        },
+        {
+          "height": 40618856,
+          "readAt": "2026-10-29T10:43:17.825Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2167594258423"
+          },
+          "seal": "8e0269d9dd04de289d5aeca14f9906bb7251fa3248662b9e7a64672158eba148"
+        },
+        {
+          "height": 40619972,
+          "readAt": "2026-10-29T11:39:25.876Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2165144335814"
+          },
+          "seal": "6d7b3f6c11c774e93c2f42e1a9798022ce22982fa5cf43061071d8782b1122bb"
+        },
+        {
+          "height": 40620181,
+          "readAt": "2026-10-29T11:50:33.631Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2165144335814"
+          },
+          "seal": "f87a33c34ac8ae02f46f110339e1710ca63eef8df9c8ebd253ccb0e40868bdc4"
+        },
+        {
+          "height": 40620785,
+          "readAt": "2026-10-29T12:20:59.881Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2164327691500"
+          },
+          "seal": "fd98352721a109956c2730256c8ecc1b9d026c3c7a664974b5df810a97b4443a"
+        },
+        {
+          "height": 40621233,
+          "readAt": "2026-10-29T12:46:49.662Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2164327691500"
+          },
+          "seal": "54bad73728c9b2aee5ba690f58c1257b8af3f0b5646ce70e65bafb45ff2957f1"
+        },
+        {
+          "height": 40622600,
+          "readAt": "2026-10-29T13:56:48.820Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2161061094576"
+          },
+          "seal": "ab076caccbaa74134be53d49eae80afca247c8e1e84da0fce9a3d5f4fa07b8a4"
         }
       ],
-      "vhpSeal": "f552af6064eb0680f9b5b0a8e94a88bf827e10b76a873cc84f83b1a5d796e51a"
+      "vhpSeal": "49b008bfce899c3b20eb41556e8a85929b6a753ae78d7466691236eb98ae0012",
+      "result": {
+        "void": false,
+        "option": 1,
+        "value": "92",
+        "dataHash": "2533bc195de4829d5a25be8fa9e60903d640fdac7479987fa2a5e9651a89d07f",
+        "resolvedAt": "2026-10-29T14:14:36.090Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40565175,
+          "decidedHeight": 40619862,
+          "readings": [
+            40580519,
+            40581506,
+            40582623,
+            40583815,
+            40584901,
+            40589696,
+            40590818,
+            40591893,
+            40593181,
+            40593601,
+            40594547,
+            40595667,
+            40596772,
+            40597873,
+            40598995,
+            40600151,
+            40601347,
+            40602369,
+            40603504,
+            40604671,
+            40605797,
+            40607240,
+            40608537,
+            40609510,
+            40610676,
+            40611883,
+            40612982,
+            40614242,
+            40615634,
+            40616669,
+            40617720,
+            40618856
+          ],
+          "readingsInWindow": 37,
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": {
+              "release": "2162140956949",
+              "end": "2179026842165",
+              "change": "+0.78%",
+              "height": 40603504
+            }
+          }
+        }
+      },
+      "chainOutcome": 2,
+      "chainDataHash": "0x2533bc195de4829d5a25be8fa9e60903d640fdac7479987fa2a5e9651a89d07f"
     },
     {
       "id": "W001-D2-4",

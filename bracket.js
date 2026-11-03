@@ -333,6 +333,9 @@
     summary: (r) => `${fmt(r.pts)} pts · ${fmt(r.correct)} right${r.champion ? " · champion ✓" : ""}`,
     name: nameOf, link: (a) => EXPLORER + a,
     me: (r, place) => `${place ? `You: #${place} with` : "Your bracket:"} ${fmt(r.pts)} points (${fmt(r.correct)} right${r.champion ? ", champion right" : ""}).`,
+    // medals follow the recorder's `earns` (leaderboard standard §4): 1 / 2 the free prize, 3 a share of the Staked bucket
+    freeWinners: (part, free, weekly) => new Map(weekly ? free.filter((r) => r.earns === 1 || r.earns === 2).map((r) => [r.a, r.earns]) : []),
+    earned: (r, weekly) => weekly && r.earns === 3,
   }) : null;
   function renderBoard() { if (lb && board) { $("board-box").hidden = false; lb.setMe(me() || ""); lb.set(board); } }
 

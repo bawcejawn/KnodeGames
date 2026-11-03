@@ -28,6 +28,7 @@ const I = {
   burn: '<path d="M12 21c-4 0-6.5-2.6-6.5-6 0-3.5 3-5.5 3.5-9 2 1.5 3 3 3 5 1-1 1.5-2 1.5-3.5 2.5 2 4.5 4.6 4.5 7.5 0 3.4-2.5 6-6 6z"></path>',
   welcome: '<circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path>',
   install: '<path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M5 20h14"></path>',
+  blockx: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path>',
   trust: '<path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"></path>',
   terms: '<path d="M7 3h7l4 4v14H7z"></path><path d="M10 12h5M10 16h5"></path>',
 };
@@ -36,7 +37,7 @@ const I = {
 export const TABS = [["Games", "games.html", "games"], ["Leaders", "#leaderboard", "leaders"], ["Results", "#results", "results"], ["Swap", "swap.html", "swap"]];
 // The More sheet, in groups (each group a heading, then its links).
 export const MORE_GROUPS = [
-  ["Play", [["Daily Questions", "#play", "play"], ["Producer Race", "race.html", "race"], ["Rules", "#how", "rules"]]],
+  ["Play", [["Daily Questions", "#play", "play"], ["Producer Race", "race.html", "race"], ["Who Signs Block X", "blockx.html", "blockx"], ["Rules", "#how", "rules"]]],
   ["Tools", [["Burn KOIN", "burn.html", "burn"], ["Mana levels", "mana.html", "mana"], ["Producer lookup", "node.html", "lookup"], ["Network pulse", "pulse.html", "pulse"]]],
   ["Learn", [["New to Koinos?", "start.html", "welcome"], ["New here? Quick tour", "#welcome", "welcome"], ["Get VHP", "get.html", "get"]]],
   ["About", [["Install app", "install.html", "install"], ["Trust", "trust.html", "trust"], ["Terms &amp; risks", "terms.html", "terms"]]],
@@ -44,7 +45,7 @@ export const MORE_GROUPS = [
 export const MORE = MORE_GROUPS.flatMap(([, links]) => links);
 // The top menu: a link, or a dropdown { label, items }. Add a new live game to the Games dropdown when it ships.
 export const TOP = [
-  { label: "Games", items: [["All games", "games.html"], ["Daily Questions", "#play"], ["Producer Race", "race.html"]] },
+  { label: "Games", items: [["All games", "games.html"], ["Daily Questions", "#play"], ["Producer Race", "race.html"], ["Who Signs Block X", "blockx.html"]] },
   { label: "Leaderboards", link: "#leaderboard" },
   { label: "Results", link: "#results" },
   { label: "Tools", items: [["Swap VHP → KOIN", "swap.html"], ["Burn KOIN", "burn.html"], ["Mana levels", "mana.html"], ["Producer lookup", "node.html"], ["Network pulse", "pulse.html"]] },

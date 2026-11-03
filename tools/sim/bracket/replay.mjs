@@ -122,5 +122,7 @@ console.log(`  Points: chalk ${pts[P(1)]}, underdog ${pts[P(2)]}, random ${pts[P
 const higher = truth.rounds.flatMap((ws, r) => ws).length;
 const yml = fs.readFileSync(REPO + "/.github/workflows/games.yml", "utf8");
 const py = [...yml.matchAll(/<<'PY'\n([\s\S]*?)\n\s*PY\n/g)].map((m) => m[1].split("\n").map((l) => l.replace(/^ {10}/, "")).join("\n")).find((p) => p.includes("bracket files ok"));
-try { execFileSync("python3", ["-c", py, out], { stdio: "pipe" }); console.log("Publish shape check: ok"); } catch (e) { fail("publish shape check: " + e.stderr); }
+// (as if this run's files were already published, at the clock of the last run)
+const lastT = B.roundDay(WK, B.roundsOf(sd.size)) + 13 * H;
+try { execFileSync("python3", ["-c", py, out, out, ""], { stdio: "pipe", env: { ...process.env, CHECK_NOW_MS: String(lastT) } }); console.log("Publish shape check: ok"); } catch (e) { fail("publish shape check: " + e.stderr); }
 console.log(process.exitCode ? "REPLAY FAILED" : `All replay checks passed (${higher} matchups; files in ${out}).`);

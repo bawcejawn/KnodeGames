@@ -513,3 +513,19 @@ V4 from the round-10 blind review is fixed in d7fad7c (no early "not v6" answer)
 2,400 blocks, locks 100 before, 30 picks a day, 1 change per pick (BX-129 closed; BX-127 clears on the next recorder
 run). `mana-report` (fixed in a1e546f to split block ranges a node won't answer) found no sponsored transactions yet.
 Block X isn't public, so the price check (BX-123) runs after a day of play (runbook step 10).
+
+## Round 12 (Repo Lens go/no-go @ 4a6e872, 2026-11-03): GO for merging d7fad7c to main
+
+Report: "Race Stakes on v6: Round-12 Go/No-Go (Knode picks @ 4a6e872)". The change can't stop or delay the race cards:
+the stake reads only make step 3 shorter, and the files are written after it whatever they did. It can't make a vault
+file final when it shouldn't be: an unread wallet, or a second node that disagrees, keeps it not final. B1-1 and V4 are
+fixed. B1-5 is fixed for failing nodes; for hanging ones, see RV-1.
+
+| ID | Severity | Finding | Status |
+|---|---|---|---|
+| RV-1 | Medium (older gap) | A node that accepts a connection and never answers keeps `race.ts` alive after its work is done (`withRetry` stops waiting, but the request stays open), so that hour's files are never uploaded | **Fixed**: `race.ts` (run and `--sample`) and `blockx.ts` exit when their work resolves. Test `repolens-r12-process-exit`: both entries, plus the mechanism with the repository's own `withRetry` against a hung node in a separate process |
+| RV-2 | Low | The node-down flag is set by any stake-read failure, even one specific to a single wallet | Open: confirm with the Vault chat that `get_game_player` never reverts for a valid address |
+| RV-3 | Low | While a node's stake reads fail, every wallet shows on Free play for that hour | Accepted: it recovers the next hour |
+| RV-4 | Info | The B1-5 test's fake node fails at once, so it can't show a hang | Covered by the RV-1 test |
+| RV-5 | Info | Five later `picks` commits weren't in the package | In round 13 |
+| RV-6 | Info | `W1.json` matches what this code would write | None (week 1 is skipped by the Vault) |

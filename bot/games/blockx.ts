@@ -838,5 +838,7 @@ async function main() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   // Audit BX-34: one line, no workflow commands (a node's error text could hold "::").
-main().catch((e) => { console.error(`error: ${String((e && (e as Error).message) || e).replace(/[\r\n]+/g, " ").replace(/::/g, ": ").slice(0, 500)}`); process.exit(1); });
+  // Repo Lens RV-1 (round 12): exit once the work is done, so a node that never answers can't keep the run alive past
+  // the job's time limit (its request stays open after withRetry gives up on it).
+  main().then(() => process.exit(process.exitCode ?? 0), (e) => { console.error(`error: ${String((e && (e as Error).message) || e).replace(/[\r\n]+/g, " ").replace(/::/g, ": ").slice(0, 500)}`); process.exit(1); });
 }

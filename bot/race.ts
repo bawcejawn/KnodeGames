@@ -835,5 +835,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   if (!RPC_CHECK && E.ALLOW_ONE_NODE !== "yes") { console.error(`error: no second node (RPC_CHECK is off, missing or the same as RPC): the race needs two. Set RPC_CHECK, or ALLOW_ONE_NODE=yes to run on one node.`); process.exit(1); }
   if (!RPC_CHECK) console.log("::warning::running on ONE node (ALLOW_ONE_NODE=yes): cards and results are not cross-checked");
   const nodes = { p: new Provider([RPC]), check: RPC_CHECK ? new Provider([RPC_CHECK]) : null };
-  (process.argv.includes("--sample") ? sample(nodes) : run({ ...nodes, clock: Date.now })).catch((e) => { console.error(`error: ${String((e && e.message) || e).replace(/[\r\n]+/g, " ").replace(/::/g, ": ").slice(0, 500)}`); process.exit(1); });
+  // Repo Lens RV-1 (round 12): exit once the work is done. withRetry stops waiting for a node that never answers, but its
+  // request stays open and would keep this process alive until the job's 30-minute limit, so that hour's files would
+  // never be uploaded.
+  (process.argv.includes("--sample") ? sample(nodes) : run({ ...nodes, clock: Date.now })).then(() => process.exit(process.exitCode ?? 0), (e) => { console.error(`error: ${String((e && e.message) || e).replace(/[\r\n]+/g, " ").replace(/::/g, ": ").slice(0, 500)}`); process.exit(1); });
 }

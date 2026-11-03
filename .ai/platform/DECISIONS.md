@@ -406,12 +406,12 @@ Repo wins over chats (D-002); the owner's answers win over both.
 ### Open
 | ID | Topic | What disagrees | Next step |
 |----|-------|----------------|-----------|
-| C-08 | Questions payout time | Chats say the first v5 payout is Tue 21:00 UTC; the schedule says winners are final Tue 12:00 UTC (week ends Mon 00:00; close delay 12 h; settle 24 h) | Owner: fix it properly (I-066) |
-| C-25 | Questions game free prize on chain | Swap Desk: the v5 rule on chain (`reward_rule_week_plus_one=3`) pays 1 + 1 VHP to free players from the week of 2 Nov vs owner: no free prizes before the vault starts (D-062, D-063) | Vault + Questions chats: check what the contract will pay on the first payout (I-067). Owner believes it shouldn't pay free players now; owner is asking the chats |
+| C-25 | Questions game free prize on chain | ✅ Chain (2026-11-02): `reward_rule_week_plus_one=3` is fixed, so Week 3 (2–9 Nov, paid Tue 10 Nov) pays free players 1 + 1 VHP (up to 2 VHP from that week's pot); Week 2 pays none; v6 2 + 1 from Mon 9 Nov. Owner rule (D-062, D-063): no free prizes before the vault starts | Owner: accept one week of 1 + 1, or a contract upgrade before Mon 9 Nov 12:00 UTC (I-067) |
 
 ### Resolved
 | ID | Topic | Resolution | How |
 |----|-------|-----------|-----|
+| C-08 | Questions payout time | Tue 12:00 UTC on time (≈ 12:07 when the hourly bot finalizes); 21:00 came from a chat check-in reminder, not code | chain + repo, Questions chat 2026-11-02 (I-066) |
 | C-01 | Sponsor version | v3 `b61ac238…` is live; `main`'s record is stale (I-043) | repo + 3 chats |
 | C-02 | Sponsor caps | 1 / 25 / 150 / 5,000 / 2,000 Mana; the 1,000/day set was the v2 era | owner (D-061), repo |
 | C-03 | Sponsor KOIN | 25,000 KOIN in the wallet | owner (D-061) |

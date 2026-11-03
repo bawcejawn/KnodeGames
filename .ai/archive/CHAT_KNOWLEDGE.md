@@ -162,6 +162,17 @@ The Knode questions game (game 1), the site, the Mana sponsor, guest play, the n
 
 ---
 
+### Questions: CORRECTION — payout time and Week 3 free prize
+- **Date:** 2026-11-02
+- **Source chat:** Questions
+- **Category:** warning
+- **Content:**
+  - The "21:00 UTC" times in the Questions ROADMAP entry above (Mon 2 Nov, Tue 10 Nov) were check-in reminder times, not game times. The game: week ends Mon 00:00 UTC, closes Mon 12:00, winners final Tue 12:00 (≈ 12:07 when the hourly bot finalizes).
+  - On chain (2026-11-02): `reward_rule_week_plus_one=3`, `v6_rule_week_plus_one=4`, both fixed. Week 2 pays free players nothing; Week 3 (2–9 Nov, paid Tue 10 Nov) pays free players 1 + 1 VHP under v5; v6 2 + 1 from Week 4 (Mon 9 Nov).
+- **Status:** Filed → platform/OPENISSUES.md (I-003, I-066 closed; I-067 updated), DECISIONS.md (C-08 resolved, C-25 updated)
+
+---
+
 ## Chat: VAULT (exported 2026-11-02)
 
 The KnodeGames Vault (game contract v6): audits, emergency build, seed, testnet check, mainnet upload on 2 Nov, sponsor and stake-panel integration.

@@ -10,7 +10,8 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today
-- [ ] (Owner is asking) the Vault and Questions chats to check what the Questions game will pay at its first payout (I-067), and the Block X chat whether game 2 is already announced on chain (I-070) — P1
+- [ ] Decide: let Week 3 pay free players 1 + 1 VHP (the chain will, by itself), or upgrade the contract before Mon 9 Nov 12:00 UTC to stop it — P1 — I-067, C-25
+- [ ] (Owner is asking) the Block X chat whether game 2 is already announced on chain (I-070) — P1
 - [ ] Decide when Block X goes public (not announced to players yet), then step 8 — apply Block X on the Picks contract: `npm run picks -- apply 2 --send --mainnet`, then `npm run picks -- status --mainnet` must show 1 change (allowed since Sun 1 Nov, 1:23 PM PT; not reported done) — P2 — I-040
 - [ ] Before Block X is published: `npm run sponsor -- mana-report` on mainnet; raise the pick row if mainnet is more than ~1.5× testnet — P2 — D-038
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
@@ -36,7 +37,6 @@
 - [ ] After launch: empty and retire the test wallets (Fantasy practice wallets; old bot/test wallets from the owner checklist) — P3
 - [ ] Top up the bot wallet `1HsM33…` to ~50 KOIN and confirm its Mana — P3 — I-046
 - [ ] Watch `node\release-kick.log` and `node\heal.log` for the first few days — P3
-- [ ] Confirm `reward_rule_week_plus_one=3` on chain — P2 — I-003, D-010 — due before Tue 10 Nov, 21:00 UTC (1:00 PM PT), the first v5 payout
 
 ## Later
 - [ ] Give the go-ahead for the full platform audit — P1 — I-002, D-014
@@ -44,7 +44,6 @@
 - [ ] Send the message to the KOIN Vault developer — P3 — I-007
 - [ ] Export the Vault v6, Race, sponsor and new-game chats into `CHAT_KNOWLEDGE.md` — P3 — I-009
 - [ ] Confirm the GitHub repo name (`KnodeGames` or `Knode`) — P4 — C-06
-- [ ] Explain the 21:00 UTC week boundary — P4 — C-08
 - [ ] Delete the `diag-health` branch in the GitHub UI — P4 — I-010
 - [ ] Survivor: announce Sat 7–Fri 13 Nov, `game-apply` Mon 9–Sun 15 Nov, Season 1 Mon 16 Nov — P2 — D-065; only once I-050 is done (D-064)
 - [ ] Survivor: in `C:\kprediction-test`, `git pull`, `npm ci`, check `git log -1 --oneline` shows `a8a1979`, run Repo Lens pass 4 and send back `AUDIT-SURVIVOR-REPORT-4.md` — P2 — I-050
@@ -95,6 +94,8 @@
 ## Done
 | Item | Done | Link |
 |------|------|------|
+| `reward_rule_week_plus_one=3` confirmed on chain | 2026-11-02 | I-003 |
+| Payout time settled: Tue 12:00 UTC (≈ 12:07 with the bot); the 21:00 was a reminder time | 2026-11-02 | I-066, C-08 |
 | Answered C-02, C-03, C-10, C-15, C-16, C-18, C-19, C-20; C-22 checked in code | 2026-11-02 | D-061 – D-067 |
 | Survivor Season 1 date chosen: Mon 16 Nov | 2026-11-02 | D-065 |
 | Survivor prize settled: 4 + 2 per season, paid at season end | 2026-11-02 | D-068 |

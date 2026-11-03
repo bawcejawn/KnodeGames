@@ -80,7 +80,6 @@
 | Every new game page mounts `KStake.badge` at the top of `<main>`, full panel lower | each game chat | 2026-11-02 | D-031 |
 | Bot support for the testnet copy (`testnet/vault.json`) | Vault chat | 2026-11-02 | I-014 |
 | Ship V4, B1-1, B1-5 | Block X chat (told 2 Nov) | 2026-11-02 | — |
-| Set `PRIZES_FROM_WEEK = 3` on the site | Race chat (aware, 2 Nov) | 2026-11-02 | I-069 |
 | Last Node: fix round-3 findings; prepare game-13 announce/apply for mainnet Picks; confirm the sponsor covers game-13 picks; resync with `main` after the `picks` merge; open the `lastnode` → `main` PR; write the GitHub-variable steps | Last Node chat | 2026-11-02 | I-058, I-059 |
 | Golf: rebase `golf` after `picks` merges, move to site root, full suite, PR; at v6 register game 6 and set `GOLF_STAKED_FROM_WEEK` | Golf chat | 2026-11-02 | I-060 |
 | Bracket: fix audit findings, rerun suites and replay, fix-check; update `kg-09-bracket` from `main`; after the first live run pin the `effCheck` | Bracket chat | 2026-11-02 | I-061 |
@@ -98,6 +97,7 @@
 | **Block X applied on the Picks contract** (step 8) and its follow-ups (status, Mana check) | 2026-11-02 | D-070, I-040 |
 | `vault-v6` merged into `picks`; Block X pushed `d7fad7c` | 2026-11-02 | I-019, I-033 |
 | Game documentation written (`.ai/games/`, 9 files) | 2026-11-02 | — |
+| Race: `PRIZES_FROM_WEEK = 3` merged (PR #56) | 2026-11-02 | I-069 ✅ |
 | Payout time settled: Tue 12:00 UTC (≈ 12:07 with the bot); the 21:00 was a reminder time | 2026-11-02 | I-066, C-08 |
 | Answered C-02, C-03, C-10, C-15, C-16, C-18, C-19, C-20; C-22 checked in code | 2026-11-02 | D-061 – D-067 |
 | Survivor Season 1 date chosen: Mon 16 Nov | 2026-11-02 | D-065 |

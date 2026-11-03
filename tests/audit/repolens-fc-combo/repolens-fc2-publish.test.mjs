@@ -154,7 +154,7 @@ test("D-C-1 (corrected): the Vault file that matches a made-up published board i
   fs.rmSync(path.join(out, "vault"), { recursive: true, force: true });
   const MAL = "1MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM", b = read(out, "board.json");
   // (Combo, D-081: board rows carry boardPlace, the place on the player's own board.)
-  b.lastWeek.rows = [{ a: MAL, place: 1, boardPlace: 1, pts: 99999, hits: 1, cards: 1, best: 99999, days: 1, lastHit: 0, staked: true, ranked: true }];
+  b.lastWeek.rows = [{ a: MAL, place: 1, boardPlace: 1, pts: 99999, hits: 1, cards: 1, best: 99999, days: 1, lastHit: 0, staked: true, free: false, ranked: true }];
   fs.writeFileSync(path.join(out, "board.json"), JSON.stringify(b) + "\n");
   const remote = remoteWith(out);
   const IN = asIncoming(out); fs.mkdirSync(path.join(IN, "combo/vault"), { recursive: true });

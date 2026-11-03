@@ -210,10 +210,11 @@ test("leaderboard: best 10 cards, ties by hits then the earlier last hit", () =>
 
 test("free play winners (D-081): the Free play board's top 2, players not staked with a point and cards on 3+ days; ties share", () => {
   const P = (i) => "1" + String(i).padStart(33, "A").replace(/0/g, "B");
-  const r = (i, pts, o = {}) => ({ player: P(i), pts, hits: 1, lastHit: 1000 + i, days: 3, staked: false, ...o });
+  const r = (i, pts, o = {}) => ({ player: P(i), pts, hits: 1, lastHit: 1000 + i, days: 3, staked: false, free: true, ...o });
   assert.deepEqual(plain(C.freeWinners([r(1, 500), r(2, 400), r(3, 300)])), { first: [P(1)], second: [P(2)] });
   // Staked (or not yet known), under 1 point, or cards on fewer than 3 days: not eligible.
-  assert.deepEqual(plain(C.freeWinners([r(1, 900, { staked: true }), r(2, 800, { staked: null }), r(3, 99), r(4, 700, { days: 2 }), r(5, 100), r(6, 100, { lastHit: 2000 })])), { first: [P(5)], second: [P(6)] });
+  // Staked at some point that week (free false, or unknown), too: not eligible (Block X's rule).
+  assert.deepEqual(plain(C.freeWinners([r(1, 900, { staked: true }), r(2, 800, { staked: null }), r(3, 99), r(4, 700, { days: 2 }), r(7, 600, { free: false }), r(8, 600, { free: null }), r(5, 100), r(6, 100, { lastHit: 2000 })])), { first: [P(5)], second: [P(6)] });
   // Two tied for first share both prizes: no second (as Block X).
   assert.deepEqual(plain(C.freeWinners([r(1, 500, { lastHit: 7 }), r(2, 500, { lastHit: 7 }), r(3, 400)])), { first: [P(1), P(2)], second: [] });
   // Tied for second share it.

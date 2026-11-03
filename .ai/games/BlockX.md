@@ -23,13 +23,13 @@ Guess which block producer will sign a future target block. Simple to play, root
 
 ## Dependencies
 - **Picks contract** `1LmgqB…` (code `700c296a…`) ✅ — **game 2 applied 2 Nov** 👤.
-- Race handicap cards (`race-data`) and the VHP sampler, which starts when `picks` merges into `main` (I-059). 💬
+- Race handicap cards (`race-data`) and the VHP sampler (`race-samples.yml`, on `main` since 3 Nov; first runs pending, I-059). ✅
 - `games.yml` (off until `GAMES_ENABLED=true`) and its publish checks. ✅
 - The Mana sponsor's Picks row (0.2 Mana). ✅
-- The launch PR `picks` → `main` (sets `PINNED_PICKS`, brings the Hub status bar). ✅ `PINNED_PICKS = ""` today
+- The launch PR `picks` → `main` — **merged 3 Nov** (PR #57): `PINNED_PICKS = 1LmgqB…` and the Hub status bar are on `main`. ✅
 - Vault v6 `game-add 2` for staking. ✅ registry entry exists
 
-## Current status (2 Nov)
+## Current status (3 Nov)
 - **Applied on the Picks contract** — owner completed step 8 and the follow-ups 👤. Not yet announced to players (D-064, D-067).
 - Repo Lens rounds 10, 11 and **12: GO** 👤. **Launch PR #57 merged into `main` on 3 Nov** ✅ — the page, `PINNED_PICKS` and the Race v6 fix are live code; `games.json` still says "soon" ✅.
 - Next: the VHP sampler running, `GAMES_ENABLED` for the recorder ❓, the announcement, and the vault `game-add 2`.

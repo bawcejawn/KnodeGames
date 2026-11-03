@@ -201,3 +201,6 @@ Every game has a Free play board. For the Combo Card:
   PR #65 is merged), then `game-add 8 "Combo Card" --staked --free --season 1`.
 - `main` merged into `combo` (67e1bc2): conflicts only in `workflow-guard.yml` and `package.json` (both sides kept);
   sitemap regenerated.
+
+**Tests (with Free play and the main merge, a2bf8b4):** contract 71 (source unchanged, 92d555d0…); site and audit suite
+852 passing (5 todo, 6 skipped, 0 failing); browser 8; workflow guard 8.

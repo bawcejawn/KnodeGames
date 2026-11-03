@@ -11,7 +11,7 @@
 
 ## Today
 - [x] ~~Block X round-12 fix-check~~ — GO; PR #57 merged (3 Nov) — I-033
-- [ ] **Vault: add Block X (2) and the Race (7) today** — `game-add 2` and `game-add 7` (`--staked --free`), then the sponsor vault switch; **apply both Thu–Sun** (before Sun 8 Nov 4 PM PT); then `PRIZES_FROM_WEEK = 3` — P1 — D-077 (reminder set for Thu 5 Nov 9 AM PT)
+- [ ] **Vault: apply Block X (2) and the Race (7)** — announced 3 Nov (tx `0x122082c6…` and `0x1220d394…`), applicable from **Thu 5 Nov 15:51 UTC (7:51 AM PT)**; apply before Sun 8 Nov 4 PM PT; then repo variable `PRIZES_FROM_WEEK = 3` — P1 — D-077 (reminder Thu 9 AM PT)
 - [ ] Ask the Block X chat which items on its "before prizes" list (I-042) could mispay in the first paid week, and watch the 24 h correction window after each seal — P1 — D-077
 - [ ] Tell the Hub the vault upgrade is done, so it checks the staking hub, bars and panels on mainnet — P2
 - [ ] Run the push block so `main` gets the updated docs — P3
@@ -95,6 +95,7 @@
 |------|------|------|
 | `reward_rule_week_plus_one=3` confirmed on chain | 2026-11-02 | I-003 |
 | Accepted Week 3's 1 + 1 VHP free prize for the Questions game (no upgrade) | 2026-11-02 | D-069 |
+| Vault: games 2 and 7 announced (`game-add`, 3 Nov); sponsor switched to the vault — "Vault (v6): live", caps unchanged; VHP sampler running (first run 15:58 UTC ✅) | 2026-11-03 | D-077, I-059 |
 | Block X live on the Games page (PR #58); `GAMES_ENABLED = true` set — recorder runs hourly at :47 | 2026-11-03 | D-077 |
 | **Block X Repo Lens round 12 GO; launch PR #57 merged** (sampler + Race v6 fix now on `main`) | 2026-11-03 | I-033, I-059 |
 | Block X Picks status checked: announced 30 Oct, applicable since 1 Nov, not applied | 2026-11-02 | I-070 |

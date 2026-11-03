@@ -28,8 +28,8 @@
 | System | Where it stands | Next step |
 |--------|-----------------|-----------|
 | **Block X (game 2)** | applied on Picks; round 12 GO; PR #57 merged; **live on the Games page** (PR #58) and recorder on (`GAMES_ENABLED`), prize-free until it's in the vault | `game-add 2` today → apply Thu–Sun → pays from Mon 9 Nov (D-077) |
-| **Vault game registration** | only game 1 is in the vault | `game-add` 2 and 7 today, apply Thu–Sun, so Questions, Race and Block X pay from Mon 9 Nov (D-077) |
-| **Sponsor vault switch** | off | run right after the first `game-add`, passing the caps exactly |
+| **Vault game registration** | game 1 built in; **games 2 and 7 announced 3 Nov**, applicable Thu 5 Nov 15:51 UTC; sponsor vault switch **done** | `game-apply 2` and `7` Thu–Sun → Questions, Race and Block X pay from Mon 9 Nov (D-077) |
+| **Sponsor vault switch** | **done 3 Nov** — vault live, caps unchanged | — |
 | **Site "Week 1" refresh** | Race `PRIZES_FROM_WEEK = 3` done (PR #56) | show 9 Nov as Week 1 site-wide; replace "vault not yet live" text (I-069, I-027) |
 | **Survivor (3)** | branch `survivor` @ `a8a1979`, not merged | Repo Lens pass 4 → testnet season → register game 3 → Season 1 **Mon 16 Nov** (D-065) |
 | **Last Node Standing (13)** | branch `lastnode` @ `adf95be` | round-3 review; needs 48 h of VHP sampler data first |

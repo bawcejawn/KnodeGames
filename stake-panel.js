@@ -12,9 +12,13 @@
   const UNIT = 100000000n;                 // 1 VHP / 1 KOIN = 10^8 units
   const CAP_A = 10n * UNIT;                // basket A counts a stake up to 10 VHP (the vault's V5_CAP_A)
   const RPC = "https://koinos.armana.io";
-  const DEPLOYMENT = "./game-data/deployment.json";
+  // The testnet staking page (stake-testnet.html) names its own settings and wallet; every other page uses the vault's
+  // mainnet deployment and wallet.js. Only that one settings file is accepted, so a page can't point the panel anywhere else.
+  const TESTNET = typeof document !== "undefined" && !!(document.querySelector && document.querySelector('meta[name="kg-network"][content="testnet"]'));
+  const DEPLOYMENT = TESTNET ? "./testnet/vault.json" : "./game-data/deployment.json";
+  const Wallet = () => (TESTNET ? window.KTestStakeWallet : window.KWallet);
   const Q_GAME = 1;
-  const CLAIM_WEEKS = 6;                   // finished weeks checked for something to claim
+  const CLAIM_WEEKS = 52;                  // finished weeks checked for something to claim (the vault never expires a claim)
   const lib = window.koilib || window.koinos || window;
 
   // ── The parts of the vault (game contract, v6) this panel uses. Entry points = first 4 bytes of sha256(name);
@@ -27,6 +31,7 @@
   const VAULT_ABI = {
     methods: {
       get_state: { entry_point: 0x3d02a349, argument: "kpred.get_state_arguments", return: "kpred.get_state_result", read_only: true },
+      get_player: { entry_point: 0x37ce3085, argument: "kpred.get_player_arguments", return: "kpred.get_player_result", read_only: true },
       get_game: { entry_point: 0x6f8d72cf, argument: "kpred.get_game_arguments", return: "kpred.get_game_result", read_only: true },
       list_games: { entry_point: 0x2efa793, argument: "kpred.list_games_arguments", return: "kpred.list_games_result", read_only: true },
       get_game_player: { entry_point: 0xfeb472b, argument: "kpred.get_game_player_arguments", return: "kpred.get_game_player_result", read_only: true },
@@ -36,14 +41,17 @@
       claim_game: { entry_point: 0x4107e3ab, argument: "kpred.claim_game_arguments", return: "kpred.claim_game_result", read_only: false },
     },
     koilib_types: { nested: { kpred: { nested: {
-      config_object: { fields: { min_stake: u64(9), paused: bool(11), min_stake_next: u64(13), min_stake_next_week: u64(14), v6_rule_week_plus_one: u64(21) } },
+      config_object: { fields: { genesis_time: u64(4), week_length: u64(5), min_stake: u64(9), paused: bool(11), min_stake_next: u64(13), min_stake_next_week: u64(14), v6_rule_week_plus_one: u64(21) } },
       get_state_arguments: { fields: {} },
       get_state_result: { fields: { config: { type: "config_object", id: 1 }, week: u64(4), time: u64(11) } },
-      game_object: { fields: { id: u32(1), name: { type: "string", id: 2 }, staked: bool(3), free_prize: bool(4), active: bool(5), from_week: u64(6), last_week_plus_one: u64(7), stake: u64(10), week_stake: u64(11), week: u64(12), season_weeks: u32(15) } },
+      player_object: { fields: { stake: u64(1), pending: u64(2), pending_week: u64(3) } },
+      get_player_arguments: { fields: { player: addr(1), week: u64(2) } },
+      get_player_result: { fields: { player: { type: "player_object", id: 1 }, active_stake: u64(3) } },
+      game_object: { fields: { id: u32(1), name: { type: "string", id: 2 }, staked: bool(3), free_prize: bool(4), active: bool(5), from_week: u64(6), last_week_plus_one: u64(7), stake: u64(10), week_stake: u64(11), week: u64(12), next_stake: u64(13), next_week: u64(14), season_weeks: u32(15) } },
       gweek_object: { fields: {
-        closed: bool(1), prize: u64(3), voided: bool(7), finalized: bool(8), rolled_over: bool(9), cutoff: u32(12),
+        closed: bool(1), bucket: u64(2), prize: u64(3), voided: bool(7), finalized: bool(8), rolled_over: bool(9), cutoff: u32(12),
         pot_a: u64(14), pot_b: u64(15), bw_hi: u64(17), bw_lo: u64(18), aw_hi: u64(19), aw_lo: u64(20),
-        first_n: u32(26), second_n: u32(27), prize_first: u64(28), prize_second: u64(29),
+        first_n: u32(26), second_n: u32(27), prize_first: u64(28), prize_second: u64(29), weight: u64(31), weight_set: bool(32),
       } },
       bucket_object: { fields: { stake: u64(1), players: u32(2), sum_w: u64(3), capped: u64(4) } },
       get_game_arguments: { fields: { game: u32(1), week: u64(2) } },
@@ -100,13 +108,44 @@
     const next = big(config && config.min_stake_next);
     return next > 0n && big(w) >= big(config.min_stake_next_week) ? next : big(config && config.min_stake);
   }
+  /** The Monday a vault week starts, as players read it: "Mon 2 Nov" (UTC). */
+  function weekDate(config, w) {
+    const len = big(config && config.week_length) || 604800000n;
+    const ms = Number(big(config && config.genesis_time) + big(w) * len);
+    // The testnet vault runs 10-minute weeks: show the time instead.
+    if (len < 86400000n) return new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+    return new Date(ms).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).replace(",", "");
+  }
+  /** Last week's rewards per 100 VHP staked in a game: its bucket ÷ the stake counted for it (null = not known).
+   *  The vault saves a week's weight only once the game moves past it; until then it uses the live numbers, so this
+   *  does the same (the vault's weightFor; found by the Vault chat, 30 Oct). g = the game object, x = that week. */
+  function per100(gw, g, x) {
+    if (!gw || !gw.closed) return null;
+    let w;
+    if (gw.weight_set) w = big(gw.weight);
+    else if (g && x != null) w = big(x) > big(g.week) ? big(g.week_stake) + (big(g.next_stake) > 0n && big(g.next_week) <= big(x) ? big(g.next_stake) : 0n) : big(g.week_stake);
+    else return null;
+    return w > 0n ? (big(gw.bucket) * 100n * UNIT) / w : null;
+  }
+  /** "Your Mana is busy" (the node still holds the last transaction's Mana limit) and other wallet errors, in plain words. */
+  function sayError(e) {
+    const m = String((e && e.message) || e);
+    if (/reject|denied|cancel/i.test(m)) return "Cancelled in your wallet. Nothing was sent.";
+    if (/insufficient pending account resources|pending account resources|"code":\s*104/i.test(m)) return "Your Mana is still busy with your last transaction. Wait a minute and try again.";
+    return `Not sent: ${((/"([^"]{6,140})"/.exec(m) || [, m])[1]).slice(0, 160)}`;
+  }
+  /** Tell every part of the page (status bar, lists, panels) that a stake changed. */
+  const changed = () => { try { window.dispatchEvent(new Event("kstake:changed")); } catch { /* old browser */ } };
+  const onChanged = (f) => { try { window.addEventListener("kstake:changed", () => f()); } catch { /* no window */ } };
   const live = (state) => !!(state && state.config && big(state.config.v6_rule_week_plus_one) > 0n);
   /** What claim_game would pay for a week now (0n = nothing), the same rule as the vault's claimableG / rewardOfG. */
   function claimable(gw, e, buckets) {
     if (!gw || !gw.finalized || !e || e.claimed) return 0n;
     const place = Number(e.prize_place || 0);
     if (place === 1) return big(gw.prize_first);
-    if (place === 2) return Number(gw.first_n || 0) === 1 ? big(gw.prize_second) : 0n;
+    // The vault pays 2nd place its prize also when nobody placed 1st (audit V6-9; found by the Vault chat, 30 Oct).
+    // A tie for 1st shares both prizes, so then nobody is 2nd.
+    if (place === 2) return big(gw.prize_second);   // 0 when tied 1st places share the whole prize (the vault's claimableG)
     const points = Number(e.points || 0), cutoff = Number(gw.cutoff || 0);
     if (gw.rolled_over || cutoff < 1 || points < cutoff) return 0n;
     const b = (buckets || [])[points];
@@ -173,6 +212,85 @@
   }
   const read = async (fn, args) => (await shared.vault.functions[fn](args)).result || {};
 
+  /** What `who` can claim in one game: [{ week, reward }] over the last CLAIM_WEEKS finished weeks. Not from the game's
+   *  from_week: a game restarted after a gap moves it forward, and the weeks it earned before stay claimable. The
+   *  player's own entries first (8 at a time); a week's results only where there's an entry with something in it. */
+  async function findClaims(game, who, week) {
+    const out = [], weeks = [];
+    for (let w = big(week) - 1n; w >= 0n && w >= big(week) - BigInt(CLAIM_WEEKS); w--) weeks.push(w);
+    for (let i = 0; i < weeks.length; i += 8) {
+      const part = weeks.slice(i, i + 8);
+      const mine = await Promise.all(part.map((w) => read("get_game_player", { player: who, game, week: w.toString() })));
+      for (let j = 0; j < part.length; j++) {
+        const e = mine[j] && mine[j].entry;
+        if (!e || e.claimed || !(Number(e.points || 0) > 0 || Number(e.prize_place || 0) > 0)) continue;
+        const gx = await read("get_game", { game, week: part[j].toString() });
+        const r = claimable(gx.week, e, gx.buckets);
+        if (r > 0n) out.push({ week: part[j], reward: r });
+      }
+    }
+    return out;
+  }
+
+  // ═══════════════ the staking hub (stake.html): everything about one wallet in one read ═══════════════
+  /** Every game that takes (or still holds) stakes, with this wallet's part in it.
+   *  { live, week, config, min, wallet: { vhp, koin } | null, games: [{ id, name, active, season, total, counted,
+   *    mine, pending, pendingFrom, share, staked, claims, last }] }. Units are BigInt. share = mine ÷ total (0..1). */
+  async function overview(who) {
+    await setup();
+    const state = await read("get_state", {});
+    if (!live(state)) return { live: false };
+    const week = big(state.week), cfg = state.config || {}, min = minStakeFor(cfg, week);
+    const list = ((await read("list_games", {})).games || []).filter((g) => g.staked && (g.active || big(g.stake) > 0n));
+    const games = await Promise.all(list.map(async (g) => {
+      const id = Number(g.id), total = big(g.stake);
+      let mine = 0n, pending = 0n, pendingWeek = 0n, counted = 0n, claims = [], last = null;
+      if (who) {
+        const r = id === Q_GAME ? await read("get_player", { player: who, week: week.toString() }) : await read("get_game_player", { player: who, game: id, week: week.toString() });
+        const p = r.player || {};
+        mine = big(p.stake) + big(p.pending);
+        pending = big(p.pending) > 0n && big(p.pending_week) > week ? big(p.pending) : 0n;
+        pendingWeek = big(p.pending_week);
+        counted = id === Q_GAME ? big(r.active_stake) : big(r.week_stake);
+        if (id !== Q_GAME) claims = await findClaims(id, who, week);
+      }
+      if (id !== Q_GAME && week > 0n) { const gx = await read("get_game", { game: id, week: (week - 1n).toString() }); last = per100(gx.week, gx.game || g, week - 1n); }
+      return { id, name: g.name || `Game ${id}`, active: !!g.active, season: Number(g.season_weeks || 1), total, mine, counted, pending,
+        pendingFrom: pending ? weekDate(cfg, pendingWeek) : "", share: total > 0n ? Number((mine * 1000000n) / total) / 1000000 : 0,
+        staked: counted >= min && min > 0n, claims, last };
+    }));
+    let wallet = null;
+    if (who) {
+      const tok = (id) => new lib.Contract({ id, abi: TOKEN_ABI, provider: shared.provider }).functions;
+      const [v, k] = await Promise.all([tok(shared.dep.vhp).balance_of({ owner: who }), tok(shared.dep.koin).balance_of({ owner: who })]);
+      wallet = { vhp: big(v.result && v.result.value), koin: big(k.result && k.result.value) };
+    }
+    return { live: true, week, config: cfg, paused: !!cfg.paused, min, wallet, games };
+  }
+  /** Sign and send one action from the hub in the player's own wallet. a: { game, units, koin, to } or, for "claim",
+   *  { claims: [{ game, week }] } (up to 10 in one transaction). Resolves to the transaction id (or null). */
+  async function send(action, a) {
+    await setup();
+    const W = Wallet();
+    if (!W) throw new Error("No wallet on this page.");
+    if (!W.address) { await W.connect(); if (!W.address) throw new Error("Not connected."); }
+    const k = { lib, dep: shared.dep, provider: shared.provider };
+    let ops, label;
+    if (action === "claim") {
+      const list = (a.claims || []).slice(0, 10);
+      if (!list.length) throw new Error("Nothing to claim.");
+      ops = [];
+      for (const c of list) ops.push(...(await buildOps(k, "claim", { player: W.address, game: c.game, week: c.week })));
+      label = list.length === 1 ? "claim your reward" : `claim ${list.length} rewards`;
+    } else {
+      ops = await buildOps(k, action, { ...a, player: W.address });
+      label = action === "stake" ? `stake ${exact(a.units)} ${a.koin ? "KOIN" : "VHP"}` : action === "withdraw" ? `withdraw ${exact(a.units)} VHP` : `move ${exact(a.units)} VHP`;
+    }
+    const id = await W.send(label, ops);
+    changed();
+    return id;
+  }
+
   function mount(root, opts = {}) {
     const game = Number(opts.game);
     if (!root || !Number.isInteger(game) || game <= Q_GAME) return null;
@@ -180,27 +298,27 @@
     root.classList.add("kstake");
     const P = { state: null, game: null, games: [], me: null, claims: [], busy: false, note: "" };
 
+    let gen = 0;   // only the latest refresh may show: an older, slower one (before a wallet connected) never overwrites it
     async function refresh() {
+      const my = ++gen;
       try {
         await setup();
         const state = await read("get_state", {});
+        if (my !== gen) return;
         if (!live(state)) { root.hidden = true; return; }
         const week = big(state.week);
         const g = await read("get_game", { game, week: week.toString() });
+        if (my !== gen) return;
         if (!g.game || !g.game.staked) { root.hidden = true; return; }
-        P.state = state; P.game = g.game;
-        P.games = ((await read("list_games", {})).games || []).filter((x) => x.active && x.staked && Number(x.id) !== game);
-        const who = window.KWallet && window.KWallet.address;
-        P.me = null; P.claims = [];
+        const games = ((await read("list_games", {})).games || []).filter((x) => x.active && x.staked && Number(x.id) !== game);
+        const who = Wallet() && Wallet().address;
+        let me = null, claims = [];
         if (who) {
-          P.me = await read("get_game_player", { player: who, game, week: week.toString() });
-          const from = big(g.game.from_week);
-          for (let w = week - 1n; w >= 0n && w >= from && w >= week - BigInt(CLAIM_WEEKS); w--) {
-            const [gx, px] = await Promise.all([read("get_game", { game, week: w.toString() }), read("get_game_player", { player: who, game, week: w.toString() })]);
-            const r = claimable(gx.week, px.entry, gx.buckets);
-            if (r > 0n) P.claims.push({ week: w, reward: r });
-          }
+          me = await read("get_game_player", { player: who, game, week: week.toString() });
+          claims = await findClaims(game, who, week);
         }
+        if (my !== gen) return;
+        Object.assign(P, { state, game: g.game, games, me, claims });
         render();
       } catch {
         // Not live, not reachable or not on this network: keep the panel out of the way (the game page still works).
@@ -211,7 +329,7 @@
 
     async function act(label, action, a) {
       if (P.busy) return;
-      const W = window.KWallet;
+      const W = Wallet();
       if (!W) return;
       if (!W.address) { await W.connect(); return; }
       P.busy = true; P.note = `Confirm “${label}” in ${W.label()}…`; render();
@@ -219,16 +337,18 @@
         const ops = await buildOps({ lib, dep: shared.dep, provider: shared.provider }, action, { ...a, player: W.address, game });
         const id = await W.send(label, ops);
         P.note = id ? `Done: ${label}.` : `Sent: ${label}. It may take a minute to show.`;
+        P.busy = false;
+        changed();                      // the status bar and the lists refresh too (refresh() runs from the event)
+        return;
       } catch (e) {
-        const msg = String((e && e.message) || e);
-        P.note = /reject|denied|cancel/i.test(msg) ? "Cancelled in your wallet." : `Not sent: ${(/"([^"]{6,140})"/.exec(msg) || [, msg])[1].slice(0, 160)}`;
+        P.note = sayError(e);
       }
       P.busy = false;
       await refresh();
     }
 
     function dialog(mode) {
-      const W = window.KWallet;
+      const W = Wallet();
       if (W && W.kind === "guest") return W.guestInfo();
       if (W && !W.address) return W.connect();
       const st = P.me && P.me.player ? big(P.me.player.stake) + big(P.me.player.pending) : 0n;
@@ -283,11 +403,11 @@
     function render() {
       const g = P.game, cfg = P.state.config, week = big(P.state.week);
       const min = minStakeFor(cfg, week);
-      const W = window.KWallet, who = W && W.address;
+      const W = Wallet(), who = W && W.address;
       const p = P.me && P.me.player;
       const mine = p ? big(p.stake) + big(p.pending) : 0n;
       const counted = P.me ? big(P.me.week_stake) : 0n;
-      const pendingNote = p && big(p.pending) > 0n && big(p.pending_week) > week ? ` (${exact(p.pending)} VHP counts from week ${p.pending_week})` : "";
+      const pendingNote = p && big(p.pending) > 0n && big(p.pending_week) > week ? ` ${exact(p.pending)} VHP more counts from ${weekDate(cfg, p.pending_week)}.` : "";
       const staked = counted >= min && min > 0n;
       const canStake = g.active && !cfg.paused;
       const rows = [
@@ -296,7 +416,7 @@
           el("div", {}, el("span", { class: "muted" }, "Game total"), el("b", {}, `${amount(g.stake)} VHP`)),
           el("div", {}, el("span", { class: "muted" }, "Minimum this week"), el("b", {}, `${exact(min)} VHP`))),
         who ? el("p", { class: "kstake-status" }, staked
-          ? `You're a staked player in this game this week (${amount(counted)} VHP counted).${pendingNote}`
+          ? `You're a staked player in this game this week, with ${amount(counted)} VHP counted.${pendingNote}`
           : `You're a free player in this game this week.${pendingNote}`) : null,
         el("p", { class: "muted kstake-explain" }, explain(g, min)),
         !g.active ? el("p", { class: "warn" }, "This game has stopped taking stakes. You can withdraw any time.") : null,
@@ -307,7 +427,7 @@
           who && mine > 0n ? el("button", { class: "btn btn-ghost", type: "button", disabled: P.busy, onclick: () => dialog("withdraw") }, "Withdraw") : null,
           who && mine > 0n && canStake && P.games.length ? el("button", { class: "btn btn-ghost", type: "button", disabled: P.busy, onclick: () => dialog("move") }, "Move") : null),
         P.claims.length ? el("ul", { class: "kstake-claims" }, ...P.claims.map((c) => el("li", {},
-          el("span", {}, `Week ${c.week}: ${amount(c.reward)} VHP`),
+          el("span", {}, `Week of ${weekDate(cfg, c.week).replace(/^\w+ /, "")}: ${amount(c.reward)} VHP`),
           el("button", { class: "btn btn-tang btn-small", type: "button", disabled: P.busy, onclick: () => act(`claim ${exact(c.reward)} VHP for week ${c.week}`, "claim", { week: c.week }) }, "Claim")))) : null,
         P.note ? el("p", { class: "muted kstake-note", role: "status" }, P.note) : null,
       ];
@@ -315,10 +435,129 @@
       root.hidden = false;
     }
 
-    if (window.KWallet && window.KWallet.subscribe) window.KWallet.subscribe(() => { P.note = ""; refresh(); });
+    if (Wallet() && Wallet().subscribe) Wallet().subscribe(() => { P.note = ""; refresh(); });
+    onChanged(refresh);
     refresh();
     return { refresh };
   }
 
-  window.KStake = { mount, _test: { VAULT_ABI, TOKEN_ABI, toUnits, minStakeFor, live, claimable, explain, buildOps, exact } };
+  /** "Where to stake": every game that takes stakes, side by side — staked in it, your stake, and last week's rewards
+   *  per 100 VHP staked — each with a link to its page's panel. `links` maps a vault game id to that page (the hub's
+   *  games.json "vault" ids). Hidden until the vault is live, like the panel. */
+  function mountList(root, opts = {}) {
+    if (!root) return null;
+    root.hidden = true;
+    root.classList.add("kstake");
+    const links = opts.links || {};
+    let gen = 0;
+    async function refresh() {
+      const my = ++gen;
+      try {
+        await setup();
+        const state = await read("get_state", {});
+        if (!live(state)) { root.hidden = true; return; }
+        const week = big(state.week), cfg = state.config;
+        const games = ((await read("list_games", {})).games || []).filter((g) => g.staked && (g.active || big(g.stake) > 0n));
+        if (!games.length) { root.hidden = true; return; }
+        const who = Wallet() && Wallet().address;
+        const rows = [];
+        for (const g of games) {
+          const id = Number(g.id);
+          let last = null, mine = null;
+          if (id !== Q_GAME && week > 0n) { const gx = await read("get_game", { game: id, week: (week - 1n).toString() }); last = per100(gx.week, gx.game || g, week - 1n); }
+          if (who) {
+            const r = id === Q_GAME ? await read("get_player", { player: who, week: week.toString() }) : await read("get_game_player", { player: who, game: id, week: week.toString() });
+            mine = r.player ? big(r.player.stake) + big(r.player.pending) : 0n;
+          }
+          rows.push({ id, name: g.name || `Game ${id}`, stake: big(g.stake), last, mine, active: !!g.active, href: links[id] || "" });
+        }
+        if (my !== gen) return;
+        root.replaceChildren(
+          el("h3", {}, "Where to stake"),
+          el("p", { class: "muted kstake-explain" }, `Stake VHP in any game, as many as you like (at least ${exact(minStakeFor(cfg, week))} VHP in a game to play it as a staked player). Each game's stakers share that game's part of the weekly rewards. You can withdraw any time, or move stake between games.`),
+          el("ul", { class: "kstake-list" }, ...rows.map((r) => el("li", {},
+            el("div", { class: "kstake-list-head" },
+              el("b", {}, r.name),
+              r.href ? el("a", { class: "btn btn-ghost btn-small", href: r.href }, r.active ? "Stake →" : "Withdraw →") : el("span", { class: "muted" }, "Page coming soon")),
+            el("div", { class: "kstake-list-stats" },
+              el("span", {}, el("small", { class: "muted" }, "Staked "), `${amount(r.stake)} VHP`),
+              who ? el("span", {}, el("small", { class: "muted" }, "Yours "), `${amount(r.mine)} VHP`) : null,
+              el("span", {}, el("small", { class: "muted" }, "Last week "), r.last != null ? `${amount(r.last)} VHP per 100` : r.id === Q_GAME ? "see its page" : "new: no full week yet"))))),
+          el("p", { class: "muted fine-print" }, `"Last week" is the game's rewards for the week of ${weekDate(cfg, week - 1n).replace(/^\w+ /, "")} divided by the VHP staked in it: the top 30% of its staked players share them, so winners get more and others nothing. Past weeks don't promise future rewards. Daily Questions pays the staked players who answered: its page shows this week's pot.`));
+        root.hidden = false;
+      } catch {
+        if (!root.children || !root.children.length) root.hidden = true;
+      }
+    }
+    if (Wallet() && Wallet().subscribe) Wallet().subscribe(() => refresh());
+    onChanged(refresh);
+    refresh();
+    return { refresh };
+  }
+
+  // ═══════════════ status: staked or free in one game (every game page shows it) ═══════════════
+  /** The wallet's standing in one game this week. Daily Questions (game 1) works on every vault version; the other
+   *  games once the vault is live. { open, staked, amount, counted, pending, pendingFrom, min } (units are BigInt). */
+  async function status(game, who) {
+    await setup();
+    const state = await read("get_state", {});
+    const week = big(state.week), cfg = state.config || {};
+    const min = minStakeFor(cfg, week);
+    if (game === Q_GAME) {
+      const r = who ? await read("get_player", { player: who, week: week.toString() }) : {};
+      const p = r.player || {};
+      const pending = big(p.pending) > 0n && big(p.pending_week) > week ? big(p.pending) : 0n;
+      const counted = big(r.active_stake);
+      return { open: true, staked: counted >= min && min > 0n, amount: big(p.stake) + big(p.pending), counted, pending, pendingFrom: pending ? weekDate(cfg, p.pending_week) : "", min };
+    }
+    if (!live(state)) return { open: false, staked: false, amount: 0n, counted: 0n, pending: 0n, pendingFrom: "", min };
+    const g = (await read("get_game", { game, week: week.toString() })).game;
+    if (!g || !g.staked) return { open: false, staked: false, amount: 0n, counted: 0n, pending: 0n, pendingFrom: "", min };
+    const r = who ? await read("get_game_player", { player: who, game, week: week.toString() }) : {};
+    const p = r.player || {};
+    const pending = big(p.pending) > 0n && big(p.pending_week) > week ? big(p.pending) : 0n;
+    const counted = big(r.week_stake);
+    return { open: !!g.active, staked: counted >= min && min > 0n, amount: big(p.stake) + big(p.pending), counted, pending, pendingFrom: pending ? weekDate(cfg, p.pending_week) : "", min };
+  }
+  /** The text of a status line (also used by the tests). */
+  function badgeText(st, connected, guest) {
+    if (!connected) return { cls: "free", head: "Playing free", sub: "Connect a wallet to see your stake.", link: "How staking works" };
+    if (guest) return { cls: "free", head: "Playing free (guest)", sub: "Guests play free. Stake from a Koinos wallet to share the weekly rewards.", link: "How staking works" };
+    if (!st.open && st.amount === 0n) return { cls: "free", head: "Playing free", sub: "Staking in this game opens when the Knode Games vault goes live.", link: "Staking" };
+    const more = st.pending > 0n ? ` ${exact(st.pending)} VHP more counts from ${st.pendingFrom}.` : "";
+    if (st.staked) return { cls: "staked", head: "Staked", amount: `${amount(st.amount)} VHP`, sub: `You share this game's weekly rewards.${more}`, link: "Manage stake" };
+    if (st.amount > 0n) return { cls: "free", head: "Playing free this week", amount: `${amount(st.amount)} VHP staked`, sub: `It counts from ${st.pendingFrom || "next week"}.`, link: "Manage stake" };
+    return { cls: "free", head: "Playing free", sub: `Stake ${exact(st.min || UNIT)} VHP or more to share this game's weekly rewards.`, link: "Stake" };
+  }
+  /** A small status bar for the top of a game page: staked or free, how much, and a link to the staking page. */
+  function badge(root, opts = {}) {
+    const game = Number(opts.game);
+    if (!root || !Number.isInteger(game) || game < Q_GAME) return null;
+    const href = opts.href || `stake.html#g${game}`;
+    root.classList.add("kbadge");
+    let gen = 0;
+    async function refresh() {
+      const my = ++gen;
+      const W = Wallet(), who = W && W.address;
+      let st = { open: false, staked: false, amount: 0n, counted: 0n, pending: 0n, pendingFrom: "", min: UNIT };
+      try { if (who && W.kind !== "guest") st = await status(game, who); else if (!who) st = await status(game, null); } catch { /* chain unreachable: show "free" without amounts */ }
+      if (my !== gen) return;
+      const t = badgeText(st, !!who, !!(W && W.kind === "guest"));
+      root.className = `kbadge ${t.cls}`;
+      root.replaceChildren(
+        el("span", { class: "kb-dot", "aria-hidden": "true" }),
+        el("span", { class: "kb-main" }, el("b", {}, t.head), t.amount ? el("span", { class: "kb-amt" }, ` · ${t.amount}`) : null),
+        el("span", { class: "kb-sub" }, t.sub),
+        el("a", { class: "kb-link", href }, `${t.link} →`));
+      root.hidden = false;
+    }
+    if (Wallet() && Wallet().subscribe) Wallet().subscribe(() => refresh());
+    onChanged(refresh);
+    refresh();
+    setInterval(() => { if (!document.hidden) refresh(); }, 120000);
+    return { refresh };
+  }
+
+  window.KStake = { mount, mountList, badge, status, overview, send, fmt: { amount, exact, toUnits, weekDate, explain },
+    wallet: () => Wallet(), sayError, live: async () => { await setup(); return live(await read("get_state", {})); }, _test: { badgeText, VAULT_ABI, TOKEN_ABI, toUnits, minStakeFor, live, claimable, explain, buildOps, exact, weekDate, per100, sayError } };
 })();

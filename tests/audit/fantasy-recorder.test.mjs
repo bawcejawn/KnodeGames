@@ -59,7 +59,7 @@ async function hourly(at, prev, opts = {}) {
   const out = tmp();
   const log = console.log; console.log = () => {};
   let r;
-  try { r = await run({ p: node(at), check: opts.check === null ? null : node(at, opts.check || {}), prev, out, raceData, picksContract: "1PicksPicksPicksPicksPicksPicks11", picksOf, rivalStaked: async (who) => new Set(who.filter((a) => !unstaked.has(a))) }); } finally { console.log = log; }
+  try { r = await run({ p: node(at), check: opts.check === null ? null : node(at, opts.check || {}), prev, out, raceData, picksContract: "1PicksPicksPicksPicksPicksPicks11", picksOf, rivalStaked: async (who) => new Set(who.filter((a) => !unstaked.has(a))), stakedOf: opts.stakedOf === undefined ? null : opts.stakedOf }); } finally { console.log = log; }
   if (process.env.SHOW_PROBLEMS) console.log(new Date(at).toISOString(), r && r.problems);
   return { out, problems: r.problems };
 }
@@ -132,20 +132,21 @@ test("a week: teams scored day by day, final after the 12 h window, rivals count
   assert.equal(row(pc).full, false); assert.equal(row(pd).full, false);
   for (const d of row(pc).days.slice(0, 3)) assert.equal(d[1], 0, "days before joining score 0");
   assert.deepEqual(w.picks, {}, "a final week keeps teams in the players' days only");
-  assert.deepEqual(F.unpackTeam(w.sheet, row(pa).days[6][0]), best, "teams are stored as positions on the price list");
+  assert.deepEqual(F.unpackTeam(w.sheet, row(pa).days[5][0]), best, "teams are stored as positions on the price list");
   // The scores are exactly the shared math on the recorded days.
   const dayRecs = read(fin.out, "days.json").days;
   const recs = days.map((d) => dayRecs.find((x) => x.day === d));
   assert.equal(row(pa).points, F.scoreWeek(sheet, recs, { [days[0]]: best }).points);
-  assert.equal(row(pa).vault, 255, "the best week posts 255");
-  assert.ok(row(pb).vault < 255 && row(pb).vault >= 1);
+  assert.equal(row(pa).vault, 0, "the vault isn't read here (stakedOf null): nobody is staked, so no vault points");
+  assert.equal(row(pa).staked, false); assert.equal(read(fin.out, "index.json").vaultBasis, "all");
   assert.ok(row(pa).points > row(pb).points, "the reliable captain beats the unreliable one");
   assert.equal(w.players[0].a, pa);
   // Rivals: pa↔pb mutual = 1 match; pc and pd had no full week, so their challenges don't count.
   assert.deepEqual(w.matches, [{ a: pa, b: pb, mutual: true, result: "a" }]);
   const at = read(fin.out, "alltime.json");
   assert.ok(at.weeks.includes(2) && at.players[pa].weeks >= 1 && at.players[pa].best === row(pa).points, "week 2 is in the all-time table");
-  assert.equal(read(fin.out, "board.json").allTime[0].a, Object.entries(at.players).sort((x, y) => y[1].points - x[1].points)[0][0]);
+  assert.equal(row(pa).days.length, 6, "Monday to Saturday: Sunday is results day");
+  assert.equal(read(fin.out, "board.json").allTime.rows[0].a, Object.entries(at.players).sort((x, y) => y[1].points - x[1].points)[0][0]);
   const rv = read(fin.out, "rivals.json");
   assert.ok(rv.weeks.includes(2), "week 2 counted (week 1, the current week at the first run, had a late sheet and no players)");
   assert.deepEqual(rv.records[pa], { made: [1, 0, 0], received: [0, 0, 0] });
@@ -165,7 +166,7 @@ test("audit FX-1: a week is never final while a day's picks are unread; then it 
   const broken = picksOf;
   let fail = days[3];
   const flaky = async (n, game, round) => { if (game === 4 && round === fail) throw new Error("node hiccup"); return broken(n, game, round); };
-  const run1 = async (at, prev) => { const out = tmp(); const log = console.log; console.log = () => {}; let r; try { r = await run({ p: node(at), check: node(at), prev, out, raceData, picksContract: "1PicksPicksPicksPicksPicksPicks11", picksOf: flaky, rivalStaked: async (who) => new Set(who) }); } finally { console.log = log; } return { out, r }; };
+  const run1 = async (at, prev) => { const out = tmp(); const log = console.log; console.log = () => {}; let r; try { r = await run({ p: node(at), check: node(at), prev, out, raceData, picksContract: "1PicksPicksPicksPicksPicksPicks11", picksOf: flaky, rivalStaked: async (who) => new Set(who), stakedOf: null }); } finally { console.log = log; } return { out, r }; };
   let cur = s.out;
   for (const at of ["2026-11-04T12:30Z", "2026-11-09T12:30Z", "2026-11-10T12:30Z"]) cur = (await run1(U(at), cur)).out;
   const w = read(cur, "W002.json");
@@ -190,7 +191,8 @@ test("vault hand-off: one file per final week, rows for Fantasy stakers only, ra
   cur = await go(U("2026-11-09T12:30Z"), cur, async (who) => new Set(who.filter((a) => stakers.has(a))));
   const v = JSON.parse(fs.readFileSync(path.join(cur, "vault", "W2.json"), "utf8"));
   assert.equal(v.game, 4); assert.equal(v.week, 2); assert.equal(v.final, true);
-  assert.deepEqual(v.first, []); assert.deepEqual(v.second, []);
+  assert.deepEqual(v.first, [pd], "the only free player, with a team on all 6 play days: 1st on Free play (D-081)");
+  assert.deepEqual(v.second, []);
   assert.ok(!v.rows.some((r) => r.player === pd), "a player with no Fantasy stake isn't in the rows");
   const w = read(cur, "W002.json");
   assert.equal(w.players.find((x) => x.a === pd).vault, 0);
@@ -207,10 +209,40 @@ test("vault hand-off: one file per final week, rows for Fantasy stakers only, ra
   assert.equal(fs.existsSync(path.join(none, "vault")), false, "without the vault's stakes, no vault file");
 });
 
-test("vault file: staked game shape; zero points and bad rows left out; best first", () => {
+test("vault file: staked rows best first, zero points and bad rows left out; free winners never in the rows", () => {
   const [a, b, c, d] = PLAYERS;
-  const f = vaultFile(57, [{ a, vault: 254 }, { a: b, vault: 255 }, { a: c, vault: 0 }, { a: d, vault: 254 }, { a: "bad", vault: 3 }]);
+  const f = vaultFile(57, [{ a, vault: 254, points: 10, full: true, staked: true }, { a: b, vault: 255, points: 20, full: true, staked: true }, { a: c, vault: 0, points: 0, full: true, staked: true },
+    { a: d, vault: 254, points: 10, full: true, staked: true }, { a: "bad", vault: 3 }]);
   assert.deepEqual(f, { game: 4, week: 57, final: true, rows: [{ player: b, points: 255 }, { player: a, points: 254 }, { player: d, points: 254 }].sort((x, y) => y.points - x.points || (x.player < y.player ? -1 : 1)), first: [], second: [] });
+  // Free players: 1st and 2nd (all 6 days, at least 1 point); one who missed a day can't win.
+  const g = vaultFile(58, [{ a, vault: 255, points: 90, full: true, staked: true }, { a: b, vault: 0, points: 80, full: true, staked: false }, { a: c, vault: 0, points: 70, full: true, staked: false }, { a: d, vault: 0, points: 99, full: false, staked: false }]);
+  assert.deepEqual(g.rows, [{ player: a, points: 255 }]); assert.deepEqual(g.first, [b]); assert.deepEqual(g.second, [c]);
+});
+
+test("owner 2026-11-03 (D-081): Staked and Free play boards in board.json, the shared shape; no free medals while the prize is off", async () => {
+  const s0 = await hourly(U("2026-11-01T12:30Z"), "");
+  const sheet = read(s0.out, "W002.json").sheet, days = F.weekDays(2), [pa, pb, pc, pd] = PLAYERS;
+  const cheap = [...sheet.pool].sort((x, y) => x.price - y.price).slice(0, 5).map((x) => x.a);
+  picks = { team: { [days[0]]: [[pa, cheap, 1], [pb, cheap, 1], [pc, [cheap[1], cheap[0], ...cheap.slice(2)], 1]], [days[2]]: [[pd, cheap, 1]] }, rival: {} };
+  const stakers = new Set([pa]);
+  const staked = async (who) => new Set(who.filter((a) => stakers.has(a)));
+  const mid = await hourly(U("2026-11-04T12:30Z"), s0.out, { stakedOf: staked });
+  const b = read(mid.out, "board.json");
+  for (const k of ["today", "week", "allTime"]) assert.ok(b[k] && Array.isArray(b[k].rows), k);
+  assert.equal(b.freePrize, false);
+  const row = (a) => b.week.rows.find((r) => r.a === a);
+  assert.equal(row(pa).ranked, true, "staked in Fantasy: the Staked board");
+  for (const a of [pb, pc, pd]) assert.equal(row(a).ranked, false, "everyone else: Free play");
+  assert.equal(row(pa).boardPlace, 1);
+  assert.ok(b.week.rows.filter((r) => !r.ranked).every((r) => r.earns === 0), "the free prize is off: no free medals");
+  assert.ok(b.today.rows.every((r) => typeof r.pts === "number"), "today so far");
+  const fin = await hourly(U("2026-11-09T12:30Z"), mid.out, { stakedOf: staked });
+  const f = read(fin.out, "board.json");
+  assert.equal(f.week.week, 3); assert.equal(f.lastWeek.week, 2); assert.equal(f.lastWeek.final, true);
+  assert.deepEqual(f.lastWeek.prizes, [], "no prize list while the switch is off");
+  const v = read(fin.out, "vault/W2.json");
+  assert.ok(v.first.length >= 1 && !v.first.includes(pd), "the vault file still lists the free winners; pd joined on Wednesday, so not all 6 days");
+  assert.ok(!v.first.includes(pa) && !v.second.includes(pa), "a staked player never wins the free prize");
 });
 
 test.after(() => { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });

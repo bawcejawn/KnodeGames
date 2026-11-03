@@ -12,6 +12,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { Provider, Signer, Contract, Transaction, Serializer, utils } from "koilib";
 
 export const ABI_FILE = "game/abi/kpred.koilib.json";
@@ -149,6 +150,10 @@ export class SimChain implements Chain {
     this.K = require("@koinos/mock-vm/src/constants");
     this.koinos = require("@koinos/proto-js").koinos;
     this.vm = new MockVM(true);
+    // The mock VM's database orders keys as UTF-8 strings, so keys with bytes from 0x80 up collide or come back out of
+    // order. The chain orders keys bytewise; tools/mockvm-bytewise.cjs makes the simulator do the same, for exact reads
+    // and for paging (vault fuzz, 2026-10-28; RepoLens fix-check 2, V2-1).
+    require("../tools/mockvm-bytewise.cjs").patchDatabase(this.vm.db, fileURLToPath(import.meta.url));   // a real path on Windows too (fix-check 3, V3-1)
   }
 
   async init() {
@@ -245,7 +250,7 @@ export class SimChain implements Chain {
   async sendAs(calls: Call[], authorities: string[], record = true): Promise<Sent> {
     if (record) this.calls++;
     this.vm.db.commitTransaction();
-    const before = new (this.vm.db.db.constructor)(this.vm.db.db); // snapshot of the whole state for multi-op rollback
+    const before = [...this.vm.db.db.entries()]; // snapshot of the whole state for multi-op rollback (rebuilt bytewise by initDb)
     for (const c of calls) {
       if (c.contract && c.contract !== this.contractId) continue; // token approvals: the sim ledger needs none
       const r = await this.run(c.method, c.args, authorities);
@@ -256,6 +261,13 @@ export class SimChain implements Chain {
       }
     }
     return { ok: true, txId: "0x" + crypto.randomBytes(8).toString("hex") };
+  }
+
+  /** Writes one object straight into the contract's storage (space id, key bytes, value bytes), as the contract itself
+   *  would have stored it. Used to rebuild a copy of a live contract's state for the rehearsal (bot/rehearse-v6.ts). */
+  putContractObject(spaceId: number, key: Uint8Array, value: Uint8Array) {
+    this.vm.db.putObject({ system: false, id: spaceId, zone: utils.decodeBase58(this.contractId) }, key, value);
+    this.vm.db.commitTransaction();
   }
 
   // ───── the simulated token ledger inside the test build (storage space 90: tag 1 KOIN, 2 VHP, 3 Mana) ─────
@@ -289,5 +301,23 @@ export class SimChain implements Chain {
   }
   async ledgerAdd(tag: number, who: string, amount: bigint) {
     await this.ledgerSet(tag, who, (await this.ledgerGet(tag, who)) + amount);
+  }
+}
+
+/** Every player row for week `week`, 50 at a time. A page that repeats an address already listed means the listing
+ *  went backwards (the chain never does that): it stops with an error instead of looping (fix-check 2, V2-1). */
+export async function pagePlayers(chain: { read(method: string, args?: any): Promise<any> }, week: number, max = 1_000_000): Promise<any[]> {
+  const rows: any[] = [], seen = new Set<string>();
+  let start = "";
+  for (;;) {
+    const page = (await chain.read("list_players", { limit: 50, week: String(week), ...(start ? { start } : {}) })).rows ?? [];
+    for (const r of page) {
+      if (seen.has(r.address)) throw new Error(`list_players repeated ${r.address} (after ${start || "the start"}): stopping`);
+      seen.add(r.address);
+      rows.push(r);
+    }
+    if (rows.length > max) throw new Error(`list_players returned more than ${max} rows: stopping`);
+    if (page.length < 50) return rows;
+    start = page[page.length - 1].address;
   }
 }

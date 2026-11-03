@@ -29,7 +29,9 @@
   const $ = (id) => document.getElementById(id);
   const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === "text") e.textContent = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids) if (c != null) e.append(c); return e; };
   const say = (t) => { $("status").textContent = t; };
-  const nameOf = (a) => NAMES[a] || a.slice(0, 5) + "…" + a.slice(-4);
+  // Nicknames (D-078): the shared names system shows "name · 1Abc12…wxyz" (pool name, Koinos @name or Knode Games name);
+  // the old built-in names and short address stay as the fallback if names.js didn't load.
+  const nameOf = (a) => (window.KNames ? window.KNames.of(a) : NAMES[a] || a.slice(0, 5) + "…" + a.slice(-4));
   /** A pick scored a show (its horse finished 2nd or 3rd): the recorder's 6th field, or for races recorded before
    *  Show existed, worked out from the race's stored standings with the same rule (race-math.js). */
   const isShow = (result, p) => !p[3] && (p.length > 5 ? p[5] === 1 : !!result && Array.isArray(result.standings) && M.shows(result.standings).includes(p[1]));
@@ -393,12 +395,16 @@
   // ── leaderboard (the recorder's board.json, shown by the shared Knode Games board in board.js) ──
   const lb = window.KBoard ? window.KBoard.create($("race-board"), {
     label: "Race leaderboard",
-    columns: [{ key: "pts", label: "Points" }, { key: "correct", label: "Wins" }, { key: "shows", label: "Shows" }, { key: "picks", label: "Picks", wide: true }, { key: "answers", label: "Question answers", wide: true }],
+    // Medals only for wallets that earn (owner, 2026-10-29), as the recorder works them out by the vault's rules:
+    // earns 1 / 2 = the free prize's 1st / 2nd (ties, and the 10 earliest when more tie), 3 = a share of the staked bucket.
+    freeWinners: (part, free, weekly) => new Map(weekly ? free.filter((r) => r.earns === 1 || r.earns === 2).map((r) => [r.a, r.earns]) : []),
+    earned: (r, weekly) => weekly && r.earns === 3,
+    columns: [{ key: "pts", label: "Points" }, { key: "correct", label: "Wins" }, { key: "shows", label: "Shows" }, { key: "picks", label: "Picks", wide: true }],
     scored: (r) => (r.pts ?? r.correct) > 0,
     summary: (r) => `${fmt(r.pts ?? 0)} pts · ${fmt(r.correct)} W ${fmt(r.shows ?? 0)} S`,
     name: nameOf, link: (a) => EXPLORER + a,
     me: (r, place) => `${place ? `You: #${place} with` : "Your score (only you see this):"} ${fmt(r.pts ?? 0)} points (${fmt(r.correct)} wins, ${fmt(r.shows ?? 0)} shows) from ${fmt(r.picks)} picks.`,
-    unranked: "To be ranked, hold at least 1 VHP or stake in Knode Games.",
+    unranked: "To play on the Staked board, stake VHP in the Producer Race (once the Knode Games vault is live).",
     free: { show: 6, prize: "1st and 2nd at the end of the week win the free-play prize (paid once the Knode Games vault is live)." },
   }) : null;
   async function loadBoard() {
@@ -406,6 +412,9 @@
   }
   function renderBoard() { if (lb && board) { lb.setMe(me() || ""); lb.set(board); } }
   if (W && W.subscribe) W.subscribe(() => { loadMine(); renderBoard(); });
+  // When the names list arrives or changes, redraw everything that shows a producer or player: the horses, card,
+  // feed and results (render), the pick lists and the leaderboard.
+  if (window.KNames && window.KNames.onChange) window.KNames.onChange(() => { render(); renderPicks(true); renderBoard(); });
 
   const setMode = (m) => { histMode = m; $("h-today").setAttribute("aria-pressed", String(m === "today")); $("h-week").setAttribute("aria-pressed", String(m === "week")); renderHistory(); };
   $("h-today").onclick = () => setMode("today");
@@ -440,5 +449,7 @@
   })();
 
   // Stake in the Race (vault game 7): the shared panel stays hidden until the Knode Games vault (v6) is live.
-  if (window.KStake) window.KStake.mount(document.getElementById("race-stake"), { game: 7 });
+  if (window.KStake) window.KStake.mount(document.getElementById("stake"), { game: 7 });
+  // The staked / free status bar at the top of the page (Hub, PR #41): links to the full staking page.
+  if (window.KStake && window.KStake.badge) window.KStake.badge(document.getElementById("stake-badge"), { game: 7 });
 })();

@@ -23,7 +23,10 @@
   const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (v == null) continue; if (k === "text") e.textContent = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids) if (c != null && c !== false) e.append(c); return e; };
   const isAddr = FR.isAddr;
   const players = new Map((TNET && Array.isArray(TNET.players) ? TNET.players : []).map((p) => [p.address, p.name]));
-  const nameOf = (a) => (isAddr(a) ? NAMES[a] || (players.has(a) ? `${players.get(a)} · ${a.slice(0, 5)}…` : a.slice(0, 5) + "…" + a.slice(-4)) : "–");
+  // Producer and player names (D-078): names.js (KNames.of: the name with the short address, never the name alone). The
+  // practice page's test players keep their p1..p6 labels; the Knode nodes their names, if names.js isn't there.
+  const nameOf = (a) => (!isAddr(a) ? "–" : players.has(a) ? `${players.get(a)} · ${a.slice(0, 5)}…`
+    : window.KNames && typeof window.KNames.of === "function" ? window.KNames.of(a) : NAMES[a] || a.slice(0, 5) + "…" + a.slice(-4));
   const fmt = (n, d = 0) => (n == null || !Number.isFinite(Number(n)) ? "–" : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }));
   const when = (t) => new Date(t).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
   const dur = (ms) => { const m = Math.max(0, Math.ceil(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min` : `${m} min`; };
@@ -89,6 +92,8 @@
     // Stake / Withdraw / Move / Claim for Fantasy (game 4): the site's shared stake panel. It stays hidden until Vault
     // v6 is live, and it signs only vault calls in the player's wallet (claude/stake-panel.md).
     if (window.KStake && typeof window.KStake.mount === "function" && $("fantasy-stake")) window.KStake.mount($("fantasy-stake"), { game: G.team });
+    // The status badge at the top of the page (Staked / Free play in Fantasy this week; D-031).
+    if (window.KStake && typeof window.KStake.badge === "function" && $("stake-badge")) window.KStake.badge($("stake-badge"), { game: G.team });
     if (W && NET.picks) {
       let gd = null;
       try { gd = await fetchJson(new URL("game-data/deployment.json", ROOT)); } catch { /* the wallet keeps its defaults */ }
@@ -140,21 +145,22 @@
     const wf = files.weeks.get(week), who = me();
     if (!wf || !wf.sheet || !who) return null;
     const row = (wf.players || []).find((x) => x.a === who);
-    if (wf.final) return row && Array.isArray(row.days) && Array.isArray(row.days[6]) ? F.unpackTeam(wf.sheet, row.days[6][0]) : null;
-    const days = F.weekDays(week), pk = await picksFor(week, days[6]);
+    const lastI = F.PLAY_DAYS - 1;                         // Saturday: the last play day
+    if (wf.final) return row && Array.isArray(row.days) && Array.isArray(row.days[lastI]) ? F.unpackTeam(wf.sheet, row.days[lastI][0]) : null;
+    const days = F.weekDays(week), pk = await picksFor(week, days[lastI]);
     const carried = depth < 1 ? await lastTeamOf(week - 1, depth + 1) : null;
-    return F.teamsForWeek(wf.sheet, days, pk, carried)[6].team;
+    return F.teamsForWeek(wf.sheet, days, pk, carried)[lastI].team;
   }
   /** The next day you can still pick for (its lock at least a minute away). */
   /** Before week 1 starts, its first day and the week itself. */
-  function targetDay(now = Date.now()) { let d = Math.max(F.dayNo(now), F.weekDays(0)[0]); while (F.lockOfDay(d) - now < 60000) d++; return d; }
+  function targetDay(now = Date.now()) { let d = F.nextPlayDay(Math.max(F.dayNo(now), F.weekDays(0)[0])); while (F.lockOfDay(d) - now < 60000) d = F.nextPlayDay(d + 1); return d; }
   function rivalWeek(now = Date.now()) { let w = now < F.weekStart(0) ? 0 : F.weekOf(now) + 1; while (F.lockOfWeek(w) - now < 60000) w++; return w; }
 
   /** The days you can plan now: from the next day still open, up to 7 days ahead (the contract's window), in weeks
    *  whose price list is out. Planning ahead never locks you in: a planned day can be changed until its own lock. */
   function plannable(now = Date.now()) {
     const out = [], td = targetDay(now);
-    for (let d = td; d < td + 7; d++) { if (F.dayStart(d) - now > 7 * F.DAY_MS - 60000) break; if (sheetOf(F.weekOf(F.dayStart(d)))) out.push(d); }
+    for (let d = td; d < td + 7; d++) { if (F.dayStart(d) - now > 7 * F.DAY_MS - 60000) break; if (F.isPlayDay(d) && sheetOf(F.weekOf(F.dayStart(d)))) out.push(d); }
     return out;
   }
   let draft = [], draftFor = null, selDay = null;
@@ -170,7 +176,7 @@
         const twf = files.weeks.get(tw);
         if (twf && twf.sheet) {
           const days = F.weekDays(tw), i = days.indexOf(sd);
-          const pk = await picksFor(tw, days[6]);             // every day of the week, planned days too
+          const pk = await picksFor(tw, days[days.length - 1]);             // every day of the week, planned days too
           next.saved = pk[sd] || null;
           for (const d of Object.keys(pk)) next.planned.add(Number(d));
           const before = {}; for (const d of days) if (d < sd && pk[d]) before[d] = pk[d];
@@ -186,7 +192,7 @@
         }
         if (tw !== wNow) {
           const nwf = files.weeks.get(wNow);
-          if (nwf && nwf.sheet) { const days = F.weekDays(wNow); next.weekTeams = F.teamsForWeek(nwf.sheet, days, await picksFor(wNow, days[6]), await lastTeamOf(wNow - 1)); }
+          if (nwf && nwf.sheet) { const days = F.weekDays(wNow); next.weekTeams = F.teamsForWeek(nwf.sheet, days, await picksFor(wNow, days[days.length - 1]), await lastTeamOf(wNow - 1)); }
         }
         // A reminder when next week's prices are out and your team won't play its Monday.
         const nw = wNow + (now < F.weekStart(0) ? 0 : 1), nsheet = sheetOf(nw);
@@ -384,53 +390,53 @@
     const mineRow = who ? lb.find((x) => x.a === who) : null;
     $("you").hidden = !who;
     $("you-pts").textContent = fmt(total, 0);
-    $("you-rank").textContent = mineRow ? `#${mineRow.place}` : "–";
+    $("you-rank").textContent = mineRow ? `#${mineRow.boardPlace} ${mineRow.ranked ? "Staked" : "Free play"}` : "–";
     const tToday = mine.weekTeams[days.indexOf(today)];
     $("you-today").textContent = tToday && tToday.team && lv && lv.day === today ? fmt(F.dayScore(tToday.team, lv), 0) : "–";
     $("you-rival").textContent = mine.rivalNow ? nameOf(mine.rivalNow) : "none";
     $("week-note").textContent = !who ? "Connect a wallet to see your week." : `A ${TESTNET ? "test day" : "day"} counts once its blocks are irreversible and match on two nodes; today is provisional. A full day for 5 producers at their fair share is 600 (captain double).`;
   }
 
-  // ── the league ──
-  let leagueWeek = "now";
+  // ── the league: the shared Staked / Free play board (board.js; D-081), the recorder's board.json ──
+  let lb = null, lbFree = null;
   function renderLeague() {
-    const who = me();
-    $("league-col4").textContent = leagueWeek === "all" ? "Weeks" : "Vault";
-    if (leagueWeek === "all") {
-      const rows = files.board && Array.isArray(files.board.allTime) ? files.board.allTime : [];
-      $("fx-league").tBodies[0].replaceChildren(...rows.slice(0, 50).map((r) => el("tr", { class: [r.a === who ? "me" : "", r.place <= 3 ? `pod pod${r.place}` : ""].join(" ").trim() || null, title: `Best week ${fmt(r.best, 0)}` },
-        el("td", { class: "num", text: String(r.place) }), el("td", {}, el("span", { class: "fx-name" }, kit(r.a, "sm"), el("span", { class: "nm", text: nameOf(r.a) }))),
-        el("td", { class: "num", text: fmt(r.points, 0) }), el("td", { class: "num hide-sm", text: String(r.weeks) }))));
-      const mine = who ? rows.find((x) => x.a === who) : null;
-      $("league-sub").textContent = "All finished weeks";
-      $("league-note").textContent = !rows.length ? "The all-time table starts with the first finished week." : `Total points over every finished week.${mine ? ` You: #${mine.place}, ${mine.weeks} week${mine.weeks > 1 ? "s" : ""}, best ${fmt(mine.best, 0)}.` : ""}`;
-      return;
+    const b = files.board, free = !!(b && b.freePrize);
+    $("fx-free-prize").textContent = free ? "Free play: 1st and 2nd each week win 2 and 1 VHP (a team on all 6 play days, at least 1 point)." : "The Free play board pays no VHP for now.";
+    if (!window.KBoard || !$("fx-board")) return;
+    if (!lb || lbFree !== free) {
+      lbFree = free;
+      $("fx-board").replaceChildren();
+      lb = window.KBoard.create($("fx-board"), {
+        label: "Fantasy Producers leaderboard",
+        columns: [{ key: "pts", label: "Points", d: 2 }, { key: "days", label: "Play days", wide: true }],
+        summary: (r) => `${fmt(r.pts, 0)} pts`,
+        scored: (r) => r.pts > 0,
+        name: nameOf,
+        unranked: "The Staked board is for wallets with at least 1 VHP staked in Fantasy that week (holding VHP, or a stake in another game, doesn't count).",
+        free: { show: 6, prize: free ? "1st and 2nd win 2 and 1 VHP (a team on all 6 play days, at least 1 point)." : "No VHP prize on Free play for now." },
+        // Medals only for wallets that earn (LEADERBOARD_STANDARD §4): the recorder's `earns` (3 = a share of the bucket;
+        // 1 or 2 = a free prize, only when the free prize is on).
+        earned: (r, weekly) => weekly && r.earns === 3,
+        freeWinners: (part, rows, weekly) => new Map(weekly ? rows.filter((r) => r.earns === 1 || r.earns === 2).map((r) => [r.a, r.earns]) : []),
+      });
     }
-    const b = files.board, part = b ? (leagueWeek === "now" ? b.week : b.lastWeek) : null;
-    const wf = part ? files.weeks.get(part.week) : null, vault = new Map(((wf && wf.players) || []).map((x) => [x.a, x.vault]));
-    const rows = part && Array.isArray(part.rows) ? part.rows : [];
-    $("fx-league").tBodies[0].replaceChildren(...rows.slice(0, 50).map((r) => el("tr", { class: [r.a === who ? "me" : "", r.place <= 3 ? `pod pod${r.place}` : ""].join(" ").trim() || null },
-      el("td", { class: "num", text: String(r.place) }), el("td", {}, el("span", { class: "fx-name" }, kit(r.a, "sm"), el("span", { class: "nm", text: nameOf(r.a) }), r.full ? null : el("span", { class: "fx-pill", title: "Didn't have a team all 7 days", text: "part week" }))),
-      el("td", { class: "num", text: fmt(r.points, 0) }), el("td", { class: "num hide-sm", text: vault.has(r.a) && part.final ? String(vault.get(r.a)) : "–" }))));
-    $("league-sub").textContent = part ? `Week ${part.week + 1}${part.final ? " · final" : " · still counting"}` : "";
-    const meRow = who ? rows.find((x) => x.a === who) : null;
-    $("league-note").textContent = !rows.length ? "No teams recorded yet." : `${rows.length} player${rows.length > 1 ? "s" : ""}.${meRow && rows.length > 50 && meRow.place > 50 ? ` You: #${meRow.place}.` : ""} Vault is what goes to the vault for the prize: 255 for the best week, one less for each lower score.`;
+    lb.set(b); lb.setMe(me() || "");
   }
 
   // ── Weekly Rival ──
   function renderRival() {
     const who = me(), wNow = F.weekOf(Date.now()), b = files.board, wf = files.weeks.get(wNow);
-    const pts = new Map(((b && b.week && b.week.rows) || []).map((r) => [r.a, r]));
+    const pts = new Map(((b && b.week && b.week.rows) || []).map((r) => [r.a, r]));   // rows: { a, pts, … }
     const match = $("fx-match");
     if (!who) match.replaceChildren(el("p", { class: "note", text: "Connect a wallet to see your rival." }));
     else if (mine.rivalNow) {
       const a = pts.get(who), z = pts.get(mine.rivalNow);
-      const pa = a ? a.points : 0, pz = z ? z.points : 0;
+      const pa = a ? a.pts : 0, pz = z ? z.pts : 0;
       match.replaceChildren(el("div", { class: "fx-vs" + (pa > pz ? " lead" : pa < pz ? " trail" : "") },
         el("div", { class: "side" }, kit(who), el("span", { class: "nm", text: "You" }), el("b", { text: fmt(pa, 0) })),
         el("span", { class: "mid", text: "vs" }),
         el("div", { class: "side r" }, kit(mine.rivalNow), el("span", { class: "nm", text: nameOf(mine.rivalNow) }), el("b", { text: fmt(pz, 0) }))),
-        el("p", { class: "note", text: pa === pz ? "Level so far this week." : `${pa > pz ? "You lead" : "You trail"} by ${fmt(Math.abs(pa - pz), 0)}. It counts if you both hold a Knode Games stake and have a team all 7 days.` }));
+        el("p", { class: "note", text: pa === pz ? "Level so far this week." : `${pa > pz ? "You lead" : "You trail"} by ${fmt(Math.abs(pa - pz), 0)}. It counts if you both hold a Knode Games stake and have a team on all 6 play days.` }));
     } else match.replaceChildren(el("div", { class: "fx-vs empty" }, el("p", { text: "No rival this week. Challenge someone below for next week." })));
     const against = wf && Array.isArray(wf.rivals) ? wf.rivals.filter((x) => x[1] === who).map((x) => x[0]) : [];
     if (who && against.length) match.append(el("p", { class: "note", text: `Challenged by ${against.length}: ${against.slice(0, 6).map(nameOf).join(", ")}${against.length > 6 ? "…" : ""}` }));
@@ -447,7 +453,7 @@
     for (const [a] of players) if (a !== who && !opts.has(a)) opts.set(a, null);
     const keep = sel.value;
     sel.replaceChildren(el("option", { value: "", text: opts.size ? "Choose a player…" : "No players yet: paste an address" }),
-      ...[...opts.keys()].map((a) => el("option", { value: a, text: `${nameOf(a)}${opts.get(a) ? ` · ${fmt(opts.get(a).points, 0)} pts` : ""}` })));
+      ...[...opts.keys()].map((a) => el("option", { value: a, text: `${nameOf(a)}${opts.get(a) ? ` · ${fmt(opts.get(a).pts, 0)} pts` : ""}` })));
     if ([...opts.keys()].includes(keep)) sel.value = keep;
     $("fx-rival-send").disabled = sending || !picks || !who;
     $("rival-note").textContent = !picks ? "Challenges open when the Picks contract is live." : mine.rivalNext ? `Your challenge for week ${mine.rw + 1}: ${nameOf(mine.rivalNext)}. You can change it until ${when(F.lockOfWeek(mine.rw))}.` : `Locks ${when(F.lockOfWeek(mine.rw))}.`;
@@ -526,7 +532,7 @@
       await W.send(`Weekly Rival: challenge ${nameOf(target)}`, [operation]);
       const ok = await confirmPick(G.rival, F.rivalRound(rw), [target]);
       $("fx-rival-addr").value = "";
-      pop(ok ? "ok" : "info", ok ? "Challenge sent" : "Sent, not seen yet", [ok ? `${nameOf(target)} is your rival for week ${rw + 1}. It counts if you both hold a Knode Games stake and have a team all 7 days.` : "It usually shows within a minute."], [okBtn()]);
+      pop(ok ? "ok" : "info", ok ? "Challenge sent" : "Sent, not seen yet", [ok ? `${nameOf(target)} is your rival for week ${rw + 1}. It counts if you both hold a Knode Games stake and have a team on all 6 play days.` : "It usually shows within a minute."], [okBtn()]);
     } catch (e) { const w = why(e); pop(/Cancelled/.test(w) ? "info" : "bad", /Cancelled/.test(w) ? "Cancelled" : "Challenge not sent", [w], [okBtn("OK")]); }
     finally { sending = false; await refreshMine(); }
   }
@@ -602,7 +608,7 @@
     setupGuide();
     setupNav();
     for (const b of document.querySelectorAll("[data-sort]")) b.addEventListener("click", () => { sortBy = b.dataset.sort; for (const x of document.querySelectorAll("[data-sort]")) x.setAttribute("aria-pressed", String(x === b)); renderPool(); });
-    for (const b of document.querySelectorAll("[data-week]")) b.addEventListener("click", () => { leagueWeek = b.dataset.week; for (const x of document.querySelectorAll("[data-week]")) x.setAttribute("aria-pressed", String(x === b)); renderLeague(); });
+    if (window.KNames && typeof window.KNames.onChange === "function") window.KNames.onChange(() => { lb = null; render(); });
     if (W && W.subscribe) W.subscribe(() => { draftFor = null; refreshMine(); });
     await setupPicks().catch(() => {});
     await loadFiles();

@@ -3,7 +3,8 @@
 This runs a complete copy of Fantasy Producers for practice, with play money. It gives you:
 - your own test wallets: you play as **p1**;
 - a testnet copy of the Picks contract (the audited one, with 3 settings changed for testing);
-- a fast clock: **1 test "day" = 1 hour**, so a test week plays in 7 hours;
+- a fast clock: **1 test "day" = 1 hour**, so a test week is 7 hours: 6 play hours (Monday to Saturday) and a results
+  hour (Sunday);
 - five robot players to play against and to be your rivals;
 - the recorder, and a practice page on your PC with a red **TESTNET** bar.
 
@@ -167,7 +168,7 @@ top right). You can switch to any robot to see its side, for example to check a 
 6. **Plan ahead:** the "Plan:" buttons on the team sheet let you set a change for any later test day now. You can
    still change it until that test day's lock; the page warns if an earlier change would make it break the rule.
 7. **Weekly Rival:** choose a player and press **Challenge**. It counts for the next test week, if you both have a team
-   all 7 test days. (In the live game both players must also hold a Knode Games stake; the test wallets hold none, so
+   all 6 play test days. (In the live game both players must also hold a Knode Games stake; the test wallets hold none, so
    in practice every test player counts.)
 8. **All time:** the league's "All time" tab adds up every finished test week.
 
@@ -181,6 +182,9 @@ top right). You can switch to any robot to see its side, for example to check a 
 - [ ] Switch to p5 in the red bar: see that p5 challenged you.
 - [ ] At a week's end, check the league goes "final" 30 minutes later, with Vault points (255 for the best week).
 - [ ] After two finished test weeks, open the league's "All time" tab.
+- [ ] Open the League's **Free play** board: test wallets hold no stake, so every test player is there (no VHP: the
+      free prize is off). The Staked board stays empty.
+- [ ] Watch a test "Sunday" (the 7th hour of a test week): no team plays, and the planning buttons skip it.
 - [ ] Let a week roll over without saving: your team carries on if it fits the new prices. If it doesn't, the page
       says "Last week's team doesn't fit this week's prices".
 - [ ] Run `npm run fantasy-test -- status` and send Claude the output, with anything that looked odd.

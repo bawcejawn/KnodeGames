@@ -11,8 +11,8 @@
     "export-blocks": "tsx export-blocks.ts",
     "bot": "tsx bot/bot.ts",
     "test:resolver": "node --import tsx --test resolver.test.ts",
-    "test:audit": "node --import tsx --test tests/audit/*.test.ts tests/audit/*.test.mjs",
-    "test:audit:serial": "node --import tsx --test --test-concurrency=1 tests/audit/*.test.ts tests/audit/*.test.mjs",
+    "test:audit": "node --import tsx --test tests/audit/*.test.ts tests/audit/*.test.mjs tests/audit/repolens-r4-publish/*.test.mjs tests/audit/repolens-r5-publish/*.test.mjs tests/audit/repolens-r6-publish/*.test.mjs",
+    "test:audit:serial": "node --import tsx --test --test-concurrency=1 tests/audit/*.test.ts tests/audit/*.test.mjs tests/audit/repolens-r4-publish/*.test.mjs tests/audit/repolens-r5-publish/*.test.mjs tests/audit/repolens-r6-publish/*.test.mjs",
     "desk": "tsx bot/desk.ts",
     "admin": "tsx admin/server.ts",
     "heal": "node bot/heal.mjs",
@@ -23,7 +23,8 @@
     "picks": "tsx bot/picks.ts",
     "testnet-site": "node tools/testnet-site.mjs",
     "fantasy": "tsx bot/games/fantasy.ts",
-    "fantasy-test": "tsx bot/fantasy-test.ts"
+    "fantasy-test": "tsx bot/fantasy-test.ts",
+    "names": "tsx bot/names.ts"
   },
   "dependencies": {
     "koilib": "9.4.1"

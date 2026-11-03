@@ -42,13 +42,18 @@ test("page script: the testnet page refuses mainnet and uses its own wallet; the
 
 test("page: says what players need to know", () => {
   assert.match(html, /Knode's own nodes/, "the owner's two producers are disclosed (owner decision 2026-10-27)");
-  for (const w of ["salary cap", "captain", "One change a", "fresh start every week", "5 minutes before", "top 30%", "Weekly Rival", "all 7", "sha256"])
+  for (const w of ["salary cap", "captain", "One change a", "fresh start every week", "5 minutes before", "top 30%", "Weekly Rival", "all 6 play", "sha256", "Sunday is results day", "pays no VHP for now"])
     assert.ok(html.includes(w), `How it works mentions "${w}"`);
   assert.match(css, /prefers-reduced-motion/);
 });
 
 test("owner 2026-10-28: All time tab; rivals need a stake; Terms say Knode's nodes run the same and others can't be controlled", () => {
-  assert.match(html, /data-week="all"[^>]*>All time</);
+  const order = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
+  // D-081: the shared Staked / Free play board (board.js; Today, This week, Last week, All time), names from names.js.
+  assert.ok(order.indexOf("board.js") > -1 && order.indexOf("board.js") < order.indexOf("fantasy.js"), "the shared board");
+  assert.ok(order.indexOf("names.js") > -1 && order.indexOf("names.js") < order.indexOf("fantasy.js"), "the shared names");
+  assert.match(html, /names-data\//, "the CSP allows names-data");
+  assert.match(js, /KBoard\.create\(/); assert.match(js, /KStake\.badge\(/); assert.match(js, /KNames\.of\(/);
   assert.match(html, /hold a Knode Games stake/);
   const terms = read("terms.html");
   assert.match(terms, /never changes how its own nodes produce, or their VHP, because of Fantasy/);

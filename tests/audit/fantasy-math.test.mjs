@@ -14,9 +14,14 @@ const A = "1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", B = "1BBBBBBBBBBBBBBBBBBBBBBBBBB
   X = "1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", Y = "1YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY";
 const W = 2, DAYS = F.weekDays(W);
 
-test("time: a week has 7 UTC days from Monday; the sheet is Saturday 00:00 before it (2 days ahead); form = the 7 days before", () => {
+test("time: a week plays 6 UTC days, Monday to Saturday (Sunday is results day); the sheet is Saturday 00:00 before it; form = the 7 days before", () => {
+  assert.equal(DAYS.length, 6);
   assert.equal(new Date(F.dayStart(DAYS[0])).toISOString(), "2026-11-02T00:00:00.000Z");
-  assert.equal(new Date(F.dayStart(DAYS[6])).toISOString(), "2026-11-08T00:00:00.000Z");
+  assert.equal(new Date(F.dayStart(DAYS[5])).toISOString(), "2026-11-07T00:00:00.000Z", "Saturday: the last play day");
+  const sunday = DAYS[5] + 1;
+  assert.equal(F.isPlayDay(sunday), false, "Sunday is results day: no team plays");
+  assert.equal(F.isPlayDay(DAYS[0]), true);
+  assert.equal(F.nextPlayDay(sunday), sunday + 1, "after Sunday, the next play day is Monday");
   assert.equal(new Date(F.sheetTime(W)).toISOString(), "2026-10-31T00:00:00.000Z");
   const fd = F.formDays(W);
   assert.equal(fd.length, 7);
@@ -27,7 +32,7 @@ test("time: a week has 7 UTC days from Monday; the sheet is Saturday 00:00 befor
 // One card for every hour: A 50%, B 30%, C 20% of VHP (C in the paddock still counts for shares).
 const card = { field: [{ a: A, vhp: 500 }, { a: B, vhp: 300 }], paddock: [{ a: C, vhp: 200 }] };
 const races = {};
-for (let t = F.dayStart(DAYS[0]) - R.DAY; t < F.dayStart(DAYS[6]) + 2 * R.DAY; t += R.RACE) races[R.raceAt(t).id] = [card, null, null, null, null, null];
+for (let t = F.dayStart(DAYS[0]) - R.DAY; t < F.dayStart(DAYS[5]) + 3 * R.DAY; t += R.RACE) races[R.raceAt(t).id] = [card, null, null, null, null, null];
 
 test("day index: signed ÷ expected from each hour's blocks and the card's VHP shares, field and paddock", () => {
   // 100 blocks an hour for the day: A signs 60 (expected 50), B 30 (30), C 10 (20).
@@ -122,8 +127,8 @@ test("week teams: first valid team starts; invalid or 2-change picks are ignored
     [DAYS[2]]: [A, B, C, D, X],                 // over budget → ignored
     [DAYS[3]]: [B, A, C, D, G],                 // two changes → ignored
     [DAYS[4]]: [B, A, C, D, E],                 // captain move → ok
-    // Saturday no pick → Friday's team
-    [DAYS[6]]: [B, A, C, D, G],                 // swap E → G → ok
+    // Friday no pick → Thursday's team
+    [DAYS[5]]: [B, A, C, D, G],                 // Saturday: swap E → G → ok
   };
   const t = F.teamsForWeek(sheet, DAYS, picks);
   assert.equal(t[0].team, null);
@@ -131,8 +136,8 @@ test("week teams: first valid team starts; invalid or 2-change picks are ignored
   assert.deepEqual(t[2].team, [A, B, C, D, E]); assert.match(t[2].note, /over the budget/);
   assert.deepEqual(t[3].team, [A, B, C, D, E]); assert.match(t[3].note, /more than one change/);
   assert.deepEqual(t[4].team, [B, A, C, D, E]);
-  assert.deepEqual(t[5].team, [B, A, C, D, E]);
-  assert.deepEqual(t[6].team, [B, A, C, D, G]);
+  assert.equal(t.length, 6, "Monday to Saturday");
+  assert.deepEqual(t[5].team, [B, A, C, D, G]);
 });
 
 test("week teams: Monday starts fresh (any valid team); last week's team plays Monday only if it fits the new list", () => {
@@ -143,7 +148,7 @@ test("week teams: Monday starts fresh (any valid team); last week's team plays M
   const t1 = F.teamsForWeek(sheet, DAYS, { [DAYS[0]]: fresh }, [A, X, C, D, E]);
   assert.deepEqual(t1[0].team, fresh, "Monday: a whole new team is fine");
   const t2 = F.teamsForWeek(sheet, DAYS, {}, [A, B, C, D, E]);
-  assert.deepEqual(t2[6].team, [A, B, C, D, E], "no picks: the carried team plays all week");
+  assert.deepEqual(t2[5].team, [A, B, C, D, E], "no picks: the carried team plays all week");
   const t3 = F.teamsForWeek({ ...sheet, pool: sheet.pool.filter((p) => p.a !== E) }, DAYS, {}, [A, B, C, D, E]);
   assert.equal(t3[0].team, null, "a carried team that no longer fits this week's sheet doesn't carry");
   const t4 = F.teamsForWeek(sheet, DAYS, { [DAYS[1]]: [B, C, D, E, G] }, [A, B, C, D, E]);
@@ -157,12 +162,12 @@ test("day score: index capped at 130 per producer, captain double, unknown or nu
   assert.equal(F.dayScore(null, day), 0);
 });
 
-test("score week: sum of days, full only with a team on all 7 days; vault points keep the order and the ties", () => {
+test("score week: sum of the 6 play days, full only with a team on all 6; vault points keep the order and the ties", () => {
   const recs = DAYS.map((d) => ({ day: d, producers: Object.fromEntries([A, B, C, D, E].map((a) => [a, [0, 0, 100]])) }));
   const full = F.scoreWeek(sheet, recs, { [DAYS[0]]: [A, B, C, D, E] });
-  assert.equal(full.points, 7 * 600); assert.equal(full.full, true);
+  assert.equal(full.points, 6 * 600); assert.equal(full.full, true);
   const late = F.scoreWeek(sheet, recs, { [DAYS[3]]: [A, B, C, D, E] });
-  assert.equal(late.points, 4 * 600); assert.equal(late.full, false, "late joiner: days before score 0, not full");
+  assert.equal(late.points, 3 * 600); assert.equal(late.full, false, "late joiner: days before score 0, not full");
   const vp = F.vaultPoints([{ a: A, points: 4200.5 }, { a: B, points: 3000 }, { a: C, points: 4200.5 }, { a: D, points: 0 }, { a: E, points: 2999.99 }]);
   assert.deepEqual([...vp.entries()].sort(), [[A, 255], [B, 254], [C, 255], [E, 253]].sort(), "order and ties kept; 0 points posts nothing");
   const many = Array.from({ length: 300 }, (_, i) => ({ a: `1${String(i).padStart(33, "Q")}`, points: 1000 - i }));
@@ -229,7 +234,8 @@ test("clock: the fast test clock (1 test day = 1 hour) runs the same rules in a 
   assert.equal(T.weekOf(genesis + 7 * R.HOUR + 1), 1);
   const days = T.weekDays(1);
   assert.equal(T.dayStart(days[0]), genesis + 7 * R.HOUR);
-  assert.equal(T.dayStart(days[6]), genesis + 13 * R.HOUR);
+  assert.equal(days.length, 6);
+  assert.equal(T.dayStart(days[5]), genesis + 12 * R.HOUR, "6 play hours, then a results hour");
   assert.equal(T.sheetTime(1), genesis + 6.5 * R.HOUR, "30 minutes before the week");
   const fd = T.formDays(1);
   assert.equal(T.dayStart(fd[6]), genesis + 5 * R.HOUR, "form ends with the last full test day before the sheet");
@@ -295,9 +301,36 @@ test("owner 2026-10-28: rival matches count only when both players hold a Knode 
 
 test("owner 2026-10-28: the all-time table adds each final week once per call; most points first", () => {
   let t = F.addAllTime({}, [{ a: A, points: 100 }, { a: B, points: 300 }, { a: C, points: 0 }]);
-  t = F.addAllTime(t, [{ a: A, points: 250.5 }, { a: B, points: 40 }]);
-  assert.deepEqual(t[A], { points: 350.5, weeks: 2, best: 250.5 });
-  assert.deepEqual(t[B], { points: 340, weeks: 2, best: 300 });
+  t = F.addAllTime(t, [{ a: A, points: 250.5, staked: true }, { a: B, points: 40 }]);
+  assert.deepEqual(t[A], { points: 350.5, weeks: 2, best: 250.5, staked: true }, "staked: the board of its latest week");
+  assert.deepEqual(t[B], { points: 340, weeks: 2, best: 300, staked: false });
   assert.equal(t[C], undefined, "a week with 0 points isn't a week played");
   assert.deepEqual(F.allTimeRows(t).map((r) => [r.a, r.place]), [[A, 1], [B, 2]]);
+});
+
+test("owner 2026-11-03 (D-081): free winners = not staked, a team on all 6 play days, at least 1 point; ties share; at most 10 a place", () => {
+  const P = (i) => `1${"F".repeat(32)}${"ABCDEHJKLMNPQRSTUVWXYZ"[i]}`;   // base58: no 0, O, I or l
+  const row = (i, points, o = {}) => ({ a: P(i), points, full: true, staked: false, ...o });
+  // A staked leader, a free player missing a day and a 0 score never win; ties share 2nd.
+  let w = F.freeWinners([row(1, 900, { staked: true }), row(2, 800, { full: false }), row(3, 700), row(4, 650), row(5, 650), row(6, 0)]);
+  assert.deepEqual(w.first, [P(3)]); assert.deepEqual(w.second, [P(4), P(5)].sort()); assert.deepEqual(w.over, []);
+  // Two tied for 1st cover 2nd.
+  w = F.freeWinners([row(1, 500), row(2, 500), row(3, 400)]);
+  assert.deepEqual(w.first, [P(1), P(2)].sort()); assert.deepEqual(w.second, []);
+  // 11 tied for 1st: the place stays empty (the vault takes at most 10).
+  w = F.freeWinners(Array.from({ length: 11 }, (_, i) => row(i + 1, 300)));
+  assert.deepEqual(w.first, []); assert.deepEqual(w.over, [1]);
+  assert.deepEqual(F.freeWinners([]), { first: [], second: [], over: [] });
+});
+
+test("owner 2026-11-03 (D-081): each board ranks on its own (ties share); the staked top 30% (rounded up, ties whole) earn", () => {
+  const P = (i) => `1${String(i).padStart(33, "G")}`;
+  const rows = [{ a: P(1), points: 90, staked: true }, { a: P(2), points: 80, staked: false }, { a: P(3), points: 70, staked: true }, { a: P(4), points: 70, staked: true }, { a: P(5), points: 0, staked: true }];
+  const pl = F.boardPlaces(rows);
+  assert.deepEqual([P(1), P(3), P(4), P(5)].map((a) => pl.get(a)), [1, 2, 2, 4], "Staked board");
+  assert.equal(pl.get(P(2)), 1, "the free player is 1st on the Free play board, not 2nd overall");
+  // 3 stakers with points: 30% → 1, rounded up; P(1) alone.
+  assert.deepEqual([...F.stakedEarners(rows)], [P(1)]);
+  // 4 stakers with points, the 2nd and 3rd tied: ceil(1.2) = 2 → the tie at 2nd comes in whole.
+  assert.deepEqual([...F.stakedEarners([...rows, { a: P(6), points: 10, staked: true }])].sort(), [P(1), P(3), P(4)].sort());
 });

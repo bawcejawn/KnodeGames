@@ -5,6 +5,8 @@
  * RULES (owner decisions 2026-10-27; claude/builds/05-fantasy-plan.md)
  * - Each game week (Monday 00:00 UTC to Monday) a player fields a team of 5 different producers from the week's pool,
  *   within a salary budget of 100. The first producer is the captain and scores double.
+ * - The week PLAYS Monday to Saturday (6 days); Sunday is results day: no team plays and nothing is scored (owner,
+ *   2026-11-03, like the Daily Questions). The week is final on Monday 12:00 UTC, once the stakes are read.
  * - Points: for every UTC day, each producer gets an index = 100 × blocks it signed ÷ blocks it was expected to sign.
  *   Expected = every hour's blocks × the producer's share of VHP on the race card in force for that hour. 100 means it
  *   signed exactly its fair share. This is the plain handicap (c = 0): every producer has the same expected score, so
@@ -22,22 +24,25 @@
  *   week's team carries into Monday only if it fits the new list (all 5 still on it, within the budget). An invalid
  *   pick (not 5 different pool producers, over budget, more than one change) is ignored and yesterday's team stays.
  *   Days before a player's first valid team score 0.
- * - Week points = the sum of the 7 days. The vault takes whole points 1 to 255 and uses only their ORDER (rank weights
+ * - Week points = the sum of the 6 play days. The vault takes whole points 1 to 255 and uses only their ORDER (rank weights
  *   and the top-30% headcount; docs/V6-PLAN.md on branch vault-v6), so the best week gets 255, the next distinct
  *   score 254, and so on, keeping every tie; players below the 255th distinct score all get 1. Only scores above 0.
  * - Weekly Rival: a player may challenge one other player for the week. The match counts only when both had a team on
- *   all 7 days and both hold a Knode Games stake (owner, 2026-10-28: throwaway wallets can't farm records).
+ *   all 6 play days and both hold a Knode Games stake (owner, 2026-10-28: throwaway wallets can't farm records).
  * - All time: each final week adds every player's points to an all-time table (total, weeks played, best week).
- *   Bragging rights only; prizes stay weekly. More week points wins; equal is a draw. Two players who challenge each other play one match.
+ *   Bragging rights only; prizes stay weekly.
+ * - Free play (owner, 2026-11-03, D-081): wallets not staked in Fantasy that week rank on their own Free play board. Its
+ *   1st and 2nd (a team on all 6 play days, at least 1 point, ties share) are written to the vault file; the owner's
+ *   free-prize switch (D-082) decides whether the vault pays them. Staked players never win the free prize. More week points wins; equal is a draw. Two players who challenge each other play one match.
  *   A record keeps challenges made and challenges received apart. Rivals carry no prize money.
  *
  * THE CLOCK. KFantasyMath runs on the real clock (days of 24 hours, weeks from the Knode game's Monday). The testnet
  * practice kit runs the same rules faster: KFantasyMath.withClock({ day: 3600000, genesis }) makes 1 test "day" = 1 hour
- * and 1 test week = 7 hours. Everything that depends on time comes from the clock; the scoring rules do not change.
+ * and 1 test week = 7 hours (6 play hours and a results hour). Everything that depends on time comes from the clock; the scoring rules do not change.
  *
  * THE PICKS CONTRACT. Two games (claude/launch-order.md: Fantasy 4, Weekly Rival 5):
  * - Team: a list of 5 producers, captain first; round = the day number (target = the day's start); locks 5 minutes
- *   before the day starts; opens 7 days ahead. The contract checks 1 to 5 distinct valid addresses; this file checks the
+ *   before the day starts; opens 7 days ahead. Sunday rounds are never used (results day). The contract checks 1 to 5 distinct valid addresses; this file checks the
  *   rest (exactly 5, the pool, the budget, one change a day).
  * - Rival: one address (any wallet); round = the first day of its week (target = the week's start); locks 5 minutes
  *   before it. Rounds that aren't a week's first day are never used. */
@@ -48,7 +53,8 @@
   const HOUR = R.HOUR, DAY = R.DAY;
   const TEAM = 5, BUDGET = 100, DAY_CAP = 130, CAPTAIN = 2;
   const PRICE = { base: 20, per: 1.5, min: 8, max: 40, none: 20 };
-  const FORM_DAYS = 7;                           // form = the index over the 7 days before the sheet's day
+  const FORM_DAYS = 7;                           // form = the index over the 7 days before the sheet's day (every day counts)
+  const PLAY_DAYS = 6;                           // Monday to Saturday play; Sunday is results day (owner, 2026-11-03)
   const VAULT_MAX = 255;
   const LEAD_MS = 5 * 60000;                     // picks lock 5 minutes before their day (or week) starts
   const GAMES = Object.freeze({ team: 4, rival: 5 });
@@ -70,8 +76,12 @@
     /** The game week of a time (weeks before the start count as 0, as in race-math.js). */
     const weekOf = (t) => (t <= C.genesis ? 0 : Math.floor((t - C.genesis) / WEEK));
     const weekStart = (w) => C.genesis + w * WEEK;
-    /** The 7 day numbers of game week w. */
-    const weekDays = (w) => { const d0 = dayNo(weekStart(w)); return Array.from({ length: 7 }, (_, i) => d0 + i); };
+    /** The play days of game week w: Monday to Saturday (6 day numbers). Sunday is results day. */
+    const weekDays = (w) => { const d0 = dayNo(weekStart(w)); return Array.from({ length: PLAY_DAYS }, (_, i) => d0 + i); };
+    /** Whether day d is a play day (not a week's Sunday). */
+    const isPlayDay = (d) => weekDays(weekOf(dayStart(d))).includes(d);
+    /** The first play day on or after day d. */
+    const nextPlayDay = (d) => { let x = d; while (!isPlayDay(x)) x++; return x; };
     /** When the price sheet for week w is made (real clock: Saturday 00:00 UTC before it, 2 days ahead so nobody is
      *  rushed), and the form days it uses: the 7 days before the sheet's day. */
     const sheetTime = (w) => weekStart(w) - C.sheetBefore;
@@ -180,10 +190,10 @@
       const capMoved = prev[0] !== next[0] && old.has(next[0]);
       return out + (capMoved ? 1 : 0);
     }
-    /** The team in force on each of the 7 days of a week. picks: { [dayNo]: list } (the player's last pick for that day,
+    /** The team in force on each play day of a week (Monday to Saturday). picks: { [dayNo]: list } (the player's last pick for that day,
      *  as the Picks contract holds it). start: the team carried in from before the week, or null: it plays Monday only
      *  if there's no valid Monday pick and it fits this week's list. Monday's pick may change any number of producers.
-     *  Returns [{ day, team (or null), note? }] for the 7 days. */
+     *  Returns [{ day, team (or null), note? }] for the play days. */
     function teamsForWeek(sheet, days, picks, start = null) {
       let cur = start && checkTeam(sheet, start).ok ? start : null;
       return days.map((d, i) => {
@@ -210,7 +220,7 @@
       team.forEach((a, i) => { const x = day?.producers?.[a]; const ix = Array.isArray(x) && x[2] !== null ? Math.min(DAY_CAP, x[2]) : 0; s += ix * (i === 0 ? CAPTAIN : 1); });
       return round(s, 2);
     }
-    /** A player's week: the day-by-day teams and scores, the total, and whether a team stood on all 7 days. */
+    /** A player's week: the day-by-day teams and scores, the total, and whether a team stood on all 6 play days. */
     function scoreWeek(sheet, dayRecords, picks, start = null) {
       const days = dayRecords.map((x) => x.day), teams = teamsForWeek(sheet, days, picks, start);
       const rows = teams.map((t, i) => ({ ...t, score: dayScore(t.team, dayRecords[i]) }));
@@ -239,7 +249,7 @@
     // ── Weekly Rival ──
     /** The week's matches. challenges: [[challenger, target]]; players: { [address]: { points, full } }; staked: the
      *  wallets holding a Knode Games stake (null = not checked: everyone counts, used only for tests and practice).
-     *  A challenge counts if both are different, both had a team all 7 days and both are staked. Mutual challenges
+     *  A challenge counts if both are different, both had a team all 6 play days and both are staked. Mutual challenges
      *  are one match.
      *  Returns [{ a, b, mutual, result }] with result "a" | "b" | "draw" (a = the challenger). */
     function matches(challenges, players, staked = null) {
@@ -275,11 +285,46 @@
         if (!isAddr(r.a) || !(r.points > 0)) continue;
         const x = (t[r.a] = t[r.a] || { points: 0, weeks: 0, best: 0 });
         x.points = round(x.points + r.points, 2); x.weeks += 1; x.best = Math.max(x.best, r.points);
+        x.staked = !!r.staked;                     // the board it shows on in All time: its latest counted week's
+
       }
       return t;
     }
+    // ── Boards: Staked and Free play (owner, 2026-11-03, D-081) ──
+    const FREE_PER_PLACE = 10;                     // the vault takes at most 10 wallets per free place
+    /** The free-play winners of a week: wallets NOT staked in Fantasy that week, with a team on all 6 play days and at
+     *  least 1 point. Ties share a place; two or more tied for 1st cover 2nd too (2nd is then empty). A place with more
+     *  than 10 wallets is left empty (the vault would refuse it) and named in `over`. rows: { a, points, full, staked }.
+     *  Computed every week; the owner's free-prize switch (D-082) decides whether the vault pays them. */
+    function freeWinners(rows) {
+      const ok = rows.filter((r) => r && isAddr(r.a) && !r.staked && r.full === true && r.points >= 1).sort((x, y) => y.points - x.points || (x.a < y.a ? -1 : 1));
+      let first = [], second = [];
+      if (ok.length) {
+        first = ok.filter((r) => r.points === ok[0].points).map((r) => r.a);
+        const rest = ok.filter((r) => r.points < ok[0].points);
+        if (first.length < 2 && rest.length) second = rest.filter((r) => r.points === rest[0].points).map((r) => r.a);
+      }
+      const over = [];
+      if (first.length > FREE_PER_PLACE) { over.push(1); first = []; }
+      if (second.length > FREE_PER_PLACE) { over.push(2); second = []; }
+      return { first: first.sort(), second: second.sort(), over };
+    }
+    /** The staked players who earn a share of Fantasy's bucket, as the board marks them: the top 30% (rounded up) of
+     *  staked players with at least 1 point, tied groups kept whole. The vault makes the real split from the vault file. */
+    function stakedEarners(rows) {
+      const ok = rows.filter((r) => r && r.staked && r.points >= 1).sort((x, y) => y.points - x.points);
+      if (!ok.length) return new Set();
+      const cut = ok[Math.ceil(0.3 * ok.length) - 1].points;
+      return new Set(ok.filter((r) => r.points >= cut).map((r) => r.a));
+    }
+    /** Each row's place on its OWN board (Staked or Free play), ties sharing it: a Map address → place. */
+    function boardPlaces(rows) {
+      const out = new Map();
+      for (const side of [true, false]) for (const r of rank(rows.filter((x) => !!x.staked === side))) out.set(r.a, r.place);
+      return out;
+    }
     /** The all-time table as ranked rows: most points first; equal points share a place. */
-    const allTimeRows = (table) => rank(Object.entries(table || {}).map(([a, x]) => ({ a, points: x.points, weeks: x.weeks, best: x.best })));
+    const allTimeRows = (table) => rank(Object.entries(table || {}).map(([a, x]) => ({ a, points: x.points, weeks: x.weeks, best: x.best, staked: !!x.staked })));
     /** One record's combined line and win share (draws count half). */
     function recordLine(x) {
       const w = x.made[0] + x.received[0], l = x.made[1] + x.received[1], d = x.made[2] + x.received[2], n = w + l + d;
@@ -287,9 +332,10 @@
     }
 
     return {
-      TEAM, BUDGET, DAY_CAP, CAPTAIN, PRICE, FORM_DAYS, VAULT_MAX, LEAD_MS, GAMES, isAddr,
+      TEAM, BUDGET, DAY_CAP, CAPTAIN, PRICE, FORM_DAYS, PLAY_DAYS, VAULT_MAX, LEAD_MS, GAMES, isAddr,
       clock: Object.freeze({ ...C, week: WEEK }), DAY_MS: C.day, WEEK_MS: WEEK,
-      dayNo, dayStart, weekOf, weekStart, weekDays, sheetTime, formDays, rivalRound, weekOfRivalRound, lockOfDay, lockOfWeek, games,
+      dayNo, dayStart, weekOf, weekStart, weekDays, isPlayDay, nextPlayDay, sheetTime, formDays, rivalRound, weekOfRivalRound, lockOfDay, lockOfWeek, games,
+      freeWinners, stakedEarners, boardPlaces, FREE_PER_PLACE,
       cardAt, sharesOf, dayIndex, spanIndex, priceOf, medianOf, makeSheet, sheetText,
       checkTeam, changes, teamsForWeek, dayScore, scoreWeek, vaultPoints, packTeam, unpackTeam, rank,
       matches, addRecords, recordLine, addAllTime, allTimeRows,

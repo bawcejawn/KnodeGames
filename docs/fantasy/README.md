@@ -6,6 +6,16 @@ Plan and owner decisions: `claude/builds/05-fantasy-plan.md` in the KnodeGames p
 
 ## The rules (fantasy-math.js)
 - **Team:** 5 different producers from the week's price list, cost at most 100. The first one is the captain (×2).
+- **The week (owner, 2026-11-03):** Monday to Saturday play, 6 days; Sunday is results day (no team plays, nothing is
+  scored). The week is final on Monday 12:00 UTC once the stakes are read.
+- **Boards (owner, 2026-11-03, D-081):** wallets staked in Fantasy that week (the vault's rule: the most they had in game 4
+  that week at or above the minimum, read on both nodes with Block X's vault reader) rank on the **Staked** board; everyone
+  else on **Free play**. `board.json` has the shared shape (Today / This week / Last week / All time; rows `a, pts, days,
+  full, ranked, boardPlace, earns`), shown by `board.js` on the page and on the Leaders page.
+- **Free prize (D-082):** off for now; the page says the Free play board pays no VHP. The vault file still lists the free
+  1st and 2nd every week (a team on all 6 play days, at least 1 point, ties share, at most 10 a place), so switching on
+  needs no code change. `FANTASY_FREE_PRIZE=on` (a repository variable) only turns on the medals and the prize line on the
+  boards; update the `free.prize` line in `games.json` too.
 - **Points:** each day, a producer scores 100 × blocks signed ÷ blocks expected (its VHP share on the Producer Race's
   hourly card), at most 130. Week = the sum of 7 days.
 - **Prices:** made Saturday 00:00 UTC (2 days before the week; owner 2026-10-29) from each producer's form over the 7
@@ -21,7 +31,7 @@ Plan and owner decisions: `claude/builds/05-fantasy-plan.md` in the KnodeGames p
 - **Vault points:** 255 for the best week, one less per lower distinct score, ties kept, at least 1, ranked among the
   week's Fantasy stakers only (`stakedOf`, once the vault is live; until then `index.json` says `vaultBasis: "all"`).
   The vault uses only their order.
-- **Weekly Rival:** challenge one player for the next week. A match counts only if both had a team all 7 days and both
+- **Weekly Rival:** challenge one player for the next week. A match counts only if both had a team on all 6 play days and both
   hold a Knode Games stake (owner, 2026-10-28; read on both nodes when the week is finished; the practice kit counts
   every test player). The record keeps challenges made and received apart. No prize money.
 - **All time** (owner, 2026-10-28): each final week adds every player's points to `alltime.json` (total, weeks played,
@@ -55,7 +65,7 @@ node --import tsx tools/fantasy-testnet/rehearse.mjs        # about 5 minutes: 2
 ## Results into the vault (claude/handoff-vault-results.md)
 - Source for `game-data/deployment.json` → `vaultGames`: **`games-data:fantasy`** (vault game 4).
 - For each final week the recorder writes `fantasy/vault/W<week>.json`: `{ "game": 4, "week", "final": true, "rows":
-  [{ "player", "points" }], "first": [], "second": [] }`. Fantasy is a staked game, so no free-prize winners.
+  [{ "player", "points" }], "first": [...], "second": [...] }`: the staked rows, and the Free play board's 1st and 2nd.
 - `rows`: the players with at least 1 VHP staked in Fantasy that week (`get_game_player` week_stake, or the stake frozen
   at the week's start) and at least 1 point, as 255 for the best week and one less per lower score (ties kept).
   Stakes are read on both nodes and must agree.
@@ -65,7 +75,7 @@ node --import tsx tools/fantasy-testnet/rehearse.mjs        # about 5 minutes: 2
 - Weekly Rival with the vault live: a match counts only when both players are staked in Fantasy that week.
 
 ## Safety rails (audit 2026-10-28, FX-1 to FX-10)
-- A week is final only when all 7 days' blocks (two nodes) and all 7 days' picks are read, the rivals are read, and
+- A week is final only when all 6 play days' blocks (two nodes) and picks are read, the rivals are read, and
   12 hours have passed. A week still not final 2 days after it ends raises an `ALERT` warning (the vault deadline is 3 days); unfinished weeks are
   retried for 8 weeks.
 - A day is final only when every hour with blocks has a race card.

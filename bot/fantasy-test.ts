@@ -355,7 +355,9 @@ export async function record() {
   const saved = console.log; console.log = () => {};
   try {
     // rivalStaked null: on the practice testnet every test player's rival matches count (test wallets hold no stake).
-    return await run({ p: mp, check: mcheck, picksP: tp, picksCheck: null, prev: DATA(), out: DATA(), raceData: RACE(), math: F, games: c.games, picksContract: c.picks?.contract ?? null, rivalStaked: null });
+    return await run({ p: mp, check: mcheck, picksP: tp, picksCheck: null, prev: DATA(), out: DATA(), raceData: RACE(), math: F, games: c.games, picksContract: c.picks?.contract ?? null, rivalStaked: null,
+      // Test wallets hold no stake: every test player plays on the Free play board (the vault is never read here).
+      stakedOf: async () => new Set<string>() });
   } finally { console.log = saved; }
 }
 
@@ -412,7 +414,7 @@ export async function bots() {
   if (c.clock.genesis === null || !c.picks) return;
   const p = await testnetProvider(c), F = mathOf(c), pc = picksContract(c, p);
   const now = NOW();
-  let td = Math.max(F.dayNo(now), F.weekDays(0)[0]); while (F.lockOfDay(td) - now < 3 * 60_000) td++;
+  let td = F.nextPlayDay(Math.max(F.dayNo(now), F.weekDays(0)[0])); while (F.lockOfDay(td) - now < 3 * 60_000) td = F.nextPlayDay(td + 1);
   const tw = F.weekOf(F.dayStart(td));
   const wf = readJsonFile(path.join(DATA(), `W${String(tw).padStart(3, "0")}.json`));
   const days = readJsonFile(path.join(DATA(), "days.json"));
@@ -465,7 +467,7 @@ export async function cliPick(kind: "team" | "rival", who: string, what: string,
     log(`✔ sent (${(await send(pc, "pick", { player: s.getAddress(), game: c.games.rival, round: String(F.rivalRound(rw)), producers: [target], number: "0" }, s, PICK_RC_KOIN)).slice(0, 18)}…)`);
     return;
   }
-  let td = Math.max(F.dayNo(now), F.weekDays(0)[0]); while (F.lockOfDay(td) - now < 60_000) td++;
+  let td = F.nextPlayDay(Math.max(F.dayNo(now), F.weekDays(0)[0])); while (F.lockOfDay(td) - now < 60_000) td = F.nextPlayDay(td + 1);
   const tw = F.weekOf(F.dayStart(td)), wf = readJsonFile(path.join(DATA(), `W${String(tw).padStart(3, "0")}.json`));
   if (!wf || !wf.sheet) throw new Error(`No price list for test week ${tw + 1} yet (it comes out ${new Date(F.sheetTime(tw)).toLocaleTimeString()}; run record).`);
   const byPrice = [...wf.sheet.pool].sort((x: any, y: any) => y.price - x.price);

@@ -87,7 +87,7 @@ while (clock.now() < endAt) {
   const now = clock.now();
   const wNow = now < F.weekStart(0) ? 0 : F.weekOf(now);
   const data = (n) => { try { return JSON.parse(fs.readFileSync(path.join(dir, "data", n), "utf8")); } catch { return null; } };
-  let td = Math.max(F.dayNo(now), F.weekDays(0)[0]); while (F.lockOfDay(td) - now < MIN) td++;   // as the kit's team command counts
+  let td = F.nextPlayDay(Math.max(F.dayNo(now), F.weekDays(0)[0])); while (F.lockOfDay(td) - now < MIN) td = F.nextPlayDay(td + 1);   // as the kit's team command counts
   const tw = F.weekOf(F.dayStart(td)), wf = data(`W${String(tw).padStart(3, "0")}.json`);
   if (wf && wf.sheet && !myPlans.some((x) => x.td === td)) {
     // You: the 5 best-form producers that fit, then each test day one swap to the best form left; on test day 4 of
@@ -129,6 +129,7 @@ for (const w of [w0, w1]) {
   assert.ok(w.sheet.pool.length >= 9 && w.sheet.budget === 100);
 }
 const row = (w, who) => w.players.find((x) => x.a === A(who));
+const names0 = (a) => ["p1", "p2", "p3", "p4", "p5", "p6"].find((w) => A(w) === a);
 for (const who of ["p1", "p2", "p3", "p4", "p5"]) assert.ok(row(w0, who) && row(w0, who).full, `${who} played all of week 1`);
 assert.ok(row(w0, "p6") && !row(w0, "p6").full && row(w0, "p6").days[0][0] === null, "p6 joined late in week 1");
 assert.ok(row(w1, "p6") && row(w1, "p6").full, "p6 played all of week 2 (late only in its first week)");
@@ -143,7 +144,8 @@ for (const w of [w0, w1]) {
     const total = x.days.reduce((s, d, i) => s + F.dayScore(F.unpackTeam(w.sheet, d[0]), recs[i]), 0);
     assert.ok(x.days.every((d, i) => Math.abs(d[1] - F.dayScore(F.unpackTeam(w.sheet, d[0]), recs[i])) < 0.005), "each day's score");
     assert.ok(Math.abs(total - x.points) < 0.05, `week ${w.week + 1} ${x.a}: ${total} vs ${x.points}`);
-    assert.equal(x.vault, F.vaultPoints(w.players).get(x.a) || 0);
+    assert.equal(x.vault, 0, "test wallets hold no stake: no vault points");
+    assert.equal(x.staked, false, "and they play on the Free play board");
   }
 }
 // The producer that went quiet during week 2 is cheap on week 3's list.
@@ -161,6 +163,12 @@ assert.ok(rv.weeks.includes(1), "week 2 counted in the records");
 const r1 = rv.records[A("p1")];
 assert.ok(r1 && r1.made.reduce((a, b) => a + b) + r1.received.reduce((a, b) => a + b) >= 2, "p1 has a record");
 assert.ok(board.week && board.week.rows.length >= 5 && Array.isArray(board.mostChallenged));
+// D-081: everyone here is on the Free play board; the free prize is off, so no free medals; the vault file still names
+// the free winners (a team on all 6 play days).
+assert.ok(board.week.rows.every((r) => r.ranked === false && r.earns === 0) && board.freePrize === false, "Free play board, no prize");
+assert.ok(w0.players.every((x) => x.days.length === 6), "Monday to Saturday");
+const v0 = data("vault/W0.json");
+assert.ok(v0.rows.length === 0 && v0.first.length >= 1 && v0.first.every((a) => row(w0, names0(a)).full), "the vault file lists the free winners");
 assert.ok(days.live && days.live.final === false, "today so far is published as provisional");
 for (const [w, x] of [["week 1", w0], ["week 2", w1]]) step(`${w}: ${x.players.map((p) => `${names[p.a]} ${Math.round(p.points)}${p.full ? "" : "*"}`).join(" · ")}`);
 

@@ -201,15 +201,58 @@
     }
   }
 
+  /** Is the Kondor extension really there? This page always loads the kondor-js library (so window.kondor exists even
+   *  without the extension); only the extension answers. A cheap read (chain id) opens no Kondor window. */
+  async function kondorAnswers() {
+    const p = window.kondor && window.kondor.provider;
+    if (!p || typeof p.getChainId !== "function") return !!window.kondor;   // can't tell: ask anyway
+    try { await withTimeout(p.getChainId(), 4000, "no-kondor"); return true; }
+    catch (e) { return String(e && e.message) !== "no-kondor"; }            // an error from Kondor still means it's there
+  }
+
+  /** Connect Kondor, or add more Kondor accounts. Kondor opens its own window where the player taps the account(s) to
+   *  share and Accept. That can take a while (unlocking, choosing), so this waits up to 5 minutes and keeps a dialog open
+   *  saying what to do, instead of closing silently. When nothing new comes back, it says how to add another account. */
   async function connectKondor() {
-    close();
-    if (!window.kondor) { W.toast && W.toast("Kondor isn't installed in this browser. On a phone, use KOIN Vault.", 7000); return null; }
-    const accounts = await withTimeout(window.kondor.getAccounts(), 15000, "No answer from Kondor. Is the extension installed and unlocked?");
-    if (!accounts || !accounts.length) { W.toast && W.toast("Kondor shared no account. Open Kondor and allow this site.", 7000); return null; }
-    const addrs = accounts.map((a) => a && a.address).filter((a) => typeof a === "string" && a.length > 0);   // only real addresses are remembered
-    if (!addrs.length) { W.toast && W.toast("Kondor shared no account. Open Kondor and allow this site.", 7000); return null; }
+    const before = new Set(remembered().filter((x) => x.kind === "kondor").map((x) => x.address));
+    const status = h("p", { class: "kw-status", role: "status" }, "Looking for Kondor…");
+    const box = open(h("h3", {}, "Connect Kondor"), status);
+    let cancelled = false; onClose = () => { cancelled = true; };
+    const say = (t) => { if (box.isConnected) status.textContent = t; };
+    if (!window.kondor || !(await kondorAnswers())) {
+      if (!cancelled) say(isPhone() ? "Kondor is a computer browser extension. On a phone, use KOIN Vault or play as a guest." : "Kondor isn't answering. Install or turn on the Kondor extension in this browser (or use KOIN Vault), then try again.");
+      return null;
+    }
+    if (cancelled) return null;
+    say(before.size
+      ? "A Kondor window opened. Unlock it if asked, tap every account you want here (the new one too; you can pick several), then Accept."
+      : "A Kondor window opened. Unlock it if asked, tap the account(s) you want to use here, then Accept.");
+    let accounts;
+    try { accounts = await withTimeout(window.kondor.getAccounts(), 5 * 60000, "No answer from Kondor after 5 minutes. Try again."); }
+    catch (e) {
+      if (cancelled) return null;
+      const m = String((e && e.message) || e);
+      say(/cancel/i.test(m) ? "Cancelled in Kondor. Nothing changed."
+        : /connection lost/i.test(m) ? "The Kondor window closed before Accept was tapped. Nothing changed. Try again."
+        : m);
+      return null;
+    }
+    if (cancelled) return null;
+    const addrs = (Array.isArray(accounts) ? accounts : []).map((a) => a && a.address).filter((a) => typeof a === "string" && a.length > 0);   // only real addresses are remembered
+    if (!addrs.length) { say("Kondor shared no account. Try again and tap an account in the Kondor window before Accept."); return null; }
     for (const a of addrs) remember("kondor", a);
-    setAddress("kondor", addrs.includes(W.address) ? W.address : addrs[0]);
+    const fresh = addrs.filter((a) => !before.has(a));
+    if (before.size && !fresh.length) {
+      say(`Kondor shared only ${addrs.length === 1 ? "an account that is" : "accounts that are"} already here, so nothing new was added. ` +
+        "To add another: open Kondor and create or import the other account there first (Kondor's account menu), " +
+        "then tap ＋ Add another account again and tap that account in the Kondor window.");
+      onClose = null;
+      return W.address;
+    }
+    close();
+    const keep = W.kind === "kondor" && addrs.includes(W.address);
+    setAddress("kondor", fresh.length ? fresh[0] : keep ? W.address : addrs[0]);
+    if (before.size && fresh.length && W.toast) W.toast(`Added ${fresh.length === 1 ? "1 Kondor account" : fresh.length + " Kondor accounts"}. Now using ${W.address.slice(0, 5)}…${W.address.slice(-4)}. Switch any time from the wallet menu.`, 7000);
     return W.address;
   }
 
@@ -219,7 +262,7 @@
       const phone = isPhone();
       const pick = (fn) => async () => { onClose = null; try { resolve(await fn()); } catch (e) { W.toast && W.toast(String(e.message || e), 7000); resolve(null); } };
       const kondor = h("button", { class: "kw-opt", type: "button", onclick: pick(connectKondor) }, h("span", { class: "kw-ic", "aria-hidden": "true" }, "🧩"),
-        h("div", {}, h("b", {}, "Kondor", !phone && window.kondor ? h("span", { class: "kw-tag" }, "found") : null), h("span", {}, "Browser extension, on a computer")));
+        h("div", {}, h("b", {}, "Kondor"), h("span", {}, "Browser extension, on a computer")));
       const vault = h("button", { class: "kw-opt", type: "button", onclick: pick(connectVault) }, h("span", { class: "kw-ic", "aria-hidden": "true" }, "📱"),
         h("div", {}, h("b", {}, "KOIN Vault", phone ? h("span", { class: "kw-tag" }, "for phones") : null), h("span", {}, "Fingerprint or face, no extension. Works on any phone")));
       const guest = guestOption(pick);
@@ -238,7 +281,8 @@
   const GUEST_NO_FREE = "Free answers are used up for today — try again after 00:00 UTC (5pm PT), or connect a wallet.";
   // Audit SP-18: say which limit it was. The free pool is released by the hour (sponsor v3), so "this hour" first.
   const guestRefusal = (m) =>
-    /free-player|free answers|FREE_USED_UP|free play/i.test(m) ? "Today's free play is used up for this hour — more opens on the hour (UTC). Try again then, or connect a wallet."
+    /switched off/i.test(m) ? "Free play is paused for now (the Mana sponsor is switched off). Try again later, or connect a wallet."   // audit SP-43
+    : /free-player|free answers|FREE_USED_UP|free play/i.test(m) ? "Today's free play is used up for this hour — more opens on the hour (UTC). Try again then, or connect a wallet."
       : /this player's daily/i.test(m) ? "This guest has used its free Mana for today — try again after 00:00 UTC (5pm PT)."
       : /weekly/i.test(m) ? "This guest has used its free Mana for this week — try again Monday (00:00 UTC)."
       : /today's sponsored mana is used up/i.test(m) ? GUEST_NO_FREE
@@ -253,9 +297,8 @@
   const PINNED_RACE = "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K";
   const guestGame = () => (W.chainId === MAINNET_CHAIN_ID ? PINNED_GAME : (W.gameContract || null));
   const guestRace = () => (W.chainId === MAINNET_CHAIN_ID ? (PINNED_RACE || null) : ((W.sponsor && W.sponsor.race) || null));
-  // The KnodeGames Picks contract (picks-data/deployment.json), pinned the same way once it is on mainnet. Until then
-  // guests can't make KnodeGames picks (empty = none).
-  const PINNED_PICKS = "";
+  // The KnodeGames Picks contract (picks-data/deployment.json), pinned the same way (live on mainnet since 2026-10-30).
+  const PINNED_PICKS = "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm";   // the mainnet Picks contract (picks-data/deployment.json)
   const guestPicks = () => (W.chainId === MAINNET_CHAIN_ID ? (PINNED_PICKS || null) : ((W.sponsor && W.sponsor.picks) || null));
   /** A guest may sign only free play: game answers, picks on the race contract, and KnodeGames picks. */
   const guestOp = (o, game, race, picks) => !!(o && o.call_contract && ((game && o.call_contract.contract_id === game && Number(o.call_contract.entry_point) === ANSWER)
@@ -272,7 +315,12 @@
   // Everywhere else every guest path is closed: create, restore, backup, reconnect, switch and sign never touch the key.
   const GUEST_ORIGINS = ["knodegames.com", "www.knodegames.com", "localhost", "127.0.0.1"];
   const guestOrigin = () => {
-    try { const l = window.location; return !!l && (l.protocol === "https:" || l.protocol === "http:") && GUEST_ORIGINS.includes(String(l.hostname || "")); } catch { return false; }
+    // Audit BX-67: https only on knodegames.com; plain http only on this computer (localhost, 127.0.0.1).
+    try {
+      const l = window.location, h = String((l && l.hostname) || "");
+      if (!l || !GUEST_ORIGINS.includes(h)) return false;
+      return l.protocol === "https:" || (l.protocol === "http:" && (h === "localhost" || h === "127.0.0.1"));
+    } catch { return false; }
   };
   const NO_GUEST = () => Promise.reject(new Error("Guest play is only on knodegames.com."));
   const guestLib = () => (guestOrigin() && window.KGuest ? window.KGuest
@@ -414,7 +462,9 @@
       throw new Error("Guest play is paused: the page's Mana sponsor settings aren't the live Knode Games sponsor. Nothing was sent.");
     if (!sp) throw new Error("Guest play works on the game pages. Nothing was sent.");
     const rcLimit = rcFor(sp, ops, String(sp.rcLimit || "100000000"));
-    if (!(await sponsorSaysYes(sp, rcLimit, true))) throw new Error(GUEST_NO_FREE);
+    // Audit SP-34: the sponsor's own reason (e.g. "released on the hour"), worded for a guest.
+    const yes = await sponsorAnswer(sp, rcLimit, gamesOfOps(sp, ops), true);
+    if (!yes.ok) throw new Error(yes.reason ? guestRefusal(yes.reason) : GUEST_NO_FREE);
     const signer = await guestLib().signer();
     if (signer.getAddress() !== W.address) throw new Error("The guest key on this device changed. Reconnect as a guest.");
     signer.provider = W.provider;
@@ -519,7 +569,7 @@
     // Answers are light (rcLimit, 1 Mana); staking, withdrawing, swapping and claiming do much more in one transaction
     // (approve, transfer, burn, stake), so they ask for rcLimitOther (audit SP-17: the sponsor's per-transaction cap, 1 Mana).
     const rcLimit = sp ? rcFor(sp, ops, String(answerOnly ? (sp.rcLimit || "100000000") : (sp.rcLimitOther || "100000000"))) : null;
-    if (sp && await sponsorSaysYes(sp, rcLimit, answerOnly)) {
+    if (sp && (await sponsorAnswer(sp, rcLimit, gamesOfOps(sp, ops), answerOnly)).ok) {
       try { return await sendKondorWith(label, ops, { ...opts, sponsor: sp.address, rcLimit }); }
       catch (e) {
         // The network turned the sponsored transaction down before it was included (nothing happened, nothing was
@@ -603,7 +653,7 @@
   // each action's own limit) }. The sponsor contract decides on chain; the page
   // only picks it when every operation is one it pays for and its caps (would_pay) say yes, else the player's own Mana.
   // Answers are sponsored for any wallet (free play); everything else only for wallets with VHP or a stake.
-  const APPROVE = 0x74e21680, WOULD_PAY = 0xda1fd8f5, ANSWER = 0x0db52f40, CLAIM = 0xdd1b3c31, PICK = 0x8ce33c6c;
+  const APPROVE = 0x74e21680, MOVE_STAKE = 0x7c268e69, WOULD_PAY = 0xda1fd8f5, ANSWER = 0x0db52f40, CLAIM = 0xdd1b3c31, PICK = 0x8ce33c6c;
   /** The sponsor this transaction could use, or null. */
   function sponsorFor(ops) {
     const sp = W.sponsor;
@@ -613,6 +663,8 @@
       if (!c || !sp.covers.includes(c.contract_id)) return null;
       // Tokens: only approve (the contract checks spender and owner too).
       if (sp.tokens && sp.tokens.includes(c.contract_id) && Number(c.entry_point) !== APPROVE) return null;
+      // Owner, 2026-10-30: the sponsor pays for stake, withdraw and claim, never for moving stake between games.
+      if (c.contract_id === sp.covers[0] && Number(c.entry_point) === MOVE_STAKE) return null;
     }
     return sp;
   }
@@ -632,18 +684,61 @@
     }
     return String(sum < BigInt(fallback) ? sum : BigInt(fallback));
   }
-  /** would_pay(account, rc_limit, answer_only): true only when the sponsor answers yes (any error: no). */
-  async function sponsorSaysYes(sp, rcLimit, answerOnly) {
+  /** The calls' games for would_pay (audit SP-22, SP-38: as the sponsor's authorize reads them): race picks are game
+   *  7; a KnodeGames pick and the vault's own calls (deposit_to, withdraw_from, move_stake, claim_game) name it in
+   *  argument field 2. Every game of a batch, at most 4. */
+  function gameOfOps(sp, ops) { return gamesOfOps(sp, ops)[0] || 0; }
+  const VAULT_CALLS = [0x7bb5c436, 0x5b0aaef8, 0x7c268e69, 0x4107e3ab];
+  function gamesOfOps(sp, ops) {
+    const out = [], game = sp.game || (Array.isArray(sp.covers) ? sp.covers[0] : null);
+    for (const o of ops) {
+      const c = o && o.call_contract;
+      if (!c) continue;
+      const e = Number(c.entry_point) >>> 0;
+      let g = 0;
+      if (sp.race && c.contract_id === sp.race && e === PICK) g = 7;
+      else if ((sp.picks && c.contract_id === sp.picks && e === PICK) || (game && c.contract_id === game && VAULT_CALLS.includes(e))) g = varintField(c.args, 2);
+      if (g > 0 && !out.includes(g) && out.length < 4) out.push(g);
+    }
+    return out;
+  }
+  /** The first varint in protobuf field `want` of base64url (or byte) arguments, else 0. */
+  function varintField(args, want) {
+    let b;
+    try { b = typeof args === "string" ? lib.utils.decodeBase64url(args) : args instanceof Uint8Array ? args : new Uint8Array(0); } catch { return 0; }
+    let i = 0;
+    const vint = () => { let v = 0, sh = 0, k = 0; for (;;) { if (i >= b.length || k > 4) return -1; const x = b[i++]; v += (x & 0x7f) * 2 ** sh; sh += 7; k++; if (!(x & 0x80)) return v; } };
+    while (i < b.length) {
+      const tag = vint(); if (tag < 0) return 0;
+      const f = Math.floor(tag / 8), wt = tag % 8;
+      if (wt === 0) { const v = vint(); if (v < 0) return 0; if (f === want) return v > 0xffffffff ? 0 : v; }
+      else if (wt === 2) { const n = vint(); if (n < 0 || i + n > b.length) return 0; i += n; }
+      else if (wt === 1) i += 8; else if (wt === 5) i += 4; else return 0;
+    }
+    return 0;
+  }
+  /** would_pay(account, rc_limit, game) with answer_only and games: { ok, reason } from the sponsor (any error: not ok, no reason).
+   *  Audit SP-40: answer_only (field 3) is still sent for free play, so a rollback to sponsor v2 keeps guests playing;
+   *  v3 ignores it. Audit SP-38: every game of the batch (field 5, one entry each). */
+  async function sponsorAnswer(sp, rcLimit, games, answerOnly) {
     try {
       const acct = lib.utils.decodeBase58(W.address);
       const bytes = [0x0a, acct.length, ...acct, 0x10];
-      let v = BigInt(rcLimit);
-      do { let b = Number(v & 0x7fn); v >>= 7n; if (v > 0n) b |= 0x80; bytes.push(b); } while (v > 0n);
-      if (answerOnly) bytes.push(0x18, 0x01);   // field 3 (answer_only) = true
+      const push = (v) => { v = BigInt(v); do { let x = Number(v & 0x7fn); v >>= 7n; if (v > 0n) x |= 0x80; bytes.push(x); } while (v > 0n); };
+      push(rcLimit);
+      if (answerOnly) bytes.push(0x18, 0x01);                       // field 3 (answer_only), for v2
+      for (const g of games || []) { bytes.push(0x28); push(g); }   // field 5 (games), sponsor v3
       const r = await withTimeout(W.provider.readContract({ contract_id: sp.address, entry_point: WOULD_PAY, args: lib.utils.encodeBase64url(new Uint8Array(bytes)) }), 6000, "timeout");
       const out = r && r.result ? lib.utils.decodeBase64url(r.result) : new Uint8Array(0);
-      return out.length >= 2 && out[0] === 0x08 && out[1] === 0x01;   // field 1 (ok) = true
-    } catch { return false; }
+      const ok = out.length >= 2 && out[0] === 0x08 && out[1] === 0x01;   // field 1 (ok) = true
+      let reason = "";
+      for (let i = 0; i < out.length;) {   // field 2 (reason), a string
+        const tag = out[i++];
+        if (tag === 0x12) { const n = out[i++]; reason = String.fromCharCode(...out.subarray(i, i + n)); break; }   // the sponsor's reasons are plain ASCII
+        if ((tag & 7) === 0) { while (i < out.length && (out[i++] & 0x80)); } else break;
+      }
+      return { ok, reason };
+    } catch { return { ok: false, reason: "" }; }
   }
 
   async function sendVault(label, ops, opts = {}) {

@@ -87,10 +87,10 @@ test("sampler: waits a random moment, reads effective VHP on both nodes, keeps 8
   assert.equal(ok(bad), false);
 });
 
-test("the race and Block X cards read effective VHP; the 'holds 1 VHP' ranking rule still reads the plain balance", () => {
+test("the race and Block X cards read effective VHP; ranking reads the vault stake, not a VHP balance", () => {
   const race = fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8"), bx = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(race, /readVhp\(p, MAINNET_VHP, who, \{ effective: true \}\)/);
-  assert.match(race, /const vhp = await rawRead\(todo\)/);
+  assert.doesNotMatch(race, /rawRead/, "no plain-balance ranking rule left (owner, 2026-10-28: the Staked board)");
   assert.match(bx, /readVhp\(o\.p, VHP, sg\.signers, \{ effective: true \}\)/);
   const abi = fs.readFileSync(path.resolve(APP, "bot/token-abi.ts"), "utf8");
   assert.match(abi, /effective_balance_of: \{ entry_point: 0x629f31e6/);
@@ -98,12 +98,13 @@ test("the race and Block X cards read effective VHP; the 'holds 1 VHP' ranking r
   assert.match(wf, /race-samples/, "the hourly race takes the samples");
 });
 
-test("audit BX-37: combineReads takes each producer's higher read, capped at the top both nodes agree on", () => {
+test("audit BX-37 / BX-55 (round 3): combineReads takes the lower read of a producer the nodes disagree on, and names it", () => {
   const a = { [A]: sat(400), [B]: sat(100), [C]: sat(50) }, b = { [A]: sat(400), [B]: sat(200), [C]: sat(5000) };
   const { values, differ } = R.combineReads(a, b, [A, B, C]);
   assert.deepEqual(differ.sort(), [B, C].sort());
-  assert.equal(values[B], sat(200), "the higher read: it can't look small");
-  assert.equal(values[C], sat(400), "capped at the agreed top (400): one node can't inflate a producer above it");
+  assert.equal(values[B], sat(100), "the lower read (the card flags B; Block X holds a target B signs)");
+  assert.equal(values[C], sat(50), "one node can't lift C to the top");
+  assert.equal(R.combineReads(a, { ...a, [A]: String(BigInt(sat(400)) + 1n) }, [A]).values[A], String(BigInt(sat(400)) + 1n), "within 0.5%: the higher");
   assert.equal(R.combineReads(a, null, [A]).values[A], sat(400));
 });
 

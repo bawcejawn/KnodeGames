@@ -1,7 +1,7 @@
 # Fix-check prompt: Fantasy Producers (FX-1 to FX-10) + everything added since
 
 Copy everything below the line into Repo Lens. Give it the package `knode-fantasy-fixcheck.zip` (the repository
-`bawcejawn/Knode` at the commit in `00-COMMIT.txt`, branch `fantasy`, with this prompt as `00-FIXCHECK-PROMPT.md`).
+`bawcejawn/KnodeGames` at the commit in `00-COMMIT.txt`, branch `fantasy`, with this prompt as `00-FIXCHECK-PROMPT.md`).
 
 ---
 
@@ -10,10 +10,11 @@ Producers audit (2026-10-28) found no Critical and no direct way to cheat, and l
 worked through, and the game has changed since. Check the code, not the comments. Send no transaction to mainnet.
 
 The game, in one paragraph: a player drafts five Koinos block producers from a weekly price list (budget 100), the
-first is the captain (×2). Each UTC day a producer scores `100 × blocks signed ÷ blocks expected` (expected from the
+first is the captain (×2). The week plays Monday to Saturday (6 UTC days); Sunday is results day. Each play day a producer scores `100 × blocks signed ÷ blocks expected` (expected from the
 Producer Race's hourly VHP card), at most 130. One change a day (one swap, or moving the captain); each Monday starts
 fresh. Picks go to the audited Picks contract (games 4 = team, 5 = Weekly Rival). A read-only recorder publishes the
-results to the `games-data` branch, including one vault file per final week. Rules: `docs/fantasy/README.md`.
+results to the `games-data` branch, including one vault file per final week. Players staked in Fantasy rank on a
+Staked board; everyone else on a Free play board (no VHP prize for now). Rules: `docs/fantasy/README.md`.
 
 Run the repository's own tests:
 
@@ -24,8 +25,7 @@ node --import tsx tools/fantasy-testnet/rehearse.mjs      # about 5 minutes: 2.5
 cd picks && npm ci --ignore-scripts && npm test && cd ..
 ```
 
-Known: one failing test, `site.mobile-nav.test.mjs` ("blockx.html: nav.js after the wallet scripts"), comes from
-branch `picks` unchanged (Block X's page). It is not part of this review.
+Known failures that are not part of this review: see `00-COMMIT.txt` (tests that fail on `main` unchanged).
 
 Fingerprint: Picks release `700c296a1064b904299c156061d6caf8fcabd0b1765968903f29d89d2426c594` (unchanged; Fantasy
 needs no contract change).
@@ -34,7 +34,7 @@ needs no contract change).
 
 | ID | The fix | Where |
 |---|---|---|
-| FX-1 | A week is final only when all 7 days' blocks (two nodes) and all 7 days' picks are read, the rivals and stakes are read, and 12 h have passed. Not final 2 days after the week: an `ALERT`. | `bot/games/fantasy.ts` (week finality); test "audit FX-1" |
+| FX-1 | A week is final only when all play days' blocks (two nodes) and picks are read, the rivals and stakes are read, and 12 h have passed. Not final 2 days after the week: an `ALERT`. | `bot/games/fantasy.ts` (week finality); test "audit FX-1" |
 | FX-2 | The workflow stops if `games-data` exists but can't be fetched (no recording from empty files). The publish job refuses to change a published price list, a final week, counted rival weeks, a rival record, an all-time total or a vault file. | `.github/workflows/games.yml` |
 | FX-3 | Vault points: 255 for the best week, one less per lower distinct score, ties kept, at least 1, ranked among Fantasy stakers only. | `fantasy-math.js` `vaultPoints`; tests |
 | FX-4 | Final weeks keep teams as positions on the price list (small files). Fantasy files may be up to 8 MB. A Fantasy failure never blocks Block X's publishing (`continue-on-error`). | `fantasy-math.js` `packTeam`; `games.yml` |
@@ -70,6 +70,26 @@ needs no contract change).
    - A local server on 127.0.0.1 signs only Fantasy team and rival picks for the test wallets. It checks the host,
      the origin and a token, and serves only top-level scripts, styles, images and `media/`.
 
+6. **Six play days (owner, 2026-11-03).** `F.weekDays` is Monday to Saturday; Sunday is results day (`F.isPlayDay`,
+   `F.nextPlayDay`). The page and the kit never offer a Sunday; the recorder never scores or reads Sunday picks. The
+   week is still final on Monday 12:00 UTC (after the stake reads). "Full" (a team every play day) is now 6 days.
+7. **Free play board (owner, 2026-11-03, D-081 and D-082).**
+   - Stakes are read every run, on both nodes, with Block X's audited vault reader (`vaultReader`, `stakedSet`:
+     staked = the most a wallet had in game 4 that week at or above the minimum). Each W file player row carries
+     `staked`.
+   - `board.json` now has the shared board shape (`board.js`, the Leaders page):
+     - Today / This week / Last week / All time;
+     - each row's own board (`ranked`), its place there (`boardPlace`, ties share), and `earns` (3 = a share of the
+       bucket; 1 or 2 = a free prize, only when `FANTASY_FREE_PRIZE=on`).
+   - The vault file now lists the free `first` / `second` every week (`F.freeWinners`: not staked, a team on all 6 play
+     days, at least 1 point, ties share, at most 10 a place). The owner's free-prize switch decides whether the vault
+     pays them.
+   - The publish check accepts those, and holds only Fantasy's files (Block X still publishes) when a Fantasy file
+     fails or the published branch can't be read.
+   - The page shows the shared board, says the Free play board pays no VHP, and shows names from `names.js` and the
+     stake badge.
+8. **Merged with `main`** (vault v6 live, Block X live, names, the shared board and stake panel).
+
 ## 3. Please look hard at
 
 1. **Fairness and timing.** Can anyone gain by picking late, or by planning early and changing at the last moment?
@@ -94,9 +114,17 @@ needs no contract change).
    - Previous-run files: can a crafted or stale file add, change or drop teams, points, rivals or all-time totals?
    - The vault file: stakers only, 1–255, ties, at least 1 point, every wallet once.
    - Stake reads on both nodes.
-5. **Weekly Rival.** Throwaway wallets, collusion, challenging someone with no team, the stake rule, and the record
+5. **The two boards and the free prize.**
+   - Can a wallet be on both boards, or switch boards to its advantage?
+   - Can anyone push a free leader onto the Staked board (by staking for them, if the vault allows it) to take the
+     free prize?
+   - Does a withdrawal mid-week change a board unfairly?
+   - Is the vault file's `first` / `second` exactly the rule above, with no staked wallet?
+   - Does the publish check accept anything it shouldn't?
+   - Is the Sunday results day safe: no Sunday pick counts, no week final before its stakes are read?
+6. **Weekly Rival.** Throwaway wallets, collusion, challenging someone with no team, the stake rule, and the record
    counting made and received separately.
-6. **The page.**
+7. **The page.**
    - XSS: everything is built with `textContent`, including the SVG kits.
    - The CSP.
    - What it asks a wallet to sign: only `pick` for games 4 and 5, plus the shared stake panel's vault calls. It never
@@ -104,10 +132,10 @@ needs no contract change).
    - The planning warning's correctness.
    - `localStorage`: UI flags only.
    - The testnet page refuses mainnet.
-7. **CI** (`games.yml`): no repository code runs next to a write token. Try files the publish shape check accepts but
+8. **CI** (`games.yml`): no repository code runs next to a write token. Try files the publish shape check accepts but
    shouldn't. Only `blockx/` and `fantasy/` on `games-data` are pushed. Check the merge with Block X's job kept both
    games' rules intact.
-8. **The testnet kit.**
+9. **The testnet kit.**
    - It never signs for mainnet (chain id, settings, keys) and never prints or serves a key.
    - The server refuses other hosts, origins and paths (`/testnet-data/…`, `package.json`, `bot/…`, `..`).
    - It only uploads a Picks build that reproduces the audited bytes with exactly three lines changed.

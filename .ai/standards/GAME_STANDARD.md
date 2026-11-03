@@ -19,11 +19,9 @@ A game is announced to players only when all of these are true (D-064 — "only 
 ## 2. Play types and prizes
 - **Every game must be stakeable** (D-018); a staked player has at least **1 VHP** staked in that game that week. Players may — and are encouraged to — stake in several games at once (D-074); pages should make that easy.
 - A game is either **Staked + Free** or **Staked only**:
-  - Staked + Free (Free board and 2 + 1 VHP prize): Daily Questions, Block X, Producer Race, Producer Bracket.
   - **Every game has Free play** (a Free play board; D-081). What differs is the free VHP prize:
-  - Free board **with** the 2 + 1 VHP prize: Daily Questions, Block X, Producer Race, Producer Bracket.
+  - Free board **with** the 2 + 1 VHP prize: Daily Questions, Block X, Producer Race, Producer Bracket, Last Node Standing.
   - Free board **without** a prize for now (standings only): Combo Card, Block Golf, Survivor, Fantasy Producers (D-081).
-  - Last Node Standing: Free + Staked; its free prize ❓ (D-081).
   - The owner switches the free prize on for each remaining game when the seed is ready (D-081).
 - **Free prize: 2 VHP for 1st, 1 VHP for 2nd per week**, from the vault's start (D-062). A multi-week season pays its total once, at season end, to the season's winners (rule kept for later — Survivor's free prize is off for now, D-081; it would be 4 + 2 per 2-week season, D-068). Nothing is paid for weeks before the vault start (D-063).
 - Free rewards are extra and come second to stakers; a shortfall is cut, never owed (D-029).

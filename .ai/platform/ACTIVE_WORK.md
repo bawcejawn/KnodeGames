@@ -10,7 +10,7 @@
 ## Platform
 ### Current Work
 - **Block X is live** on the Games page, home page and menus (PRs #58, #59); recorder `games.yml` green.
-- **VHP sampler** (`race-samples.yml`) — first run 3 Nov 15:58 UTC; watching how often GitHub really runs it (I-059, PR #61).
+- **VHP sampler** (`race-samples.yml`) — first run 3 Nov 15:58 UTC; owner ran it by hand ~17:15 UTC, all green; watching how often GitHub really runs it (I-059).
 - **Nicknames on every game** (D-078) — Block X done (PR #60); Race next.
 - **`.ai/` library** kept current (this file, D-081).
 
@@ -85,7 +85,7 @@
 
 ### Blocked Work
 - **Race prizes** need I-034 (no final file from a single run without a hold) and the free-prize farming question I-035 (❓ owner) before the first paid week.
-- Free prizes on Combo, Golf, Survivor and Fantasy are **off** until the owner switches them on (D-081) — with the admin switch once PR #65 is in (D-082). ❓ Last Node's free prize.
+- Free prizes on Combo, Golf, Survivor and Fantasy are **off** until the owner switches them on (D-081) — with the admin switch once PR #65 is in (D-082). Last Node pays it from the start.
 
 ### Next Work
 - Watch the first paid week's seal and its 24 h correction window (Mon 16 Nov).

@@ -12,6 +12,7 @@
 |------|-------|
 | `PLATFORM.md` | this overview |
 | `ARCHITECTURE.md` | how the pieces work: site, contracts, bots, workflows, data, tests |
+| `DEPENDENCIES.md` | how vault, leaderboards, rewards, swap desk, wallets, games and user accounts connect |
 | `DECISIONS.md` | every decision (D-xxx) and every contradiction (C-xx) |
 | `ROADMAP.md` | milestones and launch paths |
 | `OPENISSUES.md` / `TODOS.md` | problems (I-xxx) and the owner's action list |
@@ -33,27 +34,27 @@ Knode Games runs free and staked prediction games on the Koinos blockchain, powe
 | Live on the site | Daily Questions, Producer Race, the swap desk, the staking hub (`stake.html`), status bars, the @name page (`names.html`) | ✅ `games.json` / 💬 |
 
 ## Games
-Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` on `main`. Every game is stakeable (D-018). **Free-play prizes on every free game: 2 VHP for 1st, 1 VHP for 2nd, starting when the vault starts** (D-062). Nothing is announced to players until it's built, audited and ready (D-064).
+Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` on `main`. Every game is stakeable (D-018). **Free-play prizes on every free game — Questions, Block X, Survivor, Race, Bracket: 2 VHP for 1st, 1 VHP for 2nd, starting when the vault starts** (D-062); Fantasy, Golf, Combo and Last Node are staked-only for now (D-071). Nothing is announced to players until it's built, audited and ready (D-064).
 
 | Id | Game | Play | Rules | Status (2 Nov) | Code |
 |----|------|------|-------|----------------|------|
 | 1 | Daily Questions | Staked + Free | D-045, D-047, D-062 | live; built into the vault | `main` |
-| 2 | Who Signs Block X | Staked + Free | D-036 – D-041 | not announced to players (D-067); launches prize-free first; step 8 + launch PR pending (I-040) | `picks` |
+| 2 | Who Signs Block X | Staked + Free | D-036 – D-041, D-070 | **applied on the Picks contract** (2 Nov 👤); not announced to players (D-064); launches prize-free first; next: round-12 fix-check, launch PR, vault `game-add 2` | `picks` |
 | 3 | Survivor | Staked + Free, two boards | D-051, D-065 | Season 1 **Mon 16 Nov** (D-065); audit pass 4, testnet season, Picks registration still to do (I-050); prize 4 + 2 VHP per season, paid at season end (D-068) | `survivor` @ `a8a1979` ✅ |
-| 4 | Fantasy Producers | Staked; free prize ❓ | D-059 | fix-check, full test week, real-data simulation to do | `fantasy` @ `2bee805` ✅ |
+| 4 | Fantasy Producers | Staked only (D-071) | D-059 | fix-check, full test week, real-data simulation to do | `fantasy` @ `2bee805` ✅ |
 | 5 | Weekly Rival | records only, no prize; not a vault game ✅ | D-059 | ships with Fantasy | `fantasy` |
-| 6 | Block Golf | Staked; free practice weeks (no prize) | D-056 | practice with Block X; staked after `game-add 6` | `golf` @ `6b2200a` ✅ |
+| 6 | Block Golf | Staked only (D-071); free practice weeks, no prize | D-056 | practice with Block X; staked after `game-add 6` | `golf` @ `6b2200a` ✅ |
 | 7 | Producer Race | Staked + Free | D-033 – D-035 | live as a game; vault `game-add 7` pending | `main` |
-| 8 | Combo Card | Staked only | D-060 | fix-check 4; needs the Picks v2 upgrade after Block X | `combo` @ `c8c652e` ✅ |
+| 8 | Combo Card | Staked only (D-071) | D-060 | fix-check 4; needs the Picks v2 upgrade after Block X | `combo` @ `c8c652e` ✅ |
 | 9 | Producer Bracket | Staked + Free, 1-week seasons | D-019, D-057 | audit not yet run | `kg-09-bracket` @ `ee676ea` ✅ |
-| 13 | Last Node Standing | Staked; free play, prize ❓ | D-054, D-055 | round-3 review; needs 48 h of sampler data (I-059) | `lastnode` @ `adf95be` ✅ |
+| 13 | Last Node Standing | Staked only (D-071) | D-054, D-055 | round-3 review; needs 48 h of sampler data (I-059) | `lastnode` @ `adf95be` ✅ |
 
-Ids 10–12 are unused. All unlaunched branches are pushed, not merged, and nothing from them is deployed ✅. Launch paths per game: `ROADMAP.md`. Readiness gaps: I-065.
+Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Survivor, FantasyProducers, BlockGolf, ComboCard, ProducerBracket, LastNodeStanding). Ids 10–12 are unused. All unlaunched branches are pushed, not merged, and nothing from them is deployed ✅. Launch paths per game: `ROADMAP.md`. Readiness gaps: I-065.
 
 ## Contracts (Koinos mainnet)
 | Contract | Address | Code | State | |
 |----------|---------|------|-------|-|
-| Game / **Vault v6** (game 1 built in) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` | `eed38f7c…` (was v5 `c17066ae…`) | live, upgraded in place 2026-11-02 02:29 UTC | ✅ |
+| Game / **Vault v6** (game 1 built in) — also the **Knode Games Pool** producer (D-073) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` | `eed38f7c…` (was v5 `c17066ae…`) | live, upgraded in place 2026-11-02 02:29 UTC | ✅ |
 | Vault emergency build | — | `e84fec49…` (withdrawals only) | standby, not deployed (D-021) | ✅ |
 | Mana sponsor v3 | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | `b61ac238…` (v2 `fa4659e6…` kept as rollback) | live; vault switch still off | ✅ `picks` record (`main`'s record stale, I-043) |
 | Picks | `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` | `700c296a…` (v2 `92d555d0…` planned for Combo) | uploaded 2026-10-30; only an owner-approved upgrade is accepted | ✅ |
@@ -66,6 +67,7 @@ Ids 10–12 are unused. All unlaunched branches are pushed, not merged, and noth
 - **Staked rewards:** split across staked games by each game's share of stake; each game ranks its own stakers (per-game rules in DECISIONS).
 - **Mana sponsor:** 25,000 KOIN in the wallet; 5,000 Mana a day for everyone; 25 a day and 150 a week per wallet; 1 per transaction; 2,000 a day for free players (D-061, D-028). It pays stake, withdraw, claim and plays — never `move_stake` (D-027). Mana Station is shelved (D-053).
 - **Swap desk:** VHP → KOIN at a flat 3% fee, no daily payout cap (D-007, D-044); liquidity ~1,050 KOIN on 2 Nov 💬.
+- **No Knode Games token** for now (D-072).
 - **Running costs:** $0 hosting (D-005); domain ~$10–20 a year 💬.
 - **Snapshots** 💬 (dated, will go stale):
   - 2 Nov, at the v6 upload: vault holdings 21,120.07528353; seed 21,050 VHP.

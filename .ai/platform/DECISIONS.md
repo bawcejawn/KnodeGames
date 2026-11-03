@@ -80,6 +80,11 @@
 | D-067 | 2026-11-02 | Block X: nothing announced yet; redo or apply only when ready | active |
 | D-068 | 2026-11-02 | Free prizes are per week; multi-week seasons pay once, at season end | active |
 | D-069 | 2026-11-02 | Questions game Week 3 pays its on-chain v5 free prize (1 + 1 VHP); no upgrade | active |
+| D-070 | 2026-11-02 | Apply Block X (game 2) on the Picks contract now | done |
+| D-071 | 2026-11-02 | Fantasy, Last Node, Combo and Golf are staked-only for now | active |
+| D-072 | 2026-11-02 | No Knode Games token for now | active |
+| D-073 | 2026-11-02 | The vault produces blocks as the Knode Games Pool | active |
+| D-074 | 2026-11-02 | Multi-game staking is allowed and encouraged | active |
 
 ---
 
@@ -401,6 +406,25 @@
 
 ## D-069 — Questions game Week 3 pays its on-chain v5 free prize
 - **Date:** 2026-11-02 (owner) · **Decision:** Accept it. The Questions game's Week 3 (Mon 2 – Mon 9 Nov, paid Tue 10 Nov ≈ 12:07 UTC) pays free players the v5 free prize already fixed on chain (`reward_rule_week_plus_one=3`): up to 2 VHP from that week's pot — best score 1 VHP, the 2nd score's players share 1 VHP (a tie for best splits all 2; a lone free scorer gets 1 and the other 1 goes to basket B; nobody qualifies → all to basket B). No contract upgrade. This is a one-week exception to D-062/D-063 for game 1 only; every free game, game 1 included, pays 2 + 1 VHP from Mon 9 Nov (v6). Resolves C-25 and I-067.
+
+
+## D-070 — Apply Block X (game 2) on the Picks contract now
+- **Date:** 2026-11-02 (owner) · **Decision:** Apply the existing Picks announcement (made 30 Oct) inside its window rather than letting it lapse. Done the same day, with the follow-up steps. This puts game 2's settings in force on the Picks contract only; announcing to players and the vault `game-add 2` still follow D-064.
+
+
+## D-071 — Fantasy, Last Node, Combo and Golf are staked-only for now
+- **Date:** 2026-11-02 (owner) · **Decision:** Fantasy Producers (4), Block Golf (6), Combo Card (8) and Last Node Standing (13) are staked-only for now: no free board prize. Keep the design open so a free option can be added later. The free 2 + 1 VHP prize (D-062) applies to the free games: Daily Questions, Block X, Survivor (per season, D-068), Producer Race and Producer Bracket. Weekly Rival stays records-only.
+
+
+## D-072 — No Knode Games token for now
+- **Date:** 2026-11-02 (owner) · **Decision:** Knode Games has no token of its own. The possibility stays open for the future.
+
+## D-073 — The vault produces blocks as the Knode Games Pool
+- **Date:** 2026-11-02 (owner) · **Decision:** The **Knode Games Pool** is the block producer for the vault. Its address is the vault contract itself, `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` (the Bracket chat also records the vault as its own producer, its VHP shown as `pooled`). It produces through the game node on the owner's PC (`C:\kpred-node`, producer key `Ak0vGklN…` ✅ `game-data/deployment.json`).
+
+
+## D-074 — Multi-game staking is allowed and encouraged
+- **Date:** 2026-11-02 (owner) · **Decision:** A player may stake in any number of games at the same time, and the site should encourage it. Each game needs its own minimum of 1 VHP; stakes are kept per game in the vault, and `move_stake` moves VHP between games (not sponsored, D-027). The staking hub shows every game a wallet is staked in, each game's total and the wallet's share (D-031).
 
 ---
 

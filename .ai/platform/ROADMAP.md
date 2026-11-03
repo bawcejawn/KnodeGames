@@ -26,7 +26,7 @@ Times in UTC, with Pacific time where it helps.
 ## Now — launch week (2–8 Nov)
 | Step | Who | Blocked by | |
 |------|-----|-----------|-|
-| Merge `vault-v6` into `picks`, so the admin page's vault buttons work | Vault chat (asked 2 Nov) | — | I-019 |
+| ~~Merge `vault-v6` into `picks`~~ — done (`e7887b6`) | Vault chat | — | I-019 ✅ |
 | Block X: confirm whether any on-chain announcement exists (cancel and redo, or apply when ready); step 8; Mana check; launch PR `picks` → `main` | owner + Block X chat | readiness (D-064, D-067) | I-040, I-070 |
 | `game-add` → switch the sponsor to the vault (copy the caps exactly) → `game-apply`, for each ready game | owner | I-019 | D-061 |
 | UI refresh: week of 9 Nov shown as "Week 1"; vault "not yet live" wording replaced | Hub + Race chats | — | I-069, I-027 |
@@ -53,10 +53,12 @@ Order: the owner's goal is every game, each in its best version (D-052, D-064). 
 - Per-action Mana limits a day after Block X launches, and again a day after the sponsor's vault switch.
 - Full platform audit when the owner gives the go-ahead (D-014).
 - Launch announcement, analytics decision, ads, the SwarmTales listing (from the owner checklist) 💬.
-- Write each game's spec into `.ai/games/` (rules now live in DECISIONS).
+- ~~Write each game's spec into `.ai/games/`~~ — done 2 Nov; keep them current as games change.
 
 ## Ideas, not scheduled
 - Mana Station (shelved, D-053).
+- A fallback node for the bot: the owner's personal node reached through a Cloudflare Tunnel (outbound-only, no open ports, locked with a key), used only when Armana fails; `api.koinosblocks.com` stays the checker. **On hold** (owner, 3 Nov).
+- A free option for Fantasy, Block Golf, Combo and Last Node (staked-only for now, D-071).
 - Next sponsor version: guest prize claims and the L-3 fix.
 - Compound at a fixed time each day (I-049).
 - A sponsor that also pays operator transactions (needs an audit).

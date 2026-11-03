@@ -14,6 +14,7 @@
 | Builds | live `eed38f7c…`; emergency withdrawals-only `e84fec49…` ✅ |
 | Games | game 1 (Daily Questions) built in; results sources for 2, 3, 4, 6, 7, 8, 9, 13 in `vaultGames` ✅; none registered yet beyond game 1 |
 | Seed | 21,050 VHP, seed owner `1K8VV…` (D-022) |
+| Producer | the **Knode Games Pool** = the vault address, via the game node (D-073) |
 | First paying week | vault week 3 (Mon 9 Nov) for games applied Wed 4 – Sun 8 Nov (D-062, D-063) |
 
 ## 2. Invariants — must always be true
@@ -27,7 +28,7 @@
 
 ## 3. Money flow
 1. **Deposit:** whole VHP only; KOIN may be burned 1:1 into VHP on deposit (`deposit_to`).
-2. **Earn:** the vault's VHP produces blocks; rewards accrue to the vault. ❓ which producer(s) earn for it.
+2. **Earn:** the vault's VHP produces blocks as the **Knode Games Pool** — the vault address `1Mpmf2…` is the producer (D-073), run by the game node; block rewards accrue to the vault.
 3. **Fee:** a flat **5%** of gross rewards, collected with `claim-fee-vhp all`.
 4. **Free prizes:** 2 + 1 VHP per week on each free game (D-062); multi-week seasons pay once at season end (Survivor 4 + 2, D-068); staked-only games pay none for now (D-071).
 5. **Split:** the rest goes to the staked games by each game's staked weight for the week (`weightFor`).

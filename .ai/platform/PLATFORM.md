@@ -53,7 +53,7 @@ Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Surv
 ## Contracts (Koinos mainnet)
 | Contract | Address | Code | State | |
 |----------|---------|------|-------|-|
-| Game / **Vault v6** (game 1 built in) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` | `eed38f7c…` (was v5 `c17066ae…`) | live, upgraded in place 2026-11-02 02:29 UTC | ✅ |
+| Game / **Vault v6** (game 1 built in) — also the **Knode Games Pool** producer (D-073) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` | `eed38f7c…` (was v5 `c17066ae…`) | live, upgraded in place 2026-11-02 02:29 UTC | ✅ |
 | Vault emergency build | — | `e84fec49…` (withdrawals only) | standby, not deployed (D-021) | ✅ |
 | Mana sponsor v3 | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | `b61ac238…` (v2 `fa4659e6…` kept as rollback) | live; vault switch still off | ✅ `picks` record (`main`'s record stale, I-043) |
 | Picks | `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` | `700c296a…` (v2 `92d555d0…` planned for Combo) | uploaded 2026-10-30; only an owner-approved upgrade is accepted | ✅ |
@@ -66,6 +66,7 @@ Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Surv
 - **Staked rewards:** split across staked games by each game's share of stake; each game ranks its own stakers (per-game rules in DECISIONS).
 - **Mana sponsor:** 25,000 KOIN in the wallet; 5,000 Mana a day for everyone; 25 a day and 150 a week per wallet; 1 per transaction; 2,000 a day for free players (D-061, D-028). It pays stake, withdraw, claim and plays — never `move_stake` (D-027). Mana Station is shelved (D-053).
 - **Swap desk:** VHP → KOIN at a flat 3% fee, no daily payout cap (D-007, D-044); liquidity ~1,050 KOIN on 2 Nov 💬.
+- **No Knode Games token** for now (D-072).
 - **Running costs:** $0 hosting (D-005); domain ~$10–20 a year 💬.
 - **Snapshots** 💬 (dated, will go stale):
   - 2 Nov, at the v6 upload: vault holdings 21,120.07528353; seed 21,050 VHP.

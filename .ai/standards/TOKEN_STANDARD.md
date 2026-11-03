@@ -14,7 +14,7 @@
 | **KOIN** | `19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK` ✅ | block rewards; Mana (every account's Mana comes from its KOIN); swap-desk payouts; can be burned 1:1 into VHP on deposit |
 | **Mana** | — (a resource, not a token) | pays for transactions; the sponsor and the bot spend their own |
 
-Knode Games has **no token of its own**. ❓ (no decision recorded either way — confirm.)
+Knode Games has **no token of its own** (D-072). The possibility stays open for the future; adding one would need a new decision and updates to this standard.
 
 ## 2. Who may hold tokens
 | Contract / wallet | May hold | Rule |
@@ -58,5 +58,4 @@ New contracts **must not** hold player tokens unless the owner decides otherwise
 - Test funding comes from the faucet bot (100 test KOIN a day).
 
 ## 8. Open questions
-- ❓ No platform token — confirm it as a decision.
-- ❓ Which producer(s) earn rewards for the vault's VHP.
+- None. (No platform token: D-072. The vault's producer: the Knode Games Pool, D-073.)

@@ -82,6 +82,8 @@
 | D-069 | 2026-11-02 | Questions game Week 3 pays its on-chain v5 free prize (1 + 1 VHP); no upgrade | active |
 | D-070 | 2026-11-02 | Apply Block X (game 2) on the Picks contract now | done |
 | D-071 | 2026-11-02 | Fantasy, Last Node, Combo and Golf are staked-only for now | active |
+| D-072 | 2026-11-02 | No Knode Games token for now | active |
+| D-073 | 2026-11-02 | The vault produces blocks as the Knode Games Pool | active |
 
 ---
 
@@ -411,6 +413,13 @@
 
 ## D-071 — Fantasy, Last Node, Combo and Golf are staked-only for now
 - **Date:** 2026-11-02 (owner) · **Decision:** Fantasy Producers (4), Block Golf (6), Combo Card (8) and Last Node Standing (13) are staked-only for now: no free board prize. Keep the design open so a free option can be added later. The free 2 + 1 VHP prize (D-062) applies to the free games: Daily Questions, Block X, Survivor (per season, D-068), Producer Race and Producer Bracket. Weekly Rival stays records-only.
+
+
+## D-072 — No Knode Games token for now
+- **Date:** 2026-11-02 (owner) · **Decision:** Knode Games has no token of its own. The possibility stays open for the future.
+
+## D-073 — The vault produces blocks as the Knode Games Pool
+- **Date:** 2026-11-02 (owner) · **Decision:** The **Knode Games Pool** is the block producer for the vault. Its address is the vault contract itself, `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` (the Bracket chat also records the vault as its own producer, its VHP shown as `pooled`). It produces through the game node on the owner's PC (`C:\kpred-node`, producer key `Ak0vGklN…` ✅ `game-data/deployment.json`).
 
 ---
 

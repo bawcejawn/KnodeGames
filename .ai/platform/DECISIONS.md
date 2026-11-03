@@ -89,8 +89,9 @@
 | D-076 | 2026-11-03 | Success targets: 1,000,000 VHP in the pool; sponsor outgrown | active |
 | D-077 | 2026-11-03 | Questions, Race and Block X pay from next week's results; add more games as they launch | active |
 | D-078 | 2026-11-03 | Every game shows producer nicknames | active |
-| D-079 | 2026-11-03 | Every game has its own Free play and Staked leaderboards | active, except Combo, Golf, Survivor (D-080) |
-| D-080 | 2026-11-03 | No free play for Combo, Block Golf or Survivor for now; free play everywhere once the seed is bigger | active |
+| D-079 | 2026-11-03 | Every game has its own Free play and Staked leaderboards | active — on every game again (D-081) |
+| D-080 | 2026-11-03 | No free play for Combo, Block Golf or Survivor for now; free play everywhere once the seed is bigger | superseded by D-081 (same day) |
+| D-081 | 2026-11-03 | Every game has Free play; free VHP prizes only on some games until the owner switches them on | active |
 
 ---
 
@@ -459,6 +460,16 @@
 - **Date:** 2026-11-03 (owner) · **Decision:** **Combo Card, Block Golf and Survivor have no free play for now** — no Free play board and no free prize; only staked players play and rank. **Free play will open on all the games once a bigger VHP seed is in place**, so every free reward is covered.
 - **Changes:** Survivor was Staked + Free with a 4 + 2 VHP season prize (D-051, D-068) — it is now **staked only**: register it as `game-add 3 "Survivor" --staked --season 2` (**no `--free`**, unlike `docs/UPGRADE-V6.md`), and its free board is switched off. D-079's "both boards on every game" excludes these three for now.
 - **Free play today:** Daily Questions, Block X, Producer Race, Producer Bracket (Free board + 2 + 1 VHP prize); Fantasy and Last Node (Free board, no prize — ❓ owner to confirm).
+- **Superseded the same day by D-081:** free play (the board) comes back on every game; what stays off is the free **VHP prize**.
+
+## D-081 — Every game has Free play; free VHP prizes only where the owner has switched them on
+- **Date:** 2026-11-03 (owner, replaces D-080) · **Decision:** **All games have a Free play mode** — free players can play and rank on that game's own Free play leaderboard (D-079 applies to every game again). **Not every game pays free VHP prizes yet:** the games the owner had marked "no free play" — **Combo Card, Block Golf, Survivor and Fantasy Producers** — have Free play for **leaderboard standings only, no free VHP prize**. When the seed is ready, the owner **switches on the free prize** for those games one at a time.
+- **Free VHP prize (2 + 1 per week) now:** Daily Questions, Block X, Producer Race, Producer Bracket.
+- **Free board, no prize (for now):** Combo Card, Block Golf, Survivor, Fantasy Producers.
+- **Last Node Standing:** Free play + Staked (owner, 3 Nov). ❓ Whether its Free board pays the prize from the start or joins the no-prize group is not stated.
+- **Changes:** Survivor keeps its free board but its free prize stays off (no 4 + 2 season prize for now); register it **without `--free`** (`game-add 3 "Survivor" --staked --season 2`). Fantasy and Last Node branches were built without free boards — their chats must add one. Combo's page lets only staked wallets send cards today (I-074), so it needs a change to accept free players.
+- **Staked play is unchanged:** each game joins the vault for staked rewards when it's audited and ready (D-064).
+- ❓ **How "switching on" works on chain:** a game registered without `--free` — can its free prize be turned on later in place, or does it need a new vault step (and the 48 h timelock)? To confirm with the Vault chat before the first such game is added.
 
 ---
 

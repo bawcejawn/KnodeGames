@@ -21,7 +21,7 @@ A daily elimination event among block producers: each hour the weakest node (by 
 
 ## Rewards
 - **Staked:** vault file `{game: 13, week, final, rows: [{player, points 1–255}], first: [], second: []}` — rows are wallets staked in game 13 that week with ≥ 1 point; written 12 h to 3 days after the week ends. 💬
-- **Free play:** none — Last Node Standing is **staked-only for now** (the vault file has no free winners); a free option may be added later (D-071). 👤
+- **Free play:** **yes — Free play and Staked boards** (D-081, 3 Nov; was staked-only, D-071). ❓ Whether the Free board pays the 2 + 1 VHP prize from the start is not decided (sets `--free` and `first` / `second`). The branch was built staked-only — the Last Node chat must add the free board. 👤
 
 ## Dependencies
 - **The VHP sampler** (`race-samples.yml`): 48 h of readings before launch; no field without form unless `LASTNODE_ALLOW_NO_FORM=true`, and the owner chose to wait (D-054). Not running yet ✅ (I-059).

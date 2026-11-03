@@ -39,7 +39,7 @@
 | **Block Golf (6)** | branch `golf` @ `6b2200a` | practice with Block X; staked after `game-add 6` |
 | **Wallet moves** | seed done | hardware-wallet owner, cold desk treasury, retire old operator key — this weekend |
 
-Staked-only for now: Fantasy, Golf, Combo, Last Node (D-071). No free play on Combo, Golf, Survivor (D-080). Free 2 + 1 VHP prizes on Questions, Block X, Race, Bracket from Mon 9 Nov (D-062).
+**Every game has Free play** (D-081). Free 2 + 1 VHP prizes on Questions, Block X, Race, Bracket from Mon 9 Nov (D-062); Combo, Golf, Survivor and Fantasy have a Free board with no prize until the owner switches it on; Last Node's free prize ❓.
 
 ## Known blockers
 1. **Audits not run yet.** Five games wait on Repo Lens (Block X round 12, Survivor pass 4, Last Node round 3, Bracket, Fantasy, Combo fix-check 4). Starting today. Nothing is announced until each passes (D-064).

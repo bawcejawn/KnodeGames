@@ -1,5 +1,7 @@
 # .ai — Knode Games Knowledge Base
 
+**New here? Read `START_HERE.md` first.**
+
 This folder holds project knowledge for humans and AI assistants.
 It contains NO application code. Nothing here is built, deployed or executed.
 

@@ -11,7 +11,7 @@
 |------|-------|-|
 | Chain id | `EiBZK_GGVP0H_fXVAM3j6EAuz3-B-l3ejxRSewi7qIBfSA==` | ✅ |
 | Primary RPC | `https://koinos.armana.io` — used by the site, bot and recorders (`main` switched 28 Oct) | ✅ `app.js`, `swap.js`, `header-wallet.js`, `game-data/deployment.json` |
-| Check node (`RPC_CHECK`) | `https://api.koinosblocks.com` — every on-chain check must agree on both | ✅ / 💬 |
+| Check node (`RPC_CHECK`) | `https://api.koinosblocks.com` — every on-chain check must agree on both. Still in service: the bot and Race read it successfully on 3 Nov. It's a checker, not a fallback — if Armana fails the bot stops and retries next hour (e.g. Armana outage ~03:45–05:05 UTC, 3 Nov) | ✅ |
 | `api.koinos.io` | unreliable: HTML error pages, stopped answering 28 Oct. Where a `deployment.json` still names it, override with `$env:RPC = "https://koinos.armana.io"` (I-006, I-015) | 💬 |
 | Block time | ~3 s: ~1,200 blocks an hour, ~28,800 a day | 💬 |
 | Block explorer | Koinosscan (linked in the site footer, D-050) | 💬 |

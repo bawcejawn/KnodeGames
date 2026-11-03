@@ -32,6 +32,7 @@ import crypto from "node:crypto";
 import { Signer, Provider, Contract, Transaction } from "koilib";
 import { KoinosChain, showKoin, toSat } from "./chain.ts";
 import { tokenAbi } from "./token-abi.ts";
+import { withRetry } from "../common.ts";
 import { contractMetadata } from "./chaincheck.ts";
 import { units, isMainnet, pinDeployment, PINNED_MAINNET, TESTNET } from "./bot.ts";
 import { readLimits as readLimitsFile, summarize, merge, chainRows, siteMap, actionNames, checkRows, toMana, key, transitionRows, siteFits, siteMisfits, LIMITS_FILE as MAINNET_LIMITS_FILE, MARGIN, type Sample } from "./mana-limits.ts";
@@ -651,6 +652,18 @@ async function siteLimits(send: boolean) {
 }
 
 /** Reads sponsored transactions from the last `blocks` blocks: what each action used (read-only). */
+/** Blocks with receipts, 100 at a time. A node answers an error page instead of JSON when an answer is too big (a block
+ *  holding a contract upload, say), so a failed range is split in halves down to one block, and one block is retried a
+ *  few times. Every block of the range is still read; nothing is skipped. Exported for the tests. */
+export async function readBlocks(provider: { call: (m: string, a: any) => Promise<any> }, headId: string, h: number, n: number, retry = (l: string, f: () => Promise<any>) => withRetry(l, f, 3)): Promise<any[]> {
+  const get = () => provider.call("block_store.get_blocks_by_height", { head_block_id: headId, ancestor_start_height: String(h), num_blocks: n, return_block: true, return_receipt: true });
+  if (n <= 1) return (await retry(`block ${h}`, get))?.block_items ?? [];
+  try { return (await get())?.block_items ?? []; }
+  catch {
+    const half = Math.ceil(n / 2);
+    return [...(await readBlocks(provider, headId, h, half, retry)), ...(await readBlocks(provider, headId, h + half, n - half, retry))];
+  }
+}
 async function manaReport(a: string[]) {
   const { game, desk, rpc, race, picks } = knode();
   const st = readJson(STATE);
@@ -664,8 +677,8 @@ async function manaReport(a: string[]) {
   let seenTx = 0;
   for (let h = from; h <= top; h += 100) {
     const n = Math.min(100, top - h + 1);
-    const r: any = await provider.call("block_store.get_blocks_by_height", { head_block_id: head.head_topology.id, ancestor_start_height: String(h), num_blocks: n, return_block: true, return_receipt: true });
-    for (const it of r?.block_items ?? []) {
+    const items = await readBlocks(provider, head.head_topology.id, h, n);
+    for (const it of items) {
       const txs = it.block?.transactions ?? [], recs = it.receipt?.transaction_receipts ?? [];
       // Audit SP-6: each transaction with ITS receipt (matched by id), never by position alone.
       const byId = new Map<string, any>(recs.map((x: any) => [String(x?.id ?? ""), x]));
@@ -692,8 +705,7 @@ async function manaReport(a: string[]) {
     const heights = [...new Set(samples.map((x: any) => x.height))];
     const theirs = new Map<string, string>();
     for (let i = 0; i < heights.length; i += 1) {
-      const r: any = await check.call("block_store.get_blocks_by_height", { head_block_id: ch.head_topology.id, ancestor_start_height: String(heights[i]), num_blocks: 100, return_block: true, return_receipt: true });
-      for (const it of r?.block_items ?? []) for (const x of it.receipt?.transaction_receipts ?? []) theirs.set(String(x.id), String(x.rc_used ?? ""));
+      for (const it of await readBlocks(check, ch.head_topology.id, heights[i], Math.min(100, top - heights[i] + 1))) for (const x of it.receipt?.transaction_receipts ?? []) theirs.set(String(x.id), String(x.rc_used ?? ""));
     }
     for (const x of samples as any[]) if (theirs.get(x.txId) === x.rcUsed.toString()) keep.push(x);
     if (keep.length !== samples.length) log(`⚠ ${samples.length - keep.length} transaction(s) left out: the second node (${CHECK_RPC()}) shows them differently or not at all.`);

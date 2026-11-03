@@ -21,6 +21,7 @@ Free and staked prediction games on the Koinos blockchain, powered by our own bl
 Don't read `archive/CHAT_KNOWLEDGE.md` to learn the project — it's an inbox of raw chat exports, already filed into the files above.
 
 ## Rules you must follow
+The full list — including what must never change casually — is in **`platform/RULES.md`**. The essentials:
 - **Never ask for, print, store or handle private keys or seed phrases.** Keys live only in the owner's `.env`. If one is pasted, tell the owner to rotate it.
 - **Never push to `main`, merge, deploy, upload a contract or change chain settings without the owner's explicit OK.**
 - **Mainnet sends are dry runs** unless `--send`, and need `--mainnet` plus `CONFIRM_MAINNET=yes`. One step at a time.

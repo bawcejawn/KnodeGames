@@ -65,4 +65,4 @@ Not blocking: the main node (Armana) has short outages — the bot stops and cat
 ## Watch list
 - **Tue 10 Nov ~12:07 UTC:** first Questions payout under the v5 split; free players get 1 + 1 VHP for that week (D-069).
 - **Mon 16 Nov 12:00 UTC:** first vault close with other games in it — check status, buckets, free prizes and the fee.
-- **PR #50** ("Ship-week cleanup: wallet lock map, fail-closed site, SW shell") is open and not recorded in any chat export ❓ — confirm who owns it before merging.
+- **PR #50** ("Ship-week cleanup") — opened 1 Nov by the Cursor AI agent, marked review-only; **don't merge yet** (owner). **PR #57** (Block X launch) — **don't merge until round 12 is GO** (owner).

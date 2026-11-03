@@ -15,6 +15,7 @@
 | `ARCHITECTURE.md` | how the pieces work: site, contracts, bots, workflows, data, tests |
 | `DEPENDENCIES.md` | how vault, leaderboards, rewards, swap desk, wallets, games and user accounts connect |
 | `DECISIONS.md` | every decision (D-xxx) and every contradiction (C-xx) |
+| `RULES.md` | fund-safety, vault, withdrawal, reward, architecture and Koinos rules; what never changes casually |
 | `ROADMAP.md` | milestones and launch paths |
 | `OPENISSUES.md` / `TODOS.md` | problems (I-xxx) and the owner's action list |
 | `KOINOS.md` | chain facts, testnet, gotchas |

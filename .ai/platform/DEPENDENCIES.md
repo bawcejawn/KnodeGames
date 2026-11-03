@@ -84,7 +84,7 @@ Read across: how the row part depends on or feeds the column part.
 Guest or any wallet → picks or answers, Mana paid by the sponsor → recorder → Free play board → top 2 named in the vault file's `first` / `second` → 2 + 1 VHP (D-062) → claimed into the wallet. *Only on free games: Questions, Block X, Survivor, Race, Bracket (D-071).*
 
 **Staked player**
-Kondor or KOIN Vault → `approve` + `deposit_to` into game N → plays → recorder reads the stake (Staked board) → vault file `rows` with points → vault splits the game's share → `claim_game`. Withdraw any time; withdrawing below 1 VHP mid-week forfeits that week (I-028).
+Kondor or KOIN Vault → `approve` + `deposit_to` into game N → plays → recorder reads the stake (Staked board) → vault file `rows` with points → vault splits the game's share → `claim_game`. Players can stake in as many games as they like, 1 VHP minimum each — encouraged (D-074). Withdraw any time; withdrawing below 1 VHP mid-week forfeits that week (I-028).
 
 **Weekly money**
 Knode Games Pool produces blocks → rewards in the vault → 5% fee (`claim-fee-vhp all`) → free prizes → each staked game's share by staked weight → each game's rules split it → claims.
@@ -112,5 +112,4 @@ VHP holder → Swap Desk → KOIN back (−3%) → the desk's VHP keeps producin
 - **Koinos Nicknames** — @names for display (D-030).
 
 ## 8. Open
-- ❓ Staking in several games at the same time — allowed by the contract's per-game stakes, but not written as a decision.
 - ❓ Free boards for the staked-only games later (D-071).

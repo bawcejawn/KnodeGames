@@ -84,6 +84,7 @@
 | D-071 | 2026-11-02 | Fantasy, Last Node, Combo and Golf are staked-only for now | active |
 | D-072 | 2026-11-02 | No Knode Games token for now | active |
 | D-073 | 2026-11-02 | The vault produces blocks as the Knode Games Pool | active |
+| D-074 | 2026-11-02 | Multi-game staking is allowed and encouraged | active |
 
 ---
 
@@ -420,6 +421,10 @@
 
 ## D-073 — The vault produces blocks as the Knode Games Pool
 - **Date:** 2026-11-02 (owner) · **Decision:** The **Knode Games Pool** is the block producer for the vault. Its address is the vault contract itself, `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` (the Bracket chat also records the vault as its own producer, its VHP shown as `pooled`). It produces through the game node on the owner's PC (`C:\kpred-node`, producer key `Ak0vGklN…` ✅ `game-data/deployment.json`).
+
+
+## D-074 — Multi-game staking is allowed and encouraged
+- **Date:** 2026-11-02 (owner) · **Decision:** A player may stake in any number of games at the same time, and the site should encourage it. Each game needs its own minimum of 1 VHP; stakes are kept per game in the vault, and `move_stake` moves VHP between games (not sponsored, D-027). The staking hub shows every game a wallet is staked in, each game's total and the wallet's share (D-031).
 
 ---
 

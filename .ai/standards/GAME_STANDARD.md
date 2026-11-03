@@ -17,7 +17,7 @@ A game is announced to players only when all of these are true (D-064 — "only 
 - [ ] The owner gives an explicit OK to merge and to deploy (D-026).
 
 ## 2. Play types and prizes
-- **Every game must be stakeable** (D-018); a staked player has at least **1 VHP** staked in that game that week.
+- **Every game must be stakeable** (D-018); a staked player has at least **1 VHP** staked in that game that week. Players may — and are encouraged to — stake in several games at once (D-074); pages should make that easy.
 - A game is either **Staked + Free** or **Staked only**:
   - Staked + Free: Daily Questions, Block X, Survivor, Producer Race, Producer Bracket.
   - Staked only (for now; a free option may come later): Fantasy, Block Golf, Combo Card, Last Node Standing (D-071).

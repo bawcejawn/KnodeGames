@@ -36,7 +36,7 @@
 7. **Claim:** `claim_game` per game and week; the site batches up to 10 claims and looks back 52 weeks.
 
 ## 4. Stakes
-- Minimum **1 VHP** per staked game ✅ (`minStake`), read from `get_state` (`min_stake`, `min_stake_next`, `min_stake_next_week`), never below 1 VHP. ❓ Staking in several games at once.
+- Minimum **1 VHP** per staked game ✅ (`minStake`), read from `get_state` (`min_stake`, `min_stake_next`, `min_stake_next_week`), never below 1 VHP. **Staking in several games at once is allowed and encouraged** (D-074); each game needs its own 1 VHP minimum.
 - **Staked** that week = `peak_stake` (or `active_stake` when there's no entry) at or above the minimum; **earning** = `week_stake` at or above it. A player staked at the week's start stays staked that week.
 - **Withdraw** any amount at any time (`withdraw_from`; not used for game 1). **Move** with `move_stake` — refused while paused; the target must be active and staked.
 - Withdrawing below the minimum mid-week forfeits that week's share and free prize; the panel should say so (I-028).

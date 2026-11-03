@@ -59,5 +59,5 @@ The full list — including what must never change casually — is in **`platfor
 - Problems get an **I-xxx** in `OPENISSUES.md`; owner actions go in `TODOS.md`.
 - If two sources disagree, log a **C-xx** contradiction in `DECISIONS.md`; the repo wins over chat notes, and the owner wins over both.
 - Mark what you know: ✅ verified in the repo · 💬 from a chat · 👤 owner said · ❓ unknown.
-- End each piece of work with the **handoff** in `standards/AI_CHAT_STARTER.md` §2; the library chat files it.
+- **Before a session ends**, follow `platform/SESSION_END_PROCESS.md`: write the five-part session-end report; the library chat files it.
 - New knowledge from a chat can be appended to `archive/CHAT_KNOWLEDGE.md` and filed later.

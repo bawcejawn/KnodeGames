@@ -204,3 +204,195 @@ test("fix-check VN-3: a game restarted after a gap still gets its last earned we
   assert.deepEqual(fin, ["Fantasy week 1: finalize (find the winners)"]);
   await ok([["claim_game", { player: addr(B), game: 2, week: "1" }]], [B]);
 });
+
+// ═══════════════ the checks before paying (I-034, I-051, I-052, I-064) ═══════════════
+import os from "node:os";
+import path from "node:path";
+import { orderBreak, boardSpec, boardScore, readSpec, hashOf, STABLE_MS, type VaultMemo, type FileRead } from "./vault.ts";
+
+/** Fantasy (game 2, staked: B 20 VHP, C 5 VHP) and Block X (game 3, free prize) with week 1 closed and funded. */
+async function weekOneClosed() {
+  const { sim, at, ok } = await world();
+  await ok([["propose_game", { game: 2, name: "Fantasy", staked: true, free_prize: false, season_weeks: 1 }], ["propose_game", { game: 3, name: "Block X", staked: false, free_prize: true, season_weeks: 1 }]], [owner]);
+  at(T0 + 2 * DAY + HOUR);
+  await ok([["apply_game", { game: 2 }], ["apply_game", { game: 3 }]], [owner]);
+  await ok([["seed_deposit_vhp", { amount: String(2000n * VHP) }]], [seedOwner]);
+  for (const [p, n] of [[B, 20n], [C, 5n]] as const) await ok([["deposit_to", { from: addr(p), game: 2, amount: String(n * VHP), koin: false }]], [p]);
+  at(GENESIS + WEEK + 12 * HOUR + 1);
+  await ok([["close_week", { week: "0" }]], []);
+  await sim.ledgerAdd(2, addr(contract), 100n * VHP);
+  at(GENESIS + 2 * WEEK + 12 * HOUR + 1);
+  await ok([["close_week", { week: "1" }]], []);
+  return { sim, at, ok };
+}
+const fantasyW1 = () => ({ game: 2, week: 1, final: true, rows: [{ player: addr(B), points: 9 }, { player: addr(C), points: 4 }] });
+/** Fantasy's board for week 1: B and C staked with points, E free with points (E isn't staked: not needed in the file). */
+const fantasyBoard = (rows?: any[]) => ({ v: 1, lastWeek: { week: 1, rows: rows ?? [
+  { a: addr(B), pts: 30, place: 1, ranked: true }, { a: addr(C), pts: 12, place: 2, ranked: true }, { a: addr(E), pts: 50, place: 1, ranked: false }] } });
+const blockxW1 = () => ({ game: 3, week: 1, final: true, rows: [], first: [addr(D)], second: [addr(E)] });
+
+/** A context reading files from a map: an object = the file, "ERR" = unreadable, absent = missing. */
+function fctx(sim: SimChain, files: Record<string, any>, memo?: VaultMemo): VaultCtx & { problems: string[] } {
+  const readFile = (spec: string): FileRead => {
+    const v = files[spec];
+    return v === undefined ? { state: "missing" } : v === "ERR" ? { state: "error", error: "test: unreadable" } : { state: "ok", data: JSON.parse(JSON.stringify(v)) };
+  };
+  return { chain: sim, operator, dryRun: false, problems: [], quiet: true, readFile, memo,
+    deployment: { vaultGames: { "2": { results: "mem:fantasy/vault" }, "3": { results: "mem:blockx/vault" } } } };
+}
+const allFiles = () => ({ "mem:fantasy/vault/W1.json": fantasyW1(), "mem:fantasy/board.json": fantasyBoard(), "mem:blockx/vault/W1.json": blockxW1() });
+const fantasySends = ["Fantasy week 1: points for 2 player(s)", "Fantasy week 1: seal the results (the owner can correct them for 24 h)"];
+
+test("checks: a results file is posted only once it is unchanged on a later run (hourly bot memo)", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim, at } = await weekOneClosed();
+  const memo: VaultMemo = {}, files = allFiles();
+  const s1: string[] = [];
+  await vaultResultsPass(fctx(sim, files, memo), sendAs(sim, operator, s1));
+  assert.deepEqual(s1, [], "first read: nothing sent");
+  assert.ok(memo.seen?.["2:1"] && memo.seen?.["3:1"]);
+  at(sim.time + STABLE_MS - 60_000);
+  const s2: string[] = [];
+  await vaultResultsPass(fctx(sim, files, memo), sendAs(sim, operator, s2));
+  assert.deepEqual(s2, [], "not yet stable");
+  at(sim.time + 2 * 60_000);
+  const v3 = fctx(sim, files, memo), s3: string[] = [];
+  await vaultResultsPass(v3, sendAs(sim, operator, s3));
+  assert.deepEqual(v3.problems, []);
+  assert.deepEqual(s3, [...fantasySends, `Block X week 1: prize place 1 → ${addr(D)}`, `Block X week 1: prize place 2 → ${addr(E)}`, "Block X week 1: seal the results (the owner can correct them for 24 h)"]);
+});
+
+test("checks: a results file that changes after the first read is held, reported once, and never posted automatically", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim, at } = await weekOneClosed();
+  const memo: VaultMemo = {}, files: any = allFiles();
+  await vaultResultsPass(fctx(sim, files, memo), sendAs(sim, operator, []));
+  files["mem:fantasy/vault/W1.json"] = { ...fantasyW1(), rows: [{ player: addr(B), points: 9 }, { player: addr(C), points: 8 }] };
+  at(sim.time + HOUR);
+  const v = fctx(sim, files, memo), s: string[] = [];
+  await vaultResultsPass(v, sendAs(sim, operator, s));
+  assert.ok(!s.some((x) => x.startsWith("Fantasy")), s.join(" | "));
+  assert.equal(v.problems.length, 1);
+  assert.match(v.problems[0], /Fantasy week 1: held.*changed after the bot first read it.*game-post 2 1/);
+  // back to the first version: still held (a final file must never change); the alert isn't repeated
+  files["mem:fantasy/vault/W1.json"] = fantasyW1();
+  at(sim.time + HOUR);
+  const v2 = fctx(sim, files, memo), s2: string[] = [];
+  await vaultResultsPass(v2, sendAs(sim, operator, s2));
+  assert.ok(!s2.some((x) => x.startsWith("Fantasy")));
+  assert.deepEqual(v2.problems, []);
+  // under 12 h before the deadline: one reminder
+  at(GENESIS + 2 * WEEK + 3 * DAY - 6 * HOUR);
+  const v3 = fctx(sim, files, memo);
+  await vaultResultsPass(v3, sendAs(sim, operator, []));
+  assert.equal(v3.problems.length, 1);
+  assert.match(v3.problems[0], /still held .* due/);
+});
+
+test("checks: a HOLD file holds the whole week; an unreadable HOLD holds too; a missing one doesn't (I-064)", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim } = await weekOneClosed();
+  for (const [hold, re] of [[{ week: 1, reason: "watching node 1Abc" }, /HOLD-W1\.json \(watching node 1Abc\)/], ["ERR", /HOLD-W1\.json can't be read/]] as const) {
+    const files: any = { ...allFiles(), "mem:fantasy/vault/HOLD-W1.json": hold };
+    const v = fctx(sim, files), s: string[] = [];
+    await vaultResultsPass(v, async (what, calls) => { s.push(what); return true; });
+    assert.ok(!s.some((x) => x.startsWith("Fantasy")), "nothing for Fantasy: no rows, no winners, no seal");
+    assert.ok(s.some((x) => x.startsWith("Block X")), "other games go on");
+    assert.match(v.problems.join(" | "), re);
+  }
+});
+
+test("checks: staked list: a staked wallet with points on the board but not in the file holds the week (I-064)", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim } = await weekOneClosed();
+  const files: any = { ...allFiles(), "mem:fantasy/vault/W1.json": { game: 2, week: 1, final: true, rows: [{ player: addr(B), points: 9 }] } };
+  const v = fctx(sim, files), s: string[] = [];
+  await vaultResultsPass(v, async (what) => { s.push(what); return true; });
+  assert.ok(!s.some((x) => x.startsWith("Fantasy")));
+  assert.match(v.problems.join(" | "), new RegExp(`staked in the game that week, with points on its board, are not in the results file: ${addr(C)}`));
+  assert.doesNotMatch(v.problems.join(" | "), new RegExp(addr(E)), "E has points but isn't staked: not needed");
+  // a staked wallet with 0 points on the board isn't needed either
+  const files2: any = { ...files, "mem:fantasy/board.json": fantasyBoard([{ a: addr(B), pts: 30, place: 1, ranked: true }, { a: addr(C), pts: 0, place: 2, ranked: true }]) };
+  const v2 = fctx(sim, files2), s2: string[] = [];
+  await vaultResultsPass(v2, async (what) => { s2.push(what); return true; });
+  assert.deepEqual(v2.problems, []);
+  assert.deepEqual(s2.filter((x) => x.startsWith("Fantasy")), ["Fantasy week 1: points for 1 player(s)", "Fantasy week 1: seal the results (the owner can correct them for 24 h)"]);
+});
+
+test("checks: a board that is missing, unreadable or for another week, a file row not on the board, or points against the board's order hold the week", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim } = await weekOneClosed();
+  const cases: Array<[any, RegExp]> = [
+    [undefined, /board mem:fantasy\/board\.json is missing/],
+    ["ERR", /board mem:fantasy\/board\.json is unreadable/],
+    [{ v: 1, lastWeek: { week: 0, rows: [] } }, /has no lastWeek for week 1 \(it shows week 0\)/],
+    [fantasyBoard([{ a: addr(B), pts: 30, place: 1, ranked: true }]), /results file are not on the game's board for week 1: /],
+    [fantasyBoard([{ a: addr(B), pts: 10, place: 2, ranked: true }, { a: addr(C), pts: 12, place: 1, ranked: true }]), /don't follow the board's places/],
+    [fantasyBoard([{ a: addr(B), pts: 10, place: 1, ranked: true }, { a: addr(C), pts: 10, place: 1, ranked: true }]), /share place 1 but get/],
+  ];
+  for (const [board, re] of cases) {
+    const files: any = { ...allFiles(), "mem:fantasy/board.json": board };
+    if (board === undefined) delete files["mem:fantasy/board.json"];
+    const v = fctx(sim, files), s: string[] = [];
+    await vaultResultsPass(v, async (what) => { s.push(what); return true; });
+    assert.ok(!s.some((x) => x.startsWith("Fantasy")), `nothing posted: ${re}`);
+    assert.match(v.problems.join(" | "), re);
+  }
+});
+
+test("checks: a refused post is reported with the chain's reason, stops the week (no seal), and isn't retried (I-052)", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim, at } = await weekOneClosed();
+  const memo: VaultMemo = {}, files = allFiles();
+  await vaultResultsPass(fctx(sim, files, memo), sendAs(sim, operator, []));     // first read
+  at(sim.time + HOUR);
+  const refuse = (s: string[]) => async (what: string, calls: any[]) => {
+    s.push(what);
+    if (calls[0].method === "post_results" || calls[0].method === "post_prize_winners") return { ok: false, error: "transaction reverted: test refusal" };
+    const r = await sim.sendAs(calls, [addr(operator)]);
+    return r.ok ? true : { ok: false, error: r.error };
+  };
+  const v = fctx(sim, files, memo), s: string[] = [];
+  await vaultResultsPass(v, refuse(s));
+  assert.deepEqual(s, ["Fantasy week 1: points for 2 player(s)", `Block X week 1: prize place 1 → ${addr(D)}`], "each week stops at its refusal: no seal");
+  assert.equal(v.problems.length, 2);
+  assert.match(v.problems[0], /Fantasy week 1: the vault REFUSED post_results \(transaction reverted: test refusal\)/);
+  assert.match(v.problems[1], /Block X week 1: the vault REFUSED post_prize_winners/);
+  assert.equal((await sim.read("get_game", { game: 2, week: "1" })).week.sealed ?? false, false);
+  // the next run doesn't send it again; the hold is reported once
+  at(sim.time + HOUR);
+  const v2 = fctx(sim, files, memo), s2: string[] = [];
+  await vaultResultsPass(v2, refuse(s2));
+  assert.deepEqual(s2, []);
+  assert.equal(v2.problems.length, 2);
+  assert.match(v2.problems.join(" | "), /refused "Fantasy week 1: points for 2 player\(s\)".*won't send it again/);
+  const v3 = fctx(sim, files, memo);
+  await vaultResultsPass(v3, refuse([]));
+  assert.deepEqual(v3.problems, [], "reported once");
+});
+
+test("checks: game-post by hand applies HOLD, board and refusal checks but not the two-run wait", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim } = await weekOneClosed();
+  await assert.rejects(vaultResultsPass(fctx(sim, { ...allFiles(), "mem:fantasy/vault/HOLD-W1.json": {} }, {}), async () => true, { game: 2, week: 1 }), /held: the game published HOLD-W1\.json/);
+  const s: string[] = [];
+  await vaultResultsPass(fctx(sim, allFiles(), {}), sendAs(sim, operator, s), { game: 2, week: 1 });
+  assert.deepEqual(s, fantasySends, "posted at once");
+});
+
+test("orderBreak, boardSpec, boardScore, hashOf and readSpec (missing ≠ unreadable)", () => {
+  const P = (n: number) => `1PWeFG4pPtjZZoYvcmGb6mYhMYJjnkHrm${"abcdefgh"[n]}`;
+  const pl = new Map([[P(0), 1], [P(1), 1], [P(2), 3]]);
+  assert.equal(orderBreak([{ player: P(0), points: 9 }, { player: P(1), points: 9 }, { player: P(2), points: 8 }], pl), "");
+  assert.match(orderBreak([{ player: P(0), points: 9 }, { player: P(1), points: 8 }], pl), /share place 1/);
+  assert.match(orderBreak([{ player: P(0), points: 3 }, { player: P(2), points: 8 }], pl), /fewer than/);
+  assert.equal(orderBreak([{ player: P(3), points: 1 }, { player: P(0), points: 9 }], pl), "", "rows without a place aren't compared");
+  assert.equal(boardSpec("games-data:blockx/vault"), "games-data:blockx/board.json");
+  assert.equal(boardSpec("race-data:vault"), "race-data:board.json");
+  assert.equal(boardSpec("games-data:golf/vault/"), "games-data:golf/board.json");
+  assert.equal(boardSpec("games-data:x/vault", "games-data:x/boards/staked.json"), "games-data:x/boards/staked.json");
+  assert.deepEqual([boardScore({ pts: 4 }), boardScore({ points: 2 }), boardScore({ pts: 0 }), boardScore({ pts: -1 }), boardScore({})], [4, 2, 0, 0, null]);
+  assert.equal(hashOf({ a: 1, b: [1, { c: 2, d: 3 }] }), hashOf({ b: [1, { d: 3, c: 2 }], a: 1 }), "key order doesn't matter");
+  assert.notEqual(hashOf({ a: [1, 2] }), hashOf({ a: [2, 1] }));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vault-read-"));
+  fs.writeFileSync(path.join(dir, "ok.json"), "{\"x\":1}");
+  fs.writeFileSync(path.join(dir, "bad.json"), "{not json");
+  assert.deepEqual(readSpec(path.join(dir, "ok.json")), { state: "ok", data: { x: 1 } });
+  assert.deepEqual(readSpec(path.join(dir, "none.json")), { state: "missing" });
+  assert.equal(readSpec(path.join(dir, "bad.json")).state, "error");
+  assert.equal(readSpec("bad/branch:x.json").state, "error", "a malformed spec is an error, not missing");
+  assert.equal(readSpec("games-data:../x.json").state, "error");
+});

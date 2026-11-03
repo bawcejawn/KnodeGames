@@ -26,7 +26,7 @@ class El {
 
 export function makePage({ firstDay, now, picks = {}, season = null, fields = null, head = () => now(), address = "1" + "W".repeat(33), headFail = () => false }) {
   const ids = {};
-  for (const id of ["days", "status", "picks-left", "season-line", "picks-soon", "picks-who", "today-title", "today-sub", "today-rows", "standings-box", "standings-title", "standings-sub", "board-free", "board-staked", "board-note", "prizes", "stake-panel", "standings-rows", "me-line", "field-title", "field-sub", "field-rows"]) { ids[id] = new El("div"); ids[id].id = id; }
+  for (const id of ["days", "status", "picks-left", "season-line", "picks-soon", "picks-who", "today-title", "today-sub", "today-rows", "standings-box", "standings-title", "standings-sub", "board-free", "board-staked", "board-note", "prizes", "stake-panel", "standings-rows", "me-line", "field-title", "field-sub", "field-rows", "prize-off", "prize-on", "lede-prize"]) { ids[id] = new El("div"); ids[id].id = id; }
   const document = { getElementById: (id) => ids[id] || null, createElement: (t) => new El(t), querySelectorAll: () => [], addEventListener() {}, activeElement: null, body: new El("body"), hidden: false };
   const realNow = Date.now;
   const DateX = class extends Date { constructor(...a) { if (a.length) super(...a); else super(now()); } static now() { return now(); } };

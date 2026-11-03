@@ -179,3 +179,25 @@ dependencies) so the recorder and the verify job run the same code. Tests: `test
 
 **Tests (with the verify job, fbdd8eb):** contract 71 (source unchanged); site and audit suite 747 passing (5 todo,
 6 skipped, 0 failing); browser 7; workflow guard 8.
+
+## Free play (owner, 2026-11-03: D-081, D-082)
+
+Every game has a Free play board. For the Combo Card:
+- **Anyone can send a card.** The page no longer refuses guests or unstaked wallets (I-074). The stake only decides the
+  board: staked in the Combo Card that week → the Staked board (the Vault file's `rows`), everyone else → the Free play
+  board. The page says which, and that the Free play board pays no VHP for now. Picks v1 on mainnet has no cards at all,
+  so free cards, like every card, wait for the Picks v2 upgrade (D-060); the contract never checks stakes.
+- **The Free play board's top 2** are the Vault file's `first` / `second` (combo-math.js `freeWinners`), always
+  computed; the Vault bot holds them back while the owner's free-prize switch for game 8 is off (D-082, PR #65).
+  Eligible (Block X's rule, BX-14): never staked in the Combo Card at any point that week (`free`, from the peak
+  stake), at least 1 full point, cards on 3 or more days. Ranked as the board; ties share; 2nd only when one wallet
+  holds 1st; a place over 10 wallets stays empty.
+- **board.json rows** gain `boardPlace` (the place on the player's own board) and `free`.
+- **Checks:** every card check (recorder re-check, verify job, publish job) is the same for free and staked cards.
+  New: the publish job recomputes `first` / `second` from the published day files and board; the verify job confirms a
+  new Vault file only if the published board's stake flags (`staked`, `free`) are the Vault's own, read on both nodes
+  (before, those flags were the recorder's word alone), and the publish job publishes no unconfirmed Vault file.
+- **Vault registration (owner):** set game 8's free-prize switch OFF first (`npm run prizes -- off 8 --send`, once
+  PR #65 is merged), then `game-add 8 "Combo Card" --staked --free --season 1`.
+- `main` merged into `combo` (67e1bc2): conflicts only in `workflow-guard.yml` and `package.json` (both sides kept);
+  sitemap regenerated.

@@ -2106,6 +2106,7 @@ async function main() {
   // Vault v6: copy the live contract's state to a file (read-only, no key), and rehearse the upgrade on that copy.
   if (cmd === "vault-snapshot") { const { snapshotCommand } = await import("./rehearse-v6.ts"); return snapshotCommand(gameChain(), opt("--out", "v5-snapshot.json")!); }
   if (cmd === "testnet-v6") { const { testnetV6 } = await import("./testnet-v6.ts"); return testnetV6(rest.filter((a) => !a.startsWith("--"))); }
+  if (cmd === "testnet-v61-sponsor") { const { testnetV61Sponsor } = await import("./testnet-v61-sponsor.ts"); return testnetV61Sponsor(); }
   if (cmd === "testnet-v61-d8") { const { testnetV61D8 } = await import("./testnet-v61-d8.ts"); return testnetV61D8(rest.filter((a) => !a.startsWith("--"))); }
   if (cmd === "rehearse-v6") { const { rehearseCommand } = await import("./rehearse-v6.ts"); return rehearseCommand(opt("--snapshot", "v5-snapshot.json")!, Number(opt("--weeks", "3")), opt("--reward")); }
   throw new Error(`Unknown command "${cmd}". See bot/README.md for the list of commands.`);

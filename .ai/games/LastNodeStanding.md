@@ -1,6 +1,6 @@
 # Last Node Standing (game 13)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Last Node Standing chat), `DECISIONS.md` (D-054, D-055), the repo (branch `lastnode`). **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/LastNodeStanding.md`.
+> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Last Node Standing chat), `DECISIONS.md` (D-054, D-055), the repo (branch `lastnode`). **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/LastNodeStanding.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose

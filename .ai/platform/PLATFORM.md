@@ -2,7 +2,7 @@
 
 > **Purpose:** the one-page picture of what Knode Games is today: games, contracts, money, wallets, machines, branches and who owns what.
 > **Last updated:** 2026-11-03 (Block X live; games 2 and 7 announced to the vault; free play on every game; new process files)
-> **Sources:** the 12 chat exports in `.ai/archive/CHAT_KNOWLEDGE.md`, the owner's answers on 2 Nov, and the repo (`main` and `picks`, checked 2 Nov).
+> **Sources:** the 12 chat exports in `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private), the owner's answers on 2 Nov, and the repo (`main` and `picks`, checked 2 Nov).
 > **Rule:** if this file disagrees with `DECISIONS.md`, `DECISIONS.md` wins. The full order of sources is in D-002.
 
 **Legend:** ✅ verified in the repo · 💬 from a chat, not verified · 👤 owner said so · ⚠️ open contradiction (see `DECISIONS.md`) · ❓ unknown

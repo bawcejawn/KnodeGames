@@ -197,7 +197,7 @@ Moving KOIN needs Mana at least equal to the amount, so let the admin wallet's M
 
 ## Security in one page
 
-See `docs/history/security-audit.md` for the full audit. The short version:
+See `security-audit.md` (owner's private records) for the full audit. The short version:
 - **Players' stakes can only go back to the player who deposited them.** No one else can sign a withdrawal for them, and
   withdrawals can never be paused.
 - **Nobody, not even the admin, can move the contract's tokens directly.** The contract refuses every outside request.

@@ -139,7 +139,7 @@ v3 adds three things. With no `allowed` rows it behaves as v2, except for the tw
 - **Fixcheck L-3**: a stake counts as a real player from `min_vhp` up (active and pending together), like held VHP.
 
 Allowlisted calls and free claims are refused above 640 argument bytes (400 before the Combo Card; the largest Block X pick is 317).
-Audit 2026-10-27 (`docs/history/AUDIT-2026-10-27-sponsor-v3.md`): "ready for testnet; fix S3-1 and S3-2 before mainnet",
+Audit 2026-10-27 (`AUDIT-2026-10-27-sponsor-v3.md` (owner's private records)): "ready for testnet; fix S3-1 and S3-2 before mainnet",
 no Critical, High or Medium. Fixed: S3-1 (a 16 KB buffer, so 10 picks fit in one transaction), S3-2 (allowlisted
 arguments must have no nested messages: documented, and `npm run check` confirms it for the Picks row), S3-7 (the Picks
 ABI checks are required). Accepted by the owner: S3-4 (guests can win Block X prizes; the free daily total bounds the

@@ -227,5 +227,5 @@ Struck-through ROADMAP lines that were moved: "Merge `vault-v6` into `picks`" (d
 | Question-release task checked: NextRunTime 3:45 AM local (11:45 UTC) after the clock change | 2026-11-02 | D-047 |
 | Swap Desk chat knowledge filed; C-04, C-05, C-11, C-17 settled | 2026-11-02 | — |
 | Real swap tested on the site (3,000 VHP) | ≤ 2026-11-02 | Questions chat |
-| Stale copy `C:\Users\alcat\repos\Knode` deleted | ≤ 2026-11-02 | Questions chat |
+| Stale copy `C:\Users\<you>\repos\Knode` deleted | ≤ 2026-11-02 | Questions chat |
 | Set a desk daily payout cap — **cancelled** (no cap, D-007) | 2026-11-02 | C-17 |

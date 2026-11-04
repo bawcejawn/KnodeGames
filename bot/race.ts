@@ -365,7 +365,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   prizesFromWeek = prizesFrom ?? PRIZES_FROM_WEEK;
   hold = vaultHold === undefined ? { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS } : vaultHold;
   holdSetting = holdWeeks ? { weeks: holdWeeks, bad: false, raw: holdWeeks.join(",") } : parseHoldWeeks(E.RACE_HOLD_WEEKS);
-  pendingOut = null; pendingNew = false;
+  pendingOut = null; pendingNew = false; chainCtx = null;
   if (prev !== undefined) PREV = prev;
   if (out !== undefined) OUT = out;
   // Cards: effective VHP (audit BX-3 b). Who is ranked is the vault stake (stakedOf), not a VHP balance.
@@ -492,6 +492,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   }
 
   // ── 2. results ──
+  chainCtx = { p, check, headId, libH, libT, picksRead };
   // Races before the recorder's first card were never run; only a race after it with no card at all is "missed".
   let firstCard = Infinity;
   for (const wf of weeks.values()) for (const r of wf.races) if (r.cards.some(Boolean)) firstCard = Math.min(firstCard, r.start);
@@ -499,43 +500,10 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
     if (race.result?.final || race.end > libT || race.end < now - LOOKBACK) continue;
     if (!race.cards.some(Boolean)) { if (race.start > firstCard) race.result = { final: true, missed: true, note: "no handicap card was recorded for this race" }; continue; }
     try {
-      // A height safely before the race start (blocks average 3 s apart; step further back until it is before).
-      const est = Math.ceil((libT - race.start) / 3000) + 600;
-      let lo = Math.max(1, libH - est);
-      while (lo > 1 && (await blockTime(p, headId, lo)) >= race.start) lo = Math.max(1, lo - est);
-      const a = await heightAt(p, headId, race.start, lo, libH), b = (await heightAt(p, headId, race.end, a, libH)) - 1;
-      const B = await readBlocks(p, headId, a, b);
-      let checked = 1;
-      if (check) {
-        const ch: any = await withRetry("check head", () => check.getHeadInfo());
-        const C = await readBlocks(check, ch.head_topology.id, a, b);
-        const same = C.ts.length === B.ts.length && C.ts.every((t, i) => t === B.ts[i] && C.signers[C.sig[i]] === B.signers[B.sig[i]]);
-        if (!same) { problems.push(`${race.id}: the two nodes disagree about the race's blocks; not final this run`); continue; }
-        checked = 2;
-      }
-      const st = M.standings(B, race, race.cards);
-      const winner = M.winners(st)[0] || null, showSet = new Set<string>(M.shows(st));
-      // The picks (locked by the chain since the race started), read on both nodes like the blocks.
-      let picks: any[] | undefined;
-      if (picksRead) {
-        const raceNo = M.raceIndex(race.start);
-        const mine = await picksRead(p, raceNo);
-        if (check) {
-          const theirs = await picksRead(check, raceNo);
-          const key = (x: Pick[]) => JSON.stringify([...x].sort((u, v) => (u[0] < v[0] ? -1 : 1)));
-          if (key(mine) !== key(theirs)) { problems.push(`${race.id}: the two nodes disagree about the race's picks; not final this run`); continue; }
-        }
-        // [player, horse, time, won (1/0), 0, show: 2nd or 3rd (1/0)]. The 5th field was "may be ranked" (1 VHP or a
-        // question-game stake) until 2026-10-28; the Staked / Free play split now comes from the vault, so it is no longer
-        // read (a race's result depends only on its blocks and picks) and is always 0.
-        picks = mine.map(([who, horse, at]) => [who, horse, at, horse === winner ? 1 : 0, 0, horse !== winner && showSet.has(horse) ? 1 : 0]);
-      }
-      race.result = {
-        final: true, checked, heights: [a, b], blocks: B.ts.length, line: M.finishLine(race.cards),
-        winner, standings: st.map((x: any) => ({ a: x.a, steps: x.steps, blocks: x.blocks })),
-        ...(picks ? { picks } : {}),
-      };
-      console.log(`${race.id}: final, winner ${race.result.winner} (${st[0]?.steps} steps), blocks ${a}-${b}, checked on ${checked} node(s)`);
+      const r = await scoreRace(race, chainCtx);
+      if (!r.ok) { problems.push(`${race.id}: ${r.why}; not final this run`); continue; }
+      race.result = r.result;
+      console.log(`${race.id}: final, winner ${race.result.winner} (${race.result.standings[0]?.steps} steps), blocks ${race.result.heights[0]}-${race.result.heights[1]}, checked on ${race.result.checked} node(s)`);
     } catch (e) { problems.push(`${race.id}: ${(e as Error).message} (tried again next run)`); }
     await sleep(200);
   }
@@ -566,12 +534,75 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   if (pendingOut) fs.writeFileSync(path.join(OUT, "vault", `PENDING-W${pendingOut.week}.json`), JSON.stringify(pendingOut) + "\n");
   const hn = holdNote(holdSetting);
   if (hn) problems.unshift(hn);
-  for (const pr of problems) console.log(`::warning::${pr}`);
+  for (const pr of problems) console.log(`::warning::${cmdText(pr)}`);
   // D-107 (R-RACE-13, I-087): a held paid week fails the run AFTER publishing (the alert job), so GitHub emails the
   // owner. The recorder only says so; the workflow's last job does the failing.
-  for (const a of heldAlerts) console.log(`::error::${a}`);
+  for (const a of heldAlerts) console.log(`::error::${cmdText(a)}`);
   if (heldAlerts.length && E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, "held=true\n");
+  // Repo Lens #E-11 L-2: tell the publish job files were written, so a lost hand-over between the jobs fails the run.
+  if (E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, "files=true\n");
   return { problems, held: heldAlerts.slice() };
+}
+
+// ── one race's result from the chain (used to record it, and again before a paid week goes final: Repo Lens #E-11 H-1) ──
+type ChainCtx = { p: any; check: any | null; headId: string; libH: number; libT: number; picksRead: ((node: any, r: number) => Promise<Pick[]>) | null };
+let chainCtx: ChainCtx | null = null;
+/** Reads a finished race's blocks (and picks) on both nodes and scores it. `ok: false` with the reason when the two
+ *  nodes disagree; throws on a read failure. */
+async function scoreRace(race: Race, c: ChainCtx): Promise<{ ok: true; result: any } | { ok: false; why: string }> {
+  const { p, check, headId, libH, libT, picksRead } = c;
+  // A height safely before the race start (blocks average 3 s apart; step further back until it is before).
+  const est = Math.ceil((libT - race.start) / 3000) + 600;
+  let lo = Math.max(1, libH - est);
+  while (lo > 1 && (await blockTime(p, headId, lo)) >= race.start) lo = Math.max(1, lo - est);
+  const a = await heightAt(p, headId, race.start, lo, libH), b = (await heightAt(p, headId, race.end, a, libH)) - 1;
+  const B = await readBlocks(p, headId, a, b);
+  let checked = 1;
+  if (check) {
+    const ch: any = await withRetry("check head", () => check.getHeadInfo());
+    const C = await readBlocks(check, ch.head_topology.id, a, b);
+    const same = C.ts.length === B.ts.length && C.ts.every((t, i) => t === B.ts[i] && C.signers[C.sig[i]] === B.signers[B.sig[i]]);
+    if (!same) return { ok: false, why: "the two nodes disagree about the race's blocks" };
+    checked = 2;
+  }
+  const st = M.standings(B, race, race.cards);
+  const winner = M.winners(st)[0] || null, showSet = new Set<string>(M.shows(st));
+  // The picks (locked by the chain since the race started), read on both nodes like the blocks.
+  let picks: any[] | undefined;
+  if (picksRead) {
+    const raceNo = M.raceIndex(race.start);
+    const mine = await picksRead(p, raceNo);
+    if (check) {
+      const theirs = await picksRead(check, raceNo);
+      const key = (x: Pick[]) => JSON.stringify([...x].sort((u, v) => (u[0] < v[0] ? -1 : 1)));
+      if (key(mine) !== key(theirs)) return { ok: false, why: "the two nodes disagree about the race's picks" };
+    }
+    // [player, horse, time, won (1/0), 0, show: 2nd or 3rd (1/0)]. The 5th field was "may be ranked" (1 VHP or a
+    // question-game stake) until 2026-10-28; the Staked / Free play split now comes from the vault, so it is no longer
+    // read (a race's result depends only on its blocks and picks) and is always 0.
+    picks = mine.map(([who, horse, at]) => [who, horse, at, horse === winner ? 1 : 0, 0, horse !== winner && showSet.has(horse) ? 1 : 0]);
+  }
+  return { ok: true, result: {
+    final: true, checked, heights: [a, b], blocks: B.ts.length, line: M.finishLine(race.cards),
+    winner, standings: st.map((x: any) => ({ a: x.a, steps: x.steps, blocks: x.blocks })),
+    ...(picks ? { picks } : {}),
+  } };
+}
+/** A stored result as the chain decides it: everything but how many nodes checked it. */
+const resultKey = (r: any) => { const { checked, ...rest } = r || {}; return JSON.stringify(rest); };
+/** Repo Lens #E-11 H-1 (b): before a paid week's vault file goes final, every final race of the week is scored again
+ *  from the chain on both nodes and must equal the stored result. Returns "" when all agree, otherwise why not. A
+ *  read failure throws (the caller waits: not final this run). */
+export async function verifyWeek(wf: WeekFile, c: ChainCtx | null): Promise<string> {
+  if (!c) return "the chain isn't available to check the week's races";
+  for (const race of wf.races) {
+    if (!race.result?.final || race.result.missed) continue;
+    const r = await scoreRace(race, c);
+    if (!r.ok) return `${race.id}: ${r.why} when checking the week again`;
+    if (resultKey(r.result) !== resultKey(race.result)) return `${race.id}: its stored result isn't what the chain says now (picks or standings differ)`;
+    await sleep(100);
+  }
+  return "";
 }
 
 // ── leaderboards ──
@@ -656,7 +687,7 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
 export const VAULT_GAME = 7;
 /** The first vault week the Race earns in (owner, 2026-11-02: game 7 is applied in the vault and earns from week 3, Mon
  *  9 Nov 2026). Earlier weeks: no free-prize places, no staked rows and no medals (the vault skips them anyway). */
-export const PRIZES_FROM_WEEK = 3;
+export const PRIZES_FROM_WEEK = 3;   // also PRIZES_FROM in race.yml's publish check (Repo Lens #E-11 I-2): change both together
 let prizesFromWeek = PRIZES_FROM_WEEK;
 export const MAX_PRIZE_WINNERS = 10;
 export const MAX_ROW_POINTS = 255;
@@ -753,8 +784,13 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   const old = readPrev(`vault/W${w}.json`);
   if (old && old.final === true && old.game === VAULT_GAME && old.week === w) return old;
   const wf = all.get(w);
-  // No week file, or one with nothing recorded (e.g. the last run's files couldn't be read): write nothing.
-  if (!wf || !wf.races.some((r) => r.cards.some(Boolean) || r.result)) return null;
+  // No week file, or one with nothing recorded (e.g. the last run's files couldn't be read): write nothing. Repo Lens
+  // #E-11 L-1: for a paid week that's late, say so (it would otherwise roll over without a word).
+  if (!wf || !wf.races.some((r) => r.cards.some(Boolean) || r.result)) {
+    const end = M.weekStart(w + 1);
+    lateAlert(w, end, now, "nothing was recorded for that week (no race file, or no card and no result in it)");
+    return null;
+  }
   let firstCard = Infinity;
   for (const x of all.values()) for (const r of x.races) if (r.cards.some(Boolean)) firstCard = Math.min(firstCard, r.start);
   const open = wf.races.filter((r) => !r.result?.final && !(r.start < firstCard && !r.cards.some(Boolean)));
@@ -777,10 +813,10 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
     const t = Number(x[2]); if (!firstPick.has(x[0]) || t < firstPick.get(x[0])!) firstPick.set(x[0], t);
   }
   // Before the Race earns in the vault: a final file with nothing to pay (the vault skips those weeks anyway).
-  if (w < prizesFromWeek) return settle({ ...file, final: true, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
+  if (w < prizesFromWeek) return await settle({ ...file, final: true, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
   const places = prizePlaces(rows, firstPick), staked = stakedRows(rows);
   for (const n of [...places.notes, ...staked.notes]) problems.push(`vault week ${w}: ${n}`);
-  return settle({ ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
+  return await settle({ ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
 }
 
 // ── the hold before a vault file goes final (I-034, R-RACE-1; owner 2026-11-03: 12 hours, then two matching runs) ──
@@ -836,7 +872,7 @@ function newThisWeek(all: Map<number, WeekFile>, w: number, who: string[]): stri
  *  #85 merge check I-1: "two runs at least an hour apart" holds on the hourly schedule. A run started by hand (Actions →
  *  Run workflow) can come sooner: the publish job accepts a new pending file dated up to 35 minutes back, so the two
  *  runs can be as little as ~25 minutes apart. It is still never one run alone. */
-function settle(candidate: VaultFile, weekEnd: number, now: number, problems: string[], all: Map<number, WeekFile>): VaultFile {
+async function settle(candidate: VaultFile, weekEnd: number, now: number, problems: string[], all: Map<number, WeekFile>): Promise<VaultFile> {
   if (hold === false) return candidate;
   const w = candidate.week, waiting: VaultFile = { game: VAULT_GAME, week: w, final: false, rows: [], first: [], second: [], skipped: [] };
   const prev = prevPending(w, now);
@@ -858,6 +894,22 @@ function settle(candidate: VaultFile, weekEnd: number, now: number, problems: st
   if (holdSetting.weeks.includes(w)) { problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`); return waiting; }
   const readyAt = Math.max(weekEnd + hold.afterEnd, at + hold.stable);
   if (now >= weekEnd + hold.afterEnd && same && now - at >= hold.stable) {
+    // Repo Lens #E-11 H-1 (b): a paid week goes final only once its races, scored again from the chain, match.
+    if (w >= prizesFromWeek) {
+      const wf = all.get(w);
+      let why = "";
+      try { why = wf ? await verifyWeek(wf, chainCtx) : "its week file isn't loaded"; }
+      catch (e) {
+        problems.push(`vault week ${w}: couldn't check the week's races again (${(e as Error).message}); not final this run`);
+        lateAlert(w, weekEnd, now, "the week's races couldn't be checked again on the chain");
+        return waiting;
+      }
+      if (why) {
+        problems.push(`vault week ${w}: HELD, ${why}`);
+        heldAlert(w, weekEnd, now, `a race's stored result doesn't match the chain (${why})`, "tell the Race chat with this alert: a recorder run wrote a wrong race result. Don't release it by hand");
+        return waiting;
+      }
+    }
     problems.push(`vault week ${w}: final after the hold (pending since ${new Date(at).toISOString()}). ${summary}`);
     return candidate;
   }
@@ -865,6 +917,10 @@ function settle(candidate: VaultFile, weekEnd: number, now: number, problems: st
   lateAlert(w, weekEnd, now, `its results keep changing between runs, so the 1-hour check hasn't passed (pending since ${new Date(at).toISOString()})`);
   return waiting;
 }
+
+/** Repo Lens #E-11 L-3: text inside a workflow command (::warning:: / ::error::) is escaped as GitHub does, so a node's
+ *  error text with a newline can't start a command of its own (e.g. ::stop-commands::). */
+export const cmdText = (t: string) => String(t).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
 
 // ── D-107 (R-RACE-13, I-087): a held paid week alerts, and says what to do ──
 /** The vault takes a week's results for 3 days after the week ends; after that the week rolls over. */
@@ -978,7 +1034,7 @@ export async function sample({ p, check, prev, out, vhpOf, vhpCheckOf, spreadMs 
   const file: SampleFile = { v: 1, updated: new Date(Math.min(now, clock())).toISOString(), samples: keep };
   fs.writeFileSync(path.join(OUT, SAMPLES), JSON.stringify(file) + "\n");
   console.log(`sample at block ${headH} (${new Date(now).toISOString()}), ${who.length} producers; ${keep.length} kept`);
-  for (const pr of problems) console.log(`::warning::${pr}`);
+  for (const pr of problems) console.log(`::warning::${cmdText(pr)}`);
   return { problems, delay };
 }
 

@@ -360,11 +360,13 @@ test("audit BX-44: race cards have exact shapes, and a published card can never 
 const VW = "2026-11-02T00";                                   // the race with picks, in week 2
 /** Week 2 with picks on its first race (W1 the winner, W2 2nd, W3 3rd, GUEST the winner but not rankable), and every
  *  other race already recorded as missed, as the hourly runs would have done. Returns that folder. */
+let weekTwoPicks = null;   // the picks weekTwoDone recorded; later runs read the same ones from the "chain" (#E-11 H-1 b)
 async function weekTwoDone({ open = null } = {}) {
   const a = await hourly(U("2026-11-02T05:37Z"), "");
   const B = { ts: chain.ts, sig: chain.who.map((x) => P.indexOf(x)), signers: P };
   const st = M.standings(B, { start: U("2026-11-02T00:00Z"), end: U("2026-11-02T06:00Z") }, race(a, VW).cards);
-  const b = await picksRun(U("2026-11-02T06:37Z"), a, { custom: [[W1, st[0].a, 1], [W2, st[1].a, 2], [W3, st[2].a, 3], [GUEST, st[0].a, 4]] });
+  weekTwoPicks = [[W1, st[0].a, 1], [W2, st[1].a, 2], [W3, st[2].a, 3], [GUEST, st[0].a, 4]];
+  const b = await picksRun(U("2026-11-02T06:37Z"), a, { custom: weekTwoPicks });
   const w = week(b);
   for (const r of w.races) if (!r.result && r.id !== open) r.result = { final: true, missed: true, note: "no handicap card was recorded for this race" };
   fs.writeFileSync(path.join(b, "W002.json"), JSON.stringify(w));
@@ -777,7 +779,7 @@ test("prizes from week: the Race earns in the vault from week 3; earlier weeks p
 const pendingOf = (dir, w = 2) => { const f = path.join(dir, "vault", `PENDING-W${w}.json`); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : null; };
 const WAIT = { game: 7, week: 2, final: false, rows: [], first: [], second: [], skipped: [] };
 const FINAL = { game: 7, week: 2, final: true, rows: [], first: [W1, GUEST], second: [], skipped: [] };
-const holdRun = (at, prev, o = {}) => picksRun(U(at), prev, { vaultHold: null, ...o });   // null: the production default
+const holdRun = (at, prev, o = {}) => picksRun(U(at), prev, { vaultHold: null, custom: weekTwoPicks, ...o });   // null: the production default
 
 test("hold: pending first; final only 12 h after the week AND unchanged for an hour across runs", async () => {
   const { VAULT_HOLD_MS, VAULT_STABLE_MS } = await import(path.resolve(APP, "bot/race.ts"));
@@ -1055,11 +1057,11 @@ test("held alert: the recorder tells the workflow (GITHUB_OUTPUT held=true) and 
     await run({ p: node(U("2026-11-09T16:37Z")), check: node(U("2026-11-09T16:37Z")), prev: dir, out: tmp(), vhpOf, raceContract: "x", picksOf: async () => [], prizesFrom: 0,
       stakedOf: async () => { throw new Error("node timeout"); } });
   } finally { console.log = log; if (old === undefined) delete process.env.GITHUB_OUTPUT; else process.env.GITHUB_OUTPUT = old; }
-  assert.equal(fs.readFileSync(outFile, "utf8"), "held=true\n");
+  assert.equal(fs.readFileSync(outFile, "utf8"), "held=true\nfiles=true\n");
   assert.ok(lines.some((l) => /^::error::Producer Race vault week 2 .* is HELD/.test(l)));
   const clean = path.join(tmp(), "gh-output2");
   try { process.env.GITHUB_OUTPUT = clean; await holdRun("2026-11-09T05:37Z", dir); } finally { if (old === undefined) delete process.env.GITHUB_OUTPUT; else process.env.GITHUB_OUTPUT = old; }
-  assert.equal(fs.existsSync(clean), false, "nothing held: no output");
+  assert.equal(fs.readFileSync(clean, "utf8"), "files=true\n", "nothing held: only the files flag (#E-11 L-2)");
 });
 
 test("held alert, workflow: the alert job fails the run after publishing; the publish job flags the vault files it holds", async () => {
@@ -1200,4 +1202,110 @@ test("#85 merge check L-1: a new pending file is dated at the end of the run (he
   console.log = () => {};
   try { await run({ p: p2, check: node(start), prev: dir, out: out2, vhpOf, raceContract: "x", picksOf: async () => [], prizesFrom: 0, stakedOf: async () => { done2 = true; return false; } }); } finally { console.log = log; }
   assert.equal(pendingOf(out2).at, start);
+});
+
+// ── Repo Lens #E-11 (PR #133) ──
+test("#E-11 H-1 (a): the publish job refuses to change a race's published final result (picks moved, a wallet added); the same result passes", async () => {
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const { dir: d0 } = await weekTwoDone();
+  const dir = await holdRun("2026-11-09T05:37Z", d0);           // the recorder's own files (its exact JSON form)
+  assert.ok(publish(dir, bare).ok, "the honest week publishes");
+  const show = () => JSON.parse(execFileSync("git", ["--git-dir", bare, "show", "race-data:W002.json"]).toString());
+  const before = show();
+  assert.ok(publish(dir, bare).ok, "the same result again: fine");
+  const tamper = (fn) => { const d = tmp(); fs.cpSync(dir, d, { recursive: true }); const w = week(d); fn(w.races.find((r) => r.id === VW).result); fs.writeFileSync(path.join(d, "W002.json"), JSON.stringify(w) + "\n"); return d; };
+  for (const [name, fn] of [
+    ["P1 moved to another horse", (r) => { const x = r.picks.find((y) => y[0] === W1); x[1] = P[4]; x[3] = 0; x[5] = 0; }],
+    ["a new free wallet added on the winner, earliest", (r) => { r.picks.unshift(["1" + "X".repeat(33), r.winner, 0, 1, 0, 0]); }],
+    ["a pick time moved", (r) => { r.picks[0][2] = 0; }],
+    ["the winner changed", (r) => { r.standings.reverse(); r.winner = r.standings[0].a; for (const x of r.picks) { x[3] = x[1] === r.winner ? 1 : 0; x[5] = 0; } }],
+  ]) {
+    const res = publish(tamper(fn), bare);
+    // (Reversed standings are refused even earlier, by the shape check: they must be in finishing order.)
+    assert.equal(res.ok, false, name); assert.match(res.out, name === "the winner changed" ? /a published final result would change|W002\.json 2026-11-02T00/ : /a published final result would change/, name);
+    assert.deepEqual(show(), before, `${name}: the branch is unchanged`);
+  }
+});
+
+test("#E-11 H-1 (a): picks published with 5 fields (before Show) still match when the recorder writes them with 6", async () => {
+  const { dir: d0 } = await weekTwoDone();
+  const dir = await holdRun("2026-11-09T05:37Z", d0);
+  const w = week(dir), r0 = w.races.find((r) => r.id === VW);
+  const five = JSON.parse(JSON.stringify(w)); five.races.find((r) => r.id === VW).result.picks = r0.result.picks.map((x) => x.slice(0, 5));
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const old = tmp(); fs.cpSync(dir, old, { recursive: true }); fs.writeFileSync(path.join(old, "W002.json"), JSON.stringify(five) + "\n");
+  assert.ok(publish(old, bare).ok, "the old 5-field file publishes");
+  assert.ok(publish(dir, bare).ok, "the recorder's 6-field version of the same picks is not a change");
+  const bad = JSON.parse(JSON.stringify(w)); bad.races.find((r) => r.id === VW).result.picks[0][2] += 1;
+  const d = tmp(); fs.cpSync(dir, d, { recursive: true }); fs.writeFileSync(path.join(d, "W002.json"), JSON.stringify(bad) + "\n");
+  assert.match(publish(d, bare).out, /a published final result would change/, "a real change in the first 5 fields is still refused");
+});
+
+test("#E-11 H-1 (b): before a paid week goes final, its races are scored again from the chain; stored picks that differ hold it and alert", async () => {
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  // The chain now says W1 picked another horse than the stored result (a bad first recording).
+  const other = weekTwoPicks.map((x) => (x[0] === W1 ? [W1, P[4], x[2]] : x));
+  const h = await holdRun("2026-11-09T12:37Z", a, { custom: other });
+  assert.deepEqual(vaultOf(h), WAIT, "not final");
+  assert.match(lastProblems.join("\n"), /vault week 2: HELD, 2026-11-02T00: its stored result isn't what the chain says now/);
+  assert.equal(lastRun.held.length, 1);
+  assert.match(lastRun.held[0], /HELD: a race's stored result doesn't match the chain .*\(1\) tell the Race chat with this alert/);
+  // The chain agrees: final.
+  assert.deepEqual(vaultOf(await holdRun("2026-11-09T12:37Z", a)), FINAL);
+  // The two nodes disagree on the picks when checking again: held too.
+  await holdRun("2026-11-09T12:37Z", a, { theirs: [[W1, P[4], 1]] });
+  assert.match(lastProblems.join("\n"), /vault week 2: HELD, 2026-11-02T00: the two nodes disagree about the race's picks when checking the week again/);
+  // An unpaid week isn't checked again (nothing is paid).
+  await holdRun("2026-11-09T12:37Z", a, { custom: other, prizesFrom: 3 });
+  assert.doesNotMatch(lastProblems.join("\n"), /when checking the week again|stored result isn't/);
+});
+
+test("#E-11 H-1 (b): a read failure while checking the week again waits (not final), and alerts once the week is late", async () => {
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  const lines = [], log = console.log, out = tmp();
+  let fail = false;
+  const base = node(U("2026-11-09T12:37Z"));
+  const p = { ...base, async call(m, x) { if (fail) throw new Error("fetch failed"); return base.call(m, x); } };
+  console.log = (l) => lines.push(String(l));
+  let r;
+  try {
+    r = await run({ p, check: node(U("2026-11-09T12:37Z")), prev: a, out, vhpOf, raceContract: "x", prizesFrom: 0, vaultHold: undefined, holdWeeks: [],
+      picksOf: async (n, ri) => (ri === RACE00 ? weekTwoPicks : []), stakedOf: async () => { fail = true; return false; } });
+  } finally { console.log = log; }
+  assert.equal(vaultOf(out).final, false);
+  assert.ok(r.problems.some((x) => /couldn't check the week's races again/.test(x)), r.problems.join("\n"));
+});
+
+test("#E-11 L-1: a paid week with nothing recorded at all alerts once it's late", async () => {
+  await holdRun("2026-11-09T16:37Z", tmp());
+  assert.equal(lastRun.held.length, 1);
+  assert.match(lastRun.held[0], /vault week 2 .* HELD: still not final 17 h after the week ended: nothing was recorded for that week/);
+});
+
+test("#E-11 L-2: the publish job fails when the recorder wrote files but none arrived; with no files written it's a quiet no-op", () => {
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const missing = path.join(tmp(), "nothing-here");
+  const run2 = (files) => { const env = { ...process.env, IN: missing, GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r", RUNNER_TEMP: tmp(), RECORD_FILES: files };
+    try { return { ok: true, out: execFileSync("bash", ["-c", publishSh], { cwd: tmp(), env, stdio: "pipe" }).toString() }; } catch (e) { return { ok: false, out: String(e.stdout) + String(e.stderr) }; } };
+  const lost = run2("true");
+  assert.equal(lost.ok, false); assert.match(lost.out, /didn't reach the publish job \(artifact hand-over failed\)/);
+  const quiet = run2("");
+  assert.ok(quiet.ok); assert.match(quiet.out, /Nothing to publish/);
+  assert.match(yml, /files: \$\{\{ steps\.race\.outputs\.files \}\}/);
+  assert.match(yml, /RECORD_FILES: \$\{\{ needs\.record\.outputs\.files \}\}/);
+});
+
+test("#E-11 L-3: text in ::warning:: / ::error:: lines is escaped (%, CR, LF), so node error text can't start a command", async () => {
+  const { cmdText } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(cmdText("a\n::stop-commands::x\r\n100%"), "a%0A::stop-commands::x%0D%0A100%25");
+  const src = fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8");
+  const prints = src.match(/console\.log\(`::(warning|error)::\$\{[^}]+\}`\)/g) || [];
+  assert.ok(prints.length >= 3);
+  for (const x of prints) assert.match(x, /\$\{cmdText\(/, x);
+});
+
+test("#E-11 I-2: PRIZES_FROM_WEEK says where its second copy is", () => {
+  assert.match(fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8"), /export const PRIZES_FROM_WEEK = 3;\s+\/\/ also PRIZES_FROM in race\.yml/);
 });

@@ -37,6 +37,8 @@ jobs:
     # D-107 (R-RACE-13): "true" when the recorder held a paid vault week (read by the alert job below).
     outputs:
       held: ${{ steps.race.outputs.held }}
+      # Repo Lens #E-11 L-2: "true" when the recorder wrote its files (the publish job fails if they don't arrive).
+      files: ${{ steps.race.outputs.files }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -109,9 +111,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           IN: ${{ runner.temp }}/incoming
+          RECORD_FILES: ${{ needs.record.outputs.files }}
         run: |
           set -euo pipefail
-          if [ ! -d "$IN" ]; then echo "Nothing to publish."; exit 0; fi
+          if [ ! -d "$IN" ]; then
+            # Repo Lens #E-11 L-2: the recorder wrote files but none arrived: the hand-over between the jobs failed.
+            if [ "${RECORD_FILES:-}" = "true" ]; then echo "::error::The record job wrote its files, but they didn't reach the publish job (artifact hand-over failed). Nothing was published this run; the next run tries again."; exit 1; fi
+            echo "Nothing to publish."; exit 0
+          fi
           bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( -type f ! -regex "$IN/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           big=$(find "$IN" -type f -size +2048k -print)
@@ -394,6 +401,16 @@ jobs:
                       if o and type(o.get("cards")) is list and len(o["cards"]) == len(r["cards"]):
                           for i, c in enumerate(o["cards"]):
                               assert c is None or same(c, r["cards"][i]), f"{f} {r['id']}: a published card would change"
+                      # Repo Lens #E-11 H-1 (a): a race's published final result never changes either (the recorder keeps
+                      # it as it is). Picks stored before Show existed have 5 fields; the recorder adds the 6th when it
+                      # loads them, so those are compared on their first 5.
+                      if o and type(o.get("result")) is dict and o["result"].get("final") is True:
+                          a, b = o["result"], r["result"]
+                          ok = type(b) is dict and same({k: v for k, v in a.items() if k != "picks"}, {k: v for k, v in b.items() if k != "picks"})
+                          pa, pb = a.get("picks"), b.get("picks") if type(b) is dict else None
+                          ok = ok and (pa is None) == (pb is None) and (pa is None or (type(pa) is list and type(pb) is list and len(pa) == len(pb)
+                              and all(same(x, y) or (type(x) is list and len(x) == 5 and type(y) is list and len(y) == 6 and same(x, y[:5])) for x, y in zip(pa, pb))))
+                          assert ok, f"{f} {r['id']}: a published final result would change"
           print("race files ok")
           PY
           cd work

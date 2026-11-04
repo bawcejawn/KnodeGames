@@ -5,6 +5,8 @@
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
 ## Moved 2026-11-04 (evening)
+- Hub session-end (4 Nov 05:17 UTC) filed. R-HUB-2 done: the staking hub reads the live vault on mainnet (week 2, minimum 1 VHP, game 1 only until Thu's `game-apply`); the Questions status bar shows "Staked · 1 VHP"; the Race bar's old text is fixed by PR #94.
+  | R-HUB-2 | Check the staking hub, status bars and panels on mainnet now that the vault is live | — | checked | open |
 - Owner, 21:15 PT: `sponsor-limit 0 --send` done (tx `0x12209299478ad245a288e103eab3a195358c9572b8b355872a5ccc3ce7e43f2e548f`); `chain-check`: everything matches, vault and Desk `authorizes_*` all true, no pending transfers, upgrades or seed withdrawal, Desk holds 1,823.54 KOIN + 19,425.45 VHP. Guest picks on Race and Block X tested by the owner: they work.
   - [ ] **Stop the vault paying others' Mana** (D-099): `npm run bot -- sponsor-limit 0` (dry run, then `--send`), then merge PR #89 (`maxSponsorRc: "0"`) right after — P2 — I-044
   - [ ] **Read-only check:** the authorize/upload protections are on for the vault and the Desk (`npm run bot -- chain-check`; Repo Lens rated the Desk Critical if they're off); paste the result to the Vault chat — P1 (from the old checklist MKKtXR t12, D-100)

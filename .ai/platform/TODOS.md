@@ -15,6 +15,8 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
+- [ ] **Merge PR #99** (CI guard step; Repo Lens #C-5: ready to merge) — your OK — P2
+- [ ] **GitHub setting (Repo Lens C5-13):** a `.github/CODEOWNERS` file (`/.github/ @bawcejawn`, `/tests/audit/site.ci-deps.test.mjs @bawcejawn`, `/tests/audit/ci-guard-*`) and on `main` a ruleset making the **guard check required**. ⚠️ Don't turn on "Require review from Code Owners" without a bypass for yourself: the chats open PRs under your own account, and GitHub doesn't let you approve your own PR, so every merge would be blocked. Ask the library chat for exact clicks first — P2
 - [ ] **Sponsor fix upload (R-BX-15), ideally before Thu's `game-apply`:** once the Block X chat has merged the stopgap into `sponsor-guest-trap`, follow Repo Lens #C-3's steps (rebuild, check the hash, `upload` dry run → `--send`, then `config` → `--send` with only "vault live no → yes" changing, then the `would_pay` check and a guest pick on each page). **Afterwards `git switch main`** — P1
 - [ ] **Decide the Mana caps** once the Block X chat proposes numbers (R-BX-16): per transaction (1 → 2?), the Picks row, per player per day/week — P2
 - [ ] Send Repo Lens `claude/blockx/ROUND-14-LOWS-FIXCHECK-PROMPT.md` (Block X Lows, branch `blockx-lows`) — P3

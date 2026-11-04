@@ -5,7 +5,9 @@
 #  - fill (by hand, once): the first 30 days (bot/vhp-fill.ts): a plan, three parallel jobs of 10 days each (a failed
 #    one is re-run alone with "Re-run failed jobs"), then one live read and the hour files.
 #  - publish: runs NO repository code. The embedded vhp_ruler.py checks every new file (hash chain, one signer and one
-#    burn per block, anchors on both nodes, write-once, rollups, retention) and only then pushes to vhp-data.
+#    burn per block, every balance adding up to the hour before, write-once, canonical names, rollups, retention), then
+#    checks every new block's id and signer on a THIRD node (vars.RPC_VERIFY: the two recording nodes agreeing proves
+#    consistency, not truth), and only then pushes to vhp-data.
 # Off until the owner sets the repository variable VHP_RULER_ENABLED to true (after Repo Lens review 2).
 name: VHP ruler data
 
@@ -55,8 +57,8 @@ jobs:
           git init -q prev-repo && git -C prev-repo fetch -q --depth 1 "$url" vhp-data
           git -C prev-repo ls-tree -r -z --name-only FETCH_HEAD > "$RUNNER_TEMP/files"
           while IFS= read -r -d '' f; do
-            if [[ "$f" =~ ^h/[0-9]{1,9}\.json$ ]]; then git -C prev-repo show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
-            if [[ "$f" =~ ^d/[0-9]{1,9}\.json$ ]]; then : > "$RUNNER_TEMP/prev/$f"; fi   # names only: the recorder needs which days exist
+            if [[ "$f" =~ ^h/(0|[1-9][0-9]{0,8})\.json$ ]]; then git -C prev-repo show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
+            if [[ "$f" =~ ^d/(0|[1-9][0-9]{0,8})\.json$ ]]; then : > "$RUNNER_TEMP/prev/$f"; fi   # names only: the recorder needs which days exist
           done < "$RUNNER_TEMP/files"
       - name: Record the next hours
         run: npx tsx bot/vhp-ruler.ts
@@ -110,6 +112,7 @@ jobs:
 
   fill-chunks:
     needs: fill-plan
+    if: ${{ vars.VHP_RULER_ENABLED == 'true' && github.ref == 'refs/heads/main' && inputs.mode == 'fill' }}
     runs-on: ubuntu-latest
     timeout-minutes: 340
     permissions:
@@ -148,6 +151,7 @@ jobs:
 
   fill-hours:
     needs: fill-chunks
+    if: ${{ vars.VHP_RULER_ENABLED == 'true' && github.ref == 'refs/heads/main' && inputs.mode == 'fill' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -184,7 +188,7 @@ jobs:
     needs: [record, fill-hours]
     if: ${{ always() && vars.VHP_RULER_ENABLED == 'true' && github.ref == 'refs/heads/main' && (needs.record.result == 'success' || needs.fill-hours.result == 'success') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90       # the first fill's 30 days are checked block by block on the third node
     permissions:
       contents: write         # push the vhp-data branch (never main)
     steps:
@@ -198,10 +202,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           IN: ${{ runner.temp }}/incoming
           KEEP: ${{ vars.VHP_KEEP_DAYS || '30' }}
+          RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
+          RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
+          RPC_VERIFY: ${{ vars.RPC_VERIFY || '' }}
         run: |
           set -euo pipefail
           if [ ! -d "$IN" ]; then echo "Nothing to publish."; exit 0; fi
-          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/h" ! -path "$IN/d" \) -o \( -type f ! -regex "$IN/[hd]/[0-9]+\.json" ! -path "$IN/remove.txt" \) \) -print)
+          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/h" ! -path "$IN/d" \) -o \( -type f ! -regex "$IN/[hd]/\(0\|[1-9][0-9]*\)\.json" ! -path "$IN/remove.txt" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git init -q work
@@ -211,7 +218,7 @@ jobs:
             parent=$(git -C work rev-parse FETCH_HEAD)
             git -C work ls-tree -r -z --name-only FETCH_HEAD > "$RUNNER_TEMP/pubfiles"
             while IFS= read -r -d '' f; do
-              if [[ "$f" =~ ^[hd]/[0-9]{1,9}\.json$ ]]; then mkdir -p "$RUNNER_TEMP/published/${f%/*}"; git -C work show "FETCH_HEAD:$f" > "$RUNNER_TEMP/published/$f"; fi
+              if [[ "$f" =~ ^[hd]/(0|[1-9][0-9]{0,8})\.json$ ]]; then mkdir -p "$RUNNER_TEMP/published/${f%/*}"; git -C work show "FETCH_HEAD:$f" > "$RUNNER_TEMP/published/$f"; fi
             done < "$RUNNER_TEMP/pubfiles"
           fi
           /usr/bin/python3 -I -B - "$IN" "$RUNNER_TEMP/published" "$KEEP" <<'PY'
@@ -691,7 +698,7 @@ jobs:
           # ── the vhp-data format and its checks: the twin of vhp-data.js (read it for the format in words) ──
           HOUR, DAY, DATA_VERSION = 1200, 28800, 1
           _ADDR = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
-          _ID = re.compile(r"0x[0-9a-f]{8,}")
+          _ID = re.compile(r"0x1220[0-9a-f]{64}")
           _SAT = re.compile(r"(0|[1-9][0-9]{0,24})")
 
 
@@ -723,8 +730,8 @@ jobs:
                   return "from/to must be block-hour n"
               if type(h["prev"]) is not str or not re.fullmatch(r"([0-9a-f]{64})?", h["prev"]):
                   return "prev must be a sha256"
-              if h["kind"] not in ("live", "rebuilt"):
-                  return "kind must be live or rebuilt"
+              if h["kind"] not in ("live", "rebuilt", "chained"):
+                  return "kind must be live, rebuilt or chained"
               addrs = h["addrs"]
               if not isinstance(addrs, list) or not all(type(a) is str and _ADDR.fullmatch(a) for a in addrs):
                   return "bad address"
@@ -794,8 +801,10 @@ jobs:
                           return "reads %s: %s must be [h, balance, eff] read between the hour's end and the anchor block" % (node, k)
                       if type(r[1]) is not str or not _SAT.fullmatch(r[1]) or type(r[2]) is not str or not (r[2] == "" or _SAT.fullmatch(r[2])):
                           return "reads %s: bad numbers for %s" % (node, k)
-              if h["kind"] == "rebuilt" and (a["reads"]["A"] or a["reads"]["B"]):
-                  return "a rebuilt hour carries no reads"
+              if h["kind"] != "live" and (a["reads"]["A"] or a["reads"]["B"]):
+                  return "a %s hour carries no reads" % h["kind"]
+              if h["kind"] == "chained" and a["at"] != h["to"]:
+                  return "a chained hour's anchor is its own last block"
               if h["kind"] == "live":
                   for node in ("A", "B"):
                       for k in a["bal"]:
@@ -862,8 +871,8 @@ jobs:
                       return _fail("the hash chain is broken (prev isn't the previous file's sha256)")
                   if h["n"] != prev["n"] + 1:
                       return _fail("hours must be consecutive")
-                  if prev["kind"] == "live" and h["kind"] == "rebuilt":
-                      return _fail("a rebuilt hour can't follow a live one")
+                  if prev["kind"] != "rebuilt" and h["kind"] == "rebuilt":
+                      return _fail("a rebuilt hour can't follow a %s one" % prev["kind"])
                   if h["anchor"]["at"] < prev["anchor"]["at"]:
                       return _fail("anchors go forward")
                   for x in range(h["from"], prev["anchor"]["at"] + 1):
@@ -873,6 +882,8 @@ jobs:
                       return _fail("the events after the previous hour differ from its tail")
               elif h["prev"] != "":
                   return _fail("the first file must have an empty prev")
+              elif h["kind"] == "chained":
+                  return _fail("a chained hour needs the hour before it")
               bal = h["anchor"]["bal"]
               addrs = list(bal.keys())
               for s in [h["addrs"][i] for i in h["sig"] + h["tail"]["sig"]]:
@@ -902,7 +913,7 @@ jobs:
                       if v < 0:
                           return _fail("%s: the rebuild goes below zero (a missed event)" % a)
               hsh = sha_hex(text)
-              if h["kind"] == "rebuilt":
+              if h["kind"] != "live":
                   return {"ok": True, "quality": "ok", "flagged": [], "hash": hsh}
               reads = h["anchor"]["reads"]
               for node in ("A", "B"):
@@ -947,9 +958,9 @@ jobs:
                       return _fail("not in canonical form")
               except Exception:
                   return _fail("not JSON")
-              if list(d.keys()) != ["v", "n", "from", "to", "hashes", "hours"] or d["v"] != DATA_VERSION:
+              if list(d.keys()) != ["v", "n", "from", "to", "hashes", "hours"] or type(d["v"]) is not int or d["v"] != DATA_VERSION:
                   return _fail("fields must be v, n, from, to, hashes, hours")
-              if not _safe_int(d["n"]) or d["from"] != d["n"] * DAY or d["to"] != d["from"] + DAY - 1:
+              if not _safe_int(d["n"]) or not _safe_int(d["from"]) or not _safe_int(d["to"]) or d["from"] != d["n"] * DAY or d["to"] != d["from"] + DAY - 1:
                   return _fail("from/to must be day n")
               if not isinstance(d["hours"], list) or len(d["hours"]) != 24 or not isinstance(d["hashes"], list) or len(d["hashes"]) != 24:
                   return _fail("a day holds 24 hours")
@@ -980,7 +991,7 @@ jobs:
                   signers.extend(h["addrs"][s] for s in h["sig"])
                   ids.extend(h["ids"])
                   deltas.extend(deltas_of(h, i == len(hours) - 1))
-                  if h["kind"] == "rebuilt":
+                  if h["kind"] == "rebuilt" or (h["kind"] == "chained" and not any(x["kind"] == "live" for x in hours[i + 1:])):
                       rebuilt.append({"h0": h["from"], "h1": h["to"]})
                   c = checks[i] if checks else None
                   if c and c["quality"] == "flagged":
@@ -995,7 +1006,8 @@ jobs:
 
 
           # ── the publish job (.github/workflows/vhp-ruler.yml runs this whole file, then publish_main) ──
-          _HOUR_FILE, _DAY_FILE = re.compile(r"h/([0-9]{1,9})\.json"), re.compile(r"d/([0-9]{1,9})\.json")
+          # canonical numbers only (Repo Lens #D-10 M-5): h/024010.json can't stand beside h/24010.json
+          _HOUR_FILE, _DAY_FILE = re.compile(r"h/(0|[1-9][0-9]{0,8})\.json"), re.compile(r"d/(0|[1-9][0-9]{0,8})\.json")
           MAX_HOUR_BYTES, MAX_DAY_BYTES, MIN_KEEP_DAYS = 4 << 20, 16 << 20, 22
 
 
@@ -1008,7 +1020,7 @@ jobs:
               for root, dirs, files in os.walk(d):
                   for f in files:
                       p = os.path.relpath(os.path.join(root, f), d).replace(os.sep, "/")
-                      if p == "remove.txt":
+                      if p in ("remove.txt", "verify.txt"):
                           continue
                       if os.path.islink(os.path.join(root, f)) or not (_HOUR_FILE.fullmatch(p) or _DAY_FILE.fullmatch(p)):
                           other.append(p)
@@ -1022,6 +1034,14 @@ jobs:
               return out, other
 
 
+          def _num_inside(text):
+              try:
+                  n = json.loads(text).get("n")
+                  return n if _safe_int(n) else None
+              except Exception:
+                  return None
+
+
           def publish_check(incoming, published, removals, keep_days):
               """incoming / published: {path: text}; removals: paths the run asks to remove. Returns (errors, warnings)."""
               errs, warns = [], []
@@ -1030,7 +1050,10 @@ jobs:
               days = {int(_DAY_FILE.fullmatch(p).group(1)): t for p, t in published.items() if _DAY_FILE.fullmatch(p)}
               new_h = {int(_HOUR_FILE.fullmatch(p).group(1)): t for p, t in incoming.items() if _HOUR_FILE.fullmatch(p)}
               new_d = {int(_DAY_FILE.fullmatch(p).group(1)): t for p, t in incoming.items() if _DAY_FILE.fullmatch(p)}
+              empty = not hours and not days
               for n, t in list(new_h.items()):
+                  if _num_inside(t) != n:
+                      errs.append("h/%d.json holds another hour's number" % n)   # #D-10 L-12
                   if len(t.encode("utf-8")) > MAX_HOUR_BYTES:
                       errs.append("h/%d.json is over %d bytes" % (n, MAX_HOUR_BYTES))
                   if n in hours:
@@ -1038,6 +1061,8 @@ jobs:
                           errs.append("h/%d.json is already published and can't be rewritten" % n)
                       del new_h[n]
               for n, t in list(new_d.items()):
+                  if _num_inside(t) != n:
+                      errs.append("d/%d.json holds another day's number" % n)
                   if len(t.encode("utf-8")) > MAX_DAY_BYTES:
                       errs.append("d/%d.json is over %d bytes" % (n, MAX_DAY_BYTES))
                   if n in days:
@@ -1069,6 +1094,8 @@ jobs:
                       prev = hour_text(ns[0] - 1) if newest is not None else ""
                       if prev is None:
                           errs.append("the hour before h/%d.json isn't published" % ns[0])
+                      elif not empty and prev == "":
+                          errs.append("only the very first publish may start a chain")
                       else:
                           for n in ns:
                               r = check_hour(prev, new_h[n])
@@ -1078,32 +1105,36 @@ jobs:
                               if r["quality"] == "flagged":
                                   warns.append("h/%d.json is flagged: %s" % (n, r.get("why", "")))
                               prev = new_h[n]
-              # new days: 24 hours, each byte-identical to its published hour, the chain checked from the hour before
+              # new days (#D-10 M-6): only roll up hours that already exist (published or new h/ files), byte for byte; the
+              # chain is checked from the hour before
               for d in sorted(new_d):
+                  try:
+                      hrs = json.loads(new_d[d])["hours"]
+                      texts = [canon(h) for h in hrs]
+                  except Exception:
+                      errs.append("d/%d.json is not a day file" % d)
+                      continue
+                  missing = [d * 24 + i for i in range(len(texts)) if (hours.get(d * 24 + i) or new_h.get(d * 24 + i)) != texts[i]]
+                  if len(texts) != 24 or missing:
+                      errs.append("d/%d.json: its hours must be published (or new) hour files, byte for byte (hour %s)" % (d, missing[0] if missing else "count"))
+                      continue
+                  first_prev = json.loads(texts[0]).get("prev")
                   prev = hour_text(d * 24 - 1)
                   if prev is None:
-                      try:
-                          starts = json.loads(new_d[d])["hours"][0]["prev"] == ""   # the day that starts the chain
-                      except Exception:
-                          starts = False
-                      if not starts:
+                      if first_prev != "" or d * 24 != min(known | set(new_h)):   # only the day that starts the chain
                           errs.append("d/%d.json: the hour before it isn't available" % d)
                           continue
                       prev = ""
                   r = check_day(new_d[d], prev)
                   if not r["ok"]:
                       errs.append("d/%d.json: %s" % (d, r["why"]))
-                      continue
-                  hrs = json.loads(new_d[d])["hours"]
-                  for i, hr in enumerate(hrs):
-                      n = d * 24 + i
-                      if n in hours and hours[n] != canon(hr):
-                          errs.append("d/%d.json: hour %d differs from the published h/%d.json" % (d, i, n))
-                          break
-              # removals: an hour only once a day file holds it (same sha256); a day only beyond retention
+              # removals: an hour only once a day file holds it (same sha256); days only beyond retention, oldest first, with
+              # no hole (#D-10 M-6); newest day from the hour files themselves
               all_days = dict(days)
               all_days.update(new_d)
-              newest_day = (max(known | set(new_h)) // 24) if (known or new_h) else 0
+              hour_ns = set(hours) | set(new_h)
+              newest_day = (max(hour_ns) // 24) if hour_ns else (max(all_days) if all_days else 0)
+              day_rm = []
               for p in removals:
                   m_h, m_d = _HOUR_FILE.fullmatch(p), _DAY_FILE.fullmatch(p)
                   if m_h:
@@ -1114,17 +1145,85 @@ jobs:
                           errs.append("remove %s: no day file holds it" % p)
                   elif m_d:
                       n = int(m_d.group(1))
-                      if n not in days and n not in new_d:
+                      if n not in days:
                           errs.append("remove %s: not published" % p)
                       elif n >= newest_day - keep_days:
                           errs.append("remove %s: still inside the %d days kept" % (p, keep_days))
+                      day_rm.append(n)
                   else:
                       errs.append("remove %s: not a vhp-data file" % p)
+              if day_rm and sorted(day_rm) != sorted(days)[:len(day_rm)]:
+                  errs.append("days are removed oldest first, with no hole")
               return errs, warns
 
 
+          def _rpc(url, method, params, timeout=60):
+              import urllib.request
+              body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode("utf-8")
+              req = urllib.request.Request(url, data=body, headers={"content-type": "application/json", "user-agent": "knode-vhp-ruler-publish"})
+              for attempt in range(4):
+                  try:
+                      with urllib.request.urlopen(req, timeout=timeout) as r:
+                          out = json.loads(r.read().decode("utf-8"))
+                      if "error" in out:
+                          raise ValueError(str(out["error"])[:200])
+                      return out["result"]
+                  except Exception:
+                      if attempt == 3:
+                          raise
+                      import time
+                      time.sleep(2 * (attempt + 1))
+
+
+          def verify_blocks(new_hours, url):
+              """Repo Lens #D-10 M-1: the two recording nodes agreeing proves consistency, not truth. Every new block's id and
+              signer (and each anchor block's id) must also be what a THIRD node says. Returns a list of errors."""
+              want = {}
+              for t in new_hours:
+                  h = json.loads(t)
+                  for part, start in ((h, h["from"]), (h["tail"], h["to"] + 1)):
+                      for i, idx in enumerate(part["sig"]):
+                          want[start + i] = (part["ids"][i], h["addrs"][idx])
+              if not want:
+                  return []
+              head = _rpc(url, "chain.get_head_info", {})
+              head_id, lib = head["head_topology"]["id"], int(head.get("last_irreversible_block", 0))
+              hs = sorted(want)
+              if hs[-1] > lib:
+                  return ["block %d isn't irreversible on the third node yet (it is at %d); tried again next run" % (hs[-1], lib)]
+              from concurrent.futures import ThreadPoolExecutor
+              runs, k = [], 0
+              while k < len(hs):
+                  s, e = hs[k], hs[k]
+                  while k + 1 < len(hs) and hs[k + 1] == e + 1 and e - s < 99:
+                      k += 1
+                      e = hs[k]
+                  runs.append((s, e))
+                  k += 1
+
+              def fetch(r):
+                  s, e = r
+                  res = _rpc(url, "block_store.get_blocks_by_height", {"head_block_id": head_id, "ancestor_start_height": str(s),
+                             "num_blocks": e - s + 1, "return_block": True, "return_receipt": False})
+                  return [(int(it["block_height"]), str(it["block_id"]), str(it["block"]["header"]["signer"])) for it in res.get("block_items", [])]
+              errs, got = [], {}
+              with ThreadPoolExecutor(max_workers=4) as ex:
+                  for items in ex.map(fetch, runs):
+                      for hh, bid, sg in items:
+                          got[hh] = (bid, sg)
+              for hh in hs:
+                  if hh not in got:
+                      errs.append("the third node didn't return block %d" % hh)
+                  elif got[hh] != want[hh]:
+                      errs.append("block %d: the third node says id %s… signer %s, the file says %s… %s" % (hh, got[hh][0][:14], got[hh][1], want[hh][0][:14], want[hh][1]))
+                  if len(errs) >= 5:
+                      break
+              return errs
+
+
           def publish_main(argv):
-              """argv: incoming dir, published dir, keep days. Exit 0 = publish, 1 = refuse."""
+              """argv: incoming dir, published dir, keep days. Env RPC_VERIFY: a third node (not RPC or RPC_CHECK). Exit 0 =
+              publish, 1 = refuse."""
               import os
               inc_dir, pub_dir, keep = argv[0], argv[1], int(argv[2])
               incoming, other = _read_tree(inc_dir)
@@ -1137,14 +1236,23 @@ jobs:
               errs, warns = publish_check(incoming, published, removals, keep)
               for p in other:
                   errs.append("unexpected file %s" % p)
+              new_hours = [t for p, t in sorted(incoming.items()) if p.startswith("h/") and p not in published]
+              if not errs and new_hours:
+                  v = os.environ.get("RPC_VERIFY", "").strip()
+                  if not v or v in (os.environ.get("RPC", ""), os.environ.get("RPC_CHECK", "")):
+                      errs.append("set the repository variable RPC_VERIFY to a third Koinos node (not RPC or RPC_CHECK): every new block is checked on it")
+                  else:
+                      try:
+                          errs.extend(verify_blocks(new_hours, v))
+                      except Exception as e:
+                          errs.append("couldn't check the blocks on the third node (%s); tried again next run" % str(e)[:200])
               for w in warns:
                   print("::warning::" + w)
               for e in errs:
                   print("::error::" + e)
               if not errs:
-                  print("ok: %d new hour(s), %d new day(s), %d removal(s)" % (
-                      sum(1 for p in incoming if p.startswith("h/") and p not in published),
-                      sum(1 for p in incoming if p.startswith("d/") and p not in published), len(removals)))
+                  print("ok: %d new hour(s), %d new day(s), %d removal(s); blocks checked on a third node" % (
+                      len(new_hours), sum(1 for p in incoming if p.startswith("d/") and p not in published), len(removals)))
               return 1 if errs else 0
 
 
@@ -1207,7 +1315,7 @@ jobs:
           # the checks passed: the published files, plus the new ones, minus the removals
           mkdir -p tree && cp -R "$RUNNER_TEMP/published/." tree/ 2>/dev/null || true
           for d in h d; do if [ -d "$IN/$d" ]; then mkdir -p "tree/$d"; cp "$IN/$d/"*.json "tree/$d/"; fi; done
-          if [ -f "$IN/remove.txt" ]; then while IFS= read -r f; do [ -n "$f" ] && rm -f "tree/$f"; done < "$IN/remove.txt"; fi
+          if [ -f "$IN/remove.txt" ]; then while IFS= read -r f || [ -n "$f" ]; do [ -n "$f" ] && rm -f "tree/$f"; done < "$IN/remove.txt"; fi
           cd tree
           git init -q -b vhp-data
           git -c user.name="knode-vhp-ruler" -c user.email="knode-vhp-ruler@users.noreply.github.com" add -A

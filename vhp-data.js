@@ -9,7 +9,11 @@
  *   { v: 1, n, from, to,
  *     prev:    sha256 (hex) of the previous hour file's bytes ("" only for the very first file of the chain),
  *     kind:    "live"  — anchors read on both nodes after the hour (D-112), or
- *              "rebuilt" — anchors rebuilt backwards from one real read (first fill; never used by a paying card),
+ *              "rebuilt" — anchors rebuilt backwards from one real read (first fill; never used by a paying card), or
+ *              "chained" — catch-up after an outage (Repo Lens #D-10 M-2): balances carried forward from the previous
+ *                          hour plus this hour's blocks (both nodes agreed on them), no reads; a newly seen address takes
+ *                          its balance from a live read walked back. Unverified until a later live hour's reads check
+ *                          the whole chain: no paying card reads a chained hour that no live hour follows,
  *     addrs:   every address this file names, sorted;
  *     sig:     per block, the index in addrs of its signer;
  *     ids:     per block, its id as the node returns it (lowercase 0x-hex) — the card's seed (§2.3);
@@ -43,7 +47,8 @@
   const HOUR = 1200, DAY = 28800, DELAY = 20, VERSION = 1;
   const R = root.KRuler;
   if (!R) throw new Error("load vhp-ruler.js first");
-  const ADDR = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/, ID = /^0x[0-9a-f]{8,}$/, SAT = /^(0|[1-9][0-9]{0,24})$/;
+  const ADDR = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/, ID = /^0x1220[0-9a-f]{64}$/, SAT = /^(0|[1-9][0-9]{0,24})$/;   // ids: a sha256 multihash (#D-10 L-3)
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);   // never `in` (#D-10 L-1: "constructor")
 
   const canon = (o) => JSON.stringify(o) + "\n";
   const shaHex = (text) => R.hex(R.sha256(text));
@@ -56,7 +61,7 @@
     if (Object.keys(h).join() !== keys.join()) return "fields must be exactly " + keys.join(", ");
     if (!Number.isSafeInteger(h.n) || h.n < 0 || h.from !== h.n * HOUR || h.to !== h.from + HOUR - 1) return "from/to must be block-hour n";
     if (typeof h.prev !== "string" || !/^([0-9a-f]{64})?$/.test(h.prev)) return "prev must be a sha256";
-    if (h.kind !== "live" && h.kind !== "rebuilt") return "kind must be live or rebuilt";
+    if (h.kind !== "live" && h.kind !== "rebuilt" && h.kind !== "chained") return "kind must be live, rebuilt or chained";
     if (!Array.isArray(h.addrs) || !h.addrs.every((a) => typeof a === "string" && ADDR.test(a))) return "bad address";
     for (let i = 1; i < h.addrs.length; i++) if (!(h.addrs[i - 1] < h.addrs[i])) return "addrs must be sorted and unique";
     const aset = new Set(h.addrs);
@@ -95,13 +100,14 @@
       const rs = a.reads[node];
       if (!rs || typeof rs !== "object" || Array.isArray(rs) || !sortedKeys(rs)) return `reads ${node} must be an object with sorted keys`;
       for (const [k, r] of Object.entries(rs)) {
-        if (!(k in a.bal)) return `reads ${node}: ${k} isn't anchored`;
+        if (!own(a.bal, k)) return `reads ${node}: ${k} isn't anchored`;
         if (!Array.isArray(r) || r.length !== 3 || !Number.isSafeInteger(r[0]) || r[0] < h.to || r[0] > a.at) return `reads ${node}: ${k} must be [h, balance, eff] read between the hour's end and the anchor block`;
         if (typeof r[1] !== "string" || !SAT.test(r[1]) || typeof r[2] !== "string" || !(r[2] === "" || SAT.test(r[2]))) return `reads ${node}: bad numbers for ${k}`;
       }
     }
-    if (h.kind === "rebuilt" && (Object.keys(a.reads.A).length || Object.keys(a.reads.B).length)) return "a rebuilt hour carries no reads";
-    if (h.kind === "live") for (const node of ["A", "B"]) for (const k of Object.keys(a.bal)) if (!(k in a.reads[node])) return `a live hour reads every anchored address on both nodes (${k} on ${node})`;
+    if (h.kind !== "live" && (Object.keys(a.reads.A).length || Object.keys(a.reads.B).length)) return `a ${h.kind} hour carries no reads`;
+    if (h.kind === "chained" && a.at !== h.to) return "a chained hour's anchor is its own last block";
+    if (h.kind === "live") for (const node of ["A", "B"]) for (const k of Object.keys(a.bal)) if (!own(a.reads[node], k)) return `a live hour reads every anchored address on both nodes (${k} on ${node})`;
     return null;
   }
 
@@ -138,21 +144,22 @@
       try { prev = JSON.parse(prevText); } catch (e) { return fail("previous file is not JSON"); }
       if (h.prev !== shaHex(prevText)) return fail("the hash chain is broken (prev isn't the previous file's sha256)");
       if (h.n !== prev.n + 1) return fail("hours must be consecutive");
-      if (prev.kind === "live" && h.kind === "rebuilt") return fail("a rebuilt hour can't follow a live one");
+      if (prev.kind !== "rebuilt" && h.kind === "rebuilt") return fail(`a rebuilt hour can't follow a ${prev.kind} one`);
       if (h.anchor.at < prev.anchor.at) return fail("anchors go forward");
       // the blocks both files hold (the previous tail) must be the same blocks, with the same events
       for (let x = h.from; x <= prev.anchor.at; x++) if (blockOf(prev, x) !== blockOf(h, x)) return fail(`block ${x} differs from the previous hour's tail`);
       if (eventsIn(prev, h.from, prev.anchor.at) !== eventsIn(h, h.from, prev.anchor.at)) return fail("the events after the previous hour differ from its tail");
     } else if (h.prev !== "") return fail("the first file must have an empty prev");
+    else if (h.kind === "chained") return fail("a chained hour needs the hour before it");
     const bal = h.anchor.bal, addrs = Object.keys(bal);
-    for (const s of [...h.sig, ...h.tail.sig].map((i) => h.addrs[i])) if (!(s in bal)) return fail(`signer ${s} has no anchor`);
+    for (const s of [...h.sig, ...h.tail.sig].map((i) => h.addrs[i])) if (!own(bal, s)) return fail(`signer ${s} has no anchor`);
     const ds = deltasOf(h), byA = new Map();
     for (const x of ds) { let l = byA.get(x.a); if (!l) byA.set(x.a, (l = [])); l.push(x); }
     const after = (a, h0) => { let s = 0n; for (const x of byA.get(a) || []) if (x.h > h0) s += x.d; return s; };   // changes in (h0, at]
     if (prev) {
-      for (const a of Object.keys(prev.anchor.bal)) if (!(a in bal)) return fail(`${a} was anchored before and must stay anchored`);
+      for (const a of Object.keys(prev.anchor.bal)) if (!own(bal, a)) return fail(`${a} was anchored before and must stay anchored`);
       for (const a of addrs) {
-        if (!(a in prev.anchor.bal)) continue;   // newly anchored
+        if (!own(prev.anchor.bal, a)) continue;   // newly anchored
         const v = BigInt(prev.anchor.bal[a]) + after(a, prev.anchor.at);
         if (v !== BigInt(bal[a])) return fail(`${a}: the previous anchor plus the changes since isn't this anchor (${v} vs ${bal[a]})`);
       }
@@ -162,7 +169,7 @@
       for (const x of mine) { v -= x.d; if (v < 0n) return fail(`${a}: the rebuild goes below zero (a missed event)`); }
     }
     const hash = shaHex(text);
-    if (h.kind === "rebuilt") return { ok: true, quality: "ok", flagged: [], hash };
+    if (h.kind !== "live") return { ok: true, quality: "ok", flagged: [], hash };
     // live: every read + the changes after it = the anchor, on both nodes (a node that read a wrong balance: refused)
     for (const node of ["A", "B"]) for (const a of addrs) {
       const [rh, rb] = h.anchor.reads[node][a];
@@ -218,7 +225,8 @@
       for (const s of h.sig) signers.push(h.addrs[s]);
       ids.push(...h.ids);
       for (const x of deltasOf(h, i === hours.length - 1)) deltas.push(x);
-      if (h.kind === "rebuilt") rebuilt.push({ h0: h.from, h1: h.to });
+      // rebuilt hours, and chained hours that no later live hour has checked, are unverified: no paying card reads them
+      if (h.kind === "rebuilt" || (h.kind === "chained" && !hours.slice(i + 1).some((x) => x.kind === "live"))) rebuilt.push({ h0: h.from, h1: h.to });
       const c = checks && checks[i];
       if (c && c.quality === "flagged") {
         if (c.flagged.includes("*")) bad.push({ h0: h.from, h1: h.to });

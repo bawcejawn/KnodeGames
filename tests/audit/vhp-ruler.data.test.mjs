@@ -150,3 +150,30 @@ sys.stdout.write(V.card_json(c))`);
   const c2 = R.makeCard(L2, { game: 7, round: "9", window: { W0: Lk - 7199, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + 2400 }, c: 400000n, ownRule: "high1h", paying: false });
   assert.ok(c2.producers.every((p) => p.quality === "flagged"));
 });
+
+test("#D-10 L-1 / L-3: a read keyed 'constructor' and a short block id are refused in both languages", () => {
+  let r = both(chain.texts[3], edit(chain.texts[4], (h) => { h.anchor.reads.A = Object.fromEntries([["constructor", ["0", "1", "1"]], ...Object.entries(h.anchor.reads.A)]); }));
+  assert.equal(r.ok, false);
+  r = both(chain.texts[3], edit(chain.texts[4], (h) => { h.ids[600] = h.ids[600].slice(0, 40); }));
+  assert.equal(r.ok, false); assert.match(r.why, /block id/);
+});
+
+test("#D-10 M-2: chained hours carry balances forward; they can follow live or rebuilt, never start a chain", () => {
+  const c = makeChain({ seed: 51, hours: 8, np: 4, busy: 0.03 });
+  const texts = c.texts.slice(0, 4);
+  let prev = texts[3];
+  for (let i = 4; i < 7; i++) {   // hours 4–6 written chained from the fixture's own data
+    const h = JSON.parse(c.texts[i]), blocks = h.sig.map((s, k) => ({ s: h.addrs[s], id: h.ids[k], burn: h.burns[k] }));
+    const p = JSON.parse(prev), bal = {};
+    for (const [a, v] of Object.entries(p.anchor.bal)) { let x = BigInt(v); for (const d of D.deltasOf(h, false)) if (d.a === a && d.h > p.anchor.at) x += d.d; bal[a] = x; }
+    const t = D.makeHour({ n: h.n, prevText: prev, kind: "chained", blocks, events: h.events.map(([eh, k, f, tt, v]) => ({ h: eh, k, f, t: tt, v })), anchor: { at: h.to, id: h.ids[1199], bal, reads: { A: {}, B: {} } } });
+    const r = both(prev, t); assert.equal(r.ok, true, r.why);
+    texts.push(t); prev = t;
+  }
+  const wrong = edit(texts[5], (h) => { const a = Object.keys(h.anchor.bal)[0]; h.anchor.bal[a] = String(BigInt(h.anchor.bal[a]) + 1n); });
+  assert.equal(both(texts[4], wrong).ok, false, "a chained balance that doesn't add up is refused");
+  assert.equal(both("", edit(texts[5], (h) => { h.prev = ""; })).ok, false, "a chained hour can't start a chain");
+  // until a live hour follows, the chained hours count as unverified (no paying card reads them)
+  const tl = D.timelineFrom(texts.map((t) => JSON.parse(t)));
+  assert.equal(tl.rebuilt.length, 3);
+});

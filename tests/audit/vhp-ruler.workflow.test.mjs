@@ -6,7 +6,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawnSync, spawn } from "node:child_process";
+import http from "node:http";
 import { APP, D, makeChain } from "./vhp-ruler.fixture.mjs";
 
 const YML = path.join(APP, ".github/workflows/vhp-ruler.yml");
@@ -37,37 +38,59 @@ test("the publish job runs no repository code; only it can write; every job is o
 });
 
 // ── the publish step, run for real against a local bare repository ──
+const g = makeChain({ seed: 41, hours: 99, np: 3, n0: 33480, busy: 0.01 });   // 33,480 = day 1,395 × 24
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "vhp-publish-"));
 const bare = path.join(sandbox, "origin.git");
 execFileSync("git", ["init", "-q", "--bare", bare]);
 const script = publishRun.replace(/remote="https:\/\/x-access-token:\$\{GH_TOKEN\}@github\.com\/\$\{GITHUB_REPOSITORY\}\.git"/, `remote="${bare}"`);
 assert.notEqual(script, publishRun, "the test points the push at the scratch repository");
 let runNo = 0;
-function publish(files, remove) {
+// a stand-in for the THIRD node (#D-10 M-1): answers head info and blocks (id + signer) from the fixture's chain;
+// `lie` makes it report another id for one block
+const node = { lie: null };
+const server = http.createServer((req, res) => {
+  let body = ""; req.on("data", (c) => (body += c)); req.on("end", () => {
+    const { method, params } = JSON.parse(body);
+    let result;
+    if (method === "chain.get_head_info") result = { head_topology: { id: "0x1220" + "0".repeat(64), height: String(g.raw.top) }, last_irreversible_block: String(g.raw.top) };
+    else {
+      const s0 = Number(params.ancestor_start_height), items = [];
+      for (let h = s0; h < s0 + params.num_blocks && h <= g.raw.top; h++) { const b = g.raw.blocks[h - g.raw.from]; items.push({ block_height: String(h), block_id: node.lie === h ? "0x1220" + "f".repeat(64) : b.id, block: { header: { signer: b.s } } }); }
+      result = { block_items: items };
+    }
+    res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result }));
+  });
+});
+await new Promise((r) => server.listen(0, "127.0.0.1", r));
+const VERIFY = `http://127.0.0.1:${server.address().port}`;
+test.after(() => server.close());
+function publish(files, remove, env = {}, { newline = true } = {}) {
   const dir = path.join(sandbox, `run${++runNo}`), IN = path.join(dir, "incoming");
   fs.mkdirSync(IN, { recursive: true });
   for (const [p, t] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(IN, p)), { recursive: true }); fs.writeFileSync(path.join(IN, p), t); }
-  if (remove) fs.writeFileSync(path.join(IN, "remove.txt"), remove.join("\n") + "\n");
-  const r = spawnSync("bash", ["-c", script], { cwd: dir, env: { ...process.env, RUNNER_TEMP: dir, IN, KEEP: "30", GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r" }, encoding: "utf8" });
-  return { ok: r.status === 0, out: r.stdout + r.stderr };
+  if (remove) fs.writeFileSync(path.join(IN, "remove.txt"), remove.join("\n") + (newline ? "\n" : ""));
+  return new Promise((resolve) => {
+    const c = spawn("bash", ["-c", script], { cwd: dir, env: { ...process.env, RUNNER_TEMP: dir, IN, KEEP: "30", GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r", RPC: "https://a.example", RPC_CHECK: "https://b.example", RPC_VERIFY: VERIFY, NO_PROXY: "127.0.0.1", no_proxy: "127.0.0.1", ...env } });
+    let out = ""; c.stdout.on("data", (d) => (out += d)); c.stderr.on("data", (d) => (out += d));
+    c.on("close", (code) => resolve({ ok: code === 0, out }));
+  });
 }
 const branch = () => { try { return execFileSync("git", ["-C", bare, "ls-tree", "-r", "--name-only", "vhp-data"], { encoding: "utf8" }).trim().split("\n").filter(Boolean); } catch { return []; } };
 const head = () => { try { return execFileSync("git", ["-C", bare, "rev-parse", "vhp-data"], { encoding: "utf8" }).trim(); } catch { return ""; } };
 
-const g = makeChain({ seed: 41, hours: 99, np: 3, n0: 33480, busy: 0.01 });   // 33,480 = day 1,395 × 24
 const hf = (i) => ({ [`h/${33480 + i}.json`]: g.texts[i] });
 const many = (a, b) => Object.assign({}, ...Array.from({ length: b - a }, (_, k) => hf(a + k)));
 
-test("publish: the first hours (a chain from the start), then more; each run adds a commit to vhp-data", () => {
-  let r = publish(many(0, 3)); assert.equal(r.ok, true, r.out);
+test("publish: the first hours (a chain from the start), then more; each run adds a commit to vhp-data", async () => {
+  let r = await publish(many(0, 3)); assert.equal(r.ok, true, r.out);
   assert.deepEqual(branch(), ["h/33480.json", "h/33481.json", "h/33482.json"]);
   const c1 = head();
-  r = publish(many(3, 5)); assert.equal(r.ok, true, r.out);
+  r = await publish(many(3, 5)); assert.equal(r.ok, true, r.out);
   assert.equal(branch().length, 5);
   assert.equal(execFileSync("git", ["-C", bare, "rev-parse", "vhp-data^"], { encoding: "utf8" }).trim(), c1, "the new commit's parent is the last one");
 });
 
-test("publish refuses: a tampered hour, a gap, a rewrite, a stray file, a non-canonical file — and vhp-data doesn't move", () => {
+test("publish refuses: a tampered hour, a gap, a rewrite, a stray file, a non-canonical file — and vhp-data doesn't move", async () => {
   const before = head();
   const bad = JSON.parse(g.texts[5]); bad.burns[300] = String(BigInt(bad.burns[300]) - 1n);   // past the previous hour's tail
   for (const [files, why] of [
@@ -77,26 +100,26 @@ test("publish refuses: a tampered hour, a gap, a rewrite, a stray file, a non-ca
     [{ ...hf(5), "x.txt": "hi" }, /unexpected files/],
     [{ "h/33485.json": g.texts[5].replace(/\n$/, "  \n") }, /canonical/],
   ]) {
-    const r = publish(files);
+    const r = await publish(files);
     assert.equal(r.ok, false, `should refuse: ${why}`); assert.match(r.out, why);
     assert.equal(head(), before, "nothing pushed");
   }
 });
 
-test("publish: a day rollup replaces its hours; removals need a day file; days go only after retention", () => {
-  let r = publish(many(5, 72)); assert.equal(r.ok, true, r.out);
-  r = publish({}, ["h/33490.json"]);
+test("publish: a day rollup replaces its hours; removals need a day file; days go only after retention", async () => {
+  let r = await publish(many(5, 72)); assert.equal(r.ok, true, r.out);
+  r = await publish({}, ["h/33490.json"]);
   assert.equal(r.ok, false); assert.match(r.out, /no day file holds it/);
   const day = D.makeDay(1395, g.texts.slice(0, 24));
-  r = publish({ "d/1395.json": day }, Array.from({ length: 24 }, (_, i) => `h/${33480 + i}.json`));
+  r = await publish({ "d/1395.json": day }, Array.from({ length: 24 }, (_, i) => `h/${33480 + i}.json`));
   assert.equal(r.ok, true, r.out);
   const files = branch();
   assert.ok(files.includes("d/1395.json") && !files.includes("h/33480.json") && files.includes("h/33504.json"));
-  r = publish(hf(72)); assert.equal(r.ok, true, `the chain still checks after the rollup: ${r.out}`);
-  r = publish({}, ["d/1395.json"]);
+  r = await publish(hf(72)); assert.equal(r.ok, true, `the chain still checks after the rollup: ${r.out}`);
+  r = await publish({}, ["d/1395.json"]);
   assert.equal(r.ok, false); assert.match(r.out, /still inside the 30 days kept/);
   const changed = JSON.parse(day); changed.hours[3].ids[0] = changed.hours[3].ids[1];
-  r = publish({ "d/1396.json": D.makeDay(1396, g.texts.slice(24, 48)).replace(g.texts[30].slice(10, 40), g.texts[31].slice(10, 40)) });
+  r = await publish({ "d/1396.json": D.makeDay(1396, g.texts.slice(24, 48)).replace(g.texts[30].slice(10, 40), g.texts[31].slice(10, 40)) });
   assert.equal(r.ok, false, "a day file whose hours differ from the published ones is refused");
 });
 
@@ -119,4 +142,33 @@ test("recompute_main: a game's publish job can check a card against vhp-data (an
   fs.writeFileSync(other, JSON.stringify({ game: 7, round: "1", window: w, c: "400000", ownRule: "spot", paying: false, pooled: [] }));
   const r = run(path.join(sandbox, "card.json"), other);
   assert.equal(r.status, 1); assert.match(r.stdout, /setting c/);
+});
+
+test("#D-10 M-1: every new block is checked on a THIRD node: a lie is refused, a missing or reused node is refused", async () => {
+  const before = head(), next = { "h/33553.json": g.texts[73] };
+  node.lie = 33553 * 1200 + 700;
+  let r = await publish(next); assert.equal(r.ok, false); assert.match(r.out, /the third node says id/);
+  node.lie = null;
+  r = await publish(next, null, { RPC_VERIFY: "" }); assert.equal(r.ok, false); assert.match(r.out, /set the repository variable RPC_VERIFY/);
+  r = await publish(next, null, { RPC_VERIFY: "https://a.example" }); assert.equal(r.ok, false, "the same node as RPC doesn't count");
+  assert.equal(head(), before, "nothing pushed");
+  r = await publish(next); assert.equal(r.ok, true, r.out); assert.match(r.out, /checked on a third node/);
+});
+
+test("#D-10 M-5 / L-12: only canonical file names; the number inside a file must be its name's", async () => {
+  const before = head();
+  let r = await publish({ "h/033554.json": g.texts[74] }); assert.equal(r.ok, false); assert.match(r.out, /unexpected files/);
+  r = await publish({ "h/33554.json": g.texts[75] }); assert.equal(r.ok, false); assert.match(r.out, /another hour's number/);
+  assert.equal(head(), before);
+});
+
+test("#D-10 M-6: a day file may only roll up hours that exist, byte for byte; a made-up day is refused", async () => {
+  const before = head();
+  const fake = makeChain({ seed: 99, hours: 24, np: 2, n0: 1500 * 24 });   // a whole day of another history, from prev ""
+  let r = await publish({ "d/1500.json": D.makeDay(1500, fake.texts) }); assert.equal(r.ok, false); assert.match(r.out, /must be published \(or new\) hour files/);
+  assert.equal(head(), before);
+  // a real rollup, with a remove.txt that has no final newline (#D-10 L-10): every listed hour goes
+  r = await publish({ "d/1396.json": D.makeDay(1396, g.texts.slice(24, 48)) }, Array.from({ length: 24 }, (_, i) => `h/${33504 + i}.json`), {}, { newline: false });
+  assert.equal(r.ok, true, r.out);
+  assert.ok(!branch().includes("h/33527.json"), "the last line of remove.txt was applied too");
 });

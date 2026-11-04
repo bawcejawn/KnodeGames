@@ -163,3 +163,23 @@ test("rollup: hours of days at least 3 days old become day files; days beyond re
   assert.equal(D.checkDay(days[1395], "").ok, true);
   assert.ok(remove.includes("h/33480.json") && remove.includes("d/1300.json"));
 });
+
+test("#D-10 M-2: 27 hours behind — the recorder chains, catches up, goes live; the live hour checks the whole chain", async () => {
+  const f = makeChain({ seed: 61, hours: 62, np: 4, busy: 0.02, write: 31 });
+  const head = at(f.n0 + 58) + 70;   // published to hour 30; the nodes are 28 hours ahead
+  const A = new FakeNode(f.raw, { head }), B = new FakeNode(f.raw, { name: "B", head });
+  const logs = [], log = (s) => logs.push(s);
+  let all = f.texts.slice(), prev = f.texts[30];
+  for (let run = 0; run < 6; run++) {
+    const texts = await recordHours(A, B, prev, { ...opts, log, maxChained: 4 });
+    if (!texts.length) break;
+    for (const t of texts) { const r = D.checkHour(prev, t); assert.equal(r.ok, true, r.why); prev = t; all.push(t); }
+    if (JSON.parse(texts[0]).kind === "live") break;
+  }
+  const kinds = all.slice(31).map((t) => JSON.parse(t).kind);
+  assert.ok(kinds.includes("chained") && kinds[kinds.length - 1] === "live", kinds.join());
+  assert.ok(logs.some((l) => /::error::the VHP ruler is .* hours behind/.test(l)), "an alert when more than 12 h behind");
+  const L = R.ledger(D.timelineFrom(all.map((t) => JSON.parse(t))));
+  for (let h = L.from + 20; h <= L.to; h += 17) for (const a of f.ps) assert.equal(L.eff(a, h), f.eff(a, h));
+  assert.equal(D.timelineFrom(all.map((t) => JSON.parse(t))).rebuilt.length, 0, "a live hour follows: the chained hours are verified");
+});

@@ -36,7 +36,8 @@ const chunkRange = (p: Plan, k: number) => { const n0 = p.startN + k * DAY_HOURS
 export async function makePlan(A: RulerNode, B: RulerNode, days: number): Promise<Plan> {
   const [ha, hb] = await Promise.all([A.head(), B.head()]);
   const endN = Math.floor((Math.min(ha.lib, hb.lib) + 1) / HOUR) - 1;
-  return { v: 1, startN: endN - days * DAY_HOURS + 1, endN };
+  // #D-10 L-7: start on a day boundary, so every day of the fill can be rolled up into a day file later
+  return { v: 1, startN: Math.floor((endN - days * DAY_HOURS + 1) / DAY_HOURS) * DAY_HOURS, endN };
 }
 /** Phase 1: read and save the chunks not yet saved (both nodes must agree). Stops early when the budget runs out. */
 export async function fillChunks(A: RulerNode, B: RulerNode, plan: Plan, dir: string, budgetMs: number, log = console.log, k0 = 0, k1 = Infinity, tries = 3, pauseMs = 120000) {
@@ -57,7 +58,7 @@ export async function fillChunks(A: RulerNode, B: RulerNode, plan: Plan, dir: st
   return true;
 }
 /** Phase 2 (pure): the hour texts from the blocks startN … endN (+ the tail) and one live anchor. */
-export function fillHours(plan: Plan, blocks: Blk[], anc: { reads: any; tail: Blk[]; at: number; id: string }) {
+export function fillHours(plan: Plan, blocks: Blk[], anc: { reads: any; tail: Blk[]; at: number; id: string }, opts: { allRebuilt?: boolean } = {}) {
   const all = [...blocks, ...anc.tail], from = plan.startN * HOUR;
   if (all.length !== anc.at - from + 1 || all.some((b, i) => b.h !== from + i)) throw new Error("the fill's blocks aren't consecutive");
   const bal = balancesAt(anc.reads, all, anc.at);
@@ -78,7 +79,9 @@ export function fillHours(plan: Plan, blocks: Blk[], anc: { reads: any; tail: Bl
   const texts: string[] = [], seen = new Set<string>();
   let prev = "";
   for (let n = plan.startN; n <= plan.endN; n++) {
-    const hf = n * HOUR, ht = hf + HOUR - 1, isLast = n === plan.endN;
+    // #D-10 M-2: when the read is more than a day after the plan's end (the hours job ran late), the last hour is
+    // rebuilt too; the hourly recorder then chains the gap and its first live hour checks it all
+    const hf = n * HOUR, ht = hf + HOUR - 1, isLast = n === plan.endN && !opts.allRebuilt;
     for (const b of all) { if (b.h < hf) continue; if (b.h > (isLast ? anc.at : ht)) break; seen.add(b.s); }
     const mine = all.filter((b) => b.h >= hf && b.h <= (isLast ? anc.at : ht));
     const set = [...seen].sort(), b0 = balAt.get(n)!;
@@ -97,7 +100,9 @@ export function fillHours(plan: Plan, blocks: Blk[], anc: { reads: any; tail: Bl
 
 async function main() {
   const E = process.env;
-  const A = chainNode(E.RPC || "https://koinos.armana.io", "A"), B = chainNode(E.RPC_CHECK || "https://api.koinosblocks.com", "B");
+  const ra = E.RPC || "https://koinos.armana.io", rb = E.RPC_CHECK || "https://api.koinosblocks.com";
+  if (ra.replace(/\/+$/, "") === rb.replace(/\/+$/, "")) throw new Error("RPC and RPC_CHECK are the same node: two different nodes are needed");
+  const A = chainNode(ra, "A"), B = chainNode(rb, "B");
   if (E.FILL_TIME_ONE === "1") {   // the owner's timing question: how long does one day take on each node?
     const [ha, hb] = await Promise.all([A.head(), B.head()]);
     const to = Math.min(ha.lib, hb.lib), from = to - 28800 + 1;
@@ -131,8 +136,10 @@ async function main() {
   const lastTo = (plan.endN + 1) * HOUR - 1, producers = [...new Set(blocks.map((b) => b.s))].sort();
   const anc = await liveAnchor(A, B, producers, lastTo);
   const extra = [...new Set(anc.tail.map((b) => b.s))].filter((a) => !producers.includes(a));
-  if (extra.length) throw new Error(`new producers signed during the read (${extra.join(", ")}); run again`);
-  const texts = fillHours(plan, blocks, anc);
+  if (extra.length) throw new Error(`new producers signed during the read (${extra.join(", ")}); re-run this hours job (the plan stays)`);
+  const late = anc.at - lastTo > 24000;
+  if (late) console.log(`::warning::the read is ${((anc.at - lastTo) / 1200).toFixed(1)} hours after the plan's end: every hour is written rebuilt; the hourly recorder chains the gap, then goes live`);
+  const texts = fillHours(plan, blocks, anc, { allRebuilt: late });
   fs.mkdirSync(path.join(out, "h"), { recursive: true });
   for (const t of texts) fs.writeFileSync(path.join(out, "h", `${JSON.parse(t).n}.json`), t);
   console.log(`wrote ${texts.length} hour files (${texts.length - 1} rebuilt, 1 live): block-hours ${plan.startN} … ${plan.endN}`);

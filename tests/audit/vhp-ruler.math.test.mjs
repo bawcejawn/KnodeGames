@@ -247,7 +247,8 @@ test("the library is pure and integer-only: no network, storage, wallet, Math or
   // the math and the checks (everything before the publish job's file handling) touch no files or network
   const whole = fs.readFileSync(`${APP}/vhp_ruler.py`, "utf8"), py = whole.slice(0, whole.indexOf("# ── the publish job"));
   assert.ok(py.length > 20000, "the publish section marker is there");
-  assert.doesNotMatch(whole, /float\(|import (socket|urllib|requests|subprocess)|open\([^)]*["']w/, "the publish part reads files only");
+  assert.doesNotMatch(py, /urllib|socket|http/, "the math and checks never touch the network");
+  assert.doesNotMatch(whole, /float\(|import (socket|requests|subprocess)|open\([^)]*["']w/, "the publish part reads files, and calls the third node only through urllib");
   assert.doesNotMatch(py, /float\(|math\.|import (os|socket|urllib|requests|subprocess)|\d\.\d/);
   assert.doesNotMatch(py.replace(/"""[\s\S]*?"""/g, "").replace(/#.*$/gm, "").replace(/"[^"\n]*"/g, '""'), /[^/]\/[^/]/, "Python divides with // only");
 });

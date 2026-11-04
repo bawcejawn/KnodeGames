@@ -12,8 +12,7 @@ what and how to run it. Built by the VHP Ruler chat (R-RULER-1) on branch `vhp-r
 | `bot/vhp-ruler.ts` | The hourly recorder: reads the next irreversible block-hours on two nodes, live reads of every anchored address, writes and checks the hour files. Read-only. |
 | `bot/vhp-fill.ts` | The first fill (30 days): a plan, three parallel 10-day jobs, then one live read and the hour files ("rebuilt", the last one "live"). Read-only. |
 | `.github/workflows/vhp-ruler.yml` | record (hourly at :12) · fill (by hand, once) · publish (runs no repo code; pushes only `vhp-data`). **Generated** by `tools/vhp-ruler-workflow.mjs`: run `node tools/vhp-ruler-workflow.mjs` after any change to `vhp_ruler.py` (a test fails otherwise). |
-| `.github/workflows/vhp-fill-time.yml`, `vhp-ruler-sims.yml` | Read-only runs on the `vhp-ruler` branch: the fill timing, and the 11 simulations on 31 days of real data. Remove once the ruler is live. |
-| `sims/ruler/` | The 11 simulations of §8 (`sims.mjs`, `faults.mjs`), the real-data run (`real.mjs`), and `sample.mjs` (the Bracket's 8-day sample as a timeline). |
+| `sims/ruler/` | The 11 simulations of §8 (`sims.mjs`, `faults.mjs`), the real-data run (`real.mjs`), `dump.mjs` (a logged history back into a timeline), and `sample.mjs` (the Bracket's 8-day sample as a timeline). |
 | `tests/audit/vhp-ruler.*.test.mjs` | The tests: math, data format, recorder and fill (simulated nodes), workflow and publish job (run against a scratch repository), simulations. |
 
 ## How a game uses it
@@ -24,6 +23,15 @@ what and how to run it. Built by the VHP Ruler chat (R-RULER-1) on branch `vhp-r
 
 ## Turning it on (owner, after Repo Lens review 2)
 1. Merge the PR (the owner merges).
-2. Set the repository variable `VHP_RULER_ENABLED` to `true` (Settings → Secrets and variables → Actions → Variables).
-3. Actions → "VHP ruler data" → Run workflow → mode `fill` (about 10–15 minutes: one day of blocks reads in about 1 minute per node).
-4. From then on it records every hour by itself. No key, no Mana, no secret.
+2. Set the repository variable `RPC_VERIFY` to a third Koinos node, different from `RPC` and `RPC_CHECK`. The publish job checks every new block's id and signer on it (Repo Lens #D-10 M-1); without it nothing is published.
+3. Set the repository variable `VHP_RULER_ENABLED` to `true` (Settings → Secrets and variables → Actions → Variables).
+4. Actions → "VHP ruler data" → Run workflow → mode `fill` (about 10–15 minutes of reading: one day of blocks reads in about 1 minute per node; the publish job then checks every block on the third node, up to about an hour).
+5. From then on it records every hour by itself. No key, no Mana, no secret.
+
+## If it falls behind (a node down, the ruler switched off, a GitHub outage)
+Nothing to do by hand. More than 12 hours behind, each run shows a red `::error::` "the VHP ruler is N hours behind".
+More than about 20 hours behind, it writes **chained** hours (balances carried forward from the hour before, blocks
+checked on both nodes, no reads), up to 48 a run, until it is within 20 hours; then it goes back to live hours, and the
+first live hour checks the whole chain against real reads. Chained hours with no live hour after them count as
+unverified: no paying card reads them. A node that can't answer a read stops the run without writing anything; the
+next run tries again.

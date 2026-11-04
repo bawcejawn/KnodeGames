@@ -51,6 +51,8 @@ async function decode(x: any, h: number): Promise<Ev | null> {
   const d: any = await ser.deserialize(x.data, `token.${m[1]}`);   // a VHP event that can't be read stops the run
   const v = String(d.value ?? "0");
   if (!/^[0-9]+$/.test(v)) throw new Error(`block ${h}: bad VHP value`);
+  // #D-10 L-6: a missing field must stop the run with a clear message, never become the address "undefined"
+  if ((m[1] !== "mint_event" && typeof d.from !== "string") || (m[1] !== "burn_event" && typeof d.to !== "string")) throw new Error(`block ${h}: a VHP ${m[1]} without its address`);
   return { h, k: KIND[m[1]], f: m[1] === "mint_event" ? "" : String(d.from), t: m[1] === "burn_event" ? "" : String(d.to), v };
 }
 /** One block's ruler record from a block item with its receipt: exactly one block-level burn from its signer. */
@@ -110,8 +112,11 @@ export function chainNode(url: string, name: string): RulerNode {
         const h1 = await headNow();
         const r: any = await withRetry(`${name} VHP of ${a}`, () => (vhp.functions as any).balance_of({ owner: a }));
         if (!r || typeof r !== "object" || !("result" in r)) throw new Error(`${name}: no answer reading the VHP of ${a}`);
-        let eff = "";
-        try { const e: any = await (vhp.functions as any).effective_balance_of({ owner: a }); if (e && typeof e === "object" && "result" in e) eff = String(e.result?.value ?? "0"); } catch { eff = ""; }   // D-112: unanswered → the hour is flagged
+        // #D-10 M-4: retried with a timeout; if the node still can't answer, the run stops and writes nothing (tried
+        // again next run; after ~20 h the recorder chains hours, which need no reads), never a stored "" for good
+        const e: any = await withRetry(`${name} effective VHP of ${a}`, () => (vhp.functions as any).effective_balance_of({ owner: a }), 4);
+        if (!e || typeof e !== "object" || !("result" in e)) throw new Error(`${name}: no effective balance for ${a}`);
+        const eff = String(e.result?.value ?? "0");
         const h2 = await headNow();
         if (h1.id === h2.id) return { h: h1.height, id: h1.id, bal: String(r.result?.value ?? "0"), eff };
       }
@@ -190,22 +195,59 @@ export function balancesAt(reads: Record<"A" | "B", Record<string, Read>>, block
 const toHourBlocks = (bs: Blk[]) => bs.map((b) => ({ s: b.s, id: b.id, burn: b.burn }));
 const toHourEvents = (bs: Blk[]) => bs.flatMap((b) => b.events);
 
+export const CHAIN_AFTER = 24000, BEHIND_ALERT = 14400;   // blocks: ~20 h (chain instead of live reads), ~12 h (alert)
+/** Catch-up after an outage (#D-10 M-2): hours with no reads, balances carried forward from the previous hour plus the
+ *  blocks both nodes agreed on; an address seen for the first time is read live and walked back. */
+async function chainedHours(A: RulerNode, B: RulerNode, prevText: string, first: number, last: number, opts: any) {
+  const log = opts.log || console.log, texts: string[] = [];
+  let p = prevText;
+  for (let n = first; n <= last; n++) {
+    const prev = JSON.parse(p), from = n * D.HOUR, to = from + D.HOUR - 1;
+    if (prev.anchor.at > to) throw new Error(`block-hour ${n} is inside the previous hour's tail; can't chain it`);
+    const blocks = await blocksOnBoth(A, B, from, to);
+    const bal: Record<string, bigint> = {};
+    for (const [a, v] of Object.entries(prev.anchor.bal)) bal[a] = BigInt(v as string) + changesAfter(blocks, a, prev.anchor.at, to);
+    const fresh = [...new Set(blocks.map((b) => b.s))].filter((a) => !(a in bal)).sort();
+    if (fresh.length) {   // first seen during the outage: a live read on both nodes, walked back to this hour's end
+      const anc = await liveAnchor(A, B, fresh, to, opts), all = [...blocks, ...anc.tail];
+      const back = balancesAt(anc.reads, all, anc.at);
+      for (const a of fresh) bal[a] = back[a] - changesAfter(all, a, to, anc.at);
+    }
+    const t = D.makeHour({ n, prevText: p, kind: "chained", blocks: toHourBlocks(blocks), events: toHourEvents(blocks), anchor: { at: to, id: blocks[blocks.length - 1].id, bal, reads: { A: {}, B: {} } } });
+    const c = D.checkHour(p, t);
+    if (!c.ok) throw new Error(`block-hour ${n} (chained) fails its own check (${c.why}); nothing written`);
+    log(`block-hour ${n}: chained (catching up; checked by the next live hour)`);
+    texts.push(t); p = t;
+  }
+  return texts;
+}
 /** One recorder run: the next irreversible block-hours after the newest published one (prevText), as hour texts. */
-export async function recordHours(A: RulerNode, B: RulerNode, prevText: string, opts: { maxHours?: number; waitMs?: number; pollMs?: number; log?: (s: string) => void } = {}) {
+export async function recordHours(A: RulerNode, B: RulerNode, prevText: string, opts: { maxHours?: number; maxChained?: number; waitMs?: number; pollMs?: number; rounds?: number; log?: (s: string) => void } = {}) {
   const log = opts.log || console.log, prev = JSON.parse(prevText);
   const [ha, hb] = await Promise.all([A.head(), B.head()]), lib = Math.min(ha.lib, hb.lib);
-  const first = prev.n + 1; let last = first - 1;
+  const first = prev.n + 1;
+  if (lib - prev.to > BEHIND_ALERT) log(`::error::the VHP ruler is ${((lib - prev.to) / 1200).toFixed(1)} hours behind (newest hour ${prev.n}); it catches up by itself, see docs/VHP-RULER.md`);
+  if (lib - prev.to > CHAIN_AFTER) {   // too far behind for live reads (an anchor must be within a day of its hour)
+    let last = first - 1;
+    while (last + 1 - first < (opts.maxChained ?? 48) && (last + 2) * D.HOUR - 1 <= lib - CHAIN_AFTER) last++;
+    if (last >= first) return chainedHours(A, B, prevText, first, last, opts);
+  }
+  let last = first - 1;
   while (last + 1 - first < (opts.maxHours ?? 6) && (last + 2) * D.HOUR - 1 <= lib) last++;
   if (last < first) { log(`nothing to record: block-hour ${first} ends at ${(first + 1) * D.HOUR - 1}, irreversible is ${lib}`); return []; }
   const from = first * D.HOUR, to = (last + 1) * D.HOUR - 1;
   log(`recording block-hours ${first} … ${last} (blocks ${from} … ${to}) on ${A.name} and ${B.name}`);
   const blocks = await blocksOnBoth(A, B, from, to);
   const anchored = new Set<string>([...Object.keys(prev.anchor.bal), ...blocks.map((b) => b.s)]);
-  const anc = await liveAnchor(A, B, [...anchored].sort(), to, opts);
+  let anc = await liveAnchor(A, B, [...anchored].sort(), to, opts);
+  for (let k = 0; ; k++) {   // #D-10 L-4: a producer that first signs in the tail is read too
+    const extra = [...new Set(anc.tail.map((b) => b.s))].filter((a) => !anchored.has(a));
+    if (!extra.length) break;
+    if (k >= 3) throw new Error(`new producers keep appearing during the reads (${extra.join(", ")}); tried again next run`);
+    for (const a of extra) anchored.add(a);
+    anc = await liveAnchor(A, B, [...anchored].sort(), to, opts);
+  }
   const allBlocks = [...blocks, ...anc.tail];
-  // every hour of this run takes the same live read (its tail reaches the read)
-  const extra = [...anchored].filter((a) => !(a in anc.reads.A));
-  if (extra.length) throw new Error(`no read for ${extra.join(", ")}`);
   const bal = balancesAt(anc.reads, allBlocks, anc.at);
   const readOut = (n: "A" | "B") => Object.fromEntries(Object.entries(anc.reads[n]).map(([a, r]) => [a, [r.h, r.bal, r.eff]]));
   const texts: string[] = [];
@@ -240,7 +282,9 @@ export function rollup(hourTexts: Map<number, string>, dayNs: Set<number>, newes
 
 async function main() {
   const E = process.env;
-  const A = chainNode(E.RPC || "https://koinos.armana.io", "A"), B = chainNode(E.RPC_CHECK || "https://api.koinosblocks.com", "B");
+  const ra = E.RPC || "https://koinos.armana.io", rb = E.RPC_CHECK || "https://api.koinosblocks.com";
+  if (ra.replace(/\/+$/, "") === rb.replace(/\/+$/, "")) throw new Error("RPC and RPC_CHECK are the same node: two different nodes are needed");   // #D-10 L-5
+  const A = chainNode(ra, "A"), B = chainNode(rb, "B");
   const prevDir = E.VHP_PREV || "", out = E.VHP_OUT || "vhp-out", keep = Math.max(22, Number(E.VHP_KEEP_DAYS || 30));
   const hourTexts = new Map<number, string>(), dayNs = new Set<number>();
   for (const f of fs.existsSync(path.join(prevDir, "h")) ? fs.readdirSync(path.join(prevDir, "h")) : []) { const m = /^(\d+)\.json$/.exec(f); if (m) hourTexts.set(Number(m[1]), fs.readFileSync(path.join(prevDir, "h", f), "utf8")); }

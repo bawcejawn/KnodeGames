@@ -18,7 +18,9 @@ const yml = `# The shared VHP ruler's data (design .ai/standards/VHP_RULER.md §
 #  - fill (by hand, once): the first 30 days (bot/vhp-fill.ts): a plan, three parallel jobs of 10 days each (a failed
 #    one is re-run alone with "Re-run failed jobs"), then one live read and the hour files.
 #  - publish: runs NO repository code. The embedded vhp_ruler.py checks every new file (hash chain, one signer and one
-#    burn per block, anchors on both nodes, write-once, rollups, retention) and only then pushes to vhp-data.
+#    burn per block, every balance adding up to the hour before, write-once, canonical names, rollups, retention), then
+#    checks every new block's id and signer on a THIRD node (vars.RPC_VERIFY: the two recording nodes agreeing proves
+#    consistency, not truth), and only then pushes to vhp-data.
 # Off until the owner sets the repository variable VHP_RULER_ENABLED to true (after Repo Lens review 2).
 name: VHP ruler data
 
@@ -68,8 +70,8 @@ jobs:
           git init -q prev-repo && git -C prev-repo fetch -q --depth 1 "$url" vhp-data
           git -C prev-repo ls-tree -r -z --name-only FETCH_HEAD > "$RUNNER_TEMP/files"
           while IFS= read -r -d '' f; do
-            if [[ "$f" =~ ^h/[0-9]{1,9}\\.json$ ]]; then git -C prev-repo show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
-            if [[ "$f" =~ ^d/[0-9]{1,9}\\.json$ ]]; then : > "$RUNNER_TEMP/prev/$f"; fi   # names only: the recorder needs which days exist
+            if [[ "$f" =~ ^h/(0|[1-9][0-9]{0,8})\\.json$ ]]; then git -C prev-repo show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
+            if [[ "$f" =~ ^d/(0|[1-9][0-9]{0,8})\\.json$ ]]; then : > "$RUNNER_TEMP/prev/$f"; fi   # names only: the recorder needs which days exist
           done < "$RUNNER_TEMP/files"
       - name: Record the next hours
         run: npx tsx bot/vhp-ruler.ts
@@ -123,6 +125,7 @@ jobs:
 
   fill-chunks:
     needs: fill-plan
+    if: \${{ vars.VHP_RULER_ENABLED == 'true' && github.ref == 'refs/heads/main' && inputs.mode == 'fill' }}
     runs-on: ubuntu-latest
     timeout-minutes: 340
     permissions:
@@ -161,6 +164,7 @@ jobs:
 
   fill-hours:
     needs: fill-chunks
+    if: \${{ vars.VHP_RULER_ENABLED == 'true' && github.ref == 'refs/heads/main' && inputs.mode == 'fill' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -197,7 +201,7 @@ jobs:
     needs: [record, fill-hours]
     if: \${{ always() && vars.VHP_RULER_ENABLED == 'true' && github.ref == 'refs/heads/main' && (needs.record.result == 'success' || needs.fill-hours.result == 'success') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90       # the first fill's 30 days are checked block by block on the third node
     permissions:
       contents: write         # push the vhp-data branch (never main)
     steps:
@@ -211,10 +215,13 @@ jobs:
           GH_TOKEN: \${{ github.token }}
           IN: \${{ runner.temp }}/incoming
           KEEP: \${{ vars.VHP_KEEP_DAYS || '30' }}
+          RPC: \${{ vars.RPC || 'https://koinos.armana.io' }}
+          RPC_CHECK: \${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
+          RPC_VERIFY: \${{ vars.RPC_VERIFY || '' }}
         run: |
           set -euo pipefail
           if [ ! -d "$IN" ]; then echo "Nothing to publish."; exit 0; fi
-          bad=$(find "$IN" -mindepth 1 \\( -type l -o \\( -type d ! -path "$IN/h" ! -path "$IN/d" \\) -o \\( -type f ! -regex "$IN/[hd]/[0-9]+\\.json" ! -path "$IN/remove.txt" \\) \\) -print)
+          bad=$(find "$IN" -mindepth 1 \\( -type l -o \\( -type d ! -path "$IN/h" ! -path "$IN/d" \\) -o \\( -type f ! -regex "$IN/[hd]/\\(0\\|[1-9][0-9]*\\)\\.json" ! -path "$IN/remove.txt" \\) \\) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           remote="https://x-access-token:\${GH_TOKEN}@github.com/\${GITHUB_REPOSITORY}.git"
           git init -q work
@@ -224,7 +231,7 @@ jobs:
             parent=$(git -C work rev-parse FETCH_HEAD)
             git -C work ls-tree -r -z --name-only FETCH_HEAD > "$RUNNER_TEMP/pubfiles"
             while IFS= read -r -d '' f; do
-              if [[ "$f" =~ ^[hd]/[0-9]{1,9}\\.json$ ]]; then mkdir -p "$RUNNER_TEMP/published/\${f%/*}"; git -C work show "FETCH_HEAD:$f" > "$RUNNER_TEMP/published/$f"; fi
+              if [[ "$f" =~ ^[hd]/(0|[1-9][0-9]{0,8})\\.json$ ]]; then mkdir -p "$RUNNER_TEMP/published/\${f%/*}"; git -C work show "FETCH_HEAD:$f" > "$RUNNER_TEMP/published/$f"; fi
             done < "$RUNNER_TEMP/pubfiles"
           fi
           /usr/bin/python3 -I -B - "$IN" "$RUNNER_TEMP/published" "$KEEP" <<'PY'
@@ -232,7 +239,7 @@ ${body}          PY
           # the checks passed: the published files, plus the new ones, minus the removals
           mkdir -p tree && cp -R "$RUNNER_TEMP/published/." tree/ 2>/dev/null || true
           for d in h d; do if [ -d "$IN/$d" ]; then mkdir -p "tree/$d"; cp "$IN/$d/"*.json "tree/$d/"; fi; done
-          if [ -f "$IN/remove.txt" ]; then while IFS= read -r f; do [ -n "$f" ] && rm -f "tree/$f"; done < "$IN/remove.txt"; fi
+          if [ -f "$IN/remove.txt" ]; then while IFS= read -r f || [ -n "$f" ]; do [ -n "$f" ] && rm -f "tree/$f"; done < "$IN/remove.txt"; fi
           cd tree
           git init -q -b vhp-data
           git -c user.name="knode-vhp-ruler" -c user.email="knode-vhp-ruler@users.noreply.github.com" add -A

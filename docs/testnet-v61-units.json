@@ -1,126 +1,202 @@
 {
-  "run": "2026-11-04T21:22:14.863Z",
+  "run": "2026-11-04T23:50:25.150Z",
   "rpc": "https://testnet.koinosfoundation.org",
-  "contract": "1CDcV2kCfMTTS4pS1x18Rzqsnvi1dw8jeW",
-  "build": "4fa5d2de9465e48c9fd35d36f6aa23798f0447730a29b03c12cf9eb0fee973b7",
+  "contract": "17iB9jiaRGSwk1rtVHUGR6MWCRZLUUPSTf",
+  "build": "11043e1fde1d8d7dbac75e9e5e788d058a7116b0dab6149fc09ecdc7b1c4258b",
   "games": 13,
   "calls": [
     {
       "key": "answerA1",
-      "rc": "5434136",
-      "compute": "750403",
+      "rc": "5298352",
+      "compute": "727745",
       "disk": "82",
       "network": "308",
-      "tx": "0x1220797aab73c125013dc27d6c59687d62af5f0d9624b505468ee2fe30b186405cd0",
+      "tx": "0x1220a45a09a62100906ece2c0a0559a955d9b57f918bd598f41d4b1529531a02fc9f",
       "note": "player A's answer no. 1 of week 0 (alone)"
     },
     {
       "key": "answerA30",
-      "rc": "5589766",
-      "compute": "867899",
+      "rc": "5335474",
+      "compute": "825515",
       "disk": "6",
       "network": "310",
-      "tx": "0x122002a27b36a685964853d5745496531d69bb383cc86645d18a61fdc620471d2f78",
+      "tx": "0x1220efd929635f03295fa655859f6ab97f722b3a8960a825e837a105f67835ef86b7",
       "note": "player A's answer no. 30 of week 0 (alone)"
     },
     {
       "key": "answerA60",
-      "rc": "6198130",
-      "compute": "969293",
+      "rc": "5943838",
+      "compute": "926909",
       "disk": "6",
       "network": "310",
-      "tx": "0x12209423468ed796436840fb0040b755fb19be853d399772a871e32f4288e03a4d9c",
+      "tx": "0x12205b6520dbd32d3d27334ae502163fb7705b1dcc0092d0ec93a0dc164beab713e0",
       "note": "player A's answer no. 60 of week 0 (alone)"
     },
     {
       "key": "answerB30",
-      "rc": "5501254",
-      "compute": "853147",
+      "rc": "5244358",
+      "compute": "810329",
       "disk": "6",
       "network": "310",
-      "tx": "0x12206ce8aa3c755da81ffcc7790d30b9c36fa25bde7197ff352350bdc4f1d3314a2b",
+      "tx": "0x12207434a27a2b12bec4a504f0fcadc07944bbf0d87b5bc6a1c1673fc0644e3a677d",
       "note": "player B's answer no. 30 of week 0 (alone)"
     },
     {
-      "key": "firstAnswerClose",
-      "rc": "14168280",
-      "compute": "2077491",
-      "disk": "188",
+      "key": "firstAnswerDue",
+      "rc": "5308728",
+      "compute": "729110",
+      "disk": "82",
       "network": "310",
-      "tx": "0x12203196da09140ffae2e26b0ea3ad7fbb4a487b28ec6ff9d899cfaab1993e31ef01",
-      "note": "C's first answer of week 1: also closes week 0 (13 games)"
+      "tx": "0x1220a0b7ab42bc001441e66777b8a8a83fbd69546411da751195fcc73a332e435541",
+      "note": "C's first answer of week 1, sent after week 0 was due to close (it must leave the close to the bot)"
     },
     {
       "key": "firstAnswerSettle",
-      "rc": "5658686",
-      "compute": "787450",
+      "rc": "5309208",
+      "compute": "729190",
       "disk": "82",
       "network": "310",
-      "tx": "0x122013d050f708433182124d2daed4c7d3a2e5beafa16b71a90879ba59c5cbcd89b1",
+      "tx": "0x1220088a4e784c3aa163e45ff909d9705fc455d9766f43367337378302a04c4add6d",
       "note": "A's first answer of week 1 (week 0 already closed; no settle step under the shared rules)"
     },
     {
+      "key": "depositTo1",
+      "rc": "17976452",
+      "compute": "2885391",
+      "disk": "29",
+      "network": "415",
+      "tx": "0x1220271db8bea7f63c8506af487206172a31185edeb85a0d508778ba6c15088b712f",
+      "note": "B's stake in game 1 (approve + deposit_to, 1 KOIN)"
+    },
+    {
+      "key": "withdrawFrom1",
+      "rc": "10898141",
+      "compute": "1661160",
+      "disk": "81",
+      "network": "314",
+      "tx": "0x12205345ae7fc8d3ab8cc07d0248f23d6b49c2af7b37daadeb33dae7f30f9f783156",
+      "note": "D's withdrawal from game 1 (withdraw_from, 1 VHP)"
+    },
+    {
+      "key": "claimGame",
+      "rc": "14312867",
+      "compute": "2307047",
+      "disk": "18",
+      "network": "311",
+      "tx": "0x1220c4669f8d15b2695bf188a62de5bfff6cf04b055de9c59cbdc0ab6bb0c1d76d18",
+      "note": "A's claim_game for game 1"
+    },
+    {
+      "key": "closeWeek13",
+      "rc": "12308980",
+      "compute": "1871519",
+      "disk": "106",
+      "network": "284",
+      "tx": "0x1220d4126aa4ca71d60f91ffda903aaa84ff2e8eb9a4f1db8f480853c0e5d1396b07",
+      "note": "the bot's close_week for week 0 (13 games)"
+    },
+    {
       "key": "postResults4",
-      "rc": "13935774",
-      "compute": "1624598",
+      "rc": "13936872",
+      "compute": "1624513",
       "disk": "515",
-      "network": "412",
-      "tx": "0x12208280ee77b031380f530ae979487a3696e7427aeac158673349d0c0d298792165",
+      "network": "413",
+      "tx": "0x12200e2c8b722d5f11d354acbafa5b71d1c9978eae869a1f1ad85285c08f0f638c77",
       "note": "posting game 1's results for 4 players"
     },
     {
       "key": "seal",
-      "rc": "4492371",
-      "compute": "685924",
+      "rc": "4512127",
+      "compute": "689033",
       "disk": "9",
-      "network": "285",
-      "tx": "0x12208e23c611349cedb599e360b1a42da3c0ba0350dcc8e96c1bd603459026f3660b",
+      "network": "286",
+      "tx": "0x1220560da59812b1199a2144df5ff5060024bbf9f65d2746a5d7b9305f1d3a61b889",
       "note": "sealing game 1's week"
     },
     {
       "key": "finalizeGame",
-      "rc": "4950503",
-      "compute": "676393",
+      "rc": "4951166",
+      "compute": "676308",
       "disk": "80",
-      "network": "285",
-      "tx": "0x12202063e0ec51e3826b4fc5f0c8cb3178e3e33321fbd3537dbcacf993921a5e3332",
+      "network": "286",
+      "tx": "0x1220c7de334b09e6650f2fcbf985d9b8cc5fb68742165e539a36291342eb5e03268e",
       "note": "finalize_game_week for game 1 (4 players)"
     },
     {
-      "key": "claimGame",
-      "rc": "14555255",
-      "compute": "2347448",
-      "disk": "18",
-      "network": "311",
-      "tx": "0x12209db3aca8a8f92baa437244830ffc3c9c753e5a9fc75fdbff7dd84b1e4d29a4b6",
-      "note": "A's claim_game for game 1"
-    },
-    {
       "key": "post10",
-      "rc": "37102639",
-      "compute": "4768643",
+      "rc": "37100100",
+      "compute": "4767706",
       "disk": "995",
-      "network": "1162",
-      "tx": "0x12206dbe351e090272cabd0985df5ba4a746cb67144180adbc80dc982c4bdb8dced0",
+      "network": "1163",
+      "tx": "0x12207f307d05247f799ea60939a119c20e77a8a3462237899030ef727ea3d94d0029",
       "note": "posting 10 questions in one transaction"
     },
     {
       "key": "resolve10",
-      "rc": "33196912",
-      "compute": "4831093",
+      "rc": "33192811",
+      "compute": "4830156",
       "disk": "428",
-      "network": "1010",
-      "tx": "0x122009cc7c9afe6f72082ec7948e22f7401f1b2e9f6a988c0ca71838ac881bdc12cb",
+      "network": "1011",
+      "tx": "0x1220414f11acbb835d74246e2b0c00616e68fc4d6753d719f53f6b3b27adad86bd74",
       "note": "resolving 10 questions in one transaction"
     },
     {
       "key": "upload",
-      "rc": "781048623",
-      "compute": "682319",
-      "disk": "88053",
-      "network": "126216",
-      "tx": "0x1220038c46ec08d98bc863e3e51bb24e074f383e31ff02c8cd2401db21fb570d0312",
-      "note": "uploading the 85.9 KB v6.1 contract"
+      "rc": "780400204",
+      "compute": "682055",
+      "disk": "87965",
+      "network": "126128",
+      "tx": "0x12206a395899d9291fb9552c55346000e01902906bd5acfc9ff5a2857f0531fc1bdc",
+      "note": "uploading the 85.8 KB v6.1 contract"
+    },
+    {
+      "key": "answerSp",
+      "rc": "10702509",
+      "compute": "1580890",
+      "disk": "121",
+      "network": "310",
+      "tx": "0x12209a91d98ea922708c78ed292155a48c1b3e4372650ad3a5850a19ec018f36b706",
+      "note": "C's answer, paid by the sponsor"
+    },
+    {
+      "key": "answerOwn",
+      "rc": "5319912",
+      "compute": "730974",
+      "disk": "82",
+      "network": "310",
+      "tx": "0x12207fa0990c87082e0100c9a41a15eef881b3a00f88fe28f1847dd7a8ec548f8bc7",
+      "note": "B's answer to the same question, own Mana"
+    },
+    {
+      "key": "claimGameSp",
+      "rc": "19711375",
+      "compute": "3136628",
+      "disk": "76",
+      "network": "311",
+      "tx": "0x12207c8253ba1ab62cb5707bd317ad5e6d3895ebb6efa1dfe0bc6094e22743867e26",
+      "note": "C's claim_game for game 1, paid by the sponsor"
+    },
+    {
+      "key": "depositTo1Sp",
+      "rc": "23601744",
+      "compute": "3742063",
+      "disk": "96",
+      "network": "414",
+      "tx": "0x122023210d8d14204331e11af2db84a11494b88a070f326240d0f6cd95ac4d8a820a",
+      "note": "A's stake in game 1 (approve + deposit_to, 1 KOIN), paid by the sponsor"
+    },
+    {
+      "key": "withdrawFrom1Sp",
+      "rc": "15697829",
+      "compute": "2548216",
+      "disk": "9",
+      "network": "314",
+      "tx": "0x12204dca77247e364113d2c68211f0c4336be92c35e9e616d30dbcef3481399c05f9",
+      "note": "C's withdrawal from game 1 (withdraw_from, 1 VHP), paid by the sponsor"
     }
-  ]
+  ],
+  "sponsor": {
+    "build": "b84e1add3ffa14a7d1933d5ce5a4ad33caa4bca887a489f87f710b3c121c83a6",
+    "contract": "1MbyYy7mCq7iWzYFu5bpie6qsrZgmYCXxH"
+  }
 }

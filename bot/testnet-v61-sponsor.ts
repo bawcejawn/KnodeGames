@@ -6,7 +6,7 @@
  * (sponsor/, build b84e1add…) pays, and its `authorize` (caps, the player check that reads the vault) runs inside the
  * same transaction. This puts a fresh copy of that sponsor in front of the testnet-v61-d8 vault (run that first) and
  * measures, each with and without the sponsor:
- *   - an answer (C sponsored, D on its own Mana);
+ *   - an answer (C sponsored, B on its own Mana);
  *   - claim_game for game 1 (C sponsored; A's own-Mana claim is in the d8 run);
  *   - a stake (approve + deposit_to(1)) and a withdrawal (withdraw_from(1)), sponsored (the d8 run has them unsponsored).
  * The units go into testnet-v61-d8/units.json beside the d8 run's (keys ending in "Sp" are sponsored).
@@ -60,7 +60,10 @@ export async function testnetV61Sponsor() {
     for (let attempt = 1; ; attempt++) {
       try {
         const payer = sponsored ? SP : who.getAddress();
-        const tx = new Transaction({ signer: who, provider, options: { payer, payee: who.getAddress(), rcLimit: toSat(sponsored ? 2.5 : 3).toString() } });
+        // Own Mana: at most 95% of what the player has (a test player's few KOIN), else 3.
+        const own = sponsored ? 0n : (BigInt(await provider.getAccountRc(payer)) * 95n) / 100n;
+        const limit = sponsored ? toSat(2.5) : (own < toSat(3) ? own : toSat(3));
+        const tx = new Transaction({ signer: who, provider, options: { payer, payee: who.getAddress(), rcLimit: limit.toString() } });
         for (const c of calls) await tx.pushOperation(c.operation ?? (await chain.op(c)));
         await tx.prepare();
         let t: any = await who.signTransaction(tx.transaction!);
@@ -121,7 +124,7 @@ export async function testnetV61Sponsor() {
     st.configured = true; save();
   }
 
-  // 2. A fresh question this week, answered by C (sponsored) and D (own Mana).
+  // 2. A fresh question this week, answered by C (sponsored) and B (own Mana; D withdrew in the d8 run).
   if (st.question === undefined) {
     const s = await chain.read("get_state", {});
     const now = Number((await provider.getHeadInfo() as any).head_block_time);
@@ -134,7 +137,7 @@ export async function testnetV61Sponsor() {
   }
   const ans = (n: string) => ({ method: "answer", args: { player: P[n].getAddress(), question_id: st.question, option: 1 } });
   if (!st.m.answerSp) note("answerSp", await send(P.C, [ans("C")], "C sponsored answer", true), "C's answer, paid by the sponsor");
-  if (!st.m.answerOwn) note("answerOwn", await send(P.D, [ans("D")], "D own answer", false), "D's answer to the same question, own Mana");
+  if (!st.m.answerOwn) note("answerOwn", await send(P.B, [ans("B")], "B own answer", false), "B's answer to the same question, own Mana");
 
   // 3. Money calls through the sponsor.
   if (!st.m.claimGameSp) note("claimGameSp", await send(P.C, [{ method: "claim_game", args: { game: 1, week: "0", player: P.C.getAddress() } }], "C sponsored claim", true),

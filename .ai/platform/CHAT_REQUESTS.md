@@ -21,6 +21,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-ALL-2 | **Your vault results file always fills `first` / `second`** with the free winners, even when the prize is off. The owner's free-prize switch decides whether they're paid | D-082, `FREE_PRIZE_SWITCH.md`, `VAULT_STANDARD.md` §6 | a sample file with free winners | open |
 | R-ALL-3 | **Publish `board.json` for the vault check.** It sits next to your vault folder (or tell the library chat the path to set as `vaultGames.<id>.board`), has a `lastWeek` for the vault week, and each row has the wallet, `points` and a place, Staked and Free rows both. Every staked wallet with points must be in your vault file, and every file wallet must be on the board, in board order. Without this, the vault bot holds your weeks | I-079, PR #74, `VAULT_STANDARD.md` §6 | path + a sample row confirmed | open (done for Block X and Race ✅) |
 | R-ALL-4 | **Nicknames** through `names.js` (`KNames.of`) everywhere a producer or player appears | D-078 | page loads `names.js` | open (done for Block X, Race ✅) |
+| R-ALL-6 | **Meet `standards/RECORDER_STANDARD.md`** (clock checks, points recomputed at publish, per-file holds, two nodes, write-once) and launch by **`standards/GO_LIVE_CHECKLIST.md`**. Review your recorder against its §8 checklist and list any gaps in your session-end report | RECORDER_STANDARD, GO_LIVE_CHECKLIST | gaps listed, then fixed before launch | open |
 | R-ALL-5 | **Vault registration** is always `game-add <id> "<name>" --staked --free --season <n>`. The owner sets the free-prize switch | D-082 | — | rule |
 
 ## 3. By chat
@@ -30,6 +31,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-VAULT-1 | Fix PR #73 (`docs/WALLETS.md` + weekend runbook): 3 High, 6 Medium, 5 Low from the independent check. The full list was sent 3 Nov (`claude/prompts-2026-11-03-boards-owners-vault-reply.md`) | I-001, D-083 | fixes pushed; owner merges before Fri 6 Nov | sent 3 Nov |
 | R-VAULT-2 | **PR #74 — Repo Lens #D-3 (3 Nov): fix first.** Report (private): `claude/audit-vault-bot-checks-D3-report.md`. Fix on `vault-bot-checks`, one finding per commit, each with a test that fails on `eaa47b0` and passes after: **VB-2** (High) `vaultFinalizePass` treats `{ok:false}` as success → `if (!sent(await send(...)).ok \|\| ctx.dryRun) break;`, and route every `Send` through `sent()`; **VB-3** (Medium) record a refusal only for a chain revert (`reverted:`), retry network / Mana / "not seen in a block" next run; **VB-4** (High) optional `vaultGames.<id>.board: "none"` that skips the staked-list check (logged), set for game 3 (Survivor) unless Survivor publishes a board (R-SV-3); **VB-5** (Medium) optional `vaultGames.<id>.minPts`, 100 for game 8 (Combo); **VB-1** (High, before Last Node launches) a `HOLD-W<n>.json` holds unless `RELEASE-W<n>.json` exists; read `why` as well as `reason`; Lows if quick: VB-10 (alert when a file is first seen with < 2 h left), VB-8 (read only `ranked: true` rows), VB-6 (skip rows past the board's cap or ask games to keep every ≥ 1-point row), VB-7 (use max(min, 1 VHP)) | I-051, I-052, I-064 | fixes pushed → Repo Lens fix-check GO → owner merges **by Fri 13 Nov** (VB-2 and VB-3 are enough for Race and Block X on 16 Nov) | open |
 | R-VAULT-3 | `tools/sweep-old-bot.ts`: honour `$env:RPC`, default to Armana | I-078 | before the Sat 7 Nov sweep | open |
+| R-VAULT-5 | **Check `platform/RUNBOOK.md`** (new, 3 Nov): confirm or correct every vault, Desk, sponsor and key step, especially those marked ❓ (§6 manual tick without an operator key, §7 hostile owner announcement and sponsor key, §9 withdrawals-only build). Edit it in your PR | DOCUMENTATION_GAPS #2 | runbook confirmed | open |
 | R-VAULT-4 | Plan: recompute each game's points from on-chain picks in the bot | I-080 | a plan | open (after 16 Nov) |
 
 ### Block X (and Picks)
@@ -106,5 +108,5 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 ### Library (this chat)
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
-| R-LIB-1 | Emergency runbook with monitoring and alerts | DOCUMENTATION_GAPS #2, #26 | before Mon 16 Nov | open |
-| R-LIB-2 | Game go-live checklist; audit process; key and role inventory | #25, #12, #3 | before the next launch | open |
+| R-LIB-1 | Emergency runbook with monitoring and alerts | DOCUMENTATION_GAPS #2, #26 | before Mon 16 Nov | done (3 Nov): `RUNBOOK.md`; the Vault chat checks it (R-VAULT-5) |
+| R-LIB-2 | Game go-live checklist; audit process; key and role inventory | #25, #12, #3 | before the next launch | in progress: `GO_LIVE_CHECKLIST.md` and `RECORDER_STANDARD.md` done (3 Nov); audit process and key inventory open |

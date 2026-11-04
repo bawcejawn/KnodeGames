@@ -198,8 +198,8 @@ test("KOIN Vault, remembered: the same account approved again → the action goe
   assert.ok(h.log.fetches.some((f) => f.path === "request"), "the request went to KOIN Vault for the user's approval");
 });
 
-// Menus (owner, 2026-10-28): Games ▾ · Leaderboards · Results · Tools ▾ · Rules · New to Koinos? · Info ▾ at the top; the
-// footer keeps only Trust · Terms & risks · Install app · Source code.
+// Menus (owner, 2026-10-28; R-HUB-9 / R-HUB-10): Games ▾ · Leaderboards · Results · Stake · Tools ▾ · Rules · New to Koinos?
+// at the top (no Info menu: Get VHP is in Tools); the footer has Quick tour · Trust · Terms & risks · Install app · Source code.
 test("every page with a header loads the shared wallet button after wallet.js, and has the same top menu and footer", () => {
   for (const p of fs.readdirSync(`${APP}`).filter((f) => f.endsWith(".html"))) {
     const h = fs.readFileSync(`${APP}/${p}`, "utf8");
@@ -208,11 +208,13 @@ test("every page with a header loads the shared wallet button after wallet.js, a
     assert.match(h, /<script src="wallet\.js"><\/script>\s*(?:<script src="names\.js"><\/script>\s*)?<script src="header-wallet\.js"><\/script>/, `${p}: header wallet`);
     const nav = h.match(/<nav class="tabs"[\s\S]*?<\/nav>/)[0];
     const top = [...nav.matchAll(/^        (?:<a [^>]*>([^<]+)<\/a>|<details[^>]*>)$|^          <summary>([^<]+)<\/summary>$/gm)].map((m) => m[1] || m[2]).filter(Boolean);
-    assert.deepEqual(top, ["Games", "Leaderboards", "Results", "Tools", "Rules", "New to Koinos?", "Info"], `${p}: top menu`);
-    for (const f of ["games.html", "race.html", "swap.html", "burn.html", "mana.html", "node.html", "pulse.html", "get.html", "start.html", "trust.html", "terms.html", "install.html"])
+    assert.deepEqual(top, ["Games", "Leaderboards", "Results", "Stake", "Tools", "Rules", "New to Koinos?"], `${p}: top menu`);
+    for (const f of ["games.html", "race.html", "stake.html", "swap.html", "burn.html", "mana.html", "node.html", "pulse.html", "get.html", "start.html"])
       assert.ok(nav.includes(`href="${f}"`), `${p}: top menu reaches ${f}`);
     const foot = h.match(/<span class="foot-links">[^\n]*<\/span>/)[0];
-    assert.deepEqual([...foot.matchAll(/>([^<]+)<\/a>/g)].map((m) => m[1]), ["Trust", "Terms &amp; risks", "Install app", "Source code"], `${p}: footer links`);
+    assert.deepEqual([...foot.matchAll(/>([^<]+)<\/a>/g)].map((m) => m[1]), ["New here? Quick tour", "Trust", "Terms &amp; risks", "Install app", "Source code"], `${p}: footer links`);
+    for (const f of ["trust.html", "terms.html", "install.html"]) assert.ok(foot.includes(`href="${f}"`), `${p}: footer reaches ${f}`);
+    assert.match(foot, /href="(?:index\.html)?#welcome"/, `${p}: footer quick tour`);
   }
 });
 

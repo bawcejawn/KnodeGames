@@ -38,7 +38,7 @@
 ## 4. Stakes
 - Minimum **1 VHP** per staked game ✅ (`minStake`), read from `get_state` (`min_stake`, `min_stake_next`, `min_stake_next_week`), never below 1 VHP. **Staking in several games at once is allowed and encouraged** (D-074); each game needs its own 1 VHP minimum.
 - **Staked** that week = `peak_stake` (or `active_stake` when there's no entry) at or above the minimum; **earning** = `week_stake` at or above it. A player staked at the week's start stays staked that week.
-- **Withdraw** any amount at any time (`withdraw_from`; not used for game 1). **Move** with `move_stake` — refused while paused; the target must be active and staked.
+- **Withdraw** any amount at any time (`withdraw_from`). **Game 1 (Daily Questions) uses the same calls from v6.1** (`deposit_to` / `withdraw_from` with `game: 1`); its old `deposit_vhp` / `deposit_koin` / `withdraw` stay as aliases, and every game-1 stake is read in place from the player's own record (D-116). **Move** with `move_stake` — refused while paused; the target must be active and staked.
 - Withdrawing below the minimum mid-week forfeits that week's share and free prize; the panel should say so (I-028).
 
 ## 5. Mana sponsorship of vault calls
@@ -46,7 +46,9 @@
 - Caps: 1 Mana per transaction, 25 a day and 150 a week per wallet, 5,000 a day for everyone, 2,000 a day for free players; the wallet holds 25,000 KOIN (D-028, D-061).
 - Sponsor v3 refuses vault calls until its vault switch (`config.game_has_vault`) is on. **Switch it right after the first `game-add`**, passing the current caps exactly — a plain `config` resets them.
 
-## 6. Results files (every game except game 1)
+## 6. Results files (every game; game 1 from v6.1's rule week, D-116)
+**Game 1 (Daily Questions):** from the v6.1 rule week (`get_state` → `config.q60_rule_week_plus_one`; Mon 16 Nov with an upload on Thu 12) it is paid from `games-data:questions/vault/W<week>.json` and `board.json` like every game: no settle step, no 40/60 baskets. Its rows also need **at least 2 answers that week and no more points than answers** (the contract refuses otherwise; the recorder applies the full rule: at least 2 counted answers and at least 1 point; free winners never staked that week). More than 10 tied for a free place: the 10 with the earliest first answer that week share it (D-034's shared rule). Weeks before the rule week keep the old path (settle, `finalize_week`, `claim`), and their rewards stay claimable.
+
 **Where:** the game's source in `game-data/deployment.json` → `vaultGames` (`<branch>:<folder>`), file `W<week>.json` with an unpadded vault week ✅ (`bot/vault.ts` reads `origin/<branch>:<folder>/W<week>.json`).
 
 **Shape:**

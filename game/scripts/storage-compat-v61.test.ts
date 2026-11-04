@@ -187,10 +187,11 @@ test("rollback (Repo Lens V61-A1): v6.1 → v6 → v6.1 again; a no-op owner cal
     for (let i = 0; i < 30; i++) await ok([["post_question", postArgs(GENESIS + 2 * WEEK + 2 * DAY)]], [operator]);
     await sim.setCode(NEW);
     at(GENESIS + 2 * WEEK + 13 * HOUR);
-    const r = await send([["post_question", postArgs(GENESIS + 2 * WEEK + 2 * DAY)]], [operator]);
-    return r.ok;
+    return send([["post_question", postArgs(GENESIS + 2 * WEEK + 2 * DAY)]], [operator]);
   };
-  assert.equal(await story(true), false, "with the no-op owner call during the rollback, the 31st question of the running week is refused");
+  const withNoop = await story(true);
+  assert.equal(withNoop.ok, false, "with the no-op owner call during the rollback, the 31st question of the running week is refused");
+  assert.match(String(withNoop.error), /too many questions this week/, "refused for the cap, not for another reason (D8-10)");
   // Without it, the rule week survives the rollback and the running week's cap jumps to 60: the runbook rule exists for this.
-  assert.equal(await story(false), true, "without the no-op call the 31st is accepted (V61-A1): the runbook rule is needed");
+  assert.equal((await story(false)).ok, true, "without the no-op call the 31st is accepted (V61-A1): the runbook rule is needed");
 });

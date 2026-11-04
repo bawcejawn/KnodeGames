@@ -1093,6 +1093,11 @@ export async function status(ctx: Ctx) {
   log(now < st.genesis ? `Game starts ${utc(st.genesis)} (in ${inH(st.genesis)})`
     : `Week ${w + 1}: ends ${utc(weekEnd(st, w))} (in ${inH(weekEnd(st, w))}); results final ${utc(weekEnd(st, w) + st.closeDelay)}`);
   log(`Weeks closed ${st.weeksClosed}, finalized ${st.weeksFinalized}; questions posted ${st.nextId}`);
+  // v6.1: how many questions a week may hold (week numbers here are 1-based, so the stored rule week (+1) is the label).
+  if (st.raw.questions_cap !== undefined) {
+    const rule = Number(st.raw.config?.q60_rule_week_plus_one ?? 0);
+    log(`Questions a week  this week ${st.raw.questions_cap ?? 30}, next week ${st.raw.questions_cap_next ?? 30}; ${rule > 0 ? `60 from Week ${rule} (stored rule ${rule})` : "the 60 rule is not set yet (the next action sets it: 60 from next week)"}`);
+  }
   log(`Holdings  ${showKoin(holdings)}  (VHP ${showKoin(st.raw.vhp_balance)} + KOIN ${showKoin(st.raw.koin_balance)})   contract Mana ${showKoin(st.raw.mana)}`);
   log(`Owed      ${showKoin(owed)}  = stakes ${showKoin(t.total_stake)} + seed ${showKoin(big(t.seed_vhp) + big(t.seed_koin))} + producer fee ${showKoin(big(t.creator_fee) + big(t.fee_vhp))} + unclaimed pots ${showKoin(t.pots_outstanding)}${big(t.games_rolled) > 0n ? ` + buckets rolling over ${showKoin(t.games_rolled)}` : ""}${big(t.owner_share) > 0n ? ` + old owner share ${showKoin(t.owner_share)}` : ""}`);
   log(`Earned since the last close (not yet split): ${showKoin(holdings - owed)}${big(t.rolled_over) > 0n ? `  (includes ${showKoin(t.rolled_over)} carried over from a week with no winners; no fee on that part)` : ""}`);
@@ -2101,6 +2106,7 @@ async function main() {
   // Vault v6: copy the live contract's state to a file (read-only, no key), and rehearse the upgrade on that copy.
   if (cmd === "vault-snapshot") { const { snapshotCommand } = await import("./rehearse-v6.ts"); return snapshotCommand(gameChain(), opt("--out", "v5-snapshot.json")!); }
   if (cmd === "testnet-v6") { const { testnetV6 } = await import("./testnet-v6.ts"); return testnetV6(rest.filter((a) => !a.startsWith("--"))); }
+  if (cmd === "testnet-v61-d8") { const { testnetV61D8 } = await import("./testnet-v61-d8.ts"); return testnetV61D8(rest.filter((a) => !a.startsWith("--"))); }
   if (cmd === "testnet-v61") { const { testnetV61 } = await import("./testnet-v61.ts"); return testnetV61(rest.filter((a) => !a.startsWith("--"))); }
   if (cmd === "rehearse-v6") { const { rehearseCommand } = await import("./rehearse-v6.ts"); return rehearseCommand(opt("--snapshot", "v5-snapshot.json")!, Number(opt("--weeks", "3")), opt("--reward")); }
   throw new Error(`Unknown command "${cmd}". See bot/README.md for the list of commands.`);

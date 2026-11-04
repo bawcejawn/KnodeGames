@@ -2,7 +2,7 @@
 
 > **Purpose:** the one place where work is handed to each chat. Instead of the owner sending a different message to every chat, each chat reads **its own section here** at the start of every session and works the open items in order.
 > **Owner's message to any chat is always the same** (§1). The library chat keeps this file current from session-end reports, decisions and audits.
-> **Last updated:** 2026-11-03
+> **Last updated:** 2026-11-04 (Vault chat's session-end report filed)
 > **Rules:**
 > - Each item has an id (R-<chat>-<n>), a link (D-/I-/PR), what "done" means, and a status: **open** · **in progress** · **done (date)**.
 > - A chat reports finished items in its session-end report (`SESSION_END_PROCESS.md`), and the library chat marks them done. Items are never deleted.
@@ -28,11 +28,11 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 ### Vault
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
-| R-VAULT-1 | Fix PR #73 (`docs/WALLETS.md` + weekend runbook): 3 High, 6 Medium, 5 Low from the independent check. The full list was sent 3 Nov (`claude/prompts-2026-11-03-boards-owners-vault-reply.md`) | I-001, D-083 | fixes pushed; owner merges before Fri 6 Nov | sent 3 Nov |
-| R-VAULT-2 | **PR #74 — Repo Lens #D-3 (3 Nov): fix first.** Report (private): `claude/audit-vault-bot-checks-D3-report.md`. Fix on `vault-bot-checks`, one finding per commit, each with a test that fails on `eaa47b0` and passes after: **VB-2** (High) `vaultFinalizePass` treats `{ok:false}` as success → `if (!sent(await send(...)).ok \|\| ctx.dryRun) break;`, and route every `Send` through `sent()`; **VB-3** (Medium) record a refusal only for a chain revert (`reverted:`), retry network / Mana / "not seen in a block" next run; **VB-4** (High) optional `vaultGames.<id>.board: "none"` that skips the staked-list check (logged), set for game 3 (Survivor) unless Survivor publishes a board (R-SV-3); **VB-5** (Medium) optional `vaultGames.<id>.minPts`, 100 for game 8 (Combo); **VB-1** (High, before Last Node launches) a `HOLD-W<n>.json` holds unless `RELEASE-W<n>.json` exists; read `why` as well as `reason`; Lows if quick: VB-10 (alert when a file is first seen with < 2 h left), VB-8 (read only `ranked: true` rows), VB-6 (skip rows past the board's cap or ask games to keep every ≥ 1-point row), VB-7 (use max(min, 1 VHP)) | I-051, I-052, I-064 | fixes pushed → Repo Lens fix-check GO → owner merges **by Fri 13 Nov** (VB-2 and VB-3 are enough for Race and Block X on 16 Nov) | open |
-| R-VAULT-3 | `tools/sweep-old-bot.ts`: honour `$env:RPC`, default to Armana | I-078 | before the Sat 7 Nov sweep | open |
+| R-VAULT-1 | Fix PR #73 (`docs/WALLETS.md` + weekend runbook): 3 High, 6 Medium, 5 Low from the independent check. The full list was sent 3 Nov (`claude/prompts-2026-11-03-boards-owners-vault-reply.md`) | I-001, D-083 | fixes pushed; owner merges before Fri 6 Nov | fixes pushed 4 Nov (`c4ac56d`, `f98ccb8`) → owner reviews and merges #73 **before Fri 6 Nov 10 AM PT** |
+| R-VAULT-2 | **PR #74 — Repo Lens #D-3 (3 Nov): fix first.** Report (private): `claude/audit-vault-bot-checks-D3-report.md`. Fix on `vault-bot-checks`, one finding per commit, each with a test that fails on `eaa47b0` and passes after: **VB-2** (High) `vaultFinalizePass` treats `{ok:false}` as success → `if (!sent(await send(...)).ok \|\| ctx.dryRun) break;`, and route every `Send` through `sent()`; **VB-3** (Medium) record a refusal only for a chain revert (`reverted:`), retry network / Mana / "not seen in a block" next run; **VB-4** (High) optional `vaultGames.<id>.board: "none"` that skips the staked-list check (logged), set for game 3 (Survivor) unless Survivor publishes a board (R-SV-3); **VB-5** (Medium) optional `vaultGames.<id>.minPts`, 100 for game 8 (Combo); **VB-1** (High, before Last Node launches) a `HOLD-W<n>.json` holds unless `RELEASE-W<n>.json` exists; read `why` as well as `reason`; Lows if quick: VB-10 (alert when a file is first seen with < 2 h left), VB-8 (read only `ranked: true` rows), VB-6 (skip rows past the board's cap or ask games to keep every ≥ 1-point row), VB-7 (use max(min, 1 VHP)) | I-051, I-052, I-064 | fixes pushed → Repo Lens fix-check GO → owner merges **by Fri 13 Nov** (VB-2 and VB-3 are enough for Race and Block X on 16 Nov) | fixes pushed 4 Nov (`ec61bb4`: VB-1 – VB-8, VB-10 – VB-12; 11 new tests fail on `eaa47b0`, pass now; bot 72/72, audit 700/0) → **Repo Lens fix-check** (prompt `claude/audit-vault-bot-checks-fixcheck-prompt.md`) → merge by Fri 13 Nov |
+| R-VAULT-3 | `tools/sweep-old-bot.ts`: honour `$env:RPC`, default to Armana | I-078 | before the Sat 7 Nov sweep | done 4 Nov (in PR #73; test `tools.sweep-rpc`) |
 | R-VAULT-5 | **Check `platform/RUNBOOK.md`** (new, 3 Nov): confirm or correct every vault, Desk, sponsor and key step, especially those marked ❓ (§6 manual tick without an operator key, §7 hostile owner announcement and sponsor key, §9 withdrawals-only build). Edit it in your PR | DOCUMENTATION_GAPS #2 | runbook confirmed | open |
-| R-VAULT-4 | Plan: recompute each game's points from on-chain picks in the bot | I-080 | a plan | open (after 16 Nov) |
+| R-VAULT-4 | Plan: recompute each game's points from on-chain picks in the bot | I-080 | a plan | plan written 4 Nov (`claude/vault/RECOMPUTE-PLAN.md`); build after 16 Nov |
 
 ### Block X (and Picks)
 | Id | Request | Link | Done when | Status |
@@ -65,27 +65,28 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 |---|---|---|---|---|
 | R-SV-1 | Keep the Free play board; the 4 + 2 season prize is off for now (switch). Page says no VHP is paid on Free play; check whether "no prize" changes SV-A10 / SV-A19 | D-081, D-082 | page text + note | open |
 | R-SV-2 | Repo Lens pass 4 → fixes → testnet season → Picks registration → Season 1 Mon 16 Nov | I-050, D-065 | launched | open |
-| R-SV-3 | **Vault check (PR #74 VB-4):** Survivor publishes no `board.json`, so every staked week would be held. Either publish a board with `lastWeek` (and allow it in your publish allowlist), or confirm the Vault chat should set `board: "none"` for game 3 | I-079 | decided with the Vault chat before 16 Nov | open |
+| R-SV-3 | **Vault check (PR #74 VB-4):** Survivor publishes no `board.json`, so every staked week would be held. Either publish a board with `lastWeek` (and allow it in your publish allowlist), or confirm the Vault chat should set `board: "none"` for game 3 | I-079 | decided with the Vault chat before 16 Nov | partly done: PR #74 sets `vaultGames.3.board: "none"` for now; Survivor may publish a board later, then remove "none" |
 
 ### Last Node Standing
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-LN-1 | Add the Free play board **with** the 2 + 1 weekly prize. Decide the free-winner rule with the owner (proposal: `claude/lastnode/FREE-PLAY-PROPOSAL.md`), working with HOLD files | D-081 | rule decided; built | open |
 | R-LN-2 | Check whether an hourly sampler (I-059) changes the 48 h readiness and the round-3 review | I-059, I-058 | answer | open |
-| R-LN-3 | **Vault check (PR #74 VB-1):** when a held week is released (`LASTNODE_RELEASE_WEEKS`), publish `RELEASE-W<week>.json` next to the `HOLD-W` file (the publish job only adds files, so HOLD stays). Name the reason field `reason` (the bot reads `reason`; you write `why`). Keep every row with ≥ 1 point in `lastWeek` (VB-6) | I-064 | built + tested before launch | open |
+| R-LN-3 | **Vault check (PR #74 VB-1):** when a held week is released (`LASTNODE_RELEASE_WEEKS`), publish `RELEASE-W<week>.json` next to the `HOLD-W` file (the publish job only adds files, so HOLD stays). Name the reason field `reason` (the bot reads `reason`; you write `why`). Keep every row with ≥ 1 point in `lastWeek` (VB-6) | I-064 | built + tested before launch | open — **without the RELEASE marker a released week stays held** (PR #74 now requires it) |
 
 ### Fantasy Producers
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-FA-1 | Add a Free play board (no prize yet); say what it needs (picks contract, recorder, page) and how big the change is | D-081 | plan, then PR | open |
 | R-FA-2 | Fix-check, a full test week, the real-data simulation | I-062 | done | open |
+| R-FA-3 | **Card quality gate:** Fantasy uses Race cards without checking their sample count (≥ 12) or flags. Add the same gate Block X and Combo use | `HANDICAP_REVIEW.md` §5.1 #6 | PR + test, before launch | open |
 
 ### Combo Card
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-CO-1 | Let free players send cards and rank on a Free play board (no prize yet). Check whether that needs Picks v2, and how free cards meet the forged/unverified-card checks | D-081, I-074 | plan | open |
 | R-CO-2 | Fix-check 4; then the Picks v2 upgrade plan | I-063, D-060 | done | open |
-| R-CO-3 | **Vault check (PR #74 VB-5):** your vault file needs ≥ 100 hundredths (1 full point); the Vault chat adds `minPts: 100` for game 8. Confirm the floor | I-079 | confirmed | open |
+| R-CO-3 | **Vault check (PR #74 VB-5):** your vault file needs ≥ 100 hundredths (1 full point); the Vault chat adds `minPts: 100` for game 8. Confirm the floor | I-079 | confirmed | done in PR #74 (`vaultGames.8.minPts: 100`); Combo chat to confirm the floor |
 
 ### Block Golf
 | Id | Request | Link | Done when | Status |

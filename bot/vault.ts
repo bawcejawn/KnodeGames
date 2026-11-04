@@ -489,6 +489,8 @@ export function stakedFloor(min: bigint): bigint {
  *  the node's error (refused when submitted). */
 export function isRevert(error: string | undefined): boolean {
   const e = String(error ?? "");
+  // Repo Lens #C-6 (C6-1): out of Mana is never a refusal, even though its logs carry "transaction reverted: …".
+  if (/^out of Mana:/.test(e)) return false;
   return /^reverted:/.test(e) || /transaction reverted/i.test(e);
 }
 

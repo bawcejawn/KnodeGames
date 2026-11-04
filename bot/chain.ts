@@ -41,14 +41,17 @@ export const showKoin = (s: string | number | bigint | undefined) => (Number(s ?
 
 // ═══════════════════════════════ real chain ═══════════════════════════════
 
-/** The error for a transaction that was included but reverted. Repo Lens N-3: one that ran out of Mana (it used its
- *  whole Mana limit) is not the contract's refusal, so it doesn't start with "reverted:" and the vault bot retries it
+/** The error for a transaction that was included but reverted. Repo Lens N-3: one that ran out of Mana (the chain's
+ *  "transaction reverted: insufficient rc" log, or its whole Mana limit used) is not the contract's refusal, so it doesn't start with "reverted:" and the vault bot retries it
  *  on the next run instead of remembering it as a refusal. Exported for the tests. */
 export function revertError(receipt: any, limit: bigint): string {
   const logs = JSON.stringify(receipt?.logs ?? []);
   let used = 0n;
   try { used = BigInt(receipt?.rc_used ?? 0); } catch { /* unreadable: treat as a refusal */ }
-  if (limit > 0n && used * 100n >= limit * 99n) return `out of Mana: the transaction used its whole Mana limit (${used} of ${limit}) and was undone ${logs}`;
+  // Repo Lens #C-6 (C6-2): the chain logs exactly "transaction reverted: insufficient rc" when Mana runs out, also when
+  // the charge that didn't fit was a large one (a storage write or a system call) and rc_used stopped well under the limit.
+  const insufficient = Array.isArray(receipt?.logs) && receipt.logs.some((l: any) => String(l).trim() === "transaction reverted: insufficient rc");
+  if (insufficient || (limit > 0n && used * 100n >= limit * 99n)) return `out of Mana: the transaction ran out of its Mana limit (used ${used} of ${limit}) and was undone ${logs}`;
   return `reverted: ${logs}`;
 }
 

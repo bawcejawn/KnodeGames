@@ -545,15 +545,28 @@ test("N-2: capScope \"staked\" compares the row cap with the Staked board only, 
   assert.deepEqual(s3.filter((x) => x.startsWith("Fantasy")), fantasySends);
 });
 
-test("N-3: a transaction that ran out of Mana is retried next run, not remembered as the vault's refusal", async () => {
+test("N-3: a transaction that ran out of Mana is retried next run, not remembered as the vault's refusal (with the chain's real log text, #C-6)", async () => {
   const { isRevert } = await import("./vault.ts");
   const { revertError } = await import("./chain.ts");
-  const out = revertError({ rc_used: "190000000", logs: [] }, 190_000_000n);
-  assert.match(out, /^out of Mana/);
-  assert.equal(isRevert(out), false, "out of Mana is temporary");
-  assert.equal(isRevert(revertError({ rc_used: "188200000", logs: [] }, 190_000_000n)), false, "99% of the limit counts as out of Mana");
-  const refused = revertError({ rc_used: "1200000", logs: ["owner only"] }, 190_000_000n);
-  assert.equal(refused, 'reverted: ["owner only"]');
+  const L = 190_000_000n, OUT = ["transaction reverted: insufficient rc"];
+  // Out of compute: rc_used ends at the limit; the chain logs "insufficient rc".
+  const compute = revertError({ rc_used: String(L), logs: OUT }, L);
+  assert.match(compute, /^out of Mana/);
+  assert.equal(isRevert(compute), false, "C6-1: its logs say 'transaction reverted', but it is still temporary");
+  // Out of Mana on a large charge (a storage write): rc_used stops at 91% of the limit (C6-2).
+  const write = revertError({ rc_used: String((L * 91n) / 100n), logs: OUT }, L);
+  assert.match(write, /^out of Mana/);
+  assert.equal(isRevert(write), false);
+  // The whole limit used, even with no logs.
+  assert.equal(isRevert(revertError({ rc_used: "188200000", logs: [] }, L)), false);
+  // A contract refusal, as real receipts carry it.
+  const refused = revertError({ rc_used: "1200000", logs: ["transaction reverted: owner only"] }, L);
+  assert.equal(refused, 'reverted: ["transaction reverted: owner only"]');
   assert.equal(isRevert(refused), true, "a contract refusal is still a refusal");
-  assert.equal(isRevert(revertError({ rc_used: "x", logs: [] }, 190_000_000n)), true, "unreadable Mana use: treated as a refusal (fails closed)");
+  // A refusal whose text only mentions Mana is not the chain's exact line.
+  assert.equal(isRevert(revertError({ rc_used: "1200000", logs: ["transaction reverted: not enough insufficient rc stuff"] }, L)), true);
+  assert.equal(isRevert(revertError({ rc_used: "x", logs: [] }, L)), true, "unreadable Mana use: treated as a refusal (fails closed)");
+  // Submit-time refusals and other failures are unchanged.
+  assert.equal(isRevert('{"error":"x","logs":["transaction reverted: results for that week are past their deadline"]}'), true);
+  assert.equal(isRevert("sent, but not seen in a block within 3 minutes (will be re-checked next run)"), false);
 });

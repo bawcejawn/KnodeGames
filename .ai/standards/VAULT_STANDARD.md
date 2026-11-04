@@ -92,6 +92,7 @@
 ## 7. Timing
 - A game applied in week W earns from W + 1; results are posted for registered games only, for weeks they earn (`from_week <= w`) ✅.
 - Results are due 3/7 of a week after the week ends; finalizing starts after `seal + 2 × close_delay` and `last_change + close_delay`; corrections and voids are allowed for 24 h after each seal and refused once finalizing starts.
+- **The weekly rhythm (D-123):** games play Mon 00:00 → Sat 24:00 UTC and review on Sunday; results files go final from Mon 00:00 UTC; the bot posts and seals soon after; claims open ~24 h after the seal (Tue ~01:00 UTC = **Mon ~5 PM PT**). No contract change: the vault week stays Monday to Monday.
 
 ## 8. Admin powers
 | Action | Who | Safeguards |

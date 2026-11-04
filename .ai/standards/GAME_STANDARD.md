@@ -38,6 +38,12 @@ A game is announced to players only when all of these are true (D-064 — "only 
 - Picks should open well ahead (days where the game allows) and be changeable until each round's own lock (D-059).
 - Locks are enforced **on chain** by the Picks contract's lock clock, not just by the page.
 - Weeks run Monday 00:00 to Monday 00:00 UTC (vault week = floor((t − genesis) ÷ 7 days)). Players see the week of Mon 9 Nov as "Week 1" (D-063).
+- **How every week closes (D-123):**
+  - **Play Monday 00:00 → Saturday 24:00 UTC** (Sat 4 PM PT). Nothing that scores falls on Sunday UTC: no round, race, target or counted pick. Multi-week seasons rest on their Sundays too.
+  - **Sunday UTC is the review day:** the recorder settles the week, re-checks it on chain on both nodes, and publishes it as *pending*; the owner can look and hold.
+  - **Final no earlier than Monday 00:00 UTC** (24 h after the last play), once two runs an hour apart agree and the chain still matches.
+  - **The page says so:** "Sunday is review day: results are checked and paid from Monday." It doesn't offer Sunday picks.
+  - Rewards are claimable about 24 h after the vault seals: **Monday ~5 PM PT**.
 - **Each game launches when it's audited and ready** (D-052, D-064; the older "launch on a Monday" rule, D-059, is superseded). Vault weeks still run Monday to Monday, so a game earns from the Monday after it's applied.
 
 ## 5. On-chain registration

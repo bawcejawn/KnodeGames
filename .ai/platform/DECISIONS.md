@@ -121,6 +121,7 @@
 | D-108 | 2026-11-04 | Build the shared VHP ruler (R-ARCH-1); the Race's two gaps are closed by it, not by a Race-only fix | active |
 | D-109 | 2026-11-03 | Phone tab bar: Games · Leaders · Stake · Results · More; Swap moves into More | active |
 | D-110 | 2026-11-04 | A new, dedicated VHP Ruler chat builds the shared ruler (not the Bracket chat), after Repo Lens reviews the design | active (amends D-108's builder) |
+| D-123 | 2026-11-04 | **Every game plays Mon–Sat; Sunday is the review day.** Play ends Sat 24:00 UTC; results are checked on chain all Sunday and go final no earlier than Mon 00:00 UTC (24 h after the last play); play restarts Mon 00:00 UTC; rewards claimable ~Mon 5 PM PT | active — standard written; Race first (R-RACE-14), other games R-ALL-8 |
 | D-122 | 2026-11-04 | **Proposed:** the five missed ruler simulations — raise the entry bar by simulation, accept grinding, keep the Vault out of size-handicapped fields, re-scope sim 9's mark | proposed (owner) |
 | D-121 | 2026-11-04 | Daily Questions is managed on the Stake page like every game | active (PR #142) |
 | D-120 | 2026-11-04 | **Proposed:** the 0.80 form gate and the biggest producer | proposed (owner) |
@@ -637,6 +638,18 @@
   4. **Rounding:** each block's share (form, expected blocks, credit) is rounded down to millionths, then the integers are added. The loss is under 1 millionth per block (under ~0.03 of a block a day); the bound is written down and tested. This is what makes JavaScript and Python agree byte for byte.
   5. **Retention:** keep **30 days** at the start (the simulations need 29), then about 22. Rolling hours up into day files must keep the hash chain checkable: each day file lists its hours' sha256.
   Also: the ruler chat pushes each step to its own branch `vhp-ruler` (never to `main`; D-089), with a Repo Lens check after the math (`vhp-ruler.js`, `vhp_ruler.py` and their tests) and another before the hourly job writes to `vhp-data` on mainnet. Recorded in `standards/VHP_RULER.md` §2.3, §7, §9, §13.
+
+## D-123 — Every game plays Monday to Saturday; Sunday is the review day
+- **Date:** 2026-11-04 (owner: "a 24 hour review period for all games should be standard to allow chain data confirmations before any rewards are paid out … if all the games end Saturday night and take sunday off. sunday is the review period. all games start again monday morning and rewards are available to withdraw Monday as well because results are finalized … make it a standard for how weeks close on the games") · **Owner's choices (4 Nov):** the clock is **UTC**; claims at about **Mon 5 PM PT** are fine (no vault upgrade).
+- **Decision — how every game's week closes:**
+  - **Play:** Monday 00:00 UTC → **Saturday 24:00 UTC** (Sat 4 PM PT). No round, race, target or pick that counts falls on **Sunday UTC**. Multi-week seasons rest on their Sundays too.
+  - **Review day (Sunday 00:00 → Monday 00:00 UTC, Sat 4 PM → Sun 4 PM PT):** each recorder settles the week, re-checks its results on both nodes from the chain, and publishes them as **pending**. The owner can look, and hold a week, during this day.
+  - **Final:** a week's results file goes final **no earlier than Monday 00:00 UTC** (= 24 h after the last play, the end of the vault week), and only once it has read the same on two runs at least an hour apart and still matches the chain.
+  - **Payout:** the vault bot posts and seals the results just after Monday 00:00 UTC. With today's vault (close_delay 12 h), claims open 24 h after the seal: about **Tue 01:00 UTC = Mon 5 PM PT**. The owner's 24 h correction window after each seal stays as a second safety net.
+  - **Play restarts** Monday 00:00 UTC (Sun 4 PM PT), the start of the next vault week. The vault's own week (Monday 00:00 → Monday 00:00 UTC, D-063) does not change.
+- **Replaces:** the Race's 12-hour hold after the week (I-034, 3 Nov): the Race now reviews during Sunday and can go final from Mon 00:00. Daily Questions already fits (Mon–Sat, Sunday results day, D-047).
+- **Needs:** each game's chat moves its game onto the rhythm (R-ALL-8). Race first (R-RACE-14). Paused games (D-113) adopt it before they launch. Block X stops scoring Sunday targets. Bracket's Saturday seeding / Sunday picks schedule needs a new shape.
+- **Standards:** `GAME_STANDARD.md` §4, `RECORDER_STANDARD.md` §3, `VAULT_STANDARD.md` §7, `RULES.md` §4 and "Never change casually".
 
 ## D-122 — The five missed VHP ruler simulations (PROPOSED; library chat's recommendation, owner decides)
 - **Date:** 2026-11-04 (VHP Ruler chat's results on 31 days of real data; I-091) · **Proposal:**

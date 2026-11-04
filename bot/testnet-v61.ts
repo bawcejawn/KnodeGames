@@ -176,7 +176,7 @@ export async function testnetV61(args: string[]) {
         continue;
       }
       const next = Math.min(total, i + 10, ...measured.filter((m) => m - 1 > i).map((m) => m - 1));
-      await send(p, Array.from({ length: next - i }, (_, j) => ans(p, i + j, option(i + j))), `${name} answers ${i + 1}–${next}`, 5);
+      await send(p, Array.from({ length: next - i }, (_, j) => ans(p, i + j, option(i + j))), `${name} answers ${i + 1}–${next}`, 1.5);
       st[key] = next; save();
     }
   };

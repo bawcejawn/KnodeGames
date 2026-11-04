@@ -2,7 +2,7 @@
 
 > **Purpose:** the one work list for the chats. Each chat reads **its own section** at the start of every session and works the open items in order. (The owner's own steps are in `TODOS.md`.)
 > **Owner's message to any chat is always the same** (§1). The library chat keeps this file current from session-end reports, decisions and audits.
-> **Last updated:** 2026-11-04 (cleanup: finished items moved to `../archive/DONE.md`; the old TODOS "waiting on someone else" rows added here; guest-pick trap and Block X round 14 added)
+> **Last updated:** 2026-11-04 (R-HUB-9 Stake tab; earlier: cleanup: finished items moved to `../archive/DONE.md`; the old TODOS "waiting on someone else" rows added here; guest-pick trap and Block X round 14 added)
 > **Rules:**
 > - Each item has an id (R-<chat>-<n>), a link (D-/I-/PR), what "done" means, and a status: **open** · **in progress**.
 > - A chat reports finished items in its session-end report (`SESSION_END_PROCESS.md`). The library chat then **moves them to `../archive/DONE.md`** with the date. Ids are never reused.
@@ -125,6 +125,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-HUB-5 | Remove the legacy name-claim workflow, issue template and claim CLI (drops the `issues` permissions; update `docs/NAMES.md`); add a YAML parser to the CI guard | I-026, I-022 | PR | open |
 | R-HUB-6 | Rebuild PR #50's useful parts on current `main` (`claude/handoff-pr50-salvage.md`) | I-072 | PR | open (P3) |
 | R-HUB-8 | **Admin page refresh** (reviewed 4 Nov): `docs/ADMIN.md` still says `git checkout picks` (should be: stay on `main`); the Vault and Block X areas say "launching" (both live); the finished v6 upgrade steps ("is v6 ready / apply / clear") still show as live steps; vault-wide controls (pause deposits, the 5% fee, seed, upgrades, operator and owner handovers) sit under "Question game" though the game contract *is* the vault: move them to the Vault area; then add the Picks owner handover and Race owner change once R-BX-3 / R-RACE-3 land. The local-node trial is R-VAULT-8 | I-068 | PR + owner checks it on the PC | open |
+| R-HUB-9 | **Staking hub as its own tab** (owner, 4 Nov): `stake.html` isn't linked from any menu today. Add a top-level **"Stake"** link in the top menu (`TOP` in `tools/site-nav.mjs`) and a **Stake** tab in the phone tab bar (`TABS`; keep the bar at 5 slots with More, propose which slot), run `node tools/site-nav.mjs` and the site tests. **First check it works and is up to date on mainnet** (with R-HUB-2): deposit, withdraw, move between games and claim against vault v6, with every live game listed (Questions, Race, Block X; games 2 and 7 stakeable from their `game-apply`, Thu 5 Nov), the minimum stake, the "Week 1" label (R-HUB-1) and the free-play vs staked wording. The rewards calculator is **not** wanted for now | R-HUB-2, I-069 | checked on mainnet; Stake tab live | open |
 | R-HUB-7 | Explain on the stake panel that a wallet that withdrew below the minimum mid-week gets no bucket share and no free prize (`peak_stake`) | I-028 | text live | open (P3) |
 
 ### Architecture (start a new chat with `AI_CHAT_STARTER.md` §3.5)

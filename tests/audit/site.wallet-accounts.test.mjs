@@ -209,7 +209,7 @@ test("every page with a header loads the shared wallet button after wallet.js, a
     const nav = h.match(/<nav class="tabs"[\s\S]*?<\/nav>/)[0];
     const top = [...nav.matchAll(/^        (?:<a [^>]*>([^<]+)<\/a>|<details[^>]*>)$|^          <summary>([^<]+)<\/summary>$/gm)].map((m) => m[1] || m[2]).filter(Boolean);
     assert.deepEqual(top, ["Games", "Leaderboards", "Results", "Stake", "Tools", "Rules", "New to Koinos?"], `${p}: top menu`);
-    for (const f of ["games.html", "race.html", "stake.html", "swap.html", "burn.html", "mana.html", "node.html", "pulse.html", "get.html", "start.html"])
+    for (const f of ["games.html", "race.html", "stake.html", "names.html", "swap.html", "burn.html", "mana.html", "node.html", "pulse.html", "get.html", "start.html"])
       assert.ok(nav.includes(`href="${f}"`), `${p}: top menu reaches ${f}`);
     const foot = h.match(/<span class="foot-links">[^\n]*<\/span>/)[0];
     assert.deepEqual([...foot.matchAll(/>([^<]+)<\/a>/g)].map((m) => m[1]), ["New here? Quick tour", "Trust", "Terms &amp; risks", "Install app", "Source code"], `${p}: footer links`);

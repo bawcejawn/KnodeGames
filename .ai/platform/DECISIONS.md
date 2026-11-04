@@ -113,6 +113,7 @@
 | D-100 | 2026-11-04 | `TODOS.md` is the one owner checklist; open items from the old checklist artifacts move into it, without duplicates | active |
 | D-101 | 2026-11-04 | Every game is fair with a bit of luck: each uses a luck trim (preferred) or a cap | active |
 | D-102 | 2026-11-04 | The full platform audit runs only once everything is confidently ready | active |
+| D-103 | 2026-11-04 | A new Race pending file may be dated up to 35 minutes back (was 15) | active |
 
 ---
 
@@ -592,6 +593,9 @@
 
 ## D-101 — Fair, with a bit of luck
 - **Date:** 2026-11-04 (owner: "games should be fair with a bit of a luck") · **Decision:** every game keeps some luck but limits it: a luck trim sized by simulation (as Race and Last Node use, preferred) or at least a cap (as Block X, Fantasy, Combo). Survivor and the Bracket, which have neither, add one (`HANDICAP_REVIEW.md` §5.2 #2; R-SV-5, R-BR-7). Part of the one ruler (D-090).
+
+## D-103 — Race pending files: a 35-minute window
+- **Date:** 2026-11-04 (owner: "widen it to 35 minutes so a slower run never holds an hour back") · **Decision:** the Race publish job accepts new pending content dated up to 35 minutes before its clock (the 30-minute record job plus 5), up to 5 minutes ahead (Repo Lens #C-4 C4-1; PR #85). It still closes the old 2-hour back-date route.
 
 ## D-102 — The full platform audit waits until everything is ready
 - **Date:** 2026-11-04 (owner) · **Decision:** the full platform audit (I-002, D-014) runs only once everything is confidently ready: the launch-wave games live and their own audits passed. Until then, each part is audited on its own (D-064).

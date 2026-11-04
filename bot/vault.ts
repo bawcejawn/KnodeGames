@@ -307,7 +307,9 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
     const min = k.minStakeFor(w);
     const stakedGame = g.staked || big(gw.bucket) > 0n;
     // 3. Staked list (I-064): every staked wallet with points on the board must be in the file, in the board's order.
-    if (stakedGame && !legacy) {
+    // Repo Lens VB-4: a game that publishes no board (Survivor) is set to board "none" in deployment.json by the owner.
+    if (stakedGame && !legacy && cfg[String(id)]?.board === "none") log(ctx, `  ${name} week ${w}: no board check (vaultGames.${id}.board is "none")`);
+    else if (stakedGame && !legacy) {
       const bspec = boardSpec(source, cfg[String(id)]?.board);
       const b = readFile(bspec);
       if (b.state !== "ok") { hold("board", `its board ${bspec} is ${b.state === "missing" ? "missing" : `unreadable (${b.error})`}, so the staked list can't be checked`); continue; }

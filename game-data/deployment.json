@@ -53,7 +53,8 @@
     },
     "3": {
       "name": "Survivor",
-      "results": "games-data:survivor/vault"
+      "results": "games-data:survivor/vault",
+      "board": "none"
     },
     "4": {
       "name": "Fantasy Producers",

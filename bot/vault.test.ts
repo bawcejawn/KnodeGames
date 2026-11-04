@@ -428,3 +428,20 @@ test("VB-3: isRevert tells the chain's refusals from other failures", async () =
   assert.equal(isRevert('{"error":"x","code":1,"logs":["transaction reverted: results for that week are past their deadline"]}'), true);
   for (const e of ["sent, but not seen in a block within 3 minutes (will be re-checked next run)", "fetch failed", "insufficient pending account resources", "", undefined]) assert.equal(isRevert(e as any), false, String(e));
 });
+
+test("VB-4: vaultGames.<id>.board \"none\" skips the staked-list check (logged); a missing board without it still holds", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim } = await weekOneClosed();
+  const files: any = allFiles();
+  delete files["mem:fantasy/board.json"];
+  const v = fctx(sim, files);
+  v.deployment.vaultGames["2"].board = "none";
+  const logs: string[] = [], s: string[] = [];
+  v.quiet = false;
+  const orig = console.log; console.log = (...a: any[]) => logs.push(a.join(" "));
+  try { await vaultResultsPass(v, async (what) => { s.push(what); return true; }); } finally { console.log = orig; }
+  assert.deepEqual(s.filter((x) => x.startsWith("Fantasy")), fantasySends);
+  assert.ok(logs.some((l) => /Fantasy week 1: no board check \(vaultGames\.2\.board is "none"\)/.test(l)), logs.join("\n"));
+  const v2 = fctx(sim, files), s2: string[] = [];
+  await vaultResultsPass(v2, async (what) => { s2.push(what); return true; });
+  assert.ok(!s2.some((x) => x.startsWith("Fantasy")));
+});

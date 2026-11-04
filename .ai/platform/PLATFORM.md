@@ -11,6 +11,7 @@
 | File | Holds |
 |------|-------|
 | `CURRENT_STATE.md` | dated snapshot: completed, in progress, blockers, priorities |
+| `RUNBOOK.md` | what to do when something breaks: alerts, held weeks, a misbehaving game, nodes, keys, the withdrawals-only build |
 | `HEALTHCHECK.md` | CTO health check: strengths, weaknesses, missing information, quality scores, top 10 priorities |
 | `CHAT_REQUESTS.md` | each chat's open work list (D-089); the owner's one start message for every chat |
 | `ACTIVE_WORK.md` | the same work split by area (platform, games, vault, leaderboards, rewards, swap desk): current, blocked, next |
@@ -31,7 +32,7 @@
 | `SESSION_END_PROCESS.md` | the five-part report every AI session writes before ending |
 | `WEEKLY_REVIEW.md` · `reviews/` | the Tuesday review process and its dated entries |
 | `../games/` | one file per game: rules, scoring, rewards, status, issues |
-| `../standards/` | rules every game and the vault must follow (Game, Vault, Leaderboard, Token) and how every AI chat starts (`AI_CHAT_STARTER.md`) |
+| `../standards/` | rules every game and the vault must follow (Game, Vault, Leaderboard, Token) and how every AI chat starts (`AI_CHAT_STARTER.md`); `RECORDER_STANDARD.md` (recorder and publish-job rules) and `GO_LIVE_CHECKLIST.md` (every launch, in order) |
 | `../archive/CHAT_KNOWLEDGE.md` | raw chat exports (an inbox, not a source of truth) |
 
 ## Summary

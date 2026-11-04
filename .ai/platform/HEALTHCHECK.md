@@ -5,6 +5,8 @@
 > **Library size:** 89 decisions (D-001 – D-089), ~80 issues (I-001 – I-080), 27 debt items, 32 documentation gaps; 99 open ❓ marks.
 > **Scores:** out of 10. 5 = workable with known risks; 7 = solid for this stage; 9 = mature.
 
+> **Note (4 Nov):** this is a dated review (3 Nov). Several of its top-10 items have moved since (PRs #67, #73, #74 merged; the runbook written). Current status: `ACTIVE_WORK.md`; finished items: `../archive/DONE.md`.
+
 ## Scores at a glance
 | Area | Score | One line |
 |---|---|---|

@@ -27,14 +27,14 @@ A daily elimination event among block producers: each hour the weakest node (by 
 - **The VHP sampler** (`race-samples.yml`): 48 h of readings before launch; no field without form unless `LASTNODE_ALLOW_NO_FORM=true`, and the owner chose to wait (D-054). ~~Not running yet~~ — running since 3 Nov 15:58 UTC ✅; whether GitHub runs it often enough for the 48 h is being checked (I-059).
 - **Picks contract:** game 13 announce (owner key) → 48 h → apply; `bot/picks.ts` registers only Block X on mainnet so far. 💬
 - Race cards (`race-data`), two nodes, `lastnode.yml` with its own publish-job JSON-RPC client. 💬
-- Vault v6 (staked list, HOLD files — I-064); sponsor coverage for game-13 picks to confirm. 💬
+- Vault v6 (staked list and HOLD files: built in PR #74; Last Node publishes a RELEASE marker, R-LN-3); sponsor coverage for game-13 picks to confirm (R-LN-5). 💬
 
 ## Current status (2 Nov)
 Branch `lastnode` @ `adf95be` ✅ — pushed, **not merged, nothing deployed**; behind `picks`. Tests: 718 (708 pass, 0 fail). Round-2 fix-check done except L-9 and part of L-7; round-3 review prompt ready (`claude/lastnode/FIXCHECK-3-PROMPT.md`).
 
 ## Known issues
 - **I-058:** c, form and the staked list are trusted to the record job; the publish job's JSON-RPC client has never run against real mainnet nodes; L-9 sample averages aren't time-weighted; N-6 (accepted) — a steady 3% form-skim is largely undetectable; `games.yml` lost `lastnode`'s push-retry loop; the branch is behind `picks`.
-- **I-064:** the vault bot must honour HOLD files and verify the staked list.
+- **I-064 (closed 4 Nov):** the vault bot honours HOLD files and verifies the staked list (PR #74); a released week needs `RELEASE-W<week>.json` (R-LN-3).
 - Windows: other games' tests need Linux (expected).
 
 ## Future plans

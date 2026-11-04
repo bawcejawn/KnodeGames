@@ -73,7 +73,7 @@
 - the final file must not hinge on a single run with no hold (I-034);
 - the vault recomputes what it can from the chain, since `games-data` files can't prove their own days or stake lists (I-051);
 - the vault bot honours HOLD files, verifies that every staked board player is in the file, and alerts on a refused prize post (I-052, I-064).
-  - **Built in PR #74 (3 Nov, not merged; Repo Lens first):**
+  - **Built in PR #74 (merged 4 Nov after Repo Lens #D-4 GO):**
     - HOLD files (unreadable = held);
     - the results file is cross-checked against the game's `board.json` (`lastWeek` = the vault week; every staked wallet with points must be in the file; every file wallet on the board, in board order; a missing, unreadable or wrong-week board holds the week);
     - a refused post or seal is alerted, and that week stops without a seal and isn't retried blindly;

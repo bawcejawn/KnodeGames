@@ -1,0 +1,40 @@
+# Knode Games — Closed Issues
+
+> **Purpose:** issues that are resolved, moved out of `platform/OPENISSUES.md`, newest first. Nothing here needs action.
+> **Full history:** each issue's original row, with every dated note, is in `2026-11-04/OPENISSUES.md` (for issues open on 4 Nov) or below.
+
+## Closed 2026-11-04 (cleanup)
+| ID | Issue (as it was filed) | Closed | Resolution / where recorded |
+|----|-------|--------|-----------------------------|
+| I-078 | `tools/sweep-old-bot.ts` reads its node only from `RPC=` in `.env` (ignores `$env:RPC`) and defaults to the unreliable `api.koinos.io`; it always sends to `1635QU…` (fine only before the owner move) and leaves 2 KOIN | 2026-11-04 | Fixed in PR #73 (merged 4 Nov): `tools/sweep-old-bot.ts` honours `$env:RPC` and defaults to Armana (test `tools.sweep-rpc`, R-VAULT-3) |
+| I-064 | Vault-side checks other chats asked for: verify every staked board player appears in a game's vault file; honour `HOLD-W*.json`; alert on a refused prize post (I-052) **Due Fri 13 Nov**; the Vault chat offers to build these and I-051/I-052 on `main` with tests (3 Nov, owner to decide) | 2026-11-04 | Built and merged in PR #74 (Repo Lens #D-3 fix first → #D-4 GO): HOLD files honoured (unreadable = held; a RELEASE marker is needed), results cross-checked against `board.json`, refusals alerted. Left: every staked game's `board.json` (I-079), Last Node's RELEASE marker (R-LN-3) |
+| I-059 | **VHP sampler cadence** (was: "the sampler isn't running" — it runs since 3 Nov 15:58 UTC). Original issue: `race-samples.yml` lives on `picks`, and scheduled workflows run only from `main` (✅ not on `main`; ✅ no `race-samples` branch). Last Node needs 48 h of readings before launch; Fantasy and Combo price cards need `samples` (FC-12: until then every Combo card is void). Starts when `picks` merges into `main` | 2026-11-04 | Sampler cadence decided: PR #67 merged (up to 12 samples a run, ≥ 4 min apart; ~48 per 6-h card); `MIN_SAMPLES` stays 12 (R-BX-2). Until it ran, every Block X target was void (24/24 on 3 Nov). Left: Last Node's 48 h readiness (R-LN-2); a run past 58 min loses its samples (round 14 E4-4, Low) |
+| I-052 | `vault.ts` should alert when a prize post is refused. **Due Fri 13 Nov** (before the Mon 16 Nov close); the Vault chat offers to build it on `main` with tests (owner to decide) | 2026-11-04 | Built and merged in PR #74: a refused prize post names the game, week, call and reason; that week stops without a seal; no blind retries. Only chain reverts count as refusals (VB-3) |
+| I-036 | V4: a non-v6 chain reads as "not staked" without an error. Fix: drop the `v6_rule_week_plus_one` early return (`race.ts` ~line 297) and add a fail-fast v6 check once per run and per node | 2026-11-04 | V4 shipped with PR #57 (`d7fad7c`); confirmed on `main` by the Block X chat (R-BX-4) |
+| I-016 | Combo Card (8) and Last Node Standing (13): mainnet clearance unknown — needed before each is announced (games 2 and 7 were added to the vault 3 Nov; 9 waits for its audit — D-064) | 2026-11-04 | Folded into I-065 (each game's audit and mainnet clearance) |
+
+## Closed before 4 Nov
+| ID | Issue | Closed | Resolution / where recorded |
+|----|-------|--------|-----------------------------|
+| I-075 | "Owner on a hardware wallet" vs how the tools sign | 2026-11-03 | Answered: nothing today can sign the owner's contract calls from a hardware wallet; the owner chose a cold key (D-083), multisig later |
+| I-073 | Producer nicknames on the Block X and Race pages (D-078) | 2026-11-03 | Done: Block X PR #60 and Race PR #62, both merged ✅. Each new game must load `names.js` (GAME_STANDARD) |
+| I-043 | `main`'s sponsor record showed v2 | 2026-11-03 | ✅ `main` records sponsor v3 (`b61ac238`) since PR #57 |
+| I-009 | Archive the other chats into `CHAT_KNOWLEDGE.md` | 2026-11-03 | Done: all 12 chats are filed (see `archive/CHAT_KNOWLEDGE.md`, D-002) |
+| I-067 | Questions game free prize at the first v5 payout | 2026-11-02 | ✅ chain: Week 3 pays free players 1 + 1 VHP (fixed on chain); owner accepted, no upgrade (D-069, C-25) |
+| I-003 | Confirm `reward_rule_week_plus_one=3` on chain | 2026-11-02 | ✅ `get_state`: `reward_rule_week_plus_one` 3, `v6_rule_week_plus_one` 4 (Questions chat). What it pays: I-067 |
+| I-066 | Questions payout time (Tue 21:00 vs Tue 12:00 UTC) | 2026-11-02 | 21:00 UTC was never in code or on the site: it was the time of a Questions-chat check-in reminder (1 PM PT) that leaked into chat notes. Code, contract, bot, site and README all say winners are final Tue 12:00 UTC on time (week ends Mon 00:00; close after 12 h; settle 24 h). On chain, Week 2 closed Mon 2 Nov 12:02 and settles until Tue 3 Nov 12:02; the hourly bot (:07) finalizes right after, so payouts are ready ≈ Tue 12:07 UTC (4:07 AM PT). Docs fixed; the check-in moved to Tue 10 Nov 13:15 UTC. C-08 |
+| I-012 | Five stake-panel fixes | 2026-11-02 | Done in PR #46 ✅ merged on `main` (busy-Mana message and 0.5 cap, `weightFor`, wallet race, refresh after actions, 2nd-place prize) |
+| I-013 | Three admin-page fixes | 2026-11-02 | Done in PR #43 ✅ merged into `picks` (season field, local-node wording, `stake-testnet.html`) |
+| — | Race chat: "PR #44 (status bar) not merged yet" | 2026-11-02 | Out of date: PR #44 ✅ merged on `main`; `#stake-badge` is on `race.html` |
+| — | Swap Desk: sponsor caps "probably too tight" (per-tx 1 while stakes and claims asked for 3; 10 per player per day) | 2026-11-02 | Superseded by sponsor v3 caps (C-02, C-05) |
+| — | Swap Desk: desk daily payout cap not set | 2026-11-02 | Superseded: no daily cap (D-007, C-17) |
+| — | Desk node block-store crash loop, 22–23 Oct (nil-pointer panic in `GetBlocksByHeight`) | 2026-11-02 | Repaired from the game node's data on 24 Oct 00:39 UTC; leftover data in I-008 💬 Swap Desk |
+| — | Combo chat (30 Oct): unfinished Last Node merge left in `C:\kprediction` | 2026-11-02 | Not seen: `git status` there on 2 Nov showed no merge in progress ✅ |
+| — | Bracket's three sampling branches (`bracket-sampler`, `bracket-samples`, `bracket-history-sampler`) | 2026-11-02 | Already gone from GitHub ✅; `bracket-history` kept ✅ |
+| I-071 | PR #50 (Cursor "Ship-week cleanup") | 2026-11-03 | **Closed without merging** (owner). Branch `cursor/ship-cleanup-audit-4bdd` **kept**. Useful parts and required fixes saved in the project handoff `claude/handoff-pr50-salvage.md` — the Hub chat rebuilds it on current `main` after #57, then audit. Follow-up tracked as I-072 |
+| I-019 | Admin page vault buttons needed `vault-v6` in `picks` | 2026-11-02 | ✅ merged into `picks` by the Vault chat (`e7887b6`) |
+| I-040 | Block X step 8 (apply game 2 on the Picks contract) | 2026-11-02 | 👤 owner applied game 2 and completed the follow-up steps; BX-129 (5 changes) and BX-127 (record job failing) no longer apply |
+| I-070 | Block X's existing Picks announcement | 2026-11-02 | 👤 owner chose to apply it (D-070) — done |
+| I-011 | Stale worktrees `C:\kg-combo-preview` and `C:\kprediction-vault` | 2026-11-02 | **Corrected, not an issue.** "Prunable" was an artifact of the AI's sandbox, which can't see Windows `C:\` paths. The Vault chat confirms `C:\kprediction-vault` is in use and frozen (D-025). Do not clean up either worktree. |
+| I-018 | `.ai` library nested as `.ai/.ai/…` on `main` | 2026-11-02 | Fixed by the Vault chat at 13:03 PT (commit `30a5d90`) ✅ |
+| — | Vault chat: `picks-data/deployment.json` showing as deleted in `C:\kprediction` | 2026-11-02 | Not seen: `git status` on 2026-11-02 shows no deleted files on `picks` ✅ |

@@ -14,9 +14,7 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
-- [ ] **Sponsor rollout (R-BX-15):** steps in `claude/sponsor/ROLLOUT-STEPS-2026-11-04.md`. Before step 0: the Block X chat must **push** `sponsor-limits-1-2` (it isn't on GitHub yet), and put `CONFIRM_MAINNET=yes` in `.env` before the `--send` steps (take it out after) — P1
-- [ ] After Repo Lens reviews the ruler design: approve it, then start the new VHP Ruler chat (the library chat writes its first prompt) — P2 — D-110
-- [ ] **Read and approve the VHP ruler design v2** (`standards/VHP_RULER.md`: §0 in plain words, §12 the five points; Repo Lens #E-7 changes in §14) — P2 — D-108
+- [ ] **Start the VHP Ruler chat** with `claude/ruler/START-PROMPT.md` (design approved, D-111) — P2
 - [ ] Send Repo Lens `claude/hub/REPOLENS-C5-FIXCHECK-PR95-PR111-PROMPT.md` anyway (#95 and #111 merged before their fix-check) — P2
 - [ ] Optional: delete the old branch `hub-ci-yaml` in GitHub (an unused copy; safe once #111 is merged, which it is) — P4
 - [ ] Later (on hold, your call): the GitHub CODEOWNERS / ruleset step (C5-13). Don't require code-owner review without a bypass for yourself — P3

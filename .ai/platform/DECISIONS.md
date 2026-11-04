@@ -103,7 +103,7 @@
 | D-090 | 2026-11-04 | One VHP ruler for every game; each game keeps its own scoring formula; checks at random moments within a window | active — design (R-ARCH-1) |
 | D-091 | 2026-11-04 | Lower Last Node Standing's entry bar | active — value to set by simulation (R-LN-4) |
 | D-092 | 2026-11-04 | Daily Questions twice a day: 10 a day Mon–Sat, rounds at 00:00 and 12:00 UTC, after the first paid weeks (needs a vault upgrade) | active — plan (R-Q-1, R-VAULT-6) |
-| D-093 | 2026-11-04 | The VHP ruler looks back about 2 weeks; handicaps must be fair to every producer, proven by simulation | active — design (R-ARCH-1) |
+| D-093 | 2026-11-04 | The VHP ruler looks back about 2 weeks; handicaps must be fair to every producer, proven by simulation | own-size rule superseded by D-111 (fairness aim stands) |
 | D-094 | 2026-11-04 | The Race starts paying on 9 Nov with its two known gaps open until the ruler fix | active |
 | D-095 | 2026-11-04 | Survivor Season 1 keeps its blocks-based handicap | active |
 | D-096 | 2026-11-04 | Move every contract (vault, Desk, Picks, Race picks) to the new wallets this weekend, before any public announcement; Picks handover before the Picks v2 upgrade | active |
@@ -121,6 +121,7 @@
 | D-108 | 2026-11-04 | Build the shared VHP ruler (R-ARCH-1); the Race's two gaps are closed by it, not by a Race-only fix | active |
 | D-109 | 2026-11-03 | Phone tab bar: Games · Leaders · Stake · Results · More; Swap moves into More | active |
 | D-110 | 2026-11-04 | A new, dedicated VHP Ruler chat builds the shared ruler (not the Bracket chat), after Repo Lens reviews the design | active (amends D-108's builder) |
+| D-111 | 2026-11-04 | VHP ruler design v2 approved: own size at the card moment, card credit always on, form as a gate, random moment, one bar + trim, the Vault rule, nothing pays until 11 simulations pass | active (supersedes D-093's 2-week own-size rule) |
 
 ---
 
@@ -573,7 +574,7 @@
 ## D-093 — The ruler's look-back is about 2 weeks; handicaps must be fair
 - **Date:** 2026-11-04 (owner) · **Decision:** the VHP ruler (D-090) looks back **about 2 weeks** when sizing a producer's own handicap, so hiding VHP costs about two weeks of real block rewards. Handicaps must be **fair to the game and to every producer**, small and large.
 - **Library recommendation (for R-ARCH-1 to test):** a producer's own size = the **higher of its 14-day time-weighted average VHP and its highest VHP in the last 24 h**. The average makes a hide cost in proportion to how long it lasts; the 24-h high stops "look small right now". A pure 14-day *maximum* would be harsh on a producer that genuinely loses stakers (it would look too big for 2 weeks). The final rule and window are set by simulation, including a field with many small producers, and approved by the owner.
-- **Under review (4 Nov):** Repo Lens #E-7 found the 2-week average makes honest producers look too big (every block burns ~4 VHP from its signer, so a producer that doesn't re-burn shrinks ~1% a day) and that card credit, not the look-back, is what stops hiding. Ruler design v2 (`standards/VHP_RULER.md` §12 point 1) proposes measuring a producer at the card moment instead; this decision changes only when the owner approves v2.
+- **Under review (4 Nov):** Repo Lens #E-7 found the 2-week average makes honest producers look too big (every block burns ~4 VHP from its signer, so a producer that doesn't re-burn shrinks ~1% a day) and that card credit, not the look-back, is what stops hiding. Ruler design v2 (`standards/VHP_RULER.md` §12 point 1) proposes measuring a producer at the card moment instead; **Superseded by D-111 (owner approved v2, 4 Nov)** for the own-size rule.
 - **Load:** the exact rebuild reads each block once (the recorders already read them hourly), looking for VHP transfer events. Reads cost no Mana. Random checks are computed from data already read; nothing polls the chain every minute.
 
 ## D-094 — The Race starts paying on 9 Nov
@@ -613,6 +614,9 @@
 
 ## D-108 — Build the shared VHP ruler
 - **Date:** 2026-11-04 (owner: "Let's do the shared VHP ruler. This needs to be built") · **Decision:** build the one VHP ruler of D-090 / D-093 (R-ARCH-1) rather than a Race-only fix; the Race's two known gaps (the > 6-h hide, VHP added after a card) are closed when the Race moves onto it (R-RACE-5). Design by the library chat (it holds the handicap review and the owner's decisions); build in the Bracket chat, which owns the VHP standard (D-058); each game then plugs its own formula in.
+
+## D-111 — The VHP ruler design v2 is approved
+- **Date:** 2026-11-04 (owner: "approve v2") · **Decision:** build the shared ruler as `standards/VHP_RULER.md` v2 (after Repo Lens #E-7), all five §12 points: (1) a producer's own size is its effective VHP at the card moment (or its highest in the hour before), others by 24-hour averages, **card credit always on**; (2) a random moment from the first irreversible block at or after L + 20; (3) one entry bar (k ≥ 10) and a luck trim in every game, **form only as a gate**; (4) a dedicated VHP Ruler chat builds it, the Race moves first, **nothing pays on it until the data checkpoints exist and all 11 simulations pass on 29+ days of data**; (5) new producers need 24 h of history and a "new" label; the Vault's pooled rule. **Supersedes D-093's own-size rule** (the 2-week average): Repo Lens showed it makes honest, shrinking producers look too big, and that card credit is what stops hiding. D-093's aim (fair to every producer; hiding mustn't pay) stands.
 
 ## D-110 — A dedicated chat builds the VHP ruler
 - **Date:** 2026-11-04 (owner chose option A) · **Decision:** the shared VHP ruler (`standards/VHP_RULER.md`) is built by a **new chat that does only that**, starting from the Bracket's existing VHP-standard code (`vhp-standard.js`, `bot/vhp-chain.ts` on `kg-09-bracket`). It starts once Repo Lens has reviewed the design (`claude/REPOLENS-VHP-RULER-DESIGN-PROMPT.md`) and the owner has approved it. No game owns the ruler; each game chat moves its game onto it (Race first). Amends D-108, which named the Bracket chat.

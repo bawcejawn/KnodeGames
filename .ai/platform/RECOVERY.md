@@ -36,7 +36,7 @@
 | 1 | **Paper backup of every key you'd need to rebuild `.env`**: owner, seed owner, sponsor, Race picks owner; the four contract keys (`CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF`, `RACE_WIF`) | `.env` can't be recovered from a dead disk; GitHub never holds them | owner, seed, sponsor 👤; contract keys ❓ — confirm each is on paper before Tue's clean-up (`docs/WALLETS.md` step 6) |
 | 2 | Know which **Kondor wallets** come back from which recovery words (personal producer, owner's daily wallet) | rebuilding Kondor on a new PC | 👤 |
 | 3 | A **second machine you could use** (another PC, or a cloud server ❓) with ~300 GB free SSD | two big nodes need the space during setup | ❓ owner to decide |
-| 4 | **Decide: back up each node's `block_producer\private.key` offline, or not** | with a backup, a new PC can produce **at once** with the same key; without, the **Desk needs a 48 h wait** to register a new key (the pool's re-register is immediate). Only one machine may run a given key at a time | ❓ owner to decide (`KEYS_AND_ROLES.md` §9) |
+| 4 | **Decide: back up each node's `block_producer\private.key` offline, or not** | with a backup, a new PC can produce **at once** with the same key; without, the **Desk needs a 48 h wait** to register a new key (the pool's re-register is immediate). Only one machine may run a given key at a time | **owner: yes, all three nodes** (4 Nov). The backup and restore scripts are R-VAULT-10; then copy the keys to a USB stick kept offline |
 | 5 | GitHub: a **second way into your account** (2FA recovery codes on paper) | GitHub holds the bot, the site and the secret | ❓ |
 | 6 | This page and `KEYS_AND_ROLES.md` printed, or readable from your phone | the PC holding the instructions is the thing that broke | — |
 

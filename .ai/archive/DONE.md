@@ -4,6 +4,10 @@
 > **How it grows:** when an item in `platform/TODOS.md`, `platform/CHAT_REQUESTS.md`, `platform/PRIORITIES.md`, `platform/ROADMAP.md`, `platform/DOCUMENTATION_GAPS.md` or `platform/TECHNICAL_DEBT.md` is done, the library chat moves it here under the date it was moved, newest first. Closed issues go to `ISSUES_CLOSED.md`.
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
+## Moved 2026-11-04 (morning)
+- Owner started the VHP Ruler chat with `claude/ruler/START-PROMPT.md`; its build plan came back and was answered (D-112) — 2026-11-04
+- Owner deleted `NEW_OWNER_WIF` from `.env` (Race picks owner change done; the new Race owner key `1LMV8EcR…` stays offline) — 2026-11-04 — D-083
+
 ## Moved 2026-11-04 (night)
 - **Sponsor rollout done** (Block X handoff): upload `b84e1add…` (tx `0x122093bb…c340`, 07:27 UTC; settings and usage carried over); config with the vault off: per-tx 1 → 1.5, Picks row 1.2, new Race row 1.2 (tx `0x122075ac…d5c4`); PR #117 merged 07:30 UTC (site asks 1.2; upload record); switch-on config: vault on, 40 / 250 per player (tx `0x12208deb…6f81`). Checks: `would_pay` ok and free for `[]`, `[2]`, `[7]`, `[2,7]` (guest and a never-seen wallet); live guest picks paid by the sponsor: Race 0.888 Mana (block 40,783,161), Block X change 0.864 (block 40,783,173); the vault read adds ~0.13 Mana a pick.
 - Ruler design v2 approved (D-111); PR #116 merged.

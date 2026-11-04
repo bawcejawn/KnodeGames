@@ -39,13 +39,17 @@ export async function makePlan(A: RulerNode, B: RulerNode, days: number): Promis
   return { v: 1, startN: endN - days * DAY_HOURS + 1, endN };
 }
 /** Phase 1: read and save the chunks not yet saved (both nodes must agree). Stops early when the budget runs out. */
-export async function fillChunks(A: RulerNode, B: RulerNode, plan: Plan, dir: string, budgetMs: number, log = console.log, k0 = 0, k1 = Infinity) {
+export async function fillChunks(A: RulerNode, B: RulerNode, plan: Plan, dir: string, budgetMs: number, log = console.log, k0 = 0, k1 = Infinity, tries = 3, pauseMs = 120000) {
   const t0 = Date.now();
   for (let k = k0; k < Math.min(chunks(plan), k1 + 1); k++) {
     if (fs.existsSync(chunkFile(dir, k))) continue;
     if (Date.now() - t0 > budgetMs) { log(`budget used up; ${k} of ${chunks(plan)} chunks saved, carries on next run`); return false; }
     const { from, to } = chunkRange(plan, k), t1 = Date.now();
-    const bs = await blocksOnBoth(A, B, from, to);
+    let bs: Blk[] | null = null;
+    for (let t = 1; !bs; t++) {   // a public node can stop answering for minutes: try the whole chunk again
+      try { bs = await blocksOnBoth(A, B, from, to); }
+      catch (e) { if (t >= tries || /differs between/.test(String((e as Error).message))) throw e; log(`chunk ${k + 1}: ${(e as Error).message}; trying again in ${pauseMs / 60000} min (${t} of ${tries})`); await new Promise((r) => setTimeout(r, pauseMs)); }
+    }
     fs.writeFileSync(chunkFile(dir, k) + ".tmp", JSON.stringify(bs));
     fs.renameSync(chunkFile(dir, k) + ".tmp", chunkFile(dir, k));   // a chunk is either whole or absent
     log(`chunk ${k + 1}/${chunks(plan)}: blocks ${from} … ${to} on both nodes in ${((Date.now() - t1) / 60000).toFixed(1)} min`);

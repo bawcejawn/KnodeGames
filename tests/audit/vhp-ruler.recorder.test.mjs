@@ -134,6 +134,18 @@ test("first fill: rebuilt hours + one live last hour, then the hourly recorder c
   assert.equal(D.timelineFrom(all.map((t) => JSON.parse(t))).rebuilt.length, 29);
 });
 
+test("first fill: a node that stops answering for a while — the chunk is tried again and saved", async () => {
+  const f = makeChain({ seed: 37, hours: 6, np: 3, write: 0 });
+  const plan = { v: 1, startN: f.n0, endN: f.n0 + 3 }, head = at(plan.endN) + 70;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fill-"));
+  const A = new FakeNode(f.raw, { head }), B = new FakeNode(f.raw, { name: "B", head });
+  let down = 2; A.blocks = (orig => async (x, y) => { if (down-- > 0) throw new Error("A blocks: no answer within 30 s"); return orig(x, y); })(A.blocks.bind(A));
+  assert.equal(await fillChunks(A, B, plan, dir, 1e9, quiet, 0, Infinity, 3, 1), true);
+  assert.deepEqual(fs.readdirSync(dir), ["c000.json"]);
+  down = 5; fs.rmSync(path.join(dir, "c000.json"));
+  await assert.rejects(fillChunks(A, B, plan, dir, 1e9, quiet, 0, Infinity, 3, 1), /no answer/, "after 3 tries the job fails (and is re-run)");
+});
+
 test("first fill: two nodes that disagree on any block of a chunk — the chunk isn't saved", async () => {
   const f = makeChain({ seed: 29, hours: 6, np: 3, write: 0 });
   const plan = { v: 1, startN: f.n0, endN: f.n0 + 3 }, head = at(plan.endN) + 70;

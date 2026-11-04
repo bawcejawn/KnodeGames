@@ -308,6 +308,7 @@ npm run bot -- chain-check
 ```powershell
 cd C:\kprediction
 git branch --show-current
+$env:RPC = "https://koinos.armana.io"
 npx tsx tools/sweep-old-bot.ts
 ```
 **The dry run must show:**
@@ -315,8 +316,8 @@ npx tsx tools/sweep-old-bot.ts
 - Old bot wallet `1JSTwo…`: about 100 KOIN.
 - Plan: send `<amount>` KOIN to `1635QU…H717`, leaving about 2 behind.
 
-**If it stops with an HTML or "invalid json" error:** this tool reads the node only from `.env`, not from `$env:RPC`.
-Add one line `RPC=https://koinos.armana.io` to `.env` (`notepad .env`), save, and run it again.
+It uses the node set by `$env:RPC` (the first lines of the block), else Armana. **If it stops with an HTML or
+"invalid json" error:** the node is having a moment. Wait a few minutes and run it again.
 
 Then send it:
 ```powershell
@@ -496,8 +497,8 @@ has not passed yet":** wait until the 5a date. Nothing happened either way.
   - accept `OWNER_WIF` matching the **contract's** owner, not only `game-data/deployment.json`.
 - **Swap Desk chat:** this PR adds two read-only lines to `npm run desk -- status` (a proposed owner change; settings
   waiting). Please review.
-- **Vault chat:** `tools/sweep-old-bot.ts` could honour `$env:RPC` and default to `koinos.armana.io`.
-  `tools/send-koin.ts` (new in this PR) needs its own review before Friday.
+- **Vault chat:** `tools/sweep-old-bot.ts` now honours `$env:RPC` and defaults to `koinos.armana.io` (I-078, this
+  PR). `tools/send-koin.ts` (new in this PR) needs its own review before Friday.
 - **Records:** one pull request into `main` after the accepts (step 6).
 
 ---

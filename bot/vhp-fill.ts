@@ -29,15 +29,16 @@ const HOUR = 1200, DAY_HOURS = 24;
 
 export type Plan = { v: 1; startN: number; endN: number };
 const chunkFile = (dir: string, k: number) => path.join(dir, `c${String(k).padStart(3, "0")}.json`);
-const chunks = (p: Plan) => Math.ceil((p.endN - p.startN + 1) / DAY_HOURS);
+export const chunks = (p: Plan) => Math.ceil((p.endN - p.startN + 1) / DAY_HOURS);
 const chunkRange = (p: Plan, k: number) => { const n0 = p.startN + k * DAY_HOURS, n1 = Math.min(p.endN, n0 + DAY_HOURS - 1); return { from: n0 * HOUR, to: (n1 + 1) * HOUR - 1 }; };
 
 /** The plan: the FILL_DAYS × 24 block-hours ending with the newest block-hour irreversible on both nodes. Fixed once. */
 export async function makePlan(A: RulerNode, B: RulerNode, days: number): Promise<Plan> {
   const [ha, hb] = await Promise.all([A.head(), B.head()]);
   const endN = Math.floor((Math.min(ha.lib, hb.lib) + 1) / HOUR) - 1;
-  // #D-10 L-7: start on a day boundary, so every day of the fill can be rolled up into a day file later
-  return { v: 1, startN: Math.floor((endN - days * DAY_HOURS + 1) / DAY_HOURS) * DAY_HOURS, endN };
+  // #D-10 L-7: start on a day boundary, so every day of the fill can be rolled up into a day file later; rounded UP,
+  // so the plan holds at most `days` days and the workflow's chunk jobs cover every chunk (Repo Lens #E-14 / #B-5 N-3)
+  return { v: 1, startN: Math.ceil((endN - days * DAY_HOURS + 1) / DAY_HOURS) * DAY_HOURS, endN };
 }
 /** Phase 1: read and save the chunks not yet saved (both nodes must agree). Stops early when the budget runs out. */
 export async function fillChunks(A: RulerNode, B: RulerNode, plan: Plan, dir: string, budgetMs: number, log = console.log, k0 = 0, k1 = Infinity, tries = 3, pauseMs = 120000) {
@@ -56,6 +57,19 @@ export async function fillChunks(A: RulerNode, B: RulerNode, plan: Plan, dir: st
     log(`chunk ${k + 1}/${chunks(plan)}: blocks ${from} … ${to} on both nodes in ${((Date.now() - t1) / 60000).toFixed(1)} min`);
   }
   return true;
+}
+/** The fill's one live read of every producer; a producer that first signs in the tail is read too, as the recorder
+ *  does (Repo Lens #E-14 N-6: asking for a re-run could never help, the same producer is in the tail again). */
+export async function fillAnchor(A: RulerNode, B: RulerNode, blocks: Blk[], lastTo: number, opts: any = {}) {
+  const producers = new Set(blocks.map((b) => b.s));
+  let anc = await liveAnchor(A, B, [...producers].sort(), lastTo, opts);
+  for (let k = 0; ; k++) {
+    const extra = [...new Set(anc.tail.map((b) => b.s))].filter((a) => !producers.has(a));
+    if (!extra.length) return anc;
+    if (k >= 3) throw new Error(`new producers keep appearing during the reads (${extra.join(", ")}); re-run this hours job (the plan stays)`);
+    for (const a of extra) producers.add(a);
+    anc = await liveAnchor(A, B, [...producers].sort(), lastTo, opts);
+  }
 }
 /** Phase 2 (pure): the hour texts from the blocks startN … endN (+ the tail) and one live anchor. */
 export function fillHours(plan: Plan, blocks: Blk[], anc: { reads: any; tail: Blk[]; at: number; id: string }, opts: { allRebuilt?: boolean } = {}) {
@@ -133,10 +147,7 @@ async function main() {
     if (!fs.existsSync(chunkFile(dir, k))) throw new Error(`chunk ${k} is missing: re-run the failed chunk job`);
     for (const b of JSON.parse(fs.readFileSync(chunkFile(dir, k), "utf8"))) blocks.push(b);
   }
-  const lastTo = (plan.endN + 1) * HOUR - 1, producers = [...new Set(blocks.map((b) => b.s))].sort();
-  const anc = await liveAnchor(A, B, producers, lastTo);
-  const extra = [...new Set(anc.tail.map((b) => b.s))].filter((a) => !producers.includes(a));
-  if (extra.length) throw new Error(`new producers signed during the read (${extra.join(", ")}); re-run this hours job (the plan stays)`);
+  const lastTo = (plan.endN + 1) * HOUR - 1, anc = await fillAnchor(A, B, blocks, lastTo);
   const late = anc.at - lastTo > 24000;
   if (late) console.log(`::warning::the read is ${((anc.at - lastTo) / 1200).toFixed(1)} hours after the plan's end: every hour is written rebuilt; the hourly recorder chains the gap, then goes live`);
   const texts = fillHours(plan, blocks, anc, { allRebuilt: late });

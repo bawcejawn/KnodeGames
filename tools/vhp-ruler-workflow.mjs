@@ -133,7 +133,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        part: [{ from: 0, to: 9 }, { from: 10, to: 19 }, { from: 20, to: 29 }]   # three jobs, 10 days each; a failed one is re-run alone
+        part: [{ from: 0, to: 9 }, { from: 10, to: 19 }, { from: 20, to: 39 }]   # three jobs, 10 days each (the last to the plan's end); a failed one is re-run alone
     steps:
       - uses: ${CHECKOUT}
         with:

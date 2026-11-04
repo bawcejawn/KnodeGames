@@ -173,7 +173,7 @@ test("#D-10 M-2: chained hours carry balances forward; they can follow live or r
   const wrong = edit(texts[5], (h) => { const a = Object.keys(h.anchor.bal)[0]; h.anchor.bal[a] = String(BigInt(h.anchor.bal[a]) + 1n); });
   assert.equal(both(texts[4], wrong).ok, false, "a chained balance that doesn't add up is refused");
   assert.equal(both("", edit(texts[5], (h) => { h.prev = ""; })).ok, false, "a chained hour can't start a chain");
-  // until a live hour follows, the chained hours count as unverified (no paying card reads them)
+  // until a live hour follows, the chained hours are pending: no paying card that reads them is made yet (#B-5 N-3)
   const tl = D.timelineFrom(texts.map((t) => JSON.parse(t)));
-  assert.equal(tl.rebuilt.length, 3);
+  assert.equal(tl.pending.length, 3); assert.equal(tl.rebuilt.length, 0);
 });

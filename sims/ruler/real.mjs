@@ -1,7 +1,7 @@
 // Knode Games — the VHP ruler's simulations on REAL mainnet history (§8). Read-only: no key, nothing sent, nothing
 // published. Reads FILL_DAYS (31) days on both nodes with the first-fill code, writes and checks every hour file the
 // way the publish job would, then runs all 11 simulations and writes the results (and a small set of real examples
-// for the explainer) to OUT. Run by .github/workflows/vhp-ruler-sims.yml.
+// for the explainer) to OUT. Run by hand (it was run once by a temporary workflow, since removed).
 //   RPC, RPC_CHECK, FILL_DAYS, OUT  ·  npx tsx sims/ruler/real.mjs
 import fs from "node:fs";
 import os from "node:os";

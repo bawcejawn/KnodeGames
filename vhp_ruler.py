@@ -27,9 +27,9 @@ def _dec(x, what):
     """A game id or round as plain decimal text (no sign, spaces or hex), exactly as vhp-ruler.js's dec()."""
     if type(x) is int and 0 <= x <= 2 ** 53 - 1:
         return str(x)
-    if type(x) is str and re.fullmatch(r"[0-9]+", x):
+    if type(x) is str and re.fullmatch(r"[0-9]{1,30}", x) and int(x) <= 2 ** 53 - 1:
         return str(int(x))
-    raise ValueError("%s must be a non-negative whole number" % what)
+    raise ValueError("%s must be a whole number from 0 to 2^53 - 1" % what)
 
 
 def card_time(seed_block_id, game, rnd, W0, W1):
@@ -106,6 +106,7 @@ class Ledger:
         self.ids = tl.get("ids")
         self.bad = tl.get("bad") or []
         self.rebuilt = tl.get("rebuilt") or []
+        self.pending = tl.get("pending") or []
         addrs, ix = [], {}
 
         def add(a):
@@ -283,7 +284,8 @@ class Ledger:
         s = self._shares.get(i)
         if s is None:
             vf, cp, ev, Nb = self.valid_from, self.cp[i], self.ev[i], self.Nb
-            s = array.array("q", bytes(8 * (self.to - vf + 2)))  # prefix sums <= blocks x 10^6: inside 64 bits
+            # prefix sums ~ blocks x 10^6 (a producer outside the active set can exceed 1 a block; still far inside 64 bits)
+            s = array.array("q", bytes(8 * (self.to - vf + 2)))
             j = bisect.bisect_right(cp, vf) - 1
             acc = 0
             for H in range(vf, self.to + 1):
@@ -327,6 +329,14 @@ def _bad_for(L, a, h0, h1):
 
 def _rebuilt_in(L, h0, h1):
     return any(r["h0"] <= h1 and r["h1"] >= h0 for r in L.rebuilt)
+
+
+def _pending_in(L, h0, h1):
+    return any(r["h0"] <= h1 and r["h1"] >= h0 for r in L.pending)
+
+
+EARLY = DELAY - 1   # a change up to 19 blocks before a window still moves effective VHP inside it (Repo Lens #B-5 N-7)
+NOT_YET = "not yet: unverified chained hours in the card's windows; it is made once the next live hour checks them"
 
 
 def _js(v):
@@ -385,26 +395,34 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=()):
     pooled, c, paying = set(pooled), _int(c), bool(paying)
     if paying and T - L.frm < FORM + ACTIVE:
         raise ValueError("a paying card needs %d blocks of data before its moment (14 days + 6 h)" % (FORM + ACTIVE))
+    if paying and _pending_in(L, T - AVG - EARLY, T):
+        raise ValueError(NOT_YET)
     form_from = max(L.valid_from, T - FORM)
     look0 = min(T - AVG, form_from)
+    lb0 = T - FORM - ACTIVE
+    fixed = lb0 >= L.frm   # the fixed look-back (Repo Lens #B-5 N-6)
     blocks, tot = w["S1"] - w["S0"] + 1, total(L, T)
     rows = []
     for a in L.active(T):
         o, av, f = own(L, a, T, own_rule), avg(L, a, T), form_of(L, a, T)
         k = k_of(blocks, o, tot)
-        first = L.first_signed(a)
-        seen_at_start = first is not None and first < L.valid_from
-        is_new = (not seen_at_start) and first is not None and T - first < FORM
-        history = first is not None and (T - L.frm >= HISTORY if seen_at_start else T - first >= HISTORY)
+        if fixed:
+            is_new = L.signed_in(a, lb0, T - FORM - 1) == 0
+            history = L.signed_in(a, lb0, T - HISTORY) > 0
+        else:
+            first = L.first_signed(a)
+            seen_at_start = first is not None and first < L.valid_from
+            is_new = (not seen_at_start) and first is not None and T - first < FORM
+            history = first is not None and (T - L.frm >= HISTORY if seen_at_start else T - first >= HISTORY)
         rows.append({"a": a, "own": o, "avg": av, "k": k, "form": f["form"],
                      "entry": k >= MIN_K and f["form"] >= FORM_GATE and history, "pooled": a in pooled,
                      "isNew": is_new, "quality": "ok"})
     rows.sort(key=lambda r: (-r["own"], r["a"]))
     # D-113: on a paying card only the 24-h size window must be free of rebuilt hours; form's older days may read them
-    if any(_bad_for(L, r["a"], look0, T) for r in rows) or (paying and _rebuilt_in(L, T - AVG, T)):
+    if any(_bad_for(L, r["a"], look0, T) for r in rows) or (paying and _rebuilt_in(L, T - AVG - EARLY, T)):
         for r in rows:
             r["quality"] = "flagged"
-    return {"ruleVersion": RULE_VERSION, "game": _int(game), "round": str(rnd), "ownRule": own_rule, "paying": paying,
+    return {"ruleVersion": RULE_VERSION, "game": int(_dec(game, "game")), "round": _dec(rnd, "round"), "ownRule": own_rule, "paying": paying,
             "T": T, "seedBlock": seed_block, "seedBlockId": seed_id, "seedProducer": L.signer(seed_block),
             "window": {"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]},
             "c": c, "total": tot, "formFrom": form_from, "producers": rows}
@@ -413,8 +431,10 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=()):
 def score_card(L, card):
     S0, S1 = card["window"]["S0"], card["window"]["S1"]
     tot = _int(card["total"])
+    if card["paying"] and _pending_in(L, S0 - EARLY, S1):
+        raise ValueError(NOT_YET)
     flagged = any(p["quality"] == "flagged" or _bad_for(L, p["a"], S0, S1) for p in card["producers"]) \
-        or (card["paying"] and _rebuilt_in(L, S0, S1))
+        or (card["paying"] and _rebuilt_in(L, S0 - EARLY, S1))
     rows = []
     for p in card["producers"]:
         o = _int(p["own"])
@@ -440,15 +460,42 @@ def score_card(L, card):
     return out
 
 
+_SETTINGS, _WKEYS = ("game", "round", "window", "c", "ownRule", "paying", "pooled"), ("W0", "W1", "L", "S0", "S1")
+
+
+def check_settings(g):
+    """The game's settings, strictly (Repo Lens #B-5 N-5), as checkSettings in vhp-ruler.js."""
+    if not isinstance(g, dict):
+        raise ValueError("recompute needs the game's own settings")
+    if sorted(g) != sorted(_SETTINGS):
+        raise ValueError("the game's settings must have exactly: " + ", ".join(_SETTINGS))
+    _dec(g["game"], "game")
+    _dec(g["round"], "round")
+    w = g["window"]
+    if not isinstance(w, dict) or sorted(w) != sorted(_WKEYS):
+        raise ValueError("window must have exactly: " + ", ".join(_WKEYS))
+    c = g["c"]
+    if not ((type(c) is int and 0 <= c <= 2 ** 53 - 1) or (type(c) is str and re.fullmatch(r"[0-9]{1,30}", c))):
+        raise ValueError("c must be a whole number of millionths")
+    if g["ownRule"] not in OWN_RULES:
+        raise ValueError("ownRule must be spot, high1h or avg24h")
+    if type(g["paying"]) is not bool:
+        raise ValueError("paying must be true or false")
+    if not isinstance(g["pooled"], list) or not all(type(a) is str for a in g["pooled"]):
+        raise ValueError("pooled must be a list of addresses")
+
+
 def recompute(L, published, game):
     """published: the card's JSON text; game: the game's OWN settings {game, round, window, c, ownRule, paying, pooled}
     (Repo Lens #E-12 M-1: never the card's own settings). Returns (same, diff)."""
-    if not isinstance(game, dict):
-        raise ValueError("recompute needs the game's own settings")
+    try:
+        check_settings(game)
+    except ValueError as e:
+        return False, "the game's settings: %s" % e
     pub = json.loads(published)
     w = game["window"]
     want = {"game": int(_dec(game["game"], "game")), "round": _dec(game["round"], "round"), "ownRule": game["ownRule"],
-            "paying": bool(game["paying"]), "c": str(_int(game.get("c", 0))),
+            "paying": game["paying"], "c": str(int(game["c"])),
             "W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]}
     got = {"game": pub.get("game"), "round": pub.get("round"), "ownRule": pub.get("ownRule"), "paying": pub.get("paying"),
            "c": str(pub.get("c"))}
@@ -457,8 +504,7 @@ def recompute(L, published, game):
         if got.get(k) != want[k] or type(got.get(k)) is not type(want[k]):
             return False, "setting %s: the card says %s, the game says %s" % (k, json.dumps(got.get(k)), json.dumps(want[k]))
     try:
-        mine = make_card(L, game["game"], game["round"], w, game.get("c", 0), game["ownRule"], bool(game["paying"]),
-                         game.get("pooled") or [])
+        mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"])
         if any("credited" in p for p in pub.get("producers", [])):
             mine = score_card(L, mine)
     except ValueError as e:
@@ -580,8 +626,6 @@ def _check_shape(h):
                 return "reads %s: bad numbers for %s" % (node, k)
     if h["kind"] != "live" and (a["reads"]["A"] or a["reads"]["B"]):
         return "a %s hour carries no reads" % h["kind"]
-    if h["kind"] == "chained" and a["at"] != h["to"]:
-        return "a chained hour's anchor is its own last block"
     if h["kind"] == "live":
         for node in ("A", "B"):
             for k in a["bal"]:
@@ -652,6 +696,8 @@ def check_hour(prev_text, text):
             return _fail("a rebuilt hour can't follow a %s one" % prev["kind"])
         if h["anchor"]["at"] < prev["anchor"]["at"]:
             return _fail("anchors go forward")
+        if h["kind"] == "chained" and h["anchor"]["at"] != max(h["to"], prev["anchor"]["at"]):
+            return _fail("a chained hour's anchor is its own last block, or the previous anchor if that is later")
         for x in range(h["from"], prev["anchor"]["at"] + 1):
             if _block_of(prev, x) != _block_of(h, x):
                 return _fail("block %d differs from the previous hour's tail" % x)
@@ -761,15 +807,17 @@ def check_day(text, prev_hour_text):
 def timeline_from(hours, checks=None):
     if not hours:
         raise ValueError("no hours")
-    signers, ids, deltas, bad, rebuilt = [], [], [], [], []
+    signers, ids, deltas, bad, rebuilt, pending = [], [], [], [], [], []
     for i, h in enumerate(hours):
         if i and h["n"] != hours[i - 1]["n"] + 1:
             raise ValueError("hours %d and %d aren't consecutive" % (hours[i - 1]["n"], h["n"]))
         signers.extend(h["addrs"][s] for s in h["sig"])
         ids.extend(h["ids"])
         deltas.extend(deltas_of(h, i == len(hours) - 1))
-        if h["kind"] == "rebuilt" or (h["kind"] == "chained" and not any(x["kind"] == "live" for x in hours[i + 1:])):
+        if h["kind"] == "rebuilt":
             rebuilt.append({"h0": h["from"], "h1": h["to"]})
+        elif h["kind"] == "chained" and not any(x["kind"] == "live" for x in hours[i + 1:]):
+            pending.append({"h0": h["from"], "h1": h["to"]})
         c = checks[i] if checks else None
         if c and c["quality"] == "flagged":
             if "*" in c["flagged"]:
@@ -779,7 +827,7 @@ def timeline_from(hours, checks=None):
     last = hours[-1]
     anchors = {a: {"h": last["anchor"]["at"], "v": int(v)} for a, v in last["anchor"]["bal"].items()}
     return {"from": hours[0]["from"], "to": last["to"], "signers": signers, "ids": ids, "deltas": deltas,
-            "anchors": anchors, "bad": bad, "rebuilt": rebuilt}
+            "anchors": anchors, "bad": bad, "rebuilt": rebuilt, "pending": pending}
 
 
 # ── the publish job (.github/workflows/vhp-ruler.yml runs this whole file, then publish_main) ──
@@ -985,15 +1033,19 @@ def verify_blocks(new_hours, url):
                    "num_blocks": e - s + 1, "return_block": True, "return_receipt": False})
         return [(int(it["block_height"]), str(it["block_id"]), str(it["block"]["header"]["signer"])) for it in res.get("block_items", [])]
     errs, got = [], {}
-    with ThreadPoolExecutor(max_workers=4) as ex:
-        for items in ex.map(fetch, runs):
+    ex = ThreadPoolExecutor(max_workers=4)
+    try:
+        for items in ex.map(fetch, runs):   # results in order; the first failure raises here
             for hh, bid, sg in items:
                 got[hh] = (bid, sg)
+    finally:
+        # Repo Lens #B-5 N-9: on a failure, drop the batches still queued instead of waiting for all of them
+        ex.shutdown(wait=True, cancel_futures=True)
     for hh in hs:
         if hh not in got:
             errs.append("the checking node didn't return block %d" % hh)
         elif got[hh] != want[hh]:
-            errs.append("block %d: the checking node says id %s… signer %s, the file says %s… %s" % (hh, got[hh][0][:14], got[hh][1], want[hh][0][:14], want[hh][1]))
+            errs.append("block %d: the checking node says id %s signer %s, the file says id %s signer %s" % (hh, got[hh][0], got[hh][1], want[hh][0], want[hh][1]))
         if len(errs) >= 5:
             break
     return errs
@@ -1066,14 +1118,30 @@ def load_ledger(data_dir):
     return Ledger(timeline_from([json.loads(texts[n]) for n in ns], checks)), checks
 
 
-def _first_kept(t):
-    """The oldest kept hour (its predecessor removed after retention): its own checks, without the chain link."""
-    h = json.loads(t)
+def check_kept(text):
+    """The oldest KEPT hour (its predecessor removed after retention): its own checks without the chain link, as
+    checkKept in vhp-data.js. A chained one is checked like a rebuilt one (Repo Lens #B-5 / #E-14 N-4)."""
+    try:
+        h = json.loads(text)
+    except Exception:
+        return _fail("not JSON")
+    if not isinstance(h, dict):
+        return _fail("not an hour")
     stub = dict(h)
     stub["prev"] = ""
+    if stub.get("kind") == "chained":
+        stub["kind"] = "rebuilt"
     r = check_hour("", canon(stub))
+    if r["ok"]:
+        r = dict(r)
+        r["hash"] = sha_hex(text)
+    return r
+
+
+def _first_kept(t):
+    r = check_kept(t)
     if not r["ok"]:
-        raise ValueError("h/%d.json: %s" % (h["n"], r["why"]))
+        raise ValueError("h/%s.json: %s" % (_num_inside(t), r["why"]))
     return r
 
 

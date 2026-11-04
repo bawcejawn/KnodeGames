@@ -4,9 +4,9 @@ name: Workflow guard
 
 on:
   push:
-    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs", "tests/audit/ci-guard-*", "vhp_ruler.py", "tools/vhp-ruler-workflow.mjs", "tests/audit/vhp-ruler.*"]
+    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs", "tests/audit/ci-guard-*", "vhp_ruler.py", "tools/vhp-ruler-workflow.mjs", "bot/vhp-fill.ts", "tests/audit/vhp-ruler.*"]
   pull_request:
-    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs", "tests/audit/ci-guard-*", "vhp_ruler.py", "tools/vhp-ruler-workflow.mjs", "tests/audit/vhp-ruler.*"]
+    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs", "tests/audit/ci-guard-*", "vhp_ruler.py", "tools/vhp-ruler-workflow.mjs", "bot/vhp-fill.ts", "tests/audit/vhp-ruler.*"]
   workflow_dispatch: {}
 
 permissions:

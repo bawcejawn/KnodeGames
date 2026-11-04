@@ -19,7 +19,8 @@ what and how to run it. Built by the VHP Ruler chat (R-RULER-1) on branch `vhp-r
 1. Read the `vhp-data` hours that cover its card: from 14 days before the card moment (form) to the end of its scoring window.
 2. `KRuler.ledger(KVhpData.timelineFrom(hours, checks))`, then `KRuler.makeCard(L, { game, round, window: { W0, W1, L, S0, S1 }, c, ownRule, paying, pooled })` once the seed block (L + 20) is irreversible, and `KRuler.scoreCard(L, card)` once S1 is.
 3. Score with **credited blocks** (`credited`), never raw blocks (§3.1), and the game's own formula.
-4. In the game's publish job: `python3 vhp_ruler.py`'s `recompute_main([vhp-data dir, card file])` (embedded, like the ruler's own publish job) refuses any card the data doesn't give byte for byte.
+4. In the game's publish job: `python3 vhp_ruler.py`'s `recompute_main([vhp-data dir, card file, settings file])` (embedded, like the ruler's own publish job) refuses any card the data doesn't give byte for byte. The settings file is the game's own `{game, round, window, c, ownRule, paying, pooled}`, every key, from the game's code, never from the card.
+5. A paying card isn't made, or scored, while a chained catch-up hour that no live hour has checked yet is in its windows ("not yet"): try again after the next live hour.
 
 ## Turning it on (owner, after Repo Lens review 2)
 1. Merge the PR (the owner merges).
@@ -30,9 +31,11 @@ what and how to run it. Built by the VHP Ruler chat (R-RULER-1) on branch `vhp-r
 5. From then on it records every hour by itself. No key, no Mana, no secret.
 
 ## If it falls behind (a node down, the ruler switched off, a GitHub outage)
-Nothing to do by hand. More than 12 hours behind, each run shows a red `::error::` "the VHP ruler is N hours behind".
-More than about 20 hours behind, it writes **chained** hours (balances carried forward from the hour before, blocks
-checked on both nodes, no reads), up to 48 a run, until it is within 20 hours; then it goes back to live hours, and the
-first live hour checks the whole chain against real reads. Chained hours with no live hour after them count as
-unverified: no paying card reads them. A node that can't answer a read stops the run without writing anything; the
-next run tries again.
+Usually nothing to do by hand. More than 12 hours behind, each run shows a red `::error::` "the VHP ruler is N hours
+behind". More than about 20 hours behind, it writes **chained** hours (balances carried forward from the hour before,
+blocks checked on both nodes, no reads), up to 48 a run, until it is about 15 hours behind; the next run then goes back
+to live hours, and the first live hour checks the whole chain against real reads. A chained hour's anchor is its own last
+block, or the previous hour's anchor when that one is later. Chained hours with no live hour after them are unverified:
+a paying card that would read one waits ("not yet"). A node that can't answer a read stops the run without writing
+anything; the next run tries again. If a run fails the same way hour after hour (a red error each hour), that needs a
+look: send the error to the VHP Ruler chat.

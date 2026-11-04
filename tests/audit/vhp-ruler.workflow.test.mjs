@@ -30,11 +30,29 @@ test("the publish job runs no repository code; only it can write; every job is o
   assert.equal(jobs.publish.permissions.contents, "write");
   for (const [name, j] of Object.entries(jobs)) {
     if (name !== "publish") assert.equal(j.permissions.contents, "read", `${name} is read-only`);
-    if (j.if) assert.match(j.if, /vars\.VHP_RULER_ENABLED == 'true'/, `${name}: off by default`);
-    if (j.if) assert.match(j.if, /github\.ref == 'refs\/heads\/main'/, `${name}: main only`);
+    // #B-5 L-11: every job has its gate; removing one fails here
+    assert.equal(typeof j.if, "string", `${name}: has an if: gate`);
+    assert.match(j.if, /vars\.VHP_RULER_ENABLED == 'true'/, `${name}: off by default`);
+    assert.match(j.if, /github\.ref == 'refs\/heads\/main'/, `${name}: main only`);
   }
   assert.doesNotMatch(fs.readFileSync(YML, "utf8"), /secrets\./, "no secrets anywhere");
   assert.match(publishRun, /git push -q "\$remote" "\$commit:refs\/heads\/vhp-data"/, "pushes vhp-data, nothing else");
+});
+
+test("#E-14 / #B-5 N-3: the fill's chunk jobs cover every chunk the plan can have, for every start hour", async () => {
+  const { makePlan, chunks } = await import("../../bot/vhp-fill.ts");
+  const parts = jobs["fill-chunks"].strategy.matrix.part;
+  assert.equal(parts[0].from, 0);
+  for (let i = 1; i < parts.length; i++) assert.equal(parts[i].from, parts[i - 1].to + 1, "no gap between the chunk jobs");
+  const top = parts[parts.length - 1].to;
+  for (let phase = 0; phase < 24; phase++) {
+    const lib = (40000 * 24 + phase) * 1200 + 1199 + 37;   // the newest irreversible hour ends at every hour of the day
+    const nd = { head: async () => ({ height: lib + 60, id: "", lib }) };
+    const plan = await makePlan(nd, nd, 30);
+    assert.equal(plan.startN % 24, 0, "the plan starts on a day boundary");
+    assert.ok(plan.endN - plan.startN + 1 <= 720, `at most 30 days (phase ${phase})`);
+    assert.ok(chunks(plan) - 1 <= top && chunks(plan) <= 30, `phase ${phase}: ${chunks(plan)} chunks, the jobs read 0 … ${top}`);
+  }
 });
 
 // ── the publish step, run for real against a local bare repository ──

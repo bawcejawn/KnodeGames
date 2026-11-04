@@ -263,10 +263,11 @@ test("paying cards (14 days + 6 h of data): D-113's rebuilt rule, a bad range fl
   assert.ok(card.producers.every((p) => p.quality === "ok"));
   assert.equal(card.formFrom, card.T - R.FORM, "the full 14 days are read");
   // D-113 (owner, 4 Nov: "after 1 day is good"): form's older days may read rebuilt hours; the 24-h size window may not
-  card = mk({ rebuilt: [{ h0: card.T - 400000, h1: card.T - 28801 }] });
+  // (#B-5 N-7: the size window starts 19 blocks early, [T − 28,819, T])
+  card = mk({ rebuilt: [{ h0: card.T - 400000, h1: card.T - 28820 }] });
   assert.ok(card.producers.every((p) => p.quality === "ok"), "rebuilt hours in form's older days: a paying card is fine");
-  card = mk({ rebuilt: [{ h0: card.T - 400000, h1: card.T - 28800 }] });
-  assert.ok(card.producers.every((p) => p.quality === "flagged"), "one rebuilt block inside [T − 28,800, T]: flagged");
+  card = mk({ rebuilt: [{ h0: card.T - 400000, h1: card.T - 28819 }] });
+  assert.ok(card.producers.every((p) => p.quality === "flagged"), "one rebuilt block inside [T − 28,819, T]: flagged");
   // a bad range (a fault) anywhere in the look-back still flags the card, form's days included
   card = mk({ bad: [{ h0: card.T - 400000, h1: card.T - 399000 }] });
   assert.ok(card.producers.every((p) => p.quality === "flagged"));

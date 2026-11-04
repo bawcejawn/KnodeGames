@@ -1,6 +1,6 @@
 // The VHP ruler's simulations (sims/ruler/): §8 sim 5 (node faults through the real data path) passes, and the
 // simulation suite runs and refuses to give a verdict on fewer than 29 days of data. The 29+-day run on real mainnet
-// history is .github/workflows/vhp-ruler-sims.yml (sims/ruler/real.mjs).
+// history is sims/ruler/real.mjs (run by hand; it reads mainnet).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { R, D, makeChain } from "./vhp-ruler.fixture.mjs";

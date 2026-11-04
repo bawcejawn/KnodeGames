@@ -12,8 +12,10 @@
  *              "rebuilt" — anchors rebuilt backwards from one real read (first fill; never used by a paying card), or
  *              "chained" — catch-up after an outage (Repo Lens #D-10 M-2): balances carried forward from the previous
  *                          hour plus this hour's blocks (both nodes agreed on them), no reads; a newly seen address takes
- *                          its balance from a live read walked back. Unverified until a later live hour's reads check
- *                          the whole chain: no paying card reads a chained hour that no live hour follows,
+ *                          its balance from a live read walked back. Its anchor is its own last block, or the previous
+ *                          anchor when that one is later (Repo Lens #E-14 / #B-5 N-1: a live read can land past the next
+ *                          hour's end). Unverified until a later live hour's reads check the whole chain: until then
+ *                          a paying card whose look-back reaches it isn't made (timelineFrom's `pending`),
  *     addrs:   every address this file names, sorted;
  *     sig:     per block, the index in addrs of its signer;
  *     ids:     per block, its id as the node returns it (lowercase 0x-hex) — the card's seed (§2.3);
@@ -106,7 +108,6 @@
       }
     }
     if (h.kind !== "live" && (Object.keys(a.reads.A).length || Object.keys(a.reads.B).length)) return `a ${h.kind} hour carries no reads`;
-    if (h.kind === "chained" && a.at !== h.to) return "a chained hour's anchor is its own last block";
     if (h.kind === "live") for (const node of ["A", "B"]) for (const k of Object.keys(a.bal)) if (!own(a.reads[node], k)) return `a live hour reads every anchored address on both nodes (${k} on ${node})`;
     return null;
   }
@@ -146,6 +147,7 @@
       if (h.n !== prev.n + 1) return fail("hours must be consecutive");
       if (prev.kind !== "rebuilt" && h.kind === "rebuilt") return fail(`a rebuilt hour can't follow a ${prev.kind} one`);
       if (h.anchor.at < prev.anchor.at) return fail("anchors go forward");
+      if (h.kind === "chained" && h.anchor.at !== Math.max(h.to, prev.anchor.at)) return fail("a chained hour's anchor is its own last block, or the previous anchor if that is later");
       // the blocks both files hold (the previous tail) must be the same blocks, with the same events
       for (let x = h.from; x <= prev.anchor.at; x++) if (blockOf(prev, x) !== blockOf(h, x)) return fail(`block ${x} differs from the previous hour's tail`);
       if (eventsIn(prev, h.from, prev.anchor.at) !== eventsIn(h, h.from, prev.anchor.at)) return fail("the events after the previous hour differ from its tail");
@@ -196,6 +198,17 @@
     return { ok: true, quality: "ok", flagged: [], effAt, hash };
   }
 
+  /** checkKept(text): the oldest KEPT hour, whose predecessor retention removed — its own checks without the chain
+   *  link. A chained one is checked like a rebuilt one (its balances can't be compared with a removed hour; it stays
+   *  unverified in timelineFrom until a live hour follows it). Repo Lens #B-5 N-4 / #E-14 N-4. */
+  function checkKept(text) {
+    let h; try { h = JSON.parse(text); } catch (e) { return fail("not JSON"); }
+    if (!h || typeof h !== "object" || Array.isArray(h)) return fail("not an hour");
+    const stub = { ...h, prev: "", kind: h.kind === "chained" ? "rebuilt" : h.kind };
+    const r = checkHour("", canon(stub));
+    return r.ok ? { ...r, hash: shaHex(text) } : r;
+  }
+
   /** checkDay(text, prevHourText): a day file is 24 checked hours, its hashes listing each hour file's sha256. */
   function checkDay(text, prevHourText) {
     let d; try { d = JSON.parse(text); } catch (e) { return fail("not JSON"); }
@@ -216,17 +229,19 @@
   }
 
   /** A ruler timeline (vhp-ruler.js ledger input) from consecutive checked hours (objects, oldest first).
-   *  Flagged hours become `bad` ranges; rebuilt hours `rebuilt` ranges (D-112). The anchors are the last hour's. */
+   *  Flagged hours become `bad` ranges; rebuilt hours `rebuilt` ranges (D-112); chained hours no live hour follows yet
+   *  `pending` ranges (a paying card that reads one isn't made yet: Repo Lens #B-5 N-3, so a card never changes when a
+   *  live hour arrives later). The anchors are the last hour's. */
   function timelineFrom(hours, checks) {
     if (!hours.length) throw new Error("no hours");
-    const signers = [], ids = [], deltas = [], bad = [], rebuilt = [];
+    const signers = [], ids = [], deltas = [], bad = [], rebuilt = [], pending = [];
     hours.forEach((h, i) => {
       if (i && h.n !== hours[i - 1].n + 1) throw new Error(`hours ${hours[i - 1].n} and ${h.n} aren't consecutive`);
       for (const s of h.sig) signers.push(h.addrs[s]);
       ids.push(...h.ids);
       for (const x of deltasOf(h, i === hours.length - 1)) deltas.push(x);
-      // rebuilt hours, and chained hours that no later live hour has checked, are unverified: no paying card reads them
-      if (h.kind === "rebuilt" || (h.kind === "chained" && !hours.slice(i + 1).some((x) => x.kind === "live"))) rebuilt.push({ h0: h.from, h1: h.to });
+      if (h.kind === "rebuilt") rebuilt.push({ h0: h.from, h1: h.to });
+      else if (h.kind === "chained" && !hours.slice(i + 1).some((x) => x.kind === "live")) pending.push({ h0: h.from, h1: h.to });
       const c = checks && checks[i];
       if (c && c.quality === "flagged") {
         if (c.flagged.includes("*")) bad.push({ h0: h.from, h1: h.to });
@@ -235,7 +250,7 @@
     });
     const last = hours[hours.length - 1], anchors = {};
     for (const [a, v] of Object.entries(last.anchor.bal)) anchors[a] = { h: last.anchor.at, v: BigInt(v) };
-    return { from: hours[0].from, to: last.to, signers, ids, deltas, anchors, bad, rebuilt };
+    return { from: hours[0].from, to: last.to, signers, ids, deltas, anchors, bad, rebuilt, pending };
   }
 
   /** makeHour: the canonical text of block-hour n.
@@ -269,5 +284,5 @@
     return canon({ v: VERSION, n, from: n * DAY, to: n * DAY + DAY - 1, hashes: hourTexts.map(shaHex), hours: hourTexts.map((t) => JSON.parse(t)) });
   }
 
-  root.KVhpData = { HOUR, DAY, VERSION, canon, shaHex, checkHour, checkDay, deltasOf, timelineFrom, makeHour, makeDay };
+  root.KVhpData = { HOUR, DAY, VERSION, canon, shaHex, checkHour, checkKept, checkDay, deltasOf, timelineFrom, makeHour, makeDay };
 })(typeof window !== "undefined" ? window : globalThis);

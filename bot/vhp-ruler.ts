@@ -195,25 +195,28 @@ export function balancesAt(reads: Record<"A" | "B", Record<string, Read>>, block
 const toHourBlocks = (bs: Blk[]) => bs.map((b) => ({ s: b.s, id: b.id, burn: b.burn }));
 const toHourEvents = (bs: Blk[]) => bs.flatMap((b) => b.events);
 
-export const CHAIN_AFTER = 24000, BEHIND_ALERT = 14400;   // blocks: ~20 h (chain instead of live reads), ~12 h (alert)
+// blocks: ~20 h behind → chain instead of live reads; chain down to ~15 h behind, so the next hourly run goes live
+// (Repo Lens #E-14 N-2: chaining only to 20 h left runs an hour apart chaining for ever); ~12 h → alert
+export const CHAIN_AFTER = 24000, CHAIN_TO = 18000, BEHIND_ALERT = 14400;
 /** Catch-up after an outage (#D-10 M-2): hours with no reads, balances carried forward from the previous hour plus the
- *  blocks both nodes agreed on; an address seen for the first time is read live and walked back. */
+ *  blocks both nodes agreed on; an address seen for the first time is read live and walked back. A chained hour's
+ *  anchor is its own last block, or the previous anchor when that one is later (a live read can land past the next
+ *  hour's end): Repo Lens #E-14 / #B-5 N-1, the same rule in both checkers. */
 async function chainedHours(A: RulerNode, B: RulerNode, prevText: string, first: number, last: number, opts: any) {
   const log = opts.log || console.log, texts: string[] = [];
   let p = prevText;
   for (let n = first; n <= last; n++) {
-    const prev = JSON.parse(p), from = n * D.HOUR, to = from + D.HOUR - 1;
-    if (prev.anchor.at > to) throw new Error(`block-hour ${n} is inside the previous hour's tail; can't chain it`);
-    const blocks = await blocksOnBoth(A, B, from, to);
+    const prev = JSON.parse(p), from = n * D.HOUR, to = from + D.HOUR - 1, at = Math.max(to, prev.anchor.at);
+    const blocks = await blocksOnBoth(A, B, from, at);   // the hour, plus the rest of the previous tail if it reaches further
     const bal: Record<string, bigint> = {};
-    for (const [a, v] of Object.entries(prev.anchor.bal)) bal[a] = BigInt(v as string) + changesAfter(blocks, a, prev.anchor.at, to);
+    for (const [a, v] of Object.entries(prev.anchor.bal)) bal[a] = BigInt(v as string) + changesAfter(blocks, a, prev.anchor.at, at);
     const fresh = [...new Set(blocks.map((b) => b.s))].filter((a) => !(a in bal)).sort();
-    if (fresh.length) {   // first seen during the outage: a live read on both nodes, walked back to this hour's end
-      const anc = await liveAnchor(A, B, fresh, to, opts), all = [...blocks, ...anc.tail];
+    if (fresh.length) {   // first seen during the outage: a live read on both nodes, walked back to this hour's anchor
+      const anc = await liveAnchor(A, B, fresh, at, opts), all = [...blocks, ...anc.tail];
       const back = balancesAt(anc.reads, all, anc.at);
-      for (const a of fresh) bal[a] = back[a] - changesAfter(all, a, to, anc.at);
+      for (const a of fresh) bal[a] = back[a] - changesAfter(all, a, at, anc.at);
     }
-    const t = D.makeHour({ n, prevText: p, kind: "chained", blocks: toHourBlocks(blocks), events: toHourEvents(blocks), anchor: { at: to, id: blocks[blocks.length - 1].id, bal, reads: { A: {}, B: {} } } });
+    const t = D.makeHour({ n, prevText: p, kind: "chained", blocks: toHourBlocks(blocks), events: toHourEvents(blocks), anchor: { at, id: blocks[blocks.length - 1].id, bal, reads: { A: {}, B: {} } } });
     const c = D.checkHour(p, t);
     if (!c.ok) throw new Error(`block-hour ${n} (chained) fails its own check (${c.why}); nothing written`);
     log(`block-hour ${n}: chained (catching up; checked by the next live hour)`);
@@ -229,7 +232,7 @@ export async function recordHours(A: RulerNode, B: RulerNode, prevText: string, 
   if (lib - prev.to > BEHIND_ALERT) log(`::error::the VHP ruler is ${((lib - prev.to) / 1200).toFixed(1)} hours behind (newest hour ${prev.n}); it catches up by itself, see docs/VHP-RULER.md`);
   if (lib - prev.to > CHAIN_AFTER) {   // too far behind for live reads (an anchor must be within a day of its hour)
     let last = first - 1;
-    while (last + 1 - first < (opts.maxChained ?? 48) && (last + 2) * D.HOUR - 1 <= lib - CHAIN_AFTER) last++;
+    while (last + 1 - first < (opts.maxChained ?? 48) && (last + 2) * D.HOUR - 1 <= lib - CHAIN_TO) last++;
     if (last >= first) return chainedHours(A, B, prevText, first, last, opts);
   }
   let last = first - 1;

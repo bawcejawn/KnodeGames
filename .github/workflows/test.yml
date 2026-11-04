@@ -45,5 +45,5 @@ jobs:
         run: |
           npm run build:sim
           cd .. && npm ci --no-audit --no-fund --ignore-scripts
-          node --import tsx --test game/scripts/storage-compat.test.ts
+          node --import tsx --test game/scripts/storage-compat.test.ts game/scripts/storage-compat-v6.test.ts game/scripts/storage-compat-v61.test.ts
       - run: npm run check

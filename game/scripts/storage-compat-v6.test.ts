@@ -33,7 +33,11 @@ const [contract, owner, operator, seedOwner, A, B, C, D, E, F] =
 const addr = (s: Signer) => s.getAddress();
 
 const V6_FIELDS = new Set(["v6_rule_week_plus_one", "game_count", "fee_vhp", "games_rolled", "stake_other", "prize_v6", "prizes", "split",
-  "acc_seed_hi", "acc_seed_lo", "seed_part", "season_weeks", "prize_held"]);
+  "acc_seed_hi", "acc_seed_lo", "seed_part", "season_weeks", "prize_held",
+  // v6.1: doubled Questions (the rule week; get_state's caps are worked out, never stored)
+  "q60_rule_week_plus_one", "questions_cap", "questions_cap_next"]);
+/** Read-only values worked out on every read, so they never read as a default. */
+const COMPUTED = new Set(["questions_cap", "questions_cap_next"]);
 const isDefault = (v: any) => v === undefined || v === null || v === false || v === 0 || v === "0" || v === "";
 function sameAsBefore(before: any, after: any, where: string) {
   if (before === null || typeof before !== "object") { assert.deepEqual(after, before, where); return; }
@@ -42,7 +46,7 @@ function sameAsBefore(before: any, after: any, where: string) {
   for (const k of Object.keys(after)) {
     if (k in before) continue;
     assert.ok(V6_FIELDS.has(k), `${where}.${k}: a field v5 never returned (${JSON.stringify(after[k])})`);
-    assert.ok(isDefault(after[k]), `${where}.${k} should read as its default, got ${JSON.stringify(after[k])}`);
+    if (!COMPUTED.has(k)) assert.ok(isDefault(after[k]), `${where}.${k} should read as its default, got ${JSON.stringify(after[k])}`);
   }
 }
 const sum = (o: any, keys: string[]) => keys.reduce((n, k) => n + BigInt(o[k] ?? 0), 0n);

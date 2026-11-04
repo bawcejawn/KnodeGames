@@ -13,7 +13,7 @@
  *                    A = 40% of the pot, by rank weight × stake counted up to 10 VHP (v5; before: 65% of what the
  *                        house earned, by rank weight only)
  *                    B = the other 60%, by rank weight × full stake
- *                  At most 30 questions a week, so at most 30 points (v5).
+ *                  At most 30 questions a week, so at most 30 points (v5); 60 from the week after the v6.1 upgrade.
  * All of this runs on-chain. The only off-chain inputs are the operator's question parameters and resolutions.
  *
  * Who can do what:
@@ -33,6 +33,9 @@ import { Tokens } from "./Tokens";
 
 const VOID: u32 = 1000;
 const MAX_QUESTIONS_PER_WEEK: u32 = 30;   // v5: at most 30 questions, so at most 30 points, a week
+// v6.1 (D-092, R-VAULT-6): from the week after this code is uploaded, a week may hold 60 questions (doubled Questions:
+// two rounds a day). Never mid-week: the week the upload lands in keeps 30, so no week's maximum points change.
+const MAX_QUESTIONS_PER_WEEK_V61: u32 = 60;
 const FEE_BPS: u64 = 500;       // 5% producer fee (KOIN), charged once on everything the pool earns
 const WIN_PCT: u64 = 30;        // winners = the top 30% of eligible (staked) players by headcount, ties included
 const BASKET_A_BPS: u64 = 6500; // before v5: basket A = 65% of what the house (seed + unclaimed pots) earned, by rank only
@@ -74,6 +77,10 @@ export function testSetFinalizePage(n: u32): void { if (BUILD_FOR_TESTING) final
 let initV6Rule: u64 = BUILD_FOR_TESTING ? 1_000_000 : 1;
 /** Test hook: the v6 rule week (+1) that init will set. */
 export function testSetInitV6Rule(n: u64): void { if (BUILD_FOR_TESTING) initV6Rule = n; }
+/** v6.1: the rule week (+1) a fresh deployment starts the 60-question cap from. Mainnet: from week 0. Tests: never,
+ *  unless a test sets it, so the older tests keep the 30 cap. (An upgraded contract sets it in cfg() instead.) */
+let initQ60Rule: u64 = BUILD_FOR_TESTING ? 1_000_000 : 1;
+export function testSetInitQ60Rule(n: u64): void { if (BUILD_FOR_TESTING) initQ60Rule = n; }
 // The withdrawals-only build (assembly/Mode.ts). Tests switch it on with the hook; the release builds fold it away.
 let testSafeMode: bool = false;
 /** Test hook: behave as the withdrawals-only build. */
@@ -231,7 +238,17 @@ export class Kpred {
       this.config.put(c);
       this.initQuestionGame(this.weekOf(c, this.now()));
     }
+    // First action after the v6.1 upgrade: 60 questions a week from the NEXT week, never the one being played.
+    if (c.q60_rule_week_plus_one == 0) {
+      c.q60_rule_week_plus_one = this.weekOf(c, this.now()) + 2;
+      this.config.put(c);
+    }
     return c;
+  }
+
+  /** v6.1: the most questions week `w` can hold. */
+  questionsCap(c: kpred.config_object, w: u64): u32 {
+    return c.q60_rule_week_plus_one > 0 && w + 1 >= c.q60_rule_week_plus_one ? MAX_QUESTIONS_PER_WEEK_V61 : MAX_QUESTIONS_PER_WEEK;
   }
 
   /** Whether week `w` is closed by the v6 vault split. */
@@ -516,6 +533,11 @@ export class Kpred {
     if (isAddress(c.owner)) {
       r.week = this.weekOf(c, r.time);
       r.week_end = this.weekEnd(c, r.week);
+      // v6.1: before the first action after the upgrade sets the rule week, any action this week sets it to next week.
+      const q = new kpred.config_object();
+      q.q60_rule_week_plus_one = c.q60_rule_week_plus_one > 0 ? c.q60_rule_week_plus_one : r.week + 2;
+      r.questions_cap = this.questionsCap(q, r.week);
+      r.questions_cap_next = this.questionsCap(q, r.week + 1);
     }
     r.vhp_balance = Tokens.vhpBalance(this.contractId);
     r.koin_balance = Tokens.koinBalance(this.contractId);
@@ -589,6 +611,7 @@ export class Kpred {
     c.scorer_rule_week_plus_one = 1;
     c.reward_rule_week_plus_one = 1;
     c.v6_rule_week_plus_one = initV6Rule;
+    c.q60_rule_week_plus_one = initQ60Rule;
     this.config.put(c);
     this.initQuestionGame(0);
     return new kpred.init_result();
@@ -1085,7 +1108,7 @@ export class Kpred {
     const wkKey = u64Key(w);
     const wk = this.weeks.get(wkKey)!;
     System.require(!wk.closed, "week already closed");
-    System.require(wk.questions < MAX_QUESTIONS_PER_WEEK, "too many questions this week");
+    System.require(wk.questions < this.questionsCap(c, w), "too many questions this week");
     const t = this.totals.get()!;
     const id = t.next_question_id;
     t.next_question_id += 1;

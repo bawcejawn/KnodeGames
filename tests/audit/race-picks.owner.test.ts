@@ -55,7 +55,7 @@ function deps(over: Partial<OwnerDeps> = {}, chain: Record<string, any> = { a: {
   const sent: any[] = [], lines: string[] = [];
   const d: OwnerDeps = {
     rpc: "a", rpcCheck: "b", mainnet: true, race: RACE_PINNED_MAINNET, g, picks: null, env: { CONFIRM_MAINNET: "yes" },
-    readConfig: async (n) => ({ ...chain[n] }),
+    readConfig: async (n) => ({ ...chain[n] }), hasCode: async () => false,
     send: async (config) => { sent.push(config); chain.a = { ...config }; chain.b = { ...config }; return { ok: true, txId: "0x1220ab", rcUsed: "1000" }; },
     signerAddress: () => OLD, proofAddress: () => NEW, log: (...a) => lines.push(a.join(" ")),
     ...over,
@@ -114,4 +114,34 @@ test("enable / disable / limit keep the owner the chain reports, and the key is 
   assert.match(src, /buildRaceConfig\(firstSetup \? g\.owner : cur\.owner, enabled, perDay\)/);
   assert.match(src, /ownerKey\(provider, cur\.owner\)/);
   assert.doesNotMatch(src, /s\.getAddress\(\) !== g\.owner/);
+});
+
+// ── Repo Lens #D-5 (3 Nov): the three Lows ──
+test("R84-1: a new owner that is a contract (has code on either node) is refused, and an unreadable check refuses too", async () => {
+  const onB = deps({ hasCode: async (n) => n === "b" });
+  await assert.rejects(changeOwner(NEW, NEW, true, onB.d), /is a contract \(it has code on chain\)/);
+  assert.equal(onB.sent.length, 0);
+  await assert.rejects(changeOwner(NEW, undefined, false, deps({ hasCode: async () => true }).d), /is a contract/, "the dry run says so too");
+  const down = deps({ hasCode: async () => { throw new Error("timeout"); } });
+  await assert.rejects(changeOwner(NEW, NEW, true, down.d), /Couldn't check whether/);
+  assert.equal(down.sent.length, 0);
+});
+
+test("R84-2: on mainnet the send needs a second node; a dry run on one node warns", async () => {
+  const one = deps({ rpcCheck: undefined });
+  await assert.rejects(changeOwner(NEW, NEW, true, one.d), /needs a second node/);
+  assert.equal(one.sent.length, 0);
+  const dry = deps({ rpcCheck: undefined });
+  await changeOwner(NEW, undefined, false, dry.d);
+  assert.match(dry.lines.join("\n"), /Only one node/);
+  assert.equal(await changeOwner(NEW, NEW, true, deps({ rpcCheck: undefined, mainnet: false }).d), true, "testnet: one node is allowed");
+});
+
+test("R84-3: the nodes must agree on every setting, not only the owner", async () => {
+  for (const b of [{ ...cur, enabled: false }, { ...cur, max_picks_per_day: 4 }, { ...cur, max_picks_per_day: "5" }]) {
+    const x = deps({}, { a: { ...cur }, b });
+    if (b.max_picks_per_day === "5") { assert.equal(await changeOwner(NEW, NEW, true, x.d), true, "\"5\" and 5 are the same"); continue; }
+    await assert.rejects(changeOwner(NEW, NEW, true, x.d), /two nodes disagree about the race contract's (picks on\/off|picks per day)/, JSON.stringify(b));
+    assert.equal(x.sent.length, 0);
+  }
 });

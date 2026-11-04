@@ -233,6 +233,8 @@ export function planOwnerChange(p: OwnerPlanInput): { config: ReturnType<typeof 
 export type OwnerDeps = {
   rpc: string; rpcCheck?: string; mainnet: boolean; race: string; g: any; picks?: string | null; env: NodeJS.ProcessEnv;
   readConfig: (rpc: string) => Promise<any>;
+  /** Does this address have contract code on that node? (Repo Lens #D-5 R84-1) Throws when it can't be read. */
+  hasCode: (rpc: string, address: string) => Promise<boolean>;
   send: (config: any) => Promise<{ ok: boolean; txId?: string; rcUsed?: string; error?: string }>;
   signerAddress: () => string;
   proofAddress: () => string | undefined;
@@ -242,14 +244,27 @@ export type OwnerDeps = {
 /** npm run racepicks -- owner <new> [--confirm <new>] [--send]. Returns true when the change is done and read back. */
 export async function changeOwner(next: string, confirm: string | undefined, send: boolean, d: OwnerDeps): Promise<boolean> {
   if (send && d.mainnet && d.env.CONFIRM_MAINNET !== "yes") throw new Error("MAINNET: add CONFIRM_MAINNET=yes to .env first.");
+  // Repo Lens #D-5 R84-2: on mainnet the owner change always needs the second node.
+  if (send && d.mainnet && !d.rpcCheck) throw new Error("MAINNET: the owner change needs a second node. Set RPC_CHECK (e.g. $env:RPC_CHECK = \"https://api.koinosblocks.com\") and run it again. Nothing was sent.");
   const cur = await d.readConfig(d.rpc);
   if (d.rpcCheck) {
     const other = await d.readConfig(d.rpcCheck);
-    if (other?.owner !== cur?.owner) throw new Error(`The two nodes disagree about the race contract's owner (${d.rpc}: ${cur?.owner}; ${d.rpcCheck}: ${other?.owner}). Nothing was sent. Try again later.`);
-  }
+    // Repo Lens #D-5 R84-3: every setting must agree, not only the owner (a lagging node could undo a recent disable).
+    for (const [k, label] of [["owner", "owner"], ["enabled", "picks on/off"], ["max_picks_per_day", "picks per day"]] as const) {
+      const a = k === "enabled" ? !!cur?.[k] : k === "owner" ? cur?.[k] : Number(cur?.[k]);
+      const b = k === "enabled" ? !!other?.[k] : k === "owner" ? other?.[k] : Number(other?.[k]);
+      if (a !== b) throw new Error(`The two nodes disagree about the race contract's ${label} (${d.rpc}: ${a}; ${d.rpcCheck}: ${b}). Nothing was sent. Try again in a few minutes.`);
+    }
+  } else d.log("  ⚠ Only one node (RPC_CHECK is not set): the settings are not cross-checked.");
   const proof = d.proofAddress();
   const signer = send ? d.signerAddress() : undefined;
   const { config, notes } = planOwnerChange({ cur, next, confirm, send, signer, proof, vaultOwner: d.g?.owner, forbidden: forbiddenOwners(d.g, d.race, d.picks) });
+  // Repo Lens #D-5 R84-1: never a contract, listed or not (its own authorize could refuse your signature for good).
+  for (const node of [d.rpc, d.rpcCheck].filter(Boolean) as string[]) {
+    let code: boolean;
+    try { code = await d.hasCode(node, config.owner); } catch (e) { throw new Error(`Couldn't check whether ${config.owner} is a contract on ${node} (${(e as Error).message}). Nothing was sent. Try again later.`); }
+    if (code) throw new Error(`${config.owner} is a contract (it has code on chain). The owner must be a person's wallet. Nothing was sent.`);
+  }
   d.log(`Race picks contract ${d.race}${d.mainnet ? "   ⚠ MAINNET" : ""}`);
   d.log(`  Owner now      ${cur.owner}`);
   d.log(`  New owner      ${config.owner}`);
@@ -293,6 +308,7 @@ function ownerDeps(): OwnerDeps {
   return {
     rpc, rpcCheck, mainnet: isMainnet(rpc), race, g, picks: readJson(path.join("picks-data", "deployment.json"))?.contract ?? null, env: E,
     readConfig: (node) => read(new Provider([node]), race, "get_config"),
+    hasCode: async (node, address) => (await contractMetadata(new Provider([node]), address)).exists,
     signerAddress: () => Signer.fromWif(need("OWNER_WIF")).getAddress(),
     proofAddress: () => (E.NEW_OWNER_WIF ? Signer.fromWif(E.NEW_OWNER_WIF).getAddress() : undefined),
     send: async (config) => {

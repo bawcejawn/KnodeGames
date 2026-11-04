@@ -150,6 +150,25 @@
 
   /** A UTC hour of the day shown in the viewer's own time zone, e.g. "8:00 AM". */
   const localHour = (utcHour) => { const d = new Date(); d.setUTCHours(utcHour, 0, 0, 0); return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
+  const localTime = (ms) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  // Question rounds, Monday to Saturday (D-092): each opens at `open` (hour UTC) and closes 12 hours later. From the
+  // week of Mon 16 Nov (week 4) two rounds a day. Keep in step with SCHEDULE in bot/bot.ts (a test checks).
+  const ROUNDS = [{ "fromWeek": 0, "rounds": [{ "open": 12, "count": 5 }] }, { "fromWeek": 4, "rounds": [{ "open": 0, "count": 2 }, { "open": 12, "count": 3 }] }];
+  function roundsOfDay(d) {
+    if (!S.genesis || d < 0 || d % 7 >= 6) return [];
+    const w = Math.floor(d / 7); let r = ROUNDS[0].rounds;
+    for (const x of ROUNDS) if (w >= x.fromWeek) r = x.rounds;
+    return [...r].sort((a, b) => a.open - b.open).map((x) => {
+      const releaseAt = S.genesis + d * 86400000 + x.open * 3600000;
+      return { label: `W${String(w).padStart(3, "0")}-D${(d % 7) + 1}${x.open === 12 ? "" : "-" + String(x.open).padStart(2, "0")}`, releaseAt, lockTime: releaseAt + 12 * 3600000, count: x.count };
+    });
+  }
+  /** The round open at `now` (released, answers not closed) and the next round to open. */
+  function roundsAt(now) {
+    const d = S.genesis ? Math.floor((now - S.genesis) / 86400000) : -1;
+    const list = [d - 1, d, d + 1, d + 2].flatMap(roundsOfDay);
+    return { current: list.filter((r) => r.releaseAt <= now && now < r.lockTime).pop() || null, next: list.find((r) => r.releaseAt > now) || null };
+  }
   /** A moment in the viewer's own time zone, short: "Mon 5:00 AM". */
   const dayTime = (ms) => new Date(ms).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
   const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -250,7 +269,7 @@
     const idx = await fetchJson(DATA + "index.json").catch(() => ({ days: [] }));
     // Only plain question files from game-data/questions/ (index.json is a published file; never follow other paths).
     const days = (idx.days || []).filter((f) => typeof f === "string" && /^questions\/[A-Za-z0-9_-]+\.json$/.test(f));
-    const files = await Promise.all(days.slice(-21).map((f) => fetchJson(DATA + f).then((d) => ({ f, d })).catch(() => null)));
+    const files = await Promise.all(days.slice(-42).map((f) => fetchJson(DATA + f).then((d) => ({ f, d })).catch(() => null)));
     S.files = files.filter(Boolean);
     await checkFiles(S.files);
     numberQuestions(S.files);
@@ -1146,7 +1165,7 @@
       renderReminders();
     };
     return el("div", { class: "remind" },
-      el("p", { class: "muted" }, `New questions come out Monday to Saturday at ${localHour(12)} your time.`),
+      el("p", { class: "muted" }, `New questions come out Monday to Saturday at ${localHour(12)} your time (from Monday 16 November also at ${localHour(0)}).`),
       el("div", { class: "row-btns" },
         el("button", { class: "btn btn-primary", type: "button", onclick: ics }, "Add to my calendar"),
         canNotify() ? el("button", { class: "btn btn-ghost", type: "button", onclick: toggle }, notifyOn() ? "Turn notifications off" : "Notify me while Knode Games is open") : null),
@@ -1198,19 +1217,17 @@
     const recent = lockedAll.filter((q) => outcomeOf(q) && myAnswer(q) !== null && num(q.windowEnd) >= S.height - 28800);
     const locked = [...waiting, ...recent].sort((a, b) => a.chainId - b.chainId);
     const oq = $("#open-questions");
-    // Between 12:00 UTC and the day's questions appearing (the bot posts them on chain, then publishes the files):
+    // Between a round's release and its questions appearing (the bot posts them on chain, then publishes the files):
     // say they're on their way, not "no questions", so a visitor in those minutes knows nothing is wrong.
-    const dayN = S.genesis && now >= S.genesis ? Math.floor((now - S.genesis) / 86400000) : -1;
-    const dayLock = S.genesis + (dayN + 1) * 86400000;
-    const todayLabel = dayN >= 0 ? `W${String(Math.floor(dayN / 7)).padStart(3, "0")}-D${(dayN % 7) + 1}` : "";
-    const skippedToday = (S.files || []).some(({ d }) => d && d.date === todayLabel && d.skipped);
-    const posting = dayN >= 0 && dayN % 7 < 6 && now >= dayLock - 12 * 3600000 && !skippedToday && !S.questions.some((q) => num(q.lockTime) === dayLock);
-    const late = posting && now >= dayLock - 10 * 3600000; // still not out two hours after 12:00 UTC
+    const { current: round, next: nextRound } = roundsAt(now);
+    const skippedRound = !!round && (S.files || []).some(({ d }) => d && d.date === round.label && d.skipped);
+    const posting = !!round && !skippedRound && !S.questions.some((q) => num(q.lockTime) === round.lockTime);
+    const late = posting && now >= round.releaseAt + 2 * 3600000; // still not out two hours after the release
     const emptyText = late
-      ? "Today's questions are running late. They'll show up here as soon as they're posted; this page checks every minute."
+      ? "The new questions are running late. They'll show up here as soon as they're posted; this page checks every minute."
       : posting
-        ? `Today's questions are on their way. They're posted on the Koinos chain at ${localHour(12)} your time and show up here within a few minutes. This page checks every minute, so there's no need to refresh.`
-        : `No open questions right now. New questions arrive Monday to Saturday at ${localHour(12)} your time.`;
+        ? `New questions are on their way. They're posted on the Koinos chain at ${localTime(round.releaseAt)} your time and show up here within a few minutes. This page checks every minute, so there's no need to refresh.`
+        : `No open questions right now. ${nextRound ? `The next ones come out ${dayTime(nextRound.releaseAt)}.` : `New questions arrive Monday to Saturday at ${localHour(12)} your time.`}`;
     oq.replaceChildren(...(open.length ? open.map((q) => questionCard(q, "open")) : [el("div", { class: "empty" }, emptyText)]));
     const answeredToday = open.filter((q) => myAnswer(q) !== null).length;
     const tn = $("#today-note");

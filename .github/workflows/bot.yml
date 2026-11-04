@@ -24,6 +24,8 @@ on:
     - cron: "7 * * * *"      # every hour at minute 7
     - cron: "48 11 * * 1-6"  # the daily release run, Mon-Sat: starts early and waits for 12:00 UTC (GitHub can start
                              # scheduled runs late, so the PC also starts this run: bot/release-kick.mjs)
+    - cron: "48 23 * * 0-5"  # the 00:00 UTC round (from week 4, D-092): Sun-Fri 23:48, waits for 00:00 Mon-Sat.
+                             # Before week 4 it finds no round to post and only does the hourly work.
   workflow_dispatch: {}       # "Run workflow" button for a manual run
 
 concurrency:

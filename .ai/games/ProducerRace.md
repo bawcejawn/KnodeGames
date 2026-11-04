@@ -18,6 +18,7 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 - **Ranking:** points, then wins, then picks placed; wallets still tied share the place (D-034). 💬
 - A race that won't finalize is skipped 12 hours after its week ends; its picks don't count and it is listed in `skipped`. 💬
 - Vault file `race-data:vault/W<week>.json`: `rows` = staked players with ≥ 1 point, as 255, 254 … per tied group; `first` / `second` = free winners, at most 10 each. 💬
+- **Hold before final (I-034, owner 3 Nov):** while a week settles, the recorder publishes `vault/PENDING-W<week>.json` (the file it would make final, and when it first saw it). `W<week>.json` goes final only **12 h after the week ends** and once that pending file has stayed **exactly the same for 1 h** across runs. The publish job checks the same rule on its own clock. The owner can hold a week by hand with the repo variable `RACE_HOLD_WEEKS` (e.g. `3`); remove it to release. Each run's notes list the pending winners and flag free winners whose first race was that week (I-035, option A). ✅ PR (R-RACE-1)
 
 ## Rewards
 - **Staked** (staked in game 7 that week): share the game's bucket; medals go to the vault's top 30% by headcount, rounded up, tied groups whole. 💬
@@ -36,8 +37,8 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 **Live as a game.** Vault `game-add 7` **sent 3 Nov** (tx `0x1220d394…`), applicable from Thu 5 Nov 15:51 UTC: applied by Sun 8 Nov 4 PM PT, it earns from vault week 3 (Mon 9 Nov). Free-prize switch: ON (D-082). `PRIZES_FROM_WEEK = 3` is on main (PR #56) ✅. The v6-ABI stake fix `d7fad7c` (B1-1) and the RV-1 process exit reached main with the Block X launch merge (PR #57, Repo Lens round 12 GO — the Race notes said 13; round 12 is what the owner and the other files record ❓) ✅. Nicknames on the page (D-078): **merged (PR #62)** ✅. 👤 / 💬
 
 ## Known issues
-- **I-034 (P1 before prizes):** a final vault file is decided by one run and locked forever, with no 12-hour hold.
-- **I-035:** free-prize farming with many empty wallets on sponsored picks — owner decision.
+- **I-034 (P1 before prizes):** a final vault file is decided by one run and locked forever, with no 12-hour hold. **Fixed in the R-RACE-1 PR** (12 h hold + pending file + owner hold); closes when merged.
+- **I-035:** owner chose option A (3 Nov): accept the risk for now, flag new-wallet free winners in the run notes, use the hold to review; revisit (option B: hold ≥ 1 VHP at a random moment) if farming shows up.
 - **I-037:** a bad vault file can stop the whole race run; slow stake reads could lose an hour's cards.
 - **I-028:** "Staked board" is based on `peak_stake` — a mid-week withdrawal below the minimum forfeits the week; the panel should explain this.
 - **I-030:** with `RPC_CHECK` off, stakes are classified on one node without a warning. **I-029:** board reads grow with players.

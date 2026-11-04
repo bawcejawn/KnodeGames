@@ -19,10 +19,14 @@
  *  4. Writes race-data/index.json, race-data/W<week>.json and race-data/board.json, which the publish job puts on the
  *     race-data branch for the website.
  *  5. The KnodeGames Vault's results file for last week, race-data/vault/W<week>.json (see vaultResults below): the
- *     free prize's 1st and 2nd places, final once every race of the week is final. A final file is never rewritten.
+ *     free prize's 1st and 2nd places. Held first (I-034): while the week is being settled the recorder publishes
+ *     vault/PENDING-W<week>.json, the file it WOULD make final; the results file goes final only once the week ended at
+ *     least VAULT_HOLD_MS (12 h) ago and that pending file has stayed exactly the same for VAULT_STABLE_MS (1 h) across
+ *     runs. The owner can hold a week by hand (repo variable RACE_HOLD_WEEKS). A final file is never rewritten.
  * The scoring is race-math.js, the same file the website runs.
  *
- *   RPC, RPC_CHECK ("off" to skip the second node), RACE_PREV (the race-data files from the last run), RACE_OUT.
+ *   RPC, RPC_CHECK ("off" to skip the second node), RACE_PREV (the race-data files from the last run), RACE_OUT,
+ *   RACE_HOLD_WEEKS (vault weeks the owner holds, e.g. "3" or "3,4": never final while listed).
  *   npm run race            (or: npx tsx bot/race.ts)
  */
 import { Provider } from "koilib";
@@ -256,6 +260,11 @@ type Opts = {
   clock?: () => number;
   stakedOf?: (node: any, who: string, week: number) => Promise<boolean>;   // staked in the Race in the vault (tests)
   prizesFrom?: number;                                                // the tests' PRIZES_FROM_WEEK
+  /** I-034: the hold before a vault file goes final. Production always uses the defaults (VAULT_HOLD_MS after the week,
+   *  then VAULT_STABLE_MS unchanged). `false` is for the older offline tests of the file's CONTENT only. */
+  vaultHold?: false | { afterEnd: number; stable: number };
+  /** Vault weeks the owner holds by hand (default: the RACE_HOLD_WEEKS variable). */
+  holdWeeks?: number[];
 };
 
 // ── the picks contract and the game (read only) ──
@@ -337,8 +346,11 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
   return min > 0n && peak >= min;
 }
 /** One run. Exported for the tests, which pass fake nodes. */
-export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom }: Opts) {
+export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks }: Opts) {
   prizesFromWeek = prizesFrom ?? PRIZES_FROM_WEEK;
+  hold = vaultHold === undefined ? { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS } : vaultHold;
+  ownerHolds = holdWeeks ?? parseHoldWeeks(E.RACE_HOLD_WEEKS);
+  pendingOut = null;
   if (prev !== undefined) PREV = prev;
   if (out !== undefined) OUT = out;
   // Cards: effective VHP (audit BX-3 b). Who is ranked is the vault stake (stakedOf), not a VHP balance.
@@ -528,10 +540,9 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   }
   fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((x, y) => x - y) }) + "\n");
   if (board) fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
-  if (vault) {
-    fs.mkdirSync(path.join(OUT, "vault"), { recursive: true });
-    fs.writeFileSync(path.join(OUT, "vault", `W${vault.week}.json`), JSON.stringify(vault) + "\n");
-  }
+  if (vault || pendingOut) fs.mkdirSync(path.join(OUT, "vault"), { recursive: true });
+  if (vault) fs.writeFileSync(path.join(OUT, "vault", `W${vault.week}.json`), JSON.stringify(vault) + "\n");
+  if (pendingOut) fs.writeFileSync(path.join(OUT, "vault", `PENDING-W${pendingOut.week}.json`), JSON.stringify(pendingOut) + "\n");
   for (const pr of problems) console.log(`::warning::${pr}`);
   return { problems };
 }
@@ -739,10 +750,68 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
     const t = Number(x[2]); if (!firstPick.has(x[0]) || t < firstPick.get(x[0])!) firstPick.set(x[0], t);
   }
   // Before the Race earns in the vault: a final file with nothing to pay (the vault skips those weeks anyway).
-  if (w < prizesFromWeek) return { ...file, final: true, skipped: open.map((r) => r.id) };
+  if (w < prizesFromWeek) return settle({ ...file, final: true, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
   const places = prizePlaces(rows, firstPick), staked = stakedRows(rows);
   for (const n of [...places.notes, ...staked.notes]) problems.push(`vault week ${w}: ${n}`);
-  return { ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: open.map((r) => r.id) };
+  return settle({ ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
+}
+
+// ── the hold before a vault file goes final (I-034, R-RACE-1; owner 2026-11-03: 12 hours, then two matching runs) ──
+/** How long after its week ends a vault file is held before it can go final. */
+export const VAULT_HOLD_MS = 12 * M.HOUR;
+/** How long the pending file must stay exactly the same (across hourly runs) before it can go final. */
+export const VAULT_STABLE_MS = M.HOUR;
+type Pending = { game: number; week: number; at: number; file: VaultFile };
+let hold: false | { afterEnd: number; stable: number } = { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS };
+let ownerHolds: number[] = [];
+let pendingOut: Pending | null = null;
+
+/** RACE_HOLD_WEEKS: "3" or "3, 4" (vault week numbers). Anything that isn't a whole number is ignored, with no hold
+ *  implied: the owner sees the list echoed in the run's notes. */
+export function parseHoldWeeks(v: string | undefined): number[] {
+  return String(v ?? "").split(",").map((x) => x.trim()).filter((x) => /^[0-9]{1,4}$/.test(x)).map(Number);
+}
+
+/** The published pending file for week w, if it is one this recorder could have written. */
+function prevPending(w: number, now: number): Pending | null {
+  const p = readPrev(`vault/PENDING-W${w}.json`);
+  if (!p || typeof p !== "object" || p.game !== VAULT_GAME || p.week !== w || !Number.isSafeInteger(p.at) || p.at > now) return null;
+  if (!p.file || p.file.game !== VAULT_GAME || p.file.week !== w || p.file.final !== true) return null;
+  return p;
+}
+
+/** Wallets whose first race ever (in the weeks this run can see) is in week w: worth a look when one wins a free
+ *  prize (I-035, owner 2026-11-03 option A: flag, don't block). */
+function newThisWeek(all: Map<number, WeekFile>, w: number, who: string[]): string[] {
+  const start = M.weekStart(w), first = new Map<string, number>();
+  for (const wf of all.values()) for (const r of wf.races) if (r.result?.final && Array.isArray(r.result.picks))
+    for (const x of r.result.picks) if (!first.has(x[0]) || r.start < first.get(x[0])!) first.set(x[0], r.start);   // the race, not the pick's own time
+  return who.filter((a) => (first.get(a) ?? Infinity) >= start);
+}
+
+/** candidate: the file this run would make final. Publishes it as pending, and returns it as the final file only when
+ *  the hold is over and the pending file the last run published is identical and at least `stable` old. Otherwise
+ *  the results file stays "not final" (empty) and the vault bot waits. */
+function settle(candidate: VaultFile, weekEnd: number, now: number, problems: string[], all: Map<number, WeekFile>): VaultFile {
+  if (hold === false) return candidate;
+  const w = candidate.week, waiting: VaultFile = { game: VAULT_GAME, week: w, final: false, rows: [], first: [], second: [], skipped: [] };
+  const prev = prevPending(w, now);
+  const same = !!prev && JSON.stringify(prev.file) === JSON.stringify(candidate);
+  const at = same ? prev!.at : now;           // when this exact file was first seen
+  pendingOut = { game: VAULT_GAME, week: w, at, file: candidate };
+  const fresh = candidate.first.concat(candidate.second);
+  const flag = newThisWeek(all, w, fresh);
+  const who = (xs: string[]) => (xs.length ? xs.join(", ") : "nobody");
+  const summary = `1st ${who(candidate.first)}; 2nd ${who(candidate.second)}; ${candidate.rows.length} staked row(s)` +
+    (flag.length ? `; first picks ever this week (check them): ${flag.join(", ")}` : "");
+  if (ownerHolds.includes(w)) { problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`); return waiting; }
+  const readyAt = Math.max(weekEnd + hold.afterEnd, at + hold.stable);
+  if (now >= weekEnd + hold.afterEnd && same && now - at >= hold.stable) {
+    problems.push(`vault week ${w}: final after the hold (pending since ${new Date(at).toISOString()}). ${summary}`);
+    return candidate;
+  }
+  problems.push(`vault week ${w}: pending (I-034 hold), final at the earliest ${new Date(readyAt).toISOString()} if nothing changes${prev && !same ? " (it changed since the last run, so the wait starts again)" : ""}. ${summary}`);
+  return waiting;
 }
 
 /** The producers (field and paddock) on the newest card in the published week files of the last day (audit BX-53). */

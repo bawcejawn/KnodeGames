@@ -184,7 +184,7 @@ test("testnet: testnet/blockx.json is a valid config the Picks contract would ac
   assert.notEqual(c.chainId, "EiBZK_GGVP0H_fXVAM3j6EAuz3-B-l3ejxRSewi7qIBfSA==");
   assert.ok(c.games.some((g) => g.id === 2 && g.round === 2400 && g.lead === 100 && g.ahead === 28900), "game 2 with the real mainnet settings");
   for (const g of c.games) { const G = X.forGame(g); assert.equal(G.openRounds(48_000_000).length, 12, `game ${g.id}: 12 targets open`); assert.ok(g.id < 128); }
-  assert.match(c.data, /^https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/testnet-data\/$/, "its own data branch, never games-data");
+  assert.match(c.data, /^https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/testnet-data\/$/, "its own data branch, never games-data");
 });
 
 // ── the testnet workflow (.github/workflows/games-testnet.yml): its publish check takes the recorder's real output ──

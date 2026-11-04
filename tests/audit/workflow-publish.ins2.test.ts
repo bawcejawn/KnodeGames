@@ -60,7 +60,7 @@ function repo(): Repo {
     "game-data/questions/W000-D1.json": '{"questions":[]}\n',
     "site/index.html": "<h1>Kpred</h1>\n",
     "desk-data/deployment.json": '{"owner":"1Owner"}\n',
-    ".github/workflows/bot.yml": "name: Kpred bot\n",
+    ".github/workflows/bot.yml": "name: Knode Games bot\n",
     "bot/bot.ts": "// bot\n",
   };
   for (const [p, c] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(work, p)), { recursive: true }); fs.writeFileSync(path.join(work, p), c); }

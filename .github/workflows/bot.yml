@@ -17,7 +17,7 @@
 #     Environment secrets: OPERATOR_WIF   the bot's key (it can only post and resolve questions — never move funds)
 #     (Delete any repository-level OPERATOR_WIF secret, so only the environment holds it.)
 #   Settings → Secrets and variables → Actions → Variables: BOT_ENABLED = true   (RPC is optional; defaults to https://koinos.armana.io)
-name: Kpred bot
+name: Knode Games bot
 
 on:
   schedule:

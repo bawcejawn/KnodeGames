@@ -8,7 +8,7 @@
   const W = window.KWallet;
   const BASE = "./";
   const GAME_DATA = BASE + "game-data/";
-  const RACE_DATA = "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/";
+  const RACE_DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/";
   const $ = (id) => document.getElementById(id);
   const SVG = "http://www.w3.org/2000/svg";
 

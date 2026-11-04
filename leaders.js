@@ -11,7 +11,7 @@
   const host = document.getElementById("lb-games");
   if (!host || !window.KBoard) return;
   const W = window.KWallet;
-  const RAW = "https://raw.githubusercontent.com/bawcejawn/Knode/";
+  const RAW = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/";
   const EXPLORER = "https://koinosscan.com/address/";
   const $ = (id) => document.getElementById(id);
   const fmt = (x, d = 0) => (typeof x === "number" && isFinite(x) ? x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }) : "–");

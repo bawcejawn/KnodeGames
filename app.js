@@ -1529,7 +1529,7 @@
   function setupDemo() {
     S.demo = true;
     $("#demo-note").hidden = false;
-    const qs = (window.KPRED_DEMO?.questions || []);
+    const qs = (window.KNODE_DEMO?.questions || []);
     const last = Math.max(...qs.map((q) => q.lockHeight));
     // ?demo=live previews the race: the last day's answers closed 4,500 blocks ago and its blocks are being counted.
     const liveDemo = /[?&]demo=live\b/.test(location.search);

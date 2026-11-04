@@ -20,7 +20,7 @@ test("the results view has a game switcher and keeps the question results whole"
   assert.match(h, /id="res-games"/);
   assert.match(h, /<div id="res-q">[\s\S]*id="results-list"[\s\S]*<\/div>\s*<div id="res-g" hidden><\/div>\s*<\/section>/);
   assert.match(h, /<script src="race-math\.js"><\/script>\s*<script src="results\.js"><\/script>/);
-  assert.ok(h.includes("https://raw.githubusercontent.com/bawcejawn/Knode/race-data/"), "index.html may read race-data");
+  assert.ok(h.includes("https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/"), "index.html may read race-data");
 });
 
 test("games.json: the Producer Race has results; the hub links every game's results", () => {

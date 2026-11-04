@@ -84,9 +84,18 @@ test("ABI: the panel's methods and field numbers match the vault's own ABI (v6)"
     assert.equal(real.methods[name].entry_point, m.entry_point, `${name} entry point`);
     assert.equal(real.methods[name].argument, m.argument); assert.equal(real.methods[name].return, m.return);
   }
+  // v6.1's one new field (PR #114: config field 23, read as 0 on v6). Until v6.1's ABI is on main it must be absent here
+  // and its number unused, so a v6 vault can never put anything else in it.
+  const V61 = { config_object: { q60_rule_week_plus_one: { id: 23, type: "uint64" } } };
   for (const [msg, def] of Object.entries(T.VAULT_ABI.koilib_types.nested.kpred.nested)) {
     for (const [field, f] of Object.entries(def.fields)) {
       const r = types[msg] && types[msg].fields[field];
+      const later = V61[msg] && V61[msg][field];
+      if (later && !r) {
+        assert.deepEqual([f.id, f.type], [later.id, later.type], `${msg}.${field} as in v6.1`);
+        assert.ok(!Object.values(types[msg].fields).some((x) => x.id === f.id), `${msg} field ${f.id} unused before v6.1`);
+        continue;
+      }
       assert.ok(r, `${msg}.${field} exists in the vault`);
       assert.equal(r.id, f.id, `${msg}.${field} number`);
       assert.equal(r.type, f.type, `${msg}.${field} type`);

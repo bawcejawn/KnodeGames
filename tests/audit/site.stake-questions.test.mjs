@@ -16,7 +16,7 @@ const ME = "1PlayerAddrXXXXXXXXXXXXXXXXXXXXXXX";
 const J = (x) => JSON.parse(JSON.stringify(x, (k, v) => (typeof v === "bigint" ? v.toString() : v)));
 
 /** A fake vault: get_state, list_games, get_player / get_week per question-game week, get_game_player (empty). */
-function env({ state, games = [], qnow = {}, qweeks = {} } = {}) {
+function env({ state, games = [], qnow = {}, qweeks = {}, gweeks = {} } = {}) {
   const sent = [];
   class Contract {
     constructor({ id }) { this.id = id; const self = this;
@@ -26,6 +26,8 @@ function env({ state, games = [], qnow = {}, qweeks = {} } = {}) {
         if (m === "list_games") return { result: { games } };
         if (m === "get_player") return { result: args.week === String(state.week) ? qnow : { entry: (qweeks[args.week] || {}).e } };
         if (m === "get_week") { const w = qweeks[args.week] || {}; return { result: { week: w.W, buckets: w.buckets } }; }
+        if (m === "get_game_player") return { result: { entry: (gweeks[args.week] || {}).e } };
+        if (m === "get_game") { const w = gweeks[args.week] || {}; return { result: { week: w.gw, buckets: w.buckets } }; }
         if (m === "balance_of") return { result: { value: "0" } };
         return { result: {} };
       } }); }
@@ -56,10 +58,16 @@ function fnSrc(code, name) {
   for (let k = j; k < code.length; k++) { if (code[k] === "{") d++; else if (code[k] === "}" && --d === 0) return code.slice(i, k + 1); }
   throw new Error(`no end for ${name}`);
 }
+/** A one-line `const name = …;` from app.js (Repo Lens #142 I-4: the cap is app.js's too, not re-declared here). */
+function constSrc(code, name) {
+  const m = new RegExp(`^\\s*const ${name} = [^\\n]*;$`, "m").exec(code);
+  assert.ok(m, `app.js has const ${name}`);
+  return m[0].trim();
+}
 test("the hub's question-game claim rules are app.js's own: same answers on 5,000 random weeks", () => {
   const A = new Function("S", `"use strict";
     const big = (x) => { try { return BigInt(x ?? 0); } catch { return 0n; } }; const num = (x) => Number(x || 0);
-    const UNIT = 100000000n, CAP_A = 10n * UNIT; const capA = (stake) => (stake < CAP_A ? stake : CAP_A);
+    const UNIT = 100000000n; ${constSrc(appSrc, "CAP_A")} ${constSrc(appSrc, "capA")}
     ${fnSrc(appSrc, "exactReward")} ${fnSrc(appSrc, "freePrize")} ${fnSrc(appSrc, "claimNeedsOwnMana")}
     return { exactReward, freePrize, claimNeedsOwnMana };`);
   const T = env({ state: LIVE() }).K._test;
@@ -152,4 +160,55 @@ test("overview: Daily Questions rewards from the finished weeks: staked reward, 
   const short = env({ state: LIVE({ vhp_balance: "1", koin_balance: String(50n * UNIT), mana: String(UNIT) }), games: [QGAME], qnow: {}, qweeks });
   const q2 = (await short.K.overview(ME)).games[0];
   assert.equal(q2.claims.find((c) => !c.free).ownMana, true);
+});
+
+// ── Repo Lens #142 fixes ──
+const Q61 = (o = {}) => LIVE({ config: { ...LIVE().config, q60_rule_week_plus_one: "6" }, week: "6", totals: { weeks_finalized: "6", seed_koin: "0", creator_fee: "0" }, ...o });
+test("V61-1: from v6.1's rule week, Daily Questions stakes and withdraws with deposit_to / withdraw_from (game 1)", async () => {
+  const e = env({ state: Q61(), games: [QGAME, RACE] });
+  await e.K.send("stake", { game: 1, units: 2n * UNIT, koin: true });
+  assert.deepEqual(J(e.sent[0].ops.map((o) => [o._m, o._a])), [
+    ["approve", { owner: ME, spender: DEP.contract, value: String(2n * UNIT) }],
+    ["deposit_to", { from: ME, game: 1, amount: String(2n * UNIT), koin: true }]]);
+  await e.K.send("withdraw", { game: 1, units: UNIT });
+  assert.deepEqual(J(e.sent[1].ops.map((o) => [o._m, o._a])), [["withdraw_from", { to: ME, game: 1, amount: String(UNIT) }]]);
+  // Before the rule week (v6, or a v6.1 vault before R) the old calls stay.
+  const old = env({ state: Q61({ week: "4" }), games: [QGAME] });
+  await old.K.send("stake", { game: 1, units: UNIT, koin: false });
+  assert.deepEqual(J(old.sent[0].ops.map((o) => o._m)), ["approve", "deposit_vhp"]);
+});
+
+test("V61-1: game-1 rewards from the rule week come from claim_game; earlier weeks keep the old claim; no week shows twice", async () => {
+  const buckets = []; buckets[5] = { players: 1, sum_w: "100" };
+  const W = { sum_w: "100", pot_a: String(40n * UNIT), pot_b: String(60n * UNIT), aw_hi: "0", aw_lo: String(1000n * UNIT), bw_hi: "0", bw_lo: String(1000n * UNIT), reward_rule: true, cutoff: 3 };
+  const staked = { stake: String(10n * UNIT), points: 5, counted: 5, eligible: true, settled: true };
+  const gw = { finalized: true, cutoff: 3, pot_a: String(4n * UNIT), pot_b: "0", aw_hi: "0", aw_lo: String(10n * UNIT), bw_hi: "0", bw_lo: "0" };
+  const gb = []; gb[5] = { players: 1, sum_w: "100" };
+  const e = env({ state: Q61(), games: [QGAME], qnow: {}, qweeks: { 4: { W, buckets, e: staked }, 5: { W, buckets, e: staked } },
+    gweeks: { 5: { gw, buckets: gb, e: { stake: String(10n * UNIT), points: 5 } } } });
+  const q = (await e.K.overview(ME)).games[0];
+  assert.deepEqual(J(q.claims.map((c) => [c.week, !!c.shared])), [["4", false], ["5", true]], "week 4 the old way, week 5 (the rule week) like every game");
+  await e.K.send("claim", { claims: q.claims.map((c) => ({ game: 1, week: c.week, reward: c.reward })) });
+  assert.deepEqual(J(e.sent[0].ops.map((o) => [o._m, o._a])), [["claim", { player: ME, week: "4" }], ["claim_game", { player: ME, game: 1, week: "5" }]]);
+});
+
+test("L-1: Daily Questions looks back 104 finished weeks, as the home page does", async () => {
+  const buckets = []; buckets[5] = { players: 1, sum_w: "100" };
+  const W = { sum_w: "100", pot_a: String(40n * UNIT), pot_b: "0", aw_hi: "0", aw_lo: String(1000n * UNIT), bw_hi: "0", bw_lo: "0", reward_rule: true, cutoff: 3 };
+  const e = env({ state: LIVE({ week: "61", totals: { weeks_finalized: "60", seed_koin: "0", creator_fee: "0" } }), games: [QGAME], qnow: {},
+    qweeks: { 3: { W, buckets, e: { stake: String(10n * UNIT), points: 5, counted: 5, eligible: true, settled: true } } } });
+  const q = (await e.K.overview(ME)).games[0];
+  assert.deepEqual(J(q.claims.map((c) => c.week)), ["3"], "a reward 57 weeks back still shows");
+});
+
+test("I-1: the own-Mana rule is worked out again at send time, from the vault as it is then", async () => {
+  // The page's list said no own Mana; the pool is now short of VHP with spare KOIN above its Mana.
+  const e = env({ state: LIVE({ vhp_balance: "1", koin_balance: String(50n * UNIT), mana: String(UNIT) }), games: [QGAME] });
+  await e.K.send("claim", { claims: [{ game: 1, week: 2n, reward: 5n * UNIT, ownMana: false }] });
+  assert.deepEqual(J(e.sent[0].opts), { ownMana: true });
+  const ok = env({ state: LIVE(), games: [QGAME] });
+  await ok.K.send("claim", { claims: [{ game: 1, week: 2n, reward: 5n * UNIT, ownMana: false }] });
+  assert.deepEqual(J(ok.sent[0].opts), {}, "enough VHP: the wallet decides as usual");
+  await ok.K.send("claim", { claims: [{ game: 1, week: 2n, reward: 5n * UNIT, free: true }] });
+  assert.deepEqual(J(ok.sent[1].opts), { ownMana: true }, "a free prize: always own Mana");
 });

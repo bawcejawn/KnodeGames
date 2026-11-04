@@ -181,3 +181,14 @@ test("Daily Questions: + Add, Withdraw and Claim on its card; its claims pass th
   assert.deepEqual(p.sent[1].a.claims.map((c) => [c.game, String(c.week), c.ownMana]), [[1, "2", true]]);
   assert.match(p.text(".hub-sum"), /Rewards to claim 1\.25 VHP/, "Daily Questions rewards count in Claim all");
 });
+
+test("I-3 (Repo Lens #142): withdrawing all of a Daily Questions stake also says this week's answers stop counting", async () => {
+  const p = await boot(data());
+  p.button("#g1", "Withdraw").click(); p.type("10");
+  assert.match(p.text("#hub-review"), /no free prize\. Your answers this week stop counting too\./);
+  p.type("9.5");
+  assert.doesNotMatch(p.text("#hub-review"), /answers this week/, "only a full withdrawal");
+  p.button("#g1 .hub-form", "Cancel").click();
+  p.button("#g7", "Withdraw").click(); p.type("20");
+  assert.doesNotMatch(p.text("#hub-review"), /answers this week/, "other games: unchanged");
+});

@@ -21,6 +21,7 @@
   const Wallet = () => (TESTNET ? window.KTestStakeWallet : window.KWallet);
   const Q_GAME = 1;
   const CLAIM_WEEKS = 52;                  // finished weeks checked for something to claim (the vault never expires a claim)
+  const Q_CLAIM_WEEKS = 104;               // the question game's look-back, as the home page's (app.js; Repo Lens #142 L-1)
   const lib = window.koilib || window.koinos || window;
 
   // ── The parts of the vault (game contract, v6) this panel uses. Entry points = first 4 bytes of sha256(name);
@@ -49,7 +50,9 @@
       claim: { entry_point: 0xdd1b3c31, argument: "kpred.claim_arguments", return: "kpred.claim_result", read_only: false },
     },
     koilib_types: { nested: { kpred: { nested: {
-      config_object: { fields: { genesis_time: u64(4), week_length: u64(5), min_stake: u64(9), max_sponsor_rc: u64(10), paused: bool(11), min_stake_next: u64(13), min_stake_next_week: u64(14), v6_rule_week_plus_one: u64(21) } },
+      config_object: { fields: { genesis_time: u64(4), week_length: u64(5), min_stake: u64(9), max_sponsor_rc: u64(10), paused: bool(11), min_stake_next: u64(13), min_stake_next_week: u64(14), v6_rule_week_plus_one: u64(21),
+        // v6.1 (R-VAULT-13, D-116; PR #114): the week (+1) from which the question game is paid like every game. 0 on v6.
+        q60_rule_week_plus_one: u64(23) } },
       totals_object: { fields: { seed_koin: u64(3), creator_fee: u64(5), weeks_finalized: u64(10) } },
       get_state_arguments: { fields: {} },
       get_state_result: { fields: { config: { type: "config_object", id: 1 }, totals: { type: "totals_object", id: 2 }, week: u64(4), vhp_balance: u64(6), koin_balance: u64(7), mana: u64(8), time: u64(11) } },
@@ -218,24 +221,31 @@
     const short = !c || !(big(c.reward) > 0n) || big(st.vhp_balance) < big(c.reward);
     return short && spare > 0n && spare + big(cfg.max_sponsor_rc) > big(st.mana);
   }
-  /** The question-game rewards `who` can claim, from the finished weeks (newest CLAIM_WEEKS), as the home page finds
-   *  them: [{ week, reward, free, ownMana }]. A free player's prize is always paid with their own Mana (app.js). */
+  /** v6.1 (D-116): is question-game week w paid like every game (a results file, claim_game)? Only from the rule week
+   *  the vault stores (config.q60_rule_week_plus_one); on v6 it's 0, so never. */
+  const qShared = (config, w) => { const r = big(config && config.q60_rule_week_plus_one); return r > 0n && big(w) + 1n >= r; };
+  // Finished question-game weeks with nothing to claim for a wallet never change: they're read once (Repo Lens #142 I-2).
+  const qNothing = new Map();   // wallet → Set of weeks
+  /** The question-game rewards `who` can claim under the old rules (weeks before v6.1's rule week), from the finished
+   *  weeks (newest Q_CLAIM_WEEKS), as the home page finds them: [{ week, reward, free, ownMana }]. A free player's prize
+   *  is always paid with their own Mana (app.js). Weeks from the rule week are found by findClaims (claim_game). */
   async function qClaims(who, st) {
     const fin = num(st && st.totals && st.totals.weeks_finalized), out = [], weeks = [];
-    for (let w = fin - 1; w >= 0 && weeks.length < CLAIM_WEEKS; w--) weeks.push(w);
+    const none = qNothing.get(who) || new Set(); qNothing.set(who, none);
+    for (let w = fin - 1; w >= 0 && weeks.length < Q_CLAIM_WEEKS; w--) if (!none.has(w) && !qShared(st && st.config, w)) weeks.push(w);
     for (let i = 0; i < weeks.length; i += 6) {
       await Promise.all(weeks.slice(i, i + 6).map(async (w) => {
         const [p, wk] = await Promise.all([read("get_player", { player: who, week: String(w) }), read("get_week", { week: String(w) })]);
         const e = p.entry, W = wk.week || {};
-        if (!e || e.claimed) return;
+        if (!e || e.claimed) { none.add(w); return; }
         if (e.settled && !e.eligible && e.free_player && !e.voided && num(e.counted) >= 2) {
           const f = qFreePrize(W, num(e.points));
-          if (f > 0n) out.push({ week: BigInt(w), reward: f, free: true, ownMana: true });
+          if (f > 0n) out.push({ week: BigInt(w), reward: f, free: true, ownMana: true }); else none.add(w);
           return;
         }
-        if (!e.eligible || W.rolled_over || num(e.points) < num(W.cutoff)) return;
+        if (!e.eligible || W.rolled_over || num(e.points) < num(W.cutoff)) { if (e.settled) none.add(w); return; }
         const r = qExactReward(W, (wk.buckets || [])[num(e.points)], e);
-        if (r > 0n) out.push({ week: BigInt(w), reward: r, free: false, ownMana: qNeedsOwnMana({ reward: r }, st) });
+        if (r > 0n) out.push({ week: BigInt(w), reward: r, free: false, ownMana: qNeedsOwnMana({ reward: r }, st) }); else none.add(w);
       }));
     }
     return out.sort((x, y) => Number(x.week - y.week));
@@ -255,7 +265,10 @@
     const vault = new k.lib.Contract({ id: k.dep.contract, abi: VAULT_ABI, provider: k.provider });
     const amt = a.units != null ? a.units.toString() : undefined;
     // The question game (1) keeps its own calls, exactly as the home page sends them (app.js); a move uses move_stake.
-    if (Number(a.game) === Q_GAME && action !== "move") {
+    // From v6.1's rule week (k.shared) it uses the calls every game uses (deposit_to, withdraw_from, claim_game), as
+    // the Vault chat's plan says (D-116); a claim for a week before it still uses the old claim.
+    const qWeekShared = action === "claim" ? !!(k.qShared && k.qShared(a.week)) : !!k.qNow;
+    if (Number(a.game) === Q_GAME && action !== "move" && !qWeekShared) {
       if (action === "stake") {
         const token = new k.lib.Contract({ id: a.koin ? k.dep.koin : k.dep.vhp, abi: TOKEN_ABI, provider: k.provider });
         return [
@@ -309,9 +322,9 @@
   /** What `who` can claim in one game: [{ week, reward }] over the last CLAIM_WEEKS finished weeks. Not from the game's
    *  from_week: a game restarted after a gap moves it forward, and the weeks it earned before stay claimable. The
    *  player's own entries first (8 at a time); a week's results only where there's an entry with something in it. */
-  async function findClaims(game, who, week) {
+  async function findClaims(game, who, week, fromWeek = 0n) {
     const out = [], weeks = [];
-    for (let w = big(week) - 1n; w >= 0n && w >= big(week) - BigInt(CLAIM_WEEKS); w--) weeks.push(w);
+    for (let w = big(week) - 1n; w >= 0n && w >= fromWeek && w >= big(week) - BigInt(CLAIM_WEEKS); w--) weeks.push(w);
     for (let i = 0; i < weeks.length; i += 8) {
       const part = weeks.slice(i, i + 8);
       const mine = await Promise.all(part.map((w) => read("get_game_player", { player: who, game, week: w.toString() })));
@@ -346,7 +359,12 @@
         pending = big(p.pending) > 0n && big(p.pending_week) > week ? big(p.pending) : 0n;
         pendingWeek = big(p.pending_week);
         counted = id === Q_GAME ? big(r.active_stake) : big(r.week_stake);
-        claims = id === Q_GAME ? await qClaims(who, state) : await findClaims(id, who, week);
+        if (id !== Q_GAME) claims = await findClaims(id, who, week);
+        else {
+          // v6.1: weeks before the rule week by the old rules (claim), from it like every game (claim_game).
+          const r = big(cfg.q60_rule_week_plus_one);
+          claims = [...await qClaims(who, state), ...(r > 0n ? (await findClaims(Q_GAME, who, week, r - 1n)).map((c) => ({ ...c, shared: true })) : [])];
+        }
       }
       if (id !== Q_GAME && week > 0n) { const gx = await read("get_game", { game: id, week: (week - 1n).toString() }); last = per100(gx.week, gx.game || g, week - 1n); }
       return { id, name: g.name || `Game ${id}`, active: !!g.active, season: Number(g.season_weeks || 1), total, mine, counted, pending,
@@ -368,7 +386,10 @@
     const W = Wallet();
     if (!W) throw new Error("No wallet on this page.");
     if (!W.address) { await W.connect(); if (!W.address) throw new Error("Not connected."); }
-    const k = { lib, dep: shared.dep, provider: shared.provider };
+    // The vault as it is now: which rules the question game is on, and its balances for the Mana rule (Repo Lens #142
+    // V61-1, I-1: decided at send time, not from a list up to a minute old).
+    const st = await read("get_state", {}), cfg = st.config || {};
+    const k = { lib, dep: shared.dep, provider: shared.provider, qNow: qShared(cfg, st.week), qShared: (w) => qShared(cfg, w) };
     let ops, label, opts = {};
     if (action === "claim") {
       const list = (a.claims || []).slice(0, 10);
@@ -376,9 +397,10 @@
       ops = [];
       for (const c of list) ops.push(...(await buildOps(k, "claim", { player: W.address, game: c.game, week: c.week })));
       label = list.length === 1 ? "claim your reward" : `claim ${list.length} rewards`;
-      // A question-game claim that must be paid with the player's own Mana (free prize, or the pool short of VHP: see
-      // qNeedsOwnMana) makes the whole transaction own-Mana, as the home page does.
-      if (list.some((c) => c.ownMana)) opts = { ownMana: true };
+      // A question-game claim under the old rules that must be paid with the player's own Mana (a free prize, or the
+      // pool short of VHP: qNeedsOwnMana, worked out again now) makes the whole transaction own-Mana, as the home page does.
+      const own = (c) => Number(c.game) === Q_GAME && !qShared(cfg, c.week) && (c.free || c.ownMana || qNeedsOwnMana({ reward: c.reward }, st));
+      if (list.some(own)) opts = { ownMana: true };
     } else {
       ops = await buildOps(k, action, { ...a, player: W.address });
       label = action === "stake" ? `stake ${exact(a.units)} ${a.koin ? "KOIN" : "VHP"}` : action === "withdraw" ? `withdraw ${exact(a.units)} VHP` : `move ${exact(a.units)} VHP`;
@@ -656,5 +678,5 @@
   }
 
   window.KStake = { mount, mountList, badge, status, overview, send, fmt: { amount, exact, toUnits, weekDate, explain },
-    wallet: () => Wallet(), sayError, live: async () => { await setup(); return live(await read("get_state", {})); }, _test: { qExactReward, qFreePrize, qNeedsOwnMana, badgeText, VAULT_ABI, TOKEN_ABI, toUnits, minStakeFor, live, claimable, explain, buildOps, exact, weekDate, per100, sayError } };
+    wallet: () => Wallet(), sayError, live: async () => { await setup(); return live(await read("get_state", {})); }, _test: { qExactReward, qFreePrize, qNeedsOwnMana, qShared, badgeText, VAULT_ABI, TOKEN_ABI, toUnits, minStakeFor, live, claimable, explain, buildOps, exact, weekDate, per100, sayError } };
 })();

@@ -100,7 +100,7 @@
       else if (mode === "move" && !f.to) bad = "Pick the game to move it to.";
       // I-028: taking a staked wallet below the minimum mid-week loses this week's share and free prize (peak_stake).
       const drop = !bad && u && mode !== "stake" && g.staked && g.mine - u < d.min
-        ? `Heads up: this leaves less than ${F.exact(d.min)} VHP in ${g.name}, so you get no share of its rewards this week and no free prize.` : "";
+        ? `Heads up: this leaves less than ${F.exact(d.min)} VHP in ${g.name}, so you get no share of its rewards this week and no free prize.${g.id === Q && g.mine - u === 0n ? " Your answers this week stop counting too." : ""}` : "";
       let lines = [];
       if (!bad && u) {
         const amt = `${F.exact(u)} ${mode === "stake" ? f.token : "VHP"}`;
@@ -195,7 +195,7 @@
   function claim(list) {
     const first = list.slice(0, 10), total = sum(first, (c) => c.reward);
     const games = [...new Set(first.map((c) => c.g.name))];
-    run("claim", { claims: first.map((c) => ({ game: c.g.id, week: c.week, ownMana: !!c.ownMana })) },
+    run("claim", { claims: first.map((c) => ({ game: c.g.id, week: c.week, reward: c.reward, free: !!c.free, ownMana: !!c.ownMana })) },
       { head: `Claimed ${vhp(total)}`, lines: [`From ${games.join(", ")}. It's in your wallet.`, list.length > 10 ? `${list.length - 10} more to claim: tap Claim again.` : ""] });
   }
 

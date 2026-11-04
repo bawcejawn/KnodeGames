@@ -2,7 +2,7 @@
 
 > Purpose: How the pieces fit together. Describe, don't prescribe — rules live in `DECISIONS.md` and `../standards/`.
 > Last updated: 2026-11-03 (after the Block X launch, PR #57: code facts re-checked on `main`; stale lines marked, not removed)
-> Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (all 12 chats), checked against branches `picks` and `main` on 2026-11-02.
+> Sources: `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (all 12 chats), checked against branches `picks` and `main` on 2026-11-02.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict (see `DECISIONS.md`) · ❓ unknown
 

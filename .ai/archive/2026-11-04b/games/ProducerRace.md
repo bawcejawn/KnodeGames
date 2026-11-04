@@ -1,6 +1,6 @@
 # Producer Race (game 7)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Race "KG 02 · Hub + Race Show", Hub, Vault, Block X chats), `DECISIONS.md` (D-033 – D-035, D-062, D-063, D-078), the repo. **Last updated:** 2026-11-03.
+> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Race "KG 02 · Hub + Race Show", Hub, Vault, Block X chats), `DECISIONS.md` (D-033 – D-035, D-062, D-063, D-078), the repo. **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose

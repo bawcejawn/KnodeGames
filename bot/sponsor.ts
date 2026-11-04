@@ -77,7 +77,7 @@ export const DEFAULT_CAPS = { perTx: "1", perPlayerDay: "25", perPlayerWeek: "15
 //  one; the caps are first come, first served. Sponsor v3 counts only a STAKE as a player, and releases the free
 //  pool by the hour, so neither pool can be emptied cheaply in one burst; status warns at 80%.)
 /** The audited sponsor build (sponsor/README.md "Build"). upload refuses any other wasm. v2 (race picks), audited
- *  2026-10-27 (docs/history/AUDIT-2026-10-27-race-picks.md); v1 was 8cfeff6209b8d5cbc3b3e5fa30751e995767f5904b77693ed8a41e323ea2a8ed. */
+ *  2026-10-27 (AUDIT-2026-10-27-race-picks.md (owner's private records)); v1 was 8cfeff6209b8d5cbc3b3e5fa30751e995767f5904b77693ed8a41e323ea2a8ed. */
 export const SPONSOR_SHA256 = "fa4659e65c6156da3dde34238e0545a489a8b7f00cdf51df9bf79517a0019f33";
 /** v3 (allowlist, free claims, 5,000 ceiling, per-action Mana limits, the vault switch). Repo Lens round 6
  *  (2026-10-30): "GO" for the mainnet upload (launch step 2): mainnet takes v3, and v2 stays allowed as the rollback. */

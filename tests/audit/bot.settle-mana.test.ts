@@ -60,7 +60,9 @@ test("SABOTEUR: when the pool declines to sponsor, the bot does not spend its ow
 
 test("SABOTEUR: the live pool does not pay Mana for strangers while the docs say nobody's Mana is paid", () => {
   const dep = JSON.parse(fs.readFileSync("game-data/deployment.json", "utf8"));
-  const docs = fs.readFileSync("docs/history/security-audit.md", "utf8");
+  // The 2026-10 security audit write-up moved to the owner's private records (D-115); if a copy is present, keep checking it.
+  const p = "docs/history/security-audit.md";
+  const docs = fs.existsSync(p) ? fs.readFileSync(p, "utf8") : "";
   const claimsOff = /not paying anyone's Mana right now/i.test(docs);
   assert.ok(!claimsOff || BigInt(dep.maxSponsorRc ?? 0) === 0n,
     `SABOTEUR: docs say the project pays nobody's Mana, but max_sponsor_rc is ${dep.maxSponsorRc} (any staked account can name the contract as payer)`);

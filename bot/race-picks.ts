@@ -38,7 +38,7 @@ const WASM = "race/build/release/contract.wasm";
 const ABI_FILE = "race/abi/race.koilib.json";
 const STATE = path.join("race-data", "deployment.json");
 const GAME_DEP = path.join("game-data", "deployment.json");
-/** The audited race build (race/README.md "Build"; audit 2026-10-27, docs/history/AUDIT-2026-10-27-race-picks.md).
+/** The audited race build (race/README.md "Build"; audit 2026-10-27, AUDIT-2026-10-27-race-picks.md (owner's private records)).
  *  upload refuses any other wasm. */
 export const RACE_SHA256 = "61e8f21230e8b4bdb165bacfe7281517a5adf78f6c6b1b8a0d84ce41537afac5";
 export const DEFAULT_PICKS_PER_DAY = 5;

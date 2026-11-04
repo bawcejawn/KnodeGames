@@ -1,4 +1,4 @@
-// Round 5 behaviour tests written with the fixes (owner's record: docs/history/AUDIT-2026-10-28-repolens-blockx.md,
+// Round 5 behaviour tests written with the fixes (owner's record: AUDIT-2026-10-28-repolens-blockx.md (owner's private records),
 // "Round 5"). Each pins the fix from the honest side as well: honest bytes and honest nodes still work.
 import { test } from "node:test";
 import assert from "node:assert/strict";

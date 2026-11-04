@@ -349,7 +349,7 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
 export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks }: Opts) {
   prizesFromWeek = prizesFrom ?? PRIZES_FROM_WEEK;
   hold = vaultHold === undefined ? { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS } : vaultHold;
-  ownerHolds = holdWeeks ?? parseHoldWeeks(E.RACE_HOLD_WEEKS);
+  holdSetting = holdWeeks ? { weeks: holdWeeks, bad: false, raw: holdWeeks.join(",") } : parseHoldWeeks(E.RACE_HOLD_WEEKS);
   pendingOut = null;
   if (prev !== undefined) PREV = prev;
   if (out !== undefined) OUT = out;
@@ -543,6 +543,8 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   if (vault || pendingOut) fs.mkdirSync(path.join(OUT, "vault"), { recursive: true });
   if (vault) fs.writeFileSync(path.join(OUT, "vault", `W${vault.week}.json`), JSON.stringify(vault) + "\n");
   if (pendingOut) fs.writeFileSync(path.join(OUT, "vault", `PENDING-W${pendingOut.week}.json`), JSON.stringify(pendingOut) + "\n");
+  const hn = holdNote(holdSetting);
+  if (hn) problems.unshift(hn);
   for (const pr of problems) console.log(`::warning::${pr}`);
   return { problems };
 }
@@ -763,13 +765,25 @@ export const VAULT_HOLD_MS = 12 * M.HOUR;
 export const VAULT_STABLE_MS = M.HOUR;
 type Pending = { game: number; week: number; at: number; file: VaultFile };
 let hold: false | { afterEnd: number; stable: number } = { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS };
-let ownerHolds: number[] = [];
+let holdSetting: { weeks: number[]; bad: boolean; raw: string } = { weeks: [], bad: false, raw: "" };
 let pendingOut: Pending | null = null;
 
-/** RACE_HOLD_WEEKS: "3" or "3, 4" (vault week numbers). Anything that isn't a whole number is ignored, with no hold
- *  implied: the owner sees the list echoed in the run's notes. */
-export function parseHoldWeeks(v: string | undefined): number[] {
-  return String(v ?? "").split(",").map((x) => x.trim()).filter((x) => /^[0-9]{1,4}$/.test(x)).map(Number);
+/** RACE_HOLD_WEEKS: "3" or "3, 4" (vault week numbers, separated by commas). Repo Lens #D-5 R85-1: fail closed. If
+ *  the value is set but any part isn't a plain week number ("3 4", "W3", "3;4", "W3,4"), `bad` is true and EVERY
+ *  pending week is held until it's fixed. Empty or unset: no hold. */
+export function parseHoldWeeks(v: string | undefined): { weeks: number[]; bad: boolean; raw: string } {
+  const raw = String(v ?? "").trim();
+  if (!raw) return { weeks: [], bad: false, raw };
+  const parts = raw.split(",").map((x) => x.trim());
+  const bad = parts.some((x) => !/^[0-9]{1,4}$/.test(x));
+  return { weeks: bad ? [] : parts.map(Number), bad, raw };
+}
+/** The run's note about the owner's hold (R85-1: printed on every run while the variable is set). */
+export function holdNote(h: { weeks: number[]; bad: boolean; raw: string }): string | null {
+  if (!h.raw) return null;
+  const shown = h.raw.replace(/[^0-9A-Za-z ,;]/g, "?").slice(0, 40);
+  return h.bad ? `RACE_HOLD_WEEKS ('${shown}') isn't a list like 3 or 3,4: every pending vault week is held until it is fixed`
+    : `Owner hold: week${h.weeks.length === 1 ? "" : "s"} ${h.weeks.join(", ")}`;
 }
 
 /** The published pending file for week w, if it is one this recorder could have written. */
@@ -804,7 +818,8 @@ function settle(candidate: VaultFile, weekEnd: number, now: number, problems: st
   const who = (xs: string[]) => (xs.length ? xs.join(", ") : "nobody");
   const summary = `1st ${who(candidate.first)}; 2nd ${who(candidate.second)}; ${candidate.rows.length} staked row(s)` +
     (flag.length ? `; first picks ever this week (check them): ${flag.join(", ")}` : "");
-  if (ownerHolds.includes(w)) { problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`); return waiting; }
+  if (holdSetting.bad) { problems.push(`vault week ${w}: HELD (RACE_HOLD_WEEKS isn't a list like 3 or 3,4). Pending: ${summary}.`); return waiting; }
+  if (holdSetting.weeks.includes(w)) { problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`); return waiting; }
   const readyAt = Math.max(weekEnd + hold.afterEnd, at + hold.stable);
   if (now >= weekEnd + hold.afterEnd && same && now - at >= hold.stable) {
     problems.push(`vault week ${w}: final after the hold (pending since ${new Date(at).toISOString()}). ${summary}`);

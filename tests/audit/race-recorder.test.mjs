@@ -132,7 +132,7 @@ async function picksRun(at, prev, { winnerFor = null, theirs = null, custom = nu
   const vhp = async (who) => Object.fromEntries(who.map((a) => [a, a === GUEST ? "0" : a === W3 ? "50000000" : String(5e8)]));   // W3: 0.5 VHP
   const playerOf = async (n, who, week) => { if (who === failFor) throw new Error("node timeout"); return ({ stake: who === W3 ? 10n : 0n, answers: { [W1]: 3, [W2]: 9, [W3]: 1, [GUEST]: 5 }[who] ?? 0, points: { [W1]: 2, [W2]: 7, [W3]: 1, [GUEST]: 4 }[who] ?? 0 }); };
   const log = console.log; console.log = () => {};
-  try { lastProblems = (await run({ p: pNode, check: checkNode, prev, out, vhpOf: async (w) => ({ ...(await vhpOf(w)), ...(await vhp(w)) }), raceContract: "x", picksOf, playerOf, prizesFrom, vaultHold: vaultHold === null ? undefined : vaultHold, holdWeeks,
+  try { lastProblems = (await run({ p: pNode, check: checkNode, prev, out, vhpOf: async (w) => ({ ...(await vhpOf(w)), ...(await vhp(w)) }), raceContract: "x", picksOf, playerOf, prizesFrom, vaultHold: vaultHold === null ? undefined : vaultHold, holdWeeks: holdWeeks === null ? undefined : holdWeeks,
     // Staked in the Race (the vault's test), by wallet; the check node may say otherwise, or a read may fail.
     stakedOf: async (n, who) => { if (who === stakeFail) throw new Error("node timeout"); return (n === checkNode && checkStaked ? checkStaked : staked).includes(who); } })).problems; } finally { console.log = log; }
   return out;
@@ -825,8 +825,9 @@ test("hold: a pending file dated in the future or for another week is ignored (t
 
 test("hold: the owner holds a week by hand (RACE_HOLD_WEEKS); removing it lets the week go final", async () => {
   const { parseHoldWeeks } = await import(path.resolve(APP, "bot/race.ts"));
-  assert.deepEqual(parseHoldWeeks("3"), [3]); assert.deepEqual(parseHoldWeeks(" 3, 4 "), [3, 4]);
-  assert.deepEqual(parseHoldWeeks(""), []); assert.deepEqual(parseHoldWeeks(undefined), []); assert.deepEqual(parseHoldWeeks("x, 2.5, -1"), []);
+  assert.deepEqual(parseHoldWeeks("3").weeks, [3]); assert.deepEqual(parseHoldWeeks(" 3, 4 ").weeks, [3, 4]);
+  assert.deepEqual(parseHoldWeeks(""), { weeks: [], bad: false, raw: "" }); assert.deepEqual(parseHoldWeeks(undefined).weeks, []);
+  for (const v of ["x, 2.5, -1", "3 4", "W3", "3;4", "W3,4", "3,"]) assert.equal(parseHoldWeeks(v).bad, true, v);
   const { dir } = await weekTwoDone();
   const a = await holdRun("2026-11-09T05:37Z", dir);
   const h = await holdRun("2026-11-09T13:37Z", a, { holdWeeks: [2] });
@@ -923,4 +924,44 @@ test("hold, workflow: the owner's RACE_HOLD_WEEKS reaches the recorder; pending 
   assert.match(src, /hold = vaultHold === undefined \? \{ afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS \} : vaultHold;/);
   const cli = src.slice(src.lastIndexOf("if (process.argv[1] && import.meta.url"));
   assert.match(cli, /run\(\{ \.\.\.nodes, clock: Date\.now \}\)/, "the command line passes no vaultHold: the hold is always on");
+});
+
+test("hold (Repo Lens #D-5 R85-1): a malformed RACE_HOLD_WEEKS holds every pending week and says why; the list is printed every run", async () => {
+  const { parseHoldWeeks, holdNote } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(holdNote(parseHoldWeeks("")), null, "unset: no note");
+  assert.equal(holdNote(parseHoldWeeks("3, 4")), "Owner hold: weeks 3, 4");
+  assert.equal(holdNote(parseHoldWeeks("3")), "Owner hold: week 3");
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  const old = process.env.RACE_HOLD_WEEKS;
+  try {
+    for (const v of ["3 4", "W3", "3;4", "W3,4"]) {
+      process.env.RACE_HOLD_WEEKS = v;
+      const o = await holdRun("2026-11-09T13:37Z", a, { holdWeeks: null });
+      assert.deepEqual(vaultOf(o), WAIT, `${v}: held`);
+      assert.ok(pendingOf(o), `${v}: the pending file still publishes`);
+      const notes = lastProblems.join("\n");
+      assert.match(notes, /RACE_HOLD_WEEKS \('.*'\) isn't a list like 3 or 3,4: every pending vault week is held/, v);
+      assert.match(notes, /vault week 2: HELD \(RACE_HOLD_WEEKS isn't a list/, v);
+    }
+    process.env.RACE_HOLD_WEEKS = "3, 4";
+    const ok = await holdRun("2026-11-09T13:37Z", a, { holdWeeks: null });
+    assert.deepEqual(vaultOf(ok), FINAL, "a good list that doesn't name week 2: final");
+    assert.match(lastProblems.join("\n"), /Owner hold: weeks 3, 4/);
+    process.env.RACE_HOLD_WEEKS = "";
+    assert.deepEqual(vaultOf(await holdRun("2026-11-09T13:37Z", a, { holdWeeks: null })), FINAL, "empty: nothing held");
+  } finally { if (old === undefined) delete process.env.RACE_HOLD_WEEKS; else process.env.RACE_HOLD_WEEKS = old; }
+});
+
+test("hold, publish job (Repo Lens #D-5 R85-2): new pending content dated over 15 minutes back is held", async () => {
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T12:37Z", dir);
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const back = tmp(); fs.cpSync(a, back, { recursive: true });
+  fs.writeFileSync(path.join(back, "vault", "PENDING-W2.json"), JSON.stringify({ ...pendingOf(a), at: U("2026-11-09T12:20Z") }) + "\n");
+  const r = pubCopy(back, bare, String(U("2026-11-09T12:38Z") / 1000));
+  assert.ok(r.ok, r.out); assert.match(r.out, /vault results held, not published this run: vault\/PENDING-W2\.json/, "18 minutes back: held");
+  fs.writeFileSync(path.join(back, "vault", "PENDING-W2.json"), JSON.stringify({ ...pendingOf(a), at: U("2026-11-09T12:30Z") }) + "\n");
+  const ok = pubCopy(back, bare, String(U("2026-11-09T12:38Z") / 1000));
+  assert.ok(ok.ok, ok.out); assert.doesNotMatch(ok.out, /vault results held/, "8 minutes back: fine");
 });

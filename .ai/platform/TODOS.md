@@ -13,12 +13,12 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
-- [ ] **Two ruler choices:** D-119 (rebuilt hours: (a) ~1 day or (b) ~15 days) and D-120 (form for steady throttlers: keep the gate / consistency gate / let in). Also the Race's L-4 (daily or hourly emails for your own Race hold) — P2
-- [ ] Ruler set-up: add the target branch `vhp-data` to the ruleset you made (no deletion, no force-push). Workflow permissions are already Read ✅; no third node needed — P2 — R-RULER-1
+- [ ] Race emails for your own deliberate hold (L-4): daily or hourly? — P3
 - [ ] **Vault upgrade, Path 2 (D-116):** Repo Lens round 1 (and round 2) → **Tue 10 Nov, after the handover accept: announce, signed by `1LMV8E…`** → **Thu 12: upload** (the new owner needs ≥ 95 KOIN of Mana) → merge #114, then #141 and #142. Don't announce earlier — P1 — D-116
 - [ ] On the PC: `cd C:\kprediction`, `git switch main`, `git pull`, `npm ci --ignore-scripts` (picks up the self-heal fix #135 and the new `yaml` test package) — P2
 - [ ] Try one small sponsored stake on the live site (staking now asks 1.5 Mana) and tell the Block X chat it worked (R-BX-18, I-088) — P2
-- [ ] **Repo Lens queue, in this order:** (1) Race #133 fix-check `claude/race/REPOLENS-E11-FIXCHECK-PROMPT.md` (merge before Mon 9 if GO); (2) vault upgrade round 1 `claude/vault/REPOLENS-V61-COMBINED-PROMPT.md`, then round 2 `claude/vault/REPOLENS-V61-ROUND2-PROMPT.md` (both before the Tue 10 announce); (3) Stake page #142 `claude/hub/REPOLENS-STAKE-QUESTIONS-PROMPT.md`; (4) VHP ruler fix-check `claude/ruler/REPOLENS-FIXCHECK-E12-D10-PROMPT.md` — P1
+- [ ] **Merge #133 now** (Repo Lens #E-11 fix-check: GO) — P1
+- [ ] **Repo Lens queue, in this order:** (1) Race #148 + #149 `claude/race/REPOLENS-C7-FIXCHECK-PROMPT.md` (merge #148 → #149 before Mon 9 if GO); (2) the vault upgrade on its current build (ask the Vault chat which prompt: rounds 1–2 for `11043e1f…`), before the Tue 10 announce; (3) the ruler re-check `claude/ruler/REPOLENS-FIXCHECK-E14-B5-PROMPT.md`; (4) Stake page #150 `claude/hub/REPOLENS-STAKE-QUESTIONS-FIXCHECK-PROMPT.md` — P1
 - [ ] Delete the 145 merged branches with the script `claude/BRANCH-CLEANUP-2026-11-04.md` (protect the data branches first) — P3 — D-115
 - [ ] Decide: move the audit reports and raw chat exports out of the public repo (doesn't touch `CHAT_REQUESTS.md`) — P2 — D-115
 - [ ] Send Repo Lens `claude/hub/REPOLENS-C5-FIXCHECK-PR95-PR111-PROMPT.md` anyway (#95 and #111 merged before their fix-check) — P2

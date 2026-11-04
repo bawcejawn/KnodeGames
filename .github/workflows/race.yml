@@ -5,7 +5,11 @@
 #   record   runs bot/race.ts with a read-only token and no secrets (it only reads the chain), and hands the files on.
 #   publish  runs no repository code: it checks the files' shape and pushes them to the race-data branch.
 #            That includes vault/W<week>.json, the KnodeGames Vault's weekly results (game 7); once one is published
-#            as final, publish refuses to change it.
+#            as final, publish refuses to change it. I-034: a results file goes final only 12 hours after its week,
+#            and only if it is exactly the vault/PENDING-W<week>.json published at least an hour before.
+#
+# Owner hold (I-034): Variables → RACE_HOLD_WEEKS = "3" (or "3,4") keeps those vault weeks pending, never final, while
+# you look at them. Remove the week to let it go final. Results are due 3 days after the week ends.
 # It never touches main, holds no key, and does not run on pull requests.
 #
 # Turn it on: Settings → Secrets and variables → Actions → Variables: RACE_ENABLED = true
@@ -54,7 +58,7 @@ jobs:
             git ls-tree -r -z --name-only FETCH_HEAD > "$RUNNER_TEMP/prev-files"   # fails the step if it fails (review V2)
             while IFS= read -r -d '' f; do
               if [[ "$f" =~ ^(index|board|W[0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
-              if [[ "$f" =~ ^vault/W[0-9]{1,4}\.json$ ]]; then mkdir -p "$RUNNER_TEMP/prev/vault"; git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
+              if [[ "$f" =~ ^vault/(PENDING-)?W[0-9]{1,4}\.json$ ]]; then mkdir -p "$RUNNER_TEMP/prev/vault"; git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
             done < "$RUNNER_TEMP/prev-files"
           fi
           # The VHP samples (race-samples.yml): each producer's card VHP is the highest of the last 6 hours.
@@ -68,6 +72,7 @@ jobs:
           RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
           RACE_PREV: ${{ runner.temp }}/prev
           RACE_OUT: ${{ runner.temp }}/race-data
+          RACE_HOLD_WEEKS: ${{ vars.RACE_HOLD_WEEKS || '' }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: race-data
@@ -99,7 +104,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -d "$IN" ]; then echo "Nothing to publish."; exit 0; fi
-          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( -type f ! -regex "$IN/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/vault/W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
+          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( -type f ! -regex "$IN/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           big=$(find "$IN" -type f -size +2048k -print)
           if [ -n "$big" ]; then echo "::error::Refusing to publish files over 2 MB: $big"; exit 1; fi
@@ -119,6 +124,10 @@ jobs:
             parent=$(git -C work rev-parse FETCH_HEAD)
             git -C work ls-tree --name-only FETCH_HEAD | while IFS= read -r f; do
               if [[ "$f" =~ ^(W[0-9]{3}|index)\.json$ ]]; then git -C work show "FETCH_HEAD:$f" > "$RUNNER_TEMP/published/$f"; fi
+            done
+            # I-034: the published vault files, to check the hold (a final file needs its pending file, published earlier).
+            git -C work ls-tree --name-only FETCH_HEAD vault/ | while IFS= read -r f; do
+              if [[ "$f" =~ ^vault/(PENDING-)?W[0-9]{1,4}\.json$ ]]; then mkdir -p "$RUNNER_TEMP/published/vault"; git -C work show "FETCH_HEAD:$f" > "$RUNNER_TEMP/published/$f"; fi
             done
           fi
           /usr/bin/python3 - "$IN" "$RUNNER_TEMP/published" <<'PY'
@@ -214,17 +223,56 @@ jobs:
               if not j["final"]: return not (a or b or rows or sk)
               if GENESIS + (j["week"] + 1) * WEEK > NOW: return False
               return not (b and len(a) != 1)
+          # I-034 (R-RACE-1): the hold. PENDING-W<n>.json is the file the recorder WOULD make final, and when it first saw
+          # it ("at", ms). A pending file with new content must be dated now (within 35 minutes: a slow record job still fits) (a run can't backdate it); one whose content is
+          # already published keeps its published date. A final W<n>.json that isn't already published as final must be
+          # 12 hours past its week AND exactly the pending file published at least an hour ago; otherwise only that file
+          # is held (removed from this push), and the pending file and the race files still publish.
+          HOLD_S, STABLE_S = 12 * 3600, 3600
+          def pub_json(rel):
+              q = os.path.join(pub, rel) if pub else ""
+              try: return json.load(open(q, encoding="utf-8")) if q and os.path.isfile(q) else None
+              except Exception: return None
+          def pending_ok(f, j):
+              m = re.fullmatch(r"PENDING-W([0-9]{1,4})\.json", f)
+              if not m or type(j) is not dict or set(j) != {"game", "week", "at", "file"} or type(j["game"]) is not int or j["game"] != 7: return False
+              if type(j["week"]) is not int or f != "PENDING-W%d.json" % j["week"] or type(j["at"]) is not int: return False
+              fl = j["file"]
+              if type(fl) is not dict or fl.get("final") is not True or fl.get("week") != j["week"] or not vault_ok("W%d.json" % j["week"], fl): return False
+              if j["at"] < (GENESIS + (j["week"] + 1) * WEEK) * 1000: return False
+              if not pub: return True                                            # the offline shape tests (no published folder)
+              old = pub_json("vault/" + f)
+              if type(old) is dict and same(old.get("file"), fl): return same(old.get("at"), j["at"])
+              return NOW * 1000 - 35 * 60 * 1000 <= j["at"] <= NOW * 1000 + 300 * 1000   # Repo Lens #D-5 R85-2 (owner, 4 Nov): 35 min, not 2 h
+          def final_held(f, j):
+              # "" when this final file may publish; otherwise why it's held.
+              # The workflow always passes the published folder; only the offline shape tests leave it out.
+              if not pub or type(j) is not dict or j.get("final") is not True: return ""
+              old = pub_json("vault/" + f)
+              if type(old) is dict and old.get("final") is True: return ""        # already final: the lock below decides
+              if NOW < GENESIS + (j["week"] + 1) * WEEK + HOLD_S: return "less than 12 hours after its week"
+              p = pub_json("vault/PENDING-" + f)
+              if type(p) is not dict or not same(p.get("file"), j): return "no published pending file with exactly this content"
+              if type(p.get("at")) is not int or p["at"] > NOW * 1000 - STABLE_S * 1000: return "its pending file is less than an hour old"
+              return ""
           for f in os.listdir(d):
               if f == "vault":
                   # Blind review V1 (round 10): a vault file that fails its check is held on its own (not published this
                   # run: no file means no prize), so a bug there can't stop the race cards Block X needs. A file already
                   # published as final still never changes (the push loop below).
+                  load = lambda g: json.load(open(os.path.join(d, f, g), encoding="utf-8"))
                   bad = [g for g in sorted(os.listdir(os.path.join(d, f)))
-                         if not (lambda j: js_safe(j) and vault_ok(g, j))(json.load(open(os.path.join(d, f, g), encoding="utf-8")))]
+                         if not (lambda j: js_safe(j) and (pending_ok(g, j) if g.startswith("PENDING-") else vault_ok(g, j)))(load(g))]
                   if bad:
                       import shutil
                       print("::warning::vault results held, not published this run: " + ", ".join("vault/" + g for g in bad))
                       shutil.rmtree(os.path.join(d, f))
+                      continue
+                  for g in sorted(os.listdir(os.path.join(d, f))):
+                      why = "" if g.startswith("PENDING-") else final_held(g, load(g))
+                      if why:
+                          print("::warning::vault/" + g + " held (I-034): " + why + "; its pending file still publishes")
+                          os.remove(os.path.join(d, f, g))
                   continue
               j = json.load(open(os.path.join(d, f), encoding="utf-8"))
               if f == "board.json":

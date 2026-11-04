@@ -82,11 +82,30 @@ export const SPONSOR_SHA256 = "fa4659e65c6156da3dde34238e0545a489a8b7f00cdf51df9
 /** v3 (allowlist, free claims, 5,000 ceiling, per-action Mana limits, the vault switch). Repo Lens round 6
  *  (2026-10-30): "GO" for the mainnet upload (launch step 2): mainnet takes v3, and v2 stays allowed as the rollback. */
 export const SPONSOR_V3_CANDIDATE = "b61ac238da27c4a71c01127f39a7b95f19fabf15e35df9f9715546d221e256e4";
+/** v3 with the guest-trap fix (4 Nov 2026): the vault's get_game_player answer is read field by field instead of
+ *  skipping its empty player record (0a 00), which trapped would_pay and authorize for every wallet with no record in
+ *  that game (every guest pick on Block X and the Race since the vault switch went on). Only the sponsor's private
+ *  result messages changed; config and every rule are the same as v3, so the settings on chain carry over. Not yet
+ *  audited: Repo Lens fix-check before upload. v3 (b61ac238) stays allowed as the rollback. */
+export const SPONSOR_V3_GUESTFIX = "b84e1add3ffa14a7d1933d5ce5a4ad33caa4bca887a489f87f710b3c121c83a6";
 /** The builds this network may receive. Audit SP-13: v2 stays allowed as the documented rollback target. */
-// The testnet trial is for v3: only the v3 candidate goes on there (2026-10-30: a v2 build was about to be uploaded).
-export const allowedBuilds = (mainnet: boolean) => (mainnet ? [SPONSOR_V3_CANDIDATE, SPONSOR_SHA256] : TESTNET ? [SPONSOR_V3_CANDIDATE] : [SPONSOR_SHA256, SPONSOR_V3_CANDIDATE]);
+// The testnet trial is for v3: only v3 builds go on there (2026-10-30: a v2 build was about to be uploaded).
+export const allowedBuilds = (mainnet: boolean) => (mainnet ? [SPONSOR_V3_GUESTFIX, SPONSOR_V3_CANDIDATE, SPONSOR_SHA256] : TESTNET ? [SPONSOR_V3_GUESTFIX, SPONSOR_V3_CANDIDATE] : [SPONSOR_SHA256, SPONSOR_V3_CANDIDATE, SPONSOR_V3_GUESTFIX]);
 /** v3 code on chain (the per-action and allowlist fields mean nothing to v2). */
-const V3_BUILDS = [SPONSOR_V3_CANDIDATE];
+const V3_BUILDS = [SPONSOR_V3_CANDIDATE, SPONSOR_V3_GUESTFIX];
+/** Repo Lens SG-1 (4 Nov 2026): the builds the vault switch (game_has_vault) may be on over. b61ac238 traps on the
+ *  vault's get_game_player answer for any wallet with no record in that game (the guest trap). */
+export const VAULT_SAFE_BUILDS = [SPONSOR_V3_GUESTFIX];
+/** SG-1: why config / enable must not turn the vault switch on over this code (null: fine). Exported for the tests. */
+export function vaultOnProblem(code: string, vaultOn: boolean): string | null {
+  if (!vaultOn || VAULT_SAFE_BUILDS.includes(code)) return null;
+  return `Not sent: the sponsor code on chain (${code.slice(0, 12) || "none"}…) traps when the vault switch is on (the 4 Nov guest trap). Upload the fixed build ${SPONSOR_V3_GUESTFIX.slice(0, 12)}… first (npm run sponsor -- upload), or add --vault off.`;
+}
+/** SG-1: why this build must not be uploaded while the vault switch is on (null: fine). v2 never reads the vault. */
+export function uploadProblem(wasmSha: string, vaultSwitchOn: boolean): string | null {
+  if (!vaultSwitchOn || VAULT_SAFE_BUILDS.includes(wasmSha) || !V3_BUILDS.includes(wasmSha)) return null;
+  return `Not sent: the vault switch is ON, and this build (${wasmSha.slice(0, 12)}…) traps with it on (the 4 Nov guest trap). Turn it off first: npm run sponsor -- config --vault off [your caps] --send, check with status, then upload.`;
+}
 
 const sha256hex = (b: Uint8Array) => crypto.createHash("sha256").update(b).digest("hex");
 const readJson = (f: string, d: any = null) => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : d);
@@ -164,7 +183,10 @@ async function status() {
   // step was missed). One node is enough for a warning.
   if (cfg.allowed && !cfg.game_has_vault && !TESTNET) {
     const live = await vaultLiveOn(rpc, game.contract, false).catch(() => false);
-    if (live) log(`  ⚠ the game is Vault v6 now, but the sponsor still treats it as v5: run config with your caps (docs/blockx/MAINNET-LAUNCH.md, "On Vault v6 day")`);
+    const code = m.hash.replace(/^0x1220/, "");
+    if (live) log(VAULT_SAFE_BUILDS.includes(code)
+      ? `  ⚠ the game is Vault v6 and the sponsor's vault switch is off: run config with your caps (without --vault off) to turn it on`
+      : `  ⚠ the vault switch is off on purpose (the 4 Nov guest trap): the code on chain (${code.slice(0, 12)}…) traps with it on. Upload ${SPONSOR_V3_GUESTFIX.slice(0, 12)}… first, then run config without --vault off`);
   }
   log(`  Caps           ${mana(cfg.max_mana_per_tx)} per transaction, ${mana(cfg.max_mana_per_account_day)} per player per day, ${mana(cfg.max_mana_per_account_week)} per player per week, ${mana(cfg.max_mana_per_day)} for everyone per day`);
   log(`  Race picks     ${cfg.race ? `free play, on ${cfg.race}` : "not sponsored"}`);
@@ -234,6 +256,11 @@ async function upload(send: boolean) {
   if (!okBuilds.includes(sha256hex(wasm))) throw new Error(`${WASM} is not ${mainnet ? "the audited sponsor build" : "an allowed sponsor build"} (sha256 ${sha256hex(wasm)}, expected ${okBuilds.join(" or ")}). Rebuild: cd sponsor, npm ci --ignore-scripts, npm test, npm run check (best in a clean copy with no .env).`);
   const abi = loadAbi();
   const m = await contractMetadata(provider, A);
+  // Repo Lens SG-1: never put the trapping build back while the vault switch is on (an unreadable switch counts as on).
+  let switchOn = false;
+  if (m.exists) { try { switchOn = !!(await readSponsor(provider, A, "get_config")).game_has_vault; } catch { switchOn = true; } }
+  const up = uploadProblem(sha256hex(wasm), switchOn);
+  if (up) throw new Error(up);
   const have = BigInt(await provider.getAccountRc(A));
   // (The testnet upload of the 32 KB Picks contract used 2.8 Mana; the testnet faucet gives little, so ask less there.)
   const need = toSat(Math.ceil(wasm.length / 1024 * (mainnet ? 1.2 : 0.35) + (mainnet ? 10 : 5)));
@@ -401,8 +428,11 @@ async function setConfig(a: string[], send: boolean, enabledArg?: boolean) {
   const vaultArg = flag(a, "--vault", "");
   if (a.includes("--vault") && vaultArg !== "off") throw new Error('--vault takes one value: off (e.g. npm run sponsor -- config --vault off). Nothing was sent.');
   const vaultOff = vaultArg === "off";
-  if (vaultOff && enabledArg !== undefined) throw new Error("--vault off goes with config only (not enable or disable). Nothing was sent.");
+  if (vaultOff && enabledArg === false) throw new Error("--vault off goes with config or enable (disable switches everything off anyway). Nothing was sent.");
   const vaultLive = v3 && !vaultOff ? await vaultLiveOn(rpc, game.contract, mainnet) : false;
+  // Repo Lens SG-1: the vault switch goes on only over the fixed build.
+  const vp = vaultOnProblem(code, vaultLive);
+  if (vp) throw new Error(vp);
   if (vaultOff) log("  --vault off: the vault switch stays OFF (guest-trap stopgap): vault-only stakes count as free play, and the vault's own calls are not sponsored");
   const config: any = buildConfig(game, desk, caps, enabled, race, v3 ? picks : undefined, v3 ? limits.rows : [], picksCards, vaultLive);
   if (!v3 && (picks || limits.rows.length)) log(`  ⚠ the code on chain (${code.slice(0, 12)}…) is not sponsor v3: the KnodeGames picks row and per-action limits are left out (upload v3 first)`);

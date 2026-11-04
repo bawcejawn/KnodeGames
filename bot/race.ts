@@ -265,6 +265,9 @@ type Opts = {
   vaultHold?: false | { afterEnd: number; stable: number };
   /** Vault weeks the owner holds by hand (default: the RACE_HOLD_WEEKS variable). */
   holdWeeks?: number[];
+  /** D-123: the first vault week on the weekly rhythm (no Sunday races; Sunday review; final from Monday 00:00 UTC).
+   *  Default M.RHYTHM_FROM_WEEK (3); the tests pass their own. */
+  rhythmFrom?: number;
 };
 
 // ── the picks contract and the game (read only) ──
@@ -359,7 +362,8 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
   return min > 0n && peak >= min;
 }
 /** One run. Exported for the tests, which pass fake nodes. */
-export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks }: Opts) {
+export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks, rhythmFrom }: Opts) {
+  rhythmFromWeek = rhythmFrom ?? M.RHYTHM_FROM_WEEK;
   vaultRefused = null;
   heldAlerts = [];
   prizesFromWeek = prizesFrom ?? PRIZES_FROM_WEEK;
@@ -391,7 +395,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   for (const s of [curLeg, nextLeg]) {
     if (s === nextLeg && s - now > CARD_AHEAD) continue;
     const ra = M.raceAt(s), race = raceById(ra.id);
-    if (!race) continue;
+    if (!race || M.restRace(ra.start, rhythmFromWeek)) continue;   // D-123: no race (and no card) on Sunday
     const leg = M.legOf(ra.start, s, race.cards.length);
     if (!race.cards[leg] && !want.some((x) => x.race === race && x.leg === leg)) want.push({ race, leg });
   }
@@ -498,6 +502,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   for (const wf of weeks.values()) for (const r of wf.races) if (r.cards.some(Boolean)) firstCard = Math.min(firstCard, r.start);
   for (const wf of weeks.values()) for (const race of wf.races) {
     if (race.result?.final || race.end > libT || race.end < now - LOOKBACK) continue;
+    if (M.restRace(race.start, rhythmFromWeek)) { race.result = { final: true, missed: true, note: REST_NOTE }; continue; }
     if (!race.cards.some(Boolean)) { if (race.start > firstCard) race.result = { final: true, missed: true, note: "no handicap card was recorded for this race" }; continue; }
     try {
       const r = await scoreRace(race, chainCtx);
@@ -671,14 +676,17 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
   };
   const pub = (rows: Row[]) => rows.map(({ earning, ...r }) => r);   // board.json rows: the published fields only
   const lastRows = wNow > 0 ? await build(M.weekStart(wNow - 1), M.weekStart(wNow), wNow - 1, true) : [];
+  const weekRows = await build(M.weekStart(wNow), M.weekStart(wNow + 1), wNow, true);
   const board = {
     v: 1, updated: new Date(now).toISOString(),
     today: { day: M.dayOf(now), rows: pub(await build(day0, day0 + M.DAY, wNow)) },
-    week: { week: wNow, start: M.weekStart(wNow), rows: pub(await build(M.weekStart(wNow), M.weekStart(wNow + 1), wNow, true)) },
+    week: { week: wNow, start: M.weekStart(wNow), rows: pub(weekRows) },
     lastWeek: wNow > 0 ? { week: wNow - 1, start: M.weekStart(wNow - 1), rows: pub(lastRows) } : null,
     allTime: { rows: pub(await build(0, Infinity, wNow)) },
   };
-  return { board, vault: await vaultResults(all, wNow - 1, now, lastRows, failed, problems, stakedCheck) };
+  // D-123: on the review day (Sunday UTC) the vault file is this week's, published as pending; from Monday, last week's.
+  const review = reviewing(wNow, now);
+  return { board, vault: await vaultResults(all, review ? wNow : wNow - 1, now, review ? weekRows : lastRows, failed, problems, stakedCheck) };
 }
 
 // ── the KnodeGames Vault's results file (Vault v6 hand-offs, 2026-10-28) ──
@@ -793,12 +801,14 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   }
   let firstCard = Infinity;
   for (const x of all.values()) for (const r of x.races) if (r.cards.some(Boolean)) firstCard = Math.min(firstCard, r.start);
-  const open = wf.races.filter((r) => !r.result?.final && !(r.start < firstCard && !r.cards.some(Boolean)));
-  const late = now >= wf.end + VAULT_SKIP_AFTER;
+  // D-123: a Sunday race on the rhythm scores nothing, so it never keeps the week open (the review day can start at
+  // Sunday 00:00 UTC, before those races' times have passed).
+  const open = wf.races.filter((r) => !r.result?.final && !M.restRace(r.start, rhythmFromWeek) && !(r.start < firstCard && !r.cards.some(Boolean)));
+  const late = now >= wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER);   // D-123: the review day comes first
   const unread = rows.filter((r) => failed.has(`stake:${r.a}|${w}`));
   const file: VaultFile = { game: VAULT_GAME, week: w, final: false, rows: [], first: [], second: [], skipped: [] };
   const wait = (why: string) => { problems.push(`vault week ${w}: not final yet, ${why}`); lateAlert(w, wf.end, now, why); return file; };
-  if (open.length && !late) return wait(`${open.length} race(s) still being checked (${open.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + VAULT_SKIP_AFTER).toISOString()}`);
+  if (open.length && !late) return wait(`${open.length} race(s) still being checked (${open.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
   if (unread.length) return wait(`${unread.length} Race stake(s) could not be read (tried again next run)`);
   if (stakedCheck) {
     for (const r of rows) {
@@ -821,7 +831,18 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
 
 // ── the hold before a vault file goes final (I-034, R-RACE-1; owner 2026-11-03: 12 hours, then two matching runs) ──
 /** How long after its week ends a vault file is held before it can go final. */
-export const VAULT_HOLD_MS = 12 * M.HOUR;
+export const VAULT_HOLD_MS = 12 * M.HOUR;   // weeks before the rhythm (D-123) only
+// ── D-123: the weekly rhythm (owner, 4 Nov): races Mon–Sat; Sunday UTC is the review day; final from Monday 00:00 UTC ──
+let rhythmFromWeek = M.RHYTHM_FROM_WEEK;
+/** Is week w on the weekly rhythm? */
+const onRhythm = (w: number) => w >= rhythmFromWeek;
+/** The review day for week w: Sunday 00:00 → Monday 00:00 UTC, the 24 h after its last race. */
+const reviewing = (w: number, now: number) => onRhythm(w) && now >= M.playEnd(w) && now < M.weekStart(w + 1);
+/** A Sunday race on the rhythm: recorded as not run. */
+export const REST_NOTE = "Sunday: review day, no race (D-123)";
+/** How long after the week ends (Monday 00:00 UTC) a rhythm week alerts if still not final: it normally goes final at
+ *  the 00:37 or 01:37 run, after a whole Sunday of review. */
+export const RHYTHM_ALERT_AFTER = 3 * M.HOUR;
 /** How long the pending file must stay exactly the same (across hourly runs) before it can go final. */
 export const VAULT_STABLE_MS = M.HOUR;
 type Pending = { game: number; week: number; at: number; file: VaultFile };
@@ -892,8 +913,21 @@ async function settle(candidate: VaultFile, weekEnd: number, now: number, proble
   }
   if (holdSetting.weeks.includes(w)) heldAlert(w, weekEnd, now, "you are holding it (RACE_HOLD_WEEKS)", `remove ${w} from RACE_HOLD_WEEKS when you're happy with it (pending: ${summary})`);
   if (holdSetting.weeks.includes(w)) { problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`); return waiting; }
-  const readyAt = Math.max(weekEnd + hold.afterEnd, at + hold.stable);
-  if (now >= weekEnd + hold.afterEnd && same && now - at >= hold.stable) {
+  // D-123: on the rhythm the review day is before the week ends, so the week may go final from Monday 00:00 UTC.
+  const afterEnd = onRhythm(w) ? 0 : hold.afterEnd;
+  const readyAt = Math.max(weekEnd + afterEnd, at + hold.stable);
+  // D-123: during the review day, each new pending file is checked against the chain at once (an early alert).
+  if (reviewing(w, now) && pendingNew && w >= prizesFromWeek) {
+    let why = "";
+    try { why = all.get(w) ? await verifyWeek(all.get(w)!, chainCtx) : ""; }
+    catch (e) { problems.push(`vault week ${w}: review day: couldn't check the races on the chain this run (${(e as Error).message})`); }
+    if (why) {
+      problems.push(`vault week ${w}: review day: HELD, ${why}`);
+      heldAlert(w, weekEnd, now, `a race's stored result doesn't match the chain (${why})`, "tell the Race chat with this alert: a recorder run wrote a wrong race result. Don't release it by hand");
+      return waiting;
+    }
+  }
+  if (now >= weekEnd + afterEnd && same && now - at >= hold.stable) {
     // Repo Lens #E-11 H-1 (b): a paid week goes final only once its races, scored again from the chain, match.
     if (w >= prizesFromWeek) {
       const wf = all.get(w);
@@ -950,7 +984,7 @@ function heldAlert(w: number, weekEnd: number, now: number, why: string, first?:
   if (!heldAlerts.includes(m)) heldAlerts.push(m);
 }
 function lateAlert(w: number, weekEnd: number, now: number, why: string) {
-  if (now >= weekEnd + VAULT_ALERT_AFTER) heldAlert(w, weekEnd, now, `still not final ${((now - weekEnd) / M.HOUR).toFixed(0)} h after the week ended: ${why}`);
+  if (now >= weekEnd + (onRhythm(w) ? RHYTHM_ALERT_AFTER : VAULT_ALERT_AFTER)) heldAlert(w, weekEnd, now, `still not final ${((now - weekEnd) / M.HOUR).toFixed(0)} h after the week ended: ${why}`);
 }
 
 /** The producers (field and paddock) on the newest card in the published week files of the last day (audit BX-53). */

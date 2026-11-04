@@ -295,9 +295,14 @@
     const max = usage ? Number(usage.max_picks_per_day) || 5 : 5, used = usage ? Number(usage.picks_today) || 0 : 0;
     $("picks-left").textContent = usage ? `${Math.max(0, max - used)} of ${max} picks left today` : "";
     const rows = [];
+    // D-123: Sunday UTC is the review day: no race, nothing to pick.
+    const restRow = (r) => el("div", { class: "pk-row done" },
+      el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: "review day" })),
+      el("div", { class: "pk-now", text: "Sunday is review day: no race. Results are checked on chain and paid from Monday." }), el("span"));
     // The live race: locked.
     const live = raceObj(cur), mineLive = myPicks.get(cur);
-    rows.push(el("div", { class: "pk-row live" },
+    if (M.restRace(live.start)) rows.push(restRow(live));
+    else rows.push(el("div", { class: "pk-row live" },
       el("div", { class: "pk-when" }, el("b", { text: `Live now (${live.id.slice(11)}:00 UTC)` }), el("span", { text: `ends ${clock(live.end)}` })),
       el("div", { class: "pk-now", text: mineLive ? `Your pick: ${nameOf(mineLive)} 🔒` : "No pick for this race (locked)" }), el("span")));
     // The next 4: open.
@@ -307,6 +312,8 @@
     const fieldOf = (r) => (r.cards && !r.provisional && M.cardForLeg(r.cards, 0)) || latest();
     const label = (c, x) => { const tot = c.field.concat(c.paddock || []).reduce((t, y) => t + y.vhp, 0); const sh = tot ? (x.vhp / tot) * 100 : 0; return `${nameOf(x.a)} · ${fmt(sh, sh < 1 ? 2 : 1)}% VHP · ×${x.h.toFixed(2)} per block`; };
     for (let k = 1; k <= 4; k++) {
+      // One review-day row for the whole Sunday (the first Sunday race shown).
+      if (M.restRace(M.raceStart(cur + k))) { if (!M.restRace(M.raceStart(cur + k - 1))) rows.push(restRow(raceObj(cur + k))); continue; }
       const r = raceObj(cur + k), mine = myPicks.get(cur + k), c = fieldOf(r);
       const opts = c ? c.field : [];
       const sel = el("select", { "aria-label": `Horse for the race at ${dayTime(r.start)}` },
@@ -353,6 +360,7 @@
   async function sendPick(index, horse) {
     const who = me();
     if (!who || !raceContract || sending) return;
+    if (M.restRace(M.raceStart(index))) return;   // D-123: no race on Sunday (it wouldn't count)
     const when = `${dayTime(M.raceStart(index))} (${M.raceId(index).slice(11)}:00 UTC)`;
     if (!KBlocks.isAddr(horse)) return pickModal("info", "Choose a horse first", ["Pick a producer from the list, then press Pick."], [okBtn("OK")]);
     if (myPicks.get(index) === horse) return pickModal("info", "That is already your pick", [`${nameOf(horse)} for the race at ${when}.`], [okBtn("OK")]);

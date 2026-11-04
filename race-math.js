@@ -50,6 +50,13 @@
   const weekOf = (t) => (t <= GENESIS ? 0 : Math.floor((t - GENESIS) / WEEK));
   const weekStart = (w) => GENESIS + w * WEEK;
   const dayOf = (t) => new Date(t).toISOString().slice(0, 10);   // UTC day
+  /** The weekly rhythm (D-123): races Monday 00:00 → Saturday 24:00 UTC; Sunday UTC is the review day (no race). From
+   *  vault week 3 (Mon 9 Nov 2026, "Week 1"), the first paid week. */
+  const RHYTHM_FROM_WEEK = 3;
+  /** Is a race starting at t on a review day (Sunday UTC, from `from`)? */
+  const restRace = (t, from = RHYTHM_FROM_WEEK) => new Date(t).getUTCDay() === 0 && weekOf(t) >= from;
+  /** When play ends in week w: Saturday 24:00 UTC = Sunday 00:00 UTC. */
+  const playEnd = (w) => weekStart(w) + 6 * DAY;
 
   // ── seeded random numbers ──
   function rng(seed) {
@@ -169,7 +176,7 @@
 
   root.KRaceMath = {
     HOUR, RACE, LEG, LEGS, DAY, WEEK, GENESIS, MIN_K, SEED, TRIALS,
-    raceIndex, raceStart, raceId, parseRaceId, raceAt, legOf, legsOf, weekOf, weekStart, dayOf,
+    raceIndex, raceStart, raceId, parseRaceId, raceAt, legOf, legsOf, weekOf, weekStart, dayOf, RHYTHM_FROM_WEEK, restRace, playEnd,
     rng, handicapOf, winChances, calibrate, makeCard, cardForLeg, finishLine, standings, winners, shows, POINTS, track, LIVE_MAX, lowerBound,
   };
 })(typeof window !== "undefined" ? window : globalThis);

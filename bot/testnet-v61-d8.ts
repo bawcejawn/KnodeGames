@@ -215,6 +215,9 @@ export async function testnetV61D8(args: string[]) {
   log("\n4. Answers …");
   const ans = (n: string, id: number, option: number) => ({ method: "answer", args: { player: P[n].getAddress(), question_id: id, option } });
   const answerAll = async (n: string, total: number, measured: number[], option: (i: number) => number) => {
+    // A batch that timed out may still have been mined: count the player's week-0 answers on chain first.
+    const onChain = ((await chain.read("get_player", { player: P[n].getAddress(), week: "0" })).entry?.answers ?? []).length;
+    if (onChain > (st.answered[n] ?? 0)) { st.answered[n] = onChain; save(); }
     while ((st.answered[n] ?? 0) < total) {
       const i = st.answered[n] ?? 0;
       if (measured.includes(i + 1)) {

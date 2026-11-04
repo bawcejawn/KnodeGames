@@ -34,6 +34,11 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+    # D-107 (R-RACE-13): "true" when the recorder held a paid vault week (read by the alert job below).
+    outputs:
+      held: ${{ steps.race.outputs.held }}
+      # Repo Lens #E-11 L-2: "true" when the recorder wrote its files (the publish job fails if they don't arrive).
+      files: ${{ steps.race.outputs.files }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -66,6 +71,7 @@ jobs:
             git show "FETCH_HEAD:vhp-samples.json" > "$RUNNER_TEMP/prev/vhp-samples.json"
           else echo "No VHP samples yet: the card uses the read at card time."; fi
       - name: Record the race
+        id: race
         run: npm run race
         env:
           RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
@@ -87,6 +93,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write         # push the race-data branch (never main)
+    # D-107 (R-RACE-13): "true" when this job held a vault file (read by the alert job below).
+    outputs:
+      held: ${{ steps.push.outputs.held }}
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         continue-on-error: true
@@ -98,12 +107,18 @@ jobs:
         with:
           node-version: 22
       - name: Push race-data (and nothing else)
+        id: push
         env:
           GH_TOKEN: ${{ github.token }}
           IN: ${{ runner.temp }}/incoming
+          RECORD_FILES: ${{ needs.record.outputs.files }}
         run: |
           set -euo pipefail
-          if [ ! -d "$IN" ]; then echo "Nothing to publish."; exit 0; fi
+          if [ ! -d "$IN" ]; then
+            # Repo Lens #E-11 L-2: the recorder wrote files but none arrived: the hand-over between the jobs failed.
+            if [ "${RECORD_FILES:-}" = "true" ]; then echo "::error::The record job wrote its files, but they didn't reach the publish job (artifact hand-over failed). Nothing was published this run; the next run tries again."; exit 1; fi
+            echo "Nothing to publish."; exit 0
+          fi
           bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( -type f ! -regex "$IN/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           big=$(find "$IN" -type f -size +2048k -print)
@@ -224,11 +239,16 @@ jobs:
               if GENESIS + (j["week"] + 1) * WEEK > NOW: return False
               return not (b and len(a) != 1)
           # I-034 (R-RACE-1): the hold. PENDING-W<n>.json is the file the recorder WOULD make final, and when it first saw
-          # it ("at", ms). A pending file with new content must be dated now (within 35 minutes: a slow record job still fits) (a run can't backdate it); one whose content is
+          # it ("at", ms). A pending file with new content must be dated now, within 35 minutes, so a run can't backdate it (a slow record job still fits); one whose content is
           # already published keeps its published date. A final W<n>.json that isn't already published as final must be
           # 12 hours past its week AND exactly the pending file published at least an hour ago; otherwise only that file
           # is held (removed from this push), and the pending file and the race files still publish.
           HOLD_S, STABLE_S = 12 * 3600, 3600
+          # D-107 (R-RACE-13): a held vault file fails the run after publishing (the alert job), so the owner gets an email.
+          def held_out():
+              o = os.environ.get("GITHUB_OUTPUT")
+              if o:
+                  with open(o, "a", encoding="utf-8") as fh: fh.write("held=true\n")
           def pub_json(rel):
               q = os.path.join(pub, rel) if pub else ""
               try: return json.load(open(q, encoding="utf-8")) if q and os.path.isfile(q) else None
@@ -254,6 +274,64 @@ jobs:
               p = pub_json("vault/PENDING-" + f)
               if type(p) is not dict or not same(p.get("file"), j): return "no published pending file with exactly this content"
               if type(p.get("at")) is not int or p["at"] > NOW * 1000 - STABLE_S * 1000: return "its pending file is less than an hour old"
+              return recompute_held(j)
+          # I-085 (R-RACE-12, RECORDER_STANDARD §4.1): a new final file's rows / first / second are worked out again here,
+          # from the week's race file (this push's, else the published one) and the board's Staked / Free split, with the
+          # recorder's own rules (bot/race.ts: tally, rank, stakedRows, prizePlaces). Anything different holds the file.
+          # Who is staked comes from board.json; the vault bot checks that list against the chain (PR #74).
+          PRIZES_FROM = int(os.environ.get("RACE_PRIZES_FROM") or 3)   # PRIZES_FROM_WEEK in bot/race.ts; tests only set it
+          def week_json(w):
+              name = "W%03d.json" % w
+              for q in (os.path.join(d, name), os.path.join(pub, name) if pub else ""):
+                  if q and os.path.isfile(q):
+                      try: return json.load(open(q, encoding="utf-8"))
+                      except Exception: return None
+              return None
+          def recompute_held(j):
+              w = j["week"]
+              if w < PRIZES_FROM:
+                  return "" if not (j["rows"] or j["first"] or j["second"]) else "a week before the Race pays must list nobody"
+              wf = week_json(w)
+              if type(wf) is not dict or wf.get("week") != w or type(wf.get("races")) is not list: return "its week's race file can't be read to check it"
+              t, first_at = {}, {}
+              for r in wf["races"]:
+                  res = r.get("result") if type(r) is dict else None
+                  if type(res) is not dict or res.get("final") is not True or type(res.get("picks")) is not list: continue
+                  for x in res["picks"]:
+                      who, right, show = x[0], x[3] == 1, len(x) > 5 and x[5] == 1
+                      c = t.setdefault(who, [0, 0, 0])
+                      c[2] += 1; c[0] += 1 if right else 0; c[1] += 1 if (not right and show) else 0
+                      if who not in first_at or x[2] < first_at[who]: first_at[who] = x[2]
+              bp = os.path.join(d, "board.json")
+              try: b = json.load(open(bp, encoding="utf-8")) if os.path.isfile(bp) else None
+              except Exception: b = None
+              lw = b.get("lastWeek") if type(b) is dict else None
+              if not t:
+                  return "" if not (j["rows"] or j["first"] or j["second"]) else "nobody picked that week, yet the file lists players"
+              if type(lw) is not dict or lw.get("week") != w or type(lw.get("rows")) is not list: return "this push has no board for that week to check it against"
+              staked = {}
+              for x in lw["rows"]:
+                  if type(x) is not dict or x.get("a") in staked: return "the board's last week lists a wallet twice"
+                  staked[x.get("a")] = x.get("ranked") is True
+                  c = t.get(x.get("a"))
+                  if c is None or [x.get("correct"), x.get("shows"), x.get("picks")] != c: return "the board's last week doesn't match the week's picks (" + str(x.get("a")) + ")"
+              if set(staked) != set(t): return "the board's last week leaves out a wallet that picked"
+              rows = sorted(({"a": a, "correct": c[0], "shows": c[1], "picks": c[2], "pts": 3 * c[0] + c[1], "ranked": staked[a]} for a, c in t.items()),
+                            key=lambda r: (-r["pts"], -r["correct"], -r["picks"], r["a"]))
+              def groups(rs):
+                  out = []
+                  for r in rs:
+                      if out and (out[-1][0]["pts"], out[-1][0]["correct"], out[-1][0]["picks"]) == (r["pts"], r["correct"], r["picks"]): out[-1].append(r)
+                      else: out.append([r])
+                  return out
+              want_rows = [{"player": r["a"], "points": max(1, 255 - i)} for i, g in enumerate(groups([r for r in rows if r["ranked"] and r["pts"] >= 1])) for r in g]
+              fg = groups([r for r in rows if not r["ranked"] and r["pts"] >= 1])
+              early = lambda g: [r["a"] for r in sorted(g, key=lambda r: (first_at.get(r["a"], float("inf")), r["a"]))][:10]
+              if not fg: want_first, want_second = [], []
+              elif len(fg[0]) > 1 or len(fg) == 1: want_first, want_second = early(fg[0]), []
+              else: want_first, want_second = [fg[0][0]["a"]], early(fg[1])
+              if not same(j["rows"], want_rows): return "its staked rows aren't what the week's picks and the board give"
+              if not same(j["first"], want_first) or not same(j["second"], want_second): return "its free-prize winners aren't what the week's picks and the board give"
               return ""
           for f in os.listdir(d):
               if f == "vault":
@@ -265,13 +343,15 @@ jobs:
                          if not (lambda j: js_safe(j) and (pending_ok(g, j) if g.startswith("PENDING-") else vault_ok(g, j)))(load(g))]
                   if bad:
                       import shutil
-                      print("::warning::vault results held, not published this run: " + ", ".join("vault/" + g for g in bad))
+                      print("::error::vault results held, not published this run: " + ", ".join("vault/" + g for g in bad) + " (they failed the publish check; the race cards still publish)")
+                      held_out()
                       shutil.rmtree(os.path.join(d, f))
                       continue
                   for g in sorted(os.listdir(os.path.join(d, f))):
                       why = "" if g.startswith("PENDING-") else final_held(g, load(g))
                       if why:
-                          print("::warning::vault/" + g + " held (I-034): " + why + "; its pending file still publishes")
+                          print("::error::vault/" + g + " held (I-034): " + why + "; its pending file still publishes")
+                          held_out()
                           os.remove(os.path.join(d, f, g))
                   continue
               j = json.load(open(os.path.join(d, f), encoding="utf-8"))
@@ -321,6 +401,16 @@ jobs:
                       if o and type(o.get("cards")) is list and len(o["cards"]) == len(r["cards"]):
                           for i, c in enumerate(o["cards"]):
                               assert c is None or same(c, r["cards"][i]), f"{f} {r['id']}: a published card would change"
+                      # Repo Lens #E-11 H-1 (a): a race's published final result never changes either (the recorder keeps
+                      # it as it is). Picks stored before Show existed have 5 fields; the recorder adds the 6th when it
+                      # loads them, so those are compared on their first 5.
+                      if o and type(o.get("result")) is dict and o["result"].get("final") is True:
+                          a, b = o["result"], r["result"]
+                          ok = type(b) is dict and same({k: v for k, v in a.items() if k != "picks"}, {k: v for k, v in b.items() if k != "picks"})
+                          pa, pb = a.get("picks"), b.get("picks") if type(b) is dict else None
+                          ok = ok and (pa is None) == (pb is None) and (pa is None or (type(pa) is list and type(pb) is list and len(pa) == len(pb)
+                              and all(same(x, y) or (type(x) is list and len(x) == 5 and type(y) is list and len(y) == 6 and same(x, y[:5])) for x, y in zip(pa, pb))))
+                          assert ok, f"{f} {r['id']}: a published final result would change"
           print("race files ok")
           PY
           cd work
@@ -341,3 +431,17 @@ jobs:
           commit=$(git commit-tree "$tree" ${parent:+-p "$parent"} -m "race: record")
           git push -q "$remote" "$commit:refs/heads/race-data"
           echo "Race files published."
+
+  # D-107 (R-RACE-13, I-087): a held paid vault week fails the run (so GitHub emails the owner), but only after
+  # publishing, so the hour's cards and boards still go out. Runs no repository code and needs no permissions.
+  alert:
+    needs: [record, publish]
+    if: ${{ always() && (needs.record.outputs.held == 'true' || needs.publish.outputs.held == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: A Race vault week is held
+        run: |
+          echo "::error::The Producer Race held a vault week. The record or publish job's errors above name the week, why, the deadline and what you can do (.ai/platform/RUNBOOK.md §3). Everything else was published."
+          exit 1

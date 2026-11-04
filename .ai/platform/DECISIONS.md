@@ -124,6 +124,7 @@
 | D-128 | 2026-11-04 | Turn the ruler's recorder on early (data only, pays nothing) once its re-check is GO, to watch producers react to the game announcements | active (plan) |
 | D-127 | 2026-11-04 | The bot closes weeks; a player's action never closes or finalizes a week (vault v6.1) | active (PR #114) |
 | D-126 | 2026-11-04 | The ruler uses the two nodes we have (no third node); the publish job re-reads every new block's id and signer on the check node | active (revisit before the ruler pays real prizes) |
+| D-125 | 2026-11-04 | **Every game plays Mon–Sat; Sunday is the review day.** Play ends Sat 24:00 UTC; results are checked on chain all Sunday and go final no earlier than Mon 00:00 UTC (24 h after the last play); play restarts Mon 00:00 UTC; rewards claimable from about Mon 6–8 PM PST (Tue ~02:00–04:00 UTC); Daily Questions keeps its own timing | active — standard written; Race first (R-RACE-14), other games R-ALL-8 |
 | D-124 | 2026-11-04 | `vhp-data` stays in this repo, archived after each year | active |
 | D-123 | 2026-11-04 | Platform nodes (the Knode Games Vault) are never withheld from games unless a game states it; the ruler's pool rule must pass sim 7 | active (rejects VHP_RULER §3.2's fallback) |
 | D-122 | 2026-11-04 | The five missed ruler simulations are the library chat's to fix: rank by luck percentile (Fix A) or tune bar and trim (Fix B), accept grinding, re-scope sim 9's mark for network-wide jumps (`VHP_RULER.md` §16) | active (design; simulations to confirm) |
@@ -651,6 +652,23 @@
 
 ## D-126 — Two nodes for the ruler
 - **Date:** 2026-11-04 (owner, to the VHP Ruler chat: "leave it with just the 2 nodes we have right now") · **Decision:** no third node; the publish job (no repo code) re-reads every new block's id and signer on the check node (`RPC_CHECK`) — the #D-10 M-1 check. Both fix-checks call it reasonable for now; **revisit before the ruler pays real prizes** (also #E-14 M-1 "stronger": re-reading burns, VHP events and balances too).
+
+## D-125 — Every game plays Monday to Saturday; Sunday is the review day
+- **Date:** 2026-11-04 (owner: "a 24 hour review period for all games should be standard to allow chain data confirmations before any rewards are paid out … if all the games end Saturday night and take sunday off. sunday is the review period. all games start again monday morning and rewards are available to withdraw Monday as well because results are finalized … make it a standard for how weeks close on the games") · **Owner's choices (4 Nov):** the clock is **UTC**; claims at about **Mon 5 PM PT** are fine (no vault upgrade).
+- **Decision — how every game's week closes:**
+  - **Play:** Monday 00:00 UTC → **Saturday 24:00 UTC** (Sat 4 PM PST / 5 PM PDT). No round, race, target or pick that counts falls on **Sunday UTC**. Multi-week seasons rest on their Sundays too. UTC is the rule; Pacific times shift by an hour in daylight time (from 14 Mar 2027).
+  - **Review day (Sunday 00:00 → Monday 00:00 UTC, Sat 4 PM → Sun 4 PM PST):** each recorder settles the week, re-checks its results on both nodes from the chain, and publishes them as **pending**. The owner can look, and hold a week, during this day.
+  - **Final:** a week's results file goes final **no earlier than Monday 00:00 UTC** (= 24 h after the last play, the end of the vault week), and only once it has read the same on two runs at least an hour apart and still matches the chain.
+  - **Payout:** the vault bot (hourly at :07, a 30-min two-read check) posts and seals a game's results about 1–2 h after its file goes final (Race ≈ Mon 00:37 UTC → seal ≈ 02:07). The vault (close_delay 12 h) allows finalizing 24 h after the seal, so claims open from about **Mon 6–8 PM PST / 7–9 PM PDT (Tue ~02:00–04:00 UTC)**, later if a game is held (Repo Lens #C-7 C7-4). The owner's 24 h correction window after each seal stays as a second safety net.
+  - **Sunday keeps the data running (Repo Lens #C-7 C7-2, C7-3):** only *scoring* stops. Data other games read keeps being taken on Sunday: Race handicap cards (Block X scores each target with a Race card up to 3 h after its block, and with the card in force at its lock), VHP samples, ruler hours.
+  - **Sunday picks:** contracts that open picks ahead (Race picks ~24 h, Picks/Block X ~24 h) still accept a pick for a Sunday slot. Pages don't offer one, and recorders ignore it. A Sunday pick still uses a slot of that UTC day's pick limit.
+  - **A Sunday slot's file shape** is "not run" (Race: `{ final: true, missed: true, note }`), so boards and the publish job's recompute treat it the same way in every game.
+  - **Backstop:** a week held on the review day has until **Thursday 00:00 UTC** (the vault's results deadline); after that it rolls over.
+  - **Stakes:** a stake made on the review day counts from the **next** week (the vault puts it in `pending_week = w + 1`).
+  - **Play restarts** Monday 00:00 UTC (Sun 4 PM PT), the start of the next vault week. The vault's own week (Monday 00:00 → Monday 00:00 UTC, D-063) does not change.
+- **Replaces:** the Race's 12-hour hold after the week (I-034, 3 Nov): the Race now reviews during Sunday and can go final from Mon 00:00. **Daily Questions (game 1) is the exception (C7-5):** answers Mon–Sat, but Saturday's question windows run on Sunday's blocks, and it pays on the main game's own timing (Tue ~12:00 UTC).
+- **Needs:** each game's chat moves its game onto the rhythm (R-ALL-8). Race first (R-RACE-14). Paused games (D-113) adopt it before they launch. Block X stops scoring Sunday targets. Bracket's Saturday seeding / Sunday picks schedule needs a new shape.
+- **Standards:** `GAME_STANDARD.md` §4, `RECORDER_STANDARD.md` §3, `VAULT_STANDARD.md` §7, `RULES.md` §4 and "Never change casually".
 
 ## D-124 — Where the ruler's data lives
 - **Date:** 2026-11-04 (owner, to the VHP Ruler chat: "let it archive after a year and repeat") · **Decision:** `vhp-data` stays a branch of this repo; a yearly archive cut keeps it small (to build before the first year ends; ~0.9 GB a year otherwise). Closes I-094.

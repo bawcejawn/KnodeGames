@@ -234,6 +234,11 @@ export async function testnetV61D8(args: string[]) {
   log("\n5. Resolving …");
   for (;;) { const h = await height(); if (h > st.windowEnd! + 62) break; log(`  … waiting for block ${st.windowEnd! + 63} (now ${h})`); await sleep(30_000); }
   while ((st.resolved ?? 0) < N) {
+    // A batch that timed out may still have been mined: skip questions the chain already shows as resolved.
+    while ((st.resolved ?? 0) < N && Number((await chain.read("get_question", { id: String(st.resolved ?? 0) })).question?.outcome ?? 0) !== 0) {
+      st.resolved = (st.resolved ?? 0) + 1; save();
+    }
+    if ((st.resolved ?? 0) >= N) break;
     const from = st.resolved ?? 0, n = Math.min(BATCH, N - from);
     const r = await sendR(funder, Array.from({ length: n }, (_, j) => ({ method: "resolve_question", args: { id: from + j, outcome: 1, data_hash: "0x" + "cd".repeat(32) } })), "resolve", 3);
     if (!st.m.resolve10) note("resolve10", r, "resolving 10 questions in one transaction");

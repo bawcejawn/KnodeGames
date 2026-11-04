@@ -81,6 +81,11 @@
   - A manual `game-post` applies every check except the two-run wait.
   - **So every staked game must publish `board.json` next to its vault folder** (rows with `points` and a place), or set `vaultGames.<id>.board` (I-079).
   - Points themselves aren't recomputed in the bot yet (I-080).
+  - **After the Repo Lens #D-3 fixes (PR #74 @ `ec61bb4`, 4 Nov):**
+    - a HOLD file holds the week unless a `RELEASE-W<week>.json` sits next to it;
+    - per-game settings in `game-data/deployment.json` → `vaultGames.<id>`: `board: "none"` (skip the board check; Survivor for now), `minPts` (the file's points floor; Combo 100), `boardCap` (rows the board keeps; Bracket 1,000, Last Node 2,000);
+    - only a chain **revert** counts as a refusal (network, Mana and "not seen in a block" are retried next run);
+    - a failed finalize stops the finalize loop.
 
 ## 7. Timing
 - A game applied in week W earns from W + 1; results are posted for registered games only, for weeks they earn (`from_week <= w`) ✅.

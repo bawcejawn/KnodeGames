@@ -349,7 +349,7 @@ test("status bar text: staked, waiting for next week, free, guest, not connected
   assert.equal(t.head, "Playing free"); assert.equal(t.link, "Stake"); assert.match(t.sub, /Stake 1 VHP or more/);
   assert.equal(T.badgeText(S({}), true, true).head, "Playing free (guest)");
   assert.match(T.badgeText(S({}), false, false).sub, /Connect a wallet/);
-  assert.match(T.badgeText(S({ open: false }), true, false).sub, /opens when the Knode Games vault goes live/);
+  assert.match(T.badgeText(S({ open: false }), true, false).sub, /opens soon: it joins the Knode Games vault before it pays/);
 });
 
 test("status bar: drawn with the amount and a link to the staking page; guests never trigger a stake read", async () => {
@@ -449,4 +449,12 @@ test("pages without their own wallet set-up still give it a network (owner's @na
   assert.match(sp, /w\.init\(\{ provider: new lib\.Provider\(\[dep\.rpc \|\| "https:\/\/koinos\.armana\.io"\]\), chainId: dep\.chainId, payer: dep\.payer, sponsor: dep\.sponsor \}\)/, "the staking hub asks the Mana sponsor like the game pages");
   const np = fs.readFileSync(`${APP}/names-page.js`, "utf8");
   assert.match(np, /w\.init\(\{ provider: new lib\.Provider\(\[dep\.rpc \|\| "https:\/\/koinos\.armana\.io"\]\), chainId: dep\.chainId \}\)/, "names: a network, own Mana");
+});
+
+test("I-028: withdrawing or moving below the minimum mid-week is explained before it's sent", () => {
+  assert.match(src, /as long as at least \$\{exact\(min\)\} VHP stays in: below that you get no share of this week's rewards and no free prize/);
+  const page = fs.readFileSync(`${APP}/stake-page.js`, "utf8");
+  assert.match(page, /g\.staked && g\.mine - u < d\.min/);
+  assert.match(page, /withdraw: `Straight back to your wallet, right now\.\$\{drop\}`/);
+  assert.match(fs.readFileSync(`${APP}/stake.html`, "utf8"), /as long as at least the minimum \(1 VHP\) stays in/);
 });

@@ -300,11 +300,19 @@ const vaultState = new WeakMap<object, Promise<any>>();
  *  head but not the vault can't push the hourly run past its time limit and cost that hour's race cards. */
 const nodeDown = new WeakMap<object, string>();
 const STAKE_TRIES = 2;                                       // about 2 s of retry, not withRetry's default minute
+/** Repo Lens RV-2 (round 12) and the Vault chat (3 Nov): get_game_player never reverts for a valid address, so a read
+ *  the node ANSWERS with an error means a wrong contract, interface file or arguments. That affects every wallet on
+ *  every node, so it stops all stake reads for the run with its own warning (not "a node is down"). Only a failure to
+ *  reach the node (timeouts, connection and HTTP errors, an HTML error page) marks just that node down. */
+export const isTransportError = (m: string) =>
+  /no answer within|fetch failed|ECONN|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|getaddrinfo|socket|network|invalid json|Unexpected token|status code|HTTP|\b50[0-9]\b|terminated|aborted/i.test(m);
+let vaultRefused: string | null = null;     // reset at the start of each run
 export const NO_V6_ABI = "game/abi/kpred.koilib.json has no get_game_player: Race stakes can't be read";
 async function readStaked(node: any, who: string, week: number): Promise<Stand> {
   const abi = GAME_ABI();
   if (!GAME) throw Object.assign(new Error("game-data/deployment.json gives no contract: Race stakes can't be read"), { once: true });
   if (!abi.methods?.get_game_player) throw Object.assign(new Error(NO_V6_ABI), { once: true });
+  if (vaultRefused) throw Object.assign(new Error(vaultRefused), { once: true });
   const down = nodeDown.get(node);
   if (down) throw Object.assign(new Error(down), { once: true });
   const c = new Contract({ id: GAME, abi, provider: node });
@@ -319,7 +327,12 @@ async function readStaked(node: any, who: string, week: number): Promise<Stand> 
     const r: any = await withRetry(`Race stake of ${who}`, () => (c.functions as any).get_game_player({ player: who, game: VAULT_GAME, week: String(week) }), STAKE_TRIES);
     return { staked: stakedFrom(cfg, r?.result ?? {}, week), earning: earningFrom(cfg, r?.result ?? {}, week) };
   } catch (e) {
-    const m = `the vault's stake reads failed on a node (${String((e as Error).message || e).slice(0, 160)}): Race stakes can't be read this run`;
+    const why = String((e as Error).message || e).slice(0, 160);
+    if (!isTransportError(why)) {
+      vaultRefused = `the vault refused a stake read (${why}): check the game contract in game-data/deployment.json and game/abi/kpred.koilib.json. No Race stakes are read this run`;
+      throw Object.assign(new Error(vaultRefused), { once: true });
+    }
+    const m = `the vault's stake reads failed on a node (${why}): Race stakes can't be read this run`;
     nodeDown.set(node, m);
     throw Object.assign(new Error(m), { once: true });
   }
@@ -347,6 +360,7 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
 }
 /** One run. Exported for the tests, which pass fake nodes. */
 export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks }: Opts) {
+  vaultRefused = null;
   prizesFromWeek = prizesFrom ?? PRIZES_FROM_WEEK;
   hold = vaultHold === undefined ? { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS } : vaultHold;
   holdSetting = holdWeeks ? { weeks: holdWeeks, bad: false, raw: holdWeeks.join(",") } : parseHoldWeeks(E.RACE_HOLD_WEEKS);

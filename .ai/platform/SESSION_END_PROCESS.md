@@ -13,7 +13,7 @@
 1. **Check the facts.** Use `git status`, the branch and commit, open PRs, and the last workflow runs. Report only what you checked. Mark the rest ❓.
 2. **Make sure nothing is half-done.** No unsent dry run is left looking "done". No PR is called merged unless it is. No secret was printed.
 3. **Write the session-end report** (below) as your last message.
-4. **The owner pastes it into the library chat.** That chat files it into `.ai/` in one docs PR. If the owner asks, save it to the Claude project as `claude/<area>/HANDOFF-<yyyy-mm-dd>.md` too.
+4. **The owner pastes it into the library chat.** That chat files it into `.ai/` in one docs PR: new facts go to their one home, and finished items move out of the work lists to `archive/DONE.md` (closed issues to `archive/ISSUES_CLOSED.md`). If the owner asks, save it to the Claude project as `claude/<area>/HANDOFF-<yyyy-mm-dd>.md` too.
    - **Two kinds of saved notes, two names:** a session-end report is `claude/<area>/HANDOFF-<yyyy-mm-dd>.md`. Instructions one chat leaves for another (the older style, e.g. `claude/handoff-sponsor-v6-day.md`) keep `claude/handoff-<topic>.md`.
 5. **The next session** starts with its starter prompt (`AI_CHAT_STARTER.md` §3) plus this report.
 

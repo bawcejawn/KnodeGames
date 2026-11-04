@@ -362,8 +362,8 @@
       const help = mode === "stake"
         ? `Whole numbers only (1, 2, 3 …). It counts from next week. You need at least ${exact(min)} VHP in this game to play as a staked player. KOIN is burned into VHP 1:1.`
         : mode === "withdraw"
-          ? `Any amount up to ${exact(st)} VHP, decimals included, straight back to your wallet. Always available. Withdrawing part keeps you in this week at the lower stake; withdrawing everything takes you out of this week.`
-          : `Moves stake to another game without leaving the vault. It counts there from next week. Up to ${exact(st)} VHP.`;
+          ? `Any amount up to ${exact(st)} VHP, decimals included, straight back to your wallet. Always available. Withdrawing part keeps you in this week at the lower stake, as long as at least ${exact(min)} VHP stays in: below that you get no share of this week's rewards and no free prize for it.`
+          : `Moves stake to another game without leaving the vault. It counts there from next week. Up to ${exact(st)} VHP. Leaving less than ${exact(min)} VHP here means no share of this game's rewards this week.`;
       const max = mode === "stake" ? null : el("button", { class: "btn btn-ghost btn-small", type: "button", onclick: () => { input.value = exact(st); } }, "All");
       const d = el("dialog", { class: "kstake-dialog" },
         el("form", { method: "dialog" },
@@ -523,7 +523,7 @@
   function badgeText(st, connected, guest) {
     if (!connected) return { cls: "free", head: "Playing free", sub: "Connect a wallet to see your stake.", link: "How staking works" };
     if (guest) return { cls: "free", head: "Playing free (guest)", sub: "Guests play free. Stake from a Koinos wallet to share the weekly rewards.", link: "How staking works" };
-    if (!st.open && st.amount === 0n) return { cls: "free", head: "Playing free", sub: "Staking in this game opens when the Knode Games vault goes live.", link: "Staking" };
+    if (!st.open && st.amount === 0n) return { cls: "free", head: "Playing free", sub: "Staking in this game opens soon: it joins the Knode Games vault before it pays.", link: "Staking" };
     const more = st.pending > 0n ? ` ${exact(st.pending)} VHP more counts from ${st.pendingFrom}.` : "";
     if (st.staked) return { cls: "staked", head: "Staked", amount: `${amount(st.amount)} VHP`, sub: `You share this game's weekly rewards.${more}`, link: "Manage stake" };
     if (st.amount > 0n) return { cls: "free", head: "Playing free this week", amount: `${amount(st.amount)} VHP staked`, sub: `It counts from ${st.pendingFrom || "next week"}.`, link: "Manage stake" };

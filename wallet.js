@@ -279,6 +279,11 @@
   const RESTORE_WARN = "Only paste a key you backed up yourself. Anyone who gives you a key can take it back.";
   // Audit (guest) L-3: what a guest sees when the sponsor won't pay (never Kondor or KOIN Vault advice).
   const GUEST_NO_FREE = "Free answers are used up for today — try again after 00:00 UTC (5pm PT), or connect a wallet.";
+  // I-082: only a real "used up" says used up. A check that failed (a trap, a node that didn't answer) or a refusal with
+  // no or an unknown reason says so plainly, so players (and we) see the real cause.
+  const GUEST_CHECK_FAILED = "The free Mana check failed just now, so nothing was sent. Try again later, or use a wallet with its own Mana (Kondor or KOIN Vault).";
+  const GUEST_SPONSOR_NO = "The Mana sponsor turned this one down without a reason, so nothing was sent. Try again later, or connect a wallet with its own Mana.";
+  const plainReason = (m) => String(m || "").replace(/^SPONSOR:\s*/i, "").replace(/[^\x20-\x7e]/g, "").trim().slice(0, 120);
   // Audit SP-18: say which limit it was. The free pool is released by the hour (sponsor v3), so "this hour" first.
   const guestRefusal = (m) =>
     /switched off/i.test(m) ? "Free play is paused for now (the Mana sponsor is switched off). Try again later, or connect a wallet."   // audit SP-43
@@ -288,7 +293,8 @@
       : /today's sponsored mana is used up/i.test(m) ? GUEST_NO_FREE
       : /mana limit above|per-transaction cap|what these actions may ask/i.test(m) ? "The page asked for more Mana than the sponsor allows for this action (the site is being updated). Try again in a few minutes."
       : /insufficient|\brc\b|rc_limit|resource/i.test(m) ? "The network turned this down for lack of Mana. Nothing happened; try again in a few minutes."
-      : GUEST_NO_FREE;
+      : plainReason(m) ? `The Mana sponsor turned this down (${plainReason(m)}), so nothing was sent. Try again later, or connect a wallet with its own Mana.`
+      : GUEST_SPONSOR_NO;
   // Audit (guest) L-5: on Koinos mainnet a guest only ever names the live Knode Games sponsor as payer and only answers on the
   // Knode Games question game, whatever deployment.json says (pinned like the chain id).
   const PINNED_SPONSOR = "1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8", PINNED_GAME = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
@@ -464,7 +470,7 @@
     const rcLimit = rcFor(sp, ops, String(sp.rcLimit || "100000000"));
     // Audit SP-34: the sponsor's own reason (e.g. "released on the hour"), worded for a guest.
     const yes = await sponsorAnswer(sp, rcLimit, gamesOfOps(sp, ops), true);
-    if (!yes.ok) throw new Error(yes.reason ? guestRefusal(yes.reason) : GUEST_NO_FREE);
+    if (!yes.ok) throw new Error(yes.failed ? GUEST_CHECK_FAILED : yes.reason ? guestRefusal(yes.reason) : GUEST_SPONSOR_NO);
     const signer = await guestLib().signer();
     if (signer.getAddress() !== W.address) throw new Error("The guest key on this device changed. Reconnect as a guest.");
     signer.provider = W.provider;
@@ -738,7 +744,7 @@
         if ((tag & 7) === 0) { while (i < out.length && (out[i++] & 0x80)); } else break;
       }
       return { ok, reason };
-    } catch { return { ok: false, reason: "" }; }
+    } catch { return { ok: false, reason: "", failed: true }; }   // the check itself failed (trap, timeout): not a "no"
   }
 
   async function sendVault(label, ops, opts = {}) {

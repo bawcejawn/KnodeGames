@@ -1,6 +1,6 @@
 # Producer Race (game 7)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Race "KG 02 · Hub + Race Show", Hub, Vault, Block X chats), `DECISIONS.md` (D-033 – D-035, D-062, D-063, D-078), the repo. **Last updated:** 2026-11-03.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Race "KG 02 · Hub + Race Show", Hub, Vault, Block X chats), `DECISIONS.md` (D-033 – D-035, D-062, D-063, D-078), the repo. **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/ProducerRace.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -31,20 +31,26 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 - Vault v6: registration (`game-add 7`, then apply) before it earns; stake reads via `get_game_player`. ✅
 - Site: `race.html` with `#stake-badge` (PR #44 ✅) and the shared panel; `board.js`; the Games page link to `race.html#stake`. ✅
 - **Nicknames (D-078):** `race.html` loads `names.js` before `race.js` and allows `names-data` in its CSP. `race.js`'s `nameOf` shows `KNames.of(address)` (name · short address) for every producer and player: horses, card, paddock, feed, results, pick lists and both boards. It redraws on `KNames.onChange` and falls back to the old built-in names if `names.js` is missing. Display only. ✅ (merged, PR #62, 3 Nov)
-- The VHP sampler (`race-samples.yml`) feeds handicap cards for other games (I-059).
+- The VHP sampler (`race-samples.yml`) feeds the handicap cards here and in other games; it takes up to 12 samples a run (PR #67).
 
-## Current status (3 Nov)
-**Live as a game.** Vault `game-add 7` **sent 3 Nov** (tx `0x1220d394…`), applicable from Thu 5 Nov 15:51 UTC: applied by Sun 8 Nov 4 PM PT, it earns from vault week 3 (Mon 9 Nov). Free-prize switch: ON (D-082). `PRIZES_FROM_WEEK = 3` is on main (PR #56) ✅. The v6-ABI stake fix `d7fad7c` (B1-1) and the RV-1 process exit reached main with the Block X launch merge (PR #57, Repo Lens round 12 GO — the Race notes said 13; round 12 is what the owner and the other files record ❓) ✅. Nicknames on the page (D-078): **merged (PR #62)** ✅. 👤 / 💬
+## Current status (4 Nov)
+- **Live as a game.** Vault `game-add 7` sent 3 Nov (tx `0x1220d394…`), applicable from Thu 5 Nov 15:51 UTC; applied by Sun 8 Nov 4 PM PT, it earns from vault week 3 (Mon 9 Nov). Free-prize switch: ON (D-082). `PRIZES_FROM_WEEK = 3` is on `main` (PR #56) ✅. 👤 / 💬
+- **Pays from 9 Nov with its two known handicap gaps open** (the > 6-h hide and VHP added after a card) until the one VHP ruler lands (D-094, D-090, D-093).
+- The v6-ABI stake fix `d7fad7c` (B1-1) and the RV-1 process exit are on `main` (PR #57, Repo Lens round 12 GO; the Race notes said 13, the owner and other files record 12 ❓) ✅. Nicknames on the page (PR #62) ✅.
+- **Guest picks are blocked** by the sponsor check (I-083), and the page shows "Today's picks are used up" for it (I-082, R-RACE-7).
+- Work list: `../platform/CHAT_REQUESTS.md` → Race (R-RACE-1 – R-RACE-8).
 
 ## Known issues
 - **I-034 (P1 before prizes):** a final vault file is decided by one run and locked forever, with no 12-hour hold. **Fixed in the R-RACE-1 PR** (12 h hold + pending file + owner hold); closes when merged.
 - **I-035:** owner chose option A (3 Nov): accept the risk for now, flag new-wallet free winners in the run notes, use the hold to review; revisit (option B: hold ≥ 1 VHP at a random moment) if farming shows up.
-- **I-037:** a bad vault file can stop the whole race run; slow stake reads could lose an hour's cards.
+- **I-037:** a bad vault file can stop the whole race run (B1-4; the slow-stake-reads part, B1-5, shipped with PR #57).
 - **I-028:** "Staked board" is based on `peak_stake` — a mid-week withdrawal below the minimum forfeits the week; the panel should explain this.
 - **I-030:** with `RPC_CHECK` off, stakes are classified on one node without a warning. **I-029:** board reads grow with players.
 - **I-027 / I-069:** page text still says the vault isn't live; week labels to refresh.
-- **I-031:** Block X changes the same Race files; the Race chat merges them by hand.
+- **I-031:** the Race files Block X changed came into `main` with PR #57; the Race chat confirms nothing is left (R-RACE-8).
+- **I-083 / I-082:** guest picks blocked by the sponsor check; wrong message on the page.
+- **Handicap gaps (D-094, `../platform/HANDICAP_REVIEW.md`):** hiding VHP for > 6 h then restoring it pays (proved 60 of 60 races); VHP added after a card earns more blocks at the old handicap for ~1–1.5 h.
 
 ## Future plans
-- Move to the VHP standard (cardVhp `k` with card credit, averages for others) (D-058).
+- Move to the one VHP ruler (D-058, D-090, D-093): card credit, highest VHP over a ~2-week look-back, averages for others (R-RACE-5, R-ARCH-1).
 - Weekly checks that each `vault/W<week>.json` is final and sensible.

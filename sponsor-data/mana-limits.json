@@ -1,19 +1,19 @@
 {
   "v": 1,
-  "updated": "2026-10-30T20:44:03.939Z",
+  "updated": "2026-11-04T04:30:00.000Z",
   "margin": 2,
   "rows": [
     {
       "name": "KnodeGames Picks pick",
       "contract": "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm",
       "entry_point": 2363702380,
-      "max_mana": "20000000",
+      "max_mana": "100000000",
       "observed": {
-        "count": 1,
-        "max": "11600000",
-        "typical": "11600000",
-        "source": "testnet sponsored Block X pick 2026-10-30",
-        "at": "2026-10-30T20:44:03.939Z"
+        "count": 2,
+        "max": "76202585",
+        "typical": "76146286",
+        "source": "mainnet sponsored Race pick 2026-11-04 (blocks 40779375, 40779390), a stand-in: no sponsored Block X pick has gone through on mainnet yet (each ran out at the old 0.2 limit)",
+        "at": "2026-11-04T04:30:00.000Z"
       }
     }
   ]

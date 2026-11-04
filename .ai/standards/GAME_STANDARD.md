@@ -18,7 +18,7 @@ A game is announced to players only when all of these are true (D-064 — "only 
 
 ## 2. Play types and prizes
 - **Every game must be stakeable** (D-018); a staked player has at least **1 VHP** staked in that game that week. Players may — and are encouraged to — stake in several games at once (D-074); pages should make that easy.
-- **Every game is Staked + Free play** (D-081). ~~A game is either Staked + Free or Staked only~~ (D-071, superseded):
+- **Every game is Staked + Free play** (D-081; the older "Staked only" option, D-071, is superseded):
   - **Every game has Free play** (a Free play board; D-081). What differs is the free VHP prize:
   - Free board **with** the 2 + 1 VHP prize: Daily Questions, Block X, Producer Race, Producer Bracket, Last Node Standing.
   - Free board **without** a prize for now (standings only): Combo Card, Block Golf, Survivor, Fantasy Producers (D-081).
@@ -38,7 +38,7 @@ A game is announced to players only when all of these are true (D-064 — "only 
 - Picks should open well ahead (days where the game allows) and be changeable until each round's own lock (D-059).
 - Locks are enforced **on chain** by the Picks contract's lock clock, not just by the page.
 - Weeks run Monday 00:00 to Monday 00:00 UTC (vault week = floor((t − genesis) ÷ 7 days)). Players see the week of Mon 9 Nov as "Week 1" (D-063).
-- ~~New games launch on a Monday (D-059)~~ — superseded by D-052 / D-064: each game launches when it's audited and ready. Vault weeks still run Monday to Monday, so a game earns from the Monday after it's applied.
+- **Each game launches when it's audited and ready** (D-052, D-064; the older "launch on a Monday" rule, D-059, is superseded). Vault weeks still run Monday to Monday, so a game earns from the Monday after it's applied.
 
 ## 5. On-chain registration
 - **Picks contract:** announce the game (owner key) → wait 48 h → apply within the window. Settings (kind, list size, lock mode, round size and offset, lead, ahead, changes, picks a day) are written in the game's spec. Hard limits: 50 picks a day, 50 changes, list size 10, ahead ≤ 35 days, lead ≥ 5 min.

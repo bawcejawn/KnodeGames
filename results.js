@@ -7,6 +7,9 @@
    Read-only: no transaction, no storage, everything built with textContent. */
 (() => {
   "use strict";
+  // What players call a week (weeks.js, D-063): the week of Mon 9 Nov is "Week 1"; earlier weeks show their date.
+  const WL = (w) => (window.KWeeks ? window.KWeeks.label(w) : `Week ${Number(w) + 1}`);
+  const WS = (w) => (window.KWeeks ? window.KWeeks.short(w) : String(Number(w) + 1));
   const host = document.getElementById("res-games");
   const M = window.KRaceMath;
   if (!host || !M) return;
@@ -81,7 +84,7 @@
       const score = me() ? el("p", { class: "rband-score" }, el("b", { text: fmt(mineAll.reduce((s, x) => s + x.myPts, 0)) }), ` pts this week · ${mineAll.length} pick${mineAll.length === 1 ? "" : "s"}`)
         : el("p", { class: "rband-score", text: `${ended.filter((x) => x.status === "final").length} races final this week` });
       const weeks = el("div", { class: "rweeks", role: "group", "aria-label": "Week" }, ...this.weeks.map((w) => {
-        const b = el("button", { type: "button", "aria-pressed": String(w === this.week), text: w === M.weekOf(now) ? `This week (${w + 1})` : `Week ${w + 1}` });
+        const b = el("button", { type: "button", "aria-pressed": String(w === this.week), text: w === M.weekOf(now) ? `This week (${WS(w)})` : `${WL(w)}` });
         b.addEventListener("click", async () => { this.week = w; this.day = null; await this.load(w); this.draw(); });
         return b;
       }));

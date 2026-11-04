@@ -41,8 +41,10 @@ if (E.DUMP === "1") {   // the whole history, compact and gzipped, into the job'
     burns: burns.join(","), tail: { sig: last.tail.sig.map((i) => last.addrs[i]), burns: last.tail.burns }, events: other, anchor: { at: last.anchor.at, bal: last.anchor.bal },
     hourIds: hours.map((h) => h.ids[h.ids.length - 1]), seedIds: Object.fromEntries(raceSlots(L).map((w) => [w.L + 20, hours[Math.floor((w.L + 20) / 1200) - hours[0].n].ids[(w.L + 20) % 1200]])) };
   const z = zlib.gzipSync(JSON.stringify(dump), { level: 9 }).toString("base64");
-  for (let i = 0; i < z.length; i += 20000) console.log(`DUMP ${i / 20000} ${z.slice(i, i + 20000)}`);
-  console.log(`DUMP END ${Math.ceil(z.length / 20000)} ${z.length}`);
+  const lines = []; for (let i = 0; i < z.length; i += 20000) lines.push(`DUMP ${i / 20000} ${z.slice(i, i + 20000)}`);
+  lines.push(`DUMP END ${Math.ceil(z.length / 20000)} ${z.length}`);
+  fs.writeFileSync(path.join(OUT, "dump.txt"), lines.join("\n") + "\n");   // a later step prints it (process.exit can cut stdout)
+  tick(`history dump: ${z.length} characters in ${lines.length - 1} lines`);
   if (E.SKIP_SIMS === "1") process.exit(0);
 }
 const sims = run(L, { cards: Number(E.CARDS || 60), races: Number(E.RACES || 2500), log: tick });

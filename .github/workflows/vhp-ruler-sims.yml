@@ -1,7 +1,7 @@
 # VHP ruler (R-RULER-1, design §8): the 11 simulations on 31 days of REAL mainnet history. Read-only: no key, no
 # secret, no write, nothing published. Reads the days on both nodes with the first-fill code, writes and checks every
 # hour file as the publish job would, runs the simulations and reports each result as a notice on the run. Runs on
-# pushes of this file to the vhp-ruler branch, or by hand. (Run 4: the history is printed to the log, compact; a chunk is retried if a node stops answering.)
+# pushes of this file to the vhp-ruler branch, or by hand. (Run 5: the history is saved, then printed to the log by its own step.)
 name: VHP ruler simulations
 
 on:
@@ -41,6 +41,10 @@ jobs:
           SKIP_SIMS: "1"
           OUT: ${{ runner.temp }}/sims-out
           NAMES_DIR: ${{ runner.temp }}/names
+      - name: Print the history (compact) to the log
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/sims-out/dump.txt" ]; then cat "$RUNNER_TEMP/sims-out/dump.txt"; fi
       - name: Report the results (1)
         if: always()
         run: |

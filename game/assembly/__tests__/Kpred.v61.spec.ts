@@ -241,10 +241,11 @@ describe("v6.1: up to 60 questions a week", () => {
     const st1 = k.get_state(new kpred.get_state_arguments());
     expect(st1.questions_cap).toBe(60);
     as(PD);
-    expect(() => { gK!.deposit_vhp(new kpred.deposit_vhp_arguments(PD, VHP)); }).toThrow();
-    expect(MockVM.getErrorMessage()).toBe("stake in the question game with deposit_to (game 1)");
+    k.deposit_vhp(new kpred.deposit_vhp_arguments(PD, VHP));        // the old call is kept as an alias (owner, 4 Nov)
     as(PD);
-    k.deposit_to(new kpred.deposit_to_arguments(PD, 1, 2 * VHP, false));                  // counts from week 2
+    k.deposit_to(new kpred.deposit_to_arguments(PD, 1, VHP, false)); // the shared call: same record, counts from week 2
+    MockVM.commitTransaction();
+    expect(k.get_game_player(new kpred.get_game_player_arguments(PD, 1, 1)).player!.pending).toBe(2 * VHP);
     as(PC);
     k.withdraw(new kpred.withdraw_arguments(PC, VHP));               // the old call still withdraws (C keeps 10)
     as(PC);
@@ -276,6 +277,10 @@ describe("v6.1: up to 60 questions a week", () => {
     MockVM.commitTransaction();
     expect(() => { gK!.settle(new kpred.settle_arguments(gWho, gWeek)); }).toThrow();
     expect(MockVM.getErrorMessage()).toBe("that week is paid from its results file (no settle step)");
+    as(OPERATOR);
+    gWho = PB;
+    expect(() => { gK!.post_results(new kpred.post_results_arguments(1, 1, [new kpred.result_row(gWho, 4)])); }).toThrow();   // more points than answers
+    expect(MockVM.getErrorMessage()).toBe("a question-game result needs at least 2 answers that week, and no more points than answers");
     as(OPERATOR);
     k.post_results(new kpred.post_results_arguments(1, 1, [new kpred.result_row(PA, 3), new kpred.result_row(PC, 2), new kpred.result_row(PB, 1)]));
     k.seal_results(new kpred.seal_results_arguments(1, 1));

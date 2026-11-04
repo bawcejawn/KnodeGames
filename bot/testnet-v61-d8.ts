@@ -28,7 +28,7 @@ const RPC = "https://testnet.koinosfoundation.org";
 const CHAIN_ID = "EiAIKVvm6-V2qmsmUvPJy09vCCLbtn9lHFpwrJbcTIEWRQ==";
 const KOIN = "1FaSvLjQJsCJKq5ybmGsMMQs8RQYyVv8ju";
 const WASM = "game/build/release/contract.wasm";
-const V61_SHA = "da9dc9c984ca16764712efeed49b653ec62fe555dc5afe5127efbd7d19ab594a";
+const V61_SHA = "4dcc89a6c87b47479e87abc744abc9f34379e135e335840307825c9c64364d4a";
 const DIR = "testnet-v61-d8";
 const VHP = 100_000_000n;
 const MIN = 60_000;

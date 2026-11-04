@@ -637,13 +637,12 @@ export class Kpred {
 
   // ═══════════════════════ players ═══════════════════════
 
-  deposit(from: Uint8Array, amount: u64, isKoin: bool, viaGameCall: bool = false): void {
+  /** A question-game stake. v6.1 (D-116): deposit_to(game 1) and the old deposit_vhp / deposit_koin are the same call
+   *  (the old ones are kept as aliases, owner 4 Nov); all of them land in the player's own record. */
+  deposit(from: Uint8Array, amount: u64, isKoin: bool): void {
     const c = this.cfg();
     this.advance(c);
     System.require(!c.paused, "new deposits are paused");
-    // v6.1 (D-116, owner: old calls withdraw-only after the switch): from the rule week, new question-game stakes come in
-    // through deposit_to(game 1), like every game. Withdrawing through the old call always works.
-    System.require(viaGameCall || !this.v61Rule(c, this.weekOf(c, this.now())), "stake in the question game with deposit_to (game 1)");
     System.require(amount > 0, "amount must be positive");
     System.require(amount % WHOLE == 0, "stake whole numbers only (1, 2, 3 …)");
     System.requireAuthority(authority.authorization_type.contract_call, from);
@@ -1739,6 +1738,15 @@ export class Kpred {
 
   /** v6.1: the question game's week record for `player`, in the per-game shape (read in place from its own records:
    *  the answer entry if there is one, else the stake). Nothing is copied. */
+  /** v6.1 (D-116, owner 4 Nov: Questions keeps its entry rules): a question-game result row or free winner answered at
+   *  least 2 questions that week, and its points can't be more than its answers. (The recorder applies the full rule,
+   *  at least 2 counted answers and at least 1 point; this is the contract's own floor.) */
+  qEntryRule(w: u64, player: Uint8Array, points: u32): void {
+    const e = this.entries.get(this.entryKey(player, w));
+    const n: u32 = e ? <u32>e.answers.length : 0;
+    System.require(n >= 2 && points <= n, "a question-game result needs at least 2 answers that week, and no more points than answers");
+  }
+
   qEntry(w: u64, player: Uint8Array): kpred.gentry_object {
     const n = new kpred.gentry_object();
     const e = this.entries.get(this.entryKey(player, w));
@@ -1812,7 +1820,7 @@ export class Kpred {
     // v6.1 (D-116): the question game takes stakes through the same call as every game, into its own records.
     if (args.game == Q_GAME) {
       System.require(isAddress(args.from), "address required");
-      this.deposit(args.from!, args.amount, args.koin, true);
+      this.deposit(args.from!, args.amount, args.koin);
       return new kpred.deposit_to_result();
     }
     const c = this.cfg();
@@ -1985,6 +1993,7 @@ export class Kpred {
       const e = this.resultEntry(args.game, args.week, row.player!);
       System.require(e.points == 0 && e.prize_place == 0, "that player already has a result this week");
       System.require(!e.voided && e.stake > 0 && e.stake >= min, "that player was not staked in that game that week");
+      if (args.game == Q_GAME) this.qEntryRule(args.week, row.player!, row.points);
       this.addPoints(args.game, args.week, gw, e, row.points);
       this.gentries.put(this.gentryKey(args.game, args.week, row.player!), e);
     }
@@ -2013,6 +2022,7 @@ export class Kpred {
       // A free player never held the minimum stake in this game that week (the question game's rule: someone staked at
       // the start of the week who withdraws later is still a staked player that week, not a free one).
       System.require(e.peak_stake < min, "staked players can't win the free prize");
+      if (args.game == Q_GAME) this.qEntryRule(args.week, who!, 1);
       e.prize_place = args.place;
       this.gentries.put(this.gentryKey(args.game, args.week, who), e);
     }
@@ -2067,6 +2077,7 @@ export class Kpred {
       if (args.points > 0) {
         System.require(e.prize_place == 0, "that player holds a free-prize place");
         System.require(!e.voided && e.stake > 0 && e.stake >= this.minStakeFor(c, args.week), "that player was not staked in that game that week");
+        if (args.game == Q_GAME) this.qEntryRule(args.week, args.player!, args.points);
         this.addPoints(args.game, args.week, gw, e, args.points);
       }
     }

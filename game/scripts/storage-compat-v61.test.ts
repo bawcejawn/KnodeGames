@@ -149,12 +149,11 @@ test("v6.1 reads v6's stored data unchanged; the week it lands in keeps 30 quest
   for (let i = 31; i < 51; i++) await ok([["answer", { player: addr(B), question_id: i, option: 1 }]], [B]);
 
   // ───── 4. week 3 runs on the shared game rules (D-116) ─────
-  const old = await send([["deposit_vhp", { from: addr(B), amount: String(VHP) }]], [B]);
-  assert.ok(!old.ok && /stake in the question game with deposit_to \(game 1\)/.test(old.error ?? ""), `the old deposit call is closed from the new week (${old.error})`);
-  await ok([["deposit_to", { game: 1, from: addr(B), amount: String(VHP), koin: false }]], [B]);   // the new call, into B's own record
+  await ok([["deposit_vhp", { from: addr(B), amount: String(VHP) }]], [B]);                        // the old call, kept as an alias
+  await ok([["deposit_to", { game: 1, from: addr(B), amount: String(VHP), koin: false }]], [B]);   // the shared call, into B's own record
   const bq = await sim.read("get_game_player", { player: addr(B), game: 1, week: "3" });
   assert.equal(bq.week_stake, String(40n * VHP), "B's week-3 stake in game 1, read in place");
-  assert.equal(bq.player.pending, String(VHP), "the new deposit counts from next week");
+  assert.equal(bq.player.pending, String(2n * VHP), "both deposits count from next week, in the same record");
   at(GENESIS + 3 * WEEK + 3 * DAY);
   for (let i = 31; i < 91; i++) await resolve(i);
   await sim.ledgerAdd(2, addr(contract), 40n * VHP);

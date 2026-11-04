@@ -4,6 +4,16 @@
 > **How it grows:** when an item in `platform/TODOS.md`, `platform/CHAT_REQUESTS.md`, `platform/PRIORITIES.md`, `platform/ROADMAP.md`, `platform/DOCUMENTATION_GAPS.md` or `platform/TECHNICAL_DEBT.md` is done, the library chat moves it here under the date it was moved, newest first. Closed issues go to `ISSUES_CLOSED.md`.
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
+## Moved 2026-11-04 (owner decisions D-097 – D-102)
+- R-RACE-2 (farming recommendation) — **not needed**: the owner accepted farming for now (D-097).
+  | R-RACE-2 | A short recommendation on free-prize farming by many empty wallets (owner decides) | I-035 | recommendation sent | open |
+- From TODOS, settled by the decisions (the B1-2 fix itself stays open as I-034 / PR #85):
+- [ ] **Race prizes:** decide B1-2 (I-034, the Race chat builds the fix), B1-3 free-prize farming (I-035, after the Race chat's recommendation) and back-fill vs "no prize" for past not-final weeks (I-033) — P1
+- [ ] Give the go-ahead for the full platform audit — P1 — I-002, D-014
+- [ ] Decide `sponsor-limit 0` for the game/vault contract (stop it paying Mana for others) — P2 — I-044
+- [ ] Decide which owner checklist is the source of truth — P3 — I-032
+- The old owner checklist artifacts (Qjk951, AuEhQT, KZSbd4, TDWD6H, 3bSxzS, 5Rc9KF, MKKtXR) were read on 4 Nov; their three untracked open items moved into TODOS (the vault/Desk protections check, the repo-level `OPERATOR_WIF` check, the Desk node's low block share). Everything else in them was already tracked, done or superseded. Those artifacts are retired (D-100).
+
 ## Moved 2026-11-04 (cleanup)
 
 ### Owner steps finished 3–4 Nov (from TODOS)
@@ -23,6 +33,9 @@
 | "Tell the Vault chat: Fantasy's source (C-22), Last Node's vault file format and HOLD files, verify staked lists" — HOLD files and staked lists done in PR #74; C-22 checked in code 2 Nov; Last Node's side is R-LN-3 | 2026-11-04 | I-064 |
 | "Carry the chats' project docs into `.ai/`" (two I-009 items) — **moved** to the library's work list (R-LIB-3) | 2026-11-04 | I-009 |
 | "Waiting on someone else" table — **replaced** by the chats' rows in CHAT_REQUESTS (R-BX-5, R-BX-6, R-BX-7, R-HUB-5, R-RACE-6, R-VAULT-8, R-LN-5, R-GO-3, R-BR-6, R-FA-2, R-CO-2, R-SV-2, R-ALL-7); "Ship V4, B1-1, B1-5" was confirmed done (R-BX-4) | 2026-11-04 | — |
+
+TD-11 (moved to "Accepted on purpose", D-097), as it stood:
+| TD-11 | 📈 | **Free prizes can be farmed with many empty wallets**, and they share the sponsor's first-come free pool | Real players can find the free pool empty; prizes go to farmers | Owner decision before Race and Block X free prizes | I-035 |
 
 Ticked lines that were still in TODOS:
 - [x] ~~Send the Vault chat its two prompts~~ — sent 3 Nov; answers: PR #73 (wallets) and PR #74 (vault bot checks)

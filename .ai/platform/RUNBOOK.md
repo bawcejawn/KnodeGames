@@ -58,7 +58,7 @@ The vault bot holds a week instead of paying it whenever something is in doubt. 
 | "file changed after it was first read" (after PR #74) | a final file changed: something is wrong upstream | don't post. Tell that game's chat and the Vault chat. Post by hand (`game-post`) only after both confirm |
 | "refused: …" | the vault contract said no; the reason is in the alert | paste the alert to the Vault chat. Don't retry by hand |
 
-**Race: no changes during a paid week's close (Repo Lens #C-7 C7-9).** Between Monday 00:00 UTC and that week's final Race file, don't merge a `race-math.js` scoring change, upgrade the Race picks contract, or move `race-data/deployment.json`: the chain re-check would score the week differently and hold it.
+**Race: no changes during a paid week's close (Repo Lens #C-7 C7-9).** From **Sunday 00:00 UTC** (the review day, when the week's pending file is first checked) until that week's final Race file, don't merge a `race-math.js` scoring change, upgrade the Race picks contract, or move `race-data/deployment.json`: the chain re-check would score the week differently and hold it.
 
 **Wrong results after a seal** (you have **24 hours** after each seal to correct):
 ```powershell

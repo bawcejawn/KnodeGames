@@ -5,6 +5,10 @@
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
 ## Moved 2026-11-04 (morning)
+- Questions rounds: PRs #119, #122 (Repo Lens #E-9 ready to merge), #125, #126 (#E-10) merged; R-Q-2 done — 2026-11-04
+- PR #79 (Picks owner handover plan, docs) merged — 2026-11-04
+- Repo Lens #D-8 (#114 fix-check): announce now is fine; two measurements before the upload — 2026-11-04
+- New root README (Knode Games platform), SECURITY.md, LICENSE holder "Knode Games", `node/README.md` (D-115) — 2026-11-04
 - PR #86 (Race page prize wording) merged — 2026-11-04
 - PR #120, #121, #123 (health check, launch board, keys and roles, sponsor, recovery, alerts, D-112) merged — 2026-11-04
 - Repo Lens fix-check of PR #108 (vault-n2-n3 @ 5bb7b9b): GO; C7-1 fixed, C7-2 Info open; #108 merged — 2026-11-04

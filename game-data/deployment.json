@@ -53,7 +53,8 @@
     },
     "3": {
       "name": "Survivor",
-      "results": "games-data:survivor/vault"
+      "results": "games-data:survivor/vault",
+      "board": "none"
     },
     "4": {
       "name": "Fantasy Producers",
@@ -69,15 +70,18 @@
     },
     "8": {
       "name": "Combo Card",
-      "results": "games-data:combo/vault"
+      "results": "games-data:combo/vault",
+      "minPts": 100
     },
     "9": {
       "name": "Producer Bracket",
-      "results": "games-data:bracket/vault"
+      "results": "games-data:bracket/vault",
+      "boardCap": 1000
     },
     "13": {
       "name": "Last Node Standing",
-      "results": "games-data:lastnode/vault"
+      "results": "games-data:lastnode/vault",
+      "boardCap": 2000
     }
   },
   "safeWasmSha256": "e84fec492d47e08f583c352bb26e3d36dc0149926c0482d0820b0dbd97af9fe3"

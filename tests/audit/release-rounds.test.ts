@@ -186,3 +186,59 @@ test("D-6 Q-5: the calendar file has a reminder per round (here the 00:00 one fr
   assert.match(ics, /DTSTART:20261105T120000Z/);
   assert.equal(new Set(ics.match(/UID:[^\r]+/g)).size, 2, "each reminder has its own UID");
 });
+
+// ── Repo Lens #E-8 (PR #119): L-1, L-2 and I-3 ──
+test("E-8 L-2: only 30 or 60 are believed as the chain's cap", () => {
+  const t = at("2026-11-16T00:01:00Z");
+  for (const v of ["47", "48", "1000000000", "-60", "abc", null, 0]) {
+    const caps = capsFrom({ questions_cap: v, questions_cap_next: v }, GENESIS, 7 * DAY, t);
+    assert.equal(weekTotal(4, caps(4)), 30, `questions_cap ${v}: 2 + 3`);
+  }
+  assert.equal(weekTotal(4, capsFrom({ questions_cap: "60" }, GENESIS, 7 * DAY, t)(4)), 48);
+});
+
+test("E-8 I-3: Sunday 15 Nov 23:48 into a 60-cap week: waits, then 4 questions with --max-uses 7", async () => {
+  const { mock } = await import("node:test");
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const w = postWorld("2026-11-15T23:48:00Z", { questions_cap: "30", questions_cap_next: "60" });
+    w.ctx.releaseWaitMs = 12 * 60_000;
+    let clock = at("2026-11-15T23:48:00Z"), caps: any = { questions_cap: "30", questions_cap_next: "60" };
+    const read = w.ctx.chain.read;
+    w.ctx.chain.read = async (m: string) => (m === "get_state" ? { ...(await read(m)), time: String(clock), ...caps } : read(m));
+    const run = postPass(w.ctx, {} as any);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    clock = at("2026-11-16T00:00:05Z"); caps = { questions_cap: "60", questions_cap_next: "60" };   // the new week
+    mock.timers.tick(13 * 60_000);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    await run;
+    assert.equal(w.calls.length, 1);
+    assert.deepEqual([argOf(w.calls[0], "--label"), argOf(w.calls[0], "--count"), argOf(w.calls[0], "--max-uses")], ["W004-D1-00", "4", "7"]);
+  } finally { mock.timers.reset(); }
+});
+
+test("E-8 L-1: a stale get_state without the cap in a 48-question week doesn't skip a question for good", async () => {
+  const w = postWorld("2026-11-19T12:01:00Z", { questions_cap: "60", questions_cap_next: "60" });
+  const label = "W004-D4", file = path.join(w.ctx.P.questions, `${label}.json`);
+  const lockTime = at("2026-11-20T00:00:00Z");
+  const { paramsHashOf } = await import("../../resolver.ts");
+  const q: any = { id: `${label}-1`, week: 4, lockTime, options: ["a", "b"], windowStart: 41_020_000, windowEnd: 41_030_000, template: "M7", thresholds: [10] };
+  q.paramsHash = paramsHashOf(q);
+  fs.writeFileSync(file, JSON.stringify({ date: label, week: 4, day: 4, questions: [q] }));
+  let n = 0;
+  const read = w.ctx.chain.read;
+  w.ctx.chain.read = async (m: string, a: any) => {
+    if (m === "get_state") { n++; const s = await read(m); return n === 1 ? { ...s, questions_cap: "60", questions_cap_next: "60" } : { ...s, questions_cap: undefined }; }
+    if (m === "get_week") return { week: { questions: 30 } };
+    return read(m, a);
+  };
+  w.ctx.noSealKey = true;
+  const bot = await import("../../bot/bot.ts");
+  const logs: string[] = [], orig = console.log;
+  console.log = (...x: any[]) => { logs.push(x.join(" ")); };
+  try { await bot.postPass(w.ctx, { checkedUpTo: 100 } as any); } finally { console.log = orig; }
+  assert.ok(logs.some((l) => /planned with 60: not posting it this run/.test(l)), "the guard noticed the stale read");
+  const after = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.equal(after.questions[0].postSkipped, undefined, "left for the next run, not skipped");
+  assert.ok(!w.ctx.problems.some((p: string) => /stray or duplicate/.test(p)), "no wrong-reason email");
+});

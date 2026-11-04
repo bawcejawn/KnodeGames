@@ -92,8 +92,8 @@ export const SCHEDULE: readonly { fromWeek: number; minCap?: number; rounds: rea
   { fromWeek: 3, minCap: 48, rounds: [{ open: 0, count: 4 }, { open: 12, count: 4 }] },
 ];
 export type Round = { label: string; week: number; day: number; releaseAt: number; lockTime: number; count: number };
-/** The questions the live contract takes in a week (v5/v6). */
-export const BASE_CAP = 30;
+/** The questions the live contract takes in a week (v5/v6), and Vault v6.1's from its rule week. */
+export const BASE_CAP = 30, V61_CAP = 60;
 /** The rounds of week `w`, for a week whose on-chain cap is `cap`. */
 export function roundsOfWeek(w: number, cap = BASE_CAP) {
   let r = SCHEDULE[0].rounds;
@@ -105,7 +105,10 @@ export const weekTotal = (w: number, cap = BASE_CAP) => roundsOfWeek(w, cap).red
 /** Each week's on-chain cap, from get_state (Vault v6.1 `questions_cap` / `questions_cap_next`; older code: 30). */
 export function capsFrom(raw: any, genesis: number, weekLen: number, time: number) {
   const cw = Math.floor((time - genesis) / (weekLen || 7 * DAY_MS));
-  const now = num(raw?.questions_cap) || BASE_CAP, nxt = num(raw?.questions_cap_next) || BASE_CAP;
+  // Only the two values Vault v6.1 can report are believed; anything else (a faulty or hostile node) counts as 30
+  // (Repo Lens #E-8 L-2).
+  const ok = (x: any) => { const n = num(x); return n === BASE_CAP || n === V61_CAP ? n : BASE_CAP; };
+  const now = ok(raw?.questions_cap), nxt = ok(raw?.questions_cap_next);
   return (w: number) => (w === cw ? now : w === cw + 1 ? nxt : BASE_CAP);
 }
 /** A round's question file: the 12:00 round keeps the old name (W004-D1), others add their hour (W004-D1-00). */
@@ -1008,7 +1011,14 @@ async function postRound(ctx: Ctx, bs: BotState, st: Awaited<ReturnType<typeof s
     // can use up a slot: then the remaining questions are skipped once, with a note, instead of failing (and costing
     // Mana) every hour.
     const gs = await ctx.chain.read("get_state", {});
-    const maxQ = num(gs.questions_cap) || (num(gs.config?.reward_rule_week_plus_one) > 0 ? BASE_CAP : 64);
+    // Repo Lens #E-8 L-1/L-2: a read whose cap is missing or disagrees with the cap this round was planned with is not
+    // trusted to skip anything: the question waits for the next run. Before v6.1 (no field, planned 30) as before.
+    const readCap = num(gs.questions_cap), validCap = readCap === BASE_CAP || readCap === V61_CAP;
+    if ((validCap && readCap !== cap) || (!validCap && cap > BASE_CAP)) {
+      log(`  ${q.id}: the chain's weekly question cap read as ${gs.questions_cap ?? "missing"}, but this round was planned with ${cap}: not posting it this run (the next run tries again)`);
+      break;
+    }
+    const maxQ = validCap ? readCap : num(gs.config?.reward_rule_week_plus_one) > 0 ? BASE_CAP : 64;
     const wkQ = num(((await ctx.chain.read("get_week", { week: String(cur.week ?? q.week) })).week ?? {}).questions);
     if (wkQ >= maxQ) {
       q.postSkipped = `the week already has ${wkQ} questions on chain (the most it takes)`;

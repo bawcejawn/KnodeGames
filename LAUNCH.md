@@ -103,7 +103,7 @@ All times are UTC. Eastern time is UTC−4 in summer and UTC−5 in winter. The 
 | When | What happens |
 |---|---|
 | Monday 00:00 | The week starts |
-| Monday–Saturday 12:00 | The day's 5 questions come out: 30 a week |
+| Monday–Saturday 00:00 and 12:00 (from Mon 9 Nov; before it 12:00 only) | A round of questions comes out: 30 a week for now, 48 once the upgraded contract allows it |
 | Next day 00:00 | Answers close, 12 hours after the questions came out |
 | A few hours later | Results are posted as soon as the watched blocks are final |
 | Sunday | Results day, with no new questions |

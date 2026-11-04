@@ -4,9 +4,9 @@ name: Workflow guard
 
 on:
   push:
-    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs"]
+    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs", "tests/audit/ci-guard-*"]
   pull_request:
-    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs"]
+    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs", "tests/audit/ci-guard-*"]
   workflow_dispatch: {}
 
 permissions:
@@ -28,5 +28,7 @@ jobs:
       # The trigger, permission and secrets guard (issue triggers, write tokens, secrets), also for workflow-only changes
       # (audit PN-9).
       - run: node --test tests/audit/site.ci-deps.test.mjs
+      # Known bypass spellings must each fail a "(guard" rule, and the clean tree must pass (Repo Lens C5-18).
+      - run: node --test tests/audit/ci-guard-bypass.*.test.mjs
       # The publish job's own tests (they run its shell and merge code against a scratch repository).
       - run: node --import tsx --test --test-concurrency=1 tests/audit/*publish*.test.ts tests/audit/*publish*.test.mjs tests/audit/published-files.test.ts

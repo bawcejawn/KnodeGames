@@ -144,7 +144,8 @@ const BANNED_TRIGGERS = ["issues", "issue_comment", "discussion", "discussion_co
 const triggerNames = (on) => (typeof on === "string" ? [on] : Array.isArray(on) ? on.map(String) : on && typeof on === "object" ? Object.keys(on) : []);
 /** Every permissions block in a workflow (top level and each job), as { where, perm }. */
 const permBlocks = (doc) => [{ where: "top", perm: doc && doc.permissions }, ...Object.entries((doc && doc.jobs) || {}).map(([j, v]) => ({ where: j, perm: v && v.permissions }))].filter((x) => x.perm !== undefined);
-const strings = (v, out = []) => { if (typeof v === "string") out.push(v); else if (v && typeof v === "object") for (const x of Object.values(v)) strings(x, out); return out; };
+/** Every string in the document, keys included (GitHub evaluates ${{ }} in keys too, Repo Lens C5-12). */
+const strings = (v, out = []) => { if (typeof v === "string") out.push(v); else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) { out.push(String(k)); strings(x, out); } return out; };
 
 test("(guard, parsed YAML) no issue or privileged triggers in any spelling", () => {
   for (const { f, doc } of parsed) {
@@ -173,4 +174,104 @@ test("(guard, parsed YAML) secrets are never handed on whole, and only bot.yml u
     assert.doesNotMatch(all, /tojson\s*\(\s*secrets\s*\)|secrets\s*\[|\bsecrets\s*\}\}/i, `${f}: all secrets in an expression`);
     if (f !== "bot.yml") assert.doesNotMatch(all, /\$\{\{[^}]*\bsecrets\./i, `${f}: uses secrets`);
   }
+});
+
+// ── Repo Lens #C-5 (C5-11..C5-19): rules on GitHub's expression language, not on its spelling ──
+// GitHub's ${{ }} reader ignores case and whitespace and allows brackets: `secrets . X`, `(SECRETS).X`,
+// format('{0}', SECRETS.X) and toJSON((secrets)) all read secrets. So each expression is cut out properly (a } inside a
+// '…' string doesn't end it), its string literals are dropped, and what's left is lower-cased with no spaces. The only way
+// to reach a context is its name as an identifier, so a bare `secrets` (not after a dot) is a use of the secrets context.
+/** The ${{ … }} expressions in a string, each as its tokens: lower case, no whitespace, string literals as ''. */
+function expressions(str) {
+  const out = [];
+  for (let i = str.indexOf("${{"); i >= 0; i = str.indexOf("${{", i)) {
+    let j = i + 3, body = "", q = false;
+    for (; j < str.length; j++) {
+      const c = str[j];
+      if (q) { if (c === "'" && str[j + 1] === "'") { j++; continue; } if (c === "'") { q = false; body += "''"; } continue; }
+      if (c === "'") { q = true; continue; }
+      if (c === "}" && str[j + 1] === "}") break;
+      body += c;
+    }
+    out.push(body.toLowerCase().replace(/\s+/g, ""));
+    i = j + 2;
+  }
+  return out;
+}
+const exprsOf = (v) => strings(v).flatMap(expressions);
+/** The secrets context used at all (C5-11): `secrets` as an identifier, not a property after a dot. */
+const SECRETS_ANY = /(^|[^.\w])secrets(?![\w])/;
+/** The whole secrets object (C5-12): `secrets` not followed by `.name` (toJSON((secrets)), secrets[...], (secrets).x). */
+const SECRETS_WHOLE = /(^|[^.\w])secrets(?!\.[a-z_])/;
+/** Data a stranger writes (C5-16): event payload fields, head_ref, or github[...] (any key, any case). */
+const EVENT_DATA = /(^|[^.\w])github(\.event\.(pull_request|issue|comment|review|head_commit|commits|pages|inputs|discussion)|\.head_ref|\[)/;
+/** The only triggers allowed (C5-19): strangers can't start any of these. */
+const TRIGGERS_OK = ["push", "pull_request", "schedule", "workflow_dispatch", "workflow_call"];
+/** Where a write token is allowed (C5-14): file → job → scopes. Everything else is read or none. */
+const WRITES = {
+  "bot.yml": { publish: ["contents"] }, "games.yml": { publish: ["contents"] }, "games-testnet.yml": { publish: ["contents"] },
+  "race.yml": { publish: ["contents"] }, "race-samples.yml": { publish: ["contents"] }, "names.yml": { publish: ["contents"], reply: ["issues"] },
+};
+const onOf = (doc) => doc && (doc.on ?? doc[true] ?? doc["true"]);
+const jobsOf = (doc) => Object.entries((doc && doc.jobs) || {});
+
+test("(guard, expressions) the secrets context, in any spelling, only in bot.yml's tick job and never whole (C5-11, C5-12)", () => {
+  const bad = [];
+  for (const { f, doc } of parsed) {
+    for (const e of exprsOf(doc)) if (SECRETS_WHOLE.test(e)) bad.push(`${f}: all secrets at once: \${{ ${e} }}`);
+    const outside = { ...doc, jobs: Object.fromEntries(jobsOf(doc).filter(([j]) => !(f === "bot.yml" && j === "tick"))) };
+    for (const e of exprsOf(outside)) if (SECRETS_ANY.test(e)) bad.push(`${f}: secrets outside bot.yml's tick job: \${{ ${e} }}`);
+    for (const [j, v] of jobsOf(doc)) {
+      const env = v && v.environment, name = env && typeof env === "object" ? env.name : env;
+      if (name != null && !(f === "bot.yml" && j === "tick")) bad.push(`${f} ${j}: environment ${JSON.stringify(name)} (the bot's key lives in an environment)`);
+    }
+  }
+  assert.deepEqual(bad, []);
+});
+
+test("(guard, expressions) no event data or head_ref in any expression, in any spelling (C5-16)", () => {
+  const bad = [];
+  for (const { f, doc } of parsed) for (const e of exprsOf(doc)) if (EVENT_DATA.test(e)) bad.push(`${f}: \${{ ${e} }}`);
+  assert.deepEqual(bad, []);
+});
+
+test("(guard, parsed YAML) every workflow sets read-only top-level permissions; write only where listed (C5-14)", () => {
+  const bad = [];
+  const check = (f, where, perm) => {
+    if (typeof perm === "string") { if (!/^\s*(read-all|none)?\s*$/i.test(perm) || perm.trim() === "") bad.push(`${f} ${where}: permissions ${JSON.stringify(perm)}`); return; }
+    if (!perm || typeof perm !== "object") { bad.push(`${f} ${where}: permissions ${JSON.stringify(perm)}`); return; }
+    for (const [k, v] of Object.entries(perm)) {
+      const scope = String(k).trim(), val = String(v).trim();
+      if (val !== "write") continue;
+      if (!(where !== "top" && ((WRITES[f] || {})[where] || []).includes(scope))) bad.push(`${f} ${where}: ${scope}: write`);
+    }
+  };
+  for (const { f, doc } of parsed) {
+    if (!doc || doc.permissions === undefined || doc.permissions === null) bad.push(`${f}: no top-level permissions`);
+    else check(f, "top", doc.permissions);
+    for (const [j, v] of jobsOf(doc)) if (v && v.permissions !== undefined) check(f, j, v.permissions);
+  }
+  assert.deepEqual(bad, []);
+});
+
+test("(guard, parsed YAML) every uses (steps and reusable jobs) is local, a full commit SHA, or a docker digest (C5-15)", () => {
+  const bad = [];
+  const ok = (u) => /^\.\//.test(u) || /^[^@\s]+@[0-9a-f]{40}$/.test(u) || /^docker:\/\/[^@\s]+@sha256:[0-9a-f]{64}$/.test(u);
+  for (const { f, doc } of parsed) for (const [j, v] of jobsOf(doc)) {
+    const usesOf = (o) => Object.entries(o || {}).filter(([k]) => String(k).trim() === "uses").map(([, u]) => String(u).trim());
+    for (const u of usesOf(v)) if (!ok(u)) bad.push(`${f} ${j}: ${u}`);
+    for (const st of (v && Array.isArray(v.steps) ? v.steps : [])) for (const u of usesOf(st)) if (!ok(u)) bad.push(`${f} ${j}: ${u}`);
+  }
+  assert.deepEqual(bad, []);
+});
+
+test("(guard, parsed YAML) triggers come from an allowlist; bot.yml runs only on schedule and workflow_dispatch (C5-17, C5-19)", () => {
+  const bad = [];
+  for (const { f, doc } of parsed) {
+    const names = triggerNames(onOf(doc)).map((t) => String(t).trim());
+    if (!names.length) bad.push(`${f}: no triggers found`);
+    for (const t of names) if (!TRIGGERS_OK.includes(t)) bad.push(`${f}: trigger ${t}`);
+    if (f === "bot.yml") assert.deepEqual([...names].sort(), ["schedule", "workflow_dispatch"], "bot.yml triggers");
+  }
+  assert.deepEqual(bad, []);
 });

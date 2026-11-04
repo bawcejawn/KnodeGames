@@ -1,175 +1,210 @@
 # Knode Games — The Shared VHP Ruler (design)
 
-> **Status:** design, v1 (4 Nov 2026), written by the library chat (R-LIB-5). **Owner to approve** (§12), then Repo Lens reviews the design and a new, dedicated VHP Ruler chat builds it (R-RULER-1, D-110) and each game moves onto it (Race first, R-RACE-5).
-> **Decided by the owner (the inputs to this design):** D-058 (exact VHP from the chain's events), **D-090** (one ruler for every game; each game keeps its own formula; checks at random moments within a window), D-091 (lower Last Node's bar), **D-093** (a look-back of about 2 weeks; fair to every producer, small and large), D-094 (the Race pays meanwhile with its two gaps open), D-095 (Survivor S1 stays on blocks), **D-101** (fair, with a bit of luck: a luck trim or a cap in every game), **D-108** (build it).
-> **Built from:** `../platform/HANDICAP_REVIEW.md` (how every game measures VHP today, the gaps, §5 recommendations), `docs/VHP-STANDARD.md` and `vhp-standard.js` on `kg-09-bracket` (the Bracket's exact rebuild), `bot/race.ts` (the Race card and sampler), the Repo Lens findings named below.
-> **What it isn't:** a scoring formula. Each game keeps its own (a race, a multiplier, a knockout, a price). The ruler only says **how big each producer is, when, and what a VHP move is worth**, the same way everywhere.
+> **Status:** design **v2** (4 Nov 2026), library chat (R-LIB-5). v1 was reviewed by **Repo Lens #E-7** ("approve with changes", on 8 days of real mainnet data); v2 makes every change it asked for (the list is in §14). **Owner to approve §12**; then a dedicated VHP Ruler chat builds it (R-RULER-1, D-110) and each game moves onto it, Race first (R-RACE-5).
+> **Owner's decisions behind it:** D-058 (exact VHP from the chain's events), **D-090** (one ruler; each game keeps its own formula; checks at random moments within a window), D-091 (lower Last Node's bar), **D-093** (a look-back of about 2 weeks; fair to every producer, small and large; see §12 point 1: the review shows the 2-week average itself is unfair, so v2 asks to replace it), D-094, D-095, **D-101** (fair, with a bit of luck), **D-108**, **D-110**.
+> **Built from:** `../platform/HANDICAP_REVIEW.md`; `docs/VHP-STANDARD.md`, `vhp-standard.js`, `bot/vhp-chain.ts` on `kg-09-bracket`; `bot/race.ts`, `bot/games/blockx.ts`; Repo Lens #E-7 (private, artifact `63JUu9JWEt3hddhtzWzNVe`; its simulations: `claude/ruler/repolens-e7-sims/`).
+> **What it isn't:** a scoring formula. Each game keeps its own. The ruler only says **how big each producer is, when, and how much each signed block counts**, the same way everywhere.
 
 ## 0. In plain words
-Every game compares what a producer *actually* signs with what its size says it *should* sign. Today each game measures "size" its own way, and a trick blocked in one game works in another. The ruler is one shared measuring tape:
+Every game compares what a producer *actually* signs with what its size says it *should* sign. The ruler is one shared measuring tape:
 
-- **It counts every block, not samples.** It rebuilds each producer's real VHP from the chain's own records, block by block, on two nodes that must agree.
-- **Your size is hard to fake.** A producer's own size is the higher of its **2-week average** and its **highest VHP in the last 24 hours**. Hiding VHP to look small costs about two weeks of real block rewards, and "look small right now" doesn't work.
-- **Adding VHP after the measure gains nothing.** A block signed with more VHP than you were measured with counts only in proportion (card credit).
+- **It counts every block, not samples.** Each producer's real VHP is rebuilt from the chain's own records, block by block, on two nodes that must agree, with checkpoints that make a wrong data file detectable.
+- **A producer is measured as it is at the measuring moment**, not by an old average. The review found that a 2-week average makes honest producers look too big, because every block burns about 4 VHP from its signer, so a producer that doesn't re-burn its rewards shrinks about 1% a day.
+- **Card credit is what stops cheating.** A block signed with more VHP than the producer was measured with counts only in proportion. So hiding VHP to look small and then bringing it back gains nothing. In the review's simulations every hide and every top-up *lost* the cheater a little, for small, medium and large producers.
+- **The measuring moment is random,** drawn from a block that comes after picks lock. Nobody knows it in advance; anyone can check it afterwards.
 - **Everyone else is measured by averages,** so nobody can time a single moment.
-- **The moment of measurement is random,** picked from a block hash that nobody knows in advance and anyone can check afterwards.
-- **Luck is limited, not removed.** Small producers can win, but one lucky hour can't decide a week.
+- **"Form" (blocks signed vs expected) is only a warning light, never a bonus.** If it changed a producer's odds, skipping blocks on purpose would pay.
+- **Luck is limited, not removed:** one entry bar and a luck trim in every game.
 
 ## 1. Goals and non-goals
 **Goals**
-1. One way to measure producer size, used by every game that handicaps by size (Race, Block X, Last Node, Fantasy, Combo, Bracket, Survivor from Season 2).
-2. Hard to game: every known trick in `HANDICAP_REVIEW.md` §3 either fails or costs more in lost block rewards than it can win.
-3. Fair to small and large producers alike (D-093): the same entry bar everywhere, a luck trim or cap, and no penalty for honestly losing stakers.
-4. Checkable by anyone: every number can be recomputed from the chain and the published files; the publish job recomputes it before anything pays (RECORDER_STANDARD §4).
-5. Replaces the GitHub-timed sampler (I-059), which depends on how often GitHub runs a schedule.
+1. One way to measure producer size for every game that handicaps by size (Race, Block X, Last Node, Fantasy, Combo, Bracket, Survivor from Season 2).
+2. Hard to game: no strategy has a positive expected gain, **even assuming the hidden VHP costs nothing** (parked on a second producer). We don't rely on "it costs rewards" (§4).
+3. Fair: every honest producer scores an expected index of 1.00 ± 0.01, including one that shrinks ~1% a day and never re-burns (§8).
+4. Checkable by anyone; the publish job recomputes every number and can detect a wrong data file (§7).
+5. Replaces the GitHub-timed sampler (I-059).
 
-**Non-goals**
-- Changing any game's scoring formula, prize split or rules beyond the inputs listed in §6.
-- Any contract change. The ruler runs off chain, in the recorders and publish jobs, reading the chain; it costs no Mana.
-- Questions (game 1) and Block Golf (6) don't handicap by size and don't use it.
+**Non-goals:** changing any game's formula, prizes or rules beyond the inputs in §6; any contract change (it runs off chain and costs no Mana); Questions (1) and Block Golf (6), which don't handicap by size.
 
 ## 2. Building blocks
-### 2.1 Exact effective VHP (from D-058, unchanged)
-- **Source:** the VHP contract's events (transfers, mints, and the ~4 VHP each block burns from its signer; reverted transactions excluded), anchored by balance reads pinned to one block, on **two nodes that must agree** (`bot/vhp-chain.ts`, `vhpBook`).
-- **Effective VHP** is what block production uses: received VHP counts after 20 blocks; removed VHP stops at once:
-  `eff(a, H) = max(0, balance(a, before H) − VHP received by a in blocks H−19 … H−1)`.
-- **Cross-check:** the contract's `effective_balance_of` at a pinned block must match the rebuild; a mismatch flags the producer (S-3).
-- **Only irreversible blocks** are used (`last_irreversible_block`), so a reorg can't change a number after it's published.
-- **The network total** `N(H)` = Σ eff over all producers that signed in the last 7,200 blocks (`activeAt`).
+### 2.1 Exact effective VHP (D-058, unchanged; confirmed sound by #E-7)
+- **Source:** the VHP contract's events (transfers, mints, and the ~4.08 VHP each block burns from its signer, which comes back as KOIN; reverted transactions excluded), on **two nodes that must agree**.
+- **Effective VHP:** `eff(a, H) = max(0, balance(a, before H) − VHP received by a in blocks H−19 … H−1)` (matches `vhp-standard.js` line 82).
+- **Cross-check:** the contract's `effective_balance_of` at the hourly anchor block must match the rebuild (§7); a mismatch flags the producer.
+- **Irreversible blocks only** (Koinos makes a block irreversible ~60 blocks later).
+- **Network total** `N(H)` = Σ eff over producers that signed in the last 7,200 blocks. (L-7: a producer below ~0.014% drops in and out of this set; the effect is tiny. If a node can list every address with VHP and a registered key, use that instead.)
 
 ### 2.2 Time and windows
-All windows are counted in **blocks** (one Koinos block ≈ 3 s; 1 h ≈ 1,200 blocks, 24 h ≈ 28,800, 14 days ≈ 403,200). Wall-clock times are only for display. Each game names its windows by height: its **card time** `T` (when sizes are fixed), its **scoring window** `[S0, S1]` (the blocks that score) and its **lock** `L` (when picks close).
+Windows are in **blocks** (≈ 3 s each; 1 h ≈ 1,200; 24 h ≈ 28,800). Each game names its **card window** `[W0, W1]` (where the measuring moment may fall), its **scoring window** `[S0, S1]` and its **lock** `L`.
 
-### 2.3 The random measurement point (D-090)
-A game's card time is not a fixed, guessable moment. It is drawn inside a **card window** the game defines (for example, the last 6 hours before the lock):
+### 2.3 The random measuring moment (D-090)
+- **Seed:** the block ID of the first irreversible block at or after **`L + 20`**. It doesn't exist when picks close.
+- **Moment:** `T = W0 + (uint64(sha256(seedBlockId ‖ gameId ‖ roundId)) mod (W1 − W0 + 1))`.
+- Sizes are computed **after** the lock from recorded history.
+- **Grinding (L-1):** the seed block's producer chooses which transactions to include and in what order, so it can try **many** block IDs, not one. Several seed blocks don't fix that (the last producer still sees the rest). On real data the effect is small: the best card time against the worst moved a producer's expected index by 0.14% at the median and 1.35% at most. The ruler logs the seed producer. If Koinos blocks carry a VRF output (to confirm with the Koinos developers), use it as an ungrindable seed.
+- **Before the lock (L-4),** every game page shows an **estimated card** computed at the current block, labelled "estimate; the final card is taken at a random moment in the last N hours" (within ~1.4% of the final on real data).
 
-- **Seed:** the block ID of the first irreversible block at least **20 blocks after the lock** `L` (`seedBlock = L + 20`). Nobody knows it when picks are made; anyone can read it afterwards.
-- **Point:** `T = W0 + (uint64(sha256(seedBlockId ‖ gameId ‖ roundId)) mod (W1 − W0 + 1))`, where `[W0, W1]` is the card window in heights.
-- **Why it works:** sizes are computed **after** the lock from recorded history, so there is no need to know `T` beforehand. A producer can't know which block will count, so it would have to look small for the whole window, which the 2-week average (§3.1) already punishes.
-- **Grinding:** the only party with any say over a block ID is the producer that signs `seedBlock`, and its only choice is to not sign it (the next producer signs instead), worth one re-roll at the cost of a block reward. The ruler logs the seed producer; a game whose prize could be swayed by one re-roll may use several seeds (`L+20 … L+24`, hashed together).
-- **Games without a lock** (rolling scoring, e.g. Last Node hourly rounds) draw one point per round the same way, seeded 20 blocks after the round closes.
+## 3. What the ruler gives each game (outputs)
+For producer `p`, a round with card window `[W0, W1]`, moment `T` and scoring window `[S0, S1]`:
 
-## 3. What the ruler gives each game (the outputs)
-For producer `p`, a game round with card window `[W0, W1]`, card time `T` (§2.3) and scoring window `[S0, S1]`:
-
-| Output | Definition (defaults; §9 sets the final values) | Used for |
+| Output | Definition (v2) | Used for |
 |---|---|---|
-| **`own(p, T)`** own size | `max(TWA₁₄(p, T), HIGH₂₄(p, T))`: the time-weighted average of `eff(p)` over the 403,200 blocks before `T`, or the highest `eff(p)` in the 28,800 blocks before `T`, whichever is higher (D-093) | a producer's **own** handicap or multiplier, fixed before scoring |
-| **`avg(p, T)`** average size | the time-weighted average of `eff(p)` over the 28,800 blocks before `T` | **other** producers in anyone's formula: the top producer, totals, fields, seeding (S-2, F-3) |
+| **`own(p, T)`** own size | **the producer's effective VHP at `T`**, or a **short high just before `T`** (default: the highest `eff(p)` in the 1,200 blocks before `T`). Simulation 4 picks between spot, the 1-h high and the 24-h average (v1's 2-week average is removed, H-1) | a producer's **own** handicap, fixed by the moment `T` |
+| **`avg(p, T)`** | time-weighted average of `eff(p)` over the 28,800 blocks before `T`, as `floor(Σ ÷ blocks)` in satoshi | **other** producers in anyone's formula: the top producer, totals, fields, seeding (S-2, F-3) |
 | **`total(T)`** | Σ `avg(q, T)` over active producers | shares and expected blocks |
-| **`k(p)`** expected blocks | `(S1 − S0 + 1) × own(p, T) ÷ total(T)` | the entry bar, the luck trim, "should have signed" |
-| **`credit(p, b)`** card credit | for a block `b` signed by `p` in `[S0, S1]`: `min(1, own(p, T) ÷ eff(p, b))` | each scored block counts this much; VHP added after the measure gains nothing (S-1) |
-| **`form(p)`** production check | `clamp(signed ÷ expected, 0.8, 1.2)` over the 403,200 blocks before `T`, with expected from `eff(p, H) ÷ N(H)` block by block | a producer whose blocks and VHP disagree (offline, or signing more than its VHP allows) is pulled back toward its real production |
-| **`trim(k)`** luck trim | `c ÷ √k`, with `c` fixed per game by simulation (Race and Last Node already use this shape) | keeps "a bit of luck" (D-101) |
-| **`entry(p)`** | `k(p) ≥ k_min`, default **k_min = 10** expected blocks in the game's scoring window (`HANDICAP_REVIEW.md` §5.2) | who plays; below it, the producer is shown in a **paddock** with how far it is from qualifying |
-| **`quality(p)`** | `ok` only if both nodes agree on `eff(p)` at every block used and `effective_balance_of` matches at the pinned block; else `flagged` | a flagged producer's round is voided or held, never scored on a guess |
+| **`k(p)`** expected blocks | `(S1 − S0 + 1) × own(p, T) ÷ total(T)`, in millionths, rounded down. Σk can exceed the window's blocks by a little (L-3); ranking games are unaffected; a game with a **fixed bar** (Fantasy's cap of 130) normalises: `k(p) × blocks ÷ Σk` | entry bar, luck trim, "should have signed" |
+| **`credit(p, b)`** card credit | for each block `b` signed by `p` in `[S0, S1]`: `min(1, own(p, T) ÷ eff(p, b))`, in millionths, rounded down; a producer's credited blocks are the integer sum of these | **every size-handicapped score uses credited blocks, never raw blocks** (hard rule, §3.1) |
+| **`form(p)`** production check | `signed ÷ expected` over the 403,200 blocks before `T`, expected from `eff(p, H) ÷ N(H)` block by block, in millionths | **a gate only:** below 0.80 the producer goes to the paddock or is flagged. **It never lowers a producer's expected blocks** (H-2) |
+| **`trim(k)`** luck trim | `c ÷ √k`; each game states whether `c` is fixed or recalibrated per card (today `race-math.js` recalibrates per card) | "a bit of luck" (D-101); it also punishes looking small (smaller k, bigger trim) |
+| **`entry(p)`** | `k(p) ≥ 10` expected blocks in the scoring window, and `form(p) ≥ 0.80`, and at least 24 h of history | who plays; others are shown in a **paddock** with how far they are from qualifying |
+| **`pooled(p)`** | true for producers whose VHP others can move in and out at will: today the **Knode Games Vault** `1Mpmf2ER…` | the pool rule, §3.2 |
+| **`quality(p)`** | `ok` only if both nodes agree on every number used and the anchors check out (§7); else `flagged` | a flagged producer's round is voided or held, never scored on a guess |
 
-**Rules that come with the outputs** (from the audits; a game takes them together, never one alone):
-1. A producer's **own** number is `own(p)`; anything about **other** producers uses `avg(q)` (F-3). A multiplier built from an average reopens the long hide.
-2. Card credit is always on (S-1).
+### 3.1 Hard rules (every game, with a test in each)
+1. **Card credit in every size-handicapped score.** A score that counts raw blocks against `own` is not allowed. Every use of `own` **without** credit must be listed in the game's file and shown harmless. Today's list: the entry bar (`k`), the luck trim, Fantasy prices, Block X's multiplier (its payout is then credited at the target block).
+2. A producer's **own** number is `own(p)`; anything about **other** producers uses `avg(q)` (F-3).
 3. Totals use averages, so VHP shuffled between one owner's addresses isn't counted twice (S-2).
-4. A game may not use a single block's reading as a size (Bracket H-5). Forfeits, seeding and pool rules use day averages or minimums (D-086).
+4. No single block's reading as a size for forfeits, seeding or pools (Bracket H-5, D-086).
+5. **Form never lowers expected blocks.** A game that keeps a form multiplier may use it only to **raise** expected blocks (form above 1), and must run a weekly watch like Last Node's (`watchWeek`, z ≥ 3.4) that flags a producer whose results are out of line.
 
-## 4. How every known trick fares
-| Trick (`HANDICAP_REVIEW.md` §3) | Today | With the ruler |
-|---|---|---|
-| Move VHP away just before the measure | caught by the 6-h high in most games | caught: `HIGH₂₄` |
-| Hide VHP for more than 6 h, bring it back for the game | **pays** in the Race (proved 60 of 60), Fantasy, Combo Race legs, Survivor | costs about two weeks: `TWA₁₄` falls only in proportion to how long the VHP was away, and while it's away the producer signs fewer blocks. A 1-day hide lowers `own` by about 1/14 of the hidden share and costs a full day's rewards on it |
-| Add VHP after the measure, during the scoring window | **pays** in the Race (~1–1.5 h), Fantasy | gains nothing: `credit(p, b)` caps each block at the measured size |
-| Learn the measure time and time a move | the Race card is at :37 every hour | the time is drawn from a future block hash (§2.3) |
-| Suppress blocks for a week (Survivor's blocks handicap) | pays | Survivor moves onto `own` + `form` from Season 2 (D-095); `form` is clamped, so a week of suppression shifts it at most to 0.8 |
-| Swing the Knode Games Pool by deposits around the start (Bracket H-4) | could force a loss | pooled producers are judged on day averages or minimums (D-086, rule 4) |
-| A lagging or lying node | handled per game | both nodes must agree on every number used, or the producer is flagged (§3 `quality`) |
+### 3.2 Pooled producers (M-2)
+Card credit only caps VHP *above* the measured size. If a pooled producer's VHP *falls* after `T`, because depositors withdraw, it is still expected to sign at `own`: anyone with a meaningful deposit could withdraw from the Knode Games Vault right after the card and re-deposit after the race, so the Vault almost never wins that race. Rule:
+- **Expected blocks for a pooled producer use `min(own, eff at each block)`** over the scoring window. A minimum over `T` to the end of scoring neutralises the withdrawal. Simulate it first (§8 sim 7), because applied to everyone it would let a producer raise its own luck by shrinking during a race. So it applies **only** to `pooled` producers.
+- **If simulation 7 fails,** the Vault is left out of size-handicapped fields, except the Bracket, where the owner chose to keep it and protect it with day averages or minimums (D-086).
 
-**Cost to a cheater:** every hide still costs real block rewards for as long as it lasts, now for up to two weeks of weight. The simulations in §8 must show the expected gain from any strategy is below its cost in rewards, for producers of every size.
+## 4. How every known trick fares (from #E-7's simulations)
+**What stops cheating is card credit, not cost.** A missed block costs only its **net** reward, about **0.16 KOIN**, because the ~4.08 VHP it would have burned stays with the producer and the rest comes back as KOIN. VHP parked on a second producer costs about nothing. So v1's "hiding costs two weeks of rewards" was wrong (M-1). The design must hold even if every trick is free.
 
-## 5. Fairness to small producers (D-093, D-101)
-- **One entry bar:** k ≥ 10 expected blocks in the game's own scoring window. Below ~10 blocks a result is mostly luck. Last Node's bar comes down to this (D-091, R-LN-4).
-- **A luck trim in every game** (`c ÷ √k`, sized by simulation), or at least a cap. Survivor and the Bracket add one (R-SV-5, R-BR-7).
-- **Honest shrinking is fair:** a producer that genuinely loses stakers sees `own` follow its `TWA₁₄` down day by day. That's why the rule isn't a pure 14-day **maximum**, which would keep it looking big for two weeks.
-- **New producers** (less than 14 days of history): `TWA` over the history they have, with missing days counted at their **first** observed VHP (so arriving big and hiding later can't help), and a "new" label on the page. At least 24 h of history is required to enter a round.
-- **A visible paddock:** every game shows producers below the bar and how far they are from qualifying.
+| Trick | With the ruler (credit on) |
+|---|---|
+| Hide VHP for 25 h, 7 days, or lower it slowly over 2 weeks, then bring it back | **loses a little** at 0.2%, 2% and 20% (e.g. 2%: win chance 0.055 → 0.053 for a full 25-h hide; 0.045 for a 7-day half hide). Without credit the same tricks would pay hugely (0.24, 0.80) |
+| Add VHP during the scoring window | **loses** (2%: 0.055 → 0.033): more blocks at partial credit, less luck |
+| Time the card | gains nothing: random moment, and with credit a small card gains nothing anyway |
+| Split VHP across addresses / collude with another producer | gains nothing: credit makes the hide useless; moving VHP between producers moves every handicap together |
+| Flash moves around the 20-block delay | handled: effective VHP follows the contract's rule |
+| Grind the seed block | ≤ 1.35% on an expected index; logged (§2.3) |
+| Skip blocks to lower form | **closed in v2**: form is a gate, never a lower expectation (H-2: in v1, a 2% producer skipping 20% of its blocks for 2 weeks won a race ~12× as often, for ~258 KOIN) |
+| Withdraw from the Vault right after the card | closed by the pool rule (§3.2) |
+| A lagging or lying node | flagged, never scored (§3 quality, §7 anchors) |
 
-## 6. How each game plugs in (each keeps its own formula)
-| Game | Today | On the ruler | When |
+## 5. Fairness
+- **Honest shrinking is fair in v2.** Measured at `T`, a producer that shrinks ~1% a day (block burns, never re-burns) scores 1.00. On real data the v2 rule ("VHP at the card time") gave an honest mean index of 1.000 (lowest 0.972) and Race win chances of 0.79–1.10 of fair, against 0.955 (lowest 0.379) and 0.00–1.77 for v1's 2-week average.
+- **A sudden honest loss** (half the stake leaves at once) is measured at its new size from the next card; simulation 4 must show the expected index back within 0.02 of 1.00 within 24 h.
+- **Honest growth** is capped by credit and gives no gain (expected index stays ~1.00).
+- **New producers:** at least 24 h of history to enter; labelled "new". "First observed VHP" (L-5) = the producer's VHP at its **first signed block**.
+- **Small producers:** one bar, k ≥ 10 (Last Node's comes down to it, D-091, R-LN-4: in an hourly round that admits producers from ~0.83%, against 1.7% today), a luck trim in every game, and a visible paddock. The per-game simulations must show a producer with k near 10, which gets the largest trim, stays within the luck band.
+- **A pick on a producer that falls below the bar at `T` (L-4):** each game states its rule in its file. Default: **the pick is void and its slot can be re-picked if the game allows changes; otherwise it scores 0 points and the game's page says so before picking.** Combo prices are set before sending, and the ruler's card comes after the lock: Combo shows the estimated factor and voids a leg whose producer falls out.
+
+## 6. How each game plugs in (each keeps its own formula; credit in every row)
+| Game | On the ruler | Honest players should know | When |
 |---|---|---|---|
-| **Producer Race (7)** | sampled 6-h high; h = kTop ÷ k with trim c ÷ √k; k ≥ 10 | `k` from `own` and `total`; kTop from **`avg`** of the top producer; card time random in the 6 h before each race's lock; card credit on every scored block; `form` replaces today's "3 standard deviations" production floor | **first** (R-RACE-5), as soon as the library passes Repo Lens |
-| **Who Signs Block X (2)** | the Race card ≤ 3 h before the lock and the first card after the block; min(3, top ÷ yours) | multiplier `min(3, avg(top) ÷ own(p))` at a random point in the 3 h before the lock; the "card after" check is replaced by `credit(p, b)` at the target block | with or right after the Race |
-| **Last Node Standing (13)** | the Race card × form (0.8–1.2); ≥ 20 expected blocks an hour | `own`, `form` (same clamp), `trim`; entry `k ≥ 10` in its scoring window (D-091); one random point per round | before its launch if possible (R-LN-4) |
-| **Fantasy (4) + Rival (5)** | Race card shares; index cap 130; no card-quality gate | `own` shares; `quality` gate (R-FA-3); keep the cap or swap it for a trim by simulation | before its launch |
-| **Combo Card (8)** | Race card per leg; factor clamp(0.5 ÷ chance, 0.25, 3) | each leg reads the ruler as its game does; Race legs get card credit | with the Picks v2 upgrade |
-| **Producer Bracket (9)** | exact rebuild (its home); 1-day average seeding; credit vs baseline | already closest: switch its baseline to `own`, keep day averages for seeding and forfeits (D-086, D-087); add a trim (R-BR-7) | after R-RULER-1, with its #E-3 fixes |
-| **Survivor (3)** | blocks signed over days d−8 … d−2 | Season 2: `own` + `form` + `trim` (D-095) | Season 2 |
-| Questions (1), Block Golf (6) | no size handicap | not used | — |
+| **Race (7)** | `k` from `own` (at a random moment in the 6 h before each race's lock) and `total`; kTop from `avg` of the top producer; **credited blocks**; `form` as an entry check (replaces today's "3 standard deviations" floor) | shrinking producers no longer lose more often; the field is decided at the random moment | **first** (R-RACE-5) |
+| **Block X (2)** | multiplier `min(3, avg(top) ÷ own(p))` at a random moment in the 3 h before the lock; **credit at the target block** replaces the "card after" check | a pick's expected payout is top ÷ network total whatever the producer does with its VHP | with or right after the Race |
+| **Last Node (13)** | `own`, **credited blocks**, `trim`; entry k ≥ 10 in its round; **form as a gate only** (today's `r.kh × r.r` multiplier is replaced); keep its weekly watch | the steering trick closes; smaller nodes can enter | before its launch if possible |
+| **Fantasy (4) + Rival (5)** | `own` shares, **credited blocks**, `quality` gate (R-FA-3); normalise `k` (fixed cap of 130) | indexes sit a little lower; flagged cards no longer count | before its launch |
+| **Combo (8)** | each leg reads the ruler as its game does, **credited blocks** on every leg | the price shown is an estimate; a leg whose producer falls out is void (§5) | with Picks v2 |
+| **Bracket (9)** | baseline → `own`, **credited blocks**; seeding and forfeits stay on day averages / minimums (D-086, D-087; seeding needs to be known before picks); add a trim (R-BR-7) | — | after R-RULER-1, with its #E-3 fixes |
+| **Survivor (3)** | Season 2: `own`, **credited blocks**, `trim`, **form as a gate** (D-095) | moves from blocks signed to VHP: different survivors | Season 2 |
+| Questions (1), Block Golf (6) | not used | — | — |
 
-A game's own file (`games/<Game>.md`, Scoring) states exactly which outputs it uses and its parameters (`c`, the card window, any cap).
+## 7. Data: where it runs, and how a wrong file is caught (M-3)
+- **One library**, `vhp-ruler.js` (pure functions shared by recorders, publish jobs and the site), grown from `vhp-standard.js`; one data step, `bot/vhp-ruler.ts`.
+- **Branch `vhp-data`, one file per hour, written once, never rewritten, hash-chained** (each file carries the previous file's sha256). Each hour stores, compactly, **every block's signer and its burn** (every block changes its signer's VHP, so change points aren't sparse, L-2), the hour's other VHP events, and **an anchor: both nodes' `effective_balance_of` for every active producer at the hour's last block**. About 0.30 MB gzipped for 15 days (measured).
+- **The publish job checks each hour:** the hash chain; exactly one signer and one burn per block; the previous anchor plus the hour's events gives the next anchor; both nodes' anchors agree. A file with one burn removed must be refused (a test).
+- **It recomputes every card from `vhp-data` and refuses any difference**, reading older day files when a card's history reaches back that far.
+- **Retention:** the look-back (with v2's own size, at most 24 h for `avg`, 14 days for `form`) plus the longest re-check (a week frozen up to ~a week later): **about 22 days**, kept as hourly files then day files.
+- **First fill (L-6):** a **separate, resumable job** that saves progress, reads the history once in batches on two nodes outside busy hours; normal runs then read one hour at a time (blocks the recorders already read). No polling, no Mana.
+- **The sampler** keeps running as a cross-check during the move, then retires.
 
-## 7. Where it runs and what it publishes
-- **One library**, `vhp-ruler.js` (pure functions, shared by the recorders, the publish jobs and the site), grown from `vhp-standard.js`; and one data step, `bot/vhp-ruler.ts`, that reads the chain.
-- **Data branch `vhp-data`:** every hour a recorder run appends that hour's VHP **change points** (only the blocks where some producer's effective VHP changed, plus each block's signer), read on two nodes and written once. A rolling **15-day** window is kept (14 days + a margin); older hours are dropped from the working file and kept as compressed day files. Expected size: change points are sparse (a few hundred a day), so a few MB at most.
-- **The first fill** reads the last 15 days once (~430,000 blocks, in batches) on two nodes; after that each run only reads the last hour's blocks, which the recorders already read. No polling, no Mana.
-- **Every game's card** records, per producer: `own`, `avg`, `k`, the card time `T`, the seed block and its producer, and `quality`; the publish job **recomputes each card from `vhp-data`** and refuses any difference (RECORDER_STANDARD §4).
-- **The sampler** (`race-samples.yml`) keeps running during the move as a cross-check (a sample above the ruler's own size at the same height is a bug alarm), and is retired once every game is on the ruler.
+## 8. Proving it's fair (before anything pays)
+**Data:** at least **29 days** of real history (14 days of form look-back plus two weeks of cards), plus synthetic fields. **Pass marks** (from #E-7):
 
-## 8. Proving it's fair (simulations, before anything pays)
-The VHP Ruler chat runs these with the real last-15-days data plus synthetic fields; results go to the owner with the parameters:
-1. **Honest field:** each producer's long-run win share in each game tracks its VHP share within the luck band the game wants (D-101).
-2. **Many small producers:** a field of 100+ producers under 1% each: small producers qualify, win sometimes, and no tiny lucky node tops a week more than the trim allows.
-3. **Every trick in §4:** short hide, long hide (1 h … 14 days), in-window add, timed moves, pool swings. Pass = the expected gain is below the block rewards the trick costs, for producers of 0.2%, 2% and 20% share.
-4. **Honest shrink and growth:** a producer losing half its stake isn't over-handicapped for more than a few days; one gaining doesn't get a bonus.
-5. **Node faults:** one node lagging or wrong flags, never mis-scores.
-6. **Seed grinding:** one re-roll per round changes no week's winner in more than a negligible share of cases (else use several seeds, §2.3).
+| # | Simulation | Pass mark |
+|---|---|---|
+| 1 | Honest field, including a producer that never re-burns (shrinks ~1%/day) and one that re-burns hourly | every honest producer's expected index within **1.00 ± 0.01**; Race win chances within **0.85–1.15 of fair** over ≥ 10,000 races |
+| 2 | 100+ producers under 1% | the same marks; no producer under 1% tops more than its fair share plus D-101's luck band |
+| 3 | Every trick in §4, **assuming the hidden VHP is parked for free** | expected gain **≤ 0** (within simulation error) at 0.2%, 2%, 20% |
+| 4 | Honest shrink and growth; choose own's window (spot, 1-h high, 24-h average) | after losing half its stake, expected index back within **0.02** of 1.00 within 24 h; growth gives ≤ +0.01 |
+| 5 | Node faults (lag, wrong answer, outage at the card moment) | **100% flagged, 0 scored** |
+| 6 | Seed grinding with **free choice** of card time | expected index moves ≤ **0.5% at the 90th percentile** |
+| 7 | Vault deposit swings (the pool rule, §3.2), with its real history | no withdrawal pattern changes the Vault's win chance beyond the luck band |
+| 8 | Form steering and outage recovery | skipping blocks never raises a win chance; an honest 3-day outage gives no boost afterwards |
+| 9 | A producer joining or leaving mid-week; the network total jumping (a large mint, a big producer leaving) | honest indexes stay within ±0.01 |
+| 10 | A pick on a producer that falls below the bar at `T` | handled by each game's stated rule (§5) |
+| 11 | JavaScript vs Python on real data | **byte-identical cards** |
 
 ## 9. Parameters (defaults; simulation sets the final values)
-| Parameter | Default | Set by |
+| Parameter | v2 default | Set by |
 |---|---|---|
-| Own-size look-back | 14 days (TWA) and 24 h (high) | D-093; simulation 3, 4 |
-| Average look-back for others | 24 h (28,800 blocks) | simulation 1 |
-| Form window and clamp | 14 days; 0.8 – 1.2 | Last Node's existing clamp; simulation 1 |
-| Entry bar | k ≥ 10 in the scoring window | `HANDICAP_REVIEW.md` §5.2 |
-| Luck trim `c` | per game | each game's simulation (Race and Last Node have simulators) |
+| Own size | eff at `T`, or the highest eff in the 1,200 blocks before `T` | simulation 4 |
+| Average for others | 24 h (28,800 blocks) | simulation 1 |
+| Form | 14 days; **gate at 0.80**, no multiplier | simulation 8 |
+| Entry bar | k ≥ 10 in the scoring window; 24 h of history | `HANDICAP_REVIEW.md` §5.2; simulation 4 |
+| Luck trim `c` | per game, fixed or per card (each game states which) | each game's simulation |
 | Card window | per game (Race 6 h before lock; Block X 3 h) | each game |
-| Seed delay | 20 blocks after the lock | §2.3 |
-| Minimum history to enter | 24 h | simulation 4 |
+| Seed | the first irreversible block at or after `L + 20` (a VRF output if available) | §2.3 |
+| Pooled producers | the Vault; `min(own, eff at each block)` | simulation 7 |
 
 ## 10. Build and migration plan
-1. **Owner approves this design** (§12).
-2. **The VHP Ruler chat (R-RULER-1, D-110):** `vhp-ruler.js` + `bot/vhp-ruler.ts` + `vhp-data` recorder and publish check, with tests (including a line-by-line copy of the VHP contract's snapshot code, as `vhp-standard` has) and the simulations of §8. Repo Lens audit.
-3. **Race (R-RACE-5):** the Race card moves onto the ruler. The two known gaps close. A Race fix-check, then the Race pays on the ruler from the next Monday.
-4. **Block X, then Last Node, Fantasy, Combo, Bracket** as each is ready; **Survivor** from Season 2.
-5. **Retire the sampler** once no game reads it.
-Until a game moves, it keeps today's method (D-094); nothing changes for players mid-week (a switch takes effect from a Monday).
+1. Owner approves v2 (§12).
+2. **The VHP Ruler chat (R-RULER-1, D-110):** `vhp-ruler.js` + `bot/vhp-ruler.ts` + the `vhp-data` recorder (hash-chained, anchored) and publish check + the first-fill job; tests (including a line-by-line copy of the VHP contract's snapshot code, as `vhp-standard` has); the 11 simulations of §8 on 29+ days of data; Repo Lens.
+3. **Race (R-RACE-5)** moves first; its two known gaps close. A fix-check, then it pays on the ruler from the next Monday.
+4. Block X, then Last Node, Fantasy, Combo, Bracket as each is ready; Survivor from Season 2.
+5. Retire the sampler once no game reads it.
+Until a game moves, it keeps today's method (D-094); a switch takes effect from a Monday.
 
-## 11. Risks and how the design handles them
+## 11. Risks
 | Risk | Handling |
 |---|---|
-| A bug in the shared library hits every game at once | Repo Lens on the library; each game's publish job recomputes from `vhp-data`; games move one at a time, Race first |
-| The first fill is heavy for the nodes | read once, in batches, outside busy hours; after that one hour at a time |
-| A producer changes its producer address or key | the ruler follows the VHP-holding address that signs; a new address is a new producer (history starts again, §5 "new") |
-| The seed producer re-rolls | logged; several seeds if a game's simulation shows it matters |
-| Effective-balance rule changes in a Koinos upgrade | the `effective_balance_of` cross-check catches it at once (flag, no scoring) |
+| A bug in the shared library hits every game | Repo Lens; each publish job recomputes from anchored data; games move one at a time, Race first |
+| A wrong or partial `vhp-data` file | write-once, hash-chained hours; two-node anchors; continuity check (§7) |
+| The first fill is heavy | a separate resumable job, in batches, off-peak |
+| A producer changes address or key | a new address is a new producer ("new", §5) |
+| The seed producer grinds | logged; ≤ 1.35% measured; a VRF seed if available |
+| An effective-balance rule change in a Koinos upgrade | the hourly `effective_balance_of` anchor catches it (flag, no scoring) |
+| Recorder and publish job round differently | integers and fixed point everywhere; a JS-vs-Python byte test (§13) |
 
-## 12. For the owner to approve
-1. The core rule: **own size = the higher of the 14-day average and the 24-hour high**; others measured by **24-hour averages**; **card credit** always on.
-2. **Random card time** from a block 20 blocks after the lock.
-3. **One entry bar** (k ≥ 10) and **a luck trim in every game** (each game's `c` by simulation).
-4. **Build order:** a dedicated VHP Ruler chat builds it (D-110); the **Race moves first**; the sampler retires at the end.
-5. **New producers** need 24 h of history and are labelled "new".
+## 12. For the owner to approve (v2, in plain words)
+1. **Measure a producer as it is at the measuring moment** (or its highest in the hour before), not by a 2-week average. Others are measured by 24-hour averages, and **card credit is always on**. *This replaces the 2-week look-back of D-093.* The review showed that the average makes honest producers look too big, because every block burns VHP from its signer, so they would lose more often. Card credit is what really stops hiding. Recommended: approve.
+2. **A random measuring moment** from a block 20 blocks after the lock. The block's producer can nudge it slightly, but by about 1% at most on real data. Recommended: approve.
+3. **One entry bar and a luck trim in every game, and form only as a warning light**: it can bench or flag a producer, never change its odds. Otherwise skipping blocks on purpose would pay. Recommended: approve.
+4. **Build order:** a dedicated VHP Ruler chat builds it (D-110); the Race moves first; **nothing pays on it until the data file has its checkpoints and all 11 simulations pass** on at least 29 days of data. Recommended: approve.
+5. **New producers** need 24 h of history and a "new" label, measured from their first signed block. **The Knode Games Vault** gets a special rule, so depositors can't make it lose a race by withdrawing mid-race; if that rule fails its simulation, the Vault stays out of handicapped fields (except the Bracket, D-086). Recommended: approve.
 
 ## 13. Interface (for the builder)
 ```ts
 type Height = number; type Addr = string;
-interface RulerData { /* change points + signers for the last 15 days, from vhp-data, both nodes agreed */ }
+type Milli = bigint;        // fixed point: millionths, always rounded down
+type Sat = bigint;          // VHP in satoshi (1 VHP = 1e8)
+interface Anchor { height: Height; node: "a" | "b"; eff: Record<Addr, Sat> }    // effective_balance_of at the hour's last block
+interface RulerHour { from: Height; to: Height; prevHash: string; signers: Addr[]; burns: Sat[]; events: unknown[]; anchors: Anchor[] }
+interface RulerData { hours: RulerHour[] }
 interface Card {
-  game: number; round: string; T: Height; seedBlock: Height; seedProducer: Addr;
+  ruleVersion: 2; game: number; round: string;
+  T: Height; seedBlock: Height; seedBlockId: string; seedProducer: Addr;
   window: { W0: Height; W1: Height; S0: Height; S1: Height };
-  producers: { a: Addr; own: bigint; avg: bigint; k: number; form: number; entry: boolean; quality: "ok" | "flagged"; isNew: boolean }[];
-  total: bigint;
+  c: Milli; total: Sat;
+  producers: { a: Addr; own: Sat; avg: Sat; k: Milli; form: Milli; entry: boolean; pooled: boolean; isNew: boolean;
+               quality: "ok" | "flagged"; expected?: Milli; signed?: number; credited?: Milli }[];
 }
 function cardTime(seedBlockId: string, game: number, round: string, W0: Height, W1: Height): Height;
-function makeCard(d: RulerData, game: number, round: string, w: Card["window"], seedBlockId: string, kMin?: number): Card;
-function credit(d: RulerData, card: Card, a: Addr, b: Height): number;   // min(1, own ÷ eff at b)
-function trim(k: number, c: number): number;                             // c ÷ √k
-function recompute(d: RulerData, published: Card): { same: boolean; diff?: string };  // for the publish job
+function makeCard(d: RulerData, game: number, round: string, w: Card["window"], seedBlockId: string): Card;
+function credit(d: RulerData, card: Card, a: Addr, b: Height): Milli;   // min(1, own ÷ eff at b), millionths, floor
+function trim(k: Milli, c: Milli): Milli;                                 // c ÷ √k, millionths, floor
+function checkHour(prev: RulerHour, h: RulerHour): { ok: boolean; why?: string };   // chain, one signer + one burn per block, anchor + events = next anchor
+function recompute(d: RulerData, published: Card): { same: boolean; diff?: string };
 ```
-All arithmetic on VHP is in integer satoshis (`bigint`); ratios are computed once at the end and rounded the same way in the recorder, the publish job and the site.
+- **Every number is an integer:** VHP in satoshi; averages = `floor(Σ ÷ blocks)`; `k`, `credit`, `form`, `trim` in millionths, rounded down; credited blocks = the integer sum of per-block credits. Ratios are never computed in floating point.
+- **A test** that the JavaScript library and a Python re-implementation produce **byte-identical cards** on real data (§8 sim 11).
+
+## 14. What changed from v1 (Repo Lens #E-7)
+| Finding | v2 |
+|---|---|
+| **H-1** (High) the 2-week average under-scores honest, shrinking producers | own = eff at `T` (or a short high before it); 2-week average removed; "shrinks 1%/day, never re-burns" is a standard honest case (§3, §5, §8) |
+| **H-2** (High) form can be steered where it lowers expected blocks | form is a gate only; a kept multiplier may only raise; weekly watch required (§3, §3.1, §6) |
+| **M-1** hiding cost overstated | card credit is the protection; net reward ~0.16 KOIN/block; tricks must fail even if free; credit in every §6 row (§0, §4) |
+| **M-2** VHP leaving mid-race; the Vault | `pooled` producers: `min(own, eff)`; else out of fields except the Bracket (§3.2) |
+| **M-3** a wrong data file passes; 15 days too short | write-once, hash-chained, two-node anchors, continuity checks; ~22 days kept (§7) |
+| **M-4** rounding | integers / millionths everywhere; Card fields added; JS-vs-Python byte test (§13) |
+| **L-1 … L-7** | many-ID grinding + VRF option; compact per-block storage; Σk normalisation; picks below the bar + estimated card; first observed VHP; resumable first fill; active-set note |
+| §8 | 29+ days of data, pass marks, five more simulations |

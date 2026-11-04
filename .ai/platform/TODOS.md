@@ -13,14 +13,13 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
-- [ ] **Stop the vault paying others' Mana** (D-099): `npm run bot -- sponsor-limit 0` (dry run, then `--send`), then merge PR #89 (`maxSponsorRc: "0"`) right after — P2 — I-044
-- [ ] **Read-only check:** the authorize/upload protections are on for the vault and the Desk (`npm run bot -- chain-check`; Repo Lens rated the Desk Critical if they're off); paste the result to the Vault chat — P1 (from the old checklist MKKtXR t12, D-100)
+- [ ] **Hub PRs** (all green): merge **#94** (Week 1, before Sun 4 PM PT), then **#100** (stake-panel text; rebases after #94), and **#97** (guest messages). Send **#95** (@names Make main / Remove; a burn can't be undone) and **#99** (CI guard) to Repo Lens first — P2
+- [ ] After #95: on `names.html`, from the producer wallet `1DAHmr…`, create `@primeproducer`, tap Make main, optionally Remove `@primeprocuder`; tell the Hub it works (then the Tools link goes in) — P3 — I-084
 - [ ] In GitHub → Settings → Secrets and variables → Actions, confirm `OPERATOR_WIF` exists only in the `bot` environment; delete any repo-level copy — P2 — D-012 (from MKKtXR t18)
 - [ ] **Thu 5 Nov after 7:51 AM PT:** `npm run bot -- game-apply 2`, `game-apply 7` (dry run, then `--send`), then `games` must show "staked + free prize, from week 3"; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT** — P1 — D-077 (reminder Thu 9 AM PT)
 - [ ] **Wallet moves** per `docs/WALLETS.md` (D-083, D-096): **Fri 6 Nov** step 0 (read-only check; paste the output to the Vault chat), create the cold-key owner and cold treasury, start the treasury move (48 h) → **Sat** sweep the old operator `1JSTwo…` (I-045) → **Sun** after every `game-apply`, start the vault and Desk handovers → Mon/Tue accept. Picks and Race picks too this weekend, once their tools are built (R-BX-3, R-RACE-3) — P1 — I-001
 - [ ] Optional (Repo Lens asked): on the PC, `npm ci --ignore-scripts && npm run test:audit:serial` — P4
 - [ ] Retry creating an @name on `names.html` and report the result — P3 — I-020
-- [ ] Fix the producer's @name typo (I-084): once the Hub adds the buttons (R-HUB-3), from wallet `1DAHmrQJ…` create `@primeproducer`, make it the main @name, then remove `@primeprocuder`. The site updates within the hour — P3
 - [ ] Check the Race status badge on the live Race page at phone width — P4
 - [ ] Delete old node basedir folders and the desk's ~50 GB broken copy, **only if `heal.log` is clean** — on or after Wed 4 Nov, 17:30 UTC (9:30 AM PT) — P3 — I-008
 - [ ] Retest "+ Add another account" with the real Kondor extension — P2 — I-004 — due {{TBD}}

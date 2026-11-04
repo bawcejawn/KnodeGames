@@ -16,7 +16,7 @@
 - **Daily Questions (game 1):** five questions Mon–Sat at 12:00 UTC. Week 2 finalized and paid 3 Nov; 70 questions posted so far.
 - **Producer Race (game 7):** four races a day, Staked and Free boards, status badge, nicknames.
 - **Who Signs Block X (game 2):** live since 3 Nov on the Games page, home page, menus and Leaders page, with nicknames; recorder on (`GAMES_ENABLED`); prize-free until it pays from Mon 9 Nov (D-077).
-- **Site:** knodegames.com on GitHub Pages: staking hub, status bars, @names, guest play, swap page, Leaders page (Questions, Race, Block X).
+- **Site:** knodegames.com on GitHub Pages: staking hub (its own **Stake** tab since 4 Nov, D-109), status bars, @names (Make main / Remove, PR #95), guest play, swap page, Leaders page (Questions, Race, Block X); "Week 1" labels from Mon 9 Nov (PR #94). The CI guard reads workflows' parsed YAML and expressions (PRs #99, #111).
 
 ## Running in the background
 - **Bot:** hourly, plus the 11:48 UTC release run; recovers by itself from node hiccups. Since PR #74 it also checks each game's results before posting them (HOLD files, `board.json`, two-run rule, refusal alerts).

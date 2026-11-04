@@ -1,16 +1,18 @@
 // I-022 (PN-8 / C2-4): YAML spellings the old regex guard missed. Each is added to a scratch copy of .github and the
-// guard (site.ci-deps.test.mjs) must fail. Same harness as ci-guard-bypass.N-C-2 / C1-4.
+// guard (site.ci-deps.test.mjs) must fail ON A GUARD RULE (Repo Lens C5-18: a crash or a missing package is not a
+// refusal), and the clean tree must pass. Same harness as ci-guard-bypass.N-C-2 / C1-4.
 import { test } from "node:test"; import assert from "node:assert/strict";
 import fs from "node:fs"; import os from "node:os"; import path from "node:path";
 import { spawnSync } from "node:child_process"; import { fileURLToPath } from "node:url";
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const steps = "    runs-on: ubuntu-latest\n    steps:\n      - run: echo\n";
 const VECTORS = {
-  "indent-digit.yml": `name: x\non:\n  push: {}\npermissions: >2-\n    write-all\njobs:\n  a:\n${steps}`,
+  // C5-20: the two vectors that weren't valid GitHub workflows (indent-digit, anchor-trigger) now use valid spellings.
+  "block-scalar-write-all.yml": `name: x\non:\n  push: {}\npermissions: >-\n  write-all\njobs:\n  a:\n${steps}`,
   "tag-write-all.yml": `name: x\non:\n  push: {}\npermissions: !!str write-all\njobs:\n  a:\n${steps}`,
   "anchor-write-all.yml": `name: x\non:\n  push: {}\nenv:\n  X: &w write-all\npermissions: *w\njobs:\n  a:\n${steps}`,
   "tag-inherit.yml": "name: x\non:\n  push: {}\npermissions:\n  contents: read\njobs:\n  a:\n    uses: ./.github/workflows/other.yml\n    secrets: !!str inherit\n",
-  "anchor-trigger.yml": `name: x\nx-t: &t issues\non: [*t]\npermissions:\n  contents: read\njobs:\n  a:\n${steps}`,
+  "anchor-trigger.yml": `name: x\non:\n  push: {}\n  workflow_dispatch: &t {}\n  issues: *t\npermissions:\n  contents: read\njobs:\n  a:\n${steps}`,
   "quoted-on.yml": `name: x\n"on":\n  "issue_comment": {}\npermissions:\n  contents: read\njobs:\n  a:\n${steps}`,
   "job-issues-write.yml": `name: x\non:\n  push: {}\npermissions:\n  contents: read\njobs:\n  a:\n    permissions:\n      "issues": write\n${steps}`,
 };
@@ -23,4 +25,5 @@ for (const [name, y] of Object.entries(VECTORS)) test(`I-022: the parsed-YAML gu
   const env = { ...process.env, APP: d }; delete env.NODE_TEST_CONTEXT;
   const p = spawnSync(process.execPath, ["--test", path.join(ROOT, "tests/audit/site.ci-deps.test.mjs")], { env, encoding: "utf8" });
   assert.notEqual(p.status, 0, `the guard passed a workflow it must refuse (${name})`);
+  assert.match(p.stdout, /not ok \d+ - \(guard/, `${name}: the run failed, but not on a guard rule:\n${p.stdout.slice(-1500)}`);
 });

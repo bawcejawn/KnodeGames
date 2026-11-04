@@ -262,9 +262,16 @@
     mine[address] = n;
     use(current || emptyDb());
   }
+  /** Forget a name this device set with setLocal (the page removed it on chain; Repo Lens C5-7). Until names.json
+   *  catches up, an older copy of it may still show the name for this address. */
+  function clearLocal(address, n) {
+    if (!(address in mine) || (n && mine[address] !== n)) return;
+    delete mine[address];
+    use(current || emptyDb());
+  }
 
   G.KNames = {
-    of, name, short, node, load, onChange, setLocal, DATA,
+    of, name, short, node, load, onChange, setLocal, clearLocal, DATA,
     /** names.json as loaded and checked (an empty list before it arrives or when there's none yet). */
     db: () => current || emptyDb(),
     rules: { PREFIX, BUILTIN, fold, reserved, checkName, isDate, message, claimText, parseClaim, verifySignature, precheck, applyClaim, cleanDb, emptyDb, okNick, okPool, addressLike, hide, unhide, remove, today },

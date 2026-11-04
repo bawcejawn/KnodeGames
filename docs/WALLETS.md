@@ -17,8 +17,9 @@
 Never paste a private key or recovery words into a chat, an email or GitHub (the one exception is the GitHub secret
 `OPERATOR_WIF`). Keys live only in `.env` on your PC, and on paper.
 
-**Placeholders:** `<NEW_OWNER_ADDRESS>` and `<COLD_TREASURY_ADDRESS>` stand for the addresses you write down in
-step 1. **Replace every `<…>` (including the brackets) before pasting a command.** Check every address in full,
+**The new owner is `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd`** 👤 (the owner created it and moved Race picks to it on 4 Nov; it won't change).
+The commands below already carry it. **Placeholder:** `<COLD_TREASURY_ADDRESS>` stands for the address you write down
+in step 1b. **Replace every `<…>` (including the brackets) before pasting a command.** Check every address in full,
 character by character, against the wallet it came from. Checking only the first and last few characters is not
 enough.
 
@@ -31,7 +32,7 @@ enough.
 | Wallet | Address | What it controls | Where its key lives |
 |---|---|---|---|
 | **Owner** | `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717` ✅ | Owner of the **vault** (game contract): game registry, vault upgrades (48 h notice), pause, sponsor limit, corrections, the 5% fee. Owner of the **Swap Desk**: fee, limits, pause, node key, upgrades, withdrawals (always to the treasury). First owner of **Picks** (built into its code ✅; still the owner on chain ❓). **Also the Desk treasury** ✅. (The **Race picks** settings moved off this wallet on 4 Nov: see the next row.) | `.env` as `OWNER_WIF` 👤, paper backup 👤 |
-| **Race picks owner** | `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` ✅ (since 4 Nov, tx `0x1220bd9c…`, both nodes) | The Race picks settings (picks on/off, picks per day). Moved with `npm run racepicks -- owner` (PRs #84, #93, R-RACE-3) | its own wallet 👤; in `.env` as `OWNER_WIF` only for a Race picks action ❓ |
+| **New owner** | `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` ✅ | Already owns the **Race picks** settings (since 4 Nov, tx `0x1220bd9c…`, both nodes; `npm run racepicks -- owner`, PRs #84, #93). Becomes the owner of the vault, the Desk and Picks this weekend (§7) | paper 👤; in `.env` only on owner-action days (§2) |
 | **Desk treasury** | `1635QU…H717`: the same wallet as the owner ✅ | Receives everything the Desk withdraws. This is the main risk today: one key both orders a withdrawal and receives it, with no wait (TD-01) | the owner's key |
 | **Seed owner** | `1K8VV1utXfomeXHeifrwgLpBjUG6Ldkw2Z` ✅ (since 30 Oct, D-022) | The vault's seed: 21,050 VHP ✅ (2 Nov). Deposits; withdrawals with a 48 h wait, paid to the current seed owner | `.env` as `SEED_WIF` 👤, paper. **Stays separate; nothing this weekend touches it** |
 | **Operator (bot)** | `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv` ✅ (since 26 Oct) | Posts and resolves questions; posts, seals and finalizes game results. Can't move funds | GitHub secret `OPERATOR_WIF` (environment `bot`) 👤. **GitHub-only** (D-084) |
@@ -55,12 +56,11 @@ These four keys are only needed to set a contract up. Keep them on paper or in a
 
 | Wallet | Role | Where its key lives |
 |---|---|---|
-| **New owner** (new, cold) | Owner of the vault, the Desk and Picks (D-096) | **Paper only** (its own recovery words, two copies). It goes into `.env` as `OWNER_WIF` only on a day you need an owner action, and comes out again afterwards (👤 option A). Never connected to a website |
+| **New owner** `1LMV8E…` (cold) | Owner of the vault, the Desk, Picks and Race picks (D-096) | **Paper only** (its own recovery words, two copies). It goes into `.env` as `OWNER_WIF` only on a day you need an owner action, and comes out again afterwards (👤 option A). Never connected to a website |
 | **Cold treasury** (new) | Receives the Desk's withdrawals | **Its own recovery words, on paper only.** Made in its own Chrome profile, then removed from that browser. It's never loaded anywhere again, except once to confirm its address before step 2b. It only receives |
 | Seed owner `1K8VV…` | unchanged | unchanged |
 | Operator `1HsM33…` | unchanged | GitHub only (D-084) |
 | Sponsor `1ByDDS…` | unchanged, 25,000 KOIN | `.env` (D-085) |
-| Race picks owner `1LMV8E…` | unchanged (moved 4 Nov) | its own wallet |
 | Old owner `1635QU…` | nothing, once the Picks accept (step 7b) is done | paper only |
 | Old operator `1JSTwo…` | retired, emptied | removed from `.env` |
 
@@ -83,7 +83,7 @@ can't act alone. The owner has built a multisig for another project 👤, which 
 
 | Entry | Today | After |
 |---|---|---|
-| `OWNER_WIF` | old owner `1635QU…` | the **new** owner, **only on owner-action days**, otherwise absent. For a Race picks action, the `1LMV8E…` key goes in instead, for that action only |
+| `OWNER_WIF` | old owner `1635QU…` | the **new** owner, **only on owner-action days**, otherwise absent. Race picks already uses this key |
 | `NEW_OWNER_WIF` | absent | only during the "accept" steps (Tue), then removed |
 | `SEED_WIF` | seed `1K8VV…` | unchanged |
 | `OPERATOR_WIF` | most likely the **old** operator `1JSTwo…` | **removed** (D-084). PC commands that need the operator key then stop working on the PC: manual `game-post`, `game-seal`, `game-finalize`, and the admin page's weekly vault buttons. The hourly bot does them. `npm run bot -- status` still works and shows a placeholder bot wallet |
@@ -119,7 +119,7 @@ everything as today. Proposing changes nothing else.
 
 ### Picks and Race picks (D-096)
 - **Race picks: done** on 4 Nov → `1LMV8E…` (tx `0x1220bd9c…`, read back on both nodes) ✅. `npm run racepicks` reads
-  the owner from the chain, so for a Race picks action `OWNER_WIF` is the `1LMV8E…` key that day. `RACE_WIF` (the
+  the owner from the chain, so for a Race picks action `OWNER_WIF` is the new owner key that day. `RACE_WIF` (the
   contract's own key, which can still replace its code) goes offline in step 6.
 - **Picks: this weekend**, in steps 7a and 7b below, with the handover commands the Block X chat is building
   (R-BX-3, plan in PR #79). 💬 **Until those commands are merged and tested, skip steps 7a and 7b**: nothing else in this
@@ -167,9 +167,6 @@ everything as today. Proposing changes nothing else.
   A later option: a multisig, or a smaller hot balance topped up from cold.
 - **The new owner key is on the PC during an owner action.** Load it, do the action, remove it the same day.
 - **Until the Picks accept (step 7b), the old owner `1635QU…` still owns Picks.** Keep its paper safe.
-- **Race picks is owned by its own wallet `1LMV8E…`, not the new cold owner** (moved 4 Nov, before the new owner
-  existed) ❓. If it should end up on the new owner too, that's one more `npm run racepicks -- owner` later.
-
 ---
 
 ## 6. Emails the hourly bot will send (expected; don't panic)
@@ -183,10 +180,10 @@ change, not every hour.
 |---|---|---|
 | 2a (treasury schedule) | "A Desk treasury change to `<COLD_TREASURY_ADDRESS>` is scheduled (possible from …). If you did not do this, your admin key may be compromised." | The change you just scheduled |
 | 2b (treasury apply) | "The Desk's treasury is `<COLD…>`, not 1635QU… as in desk-data/deployment.json. If you did not change it, your admin key is compromised (if you did, update desk-data/deployment.json)." | The record still has the old treasury |
-| 4a (vault propose) | "An ownership transfer to `<NEW…>` is pending (it can be accepted a day after it was proposed). If you did not do this, your admin key may be compromised: propose your own address again right away." | The proposal you just made |
-| 5a (Desk propose) | "A Desk owner change to `<NEW…>` is proposed (it can accept from …). If you did not do this, your admin key is compromised: cancel it (npm run desk -- owner cancel --send) and withdraw the Desk to the treasury." | The proposal you just made. **Do nothing**: don't cancel, don't withdraw |
-| 4b (vault accept) | "The game's owner is `<NEW…>`, not 1635QU… as in deployment.json. If you did not hand it over, your admin key is compromised." | The record still has the old owner |
-| 5b (Desk accept) | "The Desk's owner is `<NEW…>`, not 1635QU… as in desk-data/deployment.json. If you did not change it, your admin key is compromised." | The record still has the old owner |
+| 4a (vault propose) | "An ownership transfer to `1LMV8E…` is pending (it can be accepted a day after it was proposed). If you did not do this, your admin key may be compromised: propose your own address again right away." | The proposal you just made |
+| 5a (Desk propose) | "A Desk owner change to `1LMV8E…` is proposed (it can accept from …). If you did not do this, your admin key is compromised: cancel it (npm run desk -- owner cancel --send) and withdraw the Desk to the treasury." | The proposal you just made. **Do nothing**: don't cancel, don't withdraw |
+| 4b (vault accept) | "The game's owner is `1LMV8E…`, not 1635QU… as in deployment.json. If you did not hand it over, your admin key is compromised." | The record still has the old owner |
+| 5b (Desk accept) | "The Desk's owner is `1LMV8E…`, not 1635QU… as in desk-data/deployment.json. If you did not change it, your admin key is compromised." | The record still has the old owner |
 
 **An email that names an address you didn't write down in step 1, or a step you didn't do, is real.** Stop and act on
 it (vault: propose your own address, §3; Desk: `owner cancel`).
@@ -215,6 +212,8 @@ $env:RPC = "https://koinos.armana.io"
 | **Sun 8 Nov, from 10:00** (48 h after 2a) | 2b. Treasury: apply | `chain-check` shows the exact time it can be applied ("from …") |
 | **Sun 8 Nov, after every `game-apply`** (Bracket's deadline is 16:00) | 4a. Vault owner: propose · 5a. Desk owner: propose · 7a. Picks owner: propose (💬 once its command is merged, and only if nothing is waiting on Picks) | All the same afternoon, e.g. 16:30 |
 | **Tue 10 Nov, 48 h after 5a** (e.g. from 16:30) | 4b. Vault owner: accept · 5b. Desk owner: accept · 7b. Picks owner: accept · 6. Clean-up | **All accepts in the same sitting**, so there is never a day when the contracts have different owners. The Picks accept must be within 7 days of 7a |
+| **Tue 10 Nov, after 4b** | The doubled-Questions vault upgrade: announce (48 h), signed by the **new** owner | Only once Repo Lens has said GO; the Vault chat gives the exact commands. **Never before 4b**: the vault accept wipes a pending upgrade |
+| **Thu 12 Nov, 48 h after the announcement** | The upgrade: upload | Needs about 100 KOIN in the new owner wallet (step 1c) |
 
 **Why the accepts wait until Tuesday:** the vault's accept is possible from Monday, but there's no rush. Until it's
 accepted, the old key stays the vault owner and works for everything as today. Doing both accepts together means
@@ -247,12 +246,9 @@ Kondor comes **only from the Chrome Web Store**: search "Kondor", publisher **Ko
 `chromewebstore.google.com/detail/kondor/ghipkefkpgkladckmlmdnadmcchefhjl` ❓ (check the link from Kondor's own site or
 koinos.io before installing).
 
-**1a. The new owner (Chrome profile "Knode owner"):**
-1. In Chrome: profile icon → Add → name it **Knode owner**. Install Kondor in that profile only.
-2. Kondor → Create new wallet → a strong password. **Write its recovery words on paper, twice.** Label them "Knode
-   owner". Keep the copies in two places.
-3. Copy the account's **address** (starts with 1) onto paper and into a note on the PC. Addresses are safe to share.
-4. Don't export its private key yet (that's step 4b). Close the profile.
+**1a. The new owner: already done** 👤. It is `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` (it already owns Race picks). Only check:
+1. its recovery words are on paper, **twice**, in two places, labelled "Knode owner";
+2. Kondor shows exactly `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` for that wallet (compare in full).
 
 **1b. The cold treasury (a different Chrome profile, "Knode treasury", with its own recovery words):**
 1. Profile icon → Add → **Knode treasury**. Install Kondor there.
@@ -262,26 +258,27 @@ koinos.io before installing).
 4. **Remove the wallet from the browser:** Chrome → profile icon → Manage profiles → Knode treasury → Delete. Its
    only copies are now your two papers.
 
-**1c. Send the new owner 10 KOIN** (its Mana for the two accepts and later owner actions; before a vault upgrade it
-needs about 100). Either:
+**1c. Make sure the new owner holds KOIN for Mana:** at least 10 for the accepts. **The vault upgrade for doubled
+Questions (announced Tue 10, uploaded Thu 12) is signed by this wallet and needs about 100 KOIN** of Mana for the upload.
+Check its balance in Kondor first. To top it up: Either:
 - **from any Kondor wallet of yours that holds KOIN** (not the treasury): Kondor → Send → KOIN → paste
-  `<NEW_OWNER_ADDRESS>` → 10. Compare the full address before confirming; or
+  `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` → 10. Compare the full address before confirming; or
 - **from the current owner wallet**, with the new tool (dry run first):
   ```powershell
   cd C:\kprediction
   git branch --show-current
   $env:RPC = "https://koinos.armana.io"
-  npx tsx tools/send-koin.ts --to <NEW_OWNER_ADDRESS> --confirm <NEW_OWNER_ADDRESS> --amount 10
+  npx tsx tools/send-koin.ts --to 1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd --confirm 1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd --amount 10
   ```
-  **The dry run must show:** "From 1635QU…H717 (OWNER_WIF)", "To `<NEW_OWNER_ADDRESS>`" (compare the full address),
+  **The dry run must show:** "From 1635QU…H717 (OWNER_WIF)", "To `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd`" (compare the full address),
   "Plan: send 10 KOIN". Then the same line with `--send`.
 
   It refuses contracts, mistyped confirmations and more than 20 KOIN. It only sends from `1635QU…`.
 
 **Check:** the tool prints the new balance. With Kondor, open the "Knode owner" profile and look at the balance. It
-must show 10 KOIN before Sunday.
+must show at least 10 KOIN before Sunday, and about 100 by Thu 12 Nov.
 
-1d. Tell the Vault chat both **addresses** (never the keys). It checks them and fills in the commands below.
+1d. Tell the Vault chat the **treasury address** (never a key). It checks it and fills in the commands below.
 
 ### Step 2a: Desk treasury, schedule (Fri, by 10:00)
 ```powershell
@@ -374,15 +371,15 @@ apply is applied ("from week 3"). (A game still only announced also survives the
 it.)
 
 ```powershell
-npm run bot -- admin propose_owner new_owner=<NEW_OWNER_ADDRESS> --as owner
+npm run bot -- admin propose_owner new_owner=1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd --as owner
 ```
 **The dry run must show:** "As owner (1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717)" and
-`propose_owner {"new_owner":"<NEW_OWNER_ADDRESS>"}`. Compare the **full** address against the owner paper. Then:
+`propose_owner {"new_owner":"1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd"}`. Compare the **full** address against the owner paper. Then:
 ```powershell
-npm run bot -- admin propose_owner new_owner=<NEW_OWNER_ADDRESS> --as owner --send
+npm run bot -- admin propose_owner new_owner=1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd --as owner --send
 npm run bot -- chain-check
 ```
-**Check:** "game ownership transfer: PENDING to `<NEW…>`" (shown with ✖, which is expected). The 4a email in §6 is
+**Check:** "game ownership transfer: PENDING to `1LMV8E…`" (shown with ✖, which is expected). The 4a email in §6 is
 expected.
 **If the address is wrong:** propose again at once with the right address (it replaces the wrong one), or with your own
 address to abort (§3).
@@ -394,21 +391,21 @@ git branch --show-current
 $env:RPC = "https://koinos.armana.io"
 npm run desk -- status
 npm run bot -- chain-check
-npm run desk -- owner propose <NEW_OWNER_ADDRESS>
+npm run desk -- owner propose 1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd
 ```
 **Before sending, check:**
 - `desk status` shows Treasury `<COLD…>` and **no ⚠ lines** (no treasury change, upgrade, owner change or settings
   waiting).
 - `chain-check` shows "desk announced upgrade: none".
-- The dry run shows "As 1635QU…" and `desk.propose_owner {"new_owner":"<NEW_OWNER_ADDRESS>"}`, with the **full** address
+- The dry run shows "As 1635QU…" and `desk.propose_owner {"new_owner":"1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd"}`, with the **full** address
   compared.
 
 Then:
 ```powershell
-npm run desk -- owner propose <NEW_OWNER_ADDRESS> --send
+npm run desk -- owner propose 1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd --send
 npm run desk -- status
 ```
-**Check:** **✔ done**, and `desk status` now shows "⚠ Owner change proposed → `<NEW…>`, can be accepted from
+**Check:** **✔ done**, and `desk status` now shows "⚠ Owner change proposed → `1LMV8E…`, can be accepted from
 `<date>`". **Write that date down: it's when 5b can run.** The 5a email in §6 is expected. Don't cancel, don't
 withdraw.
 **If the address is wrong:** `npm run desk -- owner cancel --send`.
@@ -421,17 +418,17 @@ cd C:\kprediction
 git branch --show-current
 $env:RPC = "https://koinos.armana.io"
 npm run picks -- status --mainnet
-npm run picks -- owner-propose <NEW_OWNER_ADDRESS> --mainnet
+npm run picks -- owner-propose 1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd --mainnet
 ```
 **Before sending, check:**
 - `picks status`: owner `1635QU…`, **no game announcement and no upgrade waiting**. If something is waiting, **don't
   propose**: ask the Block X chat. (The tool refuses anyway and names what's waiting.)
-- The dry run shows the **full** `<NEW_OWNER_ADDRESS>` (compare it with the owner paper), when the accept opens (48 h)
+- The dry run shows the **full** `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` (compare it with the owner paper), when the accept opens (48 h)
   and when it expires (7 days after that).
 
 Then:
 ```powershell
-npm run picks -- owner-propose <NEW_OWNER_ADDRESS> --mainnet --send
+npm run picks -- owner-propose 1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd --mainnet --send
 npm run picks -- status --mainnet
 ```
 **Check:** **✔ done**, and `status` shows the proposed owner with its open and expiry times. **Write the open time
@@ -450,8 +447,8 @@ $env:RPC = "https://koinos.armana.io"
 npm run bot -- admin accept_owner --as new
 npm run desk -- owner accept
 ```
-**Both dry runs must show the new owner's address in full:** "As new (`<NEW_OWNER_ADDRESS>`)" and "As
-`<NEW_OWNER_ADDRESS>`".
+**Both dry runs must show the new owner's address in full:** "As new (`1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd`)" and "As
+`1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd`".
 - If either shows another address, stop: the wrong key is in `NEW_OWNER_WIF`.
 - If either errors about the key, it isn't a valid WIF. Remove the line, and ask the Vault chat.
 
@@ -464,9 +461,9 @@ npm run desk -- status
 ```
 **Check:**
 - Both **✔ done**.
-- `chain-check`: game owner `<NEW…>` and desk owner `<NEW…>`, each ✖ against the records (expected until step 6),
+- `chain-check`: game owner `1LMV8E…` and desk owner `1LMV8E…`, each ✖ against the records (expected until step 6),
   and "game ownership transfer: none".
-- `desk status`: Owner `<NEW…>`, Treasury `<COLD…>`, no ⚠ lines.
+- `desk status`: Owner `1LMV8E…`, Treasury `<COLD…>`, no ⚠ lines.
 - The 4b and 5b emails in §6 are expected.
 
 **If the vault says "can be accepted only 28,800 blocks…":** wait an hour and retry. **If the Desk says "the timelock
@@ -479,7 +476,7 @@ npm run picks -- owner-accept --mainnet --send
 npm run picks -- status --mainnet
 ```
 - The dry run must show the new owner's **full** address, and that the 48 h have passed.
-- **Check:** **✔ done**; `status` shows owner `<NEW…>` on both nodes, no proposal waiting. The tool prints the line
+- **Check:** **✔ done**; `status` shows owner `1LMV8E…` on both nodes, no proposal waiting. The tool prints the line
   for `picks-data/deployment.json` (step 6).
 - **"Too early":** wait until the time from 7a. **"Expired"** (more than 7 days after the 48 h): run 7a again.
 
@@ -499,10 +496,10 @@ npm run picks -- status --mainnet
 
 ### Step 6: records and clean-up (Tue)
 1. Tell the Vault chat the accepts are done. It opens one **pull request into `main`** with:
-   - `game-data/deployment.json` `"owner"` → `<NEW…>`;
-   - `desk-data/deployment.json` `"owner"` → `<NEW…>`;
+   - `game-data/deployment.json` `"owner"` → `1LMV8E…`;
+   - `desk-data/deployment.json` `"owner"` → `1LMV8E…`;
    - `desk-data/deployment.json` `"treasury"` → `<COLD…>`;
-   - after 7b: `picks-data/deployment.json` `"owner"` → `<NEW…>` (the line the Picks tool printed).
+   - after 7b: `picks-data/deployment.json` `"owner"` → `1LMV8E…` (the line the Picks tool printed).
 
    You merge it. The hourly bot then stops sending the §6 emails.
 2. Once merged:
@@ -513,7 +510,7 @@ npm run picks -- status --mainnet
    $env:RPC = "https://koinos.armana.io"
    npm run bot -- chain-check
    ```
-   Every line ✔: game owner `<NEW…>`, desk owner `<NEW…>`, desk treasury `<COLD…>`.
+   Every line ✔: game owner `1LMV8E…`, desk owner `1LMV8E…`, desk treasury `<COLD…>`.
 3. `notepad .env`:
    - delete `OWNER_WIF` (the new owner key) **unless** you have an owner action coming soon;
    - move `CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF` and `RACE_WIF` to your offline backup **after checking each

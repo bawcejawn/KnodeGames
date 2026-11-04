@@ -405,10 +405,27 @@
       ops = await buildOps(k, action, { ...a, player: W.address });
       label = action === "stake" ? `stake ${exact(a.units)} ${a.koin ? "KOIN" : "VHP"}` : action === "withdraw" ? `withdraw ${exact(a.units)} VHP` : `move ${exact(a.units)} VHP`;
     }
+    // R-BX-21 (owner, 4 Nov: "choose a"): one claim_game costs about 1.14 Mana on mainnet, and the Mana sponsor pays at
+    // most 1.5 per transaction, so a sponsored batch of 2+ claims would be turned down. When the sponsor pays, each
+    // claim goes in its own transaction (one confirmation each, all free); with the player's own Mana it stays one batch.
+    if (action === "claim" && ops.length > 1 && !opts.ownMana && sponsorPays(W)) {
+      let id = null, done = 0;
+      try {
+        for (const op of ops) { id = await W.send(`claim reward ${done + 1} of ${ops.length}`, [op], opts); done++; }
+      } catch (e) {
+        if (done > 0) { changed(); const err = new Error(`${done} of ${ops.length} rewards claimed; the rest are still waiting: tap Claim again. (${(e && e.message) || e})`); err.cause = e; throw err; }
+        throw e;
+      }
+      changed();
+      return id;
+    }
     const id = await W.send(label, ops, opts);
     changed();
     return id;
   }
+  /** Does this wallet send through the Knode Games Mana sponsor (Kondor or guest, with the sponsor on)? KOIN Vault
+   *  chooses who pays itself, so its batches stay whole. */
+  const sponsorPays = (W) => !!W && (W.kind === "kondor" || W.kind === "guest") && W.sponsorOn === true;
 
   function mount(root, opts = {}) {
     const game = Number(opts.game);

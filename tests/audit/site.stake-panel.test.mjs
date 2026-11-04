@@ -267,7 +267,8 @@ test("a guest can't stake: the wallet's guest explanation shows instead", async 
 
 test("the panel sends only through the wallet, and only vault and token operations it builds itself", () => {
   const sends = [...src.matchAll(/\.send\(/g)];
-  assert.equal(sends.length, 2, "two sends: the game-page panel and the staking hub, both the wallet's own");
+  assert.equal(sends.length, 3, "three sends: the game-page panel, the staking hub, and the hub's one-claim-per-transaction loop (R-BX-21), all the wallet's own");
+  assert.equal([...src.matchAll(/id = await W\.send\(`claim reward \$\{done \+ 1\} of \$\{ops\.length\}`, \[op\], opts\);/g)].length, 1, "the R-BX-21 loop: one operation, same opts");
   assert.equal([...src.matchAll(/const id = await W\.send\(label, ops\);/g)].length, 1, "the game-page panel");
   // The hub may only ask for the player's own Mana (question-game claims, as the home page does): never a payer or sponsor.
   assert.equal([...src.matchAll(/const id = await W\.send\(label, ops, opts\);/g)].length, 1, "the hub");
@@ -424,6 +425,54 @@ test("hub send: one wallet transaction per action; up to 10 claims batched in on
   assert.equal(e.sent[2].ops.length, 10, "at most 10 claims in one transaction");
   assert.ok(e.sent[2].ops.every((o) => o._m === "claim_game" && o._a.player === ME));
   await assert.rejects(e.K.send("claim", { claims: [] }), /Nothing to claim/);
+});
+
+test("R-BX-21 (owner: 'choose a'): with the Mana sponsor on, each claim goes in its own transaction; own Mana keeps one batch", async () => {
+  const claims = Array.from({ length: 3 }, (_, i) => ({ game: 7, week: BigInt(i + 3) }));
+  const e = env({ state: LIVE(), game: GAME() });
+  e.ctx.KWallet.sponsorOn = true;
+  await e.K.send("claim", { claims });
+  assert.equal(e.sent.length, 3, "three transactions, one claim each");
+  assert.deepEqual(J(e.sent.map((s) => s.ops.map((o) => [o._m, o._a.week]))), [[["claim_game", "3"]], [["claim_game", "4"]], [["claim_game", "5"]]]);
+  assert.deepEqual(J(e.sent.map((s) => s.label)), ["claim reward 1 of 3", "claim reward 2 of 3", "claim reward 3 of 3"]);
+  await e.K.send("claim", { claims: claims.slice(0, 1) });
+  assert.equal(e.sent[3].ops.length, 1);
+  // Sponsor off, or KOIN Vault (it picks who pays itself): one batch, as before.
+  const off = env({ state: LIVE(), game: GAME() });
+  await off.K.send("claim", { claims });
+  assert.equal(off.sent.length, 1); assert.equal(off.sent[0].ops.length, 3);
+  const kv = env({ state: LIVE(), game: GAME(), kind: "vault" });
+  kv.ctx.KWallet.sponsorOn = true;
+  await kv.K.send("claim", { claims });
+  assert.equal(kv.sent.length, 1); assert.equal(kv.sent[0].ops.length, 3);
+  // Stake, withdraw and move are never split.
+  await e.K.send("stake", { game: 7, units: UNIT, koin: false });
+  assert.deepEqual(J(e.sent[4].ops.map((o) => o._m)), ["approve", "deposit_to"]);
+});
+
+test("R-BX-21: a claim that fails part-way says how many went through and asks to tap Claim again", async () => {
+  const e = env({ state: LIVE(), game: GAME() });
+  e.ctx.KWallet.sponsorOn = true;
+  let n = 0;
+  e.ctx.KWallet.send = async (label, o) => { if (++n === 2) throw new Error("Cancelled in Kondor"); e.sent.push({ label, ops: o }); return "0xtx"; };
+  await assert.rejects(e.K.send("claim", { claims: [{ game: 7, week: 3n }, { game: 7, week: 4n }, { game: 7, week: 5n }] }), /1 of 3 rewards claimed.*tap Claim again.*Cancelled in Kondor/);
+  assert.equal(e.sent.length, 1);
+  n = 0; e.ctx.KWallet.send = async () => { throw new Error("Cancelled in Kondor"); };
+  await assert.rejects(e.K.send("claim", { claims: [{ game: 7, week: 3n }, { game: 7, week: 4n }] }), /^Error: Cancelled in Kondor$/);
+});
+
+test("R-BX-21: Daily Questions (game 1) on the shared calls is split like any game; an old-rule own-Mana claim keeps the batch", async () => {
+  const e = env({ state: LIVE({ q60_rule_week_plus_one: "4" }), game: GAME() });
+  e.ctx.KWallet.sponsorOn = true;
+  await e.K.send("claim", { claims: [{ game: 1, week: 4n }, { game: 7, week: 4n }] });
+  assert.deepEqual(J(e.sent.map((s) => s.ops.map((o) => [o._m, o._a.game]))), [[["claim_game", 1]], [["claim_game", 7]]]);
+  await e.K.send("claim", { claims: [{ game: 1, week: 1n, ownMana: true }, { game: 7, week: 4n }] });
+  assert.deepEqual(J(e.sent[2].ops.map((o) => o._m)), ["claim", "claim_game"], "own Mana: one batch");
+});
+
+test("R-BX-21: KWallet tells the page when the Mana sponsor pays", () => {
+  const w = fs.readFileSync(`${APP}/wallet.js`, "utf8");
+  assert.match(w, /get sponsorOn\(\) \{ return W\.payer === "sponsor" && !!\(W\.sponsor && W\.sponsor\.address\); \}/);
 });
 
 test("the Mana sponsor never pays for moving stake (owner, 2026-10-30); stake, withdraw and claim it may", () => {

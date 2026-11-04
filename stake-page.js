@@ -191,7 +191,7 @@
       open ? form(g, open) : null);
   }
 
-  /** Claim up to 10 rewards in one transaction. */
+  /** Claim up to 10 rewards: one transaction with the player's own Mana, or one per reward when the Mana sponsor pays (R-BX-21). */
   function claim(list) {
     const first = list.slice(0, 10), total = sum(first, (c) => c.reward);
     const games = [...new Set(first.map((c) => c.g.name))];

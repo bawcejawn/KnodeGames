@@ -455,6 +455,9 @@ test("I-028: withdrawing or moving below the minimum mid-week is explained befor
   assert.match(src, /as long as at least \$\{exact\(min\)\} VHP stays in: below that you get no share of this week's rewards and no free prize/);
   const page = fs.readFileSync(`${APP}/stake-page.js`, "utf8");
   assert.match(page, /g\.staked && g\.mine - u < d\.min/);
-  assert.match(page, /withdraw: `Straight back to your wallet, right now\.\$\{drop\}`/);
+  // The review box (owner, 2026-11-03: "clear exactly what I'm doing") says it in a sentence, then the warning.
+  assert.match(page, /straight back to your wallet, right now\.`/);
+  assert.match(page, /Heads up: this leaves less than \$\{F\.exact\(d\.min\)\} VHP in \$\{g\.name\}, so you get no share of its rewards this week and no free prize\./);
+  assert.equal([...page.matchAll(/, drop\]/g)].length, 2, "withdraw and move both show the warning");
   assert.match(fs.readFileSync(`${APP}/stake.html`, "utf8"), /as long as at least the minimum \(1 VHP\) stays in/);
 });

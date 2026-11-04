@@ -5,9 +5,6 @@
 > **Not here:** what's already live (`CURRENT_STATE.md`); finished work (`../archive/DONE.md`). The previous version is `../archive/2026-11-04/ACTIVE_WORK.md`.
 > **Legend:** **Owner:** the owner does it · 👤 owner said · ❓ not decided
 
-## Urgent
-- **Guest picks blocked** on Race and Block X: the sponsor's "will you pay?" check traps for picks since the vault switch (I-083). Block X chat finds the cause and the stopgap (R-BX-0); the site shows the wrong message (R-HUB-4, R-RACE-7).
-
 ## Vault and rewards
 | Work | Where it stands | Next / tracked in |
 |---|---|---|
@@ -28,7 +25,7 @@
 ## Games
 | Game | Where it stands | Next / tracked in |
 |---|---|---|
-| Who Signs Block X (2) | live, prize-free until Mon 9 Nov | before-prizes fixes merged (PR #80, 4 Nov); Results page tab (R-BX-12); guest picks (R-BX-0) |
+| Who Signs Block X (2) | live, prize-free until Mon 9 Nov | before-prizes fixes merged (PR #80, 4 Nov); Results page tab (R-BX-12) |
 | Producer Race (7) | live | prize fixes R-RACE-1/2; one VHP ruler R-RACE-5; page text R-RACE-6 |
 | Survivor (3) | branch `survivor` @ `a8a1979` | **Owner:** Repo Lens pass 4 → R-SV-2 → Season 1 **Mon 16 Nov** (D-065) |
 | Producer Bracket (9) | branch `kg-09-bracket` @ `5b2492e`; Repo Lens #E-3: fix first | R-BR-1 – R-BR-6; launches when ready (D-088) |

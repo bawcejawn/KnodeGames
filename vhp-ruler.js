@@ -29,9 +29,9 @@
  *  entry(p)     k ≥ 10 blocks, form ≥ 0.80, and p's first signed block at least 28,800 blocks before T.
  *  pooled(p)    the card's pooled list (today the Knode Games Vault): expected = Σ_b floor(min(own, eff(p,b))·10^6 ÷ total).
  *  quality      for the whole card: "flagged" if any hour the card reads is bad for any active producer (its numbers feed
- *               everyone's total and form), or — on a paying card — any hour it reads is "rebuilt" or unverified: the
- *               look-back [T − 403,200, T] (form's 14 days and the 24-h size window) and the scoring window [S0, S1]
- *               (D-112; Repo Lens #E-12 L-2, #D-10 M-3). Else "ok". A paying card needs 14 days + 6 h of data before T.
+ *               everyone's total and form), or — on a paying card — any "rebuilt" or unverified hour in the 24-h size
+ *               window [T − 28,800, T] or the scoring window [S0, S1]; form's older days may read rebuilt hours (D-112,
+ *               D-113; Repo Lens #E-12 L-2, #D-10 M-3). Else "ok". A paying card needs 14 days + 6 h of data before T.
  *  cardTime     T = W0 + (first 8 bytes, big-endian, of sha256(UTF-8 "blockId|game|round")) mod (W1 − W0 + 1),
  *               blockId = the seed block's id as the node returns it (lowercase hex), game and round in decimal (D-112).
  *               Seed block = L + 20 (heights are consecutive, so the first irreversible block at or after L + 20).
@@ -318,9 +318,10 @@
       return { a, own: o, avg: av, k, form: f.form, entry: k >= MIN_K && f.form >= FORM_GATE && history, pooled: pooled.has(a), isNew, quality: "ok" };
     }).sort((x, y) => (x.own > y.own ? -1 : x.own < y.own ? 1 : x.a < y.a ? -1 : 1));
     // quality, for the whole card: every producer's numbers feed everyone's total and form (Repo Lens #E-12 L-2), so a bad
-    // range for any active producer in the look-back flags every producer; on a paying card, so does any rebuilt or
-    // unverified hour anywhere in the look-back, form's 14 days included (D-112; Repo Lens #D-10 M-3)
-    const flagged = producers.some((p) => badFor(L, p.a, look0, T)) || (paying && rebuiltIn(L, look0, T));
+    // range for any active producer in the look-back flags every producer. On a paying card, a rebuilt or unverified
+    // hour in the 24-h size window [T − 28,800, T] flags it too; form's older days may read rebuilt hours (owner, 4 Nov,
+    // D-113: "after 1 day is good"; Repo Lens #D-10 M-3 answered)
+    const flagged = producers.some((p) => badFor(L, p.a, look0, T)) || (paying && rebuiltIn(L, T - AVG, T));
     if (flagged) for (const p of producers) p.quality = "flagged";
     return {
       ruleVersion: RULE_VERSION, game: Number(opts.game), round: String(opts.round), ownRule, paying,

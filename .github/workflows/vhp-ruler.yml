@@ -624,7 +624,8 @@ jobs:
                                "entry": k >= MIN_K and f["form"] >= FORM_GATE and history, "pooled": a in pooled,
                                "isNew": is_new, "quality": "ok"})
               rows.sort(key=lambda r: (-r["own"], r["a"]))
-              if any(_bad_for(L, r["a"], look0, T) for r in rows) or (paying and _rebuilt_in(L, look0, T)):
+              # D-113: on a paying card only the 24-h size window must be free of rebuilt hours; form's older days may read them
+              if any(_bad_for(L, r["a"], look0, T) for r in rows) or (paying and _rebuilt_in(L, T - AVG, T)):
                   for r in rows:
                       r["quality"] = "flagged"
               return {"ruleVersion": RULE_VERSION, "game": _int(game), "round": str(rnd), "ownRule": own_rule, "paying": paying,

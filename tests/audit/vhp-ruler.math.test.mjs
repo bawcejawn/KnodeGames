@@ -253,7 +253,7 @@ test("the library is pure and integer-only: no network, storage, wallet, Math or
   assert.doesNotMatch(py.replace(/"""[\s\S]*?"""/g, "").replace(/#.*$/gm, "").replace(/"[^"\n]*"/g, '""'), /[^/]\/[^/]/, "Python divides with // only");
 });
 
-test("paying cards (14 days + 6 h of data): D-112 over the whole look-back, a bad range flags all, JS = Python", async () => {
+test("paying cards (14 days + 6 h of data): D-113's rebuilt rule, a bad range flags all, JS = Python", async () => {
   const { longTimeline } = await import("./vhp-ruler.fixture.mjs");
   const { tl, ps } = longTimeline({ n: 440000 });
   const W0 = tl.from + 415000, window = { W0, W1: W0 + 7199, L: W0 + 7200, S0: W0 + 7201, S1: W0 + 14400 };
@@ -262,11 +262,14 @@ test("paying cards (14 days + 6 h of data): D-112 over the whole look-back, a ba
   let card = mk({});
   assert.ok(card.producers.every((p) => p.quality === "ok"));
   assert.equal(card.formFrom, card.T - R.FORM, "the full 14 days are read");
-  // #D-10 M-3: a rebuilt hour anywhere in form's 14 days flags a paying card (D-112, literally)
-  card = mk({ rebuilt: [{ h0: card.T - 400000, h1: card.T - 399000 }] });
+  // D-113 (owner, 4 Nov: "after 1 day is good"): form's older days may read rebuilt hours; the 24-h size window may not
+  card = mk({ rebuilt: [{ h0: card.T - 400000, h1: card.T - 28801 }] });
+  assert.ok(card.producers.every((p) => p.quality === "ok"), "rebuilt hours in form's older days: a paying card is fine");
+  card = mk({ rebuilt: [{ h0: card.T - 400000, h1: card.T - 28800 }] });
+  assert.ok(card.producers.every((p) => p.quality === "flagged"), "one rebuilt block inside [T − 28,800, T]: flagged");
+  // a bad range (a fault) anywhere in the look-back still flags the card, form's days included
+  card = mk({ bad: [{ h0: card.T - 400000, h1: card.T - 399000 }] });
   assert.ok(card.producers.every((p) => p.quality === "flagged"));
-  card = mk({ rebuilt: [{ h0: tl.from, h1: tl.from + 5000 }] });
-  assert.ok(card.producers.every((p) => p.quality === "ok"), "older than the look-back: fine");
   // a scored card: one producer's bad range in the race flags every producer
   const L = R.ledger({ ...tl, bad: [{ h0: window.S0 + 10, h1: window.S0 + 20, a: ps[3] }] });
   const s = R.scoreCard(L, R.makeCard(L, game));

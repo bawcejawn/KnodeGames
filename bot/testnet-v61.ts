@@ -195,7 +195,9 @@ export async function testnetV61(args: string[]) {
 
   // 6. close, settle (60 and 30 answers), finalize
   log("\n6. Close, settle, finalize …");
-  await waitUntil(G + WEEK + CLOSE + 5000, "week 0 to end and its close time");
+  // A week closes at the later of (its end + close delay) and (its last result + close delay).
+  const lastRes = Number((await chain.read("get_week", { week: "0" })).week?.last_resolved_time ?? 0);
+  await waitUntil(Math.max(G + WEEK, lastRes) + CLOSE + 5000, "week 0's close time");
   if (!st.closed) { const r = await send(funder, [{ method: "close_week", args: { week: "0" } }], "close week 0", 10); note("close", r.rcUsed, "close_week of a 60-question week"); st.closed = true; save(); }
   if (!st.settled) {
     const ra = await send(A, [{ method: "settle", args: { player: A.getAddress(), week: "0" } }], "settle A", 2);

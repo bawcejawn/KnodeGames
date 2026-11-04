@@ -28,6 +28,7 @@ Free and staked prediction games on the Koinos blockchain, powered by our own bl
 | Problems and open questions | `platform/OPENISSUES.md` (I-xxx) |
 | Decisions | `platform/DECISIONS.md` (D-xxx) |
 | Dates and each game's path to launch | `platform/ROADMAP.md` |
+| Each game's launch stage (Not Started → Ready For Launch) | `platform/LAUNCH_BOARD.md` |
 | Finished or settled items | `archive/DONE.md`; closed issues `archive/ISSUES_CLOSED.md` |
 
 **When sources disagree:** the owner's own words → `DECISIONS.md` → what's verified in the code or on chain (✅) → the other `.ai/` files → the repo's `docs/` → chat notes and handoffs (D-002). Log a C-xx and fix the lower source.
@@ -58,7 +59,7 @@ Don't read `archive/` to learn the project: `CHAT_KNOWLEDGE.md` is an inbox of r
 The full list — including what must never change casually — is in **`platform/RULES.md`**. The essentials:
 - **Never ask for, print, store or handle private keys or seed phrases.** Keys live only in the owner's `.env`. If one is pasted, tell the owner to rotate it.
 - **Never push to `main`, merge, deploy, upload a contract or change chain settings without the owner's explicit OK.**
-- **Every mainnet tool is a dry run unless you add `--send`.** Always show the owner the dry run first, then the send — one step at a time. The Picks tool (`npm run picks`) also needs `--mainnet` (and `CONFIRM_MAINNET=yes` in `.env`); the bot, desk and sponsor tools (`npm run bot | desk | sponsor`) need only `--send`.
+- **Every mainnet tool is a dry run unless you add `--send`.** Always show the owner the dry run first, then the send — one step at a time. The Picks tool (`npm run picks`) also needs `--mainnet` (and `CONFIRM_MAINNET=yes` in `.env`); the bot, desk and sponsor tools (`npm run bot | desk | sponsor`) also refuse a mainnet send unless `CONFIRM_MAINNET=yes` is in `.env`. So every mainnet send needs **both** `--send` and `CONFIRM_MAINNET=yes`.
 - **Check the node in the dry run.** If it says `api.koinos.io`, set `$env:RPC = "https://koinos.armana.io"` in that PowerShell window first (that node has been unreliable).
 - **Emergencies** (a bad send, a stuck game, a node down, a leaked key): send nothing more, tell the owner at once, and follow **`platform/RUNBOOK.md`**. Tools that exist: `npm run bot -- game-stop <id> --send` stops one game (players keep their stake); the vault's emergency path is in `standards/VAULT_STANDARD.md` §8 and `docs/UPGRADE-V6.md` ("If something goes wrong").
 - **Don't delete anything** (files, folders, branches) without firm confirmation that it's safe.

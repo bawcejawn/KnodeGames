@@ -22,6 +22,7 @@
 | `DECISIONS.md` | every decision (D-xxx) and every contradiction (C-xx) |
 | `RULES.md` | fund-safety, vault, withdrawal, reward, architecture and Koinos rules; what never changes casually |
 | `ROADMAP.md` | milestones and launch paths |
+| `LAUNCH_BOARD.md` | every game's launch stage on one page, and what moves it on |
 | `OPENISSUES.md` / `TODOS.md` | open problems (I-xxx) and the owner's own steps |
 | `KOINOS.md` | chain facts, testnet, gotchas |
 | `PRIORITIES.md` | what to work on next — P1 / P2 / P3 by the value it creates |

@@ -103,6 +103,10 @@
 | D-090 | 2026-11-04 | One VHP ruler for every game; each game keeps its own scoring formula; checks at random moments within a window | active — design (R-ARCH-1) |
 | D-091 | 2026-11-04 | Lower Last Node Standing's entry bar | active — value to set by simulation (R-LN-4) |
 | D-092 | 2026-11-04 | Daily Questions twice a day: 10 a day Mon–Sat, rounds at 00:00 and 12:00 UTC, after the first paid weeks (needs a vault upgrade) | active — plan (R-Q-1, R-VAULT-6) |
+| D-093 | 2026-11-04 | The VHP ruler looks back about 2 weeks; handicaps must be fair to every producer, proven by simulation | active — design (R-ARCH-1) |
+| D-094 | 2026-11-04 | The Race starts paying on 9 Nov with its two known gaps open until the ruler fix | active |
+| D-095 | 2026-11-04 | Survivor Season 1 keeps its blocks-based handicap | active |
+| D-096 | 2026-11-04 | Move every contract (vault, Desk, Picks, Race picks) to the new wallets this weekend, before any public announcement; Picks handover before the Picks v2 upgrade | active |
 
 ---
 
@@ -551,6 +555,22 @@
 ## D-092 — Daily Questions twice a day
 - **Date:** 2026-11-04 (owner) · **Decision:** **10 questions a day, Mon–Sat** (60 a week), in two rounds: one opens at **12:00 UTC** (4 AM PT, as today), the second at **00:00 UTC** (4 PM PT) when the earlier round closes. It starts **after the first paid weeks** (9 and 16 Nov) have paid cleanly, likely the week of 23 or 30 Nov.
 - **Needs a vault upgrade:** the contract allows at most 30 questions a week (`MAX_QUESTIONS_PER_WEEK = 30`, `Kpred.ts` ✅), which 5 a day × 6 days already fills. Raising it means the vault upgrade path: audits, 48 h notice, announce on a weekend, upload on a Monday (D-017, D-023, D-024). Also to plan: the bot's release schedule (`RELEASE_HOUR`, `LOCK_HOUR`), the release backup task, scoring and weekly points, Mana per player, and the site.
+
+## D-093 — The ruler's look-back is about 2 weeks; handicaps must be fair
+- **Date:** 2026-11-04 (owner) · **Decision:** the VHP ruler (D-090) looks back **about 2 weeks** when sizing a producer's own handicap, so hiding VHP costs about two weeks of real block rewards. Handicaps must be **fair to the game and to every producer**, small and large.
+- **Library recommendation (for R-ARCH-1 to test):** a producer's own size = the **higher of its 14-day time-weighted average VHP and its highest VHP in the last 24 h**. The average makes a hide cost in proportion to how long it lasts; the 24-h high stops "look small right now". A pure 14-day *maximum* would be harsh on a producer that genuinely loses stakers (it would look too big for 2 weeks). The final rule and window are set by simulation, including a field with many small producers, and approved by the owner.
+- **Load:** the exact rebuild reads each block once (the recorders already read them hourly), looking for VHP transfer events. Reads cost no Mana. Random checks are computed from data already read; nothing polls the chain every minute.
+
+## D-094 — The Race starts paying on 9 Nov
+- **Date:** 2026-11-04 (owner) · **Decision:** the Producer Race pays from the week of Mon 9 Nov as planned (D-077), with its two known handicap gaps (VHP added after a card; a > 6-h hide) open until the ruler fix (R-RACE-5). Each trick costs the producer real block rewards while it hides VHP.
+
+## D-095 — Survivor Season 1 on blocks
+- **Date:** 2026-11-04 (owner) · **Decision:** Survivor Season 1 (Mon 16 Nov) keeps its blocks-based handicap (h = kTop ÷ k over days d−8 … d−2). Later seasons move onto the one VHP ruler (D-090).
+
+## D-096 — Every contract moves to the new wallets this weekend
+- **Date:** 2026-11-04 (owner) · **Decision:** move the vault, the Desk, **the Picks contract and the Race picks contract** to the new owner wallet (D-083) this weekend, once each step checks out, and before any real public announcement. For Picks: **hand over first, then the Picks v2 upgrade** for Combo (answers PR #79).
+- **Needs:** the Picks owner-handover commands (R-BX-3) and the Race picks owner-change command (R-RACE-3) built and tested in time; the Vault chat adds both to the weekend runbook (`docs/WALLETS.md`).
+- **Ordering to watch:** a Picks handover clears pending game announcements on Picks. Survivor's game-3 Picks registration (R-SV-2) must come **after** the Picks accept, and still in time for Season 1 (Mon 16 Nov).
 
 ---
 

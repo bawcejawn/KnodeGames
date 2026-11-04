@@ -546,6 +546,58 @@ export async function run(o: Opts) {
     done.add(r);
   };
 
+  /** I-042: the week read again from the chain, target by target, before its prize list is frozen. Returns why it must
+   *  be held, or null when every target reads the same on both nodes:
+   *  - every round is a target block of the game, already irreversible (a future round can't be in it: G-K-1);
+   *  - a recorded target: the signer and times of block X and of its lock block, on both nodes;
+   *  - its picks (player, producer, time) on both nodes, and each player's Staked / Free play flag on both nodes;
+   *  - a scored target: the same lock card and first card after X, and every pick's points recomputed from them.
+   *  A void row scores nothing, so only its round and height are checked (a target voided for a non-standard VHP
+   *  transfer is listed for the correction window: nonCanonicalNotes). The VHP moved into the signer (BX-53) isn't
+   *  re-scanned (it was read on both nodes when recorded); the points are recomputed with the amount recorded. */
+  const reverify = async (wf: WeekFile): Promise<string | null> => {
+    const nodes = [blockP, blockC].filter(Boolean) as ((h: number) => Promise<{ signer: string; time: number }>)[];
+    const pnodes = [o.p, o.check].filter(Boolean);
+    const sameRaw = (a: [string, string, number][], b: [string, string, number][]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+    for (const t of wf.targets) {
+      const at = `block ${t.height}`;
+      if (t.height !== G.target(t.round)) return `${at} isn't round ${t.round}'s target block`;
+      if (t.height > head.lib) return `${at} isn't irreversible yet`;
+      if (t.void && !t.checked) { if (t.picks.length) return `${at}: a void row with picks`; continue; }
+      for (const read of nodes) {
+        const b = await read(t.height), l = await read(t.height - G.LEAD);
+        if ((isAddr(b.signer) ? b.signer : null) !== t.signer || b.time !== t.time || l.time !== t.lockTime) return `${at}: its signer or times read differently now`;
+      }
+      if (picksRead) {
+        const mine = t.picks.map((x) => [x[0], x[1], x[2]] as [string, string, number]);
+        for (const node of pnodes) {
+          const raw = (await picksRead(node, t.round)).map((x) => [x.player, x.producer, x.time] as [string, string, number]);
+          if (!sameRaw(raw, mine)) return `${at}: its picks read differently now`;
+        }
+      }
+      const players = [...new Set(t.picks.map((x) => x[0]))];
+      if (players.length) for (const node of pnodes) {
+        const rk = await rankedRead(players, node, M.weekOf(t.time));
+        if (t.picks.some((x) => (rk.has(x[0]) ? 1 : 0) !== x[4])) return `${at}: a player's Staked / Free play flag reads differently now`;
+      }
+      if (t.void) { if (t.picks.some((x) => x[3] !== 0)) return `${at}: a void target with points`; continue; }
+      const card = cardAt(t.lockTime), after = t.signer ? cardAfter(t.time, t.signer) : null;
+      if (!card || !after || !t.card || card.at !== t.card.at || after.at !== t.card.afterAt || flags(card, t.signer!)) return `${at}: its handicap cards read differently now`;
+      // The VHP moved into the signer (BX-53), as recorded: the stored signer VHP less the lock card's own.
+      const own = X.vhpOf(card).m.get(t.signer) ?? 0;
+      const moved = t.card.signerVhp != null && t.card.signerVhp > own ? BigInt(Math.round((t.card.signerVhp - own) * 1e8)) : 0n;
+      const lockC = withMoved(card, t.signer!, moved), afterC = withMoved(after, t.signer!, moved);
+      const { m, top } = X.vhpOf(lockC);
+      if (top !== t.card.top || (m.get(t.signer) ?? null) !== t.card.signerVhp) return `${at}: its card values read differently now`;
+      for (const x of t.picks) if (Math.min(X.pointsOf(lockC, x[1], t.signer), X.pointsOf(afterC, x[1], t.signer)) !== x[3]) return `${at}: ${x[0]}'s points recompute differently`;
+    }
+    return null;
+  };
+  /** BX-72: targets voided for a non-standard VHP transfer can be caused on purpose (about 84 transfers void a week):
+   *  each is listed when its week becomes final, for the owner to check in the vault's correction window. */
+  const nonCanonicalNotes = (wf: WeekFile) => wf.targets.filter((t) => typeof t.void === "string" && /VHP moved can't be read/.test(t.void))
+    .map((t) => `week ${wf.week}: block ${t.height} was voided for a non-standard VHP transfer to ${t.signer ?? "its signer"}; check it in the correction window (who gains if it stands?)`);
+
   // ── 1–3. targets ──
   let firstRound = Math.max(1, Math.ceil((head.lib - LOOKBACK_BLOCKS - G.OFFSET) / G.ROUND));
   // CARDS=self: only targets whose lock comes at most ~an hour (1,200 blocks) before the first run; earlier ones could
@@ -703,7 +755,15 @@ export async function run(o: Opts) {
     if (frozen && frozen.v === 1 && frozen.week === lw && frozen.game === G.GAME_ID && Array.isArray(frozen.prizes)) {
       lastWeek.final = true; lastWeek.prizes = frozen.prizes; lastWeek.frozenAt = frozen.at;
     } else if (final) {
-      freeze = { v: 1, week: lw, game: G.GAME_ID, at: new Date(head.time).toISOString(), prizes: lastWeek.prizes };
+      // I-042 (BX-88, BX-97, BX-98, G-K-1): before a week's prize list is frozen (and its vault file written), every
+      // target of the week is read again from both nodes and compared whole. Any difference holds the week (no prize
+      // list, no vault file, an alert); the next run tries again.
+      const held = await reverify(wf!);
+      for (const n of nonCanonicalNotes(wf!)) problems.push(n);
+      if (held) {
+        problems.push(`week ${lw}: held before its prize list: ${held}. Nothing is paid until a run reads the whole week the same (tried again next run)`);
+        lastWeek.final = false; lastWeek.prizes = [];
+      } else freeze = { v: 1, week: lw, game: G.GAME_ID, at: new Date(head.time).toISOString(), prizes: lastWeek.prizes };
     }
   }
   const board = {

@@ -481,3 +481,76 @@ test("PRIZES_FROM_WEEK: the repository variable reaches the recorder, and only a
   const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
   assert.match(yml, /PRIZES_FROM_WEEK: \$\{\{ vars\.PRIZES_FROM_WEEK \}\}/);
 });
+
+// ── I-042: the whole week read again before its prize list is frozen (BX-88, BX-97, BX-98, G-K-1) ──
+/** Records week 3 like weekThenLook, lets `edit` change the published week file, then runs at `hoursAfter` into week 4. */
+async function weekEditThenLook(edit, extra = {}, run2 = {}) {
+  const rd = raceDir();
+  let prev;
+  const startH = H0 - Math.floor(3600000 / 3000), endH = startH + 7 * 28800;
+  for (let lib = startH + 12 * X.ROUND; lib <= endH + 4 * X.ROUND; lib += 12 * X.ROUND) {
+    const o = tmp();
+    await quiet(() => run({ p: "main", check: "check", prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksGuest, rankedOf, head: { height: lib, time: T(lib), lib }, ...extra }));
+    prev = o;
+  }
+  const f = path.join(prev, "W003.json"), wf = JSON.parse(fs.readFileSync(f, "utf8"));
+  edit(wf);
+  fs.writeFileSync(f, JSON.stringify(wf));
+  const at = endH + 13 * 1200, out = tmp();
+  const r = await quiet(() => run({ p: "main", check: "check", prev, out, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksGuest, rankedOf, head: { height: at, time: T(at), lib: at - 60 }, ...extra, ...run2 }));
+  return { r, out };
+}
+const heldNote = (r) => r.problems.find((p) => /week 3: held before its prize list/.test(p));
+
+test("I-042: an honest week passes the re-read: prize list frozen, vault file written", async () => {
+  const { r, out } = await weekEditThenLook(() => {}, { prizesFromWeek: 0 });
+  assert.equal(heldNote(r), undefined, JSON.stringify(r.problems));
+  assert.equal(r.board.lastWeek.final, true);
+  assert.ok(r.board.lastWeek.prizes.length > 0, "the guest wins");
+  assert.ok(fs.existsSync(path.join(out, "P003.json")) && fs.existsSync(path.join(out, "vault", "W3.json")));
+});
+
+test("I-042: a target that doesn't read the same any more holds the week: no prize list, no vault file", async () => {
+  const cases = {
+    "another signer": (wf) => { const t = wf.targets.find((x) => !x.void && x.signer === BIG); t.signer = MID; },
+    "a pick's points": (wf) => { const t = wf.targets.find((x) => !x.void); t.picks[0][3] += 100; },
+    "a pick that was never made": (wf) => { const t = wf.targets.find((x) => !x.void); t.picks.push([ALICE, t.signer, t.picks[0][2], 300, 1]); },
+    "a Staked flag": (wf) => { const t = wf.targets.find((x) => !x.void && x.picks.some((p) => p[0] === GUEST)); t.picks.find((p) => p[0] === GUEST)[4] = 1; },
+    "another lock card": (wf) => { const t = wf.targets.find((x) => !x.void); t.card.at -= 3600000; },
+    "the card's top VHP": (wf) => { const t = wf.targets.find((x) => !x.void); t.card.top += 1; },
+  };
+  for (const [what, edit] of Object.entries(cases)) {
+    const { r, out } = await weekEditThenLook(edit, { prizesFromWeek: 0 });
+    assert.ok(heldNote(r), `${what}: held (${JSON.stringify(r.problems).slice(0, 300)})`);
+    assert.equal(r.board.lastWeek.final, false, what); assert.deepEqual(r.board.lastWeek.prizes, [], what);
+    assert.ok(!fs.existsSync(path.join(out, "P003.json")) && !fs.existsSync(path.join(out, "vault", "W3.json")), `${what}: nothing frozen, nothing for the vault`);
+  }
+});
+
+test("I-042 (G-K-1): a round that isn't an irreversible target block of the game holds the week", async () => {
+  // A round published early with a made-up (past) block time: when the week ends, the real block's time differs.
+  const early = await weekEditThenLook((wf) => { wf.targets[wf.targets.length - 1].time -= 3000; });
+  assert.ok(heldNote(early.r), JSON.stringify(early.r.problems).slice(0, 300));
+  // (A round far in the future leaves a gap, so the week never becomes final at all: nothing is paid either.)
+  const gap = await weekEditThenLook((wf) => { const t = wf.targets[wf.targets.length - 1]; t.height += 100 * X.ROUND; t.round += 100; });
+  assert.equal(gap.r.board.lastWeek.final, false);
+  const off = await weekEditThenLook((wf) => { wf.targets[0].height += 1; });
+  // (loadWeek drops a target whose height isn't round × size + offset: a gap, so the week never becomes final.)
+  assert.equal(off.r.board.lastWeek.final, false, "a height that isn't round × size + offset is never paid");
+  assert.ok(!fs.existsSync(path.join(off.out, "P003.json")));
+});
+
+test("I-042: a node that reads a block differently at the week's end holds it (the other node agreeing isn't enough)", async () => {
+  const lateLie = (node, h) => ({ signer: node === "check" && h === H0 + 2 * X.ROUND ? SMALL : signerOf(h), time: T(h) });
+  const { r } = await weekEditThenLook(() => {}, {}, { blockOf: async (n, h) => lateLie(n, h) });
+  assert.ok(heldNote(r));
+});
+
+test("BX-72: a target voided for a non-standard VHP transfer is listed when its week becomes final", async () => {
+  const { r } = await weekEditThenLook((wf) => {
+    const t = wf.targets.find((x) => !x.void);
+    t.void = "a non-standard VHP transfer to x between its lock card and the block, so the VHP moved can't be read; no points";
+    t.card = null; for (const p of t.picks) p[3] = 0;
+  }, { prizesFromWeek: 0 });
+  assert.ok(r.problems.some((p) => /voided for a non-standard VHP transfer/.test(p) && /correction window/.test(p)), JSON.stringify(r.problems).slice(0, 400));
+});

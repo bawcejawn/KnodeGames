@@ -119,6 +119,7 @@
 | D-106 | 2026-11-04 | The Picks owner handover waits until its tool is built and checked, after Survivor's game 3 is applied; not this weekend | active (amends D-096 for Picks) |
 | D-107 | 2026-11-04 | A held week fails its run and emails the owner, and the alert names what the owner can do about it | active |
 | D-108 | 2026-11-04 | Build the shared VHP ruler (R-ARCH-1); the Race's two gaps are closed by it, not by a Race-only fix | active |
+| D-109 | 2026-11-03 | Phone tab bar: Games · Leaders · Stake · Results · More; Swap moves into More | active |
 
 ---
 
@@ -610,6 +611,9 @@
 
 ## D-108 — Build the shared VHP ruler
 - **Date:** 2026-11-04 (owner: "Let's do the shared VHP ruler. This needs to be built") · **Decision:** build the one VHP ruler of D-090 / D-093 (R-ARCH-1) rather than a Race-only fix; the Race's two known gaps (the > 6-h hide, VHP added after a card) are closed when the Race moves onto it (R-RACE-5). Design by the library chat (it holds the handicap review and the owner's decisions); build in the Bracket chat, which owns the VHP standard (D-058); each game then plugs its own formula in.
+
+## D-109 — The phone tab bar
+- **Date:** 2026-11-03 (owner, to the Hub chat: "Stake is a tab, just like Leaders; Swap belongs in More") · **Decision:** the phone tab bar is **Games · Leaders · Stake · Results · More**; Swap moves into the More sheet. The top menu gets a Stake link; Info is removed, Get VHP moves to Tools (R-HUB-9, R-HUB-10; PR #110).
 
 ## D-104 — Picks pick row 1 Mana; vault switch off for now
 - **Date:** 2026-11-04 (owner sent both configs; Block X chat) · **Decision:** the sponsor's per-action limit for a Picks pick is **1 Mana** (was 0.2 from one testnet sample, D-038, now superseded); the site asks 1 Mana (PR #90). The sponsor's vault switch is **off** (`config --vault off`) until the guest-trap fix (`b84e1add…`, Repo Lens #C-3 GO) is uploaded, then turned back on (R-BX-15). Measured on mainnet 4 Nov: a guest Race pick 0.76 Mana, a guest Block X pick 0.84. **Until the fix is uploaded, anyone running `npm run sponsor -- config` must pass `--vault off`**, or guest picks break again. Open: the per-transaction and per-player caps (R-BX-16).

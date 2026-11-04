@@ -18,6 +18,7 @@
 - [ ] **Wallet moves** per `docs/WALLETS.md` (D-083, D-096): **Fri 6 Nov** step 0 (read-only check; paste the output to the Vault chat), create the cold-key owner and cold treasury, start the treasury move (48 h) → **Sat** sweep the old operator `1JSTwo…` (I-045) → **Sun** after every `game-apply`, start the vault and Desk handovers → Mon/Tue accept. Picks and Race picks too this weekend, once their tools are built (R-BX-3, R-RACE-3) — P1 — I-001
 - [ ] Optional (Repo Lens asked): on the PC, `npm ci --ignore-scripts && npm run test:audit:serial` — P4
 - [ ] Retry creating an @name on `names.html` and report the result — P3 — I-020
+- [ ] Fix the producer's @name typo (I-084): once the Hub adds the buttons (R-HUB-3), from wallet `1DAHmrQJ…` create `@primeproducer`, make it the main @name, then remove `@primeprocuder`. The site updates within the hour — P3
 - [ ] Check the Race status badge on the live Race page at phone width — P4
 - [ ] Delete old node basedir folders and the desk's ~50 GB broken copy, **only if `heal.log` is clean** — on or after Wed 4 Nov, 17:30 UTC (9:30 AM PT) — P3 — I-008
 - [ ] Retest "+ Add another account" with the real Kondor extension — P2 — I-004 — due {{TBD}}

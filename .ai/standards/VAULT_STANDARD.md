@@ -58,7 +58,7 @@
  "skipped": [ … ]}             // optional: rounds left out
 ```
 - `rows`: staked players with ≥ 1 point, dense-ranked onto 255 … 1 (ties share; past 255 places the best 254 stay exact and the rest share 1). A week with no qualifying players may still get a file with empty rows.
-- **Every game fills `first` and `second`** with its free winners, even when its free prize is off. The owner's free-prize switch (D-082, `platform/FREE_PRIZE_SWITCH.md`) decides whether the bot posts them. ~~Staked-only games leave `first` and `second` empty~~ (D-071, superseded by D-081 / D-082).
+- **Every game fills `first` and `second`** with its free winners, even when its free prize is off. The owner's free-prize switch (D-082, `platform/FREE_PRIZE_SWITCH.md`) decides whether the bot posts them.
 
 **Every results file must:**
 - be published **only after the week ends**, and for staked rows only after the stakes are read once the week has ended;

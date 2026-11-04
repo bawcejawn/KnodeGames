@@ -171,25 +171,6 @@ test("producers: race cards from the last 30 days (field and paddock) and the re
   assert.deepEqual([...p].sort(), [A.getAddress(), B.getAddress(), "1JrsQXbrDqkT9yUH6gtj4yhQi1kgWwsohh"].sort());
 });
 
-test("verifyIssues: claims in order, each against the list the earlier ones left; outcomes per issue", async () => {
-  const issues = [
-    { number: 5, body: `Claim:\n${await claim(A, "Blue Harbor", "2026-11-09")}` },
-    { number: 6, body: await claim(B, "blue-harbor", "2026-11-09") },          // lookalike of #5, which came first
-    { number: 7, body: "hello, no claim here" },
-    { number: 8, body: await claim(B, "Red Rock", "2026-11-09") },
-    { number: -1, body: "x" },
-  ];
-  const r = await N.verifyIssues(null, issues, NOW, isEligible);
-  assert.deepEqual(r.results.map((x) => [x.issue, x.accepted]), [[5, true], [6, false], [7, false], [8, true]]);
-  assert.match(r.results[1].reason, /looks the same/);
-  assert.match(r.results[2].reason, /No claim found/);
-  assert.deepEqual(Object.values(r.db.names).map((e) => e.name).sort(), ["Blue Harbor", "Red Rock"]);
-  const none = await N.verifyIssues(null, [{ number: 1, body: "nothing" }], NOW, isEligible);
-  assert.equal(none.db, null, "nothing accepted: no names.json to publish");
-  const s = N.serialize(r.db);
-  assert.equal(s, N.serialize(JSON.parse(s)), "stable output");
-});
-
 // ── names.yml: run the publish check and the reply text exactly as the workflow does ──
 const wf = fs.readFileSync(`${APP}/.github/workflows/names.yml`, "utf8");
 const heredocs = [...wf.matchAll(/<<'PY'\n([\s\S]*?)\n\s*PY\n/g)].map((m) => m[1].replace(/^ {10}/gm, ""));
@@ -199,9 +180,12 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "names-"));
 test("names.yml publish: accepts names.json as bot/names.ts writes it, refuses anything else", async () => {
   const pub = heredocs.find((c) => c.includes("names.json: top level"));
   assert.ok(pub, "publish check found");
-  const r = await N.verifyIssues(null, [{ number: 1, body: await claim(A, "Blue Harbor", "2026-11-09") }], NOW, isEligible);
+  // names.json as the hourly run writes it now (R-HUB-5: no claims; names stays an empty object) plus, for the
+  // shape check's own rules, one old-style entry.
+  const r = { db: R.cleanDb(null) };
+  r.db.names[A.getAddress()] = { name: "Blue Harbor", date: "2026-11-09", signature: (await claim(A, "Blue Harbor", "2026-11-09")).match(/Signature: (\S+)/)[1] };
   const d = tmp();
-  const write = (db, res = { base: "", changed: true, results: [{ issue: 1, accepted: true }] }) => {
+  const write = (db, res = { base: "", changed: true, results: [] }) => {
     fs.writeFileSync(path.join(d, "names.json"), typeof db === "string" ? db : JSON.stringify(db));
     fs.writeFileSync(path.join(d, "r.json"), JSON.stringify(res));
     return runPy(pub, [path.join(d, "names.json"), path.join(d, "r.json")]);
@@ -229,46 +213,12 @@ test("names.yml publish: accepts names.json as bot/names.ts writes it, refuses a
   assert.notEqual(write({ ...JSON.parse(N.serialize(withNicks)), nicknames: { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "pool" } }).status, 0, "no nickname for a Knode node");
 });
 
-test("names.yml reply: fixed texts only; accepted claims are closed only once published; odd reasons are replaced", () => {
-  const reply = heredocs.find((c) => c.includes("not planned"));
-  assert.ok(reply, "reply script found");
-  const d = tmp(), out = path.join(d, "c");
-  fs.mkdirSync(out);
-  const results = { base: "", results: [
-    { issue: 3, accepted: true, name: "Blue Harbor", address: A.getAddress() },
-    { issue: 4, accepted: false, reason: "That name is reserved." },
-    { issue: 5, accepted: false, reason: "@everyone see [this](https://evil.example) `code`" },
-    { issue: "6; rm -rf /", accepted: false, reason: "x" },
-    { issue: 7, accepted: true, name: "<script>", address: A.getAddress() },
-  ] };
-  fs.writeFileSync(path.join(d, "r.json"), JSON.stringify(results));
-  let p = runPy(reply, [path.join(d, "r.json"), "success", out, "3,4,5,6,7"]);
-  assert.equal(p.status, 0, p.stderr);
-  assert.deepEqual(p.stdout.trim().split("\n"), ["3 completed", "4 not planned", "5 not planned"]);
-  assert.match(fs.readFileSync(path.join(out, "3.md"), "utf8"), /^Accepted: `Blue Harbor` is now the name for `1/);
-  // Only the issues the find step listed are answered (audit PN-15).
-  assert.deepEqual(runPy(reply, [path.join(d, "r.json"), "success", out, "4"]).stdout.trim().split("\n"), ["4 not planned"]);
-  assert.equal(runPy(reply, [path.join(d, "r.json"), "success", out, ""]).stdout.trim(), "");
-  assert.match(fs.readFileSync(path.join(out, "4.md"), "utf8"), /^Not accepted: That name is reserved\./);
-  const five = fs.readFileSync(path.join(out, "5.md"), "utf8");
-  assert.doesNotMatch(five, /@everyone|evil|`/); assert.match(five, /didn't pass the checks/);
-  p = runPy(reply, [path.join(d, "r.json"), "failure", out, "3,4,5,6,7"]);
-  assert.deepEqual(p.stdout.trim().split("\n"), ["4 not planned", "5 not planned"], "not published: accepted claims stay open for the next run");
-  // Every real reason the rules can give passes the reply's own filter (so producers see why, not a generic text).
-  const allowed = /^[A-Za-z0-9 .,:;'"()?/+_\-–…“”]+$/;
-  const reasons = [...fs.readFileSync(`${APP}/names.js`, "utf8").matchAll(/return (?:\{ ok: false, reason: )?("(?:[^"\\]|\\.)*"|`[^`]*`)/g)]
-    .map((m) => m[1].slice(1, -1)).filter((t) => /^(That|The|No |A |One|Use|Enter|This)/.test(t));
-  assert.ok(reasons.length >= 12, `found ${reasons.length} reasons`);
-  for (const raw of reasons) {
-    const text = raw.replace(/\$\{[^}]*\}/g, "7").replace(/\\"/g, '"');
-    assert.match(text, allowed, text);
-  }
-});
-
-test("names.yml: no issue trigger, issue text only read as data, publish pushes only names.json to names-data", () => {
-  assert.doesNotMatch(wf.match(/^on:[\s\S]*?^concurrency:/m)[0], /issues/);
-  assert.deepEqual([...new Set([...wf.matchAll(/github\.event[a-z_.]*/g)].map((m) => m[0]))].sort(), ["github.event.schedule", "github.event_name"],
-    "only the trigger's name and schedule are read from the event, never issue data");
+test("names.yml: hourly @name refresh only (R-HUB-5): no issues read or answered, publish pushes only names.json to names-data", () => {
+  const code = wf.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");   // the workflow without its comments
+  assert.doesNotMatch(code, /issues|labels=knode-name|reply:|ISSUES_FILE|claims:/, "the claim flow is gone");
+  assert.deepEqual([...wf.matchAll(/- cron: "([^"]+)"/g)].map((m) => m[1]), ["4 * * * *"]);
+  assert.deepEqual([...new Set([...wf.matchAll(/github\.event[a-z_.]*/g)].map((m) => m[0]))], [], "nothing is read from the event");
+  assert.ok(!fs.existsSync(`${APP}/.github/ISSUE_TEMPLATE/producer-name.yml`), "the claim issue template is gone");
   assert.match(wf, /vars\.NAMES_ENABLED == 'true' && github\.ref == 'refs\/heads\/main'/);
   assert.match(wf, /printf '100644 blob %s\\tnames\.json\\n' "\$blob" \| git mktree/);
   assert.match(wf, /git push -q "\$remote" "\$commit:refs\/heads\/names-data"/);
@@ -312,17 +262,6 @@ test("the pages that show producers use KNames (with their old fallback if names
 });
 
 // ── wallets of every kind, nicknames, the chain ──
-test("eligibility: a producer, or 1 VHP in the wallet or staked; a failing node falls back to the next one", async () => {
-  const P = "1JrsQXbrDqkT9yUH6gtj4yhQi1kgWwsohh";
-  const chain = (vhp, stake, fail = false) => ({ vhp: async () => { if (fail) throw new Error("down"); return vhp; }, stake: async () => stake, players: async () => [], nickname: async () => null });
-  assert.equal(await N.eligibility(new Set([P]), [chain(0n, 0n)])(P), true, "a producer");
-  assert.equal(await N.eligibility(new Set(), [chain(100000000n, 0n)])(A.getAddress()), true, "1 VHP held");
-  assert.equal(await N.eligibility(new Set(), [chain(99999999n, 0n)])(A.getAddress()), false, "just under 1 VHP");
-  assert.equal(await N.eligibility(new Set(), [chain(0n, 100000000n)])(A.getAddress()), true, "1 VHP staked (any game)");
-  assert.equal(await N.eligibility(new Set(), [chain(0n, 0n, true), chain(5n * 100000000n, 0n)])(A.getAddress()), true, "first node down");
-  assert.equal(await N.eligibility(new Set(), [chain(0n, 0n, true)])(A.getAddress()), null, "no node answers: unknown, the claim stays open (Repo Lens C1-5)");
-});
-
 test("nicknames: only when both nodes agree; shown with @; a Knode Games name wins; hidden hides both", async () => {
   const P = "1JrsQXbrDqkT9yUH6gtj4yhQi1kgWwsohh", Q = "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531", X = "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu";
   const one = { [A.getAddress()]: "jga", [P]: "blocknode", [Q]: "liar", [X]: "knode" };

@@ -2,7 +2,7 @@
 
 > **Purpose:** the one place where work is handed to each chat. Instead of the owner sending a different message to every chat, each chat reads **its own section here** at the start of every session and works the open items in order.
 > **Owner's message to any chat is always the same** (§1). The library chat keeps this file current from session-end reports, decisions and audits.
-> **Last updated:** 2026-11-04 (Vault chat's session-end report filed)
+> **Last updated:** 2026-11-04 (Vault and Block X session-end reports filed)
 > **Rules:**
 > - Each item has an id (R-<chat>-<n>), a link (D-/I-/PR), what "done" means, and a status: **open** · **in progress** · **done (date)**.
 > - A chat reports finished items in its session-end report (`SESSION_END_PROCESS.md`), and the library chat marks them done. Items are never deleted.
@@ -28,7 +28,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 ### Vault
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
-| R-VAULT-1 | Fix PR #73 (`docs/WALLETS.md` + weekend runbook): 3 High, 6 Medium, 5 Low from the independent check. The full list was sent 3 Nov (`claude/prompts-2026-11-03-boards-owners-vault-reply.md`) | I-001, D-083 | fixes pushed; owner merges before Fri 6 Nov | fixes pushed 4 Nov (`c4ac56d`, `f98ccb8`) → owner reviews and merges #73 **before Fri 6 Nov 10 AM PT** |
+| R-VAULT-1 | Fix PR #73 (`docs/WALLETS.md` + weekend runbook): 3 High, 6 Medium, 5 Low from the independent check. The full list was sent 3 Nov (`claude/prompts-2026-11-03-boards-owners-vault-reply.md`) | I-001, D-083 | fixes pushed; owner merges before Fri 6 Nov | done 4 Nov — PR #73 merged (`docs/WALLETS.md` + weekend runbook) |
 | R-VAULT-2 | **PR #74 — Repo Lens #D-3 (3 Nov): fix first.** Report (private): `claude/audit-vault-bot-checks-D3-report.md`. Fix on `vault-bot-checks`, one finding per commit, each with a test that fails on `eaa47b0` and passes after: **VB-2** (High) `vaultFinalizePass` treats `{ok:false}` as success → `if (!sent(await send(...)).ok \|\| ctx.dryRun) break;`, and route every `Send` through `sent()`; **VB-3** (Medium) record a refusal only for a chain revert (`reverted:`), retry network / Mana / "not seen in a block" next run; **VB-4** (High) optional `vaultGames.<id>.board: "none"` that skips the staked-list check (logged), set for game 3 (Survivor) unless Survivor publishes a board (R-SV-3); **VB-5** (Medium) optional `vaultGames.<id>.minPts`, 100 for game 8 (Combo); **VB-1** (High, before Last Node launches) a `HOLD-W<n>.json` holds unless `RELEASE-W<n>.json` exists; read `why` as well as `reason`; Lows if quick: VB-10 (alert when a file is first seen with < 2 h left), VB-8 (read only `ranked: true` rows), VB-6 (skip rows past the board's cap or ask games to keep every ≥ 1-point row), VB-7 (use max(min, 1 VHP)) | I-051, I-052, I-064 | fixes pushed → Repo Lens fix-check GO → owner merges **by Fri 13 Nov** (VB-2 and VB-3 are enough for Race and Block X on 16 Nov) | fixes pushed 4 Nov (`ec61bb4`: VB-1 – VB-8, VB-10 – VB-12; 11 new tests fail on `eaa47b0`, pass now; bot 72/72, audit 700/0) → **Repo Lens fix-check** (prompt `claude/audit-vault-bot-checks-fixcheck-prompt.md`) → merge by Fri 13 Nov |
 | R-VAULT-3 | `tools/sweep-old-bot.ts`: honour `$env:RPC`, default to Armana | I-078 | before the Sat 7 Nov sweep | done 4 Nov (in PR #73; test `tools.sweep-rpc`) |
 | R-VAULT-5 | **Check `platform/RUNBOOK.md`** (new, 3 Nov): confirm or correct every vault, Desk, sponsor and key step, especially those marked ❓ (§6 manual tick without an operator key, §7 hostile owner announcement and sponsor key, §9 withdrawals-only build). Edit it in your PR | DOCUMENTATION_GAPS #2 | runbook confirmed | open |
@@ -37,10 +37,10 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 ### Block X (and Picks)
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
-| R-BX-1 | The "before prizes" list: which items could mispay in the first paid week (closes Mon 16 Nov), fixes for those | I-042, D-077 | fixed or accepted by the owner before 16 Nov | open |
-| R-BX-2 | Sampler cadence: GitHub may run the 5-min sampler only about hourly. Decide whether `MIN_SAMPLES = 12` per 6 h card still fits, or change the schedule | I-059 | a decision + PR if needed | open |
-| R-BX-3 | Plan (don't build yet) a safe Picks owner handover: propose/accept commands with dry runs, the 48 h wait, when nothing is pending (it clears announcements and upgrades), and `MAINNET_OWNER` read from the deployment file instead of hard-coded | I-076, D-083 | a plan with tests | open |
-| R-BX-4 | Ship-check: confirm V4, B1-1, B1-5 shipped with PR #57 | TODOS → Waiting | confirmed | open |
+| R-BX-1 | The "before prizes" list: which items could mispay in the first paid week (closes Mon 16 Nov), fixes for those | I-042, D-077 | fixed or accepted by the owner before 16 Nov | in progress — built in **PR #80** (week-end re-read, BX-72 voids, future-card refusal BX-118, RV-2); BX-105 not built (display only, accepted). Needs **Repo Lens round 14 GO**, then the owner merges **before Mon 9 Nov 00:00 UTC** |
+| R-BX-2 | Sampler cadence: GitHub may run the 5-min sampler only about hourly. Decide whether `MIN_SAMPLES = 12` per 6 h card still fits, or change the schedule | I-059 | a decision + PR if needed | decided 4 Nov: `MIN_SAMPLES` stays 12; the sampler takes up to 12 samples a run (PR #67, merged 4 Nov) |
+| R-BX-3 | Plan (don't build yet) a safe Picks owner handover: propose/accept commands with dry runs, the 48 h wait, when nothing is pending (it clears announcements and upgrades), and `MAINNET_OWNER` read from the deployment file instead of hard-coded | I-076, D-083 | a plan with tests | plan in **PR #79** (`docs/blockx/OWNER-HANDOVER-PLAN.md`); 2 owner questions: same weekend or later; hand over before the Picks v2 upgrade |
+| R-BX-4 | Ship-check: confirm V4, B1-1, B1-5 shipped with PR #57 | TODOS → Waiting | confirmed | done 4 Nov: V4, B1-1, B1-5 (`d7fad7c`) and RV-1 are on `main` |
 
 ### Race
 | Id | Request | Link | Done when | Status |
@@ -100,6 +100,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-HUB-1 | "Week 1" refresh: show the week of Mon 9 Nov as Week 1 site-wide and replace "vault not yet live" text; write the week-label table (vault week, site label, file name) into `KOINOS.md` → Time | I-069, I-027, D-063 | live before Mon 9 Nov | open |
 | R-HUB-2 | Check the staking hub, status bars and panels on mainnet now that the vault is live | — | checked | open |
 | R-HUB-3 | @name mint not showing the main name | I-020 | fixed | open |
+| R-HUB-4 | **Guest wallet messages:** `wallet.js` shows "Free answers are used up" for *any* sponsor refusal or an unanswered `would_pay` check, so players see the wrong reason (Block X found it 3 Nov; the owner's own failed pick). Show the real reason, as PR #66 did for the Block X page | I-082 | PR + test | open |
 
 ### Architecture (start a new chat with `AI_CHAT_STARTER.md` §3.5)
 | Id | Request | Link | Done when | Status |

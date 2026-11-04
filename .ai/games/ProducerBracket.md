@@ -24,7 +24,7 @@ A weekly knockout tournament of Koinos block producers, like a March Madness bra
 - **Free play: 2 VHP for 1st, 1 VHP for 2nd** (D-019, D-062). Tied for 1st share all 3 VHP; a single 1st → tied 2nd share 1 VHP; at most 10 per place (more than 10 tied → that place and below stay empty). Minimum play: one bracket with ≥ 1 point. Guests eligible. 1-week seasons. 💬
 
 ## Dependencies
-- **Picks contract:** announce game 9 (48 h). **Vault:** `game-add 9 "Producer Bracket" --staked --free --season 1` (48 h; by Fri 6 Nov noon PT to pay from 9 Nov), free-prize switch ON (D-082); results `games-data:bracket/vault/W<week>.json` ✅ `vaultGames`.
+- **Picks contract:** announce game 9 (48 h). **Vault:** `game-add 9 "Producer Bracket" --staked --free --season 1` (48 h; when its fix-check passes, no 9 Nov target, D-088), free-prize switch ON (D-082); results `games-data:bracket/vault/W<week>.json` ✅ `vaultGames`.
 - A **sponsor allowlist row** for game 9 picks. 💬
 - The VHP standard (`vhp-standard.js`, `bot/vhp-chain.ts`) and the VHP contract's `effective_balance_of`. 💬
 - Recorder `bot/games/bracket.ts` in `games.yml`; data branch `bracket-history` (keep) ✅.
@@ -52,4 +52,4 @@ Repo Lens audit → fixes and fix-check → update the branch from `main` → an
   - D-086: the Pool stays in the field, protected; forfeits on a day-long average;
   - D-087: same-block ties share the place;
   - D-088: launch when the fix-check passes, no 9 Nov target.
-- **Work list:** `platform/CHAT_REQUESTS.md` → Producer Bracket (R-BR-1 – R-BR-5).
+- **Work list:** `platform/CHAT_REQUESTS.md` → Producer Bracket (R-BR-1 – R-BR-6).

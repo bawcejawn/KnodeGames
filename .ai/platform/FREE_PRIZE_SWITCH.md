@@ -56,7 +56,7 @@ npm run prizes -- off 3 --send
 ```
 - `list` shows each game for this week and next week.
 - A send pushes `free-prizes.json` to the `prize-settings` branch on GitHub, with your own git login. The first send creates that branch.
-- **Run it from `main`.** The `prizes` command and the panel buttons exist only on `main` (PR #65). `picks` has nothing that isn't in `main`, so switching your folder to `main` is safe (❓ owner to confirm the switch; see TODOS).
+- **Run it from `main`.** The `prizes` command and the panel buttons exist only on `main` (PR #65). `picks` has nothing that isn't in `main`, and your folder is on `main` since 3 Nov ✅.
 
 **After the first send:** add the GitHub ruleset on `prize-settings` (no deletion, no force-push). Steps: Settings → Rules → Rulesets → New branch ruleset → target `prize-settings` → tick *Restrict deletions* and *Block force pushes* (Repo Lens FP-1).
 

@@ -33,7 +33,7 @@ Branch `combo` @ `c8c652e` ✅ — pushed, **not merged, nothing deployed**. Tes
 
 ## Known issues
 - **I-063:** live run time (record + verify) unmeasured; nothing writes v2's `wasmSha256` automatically (runbook step 5); the verify job's design is unreviewed; a local `picks` merge (`b301bfa`) may not be pushed; `bot/picks.ts` changed on `combo` (Block X told).
-- **I-059:** void cards until the sampler has samples. It runs since 3 Nov; its cadence is being checked.
+- **I-059 (closed 4 Nov):** cards are void without samples; the sampler runs since 3 Nov and takes up to 12 samples a run (PR #67).
 - Accepted: FC3-9 (a lagging check node stops recording), FC2-19 (clock edges can hold a file one run).
 
 ## Future plans

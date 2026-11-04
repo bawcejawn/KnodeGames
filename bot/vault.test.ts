@@ -566,6 +566,15 @@ test("N-3: a transaction that ran out of Mana is retried next run, not remembere
   // A refusal whose text only mentions Mana is not the chain's exact line.
   assert.equal(isRevert(revertError({ rc_used: "1200000", logs: ["transaction reverted: not enough insufficient rc stuff"] }, L)), true);
   assert.equal(isRevert(revertError({ rc_used: "x", logs: [] }, L)), true, "unreadable Mana use: treated as a refusal (fails closed)");
+  // Out of Mana at submit (#C-7, C7-1): koilib throws the node's JSON with the chain's logs; nothing is charged.
+  const { submitError } = await import("./chain.ts");
+  const atSubmit = submitError(JSON.stringify({ error: "insufficient rc", logs: ["transaction reverted: insufficient rc"] }));
+  assert.match(atSubmit, /^out of Mana: refused when submitted/);
+  assert.equal(isRevert(atSubmit), false, "out of Mana at submit is temporary");
+  assert.equal(isRevert(submitError(JSON.stringify({ error: "insufficient rc", logs: ["a contract log", "transaction reverted: insufficient rc"] }))), false, "a contract log before it");
+  const refusedAtSubmit = submitError(JSON.stringify({ error: "owner only", logs: ["transaction reverted: owner only"] }));
+  assert.equal(isRevert(refusedAtSubmit), true, "a contract refusal at submit is still a refusal");
+  assert.equal(submitError("fetch failed"), "fetch failed", "text that isn't JSON is returned as it is");
   // Submit-time refusals and other failures are unchanged.
   assert.equal(isRevert('{"error":"x","logs":["transaction reverted: results for that week are past their deadline"]}'), true);
   assert.equal(isRevert("sent, but not seen in a block within 3 minutes (will be re-checked next run)"), false);

@@ -55,6 +55,18 @@ export function revertError(receipt: any, limit: bigint): string {
   return `reverted: ${logs}`;
 }
 
+/** The error for a send the node refused when it was submitted. Repo Lens #C-7 (C7-1): on Koinos a transaction that
+ *  runs out of Mana is run at submit and refused there (nothing is charged), with the chain's log
+ *  "transaction reverted: insufficient rc" in the error's JSON. That is not the contract's refusal: it reads
+ *  "out of Mana: …", which the vault bot retries. Any other text (or text that isn't JSON) is returned as it is.
+ *  Exported for the tests. */
+export function submitError(msg: string): string {
+  let logs: unknown;
+  try { logs = JSON.parse(msg)?.logs; } catch { return msg; }
+  if (Array.isArray(logs) && logs.some((l) => String(l).trim() === "transaction reverted: insufficient rc")) return `out of Mana: refused when submitted ${msg}`;
+  return msg;
+}
+
 export class KoinosChain implements Chain {
   readonly kind = "koinos" as const;
   readonly provider: Provider;
@@ -132,7 +144,7 @@ export class KoinosChain implements Chain {
       if (!confirmed) return { ok: false, txId: t.id, error: "sent, but not seen in a block within 3 minutes (will be re-checked next run)" };
       return { ok: true, rcUsed: String((receipt as any)?.rc_used ?? 0), txId: t.id };
     } catch (e) {
-      return { ok: false, error: (e as Error).message ?? String(e) };
+      return { ok: false, error: submitError((e as Error).message ?? String(e)) };
     }
   }
 }

@@ -4,6 +4,11 @@
 > **How it grows:** when an item in `platform/TODOS.md`, `platform/CHAT_REQUESTS.md`, `platform/PRIORITIES.md`, `platform/ROADMAP.md`, `platform/DOCUMENTATION_GAPS.md` or `platform/TECHNICAL_DEBT.md` is done, the library chat moves it here under the date it was moved, newest first. Closed issues go to `ISSUES_CLOSED.md`.
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
+## Moved 2026-11-04 (evening)
+- From TODOS: **PR #80** (Block X before prizes): wait for the round-14 fix (E4-1) and a fix-check GO, then merge **before Sun 8 Nov 4 PM PT** — P1 — I-042
+- R-BX-1 done: PR #80 merged (`4d372da`) after the round-14 fix-check GO at `baeb2c6` (E4-1 a+b, E4-2, E4-3, E4-7 fixed). The fix-check's condition 1 (Block X recording on mainnet) checked ✅: `games-data` has `blockx/W001.json`, `W002.json`, `board.json`, `index.json`, last record 04:36 UTC 4 Nov, `games.yml` runs green.
+  | R-BX-1 | **Before prizes (PR #80):** Repo Lens round 14 (3 Nov) is **No-Go until E4-1 is fixed**: (a) stop the Block X step when the race-data fetch fails; (b) the week-end re-read re-checks each void's reason. Tests as in the report. Also this week if easy: E4-2 (catch a failing re-read: hold, keep publishing), E4-3 (read 4 at a time + a time budget), E4-7 (a held week fails the run); later E4-4 (a sampler run past 58 min loses its samples, Low). Then a short fix-check. BX-105 (board freeze, display only) stays accepted | I-042, D-077; summary (private): `claude/blockx/ROUND-14-2026-11-03.md` | fix-check GO; owner merges **before Mon 9 Nov 00:00 UTC (Sun 4 PM PT)** | in progress |
+
 ## Moved 2026-11-04 (owner decisions D-097 – D-102)
 - R-RACE-2 (farming recommendation) — **not needed**: the owner accepted farming for now (D-097).
   | R-RACE-2 | A short recommendation on free-prize farming by many empty wallets (owner decides) | I-035 | recommendation sent | open |

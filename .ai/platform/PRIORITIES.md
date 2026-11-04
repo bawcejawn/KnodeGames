@@ -12,7 +12,6 @@
 | 2 | **Put Block X and the Race in the vault:** `game-apply` Thu 5 – Sun 8 Nov, then `PRIZES_FROM_WEEK = 3` | Turns three games into **paying** games from Mon 9 Nov: the first real reason to stake | owner | D-077 |
 | 3 | **Make the first paid week safe:** the Race vault-file hold (Block X's fixes merged, PR #80); watch the 24 h correction window after each seal | A wrong first payout would cost more trust than any feature earns | Block X, Race chats; owner | I-042, I-034, TD-02 |
 | 4 | **Split the keys this weekend:** cold desk treasury, cold-key owner for the vault, Desk, Picks and Race picks; retire the old operator key | The desk's funds stop depending on one hot key; the safety story players can rely on | owner (+ Vault, Block X, Race chats for the tools) | TD-01, TD-04, I-001, D-083, D-096 |
-| 5 | **Stop the contract paying other people's Mana** (`sponsor-limit 0`) | Every day it runs costs compounding: pool rewards players never see (~317 KOIN by 28 Oct) | owner | TD-05, I-044 |
 | 6 | **Set the free-prize switch's starting values** and the `prize-settings` ruleset | Each game starts with the right free prize: on for 2, 7, 9, 13; off for 3, 4, 6, 8 | owner | D-082 |
 | 7 | **Site "Week 1" refresh** before Mon 9 Nov | Players see one clear starting line for the vault era | Hub, Race chats | I-069, D-063 |
 

@@ -13,8 +13,6 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
-- [ ] **Stop the vault paying others' Mana** (D-099): `npm run bot -- sponsor-limit 0` (dry run, then `--send`), then merge PR #89 (`maxSponsorRc: "0"`) right after — P2 — I-044
-- [ ] **Read-only check:** the authorize/upload protections are on for the vault and the Desk (`npm run bot -- chain-check`; Repo Lens rated the Desk Critical if they're off); paste the result to the Vault chat — P1 (from the old checklist MKKtXR t12, D-100)
 - [ ] In GitHub → Settings → Secrets and variables → Actions, confirm `OPERATOR_WIF` exists only in the `bot` environment; delete any repo-level copy — P2 — D-012 (from MKKtXR t18)
 - [ ] **Thu 5 Nov after 7:51 AM PT:** `npm run bot -- game-apply 2`, `game-apply 7` (dry run, then `--send`), then `games` must show "staked + free prize, from week 3"; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT** — P1 — D-077 (reminder Thu 9 AM PT)
 - [ ] **Wallet moves** per `docs/WALLETS.md` (D-083, D-096): **Fri 6 Nov** step 0 (read-only check; paste the output to the Vault chat), create the cold-key owner and cold treasury, start the treasury move (48 h) → **Sat** sweep the old operator `1JSTwo…` (I-045) → **Sun** after every `game-apply`, start the vault and Desk handovers → Mon/Tue accept. Picks and Race picks too this weekend, once their tools are built (R-BX-3, R-RACE-3) — P1 — I-001

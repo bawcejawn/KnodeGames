@@ -16,7 +16,6 @@
 |----|------|------|----------------|-------------|------|
 | TD-03 | 🔐 | **Anything pushed to `main` runs with the operator key.** The bot needs to push to `main`, so there's no pull-request requirement; `OPERATOR_WIF` is limited to `main`; since 3 Nov AI docs reach `main` only through PRs the owner merges (the bot still pushes data); the workflow guard is regex-based and misses some YAML spellings | The operator can't move funds, but it posts results and resolves questions — bad code on `main` could post wrong results, which decides who gets paid | Keep pushes to reviewed branches only (owner merges); move the bot's data commits off `main`, then require reviews; finish the YAML-parser guard | I-022, D-012, D-026 |
 | TD-04 | 🔐 | **The retired operator's key is still in `.env`** | A forgotten key with KOIN on it is a free target | Move its KOIN, then remove the key | I-045 |
-| TD-05 | 📜 | **The game/vault contract still pays Mana for other people's transactions** (`max_sponsor_rc` = 2 KOIN) | ~317 KOIN of compounding lost by 28 Oct; the drain continues while it's on | `sponsor-limit 0` with `maxSponsorRc: "0"` in the same change | I-044, D-046 |
 | TD-08 | 📈 | **All three block producers, plus the question-release backup, run on one home PC and internet line** | A power or internet cut stops the Knode Games Pool's production (smaller rewards), the desk's production and the 12:00 release backup at the same time | Accept for now; later, a second machine or a hosted backup node for the pool | D-048, D-047 |
 
 ## Medium
@@ -51,6 +50,6 @@
 
 ## Suggested order
 1. **This weekend:** TD-01, TD-04.
-2. **Before the first vault close (Mon 16 Nov):** TD-02 (the Race hold), TD-03 (stop direct pushes to `main`), TD-05.
+2. **Before the first vault close (Mon 16 Nov):** TD-02 (the Race hold), TD-03 (stop direct pushes to `main`).
 3. **Before each game's prizes:** TD-13, TD-14.
 4. **As players grow:** TD-08 – TD-10, TD-12, TD-18.

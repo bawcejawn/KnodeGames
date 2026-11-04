@@ -15,10 +15,12 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
+- [ ] **Repo Lens prompt 3** for the sponsor rollout (`claude/sponsor/rollout-sg1-fixcheck-prompt.md`, PR #107); on GO, merge #107 and follow the rollout steps (R-BX-15) — P1
+- [ ] **Decide the sponsor caps** (R-BX-16): Repo Lens suggests per transaction 1.5 Mana, Picks/Race rows 1.2, per player 40 a day / 250 a week — P2
+- [ ] **Decide when the Picks contract changes owner** (R-BX-3 isn't built; it was due Fri). A handover clears pending Picks announcements, so it must not overlap Survivor's game-3 registration (announce Sat 7 – Fri 13, apply by Sun 15) — P1
+- [ ] Every PowerShell window for tools: `$env:RPC = "https://koinos.armana.io"` first (the deployment files still name `api.koinos.io`, I-015) — P3
 - [ ] **Merge PR #99** (CI guard step; Repo Lens #C-5: ready to merge) — your OK — P2
 - [ ] **GitHub setting (Repo Lens C5-13):** a `.github/CODEOWNERS` file (`/.github/ @bawcejawn`, `/tests/audit/site.ci-deps.test.mjs @bawcejawn`, `/tests/audit/ci-guard-*`) and on `main` a ruleset making the **guard check required**. ⚠️ Don't turn on "Require review from Code Owners" without a bypass for yourself: the chats open PRs under your own account, and GitHub doesn't let you approve your own PR, so every merge would be blocked. Ask the library chat for exact clicks first — P2
-- [ ] **Sponsor fix upload (R-BX-15), ideally before Thu's `game-apply`:** once the Block X chat has merged the stopgap into `sponsor-guest-trap`, follow Repo Lens #C-3's steps (rebuild, check the hash, `upload` dry run → `--send`, then `config` → `--send` with only "vault live no → yes" changing, then the `would_pay` check and a guest pick on each page). **Afterwards `git switch main`** — P1
-- [ ] **Decide the Mana caps** once the Block X chat proposes numbers (R-BX-16): per transaction (1 → 2?), the Picks row, per player per day/week — P2
 - [ ] Send Repo Lens `claude/blockx/ROUND-14-LOWS-FIXCHECK-PROMPT.md` (Block X Lows, branch `blockx-lows`) — P3
 - [ ] **Hub PRs** (all green): merge **#94** (Week 1, before Sun 4 PM PT), then **#100** (stake-panel text; rebases after #94), and **#97** (guest messages). Send **#95** (@names Make main / Remove; a burn can't be undone) and **#99** (CI guard) to Repo Lens first — P2
 - [ ] After #95: on `names.html`, from the producer wallet `1DAHmr…`, create `@primeproducer`, tap Make main, optionally Remove `@primeprocuder`; tell the Hub it works (then the Tools link goes in) — P3 — I-084

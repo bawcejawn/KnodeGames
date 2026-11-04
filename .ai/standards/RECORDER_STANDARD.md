@@ -28,13 +28,13 @@
    - an hour only after it ends;
    - "final" only after the game's settle time (e.g. 12 h after the last round).
 2. **Use the publish job's own clock**, not the recorder's (a recorder run can be wrong or forged).
-3. **No going backwards:** locked → void, staked list → null, final → not final are refused (#E-3 H-3).
+3. **No going backwards:** locked → void, staked list → null, final → not final are refused (#E-3 H-3). **A published final result of any round (a race, a target, a question) never changes:** the publish job refuses any edit to it, not only to the week's vault file (Race #E-11 H-1, 4 Nov).
 4. **Missing last-run files stop the run** ("refusing to write: it would wipe that week"). But one planted index entry must not stall the recorder forever: reject unknown index weeks at publish (#E-3 H-3).
 5. **Device clocks are never trusted on pages:** lock guards use chain time and are re-checked at send (#E-3 L-2).
 
 ## 4. Points, ranks and the vault file
 1. **The publish job recomputes points** from published inputs (seeding, hours, checked picks), with a ported scorer that is differential-tested against the game's math file over thousands of random weeks. Any mismatch holds that game (BX-79, BX-88; #E-3 H-2).
-2. **Re-read the week's end on both nodes** before finalizing (BX-97 / BX-88).
+2. **Re-read the week's end on both nodes** before finalizing (BX-97 / BX-88), and **re-score every round of a paid week from the chain on both nodes in the run that makes it final** (Race #E-11 H-1: `scoreRace` / `verifyWeek`).
 3. **Vault values follow the vault's payout rule.** Work out the paid set first (top `ceil(30%)` of rows, tied groups whole), then map to 255 … 1 so unpaid rows can't share a paid value (#E-3 C-1). Test with the vault's cutoff, not just "values in 1–255".
 4. **`first` / `second` always filled** with free winners, never a staked or held wallet (D-082, `VAULT_STANDARD.md` §6). Ties share; at most 10 a place.
 5. **One file version**, shared between recorder, publish job and page. A page test loads a real recorder-shaped file (#E-3 H-1).

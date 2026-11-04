@@ -210,3 +210,10 @@ function recompute(d: RulerData, published: Card): { same: boolean; diff?: strin
 | **M-4** rounding | integers / millionths everywhere; Card fields added; JS-vs-Python byte test (§13) |
 | **L-1 … L-7** | many-ID grinding + VRF option; compact per-block storage; Σk normalisation; picks below the bar + estimated card; first observed VHP; resumable first fill; active-set note |
 | §8 | 29+ days of data, pass marks, five more simulations |
+
+## 15. As built (VHP Ruler chat, 4 Nov 2026; branch `vhp-ruler` @ `f85466b`)
+- **Data (§7):** hour files are **block-hours of 1,200 blocks**; each holds per-address live reads `[height, balance, eff]` (a node answers only at its head); kinds **live / rebuilt / chained** (#D-10 M-2 catch-up); block ids stored (~77% of each ~110 KB hour; ~2.7 MB a day, ~0.9 GB a year, I-094); **a third node (`vars.RPC_VERIFY`) checks every block id before publish** (#D-10 M-1). Audit S-3 answered on mainnet: `effective_balance_of` reads match the rebuild at **the block after** each read ("next").
+- **Interface (§13):** `Card` gains `formFrom`; `recompute(L, card, game)` takes the game's own settings (#E-12 M-1); **a paying card needs 14 days + 6 h of data** (#E-12 L-1); `quality` is per card (#E-12 L-2).
+- **Simulations (§8), 31 days, 60 race cards × 2,500 races:** pass 3, 4, 5, 8, 10, 11 (40 / 40 real cards byte-identical); miss 1, 2, 6, 7, 9 (I-091; proposals D-119, D-120, D-122).
+- **Timing:** one day of blocks reads in about 1 min per node; the 30-day first fill about 30 min per node (10–15 min over three parallel jobs).
+

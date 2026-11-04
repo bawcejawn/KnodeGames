@@ -145,3 +145,15 @@ test("R84-3: the nodes must agree on every setting, not only the owner", async (
     assert.equal(x.sent.length, 0);
   }
 });
+
+test("R-RACE-9 (Repo Lens #C-4 C4-3): a node with no race settings stops with a plain reason, not 'NaN; NaN'", async () => {
+  for (const chain of [{ a: {}, b: {} }, { a: { ...cur }, b: {} }, { a: {}, b: { ...cur } }, { a: null, b: null }]) {
+    const x = deps({}, chain);
+    await assert.rejects(changeOwner(NEW, NEW, true, x.d), (e: any) => {
+      assert.match(e.message, /No race settings on chain at (a|b)/); assert.doesNotMatch(e.message, /NaN|disagree/); return true;
+    }, JSON.stringify(chain));
+    assert.equal(x.sent.length, 0);
+  }
+  // One node only: the same plain reason, also on a dry run.
+  await assert.rejects(changeOwner(NEW, undefined, false, deps({ rpcCheck: undefined }, { a: {} }).d), /No race settings on chain at a/);
+});

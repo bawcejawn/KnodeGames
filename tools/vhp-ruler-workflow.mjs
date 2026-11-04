@@ -19,8 +19,8 @@ const yml = `# The shared VHP ruler's data (design .ai/standards/VHP_RULER.md §
 #    one is re-run alone with "Re-run failed jobs"), then one live read and the hour files.
 #  - publish: runs NO repository code. The embedded vhp_ruler.py checks every new file (hash chain, one signer and one
 #    burn per block, every balance adding up to the hour before, write-once, canonical names, rollups, retention), then
-#    checks every new block's id and signer on a THIRD node (vars.RPC_VERIFY: the two recording nodes agreeing proves
-#    consistency, not truth), and only then pushes to vhp-data.
+#    reads every new block's id and signer again itself (on vars.RPC_VERIFY if set, else RPC_CHECK: the record job
+#    runs repo code and npm packages, this job runs neither), and only then pushes to vhp-data.
 # Off until the owner sets the repository variable VHP_RULER_ENABLED to true (after Repo Lens review 2).
 name: VHP ruler data
 
@@ -201,7 +201,7 @@ jobs:
     needs: [record, fill-hours]
     if: \${{ always() && vars.VHP_RULER_ENABLED == 'true' && github.ref == 'refs/heads/main' && (needs.record.result == 'success' || needs.fill-hours.result == 'success') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90       # the first fill's 30 days are checked block by block on the third node
+    timeout-minutes: 90       # the first fill's 30 days are checked block by block
     permissions:
       contents: write         # push the vhp-data branch (never main)
     steps:

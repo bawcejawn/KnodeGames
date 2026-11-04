@@ -23,9 +23,10 @@ what and how to run it. Built by the VHP Ruler chat (R-RULER-1) on branch `vhp-r
 
 ## Turning it on (owner, after Repo Lens review 2)
 1. Merge the PR (the owner merges).
-2. Set the repository variable `RPC_VERIFY` to a third Koinos node, different from `RPC` and `RPC_CHECK`. The publish job checks every new block's id and signer on it (Repo Lens #D-10 M-1); without it nothing is published.
+2. Optional: a repository variable `RPC_VERIFY` naming a third Koinos node. The publish job (which runs no repo code)
+   reads every new block's id and signer again itself, on `RPC_VERIFY` if set, else on `RPC_CHECK` (Repo Lens #D-10 M-1).
 3. Set the repository variable `VHP_RULER_ENABLED` to `true` (Settings → Secrets and variables → Actions → Variables).
-4. Actions → "VHP ruler data" → Run workflow → mode `fill` (about 10–15 minutes of reading: one day of blocks reads in about 1 minute per node; the publish job then checks every block on the third node, up to about an hour).
+4. Actions → "VHP ruler data" → Run workflow → mode `fill` (about 10–15 minutes of reading: one day of blocks reads in about 1 minute per node; the publish job then checks every block again, up to about an hour).
 5. From then on it records every hour by itself. No key, no Mana, no secret.
 
 ## If it falls behind (a node down, the ruler switched off, a GitHub outage)

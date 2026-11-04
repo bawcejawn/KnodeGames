@@ -952,8 +952,9 @@ def _rpc(url, method, params, timeout=60):
 
 
 def verify_blocks(new_hours, url):
-    """Repo Lens #D-10 M-1: the two recording nodes agreeing proves consistency, not truth. Every new block's id and
-    signer (and each anchor block's id) must also be what a THIRD node says. Returns a list of errors."""
+    """Repo Lens #D-10 M-1: the record job's files prove consistency, not truth. Every new block's id and signer (and
+    each anchor block's id) must also be what a node says when this job, with no repository code, asks it itself.
+    Returns a list of errors."""
     want = {}
     for t in new_hours:
         h = json.loads(t)
@@ -966,7 +967,7 @@ def verify_blocks(new_hours, url):
     head_id, lib = head["head_topology"]["id"], int(head.get("last_irreversible_block", 0))
     hs = sorted(want)
     if hs[-1] > lib:
-        return ["block %d isn't irreversible on the third node yet (it is at %d); tried again next run" % (hs[-1], lib)]
+        return ["block %d isn't irreversible on the checking node yet (it is at %d); tried again next run" % (hs[-1], lib)]
     from concurrent.futures import ThreadPoolExecutor
     runs, k = [], 0
     while k < len(hs):
@@ -989,17 +990,17 @@ def verify_blocks(new_hours, url):
                 got[hh] = (bid, sg)
     for hh in hs:
         if hh not in got:
-            errs.append("the third node didn't return block %d" % hh)
+            errs.append("the checking node didn't return block %d" % hh)
         elif got[hh] != want[hh]:
-            errs.append("block %d: the third node says id %s… signer %s, the file says %s… %s" % (hh, got[hh][0][:14], got[hh][1], want[hh][0][:14], want[hh][1]))
+            errs.append("block %d: the checking node says id %s… signer %s, the file says %s… %s" % (hh, got[hh][0][:14], got[hh][1], want[hh][0][:14], want[hh][1]))
         if len(errs) >= 5:
             break
     return errs
 
 
 def publish_main(argv):
-    """argv: incoming dir, published dir, keep days. Env RPC_VERIFY: a third node (not RPC or RPC_CHECK). Exit 0 =
-    publish, 1 = refuse."""
+    """argv: incoming dir, published dir, keep days. Env RPC_VERIFY (a third node, optional) or RPC_CHECK: every new
+    block is read again there by this job. Exit 0 = publish, 1 = refuse."""
     import os
     inc_dir, pub_dir, keep = argv[0], argv[1], int(argv[2])
     incoming, other = _read_tree(inc_dir)
@@ -1014,20 +1015,22 @@ def publish_main(argv):
         errs.append("unexpected file %s" % p)
     new_hours = [t for p, t in sorted(incoming.items()) if p.startswith("h/") and p not in published]
     if not errs and new_hours:
-        v = os.environ.get("RPC_VERIFY", "").strip()
-        if not v or v in (os.environ.get("RPC", ""), os.environ.get("RPC_CHECK", "")):
-            errs.append("set the repository variable RPC_VERIFY to a third Koinos node (not RPC or RPC_CHECK): every new block is checked on it")
+        # #D-10 M-1: the record job runs repository code and npm packages; this job runs neither, and reads every new
+        # block's id and signer again itself. On RPC_VERIFY (a third node) when one is set, else on RPC_CHECK.
+        v = os.environ.get("RPC_VERIFY", "").strip() or os.environ.get("RPC_CHECK", "").strip()
+        if not v:
+            errs.append("no node to check the blocks on: set RPC_CHECK (or RPC_VERIFY)")
         else:
             try:
                 errs.extend(verify_blocks(new_hours, v))
             except Exception as e:
-                errs.append("couldn't check the blocks on the third node (%s); tried again next run" % str(e)[:200])
+                errs.append("couldn't check the blocks independently (%s); tried again next run" % str(e)[:200])
     for w in warns:
         print("::warning::" + w)
     for e in errs:
         print("::error::" + e)
     if not errs:
-        print("ok: %d new hour(s), %d new day(s), %d removal(s); blocks checked on a third node" % (
+        print("ok: %d new hour(s), %d new day(s), %d removal(s); every new block checked independently" % (
             len(new_hours), sum(1 for p in incoming if p.startswith("d/") and p not in published), len(removals)))
     return 1 if errs else 0
 

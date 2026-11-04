@@ -144,15 +144,15 @@ test("recompute_main: a game's publish job can check a card against vhp-data (an
   assert.equal(r.status, 1); assert.match(r.stdout, /setting c/);
 });
 
-test("#D-10 M-1: every new block is checked on a THIRD node: a lie is refused, a missing or reused node is refused", async () => {
+test("#D-10 M-1: the publish job reads every new block again itself: a lie is refused; RPC_CHECK when no third node is set", async () => {
   const before = head(), next = { "h/33553.json": g.texts[73] };
   node.lie = 33553 * 1200 + 700;
-  let r = await publish(next); assert.equal(r.ok, false); assert.match(r.out, /the third node says id/);
+  let r = await publish(next); assert.equal(r.ok, false); assert.match(r.out, /the checking node says id/);
+  r = await publish(next, null, { RPC_VERIFY: "", RPC_CHECK: VERIFY }); assert.equal(r.ok, false, "no third node: RPC_CHECK is asked, and the lie is caught there too");
   node.lie = null;
-  r = await publish(next, null, { RPC_VERIFY: "" }); assert.equal(r.ok, false); assert.match(r.out, /set the repository variable RPC_VERIFY/);
-  r = await publish(next, null, { RPC_VERIFY: "https://a.example" }); assert.equal(r.ok, false, "the same node as RPC doesn't count");
+  r = await publish(next, null, { RPC_VERIFY: "", RPC_CHECK: "" }); assert.equal(r.ok, false); assert.match(r.out, /no node to check the blocks on/);
   assert.equal(head(), before, "nothing pushed");
-  r = await publish(next); assert.equal(r.ok, true, r.out); assert.match(r.out, /checked on a third node/);
+  r = await publish(next, null, { RPC_VERIFY: "", RPC_CHECK: VERIFY }); assert.equal(r.ok, true, r.out); assert.match(r.out, /every new block checked independently/);
 });
 
 test("#D-10 M-5 / L-12: only canonical file names; the number inside a file must be its name's", async () => {

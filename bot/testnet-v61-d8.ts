@@ -2,7 +2,7 @@
  * testnet-v61-d8: the two measurements Repo Lens #D-8 asks for before the v6.1 upload (R-VAULT-11), in one command.
  *
  * On the Koinos Foundation testnet (test KOIN only) it deploys a FRESH copy of the v6.1 release build 399171a2… with
- * 13 games registered (each with a stake), runs a 45-minute week 0 with 60 questions, then measures:
+ * 13 games registered (each with a stake), runs a 90-minute week 0 with 60 questions, then measures:
  *   D8-2  a returning player's FIRST answer of week 1 (after D-116 there is no settle step; one of them also closes week 0):
  *         - the first action after week 0's close time: the answer also closes week 0 (13 games) and settles (C);
  *         - after that: the answer only settles (A);
@@ -32,8 +32,8 @@ const V61_SHA = "4fa5d2de9465e48c9fd35d36f6aa23798f0447730a29b03c12cf9eb0fee973b
 const DIR = "testnet-v61-d8";
 const VHP = 100_000_000n;
 const MIN = 60_000;
-const WEEK = 45 * MIN, CLOSE = 3 * MIN, SETTLE = 10 * MIN, LOCK = 2 * MIN;
-const N = 60, LOCK_AT = 30 * MIN, BATCH = 10;
+const WEEK = 90 * MIN, CLOSE = 3 * MIN, SETTLE = 10 * MIN, LOCK = 2 * MIN;
+const N = 60, LOCK_AT = 65 * MIN, BATCH = 10;   // four players × 60 answers need about 40 minutes on the testnet
 
 const log = (...a: any[]) => console.log(...a);
 const file = (n: string) => path.join(DIR, n);
@@ -154,7 +154,7 @@ export async function testnetV61D8(args: string[]) {
     const r = await chain.send([{ method: "init", args: init }], [funder, contractKey], { rcLimitKoin: 5 });
     if (!r.ok) throw new Error(`init failed: ${r.error}`);
     st.genesis = genesis; save();
-    log(`  initialised: 45-minute weeks from ${new Date(genesis).toISOString()}`);
+    log(`  initialised: 90-minute weeks from ${new Date(genesis).toISOString()}`);
   }
   const G = st.genesis!, weekEnd = (w: number) => G + (w + 1) * WEEK;
 

@@ -15,7 +15,7 @@ Every command that changes something is a dry run until you add `--send`, and ma
 
 ## Before the announcement and the upload
 1. **Testnet (V61-B1, #D-8 D8-1 and D8-2):** `npm run bot -- testnet-v61-d8` deploys a fresh copy of `4fa5d2de…` with 13 games,
-   plays a 45-minute week of 60 questions paid the new way (results posted, sealed, finalized, claimed) and a returning player's
+   plays a 90-minute week of 60 questions paid the new way (results posted, sealed, finalized, claimed) and a returning player's
    first answer that also closes the week, and writes the resource units of every call to `testnet-v61-d8/units.json`.
    The earlier run of the 30 → 60 build alone (4 Nov, `399171a2…`): answers 0.054 – 0.061 Mana, settle with 60 answers 0.124.
 2. **Mainnet price (D8-1):** on your PC, read-only: `npx tsx tools/mainnet-mana.ts docs/testnet-v61-units.json`. Every answer

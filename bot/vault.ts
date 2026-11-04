@@ -218,7 +218,7 @@ const LIST_MAX = 10;
  *     two runs at least STABLE_MS apart (I-034, I-051). A file that changes after it was first read is held for good:
  *     a final file never changes, so the owner checks it and posts by hand (game-post) if it is right.
  *  3. Staked list (I-064), for games with a stake bucket: the game's board (board.json, `lastWeek` for that week) is
- *     the reference (every row of it, staked or free: a wrong `ranked` flag is caught too). Every wallet on it with
+ *     the reference. Every wallet on its Staked board (`ranked: true`; every row if the board has no `ranked`) with
  *     points (`pts`, or `points`) that the chain counts as staked in the game that week (week_stake at or above the
  *     week's minimum) must be in the file's rows; every row of the file must be on the board; and the file's points must
  *     keep the board's places (`place`, else `boardPlace`). A board that is missing, unreadable or for another week
@@ -333,6 +333,9 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
       const filePts = new Map<string, number>((r.rows ?? []).map((x: any) => [x.player, x.points]));
       const minPts = Number(cfg[String(id)]?.minPts) > 0 ? Number(cfg[String(id)].minPts) : 0;
       const onBoard = new Set<string>(), places = new Map<string, number>(), scored: string[] = [];
+      // Repo Lens VB-8: every board marks its Staked rows (`ranked`); only those are read on chain for the
+      // missing-wallet check, so a big Free play board doesn't cost thousands of reads while a week is held.
+      const marks = lw.rows.some((x: any) => typeof x?.ranked === "boolean");
       for (const row of lw.rows) {
         if (!row || !ADDRESS.test(String(row.a))) continue;
         onBoard.add(row.a);
@@ -341,7 +344,7 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
         // Points on the board (or a board without a points column). Repo Lens VB-5: a game whose file leaves out low
         // scores sets its floor, in the board's own units (Combo: minPts 100 = 1 full point in hundredths).
         const sc = boardScore(row);
-        if (sc === null || (sc > 0 && sc >= minPts)) scored.push(row.a);
+        if ((!marks || row.ranked === true) && (sc === null || (sc > 0 && sc >= minPts))) scored.push(row.a);
       }
       const missing: string[] = [];
       for (const a of scored) {

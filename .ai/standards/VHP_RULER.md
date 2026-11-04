@@ -238,9 +238,13 @@ Owner's rulings (to the VHP Ruler chat, 4 Nov): **"Platform nodes should never b
 1. **Keep the 0.80 gate** (v2 as approved): a steady 0.66 producer stays out.
 2. **A consistency gate:** gate on a producer's form *falling* below 0.80 × its own 14-day form, not on the level; and its expected blocks use `own × its 14-day form` (capped at 1), so a steady throttler is handicapped at the size it really plays. Sim 8 must still pass (steering must never pay: lowering form for 14 days to get a softer handicap costs real block rewards, and the simulation has to show it never wins more).
 3. **Let it in unadjusted**, with its form shown on the card (it would usually lose).
-The library chat leans to **2 if sim 8 passes, else 1**.
+**Owner chose option 2 (D-120).** Design to build and simulate:
+- **Long-run rate:** `rate(p)` = the producer's signed blocks ÷ its expected blocks over the last **14 days** (form's window), in millionths, capped at 1; expected blocks for the card use `own × rate`.
+- **Only steady producers get it:** the rate is used only if each of the last 14 daily rates is within ±0.15 of the 14-day rate; otherwise rate = 1 (v2 as approved) and the 0.80 gate applies as before.
+- **Steering cap (the #E-7 H-2 protection):** in the scoring window, blocks signed above `own × rate × (1 + luck band)` earn no extra credit, the same way card credit caps VHP added after the card. So skipping blocks for two weeks to lower the rate, then signing in full during a race, can't pay beyond the luck band.
+- **Sim 8 must pass with it:** skipping blocks never raises a win chance; a 3-day outage gives no boost; a steady throttler (JGA Pool #2's real history) wins its fair share.
 
-**Rebuilt hours (D-119, owner to choose):** (a) **as D-112 is written**: only the 24 h before the card and the scoring window must be live, so paying cards can start about a day after the first fill; form's older days may use rebuilt hours (built from two-node-checked blocks, and the first live read matched the rebuild exactly, S-3); or (b) **strict**: no rebuilt hour anywhere in the 14-day look-back, so paying cards start ~15 days after the first fill. The library chat now leans to **(a)**, given the S-3 match; (b) is the most cautious.
+**Rebuilt hours (D-119, owner to choose):** (a) **as D-112 is written**: only the 24 h before the card and the scoring window must be live, so paying cards can start about a day after the first fill; form's older days may use rebuilt hours (built from two-node-checked blocks, and the first live read matched the rebuild exactly, S-3); or (b) **strict**: no rebuilt hour anywhere in the 14-day look-back, so paying cards start ~15 days after the first fill. **Owner chose (a) (D-119)**; built (`0d0f35d`).
 
 **Order of work (R-RULER-1):** implement `pct` and Fix B side by side, re-run all eleven simulations, report both; the owner picks; then the fix-check and the PR. Nothing pays until all eleven pass (D-111).
 

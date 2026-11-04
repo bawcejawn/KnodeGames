@@ -258,7 +258,13 @@ async function upload(send: boolean) {
   const m = await contractMetadata(provider, A);
   // Repo Lens SG-1: never put the trapping build back while the vault switch is on (an unreadable switch counts as on).
   let switchOn = false;
-  if (m.exists) { try { switchOn = !!(await readSponsor(provider, A, "get_config")).game_has_vault; } catch { switchOn = true; } }
+  if (m.exists) {
+    // Repo Lens #D-7 SR-1: only v3 code returns the switch. Over any other code (v2 after a rollback) the stored
+    // settings may still hold game_has_vault: true, which b61ac238 would read again, so the switch counts as on.
+    const onChain = String(m.hash || "").replace(/^0x1220/, "");
+    if (!V3_BUILDS.includes(onChain)) switchOn = true;
+    else { try { switchOn = !!(await readSponsor(provider, A, "get_config")).game_has_vault; } catch { switchOn = true; } }
+  }
   const up = uploadProblem(sha256hex(wasm), switchOn);
   if (up) throw new Error(up);
   const have = BigInt(await provider.getAccountRc(A));

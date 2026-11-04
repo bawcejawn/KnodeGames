@@ -5,6 +5,9 @@
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
 ## Moved 2026-11-04 (evening)
+- Race session-end (06:40 UTC) filed: R-RACE-7 done (PR #103 merged), R-RACE-8 done (confirmed; I-031 closed), R-ALL-6 review done for the Race (gaps → R-RACE-12).
+  | R-RACE-7 | **Race page error messages:** `race.js` turns any "used up" into "Today's picks are used up (changes count)". Show the real reason, as PR #66 did for `blockx.js` | I-082 | PR + test | built on `race-pick-errors` @ `a545114` (local): only RACE: contract messages get game wording; test fails on `main`, passes on the branch; site tests 211/211. Owner OKs the push, then a PR |
+  | R-RACE-8 | Confirm nothing is left of the Race-file conflicts from the `picks` merge (PR #57) | I-031 | confirmed | open (low) |
 - R-LIB-4 done: second cleanup pass merged (PR #87).
   | R-LIB-4 | Second cleanup pass: game files, ARCHITECTURE, PLATFORM, HEALTHCHECK, standards (same rule: one home per fact; done items to the archive) | — | PR | open |
 - Race session-end (05:45 UTC) filed. R-RACE-3 done: #84 and #93 merged and used; Race picks owner → `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` (tx `0x1220bd9c…`, both nodes); picks on/off and per-day unchanged. The C4-3 tidy-up moved to R-RACE-9.

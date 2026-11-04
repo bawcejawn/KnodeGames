@@ -67,6 +67,8 @@
 - **fail closed** — no final file if the ABI or contract is missing, `get_state` is empty, any stake read fails, or the two nodes disagree; a read failure is never "not staked" (V4);
 - pass the publish job's checks: right game id, ordered rows with points 1–255, ≤ 10 per free place, no wallet twice, canonical bytes, ≤ 2 MB, no nested folders; a failing vault file is held on its own while the game's other files still publish.
 
+**The Race's own hold:** the Race doesn't publish HOLD/RELEASE files. Its recorder keeps a final file pending for 12 hours after the week and until the same file was seen on two runs ≥ 1 hour apart, and the owner can hold weeks with `RACE_HOLD_WEEKS` (I-034, PR #85). The vault bot can't see that owner hold; it sees only that no final file exists yet.
+
 **Holds:** a game may publish `HOLD-W<week>.json` instead of paying (Last Node watch-and-hold, released by `LASTNODE_RELEASE_WEEKS`, D-055). Forged or unverified cards, or a stake disagreement, block that week's file (Combo).
 
 **Before any game pays from its file:**

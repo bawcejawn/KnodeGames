@@ -48,7 +48,7 @@
 | D-035 | 2026-10-29 | The Race chat owns all Race files | active |
 | D-036 | ❓ | Split launch: Block X live prize-free first | done — Block X went live prize-free (3 Nov); prizes from 9 Nov per D-077 |
 | D-037 | 2026-10-30 | One change per pick | active |
-| D-038 | ❓ | Picks sponsor row 0.2 Mana; 0.25 at Combo launch | active |
+| D-038 | ❓ | Picks sponsor row 0.2 Mana; 0.25 at Combo launch | superseded by D-104 |
 | D-039 | ❓ | The swap desk pays its own Mana | active |
 | D-040 | ❓ | Block X: neighbour-time rule removed; BX-137 accepted | active |
 | D-041 | ❓ | V4, B1-1, B1-5 shipped on the v6 upload day; status bar rides the Block X launch PR | active |
@@ -114,6 +114,7 @@
 | D-101 | 2026-11-04 | Every game is fair with a bit of luck: each uses a luck trim (preferred) or a cap | active |
 | D-102 | 2026-11-04 | The full platform audit runs only once everything is confidently ready | active |
 | D-103 | 2026-11-04 | A new Race pending file may be dated up to 35 minutes back (was 15) | active |
+| D-104 | 2026-11-04 | The sponsor's Picks pick row is 1 Mana (was 0.2); the site asks 1 Mana; vault switch off until the guest-trap fix is uploaded | active |
 
 ---
 
@@ -593,6 +594,9 @@
 
 ## D-101 — Fair, with a bit of luck
 - **Date:** 2026-11-04 (owner: "games should be fair with a bit of a luck") · **Decision:** every game keeps some luck but limits it: a luck trim sized by simulation (as Race and Last Node use, preferred) or at least a cap (as Block X, Fantasy, Combo). Survivor and the Bracket, which have neither, add one (`HANDICAP_REVIEW.md` §5.2 #2; R-SV-5, R-BR-7). Part of the one ruler (D-090).
+
+## D-104 — Picks pick row 1 Mana; vault switch off for now
+- **Date:** 2026-11-04 (owner sent both configs; Block X chat) · **Decision:** the sponsor's per-action limit for a Picks pick is **1 Mana** (was 0.2 from one testnet sample, D-038, now superseded); the site asks 1 Mana (PR #90). The sponsor's vault switch is **off** (`config --vault off`) until the guest-trap fix (`b84e1add…`, Repo Lens #C-3 GO) is uploaded, then turned back on (R-BX-15). Measured on mainnet 4 Nov: a guest Race pick 0.76 Mana, a guest Block X pick 0.84. **Until the fix is uploaded, anyone running `npm run sponsor -- config` must pass `--vault off`**, or guest picks break again. Open: the per-transaction and per-player caps (R-BX-16).
 
 ## D-103 — Race pending files: a 35-minute window
 - **Date:** 2026-11-04 (owner: "widen it to 35 minutes so a slower run never holds an hour back") · **Decision:** the Race publish job accepts new pending content dated up to 35 minutes before its clock (the 30-minute record job plus 5), up to 5 minutes ahead (Repo Lens #C-4 C4-1; PR #85). It still closes the old 2-hour back-date route.

@@ -5,6 +5,8 @@
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
 ## Moved 2026-11-04 (evening)
+- R-LIB-4 done: second cleanup pass merged (PR #87).
+  | R-LIB-4 | Second cleanup pass: game files, ARCHITECTURE, PLATFORM, HEALTHCHECK, standards (same rule: one home per fact; done items to the archive) | — | PR | open |
 - Race session-end (05:45 UTC) filed. R-RACE-3 done: #84 and #93 merged and used; Race picks owner → `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` (tx `0x1220bd9c…`, both nodes); picks on/off and per-day unchanged. The C4-3 tidy-up moved to R-RACE-9.
   | R-RACE-3 | **Race picks owner change (D-096):** build the safe owner-change command (dry run, address entered twice, read-back) with tests; say whether a two-step handover is possible in a future upgrade and how `RACE_WIF` can stay offline | I-077, D-083, D-096 | merged by Fri 6 Nov | done except a tidy-up: #84 merged (Repo Lens GO) and #93 merged (#C-4 GO). Left: C4-3, stop with "no race settings on chain at <node>" when a node returns no config, with a test |
 - Hub session-end (4 Nov 05:17 UTC) filed. R-HUB-2 done: the staking hub reads the live vault on mainnet (week 2, minimum 1 VHP, game 1 only until Thu's `game-apply`); the Questions status bar shows "Staked · 1 VHP"; the Race bar's old text is fixed by PR #94.

@@ -15,6 +15,9 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
+- [ ] **Sponsor fix upload (R-BX-15), ideally before Thu's `game-apply`:** once the Block X chat has merged the stopgap into `sponsor-guest-trap`, follow Repo Lens #C-3's steps (rebuild, check the hash, `upload` dry run → `--send`, then `config` → `--send` with only "vault live no → yes" changing, then the `would_pay` check and a guest pick on each page). **Afterwards `git switch main`** — P1
+- [ ] **Decide the Mana caps** once the Block X chat proposes numbers (R-BX-16): per transaction (1 → 2?), the Picks row, per player per day/week — P2
+- [ ] Send Repo Lens `claude/blockx/ROUND-14-LOWS-FIXCHECK-PROMPT.md` (Block X Lows, branch `blockx-lows`) — P3
 - [ ] **Hub PRs** (all green): merge **#94** (Week 1, before Sun 4 PM PT), then **#100** (stake-panel text; rebases after #94), and **#97** (guest messages). Send **#95** (@names Make main / Remove; a burn can't be undone) and **#99** (CI guard) to Repo Lens first — P2
 - [ ] After #95: on `names.html`, from the producer wallet `1DAHmr…`, create `@primeproducer`, tap Make main, optionally Remove `@primeprocuder`; tell the Hub it works (then the Tools link goes in) — P3 — I-084
 - [ ] In GitHub → Settings → Secrets and variables → Actions, confirm `OPERATOR_WIF` exists only in the `bot` environment; delete any repo-level copy — P2 — D-012 (from MKKtXR t18)

@@ -48,7 +48,7 @@
 | D-035 | 2026-10-29 | The Race chat owns all Race files | active |
 | D-036 | ❓ | Split launch: Block X live prize-free first | done — Block X went live prize-free (3 Nov); prizes from 9 Nov per D-077 |
 | D-037 | 2026-10-30 | One change per pick | active |
-| D-038 | ❓ | Picks sponsor row 0.2 Mana; 0.25 at Combo launch | active |
+| D-038 | ❓ | Picks sponsor row 0.2 Mana; 0.25 at Combo launch | superseded by D-104 |
 | D-039 | ❓ | The swap desk pays its own Mana | active |
 | D-040 | ❓ | Block X: neighbour-time rule removed; BX-137 accepted | active |
 | D-041 | ❓ | V4, B1-1, B1-5 shipped on the v6 upload day; status bar rides the Block X launch PR | active |
@@ -114,6 +114,11 @@
 | D-101 | 2026-11-04 | Every game is fair with a bit of luck: each uses a luck trim (preferred) or a cap | active |
 | D-102 | 2026-11-04 | The full platform audit runs only once everything is confidently ready | active |
 | D-103 | 2026-11-04 | A new Race pending file may be dated up to 35 minutes back (was 15) | active |
+| D-104 | 2026-11-04 | The sponsor's Picks pick row is 1 Mana (was 0.2); the site asks 1 Mana; vault switch off until the guest-trap fix is uploaded | active |
+| D-105 | 2026-11-04 | Sponsor per-player caps 40 Mana a day and 250 a week (were 25 / 150); not higher, for spam | active |
+| D-106 | 2026-11-04 | The Picks owner handover waits until its tool is built and checked, after Survivor's game 3 is applied; not this weekend | active (amends D-096 for Picks) |
+| D-107 | 2026-11-04 | A held week fails its run and emails the owner, and the alert names what the owner can do about it | active |
+| D-108 | 2026-11-04 | Build the shared VHP ruler (R-ARCH-1); the Race's two gaps are closed by it, not by a Race-only fix | active |
 
 ---
 
@@ -593,6 +598,21 @@
 
 ## D-101 — Fair, with a bit of luck
 - **Date:** 2026-11-04 (owner: "games should be fair with a bit of a luck") · **Decision:** every game keeps some luck but limits it: a luck trim sized by simulation (as Race and Last Node use, preferred) or at least a cap (as Block X, Fantasy, Combo). Survivor and the Bracket, which have neither, add one (`HANDICAP_REVIEW.md` §5.2 #2; R-SV-5, R-BR-7). Part of the one ruler (D-090).
+
+## D-105 — Sponsor caps: 40 a day, 250 a week per player
+- **Date:** 2026-11-04 (owner: "okay to raise the caps to 40 and 250. I just don't want them too high because of spam concerns") · **Decision:** per player 40 Mana a day and 250 a week (were 25 / 150, D-061). Everyone's total stays 5,000 a day and the free players' pool 2,000 a day, which bound what spam can cost. The rollout's technical settings from Repo Lens (per transaction 1.5 Mana; Picks and Race rows 1.2) go with it, so one sponsored pick fits (R-BX-15, R-BX-16). Don't raise further without a new decision.
+
+## D-106 — Picks handover: when ready, not this weekend
+- **Date:** 2026-11-04 (owner: "B, we can be patient and do it when we are ready") · **Decision:** the vault, the Desk (and the Race picks, done 4 Nov) move this weekend as planned; **the Picks contract moves later**, once `owner-propose` / `owner-accept` / `owner-cancel` are built, tested on testnet and pass Repo Lens (R-BX-3), and **after Survivor's game 3 is applied on Picks** (a handover clears pending announcements). Target the weekend of 14–15 Nov or later, when no Picks announcement is pending. Then the Picks v2 upgrade. Amends D-096 for Picks only.
+
+## D-107 — A held week alerts, and says what to do
+- **Date:** 2026-11-04 (owner: "yes, make sure I can do something about it, not just be notified") · **Decision:** in every game, a held results week **fails its run** (so GitHub emails the owner) and the alert names: the game and week, why it's held, the deadline (3 days after the week), and the owner's options with the exact command or setting (wait for it to clear by itself; release it once after checking, where the game has a release; hold it longer; or void it with `game-void`). Block X already fails the run (E4-7) and has a one-off release (R-BX-13); the Race does neither yet (I-087, R-RACE-13). `RUNBOOK.md` §3 lists each game's options.
+
+## D-108 — Build the shared VHP ruler
+- **Date:** 2026-11-04 (owner: "Let's do the shared VHP ruler. This needs to be built") · **Decision:** build the one VHP ruler of D-090 / D-093 (R-ARCH-1) rather than a Race-only fix; the Race's two known gaps (the > 6-h hide, VHP added after a card) are closed when the Race moves onto it (R-RACE-5). Design by the library chat (it holds the handicap review and the owner's decisions); build in the Bracket chat, which owns the VHP standard (D-058); each game then plugs its own formula in.
+
+## D-104 — Picks pick row 1 Mana; vault switch off for now
+- **Date:** 2026-11-04 (owner sent both configs; Block X chat) · **Decision:** the sponsor's per-action limit for a Picks pick is **1 Mana** (was 0.2 from one testnet sample, D-038, now superseded); the site asks 1 Mana (PR #90). The sponsor's vault switch is **off** (`config --vault off`) until the guest-trap fix (`b84e1add…`, Repo Lens #C-3 GO) is uploaded, then turned back on (R-BX-15). Measured on mainnet 4 Nov: a guest Race pick 0.76 Mana, a guest Block X pick 0.84. **Until the fix is uploaded, anyone running `npm run sponsor -- config` must pass `--vault off`**, or guest picks break again. Open: the per-transaction and per-player caps (R-BX-16).
 
 ## D-103 — Race pending files: a 35-minute window
 - **Date:** 2026-11-04 (owner: "widen it to 35 minutes so a slower run never holds an hour back") · **Decision:** the Race publish job accepts new pending content dated up to 35 minutes before its clock (the 30-minute record job plus 5), up to 5 minutes ahead (Repo Lens #C-4 C4-1; PR #85). It still closes the old 2-hour back-date route.

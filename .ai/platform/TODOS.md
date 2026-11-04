@@ -9,19 +9,22 @@
 
 ## Today
 - [ ] **Delete `NEW_OWNER_WIF` from `.env`** now that the Race picks owner change is done; keep the new Race owner key (`1LMV8EcR…`) offline, loaded only on owner-action days — P1 — D-083
-- [ ] OK the Race chat's three pushes (`race-vault-hold`, `race-page-wording`, `race-pick-errors`), then send Repo Lens `claude/race/REPOLENS-PR85-MERGE-PROMPT.md` — P1 — I-034
 - [ ] **Free-prize switch: set the starting values** — ON for 2, 7, 9, 13; OFF for 3, 4, 6, 8 (`FREE_PRIZE_SWITCH.md` §4–5); then the GitHub ruleset on `prize-settings` (no deletion, no force-push) — P1 — D-082
 - [ ] **Message the Hub chat** (start message): its list has the Stake tab (R-HUB-9), the admin follow-ups (R-HUB-8), @names (R-HUB-3) and the guest-wallet messages (R-HUB-4) — P2
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
+- [ ] **Sponsor rollout (R-BX-15):** the Block X chat gives you the exact steps from `main` (upload the fix, then per-tx 1.5, the site PR, then `config` with 40/250 to switch the vault back on). Do it before players stake in games 2 and 7, ideally Thu — P1
+- [ ] Every PowerShell window for tools: `$env:RPC = "https://koinos.armana.io"` first (the deployment files still name `api.koinos.io`, I-015) — P3
+- [ ] **GitHub setting (Repo Lens C5-13):** a `.github/CODEOWNERS` file (`/.github/ @bawcejawn`, `/tests/audit/site.ci-deps.test.mjs @bawcejawn`, `/tests/audit/ci-guard-*`) and on `main` a ruleset making the **guard check required**. ⚠️ Don't turn on "Require review from Code Owners" without a bypass for yourself: the chats open PRs under your own account, and GitHub doesn't let you approve your own PR, so every merge would be blocked. Ask the library chat for exact clicks first — P2
+- [ ] Send Repo Lens `claude/blockx/ROUND-14-LOWS-FIXCHECK-PROMPT.md` (Block X Lows, branch `blockx-lows`) — P3
 - [ ] **Hub PRs** (all green): merge **#94** (Week 1, before Sun 4 PM PT), then **#100** (stake-panel text; rebases after #94), and **#97** (guest messages). Send **#95** (@names Make main / Remove; a burn can't be undone) and **#99** (CI guard) to Repo Lens first — P2
 - [ ] After #95: on `names.html`, from the producer wallet `1DAHmr…`, create `@primeproducer`, tap Make main, optionally Remove `@primeprocuder`; tell the Hub it works (then the Tools link goes in) — P3 — I-084
 - [ ] In GitHub → Settings → Secrets and variables → Actions, confirm `OPERATOR_WIF` exists only in the `bot` environment; delete any repo-level copy — P2 — D-012 (from MKKtXR t18)
 - [ ] After `game-apply 7` on Thu: merge **PR #86** (Race page wording) — P2
 - [ ] **Weekend:** move `RACE_WIF` (the Race contract's own key) offline (weekend runbook) — P1
 - [ ] **Thu 5 Nov after 7:51 AM PT:** `npm run bot -- game-apply 2`, `game-apply 7` (dry run, then `--send`), then `games` must show "staked + free prize, from week 3"; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT** — P1 — D-077 (reminder Thu 9 AM PT)
-- [ ] **Wallet moves** per `docs/WALLETS.md` (D-083, D-096): **Fri 6 Nov** step 0 (read-only check; paste the output to the Vault chat), create the cold-key owner and cold treasury, start the treasury move (48 h) → **Sat** sweep the old operator `1JSTwo…` (I-045) → **Sun** after every `game-apply`, start the vault and Desk handovers → Mon/Tue accept. Picks and Race picks too this weekend, once their tools are built (R-BX-3, R-RACE-3) — P1 — I-001
+- [ ] **Wallet moves** per `docs/WALLETS.md` (D-083, D-096): **Fri 6 Nov** step 0 (read-only check; paste the output to the Vault chat), create the cold-key owner and cold treasury, start the treasury move (48 h) → **Sat** sweep the old operator `1JSTwo…` (I-045) → **Sun** after every `game-apply`, start the vault and Desk handovers → Mon/Tue accept. Race picks already moved (4 Nov); **Picks later** (D-106) — P1 — I-001
 - [ ] Optional (Repo Lens asked): on the PC, `npm ci --ignore-scripts && npm run test:audit:serial` — P4
 - [ ] Retry creating an @name on `names.html` and report the result — P3 — I-020
 - [ ] Check the Race status badge on the live Race page at phone width — P4
@@ -32,7 +35,6 @@
 - [ ] Confirm the phone-width status-bar screenshot reached the Hub chat — P4
 
 ## Before the first paid weeks close (Mon 16 Nov)
-- [ ] **Race prizes:** PR #85 (I-034) passed Repo Lens but needs the Race chat to update it from `main` and widen the window to 35 min (R-RACE-1); then merge, before Mon 16 Nov — P1
 - [ ] **Survivor** (Season 1 Mon 16 Nov, D-065): run Repo Lens pass 4 in `C:\kprediction-test` (`git pull`, `npm ci`, check `git log -1 --oneline` shows `a8a1979` or the Survivor chat's newer commit) and send back `AUDIT-SURVIVOR-REPORT-4.md`; then announce Sat 7 – Fri 13 Nov, `game-apply` Mon 9 – Sun 15 Nov; vault `game-add 3 "Survivor" --staked --free --season 2` with its free-prize switch OFF — P2 — I-050, D-064
 - [ ] **Run the other pending Repo Lens audits** and return the reports: Last Node round 3 (`claude/lastnode/FIXCHECK-3-PROMPT.md`; branch `lastnode`, `adf95be` or newer), Fantasy fix-check (`knode-fantasy-fixcheck.zip`), Combo fix-check 4 (`claude/audit-combo-fixcheck4-prompt.md`), Bracket fix-check once R-BR-1 is done — P1 — I-065
 - [ ] **Mon 16 Nov, 12:00 UTC (4 AM PT):** after the first vault close, check status, the buckets, the free prizes, and collect the fee with `claim-fee-vhp all` — P1

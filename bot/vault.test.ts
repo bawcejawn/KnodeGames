@@ -406,3 +406,25 @@ test("VB-2: a failed finalize stops that week's finalize loop (one try per week 
   await vaultFinalizePass(fctx(sim, {}), async (what) => { if (what.startsWith("Fantasy")) tries++; return { ok: false, error: "reverted: test" }; });
   assert.equal(tries, 1);
 });
+
+test("VB-3: only a chain revert counts as a refusal; a send that wasn't seen in a block (or a network error) is retried next run", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim, at } = await weekOneClosed();
+  const memo: VaultMemo = {}, files = allFiles();
+  await vaultResultsPass(fctx(sim, files, memo), sendAs(sim, operator, []));      // first read
+  at(sim.time + HOUR);
+  const v = fctx(sim, files, memo);
+  await vaultResultsPass(v, async (what, calls) => calls[0].method === "post_results" ? { ok: false, error: "sent, but not seen in a block within 3 minutes (will be re-checked next run)" } : sendAs(sim, operator, [])(what, calls));
+  assert.match(v.problems.join(" | "), /Fantasy week 1: .*not seen in a block.*tried again on the next run/);
+  assert.equal(memo.refused?.["2:1"], undefined, "not recorded as a refusal");
+  at(sim.time + HOUR);
+  const s: string[] = [];
+  await vaultResultsPass(fctx(sim, files, memo), sendAs(sim, operator, s));
+  assert.deepEqual(s, fantasySends, "posted on the next run");
+});
+
+test("VB-3: isRevert tells the chain's refusals from other failures", async () => {
+  const { isRevert } = await import("./vault.ts");
+  assert.equal(isRevert('reverted: ["that week is not final yet"]'), true);
+  assert.equal(isRevert('{"error":"x","code":1,"logs":["transaction reverted: results for that week are past their deadline"]}'), true);
+  for (const e of ["sent, but not seen in a block within 3 minutes (will be re-checked next run)", "fetch failed", "insufficient pending account resources", "", undefined]) assert.equal(isRevert(e as any), false, String(e));
+});

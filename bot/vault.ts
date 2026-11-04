@@ -392,6 +392,12 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
     const go = async (what: string, call: string, calls: Call[]): Promise<boolean> => {
       const res = sent(await send(what, calls));
       if (res.ok) return true;
+      // Repo Lens VB-3: only the chain's own refusal (a revert) is remembered. A network error, low Mana or a send not
+      // yet seen in a block is reported and tried again on the next run: rows and winners already on chain are skipped.
+      if (!isRevert(res.error)) {
+        ctx.problems.push(`${name} week ${w}: ${call} didn't go through (${res.error || "no reason given"}). Nothing more was sent for this week this run; it is tried again on the next run.`);
+        return false;
+      }
       ctx.problems.push(`${name} week ${w}: the vault REFUSED ${call} (${res.error || "no reason given"}). Nothing more was sent for this week${memo ? ", and the bot won't send it again unless the results file changes" : ""}. ${rollover}`);
       if (memo) { memo.refused ??= {}; memo.refused[key] = { hash, what, error: String(res.error || "").slice(0, 300), at: k.time }; }
       return false;
@@ -428,6 +434,14 @@ export function orderBreak(rows: Array<{ player: string; points: number }>, plac
     if (u.pl < v.pl && u.p < v.p) return `${u.a} (place ${u.pl}) gets ${u.p} points, fewer than ${v.a} (place ${v.pl}) with ${v.p}`;
   }
   return "";
+}
+
+/** Whether a failed send was the contract's own refusal (a revert), as opposed to a network error, low Mana or a send
+ *  not yet seen in a block. bot/chain.ts reports a revert as "reverted: …" (receipt) or with "transaction reverted" in
+ *  the node's error (refused when submitted). */
+export function isRevert(error: string | undefined): boolean {
+  const e = String(error ?? "");
+  return /^reverted:/.test(e) || /transaction reverted/i.test(e);
 }
 
 /** Drops what the bot remembers about weeks more than 10 weeks old. */

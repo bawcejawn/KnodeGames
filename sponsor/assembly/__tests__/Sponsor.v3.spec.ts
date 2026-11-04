@@ -898,17 +898,17 @@ describe("guest trap: get_game_player answers in the vault's own encoding", () =
     expect(r.ok).toBe(true);
     expect(r.free).toBe(false);
   });
-  it("vault ABI: withdrew this week (voided entry, week_stake 0) -> free play", () => {
+  it("vault ABI: withdrew this week (voided entry, as the vault writes it) -> free play", () => {
     start();
-    READS = [raw(FRESH), raw([0x0a, 0x00, 0x12, 0x02, 0x10, 0x01, 0x20, 0x00])];
+    READS = [raw(FRESH), raw([0x0a, 0x00, 0x12, 0x02, 0x10, 0x01])];
     OPS = [call(PICKS, PICK, pickArgs(USER))];
     expect(pays()).toBe(true);
     MockVM.commitTransaction();
     expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(MANA);
   });
-  it("vault ABI: withdrew this week (voided entry, week_stake 0): would_pay agrees", () => {
+  it("vault ABI: withdrew this week (voided entry, as the vault writes it): would_pay agrees", () => {
     start();
-    MockVM.setCallContractResults(padReads([raw(FRESH), raw([0x0a, 0x00, 0x12, 0x02, 0x10, 0x01, 0x20, 0x00])]));
+    MockVM.setCallContractResults(padReads([raw(FRESH), raw([0x0a, 0x00, 0x12, 0x02, 0x10, 0x01])]));
     const r = new Sponsor().would_pay(new sponsor.would_pay_arguments(USER, MANA, false, 2));
     expect(r.ok).toBe(true);
     expect(r.free).toBe(true);
@@ -920,5 +920,38 @@ describe("guest trap: get_game_player answers in the vault's own encoding", () =
     expect(pays()).toBe(true);
     MockVM.commitTransaction();
     expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(0);
+  });
+});
+
+describe("guest trap: the most common shapes for a new staker (Repo Lens SG-8)", () => {
+  it("vault ABI (review SG-8): new staker, pending deposit not active yet, empty entry -> free play", () => {
+    start();
+    READS = [raw(FRESH), raw([0x0a, 0x07, 0x10, 0x80, 0x84, 0xaf, 0x5f, 0x18, 0x03, 0x12, 0x00])];
+    OPS = [call(PICKS, PICK, pickArgs(USER))];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(MANA);
+  });
+  it("vault ABI (review SG-8): new staker, pending deposit not active yet, empty entry: would_pay agrees", () => {
+    start();
+    MockVM.setCallContractResults(padReads([raw(FRESH), raw([0x0a, 0x07, 0x10, 0x80, 0x84, 0xaf, 0x5f, 0x18, 0x03, 0x12, 0x00])]));
+    const r = new Sponsor().would_pay(new sponsor.would_pay_arguments(USER, MANA, false, 2));
+    expect(r.ok).toBe(true);
+    expect(r.free).toBe(true);
+  });
+  it("vault ABI (review SG-8): new staker, pending deposit active this week, empty entry -> a real player", () => {
+    start();
+    READS = [raw(FRESH), raw([0x0a, 0x07, 0x10, 0x80, 0x84, 0xaf, 0x5f, 0x18, 0x02, 0x12, 0x00, 0x18, 0x80, 0x84, 0xaf, 0x5f, 0x20, 0x80, 0x84, 0xaf, 0x5f])];
+    OPS = [call(PICKS, PICK, pickArgs(USER))];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(0);
+  });
+  it("vault ABI (review SG-8): new staker, pending deposit active this week, empty entry: would_pay agrees", () => {
+    start();
+    MockVM.setCallContractResults(padReads([raw(FRESH), raw([0x0a, 0x07, 0x10, 0x80, 0x84, 0xaf, 0x5f, 0x18, 0x02, 0x12, 0x00, 0x18, 0x80, 0x84, 0xaf, 0x5f, 0x20, 0x80, 0x84, 0xaf, 0x5f])]));
+    const r = new Sponsor().would_pay(new sponsor.would_pay_arguments(USER, MANA, false, 2));
+    expect(r.ok).toBe(true);
+    expect(r.free).toBe(false);
   });
 });

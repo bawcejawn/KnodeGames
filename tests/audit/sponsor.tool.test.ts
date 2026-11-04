@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildConfig, setPayer, syncSiteLimits, DEFAULT_CAPS, SPONSOR_SHA256, SPONSOR_V3_CANDIDATE, allowedBuilds } from "../../bot/sponsor.ts";
+import { buildConfig, setPayer, syncSiteLimits, DEFAULT_CAPS, SPONSOR_SHA256, SPONSOR_V3_CANDIDATE, SPONSOR_V3_GUESTFIX, allowedBuilds } from "../../bot/sponsor.ts";
 import { summarize, suggest, merge, checkRows, siteMap, chainRows, key, transitionRows, siteFits } from "../../bot/mana-limits.ts";
 
 const GAME = { contract: "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr", vhp: "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq", koin: "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK" };
@@ -45,7 +45,9 @@ test("upload only accepts the audited build, and that is the build in the repo's
   const src = fs.readFileSync("bot/sponsor.ts", "utf8");
   // Mainnet takes the audited builds: v3 (Repo Lens round 6 "GO", 2026-10-30) and v2 as the rollback (SP-13).
   assert.match(src, /allowedBuilds\(mainnet\)/);
-  assert.deepEqual(allowedBuilds(true), [SPONSOR_V3_CANDIDATE, SPONSOR_SHA256]);
+  // Guest trap (4 Nov): the fixed v3 build first; v3 and v2 stay allowed as rollbacks.
+  assert.deepEqual(allowedBuilds(true), [SPONSOR_V3_GUESTFIX, SPONSOR_V3_CANDIDATE, SPONSOR_SHA256]);
+  assert.ok(allowedBuilds(false).includes(SPONSOR_V3_GUESTFIX));
   assert.ok(allowedBuilds(false).includes(SPONSOR_V3_CANDIDATE));
   assert.notEqual(SPONSOR_V3_CANDIDATE, SPONSOR_SHA256);
   assert.match(src, /call override is ON/);

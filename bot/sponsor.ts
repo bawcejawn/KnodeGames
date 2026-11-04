@@ -80,11 +80,17 @@ export const SPONSOR_SHA256 = "fa4659e65c6156da3dde34238e0545a489a8b7f00cdf51df9
 /** v3 (allowlist, free claims, 5,000 ceiling, per-action Mana limits, the vault switch). Repo Lens round 6
  *  (2026-10-30): "GO" for the mainnet upload (launch step 2): mainnet takes v3, and v2 stays allowed as the rollback. */
 export const SPONSOR_V3_CANDIDATE = "b61ac238da27c4a71c01127f39a7b95f19fabf15e35df9f9715546d221e256e4";
+/** v3 with the guest-trap fix (4 Nov 2026): the vault's get_game_player answer is read field by field instead of
+ *  skipping its empty player record (0a 00), which trapped would_pay and authorize for every wallet with no record in
+ *  that game (every guest pick on Block X and the Race since the vault switch went on). Only the sponsor's private
+ *  result messages changed; config and every rule are the same as v3, so the settings on chain carry over. Not yet
+ *  audited: Repo Lens fix-check before upload. v3 (b61ac238) stays allowed as the rollback. */
+export const SPONSOR_V3_GUESTFIX = "b84e1add3ffa14a7d1933d5ce5a4ad33caa4bca887a489f87f710b3c121c83a6";
 /** The builds this network may receive. Audit SP-13: v2 stays allowed as the documented rollback target. */
-// The testnet trial is for v3: only the v3 candidate goes on there (2026-10-30: a v2 build was about to be uploaded).
-export const allowedBuilds = (mainnet: boolean) => (mainnet ? [SPONSOR_V3_CANDIDATE, SPONSOR_SHA256] : TESTNET ? [SPONSOR_V3_CANDIDATE] : [SPONSOR_SHA256, SPONSOR_V3_CANDIDATE]);
+// The testnet trial is for v3: only v3 builds go on there (2026-10-30: a v2 build was about to be uploaded).
+export const allowedBuilds = (mainnet: boolean) => (mainnet ? [SPONSOR_V3_GUESTFIX, SPONSOR_V3_CANDIDATE, SPONSOR_SHA256] : TESTNET ? [SPONSOR_V3_GUESTFIX, SPONSOR_V3_CANDIDATE] : [SPONSOR_SHA256, SPONSOR_V3_CANDIDATE, SPONSOR_V3_GUESTFIX]);
 /** v3 code on chain (the per-action and allowlist fields mean nothing to v2). */
-const V3_BUILDS = [SPONSOR_V3_CANDIDATE];
+const V3_BUILDS = [SPONSOR_V3_CANDIDATE, SPONSOR_V3_GUESTFIX];
 
 const sha256hex = (b: Uint8Array) => crypto.createHash("sha256").update(b).digest("hex");
 const readJson = (f: string, d: any = null) => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : d);

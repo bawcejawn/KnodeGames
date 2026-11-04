@@ -5,6 +5,10 @@
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
 ## Moved 2026-11-04 (morning)
+- PR #86 (Race page prize wording) merged — 2026-11-04
+- PR #120, #121, #123 (health check, launch board, keys and roles, sponsor, recovery, alerts, D-112) merged — 2026-11-04
+- Repo Lens fix-check of PR #108 (vault-n2-n3 @ 5bb7b9b): GO; C7-1 fixed, C7-2 Info open; #108 merged — 2026-11-04
+- Repo Lens #B-4 of PR #114 (v6.1): GO to announce; its three conditions done by the Vault chat (testnet measurement: 60th answer 0.061 Mana, settle with 60 answers 0.124) — 2026-11-04
 - Owner started the VHP Ruler chat with `claude/ruler/START-PROMPT.md`; its build plan came back and was answered (D-112) — 2026-11-04
 - Owner deleted `NEW_OWNER_WIF` from `.env` (Race picks owner change done; the new Race owner key `1LMV8EcR…` stays offline) — 2026-11-04 — D-083
 

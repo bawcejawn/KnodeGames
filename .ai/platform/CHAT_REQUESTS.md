@@ -2,11 +2,26 @@
 
 > **Purpose:** the one work list for the chats. Each chat reads **its own section** at the start of every session and works the open items in order. (The owner's own steps are in `TODOS.md`.)
 > **Owner's message to any chat is always the same** (§1). The library chat keeps this file current from session-end reports, decisions and audits.
-> **Last updated:** 2026-11-04 night (Block X sponsor state: R-BX-15, R-BX-16; R-BX-3/5/13, R-Q-1 updated; earlier: R-HUB-9 Stake tab; earlier: cleanup: finished items moved to `../archive/DONE.md`; the old TODOS "waiting on someone else" rows added here; guest-pick trap and Block X round 14 added)
+> **Last updated:** 2026-11-04 morning (D-113 core first: §0 focus table, game chats paused; R-VAULT-11, R-VAULT-12, R-Q-2, R-HUB-11, R-LIB-6; earlier: 2026-11-04 night (Block X sponsor state: R-BX-15, R-BX-16; R-BX-3/5/13, R-Q-1 updated; earlier: R-HUB-9 Stake tab; earlier: cleanup: finished items moved to `../archive/DONE.md`; the old TODOS "waiting on someone else" rows added here; guest-pick trap and Block X round 14 added)
 > **Rules:**
 > - Each item has an id (R-<chat>-<n>), a link (D-/I-/PR), what "done" means, and a status: **open** · **in progress**.
 > - A chat reports finished items in its session-end report (`SESSION_END_PROCESS.md`). The library chat then **moves them to `../archive/DONE.md`** with the date. Ids are never reused.
 > - **Private audit reports stay in the Claude project** (`claude/<area>/AUDIT-*.md`), never in this public repo. This file names the findings by id only.
+
+## 0. Current focus (D-113, from 4 Nov): core first, no new games
+**Active chats:** Vault · Daily Questions · VHP Ruler · Block X (sponsor and Picks items) · Race (payout safety only) · Hub (repo cleanup and public-readiness) · Library.
+**Paused (no new-game work; branches kept, no rebases needed):** Survivor · Fantasy · Last Node · Combo · Golf · Bracket. Their sections below stay as the backlog.
+
+| Order | Work | Chat | Item |
+|---|---|---|---|
+| 1 | Vault v6.1 (60 questions a week) announced now, uploaded after its fix-check, 60 from Mon 9 Nov (D-114) | Vault | R-VAULT-11 |
+| 2 | Questions rounds: #119 then #122 merged before Sun 8 Nov 23:48 UTC | Questions | R-Q-2 |
+| 3 | Payout safety before the 16 Nov close: Race hold alerts and vault-row recompute; Block X B3-1 | Race, Block X | R-RACE-13, I-085, R-BX-13 |
+| 4 | Sponsor follow-ups: the Mana report and tightened rows; the SR-1 upload guard PR; Picks owner handover plan (#79) and tool | Block X | R-BX-18, R-BX-17, R-BX-3 |
+| 5 | The VHP ruler build, steps (a)–(f), D-112 | VHP Ruler | R-RULER-1 |
+| 6 | Plain-language alert summaries; producer key backup scripts | Vault | R-VAULT-9, R-VAULT-10 |
+| 7 | Whole-repo cleanup and public-readiness (plan: `claude/CLEANUP-PLAN-2026-11-04.md` in the Claude project; repo items below) | Library, Hub, Vault | R-LIB-6, R-HUB-11, R-VAULT-12 |
+| 8 | Architecture (last) | Architecture | R-ARCH-* |
 
 ## 1. The message the owner sends (same text to every chat)
 ```
@@ -36,10 +51,13 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-VAULT-8 | Bot support for the public-testnet vault copy (`testnet/vault.json`); retarget to the public testnet, or remove, `bot --testnet` and the admin page's "Vault v6 trial (local node)" | I-014, I-068 | flag built, or tools removed | open (low) |
 | R-VAULT-9 | **Plain-language alert summaries.** The owner gets the emails but often can't tell what failed (all alerts are GitHub "Run failed" emails, `platform/ALERTS.md` §1). On every run that fails on purpose (`bot.yml`, `games.yml`, `race.yml`, `race-samples.yml`, `names.yml`, `heal-alert.yml`, `watch.yml`), write a short **job summary** (`$GITHUB_STEP_SUMMARY`, shown at the top of the run page) with, for each alert: **What happened** (one plain sentence), **Does it matter** (players' funds safe? a deadline?), **Expected?** (if it follows an owner step, name it), **What to do** (the exact command, or "nothing"), and the deadline in UTC and PT. Use the `ALERTS.md` wording; keep the current alert lines. Also put a one-line summary in the run's title where GitHub allows. Coordinate the game workflows with their chats | D-107, `ALERTS.md` | a test failing run shows the summary; `ALERTS.md` updated | open |
 | R-VAULT-10 | **Producer key backup and restore (owner OK, 4 Nov).** (1) `node\backup-producer-keys.ps1`: copies each node's `block_producer\private.key` (game/pool, Desk, personal; including nodes kept in Docker volumes) to a folder the owner names (a USB stick), prints only each node's **public** key and checks it against the registered one; never prints a private key. (2) `setup-node.ps1 -RestoreKey <file>`: puts a backed-up key in place before the node first starts, so a replacement node produces without re-registering (the Desk then avoids its 48 h key wait). (3) Write the Desk node's setup command (folder, project, ports offset) in `RECOVERY.md` §4. (4) Warn in both scripts: **never run two nodes with the same key at once** (old node off first) | TD-08, `RECOVERY.md` §2 #4, gap #34 | scripts + tests on the PC; RECOVERY.md updated | open |
+| R-VAULT-11 | **Vault v6.1 ASAP (D-114).** Owner announces `399171a2…` now (`docs/UPGRADE-V61.md` step 1, current owner `1635QU…`); Repo Lens fix-check of `94015ad..23dfd78` (`claude/vault/REPOLENS-PR114-FIXCHECK-PROMPT.md`); upload ≥ 48 h later only on GO, then `pause off` the same hour (it must land before Mon 9 Nov 00:00 UTC, Sun 4 PM PT); records PR (`wasmSha256`, `safeWasmSha256` → `a6bc0164…`); merge #114. Everything before the weekend step 4a. **Fix in the runbook:** "After 4b, the new owner `1LMV8E…` signs": `1LMV8EcR…` is recorded as the Race picks owner; confirm with the owner whether it is also the planned new vault owner | D-114, #B-4, PR #114 | v6.1 live, `get_state` shows `questions_cap_next` 60, records merged | open (P1) |
+| R-VAULT-12 | **Repo cleanup, vault side (D-113):** retire `bot/rehearse.ts` (bot.ts `rehearse` command) and, after v6.1 is live, `rehearse-v6` / `testnet-v6` if no longer needed; merge the duplicate `game/abi/kpred-v6.koilib.json` into `kpred.koilib.json` (~10 references, with the Block X and Race chats); `tests/audit/bot.settle-mana.test.ts:63` must stop reading `docs/history/security-audit.md` (so the private audit reports can leave the public repo); add `bot/free-prizes.test.ts` to CI; refresh `docs/MIGRATION.md` or fold it into `.ai/platform/RECOVERY.md`; `git rm --cached` the 6 committed race build outputs (with the Race chat) | D-113, gaps #33, #34 | PRs green in CI | open |
 
 ### Daily Questions
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
+| R-Q-2 | **Merge order for the rounds (D-114):** #119 (Repo Lens #E-8 merge check) first, then #122 after its fix-check (`claude/questions/REPOLENS-PR122-FIXCHECK-PROMPT.md`); both before **Sun 8 Nov 23:48 UTC**, the run that posts the first 00:00 round. Then confirm with the Vault chat that, with v6.1 live, Mon 9 Nov plans 4 + 4 | D-114, #119, #122 | both merged; the Sun 23:48 run posts the right count | open (P1) |
 | R-Q-1 | **Plan doubled Questions (D-092):** 10 a day Mon–Sat, rounds at 12:00 and 00:00 UTC, the second opening when the first closes; starting after the first paid weeks. Plan: bot release/lock schedule, the release backup task, scoring and weekly points, question supply, Mana per player, site text. The contract cap (30 a week) is the Vault chat's part (R-VAULT-6) | D-092 | plan → owner OK | in progress: PR #98 — **Repo Lens #C-5: fix first, C5-1 (Medium):** from week 4 the 11:48 / 23:48 release runs don't wait for their round while the previous round is open, so 11 of 12 rounds a week come out at :07 or via the PC backup. Fix in `postPass` (wait for `next` when it opens within `releaseWaitMs`, even if `current` is set) and the `release-kick.mjs` log line; failing test `claude/repolens-c5-tests/release-rounds.wait.C5-1.test.ts`. Payout timing, the 30 cap and week edges were found sound. Then a short fix-check. Step 2 (60 a week) needs R-VAULT-6 |
 
 ### Block X (and Picks, and the Mana sponsor)
@@ -71,6 +89,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-RACE-6 | Race page and the home page's Race rules: replace "vault not yet live" and update the free-prize wording (with the Hub's R-HUB-1) | I-027, I-069 | PR, before Mon 9 Nov | in progress: PR #86 updated (`race-page-wording` @ `d88d263`, local): "from Week 1, the week of Mon 9 Nov"; site tests 210/210. Owner pushes, then merges **after** Thu's `game-apply 7` |
 
 ### Producer Bracket
+**⏸ Paused (D-113):** no new-game work until the core is done (§0). Keep the branch; answer only owner questions.
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-BR-1 | Fix the Repo Lens #E-3 findings (report and failing tests in the project: `claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`). Order: H-1, C-2 + L-2, C-1, M-1, H-2 + H-3, M-3/M-4/M-9, then H-4 + H-5, then M-2, M-10, L-15. One finding per commit. Rerun the suites and the replay, then a fix-check | I-061 | all fixed; fix-check GO | open |
@@ -82,6 +101,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-BR-6 | After the first live run, pin the block `effective_balance_of` uses (`effCheck` log) | I-061 (S-3/F-7) | pinned | open (after launch) |
 
 ### Survivor
+**⏸ Paused (D-113):** no new-game work until the core is done (§0). Keep the branch; answer only owner questions.
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-SV-1 | Keep the Free play board; the 4 + 2 season prize is off for now (switch). Page says no VHP is paid on Free play; check whether "no prize" changes SV-A10 / SV-A19 | D-081, D-082 | page text + note | open |
@@ -91,6 +111,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-SV-4 | Leaderboards and Results need a Survivor `board.json` and a Results adapter (with the Hub) | I-056 | live | open |
 
 ### Last Node Standing
+**⏸ Paused (D-113):** no new-game work until the core is done (§0). Keep the branch; answer only owner questions.
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-LN-1 | Free play board **with** the 2 + 1 weekly prize: rule decided by the owner 3 Nov (guests need 1 VHP; 3 of 7 events; ties split) and built on `lastnode` @ `98a9896` (`claude/lastnode/FREE-PLAY-PROPOSAL.md`). Goes into the round-3 review with the round-2 fixes | D-081 | in the round-3 review; merged with the launch | in progress |
@@ -100,6 +121,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-LN-5 | Launch path: fix the round-3 findings; restore `lastnode`'s 3-try push loop in `games.yml`; resync with `main`; prepare the game-13 announce/apply on mainnet Picks; confirm the sponsor covers game-13 picks; open the `lastnode` → `main` PR; write the GitHub-variable steps | I-058, I-065 | PR open; mainnet clearance confirmed to the owner | open |
 
 ### Fantasy Producers
+**⏸ Paused (D-113):** no new-game work until the core is done (§0). Keep the branch; answer only owner questions.
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-FA-1 | Add a Free play board (no prize yet); say what it needs (picks contract, recorder, page) and how big the change is | D-081 | plan, then PR | open |
@@ -107,6 +129,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-FA-3 | **Card quality gate:** Fantasy uses Race cards without checking their sample count (≥ 12) or flags. Add the same gate Block X and Combo use (this settles the "flagged cards" question with the owner) | I-062, `HANDICAP_REVIEW.md` §5.1 #6 | PR + test, before launch | open |
 
 ### Combo Card
+**⏸ Paused (D-113):** no new-game work until the core is done (§0). Keep the branch; answer only owner questions.
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-CO-1 | Let free players send cards and rank on a Free play board (no prize yet). Check whether that needs Picks v2, and how free cards meet the forged/unverified-card checks | D-081, I-074 | plan | open |
@@ -114,6 +137,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-CO-3 | Confirm the vault floor: PR #74 set `vaultGames.8.minPts: 100` (your file needs ≥ 100 hundredths, 1 full point) | I-079 | confirmed | open (Combo to confirm) |
 
 ### Block Golf
+**⏸ Paused (D-113):** no new-game work until the core is done (§0). Keep the branch; answer only owner questions.
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-GO-1 | Add a Free play board (no prize yet); say whether it affects practice with Block X or the Survivor hole reader | D-081 | plan | open |
@@ -129,6 +153,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-HUB-6 | Rebuild PR #50's useful parts on current `main` (`claude/handoff-pr50-salvage.md`) | I-072 | PR | open (P3) |
 | R-HUB-8 | **Admin page refresh** (reviewed 4 Nov): `docs/ADMIN.md` still says `git checkout picks` (should be: stay on `main`); the Vault and Block X areas say "launching" (both live); the finished v6 upgrade steps ("is v6 ready / apply / clear") still show as live steps; vault-wide controls (pause deposits, the 5% fee, seed, upgrades, operator and owner handovers) sit under "Question game" though the game contract *is* the vault: move them to the Vault area; then add the Picks owner handover and Race owner change once R-BX-3 / R-RACE-3 land. The local-node trial is R-VAULT-8 | I-068 | PR + owner checks it on the PC | page refresh done (PR #88, `ed69025`); left: Picks owner handover and Race owner change buttons, after R-BX-3 / R-RACE-3 (#84 merged) |
 | R-HUB-9 | **Staking hub as its own tab** (owner, 4 Nov): `stake.html` isn't linked from any menu today. Add a top-level **"Stake"** link in the top menu (`TOP` in `tools/site-nav.mjs`) and a **Stake** tab in the phone tab bar (`TABS`; keep the bar at 5 slots with More, propose which slot), run `node tools/site-nav.mjs` and the site tests. **First check it works and is up to date on mainnet** (with R-HUB-2): deposit, withdraw, move between games and claim against vault v6, with every live game listed (Questions, Race, Block X; games 2 and 7 stakeable from their `game-apply`, Thu 5 Nov), the minimum stake, the "Week 1" label (R-HUB-1) and the free-play vs staked wording. The rewards calculator is **not** wanted for now | R-HUB-2, I-069 | checked on mainnet; Stake tab live | merged (PR #110, `5667413`): Stake top link and phone tab live. Left: the mainnet stake check with the owner's wallet (deposit, withdraw, move, claim), after the sponsor switch is back on (R-BX-15) |
+| R-HUB-11 | **Public-readiness, site side (D-113):** (1) the site still fetches data and sets its CSP through the old repo name `raw.githubusercontent.com/bawcejawn/Knode/…` (8 js files, 9 html CSP lines, 5 tests): change to `KnodeGames` (works today only through GitHub's rename redirect); (2) branding: bare "Knode" → "Knode Games" (blockx.html brand and footer first), package names and descriptions `kprediction`, the workflow name "Kpred bot", `KPRED_DEMO` (never the on-chain `kpred` namespace); (3) the pages say "Open source" while `LICENSE` is proprietary: use the owner's choice; (4) `admin/index.html` is published at `/admin/` on the site: decide (move under a non-served path or leave); (5) a plan, not a build yet, for deploying Pages from an allow-listed folder (so `bot/`, `docs/`, `.ai/` aren't downloadable from knodegames.com) without changing any page URL | D-113 | PRs green; old name 0 hits in site code | open |
 
 ### VHP Ruler (new chat, D-110; start it with its own first prompt, `claude/ruler/START-PROMPT.md` in the Claude project)
 | Id | Request | Link | Done when | Status |
@@ -144,4 +169,5 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-LIB-2 | Audit process; key and role inventory | DOCUMENTATION_GAPS #12, #3 | before the next launch | open |
+| R-LIB-6 | **Whole-repo cleanup program (D-113)**, in phases, each a PR the owner merges: (1) status-sync of every `.ai/` file (stale PR states, sponsor numbers, counts, game files' ruler model; `HEALTHCHECK.md` §2b); (2) docs: delete or archive the superseded `docs/` files (V5-PLAN, SITE, TESTNET-V6-RESULTS, `docs/blockx/` prompts and test plans), move the private audit reports in `docs/history/` and `.ai/archive/CHAT_KNOWLEDGE.md` to the Claude project, remove personal Windows paths; (3) a new root README and SECURITY.md; (4) branch cleanup: 136 merged/stale branches (owner deletes with a script after the data branches get delete protection); (5) a fresh health check aiming at 10 / 10 | D-113, HEALTHCHECK | each phase merged; health check rescored | in progress |
 | R-LIB-3 | Carry the chats' project docs into `.ai/`. (1) Carry the Vault chat's project docs into `.ai/`: `claude/vault-v6-live.md`, `claude/vault-v6-testnet-results.md`, `claude/handoff-*.md`, `claude/audit-vault-v6-*`, `docs/UPGRADE-V6.md`, `docs/V6-PLAN.md` — P3 — I-009 (2) Carry the Hub and Race chats' project docs into `.ai/`: `claude/launch-order.md`, `claude/stake-panel.md`, `claude/producer-names.md`, `claude/handoff-status-bar-testnet.md`, `claude/names-fixcheck*-prompt.md`, `claude/audit-names-prompt.md`, `claude/domain-knodegames.md`, `claude/site-at-root.md`, `claude/admin-page.md`, `claude/race-vault.md`, `claude/owners-race.md`, `claude/builds/02-hub-and-race-show.md`; repo `docs/NAMES.md`, `docs/ADMIN.md`, `race/README.md` (vault results section); Block X: `claude/blockx/FIXCHECK-PROMPT.md`, `claude/blockx/SPONSOR-TESTNET.md`, `claude/blockx/README.md`, repo `docs/blockx/MAINNET-LAUNCH.md`, `docs/blockx/TESTNET-RESULTS.md`, `docs/history/AUDIT-2026-10-28-repolens-blockx.md`; Survivor: `claude/audit-survivor-prompt.md`, `claude/builds/04-survivor-plan.md`, `claude/builds/04-survivor-sim.mjs`, repo `docs/SURVIVOR*.md`; Last Node `claude/lastnode/*`, `docs/lastnode/FIXCHECK-2-FIXES.md`; Golf `docs/GOLF.md`; Bracket `docs/bracket/README.md`, `docs/VHP-STANDARD.md`, `claude/vhp-standard.md`; Fantasy `docs/fantasy/*`, `claude/builds/05-fantasy-plan.md`, `claude/producer-names.md`; Combo `claude/audit-combo-fixcheck4-prompt.md`, `claude/combo/*` — P3 — I-009 | I-009 | filed | open (P3) |

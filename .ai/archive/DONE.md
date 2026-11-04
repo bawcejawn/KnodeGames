@@ -5,6 +5,8 @@
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
 ## Moved 2026-11-04 (evening)
+- Hub session-end (06:55 UTC): #95, #110, #111 merged (by the Hub chat on the owner's OK); main checks and Pages deploy green on `ba5b1ab`. R-HUB-10 done.
+  | R-HUB-10 | **Top menu tidy** (owner, 4 Nov): remove the **Info** dropdown. Move **Get VHP** into **Tools** (top menu and the phone More sheet's Tools group). Info's other links stay reachable: Trust, Terms & risks and Install app are already in the footer (`FOOT`); put "New here? Quick tour" in the footer too, or on the "New to Koinos?" page. Then `node tools/site-nav.mjs` and the site tests. Do it with R-HUB-9 (Stake tab) in one PR | — | menus updated; no page left unlinked | built in PR #110: Info menu removed, Get VHP in Tools, Quick tour in the footer |
 - Hub session-end (06:45 UTC) filed: #95 updated, #110 (Stake tab, menus), #111 (guard follow-up). R-HUB-4 done (PR #97 merged), R-HUB-7 done (PR #100 merged; #94 and #100 were already merged before the report).
   | R-HUB-4 | **Guest wallet messages:** `wallet.js` shows "Free answers are used up" for *any* sponsor refusal, trap or unanswered `would_pay` check, so players see the wrong reason. Show the real reason (for a failed check: "the free Mana check failed; try a wallet with its own Mana"), as PR #66 did for the Block X page | I-082 | PR + test | in progress: PR #97 (`wallet.js`); the Race page is R-RACE-7 |
   | R-HUB-7 | Explain on the stake panel that a wallet that withdrew below the minimum mid-week gets no bucket share and no free prize (`peak_stake`) | I-028 | text live | in progress: PR #100 (merge after #94; small rebase, same files) |

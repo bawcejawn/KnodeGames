@@ -1,6 +1,6 @@
 # Fantasy Producers (game 4) and Weekly Rival (game 5)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Fantasy Producers chat), `DECISIONS.md` (D-059), the repo (branch `fantasy`). **Last updated:** 2026-11-03.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Fantasy Producers chat), `DECISIONS.md` (D-059), the repo (branch `fantasy`). **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/FantasyProducers.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -25,19 +25,22 @@ Fantasy football for block producers: draft five producers under a salary cap, c
 
 ## Dependencies
 - **Picks contract:** register games 4 (list of 5, daily rounds) and 5 (one address, weekly) — 48 h wait. 💬
-- Race cards with enough samples (the VHP sampler, I-059); Fantasy currently also uses flagged low-sample cards (I-062). 💬
+- Race cards with enough samples (the VHP sampler, up to 12 samples a run since PR #67); Fantasy currently also uses flagged low-sample cards (I-062, R-FA-3). 💬
 - Recorder `bot/games/fantasy.ts` + `fantasy-math.js`, published by `games.yml` behind `FANTASY_ENABLED` (it never blocks Block X); files up to 8 MB. 💬
 - Vault v6: game 4 staked; results `games-data:fantasy/vault/W<week>.json` ✅ (C-22 resolved).
 
-## Current status (2 Nov)
-Branch `fantasy` @ `2bee805` ✅ — pushed, **not merged, nothing deployed**; testnet practice deployed (Picks copy `1DZX8RV…`). The owner's practice run stopped mid-week on 29 Oct; no full test week yet. Repo Lens fix-check package ready, not yet run. Tests: 522 pass, 1 fail (a `picks` issue).
+## Current status (4 Nov)
+- Branch `fantasy` @ `2bee805` ✅ — pushed, **not merged, nothing deployed**; behind `main`. Testnet practice deployed (Picks copy `1DZX8RV…`); the owner's practice run stopped mid-week on 29 Oct, no full test week yet.
+- Repo Lens fix-check package ready (`knode-fantasy-fixcheck.zip`), not yet run. Tests (2 Nov): 522 pass, 1 fail (most likely the mobile-nav test below ❓).
+- No Free play board yet (D-081).
+- Work list: `../platform/CHAT_REQUESTS.md` → Fantasy Producers (R-FA-1 – R-FA-3).
 
 ## Known issues (I-062)
-- BX-38 race cards use the highest VHP over 6 h, so a producer whose VHP drops scores under 100 for up to 6 h; flagged low-sample cards still used — decide with the owner.
+- BX-38 race cards use the highest VHP over 6 h, so a producer whose VHP drops scores under 100 for up to 6 h; flagged low-sample cards still used — add the card quality gate (≥ 12 samples, no flags) like Block X and Combo (R-FA-3).
 - Small producers swing (e.g. Knode Swap priced at the 40 cap); the price formula needs a real-data simulation.
 - Live race cards sometimes arrive ~28 minutes late — check day finality copes.
-- `site.mobile-nav.test.mjs` fails on `picks` (Block X fix).
+- `site.mobile-nav.test.mjs` failed on `picks`; it passes on `main` ✅ (re-merge `main` to pick it up).
 - FX-1 to FX-10 and later work not yet independently checked.
 
 ## Future plans
-Fix-check → fixes → real-data simulation → a full test week and roll into week 2 → register games 4 and 5 (48 h) → merge, `FANTASY_ENABLED=true`, menus and SEO, remove `noindex`; first price list the Saturday before the launch Monday. Open question for the owner: a Telegram reminder as well as the on-page one? Producer names are shared across games (Koinos @names, D-030).
+Launch path: `../platform/ROADMAP.md` (fix-check → fixes → real-data simulation → a full test week and roll into week 2 → register games 4 and 5 (48 h) → merge, `FANTASY_ENABLED=true`, menus and SEO, remove `noindex`; first price list the Saturday before the launch Monday). Later: move to the one VHP ruler (D-090). Open question for the owner: a Telegram reminder as well as the on-page one? Producer names are shared across games (Koinos @names, D-030).

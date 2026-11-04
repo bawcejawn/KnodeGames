@@ -107,6 +107,12 @@
 | D-094 | 2026-11-04 | The Race starts paying on 9 Nov with its two known gaps open until the ruler fix | active |
 | D-095 | 2026-11-04 | Survivor Season 1 keeps its blocks-based handicap | active |
 | D-096 | 2026-11-04 | Move every contract (vault, Desk, Picks, Race picks) to the new wallets this weekend, before any public announcement; Picks handover before the Picks v2 upgrade | active |
+| D-097 | 2026-11-04 | Free-prize farming by many empty wallets is accepted for now | active |
+| D-098 | 2026-11-04 | No back-fill for Race weeks before the vault paid it: those weeks have no prize | active |
+| D-099 | 2026-11-04 | The vault pays no one else's Mana (`sponsor-limit 0`); the Mana sponsor pays players | active (supersedes D-046's "not for now") |
+| D-100 | 2026-11-04 | `TODOS.md` is the one owner checklist; open items from the old checklist artifacts move into it, without duplicates | active |
+| D-101 | 2026-11-04 | Every game is fair with a bit of luck: each uses a luck trim (preferred) or a cap | active |
+| D-102 | 2026-11-04 | The full platform audit runs only once everything is confidently ready | active |
 
 ---
 
@@ -571,6 +577,24 @@
 - **Date:** 2026-11-04 (owner) · **Decision:** move the vault, the Desk, **the Picks contract and the Race picks contract** to the new owner wallet (D-083) this weekend, once each step checks out, and before any real public announcement. For Picks: **hand over first, then the Picks v2 upgrade** for Combo (answers PR #79).
 - **Needs:** the Picks owner-handover commands (R-BX-3) and the Race picks owner-change command (R-RACE-3) built and tested in time; the Vault chat adds both to the weekend runbook (`docs/WALLETS.md`).
 - **Ordering to watch:** a Picks handover clears pending game announcements on Picks. Survivor's game-3 Picks registration (R-SV-2) must come **after** the Picks accept, and still in time for Season 1 (Mon 16 Nov).
+
+## D-097 — Free-prize farming is accepted for now
+- **Date:** 2026-11-04 (owner: "accept it") · **Decision:** one person running many empty wallets to win free prizes (B1-3, I-035) is accepted for now, as on 28 Oct ("one person running many free wallets"). No minimum activity or stake rule beyond each game's own (for example Last Node's 1 VHP for guests). The owner can still remove a farmed wallet's prize in the 24 h correction window (`game-unprize`). Revisit if farming shows up in the first paid weeks.
+
+## D-098 — No back-fill for early Race weeks
+- **Date:** 2026-11-04 (owner: "currently no prizes for race because staking isn't available for it") · **Decision:** Race weeks before game 7 is applied in the vault have no prize and are not back-filled (I-033). The Race pays from the week of Mon 9 Nov (D-094), like week 1 being unpaid (D-063).
+
+## D-099 — The vault pays no one else's Mana
+- **Date:** 2026-11-04 (owner: "the sponsor should be paying … so the game pool can max compound") · **Decision:** set the vault contract's own Mana limit to 0 (`npm run bot -- sponsor-limit 0`, then `maxSponsorRc: "0"` in `game-data/deployment.json`, PR #89), so all its Mana stays for compounding. The Mana sponsor pays players' Mana within its caps; past the caps players pay their own (as D-046). Supersedes D-046's "not for now" (I-044).
+
+## D-100 — One owner checklist
+- **Date:** 2026-11-04 (owner) · **Decision:** `.ai/platform/TODOS.md` is the one owner checklist (I-032). Still-open items from the older checklist artifacts (Race chat's launch checklist, the Fantasy chat's owner checklist and the others) move into it, with no duplicates; those artifacts are then retired (not edited further).
+
+## D-101 — Fair, with a bit of luck
+- **Date:** 2026-11-04 (owner: "games should be fair with a bit of a luck") · **Decision:** every game keeps some luck but limits it: a luck trim sized by simulation (as Race and Last Node use, preferred) or at least a cap (as Block X, Fantasy, Combo). Survivor and the Bracket, which have neither, add one (`HANDICAP_REVIEW.md` §5.2 #2; R-SV-5, R-BR-7). Part of the one ruler (D-090).
+
+## D-102 — The full platform audit waits until everything is ready
+- **Date:** 2026-11-04 (owner) · **Decision:** the full platform audit (I-002, D-014) runs only once everything is confidently ready: the launch-wave games live and their own audits passed. Until then, each part is audited on its own (D-064).
 
 ---
 

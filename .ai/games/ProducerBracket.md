@@ -1,6 +1,6 @@
 # Producer Bracket (game 9)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Producer Bracket chat), `DECISIONS.md` (D-019, D-057, D-058, D-062), the repo (branch `kg-09-bracket`). **Last updated:** 2026-11-03.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Producer Bracket chat), `DECISIONS.md` (D-019, D-057, D-058, D-062), the repo (branch `kg-09-bracket`). **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/ProducerBracket.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -12,6 +12,7 @@ A weekly knockout tournament of Koinos block producers, like a March Madness bra
 - **Seeding:** average VHP over 28,800 blocks on two agreeing nodes; biggest = seed 1; not seeded within 24 h → the week is void. 💬
 - **A pick is one number:** bit n = "the lower seed wins matchup n" (bye bits 0). Picks game: NUMBER kind, weekly rounds, ahead ≤ 36 h, 20 picks a day, 20 changes. 💬
 - **Matchups:** baseline + credit; index = blocks credited ÷ blocks expected; an exact tie goes to the lower seed. **Forfeit:** a seed whose baseline is under 0.5 × its seeding VHP loses; if both forfeit, the index decides. No producer is left out unless below minimum production; Knode's own nodes play. The vault never forfeits (its VHP is players' stakes, recorded as `pooled`). 💬
+- **To build (owner decisions 3 Nov, R-BR-2):** the Knode Games Pool stays in the field, protected: pooled producers are judged on the day's average or minimum effective VHP, not one block (D-086); forfeits are judged on the day's time-weighted average (H-5); same-block ties share the place, and the comment and page text are fixed (D-087, H-6). 👤
 
 ## Scoring
 - **Points:** 1 / 2 / 4 / 8 / 16 by round, +2 for the champion (max 14 / 34 / 82 for 8 / 16 / 32). Byes score nothing. 💬
@@ -29,27 +30,23 @@ A weekly knockout tournament of Koinos block producers, like a March Madness bra
 - The VHP standard (`vhp-standard.js`, `bot/vhp-chain.ts`) and the VHP contract's `effective_balance_of`. 💬
 - Recorder `bot/games/bracket.ts` in `games.yml`; data branch `bracket-history` (keep) ✅.
 
-## Current status (2 Nov)
-Branch `kg-09-bracket` @ `ee676ea` ✅ — pushed, **not merged, nothing deployed**. Repo Lens audit not yet run (prompt `claude/audit-bracket-prompt.md`). Evidence: the VHP rebuild matched all 780 race-card readings; over 100 days the better seed won 54% of 113 matchups, and a "last week's form" bracket averaged 14.8 points vs 4.8 for random. The sampling branches are already deleted ✅.
+## Current status (4 Nov)
+- Branch `kg-09-bracket` @ `5b2492e` ✅ (audited tip; earlier `ee676ea`) — pushed, **not merged, nothing deployed**; 16+ commits behind `main`.
+- **Repo Lens #E-3 (3 Nov): fix first** — 2 Critical, 6 High, 10 Medium, plus Low/Info. Report and failing tests are private, in the Claude project (`claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`). Launches when the fix-check passes, **no 9 Nov target** (D-088).
+- Evidence before the audit: the VHP rebuild matched all 780 race-card readings; over 100 days the better seed won 54% of 113 matchups, and a "last week's form" bracket averaged 14.8 points vs 4.8 for random. The sampling branches are already deleted ✅.
+- Work list: `../platform/CHAT_REQUESTS.md` → Producer Bracket (R-BR-1 – R-BR-6).
 
 ## Known issues (I-061)
-- `effective_balance_of` has never been seen live — pin the block it uses after the first real run.
+- **Repo Lens #E-3 findings (fix first):**
+  - **Critical:** C-1 vault values past 255 places; C-2 the page can show a different bracket than it signs.
+  - **High:** H-1 the page rejects the recorder's v4 week files, so nobody can play yet; H-2 points aren't recomputed by the publish job; H-3 no clock checks on new history; H-4 and H-5 matchup manipulation (the Pool; one-block forfeits); H-6 same-block ties.
+  - **Sound:** the one-number pick (3.36 M numbers, 0 failures), the effective-VHP rebuild, the vault-file rules, the publish job running no repo code, honest runs never held.
+  - Fix order and decisions: R-BR-1, R-BR-2 (D-086, D-087).
+- `effective_balance_of` has never been seen live — pin the block it uses after the first real run (R-BR-6).
 - F-2 (accepted): hiding VHP on seeding day lowers a producer's forfeit bar.
 - F-10: final weeks are re-scored on every load, so rule changes must apply only from a stated week; stake reads aren't pinned to a block.
 - A whale withdrawing mid-day can sink the vault's matchup index (inherent, disclosed).
 - A flaky test (`bot.vhp-read-failure.test.ts`).
 
 ## Future plans
-Repo Lens audit → fixes and fix-check → update the branch from `main` → announce in Picks and the vault → sponsor row → `games.json` live. Then help move the Race and Block X onto the VHP standard. Block Golf will read the Bracket's weekly file (not the board, which is capped at 1,000 rows, `MAX_BOARD_ROWS` ✅).
-
-## Audit 3 Nov — Repo Lens #E-3: fix first
-- **Commit audited:** `5b2492e` (branch tip). The full report and the failing tests are private, in the Claude project (`claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`).
-- **Found:** 2 Critical, 6 High, 10 Medium, plus Low/Info.
-  - **Critical:** C-1 vault values past 255 places; C-2 the page can show a different bracket than it signs.
-  - **High:** H-1 the page rejects the recorder's v4 week files, so nobody can play yet; H-2 points aren't recomputed by the publish job; H-3 no clock checks on new history; H-4 and H-5 matchup manipulation (the Pool; one-block forfeits); H-6 same-block ties.
-- **Sound:** the one-number pick (3.36 M numbers, 0 failures), the effective-VHP rebuild, the vault-file rules, the publish job running no repo code, honest runs never held.
-- **Owner decisions:**
-  - D-086: the Pool stays in the field, protected; forfeits on a day-long average;
-  - D-087: same-block ties share the place;
-  - D-088: launch when the fix-check passes, no 9 Nov target.
-- **Work list:** `platform/CHAT_REQUESTS.md` → Producer Bracket (R-BR-1 – R-BR-6).
+Launch path: `../platform/ROADMAP.md` (fixes and fix-check → update the branch from `main` → announce in Picks and the vault → sponsor row → `games.json` live). Then help move the Race and Block X onto the one VHP ruler (D-090; the VHP standard is this chat's work, D-058). Block Golf will read the Bracket's weekly file (not the board, which is capped at 1,000 rows, `MAX_BOARD_ROWS` ✅).

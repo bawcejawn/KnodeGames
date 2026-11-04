@@ -68,6 +68,8 @@ export type Opts = {
   vhpContract?: string;                                                    // default: mainnet VHP
   knodeGame?: string | null;                                               // the Knode vault (v6): who is staked in THIS game
   prizesFromWeek?: number | null;                                          // default: none (no prizes listed)
+  /** Repo Lens E4-3: the most time the week-end re-read may take in one run (default REVERIFY_BUDGET_MS). */
+  reverifyBudgetMs?: number;
   picksOf?: (node: any, round: number) => Promise<RawPick[]>;             // for the tests
   blockOf?: (node: any, height: number) => Promise<{ signer: string; time: number }>;
   /** Tests: who was staked in this game in `week` (stake at least the vault's minimum at some point that week). */
@@ -398,6 +400,9 @@ export function lastVarint(data: unknown, want: number): bigint | null {
  *  3 hours, so a card made after the lock (with VHP that moved after it) is never used. Race cards come from the race
  *  at t and the one before; self-made cards (testnet) from cards.json. None: the target waits (then void). */
 const CARD_MAX_AGE_MS = 3 * 3600000;
+/** Repo Lens E4-3: the week-end re-read reads this many targets at a time, and stops (holding the week) after this long. */
+export const REVERIFY_AT_ONCE = 4;
+export const REVERIFY_BUDGET_MS = 15 * 60000;
 /** Audit BX-38: a race card made from fewer than 12 VHP samples is flagged; Block X never scores with it. */
 export const MIN_CARD_SAMPLES = 12;
 const usable = (c: Card | null | undefined, race: boolean): c is Card =>
@@ -450,6 +455,19 @@ function raceCardAt(raceDir: string | undefined, t: number): Card | null {
   }
   return latestCardAt(all, t, true);
 }
+/** Repo Lens E4-1 (round 14): whether the race folder holds the race recorder's week file for every race that could
+ *  hold a card in [from, to] (only races that have started by `now`; a later week can't exist yet). A run whose
+ *  race-data fetch failed has no files at all: its targets must wait, never be written void for "no card". */
+export function raceWeeksPresent(raceDir: string | undefined, from: number, to: number, now: number): boolean {
+  if (!raceDir) return false;
+  const end = Math.min(to, now);
+  if (end < from) return true;
+  const weeks = new Set<number>();
+  for (let t = from; t < end; t += M.RACE) weeks.add(M.weekOf(M.raceAt(t).start));
+  weeks.add(M.weekOf(M.raceAt(end).start));
+  for (const w of weeks) { const wf = readJson(raceDir, wName(w)); if (!wf || !Array.isArray(wf.races)) return false; }
+  return true;
+}
 const selfCardAt = (cards: Card[], t: number): Card | null => latestCardAt(cards, t);
 const selfCardAfter = (cards: Card[], t: number, signer = ""): Card | null => firstCardAfter(cards, t, false, signer);
 
@@ -464,6 +482,7 @@ export async function run(o: Opts) {
   const KNODE = o.knodeGame === undefined ? MAINNET_KNODE_GAME || null : o.knodeGame;
   const PRIZES_FROM = o.prizesFromWeek ?? null;
   const problems: string[] = [];
+  const holds: string[] = [];   // Repo Lens E4-7: a held week is an error (the workflow fails the run after publishing)
   const contract = o.picksContract === undefined ? defaultPicksContract() : o.picksContract;
 
   const live = o.head ? null : await headOf(o.p);
@@ -527,6 +546,8 @@ export async function run(o: Opts) {
   }
   const cardAt = (t: number) => (CARDS === "self" ? selfCardAt(cards, t) : raceCardAt(RACE, t));
   const cardAfter = (t: number, signer = "") => (CARDS === "self" ? selfCardAfter(cards, t, signer) : raceCardAfter(RACE, t, signer));
+  /** Repo Lens E4-1: the race recorder's files for [from, to] aren't in this run's race folder (race cards only). */
+  const raceMissing = (from: number, to: number) => CARDS === "race" && !raceWeeksPresent(RACE, from, to, head.time);
 
   // The weeks touched: the last 3 days and now.
   const weeks = new Map<number, WeekFile>();
@@ -545,6 +566,93 @@ export async function run(o: Opts) {
     wf.targets = wf.targets.concat([{ round: r, height: h, final: true, checked: 0, signer: null, time: Math.round(t), lockTime: Math.round(lockTime || t - G.LEAD * X.BLOCK_MS), card: null, void: why.replace(/[\r\n]+/g, " "), picks: [] }]).sort((x, y) => x.round - y.round);
     done.add(r);
   };
+
+  /** I-042: the week read again from the chain, target by target, before its prize list is frozen. Returns why it must
+   *  be held, or null when every target reads the same on both nodes:
+   *  - every round is a target block of the game, already irreversible (a future round can't be in it: G-K-1);
+   *  - a recorded target: the signer and times of block X and of its lock block, on both nodes;
+   *  - its picks (player, producer, time) on both nodes, and each player's Staked / Free play flag on both nodes;
+   *  - a scored target: the same lock card and first card after X, and every pick's points recomputed from them.
+   *  A void row scores nothing, so only its round and height are checked (a target voided for a non-standard VHP
+   *  transfer is listed for the correction window: nonCanonicalNotes). The VHP moved into the signer (BX-53) isn't
+   *  re-scanned (it was read on both nodes when recorded); the points are recomputed with the amount recorded. */
+  const reverify = async (wf: WeekFile): Promise<string | null> => {
+    const nodes = [blockP, blockC].filter(Boolean) as ((h: number) => Promise<{ signer: string; time: number }>)[];
+    const pnodes = [o.p, o.check].filter(Boolean);
+    const sameRaw = (a: [string, string, number][], b: [string, string, number][]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+    /** Repo Lens E4-1 (b): a void row's own reason must still hold with this run's race files. (Voids for a
+     *  non-standard transfer are listed for the correction window instead; 3-day-edge voids have checked 0.) */
+    const voidReason = (t: Target): string | null => {
+      const v = String(t.void), who = t.signer ?? "";
+      if (/^no handicap card was recorded for this target's lock/.test(v)) {
+        if (raceMissing(t.lockTime - CARD_MAX_AGE_MS, t.lockTime)) return "this run has no race cards for its lock";
+        return cardAt(t.lockTime) ? "it was voided for having no handicap card at its lock, but there is one" : null;
+      }
+      if (/^no handicap card was taken within 3 hours after the block/.test(v)) {
+        if (raceMissing(t.time, t.time + CARD_MAX_AGE_MS)) return "this run has no race cards for the hours after the block";
+        const c = cardAfter(t.time, who);
+        return c && c.at <= t.time + CARD_MAX_AGE_MS ? "it was voided for having no handicap card after the block, but there is one" : null;
+      }
+      if (/^the two nodes disagreed about the (signer's VHP|VHP of the top producer) on the lock's handicap card/.test(v)) {
+        return flags(cardAt(t.lockTime), who) ? null : "it was voided for a disputed lock card, but that card isn't disputed now";
+      }
+      return null;
+    };
+    const one = async (t: Target): Promise<string | null> => {
+      const at = `block ${t.height}`;
+      if (t.height !== G.target(t.round)) return `${at} isn't round ${t.round}'s target block`;
+      if (t.height > head.lib) return `${at} isn't irreversible yet`;
+      if (t.void && !t.checked) { if (t.picks.length) return `${at}: a void row with picks`; return null; }
+      for (const read of nodes) {
+        const b = await read(t.height), l = await read(t.height - G.LEAD);
+        if ((isAddr(b.signer) ? b.signer : null) !== t.signer || b.time !== t.time || l.time !== t.lockTime) return `${at}: its signer or times read differently now`;
+      }
+      if (picksRead) {
+        const mine = t.picks.map((x) => [x[0], x[1], x[2]] as [string, string, number]);
+        for (const node of pnodes) {
+          const raw = (await picksRead(node, t.round)).map((x) => [x.player, x.producer, x.time] as [string, string, number]);
+          if (!sameRaw(raw, mine)) return `${at}: its picks read differently now`;
+        }
+      }
+      const players = [...new Set(t.picks.map((x) => x[0]))];
+      if (players.length) for (const node of pnodes) {
+        const rk = await rankedRead(players, node, M.weekOf(t.time));
+        if (t.picks.some((x) => (rk.has(x[0]) ? 1 : 0) !== x[4])) return `${at}: a player's Staked / Free play flag reads differently now`;
+      }
+      if (t.void) {
+        if (t.picks.some((x) => x[3] !== 0)) return `${at}: a void target with points`;
+        const why = voidReason(t);
+        return why ? `${at}: a void target has a card now (${why})` : null;
+      }
+      const card = cardAt(t.lockTime), after = t.signer ? cardAfter(t.time, t.signer) : null;
+      if (!card || !after || !t.card || card.at !== t.card.at || after.at !== t.card.afterAt || flags(card, t.signer!)) return `${at}: its handicap cards read differently now`;
+      // The VHP moved into the signer (BX-53), as recorded: the stored signer VHP less the lock card's own.
+      const own = X.vhpOf(card).m.get(t.signer) ?? 0;
+      const moved = t.card.signerVhp != null && t.card.signerVhp > own ? BigInt(Math.round((t.card.signerVhp - own) * 1e8)) : 0n;
+      const lockC = withMoved(card, t.signer!, moved), afterC = withMoved(after, t.signer!, moved);
+      const { m, top } = X.vhpOf(lockC);
+      if (top !== t.card.top || (m.get(t.signer) ?? null) !== t.card.signerVhp) return `${at}: its card values read differently now`;
+      for (const x of t.picks) if (Math.min(X.pointsOf(lockC, x[1], t.signer), X.pointsOf(afterC, x[1], t.signer)) !== x[3]) return `${at}: ${x[0]}'s points recompute differently`;
+      return null;
+    };
+    // Repo Lens E4-3: REVERIFY_AT_ONCE targets at a time, within a time budget. Past the budget the week is held and
+    // the next run tries again, so a slow node can't push the job past its 30-minute limit. The first hold stops the
+    // rest (nothing more needs reading); the hold reported is the first in round order among those read.
+    const deadline = Date.now() + (o.reverifyBudgetMs ?? REVERIFY_BUDGET_MS);
+    let stop = false;
+    const res = await pool(wf.targets, REVERIFY_AT_ONCE, async (t) => {
+      if (stop) return null;
+      if (Date.now() > deadline) { stop = true; return "the re-read ran out of time this run"; }
+      const why = await one(t);
+      if (why) stop = true;
+      return why;
+    });
+    return res.find((x) => x != null) ?? null;
+  };
+  /** BX-72: targets voided for a non-standard VHP transfer can be caused on purpose (about 84 transfers void a week):
+   *  each is listed when its week becomes final, for the owner to check in the vault's correction window. */
+  const nonCanonicalNotes = (wf: WeekFile) => wf.targets.filter((t) => typeof t.void === "string" && /VHP moved can't be read/.test(t.void))
+    .map((t) => `week ${wf.week}: block ${t.height} was voided for a non-standard VHP transfer to ${t.signer ?? "its signer"}; check it in the correction window (who gains if it stands?)`);
 
   // ── 1–3. targets ──
   let firstRound = Math.max(1, Math.ceil((head.lib - LOOKBACK_BLOCKS - G.OFFSET) / G.ROUND));
@@ -578,6 +686,13 @@ export async function run(o: Opts) {
         }
       }
       const card = cardAt(lock.time);
+      // Repo Lens E4-1 (a): no race files for the lock's races (e.g. this run's race-data fetch failed) is not "no card":
+      // the target waits, and only at the 3-day edge is it voided, with that reason.
+      if (!card && raceMissing(lock.time - CARD_MAX_AGE_MS, lock.time)) {
+        problems.push(`block ${h}: this run has no race cards for its lock (the race-data files are missing); not recorded this run`);
+        if (old) voidAt(r, h, b.time, lock.time, "the race cards for its lock could not be read until it left the 3-day window");
+        continue;
+      }
       // CARDS=self: cards are only ever taken going forward, so a lock more than an hour before the first card will
       // never get one (the recorder wasn't running yet): void now rather than waiting 3 days.
       // Audit BX-48: cards are only made going forward, so 3 hours after the lock none can still appear for it.
@@ -586,6 +701,12 @@ export async function run(o: Opts) {
       // Audit BX-35: and the first card after block X; until it exists the target waits (3 hours at most).
       const after = card ? cardAfter(b.time, b.signer) : null;
       const afterNever = head.time > b.time + CARD_MAX_AGE_MS;
+      // Repo Lens E4-1 (a): the same for the first card after the block.
+      if (card && !after && raceMissing(b.time, b.time + CARD_MAX_AGE_MS)) {
+        problems.push(`block ${h}: this run has no race cards for the hours after the block (the race-data files are missing); not recorded this run`);
+        if (old) voidAt(r, h, b.time, lock.time, "the race cards after the block could not be read until it left the 3-day window");
+        continue;
+      }
       if (card && !after && !old && !afterNever) { problems.push(`block ${h}: waiting for the first handicap card after the block (scored with the lower of the two); tried again next run`); continue; }
       // Audit BX-4: Staked or Free play is read on both nodes too; a disagreement holds the target like a block's.
       const players = [...new Set(raw.map((x) => x.player))];
@@ -703,7 +824,19 @@ export async function run(o: Opts) {
     if (frozen && frozen.v === 1 && frozen.week === lw && frozen.game === G.GAME_ID && Array.isArray(frozen.prizes)) {
       lastWeek.final = true; lastWeek.prizes = frozen.prizes; lastWeek.frozenAt = frozen.at;
     } else if (final) {
-      freeze = { v: 1, week: lw, game: G.GAME_ID, at: new Date(head.time).toISOString(), prizes: lastWeek.prizes };
+      // I-042 (BX-88, BX-97, BX-98, G-K-1): before a week's prize list is frozen (and its vault file written), every
+      // target of the week is read again from both nodes and compared whole. Any difference holds the week (no prize
+      // list, no vault file, an alert); the next run tries again.
+      // Repo Lens E4-2: a read that fails during the re-read holds the week; everything else is still published.
+      let held: string | null;
+      try { held = await reverify(wf!); }
+      catch (e) { held = `a read failed during the re-read: ${String((e as Error)?.message ?? e).replace(/[\r\n]+/g, " ").slice(0, 200)}`; }
+      for (const n of nonCanonicalNotes(wf!)) problems.push(n);
+      if (held) {
+        const note = `week ${lw}: held before its prize list: ${held}. Nothing is paid until a run reads the whole week the same (tried again next run)`;
+        problems.push(note); holds.push(note);
+        lastWeek.final = false; lastWeek.prizes = [];
+      } else freeze = { v: 1, week: lw, game: G.GAME_ID, at: new Date(head.time).toISOString(), prizes: lastWeek.prizes };
     }
   }
   const board = {
@@ -755,8 +888,8 @@ export async function run(o: Opts) {
     } catch (e) { problems.push(`vault week ${lastWeek.week}: ${(e as Error).message} (tried again next run)`); }
   }
   if (CARDS === "self") fs.writeFileSync(path.join(OUT, "cards.json"), JSON.stringify({ v: 1, updated: new Date(head.time).toISOString(), startHeight, cards }) + "\n");
-  for (const pr of problems) console.log(`::warning::${pr.replace(/[\r\n]+/g, " ").replace(/::/g, ": ")}`);
-  return { problems, weeks, board, cards };
+  for (const pr of problems) console.log(`::${holds.includes(pr) ? "error" : "warning"}::${pr.replace(/[\r\n]+/g, " ").replace(/::/g, ": ")}`);
+  return { problems, weeks, board, cards, held: holds };
 }
 
 /** Every target whose block time falls in [from, to) is recorded (audit BX-5): the week's rounds run without a gap,
@@ -816,6 +949,8 @@ async function main() {
     if (!RPC_CHECK && E.ALLOW_ONE_NODE !== "yes") throw new Error("no second node (RPC_CHECK is off, missing or the same as RPC): Block X needs two on mainnet. Set RPC_CHECK, or ALLOW_ONE_NODE=yes to run on one node.");
     if (!RPC_CHECK) console.log("::warning::running on ONE node (ALLOW_ONE_NODE=yes): blocks, picks and stakes are not cross-checked");
     const r = await run({ p: new Provider([RPC]), check: RPC_CHECK ? new Provider([RPC_CHECK]) : null, prizesFromWeek: prizesFromEnv(E.PRIZES_FROM_WEEK) });
+    // Repo Lens E4-7: tell the workflow a week is held; its last job fails the run (an email) after publishing.
+    if (r.held.length && E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, "held=true\n");
     return r;
   }
   // Testnet: one game of the config. Never touches mainnet files: data goes to BLOCKX_OUT (default testnet-data/blockx-<id>).

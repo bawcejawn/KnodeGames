@@ -4,6 +4,30 @@
 > **How it grows:** when an item in `platform/TODOS.md`, `platform/CHAT_REQUESTS.md`, `platform/PRIORITIES.md`, `platform/ROADMAP.md`, `platform/DOCUMENTATION_GAPS.md` or `platform/TECHNICAL_DEBT.md` is done, the library chat moves it here under the date it was moved, newest first. Closed issues go to `ISSUES_CLOSED.md`.
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
+## Moved 2026-11-04 (evening)
+- Hub session-end (4 Nov 05:17 UTC) filed. R-HUB-2 done: the staking hub reads the live vault on mainnet (week 2, minimum 1 VHP, game 1 only until Thu's `game-apply`); the Questions status bar shows "Staked · 1 VHP"; the Race bar's old text is fixed by PR #94.
+  | R-HUB-2 | Check the staking hub, status bars and panels on mainnet now that the vault is live | — | checked | open |
+- Owner, 21:15 PT: `sponsor-limit 0 --send` done (tx `0x12209299478ad245a288e103eab3a195358c9572b8b355872a5ccc3ce7e43f2e548f`); `chain-check`: everything matches, vault and Desk `authorizes_*` all true, no pending transfers, upgrades or seed withdrawal, Desk holds 1,823.54 KOIN + 19,425.45 VHP. Guest picks on Race and Block X tested by the owner: they work.
+  - [ ] **Stop the vault paying others' Mana** (D-099): `npm run bot -- sponsor-limit 0` (dry run, then `--send`), then merge PR #89 (`maxSponsorRc: "0"`) right after — P2 — I-044
+  - [ ] **Read-only check:** the authorize/upload protections are on for the vault and the Desk (`npm run bot -- chain-check`; Repo Lens rated the Desk Critical if they're off); paste the result to the Vault chat — P1 (from the old checklist MKKtXR t12, D-100)
+  | 5 | **Stop the contract paying other people's Mana** (`sponsor-limit 0`) | Every day it runs costs compounding: pool rewards players never see (~317 KOIN by 28 Oct) | owner | TD-05, I-044 |
+  | TD-05 | 📜 | **The game/vault contract still pays Mana for other people's transactions** (`max_sponsor_rc` = 2 KOIN) | ~317 KOIN of compounding lost by 28 Oct; the drain continues while it's on | `sponsor-limit 0` with `maxSponsorRc: "0"` in the same change | I-044, D-046 |
+- R-BX-0 done: PR #90 merged; the owner confirmed guest picks work again (also removed: TODOS "guest picks blocked", PRIORITIES #1 "Unblock guest picks", ACTIVE_WORK "Urgent") (I-083 closed). PR #89 merged (`maxSponsorRc: "0"`, D-099); PR #84 merged (Race owner-change command, Repo Lens GO); PR #92 merged.
+  | R-BX-0 | **URGENT: guest picks are blocked.** Sponsor v3 `would_pay` **traps** ("module exited due to trap") for a guest with games `[7]` or `[2]`; with games `[]` (an answer) it returns ok. Seen on both nodes, 4 Nov ~03:50 UTC; most likely since the vault switch (`game_has_vault`) went on, 3 Nov. Find which side traps (the vault's `get_game_player`, or the sponsor reading its answer); check whether `authorize` traps the same way; give the exact stopgap command (switch off with every cap passed unchanged; dry run only) and the proper fix, with a test against the real vault's answer, not a mock | I-083 | cause found; stopgap ready; fix + test | **open — first** |
+- From TODOS: **PR #80** (Block X before prizes): wait for the round-14 fix (E4-1) and a fix-check GO, then merge **before Sun 8 Nov 4 PM PT** — P1 — I-042
+- R-BX-1 done: PR #80 merged (`4d372da`) after the round-14 fix-check GO at `baeb2c6` (E4-1 a+b, E4-2, E4-3, E4-7 fixed). The fix-check's condition 1 (Block X recording on mainnet) checked ✅: `games-data` has `blockx/W001.json`, `W002.json`, `board.json`, `index.json`, last record 04:36 UTC 4 Nov, `games.yml` runs green.
+  | R-BX-1 | **Before prizes (PR #80):** Repo Lens round 14 (3 Nov) is **No-Go until E4-1 is fixed**: (a) stop the Block X step when the race-data fetch fails; (b) the week-end re-read re-checks each void's reason. Tests as in the report. Also this week if easy: E4-2 (catch a failing re-read: hold, keep publishing), E4-3 (read 4 at a time + a time budget), E4-7 (a held week fails the run); later E4-4 (a sampler run past 58 min loses its samples, Low). Then a short fix-check. BX-105 (board freeze, display only) stays accepted | I-042, D-077; summary (private): `claude/blockx/ROUND-14-2026-11-03.md` | fix-check GO; owner merges **before Mon 9 Nov 00:00 UTC (Sun 4 PM PT)** | in progress |
+
+## Moved 2026-11-04 (owner decisions D-097 – D-102)
+- R-RACE-2 (farming recommendation) — **not needed**: the owner accepted farming for now (D-097).
+  | R-RACE-2 | A short recommendation on free-prize farming by many empty wallets (owner decides) | I-035 | recommendation sent | open |
+- From TODOS, settled by the decisions (the B1-2 fix itself stays open as I-034 / PR #85):
+- [ ] **Race prizes:** decide B1-2 (I-034, the Race chat builds the fix), B1-3 free-prize farming (I-035, after the Race chat's recommendation) and back-fill vs "no prize" for past not-final weeks (I-033) — P1
+- [ ] Give the go-ahead for the full platform audit — P1 — I-002, D-014
+- [ ] Decide `sponsor-limit 0` for the game/vault contract (stop it paying Mana for others) — P2 — I-044
+- [ ] Decide which owner checklist is the source of truth — P3 — I-032
+- The old owner checklist artifacts (Qjk951, AuEhQT, KZSbd4, TDWD6H, 3bSxzS, 5Rc9KF, MKKtXR) were read on 4 Nov; their three untracked open items moved into TODOS (the vault/Desk protections check, the repo-level `OPERATOR_WIF` check, the Desk node's low block share). Everything else in them was already tracked, done or superseded. Those artifacts are retired (D-100).
+
 ## Moved 2026-11-04 (cleanup)
 
 ### Owner steps finished 3–4 Nov (from TODOS)
@@ -23,6 +47,9 @@
 | "Tell the Vault chat: Fantasy's source (C-22), Last Node's vault file format and HOLD files, verify staked lists" — HOLD files and staked lists done in PR #74; C-22 checked in code 2 Nov; Last Node's side is R-LN-3 | 2026-11-04 | I-064 |
 | "Carry the chats' project docs into `.ai/`" (two I-009 items) — **moved** to the library's work list (R-LIB-3) | 2026-11-04 | I-009 |
 | "Waiting on someone else" table — **replaced** by the chats' rows in CHAT_REQUESTS (R-BX-5, R-BX-6, R-BX-7, R-HUB-5, R-RACE-6, R-VAULT-8, R-LN-5, R-GO-3, R-BR-6, R-FA-2, R-CO-2, R-SV-2, R-ALL-7); "Ship V4, B1-1, B1-5" was confirmed done (R-BX-4) | 2026-11-04 | — |
+
+TD-11 (moved to "Accepted on purpose", D-097), as it stood:
+| TD-11 | 📈 | **Free prizes can be farmed with many empty wallets**, and they share the sponsor's first-come free pool | Real players can find the free pool empty; prizes go to farmers | Owner decision before Race and Block X free prizes | I-035 |
 
 Ticked lines that were still in TODOS:
 - [x] ~~Send the Vault chat its two prompts~~ — sent 3 Nov; answers: PR #73 (wallets) and PR #74 (vault bot checks)

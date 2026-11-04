@@ -3,6 +3,9 @@
    With no deployment yet (or ?demo in the address), it runs a preview on sample data. */
 (() => {
   "use strict";
+  // What players call a week (weeks.js, D-063): the week of Mon 9 Nov is "Week 1"; earlier weeks show their date.
+  const WL = (w) => (window.KWeeks ? window.KWeeks.label(w) : `Week ${Number(w) + 1}`);
+  const WS = (w) => (window.KWeeks ? window.KWeeks.short(w) : String(Number(w) + 1));
 
   const DAY = 28800;              // blocks per day
   const UNIT = 100000000n;        // 1 KOIN / 1 VHP = 10^8 units
@@ -767,7 +770,7 @@
   const qWhere = (q, withQ = true) => {
     const w = QNO.get(Number(q.chainId))?.week ?? num(q.week);
     const d = num(q.day);
-    return `Week ${w + 1}${d >= 1 && d <= 6 ? ` · ${DAY_NAMES[d]}` : ""}${withQ ? ` · ${qTag(q)}` : ""}`;
+    return `${WL(w)}${d >= 1 && d <= 6 ? ` · ${DAY_NAMES[d]}` : ""}${withQ ? ` · ${qTag(q)}` : ""}`;
   };
 
   // ═══════════════ live race: count blocks for questions whose answers are closed ═══════════════
@@ -993,7 +996,7 @@
   function renderBand(now) {
     const band = $("#band");
     if (!band) return;
-    const kicker = el("p", { class: "band-kicker" }, now < S.genesis ? "The first week starts Monday" : `Week ${S.week + 1} · ${DAY_NAMES[new Date(now).getDay()]}`);
+    const kicker = el("p", { class: "band-kicker" }, now < S.genesis ? "The first week starts Monday" : `${WL(S.week)} · ${DAY_NAMES[new Date(now).getDay()]}`);
     const stat = (k, v, sub) => el("div", { class: "band-stat" }, el("span", { class: "band-k" }, k), el("b", { class: "band-v" }, ...[].concat(v)), sub ? el("span", { class: "band-sub" }, sub) : null);
     if (!S.account) {
       band.replaceChildren(
@@ -1178,13 +1181,13 @@
     lastBox.hidden = !P || (P.finalized && !S.claims.some((c) => c.week === P.week) && now > num(P.W.settle_end) + 86400000);
     if (P) {
       const settle = num(P.W.settle_end), closeAt = S.genesis + S.week * (num(st.config?.week_length) || 604800000) + (S.closeDelay || 43200000);
-      $("#pot-last-k").textContent = `Week ${P.week + 1} · ${!P.closed ? "closing" : !P.finalized ? "closed" : "final"}`;
+      $("#pot-last-k").textContent = `${WL(P.week)} · ${!P.closed ? "closing" : !P.finalized ? "closed" : "final"}`;
       $("#pot-last-v").textContent = `${amount(P.closed ? P.W.pot : forAll)} VHP`;
       $("#pot-last-note").textContent = !P.closed
         ? `still counting until it closes, ${now < closeAt ? `about ${dayTime(closeAt)}` : "at the next bot run"}`
         : !P.finalized ? `winners final ${settle ? dayTime(settle) : "Tuesday"}` : "ready to collect";
     }
-    $("#stat-pot-k").textContent = now < S.genesis ? "Pool so far" : `Week ${S.week + 1} so far`;
+    $("#stat-pot-k").textContent = now < S.genesis ? "Pool so far" : `${WL(S.week)} so far`;
     $("#stat-pot").textContent = `${amount(prevOpen ? 0n : forWinners)} VHP`;
     $("#stat-pot-note").textContent = prevOpen ? `starts counting when week ${P.week + 1} closes` : rewardRule(S.week) ? "for the staked winners, after the 5% fee and up to 2 VHP for the top free players" : "for the winners, after the 5% fee";
     $("#stat-players").textContent = S.boardWeek === S.week && S.board[S.week] ? String(S.board[S.week].scored.length) : "…";
@@ -1259,7 +1262,7 @@
     const cp = $("#panel-claim");
     cp.hidden = !S.claims.length;
     $("#claim-body").replaceChildren(...S.claims.map((c) => el("div", { class: "claim-row" },
-      el("span", {}, el("b", {}, `${amount(c.reward)} VHP`), el("br"), el("span", { class: "muted" }, c.free ? `Week ${c.week + 1}: top free player prize. Stake it to share the full pool next week!` : `Week ${c.week + 1}`)),
+      el("span", {}, el("b", {}, `${amount(c.reward)} VHP`), el("br"), el("span", { class: "muted" }, c.free ? `${WL(c.week)}: top free player prize. Stake it to share the full pool next week!` : `${WL(c.week)}`)),
       el("button", { class: "btn btn-sun", type: "button", onclick: () => claim(c.week) }, "Collect"))));
     // pool
     $("#pool-facts").replaceChildren(
@@ -1278,7 +1281,7 @@
     const weeks = [S.week, ...Array.from({ length: Math.min(4, fin) }, (_, i) => fin - 1 - i)].filter((w, i, a) => w >= 0 && a.indexOf(w) === i);
     $("#lb-weeks").replaceChildren(...weeks.map((w) => el("button", {
       type: "button", role: "tab", "aria-selected": String(w === week), onclick: () => renderBoard(w),
-    }, w === S.week ? `This week (${w + 1})` : `Week ${w + 1}`)));
+    }, w === S.week ? `This week (${WS(w)})` : `${WL(w)}`)));
     const tbody = $("#board tbody");
     const cards = $("#board-cards");
     const cardMsg = (t) => { if (cards && cards.replaceChildren) cards.replaceChildren(el("div", { class: "empty" }, t)); };
@@ -1370,7 +1373,7 @@
     }
     // week and day pickers
     const wk = $("#res-weeks");
-    if (wk) wk.replaceChildren(...(weeks.length >= 1 ? weeks.map((w) => el("button", { type: "button", "aria-pressed": String(w === RV.week), onclick: () => { RV.week = w; RV.day = null; renderResults(); } }, w === S.week ? `This week (Week ${w + 1})` : w === S.week - 1 ? `Last week (Week ${w + 1})` : `Week ${w + 1}`)) : []));
+    if (wk) wk.replaceChildren(...(weeks.length >= 1 ? weeks.map((w) => el("button", { type: "button", "aria-pressed": String(w === RV.week), onclick: () => { RV.week = w; RV.day = null; renderResults(); } }, w === S.week ? `This week (${WL(w)})` : w === S.week - 1 ? `Last week (${WL(w)})` : `${WL(w)}`)) : []));
     const dk = $("#res-days");
     if (dk) dk.replaceChildren(...days.filter((dd) => dd >= 1 && dd <= 6).map((dd) => el("button", { type: "button", "aria-pressed": String(!RV.q && dd === RV.day), onclick: () => { RV.day = dd; RV.q = ""; const i = $("#res-search"); if (i) i.value = ""; renderResults(); } }, SHORT_DAYS[dd - 1])));
     const mineBtn = $("#res-mine");
@@ -1390,7 +1393,7 @@
     if (sc) {
       const all = inWeek.flatMap(({ d }) => (d.questions || []).filter((q) => q.chainId !== undefined && final(q) && outcomeOf(q) !== 1000));
       const mine = all.filter((q) => pickOf(q) !== null), right = mine.filter((q) => pickOf(q) + 1 === outcomeOf(q));
-      sc.replaceChildren(...(S.account && mine.length ? [el("b", {}, String(right.length)), ` / ${mine.length} right`] : [`Week ${RV.week + 1} · ${all.length} decided`]));
+      sc.replaceChildren(...(S.account && mine.length ? [el("b", {}, String(right.length)), ` / ${mine.length} right`] : [`${WL(RV.week)} · ${all.length} decided`]));
     }
 
     const row = ({ q, f }) => {
@@ -1447,7 +1450,7 @@
       hist.hidden = !H.length;
       const hb = $("#history-body");
       if (hb && H.length) hb.replaceChildren(...H.map((h) => el("tr", {},
-        el("td", {}, `Week ${h.week + 1}`),
+        el("td", {}, `${WL(h.week)}`),
         el("td", { class: "num" }, String(h.pts)),
         el("td", {}, h.voided ? "withdrew (answers didn't count)"
           : h.reward > 0n ? `${h.free ? "Top free player: " : "Won "}${amount(h.reward)} VHP${h.claimed ? " · collected" : " · to collect"}`

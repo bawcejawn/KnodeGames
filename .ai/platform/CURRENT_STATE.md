@@ -7,7 +7,7 @@
 ## Live on chain (Koinos mainnet)
 - **Vault v6** at `1Mpmf2…` since Mon 2 Nov 02:33 UTC. It holds every stake and produces blocks as the **Knode Games Pool** (D-073). Holdings 21,133.83 VHP vs 21,124.07 owed (3 Nov). The emergency withdrawals-only build is ready (D-021).
 - **Seed:** 21,050 VHP from a dedicated seed owner wallet (D-022).
-- **Mana sponsor v3** at `1ByDDSB…`: 25,000 KOIN; caps 1 Mana per transaction, 25 a day and 150 a week per wallet, 5,000 a day in total, 2,000 a day for free players, released by the hour (D-061). **Vault switch on since 3 Nov.** ⚠️ Guest **picks** are blocked since then (I-083); guest answers work.
+- **Mana sponsor v3** at `1ByDDSB…`: 25,000 KOIN; caps 1 Mana per transaction, 25 a day and 150 a week per wallet, 5,000 a day in total, 2,000 a day for free players, released by the hour (D-061). **Vault switch on since 3 Nov.** Guest picks work again since PR #90 (4 Nov).
 - **Picks contract** `1LmgqB…` since 30 Oct; **Block X (game 2) applied**, 1 change per pick (D-070).
 - **Race picks contract** `1EN7xU…` and **Swap Desk v2** `1FKTpX…` (3% fee, no daily cap).
 - **Vault games:** game 1 (Questions) is built in. **Games 2 (Block X) and 7 (Race) announced 3 Nov** (tx `0x122082c6…`, `0x1220d394…`), applicable from **Thu 5 Nov 15:51 UTC**.
@@ -27,7 +27,7 @@
 - **Weekly review:** Tuesdays 10 AM PT (`WEEKLY_REVIEW.md`), reminder at 9:45 AM PT. First review Tue 10 Nov.
 
 ## Library
-- `.ai/`: start guide, platform docs, nine game files, seven standards (Game, Vault, Leaderboard, Token, Recorder, Go-live checklist, AI chat starter), the runbook, session-end and weekly-review processes; 96 decisions (D-001 – D-096), no open contradictions. Finished items live in `../archive/DONE.md` and `../archive/ISSUES_CLOSED.md`.
+- `.ai/`: start guide, platform docs, nine game files, seven standards (Game, Vault, Leaderboard, Token, Recorder, Go-live checklist, AI chat starter), the runbook, session-end and weekly-review processes; 102 decisions (D-001 – D-102), no open contradictions. Finished items live in `../archive/DONE.md` and `../archive/ISSUES_CLOSED.md`.
 
 ## Watch list
 - **Thu 5 Nov 15:51 UTC (7:51 AM PT):** games 2 and 7 become applicable (reminder 9 AM PT). Apply before **Sun 8 Nov 4 PM PT**.

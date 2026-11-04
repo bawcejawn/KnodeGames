@@ -16,7 +16,6 @@
 |----|------|------|----------------|-------------|------|
 | TD-03 | 🔐 | **Anything pushed to `main` runs with the operator key.** The bot needs to push to `main`, so there's no pull-request requirement; `OPERATOR_WIF` is limited to `main`; since 3 Nov AI docs reach `main` only through PRs the owner merges (the bot still pushes data); the workflow guard is regex-based and misses some YAML spellings | The operator can't move funds, but it posts results and resolves questions — bad code on `main` could post wrong results, which decides who gets paid | Keep pushes to reviewed branches only (owner merges); move the bot's data commits off `main`, then require reviews; finish the YAML-parser guard | I-022, D-012, D-026 |
 | TD-04 | 🔐 | **The retired operator's key is still in `.env`** | A forgotten key with KOIN on it is a free target | Move its KOIN, then remove the key | I-045 |
-| TD-05 | 📜 | **The game/vault contract still pays Mana for other people's transactions** (`max_sponsor_rc` = 2 KOIN) | ~317 KOIN of compounding lost by 28 Oct; the drain continues while it's on | `sponsor-limit 0` with `maxSponsorRc: "0"` in the same change | I-044, D-046 |
 | TD-08 | 📈 | **All three block producers, plus the question-release backup, run on one home PC and internet line** | A power or internet cut stops the Knode Games Pool's production (smaller rewards), the desk's production and the 12:00 release backup at the same time | Accept for now; later, a second machine or a hosted backup node for the pool | D-048, D-047 |
 
 ## Medium
@@ -24,7 +23,6 @@
 |----|------|------|----------------|-------------|------|
 | TD-09 | ⏩ | **Audits are the owner's own programs only** — no independent third-party audit before contract upgrades | A shared blind spot can survive every round | Consider one outside review of the vault before TVL grows toward the 1,000,000 VHP target | D-017, D-076 |
 | TD-10 | 📈 | **One RPC node for everything.** The site (every player's browser), the bot and the recorders all read from Armana; the second node is only a checker; no fallback | Armana outages already caused failed runs (3 Nov); more players means more rate-limit failures | Fallback node (on hold); lighter polling from the PR #50 salvage | I-006, I-072 |
-| TD-11 | 📈 | **Free prizes can be farmed with many empty wallets**, and they share the sponsor's first-come free pool | Real players can find the free pool empty; prizes go to farmers | Owner decision before Race and Block X free prizes | I-035 |
 | TD-12 | 📈 | **Sponsor sizing is still an estimate** — 25,000 KOIN, 5,000 Mana a day, first come first served | Success (D-076) means demand outgrows it; when the daily cap is hit, guests can't play at all | Measure real use after launch; set per-action limits; plan top-ups | D-061, D-028 |
 | TD-13 | 🚧 | **Block X has a "before prizes" fix list** (week-end re-reads on both nodes, board freeze, VHP decoder, card clock and others) | Block X launched prize-free (3 Nov); prizes start with the week of 9 Nov (D-077), so the fixes must be in before that week starts | Built in PR #80; Repo Lens round 14 wants one fix (E4-1) first; merge before Mon 9 Nov 00:00 UTC | I-042 |
 | TD-14 | 📜 | **Trust and untested paths in the newer games:** Last Node's form, c and staked list aren't re-checked on publish, and its JSON-RPC client has never run on a real node; Combo's verify job design is unreviewed; `effective_balance_of` (Bracket) has never been seen live | Each could publish wrong results at launch | Their audits; watch each game's first live day | I-058, I-061, I-063 |
@@ -47,10 +45,11 @@
 | TD-27 | 🚧 | No bot support for the public-testnet vault copy; its owner key lives only in one chat's sandbox | I-014, I-017 |
 
 ## Accepted on purpose (not debt to fix — risks the owner chose)
+- **TD-11, free-prize farming** with many empty wallets (D-097, 4 Nov): accepted for now; a farmed prize can be removed in the correction window.
 - Last Node's slow form-skimming (N-6) and its hold rate (D-055); Bracket's seeding-day VHP trick (F-2); a whale withdrawal sinking the vault's Bracket index; Combo's lagging-node hold (FC3-9) and clock-edge hold (FC2-19); Survivor's accepted list (I-055); one person running many free wallets (owner, 28 Oct).
 
 ## Suggested order
 1. **This weekend:** TD-01, TD-04.
-2. **Before the first vault close (Mon 16 Nov):** TD-02 (the Race hold), TD-03 (stop direct pushes to `main`), TD-05.
-3. **Before each game's prizes:** TD-11, TD-13, TD-14.
+2. **Before the first vault close (Mon 16 Nov):** TD-02 (the Race hold), TD-03 (stop direct pushes to `main`).
+3. **Before each game's prizes:** TD-13, TD-14.
 4. **As players grow:** TD-08 – TD-10, TD-12, TD-18.

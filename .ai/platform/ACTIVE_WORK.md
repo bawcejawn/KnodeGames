@@ -5,16 +5,13 @@
 > **Not here:** what's already live (`CURRENT_STATE.md`); finished work (`../archive/DONE.md`). The previous version is `../archive/2026-11-04/ACTIVE_WORK.md`.
 > **Legend:** **Owner:** the owner does it · 👤 owner said · ❓ not decided
 
-## Urgent
-- **Guest picks blocked** on Race and Block X: the sponsor's "will you pay?" check traps for picks since the vault switch (I-083). Block X chat finds the cause and the stopgap (R-BX-0); the site shows the wrong message (R-HUB-4, R-RACE-7).
-
 ## Vault and rewards
 | Work | Where it stands | Next / tracked in |
 |---|---|---|
 | Games 2 and 7 into the vault | announced 3 Nov | **Owner, Thu 5 Nov after 7:51 AM PT:** `game-apply 2`, `game-apply 7`, `games`, `PRIZES_FROM_WEEK = 3`; deadline Sun 8 Nov 4 PM PT (TODOS) |
 | Free-prize switch | merged (PR #65), not used yet | **Owner:** starting values + ruleset (TODOS, `FREE_PRIZE_SWITCH.md` §4) |
 | Vault bot checks | merged (PR #74) | follow-ups R-VAULT-7; every staked game publishes `board.json` (R-ALL-3, I-079); points recompute after 16 Nov (R-VAULT-4) |
-| First paid weeks (Questions, Race, Block X from Mon 9 Nov; first close Mon 16 Nov) | waiting on Race I-034 / I-035 and Block X PR #80 | R-RACE-1, R-RACE-2, R-BX-1; **Owner:** the Race decisions (TODOS) |
+| First paid weeks (Questions, Race, Block X from Mon 9 Nov; first close Mon 16 Nov) | Block X ready (PR #80 merged 4 Nov); waiting on the Race hold (I-034, PR #85) | R-RACE-1; **Owner:** Repo Lens, then merge #85 (TODOS) |
 | Doubled Questions (D-092) | planning | R-Q-1, R-VAULT-6 (after the first paid weeks) |
 | Runbook check | open | R-VAULT-5 |
 
@@ -28,7 +25,7 @@
 ## Games
 | Game | Where it stands | Next / tracked in |
 |---|---|---|
-| Who Signs Block X (2) | live, prize-free until Mon 9 Nov | PR #80: round 14 **No-Go until E4-1** (R-BX-1) |
+| Who Signs Block X (2) | live, prize-free until Mon 9 Nov | before-prizes fixes merged (PR #80, 4 Nov); Results page tab (R-BX-12) |
 | Producer Race (7) | live | prize fixes R-RACE-1/2; one VHP ruler R-RACE-5; page text R-RACE-6 |
 | Survivor (3) | branch `survivor` @ `a8a1979` | **Owner:** Repo Lens pass 4 → R-SV-2 → Season 1 **Mon 16 Nov** (D-065) |
 | Producer Bracket (9) | branch `kg-09-bracket` @ `5b2492e`; Repo Lens #E-3: fix first | R-BR-1 – R-BR-6; launches when ready (D-088) |

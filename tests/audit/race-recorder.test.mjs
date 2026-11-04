@@ -464,9 +464,11 @@ test("publish check: holds vault files that are wrong in any way, and a final fi
   const named = tmp(); fs.mkdirSync(path.join(named, "vault")); fs.writeFileSync(path.join(named, "vault", "W3.json"), JSON.stringify(good));
   assert.ok(held(named), "the file name must match its week");
   // Week 2 ends Mon 9 Nov 00:00 UTC: by the runner's clock just before then, a final file is refused; a waiting one is fine.
-  const early = tmp(); fs.cpSync(out, early, { recursive: true });
+  // (Only the vault file and the board here: the race week files hold cards taken after this early clock, which the
+  // check refuses as cards from the future, I-042 BX-118.)
+  const early = tmp(); fs.mkdirSync(path.join(early, "vault")); fs.copyFileSync(path.join(out, "vault", "W2.json"), path.join(early, "vault", "W2.json")); fs.copyFileSync(path.join(out, "board.json"), path.join(early, "board.json"));
   assert.ok(held(early, String(Date.parse("2026-11-08T23:59Z") / 1000)));
-  assert.ok(fs.readdirSync(early).some((f) => /^W[0-9]{3}\.json$/.test(f)), "the week files stay and publish");
+  assert.ok(fs.existsSync(path.join(early, "board.json")), "the other files stay and publish");
   const waiting = tmp(); fs.mkdirSync(path.join(waiting, "vault")); fs.writeFileSync(path.join(waiting, "vault", "W2.json"), JSON.stringify({ ...good, final: false, first: [], second: [] }));
   assert.ok(kept(waiting, String(Date.parse("2026-11-08T23:59Z") / 1000)));
   assert.doesNotMatch(yml.replace(/RACE_CHECK_NOW"\) or time\.time\(\)/, ""), /RACE_CHECK_NOW/, "the workflow never sets the check's clock");
@@ -645,7 +647,9 @@ test("vault (B1-1 / V4 / B1-5): on a chain without get_game_player (v5) the stak
   assert.ok(Date.now() - t0 < 20000, "fails fast (about 2 s of retry per node, not a minute per wallet)");
   assert.ok(reads > 0 && reads <= 4, `at most 2 tries on each of the 2 nodes, whatever the number of players (got ${reads})`);
   assert.equal(vaultOf(out).final, false, "never final while stakes can't be read");
-  assert.equal(lines.filter((l) => l.includes("stake reads failed on a node")).length, 1, "one warning a run, not one per wallet");
+  // RV-2: the node answered with an error (no such method): the vault refused it, for every wallet on every node.
+  assert.equal(lines.filter((l) => l.includes("the vault refused a stake read")).length, 1, "one warning a run, not one per wallet");
+  assert.ok(reads <= 2, `a refusal stops every stake read of the run (got ${reads})`);
   assert.ok(fs.existsSync(path.join(out, "W002.json")), "the race files are still written");
   const board = JSON.parse(fs.readFileSync(path.join(out, "board.json"), "utf8"));
   assert.ok(board.lastWeek.rows.every((r) => r.ranked === false), "the boards show everyone on Free play meanwhile");
@@ -749,4 +753,27 @@ test("prizes from week: the Race earns in the vault from week 3; earlier weeks p
   const { dir: d2 } = await weekTwoDone();
   const o2 = await picksRun(U("2026-11-09T05:37Z"), d2, { staked: [W1], prizesFrom: 2 });
   assert.deepEqual(vaultOf(o2).first, [GUEST]);
+});
+
+test("I-042 (BX-118): the publish check refuses a race card dated in the future", async () => {
+  const a = await hourly(U("2026-11-02T05:37Z"), "");
+  const w = week(a), r0 = w.races.find((x) => x.cards.some(Boolean)), i = r0.cards.findIndex(Boolean), at = r0.cards[i].at;
+  assert.ok(shapeOk(a, String(at / 1000 + 30)), "a card 30 s before the check's clock is fine");
+  assert.equal(shapeOk(a, String(at / 1000 - 120)), false, "the same card 2 minutes in the check's future is refused");
+});
+
+test("RV-2: a node that can't be reached is skipped on its own; a node that answers with an error stops every stake read", async () => {
+  const { isTransportError } = await import(path.resolve(APP, "bot/race.ts"));
+  for (const m of ["vault state: no answer within 30 s", "fetch failed", "connect ECONNREFUSED 1.2.3.4:443", "getaddrinfo ENOTFOUND koinos.armana.io",
+    "invalid json response body at https://api.koinos.io/ reason: Unexpected token '<'", "request failed with status code 502"]) assert.equal(isTransportError(m), true, m);
+  for (const m of ["unknown entry point", '{"code":-32603,"message":"reverted: bad args"}', "failed to decode the result"]) assert.equal(isTransportError(m), false, m);
+  // One node unreachable, the other fine: that node only is skipped (the vault file just isn't final this run).
+  const { dir } = await weekTwoDone();
+  let reads = 0;
+  const down = () => Object.assign(node(U("2026-11-09T05:37Z")), { async readContract() { reads++; throw new Error("fetch failed"); } });
+  const log = console.log; const lines = []; console.log = (x) => lines.push(String(x));
+  try { await run({ p: down(), check: down(), prev: dir, out: tmp(), vhpOf, raceContract: "x", picksOf: async () => [] }); } finally { console.log = log; }
+  assert.equal(lines.filter((l) => l.includes("stake reads failed on a node")).length, 1, "one warning a run");
+  assert.ok(reads > 0 && reads <= 4, `2 tries on each node at most (got ${reads})`);
+  assert.equal(lines.filter((l) => l.includes("the vault refused")).length, 0);
 });

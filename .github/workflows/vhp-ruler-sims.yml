@@ -1,0 +1,57 @@
+# VHP ruler (R-RULER-1, design §8): the 11 simulations on 31 days of REAL mainnet history. Read-only: no key, no
+# secret, no write, nothing published. Reads the days on both nodes with the first-fill code, writes and checks every
+# hour file as the publish job would, runs the simulations and reports each result as a notice on the run. Runs on
+# pushes of this file to the vhp-ruler branch, or by hand.
+name: VHP ruler simulations
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [vhp-ruler]
+    paths: [".github/workflows/vhp-ruler-sims.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  sims:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Producer names (for the examples)
+        run: |
+          mkdir -p "$RUNNER_TEMP/names" && git -C "$RUNNER_TEMP/names" init -q
+          git -C "$RUNNER_TEMP/names" fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" names-data || echo "no names"
+      - name: Read 31 days on both nodes, check every hour, run the simulations
+        run: NODE_OPTIONS=--max-old-space-size=12000 npx tsx sims/ruler/real.mjs
+        env:
+          RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
+          RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
+          FILL_DAYS: "31"
+          OUT: ${{ runner.temp }}/sims-out
+          NAMES_DIR: ${{ runner.temp }}/names
+      - name: Report the results (1)
+        if: always()
+        run: |
+          node -e 'const r=require(process.argv[1]);for(const x of r.results.slice(0,6))console.log(`::notice title=sim ${x.id} ${x.pass===true?"PASS":x.pass===false?"FAIL":"DRY RUN"}::${x.name}: ${x.metric} (mark: ${x.mark})`)' "$RUNNER_TEMP/sims-out/results.json"
+      - name: Report the results (2)
+        if: always()
+        run: |
+          node -e 'const r=require(process.argv[1]);for(const x of r.results.slice(6))console.log(`::notice title=sim ${x.id} ${x.pass===true?"PASS":x.pass===false?"FAIL":"DRY RUN"}::${x.name}: ${x.metric} (mark: ${x.mark})`)' "$RUNNER_TEMP/sims-out/results.json"
+      - name: Report the real examples
+        if: always()
+        run: |
+          node -e 'const t=require("fs").readFileSync(process.argv[1],"utf8"),n=Math.ceil(t.length/6000);for(let i=0;i<n;i++)console.log(`::notice title=explainer ${i+1}/${n}::${t.slice(i*6000,(i+1)*6000)}`)' "$RUNNER_TEMP/sims-out/explainer.json"
+      - name: Report the details
+        if: always()
+        run: |
+          node -e 'const r=require(process.argv[1]);const t=JSON.stringify(r.results.map(x=>({id:x.id,d:x.detail})));const n=Math.min(9,Math.ceil(t.length/6000));for(let i=0;i<n;i++)console.log(`::notice title=details ${i+1}/${n}::${t.slice(i*6000,(i+1)*6000)}`)' "$RUNNER_TEMP/sims-out/results.json"

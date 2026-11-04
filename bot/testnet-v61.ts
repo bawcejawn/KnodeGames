@@ -32,7 +32,7 @@ const VHP = 100_000_000n;
 const MIN = 60_000;
 const WEEK = 45 * MIN, CLOSE = 3 * MIN, SETTLE = 10 * MIN, LOCK = 2 * MIN;
 const N = 60;                     // questions in the measured week
-const LOCK_AT = 22 * MIN;         // answers close 22 minutes into the week
+const LOCK_AT = 32 * MIN;         // answers close 32 minutes into the week
 const BATCH = 10;                 // questions posted (and resolved) per transaction
 
 const log = (...a: any[]) => console.log(...a);
@@ -162,16 +162,26 @@ export async function testnetV61(args: string[]) {
 
   // 4. answers: A answers all 60 (measured 1st, 30th, 60th), B answers 30 (measured 30th)
   log("\n4. Answers …");
-  for (let i = st.answeredA ?? 0; i < N; i++) {
-    const r = await send(A, [{ method: "answer", args: { player: A.getAddress(), question_id: i, option: 1 } }], `A answer ${i + 1}`, 2);
-    if (i === 0 || i === 29 || i === 59) note(`answerA${i + 1}`, r.rcUsed, `player A's answer no. ${i + 1}`);
-    st.answeredA = i + 1; save();
-  }
-  for (let i = st.answeredB ?? 0; i < 30; i++) {
-    const r = await send(B, [{ method: "answer", args: { player: B.getAddress(), question_id: i, option: i % 2 } }], `B answer ${i + 1}`, 2);
-    if (i === 29) note("answerB30", r.rcUsed, "player B's answer no. 30");
-    st.answeredB = i + 1; save();
-  }
+  // The measured answers (A's 1st, 30th and 60th, B's 30th) go alone in their transaction; the others in batches of 10,
+  // so 90 answers fit in the answer window.
+  const ans = (p: Signer, id: number, option: number) => ({ method: "answer", args: { player: p.getAddress(), question_id: id, option } });
+  const answerAll = async (p: Signer, name: "A" | "B", total: number, measured: number[], option: (i: number) => number) => {
+    const key = name === "A" ? "answeredA" : "answeredB";
+    while ((st[key] ?? 0) < total) {
+      const i = st[key] ?? 0;
+      if (measured.includes(i + 1)) {
+        const r = await send(p, [ans(p, i, option(i))], `${name} answer ${i + 1}`, 2);
+        note(`answer${name}${i + 1}`, r.rcUsed, `player ${name}'s answer no. ${i + 1} (alone in its transaction)`);
+        st[key] = i + 1; save();
+        continue;
+      }
+      const next = Math.min(total, i + 10, ...measured.filter((m) => m - 1 > i).map((m) => m - 1));
+      await send(p, Array.from({ length: next - i }, (_, j) => ans(p, i + j, option(i + j))), `${name} answers ${i + 1}–${next}`, 5);
+      st[key] = next; save();
+    }
+  };
+  await answerAll(A, "A", N, [1, 30, 60], () => 1);
+  await answerAll(B, "B", 30, [30], (i) => i % 2);
 
   // 5. resolve all 60 once their blocks are final
   log("\n5. Resolving …");

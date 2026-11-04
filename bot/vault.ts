@@ -350,7 +350,7 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
       for (const a of scored) {
         if (filePts.has(a)) continue;
         const p = await ctx.chain.read("get_game_player", { player: a, game: id, week: String(w) });
-        if (big(p.week_stake) > 0n && big(p.week_stake) >= min) missing.push(a);
+        if (big(p.week_stake) >= stakedFloor(min)) missing.push(a);
       }
       if (missing.length) { hold("staked-list", `${missing.length} wallet(s) staked in the game that week, with points on its board, are not in the results file: ${missing.slice(0, LIST_MAX).join(", ")}${missing.length > LIST_MAX ? " …" : ""}`); continue; }
       const notOnBoard = (r.rows ?? []).filter((x: any) => !onBoard.has(x.player)).map((x: any) => x.player);
@@ -464,6 +464,12 @@ export function orderBreak(rows: Array<{ player: string; points: number }>, plac
     if (u.pl < v.pl && u.p < v.p) return `${u.a} (place ${u.pl}) gets ${u.p} points, fewer than ${v.a} (place ${v.pl}) with ${v.p}`;
   }
   return "";
+}
+
+/** The stake that makes a wallet "staked" for the missing-wallet check: the vault's minimum, but never under 1 VHP, the
+ *  recorders' own floor (Repo Lens VB-7). */
+export function stakedFloor(min: bigint): bigint {
+  return min > 100_000_000n ? min : 100_000_000n;
 }
 
 /** Whether a failed send was the contract's own refusal (a revert), as opposed to a network error, low Mana or a send

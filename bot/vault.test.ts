@@ -506,3 +506,10 @@ test("VB-6: past the board's row cap, a file row missing from the board doesn't 
   await vaultResultsPass(v2, async () => true);
   assert.match(v2.problems.join(" | "), /not on the game's board/, "below the cap it still holds");
 });
+
+test("VB-7: the missing-wallet check never asks for wallets under 1 VHP, whatever the vault's minimum", async () => {
+  const { stakedFloor } = await import("./vault.ts");
+  assert.equal(stakedFloor(0n), 100_000_000n);
+  assert.equal(stakedFloor(50_000_000n), 100_000_000n);
+  assert.equal(stakedFloor(500_000_000n), 500_000_000n);
+});

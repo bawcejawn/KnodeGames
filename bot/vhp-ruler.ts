@@ -142,22 +142,36 @@ function changesAfter(blocks: Blk[], a: string, h0: number, h1: number) {
 }
 /** Live reads of every address on both nodes; then the tail up to the newest read, irreversible on both; the block
  *  ids seen at read time must be the irreversible ones. Returns the reads, the tail blocks and the anchor block. */
-export async function liveAnchor(A: RulerNode, B: RulerNode, addrs: string[], lastTo: number, opts: { waitMs?: number; pollMs?: number } = {}) {
-  const reads: Record<"A" | "B", Record<string, Read>> = { A: {}, B: {} };
+export async function liveAnchor(A: RulerNode, B: RulerNode, addrs: string[], lastTo: number, opts: { waitMs?: number; pollMs?: number; rounds?: number; log?: (s: string) => void } = {}) {
+  const reads: Record<"A" | "B", Record<string, Read>> = { A: {}, B: {} }, node = { A, B };
   for (const a of addrs) { reads.A[a] = await A.read(a); reads.B[a] = await B.read(a); }
-  const all = [...Object.values(reads.A), ...Object.values(reads.B)];
-  if (all.some((r) => r.h < lastTo)) throw new Error("a node answered at a block before the hour's end (it is behind)");
-  const at = Math.max(...all.map((r) => r.h));
-  const t0 = Date.now(), wait = opts.waitMs ?? 6 * 60000;
-  for (;;) {   // wait until `at` is irreversible on both nodes (Koinos: ~60 blocks, ~3 minutes)
-    const [ha, hb] = await Promise.all([A.head(), B.head()]);
-    if (ha.lib >= at && hb.lib >= at) break;
-    if (Date.now() - t0 > wait) throw new Error(`block ${at} didn't become irreversible within ${wait / 60000} minutes`);
-    await sleep(opts.pollMs ?? 15000);
+  const wait = opts.waitMs ?? 6 * 60000;
+  const settle = async (at: number) => {   // wait until `at` is irreversible on both nodes (Koinos: ~60 blocks, ~3 minutes)
+    const t0 = Date.now();
+    for (;;) {
+      const [ha, hb] = await Promise.all([A.head(), B.head()]);
+      if (ha.lib >= at && hb.lib >= at) return;
+      if (Date.now() - t0 > wait) throw new Error(`block ${at} didn't become irreversible within ${wait / 60000} minutes`);
+      await sleep(opts.pollMs ?? 15000);
+    }
+  };
+  // A read pinned to a head block that a micro-fork later replaced (Koinos makes a block every 3 s; the newest is
+  // sometimes swapped) is thrown away and that address is read again, on that node, up to `rounds` times.
+  for (let round = 0; ; round++) {
+    const all = [...Object.values(reads.A), ...Object.values(reads.B)];
+    if (all.some((r) => r.h < lastTo)) throw new Error("a node answered at a block before the hour's end (it is behind)");
+    await settle(Math.max(...all.map((r) => r.h)));
+    const stale: ["A" | "B", string][] = [];
+    for (const n of ["A", "B"] as const) for (const [a, r] of Object.entries(reads[n])) if ((await node[n].blockId(r.h)) !== r.id) stale.push([n, a]);
+    if (!stale.length) break;
+    if (round + 1 >= (opts.rounds ?? 5)) throw new Error(`block ${reads[stale[0][0]][stale[0][1]].h} changed after it was read (a fork), ${round + 1} times; tried again next run`);
+    (opts.log || console.log)(`${stale.length} read(s) were on a block a micro-fork replaced; reading them again`);
+    for (const [n, a] of stale) reads[n][a] = await node[n].read(a);
   }
+  const all = [...Object.values(reads.A), ...Object.values(reads.B)], at = Math.max(...all.map((r) => r.h));
   const tail = await blocksOnBoth(A, B, lastTo + 1, at);
   const idOf = new Map<number, string>(tail.map((b) => [b.h, b.id]));
-  for (const r of all) {
+  for (const r of all) {   // the irreversible blocks are the ones the reads were pinned to (both nodes agree on them)
     const id = r.h === lastTo ? await A.blockId(lastTo) : idOf.get(r.h);
     if (id !== r.id) throw new Error(`block ${r.h} changed after it was read (a fork); tried again next run`);
   }

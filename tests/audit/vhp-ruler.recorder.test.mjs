@@ -11,7 +11,7 @@ import { recordHours, blockRecord, rollup } from "../../bot/vhp-ruler.ts";
 import { fillHours, fillChunks } from "../../bot/vhp-fill.ts";
 
 const quiet = () => {};
-const opts = { waitMs: 50, pollMs: 1, log: quiet };
+const opts = { waitMs: 50, pollMs: 1, log: quiet, rounds: 3 };
 // a 40-hour chain; the published data stops at hour 30 (written by the fixture), the nodes' heads are near the end
 const c = makeChain({ seed: 17, hours: 40, np: 5, busy: 0.02, write: 31 });
 const H = 1200, at = (n) => (n + 1) * H - 1;
@@ -68,6 +68,16 @@ test("a fork between the read and the tail (a read block's id changed): nothing 
   const A = new FakeNode(c.raw, { head, tamper: {} }), B = new FakeNode(c.raw, { name: "B", head });
   A.read = (orig => async (a) => { const r = await orig(a); r.id = "0x1220" + "ab".repeat(32); return r; })(A.read.bind(A));
   await assert.rejects(recordHours(A, B, c.texts[30], opts), /a fork/);
+});
+
+test("a read on a block a micro-fork replaced is read again; the hours still check", async () => {
+  const head = at(c.n0 + 31) + 70;
+  const A = new FakeNode(c.raw, { head }), B = new FakeNode(c.raw, { name: "B", head });
+  let forked = 2;   // the first two reads on node A land on blocks that get replaced
+  A.read = (orig => async (a) => { const r = await orig(a); if (forked-- > 0) r.id = "0x1220" + "cd".repeat(32); return r; })(A.read.bind(A));
+  const texts = await recordHours(A, B, c.texts[30], opts);
+  assert.equal(texts.length, 1);
+  const r = D.checkHour(c.texts[30], texts[0]); assert.equal(r.ok, true, r.why); assert.equal(r.quality, "ok");
 });
 
 test("a read block that doesn't become irreversible in time: nothing is written", async () => {

@@ -1,7 +1,7 @@
 # VHP ruler (R-RULER-1, design §8): the 11 simulations on 31 days of REAL mainnet history. Read-only: no key, no
 # secret, no write, nothing published. Reads the days on both nodes with the first-fill code, writes and checks every
 # hour file as the publish job would, runs the simulations and reports each result as a notice on the run. Runs on
-# pushes of this file to the vhp-ruler branch, or by hand.
+# pushes of this file to the vhp-ruler branch, or by hand. (Run 2: live reads hit by a micro-fork are now re-read.)
 name: VHP ruler simulations
 
 on:

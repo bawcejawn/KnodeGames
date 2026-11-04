@@ -477,3 +477,32 @@ test("VB-1: a HOLD file holds unless RELEASE-W<week>.json is published next to i
   assert.ok(!s3.some((x) => x.startsWith("Fantasy")), "an unreadable RELEASE file keeps the hold");
   assert.match(v3.problems.join(" | "), /RELEASE-W1\.json can't be read/);
 });
+
+test("VB-10: a results file first seen under 2 h before the deadline raises an alert to post it by hand", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim, at } = await weekOneClosed();
+  at(GENESIS + 2 * WEEK + 3 * DAY - 90 * 60_000);
+  const v = fctx(sim, allFiles(), {});
+  await vaultResultsPass(v, async () => true);
+  assert.match(v.problems.join(" | "), /Fantasy week 1: its results file appeared only .* before the deadline.*game-post 2 1/);
+});
+
+test("VB-8: only ranked (staked-board) rows are read for the missing-wallet check when the board marks them", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim } = await weekOneClosed();
+  let reads = 0;
+  const chain: any = new Proxy(sim, { get: (t, p) => p === "read" ? async (m: string, a: any) => { if (m === "get_game_player" && a.player === addr(E)) reads++; return t.read(m, a); } : (t as any)[p] });
+  const v = fctx(chain, allFiles());
+  await vaultResultsPass(v, async () => true);
+  assert.equal(reads, 0, "E is on the Free play board (ranked: false): not read");
+});
+
+test("VB-6: past the board's row cap, a file row missing from the board doesn't hold (logged)", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim } = await weekOneClosed();
+  const files: any = { ...allFiles(), "mem:fantasy/board.json": fantasyBoard([{ a: addr(B), pts: 30, place: 1, ranked: true }]) };
+  const v = fctx(sim, files), s: string[] = [];
+  v.deployment.vaultGames["2"].boardCap = 1;
+  await vaultResultsPass(v, async (what) => { s.push(what); return true; });
+  assert.deepEqual(s.filter((x) => x.startsWith("Fantasy")), fantasySends);
+  const v2 = fctx(sim, files);
+  await vaultResultsPass(v2, async () => true);
+  assert.match(v2.problems.join(" | "), /not on the game's board/, "below the cap it still holds");
+});

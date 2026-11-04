@@ -302,7 +302,13 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
     if (memo) {
       memo.seen ??= {};
       const seen = memo.seen[key];
-      if (!seen) { memo.seen[key] = { hash, at: k.time }; log(ctx, `  ${name} week ${w}: results file read for the first time; posted once it is unchanged on a later run`); continue; }
+      if (!seen) {
+        memo.seen[key] = { hash, at: k.time };
+        log(ctx, `  ${name} week ${w}: results file read for the first time; posted once it is unchanged on a later run`);
+        // Repo Lens VB-10: the next hourly run may come too late.
+        if (due - k.time < 2 * HOUR_MS) alert(`${key}:late`, `${name} week ${w}: its results file appeared only ${hoursLeft.toFixed(1)} h before the deadline (${utc(due)}), so the bot's second read may come too late. If the file looks right, post it by hand: npm run bot -- game-post ${id} ${w} (dry run first).`);
+        continue;
+      }
       if (seen.changed || seen.hash !== hash) {
         seen.changed = true;
         hold("changed", `its results file changed after the bot first read it (${utc(seen.at)}). A final file must never change: check the game's recorder; if the new file is right, post it by hand (npm run bot -- game-post ${id} ${w}, dry run first)`);

@@ -638,12 +638,14 @@ test("L-1: the re-read's budget counts from the start of the run, and reads in i
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /export const REVERIFY_BUDGET_MS = 22 \* 60000;/);
   assert.match(src, /export const REVERIFY_TRIES = 2;/);
-  assert.match(src, /const deadline = runStart \+ \(o\.reverifyBudgetMs \?\? REVERIFY_BUDGET_MS\);/);
+  assert.match(src, /const reDeadline = runStart \+ \(o\.reverifyBudgetMs \?\? REVERIFY_BUDGET_MS\);/);
   assert.match(src, /blockReader\(o\.p, headId, REVERIFY_TRIES\)/);
-  assert.match(src, /readPicks\(node, contract, G\.GAME_ID, r, REVERIFY_TRIES\)/);
+  assert.match(src, /readPicks\(node, contract, G\.GAME_ID, r, REVERIFY_TRIES, beforeRead\)/);
 });
 
-const tamper = (wf) => { const t = wf.targets.find((x) => !x.void && x.signer === BIG); t.signer = MID; };
+// One problem with nothing after it: the guest's Staked flag (Repo Lens B4-1: a release lets through only that reason,
+// and every other check on the round still runs; a signer change would also break the round's card values).
+const tamper = (wf) => { const t = wf.targets.find((x) => !x.void && x.picks.some((p) => p[0] === GUEST)); t.picks.find((p) => p[0] === GUEST)[4] = 1; };
 test("L-2: a held week prints its release code; BLOCKX_RELEASE with that exact code frees it once", async () => {
   const held = await weekEditThenLook(tamper, { prizesFromWeek: 0 }, { release: null });
   const note = heldNote(held.r);
@@ -724,7 +726,10 @@ test("B3-2: past the deadline, a target already in flight stops before its next 
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /const timed = <T,>\(f: \(\) => Promise<T>\): Promise<T> => \(Date\.now\(\) > deadline \? Promise\.reject\(new OutOfTime\(\)\) : f\(\)\);/);
   for (const call of ["timed(() => read(t.height))", "timed(() => read(t.height - G.LEAD))", "timed(() => reread(node, t.round))", "timed(() => rerank(players, node, M.weekOf(t.time)))"]) assert.ok(src.includes(call), call);
-  assert.match(src, /const reVault = vaultReader\(KNODE, G\.GAME_ID, VAULT_ABI, REVERIFY_TRIES\);/);
+  assert.match(src, /const reVault = vaultReader\(KNODE, G\.GAME_ID, VAULT_ABI, REVERIFY_TRIES, beforeRead\);/);
+  // Repo Lens B4-2: the deadline inside the vault reader's reads and each picks page too
+  assert.match(src, /beforeRead\(\);   \/\/ Repo Lens B4-2: the re-read's deadline before every one of these reads too/);
+  assert.match(src, /beforeRead\(\);   \/\/ Repo Lens B4-2: before every page, not only the first/);
   assert.match(src, /withRetry\("vault state", \(\) => \(c\.functions as any\)\.get_state\(\{\}\), tries\)/);
   assert.match(src, /get_game_player\(\{ player: a, game, week: String\(week\) \}\), tries\)/);
 });
@@ -749,7 +754,7 @@ test("B3-3: holds that pass on their own print no release code and are never rel
 });
 
 test("B3-1: a release lets through only its own target: one problem released freezes the week; with two, the second still holds", async () => {
-  const one = (wf) => { const t = wf.targets.find((x) => !x.void && x.signer === BIG); t.signer = MID; };
+  const one = tamper;
   const a = await weekEditThenLook(one, { prizesFromWeek: 0 }, { release: null });
   const reason = /held before its prize list: (.*)\. Nothing is paid/.exec(heldNote(a.r))[1];
   const ok = await weekEditThenLook(one, { prizesFromWeek: 0 }, { release: `3:${releaseCode(reason)}` });
@@ -762,4 +767,31 @@ test("B3-1: a release lets through only its own target: one problem released fre
   const note = heldNote(b.r);
   const second = /held before its prize list: (.*)\. Nothing is paid/.exec(note)[1];
   assert.ok(note.includes(`BLOCKX_RELEASE = 3:${releaseCode(second)}`), "the new hold prints its own code");
+});
+// ── Repo Lens #B-3 re-check: B4-1, a release frees only the reason checked ──
+// Written by Repo Lens, NOT run here (static review).
+test("Repo Lens B4-1: a release frees only the reason checked, not the released round's other checks", async () => {
+  // One target, two differences: its signer (the hold the owner checks) and its first pick's points (never read).
+  const both = (wf) => {
+    const t = wf.targets.find((x) => !x.void && x.signer === BIG && x.picks.length);
+    assert.ok(t, "the fixture has a scored BIG target with picks");
+    t.signer = MID; t.picks[0][3] += 100;
+  };
+  const a = await weekEditThenLook(both, { prizesFromWeek: 0 }, { release: null });
+  const reason = /held before its prize list: (.*)\. Nothing is paid/.exec(heldNote(a.r))[1];
+  assert.match(reason, /signer or times read differently now/);
+  const b = await weekEditThenLook(both, { prizesFromWeek: 0 }, { release: `3:${releaseCode(reason)}` });
+  assert.ok(heldNote(b.r), "still held: the same round's points were never checked " + JSON.stringify(b.r.problems).slice(0, 400));
+  assert.ok(!fs.existsSync(path.join(b.out, "P003.json")), "no prize list frozen");
+  assert.ok(!fs.existsSync(path.join(b.out, "vault", "W3.json")), "no vault file written");
+});
+
+test("B4-1: a released signer change still has its round's other checks run (the card values no longer match): held", async () => {
+  const sig = (wf) => { const t = wf.targets.find((x) => !x.void && x.signer === BIG); t.signer = MID; };
+  const a = await weekEditThenLook(sig, { prizesFromWeek: 0 }, { release: null });
+  const reason = /held before its prize list: (.*)\. Nothing is paid/.exec(heldNote(a.r))[1];
+  const b = await weekEditThenLook(sig, { prizesFromWeek: 0 }, { release: `3:${releaseCode(reason)}` });
+  const note = heldNote(b.r) || "";
+  assert.match(note, /card values read differently now|points recompute differently/, JSON.stringify(b.r.problems).slice(0, 300));
+  assert.ok(!fs.existsSync(path.join(b.out, "P003.json")));
 });

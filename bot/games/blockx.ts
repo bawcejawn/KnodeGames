@@ -135,11 +135,12 @@ async function readSigners(node: any, headId: string, from: number, to: number) 
   return { signers: [...signers], first, last, n };
 }
 const PICKS_ABI = () => JSON.parse(fs.readFileSync(new URL("../../picks/abi/picks.koilib.json", import.meta.url), "utf8"));
-async function readPicks(node: any, contract: string, game: number, round: number, tries = 6): Promise<RawPick[]> {
+async function readPicks(node: any, contract: string, game: number, round: number, tries = 6, beforeRead: () => void = () => {}): Promise<RawPick[]> {
   const c = new Contract({ id: contract, abi: PICKS_ABI(), provider: node });
   const out: RawPick[] = [];
   let after: string | undefined;
   for (let page = 0; page < 1000; page++) {
+    beforeRead();   // Repo Lens B4-2: before every page, not only the first
     const r: any = await withRetry(`picks for round ${round}`, () => (c.functions as any).list_picks({ game, round: String(round), ...(after ? { start_after: after } : {}), limit: 100 }), tries);
     const rows = r?.result?.rows ?? [];
     for (const x of rows) {
@@ -194,7 +195,7 @@ export const VAULT_READS_AT_ONCE = 8;
 /** The vault as Block X sees it, read once per run (audit BX-63): the state once per node, and each wallet's
  *  get_game_player once per node and week (cached for the run; up to 8 reads at a time). Audit BX-61: the v6 check
  *  comes first, with STATE_ABI; the v6 ABI file is loaded only once v6 is live. `abi` is for the tests. */
-export function vaultReader(vault: string | null, game: number, abi: () => any = VAULT_ABI, tries = 6) {
+export function vaultReader(vault: string | null, game: number, abi: () => any = VAULT_ABI, tries = 6, beforeRead: () => void = () => {}) {
   const state = new Map<any, Promise<any>>();
   const stakeCache = new Map<any, Map<string, Promise<any>>>();   // node → "week|wallet" → its get_game_player answer
   const cfgOf = (node: any) => {
@@ -202,6 +203,7 @@ export function vaultReader(vault: string | null, game: number, abi: () => any =
     if (!s) {
       s = (async () => {
         const c = new Contract({ id: vault!, abi: STATE_ABI as any, provider: node });
+        beforeRead();
         const st: any = await withRetry("vault state", () => (c.functions as any).get_state({}), tries);
         // Audit BX-82: koilib always returns `result`; an answer without the game's owner is no answer.
         if (!st?.result?.config?.owner) throw new Error("no answer reading the vault's state (no owner in it)");
@@ -225,6 +227,7 @@ export function vaultReader(vault: string | null, game: number, abi: () => any =
       let p = mine!.get(k);
       if (!p) {
         p = (async () => {
+          beforeRead();   // Repo Lens B4-2: the re-read's deadline before every one of these reads too
           const r: any = await withRetry(`vault: ${a} in game ${game}`, () => (c.functions as any).get_game_player({ player: a, game, week: String(week) }), tries);
           if (!r || !("result" in r)) throw new Error(`no answer reading ${a}'s stake in game ${game}`);
           return r.result ?? {};
@@ -595,17 +598,21 @@ export async function run(o: Opts) {
    *  re-scanned (it was read on both nodes when recorded); the points are recomputed with the amount recorded. */
   /** A hold from the re-read: why, which round, and whether it passes on its own (then it is never released). */
   type Hold = { why: string; round: number | null; passes: boolean };
-  // Repo Lens B3-2: the re-read's own vault reader, with REVERIFY_TRIES tries per read (not the default 6).
-  const reVault = vaultReader(KNODE, G.GAME_ID, VAULT_ABI, REVERIFY_TRIES);
+  // Repo Lens B3-2 / B4-2: the re-read's deadline, checked before every read it makes, including each read inside the
+  // vault reader and each page of picks; and its own vault reader with REVERIFY_TRIES tries per read (not the default 6).
+  const reDeadline = runStart + (o.reverifyBudgetMs ?? REVERIFY_BUDGET_MS);
+  const beforeRead = () => { if (Date.now() > reDeadline) throw new OutOfTime(); };
+  const reVault = vaultReader(KNODE, G.GAME_ID, VAULT_ABI, REVERIFY_TRIES, beforeRead);
   const rerank = o.rankedOf ?? (o.stakeOf ? rankedRead : (async (who: string[], node: any, week = 0) => stakedSet(await reVault(node, who, week))));
-  /** Repo Lens B3-1: `skip` is the one round a matching BLOCKX_RELEASE lets through; every other target is read. */
-  const reverify = async (wf: WeekFile, skip: number | null = null): Promise<Hold | null> => {
+  /** Repo Lens B3-1 / B4-1: `ignore` is the one hold a matching BLOCKX_RELEASE lets through: that round and that exact
+   *  reason. Every target is still read, that round included, and every other check on it still runs. */
+  const reverify = async (wf: WeekFile, ignore: { round: number; why: string } | null = null): Promise<Hold | null> => {
     // Fix-check L-1: REVERIFY_TRIES tries per read here (a failed read holds the week; the next run tries again).
     const nodes = (o.blockOf ? [blockP, blockC] : [blockReader(o.p, headId, REVERIFY_TRIES), o.check ? blockReader(o.check, checkHeadId, REVERIFY_TRIES) : null]).filter(Boolean) as ((h: number) => Promise<{ signer: string; time: number }>)[];
-    const reread = o.picksOf ?? (contract ? (node: any, r: number) => readPicks(node, contract, G.GAME_ID, r, REVERIFY_TRIES) : null);
+    const reread = o.picksOf ?? (contract ? (node: any, r: number) => readPicks(node, contract, G.GAME_ID, r, REVERIFY_TRIES, beforeRead) : null);
     const pnodes = [o.p, o.check].filter(Boolean);
     const sameRaw = (a: [string, string, number][], b: [string, string, number][]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
-    const deadline = runStart + (o.reverifyBudgetMs ?? REVERIFY_BUDGET_MS);
+    const deadline = reDeadline;
     /** Repo Lens B3-2: the deadline is checked before EVERY read, so the re-read ends within about one read of it. */
     const OUT_OF_TIME = "the re-read ran out of time this run";
     const timed = <T,>(f: () => Promise<T>): Promise<T> => (Date.now() > deadline ? Promise.reject(new OutOfTime()) : f());
@@ -629,42 +636,48 @@ export async function run(o: Opts) {
     };
     const one = async (t: Target): Promise<Hold | null> => {
       const at = `block ${t.height}`;
-      const hold = (why: string, passes = false): Hold => ({ why: `${at}${why}`, round: t.round, passes });
-      if (t.height !== G.target(t.round)) return hold(` isn't round ${t.round}'s target block`);
+      // Repo Lens B4-1: the released hold (this round, this exact reason) is let through, and the next check runs.
+      const hold = (why: string, passes = false): Hold | null => (ignore && t.round === ignore.round && `${at}${why}` === ignore.why ? null : { why: `${at}${why}`, round: t.round, passes });
+      if (t.height !== G.target(t.round)) { const x = hold(` isn't round ${t.round}'s target block`); if (x) return x; }
       // Repo Lens B3-3: not yet irreversible passes on its own: never released.
-      if (t.height > head.lib) return hold(" isn't irreversible yet", true);
-      if (t.void && !t.checked) { if (t.picks.length) return hold(": a void row with picks"); return null; }
+      if (t.height > head.lib) return hold(" isn't irreversible yet", true);   // passing: never ignored by a release
+      if (t.void && !t.checked) { if (t.picks.length) { const x = hold(": a void row with picks"); if (x) return x; } return null; }
       for (const read of nodes) {
         const b = await timed(() => read(t.height)), l = await timed(() => read(t.height - G.LEAD));
-        if ((isAddr(b.signer) ? b.signer : null) !== t.signer || b.time !== t.time || l.time !== t.lockTime) return hold(": its signer or times read differently now");
+        if ((isAddr(b.signer) ? b.signer : null) !== t.signer || b.time !== t.time || l.time !== t.lockTime) { const x = hold(": its signer or times read differently now"); if (x) return x; }
       }
       if (reread) {
         const mine = t.picks.map((x) => [x[0], x[1], x[2]] as [string, string, number]);
         for (const node of pnodes) {
           const raw = (await timed(() => reread(node, t.round))).map((x) => [x.player, x.producer, x.time] as [string, string, number]);
-          if (!sameRaw(raw, mine)) return hold(": its picks read differently now");
+          if (!sameRaw(raw, mine)) { const x = hold(": its picks read differently now"); if (x) return x; }
         }
       }
       const players = [...new Set(t.picks.map((x) => x[0]))];
       if (players.length) for (const node of pnodes) {
         const rk = await timed(() => rerank(players, node, M.weekOf(t.time)));
-        if (t.picks.some((x) => (rk.has(x[0]) ? 1 : 0) !== x[4])) return hold(": a player's Staked / Free play flag reads differently now");
+        if (t.picks.some((x) => (rk.has(x[0]) ? 1 : 0) !== x[4])) { const x = hold(": a player's Staked / Free play flag reads differently now"); if (x) return x; }
       }
       if (t.void) {
-        if (t.picks.some((x) => x[3] !== 0)) return hold(": a void target with points");
+        if (t.picks.some((x) => x[3] !== 0)) { const x = hold(": a void target with points"); if (x) return x; }
         const why = voidReason(t);
         // Repo Lens B3-3: missing race files (a fetch gap) pass on their own: never released.
         return why ? hold(`: a void target has a card now (${why})`, /^this run has no race cards/.test(why)) : null;
       }
       const card = cardAt(t.lockTime), after = t.signer ? cardAfter(t.time, t.signer) : null;
-      if (!card || !after || !t.card || card.at !== t.card.at || after.at !== t.card.afterAt || flags(card, t.signer!)) return hold(": its handicap cards read differently now");
+      if (!card || !after || !t.card || card.at !== t.card.at || after.at !== t.card.afterAt || flags(card, t.signer!)) {
+        const x = hold(": its handicap cards read differently now"); if (x) return x;
+        // Released, but the points can't be recomputed without both cards: a hold of its own (never let through unread).
+        if (!card || !after || !t.card) return hold(": its points can't be recomputed without its handicap cards");
+      }
       // The VHP moved into the signer (BX-53), as recorded: the stored signer VHP less the lock card's own.
+      if (!card || !after || !t.card) return null;   // unreachable: handled above (keeps the types narrow)
       const own = X.vhpOf(card).m.get(t.signer) ?? 0;
       const moved = t.card.signerVhp != null && t.card.signerVhp > own ? BigInt(Math.round((t.card.signerVhp - own) * 1e8)) : 0n;
       const lockC = withMoved(card, t.signer!, moved), afterC = withMoved(after, t.signer!, moved);
       const { m, top } = X.vhpOf(lockC);
-      if (top !== t.card.top || (m.get(t.signer) ?? null) !== t.card.signerVhp) return hold(": its card values read differently now");
-      for (const x of t.picks) if (Math.min(X.pointsOf(lockC, x[1], t.signer), X.pointsOf(afterC, x[1], t.signer)) !== x[3]) return hold(`: ${x[0]}'s points recompute differently`);
+      if (top !== t.card.top || (m.get(t.signer) ?? null) !== t.card.signerVhp) { const x = hold(": its card values read differently now"); if (x) return x; }
+      for (const p of t.picks) if (Math.min(X.pointsOf(lockC, p[1], t.signer), X.pointsOf(afterC, p[1], t.signer)) !== p[3]) { const x = hold(`: ${p[0]}'s points recompute differently`); if (x) return x; }
       return null;
     };
     // Repo Lens E4-3: REVERIFY_AT_ONCE targets at a time, within a time budget. Past the budget the week is held and
@@ -672,7 +685,7 @@ export async function run(o: Opts) {
     // rest (nothing more needs reading); the hold reported is the first in round order among those read.
     let stop = false;
     const res = await pool(wf.targets, REVERIFY_AT_ONCE, async (t): Promise<Hold | null> => {
-      if (stop || t.round === skip) return null;
+      if (stop) return null;
       if (Date.now() > deadline) { stop = true; return { why: OUT_OF_TIME, round: null, passes: true }; }
       let h: Hold | null;
       try { h = await one(t); }
@@ -862,20 +875,23 @@ export async function run(o: Opts) {
       // list, no vault file, an alert); the next run tries again.
       // Repo Lens E4-2: a read that fails during the re-read holds the week; everything else is still published.
       // A hold: why, which round, and whether it passes on its own (a failed read, a timeout, B3-3's two).
-      const reread = async (skip: number | null): Promise<Hold | null> => {
-        try { return await reverify(wf!, skip); }
+      const reread = async (ignore: { round: number; why: string } | null): Promise<Hold | null> => {
+        try { return await reverify(wf!, ignore); }
         catch (e) { return { why: `a read failed during the re-read: ${String((e as Error)?.message ?? e).replace(/[\r\n]+/g, " ").slice(0, 200)}`, round: null, passes: true }; }
       };
       let h = await reread(null);
       for (const n of nonCanonicalNotes(wf!)) problems.push(n);
       // Fix-check L-2: the owner may release a hold they have checked, once, by its exact reason (never a passing one).
-      // Repo Lens B3-1: the release lets through ONLY that target: the rest of the week is read again without it, and
-      // the week freezes only if nothing else holds (else it stays held, with the new hold's own code).
+      // Repo Lens B3-1 / B4-1: the release lets through ONLY that hold (that round, that exact reason): the whole week is
+      // read again, that round's other checks included, and it freezes only if nothing else holds (else it stays held,
+      // with the new hold's own code).
       const release = o.release === undefined ? E.BLOCKX_RELEASE ?? null : o.release;
       if (h && !h.passes && h.round != null && releaseMatches(release, lw, h.why)) {
         const released = h.why;
-        h = await reread(h.round);
+        h = await reread({ round: h.round, why: released });
         if (!h) problems.push(`week ${lw}: RELEASED by BLOCKX_RELEASE although the re-read held it (${released}); the rest of the week read the same, so its prize list is frozen now. Remove BLOCKX_RELEASE`);
+        // Repo Lens B4-3: say which: something else differs, or this run couldn't finish reading the week.
+        else if (h.passes) problems.push(`week ${lw}: BLOCKX_RELEASE matches (${released}), but this run couldn't finish reading the rest of the week; still held (tried again next run)`);
         else problems.push(`week ${lw}: BLOCKX_RELEASE matches (${released}), but the rest of the week doesn't read the same either; still held`);
       }
       const held = h ? h.why : null, passes = !!h?.passes;

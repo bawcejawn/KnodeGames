@@ -30,7 +30,7 @@ A game is announced to players only when all of these are true (D-064 — "only 
 ## 3. Fairness
 - **Open market:** Knode's own nodes stay in every field; the page discloses it; no promise they stay out (D-051, D-057, D-059).
 - **Rules are fixed before anyone can pick** — prices, fields and seeds are published before picks open (D-059, D-057).
-- **Measure VHP the KnodeGames way** — the VHP standard (D-058); multipliers stay game-specific.
+- **Measure VHP the KnodeGames way** — the VHP standard (D-058; the shared ruler in `VHP_RULER.md`, D-108); multipliers stay game-specific.
 - **Anti-gaming:** each game documents how it resists cheap wallets, late picks and producer gaming, and which residual risks the owner accepted (e.g. D-055).
 - **Ties** share a place unless the game's rules give a written tie-break.
 

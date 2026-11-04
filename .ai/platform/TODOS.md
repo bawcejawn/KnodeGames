@@ -14,6 +14,7 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
+- [ ] **Read and approve the VHP ruler design** (`standards/VHP_RULER.md`, §0 in plain words, §12 the five points to approve) — P2 — D-108
 - [ ] **Sponsor rollout (R-BX-15):** the Block X chat gives you the exact steps from `main` (upload the fix, then per-tx 1.5, the site PR, then `config` with 40/250 to switch the vault back on). Do it before players stake in games 2 and 7, ideally Thu — P1
 - [ ] Every PowerShell window for tools: `$env:RPC = "https://koinos.armana.io"` first (the deployment files still name `api.koinos.io`, I-015) — P3
 - [ ] **GitHub setting (Repo Lens C5-13):** a `.github/CODEOWNERS` file (`/.github/ @bawcejawn`, `/tests/audit/site.ci-deps.test.mjs @bawcejawn`, `/tests/audit/ci-guard-*`) and on `main` a ruleset making the **guard check required**. ⚠️ Don't turn on "Require review from Code Owners" without a bypass for yourself: the chats open PRs under your own account, and GitHub doesn't let you approve your own PR, so every merge would be blocked. Ask the library chat for exact clicks first — P2

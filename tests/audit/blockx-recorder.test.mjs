@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 
 const APP = process.env.APP || ".";
-const { run, vaultFile } = await import(path.resolve(APP, "bot/games/blockx.ts"));
+const { run, vaultFile, releaseCode, releaseMatches } = await import(path.resolve(APP, "bot/games/blockx.ts"));
 const M = globalThis.KRaceMath, X = globalThis.KBlockX;
 const plain = (x) => JSON.parse(JSON.stringify(x));
 
@@ -628,4 +628,62 @@ test("E4-1 (a) / E4-7 in the workflow: a failed fetch of a branch that exists st
   assert.match(yml, /alert:\n    needs: \[record, publish\]\n    if: \$\{\{ always\(\) && needs\.record\.outputs\.held == 'true' \}\}/);
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /fs\.appendFileSync\(E\.GITHUB_OUTPUT, "held=true\\n"\)/);
+});
+
+// ── Repo Lens round-14 fix-check Lows (L-1, L-2, L-3) ──
+test("L-1: the re-read's budget counts from the start of the run, and reads in it get 2 tries", async () => {
+  // 1 ms into the run is always past by the time the week-end re-read starts: held, tried next run.
+  const { r } = await weekEditThenLook(() => {}, { prizesFromWeek: 0 }, { reverifyBudgetMs: 1 });
+  assert.ok(/ran out of time this run/.test(heldNote(r) || ""), JSON.stringify(r.problems).slice(0, 300));
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /export const REVERIFY_BUDGET_MS = 22 \* 60000;/);
+  assert.match(src, /export const REVERIFY_TRIES = 2;/);
+  assert.match(src, /const deadline = runStart \+ \(o\.reverifyBudgetMs \?\? REVERIFY_BUDGET_MS\);/);
+  assert.match(src, /blockReader\(o\.p, headId, REVERIFY_TRIES\)/);
+  assert.match(src, /readPicks\(node, contract, G\.GAME_ID, r, REVERIFY_TRIES\)/);
+});
+
+const tamper = (wf) => { const t = wf.targets.find((x) => !x.void && x.signer === BIG); t.signer = MID; };
+test("L-2: a held week prints its release code; BLOCKX_RELEASE with that exact code frees it once", async () => {
+  const held = await weekEditThenLook(tamper, { prizesFromWeek: 0 }, { release: null });
+  const note = heldNote(held.r);
+  const reason = /held before its prize list: (.*)\. Nothing is paid/.exec(note)[1];
+  const code = `3:${releaseCode(reason)}`;
+  assert.ok(note.includes(`BLOCKX_RELEASE = ${code}`), note);
+  // the wrong week, a wrong code, or junk: still held, nothing frozen
+  for (const bad of [`4:${releaseCode(reason)}`, "3:0123456789abcdef", "yes", ""]) {
+    const x = await weekEditThenLook(tamper, { prizesFromWeek: 0 }, { release: bad });
+    assert.ok(heldNote(x.r), `"${bad}" doesn't release`);
+    assert.ok(!fs.existsSync(path.join(x.out, "P003.json")), `"${bad}": nothing frozen`);
+  }
+  // the right code: frozen, vault file written, a warning (not an error), not reported as held
+  const ok = await weekEditThenLook(tamper, { prizesFromWeek: 0 }, { release: code });
+  assert.equal(heldNote(ok.r), undefined);
+  assert.ok(ok.r.problems.some((p) => /week 3: RELEASED by BLOCKX_RELEASE/.test(p)));
+  assert.deepEqual(ok.r.held, []);
+  assert.ok(fs.existsSync(path.join(ok.out, "P003.json")) && fs.existsSync(path.join(ok.out, "vault", "W3.json")));
+  assert.equal(releaseMatches(` ${code} `, 3, reason), true);
+  assert.equal(releaseMatches(code, 3, reason + "x"), false);
+});
+
+test("L-2: a hold that passes on its own (a failed read, a timeout) prints no code and can't be released", async () => {
+  const failAt = H0 + 2 * X.ROUND;
+  const failing = { blockOf: async (n, h) => { if (h === failAt) throw new Error("block 2400: 503 (calls=6)"); return { signer: signerOf(h), time: T(h) }; } };
+  const a = await weekEditThenLook(() => {}, { prizesFromWeek: 0 }, { ...failing, release: null });
+  const note = heldNote(a.r);
+  assert.ok(note && !/BLOCKX_RELEASE/.test(note), note);
+  const reason = /held before its prize list: (.*)\. Nothing is paid/.exec(note)[1];
+  const b = await weekEditThenLook(() => {}, { prizesFromWeek: 0 }, { ...failing, release: `3:${releaseCode(reason)}` });
+  assert.ok(heldNote(b.r), "still held");
+  assert.ok(!fs.existsSync(path.join(b.out, "P003.json")));
+  const late = await weekEditThenLook(() => {}, { prizesFromWeek: 0 }, { reverifyBudgetMs: 1, release: `3:${releaseCode("the re-read ran out of time this run")}` });
+  assert.ok(heldNote(late.r), "a timeout can't be released");
+});
+
+test("L-2 / L-3 in the workflows: BLOCKX_RELEASE reaches the recorder; the testnet fetch fails like mainnet's", () => {
+  const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
+  assert.match(yml, /BLOCKX_RELEASE: \$\{\{ vars\.BLOCKX_RELEASE \}\}/);
+  const t = fs.readFileSync(path.resolve(APP, ".github/workflows/games-testnet.yml"), "utf8");
+  assert.match(t, /git ls-remote --exit-code --heads "https:\/\/github\.com\/\$\{GITHUB_REPOSITORY\}\.git" testnet-data/);
+  assert.match(t, /if \[ "\$rc" -eq 2 \]; then echo "No testnet-data branch yet."; else echo "::error::The testnet-data branch could not be fetched/);
 });

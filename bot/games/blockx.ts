@@ -32,6 +32,7 @@
 import { Provider, Contract, utils as kutils } from "koilib";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { readVhp, MAINNET_VHP, withRetry } from "../../common.ts";
 await import("../../race-math.js");
@@ -68,8 +69,10 @@ export type Opts = {
   vhpContract?: string;                                                    // default: mainnet VHP
   knodeGame?: string | null;                                               // the Knode vault (v6): who is staked in THIS game
   prizesFromWeek?: number | null;                                          // default: none (no prizes listed)
-  /** Repo Lens E4-3: the most time the week-end re-read may take in one run (default REVERIFY_BUDGET_MS). */
+  /** Repo Lens E4-3 / L-1: how long into the run the week-end re-read may still start a target (default REVERIFY_BUDGET_MS). */
   reverifyBudgetMs?: number;
+  /** Fix-check L-2: BLOCKX_RELEASE, "<week>:<release code>" (default: the environment's). */
+  release?: string | null;
   picksOf?: (node: any, round: number) => Promise<RawPick[]>;             // for the tests
   blockOf?: (node: any, height: number) => Promise<{ signer: string; time: number }>;
   /** Tests: who was staked in this game in `week` (stake at least the vault's minimum at some point that week). */
@@ -108,9 +111,9 @@ async function headOf(node: any) {
   const h: any = await withRetry("head", () => node.getHeadInfo());
   return { id: h.head_topology.id as string, height: Number(h.head_topology.height), time: Number(h.head_block_time), lib: Number(h.last_irreversible_block) };
 }
-function blockReader(node: any, headId: string) {
+function blockReader(node: any, headId: string, tries = 6) {
   return async (h: number) => {
-    const res: any = await withRetry(`block ${h}`, () => node.call("block_store.get_blocks_by_height", { head_block_id: headId, ancestor_start_height: String(h), num_blocks: 1, return_block: true, return_receipt: false }));
+    const res: any = await withRetry(`block ${h}`, () => node.call("block_store.get_blocks_by_height", { head_block_id: headId, ancestor_start_height: String(h), num_blocks: 1, return_block: true, return_receipt: false }), tries);
     const it = res?.block_items?.[0];
     if (!it || Number(it.block_height) !== h) throw new Error(`block ${h} not returned`);
     return { signer: String(it.block.header.signer), time: Number(it.block.header.timestamp) };
@@ -132,12 +135,12 @@ async function readSigners(node: any, headId: string, from: number, to: number) 
   return { signers: [...signers], first, last, n };
 }
 const PICKS_ABI = () => JSON.parse(fs.readFileSync(new URL("../../picks/abi/picks.koilib.json", import.meta.url), "utf8"));
-async function readPicks(node: any, contract: string, game: number, round: number): Promise<RawPick[]> {
+async function readPicks(node: any, contract: string, game: number, round: number, tries = 6): Promise<RawPick[]> {
   const c = new Contract({ id: contract, abi: PICKS_ABI(), provider: node });
   const out: RawPick[] = [];
   let after: string | undefined;
   for (let page = 0; page < 1000; page++) {
-    const r: any = await withRetry(`picks for round ${round}`, () => (c.functions as any).list_picks({ game, round: String(round), ...(after ? { start_after: after } : {}), limit: 100 }));
+    const r: any = await withRetry(`picks for round ${round}`, () => (c.functions as any).list_picks({ game, round: String(round), ...(after ? { start_after: after } : {}), limit: 100 }), tries);
     const rows = r?.result?.rows ?? [];
     for (const x of rows) {
       const ps = x.pick?.producers;
@@ -400,9 +403,20 @@ export function lastVarint(data: unknown, want: number): bigint | null {
  *  3 hours, so a card made after the lock (with VHP that moved after it) is never used. Race cards come from the race
  *  at t and the one before; self-made cards (testnet) from cards.json. None: the target waits (then void). */
 const CARD_MAX_AGE_MS = 3 * 3600000;
-/** Repo Lens E4-3: the week-end re-read reads this many targets at a time, and stops (holding the week) after this long. */
+/** Repo Lens E4-3: the week-end re-read reads this many targets at a time. Fix-check L-1: it stops (holding the week,
+ *  tried again next run) once the RUN has taken this long, so with in-flight reads it still ends well inside the job's
+ *  30 minutes; and inside the re-read each read gets REVERIFY_TRIES tries (a few seconds), not withRetry's minute. */
 export const REVERIFY_AT_ONCE = 4;
-export const REVERIFY_BUDGET_MS = 15 * 60000;
+export const REVERIFY_BUDGET_MS = 22 * 60000;
+export const REVERIFY_TRIES = 2;
+/** Fix-check L-2: the one-off release of a held week. BLOCKX_RELEASE = "<week>:<release code>", the code printed with the
+ *  hold (sha256 of the hold's exact reason, first 16 hex). It releases only that week and only while it is held for that
+ *  same reason; a read failure or a timeout (they pass on their own) can't be released. Exported for the tests. */
+export const releaseCode = (reason: string) => crypto.createHash("sha256").update(reason).digest("hex").slice(0, 16);
+export function releaseMatches(release: string | null | undefined, week: number, reason: string): boolean {
+  const m = typeof release === "string" ? /^\s*([0-9]{1,4}):([0-9a-f]{16})\s*$/.exec(release) : null;
+  return !!m && Number(m[1]) === week && m[2] === releaseCode(reason);
+}
 /** Audit BX-38: a race card made from fewer than 12 VHP samples is flagged; Block X never scores with it. */
 export const MIN_CARD_SAMPLES = 12;
 const usable = (c: Card | null | undefined, race: boolean): c is Card =>
@@ -482,7 +496,8 @@ export async function run(o: Opts) {
   const KNODE = o.knodeGame === undefined ? MAINNET_KNODE_GAME || null : o.knodeGame;
   const PRIZES_FROM = o.prizesFromWeek ?? null;
   const problems: string[] = [];
-  const holds: string[] = [];   // Repo Lens E4-7: a held week is an error (the workflow fails the run after publishing)
+  const holds: string[] = [];
+  const runStart = Date.now();   // fix-check L-1: the re-read's budget counts from here   // Repo Lens E4-7: a held week is an error (the workflow fails the run after publishing)
   const contract = o.picksContract === undefined ? defaultPicksContract() : o.picksContract;
 
   const live = o.head ? null : await headOf(o.p);
@@ -577,7 +592,9 @@ export async function run(o: Opts) {
    *  transfer is listed for the correction window: nonCanonicalNotes). The VHP moved into the signer (BX-53) isn't
    *  re-scanned (it was read on both nodes when recorded); the points are recomputed with the amount recorded. */
   const reverify = async (wf: WeekFile): Promise<string | null> => {
-    const nodes = [blockP, blockC].filter(Boolean) as ((h: number) => Promise<{ signer: string; time: number }>)[];
+    // Fix-check L-1: REVERIFY_TRIES tries per read here (a failed read holds the week; the next run tries again).
+    const nodes = (o.blockOf ? [blockP, blockC] : [blockReader(o.p, headId, REVERIFY_TRIES), o.check ? blockReader(o.check, checkHeadId, REVERIFY_TRIES) : null]).filter(Boolean) as ((h: number) => Promise<{ signer: string; time: number }>)[];
+    const reread = o.picksOf ?? (contract ? (node: any, r: number) => readPicks(node, contract, G.GAME_ID, r, REVERIFY_TRIES) : null);
     const pnodes = [o.p, o.check].filter(Boolean);
     const sameRaw = (a: [string, string, number][], b: [string, string, number][]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
     /** Repo Lens E4-1 (b): a void row's own reason must still hold with this run's race files. (Voids for a
@@ -607,10 +624,10 @@ export async function run(o: Opts) {
         const b = await read(t.height), l = await read(t.height - G.LEAD);
         if ((isAddr(b.signer) ? b.signer : null) !== t.signer || b.time !== t.time || l.time !== t.lockTime) return `${at}: its signer or times read differently now`;
       }
-      if (picksRead) {
+      if (reread) {
         const mine = t.picks.map((x) => [x[0], x[1], x[2]] as [string, string, number]);
         for (const node of pnodes) {
-          const raw = (await picksRead(node, t.round)).map((x) => [x.player, x.producer, x.time] as [string, string, number]);
+          const raw = (await reread(node, t.round)).map((x) => [x.player, x.producer, x.time] as [string, string, number]);
           if (!sameRaw(raw, mine)) return `${at}: its picks read differently now`;
         }
       }
@@ -638,7 +655,7 @@ export async function run(o: Opts) {
     // Repo Lens E4-3: REVERIFY_AT_ONCE targets at a time, within a time budget. Past the budget the week is held and
     // the next run tries again, so a slow node can't push the job past its 30-minute limit. The first hold stops the
     // rest (nothing more needs reading); the hold reported is the first in round order among those read.
-    const deadline = Date.now() + (o.reverifyBudgetMs ?? REVERIFY_BUDGET_MS);
+    const deadline = runStart + (o.reverifyBudgetMs ?? REVERIFY_BUDGET_MS);
     let stop = false;
     const res = await pool(wf.targets, REVERIFY_AT_ONCE, async (t) => {
       if (stop) return null;
@@ -828,12 +845,19 @@ export async function run(o: Opts) {
       // target of the week is read again from both nodes and compared whole. Any difference holds the week (no prize
       // list, no vault file, an alert); the next run tries again.
       // Repo Lens E4-2: a read that fails during the re-read holds the week; everything else is still published.
-      let held: string | null;
-      try { held = await reverify(wf!); }
-      catch (e) { held = `a read failed during the re-read: ${String((e as Error)?.message ?? e).replace(/[\r\n]+/g, " ").slice(0, 200)}`; }
+      let held: string | null, passes = false;   // passes: a hold that goes away on its own (a failed read, a timeout)
+      try { held = await reverify(wf!); passes = held != null && /ran out of time this run$/.test(held); }
+      catch (e) { held = `a read failed during the re-read: ${String((e as Error)?.message ?? e).replace(/[\r\n]+/g, " ").slice(0, 200)}`; passes = true; }
       for (const n of nonCanonicalNotes(wf!)) problems.push(n);
+      // Fix-check L-2: the owner may release a hold they have checked, once, by its exact reason (never a passing one).
+      const release = o.release === undefined ? E.BLOCKX_RELEASE ?? null : o.release;
+      if (held && !passes && releaseMatches(release, lw, held)) {
+        problems.push(`week ${lw}: RELEASED by BLOCKX_RELEASE although the re-read held it (${held}); its prize list is frozen now. Remove BLOCKX_RELEASE`);
+        held = null;
+      }
       if (held) {
-        const note = `week ${lw}: held before its prize list: ${held}. Nothing is paid until a run reads the whole week the same (tried again next run)`;
+        const code = passes ? "" : ` To release it once after checking it: repository variable BLOCKX_RELEASE = ${lw}:${releaseCode(held)}`;
+        const note = `week ${lw}: held before its prize list: ${held}. Nothing is paid until a run reads the whole week the same (tried again next run).${code}`;
         problems.push(note); holds.push(note);
         lastWeek.final = false; lastWeek.prizes = [];
       } else freeze = { v: 1, week: lw, game: G.GAME_ID, at: new Date(head.time).toISOString(), prizes: lastWeek.prizes };

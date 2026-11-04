@@ -84,6 +84,8 @@ jobs:
           # The first week the vault pays Block X's free prize (the "from week" that npm run bot -- games shows once
           # game 2 is applied in the vault). Unset: no prizes are listed.
           PRIZES_FROM_WEEK: ${{ vars.PRIZES_FROM_WEEK }}
+          # Fix-check L-2: the owner's one-off release of a held week ("<week>:<code>", the code the hold prints). Unset: none.
+          BLOCKX_RELEASE: ${{ vars.BLOCKX_RELEASE }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: games-data

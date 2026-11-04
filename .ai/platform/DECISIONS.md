@@ -100,6 +100,19 @@
 | D-087 | 2026-11-03 | Bracket: same-block identical picks share the place; text fixed; commit-reveal maybe later | active |
 | D-088 | 2026-11-03 | Bracket launches when its fix-check passes; no 9 Nov target | active |
 | D-089 | 2026-11-03 | Work is handed to chats through `CHAT_REQUESTS.md` in the repo, not by separate chat messages | active |
+| D-090 | 2026-11-04 | One VHP ruler for every game; each game keeps its own scoring formula; checks at random moments within a window | active — design (R-ARCH-1) |
+| D-091 | 2026-11-04 | Lower Last Node Standing's entry bar | active — value to set by simulation (R-LN-4) |
+| D-092 | 2026-11-04 | Daily Questions twice a day: 10 a day Mon–Sat, rounds at 00:00 and 12:00 UTC, after the first paid weeks (needs a vault upgrade) | active — plan (R-Q-1, R-VAULT-6) |
+| D-093 | 2026-11-04 | The VHP ruler looks back about 2 weeks; handicaps must be fair to every producer, proven by simulation | active — design (R-ARCH-1) |
+| D-094 | 2026-11-04 | The Race starts paying on 9 Nov with its two known gaps open until the ruler fix | active |
+| D-095 | 2026-11-04 | Survivor Season 1 keeps its blocks-based handicap | active |
+| D-096 | 2026-11-04 | Move every contract (vault, Desk, Picks, Race picks) to the new wallets this weekend, before any public announcement; Picks handover before the Picks v2 upgrade | active |
+| D-097 | 2026-11-04 | Free-prize farming by many empty wallets is accepted for now | active |
+| D-098 | 2026-11-04 | No back-fill for Race weeks before the vault paid it: those weeks have no prize | active |
+| D-099 | 2026-11-04 | The vault pays no one else's Mana (`sponsor-limit 0`); the Mana sponsor pays players | active (supersedes D-046's "not for now") |
+| D-100 | 2026-11-04 | `TODOS.md` is the one owner checklist; open items from the old checklist artifacts move into it, without duplicates | active |
+| D-101 | 2026-11-04 | Every game is fair with a bit of luck: each uses a luck trim (preferred) or a cap | active |
+| D-102 | 2026-11-04 | The full platform audit runs only once everything is confidently ready | active |
 
 ---
 
@@ -530,6 +543,58 @@
 ## D-089 — Chats get their work from `CHAT_REQUESTS.md`
 - **Date:** 2026-11-03 (owner) · **Decision:** "the source of everything lives in GitHub, not in chats." Each chat's open work is listed in `.ai/platform/CHAT_REQUESTS.md`. The owner sends every chat the same short start message (§1 of that file). Chats report back with the session-end report, and the library chat keeps the file current. Rules that apply to every game go into the standards, not into messages.
 - **Private audit reports** stay in the Claude project, since the repo is public; the repo names findings by id only.
+
+## D-090 — One VHP ruler for every game
+- **Date:** 2026-11-04 (owner, after `HANDICAP_REVIEW.md`) · **Decision:** every game measures producer VHP **the same way**, with the method that is hardest to game, fair and accurate. **Each game keeps its own scoring system and formula** (§5.1 of the review). Checks are made **at random moments within a window**, so nobody can learn to time them.
+- **The ruler (recommended, to be designed in R-ARCH-1):** the VHP standard (D-058) extended:
+  - exact effective VHP rebuilt from VHP events on two nodes (every block counted, not samples);
+  - a producer's own handicap uses its **highest** VHP over a look-back long enough that hiding costs real rewards;
+  - **card credit** (VHP added after the measure gains nothing);
+  - averages for other producers and totals;
+  - a clamped production check (form);
+  - the measurement points drawn at random within the game's window from a future block's hash: unpredictable in advance, checkable by anyone afterwards.
+- **Race fix:** the ruler closes both Race gaps (`HANDICAP_REVIEW.md` §3): card credit closes in-leg additions; a longer highest-VHP look-back closes the > 6-h hide.
+
+## D-091 — Lower Last Node's entry bar
+- **Date:** 2026-11-04 (owner) · **Decision:** lower Last Node Standing's entry bar (today ≥ 20 expected blocks an hour, ~1.7% share, top 23), so smaller nodes can play. The new value is set by the Last Node chat from simulations with many small producers, using a luck trim, and approved by the owner (R-LN-4). Target: the platform bar of k ≥ 10 expected blocks in the game's scoring window (`HANDICAP_REVIEW.md` §5.2).
+
+## D-092 — Daily Questions twice a day
+- **Date:** 2026-11-04 (owner) · **Decision:** **10 questions a day, Mon–Sat** (60 a week), in two rounds: one opens at **12:00 UTC** (4 AM PT, as today), the second at **00:00 UTC** (4 PM PT) when the earlier round closes. It starts **after the first paid weeks** (9 and 16 Nov) have paid cleanly, likely the week of 23 or 30 Nov.
+- **Needs a vault upgrade:** the contract allows at most 30 questions a week (`MAX_QUESTIONS_PER_WEEK = 30`, `Kpred.ts` ✅), which 5 a day × 6 days already fills. Raising it means the vault upgrade path: audits, 48 h notice, announce on a weekend, upload on a Monday (D-017, D-023, D-024). Also to plan: the bot's release schedule (`RELEASE_HOUR`, `LOCK_HOUR`), the release backup task, scoring and weekly points, Mana per player, and the site.
+
+## D-093 — The ruler's look-back is about 2 weeks; handicaps must be fair
+- **Date:** 2026-11-04 (owner) · **Decision:** the VHP ruler (D-090) looks back **about 2 weeks** when sizing a producer's own handicap, so hiding VHP costs about two weeks of real block rewards. Handicaps must be **fair to the game and to every producer**, small and large.
+- **Library recommendation (for R-ARCH-1 to test):** a producer's own size = the **higher of its 14-day time-weighted average VHP and its highest VHP in the last 24 h**. The average makes a hide cost in proportion to how long it lasts; the 24-h high stops "look small right now". A pure 14-day *maximum* would be harsh on a producer that genuinely loses stakers (it would look too big for 2 weeks). The final rule and window are set by simulation, including a field with many small producers, and approved by the owner.
+- **Load:** the exact rebuild reads each block once (the recorders already read them hourly), looking for VHP transfer events. Reads cost no Mana. Random checks are computed from data already read; nothing polls the chain every minute.
+
+## D-094 — The Race starts paying on 9 Nov
+- **Date:** 2026-11-04 (owner) · **Decision:** the Producer Race pays from the week of Mon 9 Nov as planned (D-077), with its two known handicap gaps (VHP added after a card; a > 6-h hide) open until the ruler fix (R-RACE-5). Each trick costs the producer real block rewards while it hides VHP.
+
+## D-095 — Survivor Season 1 on blocks
+- **Date:** 2026-11-04 (owner) · **Decision:** Survivor Season 1 (Mon 16 Nov) keeps its blocks-based handicap (h = kTop ÷ k over days d−8 … d−2). Later seasons move onto the one VHP ruler (D-090).
+
+## D-096 — Every contract moves to the new wallets this weekend
+- **Date:** 2026-11-04 (owner) · **Decision:** move the vault, the Desk, **the Picks contract and the Race picks contract** to the new owner wallet (D-083) this weekend, once each step checks out, and before any real public announcement. For Picks: **hand over first, then the Picks v2 upgrade** for Combo (answers PR #79).
+- **Needs:** the Picks owner-handover commands (R-BX-3) and the Race picks owner-change command (R-RACE-3) built and tested in time; the Vault chat adds both to the weekend runbook (`docs/WALLETS.md`).
+- **Ordering to watch:** a Picks handover clears pending game announcements on Picks. Survivor's game-3 Picks registration (R-SV-2) must come **after** the Picks accept, and still in time for Season 1 (Mon 16 Nov).
+
+## D-097 — Free-prize farming is accepted for now
+- **Date:** 2026-11-04 (owner: "accept it") · **Decision:** one person running many empty wallets to win free prizes (B1-3, I-035) is accepted for now, as on 28 Oct ("one person running many free wallets"). No minimum activity or stake rule beyond each game's own (for example Last Node's 1 VHP for guests). The owner can still remove a farmed wallet's prize in the 24 h correction window (`game-unprize`). Revisit if farming shows up in the first paid weeks.
+
+## D-098 — No back-fill for early Race weeks
+- **Date:** 2026-11-04 (owner: "currently no prizes for race because staking isn't available for it") · **Decision:** Race weeks before game 7 is applied in the vault have no prize and are not back-filled (I-033). The Race pays from the week of Mon 9 Nov (D-094), like week 1 being unpaid (D-063).
+
+## D-099 — The vault pays no one else's Mana
+- **Date:** 2026-11-04 (owner: "the sponsor should be paying … so the game pool can max compound") · **Decision:** set the vault contract's own Mana limit to 0 (`npm run bot -- sponsor-limit 0`, then `maxSponsorRc: "0"` in `game-data/deployment.json`, PR #89), so all its Mana stays for compounding. The Mana sponsor pays players' Mana within its caps; past the caps players pay their own (as D-046). Supersedes D-046's "not for now" (I-044).
+
+## D-100 — One owner checklist
+- **Date:** 2026-11-04 (owner) · **Decision:** `.ai/platform/TODOS.md` is the one owner checklist (I-032). Still-open items from the older checklist artifacts (Race chat's launch checklist, the Fantasy chat's owner checklist and the others) move into it, with no duplicates; those artifacts are then retired (not edited further).
+
+## D-101 — Fair, with a bit of luck
+- **Date:** 2026-11-04 (owner: "games should be fair with a bit of a luck") · **Decision:** every game keeps some luck but limits it: a luck trim sized by simulation (as Race and Last Node use, preferred) or at least a cap (as Block X, Fantasy, Combo). Survivor and the Bracket, which have neither, add one (`HANDICAP_REVIEW.md` §5.2 #2; R-SV-5, R-BR-7). Part of the one ruler (D-090).
+
+## D-102 — The full platform audit waits until everything is ready
+- **Date:** 2026-11-04 (owner) · **Decision:** the full platform audit (I-002, D-014) runs only once everything is confidently ready: the launch-wave games live and their own audits passed. Until then, each part is audited on its own (D-064).
 
 ---
 

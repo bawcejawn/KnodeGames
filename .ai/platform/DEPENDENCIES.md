@@ -97,7 +97,7 @@ VHP holder → Swap Desk → KOIN back (−3%) → the desk's VHP keeps producin
 |------------------|---------------------|-------------------------|
 | A Koinos node (one of two) | final results, stake reads, vault files (fail closed) | stakes, withdrawals, picks |
 | The Mana sponsor | free (guest) play; sponsored stake/claim | paid transactions with the player's own Mana |
-| The VHP sampler (running since 3 Nov 15:58 UTC; cadence watched, I-059) | Last Node launch; Fantasy and Combo price cards | Questions, Race, Block X targets after warm-up |
+| The VHP sampler (running since 3 Nov 15:58 UTC; up to 12 samples a run since PR #67) | Last Node launch; Fantasy and Combo price cards | Questions, Race, Block X targets after warm-up |
 | The Race | Combo race legs, Block X / Last Node handicap cards, the Golf Race hole | Questions, the vault, withdrawals |
 | A game's recorder | that game's board and vault file (week may be missed after 3 days) | every other game; the vault |
 | The game node on the owner's PC | the Knode Games Pool's block production → smaller rewards | all stakes and withdrawals |
@@ -112,4 +112,4 @@ VHP holder → Swap Desk → KOIN back (−3%) → the desk's VHP keeps producin
 - **Koinos Nicknames** — @names for display (D-030).
 
 ## 8. Open
-- Free play **boards** exist on every game (D-079, D-081); free **prizes** are per game and switched by the owner, from the next week (D-082, `FREE_PRIZE_SWITCH.md`). ~~Free prizes for the staked-only games may come later (D-071)~~ — superseded.
+- Free play **boards** exist on every game (D-079, D-081); free **prizes** are per game and switched by the owner, from the next week (D-082, `FREE_PRIZE_SWITCH.md`).

@@ -10,17 +10,19 @@
 ## The library
 | File | Holds |
 |------|-------|
-| `CURRENT_STATE.md` | dated snapshot: completed, in progress, blockers, priorities |
+| `CURRENT_STATE.md` | dated snapshot: what's live now, and the dates to watch |
+| `HANDICAP_REVIEW.md` | how every game measures VHP and sets handicaps; small producers; recommendations (owner to decide) |
+| `RUNBOOK.md` | what to do when something breaks: alerts, held weeks, a misbehaving game, nodes, keys, the withdrawals-only build |
 | `HEALTHCHECK.md` | CTO health check: strengths, weaknesses, missing information, quality scores, top 10 priorities |
-| `CHAT_REQUESTS.md` | each chat's open work list (D-089); the owner's one start message for every chat |
-| `ACTIVE_WORK.md` | the same work split by area (platform, games, vault, leaderboards, rewards, swap desk): current, blocked, next |
+| `CHAT_REQUESTS.md` | the chats' one work list (D-089); the owner's one start message for every chat |
+| `ACTIVE_WORK.md` | what's in progress or blocked, by area, one line each, pointing to the work list |
 | `PLATFORM.md` | this overview |
 | `ARCHITECTURE.md` | how the pieces work: site, contracts, bots, workflows, data, tests |
 | `DEPENDENCIES.md` | how vault, leaderboards, rewards, swap desk, wallets, games and user accounts connect |
 | `DECISIONS.md` | every decision (D-xxx) and every contradiction (C-xx) |
 | `RULES.md` | fund-safety, vault, withdrawal, reward, architecture and Koinos rules; what never changes casually |
 | `ROADMAP.md` | milestones and launch paths |
-| `OPENISSUES.md` / `TODOS.md` | problems (I-xxx) and the owner's action list |
+| `OPENISSUES.md` / `TODOS.md` | open problems (I-xxx) and the owner's own steps |
 | `KOINOS.md` | chain facts, testnet, gotchas |
 | `PRIORITIES.md` | what to work on next — P1 / P2 / P3 by the value it creates |
 | `TECHNICAL_DEBT.md` | shortcuts, unfinished systems, temporary fixes and risks, ranked by severity |
@@ -31,8 +33,8 @@
 | `SESSION_END_PROCESS.md` | the five-part report every AI session writes before ending |
 | `WEEKLY_REVIEW.md` · `reviews/` | the Tuesday review process and its dated entries |
 | `../games/` | one file per game: rules, scoring, rewards, status, issues |
-| `../standards/` | rules every game and the vault must follow (Game, Vault, Leaderboard, Token) and how every AI chat starts (`AI_CHAT_STARTER.md`) |
-| `../archive/CHAT_KNOWLEDGE.md` | raw chat exports (an inbox, not a source of truth) |
+| `../standards/` | rules every game and the vault must follow (Game, Vault, Leaderboard, Token) and how every AI chat starts (`AI_CHAT_STARTER.md`); `RECORDER_STANDARD.md` (recorder and publish-job rules) and `GO_LIVE_CHECKLIST.md` (every launch, in order) |
+| `../archive/` | history: `DONE.md` (finished items), `ISSUES_CLOSED.md`, dated copies from before each cleanup, `CHAT_KNOWLEDGE.md` (raw chat exports, an inbox, not a source of truth) |
 
 ## Summary
 Knode Games runs free and staked prediction games on the Koinos blockchain, powered by its own block-producing nodes. Players pick producers, blocks and races; correct calls climb a weekly leaderboard for each game. All staked VHP sits in one vault that produces blocks. Each week's rewards, after a flat 5% fee, pay the free-game prizes (2 VHP for 1st, 1 VHP for 2nd) and are split across the staked games by each game's share of the stake. Funds safety comes first: only the vault holds tokens, and stakes are always withdrawable. 👤
@@ -59,7 +61,7 @@ Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` 
 | 6 | Block Golf | Staked + Free board, **no free prize yet** (D-081); free practice weeks | D-056 | practice with Block X; staked after `game-add 6` | `golf` @ `6b2200a` ✅ |
 | 7 | Producer Race | Staked + Free | D-033 – D-035 | live; nicknames (PR #62); vault `game-add 7` sent 3 Nov, apply Thu 5 – Sun 8 Nov; prizes from Mon 9 Nov | `main` |
 | 8 | Combo Card | Staked + Free board, **no free prize yet** (D-081) | D-060 | fix-check 4; needs the Picks v2 upgrade after Block X | `combo` @ `c8c652e` ✅ |
-| 9 | Producer Bracket | Staked + Free, 1-week seasons | D-019, D-057 | first audit requested 3 Nov (to try for 9 Nov: `game-add 9` by Fri 6 Nov noon PT) | `kg-09-bracket` @ `ee676ea` ✅ |
+| 9 | Producer Bracket | Staked + Free, 1-week seasons | D-019, D-057 | Repo Lens #E-3 (3 Nov): fix first; launches when ready, no 9 Nov target (D-088) | `kg-09-bracket` @ `ee676ea` ✅ |
 | 13 | Last Node Standing | Staked + Free, **free prize from the start** (D-081) | D-054, D-055 | round-3 review; needs 48 h of sampler data (I-059) | `lastnode` @ `adf95be` ✅ |
 
 Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Survivor, FantasyProducers, BlockGolf, ComboCard, ProducerBracket, LastNodeStanding). Ids 10–12 are unused. All unlaunched branches are pushed, not merged, and nothing from them is deployed ✅. Launch paths per game: `ROADMAP.md`. Readiness gaps: I-065.
@@ -89,7 +91,7 @@ Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Surv
 ## Wallets (public addresses only — never keys)
 | Role | Address | State | |
 |------|---------|-------|-|
-| Owner (game/vault, desk, Picks) | `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717` | to hand the vault and the Desk to a new **cold-key** owner this weekend (D-083, runbook PR #73); Picks and Race picks stay for now (I-076, I-077) | ✅ |
+| Owner (game/vault, desk, Picks) | `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717` | to hand the vault and the Desk to a new **cold-key** owner this weekend (D-083, runbook PR #73); Picks and Race picks the same weekend once their tools are built (D-096; I-076, I-077) | ✅ |
 | Desk treasury | same as owner | to move to a cold treasury, 48 h timelock (I-001) | ✅ |
 | Seed owner | `1K8VV1utXfomeXHeifrwgLpBjUG6Ldkw2Z` | dedicated wallet since 30 Oct — done | ✅ |
 | Operator (bot) | `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv` | rotated in 26 Oct; pays its own Mana, target 50 KOIN (D-046); balance unconfirmed (I-046); **GitHub-only** (D-084) | ✅ |
@@ -99,7 +101,7 @@ Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Surv
 | Cold treasury | ❓ | not created yet | |
 | Producer public keys | desk `AzCYCDLD…`, game `Ak0vGklN…` | — | ✅ |
 
-Procedure for moves: ~~`docs/WALLETS.md` is stale and unsafe as written~~ — **rewritten in PR #73** (Vault chat, 3 Nov; not merged): wallet inventory, on-chain rules, never-list, and the weekend runbook Fri 6 – Tue 10 Nov. Contract keys `CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF` have no power while the upload rules are on; `RACE_WIF` still does. All four belong in offline backup (💬 Vault).
+Procedure for moves: `docs/WALLETS.md` (rewritten in PR #73, merged 4 Nov): wallet inventory, on-chain rules, never-list, and the weekend runbook Fri 6 – Tue 10 Nov. Contract keys `CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF` have no power while the upload rules are on; `RACE_WIF` still does. All four belong in offline backup (💬 Vault).
 
 ## The owner's PC
 - **Folders:** `C:\kprediction` (main checkout; keys in `.env`; scheduled tasks — always check the branch first) · `C:\kprediction-vault` (worktree on `vault-v6`, frozen, D-025) · `C:\kg-combo-preview` (Combo) · `C:\kprediction-test` (testnet and audits) · `C:\kprediction-fantasy` (Fantasy practice only). 💬
@@ -108,7 +110,7 @@ Procedure for moves: ~~`docs/WALLETS.md` is stale and unsafe as written~~ — **
 
 ## Branches
 - `main`: the live site; changes only through PRs the owner merges (D-026). Scheduled workflows run only from here.
-- `picks`: was the development branch (Block X, Picks tooling, the admin page, the VHP sampler). `vault-v6` was merged into it on 2 Nov (I-019), and **all of `picks` reached `main` with PR #57 on 3 Nov** ✅ (`picks` has no commits that `main` lacks). The owner's folder should now run the tools from `main` (❓ owner to confirm).
+- `picks`: was the development branch (Block X, Picks tooling, the admin page, the VHP sampler). `vault-v6` was merged into it on 2 Nov (I-019), and **all of `picks` reached `main` with PR #57 on 3 Nov** ✅ (`picks` has no commits that `main` lacks). The owner's folder runs the tools from `main` ✅ (4 Nov).
 - Game branches: `survivor`, `fantasy`, `golf`, `kg-09-bracket`, `combo`, `lastnode`. Vault: `vault-v6` (frozen), `vault-v6-next` (backup).
 - Data branches: `race-data`, `games-data`, `blocks-data`, `names-data`, `testnet-data`, `bracket-history` (keep). `race-samples` (created by the sampler's first run, 3 Nov ✅). `prize-settings` (the free-prize switch, D-082) appears after its first send.
 

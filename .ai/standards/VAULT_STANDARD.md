@@ -58,7 +58,7 @@
  "skipped": [ … ]}             // optional: rounds left out
 ```
 - `rows`: staked players with ≥ 1 point, dense-ranked onto 255 … 1 (ties share; past 255 places the best 254 stay exact and the rest share 1). A week with no qualifying players may still get a file with empty rows.
-- **Every game fills `first` and `second`** with its free winners, even when its free prize is off. The owner's free-prize switch (D-082, `platform/FREE_PRIZE_SWITCH.md`) decides whether the bot posts them. ~~Staked-only games leave `first` and `second` empty~~ (D-071, superseded by D-081 / D-082).
+- **Every game fills `first` and `second`** with its free winners, even when its free prize is off. The owner's free-prize switch (D-082, `platform/FREE_PRIZE_SWITCH.md`) decides whether the bot posts them.
 
 **Every results file must:**
 - be published **only after the week ends**, and for staked rows only after the stakes are read once the week has ended;
@@ -73,7 +73,7 @@
 - the final file must not hinge on a single run with no hold (I-034);
 - the vault recomputes what it can from the chain, since `games-data` files can't prove their own days or stake lists (I-051);
 - the vault bot honours HOLD files, verifies that every staked board player is in the file, and alerts on a refused prize post (I-052, I-064).
-  - **Built in PR #74 (3 Nov, not merged; Repo Lens first):**
+  - **Built in PR #74 (merged 4 Nov after Repo Lens #D-4 GO):**
     - HOLD files (unreadable = held);
     - the results file is cross-checked against the game's `board.json` (`lastWeek` = the vault week; every staked wallet with points must be in the file; every file wallet on the board, in board order; a missing, unreadable or wrong-week board holds the week);
     - a refused post or seal is alerted, and that week stops without a seal and isn't retried blindly;
@@ -81,6 +81,11 @@
   - A manual `game-post` applies every check except the two-run wait.
   - **So every staked game must publish `board.json` next to its vault folder** (rows with `points` and a place), or set `vaultGames.<id>.board` (I-079).
   - Points themselves aren't recomputed in the bot yet (I-080).
+  - **After the Repo Lens #D-3 fixes (PR #74 @ `ec61bb4`, 4 Nov):**
+    - a HOLD file holds the week unless a `RELEASE-W<week>.json` sits next to it;
+    - per-game settings in `game-data/deployment.json` → `vaultGames.<id>`: `board: "none"` (skip the board check; Survivor for now), `minPts` (the file's points floor; Combo 100), `boardCap` (rows the board keeps; Bracket 1,000, Last Node 2,000);
+    - only a chain **revert** counts as a refusal (network, Mana and "not seen in a block" are retried next run);
+    - a failed finalize stops the finalize loop.
 
 ## 7. Timing
 - A game applied in week W earns from W + 1; results are posted for registered games only, for weeks they earn (`from_week <= w`) ✅.

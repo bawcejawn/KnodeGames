@@ -16,29 +16,43 @@ Free and staked prediction games on the Koinos blockchain, powered by our own bl
 2. **Handoff notes in the KnodeGames Claude project** (`claude/*.md`, e.g. `claude/handoff-sponsor-v6-day.md`) — detailed instructions chats leave for each other. Check them for anything about your game or task.
 3. **The repo's own `docs/`** — runbooks for the code (e.g. `docs/UPGRADE-V6.md`, `docs/blockx/MAINNET-LAUNCH.md`). If they disagree with `.ai/`, `.ai/` wins — log it.
 
+**One home per fact.** Each kind of fact is written in one file only; other files point to it instead of copying it:
+
+| Kind of fact | Its one home |
+|---|---|
+| What's live and working now | `platform/CURRENT_STATE.md` (and each game's file) |
+| What's in progress or blocked, by area | `platform/ACTIVE_WORK.md` (one line each, pointing to the work list) |
+| Work for a chat | `platform/CHAT_REQUESTS.md` (R-xxx) |
+| The owner's own steps | `platform/TODOS.md` |
+| What matters most, and why | `platform/PRIORITIES.md` |
+| Problems and open questions | `platform/OPENISSUES.md` (I-xxx) |
+| Decisions | `platform/DECISIONS.md` (D-xxx) |
+| Dates and each game's path to launch | `platform/ROADMAP.md` |
+| Finished or settled items | `archive/DONE.md`; closed issues `archive/ISSUES_CLOSED.md` |
+
 **When sources disagree:** the owner's own words → `DECISIONS.md` → what's verified in the code or on chain (✅) → the other `.ai/` files → the repo's `docs/` → chat notes and handoffs (D-002). Log a C-xx and fix the lower source.
 
 ## Branches and how work ships
 - **`main`** is the live site; the bot also commits game data there. **Never push code to `main` yourself.**
 - **Your work goes on a branch**: your game's branch (`survivor`, `fantasy`, `golf`, `kg-09-bracket`, `combo`, `lastnode`), or a new branch from `main` for site or docs fixes.
 - **To ship: open a pull request into `main`. Its tests must pass. The owner merges it** — that is the "explicit OK". Tell the owner what changed in plain words.
-- **Which branch the owner's folder is on:** it was normally **`picks`**. Since 3 Nov all of `picks` is in `main` (PR #57), and newer tools (the free-prize switch, `npm run prizes`) are only on `main`, so the owner's folder should now run from **`main`** (❓ owner to confirm). Always `git pull` first. If `git branch --show-current` prints something unexpected, stop and ask.
+- **Which branch the owner's folder is on:** **`main`** (since 3 Nov; it was `picks` before PR #57). Always `git pull` first. If `git branch --show-current` prints something unexpected, stop and ask.
 - **Tests:** `npm run test:audit` (built for Linux; many tests skip or fail on Windows by design). Site tests: `node --test tests/audit/site.*.test.mjs`.
 
 ## Reading order
 0. **Your work list:** your chat's section of **`platform/CHAT_REQUESTS.md`** (D-089). Every session starts there.
-1. **`platform/CURRENT_STATE.md`** — what's done, in progress, blocked and next, as of its date; then **`platform/PRIORITIES.md`** — what matters most. **`platform/ACTIVE_WORK.md`** splits the current work by area (platform, games, vault, leaderboards, rewards, swap desk).
+1. **`platform/CURRENT_STATE.md`** — what's live now and the dates to watch; **`platform/ACTIVE_WORK.md`** — what's in progress or blocked, by area; then **`platform/PRIORITIES.md`** — what matters most.
 2. **`platform/PLATFORM.md`** — the one-page picture: games, contracts, money, wallets, branches, who owns what.
 3. **`platform/DECISIONS.md`** — every decision (D-xxx). **This file wins** if anything disagrees.
 4. **`platform/TODOS.md`** and **`platform/OPENISSUES.md`** — what's happening now and what's broken or waiting.
 5. **`platform/DEPENDENCIES.md`** — how the vault, games, leaderboards, rewards, wallets and swap desk connect.
 6. **The game you're working on** — `games/<Game>.md`.
-7. **The standards that apply** — `standards/GAME_STANDARD.md` first, then `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`. How every chat starts and hands work back: `standards/AI_CHAT_STARTER.md`.
+7. **The standards that apply** — `standards/GAME_STANDARD.md` first, then `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`. How every chat starts and hands work back: `standards/AI_CHAT_STARTER.md`. Building or fixing a game's recorder: `standards/RECORDER_STANDARD.md`. Launching a game: `standards/GO_LIVE_CHECKLIST.md`.
 8. **Before any big decision:** `platform/FOUNDER_INTENT.md` (why this exists) and `platform/RULES.md` (what never changes casually).
 9. **Before touching prizes:** `platform/FREE_PRIZE_SWITCH.md` (free play vs free prizes vs staked prizes). **Before planning work:** `platform/TECHNICAL_DEBT.md` (risks and shortcuts) and `platform/DOCUMENTATION_GAPS.md` (what the library still lacks, with the action plan).
 10. **Only when needed:** `platform/ARCHITECTURE.md` (how things work in detail), `platform/KOINOS.md` (chain facts, testnet), `platform/ROADMAP.md` (plans), `platform/VISION.md` (why and brand).
 
-Don't read `archive/CHAT_KNOWLEDGE.md` to learn the project — it's an inbox of raw chat exports, already filed into the files above.
+Don't read `archive/` to learn the project: `CHAT_KNOWLEDGE.md` is an inbox of raw chat exports (already filed into the files above), `DONE.md` and `ISSUES_CLOSED.md` hold finished items, and dated folders (e.g. `2026-11-04/`) keep full copies of files from before a cleanup.
 
 ## Rules you must follow
 The full list — including what must never change casually — is in **`platform/RULES.md`**. The essentials:
@@ -46,7 +60,7 @@ The full list — including what must never change casually — is in **`platfor
 - **Never push to `main`, merge, deploy, upload a contract or change chain settings without the owner's explicit OK.**
 - **Every mainnet tool is a dry run unless you add `--send`.** Always show the owner the dry run first, then the send — one step at a time. The Picks tool (`npm run picks`) also needs `--mainnet` (and `CONFIRM_MAINNET=yes` in `.env`); the bot, desk and sponsor tools (`npm run bot | desk | sponsor`) need only `--send`.
 - **Check the node in the dry run.** If it says `api.koinos.io`, set `$env:RPC = "https://koinos.armana.io"` in that PowerShell window first (that node has been unreliable).
-- **Emergencies** (a bad send, a stuck game, a node down, a leaked key): send nothing more, tell the owner at once. Tools that exist: `npm run bot -- game-stop <id> --send` stops one game (players keep their stake); the vault's emergency path is in `standards/VAULT_STANDARD.md` §8 and `docs/UPGRADE-V6.md` ("If something goes wrong"). A full runbook is still to be written.
+- **Emergencies** (a bad send, a stuck game, a node down, a leaked key): send nothing more, tell the owner at once, and follow **`platform/RUNBOOK.md`**. Tools that exist: `npm run bot -- game-stop <id> --send` stops one game (players keep their stake); the vault's emergency path is in `standards/VAULT_STANDARD.md` §8 and `docs/UPGRADE-V6.md` ("If something goes wrong").
 - **Don't delete anything** (files, folders, branches) without firm confirmation that it's safe.
 - **Nothing is announced to players until it's built, audited and ready** (D-064).
 - **Never mention Chainge.** Vortex is the bridge.
@@ -60,7 +74,8 @@ The full list — including what must never change casually — is in **`platfor
 
 ## How to keep these docs current
 - Facts go in the right file; decisions get a new **D-xxx** in `DECISIONS.md` (never delete — mark old ones superseded).
-- Problems get an **I-xxx** in `OPENISSUES.md`; owner actions go in `TODOS.md`.
+- Problems get an **I-xxx** in `OPENISSUES.md`; chat work an **R-xxx** in `CHAT_REQUESTS.md`; owner actions go in `TODOS.md`. Write each fact once, in its one home (table above), and link to it elsewhere.
+- **When something is done or settled, move it out** of the work lists into `archive/DONE.md` (closed issues into `archive/ISSUES_CLOSED.md`), with the date. Don't leave struck-through lines behind.
 - If two sources disagree, log a **C-xx** contradiction in `DECISIONS.md` and follow the order above (D-002).
 - Mark what you know: ✅ verified in the repo · 💬 from a chat · 👤 owner said · ❓ unknown.
 - **Before a session ends**, follow `platform/SESSION_END_PROCESS.md`: write the five-part session-end report; the library chat files it.

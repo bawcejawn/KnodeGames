@@ -7,6 +7,8 @@
  *   npm run sponsor -- config [--per-tx 1] [--per-player-day 25] [--per-player-week 150] [--per-day 5000] [--free-per-day 2000] [--min-vhp 1] [--send]
  *                                                   set the caps (in Mana; 1 Mana = 1 KOIN of Mana) and the per-action
  *                                                   Mana limits (sponsor-data/mana-limits.json); keeps on/off as is
+ *   npm run sponsor -- config --vault off [caps]    guest-trap stopgap (4 Nov 2026): the vault switch stays OFF until the fixed
+ *                                                   sponsor build is uploaded (pass it on every config run until then)
  *   npm run sponsor -- mana-limit <game|desk|race|picks>:<action> <most used> --source <text> [--save]
  *                                                   add one action measured elsewhere (e.g. picks:pick 0.0477 --source testnet)
  *   npm run sponsor -- site-limits [--send]         step 1 of a limits change: give the website limits that fit both
@@ -390,7 +392,18 @@ async function setConfig(a: string[], send: boolean, enabledArg?: boolean) {
   if (hadPicks && !picks) throw new Error(`The sponsor pays for KnodeGames picks now, but ${PICKS_DEP} is missing here, so the new settings would drop them. Nothing was sent.`);
   // Audit SP-37: whether the game is already the vault (v6), read from the game on both nodes. Until it is, the sponsor
   // must not ask it for a stake in another game (v5 has no get_game_player, and that failed read aborts the sponsor).
-  const vaultLive = v3 ? await vaultLiveOn(rpc, game.contract, mainnet) : false;
+  // Guest trap (4 Nov 2026), stopgap: `--vault off` keeps the vault switch OFF although the game is Vault v6, so the
+  // sponsor never asks the vault's get_game_player (sponsor v3 b61ac238 traps on its answer for a wallet with no record
+  // in that game: every guest pick on Block X and the Race). Until the fixed sponsor build is uploaded, pass it on
+  // EVERY config run (without it config reads the vault as live and turns the switch back on). Costs while off: a stake
+  // only in a vault game (not the question game) counts as free play, and the vault's own calls (deposit_to,
+  // withdraw_from, move_stake, claim_game, finalize_game_week) are not sponsored; players pay those with their own Mana.
+  const vaultArg = flag(a, "--vault", "");
+  if (a.includes("--vault") && vaultArg !== "off") throw new Error('--vault takes one value: off (e.g. npm run sponsor -- config --vault off). Nothing was sent.');
+  const vaultOff = vaultArg === "off";
+  if (vaultOff && enabledArg !== undefined) throw new Error("--vault off goes with config only (not enable or disable). Nothing was sent.");
+  const vaultLive = v3 && !vaultOff ? await vaultLiveOn(rpc, game.contract, mainnet) : false;
+  if (vaultOff) log("  --vault off: the vault switch stays OFF (guest-trap stopgap): vault-only stakes count as free play, and the vault's own calls are not sponsored");
   const config: any = buildConfig(game, desk, caps, enabled, race, v3 ? picks : undefined, v3 ? limits.rows : [], picksCards, vaultLive);
   if (!v3 && (picks || limits.rows.length)) log(`  ⚠ the code on chain (${code.slice(0, 12)}…) is not sponsor v3: the KnodeGames picks row and per-action limits are left out (upload v3 first)`);
   const row = (label: string, was: string, now: string) => log(`  ${label.padEnd(28)} ${was === now ? now : `${was} → ${now}`}`);

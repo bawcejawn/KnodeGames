@@ -394,12 +394,14 @@
       else pickModal("info", "Sent, not seen on the chain yet", ["Your wallet sent it. It usually shows within a minute; this list updates by itself."], [okBtn("OK")]);
     } catch (e) {
       const m = String((e && e.message) || e);
-      const why = /locked/i.test(m) ? `That block is locked: picks close ${G.LEAD} blocks before it.`
-        : /not open yet/i.test(m) ? "That block isn't open yet."
-        : /used up/i.test(m) ? "Today's picks are used up (changes count). More after 00:00 UTC."
-        : /changed again/i.test(m) ? `That pick has been changed ${G.MAX_CHANGES === 1 ? "once" : `${G.MAX_CHANGES} times`} already: it can't be changed again.`
-        : /already your pick/i.test(m) ? "That is already your pick."
-        : /closed/i.test(m) ? "This game is switched off right now."
+      // The Picks contract's own messages (picks/assembly/Picks.ts) only: the Mana sponsor and the wallet use some of the
+      // same words ("used up", "closed"), and their reason is shown as they give it.
+      const why = /PICKS: this round is locked/i.test(m) ? `That block is locked: picks close ${G.LEAD} blocks before it.`
+        : /PICKS: this round is not open yet/i.test(m) ? "That block isn't open yet."
+        : /PICKS: today's picks for this game are used up/i.test(m) ? `Today's ${G.PICKS_PER_DAY} picks are used up (changes count). More after 00:00 UTC.`
+        : /PICKS: this pick can't be changed again/i.test(m) ? `That pick has been changed ${G.MAX_CHANGES === 1 ? "once" : `${G.MAX_CHANGES} times`} already: it can't be changed again.`
+        : /PICKS: that is already your pick/i.test(m) ? "That is already your pick."
+        : /PICKS: this game is closed/i.test(m) ? "This game is switched off right now."
         : /pending account resources|insufficient.*(rc|mana|resources)/i.test(m) ? "Your Mana is still held by your last pick. It frees up within a few minutes of each pick; try again in a minute."
         : /no test Mana yet/i.test(m) ? m
         : /reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."

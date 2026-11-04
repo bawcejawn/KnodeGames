@@ -49,7 +49,7 @@ import { pobAbi } from "./token-abi.ts";
 import { formatProduction, loadSigners, signerFromBlockItem, type SignedBlock } from "./production.ts";
 import { contractManaVerdict } from "./mana.ts";
 import { contractMetadata, checkMeta, sha256OfMeta, type Check } from "./chaincheck.ts";
-import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, type VaultCtx } from "./vault.ts";
+import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
 
 // ───────────────────────── settings ─────────────────────────
 
@@ -150,6 +150,8 @@ type BotState = {
   desk?: { settings: string; koin: string; koinOut: string; at: number };
   /** The vault's game list as last seen (v6): a change is reported once. */
   games?: string;
+  /** Other games' results (bot/vault.ts VaultMemo): when each results file was first read, refusals, alerts sent. */
+  vault?: VaultMemo;
 };
 const vhpKey = (q: any) => String(q.paramsHash ?? "").toLowerCase();
 /** Records the list the bot just sealed. */
@@ -191,6 +193,8 @@ export type Ctx = {
   problems: string[];
   /** Mana (units) this run's bot-paid transactions used, from their receipts. */
   manaUsed?: bigint;
+  /** The chain's reason for the last send that failed (sendOp), for the vault's refusal alerts. */
+  lastSendError?: string;
   quiet?: boolean;
   /** Real runs only: when the day's release time is this close (ms), wait for it instead of leaving it to the next
    *  run, so questions come out on the dot (the release run is started a few minutes early). */
@@ -277,15 +281,21 @@ async function sendOp(ctx: Ctx, what: string, calls: Call[], opts: { sponsored?:
   // Count what the bot wallet paid (a reverted transaction is paid too; one the contract paid for is not).
   if (!contractPaid && r.rcUsed) { try { ctx.manaUsed = (ctx.manaUsed ?? 0n) + BigInt(r.rcUsed); } catch { /* not a number: not counted */ } }
   if (r.ok) { if (!ctx.quiet) log(`  ✔ ${what}${r.rcUsed && r.rcUsed !== "0" ? `  (Mana ${showKoin(r.rcUsed)})` : ""}`); }
-  else { log(`  ✖ ${what}: ${r.error}`); ctx.problems.push(`A transaction failed: ${what} — ${String(r.error).slice(0, 200)}`); }
+  else { ctx.lastSendError = String(r.error ?? ""); log(`  ✖ ${what}: ${r.error}`); ctx.problems.push(`A transaction failed: ${what} — ${String(r.error).slice(0, 200)}`); }
   return r.ok;
 }
 
 /** The bot's context as the vault passes need it (bot/vault.ts). */
-const vaultCtx = (ctx: Ctx): VaultCtx => ({
+const vaultCtx = (ctx: Ctx, memo?: VaultMemo): VaultCtx => ({
   chain: ctx.chain, operator: ctx.operator, dryRun: ctx.dryRun, problems: ctx.problems, quiet: ctx.quiet,
-  deployment: readJson(ctx.P.deployment, null),
+  deployment: readJson(ctx.P.deployment, null), memo,
 });
+/** sendOp for the vault passes: also hands back the chain's reason when a send is refused (I-052). */
+const vaultSend = (ctx: Ctx) => async (what: string, calls: Call[]): Promise<SendResult> => {
+  ctx.lastSendError = undefined;
+  const ok = await sendOp(ctx, what, calls);
+  return ok ? true : { ok: false, error: ctx.lastSendError ?? "" };
+};
 
 // ═══════════════════════════════ the tick ═══════════════════════════════
 
@@ -338,8 +348,10 @@ export async function tick(ctx: Ctx) {
   if (!safe) await step("posting questions", () => postPass(ctx, bs));
   if (!safe) await step("closing / finalizing", () => closeFinalizePass(ctx));
   // v6: other games' results (posted once their week is final) and their weeks' finalization. Skipped on v5.
-  await step("other games' results", () => vaultResultsPass(vaultCtx(ctx), (what, calls) => sendOp(ctx, what, calls)));
-  if (!safe) await step("finalizing other games", () => vaultFinalizePass(vaultCtx(ctx), (what, calls) => sendOp(ctx, what, calls)));
+  // The memo is kept in bot-state.json only on a real run (a dry run never saves): checks that wait for a second run
+  // (a results file must be the same on two runs) then simply wait in a dry run.
+  await step("other games' results", () => vaultResultsPass(vaultCtx(ctx, (bs.vault ??= {})), vaultSend(ctx)));
+  if (!safe) await step("finalizing other games", () => vaultFinalizePass(vaultCtx(ctx), vaultSend(ctx)));
   // The alerts run before the settle pass (audit L-6): a week with a great many entries to settle must never delay an
   // alert about an announced upgrade or owner change. The settle pass also has its own time budget.
   await step("health check", () => healthPass(ctx, bs));
@@ -1640,7 +1652,7 @@ function gameChain(): KoinosChain {
 }
 
 /** Runs a vault pass (bot/vault.ts) by hand with one role's key: a dry run unless `sendIt`. */
-async function vaultCommand(role: string, sendIt: boolean, fn: (v: VaultCtx, send: (what: string, calls: Call[]) => Promise<boolean>) => Promise<void>) {
+async function vaultCommand(role: string, sendIt: boolean, fn: (v: VaultCtx, send: (what: string, calls: Call[]) => Promise<SendResult>) => Promise<void>) {
   const P = paths(E.GEN_DIR ?? "game-data");
   const dep = readJson(P.deployment, null);
   const chain = gameChain();
@@ -1657,7 +1669,7 @@ async function vaultCommand(role: string, sendIt: boolean, fn: (v: VaultCtx, sen
     const r = await chain.send(calls, [signer], { rcLimitKoin: 5 });
     log(r.ok ? `  ✔ ${what}  (Mana used ${showKoin(r.rcUsed)})  transaction ${r.txId}` : `  ✖ ${what}: ${r.error}`);
     if (!r.ok) process.exitCode = 1;
-    return r.ok;
+    return r.ok ? true : { ok: false, error: String(r.error ?? "") };
   });
   for (const pr of problems) log(`  ⚠ ${pr}`);
   if (!sendIt) log("\nDry run only — nothing was sent. Add --send to send it.");

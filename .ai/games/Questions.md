@@ -1,6 +1,6 @@
 # Daily Questions (game 1)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Swap Desk, Vault, Hub chats), `DECISIONS.md` (D-045, D-047, D-062, D-069), the repo. **Last updated:** 2026-11-03.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Questions, Swap Desk, Vault, Hub chats), `DECISIONS.md` (D-045, D-047, D-062, D-069), the repo. **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/Questions.md`.
 > **Legend:** ✅ verified in the repo or on chain · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -28,8 +28,11 @@ The original Knode game: five daily questions about what the Koinos chain will d
 - The owner's PC: the "Knode question release" task and `release-kick.mjs` as a backup starter. 💬
 - The Mana sponsor (answers row) and the read RPC (Armana). ✅
 
-## Current status (2 Nov)
-**Live.** Running on Vault v6 since 2 Nov. Week 2 closed Mon 2 Nov 12:02 UTC and finalizes Tue 3 Nov ~12:07. First v5-rule payout Tue 10 Nov ~12:07 UTC. ✅ / 💬
+## Current status (4 Nov)
+- **Live** on Vault v6 since 2 Nov. Week 2 finalized and paid 3 Nov. First v5-rule payout Tue 10 Nov ~12:07 UTC. ✅ / 💬
+- Guest **answers** work; guest picks in other games are blocked (I-083).
+- **Doubled Questions decided (D-092):** 10 a day Mon–Sat (rounds at 12:00 and 00:00 UTC), after the first paid weeks; needs a vault upgrade (cap 30 → 60 a week).
+- Work list: `../platform/CHAT_REQUESTS.md` → Daily Questions (R-Q-1); the vault part is R-VAULT-6.
 
 ## Known issues
 - **I-044:** the contract still pays Mana for other people's transactions (`max_sponsor_rc` = 2 KOIN ✅); ~317 KOIN went uncompounded by 28 Oct. Fix postponed by the owner.
@@ -37,8 +40,10 @@ The original Knode game: five daily questions about what the Koinos chain will d
 - **I-046:** the bot wallet's KOIN/Mana hasn't been confirmed (target 50 KOIN).
 - **I-048:** `npm run bot -- status` "last produced" reads a cached file.
 - **I-004:** the "+ Add another account" Kondor fix needs a real-extension retest.
+- **I-082:** the guest wallet shows "Free answers are used up" for any sponsor refusal, so players can see the wrong reason (R-HUB-4).
 
 ## Future plans
 - Players will see the week of 9 Nov as "Week 1" (D-063, I-069).
+- Doubled Questions (D-092): 60 a week, after the first paid weeks.
 - Optional: compound at a fixed time each day.
 - Block Golf will use this game as a hole, read straight from the contract on two nodes (D-056).

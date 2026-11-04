@@ -305,3 +305,16 @@ test("mana-report: a block range a node won't answer (error page) is split down 
   const dead = { async call() { throw new Error("invalid json response body"); } };
   await assert.rejects(readBlocks(dead, "0xhead", 1000, 4, noWait));
 });
+
+// Guest trap (4 Nov 2026) stopgap: `config --vault off` builds the settings with the vault switch off (no
+// game_has_vault), whatever the vault reads as; config with no flag still turns it on once the vault is live.
+test("guest-trap stopgap: --vault off leaves game_has_vault out; only 'off' is accepted, and only with config", () => {
+  const off = buildConfig(GAME, DESK, DEFAULT_CAPS, true, undefined, undefined, [], false, false);
+  assert.equal("game_has_vault" in off, false);
+  const on = buildConfig(GAME, DESK, DEFAULT_CAPS, true, undefined, undefined, [], false, true);
+  assert.equal(on.game_has_vault, true);
+  const src = fs.readFileSync(new URL("../../bot/sponsor.ts", import.meta.url), "utf8");
+  assert.match(src, /const vaultLive = v3 && !vaultOff \? await vaultLiveOn\(/);
+  assert.match(src, /--vault takes one value: off/);
+  assert.match(src, /--vault off goes with config only/);
+});

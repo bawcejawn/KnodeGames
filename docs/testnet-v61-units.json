@@ -1,0 +1,126 @@
+{
+  "run": "2026-11-04T21:22:14.863Z",
+  "rpc": "https://testnet.koinosfoundation.org",
+  "contract": "1CDcV2kCfMTTS4pS1x18Rzqsnvi1dw8jeW",
+  "build": "4fa5d2de9465e48c9fd35d36f6aa23798f0447730a29b03c12cf9eb0fee973b7",
+  "games": 13,
+  "calls": [
+    {
+      "key": "answerA1",
+      "rc": "5434136",
+      "compute": "750403",
+      "disk": "82",
+      "network": "308",
+      "tx": "0x1220797aab73c125013dc27d6c59687d62af5f0d9624b505468ee2fe30b186405cd0",
+      "note": "player A's answer no. 1 of week 0 (alone)"
+    },
+    {
+      "key": "answerA30",
+      "rc": "5589766",
+      "compute": "867899",
+      "disk": "6",
+      "network": "310",
+      "tx": "0x122002a27b36a685964853d5745496531d69bb383cc86645d18a61fdc620471d2f78",
+      "note": "player A's answer no. 30 of week 0 (alone)"
+    },
+    {
+      "key": "answerA60",
+      "rc": "6198130",
+      "compute": "969293",
+      "disk": "6",
+      "network": "310",
+      "tx": "0x12209423468ed796436840fb0040b755fb19be853d399772a871e32f4288e03a4d9c",
+      "note": "player A's answer no. 60 of week 0 (alone)"
+    },
+    {
+      "key": "answerB30",
+      "rc": "5501254",
+      "compute": "853147",
+      "disk": "6",
+      "network": "310",
+      "tx": "0x12206ce8aa3c755da81ffcc7790d30b9c36fa25bde7197ff352350bdc4f1d3314a2b",
+      "note": "player B's answer no. 30 of week 0 (alone)"
+    },
+    {
+      "key": "firstAnswerClose",
+      "rc": "14168280",
+      "compute": "2077491",
+      "disk": "188",
+      "network": "310",
+      "tx": "0x12203196da09140ffae2e26b0ea3ad7fbb4a487b28ec6ff9d899cfaab1993e31ef01",
+      "note": "C's first answer of week 1: also closes week 0 (13 games)"
+    },
+    {
+      "key": "firstAnswerSettle",
+      "rc": "5658686",
+      "compute": "787450",
+      "disk": "82",
+      "network": "310",
+      "tx": "0x122013d050f708433182124d2daed4c7d3a2e5beafa16b71a90879ba59c5cbcd89b1",
+      "note": "A's first answer of week 1 (week 0 already closed; no settle step under the shared rules)"
+    },
+    {
+      "key": "postResults4",
+      "rc": "13935774",
+      "compute": "1624598",
+      "disk": "515",
+      "network": "412",
+      "tx": "0x12208280ee77b031380f530ae979487a3696e7427aeac158673349d0c0d298792165",
+      "note": "posting game 1's results for 4 players"
+    },
+    {
+      "key": "seal",
+      "rc": "4492371",
+      "compute": "685924",
+      "disk": "9",
+      "network": "285",
+      "tx": "0x12208e23c611349cedb599e360b1a42da3c0ba0350dcc8e96c1bd603459026f3660b",
+      "note": "sealing game 1's week"
+    },
+    {
+      "key": "finalizeGame",
+      "rc": "4950503",
+      "compute": "676393",
+      "disk": "80",
+      "network": "285",
+      "tx": "0x12202063e0ec51e3826b4fc5f0c8cb3178e3e33321fbd3537dbcacf993921a5e3332",
+      "note": "finalize_game_week for game 1 (4 players)"
+    },
+    {
+      "key": "claimGame",
+      "rc": "14555255",
+      "compute": "2347448",
+      "disk": "18",
+      "network": "311",
+      "tx": "0x12209db3aca8a8f92baa437244830ffc3c9c753e5a9fc75fdbff7dd84b1e4d29a4b6",
+      "note": "A's claim_game for game 1"
+    },
+    {
+      "key": "post10",
+      "rc": "37102639",
+      "compute": "4768643",
+      "disk": "995",
+      "network": "1162",
+      "tx": "0x12206dbe351e090272cabd0985df5ba4a746cb67144180adbc80dc982c4bdb8dced0",
+      "note": "posting 10 questions in one transaction"
+    },
+    {
+      "key": "resolve10",
+      "rc": "33196912",
+      "compute": "4831093",
+      "disk": "428",
+      "network": "1010",
+      "tx": "0x122009cc7c9afe6f72082ec7948e22f7401f1b2e9f6a988c0ca71838ac881bdc12cb",
+      "note": "resolving 10 questions in one transaction"
+    },
+    {
+      "key": "upload",
+      "rc": "781048623",
+      "compute": "682319",
+      "disk": "88053",
+      "network": "126216",
+      "tx": "0x1220038c46ec08d98bc863e3e51bb24e074f383e31ff02c8cd2401db21fb570d0312",
+      "note": "uploading the 85.9 KB v6.1 contract"
+    }
+  ]
+}

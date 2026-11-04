@@ -31,9 +31,10 @@
 
 ## Watch list
 - **Thu 5 Nov 15:51 UTC (7:51 AM PT):** games 2 and 7 become applicable (reminder 9 AM PT). Apply before **Sun 8 Nov 4 PM PT**.
-- **Before Mon 9 Nov 00:00 UTC (Sun 4 PM PT):** PR #80 (Block X before prizes) merged after its round-14 fix-check.
+- **Fri 6 – Sat 7 Nov:** Vault v6.1 upload (after the announce and its fix-check), then `pause off` → 60 questions a week allowed from Mon 9 (D-114).
+- **Sun 8 Nov 23:48 UTC:** the first 00:00 Questions round's run: #119 and #122 merged before it.
 - **Fri 6 – Tue 10 Nov:** the wallet moves (`docs/WALLETS.md`).
 - **Mon 9 Nov 00:00 UTC:** the vault starts paying Questions, Race and Block X; players see this week as "Week 1" (D-063).
 - **Tue 10 Nov ~12:07 UTC:** first Questions payout under the v5 split; free players get 1 + 1 VHP for that week (D-069). First weekly review at 10 AM PT.
-- **Mon 16 Nov 12:00 UTC:** first vault close with other games in it; check status, buckets, free prizes, the switch and the fee. Survivor Season 1 starts the same day.
+- **Mon 16 Nov 12:00 UTC:** first vault close with other games in it; check status, buckets, free prizes, the switch and the fee. (Survivor Season 1 no longer starts that day: core first, D-113.)
 - **PR #50** stays closed and unmerged (owner, 3 Nov); its useful parts are to be rebuilt (I-072).

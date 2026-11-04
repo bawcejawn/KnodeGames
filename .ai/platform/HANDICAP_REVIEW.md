@@ -2,7 +2,7 @@
 
 > **Purpose:** how every game measures a producer's size (VHP or blocks), when it measures it, how it turns that into a handicap, what VHP changes do to it, and how it treats small producers. Then recommendations: what should become one standard and what should stay per game.
 > **Reviewed:** 2026-11-03/04, from the code on each game's branch (main for Race, Block X, Questions; `survivor`, `kg-09-bracket`, `lastnode`, `fantasy`, `combo`, `golf`). File and line references are in the review notes; the audit ids name where each weakness was found. Owner question, 3 Nov.
-> **Status:** analysis and recommendations only. Nothing here is decided until the owner records a D-xxx.
+> **Status:** owner decided 4 Nov: **one ruler** for every game, each game keeps its own formula, checks at random moments within a window (D-090); **lower Last Node's bar** (D-091). Still open: §6 questions 2 (luck trim/cap everywhere), 3 (the Race's known gaps for the first paid weeks) and 4 (Survivor).
 
 ## 1. The idea all games share
 A producer's chance of signing a block is its **effective VHP** ÷ the total of all producers' effective VHP. Received VHP counts after 20 blocks; removed VHP stops counting at once. Each game compares what a producer *actually* signs with what its size says it *should* sign, so small and large producers can compete. That ratio is the **handicap**.

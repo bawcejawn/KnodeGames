@@ -1,6 +1,6 @@
 # Knode Games — Current State
 
-> **Snapshot:** Tuesday 3 Nov 2026, ~20:00 UTC (12 PM PT). This file goes stale fast. Update it when something ships, and check the date before trusting it.
+> **Snapshot:** Wednesday 4 Nov 2026, ~03:00 UTC (Tue 7 PM PT). This file goes stale fast. Update it when something ships, and check the date before trusting it.
 > **Sources:** the repo and GitHub (branches, PRs, workflow runs checked 3 Nov), `DECISIONS.md`, `OPENISSUES.md`, `TODOS.md`. Detail lives there; this is the summary. By area: `ACTIVE_WORK.md`.
 
 ## Completed systems
@@ -33,7 +33,7 @@
 **Operations**
 - **Bot:** hourly, plus the 11:48 UTC release run. The release is on time at 12:00 UTC, and the bot recovers on its own from node hiccups.
 - **Free-prize switch (D-082):** merged 3 Nov (PR #65). It isn't in use yet: the `prize-settings` branch is created by the first ON/OFF send. Guide: `FREE_PRIZE_SWITCH.md`.
-- **VHP sampler** (`race-samples.yml`, every 5 min on paper): running since 3 Nov 15:58 UTC, and a manual run ~17:15 UTC was green. How often GitHub really runs it is still being watched (I-059).
+- **VHP sampler** (`race-samples.yml`): GitHub runs it only about hourly, so since 4 Nov (PR #67) each run takes up to 12 samples (~48 per 6-h card). Until then every Block X target was void (24/24 on 3 Nov) (I-059).
 - **Three mainnet nodes** on the owner's PC (desk, game/pool, personal): self-heal every 20 min, watchdog emails, question-release backup task.
 - **Two-node checks:** Armana plus `api.koinosblocks.com`, both answering (3 Nov).
 - **Weekly review:** every Tuesday 10 AM PT (`WEEKLY_REVIEW.md`), with a reminder at 9:45 AM PT. First review Tue 10 Nov.

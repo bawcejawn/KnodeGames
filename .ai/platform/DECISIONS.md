@@ -100,6 +100,9 @@
 | D-087 | 2026-11-03 | Bracket: same-block identical picks share the place; text fixed; commit-reveal maybe later | active |
 | D-088 | 2026-11-03 | Bracket launches when its fix-check passes; no 9 Nov target | active |
 | D-089 | 2026-11-03 | Work is handed to chats through `CHAT_REQUESTS.md` in the repo, not by separate chat messages | active |
+| D-090 | 2026-11-04 | One VHP ruler for every game; each game keeps its own scoring formula; checks at random moments within a window | active — design (R-ARCH-1) |
+| D-091 | 2026-11-04 | Lower Last Node Standing's entry bar | active — value to set by simulation (R-LN-4) |
+| D-092 | 2026-11-04 | Daily Questions twice a day: 10 a day Mon–Sat, rounds at 00:00 and 12:00 UTC, after the first paid weeks (needs a vault upgrade) | active — plan (R-Q-1, R-VAULT-6) |
 
 ---
 
@@ -530,6 +533,24 @@
 ## D-089 — Chats get their work from `CHAT_REQUESTS.md`
 - **Date:** 2026-11-03 (owner) · **Decision:** "the source of everything lives in GitHub, not in chats." Each chat's open work is listed in `.ai/platform/CHAT_REQUESTS.md`. The owner sends every chat the same short start message (§1 of that file). Chats report back with the session-end report, and the library chat keeps the file current. Rules that apply to every game go into the standards, not into messages.
 - **Private audit reports** stay in the Claude project, since the repo is public; the repo names findings by id only.
+
+## D-090 — One VHP ruler for every game
+- **Date:** 2026-11-04 (owner, after `HANDICAP_REVIEW.md`) · **Decision:** every game measures producer VHP **the same way**, with the method that is hardest to game, fair and accurate. **Each game keeps its own scoring system and formula** (§5.1 of the review). Checks are made **at random moments within a window**, so nobody can learn to time them.
+- **The ruler (recommended, to be designed in R-ARCH-1):** the VHP standard (D-058) extended:
+  - exact effective VHP rebuilt from VHP events on two nodes (every block counted, not samples);
+  - a producer's own handicap uses its **highest** VHP over a look-back long enough that hiding costs real rewards;
+  - **card credit** (VHP added after the measure gains nothing);
+  - averages for other producers and totals;
+  - a clamped production check (form);
+  - the measurement points drawn at random within the game's window from a future block's hash: unpredictable in advance, checkable by anyone afterwards.
+- **Race fix:** the ruler closes both Race gaps (`HANDICAP_REVIEW.md` §3): card credit closes in-leg additions; a longer highest-VHP look-back closes the > 6-h hide.
+
+## D-091 — Lower Last Node's entry bar
+- **Date:** 2026-11-04 (owner) · **Decision:** lower Last Node Standing's entry bar (today ≥ 20 expected blocks an hour, ~1.7% share, top 23), so smaller nodes can play. The new value is set by the Last Node chat from simulations with many small producers, using a luck trim, and approved by the owner (R-LN-4). Target: the platform bar of k ≥ 10 expected blocks in the game's scoring window (`HANDICAP_REVIEW.md` §5.2).
+
+## D-092 — Daily Questions twice a day
+- **Date:** 2026-11-04 (owner) · **Decision:** **10 questions a day, Mon–Sat** (60 a week), in two rounds: one opens at **12:00 UTC** (4 AM PT, as today), the second at **00:00 UTC** (4 PM PT) when the earlier round closes. It starts **after the first paid weeks** (9 and 16 Nov) have paid cleanly, likely the week of 23 or 30 Nov.
+- **Needs a vault upgrade:** the contract allows at most 30 questions a week (`MAX_QUESTIONS_PER_WEEK = 30`, `Kpred.ts` ✅), which 5 a day × 6 days already fills. Raising it means the vault upgrade path: audits, 48 h notice, announce on a weekend, upload on a Monday (D-017, D-023, D-024). Also to plan: the bot's release schedule (`RELEASE_HOUR`, `LOCK_HOUR`), the release backup task, scoring and weekly points, Mana per player, and the site.
 
 ---
 

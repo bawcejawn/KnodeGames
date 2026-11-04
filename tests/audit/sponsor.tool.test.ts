@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildConfig, setPayer, syncSiteLimits, DEFAULT_CAPS, SPONSOR_SHA256, SPONSOR_V3_CANDIDATE, allowedBuilds } from "../../bot/sponsor.ts";
+import { buildConfig, setPayer, syncSiteLimits, DEFAULT_CAPS, SPONSOR_SHA256, SPONSOR_V3_CANDIDATE, SPONSOR_V3_GUESTFIX, allowedBuilds, vaultOnProblem, uploadProblem, VAULT_SAFE_BUILDS } from "../../bot/sponsor.ts";
 import { summarize, suggest, merge, checkRows, siteMap, chainRows, key, transitionRows, siteFits } from "../../bot/mana-limits.ts";
 
 const GAME = { contract: "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr", vhp: "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq", koin: "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK" };
@@ -45,7 +45,9 @@ test("upload only accepts the audited build, and that is the build in the repo's
   const src = fs.readFileSync("bot/sponsor.ts", "utf8");
   // Mainnet takes the audited builds: v3 (Repo Lens round 6 "GO", 2026-10-30) and v2 as the rollback (SP-13).
   assert.match(src, /allowedBuilds\(mainnet\)/);
-  assert.deepEqual(allowedBuilds(true), [SPONSOR_V3_CANDIDATE, SPONSOR_SHA256]);
+  // Guest trap (4 Nov): the fixed v3 build first; v3 and v2 stay allowed as rollbacks.
+  assert.deepEqual(allowedBuilds(true), [SPONSOR_V3_GUESTFIX, SPONSOR_V3_CANDIDATE, SPONSOR_SHA256]);
+  assert.ok(allowedBuilds(false).includes(SPONSOR_V3_GUESTFIX));
   assert.ok(allowedBuilds(false).includes(SPONSOR_V3_CANDIDATE));
   assert.notEqual(SPONSOR_V3_CANDIDATE, SPONSOR_SHA256);
   assert.match(src, /call override is ON/);
@@ -316,5 +318,23 @@ test("guest-trap stopgap: --vault off leaves game_has_vault out; only 'off' is a
   const src = fs.readFileSync(new URL("../../bot/sponsor.ts", import.meta.url), "utf8");
   assert.match(src, /const vaultLive = v3 && !vaultOff \? await vaultLiveOn\(/);
   assert.match(src, /--vault takes one value: off/);
-  assert.match(src, /--vault off goes with config only/);
+  assert.match(src, /--vault off goes with config or enable/);
+});
+
+// Repo Lens SG-1 (4 Nov 2026): the vault switch goes on only over the fixed build, and the trapping build is never
+// uploaded while the switch is on.
+test("SG-1: config/enable refuse the vault switch over b61ac238; upload refuses b61ac238 while the switch is on", () => {
+  assert.deepEqual(VAULT_SAFE_BUILDS, [SPONSOR_V3_GUESTFIX]);
+  assert.match(vaultOnProblem(SPONSOR_V3_CANDIDATE, true) ?? "", /^Not sent: .* traps when the vault switch is on/);
+  assert.equal(vaultOnProblem(SPONSOR_V3_CANDIDATE, false), null, "--vault off over the old build is fine");
+  assert.equal(vaultOnProblem(SPONSOR_V3_GUESTFIX, true), null, "the fixed build may have it on");
+  assert.match(vaultOnProblem("", true) ?? "", /Not sent/, "no code or unknown code: refused");
+  assert.match(uploadProblem(SPONSOR_V3_CANDIDATE, true) ?? "", /^Not sent: the vault switch is ON/);
+  assert.equal(uploadProblem(SPONSOR_V3_CANDIDATE, false), null, "rollback with the switch off is fine");
+  assert.equal(uploadProblem(SPONSOR_V3_GUESTFIX, true), null);
+  assert.equal(uploadProblem(SPONSOR_SHA256, true), null, "v2 never reads the vault");
+  const src = fs.readFileSync(new URL("../../bot/sponsor.ts", import.meta.url), "utf8");
+  assert.match(src, /const vp = vaultOnProblem\(code, vaultLive\);\n  if \(vp\) throw new Error\(vp\);/);
+  assert.match(src, /const up = uploadProblem\(sha256hex\(wasm\), switchOn\);\n  if \(up\) throw new Error\(up\);/);
+  assert.match(src, /catch \{ switchOn = true; \}/, "an unreadable switch counts as on");
 });

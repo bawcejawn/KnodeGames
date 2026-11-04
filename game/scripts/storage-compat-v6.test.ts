@@ -36,8 +36,9 @@ const V6_FIELDS = new Set(["v6_rule_week_plus_one", "game_count", "fee_vhp", "ga
   "acc_seed_hi", "acc_seed_lo", "seed_part", "season_weeks", "prize_held",
   // v6.1: doubled Questions (the rule week; get_state's caps are worked out, never stored)
   "q60_rule_week_plus_one", "questions_cap", "questions_cap_next"]);
-/** Read-only values worked out on every read, so they never read as a default. */
-const COMPUTED = new Set(["questions_cap", "questions_cap_next"]);
+/** Read-only values worked out on every read (Repo Lens V61-B2: checked, not waived). Right after the upgrade, before
+ *  the first write sets the rule week: 30 this week, 60 next. */
+const COMPUTED: Record<string, number> = { questions_cap: 30, questions_cap_next: 60 };
 const isDefault = (v: any) => v === undefined || v === null || v === false || v === 0 || v === "0" || v === "";
 function sameAsBefore(before: any, after: any, where: string) {
   if (before === null || typeof before !== "object") { assert.deepEqual(after, before, where); return; }
@@ -46,7 +47,8 @@ function sameAsBefore(before: any, after: any, where: string) {
   for (const k of Object.keys(after)) {
     if (k in before) continue;
     assert.ok(V6_FIELDS.has(k), `${where}.${k}: a field v5 never returned (${JSON.stringify(after[k])})`);
-    if (!COMPUTED.has(k)) assert.ok(isDefault(after[k]), `${where}.${k} should read as its default, got ${JSON.stringify(after[k])}`);
+    if (k in COMPUTED) assert.equal(after[k], COMPUTED[k], `${where}.${k}`);
+    else assert.ok(isDefault(after[k]), `${where}.${k} should read as its default, got ${JSON.stringify(after[k])}`);
   }
 }
 const sum = (o: any, keys: string[]) => keys.reduce((n, k) => n + BigInt(o[k] ?? 0), 0n);

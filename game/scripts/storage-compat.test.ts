@@ -49,8 +49,9 @@ const NEW_FIELDS = new Set(["min_stake_next", "min_stake_next_week", "pending_ow
   "acc_seed_hi", "acc_seed_lo", "seed_part", "season_weeks", "prize_held",
   // v6.1: doubled Questions (the rule week; get_state's caps are worked out, never stored)
   "q60_rule_week_plus_one", "questions_cap", "questions_cap_next"]);
-/** Read-only values worked out on every read, so they never read as a default. */
-const COMPUTED = new Set(["questions_cap", "questions_cap_next"]);
+/** Read-only values worked out on every read (Repo Lens V61-B2: checked, not waived). Right after the upgrade, before
+ *  the first write sets the rule week: 30 this week, 60 next. */
+const COMPUTED: Record<string, number> = { questions_cap: 30, questions_cap_next: 60 };
 const isDefault = (v: any) => v === undefined || v === null || v === false || v === 0 || v === "0" || v === "";
 
 /** Every value in `before` must be in `after` unchanged; anything only in `after` must be a new field at its default
@@ -62,7 +63,8 @@ function sameAsBefore(before: any, after: any, where: string, allowed: Set<strin
   for (const k of Object.keys(after)) {
     if (k in before) continue;
     assert.ok(NEW_FIELDS.has(k), `${where}.${k}: a field the live code never returned (${JSON.stringify(after[k])})`);
-    if (!allowed.has(k) && !COMPUTED.has(k)) assert.ok(isDefault(after[k]), `${where}.${k} should read as its default, got ${JSON.stringify(after[k])}`);
+    if (k in COMPUTED) assert.equal(after[k], COMPUTED[k], `${where}.${k}`);
+    else if (!allowed.has(k)) assert.ok(isDefault(after[k]), `${where}.${k} should read as its default, got ${JSON.stringify(after[k])}`);
   }
 }
 
@@ -241,7 +243,7 @@ for (const point of POINTS) {
     assert.equal(await sim.uploadAuthorized(NEW, [addr(operator)]), false, "operator alone may not upload");
     assert.equal(await sim.uploadAuthorized(NEW, [addr(owner)], { call: true, tx: true, upload: false }), false, "a switch off is refused");
     assert.equal(await sim.uploadAuthorized(NEW, [addr(owner)]), true, "owner-authorized upload of the announced code");
-    sameAsBefore(before, { state: await sim.read("get_state", {}), week: await sim.read("get_week", { week: "0" }) }, "view", new Set(["scorer_rule_week_plus_one", "reward_rule_week_plus_one", "q60_rule_week_plus_one"]));
+    sameAsBefore(before, { state: await sim.read("get_state", {}), week: await sim.read("get_week", { week: "0" }) }, "view", new Set(["scorer_rule_week_plus_one", "reward_rule_week_plus_one"]));
 
     // the new code finishes the week
     if (point === "week ended, not closed") { await close(); await settle(players); }

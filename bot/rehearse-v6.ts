@@ -98,8 +98,9 @@ export async function transplant(sim: SimChain, snap: Snapshot) {
   sim.setHeight(snap.height, snap.time);
 }
 
-/** v6.1: values get_state works out on every read (never stored), so a newer build shows them where an older one didn't. */
-const COMPUTED_READS = new Set(["questions_cap", "questions_cap_next"]);
+/** v6.1: values get_state works out on every read (never stored), so a newer build shows them where an older one didn't:
+ *  right after the upgrade they must read 30 (this week) and 60 (next week). */
+const COMPUTED_READS: Record<string, number> = { questions_cap: 30, questions_cap_next: 60 };   // Repo Lens V61-B2: checked, not waived
 
 /** Differences between two snapshots (the time each was taken aside). */
 export function compareSnapshots(a: Snapshot, b: Snapshot, newFieldsOk = false): string[] {
@@ -109,7 +110,7 @@ export function compareSnapshots(a: Snapshot, b: Snapshot, newFieldsOk = false):
     if (x === null || typeof x !== "object") { if (JSON.stringify(x) !== JSON.stringify(y)) out.push(`${where}: ${JSON.stringify(x)} → ${JSON.stringify(y)}`); return; }
     if (y === null || typeof y !== "object") { out.push(`${where}: missing`); return; }
     for (const k of Object.keys(x)) walk(x[k], y[k], `${where}.${k}`);
-    for (const k of Object.keys(y)) if (!(k in x) && !(newFieldsOk && (isEmpty({ v: y[k] }) || COMPUTED_READS.has(k)))) out.push(`${where}.${k}: new value ${JSON.stringify(y[k])}`);
+    for (const k of Object.keys(y)) if (!(k in x) && !(newFieldsOk && (isEmpty({ v: y[k] }) || (k in COMPUTED_READS && y[k] === COMPUTED_READS[k])))) out.push(`${where}.${k}: new value ${JSON.stringify(y[k])}`);
   };
   for (const part of ["state", "weeks", "questions", "players"] as const) walk((a as any)[part], (b as any)[part], part);
   return out;

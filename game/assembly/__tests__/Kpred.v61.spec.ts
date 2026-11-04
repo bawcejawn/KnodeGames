@@ -3,13 +3,20 @@
  * upgrade lands in keeps 30. get_state shows this week's and next week's cap. MockVM. Run: npm test
  */
 import { Base58, MockVM, authority, chain, System, protocol } from "@koinos/sdk-as";
-import { Kpred, testSetInitV6Rule, testSetInitQ60Rule, testSetSafeMode } from "../Kpred";
+import { Kpred, testSetInitV6Rule, testSetInitQ60Rule, testSetSafeMode, testSetFinalizePage } from "../Kpred";
+import { Tokens } from "../Tokens";
 import { kpred } from "../proto/kpred";
 
 const CONTRACT = Base58.decode("1DQzuCcTKacbs9GGScRTU1Hc8BsyARTPqe");
 const OWNER = Base58.decode("1DQzuCcTKacbs9GGScRTU1Hc8BsyARTPqG");
 const OPERATOR = Base58.decode("1DQzuCcTKacbs9GGScRTU1Hc8BsyARTPqK");
 const SEED = Base58.decode("1DQzuCcTKacbs9GGScRTU1Hc8BsyARTPqP");
+const PA = Base58.decode("1PWeFG4pPtjZZoYvcmGb6mYhMYJjnkHrmz");
+const PB = Base58.decode("1HGh4rQvYYcm4fGiU1C7vQoSxnUiGa9Ah7");
+const PC = Base58.decode("12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq");
+const PD = Base58.decode("19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK");
+const PE = Base58.decode("159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv");
+const KOIN_TAG: u8 = 1, VHP_TAG: u8 = 2, MANA_TAG: u8 = 3;
 
 const VHP: u64 = 100_000_000;
 const GENESIS: u64 = 1000, WEEK: u64 = 1000;
@@ -121,5 +128,67 @@ describe("v6.1: up to 60 questions a week", () => {
     expect(st.questions_cap_next).toBe(30);
     postMany(k, 0, 30);
     oneTooMany(k, 0);
+  });
+
+  it("a full 60-question week: points above 30 count, the week closes, settles, finalizes one place per page, and claims never exceed the pot (Repo Lens V61-A4)", () => {
+    const k = setup(1);
+    const who: Uint8Array[] = [PA, PB, PC, PD, PE];
+    const right: u32[] = [60, 45, 31, 10, 59];
+    for (let p = 0; p < who.length; p++) {
+      Tokens.testSet(VHP_TAG, who[p], 1000 * VHP);
+      Tokens.testSet(MANA_TAG, who[p], 1000 * VHP);
+    }
+    Tokens.testSet(VHP_TAG, SEED, 5000 * VHP);
+    Tokens.testSet(MANA_TAG, CONTRACT, 1000 * VHP);
+    at(200);
+    for (let p = 0; p < who.length; p++) { as(who[p]); k.deposit_vhp(new kpred.deposit_vhp_arguments(who[p], 10 * VHP)); }
+    as(SEED);
+    k.seed_deposit_vhp(new kpred.seed_deposit_vhp_arguments(1000 * VHP));
+    Tokens.testSet(VHP_TAG, CONTRACT, Tokens.testGet(VHP_TAG, CONTRACT) + 40 * VHP);   // the week's block rewards
+    at(GENESIS + 100);
+    postMany(k, 0, 60);
+    at(GENESIS + 200);
+    for (let p = 0; p < who.length; p++) {
+      as(who[p]);
+      for (let i: u32 = 0; i < 60; i++) k.answer(new kpred.answer_arguments(who[p], i, i < right[p] ? 1 : 0));
+    }
+    at(GENESIS + 500);
+    as(OPERATOR);
+    for (let i: u32 = 0; i < 60; i++) k.resolve_question(new kpred.resolve_question_arguments(i, 1, new Uint8Array(32).fill(9)));
+    at(GENESIS + WEEK + CLOSE + 1);
+    MockVM.commitTransaction();
+    MockVM.setAuthorities([]);
+    k.close_week(new kpred.close_week_arguments(0));
+    expect(k.get_week(new kpred.get_week_arguments(0)).week!.closed).toBe(true);
+    for (let p = 0; p < who.length; p++) {
+      MockVM.commitTransaction();
+      expect(k.settle(new kpred.settle_arguments(who[p], 0)).points).toBe(right[p]);
+    }
+    expect(k.get_week(new kpred.get_week_arguments(0)).week!.max_points).toBe(60);
+    testSetFinalizePage(1);
+    at(k.get_week(new kpred.get_week_arguments(0)).week!.settle_end / MS + 2);
+    let pages = 0;
+    while (!k.get_week(new kpred.get_week_arguments(0)).week!.finalized && pages < 20) {
+      MockVM.commitTransaction();
+      k.finalize_week(new kpred.finalize_week_arguments(0));
+      pages++;
+    }
+    testSetFinalizePage(500);
+    const wk = k.get_week(new kpred.get_week_arguments(0)).week!;
+    expect(wk.finalized).toBe(true);
+    expect(pages >= 2).toBe(true);                                   // one place per page: two winners, two pages at least
+    expect(wk.cutoff).toBe(59);                                      // top 30% of 5 players = 2: A (60) and E (59)
+    expect(wk.winners).toBe(2);
+    let paid: u64 = 0;
+    for (let p = 0; p < who.length; p++) {
+      as(who[p]);
+      if (right[p] >= 59) {
+        const r = k.claim(new kpred.claim_arguments(who[p], 0)).reward;
+        expect(r > 0).toBe(true);
+        paid += r;
+      }
+    }
+    expect(paid <= wk.pot_a + wk.pot_b).toBe(true);
+    k.assertSolvent();
   });
 });

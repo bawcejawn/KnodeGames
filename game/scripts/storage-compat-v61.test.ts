@@ -31,7 +31,9 @@ const [contract, owner, operator, seedOwner, A, B, D] = ["contract", "owner", "o
 const addr = (s: Signer) => s.getAddress();
 
 const NEW_FIELDS = new Set(["q60_rule_week_plus_one", "questions_cap", "questions_cap_next"]);
-const COMPUTED = new Set(["questions_cap", "questions_cap_next"]);
+/** Read-only values worked out on every read (Repo Lens V61-B2: checked, not waived). Right after the upgrade, before
+ *  the first write sets the rule week: 30 this week, 60 next. */
+const COMPUTED: Record<string, number> = { questions_cap: 30, questions_cap_next: 60 };
 const isDefault = (v: any) => v === undefined || v === null || v === false || v === 0 || v === "0" || v === "";
 function sameAsBefore(before: any, after: any, where: string) {
   if (before === null || typeof before !== "object") { assert.deepEqual(after, before, where); return; }
@@ -40,7 +42,8 @@ function sameAsBefore(before: any, after: any, where: string) {
   for (const k of Object.keys(after)) {
     if (k in before) continue;
     assert.ok(NEW_FIELDS.has(k), `${where}.${k}: a field v6 never returned (${JSON.stringify(after[k])})`);
-    if (!COMPUTED.has(k)) assert.ok(isDefault(after[k]), `${where}.${k} should read as its default, got ${JSON.stringify(after[k])}`);
+    if (k in COMPUTED) assert.equal(after[k], COMPUTED[k], `${where}.${k}`);
+    else assert.ok(isDefault(after[k]), `${where}.${k} should read as its default, got ${JSON.stringify(after[k])}`);
   }
 }
 
@@ -152,4 +155,42 @@ test("v6.1 reads v6's stored data unchanged; the week it lands in keeps 30 quest
   await ok([["withdraw_from", { game: 2, to: addr(D), amount: String(30n * VHP) }]], [D]);
   const e = await sim.read("get_state", {});
   assert.equal(e.totals.total_stake ?? "0", "0", "every stake came out");
+});
+
+test("rollback (Repo Lens V61-A1): v6.1 → v6 → v6.1 again; a no-op owner call during the rollback keeps the running week at 30", { skip: (![V6, NEW].every((f) => fs.existsSync(f))) && `a build is missing: run npm run build:sim in game/` }, async () => {
+  /** Runs the rollback story; `noop` = the owner's set_paused(false) while v6 is live. Returns whether the 31st
+   *  question of the week the vault returns to v6.1 in was accepted. */
+  const story = async (noop: boolean) => {
+    const sim = new SimChain(addr(contract), V6);
+    await sim.init();
+    const at = (t: number) => sim.setHeight(H0 + Math.floor((t - T0) / 3000), t);
+    const send = (calls: any[], who: Signer[]) => sim.sendAs(calls.map(([method, args]) => ({ method, args })), who.map(addr));
+    const ok = async (calls: any[], who: Signer[]) => { const r = await send(calls, who); assert.ok(r.ok, `${calls.map((c) => c[0]).join(", ")}: ${r.error}`); return r; };
+    const postArgs = (lock: number) => {
+      const ws = sim.height + Math.ceil((lock - sim.time) / 2800) + 20;
+      return { k: 2, lock_time: String(lock), window_start: String(ws), window_end: String(ws + 1000), params_hash: "0x" + "ab".repeat(32) };
+    };
+    at(T0);
+    await ok([["init", { owner: addr(owner), operator: addr(operator), seed_owner: addr(seedOwner), genesis_time: String(GENESIS), week_length: String(WEEK),
+      close_delay: String(12 * HOUR), settle_length: String(DAY), timelock_length: String(2 * DAY), min_stake: String(VHP), max_sponsor_rc: String(2n * VHP) }]], [contract]);
+    // v6.1 arrives in week 0: its first write sets the rule week to week 1 (stored 2)
+    await sim.setCode(NEW);
+    at(GENESIS + 12 * HOUR);
+    await ok([["post_question", postArgs(GENESIS + DAY)]], [operator]);
+    assert.equal((await sim.read("get_state", {})).config.q60_rule_week_plus_one, "2");
+    // rolled back to v6 in week 1; the owner's no-op call rewrites the config with v6's encoding, dropping the rule week
+    await sim.setCode(V6);
+    at(GENESIS + WEEK + 12 * HOUR);
+    if (noop) await ok([["set_paused", { paused: false }]], [owner]);
+    // week 2: v6 posts 30 questions, then v6.1 is uploaded again mid-week
+    at(GENESIS + 2 * WEEK + 12 * HOUR);
+    for (let i = 0; i < 30; i++) await ok([["post_question", postArgs(GENESIS + 2 * WEEK + 2 * DAY)]], [operator]);
+    await sim.setCode(NEW);
+    at(GENESIS + 2 * WEEK + 13 * HOUR);
+    const r = await send([["post_question", postArgs(GENESIS + 2 * WEEK + 2 * DAY)]], [operator]);
+    return r.ok;
+  };
+  assert.equal(await story(true), false, "with the no-op owner call during the rollback, the 31st question of the running week is refused");
+  // Without it, the rule week survives the rollback and the running week's cap jumps to 60: the runbook rule exists for this.
+  assert.equal(await story(false), true, "without the no-op call the 31st is accepted (V61-A1): the runbook rule is needed");
 });

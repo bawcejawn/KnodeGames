@@ -1,0 +1,54 @@
+# On every push and pull request that touches the vault bot or the contract: build the sim contract, then run the vault
+# bot tests on it. Those tests SKIP (not fail) when game/build/sim/contract.wasm is missing, so this job fails if any test
+# was skipped: a green run must mean every vault check really ran (Repo Lens #D-4, R-VAULT-7).
+name: Vault bot tests
+
+on:
+  push:
+    paths: ["bot/vault*.ts", "bot/bot.ts", "bot/chain*.ts", "game/**", "game-data/deployment.json", "package.json", "package-lock.json", ".github/workflows/vault-bot-test.yml"]
+  pull_request:
+    paths: ["bot/vault*.ts", "bot/bot.ts", "bot/chain*.ts", "game/**", "game-data/deployment.json", "package.json", "package-lock.json", ".github/workflows/vault-bot-test.yml"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      # Exactly the lockfiles, with no package install scripts.
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+        working-directory: game
+      - name: Build the sim contract
+        working-directory: game
+        run: |
+          set -o pipefail
+          # protoc's plugin sometimes fails with EAGAIN while it is installing. That is not a test failure.
+          for attempt in 1 2 3 4 5; do
+            if npm run build:sim 2>&1 | tee build.log; then break; fi
+            if ! grep -q EAGAIN build.log || [ "$attempt" = 5 ]; then exit 1; fi
+            echo "Build tool hit EAGAIN (attempt $attempt); retrying."
+            sleep 5
+          done
+          test -s build/sim/contract.wasm || { echo "::error::build/sim/contract.wasm was not built"; exit 1; }
+      - name: Vault bot tests (none may be skipped)
+        run: |
+          set -o pipefail
+          node --import tsx --test --test-reporter=tap \
+            bot/vault.test.ts bot/vault-fuzz.test.ts bot/chain-keyorder.test.ts \
+            game/scripts/storage-compat.test.ts game/scripts/storage-compat-v6.test.ts 2>&1 | tee vault-test.log
+          skipped=$(sed -n 's/^# skipped \([0-9][0-9]*\)$/\1/p' vault-test.log | tail -1)
+          if [ -z "$skipped" ]; then echo "::error::no test summary found"; exit 1; fi
+          if [ "$skipped" != "0" ]; then
+            grep -E "# SKIP" vault-test.log | head -20 | while IFS= read -r l; do echo "::error::skipped: $l"; done
+            exit 1
+          fi

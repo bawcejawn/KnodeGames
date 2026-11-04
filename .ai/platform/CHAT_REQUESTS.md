@@ -32,7 +32,13 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-VAULT-2 | **PR #74 — Repo Lens #D-3 (3 Nov): fix first.** Report (private): `claude/audit-vault-bot-checks-D3-report.md`. Fix on `vault-bot-checks`, one finding per commit, each with a test that fails on `eaa47b0` and passes after: **VB-2** (High) `vaultFinalizePass` treats `{ok:false}` as success → `if (!sent(await send(...)).ok \|\| ctx.dryRun) break;`, and route every `Send` through `sent()`; **VB-3** (Medium) record a refusal only for a chain revert (`reverted:`), retry network / Mana / "not seen in a block" next run; **VB-4** (High) optional `vaultGames.<id>.board: "none"` that skips the staked-list check (logged), set for game 3 (Survivor) unless Survivor publishes a board (R-SV-3); **VB-5** (Medium) optional `vaultGames.<id>.minPts`, 100 for game 8 (Combo); **VB-1** (High, before Last Node launches) a `HOLD-W<n>.json` holds unless `RELEASE-W<n>.json` exists; read `why` as well as `reason`; Lows if quick: VB-10 (alert when a file is first seen with < 2 h left), VB-8 (read only `ranked: true` rows), VB-6 (skip rows past the board's cap or ask games to keep every ≥ 1-point row), VB-7 (use max(min, 1 VHP)) | I-051, I-052, I-064 | fixes pushed → Repo Lens fix-check GO → owner merges **by Fri 13 Nov** (VB-2 and VB-3 are enough for Race and Block X on 16 Nov) | fixes pushed 4 Nov (`ec61bb4`: VB-1 – VB-8, VB-10 – VB-12; 11 new tests fail on `eaa47b0`, pass now; bot 72/72, audit 700/0) → **Repo Lens fix-check** (prompt `claude/audit-vault-bot-checks-fixcheck-prompt.md`) → merge by Fri 13 Nov |
 | R-VAULT-3 | `tools/sweep-old-bot.ts`: honour `$env:RPC`, default to Armana | I-078 | before the Sat 7 Nov sweep | done 4 Nov (in PR #73; test `tools.sweep-rpc`) |
 | R-VAULT-5 | **Check `platform/RUNBOOK.md`** (new, 3 Nov): confirm or correct every vault, Desk, sponsor and key step, especially those marked ❓ (§6 manual tick without an operator key, §7 hostile owner announcement and sponsor key, §9 withdrawals-only build). Edit it in your PR | DOCUMENTATION_GAPS #2 | runbook confirmed | open |
+| R-VAULT-6 | **Vault upgrade for doubled Questions (D-092):** raise `MAX_QUESTIONS_PER_WEEK` from 30 to 60, plus anything the Questions plan (R-Q-1) needs on chain. Full upgrade path: audit, rehearsal, 48 h notice, weekend announce, Monday upload. Target after the first paid weeks (week of 23 or 30 Nov) | D-092, D-017, D-023 | plan, then build | open |
 | R-VAULT-4 | Plan: recompute each game's points from on-chain picks in the bot | I-080 | a plan | plan written 4 Nov (`claude/vault/RECOMPUTE-PLAN.md`); build after 16 Nov |
+
+### Daily Questions
+| Id | Request | Link | Done when | Status |
+|---|---|---|---|---|
+| R-Q-1 | **Plan doubled Questions (D-092):** 10 a day Mon–Sat, rounds at 12:00 and 00:00 UTC, the second opening when the first closes; starting after the first paid weeks. Plan: bot release/lock schedule, the release backup task, scoring and weekly points, question supply, Mana per player, site text. The contract cap (30 a week) is the Vault chat's part (R-VAULT-6) | D-092 | plan → owner OK | open |
 
 ### Block X (and Picks)
 | Id | Request | Link | Done when | Status |
@@ -49,7 +55,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-RACE-2 | A short recommendation on free-prize farming by many empty wallets (owner decides) | I-035 | recommendation sent | open |
 | R-RACE-3 | Plan (don't build yet) a safe Race picks owner change: dry run, address entered twice, read-back; whether a two-step handover is possible in a future upgrade; how `RACE_WIF` can stay offline | I-077, D-083 | a plan with tests | open |
 | R-RACE-4 | New free-prize wording on the Leaders page once game 7 is applied (today: "paid once the vault is live") | `games.json` | PR | open |
-| R-RACE-5 | Move onto the VHP standard | D-058 | PR | open (later) |
+| R-RACE-5 | **Move onto the one VHP ruler (D-090)**, first the two known gaps: card credit (VHP added after a card gains nothing) and a longer highest-VHP look-back (the > 6-h hide). Coordinate with R-ARCH-1 | D-058, D-090, `HANDICAP_REVIEW.md` | PR + Repo Lens | open (raised: the Race pays from 9 Nov) |
 
 ### Producer Bracket
 | Id | Request | Link | Done when | Status |
@@ -73,6 +79,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-LN-1 | Add the Free play board **with** the 2 + 1 weekly prize. Decide the free-winner rule with the owner (proposal: `claude/lastnode/FREE-PLAY-PROPOSAL.md`), working with HOLD files | D-081 | rule decided; built | open |
 | R-LN-2 | Check whether an hourly sampler (I-059) changes the 48 h readiness and the round-3 review | I-059, I-058 | answer | open |
 | R-LN-3 | **Vault check (PR #74 VB-1):** when a held week is released (`LASTNODE_RELEASE_WEEKS`), publish `RELEASE-W<week>.json` next to the `HOLD-W` file (the publish job only adds files, so HOLD stays). Name the reason field `reason` (the bot reads `reason`; you write `why`). Keep every row with ≥ 1 point in `lastWeek` (VB-6) | I-064 | built + tested before launch | open — **without the RELEASE marker a released week stays held** (PR #74 now requires it) |
+| R-LN-4 | **Lower the entry bar (D-091):** today ≥ 20 expected blocks an hour (~1.7% share, top 23). Simulate a field with many small producers, propose a new bar (target: k ≥ 10 expected blocks in your scoring window) with a luck trim, and show the owner the results | D-091, `HANDICAP_REVIEW.md` §5.2 | owner approves the value; built | open |
 
 ### Fantasy Producers
 | Id | Request | Link | Done when | Status |
@@ -105,7 +112,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 ### Architecture (start a new chat with `AI_CHAT_STARTER.md` §3.5)
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
-| R-ARCH-1 | **Shared game kit:** design one recorder and publish-check library every game uses: clock checks on new history, per-file holds, points recomputed in the publish job, board shape for the vault check, size caps. Today each game re-learns Block X's lessons (Bracket #E-3 H-2, H-3, M-3) | `HEALTHCHECK.md` §2 #3, #4 | design + migration plan, owner decides | open |
+| R-ARCH-1 | **Shared game kit and the one VHP ruler (D-090):** design (1) the ruler: exact event-based effective VHP on two nodes, own handicap = highest VHP over a look-back long enough that hiding is costly, card credit, averages for others, a clamped form check, and **measurement points drawn at random within each game's window from a future block hash**; how it replaces the sampler; and how each game plugs its own formula into it. Start with the Race fix (`HANDICAP_REVIEW.md` §3). (2) One recorder and publish-check library every game uses: clock checks on new history, per-file holds, points recomputed in the publish job, board shape for the vault check, size caps. Today each game re-learns Block X's lessons (Bracket #E-3 H-2, H-3, M-3) | `HEALTHCHECK.md` §2 #3, #4 | design + migration plan, owner decides | open |
 
 ### Library (this chat)
 | Id | Request | Link | Done when | Status |

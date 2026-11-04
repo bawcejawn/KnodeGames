@@ -459,7 +459,8 @@ export async function vaultFinalizePass(ctx: VaultCtx, send: Send) {
           : k.time >= k.resultsDue(w));
         if (!ready) break;
         const what = gw.sealed && !gw.voided ? "find the winners" : "no results: roll the week over";
-        if (!(await send(`${g.name ?? `game ${id}`} week ${w}: finalize (${what})`, [{ method: "finalize_game_week", args: { game: id, week: String(w) } }])) || ctx.dryRun) break;
+        // Repo Lens VB-2: a send's result is an object on failure ({ ok: false }), so it must go through sent().
+        if (!sent(await send(`${g.name ?? `game ${id}`} week ${w}: finalize (${what})`, [{ method: "finalize_game_week", args: { game: id, week: String(w) } }])).ok || ctx.dryRun) break;
       }
     }
   }

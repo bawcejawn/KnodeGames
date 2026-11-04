@@ -396,3 +396,13 @@ test("orderBreak, boardSpec, boardScore, hashOf and readSpec (missing ≠ unread
   assert.equal(readSpec("bad/branch:x.json").state, "error", "a malformed spec is an error, not missing");
   assert.equal(readSpec("games-data:../x.json").state, "error");
 });
+
+// ═══════════════ Repo Lens #D-3 fixes ═══════════════
+test("VB-2: a failed finalize stops that week's finalize loop (one try per week per run, not 20)", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim, at } = await weekOneClosed();
+  await vaultResultsPass(fctx(sim, allFiles(), {}), sendAs(sim, operator, []), { game: 2, week: 1 });
+  at(sim.time + 24 * HOUR + 1);
+  let tries = 0;
+  await vaultFinalizePass(fctx(sim, {}), async (what) => { if (what.startsWith("Fantasy")) tries++; return { ok: false, error: "reverted: test" }; });
+  assert.equal(tries, 1);
+});

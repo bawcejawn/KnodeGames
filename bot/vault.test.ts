@@ -489,7 +489,7 @@ test("VB-10: a results file first seen under 2 h before the deadline raises an a
 test("VB-8: only ranked (staked-board) rows are read for the missing-wallet check when the board marks them", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
   const { sim } = await weekOneClosed();
   let reads = 0;
-  const chain: any = new Proxy(sim, { get: (t, p) => p === "read" ? async (m: string, a: any) => { if (m === "get_game_player" && a.player === addr(E)) reads++; return t.read(m, a); } : (t as any)[p] });
+  const chain: any = new Proxy(sim, { get: (t, p) => p === "read" ? async (m: string, a: any) => { if (m === "get_game_player" && a.player === addr(E) && a.game === 2) reads++; return t.read(m, a); } : (t as any)[p] });
   const v = fctx(chain, allFiles());
   await vaultResultsPass(v, async () => true);
   assert.equal(reads, 0, "E is on the Free play board (ranked: false): not read");

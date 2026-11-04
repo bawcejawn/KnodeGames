@@ -104,7 +104,7 @@ Node scripts present (✅): `node/repair-node-data.ps1` (general repair), `node/
 
 ### Data
 - On-chain state: {{TBD}}
-- Scheduled workflows run only from `main`. ~~`race-samples.yml` (on `picks`) isn't running~~ — it reached `main` with PR #57 and runs since 3 Nov 15:58 UTC ✅. GitHub may run its 5-minute schedule only about hourly (I-059). 💬 Last Node
+- Scheduled workflows run only from `main`. `race-samples.yml` runs from `main` since 3 Nov 15:58 UTC ✅. GitHub runs its 5-minute schedule only about hourly, so each run takes up to 12 samples, ≥ 4 min apart (PR #67). 💬 Last Node
 - Off-chain: `game-data/`, `desk-data/` (has `v1UploadTx` ✅), `sponsor-data/`, `race-data/`, `picks-data/`, `games.json` — ✅
 - Vault results: `W${week}.json` (unpadded) from each game's `vaultGames` source — ✅ sources on `main`; naming 💬. Branch `games-data` holds folders blockx, survivor, fantasy, combo, bracket, lastnode, golf — 💬
 - Race: `race.yml` holds back a vault `W<week>.json` that fails `vault_ok`, with a warning; a final vault file can never change — 💬
@@ -165,9 +165,9 @@ Mana cost per call = ticks × compute price + disk bytes × disk price + network
   - `stake-testnet.html`: public, noindex; `stake-testnet-wallet.js` signs only the 4 vault player calls on the test vault plus an approve right before `deposit_to`; refuses mainnet; signed operations must equal the built ones; Mana capped at 0.5 per transaction.
   - `race.html`: `#stake-badge` at the top of `<main>` (✅), `#stake` panel lower; the Games page links to `race.html#stake`, so that id must stay.
 - Admin page: `admin/actions.ts`, `admin/server.ts`, `admin/index.html` (PR #43 ✅ merged into `picks`); mainnet "Knode Vault (v6)" buttons match the bot's commands. — 💬
-  - Start on the owner's PC: in `C:\kprediction`, `git checkout picks`, `git pull`, `npm ci`, `npm run admin`; opens a local link with a one-time key. Docs: `docs/ADMIN.md` (on `picks` ✅).
+  - Start on the owner's PC: in `C:\kprediction` on `main`: `git pull`, `npm ci`, `npm run admin`; opens a local link with a one-time key. Docs: `docs/ADMIN.md` (its start steps still say `git checkout picks`: stale, R-HUB-8).
   - Tools: bot, desk, sponsor, picks, racepicks, names. Vault area: Sunday upgrade steps (status, apply, clear); Add a game (with season field); post / seal / finalize; correct / unprize / void; collect the 5% VHP fee. Also Wallet names, and "Vault v6 trial (local node)" (`--testnet` reaches only the local Harbinger node).
-  - ~~The vault buttons answer "Unknown command" until `vault-v6` is merged into `picks` (I-019)~~ — merged 2 Nov (I-019 closed); `picks` reached `main` with PR #57. Since 3 Nov the Vault area also has **Free prizes: list / ON / OFF** (D-082).
+  - The Vault area's buttons work on `main`. Since 3 Nov it also has **Free prizes: list / ON / OFF** (D-082).
 
 ### Publish checks (`games.yml`, `games-testnet.yml`, `race.yml`, `race-samples.yml`) — 💬 Block X
 Recorders are JavaScript writing `JSON.stringify(x)+"\n"`; publish checks are Python. Every publish job:
@@ -177,7 +177,7 @@ Recorders are JavaScript writing `JSON.stringify(x)+"\n"`; publish checks are Py
 4. `setup-node` 22, SHA-pinned.
 - **Append-only history:** a published card never changes (BX-44); index weeks are append-only, a new week only for cw−1..cw (race: cw−1..cw+1); W targets only for the current or just-ended week, never after P is published; height = round × 2400 + 0, its time ≤ now and inside the week. A run that rewrites history is held whole.
 - **`race.yml` record job:** `git ls-remote --exit-code refs/heads/race-data` (exit 2 = first run; any other error stops); `ls-tree -r -z` into a file, then a `read -d ''` loop; fetches W / index / board / `vault/`, plus `race-samples`.
-- **`race.ts`:** samples and cards take the lower of the two nodes' reads; `topInDoubt` re-runs the floor with 0.5% tolerance; supply cap, clock check (BX-89), early check-head (BX-114), lag bound (BX-101). Boards rank by vault stake (`stakedOf`); the old "holds 1 VHP" read (`rawRead`) was removed. ~~`readStaked` still loads `GAME_ABI` = v5 … so stake reads throw "still v5" (I-033)~~ — fixed: `game/abi/kpred.koilib.json` on `main` is the v6 interface (has `get_game_player`) ✅ 3 Nov (TD-06).
+- **`race.ts`:** samples and cards take the lower of the two nodes' reads; `topInDoubt` re-runs the floor with 0.5% tolerance; supply cap, clock check (BX-89), early check-head (BX-114), lag bound (BX-101). Boards rank by vault stake (`stakedOf`); the old "holds 1 VHP" read (`rawRead`) was removed. `readStaked` uses `game/abi/kpred.koilib.json`, the v6 interface (has `get_game_player`) ✅ (fixed 3 Nov, TD-06).
 
 - **`games.yml` gates and limits** (💬 Survivor): the whole workflow stays off until `GAMES_ENABLED=true`. Job limit 45 min; Block X step 25 min; Survivor step 15 min, run only `if: !cancelled() && steps.prev.outcome == 'success'` (so a Block X publish failure also stops Survivor). A failed recorder's files are left out; a single failing file is dropped on its own (exit 3); files over 2 MB are dropped with an alert; published vault files aren't checked again. For Survivor, Python replays every season (play, rank, prizes, `week_rows`) to mirror the JS and refuses any other result; everything is checked against the job's own clock (`CHECK_NOW_MS`) with 1 h slack; a vault file whose stakes were read late is held; the index's season list is append-only.
 

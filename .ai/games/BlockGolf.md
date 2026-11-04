@@ -1,6 +1,6 @@
 # Block Golf (game 6)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Block Golf chat), `DECISIONS.md` (D-056), the repo (branch `golf`). **Last updated:** 2026-11-03.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Block Golf chat), `DECISIONS.md` (D-056), the repo (branch `golf`). **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/BlockGolf.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -20,21 +20,24 @@ A platform-wide "course": every other live game is a par-4 hole, and how well yo
 - **Finality:** final 12 h after the week once every hole is final and the run had no read problem; a hole not final by 60 h is skipped; from 66 h a read problem no longer blocks; staked holes only after stakes are read post-week; final weeks are frozen. 💬
 
 ## Rewards
-- **Staked:** only players staked in Block Golf that week count for the staked prize. 👤 ~~Staked only for now (D-071)~~ — superseded: Golf also has a Free play board, no free prize yet (D-081; update below). Share of Golf's part of the vault's weekly reward. 💬
+- **Staked:** only players staked in Block Golf that week count for the staked prize; they share Golf's part of the vault's weekly reward. 👤 / 💬
+- **Free play:** a Free play board for **standings only — no free VHP prize** until the owner switches it on (D-081, D-082; was staked-only, D-071). The page must say so. 👤
 - **Practice weeks** have no prizes. 💬
 
 ## Dependencies
 - Other games' published results: Questions (contract, two nodes), Race (`race-data` board), Block X (`games-data` board). Survivor and Bracket readers were removed after the audit; later games each add a reader. 💬
-- **Block X live** (practice starts with it). 💬
-- Vault v6 merged into the `golf` branch → register game 6 (48 h) → `GOLF_STAKED_FROM_WEEK`; results `games-data:golf/vault/W<n>.json` ✅ `vaultGames`.
+- **Block X** (practice starts with it): live since 3 Nov ✅. Whether practice also waits for the sampler: ❓ (R-GO-2).
+- `main` (with Vault v6) merged into the `golf` branch → register game 6 (48 h) → `GOLF_STAKED_FROM_WEEK`; results `games-data:golf/vault/W<n>.json` ✅ `vaultGames`.
 - `golf.yml` (hourly at :57, off until `GOLF_ENABLED=true`), `bot/games/golf.ts`, `golf-math.js` (integer math). 💬
 - The move of all pages to the site root before merging (`claude/site-at-root.md`). 💬
 
-## Current status (2 Nov)
-Branch `golf` @ `6b2200a` ✅ — pushed, **not merged, nothing deployed**; `games.json` "soon" ✅. Audit trail all fixed (first audit 5 High / 4 Medium / 5 Low, then fix-checks). Tests: 481 (471 pass, 0 fail). Owner checklist items left: t28 (review the "Block Golf Preview" artifact), t30 (turn on practice). No testnet run by design — practice weeks on mainnet are the trial.
+## Current status (4 Nov)
+- Branch `golf` @ `6b2200a` ✅ — pushed, **not merged, nothing deployed**; behind `main`; `games.json` "soon" ✅. Audit trail all fixed (first audit 5 High / 4 Medium / 5 Low, then fix-checks). Tests: 481 (471 pass, 0 fail).
+- No testnet run by design: practice weeks on mainnet are the trial. Owner checklist items left: t28 (review the "Block Golf Preview" artifact), t30 (turn on practice).
+- No Free play board yet (D-081).
+- Work list: `../platform/CHAT_REQUESTS.md` → Block Golf (R-GO-1 – R-GO-3).
 
 ## Known issues (I-060)
-- Blocked on Block X going live.
 - Every game branch must move to the site root before merging.
 - Early practice fields will be tiny (3 holes leave 2 after the mulligan).
 - `MIN_FIELD = 5` and `MIN_FIELD_VHP = 10` need revisiting with real stake data.
@@ -43,7 +46,4 @@ Branch `golf` @ `6b2200a` ✅ — pushed, **not merged, nothing deployed**; `gam
 - Accepted residual: extra wallets with real stake that score low nudge everyone above them up a little.
 
 ## Future plans
-Practice: ~~after `picks` merges~~ (merged 3 Nov), move Golf files to the root, run the full suite, merge, set `games.json` live, add to the nav, `GOLF_ENABLED=true`. Staked: register game 6 and set `GOLF_STAKED_FROM_WEEK`. Add each new game's hole reader as it launches (Survivor must recompute standings at the week's last season day; Bracket reads its W file).
-
-## Update 3 Nov — Free play (D-081)
-Every game now has a **Free play board**. This game gets one for **standings only — no free VHP prize** until the owner switches it on. The page must say so.
+Launch path: `../platform/ROADMAP.md` (practice: move Golf files to the root, run the full suite, merge, set `games.json` live, add to the nav, `GOLF_ENABLED=true`; staked: register game 6 and set `GOLF_STAKED_FROM_WEEK`). Add each new game's hole reader as it launches (Survivor must recompute standings at the week's last season day; Bracket reads its W file).

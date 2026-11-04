@@ -262,6 +262,7 @@ test("E-9 I-2: a valid cap that disagrees with the plan (planned 60, read 30) wa
   const r = await guardWorld({ timeIso: "2026-11-19T12:01:00Z", label: "W004-D4", lockIso: "2026-11-20T00:00:00Z", planCaps: V61, guardCaps: { questions_cap: "30" }, onChain: 10 });
   assert.equal(r.after.postSkipped, undefined);
   assert.equal(r.sent, 0);
+  assert.ok(r.logs.some((l) => /not posting it this run/.test(l)), "held by the guard (#E-10 I-2)");
 });
 
 test("E-9 I-2: before v6.1 (no field, planned 30) the guard posts as before, and skips only a full week", async () => {
@@ -276,6 +277,7 @@ test("E-9 I-1: no cap field but over 30 questions already this week: wait, don't
   const r = await guardWorld({ timeIso: "2026-11-19T12:01:00Z", label: "W004-D4", lockIso: "2026-11-20T00:00:00Z", planCaps: {}, guardCaps: {}, onChain: 33 });
   assert.equal(r.after.postSkipped, undefined);
   assert.equal(r.sent, 0);
+  assert.ok(r.logs.some((l) => /not posting it this run/.test(l)), "held by the guard (#E-10 I-2)");
 });
 
 test("E-9 L-B: a round held back with under 3 hours to its lock is reported", async () => {

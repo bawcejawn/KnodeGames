@@ -79,6 +79,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 |---|---|---|---|---|
 | R-FA-1 | Add a Free play board (no prize yet); say what it needs (picks contract, recorder, page) and how big the change is | D-081 | plan, then PR | open |
 | R-FA-2 | Fix-check, a full test week, the real-data simulation | I-062 | done | open |
+| R-FA-3 | **Card quality gate:** Fantasy uses Race cards without checking their sample count (≥ 12) or flags. Add the same gate Block X and Combo use | `HANDICAP_REVIEW.md` §5.1 #6 | PR + test, before launch | open |
 
 ### Combo Card
 | Id | Request | Link | Done when | Status |

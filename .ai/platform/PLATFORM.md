@@ -11,6 +11,7 @@
 | File | Holds |
 |------|-------|
 | `CURRENT_STATE.md` | dated snapshot: completed, in progress, blockers, priorities |
+| `HANDICAP_REVIEW.md` | how every game measures VHP and sets handicaps; small producers; recommendations (owner to decide) |
 | `RUNBOOK.md` | what to do when something breaks: alerts, held weeks, a misbehaving game, nodes, keys, the withdrawals-only build |
 | `HEALTHCHECK.md` | CTO health check: strengths, weaknesses, missing information, quality scores, top 10 priorities |
 | `CHAT_REQUESTS.md` | each chat's open work list (D-089); the owner's one start message for every chat |

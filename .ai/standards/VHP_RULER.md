@@ -98,7 +98,7 @@ For producer `p`, a game round with card window `[W0, W1]`, card time `T` (§2.3
 | **Last Node Standing (13)** | the Race card × form (0.8–1.2); ≥ 20 expected blocks an hour | `own`, `form` (same clamp), `trim`; entry `k ≥ 10` in its scoring window (D-091); one random point per round | before its launch if possible (R-LN-4) |
 | **Fantasy (4) + Rival (5)** | Race card shares; index cap 130; no card-quality gate | `own` shares; `quality` gate (R-FA-3); keep the cap or swap it for a trim by simulation | before its launch |
 | **Combo Card (8)** | Race card per leg; factor clamp(0.5 ÷ chance, 0.25, 3) | each leg reads the ruler as its game does; Race legs get card credit | with the Picks v2 upgrade |
-| **Producer Bracket (9)** | exact rebuild (its home); 1-day average seeding; credit vs baseline | already closest: switch its baseline to `own`, keep day averages for seeding and forfeits (D-086, D-087); add a trim (R-BR-7) | as part of R-BR-8 |
+| **Producer Bracket (9)** | exact rebuild (its home); 1-day average seeding; credit vs baseline | already closest: switch its baseline to `own`, keep day averages for seeding and forfeits (D-086, D-087); add a trim (R-BR-7) | after R-RULER-1, with its #E-3 fixes |
 | **Survivor (3)** | blocks signed over days d−8 … d−2 | Season 2: `own` + `form` + `trim` (D-095) | Season 2 |
 | Questions (1), Block Golf (6) | no size handicap | not used | — |
 

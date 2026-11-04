@@ -246,9 +246,16 @@ export async function changeOwner(next: string, confirm: string | undefined, sen
   if (send && d.mainnet && d.env.CONFIRM_MAINNET !== "yes") throw new Error("MAINNET: add CONFIRM_MAINNET=yes to .env first.");
   // Repo Lens #D-5 R84-2: on mainnet the owner change always needs the second node.
   if (send && d.mainnet && !d.rpcCheck) throw new Error("MAINNET: the owner change needs a second node. Set RPC_CHECK (e.g. $env:RPC_CHECK = \"https://api.koinosblocks.com\") and run it again. Nothing was sent.");
-  const cur = await d.readConfig(d.rpc);
+  // R-RACE-9 (Repo Lens #C-4, C4-3): a node with no race settings (a wrong race address, or a contract never set up)
+  // answers {}. Say so plainly, before comparing: two empty answers would otherwise read as "NaN; NaN".
+  const settingsOn = async (node: string) => {
+    const c = await d.readConfig(node);
+    if (!c || typeof c !== "object" || !c.owner) throw new Error(`No race settings on chain at ${node} (contract ${d.race}). Check the race contract address and the node, or run npm run racepicks -- status. Nothing was sent.`);
+    return c;
+  };
+  const cur = await settingsOn(d.rpc);
   if (d.rpcCheck) {
-    const other = await d.readConfig(d.rpcCheck);
+    const other = await settingsOn(d.rpcCheck);
     // Repo Lens #D-5 R84-3: every setting must agree, not only the owner (a lagging node could undo a recent disable).
     for (const [k, label] of [["owner", "owner"], ["enabled", "picks on/off"], ["max_picks_per_day", "picks per day"]] as const) {
       const a = k === "enabled" ? !!cur?.[k] : k === "owner" ? cur?.[k] : Number(cur?.[k]);

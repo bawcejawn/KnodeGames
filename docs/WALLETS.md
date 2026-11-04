@@ -233,7 +233,8 @@ $env:RPC = "https://koinos.armana.io"
 | **Sun 8 Nov, from 10:00** (48 h after 2a) | 2b. Treasury: apply | `chain-check` shows the exact time it can be applied ("from …") |
 | **Sun 8 Nov, after every `game-apply`** (Bracket's deadline is 16:00) | 4a. Vault owner: propose · 5a. Desk owner: propose | Both the same afternoon, e.g. 16:30 |
 | **Tue 10 Nov, 48 h after 5a** (e.g. from 16:30) | 4b. Vault owner: accept · 5b. Desk owner: accept · 6. Clean-up | **Both accepts in the same sitting**, so there is never a day when the vault and the Desk have different owners |
-| **As soon as it passes its audits** (D-116; built Wed 4 – Thu 5) | The vault upgrade (60 questions a week **and** Daily Questions on the shared game rules): announce, then upload 48 h later | **If announce + 48 h + upload all fit before step 4a (Sun 8 afternoon):** the current owner `1635QU…` signs (it has the Mana). **Otherwise:** the new owner `1LMV8E…` signs after 4b (Tue 10), or you move the handover a few days. **Never announce between 4a and 4b**: the accept wipes a pending upgrade. The signing wallet needs at least 95 KOIN of Mana |
+| **Tue 10 Nov, after 4b** (D-116, Path 2) | The vault upgrade (60 questions **and** Daily Questions on the shared game rules, release `4dcc89a6…`): **announce**, signed by the **new** owner `1LMV8E…` | Only after Repo Lens GO; the Vault chat gives the exact commands (`docs/UPGRADE-V61.md`). **Never between 4a and 4b** |
+| **Thu 12 Nov, 48 h later** | The upgrade: **upload**, then the records PR and merge #114 | The new owner needs **at least 95 KOIN of Mana** (step 1c). Rule week = Mon 16 Nov |
 
 **Why the accepts wait until Tuesday:** the vault's accept is possible from Monday, but there's no rush. Until it's
 accepted, the old key stays the vault owner and works for everything as today. Doing both accepts together means

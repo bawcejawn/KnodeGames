@@ -28,7 +28,7 @@
 - [ ] Confirm the phone-width status-bar screenshot reached the Hub chat — P4
 
 ## Before the first paid weeks close (Mon 16 Nov)
-- [ ] **Race prizes:** review the Race chat's fix for B1-2 (PR #85, I-034): send it to Repo Lens, then merge before Mon 16 Nov — P1
+- [ ] **Race prizes:** PR #85 (I-034) passed Repo Lens but needs the Race chat to update it from `main` and widen the window to 35 min (R-RACE-1); then merge, before Mon 16 Nov — P1
 - [ ] **Survivor** (Season 1 Mon 16 Nov, D-065): run Repo Lens pass 4 in `C:\kprediction-test` (`git pull`, `npm ci`, check `git log -1 --oneline` shows `a8a1979` or the Survivor chat's newer commit) and send back `AUDIT-SURVIVOR-REPORT-4.md`; then announce Sat 7 – Fri 13 Nov, `game-apply` Mon 9 – Sun 15 Nov; vault `game-add 3 "Survivor" --staked --free --season 2` with its free-prize switch OFF — P2 — I-050, D-064
 - [ ] **Run the other pending Repo Lens audits** and return the reports: Last Node round 3 (`claude/lastnode/FIXCHECK-3-PROMPT.md`; branch `lastnode`, `adf95be` or newer), Fantasy fix-check (`knode-fantasy-fixcheck.zip`), Combo fix-check 4 (`claude/audit-combo-fixcheck4-prompt.md`), Bracket fix-check once R-BR-1 is done — P1 — I-065
 - [ ] **Mon 16 Nov, 12:00 UTC (4 AM PT):** after the first vault close, check status, the buckets, the free prizes, and collect the fee with `claim-fee-vhp all` — P1

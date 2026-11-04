@@ -217,28 +217,70 @@ test("E-8 I-3: Sunday 15 Nov 23:48 into a 60-cap week: waits, then 4 questions w
   } finally { mock.timers.reset(); }
 });
 
-test("E-8 L-1: a stale get_state without the cap in a 48-question week doesn't skip a question for good", async () => {
-  const w = postWorld("2026-11-19T12:01:00Z", { questions_cap: "60", questions_cap_next: "60" });
-  const label = "W004-D4", file = path.join(w.ctx.P.questions, `${label}.json`);
-  const lockTime = at("2026-11-20T00:00:00Z");
+/** A 48-question-week style world for the post guard: one unposted question in `label`, `planCaps` on the first
+ *  get_state read (the plan), `guardCaps` on later ones, `onChain` questions this week. Returns the file after one
+ *  postPass, the problems, the log lines and whether a post was sent. */
+async function guardWorld(o: { timeIso: string; label: string; lockIso: string; planCaps: any; guardCaps: any; onChain: number }) {
+  const w = postWorld(o.timeIso);
+  const file = path.join(w.ctx.P.questions, `${o.label}.json`);
   const { paramsHashOf } = await import("../../resolver.ts");
-  const q: any = { id: `${label}-1`, week: 4, lockTime, options: ["a", "b"], windowStart: 41_020_000, windowEnd: 41_030_000, template: "M7", thresholds: [10] };
+  const q: any = { id: `${o.label}-1`, lockTime: at(o.lockIso), options: ["a", "b"], windowStart: 41_020_000, windowEnd: 41_030_000, template: "M7", thresholds: [10] };
   q.paramsHash = paramsHashOf(q);
-  fs.writeFileSync(file, JSON.stringify({ date: label, week: 4, day: 4, questions: [q] }));
-  let n = 0;
+  fs.writeFileSync(file, JSON.stringify({ date: o.label, week: 4, day: 4, questions: [q] }));
+  let n = 0, sent = 0;
   const read = w.ctx.chain.read;
   w.ctx.chain.read = async (m: string, a: any) => {
-    if (m === "get_state") { n++; const s = await read(m); return n === 1 ? { ...s, questions_cap: "60", questions_cap_next: "60" } : { ...s, questions_cap: undefined }; }
-    if (m === "get_week") return { week: { questions: 30 } };
+    if (m === "get_state") {
+      n++;
+      const s0 = await read(m);
+      // the live contract's config (reward_rule set), so without a cap field the guard's fallback is 30 (#E-9 I-2)
+      return { ...s0, config: { ...s0.config, reward_rule_week_plus_one: "1" }, questions_cap: undefined, questions_cap_next: undefined, ...(n === 1 ? o.planCaps : o.guardCaps) };
+    }
+    if (m === "get_week") return { week: { questions: o.onChain } };
+    if (m === "get_question") return { question: { params_hash: "0x" + q.paramsHash } };
     return read(m, a);
   };
+  w.ctx.chain.send = async () => { sent++; return { ok: true }; };
   w.ctx.noSealKey = true;
-  const bot = await import("../../bot/bot.ts");
   const logs: string[] = [], orig = console.log;
   console.log = (...x: any[]) => { logs.push(x.join(" ")); };
-  try { await bot.postPass(w.ctx, { checkedUpTo: 100 } as any); } finally { console.log = orig; }
-  assert.ok(logs.some((l) => /planned with 60: not posting it this run/.test(l)), "the guard noticed the stale read");
-  const after = JSON.parse(fs.readFileSync(file, "utf8"));
-  assert.equal(after.questions[0].postSkipped, undefined, "left for the next run, not skipped");
-  assert.ok(!w.ctx.problems.some((p: string) => /stray or duplicate/.test(p)), "no wrong-reason email");
+  try { await postPass(w.ctx, { checkedUpTo: 100 } as any).catch(() => {}); } finally { console.log = orig; }
+  return { after: JSON.parse(fs.readFileSync(file, "utf8")).questions[0], problems: w.ctx.problems as string[], logs, sent };
+}
+const V61 = { questions_cap: "60", questions_cap_next: "60" };
+
+test("E-8 L-1: a stale get_state without the cap in a 48-question week doesn't skip a question for good", async () => {
+  const r = await guardWorld({ timeIso: "2026-11-19T12:01:00Z", label: "W004-D4", lockIso: "2026-11-20T00:00:00Z", planCaps: V61, guardCaps: {}, onChain: 30 });
+  assert.equal(r.after.postSkipped, undefined, "left for the next run, not skipped");
+  assert.equal(r.sent, 0);
+  assert.ok(r.logs.some((l) => /planned with 60: not posting it this run/.test(l)), "the guard noticed the stale read");
+  assert.ok(!r.problems.some((p) => /stray or duplicate/.test(p)), "no wrong-reason email");
+  assert.equal(r.problems.length, 0, "12 hours before its lock: only a log line");
+});
+
+test("E-9 I-2: a valid cap that disagrees with the plan (planned 60, read 30) waits too", async () => {
+  const r = await guardWorld({ timeIso: "2026-11-19T12:01:00Z", label: "W004-D4", lockIso: "2026-11-20T00:00:00Z", planCaps: V61, guardCaps: { questions_cap: "30" }, onChain: 10 });
+  assert.equal(r.after.postSkipped, undefined);
+  assert.equal(r.sent, 0);
+});
+
+test("E-9 I-2: before v6.1 (no field, planned 30) the guard posts as before, and skips only a full week", async () => {
+  const a = await guardWorld({ timeIso: "2026-11-12T12:01:00Z", label: "W003-D4", lockIso: "2026-11-13T00:00:00Z", planCaps: {}, guardCaps: {}, onChain: 12 });
+  assert.equal(a.sent, 1, "posted");
+  const b = await guardWorld({ timeIso: "2026-11-12T12:01:00Z", label: "W003-D4", lockIso: "2026-11-13T00:00:00Z", planCaps: {}, guardCaps: {}, onChain: 30 });
+  assert.match(b.after.postSkipped, /already has 30 questions/);
+  assert.ok(b.problems.some((p) => /stray or duplicate/.test(p)));
+});
+
+test("E-9 I-1: no cap field but over 30 questions already this week: wait, don't skip", async () => {
+  const r = await guardWorld({ timeIso: "2026-11-19T12:01:00Z", label: "W004-D4", lockIso: "2026-11-20T00:00:00Z", planCaps: {}, guardCaps: {}, onChain: 33 });
+  assert.equal(r.after.postSkipped, undefined);
+  assert.equal(r.sent, 0);
+});
+
+test("E-9 L-B: a round held back with under 3 hours to its lock is reported", async () => {
+  const r = await guardWorld({ timeIso: "2026-11-19T21:30:00Z", label: "W004-D4", lockIso: "2026-11-20T00:00:00Z", planCaps: V61, guardCaps: {}, onChain: 30 });
+  assert.equal(r.after.postSkipped, undefined);
+  assert.equal(r.problems.length, 1);
+  assert.match(r.problems[0], /held back .* under 3 hours/);
 });

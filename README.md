@@ -39,7 +39,7 @@ All times are UTC. A week runs Monday 00:00 to Sunday 24:00.
   burns it into VHP for you. A stake counts from the next week. Your stake is never spent: you can withdraw any
   amount at any time, down to the last decimal. Withdraw part during a week and you keep playing with the lower
   stake; withdraw everything and you are out of that week's rewards.
-- **Scoring.** One point per right answer. A voided question counts for nobody. At most 30 points a week.
+- **Scoring.** One point per right answer. A voided question counts for nobody. The week's top possible score is that week's number of questions (30 for now, 48 once the upgraded contract allows it).
 
 ## Rewards (v5)
 

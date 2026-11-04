@@ -1014,12 +1014,18 @@ async function postRound(ctx: Ctx, bs: BotState, st: Awaited<ReturnType<typeof s
     // Repo Lens #E-8 L-1/L-2: a read whose cap is missing or disagrees with the cap this round was planned with is not
     // trusted to skip anything: the question waits for the next run. Before v6.1 (no field, planned 30) as before.
     const readCap = num(gs.questions_cap), validCap = readCap === BASE_CAP || readCap === V61_CAP;
-    if ((validCap && readCap !== cap) || (!validCap && cap > BASE_CAP)) {
-      log(`  ${q.id}: the chain's weekly question cap read as ${gs.questions_cap ?? "missing"}, but this round was planned with ${cap}: not posting it this run (the next run tries again)`);
+    const wkQ = num(((await ctx.chain.read("get_week", { week: String(cur.week ?? q.week) })).week ?? {}).questions);
+    // #E-9 I-1: no cap field but more than 30 questions already this week: the chain is clearly on v6.1, so a stale
+    // read must not skip either.
+    const hold = (validCap && readCap !== cap) || (!validCap && cap > BASE_CAP) || (!validCap && wkQ > BASE_CAP);
+    if (hold) {
+      const why = `the chain's weekly question cap read as ${gs.questions_cap ?? "missing"} (${wkQ} questions on chain this week), but this round was planned with ${cap}`;
+      log(`  ${q.id}: ${why}: not posting it this run (the next run tries again)`);
+      // #E-9 L-B: held this close to its lock, the round could end as "posted too late" without anyone hearing of it.
+      if ((q.lockTime ?? 0) - now < 3 * HOUR_MS) ctx.problems.push(`${label}: its questions are being held back (${why}) with under 3 hours left before answers close. Check the bot's RPC nodes (get_state should show questions_cap).`);
       break;
     }
     const maxQ = validCap ? readCap : num(gs.config?.reward_rule_week_plus_one) > 0 ? BASE_CAP : 64;
-    const wkQ = num(((await ctx.chain.read("get_week", { week: String(cur.week ?? q.week) })).week ?? {}).questions);
     if (wkQ >= maxQ) {
       q.postSkipped = `the week already has ${wkQ} questions on chain (the most it takes)`;
       log(`  skipped ${q.id}: ${q.postSkipped}`);

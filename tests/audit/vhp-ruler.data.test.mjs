@@ -38,7 +38,7 @@ test("a file with one burn removed is refused (§7)", () => {
 
 test("a burn changed, or a block's signer swapped, is refused: the anchors no longer add up", () => {
   let r = both(chain.texts[4], edit(chain.texts[5], (h) => { h.burns[100] = String(BigInt(h.burns[100]) - 1n); }));
-  assert.equal(r.ok, false); assert.match(r.why, /previous anchor plus the hour's changes/);
+  assert.equal(r.ok, false); assert.match(r.why, /previous anchor plus the changes since/);
   r = both(chain.texts[4], edit(chain.texts[5], (h) => { const k = h.sig.findIndex((s) => s !== h.sig[0]); [h.sig[0], h.sig[k]] = [h.sig[k], h.sig[0]]; }));
   // swapping two blocks' signers moves one burn between them: a balance breaks unless the burns were equal
   assert.equal(r.ok, false);
@@ -77,20 +77,34 @@ test("not canonical, extra fields, unsorted keys, out-of-range heights: refused"
 });
 
 test("D-112: a node that can't answer effective_balance_of, or two nodes that disagree, flags the whole hour", () => {
-  let r = both(chain.texts[3], edit(chain.texts[4], (h) => { const a = Object.keys(h.anchor.effB)[0]; delete h.anchor.effB[a]; }));
-  assert.equal(r.ok, true); assert.equal(r.quality, "flagged"); assert.equal(r.flagged.join(), "*");
-  r = both(chain.texts[3], edit(chain.texts[4], (h) => { const a = Object.keys(h.anchor.effB)[1]; h.anchor.effB[a] = String(BigInt(h.anchor.effB[a]) + 1n); }));
-  assert.equal(r.quality, "flagged");
-  r = both(chain.texts[3], edit(chain.texts[4], (h) => { for (const a of Object.keys(h.anchor.effA)) { h.anchor.effA[a] = h.anchor.effB[a] = "1"; } }));
+  const first = (h) => Object.keys(h.anchor.reads.B)[0];
+  let r = both(chain.texts[3], edit(chain.texts[4], (h) => { h.anchor.reads.B[first(h)][2] = ""; }));
+  assert.equal(r.ok, true); assert.equal(r.quality, "flagged"); assert.equal(r.flagged.join(), "*"); assert.match(r.why, /not answered/);
+  r = both(chain.texts[3], edit(chain.texts[4], (h) => { const x = h.anchor.reads.B[first(h)]; x[2] = String(BigInt(x[2]) + 1n); }));
+  assert.equal(r.quality, "flagged", "two nodes that disagree: flagged");
+  r = both(chain.texts[3], edit(chain.texts[4], (h) => { for (const n of ["A", "B"]) for (const a of Object.keys(h.anchor.reads[n])) h.anchor.reads[n][a][2] = "1"; }));
   assert.equal(r.quality, "flagged"); assert.match(r.why, /neither/, "a rebuild that matches no rule: not ok (audit S-3)");
+  r = both(chain.texts[3], edit(chain.texts[4], (h) => { const x = h.anchor.reads.A[first(h)]; x[1] = String(BigInt(x[1]) + 5n); }));
+  assert.equal(r.ok, false, "a node that read a wrong balance: refused"); assert.match(r.why, /node A's balance read/);
+  r = both(chain.texts[3], edit(chain.texts[4], (h) => { delete h.anchor.reads.B[first(h)]; }));
+  assert.equal(r.ok, false, "a live hour reads every anchored address on both nodes");
 });
 
 test("rebuilt hours (first fill): no effective reads; a rebuilt hour can't follow a live one", () => {
   const c = makeChain({ seed: 9, hours: 6, np: 4, rebuiltHours: 3 });
   for (let i = 0; i < 6; i++) assert.equal(both(i ? c.texts[i - 1] : "", c.texts[i]).ok, true);
   assert.equal(JSON.parse(c.texts[2]).kind, "rebuilt");
-  const r = both(c.texts[3], edit(c.texts[4], (h) => { h.kind = "rebuilt"; h.anchor.effA = {}; h.anchor.effB = {}; }));
+  const r = both(c.texts[3], edit(c.texts[4], (h) => { h.kind = "rebuilt"; h.anchor.reads = { A: {}, B: {} }; }));
   assert.equal(r.ok, false); assert.match(r.why, /rebuilt hour can't follow a live one/);
+});
+
+test("late runs: several hours share one live read; every hour still checks and the timeline is exact", () => {
+  const c = makeChain({ seed: 13, hours: 8, np: 4, share: 3, busy: 0.03 });
+  for (let i = 0; i < 8; i++) { const r = both(i ? c.texts[i - 1] : "", c.texts[i]); assert.equal(r.ok, true, `hour ${i}: ${r.why}`); assert.equal(r.quality, "ok"); }
+  assert.equal(JSON.parse(c.texts[0]).anchor.at, JSON.parse(c.texts[2]).anchor.at, "hours 0–2 share a read");
+  assert.equal(JSON.parse(c.texts[0]).tail.sig.length, 2 * 1200 + 25, "so hour 0's tail reaches it");
+  const r = both(c.texts[0], edit(c.texts[1], (h) => { h.burns[300] = String(BigInt(h.burns[300]) + 1n); }));
+  assert.equal(r.ok, false, "the blocks two files share must agree"); assert.match(r.why, /differs from the previous hour's tail/);
 });
 
 test("the anchored set only grows", () => {
@@ -98,7 +112,7 @@ test("the anchored set only grows", () => {
     const signers = new Set([...h.sig, ...h.tail.sig].map((i) => h.addrs[i]));
     const a = Object.keys(h.anchor.bal).find((x) => !signers.has(x));
     if (!a) return;   // every producer signed this hour; nothing to drop
-    delete h.anchor.bal[a]; delete h.anchor.effA[a]; delete h.anchor.effB[a];
+    delete h.anchor.bal[a]; delete h.anchor.reads.A[a]; delete h.anchor.reads.B[a];
   }));
   if (r.ok === false) assert.match(r.why, /stay anchored/);
 });

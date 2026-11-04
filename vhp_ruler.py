@@ -458,14 +458,19 @@ def _safe_int(x):
     return type(x) is int and -(2 ** 53 - 1) <= x <= 2 ** 53 - 1
 
 
+def _sorted_keys(o):
+    ks = list(o.keys())
+    return all(ks[i - 1] < ks[i] for i in range(1, len(ks)))
+
+
 def _check_shape(h):
-    if not isinstance(h, dict) or h.get("v") != DATA_VERSION or type(h.get("v")) is not int:
+    if not isinstance(h, dict) or type(h.get("v")) is not int or h.get("v") != DATA_VERSION:
         return "not a version-1 hour"
     keys = ["v", "n", "from", "to", "prev", "kind", "addrs", "sig", "ids", "burns", "events", "tail", "anchor"]
     if list(h.keys()) != keys:
         return "fields must be exactly " + ", ".join(keys)
-    if not _safe_int(h["n"]) or h["n"] < 0 or h["from"] != h["n"] * HOUR or h["to"] != h["from"] + HOUR - 1 \
-            or not _safe_int(h["from"]) or not _safe_int(h["to"]):
+    if not _safe_int(h["n"]) or h["n"] < 0 or not _safe_int(h["from"]) or not _safe_int(h["to"]) \
+            or h["from"] != h["n"] * HOUR or h["to"] != h["from"] + HOUR - 1:
         return "from/to must be block-hour n"
     if type(h["prev"]) is not str or not re.fullmatch(r"([0-9a-f]{64})?", h["prev"]):
         return "prev must be a sha256"
@@ -494,10 +499,10 @@ def _check_shape(h):
     if e1:
         return e1
     a = h["anchor"]
-    if not isinstance(a, dict) or list(a.keys()) != ["at", "id", "bal", "effA", "effB"]:
-        return "anchor fields must be at, id, bal, effA, effB"
-    if not _safe_int(a["at"]) or a["at"] < h["to"] or a["at"] > h["to"] + HOUR:
-        return "the anchor must be read within an hour after the hour"
+    if not isinstance(a, dict) or list(a.keys()) != ["at", "id", "bal", "reads"]:
+        return "anchor fields must be at, id, bal, reads"
+    if not _safe_int(a["at"]) or a["at"] < h["to"] or a["at"] > h["to"] + DAY:
+        return "the anchor block must be at most a day after the hour"
     if type(a["id"]) is not str or not _ID.fullmatch(a["id"]):
         return "bad anchor block id"
     t = h["tail"]
@@ -523,16 +528,30 @@ def _check_shape(h):
                 return "bad event ends"
             if (f != "" and f not in aset) or (to != "" and to not in aset):
                 return "an event names an address not in addrs"
-    for m in ("bal", "effA", "effB"):
-        if not isinstance(a[m], dict):
-            return "anchor %s must be an object" % m
-        ks = list(a[m].keys())
-        if any(not ks[i - 1] < ks[i] for i in range(1, len(ks))):
-            return "anchor %s keys must be sorted" % m
-        if not all(k in aset and type(a[m][k]) is str and _SAT.fullmatch(a[m][k]) for k in ks):
-            return "bad anchor %s" % m
-    if h["kind"] == "rebuilt" and (a["effA"] or a["effB"]):
-        return "a rebuilt hour has no effective-balance reads"
+    if not isinstance(a["bal"], dict) or not _sorted_keys(a["bal"]):
+        return "anchor bal must be an object with sorted keys"
+    if not all(k in aset and type(v) is str and _SAT.fullmatch(v) for k, v in a["bal"].items()):
+        return "bad anchor bal"
+    if not isinstance(a["reads"], dict) or list(a["reads"].keys()) != ["A", "B"]:
+        return "anchor reads must be A and B"
+    for node in ("A", "B"):
+        rs = a["reads"][node]
+        if not isinstance(rs, dict) or not _sorted_keys(rs):
+            return "reads %s must be an object with sorted keys" % node
+        for k, r in rs.items():
+            if k not in a["bal"]:
+                return "reads %s: %s isn't anchored" % (node, k)
+            if not isinstance(r, list) or len(r) != 3 or not _safe_int(r[0]) or r[0] < h["to"] or r[0] > a["at"]:
+                return "reads %s: %s must be [h, balance, eff] read between the hour's end and the anchor block" % (node, k)
+            if type(r[1]) is not str or not _SAT.fullmatch(r[1]) or type(r[2]) is not str or not (r[2] == "" or _SAT.fullmatch(r[2])):
+                return "reads %s: bad numbers for %s" % (node, k)
+    if h["kind"] == "rebuilt" and (a["reads"]["A"] or a["reads"]["B"]):
+        return "a rebuilt hour carries no reads"
+    if h["kind"] == "live":
+        for node in ("A", "B"):
+            for k in a["bal"]:
+                if k not in a["reads"][node]:
+                    return "a live hour reads every anchored address on both nodes (%s on %s)" % (k, node)
     return None
 
 
@@ -554,6 +573,21 @@ def deltas_of(h, with_tail=True):
     return out
 
 
+def _block_of(f, x):
+    if f["from"] <= x <= f["to"]:
+        i = x - f["from"]
+        return "%s|%s|%s" % (f["addrs"][f["sig"][i]], f["ids"][i], f["burns"][i])
+    if f["to"] < x <= f["anchor"]["at"]:
+        i = x - f["to"] - 1
+        t = f["tail"]
+        return "%s|%s|%s" % (f["addrs"][t["sig"][i]], t["ids"][i], t["burns"][i])
+    return None
+
+
+def _events_in(f, x0, x1):
+    return "|".join(canon(e)[:-1] for e in f["events"] + f["tail"]["events"] if x0 <= e[0] <= x1)
+
+
 def _fail(why):
     return {"ok": False, "why": why}
 
@@ -562,13 +596,10 @@ def check_hour(prev_text, text):
     """Same answers as checkHour in vhp-data.js."""
     try:
         h = json.loads(text)
-    except Exception:
-        return _fail("not JSON")
-    try:
         if canon(h) != text:
             return _fail("not in canonical form")
     except Exception:
-        return _fail("not in canonical form")
+        return _fail("not JSON")
     bad = _check_shape(h)
     if bad:
         return _fail(bad)
@@ -584,79 +615,89 @@ def check_hour(prev_text, text):
             return _fail("hours must be consecutive")
         if prev["kind"] == "live" and h["kind"] == "rebuilt":
             return _fail("a rebuilt hour can't follow a live one")
-        t = prev["tail"]
-        for i in range(len(t["sig"])):
-            if prev["addrs"][t["sig"][i]] != h["addrs"][h["sig"][i]] or t["ids"][i] != h["ids"][i] or t["burns"][i] != h["burns"][i]:
-                return _fail("block %d differs from the previous hour's tail" % (h["from"] + i))
-        mine = "|".join(canon(e)[:-1] for e in h["events"] if e[0] <= prev["anchor"]["at"])
-        if mine != "|".join(canon(e)[:-1] for e in t["events"]):
-            return _fail("the events after the previous anchor differ from its tail")
+        if h["anchor"]["at"] < prev["anchor"]["at"]:
+            return _fail("anchors go forward")
+        for x in range(h["from"], prev["anchor"]["at"] + 1):
+            if _block_of(prev, x) != _block_of(h, x):
+                return _fail("block %d differs from the previous hour's tail" % x)
+        if _events_in(prev, h["from"], prev["anchor"]["at"]) != _events_in(h, h["from"], prev["anchor"]["at"]):
+            return _fail("the events after the previous hour differ from its tail")
     elif h["prev"] != "":
         return _fail("the first file must have an empty prev")
     bal = h["anchor"]["bal"]
     addrs = list(bal.keys())
-    for s in [h["addrs"][i] for i in h["sig"]] + [h["addrs"][i] for i in h["tail"]["sig"]]:
+    for s in [h["addrs"][i] for i in h["sig"] + h["tail"]["sig"]]:
         if s not in bal:
             return _fail("signer %s has no anchor" % s)
     ds = deltas_of(h)
+    by_a = {}
+    for x in ds:
+        by_a.setdefault(x["a"], []).append(x)
+
+    def after(a, h0):
+        return sum(x["d"] for x in by_a.get(a, ()) if x["h"] > h0)
     if prev is not None:
         for a in prev["anchor"]["bal"]:
             if a not in bal:
                 return _fail("%s was anchored before and must stay anchored" % a)
-        p0 = prev["anchor"]["at"]
         for a in addrs:
             if a not in prev["anchor"]["bal"]:
                 continue
-            v = int(prev["anchor"]["bal"][a]) + sum(x["d"] for x in ds if x["a"] == a and x["h"] > p0)
+            v = int(prev["anchor"]["bal"][a]) + after(a, prev["anchor"]["at"])
             if v != int(bal[a]):
-                return _fail("%s: the previous anchor plus the hour's changes isn't this anchor (%d vs %s)" % (a, v, bal[a]))
+                return _fail("%s: the previous anchor plus the changes since isn't this anchor (%d vs %s)" % (a, v, bal[a]))
     for a in addrs:
         v = int(bal[a])
-        for x in sorted((x for x in ds if x["a"] == a), key=lambda x: -x["h"]):
+        for x in sorted(by_a.get(a, ()), key=lambda x: -x["h"]):
             v -= x["d"]
             if v < 0:
                 return _fail("%s: the rebuild goes below zero (a missed event)" % a)
     hsh = sha_hex(text)
     if h["kind"] == "rebuilt":
         return {"ok": True, "quality": "ok", "flagged": [], "hash": hsh}
-    at = h["anchor"]["at"]
+    reads = h["anchor"]["reads"]
+    for node in ("A", "B"):
+        for a in addrs:
+            rh, rb, _ = reads[node][a]
+            if int(rb) + after(a, rh) != int(bal[a]):
+                return _fail("%s: node %s's balance read at block %d plus the changes since isn't the anchor" % (a, node, rh))
 
     def eff_of(a, H):
         b, recv = int(bal[a]), 0
-        for x in ds:
-            if x["a"] == a:
-                if x["h"] >= H:
-                    b -= x["d"]
-                elif x["h"] >= H - 20 + 1:
-                    recv += x["inc"]
+        for x in by_a.get(a, ()):
+            if x["h"] >= H:
+                b -= x["d"]
+            elif x["h"] >= H - DELAY + 1:
+                recv += x["inc"]
         e = b - recv
         return e if e > 0 else 0
     missed, nxt, head = [], True, True
     for a in addrs:
-        ea, eb = h["anchor"]["effA"].get(a), h["anchor"]["effB"].get(a)
-        if ea is None or eb is None or ea != eb:
-            missed.append(a)
+        ra, rb = reads["A"][a], reads["B"][a]
+        if ra[2] == "" or rb[2] == "":
+            missed.append("%s (no answer)" % a)
             continue
-        v = int(ea)
-        if v != eff_of(a, at + 1):
-            nxt = False
-        if v != eff_of(a, at):
-            head = False
+        for r in (ra, rb):
+            v = int(r[2])
+            if v != eff_of(a, r[0] + 1):
+                nxt = False
+            if v != eff_of(a, r[0]):
+                head = False
     eff_at = "next" if nxt else "head" if head else ""
     if missed or not eff_at:
         return {"ok": True, "quality": "flagged", "flagged": ["*"], "hash": hsh,
-                "why": ("effective balance missing or different on the two nodes: " + ", ".join(missed)) if missed
-                else "the effective balances match the rebuild at neither the next block nor the read block"}
+                "why": ("effective balance not answered: " + ", ".join(missed)) if missed
+                else "the effective balances match the rebuild neither at the block after each read nor at each read block"}
     return {"ok": True, "quality": "ok", "flagged": [], "effAt": eff_at, "hash": hsh}
 
 
 def check_day(text, prev_hour_text):
     try:
         d = json.loads(text)
+        if not isinstance(d, dict) or canon(d) != text:
+            return _fail("not in canonical form")
     except Exception:
         return _fail("not JSON")
-    if not isinstance(d, dict) or canon(d) != text:
-        return _fail("not in canonical form")
     if list(d.keys()) != ["v", "n", "from", "to", "hashes", "hours"] or d["v"] != DATA_VERSION:
         return _fail("fields must be v, n, from, to, hashes, hours")
     if not _safe_int(d["n"]) or d["from"] != d["n"] * DAY or d["to"] != d["from"] + DAY - 1:
@@ -702,3 +743,208 @@ def timeline_from(hours, checks=None):
     anchors = {a: {"h": last["anchor"]["at"], "v": int(v)} for a, v in last["anchor"]["bal"].items()}
     return {"from": hours[0]["from"], "to": last["to"], "signers": signers, "ids": ids, "deltas": deltas,
             "anchors": anchors, "bad": bad, "rebuilt": rebuilt}
+
+
+# ── the publish job (.github/workflows/vhp-ruler.yml runs this whole file, then publish_main) ──
+_HOUR_FILE, _DAY_FILE = re.compile(r"h/([0-9]{1,9})\.json"), re.compile(r"d/([0-9]{1,9})\.json")
+MAX_HOUR_BYTES, MAX_DAY_BYTES, MIN_KEEP_DAYS = 4 << 20, 16 << 20, 22
+
+
+def _read_tree(d):
+    """{relative path: text} for h/*.json and d/*.json under d (other files are an error, reported by the caller)."""
+    import os
+    out, other = {}, []
+    if not d or not os.path.isdir(d):
+        return out, other
+    for root, dirs, files in os.walk(d):
+        for f in files:
+            p = os.path.relpath(os.path.join(root, f), d).replace(os.sep, "/")
+            if p == "remove.txt":
+                continue
+            if os.path.islink(os.path.join(root, f)) or not (_HOUR_FILE.fullmatch(p) or _DAY_FILE.fullmatch(p)):
+                other.append(p)
+                continue
+            with open(os.path.join(root, f), "rb") as fh:
+                raw = fh.read()
+            try:
+                out[p] = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                other.append(p)
+    return out, other
+
+
+def publish_check(incoming, published, removals, keep_days):
+    """incoming / published: {path: text}; removals: paths the run asks to remove. Returns (errors, warnings)."""
+    errs, warns = [], []
+    keep_days = max(MIN_KEEP_DAYS, keep_days)
+    hours = {int(_HOUR_FILE.fullmatch(p).group(1)): t for p, t in published.items() if _HOUR_FILE.fullmatch(p)}
+    days = {int(_DAY_FILE.fullmatch(p).group(1)): t for p, t in published.items() if _DAY_FILE.fullmatch(p)}
+    new_h = {int(_HOUR_FILE.fullmatch(p).group(1)): t for p, t in incoming.items() if _HOUR_FILE.fullmatch(p)}
+    new_d = {int(_DAY_FILE.fullmatch(p).group(1)): t for p, t in incoming.items() if _DAY_FILE.fullmatch(p)}
+    for n, t in list(new_h.items()):
+        if len(t.encode("utf-8")) > MAX_HOUR_BYTES:
+            errs.append("h/%d.json is over %d bytes" % (n, MAX_HOUR_BYTES))
+        if n in hours:
+            if hours[n] != t:
+                errs.append("h/%d.json is already published and can't be rewritten" % n)
+            del new_h[n]
+    for n, t in list(new_d.items()):
+        if len(t.encode("utf-8")) > MAX_DAY_BYTES:
+            errs.append("d/%d.json is over %d bytes" % (n, MAX_DAY_BYTES))
+        if n in days:
+            if days[n] != t:
+                errs.append("d/%d.json is already published and can't be rewritten" % n)
+            del new_d[n]
+
+    def hour_text(n):
+        for src in (hours, new_h):
+            if n in src:
+                return src[n]
+        for src in (days, new_d):
+            if n // 24 in src:
+                try:
+                    return canon(json.loads(src[n // 24])["hours"][n % 24])
+                except Exception:
+                    return None
+        return None
+    known = set(hours) | {d * 24 + i for d in days for i in range(24)}
+    newest = max(known) if known else None
+    # new hours: consecutive, after the newest published one, each checked against the one before
+    if new_h:
+        ns = sorted(new_h)
+        if ns != list(range(ns[0], ns[0] + len(ns))):
+            errs.append("new hours must be consecutive")
+        elif newest is not None and ns[0] != newest + 1:
+            errs.append("the first new hour must be h/%d.json" % (newest + 1))
+        else:
+            prev = hour_text(ns[0] - 1) if newest is not None else ""
+            if prev is None:
+                errs.append("the hour before h/%d.json isn't published" % ns[0])
+            else:
+                for n in ns:
+                    r = check_hour(prev, new_h[n])
+                    if not r["ok"]:
+                        errs.append("h/%d.json: %s" % (n, r["why"]))
+                        break
+                    if r["quality"] == "flagged":
+                        warns.append("h/%d.json is flagged: %s" % (n, r.get("why", "")))
+                    prev = new_h[n]
+    # new days: 24 hours, each byte-identical to its published hour, the chain checked from the hour before
+    for d in sorted(new_d):
+        prev = hour_text(d * 24 - 1)
+        if prev is None:
+            try:
+                starts = json.loads(new_d[d])["hours"][0]["prev"] == ""   # the day that starts the chain
+            except Exception:
+                starts = False
+            if not starts:
+                errs.append("d/%d.json: the hour before it isn't available" % d)
+                continue
+            prev = ""
+        r = check_day(new_d[d], prev)
+        if not r["ok"]:
+            errs.append("d/%d.json: %s" % (d, r["why"]))
+            continue
+        hrs = json.loads(new_d[d])["hours"]
+        for i, hr in enumerate(hrs):
+            n = d * 24 + i
+            if n in hours and hours[n] != canon(hr):
+                errs.append("d/%d.json: hour %d differs from the published h/%d.json" % (d, i, n))
+                break
+    # removals: an hour only once a day file holds it (same sha256); a day only beyond retention
+    all_days = dict(days)
+    all_days.update(new_d)
+    newest_day = (max(known | set(new_h)) // 24) if (known or new_h) else 0
+    for p in removals:
+        m_h, m_d = _HOUR_FILE.fullmatch(p), _DAY_FILE.fullmatch(p)
+        if m_h:
+            n = int(m_h.group(1))
+            if n not in hours:
+                errs.append("remove %s: not published" % p)
+            elif n // 24 not in all_days or json.loads(all_days[n // 24])["hashes"][n % 24] != sha_hex(hours[n]):
+                errs.append("remove %s: no day file holds it" % p)
+        elif m_d:
+            n = int(m_d.group(1))
+            if n not in days and n not in new_d:
+                errs.append("remove %s: not published" % p)
+            elif n >= newest_day - keep_days:
+                errs.append("remove %s: still inside the %d days kept" % (p, keep_days))
+        else:
+            errs.append("remove %s: not a vhp-data file" % p)
+    return errs, warns
+
+
+def publish_main(argv):
+    """argv: incoming dir, published dir, keep days. Exit 0 = publish, 1 = refuse."""
+    import os
+    inc_dir, pub_dir, keep = argv[0], argv[1], int(argv[2])
+    incoming, other = _read_tree(inc_dir)
+    published, _ = _read_tree(pub_dir)
+    removals = []
+    rf = os.path.join(inc_dir, "remove.txt")
+    if os.path.exists(rf):
+        with open(rf, encoding="utf-8") as fh:
+            removals = [x for x in fh.read().split("\n") if x]
+    errs, warns = publish_check(incoming, published, removals, keep)
+    for p in other:
+        errs.append("unexpected file %s" % p)
+    for w in warns:
+        print("::warning::" + w)
+    for e in errs:
+        print("::error::" + e)
+    if not errs:
+        print("ok: %d new hour(s), %d new day(s), %d removal(s)" % (
+            sum(1 for p in incoming if p.startswith("h/") and p not in published),
+            sum(1 for p in incoming if p.startswith("d/") and p not in published), len(removals)))
+    return 1 if errs else 0
+
+
+def load_ledger(data_dir):
+    """A Ledger over the published vhp-data (h/ and d/ files), every hour checked in order. For a game's publish job:
+    recompute its cards from the ruler's data (§7). Returns (Ledger, checks)."""
+    tree, _ = _read_tree(data_dir)
+    texts = {}
+    for p, t in tree.items():
+        m = _DAY_FILE.fullmatch(p)
+        if m:
+            d = json.loads(t)
+            for i, hr in enumerate(d["hours"]):
+                texts[d["n"] * 24 + i] = canon(hr)
+    for p, t in tree.items():
+        m = _HOUR_FILE.fullmatch(p)
+        if m:
+            texts[int(m.group(1))] = t
+    ns = sorted(texts)
+    if not ns or ns != list(range(ns[0], ns[0] + len(ns))):
+        raise ValueError("the vhp-data hours aren't consecutive")
+    checks, prev = [], None
+    for n in ns:
+        t = texts[n]
+        # the oldest kept hour starts the chain (older ones were removed after retention)
+        r = check_hour(prev, t) if prev is not None else _first_kept(t)
+        if not r["ok"]:
+            raise ValueError("h/%d.json: %s" % (n, r["why"]))
+        checks.append(r)
+        prev = t
+    return Ledger(timeline_from([json.loads(texts[n]) for n in ns], checks)), checks
+
+
+def _first_kept(t):
+    """The oldest kept hour (its predecessor removed after retention): its own checks, without the chain link."""
+    h = json.loads(t)
+    stub = dict(h)
+    stub["prev"] = ""
+    r = check_hour("", canon(stub))
+    if not r["ok"]:
+        raise ValueError("h/%d.json: %s" % (h["n"], r["why"]))
+    return r
+
+
+def recompute_main(argv):
+    """argv: vhp-data dir, card file. Exit 0 = the card is exactly what the data gives, 1 = refuse."""
+    L, _ = load_ledger(argv[0])
+    with open(argv[1], encoding="utf-8") as fh:
+        card = fh.read()
+    same, diff = recompute(L, card)
+    print("ok: the card matches the ruler's data" if same else "::error::the card doesn't match the ruler's data: " + diff)
+    return 0 if same else 1

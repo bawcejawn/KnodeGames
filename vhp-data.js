@@ -16,25 +16,28 @@
  *     burns:   per block, the VHP (satoshi, decimal text) the block burned from its signer: exactly one per block;
  *     events:  every OTHER VHP change in the hour (transactions, not reverted): [h, kind, from, to, value]
  *              kind "m" mint (from ""), "t" transfer, "b" burn (to ""); value decimal text;
- *     tail:    the blocks after `to` up to the anchor read (to + 1 … at): { sig, ids, burns, events }, same shapes;
- *              the next hour must begin with exactly these blocks;
- *     anchor:  { at: the block the read is pinned to, id: its id,
- *                bal: { addr: balance after block `at` }, the same on both nodes (else the hour is not written);
- *                effA, effB: { addr: effective_balance_of read on node A / node B } (live only; missing = the node
- *                couldn't answer: the hour is flagged, D-112) } }
+ *     tail:    the blocks after `to` up to the anchor block (to + 1 … at): { sig, ids, burns, events }, same shapes;
+ *              the hours after must hold exactly these blocks;
+ *     anchor:  { at: the anchor block (≥ to, at most a day later), id: its id,
+ *                bal:   { addr: balance after block `at` } — what every check and timeline starts from;
+ *                reads: { A: { addr: [h, balance, eff] }, B: { … } } — the real reads on node A and node B (live only):
+ *                       h = the block the read was pinned to (to ≤ h ≤ at: a node answers only at its head, so each
+ *                       address has its own h, D-112), balance = balance_of after block h, eff = effective_balance_of
+ *                       ("" if the node couldn't answer) } }
  *   The anchored set only grows: every address anchored in the previous hour, plus every signer of this hour.
+ *   When runs fall behind, several hours may share one live read (each hour's tail then reaches the read).
  *
  * DAY FILES: d/<n>.json for blocks n × 28,800 … (24 hours) once the hours are rolled up:
  *   { v: 1, n, from, to, hashes: [sha256 of each of the 24 hour files], hours: [the 24 hour objects] }.
  *   The hour objects are kept exactly, so their hashes (and the chain inside the day) still check after the rollup.
  *
- * CHECKS (checkHour): the hash chain; consecutive heights; one signer, one id, one burn (> 0) per block; the tail is
- * the next hour's start; balances: previous anchor + every change since = this anchor, for every address; the
- * anchored set only grows; on a live hour, both nodes' effective_balance_of = the rebuild for every anchored address
- * (at the block after the read — or at the read block, which must then hold for all: the first live run shows which,
- * audit S-3). A file that breaks the structure or the balances is REFUSED; an effective-balance miss, a node that
- * couldn't answer or two nodes that disagree FLAG the whole hour (D-112: published, but every card that reads it is
- * "flagged": not scored). */
+ * CHECKS (checkHour), REFUSED if any fails: the hash chain; consecutive heights; one signer, one id, one burn (> 0)
+ * per block; the blocks after `to` agree with the previous hour's tail; balances: previous anchor + every change since
+ * = this anchor, and never below zero; every live read + the changes after it = the anchor, on both nodes; the
+ * anchored set only grows. FLAGGED (published, but every card that reads the hour is "flagged", D-112): a node that
+ * couldn't answer effective_balance_of, two nodes that disagree on it, or a rebuild that doesn't match it — at the
+ * block after the read for every address, or at the read block for every address (the first live run shows which,
+ * audit S-3). */
 (function (root) {
   "use strict";
   const HOUR = 1200, DAY = 28800, DELAY = 20, VERSION = 1;
@@ -45,6 +48,7 @@
   const canon = (o) => JSON.stringify(o) + "\n";
   const shaHex = (text) => R.hex(R.sha256(text));
   const fail = (why) => ({ ok: false, why });
+  const sortedKeys = (o) => { const ks = Object.keys(o); for (let i = 1; i < ks.length; i++) if (!(ks[i - 1] < ks[i])) return false; return true; };
 
   function checkShape(h) {
     if (!h || typeof h !== "object" || h.v !== VERSION) return "not a version-1 hour";
@@ -55,6 +59,7 @@
     if (h.kind !== "live" && h.kind !== "rebuilt") return "kind must be live or rebuilt";
     if (!Array.isArray(h.addrs) || !h.addrs.every((a) => typeof a === "string" && ADDR.test(a))) return "bad address";
     for (let i = 1; i < h.addrs.length; i++) if (!(h.addrs[i - 1] < h.addrs[i])) return "addrs must be sorted and unique";
+    const aset = new Set(h.addrs);
     const blocks = (b, n, where) => {
       if (!b || !Array.isArray(b.sig) || !Array.isArray(b.ids) || !Array.isArray(b.burns) || !Array.isArray(b.events)) return `${where}: sig, ids, burns, events`;
       if (b.sig.length !== n || b.ids.length !== n || b.burns.length !== n) return `${where}: exactly one signer, one id and one burn per block`;
@@ -65,8 +70,8 @@
     };
     const e1 = blocks(h, HOUR, "hour"); if (e1) return e1;
     const a = h.anchor;
-    if (!a || typeof a !== "object" || Object.keys(a).join() !== "at,id,bal,effA,effB") return "anchor fields must be at, id, bal, effA, effB";
-    if (!Number.isSafeInteger(a.at) || a.at < h.to || a.at > h.to + HOUR) return "the anchor must be read within an hour after the hour";
+    if (!a || typeof a !== "object" || Object.keys(a).join() !== "at,id,bal,reads") return "anchor fields must be at, id, bal, reads";
+    if (!Number.isSafeInteger(a.at) || a.at < h.to || a.at > h.to + DAY) return "the anchor block must be at most a day after the hour";
     if (typeof a.id !== "string" || !ID.test(a.id)) return "bad anchor block id";
     if (!h.tail || Object.keys(h.tail).join() !== "sig,ids,burns,events") return "tail fields must be sig, ids, burns, events";
     const e2 = blocks(h.tail, a.at - h.to, "tail"); if (e2) return e2;
@@ -78,18 +83,25 @@
         const [eh, k, f, t, v] = e;
         if (!Number.isSafeInteger(eh) || eh < lo || eh > hi || eh < last) return "events out of range or order";
         last = eh;
-        if (!["m", "t", "b"].includes(k) || typeof v !== "string" || !SAT.test(v)) return "bad event";
+        if (!["m", "t", "b"].includes(k) || typeof v !== "string" || !SAT.test(v) || typeof f !== "string" || typeof t !== "string") return "bad event";
         if ((k === "m") !== (f === "") || (k === "b") !== (t === "")) return "bad event ends";
-        if ((f !== "" && !h.addrs.includes(f)) || (t !== "" && !h.addrs.includes(t))) return "an event names an address not in addrs";
+        if ((f !== "" && !aset.has(f)) || (t !== "" && !aset.has(t))) return "an event names an address not in addrs";
       }
     }
-    for (const m of ["bal", "effA", "effB"]) {
-      if (!a[m] || typeof a[m] !== "object" || Array.isArray(a[m])) return `anchor ${m} must be an object`;
-      const ks = Object.keys(a[m]);
-      for (let i = 1; i < ks.length; i++) if (!(ks[i - 1] < ks[i])) return `anchor ${m} keys must be sorted`;
-      if (!ks.every((k) => h.addrs.includes(k) && typeof a[m][k] === "string" && SAT.test(a[m][k]))) return `bad anchor ${m}`;
+    if (!a.bal || typeof a.bal !== "object" || Array.isArray(a.bal) || !sortedKeys(a.bal)) return "anchor bal must be an object with sorted keys";
+    if (!Object.keys(a.bal).every((k) => aset.has(k) && typeof a.bal[k] === "string" && SAT.test(a.bal[k]))) return "bad anchor bal";
+    if (!a.reads || typeof a.reads !== "object" || Object.keys(a.reads).join() !== "A,B") return "anchor reads must be A and B";
+    for (const node of ["A", "B"]) {
+      const rs = a.reads[node];
+      if (!rs || typeof rs !== "object" || Array.isArray(rs) || !sortedKeys(rs)) return `reads ${node} must be an object with sorted keys`;
+      for (const [k, r] of Object.entries(rs)) {
+        if (!(k in a.bal)) return `reads ${node}: ${k} isn't anchored`;
+        if (!Array.isArray(r) || r.length !== 3 || !Number.isSafeInteger(r[0]) || r[0] < h.to || r[0] > a.at) return `reads ${node}: ${k} must be [h, balance, eff] read between the hour's end and the anchor block`;
+        if (typeof r[1] !== "string" || !SAT.test(r[1]) || typeof r[2] !== "string" || !(r[2] === "" || SAT.test(r[2]))) return `reads ${node}: bad numbers for ${k}`;
+      }
     }
-    if (h.kind === "rebuilt" && (Object.keys(a.effA).length || Object.keys(a.effB).length)) return "a rebuilt hour has no effective-balance reads";
+    if (h.kind === "rebuilt" && (Object.keys(a.reads.A).length || Object.keys(a.reads.B).length)) return "a rebuilt hour carries no reads";
+    if (h.kind === "live") for (const node of ["A", "B"]) for (const k of Object.keys(a.bal)) if (!(k in a.reads[node])) return `a live hour reads every anchored address on both nodes (${k} on ${node})`;
     return null;
   }
 
@@ -107,6 +119,13 @@
     take(h, h.from); if (withTail) take(h.tail, h.to + 1);
     return out;
   }
+  /** block x of a file (in the hour or its tail): "signer|id|burn", or null if the file doesn't hold it */
+  const blockOf = (f, x) => {
+    if (x >= f.from && x <= f.to) { const i = x - f.from; return `${f.addrs[f.sig[i]]}|${f.ids[i]}|${f.burns[i]}`; }
+    if (x > f.to && x <= f.anchor.at) { const i = x - f.to - 1; return `${f.addrs[f.tail.sig[i]]}|${f.tail.ids[i]}|${f.tail.burns[i]}`; }
+    return null;
+  };
+  const eventsIn = (f, x0, x1) => [...f.events, ...f.tail.events].filter((e) => e[0] >= x0 && e[0] <= x1).map((e) => JSON.stringify(e)).join("|");
 
   /** checkHour(prevText, text): prevText = the previous hour file's exact text ("" or null for the first file).
    *  → { ok, why?, quality: "ok" | "flagged", flagged: [] or ["*"] (everyone), effAt?: "next" | "head", hash } */
@@ -120,54 +139,53 @@
       if (h.prev !== shaHex(prevText)) return fail("the hash chain is broken (prev isn't the previous file's sha256)");
       if (h.n !== prev.n + 1) return fail("hours must be consecutive");
       if (prev.kind === "live" && h.kind === "rebuilt") return fail("a rebuilt hour can't follow a live one");
-      // the previous hour's tail is exactly this hour's first blocks
-      const t = prev.tail, k = t.sig.length;
-      for (let i = 0; i < k; i++) {
-        if (prev.addrs[t.sig[i]] !== h.addrs[h.sig[i]] || t.ids[i] !== h.ids[i] || t.burns[i] !== h.burns[i]) return fail(`block ${h.from + i} differs from the previous hour's tail`);
-      }
-      const mine = h.events.filter((e) => e[0] <= prev.anchor.at).map((e) => JSON.stringify(e)).join("|");
-      if (mine !== t.events.map((e) => JSON.stringify(e)).join("|")) return fail("the events after the previous anchor differ from its tail");
+      if (h.anchor.at < prev.anchor.at) return fail("anchors go forward");
+      // the blocks both files hold (the previous tail) must be the same blocks, with the same events
+      for (let x = h.from; x <= prev.anchor.at; x++) if (blockOf(prev, x) !== blockOf(h, x)) return fail(`block ${x} differs from the previous hour's tail`);
+      if (eventsIn(prev, h.from, prev.anchor.at) !== eventsIn(h, h.from, prev.anchor.at)) return fail("the events after the previous hour differ from its tail");
     } else if (h.prev !== "") return fail("the first file must have an empty prev");
-    // balances: previous anchor + changes = this anchor
     const bal = h.anchor.bal, addrs = Object.keys(bal);
-    const signers = new Set(h.sig.map((i) => h.addrs[i]));
-    for (const s of signers) if (!(s in bal)) return fail(`signer ${s} has no anchor`);
-    for (const s of h.tail.sig.map((i) => h.addrs[i])) if (!(s in bal)) return fail(`signer ${s} has no anchor`);
-    const ds = deltasOf(h);
+    for (const s of [...h.sig, ...h.tail.sig].map((i) => h.addrs[i])) if (!(s in bal)) return fail(`signer ${s} has no anchor`);
+    const ds = deltasOf(h), byA = new Map();
+    for (const x of ds) { let l = byA.get(x.a); if (!l) byA.set(x.a, (l = [])); l.push(x); }
+    const after = (a, h0) => { let s = 0n; for (const x of byA.get(a) || []) if (x.h > h0) s += x.d; return s; };   // changes in (h0, at]
     if (prev) {
       for (const a of Object.keys(prev.anchor.bal)) if (!(a in bal)) return fail(`${a} was anchored before and must stay anchored`);
-      const p0 = prev.anchor.at;
       for (const a of addrs) {
         if (!(a in prev.anchor.bal)) continue;   // newly anchored
-        let v = BigInt(prev.anchor.bal[a]);
-        for (const x of ds) if (x.a === a && x.h > p0) v += x.d;
-        if (v !== BigInt(bal[a])) return fail(`${a}: the previous anchor plus the hour's changes isn't this anchor (${v} vs ${bal[a]})`);
+        const v = BigInt(prev.anchor.bal[a]) + after(a, prev.anchor.at);
+        if (v !== BigInt(bal[a])) return fail(`${a}: the previous anchor plus the changes since isn't this anchor (${v} vs ${bal[a]})`);
       }
     }
-    // the rebuild never goes below zero inside the hour
     for (const a of addrs) {
-      let v = BigInt(bal[a]); const mine = ds.filter((x) => x.a === a).sort((p, q) => q.h - p.h);
+      let v = BigInt(bal[a]); const mine = (byA.get(a) || []).slice().sort((p, q) => q.h - p.h);
       for (const x of mine) { v -= x.d; if (v < 0n) return fail(`${a}: the rebuild goes below zero (a missed event)`); }
     }
     const hash = shaHex(text);
     if (h.kind === "rebuilt") return { ok: true, quality: "ok", flagged: [], hash };
-    // live: both nodes' effective_balance_of = the rebuild, for every anchored address
-    const at = h.anchor.at, effOf = (a, H) => {
+    // live: every read + the changes after it = the anchor, on both nodes (a node that read a wrong balance: refused)
+    for (const node of ["A", "B"]) for (const a of addrs) {
+      const [rh, rb] = h.anchor.reads[node][a];
+      if (BigInt(rb) + after(a, rh) !== BigInt(bal[a])) return fail(`${a}: node ${node}'s balance read at block ${rh} plus the changes since isn't the anchor`);
+    }
+    // effective_balance_of = the rebuild (D-112, audit S-3)
+    const effOf = (a, H) => {   // effective VHP for producing block H (to < H ≤ at + 1)
       let b = BigInt(bal[a]), recv = 0n;
-      for (const x of ds) if (x.a === a) { if (x.h >= H) b -= x.d; else if (x.h >= H - DELAY + 1) recv += x.inc; }
+      for (const x of byA.get(a) || []) { if (x.h >= H) b -= x.d; else if (x.h >= H - DELAY + 1) recv += x.inc; }
       const e = b - recv; return e > 0n ? e : 0n;
     };
     const missed = [], rule = { next: true, head: true };
     for (const a of addrs) {
-      const ea = h.anchor.effA[a], eb = h.anchor.effB[a];
-      if (ea === undefined || eb === undefined || ea !== eb) { missed.push(a); continue; }
-      const v = BigInt(ea);
-      if (v !== effOf(a, at + 1)) rule.next = false;
-      if (v !== effOf(a, at)) rule.head = false;
+      const ra = h.anchor.reads.A[a], rb = h.anchor.reads.B[a];
+      if (ra[2] === "" || rb[2] === "") { missed.push(`${a} (no answer)`); continue; }
+      for (const r of [ra, rb]) {
+        const v = BigInt(r[2]);
+        if (v !== effOf(a, r[0] + 1)) rule.next = false;
+        if (v !== effOf(a, r[0])) rule.head = false;
+      }
     }
     const effAt = rule.next ? "next" : rule.head ? "head" : "";
-    // D-112: a node that can't answer, two nodes that disagree, or a rebuild that matches neither rule: the hour is not ok
-    if (missed.length || !effAt) return { ok: true, quality: "flagged", flagged: ["*"], hash, why: missed.length ? `effective balance missing or different on the two nodes: ${missed.join(", ")}` : "the effective balances match the rebuild at neither the next block nor the read block" };
+    if (missed.length || !effAt) return { ok: true, quality: "flagged", flagged: ["*"], hash, why: missed.length ? `effective balance not answered: ${missed.join(", ")}` : "the effective balances match the rebuild neither at the block after each read nor at each read block" };
     return { ok: true, quality: "ok", flagged: [], effAt, hash };
   }
 
@@ -178,10 +196,10 @@
     if (Object.keys(d).join() !== "v,n,from,to,hashes,hours" || d.v !== VERSION) return fail("fields must be v, n, from, to, hashes, hours");
     if (!Number.isSafeInteger(d.n) || d.from !== d.n * DAY || d.to !== d.from + DAY - 1) return fail("from/to must be day n");
     if (!Array.isArray(d.hours) || d.hours.length !== 24 || !Array.isArray(d.hashes) || d.hashes.length !== 24) return fail("a day holds 24 hours");
-    let prev = prevHourText || "", flagged = [];
+    let prev = prevHourText || ""; const flagged = [];
     for (let i = 0; i < 24; i++) {
+      if (!d.hours[i] || d.hours[i].n !== d.n * 24 + i) return fail(`hour ${i} is not block-hour ${d.n * 24 + i}`);
       const t = canon(d.hours[i]);
-      if (d.hours[i].n !== d.n * 24 + i) return fail(`hour ${i} is not block-hour ${d.n * 24 + i}`);
       if (shaHex(t) !== d.hashes[i]) return fail(`hour ${i}: its sha256 isn't the one listed`);
       const r = checkHour(prev, t); if (!r.ok) return fail(`hour ${i}: ${r.why}`);
       if (r.quality === "flagged") flagged.push({ n: d.hours[i].n, flagged: r.flagged });
@@ -199,7 +217,7 @@
       if (i && h.n !== hours[i - 1].n + 1) throw new Error(`hours ${hours[i - 1].n} and ${h.n} aren't consecutive`);
       for (const s of h.sig) signers.push(h.addrs[s]);
       ids.push(...h.ids);
-      deltas.push(...deltasOf(h, i === hours.length - 1));
+      for (const x of deltasOf(h, i === hours.length - 1)) deltas.push(x);
       if (h.kind === "rebuilt") rebuilt.push({ h0: h.from, h1: h.to });
       const c = checks && checks[i];
       if (c && c.quality === "flagged") {
@@ -215,7 +233,7 @@
   /** makeHour: the canonical text of block-hour n.
    *  blocks: one per height from n × 1,200 to anchor.at: { s: signer, id, burn } (burn: BigInt or decimal text);
    *  events: the other VHP changes of those blocks: { h, k: "m" | "t" | "b", f, t, v };
-   *  anchor: { at, id, bal, effA, effB } (objects addr → BigInt or text; effA/effB empty on a rebuilt hour). */
+   *  anchor: { at, id, bal: { addr: v }, reads: { A: { addr: [h, bal, eff] }, B } } (reads empty on a rebuilt hour). */
   function makeHour({ n, prevText, kind, blocks, events, anchor }) {
     const from = n * HOUR, to = from + HOUR - 1, at = anchor.at;
     if (blocks.length !== at - from + 1) throw new Error(`makeHour needs the blocks ${from} … ${at}`);
@@ -229,11 +247,12 @@
       const ev = events.filter((e) => e.h >= lo && e.h <= hi).sort((p, q) => p.h - q.h).map((e) => [e.h, e.k, e.f || "", e.t || "", String(e.v)]);
       return { sig: bs.map((b) => ix.get(b.s)), ids: bs.map((b) => b.id), burns: bs.map((b) => String(b.burn)), events: ev };
     };
-    const sorted = (o) => Object.fromEntries(Object.keys(o || {}).sort().map((k) => [k, String(o[k])]));
-    const main = part(from, to);
-    const h = { v: VERSION, n, from, to, prev: prevText ? shaHex(prevText) : "", kind, addrs, sig: main.sig, ids: main.ids,
-      burns: main.burns, events: main.events, tail: part(to + 1, at),
-      anchor: { at, id: anchor.id, bal: sorted(anchor.bal), effA: sorted(anchor.effA), effB: sorted(anchor.effB) } };
+    const keysSorted = (o, f) => Object.fromEntries(Object.keys(o || {}).sort().map((k) => [k, f(o[k])]));
+    const read = (r) => [r[0], String(r[1]), r[2] === null || r[2] === undefined ? "" : String(r[2])];
+    const reads = anchor.reads || { A: {}, B: {} };
+    const h = { v: VERSION, n, from, to, prev: prevText ? shaHex(prevText) : "", kind, addrs, ...(() => { const m = part(from, to); return { sig: m.sig, ids: m.ids, burns: m.burns, events: m.events }; })(),
+      tail: part(to + 1, at),
+      anchor: { at, id: anchor.id, bal: keysSorted(anchor.bal, String), reads: { A: keysSorted(reads.A, read), B: keysSorted(reads.B, read) } } };
     return canon(h);
   }
   /** makeDay: the day file for day n from its 24 hour files' texts. */

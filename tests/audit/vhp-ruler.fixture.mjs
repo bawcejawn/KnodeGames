@@ -36,9 +36,11 @@ export const blockId = (h) => "0x1220" + crypto.createHash("sha256").update(`blo
 
 /** A random chain of `hours` block-hours starting at block-hour n0, written as vhp-data files.
  *  Each block burns ~4.08 VHP from its signer (picked in proportion to effective VHP); some blocks also carry a mint
- *  or a transfer out to an outside wallet. Anchors are read `lag` blocks after each hour, with exact effective
- *  balances from the contract copy at the next block. Returns { texts, n0, eff(h) per producer, producers }. */
-export function makeChain({ seed = 1, hours = 30, np = 5, n0 = 33500, lag = 25, rebuiltHours = 0, busy = 0.01 } = {}) {
+ *  or a transfer out to an outside wallet. Each hour's anchor block is `lag` blocks after it (or after the last hour
+ *  of a group of `share` late hours); each address is read at its own block up to it, with exact effective balances
+ *  from the contract copy at the block after its read. Returns { texts, n0, eff(h) per producer, producers }. */
+export function makeChain(opts = {}) {
+  const { seed = 1, hours = 30, np = 5, n0 = 33500, lag = 25, rebuiltHours = 0, busy = 0.01, share = 1 } = opts;
   const r = rng(seed), H = D.HOUR, from = n0 * H, top = (n0 + hours) * H - 1 + lag;
   const ps = Array.from({ length: np }, (_, i) => addr(i));
   const bal = ps.map((_, i) => BigInt(Math.floor(1e13 * (0.5 + r() * (i + 1)))));
@@ -62,13 +64,43 @@ export function makeChain({ seed = 1, hours = 30, np = 5, n0 = 33500, lag = 25, 
   }
   const texts = [];
   let prev = "";
-  for (let k = 0; k < hours; k++) {
-    const n = n0 + k, hf = n * H, at = hf + H - 1 + lag, b = balAfter.get(at), e = effAt.get(at + 1);
-    const kind = k < rebuiltHours ? "rebuilt" : "live";
-    const anchor = { at, id: blockId(at), bal: Object.fromEntries(ps.map((a, i) => [a, b[i]])),
-      effA: kind === "live" ? Object.fromEntries(ps.map((a, i) => [a, e[i]])) : {}, effB: kind === "live" ? Object.fromEntries(ps.map((a, i) => [a, e[i]])) : {} };
+  for (let k = 0; k < (opts.write ?? hours); k++) {
+    const n = n0 + k, hf = n * H;
+    // late runs: hours k … k + share − 1 all take the read made after the last of them
+    const g = Math.floor(k / share) * share, last = Math.min(hours - 1, g + share - 1);
+    const at = (n0 + last) * H + H - 1 + lag, kind = k < rebuiltHours ? "rebuilt" : "live";
+    const b = balAfter.get(at), reads = { A: {}, B: {} };
+    if (kind === "live") ps.forEach((a, i) => {
+      const rh = at - (i % (lag + 1));   // each address read at its own block, between the hour's end and `at`
+      reads.A[a] = reads.B[a] = [rh, balAfter.get(rh)[i], effAt.get(rh + 1)[i]];
+    });
+    const anchor = { at, id: blockId(at), bal: Object.fromEntries(ps.map((a, i) => [a, b[i]])), reads };
     const t = D.makeHour({ n, prevText: prev, kind, blocks: blocks.slice(hf - from, at - from + 1), events: events.filter((x) => x.h >= hf && x.h <= at), anchor });
     texts.push(t); prev = t;
   }
-  return { texts, n0, ps, eff: (a, h) => effAt.get(h)[ps.indexOf(a)] };
+  return { texts, n0, ps, eff: (a, h) => effAt.get(h)[ps.indexOf(a)], raw: { from, top, blocks, events, balAfter, effAt, ps } };
+}
+
+/** A simulated node over a makeChain() chain: serves blocks up to its irreversible block (head − 60) and answers reads
+ *  at its head, which moves on one block per read (so every address is read at its own block, as on mainnet). */
+export class FakeNode {
+  constructor(raw, { name = "A", head, step = 1, tamper = {} } = {}) { Object.assign(this, { raw, name, headH: head, step, tamper }); }
+  async head() { const h = this.headH; this.headH += 10; return { height: h, id: blockId(h), lib: h - 60 }; }   // time passes
+  async blockId(h) { return this.tamper.idAt === h ? blockId(-h) : blockId(h); }
+  async blocks(from, to) {
+    if (to > this.headH - 60) throw new Error(`${this.name}: block ${to} isn't irreversible yet`);
+    const out = [];
+    for (let h = from; h <= to; h++) {
+      const b = this.raw.blocks[h - this.raw.from];
+      const events = this.raw.events.filter((e) => e.h === h).map((e) => ({ h, k: e.k, f: e.f, t: e.t, v: String(e.v) }));
+      out.push({ h, id: this.tamper.idAt === h ? blockId(-h) : b.id, s: b.s, burn: String(this.tamper.burnAt === h ? b.burn + 1n : b.burn), events });
+    }
+    return out;
+  }
+  async read(a) {
+    const i = this.raw.ps.indexOf(a), h = this.headH;
+    const r = { h, id: blockId(h), bal: String(this.raw.balAfter.get(h)[i]), eff: this.tamper.noEff ? "" : String(this.raw.effAt.get(h + 1)[i]) };
+    this.headH += this.step;
+    return r;
+  }
 }

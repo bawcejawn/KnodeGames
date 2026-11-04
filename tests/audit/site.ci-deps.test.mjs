@@ -17,6 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import YAML from "yaml";
 
 const APP = process.env.APP || ".";
 const wfDir = `${APP}/.github/workflows`;
@@ -134,4 +135,42 @@ test("(guard) workflows install from the lockfile (no `npm install` fallback whe
     if (!/if \[ -f package-lock\.json \]/.test(m[1]) || !fs.existsSync(lock)) bad.push(`${f}: ${m[1].trim()}`);
   }
   assert.deepEqual(bad, []);
+});
+
+// I-022 (PN-8 / C2-4): the same rules on the parsed YAML, so no spelling (flow or block style, quotes, tags such as
+// !!str, anchors and aliases, block scalars with indentation digits) can hide a trigger, a write token or the secrets.
+const parsed = workflows.map(({ f, y }) => ({ f, doc: YAML.parse(y, { merge: true, maxAliasCount: 100 }) }));
+const BANNED_TRIGGERS = ["issues", "issue_comment", "discussion", "discussion_comment", "pull_request_target", "workflow_run", "pull_request_review", "pull_request_review_comment"];
+const triggerNames = (on) => (typeof on === "string" ? [on] : Array.isArray(on) ? on.map(String) : on && typeof on === "object" ? Object.keys(on) : []);
+/** Every permissions block in a workflow (top level and each job), as { where, perm }. */
+const permBlocks = (doc) => [{ where: "top", perm: doc && doc.permissions }, ...Object.entries((doc && doc.jobs) || {}).map(([j, v]) => ({ where: j, perm: v && v.permissions }))].filter((x) => x.perm !== undefined);
+const strings = (v, out = []) => { if (typeof v === "string") out.push(v); else if (v && typeof v === "object") for (const x of Object.values(v)) strings(x, out); return out; };
+
+test("(guard, parsed YAML) no issue or privileged triggers in any spelling", () => {
+  for (const { f, doc } of parsed) {
+    // YAML 1.1 readers (GitHub's) turn an unquoted key `on` into true; the yaml package keeps "on". Check both.
+    const on = doc && (doc.on ?? doc[true] ?? doc["true"]);
+    for (const t of triggerNames(on)) assert.ok(!BANNED_TRIGGERS.includes(String(t).trim()), `${f}: trigger ${t}`);
+  }
+});
+
+test("(guard, parsed YAML) no write-all, and issue permissions only where they were allowed", () => {
+  for (const { f, doc } of parsed) for (const { where, perm } of permBlocks(doc)) {
+    assert.ok(!(typeof perm === "string" && /write-all/i.test(perm)), `${f} ${where}: permissions ${perm}`);
+    if (perm && typeof perm === "object") {
+      for (const [k, v] of Object.entries(perm)) {
+        assert.ok(["read", "write", "none"].includes(String(v).trim()), `${f} ${where}: ${k}: ${v}`);
+        if (String(k).trim() === "issues") assert.equal(f, "names.yml", `${f} ${where}: issues permission`);
+      }
+    }
+  }
+});
+
+test("(guard, parsed YAML) secrets are never handed on whole, and only bot.yml uses any", () => {
+  for (const { f, doc } of parsed) {
+    for (const [j, job] of Object.entries((doc && doc.jobs) || {})) assert.ok(!(job && typeof job.secrets === "string" && /inherit/i.test(job.secrets)), `${f} ${j}: secrets: inherit`);
+    const all = strings(doc).join("\n");
+    assert.doesNotMatch(all, /tojson\s*\(\s*secrets\s*\)|secrets\s*\[|\bsecrets\s*\}\}/i, `${f}: all secrets in an expression`);
+    if (f !== "bot.yml") assert.doesNotMatch(all, /\$\{\{[^}]*\bsecrets\./i, `${f}: uses secrets`);
+  }
 });

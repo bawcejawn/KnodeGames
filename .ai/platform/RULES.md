@@ -54,7 +54,7 @@
 9. **A prize needs a final, verified results file.** A missed, held or disputed week pays nothing until resolved.
 10. **There is no Knode Games token** (D-072).
 11. **Not gambling:** no wagers, odds or player-funded pots on any game; stakes are never at risk (D-075).
-12. **The weekly rhythm (D-125):** every game plays Monday 00:00 → Saturday 24:00 UTC; **Sunday UTC is the review day**; results go final no earlier than Monday 00:00 UTC (24 h after the last play) and are claimable about Monday 5 PM PT. Nothing that scores falls on Sunday.
+12. **The weekly rhythm (D-125):** every game plays Monday 00:00 → Saturday 24:00 UTC; **Sunday UTC is the review day** (only scoring stops: data other games read, like Race cards, keeps running); results go final no earlier than Monday 00:00 UTC (24 h after the last play) and are claimable from about Mon 6–8 PM PST / 7–9 PM PDT (Tue ~02:00–04:00 UTC), later if a game is held. **Daily Questions** keeps its own timing (Saturday's windows run on Sunday's blocks; paid Tue ~12:00 UTC).
 
 ## 5. Architecture rules
 1. **Cost $0:** a static site on GitHub Pages; the repo stays **public** (D-005, D-043).

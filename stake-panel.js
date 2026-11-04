@@ -362,8 +362,8 @@
       const help = mode === "stake"
         ? `Whole numbers only (1, 2, 3 …). It counts from next week. You need at least ${exact(min)} VHP in this game to play as a staked player. KOIN is burned into VHP 1:1.`
         : mode === "withdraw"
-          ? `Any amount up to ${exact(st)} VHP, decimals included, straight back to your wallet. Always available. Withdrawing part keeps you in this week at the lower stake; withdrawing everything takes you out of this week.`
-          : `Moves stake to another game without leaving the vault. It counts there from next week. Up to ${exact(st)} VHP.`;
+          ? `Any amount up to ${exact(st)} VHP, decimals included, straight back to your wallet. Always available. Withdrawing part keeps you in this week at the lower stake, as long as at least ${exact(min)} VHP stays in: below that you get no share of this week's rewards and no free prize for it.`
+          : `Moves stake to another game without leaving the vault. It counts there from next week. Up to ${exact(st)} VHP. Leaving less than ${exact(min)} VHP here means no share of this game's rewards this week.`;
       const max = mode === "stake" ? null : el("button", { class: "btn btn-ghost btn-small", type: "button", onclick: () => { input.value = exact(st); } }, "All");
       const d = el("dialog", { class: "kstake-dialog" },
         el("form", { method: "dialog" },

@@ -16,7 +16,10 @@ Every command that changes something is a dry run until you add `--send`, and ma
 ## Before the upload (Repo Lens #B-4's three conditions)
 1. **Mana of a 60-question week measured on testnet (V61-B1).** `npm run bot -- testnet-v61` deploys a fresh v6.1 copy on the testnet,
    plays a 45-minute week with 60 questions, and writes `testnet-v61/report.md`: the 1st, 30th and 60th answer, settle with
-   60 and 30 answers, close and finalize. Each answer and settle must fit 1 Mana (the sponsor's limit). Result: see PR #114.
+   60 and 30 answers, close and finalize. Each answer and settle must fit 1 Mana (the sponsor's limit).
+   **✅ Done 4 Nov 2026** (fresh copy `1NGJiwjw…` of `399171a2…`): answer no. 1 **0.054**, no. 30 **0.055**, no. 60 **0.061**
+   Mana; settle with 60 answers **0.124**, with 30 **0.085**; close 0.083; finalize 0.049; the 61st question refused
+   ("too many questions this week"). All far under 1 Mana: no new `mana-limits.json` rows needed.
 2. **The emergency build pin (V61-A3):** the records commit after the upload (step 4) sets
    `safeWasmSha256` to `a6bc0164…` in `game-data/deployment.json`. Until then the pinned emergency build stays v6's `e84fec49…`,
    which is compatible with v6.1's storage.

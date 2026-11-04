@@ -14,7 +14,7 @@
 | Games 2 and 7 into the vault | announced 3 Nov | **Owner, Thu 5 Nov after 7:51 AM PT:** `game-apply 2`, `game-apply 7`, `games`, `PRIZES_FROM_WEEK = 3`; deadline Sun 8 Nov 4 PM PT (TODOS) |
 | Free-prize switch | merged (PR #65), not used yet | **Owner:** starting values + ruleset (TODOS, `FREE_PRIZE_SWITCH.md` §4) |
 | Vault bot checks | merged (PR #74) | follow-ups R-VAULT-7; every staked game publishes `board.json` (R-ALL-3, I-079); points recompute after 16 Nov (R-VAULT-4) |
-| First paid weeks (Questions, Race, Block X from Mon 9 Nov; first close Mon 16 Nov) | waiting on Race I-034 / I-035 and Block X PR #80 | R-RACE-1, R-RACE-2, R-BX-1; **Owner:** the Race decisions (TODOS) |
+| First paid weeks (Questions, Race, Block X from Mon 9 Nov; first close Mon 16 Nov) | waiting on the Race hold (I-034, PR #85) and Block X PR #80 | R-RACE-1, R-BX-1; **Owner:** review and merge #85 and #80 (TODOS) |
 | Doubled Questions (D-092) | planning | R-Q-1, R-VAULT-6 (after the first paid weeks) |
 | Runbook check | open | R-VAULT-5 |
 

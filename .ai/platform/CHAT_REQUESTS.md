@@ -58,7 +58,6 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-RACE-1 | The vault file must not be decided by a single run with no hold | I-034 | fixed before 16 Nov | open |
-| R-RACE-2 | A short recommendation on free-prize farming by many empty wallets (owner decides) | I-035 | recommendation sent | open |
 | R-RACE-3 | **Race picks owner change (D-096):** build the safe owner-change command (dry run, address entered twice, read-back) with tests; say whether a two-step handover is possible in a future upgrade and how `RACE_WIF` can stay offline | I-077, D-083, D-096 | merged by Fri 6 Nov | open — build now |
 | R-RACE-4 | New free-prize wording on the Leaders page once game 7 is applied (today: "paid once the vault is live") | `games.json` | PR | open |
 | R-RACE-5 | **Move onto the one VHP ruler (D-090)**, first the two known gaps: card credit (VHP added after a card gains nothing) and a longer highest-VHP look-back (the > 6-h hide). Coordinate with R-ARCH-1 | D-058, D-090, `HANDICAP_REVIEW.md` | PR + Repo Lens | open (raised: the Race pays from 9 Nov) |
@@ -74,6 +73,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-BR-3 | Merge `main` into `kg-09-bracket` before launch (16+ commits behind; the free-prize switch, nicknames standard, Leaders board) | L-16 | branch current | open |
 | R-BR-4 | Confirm R-ALL-3 (board path and fields) for the vault check | I-079 | confirmed | open |
 | R-BR-5 | **No 9 Nov target:** the Bracket launches when its fix-check passes | D-088 | — | rule |
+| R-BR-7 | **Luck trim or cap (D-101):** the Bracket has neither. Add one, sized by simulation, with the #E-3 fixes | D-101, `HANDICAP_REVIEW.md` §5.2 | built + tested before launch | open |
 | R-BR-6 | After the first live run, pin the block `effective_balance_of` uses (`effCheck` log) | I-061 (S-3/F-7) | pinned | open (after launch) |
 
 ### Survivor
@@ -82,12 +82,13 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-SV-1 | Keep the Free play board; the 4 + 2 season prize is off for now (switch). Page says no VHP is paid on Free play; check whether "no prize" changes SV-A10 / SV-A19 | D-081, D-082 | page text + note | open |
 | R-SV-2 | Repo Lens pass 4 → fix its findings, fix-check, push to `survivor` → update the brief, `claude/builds/04-survivor-plan.md` and checklist task t06 → testnet season → Picks registration → Season 1 Mon 16 Nov | I-050, I-053, D-065 | launched | open |
 | R-SV-3 | **Vault check:** Survivor publishes no `board.json`, so PR #74 sets `vaultGames.3.board: "none"` for now. If Survivor later publishes a board with `lastWeek` (allowed in its publish allowlist), tell the Vault chat to remove "none" | I-079 | decided with the Vault chat before 16 Nov | open |
+| R-SV-5 | **Luck trim or cap (D-101):** Survivor has neither, so a lucky small producer can top a day. Propose one (sized by simulation) and say whether it can go into Season 1 or waits for Season 2 | D-101, `HANDICAP_REVIEW.md` §5.2 | owner approves; built | open |
 | R-SV-4 | Leaderboards and Results need a Survivor `board.json` and a Results adapter (with the Hub) | I-056 | live | open |
 
 ### Last Node Standing
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
-| R-LN-1 | Add the Free play board **with** the 2 + 1 weekly prize. Decide the free-winner rule with the owner (proposal: `claude/lastnode/FREE-PLAY-PROPOSAL.md`), working with HOLD files | D-081 | rule decided; built | open |
+| R-LN-1 | Free play board **with** the 2 + 1 weekly prize: rule decided by the owner 3 Nov (guests need 1 VHP; 3 of 7 events; ties split) and built on `lastnode` @ `98a9896` (`claude/lastnode/FREE-PLAY-PROPOSAL.md`). Goes into the round-3 review with the round-2 fixes | D-081 | in the round-3 review; merged with the launch | in progress |
 | R-LN-2 | Check whether the sampler as it runs now (PR #67: up to 12 samples a run) changes the 48 h readiness and the round-3 review | I-058 | answer | open |
 | R-LN-3 | **Vault check (PR #74 VB-1):** when a held week is released (`LASTNODE_RELEASE_WEEKS`), publish `RELEASE-W<week>.json` next to the `HOLD-W` file (the publish job only adds files, so HOLD stays). Name the reason field `reason` (the bot reads `reason`; you write `why`). Keep every row with ≥ 1 point in `lastWeek` (VB-6) | I-064 | built + tested before launch | open — **without the RELEASE marker a released week stays held** |
 | R-LN-4 | **Lower the entry bar (D-091):** today ≥ 20 expected blocks an hour (~1.7% share, top 23). Simulate a field with many small producers, propose a new bar (target: k ≥ 10 expected blocks in your scoring window) with a luck trim, and show the owner the results | D-091, `HANDICAP_REVIEW.md` §5.2 | owner approves the value; built | open |

@@ -19,7 +19,6 @@
 | 13 | P3 | M | **No glossary.** VHP, effective VHP, Mana, the pool, the seed, cardVhp, staked vs free — and the three week-numbering schemes, which already caused confusion | — | New `GLOSSARY.md` (link from START_HERE) |
 | 14 | P3 | I | **ARCHITECTURE's remaining blanks:** repository folder map, what the 15 workflows each do, the Block X recorder schedule, on-chain state | `ARCHITECTURE.md` (3 TBDs) | Fill in from the repo |
 | 15 | P3 | M | **Data formats beyond vault files** — each game's `board.json` columns, `index.json`, Race `W###.json`, the `games-data` folders, `names.json` | LEADERBOARD_STANDARD covers shared columns only | A data-formats section, or one line per game in its file |
-| 17 | P3 | I | **Two owner checklists** (TODOS.md and the claude.ai checklist artifacts) — which is the source of truth is still undecided | I-032 | Owner decision |
 | 18 | P4 | I | **KOINOS unknowns:** Kondor on mobile, KOIN Vault on desktop, PoB and Nicknames on testnet, markets and community links | `KOINOS.md` (6 ❓) | Fill in when known |
 | 19 | P4 | I | **About 30 decisions have no date** (marked ❓) | `DECISIONS.md` index | Date them from the archive where possible |
 | 20 | P4 | M | **No version history** — contract versions, hashes and upload dates in one table (partly in `archive/DONE.md` → Roadmap: done milestones) | — | A "Releases" table in ROADMAP or ARCHITECTURE |
@@ -35,7 +34,6 @@ These need a decision or a design, not just writing. Each has an owner.
 | System | What's missing | Who | By |
 |---|---|---|---|
 | Free boards for Fantasy, Combo, Golf, Last Node (D-081) | No design yet; Combo may need Picks v2 before free players can send cards | each game chat | before each launch |
-| Last Node free-winner rule | The prize itself is decided (ON, D-081); **how winners are picked** (minimum days, ties, staked vs free) is still open: proposal in `claude/lastnode/FREE-PLAY-PROPOSAL.md`, not yet decided or filed | owner + Last Node chat | before its launch |
 | Race prize safety (I-034) and farming (I-035) | The single-run hold and the free-prize farming answer | Race chat + owner | before Mon 16 Nov |
 | Free-prize switch starting values | Branch not created; the GitHub ruleset waits for it | owner | this week |
 | Week labels (I-069) | Three schemes live; "9 Nov = Week 1" not specced | Hub chat | before Mon 9 Nov |
@@ -46,7 +44,7 @@ These need a decision or a design, not just writing. Each has an owner.
 **P1 / P2: before Mon 16 Nov and the next launches**
 1. Key and role inventory (#3). Library chat (R-LIB-2).
 2. Audit process (#12). Library chat (R-LIB-2).
-3. Last Node free-prize rule; free-board designs for Fantasy, Combo, Golf. Game chats + owner.
+3. Free-board designs for Fantasy, Combo, Golf. Game chats + owner.
 4. Race I-034 / I-035. Race chat + owner.
 5. Admin powers per contract (#4); sponsor (#10) and swap desk (#9) docs; scoring gaps (#11). Library chat with the owning chats.
 6. The Vault chat checks the runbook's ❓ steps (R-VAULT-5).
@@ -59,10 +57,10 @@ These need a decision or a design, not just writing. Each has an owner.
 
 **P4: later**
 
-10. #17 – #21, #23, #32; growth plan; fallback node plan.
+10. #18 – #21, #23, #32; growth plan; fallback node plan.
 
 ## What's in good shape
-- **No open contradictions** in `DECISIONS.md`: all 25 are settled, and 96 decisions are recorded (D-001 – D-096).
+- **No open contradictions** in `DECISIONS.md`: all 25 are settled, and 102 decisions are recorded (D-001 – D-102).
 - **All 12 chat exports are filed**; nothing in the archive is unsorted.
 - **Every game has a full eight-section file**, and the standards, RULES, DEPENDENCIES and FOUNDER_INTENT have no blanks. Seven standards now (Game, Vault, Leaderboard, Token, Recorder, Go-live checklist, AI chat starter), plus the runbook and three process files (session end, weekly review, free-prize switch).
 - Numbers agree across files: sponsor 25,000 KOIN / 5,000 a day; 2 + 1 free prizes; free play on every game, with prizes per the switch (D-081, D-082); Survivor 16 Nov; public testnet only.

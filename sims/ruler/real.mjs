@@ -30,6 +30,21 @@ const live = D.checkHour(texts[texts.length - 2], texts[texts.length - 1]);
 const hours = texts.map((t) => JSON.parse(t)), L = R.ledger(D.timelineFrom(hours));
 tick(`ledger over ${L.to - L.from + 1} blocks; first live hour: ${live.quality}${live.effAt ? `, effective_balance_of matches at the ${live.effAt === "next" ? "block after each read" : "read block"}` : ` (${live.why})`}`);
 
+if (E.DUMP === "1") {   // the whole history, compact and gzipped, into the job's log (public), for checking anywhere
+  const tl = D.timelineFrom(hours), zlib = await import("node:zlib");
+  const signers = [...new Set(tl.signers)].sort(), ix = new Map(signers.map((a, i) => [a, i]));
+  const burns = [], other = [];
+  for (const h of hours) { h.burns.forEach((b) => burns.push(b)); for (const e of h.events) other.push(e); }
+  const last = hours[hours.length - 1];
+  for (const e of last.tail.events) other.push(e);
+  const dump = { v: 1, from: tl.from, to: tl.to, signers, sig: Buffer.from(Uint8Array.from(tl.signers.map((a) => ix.get(a)))).toString("base64"),
+    burns: burns.join(","), tail: { sig: last.tail.sig.map((i) => last.addrs[i]), burns: last.tail.burns }, events: other, anchor: { at: last.anchor.at, bal: last.anchor.bal },
+    hourIds: hours.map((h) => h.ids[h.ids.length - 1]), seedIds: Object.fromEntries(raceSlots(L).map((w) => [w.L + 20, hours[Math.floor((w.L + 20) / 1200) - hours[0].n].ids[(w.L + 20) % 1200]])) };
+  const z = zlib.gzipSync(JSON.stringify(dump), { level: 9 }).toString("base64");
+  for (let i = 0; i < z.length; i += 20000) console.log(`DUMP ${i / 20000} ${z.slice(i, i + 20000)}`);
+  console.log(`DUMP END ${Math.ceil(z.length / 20000)} ${z.length}`);
+  if (E.SKIP_SIMS === "1") process.exit(0);
+}
 const sims = run(L, { cards: Number(E.CARDS || 60), races: Number(E.RACES || 2500), log: tick });
 // sim 5: node faults, through the real data checks
 const s5 = sim5();

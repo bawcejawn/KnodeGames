@@ -17,7 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Signer } from "koilib";
 import { SimChain, showKoin } from "./chain.ts";
-import { tick, paths, generatorRunner, allPlayers, DAY, DAY_MS, HOUR_MS, utc, type Ctx } from "./bot.ts";
+import { tick, paths, generatorRunner, allPlayers, roundsOfDay, DAY, DAY_MS, HOUR_MS, utc, type Ctx } from "./bot.ts";
 import { readCompact, writeCsv } from "../common.ts";
 import { winnersOf, rewardOf, freePrizeOf, freeTop, FREE_PRIZE } from "./payout.ts";
 
@@ -293,9 +293,11 @@ export async function rehearse(opts: { weeks: number; verbose: boolean }) {
     if (String(oc.params_hash).replace(/^0x/, "") !== q.paramsHash) mismatch++;
     const wEnd = genesisTime + (w + 1) * 7 * DAY_MS;
     if (N(oc.lock_time) > wEnd || tsOf(N(oc.window_end) + 60) > wEnd + 12 * HOUR_MS) outOfWeek++;
-    // the rhythm: answers close at exactly 00:00 UTC Tuesday..Sunday, and the watched blocks only start afterwards
-    const lock = N(oc.lock_time), dow = new Date(lock).getUTCDay();
-    if (lock % DAY_MS !== 0 || dow === 1 || tsOf(N(oc.window_start)) < lock) offSchedule++;
+    // the rhythm: answers close when a round of the schedule closes (bot.ts roundsOfDay), and the watched blocks only
+    // start afterwards
+    const lock = N(oc.lock_time), dl = Math.floor((lock - 1 - genesisTime) / DAY_MS);
+    const locks = [dl - 1, dl, dl + 1].flatMap((d) => roundsOfDay(genesisTime, d)).map((r) => r.lockTime);
+    if (!locks.includes(lock) || tsOf(N(oc.window_start)) < lock) offSchedule++;
   }
   check(unresolved === 0, `every question of a finished week was resolved (${posted.length} questions, ${voids} void)`);
   check(mismatch === 0, "every on-chain outcome and params hash equals the generator's published result");

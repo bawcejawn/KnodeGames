@@ -44,7 +44,7 @@ const TEST_ALERT = process.argv.includes("--test-alert");
 
 const NETWORK_RPC = process.env.RPC || "https://koinos.armana.io";
 const GITHUB_API = process.env.HEAL_GITHUB_API || "https://api.github.com";
-const REPO = process.env.HEAL_REPO || "bawcejawn/Knode";
+const REPO = process.env.HEAL_REPO || "bawcejawn/KnodeGames";
 const BEHIND = 200;                    // blocks (~10 minutes at ~3 s per block)
 const COOLDOWN_MS = 50 * 60_000;       // wait after a restart before restarting the same node again
 const MAX_HEALS = 3, WINDOW_MS = 6 * 3600_000;

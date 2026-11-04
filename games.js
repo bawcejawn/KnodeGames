@@ -108,12 +108,12 @@
   async function loadQuestions() {
     try {
       const idx = await fetchJson(GAME_DATA + "index.json");
-      const days = Array.isArray(idx && idx.days) ? idx.days.filter((d) => typeof d === "string" && /^questions\/W\d{3}-D[1-7]\.json$/.test(d)) : [];
+      const days = Array.isArray(idx && idx.days) ? idx.days.filter((d) => typeof d === "string" && /^questions\/W\d{3}-D[1-7](-\d{2})?\.json$/.test(d)) : [];
       if (!days.length) return;
       const day = await fetchJson(GAME_DATA + days[days.length - 1]);
       const now = Date.now(), qs = Array.isArray(day && day.questions) ? day.questions : [];
       questionsOpen = qs.filter((q) => q && Number(q.lockTime) > now).length;
-      if (!questionsOpen) nextQuestions = "New questions Mon–Sat, 12:00 UTC";
+      if (!questionsOpen) nextQuestions = Date.now() >= Date.UTC(2026, 10, 16) ? "New questions Mon–Sat, 00:00 and 12:00 UTC" : "New questions Mon–Sat, 12:00 UTC";
     } catch { /* no data: leave the card plain */ }
     refresh();
   }

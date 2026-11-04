@@ -52,6 +52,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-BX-8 | Publish check: run Block X's Python with `-I`, and drop `\|\| true` on listings (S3-21, S3-22); update the tests that pin those lines | I-054 | PR | open (low) |
 | R-BX-9 | Runbook names: use `upgrade-schedule` / `upgrade-upload` / `upgrade-clear` in the Picks v2 runbook steps 2–4 (the Combo chat asked) | I-063 | runbook updated | open (low) |
 | R-BX-10 | Testnet sponsor `1Dg8zKeH…` is OFF and still allowlists Combo's Picks v2. Before any Block X testnet use: `config --testnet --send` without the `TESTNET_PICKS*` variables | I-041 | config sent | open (low) |
+| R-BX-12 | **Block X on the Results page** (owner, 4 Nov): `index.html#results` has tabs only for Daily Questions and the Race. Add a Block X tab: set `"results": true` for `blockx` in `games.json` and add its drawing in `results.js` (as the Race's: each recorded week from `games-data/blockx/index.json` + `W###.json`, each target with its signer, how the picks went, the player's own pick and points, voids with their reason; "Only mine" and search). Read-only, built with `textContent`, nicknames through `names.js`. `results.js` is a shared site file: tell the Hub chat | — | PR + site tests; tab live | open |
 | R-BX-11 | Write the todo tests BXS-1, G-K-1, FC3-VHP-2, WEB3-23, WEB3-31 | I-039 | tests in | open (low) |
 
 ### Race

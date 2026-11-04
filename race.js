@@ -295,7 +295,7 @@
     const max = usage ? Number(usage.max_picks_per_day) || 5 : 5, used = usage ? Number(usage.picks_today) || 0 : 0;
     $("picks-left").textContent = usage ? `${Math.max(0, max - used)} of ${max} picks left today` : "";
     const rows = [];
-    // D-123: Sunday UTC is the review day: no race, nothing to pick.
+    // D-125: Sunday UTC is the review day: no race, nothing to pick.
     const restRow = (r) => el("div", { class: "pk-row done" },
       el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: "review day" })),
       el("div", { class: "pk-now", text: "Sunday is review day: no race. Results are checked on chain and paid from Monday." }), el("span"));
@@ -360,7 +360,7 @@
   async function sendPick(index, horse) {
     const who = me();
     if (!who || !raceContract || sending) return;
-    if (M.restRace(M.raceStart(index))) return;   // D-123: no race on Sunday (it wouldn't count)
+    if (M.restRace(M.raceStart(index))) return;   // D-125: no race on Sunday (it wouldn't count)
     const when = `${dayTime(M.raceStart(index))} (${M.raceId(index).slice(11)}:00 UTC)`;
     if (!KBlocks.isAddr(horse)) return pickModal("info", "Choose a horse first", ["Pick a producer from the list, then press Pick."], [okBtn("OK")]);
     if (myPicks.get(index) === horse) return pickModal("info", "That is already your pick", [`${nameOf(horse)} for the race at ${when}.`], [okBtn("OK")]);

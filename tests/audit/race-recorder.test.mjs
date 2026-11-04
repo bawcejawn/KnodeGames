@@ -1310,10 +1310,10 @@ test("#E-11 I-2: PRIZES_FROM_WEEK says where its second copy is", () => {
   assert.match(fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8"), /export const PRIZES_FROM_WEEK = 3;\s+\/\/ also PRIZES_FROM in race\.yml/);
 });
 
-// ── D-123 (owner, 4 Nov): the weekly rhythm — races Mon–Sat, Sunday UTC is the review day, final from Monday 00:00 UTC.
+// ── D-125 (owner, 4 Nov): the weekly rhythm — races Mon–Sat, Sunday UTC is the review day, final from Monday 00:00 UTC.
 // These tests put the made-up week 2 (Mon 2 – Mon 9 Nov; Sunday 8 Nov) on the rhythm with rhythmFrom 0. ──
 const ON = { rhythmFrom: 0 };
-test("D-123 rhythm: race-math says which races rest (Sunday UTC, from week 3) and when play ends", async () => {
+test("D-125 rhythm: race-math says which races rest (Sunday UTC, from week 3) and when play ends", async () => {
   assert.equal(M.RHYTHM_FROM_WEEK, 3);
   assert.equal(M.restRace(U("2026-11-15T06:00Z")), true, "Sunday of week 3");
   assert.equal(M.restRace(U("2026-11-14T18:00Z")), false, "Saturday's last race runs");
@@ -1327,7 +1327,7 @@ test("D-123 rhythm: race-math says which races rest (Sunday UTC, from week 3) an
   assert.doesNotMatch(yml, /RACE_RHYTHM_FROM\s*[:=]/, "the workflow never sets the test-only value");
 });
 
-test("D-123 rhythm: no card is taken for a Sunday race, and a Sunday race is recorded as 'review day, no race'", async () => {
+test("D-125 rhythm: no card is taken for a Sunday race, and a Sunday race is recorded as 'review day, no race'", async () => {
   const { REST_NOTE } = await import(path.resolve(APP, "bot/race.ts"));
   const satRun = await picksRun(U("2026-11-07T23:37Z"), "", ON);
   assert.ok(race(satRun, "2026-11-07T18").cards[5], "Saturday's last race gets its 23:00 card");
@@ -1345,7 +1345,7 @@ test("D-123 rhythm: no card is taken for a Sunday race, and a Sunday race is rec
   assert.ok(race(off, "2026-11-08T00").cards.some(Boolean), "off the rhythm (week 2 by default) Sunday still races");
 });
 
-test("D-123 rhythm: Sunday publishes the week as pending (never final); it goes final at the Monday 00:37 run, with no 12-hour wait", async () => {
+test("D-125 rhythm: Sunday publishes the week as pending (never final); it goes final at the Monday 00:37 run, with no 12-hour wait", async () => {
   const { dir } = await weekTwoDone();
   const sun = await holdRun("2026-11-08T05:37Z", dir, ON);
   assert.deepEqual(vaultOf(sun), WAIT, "Sunday: never final");
@@ -1358,7 +1358,7 @@ test("D-123 rhythm: Sunday publishes the week as pending (never final); it goes 
   assert.deepEqual(vaultOf(mon), FINAL, "Monday 00:37: final (checked on chain again)");
 });
 
-test("D-123 rhythm: a stored result that doesn't match the chain alerts already on the review day", async () => {
+test("D-125 rhythm: a stored result that doesn't match the chain alerts already on the review day", async () => {
   const { dir } = await weekTwoDone();
   const other = weekTwoPicks.map((x) => (x[0] === W1 ? [W1, P[4], x[2]] : x));
   await holdRun("2026-11-08T05:37Z", dir, { ...ON, custom: other });
@@ -1367,7 +1367,7 @@ test("D-123 rhythm: a stored result that doesn't match the chain alerts already 
   assert.match(lastRun.held[0], /HELD: a race's stored result doesn't match the chain/);
 });
 
-test("D-123 rhythm: a rhythm week still not final 3 h after the week ends alerts (not 15 h)", async () => {
+test("D-125 rhythm: a rhythm week still not final 3 h after the week ends alerts (not 15 h)", async () => {
   const { RHYTHM_ALERT_AFTER } = await import(path.resolve(APP, "bot/race.ts"));
   assert.equal(RHYTHM_ALERT_AFTER, 3 * H);
   const { dir } = await weekTwoDone();
@@ -1377,7 +1377,7 @@ test("D-123 rhythm: a rhythm week still not final 3 h after the week ends alerts
   assert.equal(lastRun.held.length, 1); assert.match(lastRun.held[0], /still not final 4 h after the week ended: 1 Race stake\(s\) could not be read/);
 });
 
-test("D-123 rhythm, publish job: a Sunday pending file is accepted; the Monday final needs no 12-hour wait; a scored Sunday race is refused", async () => {
+test("D-125 rhythm, publish job: a Sunday pending file is accepted; the Monday final needs no 12-hour wait; a scored Sunday race is refused", async () => {
   const { dir } = await weekTwoDone();
   const s = (t) => String(U(t) / 1000), RH = { RACE_RHYTHM_FROM: "0" };
   const show = (bare, f) => JSON.parse(execFileSync("git", ["--git-dir", bare, "show", `race-data:${f}`]).toString());
@@ -1407,11 +1407,11 @@ test("D-123 rhythm, publish job: a Sunday pending file is accepted; the Monday f
   const bad = JSON.parse(JSON.stringify(w)); bad.races.find((r) => r.id === "2026-11-08T12").cards[0] = { ...card, at: sr.start - 60000 };
   const d = tmp(); fs.cpSync(sun, d, { recursive: true }); fs.writeFileSync(path.join(d, "W002.json"), JSON.stringify(bad) + "\n");
   const r4 = pubCopy2(d, tmp(), s("2026-11-09T00:38Z"), RH);
-  assert.equal(r4.ok, false); assert.match(r4.out, /a Sunday race \(review day, D-123\) can't have a card or a result/);
+  assert.equal(r4.ok, false); assert.match(r4.out, /a Sunday race \(review day, D-125\) can't have a card or a result/);
 });
 function pubCopy2(dir, bare, now, extra) { const d = tmp(); fs.cpSync(dir, d, { recursive: true }); if (!fs.existsSync(path.join(bare, "HEAD"))) execFileSync("git", ["init", "-q", "--bare", bare]); return publish(d, bare, now, extra); }
 
-test("D-123 rhythm, page: the Race page shows Sunday as review day and never sends a Sunday pick", () => {
+test("D-125 rhythm, page: the Race page shows Sunday as review day and never sends a Sunday pick", () => {
   const js = fs.readFileSync(path.resolve(APP, "race.js"), "utf8");
   assert.match(js, /Sunday is review day: no race\. Results are checked on chain and paid from Monday\./);
   assert.match(js, /if \(M\.restRace\(M\.raceStart\(index\)\)\) return;/);
@@ -1419,7 +1419,7 @@ test("D-123 rhythm, page: the Race page shows Sunday as review day and never sen
   assert.match(fs.readFileSync(path.resolve(APP, "race.html"), "utf8"), /<b>Sunday is review day<\/b>/);
 });
 
-test("D-123 rhythm: the review day starts at Sunday 00:37 — Sunday's unrecorded slots don't hold the pending file back", async () => {
+test("D-125 rhythm: the review day starts at Sunday 00:37 — Sunday's unrecorded slots don't hold the pending file back", async () => {
   const { dir } = await weekTwoDone();
   const w = week(dir);
   for (const r of w.races) if (r.id.startsWith("2026-11-08")) r.result = null;   // Sunday not recorded yet

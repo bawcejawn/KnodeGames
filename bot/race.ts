@@ -265,7 +265,7 @@ type Opts = {
   vaultHold?: false | { afterEnd: number; stable: number };
   /** Vault weeks the owner holds by hand (default: the RACE_HOLD_WEEKS variable). */
   holdWeeks?: number[];
-  /** D-123: the first vault week on the weekly rhythm (no Sunday races; Sunday review; final from Monday 00:00 UTC).
+  /** D-125: the first vault week on the weekly rhythm (no Sunday races; Sunday review; final from Monday 00:00 UTC).
    *  Default M.RHYTHM_FROM_WEEK (3); the tests pass their own. */
   rhythmFrom?: number;
 };
@@ -395,7 +395,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   for (const s of [curLeg, nextLeg]) {
     if (s === nextLeg && s - now > CARD_AHEAD) continue;
     const ra = M.raceAt(s), race = raceById(ra.id);
-    if (!race || M.restRace(ra.start, rhythmFromWeek)) continue;   // D-123: no race (and no card) on Sunday
+    if (!race || M.restRace(ra.start, rhythmFromWeek)) continue;   // D-125: no race (and no card) on Sunday
     const leg = M.legOf(ra.start, s, race.cards.length);
     if (!race.cards[leg] && !want.some((x) => x.race === race && x.leg === leg)) want.push({ race, leg });
   }
@@ -684,7 +684,7 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
     lastWeek: wNow > 0 ? { week: wNow - 1, start: M.weekStart(wNow - 1), rows: pub(lastRows) } : null,
     allTime: { rows: pub(await build(0, Infinity, wNow)) },
   };
-  // D-123: on the review day (Sunday UTC) the vault file is this week's, published as pending; from Monday, last week's.
+  // D-125: on the review day (Sunday UTC) the vault file is this week's, published as pending; from Monday, last week's.
   const review = reviewing(wNow, now);
   return { board, vault: await vaultResults(all, review ? wNow : wNow - 1, now, review ? weekRows : lastRows, failed, problems, stakedCheck) };
 }
@@ -801,10 +801,10 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   }
   let firstCard = Infinity;
   for (const x of all.values()) for (const r of x.races) if (r.cards.some(Boolean)) firstCard = Math.min(firstCard, r.start);
-  // D-123: a Sunday race on the rhythm scores nothing, so it never keeps the week open (the review day can start at
+  // D-125: a Sunday race on the rhythm scores nothing, so it never keeps the week open (the review day can start at
   // Sunday 00:00 UTC, before those races' times have passed).
   const open = wf.races.filter((r) => !r.result?.final && !M.restRace(r.start, rhythmFromWeek) && !(r.start < firstCard && !r.cards.some(Boolean)));
-  const late = now >= wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER);   // D-123: the review day comes first
+  const late = now >= wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER);   // D-125: the review day comes first
   const unread = rows.filter((r) => failed.has(`stake:${r.a}|${w}`));
   const file: VaultFile = { game: VAULT_GAME, week: w, final: false, rows: [], first: [], second: [], skipped: [] };
   const wait = (why: string) => { problems.push(`vault week ${w}: not final yet, ${why}`); lateAlert(w, wf.end, now, why); return file; };
@@ -831,15 +831,15 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
 
 // ── the hold before a vault file goes final (I-034, R-RACE-1; owner 2026-11-03: 12 hours, then two matching runs) ──
 /** How long after its week ends a vault file is held before it can go final. */
-export const VAULT_HOLD_MS = 12 * M.HOUR;   // weeks before the rhythm (D-123) only
-// ── D-123: the weekly rhythm (owner, 4 Nov): races Mon–Sat; Sunday UTC is the review day; final from Monday 00:00 UTC ──
+export const VAULT_HOLD_MS = 12 * M.HOUR;   // weeks before the rhythm (D-125) only
+// ── D-125: the weekly rhythm (owner, 4 Nov): races Mon–Sat; Sunday UTC is the review day; final from Monday 00:00 UTC ──
 let rhythmFromWeek = M.RHYTHM_FROM_WEEK;
 /** Is week w on the weekly rhythm? */
 const onRhythm = (w: number) => w >= rhythmFromWeek;
 /** The review day for week w: Sunday 00:00 → Monday 00:00 UTC, the 24 h after its last race. */
 const reviewing = (w: number, now: number) => onRhythm(w) && now >= M.playEnd(w) && now < M.weekStart(w + 1);
 /** A Sunday race on the rhythm: recorded as not run. */
-export const REST_NOTE = "Sunday: review day, no race (D-123)";
+export const REST_NOTE = "Sunday: review day, no race (D-125)";
 /** How long after the week ends (Monday 00:00 UTC) a rhythm week alerts if still not final: it normally goes final at
  *  the 00:37 or 01:37 run, after a whole Sunday of review. */
 export const RHYTHM_ALERT_AFTER = 3 * M.HOUR;
@@ -913,10 +913,10 @@ async function settle(candidate: VaultFile, weekEnd: number, now: number, proble
   }
   if (holdSetting.weeks.includes(w)) heldAlert(w, weekEnd, now, "you are holding it (RACE_HOLD_WEEKS)", `remove ${w} from RACE_HOLD_WEEKS when you're happy with it (pending: ${summary})`);
   if (holdSetting.weeks.includes(w)) { problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`); return waiting; }
-  // D-123: on the rhythm the review day is before the week ends, so the week may go final from Monday 00:00 UTC.
+  // D-125: on the rhythm the review day is before the week ends, so the week may go final from Monday 00:00 UTC.
   const afterEnd = onRhythm(w) ? 0 : hold.afterEnd;
   const readyAt = Math.max(weekEnd + afterEnd, at + hold.stable);
-  // D-123: during the review day, each new pending file is checked against the chain at once (an early alert).
+  // D-125: during the review day, each new pending file is checked against the chain at once (an early alert).
   if (reviewing(w, now) && pendingNew && w >= prizesFromWeek) {
     let why = "";
     try { why = all.get(w) ? await verifyWeek(all.get(w)!, chainCtx) : ""; }

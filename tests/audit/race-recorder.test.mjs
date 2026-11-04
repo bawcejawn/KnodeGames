@@ -482,7 +482,8 @@ const publishSh = (() => {
   return step.split("\n        run: |\n")[1].split("\n").filter((l) => l.startsWith("          ") || l === "").map((l) => l.slice(10)).join("\n");
 })();
 function publish(incoming, bare, now = CHECK_NOW) {
-  const env = { ...process.env, IN: incoming, GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r", RUNNER_TEMP: tmp(), RACE_CHECK_NOW: now,
+  // RACE_PRIZES_FROM 0: the made-up week 2 pays here (as picksRun's default prizesFrom); the workflow never sets it.
+  const env = { ...process.env, IN: incoming, GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r", RUNNER_TEMP: tmp(), RACE_CHECK_NOW: now, RACE_PRIZES_FROM: "0",
     GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: `url.${bare}.insteadOf`, GIT_CONFIG_VALUE_0: "https://x-access-token:t@github.com/o/r.git" };
   try { return { ok: true, out: execFileSync("bash", ["-c", publishSh], { cwd: tmp(), env, stdio: "pipe" }).toString() }; }
   catch (e) { return { ok: false, out: String(e.stdout) + String(e.stderr) }; }
@@ -1082,4 +1083,97 @@ test("held alert, workflow: the alert job fails the run after publishing; the pu
   const out2 = path.join(tmp(), "gh-out2");
   execFileSync("python3", ["-c", checkPy, ok], { stdio: "pipe", env: { ...process.env, RACE_CHECK_NOW: CHECK_NOW, GITHUB_OUTPUT: out2 } });
   assert.equal(fs.existsSync(out2), false, "a good file: nothing held");
+});
+
+// ── I-085 (R-RACE-12, RECORDER_STANDARD §4.1): the publish job works the vault file out again from the week's picks ──
+/** One synthetic paid week (vault week 2), checked by the publish job exactly as a 12:37 Monday run would be: the week
+ *  file and the pending file are already published, this push carries the final file and the board. `mutate` changes
+ *  the final file (and its pending copy, so only the recompute can catch it). Returns the publish check's output. */
+async function recomputeRun(players, { mutate = null, mutateBoard = null, prizesFrom = "0" } = {}) {
+  const R = await import(path.resolve(APP, "bot/race.ts"));
+  const start = M.weekStart(2), races = [];
+  const t = new Map(), firstAt = new Map();
+  for (let i = 0; i < 28; i++) races.push({ id: M.raceId(M.raceIndex(start + i * 6 * H)), start: start + i * 6 * H, end: start + (i + 1) * 6 * H, cards: [], result: { final: true, picks: [] } });
+  for (const p of players) for (const [ri, right, show, at] of p.picks) {
+    races[ri].result.picks.push([p.a, P[0], at, right, 0, show]);
+    const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0; t.set(p.a, c);
+    if (!firstAt.has(p.a) || at < firstAt.get(p.a)) firstAt.set(p.a, at);
+  }
+  const rows = R.rank([...t].map(([a, c]) => ({ a, ...c, pts: 3 * c.correct + c.shows, ranked: players.find((p) => p.a === a).staked, earning: true })));
+  const placed = R.withEarns(R.withPlaces(rows), firstAt).map(({ earning, ...r }) => r);
+  const places = R.prizePlaces(rows, firstAt), staked = R.stakedRows(rows);
+  let file = { game: 7, week: 2, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: [] };
+  if (mutate) file = mutate(JSON.parse(JSON.stringify(file)));
+  const board = { v: 1, updated: "2026-11-09T12:37:00.000Z", today: { day: 0, rows: [] }, week: { week: 3, start: M.weekStart(3), rows: [] },
+    lastWeek: { week: 2, start, rows: placed }, allTime: { rows: [] } };
+  if (mutateBoard) mutateBoard(board);
+  // The published branch: the week file and the pending file (an hour old).
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const wt = tmp(); execFileSync("git", ["init", "-q", "-b", "race-data", wt]);
+  fs.writeFileSync(path.join(wt, "W002.json"), JSON.stringify({ v: 1, week: 2, start, end: start + 7 * 24 * H, races }) + "\n");
+  fs.mkdirSync(path.join(wt, "vault"));
+  fs.writeFileSync(path.join(wt, "vault", "PENDING-W2.json"), JSON.stringify({ game: 7, week: 2, at: U("2026-11-09T11:37Z"), file }) + "\n");
+  fs.writeFileSync(path.join(wt, "vault", "W2.json"), JSON.stringify({ game: 7, week: 2, final: false, rows: [], first: [], second: [], skipped: [] }) + "\n");
+  const g = (...a) => execFileSync("git", ["-C", wt, "-c", "user.name=t", "-c", "user.email=t@t", ...a]);
+  g("add", "-A"); g("commit", "-q", "-m", "x"); g("push", "-q", bare, "race-data");
+  const inc = tmp(); fs.mkdirSync(path.join(inc, "vault"));
+  fs.writeFileSync(path.join(inc, "vault", "W2.json"), JSON.stringify(file) + "\n");
+  fs.writeFileSync(path.join(inc, "board.json"), JSON.stringify(board) + "\n");
+  const env = { ...process.env, IN: inc, GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r", RUNNER_TEMP: tmp(), RACE_CHECK_NOW: String(U("2026-11-09T12:38Z") / 1000), RACE_PRIZES_FROM: prizesFrom,
+    GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: `url.${bare}.insteadOf`, GIT_CONFIG_VALUE_0: "https://x-access-token:t@github.com/o/r.git" };
+  let out;
+  try { out = execFileSync("bash", ["-c", publishSh], { cwd: tmp(), env, stdio: "pipe" }).toString(); } catch (e) { out = "FAILED " + String(e.stdout) + String(e.stderr); }
+  const published = JSON.parse(execFileSync("git", ["--git-dir", bare, "show", "race-data:vault/W2.json"]).toString());
+  return { out, final: published.final === true, file };
+}
+const addrN = (i) => "1" + "AB"[i % 2].repeat(20) + String(100000000000 + i).replace(/0/g, "z");
+
+test("I-085: an honest final file publishes; the same file with other winners, other rows or a board that doesn't match the picks is held", async () => {
+  const pl = [
+    { a: addrN(1), staked: true, picks: [[0, 1, 0, 10], [1, 0, 1, 11]] },        // 4 pts
+    { a: addrN(2), staked: true, picks: [[0, 0, 1, 12]] },                        // 1 pt
+    { a: addrN(3), staked: false, picks: [[0, 1, 0, 13], [2, 1, 0, 14]] },        // 6 pts: 1st
+    { a: addrN(4), staked: false, picks: [[1, 1, 0, 15]] },                       // 3 pts: 2nd
+    { a: addrN(5), staked: false, picks: [[2, 0, 0, 16]] },                       // 0 pts
+  ];
+  const ok = await recomputeRun(pl);
+  assert.ok(ok.final, ok.out);
+  assert.deepEqual([ok.file.first, ok.file.second, ok.file.rows.map((r) => r.points)], [[addrN(3)], [addrN(4)], [255, 254]]);
+  for (const [name, mutate, why] of [
+    ["winners swapped", (f) => ({ ...f, first: f.second, second: f.first }), /free-prize winners aren't/],
+    ["a staked wallet paid as free", (f) => ({ ...f, second: [addrN(1)], rows: f.rows.slice(1).map((r) => ({ ...r, points: 255 })) }), /staked rows aren't|free-prize winners aren't/],
+    ["rows reordered", (f) => ({ ...f, rows: [{ ...f.rows[1], points: 255 }, { ...f.rows[0], points: 254 }] }), /staked rows aren't/],
+    ["a staked wallet left out", (f) => ({ ...f, rows: f.rows.slice(0, 1) }), /staked rows aren't/],
+  ]) {
+    const r = await recomputeRun(pl, { mutate });
+    assert.equal(r.final, false, name); assert.match(r.out, why, name);
+    assert.match(r.out, /vault\/W2\.json held \(I-034\)/, name);
+  }
+  const b = await recomputeRun(pl, { mutateBoard: (bd) => { bd.lastWeek.rows[0].correct += 1; bd.lastWeek.rows[0].pts += 3; } });
+  assert.equal(b.final, false); assert.match(b.out, /board's last week doesn't match the week's picks/);
+  const c = await recomputeRun(pl, { mutateBoard: (bd) => { bd.lastWeek.rows = bd.lastWeek.rows.slice(1); } });
+  assert.equal(c.final, false); assert.match(c.out, /leaves out a wallet/);
+  const u = await recomputeRun(pl, { prizesFrom: "3" });
+  assert.equal(u.final, false, "week 2 before the Race pays: a file with winners is held"); assert.match(u.out, /before the Race pays must list nobody/);
+});
+
+test("I-085: the publish job's recompute agrees with the recorder's rules on 120 random weeks (ties, >10 tied, staked and free)", async () => {
+  const rnd = M.rng(85);
+  const pick = (n) => Math.floor(rnd.next() * n);
+  for (let k = 0; k < 120; k++) {
+    const n = 1 + pick(k % 10 === 0 ? 30 : 12), pl = [];
+    for (let i = 0; i < n; i++) {
+      const picks = [], m = 1 + pick(3), shared = k % 10 === 0 && i < 14;   // every 10th week: 14 wallets with the same picks
+      for (let j = 0; j < m; j++) picks.push(shared ? [j, 1, 0, 1000 + pick(500)] : [pick(28), pick(3) === 0 ? 1 : 0, pick(2), 1000 + pick(5000)]);
+      pl.push({ a: addrN(k * 100 + i), staked: !shared && pick(3) === 0, picks });
+    }
+    const r = await recomputeRun(pl);
+    assert.ok(r.final, `week ${k}: ${r.out.split("\n").filter((l) => /held|error/i.test(l)).join(" | ")}`);
+  }
+});
+
+test("I-085: the workflow never sets the recompute's test-only RACE_PRIZES_FROM (the job's default is PRIZES_FROM_WEEK)", async () => {
+  const { PRIZES_FROM_WEEK } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.match(yml, new RegExp(`PRIZES_FROM = int\\(os\\.environ\\.get\\("RACE_PRIZES_FROM"\\) or ${PRIZES_FROM_WEEK}\\)`));
+  assert.equal((yml.match(/RACE_PRIZES_FROM/g) || []).length, 1, "only read, never set");
 });

@@ -267,6 +267,64 @@ jobs:
               p = pub_json("vault/PENDING-" + f)
               if type(p) is not dict or not same(p.get("file"), j): return "no published pending file with exactly this content"
               if type(p.get("at")) is not int or p["at"] > NOW * 1000 - STABLE_S * 1000: return "its pending file is less than an hour old"
+              return recompute_held(j)
+          # I-085 (R-RACE-12, RECORDER_STANDARD §4.1): a new final file's rows / first / second are worked out again here,
+          # from the week's race file (this push's, else the published one) and the board's Staked / Free split, with the
+          # recorder's own rules (bot/race.ts: tally, rank, stakedRows, prizePlaces). Anything different holds the file.
+          # Who is staked comes from board.json; the vault bot checks that list against the chain (PR #74).
+          PRIZES_FROM = int(os.environ.get("RACE_PRIZES_FROM") or 3)   # PRIZES_FROM_WEEK in bot/race.ts; tests only set it
+          def week_json(w):
+              name = "W%03d.json" % w
+              for q in (os.path.join(d, name), os.path.join(pub, name) if pub else ""):
+                  if q and os.path.isfile(q):
+                      try: return json.load(open(q, encoding="utf-8"))
+                      except Exception: return None
+              return None
+          def recompute_held(j):
+              w = j["week"]
+              if w < PRIZES_FROM:
+                  return "" if not (j["rows"] or j["first"] or j["second"]) else "a week before the Race pays must list nobody"
+              wf = week_json(w)
+              if type(wf) is not dict or wf.get("week") != w or type(wf.get("races")) is not list: return "its week's race file can't be read to check it"
+              t, first_at = {}, {}
+              for r in wf["races"]:
+                  res = r.get("result") if type(r) is dict else None
+                  if type(res) is not dict or res.get("final") is not True or type(res.get("picks")) is not list: continue
+                  for x in res["picks"]:
+                      who, right, show = x[0], x[3] == 1, len(x) > 5 and x[5] == 1
+                      c = t.setdefault(who, [0, 0, 0])
+                      c[2] += 1; c[0] += 1 if right else 0; c[1] += 1 if (not right and show) else 0
+                      if who not in first_at or x[2] < first_at[who]: first_at[who] = x[2]
+              bp = os.path.join(d, "board.json")
+              try: b = json.load(open(bp, encoding="utf-8")) if os.path.isfile(bp) else None
+              except Exception: b = None
+              lw = b.get("lastWeek") if type(b) is dict else None
+              if not t:
+                  return "" if not (j["rows"] or j["first"] or j["second"]) else "nobody picked that week, yet the file lists players"
+              if type(lw) is not dict or lw.get("week") != w or type(lw.get("rows")) is not list: return "this push has no board for that week to check it against"
+              staked = {}
+              for x in lw["rows"]:
+                  if type(x) is not dict or x.get("a") in staked: return "the board's last week lists a wallet twice"
+                  staked[x.get("a")] = x.get("ranked") is True
+                  c = t.get(x.get("a"))
+                  if c is None or [x.get("correct"), x.get("shows"), x.get("picks")] != c: return "the board's last week doesn't match the week's picks (" + str(x.get("a")) + ")"
+              if set(staked) != set(t): return "the board's last week leaves out a wallet that picked"
+              rows = sorted(({"a": a, "correct": c[0], "shows": c[1], "picks": c[2], "pts": 3 * c[0] + c[1], "ranked": staked[a]} for a, c in t.items()),
+                            key=lambda r: (-r["pts"], -r["correct"], -r["picks"], r["a"]))
+              def groups(rs):
+                  out = []
+                  for r in rs:
+                      if out and (out[-1][0]["pts"], out[-1][0]["correct"], out[-1][0]["picks"]) == (r["pts"], r["correct"], r["picks"]): out[-1].append(r)
+                      else: out.append([r])
+                  return out
+              want_rows = [{"player": r["a"], "points": max(1, 255 - i)} for i, g in enumerate(groups([r for r in rows if r["ranked"] and r["pts"] >= 1])) for r in g]
+              fg = groups([r for r in rows if not r["ranked"] and r["pts"] >= 1])
+              early = lambda g: [r["a"] for r in sorted(g, key=lambda r: (first_at.get(r["a"], float("inf")), r["a"]))][:10]
+              if not fg: want_first, want_second = [], []
+              elif len(fg[0]) > 1 or len(fg) == 1: want_first, want_second = early(fg[0]), []
+              else: want_first, want_second = [fg[0][0]["a"]], early(fg[1])
+              if not same(j["rows"], want_rows): return "its staked rows aren't what the week's picks and the board give"
+              if not same(j["first"], want_first) or not same(j["second"], want_second): return "its free-prize winners aren't what the week's picks and the board give"
               return ""
           for f in os.listdir(d):
               if f == "vault":

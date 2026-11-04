@@ -97,6 +97,9 @@ async function status() {
   const now = Number(st.time ?? Date.now());
   if (st.treasury_change?.address && Number(st.treasury_change.eta ?? 0) > 0) log(`  ⚠ Treasury change announced → ${st.treasury_change.address}, possible from ${utc(Number(st.treasury_change.eta))}${Number(st.treasury_change.eta) <= now ? " (now)" : ""}`);
   if (st.upgrade?.hash && String(st.upgrade.hash).length > 2 && Number(st.upgrade.eta ?? 0) > 0) log(`  ⚠ Code upgrade announced (sha256 ${st.upgrade.hash}), possible from ${utc(Number(st.upgrade.eta))}`);
+  // docs/WALLETS.md step 5a: a proposed owner change and waiting settings (a handover wipes the settings) show here too.
+  if (st.owner_change?.address && Number(st.owner_change.eta ?? 0) > 0) log(`  ⚠ Owner change proposed → ${st.owner_change.address}, can be accepted from ${utc(Number(st.owner_change.eta))}${Number(st.owner_change.eta) <= now ? " (now)" : ""}`);
+  if (Number(st.pending?.eta ?? 0) > 0) log(`  ⚠ Settings change waiting (fee cut, cap raise or node key), possible from ${utc(Number(st.pending.eta))}: a Desk owner handover would wipe it`);
   if (BigInt(st.vhp_balance ?? 0) > 0n) {
     try {
       const head: any = await chain.provider.getHeadInfo();

@@ -57,6 +57,7 @@ Order: the owner's goal is every game, each in its best version (D-052, D-064). 
 - Size the sponsor's KOIN from measured use (bot ~1.9–5.1 Mana a day measured 31 Oct – 2 Nov, `ARCHITECTURE.md`; earlier estimate ~5–6, sponsor ~3 Mana per active player per day, hold 5 × daily use) and recheck the 25-a-day per-wallet cap for heavy players (D-028, D-061, I-060).
 - Per-action Mana limits a day after Block X launches, and again a day after the sponsor's vault switch.
 - Full platform audit when the owner gives the go-ahead (D-014).
+- **Multisig owner (2-of-3):** an audited smart-contract wallet as the owner of the vault, Desk, Picks and Race picks, so no single key can act alone; the tools learn to collect two signatures. The owner has built a multisig for another project, which may be the starting point ❓ (owner, 3 Nov; replaces the cold-key owner of `docs/WALLETS.md`, TD-01).
 - Launch announcement, analytics decision, ads, the SwarmTales listing (from the owner checklist) 💬.
 - ~~Write each game's spec into `.ai/games/`~~ — done 2 Nov; keep them current as games change.
 

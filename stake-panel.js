@@ -523,7 +523,7 @@
   function badgeText(st, connected, guest) {
     if (!connected) return { cls: "free", head: "Playing free", sub: "Connect a wallet to see your stake.", link: "How staking works" };
     if (guest) return { cls: "free", head: "Playing free (guest)", sub: "Guests play free. Stake from a Koinos wallet to share the weekly rewards.", link: "How staking works" };
-    if (!st.open && st.amount === 0n) return { cls: "free", head: "Playing free", sub: "Staking in this game opens when the Knode Games vault goes live.", link: "Staking" };
+    if (!st.open && st.amount === 0n) return { cls: "free", head: "Playing free", sub: "Staking in this game opens soon: it joins the Knode Games vault before it pays.", link: "Staking" };
     const more = st.pending > 0n ? ` ${exact(st.pending)} VHP more counts from ${st.pendingFrom}.` : "";
     if (st.staked) return { cls: "staked", head: "Staked", amount: `${amount(st.amount)} VHP`, sub: `You share this game's weekly rewards.${more}`, link: "Manage stake" };
     if (st.amount > 0n) return { cls: "free", head: "Playing free this week", amount: `${amount(st.amount)} VHP staked`, sub: `It counts from ${st.pendingFrom || "next week"}.`, link: "Manage stake" };

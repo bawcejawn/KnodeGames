@@ -365,7 +365,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   prizesFromWeek = prizesFrom ?? PRIZES_FROM_WEEK;
   hold = vaultHold === undefined ? { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS } : vaultHold;
   holdSetting = holdWeeks ? { weeks: holdWeeks, bad: false, raw: holdWeeks.join(",") } : parseHoldWeeks(E.RACE_HOLD_WEEKS);
-  pendingOut = null;
+  pendingOut = null; pendingNew = false;
   if (prev !== undefined) PREV = prev;
   if (out !== undefined) OUT = out;
   // Cards: effective VHP (audit BX-3 b). Who is ranked is the vault stake (stakedOf), not a VHP balance.
@@ -555,6 +555,12 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   }
   fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((x, y) => x - y) }) + "\n");
   if (board) fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
+  // #85 merge check L-1: a NEW pending file is dated at the end of the run (the head block's time now), not its start,
+  // so a slow run (stake reads with retries) still fits the publish job's 35-minute window. Later is only ever safer:
+  // the hour's wait counts from this time. If the head can't be read, the start-of-run time stays.
+  if (pendingOut && pendingNew) {
+    try { const h: any = await p.getHeadInfo(); const t = Number(h?.head_block_time); if (Number.isSafeInteger(t) && t > pendingOut.at) pendingOut.at = t; } catch { /* keep the start time */ }
+  }
   if (vault || pendingOut) fs.mkdirSync(path.join(OUT, "vault"), { recursive: true });
   if (vault) fs.writeFileSync(path.join(OUT, "vault", `W${vault.week}.json`), JSON.stringify(vault) + "\n");
   if (pendingOut) fs.writeFileSync(path.join(OUT, "vault", `PENDING-W${pendingOut.week}.json`), JSON.stringify(pendingOut) + "\n");
@@ -786,6 +792,8 @@ type Pending = { game: number; week: number; at: number; file: VaultFile };
 let hold: false | { afterEnd: number; stable: number } = { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS };
 let holdSetting: { weeks: number[]; bad: boolean; raw: string } = { weeks: [], bad: false, raw: "" };
 let pendingOut: Pending | null = null;
+/** True when this run's pending file has new content, so its date is set again at the end of the run (#85 L-1). */
+let pendingNew = false;
 
 /** RACE_HOLD_WEEKS: "3" or "3, 4" (vault week numbers, separated by commas). Repo Lens #D-5 R85-1: fail closed. If
  *  the value is set but any part isn't a plain week number ("3 4", "W3", "3;4", "W3,4"), `bad` is true and EVERY
@@ -824,7 +832,10 @@ function newThisWeek(all: Map<number, WeekFile>, w: number, who: string[]): stri
 
 /** candidate: the file this run would make final. Publishes it as pending, and returns it as the final file only when
  *  the hold is over and the pending file the last run published is identical and at least `stable` old. Otherwise
- *  the results file stays "not final" (empty) and the vault bot waits. */
+ *  the results file stays "not final" (empty) and the vault bot waits.
+ *  #85 merge check I-1: "two runs at least an hour apart" holds on the hourly schedule. A run started by hand (Actions →
+ *  Run workflow) can come sooner: the publish job accepts a new pending file dated up to 35 minutes back, so the two
+ *  runs can be as little as ~25 minutes apart. It is still never one run alone. */
 function settle(candidate: VaultFile, weekEnd: number, now: number, problems: string[], all: Map<number, WeekFile>): VaultFile {
   if (hold === false) return candidate;
   const w = candidate.week, waiting: VaultFile = { game: VAULT_GAME, week: w, final: false, rows: [], first: [], second: [], skipped: [] };
@@ -832,6 +843,7 @@ function settle(candidate: VaultFile, weekEnd: number, now: number, problems: st
   const same = !!prev && JSON.stringify(prev.file) === JSON.stringify(candidate);
   const at = same ? prev!.at : now;           // when this exact file was first seen
   pendingOut = { game: VAULT_GAME, week: w, at, file: candidate };
+  pendingNew = !same;
   const fresh = candidate.first.concat(candidate.second);
   const flag = newThisWeek(all, w, fresh);
   const who = (xs: string[]) => (xs.length ? xs.join(", ") : "nobody");

@@ -232,7 +232,7 @@ jobs:
               if GENESIS + (j["week"] + 1) * WEEK > NOW: return False
               return not (b and len(a) != 1)
           # I-034 (R-RACE-1): the hold. PENDING-W<n>.json is the file the recorder WOULD make final, and when it first saw
-          # it ("at", ms). A pending file with new content must be dated now (within 35 minutes: a slow record job still fits) (a run can't backdate it); one whose content is
+          # it ("at", ms). A pending file with new content must be dated now, within 35 minutes, so a run can't backdate it (a slow record job still fits); one whose content is
           # already published keeps its published date. A final W<n>.json that isn't already published as final must be
           # 12 hours past its week AND exactly the pending file published at least an hour ago; otherwise only that file
           # is held (removed from this push), and the pending file and the race files still publish.

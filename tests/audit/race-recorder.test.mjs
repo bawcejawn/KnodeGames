@@ -1177,3 +1177,27 @@ test("I-085: the workflow never sets the recompute's test-only RACE_PRIZES_FROM 
   assert.match(yml, new RegExp(`PRIZES_FROM = int\\(os\\.environ\\.get\\("RACE_PRIZES_FROM"\\) or ${PRIZES_FROM_WEEK}\\)`));
   assert.equal((yml.match(/RACE_PRIZES_FROM/g) || []).length, 1, "only read, never set");
 });
+
+test("#85 merge check L-1: a new pending file is dated at the end of the run (head read again); a kept one keeps its date", async () => {
+  const { dir } = await weekTwoDone();
+  const out = tmp(), start = U("2026-11-09T05:37Z"), later = start + 20 * 60000;
+  let readsDone = false, heads = 0;
+  const base = node(start);
+  const p = { ...base, async getHeadInfo() { heads++; const h = await base.getHeadInfo(); return readsDone ? { ...h, head_block_time: String(later) } : h; } };
+  const log = console.log; console.log = () => {};
+  try {
+    await run({ p, check: node(start), prev: dir, out, vhpOf, raceContract: "x", picksOf: async () => [], prizesFrom: 0,
+      stakedOf: async () => { readsDone = true; return false; } });
+  } finally { console.log = log; }
+  assert.ok(heads >= 2, "the head is read again before writing");
+  assert.equal(pendingOf(out).at, later, "dated when the slow stake reads finished, not when the run began");
+  // The next run: same content, so it keeps that date.
+  const next = await holdRun("2026-11-09T06:37Z", out);
+  assert.equal(pendingOf(next).at, later);
+  // A head that can't be read at the end: the start time stays.
+  const out2 = tmp(); let done2 = false;
+  const p2 = { ...base, async getHeadInfo() { if (done2) throw new Error("down"); return base.getHeadInfo(); } };
+  console.log = () => {};
+  try { await run({ p: p2, check: node(start), prev: dir, out: out2, vhpOf, raceContract: "x", picksOf: async () => [], prizesFrom: 0, stakedOf: async () => { done2 = true; return false; } }); } finally { console.log = log; }
+  assert.equal(pendingOf(out2).at, start);
+});

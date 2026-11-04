@@ -40,6 +40,7 @@ Windows are in **blocks** (≈ 3 s each; 1 h ≈ 1,200; 24 h ≈ 28,800). Each g
 ### 2.3 The random measuring moment (D-090)
 - **Seed:** the block ID of the first irreversible block at or after **`L + 20`**. It doesn't exist when picks close.
 - **Moment:** `T = W0 + (uint64(sha256(seedBlockId ‖ gameId ‖ roundId)) mod (W1 − W0 + 1))`.
+- **Exact recipe (D-112):** sha256 of the UTF-8 text `blockId|game|round` (the block id in lowercase hex exactly as the node returns it; game and round in decimal); the first 8 bytes read as one big-endian unsigned 64-bit number. A fixed test vector in both JavaScript and Python.
 - Sizes are computed **after** the lock from recorded history.
 - **Grinding (L-1):** the seed block's producer chooses which transactions to include and in what order, so it can try **many** block IDs, not one. Several seed blocks don't fix that (the last producer still sees the rest). On real data the effect is small: the best card time against the worst moved a producer's expected index by 0.14% at the median and 1.35% at most. The ruler logs the seed producer. If Koinos blocks carry a VRF output (to confirm with the Koinos developers), use it as an ungrindable seed.
 - **Before the lock (L-4),** every game page shows an **estimated card** computed at the current block, labelled "estimate; the final card is taken at a random moment in the last N hours" (within ~1.4% of the final on real data).
@@ -109,10 +110,11 @@ Card credit only caps VHP *above* the measured size. If a pooled producer's VHP 
 
 ## 7. Data: where it runs, and how a wrong file is caught (M-3)
 - **One library**, `vhp-ruler.js` (pure functions shared by recorders, publish jobs and the site), grown from `vhp-standard.js`; one data step, `bot/vhp-ruler.ts`.
-- **Branch `vhp-data`, one file per hour, written once, never rewritten, hash-chained** (each file carries the previous file's sha256). Each hour stores, compactly, **every block's signer and its burn** (every block changes its signer's VHP, so change points aren't sparse, L-2), the hour's other VHP events, and **an anchor: both nodes' `effective_balance_of` for every active producer at the hour's last block**. About 0.30 MB gzipped for 15 days (measured).
+- **Branch `vhp-data`, one file per hour, written once, never rewritten, hash-chained** (each file carries the previous file's sha256). Each hour stores, compactly, **every block's signer and its burn** (every block changes its signer's VHP, so change points aren't sparse, L-2), the hour's other VHP events, and **an anchor: both nodes' `effective_balance_of` (and the plain balance, D-112) for every active producer at the hour's last block**.
+- **Anchors for past hours (D-112):** a node can only read balances at the block it is on now, so the first fill's hours carry anchors **rebuilt** backwards from one real read (`"source": "rebuilt"`); live hours carry both nodes' real reads (`"live"`) with the height each read landed on. **No card that pays may depend on a rebuilt hour.** If the first live read fails or the nodes disagree, the hour is not ok and no card is made (audit S-3). About 0.30 MB gzipped for 15 days (measured).
 - **The publish job checks each hour:** the hash chain; exactly one signer and one burn per block; the previous anchor plus the hour's events gives the next anchor; both nodes' anchors agree. A file with one burn removed must be refused (a test).
 - **It recomputes every card from `vhp-data` and refuses any difference**, reading older day files when a card's history reaches back that far.
-- **Retention:** the look-back (with v2's own size, at most 24 h for `avg`, 14 days for `form`) plus the longest re-check (a week frozen up to ~a week later): **about 22 days**, kept as hourly files then day files.
+- **Retention:** the look-back (with v2's own size, at most 24 h for `avg`, 14 days for `form`) plus the longest re-check (a week frozen up to ~a week later): **about 22 days**, kept as hourly files then day files. **At the start keep 30 days** (the simulations need 29), then about 22 (D-112). Each day file lists its hours' sha256, so the hash chain still checks after a rollup.
 - **First fill (L-6):** a **separate, resumable job** that saves progress, reads the history once in batches on two nodes outside busy hours; normal runs then read one hour at a time (blocks the recorders already read). No polling, no Mana.
 - **The sampler** keeps running as a cross-check during the move, then retires.
 
@@ -142,7 +144,7 @@ Card credit only caps VHP *above* the measured size. If a pooled producer's VHP 
 | Entry bar | k ≥ 10 in the scoring window; 24 h of history | `HANDICAP_REVIEW.md` §5.2; simulation 4 |
 | Luck trim `c` | per game, fixed or per card (each game states which) | each game's simulation |
 | Card window | per game (Race 6 h before lock; Block X 3 h) | each game |
-| Seed | the first irreversible block at or after `L + 20` (a VRF output if available) | §2.3 |
+| Seed | the first irreversible block at or after `L + 20` (a VRF output if available); exact byte recipe D-112 | §2.3 |
 | Pooled producers | the Vault; `min(own, eff at each block)` | simulation 7 |
 
 ## 10. Build and migration plan
@@ -176,7 +178,7 @@ Until a game moves, it keeps today's method (D-094); a switch takes effect from 
 type Height = number; type Addr = string;
 type Milli = bigint;        // fixed point: millionths, always rounded down
 type Sat = bigint;          // VHP in satoshi (1 VHP = 1e8)
-interface Anchor { height: Height; node: "a" | "b"; eff: Record<Addr, Sat> }    // effective_balance_of at the hour's last block
+interface Anchor { height: Height; node: "a" | "b"; source: "live" | "rebuilt"; eff: Record<Addr, Sat>; bal: Record<Addr, Sat> }    // effective_balance_of and plain balance; "rebuilt" hours never pay (D-112)
 interface RulerHour { from: Height; to: Height; prevHash: string; signers: Addr[]; burns: Sat[]; events: unknown[]; anchors: Anchor[] }
 interface RulerData { hours: RulerHour[] }
 interface Card {
@@ -194,7 +196,7 @@ function trim(k: Milli, c: Milli): Milli;                                 // c �
 function checkHour(prev: RulerHour, h: RulerHour): { ok: boolean; why?: string };   // chain, one signer + one burn per block, anchor + events = next anchor
 function recompute(d: RulerData, published: Card): { same: boolean; diff?: string };
 ```
-- **Every number is an integer:** VHP in satoshi; averages = `floor(Σ ÷ blocks)`; `k`, `credit`, `form`, `trim` in millionths, rounded down; credited blocks = the integer sum of per-block credits. Ratios are never computed in floating point.
+- **Every number is an integer:** VHP in satoshi; averages = `floor(Σ ÷ blocks)`; `k`, `credit`, `form`, `trim` in millionths, rounded down; credited blocks = the integer sum of per-block credits. Ratios are never computed in floating point. **Each block's share is rounded down first, then the integers are added** (D-112); the loss is under 1 millionth per block, and a test checks the bound.
 - **A test** that the JavaScript library and a Python re-implementation produce **byte-identical cards** on real data (§8 sim 11).
 
 ## 14. What changed from v1 (Repo Lens #E-7)

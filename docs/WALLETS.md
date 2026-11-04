@@ -186,6 +186,31 @@ change, not every hour.
 **An email that names an address you didn't write down in step 1, or a step you didn't do, is real.** Stop and act on
 it (vault: propose your own address, §3; Desk: `owner cancel`).
 
+**How to read these emails.** Every one arrives as GitHub's **"Run failed: Kpred bot"** email: the bot fails its run
+on purpose so GitHub tells you. The email itself doesn't say why. Open it → **View workflow run** → the red run →
+the lines marked **Needs attention**. Each line is one alert. Several alerts in the same hour arrive in **one** email.
+The full list of alerts, and what to do about each, is `.ai/platform/ALERTS.md`.
+
+### Other owner steps this week that also send an email (expected)
+These come from the same chain watch. Each emails **once**, the hour after you do the step. They're expected **only
+if you did that step**; the "if you did not do this" wording is the same safety sentence as above.
+
+| You did | Email text (start) | What it means in plain words | Do you need to do anything? |
+|---|---|---|---|
+| `game-add <id> …` (announce a game) | "A game is announced: id N \"name\" …" | the vault has a new game waiting its 48 h before it can be applied | no. Apply it after 48 h (`game-apply`) |
+| **`game-apply 2` / `game-apply 7`** (Thu) | "The vault's game list changed (a game was added, stopped or restarted) …" | the game is now in the vault and earns from next week | no. Check with `npm run bot -- games` that it shows "from week 3" |
+| `game-stop <id>` | "The vault's game list changed …" | the game takes no new stakes; it earns through this week | no, if you meant it |
+| `game-correct` / `game-unprize` | "The owner corrected results for &lt;game&gt; week N …" | your correction is on chain | no |
+| `game-void` | "The owner voided &lt;game&gt; week N …" | that week's bucket rolls over in the game; its free prize goes back to the pool | no |
+| `pause on` / `pause off`, a minimum-stake or sponsor-limit change | "Owner settings: …" | a vault setting you changed is now live | no. If it stays every hour, the setting still differs from `game-data/deployment.json`: tell the Vault chat |
+| `upgrade apply` (a vault upgrade) | "The game contract on chain is not what deployment.json records …" | the new code is live but the record on `main` still names the old code | yes, a records PR: the Vault chat updates `wasmSha256`; you merge it, and the email stops |
+| `register-key node` (a new node key) | "The block-producer key registered for the game is …" | the pool now produces with the new node's key | yes, a records PR updates `producerKey` |
+| `set_operator` (a new bot key) | "The game's operator is X …", then **every hour** "The contract's operator is X, not this bot" | the contract has a new operator but GitHub's `OPERATOR_WIF` is still the old key, so the bot can't post | yes, update the GitHub secret `OPERATOR_WIF` (Settings → Environments → `bot`) and the records PR |
+
+**Also expected this week, not from the chain watch:** a **"Run failed: Heal alert"** email if you restart Docker or a
+node by hand ("Self-healing restarted …"); it means the PC's self-heal task restarted a node, and it's nothing to act
+on unless it says it **stopped trying** (`.ai/platform/ALERTS.md` §7).
+
 ---
 
 ## 7. Weekend runbook (Fri 6 – Tue 10 Nov 2026)

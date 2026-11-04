@@ -29,7 +29,7 @@
 | **Seed owner** | `1K8VV1utXfomeXHeifrwgLpBjUG6Ldkw2Z` ✅ (since 30 Oct, D-022) | The vault's seed, 21,050 VHP ✅. Deposits; withdrawals wait 48 h and pay the current seed owner | `.env` `SEED_WIF` 👤 + paper | Owner, rarely (seed top-ups) | Restore from paper; the seed stays in the vault and keeps producing | Vault chat at once; seed owner change is two steps 28,800 blocks apart; a pending seed withdrawal can be cancelled by a seed-owner change |
 | **Operator (bot)** | `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv` ✅ (since 26 Oct) | Posts and resolves questions; posts, seals and finalizes game results. Can't move funds. Pays its own Mana (target ~50 KOIN, I-046) | **GitHub only**: secret `OPERATOR_WIF` in environment `bot` (D-084, D-012) | The hourly bot | Owner sets a new operator: `npm run bot -- admin set_operator operator=<new> --as owner`, then updates the secret | Same as lost, then correct any bad results within 24 h of each seal |
 | **Old operator** (retired) | `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ` ✅ (retired 26 Oct) | Nothing. About 100 KOIN left ❓ | **Still in `.env`**, most likely as `OPERATOR_WIF` ✅ | Nobody | — | Only its ~100 KOIN; sweep Sat 7 Nov (`tools/sweep-old-bot.ts`, I-045), then delete the line |
-| **Race picks owner** | `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` ✅ (moved 4 Nov, tx `0x1220bd9c…`) | Race picks settings: on/off, picks per day, owner (`set_config`, **one step, immediate**) | **Offline**; loaded only on owner-action days 👤. `NEW_OWNER_WIF` still in `.env` from the change — **delete it** (TODOS) | Owner, rarely | Race picks settings can't change; the game keeps running as set | Thief can switch Race picks off or take its owner at once. Tell the Race chat; nothing holds funds there |
+| **Race picks owner** | `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` ✅ (moved 4 Nov, tx `0x1220bd9c…`) | Race picks settings: on/off, picks per day, owner (`set_config`, **one step, immediate**) | **Offline**; loaded only on owner-action days 👤 (`NEW_OWNER_WIF` removed from `.env` 4 Nov 👤) | Owner, rarely | Race picks settings can't change; the game keeps running as set | Thief can switch Race picks off or take its owner at once. Tell the Race chat; nothing holds funds there |
 | **Personal producer** | `1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd` ✅ (nickname `@primeprocuder`, fix to `@primeproducer`, I-084) | The owner's own VHP and block production (not Knode Games funds) | Kondor (owner's own recovery words) 👤 | Owner | Restore from recovery words | Owner's own funds; not a platform risk. Watched by the node watchdog (`PERSONAL_PRODUCER` variable) |
 | **New owner** (cold, planned) | ❓ created Fri 6 Nov | Will own the vault and the Desk; later Picks | **Paper only** (own recovery words, two copies); Chrome profile "Knode owner"; in `.env` only on action days (D-083, option A) | Owner | — | — |
 | **Cold treasury** (planned) | ❓ created Fri 6 Nov | Will receive Desk withdrawals | **Paper only**, own recovery words, separate Chrome profile deleted after creation; never loaded except once to confirm its address | Nobody (it only receives) | — | — |
@@ -144,7 +144,7 @@ Producer keys sign blocks. They **can't move funds or redirect rewards**: blocks
 | Entry | Wallet | Today | After the weekend (Tue 10 Nov) |
 |---|---|---|---|
 | `OWNER_WIF` | owner `1635QU…` | present (hot) | **new** owner key, **only on action days**; old owner key only for a Picks action |
-| `NEW_OWNER_WIF` | Race picks owner `1LMV8EcR…` | **present — delete now** | only during Tue's two accepts, then removed |
+| `NEW_OWNER_WIF` | — | **absent** ✅ (removed 4 Nov 👤) | only during Tue's two accepts, then removed |
 | `SEED_WIF` | seed owner `1K8VV…` | present | unchanged |
 | `SPONSOR_WIF` | sponsor `1ByDDS…` | present | unchanged (D-085) |
 | `OPERATOR_WIF` | most likely the **old** operator `1JSTwo…` | present ❓ | **removed** after Sat's sweep (D-084) |
@@ -175,6 +175,7 @@ Fantasy practice wallets and old test wallets: to empty and retire after launch 
 
 - ❓ Is Picks' on-chain owner `1635QU…`? (Step 0 of the weekend runbook prints it: `npm run picks -- status`.)
 - ❓ Exactly which contract keys are still in `.env` (step 0 / `npm run bot -- status` shows only addresses).
-- ❓ The personal node's public key, and whether to back up each producer `private.key` offline (it would let a new PC produce without re-registering — the Desk's re-register costs 48 h). Owner to decide; see `RECOVERY.md`.
+- ❓ The personal node's public key.
+- ✅ Owner decided (4 Nov): back up all three producer `private.key` files offline (USB), once the backup script exists (R-VAULT-10); see `RECOVERY.md` §2.
 - ❓ Owner decision: keep most of the sponsor's 25,000 KOIN in a cold wallet with a working float (`SPONSOR.md` §7).
 - Later (roadmap): a 2-of-3 **multisig owner**, so one stolen key can't act alone.

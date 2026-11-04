@@ -7,7 +7,19 @@
 
 ---
 
-## 1. How alerts reach you (read this first)
+## 0. Got a "Run failed" email? Three steps
+
+1. **Open it** → **View workflow run** (or GitHub → Actions → the red run).
+2. **Read the red lines at the top of the run page** marked **"Needs attention"** (or the step with the red ✖). Each line is one alert. Copy the first few words.
+3. **Find those words in this page** (Ctrl+F) — the row tells you what it means, whether it was expected, and what to do. If you can't find it, paste the red lines (never `.env`) to the Vault chat.
+
+**The quick rules:**
+- **Players' stakes are never at risk from an alert by itself.** The worst case of a held or late week is that it **rolls over** to the next week.
+- **If you just did an owner step** (a `game-apply`, a wallet move, a pause, an upgrade), the email is most likely the expected echo of it (§2 and `docs/WALLETS.md` §6).
+- **One email can hold several alerts**; the next hour's run may already be green.
+- A plain-language summary at the top of each failed run (what happened, does it matter, what to do) is on the way (R-VAULT-9).
+
+## 1. How alerts reach you
 
 - **The repo sends no email of its own.** Nothing uses a mail server. **Every alert email is GitHub's "Run failed" email** for a workflow run that failed on purpose.
 - **One failed run = one email, whatever is inside it.** The bot's problem list, the chain watch and the sponsor alert all arrive inside the **same** "Run failed: Kpred bot" email. Open the run (Actions → the red run) to read the lines marked **"Needs attention"**. ❓ Whether GitHub's email body shows those lines is unchecked; the run page always does.
@@ -202,7 +214,7 @@ Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub email
 
 ## 11. Known corrections to other pages (for the status-sync pass)
 
-- `RUNBOOK.md` §1 lists "bot problems", "chain watch" and "sponsor" as separate emails: they're all **one** "Run failed: Kpred bot" email; it also lacks the **"Heal alert"** row (node restarts, repairs, Docker, missing questions).
+- ✅ Done 4 Nov: `RUNBOOK.md` §1 now says they're one email and has the **"Heal alert"** row.
 - `RUNBOOK.md` §1 implies sponsor alerts are occasional: they repeat **every hour** while true.
-- `docs/WALLETS.md` §6 should also list: `game-add` → "A game is announced"; `game-apply` / `game-stop` → "The vault's game list changed"; corrections and voids; `pause on` → "Owner settings"; `upgrade apply` → the code-fingerprint alert until recorded; operator rotation → "operator is X, not this bot" every hour until the secret is updated.
+- ✅ Done 4 Nov: `docs/WALLETS.md` §6 now lists the other expected emails (`game-add`, `game-apply`, `game-stop`, corrections, voids, pause, upgrade, key and operator changes) with what each means.
 - `bot/sponsor.ts` line ~224 comment says the watch exits 0 either way: out of date (it exits 1 on an alert).

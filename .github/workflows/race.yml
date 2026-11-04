@@ -263,6 +263,9 @@ jobs:
                       if c is not None:
                           s0 = r["start"] + i * leg
                           assert leg > 0 and s0 - 2 * 3600000 <= c["at"] < s0 + leg, f + " " + r["id"] + ": a card dated outside its leg"
+                          # I-042 (BX-118): never a card from the future (the recorder takes cards at the moment it runs;
+                          # 60 s for clocks, as for samples). Block X scores a target with the card in force at its lock.
+                          assert c["at"] <= NOW * 1000 + 60000, f + " " + r["id"] + ": a card dated in the future"
               if pub and os.path.exists(os.path.join(pub, f)):
                   old = {r["id"]: r for r in json.load(open(os.path.join(pub, f), encoding="utf-8")).get("races", []) if type(r) is dict and "id" in r}
                   for r in j["races"]:

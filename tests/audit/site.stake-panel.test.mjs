@@ -349,7 +349,7 @@ test("status bar text: staked, waiting for next week, free, guest, not connected
   assert.equal(t.head, "Playing free"); assert.equal(t.link, "Stake"); assert.match(t.sub, /Stake 1 VHP or more/);
   assert.equal(T.badgeText(S({}), true, true).head, "Playing free (guest)");
   assert.match(T.badgeText(S({}), false, false).sub, /Connect a wallet/);
-  assert.match(T.badgeText(S({ open: false }), true, false).sub, /opens when the Knode Games vault goes live/);
+  assert.match(T.badgeText(S({ open: false }), true, false).sub, /opens soon: it joins the Knode Games vault before it pays/);
 });
 
 test("status bar: drawn with the amount and a link to the staking page; guests never trigger a stake read", async () => {

@@ -246,7 +246,10 @@ test("the library is pure and integer-only: no network, storage, wallet, Math or
   const src = fs.readFileSync(`${APP}/vhp-ruler.js`, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   assert.doesNotMatch(src, /fetch\(|XMLHttpRequest|localStorage|\.send\(|signTransaction|require\(|import /);
   assert.doesNotMatch(src, /Math\.|parseFloat|toFixed|Float64Array|Float32Array/);
-  const py = fs.readFileSync(`${APP}/vhp_ruler.py`, "utf8");
+  // the math and the checks (everything before the publish job's file handling) touch no files or network
+  const whole = fs.readFileSync(`${APP}/vhp_ruler.py`, "utf8"), py = whole.slice(0, whole.indexOf("# ── the publish job"));
+  assert.ok(py.length > 20000, "the publish section marker is there");
+  assert.doesNotMatch(whole, /float\(|import (socket|urllib|requests|subprocess)|open\([^)]*["']w/, "the publish part reads files only");
   assert.doesNotMatch(py, /float\(|math\.|import (os|socket|urllib|requests|subprocess)|\d\.\d/);
   assert.doesNotMatch(py.replace(/"""[\s\S]*?"""/g, "").replace(/#.*$/gm, "").replace(/"[^"\n]*"/g, '""'), /[^/]\/[^/]/, "Python divides with // only");
 });

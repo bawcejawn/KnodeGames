@@ -395,7 +395,9 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   for (const s of [curLeg, nextLeg]) {
     if (s === nextLeg && s - now > CARD_AHEAD) continue;
     const ra = M.raceAt(s), race = raceById(ra.id);
-    if (!race || M.restRace(ra.start, rhythmFromWeek)) continue;   // D-125: no race (and no card) on Sunday
+    // D-125 + Repo Lens #C-7 C7-2: cards are still taken on Sunday. They score nothing in the Race, but Block X scores
+    // each target with a Race card up to 3 h after its block (and the card in force at its lock).
+    if (!race) continue;
     const leg = M.legOf(ra.start, s, race.cards.length);
     if (!race.cards[leg] && !want.some((x) => x.race === race && x.leg === leg)) want.push({ race, leg });
   }
@@ -554,13 +556,23 @@ type ChainCtx = { p: any; check: any | null; headId: string; libH: number; libT:
 let chainCtx: ChainCtx | null = null;
 /** Reads a finished race's blocks (and picks) on both nodes and scores it. `ok: false` with the reason when the two
  *  nodes disagree; throws on a read failure. */
-async function scoreRace(race: Race, c: ChainCtx): Promise<{ ok: true; result: any } | { ok: false; why: string }> {
+async function scoreRace(race: Race, c: ChainCtx, hint?: [number, number]): Promise<{ ok: true; result: any } | { ok: false; why: string }> {
   const { p, check, headId, libH, libT, picksRead } = c;
-  // A height safely before the race start (blocks average 3 s apart; step further back until it is before).
-  const est = Math.ceil((libT - race.start) / 3000) + 600;
-  let lo = Math.max(1, libH - est);
-  while (lo > 1 && (await blockTime(p, headId, lo)) >= race.start) lo = Math.max(1, lo - est);
-  const a = await heightAt(p, headId, race.start, lo, libH), b = (await heightAt(p, headId, race.end, a, libH)) - 1;
+  // Repo Lens #C-7 C7-1: a stored result's heights [a, b] are confirmed with 4 block reads (the block before a is
+  // before the start, a is at or after it; b is before the end, b + 1 at or after it). Only if that fails: the search.
+  let a = -1, b = -1;
+  if (hint && Number.isSafeInteger(hint[0]) && Number.isSafeInteger(hint[1]) && hint[0] > 1 && hint[1] >= hint[0] && hint[1] + 1 <= libH) {
+    const [ha, hb] = hint;
+    if ((await blockTime(p, headId, ha - 1)) < race.start && (await blockTime(p, headId, ha)) >= race.start
+      && (await blockTime(p, headId, hb)) < race.end && (await blockTime(p, headId, hb + 1)) >= race.end) { a = ha; b = hb; }
+  }
+  if (a < 0) {
+    // A height safely before the race start (blocks average 3 s apart; step further back until it is before).
+    const est = Math.ceil((libT - race.start) / 3000) + 600;
+    let lo = Math.max(1, libH - est);
+    while (lo > 1 && (await blockTime(p, headId, lo)) >= race.start) lo = Math.max(1, lo - est);
+    a = await heightAt(p, headId, race.start, lo, libH); b = (await heightAt(p, headId, race.end, a, libH)) - 1;
+  }
   const B = await readBlocks(p, headId, a, b);
   let checked = 1;
   if (check) {
@@ -598,11 +610,17 @@ const resultKey = (r: any) => { const { checked, ...rest } = r || {}; return JSO
 /** Repo Lens #E-11 H-1 (b): before a paid week's vault file goes final, every final race of the week is scored again
  *  from the chain on both nodes and must equal the stored result. Returns "" when all agree, otherwise why not. A
  *  read failure throws (the caller waits: not final this run). */
-export async function verifyWeek(wf: WeekFile, c: ChainCtx | null): Promise<string> {
+/** Repo Lens #C-7 C7-1: how long one re-check of a week may take inside the 30-minute record job. Running out is "not
+ *  checked yet" (the week waits, and alerts once it's late), never a mismatch. */
+export const VERIFY_BUDGET_MS = 10 * 60000;
+export async function verifyWeek(wf: WeekFile, c: ChainCtx | null, budgetMs = VERIFY_BUDGET_MS, clock: () => number = Date.now): Promise<string> {
   if (!c) return "the chain isn't available to check the week's races";
+  const stop = clock() + budgetMs;
   for (const race of wf.races) {
     if (!race.result?.final || race.result.missed) continue;
-    const r = await scoreRace(race, c);
+    if (clock() > stop) throw new Error(`not checked yet: the re-check ran past its ${Math.round(budgetMs / 60000)}-minute budget (tried again next run)`);
+    const h = race.result.heights;
+    const r = await scoreRace(race, c, Array.isArray(h) && h.length === 2 ? [Number(h[0]), Number(h[1])] : undefined);
     if (!r.ok) return `${race.id}: ${r.why} when checking the week again`;
     if (resultKey(r.result) !== resultKey(race.result)) return `${race.id}: its stored result isn't what the chain says now (picks or standings differ)`;
     await sleep(100);

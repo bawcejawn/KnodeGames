@@ -106,9 +106,11 @@
     const legNow = M.legOf(race.start, Math.min(Date.now(), race.end - 1), nLegs), card = race.cards ? M.cardForLeg(race.cards, legNow) : null;
 
     // Title, tag and clock
-    $("race-title").textContent = `Race ${race.number} of 4 (${race.id.slice(11)}:00 UTC) · ${dayTime(race.start)} – ${clock(race.end)}`;
+    // D-125: a Sunday slot is the review day: shown, but it doesn't count (its cards are still taken for Block X).
+    const rest = M.restRace(race.start);
+    $("race-title").textContent = rest ? `Review day (Sunday ${race.id.slice(11)}:00 UTC) · no race, nothing counts` : `Race ${race.number} of 4 (${race.id.slice(11)}:00 UTC) · ${dayTime(race.start)} – ${clock(race.end)}`;
     const tag = $("race-tag");
-    tag.textContent = live ? "Live" : !ended ? "Upcoming" : final ? "Final" : race.result && race.result.missed ? "Not recorded" : "Checking";
+    tag.textContent = rest ? "Review day" : live ? "Live" : !ended ? "Upcoming" : final ? "Final" : race.result && race.result.missed ? "Not recorded" : "Checking";
     tag.classList.toggle("done", !live);
     const frac = Math.min(1, Math.max(0, (Date.now() - race.start) / M.RACE));
     $("clock-fill").style.width = `${frac * 100}%`;
@@ -298,7 +300,7 @@
     // D-125: Sunday UTC is the review day: no race, nothing to pick.
     const restRow = (r) => el("div", { class: "pk-row done" },
       el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: "review day" })),
-      el("div", { class: "pk-now", text: "Sunday is review day: no race. Results are checked on chain and paid from Monday." }), el("span"));
+      el("div", { class: "pk-now", text: "Sunday is review day: no race. Results are checked on chain and go final on Monday; rewards can be claimed from Monday evening (Americas) / Tuesday UTC." }), el("span"));
     // The live race: locked.
     const live = raceObj(cur), mineLive = myPicks.get(cur);
     if (M.restRace(live.start)) rows.push(restRow(live));

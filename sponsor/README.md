@@ -234,6 +234,14 @@ Release sha256 (v3 with the above and round 4: `game_has_vault`, `would_pay` gam
 182 contract tests). Repo Lens round 6 (2026-10-30): **GO** for the mainnet upload; the tool allows it on mainnet,
 with v2 `fa4659e6…` still allowed as the rollback. Superseded: `21bec825…` (33,210 bytes).
 
+Guest-trap fix (4 Nov 2026, **not yet audited**): `b84e1add3ffa14a7d1933d5ce5a4ad33caa4bca887a489f87f710b3c121c83a6`
+(35,168 bytes; 188 contract tests). Since the vault switch went on (3 Nov), `would_pay` and `authorize` trapped for every
+wallet the vault had no record of in the call's game (every guest pick on Block X and the Race): the vault's
+`get_game_player` answers with an empty player record (`0a 00`), and as-proto skips an unknown length-0 field as if it
+were a varint and reads past the buffer. The sponsor's result messages now declare every field the vault sends, so
+nothing is skipped. Only those private messages changed: `config` and every rule are as in v3, and the settings on
+chain carry over an upload. The tool allows it on mainnet; v3 `b61ac238…` stays allowed as the rollback.
+
 ## Build
 
 Release build sha256 (v2, race picks; audited 2026-10-27): `fa4659e65c6156da3dde34238e0545a489a8b7f00cdf51df9bf79517a0019f33` (28,916 bytes).

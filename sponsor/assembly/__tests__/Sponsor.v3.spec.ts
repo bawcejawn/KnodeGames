@@ -777,3 +777,148 @@ describe("F6-S1-3: the vault switch, every entry point", () => {
     expect(pays()).toBe(true);
   });
 });
+
+// ── Guest picks fail since the vault switch went on (3 Nov 2026) ──
+// The live vault's get_game_player ALWAYS answers with field 1 (the player record) first. For a wallet the vault has
+// never seen that record is empty, so the answer is the two bytes 0a 00 (read on mainnet for a fresh address, 4 Nov).
+// The sponsor's result message only knew field 4; as-proto skips an unknown field of LENGTH 0 as if it were a varint,
+// reads past the end of the buffer and traps, which aborts would_pay and authorize: every guest pick on Block X and
+// the Race was refused. The tests above never caught it because they encode the answer with the sponsor's own short
+// message (field 4 only). These tests use the vault's real bytes.
+function raw(b: u8[]): system_calls.exit_arguments { return new system_calls.exit_arguments(0, new chain.result(bytes(b))); }
+/** A u64 as a protobuf varint. */
+function varint(v: u64): u8[] { const o: u8[] = []; do { let x = <u8>(v & 0x7f); v >>= 7; if (v > 0) x |= 0x80; o.push(x); } while (v > 0); return o; }
+/** The vault's get_game_player answer as v6 encodes it: player{stake} = 1, active_stake = 3, week_stake = 4. */
+/** Byte lists joined (typed, so AssemblyScript reads each literal as u8). */
+function j(parts: u8[][]): u8[] { const o: u8[] = []; for (let i = 0; i < parts.length; i++) for (let k = 0; k < parts[i].length; k++) o.push(parts[i][k]); return o; }
+function vaultGamePlayer(stake: u64): system_calls.exit_arguments {
+  const inner: u8[] = j([[0x08], varint(stake)]);
+  return raw(j([[0x0a, <u8>inner.length], inner, [0x18], varint(stake), [0x20], varint(stake)]));
+}
+const FRESH: u8[] = [0x0a, 0x00];   // a wallet the vault has never seen: exactly what mainnet returns
+
+describe("guest trap (4 Nov): the vault's real answers for a wallet it has never seen", () => {
+  it("would_pay for a guest's Race pick (game 7) says yes, from the free pool, instead of trapping", () => {
+    start();
+    MockVM.setCallContractResults(padReads([raw(FRESH), raw(FRESH)]));
+    const r = new Sponsor().would_pay(new sponsor.would_pay_arguments(USER, MANA, false, 7));
+    expect(r.ok).toBe(true);
+    expect(r.free).toBe(true);
+  });
+  it("would_pay for a guest's Block X pick (game 2) says yes too", () => {
+    start();
+    MockVM.setCallContractResults(padReads([raw(FRESH), raw(FRESH)]));
+    const r = new Sponsor().would_pay(new sponsor.would_pay_arguments(USER, MANA, false, 2));
+    expect(r.ok).toBe(true);
+    expect(r.free).toBe(true);
+  });
+  it("authorize pays a guest's Block X pick from the free pool", () => {
+    start();
+    READS = [raw(FRESH), raw(FRESH)];
+    OPS = [call(PICKS, PICK, pickArgs(USER))];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(MANA);
+  });
+  it("a wallet staked in Block X, in the vault's real encoding, is a real player (not the free pool)", () => {
+    start();
+    READS = [raw(FRESH), vaultGamePlayer(2 * MANA)];
+    OPS = [call(PICKS, PICK, pickArgs(USER))];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(0);
+  });
+  it("an empty entry (field 2, length 0) in the middle of an answer is read, not mistaken for a varint", () => {
+    start();
+    // get_game_player: player{} , entry{} , week_stake 2 VHP
+    READS = [raw(FRESH), raw(j([[0x0a, 0x00, 0x12, 0x00, 0x20], varint(2 * MANA)]))];
+    OPS = [call(PICKS, PICK, pickArgs(USER))];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(0);
+  });
+  it("the question game's get_player with an empty entry (field 2) still finds the active stake", () => {
+    start();
+    // get_player: player{stake 5}, entry{}, active_stake 5 VHP
+    READS = [raw(j([[0x0a, 0x06, 0x08], varint(5 * MANA), [0x12, 0x00, 0x18], varint(5 * MANA)]))];
+    OPS = [call(GAME, GAME_ANSWER, NONE)];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(0);
+  });
+});
+
+// Point 4 (owner, 4 Nov): the vault's REAL answers, not the sponsor's own one-field mock. The first is the exact
+// bytes mainnet returned for a guest; the others are get_game_player_result as the vault's own v6 ABI
+// (game/abi/kpred-v6.koilib.json) serializes it (koilib Serializer). On b61ac238 every one of these either traps
+// or (voided entry) depends on reading past a length-0 field; all must decode now.
+describe("guest trap: get_game_player answers in the vault's own encoding", () => {
+  it("mainnet, 4 Nov: guest 1Nti1ZmdisnJ8J9FJsmTSt1nMKPyzWZxdz, game 7 week 2 (also game 2): never seen -> free play", () => {
+    start();
+    READS = [raw(FRESH), raw([0x0a, 0x00])];
+    OPS = [call(PICKS, PICK, pickArgs(USER))];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(MANA);
+  });
+  it("mainnet, 4 Nov: guest 1Nti1ZmdisnJ8J9FJsmTSt1nMKPyzWZxdz, game 7 week 2 (also game 2): never seen: would_pay agrees", () => {
+    start();
+    MockVM.setCallContractResults(padReads([raw(FRESH), raw([0x0a, 0x00])]));
+    const r = new Sponsor().would_pay(new sponsor.would_pay_arguments(USER, MANA, false, 2));
+    expect(r.ok).toBe(true);
+    expect(r.free).toBe(true);
+  });
+  it("vault ABI: staked 2 VHP with this week's entry -> a real player", () => {
+    start();
+    READS = [raw(FRESH), raw([0x0a, 0x05, 0x08, 0x80, 0x84, 0xaf, 0x5f, 0x12, 0x0a, 0x08, 0x80, 0x84, 0xaf, 0x5f, 0x38, 0x80, 0x84, 0xaf, 0x5f, 0x18, 0x80, 0x84, 0xaf, 0x5f, 0x20, 0x80, 0x84, 0xaf, 0x5f])];
+    OPS = [call(PICKS, PICK, pickArgs(USER))];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(0);
+  });
+  it("vault ABI: staked 2 VHP with this week's entry: would_pay agrees", () => {
+    start();
+    MockVM.setCallContractResults(padReads([raw(FRESH), raw([0x0a, 0x05, 0x08, 0x80, 0x84, 0xaf, 0x5f, 0x12, 0x0a, 0x08, 0x80, 0x84, 0xaf, 0x5f, 0x38, 0x80, 0x84, 0xaf, 0x5f, 0x18, 0x80, 0x84, 0xaf, 0x5f, 0x20, 0x80, 0x84, 0xaf, 0x5f])]));
+    const r = new Sponsor().would_pay(new sponsor.would_pay_arguments(USER, MANA, false, 2));
+    expect(r.ok).toBe(true);
+    expect(r.free).toBe(false);
+  });
+  it("vault ABI: staked 2 VHP, entry present but all zero -> a real player", () => {
+    start();
+    READS = [raw(FRESH), raw([0x0a, 0x05, 0x08, 0x80, 0x84, 0xaf, 0x5f, 0x12, 0x00, 0x18, 0x80, 0x84, 0xaf, 0x5f, 0x20, 0x80, 0x84, 0xaf, 0x5f])];
+    OPS = [call(PICKS, PICK, pickArgs(USER))];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(0);
+  });
+  it("vault ABI: staked 2 VHP, entry present but all zero: would_pay agrees", () => {
+    start();
+    MockVM.setCallContractResults(padReads([raw(FRESH), raw([0x0a, 0x05, 0x08, 0x80, 0x84, 0xaf, 0x5f, 0x12, 0x00, 0x18, 0x80, 0x84, 0xaf, 0x5f, 0x20, 0x80, 0x84, 0xaf, 0x5f])]));
+    const r = new Sponsor().would_pay(new sponsor.would_pay_arguments(USER, MANA, false, 2));
+    expect(r.ok).toBe(true);
+    expect(r.free).toBe(false);
+  });
+  it("vault ABI: withdrew this week (voided entry, week_stake 0) -> free play", () => {
+    start();
+    READS = [raw(FRESH), raw([0x0a, 0x00, 0x12, 0x02, 0x10, 0x01, 0x20, 0x00])];
+    OPS = [call(PICKS, PICK, pickArgs(USER))];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(MANA);
+  });
+  it("vault ABI: withdrew this week (voided entry, week_stake 0): would_pay agrees", () => {
+    start();
+    MockVM.setCallContractResults(padReads([raw(FRESH), raw([0x0a, 0x00, 0x12, 0x02, 0x10, 0x01, 0x20, 0x00])]));
+    const r = new Sponsor().would_pay(new sponsor.would_pay_arguments(USER, MANA, false, 2));
+    expect(r.ok).toBe(true);
+    expect(r.free).toBe(true);
+  });
+  it("get_player in the vault's encoding with an empty entry (12 00): the active stake still counts", () => {
+    start();
+    READS = [raw([0x0a, 0x06, 0x08, 0x80, 0xca, 0xb5, 0xee, 0x01, 0x12, 0x00, 0x18, 0x80, 0xca, 0xb5, 0xee, 0x01])];
+    OPS = [call(GAME, GAME_ANSWER, NONE)];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(0);
+  });
+});

@@ -893,21 +893,27 @@ export async function postPass(ctx: Ctx, bs: BotState) {
   const st = await state(ctx);
   const { height, time } = st;
   if (time < st.genesis) { if (!ctx.quiet) log(`  the game starts ${utc(st.genesis)} — nothing to post yet`); return; }
-  // The round open now, or the next one (the release run starts a little early and waits for it, D-047).
+  // The round open now (posted first), then the next one: the release run starts a little early and waits for it
+  // (D-047). From week 4 the rounds are back to back, so a round is open while the run waits (Repo Lens #D-6 Q-1).
   const { current, next } = roundsAt(st.genesis, time);
-  if (!current) {
-    if (!next) return;
-    const releaseAt = next.releaseAt, wait = releaseAt - time;
-    if (!ctx.dryRun && ctx.releaseWaitMs && wait <= ctx.releaseWaitMs) {
-      log(`  the next questions (${next.label}) come out at ${utc(releaseAt)}: waiting ${Math.ceil(wait / 1000)} s for it`);
-      await new Promise((r) => setTimeout(r, wait + 5_000));
-      // The chain's clock can trail by a block or two: one more short wait at most, then leave it to the next run.
-      ctx.releaseWaitMs = ctx.releaseWaitMs > 60_000 ? 60_000 : 0;
-      return postPass(ctx, bs);
-    }
-    if (!ctx.quiet) log(`  the next questions (${next.label}) come out at ${utc(releaseAt)}`);
-    return;
+  if (current) await postRound(ctx, bs, st, current);
+  if (!next) return;
+  const now = current ? (await state(ctx)).time : time;
+  const releaseAt = next.releaseAt, wait = releaseAt - now;
+  if (wait <= 0) return; // (it opened meanwhile: the next run posts it)
+  if (!ctx.dryRun && ctx.releaseWaitMs && wait <= ctx.releaseWaitMs) {
+    log(`  the next questions (${next.label}) come out at ${utc(releaseAt)}: waiting ${Math.ceil(wait / 1000)} s for it`);
+    await new Promise((r) => setTimeout(r, wait + 5_000));
+    // The chain's clock can trail by a block or two: one more short wait at most, then leave it to the next run.
+    ctx.releaseWaitMs = ctx.releaseWaitMs > 60_000 ? 60_000 : 0;
+    return postPass(ctx, bs);
   }
+  if (!current && !ctx.quiet) log(`  the next questions (${next.label}) come out at ${utc(releaseAt)}`);
+}
+
+/** Generate (once), seal and post the questions of the round open now. */
+async function postRound(ctx: Ctx, bs: BotState, st: Awaited<ReturnType<typeof state>>, current: Round) {
+  const { height, time } = st;
   const w = current.week, dd = current.day, lockTime = current.lockTime, label = current.label;
   const file = path.join(ctx.P.questions, `${label}.json`);
   const wEnd = weekEnd(st, w);
@@ -925,7 +931,7 @@ export async function postPass(ctx: Ctx, bs: BotState) {
     const maxEnd = height + Math.floor((wEnd + st.closeDelay - time) / MAX_BLOCK_MS) - RESOLVE_MARGIN - RESOLVE_SLACK;
     log(`  releasing ${label} (week ${w + 1}, day ${dd + 1}) — answers close ${utc(lockTime)}; watched blocks from ${windowStart}`);
     if (ctx.dryRun) { log(`  [dry run] would run the generator and post its questions`); return; }
-    const g = ctx.generator(["release", "--label", label, "--week", String(w), "--day", String(dd), "--count", String(current.count),
+    const g = ctx.generator(["release", "--label", label, "--week", String(w), "--day", String(dd), "--count", String(current.count), ...(roundsOfWeek(w).length > 1 ? ["--avoid-overlap"] : []),
       "--lock-height", String(windowStart - 1), "--lock-time", String(lockTime), "--max-end", String(maxEnd)]);
     // Every active producer stays in the game (owner decision on audit F-09); the generator's weekly cap
     // (game.json "maxUsesPerWeek") keeps any one node out of too many questions.
@@ -939,6 +945,14 @@ export async function postPass(ctx: Ctx, bs: BotState) {
     // Seal what the generator made (only this run's generator output is ever posted), then save the questions publicly
     // BEFORE posting them, so their details can never be lost.
     const made: DayFile & { daySeal?: string } = readJson(file);
+    if (!(made.questions ?? []).length) {
+      // Repo Lens #D-6 Q-4: say so plainly, so the site and the PC backup don't wait for questions that won't come.
+      writeJson(file, { ...made, questions: [], skipped: "no fair questions could be made for this round" });
+      log(`  skipped ${label}: the generator made no fair questions`);
+      ctx.problems.push(`${label}: the generator made no fair questions for this round, so none were posted. Players get fewer questions this week; nothing else to do.`);
+      ctx.checkpoint(`bot: no questions for ${label}`);
+      return;
+    }
     for (const q of made.questions ?? []) {
       if (paramsHashOf(q) !== String(q.paramsHash ?? "").toLowerCase()) throw new Error(`the generator wrote ${q.id} with a paramsHash that does not match its parameters`);
     }

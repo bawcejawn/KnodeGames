@@ -104,14 +104,49 @@ test("before 16 Nov the bot posts nothing at 00:00 and 5 questions at 12:00, as 
   assert.deepEqual([argOf(b.calls[0], "--label"), argOf(b.calls[0], "--count")], ["W003-D2", "5"]);
 });
 
-test("generator: producers in a window still running are left out of the next round", () => {
+test("generator: producers in a posted window still running are left out of the next round (D-6 Q-3: never-posted questions and skipped files don't count)", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "overlap-"));
   const w = (f: string, qs: any[]) => fs.writeFileSync(path.join(dir, f), JSON.stringify({ questions: qs }));
-  w("W004-D1-00.json", [{ subjects: ["1Alpha"], windowStart: 100, windowEnd: 25_000 }, { subjects: [], group: ["1Beta", "1Gamma"], windowStart: 100, windowEnd: 15_000 }]);
-  w("W003-D6.json", [{ subjects: ["1Old"], windowStart: 1, windowEnd: 90 }]);
+  w("W004-D1-00.json", [{ subjects: ["1Alpha"], windowStart: 100, windowEnd: 25_000, chainId: 1 }, { subjects: [], group: ["1Beta", "1Gamma"], windowStart: 100, windowEnd: 15_000, chainId: 2 },
+    { subjects: ["1NeverPosted"], windowStart: 100, windowEnd: 25_000 }, { subjects: ["1PostSkipped"], windowStart: 100, windowEnd: 25_000, postSkipped: "too late" }]);
+  w("W003-D6.json", [{ subjects: ["1Old"], windowStart: 1, windowEnd: 90, chainId: 0 }]);
+  fs.writeFileSync(path.join(dir, "W003-D5.json"), JSON.stringify({ skipped: "too late", questions: [{ subjects: ["1Skipped"], windowEnd: 99_999, chainId: 9 }] }));
   w("notes.txt", []);
   // The 12:00 round's windows start at block 20,000: only 1Alpha's window (to 25,000) is still running then.
   assert.deepEqual([...producersInOverlappingWindows(dir, 20_000, "W004-D1")], ["1Alpha"]);
   assert.deepEqual([...producersInOverlappingWindows(dir, 10_000, "W004-D1")].sort(), ["1Alpha", "1Beta", "1Gamma"]);
   assert.deepEqual([...producersInOverlappingWindows(dir, 20_000, "W004-D1-00")], [], "a round's own file doesn't count");
+});
+
+test("D-6 Q-2: the overlap rule is asked for only in weeks with two rounds", async () => {
+  const a = postWorld("2026-11-10T12:01:00Z");
+  await postPass(a.ctx, {} as any);
+  assert.ok(!a.calls[0].includes("--avoid-overlap"), "week 3: today's generator rules exactly");
+  const b = postWorld("2026-11-16T12:01:00Z");
+  await postPass(b.ctx, {} as any);
+  assert.ok(b.calls[0].includes("--avoid-overlap"));
+});
+
+test("D-6 Q-4: a round the generator can't fill is marked skipped and reported", async () => {
+  const w = postWorld("2026-11-16T00:01:00Z");
+  w.ctx.generator = (args: string[]) => {
+    const label = argOf(args, "--label");
+    fs.writeFileSync(path.join(w.ctx.P.questions, `${label}.json`), JSON.stringify({ date: label, week: 4, day: 1, questions: [] }));
+    return { ok: true, output: "" };
+  };
+  await postPass(w.ctx, {} as any);
+  const f = JSON.parse(fs.readFileSync(path.join(w.ctx.P.questions, "W004-D1-00.json"), "utf8"));
+  assert.match(f.skipped, /no fair questions/);
+  assert.equal(w.ctx.problems.length, 1);
+});
+
+test("D-6 Q-5: the calendar file has a reminder per round, the 00:00 one from 16 Nov", async () => {
+  const vm = await import("node:vm");
+  const win: any = {}; win.window = win;
+  vm.createContext(win); vm.runInContext(fs.readFileSync("extras.js", "utf8"), win);
+  const ics: string = win.KnodeExtras.buildIcs("https://example.test/", new Date("2026-11-05T09:00:00Z"), [{ hour: 0, from: Date.parse("2026-11-16T00:00:00Z") }, { hour: 12, from: GENESIS }]);
+  assert.equal(ics.match(/BEGIN:VEVENT/g)!.length, 2);
+  assert.match(ics, /DTSTART:20261116T000000Z/);
+  assert.match(ics, /DTSTART:20261105T120000Z/);
+  assert.equal(new Set(ics.match(/UID:[^\r]+/g)).size, 2, "each reminder has its own UID");
 });

@@ -163,6 +163,12 @@
       return { label: `W${String(w).padStart(3, "0")}-D${(d % 7) + 1}${x.open === 12 ? "" : "-" + String(x.open).padStart(2, "0")}`, releaseAt, lockTime: releaseAt + 12 * 3600000, count: x.count };
     });
   }
+  /** Each round's UTC hour and the first time it runs (for the calendar file and the schedule line). */
+  function roundStarts() {
+    const out = new Map();
+    for (const x of ROUNDS) for (const r of x.rounds) if (!out.has(r.open)) out.set(r.open, S.genesis ? S.genesis + x.fromWeek * 7 * 86400000 : 0);
+    return [...out].sort((a, b) => a[0] - b[0]).map(([hour, from]) => ({ hour, from }));
+  }
   /** The round open at `now` (released, answers not closed) and the next round to open. */
   function roundsAt(now) {
     const d = S.genesis ? Math.floor((now - S.genesis) / 86400000) : -1;
@@ -1149,7 +1155,7 @@
   }
   function remindersCard() {
     const ics = () => {
-      const text = window.KnodeExtras ? window.KnodeExtras.buildIcs(playUrl()) : "";
+      const text = window.KnodeExtras ? window.KnodeExtras.buildIcs(playUrl(), new Date(), roundStarts()) : "";
       if (text) { saveBlob(new Blob([text], { type: "text/calendar" }), "knode-daily-reminder.ics"); toast("Open the downloaded file to add the reminder to your calendar."); }
     };
     const toggle = async () => {
@@ -1634,7 +1640,14 @@
       updateLive().then(() => { renderPlay(); if (!$("#view-results").hidden) renderResults(); });
     }
     $("#producers-link").href = EXPLORER_PRODUCERS;
-    $("#schedule").textContent = `Your time: new questions ${localHour(12)} Monday to Saturday, answers close ${localHour(0)}. Winners are final Tuesdays at ${localHour(12)}.`;
+    $("#schedule").textContent = (() => {
+      const t = nowMs(), all = roundStarts(), now = all.filter((r) => r.from <= t), later = all.filter((r) => r.from > t);
+      const day = (ms) => new Date(ms).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+      const at = (r) => `${localHour(r.hour)} (answers close ${localHour((r.hour + 12) % 24)})`;
+      return `Your time: new questions Monday to Saturday at ${now.map(at).join(" and ")}.` +
+        later.map((r) => ` From ${day(r.from)} also at ${at(r)}.`).join("") +
+        ` Winners are final Tuesdays at ${localHour(12)}.`;
+    })();
     renderAll();
     loadAds();
     renderBoard(S.week).then(() => renderPlay()).catch(() => {});

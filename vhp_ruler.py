@@ -437,3 +437,268 @@ def recompute(L, published):
     while i < min(len(a), len(published)) and a[i] == published[i]:
         i += 1
     return False, "differs at byte %d" % i
+
+
+# ── the vhp-data format and its checks: the twin of vhp-data.js (read it for the format in words) ──
+HOUR, DAY, DATA_VERSION = 1200, 28800, 1
+_ADDR = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
+_ID = re.compile(r"0x[0-9a-f]{8,}")
+_SAT = re.compile(r"(0|[1-9][0-9]{0,24})")
+
+
+def canon(o):
+    return json.dumps(o, separators=(",", ":"), ensure_ascii=False) + "\n"
+
+
+def sha_hex(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _safe_int(x):
+    return type(x) is int and -(2 ** 53 - 1) <= x <= 2 ** 53 - 1
+
+
+def _check_shape(h):
+    if not isinstance(h, dict) or h.get("v") != DATA_VERSION or type(h.get("v")) is not int:
+        return "not a version-1 hour"
+    keys = ["v", "n", "from", "to", "prev", "kind", "addrs", "sig", "ids", "burns", "events", "tail", "anchor"]
+    if list(h.keys()) != keys:
+        return "fields must be exactly " + ", ".join(keys)
+    if not _safe_int(h["n"]) or h["n"] < 0 or h["from"] != h["n"] * HOUR or h["to"] != h["from"] + HOUR - 1 \
+            or not _safe_int(h["from"]) or not _safe_int(h["to"]):
+        return "from/to must be block-hour n"
+    if type(h["prev"]) is not str or not re.fullmatch(r"([0-9a-f]{64})?", h["prev"]):
+        return "prev must be a sha256"
+    if h["kind"] not in ("live", "rebuilt"):
+        return "kind must be live or rebuilt"
+    addrs = h["addrs"]
+    if not isinstance(addrs, list) or not all(type(a) is str and _ADDR.fullmatch(a) for a in addrs):
+        return "bad address"
+    if any(not addrs[i - 1] < addrs[i] for i in range(1, len(addrs))):
+        return "addrs must be sorted and unique"
+    aset = set(addrs)
+
+    def blocks(b, n, where):
+        if not isinstance(b, dict) or not all(isinstance(b.get(k), list) for k in ("sig", "ids", "burns", "events")):
+            return where + ": sig, ids, burns, events"
+        if len(b["sig"]) != n or len(b["ids"]) != n or len(b["burns"]) != n:
+            return where + ": exactly one signer, one id and one burn per block"
+        if not all(_safe_int(i) and 0 <= i < len(addrs) for i in b["sig"]):
+            return where + ": bad signer index"
+        if not all(type(x) is str and _ID.fullmatch(x) for x in b["ids"]):
+            return where + ": bad block id"
+        if not all(type(x) is str and _SAT.fullmatch(x) and x != "0" for x in b["burns"]):
+            return where + ": every block burns VHP from its signer"
+        return None
+    e1 = blocks(h, HOUR, "hour")
+    if e1:
+        return e1
+    a = h["anchor"]
+    if not isinstance(a, dict) or list(a.keys()) != ["at", "id", "bal", "effA", "effB"]:
+        return "anchor fields must be at, id, bal, effA, effB"
+    if not _safe_int(a["at"]) or a["at"] < h["to"] or a["at"] > h["to"] + HOUR:
+        return "the anchor must be read within an hour after the hour"
+    if type(a["id"]) is not str or not _ID.fullmatch(a["id"]):
+        return "bad anchor block id"
+    t = h["tail"]
+    if not isinstance(t, dict) or list(t.keys()) != ["sig", "ids", "burns", "events"]:
+        return "tail fields must be sig, ids, burns, events"
+    e2 = blocks(t, a["at"] - h["to"], "tail")
+    if e2:
+        return e2
+    if (t["ids"][a["at"] - h["to"] - 1] if a["at"] > h["to"] else h["ids"][HOUR - 1]) != a["id"]:
+        return "the anchor block id isn't the id of block `at`"
+    for lo, hi, lst in ((h["from"], h["to"], h["events"]), (h["to"] + 1, a["at"], t["events"])):
+        last = lo
+        for e in lst:
+            if not isinstance(e, list) or len(e) != 5:
+                return "an event is [h, kind, from, to, value]"
+            eh, k, f, to, v = e
+            if not _safe_int(eh) or eh < lo or eh > hi or eh < last:
+                return "events out of range or order"
+            last = eh
+            if k not in ("m", "t", "b") or type(v) is not str or not _SAT.fullmatch(v) or type(f) is not str or type(to) is not str:
+                return "bad event"
+            if (k == "m") != (f == "") or (k == "b") != (to == ""):
+                return "bad event ends"
+            if (f != "" and f not in aset) or (to != "" and to not in aset):
+                return "an event names an address not in addrs"
+    for m in ("bal", "effA", "effB"):
+        if not isinstance(a[m], dict):
+            return "anchor %s must be an object" % m
+        ks = list(a[m].keys())
+        if any(not ks[i - 1] < ks[i] for i in range(1, len(ks))):
+            return "anchor %s keys must be sorted" % m
+        if not all(k in aset and type(a[m][k]) is str and _SAT.fullmatch(a[m][k]) for k in ks):
+            return "bad anchor %s" % m
+    if h["kind"] == "rebuilt" and (a["effA"] or a["effB"]):
+        return "a rebuilt hour has no effective-balance reads"
+    return None
+
+
+def deltas_of(h, with_tail=True):
+    out = []
+
+    def take(b, start):
+        for i, v in enumerate(b["burns"]):
+            out.append({"h": start + i, "a": h["addrs"][b["sig"][i]], "d": -int(v), "inc": 0})
+        for eh, k, f, t, v in b["events"]:
+            x = int(v)
+            if k != "m":
+                out.append({"h": eh, "a": f, "d": -x, "inc": 0})
+            if k != "b":
+                out.append({"h": eh, "a": t, "d": x, "inc": x})
+    take(h, h["from"])
+    if with_tail:
+        take(h["tail"], h["to"] + 1)
+    return out
+
+
+def _fail(why):
+    return {"ok": False, "why": why}
+
+
+def check_hour(prev_text, text):
+    """Same answers as checkHour in vhp-data.js."""
+    try:
+        h = json.loads(text)
+    except Exception:
+        return _fail("not JSON")
+    try:
+        if canon(h) != text:
+            return _fail("not in canonical form")
+    except Exception:
+        return _fail("not in canonical form")
+    bad = _check_shape(h)
+    if bad:
+        return _fail(bad)
+    prev = None
+    if prev_text:
+        try:
+            prev = json.loads(prev_text)
+        except Exception:
+            return _fail("previous file is not JSON")
+        if h["prev"] != sha_hex(prev_text):
+            return _fail("the hash chain is broken (prev isn't the previous file's sha256)")
+        if h["n"] != prev["n"] + 1:
+            return _fail("hours must be consecutive")
+        if prev["kind"] == "live" and h["kind"] == "rebuilt":
+            return _fail("a rebuilt hour can't follow a live one")
+        t = prev["tail"]
+        for i in range(len(t["sig"])):
+            if prev["addrs"][t["sig"][i]] != h["addrs"][h["sig"][i]] or t["ids"][i] != h["ids"][i] or t["burns"][i] != h["burns"][i]:
+                return _fail("block %d differs from the previous hour's tail" % (h["from"] + i))
+        mine = "|".join(canon(e)[:-1] for e in h["events"] if e[0] <= prev["anchor"]["at"])
+        if mine != "|".join(canon(e)[:-1] for e in t["events"]):
+            return _fail("the events after the previous anchor differ from its tail")
+    elif h["prev"] != "":
+        return _fail("the first file must have an empty prev")
+    bal = h["anchor"]["bal"]
+    addrs = list(bal.keys())
+    for s in [h["addrs"][i] for i in h["sig"]] + [h["addrs"][i] for i in h["tail"]["sig"]]:
+        if s not in bal:
+            return _fail("signer %s has no anchor" % s)
+    ds = deltas_of(h)
+    if prev is not None:
+        for a in prev["anchor"]["bal"]:
+            if a not in bal:
+                return _fail("%s was anchored before and must stay anchored" % a)
+        p0 = prev["anchor"]["at"]
+        for a in addrs:
+            if a not in prev["anchor"]["bal"]:
+                continue
+            v = int(prev["anchor"]["bal"][a]) + sum(x["d"] for x in ds if x["a"] == a and x["h"] > p0)
+            if v != int(bal[a]):
+                return _fail("%s: the previous anchor plus the hour's changes isn't this anchor (%d vs %s)" % (a, v, bal[a]))
+    for a in addrs:
+        v = int(bal[a])
+        for x in sorted((x for x in ds if x["a"] == a), key=lambda x: -x["h"]):
+            v -= x["d"]
+            if v < 0:
+                return _fail("%s: the rebuild goes below zero (a missed event)" % a)
+    hsh = sha_hex(text)
+    if h["kind"] == "rebuilt":
+        return {"ok": True, "quality": "ok", "flagged": [], "hash": hsh}
+    at = h["anchor"]["at"]
+
+    def eff_of(a, H):
+        b, recv = int(bal[a]), 0
+        for x in ds:
+            if x["a"] == a:
+                if x["h"] >= H:
+                    b -= x["d"]
+                elif x["h"] >= H - 20 + 1:
+                    recv += x["inc"]
+        e = b - recv
+        return e if e > 0 else 0
+    missed, nxt, head = [], True, True
+    for a in addrs:
+        ea, eb = h["anchor"]["effA"].get(a), h["anchor"]["effB"].get(a)
+        if ea is None or eb is None or ea != eb:
+            missed.append(a)
+            continue
+        v = int(ea)
+        if v != eff_of(a, at + 1):
+            nxt = False
+        if v != eff_of(a, at):
+            head = False
+    eff_at = "next" if nxt else "head" if head else ""
+    if missed or not eff_at:
+        return {"ok": True, "quality": "flagged", "flagged": ["*"], "hash": hsh,
+                "why": ("effective balance missing or different on the two nodes: " + ", ".join(missed)) if missed
+                else "the effective balances match the rebuild at neither the next block nor the read block"}
+    return {"ok": True, "quality": "ok", "flagged": [], "effAt": eff_at, "hash": hsh}
+
+
+def check_day(text, prev_hour_text):
+    try:
+        d = json.loads(text)
+    except Exception:
+        return _fail("not JSON")
+    if not isinstance(d, dict) or canon(d) != text:
+        return _fail("not in canonical form")
+    if list(d.keys()) != ["v", "n", "from", "to", "hashes", "hours"] or d["v"] != DATA_VERSION:
+        return _fail("fields must be v, n, from, to, hashes, hours")
+    if not _safe_int(d["n"]) or d["from"] != d["n"] * DAY or d["to"] != d["from"] + DAY - 1:
+        return _fail("from/to must be day n")
+    if not isinstance(d["hours"], list) or len(d["hours"]) != 24 or not isinstance(d["hashes"], list) or len(d["hashes"]) != 24:
+        return _fail("a day holds 24 hours")
+    prev, flagged = prev_hour_text or "", []
+    for i in range(24):
+        hr = d["hours"][i]
+        if not isinstance(hr, dict) or hr.get("n") != d["n"] * 24 + i:
+            return _fail("hour %d is not block-hour %d" % (i, d["n"] * 24 + i))
+        t = canon(hr)
+        if sha_hex(t) != d["hashes"][i]:
+            return _fail("hour %d: its sha256 isn't the one listed" % i)
+        r = check_hour(prev, t)
+        if not r["ok"]:
+            return _fail("hour %d: %s" % (i, r["why"]))
+        if r["quality"] == "flagged":
+            flagged.append({"n": hr["n"], "flagged": r["flagged"]})
+        prev = t
+    return {"ok": True, "flagged": flagged, "last": prev}
+
+
+def timeline_from(hours, checks=None):
+    if not hours:
+        raise ValueError("no hours")
+    signers, ids, deltas, bad, rebuilt = [], [], [], [], []
+    for i, h in enumerate(hours):
+        if i and h["n"] != hours[i - 1]["n"] + 1:
+            raise ValueError("hours %d and %d aren't consecutive" % (hours[i - 1]["n"], h["n"]))
+        signers.extend(h["addrs"][s] for s in h["sig"])
+        ids.extend(h["ids"])
+        deltas.extend(deltas_of(h, i == len(hours) - 1))
+        if h["kind"] == "rebuilt":
+            rebuilt.append({"h0": h["from"], "h1": h["to"]})
+        c = checks[i] if checks else None
+        if c and c["quality"] == "flagged":
+            if "*" in c["flagged"]:
+                bad.append({"h0": h["from"], "h1": h["to"]})
+            else:
+                bad.extend({"h0": h["from"], "h1": h["to"], "a": a} for a in c["flagged"])
+    last = hours[-1]
+    anchors = {a: {"h": last["anchor"]["at"], "v": int(v)} for a, v in last["anchor"]["bal"].items()}
+    return {"from": hours[0]["from"], "to": last["to"], "signers": signers, "ids": ids, "deltas": deltas,
+            "anchors": anchors, "bad": bad, "rebuilt": rebuilt}

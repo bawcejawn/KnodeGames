@@ -13,7 +13,7 @@ const APP = path.resolve(process.env.APP || ".");
 const box = { window: {} };
 vm.runInNewContext(fs.readFileSync(`${APP}/vhp-ruler.js`, "utf8"), box);
 const R = box.window.KRuler, M = R.M;
-const PY = (code, input) => execFileSync("python3", ["-I", "-c", `import sys; sys.path.insert(0, ${JSON.stringify(APP)}); import vhp_ruler as V\n${code}`], { encoding: "utf8", input, maxBuffer: 1 << 28 });
+const PY = (code, input) => execFileSync("python3", ["-I", "-B", "-c", `import sys; sys.path.insert(0, ${JSON.stringify(APP)}); import vhp_ruler as V\n${code}`], { encoding: "utf8", input, maxBuffer: 1 << 28 });
 
 // seeded random numbers (mulberry32): the same tests every run
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }

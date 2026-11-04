@@ -522,3 +522,60 @@ test("VB-11: a results file's fingerprint ignores the order of rows and winners"
   assert.equal(fileHash(a), fileHash(b));
   assert.notEqual(fileHash(a), fileHash({ ...a, rows: [{ player: P(0), points: 8 }, a.rows[1]] }));
 });
+
+test("N-2: capScope \"staked\" compares the row cap with the Staked board only, so a short Staked board still holds", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim } = await weekOneClosed();
+  // The Staked board has 1 row (B) and the Free board 1 (E): 2 rows in all. C is in the file but on no board.
+  const files: any = { ...allFiles(), "mem:fantasy/board.json": fantasyBoard([{ a: addr(B), pts: 30, place: 1, ranked: true }, { a: addr(E), pts: 50, place: 1, ranked: false }]) };
+  // Without capScope (as before): the whole board is at its cap of 2, so the not-on-board check is skipped.
+  const v1 = fctx(sim, files), s1: string[] = [];
+  v1.deployment.vaultGames["2"].boardCap = 2;
+  await vaultResultsPass(v1, async (what) => { s1.push(what); return true; });
+  assert.deepEqual(s1.filter((x) => x.startsWith("Fantasy")), fantasySends);
+  // capScope "staked": the Staked board (1 row) is under the cap, so C missing from it holds the week.
+  const v2 = fctx(sim, files), s2: string[] = [];
+  Object.assign(v2.deployment.vaultGames["2"], { boardCap: 2, capScope: "staked" });
+  await vaultResultsPass(v2, async (what) => { s2.push(what); return true; });
+  assert.deepEqual(s2.filter((x) => x.startsWith("Fantasy")), [], "nothing posted");
+  assert.match(v2.problems.join(" | "), /not on the game's board/);
+  // capScope "staked" with the Staked board at the cap: skipped again (logged).
+  const v3 = fctx(sim, files), s3: string[] = [];
+  Object.assign(v3.deployment.vaultGames["2"], { boardCap: 1, capScope: "staked" });
+  await vaultResultsPass(v3, async (what) => { s3.push(what); return true; });
+  assert.deepEqual(s3.filter((x) => x.startsWith("Fantasy")), fantasySends);
+});
+
+test("N-3: a transaction that ran out of Mana is retried next run, not remembered as the vault's refusal (with the chain's real log text, #C-6)", async () => {
+  const { isRevert } = await import("./vault.ts");
+  const { revertError } = await import("./chain.ts");
+  const L = 190_000_000n, OUT = ["transaction reverted: insufficient rc"];
+  // Out of compute: rc_used ends at the limit; the chain logs "insufficient rc".
+  const compute = revertError({ rc_used: String(L), logs: OUT }, L);
+  assert.match(compute, /^out of Mana/);
+  assert.equal(isRevert(compute), false, "C6-1: its logs say 'transaction reverted', but it is still temporary");
+  // Out of Mana on a large charge (a storage write): rc_used stops at 91% of the limit (C6-2).
+  const write = revertError({ rc_used: String((L * 91n) / 100n), logs: OUT }, L);
+  assert.match(write, /^out of Mana/);
+  assert.equal(isRevert(write), false);
+  // The whole limit used, even with no logs.
+  assert.equal(isRevert(revertError({ rc_used: "188200000", logs: [] }, L)), false);
+  // A contract refusal, as real receipts carry it.
+  const refused = revertError({ rc_used: "1200000", logs: ["transaction reverted: owner only"] }, L);
+  assert.equal(refused, 'reverted: ["transaction reverted: owner only"]');
+  assert.equal(isRevert(refused), true, "a contract refusal is still a refusal");
+  // A refusal whose text only mentions Mana is not the chain's exact line.
+  assert.equal(isRevert(revertError({ rc_used: "1200000", logs: ["transaction reverted: not enough insufficient rc stuff"] }, L)), true);
+  assert.equal(isRevert(revertError({ rc_used: "x", logs: [] }, L)), true, "unreadable Mana use: treated as a refusal (fails closed)");
+  // Out of Mana at submit (#C-7, C7-1): koilib throws the node's JSON with the chain's logs; nothing is charged.
+  const { submitError } = await import("./chain.ts");
+  const atSubmit = submitError(JSON.stringify({ error: "insufficient rc", logs: ["transaction reverted: insufficient rc"] }));
+  assert.match(atSubmit, /^out of Mana: refused when submitted/);
+  assert.equal(isRevert(atSubmit), false, "out of Mana at submit is temporary");
+  assert.equal(isRevert(submitError(JSON.stringify({ error: "insufficient rc", logs: ["a contract log", "transaction reverted: insufficient rc"] }))), false, "a contract log before it");
+  const refusedAtSubmit = submitError(JSON.stringify({ error: "owner only", logs: ["transaction reverted: owner only"] }));
+  assert.equal(isRevert(refusedAtSubmit), true, "a contract refusal at submit is still a refusal");
+  assert.equal(submitError("fetch failed"), "fetch failed", "text that isn't JSON is returned as it is");
+  // Submit-time refusals and other failures are unchanged.
+  assert.equal(isRevert('{"error":"x","logs":["transaction reverted: results for that week are past their deadline"]}'), true);
+  assert.equal(isRevert("sent, but not seen in a block within 3 minutes (will be re-checked next run)"), false);
+});

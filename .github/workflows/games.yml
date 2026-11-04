@@ -59,7 +59,7 @@ jobs:
           else
             # Repo Lens E4-1 (a): only a branch that really isn't there means "nothing yet". Any other failed fetch stops
             # the run: carrying on without last run's files is never safe (git ls-remote --exit-code: 2 = no such ref).
-            set +e; git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" games-data >/dev/null 2>&1; rc=$?; set -e
+            set +e; git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/games-data >/dev/null 2>&1; rc=$?; set -e
             if [ "$rc" -eq 2 ]; then echo "No games-data branch yet."; else echo "::error::The games-data branch could not be fetched (git ls-remote exit $rc). Nothing recorded this run; the next run tries again."; exit 1; fi
           fi
           if git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" race-data 2>/dev/null; then
@@ -69,7 +69,7 @@ jobs:
           else
             # Repo Lens E4-1 (a): with no race cards the recorder would wait anyway, but a run with an empty race folder
             # must never get that far: a failed fetch of a branch that exists stops the run.
-            set +e; git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" race-data >/dev/null 2>&1; rc=$?; set -e
+            set +e; git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/race-data >/dev/null 2>&1; rc=$?; set -e
             if [ "$rc" -eq 2 ]; then echo "No race-data branch yet: targets wait for cards."; else echo "::error::The race-data branch could not be fetched (git ls-remote exit $rc). Nothing recorded this run; the next run tries again."; exit 1; fi
           fi
       - name: Record Who Signs Block X
@@ -84,6 +84,8 @@ jobs:
           # The first week the vault pays Block X's free prize (the "from week" that npm run bot -- games shows once
           # game 2 is applied in the vault). Unset: no prizes are listed.
           PRIZES_FROM_WEEK: ${{ vars.PRIZES_FROM_WEEK }}
+          # Fix-check L-2: the owner's one-off release of a held week ("<week>:<code>", the code the hold prints). Unset: none.
+          BLOCKX_RELEASE: ${{ vars.BLOCKX_RELEASE }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: games-data

@@ -1,6 +1,6 @@
 // =====================================================================
 // Independent audit 2026-10-27: attack tests for the Producer Race picks contract, kept as regression tests after the
-// fixes (R-1: a bad list cursor is refused; R-3: a pick can't come from another contract). Report: docs/history/.
+// fixes (R-1: a bad list cursor is refused; R-3: a pick can't come from another contract). Report: the owner's private records.
 // =====================================================================
 
 import { Arrays, Base58, MockVM, Protobuf, authority, chain } from "@koinos/sdk-as";

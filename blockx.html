@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <!-- Only these sources may run scripts, load data or be framed. 'unsafe-eval' is needed by koilib (its protobuf
        encoder builds functions at run time); CDN scripts are pinned by their integrity hash. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://api.koinosblocks.com https://raw.githubusercontent.com/bawcejawn/Knode/blocks-data/ https://raw.githubusercontent.com/bawcejawn/Knode/race-data/ https://raw.githubusercontent.com/bawcejawn/Knode/games-data/ https://raw.githubusercontent.com/bawcejawn/Knode/names-data/ https://koinvault.app; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://api.koinosblocks.com https://raw.githubusercontent.com/bawcejawn/KnodeGames/blocks-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/ https://koinvault.app; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Who Signs Block X · Pick the Koinos producer of the next big blocks</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
@@ -117,9 +117,9 @@
 <body>
   <header class="top">
     <div class="wrap top-row">
-      <a class="brand" href="./" aria-label="Knode home">
+      <a class="brand" href="./" aria-label="Knode Games home">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span class="brand-name">Knode</span>
+        <span class="brand-name">Knode Games</span>
       </a>
       <nav class="tabs" aria-label="Sections">
         <details class="dd on">
@@ -149,7 +149,7 @@
         <a href="index.html#how">Rules</a>
         <a href="start.html" class="tab-start">New to Koinos?</a>
       </nav>
-      <a class="btn btn-wallet" href="./#play">Play Knode</a>
+      <a class="btn btn-wallet" href="./#play">Play Knode Games</a>
     </div>
   </header>
 
@@ -184,9 +184,9 @@
       <div><b id="you-mana">–</b><span>your Mana (the sponsor pays for picks)</span></div>
     </div>
     <ol class="bx-steps" id="steps">
-      <li><span><b>Connect a wallet</b>Kondor, KOIN Vault, or a free guest wallet. Picks cost you nothing: the Knode Mana sponsor pays.</span></li>
+      <li><span><b>Connect a wallet</b>Kondor, KOIN Vault, or a free guest wallet. Picks cost you nothing: the Knode Games Mana sponsor pays.</span></li>
       <li><span><b>Pick who signs a target</b>12 targets are always open. Change your pick until it locks.</span></li>
-      <li><span><b>Score when you're right</b>×1 for the biggest producer, up to ×3 for small ones. The week's top 2 players win 2 and 1 VHP once the vault is live.</span></li>
+      <li><span><b>Score when you're right</b>×1 for the biggest producer, up to ×3 for small ones. The Free play board's top 2 win 2 and 1 VHP each week, from Week 1 (the week of Mon 9 Nov).</span></li>
     </ol>
 
     <section class="bx-sec" id="targets-box">
@@ -228,7 +228,7 @@
         <p><b>The score.</b> Koinos picks who signs each block in proportion to VHP, so big producers sign more often. A right pick scores</p>
         <p><span class="formula">min(3, top producer's VHP ÷ your producer's VHP)</span></p>
         <p>with the VHP from the Producer Race's hourly handicap card at the lock. A wrong pick scores 0. Ties on the board go to more right picks, then the earlier last right pick.</p>
-        <p><b>Prizes.</b> Two boards, as in every Knode Games game: Staked (1 VHP or a Knode stake) and Free play (everyone else, guests too). Each week the top 2 of Free play (picks on at least 3 days) win 2 and 1 VHP, paid once the Knode Games vault is live. A week is final 12 hours after it ends.</p>
+        <p><b>Prizes.</b> Two boards, as in every Knode Games game: Staked (1 VHP or a Knode Games stake) and Free play (everyone else, guests too). Each week the top 2 of Free play (picks on at least 3 days) win 2 and 1 VHP. The <b>Staked</b> board shares Block X's weekly reward bucket. Prizes and bucket shares are paid from Week 1 (the week of Mon 9 Nov); winners claim them from the vault. A week is final 12 hours after it ends.</p>
         <p><b>Fair checks.</b> Results come from irreversible blocks that match on two independent nodes, and the scoring code is public: the page and the recorder run the same file.</p>
       </div>
     </details>
@@ -269,7 +269,7 @@
   <footer class="foot">
     <div class="wrap">
       <div class="foot-row">
-        <span>Knode runs fully on Koinos. Open source.</span>
+        <span>Knode Games runs fully on Koinos. Source-available.</span>
         <span class="foot-links"><a href="index.html#welcome">New here? Quick tour</a> · <a href="trust.html">Trust</a> · <a href="terms.html">Terms &amp; risks</a> · <a href="install.html">Install app</a> · <a href="https://github.com/bawcejawn/KnodeGames" target="_blank" rel="noopener">Source code</a></span>
       </div>
     </div>

@@ -55,7 +55,7 @@ stops it at once; it still pays only listed player actions, signed by the player
 
 **Status:** first audit (no Critical/High/Medium), fix-check ("ready for mainnet from the code"), then today's 5,000
 ceiling and per-action limits, reviewed by an independent reviewer (see the review notes), **to be audited by Repo
-Lens with the Picks contract**, then a testnet trial. Review notes: docs/history/REVIEW-2026-10-28-sponsor-mana-limits.md.
+Lens with the Picks contract**, then a testnet trial. Review notes: REVIEW-2026-10-28-sponsor-mana-limits.md. (owner's private records)
 
 ## 3. Website and recorder
 
@@ -63,7 +63,7 @@ Lens with the Picks contract**, then a testnet trial. Review notes: docs/history
 - The recorder (GitHub Actions, no keys) reads blocks and picks every hour and publishes the results and boards.
 - The website pins the Picks contract's address so a guest's wallet can only ever sign a pick on it.
 - Prizes start with the vault (v6).
-- After the Repo Lens audit (2026-10-28, all in `docs/history/AUDIT-2026-10-28-repolens-blockx.md`): guest play is
+- After the Repo Lens audit (2026-10-28, all in `AUDIT-2026-10-28-repolens-blockx.md` (owner's private records)): guest play is
   refused on any `*.github.io` page until knodegames.com; the recorder reads cards, Staked status and irreversibility
   on two nodes and holds anything they disagree on; a card counts only if taken at or before the lock; a week's
   prizes are frozen once final; the page shows your place on your own board and medals by the prize rule; the admin

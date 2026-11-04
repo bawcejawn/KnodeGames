@@ -20,9 +20,10 @@
 - A plain-language summary at the top of each failed run (what happened, does it matter, what to do) is on the way (R-VAULT-9).
 
 ## 1. How alerts reach you
+> The bot workflow is named **"Knode Games bot"** from PR #131 (it was "Kpred bot"); emails before that merge say "Kpred bot".
 
 - **The repo sends no email of its own.** Nothing uses a mail server. **Every alert email is GitHub's "Run failed" email** for a workflow run that failed on purpose.
-- **One failed run = one email, whatever is inside it.** The bot's problem list, the chain watch and the sponsor alert all arrive inside the **same** "Run failed: Kpred bot" email. Open the run (Actions → the red run) to read the lines marked **"Needs attention"**. ❓ Whether GitHub's email body shows those lines is unchecked; the run page always does.
+- **One failed run = one email, whatever is inside it.** The bot's problem list, the chain watch and the sponsor alert all arrive inside the **same** "Run failed: Knode Games bot" email. Open the run (Actions → the red run) to read the lines marked **"Needs attention"**. ❓ Whether GitHub's email body shows those lines is unchecked; the run page always does.
 - **A yellow warning (`::warning::`) or a notice never emails.** The run stays green. Those are the **silent** cases in §10.
 - **Who gets the email** is decided by GitHub, not by the repo:
   - scheduled runs → the account that last changed that workflow's schedule line ❓ (check that it's yours);
@@ -35,7 +36,7 @@
 
 | Subject | Workflow | Section |
 |---|---|---|
-| Run failed: **Kpred bot** | `bot.yml` (hourly, 11:48 and 23:48 UTC) | §2 – §5 |
+| Run failed: **Knode Games bot** | `bot.yml` (hourly, 11:48 and 23:48 UTC) | §2 – §5 |
 | Run failed: **Node watchdog** | `watch.yml` (every 15 min on paper) | §6 |
 | Run failed: **Heal alert** | `heal-alert.yml`, started by your PC | §7 |
 | Run failed: **KnodeGames recorders** (Block X) | `games.yml` (hourly at :47) | §8 |
@@ -46,7 +47,7 @@
 
 ---
 
-## 2. Kpred bot — chain watch (owner-level changes) · once per change
+## 2. Knode Games bot — chain watch (owner-level changes) · once per change
 
 The bot compares the chain with the records on `main` (`game-data/deployment.json`, `desk-data/deployment.json`). **If you made the change, it's expected** and stops once the records PR is merged. **If you didn't, act at once.**
 
@@ -78,7 +79,7 @@ The bot compares the chain with the records on `main` (`game-data/deployment.jso
 
 ---
 
-## 3. Kpred bot — running problems · **every hourly run** while true
+## 3. Knode Games bot — running problems · **every hourly run** while true
 
 | Alert (text starts) | Trigger | What you can do |
 |---|---|---|
@@ -96,7 +97,7 @@ The bot compares the chain with the records on `main` (`game-data/deployment.jso
 
 ---
 
-## 4. Kpred bot — vault results checks (paying the games)
+## 4. Knode Games bot — vault results checks (paying the games)
 
 **Once per game, week and kind**, plus one reminder under 12 h before the deadline. Every hold says the safe outcome: if nothing is fixed, the week **rolls over** (stakers' bucket stays in the game, free prize back to the pool). Deadline: results are due **3 days** after the week ends (Mon 00:00 → Thu 00:00 UTC).
 
@@ -122,7 +123,7 @@ Correcting after a seal (24 h window), `game-unprize`, `game-void`: `RUNBOOK.md`
 
 ---
 
-## 5. Kpred bot — Mana sponsor · **every hourly run** (not de-duplicated)
+## 5. Knode Games bot — Mana sponsor · **every hourly run** (not de-duplicated)
 
 | Alert | Trigger | What you can do (`SPONSOR.md` §5–6) |
 |---|---|---|

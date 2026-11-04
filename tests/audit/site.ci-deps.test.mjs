@@ -56,20 +56,10 @@ test("(guard) no privileged triggers or script injection from event data", () =>
   assert.match(triggers(bot), /schedule:/, "(the trigger parser finds bot.yml's schedule)");
 });
 
-test("(guard) issue permissions only in names.yml: read in its check job, write only in its reply job, which runs no repository code", () => {
+test("(guard) no workflow holds an issues permission (R-HUB-5: the name-claim flow that read and answered issues is gone)", () => {
   for (const { f, y } of workflows) {
-    const lines = [...y.matchAll(/^\s*issues:\s*(\S+)/gm)];
-    if (f !== "names.yml") { assert.deepEqual(lines.map((m) => m[0].trim()), [], `${f}: issue permissions`); continue; }
-    const check = job(y, "check"), publish = job(y, "publish"), reply = job(y, "reply");
-    assert.match(check, /permissions:\s*\n\s*contents:\s*read\s*\n\s*issues:\s*read\s*\n/, "names.yml check: contents and issues read-only");
-    assert.doesNotMatch(check, /secrets\.|contents:\s*write|issues:\s*write/, "names.yml check: no secret, no write");
-    assert.match(check, /persist-credentials:\s*false/);
-    assert.match(publish, /permissions:\s*\n\s*contents:\s*write\s*#[^\n]*\n\s*steps:/, "names.yml publish: contents only");
-    assert.match(reply, /permissions:\s*\n\s*issues:\s*write\s*#[^\n]*\n\s*steps:/, "names.yml reply: issues only");
-    for (const [n, j] of [["publish", publish], ["reply", reply]]) {
-      assert.doesNotMatch(j, /actions\/checkout|actions\/setup-node|\bnpm\b|\bnode\b|\bnpx\b|\btsx\b/, `names.yml ${n} runs no repository code`);
-    }
-    assert.equal(lines.filter((m) => /write/.test(m[1])).length, 1, "names.yml: one job writes to issues");
+    const lines = [...y.matchAll(/^\s*["']?issues["']?\s*:\s*(\S+)/gm)].map((m) => m[0].trim());
+    assert.deepEqual(lines, [], `${f}: issue permissions`);
   }
 });
 
@@ -155,13 +145,13 @@ test("(guard, parsed YAML) no issue or privileged triggers in any spelling", () 
   }
 });
 
-test("(guard, parsed YAML) no write-all, and issue permissions only where they were allowed", () => {
+test("(guard, parsed YAML) no write-all, and no issue permissions anywhere", () => {
   for (const { f, doc } of parsed) for (const { where, perm } of permBlocks(doc)) {
     assert.ok(!(typeof perm === "string" && /write-all/i.test(perm)), `${f} ${where}: permissions ${perm}`);
     if (perm && typeof perm === "object") {
       for (const [k, v] of Object.entries(perm)) {
         assert.ok(["read", "write", "none"].includes(String(v).trim()), `${f} ${where}: ${k}: ${v}`);
-        if (String(k).trim() === "issues") assert.equal(f, "names.yml", `${f} ${where}: issues permission`);
+        assert.notEqual(String(k).trim(), "issues", `${f} ${where}: issues permission`);
       }
     }
   }
@@ -210,7 +200,7 @@ const TRIGGERS_OK = ["push", "pull_request", "schedule", "workflow_dispatch", "w
 /** Where a write token is allowed (C5-14): file → job → scopes. Everything else is read or none. */
 const WRITES = {
   "bot.yml": { publish: ["contents"] }, "games.yml": { publish: ["contents"] }, "games-testnet.yml": { publish: ["contents"] },
-  "race.yml": { publish: ["contents"] }, "race-samples.yml": { publish: ["contents"] }, "names.yml": { publish: ["contents"], reply: ["issues"] },
+  "race.yml": { publish: ["contents"] }, "race-samples.yml": { publish: ["contents"] }, "names.yml": { publish: ["contents"] },
 };
 const onOf = (doc) => doc && (doc.on ?? doc[true] ?? doc["true"]);
 const jobsOf = (doc) => Object.entries((doc && doc.jobs) || {});

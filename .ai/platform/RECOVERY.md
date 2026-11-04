@@ -44,7 +44,7 @@
 
 ## 3. Scenario A — the PC is off for a while (power cut, internet down, Windows update, sleep)
 
-**How you'll know:** the **Node watchdog** emails "Run failed: Node watchdog" (your personal producer silent 30+ min), then every 3 h. Possibly "Run failed: Kpred bot" if a question release needed the backup.
+**How you'll know:** the **Node watchdog** emails "Run failed: Node watchdog" (your personal producer silent 30+ min), then every 3 h. Possibly "Run failed: Knode Games bot" if a question release needed the backup.
 
 1. **Nothing urgent for players.** Stakes, the site and the bot keep working.
 2. When the PC is back: Docker Desktop starts by itself (if set to start at sign-in); the self-heal task restarts any frozen node within 20–60 min.

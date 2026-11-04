@@ -35,7 +35,7 @@ test("games.html: no inline script or handler, pinned CDN scripts, and it reads 
   assert.doesNotMatch(h, /\son[a-z]+\s*=/i, "no inline handlers");
   for (const m of h.matchAll(/<script src="https:[^"]+"([^>]*)>/g)) assert.match(m[1], /integrity="sha384-/);
   const csp = h.match(/Content-Security-Policy" content="([^"]+)"/)[1];
-  assert.match(csp, /connect-src 'self' https:\/\/koinos\.armana\.io https:\/\/api\.koinos\.io https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/race-data\/ https:\/\/koinvault\.app;/);
+  assert.match(csp, /connect-src 'self' https:\/\/koinos\.armana\.io https:\/\/api\.koinos\.io https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/race-data\/ https:\/\/koinvault\.app;/);
   assert.match(csp, /frame-src 'none'; object-src 'none'; base-uri 'self'/);
 });
 

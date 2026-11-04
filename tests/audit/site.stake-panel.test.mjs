@@ -84,9 +84,18 @@ test("ABI: the panel's methods and field numbers match the vault's own ABI (v6)"
     assert.equal(real.methods[name].entry_point, m.entry_point, `${name} entry point`);
     assert.equal(real.methods[name].argument, m.argument); assert.equal(real.methods[name].return, m.return);
   }
+  // v6.1's one new field (PR #114: config field 23, read as 0 on v6). Until v6.1's ABI is on main it must be absent here
+  // and its number unused, so a v6 vault can never put anything else in it.
+  const V61 = { config_object: { q60_rule_week_plus_one: { id: 23, type: "uint64" } } };
   for (const [msg, def] of Object.entries(T.VAULT_ABI.koilib_types.nested.kpred.nested)) {
     for (const [field, f] of Object.entries(def.fields)) {
       const r = types[msg] && types[msg].fields[field];
+      const later = V61[msg] && V61[msg][field];
+      if (later && !r) {
+        assert.deepEqual([f.id, f.type], [later.id, later.type], `${msg}.${field} as in v6.1`);
+        assert.ok(!Object.values(types[msg].fields).some((x) => x.id === f.id), `${msg} field ${f.id} unused before v6.1`);
+        continue;
+      }
       assert.ok(r, `${msg}.${field} exists in the vault`);
       assert.equal(r.id, f.id, `${msg}.${field} number`);
       assert.equal(r.type, f.type, `${msg}.${field} type`);
@@ -259,7 +268,10 @@ test("a guest can't stake: the wallet's guest explanation shows instead", async 
 test("the panel sends only through the wallet, and only vault and token operations it builds itself", () => {
   const sends = [...src.matchAll(/\.send\(/g)];
   assert.equal(sends.length, 2, "two sends: the game-page panel and the staking hub, both the wallet's own");
-  assert.equal([...src.matchAll(/const id = await W\.send\(label, ops\);/g)].length, 2);
+  assert.equal([...src.matchAll(/const id = await W\.send\(label, ops\);/g)].length, 1, "the game-page panel");
+  // The hub may only ask for the player's own Mana (question-game claims, as the home page does): never a payer or sponsor.
+  assert.equal([...src.matchAll(/const id = await W\.send\(label, ops, opts\);/g)].length, 1, "the hub");
+  assert.deepEqual([...src.matchAll(/(?:let ops, label, |\) )opts = ([^;]+);/g)].map((m) => m[1]), ["{}", "{ ownMana: true }"]);
   assert.doesNotMatch(src, /signTransaction|sendTransaction|privateKey|wif|innerHTML|outerHTML|insertAdjacentHTML|eval\(|new Function|localStorage|sessionStorage/i);
   assert.match(src, /new k\.lib\.Contract\(\{ id: k\.dep\.contract, abi: VAULT_ABI/, "the vault address comes from game-data/deployment.json");
 });

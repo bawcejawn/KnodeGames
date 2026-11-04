@@ -25,11 +25,11 @@ npm run bot -- chain-check
 - **Owner key:** after the weekend wallet moves (D-083), the owner key is cold. Load it into `.env` only for the owner steps below, then take it out again (`docs/WALLETS.md`).
 
 ## 1. Alerts: what each one means
-The full list of every alert, its trigger and your actions is `ALERTS.md`. Note: every alert email is GitHub's "Run failed" email; the bot's problems, the chain watch and the sponsor alert all arrive in the **same** "Run failed: Kpred bot" email (open the run to read the "Needs attention" lines). Sponsor alerts repeat every hour while true.
+The full list of every alert, its trigger and your actions is `ALERTS.md`. Note: every alert email is GitHub's "Run failed" email; the bot's problems, the chain watch and the sponsor alert all arrive in the **same** "Run failed: Knode Games bot" email (open the run to read the "Needs attention" lines). Sponsor alerts repeat every hour while true.
 
 | You get | From | Means | Go to |
 |---|---|---|---|
-| GitHub email "Run failed: Kpred bot" | the hourly bot (`bot.yml`) | one run failed. Usually a node hiccup: it catches up next hour | §2 if a second run in a row fails |
+| GitHub email "Run failed: Knode Games bot" | the hourly bot (`bot.yml`) | one run failed. Usually a node hiccup: it catches up next hour | §2 if a second run in a row fails |
 | Bot email listing **problems** (e.g. "results not ready … due …", "can't be read", "refused") | the bot's problem list | a game's week is held or a send was refused. Each line names the game, week and deadline | §3 |
 | Bot email "…your admin key is compromised" / "Desk owner change … cancel it and withdraw the Desk" / "upgrade announced" | the bot's chain watch | an owner-level change is pending on chain. **Expected** during your own wallet moves or upgrades (`docs/WALLETS.md` lists them) | if you didn't do it: §7 |
 | GitHub email "Run failed: Node watchdog" | `watch.yml` (every 15 min on paper, about hourly in practice) | your personal producer hasn't signed for 30+ min: the PC, Docker or the internet is probably down. One email, then a reminder every 3 h | §5 |
@@ -39,7 +39,7 @@ The full list of every alert, its trigger and your actions is `ALERTS.md`. Note:
 | The sponsor email or `sponsor -- watch` says over 80% of the daily caps | sponsor watch | free Mana is running out today | §8 |
 
 ## 2. The bot keeps failing
-1. Open GitHub → **Actions** → **Kpred bot** → the red run → read the last lines.
+1. Open GitHub → **Actions** → **Knode Games bot** (was "Kpred bot") → the red run → read the last lines.
 2. **"node" / "timeout" / "HTML error" / "fetch failed"** is a node problem. It recovers by itself (Armana outage, 3 Nov). Wait one more run. If three runs in a row fail, check `https://koinos.armana.io` in a browser, then tell the library chat.
 3. **"not seen in a block"**: the transaction was sent but not confirmed in 3 minutes. The next run re-checks it. Don't resend by hand.
 4. **Anything else** (a code error, "operator only", "insufficient Mana"): send nothing. Paste the last 30 lines to the Vault chat.
@@ -88,7 +88,7 @@ npm run bot -- game-correct <game> <week> <player address> <right points> --send
 
 ## 6. The daily question wasn't released at 12:00 UTC
 1. The release run (11:48 UTC) and the PC's backup task (11:45 – 14:05 UTC, every 5 min) both try. Check `node\release-kick.log` on the PC.
-2. **Start the bot on GitHub by hand:** GitHub → **Actions** → **Kpred bot** → **Run workflow** (branch `main`) → **Run workflow**. It takes a few minutes; it releases the question and does the hour's other work.
+2. **Start the bot on GitHub by hand:** GitHub → **Actions** → **Knode Games bot** (was "Kpred bot") → **Run workflow** (branch `main`) → **Run workflow**. It takes a few minutes; it releases the question and does the hour's other work.
    - Don't use `npm run bot -- tick` on the PC to release: since D-084 the PC has no operator key, and a real `tick` stops at once with "OPERATOR_WIF is missing". `npm run bot -- tick --dry-run` still works and shows what the bot would do (read-only).
    - Never put the operator key on the PC to get around this (D-084).
 3. A late question still counts once released. Tell the Questions chat.

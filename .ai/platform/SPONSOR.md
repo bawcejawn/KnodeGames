@@ -37,12 +37,14 @@ Every Koinos transaction costs **Mana**, which comes from holding KOIN. New play
 | KOIN held | **25,000 KOIN** (may grow) | D-061, D-076, D-085 |
 | What it covers (`game-data/deployment.json` → `sponsor.covers`) | vault `1Mpmf2…`, VHP `12Y5vW…`, KOIN `19GYjD…`, Race picks `1EN7xU…`, Picks `1LmgqB…` | ✅ |
 
-### Per-action Mana limits (what the site asks for each action)
+### Per-action Mana limits (what the site asks for each action; measured 4 Nov, blocks 40,783,100 – 40,795,033, vault switch on)
 | Action | Contract | Limit | Measured (4 Nov, guest) |
 |---|---|---|---|
-| Block X pick (Picks `pick`) | `1LmgqB…` | **1.2 Mana** | 0.842 (later 0.864) |
-| Producer Race pick | `1EN7xU…` | **1.2 Mana** | 0.762 (later 0.888) |
-| Everything else | — | 1.0 Mana (`rcLimitOther`); actions with no limit yet ask the old 1 (answers) or 3 (others) | — |
+| Block X pick (Picks `pick`) | `1LmgqB…` | **1.3 Mana** (D-117, #138) | 0.864 – **0.970** (a first pick, new storage) |
+| Producer Race pick | `1EN7xU…` | **1.2 Mana** | 0.888 – 0.892 |
+| Daily Questions answer | vault `1Mpmf2…` | **1.2 Mana** (its own row since #138) | 0.806 – 0.943 (switch on) |
+| Stake / withdraw / claim (`deposit_to`, `withdraw_from`, `claim_game`, Questions' `deposit_vhp` / `withdraw`) | vault | **1.5 Mana** (`rcLimitOther`, D-117, #138) | none seen yet: measure the first |
+| Anything else without a row | — | 1.3 Mana (`rcLimit`, the fallback) | — |
 
 The caps count each transaction's **Mana limit**, not what it really used, so tighter rows mean more plays per cap. Plan: after a week of play, run `mana-report` and tighten each row to about **1.25 × the most used** (step 7 of the rollout; R-BX-18).
 

@@ -1,6 +1,6 @@
 # Survivor (game 3)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Survivor, Vault, Hub chats), `DECISIONS.md` (D-020, D-051, D-062, D-065, D-068), the repo (branch `survivor`). **Last updated:** 2026-11-03.
+> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Survivor, Vault, Hub chats), `DECISIONS.md` (D-020, D-051, D-062, D-065, D-068), the repo (branch `survivor`). **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose

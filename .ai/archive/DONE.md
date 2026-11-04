@@ -4,6 +4,30 @@
 > **How it grows:** when an item in `platform/TODOS.md`, `platform/CHAT_REQUESTS.md`, `platform/PRIORITIES.md`, `platform/ROADMAP.md`, `platform/DOCUMENTATION_GAPS.md` or `platform/TECHNICAL_DEBT.md` is done, the library chat moves it here under the date it was moved, newest first. Closed issues go to `ISSUES_CLOSED.md`.
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
+## Moved 2026-11-04 (night)
+| R-RACE-11 | After #85 merges, the merge check's optional items: L-1 date the pending file at the end of the run; I-1 a run started by hand makes "an hour apart" really ~25 minutes; I-2 a doubled bracket in a `race.yml` comment | #85 merge check | PR | **in PR #133** (L-1 end-of-run date, I-1, I-2; 1 test) |
+| R-HUB-5 | Remove the legacy name-claim workflow, issue template and claim CLI (drops the `issues` permissions; update `docs/NAMES.md`); add a YAML parser to the CI guard | I-026, I-022 | PR | ✅ part 2 merged (#137, D-118). Left: the after-the-fact Repo Lens fix-check of #95/#111/#99; widen the guard's WRITES list when a game adds a publish job; C5-13 on hold |
+- R-HUB-5 part 2 live (#137); R-HUB-11 parts 1–4 live (#131); #131 and #137 merged on the owner's "merge both" — 2026-11-04
+- VHP ruler steps (a)–(f) built on `vhp-ruler` @ `f85466b`; Repo Lens #E-12 GO with one fix, #D-10 fix first: all fixed — 2026-11-04
+
+## Moved 2026-11-04 (late)
+| R-BX-14 | `blockx.html` / `blockx.js` still say "once the vault is live": use the site's Week 1 wording (`weeks.js`, PR #94), like the Race (#86) | I-069 | PR | **PR #132** (`blockx-week1-wording` @ `8bf940a`); site tests pass. Owner merges |
+| R-BX-17 | Push `sponsor-sr1` @ `acee3d7` (Repo Lens #D-7 SR-1: the upload guard over v2 code) and open a PR | #D-7 | PR | **PR #129** (`sponsor-sr1` @ `acee3d7`); 37 sponsor tool tests pass. Owner merges |
+| R-BX-19 | **Sponsored staking Mana (urgent, before Thursday's `game-apply`) — built in PR #138, owner decided (D-117):** stake / withdraw / claim calls ask `rcLimitOther` = **1 Mana**, while the sponsor's own check costs ~0.75; a two-operation stake (approve + `deposit_to`) may fail for lack of Mana. If the owner OKs D-117: a site PR raising `rcLimitOther` to **1.5** (the per-transaction cap; no chain send), then measure the first real sponsored stake. Then, separately, the Picks row 1.2 → 1.3 (a `config` send + site PR, sponsor first) | I-088, D-117 | PR merged; first sponsored stake measured | **PR #138**: owner sends the sponsor `config` from `sponsor-limits-1-3` first, then merges; then measure the first sponsored stake |
+| R-BX-13 | Round-14 fix-check Lows (optional): L-1 measure the re-read deadline from the start of the run (~22 min) with 2 tries per read; L-2 a one-off release for a held week (`BLOCKX_RELEASE` variable = week + hash of the exact held reason); L-3 the same `ls-remote` check in `games-testnet.yml`. Still open from round 14: E4-4, E4-5, E4-6, E4-8 | fix-check `FR6TU3784dCN935iffWLjB` (private) | PR + tests | **PR #128** (`blockx-lows` @ `2afe6d8`): Repo Lens re-check **GO** (3 Infos: I-1 no code for the "can't be recomputed" hold, I-2 a flag-plus-points test, I-3 missing race files on a scored target as a passing hold — a small follow-up). Owner merges before Mon 16 Nov |
+| R-HUB-11 | **Public-readiness, site side (D-113, D-115):** (1) the site still fetches data and sets its CSP through the old repo name `raw.githubusercontent.com/bawcejawn/Knode/…` (8 js files, 9 html CSP lines, 5 tests): change to `KnodeGames` (works today only through GitHub's rename redirect); (2) **"Open source" on 16 pages → "Source-available"** (owner, D-115; the license stays proprietary); (3) branding: bare "Knode" → "Knode Games" (blockx.html brand and footer first, names.js, trust.html), package names and descriptions `kprediction`, the workflow name "Kpred bot", `KPRED_DEMO` (never the on-chain `kpred` namespace); (4) `admin/index.html` is published at `/admin/`: move it under a non-served path or leave it inert; (5) a plan (not a build) for deploying Pages from an allow-listed folder so `bot/`, `docs/`, `.ai/` aren't downloadable from knodegames.com, with no page URL changes. The README, LICENSE and SECURITY.md are done (library, D-115) | D-113, D-115 | PRs green; old name 0 hits in site code | **PR #131** (`hub-public-ready` @ `1c8cd57`, green): parts 1–4 (old repo name 0 hits, "Source-available", branding, package names `knode-games*`, workflow "Knode Games bot", `KNODE_DEMO`, admin page inert off localhost + robots). Part 5 plan: `claude/hub/PAGES-ALLOWLIST-PLAN.md`. #131 and #137 touch the same two test files: merge one, then check the other |
+- Merged 4 Nov: #128 (Block X round-14 Lows), #129 (sponsor upload guard), #132 (Block X Week-1 wording), #131 (site public-readiness, R-HUB-11 parts 1–4), #137 (claim flow removed, D-118), #138 (sponsor limits, D-117; the owner sent the `config`), #135 (self-heal network retry) — 2026-11-04
+
+## Moved 2026-11-04 (evening, session-ends)
+| R-RACE-10 | In the sponsor switch-on run (R-BX-15 step SG-2) the Race picks row also goes to 1.2 Mana: check the Race page asks the same `rcLimit` | R-BX-15, R-BX-16 | checked with the site PR | open |
+| R-RACE-4 | New free-prize wording on the Leaders page once game 7 is applied (today: "paid once the vault is live") | `games.json` | PR | covered by PR #86 (same change as R-RACE-6) |
+| R-RACE-6 | Race page and the home page's Race rules: replace "vault not yet live" and update the free-prize wording (with the Hub's R-HUB-1) | I-027, I-069 | PR, before Mon 9 Nov | in progress: PR #86 updated (`race-page-wording` @ `d88d263`, local): "from Week 1, the week of Mon 9 Nov"; site tests 210/210. Owner pushes, then merges **after** Thu's `game-apply 7` |
+| R-HUB-1 | "Week 1" refresh: show the week of Mon 9 Nov as Week 1 site-wide and replace "vault not yet live" text; write the week-label table (vault week, site label, file name) into `KOINOS.md` → Time | I-069, I-027, D-063 | live before Mon 9 Nov | in progress: PR #94 (new `weeks.js`; Race page text is R-RACE-6); merge before Mon 9 Nov 00:00 UTC |
+- R-RACE-10 done: checked, no change (the Race page asks 1.2 Mana via `rcLimits`) — 2026-11-04
+- R-HUB-1 done: PR #94 merged 4 Nov 05:21 UTC — 2026-11-04
+- R-RACE-4 / R-RACE-6 done: PR #86 merged — 2026-11-04
+- Hub (3–4 Nov, owner-merged): #115 "Get an @name" in Tools; #118 Stake page overhaul — 2026-11-04
+
 ## Moved 2026-11-04 (morning)
 - Questions rounds: PRs #119, #122 (Repo Lens #E-9 ready to merge), #125, #126 (#E-10) merged; R-Q-2 done — 2026-11-04
 - PR #79 (Picks owner handover plan, docs) merged — 2026-11-04
@@ -227,5 +251,5 @@ Struck-through ROADMAP lines that were moved: "Merge `vault-v6` into `picks`" (d
 | Question-release task checked: NextRunTime 3:45 AM local (11:45 UTC) after the clock change | 2026-11-02 | D-047 |
 | Swap Desk chat knowledge filed; C-04, C-05, C-11, C-17 settled | 2026-11-02 | — |
 | Real swap tested on the site (3,000 VHP) | ≤ 2026-11-02 | Questions chat |
-| Stale copy `C:\Users\alcat\repos\Knode` deleted | ≤ 2026-11-02 | Questions chat |
+| Stale copy `C:\Users\<you>\repos\Knode` deleted | ≤ 2026-11-02 | Questions chat |
 | Set a desk daily payout cap — **cancelled** (no cap, D-007) | 2026-11-02 | C-17 |

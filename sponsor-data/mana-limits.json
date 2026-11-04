@@ -1,19 +1,19 @@
 {
   "v": 1,
-  "updated": "2026-11-04T07:30:00.000Z",
+  "updated": "2026-11-04T18:10:00.000Z",
   "margin": 2,
   "rows": [
     {
       "name": "KnodeGames Picks pick",
       "contract": "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm",
       "entry_point": 2363702380,
-      "max_mana": "120000000",
+      "max_mana": "130000000",
       "observed": {
-        "count": 1,
-        "max": "84211375",
-        "typical": "84211375",
-        "source": "mainnet sponsored guest Block X pick 2026-11-04 (block 40779842), vault switch off",
-        "at": "2026-11-04T07:30:00.000Z"
+        "count": 4,
+        "max": "97016364",
+        "typical": "92988178",
+        "source": "mainnet, vault switch on, blocks 40783100-40795033 (4 Nov), every block read",
+        "at": "2026-11-04T18:10:00.000Z"
       }
     },
     {
@@ -22,11 +22,24 @@
       "entry_point": 2363702380,
       "max_mana": "120000000",
       "observed": {
-        "count": 2,
-        "max": "76202585",
-        "typical": "76146286",
-        "source": "mainnet sponsored guest Race picks 2026-11-04 (blocks 40779375, 40779390), vault switch off",
-        "at": "2026-11-04T07:30:00.000Z"
+        "count": 5,
+        "max": "89215426",
+        "typical": "89215426",
+        "source": "mainnet, vault switch on, blocks 40783100-40795033 (4 Nov), every block read",
+        "at": "2026-11-04T18:10:00.000Z"
+      }
+    },
+    {
+      "name": "Daily Questions answer",
+      "contract": "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr",
+      "entry_point": 229977920,
+      "max_mana": "120000000",
+      "observed": {
+        "count": 9,
+        "max": "94303409",
+        "typical": "81112029",
+        "source": "mainnet, vault switch on, blocks 40783100-40795033 (4 Nov), every block read",
+        "at": "2026-11-04T18:10:00.000Z"
       }
     }
   ]

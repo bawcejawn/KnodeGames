@@ -1,7 +1,7 @@
 {
   "checkedUpTo": 70,
   "orphans": [],
-  "lastCompound": 40748599,
+  "lastCompound": 40777559,
   "warnings": [],
   "lastProduced": 40775535,
   "producedByDay": {
@@ -15,14 +15,14 @@
     "1414": 66,
     "1415": 34
   },
-  "producerScannedTo": 40776525,
+  "producerScannedTo": 40777496,
   "settings": "{\"min_stake\":\"100000000\",\"min_stake_next\":\"0\",\"min_stake_next_week\":\"0\",\"max_sponsor_rc\":\"200000000\",\"min_sponsor_rc\":\"0\",\"paused\":false}",
-  "sealedAt": 40776523,
+  "sealedAt": 40777495,
   "desk": {
     "settings": "{\"fee_bps\":300,\"min_swap\":\"100000000\",\"max_swap\":\"0\",\"paused\":false,\"timelock\":\"172800000\"}",
     "koin": "180655371255",
     "koinOut": "291097000000",
-    "at": 1793757325140
+    "at": 1793760344050
   },
   "deskProducerKey": "AzCYCDLDa49PPVHKk60xQbOErS6XY1TcEA8bkSo8Sk6E",
   "notified": [
@@ -31,24 +31,24 @@
   ],
   "vhpLists": {
     "127c2149d7910a07e3073b5f6480e5814f533ef76de4aec10583097a041abb4c": {
-      "n": 1,
-      "last": 40776583
+      "n": 2,
+      "last": 40777555
     },
     "de1fdd9e4b991eafe458e2dd9d760b416fe04a252ea68a93007f61e10c48a110": {
-      "n": 1,
-      "last": 40776583
+      "n": 2,
+      "last": 40777555
     },
     "18ce6655e1f7892658a545a61b245c84cd180ed7aed6eece339bc2a256ae91d4": {
-      "n": 1,
-      "last": 40776583
+      "n": 2,
+      "last": 40777555
     },
     "0637dab2f133bcdc942719a3425eeb58187d2b89d1633155bf16a7f6e52851d7": {
-      "n": 1,
-      "last": 40776583
+      "n": 2,
+      "last": 40777555
     },
     "d29adda5f93a82d1023b1715c925bb5336610b222ee7cdba5f80eb0d0871911b": {
-      "n": 1,
-      "last": 40776583
+      "n": 2,
+      "last": 40777555
     }
   },
   "manaByDay": {
@@ -58,8 +58,9 @@
     "2026-10-31": "513530302",
     "2026-11-01": "189598934",
     "2026-11-02": "367677189",
-    "2026-11-03": "492989686"
+    "2026-11-03": "492989686",
+    "2026-11-04": "114716045"
   },
   "games": "[[1,true,true,true,0,0,0]]",
-  "seal": "c33e744ed36a138fa000e4be560908014e8e09ead25b4b651eed1ab0596f212a"
+  "seal": "101c6bbdb16137b9046f8078ffaabcf339f76208f764a827635d129d393d5810"
 }

@@ -25,7 +25,7 @@ test("every page with a tab bar has Games · Leaders · Stake · Results · More
     assert.match(bar, /<button type="button" class="tb-more" aria-expanded="false" aria-controls="more-sheet">/, `${p}: More button`);
     const sheet = h.match(/<div class="more-sheet" id="more-sheet" hidden>[\s\S]*?<\/div>/);
     assert.ok(sheet, `${p}: More sheet starts hidden`);
-    for (const target of ["play", "race.html", "how", "swap.html", "start.html", "get.html", "mana.html", "pulse.html", "node.html", "burn.html", "welcome", "install.html", "trust.html", "terms.html"])
+    for (const target of ["play", "race.html", "how", "swap.html", "start.html", "get.html", "names.html", "mana.html", "pulse.html", "node.html", "burn.html", "welcome", "install.html", "trust.html", "terms.html"])
       assert.ok(sheet[0].includes(target), `${p}: More sheet links ${target}`);
     assert.match(h, /<script src="header-wallet\.js"><\/script>\s*<script src="nav\.js"><\/script>|<script src="nav\.js"><\/script>\s*<\/body>/, `${p}: nav.js after the wallet scripts`);
   }

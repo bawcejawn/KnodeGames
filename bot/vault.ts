@@ -211,8 +211,9 @@ const LIST_MAX = 10;
  *
  * Before anything is sent for a game's week, in this order (each fails closed: that game's week posts nothing, the
  * others go on, and the owner gets an alert):
- *  1. HOLD (I-064): a HOLD-W<week>.json next to the results file holds the whole week (Last Node watch-and-hold, D-055).
- *     A HOLD file that can't be read holds too.
+ *  1. HOLD (I-064): a HOLD-W<week>.json next to the results file holds the whole week (Last Node watch-and-hold, D-055)
+ *     unless RELEASE-W<week>.json is published next to it (Repo Lens VB-1). A HOLD or RELEASE file that can't be read
+ *     holds too.
  *  2. The results file must be final, well formed (checkResults) and, with a memo (the hourly bot), unchanged across
  *     two runs at least STABLE_MS apart (I-034, I-051). A file that changes after it was first read is held for good:
  *     a final file never changes, so the owner checks it and posts by hand (game-post) if it is right.
@@ -272,8 +273,16 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
     };
 
     // 1. HOLD file (I-064). Missing: go on. Present (valid or not): hold. Unreadable: hold (fail closed).
+    // Repo Lens VB-1: a published HOLD stays on the data branch, so a released week is marked by RELEASE-W<week>.json
+    // next to it (Last Node publishes it when LASTNODE_RELEASE_WEEKS names the week). Unreadable RELEASE → still held.
     const h = readFile(joinSpec(source, `HOLD-W${w}.json`));
-    if (h.state === "ok") { hold("hold-file", `the game published HOLD-W${w}.json${h.data?.reason ? ` (${String(h.data.reason).slice(0, 120)})` : ""}: it pays nothing until its recorder releases the week`); continue; }
+    if (h.state === "ok") {
+      const rel = readFile(joinSpec(source, `RELEASE-W${w}.json`));
+      const reason = h.data?.reason ?? h.data?.why;
+      if (rel.state === "error") { hold("release-unreadable", `the game published HOLD-W${w}.json, and RELEASE-W${w}.json can't be read (${rel.error})`); continue; }
+      if (rel.state === "missing") { hold("hold-file", `the game published HOLD-W${w}.json${reason ? ` (${String(reason).slice(0, 120)})` : ""}: it pays nothing until its recorder releases the week (RELEASE-W${w}.json)`); continue; }
+      log(ctx, `  ${name} week ${w}: HOLD-W${w}.json was released (RELEASE-W${w}.json): checking the results as usual`);
+    }
     if (h.state === "error") { hold("hold-unreadable", `HOLD-W${w}.json can't be read (${h.error}), so the bot can't tell whether the game is holding this week`); continue; }
 
     // 2. The results file: final, well formed, and stable across runs.
@@ -422,7 +431,8 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
   }
 }
 
-/** A board row's score: `pts`, else `points` (Last Node); null when the board has neither (then every row counts). */
+/** A board row's score: `pts` (every board today, Last Node included), else `points`; null when the board has neither
+ *  (then every row counts). */
 export function boardScore(row: any): number | null {
   const v = typeof row?.pts === "number" ? row.pts : typeof row?.points === "number" ? row.points : null;
   return v === null ? null : v > 0 ? v : 0;

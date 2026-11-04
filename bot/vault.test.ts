@@ -459,3 +459,21 @@ test("VB-5: vaultGames.<id>.minPts: board points below it don't require the wall
   await vaultResultsPass(v2, async (what) => { s2.push(what); return true; });
   assert.match(v2.problems.join(" | "), new RegExp(`not in the results file: ${addr(C)}`), "without minPts, C (50) is required");
 });
+
+test("VB-1: a HOLD file holds unless RELEASE-W<week>.json is published next to it; the hold reason is read from `why` too", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim } = await weekOneClosed();
+  const held: any = { ...allFiles(), "mem:fantasy/vault/HOLD-W1.json": { week: 1, why: "watching node 1Abc" } };
+  const v = fctx(sim, held), s: string[] = [];
+  await vaultResultsPass(v, async (what) => { s.push(what); return true; });
+  assert.ok(!s.some((x) => x.startsWith("Fantasy")));
+  assert.match(v.problems.join(" | "), /HOLD-W1\.json \(watching node 1Abc\)/);
+  const released = { ...held, "mem:fantasy/vault/RELEASE-W1.json": { week: 1, released: true } };
+  const v2 = fctx(sim, released), s2: string[] = [];
+  await vaultResultsPass(v2, async (what) => { s2.push(what); return true; });
+  assert.deepEqual(s2.filter((x) => x.startsWith("Fantasy")), fantasySends);
+  const unreadable = { ...held, "mem:fantasy/vault/RELEASE-W1.json": "ERR" };
+  const v3 = fctx(sim, unreadable), s3: string[] = [];
+  await vaultResultsPass(v3, async (what) => { s3.push(what); return true; });
+  assert.ok(!s3.some((x) => x.startsWith("Fantasy")), "an unreadable RELEASE file keeps the hold");
+  assert.match(v3.problems.join(" | "), /RELEASE-W1\.json can't be read/);
+});

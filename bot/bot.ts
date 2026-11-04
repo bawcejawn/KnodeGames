@@ -49,7 +49,7 @@ import { pobAbi } from "./token-abi.ts";
 import { formatProduction, loadSigners, signerFromBlockItem, type SignedBlock } from "./production.ts";
 import { contractManaVerdict } from "./mana.ts";
 import { contractMetadata, checkMeta, sha256OfMeta, type Check } from "./chaincheck.ts";
-import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
+import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, sharedRulesWeek, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
 
 // ───────────────────────── settings ─────────────────────────
 
@@ -515,7 +515,7 @@ async function healthPass(ctx: Ctx, bs: BotState) {
   if (ctx.desk) await deskHealth(ctx, bs, ownerAlert);
   // v6: game announcements, changes to the game list, owner corrections and voided game weeks.
   const view = await vaultView(ctx.chain);
-  if (view) bs.games = vaultAlerts(view, st, await recentGameWeeks(ctx.chain, view, st.weeksClosed), ownerAlert, bs.games);
+  if (view) bs.games = vaultAlerts(view, st, await recentGameWeeks(ctx.chain, view, st.weeksClosed, st.c), ownerAlert, bs.games);
   bs.notified = [...still];
   if (st.c.operator && st.c.operator !== ctx.operator.getAddress() && ctx.chain.kind === "koinos" && E.OPERATOR_WIF)
     ctx.problems.push(`The contract's operator is ${st.c.operator}, not this bot (${ctx.operator.getAddress()}).`);
@@ -1008,6 +1008,7 @@ async function settlePass(ctx: Ctx) {
   const started = Date.now();
   const outOfTime = () => Date.now() - started > SETTLE_BUDGET_MS;
   for (let w = st.weeksFinalized; w < st.weeksClosed; w++) {
+    if (sharedRulesWeek(st.c, w)) continue;           // v6.1 (D-116): paid from its results file, no settle step
     const wk = (await ctx.chain.read("get_week", { week: String(w) })).week ?? {};
     if (h < num(wk.settle_start) || h > num(wk.settle_end)) continue;
     // Free players (no stake that week) and voided entries (the player withdrew everything) can never be paid, so the
@@ -2107,7 +2108,6 @@ async function main() {
   if (cmd === "vault-snapshot") { const { snapshotCommand } = await import("./rehearse-v6.ts"); return snapshotCommand(gameChain(), opt("--out", "v5-snapshot.json")!); }
   if (cmd === "testnet-v6") { const { testnetV6 } = await import("./testnet-v6.ts"); return testnetV6(rest.filter((a) => !a.startsWith("--"))); }
   if (cmd === "testnet-v61-d8") { const { testnetV61D8 } = await import("./testnet-v61-d8.ts"); return testnetV61D8(rest.filter((a) => !a.startsWith("--"))); }
-  if (cmd === "testnet-v61") { const { testnetV61 } = await import("./testnet-v61.ts"); return testnetV61(rest.filter((a) => !a.startsWith("--"))); }
   if (cmd === "rehearse-v6") { const { rehearseCommand } = await import("./rehearse-v6.ts"); return rehearseCommand(opt("--snapshot", "v5-snapshot.json")!, Number(opt("--weeks", "3")), opt("--reward")); }
   throw new Error(`Unknown command "${cmd}". See bot/README.md for the list of commands.`);
 }

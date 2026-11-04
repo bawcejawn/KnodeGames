@@ -25,7 +25,9 @@ import { SimChain, loadAbi, showKoin, pagePlayers, type Chain } from "./chain.ts
 import { vaultResultsPass, vaultFinalizePass, vaultView, type VaultCtx } from "./vault.ts";
 
 export const V5_BUILD = "game/test-fixtures/kpred-v5-test-build.wasm";
-export const V6_BUILD = "game/build/sim/contract.wasm";
+// The exact live v6 code (test build of eed38f7c…): this tool rehearses the past v5 → v6 upgrade. v6 → v6.1 has its own
+// test (game/scripts/storage-compat-v61.test.ts).
+export const V6_BUILD = "game/test-fixtures/kpred-v6-test-build.wasm";
 const VHP = 100_000_000n;
 const HOUR = 3_600_000;
 

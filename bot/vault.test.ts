@@ -522,3 +522,16 @@ test("VB-11: a results file's fingerprint ignores the order of rows and winners"
   assert.equal(fileHash(a), fileHash(b));
   assert.notEqual(fileHash(a), fileHash({ ...a, rows: [{ player: P(0), points: 8 }, a.rows[1]] }));
 });
+
+test("v6.1 (D-116): the vault bot handles the question game only from its shared-rules week; other games always", async () => {
+  const { sharedRulesWeek, vaultHandles } = await import("./vault.ts");
+  assert.equal(sharedRulesWeek({}, 5), false, "rule not set (v6): never");
+  assert.equal(sharedRulesWeek({ q60_rule_week_plus_one: "0" }, 5), false);
+  const c = { q60_rule_week_plus_one: "4" };                  // first shared-rules week: 3
+  assert.equal(sharedRulesWeek(c, 2), false, "the week the upload lands in keeps the old rules");
+  assert.equal(sharedRulesWeek(c, 3), true);
+  assert.equal(sharedRulesWeek(c, 9), true);
+  assert.equal(vaultHandles(1, c, 2), false, "an old-rule week of game 1: settle and claim, not a results file");
+  assert.equal(vaultHandles(1, c, 3), true);
+  assert.equal(vaultHandles(2, {}, 0), true, "every other game, always");
+});

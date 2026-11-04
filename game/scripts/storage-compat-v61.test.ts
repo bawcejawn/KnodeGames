@@ -145,12 +145,42 @@ test("v6.1 reads v6's stored data unchanged; the week it lands in keeps 30 quest
   // A answers all 60: the 60th answer still goes through.
   for (let i = 31; i < 91; i++) await ok([["answer", { player: addr(A), question_id: i, option: 1 }]], [A]);
   assert.equal((await sim.read("get_player", { player: addr(A), week: "3" })).entry.answers.length, 60);
+  // B answers 20, all right as well.
+  for (let i = 31; i < 51; i++) await ok([["answer", { player: addr(B), question_id: i, option: 1 }]], [B]);
 
-  // ───── everyone exits; books balance ─────
-  for (const p of [A, B]) {
-    const pl = (await sim.read("get_player", { player: addr(p), week: "3" })).player ?? {};
+  // ───── 4. week 3 runs on the shared game rules (D-116) ─────
+  const old = await send([["deposit_vhp", { from: addr(B), amount: String(VHP) }]], [B]);
+  assert.ok(!old.ok && /stake in the question game with deposit_to \(game 1\)/.test(old.error ?? ""), `the old deposit call is closed from the new week (${old.error})`);
+  await ok([["deposit_to", { game: 1, from: addr(B), amount: String(VHP), koin: false }]], [B]);   // the new call, into B's own record
+  const bq = await sim.read("get_game_player", { player: addr(B), game: 1, week: "3" });
+  assert.equal(bq.week_stake, String(40n * VHP), "B's week-3 stake in game 1, read in place");
+  assert.equal(bq.player.pending, String(VHP), "the new deposit counts from next week");
+  at(GENESIS + 3 * WEEK + 3 * DAY);
+  for (let i = 31; i < 91; i++) await resolve(i);
+  await sim.ledgerAdd(2, addr(contract), 40n * VHP);
+  at(GENESIS + 4 * WEEK + 12 * HOUR);
+  await ok([["close_week", { week: "3" }]], []);
+  const g13 = await sim.read("get_game", { game: 1, week: "3" });
+  assert.equal(g13.week.closed, true, "game 1's week 3 closed like every game's");
+  assert.ok(BigInt(g13.week.bucket) > 0n, "with its bucket");
+  assert.equal(BigInt((await sim.read("get_week", { week: "3" })).week.pot ?? 0), 0n, "and nothing in the old baskets");
+  const s3 = await send([["settle", { player: addr(A), week: "3" }]], []);
+  assert.ok(!s3.ok && /no settle step/.test(s3.error ?? ""), `no settle step from the new week (${s3.error})`);
+  await ok([["post_results", { game: 1, week: "3", rows: [{ player: addr(A), points: 60 }, { player: addr(B), points: 20 }] }]], [operator]);
+  await ok([["seal_results", { game: 1, week: "3" }]], [operator]);
+  at(GENESIS + 4 * WEEK + 12 * HOUR + 2 * 12 * HOUR + HOUR);
+  const f = await ok([["finalize_game_week", { game: 1, week: "3" }]], []);
+  assert.ok(f.ok);
+  const claimA = await ok([["claim_game", { game: 1, week: "3", player: addr(A) }]], [A]);
+  assert.ok(claimA.ok, "A claims week 3 like any game");
+  const a3 = await sim.read("get_game_player", { player: addr(A), game: 1, week: "3" });
+  assert.ok(BigInt(a3.entry.reward) > 0n && BigInt(a3.entry.reward) <= BigInt(g13.week.bucket));
+
+  // ───── everyone exits, A by the old call and B by the new one; books balance ─────
+  for (const [p, call] of [[A, "withdraw"], [B, "withdraw_from"]] as const) {
+    const pl = (await sim.read("get_player", { player: addr(p), week: "4" })).player ?? {};
     const all = BigInt(pl.stake ?? 0) + BigInt(pl.pending ?? 0);
-    if (all > 0n) await ok([["withdraw", { to: addr(p), amount: String(all) }]], [p]);
+    if (all > 0n) await ok([[call, call === "withdraw" ? { to: addr(p), amount: String(all) } : { game: 1, to: addr(p), amount: String(all) }]], [p]);
   }
   await ok([["withdraw_from", { game: 2, to: addr(D), amount: String(30n * VHP) }]], [D]);
   const e = await sim.read("get_state", {});

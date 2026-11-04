@@ -25,6 +25,8 @@ const CLOSE: u64 = 10, SETTLE: u64 = 100, LOCK: u64 = 50;
 
 let gK: Kpred | null = null;
 let gW: u64 = 0;
+let gWho: Uint8Array = new Uint8Array(0);
+let gWeek: u64 = 0;
 
 function at(h: u64): void {
   MockVM.commitTransaction();
@@ -62,6 +64,29 @@ function postIn(k: Kpred, w: u64): void {
 }
 function postMany(k: Kpred, w: u64, n: u32): void {
   for (let i: u32 = 0; i < n; i++) postIn(k, w);
+  MockVM.commitTransaction();
+}
+function fund(who: Uint8Array[]): void {
+  for (let p = 0; p < who.length; p++) {
+    Tokens.testSet(VHP_TAG, who[p], 1000 * VHP);
+    Tokens.testSet(MANA_TAG, who[p], 1000 * VHP);
+  }
+  Tokens.testSet(MANA_TAG, CONTRACT, 1000 * VHP);
+}
+/** `n` answers from question `from` on: the first `right` of them correct (option 1; every question resolves 1). */
+function answerN(k: Kpred, who: Uint8Array, from: u32, n: u32, right: u32): void {
+  as(who);
+  for (let i: u32 = 0; i < n; i++) k.answer(new kpred.answer_arguments(who, from + i, i < right ? 1 : 0));
+}
+function resolveAll(k: Kpred, from: u32, n: u32): void {
+  as(OPERATOR);
+  for (let i: u32 = 0; i < n; i++) k.resolve_question(new kpred.resolve_question_arguments(from + i, 1, new Uint8Array(32).fill(9)));
+}
+/** Close vault week w once it can close (its end, or its last result, plus the close delay). */
+function closeAt(k: Kpred, w: u64): void {
+  at(GENESIS + (w + 1) * WEEK + CLOSE + 1);
+  MockVM.setAuthorities([]);
+  k.close_week(new kpred.close_week_arguments(w));
   MockVM.commitTransaction();
 }
 function oneTooMany(k: Kpred, w: u64): void {
@@ -130,20 +155,13 @@ describe("v6.1: up to 60 questions a week", () => {
     oneTooMany(k, 0);
   });
 
-  it("a full 60-question week: points above 30 count, the week closes, settles, finalizes one place per page, and claims never exceed the pot (Repo Lens V61-A4)", () => {
+  it("a full 60-question week on the shared rules: points above 30 count, the operator posts them, the week finalizes one place per page, and claims never exceed the bucket (V61-A4, D-116)", () => {
     const k = setup(1);
     const who: Uint8Array[] = [PA, PB, PC, PD, PE];
     const right: u32[] = [60, 45, 31, 10, 59];
-    for (let p = 0; p < who.length; p++) {
-      Tokens.testSet(VHP_TAG, who[p], 1000 * VHP);
-      Tokens.testSet(MANA_TAG, who[p], 1000 * VHP);
-    }
-    Tokens.testSet(VHP_TAG, SEED, 5000 * VHP);
-    Tokens.testSet(MANA_TAG, CONTRACT, 1000 * VHP);
+    fund(who);
     at(200);
-    for (let p = 0; p < who.length; p++) { as(who[p]); k.deposit_vhp(new kpred.deposit_vhp_arguments(who[p], 10 * VHP)); }
-    as(SEED);
-    k.seed_deposit_vhp(new kpred.seed_deposit_vhp_arguments(1000 * VHP));
+    for (let p = 0; p < who.length; p++) { as(who[p]); k.deposit_to(new kpred.deposit_to_arguments(who[p], 1, 10 * VHP, false)); }
     Tokens.testSet(VHP_TAG, CONTRACT, Tokens.testGet(VHP_TAG, CONTRACT) + 40 * VHP);   // the week's block rewards
     at(GENESIS + 100);
     postMany(k, 0, 60);
@@ -155,40 +173,129 @@ describe("v6.1: up to 60 questions a week", () => {
     at(GENESIS + 500);
     as(OPERATOR);
     for (let i: u32 = 0; i < 60; i++) k.resolve_question(new kpred.resolve_question_arguments(i, 1, new Uint8Array(32).fill(9)));
-    at(GENESIS + WEEK + CLOSE + 1);
-    MockVM.commitTransaction();
+    closeAt(k, 0);
+    const gw0 = k.get_game(new kpred.get_game_arguments(1, 0)).week!;
+    expect(gw0.closed).toBe(true);
+    expect(gw0.bucket > 0).toBe(true);
+    expect(k.get_week(new kpred.get_week_arguments(0)).week!.pot).toBe(0);   // nothing for the old baskets
+    as(OPERATOR);
+    const rows: kpred.result_row[] = [];
+    for (let p = 0; p < who.length; p++) rows.push(new kpred.result_row(who[p], right[p]));
+    k.post_results(new kpred.post_results_arguments(1, 0, rows));
+    k.seal_results(new kpred.seal_results_arguments(1, 0));
+    at(GENESIS + WEEK + CLOSE + 1 + 2 * CLOSE + 1);
     MockVM.setAuthorities([]);
-    k.close_week(new kpred.close_week_arguments(0));
-    expect(k.get_week(new kpred.get_week_arguments(0)).week!.closed).toBe(true);
-    for (let p = 0; p < who.length; p++) {
-      MockVM.commitTransaction();
-      expect(k.settle(new kpred.settle_arguments(who[p], 0)).points).toBe(right[p]);
-    }
-    expect(k.get_week(new kpred.get_week_arguments(0)).week!.max_points).toBe(60);
     testSetFinalizePage(1);
-    at(k.get_week(new kpred.get_week_arguments(0)).week!.settle_end / MS + 2);
     let pages = 0;
-    while (!k.get_week(new kpred.get_week_arguments(0)).week!.finalized && pages < 20) {
+    while (!k.get_game(new kpred.get_game_arguments(1, 0)).week!.finalized && pages < 20) {
       MockVM.commitTransaction();
-      k.finalize_week(new kpred.finalize_week_arguments(0));
+      k.finalize_game_week(new kpred.finalize_game_week_arguments(1, 0));
       pages++;
     }
     testSetFinalizePage(500);
-    const wk = k.get_week(new kpred.get_week_arguments(0)).week!;
-    expect(wk.finalized).toBe(true);
-    expect(pages >= 2).toBe(true);                                   // one place per page: two winners, two pages at least
-    expect(wk.cutoff).toBe(59);                                      // top 30% of 5 players = 2: A (60) and E (59)
-    expect(wk.winners).toBe(2);
+    const gw = k.get_game(new kpred.get_game_arguments(1, 0)).week!;
+    expect(gw.finalized).toBe(true);
+    expect(pages >= 2).toBe(true);                                   // one place per page
+    expect(gw.max_points).toBe(60);
+    expect(gw.cutoff).toBe(59);                                      // top 30% of 5 = 2: A (60) and E (59)
+    expect(gw.winners).toBe(2);
     let paid: u64 = 0;
     for (let p = 0; p < who.length; p++) {
+      if (right[p] < 59) continue;
       as(who[p]);
-      if (right[p] >= 59) {
-        const r = k.claim(new kpred.claim_arguments(who[p], 0)).reward;
-        expect(r > 0).toBe(true);
-        paid += r;
-      }
+      const r = k.claim_game(new kpred.claim_game_arguments(who[p], 1, 0)).reward;
+      expect(r > 0).toBe(true);
+      paid += r;
     }
-    expect(paid <= wk.pot_a + wk.pot_b).toBe(true);
+    expect(paid <= gw.bucket).toBe(true);
+    k.assertSolvent();
+  });
+
+  it("the switch (D-116): the week the upgrade lands in is paid the old way; from the next week game 1 is paid like every game; every stake comes out by the old and the new call", () => {
+    const k = setup(0);                                              // an upgraded vault: the rule week is not set yet
+    fund([PA, PB, PC, PD]);
+    at(200);
+    for (let p = 0; p < 3; p++) { as([PA, PB, PC][p]); k.deposit_vhp(new kpred.deposit_vhp_arguments([PA, PB, PC][p], 10 * VHP)); }
+    MockVM.commitTransaction();
+    expect(k.get_state(new kpred.get_state_arguments()).config!.q60_rule_week_plus_one).toBe(2);   // week 1 is the first new week
+    Tokens.testSet(VHP_TAG, CONTRACT, Tokens.testGet(VHP_TAG, CONTRACT) + 40 * VHP);
+    // ── week 0: the old rules (settle, finalize_week, claim) ──
+    at(GENESIS + 100);
+    postMany(k, 0, 3);
+    at(GENESIS + 200);
+    answerN(k, PA, 0, 3, 3); answerN(k, PB, 0, 3, 2); answerN(k, PC, 0, 3, 1);
+    as(PC);
+    k.deposit_vhp(new kpred.deposit_vhp_arguments(PC, VHP));        // the old call still takes deposits before the new week
+    at(GENESIS + 500);
+    resolveAll(k, 0, 3);
+    closeAt(k, 0);
+    expect(k.get_week(new kpred.get_week_arguments(0)).week!.pot > 0).toBe(true, "check 1");    // the old baskets
+    expect(k.get_game(new kpred.get_game_arguments(1, 0)).week!.closed).toBe(false); // no game-week for the old rules
+    for (let p = 0; p < 3; p++) { MockVM.commitTransaction(); k.settle(new kpred.settle_arguments([PA, PB, PC][p], 0)); }
+    gK = k; gWho = PA;
+    as(OPERATOR);
+    expect(() => { gK!.post_results(new kpred.post_results_arguments(1, 0, [new kpred.result_row(gWho, 3)])); }).toThrow();
+    expect(MockVM.getErrorMessage()).toBe("that week of the question game is paid by the old rules (settle and claim)");
+    // ── week 1: the new rules ──
+    at(GENESIS + WEEK + 150);
+    const st1 = k.get_state(new kpred.get_state_arguments());
+    expect(st1.questions_cap).toBe(60);
+    as(PD);
+    expect(() => { gK!.deposit_vhp(new kpred.deposit_vhp_arguments(PD, VHP)); }).toThrow();
+    expect(MockVM.getErrorMessage()).toBe("stake in the question game with deposit_to (game 1)");
+    as(PD);
+    k.deposit_to(new kpred.deposit_to_arguments(PD, 1, 2 * VHP, false));                  // counts from week 2
+    as(PC);
+    k.withdraw(new kpred.withdraw_arguments(PC, VHP));               // the old call still withdraws (C keeps 10)
+    as(PC);
+    k.withdraw_from(new kpred.withdraw_from_arguments(PC, 1, 2 * VHP));   // and the new one (C keeps 8 this week)
+    MockVM.commitTransaction();
+    expect(k.get_game_player(new kpred.get_game_player_arguments(PC, 1, 1)).week_stake).toBe(8 * VHP);
+    postMany(k, 1, 3);
+    at(GENESIS + WEEK + 250);
+    answerN(k, PA, 3, 3, 3); answerN(k, PB, 3, 3, 1); answerN(k, PC, 3, 3, 2);
+    // A's first answer of week 1 settled A's week 0 (old rules), and nothing of week 1 is settled
+    gWho = PA; gWeek = 1;
+    MockVM.commitTransaction();
+    expect(k.get_player(new kpred.get_player_arguments(PA, 0)).entry!.settled).toBe(true, "check 2");
+    at(GENESIS + WEEK + 600);
+    resolveAll(k, 3, 3);
+    // week 0 is finalized the old way; its claim still pays after the switch
+    MockVM.commitTransaction();
+    MockVM.setAuthorities([]);
+    if (!k.get_week(new kpred.get_week_arguments(0)).week!.finalized) k.finalize_week(new kpred.finalize_week_arguments(0));
+    expect(k.get_week(new kpred.get_week_arguments(0)).week!.finalized).toBe(true, "check 3");   // (the vault's own step may have done it already)
+    as(PA);
+    expect(k.claim(new kpred.claim_arguments(PA, 0)).reward > 0).toBe(true, "check 4");
+    Tokens.testSet(VHP_TAG, CONTRACT, Tokens.testGet(VHP_TAG, CONTRACT) + 20 * VHP);   // week 1's block rewards
+    closeAt(k, 1);
+    const g1 = k.get_game(new kpred.get_game_arguments(1, 1)).week!;
+    expect(g1.closed).toBe(true, "check 5");
+    expect(g1.bucket > 0).toBe(true, "check 6");
+    expect(k.get_week(new kpred.get_week_arguments(1)).week!.pot).toBe(0);
+    MockVM.commitTransaction();
+    expect(() => { gK!.settle(new kpred.settle_arguments(gWho, gWeek)); }).toThrow();
+    expect(MockVM.getErrorMessage()).toBe("that week is paid from its results file (no settle step)");
+    as(OPERATOR);
+    k.post_results(new kpred.post_results_arguments(1, 1, [new kpred.result_row(PA, 3), new kpred.result_row(PC, 2), new kpred.result_row(PB, 1)]));
+    k.seal_results(new kpred.seal_results_arguments(1, 1));
+    at(GENESIS + 2 * WEEK + CLOSE + 1 + 2 * CLOSE + 1);
+    MockVM.setAuthorities([]);
+    expect(k.finalize_game_week(new kpred.finalize_game_week_arguments(1, 1)).done).toBe(true, "check 7");
+    as(PA);
+    const ra = k.claim_game(new kpred.claim_game_arguments(PA, 1, 1)).reward;
+    expect(ra > 0 && ra <= g1.bucket).toBe(true, "check 8");
+    // everyone takes everything out, by the old call and the new one
+    const outs: Uint8Array[] = [PA, PB, PC, PD];
+    for (let p = 0; p < outs.length; p++) {
+      const pl = k.get_player(new kpred.get_player_arguments(outs[p], 2)).player!;
+      const all = pl.stake + pl.pending;
+      as(outs[p]);
+      if (p % 2 == 0) k.withdraw(new kpred.withdraw_arguments(outs[p], all));
+      else k.withdraw_from(new kpred.withdraw_from_arguments(outs[p], 1, all));
+    }
+    MockVM.commitTransaction();
+    expect(k.get_state(new kpred.get_state_arguments()).totals!.total_stake).toBe(0);
     k.assertSolvent();
   });
 });

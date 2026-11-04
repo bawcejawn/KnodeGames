@@ -21,7 +21,9 @@ import { Signer } from "koilib";
 import { SimChain } from "../../bot/chain.ts";
 
 const OLD = "game/test-fixtures/kpred-v5-test-build.wasm";
-const NEW = "game/build/sim/contract.wasm";
+// The exact live v6 code (test build of eed38f7c…): this test covers the past v5 → v6 upgrade; v6 → v6.1 is
+// storage-compat-v61.test.ts.
+const NEW = "game/test-fixtures/kpred-v6-test-build.wasm";
 const VHP = 100_000_000n;
 const HOUR = 3_600_000, DAY = 24 * HOUR, WEEK = 7 * DAY;
 const GENESIS = 1_800_000_000_000 - (1_800_000_000_000 % DAY);

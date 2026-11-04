@@ -1,4 +1,4 @@
-# Upgrade to game v6.1 (up to 60 questions a week): runbook
+# Upgrade to game v6.1 (60 questions a week, and Questions on the shared game rules): runbook
 
 Every command that changes something is a dry run until you add `--send`, and mainnet also needs
 `CONFIRM_MAINNET=yes` in `.env`. Run everything in PowerShell in `C:\kprediction`.
@@ -7,22 +7,24 @@ Every command that changes something is a dry run until you add `--send`, and ma
 |---|---|
 | Contract | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` (the vault, same address) |
 | Live code | `eed38f7ce130d9d2e0dfafa8ddd5c4a6f383e2c7ce12ab87b02c584f43920b3d` (v6, uploaded 2026-11-02) |
-| **New code** | `399171a28956ee236d6b41b5779bcda4e2fe18cdc5560ccbfc380c9cf3d9fced` (PR #114; Repo Lens #B-4: GO to announce) |
-| New emergency build | `a6bc0164a4a8a3082d3c25e39bdee35221cd77633263b2688642acb3ba07743d` (withdrawals-only, same source; pinned in step 4) |
-| What changes | A week may hold 60 questions instead of 30, **from the week after the upload** (never the running week). `get_state` shows `questions_cap` (this week) and `questions_cap_next`. Nothing else |
+| **New code** | `da9dc9c984ca16764712efeed49b653ec62fe555dc5afe5127efbd7d19ab594a`, 87,558 bytes (PR #114: the 60-question cap and D-116; **Repo Lens next**) |
+| New emergency build | `a15d3dbe8f4fd6849a50b2da69b0917922a1e45b18c8d8b1a3813697ba77d545` (withdrawals-only, same source; pinned in step 3) |
+| What changes | **From the week after the upload** (never the running week, the "rule week"): (1) a week may hold 60 questions; (2) **Daily Questions plays by the shared game rules (D-116):** it's paid from a results file like every game (`post_results` → seal → `finalize_game_week` → `claim_game`), with no settle step and no 40/60 baskets; stakes use `deposit_to` / `withdraw_from` (game 1) like every game, read in place from each player's existing record (nothing moves); the old `deposit_vhp` / `deposit_koin` stop taking new stakes from that week (owner, 4 Nov), and `withdraw` keeps working forever. Weeks before the rule week are paid the old way, and their rewards stay claimable. `get_state` shows `questions_cap` / `questions_cap_next` |
 | Timelock | 48 h after `schedule`, then 7 days to upload |
 | Upload paid by | the owner wallet that signs: **at least 95 Mana in it** (the tool refuses below about 93); about **47** is spent at mainnet prices (Repo Lens #D-8, D8-5) |
 
-## Before the upload (Repo Lens #B-4's three conditions)
-1. **Mana of a 60-question week measured on testnet (V61-B1).** `npm run bot -- testnet-v61` deploys a fresh v6.1 copy on the testnet,
-   plays a 45-minute week with 60 questions, and writes `testnet-v61/report.md`: the 1st, 30th and 60th answer, settle with
-   60 and 30 answers, close and finalize. Each answer and settle must fit 1 Mana (the sponsor's limit).
-   **✅ Done 4 Nov 2026** (fresh copy `1NGJiwjw…` of `399171a2…`): answer no. 1 **0.054**, no. 30 **0.055**, no. 60 **0.061**
-   Mana; settle with 60 answers **0.124**, with 30 **0.085**; close 0.083; finalize 0.049; the 61st question refused
-   ("too many questions this week"). All far under 1 Mana: no new `mana-limits.json` rows needed.
-2. **The emergency build pin (V61-A3, D8-3):** right after the upload (step 3) `safeWasmSha256` becomes `a6bc0164…` in
-   `game-data/deployment.json`. Until then the pinned emergency build stays v6's `e84fec49…`, which is compatible with v6.1's storage.
-3. **The rollback rule (V61-A1), below.**
+## Before the announcement and the upload
+1. **Testnet (V61-B1, #D-8 D8-1 and D8-2):** `npm run bot -- testnet-v61-d8` deploys a fresh copy of `da9dc9c9…` with 13 games,
+   plays a 45-minute week of 60 questions paid the new way (results posted, sealed, finalized, claimed) and a returning player's
+   first answer that also closes the week, and writes the resource units of every call to `testnet-v61-d8/units.json`.
+   The earlier run of the 30 → 60 build alone (4 Nov, `399171a2…`): answers 0.054 – 0.061 Mana, settle with 60 answers 0.124.
+2. **Mainnet price (D8-1):** on your PC, read-only: `npx tsx tools/mainnet-mana.ts docs/testnet-v61-units.json`. Every answer
+   must stay under half of its 1-Mana limit.
+3. **Repo Lens** on PR #114 at the commit that holds `da9dc9c9…`: GO before the announcement.
+4. **The rollback rule (V61-A1), below.**
+5. **The Questions recorder (R-Q-4)** writes `games-data:questions/vault/W<week>.json` and `board.json` from the rule week on
+   (the vault bot reads `vaultGames.1`; results are due 3 days after the week ends). **The Stake hub** stakes game 1 with
+   `deposit_to` (Hub chat) before the rule week starts, because the old deposit call closes then.
 
 ## Which key signs
 - **Before the vault owner handover is accepted** (weekend runbook step 4b, Tue 10 Nov), the owner is still `1635QU…`: its key
@@ -46,7 +48,7 @@ $env:RPC = "https://koinos.armana.io"
 npm run bot -- chain-check
 npm run bot -- status
 ```
-- The first hash must be `399171a2…`, the second `a6bc0164…`. If either isn't, stop. (A build that stops with `EAGAIN`: run it again.)
+- The first hash must be `da9dc9c9…`, the second `a15d3dbe…`. If either isn't, stop. (A build that stops with `EAGAIN`: run it again.)
 - `chain-check`: every line ✔ and "game announced upgrade: none".
 - The owner wallet `1635QU…` must hold **at least 95 Mana** by upload day (check in Kondor; `status` shows the bot wallet, not the owner).
 - (Once PR #114 is merged, use `git checkout main` and `git pull` instead.)
@@ -56,7 +58,7 @@ npm run bot -- status
 npm run bot -- upgrade schedule
 npm run bot -- upgrade schedule --send
 ```
-The dry run must show "Local build … sha256 0x399171a2…". The bot emails you "A code upgrade is scheduled" (expected).
+The dry run must show "Local build … sha256 0xda9dc9c9…". The bot emails you "A code upgrade is scheduled" (expected).
 
 ## 2. Wait 48 hours
 Don't rebuild in between. `npm run bot -- upgrade status` must say "✔ matches the local build".
@@ -74,11 +76,11 @@ npm run bot -- status
   Week 4 in `status` is the week from Mon 9 Nov. If the rule says anything else, stop and tell the Vault chat.
 - `status` shows the same stakes, seed and pots as `before-v61.txt` (apart from new rewards).
 - **Right away, the emergency pin (D8-3):** `notepad game-data\deployment.json`, set
-  `"safeWasmSha256": "a6bc0164a4a8a3082d3c25e39bdee35221cd77633263b2688642acb3ba07743d"`, save, then check
+  `"safeWasmSha256": "a15d3dbe8f4fd6849a50b2da69b0917922a1e45b18c8d8b1a3813697ba77d545"`, save, then check
   `npm run bot -- upgrade status --safe` shows no ✖ about the pinned build. From now on the emergency build is v6.1's.
 
 ## 4. Records (one pull request into `main`)
-- `game-data/deployment.json`: `wasmSha256` → `399171a2…` (the tool wrote it on apply) and `safeWasmSha256` → `a6bc0164…` (step 3): commit both.
+- `game-data/deployment.json`: `wasmSha256` → `da9dc9c9…` (the tool wrote it on apply) and `safeWasmSha256` → `a15d3dbe…` (step 3): commit both.
 - Merge PR #114 the same day if it isn't merged yet.
 
 ## The rollback rule (V61-A1)

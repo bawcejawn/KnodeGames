@@ -109,6 +109,18 @@ export function seasonEnds(g: any, w: number): boolean {
 /** Whether a game earns (has a week to report) for week w. */
 /** Whether a game has results for week w, as the contract decides (requireResults): it earns that week now, or the
  *  vault closed that week with it earning (a game restarted after a gap keeps those weeks). */
+/** v6.1 (D-116): whether week `w` of the question game is paid like every game (from its results file), read from the
+ *  vault's settings (`config.q60_rule_week_plus_one`; 0 = not set: none yet). Earlier weeks are paid the old way. */
+export function sharedRulesWeek(config: any, w: number): boolean {
+  const r = num(config?.q60_rule_week_plus_one);
+  return r > 0 && w + 1 >= r;
+}
+
+/** Whether the vault bot handles this game's week `w`: every game, and the question game only from the shared-rules week. */
+export function vaultHandles(id: number, config: any, w: number): boolean {
+  return id !== Q_GAME || sharedRulesWeek(config, w);
+}
+
 export function earnedWeek(g: any, w: number, gw: any): boolean {
   return !!gw?.closed || gameEarns(g, w);
 }
@@ -256,8 +268,9 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
   const sw = () => (switches ??= (() => { try { return { s: (ctx.readPrizeSwitches ?? (() => readSwitches().s))() }; } catch (e: any) { return { error: String(e?.message ?? e) }; } })());
   for (const g of view.games) {
     const id = num(g.id);
-    if (id === Q_GAME || (only && only.game !== id)) continue;
+    if (only && only.game !== id) continue;
     const w = only ? only.week : k.week - 1;
+    if (!vaultHandles(id, k.c, w)) { if (only) throw new Error(`Week ${w} of the question game is paid by the old rules (settle and claim), not from a results file.`); continue; }
     const name = g.name ?? `game ${id}`;
     if (w < 0) { if (only) throw new Error(`${name} has no results for week ${w}.`); continue; }
     const gw = (await ctx.chain.read("get_game", { game: id, week: String(w) })).week ?? {};
@@ -505,10 +518,10 @@ export async function vaultFinalizePass(ctx: VaultCtx, send: Send) {
   if (k.raw?.safe_mode) { log(ctx, "  withdrawals-only build: finalizing waits for the normal build"); return; }   // V2-2
   for (const g of view.games) {
     const id = num(g.id);
-    if (id === Q_GAME) continue;
     // Every closed week of the game (a closed game week is one it earned, also before a restart: fix-check VN-3).
     // Twelve weeks back, so a long bot outage is caught up (fix-check 2, V2-8); older weeks: game-finalize by hand.
     for (let w = Math.max(0, k.weeksClosed - 12); w < k.weeksClosed; w++) {
+      if (!vaultHandles(id, k.c, w)) continue;
       for (let page = 0; page < 20; page++) {
         const gw = (await ctx.chain.read("get_game", { game: id, week: String(w) })).week ?? {};
         if (!gw.closed || gw.finalized) break;
@@ -540,12 +553,12 @@ export function vaultAlerts(view: VaultView, k: { weeksClosed: number }, gameWee
 }
 
 /** The weeks the alerts look at: each game's last 3 weeks. Returns "game <name>:<week>" → week record. */
-export async function recentGameWeeks(chain: Chain, view: VaultView, weeksClosed: number): Promise<Map<string, any>> {
+export async function recentGameWeeks(chain: Chain, view: VaultView, weeksClosed: number, config?: any): Promise<Map<string, any>> {
   const out = new Map<string, any>();
   for (const g of view.games) {
     const id = num(g.id);
-    if (id === Q_GAME) continue;
     for (let w = Math.max(0, weeksClosed - 3); w <= weeksClosed; w++) {
+      if (!vaultHandles(id, config, w)) continue;
       const gw = (await chain.read("get_game", { game: id, week: String(w) })).week ?? {};
       if (!earnedWeek(g, w, gw)) continue;
       out.set(`${g.name ?? `game ${id}`}:${w}`, gw);
@@ -569,8 +582,8 @@ export async function vaultStatus(chain: Chain, print: (s: string) => void) {
     if (big(g.rolled) > 0n) line += `; rolling over ${showKoin(g.rolled)}`;
     if (big(g.prize_held) > 0n) line += `; season prize held ${showKoin(g.prize_held)}`;
     print(line);
-    if (id === Q_GAME) continue;
     const w = k.weeksClosed - 1;
+    if (!vaultHandles(id, k.c, w)) continue;
     const gw = w >= 0 ? (await chain.read("get_game", { game: id, week: String(w) })).week ?? {} : {};
     if (w >= 0 && earnedWeek(g, w, gw)) {
       const st = gw.finalized ? (gw.rolled_over ? "rolled over" : `final: ${num(gw.winners)} winner(s), cutoff ${num(gw.cutoff)}, claimed ${showKoin(gw.claimed)}`)

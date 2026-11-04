@@ -3,7 +3,7 @@
  *
  * On the Koinos Foundation testnet (test KOIN only) it deploys a FRESH copy of the v6.1 release build 399171a2… with
  * 13 games registered (each with a stake), runs a 45-minute week 0 with 60 questions, then measures:
- *   D8-2  a returning player's FIRST answer of week 1 while their 60 week-0 answers are unsettled:
+ *   D8-2  a returning player's FIRST answer of week 1 (after D-116 there is no settle step; one of them also closes week 0):
  *         - the first action after week 0's close time: the answer also closes week 0 (13 games) and settles (C);
  *         - after that: the answer only settles (A);
  *   plus each player's answers no. 1/30/60, an explicit settle with 60 and with 30 answers, close and finalize.
@@ -28,7 +28,7 @@ const RPC = "https://testnet.koinosfoundation.org";
 const CHAIN_ID = "EiAIKVvm6-V2qmsmUvPJy09vCCLbtn9lHFpwrJbcTIEWRQ==";
 const KOIN = "1FaSvLjQJsCJKq5ybmGsMMQs8RQYyVv8ju";
 const WASM = "game/build/release/contract.wasm";
-const V61_SHA = "399171a28956ee236d6b41b5779bcda4e2fe18cdc5560ccbfc380c9cf3d9fced";
+const V61_SHA = "da9dc9c984ca16764712efeed49b653ec62fe555dc5afe5127efbd7d19ab594a";
 const DIR = "testnet-v61-d8";
 const VHP = 100_000_000n;
 const MIN = 60_000;
@@ -181,7 +181,7 @@ export async function testnetV61D8(args: string[]) {
   }
   if (!st.staked) {
     log("  stakes …");
-    for (const n of ["A", "B", "C", "D"]) await sendR(P[n], [approve(P[n].getAddress(), VHP), { method: "deposit_koin", args: { from: P[n].getAddress(), amount: String(VHP) } }], `stake ${n}`, 2);
+    for (const n of ["A", "B", "C", "D"]) await sendR(P[n], [approve(P[n].getAddress(), VHP), { method: "deposit_to", args: { game: 1, from: P[n].getAddress(), amount: String(VHP), koin: true } }], `stake ${n}`, 2);
     for (let id = 2; id <= 13; id += 4)
       await sendR(funder, [2, 3, 4, 5].filter((j) => id + j - 2 <= 13).flatMap((j) => [approve(funder.getAddress(), VHP), { method: "deposit_to", args: { from: funder.getAddress(), game: id + j - 2, amount: String(VHP), koin: true } }]), "stake games", 5);
     st.staked = true; save();
@@ -261,34 +261,41 @@ export async function testnetV61D8(args: string[]) {
   await waitUntil(closeAt + 5000, "week 0's close time");
   if (!st.closeAnswer) {
     note("firstAnswerClose", await sendR(P.C, [ans("C", st.w1question!, 1)], "C first answer week 1", 3),
-      "C's first answer of week 1: also closes week 0 (13 games) and settles C's 60 answers");
+      "C's first answer of week 1: also closes week 0 (13 games)");
     if (!(await chain.read("get_week", { week: "0" })).week?.closed) log("  ⚠ week 0 did not close in that answer");
     st.closeAnswer = true; save();
   }
   if (!st.settleAnswer) {
     note("firstAnswerSettle", await sendR(P.A, [ans("A", st.w1question!, 1)], "A first answer week 1", 3),
-      "A's first answer of week 1: settles A's 60 answers (week 0 already closed)");
+      "A's first answer of week 1 (week 0 already closed; no settle step under the shared rules)");
     st.settleAnswer = true; save();
   }
+  // 8. Game 1's week 0 paid like every game (D-116): the operator posts the points from the answers, seals, finalizes; A claims.
   if (!st.settled) {
-    note("settleD60", await sendR(P.D, [{ method: "settle", args: { player: P.D.getAddress(), week: "0" } }], "settle D", 2), "settle for D (60 answers), on its own");
-    note("settleB30", await sendR(P.B, [{ method: "settle", args: { player: P.B.getAddress(), week: "0" } }], "settle B", 2), "settle for B (30 answers), on its own");
+    note("postResults4", await sendR(funder, [{ method: "post_results", args: { game: 1, week: "0", rows: [
+      { player: P.A.getAddress(), points: 60 }, { player: P.C.getAddress(), points: 60 }, { player: P.D.getAddress(), points: 45 }, { player: P.B.getAddress(), points: 15 }] } }], "post results", 3),
+      "posting game 1's results for 4 players");
+    note("seal", await sendR(funder, [{ method: "seal_results", args: { game: 1, week: "0" } }], "seal", 3), "sealing game 1's week");
     st.settled = true; save();
   }
-  const wk = (await chain.read("get_week", { week: "0" })).week;
-  await waitUntil(Number(wk.settle_end) + 5000, "the settle window to end");
-  if (!st.finalized) { note("finalize", await sendR(funder, [{ method: "finalize_week", args: { week: "0" } }], "finalize", 3), "finalize_week (4 players, 60 points max)"); st.finalized = true; save(); }
+  const gw0 = (await chain.read("get_game", { game: 1, week: "0" })).week;
+  await waitUntil(Number(gw0.seal_time) + 2 * CLOSE + 5000, "the correction window after the seal");
+  if (!st.finalized) {
+    note("finalizeGame", await sendR(funder, [{ method: "finalize_game_week", args: { game: 1, week: "0" } }], "finalize game week", 3), "finalize_game_week for game 1 (4 players)");
+    note("claimGame", await sendR(P.A, [{ method: "claim_game", args: { game: 1, week: "0", player: P.A.getAddress() } }], "claim A", 2), "A's claim_game for game 1");
+    st.finalized = true; save();
+  }
 
   // 8. report and units
-  const fin = (await chain.read("get_week", { week: "0" })).week;
-  const order = ["answerA1", "answerA30", "answerA60", "answerB30", "firstAnswerClose", "firstAnswerSettle", "settleD60", "settleB30", "finalize", "post10", "resolve10", "upload"];
+  const fin = (await chain.read("get_game", { game: 1, week: "0" })).week;
+  const order = ["answerA1", "answerA30", "answerA60", "answerB30", "firstAnswerClose", "firstAnswerSettle", "postResults4", "seal", "finalizeGame", "claimGame", "post10", "resolve10", "upload"];
   const units = { run: new Date().toISOString(), rpc: RPC, contract: C, build: V61_SHA, games: 13,
     calls: order.filter((k) => st.m[k]).map((k) => ({ key: k, ...st.m[k] })) };
   writeJ("units.json", units);
   const report = [
     "# Vault v6.1 testnet measurement for Repo Lens #D-8 (D8-1 units, D8-2 first answer of the week)", "",
     `Run ${units.run} on ${RPC}: a fresh copy of \`${V61_SHA.slice(0, 8)}…\` at \`${C}\`, 13 games registered, each with a stake.`,
-    `${st.caps}. Week 0: ${fin?.questions} questions, max points ${fin?.max_points}, ${fin?.eligible_players} eligible. The 61st question: ${st.refused61}`, "",
+    `${st.caps}. Game 1's week 0: bucket ${showKoin(fin?.bucket)}, max points ${fin?.max_points}, ${fin?.eligible_players} posted, ${fin?.winners} winner(s). The 61st question: ${st.refused61}`, "",
     "| Call | Testnet Mana | Compute (ticks) | Disk (bytes) | Network (bytes) | Transaction |", "|---|---|---|---|---|---|",
     ...units.calls.map((c) => `| ${c.note} | ${showKoin(c.rc)} | ${Number(c.compute).toLocaleString("en-US")} | ${c.disk} | ${c.network} | \`${c.tx}\` |`), "",
     "Mainnet Mana: `npx tsx tools/mainnet-mana.ts docs/testnet-v61-units.json` (read-only) prices these units at mainnet's current resource prices.", "",

@@ -47,7 +47,7 @@ Free and staked prediction games on the Koinos blockchain, powered by our own bl
 4. **`platform/TODOS.md`** and **`platform/OPENISSUES.md`** — what's happening now and what's broken or waiting.
 5. **`platform/DEPENDENCIES.md`** — how the vault, games, leaderboards, rewards, wallets and swap desk connect.
 6. **The game you're working on** — `games/<Game>.md`.
-7. **The standards that apply** — `standards/GAME_STANDARD.md` first, then `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`. How every chat starts and hands work back: `standards/AI_CHAT_STARTER.md`. Building or fixing a game's recorder: `standards/RECORDER_STANDARD.md`. Launching a game: `standards/GO_LIVE_CHECKLIST.md`.
+7. **The standards that apply** — `standards/GAME_STANDARD.md` first, then `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`. How every chat starts and hands work back: `standards/AI_CHAT_STARTER.md`. Building or fixing a game's recorder: `standards/RECORDER_STANDARD.md`. Launching a game: `standards/GO_LIVE_CHECKLIST.md`. Measuring producer VHP or handicaps: `standards/VHP_RULER.md` (design, owner to approve).
 8. **Before any big decision:** `platform/FOUNDER_INTENT.md` (why this exists) and `platform/RULES.md` (what never changes casually).
 9. **Before touching prizes:** `platform/FREE_PRIZE_SWITCH.md` (free play vs free prizes vs staked prizes). **Before planning work:** `platform/TECHNICAL_DEBT.md` (risks and shortcuts) and `platform/DOCUMENTATION_GAPS.md` (what the library still lacks, with the action plan).
 10. **Only when needed:** `platform/ARCHITECTURE.md` (how things work in detail), `platform/KOINOS.md` (chain facts, testnet), `platform/ROADMAP.md` (plans), `platform/VISION.md` (why and brand).

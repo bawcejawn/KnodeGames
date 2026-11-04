@@ -246,7 +246,8 @@
         ...S.done.lines.filter(Boolean).map((t) => el("p", {}, t)),
         el("button", { type: "button", class: "hub-x", "aria-label": "Close", onclick: () => { S.done = null; render(); } }, "✕")) : null,
       S.note ? el("p", { class: `hub-note ${S.noteCls}`, role: "status" }, S.note) : null,
-      d.paused ? el("p", { class: "hub-note bad" }, "New stakes are paused right now. Withdrawals and claims always work.") : null].filter(Boolean));
+      d.paused ? el("p", { class: "hub-note bad" }, "New stakes are paused right now. Withdrawals and claims always work.") : null,
+      who && d.games.some((g) => g.claimsUnknown) ? el("p", { class: "hub-note" }, `Couldn't check rewards for ${d.games.filter((g) => g.claimsUnknown).map((g) => g.name).join(", ")} just now (the network is busy). They show at the next refresh, in about a minute.`) : null].filter(Boolean));
     $("hub-body").replaceChildren(
       ...(mine.length ? [el("h2", {}, "Where you're staked"), el("ul", { class: "hub-list" }, ...mine.map(stakedRow))] : []),
       el("h2", {}, mine.length ? "Stake in another game" : "Pick a game to stake in"),

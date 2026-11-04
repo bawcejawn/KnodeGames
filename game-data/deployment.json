@@ -76,7 +76,8 @@
     "9": {
       "name": "Producer Bracket",
       "results": "games-data:bracket/vault",
-      "boardCap": 1000
+      "boardCap": 1000,
+      "capScope": "staked"
     },
     "13": {
       "name": "Last Node Standing",

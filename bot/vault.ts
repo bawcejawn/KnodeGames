@@ -366,7 +366,11 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
       // a full board can't list every file row, so the check is skipped there (logged).
       const cap = Number(cfg[String(id)]?.boardCap) > 0 ? Number(cfg[String(id)].boardCap) : Infinity;
       const stakedRows = marks ? lw.rows.filter((x: any) => x?.ranked === true).length : lw.rows.length;
-      if (notOnBoard.length && (lw.rows.length >= cap || stakedRows >= cap)) log(ctx, `  ${name} week ${w}: ${notOnBoard.length} file row(s) not on the board, which is at its cap of ${cap} rows: not checked`);
+      // Repo Lens N-2: a game with separate Staked and Free boards (Bracket) caps each one, so the whole board can be
+      // long while the Staked board is not full. vaultGames.<id>.capScope "staked" compares the cap with the Staked
+      // rows only, so a staked file row missing from a Staked board that isn't full still holds.
+      const full = cfg[String(id)]?.capScope === "staked" ? stakedRows >= cap : lw.rows.length >= cap || stakedRows >= cap;
+      if (notOnBoard.length && full) log(ctx, `  ${name} week ${w}: ${notOnBoard.length} file row(s) not on the board, which is at its cap of ${cap} rows: not checked`);
       else if (notOnBoard.length) { hold("not-on-board", `${notOnBoard.length} wallet(s) in the results file are not on the game's board for week ${w}: ${notOnBoard.slice(0, LIST_MAX).join(", ")}${notOnBoard.length > LIST_MAX ? " …" : ""}`); continue; }
       const order = orderBreak(r.rows ?? [], places);
       if (order) { hold("order", `the results file's points don't follow the board's places: ${order}`); continue; }

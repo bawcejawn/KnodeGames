@@ -41,6 +41,17 @@ export const showKoin = (s: string | number | bigint | undefined) => (Number(s ?
 
 // ═══════════════════════════════ real chain ═══════════════════════════════
 
+/** The error for a transaction that was included but reverted. Repo Lens N-3: one that ran out of Mana (it used its
+ *  whole Mana limit) is not the contract's refusal, so it doesn't start with "reverted:" and the vault bot retries it
+ *  on the next run instead of remembering it as a refusal. Exported for the tests. */
+export function revertError(receipt: any, limit: bigint): string {
+  const logs = JSON.stringify(receipt?.logs ?? []);
+  let used = 0n;
+  try { used = BigInt(receipt?.rc_used ?? 0); } catch { /* unreadable: treat as a refusal */ }
+  if (limit > 0n && used * 100n >= limit * 99n) return `out of Mana: the transaction used its whole Mana limit (${used} of ${limit}) and was undone ${logs}`;
+  return `reverted: ${logs}`;
+}
+
 export class KoinosChain implements Chain {
   readonly kind = "koinos" as const;
   readonly provider: Provider;
@@ -110,7 +121,7 @@ export class KoinosChain implements Chain {
       const { receipt, transaction } = await this.provider.sendTransaction(t);
       if ((receipt as any)?.reverted) {
         await transaction.wait("byBlock", 60_000).catch(() => undefined); // a reverted transaction still uses its nonce
-        return { ok: false, rcUsed: String((receipt as any).rc_used ?? 0), txId: t.id, error: `reverted: ${JSON.stringify((receipt as any).logs ?? [])}` };
+        return { ok: false, rcUsed: String((receipt as any).rc_used ?? 0), txId: t.id, error: revertError(receipt, limit) };
       }
       // Only a transaction seen in a block counts as done. If it is not confirmed in time, report a failure:
       // the bot re-checks the chain on its next run instead of assuming it went through.

@@ -522,3 +522,38 @@ test("VB-11: a results file's fingerprint ignores the order of rows and winners"
   assert.equal(fileHash(a), fileHash(b));
   assert.notEqual(fileHash(a), fileHash({ ...a, rows: [{ player: P(0), points: 8 }, a.rows[1]] }));
 });
+
+test("N-2: capScope \"staked\" compares the row cap with the Staked board only, so a short Staked board still holds", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim } = await weekOneClosed();
+  // The Staked board has 1 row (B) and the Free board 1 (E): 2 rows in all. C is in the file but on no board.
+  const files: any = { ...allFiles(), "mem:fantasy/board.json": fantasyBoard([{ a: addr(B), pts: 30, place: 1, ranked: true }, { a: addr(E), pts: 50, place: 1, ranked: false }]) };
+  // Without capScope (as before): the whole board is at its cap of 2, so the not-on-board check is skipped.
+  const v1 = fctx(sim, files), s1: string[] = [];
+  v1.deployment.vaultGames["2"].boardCap = 2;
+  await vaultResultsPass(v1, async (what) => { s1.push(what); return true; });
+  assert.deepEqual(s1.filter((x) => x.startsWith("Fantasy")), fantasySends);
+  // capScope "staked": the Staked board (1 row) is under the cap, so C missing from it holds the week.
+  const v2 = fctx(sim, files), s2: string[] = [];
+  Object.assign(v2.deployment.vaultGames["2"], { boardCap: 2, capScope: "staked" });
+  await vaultResultsPass(v2, async (what) => { s2.push(what); return true; });
+  assert.deepEqual(s2.filter((x) => x.startsWith("Fantasy")), [], "nothing posted");
+  assert.match(v2.problems.join(" | "), /not on the game's board/);
+  // capScope "staked" with the Staked board at the cap: skipped again (logged).
+  const v3 = fctx(sim, files), s3: string[] = [];
+  Object.assign(v3.deployment.vaultGames["2"], { boardCap: 1, capScope: "staked" });
+  await vaultResultsPass(v3, async (what) => { s3.push(what); return true; });
+  assert.deepEqual(s3.filter((x) => x.startsWith("Fantasy")), fantasySends);
+});
+
+test("N-3: a transaction that ran out of Mana is retried next run, not remembered as the vault's refusal", async () => {
+  const { isRevert } = await import("./vault.ts");
+  const { revertError } = await import("./chain.ts");
+  const out = revertError({ rc_used: "190000000", logs: [] }, 190_000_000n);
+  assert.match(out, /^out of Mana/);
+  assert.equal(isRevert(out), false, "out of Mana is temporary");
+  assert.equal(isRevert(revertError({ rc_used: "188200000", logs: [] }, 190_000_000n)), false, "99% of the limit counts as out of Mana");
+  const refused = revertError({ rc_used: "1200000", logs: ["owner only"] }, 190_000_000n);
+  assert.equal(refused, 'reverted: ["owner only"]');
+  assert.equal(isRevert(refused), true, "a contract refusal is still a refusal");
+  assert.equal(isRevert(revertError({ rc_used: "x", logs: [] }, 190_000_000n)), true, "unreadable Mana use: treated as a refusal (fails closed)");
+});

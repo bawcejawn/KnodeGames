@@ -4,6 +4,12 @@
 > **How it grows:** when an item in `platform/TODOS.md`, `platform/CHAT_REQUESTS.md`, `platform/PRIORITIES.md`, `platform/ROADMAP.md`, `platform/DOCUMENTATION_GAPS.md` or `platform/TECHNICAL_DEBT.md` is done, the library chat moves it here under the date it was moved, newest first. Closed issues go to `ISSUES_CLOSED.md`.
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
+## Moved 2026-11-04 (night)
+| R-RACE-11 | After #85 merges, the merge check's optional items: L-1 date the pending file at the end of the run; I-1 a run started by hand makes "an hour apart" really ~25 minutes; I-2 a doubled bracket in a `race.yml` comment | #85 merge check | PR | **in PR #133** (L-1 end-of-run date, I-1, I-2; 1 test) |
+| R-HUB-5 | Remove the legacy name-claim workflow, issue template and claim CLI (drops the `issues` permissions; update `docs/NAMES.md`); add a YAML parser to the CI guard | I-026, I-022 | PR | ✅ part 2 merged (#137, D-118). Left: the after-the-fact Repo Lens fix-check of #95/#111/#99; widen the guard's WRITES list when a game adds a publish job; C5-13 on hold |
+- R-HUB-5 part 2 live (#137); R-HUB-11 parts 1–4 live (#131); #131 and #137 merged on the owner's "merge both" — 2026-11-04
+- VHP ruler steps (a)–(f) built on `vhp-ruler` @ `f85466b`; Repo Lens #E-12 GO with one fix, #D-10 fix first: all fixed — 2026-11-04
+
 ## Moved 2026-11-04 (late)
 | R-BX-14 | `blockx.html` / `blockx.js` still say "once the vault is live": use the site's Week 1 wording (`weeks.js`, PR #94), like the Race (#86) | I-069 | PR | **PR #132** (`blockx-week1-wording` @ `8bf940a`); site tests pass. Owner merges |
 | R-BX-17 | Push `sponsor-sr1` @ `acee3d7` (Repo Lens #D-7 SR-1: the upload guard over v2 code) and open a PR | #D-7 | PR | **PR #129** (`sponsor-sr1` @ `acee3d7`); 37 sponsor tool tests pass. Owner merges |

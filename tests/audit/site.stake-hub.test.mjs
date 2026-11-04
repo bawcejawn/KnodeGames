@@ -61,7 +61,7 @@ test("where you're staked: each game with the amount, its share and whether it's
   assert.match(race, /Producer Race Earning this week · 5 VHP more starts Mon 9 Nov 20 VHP 4% of 500 VHP/);
   assert.match(race, /\+ Add Withdraw Move Claim 0\.75 VHP/);
   assert.match(dq, /Daily Questions Earning this week 10 VHP/);
-  assert.match(dq, /Add, withdraw or claim on Daily Questions →/, "Daily Questions is managed on its own page");
+  assert.match(dq, /\+ Add Withdraw Move/, "Daily Questions is managed here like every game (owner, 4 Nov)");
   assert.ok(p.$("#g7").classList.contains("mine") && p.$("#g7").classList.contains("on"));
   const heads = p.$$("#hub-body h2").map((h) => h.textContent);
   assert.deepEqual(heads, ["Where you're staked", "Stake in another game"]);
@@ -116,13 +116,20 @@ test("Withdraw: says what stays staked; below the minimum it warns before anythi
   assert.deepEqual([p.sent[0].action, p.sent[0].a.game, String(p.sent[0].a.units)], ["withdraw", 7, String(20n * U)]);
 });
 
-test("Move: pick the game, then the sentence names both games; Daily Questions is never a target", async () => {
+test("Move: pick the game, then the sentence names both games; Daily Questions works both ways", async () => {
   const p = await boot(data());
   p.button("#g7", "Move").click();
   const to = [...p.$$("#g7 .hub-to .chip")].map((b) => b.textContent);
-  assert.deepEqual(to, ["Who Signs Block X"]);
+  assert.deepEqual(to, ["Daily Questions", "Who Signs Block X"]);
+  p.$$("#g7 .hub-to .chip")[0].click(); p.type("1");
+  assert.match(p.text("#hub-review"), /You'll move 1 VHP from Producer Race to Daily Questions\./);
+  p.button("#g7 .hub-form", "Cancel").click();
+  p.button("#g1", "Move").click();
+  assert.deepEqual([...p.$$("#g1 .hub-to .chip")].map((b) => b.textContent), ["Producer Race", "Who Signs Block X"]);
+  p.button("#g1 .hub-form", "Cancel").click();
+  p.button("#g7", "Move").click();
   p.type("5"); assert.match(p.text("#hub-review"), /Pick the game to move it to\./);
-  p.$("#g7 .hub-to .chip").click(); p.type("5");
+  p.$$("#g7 .hub-to .chip")[1].click(); p.type("5");
   assert.match(p.text("#hub-review"), /You'll move 5 VHP from Producer Race to Who Signs Block X\. No tokens leave the vault\. It starts earning in Who Signs Block X Mon 9 Nov\./);
   p.button("#g7 .hub-form", "Move 5 VHP").click(); await tick();
   assert.deepEqual([p.sent[0].action, p.sent[0].a.game, p.sent[0].a.to], ["move", 7, 2]);
@@ -160,4 +167,17 @@ test("more than 10 rewards: one transaction claims the first 10", async () => {
   p.button(".hub-sum", "Claim (10 at a time)").click(); await tick();
   assert.equal(p.sent[0].a.claims.length, 10);
   assert.match(p.text("#hub-receipt"), /2 more to claim: tap Claim again\./);
+});
+
+test("Daily Questions: + Add, Withdraw and Claim on its card; its claims pass their own-Mana flag to the send", async () => {
+  const d = data(); d.games[1].claims = [{ week: 2n, reward: U / 2n, free: true, ownMana: true }];
+  const p = await boot(d);
+  assert.match(p.text("#g1"), /\+ Add Withdraw Move Claim 0\.5 VHP/);
+  p.button("#g1", "+ Add").click(); p.type("3");
+  assert.match(p.text("#hub-review"), /You'll stake 3 VHP in Daily Questions\./);
+  p.button("#g1 .hub-form", "Stake 3 VHP").click(); await tick();
+  assert.deepEqual([p.sent[0].action, p.sent[0].a.game, String(p.sent[0].a.units)], ["stake", 1, String(3n * U)]);
+  p.button("#g1", "Claim").click(); await tick();
+  assert.deepEqual(p.sent[1].a.claims.map((c) => [c.game, String(c.week), c.ownMana]), [[1, "2", true]]);
+  assert.match(p.text(".hub-sum"), /Rewards to claim 1\.25 VHP/, "Daily Questions rewards count in Claim all");
 });

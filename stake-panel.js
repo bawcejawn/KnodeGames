@@ -5,7 +5,9 @@
    It stays hidden until the vault is live: the game contract answers get_state with v6_rule_week_plus_one > 0 and the
    game is registered. Withdraw is always offered when there is a stake, also when deposits are paused or the game has
    stopped. Every transaction is signed in the player's own wallet (wallet.js). The question game (id 1) keeps its own
-   controls on the home page; this panel is for every other game. */
+   controls on the home page; this panel is for every other game. The staking hub (stake.html, KStake.overview / send)
+   also manages the question game with its own vault calls: deposit_vhp / deposit_koin, withdraw and claim (owner,
+   4 Nov: "questions should be managed on the stake page like the other games"); move_stake takes it both ways. */
 (() => {
   "use strict";
 
@@ -39,14 +41,35 @@
       withdraw_from: { entry_point: 0x5b0aaef8, argument: "kpred.withdraw_from_arguments", return: "kpred.withdraw_from_result", read_only: false },
       move_stake: { entry_point: 0x7c268e69, argument: "kpred.move_stake_arguments", return: "kpred.move_stake_result", read_only: false },
       claim_game: { entry_point: 0x4107e3ab, argument: "kpred.claim_game_arguments", return: "kpred.claim_game_result", read_only: false },
+      // The question game's own calls (game 1), as the home page sends them (app.js).
+      get_week: { entry_point: 0x136ec041, argument: "kpred.get_week_arguments", return: "kpred.get_week_result", read_only: true },
+      deposit_vhp: { entry_point: 0x8ed1d782, argument: "kpred.deposit_vhp_arguments", return: "kpred.deposit_vhp_result", read_only: false },
+      deposit_koin: { entry_point: 0x1fca9c49, argument: "kpred.deposit_koin_arguments", return: "kpred.deposit_koin_result", read_only: false },
+      withdraw: { entry_point: 0xc26f22db, argument: "kpred.withdraw_arguments", return: "kpred.withdraw_result", read_only: false },
+      claim: { entry_point: 0xdd1b3c31, argument: "kpred.claim_arguments", return: "kpred.claim_result", read_only: false },
     },
     koilib_types: { nested: { kpred: { nested: {
-      config_object: { fields: { genesis_time: u64(4), week_length: u64(5), min_stake: u64(9), paused: bool(11), min_stake_next: u64(13), min_stake_next_week: u64(14), v6_rule_week_plus_one: u64(21) } },
+      config_object: { fields: { genesis_time: u64(4), week_length: u64(5), min_stake: u64(9), max_sponsor_rc: u64(10), paused: bool(11), min_stake_next: u64(13), min_stake_next_week: u64(14), v6_rule_week_plus_one: u64(21) } },
+      totals_object: { fields: { seed_koin: u64(3), creator_fee: u64(5), weeks_finalized: u64(10) } },
       get_state_arguments: { fields: {} },
-      get_state_result: { fields: { config: { type: "config_object", id: 1 }, week: u64(4), time: u64(11) } },
+      get_state_result: { fields: { config: { type: "config_object", id: 1 }, totals: { type: "totals_object", id: 2 }, week: u64(4), vhp_balance: u64(6), koin_balance: u64(7), mana: u64(8), time: u64(11) } },
       player_object: { fields: { stake: u64(1), pending: u64(2), pending_week: u64(3) } },
       get_player_arguments: { fields: { player: addr(1), week: u64(2) } },
-      get_player_result: { fields: { player: { type: "player_object", id: 1 }, active_stake: u64(3) } },
+      get_player_result: { fields: { player: { type: "player_object", id: 1 }, entry: { type: "entry_object", id: 2 }, active_stake: u64(3) } },
+      // The question game's week entry and week (only the fields its claim rules read; app.js reads the same ones).
+      entry_object: { fields: { stake: u64(1), voided: bool(3), settled: bool(4), points: u32(5), counted: u32(6), eligible: bool(7), claimed: bool(8), free_player: bool(11) } },
+      week_object: { fields: { cutoff: u32(13), rolled_over: bool(18), pot_a: u64(20), pot_b: u64(21), sum_w: u64(23), bw_hi: u64(24), bw_lo: u64(25), aw_hi: u64(33), aw_lo: u64(34),
+        reward_rule: bool(35), pot_free: u64(36), free_best: u32(37), free_best_n: u32(38), free_second: u32(39), free_second_n: u32(40) } },
+      get_week_arguments: { fields: { week: u64(1) } },
+      get_week_result: { fields: { week: { type: "week_object", id: 1 }, buckets: { rule: "repeated", type: "bucket_object", id: 2 } } },
+      deposit_vhp_arguments: { fields: { from: addr(1), amount: u64(2) } },
+      deposit_vhp_result: { fields: {} },
+      deposit_koin_arguments: { fields: { from: addr(1), amount: u64(2) } },
+      deposit_koin_result: { fields: {} },
+      withdraw_arguments: { fields: { to: addr(1), amount: u64(2) } },
+      withdraw_result: { fields: {} },
+      claim_arguments: { fields: { player: addr(1), week: u64(2) } },
+      claim_result: { fields: {} },
       game_object: { fields: { id: u32(1), name: { type: "string", id: 2 }, staked: bool(3), free_prize: bool(4), active: bool(5), from_week: u64(6), last_week_plus_one: u64(7), stake: u64(10), week_stake: u64(11), week: u64(12), next_stake: u64(13), next_week: u64(14), season_weeks: u32(15) } },
       gweek_object: { fields: {
         closed: bool(1), bucket: u64(2), prize: u64(3), voided: bool(7), finalized: bool(8), rolled_over: bool(9), cutoff: u32(12),
@@ -158,6 +181,65 @@
     if (bw > 0n) reward += (big(gw.pot_b) * ((sumW * stake) / n)) / bw;
     return reward;
   }
+  // ── The question game's (game 1) claim rules, ported unchanged from the home page (app.js: exactReward, freePrize,
+  //    claimNeedsOwnMana). tests/audit/site.stake-questions.test.mjs runs both copies on the same inputs. ──
+  const num = (x) => Number(x || 0);
+  const capA = (stake) => (stake < CAP_A ? stake : CAP_A);
+  /** What claim pays a staked player for a question-game week (Kpred.rewardOf; audit W1-01). */
+  function qExactReward(W, b, e) {
+    if (!b || !(num(b.players) > 0) || !(big(W.sum_w) > 0n)) return 0n;
+    const n = BigInt(num(b.players)), sw = big(b.sum_w);
+    let r = 0n;
+    if (W.reward_rule) {
+      const aw = (big(W.aw_hi) << 64n) + big(W.aw_lo);
+      if (aw > 0n) r = (big(W.pot_a) * ((sw * capA(big(e.stake))) / n)) / aw;
+    } else r = (big(W.pot_a) * sw) / (n * big(W.sum_w));
+    const bw = (big(W.bw_hi) << 64n) + big(W.bw_lo);
+    if (bw > 0n) r += (big(W.pot_b) * ((sw * big(e.stake)) / n)) / bw;
+    return r;
+  }
+  /** v5: a free player's prize (Kpred.freePrizeOf): the best free score gets 1 VHP (all 2 if two or more share it), the
+   *  second free score shares the other 1 VHP; nothing for anyone else. */
+  function qFreePrize(W, pts) {
+    const pot = big(W.pot_free), best = num(W.free_best), bn = num(W.free_best_n), second = num(W.free_second), sn = num(W.free_second_n);
+    if (!W.reward_rule || pot === 0n || pts === 0) return 0n;
+    if (pts === best) return bn >= 2 ? pot / BigInt(bn) : sn > 0 ? pot / 2n : pot;
+    if (pts === second && bn === 1 && sn > 0) return (pot - pot / 2n) / BigInt(sn);
+    return 0n;
+  }
+  /** Should this claim be paid with the player's own Mana instead of the contract's? (app.js claim-mana: while the pool
+   *  is short of VHP and its spare KOIN is more than its Mana minus the largest limit it pays, a contract-paid claim
+   *  could run out of Mana and fail at the pool's cost: the player pays instead. An unknown reward counts as short.) */
+  function qNeedsOwnMana(c, st) {
+    if (!st) return true;
+    const t = st.totals || {}, cfg = st.config || {};
+    const koin = big(st.koin_balance), keep = big(t.seed_koin) + big(t.creator_fee);
+    const spare = koin > keep ? koin - keep : 0n;
+    const short = !c || !(big(c.reward) > 0n) || big(st.vhp_balance) < big(c.reward);
+    return short && spare > 0n && spare + big(cfg.max_sponsor_rc) > big(st.mana);
+  }
+  /** The question-game rewards `who` can claim, from the finished weeks (newest CLAIM_WEEKS), as the home page finds
+   *  them: [{ week, reward, free, ownMana }]. A free player's prize is always paid with their own Mana (app.js). */
+  async function qClaims(who, st) {
+    const fin = num(st && st.totals && st.totals.weeks_finalized), out = [], weeks = [];
+    for (let w = fin - 1; w >= 0 && weeks.length < CLAIM_WEEKS; w--) weeks.push(w);
+    for (let i = 0; i < weeks.length; i += 6) {
+      await Promise.all(weeks.slice(i, i + 6).map(async (w) => {
+        const [p, wk] = await Promise.all([read("get_player", { player: who, week: String(w) }), read("get_week", { week: String(w) })]);
+        const e = p.entry, W = wk.week || {};
+        if (!e || e.claimed) return;
+        if (e.settled && !e.eligible && e.free_player && !e.voided && num(e.counted) >= 2) {
+          const f = qFreePrize(W, num(e.points));
+          if (f > 0n) out.push({ week: BigInt(w), reward: f, free: true, ownMana: true });
+          return;
+        }
+        if (!e.eligible || W.rolled_over || num(e.points) < num(W.cutoff)) return;
+        const r = qExactReward(W, (wk.buckets || [])[num(e.points)], e);
+        if (r > 0n) out.push({ week: BigInt(w), reward: r, free: false, ownMana: qNeedsOwnMana({ reward: r }, st) });
+      }));
+    }
+    return out.sort((x, y) => Number(x.week - y.week));
+  }
   /** One line for the page: who plays for what in this game. */
   function explain(game, min) {
     const m = exact(min || UNIT);
@@ -172,6 +254,18 @@
   async function buildOps(k, action, a) {
     const vault = new k.lib.Contract({ id: k.dep.contract, abi: VAULT_ABI, provider: k.provider });
     const amt = a.units != null ? a.units.toString() : undefined;
+    // The question game (1) keeps its own calls, exactly as the home page sends them (app.js); a move uses move_stake.
+    if (Number(a.game) === Q_GAME && action !== "move") {
+      if (action === "stake") {
+        const token = new k.lib.Contract({ id: a.koin ? k.dep.koin : k.dep.vhp, abi: TOKEN_ABI, provider: k.provider });
+        return [
+          await opOf(token, "approve", { owner: a.player, spender: k.dep.contract, value: amt }),
+          await opOf(vault, a.koin ? "deposit_koin" : "deposit_vhp", { from: a.player, amount: amt }),
+        ];
+      }
+      if (action === "withdraw") return [await opOf(vault, "withdraw", { to: a.player, amount: amt })];
+      if (action === "claim") return [await opOf(vault, "claim", { player: a.player, week: String(a.week) })];
+    }
     if (action === "stake") {
       const tokenId = a.koin ? k.dep.koin : k.dep.vhp;
       const token = new k.lib.Contract({ id: tokenId, abi: TOKEN_ABI, provider: k.provider });
@@ -252,7 +346,7 @@
         pending = big(p.pending) > 0n && big(p.pending_week) > week ? big(p.pending) : 0n;
         pendingWeek = big(p.pending_week);
         counted = id === Q_GAME ? big(r.active_stake) : big(r.week_stake);
-        if (id !== Q_GAME) claims = await findClaims(id, who, week);
+        claims = id === Q_GAME ? await qClaims(who, state) : await findClaims(id, who, week);
       }
       if (id !== Q_GAME && week > 0n) { const gx = await read("get_game", { game: id, week: (week - 1n).toString() }); last = per100(gx.week, gx.game || g, week - 1n); }
       return { id, name: g.name || `Game ${id}`, active: !!g.active, season: Number(g.season_weeks || 1), total, mine, counted, pending,
@@ -275,18 +369,21 @@
     if (!W) throw new Error("No wallet on this page.");
     if (!W.address) { await W.connect(); if (!W.address) throw new Error("Not connected."); }
     const k = { lib, dep: shared.dep, provider: shared.provider };
-    let ops, label;
+    let ops, label, opts = {};
     if (action === "claim") {
       const list = (a.claims || []).slice(0, 10);
       if (!list.length) throw new Error("Nothing to claim.");
       ops = [];
       for (const c of list) ops.push(...(await buildOps(k, "claim", { player: W.address, game: c.game, week: c.week })));
       label = list.length === 1 ? "claim your reward" : `claim ${list.length} rewards`;
+      // A question-game claim that must be paid with the player's own Mana (free prize, or the pool short of VHP: see
+      // qNeedsOwnMana) makes the whole transaction own-Mana, as the home page does.
+      if (list.some((c) => c.ownMana)) opts = { ownMana: true };
     } else {
       ops = await buildOps(k, action, { ...a, player: W.address });
       label = action === "stake" ? `stake ${exact(a.units)} ${a.koin ? "KOIN" : "VHP"}` : action === "withdraw" ? `withdraw ${exact(a.units)} VHP` : `move ${exact(a.units)} VHP`;
     }
-    const id = await W.send(label, ops);
+    const id = await W.send(label, ops, opts);
     changed();
     return id;
   }
@@ -559,5 +656,5 @@
   }
 
   window.KStake = { mount, mountList, badge, status, overview, send, fmt: { amount, exact, toUnits, weekDate, explain },
-    wallet: () => Wallet(), sayError, live: async () => { await setup(); return live(await read("get_state", {})); }, _test: { badgeText, VAULT_ABI, TOKEN_ABI, toUnits, minStakeFor, live, claimable, explain, buildOps, exact, weekDate, per100, sayError } };
+    wallet: () => Wallet(), sayError, live: async () => { await setup(); return live(await read("get_state", {})); }, _test: { qExactReward, qFreePrize, qNeedsOwnMana, badgeText, VAULT_ABI, TOKEN_ABI, toUnits, minStakeFor, live, claimable, explain, buildOps, exact, weekDate, per100, sayError } };
 })();

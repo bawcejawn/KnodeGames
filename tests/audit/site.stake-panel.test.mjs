@@ -259,7 +259,10 @@ test("a guest can't stake: the wallet's guest explanation shows instead", async 
 test("the panel sends only through the wallet, and only vault and token operations it builds itself", () => {
   const sends = [...src.matchAll(/\.send\(/g)];
   assert.equal(sends.length, 2, "two sends: the game-page panel and the staking hub, both the wallet's own");
-  assert.equal([...src.matchAll(/const id = await W\.send\(label, ops\);/g)].length, 2);
+  assert.equal([...src.matchAll(/const id = await W\.send\(label, ops\);/g)].length, 1, "the game-page panel");
+  // The hub may only ask for the player's own Mana (question-game claims, as the home page does): never a payer or sponsor.
+  assert.equal([...src.matchAll(/const id = await W\.send\(label, ops, opts\);/g)].length, 1, "the hub");
+  assert.deepEqual([...src.matchAll(/(?:let ops, label, |\) )opts = ([^;]+);/g)].map((m) => m[1]), ["{}", "{ ownMana: true }"]);
   assert.doesNotMatch(src, /signTransaction|sendTransaction|privateKey|wif|innerHTML|outerHTML|insertAdjacentHTML|eval\(|new Function|localStorage|sessionStorage/i);
   assert.match(src, /new k\.lib\.Contract\(\{ id: k\.dep\.contract, abi: VAULT_ABI/, "the vault address comes from game-data/deployment.json");
 });

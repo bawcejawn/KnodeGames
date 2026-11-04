@@ -47,6 +47,12 @@
     .nick-row input { font-size: 1.1rem !important; font-weight: 700; }
     .msg.good { color: var(--mint, #23845e); font-weight: 700; }
     .msg.bad { color: var(--rose, #b4432f); font-weight: 700; }
+    .mine { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+    .mine li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+    .mine li b { flex: 1 1 100%; font-size: 1.05rem; overflow-wrap: anywhere; }
+    .mine .btn-small { white-space: normal; max-width: 100%; }
+    .mine .main-tag { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 99px; background: var(--mint-soft, #ddf1e6); color: var(--mint, #23845e); }
+    .mine .btn-small { padding: 7px 14px; }
     .help { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
     .msg { margin-top: 10px; font-size: 14px; min-height: 1.3em; color: var(--muted); }
     .msg.bad { color: var(--rose); }
@@ -115,6 +121,8 @@
       <h2><span class="step">1</span>Your wallet</h2>
       <p class="msg" id="who" role="status">Connect your wallet to start.</p>
       <div class="row" style="margin-top:6px"><button class="btn btn-primary" type="button" id="connect">Connect wallet</button></div>
+      <div id="mine"></div>
+      <p class="msg" id="mine-msg" role="status"></p>
     </section>
 
     <section class="card" id="s-nick">
@@ -130,7 +138,7 @@
       <ul class="rules help">
         <li>Your @name is created on the Koinos Nicknames contract from your own wallet. Nobody else can change it.</li>
         <li>Block producers that run a pool show their pool's name automatically.</li>
-        <li>Knode Games shows a new @name within the hour. Names that imitate Knode Games or Koinos (Knode, Koinos Foundation, official…) are not shown here, and the owner can hide an offensive one: the short address shows instead.</li>
+        <li>Knode Games usually shows a new @name within the hour. Names that imitate Knode Games or Koinos (Knode, Koinos Foundation, official…) are not shown here, and the owner can hide an offensive one: the short address shows instead.</li>
       </ul>
     </section>
   </main>

@@ -41,7 +41,7 @@ A game that is already live for players but not yet paying keeps its row on the 
 | **Mana sponsor v3** (`b84e1add`) | ✅ Live | Mana report after a week of play (R-BX-18) | Block X chat | Guest play in every game |
 | **Free-prize switch** (D-082) | **Blocked** | Owner sets the starting values (ON 2, 7, 9, 13; OFF 3, 4, 6, 8) and the `prize-settings` ruleset | Owner | First free prizes, week of 9 Nov |
 | **Wallet moves** (`docs/WALLETS.md`) | **In Progress** (Race picks done 4 Nov) | Vault and Desk, Fri 6 – Tue 10 Nov; Picks later (D-106) | Owner + Vault chat | Safety before prizes grow |
-| **Vault v6.1** (60 questions a week, PR #114) | **In Progress** (ASAP, D-114) | Announce now; fix-check; upload Fri 6 / Sat 7; 60 a week from Mon 9 Nov | Vault chat, owner | Doubled Questions (D-114) |
+| **Vault upgrade: 60 questions + Questions on the shared rules** (PR #114 grows, D-116) | **In Progress** | Plan (R-VAULT-13, R-Q-4), build, testnet, Repo Lens, then announce by the new owner after the handover | Vault + Questions chats, owner | Doubled Questions; Questions like every game |
 | **Picks v2** (CARD type) | **Not Started** | Schedule after Combo's fix-check 4 (D-060) | Combo chat, owner | Combo Card |
 | **Full platform audit** (D-102) | **Not Started** | Only once every game is confidently ready (I-002) | Owner | Before the big launch |
 

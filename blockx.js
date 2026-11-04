@@ -40,7 +40,7 @@
       try { const d = await fetchJson(new URL("picks-data/deployment.json", ROOT)); if (isAddr(d.contract)) picks = d.contract; } catch { /* not live yet */ }
       NET = { rpc: ["https://koinos.armana.io", "https://api.koinosblocks.com"], data: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/blockx/", raceData: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/",
         cards: "race", picks, explorer: "https://koinosscan.com/address/", chainId: MAINNET_CHAIN_ID,
-        prize: "1st and 2nd at the end of the week win the free-play prize (2 and 1 VHP, paid once the Knode Games vault is live)." };
+        prize: "1st and 2nd at the end of the week win the free-play prize (2 and 1 VHP, from Week 1, the week of Mon 9 Nov)." };
       G = X;
       provider = new lib.Provider(NET.rpc);
       W = window.KWallet || null;

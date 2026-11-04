@@ -338,3 +338,16 @@ test("SG-1: config/enable refuse the vault switch over b61ac238; upload refuses 
   assert.match(src, /const up = uploadProblem\(sha256hex\(wasm\), switchOn\);\n  if \(up\) throw new Error\(up\);/);
   assert.match(src, /catch \{ switchOn = true; \}/, "an unreadable switch counts as on");
 });
+
+// Repo Lens #D-7 SR-1: over non-v3 code (v2 after a rollback) the vault switch counts as on, so b61ac238 is refused
+// and the fixed build is still allowed.
+test("SR-1: upload treats the switch as on over non-v3 code (a v2 rollback): b61ac238 refused, b84e1add allowed", () => {
+  const src = fs.readFileSync(new URL("../../bot/sponsor.ts", import.meta.url), "utf8");
+  const up = src.slice(src.indexOf("async function upload("), src.indexOf("const have = BigInt(await provider.getAccountRc(A));"));
+  assert.match(up, /if \(!V3_BUILDS\.includes\(onChain\)\) switchOn = true;/);
+  assert.match(up, /catch \{ switchOn = true; \}/);
+  // with the switch counted as on (over v2): the trapping build is refused, the fixed one and v2 are allowed
+  assert.match(uploadProblem(SPONSOR_V3_CANDIDATE, true) ?? "", /^Not sent: the vault switch is ON/);
+  assert.equal(uploadProblem(SPONSOR_V3_GUESTFIX, true), null);
+  assert.equal(uploadProblem(SPONSOR_SHA256, true), null);
+});

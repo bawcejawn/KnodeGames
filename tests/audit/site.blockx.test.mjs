@@ -153,10 +153,13 @@ test("blockx.html: strict CSP with the games-data and race-data branches, script
   // It never offers a target within 20 blocks of its lock, and checks again right before sending.
   assert.match(js, /G\.offerRounds\(head\.height\)/);
   assert.match(js, /if \(!\(G\.lockHeight\(r\) - head\.height > 20\)\)/);
-  // The live page uses the shared Knode Games board (Staked / Free play) and says prizes wait for the vault.
+  // The live page uses the shared Knode Games board (Staked / Free play) and says prizes are paid from Week 1
+  // (R-BX-14, as the Race #86): never "once the vault is live" any more.
   assert.match(h, /<script src="board\.js"><\/script>/);
   assert.match(js, /free: \{ show: 6/);
-  assert.match(js, /paid once the Knode Games vault is live/);
+  assert.match(js, /2 and 1 VHP, from Week 1, the week of Mon 9 Nov/);
+  assert.match(h, /paid from Week 1 \(the week of Mon 9 Nov\)/);
+  for (const src of [h, js]) assert.doesNotMatch(src, /(paid )?once the (Knode Games )?vault is live\./);
 });
 
 // ── the testnet page: its own page, its own wallet, nothing of mainnet ──

@@ -1,6 +1,6 @@
 # Combo Card (game 8)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Combo Card, Block X and Picks chats), `DECISIONS.md` (D-038, D-060), the repo (branch `combo`). **Last updated:** 2026-11-03.
+> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Combo Card, Block X and Picks chats), `DECISIONS.md` (D-038, D-060), the repo (branch `combo`). **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose

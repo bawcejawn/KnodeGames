@@ -450,3 +450,11 @@ test("pages without their own wallet set-up still give it a network (owner's @na
   const np = fs.readFileSync(`${APP}/names-page.js`, "utf8");
   assert.match(np, /w\.init\(\{ provider: new lib\.Provider\(\[dep\.rpc \|\| "https:\/\/koinos\.armana\.io"\]\), chainId: dep\.chainId \}\)/, "names: a network, own Mana");
 });
+
+test("I-028: withdrawing or moving below the minimum mid-week is explained before it's sent", () => {
+  assert.match(src, /as long as at least \$\{exact\(min\)\} VHP stays in: below that you get no share of this week's rewards and no free prize/);
+  const page = fs.readFileSync(`${APP}/stake-page.js`, "utf8");
+  assert.match(page, /g\.staked && g\.mine - u < d\.min/);
+  assert.match(page, /withdraw: `Straight back to your wallet, right now\.\$\{drop\}`/);
+  assert.match(fs.readFileSync(`${APP}/stake.html`, "utf8"), /as long as at least the minimum \(1 VHP\) stays in/);
+});

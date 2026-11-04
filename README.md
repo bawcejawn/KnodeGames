@@ -1,23 +1,69 @@
-# Knode
+# Knode Games
 
-**Call the next blocks.** Knode is a weekly guessing game on the Koinos blockchain. Every day you answer a few
-multiple-choice questions about what Koinos block producers will do next ("How many blocks will this producer sign in
-the next 8 hours?"). Every right answer is a point. Each week the best players share what the game's block-producing
-pool earned. It is free to play, and staking VHP lets you share the rewards.
+**Prediction games about the Koinos blockchain, powered by its own block producer.** Players call what Koinos block
+producers will do next: answer daily questions, pick who signs a future block, back a producer in a race. Correct
+calls climb a weekly leaderboard for each game. Every game is **free to play**, and players who **stake VHP** share
+the rewards that the stake earns by producing blocks.
 
-Play: <https://knodegames.com> (works in any browser; on a phone you can also "Add to Home Screen" to
-install it like an app).
+Play: <https://knodegames.com> (any browser; on a phone, "Add to Home Screen" installs it like an app).
 
-Everything that matters runs on chain: stakes, answers, scores, the leaderboard line and the payouts are all in the
-game contract. The only things the bot does off chain are writing the questions and computing their results from
-the blocks, and both are published with fingerprints anyone can check (see [How results are decided](#how-results-are-decided)).
+## How it works
 
-> The rules below are the **v5** rules. The v5 code is announced on chain and can be uploaded from
-> Wednesday 28 October 2026, 19:08 UTC. Its new reward rules (the 40/60 split and the free-player prize) start with
-> the first full week after the upload (Week 3, from Monday 2 November 2026). Weeks before that keep the rules they
-> started with.
+- **One vault holds every stake.** All staked VHP sits in one contract, the vault
+  (`1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr`), which produces Koinos blocks as the **Knode Games Pool**. Only the vault
+  holds players' tokens.
+- **Stakes are always withdrawable.** Any amount, at any time, down to the last decimal. Nobody, not the owner, the
+  bot or a game, can move a player's stake or rewards. An emergency "withdrawals-only" build exists that stops
+  everything except taking money out.
+- **Stake per game.** A stake belongs to one game (at least 1 VHP each); you can stake in several games at once and
+  move stake between them.
+- **Everything that decides money is on chain or checkable.** Stakes, picks, answers, scores and payouts are recorded
+  on Koinos. Results that are computed off chain (from the blocks) are published with fingerprints and re-checked on
+  two independent nodes before anything is paid.
 
-## The week
+### How the vault pays
+Each week (Monday to Monday, UTC):
+1. The vault's block rewards are added up.
+2. A flat **5% fee** comes off.
+3. **Free-play prizes** are paid: **2 VHP** for 1st and **1 VHP** for 2nd on each game's Free board (where that game's
+   free prize is switched on).
+4. The rest is **split across the staked games by each game's share of the stake**, and each game shares its part
+   among its own staked players by its own rules.
+
+Unclaimed rewards wait for you, with no deadline, and keep producing for the pool meanwhile.
+
+## The games
+
+| Game | What you do | Status |
+|---|---|---|
+| **Daily Questions** | Answer multiple-choice questions about what producers will do next ("How many blocks will this producer sign in the next 8 hours?") | **Live** and paying |
+| **Who Signs Block X** | Pick which producer will sign a target block | **Live**; pays from Mon 9 Nov 2026 |
+| **Producer Race** | Four races a day; back a producer, with handicaps so small producers can win too | **Live**; pays from Mon 9 Nov 2026 |
+| Survivor | Pick one producer a day for two weeks and avoid the ones that fall behind | coming |
+| Producer Bracket | A weekly knockout tournament of producers | coming |
+| Fantasy Producers | Draft five producers under a salary cap | coming |
+| Last Node Standing | A daily elimination event among producers | coming |
+| Block Golf | A course across all the games: each game is a hole | coming |
+| Combo Card | Combine Race and Block X calls into one card | coming |
+
+Every new game goes through the same checks before it pays: an independent review, a test run and a public
+announcement on chain at least 48 hours ahead.
+
+## Free to play: the Mana sponsor
+
+Koinos has no transaction fees; it uses **Mana**, which comes from holding KOIN and refills on its own. New players
+often have none, so Knode Games runs its own **Mana sponsor** (`1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8`): it pays the Mana
+for players' game actions (answers, picks, staking, withdrawing, claiming), within per-transaction, daily and weekly
+limits. It only pays Mana: it never signs or moves anything for players. When it can't pay (a limit reached, or the
+KOIN Vault app, which picks its own payer), the player's own wallet pays, and **withdrawals never depend on it**.
+Details: [`sponsor/README.md`](sponsor/README.md).
+
+## Daily Questions in detail
+
+The original game, built into the vault as game 1. Every right answer is a point; each week the best staked players
+share Daily Questions' part of the rewards, and the best free players win the free prize.
+
+### The week
 
 All times are UTC. A week runs Monday 00:00 to Sunday 24:00.
 
@@ -31,9 +77,9 @@ All times are UTC. A week runs Monday 00:00 to Sunday 24:00.
 | Monday, 12:00 | The week closes (12 hours after it ends, so a wrong result can still be corrected). |
 | Tuesday, 12:00 | Winners are final (24 hours to settle). Rewards can be collected from then on, with no deadline. |
 
-## Playing
+### Playing
 
-- **Wallet.** Kondor in Chrome on a computer, or KOIN Vault on a phone.
+- **Wallet.** Kondor in Chrome on a computer, KOIN Vault on a phone, or the site's built-in **guest** wallet (play only, no funds).
 - **Free play.** Anyone can answer and climb the leaderboard without staking.
 - **Staking.** Stake at least **1 VHP** (whole numbers) to share the weekly rewards. You can also stake KOIN: the game
   burns it into VHP for you. A stake counts from the next week. Your stake is never spent: you can withdraw any
@@ -41,10 +87,9 @@ All times are UTC. A week runs Monday 00:00 to Sunday 24:00.
   stake; withdraw everything and you are out of that week's rewards.
 - **Scoring.** One point per right answer. A voided question counts for nobody. The week's top possible score is that week's number of questions (30 for now, 48 once the upgraded contract allows it).
 
-## Rewards (v5)
+### Rewards (Daily Questions' share)
 
-Each week's pot is what the game's pool earned by producing blocks that week (players' stakes and the seed fund all
-produce). Rewards are paid in VHP.
+Daily Questions' pot each week is its share of what the vault earned producing blocks (see [How the vault pays](#how-the-vault-pays)). Rewards are paid in VHP.
 
 1. **5% producer fee** comes off first.
 2. **Free-player prize: a flat 2 VHP.** The 2 best free players get 1 VHP each (ties share). A free player is one whose
@@ -63,39 +108,7 @@ produce). Rewards are paid in VHP.
 Before v5 (Weeks 1 and 2) the rules were: 65% of what the seed and unclaimed pots earned was shared by place alone,
 the rest by place × stake; up to 64 questions a week; no free-player prize.
 
-## Mana: what's free
-
-Koinos has no transaction fees; it uses **Mana**, which comes from holding KOIN and refills on its own.
-
-- The game contract pays nobody's Mana (owner, 2026-10-28: `max_sponsor_rc` is 0). Its Mana is kept for burning block
-  rewards back into VHP (compound). The Mana sponsor below pays for players; the bot wallet pays for the bot.
-  KOIN Vault picks its own payer, so its users pay their own Mana, which needs a little KOIN in the wallet.
-- A separate **Mana sponsor** wallet (`sponsor/README.md`) can pay the rest, within per-transaction, per-player daily
-  and weekly, and everyone-daily limits (a hard 1,000 Mana a day). **Answers are free for any wallet**, even one with
-  no VHP; answers by wallets with no VHP and no stake share at most 300 of the 1,000 a day. Staking, withdrawing,
-  settling, claiming and swapping are sponsored for wallets that hold at least 1 VHP or have a stake. The website uses
-  it once `deployment.json` says `"payer": "sponsor"`; until then everyone pays their own Mana as before.
-
-## Getting KOIN and VHP
-
-There are no exchange listings for KOIN at the moment. The route (also on the site's **Get VHP** page):
-
-1. Get a Koinos wallet (KOIN Vault or Kondor).
-2. Buy **vKOIN** on Ethereum (Uniswap, token `0xa50ad3a559a10f384a5bb2e27516f63e0b937b1a`) or on Solana (Jupiter,
-   token `8AUxdPqYU4FBy5rZDhMJxTniPs7gtEfdHjP3UKM71m6G`).
-3. Bridge it to Koinos with the **Vortex bridge** (<https://vortexbridge.io/bridge>). It arrives as KOIN.
-4. Burn KOIN into VHP 1:1 (keep a little KOIN for Mana), or stake KOIN directly and let the game burn it.
-5. Stake in Knode.
-6. To turn VHP back into KOIN: **Knode Swap** on the site (or KoinDX).
-
-## Knode Swap
-
-A separate contract (`1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR`) that swaps VHP for KOIN at 1:1 minus a **3%** fee, paid
-from the KOIN it holds, in one transaction. You always set the minimum KOIN you accept. From the October 2026 update it
-also has a daily payout limit, and any change that loosens it (a lower fee, a higher limit, a new owner) waits 48 hours.
-Details: [`desk/README.md`](desk/README.md).
-
-## How results are decided
+### How results are decided
 
 - Each question is built from the recent block history (see [`docs/QUESTIONS.md`](docs/QUESTIONS.md)). Its settings
   (template, producers, block range, thresholds) are hashed, and the hash (`paramsHash`) is posted on chain when the
@@ -176,21 +189,40 @@ How the VHP-swing rule is applied, exactly:
   reason readings stop counting once the blocks have decided the answer.
 - Questions released before this rule existed have no `model.vhp`; they keep the rules they were released with.
 
+## Getting KOIN and VHP
+
+There are no exchange listings for KOIN at the moment. The route (also on the site's **Get VHP** page):
+
+1. Get a Koinos wallet (KOIN Vault or Kondor).
+2. Buy **vKOIN** on Ethereum (Uniswap, token `0xa50ad3a559a10f384a5bb2e27516f63e0b937b1a`) or on Solana (Jupiter,
+   token `8AUxdPqYU4FBy5rZDhMJxTniPs7gtEfdHjP3UKM71m6G`).
+3. Bridge it to Koinos with the **Vortex bridge** (<https://vortexbridge.io/bridge>). It arrives as KOIN.
+4. Burn KOIN into VHP 1:1 (keep a little KOIN for Mana), or stake KOIN directly and let the game burn it.
+5. Stake in Knode Games (the **Stake** tab).
+6. To turn VHP back into KOIN: **Knode Swap** on the site (the **Swap** page) (or KoinDX).
+
+## Knode Swap
+
+A separate contract (`1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR`) that swaps VHP for KOIN at 1:1 minus a **3%** fee, paid
+from the KOIN it holds, in one transaction. You always set the minimum KOIN you accept. Any change that loosens it (a
+lower fee, a higher limit, a new owner) waits 48 hours. Details: [`desk/README.md`](desk/README.md).
+
 ## Who controls what
 
 | Role | Can | Can't |
 |---|---|---|
-| Players | stake, withdraw any time, answer, collect | anything else |
-| Bot (operator) | post and resolve questions | move any funds |
-| Owner | correct results before they are final, pause new deposits, settings, and upgrades announced 48 hours ahead | move players' stakes or rewards |
+| Players | stake, withdraw any time, move stake between games, play, collect | anything else |
+| Bot (operator) | post questions and results, close and settle weeks | move any funds |
+| Owner | correct results before they are final, pause new deposits, add or stop games and upgrade contracts (announced on chain 48 hours ahead) | move players' stakes or rewards |
 | Seed owner | add or withdraw the seed fund (withdrawals announced ahead) | touch players' stakes |
+| Mana sponsor | pay players' Mana within its limits | sign or move anything for players |
 
-Every wallet, its key and what to do if one is lost: [`docs/WALLETS.md`](docs/WALLETS.md). Admin tasks run from a local
-admin page on the owner's PC: `npm run admin` (127.0.0.1 only; every action shows a preview before anything is sent).
+Every change that could matter to players is announced on chain first, and the hourly bot watches the chain and
+alerts the owner to anything unexpected.
 
 ## Check the contracts yourself
 
-Anyone can rebuild the contracts and compare their fingerprints with the code on chain:
+Anyone can rebuild the contracts and compare their fingerprints (sha256) with the code on chain:
 
 ```
 npm ci --ignore-scripts
@@ -200,79 +232,34 @@ sha256sum game/build/release/contract.wasm desk/build/release/contract.wasm
 npm run bot -- chain-check
 ```
 
-| Contract | Address | Live code (v3 / v1) | Announced upgrade (v5 / v2) |
-|---|---|---|---|
-| Game | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` | `917708a7…6433a` | `c17066ae988d204fd43d43f662ad87fcdc38170419943c20b5164a5bd34dd784` |
-| Knode Swap | `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR` | `05039d74…761e4` | `309506ccfaadd3427e937aa88cd34c9ea2a9e6088e49e51f014d546489dd5f35` |
+| Contract | Address | Live code (sha256) |
+|---|---|---|
+| Vault (game contract, v6) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` | `eed38f7ce130d9d2e0dfafa8ddd5c4a6f383e2c7ce12ab87b02c584f43920b3d` |
+| Knode Swap (v2) | `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR` | `309506ccfaadd3427e937aa88cd34c9ea2a9e6088e49e51f014d546489dd5f35` |
+| Picks (Block X and later games) | `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` | `700c296a1064b904299c156061d6caf8fcabd0b1765968903f29d89d2426c594` |
+| Race picks | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` | `61e8f21230e8b4bdb165bacfe7281517a5adf78f6c6b1b8a0d84ce41537afac5` |
+| Mana sponsor (v3) | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | `b84e1add3ffa14a7d1933d5ce5a4ad33caa4bca887a489f87f710b3c121c83a6` |
 
-The upgrade runbook and the audit results: [`docs/UPGRADE-V5.md`](docs/UPGRADE-V5.md). The trust page on the site
-shows the same numbers live.
-
-## The nodes on the owner's PC: self-heal and auto-repair
-
-Three Koinos nodes run on the owner's PC in Docker: the **desk** node (`C:\kpred-desk-node`, Knode Swap), the
-**game** node (`C:\kpred-node`, the game pool) and the **personal** node (`C:\koinos-personal`). Every 20 minutes the
-Windows task "Knode self-heal" runs `node bot\heal.mjs` (log: `node\heal.log`), and emails through GitHub when it acts.
-
-- **Frozen node** (far behind and not moving): restarted (`docker compose down`, then `up -d`), at most 3 times in 6
-  hours, 50 minutes apart.
-- **Block store crash loop** (it starts 3+ times in 20 minutes; a restart doesn't cure it): the nodes help each other.
-  The broken node's block data is copied from a healthy one with `node\repair-node-data.ps1` (both pause about 5-20
-  minutes; the old data is kept as `...-broken-<date>` for 7 days, then deleted). Safety rules:
-  - the source is OK (at most 5 blocks behind) at this check and the one before, wasn't restarted in the last
-    50 minutes, and wasn't repaired or used as a source in the last 6 hours; order: desk, game, personal;
-  - one repair at a time (`node\repair.lock`, stale after 90 minutes); no check restarts the two nodes meanwhile;
-  - at most one automatic repair per node per 24 hours; then, or with no healthy source or too little free disk, it
-    only emails;
-  - an email before it starts and when it ends; the script's output is kept in `node\repair-<node>-<time>.log`.
-- **Turn auto-repair off**: add `HEAL_AUTO_REPAIR=off` to `C:\kprediction\.env` (it then only emails, as before).
-- **Set up / update the task** (needed once for auto-repair: the task may now run up to 2 hours):
-  `powershell -ExecutionPolicy Bypass -File node\install-heal.ps1`
-- **See what it would do**: `node bot\heal.mjs --dry-run`
-- **Repair by hand**, e.g. the game node from the desk node:
-  `powershell -ExecutionPolicy Bypass -File node\repair-node-data.ps1 -Broken game -From desk`
-  (`-Broken` / `-From`: `game`, `desk` or `personal`).
-
-### Moving a node's data into a Docker volume
-
-Each node's databases started in a Windows folder (`basedir`) that the Linux containers reach through Docker
-Desktop's Windows-to-Linux file bridge: slow for databases and a likely cause of the damaged block stores. A Docker
-volume keeps them on Linux's own disk inside WSL2. Move one node at a time (desk first, then game, then personal):
-
-```
-powershell -ExecutionPolicy Bypass -File node\move-node-to-volume.ps1 -Node desk -WhatIf   (the plan, changes nothing)
-powershell -ExecutionPolicy Bypass -File node\move-node-to-volume.ps1 -Node desk
-```
-
-It holds the self-heal's lock, stops the node, copies the whole `basedir` (keys included) into the volume
-`<project>-basedir` with a small `alpine:3.20` container, checks the copy (file count, total size, block-producer key),
-writes `docker-compose.override.yml` next to `docker-compose.yml` (which stays unchanged: Compose reads the override
-automatically and mounts the volume at `/koinos`), starts the node and waits for it to answer. If anything fails
-before the start, the override is set aside and the node starts on its old folder. Nothing is deleted: the old
-`basedir` folder is the backup (delete it yourself after a week of good running).
-
-- **Roll back**: in the node's `koinos` folder: `docker compose down`, rename `docker-compose.override.yml`,
-  `docker compose up -d` (the node runs on its old folder again).
-- **A copy that failed halfway**: run again with `-Resume` (it empties the half-filled volume and copies again).
-- The self-heal and `repair-node-data.ps1` know volume nodes: they read the block-store log and old backups inside the
-  volume, and repairs copy into or out of it with the same small container.
+The site's **Trust** page shows the same numbers live. Upgrade runbooks are in [`docs/`](docs/).
 
 ## Repository layout
 
 | Folder / file | What it is |
 |---|---|
-| `game/` | The game contract (AssemblyScript) and its tests ([`game/README.md`](game/README.md), [`game/SECURITY.md`](game/SECURITY.md)) |
-| `desk/` | Knode Swap contract and tests ([`desk/README.md`](desk/README.md)) |
-| `bot/` | The hourly operator bot, the Desk and upgrade tools, the rehearsal ([`bot/README.md`](bot/README.md)) |
-| `admin/` | The local admin page (`npm run admin`) |
 | `*.html`, `*.js`, `*.css`, `media/` | The website (GitHub Pages, https://knodegames.com) · `site/` only redirects old links |
-| `generator.ts`, `resolver.ts`, `common.ts` | Build and score the questions ([`docs/QUESTIONS.md`](docs/QUESTIONS.md)) |
+| `game/` | The vault contract (AssemblyScript) and its tests ([`game/README.md`](game/README.md)) |
+| `picks/`, `race/` | The Picks and Race picks contracts |
+| `desk/` | Knode Swap contract and tests ([`desk/README.md`](desk/README.md)) |
+| `sponsor/` | The Mana sponsor contract ([`sponsor/README.md`](sponsor/README.md)) |
+| `bot/` | The hourly bot (questions, game results, payouts, chain watch) and the owner's tools ([`bot/README.md`](bot/README.md)) |
+| `generator.ts`, `resolver.ts`, `common.ts` | Build and score the Daily Questions ([`docs/QUESTIONS.md`](docs/QUESTIONS.md)) |
 | `backtest.ts`, `export-blocks.ts`, `data/` | Tune the question templates on real history |
-| `game-data/`, `desk-data/` | The live, public game files (questions, results, deployment details) |
-| `node/` | PowerShell scripts for the owner's Koinos nodes |
-| `tests/` | Security and regression tests from the audits |
-| `docs/` | Runbooks and wallets; `docs/history/` keeps earlier audits and plans |
-| `LAUNCH.md` | The first-launch guide (October 2026) |
+| `game-data/`, `*-data/` | The public game files (questions, results, deployment details) |
+| `.github/workflows/` | The bot, the game recorders and the test runs (GitHub Actions) |
+| `node/` | Scripts for the project's Koinos nodes ([`node/README.md`](node/README.md)) |
+| `tests/` | Security and regression tests from the reviews |
+| `docs/` | Runbooks and wallet procedures |
+| `.ai/` | The project's working library: plans, decisions, standards and status ([`.ai/START_HERE.md`](.ai/START_HERE.md)) |
 
 ## Running the tests
 
@@ -283,11 +270,15 @@ cd desk && npm ci --ignore-scripts && npm test && cd ..
 npm run test:resolver
 node --import tsx --test bot/*.test.ts
 node --import tsx --test --test-concurrency=1 tests/audit/*.test.ts tests/audit/*.test.mjs
-npm run bot -- rehearse --weeks 2      (about an hour: two simulated weeks on real block history)
 ```
 
-The contract builds need `protoc` on the PATH. On Windows, `.gitattributes` keeps every file with LF line endings.
+The contract builds need `protoc` on the PATH. `.gitattributes` keeps every file with LF line endings.
+
+## Security
+
+Found a problem? Please report it privately: see [SECURITY.md](SECURITY.md).
 
 ## License
 
-Copyright (c) 2026 Carl Padavano. All rights reserved. The source, including the `desk/` and `game/` contracts, is public so anyone can review it and check the deployed contracts. See [LICENSE](LICENSE).
+Copyright (c) 2026 Knode Games. All rights reserved. The source is **source-available**: it is public so anyone can
+review it and check the deployed contracts, but it isn't open source. See [LICENSE](LICENSE).

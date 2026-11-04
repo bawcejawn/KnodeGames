@@ -233,8 +233,8 @@ $env:RPC = "https://koinos.armana.io"
 | **Sun 8 Nov, from 10:00** (48 h after 2a) | 2b. Treasury: apply | `chain-check` shows the exact time it can be applied ("from …") |
 | **Sun 8 Nov, after every `game-apply`** (Bracket's deadline is 16:00) | 4a. Vault owner: propose · 5a. Desk owner: propose | Both the same afternoon, e.g. 16:30 |
 | **Tue 10 Nov, 48 h after 5a** (e.g. from 16:30) | 4b. Vault owner: accept · 5b. Desk owner: accept · 6. Clean-up | **Both accepts in the same sitting**, so there is never a day when the vault and the Desk have different owners |
-| **Tue 10 Nov, after 4b** | The doubled-Questions vault upgrade: announce (48 h), signed by the **new** owner | Only once Repo Lens has said GO; the Vault chat gives the exact commands. **Never before 4b**: the vault accept wipes a pending upgrade |
-| **Thu 12 Nov, 48 h after the announcement** | The upgrade: upload | Needs about 100 KOIN in the new owner wallet (step 1c) |
+| **Wed 4 / Thu 5 Nov** (D-114) | The doubled-Questions vault upgrade (v6.1): **announce** (48 h), signed by the **current** owner `1635QU…` | `docs/UPGRADE-V61.md` steps 0–1 (on branch `vault-questions-60` until #114 is merged) |
+| **Fri 6 / Sat 7 Nov**, ≥ 48 h after the announce | The upgrade: **upload**, signed by `1635QU…`, only after the Vault chat's mainnet-priced measurement (Repo Lens #D-8) | The owner wallet needs **at least 95 KOIN of Mana** (the tool's check; the real cost is about 47). The upload must be **confirmed in a block before Mon 9 Nov 00:00 UTC** (Sun 4 PM PT) for 60 a week from Mon 9, and **before step 4a**: an accept (4b) would wipe a pending upgrade. If it slips past Sat, don't upload before the handover: after 4b, announce again with the new owner and upload 48 h later |
 
 **Why the accepts wait until Tuesday:** the vault's accept is possible from Monday, but there's no rush. Until it's
 accepted, the old key stays the vault owner and works for everything as today. Doing both accepts together means
@@ -278,8 +278,10 @@ koinos.io before installing).
 4. **Remove the wallet from the browser:** Chrome → profile icon → Manage profiles → Knode treasury → Delete. Its
    only copies are now your two papers.
 
-**1c. Make sure the new owner holds KOIN for Mana:** at least 10 for the accepts. **The vault upgrade for doubled
-Questions (announced Tue 10, uploaded Thu 12) is signed by this wallet and needs about 100 KOIN** of Mana for the upload.
+**1c. Make sure the new owner holds KOIN for Mana:** at least 10 for the accepts. (Since 4 Nov, D-114, the vault
+upgrade for doubled Questions is announced and uploaded by the **current** owner `1635QU…` before the handover, so
+that wallet, not this one, needs at least 95 KOIN of Mana by upload day. Only if the upload slips past the handover
+does this wallet need it.)
 Check its balance in Kondor first. To top it up: Either:
 - **from any Kondor wallet of yours that holds KOIN** (not the treasury): Kondor → Send → KOIN → paste
   `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` → 10. Compare the full address before confirming; or

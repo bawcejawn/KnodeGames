@@ -180,8 +180,8 @@ test("the shared leaderboard (board.js) only draws: no network, no storage, no w
 });
 
 test("the recorder's files are read only from the race-data branch", () => {
-  assert.match(read("race.js"), /const DATA = "https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/race-data\/"/);
-  assert.match(read("race.html"), /connect-src [^"]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/race-data\//);
+  assert.match(read("race.js"), /const DATA = "https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/race-data\/"/);
+  assert.match(read("race.html"), /connect-src [^"]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/race-data\//);
 });
 
 test("the pick lists for upcoming races are never empty once any card exists: a race's own card, else the latest one", () => {

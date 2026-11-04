@@ -284,7 +284,7 @@ test("every page that loads names.js may read names-data, and loads it before it
   assert.deepEqual(users.sort(), ["blockx.html", "index.html", "names.html", "node.html", "pulse.html", "race.html"]);
   for (const p of users) {
     const h = read(p);
-    assert.match(h.match(/connect-src ([^;"]*)/)[1], /https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/names-data\//, p);
+    assert.match(h.match(/connect-src ([^;"]*)/)[1], /https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/names-data\//, p);
     const own = { "blockx.html": "blockx.js", "index.html": "app.js", "pulse.html": "pulse.js", "node.html": "node-page.js", "names.html": "names-page.js", "race.html": "race.js" }[p];
     assert.ok(h.indexOf('src="names.js"') < h.indexOf(`src="${own}"`), `${p}: names.js before ${own}`);
   }

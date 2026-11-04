@@ -14,7 +14,7 @@
   const M = window.KRaceMath;
   if (!host || !M) return;
   const W = window.KWallet;
-  const RAW = "https://raw.githubusercontent.com/bawcejawn/Knode/";
+  const RAW = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/";
   const EXPLORER = "https://koinosscan.com/address/";
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode Games pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Games Swap" };
   const ADDR = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/;

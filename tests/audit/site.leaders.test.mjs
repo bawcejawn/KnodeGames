@@ -22,7 +22,7 @@ test("every live game in games.json with a leaderboard points at a recorder boar
     assert.ok(Array.isArray(g.board.columns) && g.board.columns.length >= 1 && g.board.columns.length <= 6, `${g.id}: columns`);
     for (const c of g.board.columns) { assert.match(c.key, /^[a-z]{1,12}$/); assert.ok(c.label.length <= 20); }
     const branch = g.board.data.split("/")[0];
-    assert.ok(read("index.html").includes(`https://raw.githubusercontent.com/bawcejawn/Knode/${branch}/`), `${g.id}: index.html may read ${branch}`);
+    assert.ok(read("index.html").includes(`https://raw.githubusercontent.com/bawcejawn/KnodeGames/${branch}/`), `${g.id}: index.html may read ${branch}`);
   }
 });
 

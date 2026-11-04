@@ -27,7 +27,7 @@
 - **Weekly review:** Tuesdays 10 AM PT (`WEEKLY_REVIEW.md`), reminder at 9:45 AM PT. First review Tue 10 Nov.
 
 ## Library
-- `.ai/`: start guide, platform docs, nine game files, seven standards (Game, Vault, Leaderboard, Token, Recorder, Go-live checklist, AI chat starter), the runbook, session-end and weekly-review processes; 102 decisions (D-001 – D-102), no open contradictions. Finished items live in `../archive/DONE.md` and `../archive/ISSUES_CLOSED.md`.
+- `.ai/`: start guide, platform docs, nine game files, eight standards (Game, Vault, Leaderboard, Token, Recorder, VHP ruler, Go-live checklist, AI chat starter), the runbook, session-end and weekly-review processes; 111 decisions (D-001 – D-111); health check 4 Nov (`HEALTHCHECK.md`), no open contradictions. Finished items live in `../archive/DONE.md` and `../archive/ISSUES_CLOSED.md`.
 
 ## Watch list
 - **Thu 5 Nov 15:51 UTC (7:51 AM PT):** games 2 and 7 become applicable (reminder 9 AM PT). Apply before **Sun 8 Nov 4 PM PT**.

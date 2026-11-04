@@ -1,6 +1,6 @@
 # Knode Games — The Shared VHP Ruler (design)
 
-> **Status:** design **v2, approved by the owner 4 Nov (D-111)**; built by the VHP Ruler chat (R-RULER-1). v1 was reviewed by **Repo Lens #E-7** ("approve with changes", on 8 days of real mainnet data); v2 makes every change it asked for (the list is in §14). **Owner to approve §12**; then a dedicated VHP Ruler chat builds it (R-RULER-1, D-110) and each game moves onto it, Race first (R-RACE-5).
+> **Status:** design **v2, approved by the owner 4 Nov (D-111)**; built by the VHP Ruler chat (R-RULER-1). v1 was reviewed by **Repo Lens #E-7** ("approve with changes", on 8 days of real mainnet data); v2 makes every change it asked for (the list is in §14). Each game then moves onto it, Race first (R-RACE-5).
 > **Owner's decisions behind it:** D-058 (exact VHP from the chain's events), **D-090** (one ruler; each game keeps its own formula; checks at random moments within a window), D-091 (lower Last Node's bar), **D-093** (a look-back of about 2 weeks; fair to every producer, small and large; see §12 point 1: the review shows the 2-week average itself is unfair, so v2 asks to replace it), D-094, D-095, **D-101** (fair, with a bit of luck), **D-108**, **D-110**.
 > **Built from:** `../platform/HANDICAP_REVIEW.md`; `docs/VHP-STANDARD.md`, `vhp-standard.js`, `bot/vhp-chain.ts` on `kg-09-bracket`; `bot/race.ts`, `bot/games/blockx.ts`; Repo Lens #E-7 (private, artifact `63JUu9JWEt3hddhtzWzNVe`; its simulations: `claude/ruler/repolens-e7-sims/`).
 > **What it isn't:** a scoring formula. Each game keeps its own. The ruler only says **how big each producer is, when, and how much each signed block counts**, the same way everywhere.
@@ -146,7 +146,7 @@ Card credit only caps VHP *above* the measured size. If a pooled producer's VHP 
 | Pooled producers | the Vault; `min(own, eff at each block)` | simulation 7 |
 
 ## 10. Build and migration plan
-1. Owner approves v2 (§12).
+1. Owner approved v2: approved 4 Nov (D-111).
 2. **The VHP Ruler chat (R-RULER-1, D-110):** `vhp-ruler.js` + `bot/vhp-ruler.ts` + the `vhp-data` recorder (hash-chained, anchored) and publish check + the first-fill job; tests (including a line-by-line copy of the VHP contract's snapshot code, as `vhp-standard` has); the 11 simulations of §8 on 29+ days of data; Repo Lens.
 3. **Race (R-RACE-5)** moves first; its two known gaps close. A fix-check, then it pays on the ruler from the next Monday.
 4. Block X, then Last Node, Fantasy, Combo, Bracket as each is ready; Survivor from Season 2.
@@ -164,7 +164,7 @@ Until a game moves, it keeps today's method (D-094); a switch takes effect from 
 | An effective-balance rule change in a Koinos upgrade | the hourly `effective_balance_of` anchor catches it (flag, no scoring) |
 | Recorder and publish job round differently | integers and fixed point everywhere; a JS-vs-Python byte test (§13) |
 
-## 12. For the owner to approve (v2, in plain words)
+## 12. What the owner approved (v2, in plain words; D-111)
 1. **Measure a producer as it is at the measuring moment** (or its highest in the hour before), not by a 2-week average. Others are measured by 24-hour averages, and **card credit is always on**. *This replaces the 2-week look-back of D-093.* The review showed that the average makes honest producers look too big, because every block burns VHP from its signer, so they would lose more often. Card credit is what really stops hiding. Recommended: approve.
 2. **A random measuring moment** from a block 20 blocks after the lock. The block's producer can nudge it slightly, but by about 1% at most on real data. Recommended: approve.
 3. **One entry bar and a luck trim in every game, and form only as a warning light**: it can bench or flag a producer, never change its odds. Otherwise skipping blocks on purpose would pay. Recommended: approve.

@@ -13,11 +13,10 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
-- [ ] Repo Lens queue, in this order: (1) Block X B4 re-check `claude/blockx/ROUND-14-LOWS-B4-RECHECK-PROMPT.md`; (2) VHP ruler R1 math `claude/ruler/REPOLENS-R1-MATH-PROMPT.md` once the Ruler chat gives the commit; (3) the #114 re-check once the Vault chat has the #D-8 measurements; (4) ruler R2 after R1 is GO — P1
+- [ ] **Don't announce v6.1** (D-116: it's folded into one upgrade with Questions on the shared rules). Answer the Vault chat's plan for R-VAULT-13 when it comes — P1 — D-116
+- [ ] Repo Lens queue, in this order: (1) Block X B4 re-check `claude/blockx/ROUND-14-LOWS-B4-RECHECK-PROMPT.md`; (2) VHP ruler R1 math `claude/ruler/REPOLENS-R1-MATH-PROMPT.md` once the Ruler chat gives the commit; (3) later, the combined vault upgrade (60 questions + Questions on the shared rules, D-116) once the Vault chat has built and tested it; (4) ruler R2 after R1 is GO — P1
 - [ ] Delete the 145 merged branches with the script `claude/BRANCH-CLEANUP-2026-11-04.md` (protect the data branches first) — P3 — D-115
 - [ ] Decide: move the audit reports and raw chat exports out of the public repo (doesn't touch `CHAT_REQUESTS.md`) — P2 — D-115
-- [ ] **Vault v6.1, doubled Questions ASAP (D-114):** today, on the PC: build on branch `vault-questions-60`, check hashes `399171a2…` / `a6bc0164…`, then `npm run bot -- upgrade schedule` (dry run, then `--send` with `CONFIRM_MAINNET=yes`) — `docs/UPGRADE-V61.md` steps 0–1. Confirm the owner wallet `1635QU…` has at least 95 KOIN of Mana by upload day (about 47 is spent) — P1 — D-114
-- [ ] **Fri 6 or Sat 7 (≥ 48 h after the announce), only after the Vault chat's #D-8 measurements and the Repo Lens re-check say GO:** `upgrade apply` and `pause off` (`docs/UPGRADE-V61.md` step 3), then merge #114 and the records PR — P1 — D-114
 - [ ] Send Repo Lens `claude/hub/REPOLENS-C5-FIXCHECK-PR95-PR111-PROMPT.md` anyway (#95 and #111 merged before their fix-check) — P2
 - [ ] Optional: delete the old branch `hub-ci-yaml` in GitHub (an unused copy; safe once #111 is merged, which it is) — P4
 - [ ] Later (on hold, your call): the GitHub CODEOWNERS / ruleset step (C5-13). Don't require code-owner review without a bypass for yourself — P3

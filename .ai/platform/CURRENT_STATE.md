@@ -31,8 +31,8 @@
 
 ## Watch list
 - **Thu 5 Nov 15:51 UTC (7:51 AM PT):** games 2 and 7 become applicable (reminder 9 AM PT). Apply before **Sun 8 Nov 4 PM PT**.
-- **Fri 6 – Sat 7 Nov:** Vault v6.1 upload (after the announce and its fix-check), then `pause off` → 60 questions a week allowed from Mon 9 (D-114).
-- **Sun 8 Nov 23:48 UTC:** the first 00:00 Questions round's run: #119 and #122 merged before it.
+- **Vault upgrade (D-116):** 60 questions a week **and** Daily Questions on the shared game rules, in one upgrade after the wallet handover; not announced yet. Until then Questions runs 2 + 3 (30 a week).
+- **Sun 8 Nov 23:48 UTC:** the first 00:00 Questions round (2 + 3 a day from Mon 9).
 - **Fri 6 – Tue 10 Nov:** the wallet moves (`docs/WALLETS.md`).
 - **Mon 9 Nov 00:00 UTC:** the vault starts paying Questions, Race and Block X; players see this week as "Week 1" (D-063).
 - **Tue 10 Nov ~12:07 UTC:** first Questions payout under the v5 split; free players get 1 + 1 VHP for that week (D-069). First weekly review at 10 AM PT.

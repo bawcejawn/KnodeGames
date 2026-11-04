@@ -25,7 +25,8 @@ export function timelineOf(d) {
   // real ids for the race seeds (the last block of each hour and the seed blocks); the rest synthetic, labelled
   const ids = signers.map((_, i) => "0x1220" + crypto.createHash("sha256").update(`synthetic ${d.from + i}`).digest("hex"));
   for (const [h, id] of Object.entries(d.seedIds)) ids[Number(h) - d.from] = id;
-  return { from: d.from, to: d.to, signers, ids, deltas, anchors, synthetic: "ids except race seeds" };
+  const moves = d.events.flatMap(([h, k, f, t]) => [f, t].filter(Boolean).map((a) => [h, a]));   // non-burn VHP changes
+  return { from: d.from, to: d.to, signers, ids, deltas, anchors, moves, synthetic: "ids except race seeds" };
 }
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop())) {
   const tl = timelineOf(fromLog(fs.readFileSync(process.argv[2], "utf8")));

@@ -136,17 +136,17 @@ test("timelineFrom → ledger: effective VHP equals the contract copy at every b
   const tl = D.timelineFrom(hours, checks), L = R.ledger(tl);
   for (let h = tl.from + 20; h <= tl.to; h += 7) for (const a of chain.ps) assert.equal(L.eff(a, h), chain.eff(a, h), `${a} at ${h}`);
   const Lk = tl.from + 36500;
-  const card = R.scoreCard(L, R.makeCard(L, { game: 7, round: "9", window: { W0: Lk - 7199, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + 2400 }, c: 400000n, ownRule: "high1h", paying: true, pooled: [chain.ps[0]] }));
+  const card = R.scoreCard(L, R.makeCard(L, { game: 7, round: "9", window: { W0: Lk - 7199, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + 2400 }, c: 400000n, ownRule: "high1h", paying: false, pooled: [chain.ps[0]] }));
   fs.writeFileSync(path.join(dir, "chain.json"), JSON.stringify(chain.texts));
   const py = PY(`texts = json.load(open(${JSON.stringify(path.join(dir, "chain.json"))}))
 hours = [json.loads(t) for t in texts]; checks = [V.check_hour(texts[i - 1] if i else "", t) for i, t in enumerate(texts)]
 L = V.Ledger(V.timeline_from(hours, checks)); Lk = L.frm + 36500
-c = V.score_card(L, V.make_card(L, 7, "9", {"W0": Lk - 7199, "W1": Lk, "L": Lk, "S0": Lk + 1, "S1": Lk + 2400}, 400000, "high1h", True, [${JSON.stringify(chain.ps[0])}]))
+c = V.score_card(L, V.make_card(L, 7, "9", {"W0": Lk - 7199, "W1": Lk, "L": Lk, "S0": Lk + 1, "S1": Lk + 2400}, 400000, "high1h", False, [${JSON.stringify(chain.ps[0])}]))
 sys.stdout.write(V.card_json(c))`);
   assert.equal(py, R.cardJson(card));
   // a flagged hour inside the card's window flags the card
   const flagged = checks.map((c, i) => (i === 24 ? { ...c, quality: "flagged", flagged: ["*"] } : c));
   const L2 = R.ledger(D.timelineFrom(hours, flagged));
-  const c2 = R.makeCard(L2, { game: 7, round: "9", window: { W0: Lk - 7199, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + 2400 }, c: 400000n, ownRule: "high1h", paying: true });
+  const c2 = R.makeCard(L2, { game: 7, round: "9", window: { W0: Lk - 7199, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + 2400 }, c: 400000n, ownRule: "high1h", paying: false });
   assert.ok(c2.producers.every((p) => p.quality === "flagged"));
 });

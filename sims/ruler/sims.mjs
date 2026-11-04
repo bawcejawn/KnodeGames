@@ -90,7 +90,14 @@ export function synthetic(Nreal, s, reburn) {
 }
 
 // ── the simulations ──
-export function run(L, { cards = 40, races = 2500, only = null, log = console.log } = {}) {
+/** moves: [h, address] of every VHP change that isn't a block burn (deposits, withdrawals, transfers, mints): a producer
+ *  with one in [T − 24 h, S1] isn't an "honest steady" producer for that card (its own stakers moved). */
+export function movedFn(moves) {
+  const by = new Map(); for (const [h, a] of moves) { if (!by.has(a)) by.set(a, []); by.get(a).push(h); }
+  for (const l of by.values()) l.sort((x, y) => x - y);
+  return (a, h0, h1) => { const l = by.get(a); if (!l) return false; let lo = 0, hi = l.length; while (lo < hi) { const m = (lo + hi) >> 1; if (l[m] < h0) lo = m + 1; else hi = m; } return lo < l.length && l[lo] <= h1; };
+}
+export function run(L, { cards = 40, races = 2500, only = null, log = console.log, moved = () => false } = {}) {
   const dry = days(L) < 29, res = [];
   const say = (id, name, metric, pass, mark, detail) => { res.push({ id, name, metric, pass: dry ? null : pass, mark, detail }); log(`${dry ? "DRY RUN " : pass ? "PASS    " : "FAIL    "} sim ${id}: ${name} — ${metric} (mark: ${mark})`); };
   const want = (i) => !only || only.includes(i);
@@ -114,19 +121,20 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
       const card = raceCard(paths, f.base, f.T, f.w.S0, f.w.S1, ownRule, { pooled: extra.pooled });
       const ch = raceChances(card, races, 1000 + ci, { out: extra.out });
       if (!ch) return;
-      for (const [p, x] of Object.entries(ch)) { (per[p] ||= []).push(x); }
+      for (const [p, x] of Object.entries(ch)) { if (extra.steadyOnly && !p.startsWith("~") && moved(p, f.T - BLOCKS_PER_DAY, f.w.S1)) continue; (per[p] ||= []).push(x); }
     });
     return Object.fromEntries(Object.entries(per).map(([p, xs]) => [p, { n: xs.length, index: xs.reduce((s, x) => s + x.index, 0) / xs.length, ratio: xs.reduce((s, x) => s + x.chance, 0) / xs.reduce((s, x) => s + x.fair, 0), k: xs.reduce((s, x) => s + x.k, 0) / xs.length }]));
   };
   const span = (o, f) => { const v = Object.values(o).map(f); return [Math.min(...v), Math.max(...v)]; };
 
   if (want(1)) {   // honest field + a never-re-burning shrinker + an hourly re-burner
-    const r = honest("spot", { add: (f) => ({ "~shrinks 1%/day": synthetic(f.Nreal, 0.03, false), "~re-burns hourly": synthetic(f.Nreal, 0.03, true) }) });
-    const [i0, i1] = span(r, (x) => x.index), [w0, w1] = span(r, (x) => x.ratio);
-    say(1, "honest field", `index ${i0.toFixed(4)} … ${i1.toFixed(4)}; win chance ${w0.toFixed(2)} … ${w1.toFixed(2)} of fair`, i0 >= 0.99 && i1 <= 1.01 && w0 >= 0.85 && w1 <= 1.15, "index 1.00 ± 0.01; wins 0.85–1.15 of fair", r);
+    const add = (f) => ({ "~shrinks 1%/day": synthetic(f.Nreal, 0.03, false), "~re-burns hourly": synthetic(f.Nreal, 0.03, true) });
+    const all = honest("spot", { add }), r = honest("spot", { add, steadyOnly: true });
+    const [i0, i1] = span(r, (x) => x.index), [w0, w1] = span(r, (x) => x.ratio), [a0, a1] = span(all, (x) => x.index);
+    say(1, "honest field", `steady producers (no stake moved in that race): index ${i0.toFixed(4)} … ${i1.toFixed(4)}, win chance ${w0.toFixed(2)} … ${w1.toFixed(2)} of fair; all producers as they really were: index ${a0.toFixed(4)} … ${a1.toFixed(4)}`, i0 >= 0.99 && i1 <= 1.01 && w0 >= 0.85 && w1 <= 1.15, "index 1.00 ± 0.01; wins 0.85–1.15 of fair", { steady: r, all });
   }
   if (want(2)) {   // 100 producers under 1% added to the real field
-    const r = honest("spot", { add: (f) => Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`~small${String(i).padStart(3, "0")}`, synthetic(f.Nreal, 0.0005 + i * 0.0001, i % 2 === 0)])) });
+    const r = honest("spot", { steadyOnly: true, add: (f) => Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`~small${String(i).padStart(3, "0")}`, synthetic(f.Nreal, 0.0005 + i * 0.0001, i % 2 === 0)])) });
     const small = Object.fromEntries(Object.entries(r).filter(([p]) => p.startsWith("~small")));
     const [i0, i1] = span(r, (x) => x.index), [w0, w1] = small && Object.keys(small).length ? span(small, (x) => x.ratio) : [NaN, NaN];
     say(2, "100+ producers under 1%", `${Object.keys(small).length} small ones in fields; index ${i0.toFixed(4)} … ${i1.toFixed(4)}; small producers' wins ${w0.toFixed(2)} … ${w1.toFixed(2)} of fair`, i0 >= 0.99 && i1 <= 1.01 && w1 <= 1.15, "same marks; no small producer above fair + luck band", r);
@@ -176,16 +184,16 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
     say(4, "own size rule after a sudden change", Object.entries(out).map(([k, v]) => `${k}: ${Object.entries(v).map(([l, x]) => `${l} → ${x.toFixed(3)}`).join(", ")}`).join("; "), Math.abs(s["loss, 24 h"] - 1) <= 0.02 && s["growth, 6 h"] <= 1.01 && s["growth, 24 h"] <= 1.01, "back within 0.02 within 24 h; growth ≤ +0.01", out);
   }
   if (want(6)) {   // grinding: the seed producer picks the card moment freely
-    const moves = [];
+    const moves = [], steady = [];
     fields.forEach((f) => {
       const Ts = []; for (let T = f.w.W0; T <= f.w.W1; T += 120) Ts.push(T);
       const idx = {};
       for (const T of Ts) for (const r of raceCard(f.paths, f.base, T, f.w.S0, f.w.S1, "spot").rows) if (r.k >= 10) (idx[r.p] ||= []).push(r.cred / r.k);
-      for (const xs of Object.values(idx)) { const mean = xs.reduce((s, x) => s + x, 0) / xs.length; moves.push(Math.max(...xs) / mean - 1); }
+      for (const [p, xs] of Object.entries(idx)) { const mean = xs.reduce((s, x) => s + x, 0) / xs.length, m = Math.max(...xs) / mean - 1; moves.push(m); if (!moved(p, f.w.W0 - BLOCKS_PER_DAY, f.w.S1)) steady.push(m); }
     });
-    moves.sort((a, b) => a - b);
-    const p90 = moves[Math.floor(0.9 * (moves.length - 1))], med = moves[Math.floor(0.5 * (moves.length - 1))];
-    say(6, "seed grinding, free choice of moment", `best moment vs average: median +${(med * 100).toFixed(2)}%, 90th percentile +${(p90 * 100).toFixed(2)}%, most +${(moves[moves.length - 1] * 100).toFixed(2)}%`, p90 <= 0.005, "≤ 0.5% at the 90th percentile", { median: med, p90, max: moves[moves.length - 1] });
+    const q = (a, x) => { a.sort((p, r) => p - r); return a[Math.floor(x * (a.length - 1))]; };
+    const p90 = q(moves, 0.9), med = q(moves, 0.5), sp90 = q(steady, 0.9), smed = q(steady, 0.5);
+    say(6, "seed grinding, free choice of moment", `best moment vs average, all producers: median +${(med * 100).toFixed(2)}%, 90th percentile +${(p90 * 100).toFixed(2)}%, most +${(moves[moves.length - 1] * 100).toFixed(2)}%; producers whose stake didn't move: median +${(smed * 100).toFixed(2)}%, 90th +${(sp90 * 100).toFixed(2)}%, most +${(steady[steady.length - 1] * 100).toFixed(2)}%`, p90 <= 0.005, "≤ 0.5% at the 90th percentile", { median: med, p90, max: moves[moves.length - 1], steadyMedian: smed, steadyP90: sp90, steadyMax: steady[steady.length - 1] });
   }
   if (want(7)) {   // the Vault: depositors withdraw after the card and come back after the race
     const out = {};
@@ -254,6 +262,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   const tl = JSON.parse(fs.readFileSync(args[0], "utf8"));
   const t0 = Date.now(), L = R.ledger(tl);
   console.log(`ledger built in ${((Date.now() - t0) / 1000).toFixed(1)} s${tl.synthetic ? ` (synthetic ${tl.synthetic})` : ""}`);
-  const out = run(L, { cards: Number(opt("--cards", 40)), races: Number(opt("--races", 2500)), only: opt("--only") ? opt("--only").split(",").map(Number) : null });
+  const moves = (tl.moves || []);
+  const out = run(L, { cards: Number(opt("--cards", 40)), races: Number(opt("--races", 2500)), only: opt("--only") ? opt("--only").split(",").map(Number) : null, moved: movedFn(moves) });
   if (opt("--json")) fs.writeFileSync(opt("--json"), JSON.stringify(out, null, 1));
 }

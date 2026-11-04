@@ -13,7 +13,7 @@ const APP = path.resolve(process.env.APP || ".");
 const box = { window: {} };
 vm.runInNewContext(fs.readFileSync(`${APP}/vhp-ruler.js`, "utf8"), box);
 const R = box.window.KRuler, M = R.M;
-const PY = (code, input) => execFileSync("python3", ["-I", "-B", "-c", `import sys; sys.path.insert(0, ${JSON.stringify(APP)}); import vhp_ruler as V\n${code}`], { encoding: "utf8", input, maxBuffer: 1 << 28 });
+const PY = (code, input) => execFileSync("python3", ["-I", "-B", "-c", `import sys, json; sys.path.insert(0, ${JSON.stringify(APP)}); import vhp_ruler as V\n${code}`], { encoding: "utf8", input, maxBuffer: 1 << 28 });
 
 // seeded random numbers (mulberry32): the same tests every run
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -188,22 +188,19 @@ test("card credit: hiding VHP before the card, then bringing it back, gains noth
 test("makeCard: fields, order, entry bar, pooled, quality, D-112's rebuilt rule", () => {
   const { tl, ps } = randomTimeline(21, 32000, 6);
   let { card } = cardOn(tl, { pooled: [ps[2]] });
-  assert.deepEqual([...Object.keys(card)], ["ruleVersion", "game", "round", "ownRule", "paying", "T", "seedBlock", "seedBlockId", "seedProducer", "window", "c", "total", "producers"]);
+  assert.deepEqual([...Object.keys(card)], ["ruleVersion", "game", "round", "ownRule", "paying", "T", "seedBlock", "seedBlockId", "seedProducer", "window", "c", "total", "formFrom", "producers"]);
   assert.deepEqual([...Object.keys(card.producers[0])], ["a", "own", "avg", "k", "form", "entry", "pooled", "isNew", "quality"]);
   assert.ok(card.T >= card.window.W0 && card.T <= card.window.W1);
   assert.equal(card.seedBlock, card.window.L + 20);
   for (let i = 1; i < card.producers.length; i++) assert.ok(card.producers[i - 1].own >= card.producers[i].own, "biggest first");
   assert.equal(card.producers.find((p) => p.a === ps[2]).pooled, true);
-  // a bad hour for one producer flags only it; a rebuilt hour flags everyone, but only on a paying card
+  // Repo Lens #E-12 L-2: a bad range for ONE producer flags the whole card (its numbers feed everyone's total and form)
   const T = card.T;
   ({ card } = cardOn({ ...tl, bad: [{ h0: T - 10, h1: T - 5, a: ps[0] }] }));
-  assert.equal(card.producers.filter((p) => p.quality === "flagged").map((p) => p.a).join(), ps[0]);
+  assert.ok(card.producers.every((p) => p.quality === "flagged"), "one producer's bad range flags every producer");
   ({ card } = cardOn({ ...tl, rebuilt: [{ h0: tl.from, h1: T - 100 }] }));
   assert.ok(card.producers.every((p) => p.quality === "ok"), "not paying: rebuilt anchors are fine");
-  ({ card } = cardOn({ ...tl, rebuilt: [{ h0: tl.from, h1: T - 100 }] }, { paying: true }));
-  assert.ok(card.producers.every((p) => p.quality === "flagged"), "paying: a rebuilt hour in [T − 28,800, T] flags the card");
-  ({ card } = cardOn({ ...tl, rebuilt: [{ h0: tl.from, h1: T - 28801 }] }, { paying: true }));
-  assert.ok(card.producers.every((p) => p.quality === "ok"), "paying: rebuilt hours older than T − 28,800 (form's look-back) are fine");
+  assert.throws(() => cardOn(tl, { paying: true }), /14 days/, "#E-12 L-1: a paying card needs 14 days + 6 h of data");
 });
 
 test("scoreCard: credited ≤ signed; the pooled rule uses min(own, eff) per block", () => {
@@ -217,16 +214,17 @@ test("scoreCard: credited ≤ signed; the pooled rule uses min(own, eff) per blo
   const p = s.producers.find((x) => x.pooled), own = p.own;
   let want = 0n; for (let H = card.window.S0; H <= card.window.S1; H++) { const e = L.eff(p.a, H); want += ((e < own ? e : own) * M) / card.total; }
   assert.equal(p.expected, want);
-  assert.equal(R.recompute(L, R.cardJson(s)).same, true);
+  const game = { game: 7, round: "2026111006", window: card.window, c: 500000n, ownRule: "spot", paying: false, pooled: [ps[1]] };
+  assert.equal(R.recompute(L, R.cardJson(s), game).same, true);
   const tampered = R.cardJson(s).replace(/"credited":"(\d)/, (m, d) => `"credited":"${(+d + 1) % 10}`);
-  assert.equal(R.recompute(L, tampered).same, false, "a changed number is refused");
+  assert.equal(R.recompute(L, tampered, game).same, false, "a changed number is refused");
 });
 
 test("JavaScript and Python make byte-identical cards on 12 random fields (scored and unscored)", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ruler-"));
   for (let seed = 100; seed < 112; seed++) {
     const { tl, ps } = randomTimeline(seed, 31500 + (seed % 4) * 400, 3 + (seed % 6), { busy: seed % 2 === 0, big: seed % 3 === 0 });
-    const ownRule = R.OWN_RULES[seed % 3], pooled = [ps[seed % ps.length]], paying = seed % 4 === 1;
+    const ownRule = R.OWN_RULES[seed % 3], pooled = [ps[seed % ps.length]], paying = false;   // paying cards: the long-chain tests
     if (seed % 5 === 0) tl.bad = [{ h0: tl.from + 7000, h1: tl.from + 7100, a: ps[0] }];
     const { L, card } = cardOn(tl, { ownRule, pooled, paying, c: BigInt(seed * 1000) });
     const js = [R.cardJson(card), R.cardJson(R.scoreCard(L, card))];
@@ -237,7 +235,7 @@ j = json.load(open(${JSON.stringify(f)}))
 L = V.Ledger(j["tl"])
 c = V.make_card(L, j["game"], j["round"], j["window"], j["c"], j["ownRule"], j["paying"], j["pooled"])
 sys.stdout.write(V.card_json(c)); sys.stdout.write(V.card_json(V.score_card(L, c)))
-ok, d = V.recompute(L, V.card_json(V.score_card(L, c))); assert ok, d`);
+ok, d = V.recompute(L, V.card_json(V.score_card(L, c)), {"game": j["game"], "round": j["round"], "window": j["window"], "c": j["c"], "ownRule": j["ownRule"], "paying": j["paying"], "pooled": j["pooled"]}); assert ok, d`);
     assert.equal(py, js[0] + js[1], `seed ${seed}`);
   }
 });
@@ -252,4 +250,40 @@ test("the library is pure and integer-only: no network, storage, wallet, Math or
   assert.doesNotMatch(whole, /float\(|import (socket|urllib|requests|subprocess)|open\([^)]*["']w/, "the publish part reads files only");
   assert.doesNotMatch(py, /float\(|math\.|import (os|socket|urllib|requests|subprocess)|\d\.\d/);
   assert.doesNotMatch(py.replace(/"""[\s\S]*?"""/g, "").replace(/#.*$/gm, "").replace(/"[^"\n]*"/g, '""'), /[^/]\/[^/]/, "Python divides with // only");
+});
+
+test("paying cards (14 days + 6 h of data): D-112 over the whole look-back, a bad range flags all, JS = Python", async () => {
+  const { longTimeline } = await import("./vhp-ruler.fixture.mjs");
+  const { tl, ps } = longTimeline({ n: 440000 });
+  const W0 = tl.from + 415000, window = { W0, W1: W0 + 7199, L: W0 + 7200, S0: W0 + 7201, S1: W0 + 14400 };
+  const game = { game: 7, round: "5", window, c: 400000n, ownRule: "high1h", paying: true, pooled: [ps[1]] };
+  const mk = (extra) => R.makeCard(R.ledger({ ...tl, ...extra }), game);
+  let card = mk({});
+  assert.ok(card.producers.every((p) => p.quality === "ok"));
+  assert.equal(card.formFrom, card.T - R.FORM, "the full 14 days are read");
+  // #D-10 M-3: a rebuilt hour anywhere in form's 14 days flags a paying card (D-112, literally)
+  card = mk({ rebuilt: [{ h0: card.T - 400000, h1: card.T - 399000 }] });
+  assert.ok(card.producers.every((p) => p.quality === "flagged"));
+  card = mk({ rebuilt: [{ h0: tl.from, h1: tl.from + 5000 }] });
+  assert.ok(card.producers.every((p) => p.quality === "ok"), "older than the look-back: fine");
+  // a scored card: one producer's bad range in the race flags every producer
+  const L = R.ledger({ ...tl, bad: [{ h0: window.S0 + 10, h1: window.S0 + 20, a: ps[3] }] });
+  const s = R.scoreCard(L, R.makeCard(L, game));
+  assert.ok(s.producers.every((p) => p.quality === "flagged"));
+  // the Python twin gives the same bytes
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ruler-long-")), f = path.join(dir, "t.json");
+  fs.writeFileSync(f, toJson({ tl: { ...tl, bad: [{ h0: window.S0 + 10, h1: window.S0 + 20, a: ps[3] }] }, game }));
+  const py = PY(`j = json.load(open(${JSON.stringify(f)})); L = V.Ledger(j["tl"]); g = j["game"]
+sys.stdout.write(V.card_json(V.score_card(L, V.make_card(L, g["game"], g["round"], g["window"], g["c"], g["ownRule"], g["paying"], g["pooled"]))))`);
+  assert.equal(py, R.cardJson(s));
+});
+
+test("#E-12 I-3: game and round must be plain non-negative decimals in both languages", () => {
+  const id = "0x1220" + "ab".repeat(32);
+  for (const bad of [" 5", "0x10", "-1", "1e3", "5 "]) {
+    assert.throws(() => R.cardTime(id, 7, bad, 0, 10), /whole number/);
+    assert.match(PY(`try:\n    V.card_time(${JSON.stringify(id)}, 7, ${JSON.stringify(bad)}, 0, 10); print("ok")\nexcept ValueError as e: print(e)`), /whole number/);
+  }
+  assert.equal(R.cardTime(id, 7, "007", 0, 10), R.cardTime(id, 7, 7, 0, 10), "leading zeros read as the same number in both");
+  assert.equal(PY(`print(V.card_time(${JSON.stringify(id)}, 7, "007", 0, 10))`).trim(), String(R.cardTime(id, 7, 7, 0, 10)));
 });

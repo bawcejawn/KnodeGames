@@ -9,7 +9,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { chainNode, liveAnchor } from "../../bot/vhp-ruler.ts";
 import { makePlan, fillChunks, fillHours } from "../../bot/vhp-fill.ts";
-import { run, raceCard, raceChances, effArray, raceSlots, synthetic, mod, BLOCKS_PER_DAY, VAULT } from "./sims.mjs";
+import { run, movedFn, raceCard, raceChances, effArray, raceSlots, synthetic, mod, BLOCKS_PER_DAY, VAULT } from "./sims.mjs";
 import { sim5 } from "./faults.mjs";
 const R = globalThis.KRuler, D = globalThis.KVhpData;
 const E = process.env, OUT = E.OUT || "sims-out", DAYS = Number(E.FILL_DAYS || 31);
@@ -47,7 +47,8 @@ if (E.DUMP === "1") {   // the whole history, compact and gzipped, into the job'
   tick(`history dump: ${z.length} characters in ${lines.length - 1} lines`);
   if (E.SKIP_SIMS === "1") process.exit(0);
 }
-const sims = run(L, { cards: Number(E.CARDS || 60), races: Number(E.RACES || 2500), log: tick });
+const moves = hours.flatMap((h) => h.events.flatMap(([eh, , f, t]) => [f, t].filter(Boolean).map((a) => [eh, a])));
+const sims = run(L, { cards: Number(E.CARDS || 60), races: Number(E.RACES || 2500), log: tick, moved: movedFn(moves) });
 // sim 5: node faults, through the real data checks
 const s5 = sim5();
 sims.results.push(s5); tick(`${s5.pass ? "PASS" : "FAIL"} sim 5: ${s5.name} — ${s5.metric}`);
@@ -60,12 +61,15 @@ for (let i = 0; i < Math.min(40, slots.length); i++) {
   cards.push(R.cardJson(R.scoreCard(L, R.makeCard(L, { game: 7, round: String(w.L), window: w, c: 500000n, ownRule: ["spot", "high1h", "avg24h"][i % 3], paying: false, pooled: [VAULT] }))));
 }
 fs.writeFileSync(path.join(OUT, "cards.jsonl"), cards.join(""));
+const games = cards.map((t, i) => { const c = JSON.parse(t); return { game: 7, round: c.round, window: c.window, c: "500000", ownRule: c.ownRule, paying: false, pooled: [VAULT] }; });
+fs.writeFileSync(path.join(OUT, "games.json"), JSON.stringify(games));
 const py = execFileSync("python3", ["-I", "-B", "-c", `import sys, json; sys.path.insert(0, ${JSON.stringify(path.resolve("."))}); import vhp_ruler as V
 L, _ = V.load_ledger(sys.argv[1]); bad = 0
-for line in open(sys.argv[2], encoding="utf-8"):
-    ok, d = V.recompute(L, line)
+games = json.load(open(sys.argv[3]))
+for line, g in zip(open(sys.argv[2], encoding="utf-8"), games):
+    ok, d = V.recompute(L, line, g)
     bad += 0 if ok else 1
-print(bad)`, hd, path.join(OUT, "cards.jsonl")], { encoding: "utf8", maxBuffer: 1 << 26 }).trim();
+print(bad)`, hd, path.join(OUT, "cards.jsonl"), path.join(OUT, "games.json")], { encoding: "utf8", maxBuffer: 1 << 26 }).trim();
 const s11 = { id: 11, name: "JavaScript vs Python on real data", metric: `${cards.length - Number(py)} of ${cards.length} real cards byte-identical (Python rebuilt each from the hour files)`, pass: py === "0", mark: "byte-identical cards" };
 sims.results.push(s11); tick(`${s11.pass ? "PASS" : "FAIL"} sim 11: ${s11.metric}`);
 

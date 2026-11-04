@@ -240,12 +240,21 @@ jobs:
               raise ValueError("not an integer: %r" % (x,))
 
 
+          def _dec(x, what):
+              """A game id or round as plain decimal text (no sign, spaces or hex), exactly as vhp-ruler.js's dec()."""
+              if type(x) is int and 0 <= x <= 2 ** 53 - 1:
+                  return str(x)
+              if type(x) is str and re.fullmatch(r"[0-9]+", x):
+                  return str(int(x))
+              raise ValueError("%s must be a non-negative whole number" % what)
+
+
           def card_time(seed_block_id, game, rnd, W0, W1):
               if type(W0) is not int or type(W1) is not int or W1 < W0:
                   raise ValueError("bad card window")
               if type(seed_block_id) is not str or not re.fullmatch(r"0x[0-9a-f]+", seed_block_id):
                   raise ValueError("seed block id must be lowercase 0x-hex")
-              d = hashlib.sha256(("%s|%d|%d" % (seed_block_id, _int(game), _int(rnd))).encode("utf-8")).digest()
+              d = hashlib.sha256(("%s|%s|%s" % (seed_block_id, _dec(game, "game"), _dec(rnd, "round"))).encode("utf-8")).digest()
               return W0 + int.from_bytes(d[:8], "big") % (W1 - W0 + 1)
 
 
@@ -591,6 +600,10 @@ jobs:
               if T - AVG < L.frm + DELAY:
                   raise ValueError("not enough history before the card time (24 h of data are needed)")
               pooled, c, paying = set(pooled), _int(c), bool(paying)
+              if paying and T - L.frm < FORM + ACTIVE:
+                  raise ValueError("a paying card needs %d blocks of data before its moment (14 days + 6 h)" % (FORM + ACTIVE))
+              form_from = max(L.valid_from, T - FORM)
+              look0 = min(T - AVG, form_from)
               blocks, tot = w["S1"] - w["S0"] + 1, total(L, T)
               rows = []
               for a in L.active(T):
@@ -600,20 +613,24 @@ jobs:
                   seen_at_start = first is not None and first < L.valid_from
                   is_new = (not seen_at_start) and first is not None and T - first < FORM
                   history = first is not None and (T - L.frm >= HISTORY if seen_at_start else T - first >= HISTORY)
-                  flagged = _bad_for(L, a, min(T - AVG, f["from"]), T) or (paying and _rebuilt_in(L, T - AVG, T))
                   rows.append({"a": a, "own": o, "avg": av, "k": k, "form": f["form"],
                                "entry": k >= MIN_K and f["form"] >= FORM_GATE and history, "pooled": a in pooled,
-                               "isNew": is_new, "quality": "flagged" if flagged else "ok"})
+                               "isNew": is_new, "quality": "ok"})
               rows.sort(key=lambda r: (-r["own"], r["a"]))
+              if any(_bad_for(L, r["a"], look0, T) for r in rows) or (paying and _rebuilt_in(L, look0, T)):
+                  for r in rows:
+                      r["quality"] = "flagged"
               return {"ruleVersion": RULE_VERSION, "game": _int(game), "round": str(rnd), "ownRule": own_rule, "paying": paying,
                       "T": T, "seedBlock": seed_block, "seedBlockId": seed_id, "seedProducer": L.signer(seed_block),
                       "window": {"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]},
-                      "c": c, "total": tot, "producers": rows}
+                      "c": c, "total": tot, "formFrom": form_from, "producers": rows}
 
 
           def score_card(L, card):
               S0, S1 = card["window"]["S0"], card["window"]["S1"]
               tot = _int(card["total"])
+              flagged = any(p["quality"] == "flagged" or _bad_for(L, p["a"], S0, S1) for p in card["producers"]) \
+                  or (card["paying"] and _rebuilt_in(L, S0, S1))
               rows = []
               for p in card["producers"]:
                   o = _int(p["own"])
@@ -630,7 +647,6 @@ jobs:
                           m = e if e < o else o
                           expected += (H2 - H + 1) * (m * M // tot if tot > 0 else 0)
                           H = H2 + 1
-                  flagged = p["quality"] == "flagged" or _bad_for(L, p["a"], S0, S1) or (card["paying"] and _rebuilt_in(L, S0, S1))
                   q = dict(p)
                   q.update({"quality": "flagged" if flagged else "ok", "expected": expected,
                             "signed": L.signed_in(p["a"], S0, S1), "credited": credited})
@@ -640,13 +656,29 @@ jobs:
               return out
 
 
-          def recompute(L, published):
-              """published: the card's JSON text. Returns (same, diff)."""
+          def recompute(L, published, game):
+              """published: the card's JSON text; game: the game's OWN settings {game, round, window, c, ownRule, paying, pooled}
+              (Repo Lens #E-12 M-1: never the card's own settings). Returns (same, diff)."""
+              if not isinstance(game, dict):
+                  raise ValueError("recompute needs the game's own settings")
               pub = json.loads(published)
-              mine = make_card(L, pub["game"], pub["round"], pub["window"], pub["c"], pub["ownRule"], pub["paying"],
-                               [p["a"] for p in pub.get("producers", []) if p.get("pooled")])
-              if any("credited" in p for p in pub.get("producers", [])):
-                  mine = score_card(L, mine)
+              w = game["window"]
+              want = {"game": int(_dec(game["game"], "game")), "round": _dec(game["round"], "round"), "ownRule": game["ownRule"],
+                      "paying": bool(game["paying"]), "c": str(_int(game.get("c", 0))),
+                      "W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]}
+              got = {"game": pub.get("game"), "round": pub.get("round"), "ownRule": pub.get("ownRule"), "paying": pub.get("paying"),
+                     "c": str(pub.get("c"))}
+              got.update(pub.get("window") or {})
+              for k in want:
+                  if got.get(k) != want[k] or type(got.get(k)) is not type(want[k]):
+                      return False, "setting %s: the card says %s, the game says %s" % (k, json.dumps(got.get(k)), json.dumps(want[k]))
+              try:
+                  mine = make_card(L, game["game"], game["round"], w, game.get("c", 0), game["ownRule"], bool(game["paying"]),
+                                   game.get("pooled") or [])
+                  if any("credited" in p for p in pub.get("producers", [])):
+                      mine = score_card(L, mine)
+              except ValueError as e:
+                  return False, "the data can't make this card: %s" % e
               a = card_json(mine)
               if a == published:
                   return True, ""
@@ -1158,11 +1190,14 @@ jobs:
 
 
           def recompute_main(argv):
-              """argv: vhp-data dir, card file. Exit 0 = the card is exactly what the data gives, 1 = refuse."""
+              """argv: vhp-data dir, card file, the game's settings (a JSON file: {game, round, window, c, ownRule, paying,
+              pooled}, from the game's own code, never from the card). Exit 0 = the card is exactly what the data gives."""
               L, _ = load_ledger(argv[0])
               with open(argv[1], encoding="utf-8") as fh:
                   card = fh.read()
-              same, diff = recompute(L, card)
+              with open(argv[2], encoding="utf-8") as fh:
+                  game = json.load(fh)
+              same, diff = recompute(L, card, game)
               print("ok: the card matches the ruler's data" if same else "::error::the card doesn't match the ruler's data: " + diff)
               return 0 if same else 1
 

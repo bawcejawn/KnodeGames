@@ -37,7 +37,7 @@ export function sim5({ cards = 30 } = {}) {
     let ok = 0;
     for (let k = 0; k < cards; k++) {
       const Lk = (g.n0 + 30) * H + 600 + k * 37;
-      const c = R.scoreCard(L, R.makeCard(L, { game: 7, round: String(k), window: { W0: Lk - 3599, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + 1200 }, c: 0n, ownRule: "spot", paying: true }));
+      const c = R.scoreCard(L, R.makeCard(L, { game: 7, round: String(k), window: { W0: Lk - 3599, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + 1200 }, c: 0n, ownRule: "spot", paying: false }));
       if (c.producers.every((p) => p.quality === "ok")) ok++;
     }
     out["control, no fault"] = `${ok} of ${cards} cards made and scored`;
@@ -63,7 +63,7 @@ export function sim5({ cards = 30 } = {}) {
       let card = null;
       try {
         const L = R.ledger(D.timelineFrom(hours, checks));
-        card = R.scoreCard(L, R.makeCard(L, { game: 7, round: String(k), window: { W0: T0, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + 1200 }, c: 0n, ownRule: "spot", paying: true }));
+        card = R.scoreCard(L, R.makeCard(L, { game: 7, round: String(k), window: { W0: T0, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + 1200 }, c: 0n, ownRule: "spot", paying: false }));
       } catch (e) { card = null; }   // the data doesn't reach the card: no card is made
       if (!card || card.producers.every((p) => p.quality === "flagged")) flaggedOrNone++;
       else scored++;

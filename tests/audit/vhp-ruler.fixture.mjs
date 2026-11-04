@@ -104,3 +104,16 @@ export class FakeNode {
     return r;
   }
 }
+
+/** A long, fast chain for paying cards (which need 14 days + 6 h of data before T): rotating signers, a 4.08 VHP burn per
+ *  block, a mint now and then. No contract copy (the exactness tests cover that). n blocks from `from`. */
+export function longTimeline({ n = 470000, from = 1000000, np = 6, mints = 40 } = {}) {
+  const ps = Array.from({ length: np }, (_, i) => addr(i)), to = from + n - 1;
+  const bal = ps.map((_, i) => 10n ** 14n * BigInt(i + 1)), signers = new Array(n), ids = new Array(n), deltas = [];
+  for (let k = 0; k < n; k++) {
+    const s = ps[(k * 7 + (k >> 5)) % np]; signers[k] = s; ids[k] = "0x1220" + (from + k).toString(16).padStart(64, "0");
+    deltas.push({ h: from + k, a: s, d: -408000000n, inc: 0n }); bal[ps.indexOf(s)] -= 408000000n;
+  }
+  for (let m = 0; m < mints; m++) { const h = from + 1000 + m * Math.floor(n / mints), a = ps[m % np], v = 5n * 10n ** 12n; deltas.push({ h, a, d: v, inc: v }); bal[ps.indexOf(a)] += v; }
+  return { tl: { from, to, signers, ids, deltas, anchors: Object.fromEntries(ps.map((a, i) => [a, { h: to, v: bal[i] }])) }, ps };
+}

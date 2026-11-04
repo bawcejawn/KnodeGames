@@ -28,8 +28,10 @@
  *  trim(k, c)   floor(c ÷ √k) in millionths = isqrt(floor(c² × 10^6 ÷ k)) with c, k in millionths (exact).
  *  entry(p)     k ≥ 10 blocks, form ≥ 0.80, and p's first signed block at least 28,800 blocks before T.
  *  pooled(p)    the card's pooled list (today the Knode Games Vault): expected = Σ_b floor(min(own, eff(p,b))·10^6 ÷ total).
- *  quality(p)   "flagged" if any hour the card reads is bad for p (or for everyone), or — on a paying card — any hour in
- *               [T − 28,800, S1] has "rebuilt" anchors (D-112). Else "ok".
+ *  quality      for the whole card: "flagged" if any hour the card reads is bad for any active producer (its numbers feed
+ *               everyone's total and form), or — on a paying card — any hour it reads is "rebuilt" or unverified: the
+ *               look-back [T − 403,200, T] (form's 14 days and the 24-h size window) and the scoring window [S0, S1]
+ *               (D-112; Repo Lens #E-12 L-2, #D-10 M-3). Else "ok". A paying card needs 14 days + 6 h of data before T.
  *  cardTime     T = W0 + (first 8 bytes, big-endian, of sha256(UTF-8 "blockId|game|round")) mod (W1 − W0 + 1),
  *               blockId = the seed block's id as the node returns it (lowercase hex), game and round in decimal (D-112).
  *               Seed block = L + 20 (heights are consecutive, so the first irreversible block at or after L + 20).
@@ -90,11 +92,18 @@
   }
   const hex = (u8) => Array.from(u8, (x) => x.toString(16).padStart(2, "0")).join("");
 
+  /** A game id or round as plain decimal text: a non-negative safe integer, or a string of digits (Repo Lens #E-12 I-3:
+   *  no sign, no spaces, no hex; the Python twin accepts exactly the same). */
+  function dec(x, what) {
+    if (typeof x === "number" && Number.isSafeInteger(x) && x >= 0) return String(x);
+    if (typeof x === "string" && /^[0-9]+$/.test(x)) return BigInt(x).toString(10);
+    throw new Error(`${what} must be a non-negative whole number`);
+  }
   /** The random measuring moment (D-090, D-112). */
   function cardTime(seedBlockId, game, round, W0, W1) {
     if (!Number.isSafeInteger(W0) || !Number.isSafeInteger(W1) || W1 < W0) throw new Error("bad card window");
     if (typeof seedBlockId !== "string" || !/^0x[0-9a-f]+$/.test(seedBlockId)) throw new Error("seed block id must be lowercase 0x-hex");
-    const d = sha256(`${seedBlockId}|${BigInt(game).toString(10)}|${BigInt(round).toString(10)}`);
+    const d = sha256(`${seedBlockId}|${dec(game, "game")}|${dec(round, "round")}`);
     let n = 0n; for (let i = 0; i < 8; i++) n = (n << 8n) | BigInt(d[i]);
     return W0 + Number(n % BigInt(W1 - W0 + 1));
   }
@@ -218,7 +227,7 @@
     const shareP = new Map();
     const shares = (i) => {
       let s = shareP.get(i); if (s) return s;
-      s = new BigInt64Array(to - validFrom + 2);   // prefix sums ≤ blocks × 10^6: well inside 64 bits
+      s = new BigInt64Array(to - validFrom + 2);   // prefix sums: ~blocks × 10^6 (a producer outside the active set can exceed 1 a block; still far inside 64 bits)
       const p = P[i]; let j = upperBound(p.cp, validFrom) - 1;
       for (let H = validFrom; H <= to; H++) {
         while (j + 1 < p.cp.length && p.cp[j + 1] <= H) j++;
@@ -296,25 +305,34 @@
     const T = cardTime(seedBlockId, opts.game, opts.round, w.W0, w.W1);
     if (T - AVG < L.from + DELAY) throw new Error("not enough history before the card time (24 h of data are needed)");
     const pooled = new Set(opts.pooled || []), c = big(opts.c ?? 0n), paying = !!opts.paying;
+    // Repo Lens #E-12 L-1: a paying card reads the full 14-day form look-back, so its bytes never depend on where the
+    // loaded data starts (T − from ≥ 403,200 + 7,200, the network total's own warm-up)
+    if (paying && T - L.from < FORM + ACTIVE) throw new Error(`a paying card needs ${FORM + ACTIVE} blocks of data before its moment (14 days + 6 h)`);
+    const formFrom = imax(L.validFrom, T - FORM), look0 = imin(T - AVG, formFrom);
     const blocks = w.S1 - w.S0 + 1, tot = total(L, T);
     const producers = L.active(T).map((a) => {
       const o = own(L, a, T, ownRule), av = avg(L, a, T), f = formOf(L, a, T), k = kOf(blocks, o, tot);
       const first = L.firstSigned(a), seenAtStart = first !== null && first < L.validFrom;
       const isNew = !seenAtStart && first !== null && T - first < FORM;
       const history = first !== null && (seenAtStart ? T - L.from >= HISTORY : T - first >= HISTORY);
-      const quality = badFor(L, a, imin(T - AVG, f.from), T) || (paying && rebuiltIn(L, T - AVG, T)) ? "flagged" : "ok";
-      return { a, own: o, avg: av, k, form: f.form, entry: k >= MIN_K && f.form >= FORM_GATE && history, pooled: pooled.has(a), isNew, quality };
+      return { a, own: o, avg: av, k, form: f.form, entry: k >= MIN_K && f.form >= FORM_GATE && history, pooled: pooled.has(a), isNew, quality: "ok" };
     }).sort((x, y) => (x.own > y.own ? -1 : x.own < y.own ? 1 : x.a < y.a ? -1 : 1));
+    // quality, for the whole card: every producer's numbers feed everyone's total and form (Repo Lens #E-12 L-2), so a bad
+    // range for any active producer in the look-back flags every producer; on a paying card, so does any rebuilt or
+    // unverified hour anywhere in the look-back, form's 14 days included (D-112; Repo Lens #D-10 M-3)
+    const flagged = producers.some((p) => badFor(L, p.a, look0, T)) || (paying && rebuiltIn(L, look0, T));
+    if (flagged) for (const p of producers) p.quality = "flagged";
     return {
       ruleVersion: RULE_VERSION, game: Number(opts.game), round: String(opts.round), ownRule, paying,
       T, seedBlock, seedBlockId, seedProducer: L.signer(seedBlock),
-      window: { W0: w.W0, W1: w.W1, L: w.L, S0: w.S0, S1: w.S1 }, c, total: tot, producers,
+      window: { W0: w.W0, W1: w.W1, L: w.L, S0: w.S0, S1: w.S1 }, c, total: tot, formFrom, producers,
     };
   }
 
   /** scoreCard: once S1 is in the data, fill expected, signed and credited for every producer (millionths). */
   function scoreCard(L, card) {
     const { S0, S1 } = card.window, tot = big(card.total);
+    const flagged = card.producers.some((p) => p.quality === "flagged" || badFor(L, p.a, S0, S1)) || (card.paying && rebuiltIn(L, S0, S1));
     const producers = card.producers.map((p) => {
       const o = big(p.own);
       let credited = 0n;
@@ -330,18 +348,27 @@
           H = H2 + 1;
         }
       }
-      const quality = p.quality === "flagged" || badFor(L, p.a, S0, S1) || (card.paying && rebuiltIn(L, S0, S1)) ? "flagged" : "ok";
+      const quality = flagged ? "flagged" : "ok";
       return { ...p, quality, expected, signed: L.signedIn(p.a, S0, S1), credited };
     });
     return { ...card, producers };
   }
 
-  /** recompute (§13): rebuild a published card from the data and compare byte for byte. */
-  function recompute(L, published) {
+  /** recompute (§13): rebuild a published card FROM THE GAME'S OWN SETTINGS and compare byte for byte (Repo Lens #E-12
+   *  M-1: never from the card's own settings, or a card made with the wrong window, c, own rule, paying flag or pooled
+   *  list would pass). game = { game, round, window: { W0, W1, L, S0, S1 }, c, ownRule, paying, pooled }. */
+  function recompute(L, published, game) {
+    if (!game || typeof game !== "object") throw new Error("recompute needs the game's own settings");
     const pub = typeof published === "string" ? JSON.parse(published) : published;
-    let mine = makeCard(L, { game: pub.game, round: pub.round, window: pub.window, c: big(pub.c), ownRule: pub.ownRule, paying: pub.paying,
-      pooled: (pub.producers || []).filter((p) => p.pooled).map((p) => p.a) });
-    if ((pub.producers || []).some((p) => "credited" in p)) mine = scoreCard(L, mine);
+    const want = { game: Number(dec(game.game, "game")), round: dec(game.round, "round"), ownRule: game.ownRule, paying: !!game.paying, c: big(game.c ?? 0n).toString(10),
+      W0: game.window.W0, W1: game.window.W1, L: game.window.L, S0: game.window.S0, S1: game.window.S1 };
+    const got = { game: pub.game, round: pub.round, ownRule: pub.ownRule, paying: pub.paying, c: String(pub.c), ...(pub.window || {}) };
+    for (const k of Object.keys(want)) if (got[k] !== want[k]) return { same: false, diff: `setting ${k}: the card says ${JSON.stringify(got[k])}, the game says ${JSON.stringify(want[k])}` };
+    let mine;
+    try {
+      mine = makeCard(L, { game: game.game, round: game.round, window: game.window, c: big(game.c ?? 0n), ownRule: game.ownRule, paying: !!game.paying, pooled: game.pooled || [] });
+      if ((pub.producers || []).some((p) => "credited" in p)) mine = scoreCard(L, mine);
+    } catch (e) { return { same: false, diff: `the data can't make this card: ${e.message}` }; }
     const a = cardJson(mine), b = typeof published === "string" ? published : cardJson(published);
     if (a === b) return { same: true };
     let i = 0; while (i < a.length && a[i] === b[i]) i++;

@@ -26,6 +26,7 @@ Free and staked prediction games on the Koinos blockchain, powered by our own bl
 - **Tests:** `npm run test:audit` (built for Linux; many tests skip or fail on Windows by design). Site tests: `node --test tests/audit/site.*.test.mjs`.
 
 ## Reading order
+0. **Your work list:** your chat's section of **`platform/CHAT_REQUESTS.md`** (D-089). Every session starts there.
 1. **`platform/CURRENT_STATE.md`** — what's done, in progress, blocked and next, as of its date; then **`platform/PRIORITIES.md`** — what matters most. **`platform/ACTIVE_WORK.md`** splits the current work by area (platform, games, vault, leaderboards, rewards, swap desk).
 2. **`platform/PLATFORM.md`** — the one-page picture: games, contracts, money, wallets, branches, who owns what.
 3. **`platform/DECISIONS.md`** — every decision (D-xxx). **This file wins** if anything disagrees.

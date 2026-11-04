@@ -35,7 +35,7 @@
 | 24 | P1 | M | **How the free-prize switch works and its starting values** were only in D-082 | — | ✅ `platform/FREE_PRIZE_SWITCH.md` (3 Nov). Owner still to set the values |
 | 25 | P2 | M | **No game go-live checklist**: audit → merge → Leaders entry → `game-add … --free` → switch → `game-apply` → `games.json` live → announce. The steps are spread over GAME_STANDARD, VAULT_STANDARD §9, ROADMAP and chat notes | — | New `standards/GO_LIVE_CHECKLIST.md` (folds in #5) |
 | 26 | P2 | M | **No monitoring and alerts guide**: what each workflow, the watchdog email and the bot's "problems" mean, and what to do | — | Section in the emergency runbook (#2), or `platform/MONITORING.md` |
-| 27 | P2 | C | **Which source wins** was worded three ways (START_HERE, D-002, AI_CHAT_STARTER) | — | ✅ one order in D-002 (3 Nov), ❓ owner to confirm; START_HERE and the chat starter point to it |
+| 27 | P2 | C | **Which source wins** was worded three ways (START_HERE, D-002, AI_CHAT_STARTER) | — | ✅ one order in D-002 (3 Nov), confirmed by the owner; START_HERE and the chat starter point to it |
 | 28 | P3 | C | **Two names for saved notes**: `claude/handoff-<topic>.md` (instructions for another chat) and `claude/<area>/HANDOFF-<date>.md` (session-end reports) | — | ✅ both kept and explained in `SESSION_END_PROCESS.md` |
 | 29 | P3 | M | **No announcements process**: D-064 says *when* to announce, not where (site, X, Telegram?), who writes it, or the checklist | — | Owner decision, then a short section in the go-live checklist |
 | 30 | P3 | M | **No week-label spec**: three numbering schemes are still live; the plan for "9 Nov = Week 1" site-wide isn't written (I-069) | — | Hub chat: one table (vault week, site label, file name) in `KOINOS.md` → Time |

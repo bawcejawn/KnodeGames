@@ -13,12 +13,11 @@
 - [ ] **Free-prize switch: set the starting values** — ON for 2, 7, 9, 13; OFF for 3, 4, 6, 8 (`FREE_PRIZE_SWITCH.md` §4–5); then the GitHub ruleset on `prize-settings` (no deletion, no force-push) — P1 — D-082
 - [ ] **Switch the PC folder to `main`** (all of `picks` is in `main`; `npm run prizes` is only on `main`) — confirm with the library chat first — P2
 - [x] ~~Send the Vault chat its two prompts~~ — sent 3 Nov; answers: PR #73 (wallets) and PR #74 (vault bot checks)
-- [ ] Send the **Bracket audit** prompt to Repo Lens (`claude/prompts-2026-11-03-vault-checks-bracket-audit.md`) — P2 — I-061
+- [x] ~~Send the Bracket audit prompt to Repo Lens~~ — done; report 3 Nov: fix first (R-BR-1); decisions D-086 – D-088
 - [x] ~~Merge the docs cleanup PR~~ — #72 merged 3 Nov
 - [ ] **PR #73** (new `docs/WALLETS.md` + weekend runbook): an independent check found 3 High issues (shared recovery words for owner and treasury; no way to send the new owner KOIN; no emergency path between 4b and 5b). **Sent back to the Vault chat** (`claude/prompts-2026-11-03-boards-owners-vault-reply.md`); merge only after the fixes, before Friday — P1 — I-001, D-083
 - [ ] **Send PR #74 to Repo Lens** with `claude/audit-vault-bot-checks-prompt.md`; merge after GO, by Fri 13 Nov — P1 — I-051, I-052, I-064
-- [ ] Send the `board.json` prompt to the Bracket, Last Node, Combo, Survivor, Fantasy and Golf chats — P2 — I-079
-- [ ] Tell the Block X chat (picks owner handover, I-076) and the Race chat (racepicks owner change, I-077) — P2
+- [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1). Their work is listed there, incl. `board.json` (R-ALL-3) and the owner tools (R-BX-3, R-RACE-3) — P2 — D-089
 - [ ] **Fri 6 Nov:** wallet runbook step 0 (read-only check) — paste the output to the Vault chat — P1 — I-001
 - [ ] Tell the game chats about **D-081** (every game has Free play): Survivor — keep the free board; prize held by the switch (D-082); Fantasy, Last Node — add a free board; Combo — let free players send cards; Golf — free board, no prize — prompts ready in the project: `claude/prompts-2026-11-03-free-play.md` — P2 — I-074
 - [ ] Ask the Block X chat which items on its "before prizes" list (I-042) could mispay in the first paid week, and watch the 24 h correction window after each seal — P1 — D-077

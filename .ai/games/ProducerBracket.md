@@ -41,3 +41,15 @@ Branch `kg-09-bracket` @ `ee676ea` ✅ — pushed, **not merged, nothing deploye
 
 ## Future plans
 Repo Lens audit → fixes and fix-check → update the branch from `main` → announce in Picks and the vault → sponsor row → `games.json` live. Then help move the Race and Block X onto the VHP standard. Block Golf will read the Bracket's weekly file (not the board, which is capped at 1,000 rows, `MAX_BOARD_ROWS` ✅).
+
+## Audit 3 Nov — Repo Lens #E-3: fix first
+- **Commit audited:** `5b2492e` (branch tip). The full report and the failing tests are private, in the Claude project (`claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`).
+- **Found:** 2 Critical, 6 High, 10 Medium, plus Low/Info.
+  - **Critical:** C-1 vault values past 255 places; C-2 the page can show a different bracket than it signs.
+  - **High:** H-1 the page rejects the recorder's v4 week files, so nobody can play yet; H-2 points aren't recomputed by the publish job; H-3 no clock checks on new history; H-4 and H-5 matchup manipulation (the Pool; one-block forfeits); H-6 same-block ties.
+- **Sound:** the one-number pick (3.36 M numbers, 0 failures), the effective-VHP rebuild, the vault-file rules, the publish job running no repo code, honest runs never held.
+- **Owner decisions:**
+  - D-086: the Pool stays in the field, protected; forfeits on a day-long average;
+  - D-087: same-block ties share the place;
+  - D-088: launch when the fix-check passes, no 9 Nov target.
+- **Work list:** `platform/CHAT_REQUESTS.md` → Producer Bracket (R-BR-1 – R-BR-5).

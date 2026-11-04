@@ -383,9 +383,15 @@
       }
     } catch (e) {
       const m = String((e && e.message) || e);
-      const why = /locked|started/i.test(m) ? "That race has started: picks are locked."
-        : /used up/i.test(m) ? "Today's picks are used up (changes count). More tomorrow, 00:00 UTC."
-        : /already your pick/i.test(m) ? "That is already your pick."
+      // R-RACE-7 (I-082), as PR #66 did for Block X: only the Race picks contract's own messages (race/assembly/Race.ts)
+      // get the game's wording. The Mana sponsor and the wallet use some of the same words ("used up", "closed"), and
+      // their reason is shown as they give it.
+      const why = /RACE: this race has started; picks are locked/i.test(m) ? "That race has started: picks are locked."
+        : /RACE: picks open 24 hours before a race/i.test(m) ? "That race isn't open yet: picks open 24 hours before it starts."
+        : /RACE: today's picks are used up/i.test(m) ? "Today's picks are used up (changes count). More tomorrow, 00:00 UTC."
+        : /RACE: that is already your pick/i.test(m) ? "That is already your pick."
+        : /RACE: picks are closed/i.test(m) ? "Race picks are switched off right now."
+        : /pending account resources|insufficient.*(rc|mana|resources)/i.test(m) ? "Your Mana is still held by your last pick. It frees up within a few minutes of each pick; try again in a minute."
         : /reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."
         : `Not sent: ${m.slice(0, 200)}`;
       pickModal(/Cancelled/.test(why) ? "info" : "bad", /Cancelled/.test(why) ? "Cancelled" : "Pick not sent", [why], [okBtn("OK")]);

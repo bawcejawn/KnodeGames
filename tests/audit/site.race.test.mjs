@@ -203,3 +203,25 @@ test("race page: the staked / free status bar sits at the top of the page, for g
   assert.match(js, /window\.KStake\.badge\(document\.getElementById\("stake-badge"\), \{ game: 7 \}\)/);
   assert.ok(h.indexOf('id="stake-badge"') < h.indexOf('id="stake"'), "the bar above the full stake panel");
 });
+
+test("R-RACE-7 (I-082): pick errors: only the Race picks contract's own messages get the game's wording; a sponsor or wallet reason is shown as given", () => {
+  const js = read("race.js");
+  const start = js.indexOf("const why = ") + "const why = ".length, expr = js.slice(start, js.indexOf(";\n", start));
+  const why = (m) => new Function("m", `return ${expr};`)(m);
+  // The contract's own messages, word for word (race/assembly/Race.ts).
+  const src = read("race/assembly/Race.ts");
+  const msg = (k) => src.match(new RegExp(`export const ${k} = "([^"]+)"`))[1];
+  assert.match(why(msg("USED_UP")), /Today's picks are used up \(changes count\)/);
+  assert.match(why(msg("LOCKED")), /That race has started/);
+  assert.match(why(msg("TOO_EARLY")), /picks open 24 hours before/);
+  assert.match(why(msg("SAME")), /already your pick/);
+  assert.match(why(msg("CLOSED")), /switched off/);
+  // The guest and sponsor refusals (wallet.js) say "used up" or "closed" too: they must not read as the Race's limit.
+  for (const m of ["Free answers are used up for today — try again after 00:00 UTC (5pm PT), or connect a wallet.",
+    "Today's free play is used up for this hour — more opens on the hour (UTC). Try again then, or connect a wallet.",
+    "The free Mana sponsor is closed right now."]) {
+    assert.doesNotMatch(why(m), /picks are used up|switched off/, m);
+    assert.ok(why(m).includes(m), "the wallet's own reason is shown");
+  }
+  assert.match(why("User rejected the request"), /Cancelled in your wallet/);
+});

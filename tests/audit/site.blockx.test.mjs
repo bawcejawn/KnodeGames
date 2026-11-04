@@ -300,3 +300,18 @@ test("audit BX-31: the testnet wallet signs only the Picks `pick` entry point, c
   assert.match(src, new RegExp(`PICK_ENTRY = ${abi.methods.pick.entry_point}\\b`));
   assert.equal((src.match(/isPick\(o\)/g) || []).length, 2, "before signing and on the signed operations");
 });
+
+test("pick errors: only the Picks contract's own messages get the game's wording; a sponsor or wallet reason is shown as given", () => {
+  const js = fs.readFileSync(path.resolve(APP, "blockx.js"), "utf8");
+  const expr = js.slice(js.indexOf("const why = ") + "const why = ".length, js.indexOf(";\n", js.indexOf("const why = ")));
+  const why = (m) => new Function("m", "G", `return ${expr};`)(m, { LEAD: 100, PICKS_PER_DAY: 30, MAX_CHANGES: 1 });
+  assert.match(why("PICKS: today's picks for this game are used up"), /Today's 30 picks are used up/);
+  assert.match(why("PICKS: this round is locked"), /locked: picks close 100 blocks/);
+  assert.match(why("PICKS: this pick can't be changed again"), /changed once already/);
+  // The guest and sponsor refusals (wallet.js) say "used up" too: they must not read as the game's daily limit.
+  for (const m of ["Free answers are used up for today — try again after 00:00 UTC (5pm PT), or connect a wallet.",
+    "Today's free play is used up for this hour — more opens on the hour (UTC). Try again then, or connect a wallet."]) {
+    assert.doesNotMatch(why(m), /picks are used up/, m);
+    assert.ok(why(m).includes(m), "the wallet's own reason is shown");
+  }
+});

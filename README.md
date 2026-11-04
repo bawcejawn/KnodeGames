@@ -24,7 +24,7 @@ All times are UTC. A week runs Monday 00:00 to Sunday 24:00.
 | When | What happens |
 |---|---|
 | Monday to Saturday, 12:00 | 5 new questions (30 a week). They are numbered Q1–Q30 within the week. Monday and Tuesday are easy, Wednesday and Thursday medium, Friday and Saturday hard. |
-| From Mon 16 Nov: Monday to Saturday, 00:00 and 12:00 | The 5 come in two rounds: 2 at 00:00 (answers close at 12:00) and 3 at 12:00 (answers close at 00:00). Still 30 a week. |
+| From Mon 9 Nov: Monday to Saturday, 00:00 and 12:00 | Two rounds a day: 2 at 00:00 (answers close at 12:00) and 3 at 12:00 (answers close at 00:00), 30 a week. From the first week the upgraded contract allows it: 4 + 4, 48 a week. |
 | The next day, 00:00 | Answers close (12 hours after release), before the blocks the question is about are made. |
 | After each question's blocks are final | The bot posts the result. Your points update right away. |
 | Sunday | No new questions: results day. |

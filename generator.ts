@@ -103,7 +103,7 @@ function parseArgs() {
   const n = (k: string) => (o[k] === undefined ? undefined : Number(o[k]));
   return { cmd, date: o.label ?? o.date ?? new Date().toISOString().slice(0, 10), force: o.force === "true" || "force" in o, offline: "offline" in o,
     week: n("week"), day: n("day"), maxLock: n("max-lock"), maxEnd: n("max-end"),
-    lockHeight: n("lock-height"), lockTime: n("lock-time"), count: n("count"), avoidOverlap: "avoid-overlap" in o,
+    lockHeight: n("lock-height"), lockTime: n("lock-time"), count: n("count"), maxUses: n("max-uses"), avoidOverlap: "avoid-overlap" in o,
     exclude: o.exclude ? o.exclude.split(",").map((x) => x.trim()).filter(Boolean) : [] };
 }
 
@@ -429,14 +429,16 @@ async function run() {
   if (args.maxLock !== undefined && lockHeight > args.maxLock) throw new Error(`Too late in the week to release: answers would close at ${lockHeight}, after the week ends at ${args.maxLock}.`);
   const maxEnd = args.maxEnd ?? Infinity; // the window must end early enough for the week to close on time
   const usedToday = new Set<string>();
-  // Two rounds a day (D-092, from week 4; the bot passes --avoid-overlap): an earlier round's windows can still be
+  // Two rounds a day (D-092, from week 3; the bot passes --avoid-overlap): an earlier round's windows can still be
   // running when this round's start. A producer asked about in a window that overlaps this round's windows is left
   // out, so one node going quiet can't decide two live questions at once. Weeks with one round keep today's rule
   // exactly (Repo Lens #D-6 Q-2: a smaller producer's long window can run into the next day's there too).
   if (args.avoidOverlap) for (const a of producersInOverlappingWindows(path.join(DIR, "questions"), lockHeight + 1, args.date)) usedToday.add(a);
   // Fairness: how many of this week's questions each producer is already part of. No producer goes past the cap, so
   // no single node carries enough of the week's questions to make gaming it worthwhile.
-  const cap = g.maxUsesPerWeek ?? 4;
+  // The bot raises it for weeks of more than 30 questions (--max-uses, D-092); manual runs use game.json's.
+  if (args.maxUses !== undefined && !(Number.isInteger(args.maxUses) && args.maxUses >= 1 && args.maxUses <= 20)) throw new Error(`--max-uses must be a whole number from 1 to 20 (got ${args.maxUses}).`);
+  const cap = args.maxUses ?? g.maxUsesPerWeek ?? 4;
   const uses = (st.usesByWeek ??= {})[String(week)] ??= {};
   const usable = (a: string) => !usedToday.has(a) && !voided.has(a) && (uses[a] ?? 0) < cap;
 

@@ -1,6 +1,6 @@
 <#
   Knode - make sure the daily questions come out on time (Windows Task Scheduler, every 5 minutes): the 12:00 UTC
-  round, and from the week of Mon 16 Nov also the 00:00 UTC round (D-092).
+  round, and from the week of Mon 9 Nov also the 00:00 UTC round (D-092).
 
   Run once in PowerShell from C:\kprediction:
       powershell -ExecutionPolicy Bypass -File node\install-release-kick.ps1

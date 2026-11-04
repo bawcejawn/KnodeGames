@@ -157,7 +157,13 @@ export function chainAt(rpc: string): Chain {
       const t: any = (await call(() => nick.get_main_token({ value: a }))).result;
       if (!t || !t.token_id) return null;
       const n = new TextDecoder().decode(utils.toUint8Array(String(t.token_id).replace(/^0x/, "")));
-      return R.okNick(n) ? n : null;
+      if (!R.okNick(n)) return null;
+      // A main token that was burned (or points elsewhere) may still be returned: show it only if the name points to this
+      // wallet now (Repo Lens C5-9). A node that can't answer throws, so the old name is kept this run.
+      let r: any;
+      try { r = (await call(() => nick.get_address({ value: n }))).result; }
+      catch (e: any) { if (/does not exist|not exist|not found/i.test(String(e && e.message))) return null; throw e; }
+      return r && r.value === a ? n : null;
     },
     async poolName(a) {
       // A producer that runs a pool (Fogata) is the pool contract itself; its get_pool_params starts with the name.

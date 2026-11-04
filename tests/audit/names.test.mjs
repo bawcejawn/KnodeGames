@@ -431,9 +431,11 @@ test("D-078 (I-073): Block X shows every producer and player through nameOf, whi
 
 test("Your @names: Make main (set_main_token) and Remove (burn, asked twice) act only on the wallet's own names", () => {
   const js = fs.readFileSync(`${APP}/names-page.js`, "utf8");
-  assert.match(js, /act\(`make @\$\{n\} my main @name`, "set_main_token", \{ token_id: nickHex\(n\) \}/);
-  assert.match(js, /act\(`remove @\$\{n\}`, "burn", \{ token_id: nickHex\(n\) \}/);
-  assert.match(js, /if \(S\.confirm !== n\) \{ S\.confirm = n;/, "Remove asks twice");
+  // The token id sent is the contract's own hex from the wallet's list (Repo Lens C5-10); behaviour is in names-page.burn.C5-95.
+  assert.match(js, /act\(who, x, `make @\$\{x\.n\} my main @name`, "set_main_token", \{ token_id: x\.hex \}/);
+  assert.match(js, /act\(who, x, `remove @\$\{x\.n\}`, "burn", \{ token_id: x\.hex \}/);
+  assert.match(js, /if \(S\.confirm !== x\.hex\) \{/, "Remove asks twice");
+  assert.match(js, /Date\.now\(\) - S\.armedAt < TAP_GAP_MS/, "a double click is not the second tap");
   assert.match(js, /get_tokens_by_address\(\{ address: a, limit: 20 \}\)/, "the list is the connected wallet's own names");
   // Only these Nicknames calls are ever built on the page.
   const calls = [...js.matchAll(/\(await nick\(\)\)(?:\.(\w+)|\[call\])\(/g)].map((m) => m[1] || "[call]");

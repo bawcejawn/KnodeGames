@@ -9,7 +9,6 @@
 ## P1 — Critical (this week; blocks value or risks funds)
 | # | Work | Value it creates | Owner | Refs |
 |---|------|------------------|-------|------|
-| 1 | **Unblock guest picks** (the sponsor check traps for picks) | Free play is how new players arrive; today no guest can pick on Race or Block X | Block X chat, then owner | I-083, R-BX-0 |
 | 2 | **Put Block X and the Race in the vault:** `game-apply` Thu 5 – Sun 8 Nov, then `PRIZES_FROM_WEEK = 3` | Turns three games into **paying** games from Mon 9 Nov: the first real reason to stake | owner | D-077 |
 | 3 | **Make the first paid week safe:** the Race vault-file hold (Block X's fixes merged, PR #80); watch the 24 h correction window after each seal | A wrong first payout would cost more trust than any feature earns | Block X, Race chats; owner | I-042, I-034, TD-02 |
 | 4 | **Split the keys this weekend:** cold desk treasury, cold-key owner for the vault, Desk, Picks and Race picks; retire the old operator key | The desk's funds stop depending on one hot key; the safety story players can rely on | owner (+ Vault, Block X, Race chats for the tools) | TD-01, TD-04, I-001, D-083, D-096 |

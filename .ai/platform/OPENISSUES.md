@@ -11,7 +11,6 @@ Contradictions are tracked in `DECISIONS.md` → Contradictions (none open).
 ## Open
 | ID | Priority | Area | Issue (current state) | Work | Opened |
 |----|----------|------|-------------------------|------|--------|
-| I-083 | **P1** | sponsor / guest play | **Guest picks are blocked.** Sponsor v3 `would_pay` traps ("module exited due to trap") for picks (games `[7]`, `[2]`) on both nodes; answers (games `[]`) still work. The site then shows "Free answers are used up". Most likely since the sponsor's vault switch (3 Nov), which adds a vault `get_game_player` read for picks. Stakes and withdrawals are not affected ✅ (owner's read-only test, 4 Nov ~03:50 UTC) | R-BX-0 | 2026-11-04 |
 | I-001 | P1 | wallets | Owner and desk treasury are still the same hot address (`1635QU…`). Procedure and weekend runbook are in `docs/WALLETS.md` (PR #73, merged 4 Nov): cold treasury first, then the vault and Desk owner handovers after every `game-apply`; new owner = cold key (D-083); Picks and Race picks this weekend too (D-096) | TODOS (wallet moves); R-BX-3, R-RACE-3 | 2026-11-02 |
 | I-002 | P1 | security | The full platform audit (D-014): runs once everything is confidently ready (D-102) | TODOS (later) | 2026-11-02 |
 | I-034 | P1 | Race / vault | B1-2 (High before game 7 prizes): a final Race vault file is decided by one run and locked forever; it isn't re-derived from the `W###` files and has no 12-hour hold | R-RACE-1 | 2026-11-02 |

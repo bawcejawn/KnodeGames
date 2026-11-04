@@ -8,7 +8,6 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today
-- [ ] **Guest picks are blocked** (I-083): send the Block X chat the trap results (R-BX-0). Don't send any sponsor config change until that chat gives the exact command — P1
 - [ ] **Free-prize switch: set the starting values** — ON for 2, 7, 9, 13; OFF for 3, 4, 6, 8 (`FREE_PRIZE_SWITCH.md` §4–5); then the GitHub ruleset on `prize-settings` (no deletion, no force-push) — P1 — D-082
 - [ ] **Message the Hub chat** (start message): its list has the Stake tab (R-HUB-9), the admin follow-ups (R-HUB-8), @names (R-HUB-3) and the guest-wallet messages (R-HUB-4) — P2
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089

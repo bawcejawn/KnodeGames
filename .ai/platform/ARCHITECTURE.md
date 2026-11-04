@@ -1,7 +1,7 @@
 # Knode Games — Architecture
 
 > Purpose: How the pieces fit together. Describe, don't prescribe — rules live in `DECISIONS.md` and `../standards/`.
-> Last updated: 2026-11-02 (consolidated: duplicate bot rows merged, test results gathered into one section, owner answers applied)
+> Last updated: 2026-11-03 (after the Block X launch, PR #57: code facts re-checked on `main`; stale lines marked, not removed)
 > Sources: `.ai/archive/CHAT_KNOWLEDGE.md` (all 12 chats), checked against branches `picks` and `main` on 2026-11-02.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict (see `DECISIONS.md`) · ❓ unknown
@@ -55,7 +55,7 @@ Owner PC: 3 Docker nodes (desk, game, personal) + self-heal
 - **Guest** — see `guest.js` above.
 
 ### Smart Contracts
-See `PLATFORM.md` → Core Components for addresses and hashes.
+See `PLATFORM.md` → Contracts for addresses and hashes.
 | Contract | Version | Upgradable? | Timelock | Confidence |
 |----------|---------|-------------|----------|-----------|
 | Game / Vault | v6 (upgraded in place from v5) | yes — 48 h notice for any vault upgrade (D-024) | 48 h (`timelockLength 172800000`) | ✅ |
@@ -64,7 +64,7 @@ See `PLATFORM.md` → Core Components for addresses and hashes.
 | Race | {{TBD}} | {{TBD}} | {{TBD}} | ✅ address only |
 | Picks | {{TBD}} | {{TBD}} | {{TBD}} | ✅ address only |
 
-Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GENESIS` 1792368000000), weeks Monday to Monday UTC, week = floor((t − genesis) / 7 days), so vault week 0 = Mon 19 Oct and week 2 = Mon 2 Nov (💬 Hub, Race; see C-08), close delay 12 h, settle 24 h, min stake 1 VHP (`100000000`), max sponsored Mana per tx 2 (`maxSponsorRc 200000000`).
+Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GENESIS` 1792368000000), weeks Monday to Monday UTC, week = floor((t − genesis) / 7 days), so vault week 0 = Mon 19 Oct and week 2 = Mon 2 Nov (💬 Hub, Race; week labels: `KOINOS.md` → Time and D-063), close delay 12 h, settle 24 h, min stake 1 VHP (`100000000`), max sponsored Mana per tx 2 (`maxSponsorRc 200000000`).
 
 ### Mana Sponsor
 - Sponsor covers: game, VHP, KOIN, race, picks contracts — ✅ `game-data/deployment.json` (`sponsor.covers`)
@@ -73,7 +73,7 @@ Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GE
 - `rcLimitOther` (stake, approve, etc.): 1 Mana ✅ (3 was the v2-era value; C-05 resolved)
 - Per-action limit: picks `pick` 0.2 Mana — ✅ (`rcLimits`, `sponsor-data/mana-limits.json`)
 - Answer-only transactions are sponsored for any wallet within the free sub-cap; everything else is for real players only and fails closed — 💬
-- Caps (per tx / player-day / player-week / everyone-day / free-day): 1 / 25 / 150 / 5,000 / 2,000; sponsor ON, vault switch off — 💬 Block X, as of 30 Oct (C-02 resolved)
+- Caps (per tx / player-day / player-week / everyone-day / free-day): 1 / 25 / 150 / 5,000 / 2,000; sponsor ON; **vault switch ON since 3 Nov** (owner; was off as of 30 Oct — 💬 Block X; C-02 resolved)
 - **Vault switch (v3):** `config.game_has_vault`. While off, the sponsor never calls `get_game_player` and refuses vault calls with `VAULT_NOT_LIVE`. The tool reads `get_state` `config.v6_rule_week_plus_one` from two nodes. — 💬 Vault chat
 - **Caution:** a plain `config` resets the caps to defaults, so always pass the current caps. — 💬 Vault chat
 - **Sponsor tool rules** (💬 Block X): `capsOf` keeps 0; `tighterCaps` takes the lowest of both nodes and the default; `allowedBuilds` mainnet [v3, v2]; `codeOn` checks two nodes; the SP-50 swap check runs only on v3; `mana-limit --limit X` needs X ≥ 1.25 × the observed most and ≤ the per-tx cap; `TESTNET_PICKS` / `TESTNET_PICKS_CARDS=yes` are testnet only.
@@ -88,7 +88,7 @@ Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GE
 | Survivor recorder (not deployed) | with `games.yml` | No keys. Mainnet seasons need two nodes, compared on settings only; a down check node doesn't stop the run, days seen by one node are re-checked later. 8-min budget (`SURVIVOR_BUDGET_MS`), hard stop for chain reads 4 min later. Stages output in a side folder, keeps the old as `.survivor-old-<hash>`, `recoverOut` repairs an interrupted swap. Writes v2 season files with a `stakes` array, keeping every player's picks. Vault reads: `vaultSettings`, `vaultMismatch`, `readStaked`, `readRanked` (`get_player` → `stake_other`) | `bot/games/survivor.ts`, shared rules `survivor-math.js` (`KSurvivor`), page `survivor.html` / `survivor.js` | 💬 Survivor (branch `survivor`) |
 | Last Node recorder (not deployed) | `lastnode.yml` | Read-only, no keys; two nodes, irreversible blocks, must match. Writes `games-data/lastnode/` `D<day>.json`, `index.json`, `board.json`, `vault/W<week>.json`, `vault/HOLD-W<week>.json`. Testnet mode `--testnet --game N` writes only in `testnet-data/`. Record job: read-only token, no secrets; fetches race-data, games-data and race-samples (a snapshot every 6 h, 60 h back). Publish job runs no repo code: a Python shape check, then `histcheck.py` with Python ports of the scoring, plus its own stdlib Koinos JSON-RPC client (`get_head_info`, `get_blocks_by_height` in 200-block pages, `read_contract` `list_picks` entry 2118033200), 20-min timeout; re-checks new hours, hour-0 picks and new fields on two nodes. Still trusted to the record job: c, form r, the staked list | `bot/games/lastnode.ts`, `lastnode-math.js` (`KLastNode`) | 💬 Last Node |
 | Block Golf recorder (not deployed) | `golf.yml` hourly at :57, group `knode-golf`, off until `GOLF_ENABLED=true` | No picks: reads other games' published results (Questions contract on two nodes, Race board, Block X board). Refuses to start if last run's files exist but can't be read. Writes `games-data/golf/` `index.json`, `W###.json`, `board.json`, `vault/W<n>.json`. Publish job runs no repo code; rebuilds vault rows from the W cards; refuses rewriting a final week, a shrinking week list, changed join weeks, a changed `stakedFromWeek`, or changing a sent vault file; push retried 3 times | `bot/games/golf.ts` (`npm run golf`), `site/golf-math.js` (`KGolf`, integer math), `docs/GOLF.md` | 💬 Block Golf |
-| Bracket recorder (not deployed) | `games.yml` step (`continue-on-error`) | At most 6 hours of chain a run, 4 parallel reads; refuses to write if last run's files are missing; fetch errors stop the run. Week file v4 with seeding (`hash` SHA-256 covering `pooled`), hours, boards (≤ 2,000 rows each), `bracket/vault/W<week>.json` | `bot/games/bracket.ts`, `bracket-math.js` (`KBracketMath`), `docs/bracket/README.md` | 💬 Bracket |
+| Bracket recorder (not deployed) | `games.yml` step (`continue-on-error`) | At most 6 hours of chain a run, 4 parallel reads; refuses to write if last run's files are missing; fetch errors stop the run. Week file v4 with seeding (`hash` SHA-256 covering `pooled`), hours, boards (≤ 1,000 rows each, `MAX_BOARD_ROWS` ✅ on `kg-09-bracket`), `bracket/vault/W<week>.json` | `bot/games/bracket.ts`, `bracket-math.js` (`KBracketMath`), `docs/bracket/README.md` | 💬 Bracket |
 | Fantasy recorder (not deployed) | `games.yml` step behind `FANTASY_ENABLED`, `continue-on-error` | Read-only, no key. Day final only when every hour with blocks has a race card (FX-5); week final when all 7 days, rivals and stakes are read and 12 h have passed (FX-1); `ALERT` if not final 2 days after the week; unfinished weeks retried 8 weeks (FX-6). Publishes `games-data/fantasy/` `index.json` (`vaultBasis`), `days.json`, `W###.json`, `rivals.json`, `alltime.json`, `board.json`, `vault/W<week>.json`; Fantasy files may be up to 8 MB | `bot/games/fantasy.ts`, `fantasy-math.js` (`KFantasyMath`), `docs/fantasy/` | 💬 Fantasy |
 | Combo recorder + verify (not deployed) | `combo.yml` hourly at :52 (after race :37, Block X :47), shares the `knode-games` group | Three jobs: record (read-only, runs the recorder), **verify** (read-only, installs nothing, `tools/combo-verify.mjs` confirms each new fixed slot against `list_picks` on two nodes and re-scores new final cards), publish (no repo code; byte checks, per-file holds, immutability; only verify-confirmed day files, `COMBO_VERIFY: required`). Slot fixed when both nodes' irreversible block is past its day; head = the slower node; a node 30+ min behind stops the run. "Forged" cards leave the boards and block that week's vault file. Output `games-data/combo/` with day parts (≤ 1,000 cards), boards, `vault/W<week>.json` | `bot/games/combo.ts`, `bot/games/combo-score.mjs`, `combo-math.js` (`KCombo`), `bot/games/vhp-inflows.mjs` (kept identical to Block X's decoder by a test) | 💬 Combo |
 | Names bot | hourly | Jobs: check (read-only), publish (no repo code), reply; gated by `vars.NAMES_ENABLED`; scheduled only, never triggered by issues. 8 s read timeout (a node that times out is skipped for the run), 7-minute run deadline. Nicknames read 20 at a time within 240 s, named wallets and producers first; both nodes must agree; a failed read keeps the old value. Pool names from Fogata `get_pool_params` (entry 2396056273, field 1). `names.json` kept under 900 kB (publish limit 1 MB). Owner command: `npm run names -- remove <address>` | `bot/names.ts`, `.github/workflows/names.yml` ✅ | 💬 Hub |
@@ -104,7 +104,7 @@ Node scripts present (✅): `node/repair-node-data.ps1` (general repair), `node/
 
 ### Data
 - On-chain state: {{TBD}}
-- Scheduled workflows run only from `main`, so `race-samples.yml` (on `picks`) isn't running ✅ (I-059). 💬 Last Node
+- Scheduled workflows run only from `main`. ~~`race-samples.yml` (on `picks`) isn't running~~ — it reached `main` with PR #57 and runs since 3 Nov 15:58 UTC ✅. GitHub may run its 5-minute schedule only about hourly (I-059). 💬 Last Node
 - Off-chain: `game-data/`, `desk-data/` (has `v1UploadTx` ✅), `sponsor-data/`, `race-data/`, `picks-data/`, `games.json` — ✅
 - Vault results: `W${week}.json` (unpadded) from each game's `vaultGames` source — ✅ sources on `main`; naming 💬. Branch `games-data` holds folders blockx, survivor, fantasy, combo, bracket, lastnode, golf — 💬
 - Race: `race.yml` holds back a vault `W<week>.json` that fails `vault_ok`, with a warning; a final vault file can never change — 💬
@@ -167,7 +167,7 @@ Mana cost per call = ticks × compute price + disk bytes × disk price + network
 - Admin page: `admin/actions.ts`, `admin/server.ts`, `admin/index.html` (PR #43 ✅ merged into `picks`); mainnet "Knode Vault (v6)" buttons match the bot's commands. — 💬
   - Start on the owner's PC: in `C:\kprediction`, `git checkout picks`, `git pull`, `npm ci`, `npm run admin`; opens a local link with a one-time key. Docs: `docs/ADMIN.md` (on `picks` ✅).
   - Tools: bot, desk, sponsor, picks, racepicks, names. Vault area: Sunday upgrade steps (status, apply, clear); Add a game (with season field); post / seal / finalize; correct / unprize / void; collect the 5% VHP fee. Also Wallet names, and "Vault v6 trial (local node)" (`--testnet` reaches only the local Harbinger node).
-  - The vault buttons answer "Unknown command" until `vault-v6` is merged into `picks` (I-019).
+  - ~~The vault buttons answer "Unknown command" until `vault-v6` is merged into `picks` (I-019)~~ — merged 2 Nov (I-019 closed); `picks` reached `main` with PR #57. Since 3 Nov the Vault area also has **Free prizes: list / ON / OFF** (D-082).
 
 ### Publish checks (`games.yml`, `games-testnet.yml`, `race.yml`, `race-samples.yml`) — 💬 Block X
 Recorders are JavaScript writing `JSON.stringify(x)+"\n"`; publish checks are Python. Every publish job:
@@ -177,7 +177,7 @@ Recorders are JavaScript writing `JSON.stringify(x)+"\n"`; publish checks are Py
 4. `setup-node` 22, SHA-pinned.
 - **Append-only history:** a published card never changes (BX-44); index weeks are append-only, a new week only for cw−1..cw (race: cw−1..cw+1); W targets only for the current or just-ended week, never after P is published; height = round × 2400 + 0, its time ≤ now and inside the week. A run that rewrites history is held whole.
 - **`race.yml` record job:** `git ls-remote --exit-code refs/heads/race-data` (exit 2 = first run; any other error stops); `ls-tree -r -z` into a file, then a `read -d ''` loop; fetches W / index / board / `vault/`, plus `race-samples`.
-- **`race.ts`:** samples and cards take the lower of the two nodes' reads; `topInDoubt` re-runs the floor with 0.5% tolerance; supply cap, clock check (BX-89), early check-head (BX-114), lag bound (BX-101). Boards rank by vault stake (`stakedOf`); the old "holds 1 VHP" read (`rawRead`) was removed. `readStaked` still loads `GAME_ABI` = v5 (`game/abi/kpred.koilib.json`) ✅ on `main` and `picks`, so stake reads throw "still v5" (I-033).
+- **`race.ts`:** samples and cards take the lower of the two nodes' reads; `topInDoubt` re-runs the floor with 0.5% tolerance; supply cap, clock check (BX-89), early check-head (BX-114), lag bound (BX-101). Boards rank by vault stake (`stakedOf`); the old "holds 1 VHP" read (`rawRead`) was removed. ~~`readStaked` still loads `GAME_ABI` = v5 … so stake reads throw "still v5" (I-033)~~ — fixed: `game/abi/kpred.koilib.json` on `main` is the v6 interface (has `get_game_player`) ✅ 3 Nov (TD-06).
 
 - **`games.yml` gates and limits** (💬 Survivor): the whole workflow stays off until `GAMES_ENABLED=true`. Job limit 45 min; Block X step 25 min; Survivor step 15 min, run only `if: !cancelled() && steps.prev.outcome == 'success'` (so a Block X publish failure also stops Survivor). A failed recorder's files are left out; a single failing file is dropped on its own (exit 3); files over 2 MB are dropped with an alert; published vault files aren't checked again. For Survivor, Python replays every season (play, rank, prizes, `week_rows`) to mirror the JS and refuses any other result; everything is checked against the job's own clock (`CHECK_NOW_MS`) with 1 h slack; a vault file whose stakes were read late is held; the index's season list is append-only.
 
@@ -202,7 +202,7 @@ Recorders are JavaScript writing `JSON.stringify(x)+"\n"`; publish checks are Py
 - **Fingerprints:** audited build `700c296a…c594` ✅; Picks v2 ABI `cea9b073…`, v1 ABI `8efa3ad4…` 💬 Combo; audited `Picks.ts` source `444209c1…83d6`; protoc 21.12 💬 Survivor.
 - **Game 3 registration (planned):** kind 1, list_size 1, lock_mode 2, round_size 86,400,000, round_offset 0, lead 300,000, ahead 604,800,000, max_changes 5, 20 picks a day, enabled 💬 Survivor.
 - **Upgrade path:** owner `schedule_upgrade(sha256)` → 48 h → owner-signed upload within 7 days → `schedule_upgrade` with an empty hash. The three overrides stay on.
-- **Site:** `blockx-math.js` `MAINNET_GAME = {id:2, round:2400, offset:0, lead:100, ahead:28900, picksPerDay:30, maxChanges:1}` ✅; `wallet.js` `PINNED_PICKS = ""` ✅, set at publish; `blockx.html` calls `KStake.badge(…, {game: 2})` in `setupStake`, mainnet only; the Block X testnet page uses `testnet-wallet.js`.
+- **Site:** `blockx-math.js` `MAINNET_GAME = {id:2, round:2400, offset:0, lead:100, ahead:28900, picksPerDay:30, maxChanges:1}` ✅; `wallet.js` `PINNED_PICKS = "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm"` ✅ on `main` (3 Nov; was `""` until publish); `blockx.html` calls `KStake.badge(…, {game: 2})` in `setupStake`, mainnet only; the Block X testnet page uses `testnet-wallet.js`.
 
 ### CI guards — 💬 Hub
 - `tests/audit/site.ci-deps.test.mjs` (run by `workflow-guard.yml` ✅): bans issue triggers, `write-all`, `secrets: inherit` and `toJSON(secrets)` in any case; issue permissions only in `names.yml`. Regex-based (I-022).
@@ -215,7 +215,7 @@ Recorders are JavaScript writing `JSON.stringify(x)+"\n"`; publish checks are Py
 - `bot/rehearse-v6.ts`: rehearsal on a snapshot (`vault-snapshot`, then `rehearse-v6`).
 - `tools/mode-switch.cjs`: one shared parser for `Mode.ts`.
 - `npm run bot` (💬 Swap Desk): status, chain-check, upgrade, sponsor-limit, node-status… · `npm run desk`: status, node-status, key-status, fund, withdraw, daily-cap, upgrade, treasury… · `npm run heal` · `npm run admin`.
-- `npm run picks` (💬 Block X): keys, build-testnet, status, upload, announce, apply, pause, lock-test, mana-test; on branch `combo` only: upgrade-schedule, upgrade-upload, upgrade-clear. `npm run sponsor`: status, upload, config, enable, disable, mana-report, mana-limit, site-limits, watch, payer. All dry runs by default; mainnet needs `--send --mainnet`.
+- `npm run picks` (💬 Block X): keys, build-testnet, status, upload, announce, apply, pause, lock-test, mana-test; on branch `combo` only: upgrade-schedule, upgrade-upload, upgrade-clear. `npm run sponsor`: status, upload, config, enable, disable, mana-report, mana-limit, site-limits, watch, payer. All dry runs by default. Sending needs `--send` and `CONFIRM_MAINNET=yes` in `.env`; only `npm run picks` also needs `--mainnet` ✅ (code checked 3 Nov).
 
 ## Tests
 How to run: `npm run test:audit` (also `test:audit:serial`, `test:resolver`, `cd sponsor && npm test`); tests are built for Linux — on Windows several games' tests fail or skip by design. CI "Resolver tests" runs `npm run test:audit` on Linux for pushes to `lastnode`. `yarn protoc` sometimes fails with EAGAIN — rerun.

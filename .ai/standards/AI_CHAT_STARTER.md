@@ -8,7 +8,7 @@
 ---
 
 ## 1. Shared rules for every chat
-1. **The `.ai/` library is the source of truth.** Read `.ai/START_HERE.md` first and follow its reading order. Where docs disagree, `platform/DECISIONS.md` wins, then the repo, then chat notes. The owner wins over all of them.
+1. **The `.ai/` library is the source of truth.** Read `.ai/START_HERE.md` first and follow its reading order. Where sources disagree, the order is: the owner's own words → `DECISIONS.md` → what's verified in the code or on chain (✅) → the other `.ai/` files → the repo's `docs/` → chat notes and handoffs (D-002).
 2. **One owner per area.** Each area belongs to one chat (`platform/PLATFORM.md` → "Chats and ownership"; D-035). Work only on your area's files. If you need a change in another chat's files, write the request in your session-end report and the owner passes it on.
 3. **Work on a branch, ship by pull request.** Use your area's branch, or a new branch from `main`. Open a PR into `main`; its tests must pass. **Only the owner merges** (D-026). Never push to `main`.
 4. **Funds and keys:** never ask for, print or store keys or seed phrases. Every mainnet tool is a dry run until `--send`, one step at a time, dry run first (`platform/RULES.md` §1). Anything touching funds, contracts or the vault passes an audit before it ships (D-017).
@@ -21,6 +21,7 @@
    - End every reply with a **Today** checklist, and keep asking questions.
    - The name is **"Knode Games"** (two words). Times are UTC unless marked PT.
 9. **Mark what you know:** ✅ verified in the repo · 💬 from a chat · 👤 owner said · ❓ unknown. Never present a guess as a fact.
+10. **Your work list lives in GitHub:** at the start of every session, read your chat's section of `platform/CHAT_REQUESTS.md` (and §2, for every game chat) and work its open items in order (D-089). Report finished items in your session-end report. Don't wait for separate messages.
 
 ## 2. The handoff: how every chat ends a piece of work
 Every chat ends a piece of work, or a session, with the **session-end report** in `platform/SESSION_END_PROCESS.md`. It has five parts: what changed, what was completed, documentation to update, what the next AI should know, and current blockers. The owner pastes it into the library chat, which files it into `.ai/` in one docs PR and logs any contradiction as a **C-xx**.
@@ -40,7 +41,7 @@ Before anything else:
 
 Your area: <area>. You own: <files/folders, from PLATFORM.md "Chats and ownership">. You don't own: game files, the vault contract, or other chats' files. Send requests for those through the owner.
 
-Today's task: <one or two sentences, or "none yet — tell me what you found">.
+Today's task: your open items in .ai/platform/CHAT_REQUESTS.md (your section), plus: <anything extra, or "nothing else">.
 
 First reply:
 - Up to 10 lines: what you understand about your area now (live, in progress, blocked), with D-/I- numbers.
@@ -71,7 +72,7 @@ Every game must meet the standards:
 
 You own only your game's files. Shared files (board.js, games.json, site-nav, the bot's vault code) belong to other chats. Ask through the owner, or ship the smallest change in your PR and say so clearly.
 
-Today's task: <task>.
+Today's task: your open items in .ai/platform/CHAT_REQUESTS.md (your section and §2), plus: <anything extra, or "nothing else">.
 
 First reply:
 - Where the game stands: branch and commit, tests, audits, launch blockers, with I- numbers.

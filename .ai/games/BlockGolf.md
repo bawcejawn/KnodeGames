@@ -1,6 +1,6 @@
 # Block Golf (game 6)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Block Golf chat), `DECISIONS.md` (D-056), the repo (branch `golf`). **Last updated:** 2026-11-02.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Block Golf chat), `DECISIONS.md` (D-056), the repo (branch `golf`). **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -20,7 +20,7 @@ A platform-wide "course": every other live game is a par-4 hole, and how well yo
 - **Finality:** final 12 h after the week once every hole is final and the run had no read problem; a hole not final by 60 h is skipped; from 66 h a read problem no longer blocks; staked holes only after stakes are read post-week; final weeks are frozen. 💬
 
 ## Rewards
-- **Staked only for now** (D-071) — only players staked in Block Golf that week count; a free option may be added later. 👤 Share of Golf's part of the vault's weekly reward. 💬
+- **Staked:** only players staked in Block Golf that week count for the staked prize. 👤 ~~Staked only for now (D-071)~~ — superseded: Golf also has a Free play board, no free prize yet (D-081; update below). Share of Golf's part of the vault's weekly reward. 💬
 - **Practice weeks** have no prizes. 💬
 
 ## Dependencies
@@ -43,7 +43,7 @@ Branch `golf` @ `6b2200a` ✅ — pushed, **not merged, nothing deployed**; `gam
 - Accepted residual: extra wallets with real stake that score low nudge everyone above them up a little.
 
 ## Future plans
-Practice: after `picks` merges, move Golf files to the root, run the full suite, merge, set `games.json` live, add to the nav, `GOLF_ENABLED=true`. Staked: register game 6 and set `GOLF_STAKED_FROM_WEEK`. Add each new game's hole reader as it launches (Survivor must recompute standings at the week's last season day; Bracket reads its W file).
+Practice: ~~after `picks` merges~~ (merged 3 Nov), move Golf files to the root, run the full suite, merge, set `games.json` live, add to the nav, `GOLF_ENABLED=true`. Staked: register game 6 and set `GOLF_STAKED_FROM_WEEK`. Add each new game's hole reader as it launches (Survivor must recompute standings at the week's last season day; Bracket reads its W file).
 
 ## Update 3 Nov — Free play (D-081)
 Every game now has a **Free play board**. This game gets one for **standings only — no free VHP prize** until the owner switches it on. The page must say so.

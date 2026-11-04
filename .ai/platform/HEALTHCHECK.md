@@ -77,7 +77,6 @@
 **Decisions still open**
 - Last Node's free-winner rule.
 - Free-prize farming (I-035).
-- The fair-play policy and a manipulation guard (I-081, new).
 - Which owner checklist is the source of truth (I-032).
 - The announcements channel and process.
 - The growth plan to 1,000,000 VHP (D-076).
@@ -107,7 +106,6 @@
   - a **shared game kit**: one recorder and publish-check library with clock checks, per-file holds and points recompute, which every game uses;
   - the bot's on-chain points recompute (I-080);
   - a second machine or hosted backup;
-  - a published fair-play policy with automatic manipulation guards.
 
 **Organization: 6.5 / 10**
 - **+** One owner who merges; one library; one start message; per-chat work lists; session-end reports; weekly review; audit before every launch.
@@ -124,7 +122,7 @@
 | 5 | **Sampler cadence** (PR #67 in review) | Block X cards, Last Node, Combo and Fantasy depend on it | Block X chat | I-059 |
 | 6 | **Survivor launch on Mon 16 Nov** with a board the vault check accepts (VB-4) | The next staked + free game; the date is set | Survivor + Vault chats | D-065, I-050, I-079 |
 | 7 | **A shared game kit standard**: one recorder and publish-check library (clock checks, per-file holds, points recompute, board shape) | Stops every game re-learning Block X's lessons (Bracket #E-3); makes audits faster | architecture chat (new) | §2 #3, #4 |
-| 8 | **Fair play policy and manipulation guard** (owner idea, 3 Nov): a public page of allowed strategies and known limits, and objective, automatic rules that void a manipulated result | A level field; deters the tricks the audits found | owner + architecture chat | I-081 |
+| 8 | **Keep game branches merged with `main` every week**, and run each game's fix-check on the merged branch | Branches drift 16+ commits behind and merge late with surprises (Bracket #E-3 L-16); weekly merges keep audits valid | each game chat + owner | §2 #8 |
 | 9 | **Bracket fixes and fix-check** (2 Critical, 6 High), with the Pool protection (D-086) | The next audited game; launches when ready | Bracket chat | D-086 – D-088 |
 | 10 | **Reduce single points of failure**: a backup machine or hosted node for the pool, the fallback node (on hold), and a plan to shrink the sponsor's hot-key exposure as it grows | Production and the sponsor's 25,000 KOIN shouldn't depend on one PC | owner + architecture chat | TD-08, D-085 |
 

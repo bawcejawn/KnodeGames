@@ -102,7 +102,6 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
 | R-ARCH-1 | **Shared game kit:** design one recorder and publish-check library every game uses: clock checks on new history, per-file holds, points recomputed in the publish job, board shape for the vault check, size caps. Today each game re-learns Block X's lessons (Bracket #E-3 H-2, H-3, M-3) | `HEALTHCHECK.md` §2 #3, #4 | design + migration plan, owner decides | open |
-| R-ARCH-2 | **Fair play policy and manipulation guard** (owner idea, 3 Nov): what can be published as "known strategies and limits", and objective automatic rules that void a manipulated result (e.g. a producer's own VHP moved around a round start; wallet farms), without letting a third party trigger the guard against someone else | I-081 | options + proposed D-xxx | open (owner to confirm direction) |
 
 ### Library (this chat)
 | Id | Request | Link | Done when | Status |

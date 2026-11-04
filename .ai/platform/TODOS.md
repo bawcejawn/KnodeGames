@@ -14,11 +14,12 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
+- [ ] **Sponsor rollout (R-BX-15):** steps in `claude/sponsor/ROLLOUT-STEPS-2026-11-04.md`. Before step 0: the Block X chat must **push** `sponsor-limits-1-2` (it isn't on GitHub yet), and put `CONFIRM_MAINNET=yes` in `.env` before the `--send` steps (take it out after) — P1
+- [ ] After Repo Lens reviews the ruler design: approve it, then start the new VHP Ruler chat (the library chat writes its first prompt) — P2 — D-110
 - [ ] **Read and approve the VHP ruler design** (`standards/VHP_RULER.md`, §0 in plain words, §12 the five points to approve) — P2 — D-108
 - [ ] Send Repo Lens `claude/hub/REPOLENS-C5-FIXCHECK-PR95-PR111-PROMPT.md` anyway (#95 and #111 merged before their fix-check) — P2
 - [ ] Optional: delete the old branch `hub-ci-yaml` in GitHub (an unused copy; safe once #111 is merged, which it is) — P4
 - [ ] Later (on hold, your call): the GitHub CODEOWNERS / ruleset step (C5-13). Don't require code-owner review without a bypass for yourself — P3
-- [ ] **Sponsor rollout (R-BX-15):** the Block X chat gives you the exact steps from `main` (upload the fix, then per-tx 1.5, the site PR, then `config` with 40/250 to switch the vault back on). Do it before players stake in games 2 and 7, ideally Thu — P1
 - [ ] Every PowerShell window for tools: `$env:RPC = "https://koinos.armana.io"` first (the deployment files still name `api.koinos.io`, I-015) — P3
 - [ ] Send Repo Lens `claude/blockx/ROUND-14-LOWS-FIXCHECK-PROMPT.md` (Block X Lows, branch `blockx-lows`) — P3
 - [ ] After #95: on `names.html`, from the producer wallet `1DAHmr…`, create `@primeproducer`, tap Make main, optionally Remove `@primeprocuder`; tell the Hub it works (then the Tools link goes in) — P3 — I-084

@@ -5,6 +5,8 @@
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
 ## Moved 2026-11-04 (evening)
+- R-BR-8 replaced by R-RULER-1 (D-110: a dedicated chat builds the ruler).
+  | R-BR-8 | **Build the shared VHP ruler (D-108)** from the library chat's design (R-LIB-5), extending the VHP standard you own (D-058, `docs/VHP-STANDARD.md`): one library every game reads, with tests and simulations; after your #E-3 fixes | D-108, R-ARCH-1 | library + tests + Repo Lens; Race moves first (R-RACE-5) | open: build from `standards/VHP_RULER.md` once the owner approves it, after your #E-3 fixes (its §7, §8, §10, §13) |
 - Hub session-end (06:55 UTC): #95, #110, #111 merged (by the Hub chat on the owner's OK); main checks and Pages deploy green on `ba5b1ab`. R-HUB-10 done.
   | R-HUB-10 | **Top menu tidy** (owner, 4 Nov): remove the **Info** dropdown. Move **Get VHP** into **Tools** (top menu and the phone More sheet's Tools group). Info's other links stay reachable: Trust, Terms & risks and Install app are already in the footer (`FOOT`); put "New here? Quick tour" in the footer too, or on the "New to Koinos?" page. Then `node tools/site-nav.mjs` and the site tests. Do it with R-HUB-9 (Stake tab) in one PR | — | menus updated; no page left unlinked | built in PR #110: Info menu removed, Get VHP in Tools, Quick tour in the footer |
 - Hub session-end (06:45 UTC) filed: #95 updated, #110 (Stake tab, menus), #111 (guard follow-up). R-HUB-4 done (PR #97 merged), R-HUB-7 done (PR #100 merged; #94 and #100 were already merged before the report).

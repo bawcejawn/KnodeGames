@@ -120,6 +120,7 @@
 | D-107 | 2026-11-04 | A held week fails its run and emails the owner, and the alert names what the owner can do about it | active |
 | D-108 | 2026-11-04 | Build the shared VHP ruler (R-ARCH-1); the Race's two gaps are closed by it, not by a Race-only fix | active |
 | D-109 | 2026-11-03 | Phone tab bar: Games · Leaders · Stake · Results · More; Swap moves into More | active |
+| D-110 | 2026-11-04 | A new, dedicated VHP Ruler chat builds the shared ruler (not the Bracket chat), after Repo Lens reviews the design | active (amends D-108's builder) |
 
 ---
 
@@ -611,6 +612,9 @@
 
 ## D-108 — Build the shared VHP ruler
 - **Date:** 2026-11-04 (owner: "Let's do the shared VHP ruler. This needs to be built") · **Decision:** build the one VHP ruler of D-090 / D-093 (R-ARCH-1) rather than a Race-only fix; the Race's two known gaps (the > 6-h hide, VHP added after a card) are closed when the Race moves onto it (R-RACE-5). Design by the library chat (it holds the handicap review and the owner's decisions); build in the Bracket chat, which owns the VHP standard (D-058); each game then plugs its own formula in.
+
+## D-110 — A dedicated chat builds the VHP ruler
+- **Date:** 2026-11-04 (owner chose option A) · **Decision:** the shared VHP ruler (`standards/VHP_RULER.md`) is built by a **new chat that does only that**, starting from the Bracket's existing VHP-standard code (`vhp-standard.js`, `bot/vhp-chain.ts` on `kg-09-bracket`). It starts once Repo Lens has reviewed the design (`claude/REPOLENS-VHP-RULER-DESIGN-PROMPT.md`) and the owner has approved it. No game owns the ruler; each game chat moves its game onto it (Race first). Amends D-108, which named the Bracket chat.
 
 ## D-109 — The phone tab bar
 - **Date:** 2026-11-03 (owner, to the Hub chat: "Stake is a tab, just like Leaders; Swap belongs in More") · **Decision:** the phone tab bar is **Games · Leaders · Stake · Results · More**; Swap moves into the More sheet. The top menu gets a Stake link; Info is removed, Get VHP moves to Tools (R-HUB-9, R-HUB-10; PR #110).

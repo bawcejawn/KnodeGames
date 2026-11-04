@@ -1,6 +1,6 @@
 # Knode Games — The Shared VHP Ruler (design)
 
-> **Status:** design, v1 (4 Nov 2026), written by the library chat (R-LIB-5). **Owner to approve** (§12), then the Bracket chat builds it (R-BR-8) and each game moves onto it (Race first, R-RACE-5).
+> **Status:** design, v1 (4 Nov 2026), written by the library chat (R-LIB-5). **Owner to approve** (§12), then Repo Lens reviews the design and a new, dedicated VHP Ruler chat builds it (R-RULER-1, D-110) and each game moves onto it (Race first, R-RACE-5).
 > **Decided by the owner (the inputs to this design):** D-058 (exact VHP from the chain's events), **D-090** (one ruler for every game; each game keeps its own formula; checks at random moments within a window), D-091 (lower Last Node's bar), **D-093** (a look-back of about 2 weeks; fair to every producer, small and large), D-094 (the Race pays meanwhile with its two gaps open), D-095 (Survivor S1 stays on blocks), **D-101** (fair, with a bit of luck: a luck trim or a cap in every game), **D-108** (build it).
 > **Built from:** `../platform/HANDICAP_REVIEW.md` (how every game measures VHP today, the gaps, §5 recommendations), `docs/VHP-STANDARD.md` and `vhp-standard.js` on `kg-09-bracket` (the Bracket's exact rebuild), `bot/race.ts` (the Race card and sampler), the Repo Lens findings named below.
 > **What it isn't:** a scoring formula. Each game keeps its own (a race, a multiplier, a knockout, a price). The ruler only says **how big each producer is, when, and what a VHP move is worth**, the same way everywhere.
@@ -112,7 +112,7 @@ A game's own file (`games/<Game>.md`, Scoring) states exactly which outputs it u
 - **The sampler** (`race-samples.yml`) keeps running during the move as a cross-check (a sample above the ruler's own size at the same height is a bug alarm), and is retired once every game is on the ruler.
 
 ## 8. Proving it's fair (simulations, before anything pays)
-The Bracket chat runs these with the real last-15-days data plus synthetic fields; results go to the owner with the parameters:
+The VHP Ruler chat runs these with the real last-15-days data plus synthetic fields; results go to the owner with the parameters:
 1. **Honest field:** each producer's long-run win share in each game tracks its VHP share within the luck band the game wants (D-101).
 2. **Many small producers:** a field of 100+ producers under 1% each: small producers qualify, win sometimes, and no tiny lucky node tops a week more than the trim allows.
 3. **Every trick in §4:** short hide, long hide (1 h … 14 days), in-window add, timed moves, pool swings. Pass = the expected gain is below the block rewards the trick costs, for producers of 0.2%, 2% and 20% share.
@@ -134,7 +134,7 @@ The Bracket chat runs these with the real last-15-days data plus synthetic field
 
 ## 10. Build and migration plan
 1. **Owner approves this design** (§12).
-2. **Bracket chat (R-BR-8), after its #E-3 fixes:** `vhp-ruler.js` + `bot/vhp-ruler.ts` + `vhp-data` recorder and publish check, with tests (including a line-by-line copy of the VHP contract's snapshot code, as `vhp-standard` has) and the simulations of §8. Repo Lens audit.
+2. **The VHP Ruler chat (R-RULER-1, D-110):** `vhp-ruler.js` + `bot/vhp-ruler.ts` + `vhp-data` recorder and publish check, with tests (including a line-by-line copy of the VHP contract's snapshot code, as `vhp-standard` has) and the simulations of §8. Repo Lens audit.
 3. **Race (R-RACE-5):** the Race card moves onto the ruler. The two known gaps close. A Race fix-check, then the Race pays on the ruler from the next Monday.
 4. **Block X, then Last Node, Fantasy, Combo, Bracket** as each is ready; **Survivor** from Season 2.
 5. **Retire the sampler** once no game reads it.
@@ -153,7 +153,7 @@ Until a game moves, it keeps today's method (D-094); nothing changes for players
 1. The core rule: **own size = the higher of the 14-day average and the 24-hour high**; others measured by **24-hour averages**; **card credit** always on.
 2. **Random card time** from a block 20 blocks after the lock.
 3. **One entry bar** (k ≥ 10) and **a luck trim in every game** (each game's `c` by simulation).
-4. **Build order:** the Bracket chat builds it after its audit fixes; the **Race moves first**; the sampler retires at the end.
+4. **Build order:** a dedicated VHP Ruler chat builds it (D-110); the **Race moves first**; the sampler retires at the end.
 5. **New producers** need 24 h of history and are labelled "new".
 
 ## 13. Interface (for the builder)

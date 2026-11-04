@@ -39,11 +39,12 @@
       "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq",
       "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK"
     ],
-    "rcLimit": "120000000",
-    "rcLimitOther": "100000000",
+    "rcLimit": "130000000",
+    "rcLimitOther": "150000000",
     "rcLimits": {
-      "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm:8ce33c6c": "120000000",
-      "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K:8ce33c6c": "120000000"
+      "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm:8ce33c6c": "130000000",
+      "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K:8ce33c6c": "120000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:0db52f40": "120000000"
     },
     "guest": true
   },

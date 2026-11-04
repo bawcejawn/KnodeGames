@@ -361,6 +361,7 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
 /** One run. Exported for the tests, which pass fake nodes. */
 export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks }: Opts) {
   vaultRefused = null;
+  heldAlerts = [];
   prizesFromWeek = prizesFrom ?? PRIZES_FROM_WEEK;
   hold = vaultHold === undefined ? { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS } : vaultHold;
   holdSetting = holdWeeks ? { weeks: holdWeeks, bad: false, raw: holdWeeks.join(",") } : parseHoldWeeks(E.RACE_HOLD_WEEKS);
@@ -560,7 +561,11 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   const hn = holdNote(holdSetting);
   if (hn) problems.unshift(hn);
   for (const pr of problems) console.log(`::warning::${pr}`);
-  return { problems };
+  // D-107 (R-RACE-13, I-087): a held paid week fails the run AFTER publishing (the alert job), so GitHub emails the
+  // owner. The recorder only says so; the workflow's last job does the failing.
+  for (const a of heldAlerts) console.log(`::error::${a}`);
+  if (heldAlerts.length && E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, "held=true\n");
+  return { problems, held: heldAlerts.slice() };
 }
 
 // ── leaderboards ──
@@ -750,7 +755,7 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   const late = now >= wf.end + VAULT_SKIP_AFTER;
   const unread = rows.filter((r) => failed.has(`stake:${r.a}|${w}`));
   const file: VaultFile = { game: VAULT_GAME, week: w, final: false, rows: [], first: [], second: [], skipped: [] };
-  const wait = (why: string) => { problems.push(`vault week ${w}: not final yet, ${why}`); return file; };
+  const wait = (why: string) => { problems.push(`vault week ${w}: not final yet, ${why}`); lateAlert(w, wf.end, now, why); return file; };
   if (open.length && !late) return wait(`${open.length} race(s) still being checked (${open.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + VAULT_SKIP_AFTER).toISOString()}`);
   if (unread.length) return wait(`${unread.length} Race stake(s) could not be read (tried again next run)`);
   if (stakedCheck) {
@@ -832,7 +837,12 @@ function settle(candidate: VaultFile, weekEnd: number, now: number, problems: st
   const who = (xs: string[]) => (xs.length ? xs.join(", ") : "nobody");
   const summary = `1st ${who(candidate.first)}; 2nd ${who(candidate.second)}; ${candidate.rows.length} staked row(s)` +
     (flag.length ? `; first picks ever this week (check them): ${flag.join(", ")}` : "");
-  if (holdSetting.bad) { problems.push(`vault week ${w}: HELD (RACE_HOLD_WEEKS isn't a list like 3 or 3,4). Pending: ${summary}.`); return waiting; }
+  if (holdSetting.bad) {
+    problems.push(`vault week ${w}: HELD (RACE_HOLD_WEEKS isn't a list like 3 or 3,4). Pending: ${summary}.`);
+    heldAlert(w, weekEnd, now, `the repo variable RACE_HOLD_WEEKS ('${holdSetting.raw.replace(/[^0-9A-Za-z ,;]/g, "?").slice(0, 40)}') isn't a list like 3 or 3,4, so every pending week is held`, "fix RACE_HOLD_WEEKS (a week number like 3, or 3,4) or empty it");
+    return waiting;
+  }
+  if (holdSetting.weeks.includes(w)) heldAlert(w, weekEnd, now, "you are holding it (RACE_HOLD_WEEKS)", `remove ${w} from RACE_HOLD_WEEKS when you're happy with it (pending: ${summary})`);
   if (holdSetting.weeks.includes(w)) { problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`); return waiting; }
   const readyAt = Math.max(weekEnd + hold.afterEnd, at + hold.stable);
   if (now >= weekEnd + hold.afterEnd && same && now - at >= hold.stable) {
@@ -840,7 +850,39 @@ function settle(candidate: VaultFile, weekEnd: number, now: number, problems: st
     return candidate;
   }
   problems.push(`vault week ${w}: pending (I-034 hold), final at the earliest ${new Date(readyAt).toISOString()} if nothing changes${prev && !same ? " (it changed since the last run, so the wait starts again)" : ""}. ${summary}`);
+  lateAlert(w, weekEnd, now, `its results keep changing between runs, so the 1-hour check hasn't passed (pending since ${new Date(at).toISOString()})`);
   return waiting;
+}
+
+// ── D-107 (R-RACE-13, I-087): a held paid week alerts, and says what to do ──
+/** The vault takes a week's results for 3 days after the week ends; after that the week rolls over. */
+export const RESULTS_DUE_AFTER = 3 * M.DAY;
+/** A paid week that still isn't final this long after its week ends is "held" and alerts. Normally it goes final at
+ *  about 12:37 UTC on the Monday (the 12-hour hold, then the next run), so 15 h leaves two hourly runs of slack. */
+export const VAULT_ALERT_AFTER = 15 * M.HOUR;
+let heldAlerts: string[] = [];
+/** "Week 1" for the site's numbering (weeks.js, D-063: vault week 3 = Week 1). */
+const siteWeek = (w: number) => (w >= 3 ? `Week ${w - 2}` : `the week of ${new Date(M.weekStart(w)).toISOString().slice(0, 10)}`);
+/** One alert line: the game and week, why, the deadline, and what the owner can do, with the exact commands. */
+export function heldMessage(w: number, weekEnd: number, now: number, why: string, first?: string): string {
+  const due = weekEnd + RESULTS_DUE_AFTER, left = Math.max(0, (due - now) / M.HOUR);
+  const opts = [
+    first ?? "wait: it clears by itself once the nodes agree and the week reads the same on two runs an hour apart",
+    `hold it longer while you check: GitHub → Settings → Secrets and variables → Actions → Variables → RACE_HOLD_WEEKS = ${w}`,
+    `give up on the week (its bucket stays in the Race for next week, its free prize goes back to the pool): npm run bot -- game-void 7 ${w} (dry run), then the same with --send`,
+  ];
+  return `Producer Race vault week ${w} (${siteWeek(w)}) is HELD: ${why}. Results are due ${new Date(due).toISOString().replace("T", " ").slice(0, 16)} UTC ` +
+    `(${left.toFixed(0)} h left); after that the week rolls over. What you can do: ${opts.map((o, i) => `(${i + 1}) ${o}`).join("; ")}. More: .ai/platform/RUNBOOK.md §3.`;
+}
+/** Only paid weeks, only before the deadline (after it the week has rolled over and there is nothing left to do). */
+export const alertsFor = (w: number, weekEnd: number, now: number, paidFrom: number) => w >= paidFrom && now < weekEnd + RESULTS_DUE_AFTER;
+function heldAlert(w: number, weekEnd: number, now: number, why: string, first?: string) {
+  if (!alertsFor(w, weekEnd, now, prizesFromWeek)) return;
+  const m = heldMessage(w, weekEnd, now, why, first);
+  if (!heldAlerts.includes(m)) heldAlerts.push(m);
+}
+function lateAlert(w: number, weekEnd: number, now: number, why: string) {
+  if (now >= weekEnd + VAULT_ALERT_AFTER) heldAlert(w, weekEnd, now, `still not final ${((now - weekEnd) / M.HOUR).toFixed(0)} h after the week ended: ${why}`);
 }
 
 /** The producers (field and paddock) on the newest card in the published week files of the last day (audit BX-53). */

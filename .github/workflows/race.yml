@@ -34,6 +34,9 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+    # D-107 (R-RACE-13): "true" when the recorder held a paid vault week (read by the alert job below).
+    outputs:
+      held: ${{ steps.race.outputs.held }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -66,6 +69,7 @@ jobs:
             git show "FETCH_HEAD:vhp-samples.json" > "$RUNNER_TEMP/prev/vhp-samples.json"
           else echo "No VHP samples yet: the card uses the read at card time."; fi
       - name: Record the race
+        id: race
         run: npm run race
         env:
           RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
@@ -87,6 +91,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write         # push the race-data branch (never main)
+    # D-107 (R-RACE-13): "true" when this job held a vault file (read by the alert job below).
+    outputs:
+      held: ${{ steps.push.outputs.held }}
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         continue-on-error: true
@@ -98,6 +105,7 @@ jobs:
         with:
           node-version: 22
       - name: Push race-data (and nothing else)
+        id: push
         env:
           GH_TOKEN: ${{ github.token }}
           IN: ${{ runner.temp }}/incoming
@@ -229,6 +237,11 @@ jobs:
           # 12 hours past its week AND exactly the pending file published at least an hour ago; otherwise only that file
           # is held (removed from this push), and the pending file and the race files still publish.
           HOLD_S, STABLE_S = 12 * 3600, 3600
+          # D-107 (R-RACE-13): a held vault file fails the run after publishing (the alert job), so the owner gets an email.
+          def held_out():
+              o = os.environ.get("GITHUB_OUTPUT")
+              if o:
+                  with open(o, "a", encoding="utf-8") as fh: fh.write("held=true\n")
           def pub_json(rel):
               q = os.path.join(pub, rel) if pub else ""
               try: return json.load(open(q, encoding="utf-8")) if q and os.path.isfile(q) else None
@@ -265,13 +278,15 @@ jobs:
                          if not (lambda j: js_safe(j) and (pending_ok(g, j) if g.startswith("PENDING-") else vault_ok(g, j)))(load(g))]
                   if bad:
                       import shutil
-                      print("::warning::vault results held, not published this run: " + ", ".join("vault/" + g for g in bad))
+                      print("::error::vault results held, not published this run: " + ", ".join("vault/" + g for g in bad) + " (they failed the publish check; the race cards still publish)")
+                      held_out()
                       shutil.rmtree(os.path.join(d, f))
                       continue
                   for g in sorted(os.listdir(os.path.join(d, f))):
                       why = "" if g.startswith("PENDING-") else final_held(g, load(g))
                       if why:
-                          print("::warning::vault/" + g + " held (I-034): " + why + "; its pending file still publishes")
+                          print("::error::vault/" + g + " held (I-034): " + why + "; its pending file still publishes")
+                          held_out()
                           os.remove(os.path.join(d, f, g))
                   continue
               j = json.load(open(os.path.join(d, f), encoding="utf-8"))
@@ -341,3 +356,17 @@ jobs:
           commit=$(git commit-tree "$tree" ${parent:+-p "$parent"} -m "race: record")
           git push -q "$remote" "$commit:refs/heads/race-data"
           echo "Race files published."
+
+  # D-107 (R-RACE-13, I-087): a held paid vault week fails the run (so GitHub emails the owner), but only after
+  # publishing, so the hour's cards and boards still go out. Runs no repository code and needs no permissions.
+  alert:
+    needs: [record, publish]
+    if: ${{ always() && (needs.record.outputs.held == 'true' || needs.publish.outputs.held == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: A Race vault week is held
+        run: |
+          echo "::error::The Producer Race held a vault week. The record or publish job's errors above name the week, why, the deadline and what you can do (.ai/platform/RUNBOOK.md §3). Everything else was published."
+          exit 1

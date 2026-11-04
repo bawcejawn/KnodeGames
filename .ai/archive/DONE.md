@@ -5,6 +5,16 @@
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
 ## Moved 2026-11-04 (evening)
+- Owner, 22:29 PT: merged #99 (CI guard step), #85 (Race hold, I-034 closed), #109 (R-RACE-9), #107 (sponsor rollout code); decisions D-105 – D-108.
+  | R-RACE-1 | The vault file must not be decided by a single run with no hold | I-034 | fixed before 16 Nov | in progress: PR #85 @ `20845a0` — **Repo Lens merge check GO** (per the Race chat, 4 Nov; check `XQ7qKZk3…`). Waiting for the owner's merge (before Mon 16 Nov 00:00 UTC). After the merge, follow-up R-RACE-11 |
+  | R-RACE-9 | **C4-3 tidy-up** (Repo Lens #C-4 on #93, Info): in `changeOwner`, if either node returns no race config (`{}`, e.g. a wrong race address), `Number(undefined)` is NaN on both sides and the message wrongly says the nodes "disagree about picks per day (NaN; NaN)". Check for a missing config first and stop with "no race settings on chain at <node>", with a test | #C-4 (private, `Q6oA86PGVHVoD46fxUtEpc`) | PR + test | built: **PR #109** (`race-owner-missing-config` @ `015dd8f`): each node's race settings are checked before comparing; test fails on `main`, passes on the branch; owner tests 15/15, Race tests 110/110. Owner merges |
+  - [ ] **Merge PR #85** (Race hold; merge check GO) and **PR #109** (Race owner-change tidy-up) — P1
+  - [ ] Decide: should a held Race week fail its run and email you, like Block X (I-087)? — P3
+  - [ ] Decide for R-RACE-5 (the Race's two handicap gaps): wait for the shared VHP ruler design (R-ARCH-1, no chat started yet), or ask the Race chat for a Race-only plan now — P2
+  - [ ] **Repo Lens prompt 3** for the sponsor rollout (`claude/sponsor/rollout-sg1-fixcheck-prompt.md`, PR #107); on GO, merge #107 and follow the rollout steps (R-BX-15) — P1
+  - [ ] **Decide the sponsor caps** (R-BX-16): Repo Lens suggests per transaction 1.5 Mana, Picks/Race rows 1.2, per player 40 a day / 250 a week — P2
+  - [ ] **Decide when the Picks contract changes owner** (R-BX-3 isn't built; it was due Fri). A handover clears pending Picks announcements, so it must not overlap Survivor's game-3 registration (announce Sat 7 – Fri 13, apply by Sun 15) — P1
+  - [ ] **Merge PR #99** (CI guard step; Repo Lens #C-5: ready to merge) — your OK — P2
 - Race session-end (06:40 UTC) filed: R-RACE-7 done (PR #103 merged), R-RACE-8 done (confirmed; I-031 closed), R-ALL-6 review done for the Race (gaps → R-RACE-12).
   | R-RACE-7 | **Race page error messages:** `race.js` turns any "used up" into "Today's picks are used up (changes count)". Show the real reason, as PR #66 did for `blockx.js` | I-082 | PR + test | built on `race-pick-errors` @ `a545114` (local): only RACE: contract messages get game wording; test fails on `main`, passes on the branch; site tests 211/211. Owner OKs the push, then a PR |
   | R-RACE-8 | Confirm nothing is left of the Race-file conflicts from the `picks` merge (PR #57) | I-031 | confirmed | open (low) |

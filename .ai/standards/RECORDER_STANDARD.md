@@ -26,7 +26,7 @@
    - a seeding or card only after its time;
    - picks only after their lock;
    - an hour only after it ends;
-   - "final" only after the review day: **no earlier than Monday 00:00 UTC**, 24 h after the week's last play (Sat 24:00 UTC), D-123.
+   - "final" only after the review day: **no earlier than Monday 00:00 UTC**, 24 h after the week's last play (Sat 24:00 UTC), D-125.
    - Nothing scores on Sunday UTC: the recorder ignores Sunday rounds and picks, and the publish job refuses a scored Sunday round.
    - During Sunday the recorder publishes the week as **pending** and **re-scores it from the chain** before it may go final (Race: `verifyWeek`, Repo Lens #E-11 H-1).
 2. **Use the publish job's own clock**, not the recorder's (a recorder run can be wrong or forged).

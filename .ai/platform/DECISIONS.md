@@ -121,11 +121,13 @@
 | D-108 | 2026-11-04 | Build the shared VHP ruler (R-ARCH-1); the Race's two gaps are closed by it, not by a Race-only fix | active |
 | D-109 | 2026-11-03 | Phone tab bar: Games · Leaders · Stake · Results · More; Swap moves into More | active |
 | D-110 | 2026-11-04 | A new, dedicated VHP Ruler chat builds the shared ruler (not the Bracket chat), after Repo Lens reviews the design | active (amends D-108's builder) |
-| D-123 | 2026-11-04 | **Every game plays Mon–Sat; Sunday is the review day.** Play ends Sat 24:00 UTC; results are checked on chain all Sunday and go final no earlier than Mon 00:00 UTC (24 h after the last play); play restarts Mon 00:00 UTC; rewards claimable ~Mon 5 PM PT | active — standard written; Race first (R-RACE-14), other games R-ALL-8 |
-| D-122 | 2026-11-04 | **Proposed:** the five missed ruler simulations — raise the entry bar by simulation, accept grinding, keep the Vault out of size-handicapped fields, re-scope sim 9's mark | proposed (owner) |
+| D-125 | 2026-11-04 | **Every game plays Mon–Sat; Sunday is the review day.** Play ends Sat 24:00 UTC; results are checked on chain all Sunday and go final no earlier than Mon 00:00 UTC (24 h after the last play); play restarts Mon 00:00 UTC; rewards claimable ~Mon 5 PM PT | active — standard written; Race first (R-RACE-14), other games R-ALL-8 |
+| D-124 | 2026-11-04 | `vhp-data` stays in this repo, archived after each year | active |
+| D-123 | 2026-11-04 | Platform nodes (the Knode Games Vault) are never withheld from games unless a game states it; the ruler's pool rule must pass sim 7 | active (rejects VHP_RULER §3.2's fallback) |
+| D-122 | 2026-11-04 | The five missed ruler simulations are the library chat's to fix: rank by luck percentile (Fix A) or tune bar and trim (Fix B), accept grinding, re-scope sim 9's mark for network-wide jumps (`VHP_RULER.md` §16) | active (design; simulations to confirm) |
 | D-121 | 2026-11-04 | Daily Questions is managed on the Stake page like every game | active (PR #142) |
-| D-120 | 2026-11-04 | **Proposed:** the 0.80 form gate and the biggest producer | proposed (owner) |
-| D-119 | 2026-11-04 | **Proposed:** no paying card reads a rebuilt or unverified hour anywhere in its 14-day look-back (paying cards start ~15 days after the first fill) | proposed (owner) |
+| D-120 | 2026-11-04 | **Owner to choose:** form for producers that throttle on purpose: keep the 0.80 gate, a consistency gate with size-adjusted expectations, or let them in unadjusted (`VHP_RULER.md` §16) | proposed (owner) |
+| D-119 | 2026-11-04 | **Owner to choose:** rebuilt hours: (a) only the 24 h before a card and its scoring window must be live (~1 day after the first fill), or (b) none anywhere in the 14-day look-back (~15 days) | proposed (owner) |
 | D-118 | 2026-11-04 | The old issue-based @name claim flow is removed; old claimed names are dropped | active |
 | D-117 | 2026-11-04 | Sponsor limits from real costs: staking calls 1 → 1.5 Mana, Picks row 1.2 → 1.3, answers their own 1.2 row, per-player caps kept at 40 / 250 | active (PR #138: config first, then merge) |
 | D-116 | 2026-11-04 | Daily Questions follows the shared game rules (staking, payouts through a results file, timing), folded into the same vault upgrade as the 60-question cap; v6.1 isn't announced on its own | active (supersedes D-114's "announce now"; amends D-092) |
@@ -639,7 +641,7 @@
   5. **Retention:** keep **30 days** at the start (the simulations need 29), then about 22. Rolling hours up into day files must keep the hash chain checkable: each day file lists its hours' sha256.
   Also: the ruler chat pushes each step to its own branch `vhp-ruler` (never to `main`; D-089), with a Repo Lens check after the math (`vhp-ruler.js`, `vhp_ruler.py` and their tests) and another before the hourly job writes to `vhp-data` on mainnet. Recorded in `standards/VHP_RULER.md` §2.3, §7, §9, §13.
 
-## D-123 — Every game plays Monday to Saturday; Sunday is the review day
+## D-125 — Every game plays Monday to Saturday; Sunday is the review day
 - **Date:** 2026-11-04 (owner: "a 24 hour review period for all games should be standard to allow chain data confirmations before any rewards are paid out … if all the games end Saturday night and take sunday off. sunday is the review period. all games start again monday morning and rewards are available to withdraw Monday as well because results are finalized … make it a standard for how weeks close on the games") · **Owner's choices (4 Nov):** the clock is **UTC**; claims at about **Mon 5 PM PT** are fine (no vault upgrade).
 - **Decision — how every game's week closes:**
   - **Play:** Monday 00:00 UTC → **Saturday 24:00 UTC** (Sat 4 PM PT). No round, race, target or pick that counts falls on **Sunday UTC**. Multi-week seasons rest on their Sundays too.
@@ -651,21 +653,23 @@
 - **Needs:** each game's chat moves its game onto the rhythm (R-ALL-8). Race first (R-RACE-14). Paused games (D-113) adopt it before they launch. Block X stops scoring Sunday targets. Bracket's Saturday seeding / Sunday picks schedule needs a new shape.
 - **Standards:** `GAME_STANDARD.md` §4, `RECORDER_STANDARD.md` §3, `VAULT_STANDARD.md` §7, `RULES.md` §4 and "Never change casually".
 
-## D-122 — The five missed VHP ruler simulations (PROPOSED; library chat's recommendation, owner decides)
-- **Date:** 2026-11-04 (VHP Ruler chat's results on 31 days of real data; I-091) · **Proposal:**
-  - **Sims 1 and 2 (fairness for small producers):** the k ≥ 10 entry bar is too low for a fair race: a producer just over the bar wins 0.76× its fair share, and small producers range 0.47–1.22×. **Re-run sims 1 and 2 at k ≥ 15, 20 and 30, and set each game's bar to the lowest that passes** (amends D-091 / the §9 default). Steady producers' index (0.988–0.997) is then re-checked against ±0.01.
-  - **Sim 6 (seed grinding, +0.62% vs a 0.5% mark at the 90th percentile):** **accept** as a known residual (the gain is a fraction of a percent of one producer's expected blocks), keep logging the seed producer, and switch to a VRF seed if Koinos offers one (§2.3).
-  - **Sim 7 (the pool rule over-corrects: the Vault wins 1.94× fair after a 50% withdrawal):** **follow §3.2's fallback: leave the Knode Games Vault out of size-handicapped fields** (Race, Block X, Last Node, Fantasy …), except the Bracket (D-086). It also avoids any question of the house's own pool in a race. Retry a gentler pool rule later as an experiment.
-  - **Sim 9 (a network-wide jump moves every index together ×1.10–1.27; rankings hold):** the ±0.01 mark is the wrong test for an all-producers jump. **Keep ±0.01 for one producer joining or leaving; for a network-wide jump, test relative win chances within 0.85–1.15 of fair.**
+## D-124 — Where the ruler's data lives
+- **Date:** 2026-11-04 (owner, to the VHP Ruler chat: "let it archive after a year and repeat") · **Decision:** `vhp-data` stays a branch of this repo; a yearly archive cut keeps it small (to build before the first year ends; ~0.9 GB a year otherwise). Closes I-094.
+
+## D-123 — Platform nodes are never withheld from games
+- **Date:** 2026-11-04 (owner, to the VHP Ruler chat: "Platform nodes should never be withheld from games unless specifically stated") · **Decision:** the Knode Games Vault (and any platform node) stays in every game's field unless that game's own rules say otherwise. `VHP_RULER.md` §3.2's fallback (leave the Vault out if sim 7 fails) is **rejected**; the ruler must use a pool rule that passes sim 7 (§16). Supersedes the sim-7 part of the earlier D-122 proposal.
+
+## D-122 — The five missed VHP ruler simulations
+- **Date:** 2026-11-04 (owner, to the VHP Ruler chat: "yes" — sims 1, 2, 6 and 9 to the library chat; sim 7 by D-123) · **Decision:** the library chat's design in `VHP_RULER.md` §16: **Fix A**, rank producers by their mid-p Poisson luck percentile (fixes sims 1, 2 and 7 at the root: an honest producer of any size wins its fair share), or **Fix B**, raise the entry bar and recalibrate the trim by simulation with a time-weighted pool rule; grinding (sim 6) accepted as a residual and logged; sim 9's ±0.01 mark kept for one producer, and relative win chances within 0.85–1.15 of fair for a network-wide jump. The Ruler chat builds A and B side by side and re-runs all eleven; the owner picks. Nothing pays until all pass (D-111).
 
 ## D-121 — Daily Questions on the Stake page
 - **Date:** 2026-11-04 (owner, to the Hub chat: "yes questions should be managed on the stake page like the other games") · **Decision:** the Stake page stakes, withdraws, moves and claims for Daily Questions like every game (PR #142: the old game-1 calls today, `deposit_to` / `claim_game` from the v6.1 rule week). Part of D-116.
 
-## D-120 — The 0.80 form gate and the biggest producer (PROPOSED)
-- **Date:** 2026-11-04 (VHP Ruler chat) · **The question:** the largest producer (JGA Pool #2: form ~0.66 over the sample, 0.81 on the last real card) is left out of the field whenever it signs below its share. **Library chat's recommendation:** keep the 0.80 gate (it protects players from backing an unreliable producer, and sim 8 passes with it), and show "left out: form below 0.80" on the card so players see why; revisit with sim 8 at 0.70 if the field gets too thin. Owner decides.
+## D-120 — Form for producers that throttle on purpose (OWNER TO CHOOSE)
+- **Date:** 2026-11-04 (owner, to the VHP Ruler chat: "JGA#2 is a huge producer so he throttles back his VHP power on purpose"; can the form rule adjust for a wallet that is consistent with it?) · **Options** (`VHP_RULER.md` §16): (1) keep the 0.80 gate; (2) a **consistency gate** — gate on form falling below 0.80 × the producer's own 14-day form, and expect `own × 14-day form` blocks, so a steady throttler is handicapped at the size it really plays, **only if sim 8 shows steering never pays**; (3) let it in unadjusted. Library chat leans to **2 if sim 8 passes, else 1**.
 
-## D-119 — Paying cards never read a rebuilt hour (PROPOSED)
-- **Date:** 2026-11-04 (VHP Ruler chat, reading D-112 literally) · **Proposal:** no paying card reads a rebuilt or unverified hour anywhere in its look-back (14 days of form + 6 h), so paying cards start about 15 days after the first fill; until then cards are practice only. **Library chat's recommendation: yes** (the safest reading; the Race moves onto the ruler only after that anyway).
+## D-119 — Rebuilt hours in paying cards (OWNER TO CHOOSE)
+- **Date:** 2026-11-04 (VHP Ruler chat) · **Options:** (a) **D-112 as written**: only the 24 h before a card and its scoring window must be live hours, so paying cards can start about a day after the first fill (form's older days may use rebuilt hours, built from two-node-checked blocks; the first live read matched the rebuild exactly, audit S-3); (b) **strict**: no rebuilt hour anywhere in the 14-day look-back, ~15 days. Library chat leans to **(a)** given the S-3 match; (b) is the most cautious.
 
 ## D-118 — The @name claim flow is removed
 - **Date:** 2026-11-04 (owner, to the Hub chat: "Yes, remove the claim flow" / "Drop it") · **Decision:** the old issue-based name-claim flow (issue template, the `names.yml` claim step and its `issues` permission, the claim CLI and admin buttons) is removed, and names claimed that way are dropped; @names come only from the Koinos Nicknames contract. Built in PR #137 (R-HUB-5 part 2); the CI guard now refuses any `issues` permission.

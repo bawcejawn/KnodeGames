@@ -217,3 +217,30 @@ function recompute(d: RulerData, published: Card): { same: boolean; diff?: strin
 - **Simulations (§8), 31 days, 60 race cards × 2,500 races:** pass 3, 4, 5, 8, 10, 11 (40 / 40 real cards byte-identical); miss 1, 2, 6, 7, 9 (I-091; proposals D-119, D-120, D-122).
 - **Timing:** one day of blocks reads in about 1 min per node; the 30-day first fill about 30 min per node (10–15 min over three parallel jobs).
 
+## 16. v2.1: fixing the five missed simulations (library chat design, 4 Nov 2026; to simulate)
+Owner's rulings (to the VHP Ruler chat, 4 Nov): **"Platform nodes should never be withheld from games unless specifically stated"** (D-123: §3.2's fallback, leaving the Vault out, is rejected; the pool rule must pass sim 7); sims 1, 2, 6 and 9 go to the library chat for design or pass-mark changes (D-122).
+
+**The common cause of sims 1, 2 and 7.** A producer with few expected blocks has a noisier result. Ranking producers by handicapped blocks (blocks × multiplier, or blocks ÷ expected) gives the noisy ones more extreme scores, so they win too often or too rarely depending on the game's win rule. The Vault after a big withdrawal (fewer expected blocks at a bigger multiplier) is the same effect: 1.94× fair in sim 7. The luck trim `c ÷ √k` only partly corrects it.
+
+**Fix A (preferred): rank by luck percentile, not by raw ratio.** The ruler adds one output per producer and scoring window:
+- `pct(p)` = the producer's **mid-p Poisson percentile**: P(X < x) + ½·P(X = x), where x = its credited blocks and X ~ Poisson(expected blocks), in millionths, rounded down.
+- For an honest producer it's spread evenly between 0 and 1 **whatever its size**, so every honest producer wins its fair share; a pooled producer's lower expected blocks after a withdrawal (`min(own, eff)`, §3.2) no longer buys extra wins.
+- Games that rank producers against each other (Race, Last Node, Bracket matchups) rank by `pct`; ties broken by the card's seed. Games that pay by size (Block X's multiplier) keep their formula; the ruler's job there is only an honest `own`.
+- Integer math: the Poisson terms by the recursion p(i+1) = p(i)·λ/(i+1) on a wide fixed-point scale (e.g. 2^1024, so λ up to the largest one-hour expectation stays exact), floor at each step; JavaScript and Python byte-identical (sim 11).
+
+**Fix B (fallback, if A changes the games too much): tune, don't redesign.** Re-run sims 1 and 2 with the entry bar at k ≥ 15, 20 and 30 and the trim `c` recalibrated; pick the lowest bar that passes. For sim 7, a pooled producer's expected blocks use its **time-weighted average** eff over the scoring window instead of the minimum, and its `c` is set from that average.
+
+**Sim 6 (grinding, +0.62% vs 0.5% at the 90th percentile):** accept as a known residual (a fraction of one percent of one producer's expected blocks); keep logging the seed producer; move to a VRF seed if Koinos offers one. Re-measure under Fix A.
+
+**Sim 9 (a network-wide jump moves every index together ×1.10–1.27; rankings hold):** the ±0.01 mark stays for **one** producer joining or leaving. For a jump in the whole network, the mark becomes **relative win chances within 0.85–1.15 of fair** (Fix A makes this nearly automatic: percentiles move together).
+
+**Form for producers that throttle on purpose (D-120, owner to choose):** the owner notes JGA Pool #2 throttles its own production on purpose and steadily. Options for the Ruler chat to simulate:
+1. **Keep the 0.80 gate** (v2 as approved): a steady 0.66 producer stays out.
+2. **A consistency gate:** gate on a producer's form *falling* below 0.80 × its own 14-day form, not on the level; and its expected blocks use `own × its 14-day form` (capped at 1), so a steady throttler is handicapped at the size it really plays. Sim 8 must still pass (steering must never pay: lowering form for 14 days to get a softer handicap costs real block rewards, and the simulation has to show it never wins more).
+3. **Let it in unadjusted**, with its form shown on the card (it would usually lose).
+The library chat leans to **2 if sim 8 passes, else 1**.
+
+**Rebuilt hours (D-119, owner to choose):** (a) **as D-112 is written**: only the 24 h before the card and the scoring window must be live, so paying cards can start about a day after the first fill; form's older days may use rebuilt hours (built from two-node-checked blocks, and the first live read matched the rebuild exactly, S-3); or (b) **strict**: no rebuilt hour anywhere in the 14-day look-back, so paying cards start ~15 days after the first fill. The library chat now leans to **(a)**, given the S-3 match; (b) is the most cautious.
+
+**Order of work (R-RULER-1):** implement `pct` and Fix B side by side, re-run all eleven simulations, report both; the owner picks; then the fix-check and the PR. Nothing pays until all eleven pass (D-111).
+

@@ -13,8 +13,8 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
-- [ ] **Decide the ruler proposals** D-119 (no rebuilt hours in paying cards), D-120 (the 0.80 form gate), D-122 (the five missed simulations), the vhp-data home (I-094), and the Race's L-4 (hourly or daily emails for your own Race hold) — P2
-- [ ] Ruler set-up in GitHub (Settings): repo variable `RPC_VERIFY` (a third node, suggested `https://api.koinos.io`); a ruleset on `vhp-data` (no deletion, no force-push); Actions → General → Workflow permissions → **Read** — P2 — R-RULER-1
+- [ ] **Two ruler choices:** D-119 (rebuilt hours: (a) ~1 day or (b) ~15 days) and D-120 (form for steady throttlers: keep the gate / consistency gate / let in). Also the Race's L-4 (daily or hourly emails for your own Race hold) — P2
+- [ ] Ruler set-up: add the target branch `vhp-data` to the ruleset you made (no deletion, no force-push). Workflow permissions are already Read ✅; no third node needed — P2 — R-RULER-1
 - [ ] **Vault upgrade, Path 2 (D-116):** Repo Lens round 1 (and round 2) → **Tue 10 Nov, after the handover accept: announce, signed by `1LMV8E…`** → **Thu 12: upload** (the new owner needs ≥ 95 KOIN of Mana) → merge #114, then #141 and #142. Don't announce earlier — P1 — D-116
 - [ ] On the PC: `cd C:\kprediction`, `git switch main`, `git pull`, `npm ci --ignore-scripts` (picks up the self-heal fix #135 and the new `yaml` test package) — P2
 - [ ] Try one small sponsored stake on the live site (staking now asks 1.5 Mana) and tell the Block X chat it worked (R-BX-18, I-088) — P2

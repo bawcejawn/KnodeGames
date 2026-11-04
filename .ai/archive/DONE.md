@@ -4,6 +4,16 @@
 > **How it grows:** when an item in `platform/TODOS.md`, `platform/CHAT_REQUESTS.md`, `platform/PRIORITIES.md`, `platform/ROADMAP.md`, `platform/DOCUMENTATION_GAPS.md` or `platform/TECHNICAL_DEBT.md` is done, the library chat moves it here under the date it was moved, newest first. Closed issues go to `ISSUES_CLOSED.md`.
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
+## Moved 2026-11-04 (evening, session-ends)
+| R-RACE-10 | In the sponsor switch-on run (R-BX-15 step SG-2) the Race picks row also goes to 1.2 Mana: check the Race page asks the same `rcLimit` | R-BX-15, R-BX-16 | checked with the site PR | open |
+| R-RACE-4 | New free-prize wording on the Leaders page once game 7 is applied (today: "paid once the vault is live") | `games.json` | PR | covered by PR #86 (same change as R-RACE-6) |
+| R-RACE-6 | Race page and the home page's Race rules: replace "vault not yet live" and update the free-prize wording (with the Hub's R-HUB-1) | I-027, I-069 | PR, before Mon 9 Nov | in progress: PR #86 updated (`race-page-wording` @ `d88d263`, local): "from Week 1, the week of Mon 9 Nov"; site tests 210/210. Owner pushes, then merges **after** Thu's `game-apply 7` |
+| R-HUB-1 | "Week 1" refresh: show the week of Mon 9 Nov as Week 1 site-wide and replace "vault not yet live" text; write the week-label table (vault week, site label, file name) into `KOINOS.md` → Time | I-069, I-027, D-063 | live before Mon 9 Nov | in progress: PR #94 (new `weeks.js`; Race page text is R-RACE-6); merge before Mon 9 Nov 00:00 UTC |
+- R-RACE-10 done: checked, no change (the Race page asks 1.2 Mana via `rcLimits`) — 2026-11-04
+- R-HUB-1 done: PR #94 merged 4 Nov 05:21 UTC — 2026-11-04
+- R-RACE-4 / R-RACE-6 done: PR #86 merged — 2026-11-04
+- Hub (3–4 Nov, owner-merged): #115 "Get an @name" in Tools; #118 Stake page overhaul — 2026-11-04
+
 ## Moved 2026-11-04 (morning)
 - Questions rounds: PRs #119, #122 (Repo Lens #E-9 ready to merge), #125, #126 (#E-10) merged; R-Q-2 done — 2026-11-04
 - PR #79 (Picks owner handover plan, docs) merged — 2026-11-04

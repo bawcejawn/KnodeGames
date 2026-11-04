@@ -184,7 +184,7 @@ change, not every hour.
 **An email that names an address you didn't write down in step 1, or a step you didn't do, is real.** Stop and act on
 it (vault: propose your own address, §3; Desk: `owner cancel`).
 
-**How to read these emails.** Every one arrives as GitHub's **"Run failed: Kpred bot"** email: the bot fails its run
+**How to read these emails.** Every one arrives as GitHub's **"Run failed: Knode Games bot"** email: the bot fails its run
 on purpose so GitHub tells you. The email itself doesn't say why. Open it → **View workflow run** → the red run →
 the lines marked **Needs attention**. Each line is one alert. Several alerts in the same hour arrive in **one** email.
 The full list of alerts, and what to do about each, is `.ai/platform/ALERTS.md`.

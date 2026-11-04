@@ -82,11 +82,14 @@
       else if (mode === "stake" && u > bal) bad = `You have ${F.exact(bal)} ${f.token} in your wallet.`;
       else if (mode !== "stake" && u > g.mine) bad = `You have ${vhp(g.mine)} staked here.`;
       else if (mode === "move" && !f.to) bad = "Pick the game to move it to.";
+      // I-028: taking a staked wallet below the minimum mid-week loses this week's share and free prize (peak_stake).
+      const drop = !bad && u && mode !== "stake" && g.staked && g.mine - u < d.min
+        ? ` This leaves less than ${F.exact(d.min)} VHP here: you'd get no share of ${g.name}'s rewards this week, and no free prize.` : "";
       const after = !bad && mode === "stake" ? ` Your share becomes ${pct(Number(((g.mine + u) * 1000000n) / (g.total + u)) / 1e6)}.` : "";
       hint.textContent = bad.trim() || ({
         stake: `Counts from next week.${after}${f.token === "KOIN" ? " KOIN is burned into VHP 1:1." : ""}`,
-        withdraw: "Straight back to your wallet, right now.",
-        move: "No tokens leave the vault. It counts in the new game from next week. You pay this one's Mana yourself.",
+        withdraw: `Straight back to your wallet, right now.${drop}`,
+        move: `No tokens leave the vault. It counts in the new game from next week. You pay this one's Mana yourself.${drop}`,
       })[mode];
       hint.className = `hub-hint${bad.trim() ? " bad" : ""}`;
       const name = mode === "move" ? (d.games.find((x) => x.id === f.to) || {}).name : "";

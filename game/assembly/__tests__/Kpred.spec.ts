@@ -607,6 +607,7 @@ describe("a full week", () => {
     expect(k.get_state(new kpred.get_state_arguments()).totals!.creator_fee).toBe(7 * VHP);
     k.settle(new kpred.settle_arguments(A, 1));
     at(3200);
+    k.finalize_week(new kpred.finalize_week_arguments(1));   // v6.1: the bot finalizes (a claim no longer does)
     as(A);
     expect(k.claim(new kpred.claim_arguments(A, 1)).reward).toBe(133 * VHP);
   });
@@ -1347,6 +1348,8 @@ describe("extreme edge cases", () => {
     expect(k.settle(new kpred.settle_arguments(B, 0)).points).toBe(0);
     // five weeks later, the reward is still there, exactly
     at(7000);
+    nobody();
+    k.finalize_week(new kpred.finalize_week_arguments(0));   // v6.1: the bot finalizes (a claim no longer does)
     as(A);
     const before = Tokens.testGet(VHP_TAG, A);
     expect(k.claim(new kpred.claim_arguments(A, 0)).reward).toBe(95 * VHP);
@@ -1465,6 +1468,7 @@ describe("extreme edge cases", () => {
     k.settle(new kpred.settle_arguments(A, 0));
     k.settle(new kpred.settle_arguments(B, 0));
     at(2200);
+    k.finalize_week(new kpred.finalize_week_arguments(0));   // v6.1: the bot finalizes (a claim no longer does)
     as(A);
     const ra = k.claim(new kpred.claim_arguments(A, 0)).reward;
     as(B);

@@ -3,10 +3,11 @@
  *
  * On the Koinos Foundation testnet (test KOIN only) it deploys a FRESH copy of the v6.1 release build 399171a2… with
  * 13 games registered (each with a stake), runs a 90-minute week 0 with 60 questions, then measures:
- *   D8-2  a returning player's FIRST answer of week 1 (after D-116 there is no settle step; one of them also closes week 0):
- *         - the first action after week 0's close time: the answer also closes week 0 (13 games) and settles (C);
- *         - after that: the answer only settles (A);
- *   plus each player's answers no. 1/30/60, an explicit settle with 60 and with 30 answers, close and finalize.
+ *   D8-2  a returning player's FIRST answer of week 1 (after D-116 there is no settle step; owner 4 Nov: a player's
+ *         action never closes a week, the bot does):
+ *         - C answers after week 0's close time: the answer must leave week 0 open (it would cost ~0.7 Mana more);
+ *         - the bot's close_week (13 games), then A's first answer;
+ *   plus each player's answers no. 1/30/60, game 1's results, seal, finalize and claim, a stake and a withdrawal.
  *   D8-1  every measured call's resource units (compute ticks, disk bytes, network bytes) and transaction id, written
  *         to testnet-v61-d8/units.json, so `npx tsx tools/mainnet-mana.ts <file>` can price them at mainnet's
  *         current resource prices (read-only, on the owner's PC).
@@ -28,7 +29,7 @@ const RPC = "https://testnet.koinosfoundation.org";
 const CHAIN_ID = "EiAIKVvm6-V2qmsmUvPJy09vCCLbtn9lHFpwrJbcTIEWRQ==";
 const KOIN = "1FaSvLjQJsCJKq5ybmGsMMQs8RQYyVv8ju";
 const WASM = "game/build/release/contract.wasm";
-const V61_SHA = "4fa5d2de9465e48c9fd35d36f6aa23798f0447730a29b03c12cf9eb0fee973b7";
+const V61_SHA = "11043e1fde1d8d7dbac75e9e5e788d058a7116b0dab6149fc09ecdc7b1c4258b";
 const DIR = "testnet-v61-d8";
 const VHP = 100_000_000n;
 const MIN = 60_000;
@@ -44,8 +45,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 type M = { rc: string; compute: string; disk: string; network: string; tx: string; note: string };
 type State = { contract?: string; uploaded?: boolean; genesis?: number; funded?: boolean; gamesProposed?: boolean; gamesApplied?: boolean;
   staked?: boolean; posted?: number; windowEnd?: number; refused61?: string; answered: Record<string, number>; resolved?: number;
-  rewards?: boolean; w1posted?: boolean; w1question?: number; closeAnswer?: boolean; settleAnswer?: boolean; settled?: boolean;
-  finalized?: boolean; caps?: string; m: Record<string, M>; done?: boolean };
+  rewards?: boolean; w1posted?: boolean; w1question?: number; closeAnswer?: boolean; closed?: boolean; settleAnswer?: boolean; settled?: boolean;
+  finalized?: boolean; moneyMeasured?: boolean; notes?: string[]; caps?: string; m: Record<string, M>; done?: boolean };
 
 export async function testnetV61D8(args: string[]) {
   fs.mkdirSync(DIR, { recursive: true });
@@ -261,14 +262,23 @@ export async function testnetV61D8(args: string[]) {
     log(`  week 1's question posted (${showKoin(r.rc_used)} Mana); week 0 still open`);
   }
 
-  // 7. D8-2: C's first answer of week 1 is the first action after week 0's close time (close 13 games + settle 60)
+  // 7. D8-2: C's first answer of week 1 is the first action after week 0's close time. Owner 4 Nov: it must NOT close
+  //    week 0 (that cost ~0.7 Mana more than the answer); the bot's close_week does, and is measured on its own.
   log("\n7. The returning players' first answers of week 1 …");
   await waitUntil(closeAt + 5000, "week 0's close time");
+  st.notes ??= [];
   if (!st.closeAnswer) {
-    note("firstAnswerClose", await sendR(P.C, [ans("C", st.w1question!, 1)], "C first answer week 1", 3),
-      "C's first answer of week 1: also closes week 0 (13 games)");
-    if (!(await chain.read("get_week", { week: "0" })).week?.closed) log("  ⚠ week 0 did not close in that answer");
+    note("firstAnswerDue", await sendR(P.C, [ans("C", st.w1question!, 1)], "C first answer week 1", 3),
+      "C's first answer of week 1, sent after week 0 was due to close (it must leave the close to the bot)");
+    const closed = !!(await chain.read("get_week", { week: "0" })).week?.closed;
+    st.notes.push(closed ? "⚠ C's answer CLOSED week 0: player actions must not close weeks." : "✔ C's answer left week 0 open (due, not closed): the close is the bot's.");
+    log(`  ${st.notes[st.notes.length - 1]}`);
     st.closeAnswer = true; save();
+  }
+  if (!st.closed) {
+    if (!(await chain.read("get_week", { week: "0" })).week?.closed)
+      note("closeWeek13", await sendR(funder, [{ method: "close_week", args: { week: "0" } }], "close week 0", 3), "the bot's close_week for week 0 (13 games)");
+    st.closed = true; save();
   }
   if (!st.settleAnswer) {
     note("firstAnswerSettle", await sendR(P.A, [ans("A", st.w1question!, 1)], "A first answer week 1", 3),
@@ -290,10 +300,19 @@ export async function testnetV61D8(args: string[]) {
     note("claimGame", await sendR(P.A, [{ method: "claim_game", args: { game: 1, week: "0", player: P.A.getAddress() } }], "claim A", 2), "A's claim_game for game 1");
     st.finalized = true; save();
   }
+  // 9. A stake and a withdrawal in game 1, as the Stake page sends them (approve + deposit_to in one transaction).
+  if (!st.moneyMeasured) {
+    note("depositTo1", await sendR(P.B, [approve(P.B.getAddress(), VHP), { method: "deposit_to", args: { game: 1, from: P.B.getAddress(), amount: String(VHP), koin: true } }], "stake B", 3),
+      "B's stake in game 1 (approve + deposit_to, 1 KOIN)");
+    note("withdrawFrom1", await sendR(P.D, [{ method: "withdraw_from", args: { game: 1, to: P.D.getAddress(), amount: String(VHP) } }], "withdraw D", 3),
+      "D's withdrawal from game 1 (withdraw_from, 1 VHP)");
+    st.moneyMeasured = true; save();
+  }
 
   // 8. report and units
   const fin = (await chain.read("get_game", { game: 1, week: "0" })).week;
-  const order = ["answerA1", "answerA30", "answerA60", "answerB30", "firstAnswerClose", "firstAnswerSettle", "postResults4", "seal", "finalizeGame", "claimGame", "post10", "resolve10", "upload"];
+  const order = ["answerA1", "answerA30", "answerA60", "answerB30", "firstAnswerDue", "firstAnswerSettle", "depositTo1", "withdrawFrom1", "claimGame",
+    "closeWeek13", "postResults4", "seal", "finalizeGame", "post10", "resolve10", "upload"];
   const units = { run: new Date().toISOString(), rpc: RPC, contract: C, build: V61_SHA, games: 13,
     calls: order.filter((k) => st.m[k]).map((k) => ({ key: k, ...st.m[k] })) };
   writeJ("units.json", units);
@@ -301,6 +320,7 @@ export async function testnetV61D8(args: string[]) {
     "# Vault v6.1 testnet measurement for Repo Lens #D-8 (D8-1 units, D8-2 first answer of the week)", "",
     `Run ${units.run} on ${RPC}: a fresh copy of \`${V61_SHA.slice(0, 8)}…\` at \`${C}\`, 13 games registered, each with a stake.`,
     `${st.caps}. Game 1's week 0: bucket ${showKoin(fin?.bucket)}, max points ${fin?.max_points}, ${fin?.eligible_players} posted, ${fin?.winners} winner(s). The 61st question: ${st.refused61}`, "",
+    ...(st.notes ?? []), "",
     "| Call | Testnet Mana | Compute (ticks) | Disk (bytes) | Network (bytes) | Transaction |", "|---|---|---|---|---|---|",
     ...units.calls.map((c) => `| ${c.note} | ${showKoin(c.rc)} | ${Number(c.compute).toLocaleString("en-US")} | ${c.disk} | ${c.network} | \`${c.tx}\` |`), "",
     "Mainnet Mana: `npx tsx tools/mainnet-mana.ts docs/testnet-v61-units.json` (read-only) prices these units at mainnet's current resource prices.", "",

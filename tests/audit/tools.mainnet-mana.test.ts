@@ -11,7 +11,9 @@ test("manaOf: ticks × compute price + disk × disk price + network × network p
   assert.equal(manaOf({ compute: "0", disk: "0", network: "0" }, { compute: 9n, disk: 9n, network: 9n }), 0n);
 });
 
-test("limitOf: answers and settles (sponsored) must fit 1 Mana; other calls have no fixed limit here", () => {
-  for (const k of ["answerA1", "answerA60", "firstAnswerClose", "firstAnswerSettle", "settleD60", "settleB30"]) assert.equal(limitOf(k), 1, k);
-  for (const k of ["upload", "post10", "resolve10", "finalize"]) assert.equal(limitOf(k), null, k);
+test("limitOf: answers and settles fit 1 Mana; stakes, withdrawals and claims 1.5; the bot's calls 2; batches and the upload none", () => {
+  for (const k of ["answerA1", "answerA60", "firstAnswerDue", "firstAnswerSettle", "settleD60", "settleB30"]) assert.equal(limitOf(k), 1, k);
+  for (const k of ["depositTo1", "withdrawFrom1", "claimGame"]) assert.equal(limitOf(k), 1.5, k);
+  for (const k of ["closeWeek13", "postResults4", "seal", "finalizeGame"]) assert.equal(limitOf(k), 2, k);
+  for (const k of ["upload", "post10", "resolve10"]) assert.equal(limitOf(k), null, k);
 });

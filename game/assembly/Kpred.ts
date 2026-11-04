@@ -398,10 +398,11 @@ export class Kpred {
   }
 
   // ───────────── automatic week progression ─────────────
-  // A blockchain never runs code by itself: something has to send a transaction. So every game action
-  // (deposit, withdraw, answer, settle, claim, compound, posting or resolving a question) first performs the
-  // overdue steps — finalizing the oldest settled week and closing the next finished week (at most one of each) —
-  // so the game moves forward on its own whenever anyone plays. The operator bot and the public close_week / finalize_week calls do the same thing.
+  // A blockchain never runs code by itself: something has to send a transaction. The operator's calls (posting,
+  // resolving and correcting a question) and the public close_week / finalize_week first perform the overdue steps —
+  // finalizing the oldest settled week and closing the next finished week (at most one of each). v6.1 (owner, 4 Nov
+  // 2026): player actions no longer do (closing all games' weeks cost a player up to ~0.7 Mana more than the action,
+  // over the sponsor's per-transaction limit), so the operator bot closes and finalizes; anyone can, with close_week.
 
   /** Earliest time week `w` may close: close_delay after the week ends AND close_delay after its latest resolution or
    *  correction, so every result can still be corrected for a while after it is posted. */
@@ -648,7 +649,8 @@ export class Kpred {
    *  (the old ones are kept as aliases, owner 4 Nov); all of them land in the player's own record. */
   deposit(from: Uint8Array, amount: u64, isKoin: bool): void {
     const c = this.cfg();
-    this.advance(c);
+    // v6.1 (owner, 4 Nov): a player action never closes or finalizes a week (that cost up to ~0.7 Mana more, over the
+    // sponsor's per-transaction limit); the operator bot and the public close_week / finalize_week do it.
     System.require(!c.paused, "new deposits are paused");
     System.require(amount > 0, "amount must be positive");
     System.require(amount % WHOLE == 0, "stake whole numbers only (1, 2, 3 …)");
@@ -662,7 +664,7 @@ export class Kpred {
     const h = this.now();
     const w = this.weekOf(c, h);
     const p = this.players.get(from)!;
-    this.autoSettle(c, from, p);
+    if (!this.v61Rule(c, w)) this.autoSettle(c, from, p);   // v6.1: from the rule week the old week is settled by its own call (Mana)
     this.normalize(p, w);
     // Counts from the next week. Before the game starts (genesis), it counts from week 0.
     p.pending += amount;
@@ -753,10 +755,11 @@ export class Kpred {
     System.requireAuthority(authority.authorization_type.contract_call, player);
     const why = this.answerCheck(c, player, args.question_id, args.option);
     System.require(why.length == 0, why);
-    this.advance(c);
+    // v6.1 (owner, 4 Nov): a player action never closes or finalizes a week (that cost up to ~0.7 Mana more, over the
+    // sponsor's per-transaction limit); the operator bot and the public close_week / finalize_week do it.
     const q = this.questions.get(u32Key(args.question_id))!;
     const p = this.players.get(player)!;
-    this.autoSettle(c, player, p);
+    if (!this.v61Rule(c, q.week)) this.autoSettle(c, player, p);   // v6.1: from the rule week, settle the old week by its own call (Mana)
     const key = this.entryKey(player, q.week);
     let e = this.entries.get(key);
     if (!e) {
@@ -776,7 +779,7 @@ export class Kpred {
 
   settle(args: kpred.settle_arguments): kpred.settle_result {
     const c = this.cfg();
-    this.advance(c);
+    // v6.1: no advance (a player action never closes or finalizes a week; see deposit).
     const player = args.player!;
     const why = this.settleCheck(player, args.week);
     System.require(why.length == 0, why);
@@ -862,7 +865,7 @@ export class Kpred {
   claim(args: kpred.claim_arguments): kpred.claim_result {
     const player = args.player!;
     System.requireAuthority(authority.authorization_type.contract_call, player);
-    this.advance(this.cfg());
+    // v6.1: no advance (a player action never closes or finalizes a week; see deposit).
     const why = this.claimCheck(player, args.week);
     System.require(why.length == 0, why);
     const wkKey = u64Key(args.week);
@@ -1831,7 +1834,7 @@ export class Kpred {
       return new kpred.deposit_to_result();
     }
     const c = this.cfg();
-    this.advance(c);
+    // v6.1: no advance (a player action never closes or finalizes a week; see deposit).
     const g = this.otherGame(args.game);
     System.require(g.active && g.staked, "that game does not take stakes now");
     System.require(!c.paused, "new deposits are paused");
@@ -2264,7 +2267,7 @@ export class Kpred {
     const player = args.player!;
     System.requireAuthority(authority.authorization_type.contract_call, player);
     const c = this.cfg();
-    this.advance(c);
+    // v6.1: no advance (a player action never closes or finalizes a week; see deposit).
     this.resultsGame(c, args.game, args.week);
     const gk = this.gweekKey(args.game, args.week);
     const gw = this.gweeks.get(gk)!;
@@ -2507,10 +2510,9 @@ export class Kpred {
       const se = this.entries.get(this.entryKey(a.player!, a.week));
       // free players' entries are never paid for
       if (se == null || se.voided || se.stake == 0 || se.stake < this.minStakeFor(c, a.week)) return false;
-      if (this.settleCheck(a.player!, a.week).length == 0) return true;
-      // The week may simply not be closed yet although it is due: the settle call closes it first, then settles.
-      const t = this.totals.get()!;
-      return a.week == t.weeks_closed && this.closeDue(c, t, this.now()) && !se.settled;
+      // v6.1: only a settle that is valid right now (a settle no longer closes a due week first, so one sent before the
+      // bot closes the week would revert, with the pool's Mana spent for nothing).
+      return this.settleCheck(a.player!, a.week).length == 0;
     }
     if (cc.entry_point == EP_CLAIM) {
       const a = Protobuf.decode<kpred.claim_arguments>(cc.args, kpred.claim_arguments.decode);

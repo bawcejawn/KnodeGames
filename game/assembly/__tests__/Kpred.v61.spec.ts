@@ -332,3 +332,55 @@ describe("v6.1: up to 60 questions a week", () => {
     expect(MockVM.getErrorMessage()).toBe("that player has no answers that week");
   });
 });
+
+describe("v6.1 (owner, 4 Nov): player actions never close or finalize a week (Mana)", () => {
+  it("answers, settles, deposits and claims leave a due week open; the public close_week closes it; withdrawals still work", () => {
+    const k = setup(1);
+    fund([PA, PB]);
+    at(200);
+    as(PA); k.deposit_to(new kpred.deposit_to_arguments(PA, 1, 10 * VHP, false));
+    as(PB); k.deposit_to(new kpred.deposit_to_arguments(PB, 1, 10 * VHP, false));
+    at(GENESIS + 100);
+    postMany(k, 0, 3);
+    at(GENESIS + 200);
+    answerN(k, PA, 0, 3, 3);
+    answerN(k, PB, 0, 3, 1);
+    at(GENESIS + 500);
+    resolveAll(k, 0, 3);
+    at(GENESIS + WEEK + 2);                                  // week 1, before week 0 can close
+    postIn(k, 1);                                            // question 3
+    at(GENESIS + WEEK + CLOSE + 5);                          // week 0 is now due to close
+    const before = k.get_state(new kpred.get_state_arguments()).totals!.weeks_closed;
+    expect(before).toBe(0);
+    answerN(k, PA, 3, 1, 1);                                 // a player's answer
+    as(PB); k.deposit_to(new kpred.deposit_to_arguments(PB, 1, VHP, false));   // a deposit
+    as(PA); k.deposit_vhp(new kpred.deposit_vhp_arguments(PA, VHP));          // the old alias
+    expect(k.get_state(new kpred.get_state_arguments()).totals!.weeks_closed).toBe(0, "a player's action closed the week (it must leave that to the bot)");
+    as(PB); k.withdraw_from(new kpred.withdraw_from_arguments(PB, 1, VHP));   // rule 1: withdrawing never waits for a close
+    MockVM.setAuthorities([]);
+    k.close_week(new kpred.close_week_arguments(0));                          // the bot (or anyone)
+    MockVM.commitTransaction();
+    expect(k.get_state(new kpred.get_state_arguments()).totals!.weeks_closed).toBe(1);
+  });
+
+  it("from the rule week, a player's first answer does not settle the old week inside it; the old week's own settle still works", () => {
+    const k = setup(0);
+    fund([PA]);
+    at(200);
+    as(PA); k.deposit_to(new kpred.deposit_to_arguments(PA, 1, 10 * VHP, false));
+    at(GENESIS + 100);
+    postMany(k, 0, 3);                                       // the first action: the rule week is 1, week 0 is old rules
+    expect(k.get_state(new kpred.get_state_arguments()).config!.q60_rule_week_plus_one).toBe(2);
+    at(GENESIS + 200);
+    answerN(k, PA, 0, 3, 3);
+    at(GENESIS + 500);
+    resolveAll(k, 0, 3);
+    at(GENESIS + WEEK + 2);
+    postIn(k, 1);                                            // question 3, in the rule week
+    closeAt(k, 0);                                           // week 0 closes (old rules: its settle window opens)
+    answerN(k, PA, 3, 1, 1);                                 // A's first answer of the rule week
+    expect(k.entries.get(k.entryKey(PA, 0))!.settled).toBe(false, "the answer settled the old week inside it (too much Mana for one answer)");
+    as(PA);
+    expect(k.settle(new kpred.settle_arguments(PA, 0)).points).toBe(3);    // its own call (the site or the bot sends it)
+  });
+});

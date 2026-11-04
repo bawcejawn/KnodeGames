@@ -6,7 +6,7 @@
  * The file lists calls measured on the testnet with their resource units (compute ticks, disk bytes, network bytes;
  * written by `npm run bot -- testnet-v61-d8`). Units don't depend on the network; prices do. This reads mainnet's prices
  * (chain.get_resource_limits) and prints each call's Mana = ticks × compute price + disk × disk price + network × network
- * price, next to the limit it must fit (a sponsored answer or settle: 1 Mana).
+ * price, next to the limit it must fit (limitOf).
  * The node: $env:RPC if set, else https://koinos.armana.io. It checks the chain id is mainnet's.
  */
 import fs from "node:fs";
@@ -24,9 +24,16 @@ export function manaOf(c: Pick<Call, "compute" | "disk" | "network">, p: Prices)
   return BigInt(c.compute) * p.compute + BigInt(c.disk) * p.disk + BigInt(c.network) * p.network;
 }
 
-/** The limit a call must fit, in Mana, if it has one: sponsored answers and settles get 1 Mana (the sponsor's limit). */
+/** The limit a call must fit, in Mana, if it has one (owner, 4 Nov: every call must fit its limit):
+ *  - a player's answer or settle: 1 (what the site asks the sponsor for an answer, and its own-Mana limit);
+ *  - a player's stake, withdrawal or claim: 1.5 (the sponsor's per-transaction cap from the 4 Nov rollout; the site asks
+ *    each action's own row, sponsor-data/mana-limits.json);
+ *  - the bot's close, results, seal and finalize: 2 (the bot's per-transaction limit, bot/chain.ts).
+ *  The testnet batches (10 posts or resolves in one transaction) and the upload have no fixed limit. */
 export function limitOf(key: string): number | null {
   if (/^answer|^firstAnswer|^settle/.test(key)) return 1;
+  if (/^deposit|^withdraw|^claim/.test(key)) return 1.5;
+  if (/^close|^postResults|^seal|^finalize/.test(key)) return 2;
   return null;
 }
 
@@ -52,7 +59,12 @@ async function main() {
     if (share !== null && share > 0.5) half++;
     console.log(`${fmt(m).padStart(9)} Mana  ${lim ? `(${(share! * 100).toFixed(0)}% of ${lim})`.padEnd(14) : "".padEnd(14)} ${c.note}`);
   }
-  console.log(over ? `\n✖ ${over} call(s) are OVER their limit.` : half ? `\n⚠ ${half} call(s) use more than half of their limit (Repo Lens D8: then add an answer row / raise the limit).` : "\n✔ Every answer and settle is under half of its 1-Mana limit.");
+  let tight = 0;
+  for (const c of units.calls as Call[]) { const lim = limitOf(c.key); if (lim && Number(manaOf(c, p)) * 1.25 > lim * SAT) tight++; }
+  console.log(over ? `\n✖ ${over} call(s) are OVER their limit.`
+    : tight ? `\n⚠ ${tight} call(s) fit, but with less than 25% room for prices to rise.`
+    : "\n✔ Every call fits its limit with at least 25% room for prices to rise.");
+  if (half && !over) console.log(`  (${half} use more than half of their limit.)`);
   console.log("Paste this output to the Vault chat.");
 }
 

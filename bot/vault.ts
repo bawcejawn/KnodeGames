@@ -30,6 +30,11 @@ import { readSwitches, prizeOn, type Switches } from "./free-prizes.ts";
 export const Q_GAME = 1;
 export const MAX_ROWS = 50;                   // results per post_results call (the contract's limit)
 export const MAX_PRIZE_WINNERS = 10;          // wallets per prize place (the contract's limit)
+/** Wallets per post_results / post_prize_winners transaction (owner, 4 Nov: every transaction must fit its Mana limit).
+ *  At mainnet prices (4 Nov 2026, docs/testnet-v61-units.json) a results call costs about 0.35 Mana plus about 0.19 per
+ *  wallet (its compute and the bytes it stores). Six wallets ≈ 1.5 Mana: under the bot's 2-Mana limit per transaction
+ *  (bot/chain.ts) with room for prices to rise by a third. 50 at once (the contract's limit) would need ~10 Mana. */
+export const ROWS_PER_TX = 6;
 export const MAX_POINTS = 255;
 const HOUR_MS = 3_600_000;
 
@@ -453,13 +458,15 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
       return false;
     };
     let ok = true;
-    for (let i = 0; i < rows.length && ok; i += MAX_ROWS) {
-      const batch = rows.slice(i, i + MAX_ROWS);
+    for (let i = 0; i < rows.length && ok; i += ROWS_PER_TX) {
+      const batch = rows.slice(i, i + ROWS_PER_TX);
       ok = await go(`${name} week ${w}: points for ${batch.length} player(s)`, "post_results", [{ method: "post_results", args: { game: id, week: String(w), rows: batch } }]);
     }
     for (const pl of places) {
-      if (!ok) break;
-      ok = await go(`${name} week ${w}: prize place ${pl.place} → ${pl.players.join(", ")}`, "post_prize_winners", [{ method: "post_prize_winners", args: { game: id, week: String(w), place: pl.place, players: pl.players } }]);
+      for (let i = 0; i < pl.players.length && ok; i += ROWS_PER_TX) {
+        const part = pl.players.slice(i, i + ROWS_PER_TX);
+        ok = await go(`${name} week ${w}: prize place ${pl.place} → ${part.join(", ")}`, "post_prize_winners", [{ method: "post_prize_winners", args: { game: id, week: String(w), place: pl.place, players: part } }]);
+      }
     }
     if (ok && holdSeal) log(ctx, `  ${name} week ${w}: seal held (free-prize switches unreadable)`);
     if (ok && !holdSeal) await go(`${name} week ${w}: seal the results (the owner can correct them for 24 h)`, "seal_results", [{ method: "seal_results", args: { game: id, week: String(w) } }]);

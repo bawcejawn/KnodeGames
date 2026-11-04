@@ -535,3 +535,38 @@ test("v6.1 (D-116): the vault bot handles the question game only from its shared
   assert.equal(vaultHandles(1, c, 3), true);
   assert.equal(vaultHandles(2, {}, 0), true, "every other game, always");
 });
+
+test("owner 4 Nov (Mana): a week's points and prize places go out six wallets per transaction", { skip: !fs.existsSync(NEW) && `${NEW} missing: run npm run build:sim in game/` }, async () => {
+  const { sim, at, ok } = await world();
+  await ok([["propose_game", { game: 2, name: "Fantasy", staked: true, free_prize: false, season_weeks: 1 }], ["propose_game", { game: 3, name: "Block X", staked: false, free_prize: true, season_weeks: 1 }]], [owner]);
+  at(T0 + 2 * DAY + HOUR);
+  await ok([["apply_game", { game: 2 }], ["apply_game", { game: 3 }]], [owner]);
+  await ok([["seed_deposit_vhp", { amount: String(2000n * VHP) }]], [seedOwner]);
+  const many = Array.from({ length: 14 }, (_, i) => key(`many ${i}`));
+  for (const p of many) {
+    await sim.ledgerSet(2, addr(p), 100n * VHP); await sim.ledgerSet(3, addr(p), 100n * VHP);
+    await ok([["deposit_to", { from: addr(p), game: 2, amount: String(VHP), koin: false }]], [p]);
+  }
+  at(GENESIS + WEEK + 12 * HOUR + 1);
+  await ok([["close_week", { week: "0" }]], []);
+  await sim.ledgerAdd(2, addr(contract), 100n * VHP);
+  at(GENESIS + 2 * WEEK + 12 * HOUR + 1);
+  await ok([["close_week", { week: "1" }]], []);
+  const free = [A, B, C, D, E, key("free 6"), key("free 7")].map(addr);
+  const results = {
+    "mem:fantasy/W1": { game: 2, week: 1, final: true, rows: many.map((p, i) => ({ player: addr(p), points: 1 + i })) },
+    "mem:blockx/W1": { game: 3, week: 1, final: true, rows: [], first: free, second: [] },
+  };
+  const v = vctx(sim, results), sent: string[] = [];
+  await vaultResultsPass(v, sendAs(sim, operator, sent));
+  assert.deepEqual(v.problems, []);
+  assert.deepEqual(sent.filter((s) => s.startsWith("Fantasy")), [
+    "Fantasy week 1: points for 6 player(s)", "Fantasy week 1: points for 6 player(s)", "Fantasy week 1: points for 2 player(s)",
+    "Fantasy week 1: seal the results (the owner can correct them for 24 h)",
+  ]);
+  assert.deepEqual(sent.filter((s) => s.startsWith("Block X")), [
+    `Block X week 1: prize place 1 → ${free.slice(0, 6).join(", ")}`, `Block X week 1: prize place 1 → ${free[6]}`,
+    "Block X week 1: seal the results (the owner can correct them for 24 h)",
+  ]);
+  assert.equal(Number((await sim.read("get_game", { game: 3, week: "1" })).week.first_n), 7, "all seven tied winners are on chain");
+});

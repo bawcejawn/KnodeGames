@@ -168,6 +168,14 @@ export function readResultsFile(source: string, week: number): any | null {
   return r.state === "ok" ? r.data : null;
 }
 
+/** A results file's fingerprint: rows sorted by wallet and winners sorted, so only the content counts, not its order
+ *  (Repo Lens VB-11). */
+export function fileHash(r: any): string {
+  const byPlayer = (u: any, v: any) => (String(u?.player) < String(v?.player) ? -1 : String(u?.player) > String(v?.player) ? 1 : 0);
+  const sorted = (x: any) => (Array.isArray(x) ? [...x].sort() : x);
+  return hashOf({ ...r, rows: Array.isArray(r?.rows) ? [...r.rows].sort(byPlayer) : r?.rows, first: sorted(r?.first), second: sorted(r?.second) });
+}
+
 /** A stable fingerprint of a parsed file (the same content always gives the same hash). */
 export function hashOf(x: any): string {
   const canon = (v: any): any => (Array.isArray(v) ? v.map(canon) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canon(v[k])])) : v);
@@ -298,7 +306,7 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
       if (hoursLeft < 12) ctx.problems.push(`${name}: week ${w}'s results are not ready (${why}) and are due ${utc(due)} (${hoursLeft.toFixed(1)} h). Without them the week rolls over: its bucket stays in the game and its prize goes back to the pool.`);
       continue;
     }
-    const hash = hashOf(r);
+    const hash = fileHash(r);
     if (memo) {
       memo.seen ??= {};
       const seen = memo.seen[key];

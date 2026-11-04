@@ -513,3 +513,12 @@ test("VB-7: the missing-wallet check never asks for wallets under 1 VHP, whateve
   assert.equal(stakedFloor(50_000_000n), 100_000_000n);
   assert.equal(stakedFloor(500_000_000n), 500_000_000n);
 });
+
+test("VB-11: a results file's fingerprint ignores the order of rows and winners", async () => {
+  const { fileHash } = await import("./vault.ts");
+  const P = (n: number) => `1PWeFG4pPtjZZoYvcmGb6mYhMYJjnkHrm${"abcdefgh"[n]}`;
+  const a = { game: 2, week: 1, final: true, rows: [{ player: P(0), points: 9 }, { player: P(1), points: 4 }], first: [P(2), P(3)], second: [] };
+  const b = { ...a, rows: [a.rows[1], a.rows[0]], first: [P(3), P(2)] };
+  assert.equal(fileHash(a), fileHash(b));
+  assert.notEqual(fileHash(a), fileHash({ ...a, rows: [{ player: P(0), points: 8 }, a.rows[1]] }));
+});

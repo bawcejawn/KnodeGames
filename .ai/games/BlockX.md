@@ -1,6 +1,6 @@
 # Who Signs Block X (game 2)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Block X and Picks, Race, Bracket, Combo, Vault chats), `DECISIONS.md` (D-036 – D-041, D-062, D-064, D-067), the owner's status checks, the repo. **Last updated:** 2026-11-03.
+> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Block X and Picks, Race, Bracket, Combo, Vault chats), `DECISIONS.md` (D-036 – D-041, D-062, D-064, D-067), the owner's status checks, the repo. **Last updated:** 2026-11-04.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -35,13 +35,20 @@ Guess which block producer will sign a future target block. Simple to play, root
 - **Pays from vault week 3** (Mon 9 – Mon 16 Nov), the week closes Mon 16 Nov; the bot posts and seals the results within 3 days (the Block X chat expects the first seal ~Tue 17 Nov), then the owner has 24 h to correct (D-077). The I-042 items are ranked by what could mispay in that week; see "Before the first paid week" below.
 - **Nicknames (D-078, I-073):** `blockx.html` loads `names.js`; every producer and player shows as `KNames.of` (name · short address, wrapped, never cut off). **Merged (PR #60)** ✅
 ## Before the first paid week (I-042, D-077)
-Fixes planned before the week-3 seal (each with a test and a Repo Lens fix-check):
-1. **Week-end re-read** (BX-88, BX-97, BX-98, G-K-1): before a week's prize file is first written, every target of the week is re-read from both nodes and compared whole (signer, time, picks, points, void, card); any difference holds the prize file.
-2. **Race card clock** (BX-118): the race publish job refuses a new card dated in the future.
-3. **Board freeze** (BX-105): once a week's prize file exists, that week's board can't change.
-4. **Void alert** (BX-72): every target voided for a non-standard VHP transfer is listed in the run's warnings, so they can be checked in the 24-hour correction window.
+Built on branch `blockx-before-prizes` (PR open, Repo Lens round 14 pending), with the sampler fix (PR #67):
+1. **Week-end re-read** (BX-88, BX-97, BX-98, G-K-1) ✅ built: before a final week's prize list is frozen (and its vault file written), every target is read again from both nodes and compared whole: signer and times, picks, Staked flags, the cards in force, and every pick's points recomputed. Any difference holds the week (no prize list, no vault file, an alert), and it is tried again next run. Not re-scanned: the VHP moved into a signer (BX-53, read on both nodes when recorded); points are recomputed with the recorded amount.
+2. **Race card clock** (BX-118) ✅ built: the race publish job refuses a card dated in the future.
+3. **Board freeze** (BX-105): not built; display only. Once a week's prize list is published, no new round of that week is accepted, and published targets never change, so the recomputed board can't change either. The vault reads its own write-once file, and the vault bot holds a week whose board and file disagree.
+4. **Void alert** (BX-72) ✅ built: when a week becomes final, every target voided for a non-standard VHP transfer gets its own warning line, for the correction window.
+5. **Sampler** (I-059, R-BX-2) ✅ PR #67: up to 12 samples a run, at least 4 minutes apart. `MIN_SAMPLES` stays 12. Before it merges, every Block X target is void (3 Nov: 24 of 24; race cards had 4 to 9 samples).
 
-Check in the correction window (game-correct / game-unprize / game-void): non-standard-transfer voids (BX-72), the free-prize winners for many-wallet farming (BXS-1), close finishes where a ~1% card shift could swap places (BX-115), and void rows near the week edge (BX-120). SP-59 and BX-116 can't mispay.
+Check in the correction window (game-correct / game-unprize / game-void):
+- non-standard-transfer voids (BX-72), from the run's warnings;
+- the free-prize winners, for many-wallet farming (BXS-1);
+- close finishes, where a ~1% card shift could swap places (BX-115);
+- void rows near the week's edge (BX-120).
+
+SP-59 and BX-116 can't mispay.
 
 ## Known issues
 - **I-042:** see above.

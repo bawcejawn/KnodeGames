@@ -91,7 +91,7 @@ Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Surv
 ## Wallets (public addresses only — never keys)
 | Role | Address | State | |
 |------|---------|-------|-|
-| Owner (game/vault, desk, Picks) | `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717` | to hand the vault and the Desk to a new **cold-key** owner this weekend (D-083, runbook PR #73); Picks and Race picks the same weekend once their tools are built (D-096; I-076, I-077) | ✅ |
+| Owner (game/vault, desk, Picks) | `1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717` | to hand the vault and the Desk to a new **cold-key** owner this weekend (D-083, runbook PR #73); Picks the same weekend once its tool is built (D-096; I-076). **Race picks moved 4 Nov** to its own wallet `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` (tx `0x1220bd9c…`) | ✅ |
 | Desk treasury | same as owner | to move to a cold treasury, 48 h timelock (I-001) | ✅ |
 | Seed owner | `1K8VV1utXfomeXHeifrwgLpBjUG6Ldkw2Z` | dedicated wallet since 30 Oct — done | ✅ |
 | Operator (bot) | `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv` | rotated in 26 Oct; pays its own Mana, target 50 KOIN (D-046); balance unconfirmed (I-046); **GitHub-only** (D-084) | ✅ |

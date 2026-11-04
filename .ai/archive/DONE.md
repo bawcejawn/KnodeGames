@@ -5,6 +5,8 @@
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
 ## Moved 2026-11-04 (evening)
+- Race session-end (05:45 UTC) filed. R-RACE-3 done: #84 and #93 merged and used; Race picks owner → `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` (tx `0x1220bd9c…`, both nodes); picks on/off and per-day unchanged. The C4-3 tidy-up moved to R-RACE-9.
+  | R-RACE-3 | **Race picks owner change (D-096):** build the safe owner-change command (dry run, address entered twice, read-back) with tests; say whether a two-step handover is possible in a future upgrade and how `RACE_WIF` can stay offline | I-077, D-083, D-096 | merged by Fri 6 Nov | done except a tidy-up: #84 merged (Repo Lens GO) and #93 merged (#C-4 GO). Left: C4-3, stop with "no race settings on chain at <node>" when a node returns no config, with a test |
 - Hub session-end (4 Nov 05:17 UTC) filed. R-HUB-2 done: the staking hub reads the live vault on mainnet (week 2, minimum 1 VHP, game 1 only until Thu's `game-apply`); the Questions status bar shows "Staked · 1 VHP"; the Race bar's old text is fixed by PR #94.
   | R-HUB-2 | Check the staking hub, status bars and panels on mainnet now that the vault is live | — | checked | open |
 - Owner, 21:15 PT: `sponsor-limit 0 --send` done (tx `0x12209299478ad245a288e103eab3a195358c9572b8b355872a5ccc3ce7e43f2e548f`); `chain-check`: everything matches, vault and Desk `authorizes_*` all true, no pending transfers, upgrades or seed withdrawal, Desk holds 1,823.54 KOIN + 19,425.45 VHP. Guest picks on Race and Block X tested by the owner: they work.

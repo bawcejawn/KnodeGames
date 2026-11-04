@@ -87,15 +87,26 @@ export async function testnetV61D8(args: string[]) {
     for (;;) { const now = await chainTime(); if (now >= t) return; log(`  … waiting ${Math.ceil((t - now) / 1000)} s for ${what}`); await sleep(Math.min(60_000, t - now + 3000)); }
   };
   /** Sends and returns the receipt (rc and resource units). Mempool "pending resources": wait and retry. */
+  /** The funder's own Mana ran low after the uploads: its calls are paid by whichever test player has the most Mana. */
+  const payerFor = async (who: Signer): Promise<Signer> => {
+    if (who !== funder) return who;
+    const own = BigInt(await provider.getAccountRc(funder.getAddress()));
+    if (own > toSat(2)) return funder;
+    let best = funder, bestMana = own;
+    for (const n of ["B", "D", "C", "A"]) { const m = BigInt(await provider.getAccountRc(P[n].getAddress())); if (m > bestMana) { best = P[n]; bestMana = m; } }
+    return best;
+  };
   const sendR = async (who: Signer, calls: any[], what: string, rcLimitKoin = 3): Promise<any> => {
     for (let attempt = 1; ; attempt++) {
       try {
-        const mana = BigInt(await provider.getAccountRc(who.getAddress()));
+        const payer = await payerFor(who);
+        const mana = BigInt(await provider.getAccountRc(payer.getAddress()));
         const cap = toSat(rcLimitKoin), limit = (mana * 95n) / 100n < cap ? (mana * 95n) / 100n : cap;
-        const tx = new Transaction({ signer: who, provider, options: { payer: who.getAddress(), payee: who.getAddress(), rcLimit: limit.toString() } });
+        const tx = new Transaction({ signer: who, provider, options: { payer: payer.getAddress(), payee: who.getAddress(), rcLimit: limit.toString() } });
         for (const c of calls) await tx.pushOperation(await chain.op(c));
         await tx.prepare();
-        const t: any = await who.signTransaction(tx.transaction!);
+        let t: any = await who.signTransaction(tx.transaction!);
+        if (payer !== who) t = await payer.signTransaction(t);
         const { receipt, transaction } = await provider.sendTransaction(t);
         if ((receipt as any)?.reverted) throw new Error(`reverted: ${JSON.stringify((receipt as any).logs)}`);
         await transaction.wait("byBlock", 180_000);
@@ -188,7 +199,7 @@ export async function testnetV61D8(args: string[]) {
     st.windowEnd = ws + 20; save();
     while ((st.posted ?? 0) < N) {
       const n = Math.min(BATCH, N - (st.posted ?? 0));
-      const r = await sendR(funder, Array.from({ length: n }, () => ({ method: "post_question", args: qArgs(lock0, ws) })), "post", 10);
+      const r = await sendR(funder, Array.from({ length: n }, () => ({ method: "post_question", args: qArgs(lock0, ws) })), "post", 3);
       if (!st.m.post10) note("post10", r, "posting 10 questions in one transaction");
       st.posted = (st.posted ?? 0) + n; save();
     }
@@ -224,7 +235,7 @@ export async function testnetV61D8(args: string[]) {
   for (;;) { const h = await height(); if (h > st.windowEnd! + 62) break; log(`  … waiting for block ${st.windowEnd! + 63} (now ${h})`); await sleep(30_000); }
   while ((st.resolved ?? 0) < N) {
     const from = st.resolved ?? 0, n = Math.min(BATCH, N - from);
-    const r = await sendR(funder, Array.from({ length: n }, (_, j) => ({ method: "resolve_question", args: { id: from + j, outcome: 1, data_hash: "0x" + "cd".repeat(32) } })), "resolve", 10);
+    const r = await sendR(funder, Array.from({ length: n }, (_, j) => ({ method: "resolve_question", args: { id: from + j, outcome: 1, data_hash: "0x" + "cd".repeat(32) } })), "resolve", 3);
     if (!st.m.resolve10) note("resolve10", r, "resolving 10 questions in one transaction");
     st.resolved = from + n; save();
   }
@@ -266,7 +277,7 @@ export async function testnetV61D8(args: string[]) {
   }
   const wk = (await chain.read("get_week", { week: "0" })).week;
   await waitUntil(Number(wk.settle_end) + 5000, "the settle window to end");
-  if (!st.finalized) { note("finalize", await sendR(funder, [{ method: "finalize_week", args: { week: "0" } }], "finalize", 10), "finalize_week (4 players, 60 points max)"); st.finalized = true; save(); }
+  if (!st.finalized) { note("finalize", await sendR(funder, [{ method: "finalize_week", args: { week: "0" } }], "finalize", 3), "finalize_week (4 players, 60 points max)"); st.finalized = true; save(); }
 
   // 8. report and units
   const fin = (await chain.read("get_week", { week: "0" })).week;

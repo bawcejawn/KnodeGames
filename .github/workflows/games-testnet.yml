@@ -57,7 +57,7 @@ jobs:
             done
           else
             # Fix-check L-3 (as E4-1 a on mainnet): only a branch that really isn't there means "nothing yet".
-            set +e; git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" testnet-data >/dev/null 2>&1; rc=$?; set -e
+            set +e; git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/testnet-data >/dev/null 2>&1; rc=$?; set -e
             if [ "$rc" -eq 2 ]; then echo "No testnet-data branch yet."; else echo "::error::The testnet-data branch could not be fetched (git ls-remote exit $rc). Nothing recorded this run; the next run tries again."; exit 1; fi
           fi
       - name: Record every testnet game

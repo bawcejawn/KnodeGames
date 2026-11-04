@@ -622,7 +622,7 @@ test("E4-3: the re-read reads 4 targets at a time and holds (try next run) once 
 
 test("E4-1 (a) / E4-7 in the workflow: a failed fetch of a branch that exists stops the run; a held week fails it after publishing", () => {
   const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
-  for (const b of ["games-data", "race-data"]) assert.match(yml, new RegExp(`git ls-remote --exit-code --heads "https://github.com/\\$\\{GITHUB_REPOSITORY\\}.git" ${b}`), b);
+  for (const b of ["games-data", "race-data"]) assert.match(yml, new RegExp(`git ls-remote --exit-code --heads "https://github.com/\\$\\{GITHUB_REPOSITORY\\}.git" refs/heads/${b} `), b);   // Repo Lens B3-6: the exact ref
   assert.match(yml, /if \[ "\$rc" -eq 2 \]; then echo "No race-data branch yet: targets wait for cards."; else echo "::error::The race-data branch could not be fetched/);
   assert.match(yml, /held: \$\{\{ steps\.blockx\.outputs\.held \}\}/);
   assert.match(yml, /alert:\n    needs: \[record, publish\]\n    if: \$\{\{ always\(\) && needs\.record\.outputs\.held == 'true' \}\}/);
@@ -684,6 +684,82 @@ test("L-2 / L-3 in the workflows: BLOCKX_RELEASE reaches the recorder; the testn
   const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
   assert.match(yml, /BLOCKX_RELEASE: \$\{\{ vars\.BLOCKX_RELEASE \}\}/);
   const t = fs.readFileSync(path.resolve(APP, ".github/workflows/games-testnet.yml"), "utf8");
-  assert.match(t, /git ls-remote --exit-code --heads "https:\/\/github\.com\/\$\{GITHUB_REPOSITORY\}\.git" testnet-data/);
+  assert.match(t, /git ls-remote --exit-code --heads "https:\/\/github\.com\/\$\{GITHUB_REPOSITORY\}\.git" refs\/heads\/testnet-data /);   // B3-6
   assert.match(t, /if \[ "\$rc" -eq 2 \]; then echo "No testnet-data branch yet."; else echo "::error::The testnet-data branch could not be fetched/);
+});
+
+// ── Repo Lens #B-3 (round-14 Lows fix-check): a release frees only the hold the owner checked ──
+// Written by Repo Lens, NOT run here. Append to the end of tests/audit/blockx-recorder.test.mjs (it uses that file's
+// weekEditThenLook, heldNote, releaseCode, BIG and MID). It should FAIL on 4e6334f and PASS once B3-1 is fixed.
+test("Repo Lens B3-1: BLOCKX_RELEASE for the first hold doesn't free a second, unread difference in the same week", async () => {
+  // Two problems in week 3: the first non-void BIG target's signer (the hold the owner sees and checks), and a
+  // LATER target's points (never read: the re-read stops at the first hold).
+  const two = (wf) => {
+    const live = wf.targets.filter((x) => !x.void);
+    const first = live.find((x) => x.signer === BIG); first.signer = MID;
+    const later = [...live].reverse().find((x) => x.round > first.round && x.picks.length);
+    assert.ok(later, "the fixture has a later scored target with picks");
+    later.picks[0][3] += 100;
+  };
+  const held = await weekEditThenLook(two, { prizesFromWeek: 0 }, { release: null });
+  const reason = /held before its prize list: (.*)\. Nothing is paid/.exec(heldNote(held.r))[1];
+  assert.match(reason, /signer or times read differently now/, "the first hold reported is the signer change");
+  const released = await weekEditThenLook(two, { prizesFromWeek: 0 }, { release: `3:${releaseCode(reason)}` });
+  // The released reason is gone, but the week must still be held for the second difference: nothing frozen.
+  const note = heldNote(released.r);
+  assert.ok(note && /points recompute differently/.test(note), "still held for the later target: " + JSON.stringify(released.r.problems).slice(0, 400));
+  assert.ok(!fs.existsSync(path.join(released.out, "P003.json")), "no prize list frozen");
+  assert.ok(!fs.existsSync(path.join(released.out, "vault", "W3.json")), "no vault file written");
+});
+
+// ── Repo Lens #B-3: B3-2 (the deadline before every read; the re-read's vault reads on REVERIFY_TRIES) and B3-3 ──
+test("B3-2: past the deadline, a target already in flight stops before its next read (a passing hold, no code)", async () => {
+  // Every block read waits; the budget runs out while the first targets are still reading.
+  let reads = 0;
+  const slow = { reverifyBudgetMs: 0, blockOf: async (n, h) => { reads++; await new Promise((r) => setTimeout(r, 1)); return { signer: signerOf(h), time: T(h) }; } };
+  const { r } = await weekEditThenLook(() => {}, { prizesFromWeek: 0 }, slow);
+  const note = heldNote(r) || "";
+  assert.match(note, /ran out of time this run/);
+  assert.doesNotMatch(note, /BLOCKX_RELEASE/, "a timeout prints no release code");
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /const timed = <T,>\(f: \(\) => Promise<T>\): Promise<T> => \(Date\.now\(\) > deadline \? Promise\.reject\(new OutOfTime\(\)\) : f\(\)\);/);
+  for (const call of ["timed(() => read(t.height))", "timed(() => read(t.height - G.LEAD))", "timed(() => reread(node, t.round))", "timed(() => rerank(players, node, M.weekOf(t.time)))"]) assert.ok(src.includes(call), call);
+  assert.match(src, /const reVault = vaultReader\(KNODE, G\.GAME_ID, VAULT_ABI, REVERIFY_TRIES\);/);
+  assert.match(src, /withRetry\("vault state", \(\) => \(c\.functions as any\)\.get_state\(\{\}\), tries\)/);
+  assert.match(src, /get_game_player\(\{ player: a, game, week: String\(week\) \}\), tries\)/);
+});
+
+test("B3-3: holds that pass on their own print no release code and are never released", async () => {
+  // "isn't irreversible yet" (a source check: a run can't record a target past the irreversible block to test it with).
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /if \(t\.height > head\.lib\) return hold\(" isn't irreversible yet", true\);/);
+  assert.match(src, /return why \? hold\(`: a void target has a card now \(\$\{why\}\)`, \/\^this run has no race cards\/\.test\(why\)\) : null;/);
+  // A void "no card" row checked by a run whose race files are missing: held, passing, no code, never released.
+  const v = (wf) => { const t = wf.targets.find((x) => !x.void); t.void = "no handicap card was recorded for this target's lock; no points"; t.card = null; for (const p of t.picks) p[3] = 0; };
+  // Race files present for week 4 (so week 3 is complete) but not week 3 itself (a fetch gap for that week's file).
+  const empty = raceDir(); fs.rmSync(path.join(empty, "W003.json"));
+  const a = await weekEditThenLook(v, { prizesFromWeek: 0 }, { raceDir: empty, release: null });
+  const note = heldNote(a.r) || "";
+  assert.match(note, /this run has no race cards for its lock/, JSON.stringify(a.r.problems).slice(0, 400));
+  assert.doesNotMatch(note, /BLOCKX_RELEASE/);
+  const reason = /held before its prize list: (.*)\. Nothing is paid/.exec(note)[1];
+  const b = await weekEditThenLook(v, { prizesFromWeek: 0 }, { raceDir: empty, release: `3:${releaseCode(reason)}` });
+  assert.ok(heldNote(b.r), "still held");
+  assert.ok(!fs.existsSync(path.join(b.out, "P003.json")));
+});
+
+test("B3-1: a release lets through only its own target: one problem released freezes the week; with two, the second still holds", async () => {
+  const one = (wf) => { const t = wf.targets.find((x) => !x.void && x.signer === BIG); t.signer = MID; };
+  const a = await weekEditThenLook(one, { prizesFromWeek: 0 }, { release: null });
+  const reason = /held before its prize list: (.*)\. Nothing is paid/.exec(heldNote(a.r))[1];
+  const ok = await weekEditThenLook(one, { prizesFromWeek: 0 }, { release: `3:${releaseCode(reason)}` });
+  assert.ok(ok.r.problems.some((p) => /RELEASED by BLOCKX_RELEASE .* the rest of the week read the same/.test(p)), JSON.stringify(ok.r.problems).slice(0, 300));
+  assert.ok(fs.existsSync(path.join(ok.out, "P003.json")) && fs.existsSync(path.join(ok.out, "vault", "W3.json")));
+  // the B3-1 case itself (two problems) is the Repo Lens test above; here: the run says why it stays held
+  const two = (wf) => { one(wf); const live = wf.targets.filter((x) => !x.void && x.picks.length); live[live.length - 1].picks[0][3] += 100; };
+  const b = await weekEditThenLook(two, { prizesFromWeek: 0 }, { release: `3:${releaseCode(reason)}` });
+  assert.ok(b.r.problems.some((p) => /BLOCKX_RELEASE matches .* but the rest of the week doesn't read the same either; still held/.test(p)));
+  const note = heldNote(b.r);
+  const second = /held before its prize list: (.*)\. Nothing is paid/.exec(note)[1];
+  assert.ok(note.includes(`BLOCKX_RELEASE = 3:${releaseCode(second)}`), "the new hold prints its own code");
 });

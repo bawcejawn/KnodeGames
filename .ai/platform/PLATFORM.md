@@ -23,6 +23,10 @@
 | `RULES.md` | fund-safety, vault, withdrawal, reward, architecture and Koinos rules; what never changes casually |
 | `ROADMAP.md` | milestones and launch paths |
 | `LAUNCH_BOARD.md` | every game's launch stage on one page, and what moves it on |
+| `KEYS_AND_ROLES.md` | every wallet, contract and key: address, powers, where the key lives, if lost or stolen (no keys) |
+| `SPONSOR.md` | the Mana sponsor: live caps and limits, what it pays for, how to check, change, roll back and switch it off |
+| `ALERTS.md` | every alert the platform sends: trigger, channel, what it means, what the owner does |
+| `RECOVERY.md` | PC disaster recovery: what keeps running, what stops, how to rebuild, a stolen PC |
 | `OPENISSUES.md` / `TODOS.md` | open problems (I-xxx) and the owner's own steps |
 | `KOINOS.md` | chain facts, testnet, gotchas |
 | `PRIORITIES.md` | what to work on next — P1 / P2 / P3 by the value it creates |

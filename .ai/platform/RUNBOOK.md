@@ -25,12 +25,15 @@ npm run bot -- chain-check
 - **Owner key:** after the weekend wallet moves (D-083), the owner key is cold. Load it into `.env` only for the owner steps below, then take it out again (`docs/WALLETS.md`).
 
 ## 1. Alerts: what each one means
+The full list of every alert, its trigger and your actions is `ALERTS.md`. Note: every alert email is GitHub's "Run failed" email; the bot's problems, the chain watch and the sponsor alert all arrive in the **same** "Run failed: Kpred bot" email (open the run to read the "Needs attention" lines). Sponsor alerts repeat every hour while true.
+
 | You get | From | Means | Go to |
 |---|---|---|---|
 | GitHub email "Run failed: Kpred bot" | the hourly bot (`bot.yml`) | one run failed. Usually a node hiccup: it catches up next hour | §2 if a second run in a row fails |
 | Bot email listing **problems** (e.g. "results not ready … due …", "can't be read", "refused") | the bot's problem list | a game's week is held or a send was refused. Each line names the game, week and deadline | §3 |
 | Bot email "…your admin key is compromised" / "Desk owner change … cancel it and withdraw the Desk" / "upgrade announced" | the bot's chain watch | an owner-level change is pending on chain. **Expected** during your own wallet moves or upgrades (`docs/WALLETS.md` lists them) | if you didn't do it: §7 |
 | GitHub email "Run failed: Node watchdog" | `watch.yml` (every 15 min on paper, about hourly in practice) | your personal producer hasn't signed for 30+ min: the PC, Docker or the internet is probably down. One email, then a reminder every 3 h | §5 |
+| GitHub email "Run failed: Heal alert" | your PC's self-heal or question-release task | a node was restarted or repaired, Docker is down, a node can't be fixed, or a round's questions aren't out | `ALERTS.md` §7; §5 / §6 below |
 | A question wasn't released at 12:00 UTC | you see it on the site, or the release backup log | the release run and the PC's backup task both missed it | §6 |
 | `games-data` / `race-data` publish job failed | GitHub email for `games.yml` / `race.yml` | a recorder wrote a file the publish check refused; that game's files didn't publish this hour | §4 |
 | The sponsor email or `sponsor -- watch` says over 80% of the daily caps | sponsor watch | free Mana is running out today | §8 |
@@ -100,9 +103,9 @@ npm run bot -- game-correct <game> <week> <player address> <right points> --send
 A pasted key is a leaked key: rotate it even if nothing happened (D-003, D-042).
 
 ## 8. The sponsor is running out
-1. `npm run sponsor -- status` shows today's use against the caps (25 a day / 150 a week per wallet, 5,000 a day in total, 2,000 a day for free players).
+1. `npm run sponsor -- status` shows today's use against the caps (since 4 Nov: 40 a day / 250 a week per wallet, 5,000 a day in total, 2,000 a day for free players; the live values are in `SPONSOR.md` §2).
 2. Running out today only means some players pay their own Mana until midnight UTC; nobody loses anything.
-3. To change caps, pass **all of them exactly** (a plain `config` resets them): see `FREE_PRIZE_SWITCH.md` and `claude/handoff-sponsor-v6-day.md`. The Vault or Block X chat writes the exact command.
+3. To change caps, pass **all of them exactly** (a plain `config` resets them): the full command line, rollback and emergency steps are in `SPONSOR.md` §5–6.
 
 ## 9. The last resort: the withdrawals-only build (vault)
 Only if the vault itself is wrong and everything must stop. It keeps the same address and storage. Every stake, finished prize and the fee can still be taken out; deposits, moves and new weeks stop; recording results stays open. Full steps in `docs/UPGRADE-V6.md` → "Emergency: the withdrawals-only build":

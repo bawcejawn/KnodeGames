@@ -13,8 +13,10 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
-- [ ] **Don't announce v6.1** (D-116: it's folded into one upgrade with Questions on the shared rules). Answer the Vault chat's plan for R-VAULT-13 when it comes — P1 — D-116
-- [ ] Repo Lens queue, in this order: (1) Block X B4 re-check `claude/blockx/ROUND-14-LOWS-B4-RECHECK-PROMPT.md`; (2) VHP ruler R1 math `claude/ruler/REPOLENS-R1-MATH-PROMPT.md` once the Ruler chat gives the commit; (3) later, the combined vault upgrade (60 questions + Questions on the shared rules, D-116) once the Vault chat has built and tested it; (4) ruler R2 after R1 is GO — P1
+- [ ] **Vault upgrade, Path 2 (D-116):** Repo Lens round 1 (and round 2) → **Tue 10 Nov, after the handover accept: announce, signed by `1LMV8E…`** → **Thu 12: upload** (the new owner needs ≥ 95 KOIN of Mana) → merge #114, then #141 and #142. Don't announce earlier — P1 — D-116
+- [ ] On the PC: `cd C:\kprediction`, `git switch main`, `git pull`, `npm ci --ignore-scripts` (picks up the self-heal fix #135 and the new `yaml` test package) — P2
+- [ ] Try one small sponsored stake on the live site (staking now asks 1.5 Mana) and tell the Block X chat it worked (R-BX-18, I-088) — P2
+- [ ] Repo Lens queue, in this order: (1) Block X B4 re-check `claude/blockx/ROUND-14-LOWS-B4-RECHECK-PROMPT.md`; (2) VHP ruler R1 math `claude/ruler/REPOLENS-R1-MATH-PROMPT.md` once the Ruler chat gives the commit; (3) **the combined vault upgrade, round 1 of 2:** `claude/vault/REPOLENS-V61-COMBINED-PROMPT.md` (PR #114 @ `d913251`); (4) ruler R2 after R1 is GO — P1
 - [ ] Delete the 145 merged branches with the script `claude/BRANCH-CLEANUP-2026-11-04.md` (protect the data branches first) — P3 — D-115
 - [ ] Decide: move the audit reports and raw chat exports out of the public repo (doesn't touch `CHAT_REQUESTS.md`) — P2 — D-115
 - [ ] Send Repo Lens `claude/hub/REPOLENS-C5-FIXCHECK-PR95-PR111-PROMPT.md` anyway (#95 and #111 merged before their fix-check) — P2

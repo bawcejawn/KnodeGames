@@ -252,6 +252,13 @@ export class Kpred {
     return c.q60_rule_week_plus_one > 0 && w + 1 >= c.q60_rule_week_plus_one;
   }
 
+  /** v6.1 (Repo Lens C-1): whether week `w` of the question game is paid from its results file: a week of the rule, or
+   *  one the vault already closed into game 1's game-week (only the new path does that, so such a week stays payable,
+   *  and is never settled, even after a rollback and a re-upload that moves the rule week). */
+  qShared(c: kpred.config_object, w: u64): bool {
+    return this.v61Rule(c, w) || this.gweeks.get(this.gweekKey(Q_GAME, w))!.closed;
+  }
+
   /** v6.1: the most questions week `w` can hold. */
   questionsCap(c: kpred.config_object, w: u64): u32 {
     return this.v61Rule(c, w) ? MAX_QUESTIONS_PER_WEEK_V61 : MAX_QUESTIONS_PER_WEEK;
@@ -484,7 +491,7 @@ export class Kpred {
 
   settleCheck(player: Uint8Array, w: u64): string {
     // v6.1 (D-116): from the rule week the question game has no settle step; its results file pays it.
-    if (this.v61Rule(this.config.get()!, w)) return "that week is paid from its results file (no settle step)";
+    if (this.qShared(this.config.get()!, w)) return "that week is paid from its results file (no settle step)";
     const wk = this.weeks.get(u64Key(w))!;
     if (!wk.closed) return "week not closed yet";
     const h = this.now();
@@ -1730,7 +1737,7 @@ export class Kpred {
   /** v6.1 (D-116): a game whose results file pays week `w`: any other game, and the question game from the rule week. */
   resultsGame(c: kpred.config_object, id: u32, w: u64): kpred.game_object {
     if (id == Q_GAME) {
-      System.require(this.v61Rule(c, w), "that week of the question game is paid by the old rules (settle and claim)");
+      System.require(this.qShared(c, w), "that week of the question game is paid by the old rules (settle and claim)");
       return this.games.get(u32Key(Q_GAME))!;
     }
     return this.otherGame(id);
@@ -1969,7 +1976,11 @@ export class Kpred {
   resultEntry(game: u32, w: u64, player: Uint8Array): kpred.gentry_object {
     const e = this.gentries.get(this.gentryKey(game, w, player));
     if (e != null) return e;
-    if (game == Q_GAME) return this.qEntry(w, player);
+    if (game == Q_GAME) {
+      // Repo Lens H-1: a result comes from the week's own answers; with none, the stake can't be read for that week.
+      System.require(this.entries.get(this.entryKey(player, w)) != null, "that player has no answers that week");
+      return this.qEntry(w, player);
+    }
     const n = new kpred.gentry_object();
     const p = this.gplayers.get(this.gplayerKey(game, player))!;
     n.voided = p.void_week_plus_one == w + 1;
@@ -2492,6 +2503,7 @@ export class Kpred {
       const a = Protobuf.decode<kpred.settle_arguments>(cc.args, kpred.settle_arguments.decode);
       if (!Arrays.equal(Protobuf.encode(a, kpred.settle_arguments.encode), cc.args)) return false;
       if (!isAddress(a.player)) return false;
+      if (this.qShared(c, a.week)) return false;      // Repo Lens L-1: no settle step from the rule week
       const se = this.entries.get(this.entryKey(a.player!, a.week));
       // free players' entries are never paid for
       if (se == null || se.voided || se.stake == 0 || se.stake < this.minStakeFor(c, a.week)) return false;

@@ -7,20 +7,20 @@ Every command that changes something is a dry run until you add `--send`, and ma
 |---|---|
 | Contract | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` (the vault, same address) |
 | Live code | `eed38f7ce130d9d2e0dfafa8ddd5c4a6f383e2c7ce12ab87b02c584f43920b3d` (v6, uploaded 2026-11-02) |
-| **New code** | `4dcc89a6c87b47479e87abc744abc9f34379e135e335840307825c9c64364d4a`, 87,761 bytes (PR #114: the 60-question cap and D-116; **Repo Lens next**) |
-| New emergency build | `72910f7cdca271ad1faec22e20118d907bd979028ceb8d16a4ee008b44364a70` (withdrawals-only, same source; pinned in step 3) |
+| **New code** | `4fa5d2de9465e48c9fd35d36f6aa23798f0447730a29b03c12cf9eb0fee973b7`, 87,945 bytes (PR #114: the 60-question cap and D-116; **Repo Lens next**) |
+| New emergency build | `fbcd41e6dc7ac42002ad81e1f4e7a62a206d4f09daec2ab956501a1560ed75db` (withdrawals-only, same source; pinned in step 3) |
 | What changes | **From the week after the upload** (never the running week, the "rule week"): (1) a week may hold 60 questions; (2) **Daily Questions plays by the shared game rules (D-116):** it's paid from a results file like every game (`post_results` → seal → `finalize_game_week` → `claim_game`), with no settle step and no 40/60 baskets; stakes use `deposit_to` / `withdraw_from` (game 1) like every game, read in place from each player's existing record (nothing moves); the old `deposit_vhp` / `deposit_koin` / `withdraw` stay as aliases of the same calls (owner, 4 Nov). A game-1 result needs at least 2 answers that week and no more points than answers (the contract's floor; the recorder applies Questions' full entry rule). Weeks before the rule week are paid the old way, and their rewards stay claimable. `get_state` shows `questions_cap` / `questions_cap_next` |
 | Timelock | 48 h after `schedule`, then 7 days to upload |
 | Upload paid by | the owner wallet that signs: **at least 95 Mana in it** (the tool refuses below about 93); about **47** is spent at mainnet prices (Repo Lens #D-8, D8-5) |
 
 ## Before the announcement and the upload
-1. **Testnet (V61-B1, #D-8 D8-1 and D8-2):** `npm run bot -- testnet-v61-d8` deploys a fresh copy of `4dcc89a6…` with 13 games,
+1. **Testnet (V61-B1, #D-8 D8-1 and D8-2):** `npm run bot -- testnet-v61-d8` deploys a fresh copy of `4fa5d2de…` with 13 games,
    plays a 45-minute week of 60 questions paid the new way (results posted, sealed, finalized, claimed) and a returning player's
    first answer that also closes the week, and writes the resource units of every call to `testnet-v61-d8/units.json`.
    The earlier run of the 30 → 60 build alone (4 Nov, `399171a2…`): answers 0.054 – 0.061 Mana, settle with 60 answers 0.124.
 2. **Mainnet price (D8-1):** on your PC, read-only: `npx tsx tools/mainnet-mana.ts docs/testnet-v61-units.json`. Every answer
    must stay under half of its 1-Mana limit.
-3. **Repo Lens** on PR #114 at the commit that holds `4dcc89a6…`: GO before the announcement.
+3. **Repo Lens** on PR #114 at the commit that holds `4fa5d2de…`: GO before the announcement.
 4. **The rollback rule (V61-A1), below.**
 5. **The Questions recorder (R-Q-4)** writes `games-data:questions/vault/W<week>.json` and `board.json` from the rule week on
    (the vault bot reads `vaultGames.1`; results are due 3 days after the week ends). **The Stake hub** stakes game 1 with
@@ -50,7 +50,7 @@ $env:RPC = "https://koinos.armana.io"
 npm run bot -- chain-check
 npm run bot -- status
 ```
-- The first hash must be `4dcc89a6…`, the second `72910f7c…`. If either isn't, stop. (A build that stops with `EAGAIN`: run it again.)
+- The first hash must be `4fa5d2de…`, the second `fbcd41e6…`. If either isn't, stop. (A build that stops with `EAGAIN`: run it again.)
 - `chain-check`: every line ✔ and "game announced upgrade: none".
 - The new owner wallet `1LMV8E…` must hold **at least 95 Mana** by upload day (check in Kondor; `status` shows the bot wallet, not the owner).
 - (Once PR #114 is merged, use `git checkout main` and `git pull` instead.)
@@ -60,7 +60,7 @@ npm run bot -- status
 npm run bot -- upgrade schedule
 npm run bot -- upgrade schedule --send
 ```
-The dry run must show "Local build … sha256 0x4dcc89a6…". The bot emails you "A code upgrade is scheduled" (expected).
+The dry run must show "Local build … sha256 0x4fa5d2de…". The bot emails you "A code upgrade is scheduled" (expected).
 
 ## 2. Wait 48 hours
 Don't rebuild in between. `npm run bot -- upgrade status` must say "✔ matches the local build".
@@ -79,16 +79,19 @@ npm run bot -- status
   Vault chat.
 - `status` shows the same stakes, seed and pots as `before-v61.txt` (apart from new rewards).
 - **Right away, the emergency pin (D8-3):** `notepad game-data\deployment.json`, set
-  `"safeWasmSha256": "72910f7cdca271ad1faec22e20118d907bd979028ceb8d16a4ee008b44364a70"`, save, then check
+  `"safeWasmSha256": "fbcd41e6dc7ac42002ad81e1f4e7a62a206d4f09daec2ab956501a1560ed75db"`, save, then check
   `npm run bot -- upgrade status --safe` shows no ✖ about the pinned build. From now on the emergency build is v6.1's.
 
 ## 4. Records (one pull request into `main`)
-- `game-data/deployment.json`: `wasmSha256` → `4dcc89a6…` (the tool wrote it on apply) and `safeWasmSha256` → `72910f7c…` (step 3): commit both.
+- `game-data/deployment.json`: `wasmSha256` → `4fa5d2de…` (the tool wrote it on apply) and `safeWasmSha256` → `fbcd41e6…` (step 3): commit both.
 - Merge PR #114 the same day if it isn't merged yet.
 
-## The rollback rule (V61-A1)
-If the vault is ever rolled back from v6.1 to the **v6 normal build**: **while v6 is live, make one owner config call**
-before v6.1 is uploaded again, for example `npm run bot -- pause off --send` (it changes nothing). It rewrites the stored
-settings without v6.1's rule week, so a later re-upload of v6.1 sets a fresh one (next week). Without it, re-uploading v6.1
-could raise the running week's limit from 30 to 60 halfway through. The test "rollback (Repo Lens V61-A1)" in
-`game/scripts/storage-compat-v61.test.ts` shows both cases. (A rollback to the withdrawals-only build doesn't need this.)
+## The rollback rule (Repo Lens C-1; replaces V61-A1)
+- **Before the rule week starts:** a rollback to the v6 normal build is possible; nothing of the new path has run yet.
+- **Once the rule week has started: roll back only to the withdrawals-only build** (`fbcd41e6…` → see the pin; the same v6.1
+  source), **never to the v6 normal build**, and never make a config call to "reset" the rule week. v6 can't pay game 1's
+  new-rule weeks (it refuses game 1 in `finalize_game_week` and `claim_game`).
+- The contract is hardened anyway (C-1): a week the new code closed into game 1's game-week stays payable from its results
+  file, and is never settled, even after a rollback and a re-upload that moves the rule week. The test "rollback after the
+  rule week (Repo Lens C-1)" in `game/scripts/storage-compat-v61.test.ts` proves it, and "rollback (Repo Lens V61-A1)" keeps
+  showing why the 60-question cap needs the same care.

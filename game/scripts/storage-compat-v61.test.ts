@@ -224,3 +224,64 @@ test("rollback (Repo Lens V61-A1): v6.1 → v6 → v6.1 again; a no-op owner cal
   // Without it, the rule week survives the rollback and the running week's cap jumps to 60: the runbook rule exists for this.
   assert.equal((await story(false)).ok, true, "without the no-op call the 31st is accepted (V61-A1): the runbook rule is needed");
 });
+
+test("rollback after the rule week (Repo Lens C-1): a week the new code closed into game 1's game-week stays payable after a rollback to v6 and a re-upload, and is never settled", { skip: (![V5, V6, NEW].every((f) => fs.existsSync(f))) && `a build is missing: run npm run build:sim in game/` }, async () => {
+  const sim = new SimChain(addr(contract), V5);                      // as on mainnet: v5, then v6, then v6.1
+  await sim.init();
+  const at = (t: number) => sim.setHeight(H0 + Math.floor((t - T0) / 3000), t);
+  const send = (calls: any[], who: Signer[]) => sim.sendAs(calls.map(([method, args]) => ({ method, args })), who.map(addr));
+  const ok = async (calls: any[], who: Signer[]) => { const r = await send(calls, who); assert.ok(r.ok, `${calls.map((c) => c[0]).join(", ")}: ${r.error}`); return r; };
+  const postArgs = (lock: number) => {
+    const ws = sim.height + Math.ceil((lock - sim.time) / 2800) + 20;
+    return { k: 2, lock_time: String(lock), window_start: String(ws), window_end: String(ws + 1000), params_hash: "0x" + "ab".repeat(32) };
+  };
+  await sim.ledgerSet(2, addr(A), 1000n * VHP); await sim.ledgerSet(3, addr(A), 1000n * VHP);
+  await sim.ledgerSet(3, addr(contract), 1000n * VHP);
+  at(T0);
+  await ok([["init", { owner: addr(owner), operator: addr(operator), seed_owner: addr(seedOwner), genesis_time: String(GENESIS), week_length: String(WEEK),
+    close_delay: String(12 * HOUR), settle_length: String(DAY), timelock_length: String(2 * DAY), min_stake: String(VHP), max_sponsor_rc: String(2n * VHP) }]], [contract]);
+  await ok([["deposit_vhp", { from: addr(A), amount: String(5n * VHP) }]], [A]);
+  await sim.setCode(V6);                                             // v6's first write: the vault split from week 1
+  await ok([["deposit_vhp", { from: addr(A), amount: String(5n * VHP) }]], [A]);
+  // v6.1 arrives in week 0; its first write makes week 1 the rule week
+  await sim.setCode(NEW);
+  at(GENESIS + 12 * HOUR);
+  await ok([["post_question", postArgs(GENESIS + DAY)]], [operator]);
+  assert.equal((await sim.read("get_state", {})).config.q60_rule_week_plus_one, "2");
+  at(GENESIS + 2 * DAY);
+  await ok([["resolve_question", { id: 0, outcome: 1, data_hash: "0x" + "cd".repeat(32) }]], [operator]);
+  // week 1 (the rule week): A answers two questions, all right
+  at(GENESIS + WEEK + 12 * HOUR);
+  for (let i = 0; i < 2; i++) await ok([["post_question", postArgs(GENESIS + WEEK + DAY)]], [operator]);
+  at(GENESIS + WEEK + 13 * HOUR);
+  for (const id of [1, 2]) await ok([["answer", { player: addr(A), question_id: id, option: 1 }]], [A]);
+  at(GENESIS + WEEK + 2 * DAY);
+  for (const id of [1, 2]) await ok([["resolve_question", { id, outcome: 1, data_hash: "0x" + "cd".repeat(32) }]], [operator]);
+  await sim.ledgerAdd(2, addr(contract), 30n * VHP);
+  at(GENESIS + 2 * WEEK + 12 * HOUR);
+  await ok([["close_week", { week: "1" }]], []);
+  const g1 = await sim.read("get_game", { game: 1, week: "1" });
+  assert.equal(g1.week.closed, true, "week 1 closed into game 1's game-week");
+  // rolled back to v6 (against the runbook, to prove the hardening): the owner's config call drops the rule week
+  await sim.setCode(V6);
+  at(GENESIS + 2 * WEEK + 13 * HOUR);
+  await ok([["set_paused", { paused: false }]], [owner]);
+  // v6.1 again: the first write sets a NEW, later rule week (week 3)
+  await sim.setCode(NEW);
+  at(GENESIS + 2 * WEEK + 14 * HOUR);
+  await ok([["set_paused", { paused: false }]], [owner]);
+  assert.equal((await sim.read("get_state", {})).config.q60_rule_week_plus_one, "4", "the re-upload moved the rule week");
+  // week 1 is still paid from its results file, and can't be settled
+  const st = await send([["settle", { player: addr(A), week: "1" }]], []);
+  assert.ok(!st.ok && /no settle step/.test(st.error ?? ""), `week 1 is never settled (${st.error})`);
+  await ok([["post_results", { game: 1, week: "1", rows: [{ player: addr(A), points: 2 }] }]], [operator]);
+  await ok([["seal_results", { game: 1, week: "1" }]], [operator]);
+  at(GENESIS + 2 * WEEK + 14 * HOUR + 2 * 12 * HOUR + HOUR);
+  await ok([["finalize_game_week", { game: 1, week: "1" }]], []);
+  await ok([["claim_game", { game: 1, week: "1", player: addr(A) }]], [A]);
+  const a1 = await sim.read("get_game_player", { player: addr(A), game: 1, week: "1" });
+  assert.ok(BigInt(a1.entry.reward) > 0n, "A is paid for week 1 after the rollback");
+  // and every stake still comes out
+  await ok([["withdraw", { to: addr(A), amount: String(10n * VHP) }]], [A]);
+  assert.equal((await sim.read("get_state", {})).totals.total_stake ?? "0", "0");
+});

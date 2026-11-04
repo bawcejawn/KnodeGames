@@ -303,4 +303,32 @@ describe("v6.1: up to 60 questions a week", () => {
     expect(k.get_state(new kpred.get_state_arguments()).totals!.total_stake).toBe(0);
     k.assertSolvent();
   });
+
+  it("Repo Lens: a wallet not staked in game 1 that week (and with no answers) gets no result row and no free-prize place", () => {
+    const k = setup(1);                                   // the shared rules from week 0
+    fund([PA, PB]);
+    at(200);
+    as(PA); k.deposit_to(new kpred.deposit_to_arguments(PA, 1, 10 * VHP, false));    // PA: staked for week 0
+    Tokens.testSet(VHP_TAG, SEED, 1000 * VHP);
+    as(SEED); k.seed_deposit_vhp(new kpred.seed_deposit_vhp_arguments(500 * VHP));   // a seed, so week 0 has a free prize
+    Tokens.testSet(VHP_TAG, CONTRACT, Tokens.testGet(VHP_TAG, CONTRACT) + 40 * VHP);
+    at(GENESIS + 100);
+    postMany(k, 0, 3);
+    at(GENESIS + 200);
+    answerN(k, PA, 0, 3, 3);                              // PA answers; PB never does
+    as(PB); k.deposit_to(new kpred.deposit_to_arguments(PB, 1, 10 * VHP, false));    // PB: deposits DURING week 0 (counts from week 1)
+    at(GENESIS + 500);
+    resolveAll(k, 0, 3);
+    at(GENESIS + WEEK + 5);                               // week 1, before week 0 closes
+    as(PB); k.deposit_to(new kpred.deposit_to_arguments(PB, 1, VHP, false));         // any call that normalizes PB's record
+    closeAt(k, 0);
+    gK = k; gWho = PB;
+    as(OPERATOR);
+    // PB had 0 stake in game 1 during week 0 and no answers: the vault must refuse a result row for it.
+    expect(() => { gK!.post_results(new kpred.post_results_arguments(1, 0, [new kpred.result_row(gWho, 3)])); }).toThrow();
+    expect(MockVM.getErrorMessage()).toBe("that player has no answers that week");
+    as(OPERATOR);
+    expect(() => { gK!.post_prize_winners(new kpred.post_prize_winners_arguments(1, 0, 1, [gWho])); }).toThrow();
+    expect(MockVM.getErrorMessage()).toBe("that player has no answers that week");
+  });
 });

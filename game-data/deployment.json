@@ -42,7 +42,7 @@
     "rcLimit": "100000000",
     "rcLimitOther": "100000000",
     "rcLimits": {
-      "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm:8ce33c6c": "20000000"
+      "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm:8ce33c6c": "100000000"
     },
     "guest": true
   },

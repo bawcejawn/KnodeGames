@@ -1151,7 +1151,10 @@ test("I-085: an honest final file publishes; the same file with other winners, o
     assert.equal(r.final, false, name); assert.match(r.out, why, name);
     assert.match(r.out, /vault\/W2\.json held \(I-034\)/, name);
   }
-  const b = await recomputeRun(pl, { mutateBoard: (bd) => { bd.lastWeek.rows[0].correct += 1; bd.lastWeek.rows[0].pts += 3; } });
+  // One more pick than the week's file shows: still a well-formed board row (correct + shows <= picks), so only the
+  // recompute can catch it. (A row that breaks the board's own shape fails the job first, in whatever order the
+  // runner lists the folder, so it can't test the recompute.)
+  const b = await recomputeRun(pl, { mutateBoard: (bd) => { bd.lastWeek.rows[0].picks += 1; } });
   assert.equal(b.final, false); assert.match(b.out, /board's last week doesn't match the week's picks/);
   const c = await recomputeRun(pl, { mutateBoard: (bd) => { bd.lastWeek.rows = bd.lastWeek.rows.slice(1); } });
   assert.equal(c.final, false); assert.match(c.out, /leaves out a wallet/);

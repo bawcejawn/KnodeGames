@@ -70,7 +70,8 @@
     },
     "8": {
       "name": "Combo Card",
-      "results": "games-data:combo/vault"
+      "results": "games-data:combo/vault",
+      "minPts": 100
     },
     "9": {
       "name": "Producer Bracket",

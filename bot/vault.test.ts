@@ -445,3 +445,17 @@ test("VB-4: vaultGames.<id>.board \"none\" skips the staked-list check (logged);
   await vaultResultsPass(v2, async (what) => { s2.push(what); return true; });
   assert.ok(!s2.some((x) => x.startsWith("Fantasy")));
 });
+
+test("VB-5: vaultGames.<id>.minPts: board points below it don't require the wallet in the file (Combo: 100 hundredths)", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim } = await weekOneClosed();
+  const files: any = { ...allFiles(), "mem:fantasy/vault/W1.json": { game: 2, week: 1, final: true, rows: [{ player: addr(B), points: 9 }] },
+    "mem:fantasy/board.json": fantasyBoard([{ a: addr(B), pts: 300, place: 1, ranked: true }, { a: addr(C), pts: 50, place: 2, ranked: true }]) };
+  const v = fctx(sim, files), s: string[] = [];
+  v.deployment.vaultGames["2"].minPts = 100;
+  await vaultResultsPass(v, async (what) => { s.push(what); return true; });
+  assert.deepEqual(v.problems, []);
+  assert.deepEqual(s.filter((x) => x.startsWith("Fantasy")), ["Fantasy week 1: points for 1 player(s)", "Fantasy week 1: seal the results (the owner can correct them for 24 h)"]);
+  const v2 = fctx(sim, files), s2: string[] = [];
+  await vaultResultsPass(v2, async (what) => { s2.push(what); return true; });
+  assert.match(v2.problems.join(" | "), new RegExp(`not in the results file: ${addr(C)}`), "without minPts, C (50) is required");
+});

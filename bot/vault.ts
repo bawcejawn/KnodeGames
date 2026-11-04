@@ -316,13 +316,17 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
       const lw = b.data?.lastWeek;
       if (!lw || num(lw.week) !== w || !Array.isArray(lw.rows)) { hold("board", `its board ${bspec} has no lastWeek for week ${w} (it shows week ${lw?.week ?? "none"}), so the staked list can't be checked`); continue; }
       const filePts = new Map<string, number>((r.rows ?? []).map((x: any) => [x.player, x.points]));
+      const minPts = Number(cfg[String(id)]?.minPts) > 0 ? Number(cfg[String(id)].minPts) : 0;
       const onBoard = new Set<string>(), places = new Map<string, number>(), scored: string[] = [];
       for (const row of lw.rows) {
         if (!row || !ADDRESS.test(String(row.a))) continue;
         onBoard.add(row.a);
         const place = Number(row.place) > 0 ? Number(row.place) : Number(row.boardPlace) > 0 ? Number(row.boardPlace) : 0;
         if (place) places.set(row.a, place);
-        if (boardScore(row) !== 0) scored.push(row.a);       // points on the board (or a board without a points column)
+        // Points on the board (or a board without a points column). Repo Lens VB-5: a game whose file leaves out low
+        // scores sets its floor, in the board's own units (Combo: minPts 100 = 1 full point in hundredths).
+        const sc = boardScore(row);
+        if (sc === null || (sc > 0 && sc >= minPts)) scored.push(row.a);
       }
       const missing: string[] = [];
       for (const a of scored) {

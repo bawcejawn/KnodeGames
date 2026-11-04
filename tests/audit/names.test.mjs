@@ -293,7 +293,8 @@ test("every page that loads names.js may read names-data, and loads it before it
 
 test("names.html creates a Koinos @name through the player's own wallet, and nothing else", () => {
   const js = read("names-page.js");
-  assert.equal([...js.matchAll(/\.send\(/g)].length, 1, "one send");
+  assert.equal([...js.matchAll(/\.send\(/g)].length, 2, "two sends: create, and the Make main / Remove helper");
+  assert.match(js, /await w\.send\(label, \[op\]\);/);
   assert.match(js, /const id = await w\.send\(`create @\$\{n\}`, \[op\]\);/);
   assert.doesNotMatch(js, /signMessage|signTransaction|sendTransaction|localStorage|sessionStorage|privateKey|wif|innerHTML|github\.com/i);
   const h = read("names.html");
@@ -426,4 +427,15 @@ test("D-078 (I-073): Block X shows every producer and player through nameOf, whi
   assert.equal([...js.matchAll(/\.slice\(0, 5\) \+ "…"/g)].length, 1, "one place shortens an address: nameOf's fallback");
   assert.match(js, /const nameOf = \(a\) => \(!isAddr\(a\) \? "–" : window\.KNames && typeof window\.KNames\.of === "function" \? window\.KNames\.of\(a\)/);
   assert.doesNotMatch(read("blockx-testnet.html"), /src="names\.js"/, "the testnet page keeps short addresses (mainnet names don't apply there)");
+});
+
+test("Your @names: Make main (set_main_token) and Remove (burn, asked twice) act only on the wallet's own names", () => {
+  const js = fs.readFileSync(`${APP}/names-page.js`, "utf8");
+  assert.match(js, /act\(`make @\$\{n\} my main @name`, "set_main_token", \{ token_id: nickHex\(n\) \}/);
+  assert.match(js, /act\(`remove @\$\{n\}`, "burn", \{ token_id: nickHex\(n\) \}/);
+  assert.match(js, /if \(S\.confirm !== n\) \{ S\.confirm = n;/, "Remove asks twice");
+  assert.match(js, /get_tokens_by_address\(\{ address: a, limit: 20 \}\)/, "the list is the connected wallet's own names");
+  // Only these Nicknames calls are ever built on the page.
+  const calls = [...js.matchAll(/\(await nick\(\)\)(?:\.(\w+)|\[call\])\(/g)].map((m) => m[1] || "[call]");
+  for (const c of calls) assert.ok(["mint", "[call]", "get_main_token", "get_tokens_by_address", "get_address", "verify_valid_name"].includes(c), c);
 });

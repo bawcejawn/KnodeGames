@@ -4,6 +4,11 @@
 > **How it grows:** when an item in `platform/TODOS.md`, `platform/CHAT_REQUESTS.md`, `platform/PRIORITIES.md`, `platform/ROADMAP.md`, `platform/DOCUMENTATION_GAPS.md` or `platform/TECHNICAL_DEBT.md` is done, the library chat moves it here under the date it was moved, newest first. Closed issues go to `ISSUES_CLOSED.md`.
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
+## Moved 2026-11-05
+- Merged 4 Nov: #133 (Race payout safety), #153 (test fix), #148 (weekly rhythm standard, D-125), #149 (Race on the rhythm), #150 (Stake page gentle reads) — 2026-11-04
+- PC updated to `main` @ `23dd23d`; self-heal dry run: all three nodes OK, 0 behind — 2026-11-04
+- L-4 decided: daily emails for the owner's own Race hold — 2026-11-04
+
 ## Moved 2026-11-04 (night)
 | R-RACE-11 | After #85 merges, the merge check's optional items: L-1 date the pending file at the end of the run; I-1 a run started by hand makes "an hour apart" really ~25 minutes; I-2 a doubled bracket in a `race.yml` comment | #85 merge check | PR | **in PR #133** (L-1 end-of-run date, I-1, I-2; 1 test) |
 | R-HUB-5 | Remove the legacy name-claim workflow, issue template and claim CLI (drops the `issues` permissions; update `docs/NAMES.md`); add a YAML parser to the CI guard | I-026, I-022 | PR | ✅ part 2 merged (#137, D-118). Left: the after-the-fact Repo Lens fix-check of #95/#111/#99; widen the guard's WRITES list when a game adds a publish job; C5-13 on hold |

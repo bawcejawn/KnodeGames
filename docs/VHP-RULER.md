@@ -19,7 +19,7 @@ what and how to run it. Built by the VHP Ruler chat (R-RULER-1) on branch `vhp-r
 1. Read the `vhp-data` hours that cover its card: from 14 days before the card moment (form) to the end of its scoring window.
 2. `KRuler.ledger(KVhpData.timelineFrom(hours, checks))`, then `KRuler.makeCard(L, { game, round, window: { W0, W1, L, S0, S1 }, c, ownRule, paying, pooled })` once the seed block (L + 20) is irreversible, and `KRuler.scoreCard(L, card)` once S1 is.
 3. Score with **credited blocks** (`credited`), never raw blocks (§3.1), and the game's own formula.
-4. In the game's publish job: `python3 vhp_ruler.py`'s `recompute_main([vhp-data dir, card file, settings file])` (embedded, like the ruler's own publish job) refuses any card the data doesn't give byte for byte. The settings file is the game's own `{game, round, window, c, ownRule, paying, pooled}`, every key, from the game's code, never from the card.
+4. In the game's publish job: `python3 vhp_ruler.py`'s `recompute_main([vhp-data dir, card file, settings file])` (embedded, like the ruler's own publish job) refuses any card the data doesn't give byte for byte. The settings file is the game's own `{game, round, window, c, minK, poolRule, ownRule, paying, pooled}`, every key, from the game's code, never from the card.
 5. A paying card isn't made, or scored, while a chained catch-up hour that no live hour has checked yet is in its windows ("not yet"): try again after the next live hour.
 
 ## Turning it on (owner, after Repo Lens review 2)

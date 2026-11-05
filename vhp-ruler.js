@@ -47,7 +47,11 @@
   const VHP_CONTRACT = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq";   // mainnet VHP
   const DELAY = 20, ACTIVE = 7200, HIGH = 1200, AVG = 28800, FORM = 403200, HISTORY = 28800, SEED_AFTER = 20;
   const M = 1000000n, MIN_K = 10n * M, FORM_GATE = 800000n;
-  const RULE_VERSION = 2, OWN_RULES = ["spot", "high1h", "avg24h"];
+  const RULE_VERSION = 3, OWN_RULES = ["spot", "high1h", "avg24h"], POOL_RULES = ["min", "twa"];
+  // v2.1 (VHP_RULER.md §16, R-RULER-2): a producer is "steady" when each of its last 14 daily rates is within ±0.15 of its
+  // 14-day rate (D-120); in the race, a steady producer's credited blocks stop at expected × (1 + STEER_BAND)
+  const STEADY_BAND = 150000n, STEER_BAND = 150000n;
+  const PCT_SCALE = 1n << 256n;   // the Poisson terms' fixed-point scale (pct)
 
   // ── sha256 (pure, for the card time; tested against node:crypto) ──
   const K256 = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -135,6 +139,28 @@
   function creditOf(own, effB) { own = big(own); effB = big(effB); return effB <= own ? M : (own * M) / effB; }
   /** Expected blocks in a window of `blocks` blocks (millionths). */
   function kOf(blocks, own, total) { own = big(own); total = big(total); return total > 0n ? (big(blocks) * own * M) / total : 0n; }
+  /** Fix A (§16): the mid-p Poisson percentile of credited blocks x against expected blocks λ (both millionths):
+   *  P(X < x) + ½·P(X = x), X ~ Poisson(λ), in millionths, rounded down once at the end. Credited blocks can be fractional
+   *  (card credit): between two whole numbers n and n + 1 the value moves in a straight line from mid(n) to mid(n + 1),
+   *  so a whole x gives exactly the mid-p value. Exact integer arithmetic: the terms q(i) = λ^i/i! on a 2^256 scale by the
+   *  recursion q(i+1) = floor(q(i)·λ/(i+1)), summed until they reach zero past the peak; the result is a ratio of those
+   *  sums, so e^−λ is never needed. Python's pct is the same arithmetic (byte-identical cards). */
+  function pct(lam, x) {
+    lam = big(lam); x = big(x);
+    if (lam < 0n || x < 0n) throw new Error("pct needs λ ≥ 0 and x ≥ 0");
+    const n = x / M, f = x % M;
+    let q = PCT_SCALE, i = 0n, total = 0n, below = 0n, qn = 0n, qn1 = 0n;
+    for (;;) {
+      if (i < n) below += q; else if (i === n) qn = q; else if (i === n + 1n) qn1 = q;
+      total += q;
+      const nx = (q * lam) / (M * (i + 1n));
+      i++;
+      if (nx === 0n && i * M > lam && i > n + 1n) break;
+      q = nx;
+    }
+    const mid0 = 2n * below + qn, mid1 = 2n * below + 2n * qn + qn1;   // twice mid(n) and mid(n + 1), × total
+    return ((mid0 * (M - f) + mid1 * f) * M) / (2n * total * M);
+  }
   const lowerBound = (a, x) => { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } return lo; };
   const upperBound = (a, x) => { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= x) lo = m + 1; else hi = m; } return lo; };
 
@@ -282,6 +308,18 @@
   }
   function avg(L, a, T) { return L.sumEff(a, T - AVG, T - 1) / BigInt(AVG); }
   function total(L, T) { let t = 0n; for (const q of L.active(T)) t += avg(L, q, T); return t; }
+  /** D-120 (§16): the producer's long-run rate. Over the 14 days before T, rate = signed ÷ expected (millionths, capped
+   *  at 1), used only if each of the 14 daily rates is within ±STEADY_BAND of the 14-day rate; else rate = 1 (steady:
+   *  false) and the 0.80 gate applies as before. Needs the full 14 days (a paying card always has them). */
+  function rateOf(L, a, T, f = formOf(L, a, T)) {
+    if (T - FORM < L.validFrom || f.expected <= 0n) return { rate: M, steady: false };
+    for (let d = 0; d < FORM / AVG; d++) {
+      const H0 = T - FORM + d * AVG, e = L.shareSum(a, H0, H0 + AVG - 1), s = L.signedIn(a, H0, H0 + AVG - 1);
+      const dr = e > 0n ? (BigInt(s) * M * M) / e : 0n, gap = dr > f.form ? dr - f.form : f.form - dr;
+      if (gap > STEADY_BAND) return { rate: M, steady: false };
+    }
+    return { rate: f.form < M ? f.form : M, steady: true };
+  }
   function formOf(L, a, T) {
     const H0 = imax(L.validFrom, T - FORM), H1 = T - 1;
     const expected = L.shareSum(a, H0, H1), signed = L.signedIn(a, H0, H1);
@@ -325,6 +363,12 @@
     const T = cardTime(seedBlockId, opts.game, opts.round, w.W0, w.W1);
     if (T - AVG < L.from + DELAY) throw new Error("not enough history before the card time (24 h of data are needed)");
     const pooled = new Set(opts.pooled || []), c = big(opts.c ?? 0n), paying = !!opts.paying;
+    // Fix B (§16) is two settings: the entry bar minK (whole expected blocks; 10 as approved, 15 / 20 / 30 to test) and
+    // the pool rule ("min": min(own, eff) per block, §3.2; "twa": the time-weighted average eff over the scoring window)
+    const minKBlocks = opts.minK ?? 10, poolRule = opts.poolRule ?? "min";
+    if (!Number.isSafeInteger(minKBlocks) || minKBlocks < 1 || minKBlocks > 100000) throw new Error("minK must be a whole number of blocks from 1");
+    if (!POOL_RULES.includes(poolRule)) throw new Error("poolRule must be min or twa");
+    const minK = BigInt(minKBlocks) * M;
     // Repo Lens #E-12 L-1: a paying card reads the full 14-day form look-back, so its bytes never depend on where the
     // loaded data starts (T − from ≥ 403,200 + 7,200, the network total's own warm-up)
     if (paying && T - L.from < FORM + ACTIVE) throw new Error(`a paying card needs ${FORM + ACTIVE} blocks of data before its moment (14 days + 6 h)`);
@@ -333,8 +377,11 @@
     const blocks = w.S1 - w.S0 + 1, tot = total(L, T);
     const producers = L.active(T).map((a) => {
       const o = own(L, a, T, ownRule), av = avg(L, a, T), f = formOf(L, a, T), k = kOf(blocks, o, tot);
-      const { isNew, history } = newcomer(L, a, T);
-      return { a, own: o, avg: av, k, form: f.form, entry: k >= MIN_K && f.form >= FORM_GATE && history, pooled: pooled.has(a), isNew, quality: "ok" };
+      const { isNew, history } = newcomer(L, a, T), { rate, steady } = rateOf(L, a, T, f);
+      // D-120: the entry bar reads the blocks it is really expected to sign (k × rate); a steady producer is gated on its
+      // form falling below 0.80 × its own rate (always met while it stays steady), others on 0.80 as before
+      const kr = (k * rate) / M, gate = steady ? (FORM_GATE * rate) / M : FORM_GATE;
+      return { a, own: o, avg: av, k, form: f.form, rate, entry: kr >= minK && f.form >= gate && history, pooled: pooled.has(a), isNew, quality: "ok" };
     }).sort((x, y) => (x.own > y.own ? -1 : x.own < y.own ? 1 : x.a < y.a ? -1 : 1));
     // quality, for the whole card: every producer's numbers feed everyone's total and form (Repo Lens #E-12 L-2), so a bad
     // range for any active producer in the look-back flags every producer. On a paying card, a rebuilt or unverified
@@ -345,11 +392,13 @@
     return {
       ruleVersion: RULE_VERSION, game: Number(dec(opts.game, "game")), round: dec(opts.round, "round"), ownRule, paying,
       T, seedBlock, seedBlockId, seedProducer: L.signer(seedBlock),
-      window: { W0: w.W0, W1: w.W1, L: w.L, S0: w.S0, S1: w.S1 }, c, total: tot, formFrom, producers,
+      window: { W0: w.W0, W1: w.W1, L: w.L, S0: w.S0, S1: w.S1 }, c, minK: minKBlocks, poolRule, total: tot, formFrom, producers,
     };
   }
 
-  /** scoreCard: once S1 is in the data, fill expected, signed and credited for every producer (millionths). */
+  /** scoreCard: once S1 is in the data, fill expected, signed, credited and pct for every producer (millionths).
+   *  expected = k × rate (D-120), or for a pooled producer the pool rule's sum × rate; a steady producer's credited
+   *  blocks stop at expected × (1 + STEER_BAND) (the steering cap, §16); pct = the luck percentile (Fix A). */
   function scoreCard(L, card) {
     const { S0, S1 } = card.window, tot = big(card.total);
     if (card.paying && pendingIn(L, S0 - EARLY, S1)) throw new Error(notYet(L, S0 - EARLY, S1));
@@ -358,27 +407,30 @@
       const o = big(p.own);
       let credited = 0n;
       for (const b of L.signedBlocks(p.a, S0, S1)) credited += creditOf(o, L.eff(p.a, b));
+      const rate = big(p.rate);
       let expected = big(p.k);
-      if (p.pooled) {   // §3.2: min(own, eff at each block), each block rounded down
+      if (p.pooled) {   // §3.2 "min": min(own, eff at each block); Fix B "twa": eff at each block; each block rounded down
         expected = 0n;
         for (let H = S0; H <= S1;) {
           const e = L.eff(p.a, H); let H2 = H;
           while (H2 + 1 <= S1 && L.eff(p.a, H2 + 1) === e) H2++;   // a run of equal eff
-          const m = e < o ? e : o;
+          const m = card.poolRule === "twa" || e < o ? e : o;
           expected += BigInt(H2 - H + 1) * (tot > 0n ? (m * M) / tot : 0n);
           H = H2 + 1;
         }
       }
+      expected = (expected * rate) / M;
+      if (rate < M) { const cap = (expected * (M + STEER_BAND)) / M; if (credited > cap) credited = cap; }
       const quality = flagged ? "flagged" : "ok";
-      return { ...p, quality, expected, signed: L.signedIn(p.a, S0, S1), credited };
+      return { ...p, quality, expected, signed: L.signedIn(p.a, S0, S1), credited, pct: pct(expected, credited) };
     });
     return { ...card, producers };
   }
 
   /** recompute (§13): rebuild a published card FROM THE GAME'S OWN SETTINGS and compare byte for byte (Repo Lens #E-12
    *  M-1: never from the card's own settings, or a card made with the wrong window, c, own rule, paying flag or pooled
-   *  list would pass). game = { game, round, window: { W0, W1, L, S0, S1 }, c, ownRule, paying, pooled }. */
-  const SETTINGS = ["game", "round", "window", "c", "ownRule", "paying", "pooled"], WKEYS = ["W0", "W1", "L", "S0", "S1"];
+   *  list would pass). game = { game, round, window: { W0, W1, L, S0, S1 }, c, minK, poolRule, ownRule, paying, pooled }. */
+  const SETTINGS = ["game", "round", "window", "c", "minK", "poolRule", "ownRule", "paying", "pooled"], WKEYS = ["W0", "W1", "L", "S0", "S1"];
   /** The game's settings, strictly (Repo Lens #B-5 N-5): every key, no other key, each of its own type. Same in Python,
    *  with one difference JavaScript can't see: JSON.parse reads 1.0 and 0e0 as plain numbers, which Python refuses
    *  (#B-6 B6-2). The game's publish job runs the Python twin (recompute_main), so Python decides. */
@@ -390,6 +442,8 @@
     const w = g.window;
     if (!w || typeof w !== "object" || Array.isArray(w) || Object.keys(w).sort().join() !== [...WKEYS].sort().join()) throw new Error(`window must have exactly: ${WKEYS.join(", ")}`);
     if (!(typeof g.c === "bigint" ? g.c >= 0n : typeof g.c === "number" ? Number.isSafeInteger(g.c) && g.c >= 0 : typeof g.c === "string" && /^[0-9]{1,30}$/.test(g.c))) throw new Error("c must be a whole number of millionths");
+    if (!Number.isSafeInteger(g.minK) || g.minK < 1 || g.minK > 100000) throw new Error("minK must be a whole number of blocks from 1");
+    if (!POOL_RULES.includes(g.poolRule)) throw new Error("poolRule must be min or twa");
     if (!OWN_RULES.includes(g.ownRule)) throw new Error("ownRule must be spot, high1h or avg24h");
     if (typeof g.paying !== "boolean") throw new Error("paying must be true or false");
     if (!Array.isArray(g.pooled) || !g.pooled.every((a) => typeof a === "string")) throw new Error("pooled must be a list of addresses");
@@ -397,13 +451,13 @@
   function recompute(L, published, game) {
     try { checkSettings(game); } catch (e) { return { same: false, diff: `the game's settings: ${e.message}` }; }
     const pub = typeof published === "string" ? JSON.parse(published) : published;
-    const want = { game: Number(dec(game.game, "game")), round: dec(game.round, "round"), ownRule: game.ownRule, paying: game.paying, c: big(game.c).toString(10),
+    const want = { game: Number(dec(game.game, "game")), round: dec(game.round, "round"), ownRule: game.ownRule, paying: game.paying, c: big(game.c).toString(10), minK: game.minK, poolRule: game.poolRule,
       W0: game.window.W0, W1: game.window.W1, L: game.window.L, S0: game.window.S0, S1: game.window.S1 };
-    const got = { game: pub.game, round: pub.round, ownRule: pub.ownRule, paying: pub.paying, c: String(pub.c), ...(pub.window || {}) };
+    const got = { game: pub.game, round: pub.round, ownRule: pub.ownRule, paying: pub.paying, c: String(pub.c), minK: pub.minK, poolRule: pub.poolRule, ...(pub.window || {}) };
     for (const k of Object.keys(want)) if (got[k] !== want[k]) return { same: false, diff: `setting ${k}: the card says ${JSON.stringify(got[k])}, the game says ${JSON.stringify(want[k])}` };
     let mine;
     try {
-      mine = makeCard(L, { game: game.game, round: game.round, window: game.window, c: big(game.c), ownRule: game.ownRule, paying: game.paying, pooled: game.pooled });
+      mine = makeCard(L, { game: game.game, round: game.round, window: game.window, c: big(game.c), minK: game.minK, poolRule: game.poolRule, ownRule: game.ownRule, paying: game.paying, pooled: game.pooled });
       if ((pub.producers || []).some((p) => "credited" in p)) mine = scoreCard(L, mine);
     } catch (e) { return { same: false, diff: `the data can't make this card: ${e.message}` }; }
     const a = cardJson(mine), b = typeof published === "string" ? published : cardJson(published);
@@ -412,6 +466,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES,
-    sha256, hex, dec, cardTime, isqrt, trim, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, STEER_BAND,
+    sha256, hex, dec, cardTime, isqrt, trim, pct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

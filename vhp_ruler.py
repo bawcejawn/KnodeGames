@@ -10,7 +10,9 @@ VHP_CONTRACT = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq"
 DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER = 20, 7200, 1200, 28800, 403200, 28800, 20
 M = 1000000
 MIN_K, FORM_GATE = 10 * M, 800000
-RULE_VERSION, OWN_RULES = 2, ("spot", "high1h", "avg24h")
+RULE_VERSION, OWN_RULES, POOL_RULES = 3, ("spot", "high1h", "avg24h"), ("min", "twa")
+STEADY_BAND, STEER_BAND = 150000, 150000   # VHP_RULER.md §16 (D-120), millionths: the steadiness band and the steering cap
+PCT_SCALE = 1 << 256
 
 
 def _int(x):
@@ -65,6 +67,30 @@ def trim(k, c):
 
 def credit_of(own, eff_b):
     return M if eff_b <= own else own * M // eff_b
+
+
+def pct(lam, x):
+    """Fix A: the mid-p Poisson percentile in millionths, the same arithmetic as pct in vhp-ruler.js."""
+    lam, x = _int(lam), _int(x)
+    if lam < 0 or x < 0:
+        raise ValueError("pct needs λ ≥ 0 and x ≥ 0")
+    n, f = divmod(x, M)
+    q, i, total, below, qn, qn1 = PCT_SCALE, 0, 0, 0, 0, 0
+    while True:
+        if i < n:
+            below += q
+        elif i == n:
+            qn = q
+        elif i == n + 1:
+            qn1 = q
+        total += q
+        nx = q * lam // (M * (i + 1))
+        i += 1
+        if nx == 0 and i * M > lam and i > n + 1:
+            break
+        q = nx
+    mid0, mid1 = 2 * below + qn, 2 * below + 2 * qn + qn1
+    return (mid0 * (M - f) + mid1 * f) * M // (2 * total * M)
 
 
 def k_of(blocks, own, total):
@@ -317,6 +343,20 @@ def total(L, T):
     return sum(avg(L, q, T) for q in L.active(T))
 
 
+def rate_of(L, a, T, f=None):
+    """D-120: (rate, steady), as rateOf in vhp-ruler.js."""
+    f = f or form_of(L, a, T)
+    if T - FORM < L.valid_from or f["expected"] <= 0:
+        return M, False
+    for d in range(FORM // AVG):
+        H0 = T - FORM + d * AVG
+        e, s = L.share_sum(a, H0, H0 + AVG - 1), L.signed_in(a, H0, H0 + AVG - 1)
+        dr = s * M * M // e if e > 0 else 0
+        if abs(dr - f["form"]) > STEADY_BAND:
+            return M, False
+    return (f["form"] if f["form"] < M else M), True
+
+
 def form_of(L, a, T):
     H0, H1 = max(L.valid_from, T - FORM), T - 1
     expected, signed = L.share_sum(a, H0, H1), L.signed_in(a, H0, H1)
@@ -367,7 +407,7 @@ def _js(v):
 
 
 # the card's fields that are BigInt in JavaScript (written as decimal strings)
-_BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "expected", "credited")
+_BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "credited", "pct")
 
 
 def card_json(card):
@@ -393,7 +433,7 @@ def _check_window(w):
         raise ValueError("window order must be W0 <= W1 <= L <= S0 <= S1")
 
 
-def make_card(L, game, rnd, window, c, own_rule, paying, pooled=()):
+def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, pool_rule="min"):
     w = window
     _check_window(w)
     if own_rule not in OWN_RULES:
@@ -408,6 +448,10 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=()):
     if T - AVG < L.frm + DELAY:
         raise ValueError("not enough history before the card time (24 h of data are needed)")
     pooled, c, paying = set(pooled), _int(c), bool(paying)
+    if type(min_k) is not int or not 1 <= min_k <= 100000:
+        raise ValueError("minK must be a whole number of blocks from 1")
+    if pool_rule not in POOL_RULES:
+        raise ValueError("poolRule must be min or twa")
     if paying and T - L.frm < FORM + ACTIVE:
         raise ValueError("a paying card needs %d blocks of data before its moment (14 days + 6 h)" % (FORM + ACTIVE))
     if paying and _pending_in(L, T - AVG - EARLY, T):
@@ -420,8 +464,10 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=()):
         o, av, f = own(L, a, T, own_rule), avg(L, a, T), form_of(L, a, T)
         k = k_of(blocks, o, tot)
         is_new, history = newcomer(L, a, T)
-        rows.append({"a": a, "own": o, "avg": av, "k": k, "form": f["form"],
-                     "entry": k >= MIN_K and f["form"] >= FORM_GATE and history, "pooled": a in pooled,
+        rate, steady = rate_of(L, a, T, f)
+        kr, gate = k * rate // M, (FORM_GATE * rate // M if steady else FORM_GATE)
+        rows.append({"a": a, "own": o, "avg": av, "k": k, "form": f["form"], "rate": rate,
+                     "entry": kr >= min_k * M and f["form"] >= gate and history, "pooled": a in pooled,
                      "isNew": is_new, "quality": "ok"})
     rows.sort(key=lambda r: (-r["own"], r["a"]))
     # D-113: on a paying card only the 24-h size window must be free of rebuilt hours; form's older days may read them
@@ -431,7 +477,7 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=()):
     return {"ruleVersion": RULE_VERSION, "game": int(_dec(game, "game")), "round": _dec(rnd, "round"), "ownRule": own_rule, "paying": paying,
             "T": T, "seedBlock": seed_block, "seedBlockId": seed_id, "seedProducer": L.signer(seed_block),
             "window": {"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]},
-            "c": c, "total": tot, "formFrom": form_from, "producers": rows}
+            "c": c, "minK": min_k, "poolRule": pool_rule, "total": tot, "formFrom": form_from, "producers": rows}
 
 
 def score_card(L, card):
@@ -445,6 +491,7 @@ def score_card(L, card):
     for p in card["producers"]:
         o = _int(p["own"])
         credited = sum(credit_of(o, L.eff(p["a"], b)) for b in L.signed_blocks(p["a"], S0, S1))
+        rate = _int(p["rate"])
         expected = _int(p["k"])
         if p["pooled"]:
             expected = 0
@@ -454,19 +501,22 @@ def score_card(L, card):
                 H2 = H
                 while H2 + 1 <= S1 and L.eff(p["a"], H2 + 1) == e:
                     H2 += 1
-                m = e if e < o else o
+                m = e if card["poolRule"] == "twa" or e < o else o
                 expected += (H2 - H + 1) * (m * M // tot if tot > 0 else 0)
                 H = H2 + 1
+        expected = expected * rate // M
+        if rate < M:
+            credited = min(credited, expected * (M + STEER_BAND) // M)
         q = dict(p)
         q.update({"quality": "flagged" if flagged else "ok", "expected": expected,
-                  "signed": L.signed_in(p["a"], S0, S1), "credited": credited})
+                  "signed": L.signed_in(p["a"], S0, S1), "credited": credited, "pct": pct(expected, credited)})
         rows.append(q)
     out = dict(card)
     out["producers"] = rows
     return out
 
 
-_SETTINGS, _WKEYS = ("game", "round", "window", "c", "ownRule", "paying", "pooled"), ("W0", "W1", "L", "S0", "S1")
+_SETTINGS, _WKEYS = ("game", "round", "window", "c", "minK", "poolRule", "ownRule", "paying", "pooled"), ("W0", "W1", "L", "S0", "S1")
 
 
 def check_settings(g):
@@ -483,6 +533,10 @@ def check_settings(g):
     c = g["c"]
     if not ((type(c) is int and 0 <= c <= 2 ** 53 - 1) or (type(c) is str and re.fullmatch(r"[0-9]{1,30}", c))):
         raise ValueError("c must be a whole number of millionths")
+    if type(g["minK"]) is not int or not 1 <= g["minK"] <= 100000:
+        raise ValueError("minK must be a whole number of blocks from 1")
+    if g["poolRule"] not in POOL_RULES:
+        raise ValueError("poolRule must be min or twa")
     if g["ownRule"] not in OWN_RULES:
         raise ValueError("ownRule must be spot, high1h or avg24h")
     if type(g["paying"]) is not bool:
@@ -492,7 +546,7 @@ def check_settings(g):
 
 
 def recompute(L, published, game):
-    """published: the card's JSON text; game: the game's OWN settings {game, round, window, c, ownRule, paying, pooled}
+    """published: the card's JSON text; game: the game's OWN settings {game, round, window, c, minK, poolRule, ownRule, paying, pooled}
     (Repo Lens #E-12 M-1: never the card's own settings). Returns (same, diff)."""
     try:
         check_settings(game)
@@ -501,16 +555,17 @@ def recompute(L, published, game):
     pub = json.loads(published)
     w = game["window"]
     want = {"game": int(_dec(game["game"], "game")), "round": _dec(game["round"], "round"), "ownRule": game["ownRule"],
-            "paying": game["paying"], "c": str(int(game["c"])),
+            "paying": game["paying"], "c": str(int(game["c"])), "minK": game["minK"], "poolRule": game["poolRule"],
             "W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]}
     got = {"game": pub.get("game"), "round": pub.get("round"), "ownRule": pub.get("ownRule"), "paying": pub.get("paying"),
-           "c": str(pub.get("c"))}
+           "c": str(pub.get("c")), "minK": pub.get("minK"), "poolRule": pub.get("poolRule")}
     got.update(pub.get("window") or {})
     for k in want:
         if got.get(k) != want[k] or type(got.get(k)) is not type(want[k]):
             return False, "setting %s: the card says %s, the game says %s" % (k, json.dumps(got.get(k)), json.dumps(want[k]))
     try:
-        mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"])
+        mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"],
+                         game["minK"], game["poolRule"])
         if any("credited" in p for p in pub.get("producers", [])):
             mine = score_card(L, mine)
     except ValueError as e:

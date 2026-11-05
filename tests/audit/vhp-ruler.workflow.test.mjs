@@ -150,14 +150,14 @@ test("recompute_main: a game's publish job can check a card against vhp-data (an
   const card = R.cardJson(R.scoreCard(L, R.makeCard(L, { game: 7, round: "1", window: { W0: Lk - 7199, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + 1200 }, c: 0n, ownRule: "spot", paying: false })));
   fs.writeFileSync(path.join(sandbox, "card.json"), card);
   const gameFile = path.join(sandbox, "game.json"), w = JSON.parse(card).window;
-  fs.writeFileSync(gameFile, JSON.stringify({ game: 7, round: "1", window: w, c: "0", ownRule: "spot", paying: false, pooled: [] }));
+  fs.writeFileSync(gameFile, JSON.stringify({ game: 7, round: "1", window: w, c: "0", minK: 10, poolRule: "min", ownRule: "spot", paying: false, pooled: [] }));
   const run = (f, g = gameFile) => spawnSync("python3", ["-I", "-B", "-c", `import sys; sys.path.insert(0, ${JSON.stringify(APP)}); import vhp_ruler as V; sys.exit(V.recompute_main(sys.argv[1:]))`, dir, f, g], { encoding: "utf8" });
   assert.equal(run(path.join(sandbox, "card.json")).status, 0);
   fs.writeFileSync(path.join(sandbox, "card2.json"), card.replace(/"signed":(\d+)/, (m, d) => `"signed":${+d + 1}`));
   assert.equal(run(path.join(sandbox, "card2.json")).status, 1);
   // #E-12 M-1: the game's own settings decide; a card made with other settings is refused
   const other = path.join(sandbox, "game2.json");
-  fs.writeFileSync(other, JSON.stringify({ game: 7, round: "1", window: w, c: "400000", ownRule: "spot", paying: false, pooled: [] }));
+  fs.writeFileSync(other, JSON.stringify({ game: 7, round: "1", window: w, c: "400000", minK: 10, poolRule: "min", ownRule: "spot", paying: false, pooled: [] }));
   const r = run(path.join(sandbox, "card.json"), other);
   assert.equal(r.status, 1); assert.match(r.stdout, /setting c/);
 });

@@ -165,10 +165,13 @@ test("the race page sends only one thing itself: the wallet's own pick on the ra
   const js = read("race.js");
   const sends = [...js.matchAll(/\.send\(/g)];
   assert.equal(sends.length, 1, "one send");
-  assert.match(js, /raceContract\.functions\.pick\(\{ player: who, race: String\(index\), horse \}, \{ onlyOperation: true \}\)/);
+  // D-153 (contract v2): the pick carries the race type when it isn't the 6-hour race; nothing else is added.
+  assert.match(js, /const args = \{ player: who, race: String\(index\), \.\.\.\(type \? \{ type \} : \{\}\) \};/);
+  assert.match(js, /raceContract\.functions\.pick\(\{ \.\.\.args, horse \}, \{ onlyOperation: true \}\)/);
   assert.match(js, /await W\.send\(`pick [^`]*`, \[operation\]\)/);
   assert.doesNotMatch(js, /signTransaction|sendTransaction|privateKey|wif/i);
-  assert.match(js, /if \(Date\.now\(\) >= M\.raceStart\(index\)\)/, "the page also refuses a started race (the chain enforces it)");
+  assert.match(js, /const tr = M\.typedRace\(type, index\)/);
+  assert.match(js, /if \(Date\.now\(\) >= tr\.start\)/, "the page also refuses a started race (the chain enforces it)");
   assert.match(read("race.js"), /localStorage\.removeItem\("pr-guesses-v1"\)/);
   assert.match(read("race.html"), /<script src="race-math\.js"><\/script>\s*<script src="board\.js"><\/script>\s*<script src="stake-panel\.js"><\/script>\s*<script src="race\.js"><\/script>/);
 });
@@ -224,4 +227,20 @@ test("R-RACE-7 (I-082): pick errors: only the Race picks contract's own messages
     assert.ok(why(m).includes(m), "the wallet's own reason is shown");
   }
   assert.match(why("User rejected the request"), /Cancelled in your wallet/);
+});
+
+test("D-153: the race-type toggle stays hidden until TYPES_FROM_WEEK is set; each type's points and the pool's sit-out are explained", () => {
+  const js = read("race.js"), html = read("race.html"), math = read("race-math.js");
+  assert.match(math, /const TYPES_FROM_WEEK = null;/, "off on main until the contract v2 is uploaded");
+  assert.match(js, /const typesLive = \(\) => M\.TYPES_FROM_WEEK !== null && M\.weekOf\(Date\.now\(\)\) >= M\.TYPES_FROM_WEEK;/);
+  assert.match(html, /<nav class="rt-tabs" id="race-types" aria-label="Race type" hidden><\/nav>/);
+  assert.match(html, /<section class="card" id="typed" hidden>/);
+  assert.match(js, /const ORDER = \[1, 2, 0, 3, 4\];/, "1-hour, 2-hour, 6-hour, daily, weekly");
+  assert.match(js, /A win scores \$\{T\.win\} points, a show \(2nd or 3rd\) \$\{T\.show\}, on the one Producer Race board\./);
+  assert.match(js, /sits out \$\{T\.name\.toLowerCase\(\)\} races for now/);
+  // The pick limit: 0 (no per-game limit, contract v2) is shown as such, never as "5".
+  assert.match(js, /const max = usage \? Number\(usage\.max_picks_per_day \?\? 0\) : 5/);
+  assert.match(js, /"No per-game pick limit"/);
+  // The remembered tab is a per-viewer convenience, wrapped in try/catch.
+  assert.match(js, /try \{ const v = Number\(localStorage\.getItem\("pr-type"\)\);/);
 });

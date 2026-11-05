@@ -227,7 +227,7 @@ du -xh -d 1 ~ 2&gt;/dev/null | sort -h | tail -15</code></pre>
       <h3 class="rn-sub rn-only" data-os="win">Windows</h3>
       <ol class="rn-list rn-only" data-os="win">
         <li>Click Start, type <b>PowerShell</b>, right-click <b>Windows PowerShell</b> → <b>Run as administrator</b> → Yes.</li>
-        <li>Paste the first box below and press Enter. When it says so, <b>restart your computer</b>.</li>
+        <li>Paste the first box below and press Enter. It installs WSL only (Docker doesn't need a Linux system of its own). When it says so, <b>restart your computer</b>.</li>
         <li>Download <b>Docker Desktop for Windows</b> from <a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener">docker.com</a> and run the installer. Keep <b>"Use WSL 2 instead of Hyper-V"</b> ticked. Restart when it asks.</li>
         <li>Open <b>Docker Desktop</b>. Accept the terms; you can skip signing in. Click the gear (Settings) → General → tick <b>"Start Docker Desktop when you sign in to your computer"</b> → Apply.</li>
         <li>Open a normal (not administrator) <b>PowerShell</b> window and paste the second box to install Git. Then close PowerShell and open it again.</li>
@@ -235,7 +235,7 @@ du -xh -d 1 ~ 2&gt;/dev/null | sort -h | tail -15</code></pre>
       </ol>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell (as administrator)</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>wsl --install
+        <pre><code>wsl --install --no-distribution
 wsl --update</code></pre>
       </div>
       <div class="rn-cmd" data-os="win">
@@ -286,6 +286,7 @@ docker run --rm hello-world</code></pre>
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
           <li>"docker: command not found" or "cannot connect to the Docker daemon": Docker Desktop isn't open yet. Open it, wait until its whale icon stops moving, then try again.</li>
+          <li>Windows: a window asks for a "UNIX username": that's the Ubuntu Linux system, which an older WSL command installs. Docker doesn't need it: just close the window. To remove it, run <code>wsl --unregister Ubuntu</code> in PowerShell (it's empty and unused).</li>
           <li>Windows: Docker says WSL needs updating or won't start: in an administrator PowerShell run <code>wsl --update</code>, then <code>wsl --shutdown</code>, and open Docker Desktop again.</li>
           <li>Windows: "virtualization is not enabled": open Task Manager → Performance → CPU and look at Virtualization. If it says Disabled, turn it on in your computer's BIOS/UEFI settings (search the web for your PC maker + "enable virtualization").</li>
           <li>Windows: "winget is not recognized": install App Installer from the Microsoft Store, or download Git from <a href="https://git-scm.com/download/win" target="_blank" rel="noopener">git-scm.com</a> and keep every default.</li>

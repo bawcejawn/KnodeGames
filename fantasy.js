@@ -85,7 +85,7 @@
     for (const e of document.querySelectorAll('[data-fx="swing"]')) e.remove();   // practice-only wording
     let dep = null;
     try { dep = await fetchJson(new URL("picks-data/deployment.json", ROOT)); } catch { /* not live yet */ }
-    NET = { rpc: ["https://koinos.armana.io", "https://api.koinos.io"], data: "https://raw.githubusercontent.com/bawcejawn/Knode/games-data/fantasy/",
+    NET = { rpc: ["https://koinos.armana.io", "https://api.koinosblocks.com"], data: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/fantasy/",
       picks: dep && isAddr(dep.contract) ? dep.contract : null, explorer: "https://koinosscan.com/address/", chainId: MAINNET_CHAIN_ID };
     provider = new lib.Provider(NET.rpc);
     W = window.KWallet || null;

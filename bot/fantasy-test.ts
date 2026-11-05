@@ -49,7 +49,7 @@ export const MAINNET_CHAIN_ID = "EiBZK_GGVP0H_fXVAM3j6EAuz3-B-l3ejxRSewi7qIBfSA=
 /** The mainnet nodes the teams are scored from (read only), as the live recorder uses them. */
 const MAINNET_READ = { rpc: process.env.FANTASY_TEST_MAINNET_RPC || "https://koinos.armana.io", check: process.env.FANTASY_TEST_MAINNET_CHECK ?? "https://api.koinosblocks.com" };
 const MAINNET_RPC = /api\.koinos\.io|koinos\.armana\.io|koinosblocks\.com|api\.koinos\.pro(?!.*harbinger)/i;
-const RACE_DATA_URL = "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/";
+const RACE_DATA_URL = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/";
 export const PLAYERS = ["p1", "p2", "p3", "p4", "p5", "p6"];
 export const TEST_DAY_MS = 3_600_000;              // one test "day" = 1 hour (owner, 2026-10-28)
 const SHEET_BEFORE_MS = 2 * TEST_DAY_MS;           // the price list comes out 2 test days (2 hours) before the test week, as live

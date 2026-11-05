@@ -58,6 +58,8 @@
   const VAULT_MAX = 255;
   const LEAD_MS = 5 * 60000;                     // picks lock 5 minutes before their day (or week) starts
   const GAMES = Object.freeze({ team: 4, rival: 5 });
+  /** R-FA-3: the fewest VHP samples a race card needs before Fantasy scores with it (the same 12 as Block X, BX-38). */
+  const MIN_CARD_SAMPLES = 12;
   const isAddr = (a) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
   const round = (x, d) => Math.round(x * 10 ** d) / 10 ** d;
   /** The real clock: UTC days, weeks from the Knode game's week 0, the sheet on Saturday 00:00 UTC. */
@@ -106,12 +108,23 @@
      *  latest earlier card of that race, else (a race with no card) the latest card up to 24 hours before. */
     function cardAt(racesById, t) {
       for (let back = 0; back <= 24; back++) {
-        const u = t - back * HOUR, ra = R.raceAt(u), cards = racesById[ra.id];
-        if (!Array.isArray(cards) || !cards.some(Boolean)) continue;
+        const u = t - back * HOUR, ra = R.raceAt(u), raw = racesById[ra.id];
+        if (!Array.isArray(raw)) continue;
+        // R-FA-3 (I-062): only good cards count. An unusable card is treated as missing (same leg positions kept), so
+        // the latest earlier good card is used; with none in 24 hours the hour is uncovered and the day is not final.
+        const cards = raw.map((c) => (usableCard(c) ? c : null));
+        if (!cards.some(Boolean)) continue;
         const c = back === 0 ? R.cardForLeg(cards, R.legOf(ra.start, u, R.legsOf(cards))) : lastCardUpTo(cards, ra.start, u);
         if (c) return c;
       }
       return null;
+    }
+    /** R-FA-3 (I-062, audit BX-38 / BX-55 / BX-73, as Block X): a card is usable only if it was made from at least
+     *  MIN_CARD_SAMPLES VHP samples and the two nodes agreed on every producer on it (no `flagged`, no `topInDoubt`).
+     *  Fantasy's expected blocks use every producer's share, so one disputed producer makes the whole card unusable. */
+    function usableCard(c) {
+      return !!c && typeof c === "object" && Array.isArray(c.field) && c.field.length > 0 && Number.isInteger(c.samples) && c.samples >= MIN_CARD_SAMPLES
+        && c.topInDoubt !== true && !(Array.isArray(c.flagged) && c.flagged.length > 0);
     }
     function lastCardUpTo(cards, start, u) {
       for (let l = R.legOf(start, u, R.legsOf(cards)); l >= 0; l--) if (cards[l]) return cards[l];
@@ -336,7 +349,7 @@
       clock: Object.freeze({ ...C, week: WEEK }), DAY_MS: C.day, WEEK_MS: WEEK,
       dayNo, dayStart, weekOf, weekStart, weekDays, isPlayDay, nextPlayDay, sheetTime, formDays, rivalRound, weekOfRivalRound, lockOfDay, lockOfWeek, games,
       freeWinners, stakedEarners, boardPlaces, FREE_PER_PLACE,
-      cardAt, sharesOf, dayIndex, spanIndex, priceOf, medianOf, makeSheet, sheetText,
+      cardAt, usableCard, MIN_CARD_SAMPLES, sharesOf, dayIndex, spanIndex, priceOf, medianOf, makeSheet, sheetText,
       checkTeam, changes, teamsForWeek, dayScore, scoreWeek, vaultPoints, packTeam, unpackTeam, rank,
       matches, addRecords, recordLine, addAllTime, allTimeRows,
     };

@@ -13,7 +13,7 @@ test("page: one strict policy, the shared scoring file before the page script, n
   assert.equal((html.match(/http-equiv="Content-Security-Policy"/g) || []).length, 1);
   const csp = html.match(/content="(default-src[^"]*)"/)[1];
   assert.match(csp, /frame-src 'none'/); assert.match(csp, /object-src 'none'/);
-  assert.match(csp, /connect-src 'self' https:\/\/koinos\.armana\.io https:\/\/api\.koinos\.io [^;]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/games-data\//);
+  assert.match(csp, /connect-src 'self' https:\/\/koinos\.armana\.io https:\/\/api\.koinos\.io [^;]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/games-data\//);
   const order = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
   assert.ok(order.indexOf("race-math.js") < order.indexOf("fantasy-math.js") && order.indexOf("fantasy-math.js") < order.indexOf("fantasy.js"));
   assert.ok(order.includes("wallet.js"), "the shared wallet (Kondor, KOIN Vault, guest)");
@@ -37,7 +37,7 @@ test("page script: the testnet page refuses mainnet and uses its own wallet; the
   assert.match(js, /if \(TNET\.chainId === MAINNET_CHAIN_ID\) throw/);
   assert.match(js, /id === MAINNET_CHAIN_ID \|\| \(NET\.chainId && id !== NET\.chainId\)/);
   assert.match(js, /picks-data\/deployment\.json/);
-  assert.match(js, /raw\.githubusercontent\.com\/bawcejawn\/Knode\/games-data\/fantasy\//);
+  assert.match(js, /raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/games-data\/fantasy\//);
 });
 
 test("page: says what players need to know", () => {

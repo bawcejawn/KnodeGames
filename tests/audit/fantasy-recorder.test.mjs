@@ -44,7 +44,7 @@ const dirs = [];
 const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), "fantasy-")); dirs.push(d); return d; };
 // Race cards for weeks 0..3: one card (VHP as above, 720 blocks a race) on every leg.
 const raceData = (() => {
-  const d = tmp(), card = M.makeCard(P.map((a, i) => [a, VHP[i]]), 720, T0);
+  const d = tmp(), card = { ...M.makeCard(P.map((a, i) => [a, VHP[i]]), 720, T0), samples: 36 };
   for (let w = 0; w <= 3; w++) {
     const start = M.weekStart(w), races = [];
     for (let t = start; t < start + M.WEEK; t += M.RACE) races.push({ id: M.raceId(M.raceIndex(t)), start: t, end: t + M.RACE, cards: new Array(6).fill(card), result: null });

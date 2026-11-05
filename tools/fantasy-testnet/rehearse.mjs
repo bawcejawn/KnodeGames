@@ -63,7 +63,7 @@ assert.equal(test.picks.games.get(4).kind, 2); assert.equal(test.picks.games.get
 step("Picks contract uploaded; games 4 (team) and 5 (rival) in force after the 10-minute wait");
 
 // 3. race cards for the last 2 days (the live kit gets them from the Producer Race; here they're made from the fake VHP).
-const card = R.makeCard(field.map(([a, , v]) => [a, v]), 7200, clock.now() - 2 * 86400000);
+const card = { ...R.makeCard(field.map(([a, , v]) => [a, v]), 7200, clock.now() - 2 * 86400000), samples: 36 };   // R-FA-3: a card needs ≥ 12 samples
 fs.mkdirSync(path.join(dir, "race"), { recursive: true });
 for (let w = R.weekOf(clock.now() - 2 * 86400000); w <= R.weekOf(clock.now()); w++) {
   const start = R.weekStart(w), races = [];

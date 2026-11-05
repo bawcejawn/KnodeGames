@@ -30,7 +30,7 @@ test("time: a week plays 6 UTC days, Monday to Saturday (Sunday is results day);
 });
 
 // One card for every hour: A 50%, B 30%, C 20% of VHP (C in the paddock still counts for shares).
-const card = { field: [{ a: A, vhp: 500 }, { a: B, vhp: 300 }], paddock: [{ a: C, vhp: 200 }] };
+const card = { field: [{ a: A, vhp: 500 }, { a: B, vhp: 300 }], paddock: [{ a: C, vhp: 200 }], samples: 36 };
 const races = {};
 for (let t = F.dayStart(DAYS[0]) - R.DAY; t < F.dayStart(DAYS[5]) + 3 * R.DAY; t += R.RACE) races[R.raceAt(t).id] = [card, null, null, null, null, null];
 
@@ -59,6 +59,25 @@ test("cards: a missed race uses the latest card up to 24 h before; none at all =
   const t = F.dayStart(DAYS[2]), only = { [R.raceAt(t - R.RACE).id]: [null, null, card, null, null, null] };
   assert.equal(F.cardAt(only, t + 3 * R.HOUR), card, "the earlier race's last card carries on");
   assert.equal(F.cardAt({}, t), null);
+});
+
+test("R-FA-3: card quality gate — a card with under 12 samples, a flagged producer or topInDoubt is never used", () => {
+  assert.equal(F.MIN_CARD_SAMPLES, 12);
+  assert.ok(F.usableCard(card));
+  assert.ok(F.usableCard({ ...card, samples: 12 }), "12 samples is enough");
+  for (const bad of [{ ...card, samples: 11 }, { ...card, samples: undefined }, { ...card, samples: "36" }, { ...card, flagged: [A] }, { ...card, topInDoubt: true }, { ...card, field: [] }, null])
+    assert.equal(F.usableCard(bad), false, JSON.stringify(bad));
+  assert.ok(F.usableCard({ ...card, flagged: [] }), "an empty flagged list is no dispute");
+  const t = F.dayStart(DAYS[2]), id = R.raceAt(t).id, prevId = R.raceAt(t - R.RACE).id;
+  // The hour's own card is low-sample: the latest earlier GOOD card is used instead.
+  const good = { ...card, samples: 40 }, low = { ...card, samples: 3 }, disputed = { ...card, flagged: [B] };
+  assert.equal(F.cardAt({ [prevId]: [null, null, good, null, null, null], [id]: [low, low, low, low, low, low] }, t), good);
+  assert.equal(F.cardAt({ [prevId]: [null, null, good, null, null, null], [id]: [disputed, null, null, null, null, null] }, t), good);
+  // Only bad cards within 24 h: no card, so the hour is uncovered and the day can't go final (fail closed).
+  assert.equal(F.cardAt({ [prevId]: [low, low, low, low, low, low], [id]: [low, low, low, low, low, low] }, t), null);
+  const ts = [t + 1000], sig = [0];
+  const bads = {}; for (let u = t - R.DAY - R.RACE; u < t + R.DAY; u += R.RACE) bads[R.raceAt(u).id] = [low, low, low, low, low, low];
+  assert.equal(F.dayIndex({ ts, sig, signers: [A] }, bads, DAYS[2]).uncovered, 1);
 });
 
 test("price: 20 + 1.5 × (form − median form), rounded, clamped 8..40; no form = 20", () => {

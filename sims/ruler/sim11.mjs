@@ -1,5 +1,5 @@
 // Knode Games — VHP ruler simulation 11 on real data (§8): JavaScript and Python make byte-identical v2.1 cards
-// (pct, rate, the steering cap, minK and poolRule included). Python rebuilds every card from the hour files themselves
+// (pct, rate, void, fpct, minK and poolRule included). Python rebuilds every card from the hour files themselves
 // (vhp_ruler.load_ledger, every hour checked) and recompute()s it from the game's settings.
 //   node sims/ruler/sim11.mjs <vhp-data dir> [cards]
 import fs from "node:fs";

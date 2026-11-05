@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { R, PY, addr, toJson } from "./vhp-ruler.fixture.mjs";
+import { R, PY, addr, toJson, fieldFpct } from "./vhp-ruler.fixture.mjs";
 
 const M = 1000000n, dir = fs.mkdtempSync(path.join(os.tmpdir(), "vhp-v21-"));
 const py = (code, data) => { const f = path.join(dir, `in${Math.random().toString(36).slice(2)}.json`); fs.writeFileSync(f, toJson(data)); return PY(`j = json.load(open(${JSON.stringify(f)}))\n${code}`); };
@@ -175,8 +175,8 @@ test("fpct on a scored card: the field is the producers with entry; others get n
   const card = R.makeCard(L, { ...game, minK: 1500 }), s = R.scoreCard(L, card);
   const inF = s.producers.filter((p) => p.entry);
   assert.ok(inF.length >= 1 && inF.length < s.producers.length, "the bar leaves some producers out");
-  const n = inF.reduce((t, p) => t + BigInt(p.signed), 0n), b = inF.reduce((t, p) => t + p.expected, 0n);
-  for (const p of s.producers) assert.equal(p.fpct, p.entry ? R.fpct(n, p.expected, b, p.credited) : null);
+  const want = fieldFpct(s.producers);
+  for (const p of s.producers) assert.equal(p.fpct, p.entry ? want[p.a] : null);
   assert.equal(pyCard({ ...game, minK: 1500 }), R.cardJson(card) + R.cardJson(s), "Python: the same bytes, nulls included");
   assert.match(R.cardJson(s), /"fpct":null/);
 });

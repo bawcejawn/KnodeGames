@@ -181,6 +181,7 @@
     n = big(n); a = big(a); b = big(b); x = big(x);
     if (n < 0n || a < 0n || b < a || x < 0n) throw new Error("fpct needs n ≥ 0 and 0 ≤ a ≤ b, x ≥ 0");
     const k = x / M, f = x % M;
+    if (k > n) return M;   // x above every possible count: certain, as on a degenerate share (Repo Lens #B-10 P1)
     const midAt = (j) => {   // twice mid(j) × total, and the total, for the degenerate shares
       if (a === 0n) return j > 0n ? [2n, 1n] : [1n, 1n];   // X = 0 always
       if (a === b || b === 0n) return j < n ? [0n, 1n] : j === n ? [1n, 1n] : [2n, 1n];   // X = n always
@@ -471,12 +472,17 @@
       const quality = flagged ? "flagged" : "ok";
       return { ...p, quality, expected, signed: L.signedIn(p.a, S0, S1), credited, pct: pct(expected, credited), void: isVoid };
     });
-    // A′: the field is the producers with entry that aren't void; n = the blocks they signed in [S0, S1]; b = their
-    // expected blocks
-    const inField = (p) => p.entry && !p.void;
-    let n = 0n, b = 0n;
-    for (const p of producers) if (inField(p)) { n += BigInt(p.signed); b += p.expected; }
-    for (const p of producers) p.fpct = inField(p) ? fpct(n, p.expected, b, p.credited) : null;
+    // A′: the field is the producers with entry that aren't void (Repo Lens #B-10 F1). Its totals come from the core, the
+    // members at form ≥ FORM_GATE: n = the blocks the core signed in [S0, S1]; b counts every other core member at its
+    // expected blocks × its rate (a steady producer signs at its 14-day rate, so its unsigned blocks lift no one) and the
+    // producer itself at full size (B9-2). A member below the gate (a steady throttler, in at full size by the owner's
+    // ruling) is scored against the core plus itself at full size and counts in no one else's totals, so a parked
+    // address that suddenly signs in full can't move the others either
+    const inField = (p) => p.entry && !p.void, inCore = (p) => inField(p) && big(p.form) >= FORM_GATE;
+    const atRate = (p) => (p.expected * big(p.rate)) / M;
+    let n = 0n, bw = 0n;
+    for (const p of producers) if (inCore(p)) { n += BigInt(p.signed); bw += atRate(p); }
+    for (const p of producers) p.fpct = !inField(p) ? null : inCore(p) ? fpct(n, p.expected, bw - atRate(p) + p.expected, p.credited) : fpct(n + BigInt(p.signed), p.expected, bw + p.expected, p.credited);
     return { ...card, producers };
   }
 

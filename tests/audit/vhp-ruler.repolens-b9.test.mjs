@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { R, PY, addr, toJson } from "./vhp-ruler.fixture.mjs";
+import { R, PY, addr, toJson, fieldFpct } from "./vhp-ruler.fixture.mjs";
 
 const M = 1000000n, dir = fs.mkdtempSync(path.join(os.tmpdir(), "vhp-b9-"));
 const py = (code, data) => { const f = path.join(dir, `in${Math.random().toString(36).slice(2)}.json`); fs.writeFileSync(f, toJson(data)); return PY(`j = json.load(open(${JSON.stringify(f)}))\n${code}`); };
@@ -88,8 +88,8 @@ test("void: a deposit or withdrawal of more than 10% during the race voids that 
     const { tl, ps, s, g } = scored([{ h: win.S0 + 3600, i: 2, v }]), p = s.producers.find((x) => x.a === ps[2]);
     assert.equal(p.void, want, what);
     if (want) assert.equal(p.fpct, null, "a void producer has no field percentile");
-    const field = s.producers.filter((x) => x.entry && !x.void), n = field.reduce((t, x) => t + BigInt(x.signed), 0n), b = field.reduce((t, x) => t + x.expected, 0n);
-    for (const x of field) assert.equal(x.fpct, R.fpct(n, x.expected, b, x.credited), `${what}: the field without the void producer`);
+    const want2 = fieldFpct(s.producers), field = s.producers.filter((x) => x.entry && !x.void);
+    for (const x of field) assert.equal(x.fpct, want2[x.a], `${what}: the field without the void producer`);
     const out = py(`L = V.Ledger(j["tl"]); g = j["g"]
 c = V.make_card(L, g["game"], g["round"], g["window"], g["c"], g["ownRule"], g["paying"], g["pooled"], g["minK"], g["poolRule"])
 sys.stdout.write(V.card_json(V.score_card(L, c)))`, { tl, g });

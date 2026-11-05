@@ -49,9 +49,17 @@ Built from `.ai/standards/VHP_RULER.md` §16 and the owner's rulings of 5 Nov, b
   integers; below 1 unless λ = 0 (#B-9 B9-3).
 - **`fpct(n, a, b, x)`** (A′): the mid-p binomial percentile of credited blocks among the field's own signed blocks (the
   field = producers with entry that aren't void). A jump that moves the whole network moves no one's percentile.
-- **`void`** (owner, 5 Nov): a producer whose effective VHP leaves own × (1 ± 10%) at any block of the scoring window is
-  void for that race (out of A′'s field, `fpct` null); the next race it plays as usual. About 1–1.6% of producer-races
-  on real days.
+  **The field's totals (#B-10 F1):** n and b come from the field's *core*, its members at form ≥ 0.80. Each producer's
+  b counts the other core members at expected × `rate` and itself at full size. A member below 0.80 (a steady
+  throttler) is scored against the core plus itself at full size and counts in no one else's totals, so a throttled or
+  parked address can't lift anyone's percentile, and can't move them by suddenly signing in full.
+- **`void`** (owner, 5 Nov): a producer whose effective VHP is outside the card's own × (1 ± 10%) at any block of the
+  scoring window is void for that race (out of A′'s field, `fpct` null); the next race it plays as usual. Whatever caused
+  the gap counts ("any time": a move after the card, or with `avg24h` a move in the 24 h before T). **Pools and the
+  Vault get the same rule** (owner, 5 Nov). About 1–1.6% of producer-races on real days.
+- **What a void means for picks** (owner, 5 Nov; for every game that uses the ruler): a pick on a void producer **counts
+  as a loss**, never a refund, so voiding a losing producer late gains nothing (#B-10 V2). A whole round or race that
+  is void gives players their pick back; the Mana spent on it is not refunded.
 - **Throttlers** (owner, 5 Nov, D-120): a steady producer (every daily rate within ±0.15 of its 14-day rate) is in the
   field whatever its form; everyone is expected at full size (any expectation lowered to a producer's own throttling can
   be beaten on purpose, #B-9 B9-2); `rate` is shown on the card only.

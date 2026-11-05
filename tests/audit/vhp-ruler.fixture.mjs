@@ -117,3 +117,13 @@ export function longTimeline({ n = 470000, from = 1000000, np = 6, mints = 40 } 
   for (let m = 0; m < mints; m++) { const h = from + 1000 + m * Math.floor(n / mints), a = ps[m % np], v = 5n * 10n ** 12n; deltas.push({ h, a, d: v, inc: v }); bal[ps.indexOf(a)] += v; }
   return { tl: { from, to, signers, ids, deltas, anchors: Object.fromEntries(ps.map((a, i) => [a, { h: to, v: bal[i] }])) }, ps };
 }
+/** A′ as built (Repo Lens #B-10 F1): the field's totals come from its core (form ≥ 0.80), each other core member at
+ *  expected × rate and the producer itself at full size; a member below 0.80 is scored against the core plus itself at
+ *  full size. Returns each field member's expected fpct, by address. */
+export function fieldFpct(producers) {
+  const field = producers.filter((p) => p.entry && !p.void), core = field.filter((p) => BigInt(p.form) >= R.FORM_GATE);
+  const atRate = (p) => (BigInt(p.expected) * BigInt(p.rate)) / R.M;
+  const n = core.reduce((t, p) => t + BigInt(p.signed), 0n), bw = core.reduce((t, p) => t + atRate(p), 0n), out = {};
+  for (const p of field) out[p.a] = core.includes(p) ? R.fpct(n, p.expected, bw - atRate(p) + BigInt(p.expected), p.credited) : R.fpct(n + BigInt(p.signed), p.expected, bw + BigInt(p.expected), p.credited);
+  return out;
+}

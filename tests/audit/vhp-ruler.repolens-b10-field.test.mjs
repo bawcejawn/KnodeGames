@@ -1,0 +1,53 @@
+// Repo Lens #B-10 (VHP ruler v2.1 @ faa9757), areas 3–4: the A′ field and the entry gate.
+// Run: node --import tsx --test tests/audit/vhp-ruler.*.test.mjs tests/audit/repolens-e12-recompute-settings.test.mjs
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { R, PY, toJson } from "./vhp-ruler.fixture.mjs";
+import { M, chain, game } from "./vhp-ruler.repolens-b10-chain.mjs";
+
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vhp-b10f-"));
+const py = (code, data) => { const f = path.join(dir, `in${Math.random().toString(36).slice(2)}.json`); fs.writeFileSync(f, toJson(data)); return PY(`j = json.load(open(${JSON.stringify(f)}))\n${code}`); };
+
+// 6 producers of equal VHP; ps[5] signs `slots` of every 120 blocks (20 = its full share), the other 5 share the rest
+// equally, every day of the 15 (so ps[5] is "steady" at slots/20)
+const throttled = (slots) => chain({ np: 6, units: [3, 3, 3, 3, 3, 3], signerOf: (k, ps) => { const s = k % 120; return s < slots ? ps[5] : ps[(k - Math.floor(k / 120) * slots - (s < slots ? 0 : slots)) % 5]; } });
+
+test("B10-F1: a steady throttler in the field pushes every full producer's fpct to the 999,999 cap (A′ assumes every field member signs at full rate)", () => {
+  for (const [slots, label] of [[20, "control (no throttling)"], [19, "ps[5] steady at 0.95 (in the core, at its rate)"], [6, "ps[5] steady at 0.3"], [1, "ps[5] parked at 0.05"]]) {
+    const { tl, ps } = throttled(slots), L = R.ledger(tl), s = R.scoreCard(L, R.makeCard(L, game));
+    const t = s.producers.find((p) => p.a === ps[5]);
+    assert.equal(t.entry, true, `${label}: the throttler is in the field (owner, 5 Nov)`);
+    const full = s.producers.filter((p) => p.a !== ps[5]);
+    // the five full producers behave identically and each signs exactly 1/5 of what the full-rate field signed:
+    // under A′'s own premise ("a jump that moves the whole network moves no one's percentile") they sit near the middle
+    for (const p of full) assert.ok(BigInt(p.fpct) < 990000n, `${label}: ${p.a} signs exactly its share among full-rate signers, yet fpct = ${p.fpct}`);
+  }
+});
+
+test("B10-F1 (fixed): with a 0.95 producer in the core counted at its rate, full producers signing in proportion to their size get the same fpct (pure fpct, the card's own totals)", () => {
+  // as before: shares of expected throttler 0.30 (steady at 0.95), A 0.40, B 0.25, C 0.05; 7,200 blocks, all signed by the
+  // field. As built (#B-10 F1), each producer's b counts the others at expected × rate and itself at full size
+  const n = 7200, rates = { T: 0.95, A: 1, B: 1, C: 1 }, sh = { T: 0.3, A: 0.4, B: 0.25, C: 0.05 }, prod = 0.3 * 0.95 + 0.7;
+  const e = (k) => BigInt(Math.round(sh[k] * 7200e6)), atRate = (k) => (e(k) * BigInt(Math.round(rates[k] * 1e6))) / M;
+  const bw = Object.keys(sh).reduce((t, k) => t + atRate(k), 0n);
+  const f = Object.fromEntries(["A", "B", "C"].map((k) => [k, R.fpct(BigInt(n), e(k), bw - atRate(k) + e(k), BigInt(Math.round((sh[k] / prod) * n * 1e6)))]));
+  const gap = f.A - f.C;
+  assert.ok(gap < 50000n && gap > -50000n, `A (40%) fpct ${f.A} vs C (5%) fpct ${f.C}: identical relative performance, ${gap} millionths apart`);
+});
+
+test("B10-F2 (owner, 5 Nov: a steady throttler stays in): a producer parked at form ≈ 0.05 is in the field but moves no one's fpct; JS = Python on the card", () => {
+  const { tl, ps } = throttled(1), L = R.ledger(tl), c = R.makeCard(L, game), s = R.scoreCard(L, c), p = s.producers.find((x) => x.a === ps[5]);
+  assert.ok(BigInt(p.form) < 100000n, `form ${p.form}`);
+  assert.equal(p.entry, true, "steady: in the field at full size, as the owner ruled");
+  assert.notEqual(p.fpct, null);
+  // the five full producers are scored among themselves only: exactly as if the parked address weren't on the card
+  const rest = s.producers.filter((x) => x.a !== ps[5] && x.entry && !x.void), core = rest.filter((x) => BigInt(x.form) >= R.FORM_GATE);
+  const n = core.reduce((t, x) => t + BigInt(x.signed), 0n), atRate = (x) => (x.expected * BigInt(x.rate)) / M, bw = core.reduce((t, x) => t + atRate(x), 0n);
+  for (const x of core) assert.equal(x.fpct, R.fpct(n, x.expected, bw - atRate(x) + x.expected, x.credited), `${x.a}: the parked address moved its fpct`);
+  const out = py(`L = V.Ledger(j["tl"]); g = j["g"]
+sys.stdout.write(V.card_json(V.score_card(L, V.make_card(L, g["game"], g["round"], g["window"], g["c"], g["ownRule"], g["paying"], g["pooled"], g["minK"], g["poolRule"]))))`, { tl, g: game });
+  assert.equal(out, R.cardJson(s), "JS = Python, a member below the gate included");
+});

@@ -27,3 +27,15 @@
 .bridge-note ul, .safety ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; color: var(--muted); }
 .safety b { color: var(--ink); }
 @media (max-width: 760px) { .bridge { grid-template-columns: 1fr; } .top-row .tabs { overflow-x: auto; } }
+
+/* Official token addresses (shared look with get.html) */
+.tokens { margin: 18px 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-sm, 14px); background: var(--surface); }
+.tokens h2, .tokens h3 { margin: 0 0 6px; }
+.tokens p { margin: 0 0 10px; color: var(--muted); }
+.tok-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.tok-list li { display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid var(--line); }
+.tok-list li:first-child { border-top: 0; padding-top: 0; }
+.tok-list a { font-size: 14px; }
+.tokens .addr { display: flex; gap: 6px; align-items: center; margin: 2px 0; }
+.tokens .addr code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; flex: 1; }
+.tokens .copy { font: inherit; font-size: 12px; font-weight: 700; padding: 6px 10px; min-height: 32px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }

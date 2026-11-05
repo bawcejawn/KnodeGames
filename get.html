@@ -49,6 +49,16 @@
     .links a { color: var(--violet); }
     .warn { margin-top: 18px; padding: 14px 16px; border-radius: var(--r-sm); background: var(--rose-soft); color: var(--rose); font-weight: 600; }
     @media (max-width: 520px) { .gk-routes { grid-template-columns: 1fr; } }
+    .tokens { margin: 18px 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-sm, 14px); background: var(--surface); }
+    .tokens h2, .tokens h3 { margin: 0 0 6px; }
+    .tokens p { margin: 0 0 10px; color: var(--muted); }
+    .tok-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+    .tok-list li { display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .tok-list li:first-child { border-top: 0; padding-top: 0; }
+    .tok-list a { font-size: 14px; }
+    .tokens .addr { display: flex; gap: 6px; align-items: center; margin: 2px 0; }
+    .tokens .addr code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; flex: 1; }
+    .tokens .copy { font: inherit; font-size: 12px; font-weight: 700; padding: 6px 10px; min-height: 32px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
   </style>
 </head>
 <body>
@@ -92,6 +102,16 @@
   <main class="gk">
     <h1>Get KOIN and VHP</h1>
     <p class="lede">To share in the weekly rewards you need at least 1 VHP staked in Knode Games. Here is the whole way there, from nothing. You can also play free without any of this.</p>
+    <section class="tokens" id="tokens" aria-labelledby="tokens-title">
+        <h2 id="tokens-title">Official token addresses</h2>
+        <p>Copy these, never from a message or a search result. KOIN and VHP live on Koinos; vKOIN is KOIN on Ethereum or Solana, which the Vortex bridge turns into KOIN on Koinos.</p>
+        <ul class="tok-list">
+          <li><span class="tok-name"><b>KOIN</b> on Koinos</span><span class="addr"><code id="tok-koin">19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK</code><button class="copy" type="button" data-copy="tok-koin">Copy</button></span><a href="https://koinosscan.com/address/19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK" target="_blank" rel="noopener noreferrer">Check on Koinosscan</a></li>
+          <li><span class="tok-name"><b>VHP</b> on Koinos</span><span class="addr"><code id="tok-vhp">12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq</code><button class="copy" type="button" data-copy="tok-vhp">Copy</button></span><a href="https://koinosscan.com/address/12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq" target="_blank" rel="noopener noreferrer">Check on Koinosscan</a></li>
+          <li><span class="tok-name"><b>vKOIN</b> on Ethereum</span><span class="addr"><code id="tok-veth">0xa50ad3a559a10f384a5bb2e27516f63e0b937b1a</code><button class="copy" type="button" data-copy="tok-veth">Copy</button></span><a href="https://etherscan.io/token/0xa50ad3a559a10f384a5bb2e27516f63e0b937b1a" target="_blank" rel="noopener noreferrer">Check on Etherscan</a></li>
+          <li><span class="tok-name"><b>vKOIN</b> on Solana</span><span class="addr"><code id="tok-vsol">8AUxdPqYU4FBy5rZDhMJxTniPs7gtEfdHjP3UKM71m6G</code><button class="copy" type="button" data-copy="tok-vsol">Copy</button></span><a href="https://solscan.io/token/8AUxdPqYU4FBy5rZDhMJxTniPs7gtEfdHjP3UKM71m6G" target="_blank" rel="noopener noreferrer">Check on Solscan</a></li>
+        </ul>
+      </section>
 
     <ol class="gk-steps">
       <li class="gk-step">

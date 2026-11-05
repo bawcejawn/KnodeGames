@@ -127,11 +127,11 @@ function Compose([string[]]$a) {
   try { return DockerOut (@("compose") + $a) } finally { Pop-Location }
 }
 function ReadState {
-  $s = @{ lastHeight = 0; misses = 0; heals = @(); lastRestart = 0; nagAt = 0; dockerAlert = 0; failAt = 0; stopAt = 0; restarts = @{} }
+  $s = @{ lastHeight = 0; misses = 0; heals = @(); lastRestart = 0; nagAt = 0; dockerAlert = 0; failAt = 0; stopAt = 0; healDownAt = 0; restarts = @{} }
   if (Test-Path $StateFile) {
     try {
       $j = Get-Content $StateFile -Raw | ConvertFrom-Json
-      foreach ($k in @("lastHeight", "misses", "lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt")) { if ($null -ne $j.$k) { $s[$k] = [int64]$j.$k } }
+      foreach ($k in @("lastHeight", "misses", "lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt")) { if ($null -ne $j.$k) { $s[$k] = [int64]$j.$k } }
       if ($j.heals) { $s.heals = @($j.heals | ForEach-Object { [int64]$_ }) }
       if ($j.restarts) { foreach ($p in $j.restarts.PSObject.Properties) { $s.restarts[$p.Name] = [int64]$p.Value } }
     } catch { Log "The state file was unreadable; starting fresh." }
@@ -139,14 +139,21 @@ function ReadState {
   # A time later than now (the clock was fast and was corrected) would block restarts until it caught up: drop it.
   $n = NowMs
   $s.heals = @($s.heals | Where-Object { $_ -le $n })
-  foreach ($k in @("lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt")) { if ($s[$k] -gt $n) { $s[$k] = 0 } }
+  foreach ($k in @("lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt")) { if ($s[$k] -gt $n) { $s[$k] = 0 } }
   return $s
 }
 function WriteState($s) { if (-not $DryRun) { $s | ConvertTo-Json -Depth 4 | Set-Content -Path $StateFile -Encoding ascii } }
 
 # ---------- one check ----------
 if (-not (Test-Path (Join-Path $Koinos "docker-compose.yml"))) { Log "No node found in $Koinos - nothing to check."; return }
-if (Test-Path (Join-Path $Folder "heal-paused")) { Log "Paused (heal-paused is in $Folder): not checking. Starting the node with step 5a resumes it."; return }
+# The pause file (made by the guide's repair, stop and update boxes) only counts while none of the node's containers is
+# running: once the node runs again, a forgotten pause file can't switch the self-heal off.
+if (Test-Path (Join-Path $Folder "heal-paused")) {
+  $up = @(); $known = $true
+  try { $up = @(Compose @("ps", "-q") | Where-Object { $_ }) } catch { $known = $false }
+  if (-not $known -or -not $up.Count) { Log "Paused (heal-paused is in $Folder and the node isn't running): not checking."; return }
+  Log "heal-paused is in $Folder, but the node is running again, so checking as usual."
+}
 $now = NowMs
 $st = ReadState
 $st.heals = @($st.heals | Where-Object { $now - $_ -lt $WINDOW_MS })
@@ -189,10 +196,16 @@ if ($loop.Count) {
 
 # Is it running, answering, and keeping up?
 $all = @(); $running = @()
-try { $all = @(Compose @("ps", "-a", "-q") | Where-Object { $_ }); $running = @(Compose @("ps", "-q") | Where-Object { $_ }) } catch { }
+try { $all = @(Compose @("ps", "-a", "-q") | Where-Object { $_ }); $running = @(Compose @("ps", "-q") | Where-Object { $_ }) }
+catch { Log "Couldn't list the node's containers this time; checking again next time."; WriteState $st; return }
 $local = $null
 $why = ""
-if (-not $all.Count) {
+if (-not $all.Count -and $st.healDownAt) {
+  # No containers because the self-heal's OWN restart ran "docker compose down" and its "up" didn't finish: try again
+  # (within the same 50-minute wait and 3-in-6-hours limit below). This is not a stop on purpose.
+  $why = "the self-heal's own restart didn't finish (no containers since it stopped the node)"
+}
+elseif (-not $all.Count) {
   # No containers at all: someone ran "docker compose down" (a repair, an update, or a stop). Never start it.
   Log "The node is stopped (no containers: stopped on purpose). Not starting it."
   if ($now - $st.stopAt -gt $NAG_MS) { Notify "Koinos node is stopped" "Start it with step 5a of knodegames.com/run-node.html when you're ready."; $st.stopAt = $now }
@@ -200,8 +213,9 @@ if (-not $all.Count) {
   WriteState $st
   return
 }
-$st.stopAt = 0
-if (-not $running.Count) {
+else { $st.stopAt = 0; $st.healDownAt = 0 }
+if ($why) { }
+elseif (-not $running.Count) {
   $st.misses = $st.misses + 1
   if ($st.misses -ge 2) { $why = "its containers exist but none has been running at two checks in a row" } else { Log "None of the node's containers is running; checking again next time." }
 }
@@ -233,11 +247,13 @@ if ($why) {
     # Counted before trying, so a restart that fails still waits 50 minutes and counts toward the 3-in-6-hours limit.
     $st.heals = @($st.heals) + @($now)
     $st.lastRestart = $now
+    $st.healDownAt = $now
     $st.misses = 0
     WriteState $st
     try {
       $null = Compose @("down")
       $null = Compose @("up", "-d")
+      $st.healDownAt = 0
       Notify "Koinos node restarted" "It had frozen ($why). Check it again in 30 minutes."
     } catch {
       Log "The restart failed: $($_.Exception.Message)"

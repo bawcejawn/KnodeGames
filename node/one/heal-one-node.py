@@ -140,11 +140,11 @@ def compose(*a):
     return [l.strip() for l in r.stdout.splitlines() if l.strip()]
 
 
-NUMS = ("lastHeight", "misses", "lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt")
+NUMS = ("lastHeight", "misses", "lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt")
 
 
 def read_state(now):
-    s = {"lastHeight": 0, "misses": 0, "heals": [], "lastRestart": 0, "nagAt": 0, "dockerAlert": 0, "failAt": 0, "stopAt": 0, "restarts": {}}
+    s = {"lastHeight": 0, "misses": 0, "heals": [], "lastRestart": 0, "nagAt": 0, "dockerAlert": 0, "failAt": 0, "stopAt": 0, "healDownAt": 0, "restarts": {}}
     try:
         with open(STATE) as f:
             j = json.load(f)
@@ -168,10 +168,10 @@ def read_state(now):
         pass
     except Exception:
         log("The state file was unreadable; starting fresh.")
-        s = {"lastHeight": 0, "misses": 0, "heals": [], "lastRestart": 0, "nagAt": 0, "dockerAlert": 0, "failAt": 0, "stopAt": 0, "restarts": {}}
+        s = {"lastHeight": 0, "misses": 0, "heals": [], "lastRestart": 0, "nagAt": 0, "dockerAlert": 0, "failAt": 0, "stopAt": 0, "healDownAt": 0, "restarts": {}}
     # A time later than now (the clock was fast and was corrected) would block restarts until it caught up: drop it.
     s["heals"] = [t for t in s["heals"] if t <= now]
-    for k in ("lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt"):
+    for k in ("lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt"):
         if s[k] > now:
             s[k] = 0
     return s
@@ -187,9 +187,17 @@ def check():
     if not os.path.exists(os.path.join(KOINOS, "docker-compose.yml")):
         log(f"No node found in {KOINOS} - nothing to check.")
         return
+    # The pause file (made by the guide's repair, stop and update boxes) only counts while none of the node's containers
+    # is running: once the node runs again, a forgotten pause file can't switch the self-heal off.
     if os.path.exists(PAUSE):
-        log(f"Paused (heal-paused is in {FOLDER}): not checking. Starting the node with step 5a resumes it.")
-        return
+        try:
+            up = compose("ps", "-q")
+        except Exception:
+            up = []
+        if not up:
+            log(f"Paused (heal-paused is in {FOLDER} and the node isn't running): not checking.")
+            return
+        log(f"heal-paused is in {FOLDER}, but the node is running again, so checking as usual.")
     now = now_ms()
     st = read_state(now)
     st["heals"] = [t for t in st["heals"] if now - t < WINDOW_MS]
@@ -241,9 +249,15 @@ def check():
         everything = compose("ps", "-a", "-q")
         running = compose("ps", "-q")
     except Exception:
-        everything, running = [], []
+        log("Couldn't list the node's containers this time; checking again next time.")
+        write_state(st)
+        return
     local, why = None, ""
-    if not everything:
+    if not everything and st["healDownAt"]:
+        # No containers because the self-heal's OWN restart ran "docker compose down" and its "up" didn't finish: try
+        # again (within the same 50-minute wait and 3-in-6-hours limit below). This is not a stop on purpose.
+        why = "the self-heal's own restart didn't finish (no containers since it stopped the node)"
+    elif not everything:
         # No containers at all: someone ran "docker compose down" (a repair, an update, or a stop). Never start it.
         log("The node is stopped (no containers: stopped on purpose). Not starting it.")
         if now - st["stopAt"] > NAG_MS:
@@ -252,8 +266,12 @@ def check():
         st["misses"] = 0
         write_state(st)
         return
-    st["stopAt"] = 0
-    if not running:
+    else:
+        st["stopAt"] = 0
+        st["healDownAt"] = 0
+    if why:
+        pass
+    elif not running:
         st["misses"] += 1
         if st["misses"] >= 2:
             why = "its containers exist but none has been running at two checks in a row"
@@ -294,11 +312,13 @@ def check():
             # Counted before trying, so a restart that fails still waits 50 minutes and counts toward the limit.
             st["heals"].append(now)
             st["lastRestart"] = now
+            st["healDownAt"] = now
             st["misses"] = 0
             write_state(st)
             try:
                 compose("down")
                 compose("up", "-d")
+                st["healDownAt"] = 0
                 notify("Koinos node restarted", f"It had frozen ({why}). Check it again in 30 minutes.")
             except Exception as e:
                 log(f"The restart failed: {e}")

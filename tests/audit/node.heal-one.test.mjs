@@ -49,9 +49,9 @@ case "$1" in
   inspect) cat "$F/restarts_$4"; exit 0 ;;
   compose)
     case "$2" in
-      ps) if [ "$3" = "-a" ]; then cat "$F/all"; elif [ -n "$4" ]; then cat "$F/$4"; else cat "$F/running"; fi; exit 0 ;;
-      down) exit 0 ;;
-      up) [ "$(cat "$F/up_fails")" = yes ] && exit 1; exit 0 ;;
+      ps) [ -f "$F/ps_fails" ] && exit 1; if [ "$3" = "-a" ]; then cat "$F/all"; elif [ -n "$4" ]; then cat "$F/$4"; else cat "$F/running"; fi; exit 0 ;;
+      down) : > "$F/all"; : > "$F/running"; exit 0 ;;
+      up) [ "$(cat "$F/up_fails")" = yes ] && exit 1; echo abc123 > "$F/all"; echo abc123 > "$F/running"; exit 0 ;;
     esac ;;
 esac
 exit 0
@@ -125,14 +125,14 @@ for (const R of runners) {
     } finally { l.srv.close(); n.srv.close(); fs.rmSync(e.dir, { recursive: true, force: true }); }
   });
 
-  test(`${R.name}: C8-1: the heal-paused file stops every check`, async () => {
+  test(`${R.name}: C8-1: the heal-paused file stops every check while the node isn't running`, async () => {
     const e = setup();
     const l = await node({ height: 1000 }), n = await node({ height: 9000 });
     try {
       fs.writeFileSync(path.join(e.dir, "heal-paused"), "");
       e.f("all", "abc"); e.f("running", "");
       for (let i = 0; i < 4; i++) { const r = await R.run(e, l.url, n.url, 1e12 + i * 20 * MIN); assert.match(r.out, /Paused/); }
-      assert.equal(e.calls(), "", "no docker call at all while paused");
+      assert.doesNotMatch(e.calls(), /compose (down|up)/, "nothing started or stopped while paused");
     } finally { l.srv.close(); n.srv.close(); fs.rmSync(e.dir, { recursive: true, force: true }); }
   });
 
@@ -277,3 +277,81 @@ test("the guide's download boxes name the right files and show their real SHA-25
     assert.ok(html.toLowerCase().includes(sha), `${file}: the page shows its SHA-256 ${sha}`);
   }
 });
+
+// ───────────── Repo Lens #E-19: R-1 (own unfinished restart), R-2 (forgotten pause file), "can't tell" ─────────────
+for (const R of runners) {
+  test(`${R.name}: R-2: a forgotten heal-paused file doesn't switch the self-heal off once the node runs again`, async () => {
+    const e = setup();
+    const l = await node({ height: 1000 }), n = await node({ height: 9000 });
+    try {
+      fs.writeFileSync(path.join(e.dir, "heal-paused"), "");                    // containers running (setup default)
+      let out = "";
+      for (let i = 0; i < 3; i++) out += (await R.run(e, l.url, n.url, 1e12 + i * 20 * MIN)).out;
+      assert.match(out, /the node is running again, so checking as usual/);
+      assert.match(e.calls(), /compose down\ncompose up -d/, "the frozen node is still healed");
+    } finally { l.srv.close(); n.srv.close(); fs.rmSync(e.dir, { recursive: true, force: true }); }
+  });
+
+  test(`${R.name}: when the container list can't be read, nothing is started or called "stopped"`, async () => {
+    const e = setup();
+    const l = await node({ height: 1000 }), n = await node({ height: 9000 });
+    try {
+      fs.writeFileSync(path.join(e.dir, "fake", "ps_fails"), "");
+      let out = "";
+      for (let i = 0; i < 4; i++) out += (await R.run(e, l.url, n.url, 1e12 + i * 20 * MIN)).out;
+      assert.match(out, /Couldn't list the node's containers this time/);
+      assert.doesNotMatch(out, /stopped on purpose|NOTICE/);
+      assert.doesNotMatch(e.calls(), /compose (down|up)/);
+    } finally { l.srv.close(); n.srv.close(); fs.rmSync(e.dir, { recursive: true, force: true }); }
+  });
+
+  test(`${R.name}: after a restart that worked, the user's own later stop is still "on purpose"`, async () => {
+    const e = setup();
+    const l = await node({ height: 1000 }), n = await node({ height: 9000 });
+    try {
+      await R.run(e, l.url, n.url, 1e12);
+      await R.run(e, l.url, n.url, 1e12 + 20 * MIN);                           // frozen -> restart (works)
+      assert.equal((e.calls().match(/compose up/g) || []).length, 1);
+      e.f("all", ""); e.f("running", "");                                       // the user runs docker compose down
+      let out = "";
+      for (let i = 2; i < 8; i++) out += (await R.run(e, l.url, n.url, 1e12 + i * 20 * MIN)).out;
+      assert.match(out, /stopped on purpose/);
+      assert.equal((e.calls().match(/compose up/g) || []).length, 1, "never restarted after the user's stop");
+    } finally { l.srv.close(); n.srv.close(); fs.rmSync(e.dir, { recursive: true, force: true }); }
+  });
+}
+
+// Repo Lens #E-19 R-1 (PR #179): append to the END of tests/audit/node.heal-one.test.mjs (it uses that file's setup(),
+// node(), runners and MIN). The suite's fake `docker compose down` leaves the containers in place; a real one removes
+// them. So after the self-heal's OWN restart fails at `up -d`, the next checks see "no containers" and call the node
+// "stopped on purpose": it never tries again and tells you to start it "when you're ready".
+for (const R of runners) {
+  test(`${R.name}: Repo Lens #E-19 R-1: a restart whose "up" failed is retried later, not taken for "stopped on purpose"`, async () => {
+    const e = setup();
+    // A fake docker whose `compose down` really removes the containers and whose `up` fails once, then works.
+    const F = path.join(e.dir, "fake");
+    fs.writeFileSync(e.docker, `#!/bin/bash
+F="${F}"
+echo "$*" >> "$F/calls"
+case "$1" in
+  info) echo 27.0.0; exit 0 ;;
+  inspect) echo 0; exit 0 ;;
+  compose)
+    case "$2" in
+      ps) if [ "$3" = "-a" ]; then cat "$F/all"; elif [ -n "$4" ]; then cat "$F/$4" 2>/dev/null; else cat "$F/running"; fi; exit 0 ;;
+      down) : > "$F/all"; : > "$F/running"; : > "$F/block_store"; : > "$F/chain"; exit 0 ;;
+      up) if [ -f "$F/up_failed_once" ]; then echo abc123 > "$F/all"; echo abc123 > "$F/running"; exit 0; fi; touch "$F/up_failed_once"; exit 1 ;;
+    esac ;;
+esac
+exit 0
+`, { mode: 0o755 });
+    const l = await node({ height: 1000 }), n = await node({ height: 9000 });
+    try {
+      let out = "";
+      for (let i = 0; i < 9; i++) out += (await R.run(e, l.url, n.url, 1e12 + i * 20 * MIN)).out;   // 3 hours of checks
+      const ups = (e.calls().match(/compose up/g) || []).length;
+      assert.ok(ups >= 2, `the failed "up" is tried again within 3 hours (compose up calls: ${ups})`);
+      assert.doesNotMatch(out, /stopped on purpose/, "its own failed restart is not a stop on purpose");
+    } finally { l.srv.close(); n.srv.close(); fs.rmSync(e.dir, { recursive: true, force: true }); }
+  });
+}

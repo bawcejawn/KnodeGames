@@ -12,6 +12,10 @@
  *   npm run picks -- announce <id> [--testnet] [--send]   announce a game (owner's key); it can be applied after the wait
  *   npm run picks -- apply <id> [--testnet] [--send]      put an announced game in force (any key; the tool uses OWNER_WIF)
  *   npm run picks -- pause <id> [--testnet] [--send]      switch a game off at once (owner's key)
+ *   npm run picks -- owner-propose <address> [--testnet] [--send]   hand the contract to a new owner, step 1 (owner's key;
+ *                                                   refuses while a game announcement or an upgrade is waiting)
+ *   npm run picks -- owner-accept [--testnet] [--send]   step 2, from 48 h to 7 days later, signed by NEW_OWNER_WIF
+ *   npm run picks -- owner-cancel [--testnet] [--send]   withdraw a proposal that hasn't been accepted (owner's key)
  *   npm run picks -- lock-test <id> --testnet --send      send one pick per block across a target's lock, report each
  *   npm run picks -- mana-test <id> --testnet --send      send 1, 3 and 7 picks in one transaction each, report the Mana
  *
@@ -22,6 +26,8 @@
  *   PAYER_WIF   pays the upload's Mana (both sign the upload). Default: OPERATOR_WIF (the bot wallet, which holds KOIN).
  *   OWNER_WIF   the KnodeGames owner (mainnet: 1635QUr…H717; testnet: the test owner from npm run bot -- keys --testnet).
  *   PLAYER_WIF  testnet only: the test player for lock-test and mana-test.
+ *   NEW_OWNER_WIF  owner-accept only: the proposed new owner's key (put it in .env for that one command, then take it
+ *               out). That wallet pays its own Mana for the accept, so it needs a little KOIN.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -44,7 +50,11 @@ const writeJson = (f: string, v: any) => { fs.mkdirSync(path.dirname(f), { recur
 
 /** The audited Picks build (picks/README.md "Build"; audit + fix-check 2026-10-27). Mainnet upload refuses any other. */
 export const PICKS_SHA256 = "700c296a1064b904299c156061d6caf8fcabd0b1765968903f29d89d2426c594";
+/** The owner built into the audited code (before any handover). After a handover the owner is read from
+ *  picks-data/deployment.json ("owner"), and every owner command checks it against the chain (R-BX-3, D-096). */
 export const MAINNET_OWNER = "1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717";
+/** The mainnet owner this tool works for: the deployment file's "owner" once it has one, else the built-in owner. */
+export function mainnetOwner(st: any = readJson(MAINNET_STATE)): string { return isAddr(st?.owner) ? st.owner : MAINNET_OWNER; }
 export const MAINNET_CHAIN_ID = "EiBZK_GGVP0H_fXVAM3j6EAuz3-B-l3ejxRSewi7qIBfSA==";
 const MAINNET_RPCS = ["https://koinos.armana.io", "https://api.koinosblocks.com"];
 /** Audit BX-9/BX-20: the second, independent mainnet node every on-chain check also asks (RPC_CHECK overrides). */
@@ -82,7 +92,7 @@ export function network(testnet = TESTNET): Net {
   }
   const st = readJson(MAINNET_STATE);
   // Audit BX-47: one primary node only (koilib would quietly fall back to the second, which is the check node).
-  return { testnet: false, rpc: [E.RPC || MAINNET_RPCS[0]], chainId: MAINNET_CHAIN_ID, owner: MAINNET_OWNER, picks: isAddr(st?.contract) ? st.contract : null, games: MAINNET_GAMES, cfg: st };
+  return { testnet: false, rpc: [E.RPC || MAINNET_RPCS[0]], chainId: MAINNET_CHAIN_ID, owner: mainnetOwner(st), picks: isAddr(st?.contract) ? st.contract : null, games: MAINNET_GAMES, cfg: st };
 }
 /** A provider for the network, after checking the node is on the expected chain (never sign for the wrong one). */
 async function connect(net: Net) {
@@ -106,7 +116,7 @@ function signerOf(k: string, p: Provider) { const s = Signer.fromWif(need(k)); s
 /** The contract's own wallet: brand-new, never the owner or player. */
 function picksKey(net: Net, p: Provider) {
   const s = signerOf("PICKS_WIF", p), a = s.getAddress();
-  const taken: Record<string, string> = { [net.owner]: "the owner wallet", [MAINNET_OWNER]: "the mainnet owner", "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "the game contract",
+  const taken: Record<string, string> = { [net.owner]: "the owner wallet", [MAINNET_OWNER]: "the mainnet owner", [mainnetOwner()]: "the mainnet owner", "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "the game contract",
     "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K": "the race contract", "1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8": "the Mana sponsor", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Swap" };
   if (E.PLAYER_WIF) taken[Signer.fromWif(E.PLAYER_WIF).getAddress()] = "the test player";
   const mainPicks = readJson(MAINNET_STATE)?.contract;
@@ -155,7 +165,8 @@ async function status() {
   try { const n = await assertAuditedContract(net, p); log(`  Checked on     ${n} node${n > 1 ? "s (both agree)" : " (the testnet has one public node)"} ✔`); }
   catch (e) { log(`  ⚠ ${(e as Error).message}`); }
   const cfg = await read(p, net.picks, "get_config");
-  log(`  Owner          ${cfg.owner}${cfg.owner === net.owner ? " ✔" : " ⚠ not " + net.owner}${cfg.pending_owner ? `  (handover proposed to ${cfg.pending_owner})` : ""}`);
+  log(`  Owner          ${cfg.owner}${cfg.owner === net.owner ? " ✔" : " ⚠ not " + net.owner + " (the settings' owner): fix picks-data/deployment.json"}`);
+  if (cfg.pending_owner) { const eta = Number(cfg.pending_owner_eta ?? 0); log(`  Handover       proposed to ${cfg.pending_owner}: it can accept from ${new Date(eta).toISOString()} until ${new Date(eta + 7 * 86400000).toISOString()}${Date.now() >= eta + 7 * 86400000 ? " (EXPIRED: propose again)" : ""}`); }
   if (cfg.upgrade_eta && cfg.upgrade_eta !== "0") log(`  Upgrade        announced: ${cfg.upgrade_hash}, from ${new Date(Number(cfg.upgrade_eta)).toISOString()}`);
   const games = (await read(p, net.picks, "list_games")).games ?? [];
   log(`  Games          ${games.length ? "" : "none yet (npm run picks -- announce 2)"}`);
@@ -349,6 +360,7 @@ async function announce(id: number, send: boolean) {
   await assertAuditedContract(net, p);
   const g = gameOf(net, id), cfg = buildGameConfig(g);
   const s = ownerKey(net, p);
+  await ownerViews(net, p);   // R-BX-3: the settings' owner is the owner on chain, on both nodes
   const wait = net.testnet ? (readJson(TESTNET_MANIFEST)?.timelockMs ?? 600000) / 60000 + " minutes" : "48 hours";
   log(`Announce game ${id} "${g.name}" on ${net.testnet ? "the testnet" : "MAINNET"} (owner ${s.getAddress()}):`);
   log(`  one producer per target; a target every ${g.round} blocks; locks ${g.lead} blocks before; opens ${g.ahead} ahead (${X.forGame(g).openRounds(g.ahead * 10).length} targets open at a time)`);
@@ -387,6 +399,138 @@ async function pause(id: number, send: boolean) {
   const r = await sendCall(net, p, chainId, ownerKey(net, p), "tighten_game", { game: off });
   log(r.ok ? `✔ game ${id} is off` : `✖ ${r.error}`);
   if (!r.ok) process.exitCode = 1;
+}
+
+// ═══════════════════════════════ owner handover (R-BX-3, D-096; docs/blockx/OWNER-HANDOVER-PLAN.md) ═══════════════════════════════
+/** Addresses that can never become the Picks owner: Knode contracts and wallets with another job. */
+export const NOT_AN_OWNER: Record<string, string> = {
+  "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "the game / vault contract", "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K": "the race contract",
+  "1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8": "the Mana sponsor", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Swap",
+  "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm": "the Picks contract", "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq": "the VHP token", "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK": "the KOIN token",
+};
+/** What the contract holds about its owner, read on one node. */
+export type OwnerView = { owner: string; pending: string | null; eta: number; upgradeHash: string | null; upgradeEta: number; announced: { id: number; name: string }[] };
+export async function readOwnerView(p: Provider, picks: string, readFn = read): Promise<OwnerView> {
+  const cfg = await readFn(p, picks, "get_config");
+  const pend = (await readFn(p, picks, "list_pending", { limit: 50 })).pending ?? [];
+  return {
+    owner: String(cfg.owner ?? ""), pending: isAddr(cfg.pending_owner) ? cfg.pending_owner : null, eta: Number(cfg.pending_owner_eta ?? 0),
+    upgradeHash: cfg.upgrade_hash && Number(cfg.upgrade_eta ?? 0) > 0 ? String(cfg.upgrade_hash) : null, upgradeEta: Number(cfg.upgrade_eta ?? 0),
+    announced: pend.map((x: any) => ({ id: Number(x.game?.id), name: String(x.game?.name ?? "") })),
+  };
+}
+/** Both nodes must give the same answer, and the owner must be the one the tool works for (the deployment file's). */
+export function agreeOwnerViews(views: OwnerView[], fileOwner: string): OwnerView {
+  const a = views[0];
+  for (const [i, v] of views.entries()) if (JSON.stringify(v) !== JSON.stringify(a)) throw new Error(`The two nodes disagree about the Picks owner settings (node ${i + 1}: ${JSON.stringify(v)}). Nothing was signed.`);
+  if (a.owner !== fileOwner) throw new Error(`The Picks owner on chain is ${a.owner}, but the settings (picks-data/deployment.json "owner", else the built-in owner) say ${fileOwner}. Fix the file to match the chain first. Nothing was signed.`);
+  return a;
+}
+/** Why the handover must wait: anything the accept would throw away. */
+export function waitingOnContract(v: OwnerView): string[] {
+  const out: string[] = [];
+  for (const g of v.announced) out.push(`game ${g.id} (${g.name}) is announced and not applied yet: apply it first (npm run picks -- apply ${g.id}), or the handover would throw it away`);
+  if (v.upgradeHash) out.push(`a code upgrade (${v.upgradeHash}) is scheduled: upload and clear it first, or the handover would throw it away`);
+  return out;
+}
+/** owner-propose's checks. Returns the lines to show; throws when it must not be sent. */
+export function planPropose(v: OwnerView, signer: string, next: string, now: number, extraTaken: Record<string, string> = {}): string[] {
+  if (!isAddr(next) || !utils.isChecksumAddress(next)) throw new Error(`${next} is not a valid Koinos address. Nothing was signed.`);
+  if (signer !== v.owner) throw new Error(`OWNER_WIF is ${signer}, not the owner on chain ${v.owner}. Nothing was signed.`);
+  if (next === v.owner) throw new Error(`${next} is already the owner. Nothing was signed.`);
+  const taken = { ...NOT_AN_OWNER, ...extraTaken };
+  if (taken[next]) throw new Error(`${next} is ${taken[next]}: the owner must be a wallet of its own. Nothing was signed.`);
+  const w = waitingOnContract(v);
+  if (w.length) throw new Error(`Not now: ${w.join("; ")}. Nothing was signed.`);
+  const open = now + 48 * 3600000, close = open + 7 * 86400000;
+  return [
+    ...(v.pending ? [`⚠ this replaces the waiting proposal to ${v.pending}`] : []),
+    `Propose ${next} as the new Picks owner (signed by the owner ${v.owner}).`,
+    `  The new owner can accept from about ${new Date(open).toISOString()} (48 h) until ${new Date(close).toISOString()} (7 days after that).`,
+    `  Accepting clears any game announcement or upgrade still waiting then (games in force, like game 2, are not affected).`,
+  ];
+}
+/** owner-accept's checks (chain time `now`). */
+export function planAccept(v: OwnerView, key: string, now: number): string[] {
+  if (!v.pending) throw new Error("No new owner is proposed (npm run picks -- owner-propose <address> first). Nothing was signed.");
+  if (key !== v.pending) throw new Error(`NEW_OWNER_WIF is ${key}, but the proposed owner is ${v.pending}. Nothing was signed.`);
+  if (now < v.eta) throw new Error(`Too early: the new owner can accept from ${new Date(v.eta).toISOString()} (in ${Math.ceil((v.eta - now) / 60000)} min). Nothing was signed.`);
+  if (now >= v.eta + 7 * 86400000) throw new Error(`The proposal expired at ${new Date(v.eta + 7 * 86400000).toISOString()}: propose again. Nothing was signed.`);
+  const w = waitingOnContract(v);
+  if (w.length) throw new Error(`Not now: ${w.join("; ")}. Nothing was signed.`);
+  return [`Accept: ${key} becomes the Picks owner (was ${v.owner}). Window ${new Date(v.eta).toISOString()} → ${new Date(v.eta + 7 * 86400000).toISOString()} ✔`];
+}
+/** owner-cancel's checks. */
+export function planCancel(v: OwnerView, signer: string): string[] {
+  if (signer !== v.owner) throw new Error(`OWNER_WIF is ${signer}, not the owner on chain ${v.owner}. Nothing was signed.`);
+  if (!v.pending) throw new Error("No proposal is waiting. Nothing to cancel.");
+  return [`Cancel the proposal to ${v.pending} (signed by the owner ${v.owner}).`];
+}
+/** The owner settings on both nodes (mainnet) or the one public testnet node, agreed and matching the file. */
+async function ownerViews(net: Net, p: Provider): Promise<OwnerView> {
+  const nodes = [p];
+  if (!net.testnet) {
+    const url = MAINNET_CHECK_RPC();
+    if (sameNode(net.rpc[0], url)) throw new Error(`RPC_CHECK (${url}) is the same node as RPC: the check needs a second, independent node. Nothing was signed.`);
+    const cp = new Provider([url]);
+    if ((await cp.getChainId()) !== MAINNET_CHAIN_ID) throw new Error(`The check node ${url} is not on Koinos mainnet. Nothing was signed.`);
+    nodes.push(cp);
+  }
+  const views = [];
+  for (const n of nodes) views.push(await readOwnerView(n, net.picks!));
+  return agreeOwnerViews(views, net.owner);
+}
+const chainNow = async (p: Provider) => Number((await p.getHeadInfo()).head_block_time);
+async function ownerPropose(next: string | undefined, send: boolean) {
+  const net = network();
+  mainnetGuard(net, send);
+  if (!net.picks) throw new Error("No Picks contract yet.");
+  if (!next) throw new Error("Usage: npm run picks -- owner-propose <new owner address> [--send --mainnet]");
+  const { p, chainId } = await connect(net);
+  await assertAuditedContract(net, p);
+  const s = signerOf("OWNER_WIF", p);
+  const v = await ownerViews(net, p);
+  for (const l of planPropose(v, s.getAddress(), next, await chainNow(p))) log(l);
+  if (!send) { log("\nDry run only. Nothing was sent. Add --send" + (net.testnet ? "" : " --mainnet") + " to send it."); return; }
+  const r = await sendCall(net, p, chainId, s, "propose_owner", { owner: next });
+  log(r.ok ? `✔ proposed (Mana used ${showKoin(r.rcUsed)}, block ${r.block}). Step 2: npm run picks -- owner-accept${net.testnet ? " --testnet" : ""} (signed by the new owner) from the time above.` : `✖ ${r.error}`);
+  if (!r.ok) process.exitCode = 1;
+}
+async function ownerCancel(send: boolean) {
+  const net = network();
+  mainnetGuard(net, send);
+  if (!net.picks) throw new Error("No Picks contract yet.");
+  const { p, chainId } = await connect(net);
+  await assertAuditedContract(net, p);
+  const s = signerOf("OWNER_WIF", p);
+  for (const l of planCancel(await ownerViews(net, p), s.getAddress())) log(l);
+  if (!send) { log("\nDry run only. Nothing was sent. Add --send" + (net.testnet ? "" : " --mainnet") + " to send it."); return; }
+  const r = await sendCall(net, p, chainId, s, "propose_owner", { owner: "" });
+  log(r.ok ? `✔ the proposal is withdrawn (Mana used ${showKoin(r.rcUsed)})` : `✖ ${r.error}`);
+  if (!r.ok) process.exitCode = 1;
+}
+async function ownerAccept(send: boolean) {
+  const net = network();
+  mainnetGuard(net, send);
+  if (!net.picks) throw new Error("No Picks contract yet.");
+  const { p, chainId } = await connect(net);
+  await assertAuditedContract(net, p);
+  const s = signerOf("NEW_OWNER_WIF", p);
+  const v = await ownerViews(net, p);
+  for (const l of planAccept(v, s.getAddress(), await chainNow(p))) log(l);
+  if (!send) { log("\nDry run only. Nothing was sent. Add --send" + (net.testnet ? "" : " --mainnet") + " to send it."); return; }
+  const r = await sendCall(net, p, chainId, s, "accept_owner", {});
+  if (!r.ok) { log(`✖ ${r.error}`); process.exitCode = 1; return; }
+  log(`✔ accepted (Mana used ${showKoin(r.rcUsed)}, block ${r.block}).`);
+  // Read it back on every node, against the NEW owner.
+  const after = await ownerViews({ ...net, owner: s.getAddress() }, p).catch((e) => { log(`⚠ ${(e as Error).message}`); return null; });
+  if (!after) { log("⚠ The owner could not be read back the same on both nodes yet. Run npm run picks -- status in a few minutes."); process.exitCode = 1; return; }
+  if (!net.testnet) {
+    const st = readJson(MAINNET_STATE) ?? {};
+    writeJson(MAINNET_STATE, { ...st, owner: s.getAddress(), ownerSince: new Date().toISOString(), ownerTx: r.txId ?? null });
+    log(`✔ read back on both nodes: the owner is ${after.owner}. Saved it in ${MAINNET_STATE} ("owner"): open a pull request to main with that file.`);
+    log("  From now on OWNER_WIF must be the new owner's key for owner commands. Take NEW_OWNER_WIF out of .env.");
+  } else log(`✔ read back: the owner is ${after.owner}.`);
 }
 
 // ═══════════════════════════════ testnet checks ═══════════════════════════════
@@ -503,7 +647,7 @@ async function manaTest(id: number, send: boolean) {
 function buildTestnet() {
   if (!TESTNET) throw new Error("build-testnet is for the testnet: add --testnet.");
   const owner = Signer.fromWif(need("OWNER_WIF")).getAddress();
-  if (owner === MAINNET_OWNER) throw new Error("OWNER_WIF in .env.testnet is the MAINNET owner. Use a test owner (npm run bot -- keys --testnet).");
+  if (owner === MAINNET_OWNER || owner === mainnetOwner()) throw new Error("OWNER_WIF in .env.testnet is the MAINNET owner. Use a test owner (npm run bot -- keys --testnet).");
   execFileSync(process.execPath, ["scripts/build-testnet.cjs", "--owner", owner], { cwd: "picks", stdio: "inherit" });
 }
 
@@ -522,7 +666,10 @@ async function main() {
     case "pause": return pause(num(), send);
     case "lock-test": return lockTest(num(), send);
     case "mana-test": return manaTest(num(), send);
-    default: throw new Error(`Unknown command "${cmd}". Commands: keys, build-testnet, status, upload, announce <id>, apply <id>, pause <id>, lock-test <id>, mana-test <id>`);
+    case "owner-propose": return ownerPropose(a.find((x) => !x.startsWith("--")), send);
+    case "owner-accept": return ownerAccept(send);
+    case "owner-cancel": return ownerCancel(send);
+    default: throw new Error(`Unknown command "${cmd}". Commands: keys, build-testnet, status, upload, announce <id>, apply <id>, pause <id>, lock-test <id>, mana-test <id>, owner-propose <address>, owner-accept, owner-cancel`);
   }
 }
 if (process.argv[1] && /picks\.ts$/.test(process.argv[1])) {

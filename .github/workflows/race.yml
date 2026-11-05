@@ -127,7 +127,8 @@ jobs:
           # own JSON form) is held on its own, as the per-file vault checks below already do: no vault file is published
           # this run (no file means no prize; the alert says so), and the race cards Block X needs still publish.
           hold_vault() {
-            echo "::error::vault results held, not published this run: $(printf '%s' "$1" | tr -c '[:alnum:]/._ ,:-' '?' | cut -c1-300) (the race cards still publish; I-037 B1-4)"
+            # Repo Lens #B-8 B8-B3: paths relative to $IN, and no apostrophe in the fixed text (tr would turn it into ?).
+            echo "::error::vault results held, not published this run: $(printf '%s' "$1" | sed "s#$IN/##g" | tr -c '[:alnum:]/._ ,:-' '?' | cut -c1-300) (the race cards still publish; I-037 B1-4)"
             if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "held=true" >> "$GITHUB_OUTPUT"; fi
             rm -rf "$IN/vault"
           }
@@ -135,7 +136,7 @@ jobs:
             vbad=$(find "$IN/vault" \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( ! -type d ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
             if [ -n "$vbad" ]; then hold_vault "unexpected files in vault/: $vbad"
             elif [ -n "$(find "$IN/vault" -type f -size +2048k -print)" ]; then hold_vault "a file in vault/ is over 2 MB"
-            elif ! vout=$(node -e "$canon" -- "$IN/vault"); then hold_vault "not in the recorder's own JSON form: $vout"
+            elif ! vout=$(node -e "$canon" -- "$IN/vault"); then hold_vault "not in the recorders own JSON form: $vout"
             fi
           fi
           bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( -type f ! -regex "$IN/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
@@ -378,8 +379,14 @@ jobs:
                   # run: no file means no prize), so a bug there can't stop the race cards Block X needs. A file already
                   # published as final still never changes (the push loop below).
                   load = lambda g: json.load(open(os.path.join(d, f, g), encoding="utf-8"))
-                  bad = [g for g in sorted(os.listdir(os.path.join(d, f)))
-                         if not (lambda j: js_safe(j) and (pending_ok(g, j) if g.startswith("PENDING-") else vault_ok(g, j)))(load(g))]
+                  # Repo Lens #B-8 B8-B2: any error reading or checking a file (RecursionError included) holds vault/ only.
+                  def vgood(g):
+                      try:
+                          j = load(g)
+                          return js_safe(j) and (pending_ok(g, j) if g.startswith("PENDING-") else vault_ok(g, j))
+                      except Exception:
+                          return False
+                  bad = [g for g in sorted(os.listdir(os.path.join(d, f))) if not vgood(g)]
                   if bad:
                       import shutil
                       print("::error::vault results held, not published this run: " + ", ".join("vault/" + g for g in bad) + " (they failed the publish check; the race cards still publish)")
@@ -462,7 +469,13 @@ jobs:
             # A vault results file already published as final never changes: the vault may have posted it.
             if [[ "$rel" == vault/* ]] && [ -n "$parent" ] && git show "$parent:$rel" > "$RUNNER_TEMP/old.json" 2>/dev/null \
               && /usr/bin/python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("final") is True else 1)' "$RUNNER_TEMP/old.json" \
-              && ! cmp -s "$RUNNER_TEMP/old.json" "$f"; then echo "::error::Refusing to change $rel: it was already published as final."; exit 1; fi
+              && ! cmp -s "$RUNNER_TEMP/old.json" "$f"; then
+              # Repo Lens #B-8 B8-B1: hold that file only (the published copy stays, from read-tree) and alert; the race
+              # cards still publish.
+              echo "::error::Refusing to change $rel: it was already published as final (vault file held; race cards still publish)."
+              if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "held=true" >> "$GITHUB_OUTPUT"; fi
+              continue
+            fi
             blob=$(git hash-object -w "$f")
             git update-index --add --cacheinfo 100644 "$blob" "$rel"
           done

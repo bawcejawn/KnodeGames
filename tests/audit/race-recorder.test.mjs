@@ -515,9 +515,11 @@ test("publish job: pushes vault/W<week>.json to race-data and refuses to change 
   assert.ok(publish(out, bare).ok);
   const head = execFileSync("git", ["--git-dir", bare, "rev-parse", "race-data"]).toString();
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify({ ...vaultOf(out), first: [W3], second: [] }) + "\n");
-  const again = publish(out, bare);
-  assert.equal(again.ok, false); assert.match(again.out, /Refusing to change vault\/W2\.json/);
-  assert.equal(execFileSync("git", ["--git-dir", bare, "rev-parse", "race-data"]).toString(), head);
+  // Repo Lens #B-8 B8-B1: that file is held on its own (alert, held=true); the run goes on and the race files publish.
+  const go1 = path.join(tmp(), "github-output"), again = publish(out, bare, CHECK_NOW, { GITHUB_OUTPUT: go1 });
+  assert.ok(again.ok, again.out); assert.match(again.out, /Refusing to change vault\/W2\.json: it was already published as final \(vault file held; race cards still publish\)/);
+  assert.match(fs.readFileSync(go1, "utf8"), /held=true/);
+  assert.equal(execFileSync("git", ["--git-dir", bare, "rev-parse", "race-data"]).toString(), head, "nothing else changed, so the branch is untouched");
   // Anything else in vault/ holds the vault folder (I-037 B1-4: not the whole run), and the alert job hears about it.
   const odd = tmp(); fs.mkdirSync(path.join(odd, "vault")); fs.writeFileSync(path.join(odd, "vault", "notes.json"), "{}\n");
   const go = path.join(tmp(), "github-output"), oddRun = publish(odd, bare, CHECK_NOW, { GITHUB_OUTPUT: go });
@@ -609,7 +611,7 @@ test("publish job: a final file stays locked even when it was stored pretty-prin
   // I-037 B1-4: it holds the vault folder only; the race files still publish.
   const pc = tmp(); fs.cpSync(out, pc, { recursive: true });   // the publish step removes a held vault folder
   const pretty = publish(pc, bare);
-  assert.ok(pretty.ok, pretty.out); assert.match(pretty.out, /vault results held, not published this run: not in the recorder.s own JSON form: W2\.json/);
+  assert.ok(pretty.ok, pretty.out); assert.match(pretty.out, /vault results held, not published this run: not in the recorders own JSON form: W2\.json/);
   const tree = execFileSync("git", ["--git-dir", bare, "ls-tree", "-r", "--name-only", "race-data"]).toString();
   assert.match(tree, /^W002\.json$/m, "the race file published"); assert.doesNotMatch(tree, /^vault\//m, "no vault file published");
   // But one already on the branch (put there some other way) still locks: "final": true, with a space.
@@ -622,7 +624,8 @@ test("publish job: a final file stays locked even when it was stored pretty-prin
   g("commit", "-qam", "pretty"); g("push", "-q", "origin", "race-data");
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify({ ...v, first: [W3], second: [] }) + "\n");
   const r = publish(out, bare);
-  assert.equal(r.ok, false); assert.match(r.out, /Refusing to change vault\/W2\.json/);
+  assert.ok(r.ok, r.out); assert.match(r.out, /Refusing to change vault\/W2\.json/);
+  assert.equal(execFileSync("git", ["--git-dir", bare, "show", "race-data:vault/W2.json"]).toString(), JSON.stringify(v, null, 2), "the published file stays byte for byte");
 });
 
 test("record job: last run's files are read; a missing branch starts fresh; any other failure stops the run", async () => {
@@ -761,7 +764,7 @@ test("blind review V1 (round 10): the publish job holds a bad vault file and sti
   assert.ok(publish(again, bare).ok);
   fs.writeFileSync(path.join(again, "vault", "W2.json"), JSON.stringify({ ...vaultOf(again), first: [W3], second: [] }) + "\n");
   const ch = publish(again, bare);
-  assert.equal(ch.ok, false); assert.match(ch.out, /Refusing to change vault\/W2\.json/);
+  assert.ok(ch.ok, ch.out); assert.match(ch.out, /Refusing to change vault\/W2\.json/);
 });
 
 test("prizes from week: the Race earns in the vault from week 3; earlier weeks pay nothing and show no medals", async () => {
@@ -1639,7 +1642,7 @@ test("I-037 B1-4: a nested folder, a file over 2 MB or a non-canonical file in v
   const cases = [
     ["a nested folder", (d) => { fs.mkdirSync(path.join(d, "vault", "x")); fs.writeFileSync(path.join(d, "vault", "x", "W2.json"), "{}\n"); }, /unexpected files in vault\//],
     ["a file over 2 MB", (d) => fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify({ ...vaultOf(out), pad: "x".repeat(2100 * 1024) }) + "\n"), /a file in vault\/ is over 2 MB/],
-    ["not canonical", (d) => fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify(vaultOf(out), null, 1) + "\n"), /not in the recorder.s own JSON form/],
+    ["not canonical", (d) => fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify(vaultOf(out), null, 1) + "\n"), /not in the recorders own JSON form/],
     ["a symlink", (d) => fs.symlinkSync("/etc/hostname", path.join(d, "vault", "W9.json")), /unexpected files in vault\//],
   ];
   for (const [name, spoil, why] of cases) {
@@ -1656,4 +1659,27 @@ test("I-037 B1-4: a nested folder, a file over 2 MB or a non-canonical file in v
   const d = tmp(); fs.cpSync(out, d, { recursive: true }); fs.writeFileSync(path.join(d, "W002.json"), JSON.stringify(week(out), null, 1));
   const r = publish(d, bare);
   assert.equal(r.ok, false); assert.match(r.out, /recorders own JSON form.*nothing published/);
+});
+
+test("Repo Lens #B-8: B8-B1 a changed final also publishes the race cards; B8-B2 a file Python can't read holds vault/ only; B8-B3 short paths", async () => {
+  const { dir } = await weekTwoDone();
+  const out = await picksRun(U("2026-11-09T05:37Z"), dir);
+  // B8-B1: a changed final file next to new race data: the race data publishes, the published vault file doesn't change.
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  stagePending(out, bare); assert.ok(publish(out, bare).ok);
+  const pub = execFileSync("git", ["--git-dir", bare, "show", "race-data:vault/W2.json"]).toString();
+  const d = tmp(); fs.cpSync(out, d, { recursive: true });
+  fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify({ ...vaultOf(out), first: [W3], second: [] }) + "\n");
+  const b = JSON.parse(fs.readFileSync(path.join(d, "board.json"), "utf8")); b.updated = "2026-11-09T13:37:00.000Z"; fs.writeFileSync(path.join(d, "board.json"), JSON.stringify(b) + "\n");
+  const r = publish(d, bare);
+  assert.ok(r.ok, r.out); assert.match(r.out, /Race files published/);
+  assert.equal(execFileSync("git", ["--git-dir", bare, "show", "race-data:vault/W2.json"]).toString(), pub);
+  assert.match(execFileSync("git", ["--git-dir", bare, "show", "race-data:board.json"]).toString(), /2026-11-09T13:37:00\.000Z/, "the new board published");
+  // B8-B2: the Python check reads vault files inside a try.
+  const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/race.yml"), "utf8");
+  assert.match(yml, /def vgood\(g\):\n\s+try:\n\s+j = load\(g\)/);
+  // B8-B3: the hold message shows paths relative to the incoming folder.
+  const d2 = tmp(); fs.cpSync(out, d2, { recursive: true }); fs.writeFileSync(path.join(d2, "vault", "notes.json"), "{}\n");
+  const r2 = publish(d2, tmp());
+  assert.match(r2.out, /unexpected files in vault\/: vault\/notes\.json/); assert.doesNotMatch(r2.out, /recorder\?s/);
 });

@@ -7,11 +7,11 @@ Every command that changes something is a dry run until you add `--send`, and ma
 |---|---|
 | Contract | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` (the vault, same address) |
 | Live code | `eed38f7ce130d9d2e0dfafa8ddd5c4a6f383e2c7ce12ab87b02c584f43920b3d` (v6, uploaded 2026-11-02) |
-| **New code** | `11043e1fde1d8d7dbac75e9e5e788d058a7116b0dab6149fc09ecdc7b1c4258b`, 87,857 bytes (PR #114: the 60-question cap and D-116; **Repo Lens next**) |
+| **New code** | `11043e1fde1d8d7dbac75e9e5e788d058a7116b0dab6149fc09ecdc7b1c4258b`, 87,857 bytes (PR #114: the 60-question cap, D-116 and D-127; **Repo Lens #E-16 round 2: GO**, 4 Nov) |
 | New emergency build | `04c27c1acde570b97a430dea403d41aab47e083ae30115353ee5f89932dad0bb` (withdrawals-only, same source; pinned in step 3) |
 | What changes | **From the week after the upload** (never the running week, the "rule week"): (1) a week may hold 60 questions; (2) **Daily Questions plays by the shared game rules (D-116):** it's paid from a results file like every game (`post_results` → seal → `finalize_game_week` → `claim_game`), with no settle step and no 40/60 baskets; stakes use `deposit_to` / `withdraw_from` (game 1) like every game, read in place from each player's existing record (nothing moves); the old `deposit_vhp` / `deposit_koin` / `withdraw` stay as aliases of the same calls (owner, 4 Nov). A game-1 result needs at least 2 answers that week and no more points than answers (the contract's floor; the recorder applies Questions' full entry rule). Weeks before the rule week are paid the old way, and their rewards stay claimable. `get_state` shows `questions_cap` / `questions_cap_next` |
 | Timelock | 48 h after `schedule`, then 7 days to upload |
-| Upload paid by | the owner wallet that signs: **at least 95 Mana in it** (the tool refuses below about 93); about **47** is spent at mainnet prices (Repo Lens #D-8, D8-5) |
+| Upload paid by | the owner wallet that signs, the **current vault owner `1635QU…`**: **at least 95 Mana in it** (the tool refuses below about 93); about **65** is spent at mainnet prices (owner's `tools/mainnet-mana.ts` run, 4 Nov) |
 
 ## Before the announcement and the upload
 1. **Testnet (V61-B1, #D-8 D8-1 and D8-2):** `npm run bot -- testnet-v61-d8` deploys a fresh copy of `11043e1f…` with 13 games,
@@ -26,13 +26,21 @@ Every command that changes something is a dry run until you add `--send`, and ma
    (the vault bot reads `vaultGames.1`; results are due 3 days after the week ends). **The Stake hub** stakes game 1 with
    `deposit_to` (Hub chat) before the rule week starts, because the old deposit call closes then.
 
-## When, and which key signs (owner, 4 Nov: Path 2)
-- **Announce Tue 10 Nov**, right after the vault owner handover is accepted (weekend runbook step 4b), signed by the **new owner
-  `1LMV8E…`** (its key in `OWNER_WIF` for the day only). Never announce between steps 4a and 4b: the accept wipes a pending upgrade.
-- **Upload Thu 12 Nov** (48 h later), again signed by `1LMV8E…`.
+## When, and which key signs (owner, 4 Nov evening: "push everything ASAP", before Tue 10)
+The vault owner handover's accept (weekend runbook step 4b, Tue 10) **wipes an announced upgrade that isn't uploaded
+yet**. So both the announcement and the upload happen **before** the accept, signed by the **current vault owner
+`1635QU…`** (its key in `OWNER_WIF` for those two sittings only; the old owner paper).
+- **Announce Thu 5 Nov** (as soon as possible; at the latest Fri 6 Nov, 9:00 AM Pacific, so the 48 hours end by Sun 8).
+- **Upload Mon 9 Nov, from 9:00 AM Pacific (17:00 UTC).** Never before **Sun 8 Nov 4:00 PM Pacific (Mon 9 00:00 UTC)**:
+  the rule week is set to the week after the upload's week, so an upload on Sun 8 Pacific before 4 PM would start the
+  new rules on Mon 9 instead of Mon 16. Monday morning keeps a wide margin.
+- **Right after the upload, the vault handover propose (weekend runbook step 4a), moved from Sun to Mon 9 morning** (before
+  4:30 PM Pacific, so the accept can still be Tue 10 from 4:30 PM with the Desk's, as planned). Its check "game
+  announced upgrade: none" is then true. **Don't send 4a before the upload**: the upgrade would still be pending.
 - **The rule week is Mon 16 Nov:** 60 questions a week and Questions on the shared game rules start then. The week of
   Mon 9 Nov (the upload lands in it) is paid the old way.
-- Only after Repo Lens's two rounds say GO (and the testnet run and mainnet prices are in).
+- Keep **about 100 KOIN in `1635QU…` until the upload is done** (the weekend runbook's KOIN move to the new owner waits
+  until after it; then leave the ~5 KOIN for the later Picks handover).
 
 ## 0. Build and check on your PC
 ```powershell
@@ -52,7 +60,7 @@ npm run bot -- status
 ```
 - The first hash must be `11043e1f…`, the second `04c27c1a…`. If either isn't, stop. (A build that stops with `EAGAIN`: run it again.)
 - `chain-check`: every line ✔ and "game announced upgrade: none".
-- The new owner wallet `1LMV8E…` must hold **at least 95 Mana** by upload day (check in Kondor; `status` shows the bot wallet, not the owner).
+- The current vault owner wallet `1635QU…` must hold **at least 95 Mana** on upload day (check in Kondor; `status` shows the bot wallet, not the owner). `upgrade apply` (the dry run) prints it too.
 - (Once PR #114 is merged, use `git checkout main` and `git pull` instead.)
 
 ## 1. Announce (starts the 48 hours)
@@ -65,7 +73,7 @@ The dry run must show "Local build … sha256 0x11043e1f…". The bot emails you
 ## 2. Wait 48 hours
 Don't rebuild in between. `npm run bot -- upgrade status` must say "✔ matches the local build".
 
-## 3. Upload (48 h after step 1; Thu 12 Nov, so it is confirmed well before Mon 16 Nov 00:00 UTC, Sun 15 Nov 4 PM Pacific) (D8-7)
+## 3. Upload (Mon 9 Nov from 9:00 AM Pacific; never before Sun 8 Nov 4:00 PM Pacific) (D8-7)
 ```powershell
 npm run bot -- status > before-v61.txt
 npm run bot -- upgrade apply
@@ -75,7 +83,7 @@ npm run bot -- status
 - `upgrade apply --send` uploads, then clears the notice with `cancel_upgrade` (step "2/2"). That owner call is the first
   action on the new code: it fixes the rule week at once, so no extra action is needed (D8-9, V61-A2).
 - **Check (D8-6):** `status` shows `Questions a week  this week 30, next week 60; 60 from Week 5 (stored rule 5)`.
-  Week 5 in `status` is the week from Mon 16 Nov (an upload on Thu 12). If the rule says anything else, stop and tell the
+  Week 5 in `status` is the week from Mon 16 Nov (an upload on Mon 9). If the rule says anything else, stop and tell the
   Vault chat.
 - `status` shows the same stakes, seed and pots as `before-v61.txt` (apart from new rewards).
 - **Right away, the emergency pin (D8-3):** `notepad game-data\deployment.json`, set
@@ -84,7 +92,7 @@ npm run bot -- status
 
 ## 4. Records (one pull request into `main`)
 - `game-data/deployment.json`: `wasmSha256` → `11043e1f…` (the tool wrote it on apply) and `safeWasmSha256` → `04c27c1a…` (step 3): commit both.
-- Merge PR #114 the same day if it isn't merged yet.
+- Merge PR #114 the same day if it isn't merged yet (after PR #152, the Questions side; the Vault chat merges `main` into #114 first if both touch the settle pass).
 
 ## The rollback rule (Repo Lens C-1; replaces V61-A1)
 - **Before the rule week starts:** a rollback to the v6 normal build is possible; nothing of the new path has run yet.

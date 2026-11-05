@@ -176,10 +176,20 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
   };
   for (const [name, cfg] of Object.entries(configs)) {
     if (want(1)) {
-      const r = honest(cfg, (f) => ({ add: { "~shrinks 1%/day": synthetic(f.Nreal, 0.03, false), "~re-burns hourly": synthetic(f.Nreal, 0.03, true) } }));
+      // (a) every producer honest and signing in full (rate 1, form 1: what a full producer's record shows)
+      const adds = (f) => ({ "~shrinks 1%/day": synthetic(f.Nreal, 0.03, false), "~re-burns hourly": synthetic(f.Nreal, 0.03, true) });
+      const ones = (f) => Object.fromEntries(f.ps.map((p) => [p, 1]));
+      const r = honest(cfg, (f) => ({ add: adds(f), rates: ones(f), forms: ones(f) }));
       const enough = Object.fromEntries(Object.entries(r).filter(([, v]) => v.n >= 5));
       const [w0, w1] = span(enough, (x) => x.ratio), [i0, i1] = span(enough, (x) => x.index);
-      say(1, "honest field", name, `win chance ${w0.toFixed(2)} … ${w1.toFixed(2)} of fair (${Object.keys(enough).length} producers in 5+ races); index ${i0.toFixed(4)} … ${i1.toFixed(4)}`, w0 >= 0.85 && w1 <= 1.15, "wins 0.85–1.15 of fair (index: see report)", r);
+      // (b) as on the real days (Repo Lens #B-10 Info): each steady producer signs at its real 14-day rate. Shown, not
+      // marked: a throttler in the field practically never wins (owner's ruling), so the others share its 1 ÷ field and
+      // all sit above 1 of fair by about field ÷ (field − throttlers); the mark is (a)
+      const rr = honest(cfg, (f) => ({ add: adds(f), signs: Object.fromEntries(f.ps.filter((p) => f.steady[p]).map((p) => [p, f.rates[p]])) }));
+      const fullRate = {}; fields.forEach((f) => { for (const p of f.ps) (fullRate[p] ||= []).push(f.steady[p] ? f.rates[p] : 1); });
+      const full = Object.fromEntries(Object.entries(rr).filter(([p, v]) => v.n >= 5 && (p.startsWith("~") || Math.min(...fullRate[p]) >= 0.97)));
+      const [x0, x1] = span(full, (x) => x.ratio);
+      say(1, "honest field", name, `all full: win chance ${w0.toFixed(2)} … ${w1.toFixed(2)} of fair (${Object.keys(enough).length} producers in 5+ races), index ${i0.toFixed(4)} … ${i1.toFixed(4)}; real rates: full producers ${x0.toFixed(2)} … ${x1.toFixed(2)} (${Object.keys(full).length})`, w0 >= 0.85 && w1 <= 1.15, "all full: wins 0.85–1.15 of fair (real rates shown; index: see report)", { allFull: r, realRates: rr });
     }
     if (want(2)) {
       const r = honest(cfg, (f) => ({ add: Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`~small${String(i).padStart(3, "0")}`, synthetic(f.Nreal, 0.0005 + i * 0.0001, i % 2 === 0)])) }));
@@ -256,24 +266,26 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
       out.honest = one(1, false, 1); out.throttler = one(0.66, true, 0.66); out.steerer = one(0.66, true, 1); out.outage = one(11 / 14, false, 1);
       // Repo Lens #B-10 SIM-2: the strategies the new rules leave open. One owner runs a 2% producer "~me" and an 8%
       // address "~park" that is steady at 0.05 for two weeks: (a) it stays parked in the race; (b) it signs in full in the
-      // race. Neither may raise the owner's win chance (~me + ~park) above the same 10% run honestly as one producer.
-      const pair = (parkSigns) => {
+      // race. Neither may raise the owner's win chance (~me + ~park) above the same two addresses run honestly (the 8% one
+      // signing in full with a full record). (Two producers always have two fair shares: every producer's fair share is
+      // 1 ÷ field size, whatever its size, so the baseline is the honest pair, not one 10% producer.)
+      const pair = (parkSigns, honestPark = false) => {
         let c0 = 0, n = 0;
         fields.forEach((f, ci) => {
           const me = synthetic(f.Nreal, 0.02, true), pk = synthetic(f.Nreal, 0.08, true), N = new Float64Array(f.w.S1 - f.w.S0 + 1);
           for (let b = f.w.S0; b <= f.w.S1; b++) N[b - f.w.S0] = f.Nreal[b - f.base] + me[b - f.base] + pk[b - f.base] * parkSigns;
-          const c = field(f, { add: { "~me": me, "~park": pk }, signs: { "~park": parkSigns }, steady: { "~me": false, "~park": true }, forms: { "~me": 1, "~park": 0.05 }, rates: { "~park": 0.05 }, N });
+          const c = field(f, { add: { "~me": me, "~park": pk }, signs: { "~park": parkSigns }, steady: { "~me": false, "~park": !honestPark }, forms: { "~me": 1, "~park": honestPark ? 1 : 0.05 }, rates: { "~park": honestPark ? 1 : 0.05 }, N });
           const ch = chances(c, races, 8700 + ci, cfg);
           n++; if (ch) c0 += (ch["~me"] ? ch["~me"].chance : 0) + (ch["~park"] ? ch["~park"].chance : 0);
         });
         return n ? c0 / n : 0;
       };
       const big = () => { let c0 = 0, n = 0; fields.forEach((f, ci) => { const e = synthetic(f.Nreal, 0.1, true), N = new Float64Array(f.w.S1 - f.w.S0 + 1); for (let b = f.w.S0; b <= f.w.S1; b++) N[b - f.w.S0] = f.Nreal[b - f.base] + e[b - f.base]; const ch = chances(field(f, { add: { "~me": e }, steady: { "~me": false }, forms: { "~me": 1 }, N }), races, 8700 + ci, cfg); n++; if (ch && ch["~me"]) c0 += ch["~me"].chance; }); return n ? c0 / n : 0; };
-      out.parked = { honest10: big(), parked: pair(0.05), switchOn: pair(1) };
+      out.parked = { honest10: big(), honestPair: pair(1, true), parked: pair(0.05), switchOn: pair(1) };
       const err = 2 * Math.sqrt(Math.max(out.honest.chance, 1e-4) / (races * Math.max(out.honest.cards, 1)));
-      const err10 = 2 * Math.sqrt(Math.max(out.parked.honest10, 1e-4) / (races * Math.max(out.honest.cards, 1)));
-      const pass = out.steerer.chance <= out.honest.chance + err && out.throttler.inField === out.throttler.cards && out.outage.inField === 0 && out.parked.parked <= out.parked.honest10 + err10 && out.parked.switchOn <= out.parked.honest10 + err10;
-      say(8, "throttlers and steering", name, `JGA Pool #2 (real, signing at its real rate): steady on ${out.jga.steadyCards} of ${out.jga.cards} cards, in the field on ${out.jga.inField} (benched on ${out.jga.benched}: not steady and below 0.80), wins ${out.jga.ratio.toFixed(2)}× fair there; a 2% producer: honest ${out.honest.chance.toFixed(3)} (${out.honest.ratio.toFixed(2)}× fair), steady throttler at 0.66 in the field on ${out.throttler.inField} of ${out.throttler.cards} cards, wins ${out.throttler.chance.toFixed(3)} (${out.throttler.ratio.toFixed(2)}×), steerer ${out.steerer.chance.toFixed(3)} (${out.steerer.ratio.toFixed(2)}×); after a 3-day outage: in the field on ${out.outage.inField} of ${out.outage.cards} cards (back once steady or at 0.80); a 2% producer plus an 8% address parked at 0.05: ${out.parked.parked.toFixed(3)} parked, ${out.parked.switchOn.toFixed(3)} switched on in the race, vs ${out.parked.honest10.toFixed(3)} as one honest 10% producer`, pass, "steering never beats honest; a steady throttler stays in; an outage gives no boost; parking or switching on a parked address never beats running it honestly", out);
+      const errP = 2 * Math.sqrt(Math.max(out.parked.honestPair, 1e-4) / (races * Math.max(out.honest.cards, 1)));
+      const pass = out.steerer.chance <= out.honest.chance + err && out.throttler.inField === out.throttler.cards && out.outage.inField === 0 && out.parked.parked <= out.parked.honestPair + errP && out.parked.switchOn <= out.parked.honestPair + errP;
+      say(8, "throttlers and steering", name, `JGA Pool #2 (real, signing at its real rate): steady on ${out.jga.steadyCards} of ${out.jga.cards} cards, in the field on ${out.jga.inField} (benched on ${out.jga.benched}: not steady and below 0.80), wins ${out.jga.ratio.toFixed(2)}× fair there; a 2% producer: honest ${out.honest.chance.toFixed(3)} (${out.honest.ratio.toFixed(2)}× fair), steady throttler at 0.66 in the field on ${out.throttler.inField} of ${out.throttler.cards} cards, wins ${out.throttler.chance.toFixed(3)} (${out.throttler.ratio.toFixed(2)}×), steerer ${out.steerer.chance.toFixed(3)} (${out.steerer.ratio.toFixed(2)}×); after a 3-day outage: in the field on ${out.outage.inField} of ${out.outage.cards} cards (back once steady or at 0.80); a 2% producer plus an 8% address parked at 0.05: ${out.parked.parked.toFixed(3)} parked, ${out.parked.switchOn.toFixed(3)} switched on in the race, vs ${out.parked.honestPair.toFixed(3)} run honestly (${out.parked.honest10.toFixed(3)} as one 10% producer)`, pass, "steering never beats honest; a steady throttler stays in; an outage gives no boost; parking or switching on a parked address never beats running it honestly", out);
     }
     if (want(9)) {
       const out = {};

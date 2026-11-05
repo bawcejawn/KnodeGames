@@ -1,7 +1,10 @@
 # Plan: handing the Picks contract to the new owner (R-BX-3, I-076, D-083)
 
-> Status: **plan only, nothing built yet.** Written 2026-11-04 by the Block X chat. Build it, test it on the testnet,
-> then Repo Lens, before any mainnet step.
+> Status: **built** (5 Nov 2026, the Block X chat): `owner-propose`, `owner-accept`, `owner-cancel` and the extended
+> `status` are in `bot/picks.ts`, with offline tests in `tests/audit/picks.tool.test.ts`. Read on mainnet 5 Nov: the owner
+> on chain is `1635QU…H717`, with **nothing waiting** (no proposal, no announcement, no upgrade). Still to do: the
+> testnet run (step 8 below), Repo Lens, then the mainnet steps on the owner's date. The steps are under **"Running it"**
+> at the end.
 
 ## What the contract does today (`picks/assembly/Picks.ts`, live code `700c296a…`)
 
@@ -56,3 +59,37 @@ The testnet guard that stops a mainnet owner key from being used on the testnet 
 - **The new owner's address:** it comes from the wallet runbook (PR #73, `docs/WALLETS.md`). Picks moves on the same
   weekend as the other contracts, or later?
 - **Order with Combo:** confirm "hand over first, then the Picks v2 upgrade".
+
+## Running it (PowerShell, from `C:\kprediction`; every send is a dry run first)
+
+**0. Look (read-only):**
+```powershell
+cd C:\kprediction
+git branch --show-current
+git pull
+$env:RPC = "https://koinos.armana.io"
+npm run picks -- status
+```
+Expect `Owner 1635QU…H717 ✔`, no `Handover` line, no `Announced` line, no `Upgrade` line.
+
+**1. Propose (signed by the current owner, `OWNER_WIF`):**
+```powershell
+npm run picks -- owner-propose 1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd
+```
+The dry run prints when step 2 opens (48 h) and when it closes (7 days after). It refuses if anything is waiting. If it
+looks right: CONFIRM_MAINNET **Turn ON**, then run the same line with `--send --mainnet`, then **Turn OFF**.
+
+**2. Accept (48 h to 7 days later, signed by the new owner):** put `NEW_OWNER_WIF=<the new owner's key>` in `.env`
+for this step only. That wallet pays the Mana itself, so it needs a little KOIN.
+```powershell
+npm run picks -- owner-accept
+```
+If the dry run says ✔: **Turn ON**, the same line with `--send --mainnet`, **Turn OFF**, then **remove `NEW_OWNER_WIF`
+from `.env`**. The tool reads the owner back on both nodes and writes `"owner"` into `picks-data/deployment.json`.
+Commit that file in a PR to `main`. From then on, owner commands need `OWNER_WIF` to be the new owner's key.
+
+**Cancel** (before the accept): `npm run picks -- owner-cancel`, then the same with `--send --mainnet`.
+
+**Order with the vault handover (D-130):** the vault is proposed Mon 9 and accepted Tue 10. The Picks steps are separate
+and can run on the same days, as long as nothing is announced on Picks in between (Combo's game 8 and the Picks v2
+upgrade wait until after the accept).

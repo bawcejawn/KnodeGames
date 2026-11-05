@@ -30,6 +30,7 @@ Fantasy football for block producers: draft five producers under a salary cap, c
 - Vault v6: game 4 staked; results `games-data:fantasy/vault/W<week>.json` ✅ (C-22 resolved).
 
 ## Current status (5 Nov)
+- **Branch `fantasy` @ `9b63675` (5 Nov):** main merged; card gate and Free board built and tested; final from Mon 00:00 after two runs; Sunday fun round with the Saturday team (D-150). Next: RECORDER_STANDARD §4.1 / §4.2, then one fix-check, a full test week, a sponsor row for Picks games 4 and 5.
 - **▶ Reactivated 5 Nov (D-142): one of the next three games to launch. Its chat starts with `../platform/CHAT_REQUESTS.md` → R-ALL-9 (the catch-up on the 4–5 Nov standards), then its own section.**
 - Branch `fantasy` @ `2bee805` ✅ — pushed, **not merged, nothing deployed**; behind `main`. Testnet practice deployed (Picks copy `1DZX8RV…`); the owner's practice run stopped mid-week on 29 Oct, no full test week yet.
 - Repo Lens fix-check package ready (`knode-fantasy-fixcheck.zip`), not yet run. Tests (2 Nov): 522 pass, 1 fail (most likely the mobile-nav test below ❓).

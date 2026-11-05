@@ -16,6 +16,7 @@
 - [ ] Email filter: rename "Kpred bot" → "Knode Games bot" — P4
 
 ## This week
+- [ ] **Open the Golf PR** from the Golf chat's compare link (`golf-v2`), then its Repo Lens (queue 7) — P2
 - [ ] **Pages allow-list:** when the Hub chat's PR (R-HUB-14) is merged and its test run is checked: GitHub → Settings → Pages → Source: **GitHub Actions**; then open knodegames.com and two game pages. Undo = set Source back to "Deploy from a branch: main / root" — P2 — D-115
 - [ ] **Daily Questions free prize ON from Mon 16** (D-136): run the command the Vault chat gives (R-VAULT-14) during the week of Mon 9 — P2
 - [ ] **Turn the VHP ruler's recorder on** (data only, pays nothing, D-128): repo variable `VHP_RULER_ENABLED = true`, then the first fill (`docs/VHP-RULER.md` "Turning it on"); tell the Ruler chat — P2 — D-128
@@ -48,7 +49,6 @@
 - [ ] **Mon 16 Nov, 12:00 UTC (4 AM PT):** after the first vault close, check status, the buckets, the free prizes, and collect the fee with `claim-fee-vhp all` — P1
 
 ## Later
-- [ ] **Architecture decisions** (ARCHITECTURE "Target architecture"): (A6) build the shared game kit before or after Fantasy, Golf and Bracket launch; (A8) a second machine for a standby node, or stay on one PC for now; (A1) keep the sponsor's 25,000 KOIN hot, or most cold with a small float — P2
 - [ ] When you have a USB stick: once R-VAULT-10's script exists, back up the three producer keys (game/pool, Desk, personal) to it and keep it offline, apart from your wallet paper — P2 — TD-08
 - [ ] C5-13 (CODEOWNERS + ruleset): **go** (owner, 5 Nov). Wait for the Hub chat (R-HUB-14): the bot commits game data to `main` every hour, so the ruleset must let the bot and you bypass it, or the games stop updating. The Hub chat gives the exact clicks — P3
 - [ ] The full platform audit: only once everything is confidently ready (D-102) — P1 — I-002

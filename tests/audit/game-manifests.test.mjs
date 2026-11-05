@@ -39,6 +39,23 @@ test("a complete manifest passes; each broken rule is caught", () => {
   bad((m) => (m.name = "{{name}}"), /placeholders/);
 });
 
+test("the kit's fields (GAME_KIT.md §4): optional for a game still on its old recorder, required and checked for a kit game", () => {
+  const kit = () => ({ ...good(), payoutRule: "legacy-tied-whole", vaultValues: "dense255", minPts: 0, rowCap: 0, entry: { minRounds: 1, minPoints: 1 } });
+  assert.deepEqual(validateManifest(good()), [], "no kit fields: still valid (not on the kit yet)");
+  assert.ok(validateManifest(good(), { kit: true }).some((p) => /payoutRule/.test(p)), "a kit game must have them");
+  assert.deepEqual(validateManifest(kit(), { kit: true }), []);
+  const bad = (edit, re) => { const m = kit(); edit(m); assert.ok(validateManifest(m).some((p) => re.test(p)), re); };
+  bad((m) => (m.payoutRule = "top-30"), /payoutRule/);
+  bad((m) => (m.vaultValues = "raw"), /vaultValues/);
+  bad((m) => ((m.payoutRule = "d152"), (m.vaultValues = "points")), /d152 needs vaultValues/);
+  bad((m) => (m.minPts = -1), /minPts/);
+  bad((m) => (m.rowCap = 1.5), /rowCap/);
+  bad((m) => (m.entry = { minRounds: 0, minPoints: 1 }), /entry/);
+  bad((m) => (m.budgets = { reads: 0 }), /budgets/);
+  bad((m) => (m.budgets = { other: 5 }), /budgets/);
+  bad((m) => (m.roundsCorrectable = "yes"), /roundsCorrectable/);
+});
+
 test("the template is complete: every required file, and its manifest has only placeholders to fill", () => {
   const dir = path.join(ROOT, "templates", "game");
   for (const f of REQUIRED_FILES) assert.ok(fs.existsSync(path.join(dir, f)), f);

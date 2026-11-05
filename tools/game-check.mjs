@@ -36,10 +36,26 @@ export function checkGame(slug, root = ROOT) {
   return res;
 }
 
+/** Games on the kit (every game since D-158): the kit's conformance suite (GAME_KIT.md §5). */
+export async function checkKit(slug, root = ROOT) {
+  const dir = path.join(root, "games", slug);
+  if (!fs.existsSync(path.join(dir, "recorder.ts"))) return [];
+  const src = fs.readFileSync(path.join(dir, "recorder.ts"), "utf8");
+  if (!/GameModule/.test(src)) return [{ pass: false, msg: "recorder.ts is a kit GameModule (D-158: every game on the kit; Daily Questions after its port, D-160)", required: true }];
+  const probs = validateManifest(readManifest(path.join(dir, "game.json")), { kit: true });
+  if (probs.length) return probs.map((p) => ({ pass: false, msg: `game.json (kit): ${p}`, required: true }));
+  try {
+    const { conformance } = await import("../kit/testing/conformance.ts");
+    return (await conformance(slug, root)).map((c) => ({ pass: c.pass, msg: `conformance: ${c.msg}`, required: true }));
+  } catch (e) {
+    return [{ pass: false, msg: `conformance suite ran (${e.message}); run it with: node --import tsx tools/game-check.mjs ${slug}`, required: true }];
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const slug = process.argv[2];
   if (!slug) { console.error("Usage: npm run game:check -- <slug>"); process.exit(1); }
-  const res = checkGame(slug);
+  const res = [...checkGame(slug), ...(await checkKit(slug))];
   for (const r of res) console.log(`${r.pass ? "✔" : r.required ? "✖" : "•"} ${r.msg}`);
   const bad = res.filter((r) => !r.pass && r.required).length;
   console.log(bad ? `\n${bad} required check(s) failed.` : "\nAll required checks passed.");

@@ -25,7 +25,9 @@
     "names": "tsx bot/names.ts",
     "prizes": "tsx bot/free-prizes.ts",
     "game:new": "node tools/new-game.mjs",
-    "game:check": "node tools/game-check.mjs"
+    "game:check": "node --import tsx tools/game-check.mjs",
+    "kit": "tsx kit/recorder/cli.ts",
+    "kit:render": "node --import tsx tools/kit-render-workflows.mjs"
   },
   "dependencies": {
     "koilib": "9.4.1"

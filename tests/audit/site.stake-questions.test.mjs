@@ -249,3 +249,13 @@ test("F-1 (fix-check): a week record that isn't final yet is never remembered as
   qweeks[2] = { ...qweeks[2], W, buckets };
   assert.deepEqual(J((await e.K.overview(ME)).games[0].claims.map((c) => c.week)), ["2"], "the final record: shown at the next refresh");
 });
+
+test("R-BX-21: a claim batch the player chose to pay with their own Mana goes out own-Mana, any game; otherwise unchanged", async () => {
+  const e = env({ state: LIVE(), games: [QGAME, RACE] });
+  await e.K.send("claim", { claims: [{ game: 7, week: 2n }, { game: 7, week: 3n }], ownMana: true });
+  assert.deepEqual(J(e.sent[0].opts), { ownMana: true });
+  await e.K.send("claim", { claims: [{ game: 7, week: 2n }] });
+  assert.deepEqual(J(e.sent[1].opts), {});
+  await e.K.send("claim", { claims: [{ game: 7, week: 2n }], ownMana: "yes" });
+  assert.deepEqual(J(e.sent[2].opts), {}, "only the literal true counts");
+});

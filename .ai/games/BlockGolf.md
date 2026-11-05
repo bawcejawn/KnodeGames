@@ -32,6 +32,7 @@ A platform-wide "course": every other live game is a par-4 hole, and how well yo
 - The move of all pages to the site root before merging (`claude/site-at-root.md`). 💬
 
 ## Current status (5 Nov)
+- **Branch `golf-v2` @ `9e18321` (5 Nov):** site root, weekly rhythm (pending to Mon 00:00, two-run check), Free play board, the current page frame; Golf 60/60, full suite 1,082 / 0. Next: PR, Repo Lens, then I-098 / I-099 before launch.
 - **▶ Reactivated 5 Nov (D-142): one of the next three games to launch. Its chat starts with `../platform/CHAT_REQUESTS.md` → R-ALL-9 (the catch-up on the 4–5 Nov standards), then its own section.**
 - Branch `golf` @ `6b2200a` ✅ — pushed, **not merged, nothing deployed**; behind `main`; `games.json` "soon" ✅. Audit trail all fixed (first audit 5 High / 4 Medium / 5 Low, then fix-checks). Tests: 481 (471 pass, 0 fail).
 - No testnet run by design: practice weeks on mainnet are the trial. Owner checklist items left: t28 (review the "Block Golf Preview" artifact), t30 (turn on practice).

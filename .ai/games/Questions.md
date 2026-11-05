@@ -37,7 +37,7 @@ The original Knode game: daily questions about what the Koinos chain will do, sc
 
 ## Current status (5 Nov)
 - **Live and paying** on Vault v6 since 2 Nov. Week 2 finalized and paid 3 Nov. First v5-rule payout Tue 10 Nov ~12:07 UTC. ✅ / 💬
-- **⚠ P1: the results recorder isn't built (I-101).** From the rule week (Mon 16) the vault pays game 1 only from a results file; build, Repo Lens and merge by Sun 15 (R-Q-4).
+- **The results recorder (I-101) is built, waiting for Repo Lens:** `games/questions/` (`math.js`, `recorder.ts`, tests) and its steps in `games.yml`. From the rule week (Mon 16) the vault pays game 1 only from its file (`games-data:questions/vault/W<w>.json`, first file due Thu 26 Nov 00:00 UTC). Merge after #114 and by Sun 15 (R-Q-4). Daily Questions has no Sunday rounds: nothing scores on Sunday (D-129), only Saturday's last round resolves then. 💬
 - **5 questions a day now; two rounds a day from Mon 9 Nov** (2 + 3, 30 a week): merged. The first two-round week is watched by R-Q-3. ✅
 - **Vault v6.1 (PR #114, open; Repo Lens round 2 GO to announce):** announce Thu 5 Nov, upload Mon 9 Nov, rule week **Mon 16 Nov** — from then 60 a week and the shared vault rules (D-116). 👤
 - **PR #152 ✅ merged 5 Nov** (the shared rules, page and bot side, including the settle pass for the switch-over week; Repo Lens #E-17 fixes). 1 is live.

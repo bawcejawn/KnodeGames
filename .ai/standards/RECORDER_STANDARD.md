@@ -18,7 +18,7 @@
 4. **Stakes come from the vault's own rule:** staked = `week_stake ≥` the week's minimum and not voided, read with the `v6_rule_week_plus_one` gate. Reuse Block X's vault reader; don't write a new one (#E-3 M-1, L-11).
 5. **Read stakes only after the week has ended**, and write the vault file only then (#E-3 M-1b, L-8).
 6. **Bounded work per run:** at most 6 hours of chain per run, limited parallel reads, a hard stop on runaway paging (#E-3 L-11). Exit when done (Repo Lens RV-1).
-7. **VHP** follows the VHP standard (D-058, `docs/VHP-STANDARD.md`). Check events come from the VHP contract only; a decoder miss must be caught by end-to-end checks between balance reads, not just near them (#E-3 M-7).
+7. **VHP** follows the VHP standard (D-058; the shared ruler, `VHP_RULER.md`). Check events come from the VHP contract only; a decoder miss must be caught by end-to-end checks between balance reads, not just near them (#E-3 M-7).
 
 ## 3. Time and history
 1. **Every new file is checked against the clock**, in the recorder and again in the publish job (BX-96, BX-97, BX-98; #E-3 H-3):

@@ -46,10 +46,10 @@ A game's chat adds or updates its row **in its first PR** and whenever its timin
 | Who Signs Block X (2) | **yes** (from Week 1, #160, #175) | fun rounds (Today and All time only), first **Sun 15 Nov** | **Mon 00:00** + two runs an hour apart + the re-read (D-135, #175) | Mon evening PT | #159, #160, #175 | none |
 | Producer Race (7) | **yes** (#149) | fun races, unscored for the week (D-129, #155) | Mon 00:00 + checks (00:37 final run) | Mon 6–8 PM PT | #149, #155 | none |
 | Survivor (3) | ⏸ paused (D-113) | must rest on Sundays | built as 12 h after | — | branch `survivor` | adopt before launch (R-ALL-8) |
-| Fantasy (4, 5) | ▶ reactivated 5 Nov (D-142) | — | built as 12 h after | — | branch `fantasy` | adopt before launch |
-| Block Golf (6) | ▶ reactivated 5 Nov (D-142) | — | — | — | branch `golf` | adopt before launch |
+| Fantasy (4, 5) | **yes**, on branch `fantasy` (▶ reactivated 5 Nov, D-142; not launched) | fun round: the Saturday team plays on (D-150), Today and All time only | **Mon 00:00 + two runs ≥ 1 h apart agree + the week re-checked from the chain** | Mon evening PT | branch `fantasy`, PR #188 | none for the cycle |
+| Block Golf (6) | **yes**, on branch `golf-v2` (▶ reactivated 5 Nov, D-142; not launched) | no rounds of its own; each hole is a game's weekly board, which already leaves Sunday out | Mon 00:00 + every hole final + two matching runs ≥ 1 h apart; waits on its slowest hole (Questions: Tue ~12:00 until its rule week, Mon 16 Nov) | about 24 h after the seal (≈ Wed morning PT while it waits on Questions) | branch `golf-v2`, PR #187 (D-138, D-142) | owner merges; launch steps in `docs/GOLF.md` |
 | Combo Card (8) | ⏸ paused | — | built as 12 h after | — | branch `combo` | adopt before launch |
-| Producer Bracket (9) | ▶ reactivated 5 Nov (D-142) | rounds Mon–Sat, final Saturday (D-141); Sunday rest | — | — | branch `kg-09-bracket` | reshape (R-BR-8) and adopt before launch |
+| Producer Bracket (9) | **yes**, on branch `kg-09-bracket` (▶ reactivated 5 Nov, D-142; built to D-141 / D-153; not launched) | review day: every hour re-read in a later run, results pending; **Sunday 00:00 seeding opens next week's picks** (lock Mon 23:55); no Sunday rounds (a knockout: the final is Saturday) | **Mon 00:00 + checks** (results in, every hour re-read, end-of-week stakes read on both nodes); backstop Thu 00:00 → closed without a file | Mon evening PT | branch `kg-09-bracket`, PR #186 (Repo Lens #E-3 fixes + D-141) | fix-check; Sunday fun rounds: none (owner to confirm) |
 | Last Node Standing (13) | ⏸ paused | — | built as 12 h after | — | branch `lastnode` | adopt before launch |
 
 ## 5. Checking a game against this page

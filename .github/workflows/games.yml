@@ -33,6 +33,9 @@ jobs:
     # Repo Lens E4-7: "true" when the recorder held a week before its prize list (read by the alert job below).
     outputs:
       held: ${{ steps.blockx.outputs.held }}
+      # RECORDER_STANDARD §6.5: Fantasy's step may fail without stopping Block X (continue-on-error), but the alert job
+      # below then fails the run after publishing, so GitHub emails the owner.
+      fantasy: ${{ steps.fantasy.outcome }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -101,6 +104,7 @@ jobs:
           # Fix-check L-2: the owner's one-off release of a held week ("<week>:<code>", the code the hold prints). Unset: none.
           BLOCKX_RELEASE: ${{ vars.BLOCKX_RELEASE }}
       - name: Record Fantasy Producers
+        id: fantasy
         if: ${{ vars.FANTASY_ENABLED == 'true' }}
         # A Fantasy problem must not stop Block X's results from publishing (audit FX-4).
         continue-on-error: true
@@ -416,8 +420,18 @@ jobs:
           # A Fantasy file that fails its check holds ALL of Fantasy's files this run (an error, so you are emailed), and
           # Block X still publishes (audit FX-4).
           if [ -d "$IN/fantasy" ] && ! /usr/bin/python3 - "$IN/fantasy" "$FPUB" <<'PY'
-          import json, os, re, sys
+          import json, os, re, sys, time
           d, parent = sys.argv[1], sys.argv[2]; addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
+          # RECORDER_STANDARD §3.1-3.2: the publish job's OWN clock, never the recorder's. A week is never final (and has
+          # no vault file) before it has ended (WEEK_CYCLE: final no earlier than Monday 00:00 UTC); no week file starts
+          # more than 8 days ahead (the next week's price list comes out the Saturday before).
+          # (CHECK_NOW_MS: the tests' fixed clock; the workflow never sets it.)
+          NOW = int(os.environ.get("CHECK_NOW_MS") or time.time() * 1000)
+          def wfile(w):
+              for base in (d, parent):
+                  p = os.path.join(base, "W%03d.json" % w)
+                  if os.path.exists(p): return json.load(open(p, encoding="utf-8"))
+              return None
           num = lambda x: type(x) in (int, float) and x == x and abs(x) < 1e16
           nat = lambda x: type(x) is int and 0 <= x < 10**16
           A = lambda x: type(x) is str and addr.fullmatch(x) is not None
@@ -432,6 +446,8 @@ jobs:
               j = json.load(open(os.path.join(vd, f), encoding="utf-8"))
               m = re.fullmatch(r"W([0-9]+)\.json", f)
               assert m and set(j) == {"game", "week", "final", "rows", "first", "second"} and j["game"] == 4 and j["week"] == int(m.group(1)) and j["final"] is True, "vault/" + f
+              wk = wfile(j["week"])
+              assert wk is not None and wk.get("final") is True and type(wk.get("end")) is int and NOW >= wk["end"], "vault/" + f + ": its week isn't final, or hasn't ended by the publish clock"
               # Free play (D-081): 1st and 2nd from the Free play board, at most 10 a place; the owner's free-prize switch
               # (D-082) decides whether the vault pays them. A wallet is on one board only.
               assert type(j["first"]) is list and type(j["second"]) is list and len(j["first"]) <= 10 and len(j["second"]) <= 10 and all(A(a) for a in j["first"] + j["second"]), "vault/" + f
@@ -483,6 +499,8 @@ jobs:
                   p = j["pending"]
                   assert p is None or (type(p) is dict and set(p) == {"hash", "at"} and re.fullmatch(r"[0-9a-f]{64}", str(p["hash"])) and nat(p["at"]) and p["at"] > 0), f
                   assert not (j["final"] and p is not None), f
+                  assert nat(j["start"]) and nat(j["end"]) and j["end"] > j["start"] and j["start"] <= NOW + 8 * 86400000, f + ": a week too far ahead of the publish clock"
+                  assert not j["final"] or NOW >= j["end"], f + ": final before the week ended (publish clock)"
                   s = j["sheet"]
                   assert s is None or (s["week"] == j["week"] and nat(s["budget"]) and len(s["pool"]) <= 200 and all(A(p["a"]) and nat(p["price"]) and 8 <= p["price"] <= 40 for p in s["pool"])), f
                   assert j["sha256"] is None or re.fullmatch(r"[0-9a-f]{64}", j["sha256"]), f
@@ -548,12 +566,16 @@ jobs:
   # files still go out. Runs no repository code and needs no permissions.
   alert:
     needs: [record, publish]
-    if: ${{ always() && needs.record.outputs.held == 'true' }}
+    if: ${{ always() && (needs.record.outputs.held == 'true' || needs.record.outputs.fantasy == 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {}
     steps:
-      - name: A week is held before its prize list
+      - name: A week is held before its prize list, or a recorder failed
+        env:
+          HELD: ${{ needs.record.outputs.held }}
+          FANTASY: ${{ needs.record.outputs.fantasy }}
         run: |
-          echo "::error::Block X held a week before its prize list (see the record job's errors). Nothing is paid for it until a run reads the whole week the same."
+          if [ "$HELD" = "true" ]; then echo "::error::Block X held a week before its prize list (see the record job's errors). Nothing is paid for it until a run reads the whole week the same."; fi
+          if [ "$FANTASY" = "failure" ]; then echo "::error::The Fantasy Producers recorder failed this run (see the record job's errors). Its files were not updated; Block X's still published. The next run tries again."; fi
           exit 1

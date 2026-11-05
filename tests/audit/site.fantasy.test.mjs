@@ -42,7 +42,7 @@ test("page script: the testnet page refuses mainnet and uses its own wallet; the
 
 test("page: says what players need to know", () => {
   assert.match(html, /Knode's own nodes/, "the owner's two producers are disclosed (owner decision 2026-10-27)");
-  for (const w of ["salary cap", "captain", "One change a", "fresh start every week", "5 minutes before", "top 30%", "Weekly Rival", "all 6 play", "sha256", "Sunday is results day", "pays no VHP for now"])
+  for (const w of ["salary cap", "captain", "One change a", "fresh start every week", "5 minutes before", "top 30%", "Weekly Rival", "all 6 play", "sha256", "Sunday is review day", "pays no VHP for now"])
     assert.ok(html.includes(w), `How it works mentions "${w}"`);
   assert.match(css, /prefers-reduced-motion/);
 });

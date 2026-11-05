@@ -183,8 +183,10 @@ export async function run(o: Opts) {
   const problems: string[] = [];
   const head: any = await withRetry("head", () => p.getHeadInfo());
   const headId = head.head_topology.id, now = Number(head.head_block_time);
-  const libH = Number(head.last_irreversible_block), libT = await blockTime(p, headId, libH);
   const chk = check ? await withRetry("check head", () => check.getHeadInfo()) : null;
+  // RECORDER_STANDARD §2.2: count only blocks irreversible on BOTH nodes (the lower of the two lib heights).
+  const libH = Math.min(Number(head.last_irreversible_block), chk ? Number(chk.last_irreversible_block) : Infinity), libT = await blockTime(p, headId, libH);
+  if (!Number.isInteger(libH) || libH < 1) throw new Error(`no irreversible block height to score from (${libH})`);
   // The Picks chain's own irreversible time (the testnet's, when the picks live there).
   let pLibT = libT;
   if (pp !== p) {

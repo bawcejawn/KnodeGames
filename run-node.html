@@ -579,6 +579,35 @@ echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"</code></
         <li><b>Restarts fix themselves:</b> Docker starts when you sign in (step 2) and starts your node with it.</li>
         <li><b>Safer storage:</b> your node's data sits in a Docker volume (step 3), not an ordinary folder. A folder shared between Windows and Docker is slow for a database and the most likely cause of damaged node data.</li>
       </ul>
+      <h3 class="rn-sub">Turn on automatic self-heal (recommended)</h3>
+      <p>A small script checks your node every 20 minutes, using the same rules Knode Games uses for its own nodes. If the node has <b>frozen</b> (far behind and not moving, or not answering), it restarts it: at most once every 50 minutes and 3 times in 6 hours, then it stops and tells you. If the node keeps <b>crashing</b>, it doesn't restart it (that can't fix damaged data); it tells you to repair it (below). It never deletes anything, never touches your key, and only asks your node and a public Koinos node for their height. It tells you with a notification and writes a log (<code>heal.log</code> in your <code>koinos-node</code> folder).</p>
+      <p>First download it and check its fingerprint:</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node
+Invoke-WebRequest https://raw.githubusercontent.com/bawcejawn/KnodeGames/main/node/one/heal-one-node.ps1 -OutFile heal-one-node.ps1 -UseBasicParsing
+if ((Get-FileHash heal-one-node.ps1).Hash -eq "16eac5e564cfb84385c813995d1cf5e653fc338c17c4f631511b067699c80422") { "MATCH - safe to run" } else { "NO MATCH - don't run it; delete heal-one-node.ps1" }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node
+curl -fsSL -o heal-one-node.py https://raw.githubusercontent.com/bawcejawn/KnodeGames/main/node/one/heal-one-node.py
+GOT=$( (sha256sum heal-one-node.py 2&gt;/dev/null || shasum -a 256 heal-one-node.py) | cut -d' ' -f1)
+[ "$GOT" = "d1a59cf67f03bf39a601356f9bbd2722657e2d10ad738ee18013f22e80abc051" ] &amp;&amp; echo "MATCH - safe to run" || echo "NO MATCH - don't run it; delete heal-one-node.py"</code></pre>
+      </div>
+      <p>If it says <b>MATCH</b>, try it once (it changes nothing), then switch it on:</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>powershell -ExecutionPolicy Bypass -File C:\koinos-node\heal-one-node.ps1 -DryRun
+powershell -ExecutionPolicy Bypass -File C:\koinos-node\heal-one-node.ps1 -Install</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node
+python3 heal-one-node.py --dry-run
+python3 heal-one-node.py --install</code></pre>
+      </div>
+      <p class="muted">You should see a line like <code>OK: height …, network …</code> from the try, then <b>"OK … is set up"</b>. To switch it off later, run the same file with <code>-Uninstall</code> (Windows) or <code>--uninstall</code> (Mac/Linux). Moved your node to another port in step 5? Add <code>-Rpc http://127.0.0.1:8090</code> (Windows) or <code>--rpc=http://127.0.0.1:8090</code> (Mac/Linux) to both lines.</p>
       <h3 class="rn-sub">Once a week (1 minute)</h3>
       <ul class="rn-list">
         <li>Run the check from step 5b: <b>Behind by</b> should be under 10.</li>
@@ -631,6 +660,8 @@ rm -f snapshot.tar.gz snapshot.json</code></pre>
           <li><b>Disk getting full?</b> Once your node has caught up, delete the download: Windows <code>Remove-Item C:\koinos-node\snapshot.tar.gz</code>, Mac/Linux <code>rm ~/koinos-node/snapshot.tar.gz</code>. You can also remove old Docker programs: <code>docker image prune</code>.</li>
           <li><b>Never run <code>docker volume prune</code>, <code>docker system prune --volumes</code> or <code>docker volume rm koinos-data</code></b> unless you mean to delete your node: they erase its data <b>and its key</b>.</li>
           <li><b>The repair box says "can't rename" or "No such file":</b> there was nothing to move (the data was already gone). Go straight to step 4.</li>
+          <li><b>Self-heal says NO MATCH:</b> don't run it. Delete the file, wait a few minutes and download it again; if it still doesn't match, the page or the file is being updated, so try again later.</li>
+          <li><b>Mac: a box asks if Terminal may "administer your computer" when you switch on self-heal:</b> click OK. That lets it add its 20-minute timer.</li>
           <li><b>Still stuck after a repair:</b> check your internet connection and that the PC's date and time are correct (Settings → Time &amp; language → Set time automatically).</li>
         </ul>
       </details>

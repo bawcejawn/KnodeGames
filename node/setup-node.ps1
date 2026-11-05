@@ -3,7 +3,7 @@
 
   What it does (safe to run again; finished steps are skipped):
     1. checks Docker, git and free disk space
-    2. downloads the official Koinos node setup into C:\kpred-node\koinos (the pinned release, checked by its commit)
+    2. downloads the official Koinos node setup into C:\kpred-node\koinos (pinned to one checked commit)
     3. sets the block producer to produce for the GAME CONTRACT address
     4. downloads the newest chain snapshot from Armana, checks its fingerprint (SHA-256) against one you got from a
        SECOND source (-SnapshotSha256), and unpacks it (so the node doesn't have to replay the whole chain)
@@ -40,10 +40,11 @@ function WriteNoBom($path, $text) { [IO.File]::WriteAllText($path, $text, (New-O
 
 if ($Producer -notmatch '^1[1-9A-HJ-NP-Za-km-z]{25,34}$') { throw "That doesn't look like a Koinos address: $Producer" }
 
-# The official node setup is pinned to a release, checked by its commit (https://github.com/koinos/koinos/releases).
-# To move to a newer release: read its notes, then change BOTH lines to the new tag and the commit GitHub shows for it.
-$KoinosTag = "v2.2.1"
-$KoinosCommit = "7c861cd13681f6fce735e345cc6f563cc6047574"
+# The official node setup is pinned to one checked commit of github.com/koinos/koinos. The last tagged release (v2.2.1,
+# March 2025) runs chain v1.4.1 with an old seed list; the newest code (18 Sep 2026) runs chain v1.5.2, the version the
+# owner's nodes and Armana's snapshots use. To move on: read the changes, then change BOTH lines.
+$KoinosTag = "master @ 18 Sep 2026"
+$KoinosCommit = "b05b8337d0a8d09748f9c2d1faef810ee2f5de28"
 
 # ------------- 1. checks -------------
 Step "1/5 Checking this PC"
@@ -66,12 +67,13 @@ Step "2/5 Official Koinos node setup"
 New-Item -ItemType Directory -Force $Root | Out-Null
 $repo = Join-Path $Root "koinos"
 if (-not (Test-Path $repo)) {
-  git -c advice.detachedHead=false clone --depth 1 --branch $KoinosTag https://github.com/koinos/koinos.git $repo; if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
+  git clone https://github.com/koinos/koinos.git $repo; if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
+  git -C $repo -c advice.detachedHead=false checkout $KoinosCommit; if ($LASTEXITCODE -ne 0) { Remove-Item $repo -Recurse -Force; throw "Couldn't check out the pinned commit $KoinosCommit. Nothing was installed." }
   if ((git -C $repo rev-parse HEAD).Trim() -ne $KoinosCommit) { Remove-Item $repo -Recurse -Force; throw "The downloaded node setup is not release $KoinosTag (commit $KoinosCommit). Nothing was installed." }
   Ok "official node setup $KoinosTag (commit $($KoinosCommit.Substring(0, 12)))"
 } elseif ((git -C $repo rev-parse HEAD).Trim() -ne $KoinosCommit) {
-  Note "This folder's node setup is not the pinned release $KoinosTag (an older run used the newest code). It keeps working;"
-  Note "to move to the release, stop the node and run: git -C $repo fetch --depth 1 origin tag $KoinosTag; git -C $repo checkout $KoinosTag"
+  Note "This folder's node setup is not the pinned commit ($KoinosTag). It keeps working;"
+  Note "to move to it, stop the node and run: git -C $repo fetch origin; git -C $repo checkout $KoinosCommit (then copy the new env.example tags into .env)"
 }
 Set-Location $repo
 if (-not (Test-Path "config")) { Copy-Item "config-example" "config" -Recurse }

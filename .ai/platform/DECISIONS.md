@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, **oldest first** (D-001 at the top, the newest at the bottom; the index is in the same order). This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "superseded by D-XXX" in the index.
 > Consolidated 2026-11-02: the owner's answers to the open contradictions are recorded as D-061 – D-067.
-> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-141 added; index statuses brought up to date; nothing removed)
+> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-142 added; index statuses brought up to date; nothing removed)
 > Sources: owner in chat (2026-11-02), `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (all 12 chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · 👤 owner said · ⚠️ was a conflict (see the C-xx named next to it; all are resolved unless listed under Open) · ❓ unknown
@@ -148,10 +148,11 @@
 | D-135 | 2026-11-05 | Block X goes final at Monday 00:00 UTC, like the Race | active |
 | D-136 | 2026-11-05 | Daily Questions' free prize follows the free-prize switch from the rule week | active |
 | D-137 | 2026-11-05 | A career profile for every player from day 1 | active |
-| D-138 | 2026-11-05 | After the core: Last Node, Block Golf, Fantasy and Bracket next | active (amends D-113's "after the core") |
+| D-138 | 2026-11-05 | After the core: Last Node, Block Golf, Fantasy and Bracket next | active (amends D-113's "after the core"); order amended by D-142 |
 | D-139 | 2026-11-05 | Block Minute: an always-on quick pick, designed before it's built | idea (design first) |
 | D-140 | 2026-11-05 | Fix fast after every review: one pass, same day, tracked by finding | active (standing) |
 | D-141 | 2026-11-05 | Producer Bracket: up to 64 producers, one round a day, 8 to play | active (for the Bracket build) |
+| D-142 | 2026-11-05 | Fantasy, Block Golf and Producer Bracket reactivated: the next three games to launch | active (amends D-113, D-138) |
 
 ---
 
@@ -769,6 +770,9 @@
 
 ## D-141 — Producer Bracket: up to 64 producers, one round a day, 8 to play
 - **Date:** 2026-11-05 (owner: "right now there arent many producers. set it up for 64 possible with 1 per day is good, like a 24 hour sprint. minium needed to play would be 8 producers and still follows the same bracket rules of 1 round per day.") · **Decision:** the Bracket is a knockout of producers head to head, **one round a day (a 24-hour sprint per matchup)**. It holds **up to 64 producers** (6 rounds: Mon–Sat, the final on Saturday, inside the weekly cycle, `standards/WEEK_CYCLE.md`) and runs with **as few as 8** (3 rounds). With a field between sizes, it uses the largest power of two that fits (8, 16, 32, 64) and the rounds start so the final is on Saturday; fewer than 8 eligible producers → no bracket that week. Matchups are decided by the VHP ruler's luck percentile (`VHP_RULER.md` §16, D-138). The Bracket chat reshapes its Sat seeding / Sun picks to this (R-BR-8).
+
+## D-142 — Fantasy, Block Golf and Producer Bracket reactivated: the next three games to launch
+- **Date:** 2026-11-05 (owner: "im reactivating Fantasy producers chat and block golf … i also would like to get producer bracket reactivated too and these 3 games be the next focus of push and launch games to slot right in"; "make sure the admin page is getting the needed updates along with the career page") · **Decision:** the Fantasy, Block Golf and Producer Bracket chats restart now, alongside the core work; these three are the next launches, each through `standards/NEW_GAME.md` and `GO_LIVE_CHECKLIST.md`, starting with the catch-up item R-ALL-9 (the 4–5 Nov standards). Last Node follows them; Survivor and Combo stay paused. The admin page (R-HUB-17, with R-HUB-8) and the career profile (R-HUB-15) are built now so they're ready when the three launch. The core still comes first where the two compete (owner's sends and reviews: v6.1, the ruler).
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

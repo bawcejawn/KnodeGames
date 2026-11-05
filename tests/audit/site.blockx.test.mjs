@@ -318,3 +318,14 @@ test("pick errors: only the Picks contract's own messages get the game's wording
     assert.ok(why(m).includes(m), "the wallet's own reason is shown");
   }
 });
+
+test("R-BX-22 (D-125): the page offers no Sunday (UTC) target, nor one due in Saturday's last 10 minutes, and says why", () => {
+  const js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
+  assert.match(js, /const restAt = \(r\) => \{ const t = about\(G\.target\(r\)\); return X\.restDay\(t\) \|\| X\.restDay\(t \+ 10 \* 60000\); \};/);
+  assert.match(js, /rounds = offered\.filter\(\(r\) => !restAt\(r\)\)/);
+  assert.match(js, /Sunday \(UTC\) is the review day/);
+  assert.match(fs.readFileSync(path.join(APP, "blockx.html"), "utf8"), /Sunday is the review day, when no target scores/);
+  // The rule itself: Sunday UTC from Week 1 (vault week 3), the same as the Race.
+  for (let t = Date.UTC(2026, 10, 9); t < Date.UTC(2026, 10, 30); t += 3600000)
+    assert.equal(X.restDay(t), RM.restRace(t), new Date(t).toISOString());
+});

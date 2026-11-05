@@ -23,6 +23,13 @@
   The same script also sets up your PERSONAL node next to it, in its own folder, Docker project and ports:
       powershell -ExecutionPolicy Bypass -File node\setup-node.ps1 -Producer <your own address> -Root C:\koinos-personal -Project koinos-personal -PortOffset 10
   (RPC 8090, P2P 8898 for that one; the game node keeps 8080 / 8888.)
+
+  -RestoreKey <file> (R-VAULT-10): puts a backed-up block-producer key (node\backup-producer-keys.ps1, the USB stick)
+  in place before the node first starts, so a replacement node produces with the SAME key: no re-registering, and the
+  Desk avoids its 48-hour key wait. For example, the game node on a new PC:
+      powershell -ExecutionPolicy Bypass -File node\setup-node.ps1 -Producer 1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr -SnapshotSha256 <hash> -RestoreKey E:\knode-producer-keys-<date>\game\private.key
+  !! Never run two nodes with the same key at the same time: the old node must be off for good first. The script asks
+     you to confirm that, and refuses if this node already has a different key.
 #>
 param(
   [Parameter(Mandatory = $true)][string]$Producer,
@@ -30,7 +37,8 @@ param(
   [string]$Project = "kpred-node",
   [int]$PortOffset = 0,
   [string]$SnapshotSha256 = "",
-  [switch]$KeepArchive
+  [switch]$KeepArchive,
+  [string]$RestoreKey = ""
 )
 $ErrorActionPreference = "Stop"
 function Step($text) { Write-Host "`n== $text ==" -ForegroundColor Cyan }
@@ -44,6 +52,17 @@ if ($Producer -notmatch '^1[1-9A-HJ-NP-Za-km-z]{25,34}$') { throw "That doesn't 
 # To move to a newer release: read its notes, then change BOTH lines to the new tag and the commit GitHub shows for it.
 $KoinosTag = "v2.2.1"
 $KoinosCommit = "7c861cd13681f6fce735e345cc6f563cc6047574"
+
+# A backed-up key to restore (R-VAULT-10): checked before anything is downloaded, put in place before the first start.
+if ($RestoreKey) {
+  if (-not (Test-Path -LiteralPath $RestoreKey -PathType Leaf)) { throw "Not found: $RestoreKey (the backed-up private.key). Nothing was changed." }
+  Write-Host ""
+  Write-Host "!! You are restoring a block-producer key. Two nodes running the SAME key at the same time can be punished by" -ForegroundColor Yellow
+  Write-Host "!! the chain. The node that used this key before must be OFF for good (its PC dead, or its node stopped and" -ForegroundColor Yellow
+  Write-Host "!! its key folder deleted) before this one starts." -ForegroundColor Yellow
+  $answer = Read-Host "Type YES if the old node is off for good"
+  if ($answer -cne "YES") { throw "Not confirmed. Nothing was changed." }
+}
 
 # ------------- 1. checks -------------
 Step "1/5 Checking this PC"
@@ -186,9 +205,20 @@ if ($haveData) {
 
 # ------------- 5. start -------------
 Step "5/5 Starting the node"
+$keyFile = Join-Path $basedir "block_producer\private.key"
+if ($RestoreKey) {
+  if (Test-Path $keyFile) {
+    if ((Get-FileHash -Algorithm SHA256 $keyFile).Hash -eq (Get-FileHash -Algorithm SHA256 -LiteralPath $RestoreKey).Hash) { Ok "the restored key is already in place" }
+    else { throw "This node already has a DIFFERENT key at $keyFile. Restoring would replace it: stopped, nothing was changed. Ask the Vault chat." }
+  } else {
+    New-Item -ItemType Directory -Force -Path (Split-Path $keyFile) | Out-Null
+    Copy-Item -LiteralPath $RestoreKey -Destination $keyFile
+    if ((Get-FileHash -Algorithm SHA256 $keyFile).Hash -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $RestoreKey).Hash) { throw "The restored key isn't identical to the backup. Stopped before starting the node." }
+    Ok "the backed-up key is in place ($keyFile)"
+  }
+}
 docker compose up -d
 if ($LASTEXITCODE -ne 0) { throw "docker compose failed to start the node." }
-$keyFile = Join-Path $basedir "block_producer\private.key"
 for ($i = 0; $i -lt 60 -and -not (Test-Path $keyFile); $i++) { Start-Sleep -Seconds 2 }
 if (Test-Path $keyFile) { Ok "the block producer created its key ($keyFile) - keep this file private" }
 else { Note "The block producer key isn't there yet; check again in a minute." }

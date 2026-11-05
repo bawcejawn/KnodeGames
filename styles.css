@@ -186,6 +186,10 @@ a { color: var(--violet); }
 .q-warn { margin-top: 12px; padding: 8px 12px; border-radius: var(--r-sm); background: var(--rose-soft); color: var(--rose); font-weight: 600; }
 .q-foot { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: .86rem; color: var(--muted); }
 .q-cta { color: var(--violet); font-weight: 700; }
+.q-intro { margin: 0 0 14px; padding: 10px 14px; border-radius: var(--r-sm); background: var(--paper); color: var(--ink); font-size: .95rem; line-height: 1.5; }
+.q-intro a { color: var(--violet); font-weight: 700; }
+.q-hint { margin-top: 6px; font-size: .92rem; color: var(--muted); }
+.opts.yn .opt-text b { font-size: 1.12rem; }
 .badge { font-weight: 800; padding: 4px 10px; border-radius: 999px; font-size: .8rem; }
 .badge-void { background: var(--line); color: var(--ink); }
 .badge-ok { background: var(--mint-soft); color: var(--mint); }

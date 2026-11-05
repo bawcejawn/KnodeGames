@@ -10,7 +10,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 const APP = process.env.APP || ".";
-const { run, sourcesFromGames, stakersFrom, minStakeFor, vaultFile, peakOf, peakedFrom, parseHoldWeeks } = await import(path.resolve(APP, "bot/games/golf.ts"));
+const { run, sourcesFromGames, stakersFrom, minStakeFor, vaultFile, peakOf, peakedFrom, parseHoldWeeks, cleanScore, cleanName, statusLines } = await import(path.resolve(APP, "bot/games/golf.ts"));
 const G = globalThis.KGolf;
 const M = globalThis.KRaceMath;
 const H = 3600000, DAY = 24 * H;
@@ -854,4 +854,124 @@ test("§4.1: the publish job's scorer port matches golf-math.js on random weeks,
     ["strokes", (f) => { const h = f.cards[0].holes[0]; if (h[1] >= 7) return false; h[1] += 1; return true; }],
     ["hole score", (f) => { const h = f.holes.find((x) => x.status === "final" && x.rows.some((r) => r[1] > 0)); if (!h) return false; const r = h.rows.find((x) => x[1] > 0); r[1] = 1000; return true; }],
   ]) assert.throws(() => execFileSync("python3", [shape, tamper(fn)], { stdio: "pipe", env: clock }), /don't match their holes|field/, what);
+});
+
+// ── Repo Lens golf-v2 fix-check (F-1 – F-3, I-1) ──
+
+test("F-1: with the stakes unreadable, a wallet keeps one weight on every hole, and the publish port agrees", async (t) => {
+  // Week stamped with stakes read: every wallet but FREE has 2 VHP on every hole
+  const prev = tmp("golf-");
+  await run(base({ now: END - H, out: prev, raceDir: raceDir(), gamesDir: gamesDir() }));
+  // A new wallet NEW appears on Block X only; the stakes can't be read: it gets weight 0 everywhere (never staked on
+  // one hole and not on another), and every old wallet keeps its one weight
+  const NEW = "1" + "b".repeat(33);
+  const bx = P.slice(0, 8).map((a, i) => ({ a, place: i + 1, pts: 800 - 100 * i, correct: 8 - i, picks: 10, days: 3, lastCorrect: 0, ranked: true }));
+  bx.push({ a: NEW, place: 9, pts: 50, correct: 1, picks: 1, days: 1, lastCorrect: 0, ranked: true });
+  const out = tmp("golf-");
+  await run(base({ now: END + H, prev, out, raceDir: raceDir(), gamesDir: gamesDir({ rows: bx }), golfStakersOf: async () => { throw new Error("rpc down"); } }));
+  const wf = readOut(out, "W003.json");
+  const weights = new Map();
+  for (const h of wf.holes) for (const r of h.rows) { if (!weights.has(r[0])) weights.set(r[0], new Set()); weights.get(r[0]).add(r[3]); }
+  for (const [a, set] of weights) assert.equal(set.size, 1, `${a} has one weight across the holes`);
+  assert.deepEqual([...weights.get(NEW)], [0]);
+  try { execFileSync("python3", ["--version"]); } catch { t.skip("no python3 here"); return; }
+  const [shape] = checks();
+  assert.match(execFileSync("python3", [shape, out], { encoding: "utf8" }), /golf files ok/, "the port's ranked matches the recorder's");
+});
+
+test("F-1: the publish port takes 'ranked' from every hole that isn't skipped, even one whose field is too small", (t) => {
+  try { execFileSync("python3", ["--version"]); } catch { t.skip("no python3 here"); return; }
+  const [shape] = checks();
+  // Two scored holes without X's weight, and a live hole (field too small) where X has weight 3: the recorder ranks X
+  const rows = (wX) => P.slice(0, 6).map((a, i) => [a, 10 - i, 1, 2]).concat([[P[9], 1, 1, wX]]);
+  const holes = [
+    { id: "questions", name: "Daily Questions", status: "final", why: "", field: 6, rows: rows(0) },
+    { id: "race", name: "Producer Race", status: "final", why: "", field: 6, rows: rows(0) },
+    { id: "blockx", name: "Who Signs Block X", status: "live", why: "x", field: 1, rows: [[P[9], 5, 1, 3]] },
+  ];
+  const scored = holes.map((h) => {
+    if (h.status === "skipped") return { id: h.id, skipped: true, results: {} };
+    const s = G.scoreHole(h.rows.map(([a, score, sc, rk]) => ({ a, score, scored: !!sc, ranked: G.weightOf(rk) })), G.MIN_FIELD, false, G.MIN_FIELD_VHP);
+    return { id: h.id, skipped: s.skipped, results: s.results };
+  });
+  const rankedAny = new Set(); for (const h of holes) if (h.status !== "skipped") for (const r of h.rows) if (r[3]) rankedAny.add(r[0]);
+  assert.ok(rankedAny.has(P[9]));
+  const cards = G.cards(scored).map((c) => ({ a: c.a, ranked: rankedAny.has(c.a), free: !rankedAny.has(c.a), place: c.place, pts: c.pts, strokes: c.strokes, par: c.par, toPar: c.toPar, lost: c.lost, under: c.under, best: c.best, mulligan: c.mulligan, holes: c.holes.map((x) => [x.id, x.strokes, x.place, x.of]) }));
+  const d = tmp("golf-f1-");
+  write(d, "W003.json", { v: 1, week: W, start: START, end: END, final: false, practice: false, holes, cards, notFree: [], check: null });
+  assert.match(execFileSync("python3", [shape, d], { encoding: "utf8" }), /golf files ok/);
+});
+
+test("F-2: scores are stored with at most 4 decimals and names never split an emoji; the publish job refuses anything else clearly", async (t) => {
+  assert.equal(cleanScore(0.00001), 0);
+  assert.equal(cleanScore(1.23456789), 1.2346);
+  assert.equal(cleanScore(-1), null); assert.equal(cleanScore(NaN), null); assert.equal(cleanScore(Infinity), null); assert.equal(cleanScore("5"), null);
+  const golfName = "⛳".repeat(45);
+  assert.equal(Array.from(cleanName(golfName, "x")).length, 40);
+  assert.ok(!/[\uD800-\uDFFF]/.test(cleanName(golfName, "x").replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, "")), "no half emoji");
+  assert.equal(cleanName("a\ud83c", "fallback"), "fallback", "a lone surrogate is never written");
+  // A Block X board with a tiny float score: stored rounded, and the week publishes and can go final
+  const bx = P.slice(0, 8).map((a, i) => ({ a, place: i + 1, pts: i === 7 ? 0.00001 : 800 - 100 * i + 0.123456, correct: 1, picks: 1, days: 1, lastCorrect: 0, ranked: true }));
+  const out = tmp("golf-");
+  await settle(base({ now: END + 13 * H, out, raceDir: raceDir(), gamesDir: gamesDir({ last: true, final: true, rows: bx }) }));
+  const wf = readOut(out, "W003.json");
+  assert.equal(wf.final, true);
+  assert.ok(holeOf(out, "blockx").rows.every((r) => Math.round(r[1] * 10000) === r[1] * 10000));
+  try { execFileSync("python3", ["--version"]); } catch { t.skip("no python3 here"); return; }
+  const [shape, history] = checks();
+  assert.match(execFileSync("python3", [shape, out], { encoding: "utf8" }), /golf files ok/);
+  const bad = copyDir(out); const w = readOut(bad, "W003.json"); w.holes[0].rows[0][1] = 0.00001; write(bad, "W003.json", w);
+  assert.throws(() => execFileSync("python3", [shape, bad], { stdio: "pipe" }), /W003/, "a 5-decimal score is refused");
+  // A history check that meets a name it can't encode refuses with a message instead of crashing
+  const parent = tmp("golf-");
+  await run(base({ now: END, out: parent, raceDir: raceDir(), gamesDir: FINAL_GAMES() }));
+  const fin = tmp("golf-");
+  await run(base({ now: END + H, prev: parent, out: fin, raceDir: raceDir(), gamesDir: FINAL_GAMES() }));
+  const odd = copyDir(fin);
+  const raw = fs.readFileSync(path.join(odd, "W003.json"), "utf8").replace('"name":"Daily Questions"', '"name":"Daily \\ud83c"');
+  fs.writeFileSync(path.join(odd, "W003.json"), raw);
+  let msg = "";
+  try { execFileSync("python3", [history, odd, parent], { stdio: "pipe", env: { ...process.env, CHECK_NOW_MS: String(END + 3 * H) } }); } catch (e) { msg = String(e.stderr); }
+  assert.match(msg, /can't be written as text|isn't what the earlier run checked/);
+  assert.doesNotMatch(msg, /^UnicodeEncodeError/m, "a clear refusal, not a crash");
+});
+
+test("F-3: a game's results file that can't be read is said aloud and holds the week (or keeps a final hole, with a note)", async () => {
+  // Block X's board is over the size cap / not JSON: a problem line, and no final this run
+  const g = tmp("games-"); fs.mkdirSync(path.join(g, "blockx"), { recursive: true }); fs.writeFileSync(path.join(g, "blockx", "board.json"), "{not json");
+  const out = tmp("golf-");
+  const r = await settle(base({ now: END + 13 * H, out, raceDir: raceDir(), gamesDir: g }));
+  assert.match(r.problems.join("\n"), /blockx, week 3: games-data board.json can't be read as JSON/);
+  assert.equal(readOut(out, "W003.json").final, false);
+  // The Race board missing: said aloud too
+  const rd = raceDir(); fs.rmSync(path.join(rd, "board.json"));
+  const out2 = tmp("golf-");
+  const r2 = await run(base({ now: END + 13 * H, out: out2, raceDir: rd, gamesDir: FINAL_GAMES() }));
+  assert.match(r2.problems.join("\n"), /race, week 3: race-data board.json isn't there/);
+});
+
+test("I-1: a week whose results keep changing is reported from 48 hours after it ends", async () => {
+  const flip = (n) => gamesDir({ last: true, final: true, rows: P.slice(0, 8).map((a, i) => ({ a, place: i + 1, pts: (n % 2 ? 900 : 800) - 100 * i, correct: 1, picks: 1, days: 1, lastCorrect: 0, ranked: true })) });
+  let prev = tmp("golf-");
+  await run(base({ now: END + 46 * H, out: prev, raceDir: raceDir(), gamesDir: flip(0) }));
+  const quiet = await run(base({ now: END + 47 * H, prev, out: tmp("golf-"), raceDir: raceDir(), gamesDir: flip(1) }));
+  assert.ok(!quiet.problems.some((p) => /still read differently/.test(p)), "not before 48 hours");
+  const o = tmp("golf-");
+  await run(base({ now: END + 47 * H, prev, out: o, raceDir: raceDir(), gamesDir: flip(1) }));
+  const loud = await run(base({ now: END + 49 * H, prev: o, out: tmp("golf-"), raceDir: raceDir(), gamesDir: flip(2) }));
+  assert.match(loud.problems.join("\n"), /week 3: its results still read differently from one run to the next, 49 hours after the week/);
+});
+
+test("npm run golf -- status: plain lines from the published files, read-only", async () => {
+  assert.match(statusLines(null, new Map(), END)[0], /published nothing yet.*GOLF_ENABLED = true/);
+  const out = tmp("golf-");
+  await run(base({ now: END, out, raceDir: raceDir(), gamesDir: FINAL_GAMES() }));
+  const lines = statusLines(readOut(out, "index.json"), new Map([[3, readOut(out, "W003.json")]]), END + 10 * 60000).join("\n");
+  assert.match(lines, /Staked play from vault week 0/);
+  assert.match(lines, /Week 1 \(vault week 3\), staked: waiting for its second matching run/);
+  assert.match(lines, /hole race: final/);
+  assert.match(lines, /GOLF_HOLD_WEEKS = <week>/);
+  const src = fs.readFileSync(path.join(APP, "bot/games/golf.ts"), "utf8");
+  const body = src.slice(src.indexOf("async function status()"), src.indexOf("if (process.argv[1]"));
+  assert.doesNotMatch(body, /writeFile|signTransaction|\.send\(|Provider/, "status only reads");
 });

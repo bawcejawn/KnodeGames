@@ -100,7 +100,7 @@ test("the owner's example week: −1, 27 on par 28", () => {
   assert.equal(c.pts, 7 * 7 - 27);
   assert.equal(c.lost, 1); assert.equal(c.under, 3); assert.equal(c.best, 2);
   assert.equal(G.toParText(c.toPar), "−1");
-  assert.match(G.shareText(c, 2), /Week 3: −1 \(27 on par 28\) 🐦⚪🦅⚪⬛🟧🐦⚪$/);
+  assert.match(G.shareText(c, "Week 3"), /Week 3: −1 \(27 on par 28\) 🐦⚪🦅⚪⬛🟧🐦⚪$/);
 });
 
 test("the mulligan never drops a lost ball; a skipped hole doesn't count at all", () => {

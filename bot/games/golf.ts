@@ -62,9 +62,9 @@ const isAddr = (a: unknown): a is string => typeof a === "string" && G.isAddr(a)
 export type Row = { a: string; score: number; scored: boolean; ranked: boolean | number };   // number: whole VHP staked (staked weeks)
 /** stale: the game's files have moved past this week, so only standings kept from an earlier run can be used.
  *  atDeadline: what to do if the hole is still not final at the deadline ("skip", or "use" these standings). */
-/** failed: this run couldn't read it (a read problem: holds the week). missing: the game's file isn't there (a hole
- *  already final keeps its standings; any other hole just waits). */
-export type Read = { state: "final" | "live" | "none"; rows: Row[]; why?: string; stale?: boolean; atDeadline?: "skip" | "use"; failed?: boolean; missing?: boolean };
+/** failed: this run couldn't read it (a read problem: holds the week, or keeps a final hole as it was), with the
+ *  reason in problem (Repo Lens F-3: never silent). */
+export type Read = { state: "final" | "live" | "none"; rows: Row[]; why?: string; stale?: boolean; atDeadline?: "skip" | "use"; failed?: boolean; problem?: string };
 export type Source = { id: string; name: string; reader: string; live: boolean };
 type HoleRec = { id: string; name: string; status: "final" | "live" | "skipped"; why: string; field: number; rows: [string, number, 0 | 1, number][] };   // [player, score, scored, weight: 0/1, or whole VHP staked in staked weeks]
 type CardRec = { a: string; ranked: boolean; free: boolean; place: number; pts: number; strokes: number; par: number; toPar: number; lost: number; under: number; best: number; mulligan: string; holes: [string, number, number | null, number | null][] };
@@ -103,6 +103,16 @@ function readJson(dir: string | undefined, name: string): any {
   const f = path.join(dir, name);
   try { if (fs.lstatSync(f).isSymbolicLink() || fs.statSync(f).size > MAX_FILE) return null; return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return null; }
 }
+/** Why a game's file couldn't be used (Repo Lens F-3), or "" if it can be read. */
+function unreadable(dir: string | undefined, name: string): string {
+  if (!dir) return "its folder wasn't given to this run";
+  const f = path.join(dir, name);
+  let st: fs.Stats;
+  try { st = fs.lstatSync(f); } catch { return `${name} isn't there`; }
+  if (st.isSymbolicLink()) return `${name} is a link (not read)`;
+  if (st.size > MAX_FILE) return `${name} is over ${MAX_FILE / 1024 / 1024} MB (not read)`;
+  try { JSON.parse(fs.readFileSync(f, "utf8")); return ""; } catch { return `${name} can't be read as JSON`; }
+}
 const exists = (dir: string | undefined, name: string) => { if (!dir) return false; try { fs.lstatSync(path.join(dir, name)); return true; } catch { return false; } };
 const wName = (w: number) => `W${String(w).padStart(3, "0")}.json`;
 const MAINNET_KNODE_GAME = (() => { try { return JSON.parse(fs.readFileSync(new URL("../../game-data/deployment.json", import.meta.url), "utf8")).contract as string; } catch { return ""; } })();
@@ -113,7 +123,7 @@ export function sourcesFromGames(file: URL | string = new URL("../../games.json"
   let list: any[] = [];
   try { list = JSON.parse(fs.readFileSync(file, "utf8")).games; } catch { return []; }
   return (Array.isArray(list) ? list : []).filter((g) => g && typeof g.id === "string" && g.id !== "golf" && READERS[g.id])
-    .map((g) => ({ id: g.id, name: typeof g.name === "string" ? g.name.slice(0, 40) : g.id, reader: g.id, live: g.status === "live" }));
+    .map((g) => ({ id: g.id, name: cleanName(g.name, g.id), reader: g.id, live: g.status === "live" }));
 }
 
 // ── readers: one per game, each turning that game's own published results into hole rows ──
@@ -130,8 +140,16 @@ function movedOn(b: any, w: number): boolean {
   const shown = [b.week, b.lastWeek].filter((x: any) => x && Number.isInteger(x.week)).map((x: any) => x.week);
   return shown.length > 0 && Math.min(...shown) > w;
 }
-const ptsRows = (rows: any[], key = "pts"): Row[] => rows.slice(0, MAX_ROWS).filter((r) => r && isAddr(r.a) && typeof r[key] === "number" && isFinite(r[key]) && r[key] >= 0)
-  .map((r) => ({ a: r.a, score: r[key], scored: r[key] > 0, ranked: r.ranked === true }));
+/** A score as Golf stores it: finite, 0 to 1e12, rounded to 4 decimals. Repo Lens F-2: JS and Python then write it with
+ *  the same bytes (Python writes 1e-05 for 0.00001, JS 0.00001), so the week's fingerprint matches on both sides. */
+export const cleanScore = (x: unknown): number | null => (typeof x === "number" && isFinite(x) && x >= 0 && x <= 1e12 ? Math.round(x * 10000) / 10000 : null);
+/** A display name: at most 40 characters (code points, never half an emoji), no lone surrogates (F-2). */
+export const cleanName = (x: unknown, fallback: string): string => {
+  const s = typeof x === "string" ? Array.from(x).slice(0, 40).join("") : "";
+  return s && !/[\uD800-\uDFFF]/.test(s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, "")) ? s : fallback;
+};
+const ptsRows = (rows: any[], key = "pts"): Row[] => rows.slice(0, MAX_ROWS).filter((r) => r && isAddr(r.a) && cleanScore(r[key]) !== null)
+  .map((r) => { const score = cleanScore(r[key])!; return { a: r.a, score, scored: score > 0, ranked: r.ranked === true }; });
 const KEPT: Read = { state: "final", rows: [], why: "standings kept from an earlier run", stale: true };
 
 type Ctx = { now: number; raceDir?: string; gamesDir?: string; o: Opts; questions: (w: number) => Promise<Read> };
@@ -140,7 +158,7 @@ const READERS: Record<string, (src: Source, w: number, c: Ctx) => Promise<Read>>
 
   async race(_s, w, c) {
     const b = readJson(c.raceDir, "board.json");
-    if (!b) return { state: "live", rows: [], why: "waiting for the race results", missing: true };
+    if (!b) return { state: "live", rows: [], why: "couldn't read the race results this run", failed: true, problem: `race-data ${unreadable(c.raceDir, "board.json")}` };
     // Repo Lens G-3: the Race's own week is final only once its vault file is (its two-run check, its chain re-check
     // and the owner's RACE_HOLD_WEEKS). Golf waits for that file, even when the board has moved on.
     const rv = readJson(path.join(c.raceDir || "", "vault"), `W${w}.json`);
@@ -160,7 +178,7 @@ const READERS: Record<string, (src: Source, w: number, c: Ctx) => Promise<Read>>
 
   async blockx(_s, w, c) {
     const b = readJson(path.join(c.gamesDir || "", "blockx"), "board.json");
-    if (!b) return { state: "live", rows: [], why: "waiting for the Block X results", missing: true };
+    if (!b) return { state: "live", rows: [], why: "couldn't read the Block X results this run", failed: true, problem: `games-data ${unreadable(path.join(c.gamesDir || "", "blockx"), "board.json")}` };
     const v = boardView(b, w);
     if (!v) return movedOn(b, w) ? { ...KEPT } : { state: "live", rows: [], why: "waiting for the Block X results" };
     return { state: v.last && v.view.final === true ? "final" : "live", rows: ptsRows(v.view.rows) };
@@ -203,8 +221,8 @@ async function readQuestions(node: any, knodeGame: string, w: number): Promise<Q
 }
 /** Staked weeks: the whole VHP each player has staked in Block Golf for week w (vault v6 get_game_player: the stake
  *  that counts for that week; under 1 VHP = not staked). A failed read throws; it never quietly drops a player. */
-async function readGolfStakers(node: any, vault: string | null, who: string[], w: number): Promise<Map<string, number>> {
-  if (!who.length) return new Map();
+async function readGolfStakers(node: any, vault: string | null, who: string[], w: number): Promise<Stakes> {
+  if (!who.length) return { weights: new Map(), peaked: new Set() };
   if (!vault) throw new Error("no vault contract");
   const c = new Contract({ id: vault, abi: GAME_ABI(), provider: node });
   const f: any = c.functions;
@@ -346,7 +364,7 @@ export async function run(o: Opts) {
       else {
         const final = now >= M.weekStart(w + 1) && a.closed && a.questions > 0 && a.resolved >= a.questions;
         const counts = (x: QWeek["rows"][number]) => (x.counted ?? x.answered) >= 2 && x.pts >= 1;
-        r = { state: final ? "final" : "live", rows: a.rows.filter(counts).map((x) => ({ a: x.a, score: x.pts, scored: x.pts > 0, ranked: true })) };
+        r = { state: final ? "final" : "live", rows: a.rows.filter((x) => counts(x) && isAddr(x.a) && cleanScore(x.pts) !== null).map((x) => ({ a: x.a, score: cleanScore(x.pts)!, scored: x.pts > 0, ranked: true })) };
       }
     } catch (e) { problems.push(`question game, week ${w}: ${(e as Error).message}`); r = { state: "live", rows: [], why: "couldn't read the question game this run", failed: true }; }
     qCache.set(w, r);
@@ -389,9 +407,14 @@ export async function run(o: Opts) {
           problems.push(`${id}, week ${w}: ${(e as Error).message}`); troubled.add(w); rd = { state: "live", rows: [], why: "couldn't read its results this run" };
         }
       }
-      // A read that failed this run: a hole already final keeps its standings; any other hole holds the week.
-      if (rd.failed) { if (wasFinal) { problems.push(`${id}, week ${w}: couldn't read it again; its final standings are kept`); keep(); continue; } troubled.add(w); }
-      if (wasFinal && (rd.stale || rd.missing)) { keep(); continue; }
+      // A read that failed this run: said aloud (F-3); a hole already final keeps its standings; any other hole holds
+      // the week (no final this run; from 66 hours it no longer holds it).
+      if (rd.failed) {
+        if (rd.problem) problems.push(`${id}, week ${w}: ${rd.problem}`);
+        if (wasFinal) { problems.push(`${id}, week ${w}: couldn't read it again; its final standings are kept`); keep(); continue; }
+        troubled.add(w);
+      }
+      if (wasFinal && rd.stale) { keep(); continue; }
       if (wasFinal && rd.state !== "final") problems.push(`${id}, week ${w}: was final, but its game no longer shows the week as final: waiting`);
       if (wasFinal && rd.state === "final") {
         const norm = (xs: [string, number, number][]) => JSON.stringify(xs.slice().sort((x, y) => (x[0] < y[0] ? -1 : 1)));
@@ -419,6 +442,11 @@ export async function run(o: Opts) {
     let stakesFresh = R.practice;
     const notFree = new Set<string>(R.practice ? [] : (old && Array.isArray(old.notFree) ? old.notFree.filter(isAddr) : []));
     let stakers: Map<string, number> | null = null;
+    const lastWeight = new Map<string, number>();
+    for (const h of old?.holes ?? []) for (const r of Array.isArray(h?.rows) ? h.rows : []) {
+      const wt = G.weightOf(r[3]);
+      if (isAddr(r[0]) && wt > (lastWeight.get(r[0]) ?? 0)) lastWeight.set(r[0], wt);
+    }
     if (!R.practice) {
       const who = [...new Set(drafts.flatMap((d) => (d.keptFinal ? d.keptFinal.rows.map((r) => r[0]) : d.rows.map((r) => r.a))))].sort();
       try {
@@ -439,9 +467,9 @@ export async function run(o: Opts) {
           }
           continue;
         }
-        const was = old?.holes.find((h) => h && h.id === d.id);
-        const before = new Map((was?.rows ?? []).map((r) => [r[0], r[3]]));
-        d.rows = d.rows.map((r) => ({ ...r, ranked: stakers ? stakers.get(r.a) ?? 0 : G.weightOf(before.get(r.a)) }) as any);
+        // Stakes unreadable this run: each wallet keeps ONE weight on every hole, its largest from the last run
+        // (Repo Lens F-1), so a wallet is never staked on one hole and not on another.
+        d.rows = d.rows.map((r) => ({ ...r, ranked: stakers ? stakers.get(r.a) ?? 0 : lastWeight.get(r.a) ?? 0 }) as any);
       }
     }
     // C. Score each hole. Staked weeks: a hole's field needs MIN_FIELD_VHP of Block Golf stake among its scorers (a
@@ -494,6 +522,9 @@ export async function run(o: Opts) {
       ? `week ${w}: HELD (GOLF_HOLD_WEEKS isn't a list like 5 or 5,6): fix it or empty it`
       : `week ${w}: HELD by the owner (GOLF_HOLD_WEEKS); remove ${w} from it to let the week go final (the vault takes results until Thursday 00:00 UTC)`);
     const final = ready && !held && same && now - prevCheck!.at >= TWO_RUN_GAP_MS;
+    // Repo Lens I-1: a reading that keeps changing never goes final and would quietly roll over at the vault's
+    // Thursday deadline; from 48 hours after the week, every re-stamp is reported so the owner can step in.
+    if (ready && !held && prevCheck && !same && now >= end + 48 * HOUR) problems.push(`week ${w}: its results still read differently from one run to the next, ${Math.floor((now - end) / HOUR)} hours after the week (the vault takes results until Thursday 00:00 UTC): check the holes' games`);
     const check: Check | null = final || !ready ? null : same ? prevCheck : { sig, at: now };
     weeks.set(w, { v: 1, week: w, start, end, final, practice: R.practice, holes, cards, notFree: notFreeList, check });
   }
@@ -552,14 +583,50 @@ export async function run(o: Opts) {
   return { weeks, board, course, problems };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// ── npm run golf -- status: a read-only look at what Block Golf has published (for the owner and the admin page) ──
+const PUBLISHED = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/golf/";
+/** One line per week and per hole, in plain words, from the published index and week files. Reads only. */
+export function statusLines(idx: any, files: Map<number, any>, now: number): string[] {
+  const out: string[] = [];
+  if (!idx || idx.v !== 1) return ["Block Golf has published nothing yet. Turn it on: GitHub → Settings → Secrets and variables → Actions → Variables → GOLF_ENABLED = true, then Actions → \"Block Golf recorder\" → Run workflow."];
+  const label = (w: number) => (w >= 3 ? `Week ${w - 2}` : `the week of ${new Date(M.weekStart(w)).toUTCString().slice(5, 11)}`);
+  out.push(`Last published: ${idx.updated}. Course: ${Object.entries(idx.course || {}).map(([g, w]) => `${g} (from ${label(w as number)})`).join(", ") || "none yet"}.`);
+  out.push(idx.stakedFromWeek === null || idx.stakedFromWeek === undefined
+    ? "Every week is a PRACTICE week (no prizes): GOLF_STAKED_FROM_WEEK isn't set."
+    : `Staked play from vault week ${idx.stakedFromWeek} (${label(idx.stakedFromWeek)}); earlier weeks are practice.`);
+  for (const [w, f] of [...files].sort((x, y) => x[0] - y[0])) {
+    if (!f) { out.push(`${label(w)} (vault week ${w}): its file couldn't be read.`); continue; }
+    const state = f.final ? "FINAL" : f.check ? `waiting for its second matching run (first one ${new Date(f.check.at).toISOString().slice(0, 16)} UTC)` : now >= f.end ? "results being checked (review)" : "in play";
+    out.push(`${label(w)} (vault week ${w}), ${f.practice ? "practice" : "staked"}: ${state}; ${f.cards.length} scorecard(s).`);
+    for (const h of f.holes) out.push(`   hole ${h.id}: ${h.status}${h.why ? ` (${h.why})` : ""}; ${h.field} in the field`);
+  }
+  out.push("", "Switches (GitHub → Settings → Secrets and variables → Actions → Variables):",
+    "   GOLF_ENABLED = true                turns the hourly recorder on (false or deleted: off)",
+    "   GOLF_STAKED_FROM_WEEK = <week>     the first staked vault week; set it once, after game-apply 6; never change it",
+    "   GOLF_HOLD_WEEKS = <week>[,<week>]  holds those weeks from going final; delete it (or remove the week) to release");
+  return out;
+}
+async function status(): Promise<void> {
+  const get = async (f: string) => { const r = await fetch(PUBLISHED + f, { cache: "no-store" } as any); if (r.status === 404) return null; if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`); return r.json(); };
+  const idx = await get("index.json");
+  const files = new Map<number, any>();
+  const weeks: number[] = idx && Array.isArray(idx.weeks) ? idx.weeks.filter((w: any) => Number.isInteger(w)).slice(-2) : [];
+  for (const w of weeks) files.set(w, await get(wName(w)).catch(() => null));
+  for (const l of statusLines(idx, files, Date.now())) console.log(l);
+  const hold = parseHoldWeeks(E.GOLF_HOLD_WEEKS);
+  if (hold.raw) console.log(`(This PC's GOLF_HOLD_WEEKS is "${hold.raw}"; the recorder uses the GitHub variable.)`);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href && process.argv[2] === "status") {
+  status().catch((e) => { console.error(`Couldn't read Block Golf's published files: ${(e as Error).message}`); process.exit(1); });
+} else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const raw = (E.GOLF_STAKED_FROM_WEEK || "").trim();
   if (raw && !/^\d{1,4}$/.test(raw)) { console.error(`GOLF_STAKED_FROM_WEEK must be a week number, not "${raw}"`); process.exit(1); }
   const sf = raw ? Number(raw) : null;
   const RPC = E.RPC || "https://koinos.armana.io";
   const RPC_CHECK = E.RPC_CHECK && E.RPC_CHECK !== "off" && E.RPC_CHECK !== RPC ? E.RPC_CHECK : "";
   run({
-    prev: E.GOLF_PREV, out: E.GOLF_OUT, stakedFromWeek: sf, raceDir: E.RACE_DATA, gamesDir: E.GAMES_DATA,
+    prev: E.GOLF_PREV, out: E.GOLF_OUT, stakedFromWeek: sf, raceDir: E.RACE_DATA, gamesDir: E.GAMES_DATA, holdWeeks: E.GOLF_HOLD_WEEKS,
     p: new Provider([RPC]), check: RPC_CHECK ? new Provider([RPC_CHECK]) : null,
   }).catch((e) => { console.error(e); process.exit(1); });
 }

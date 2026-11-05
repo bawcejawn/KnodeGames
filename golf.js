@@ -25,6 +25,8 @@
   const say = (t) => { $("status").textContent = t; $("status").hidden = !t; };
   async function fetchJson(url) { const r = await fetch(url, { cache: "no-cache" }); if (!r.ok) throw new Error(String(r.status)); return r.json(); }
   const wName = (w) => `W${String(w).padStart(3, "0")}.json`;
+  // What players call a week (D-063): weeks.js, "Week 1" = the week of Mon 9 Nov (vault week 3).
+  const weekLabel = (w) => (window.KWeeks && typeof window.KWeeks.label === "function" ? window.KWeeks.label(w) : `Week ${w}`);
 
   let games = new Map();          // id → { name, href }
   let weeks = { this: null, last: null };
@@ -72,7 +74,8 @@
     const { card, whose } = pick(wf, who);
     const live = wf.holes.filter((h) => h.status !== "skipped");
     const counted = live.length >= 2 ? live.length - 1 : 0;
-    $("card-sub").textContent = `Week ${wf.week + 1}, from ${day(wf.start)} (UTC) · ${wf.final ? "final" : "in play"} · ${live.length} holes, par ${G.PAR * counted} after the mulligan`
+    const state = wf.final ? "final" : Date.now() >= wf.end ? "results being checked" : "in play";
+    $("card-sub").textContent = `${weekLabel(wf.week)}, from ${day(wf.start)} (UTC) · ${state}${wf.practice ? " · practice (no prizes)" : ""} · ${live.length} holes, par ${G.PAR * counted} after the mulligan`
       + (whose === "leader" ? " · showing the leader's card" : "");
     const byHole = new Map(card ? card.holes.map((x) => [x[0], x]) : []);
     let n = 0;
@@ -158,7 +161,7 @@
   $("share").addEventListener("click", async () => {
     const wf = weeks[showing], card = wf && wf.cards.find((c) => c.a === me());
     if (!card) return;
-    const text = G.shareText(card, wf.week) + "\nhttps://knodegames.com/golf.html";
+    const text = G.shareText(card, weekLabel(wf.week)) + "\nhttps://knodegames.com/golf.html";
     const pre = $("share-text");
     pre.textContent = text; pre.hidden = false;
     try { await navigator.clipboard.writeText(text); $("share-note").textContent = "Copied. Paste it anywhere."; }
@@ -180,9 +183,11 @@
       weeks.this = ok[ok.length - 1] || null;
       weeks.last = ok.length > 1 ? ok[ok.length - 2] : null;
       board = await fetchJson(DATA + "board.json").catch(() => null);
+      // The practice note shows only while the week on screen is a practice week.
+      $("practice").hidden = !(weeks.this && weeks.this.practice);
       say(weeks.this ? "" : "No Block Golf week yet.");
     } catch {
-      say("Block Golf opens with Who Signs Block X. Until then, play the games: every one of them will be a hole.");
+      say("The first Block Golf scorecards appear within an hour of the course opening. Until then, play the games: every one of them is a hole.");
     }
     drawAll();
   }

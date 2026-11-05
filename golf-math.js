@@ -142,11 +142,12 @@
 
   /** "−3", "E", "+5". */
   const toParText = (n) => (n === 0 ? "E" : n < 0 ? `−${-n}` : `+${n}`);
-  /** The share line: "⛳ Block Golf · Week 3 · −1 (27 on par 28) 🐦⚪🦅⚪⬛🟧🐦⚪". */
-  function shareText(c, week) {
+  /** The share line: "⛳ Knode Games · Block Golf · Week 1: −1 (27 on par 28) 🐦⚪🦅⚪⬛🟧🐦⚪". weekLabel: what players call
+   *  the week (weeks.js KWeeks.label, D-063: vault week 3 is "Week 1"). */
+  function shareText(c, weekLabel) {
     if (!c) return "";
     const icons = c.holes.map((x) => ICON[x.strokes] || "⚪").join("");
-    return `⛳ Knode Games · Block Golf · Week ${week + 1}: ${toParText(c.toPar)} (${c.strokes} on par ${c.par}) ${icons}`;
+    return `⛳ Knode Games · Block Golf · ${weekLabel}: ${toParText(c.toPar)} (${c.strokes} on par ${c.par}) ${icons}`;
   }
 
   /** The course for a week from games.json's live games and the weeks each joined (index.json "course"): a game that

@@ -19,7 +19,7 @@ test("the same Content-Security-Policy as the other game pages; no inline script
 
 test("scripts load in order: wallet first, names and the stake panel, the shared rules, the board, the page, analytics", () => {
   const srcs = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]).filter((s) => !s.startsWith("https:"));
-  assert.deepEqual(srcs, ["guest.js", "wallet.js", "header-wallet.js", "nav.js", "names.js", "stake-panel.js", "golf-math.js", "board.js", "golf.js", "vendor/posthog-1.438.13.js", "analytics.js"]);
+  assert.deepEqual(srcs, ["guest.js", "wallet.js", "header-wallet.js", "nav.js", "names.js", "stake-panel.js", "weeks.js", "golf-math.js", "board.js", "golf.js", "vendor/posthog-1.438.13.js", "analytics.js"]);
   assert.match(html, /<link rel="stylesheet" href="board\.css">\s*<link rel="stylesheet" href="golf\.css">/);
 });
 
@@ -55,9 +55,12 @@ test("the page's stroke key matches the shared rules", () => {
   assert.equal(G.MIN_FIELD, 5);
 });
 
-test("games.json: Block Golf has a leaderboard on games-data, and stays 'soon' until the owner turns it on", () => {
+test("games.json: Block Golf is live, with its page and its leaderboard on games-data; the menus link it", () => {
   const g = JSON.parse(read("games.json")).games.find((x) => x.id === "golf");
-  assert.equal(g.status, "soon");
+  assert.equal(g.status, "live");
+  assert.equal(g.href, "golf.html");
+  assert.ok(g.line.length <= 200);
+  for (const p of ["golf.html", "blockx.html", "index.html", "games.html"]) assert.match(read(p), /href="golf\.html"/, `${p} links Block Golf`);
   assert.equal(g.board.data, "games-data/golf/board.json");
   assert.deepEqual(g.board.columns.map((c) => c.key), ["pts", "topar", "holes", "lost"]);
 });
@@ -71,4 +74,18 @@ test("standards every game page meets: nicknames (D-078), stake badge and panel 
   assert.match(html, /<main class="gf">\s*<div id="stake-badge" hidden><\/div>/, "badge at the top of <main>");
   assert.match(html, /Sunday is review day: results are checked and paid from Monday\./);
   assert.doesNotMatch(html + js, /bawcejawn\.github\.io\/Knode|\/Knode\/|final 12 hours/, "no old repo address or 12-hour final");
+});
+
+test("week labels: Golf names weeks as players see them (D-063: vault week 3 is Week 1)", () => {
+  assert.doesNotMatch(js, /wf\.week \+ 1/, "never vault week + 1");
+  assert.match(js, /window\.KWeeks\.label\(w\)/);
+  assert.match(js, /G\.shareText\(card, weekLabel\(wf\.week\)\)/);
+  const box = { window: {} }; box.globalThis = box.window;
+  new Function("window", "globalThis", fs.readFileSync(`${APP}/weeks.js`, "utf8"))(box.window, box.window);
+  assert.equal(box.window.KWeeks.label(3), "Week 1");
+});
+
+test("npm run golf exists (golf.yml runs it every hour)", () => {
+  assert.equal(JSON.parse(read("package.json")).scripts.golf, "tsx bot/games/golf.ts");
+  assert.match(read(".github/workflows/golf.yml"), /run: npm run golf\n/);
 });

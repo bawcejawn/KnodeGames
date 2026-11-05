@@ -129,13 +129,19 @@ jobs:
           isaddr = lambda x: type(x) is str and addr.fullmatch(x) is not None
           nat = lambda x: type(x) is int and 0 <= x < 10**16
           num = lambda x: type(x) in (int, float) and x == x and abs(x) < 1e16
+          # A hole score as the recorder writes it (Repo Lens F-2): 0 to 1e12, at most 4 decimals (so it is written with
+          # the same bytes in JS and here, and the week's fingerprint matches).
+          score_ok = lambda x: type(x) in (int, float) and x == x and 0 <= x <= 1e12 and round(x * 10000) == x * 10000
+          def text_ok(t):
+              try: t.encode("utf-8"); return True
+              except UnicodeEncodeError: return False
           gid = re.compile(r"[a-z0-9-]{1,24}")
           isid = lambda x: type(x) is str and gid.fullmatch(x) is not None
           small = lambda x: type(x) is int and -10**6 < x < 10**6
           def hole_ok(h):
               if type(h) is not dict or set(h) != {"id", "name", "status", "why", "field", "rows"}: return False
-              if not (isid(h["id"]) and type(h["name"]) is str and len(h["name"]) <= 40 and h["status"] in ("final", "live", "skipped") and type(h["why"]) is str and len(h["why"]) <= 200 and nat(h["field"])): return False
-              return type(h["rows"]) is list and len(h["rows"]) <= 100000 and all(type(r) is list and len(r) == 4 and isaddr(r[0]) and num(r[1]) and r[2] in (0, 1) and type(r[3]) is int and 0 <= r[3] <= 10**9 for r in h["rows"])
+              if not (isid(h["id"]) and type(h["name"]) is str and text_ok(h["name"]) and len(h["name"]) <= 40 and h["status"] in ("final", "live", "skipped") and type(h["why"]) is str and len(h["why"]) <= 200 and nat(h["field"])): return False
+              return type(h["rows"]) is list and len(h["rows"]) <= 100000 and all(type(r) is list and len(r) == 4 and isaddr(r[0]) and score_ok(r[1]) and r[2] in (0, 1) and type(r[3]) is int and 0 <= r[3] <= 10**9 for r in h["rows"])
           def card_ok(c, ids):
               keys = {"a", "ranked", "free", "place", "pts", "strokes", "par", "toPar", "lost", "under", "best", "mulligan", "holes"}
               if type(c) is not dict or set(c) != keys or not isaddr(c["a"]) or type(c["ranked"]) is not bool or type(c["free"]) is not bool: return False
@@ -184,6 +190,10 @@ jobs:
           def recompute(j):
               practice = j["practice"] is True
               live, ranked_any = [], set()
+              # Staked: weight on any hole that isn't skipped, as the recorder's rankedAny (Repo Lens F-1).
+              if not practice:
+                  for h in j["holes"]:
+                      if h["status"] != "skipped": ranked_any.update(r[0] for r in h["rows"] if r[3])
               for h in j["holes"]:
                   if h["status"] == "skipped":
                       continue
@@ -193,7 +203,6 @@ jobs:
                       assert h["status"] != "final", h["id"] + ": a final hole whose field is too small must be skipped"
                       continue
                   live.append((h["id"], res))
-                  if not practice: ranked_any.update(r[0] for r in h["rows"] if r[3])
               if len(live) < 2: return []
               notfree = set(j["notFree"])
               out = []
@@ -319,7 +328,9 @@ jobs:
               if ow is not None and ow.get("final") is True: continue
               c = ow.get("check") if ow else None
               assert type(c) is dict and type(c.get("at")) is int and c["at"] <= NOW - 3600000, f + ": final without an earlier run's check an hour or more ago"
-              sig = hashlib.sha256(json.dumps({"holes": nw["holes"], "cards": nw["cards"], "notFree": nw["notFree"]}, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+              try: raw = json.dumps({"holes": nw["holes"], "cards": nw["cards"], "notFree": nw["notFree"]}, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+              except UnicodeEncodeError: raise AssertionError(f + ": a name in it can't be written as text (half an emoji?): not published") from None
+              sig = hashlib.sha256(raw).hexdigest()
               assert c.get("sig") == sig, f + ": what is final isn't what the earlier run checked"
           if os.path.exists(os.path.join(old, "index.json")):
               oi, ni = load(old, "index.json"), load(new, "index.json")

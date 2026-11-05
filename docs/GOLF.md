@@ -4,7 +4,8 @@ Block Golf is a golf course made of every other Knode Games game. Each live game
 that game's weekly leaderboard sets their strokes. There is nothing to pick, so Block Golf has **no contract, no picks and
 costs players no Mana**. It only reads the results the other games already publish.
 
-Rules: `golf-math.js` (the page and the recorder both run it). Decisions: D-056 (rules), D-081 / D-082 (Free play board,
+Rules: `golf-math.js` (the page and the recorder both run it). Week names on the page follow `weeks.js` (D-063: vault
+week 3, from Mon 9 Nov, is "Week 1"). Decisions: D-056 (rules), D-081 / D-082 (Free play board,
 prize switch), D-125 / D-129 (weekly rhythm), D-138 (launch order). Game file: `.ai/games/BlockGolf.md`.
 
 ## The pieces
@@ -30,7 +31,7 @@ What each hole waits for (a hole is final only when its game's own week is final
 | Hole | Read from | Final when |
 |---|---|---|
 | Daily Questions | the game contract, on two nodes that must agree | the week is closed and every question resolved. A wallet counts only with at least 2 counted answers (resolved, not voided) and at least 1 point, Daily Questions' own entry rule (Repo Lens G-7). |
-| Producer Race | `race-data/board.json` and `race-data/vault/W<w>.json` | every race is final **and** the Race's own vault file for the week is final (its two-run check, chain re-check and `RACE_HOLD_WEEKS`; Repo Lens G-3). |
+| Producer Race | `race-data/board.json` and `race-data/vault/W<w>.json` | every race is final **and** the Race's own vault file for the week is final (its two-run check, chain re-check and `RACE_HOLD_WEEKS`; Repo Lens G-3). A Race week you hold past 60 hours makes Golf skip the Race hole for everyone that week (Repo Lens I-2). |
 | Who Signs Block X | `games-data/blockx/board.json` | its `lastWeek.final` (set after Block X's own two-run check and week-end re-read). |
 
 No contract, vault or sponsor change is needed to add a hole. A new game's own build adds its reader and a test.
@@ -49,6 +50,10 @@ No contract, vault or sponsor change is needed to add a hole. A new game's own b
   only when this run can't read it (a read error, a missing file, or a board that has moved past the week), so a later
   bad read never undoes it; a fresh reading that differs replaces it and restarts the check, and a game that no longer
   shows the week as final makes its hole wait.
+- **A game's file that can't be read** (missing, not JSON, a link, over 20 MB) is reported on the run and holds the
+  week (Repo Lens F-3); a hole already final keeps its standings, with a note. A week whose results keep changing from
+  run to run is reported every hour from 48 hours after it ends (I-1), since it would otherwise roll over at Thursday's
+  deadline.
 - **The owner's hold:** the repository variable `GOLF_HOLD_WEEKS` (`5`, or `5,6`) keeps those weeks from going final,
   so no vault file is written and the vault bot waits. Remove the week to let it go final (the vault takes results
   until Thursday 00:00 UTC; after that the week rolls over). A value that isn't a plain list (`W5`, `5 6`) holds every
@@ -78,25 +83,34 @@ The publish job runs no repository code; its checks are inline in `golf.yml` and
 
 ## Turn on practice scorecards
 
-Practice weeks are free, pay nothing and are Block Golf's trial on mainnet (no testnet run, owner 28 Oct).
+Practice weeks are free, pay nothing and are Block Golf's trial on mainnet (no testnet run, owner 28 Oct). Golf is
+already listed as live in `games.json` and the menus, so the page and its Leaders tab appear as soon as the PR merges.
 
-1. The owner merges the Block Golf PR.
-2. In `games.json`, change Block Golf's line to `"status": "live", "href": "golf.html"`; in `tools/site-nav.mjs` add
-   `["Block Golf", "golf.html"]` to the Games menu and the Play group of the More sheet; run the nav tool and the site
-   tests (a small PR):
+1. The owner merges both Block Golf PRs (`golf-v2`, then `golf-launch`; the second adds the `npm run golf` script the
+   hourly recorder runs, so turn the recorder on only after it).
+2. GitHub → Settings → Secrets and variables → Actions → Variables → New variable: `GOLF_ENABLED` = `true`.
+3. GitHub → Actions → "Block Golf recorder" → Run workflow. It should finish green.
+4. Check from `C:\kprediction` (read-only):
 
    ```powershell
    cd C:\kprediction
    git branch --show-current
-   node tools/site-nav.mjs
-   node --test tests/audit/site.*.test.mjs
+   git pull
+   npm run golf -- status
    ```
 
-3. GitHub → Settings → Secrets and variables → Actions → Variables → New variable: `GOLF_ENABLED` = `true`.
-4. GitHub → Actions → "Block Golf recorder" → Run workflow. It should finish green. Then open
-   `https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/golf/index.json`: it lists the course.
+   It lists the course, each week's state (in play / results being checked / waiting for its second matching run /
+   FINAL), each hole and why it is waiting, and the three switches below.
 
-The first run puts every game that is already live on the course straight away.
+The first run puts every game that is already live on the course straight away (this week is a practice week).
+
+## The switches (GitHub repository variables)
+
+| Variable | Value | What it does | When |
+|---|---|---|---|
+| `GOLF_ENABLED` | `true` | turns the hourly recorder on (`false` or deleted: off; the page keeps the last published files) | once, after the merge |
+| `GOLF_STAKED_FROM_WEEK` | a vault week, e.g. `3` | the first staked week; earlier weeks are practice | once, **after** `game-apply 6` succeeds and **before** that week's first run (Monday 00:57 UTC = Sunday 4:57 PM PST); never change it afterwards (the publish job refuses a change) |
+| `GOLF_HOLD_WEEKS` | `5` or `5,6` | holds those weeks from going final (no vault file) | any time you want to look at a week before it pays; delete it, or remove the week, to release it (the vault takes results until Thursday 00:00 UTC) |
 
 ## Staked Block Golf
 

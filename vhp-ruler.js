@@ -47,10 +47,14 @@
   const VHP_CONTRACT = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq";   // mainnet VHP
   const DELAY = 20, ACTIVE = 7200, HIGH = 1200, AVG = 28800, FORM = 403200, HISTORY = 28800, SEED_AFTER = 20;
   const M = 1000000n, MIN_K = 10n * M, FORM_GATE = 800000n;
-  const RULE_VERSION = 3, OWN_RULES = ["spot", "high1h", "avg24h"], POOL_RULES = ["min", "twa"];
+  const RULE_VERSION = 3, OWN_RULES = ["spot", "high1h", "avg24h"], POOL_RULES = ["min"];
   // v2.1 (VHP_RULER.md §16, R-RULER-2): a producer is "steady" when each of its last 14 daily rates is within ±0.15 of its
-  // 14-day rate (D-120); in the race, a steady producer's credited blocks stop at expected × (1 + STEER_BAND)
-  const STEADY_BAND = 150000n, STEER_BAND = 150000n;
+  // 14-day rate (D-120). Owner, 5 Nov: a producer that throttles on purpose stays in the games and "should not have to be
+  // sidelined unless they actually break the variance threshold": a steady producer passes the form gate whatever its
+  // level, and like everyone it is expected at its full size (Repo Lens #B-9 B9-2: any expectation lowered to a producer's
+  // own throttling can be beaten on purpose by signing in full, so no producer's expected blocks follow its rate).
+  // Fix B's "twa" pool rule is removed (Repo Lens #B-9 B9-1: no change after a withdrawal, over-expects after a deposit).
+  const STEADY_BAND = 150000n;
   const PCT_SCALE = 1n << 256n;   // the Poisson terms' fixed-point scale (pct)
 
   // ── sha256 (pure, for the card time; tested against node:crypto) ──
@@ -159,7 +163,39 @@
       q = nx;
     }
     const mid0 = 2n * below + qn, mid1 = 2n * below + 2n * qn + qn1;   // twice mid(n) and mid(n + 1), × total
-    return ((mid0 * (M - f) + mid1 * f) * M) / (2n * total * M);
+    const r = ((mid0 * (M - f) + mid1 * f) * M) / (2n * total * M);
+    // Repo Lens #B-9 B9-3: the tail past q(n + 1) floors to 0 on the 2^256 scale; the exact value is below 1 unless λ = 0
+    return lam > 0n && r >= M ? M - 1n : r;
+  }
+  /** A′ (field percentile): the mid-p percentile of credited blocks x among the field's own blocks in the race:
+   *  X ~ Binomial(n, a ÷ b), n = the blocks the field signed, a = the producer's expected blocks, b = the field's
+   *  (both millionths). A jump that moves the whole network (a big producer stops, a mint) moves no one's percentile.
+   *  Same arithmetic as pct: terms q(i+1) = floor(q(i)·(n − i)·a ÷ ((i + 1)·(b − a))) from q(0) = 2^256, a ratio of
+   *  sums; a fractional x moves in a straight line between mid(k) and mid(k + 1); below 1 unless certain. */
+  function fpct(n, a, b, x) {
+    n = big(n); a = big(a); b = big(b); x = big(x);
+    if (n < 0n || a < 0n || b < a || x < 0n) throw new Error("fpct needs n ≥ 0 and 0 ≤ a ≤ b, x ≥ 0");
+    const k = x / M, f = x % M;
+    const midAt = (j) => {   // twice mid(j) × total, and the total, for the degenerate shares
+      if (a === 0n) return j > 0n ? [2n, 1n] : [1n, 1n];   // X = 0 always
+      if (a === b || b === 0n) return j < n ? [0n, 1n] : j === n ? [1n, 1n] : [2n, 1n];   // X = n always
+      return null;
+    };
+    if (midAt(k)) {
+      const [m0, t] = midAt(k), [m1] = midAt(k + 1n);
+      const r = ((m0 * (M - f) + m1 * f) * M) / (2n * t * M);
+      return r;
+    }
+    let q = PCT_SCALE, total = 0n, below = 0n, qk = 0n, qk1 = 0n;
+    for (let i = 0n; i <= n; i++) {
+      if (i < k) below += q; else if (i === k) qk = q; else if (i === k + 1n) qk1 = q;
+      total += q;
+      q = (q * (n - i) * a) / ((i + 1n) * (b - a));
+      if (q === 0n && i > k) break;   // past the peak: every later term is 0 too
+    }
+    const mid0 = 2n * below + qk, mid1 = 2n * below + 2n * qk + qk1;
+    const r = ((mid0 * (M - f) + mid1 * f) * M) / (2n * total * M);
+    return r >= M ? M - 1n : r;
   }
   const lowerBound = (a, x) => { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } return lo; };
   const upperBound = (a, x) => { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= x) lo = m + 1; else hi = m; } return lo; };
@@ -363,11 +399,11 @@
     const T = cardTime(seedBlockId, opts.game, opts.round, w.W0, w.W1);
     if (T - AVG < L.from + DELAY) throw new Error("not enough history before the card time (24 h of data are needed)");
     const pooled = new Set(opts.pooled || []), c = big(opts.c ?? 0n), paying = !!opts.paying;
-    // Fix B (§16) is two settings: the entry bar minK (whole expected blocks; 10 as approved, 15 / 20 / 30 to test) and
-    // the pool rule ("min": min(own, eff) per block, §3.2; "twa": the time-weighted average eff over the scoring window)
+    // the entry bar minK (whole expected blocks; 10 as approved) and the pool rule ("min": min(own, eff) per block, §3.2;
+    // the only rule since Repo Lens #B-9 B9-1; the setting stays so every card says which rule it used)
     const minKBlocks = opts.minK ?? 10, poolRule = opts.poolRule ?? "min";
     if (!Number.isSafeInteger(minKBlocks) || minKBlocks < 1 || minKBlocks > 100000) throw new Error("minK must be a whole number of blocks from 1");
-    if (!POOL_RULES.includes(poolRule)) throw new Error("poolRule must be min or twa");
+    if (!POOL_RULES.includes(poolRule)) throw new Error("poolRule must be min");
     const minK = BigInt(minKBlocks) * M;
     // Repo Lens #E-12 L-1: a paying card reads the full 14-day form look-back, so its bytes never depend on where the
     // loaded data starts (T − from ≥ 403,200 + 7,200, the network total's own warm-up)
@@ -378,10 +414,10 @@
     const producers = L.active(T).map((a) => {
       const o = own(L, a, T, ownRule), av = avg(L, a, T), f = formOf(L, a, T), k = kOf(blocks, o, tot);
       const { isNew, history } = newcomer(L, a, T), { rate, steady } = rateOf(L, a, T, f);
-      // D-120: the entry bar reads the blocks it is really expected to sign (k × rate); a steady producer is gated on its
-      // form falling below 0.80 × its own rate (always met while it stays steady), others on 0.80 as before
-      const kr = (k * rate) / M, gate = steady ? (FORM_GATE * rate) / M : FORM_GATE;
-      return { a, own: o, avg: av, k, form: f.form, rate, entry: kr >= minK && f.form >= gate && history, pooled: pooled.has(a), isNew, quality: "ok" };
+      // D-120 as the owner ruled (5 Nov): a steady producer (every daily rate within ±0.15 of its 14-day rate) plays at its
+      // full size whatever its level; anyone else needs form ≥ 0.80. Out is never for good: it re-enters once steady or
+      // back above 0.80. rate is shown on the card (its steady 14-day rate, or 1) and changes no number
+      return { a, own: o, avg: av, k, form: f.form, rate, entry: k >= minK && (steady || f.form >= FORM_GATE) && history, pooled: pooled.has(a), isNew, quality: "ok" };
     }).sort((x, y) => (x.own > y.own ? -1 : x.own < y.own ? 1 : x.a < y.a ? -1 : 1));
     // quality, for the whole card: every producer's numbers feed everyone's total and form (Repo Lens #E-12 L-2), so a bad
     // range for any active producer in the look-back flags every producer. On a paying card, a rebuilt or unverified
@@ -396,9 +432,9 @@
     };
   }
 
-  /** scoreCard: once S1 is in the data, fill expected, signed, credited and pct for every producer (millionths).
-   *  expected = k × rate (D-120), or for a pooled producer the pool rule's sum × rate; a steady producer's credited
-   *  blocks stop at expected × (1 + STEER_BAND) (the steering cap, §16); pct = the luck percentile (Fix A). */
+  /** scoreCard: once S1 is in the data, fill expected, signed, credited, pct and fpct for every producer (millionths).
+   *  expected = k, or for a pooled producer Σ min(own, eff)/total per block (§3.2); pct = the luck percentile (Fix A);
+   *  fpct = the field percentile (A′) for producers in the field (entry), null for the others. */
   function scoreCard(L, card) {
     const { S0, S1 } = card.window, tot = big(card.total);
     if (card.paying && pendingIn(L, S0 - EARLY, S1)) throw new Error(notYet(L, S0 - EARLY, S1));
@@ -407,23 +443,24 @@
       const o = big(p.own);
       let credited = 0n;
       for (const b of L.signedBlocks(p.a, S0, S1)) credited += creditOf(o, L.eff(p.a, b));
-      const rate = big(p.rate);
       let expected = big(p.k);
-      if (p.pooled) {   // §3.2 "min": min(own, eff at each block); Fix B "twa": eff at each block; each block rounded down
+      if (p.pooled) {   // §3.2: min(own, eff at each block), each block rounded down
         expected = 0n;
         for (let H = S0; H <= S1;) {
           const e = L.eff(p.a, H); let H2 = H;
           while (H2 + 1 <= S1 && L.eff(p.a, H2 + 1) === e) H2++;   // a run of equal eff
-          const m = card.poolRule === "twa" || e < o ? e : o;
+          const m = e < o ? e : o;
           expected += BigInt(H2 - H + 1) * (tot > 0n ? (m * M) / tot : 0n);
           H = H2 + 1;
         }
       }
-      expected = (expected * rate) / M;
-      if (rate < M) { const cap = (expected * (M + STEER_BAND)) / M; if (credited > cap) credited = cap; }
       const quality = flagged ? "flagged" : "ok";
       return { ...p, quality, expected, signed: L.signedIn(p.a, S0, S1), credited, pct: pct(expected, credited) };
     });
+    // A′: the field is the producers with entry; n = the blocks they signed in [S0, S1]; b = their expected blocks
+    let n = 0n, b = 0n;
+    for (const p of producers) if (p.entry) { n += BigInt(p.signed); b += p.expected; }
+    for (const p of producers) p.fpct = p.entry ? fpct(n, p.expected, b, p.credited) : null;
     return { ...card, producers };
   }
 
@@ -443,7 +480,7 @@
     if (!w || typeof w !== "object" || Array.isArray(w) || Object.keys(w).sort().join() !== [...WKEYS].sort().join()) throw new Error(`window must have exactly: ${WKEYS.join(", ")}`);
     if (!(typeof g.c === "bigint" ? g.c >= 0n : typeof g.c === "number" ? Number.isSafeInteger(g.c) && g.c >= 0 : typeof g.c === "string" && /^[0-9]{1,30}$/.test(g.c))) throw new Error("c must be a whole number of millionths");
     if (!Number.isSafeInteger(g.minK) || g.minK < 1 || g.minK > 100000) throw new Error("minK must be a whole number of blocks from 1");
-    if (!POOL_RULES.includes(g.poolRule)) throw new Error("poolRule must be min or twa");
+    if (!POOL_RULES.includes(g.poolRule)) throw new Error("poolRule must be min");
     if (!OWN_RULES.includes(g.ownRule)) throw new Error("ownRule must be spot, high1h or avg24h");
     if (typeof g.paying !== "boolean") throw new Error("paying must be true or false");
     if (!Array.isArray(g.pooled) || !g.pooled.every((a) => typeof a === "string")) throw new Error("pooled must be a list of addresses");
@@ -466,6 +503,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, STEER_BAND,
-    sha256, hex, dec, cardTime, isqrt, trim, pct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND,
+    sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

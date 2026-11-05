@@ -10,7 +10,7 @@ import { R, PY, addr, toJson } from "./vhp-ruler.fixture.mjs";
 const M = 1000000n, dir = fs.mkdtempSync(path.join(os.tmpdir(), "vhp-v21-"));
 const py = (code, data) => { const f = path.join(dir, `in${Math.random().toString(36).slice(2)}.json`); fs.writeFileSync(f, toJson(data)); return PY(`j = json.load(open(${JSON.stringify(f)}))\n${code}`); };
 
-// ── Fix A: pct ──
+// ── Fix A: pct (and A′'s fpct, further down) ──
 const floatMidP = (lam, x) => { let p = Math.exp(-lam), c = 0; for (let i = 0; i < x; i++) { c += p; p *= lam / (i + 1); } return c + p / 2; };
 
 test("pct: the mid-p Poisson percentile, exact, and the same in Python (a fixed test vector)", () => {
@@ -77,7 +77,7 @@ test("D-120: a steady producer's rate is its 14-day signed ÷ expected (capped a
   assert.ok(by[ps[3]].rate > 750000n && by[ps[3]].rate < 850000n, `ps[3] rate ${by[ps[3]].rate}`);
   assert.ok(by[ps[4]].rate > 620000n && by[ps[4]].rate < 720000n, `ps[4] rate ${by[ps[4]].rate}`);
   assert.equal(by[ps[0]].rate, M, "signing above its share: capped at 1");
-  // a steady 0.67 producer passes its own gate (0.80 × its rate), so it plays; the old 0.80 gate would bench it
+  // a steady 0.67 producer plays (owner, 5 Nov: steady producers stay in); the 0.80 gate alone would bench it
   assert.equal(by[ps[4]].entry, true);
   assert.ok(by[ps[4]].form < 800000n);
   assert.equal(pyCard(game), R.cardJson(card) + R.cardJson(R.scoreCard(L, card)), "Python: the same bytes");
@@ -102,41 +102,34 @@ test("D-120: a producer whose daily rate swings by more than 0.15 isn't steady: 
   assert.ok(moved > 0);
 });
 
-test("steering cap: a steady producer's credited blocks stop at expected × 1.15; others are never capped", () => {
+test("owner, 5 Nov: no producer's expected blocks follow its rate; nothing is capped; every row has pct", () => {
   const card = R.makeCard(L, game), s = R.scoreCard(L, card);
   for (const p of s.producers) {
-    assert.equal(p.expected, (p.k * p.rate) / M);
+    assert.equal(p.expected, p.k);
     let raw = 0n; for (const b of L.signedBlocks(p.a, win.S0, win.S1)) raw += R.creditOf(p.own, L.eff(p.a, b));
-    if (p.rate < M) { const cap = (p.expected * (M + R.STEER_BAND)) / M; assert.equal(p.credited, raw < cap ? raw : cap); }
-    else assert.equal(p.credited, raw);
+    assert.equal(p.credited, raw);
     assert.equal(p.pct, R.pct(p.expected, p.credited));
   }
-  // a throttler that signs in full during the race: it reaches the cap, never beyond it
-  const x = rotation();
-  for (let k = 0; k < x.tl.signers.length; k++) { const h = x.tl.from + k; if (h >= win.S0 && h <= win.S1 && k % 5 < 2) { const old = x.tl.signers[k]; x.tl.signers[k] = ps[4]; const d = x.tl.deltas[k]; if (d.h === h && d.a === old) x.tl.deltas[k] = { ...d, a: ps[4] }; } }
-  const L3 = R.ledger(x.tl), s3 = R.scoreCard(L3, R.makeCard(L3, game)), p4 = s3.producers.find((p) => p.a === ps[4]);
-  assert.ok(BigInt(p4.signed) * M > (p4.expected * (M + R.STEER_BAND)) / M, "it signed far above its rate");
-  assert.equal(p4.credited, (p4.expected * (M + R.STEER_BAND)) / M, "credited stops at the cap");
-  assert.equal(pyCard(game, x.tl), R.cardJson(R.makeCard(L3, game)) + R.cardJson(s3), "Python: the same bytes");
+  assert.equal(pyCard(game), R.cardJson(card) + R.cardJson(s), "Python: the same bytes");
 });
 
-test("Fix B settings: minK raises the entry bar; poolRule twa uses the pooled producer's eff at every block", () => {
-  const card10 = R.makeCard(L, game), card30 = R.makeCard(L, { ...game, minK: 30 }), card900 = R.makeCard(L, { ...game, minK: 900 });
-  assert.ok(card30.producers.filter((p) => p.entry).length <= card10.producers.filter((p) => p.entry).length);
-  for (const p of card900.producers) if ((p.k * p.rate) / M < 900n * M) assert.equal(p.entry, false);
-  const g2 = { ...game, pooled: [ps[2]], poolRule: "twa" }, s = R.scoreCard(L, R.makeCard(L, g2)), p = s.producers.find((x) => x.pooled);
-  let want = 0n; for (let H = win.S0; H <= win.S1; H++) want += (L.eff(p.a, H) * M) / s.total;
-  assert.equal(p.expected, (want * p.rate) / M);
+test("minK sets the entry bar on the producer's full size; the pooled producer uses min(own, eff) per block", () => {
+  const card10 = R.makeCard(L, game), card900 = R.makeCard(L, { ...game, minK: 900 });
+  for (const p of card900.producers) if (p.k < 900n * M) assert.equal(p.entry, false);
+  assert.ok(card900.producers.filter((p) => p.entry).length <= card10.producers.filter((p) => p.entry).length);
+  const g2 = { ...game, pooled: [ps[2]] }, s = R.scoreCard(L, R.makeCard(L, g2)), p = s.producers.find((x) => x.pooled);
+  let want = 0n; for (let H = win.S0; H <= win.S1; H++) { const e = L.eff(p.a, H); want += ((e < p.own ? e : p.own) * M) / s.total; }
+  assert.equal(p.expected, want);
   assert.equal(pyCard(g2), R.cardJson(R.makeCard(L, g2)) + R.cardJson(s));
   assert.throws(() => R.makeCard(L, { ...game, minK: 0 }), /minK/);
-  assert.throws(() => R.makeCard(L, { ...game, poolRule: "max" }), /poolRule/);
+  assert.throws(() => R.makeCard(L, { ...game, poolRule: "twa" }), /poolRule/);
 });
 
 test("recompute: minK and poolRule are part of the game's settings, required and checked (both languages)", () => {
   const g = { ...game, c: "400000" }, card = R.cardJson(R.scoreCard(L, R.makeCard(L, g)));
   assert.equal(R.recompute(L, card, g).same, true);
   const { minK, ...noMinK } = g, { poolRule, ...noPool } = g;
-  for (const [what, bad, re] of [["no minK", noMinK, /settings/], ["no poolRule", noPool, /settings/], ["minK 1.5", { ...g, minK: 1.5 }, /minK/], ["poolRule x", { ...g, poolRule: "x" }, /poolRule/], ["minK 20", { ...g, minK: 20 }, /setting minK/], ["poolRule twa", { ...g, poolRule: "twa" }, /setting poolRule/]]) {
+  for (const [what, bad, re] of [["no minK", noMinK, /settings/], ["no poolRule", noPool, /settings/], ["minK 1.5", { ...g, minK: 1.5 }, /minK/], ["poolRule x", { ...g, poolRule: "x" }, /poolRule/], ["minK 20", { ...g, minK: 20 }, /setting minK/], ["poolRule twa", { ...g, poolRule: "twa" }, /poolRule/]]) {
     const r = R.recompute(L, card, bad);
     assert.equal(r.same, false, what); assert.match(r.diff, re, what);
     const [same, diff] = JSON.parse(py(`print(json.dumps(V.recompute(V.Ledger(j["tl"]), j["card"], j["g"])))`, { tl, card, g: bad }));
@@ -144,4 +137,46 @@ test("recompute: minK and poolRule are part of the game's settings, required and
   }
   const [same] = JSON.parse(py(`print(json.dumps(V.recompute(V.Ledger(j["tl"]), j["card"], j["g"])))`, { tl, card, g }));
   assert.equal(same, true, "Python passes the game's own card");
+});
+
+// ── A′: fpct, the field percentile ──
+const floatBin = (n, p, x) => { let c = 0, lp = n * Math.log(1 - p); for (let i = 0; i <= n; i++) { const q = Math.exp(lp); if (i < x) c += q; else if (i === x) return c + q / 2; lp += Math.log((n - i) / (i + 1)) + Math.log(p / (1 - p)); } return c; };
+
+test("fpct: the binomial mid-p percentile, exact, the same in Python (a fixed test vector)", () => {
+  const cases = [];
+  for (const [n, a, b] of [[0, 1, 4], [1, 1, 4], [40, 3, 10], [400, 1, 50], [7200, 144, 7200], [7200, 3600, 7200], [5, 0, 7], [9, 7, 7]]) for (const x of [0, 1, 2, 7, 12, 40, 144, 5000]) cases.push([n, BigInt(a) * M, BigInt(b) * M, BigInt(x) * M]);
+  cases.push([400, 8n * M, 400n * M, 8500000n]);
+  const js = cases.map((c) => R.fpct(...c).toString());
+  const pyv = JSON.parse(py(`print(json.dumps([str(V.fpct(n, a, b, x)) for n, a, b, x in j]))`, cases.map((c) => c.map(String)).map(([n, a, b, x]) => [Number(n), a, b, x])));
+  assert.deepEqual(pyv, js, "JavaScript and Python give the same millionths");
+  for (const [n, a, b, x] of cases) {
+    if (a === 0n || a === b || x % M !== 0n || n > 2000) continue;
+    const want = floatBin(n, Number(a) / Number(b), Number(x / M));
+    assert.ok(Math.abs(Number(R.fpct(n, a, b, x)) / 1e6 - want) <= 2e-6, `n ${n}, share ${a}/${b}, x ${x / M}: ${R.fpct(n, a, b, x)} vs ${want}`);
+  }
+  assert.equal(R.fpct(40, 3n * M, 10n * M, 12n * M), 508894n, "a fixed value (exact: 0.508894…): if it changes, every field percentile changes");
+  assert.equal(R.fpct(9, 7n * M, 7n * M, 9n * M), 500000n, "a field of one: X = n always");
+  assert.equal(R.fpct(5, 0n, 7n * M, 0n), 500000n);
+});
+
+test("fpct: a jump that moves the whole field together moves no one's percentile (sim 9's root)", () => {
+  // three producers expected 300, 60 and 12 blocks; the network jumps +12% so each signs 12% more: same shares, n × 1.12
+  const ex = [300n, 60n, 12n].map((v) => v * M), b = ex.reduce((s, v) => s + v, 0n);
+  for (const [i, e] of ex.entries()) {
+    const x = e, xJump = (e * 112n) / 100n, n = 372n, nJump = (372n * 112n) / 100n;
+    const before = Number(R.fpct(n, e, b, x)), after = Number(R.fpct(nJump, e, b, xJump));
+    assert.ok(Math.abs(before - after) < 40000, `producer ${i}: ${before} → ${after}`);   // whole blocks: a little rounding
+    // Fix A's pct against the fixed expectation moves by size
+    if (i === 0) assert.ok(Number(R.pct(e, xJump)) - Number(R.pct(e, x)) > 400000, "pct moves a big producer far up");
+  }
+});
+
+test("fpct on a scored card: the field is the producers with entry; others get null; JS = Python", () => {
+  const card = R.makeCard(L, { ...game, minK: 1500 }), s = R.scoreCard(L, card);
+  const inF = s.producers.filter((p) => p.entry);
+  assert.ok(inF.length >= 1 && inF.length < s.producers.length, "the bar leaves some producers out");
+  const n = inF.reduce((t, p) => t + BigInt(p.signed), 0n), b = inF.reduce((t, p) => t + p.expected, 0n);
+  for (const p of s.producers) assert.equal(p.fpct, p.entry ? R.fpct(n, p.expected, b, p.credited) : null);
+  assert.equal(pyCard({ ...game, minK: 1500 }), R.cardJson(card) + R.cardJson(s), "Python: the same bytes, nulls included");
+  assert.match(R.cardJson(s), /"fpct":null/);
 });

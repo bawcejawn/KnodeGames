@@ -10,8 +10,8 @@ VHP_CONTRACT = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq"
 DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER = 20, 7200, 1200, 28800, 403200, 28800, 20
 M = 1000000
 MIN_K, FORM_GATE = 10 * M, 800000
-RULE_VERSION, OWN_RULES, POOL_RULES = 3, ("spot", "high1h", "avg24h"), ("min", "twa")
-STEADY_BAND, STEER_BAND = 150000, 150000   # VHP_RULER.md §16 (D-120), millionths: the steadiness band and the steering cap
+RULE_VERSION, OWN_RULES, POOL_RULES = 3, ("spot", "high1h", "avg24h"), ("min",)
+STEADY_BAND = 150000   # D-120 as the owner ruled (5 Nov), millionths: steady = every daily rate within this of the 14-day rate
 PCT_SCALE = 1 << 256
 
 
@@ -90,7 +90,44 @@ def pct(lam, x):
             break
         q = nx
     mid0, mid1 = 2 * below + qn, 2 * below + 2 * qn + qn1
-    return (mid0 * (M - f) + mid1 * f) * M // (2 * total * M)
+    r = (mid0 * (M - f) + mid1 * f) * M // (2 * total * M)
+    return M - 1 if lam > 0 and r >= M else r
+
+
+def fpct(n, a, b, x):
+    """A′: the field percentile, the same arithmetic as fpct in vhp-ruler.js."""
+    n, a, b, x = _int(n), _int(a), _int(b), _int(x)
+    if n < 0 or a < 0 or b < a or x < 0:
+        raise ValueError("fpct needs n ≥ 0 and 0 ≤ a ≤ b, x ≥ 0")
+    k, f = divmod(x, M)
+
+    def mid_at(j):
+        if a == 0:
+            return (2, 1) if j > 0 else (1, 1)
+        if a == b or b == 0:
+            return (0, 1) if j < n else (1, 1) if j == n else (2, 1)
+        return None
+    if mid_at(k):
+        m0, t = mid_at(k)
+        m1, _ = mid_at(k + 1)
+        return (m0 * (M - f) + m1 * f) * M // (2 * t * M)
+    q, total, below, qk, qk1 = PCT_SCALE, 0, 0, 0, 0
+    i = 0
+    while i <= n:
+        if i < k:
+            below += q
+        elif i == k:
+            qk = q
+        elif i == k + 1:
+            qk1 = q
+        total += q
+        q = q * (n - i) * a // ((i + 1) * (b - a))
+        if q == 0 and i > k:
+            break
+        i += 1
+    mid0, mid1 = 2 * below + qk, 2 * below + 2 * qk + qk1
+    r = (mid0 * (M - f) + mid1 * f) * M // (2 * total * M)
+    return M - 1 if r >= M else r
 
 
 def k_of(blocks, own, total):
@@ -407,7 +444,7 @@ def _js(v):
 
 
 # the card's fields that are BigInt in JavaScript (written as decimal strings)
-_BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "credited", "pct")
+_BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "credited", "pct", "fpct")
 
 
 def card_json(card):
@@ -418,7 +455,7 @@ def card_json(card):
     for p in c["producers"]:
         p = dict(p)
         for k in _BIG_ROW:
-            if k in p:
+            if k in p and p[k] is not None:
                 p[k] = str(_int(p[k]))
         rows.append(p)
     c["producers"] = rows
@@ -451,7 +488,7 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, po
     if type(min_k) is not int or not 1 <= min_k <= 100000:
         raise ValueError("minK must be a whole number of blocks from 1")
     if pool_rule not in POOL_RULES:
-        raise ValueError("poolRule must be min or twa")
+        raise ValueError("poolRule must be min")
     if paying and T - L.frm < FORM + ACTIVE:
         raise ValueError("a paying card needs %d blocks of data before its moment (14 days + 6 h)" % (FORM + ACTIVE))
     if paying and _pending_in(L, T - AVG - EARLY, T):
@@ -464,10 +501,9 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, po
         o, av, f = own(L, a, T, own_rule), avg(L, a, T), form_of(L, a, T)
         k = k_of(blocks, o, tot)
         is_new, history = newcomer(L, a, T)
-        rate, steady = rate_of(L, a, T, f)
-        kr, gate = k * rate // M, (FORM_GATE * rate // M if steady else FORM_GATE)
+        rate, steady = rate_of(L, a, T, f)   # owner, 5 Nov: steady producers play at full size; rate is shown only
         rows.append({"a": a, "own": o, "avg": av, "k": k, "form": f["form"], "rate": rate,
-                     "entry": kr >= min_k * M and f["form"] >= gate and history, "pooled": a in pooled,
+                     "entry": k >= min_k * M and (steady or f["form"] >= FORM_GATE) and history, "pooled": a in pooled,
                      "isNew": is_new, "quality": "ok"})
     rows.sort(key=lambda r: (-r["own"], r["a"]))
     # D-113: on a paying card only the 24-h size window must be free of rebuilt hours; form's older days may read them
@@ -491,7 +527,6 @@ def score_card(L, card):
     for p in card["producers"]:
         o = _int(p["own"])
         credited = sum(credit_of(o, L.eff(p["a"], b)) for b in L.signed_blocks(p["a"], S0, S1))
-        rate = _int(p["rate"])
         expected = _int(p["k"])
         if p["pooled"]:
             expected = 0
@@ -501,16 +536,17 @@ def score_card(L, card):
                 H2 = H
                 while H2 + 1 <= S1 and L.eff(p["a"], H2 + 1) == e:
                     H2 += 1
-                m = e if card["poolRule"] == "twa" or e < o else o
+                m = e if e < o else o
                 expected += (H2 - H + 1) * (m * M // tot if tot > 0 else 0)
                 H = H2 + 1
-        expected = expected * rate // M
-        if rate < M:
-            credited = min(credited, expected * (M + STEER_BAND) // M)
         q = dict(p)
         q.update({"quality": "flagged" if flagged else "ok", "expected": expected,
                   "signed": L.signed_in(p["a"], S0, S1), "credited": credited, "pct": pct(expected, credited)})
         rows.append(q)
+    n = sum(r["signed"] for r in rows if r["entry"])
+    b = sum(r["expected"] for r in rows if r["entry"])
+    for r in rows:
+        r["fpct"] = fpct(n, r["expected"], b, r["credited"]) if r["entry"] else None
     out = dict(card)
     out["producers"] = rows
     return out
@@ -536,7 +572,7 @@ def check_settings(g):
     if type(g["minK"]) is not int or not 1 <= g["minK"] <= 100000:
         raise ValueError("minK must be a whole number of blocks from 1")
     if g["poolRule"] not in POOL_RULES:
-        raise ValueError("poolRule must be min or twa")
+        raise ValueError("poolRule must be min")
     if g["ownRule"] not in OWN_RULES:
         raise ValueError("ownRule must be spot, high1h or avg24h")
     if type(g["paying"]) is not bool:
@@ -1207,8 +1243,8 @@ def _first_kept(t):
 
 
 def recompute_main(argv):
-    """argv: vhp-data dir, card file, the game's settings (a JSON file: {game, round, window, c, ownRule, paying,
-    pooled}, from the game's own code, never from the card). Exit 0 = the card is exactly what the data gives."""
+    """argv: vhp-data dir, card file, the game's settings (a JSON file: {game, round, window, c, minK, poolRule, ownRule,
+    paying, pooled}, from the game's own code, never from the card). Exit 0 = the card is exactly what the data gives."""
     L, _ = load_ledger(argv[0])
     with open(argv[1], encoding="utf-8") as fh:
         card = fh.read()

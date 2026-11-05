@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, **oldest first** (D-001 at the top, the newest at the bottom; the index is in the same order). This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "superseded by D-XXX" in the index.
 > Consolidated 2026-11-02: the owner's answers to the open contradictions are recorded as D-061 – D-067.
-> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-136 added; index statuses brought up to date; nothing removed)
+> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-140 added; index statuses brought up to date; nothing removed)
 > Sources: owner in chat (2026-11-02), `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (all 12 chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · 👤 owner said · ⚠️ was a conflict (see the C-xx named next to it; all are resolved unless listed under Open) · ❓ unknown
@@ -147,6 +147,10 @@
 | D-134 | 2026-11-05 | One standard for every game's week, and effortless new-game onboarding | active |
 | D-135 | 2026-11-05 | Block X goes final at Monday 00:00 UTC, like the Race | active |
 | D-136 | 2026-11-05 | Daily Questions' free prize follows the free-prize switch from the rule week | active |
+| D-137 | 2026-11-05 | A career profile for every player from day 1 | active |
+| D-138 | 2026-11-05 | After the core: Last Node, Block Golf, Fantasy and Bracket next | active (amends D-113's "after the core") |
+| D-139 | 2026-11-05 | Block Minute: an always-on quick pick, designed before it's built | idea (design first) |
+| D-140 | 2026-11-05 | Fix fast after every review: one pass, same day, tracked by finding | active (standing) |
 
 ---
 
@@ -749,6 +753,18 @@
 
 ## D-136 — Daily Questions' free prize follows the free-prize switch from the rule week
 - **Date:** 2026-11-05 (owner: "yes asboslutely", to "After Mon 16, should Daily Questions' free prize follow the on/off switch like the other games?") · **Decision:** from Vault v6.1's rule week (Mon 16 Nov), Daily Questions (game 1) is on the free-prize switch like every vault game (D-082): the bot posts its free winners only when game 1's switch is ON. Its starting value is **ON**, set in the week before the rule week so it counts from Mon 16. The Vault chat confirms how game 1 is read by the switch and the bot (R-VAULT-14). `FREE_PRIZE_SWITCH.md` §4.
+
+## D-137 — A career profile for every player from day 1
+- **Date:** 2026-11-05 (owner: "i think career profile is important from day 1") · **Decision:** every wallet gets a **career profile** page as soon as possible, built from data the games already publish: All time points per game (Sunday fun rounds included, D-129), weeks played, medals, best placings, current streaks, nickname (D-078) and staked games. Shareable as a card. Read-only (no transactions). Built by the Hub chat (R-HUB-15) with each game's boards; not part of any payout.
+
+## D-138 — After the core: Last Node, Block Golf, Fantasy and Bracket next
+- **Date:** 2026-11-05 (owner: "we will get everything announced and upgraded ASAP and then start addign the additional games. I think last node, block golf, and fantasy along with bracket. if im thinking bracket is like the March madness with nodes head to head - seems real cool and fun.") · **Decision:** once the core work is live (v6.1, the sponsor, the ruler's v2.1 build), the next games are **Last Node Standing, Block Golf, Fantasy Producers and Producer Bracket**, each through `standards/NEW_GAME.md`. **Bracket is a March-Madness style knockout: producers head to head**, round by round. Survivor and Combo follow later. Ideas logged, not scheduled: **Block Minute** (a pick available every minute, D-139), **Squads**.
+
+## D-139 — Block Minute: an always-on quick pick, designed before it's built
+- **Date:** 2026-11-05 (owner, on the "Block of the Day" streak idea: "10 second daily picks seems like a lot. maybe a pick available for every 1 minute or something. this aligns with always something to do on the platform.") · **Decision:** design an always-on game where a new quick pick opens every minute. **Design question first:** a pick every minute can't be one sponsored on-chain transaction each (≈ 1 Mana each against 40 Mana a player a day, D-105), so the design must keep the sponsor cost flat (e.g. many picks signed together, or only a daily commitment on chain). Library chat writes the design (R-LIB-7); nothing is built before the owner OKs it.
+
+## D-140 — Fix fast after every review: one pass, same day, tracked by finding
+- **Date:** 2026-11-05 (owner: "I feel like we need to do better with our fixes after repo lens and audits. we need to be more effective and direct with getting things solved and bugs cleaned up") · **Decision:** after a Repo Lens report the building chat fixes **every Critical, High and Medium in one PR, the same session**, each with the review's failing test (or a new one), then writes the fix-check prompt itself; **Lows are fixed in the same pass unless the owner defers them**; nothing is split across several PRs unless the owner asks. The library tracks each open finding in `AUDITS.md` §5 until closed. A chat that can't fix a finding says why in its session-end report the same day.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

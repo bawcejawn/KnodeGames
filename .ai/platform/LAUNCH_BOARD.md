@@ -2,7 +2,7 @@
 
 > **Purpose:** one page showing where every game stands on its way to launch, and what moves it to the next stage. It is the one home for **each game's launch stage**; the detail stays in each game's file (`../games/`), the steps in `ROADMAP.md`, the work in `CHAT_REQUESTS.md` and the owner's steps in `TODOS.md`.
 > **Last updated:** Thu 5 Nov 2026 (status-sync from the Vault, Block X, Hub and Ruler handoffs; v6.1 timing D-130).
-> **Focus (D-113, 4 Nov):** core first — no additional game launches until the Vault, sponsor, Questions upgrade, VHP ruler and repo cleanup are done; the paused games keep their stage.
+> **Focus (D-113, 4 Nov):** core first — no additional game launches until the Vault, sponsor, Questions upgrade, VHP ruler and repo cleanup are done; the paused games keep their stage. **Next after the core (D-138):** Last Node → Block Golf → Fantasy → Bracket, then Survivor and Combo.
 > **Update rule:** change a game's row when its stage changes (in the same PR as the change, or at session-end filing). Check this page in every weekly review.
 
 ## The five stages

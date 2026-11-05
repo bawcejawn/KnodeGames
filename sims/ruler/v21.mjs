@@ -84,19 +84,20 @@ export function card(paths, base, T, S0, S1, opts = {}) {
   if (!N) { N = new Float64Array(blocks); for (let b = S0; b <= S1; b++) { let n = 0; for (const p of ps) n += at(p, b); N[b - S0] = n; } }
   const rows = ps.map((p) => {
     const k = blocks * own[p] / total, rate = (opts.rates && opts.rates[p]) || 1, signs = (opts.signs && opts.signs[p]) ?? 1;
-    let lam = 0, cred = 0, pmin = 0, ptwa = 0;
-    for (let b = S0; b <= S1; b++) { const e = at(p, b), pr = e / N[b - S0]; lam += pr; cred += pr * (e <= own[p] ? 1 : own[p] / e); pmin += Math.min(own[p], e) / total; ptwa += e / total; }
+    let lam = 0, cred = 0, pmin = 0, ptwa = 0, dev = 0;
+    for (let b = S0; b <= S1; b++) { const e = at(p, b), pr = e / N[b - S0]; lam += pr; cred += pr * (e <= own[p] ? 1 : own[p] / e); pmin += Math.min(own[p], e) / total; ptwa += e / total; if (own[p] > 0) dev = Math.max(dev, Math.abs(e / own[p] - 1)); }
     // `signs`: the share of its blocks the producer really signs (1: honest; sim 8 sets throttlers and steerers)
     // the form gate as the owner ruled (5 Nov): a steady producer is in whatever its level; others need form ≥ 0.80
     const form = (opts.forms && opts.forms[p]) ?? 1, steady = !!(opts.steady && opts.steady[p]), gated = !steady && form < 0.8;
-    return { p, own: own[p], avg: avg[p], k, rate, lam: lam * signs, credFrac: lam > 0 ? cred / lam : 0, pmin, ptwa, pooled: (opts.pooled || []).includes(p), gated };
+    return { p, own: own[p], avg: avg[p], k, rate, lam: lam * signs, credFrac: lam > 0 ? cred / lam : 0, pmin, ptwa, pooled: (opts.pooled || []).includes(p), gated, dev };
   });
   return { rows, total, blocks };
 }
 /** win chances of the field under one configuration: { rank: "A" | "B", minK, poolRule } */
 export function chances(c, races, seed, cfg, opts = {}) {
   const exp = (r) => (r.pooled ? r.pmin : r.k);   // everyone at full size (owner, 5 Nov; #B-9 B9-2)
-  const field = c.rows.filter((r) => r.k >= cfg.minK && !r.gated && !(opts.out || []).includes(r.p)).map((r) => ({ ...r, e: exp(r) })).sort((x, y) => y.e - x.e);
+  // cfg.void: the owner's producer void (VHP more than ±void away from own during the race: out of that race)
+  const field = c.rows.filter((r) => r.k >= cfg.minK && !r.gated && !(cfg.void && r.dev > cfg.void) && !(opts.out || []).includes(r.p)).map((r) => ({ ...r, e: exp(r) })).sort((x, y) => y.e - x.e);
   if (field.length < 2) return null;
   const draws = field.map((r) => pois(r.lam)), tabs = cfg.rank === "A" ? field.map((r) => pois(r.e)) : null, eSum = field.reduce((s, r) => s + r.e, 0);
   let hs = null;
@@ -133,7 +134,7 @@ export function chances(c, races, seed, cfg, opts = {}) {
   return Object.fromEntries(field.map((r, i) => [r.p, { chance: wins[i] / races, fair: 1 / field.length, ratio: wins[i] / races * field.length, index: r.lam * r.credFrac / r.e, k: r.k, e: r.e }]));
 }
 
-export const CONFIGS = { "A′ (fpct)": { rank: "A2", minK: 10, poolRule: "min" }, "A′ + thinned credit (proposal)": { rank: "A2", minK: 10, poolRule: "min", thin: true }, "A (pct)": { rank: "A", minK: 10, poolRule: "min" } };
+export const CONFIGS = { "A′ + void": { rank: "A2", minK: 10, poolRule: "min", void: 0.1 }, "A + void": { rank: "A", minK: 10, poolRule: "min", void: 0.1 }, "A′ (fpct)": { rank: "A2", minK: 10, poolRule: "min" }, "A′ + thinned credit (proposal)": { rank: "A2", minK: 10, poolRule: "min", thin: true }, "A (pct)": { rank: "A", minK: 10, poolRule: "min" } };
 
 export function run(L, { cards = 40, races = 2500, only = null, log = console.log, moved = () => false, configs = CONFIGS } = {}) {
   const dry = days(L) < 29, res = [], want = (i) => !only || only.includes(i);
@@ -209,10 +210,10 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
           const r = chances(field(f, { add: { [VAULT]: x } }), races, 7000 + ci, cfg);
           if (r && r[VAULT]) { ch += r[VAULT].ratio; n++; }
         });
-        out[lbl] = n ? ch / n : null;
+        out[lbl] = n ? ch / n : cfg.void && factor !== 1 ? "void" : null;   // void: the Vault sits that race out (picks void)
       }
-      const v = Object.values(out);
-      say(7, "Vault deposit swings", name, Object.entries(out).map(([k, x]) => `${k}: ${x === null ? "n/a" : x.toFixed(2)}× fair`).join("; "), v.every((x) => x !== null && Math.abs(x - v[0]) <= 0.15), "no withdrawal or deposit moves the Vault beyond ±0.15 of its no-change case", out);
+      const v = Object.values(out), num = v.filter((x) => typeof x === "number");
+      say(7, "Vault deposit swings", name, Object.entries(out).map(([k, x]) => `${k}: ${x === null ? "n/a" : x === "void" ? "void for that race" : x.toFixed(2) + "× fair"}`).join("; "), typeof out["no change"] === "number" && v.every((x) => x === "void" || (typeof x === "number" && Math.abs(x - num[0]) <= 0.15)), "no withdrawal or deposit moves the Vault beyond ±0.15 of its no-change case (a void race counts as no move)", out);
     }
     if (want(8)) {   // throttlers (owner, 5 Nov): in the games at full size while steady; steering can't pay
       const out = {};

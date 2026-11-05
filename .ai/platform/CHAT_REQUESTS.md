@@ -2,15 +2,15 @@
 
 > **Purpose:** the one work list for the chats. Each chat reads **its own section** at the start of every session and works the open items in order. (The owner's own steps are in `TODOS.md`.)
 > **Owner's message to any chat is always the same** (§1). The library chat keeps this file current from session-end reports, decisions and audits.
-> **Last updated:** 2026-11-05 evening (owner's answers: D-135 – D-140; R-RULER-2, R-HUB-15, R-HUB-16, R-Q-6, R-LIB-7, R-NODE-1 started; earlier today: the status-sync, #165, #166). Older history: `git log -- .ai/platform/CHAT_REQUESTS.md`.
+> **Last updated:** 2026-11-05 late (Fantasy, Block Golf and Bracket reactivated, D-142: catch-up R-ALL-9; admin page R-HUB-17; career profile R-HUB-15 now). Older history: `git log -- .ai/platform/CHAT_REQUESTS.md`.
 > **Rules:**
 > - Each item has an id (R-<chat>-<n>), a link (D-/I-/PR), what "done" means, and a status: **open** · **in progress**.
 > - A chat reports finished items in its session-end report (`SESSION_END_PROCESS.md`). The library chat then **moves them to `../archive/DONE.md`** with the date. Ids are never reused.
 > - **Private audit reports stay in the Claude project** (`claude/<area>/AUDIT-*.md`), never in this public repo. This file names the findings by id only.
 
-## 0. Current focus (D-113, from 4 Nov): core first, no new games
+## 0. Current focus (D-113, D-142): core first; Fantasy, Block Golf and Bracket reactivated as the next three launches
 **Active chats:** Vault · Daily Questions · VHP Ruler · Block X (sponsor and Picks items) · Race (payout safety only) · Hub (repo cleanup and public-readiness) · Library.
-**Paused (no new-game work; branches kept, no rebases needed):** Survivor · Fantasy · Last Node · Combo · Golf · Bracket. Their sections are in §4 (backlog).
+**Reactivated 5 Nov (D-142):** Fantasy · Block Golf · Bracket — the next three games to launch. **Paused (branches kept):** Survivor · Last Node · Combo. Their sections are in §4 (backlog).
 
 | Order | Work | Chat | Item |
 |---|---|---|---|
@@ -21,7 +21,7 @@
 | 5 | **VHP ruler v2.1: build and simulate now** (owner: "one of the most important features"); recorder on (data only, D-128) | VHP Ruler | R-RULER-2 |
 | 6 | Plain-language alert summaries; producer key backup scripts | Vault | R-VAULT-9, R-VAULT-10 |
 | 7 | Whole-repo cleanup and organization; one weekly standard for every game (`../standards/WEEK_CYCLE.md`, D-134) and new-game onboarding (`../standards/NEW_GAME.md`). Plan: `claude/CLEANUP-PLAN-2026-11-04.md` (Claude project) | Library, Hub, Vault | R-LIB-6, R-VAULT-12 |
-| 8 | **After the core (D-138):** Last Node, Block Golf, Fantasy, Bracket (March-Madness style, producers head to head), each by `../standards/NEW_GAME.md`; career profile from day 1 (D-137) | game chats, Hub | §4, R-HUB-15 |
+| 8 | **The next three games (D-142): Fantasy, Block Golf, Bracket** (March-Madness, producers head to head, D-141), each by `../standards/NEW_GAME.md` after R-ALL-9; career profile from day 1 (D-137); admin page refresh | Fantasy, Golf, Bracket chats; Hub | R-ALL-9, R-HUB-15, R-HUB-8 |
 | 9 | Repo structure to a clean public layout (`REPO_MAP.md` §4) | Hub, Questions, Ruler | R-HUB-14, R-HUB-16, R-Q-6 |
 | 10 | Architecture (last) | Architecture | R-ARCH-* |
 
@@ -42,6 +42,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-ALL-6 | **Meet `standards/RECORDER_STANDARD.md`** (clock checks, points recomputed at publish, per-file holds, two nodes, write-once) and launch by **`standards/GO_LIVE_CHECKLIST.md`**. Review your recorder against its §8 checklist and list any gaps in your session-end report | RECORDER_STANDARD, GO_LIVE_CHECKLIST | gaps listed, then fixed before launch | open |
 | R-ALL-8 | **The weekly rhythm (D-125):** play Mon 00:00 → Sat 24:00 UTC; nothing scores on Sunday UTC; Sunday is the review day (pending results, re-checked on chain); final no earlier than Mon 00:00 UTC; the page says "Sunday is review day". **D-129: Sunday stays playable** as fun rounds that count on Today and All time only, never the week (board, medals, prizes, vault file). Data other games read keeps running on Sunday (Race cards for Block X). Paused games adopt it before launch; Block X keeps Sunday targets but scores them for All time only; Bracket reshapes its Sat seeding / Sun picks | D-125, D-129, `GAME_STANDARD.md` §4, `RECORDER_STANDARD.md` §3 | game on the rhythm, tests | open (Race first: R-RACE-14) |
 | R-ALL-7 | **Stake badge and panel:** every new game page mounts `KStake.badge` at the top of `<main>` and the full stake panel lower down | D-031 | page checked | rule |
+| R-ALL-9 | **Catch-up for every reactivated or new game chat (5 Nov): what changed in the platform while you were paused.** Read these and bring your game up to them in your first PR; list any gap in your first reply. **(1) The week** — `../standards/WEEK_CYCLE.md`: play Mon 00:00 → Sat 24:00 UTC; Sunday is the review day with unscored **fun rounds** (Today and All time only, never the week, D-125, D-129); results **pending** on Sunday, **final no earlier than Mon 00:00 UTC** after two agreeing runs (D-135: Block X moves there too); claims about Mon 6–8 PM PT; a held week rolls over Thu 00:00; a stake counts from the next week; the page line "Sunday is review day: results are checked and paid from Monday"; add your row to its compliance table. **(2) Onboarding** — `../standards/NEW_GAME.md` then `GO_LIVE_CHECKLIST.md`. **(3) Results and payouts** — `RECORDER_STANDARD.md` (two nodes, recompute at publish, per-file holds, **published finals locked** §3.3, re-scoring a paid week §4.2), `VAULT_STANDARD.md` §6 (results file always fills `first` / `second`), `board.json` for the vault check (R-ALL-3); the bot closes weeks, never a player action (D-127). **(4) Rewards** — `WEEK_CYCLE.md` §3: 5% fee, staked share by stake, free 2 + 1 VHP only where the switch is ON (`FREE_PRIZE_SWITCH.md`). **(5) Mana** — every player action needs a sponsor row under the **2.4 per-transaction cap** (`SPONSOR.md`, D-131); measure your picks on testnet and ask the Block X chat for a row. **(6) Handicaps** — only through the shared VHP ruler (`VHP_RULER.md`; v2.1's luck percentile `pct` is being built, R-RULER-2); the old 12-h-final and per-game VHP rules go. **(7) Players** — nicknames (`names.js`), the stake badge and panel, Staked + Free boards, and publish per-wallet All time stats the **career profile** can read (D-137, R-HUB-15). **(8) How we work** — push when ready (D-133), fix every review finding in one pass with a test each (D-140), session-end report every time | WEEK_CYCLE, NEW_GAME, D-125 – D-141 | gaps listed in the first reply; fixed in the first PR | open (Fantasy, Golf, Bracket) |
 
 ## 3. By chat
 ### Vault
@@ -86,6 +87,35 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-RACE-5 | **Move onto the one VHP ruler (D-090)**, first the two known gaps: card credit (VHP added after a card gains nothing) and a longer highest-VHP look-back (the > 6-h hide). Coordinate with R-ARCH-1 | D-058, D-090, `../archive/2026-11-05/HANDICAP_REVIEW.md` | PR + Repo Lens | waits on the shared VHP ruler (D-108, R-ARCH-1); then move the Race onto it (card credit, longer look-back) first |
 | R-RACE-15 | **After #155:** confirm the first production Race run on `e64be6a5` is green (owner checks GitHub); optional post-merge Repo Lens of `9fc79b53` + `c1011e58` (`claude/race/REPOLENS-PR155-POSTMERGE-PROMPT.md`). Accepted as-is: B7-3 (deadline from run start), B7-5 (Sunday results not re-checked) | #155, #B-7 | first run green | open |
 
+### Fantasy Producers
+**▶ Reactivated 5 Nov (D-142):** one of the next three games to launch. **Start with R-ALL-9** (the catch-up on the 4–5 Nov standards), then the items below in order.
+| Id | Request | Link | Done when | Status |
+|---|---|---|---|---|
+| R-FA-1 | Add a Free play board (no prize yet); say what it needs (picks contract, recorder, page) and how big the change is | D-081 | plan, then PR | open |
+| R-FA-2 | Fix the Repo Lens findings, fix-check, a full test week (owner restarts practice in `C:\kprediction-fantasy`), the real-data simulation of the price formula; re-merge `main` | I-062 | done | open |
+| R-FA-3 | **Card quality gate:** Fantasy uses Race cards without checking their sample count (≥ 12) or flags. Add the same gate Block X and Combo use (this settles the "flagged cards" question with the owner) | I-062, `../archive/2026-11-05/HANDICAP_REVIEW.md` §5.1 #6 | PR + test, before launch | open |
+
+### Block Golf
+**▶ Reactivated 5 Nov (D-142):** one of the next three games to launch. **Start with R-ALL-9** (the catch-up on the 4–5 Nov standards), then the items below in order.
+| Id | Request | Link | Done when | Status |
+|---|---|---|---|---|
+| R-GO-1 | Add a Free play board (no prize yet); say whether it affects practice with Block X or the Survivor hole reader | D-081 | plan | open |
+| R-GO-2 | Confirm whether practice also waits for the sampler, or only for Block X (it's live) | I-060 | answer | open |
+| R-GO-3 | Launch path: update `golf` from `main`, move the Golf files to the site root, full suite, PR, `GOLF_ENABLED=true`. Staked: register game 6, set `GOLF_STAKED_FROM_WEEK`. Revisit `MIN_FIELD=5` / `MIN_FIELD_VHP=10` with real stake data | I-060 | PR open | open |
+
+### Producer Bracket
+**▶ Reactivated 5 Nov (D-142):** one of the next three games to launch. **Start with R-ALL-9** (the catch-up on the 4–5 Nov standards), then the items below in order.
+| Id | Request | Link | Done when | Status |
+|---|---|---|---|---|
+| R-BR-8 | **The Bracket's shape (D-141, owner 5 Nov):** a knockout, one round a day (24-hour sprint per matchup); up to 64 producers (6 rounds Mon–Sat, final Saturday), runs with 8 (3 rounds); largest power of two that fits, rounds timed so the final is Saturday; under 8 eligible → no bracket that week; matchups by the ruler's luck percentile; replaces the Sat seeding / Sun picks shape | D-141, D-138, WEEK_CYCLE | design in the game file + tests | open (after the core) |
+| R-BR-1 | Fix the Repo Lens #E-3 findings (report and failing tests in the project: `claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`). Order: H-1, C-2 + L-2, C-1, M-1, H-2 + H-3, M-3/M-4/M-9, then H-4 + H-5, then M-2, M-10, L-15. One finding per commit. Rerun the suites and the replay, then a fix-check | I-061 | all fixed; fix-check GO | open |
+| R-BR-2 | **Owner decisions (3 Nov):** **keep the Knode Games Pool in the field and protect it** (judge pooled producers on the day's average or minimum effective VHP, not one block); judge **forfeits on the day's time-weighted average** (H-5); **accept same-block ties** and fix the comment and page text (H-6) | D-086, D-087 | built and tested | open |
+| R-BR-3 | Merge `main` into `kg-09-bracket` before launch (16+ commits behind; the free-prize switch, nicknames standard, Leaders board) | L-16 | branch current | open |
+| R-BR-4 | Confirm R-ALL-3 (board path and fields) for the vault check | I-079 | confirmed | open |
+| R-BR-5 | Launches when its fix-check passes and the go-live checklist is done (D-088, D-142); target after the core is live (from Mon 16) | D-088, D-142 | — | rule |
+| R-BR-7 | **Luck trim or cap (D-101):** the Bracket has neither. Add one, sized by simulation, with the #E-3 fixes | D-101, `../archive/2026-11-05/HANDICAP_REVIEW.md` §5.2 | built + tested before launch | open |
+| R-BR-6 | After the first live run, pin the block `effective_balance_of` uses (`effCheck` log) | I-061 (S-3/F-7) | pinned | open (after launch) |
+
 ### Hub (site)
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|
@@ -94,7 +124,8 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-HUB-9 | **Staking hub as its own tab** (owner, 4 Nov): `stake.html` isn't linked from any menu today. Add a top-level **"Stake"** link in the top menu (`TOP` in `tools/site-nav.mjs`) and a **Stake** tab in the phone tab bar (`TABS`; keep the bar at 5 slots with More, propose which slot), run `node tools/site-nav.mjs` and the site tests. **First check it works and is up to date on mainnet** (with R-HUB-2): deposit, withdraw, move between games and claim against vault v6, with every live game listed (Questions, Race, Block X; games 2 and 7 stakeable from their `game-apply`, Thu 5 Nov), the minimum stake, the "Week 1" label (R-HUB-1) and the free-play vs staked wording. The rewards calculator is **not** wanted for now | R-HUB-2, I-069 | checked on mainnet; Stake tab live | ✅ built (#110, #118, #142). Left: **the owner's mainnet stake check** (deposit, withdraw, move, claim with small amounts; try "Free" with 2+ rewards once) |
 | R-HUB-12 | Text leftovers of the old name: `bot/release-kick.mjs` alert lines and comments and `bot/README.md` still say "Kpred bot" (the workflow is "Knode Games bot" since #131; the PC task uses the file name `bot.yml`, so nothing breaks); `names.js` unused claim rules (I-089) | #131, D-118 | text only | open (P4): also `names.js` unused claim rules (I-089) |
 | R-HUB-14 | **Owner said go (5 Nov): build the Pages allow-list deploy (R-HUB-11 part 5)** from `claude/hub/PAGES-ALLOWLIST-PLAN.md`: `pages.yml` copying only the site files, the CI guard rule, the test that every page's files are copied; run it once while the source is still the branch; then walk the owner through Settings → Pages → Source: GitHub Actions. **Also C5-13:** add `.github/CODEOWNERS` (`* @bawcejawn`) in the same or a small PR, then walk the owner through the ruleset with himself as a bypass | R-HUB-11, C5-13, D-115 | both live; site loads every page | open — **owner, 5 Nov: the library chat merges the PR once checks are green and the trial run is right**; the owner only flips Settings → Pages → Source |
-| R-HUB-15 | **Career profile from day 1 (D-137):** a profile page per wallet (`profile.html?w=<address>`, linked from every board name): All time points per game (Sunday fun rounds included), weeks played, medals, best placings, streaks, nickname, staked games; a shareable card where **showing the staked amount is the player's choice, off by default**. Read-only; reads the games' published boards with the gentle read pattern | D-137, D-078, D-129 | page live, site tests | open (P2) |
+| R-HUB-15 | **Career profile from day 1 (D-137):** a profile page per wallet (`profile.html?w=<address>`, linked from every board name): All time points per game (Sunday fun rounds included), weeks played, medals, best placings, streaks, nickname, staked games; a shareable card where **showing the staked amount is the player's choice, off by default**. Read-only; reads the games' published boards with the gentle read pattern | D-137, D-078, D-129 | page live, site tests | open (P2): build now so it's live by the next three games' launch; each game publishes per-wallet All time stats for it (R-ALL-9 (7)) |
+| R-HUB-17 | **Admin page brought up to date with 4–5 Nov (owner, 5 Nov: "make sure the admin page is getting the needed updates")**, with R-HUB-8: (1) **free-prize switch** for every game, Daily Questions included from the rule week (D-136); (2) **vault v6.1**: the upgrade status (announced / uploaded / `safeWasmSha256` pinned), the rule week and 60-question cap, the bot closing weeks (D-127); (3) **sponsor** at the 2.4 cap with its rows, read from `SPONSOR.md`'s sources (D-131); (4) **held weeks** per game and their release (Block X, Race), the Sunday review state; (5) **VHP ruler**: recorder on/off and the last hour recorded; (6) **new games**: `game-add` / `game-apply` for Fantasy (4, 5), Golf (6), Bracket (9) with the 48-h timing rule and the Picks announce/apply; (7) the cold-owner handover steps after Tue 10; (8) links to the career profile and each game's boards. Local only, dry run first, every send behind `CONFIRM_MAINNET` | R-HUB-8, D-136, D-142 | page checked by the owner; admin tests | open (P2) |
 | R-HUB-16 | **Move the website into `web/`** after R-HUB-14 is live (`REPO_MAP.md` §4 step 2): every root page, script, style and site file; `pages.yml` copies `web/` to the site root; URLs unchanged; site tests and `tools/site-nav.mjs` updated in the same PR | `REPO_MAP.md`, D-115 | root holds only README, LICENSE, SECURITY, package files; site unchanged | open (after R-HUB-14) |
 | R-HUB-13 | **Daily Questions on the Stake page** (owner: "yes questions should be managed on the stake page like the other games", D-121): **PR #142** @ `99e13cf` (the old game-1 calls today; switch to `deposit_to` / `claim_game` from rule week R after the v6.1 upload). Needs Repo Lens (`claude/hub/REPOLENS-STAKE-QUESTIONS-PROMPT.md`), then the owner merges. Follow-up: one copy of the game-1 claim rules (app.js and stake-panel.js hold two, I-092) after R-Q-3's watch | D-116, D-121 | #142 merged after Repo Lens; R switch after the upload | ✅ done (#142, #150, #157; D-121, D-132). Left: after the v6.1 upload, check on mainnet that game-1 weeks from R show via `claim_game` and stakes go out as `deposit_to(1)` (waits on the Vault chat's rule-week note) |
 
@@ -124,20 +155,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-LIB-3 | Carry the chats' project docs into `.ai/`. (1) Carry the Vault chat's project docs into `.ai/`: `claude/vault-v6-live.md`, `claude/vault-v6-testnet-results.md`, `claude/handoff-*.md`, `claude/audit-vault-v6-*`, `docs/UPGRADE-V6.md`, `docs/V6-PLAN.md` — P3 — I-009 (2) Carry the Hub and Race chats' project docs into `.ai/`: `claude/launch-order.md`, `claude/stake-panel.md`, `claude/producer-names.md`, `claude/handoff-status-bar-testnet.md`, `claude/names-fixcheck*-prompt.md`, `claude/audit-names-prompt.md`, `claude/domain-knodegames.md`, `claude/site-at-root.md`, `claude/admin-page.md`, `claude/race-vault.md`, `claude/owners-race.md`, `claude/builds/02-hub-and-race-show.md`; repo `docs/NAMES.md`, `docs/ADMIN.md`, `race/README.md` (vault results section); Block X: `claude/blockx/FIXCHECK-PROMPT.md`, `claude/blockx/SPONSOR-TESTNET.md`, `claude/blockx/README.md`, repo `docs/blockx/MAINNET-LAUNCH.md`, `docs/blockx/TESTNET-RESULTS.md`, `AUDIT-2026-10-28-repolens-blockx.md` (owner's private records); Survivor: `claude/audit-survivor-prompt.md`, `claude/builds/04-survivor-plan.md`, `claude/builds/04-survivor-sim.mjs`, repo `docs/SURVIVOR*.md`; Last Node `claude/lastnode/*`, `docs/lastnode/FIXCHECK-2-FIXES.md`; Golf `docs/GOLF.md`; Bracket `docs/bracket/README.md`, `docs/VHP-STANDARD.md`, `claude/vhp-standard.md`; Fantasy `docs/fantasy/*`, `claude/builds/05-fantasy-plan.md`, `claude/producer-names.md`; Combo `claude/audit-combo-fixcheck4-prompt.md`, `claude/combo/*` — P3 — I-009 | I-009 | filed | open (P3) |
 
 ## 4. Paused games (backlog, D-113)
-These games wait until the core work is done (§0). **Next up, in this order (D-138):** Last Node Standing, Block Golf, Fantasy Producers, Producer Bracket (a March-Madness style knockout, producers head to head). Then Survivor and Combo. Branches are kept; their chats answer only owner questions. Before any of them launches it adopts `../standards/WEEK_CYCLE.md` and follows `../standards/NEW_GAME.md`.
-
-### Producer Bracket
-**⏸ Paused (D-113):** no new-game work until the core is done (§0). Keep the branch; answer only owner questions.
-| Id | Request | Link | Done when | Status |
-|---|---|---|---|---|
-| R-BR-8 | **The Bracket's shape (D-141, owner 5 Nov):** a knockout, one round a day (24-hour sprint per matchup); up to 64 producers (6 rounds Mon–Sat, final Saturday), runs with 8 (3 rounds); largest power of two that fits, rounds timed so the final is Saturday; under 8 eligible → no bracket that week; matchups by the ruler's luck percentile; replaces the Sat seeding / Sun picks shape | D-141, D-138, WEEK_CYCLE | design in the game file + tests | open (after the core) |
-| R-BR-1 | Fix the Repo Lens #E-3 findings (report and failing tests in the project: `claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`). Order: H-1, C-2 + L-2, C-1, M-1, H-2 + H-3, M-3/M-4/M-9, then H-4 + H-5, then M-2, M-10, L-15. One finding per commit. Rerun the suites and the replay, then a fix-check | I-061 | all fixed; fix-check GO | open |
-| R-BR-2 | **Owner decisions (3 Nov):** **keep the Knode Games Pool in the field and protect it** (judge pooled producers on the day's average or minimum effective VHP, not one block); judge **forfeits on the day's time-weighted average** (H-5); **accept same-block ties** and fix the comment and page text (H-6) | D-086, D-087 | built and tested | open |
-| R-BR-3 | Merge `main` into `kg-09-bracket` before launch (16+ commits behind; the free-prize switch, nicknames standard, Leaders board) | L-16 | branch current | open |
-| R-BR-4 | Confirm R-ALL-3 (board path and fields) for the vault check | I-079 | confirmed | open |
-| R-BR-5 | **No 9 Nov target:** the Bracket launches when its fix-check passes | D-088 | — | rule |
-| R-BR-7 | **Luck trim or cap (D-101):** the Bracket has neither. Add one, sized by simulation, with the #E-3 fixes | D-101, `../archive/2026-11-05/HANDICAP_REVIEW.md` §5.2 | built + tested before launch | open |
-| R-BR-6 | After the first live run, pin the block `effective_balance_of` uses (`effCheck` log) | I-061 (S-3/F-7) | pinned | open (after launch) |
+These games wait until the core work is done (§0). **Fantasy, Block Golf and Bracket were reactivated 5 Nov (D-142) and moved to §3.** Next after them: Last Node Standing, then Survivor and Combo. Branches are kept; their chats answer only owner questions. Before any of them launches it adopts `../standards/WEEK_CYCLE.md` and follows `../standards/NEW_GAME.md`.
 
 ### Survivor
 **⏸ Paused (D-113):** no new-game work until the core is done (§0). Keep the branch; answer only owner questions.
@@ -159,14 +177,6 @@ These games wait until the core work is done (§0). **Next up, in this order (D-
 | R-LN-4 | **Lower the entry bar (D-091):** today ≥ 20 expected blocks an hour (~1.7% share, top 23). Simulate a field with many small producers, propose a new bar (target: k ≥ 10 expected blocks in your scoring window) with a luck trim, and show the owner the results | D-091, `../archive/2026-11-05/HANDICAP_REVIEW.md` §5.2 | owner approves the value; built | open |
 | R-LN-5 | Launch path: fix the round-3 findings; restore `lastnode`'s 3-try push loop in `games.yml`; resync with `main`; prepare the game-13 announce/apply on mainnet Picks; confirm the sponsor covers game-13 picks; open the `lastnode` → `main` PR; write the GitHub-variable steps | I-058, I-065 | PR open; mainnet clearance confirmed to the owner | open |
 
-### Fantasy Producers
-**⏸ Paused (D-113):** no new-game work until the core is done (§0). Keep the branch; answer only owner questions.
-| Id | Request | Link | Done when | Status |
-|---|---|---|---|---|
-| R-FA-1 | Add a Free play board (no prize yet); say what it needs (picks contract, recorder, page) and how big the change is | D-081 | plan, then PR | open |
-| R-FA-2 | Fix the Repo Lens findings, fix-check, a full test week (owner restarts practice in `C:\kprediction-fantasy`), the real-data simulation of the price formula; re-merge `main` | I-062 | done | open |
-| R-FA-3 | **Card quality gate:** Fantasy uses Race cards without checking their sample count (≥ 12) or flags. Add the same gate Block X and Combo use (this settles the "flagged cards" question with the owner) | I-062, `../archive/2026-11-05/HANDICAP_REVIEW.md` §5.1 #6 | PR + test, before launch | open |
-
 ### Combo Card
 **⏸ Paused (D-113):** no new-game work until the core is done (§0). Keep the branch; answer only owner questions.
 | Id | Request | Link | Done when | Status |
@@ -175,10 +185,3 @@ These games wait until the core work is done (§0). **Next up, in this order (D-
 | R-CO-2 | Fix-check 4 and its findings; measure a live hourly run (record + verify) and pick the concurrency group or cron offset; testnet upgrade rehearsal (route B); re-merge `main` before the final merge; then the Picks v2 upgrade plan | I-063, D-060 | done; mainnet clearance confirmed to the owner | open |
 | R-CO-3 | Confirm the vault floor: PR #74 set `vaultGames.8.minPts: 100` (your file needs ≥ 100 hundredths, 1 full point) | I-079 | confirmed | open (Combo to confirm) |
 
-### Block Golf
-**⏸ Paused (D-113):** no new-game work until the core is done (§0). Keep the branch; answer only owner questions.
-| Id | Request | Link | Done when | Status |
-|---|---|---|---|---|
-| R-GO-1 | Add a Free play board (no prize yet); say whether it affects practice with Block X or the Survivor hole reader | D-081 | plan | open |
-| R-GO-2 | Confirm whether practice also waits for the sampler, or only for Block X (it's live) | I-060 | answer | open |
-| R-GO-3 | Launch path: update `golf` from `main`, move the Golf files to the site root, full suite, PR, `GOLF_ENABLED=true`. Staked: register game 6, set `GOLF_STAKED_FROM_WEEK`. Revisit `MIN_FIELD=5` / `MIN_FIELD_VHP=10` with real stake data | I-060 | PR open | open |

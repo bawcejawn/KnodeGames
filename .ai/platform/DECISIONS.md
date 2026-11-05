@@ -44,7 +44,7 @@
 | D-031 | 2026-10-30 | Staking UX: simple, share %, badge on every game page | active |
 | D-032 | ❓ | New games launch on Mondays, one at a time | superseded by D-052 |
 | D-033 | 2026-10-27 | Build 2: Race Show scoring, home page, dapp name | active |
-| D-034 | 2026-10-28/29 | Producer Race: stakes, ranking, ties, prizes, medals | active |
+| D-034 | 2026-10-28/29 | Producer Race: stakes, ranking, ties, prizes, medals | active; its "more than 10 tied" line superseded by D-159 |
 | D-035 | 2026-10-29 | The Race chat owns all Race files | active |
 | D-036 | ❓ | Split launch: Block X live prize-free first | done — Block X went live prize-free (3 Nov); prizes from 9 Nov per D-077 |
 | D-037 | 2026-10-30 | One change per pick | active |

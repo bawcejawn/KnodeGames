@@ -59,7 +59,7 @@
 ```
 - `rows`: staked players with ≥ 1 point, dense-ranked onto 255 … 1 (ties share; past 255 places the best 254 stay exact and the rest share 1). A week with no qualifying players may still get a file with empty rows.
 - **Every game fills `first` and `second`** with its free winners, even when its free prize is off. The owner's free-prize switch (D-082, `platform/FREE_PRIZE_SWITCH.md`) decides whether the bot posts them.
-- **Free-prize places (D-159, the same for every game):** 1st and 2nd are each paid to **at most 10 wallets**. Wallets tied on a place share it. If more than 10 qualify for the same place, **exactly 10** are paid, chosen by a deterministic tie-break: **earlier score time, then address**. A place is **never left empty because of the cap**. Each game's file says what its "score time" is; a game that can't say stops and asks the owner (D-160).
+- **Free-prize places (D-159, the same for every game):** 1st and 2nd are each paid to **at most 10 wallets**. Wallets tied on a place share it. If more than 10 qualify for the same place, **exactly 10** are paid, chosen by a deterministic tie-break: **earlier score time, then address**. A place is **never left empty because of the cap**. A tie for 1st leaves 2nd empty (D-034); wallets cut by the cap get nothing. Each game's file says what its "score time" is; a game that can't say stops and asks the owner (D-160).
 
 **Every results file must:**
 - be published **only after the week ends**, and for staked rows only after the stakes are read once the week has ended;

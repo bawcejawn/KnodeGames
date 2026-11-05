@@ -1,8 +1,8 @@
 {
-  "name": "kprediction",
+  "name": "knode-games",
   "version": "1.0.0",
   "license": "UNLICENSED",
-  "description": "Kprediction: weekly Koinos block-producer prediction game \u2014 analysis tools, question generator and operator bot",
+  "description": "Knode Games: prediction games on Koinos \u2014 the website, the operator bot, the question generator and analysis tools",
   "type": "module",
   "private": true,
   "scripts": {
@@ -24,7 +24,8 @@
     "testnet-site": "node tools/testnet-site.mjs",
     "fantasy": "tsx bot/games/fantasy.ts",
     "fantasy-test": "tsx bot/fantasy-test.ts",
-    "names": "tsx bot/names.ts"
+    "names": "tsx bot/names.ts",
+    "prizes": "tsx bot/free-prizes.ts"
   },
   "dependencies": {
     "koilib": "9.4.1"
@@ -32,6 +33,8 @@
   "devDependencies": {
     "@koinos/mock-vm": "1.3.0",
     "@koinos/proto-js": "2.1.0",
-    "tsx": "4.23.15"
+    "jsdom": "24.1.3",
+    "tsx": "4.23.15",
+    "yaml": "2.6.1"
   }
 }

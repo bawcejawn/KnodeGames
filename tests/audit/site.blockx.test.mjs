@@ -141,8 +141,8 @@ test("the cap keeps skill ahead of luck (seeded simulation on a 17-producer fiel
 test("blockx.html: strict CSP with the games-data and race-data branches, scripts from the site, no HTML sinks", () => {
   const h = read("blockx.html"), js = read("blockx.js");
   const csp = h.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)[1];
-  assert.match(csp, /connect-src [^;]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/games-data\//);
-  assert.match(csp, /connect-src [^;]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/race-data\//);
+  assert.match(csp, /connect-src [^;]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/games-data\//);
+  assert.match(csp, /connect-src [^;]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/race-data\//);
   assert.doesNotMatch(csp, /script-src[^;]*'unsafe-inline'/);
   assert.doesNotMatch(h, /<script>(?!<\/script>)|\son[a-z]+="/, "no inline scripts or handlers");
   const order = ["guest.js", "wallet.js", "header-wallet.js", "nav.js", "race-math.js", "blockx-math.js", "blockx.js"].map((f) => h.indexOf(`<script src="${f}"></script>`));
@@ -153,10 +153,13 @@ test("blockx.html: strict CSP with the games-data and race-data branches, script
   // It never offers a target within 20 blocks of its lock, and checks again right before sending.
   assert.match(js, /G\.offerRounds\(head\.height\)/);
   assert.match(js, /if \(!\(G\.lockHeight\(r\) - head\.height > 20\)\)/);
-  // The live page uses the shared Knode Games board (Staked / Free play) and says prizes wait for the vault.
+  // The live page uses the shared Knode Games board (Staked / Free play) and says prizes are paid from Week 1
+  // (R-BX-14, as the Race #86): never "once the vault is live" any more.
   assert.match(h, /<script src="board\.js"><\/script>/);
   assert.match(js, /free: \{ show: 6/);
-  assert.match(js, /paid once the Knode Games vault is live/);
+  assert.match(js, /2 and 1 VHP, from Week 1, the week of Mon 9 Nov/);
+  assert.match(h, /paid from Week 1 \(the week of Mon 9 Nov\)/);
+  for (const src of [h, js]) assert.doesNotMatch(src, /(paid )?once the (Knode Games )?vault is live\./);
 });
 
 // ── the testnet page: its own page, its own wallet, nothing of mainnet ──
@@ -164,7 +167,7 @@ test("blockx-testnet.html: testnet only — its node and data branch, no mainnet
   const h = read("blockx-testnet.html");
   const csp = h.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)[1];
   const conn = csp.match(/connect-src ([^;]*)/)[1].trim().split(/\s+/);
-  assert.deepEqual(conn, ["'self'", "https://testnet.koinosfoundation.org", "https://raw.githubusercontent.com/bawcejawn/Knode/testnet-data/"]);
+  assert.deepEqual(conn, ["'self'", "https://testnet.koinosfoundation.org", "https://raw.githubusercontent.com/bawcejawn/KnodeGames/testnet-data/"]);
   assert.match(h, /<meta name="kg-network" content="testnet">/);
   assert.match(h, /<meta name="robots" content="noindex, nofollow">/);
   assert.match(h, /TESTNET · test KOIN only/);
@@ -299,4 +302,30 @@ test("audit BX-31: the testnet wallet signs only the Picks `pick` entry point, c
   const abi = JSON.parse(fs.readFileSync(path.resolve(APP, "picks/abi/picks.koilib.json"), "utf8"));
   assert.match(src, new RegExp(`PICK_ENTRY = ${abi.methods.pick.entry_point}\\b`));
   assert.equal((src.match(/isPick\(o\)/g) || []).length, 2, "before signing and on the signed operations");
+});
+
+test("pick errors: only the Picks contract's own messages get the game's wording; a sponsor or wallet reason is shown as given", () => {
+  const js = fs.readFileSync(path.resolve(APP, "blockx.js"), "utf8");
+  const expr = js.slice(js.indexOf("const why = ") + "const why = ".length, js.indexOf(";\n", js.indexOf("const why = ")));
+  const why = (m) => new Function("m", "G", `return ${expr};`)(m, { LEAD: 100, PICKS_PER_DAY: 30, MAX_CHANGES: 1 });
+  assert.match(why("PICKS: today's picks for this game are used up"), /Today's 30 picks are used up/);
+  assert.match(why("PICKS: this round is locked"), /locked: picks close 100 blocks/);
+  assert.match(why("PICKS: this pick can't be changed again"), /changed once already/);
+  // The guest and sponsor refusals (wallet.js) say "used up" too: they must not read as the game's daily limit.
+  for (const m of ["Free answers are used up for today — try again after 00:00 UTC (5pm PT), or connect a wallet.",
+    "Today's free play is used up for this hour — more opens on the hour (UTC). Try again then, or connect a wallet."]) {
+    assert.doesNotMatch(why(m), /picks are used up/, m);
+    assert.ok(why(m).includes(m), "the wallet's own reason is shown");
+  }
+});
+
+test("R-BX-22 (D-125): the page offers no Sunday (UTC) target, nor one due in Saturday's last 10 minutes, and says why", () => {
+  const js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
+  assert.match(js, /const restAt = \(r\) => \{ const t = about\(G\.target\(r\)\); return X\.restDay\(t\) \|\| X\.restDay\(t \+ 10 \* 60000\); \};/);
+  assert.match(js, /rounds = offered\.filter\(\(r\) => !restAt\(r\)\)/);
+  assert.match(js, /Sunday \(UTC\) is the review day/);
+  assert.match(fs.readFileSync(path.join(APP, "blockx.html"), "utf8"), /Sunday is the review day, when no target scores/);
+  // The rule itself: Sunday UTC from Week 1 (vault week 3), the same as the Race.
+  for (let t = Date.UTC(2026, 10, 9); t < Date.UTC(2026, 10, 30); t += 3600000)
+    assert.equal(X.restDay(t), RM.restRace(t), new Date(t).toISOString());
 });

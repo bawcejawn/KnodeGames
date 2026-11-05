@@ -2,7 +2,7 @@
 
 > **Purpose:** how every game's leaderboard is built, ranked, published and shown, so all boards look and behave the same.
 > **Applies to:** every game, through the shared `board.js` (`KBoard`). **Every game has both boards** (D-079).
-> **Last updated:** 2026-11-02
+> **Last updated:** 5 Nov 2026 (week timing points to `WEEK_CYCLE.md`)
 > **Built from:** `platform/DECISIONS.md` (D-xxx) and the shared board as the Race, Hub and game chats built it.
 
 **Words:** **must** = required · **should** = expected · ❓ = not yet decided
@@ -17,9 +17,11 @@
 - **Both boards on every game, built from that game's own results and picks** (D-079) — **on every game, with no exceptions** (D-081). Where the free prize is off (Combo, Golf, Survivor, Fantasy for now), the Free play board ranks free players for standings only and the page must say no VHP is paid.
 - **Every game's boards are listed on the Leaders page** (a `board` entry in `games.json`).
 
+- **`board.json` for the vault check** (I-079, PR #74): every staked game publishes `board.json` next to its vault folder (or the path is set as `vaultGames.<id>.board` in `game-data/deployment.json`). It has a `lastWeek` whose week is the vault week, and each row has the wallet, a `points` field and a place, for Staked and Free rows. The vault bot holds a game's week if the board is missing, unreadable, for the wrong week, or doesn't match the vault file (every staked wallet with points in the file; every file wallet on the board, in board order).
+
 ## 2. Periods
 - Tabs: **Today**, **This week**, **Last week**, **All time** (games may omit Today when it makes no sense).
-- A week runs **Monday 00:00 to Monday 00:00 UTC**. Week numbers in files follow the vault (week 0 = Mon 19 Oct); **players see the week of Mon 9 Nov as "Week 1"** (D-063).
+- A vault week runs **Monday 00:00 to Monday 00:00 UTC**; what counts for the week, and Sunday's fun rounds (Today and All time only), follow `WEEK_CYCLE.md` (D-125, D-129). Week numbers in files follow the vault (week 0 = Mon 19 Oct); **players see the week of Mon 9 Nov as "Week 1"** (D-063).
 - Prizes are shown only from the vault's first paying week (`PRIZES_FROM_WEEK = 3` in vault numbering), never for weeks the vault won't pay (D-063).
 
 ## 3. Ranking
@@ -37,7 +39,7 @@
 ## 5. Data
 - Source: the game's published `board.json` on its data branch, written by the recorder and checked by the publish job (GAME_STANDARD §6).
 - Shared row shape (Race reference): `{a, pts, correct, shows, picks, ranked, boardPlace, earns}`; games add their own columns (e.g. Golf: `pts`, `topar`, `holes`, `lost`).
-- Size: up to 2,000 rows per board (Bracket, Combo); over the cap → error, no vault file (Combo).
+- Size: a capped number of rows per board: Bracket 1,000 (`MAX_BOARD_ROWS`), Combo 2,000 a week and 1,000 all-time ✅ (branches checked 3 Nov); over the cap → error, no vault file (Combo).
 - Updates hourly with the recorder. **Final weeks are frozen** — a published final board never changes.
 - Numbers JS-safe (within ±2⁵³−1, no integer-valued floats).
 - The vault's points come from the final board but are published separately (VAULT_STANDARD).

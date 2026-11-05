@@ -139,7 +139,7 @@ v3 adds three things. With no `allowed` rows it behaves as v2, except for the tw
 - **Fixcheck L-3**: a stake counts as a real player from `min_vhp` up (active and pending together), like held VHP.
 
 Allowlisted calls and free claims are refused above 640 argument bytes (400 before the Combo Card; the largest Block X pick is 317).
-Audit 2026-10-27 (`docs/history/AUDIT-2026-10-27-sponsor-v3.md`): "ready for testnet; fix S3-1 and S3-2 before mainnet",
+Audit 2026-10-27 (`AUDIT-2026-10-27-sponsor-v3.md` (owner's private records)): "ready for testnet; fix S3-1 and S3-2 before mainnet",
 no Critical, High or Medium. Fixed: S3-1 (a 16 KB buffer, so 10 picks fit in one transaction), S3-2 (allowlisted
 arguments must have no nested messages: documented, and `npm run check` confirms it for the Picks row), S3-7 (the Picks
 ABI checks are required). Accepted by the owner: S3-4 (guests can win Block X prizes; the free daily total bounds the
@@ -233,6 +233,18 @@ claim's Mana with the answers' 1 Mana limit, not `rcLimitOther`.
 Release sha256 (v3 with the above and round 4: `game_has_vault`, `would_pay` games): `b61ac238da27c4a71c01127f39a7b95f19fabf15e35df9f9715546d221e256e4` (35,052 bytes;
 182 contract tests). Repo Lens round 6 (2026-10-30): **GO** for the mainnet upload; the tool allows it on mainnet,
 with v2 `fa4659e6…` still allowed as the rollback. Superseded: `21bec825…` (33,210 bytes).
+
+Guest-trap fix (4 Nov 2026): `b84e1add3ffa14a7d1933d5ce5a4ad33caa4bca887a489f87f710b3c121c83a6`
+(35,168 bytes; 201 contract tests). Repo Lens (4 Nov): **GO** for the mainnet upload. Since the vault switch went on (3 Nov), `would_pay` and `authorize` trapped for every
+wallet the vault had no record of in the call's game (every guest pick on Block X and the Race): the vault's
+`get_game_player` answers with an empty player record (`0a 00`), and as-proto skips an unknown length-0 field as if it
+were a varint and reads past the buffer. The sponsor's result messages now declare every field the vault sends, so
+nothing is skipped. Only those private messages changed: `config` and every rule are as in v3, and the settings on
+chain carry over an upload. The tool allows it on mainnet; v3 `b61ac238…` stays allowed as the rollback.
+The tool turns the vault switch on only over this build, and refuses to upload `b61ac238…` while the switch is on
+(review SG-1). Checked on mainnet 4 Nov (review SG-3): the live KOIN and VHP `approve_arguments` have only owner, spender
+and value, as the sponsor reads them (`memo` is only in their transfer messages). The ABI generator can fail with EAGAIN
+reading stdin several builds in a row; retrying gives the same output.
 
 ## Build
 

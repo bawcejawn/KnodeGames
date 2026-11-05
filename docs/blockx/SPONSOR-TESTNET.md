@@ -125,7 +125,7 @@ npm run sponsor -- status --testnet
 
 `mana-report` reads every sponsored pick from the chain and shows its real Mana. `watch` shows the 80% warnings if
 the free pool or the total is nearly used. Send Claude the output of all three; Claude records them in
-`docs/blockx/TESTNET-RESULTS.md`.
+the Claude project (`claude/repo-history/docs-blockx-TESTNET-RESULTS.md`, moved out of the repo 5 Nov).
 
 ## Stopping
 

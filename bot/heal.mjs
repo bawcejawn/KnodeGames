@@ -43,8 +43,11 @@ const DRY = process.argv.includes("--dry-run");
 const TEST_ALERT = process.argv.includes("--test-alert");
 
 const NETWORK_RPC = process.env.RPC || "https://koinos.armana.io";
+// Public nodes to compare against when the first one doesn't answer (it fails about 1 call in 10 at times, with an
+// HTML error page). The check is skipped only when none of them answers.
+const NETWORK_FALLBACKS = (process.env.HEAL_RPC_FALLBACKS ?? "https://api.koinos.io,https://api.koinosblocks.com").split(",").map((x) => x.trim()).filter(Boolean);
 const GITHUB_API = process.env.HEAL_GITHUB_API || "https://api.github.com";
-const REPO = process.env.HEAL_REPO || "bawcejawn/Knode";
+const REPO = process.env.HEAL_REPO || "bawcejawn/KnodeGames";
 const BEHIND = 200;                    // blocks (~10 minutes at ~3 s per block)
 const COOLDOWN_MS = 50 * 60_000;       // wait after a restart before restarting the same node again
 const MAX_HEALS = 3, WINDOW_MS = 6 * 3600_000;
@@ -104,6 +107,22 @@ async function height(rpc, timeoutMs = 10_000) {
     if (!Number.isFinite(h) || h <= 0) throw new Error(j?.error?.message || "no height in the answer");
     return h;
   } finally { clearTimeout(t); }
+}
+
+/** The network's height: the main public node, tried twice, then each fallback once. Says which one answered when
+ *  it isn't the main one, and lists every error when none does. */
+async function networkHeight() {
+  const tries = [NETWORK_RPC, NETWORK_RPC, ...NETWORK_FALLBACKS.filter((u) => u !== NETWORK_RPC)];
+  const errors = [];
+  for (let i = 0; i < tries.length; i++) {
+    try {
+      const h = await height(tries[i], 15_000);
+      if (i > 0) log(`The network check used ${tries[i] === NETWORK_RPC ? "a second try at " : ""}${new URL(tries[i]).host} (${errors.join("; ")}).`);
+      return h;
+    } catch (e) { errors.push(`${new URL(tries[i]).host}: ${String(e.message || e).replace(/\s+/g, " ").slice(0, 80)}`); }
+    if (i === 0) await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error(errors.join("; "));
 }
 
 function docker(args, cwd) {
@@ -246,7 +265,7 @@ async function main() {
   const now = Date.now();
 
   let net;
-  try { net = await height(NETWORK_RPC, 20_000); }
+  try { net = await networkHeight(); }
   catch (e) { log(`Can't reach the Koinos network (${e.message}). Is the internet down? Skipping this check.`); return; }
 
   try { docker(["info", "--format", "{{.ServerVersion}}"]); }

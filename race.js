@@ -12,7 +12,7 @@
 
   const lib = window.koilib || window.koinos || window;
   const RPC = "https://koinos.armana.io";
-  const DATA = "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/";
+  const DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/";
   const VHP = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq";
   const EXPLORER = "https://koinosscan.com/address/";
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode Games pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Games Swap" };
@@ -106,7 +106,9 @@
     const legNow = M.legOf(race.start, Math.min(Date.now(), race.end - 1), nLegs), card = race.cards ? M.cardForLeg(race.cards, legNow) : null;
 
     // Title, tag and clock
-    $("race-title").textContent = `Race ${race.number} of 4 (${race.id.slice(11)}:00 UTC) · ${dayTime(race.start)} – ${clock(race.end)}`;
+    // D-129: a Sunday race is a fun race: played and scored, counted on Today and All time, never on the week's board.
+    const fun = M.restRace(race.start);
+    $("race-title").textContent = `${fun ? "Sunday fun race" : "Race"} ${race.number} of 4 (${race.id.slice(11)}:00 UTC) · ${dayTime(race.start)} – ${clock(race.end)}${fun ? " · counts on All time, not the week" : ""}`;
     const tag = $("race-tag");
     tag.textContent = live ? "Live" : !ended ? "Upcoming" : final ? "Final" : race.result && race.result.missed ? "Not recorded" : "Checking";
     tag.classList.toggle("done", !live);
@@ -295,10 +297,12 @@
     const max = usage ? Number(usage.max_picks_per_day) || 5 : 5, used = usage ? Number(usage.picks_today) || 0 : 0;
     $("picks-left").textContent = usage ? `${Math.max(0, max - used)} of ${max} picks left today` : "";
     const rows = [];
+    // D-129: Sunday UTC races are fun races: pick as usual; they count on Today and All time, not the week's board.
+    const funNote = (r) => (M.restRace(r.start) ? " · Sunday fun race: Today and All time, not the week" : "");
     // The live race: locked.
     const live = raceObj(cur), mineLive = myPicks.get(cur);
     rows.push(el("div", { class: "pk-row live" },
-      el("div", { class: "pk-when" }, el("b", { text: `Live now (${live.id.slice(11)}:00 UTC)` }), el("span", { text: `ends ${clock(live.end)}` })),
+      el("div", { class: "pk-when" }, el("b", { text: `Live now (${live.id.slice(11)}:00 UTC)` }), el("span", { text: `ends ${clock(live.end)}${funNote(live)}` })),
       el("div", { class: "pk-now", text: mineLive ? `Your pick: ${nameOf(mineLive)} 🔒` : "No pick for this race (locked)" }), el("span")));
     // The next 4: open.
     // The field for a race: its own starting card once the recorder has set it (about an hour before the start);
@@ -317,7 +321,7 @@
       const btn = el("button", { class: "btn", type: "button", onclick: () => sendPick(cur + k, sel.value) }, mine ? "Change" : "Pick");
       if (sending || used >= max) btn.disabled = true;
       rows.push(el("div", { class: "pk-row" },
-        el("div", { class: "pk-when" }, el("b", { text: `${dayTime(r.start)}` }), el("span", { "data-lock": String(r.start), text: `${r.id.slice(11)}:00 UTC · locks in ${dur(r.start - Date.now())}` })),
+        el("div", { class: "pk-when" }, el("b", { text: `${dayTime(r.start)}${M.restRace(r.start) ? " · Sunday fun race (Today and All time, not the week)" : ""}` }), el("span", { "data-lock": String(r.start), text: `${r.id.slice(11)}:00 UTC · locks in ${dur(r.start - Date.now())}` })),
         el("div", {}, sel, mine ? el("div", { class: "pk-now ago", text: `Your pick: ${nameOf(mine)}` }) : null), btn));
     }
     // Finished races today with a pick: right or not.
@@ -383,9 +387,15 @@
       }
     } catch (e) {
       const m = String((e && e.message) || e);
-      const why = /locked|started/i.test(m) ? "That race has started: picks are locked."
-        : /used up/i.test(m) ? "Today's picks are used up (changes count). More tomorrow, 00:00 UTC."
-        : /already your pick/i.test(m) ? "That is already your pick."
+      // R-RACE-7 (I-082), as PR #66 did for Block X: only the Race picks contract's own messages (race/assembly/Race.ts)
+      // get the game's wording. The Mana sponsor and the wallet use some of the same words ("used up", "closed"), and
+      // their reason is shown as they give it.
+      const why = /RACE: this race has started; picks are locked/i.test(m) ? "That race has started: picks are locked."
+        : /RACE: picks open 24 hours before a race/i.test(m) ? "That race isn't open yet: picks open 24 hours before it starts."
+        : /RACE: today's picks are used up/i.test(m) ? "Today's picks are used up (changes count). More tomorrow, 00:00 UTC."
+        : /RACE: that is already your pick/i.test(m) ? "That is already your pick."
+        : /RACE: picks are closed/i.test(m) ? "Race picks are switched off right now."
+        : /pending account resources|insufficient.*(rc|mana|resources)/i.test(m) ? "Your Mana is still held by your last pick. It frees up within a few minutes of each pick; try again in a minute."
         : /reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."
         : `Not sent: ${m.slice(0, 200)}`;
       pickModal(/Cancelled/.test(why) ? "info" : "bad", /Cancelled/.test(why) ? "Cancelled" : "Pick not sent", [why], [okBtn("OK")]);
@@ -404,8 +414,8 @@
     summary: (r) => `${fmt(r.pts ?? 0)} pts · ${fmt(r.correct)} W ${fmt(r.shows ?? 0)} S`,
     name: nameOf, link: (a) => EXPLORER + a,
     me: (r, place) => `${place ? `You: #${place} with` : "Your score (only you see this):"} ${fmt(r.pts ?? 0)} points (${fmt(r.correct)} wins, ${fmt(r.shows ?? 0)} shows) from ${fmt(r.picks)} picks.`,
-    unranked: "To play on the Staked board, stake VHP in the Producer Race (once the Knode Games vault is live).",
-    free: { show: 6, prize: "1st and 2nd at the end of the week win the free-play prize (paid once the Knode Games vault is live)." },
+    unranked: "To play on the Staked board, stake at least 1 VHP in the Producer Race.",
+    free: { show: 6, prize: "1st and 2nd at the end of the week win 2 and 1 VHP (from Week 1, the week of Mon 9 Nov)." },
   }) : null;
   async function loadBoard() {
     try { const b = await fetchJson(DATA + "board.json"); if (b && b.v === 1 && lb) { board = b; $("board-box").hidden = false; renderBoard(); } } catch { /* none yet */ }

@@ -38,9 +38,9 @@
     if (!TESTNET) {
       let picks = null;
       try { const d = await fetchJson(new URL("picks-data/deployment.json", ROOT)); if (isAddr(d.contract)) picks = d.contract; } catch { /* not live yet */ }
-      NET = { rpc: ["https://koinos.armana.io", "https://api.koinosblocks.com"], data: "https://raw.githubusercontent.com/bawcejawn/Knode/games-data/blockx/", raceData: "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/",
+      NET = { rpc: ["https://koinos.armana.io", "https://api.koinosblocks.com"], data: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/blockx/", raceData: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/",
         cards: "race", picks, explorer: "https://koinosscan.com/address/", chainId: MAINNET_CHAIN_ID,
-        prize: "1st and 2nd at the end of the week win the free-play prize (2 and 1 VHP, paid once the Knode Games vault is live)." };
+        prize: "1st and 2nd at the end of the week win the free-play prize (2 and 1 VHP, from Week 1, the week of Mon 9 Nov)." };
       G = X;
       provider = new lib.Provider(NET.rpc);
       W = window.KWallet || null;
@@ -203,8 +203,12 @@
     if (!head) return;
     renderStage();
     const list = $("targets");
-    const who = me(), rounds = G.offerRounds(head.height), ps = producers();
-    const key = JSON.stringify([who, W && W.kind, rounds[0], sending, !!picksContract, cardAt, ps.map((p) => p.a).join(), usage && usage.picks_today, [...myPicks.entries()].map(([r, p]) => [r, p.producers && p.producers[0], p.changes]), [...drafts.entries()]]);
+    // D-125 / R-BX-22: Sunday (UTC) is the review day; its targets score nothing, so they aren't offered (nor one due
+    // in the last 10 minutes of Saturday, which could slip past midnight).
+    const restAt = (r) => { const t = about(G.target(r)); return X.restDay(t) || X.restDay(t + 10 * 60000); };
+    const offered = G.offerRounds(head.height), skipped = offered.filter(restAt).length;
+    const who = me(), rounds = offered.filter((r) => !restAt(r)), ps = producers();
+    const key = JSON.stringify([who, W && W.kind, rounds[0], skipped, sending, !!picksContract, cardAt, ps.map((p) => p.a).join(), usage && usage.picks_today, [...myPicks.entries()].map(([r, p]) => [r, p.producers && p.producers[0], p.changes]), [...drafts.entries()]]);
     if (!force && key === targetsKey && list.childElementCount) { updateTimes(); return; }
     targetsKey = key;
     const max = usage ? Number(usage.max_picks_per_day) || G.PICKS_PER_DAY : G.PICKS_PER_DAY, used = usage ? Number(usage.picks_today) || 0 : 0;
@@ -214,7 +218,8 @@
     whoLine.replaceChildren();
     if (!card && ps.length) whoLine.append("Showing the producers signing right now. Multipliers appear with the first handicap card (the recorder takes one within the hour).");
     if (!card && !TESTNET && picksContract && rounds.length) whoLine.append("Picks open when the next handicap card is published (within the hour).");
-    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty", text: picksContract ? "No target is open right now." : "Picks open soon." })); return; }
+    if (skipped) whoLine.append(el("span", { class: "bx-rest", text: " Sunday (UTC) is the review day: its targets don't count, so they aren't offered. Play starts again Monday 00:00 UTC." }));
+    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty", text: !picksContract ? "Picks open soon." : skipped ? "Sunday is the review day: no target counts today. Monday's targets open here soon." : "No target is open right now." })); return; }
     const cards = rounds.map((r, i) => {
       const h = G.target(r), mine = myPicks.get(r), mineP = mine && mine.producers && mine.producers[0];
       const choice = drafts.get(r) || mineP || null;
@@ -394,12 +399,14 @@
       else pickModal("info", "Sent, not seen on the chain yet", ["Your wallet sent it. It usually shows within a minute; this list updates by itself."], [okBtn("OK")]);
     } catch (e) {
       const m = String((e && e.message) || e);
-      const why = /locked/i.test(m) ? `That block is locked: picks close ${G.LEAD} blocks before it.`
-        : /not open yet/i.test(m) ? "That block isn't open yet."
-        : /used up/i.test(m) ? "Today's picks are used up (changes count). More after 00:00 UTC."
-        : /changed again/i.test(m) ? `That pick has been changed ${G.MAX_CHANGES === 1 ? "once" : `${G.MAX_CHANGES} times`} already: it can't be changed again.`
-        : /already your pick/i.test(m) ? "That is already your pick."
-        : /closed/i.test(m) ? "This game is switched off right now."
+      // The Picks contract's own messages (picks/assembly/Picks.ts) only: the Mana sponsor and the wallet use some of the
+      // same words ("used up", "closed"), and their reason is shown as they give it.
+      const why = /PICKS: this round is locked/i.test(m) ? `That block is locked: picks close ${G.LEAD} blocks before it.`
+        : /PICKS: this round is not open yet/i.test(m) ? "That block isn't open yet."
+        : /PICKS: today's picks for this game are used up/i.test(m) ? `Today's ${G.PICKS_PER_DAY} picks are used up (changes count). More after 00:00 UTC.`
+        : /PICKS: this pick can't be changed again/i.test(m) ? `That pick has been changed ${G.MAX_CHANGES === 1 ? "once" : `${G.MAX_CHANGES} times`} already: it can't be changed again.`
+        : /PICKS: that is already your pick/i.test(m) ? "That is already your pick."
+        : /PICKS: this game is closed/i.test(m) ? "This game is switched off right now."
         : /pending account resources|insufficient.*(rc|mana|resources)/i.test(m) ? "Your Mana is still held by your last pick. It frees up within a few minutes of each pick; try again in a minute."
         : /no test Mana yet/i.test(m) ? m
         : /reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."

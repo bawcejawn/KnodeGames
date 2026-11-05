@@ -103,8 +103,26 @@ function parseArgs() {
   const n = (k: string) => (o[k] === undefined ? undefined : Number(o[k]));
   return { cmd, date: o.label ?? o.date ?? new Date().toISOString().slice(0, 10), force: o.force === "true" || "force" in o, offline: "offline" in o,
     week: n("week"), day: n("day"), maxLock: n("max-lock"), maxEnd: n("max-end"),
-    lockHeight: n("lock-height"), lockTime: n("lock-time"),
+    lockHeight: n("lock-height"), lockTime: n("lock-time"), count: n("count"), maxUses: n("max-uses"), avoidOverlap: "avoid-overlap" in o,
     exclude: o.exclude ? o.exclude.split(",").map((x) => x.trim()).filter(Boolean) : [] };
+}
+
+/** Producers asked about in any posted question whose watched blocks reach `fromHeight` or later (other files only). */
+export function producersInOverlappingWindows(qdir: string, fromHeight: number, ownLabel: string): Set<string> {
+  const out = new Set<string>();
+  if (!fs.existsSync(qdir)) return out;
+  for (const f of fs.readdirSync(qdir)) {
+    if (!/^W\d{3}-D[1-7](-\d{2})?\.json$/.test(f) || f === `${ownLabel}.json`) continue;
+    let d: any;
+    try { d = JSON.parse(fs.readFileSync(path.join(qdir, f), "utf8")); } catch { continue; }
+    if (d?.skipped) continue;
+    for (const q of Array.isArray(d?.questions) ? d.questions : []) {
+      // Only questions that are live on chain (Repo Lens #D-6 Q-3): one never posted watches nothing.
+      if (q?.chainId === undefined || q?.postSkipped || !(Number(q?.windowEnd) >= fromHeight)) continue;
+      for (const a of [...(Array.isArray(q.subjects) ? q.subjects : []), ...(Array.isArray(q.group) ? q.group : [])]) if (typeof a === "string") out.add(a);
+    }
+  }
+  return out;
 }
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -388,7 +406,9 @@ async function run() {
   const onChain = args.week !== undefined && args.day !== undefined;
   const dayNumber = onChain ? args.week! * 7 + args.day! : Math.floor((Date.parse(args.date) - Date.parse(g.weekOneStart)) / 86_400_000);
   const week = onChain ? args.week! : Math.floor(dayNumber / 7) + 1, day = onChain ? args.day! : ((dayNumber % 7) + 7) % 7;
-  const tier = g.tierByDay[day], count = g.questionsPerDay[day];
+  // The bot gives each round's size (--count, D-092); manual runs use game.json's questionsPerDay.
+  if (args.count !== undefined && !(Number.isInteger(args.count) && args.count >= 0 && args.count <= 10)) throw new Error(`--count must be a whole number from 0 to 10 (got ${args.count}).`);
+  const tier = g.tierByDay[day], count = args.count ?? g.questionsPerDay[day];
   console.log(`\n=== Releasing questions for ${args.date} — week ${week}, day ${day + 1} (${tier}), ${count} questions ===`);
   if (dayNumber < 0) console.log(`(Practice run: the game starts ${g.weekOneStart}.)`);
 
@@ -409,9 +429,16 @@ async function run() {
   if (args.maxLock !== undefined && lockHeight > args.maxLock) throw new Error(`Too late in the week to release: answers would close at ${lockHeight}, after the week ends at ${args.maxLock}.`);
   const maxEnd = args.maxEnd ?? Infinity; // the window must end early enough for the week to close on time
   const usedToday = new Set<string>();
+  // Two rounds a day (D-092, from week 3; the bot passes --avoid-overlap): an earlier round's windows can still be
+  // running when this round's start. A producer asked about in a window that overlaps this round's windows is left
+  // out, so one node going quiet can't decide two live questions at once. Weeks with one round keep today's rule
+  // exactly (Repo Lens #D-6 Q-2: a smaller producer's long window can run into the next day's there too).
+  if (args.avoidOverlap) for (const a of producersInOverlappingWindows(path.join(DIR, "questions"), lockHeight + 1, args.date)) usedToday.add(a);
   // Fairness: how many of this week's questions each producer is already part of. No producer goes past the cap, so
   // no single node carries enough of the week's questions to make gaming it worthwhile.
-  const cap = g.maxUsesPerWeek ?? 4;
+  // The bot raises it for weeks of more than 30 questions (--max-uses, D-092); manual runs use game.json's.
+  if (args.maxUses !== undefined && !(Number.isInteger(args.maxUses) && args.maxUses >= 1 && args.maxUses <= 20)) throw new Error(`--max-uses must be a whole number from 1 to 20 (got ${args.maxUses}).`);
+  const cap = args.maxUses ?? g.maxUsesPerWeek ?? 4;
   const uses = (st.usesByWeek ??= {})[String(week)] ??= {};
   const usable = (a: string) => !usedToday.has(a) && !voided.has(a) && (uses[a] ?? 0) < cap;
 

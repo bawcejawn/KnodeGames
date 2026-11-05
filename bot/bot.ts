@@ -49,7 +49,7 @@ import { pobAbi } from "./token-abi.ts";
 import { formatProduction, loadSigners, signerFromBlockItem, type SignedBlock } from "./production.ts";
 import { contractManaVerdict } from "./mana.ts";
 import { contractMetadata, checkMeta, sha256OfMeta, type Check } from "./chaincheck.ts";
-import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, type VaultCtx } from "./vault.ts";
+import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
 
 // ───────────────────────── settings ─────────────────────────
 
@@ -79,6 +79,59 @@ export const HOUR_MS = 3_600_000, DAY_MS = 24 * HOUR_MS;
 // The weekly rhythm (all UTC). Weeks start Monday 00:00. Questions come out at 12:00 Monday–Saturday and answers close
 // at 00:00 the next day (12 hours). Sunday is results day.
 export const RELEASE_HOUR = 12, LOCK_HOUR = 24, QUESTION_DAYS = 6;
+/** Question rounds on each question day (Monday–Saturday), by week (week 0 = the week of genesis). A round opens at
+ *  `open` (hour of the UTC day) and its answers close ROUND_MS later. Owner, 2026-11-04 (D-092, R-Q-1): from the week
+ *  of Mon 9 Nov (week 3) two rounds a day, 2 questions at 00:00 and 3 at 12:00 UTC: 30 a week, the most the live
+ *  contract takes. From the first week whose on-chain cap (`get_state.questions_cap`, Vault v6.1) is at least 48:
+ *  4 + 4, 48 a week. An entry with `minCap` is used only for a week the chain allows that many questions in, so a
+ *  late upgrade simply keeps 2 + 3. Sunday stays results day: the week still closes Monday 12:00; claims open from about Tuesday 12:00–15:00 UTC
+ *  (later if Saturday's questions resolve on Monday; D-125, Repo Lens #B-7 B7-2). */
+export const ROUND_MS = 12 * HOUR_MS;
+export const SCHEDULE: readonly { fromWeek: number; minCap?: number; rounds: readonly { open: number; count: number }[] }[] = [
+  { fromWeek: 0, rounds: [{ open: RELEASE_HOUR, count: 5 }] },
+  { fromWeek: 3, rounds: [{ open: 0, count: 2 }, { open: 12, count: 3 }] },
+  { fromWeek: 3, minCap: 48, rounds: [{ open: 0, count: 4 }, { open: 12, count: 4 }] },
+];
+export type Round = { label: string; week: number; day: number; releaseAt: number; lockTime: number; count: number };
+/** The questions the live contract takes in a week (v5/v6), and Vault v6.1's from its rule week. */
+export const BASE_CAP = 30, V61_CAP = 60;
+/** The rounds of week `w`, for a week whose on-chain cap is `cap`. */
+export function roundsOfWeek(w: number, cap = BASE_CAP) {
+  let r = SCHEDULE[0].rounds;
+  for (const s of SCHEDULE) if (w >= s.fromWeek && cap >= (s.minCap ?? 0)) r = s.rounds;
+  return r;
+}
+/** Questions in week `w` by the schedule. */
+export const weekTotal = (w: number, cap = BASE_CAP) => roundsOfWeek(w, cap).reduce((n, r) => n + r.count, 0) * QUESTION_DAYS;
+/** Each week's on-chain cap, from get_state (Vault v6.1 `questions_cap` / `questions_cap_next`; older code: 30). */
+export function capsFrom(raw: any, genesis: number, weekLen: number, time: number) {
+  const cw = Math.floor((time - genesis) / (weekLen || 7 * DAY_MS));
+  // Only the two values Vault v6.1 can report are believed; anything else (a faulty or hostile node) counts as 30
+  // (Repo Lens #E-8 L-2).
+  const ok = (x: any) => { const n = num(x); return n === BASE_CAP || n === V61_CAP ? n : BASE_CAP; };
+  const now = ok(raw?.questions_cap), nxt = ok(raw?.questions_cap_next);
+  return (w: number) => (w === cw ? now : w === cw + 1 ? nxt : BASE_CAP);
+}
+/** A round's question file: the 12:00 round keeps the old name (W004-D1), others add their hour (W004-D1-00). */
+export const roundLabel = (w: number, dd: number, open: number) => `W${String(w).padStart(3, "0")}-D${dd + 1}${open === RELEASE_HOUR ? "" : "-" + String(open).padStart(2, "0")}`;
+/** The rounds of UTC day `d` (days since genesis), earliest first; none on Sundays. */
+export function roundsOfDay(genesis: number, d: number, capOf: (w: number) => number = () => BASE_CAP): Round[] {
+  if (d < 0) return [];
+  const w = Math.floor(d / 7), dd = d % 7;
+  if (dd >= QUESTION_DAYS) return [];
+  const start = genesis + d * DAY_MS;
+  return [...roundsOfWeek(w, capOf(w))].sort((a, b) => a.open - b.open).map((r) => ({
+    label: roundLabel(w, dd, r.open), week: w, day: dd, releaseAt: start + r.open * HOUR_MS, lockTime: start + r.open * HOUR_MS + ROUND_MS, count: r.count,
+  }));
+}
+/** The round whose answers are open at `time` (released, not yet closed), if any, and the next round to open. */
+export function roundsAt(genesis: number, time: number, capOf: (w: number) => number = () => BASE_CAP) {
+  const d = Math.floor((time - genesis) / DAY_MS);
+  const list = [d - 1, d, d + 1, d + 2].flatMap((x) => roundsOfDay(genesis, x, capOf));
+  const current = list.filter((r) => r.releaseAt <= time && time < r.lockTime).pop() ?? null;
+  const next = list.find((r) => r.releaseAt > time) ?? null;
+  return { current, next };
+}
 const MIN_BLOCK_MS = 2_800, MAX_BLOCK_MS = 3_500; // the same bounds the contract enforces
 const RESOLVE_MARGIN = 60;               // the contract resolves only after window_end + 60
 /** A posted question still unresolved this many blocks (about 6 hours) after its window is reported (audit H-2). */
@@ -150,6 +203,8 @@ type BotState = {
   desk?: { settings: string; koin: string; koinOut: string; at: number };
   /** The vault's game list as last seen (v6): a change is reported once. */
   games?: string;
+  /** Other games' results (bot/vault.ts VaultMemo): when each results file was first read, refusals, alerts sent. */
+  vault?: VaultMemo;
 };
 const vhpKey = (q: any) => String(q.paramsHash ?? "").toLowerCase();
 /** Records the list the bot just sealed. */
@@ -191,6 +246,8 @@ export type Ctx = {
   problems: string[];
   /** Mana (units) this run's bot-paid transactions used, from their receipts. */
   manaUsed?: bigint;
+  /** The chain's reason for the last send that failed (sendOp), for the vault's refusal alerts. */
+  lastSendError?: string;
   quiet?: boolean;
   /** Real runs only: when the day's release time is this close (ms), wait for it instead of leaving it to the next
    *  run, so questions come out on the dot (the release run is started a few minutes early). */
@@ -277,15 +334,21 @@ async function sendOp(ctx: Ctx, what: string, calls: Call[], opts: { sponsored?:
   // Count what the bot wallet paid (a reverted transaction is paid too; one the contract paid for is not).
   if (!contractPaid && r.rcUsed) { try { ctx.manaUsed = (ctx.manaUsed ?? 0n) + BigInt(r.rcUsed); } catch { /* not a number: not counted */ } }
   if (r.ok) { if (!ctx.quiet) log(`  ✔ ${what}${r.rcUsed && r.rcUsed !== "0" ? `  (Mana ${showKoin(r.rcUsed)})` : ""}`); }
-  else { log(`  ✖ ${what}: ${r.error}`); ctx.problems.push(`A transaction failed: ${what} — ${String(r.error).slice(0, 200)}`); }
+  else { ctx.lastSendError = String(r.error ?? ""); log(`  ✖ ${what}: ${r.error}`); ctx.problems.push(`A transaction failed: ${what} — ${String(r.error).slice(0, 200)}`); }
   return r.ok;
 }
 
 /** The bot's context as the vault passes need it (bot/vault.ts). */
-const vaultCtx = (ctx: Ctx): VaultCtx => ({
+const vaultCtx = (ctx: Ctx, memo?: VaultMemo): VaultCtx => ({
   chain: ctx.chain, operator: ctx.operator, dryRun: ctx.dryRun, problems: ctx.problems, quiet: ctx.quiet,
-  deployment: readJson(ctx.P.deployment, null),
+  deployment: readJson(ctx.P.deployment, null), memo,
 });
+/** sendOp for the vault passes: also hands back the chain's reason when a send is refused (I-052). */
+const vaultSend = (ctx: Ctx) => async (what: string, calls: Call[]): Promise<SendResult> => {
+  ctx.lastSendError = undefined;
+  const ok = await sendOp(ctx, what, calls);
+  return ok ? true : { ok: false, error: ctx.lastSendError ?? "" };
+};
 
 // ═══════════════════════════════ the tick ═══════════════════════════════
 
@@ -338,8 +401,10 @@ export async function tick(ctx: Ctx) {
   if (!safe) await step("posting questions", () => postPass(ctx, bs));
   if (!safe) await step("closing / finalizing", () => closeFinalizePass(ctx));
   // v6: other games' results (posted once their week is final) and their weeks' finalization. Skipped on v5.
-  await step("other games' results", () => vaultResultsPass(vaultCtx(ctx), (what, calls) => sendOp(ctx, what, calls)));
-  if (!safe) await step("finalizing other games", () => vaultFinalizePass(vaultCtx(ctx), (what, calls) => sendOp(ctx, what, calls)));
+  // The memo is kept in bot-state.json only on a real run (a dry run never saves): checks that wait for a second run
+  // (a results file must be the same on two runs) then simply wait in a dry run.
+  await step("other games' results", () => vaultResultsPass(vaultCtx(ctx, (bs.vault ??= {})), vaultSend(ctx)));
+  if (!safe) await step("finalizing other games", () => vaultFinalizePass(vaultCtx(ctx), vaultSend(ctx)));
   // The alerts run before the settle pass (audit L-6): a week with a great many entries to settle must never delay an
   // alert about an announced upgrade or owner change. The settle pass also has its own time budget.
   await step("health check", () => healthPass(ctx, bs));
@@ -842,28 +907,35 @@ async function vhpReadPass(ctx: Ctx, height: number, bs: BotState) {
 
 // ───────────── post today's questions ─────────────
 
-async function postPass(ctx: Ctx, bs: BotState) {
+export async function postPass(ctx: Ctx, bs: BotState) {
   const st = await state(ctx);
   const { height, time } = st;
   if (time < st.genesis) { if (!ctx.quiet) log(`  the game starts ${utc(st.genesis)} — nothing to post yet`); return; }
-  const d = Math.floor((time - st.genesis) / DAY_MS);
-  const w = Math.floor(d / 7), dd = d % 7;
-  if (dd >= QUESTION_DAYS) return; // Sunday: results day, no questions
-  const dayStart = st.genesis + d * DAY_MS;
-  const releaseAt = dayStart + RELEASE_HOUR * HOUR_MS, lockTime = dayStart + LOCK_HOUR * HOUR_MS;
-  if (time < releaseAt) {
-    const wait = releaseAt - time;
-    if (!ctx.dryRun && ctx.releaseWaitMs && wait <= ctx.releaseWaitMs) {
-      log(`  today's questions come out at ${utc(releaseAt)}: waiting ${Math.ceil(wait / 1000)} s for it`);
-      await new Promise((r) => setTimeout(r, wait + 5_000));
-      // The chain's clock can trail by a block or two: one more short wait at most, then leave it to the next run.
-      ctx.releaseWaitMs = ctx.releaseWaitMs > 60_000 ? 60_000 : 0;
-      return postPass(ctx, bs);
-    }
-    if (!ctx.quiet) log(`  today's questions come out at ${utc(releaseAt)}`);
-    return;
+  // The round open now (posted first), then the next one: the release run starts a little early and waits for it
+  // (D-047). From week 3 the rounds are back to back, so a round is open while the run waits (Repo Lens #D-6 Q-1).
+  const capOf = capsFrom(st.raw, st.genesis, st.weekLen, time);
+  const { current, next } = roundsAt(st.genesis, time, capOf);
+  const wallStart = Date.now();
+  if (current) await postRound(ctx, bs, st, current, capOf(current.week));
+  if (!next) return;
+  // Chain time now: the time read above plus however long posting took (no extra read; Repo Lens #C-5 C5-1's test).
+  const now = time + (Date.now() - wallStart);
+  const releaseAt = next.releaseAt, wait = releaseAt - now;
+  if (wait <= 0) return; // (it opened meanwhile: the next run posts it)
+  if (!ctx.dryRun && ctx.releaseWaitMs && wait <= ctx.releaseWaitMs) {
+    log(`  the next questions (${next.label}) come out at ${utc(releaseAt)}: waiting ${Math.ceil(wait / 1000)} s for it`);
+    await new Promise((r) => setTimeout(r, wait + 5_000));
+    // The chain's clock can trail by a block or two: one more short wait at most, then leave it to the next run.
+    ctx.releaseWaitMs = ctx.releaseWaitMs > 60_000 ? 60_000 : 0;
+    return postPass(ctx, bs);
   }
-  const label = `W${SPACE(w)}-D${dd + 1}`;
+  if (!current && !ctx.quiet) log(`  the next questions (${next.label}) come out at ${utc(releaseAt)}`);
+}
+
+/** Generate (once), seal and post the questions of the round open now. */
+async function postRound(ctx: Ctx, bs: BotState, st: Awaited<ReturnType<typeof state>>, current: Round, cap: number) {
+  const { height, time } = st;
+  const w = current.week, dd = current.day, lockTime = current.lockTime, label = current.label;
   const file = path.join(ctx.P.questions, `${label}.json`);
   const wEnd = weekEnd(st, w);
   if (st.weeksClosed > w) return; // (only possible right at a boundary)
@@ -880,7 +952,9 @@ async function postPass(ctx: Ctx, bs: BotState) {
     const maxEnd = height + Math.floor((wEnd + st.closeDelay - time) / MAX_BLOCK_MS) - RESOLVE_MARGIN - RESOLVE_SLACK;
     log(`  releasing ${label} (week ${w + 1}, day ${dd + 1}) — answers close ${utc(lockTime)}; watched blocks from ${windowStart}`);
     if (ctx.dryRun) { log(`  [dry run] would run the generator and post its questions`); return; }
-    const g = ctx.generator(["release", "--label", label, "--week", String(w), "--day", String(dd),
+    const g = ctx.generator(["release", "--label", label, "--week", String(w), "--day", String(dd), "--count", String(current.count), ...(roundsOfWeek(w, cap).length > 1 ? ["--avoid-overlap"] : []),
+      // More questions a week than 30: each producer may be in proportionally more of them (game.json's cap is for 30).
+      ...(weekTotal(w, cap) > BASE_CAP ? ["--max-uses", String(Math.ceil((4 * weekTotal(w, cap)) / BASE_CAP))] : []),
       "--lock-height", String(windowStart - 1), "--lock-time", String(lockTime), "--max-end", String(maxEnd)]);
     // Every active producer stays in the game (owner decision on audit F-09); the generator's weekly cap
     // (game.json "maxUsesPerWeek") keeps any one node out of too many questions.
@@ -894,6 +968,14 @@ async function postPass(ctx: Ctx, bs: BotState) {
     // Seal what the generator made (only this run's generator output is ever posted), then save the questions publicly
     // BEFORE posting them, so their details can never be lost.
     const made: DayFile & { daySeal?: string } = readJson(file);
+    if (!(made.questions ?? []).length) {
+      // Repo Lens #D-6 Q-4: say so plainly, so the site and the PC backup don't wait for questions that won't come.
+      writeJson(file, { ...made, questions: [], skipped: "no fair questions could be made for this round" });
+      log(`  skipped ${label}: the generator made no fair questions`);
+      ctx.problems.push(`${label}: the generator made no fair questions for this round, so none were posted. Players get fewer questions this week; nothing else to do.`);
+      ctx.checkpoint(`bot: no questions for ${label}`);
+      return;
+    }
     for (const q of made.questions ?? []) {
       if (paramsHashOf(q) !== String(q.paramsHash ?? "").toLowerCase()) throw new Error(`the generator wrote ${q.id} with a paramsHash that does not match its parameters`);
     }
@@ -928,11 +1010,25 @@ async function postPass(ctx: Ctx, bs: BotState) {
       writeJson(file, cur);
       continue;
     }
-    // v5 takes at most 30 questions a week (v3 64). A stray or duplicate post can use up a slot: then the remaining
-    // questions are skipped once, with a note, instead of failing (and costing Mana) every hour.
+    // v5/v6 take at most 30 questions a week (v3 64; v6.1 says its own cap in questions_cap). A stray or duplicate post
+    // can use up a slot: then the remaining questions are skipped once, with a note, instead of failing (and costing
+    // Mana) every hour.
     const gs = await ctx.chain.read("get_state", {});
-    const maxQ = num(gs.config?.reward_rule_week_plus_one) > 0 ? 30 : 64;
+    // Repo Lens #E-8 L-1/L-2: a read whose cap is missing or disagrees with the cap this round was planned with is not
+    // trusted to skip anything: the question waits for the next run. Before v6.1 (no field, planned 30) as before.
+    const readCap = num(gs.questions_cap), validCap = readCap === BASE_CAP || readCap === V61_CAP;
     const wkQ = num(((await ctx.chain.read("get_week", { week: String(cur.week ?? q.week) })).week ?? {}).questions);
+    // #E-9 I-1: no cap field but more than 30 questions already this week: the chain is clearly on v6.1, so a stale
+    // read must not skip either.
+    const hold = (validCap && readCap !== cap) || (!validCap && cap > BASE_CAP) || (!validCap && wkQ > BASE_CAP);
+    if (hold) {
+      const why = `the chain's weekly question cap read as ${gs.questions_cap ?? "missing"} (${wkQ} questions on chain this week), but this round was planned with ${cap}`;
+      log(`  ${q.id}: ${why}: not posting it this run (the next run tries again)`);
+      // #E-9 L-B: held this close to its lock, the round could end as "posted too late" without anyone hearing of it.
+      if ((q.lockTime ?? 0) - now < 3 * HOUR_MS) ctx.problems.push(`${label}: its questions are being held back (${why}) with under 3 hours left before answers close. Check the bot's RPC nodes (get_state should show questions_cap).`);
+      break;
+    }
+    const maxQ = validCap ? readCap : num(gs.config?.reward_rule_week_plus_one) > 0 ? BASE_CAP : 64;
     if (wkQ >= maxQ) {
       q.postSkipped = `the week already has ${wkQ} questions on chain (the most it takes)`;
       log(`  skipped ${q.id}: ${q.postSkipped}`);
@@ -990,14 +1086,22 @@ const FREE_SETTLE_MAX = 20;
 /** The settle pass stops after this long (audit L-6): the hourly run has to finish, and the next run continues. */
 const SETTLE_BUDGET_MS = 40 * 60_000;
 
+/** Vault v6.1 (D-116): from its rule week Daily Questions is paid from a results file like every vault game, with no
+ *  settle step (a settle there reverts). The same test as the Vault chat's sharedRulesWeek (bot/vault.ts on its branch):
+ *  config.q60_rule_week_plus_one > 0 and week + 1 >= it. The live v6 code has no such field: every week is old-rule. */
+export const questionsSharedWeek = (c: any, w: number) => { const v = num(c?.q60_rule_week_plus_one); return v > 0 && w + 1 >= v; };
+
 async function settlePass(ctx: Ctx) {
   const st = await state(ctx);
   const h = st.time;
   const started = Date.now();
   const outOfTime = () => Date.now() - started > SETTLE_BUDGET_MS;
   for (let w = st.weeksFinalized; w < st.weeksClosed; w++) {
+    if (questionsSharedWeek(st.c, w)) continue;   // shared rules: no settle step
     const wk = (await ctx.chain.read("get_week", { week: String(w) })).week ?? {};
     if (h < num(wk.settle_start) || h > num(wk.settle_end)) continue;
+    // The switch-over week (the last old-rule week) is settled by this pass alone: from the rule week on, a player's
+    // answers no longer settle their previous week (v6.1 Mana fix), so every staked player of it is settled here.
     // Free players (no stake that week) and voided entries (the player withdrew everything) can never be paid, so the
     // bot doesn't spend Mana settling them.
     const minStake = minStakeFor(st.c, w);
@@ -1005,9 +1109,12 @@ async function settlePass(ctx: Ctx) {
     // Largest stakes first, so if the bot has to stop paying, it stops at the smallest entries.
     const todo = (await unsettled()).sort((a, b) => (big(b.entry.stake) > big(a.entry.stake) ? 1 : big(b.entry.stake) < big(a.entry.stake) ? -1 : 0));
     const lastHours = num(wk.settle_end) - h <= SETTLE_LAST_HOURS_MS;
-    if (todo.length) log(`  settling ${todo.length} player(s) for week ${w}${lastHours ? " (last hours before settle_end: no cap on bot-paid settles)" : ""}`);
+    // The switch-over week: nobody's answer settles it, so the bot settles every staked player, without the per-run cap
+    // (still above the bot's Mana floor).
+    const switchOver = questionsSharedWeek(st.c, w + 1);
+    if (todo.length) log(`  settling ${todo.length} player(s) for week ${w}${switchOver ? " (the last old-rule week: the bot settles everyone)" : lastHours ? " (last hours before settle_end: no cap on bot-paid settles)" : ""}`);
     let n = 0;
-    ctx.botPaidUncapped = lastHours;
+    ctx.botPaidUncapped = lastHours || switchOver;
     try {
       for (const r of todo) {
         if (outOfTime()) { log(`  stopped settling for this run (time budget); the next run continues`); break; }
@@ -1239,7 +1346,7 @@ async function deploy(send: boolean) {
   log(`Owner              ${owner}`);
   log(`Seed owner         ${seedOwner}`);
   log(`Week 1 starts      ${utc(genesis)} (a Monday). Every week: Monday 00:00 → next Monday 00:00 UTC`);
-  log(`Daily questions    Monday–Saturday: out at ${RELEASE_HOUR}:00 UTC, answers close at 00:00 UTC (12 hours). Sunday: results day`);
+  log(`Daily questions    Monday–Saturday: ${SCHEDULE.map((s) => `${s.fromWeek ? `from week ${s.fromWeek + 1}${s.minCap ? ` (chain cap ≥ ${s.minCap})` : ""}: ` : ""}${s.rounds.map((r) => `${r.count} at ${String(r.open).padStart(2, "0")}:00`).join(" + ")} UTC`).join("; ")}; answers close 12 hours after each round opens. Sunday: results day`);
   log(`After each week    corrections until Monday 12:00 UTC, then winners are final Tuesday 12:00 UTC; code/seed timelock 48 h`);
   log(`Settings           min stake ${showKoin(init.min_stake)} VHP, sponsored tx limit ${showKoin(init.max_sponsor_rc)} Mana`);
   log(`Tokens             KOIN ${tokens.koin}  VHP ${tokens.vhp}  PoB ${tokens.pob}`);
@@ -1640,7 +1747,7 @@ function gameChain(): KoinosChain {
 }
 
 /** Runs a vault pass (bot/vault.ts) by hand with one role's key: a dry run unless `sendIt`. */
-async function vaultCommand(role: string, sendIt: boolean, fn: (v: VaultCtx, send: (what: string, calls: Call[]) => Promise<boolean>) => Promise<void>) {
+async function vaultCommand(role: string, sendIt: boolean, fn: (v: VaultCtx, send: (what: string, calls: Call[]) => Promise<SendResult>) => Promise<void>) {
   const P = paths(E.GEN_DIR ?? "game-data");
   const dep = readJson(P.deployment, null);
   const chain = gameChain();
@@ -1657,7 +1764,7 @@ async function vaultCommand(role: string, sendIt: boolean, fn: (v: VaultCtx, sen
     const r = await chain.send(calls, [signer], { rcLimitKoin: 5 });
     log(r.ok ? `  ✔ ${what}  (Mana used ${showKoin(r.rcUsed)})  transaction ${r.txId}` : `  ✖ ${what}: ${r.error}`);
     if (!r.ok) process.exitCode = 1;
-    return r.ok;
+    return r.ok ? true : { ok: false, error: String(r.error ?? "") };
   });
   for (const pr of problems) log(`  ⚠ ${pr}`);
   if (!sendIt) log("\nDry run only — nothing was sent. Add --send to send it.");

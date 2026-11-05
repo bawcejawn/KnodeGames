@@ -57,10 +57,10 @@ certutil -hashfile picks\build\release\contract.wasm SHA256
 
 ## Build
 
-Independent audit 2026-10-27 (`docs/history/AUDIT-2026-10-27-picks.md`): verdict "fix first" for P-1 (High, an
+Independent audit 2026-10-27 (`AUDIT-2026-10-27-picks.md` (owner's private records)): verdict "fix first" for P-1 (High, an
 announcement could survive an owner handover) and P-2 (Medium, tighten_game could be undone by an earlier
 announcement). Both are fixed (owner generations; tighten_game drops the game's announcement), plus P-4 (the check
-reads the compiled code too) and P-7 (`list_pending`). Fix-check 2026-10-27 (`docs/history/AUDIT-2026-10-27-picks-fixcheck.md`):
+reads the compiled code too) and P-7 (`list_pending`). Fix-check 2026-10-27 (`AUDIT-2026-10-27-picks-fixcheck.md` (owner's private records)):
 "ready for testnet"; its one new finding, PF-1 (Low, `list_pending` could come back empty with no cursor), is fixed
 (`next`).
 

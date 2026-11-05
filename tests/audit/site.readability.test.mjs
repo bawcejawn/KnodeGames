@@ -41,3 +41,11 @@ test("small labels are at least 13 px", () => {
   const t = Number(prop(rule(css, ".tier"), "font-size").replace("rem", "")); assert.ok(t * 16 >= 13, `.tier ${t}rem`);
   assert.match(prop(rule(games, ".g-line"), "font-size"), /^1[6-9]px$/, "game card text 16 px");
 });
+
+test("tap targets: buttons, the logo, footer links and the 'See every game' link are at least 44 px; producer chips have a 44 px tap area", () => {
+  const last = (sel) => { const i = css.lastIndexOf(`${sel} {`); assert.ok(i >= 0, sel); return css.slice(i, css.indexOf("}", i)); };   // the tap-target block comes last
+  for (const sel of ["button.btn", ".brand", ".foot-links a", ".also-more", ".how > summary"]) assert.match(prop(last(sel), "min-height"), /^4[4-9]px$/, sel);
+  const after = rule(css, ".pchip::after"), inset = prop(after, "inset").match(/^-(\d+)px/);
+  assert.ok(inset && 30 + 2 * Number(inset[1]) >= 44, `chip tap area ${prop(after, "inset")}`);
+  assert.match(prop(last(".pchip"), "position") || "", /relative/);
+});

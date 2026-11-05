@@ -794,3 +794,13 @@ body[data-view="welcome"] .foot .eco { display: none; }
 .kbadge .kb-link { font-weight: 700; white-space: nowrap; margin-left: auto; }
 .g-stake { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
 .g-stake.on { color: var(--mint-ink, #1f7a4d); border-color: var(--mint, #2f9e6b); }
+
+/* Tap targets: at least 44 px tall, Apple's guideline (launch UI research item 4, owner 5 Nov). Layout and look stay the
+   same; producer chips get a larger invisible tap area instead of a taller chip. */
+button.btn { min-height: 44px; }
+.brand { min-height: 44px; }
+.foot-links a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
+.also-more { display: inline-flex; align-items: center; min-height: 44px; }
+.pchip { position: relative; }
+.pchip::after { content: ""; position: absolute; inset: -9px -3px; z-index: 1; }
+.how > summary { min-height: 44px; display: flex; align-items: center; }

@@ -60,6 +60,11 @@ jobs:
             for f in $(git ls-tree --name-only FETCH_HEAD); do
               if [[ "$f" =~ ^(board|W[0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/race/$f"; fi
             done
+            # The Race's own vault files: Golf's Race hole waits until the Race's week is final there (Repo Lens G-3).
+            mkdir -p "$RUNNER_TEMP/race/vault"
+            for f in $(git ls-tree --name-only FETCH_HEAD:vault 2>/dev/null); do
+              if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then git show "FETCH_HEAD:vault/$f" > "$RUNNER_TEMP/race/vault/$f"; fi
+            done
           else echo "No race-data branch yet."; fi
           if has_branch games-data; then
             git fetch -q --depth 1 "$url" games-data
@@ -79,6 +84,8 @@ jobs:
           GAMES_DATA: ${{ runner.temp }}/games
           # The first week Block Golf pays prizes (set when the vault is live). Unset: every week is practice.
           GOLF_STAKED_FROM_WEEK: ${{ vars.GOLF_STAKED_FROM_WEEK }}
+          # The owner's hold: vault weeks that may not go final, e.g. "5" or "5,6" (§5.5; unset: none).
+          GOLF_HOLD_WEEKS: ${{ vars.GOLF_HOLD_WEEKS }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: golf-data
@@ -130,8 +137,8 @@ jobs:
               if not (isid(h["id"]) and type(h["name"]) is str and len(h["name"]) <= 40 and h["status"] in ("final", "live", "skipped") and type(h["why"]) is str and len(h["why"]) <= 200 and nat(h["field"])): return False
               return type(h["rows"]) is list and len(h["rows"]) <= 100000 and all(type(r) is list and len(r) == 4 and isaddr(r[0]) and num(r[1]) and r[2] in (0, 1) and type(r[3]) is int and 0 <= r[3] <= 10**9 for r in h["rows"])
           def card_ok(c, ids):
-              keys = {"a", "ranked", "place", "pts", "strokes", "par", "toPar", "lost", "under", "best", "mulligan", "holes"}
-              if type(c) is not dict or set(c) != keys or not isaddr(c["a"]) or type(c["ranked"]) is not bool: return False
+              keys = {"a", "ranked", "free", "place", "pts", "strokes", "par", "toPar", "lost", "under", "best", "mulligan", "holes"}
+              if type(c) is not dict or set(c) != keys or not isaddr(c["a"]) or type(c["ranked"]) is not bool or type(c["free"]) is not bool: return False
               if not all(small(c[k]) for k in ("place", "pts", "strokes", "par", "toPar", "lost", "under", "best")) or c["place"] < 1 or c["pts"] < 0: return False
               if c["mulligan"] not in ids or type(c["holes"]) is not list or len(c["holes"]) > 32: return False
               return all(type(x) is list and len(x) == 4 and x[0] in ids and type(x[1]) is int and 1 <= x[1] <= 7 and (x[2] is None or nat(x[2])) and (x[3] is None or nat(x[3])) for x in c["holes"])
@@ -140,6 +147,72 @@ jobs:
               keys = {"a", "place", "pts", "topar", "strokes", "holes", "lost", "ranked"}
               return all(type(x) is dict and set(x) == keys and isaddr(x["a"]) and type(x["ranked"]) is bool
                   and all(small(x[k]) for k in ("place", "pts", "topar", "strokes", "holes", "lost")) for x in v["rows"])
+          # ── a port of golf-math.js (scoreHole, card, cards); integers only, like the original ──
+          PAR, LOST, MIN_FIELD, PRACTICE_MIN_FIELD, MIN_FIELD_VHP = 4, 7, 5, 3, 10
+          BANDS = [(5, 2), (25, 3), (65, 4), (90, 5), (100, 6)]
+          def strokes_for(better, same, others, scored):
+              if better == 0 and scored: return 1
+              size, n = same + 1, others + 1
+              place2 = 2 * better + size + 1
+              for pct, st in BANDS:
+                  if place2 * 100 <= pct * 2 * n: return st
+              return 6
+          def weight_of(r): return 1 if r is True else (r if type(r) is int and r > 0 else 0)
+          def score_hole(rows, min_field, everyone, min_weight):
+              by = {}
+              for a, score, scored, w in rows:
+                  w = weight_of(w); o = by.get(a)
+                  if o is None or score > o["score"]: by[a] = {"a": a, "score": score, "scored": bool(scored), "w": max(w, o["w"] if o else 0)}
+                  else: o["w"] = max(o["w"], w)
+              allr = list(by.values())
+              if everyone:
+                  for r in allr: r["w"] = 1
+              field = [r for r in allr if r["w"] > 0 and r["scored"]]
+              n, units = len(field), sum(r["w"] for r in field)
+              if n < min_field or (min_weight > 0 and units < min_weight): return None, n
+              res = {}
+              for r in allr:
+                  better = same = ahead = 0
+                  for x in field:
+                      if x is r: continue
+                      if x["score"] > r["score"]: better += x["w"]; ahead += 1
+                      elif x["score"] == r["score"]: same += x["w"]
+                  inf = r["w"] > 0 and r["scored"]
+                  st = strokes_for(better, same, units - (r["w"] if inf else 0), True) if r["scored"] else 6
+                  res[r["a"]] = (ahead + 1, n if inf else n + 1, st)
+              return res, n
+          def recompute(j):
+              practice = j["practice"] is True
+              live, ranked_any = [], set()
+              for h in j["holes"]:
+                  if h["status"] == "skipped":
+                      continue
+                  res, n = score_hole(h["rows"], PRACTICE_MIN_FIELD if practice else MIN_FIELD, practice, 0 if practice else MIN_FIELD_VHP)
+                  assert h["field"] == n, h["id"] + ": field"
+                  if res is None:
+                      assert h["status"] != "final", h["id"] + ": a final hole whose field is too small must be skipped"
+                      continue
+                  live.append((h["id"], res))
+                  if not practice: ranked_any.update(r[0] for r in h["rows"] if r[3])
+              if len(live) < 2: return []
+              notfree = set(j["notFree"])
+              out = []
+              for a in {a for _, res in live for a in res}:
+                  row = [(hid, res[a][2], res[a][0], res[a][1], True) if a in res else (hid, LOST, None, None, False) for hid, res in live]
+                  played = [x for x in row if x[4]]
+                  drop = played[0]
+                  for x in played:
+                      if x[1] > drop[1]: drop = x
+                  counted = [x for x in row if x is not drop]
+                  st = sum(x[1] for x in counted); par = PAR * len(counted)
+                  out.append({"a": a, "ranked": a in ranked_any, "free": a not in ranked_any and a not in notfree, "place": 0,
+                      "pts": LOST * len(counted) - st, "strokes": st, "par": par, "toPar": st - par,
+                      "lost": sum(1 for x in counted if not x[4]), "under": sum(1 for x in counted if x[1] < PAR),
+                      "best": min(x[1] for x in counted), "mulligan": drop[0], "holes": [[x[0], x[1], x[2], x[3]] for x in row]})
+              key = lambda c: (-c["pts"], c["lost"], -c["under"], c["best"])
+              out.sort(key=lambda c: (key(c), c["a"]))
+              for i, c in enumerate(out): c["place"] = out[i - 1]["place"] if i > 0 and key(out[i - 1]) == key(c) else i + 1
+              return out
           vd = os.path.join(d, "vault")
           for f in (os.listdir(vd) if os.path.isdir(vd) else []):
               j = json.load(open(os.path.join(vd, f), encoding="utf-8"))
@@ -156,7 +229,7 @@ jobs:
               # staked scored (the Vault rolls that week over).
               want = sorted((c["a"], min(255, c["pts"])) for c in wk["cards"] if c["ranked"] is True and c["pts"] >= 1)
               # first/second must be the Free play board's 1st and 2nd (D-081), rebuilt from the cards.
-              free = [c for c in wk["cards"] if c["ranked"] is False and c["pts"] >= 1]
+              free = [c for c in wk["cards"] if c["free"] is True and c["ranked"] is False and c["pts"] >= 1]
               groups = []
               for c in free:
                   k = (c["pts"], -c["lost"], c["under"], -c["best"])
@@ -181,7 +254,10 @@ jobs:
                   assert all(rows_ok(j[k]) for k in ("today", "week", "allTime")), f
                   assert j["lastWeek"] is None or (rows_ok(j["lastWeek"]) and type(j["lastWeek"].get("final")) is bool), f
                   continue
-              assert set(j) == {"v", "week", "start", "end", "final", "practice", "holes", "cards", "check"} and j["v"] == 1 and f == "W%03d.json" % j["week"], f
+              assert set(j) == {"v", "week", "start", "end", "final", "practice", "holes", "cards", "notFree", "check"} and j["v"] == 1 and f == "W%03d.json" % j["week"], f
+              nf = j["notFree"]
+              assert type(nf) is list and len(nf) <= 100000 and all(isaddr(a) for a in nf) and nf == sorted(set(nf)), f + ": notFree"
+              assert not (j["practice"] is True and nf), f + ": nobody is staked in a practice week"
               # The two-run check (WEEK_CYCLE.md): null, or a sha256 fingerprint and the run that took it; a final week has none.
               c = j["check"]
               assert c is None or (type(c) is dict and set(c) == {"sig", "at"} and type(c["sig"]) is str and re.fullmatch(r"[0-9a-f]{64}", c["sig"]) is not None and nat(c["at"])), f
@@ -195,6 +271,10 @@ jobs:
               assert type(j["holes"]) is list and len(j["holes"]) <= 32 and all(hole_ok(h) for h in j["holes"]), f
               ids = {h["id"] for h in j["holes"]}
               assert type(j["cards"]) is list and len(j["cards"]) <= 100000 and all(card_ok(c, ids) for c in j["cards"]), f
+              # RECORDER_STANDARD §4.1 (Repo Lens G-5): the scorecards are recomputed here from the published hole rows,
+              # with a port of golf-math.js (differential-tested against it), and must match exactly: strokes, places,
+              # the mulligan, points, order, and who is Staked / Free play.
+              assert recompute(j) == j["cards"], f + ": the scorecards don't match their holes"
           print("golf files ok")
           PY
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
@@ -225,9 +305,22 @@ jobs:
               done
             fi
             /usr/bin/python3 - "$IN/golf" "$RUNNER_TEMP/old" <<'PY'
-          import json, os, sys
+          import hashlib, json, os, sys, time
           new, old = sys.argv[1], sys.argv[2]
           load = lambda d, f: json.load(open(os.path.join(d, f), encoding="utf-8"))
+          NOW = int(os.environ.get("CHECK_NOW_MS") or time.time() * 1000)   # CHECK_NOW_MS: the tests' clock only
+          # Repo Lens G-5: a week that turns final must have been stamped by an earlier published run at least an hour
+          # ago, with the fingerprint of exactly what is now final (the recorder's two-run check, checked here too).
+          for f in os.listdir(new):
+              if not (f.startswith("W") and f.endswith(".json")): continue
+              nw = load(new, f)
+              if nw.get("final") is not True: continue
+              ow = load(old, f) if os.path.exists(os.path.join(old, f)) else None
+              if ow is not None and ow.get("final") is True: continue
+              c = ow.get("check") if ow else None
+              assert type(c) is dict and type(c.get("at")) is int and c["at"] <= NOW - 3600000, f + ": final without an earlier run's check an hour or more ago"
+              sig = hashlib.sha256(json.dumps({"holes": nw["holes"], "cards": nw["cards"], "notFree": nw["notFree"]}, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+              assert c.get("sig") == sig, f + ": what is final isn't what the earlier run checked"
           if os.path.exists(os.path.join(old, "index.json")):
               oi, ni = load(old, "index.json"), load(new, "index.json")
               assert set(oi["weeks"]) <= set(ni["weeks"]), "the list of weeks can only grow"

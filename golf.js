@@ -143,7 +143,7 @@
         scored: (r) => r.pts > 0,
         summary: (r) => `${G.toParText(r.topar)} · ${r.pts} pts`,
         me: (r, place) => `${place ? `You: #${place} at` : "Your score (only you see this):"} ${G.toParText(r.topar)}, ${r.pts} points.`,
-        unranked: "To be ranked, hold at least 1 VHP or stake in Knode Games.",
+        unranked: "To be on the Staked board, stake in Block Golf this week (at least the vault's minimum, 1 VHP today).",
         free: { show: 6, prize: "The Free play board pays no VHP prize for now. Players staked in Block Golf share its weekly bucket." },
       });
     }

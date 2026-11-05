@@ -25,6 +25,14 @@ prize switch), D-125 / D-129 (weekly rhythm), D-138 (launch order). Game file: `
    week's last season day with `survivor-math.js`, not keep a snapshot: audit H4).
 3. It plays from the **Monday after** it went live, so nobody loses strokes on a game that didn't exist all week.
 
+What each hole waits for (a hole is final only when its game's own week is final):
+
+| Hole | Read from | Final when |
+|---|---|---|
+| Daily Questions | the game contract, on two nodes that must agree | the week is closed and every question resolved. A wallet counts only with at least 2 counted answers (resolved, not voided) and at least 1 point, Daily Questions' own entry rule (Repo Lens G-7). |
+| Producer Race | `race-data/board.json` and `race-data/vault/W<w>.json` | every race is final **and** the Race's own vault file for the week is final (its two-run check, chain re-check and `RACE_HOLD_WEEKS`; Repo Lens G-3). |
+| Who Signs Block X | `games-data/blockx/board.json` | its `lastWeek.final` (set after Block X's own two-run check and week-end re-read). |
+
 No contract, vault or sponsor change is needed to add a hole. A new game's own build adds its reader and a test.
 
 ## The week (D-125, D-129; the one home for timing is `.ai/standards/WEEK_CYCLE.md`)
@@ -34,14 +42,39 @@ No contract, vault or sponsor change is needed to add a hole. A new game's own b
 - **Pending** until the week ends (Monday 00:00 UTC), Sunday's review day included.
 - **Final** no earlier than Monday 00:00 UTC, once every hole is final (or skipped), the run had no read problem, and
   **two runs at least an hour apart read exactly the same week**. The first such run stamps a fingerprint (`check` in
-  the week file); the next matching run makes the week final. Any change starts the check again.
+  the week file, over the holes, the cards and `notFree`); the next matching run makes the week final. Any change
+  starts the check again.
+- **Every hole is read again on every run** until the week is final (Repo Lens G-2), and in staked weeks the Block
+  Golf stakes are read again for every wallet on the week's holes. A hole that was already final keeps its standings
+  only when this run can't read it (a read error, a missing file, or a board that has moved past the week), so a later
+  bad read never undoes it; a fresh reading that differs replaces it and restarts the check, and a game that no longer
+  shows the week as final makes its hole wait.
+- **The owner's hold:** the repository variable `GOLF_HOLD_WEEKS` (`5`, or `5,6`) keeps those weeks from going final,
+  so no vault file is written and the vault bot waits. Remove the week to let it go final (the vault takes results
+  until Thursday 00:00 UTC; after that the week rolls over). A value that isn't a plain list (`W5`, `5 6`) holds every
+  week waiting to go final, until it's fixed.
 - A hole whose game isn't final 60 hours after the week is skipped for everyone (never guessed); from 66 hours a read
   problem no longer holds the week, so its points reach the vault before the Thursday 00:00 UTC backstop.
 - Daily Questions goes final later than the other games (about Tuesday 12:00 UTC until Vault v6.1's rule week), so in
   practice a Golf week goes final on Tuesday and claims open about 24 hours after the vault bot seals it; once Questions
-  follows the shared rhythm (its rule week, Mon 16 Nov) Golf can go final on Monday. The recorder reads Questions straight from the game contract, which works
-  before and after Vault v6.1.
+  follows the shared rhythm (its rule week, Mon 16 Nov) Golf can go final on Monday. The recorder reads Questions
+  straight from the game contract, which works before and after Vault v6.1. From the rule week the operator bot closes
+  Questions weeks (D-127): if it stalls past 60 hours, the Questions hole is skipped for that week.
 - A final week never changes.
+
+## What the publish job checks
+
+The publish job runs no repository code; its checks are inline in `golf.yml` and use its own clock:
+- **Shape:** every file in the recorder's exact shape; only `golf/` files are pushed.
+- **Clock (RECORDER_STANDARD §3.1):** no week from the future; no final week or vault file before the week ends; a
+  `check` stamp only between the week's end and now.
+- **Recompute (§4.1):** every scorecard is rebuilt from the published hole rows with a Python port of `golf-math.js`
+  (strokes, places, the mulligan, points, order, Staked / Free play) and must match exactly; the port is
+  differential-tested against `golf-math.js` on random weeks. The vault file's rows and `first`/`second` are rebuilt
+  from the cards.
+- **History:** a final week never changes; the list of weeks only grows; a game's joining week and the first staked
+  week never change; and a week turns final only if the published file before it carried the `check` stamp of exactly
+  that week, at least an hour old (Repo Lens G-5).
 
 ## Turn on practice scorecards
 
@@ -75,7 +108,10 @@ Order: practice running → free-prize switch OFF → register game 6 → 48 h �
   A game earns from the vault week after its `game-apply`.
 - Set `GOLF_STAKED_FROM_WEEK` (a GitHub variable) to that first earning week: the number in the W file names, e.g. `5`
   for `W005.json` (site "Week 3"). It can't change once a week has been published with it.
-- Two boards (D-081): **Staked** = staked in Block Golf that week; **Free play** = everyone else, ranked the same way.
+- Two boards (D-081): **Staked** = staked in Block Golf that week (`week_stake` at least the vault's minimum);
+  **Free play** = everyone else, ranked the same way. A wallet whose Block Golf stake reached the minimum **at any
+  point** that week (`peak_stake`, as Block X reads it) is never on the Free play prize list, even if it withdrew
+  (Repo Lens G-1); it shows with the week's stakers on the board and is listed in the week file's `notFree`.
   The vault file always lists the Free play board's 1st and 2nd in `first`/`second` (ties share; 2nd only when 1st is
   untied; more than 10 tied leaves that place empty); the vault bot holds them back while game 6's switch is off.
   Practice weeks: everyone is on the Free play board.

@@ -110,7 +110,7 @@ test("one pinned Koinos version everywhere; the official repo; the volume is nev
   // The key is only ever read (public) or copied whole to a stick; never printed.
   for (const b of boxes) if (/private\.key/.test(b.text)) {
     // Only ever: check the stick is there, then copy the key file straight onto it (read-only volume).
-    assert.match(b.text, /^if (\(Test-Path E:\\\)|\[ -d "?\/(Volumes|media)\/)/, b.text);
+    assert.match(b.text, /^if (\(Test-Path E:\\\)|\[ -d \/Volumes\/MYUSB \] && diskutil info \/Volumes\/MYUSB|mountpoint -q "\/media\/\$USER\/MYUSB")/, b.text);
     assert.match(b.text, /docker run --rm -v koinos-data:\/k:ro -v \S+ alpine:3\.20 cp \/k\/block_producer\/private\.key \/usb\/koinos-node-private\.key/, b.text);
     assert.doesNotMatch(b.text.replace(/\/usb\/koinos-node-private\.key|\/k\/block_producer\/private\.key|[\w/"$]*\/koinos-node-private\.key"?|E:\\koinos-node-private\.key/g, ""), /private\.key/, b.text);
   }
@@ -280,4 +280,42 @@ test("F-2, F-4, F-6 and the Lows: wording", () => {
   assert.match(html, /add those lines again after updating/, "F-9");
   assert.equal((box("win", "Invoke-RestMethod https://snapshots.armana.io").match(/Tls12/g) || []).length, 1, "F-10");
   assert.match(html, /It never sends your address or anything you type/, "F-11");
+});
+
+test("N-1: a hostile height answer can't run code or read as caught up in the Mac/Linux 5b box", async () => {
+  const nix = box("mac", "Couldn't read the network height");
+  const serve = (h) => new Promise((ok) => { const s = http.createServer((q, r) => { q.resume(); q.on("end", () => r.end(JSON.stringify({ result: { head_topology: { height: h } } }))); }); s.listen(0, "127.0.0.1", () => ok(s)); });
+  const run = (script, cwd) => new Promise((ok) => execFile("bash", ["-c", script], { cwd, encoding: "utf8" }, (e, out) => ok(out)));
+  const at = (s) => `http://127.0.0.1:${s.address().port}`;
+  const me = await serve("1000");
+  try {
+    for (const bad of ["a[$(touch PWNED)]", "x", "ME", "0x10", "-5", "0", "999", "1e9", "", null]) {
+      const t = tmp();
+      const net = await serve(bad);
+      const out = await run(nix.replace("http://127.0.0.1:8080", at(me)).replace("https://koinos.armana.io", at(net)), t);
+      net.close();
+      assert.ok(!fs.existsSync(path.join(t, "PWNED")), `${bad}: nothing ran`);
+      assert.match(out, /Couldn't read the network height/, `${JSON.stringify(bad)} -> ${out}`);
+      assert.doesNotMatch(out, /Behind by/, `${bad}: no "Behind by"`);
+      fs.rmSync(t, { recursive: true, force: true });
+    }
+    for (const bad of ["a[$(touch PWNED)]", "x"]) {
+      const t = tmp(), net = await serve("2000"), mine = await serve(bad);
+      const out = await run(nix.replace("http://127.0.0.1:8080", at(mine)).replace("https://koinos.armana.io", at(net)), t);
+      net.close(); mine.close();
+      assert.ok(!fs.existsSync(path.join(t, "PWNED")));
+      assert.match(out, /Your node didn't answer yet/);
+      fs.rmSync(t, { recursive: true, force: true });
+    }
+  } finally { me.close(); }
+});
+
+test("L-1: on Linux an ordinary folder named like the stick is not a USB stick", () => {
+  const t = tmp();
+  fs.writeFileSync(path.join(t, "docker"), `#!/bin/sh\necho "$*" >> "${t}/calls"\n`, { mode: 0o755 });
+  fs.mkdirSync(path.join(t, "media", "me", "MYUSB"), { recursive: true });
+  const linux = box("linux", "/media/$USER/MYUSB").replaceAll("/media/$USER/MYUSB", `${t}/media/$USER/MYUSB`);
+  assert.match(bash(linux, t, { PATH: `${t}:${process.env.PATH}`, USER: "me" }), /STOP - no USB stick named MYUSB/);
+  assert.ok(!fs.existsSync(path.join(t, "calls")), "docker never ran");
+  fs.rmSync(t, { recursive: true, force: true });
 });

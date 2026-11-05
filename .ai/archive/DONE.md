@@ -4,6 +4,15 @@
 > **How it grows:** when an item in `platform/TODOS.md`, `platform/CHAT_REQUESTS.md`, `platform/PRIORITIES.md`, `platform/ROADMAP.md`, `platform/DOCUMENTATION_GAPS.md` or `platform/TECHNICAL_DEBT.md` is done, the library chat moves it here under the date it was moved, newest first. Closed issues go to `ISSUES_CLOSED.md`.
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
+## Moved 2026-11-05 (~15:00 UTC)
+- Merged 5 Nov: #183 (welcome page leads with free play), #184 (docs) — 2026-11-05
+- Questions R-Q-3 pre-check: W003 2 + 3 a day before and after the upload; W004 4 + 4 from Sun 15 23:48 UTC; PC backup task triggers 11:45 and 23:45 UTC set — 2026-11-05
+| R-BR-1 | Fix the Repo Lens #E-3 findings (report and failing tests in the project: `claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`). Order: H-1, C-2 + L-2, C-1, M-1, H-2 + H-3, M-3/M-4/M-9, then H-4 + H-5, then M-2, M-10, L-15. One finding per commit. Rerun the suites and the replay, then a fix-check | I-061 | all fixed; fix-check GO | ✅ every #E-3 Critical / High / Medium fixed in one pass (D-140) on `kg-09-bracket` @ `ef146b2a`, plus L-2 – L-6, L-8, L-11 – L-15; fix-check next |
+| R-BR-2 | **Owner decisions (3 Nov):** **keep the Knode Games Pool in the field and protect it** (judge pooled producers on the day's average or minimum effective VHP, not one block); judge **forfeits on the day's time-weighted average** (H-5); **accept same-block ties** and fix the comment and page text (H-6) | D-086, D-087 | built and tested | ✅ built into the #E-3 fixes |
+| R-BR-3 | Merge `main` into `kg-09-bracket` before launch (16+ commits behind; the free-prize switch, nicknames standard, Leaders board) | L-16 | branch current | ✅ main merged (322 commits, then the D-142 docs) |
+| R-BR-4 | Confirm R-ALL-3 (board path and fields) for the vault check | I-079 | confirmed | ✅ board path `games-data:bracket/board.json`, checked with the vault bot's own code |
+| R-BR-8 | **The Bracket's shape (D-141, owner 5 Nov):** a knockout, one round a day (24-hour sprint per matchup); up to 64 producers (6 rounds Mon–Sat, final Saturday), runs with 8 (3 rounds); largest power of two that fits, rounds timed so the final is Saturday; under 8 eligible → no bracket that week; matchups by the ruler's luck percentile; replaces the Sat seeding / Sun picks shape | D-141, D-138, WEEK_CYCLE | design in the game file + tests | ✅ built at **32 max** (owner 5 Nov, D-153): seeding Sun 00:00 UTC, lock Mon 23:55, one round a day, final Saturday (32 Tue–Sat, 16 Wed–Sat, 8 Thu–Sat), no byes; final from Mon 00:00; backstop Thu 00:00 |
+
 ## Moved 2026-11-05 (~08:00 UTC)
 - Merged 5 Nov: #174 (readability), #175 (Block X Sunday fun rounds, final Mon 00:00), #176 (target architecture, CONTRACTS), #180 (Picks owner handover tool) — 2026-11-05
 - Owner's nodes checked: chain v1.5.2, block producer v1.3.1, jsonrpc v1.2.0 — 2026-11-05

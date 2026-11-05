@@ -16,6 +16,8 @@
  *                                                   refuses while a game announcement or an upgrade is waiting)
  *   npm run picks -- owner-accept [--testnet] [--send]   step 2, from 48 h to 7 days later, signed by NEW_OWNER_WIF
  *   npm run picks -- owner-cancel [--testnet] [--send]   withdraw a proposal that hasn't been accepted (owner's key)
+ *   npm run picks -- owner-sync [--testnet]          read the owner on both nodes and write it into the deployment file
+ *                                                   (no transaction): after an accept whose read-back didn't agree in time
  *   npm run picks -- lock-test <id> --testnet --send      send one pick per block across a target's lock, report each
  *   npm run picks -- mana-test <id> --testnet --send      send 1, 3 and 7 picks in one transaction each, report the Mana
  *
@@ -80,19 +82,20 @@ const loadAbi = () => {
 const need = (k: string) => { if (!E[k]) throw new Error(`${k} is missing from ${TESTNET ? ".env.testnet" : ".env"} (npm run picks -- keys${TESTNET ? " --testnet" : ""})`); return E[k]!; };
 
 // ═══════════════════════════════ the network ═══════════════════════════════
-type Net = { testnet: boolean; rpc: string[]; chainId: string | null; owner: string; picks: string | null; games: any[]; cfg: any };
+type Net = { testnet: boolean; rpc: string[]; chainId: string | null; owner: string; picks: string | null; games: any[]; cfg: any; nextOwner?: string | null };
 /** Where this command works. Testnet: testnet/blockx.json. Mainnet: picks-data/deployment.json and the audited facts. */
 export function network(testnet = TESTNET): Net {
   if (testnet) {
     const cfg = readJson(TESTNET_CONFIG);
     if (!cfg || cfg.network !== "koinos-foundation-testnet") throw new Error(`${TESTNET_CONFIG} is missing or not a testnet config.`);
     if (cfg.chainId === MAINNET_CHAIN_ID) throw new Error(`${TESTNET_CONFIG} names the MAINNET chain id. Refusing.`);
-    const owner = readJson(TESTNET_MANIFEST)?.owner ?? (E.OWNER_WIF ? Signer.fromWif(E.OWNER_WIF).getAddress() : "");
-    return { testnet: true, rpc: [E.TESTNET_RPC || cfg.rpc], chainId: cfg.chainId ?? null, owner, picks: isAddr(cfg.picks) ? cfg.picks : null, games: cfg.games, cfg };
+    // Repo Lens #D-12 F-3: after a testnet handover the owner is the config's "owner" (written by owner-accept / owner-sync).
+    const owner = isAddr(cfg.owner) ? cfg.owner : readJson(TESTNET_MANIFEST)?.owner ?? (E.OWNER_WIF ? Signer.fromWif(E.OWNER_WIF).getAddress() : "");
+    return { testnet: true, rpc: [E.TESTNET_RPC || cfg.rpc], chainId: cfg.chainId ?? null, owner, picks: isAddr(cfg.picks) ? cfg.picks : null, games: cfg.games, cfg, nextOwner: isAddr(cfg.nextOwner) ? cfg.nextOwner : null };
   }
   const st = readJson(MAINNET_STATE);
   // Audit BX-47: one primary node only (koilib would quietly fall back to the second, which is the check node).
-  return { testnet: false, rpc: [E.RPC || MAINNET_RPCS[0]], chainId: MAINNET_CHAIN_ID, owner: mainnetOwner(st), picks: isAddr(st?.contract) ? st.contract : null, games: MAINNET_GAMES, cfg: st };
+  return { testnet: false, rpc: [E.RPC || MAINNET_RPCS[0]], chainId: MAINNET_CHAIN_ID, owner: mainnetOwner(st), picks: isAddr(st?.contract) ? st.contract : null, games: MAINNET_GAMES, cfg: st, nextOwner: isAddr(st?.nextOwner) ? st.nextOwner : null };
 }
 /** A provider for the network, after checking the node is on the expected chain (never sign for the wrong one). */
 async function connect(net: Net) {
@@ -434,8 +437,14 @@ export function waitingOnContract(v: OwnerView): string[] {
   return out;
 }
 /** owner-propose's checks. Returns the lines to show; throws when it must not be sent. */
-export function planPropose(v: OwnerView, signer: string, next: string, now: number, extraTaken: Record<string, string> = {}): string[] {
+/** An address in groups of 4, so it can be compared by eye with the wallet's own screen (Repo Lens #D-12 F-1). */
+export const groups4 = (a: string) => a.replace(/(.{4})/g, "$1 ").trim();
+export function planPropose(v: OwnerView, signer: string, next: string, now: number, extraTaken: Record<string, string> = {}, pinned: string | null = null): string[] {
   if (!isAddr(next) || !utils.isChecksumAddress(next)) throw new Error(`${next} is not a valid Koinos address. Nothing was signed.`);
+  // Repo Lens #D-12 F-1: only the planned new owner, pinned by a reviewed pull request ("nextOwner" in the deployment
+  // file), so a swapped or mistaken address that passes the checksum can't be proposed.
+  if (!pinned) throw new Error(`No planned new owner is set: add "nextOwner": "<address>" to the deployment file (picks-data/deployment.json, testnet: testnet/blockx.json) by a pull request first. Nothing was signed.`);
+  if (next !== pinned) throw new Error(`${next} is not the planned new owner ${pinned} ("nextOwner" in the deployment file). Nothing was signed.`);
   if (signer !== v.owner) throw new Error(`OWNER_WIF is ${signer}, not the owner on chain ${v.owner}. Nothing was signed.`);
   if (next === v.owner) throw new Error(`${next} is already the owner. Nothing was signed.`);
   const taken = { ...NOT_AN_OWNER, ...extraTaken };
@@ -446,6 +455,7 @@ export function planPropose(v: OwnerView, signer: string, next: string, now: num
   return [
     ...(v.pending ? [`⚠ this replaces the waiting proposal to ${v.pending}`] : []),
     `Propose ${next} as the new Picks owner (signed by the owner ${v.owner}).`,
+    `  Check it against the new owner's wallet screen, 4 at a time: ${groups4(next)}`,
     `  The new owner can accept from about ${new Date(open).toISOString()} (48 h) until ${new Date(close).toISOString()} (7 days after that).`,
     `  Accepting clears any game announcement or upgrade still waiting then (games in force, like game 2, are not affected).`,
   ];
@@ -456,6 +466,8 @@ export function planAccept(v: OwnerView, key: string, now: number): string[] {
   if (key !== v.pending) throw new Error(`NEW_OWNER_WIF is ${key}, but the proposed owner is ${v.pending}. Nothing was signed.`);
   if (now < v.eta) throw new Error(`Too early: the new owner can accept from ${new Date(v.eta).toISOString()} (in ${Math.ceil((v.eta - now) / 60000)} min). Nothing was signed.`);
   if (now >= v.eta + 7 * 86400000) throw new Error(`The proposal expired at ${new Date(v.eta + 7 * 86400000).toISOString()}: propose again. Nothing was signed.`);
+  // (Repo Lens #D-12 Info: not in the last hour, so a transaction can't land just after the expiry and revert.)
+  if (now >= v.eta + 7 * 86400000 - 3600000) throw new Error(`The proposal expires at ${new Date(v.eta + 7 * 86400000).toISOString()}, less than an hour from now: too close to send. Cancel and propose again. Nothing was signed.`);
   const w = waitingOnContract(v);
   if (w.length) throw new Error(`Not now: ${w.join("; ")}. Nothing was signed.`);
   return [`Accept: ${key} becomes the Picks owner (was ${v.owner}). Window ${new Date(v.eta).toISOString()} → ${new Date(v.eta + 7 * 86400000).toISOString()} ✔`];
@@ -481,6 +493,47 @@ async function ownerViews(net: Net, p: Provider): Promise<OwnerView> {
   return agreeOwnerViews(views, net.owner);
 }
 const chainNow = async (p: Provider) => Number((await p.getHeadInfo()).head_block_time);
+/** Repo Lens #D-12 F-2: poll until both nodes agree (`tries` × `waitMs`); also returns the primary's last view. */
+export async function readBack(both: () => Promise<OwnerView>, primary: () => Promise<OwnerView>, tries = 12, waitMs = 5000): Promise<{ agreed: OwnerView | null; primary: OwnerView | null }> {
+  for (let i = 0; i < tries; i++) {
+    try { return { agreed: await both(), primary: null }; } catch { /* a node behind: try again */ }
+    if (i < tries - 1) await sleep(waitMs);
+  }
+  return { agreed: null, primary: await primary().catch(() => null) };
+}
+/** Write the owner into the deployment file (mainnet) or the testnet config. */
+function saveOwner(net: Net, owner: string, checked: boolean, tx: string | null) {
+  const file = net.testnet ? TESTNET_CONFIG : MAINNET_STATE;
+  const st = readJson(file) ?? {};
+  const out: any = { ...st, owner, ownerSince: new Date().toISOString(), ownerTx: tx ?? st.ownerTx ?? null };
+  if (checked) delete out.ownerChecked; else out.ownerChecked = false;
+  if (out.nextOwner === owner) delete out.nextOwner;   // done: the next handover needs a new reviewed pin
+  writeJson(file, out);
+}
+/** What owner-sync would write: the owner both nodes agree on, or why not. Exported for the tests. */
+export function syncPlan(views: OwnerView[], fileOwner: string): { owner: string; change: boolean } {
+  const a = views[0];
+  for (const [i, v] of views.entries()) if (v.owner !== a.owner) throw new Error(`The nodes disagree about the owner (node ${i + 1}: ${v.owner}, node 1: ${a.owner}). Try again in a few minutes. Nothing was written.`);
+  if (!isAddr(a.owner)) throw new Error("The contract shows no owner. Nothing was written.");
+  return { owner: a.owner, change: a.owner !== fileOwner };
+}
+/** owner-sync: read the owner on both nodes and write it into the deployment file when they agree (no transaction). */
+async function ownerSync() {
+  const net = network();
+  if (!net.picks) throw new Error("No Picks contract yet.");
+  const { p } = await connect(net);
+  await assertAuditedContract(net, p);
+  const nodes = [p];
+  if (!net.testnet) { const url = MAINNET_CHECK_RPC(); if (sameNode(net.rpc[0], url)) throw new Error(`RPC_CHECK (${url}) is the same node as RPC.`); nodes.push(new Provider([url])); }
+  const views = [];
+  for (const n of nodes) views.push(await readOwnerView(n, net.picks));
+  const plan = syncPlan(views, net.owner);
+  const checkedFlag = (net.testnet ? readJson(TESTNET_CONFIG) : readJson(MAINNET_STATE))?.ownerChecked === false;
+  if (!plan.change && !checkedFlag) { log(`The file already names ${plan.owner}, the owner on ${nodes.length > 1 ? "both nodes" : "the node"} ✔. Nothing to write.`); return; }
+  saveOwner(net, plan.owner, true, null);
+  log(`✔ wrote the owner ${plan.owner} (${nodes.length > 1 ? "both nodes agree" : "read on the node"}) into ${net.testnet ? TESTNET_CONFIG : MAINNET_STATE}${net.testnet ? "" : ": open a pull request to main with that file"}.`);
+}
+
 async function ownerPropose(next: string | undefined, send: boolean) {
   const net = network();
   mainnetGuard(net, send);
@@ -490,7 +543,7 @@ async function ownerPropose(next: string | undefined, send: boolean) {
   await assertAuditedContract(net, p);
   const s = signerOf("OWNER_WIF", p);
   const v = await ownerViews(net, p);
-  for (const l of planPropose(v, s.getAddress(), next, await chainNow(p))) log(l);
+  for (const l of planPropose(v, s.getAddress(), next, await chainNow(p), {}, net.nextOwner ?? null)) log(l);
   if (!send) { log("\nDry run only. Nothing was sent. Add --send" + (net.testnet ? "" : " --mainnet") + " to send it."); return; }
   const r = await sendCall(net, p, chainId, s, "propose_owner", { owner: next });
   log(r.ok ? `✔ proposed (Mana used ${showKoin(r.rcUsed)}, block ${r.block}). Step 2: npm run picks -- owner-accept${net.testnet ? " --testnet" : ""} (signed by the new owner) from the time above.` : `✖ ${r.error}`);
@@ -522,15 +575,15 @@ async function ownerAccept(send: boolean) {
   const r = await sendCall(net, p, chainId, s, "accept_owner", {});
   if (!r.ok) { log(`✖ ${r.error}`); process.exitCode = 1; return; }
   log(`✔ accepted (Mana used ${showKoin(r.rcUsed)}, block ${r.block}).`);
-  // Read it back on every node, against the NEW owner.
-  const after = await ownerViews({ ...net, owner: s.getAddress() }, p).catch((e) => { log(`⚠ ${(e as Error).message}`); return null; });
-  if (!after) { log("⚠ The owner could not be read back the same on both nodes yet. Run npm run picks -- status in a few minutes."); process.exitCode = 1; return; }
-  if (!net.testnet) {
-    const st = readJson(MAINNET_STATE) ?? {};
-    writeJson(MAINNET_STATE, { ...st, owner: s.getAddress(), ownerSince: new Date().toISOString(), ownerTx: r.txId ?? null });
-    log(`✔ read back on both nodes: the owner is ${after.owner}. Saved it in ${MAINNET_STATE} ("owner"): open a pull request to main with that file.`);
-    log("  From now on OWNER_WIF must be the new owner's key for owner commands. Take NEW_OWNER_WIF out of .env.");
-  } else log(`✔ read back: the owner is ${after.owner}.`);
+  // Repo Lens #D-12 F-2: read it back on every node, against the NEW owner, for up to a minute (a node one block behind
+  // is ordinary). If they still don't agree but the primary shows the new owner, the file is written anyway, marked
+  // "ownerChecked": false, so owner commands (pause included) work with the new key; owner-sync confirms it later.
+  const got = await readBack(() => ownerViews({ ...net, owner: s.getAddress() }, p), () => readOwnerView(p, net.picks!));
+  if (!got.agreed && got.primary?.owner !== s.getAddress()) { log("⚠ The new owner isn't showing on the node yet. Run npm run picks -- owner-sync in a few minutes."); process.exitCode = 1; return; }
+  saveOwner(net, s.getAddress(), !!got.agreed, r.txId ?? null);
+  if (got.agreed) log(`✔ read back on both nodes: the owner is ${s.getAddress()}.`);
+  else log(`⚠ The primary node shows the new owner ${s.getAddress()}, but the nodes didn't agree within a minute. Saved it with "ownerChecked": false. In a few minutes run: npm run picks -- owner-sync${net.testnet ? " --testnet" : ""}`);
+  log(net.testnet ? `  Saved in ${TESTNET_CONFIG} ("owner").` : `  Saved in ${MAINNET_STATE} ("owner"): open a pull request to main with that file. From now on OWNER_WIF must be the new owner's key for owner commands. Take NEW_OWNER_WIF out of .env.`);
 }
 
 // ═══════════════════════════════ testnet checks ═══════════════════════════════
@@ -669,7 +722,8 @@ async function main() {
     case "owner-propose": return ownerPropose(a.find((x) => !x.startsWith("--")), send);
     case "owner-accept": return ownerAccept(send);
     case "owner-cancel": return ownerCancel(send);
-    default: throw new Error(`Unknown command "${cmd}". Commands: keys, build-testnet, status, upload, announce <id>, apply <id>, pause <id>, lock-test <id>, mana-test <id>, owner-propose <address>, owner-accept, owner-cancel`);
+    case "owner-sync": return ownerSync();
+    default: throw new Error(`Unknown command "${cmd}". Commands: keys, build-testnet, status, upload, announce <id>, apply <id>, pause <id>, lock-test <id>, mana-test <id>, owner-propose <address>, owner-accept, owner-cancel, owner-sync`);
   }
 }
 if (process.argv[1] && /picks\.ts$/.test(process.argv[1])) {

@@ -794,3 +794,7 @@ body[data-view="welcome"] .foot .eco { display: none; }
 .kbadge .kb-link { font-weight: 700; white-space: nowrap; margin-left: auto; }
 .g-stake { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
 .g-stake.on { color: var(--mint-ink, #1f7a4d); border-color: var(--mint, #2f9e6b); }
+
+/* Welcome: a play button on the first screen (launch UI research item 5). */
+.welcome-actions-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.welcome-note { font-size: .95rem; color: var(--muted); }

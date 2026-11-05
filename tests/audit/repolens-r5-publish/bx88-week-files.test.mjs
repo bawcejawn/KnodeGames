@@ -340,3 +340,33 @@ test("R-BX-20: a published final target result is never rewritten, by the record
   assert.match(p.stdout, /differ from the published targets/);
   assert.equal(show("W003.json").stdout, before);
 });
+
+// Repo Lens #E-18 K-1: a NEW round must say it was read on chain (checked 1 or 2), unless it is a 3-day-edge void with no
+// picks whose block is at least ~66 h old (the only kind the recorder writes unread).
+test("Repo Lens #E-18 K-1: the publish job refuses a new unread round, but lets in an old edge void", async () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "e18-")), remote = path.join(d, "r.git");
+  spawnSync("git", ["init", "-q", "--bare", remote]);
+  const sh = path.join(d, "publish.sh"); fs.writeFileSync(sh, publishScript());
+  const race = raceDir();
+  const lib = H0 + 6 * X.ROUND + 50, now = T(lib + 60);
+  const fresh = async () => {
+    const inn = fs.mkdtempSync(path.join(d, "in-")), out = path.join(inn, "blockx");
+    await quiet(() => run({ p: "main", check: "check", out, raceDir: race, picksContract: "1PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP", blockOf, picksOf, rankedOf, head: { height: lib + 60, time: now, lib } }));
+    return { inn, out };
+  };
+  const publish = (inn, at = now) => spawnSync("bash", [sh], { env: { ...ENV, IN: inn, REMOTE: remote, CHECK_NOW_MS: String(at) }, encoding: "utf8" });
+  const edit = (out, fn) => { const p = path.join(out, "W003.json"), j = JSON.parse(fs.readFileSync(p, "utf8")); fn(j); fs.writeFileSync(p, JSON.stringify(j) + "\n"); };
+  // a scored round that says it was never read
+  let r = await fresh();
+  edit(r.out, (j) => { j.targets[2].checked = 0; });
+  let p = publish(r.inn);
+  assert.notEqual(p.status, 0); assert.match(p.stdout, /aren't past target blocks/);
+  // a fresh void with no picks, but its block is only hours old (an honest recorder voids unread only at the 3-day edge)
+  r = await fresh();
+  edit(r.out, (j) => { Object.assign(j.targets[2], { checked: 0, signer: null, card: null, picks: [], void: "made up" }); });
+  p = publish(r.inn);
+  assert.notEqual(p.status, 0, "a recent unread void is refused");
+  // the same void published 3 days later is let in (as BX-16's edge voids are)
+  p = publish(r.inn, now + 3 * 86400000);
+  assert.equal(p.status, 0, "an old edge void is let in: " + p.stdout.slice(-600));
+});

@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, **oldest first** (D-001 at the top, the newest at the bottom; the index is in the same order). This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "superseded by D-XXX" in the index.
 > Consolidated 2026-11-02: the owner's answers to the open contradictions are recorded as D-061 – D-067.
-> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-151 added; index statuses brought up to date; nothing removed)
+> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-156 added (D-152 with PR #182); index statuses brought up to date; nothing removed)
 > Sources: owner in chat (2026-11-02), `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (all 12 chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · 👤 owner said · ⚠️ was a conflict (see the C-xx named next to it; all are resolved unless listed under Open) · ❓ unknown
@@ -151,7 +151,7 @@
 | D-138 | 2026-11-05 | After the core: Last Node, Block Golf, Fantasy and Bracket next | active (amends D-113's "after the core"); order amended by D-142 |
 | D-139 | 2026-11-05 | Block Minute: an always-on quick pick, designed before it's built | idea (design first) |
 | D-140 | 2026-11-05 | Fix fast after every review: one pass, same day, tracked by finding | active (standing) |
-| D-141 | 2026-11-05 | Producer Bracket: up to 64 producers, one round a day, 8 to play | active (for the Bracket build) |
+| D-141 | 2026-11-05 | Producer Bracket: up to 64 producers, one round a day, 8 to play | active; max amended to 32 by D-153 |
 | D-142 | 2026-11-05 | Fantasy, Block Golf and Producer Bracket reactivated: the next three games to launch | active (amends D-113, D-138) |
 | D-143 | 2026-11-05 | Visit counting with PostHog: cookieless, our own pinned copy, for advertising numbers | active |
 | D-144 | 2026-11-05 | Daily Questions are shown in plain words; the wording on chain never changes | active |
@@ -162,7 +162,15 @@
 | D-149 | 2026-11-05 | Public node guide defaults | active |
 | D-150 | 2026-11-05 | Fantasy: Sunday fun round, then the recorder checks before one fix-check | active |
 | D-151 | 2026-11-05 | Guest play first in the wallet sheet | active (in #181) |
-| D-152 | 2026-11-05 | Who gets paid in a staked game (exactly the top 30%; a tie across the line → who reached the score first; free prize ≤ 10 winners) | Race in #182; R-ALL-10, R-VAULT-17 |
+| D-152 | 2026-11-05 | Who gets paid in a staked game (exactly the top 30%; a tie across the line → who reached the score first; free prize per place: see D-159) | active (Race in #182; R-ALL-10, R-VAULT-17) |
+| D-153 | 2026-11-05 | Producer Bracket: at most 32 producers | active (amends D-141's 64) |
+| D-154 | 2026-11-05 | VHP ruler v2.1 ranks by a field-conditional percentile (A′) | active (library design, 5 Nov; replaces §16's Fix A / Fix B) |
+| D-155 | 2026-11-05 | Live stats panel | active (in #185) |
+| D-156 | 2026-11-05 | The welcome page leads with free play; the play-first home page waits for a mockup review | active |
+| D-157 | 2026-11-05 | The Game Standard and the Contract Standard are official | active |
+| D-158 | 2026-11-05 | The Shared Game Kit design is adopted, with eight choices (every new game and the Questions recorder launch on the kit; current payout rules kept; generic recount; data branches kept; two shadow weeks; `kit/`; standards point to GAME_KIT.md) | active; choices 1 and 4 corrected by D-160 |
+| D-159 | 2026-11-05 | Free-prize ties: up to 10 paid per place; more than 10 → exactly 10 by earlier score time, then address; never zero because of the cap | active (every standard; mismatches I-103, I-104) |
+| D-160 | 2026-11-05 | Kit rollout corrected: #203 delivers Questions for Mon 16; the kit is built as core only, then #203 is ported byte-compatibly; no second hand-built runner; any rule ambiguity stops the build and goes to the owner | active |
 
 ---
 
@@ -815,11 +823,48 @@
 - **Date:** 2026-11-05 (owner, to the Race chat: "For the staked games, every address in the top 30% of that game should be in the earning group. Tied scores share rewards for their level and take away from levels below. There are only so many rewards to go around each week … If there is a tie that results in too many people to pay, the cut off tie breaker should be based on who submitted their correct answers first … payout should be a vault decision and should be a standard for all games and how they are paid." Choices the same day: "reached the score first"; for free prizes "1 rule, but … no more than 10 addresses should be winners that week") · **Decision:**
   - **Staked:** exactly the **top 30%** (by headcount, rounded up) of the game's earning stakers with at least 1 point are paid. Tied wallets **above** the line all get in and **share their level** (their places' weights, evenly), which leaves less for the levels below.
   - **A tie that crosses the line:** the wallets that **reached that score first** get the remaining spots. "Reached" = the time of the wallet's last scoring pick or answer that week (the chain's time; then the address). The rest of the tie gets nothing that week.
-  - **Free prize:** the same tie-break, and **at most 10 winners a week**: a tie for 1st lets in up to 10 (2nd stays empty); a single 1st leaves up to 9 for 2nd. Replaces the free prize's "earliest first pick" tie-break (owner, 28 Oct).
+  - **Free prize:** the same tie-break (who reached the score first). The cap per place is **D-159** (owner, later on 5 Nov): 1st and 2nd each up to 10; a tie for 1st leaves 2nd empty; cut wallets get nothing. It replaces this entry's first reading ("at most 10 winners a week") and the old "earliest first pick" tie-break (owner, 28 Oct).
   - **How it reaches the vault:** each recorder writes the line into its results file. The paid wallets at the line hold a value of their own, the rest of the tie the next value down, so the vault contract's unchanged walk (255 → 1, ties whole) pays exactly that set. No vault upgrade is needed for games with a results file.
 - **Exception until a vault upgrade:** Daily Questions (game 1) is scored by the vault contract itself, which pays the whole tie at the line; the Vault chat plans the change (R-VAULT-17).
 - **Needs:** every game's recorder (R-ALL-10; the Race first, PR #182); the vault bot's own check of the paid set (R-VAULT-17, Repo Lens #B-8 B8-A1).
 - **Standards:** `WEEK_CYCLE.md` §3, `VAULT_STANDARD.md` §6, `LEADERBOARD_STANDARD.md` §4.
+
+## D-153 — Producer Bracket: at most 32 producers
+- **Date:** 2026-11-05 (owner, to the Bracket chat: capped at 32) · **Decision:** the Bracket holds **up to 32 producers** (5 rounds: Tue–Sat), 16 (Wed–Sat) or 8 (Thu–Sat), no byes; seeding Sun 00:00 UTC, picks lock Mon 23:55 UTC, one round a day, final Saturday, results final from Monday 00:00, backstop Thu 00:00. 64 only after a Picks upgrade, if ever wanted. Built on `kg-09-bracket` (#186).
+
+## D-154 — VHP ruler v2.1 ranks by a field-conditional percentile (A′)
+- **Date:** 2026-11-05 (library chat, as design owner of `VHP_RULER.md` §16, from the Ruler chat's simulations, `claude/ruler/V21-SIM-REPORT.md`) · **Decision:** producers are ranked by **A′**: given the blocks the whole field signed in the race (n), a producer's count is compared with Binomial(n, its share of the field's expected blocks), as an exact integer mid-p percentile in both languages. **Fix A dropped** (an absolute percentile isn't shift-invariant: a network-wide jump gave 0.02–5.3× fair, sim 9); **Fix B dropped** (any bar ≥ 15 keeps the Knode Games Vault out of every Race field, against D-123). **Sim 1's index mark** becomes relative to the field, like sim 9's (the 24-h total's ~1% lag is common to everyone). **D-120 needs the owner's choice:** the steady-rate-with-cap design can't pass sim 8 under any cap (a two-week throttler then wins ~6×); option 1 keeps the 0.80 gate, option 3 lets a steady throttler in at full size, unadjusted. Nothing pays until all eleven pass (D-111).
+
+## D-155 — Live stats panel
+- **Date:** 2026-11-05 (owner, to the Hub chat: "build the live stats panel") · **Decision:** the bot publishes an hourly public `stats.json` (players this week / last week / all time, answers and picks, VHP staked total and per game, free prizes, blocks made by the prize vault in 24 h, today's open questions, last week's top 3 per game) on its own `stats-data` branch; the home page shows a strip of the numbers that read well, the games page the full panel. Off until `STATS_ENABLED`; Repo Lens before switching it on.
+
+## D-156 — The welcome page leads with free play; the play-first home page waits for a mockup review
+- **Date:** 2026-11-05 (owner, to the Hub chat: "yes" to research item 5; the play-first home page mockup shared for review) · **Decision:** the welcome page leads with "Play free now" (no sign-up, no wallet needed); staking is the last step (built, #183). The play-first home page (Variant A) is built only after the owner reviews the mockup, then A/B tested once visit counts exist.
+
+## D-157 — The Game Standard and the Contract Standard are official
+- **Date:** 2026-11-05 (owner: "Adopt the proposed Game Standard and Contract Standard as the official standards for this repo") · **Decision:** every game lives in `games/<slug>/` with a `game.json` manifest (schema in `tools/game-manifest.mjs`), a README, a filled `SECURITY.md`, `math.js`, `recorder.ts` and `tests/`; it's created from `templates/game/` with `npm run game:new` and checked with `npm run game:check`; the path is copy → fill → check → review → go live (`standards/NEW_GAME.md`). Every contract folder follows `standards/CONTRACT_STANDARD.md` (README, a current SECURITY.md, one ABI, storage-compatibility tests, a CONTRACTS.md row, a release tag; timelocked changes). **Order:** the mechanical pieces first (template, schema and its test, the two tools, NEW_GAME.md), no live behaviour changed; then the shared kit (D-146); then each existing game moves in its own PR (Block X first), and each contract gets its missing docs and tests. Proposal: `claude/library/GAME-STANDARD-PROPOSAL-2026-11-05.md`.
+
+## D-158 — The Shared Game Kit design is adopted
+- **Date:** 2026-11-05 (owner: "Approved. Adopt the Shared Game Kit design as written." Decisions "recommended on all", then for choices 1 and 4: "everything new should launch with the new kit. not on their own recorders. i want to eliminate duplicate work and eliminate later unnecessary upgrades. lets get it done now and for good") · **Decision:** the kit (D-146) is built as designed (`../standards/GAME_KIT.md`; full design `claude/library/GAME-KIT-DESIGN-2026-11-05.md`, Claude project), with:
+  1. **The Questions recorder (I-101) is the first game on the kit:** the kit's core and the Questions GameModule are built together; no hand-built Questions recorder. Target merged by Sun 15; the hard limit is the vault's 3-day window for the first rule week (week of Mon 16 → its file by Thu 26 Nov 00:00 UTC).
+  2. **Payout rules unchanged by migration:** each game keeps its current rule (`legacy-tied-whole`); a switch to D-152 is a separate per-game PR with its own Repo Lens.
+  3. **Publish-job recompute:** the kit's generic week recount plus the recorder's two-node re-score of every round; no per-game ported scorer in the publish jobs (RECORDER §4.1 reworded).
+  4. **Every new game launches on the kit, never on its own recorder:** Fantasy, Block Golf and Bracket port their branch recorders into GameModules before launch (their Repo Lens reviews then cover the module plus the kit). Only the two live recorders (Block X, Race) migrate by replay → shadow → switch.
+  5. **Data branches stay** (`games-data`, `race-data`); consolidation later (ARCHITECTURE A3).
+  6. **Two full final weeks with zero differences** in shadow before each switch.
+  7. **`kit/` at the repo root, owned by the Architecture chat;** site files as root `kit-*.js` until the `web/` move.
+  8. **RECORDER_STANDARD and GAME_STANDARD point to GAME_KIT.md** for the "how" and keep only the rules (one library PR).
+- **Order:** the kit's core with Questions first; then Fantasy, Block Golf, Bracket (before their launches); then Block X and the Race (replay → shadow → switch); then the publish jobs and the site files. **Why:** five recorders repeat the same ~15 rules; one implementation, reviewed once, makes every game safer and new games faster.
+
+## D-159 — Free-prize ties: up to 10 per place, never zero because of the cap
+- **Date:** 2026-11-05 (owner: "Up to 10 wallets may be paid per free place (1st and 2nd). Ties share within that place. If more than 10 would qualify for the same place, pay exactly 10 using a deterministic tie-break (earlier score time, then address). Never pay zero for that place because of the cap." Then: "Free-prize rule (locked) … Put this in GAME_KIT / RECORDER / LEADERBOARD / VAULT standards so every game uses the same rule.") · **Decision:** the rule above, for every game, in `GAME_KIT.md` §3, `RECORDER_STANDARD.md` §4.4, `LEADERBOARD_STANDARD.md` §1 and `VAULT_STANDARD.md` §6. It replaces the "≤ 10 winners a week" reading of D-152's free-prize part. **Owner's answers to the open points (5 Nov):** (a) Daily Questions' score time is the lock time of the question that gave the wallet its last point (entries on chain store no answer times); same time → address; (b) a tie for 1st leaves 2nd empty, as every game does today (D-034); (c) wallets cut by the cap get nothing (they don't move to 2nd). **Known mismatches, not copied:** Block X and Bracket (#186) leave a place empty when more than 10 tie (I-103); Race PR #182 caps 1st and 2nd at 10 together and breaks the tie by first pick, not score time (I-104). Questions PR #203 follows the rule.
+
+## D-160 — Kit rollout corrected: no double work
+- **Date:** 2026-11-05 (owner: "Correction — eliminate double work. … PR #203 is the delivery for the Mon 16 deadline. Architecture Phase 0 builds the kit CORE only (no second Questions recorder). After kit merges, port #203 onto the kit with byte-compatible replay. Do not rewrite scoring. … No game launches a second hand-built runner while the kit is being built. Any rule ambiguity stops the build and comes to me — do not guess.") · **Decision:** corrects D-158 choices 1 and 4:
+  1. **Daily Questions:** PR #203 (`questions-recorder`) is the delivery for Mon 16. After the kit's core merges, #203 is ported onto the kit and must replay its published files byte for byte; its scoring (`games/questions/math.js`) is not rewritten.
+  2. **Phase 0 is the kit's core only** (R-ARCH-3); no second Questions recorder.
+  3. **No game launches a second hand-built runner while the kit is being built:** Fantasy, Block Golf and Bracket launch on the kit (R-ALL-11).
+  4. **Any rule ambiguity stops the build** and goes to the owner; no chat guesses a rule.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

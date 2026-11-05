@@ -649,8 +649,12 @@ export async function run(o: Opts) {
       if (t.height > head.lib) return hold(" isn't irreversible yet", true);   // passing: never ignored by a release
       // D-129: a Sunday (UTC) target is a fun round and pays nothing, so only its block is read again (so a run can't
       // move a play-day target out of the week by giving it a Sunday time); its picks and points aren't re-checked.
+      // Repo Lens #E-18 K-1: a row is never skipped because it says it wasn't read. Only a void row with no picks may be
+      // unread (a 3-day-edge void; the publish job lets a new one in only once its block is ~3 days old); any other row
+      // with checked 0 holds.
+      if (!t.checked && !(t.void && !t.picks.length)) { const x = hold(": a row that says it was never read on chain"); if (x) return x; }
       if (rest(t.time)) {
-        if (!t.checked) return null;
+        if (t.void && !t.checked) return null;
         for (const read of nodes) {
           const b = await timed(() => read(t.height));
           if ((isAddr(b.signer) ? b.signer : null) !== t.signer || b.time !== t.time) { const x = hold(": its signer or times read differently now"); if (x) return x; }
@@ -919,7 +923,10 @@ export async function run(o: Opts) {
       if (h && !h.passes && h.round != null && releaseMatches(release, lw, h.why)) {
         const released = h.why;
         h = await reread({ round: h.round, why: released });
-        if (!h) problems.push(`week ${lw}: RELEASED by BLOCKX_RELEASE although the re-read held it (${released}); the rest of the week read the same, so its prize list is frozen now. Remove BLOCKX_RELEASE`);
+        // Repo Lens #E-18 K-2: "frozen now" only when this run freezes it (two runs an hour apart agreed).
+        if (!h) problems.push(agreed
+          ? `week ${lw}: RELEASED by BLOCKX_RELEASE although the re-read held it (${released}); the rest of the week read the same, so its prize list is frozen now. Remove BLOCKX_RELEASE`
+          : `week ${lw}: released by BLOCKX_RELEASE (${released}); the rest of the week read the same. It freezes on the next run that agrees (an hour or more after the last one): keep BLOCKX_RELEASE until the board shows the week final`);
         // Repo Lens B4-3: say which: something else differs, or this run couldn't finish reading the week.
         else if (h.passes) problems.push(`week ${lw}: BLOCKX_RELEASE matches (${released}), but this run couldn't finish reading the rest of the week; still held (tried again next run)`);
         else problems.push(`week ${lw}: BLOCKX_RELEASE matches (${released}), but the rest of the week doesn't read the same either; still held`);

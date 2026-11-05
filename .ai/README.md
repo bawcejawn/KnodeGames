@@ -1,6 +1,8 @@
 # .ai — Knode Games Knowledge Base
 
-**New here? Read `START_HERE.md` first.**
+**Whole system at a glance: [`../STATUS.md`](../STATUS.md)** — read it first (what's live, in progress, blocked, open decisions).
+
+**New here? Then read `START_HERE.md`.**
 
 This folder holds project knowledge for humans and AI assistants.
 It contains NO application code. Nothing here is built, deployed or executed.

@@ -205,8 +205,10 @@
     const list = $("targets");
     // D-129 (WEEK_CYCLE.md §2): Sunday (UTC) targets are fun rounds, offered and scored for Today and All time, never
     // the week. (One due in Saturday's last 10 minutes may slip past midnight, so it says so too.)
-    const funAt = (r) => { const t = about(G.target(r)); return X.restDay(t) || X.restDay(t + 10 * 60000); };
-    const who = me(), rounds = G.offerRounds(head.height), ps = producers(), funs = rounds.filter(funAt).length;
+    const funAt = (r) => X.restDay(about(G.target(r)));
+    // Repo Lens #E-18 F-1: one due in Saturday's last 10 minutes may land either side of midnight.
+    const edgeAt = (r) => { const t = about(G.target(r)); return !X.restDay(t) && X.restDay(t + 10 * 60000); };
+    const who = me(), rounds = G.offerRounds(head.height), ps = producers(), funs = rounds.filter((r) => funAt(r) || edgeAt(r)).length;
     const key = JSON.stringify([who, W && W.kind, rounds[0], funs, sending, !!picksContract, cardAt, ps.map((p) => p.a).join(), usage && usage.picks_today, [...myPicks.entries()].map(([r, p]) => [r, p.producers && p.producers[0], p.changes]), [...drafts.entries()]]);
     if (!force && key === targetsKey && list.childElementCount) { updateTimes(); return; }
     targetsKey = key;
@@ -236,7 +238,8 @@
         mineP ? el("span", { class: "bx-yours", text: `Yours: ${nameOf(mineP)}${noChanges ? " (no changes left)" : ""}` }) : el("span", { text: who && used >= max ? "Today's picks are used up" : choice ? `${nameOf(choice)} · about ${multText(ps.find((p) => p.a === choice)?.mult)} if right` : "Choose a producer", title: "By the current handicap card. The card taken at or before the lock decides the score." }), btn);
       return el("article", { class: "bx-t" + (i === 0 ? " first" : "") + (mineP ? " mine" : ""), id: `t-${r}` },
         el("div", { class: "bx-t-top" }, el("b", { text: `Block ${fmt(h)}` }), el("span", { "data-h": String(h), class: "bx-eta", text: etaText(r) }), i === 0 ? el("em", { text: "Next up" }) : null,
-          funAt(r) ? el("em", { class: "bx-fun", title: "Sunday (UTC): counts on Today and All time, not the week", text: "Fun round · not the week" }) : null),
+          funAt(r) ? el("em", { class: "bx-fun", title: "Sunday (UTC): counts on Today and All time, not the week", text: "Fun round · not the week" })
+            : edgeAt(r) ? el("em", { class: "bx-fun", title: "Due just before Sunday 00:00 UTC: if its block lands on Sunday, it counts on Today and All time, not the week", text: "May fall on Sunday: then a fun round" }) : null),
         chips, foot);
     });
     // The soonest few, then the rest on request (6 on a wide screen, 3 on a phone).

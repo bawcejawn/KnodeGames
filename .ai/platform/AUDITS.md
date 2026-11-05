@@ -28,7 +28,11 @@ Repo Lens is the outside reviewer the owner runs. One review = one prompt, on on
 | 4 | **Run a Node #179** (one-node self-heal) | `run-node-heal` @ `2ae04c66` | `claude/node/REPOLENS-PR179-PROMPT.md` | scripts people run on their PCs |
 | 5 | **Vault #178** (producer key backup / restore) | `vault-producer-keys` @ `fbbeff68` | Vault chat writes it (D-140) | handles producer keys |
 | 6 | **Vault #177** (plain-language alert summaries) | `vault-alert-summaries` @ `27d60caf` | Vault chat writes it (D-140) | touches six workflows |
-| 7 | **Golf v2** (before its PR merges) | `golf-v2` @ `9e18321` | `claude/golf/REPOLENS-GOLF-V2-PROMPT.md` | a new paying game |
+| 7 | **Golf v2** PR #187 (fix-check, if the first review ran) | `golf-v2` | `claude/golf/REPOLENS-GOLF-V2-PROMPT.md`, then `claude/golf/REPOLENS-GOLF-V2-FIXCHECK-PROMPT.md` | a new paying game |
+| 7b | **Bracket #186 fix-check** (#E-3) | `kg-09-bracket` @ `ef146b2a` | `claude/bracket/REPOLENS-E3-FIXCHECK-PROMPT.md` | a new paying game |
+| 7c | **Fantasy #188 fix-check** | `fantasy` | `claude/fantasy/REPOLENS-FANTASY-FIXCHECK-PROMPT.md` | a new paying game |
+| 7d | **Hub #185 live stats** (before `STATS_ENABLED`) | `hub-live-stats` | `claude/hub/REPOLENS-LIVE-STATS-PROMPT.md` | a new workflow with write access |
+| 7e | **Ruler v2.1** (after A′ is built) | `vhp-ruler-v21` | `claude/ruler/REPOLENS-V21-PROMPT.md` | the shared handicap |
 | 8 | Block X #180 handover tool (before its first mainnet use) | `main` | `claude/blockx/REPOLENS-PR180-HANDOVER-PROMPT.md` | owner change on Picks |
 | 9 | Block X #175 post-merge (optional) | `main` | `claude/blockx/REPOLENS-PR175-POSTMERGE-PROMPT.md` | merged already; a second look |
 | 10 | Race #155 post-merge, Hub C5 after-the-fact (optional) | `main` | `claude/race/REPOLENS-PR155-POSTMERGE-PROMPT.md`, `claude/hub/REPOLENS-C5-FIXCHECK-PR95-PR111-PROMPT.md` | optional |
@@ -43,10 +47,12 @@ Done recently: Questions #152 fix-check #E-17 fixes → **#152 merged** (5 Nov);
 | 2 | **#181** Hub | guest play first, tap targets | Repo Lens (queue 2) | library on GO |
 | 3 | **#173** then **#179** Run a Node | the guide, then the one-node self-heal | fix-check / review (queue 3–4) | library on GO |
 | 4 | **#178**, **#177** Vault | key backup scripts; alert summaries | Repo Lens (queue 5–6) | library on GO |
+| 4b | **#187** Golf, **#186** Bracket, **#188** Fantasy | the next three games | each its review (queue 7–7c) | library on GO; then the owner's launch steps |
+| 4c | **#185** Hub live stats | hourly stats file + panel | Repo Lens (queue 7d) | library on GO; owner sets `STATS_ENABLED` |
 | 5 | **#114** Vault v6.1 | the upgrade | **Monday's upload**, then the records PR and `main` merged in | owner |
 | 6 | **#141** | `VAULT_STANDARD` for game 1 | v6.1 live | owner or library |
 
-Merged 5 Nov: #175 (Block X fun rounds, Mon 00:00 final), #180 (Picks handover tool), #152 (Questions shared rules, page and bot side), #163 (VHP ruler, off until turned on). Closed unmerged, kept for salvage: #50 (R-HUB-6).
+Merged 5 Nov: #183 (welcome page, free play first), #175 (Block X fun rounds, Mon 00:00 final), #180 (Picks handover tool), #152 (Questions shared rules, page and bot side), #163 (VHP ruler, off until turned on). Closed unmerged, kept for salvage: #50 (R-HUB-6).
 
 ## 4. Fixing fast (D-140)
 - **One pass:** the building chat fixes every Critical, High and Medium **in one PR, the same session**, each with the review's failing test or a new one. Lows go in the same pass unless the owner defers them.

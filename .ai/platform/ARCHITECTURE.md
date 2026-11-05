@@ -24,7 +24,7 @@ Where the platform is going, and the steps that move the architecture score (7 t
 
 | # | Step | Why (risk removed) | Work item | Status |
 |---|---|---|---|---|
-| A1 | **Cold-key ownership everywhere:** vault and Desk to `1LMV8E…` (Tue 10), cold Desk treasury, `RACE_WIF` offline, Picks handover (D-106); the sponsor keeps all its KOIN (owner 5 Nov, D-148) | one stolen hot key can't change a contract or move the Desk's or sponsor's KOIN | TODOS (weekend runbook), R-BX-3, owner decision | in progress (Tue 10) |
+| A1 | **Cold-key ownership everywhere:** vault and Desk to `1LMV8E…` (Tue 10), cold Desk treasury, the Race picks contract key retired from use, Picks handover (D-106); the sponsor keeps all its KOIN (owner 5 Nov, D-148) | one stolen key can't change a contract or move the Desk's or sponsor's KOIN | TODOS (weekend runbook), R-BX-3, owner decision | in progress (Tue 10) |
 | A2 | **One required CI check on every PR**: run `npm run test:audit` and the contract tests with **no path filter**, and make it required on `main`. Today `test:audit` runs only when certain paths change; `.ai/` docs that tests read (RULES, GAME_STANDARD, VAULT_STANDARD, DECISIONS, RUNBOOK) don't trigger it | a docs or data change can't silently break a test that guards payouts | R-HUB-23 | open |
 | A3 | **Separate game data from code:** the bot and recorders commit results to a data branch (as `vhp-data`, `prize-settings` already do) instead of `main`; then `main` can require reviewed PRs and code owners (C5-13) without blocking the bot | today anything that can push to `main` can change code the bot runs (TD-03) | R-VAULT-15 (with Hub, Race, Block X) | open (design first) |
 | A4 | **Publish only the website** (Pages allow-list), then move it into `web/` | internal files stop being served; the root holds only project files | R-HUB-14, R-HUB-16 | open |
@@ -88,8 +88,8 @@ Addresses, live hashes, owners and reviews: **`CONTRACTS.md`** (the one register
 |----------|---------|-------------|----------|-----------|
 | Game / Vault | v6 (upgraded in place from v5); v6.1 in PR #114 (dates: `CALENDAR.md`) | yes — 48 h notice for any vault upgrade (D-024) | 48 h (`timelockLength 172800000`) | ✅ |
 | Desk | v2 `309506cc…` (28 Oct) | yes — owner announces, 48 h, then uploads | 48 h | ✅ |
-| Sponsor | v3 guest fix `b84e1add…` (since 4 Nov; history in `SPONSOR.md`) | yes, by its own key, no timelock | none | ✅ |
-| Race picks | v1 `61e8f212…` (27 Oct) | yes — by its own key `RACE_WIF` (no overrides); settings by its owner `1LMV8E…` | none on code (key goes offline, A1) | ✅ |
+| Sponsor | v3 guest fix `b84e1add…` (since 4 Nov; history in `SPONSOR.md`) | yes, by its own key | none | ✅ |
+| Race picks | v1 `61e8f212…` (27 Oct) | yes — by its own key `RACE_WIF` (no overrides); settings by its owner `1LMV8E…` | none on code (see A1) | ✅ |
 | Picks | v1 `700c296a…` (30 Oct) | yes — `upgrade-schedule`, 48 h, `upgrade-upload` | 48 h | ✅ |
 
 Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GENESIS` 1792368000000), weeks Monday to Monday UTC, week = floor((t − genesis) / 7 days), so vault week 0 = Mon 19 Oct and week 2 = Mon 2 Nov (💬 Hub, Race; week labels: `KOINOS.md` → Time and D-063), close delay 12 h, settle 24 h, min stake 1 VHP (`100000000`); the vault's own Mana limit for others is now 0 (D-099; the record's `maxSponsorRc` was 2). How each game's week runs: `../standards/WEEK_CYCLE.md`.
@@ -140,7 +140,7 @@ Node scripts present (✅): `node/repair-node-data.ps1` (general repair), `node/
 
 ### Infrastructure
 - Nodes: 3 mainnet nodes on the owner's PC, Docker Compose on Windows, Docker volumes; no testnet nodes (D-066). Images (as of Oct): chain v1.5.2, block_store v1.1.0, p2p v1.3.0, block_producer v1.3.1 — 💬 (folders in `PLATFORM.md`)
-- `GITHUB_ALERT_TOKEN` (in the local `.env`): a fine-grained token for this repo only, Actions read/write, used by `heal.mjs` and `release-kick.mjs` — 💬
+- `GITHUB_ALERT_TOKEN`: a fine-grained token for this repo only, Actions read/write, used by `heal.mjs` and `release-kick.mjs` — 💬
 - Old basedir folders kept until 2026-11-04 — 💬
 
 ## Game contract duties kept from v5 — 💬 Swap Desk (✅ where marked)
@@ -263,7 +263,7 @@ How to run: `npm run test:audit` (also `test:audit:serial`, `test:resolver`, `cd
 The folder map, with each part's funds-risk tier and the plan to tidy the root: **`REPO_MAP.md`** ✅.
 
 ## Security Boundaries
-- Keys live only in `.env` on the owner's PC; never pasted in chat — 💬 (D-003)
+- Private keys are never in the repo, GitHub (except `OPERATOR_WIF`) or chats; where they're kept is in the owner's private notes (D-003)
 - GitHub: only `OPERATOR_WIF` stored, in environment `bot`; the main workflow uses it — 💬
 - Branch ruleset: restrict deletions, block force pushes; no PR requirement yet, because the bot commits data to `main` (A3 removes that blocker) — 💬
 - Mainnet sends need `CONFIRM_MAINNET=yes`; commands are dry runs unless `--send` — 💬 (D-004)

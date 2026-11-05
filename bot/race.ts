@@ -797,9 +797,9 @@ function groupsOf(rows: Row[]): Row[][] {
 
 /** The free prize's places from a week's rows in rank() order. Every free player (not staked in the Race that week)
  *  with at least 1 point qualifies (owner, 2026-10-28). Wallets tied on every measure (points, wins, picks) share a
- *  place: a tie for 1st takes both prizes, so 2nd stays empty. At most 10 winners in a week (owner, 5 Nov, D-152): a tie
- *  for 1st lets in up to 10; a single 1st leaves up to 9 for 2nd. When more are tied, the wallets that reached their
- *  score first get in (rank() order), the rest get nothing. Exported. */
+ *  place: a tie for 1st takes both prizes, so 2nd stays empty (D-034). D-159 (owner, 5 Nov): each place is paid to at
+ *  most 10 wallets; when more are tied for it, the 10 that reached their score first get in (rank() order: D-152's
+ *  score time, then the address), the rest get nothing and never move down a place. Exported. */
 export function prizePlaces(rows: Row[]): { first: string[]; second: string[]; notes: string[] } {
   const groups = groupsOf(rows.filter((r) => !r.ranked && r.pts >= 1).map((r) => ({ ...r, tb: 0 })));
   const notes: string[] = [];
@@ -808,9 +808,8 @@ export function prizePlaces(rows: Row[]): { first: string[]; second: string[]; n
   if (!g1) return { first: [], second: [], notes };
   if (g1.length > MAX_PRIZE_WINNERS) notes.push(`${g1.length} wallets are tied for 1st: the ${MAX_PRIZE_WINNERS} that reached their score first share it, ${g1.length - MAX_PRIZE_WINNERS} get nothing`);
   if (g1.length > 1 || !g2) return { first: early(g1, MAX_PRIZE_WINNERS), second: [], notes };
-  const room = MAX_PRIZE_WINNERS - 1;
-  if (g2.length > room) notes.push(`${g2.length} wallets are tied for 2nd: the ${room} that reached their score first share it (10 winners at most), ${g2.length - room} get nothing`);
-  return { first: [g1[0].a], second: early(g2, room), notes };
+  if (g2.length > MAX_PRIZE_WINNERS) notes.push(`${g2.length} wallets are tied for 2nd: the ${MAX_PRIZE_WINNERS} that reached their score first share it, ${g2.length - MAX_PRIZE_WINNERS} get nothing`);
+  return { first: [g1[0].a], second: early(g2, MAX_PRIZE_WINNERS), notes };
 }
 
 /** The staked players' rows for the vault: every wallet staked in the Race that week with at least 1 point, in the

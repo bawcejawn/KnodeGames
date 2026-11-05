@@ -376,11 +376,11 @@ jobs:
               val = lambda i: max(1, 255 - i) if exact else (255 - i if i <= 252 else 2 if i <= last else 1)
               want_rows = [{"player": r["a"], "points": val(i)} for i, g in enumerate(sg) for r in g]
               fg = groups([r for r in rows if not r["ranked"] and r["pts"] >= 1])
-              # D-152: at most 10 winners a week; within a tie, the wallets that reached their score first (rows' order).
+              # D-159: each place up to 10 wallets; within a tie, the wallets that reached their score first (rows' order, D-152).
               early = lambda g, n: [r["a"] for r in g][:n]
               if not fg: want_first, want_second = [], []
               elif len(fg[0]) > 1 or len(fg) == 1: want_first, want_second = early(fg[0], 10), []
-              else: want_first, want_second = [fg[0][0]["a"]], early(fg[1], 9)
+              else: want_first, want_second = [fg[0][0]["a"]], early(fg[1], 10)
               if not same(j["rows"], want_rows): return "its staked rows aren't what the week's picks and the board give"
               if not same(j["first"], want_first) or not same(j["second"], want_second): return "its free-prize winners aren't what the week's picks and the board give"
               return ""

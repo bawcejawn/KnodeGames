@@ -387,15 +387,15 @@ test("vault: free-prize places from the free players' rows; ties on every measur
 
   assert.deepEqual(prizePlaces([r(A[0], 0)]), { first: [], second: [], notes: [] }, "nobody qualifies");
   assert.deepEqual(prizePlaces([]), { first: [], second: [], notes: [] });
-  // More than fit (owner, 5 Nov, D-152): at most 10 winners a week; the wallets that reached their score first get in.
+  // More than fit (owner, 5 Nov, D-159): each place up to 10 wallets; the wallets that reached their score first get in (D-152).
   const eleven = A.slice(0, 11).map((a, i) => r(a, 6, { reached: 1000 - i }));   // A[10] reached 6 points first, A[0] last
   const x = prizePlaces([...eleven, r(A[12], 3)]);
   assert.deepEqual([x.first, x.second], [A.slice(1, 11).reverse(), []], "11 tied for 1st: the 10 earliest share 1st; nobody is 2nd");
   assert.match(x.notes[0], /11 wallets are tied for 1st: the 10 that reached their score first/);
   const y = prizePlaces([r(A[12], 9), ...eleven]);
-  assert.deepEqual([y.first, y.second], [[A[12]], A.slice(2, 11).reverse()], "11 tied for 2nd: the 9 earliest share 2nd (10 winners at most)"); assert.match(y.notes[0], /tied for 2nd: the 9 that reached/);
+  assert.deepEqual([y.first, y.second], [[A[12]], A.slice(1, 11).reverse()], "11 tied for 2nd: the 10 earliest share 2nd (D-159: 10 per place)"); assert.match(y.notes[0], /tied for 2nd: the 10 that reached/);
   const tenFor2nd = prizePlaces([r(A[12], 9), ...eleven.slice(0, 10)]);
-  assert.equal(tenFor2nd.first.length + tenFor2nd.second.length, 10, "a single 1st and 10 tied for 2nd: 10 winners in all");
+  assert.deepEqual([tenFor2nd.first.length, tenFor2nd.second.length], [1, 10], "a single 1st and 10 tied for 2nd: all 10 share 2nd (D-159)");
   const same = prizePlaces(A.slice(0, 11).map((a) => r(a, 6)));       // no times: the address decides, so it's repeatable
   assert.deepEqual(same.first, A.slice(0, 10));
   const ten = prizePlaces(A.slice(0, 10).map((a) => r(a, 6)));
@@ -1716,7 +1716,7 @@ test("D-152: a staked tie across the 30% line: the vault pays exactly the top 30
   assert.deepEqual([...R.stakedWinners(ne)], [addrI(1), addrI(3), addrI(4)].slice(0, 3), "9 earning → need 3: A, then the earliest two earning wallets at 6");
 });
 
-test("D-152, publish job: the recompute follows the new line and the 10-winner free prize, and refuses a paid list over 30%", async () => {
+test("D-152, publish job: the recompute follows the new line and D-159's 10 per free place, and refuses a paid list over 30%", async () => {
   // Staked: S1 clear; S2..S5 tie, S3 and S5 reach the score first. Free: 11 tie for 2nd behind F0.
   const pl = [{ a: addrI(1), staked: true, picks: [[0, 1, 0, 10], [1, 1, 0, 11], [2, 1, 0, 12]] }];
   for (const [i, at] of [[2, 400], [3, 100], [4, 300], [5, 200]]) pl.push({ a: addrI(i), staked: true, picks: [[0, 1, 0, at], [1, 1, 0, at + 1]] });
@@ -1725,8 +1725,8 @@ test("D-152, publish job: the recompute follows the new line and the 10-winner f
   for (let i = 21; i <= 31; i++) pl.push({ a: addrI(i), staked: false, picks: [[2, 1, 0, 1000 - i]] });
   const ok = await recomputeRun(pl);
   assert.ok(ok.final, ok.out);
-  assert.deepEqual([ok.file.first, ok.file.second.length], [[addrI(20)], 9], "one 1st, 9 tied 2nds: 10 winners");
-  assert.deepEqual(ok.file.second, Array.from({ length: 9 }, (_, k) => addrI(31 - k)), "the 9 that reached the score first");
+  assert.deepEqual([ok.file.first, ok.file.second.length], [[addrI(20)], 10], "one 1st, 11 tied for 2nd: 10 share it (D-159)");
+  assert.deepEqual(ok.file.second, Array.from({ length: 10 }, (_, k) => addrI(31 - k)), "the 10 that reached the score first");
   assert.deepEqual(ok.file.rows.slice(0, 5).map((x) => [x.player, x.points]), [[addrI(1), 255], [addrI(3), 254], [addrI(5), 254], [addrI(4), 253], [addrI(2), 253]]);
   // The old line (the whole tie paid) is refused.
   const whole = await recomputeRun(pl, { mutate: (f) => ({ ...f, rows: f.rows.map((x) => ([addrI(2), addrI(4)].includes(x.player) ? { ...x, points: 254 } : x.points < 254 ? { ...x, points: x.points + 1 } : x)) }) });

@@ -39,7 +39,8 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 - The Mana sponsor's Race pick row (`../platform/SPONSOR.md`).
 
 ## Current status (5 Nov)
-- **Live as a game.** Vault `game-add 7` sent 3 Nov (tx `0x1220d394…`); `game-apply` from Thu 5 Nov after 7:51 AM PT, deadline Sun 8 Nov 4 PM PT; it earns from vault week 3 (Mon 9 Nov). Free-prize switch: ON (D-082). `PRIZES_FROM_WEEK = 3` is on `main` (PR #56) ✅. 👤 / 💬
+- **Live as a game.** Vault `game-add 7` sent 3 Nov (tx `0x1220d394…`); **`game-apply 7` done 5 Nov** ✅: staked + free prize from vault week 3 (Mon 9 Nov, "Week 1"). Free-prize switch: ON (D-082). `PRIZES_FROM_WEEK = 3` is on `main` (PR #56) ✅. 👤 / 💬
+- **Who gets paid (D-152, ties across the line)** and the paid set past 255 scores (I-086): PR #182, Repo Lens fix-check next.
 - **On the weekly rhythm** (#149, #155 merged) and **payout safety merged** (#133, test fix #153). ✅
 - **Pays from 9 Nov with its two known handicap gaps open** (the > 6-h hide and VHP added after a card) until the one VHP ruler lands (D-094, D-090, D-093).
 - The v6-ABI stake fix `d7fad7c` (B1-1) and the RV-1 process exit are on `main` (PR #57, Repo Lens round 12 GO; the Race notes said 13, the owner and other files record 12 ❓) ✅. Nicknames on the page (PR #62) ✅.
@@ -49,7 +50,7 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 ## Known issues
 - **I-035:** owner chose option A (3 Nov): accept the risk for now, flag new-wallet free winners in the run notes, use the review day and the hold; revisit (option B: hold ≥ 1 VHP at a random moment) if farming shows up.
 - **I-037 B1-4 (fixed in PR #182):** a bad vault folder (an unexpected or nested file, over 2 MB, not in the recorder's own JSON form) is now held on its own with an alert; the race cards still publish. (B1-5 shipped with PR #57.)
-- **Who gets paid (D-152, PR #182):** exactly the top 30% of earning stakers; a tie across the line lets in who reached the score first (latest scoring pick), the rest take the next place. Free prize: at most 10 winners, same tie-break.
+- **Who gets paid (D-152, PR #182):** exactly the top 30% of earning stakers; a tie across the line lets in who reached the score first (latest scoring pick), the rest take the next place. Free prize: each place up to 10 wallets (D-159), same tie-break.
 - **I-086 (fixed in PR #182):** past 255 different staked scores, the vault values keep the paid set (top 30%) apart: unpaid wallets get 1, paid groups never share it (`rowValues`; the publish job's recompute mirrors it using the board's `earns`).
 - **I-028:** "Staked board" is based on `peak_stake` — a mid-week withdrawal below the minimum forfeits the week; the panel should explain this.
 - **I-030:** with `RPC_CHECK` off, stakes are classified on one node without a warning. **I-029:** board reads grow with players.

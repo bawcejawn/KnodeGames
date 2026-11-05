@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import http from "node:http";
 
 const APP = process.env.APP || ".";
 const read = (f) => fs.readFileSync(`${APP}/${f}`, "utf8");
@@ -67,7 +68,11 @@ test("an address fills the commands; something shaped like a private key is refu
   assert.ok(!addrRe.test("5HueCGU8rMjxEXxiPuD5BDku4MkFqeZyd4dZ1jvhTVqvbTLvyTJ"), "a WIF is not an address");
   assert.ok(!addrRe.test("1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1s0"), "0 isn't base58");
   for (const k of ["5HueCGU8rMjxEXxiPuD5BDku4MkFqeZyd4dZ1jvhTVqvbTLvyTJ", "KwdMAjGmerYanjeui5SHS7JkmpZvVipYvB2LJGU1ZxJwYvP98617", "0c28fca386c7a227600b2fe50b7cae11ec86d3bf1fbe471be89827e19d72aa1d"]) assert.ok(keyRe.test(k), k);
-  assert.match(js, /if \(KEYLIKE_RE\.test\(v\)\) \{\s*input\.value = "";\s*state\.addr = ""; save\(\);/, "cleared and not stored");
+  const wordsRe = new RegExp(js.match(/const WORDS_RE = \/(.+?)\/i;/)[1], "i");
+  assert.ok(wordsRe.test("legal winner thank year wave sausage worth useful legal winner thank yellow"), "12 recovery words");
+  assert.ok(wordsRe.test(Array(24).fill("abandon").join(" ")), "24 recovery words");
+  assert.ok(!wordsRe.test("1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr"));
+  assert.match(js, /if \(KEYLIKE_RE\.test\(v\) \|\| WORDS_RE\.test\(v\)\) \{\s*input\.value = "";\s*state\.addr = ""; save\(\);/, "cleared and not stored");
   assert.match(js, /code\.querySelector\("\.rn-addr"\) && !state\.addr/, "won't copy a command that still has the placeholder");
 });
 
@@ -103,7 +108,12 @@ test("one pinned Koinos version everywhere; the official repo; the volume is nev
   assert.ok(all.includes("git clone https://github.com/koinos/koinos.git koinos"));
   for (const b of boxes) assert.doesNotMatch(b.text, /volume prune|prune --volumes|prune -a --volumes|volume rm|rm -rf \/k\/block_producer|rm -rf \/k\b(?!\/)/, `step ${b.step}: ${b.text.slice(0, 60)}`);
   // The key is only ever read (public) or copied whole to a stick; never printed.
-  for (const b of boxes) if (/private\.key/.test(b.text)) assert.match(b.text, /^docker run --rm -v koinos-data:\/k:ro -v \S+ alpine:3\.20 cp \/k\/block_producer\/private\.key \/usb\//, b.text);
+  for (const b of boxes) if (/private\.key/.test(b.text)) {
+    // Only ever: check the stick is there, then copy the key file straight onto it (read-only volume).
+    assert.match(b.text, /^if (\(Test-Path E:\\\)|\[ -d "?\/(Volumes|media)\/)/, b.text);
+    assert.match(b.text, /docker run --rm -v koinos-data:\/k:ro -v \S+ alpine:3\.20 cp \/k\/block_producer\/private\.key \/usb\/koinos-node-private\.key/, b.text);
+    assert.doesNotMatch(b.text.replace(/\/usb\/koinos-node-private\.key|\/k\/block_producer\/private\.key|[\w/"$]*\/koinos-node-private\.key"?|E:\\koinos-node-private\.key/g, ""), /private\.key/, b.text);
+  }
   assert.doesNotMatch(all, /cat \/k\/block_producer\/private/);
   assert.match(all, /cat \/k\/block_producer\/public\.key/);
 });
@@ -180,3 +190,94 @@ test("words: no Chainge, the brand is two words, Vortex for the bridge", () => {
 function hasGnuTar() {
   try { return /GNU tar/.test(execFileSync("tar", ["--version"], { encoding: "utf8" })); } catch { return false; }
 }
+
+// ───────────── Repo Lens #173 fixes, proven by running the page's own boxes ─────────────
+const PWSH = process.env.PWSH || (() => { try { return execFileSync("sh", ["-c", "command -v pwsh"], { encoding: "utf8" }).trim(); } catch { return ""; } })();
+const box = (os, needle) => { const b = boxes.filter((x) => x.os.includes(os) && x.text.includes(needle)); assert.equal(b.length, 1, `${os}: ${needle}`); return b[0].text; };
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "rn-box-"));
+const bash = (script, cwd, env = {}) => execFileSync("bash", ["-c", script], { cwd, encoding: "utf8", env: { ...process.env, ...env } });
+
+test("F-1: the fingerprint check never says MATCH without a snapshot list and a file (Mac/Linux, and Windows with pwsh)", () => {
+  const nix = box("mac", 'echo "STOP - no snapshot.json yet').replace("cd ~/koinos-node", "");
+  const t = tmp();
+  assert.match(bash(nix, t), /STOP - no snapshot\.json yet/, "empty folder");
+  fs.writeFileSync(path.join(t, "snapshot.tar.gz"), "data");
+  const sha = execFileSync("sh", ["-c", "sha256sum snapshot.tar.gz | cut -c1-64"], { cwd: t, encoding: "utf8" }).trim();
+  assert.match(bash(nix, t), /STOP - no snapshot\.json yet/, "a file but no list");
+  fs.writeFileSync(path.join(t, "snapshot.json"), JSON.stringify({ sha256: sha.toUpperCase() }));
+  assert.match(bash(nix, t), /^MATCH/m);
+  fs.writeFileSync(path.join(t, "snapshot.json"), JSON.stringify({ sha256: "0".repeat(64) }));
+  assert.match(bash(nix, t), /^NO MATCH/m);
+  fs.rmSync(path.join(t, "snapshot.tar.gz"));
+  assert.match(bash(nix, t), /STOP - no snapshot\.tar\.gz yet/, "a list but no file");
+  if (PWSH) {
+    const win = box("win", '"STOP - no snapshot.json yet').replace("cd C:\\koinos-node", "");
+    const ps = (dir) => execFileSync(PWSH, ["-NoProfile", "-NonInteractive", "-Command", win], { cwd: dir, encoding: "utf8" });
+    const e = tmp();
+    assert.match(ps(e), /STOP - no snapshot\.json yet/);
+    fs.writeFileSync(path.join(e, "snapshot.json"), JSON.stringify({ sha256: sha }));
+    assert.match(ps(e), /STOP - no snapshot\.tar\.gz yet/);
+    fs.writeFileSync(path.join(e, "snapshot.tar.gz"), "data");
+    assert.match(ps(e), /^MATCH/m);
+    fs.rmSync(e, { recursive: true, force: true });
+  }
+  fs.rmSync(t, { recursive: true, force: true });
+});
+
+test("F-5: 'Behind by' is only printed when both heights were read", async () => {
+  const nix = box("mac", "Couldn't read the network height");
+  const serve = (h) => new Promise((ok) => { const s = http.createServer((q, r) => { q.resume(); q.on("end", () => r.end(JSON.stringify({ result: { head_topology: { height: String(h) } } }))); }); s.listen(0, "127.0.0.1", () => ok(s)); });
+  const run = (script) => new Promise((ok) => execFile("bash", ["-c", script], { encoding: "utf8" }, (e, out) => ok(out)));
+  const me = await serve(1000), net = await serve(1005);
+  const at = (s) => `http://127.0.0.1:${s.address().port}`;
+  try {
+    assert.match(await run(nix.replace("http://127.0.0.1:8080", at(me)).replace("https://koinos.armana.io", at(net))), /Your node: 1000 {3}Network: 1005 {3}Behind by: 5 blocks/);
+    assert.match(await run(nix.replace("http://127.0.0.1:8080", at(me)).replace("https://koinos.armana.io", "http://127.0.0.1:9")), /Couldn't read the network height/);
+    assert.match(await run(nix.replace("http://127.0.0.1:8080", "http://127.0.0.1:9").replace("https://koinos.armana.io", at(net))), /Your node didn't answer yet/);
+  } finally { me.close(); net.close(); }
+  const win = box("win", "Couldn't read the network height");
+  assert.match(win, /^\$me = \$null; \$net = \$null$/m, "Windows clears stale numbers first");
+  assert.match(win, /-not \(\$me -gt 0\)[\s\S]*-not \(\$net -gt 0\)[\s\S]*Behind by/);
+});
+
+test("F-12: the key backup refuses when the USB stick isn't there, and runs nothing", () => {
+  const t = tmp();
+  fs.writeFileSync(path.join(t, "docker"), `#!/bin/sh\necho "$*" >> "${t}/calls"\n`, { mode: 0o755 });
+  for (const [os_, needle] of [["linux", "/media/$USER/MYUSB"], ["mac", "/Volumes/MYUSB"]]) {
+    const out = bash(box(os_, needle), t, { PATH: `${t}:${process.env.PATH}`, USER: "nobody-here" });
+    assert.match(out, /STOP - no USB stick named MYUSB/, os_);
+  }
+  assert.ok(!fs.existsSync(path.join(t, "calls")), "docker never ran");
+  assert.match(box("win", "E:/:/usb"), /^if \(Test-Path E:\\\) \{ docker run[\s\S]*\} else \{ "STOP - there is no drive E:/);
+  fs.rmSync(t, { recursive: true, force: true });
+});
+
+test("F-7: an archive holding links is refused and leaves nothing behind", { skip: !hasGnuTar() && "GNU tar not installed" }, () => {
+  const sh = box("mac", "debian:bookworm-slim").match(/sh -c "([^"]+)"$/)[1];
+  assert.doesNotMatch(sh, /\$/, "no $ for the host shell to expand inside the double quotes");
+  const t = tmp();
+  fs.mkdirSync(path.join(t, "src/.koinos/chain/blockchain"), { recursive: true }); fs.mkdirSync(path.join(t, "src/.koinos/block_store/db"), { recursive: true });
+  fs.writeFileSync(path.join(t, "src/.koinos/chain/blockchain/x"), "1");
+  fs.symlinkSync("/koinos/block_producer/private.key", path.join(t, "src/.koinos/block_store/db/LOG"));
+  fs.mkdirSync(path.join(t, "dl")); fs.mkdirSync(path.join(t, "k"));
+  execFileSync("tar", ["-czf", path.join(t, "dl/snapshot.tar.gz"), ".koinos"], { cwd: path.join(t, "src") });
+  const local = sh.replaceAll("/k/", `${t}/k/`).replaceAll("ls /k", `ls ${t}/k`).replaceAll("/dl/", `${t}/dl/`);
+  let out = "";
+  try { execFileSync("sh", ["-c", local], { encoding: "utf8" }); } catch (e) { out = String(e.stdout); }
+  assert.match(out, /STOP: the snapshot holds unexpected links/);
+  assert.deepEqual(fs.readdirSync(path.join(t, "k")), [], "nothing unpacked, nothing left");
+  fs.rmSync(t, { recursive: true, force: true });
+});
+
+test("F-2, F-4, F-6 and the Lows: wording", () => {
+  assert.ok(html.includes(`<code>...${COMMIT.slice(-6)}</code>`), "F-4: the pin's real last six characters");
+  assert.doesNotMatch(html, /Both Armana fingerprints agree/, "F-2");
+  assert.match(html, /second source/);
+  for (const b of [box("win", "Invoke-RestMethod https://snapshots.armana.io"), box("mac", 'urlopen("https://snapshots.armana.io')]) assert.match(b, /half-finished older download was removed/, "F-6: no resume onto a different snapshot");
+  assert.match(html, /404/);
+  assert.match(html, /about 180 GB/, "F-3");
+  assert.match(html, /If you never saw it/, "F-8");
+  assert.match(html, /add those lines again after updating/, "F-9");
+  assert.equal((box("win", "Invoke-RestMethod https://snapshots.armana.io").match(/Tls12/g) || []).length, 1, "F-10");
+  assert.match(html, /It never sends your address or anything you type/, "F-11");
+});

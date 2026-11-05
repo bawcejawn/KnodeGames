@@ -26,7 +26,7 @@ export const PAGES = [
   { file: "run-node.html", path: "run-node.html", title: "Run a Koinos node · Knode Games", short: "Run your own Koinos node",
     desc: "Start a Koinos mainnet node and block producer on your own computer, step by step: Docker, Armana's weekly chain snapshot, registering your key, VHP, and keeping it live.", image: "og-knode.png", priority: "0.6" },
   { file: "race.html", path: "race.html", title: "Producer Race · Four handicapped races a day between Koinos block producers", short: "Koinos Producer Race",
-    desc: "Every Koinos block producer is a horse. Four 6-hour races a day, handicapped by VHP so every horse has the same chance. Free, live from the chain.", image: "og-knode.png", priority: "0.7" },
+    desc: "Every Koinos block producer is a horse. Four 6-hour races a day, every day (Sunday's are for fun), handicapped by VHP so every horse has the same chance. Free, live from the chain.", image: "og-knode.png", priority: "0.7" },
   { file: "blockx.html", path: "blockx.html", title: "Who Signs Block X · Pick the Koinos producer of the next big blocks", short: "Who Signs Block X",
     desc: "Every 2,400 Koinos blocks is a target. Pick the producer you think signs it; smaller producers score more, up to 3×. Free, with weekly VHP prizes.", image: "og-knode.png", priority: "0.6" },
   { file: "pulse.html", path: "pulse.html", title: "Koinos network pulse · Blocks, transactions and producers, live", short: "Koinos network pulse",

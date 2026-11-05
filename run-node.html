@@ -89,7 +89,7 @@
       <h2>Safe by design</h2>
       <ul class="checks">
         <li>This page never asks for a private key or recovery words, and never will. If anything does, stop.</li>
-        <li>It sends nothing anywhere. Your address only fills in the commands on your screen.</li>
+        <li>It never sends your address or anything you type: your address only fills in the commands on your screen. (Like every page here, it counts page views, without cookies.)</li>
         <li>Your node makes its own key, which stays on your computer. Your KOIN and VHP stay in your own wallet.</li>
         <li>It uses the official Koinos node, at a version Knode Games has checked, the same way Knode Games runs its own nodes.</li>
       </ul>
@@ -362,7 +362,7 @@ EOF
 docker volume create koinos-data
 docker compose config | grep koinos-data</code></pre>
       </div>
-      <p class="rn-see"><b>You should see:</b> after 3a, the long code ending <code>...b5de28</code>. After 3b, one line: <code>producer: 1…</code> with <b>your</b> address. After 3c, <code>koinos-data</code> printed once, then several lines that mention <code>koinos-data</code>.</p>
+      <p class="rn-see"><b>You should see:</b> after 3a, the long code ending <code>...f5de28</code>. After 3b, one line: <code>producer: 1…</code> with <b>your</b> address. After 3c, <code>koinos-data</code> printed once, then several lines that mention <code>koinos-data</code>.</p>
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
           <li><b>3a says "destination path 'koinos' already exists":</b> you've done 3a before. That's fine: go on to 3b.</li>
@@ -384,30 +384,39 @@ docker compose config | grep koinos-data</code></pre>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $i = Invoke-RestMethod https://snapshots.armana.io/index.json
 $s = $i.archives | Sort-Object { [int64]$_.height } -Descending | Select-Object -First 1
+if ((Test-Path snapshot.json) -and (Test-Path snapshot.tar.gz) -and ((Get-Content snapshot.json -Raw | ConvertFrom-Json).name -ne $s.name)) { Remove-Item snapshot.tar.gz; "A newer snapshot is out: the half-finished older download was removed, so 4b starts fresh." }
 $s | ConvertTo-Json -Depth 5 | Set-Content snapshot.json
 $f = ((curl.exe -sL --ssl-no-revoke $s.sha256_url) -split '\s+')[0]
 "Newest snapshot: $($s.name)"
 "Size: {0:N1} GB" -f ($s.size_bytes / 1GB)
 "Fingerprint: $($s.sha256)"
-if ($f -eq $s.sha256) { "Both Armana fingerprints agree" } else { "STOP: the two fingerprints differ - do not use this snapshot" }</code></pre>
+if ($f -eq $s.sha256) { "The list and its fingerprint file agree (both from Armana)" } else { "STOP: Armana's list and fingerprint file differ - do not use this snapshot" }</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd ~/koinos-node
 python3 - &lt;&lt;'EOF'
-import json, urllib.request
+import json, os, urllib.request
 i = json.load(urllib.request.urlopen("https://snapshots.armana.io/index.json"))
 s = max(i["archives"], key=lambda a: int(a["height"]))
+try:
+    if json.load(open("snapshot.json"))["name"] != s["name"] and os.path.exists("snapshot.tar.gz"):
+        os.remove("snapshot.tar.gz")
+        print("A newer snapshot is out: the half-finished older download was removed, so 4b starts fresh.")
+except Exception:
+    pass
 json.dump(s, open("snapshot.json", "w"), indent=1)
 f = urllib.request.urlopen(s["sha256_url"]).read().decode().split()[0]
 print("Newest snapshot:", s["name"])
 print("Size: %.1f GB" % (s["size_bytes"] / 2**30))
 print("Fingerprint:", s["sha256"])
-print("Both Armana fingerprints agree" if f.lower() == s["sha256"].lower() else "STOP: the two fingerprints differ - do not use this snapshot")
+print("The list and its fingerprint file agree (both from Armana)" if f.lower() == s["sha256"].lower() else "STOP: Armana's list and fingerprint file differ - do not use this snapshot")
 EOF</code></pre>
       </div>
+      <p class="muted"><b>Extra careful (recommended):</b> both fingerprints above come from Armana. To check against a second source, compare the <b>Fingerprint</b> line with the one Armana posts in the Koinos community (Discord or Telegram) or with another node runner's. If they differ, don't use the snapshot.</p>
       <h3 class="rn-sub">4b. Download it (the long part)</h3>
       <p>Leave this window open until it finishes. If it stops for any reason, paste the same box again: it carries on where it left off.</p>
       <div class="rn-cmd" data-os="win">
@@ -426,35 +435,42 @@ curl -L --fail --retry 10 -C - -o snapshot.tar.gz "$URL"</code></pre>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
-$s = Get-Content snapshot.json -Raw | ConvertFrom-Json
-$h = (Get-FileHash snapshot.tar.gz -Algorithm SHA256).Hash
-if ($h -eq $s.sha256) { "MATCH - the download is complete and unchanged" } else { "NO MATCH - delete snapshot.tar.gz and download again" }</code></pre>
+$s = $null
+if (Test-Path snapshot.json) { $s = Get-Content snapshot.json -Raw | ConvertFrom-Json }
+if (-not $s -or $s.sha256 -notmatch '^[0-9a-fA-F]{64}$') { "STOP - no snapshot.json yet: do 4a first" }
+elseif (-not (Test-Path snapshot.tar.gz)) { "STOP - no snapshot.tar.gz yet: do 4b first" }
+elseif ((Get-FileHash snapshot.tar.gz -Algorithm SHA256).Hash -eq $s.sha256) { "MATCH - the download is complete and unchanged" }
+else { "NO MATCH - delete snapshot.tar.gz and download again" }</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd ~/koinos-node
-EXP=$(python3 -c 'import json;print(json.load(open("snapshot.json"))["sha256"].lower())')
-GOT=$( (sha256sum snapshot.tar.gz 2&gt;/dev/null || shasum -a 256 snapshot.tar.gz) | cut -d' ' -f1)
-[ "$EXP" = "$GOT" ] &amp;&amp; echo "MATCH - the download is complete and unchanged" || echo "NO MATCH - delete snapshot.tar.gz and download again"</code></pre>
+EXP=$(python3 -c 'import json;print(json.load(open("snapshot.json"))["sha256"].lower())' 2&gt;/dev/null)
+if [ ${#EXP} -ne 64 ]; then echo "STOP - no snapshot.json yet: do 4a first"
+elif [ ! -f snapshot.tar.gz ]; then echo "STOP - no snapshot.tar.gz yet: do 4b first"
+else
+  GOT=$( (sha256sum snapshot.tar.gz 2&gt;/dev/null || shasum -a 256 snapshot.tar.gz) | cut -d' ' -f1)
+  if [ "$EXP" = "$GOT" ]; then echo "MATCH - the download is complete and unchanged"; else echo "NO MATCH - delete snapshot.tar.gz and download again"; fi
+fi</code></pre>
       </div>
       <h3 class="rn-sub">4d. Unpack it into the node's volume</h3>
       <p>This unpacks only the two parts a block producer needs (<code>chain</code> and <code>block_store</code>). It never touches your node's key.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>docker run --rm -v koinos-data:/k -v C:/koinos-node:/dl:ro debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
+        <pre><code>docker run --rm -v koinos-data:/k -v C:/koinos-node:/dl:ro debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>docker run --rm -v koinos-data:/k -v "$HOME/koinos-node:/dl:ro" debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
+        <pre><code>docker run --rm -v koinos-data:/k -v "$HOME/koinos-node:/dl:ro" debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
       </div>
-      <p class="rn-see"><b>You should see:</b> 4a: the newest snapshot's name (like <code>koinos-mainnet-2026-11-01-h40694989.tar.gz</code>), its size (about 58 GB) and <b>"Both Armana fingerprints agree"</b>. 4b: a progress line that counts up to 100%. 4c: <b>MATCH</b> (it takes several minutes to answer). 4d: after 30–60 minutes, <b>UNPACKED OK</b> and the words <code>block_store</code> and <code>chain</code>.</p>
+      <p class="rn-see"><b>You should see:</b> 4a: the newest snapshot's name (like <code>koinos-mainnet-2026-11-01-h40694989.tar.gz</code>), its size (about 58 GB) and <b>"The list and its fingerprint file agree (both from Armana)"</b>. 4b: a progress line that counts up to 100%. 4c: <b>MATCH</b> (it takes several minutes to answer). 4d: after 30–60 minutes, <b>UNPACKED OK</b> and the words <code>block_store</code> and <code>chain</code>.</p>
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
-          <li><b>4a says STOP:</b> don't use that snapshot. Wait an hour and try again; if it keeps happening, ask in the Koinos community.</li>
-          <li><b>4b stops or the computer restarts:</b> paste the 4b box again. It continues where it stopped. A new snapshot appearing meanwhile doesn't matter: Armana keeps each one up for about two weeks.</li>
+          <li><b>4a says STOP:</b> don't use that snapshot. (On older Windows 10, "Could not create SSL/TLS secure channel" means Windows needs its updates; the box already asks for the modern connection type.) Wait an hour and try again; if it keeps happening, ask in the Koinos community.</li>
+          <li><b>4b stops or the computer restarts:</b> paste the 4b box again. It continues where it stopped. A new snapshot appearing meanwhile doesn't matter: Armana keeps each one listed for about two weeks. If it ever stops with <b>"404"</b>, that snapshot was retired: do 4a again (it clears the old half-download), then 4b.</li>
           <li><b>4c says NO MATCH:</b> delete the file (Windows: <code>Remove-Item C:\koinos-node\snapshot.tar.gz</code>; Mac/Linux: <code>rm ~/koinos-node/snapshot.tar.gz</code>), then do 4a, 4b and 4c again.</li>
-          <li><b>4d says "No space left on device":</b> free up disk space (Windows: Docker Desktop → Settings → Resources; Mac: raise Docker's disk limit to 200 GB), then run 4d again. It cleans up its half-done work first.</li>
-          <li><b>4d says "STOP: this volume already holds chain data":</b> it has already been unpacked. Go on to step 5. (If you're repairing a node, follow "Repair from a fresh snapshot" in step 8.)</li>
+          <li><b>4d says "No space left on device":</b> if you're repairing a node (step 8), delete the old data first, it's damaged anyway: <code>docker run --rm -v koinos-data:/k alpine:3.20 rm -rf /k/chain-old /k/block_store-old</code>. Otherwise free up disk space (Windows: Docker Desktop → Settings → Resources; Mac: raise Docker's disk limit to 200 GB), then run 4d again. It cleans up its half-done work first.</li>
+          <li><b>4d says "STOP: this volume already holds chain data":</b> if you saw <b>UNPACKED OK</b> before, it's done: go on to step 5. If you never saw it (for example you started the node before 4d), do the repair box in step 8, then 4d again, or the node rebuilds the chain from block 1, which takes days. (If you're repairing a node, follow "Repair from a fresh snapshot" in step 8.)</li>
           <li><b>Why trust Armana?</b> Armana runs <code>koinos.armana.io</code>, the Koinos API Knode Games itself uses. Their list and fingerprint file both come from Armana, so the check proves the download is intact and is the file they published. It can't contain a key: you only unpack the chain data, and your node makes its own key when it starts. If you'd rather not use a snapshot at all, skip 4b–4d: the node then rebuilds the whole chain itself, which takes much longer.</li>
         </ul>
       </details>
@@ -482,18 +498,24 @@ docker compose up -d</code></pre>
       <p>Run this now, then again every 15 minutes or so. Your node is <b>caught up</b> when <b>Behind by</b> is under 10.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>$body = '{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
-$me = [int64](Invoke-RestMethod http://127.0.0.1:8080 -Method Post -ContentType application/json -Body $body).result.head_topology.height
-$net = [int64](Invoke-RestMethod https://koinos.armana.io -Method Post -ContentType application/json -Body $body).result.head_topology.height
-"Your node: $me   Network: $net   Behind by: $($net - $me) blocks"</code></pre>
+        <pre><code>[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$me = $null; $net = $null
+$body = '{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
+try { $me = [int64](Invoke-RestMethod http://127.0.0.1:8080 -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
+try { $net = [int64](Invoke-RestMethod https://koinos.armana.io -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
+if (-not ($me -gt 0)) { "Your node didn't answer yet - wait 2 minutes and try again" }
+elseif (-not ($net -gt 0)) { "Couldn't read the network height - try again in a minute" }
+else { "Your node: $me   Network: $net   Behind by: $($net - $me) blocks" }</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>B='{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
 H='import json,sys;print(json.load(sys.stdin)["result"]["head_topology"]["height"])'
-ME=$(curl -s -X POST -H 'content-type: application/json' -d "$B" http://127.0.0.1:8080 | python3 -c "$H")
-NET=$(curl -s -X POST -H 'content-type: application/json' -d "$B" https://koinos.armana.io | python3 -c "$H")
-echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"</code></pre>
+ME=$(curl -s -X POST -H 'content-type: application/json' -d "$B" http://127.0.0.1:8080 | python3 -c "$H" 2&gt;/dev/null)
+NET=$(curl -s -X POST -H 'content-type: application/json' -d "$B" https://koinos.armana.io | python3 -c "$H" 2&gt;/dev/null)
+if [ -z "$ME" ]; then echo "Your node didn't answer yet - wait 2 minutes and try again"
+elif [ -z "$NET" ]; then echo "Couldn't read the network height - try again in a minute"
+else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi</code></pre>
       </div>
       <p>Want to watch it work? <code>docker compose logs --tail 20 chain</code> (in the <code>koinos</code> folder) shows the latest progress lines.</p>
       <p class="rn-see"><b>You should see:</b> 5a: the first time, Docker downloads the node's programs (a few minutes), then lines ending in <b>Started</b> for <code>amqp</code>, <code>chain</code>, <code>mempool</code>, <code>block_store</code>, <code>p2p</code>, <code>block_producer</code> and <code>jsonrpc</code>. 5b: <b>Behind by</b> getting smaller each time you run it. A snapshot can be up to a week old (about 200,000 blocks), so catching up can take a few hours.</p>
@@ -501,7 +523,7 @@ echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"</code></
         <ul>
           <li><b>5b: "Unable to connect" or "Connection refused":</b> the node is still starting. Wait 2 minutes and try again.</li>
           <li><b>Behind by stays the same (or grows) across two checks 15 minutes apart:</b> your node is stuck. Restart it: <code>docker compose down</code> then <code>docker compose up -d</code> (in the <code>koinos</code> folder), and check again in 15 minutes.</li>
-          <li><b>5a: "port is already allocated" (8080 or 8888):</b> another program uses that port. Pick free ones: add <code>JSONRPC_PORT=8090</code> and/or <code>P2P_PORT=8898</code> on new lines at the end of the <code>.env</code> file in the <code>koinos</code> folder, run 5a again, and use <code>8090</code> instead of <code>8080</code> in 5b.</li>
+          <li><b>5a: "port is already allocated" (8080 or 8888):</b> another program uses that port. Pick free ones: add <code>JSONRPC_PORT=8090</code> and/or <code>P2P_PORT=8898</code> on new lines at the end of the <code>.env</code> file in the <code>koinos</code> folder, run 5a again, and use <code>8090</code> instead of <code>8080</code> in 5b. An update (step 10) rewrites <code>.env</code>, so add those lines again after updating.</li>
           <li><b>5a: "external volume koinos-data not found":</b> run <code>docker volume create koinos-data</code>, then do step 4d again before starting.</li>
           <li><b>Mac: "platform (linux/amd64) does not match":</b> turn on the Rosetta setting from step 2, restart Docker, and run 5a again.</li>
         </ul>
@@ -599,7 +621,7 @@ docker compose down
 docker compose up -d</code></pre>
       </div>
       <h3 class="rn-sub">If it keeps crashing: repair from a fresh snapshot</h3>
-      <p>Damaged means it keeps restarting or freezing again soon after every restart: <code>docker compose ps</code> shows <b>Restarting</b>, or <code>docker compose logs --tail 40 block_store</code> shows <b>panic</b>. A restart won't cure that; fresh chain data will. This keeps your node's key, sets the old data aside (not deleted) and clears the old download:</p>
+      <p>Damaged means it keeps restarting or freezing again soon after every restart: <code>docker compose ps</code> shows <b>Restarting</b>, or <code>docker compose logs --tail 40 block_store</code> shows <b>panic</b>. A restart won't cure that; fresh chain data will. This keeps your node's key, sets the old data aside (not deleted) and clears the old download. <b>Short of space?</b> A repair briefly needs room for the old data, a new download and a new unpack (about 180 GB). If your drive is smaller, delete the old data right after this box with the last box below: it's damaged anyway.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
@@ -711,15 +733,15 @@ git rev-parse HEAD</code></pre>
       <p>Your node's private key is the file <code>block_producer/private.key</code> inside its volume. It controls nothing but signing blocks for your address; your KOIN and VHP stay safe in your wallet. <b>You don't have to back it up:</b> on a new computer you can simply register the new node's key (step 6). If you'd like a copy anyway, put it straight onto a USB stick, then keep the stick somewhere safe and offline. Plug in the stick first and use its drive letter or name:</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell (USB stick is E:)</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>docker run --rm -v koinos-data:/k:ro -v E:/:/usb alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key</code></pre>
+        <pre><code>if (Test-Path E:\) { docker run --rm -v koinos-data:/k:ro -v E:/:/usb alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key; if (Test-Path E:\koinos-node-private.key) { "Saved on E:" } } else { "STOP - there is no drive E: Plug in the USB stick and use its letter" }</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac">
         <div class="rn-cmd-h"><span>Mac · Terminal (USB stick named MYUSB)</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>docker run --rm -v koinos-data:/k:ro -v /Volumes/MYUSB:/usb alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key</code></pre>
+        <pre><code>if [ -d /Volumes/MYUSB ]; then docker run --rm -v koinos-data:/k:ro -v /Volumes/MYUSB:/usb alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key &amp;&amp; ls /Volumes/MYUSB/koinos-node-private.key; else echo "STOP - no USB stick named MYUSB: plug it in and use its name"; fi</code></pre>
       </div>
       <div class="rn-cmd" data-os="linux">
         <div class="rn-cmd-h"><span>Linux · Terminal (USB stick named MYUSB)</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>docker run --rm -v koinos-data:/k:ro -v "/media/$USER/MYUSB:/usb" alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key</code></pre>
+        <pre><code>if [ -d "/media/$USER/MYUSB" ]; then docker run --rm -v koinos-data:/k:ro -v "/media/$USER/MYUSB:/usb" alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key &amp;&amp; ls "/media/$USER/MYUSB/koinos-node-private.key"; else echo "STOP - no USB stick named MYUSB: plug it in and use its name"; fi</code></pre>
       </div>
       <ul class="rn-list rn-warn">
         <li>Never open it, paste it, email it, upload it or type it into any website or chat, including this one.</li>
@@ -728,7 +750,7 @@ git rev-parse HEAD</code></pre>
       <p class="rn-see"><b>You should see:</b> a stop or start finishing within a minute; after an update, the new version code from <code>git rev-parse HEAD</code>; after a backup, a file named <code>koinos-node-private.key</code> on your USB stick.</p>
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
-          <li><b>Your USB stick isn't E:?</b> Open File Explorer → This PC to see its letter, and change <code>E:/</code> in the box. On a Mac, the name under Locations in Finder replaces <code>MYUSB</code>.</li>
+          <li><b>Your USB stick isn't E:?</b> Open File Explorer → This PC to see its letter, and change <code>E:/</code> in the box. On a Mac, the name under Locations in Finder replaces <code>MYUSB</code> (on Linux, the name in your file manager). If it says STOP, the stick isn't where the box looks: nothing was copied.</li>
           <li><b>Want to remove the node completely?</b> <code>docker compose down</code>, then <code>docker volume rm koinos-data</code> (this deletes its data and key), then delete the <code>koinos-node</code> folder. Your VHP and KOIN stay in your wallet.</li>
         </ul>
       </details>

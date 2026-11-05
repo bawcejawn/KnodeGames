@@ -13,10 +13,11 @@
 - [ ] **Announce vault v6.1** (starts the 48 hours), signed by the current owner `1635QU…`: build and check on `vault-questions-60` (hashes `11043e1f…` and `04c27c1a…`, `chain-check` all ✔), then `upgrade schedule` dry run → CONFIRM ON → `--send` → CONFIRM OFF → delete `OWNER_WIF` from `.env`. Steps: the Vault handoff (`claude/vault/HANDOFF-2026-11-05.md`) and `docs/UPGRADE-V61.md` on #114. Paste the output to the Vault chat — P1 — D-130
 - [ ] **After 7:51 AM PT:** `npm run bot -- game-apply 2` and `game-apply 7` (dry run, then `--send`); `games` must show "staked + free prize, from week 3"; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT** — P1 — D-077
 - [ ] Optional Repo Lens: Race #155 post-merge (`claude/race/REPOLENS-PR155-POSTMERGE-PROMPT.md`). Nothing else is waiting on Repo Lens now (#152 and #163 merged 5 Nov). Queue: `AUDITS.md` — P4
-- [ ] **Decide:** should Block X go final at Mon 00:00 UTC like the Race (today Mon 12:00 UTC)? (`../standards/WEEK_CYCLE.md`) — P3 — D-134
 - [ ] Email filter: rename "Kpred bot" → "Knode Games bot" (the workflow name since #131) — P4
 
 ## This week
+- [ ] **Pages allow-list:** when the Hub chat's PR (R-HUB-14) is merged and its test run is checked: GitHub → Settings → Pages → Source: **GitHub Actions**; then open knodegames.com and two game pages. Undo = set Source back to "Deploy from a branch: main / root" — P2 — D-115
+- [ ] **Daily Questions free prize ON from Mon 16** (D-136): run the command the Vault chat gives (R-VAULT-14) during the week of Mon 9 — P2
 - [ ] **Turn the VHP ruler's recorder on** (data only, pays nothing, D-128): repo variable `VHP_RULER_ENABLED = true`, then the first fill (`docs/VHP-RULER.md` "Turning it on"); tell the Ruler chat — P2 — D-128
 - [ ] **Fri 6 Nov:** wallet runbook step 0 (read-only check; paste to the Vault chat), then the weekend steps in `docs/WALLETS.md` §7 — **with two changes:** vault 4a moves to Mon 9 after the upload; `1635QU…`'s KOIN stays put until then — P1 — D-083, D-096, D-130
 - [ ] **Mon 9 Nov from 9:00 AM PT** (never before Sun 8, 4 PM PT): `upgrade apply` dry run → CONFIRM ON → `--send` → CONFIRM OFF; `status` must say "this week 30, next week 60"; pin `safeWasmSha256 = 04c27c1a…` in `game-data\deployment.json`; then vault handover **4a** by 4:30 PM PT; delete `OWNER_WIF`; paste everything to the Vault chat — P1 — D-130
@@ -48,7 +49,7 @@
 
 ## Later
 - [ ] When you have a USB stick: once R-VAULT-10's script exists, back up the three producer keys (game/pool, Desk, personal) to it and keep it offline, apart from your wallet paper — P2 — TD-08
-- [ ] Decide C5-13: GitHub CODEOWNERS + "Require review from Code Owners" ruleset (keep a bypass for yourself) — P3
+- [ ] C5-13 (CODEOWNERS + ruleset): **go** (owner, 5 Nov). Wait for the Hub chat (R-HUB-14): the bot commits game data to `main` every hour, so the ruleset must let the bot and you bypass it, or the games stop updating. The Hub chat gives the exact clicks — P3
 - [ ] The full platform audit: only once everything is confidently ready (D-102) — P1 — I-002
 - [ ] Compare the Desk node's blocks signed with what its VHP should give over 7 days (it was ~78%); if still under ~90%, check `heal.log` restarts — P3 — TD-08 (from the old checklist 5Rc9KF t05)
 - [ ] Decide the site's read RPC (Armana or `api.koinos.io`), and the `vault-v6` folder's node — P3 — I-006, I-015

@@ -19,7 +19,7 @@ So a game with its switch **OFF** still has free play and a Free play leaderboar
 3. **After each week ends, the bot reads the switch**, then posts the results to the vault:
    - **ON:** it posts the stakers' points and the free winners. Free winners get 2 + 1 VHP.
    - **OFF:** it posts the stakers' points only. The 3 VHP that was set aside goes back into the next week's pot, without the 5% fee, and is split as usual. It never leaves the vault.
-4. **Questions (game 1) is not on the switch** today: its free prize is built into the vault contract. From Vault v6.1's rule week (Mon 16 Nov, D-116) Questions is a regular vault game; whether its free prize then follows the switch is ❓ (Vault chat to confirm).
+4. **Questions (game 1) is not on the switch** today: its free prize is built into the vault contract. From Vault v6.1's rule week (Mon 16 Nov, D-116) Questions is a regular vault game; **its free prize then follows the switch like every game (owner, 5 Nov, D-136)**, starting **ON**; the Vault chat confirms how the bot reads game 1 (R-VAULT-14).
 
 ## 3. The timing rules
 - **A change always starts next Monday 00:00 UTC (Sunday 4 PM PT).** It never changes the week in progress or a past week. A change made on Wednesday of week 4 counts from week 5.
@@ -31,7 +31,7 @@ So a game with its switch **OFF** still has free play and a Free play leaderboar
 ## 4. Starting settings (owner, D-081)
 | Game | Id | Free play | Free prize | Staked prize |
 |---|---|---|---|---|
-| Daily Questions | 1 | ✅ | ✅ built into the vault (not on the switch; ❓ from Mon 16 Nov) | ✅ |
+| Daily Questions | 1 | ✅ | ✅ built into the vault (not on the switch until Mon 16 Nov; then on it, starting ON, D-136) | ✅ |
 | Who Signs Block X | 2 | ✅ | ✅ **ON** | ✅ |
 | Producer Race | 7 | ✅ | ✅ **ON** | ✅ |
 | Producer Bracket | 9 | ✅ | ✅ **ON** | ✅ |

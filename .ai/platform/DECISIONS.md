@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, **oldest first** (D-001 at the top, the newest at the bottom; the index is in the same order). This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "superseded by D-XXX" in the index.
 > Consolidated 2026-11-02: the owner's answers to the open contradictions are recorded as D-061 – D-067.
-> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-134 added; index statuses brought up to date; nothing removed)
+> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-136 added; index statuses brought up to date; nothing removed)
 > Sources: owner in chat (2026-11-02), `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (all 12 chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · 👤 owner said · ⚠️ was a conflict (see the C-xx named next to it; all are resolved unless listed under Open) · ❓ unknown
@@ -145,6 +145,8 @@
 | D-132 | 2026-11-04 | Claiming several rewards: the player chooses each time | active (supersedes "choose a" on the Stake page; #154 stays as a fallback) |
 | D-133 | 2026-11-05 | Standing rule: push everything as soon as it's ready | active (standing) |
 | D-134 | 2026-11-05 | One standard for every game's week, and effortless new-game onboarding | active |
+| D-135 | 2026-11-05 | Block X goes final at Monday 00:00 UTC, like the Race | active |
+| D-136 | 2026-11-05 | Daily Questions' free prize follows the free-prize switch from the rule week | active |
 
 ---
 
@@ -741,6 +743,12 @@
 
 ## D-134 — One standard for every game's week, and effortless new-game onboarding
 - **Date:** 2026-11-05 (owner, to the Block X chat: "all the games should be following the same standards regarding game time open - close, check period and rewards. this needs to be easy for other new chats to see and understand as I bring in new games. Documentation and organizing is key right now to ensuring we dont have bloat, waste, and that its easy to follow along in the repo"; and to the library chat: "Adding a new game should be effortless") · **Decision:** `standards/WEEK_CYCLE.md` is the **one home** for game timing and rewards (play Mon–Sat, Sunday review, final, payout, backstop, prizes), with a compliance table of every game; `standards/NEW_GAME.md` is the step-by-step onboarding for a new game. Game files and chat starters point to them instead of copying rules. D-125 / D-129 stay as the decisions; WEEK_CYCLE is the how.
+
+## D-135 — Block X goes final at Monday 00:00 UTC, like the Race
+- **Date:** 2026-11-05 (owner, to the library chat: "yes", to "Should Block X go final at Mon 00:00 UTC like the Race?") · **Decision:** Block X's week goes final **no earlier than Monday 00:00 UTC**, once its re-reads pass, the same as the Race and `standards/WEEK_CYCLE.md` §2. Its "12 h after the week ends (Mon 12:00 UTC)" final goes. Built by the Block X chat (R-BX-24); until that PR merges, the 12-h final stays in the code.
+
+## D-136 — Daily Questions' free prize follows the free-prize switch from the rule week
+- **Date:** 2026-11-05 (owner: "yes asboslutely", to "After Mon 16, should Daily Questions' free prize follow the on/off switch like the other games?") · **Decision:** from Vault v6.1's rule week (Mon 16 Nov), Daily Questions (game 1) is on the free-prize switch like every vault game (D-082): the bot posts its free winners only when game 1's switch is ON. Its starting value is **ON**, set in the week before the rule week so it counts from Mon 16. The Vault chat confirms how game 1 is read by the switch and the bot (R-VAULT-14). `FREE_PRIZE_SWITCH.md` §4.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

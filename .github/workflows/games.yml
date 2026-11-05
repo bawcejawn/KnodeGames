@@ -22,6 +22,28 @@ permissions:
   contents: read
 
 jobs:
+  # R-VAULT-9: when this run fails, a plain-language summary at the top of the run page (what happened, does it
+  # matter, what to do), from .ai/platform/ALERTS.md §8. Reads two files from main; no secrets, read-only.
+  summary:
+    needs: [record, publish, alert]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            bot/alert-summary.mjs
+            .ai/platform/ALERTS.md
+          sparse-checkout-cone-mode: false
+      - name: Plain-language summary (ALERTS.md §8)
+        env:
+          WORKFLOW_NAME: KnodeGames recorders
+        run: node bot/alert-summary.mjs --workflow "$WORKFLOW_NAME" --section 8
+
   record:
     if: ${{ vars.GAMES_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
@@ -406,25 +428,3 @@ jobs:
         run: |
           echo "::error::Block X held a week before its prize list (see the record job's errors). Nothing is paid for it until a run reads the whole week the same."
           exit 1
-
-  # R-VAULT-9: when this run fails, a plain-language summary at the top of the run page (what happened, does it
-  # matter, what to do), from .ai/platform/ALERTS.md §8. Reads two files from main; no secrets, read-only.
-  summary:
-    needs: [record, publish, alert]
-    if: ${{ failure() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-          sparse-checkout: |
-            bot/alert-summary.mjs
-            .ai/platform/ALERTS.md
-          sparse-checkout-cone-mode: false
-      - name: Plain-language summary (ALERTS.md §8)
-        env:
-          WORKFLOW_NAME: KnodeGames recorders
-        run: node bot/alert-summary.mjs --workflow "$WORKFLOW_NAME" --section 8

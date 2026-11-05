@@ -32,7 +32,7 @@ Each is a dry run by default. A mainnet send needs `--send --mainnet` and `CONFI
 | Command | Signs with | What it checks before sending (two nodes, as `status`) |
 |---|---|---|
 | `npm run picks -- owner-propose <address>` | `OWNER_WIF` (the current owner) | <ul><li>the address is a valid wallet, not the current owner, and not a Knode contract, sponsor, game, Picks or Desk address;</li><li>the signer is the on-chain owner;</li><li>**nothing is waiting** (no announcement, no upgrade), or it refuses and names what's waiting;</li><li>prints when step 2 opens and when it expires.</li></ul> |
-| `npm run picks -- owner-accept` | `NEW_OWNER_WIF` (the cold key, in `.env` only that day) | <ul><li>a proposal exists for exactly that key's address;</li><li>48 hours have passed and 7 days haven't;</li><li>still nothing waiting.</li></ul> After sending, it reads the owner back from both nodes and prints the line to put in `picks-data/deployment.json`. |
+| `npm run picks -- owner-accept` | `NEW_OWNER_WIF` (the cold key, in `.env` only that day) | <ul><li>a proposal exists for exactly that key's address;</li><li>48 hours have passed and 7 days haven't;</li><li>still nothing waiting.</li></ul> After sending, it reads the owner back from both nodes (for up to a minute) and **writes** `"owner"` into `picks-data/deployment.json` (with `"ownerChecked": false` if the nodes didn't agree in time; `owner-sync` confirms it later). |
 | `npm run picks -- owner-cancel` | `OWNER_WIF` | <ul><li>a proposal exists;</li><li>sends `propose_owner` with an empty address.</li></ul> |
 | `npm run picks -- status` (extended) | — | Shows the owner, any proposed owner with its open and expiry times, waiting announcements and the scheduled upgrade. |
 
@@ -52,7 +52,7 @@ The testnet guard that stops a mainnet owner key from being used on the testnet 
 5. After accept, the owner read back from both nodes must equal the new address, or the tool says so loudly.
 6. `MAINNET_OWNER` comes from the deployment file. If the file and the chain disagree (either node), every owner command stops before signing.
 7. `status` shows a waiting proposal, with its open and expiry times.
-8. On the testnet, a full run against a fresh test contract: propose, wait (the testnet build waits 10 minutes, `picks/scripts/build-testnet.cjs`), accept, and check that a pending announcement made before the handover can't be applied after it.
+8. On the testnet, a full run against a fresh test contract: propose, wait (the testnet build waits 10 minutes, `picks/scripts/build-testnet.cjs`), accept, `status`, and `owner-sync --testnet`. (The "a pending announcement can't be applied after the handover" rule is the contract's own: `apply_game` requires the current generation, covered by its unit tests. The tool refuses to propose or accept while one is waiting, so it can't set that state up; Repo Lens #D-12 F-3.)
 
 ## Open questions for the owner
 
@@ -90,6 +90,16 @@ Commit that file in a PR to `main`. From then on, owner commands need `OWNER_WIF
 
 **Cancel** (before the accept): `npm run picks -- owner-cancel`, then the same with `--send --mainnet`.
 
-**Order with the vault handover (D-130):** the vault is proposed Mon 9 and accepted Tue 10. The Picks steps are separate
-and can run on the same days, as long as nothing is announced on Picks in between (Combo's game 8 and the Picks v2
-upgrade wait until after the accept).
+**Order with the vault handover (D-130):** the vault is proposed Mon 9 and accepted Tue 10. The Picks steps are separate,
+with their own 48-hour wait: a Picks propose on Mon 9 can be accepted from Wed 11 (until 7 days after that). Nothing may be
+announced on Picks in between (Combo's game 8 and the Picks v2 upgrade wait until after the accept).
+
+**The planned new owner is pinned** (Repo Lens #D-12 F-1): `"nextOwner"` in `picks-data/deployment.json` (today
+`1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd`, the cold wallet in `KEYS_AND_ROLES.md`), set by a reviewed pull request.
+`owner-propose` refuses any other address, and prints the address in groups of 4 to check against the cold wallet's
+screen. After the accept the pin is removed, so the next handover needs a new reviewed pin.
+
+**If the read-back after the accept doesn't agree in time:** the tool still writes the owner (marked
+`"ownerChecked": false`) once the main node shows it, so owner commands, the emergency `pause` included, work with
+the new key. Then run `npm run picks -- owner-sync` (read-only) a few minutes later; it confirms the owner on both nodes
+and clears the mark.

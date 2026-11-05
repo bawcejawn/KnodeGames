@@ -549,7 +549,10 @@ jobs:
               elif f == "alltime.json":
                   # D-129: `sundays` = the Sunday fun rounds (day numbers) already added to the totals, each once.
                   assert set(j) == {"v", "weeks", "sundays", "players"} and all(nat(w) for w in j["weeks"]) and type(j["sundays"]) is list and all(nat(x) for x in j["sundays"]) and len(set(j["sundays"])) == len(j["sundays"]), f
-                  assert all(A(a) and set(x) in ({"points", "weeks", "best"}, {"points", "weeks", "best", "staked"}) and num(x["points"]) and x["points"] >= 0 and nat(x["weeks"]) and num(x["best"]) and type(x.get("staked", False)) is bool for a, x in j["players"].items()), f
+                  # Career profile stats (D-137, R-HUB-15): bestPlace (best place on the player's own board) and medals
+                  # ([staked shares, free 1st, free 2nd]) are optional per player.
+                  assert all(A(a) and {"points", "weeks", "best"} <= set(x) <= {"points", "weeks", "best", "staked", "bestPlace", "medals"} and num(x["points"]) and x["points"] >= 0 and nat(x["weeks"]) and num(x["best"]) and type(x.get("staked", False)) is bool
+                      and ("bestPlace" not in x or (nat(x["bestPlace"]) and x["bestPlace"] >= 1)) and ("medals" not in x or (type(x["medals"]) is list and len(x["medals"]) == 3 and all(nat(n) for n in x["medals"]))) for a, x in j["players"].items()), f
               elif f == "board.json":
                   # The shared board shape (board.js, the Leaders page): each row on its own board (ranked = Staked),
                   # its place there, and earns (0-3).
@@ -638,6 +641,7 @@ jobs:
                   for a, x in o["players"].items():
                       n = j["players"].get(a)
                       assert n is not None and n["points"] >= x["points"] and n["weeks"] >= x["weeks"] and n["best"] >= x["best"], f + ": an all-time total can't go down"
+                      assert all(p >= q for p, q in zip(n.get("medals", [0, 0, 0]), x.get("medals", [0, 0, 0]))) and ("bestPlace" not in x or n.get("bestPlace", 10**9) <= x["bestPlace"]), f + ": a career medal or best place can't go backwards"
               elif f == "index.json":
                   assert set(o["weeks"]) <= set(j["weeks"]), f + ": weeks can't go missing"
           print("fantasy files ok")

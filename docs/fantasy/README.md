@@ -76,6 +76,10 @@ node --import tsx tools/fantasy-testnet/rehearse.mjs        # about 5 minutes: 2
 - Written only once the vault is live (the game ABI has `get_game_player`); until then `index.json` says
   `vaultBasis: "all"` and there is no vault file. A week is normally final about an hour after it ends (two agreeing
   runs; vault deadline 3 days; ALERT at 2). The publish job refuses to change a vault file once published.
+- **Career profile (D-137, R-HUB-15):** `alltime.json` → `players[<address>]` = `{ points, weeks, best, staked,
+  bestPlace, medals }`: All time points (Sunday fun rounds included), weeks played, best week, the board of the latest
+  week, the best place on the player's own board, and `medals` = [weeks earning a staked share, free-play 1st, free-play
+  2nd]. `sundays` lists the fun rounds counted. The publish check never lets medals or a best place go backwards.
 - Weekly Rival with the vault live: a match counts only when both players are staked in Fantasy that week.
 
 ## Safety rails (audit 2026-10-28, FX-1 to FX-10)

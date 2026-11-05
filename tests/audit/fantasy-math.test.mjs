@@ -360,8 +360,11 @@ test("owner 2026-10-28: rival matches count only when both players hold a Knode 
 test("owner 2026-10-28: the all-time table adds each final week once per call; most points first", () => {
   let t = F.addAllTime({}, [{ a: A, points: 100 }, { a: B, points: 300 }, { a: C, points: 0 }]);
   t = F.addAllTime(t, [{ a: A, points: 250.5, staked: true }, { a: B, points: 40 }]);
-  assert.deepEqual(t[A], { points: 350.5, weeks: 2, best: 250.5, staked: true }, "staked: the board of its latest week");
-  assert.deepEqual(t[B], { points: 340, weeks: 2, best: 300, staked: false });
+  assert.deepEqual(t[A], { points: 350.5, weeks: 2, best: 250.5, staked: true, bestPlace: 1, medals: [1, 0, 0] }, "staked: the board of its latest week; 1st of 1 staker earns a share");
+  assert.deepEqual(t[B], { points: 340, weeks: 2, best: 300, staked: false, bestPlace: 1, medals: [0, 0, 0] }, "no free medal without a team on all 6 days");
+  const u = F.addAllTime({}, [{ a: A, points: 90, staked: false, full: true }, { a: B, points: 80, staked: false, full: true }, { a: C, points: 70, staked: true }]);
+  assert.deepEqual([u[A].medals, u[B].medals, u[C].medals], [[0, 1, 0], [0, 0, 1], [1, 0, 0]], "career medals: free 1st, free 2nd, a staked share");
+  assert.deepEqual([u[A].bestPlace, u[B].bestPlace, u[C].bestPlace], [1, 2, 1], "places on each player's own board");
   assert.equal(t[C], undefined, "a week with 0 points isn't a week played");
   assert.deepEqual(F.allTimeRows(t).map((r) => [r.a, r.place]), [[A, 1], [B, 2]]);
 });

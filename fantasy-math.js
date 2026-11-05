@@ -302,15 +302,23 @@
       }
       return r;
     }
-    /** Add a final week's players to the all-time table { [address]: { points, weeks, best } }. Returns a new table. */
+    /** Add a final week's players to the all-time table { [address]: { points, weeks, best, staked, bestPlace, medals } }.
+     *  For the career profile (D-137, R-HUB-15): `bestPlace` = the best place on the player's own board (Staked or Free
+     *  play) in any counted week; `medals` = [weeks earning a staked share, free-play 1st, free-play 2nd], counted from
+     *  the same rows the vault pays (stakedEarners, freeWinners), whether or not the free-prize switch is on.
+     *  Returns a new table. */
     function addAllTime(table, rows) {
       const t = JSON.parse(JSON.stringify(table || {}));
+      const own = boardPlaces(rows), earn = stakedEarners(rows), fw = freeWinners(rows);
       for (const r of rows) {
         if (!isAddr(r.a) || !(r.points > 0)) continue;
         const x = (t[r.a] = t[r.a] || { points: 0, weeks: 0, best: 0 });
         x.points = round(x.points + r.points, 2); x.weeks += 1; x.best = Math.max(x.best, r.points);
         x.staked = !!r.staked;                     // the board it shows on in All time: its latest counted week's
-
+        const pl = own.get(r.a);
+        if (Number.isInteger(pl)) x.bestPlace = Number.isInteger(x.bestPlace) ? Math.min(x.bestPlace, pl) : pl;
+        const m = Array.isArray(x.medals) ? x.medals : [0, 0, 0];
+        x.medals = [m[0] + (earn.has(r.a) ? 1 : 0), m[1] + (fw.first.includes(r.a) ? 1 : 0), m[2] + (fw.second.includes(r.a) ? 1 : 0)];
       }
       return t;
     }

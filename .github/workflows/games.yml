@@ -494,7 +494,7 @@ jobs:
           # (before picks), recorded hours or end-of-week stakes may be replaced by a new two-node reading, and whose picks may be
           # recorded late (F3). Anything that isn't a plain list of week numbers releases nothing.
           _rel = os.environ.get("BRACKET_RELEASE") or ""
-          RELEASE = set(int(x) for x in _rel.split(",")) if re.fullmatch(r"\s*\d{1,4}(\s*,\s*\d{1,4})*\s*", _rel) else set()
+          RELEASE = set(int(x) for x in _rel.split(",")) if re.fullmatch(r"\s*[0-9]{1,4}(\s*,\s*[0-9]{1,4})*\s*", _rel) else set()
           SAFE = 2**53 - 1
           addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}"); iso = re.compile(r"[0-9]{4}-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9](\.[0-9]{3})?Z")
           isa = lambda v: type(v) is str and addr.fullmatch(v) is not None

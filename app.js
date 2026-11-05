@@ -344,8 +344,13 @@
       const closed = num(t.weeks_closed) > pw, finalized = num(t.weeks_finalized) > pw;
       const W = closed ? ((await read("get_week", { week: String(pw) }).catch(() => ({}))).week || {}) : {};
       // A shared-rules week: its state is the game week (get_game), not the old pots.
-      const G = sharedWeek(pw) ? ((await read("get_game", { game: 1, week: String(pw) }).catch(() => ({}))).week || {}) : null;
-      S.prev = { week: pw, closed, finalized, W, G, end: g + (pw + 1) * wl };
+      // (A failed read keeps the last value for this week, or shows "…": Repo Lens F-2c.)
+      let G = null, Gerr = false;
+      if (sharedWeek(pw)) {
+        try { G = (await read("get_game", { game: 1, week: String(pw) })).week || {}; }
+        catch { Gerr = true; G = S.prev && S.prev.week === pw && S.prev.G && !S.prev.Gerr ? S.prev.G : {}; }
+      }
+      S.prev = { week: pw, closed, finalized, W, G, Gerr, end: g + (pw + 1) * wl };
     }
     await loadQuestions();
     if (S.account) await loadPlayer();
@@ -367,6 +372,14 @@
     const weeks = []; for (let w = fin - 1; w >= 0 && weeks.length < 104; w--) weeks.push(w);
     for (let i = 0; i < weeks.length; i += 6) {
       await Promise.all(weeks.slice(i, i + 6).map(async (w) => {
+        if (sharedWeek(w)) {
+          // Shared rules (Repo Lens F-1): the posted result is the game entry (get_game_player), not the old entry, which
+          // is never settled on these weeks. Rewards are collected on the Stake page (claim_game), so no claim here.
+          const [gp, gg] = await Promise.all([read("get_game_player", { player: a, game: 1, week: String(w) }), read("get_game", { game: 1, week: String(w) })]);
+          const h = sharedHistoryRow(w, gp, gg, minStakeFor(w));
+          if (h) history.push(h);
+          return;
+        }
         const [p, wk] = await Promise.all([read("get_player", { player: a, week: String(w) }), read("get_week", { week: String(w) })]);
         const e = p.entry, W = wk.week || {};
         if (!e) return;
@@ -433,6 +446,46 @@
    *  week + 1 >= it (the Vault chat's sharedRulesWeek). Before the upgrade the field is missing: every week is old-rule. */
   const sharedWeek = (week) => { const v = num((S.st && S.st.config || {}).q60_rule_week_plus_one); return v > 0 && week + 1 >= v; };
   const STAKE_HREF = "stake.html#g1";
+  const STAKE_LINK = "\u0000stake-link";   // historyText's marker for "collect on the Stake page" (a link)
+  /** "Your past weeks" row for a shared-rules week (Repo Lens F-1): from the posted game entry (get_game_player) and
+   *  the game week (get_game), never the old entry, which these weeks never settle. null: the wallet wasn't in it. */
+  function sharedHistoryRow(w, gp, gg, min) {
+    const ge = (gp && gp.entry) || null, G = (gg && gg.week) || {}, st = big(gp && gp.week_stake);
+    if (!ge && st === 0n) return null;
+    const place = num(ge && ge.prize_place);
+    return { week: w, pts: num(ge && ge.points), counted: num(ge && ge.points), staked: st > 0n && st >= min, voided: false,
+      claimed: !!(ge && ge.claimed), cutoff: num(G.cutoff), reward: big(ge && ge.reward), free: place === 1 || place === 2, shared: true,
+      pending: !G.finalized, rolled: !!(G.rolled_over || G.voided) };
+  }
+  /** The result text of a "Your past weeks" row (parts; STAKE_LINK becomes a link). */
+  function historyText(h) {
+    if (h.shared) {
+      if (h.rolled) return ["no results for this week (its share rolled over)"];
+      if (h.pending) return [h.staked ? "staked: results not final yet" : "free play: results not final yet"];
+      if (h.reward > 0n) return [`${h.free ? "Top free player: " : "Won "}${amount(h.reward)} VHP${h.claimed ? " · collected" : " · "}`, ...(h.claimed ? [] : [STAKE_LINK])];
+      return [h.staked ? (h.cutoff > 0 && h.pts >= h.cutoff ? "in the top 30%" : `missed the line${h.cutoff ? ` (${h.cutoff} pts)` : ""}`) : "free play"];
+    }
+    return [h.voided ? "withdrew (answers didn't count)"
+      : h.reward > 0n ? `${h.free ? "Top free player: " : "Won "}${amount(h.reward)} VHP${h.claimed ? " · collected" : " · to collect"}`
+      : h.staked ? (h.pts >= h.cutoff && h.cutoff > 0 ? "in the top 30%" : `missed the line${h.cutoff ? ` (${h.cutoff} pts)` : ""}`) : "free play"];
+  }
+  /** The last-week box for a shared-rules week (Repo Lens F-2): { hidden, k, v, note }. */
+  function sharedLastWeek(P, now, closeDelay) {
+    const DAYM = 86400000, G = P.G || {}, due = P.end + 3 * DAYM, finalAt = num(G.seal_time) ? num(G.seal_time) + DAYM : 0;
+    // The vault week can close only from week end + close_delay; the bot then closes it on its next run.
+    const closeAt = P.end + (closeDelay || 43200000);
+    const noResults = !!(G.rolled_over || G.voided);   // no results by the deadline, or voided: nothing to collect
+    return {
+      hidden: noResults ? now > P.end + 4 * DAYM : !!G.finalized && finalAt > 0 && now > finalAt + DAYM,
+      k: `${WL(P.week)} · ${P.Gerr ? "…" : !G.closed ? "closing" : !G.finalized ? "closed" : "final"}`,
+      v: G.closed && !P.Gerr ? `${amount(G.bucket)} VHP` : "…",
+      note: P.Gerr ? "couldn't read it just now; this page tries again every minute"
+        : noResults ? "no results for this week: its share rolls over to next week"
+        : !G.closed ? `waiting for the weekly close, ${now < closeAt ? `about ${dayTime(closeAt)}` : "within about an hour"}`
+        : !G.sealed ? `Daily Questions' share; results posted by ${dayTime(due)}`
+          : !G.finalized ? `results posted; final ${finalAt ? dayTime(finalAt) : "24 hours after posting"}` : "final: collect on the Stake page",
+    };
+  }
   const CAP_A = 10n * UNIT;
   const capA = (stake) => (stake < CAP_A ? stake : CAP_A);
   function score(rows, outcomes, week = S.week) {
@@ -963,7 +1016,7 @@
         : "This question could not be checked against the chain yet. Reload the page to try again.");
   }
 
-  /** The scoreboard band at the top of Play: your place, points and stake, with Stake / Withdraw right there. */
+  /** The scoreboard band at the top of Play: your place, points and stake, with a link to the Stake page. */
   function renderBand(now) {
     const band = $("#band");
     if (!band) return;
@@ -1153,13 +1206,11 @@
     if (P && P.G) {
       // Shared rules (v6.1): closed by the bot, then the results file is posted (due 3 days after the week ends), sealed,
       // open to correction for 24 hours, finalized; rewards are collected on the Stake page.
-      const G = P.G, due = P.end + 3 * DAYM, finalAt = num(G.seal_time) ? num(G.seal_time) + DAYM : 0;
-      lastBox.hidden = !!G.finalized && finalAt > 0 && now > finalAt + DAYM;
-      $("#pot-last-k").textContent = `${WL(P.week)} · ${!G.closed ? "closing" : !G.finalized ? "closed" : "final"}`;
-      $("#pot-last-v").textContent = G.closed ? `${amount(G.bucket)} VHP` : "…";
-      $("#pot-last-note").textContent = !G.closed ? "waiting for the weekly close (the bot closes it within about an hour)"
-        : !G.sealed ? `Daily Questions' share; results posted by ${dayTime(due)}`
-          : !G.finalized ? `results posted; final ${finalAt ? dayTime(finalAt) : "24 hours after posting"}` : "final: collect on the Stake page";
+      const b = sharedLastWeek(P, now, S.closeDelay);
+      lastBox.hidden = b.hidden;
+      $("#pot-last-k").textContent = b.k;
+      $("#pot-last-v").textContent = b.v;
+      $("#pot-last-note").textContent = b.note;
     } else {
       lastBox.hidden = !P || (P.finalized && !S.claims.some((c) => c.week === P.week) && now > num(P.W.settle_end) + DAYM);
       if (P) {
@@ -1440,9 +1491,7 @@
       if (hb && H.length) hb.replaceChildren(...H.map((h) => el("tr", {},
         el("td", {}, `${WL(h.week)}`),
         el("td", { class: "num" }, String(h.pts)),
-        el("td", {}, h.voided ? "withdrew (answers didn't count)"
-          : h.reward > 0n ? `${h.free ? "Top free player: " : "Won "}${amount(h.reward)} VHP${h.claimed ? " · collected" : " · to collect"}`
-          : h.staked ? (h.pts >= h.cutoff && h.cutoff > 0 ? "in the top 30%" : `missed the line${h.cutoff ? ` (${h.cutoff} pts)` : ""}`) : "free play"))));
+        el("td", {}, ...historyText(h).map((x) => (x === STAKE_LINK ? el("a", { href: STAKE_HREF }, "collect on the Stake page") : x))))));
     }
   }
 

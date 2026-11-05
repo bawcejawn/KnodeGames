@@ -162,13 +162,15 @@
 | D-149 | 2026-11-05 | Public node guide defaults | active |
 | D-150 | 2026-11-05 | Fantasy: Sunday fun round, then the recorder checks before one fix-check | active |
 | D-151 | 2026-11-05 | Guest play first in the wallet sheet | active (in #181) |
-| D-152 | 2026-11-05 | Who gets paid in a staked game (exactly the top 30%; a tie across the line → who reached the score first; free prize ≤ 10 winners) | reserved: its entry lands with PR #182 (Race chat; R-ALL-10, R-VAULT-17) |
+| D-152 | 2026-11-05 | Who gets paid in a staked game (exactly the top 30%; a tie across the line → who reached the score first; free prize per place: see D-159) | reserved: its entry lands with PR #182 (Race chat; R-ALL-10, R-VAULT-17) |
 | D-153 | 2026-11-05 | Producer Bracket: at most 32 producers | active (amends D-141's 64) |
 | D-154 | 2026-11-05 | VHP ruler v2.1 ranks by a field-conditional percentile (A′) | active (library design, 5 Nov; replaces §16's Fix A / Fix B) |
 | D-155 | 2026-11-05 | Live stats panel | active (in #185) |
 | D-156 | 2026-11-05 | The welcome page leads with free play; the play-first home page waits for a mockup review | active |
 | D-157 | 2026-11-05 | The Game Standard and the Contract Standard are official | active |
-| D-158 | 2026-11-05 | The Shared Game Kit design is adopted, with eight choices (every new game and the Questions recorder launch on the kit; current payout rules kept; generic recount; data branches kept; two shadow weeks; `kit/`; standards point to GAME_KIT.md) | active (`../standards/GAME_KIT.md`) |
+| D-158 | 2026-11-05 | The Shared Game Kit design is adopted, with eight choices (every new game and the Questions recorder launch on the kit; current payout rules kept; generic recount; data branches kept; two shadow weeks; `kit/`; standards point to GAME_KIT.md) | active; choices 1 and 4 corrected by D-160 |
+| D-159 | 2026-11-05 | Free-prize ties: up to 10 paid per place; more than 10 → exactly 10 by earlier score time, then address; never zero because of the cap | active (every standard; mismatches I-103, I-104) |
+| D-160 | 2026-11-05 | Kit rollout corrected: #203 delivers Questions for Mon 16; the kit is built as core only, then #203 is ported byte-compatibly; no second hand-built runner; any rule ambiguity stops the build and goes to the owner | active |
 
 ---
 
@@ -843,6 +845,16 @@
   7. **`kit/` at the repo root, owned by the Architecture chat;** site files as root `kit-*.js` until the `web/` move.
   8. **RECORDER_STANDARD and GAME_STANDARD point to GAME_KIT.md** for the "how" and keep only the rules (one library PR).
 - **Order:** the kit's core with Questions first; then Fantasy, Block Golf, Bracket (before their launches); then Block X and the Race (replay → shadow → switch); then the publish jobs and the site files. **Why:** five recorders repeat the same ~15 rules; one implementation, reviewed once, makes every game safer and new games faster.
+
+## D-159 — Free-prize ties: up to 10 per place, never zero because of the cap
+- **Date:** 2026-11-05 (owner: "Up to 10 wallets may be paid per free place (1st and 2nd). Ties share within that place. If more than 10 would qualify for the same place, pay exactly 10 using a deterministic tie-break (earlier score time, then address). Never pay zero for that place because of the cap." Then: "Free-prize rule (locked) … Put this in GAME_KIT / RECORDER / LEADERBOARD / VAULT standards so every game uses the same rule.") · **Decision:** the rule above, for every game, in `GAME_KIT.md` §3, `RECORDER_STANDARD.md` §4.4, `LEADERBOARD_STANDARD.md` §1 and `VAULT_STANDARD.md` §6. It replaces the "≤ 10 winners a week" reading of D-152's free-prize part. **Known mismatches, not copied:** Block X leaves a place empty when more than 10 tie (I-103); Race PR #182 caps 1st and 2nd at 10 together (I-104); Questions PR #203 leaves a place empty (fixed in #203 once its score time is defined, D-160).
+
+## D-160 — Kit rollout corrected: no double work
+- **Date:** 2026-11-05 (owner: "Correction — eliminate double work. … PR #203 is the delivery for the Mon 16 deadline. Architecture Phase 0 builds the kit CORE only (no second Questions recorder). After kit merges, port #203 onto the kit with byte-compatible replay. Do not rewrite scoring. … No game launches a second hand-built runner while the kit is being built. Any rule ambiguity stops the build and comes to me — do not guess.") · **Decision:** corrects D-158 choices 1 and 4:
+  1. **Daily Questions:** PR #203 (`questions-recorder`) is the delivery for Mon 16. After the kit's core merges, #203 is ported onto the kit and must replay its published files byte for byte; its scoring (`games/questions/math.js`) is not rewritten.
+  2. **Phase 0 is the kit's core only** (R-ARCH-3); no second Questions recorder.
+  3. **No game launches a second hand-built runner while the kit is being built:** Fantasy, Block Golf and Bracket launch on the kit (R-ALL-11).
+  4. **Any rule ambiguity stops the build** and goes to the owner; no chat guesses a rule.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

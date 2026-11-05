@@ -13,6 +13,8 @@
   // A Koinos address: base58, starts with 1, 26–35 characters. A private key (WIF) starts with 5, K or L and is longer.
   const ADDR_RE = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/;
   const KEYLIKE_RE = /^(5|K|L)[1-9A-HJ-NP-Za-km-z]{50,51}$|^(0x)?[0-9a-fA-F]{64}$/;
+  // Recovery words (a seed phrase): 12 to 24 words of letters.
+  const WORDS_RE = /^([a-z]+\s+){11,23}[a-z]+$/i;
 
   let state = { os: "", addr: "", checks: {} };
   try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && typeof s === "object") state = { ...state, ...s, checks: { ...(s.checks || {}) } }; } catch { /* storage blocked: start fresh */ }
@@ -38,10 +40,10 @@
   const input = $("#rn-addr"), msg = $("#rn-addr-msg");
   function setAddr(raw, fromTyping) {
     const v = String(raw || "").trim();
-    if (KEYLIKE_RE.test(v)) {
+    if (KEYLIKE_RE.test(v) || WORDS_RE.test(v)) {
       input.value = "";
       state.addr = ""; save();
-      msg.textContent = "That looks like a PRIVATE key. Don't paste it anywhere. It was not kept. If it's your wallet's key, move your funds to a new wallet.";
+      msg.textContent = "That looks like a PRIVATE key or recovery words. Don't paste them anywhere. Nothing was kept. If they're your wallet's, move your funds to a new wallet.";
       msg.className = "rn-addr-msg rn-bad";
       paint("");
       return;

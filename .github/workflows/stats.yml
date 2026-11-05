@@ -1,0 +1,137 @@
+# Knode Games live stats: once an hour (minute 17) this builds stats.json, the public summary the home page strip and
+# the games page panel show (stats.js), and publishes it, alone, to the stats-data branch. See bot/stats.ts.
+#
+# Two jobs, like names.yml:
+#   check    a read-only token (contents: read) and no secrets. Takes the public leaderboards and the recent blocks
+#            (race-data, games-data, blocks-data), reads the vault (read-only calls), runs bot/stats.ts and hands on
+#            stats.json.
+#   publish  runs no repository code: checks stats.json's shape and pushes it as the only file of a one-commit
+#            stats-data branch (history isn't kept: each hour replaces the last). Refused if stats-data moved since the
+#            check started; it simply runs again next hour.
+# It never touches main, holds no key, signs nothing and does not run on pull requests.
+#
+# Turn it on: Settings → Secrets and variables → Actions → Variables: STATS_ENABLED = true
+name: Knode Games stats
+
+on:
+  schedule:
+    - cron: "17 * * * *"         # hourly
+  workflow_dispatch: {}
+
+concurrency:
+  group: knode-stats
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: ${{ vars.STATS_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      base: ${{ steps.data.outputs.base }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      # Public branches, read without a token. Plain JSON files only, copied under fixed names.
+      - name: Take the leaderboards and the recent blocks
+        id: data
+        run: |
+          set -euo pipefail
+          url="https://github.com/${GITHUB_REPOSITORY}.git"
+          mkdir -p "$RUNNER_TEMP/data" "$RUNNER_TEMP/out"
+          take() {   # branch, file on it, name to save as
+            rc=0; git ls-remote --exit-code --heads "$url" "$1" >/dev/null 2>&1 || rc=$?
+            if [ "$rc" = 2 ]; then echo "No $1 branch yet."; return 0; fi
+            if [ "$rc" != 0 ]; then echo "::error::Couldn't read the $1 branch (git ls-remote exit $rc)"; exit 1; fi
+            git fetch -q --depth 1 "$url" "$1"
+            if git cat-file -e "FETCH_HEAD:$2" 2>/dev/null; then git show "FETCH_HEAD:$2" > "$RUNNER_TEMP/data/$3"; fi
+          }
+          take race-data board.json board.json
+          take games-data blockx/board.json blockx-board.json
+          take blocks-data recent-blocks.json recent-blocks.json
+          base=""
+          if git ls-remote --exit-code --heads "$url" stats-data >/dev/null 2>&1; then base=$(git ls-remote --heads "$url" stats-data | cut -f1); fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+      - name: Build stats.json
+        env:
+          RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
+          RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
+          DATA_DIR: ${{ runner.temp }}/data
+          STATS_OUT: ${{ runner.temp }}/out
+        run: npm run stats -- run
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stats-out
+          path: ${{ runner.temp }}/out/
+          retention-days: 1
+
+  publish:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write         # push the stats-data branch (never main)
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: stats-out
+          path: ${{ runner.temp }}/incoming
+      - name: Push stats.json (and nothing else)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IN: ${{ runner.temp }}/incoming
+          BASE: ${{ needs.check.outputs.base }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "$IN/stats.json" ] || [ -L "$IN/stats.json" ]; then echo "::error::No stats.json to publish"; exit 1; fi
+          bad=$(find "$IN" -mindepth 1 ! -path "$IN/stats.json" -print)
+          if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
+          if [ "$(stat -c %s "$IN/stats.json")" -gt 65536 ]; then echo "::error::stats.json is over 64 KB"; exit 1; fi
+          if [ -n "$BASE" ] && ! [[ "$BASE" =~ ^[0-9a-f]{40}$ ]]; then echo "::error::bad base"; exit 1; fi
+          # stats.json's own shape (the same rules as bot/stats.ts checkStats and stats.js), not only valid JSON.
+          /usr/bin/python3 - "$IN/stats.json" <<'PY'
+          import json, re, sys
+          s = json.load(open(sys.argv[1], encoding="utf-8"))
+          addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
+          def i(n): return type(n) is int and 0 <= n < 10**9
+          def num(n): return type(n) in (int, float) and n == n and 0 <= n < 10**12
+          assert type(s) is dict and set(s) == {"v", "updated", "week", "players", "plays", "staked", "prizes", "blocks", "today", "top"}, "top level"
+          assert s["v"] == 1 and type(s["updated"]) is str and len(s["updated"]) <= 40, "v / updated"
+          assert type(s["week"]) is dict and set(s["week"]) == {"start", "end"} and all(type(s["week"][k]) is int for k in ("start", "end")), "week"
+          assert set(s["players"]) == {"week", "lastWeek", "allTime"} and all(i(v) for v in s["players"].values()), "players"
+          assert set(s["plays"]) == {"answers", "racePicks", "blockxPicks", "total"} and all(i(v) for v in s["plays"].values()), "plays"
+          st = s["staked"]
+          assert set(st) == {"total", "games"} and num(st["total"]) and type(st["games"]) is list and len(st["games"]) <= 20, "staked"
+          for g in st["games"]:
+              assert set(g) == {"id", "name", "vhp"} and i(g["id"]) and type(g["name"]) is str and len(g["name"]) <= 40 and num(g["vhp"]), "staked game"
+              assert not re.search(r"[<>\x00-\x1f\x7f-\x9f​-‏‪-‮⁦-⁩]", g["name"]), "game name"
+          assert s["prizes"] == {"free": [2, 1]}, "prizes"
+          assert set(s["blocks"]) == {"vault24h"} and (s["blocks"]["vault24h"] is None or i(s["blocks"]["vault24h"])), "blocks"
+          t = s["today"]
+          assert set(t) == {"open", "closes", "answers"} and i(t["open"]) and i(t["answers"]) and (t["closes"] is None or (type(t["closes"]) is int and 1.6e12 < t["closes"] < 4e12)), "today"
+          assert set(s["top"]) == {"questions", "race", "blockx"}, "top"
+          for k, l in s["top"].items():
+              assert type(l) is list and len(l) <= 5, "top " + k
+              for r in l:
+                  assert set(r) == {"a", "pts", "place"} and type(r["a"]) is str and addr.fullmatch(r["a"]) and i(r["pts"]) and type(r["place"]) is int and 1 <= r["place"] <= 3, "top " + k
+          PY
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git init -q work && cd work
+          blob=$(git hash-object -w "$IN/stats.json")
+          tree=$(printf '100644 blob %s\tstats.json\n' "$blob" | git mktree)
+          export GIT_AUTHOR_NAME=knode-stats GIT_AUTHOR_EMAIL=knode-stats@users.noreply.github.com GIT_COMMITTER_NAME=knode-stats GIT_COMMITTER_EMAIL=knode-stats@users.noreply.github.com
+          commit=$(git commit-tree "$tree" -m "stats: hourly summary")
+          # One commit, no history: replace the branch, but only if it is still what the check saw (or still absent).
+          git push -q --force-with-lease="refs/heads/stats-data:${BASE}" "$remote" "$commit:refs/heads/stats-data"
+          echo "stats.json published."

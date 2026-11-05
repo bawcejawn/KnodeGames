@@ -23,6 +23,7 @@
     "picks": "tsx bot/picks.ts",
     "testnet-site": "node tools/testnet-site.mjs",
     "names": "tsx bot/names.ts",
+    "stats": "tsx bot/stats.ts",
     "prizes": "tsx bot/free-prizes.ts"
   },
   "dependencies": {

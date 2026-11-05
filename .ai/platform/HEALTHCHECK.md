@@ -1,45 +1,49 @@
 # Knode Games — Health Check
 
 > **Purpose:** a CTO-level read of where Knode Games stands: strengths, weaknesses, missing information, quality scores and the top 10 priorities. Repeat it monthly, or after a big launch.
-> **Date:** Wednesday 4 Nov 2026 (replaces the 3 Nov check, kept at `../archive/2026-11-04/HEALTHCHECK-2026-11-03.md`).
-> **Scope:** every file in `.ai/` (start guide, platform docs, nine game files, eight standards, runbook, processes, archive). Application code was not reviewed here; it is covered by the Repo Lens audits.
-> **Method:** the Librarian read the library, and two independent reviewers read it separately without seeing each other's notes. Scores below are the Librarian's, checked against theirs (they gave 7 / 6 / 6).
-> **Not a source of truth:** this page judges; it does not record status. For what is live see `CURRENT_STATE.md`; for the owner's steps `TODOS.md`; for the chats' work `CHAT_REQUESTS.md`; for problems `OPENISSUES.md`.
+> **Date:** Wednesday 4 Nov 2026, evening PT (Thu 5 Nov UTC). Replaces the morning check of the same day (`../archive/2026-11-05/HEALTHCHECK-2026-11-04.md`), because about 30 PRs and 16 decisions (D-113 – D-128) landed in between.
+> **Scope:** all 47 files in `.ai/` outside the archive (about 5,000 lines), every PR they mention checked against GitHub. Application code is covered by the Repo Lens audits, not here.
+> **Method:** the Librarian's own read plus one independent reviewer who read every file without seeing the Librarian's notes. Scores below are the Librarian's, checked against the reviewer's (7 / 6.5 / 5.5).
+> **Not a source of truth:** this page judges; it does not record status. Live status: `CURRENT_STATE.md`; the owner's steps: `TODOS.md`; the chats' work: `CHAT_REQUESTS.md`; problems: `OPENISSUES.md`.
 
 ## Scores at a glance
 
-| Area | 4 Nov | 3 Nov | Change | One line |
+| Area | Now | Morning 4 Nov | Change | One line |
 |---|---|---|---|---|
-| Documentation quality | **7 / 10** | 7 | = | Thorough and plain-spoken, but status lines drift between files |
-| Architecture quality | **6.5 / 10** | 6.5 | = | Strong vault and checks; still one PC, one hot sponsor key, one RPC node, and results the vault can't fully verify |
-| Organization quality | **6 / 10** | 6.5 | −0.5 | The structure is right, but the same status lives in up to six files and they disagree |
+| Documentation quality | **7 / 10** | 7 | = | Four strong new safety pages and a public README, but ~60 status lines went stale within a day of merges |
+| Architecture quality | **7 / 10** | 6.5 | +0.5 | Payout safety merged, the ruler built and tested on real data, the bot closes weeks; the single points of failure are unchanged |
+| Organization quality | **5.5 / 10** | 6 | −0.5 | The structure is right, but status is copied into 8–10 files that drift apart within hours |
 
-**Size of the open load (4 Nov):** 56 open issues · 42 owner to-dos · 66 open chat requests (of 69) · 23 debt items · 18 documentation gaps · 111 decisions · 81 ❓ marks in `platform/`, 19 in games and standards (5 real unknowns).
+**Open load:** 62 open issues · 46 owner to-dos · 76 chat requests · 23 debt items · 19 documentation gaps · 128 decisions · 129 ❓ marks · 7 open PRs (#114, #141, #152, #155, #157, #158, #159).
 
 ---
 
 ## 1. Current strengths
 
+**Safety and operations pages (new today)**
+- **`KEYS_AND_ROLES.md`**: every wallet, contract and key by public address, what each can do, where its key lives, and what to do if it's lost or stolen. No keys anywhere.
+- **`SPONSOR.md`**: the sponsor's live settings, full command lines, rollback and emergency steps.
+- **`RECOVERY.md`**: what keeps running without the PC, the rebuild order, and the stolen-PC order.
+- **`ALERTS.md`**: every alert email with what to do, including the alerts that are silent today.
+- These four are the model for the rest: one page, safe to act on, plain words.
+
+**Public face (new today)**
+- A new README that describes the whole platform, a security policy file, the license holder named as Knode Games, "source-available" wording on the site.
+- The private audit reports and raw chat exports moved to the Claude project (D-115).
+- No keys or secrets anywhere in the repo (checked across all 610 files).
+
 **Library design**
-- **One home per fact** (`START_HERE.md` table) and a clear source order when files disagree (D-002). Finished work leaves the active lists (`archive/DONE.md`, `archive/ISSUES_CLOSED.md`), so open lists show only what needs attention.
-- **Consistent marks:** ✅ done, 💬 decided, 👤 owner step, ❓ unknown. A reader can see at a glance what is fact and what is a guess.
-- **Decisions never get deleted.** `DECISIONS.md` quotes the owner, marks superseded decisions instead of removing them (D-038, D-093), and is the audit trail for "why is it like this".
-- **Disciplined work lists:** one owner checklist (`TODOS.md`, D-100) and one chats' list (`CHAT_REQUESTS.md`), each item linked to an issue or decision.
-- **Everything lives in GitHub, not in chats** (D-089): a new chat can start from `START_HERE.md` and `AI_CHAT_STARTER.md`.
+- **One home per fact** (`START_HERE.md` table) and a stated source order (D-002).
+- **The decision log quotes the owner and never deletes**, so it doubles as an audit trail.
+- **Finished work leaves the active lists** (`archive/DONE.md`, `archive/ISSUES_CLOSED.md`); ids are never reused.
+- The ✅ / 💬 / 👤 / ❓ marks show what's fact and what's a guess.
 
-**Operational writing**
-- **`RUNBOOK.md` is written for 3 AM:** plain steps, dry run first, what to check after.
-- **`DEPENDENCIES.md` has a blast-radius section:** what breaks if each piece goes down.
-- **`FREE_PRIZE_SWITCH.md`** is a model of a single-purpose guide: what it does, starting values, how to roll back.
-- **`GO_LIVE_CHECKLIST.md`** gives every game the same gate before it pays.
-
-**Architecture and safety**
-- **Vault safety first:** withdrawals always open, timelocks on owner changes, an emergency withdrawals-only build ready (D-021), only the vault holds tokens.
-- **Fail-closed results:** `RECORDER_STANDARD.md` says a game that can't prove its results holds rather than pays; it is tied directly to audit findings.
-- **Layered pay checks:** HOLD files, `board.json`, the two-run rule and refusal alerts (PR #74), plus two-node reads (Armana and `api.koinosblocks.com`).
-- **The VHP ruler v2** (`VHP_RULER.md`, D-111) is backed by evidence: 11 simulations on real data, Repo Lens #E-7 findings fixed, integer-only math, write-once hash-chained data.
-- **Fairness thinking is documented:** the `HANDICAP_REVIEW` matrix and the ruler explain why each game is fair "with a bit of luck".
-- **Good judgment on holds:** Block X re-read its results before prizes; the Race held a payout rather than guess.
+**Architecture**
+- **Funds safety:** only the vault holds tokens, withdrawals are always open, a withdrawals-only build is ready, 48 h timelocks; the v6.1 plan (Path 2) even avoids the handover accept wiping a pending upgrade.
+- **Layered payout checks:** HOLD files, two-run rule, two nodes, the Sunday review day (D-125), the correction window, and now **published final results are locked and paid weeks re-scored from the chain** (RECORDER_STANDARD, Race #133).
+- **The VHP ruler is built and tested on 31 days of real mainnet data**, integer-only, JavaScript and Python byte-identical, and **nothing pays on it until all 11 simulations pass** (D-111).
+- **Decisions made with real measurements:** sponsor limits from mainnet costs (D-117); the bot closes weeks after testnet showed a player's first action could cost 1.12 Mana (D-127).
+- **Daily Questions joins the shared game rules** (D-116), removing the biggest special case in the vault.
 
 ---
 
@@ -47,103 +51,76 @@
 
 ### 2a. Platform risks (ranked)
 
-| # | Weakness | Why it matters | Where tracked |
+| # | Weakness | Why it matters | Tracked |
 |---|---|---|---|
-| 1 | **The owner's home PC is a single point of failure:** three mainnet nodes, the release backup, the owner keys used on action days | A dead disk, power cut or stolen PC stops block production (and so rewards) and the question backup | TD-08 |
-| 2 | **The Mana sponsor holds 25,000 KOIN behind a hot key with no timelock** | A leaked key drains it at once; no delay to react | D-085 |
-| 3 | **The vault pays from result files it can't fully verify on chain** | A wrong or forged results file could pay the wrong players; the checks reduce this but don't remove it | I-051, I-080, I-085 |
-| 4 | **One RPC node for writes and most reads** | If it goes down or lies, the bot and site stop or read wrong data | TD-10 |
-| 5 | **Crowded timing, 5–16 Nov:** `game-apply` (Thu–Sun), wallet moves (Fri–Tue), the first paid week (Mon 9), Survivor start and the first multi-game close (Mon 16) | Several P1 owner actions in one week; a mistake in one can block another | TODOS, ACTIVE_WORK |
-| 6 | **Heavy owner load:** 42 open to-dos, and Repo Lens runs only when the owner runs it | Work queues behind one person; audits wait | TD-09 |
-| 7 | **The bot pushes straight to `main`** | A bad bot commit lands on the live site without review | TD-03 |
-| 8 | **The Swap Desk treasury is still the owner's hot wallet `1635QU…`** | Desk funds share the risk of a daily-use key | I-001, `docs/WALLETS.md` |
+| 1 | **The owner's PC runs all three block producers** and the release backup | A dead PC stops block production (smaller rewards); recovery is written but not rehearsed, and the Desk's re-register waits 48 h | TD-08, `RECOVERY.md`, R-VAULT-10 |
+| 2 | **The sponsor's 25,000 KOIN sits behind a hot key**, no timelock | A leaked key drains it at once | D-085 |
+| 3 | **The vault pays from result files it can't recompute from the chain** | The checks are layered but a recorder bug that writes the board and the file wrong the same way still pays (Questions closes this for itself under D-116) | I-051, I-080 |
+| 4 | **One read/write RPC node**, and the ruler runs on two nodes only | An outage stops the bot; a lying node is caught only by the second | TD-10, D-126 |
+| 5 | **A crowded fortnight:** game-apply (Thu 5), wallet moves (Fri 6 – Tue 10), the v6.1 announce (Tue 10) and upload (Thu 12), the first multi-game close (Mon 16) | Several P1 owner steps in a row; one slip can block the next | TODOS |
+| 6 | **Every send, merge and audit runs through one person** | The owner is the bottleneck; Repo Lens runs only when he runs it | TD-09 |
+| 7 | **The bot still pushes straight to `main`** | A bad bot commit reaches the live site without review | TD-03 |
 
 ### 2b. Documentation weaknesses
-
-**Status drift** (the biggest single problem; the same fact is stale in some files and current in others):
-- PR #80, PR #85 and I-034 still read as open in some files though they are merged or closed.
-- The old sponsor numbers (25 / 150 / 1 caps, 0.2 Mana pick row, code `b61ac238`) remain in `PLATFORM`, `ARCHITECTURE`, `DEPENDENCIES`, `RULES`, `RUNBOOK` §8, `KOINOS`, `VAULT_STANDARD` §5 and some game files. Current: 1.5 / 40 / 250, 1.2 row, code `b84e1add` (D-105).
-- The Picks wallet timing (moved later, D-106) is not yet reflected in `ACTIVE_WORK`, I-001, TD-01 and `PLATFORM`.
-- I-020 and I-022 are fixed but still listed as open.
-- Counts are out of date: `CURRENT_STATE` says 102 decisions and seven standards; the true numbers are 111 and eight.
-- `DECISIONS.md` has a few entries out of order and index statuses that don't match the entries.
-- Game files still describe the old ruler (form multiplier, 2-week average, no card credit) instead of v2, and some still carry the old guest-pick wording and old work-list ranges.
-- `AI_CHAT_STARTER.md` lists only 4 of the 8 standards.
-
-**Contradictions:**
-- **Safety wording:** `START_HERE.md` said the bot, desk and sponsor tools "need only `--send`", but every mainnet send also needs `CONFIRM_MAINNET=yes` in `.env` (confirmed in `bot/sponsor.ts`). **Fixed in the same PR as this page.**
-- **Vault values:** `VAULT_STANDARD.md` §6's 255-places rule conflicts with `RECORDER_STANDARD.md` §4.3 (found by the Bracket audit, C-1; also affects Survivor and the Race, I-086).
-
-**Gaps in existing pages:**
-- `RUNBOOK.md` §3 lacks the per-game "held week" options the owner can choose (D-107 says an alert must name the owner's actions).
+- **Status drift, worse than this morning.** The snapshot files were written ~04:00 UTC; ~30 PRs merged after. `ACTIVE_WORK`, `PRIORITIES`, `ROADMAP`, `LAUNCH_BOARD`, `TECHNICAL_DEBT`, `PLATFORM` and the game files still show PRs #80, #85, #86, #95, #99, #119, #133 as open, Survivor on 16 Nov, the old Picks timing and the old v6.1 timeline.
+- **Old sponsor numbers** (code `b61ac238`, caps 1 / 25 / 150, rows 1 and 0.2) remain in about nine files although `SPONSOR.md` is their home. Open PR #158 would change the stake-call row again.
+- **Issues fixed but still open:** I-085, I-087, I-090 (fixed by #133), I-020, I-022.
+- **Game files describe old rules:** Questions "five a day, at most 30"; Race's 12-hour hold beside the new weekly close; Block X's 0.2 row and blocked guest picks.
+- **The decision log is out of order** (it says "newest first" but isn't), several index statuses don't match their entries (D-065, D-092, D-114, D-061, D-104, D-117), and **D-129 (Sunday fun races) is cited but missing**.
+- **Broken references:** `archive/CHAT_KNOWLEDGE.md` (moved), one path lost in R-LIB-6, branch-only files named without their branch.
+- **`AI_CHAT_STARTER.md` lists 4 of 8 standards**; the VHP Ruler chat is missing from `PLATFORM.md`'s chat list.
 
 ---
 
 ## 3. Missing information
 
-| Missing | What it would hold | Why it's needed | Ref |
-|---|---|---|---|
-| **KEYS_AND_ROLES** | Every key and wallet, what it can do, where it lives (hot, cold, offline), who uses it, when (never the keys themselves) | The wallet moves and any incident depend on it | Gap #3 |
-| **PC disaster recovery** | How to rebuild the nodes and backup task on another machine, from what, in how long | Weakness #1 | TD-08 |
-| **Owner-powers table** | Each contract's owner-only actions, timelocks and how to undo | Safe owner days; reviewers asked for it | — |
-| **`SPONSOR.md`** | The sponsor in one page: caps, switch, top-ups, rollback, the Mana report | Sponsor facts are spread across eight files (part of the drift above) | R-BX-18 |
-| **`SWAP_DESK.md`** | Fee, treasury, limits, owner steps | No single home today | — |
-| **Audit process** | When Repo Lens runs, prompt format, where reports go (private, in the Claude project), how fixes are checked | Audits are ad hoc and wait on the owner | Gap #12, TD-09 |
-| **Monitoring catalogue** | Every alert: what triggers it, who gets it, what the owner does | D-107 | I-087 |
-| **Data formats** | The shape of every bot file (question files, `board.json`, HOLD files, `vhp-data`) | Chats and auditors re-derive them from code | — |
-| **Release history** | Which contract code and site version went live when | Rollbacks and audits | — |
-| **GitHub access control** | Who can push, rulesets, secrets and environments | `OPERATOR_WIF` placement, C5-13 | D-012 |
-| **Announcements process** | How players are told about changes, holds and new games | First paid weeks | — |
-| **Each game's ruler move plan** | When and how each game moves to ruler v2 (Race first) | D-110, D-111 | R-RULER-1 |
-| **Open scoring points** | The ❓ scoring rules still undecided in Block X and Questions | Must be settled before those prizes grow | Game files |
+| Missing | What it would hold | Why now |
+|---|---|---|
+| **One dated calendar** | Every date for the next weeks in one place: game-apply, wallet moves, v6.1 announce / upload / rule week, the first D-125 close, when players can claim | Five files hold these dates today and disagree |
+| **An audit (Repo Lens) process + merge queue** | When a PR needs Repo Lens, the prompt format, where reports go (private), the current open PRs in merge order, "config first, then merge" rules | Dozens of prompts and seven open PRs; the order lives in PR titles |
+| **A glossary** | VHP, effective VHP, Mana, card, pool, seed, staked vs free, and the week numbers (vault week 3 = site "Week 1") | The week numbers already caused confusion; marketing readers will need it |
+| A Swap Desk page | Fee, treasury, limits, its node, owner steps | The only live product without a page |
+| A release history | Each contract's code hash, upload date and PR | Verification and rollbacks; the README table is the only list |
+| Data formats | Each game's files (`board.json`, vault files, `vhp-data`) | Chats and auditors re-derive them from code |
+| A snapshot-refresh rule and an id check | When CURRENT_STATE etc. are refreshed; a check that every PR, D-, I-, R- number cited is current | The cause of the drift above |
+| If the owner is unavailable | What waits, what keeps running, who can do what | Single-person risk (2a #6) |
+
+The four pages missing this morning (keys and roles, sponsor, PC recovery, alert catalogue) now exist.
 
 ---
 
 ## 4. Quality scores, explained
 
-### Documentation quality: 7 / 10 (unchanged)
-- **Up:** the ruler standard (v2) is the best-evidenced document in the library; `CHAT_REQUESTS` and `TODOS` were cleaned of finished items; plain language throughout.
-- **Down:** the cleanup moved status into its proper homes, but older copies of the same facts in reference files (`PLATFORM`, `ARCHITECTURE`, `RUNBOOK`, the game files) were not all updated. A reader who trusts the wrong file gets old caps or old PR states.
-- **To reach 8:** one status-sync pass (priority 3), and the missing safety pages (KEYS_AND_ROLES, SPONSOR).
+### Documentation: 7 / 10 (unchanged)
+- **Up:** the four safety pages, the public README and security policy; the ruler design (§15–16) records what was built and why; owner decisions carry their words.
+- **Down:** about 60 stale status lines after one day of merges, some in pages the owner could act from (sponsor numbers, Picks timing, the v6.1 dates); a missing decision and an unreliable decision index.
+- **To reach 9:** one status-sync pass, then pointers instead of copies (see Organization), the glossary and the calendar.
 
-### Architecture quality: 6.5 / 10 (unchanged)
-- **Up:** the vault checks merged; the sponsor guest-trap fix is live and verified; the ruler is designed with tamper-evident data; the vault's own Mana limit is 0 (D-099).
-- **Down:** none of the four structural risks moved this week: the single PC, the hot sponsor key, results the vault can't fully verify, one RPC node.
-- **To reach 7.5:** a fallback RPC, a written PC recovery plan, most sponsor KOIN kept cold, and the vault recomputing points from the chain (I-080).
+### Architecture: 7 / 10 (up 0.5)
+- **Up:** Race payout safety merged (hold alerts, recompute, locked finals); the ruler built with tamper-evident data and simulations as the gate; the bot closes weeks so players never pay for it; Questions moving onto the shared rules removes a special case; sponsor limits set from real costs.
+- **Down:** the same structural risks: one PC for all producers, the hot sponsor key, results the vault can't recompute, one RPC node.
+- **To reach 8:** a rehearsed PC recovery with producer key backups, most sponsor KOIN cold, the vault (or each game's publish job) recomputing points from the chain, a fallback RPC.
 
-### Organization quality: 6 / 10 (down 0.5)
-- **Up:** the one-home table and archive rule are right; work lists are disciplined.
-- **Down:** status still lives in up to six places (`CURRENT_STATE`, `ACTIVE_WORK`, `PRIORITIES`, `ROADMAP`, `TODOS`, the game files) and they drift apart within a day of busy work. The open load is large (56 issues, 66 chat requests, 42 to-dos), which makes "what matters now" hard to see. The score is lower than on 3 Nov because the drift is now measurable across more files, not because the structure got worse.
-- **To reach 7:** reference files point to the status homes instead of repeating status; an id check (every I-, D-, R-, TD- number in a change is still correct) added to session-end filing.
+### Organization: 5.5 / 10 (down 0.5)
+- **Up:** the folder layout, the one-home table and the archive rule are right; the chats' work list (§0) gives a clear order.
+- **Down:** status is copied into 8–10 files that drift within hours; four ranked lists overlap (PRIORITIES, this page's top 10, the gaps plan, CHAT_REQUESTS §0); `ACTIVE_WORK` mostly repeats CHAT_REQUESTS and TODOS; `DECISIONS.md` (760 lines) is out of order; `CHAT_REQUESTS.md` has grown into 34 KB of very long cells.
+- **To reach 8:** retire `ACTIVE_WORK` (or fold it into `LAUNCH_BOARD`); make `ROADMAP` the dated calendar only; make reference files (`PLATFORM`, `ARCHITECTURE`, `RULES`, game files) point to the status homes instead of repeating numbers; reorder the decision index; move paused games' requests to a backlog section.
 
 ---
 
 ## 5. Top 10 priorities
 
-| # | Priority | Owner / chat | When | Why first |
+| # | Priority | Who | When | Why |
 |---|---|---|---|---|
-| 1 | **Apply games 2 and 7:** `game-apply 2`, `game-apply 7`, check `games`, set `PRIZES_FROM_WEEK = 3`, then merge PR #86 | Owner | Thu 5 Nov after 7:51 AM PT; deadline Sun 8 Nov 4 PM PT | Without it Block X and the Race don't pay from 9 Nov (D-077) |
-| 2 | **Wallet moves** for the vault and Desk (`docs/WALLETS.md`), kept off apply day | Owner + Vault chat | Fri 6 – Tue 10 Nov | Moves owner powers off hot keys (I-001) |
-| 3 | **Library status-sync pass** (all items in §2b) plus an id-reference check in session-end filing | Librarian | This week | Stale safety numbers are a real risk to owner steps |
-| 4 | **KEYS_AND_ROLES and PC recovery pages**, and an owner decision on keeping most sponsor KOIN cold with a small working float | Librarian + owner decision | Before 16 Nov | Weaknesses #1 and #2 |
-| 5 | **Payout safety before the 16 Nov close:** Race hold alerts that name the owner's actions (R-RACE-13, I-087), Race vault-row recompute (I-085), Block X release fix B3-1 (R-BX-13) | Race, Block X chats | Before Mon 16 Nov | First close with several games in it |
-| 6 | **Settle the vault-value rule** (255 places in `VAULT_STANDARD` §6 vs `RECORDER_STANDARD` §4.3) | Vault chat + Librarian | Before Survivor joins | Bracket C-1; affects Survivor and the Race (I-086) |
-| 7 | **Survivor readiness** for Season 1 on 16 Nov (Repo Lens pass 4, announce 7–13 Nov, apply 9–15 Nov), or decide to slip | Owner + Survivor chat | Announce by Fri 13 Nov | D-065; not ready today |
-| 8 | **Build the VHP ruler** (R-RULER-1) and move the Race onto it first | VHP Ruler chat | Start this week | D-110, D-111; 11 simulations must pass before it pays |
-| 9 | **The vault recomputes points from the chain** instead of trusting result files | Vault chat | After 16 Nov | Weakness #3 (I-080) |
-| 10 | **Fallback RPC node and less owner load:** a second RPC, `SPONSOR.md`, the Mana report (R-BX-18) | Hub / Block X chats + Librarian | November | Weaknesses #4 and #6 |
+| 1 | **Apply games 2 and 7** (`game-apply 2`, `game-apply 7`, `games`, `PRIZES_FROM_WEEK = 3`) | Owner | Thu 5 Nov after 7:51 AM PT; deadline Sun 8 Nov 4 PM PT | Without it Block X and the Race don't pay from Mon 9 |
+| 2 | **Wallet moves** (`docs/WALLETS.md` §7): step 0 Fri, treasury, handover propose Sun, accept Tue | Owner + Vault chat | Fri 6 – Tue 10 Nov | Moves owner powers to the cold key `1LMV8E…`, which signs the v6.1 upgrade |
+| 3 | **Vault v6.1, Path 2:** Repo Lens on #114's latest commit and Questions #152; announce Tue 10, upload Thu 12, rule week Mon 16; then #141 | Vault + Questions chats, owner | Reviews before Tue 10; upload Thu 12 | Doubled Questions and Questions on the shared rules (D-116) |
+| 4 | **Library status-sync and de-duplication**: fix the ~60 stale lines, close fixed issues, add D-129, reorder the decision index, replace copied status with pointers, retire `ACTIVE_WORK` | Librarian | This week | The drift is now the biggest documentation risk |
+| 5 | **The first multi-game close (Mon 16) is safe:** Block X never rewrites a published result (#159, R-BX-20), Block X on the weekly rhythm (R-BX-22), the sponsor rows for vault calls (#158), the first sponsored stake measured | Block X chat, owner | Before Mon 16 Nov | First week with several games paid |
+| 6 | **The VHP ruler:** Repo Lens re-check, PR, the recorder on early, data only (D-128); then §16's fixes and all 11 simulations | VHP Ruler chat | This week; simulations next | The Race's two known handicap gaps close only on the ruler |
+| 7 | **Three new docs:** a dated calendar, the audit process with a merge queue, a glossary | Librarian | This week | See §3; they remove the main sources of confusion |
+| 8 | **PC resilience:** producer key backups (R-VAULT-10, when there's a USB stick) and a recovery rehearsal | Vault chat, owner | November | Weakness #1 |
+| 9 | **Sponsor key risk:** decide whether to keep most of the 25,000 KOIN in a cold wallet with a working float | Owner | November | Weakness #2 |
+| 10 | **Finish the repo cleanup:** run the branch script, remove the stale `docs/` files, review the `npm audit` warnings with tests, plan Pages from an allow-listed folder (R-HUB-11 part 5) | Owner, Librarian, Hub | November | Public-readiness before marketing (D-113, D-115) |
 
----
-
-## 6. Game readiness (snapshot, 4 Nov)
-
-| Game | State |
-|---|---|
-| Daily Questions (1) | Live and paying |
-| Who Signs Block X (2) | Live, prize-free; pays from Mon 9 Nov after `game-apply 2` |
-| Producer Race (7) | Live; pays from Mon 9 Nov after `game-apply 7` |
-| Survivor (3) | Not ready for 16 Nov yet (audit pass 4 pending) |
-| Block Golf | Practice close |
-| Fantasy, Combo, Bracket, Last Node | Not ready; audits pending |
-
-**Next health check:** after the first multi-game close (Mon 16 Nov), or by 4 Dec.
+**Next health check:** after the first multi-game close (Mon 16 Nov).

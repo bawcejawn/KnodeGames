@@ -262,3 +262,81 @@ test("review #1: an inflated time on a new round doesn't hold the honest runs af
   publish(r);
   for (const k of [8, 9, 10]) { r = await rec(H0 + k * X.ROUND + 50, prev()); const p = publish(r); assert.equal(p.status, 0, `honest run ${k}: ` + p.stdout); }
 });
+
+// R-BX-20 (I-093, the Race #E-11 H-1 class; RECORDER_STANDARD §3): a published FINAL target result can't change.
+//   (a) the recorder: a later run whose chain reads now answer differently keeps every recorded target exactly
+//       (it never re-reads a recorded round);
+//   (b) the publish step: a run that changes any part of one published result (signer, void, a pick's points, a pick
+//       dropped, the checked count, the whole round dropped) is refused whole and the branch keeps the published file;
+//   (c) a run that lost its copy of the published week (PREV without W003) re-records the week from a chain that now
+//       answers differently: refused too.
+test("R-BX-20: a published final target result is never rewritten, by the recorder or by a run that tries", async () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "rbx20-")), remote = path.join(d, "r.git");
+  spawnSync("git", ["init", "-q", "--bare", remote]);
+  const sh = path.join(d, "publish.sh"); fs.writeFileSync(sh, publishScript());
+  const race = raceDir();
+  let n = 0;
+  const record = async (lib, prev, chain = {}) => {
+    const inn = path.join(d, `in${n++}`), out = path.join(inn, "blockx");
+    const head = { height: lib + 60, time: T(lib + 60), lib };
+    await quiet(() => run({ p: "main", check: "check", out, prev, raceDir: race, picksContract: "1PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP", blockOf: chain.blockOf || blockOf, picksOf: chain.picksOf || picksOf, rankedOf, head }));
+    return { inn, out, now: head.time };
+  };
+  const publish = (inn, now) => spawnSync("bash", [sh], { env: { ...ENV, IN: inn, REMOTE: remote, CHECK_NOW_MS: String(now) }, encoding: "utf8" });
+  const show = (f) => spawnSync("git", ["--git-dir", remote, "show", `games-data:blockx/${f}`], { encoding: "utf8" });
+  const branchPrev = (skip = []) => {
+    const p = fs.mkdtempSync(path.join(d, "prev-"));
+    const ls = spawnSync("git", ["--git-dir", remote, "ls-tree", "--name-only", "games-data:blockx"], { encoding: "utf8" }).stdout.split("\n").filter(Boolean);
+    for (const f of ls) if (/^(index|board|W\d{3}|P\d{3})\.json$/.test(f) && !skip.includes(f)) fs.writeFileSync(path.join(p, f), show(f).stdout);
+    return p;
+  };
+
+  const r1 = await record(H0 + 6 * X.ROUND + 50);
+  let p = publish(r1.inn, r1.now);
+  assert.equal(p.status, 0, p.stdout + p.stderr);
+  const pub = JSON.parse(show("W003.json").stdout);
+  assert.ok(pub.targets.length >= 6 && pub.targets.every((t) => t.final === true));
+  const scored = pub.targets.find((t) => t.signer === MID && t.picks.some((x) => x[3] > 0));
+  assert.ok(scored, "a scored target to tamper with");
+
+  // (a) the chain now says every block was signed by SMALL and every pick was for SMALL: the recorded rounds don't move
+  const liar = { blockOf: async (_n, h) => ({ signer: SMALL, time: T(h) }), picksOf: async (_n, r) => [{ player: Z, producer: SMALL, time: T(r * X.ROUND) - 3600000 }] };
+  const r2 = await record(H0 + 8 * X.ROUND + 50, branchPrev(), liar);
+  const kept = JSON.parse(fs.readFileSync(path.join(r2.out, "W003.json"), "utf8"));
+  for (const t of pub.targets) assert.deepEqual(kept.targets.find((x) => x.round === t.round), t, `round ${t.round} kept exactly`);
+  p = publish(r2.inn, r2.now);
+  assert.equal(p.status, 0, "the honest run (new rounds only) still publishes: " + p.stdout + p.stderr);
+  const now2 = JSON.parse(show("W003.json").stdout);
+  for (const t of pub.targets) assert.deepEqual(now2.targets.find((x) => x.round === t.round), t);
+
+  // (b) each kind of change to one published result is refused whole
+  const tampers = {
+    "the signer": (t) => { t.signer = BIG; },
+    "a void added": (t) => { t.signer = null; t.void = "made up; no points"; t.picks = t.picks.map((x) => [x[0], x[1], x[2], 0, x[4]]); },
+    "a pick's points": (t) => { const i = t.picks.findIndex((x) => x[3] > 0); t.picks[i] = [t.picks[i][0], t.picks[i][1], t.picks[i][2], t.picks[i][3] + 1, t.picks[i][4]]; },
+    "the points as a string": (t) => { const i = t.picks.findIndex((x) => x[3] > 0); t.picks[i] = [t.picks[i][0], t.picks[i][1], t.picks[i][2], String(t.picks[i][3]), t.picks[i][4]]; },
+    "a pick dropped": (t) => { t.picks = t.picks.filter((x) => x[0] !== ALICE); },
+    "the checked count": (t) => { t.checked = 1; },
+    "the round dropped": null,
+  };
+  for (const [what, fn] of Object.entries(tampers)) {
+    const r = await record(H0 + 8 * X.ROUND + 50, branchPrev());
+    const f = path.join(r.out, "W003.json"), wf = JSON.parse(fs.readFileSync(f, "utf8"));
+    if (fn) fn(wf.targets.find((t) => t.round === scored.round)); else wf.targets = wf.targets.filter((t) => t.round !== scored.round);
+    fs.writeFileSync(f, JSON.stringify(wf) + "\n");
+    const before = { w: show("W003.json").stdout, b: show("board.json").stdout };
+    p = publish(r.inn, r.now);
+    assert.notEqual(p.status, 0, `${what}: the job fails`);
+    assert.match(p.stdout, /differ from the published targets[\s\S]*BX-88/, `${what}: named as a changed published target`);
+    assert.equal(show("W003.json").stdout, before.w, `${what}: the published W003 stays`);
+    assert.equal(show("board.json").stdout, before.b, `${what}: nothing built from it is published`);
+  }
+
+  // (c) the run lost its copy of W003 and re-records the week from a chain that now answers differently: refused
+  const r3 = await record(H0 + 8 * X.ROUND + 50, branchPrev(["W003.json"]), liar);
+  const before = show("W003.json").stdout;
+  p = publish(r3.inn, r3.now);
+  assert.notEqual(p.status, 0, "a run without the published week can't replace it");
+  assert.match(p.stdout, /differ from the published targets/);
+  assert.equal(show("W003.json").stdout, before);
+});

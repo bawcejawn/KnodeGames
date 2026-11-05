@@ -191,7 +191,7 @@
       open ? form(g, open) : null);
   }
 
-  /** Claim up to 10 rewards in one transaction. */
+  /** Claim up to 10 rewards: one transaction with the player's own Mana, or one per reward when the Mana sponsor pays (R-BX-21). */
   function claim(list) {
     const first = list.slice(0, 10), total = sum(first, (c) => c.reward);
     const games = [...new Set(first.map((c) => c.g.name))];
@@ -246,7 +246,8 @@
         ...S.done.lines.filter(Boolean).map((t) => el("p", {}, t)),
         el("button", { type: "button", class: "hub-x", "aria-label": "Close", onclick: () => { S.done = null; render(); } }, "✕")) : null,
       S.note ? el("p", { class: `hub-note ${S.noteCls}`, role: "status" }, S.note) : null,
-      d.paused ? el("p", { class: "hub-note bad" }, "New stakes are paused right now. Withdrawals and claims always work.") : null].filter(Boolean));
+      d.paused ? el("p", { class: "hub-note bad" }, "New stakes are paused right now. Withdrawals and claims always work.") : null,
+      who && d.games.some((g) => g.claimsUnknown) ? el("p", { class: "hub-note" }, `Couldn't check rewards for ${d.games.filter((g) => g.claimsUnknown).map((g) => g.name).join(", ")} just now (the network is busy). They show at the next refresh, in about a minute.`) : null].filter(Boolean));
     $("hub-body").replaceChildren(
       ...(mine.length ? [el("h2", {}, "Where you're staked"), el("ul", { class: "hub-list" }, ...mine.map(stakedRow))] : []),
       el("h2", {}, mine.length ? "Stake in another game" : "Pick a game to stake in"),

@@ -13,12 +13,9 @@
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
-- [x] Race emails for your own deliberate hold (L-4): **daily** (owner, 4 Nov; PR #155)
 - [ ] **Vault upgrade, Path 2 (D-116):** Repo Lens round 1 (and round 2) → **Tue 10 Nov, after the handover accept: announce, signed by `1LMV8E…`** → **Thu 12: upload** (the new owner needs ≥ 95 KOIN of Mana) → merge #114, then #141 and #142. Don't announce earlier — P1 — D-116
-- [ ] On the PC: `cd C:\kprediction`, `git switch main`, `git pull`, `npm ci --ignore-scripts` (picks up the self-heal fix #135 and the new `yaml` test package) — P2
 - [ ] Try one small sponsored stake on the live site (staking now asks 1.5 Mana) and tell the Block X chat it worked (R-BX-18, I-088) — P2
-- [ ] **Merge #133 now** (Repo Lens #E-11 fix-check: GO) — P1
-- [ ] **Repo Lens queue, in this order:** (1) Race #148 + #149 `claude/race/REPOLENS-C7-FIXCHECK-PROMPT.md` (merge #148 → #149 before Mon 9 if GO); (2) the vault upgrade on its current build (ask the Vault chat which prompt: rounds 1–2 for `11043e1f…`), before the Tue 10 announce; (3) the ruler re-check `claude/ruler/REPOLENS-FIXCHECK-E14-B5-PROMPT.md`; (4) Stake page #150 `claude/hub/REPOLENS-STAKE-QUESTIONS-FIXCHECK-PROMPT.md` — P1
+- [ ] **Repo Lens queue, in this order:** (1) the vault upgrade #114 on its latest commit (ask the Vault chat for the prompt), before the Tue 10 announce; (2) Questions #152 `claude/questions/REPOLENS-PR152-PROMPT.md` (before the Thu 12 upload); (3) the ruler re-check `claude/ruler/REPOLENS-FIXCHECK-E14-B5-PROMPT.md`; (4) Race #155 `claude/race/REPOLENS-PR155-PROMPT.md`; (5) Stake page #154 (ask the Hub chat) — P1
 - [ ] Delete the 145 merged branches with the script `claude/BRANCH-CLEANUP-2026-11-04.md` (protect the data branches first) — P3 — D-115
 - [ ] Decide: move the audit reports and raw chat exports out of the public repo (doesn't touch `CHAT_REQUESTS.md`) — P2 — D-115
 - [ ] Send Repo Lens `claude/hub/REPOLENS-C5-FIXCHECK-PR95-PR111-PROMPT.md` anyway (#95 and #111 merged before their fix-check) — P2

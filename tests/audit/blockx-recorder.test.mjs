@@ -795,3 +795,49 @@ test("B4-1: a released signer change still has its round's other checks run (the
   assert.match(note, /card values read differently now|points recompute differently/, JSON.stringify(b.r.problems).slice(0, 300));
   assert.ok(!fs.existsSync(path.join(b.out, "P003.json")));
 });
+
+// ── R-BX-22 (D-125): the weekly rhythm. Play Mon–Sat; a Sunday (UTC) target is on the review day and scores nothing ──
+const sunday = (t) => new Date(t.time).getUTCDay() === 0;
+test("R-BX-22: Sunday targets (from Week 1) are review-day rows: the block, no picks, no points; the week still goes final", async () => {
+  const { r, out } = await weekEditThenLook(() => {}, { prizesFromWeek: 0 });
+  const wf = JSON.parse(fs.readFileSync(path.join(out, "W003.json"), "utf8"));
+  const sun = wf.targets.filter(sunday), rest = wf.targets.filter((t) => !sunday(t));
+  assert.ok(sun.length === 12 && rest.length === 72, `a full week (${sun.length} Sunday, ${rest.length} other targets)`);
+  for (const t of sun) {
+    assert.equal(t.void, X.REST_NOTE); assert.deepEqual(t.picks, []); assert.equal(t.card, null);
+    assert.ok(t.checked >= 1 && (t.signer === BIG || t.signer === MID), "the block itself is still read and shown");
+  }
+  assert.ok(rest.every((t) => t.void !== X.REST_NOTE), "no review-day row on a play day");
+  assert.ok(rest.some((t) => t.picks.some((p) => p[3] > 0)), "Monday to Saturday score as before");
+  assert.equal(heldNote(r), undefined, JSON.stringify(r.problems).slice(0, 300));
+  assert.equal(r.board.lastWeek.final, true, "review-day rows pass the week-end re-read");
+  const sunPts = r.board.lastWeek.rows.reduce((s, x) => s + x.pts, 0);
+  const playPts = rest.flatMap((t) => t.picks).reduce((s, p) => s + p[3], 0);
+  assert.equal(sunPts, playPts, "the board's points are the play days' points only");
+});
+
+test("R-BX-22: before Week 1 a Sunday still scores (restFromWeek), and the page's math says which days rest", async () => {
+  const { out } = await weekEditThenLook(() => {}, { restFromWeek: 4 });
+  const wf = JSON.parse(fs.readFileSync(path.join(out, "W003.json"), "utf8"));
+  assert.ok(wf.targets.filter(sunday).every((t) => t.void !== X.REST_NOTE && t.picks.length > 0), "Sunday picks recorded and scored as before");
+  assert.equal(X.RHYTHM_FROM_WEEK, 3, "Week 1 = vault week 3 (Mon 9 Nov 2026), as the Race (race-math.js)");
+  assert.equal(X.restDay(Date.UTC(2026, 10, 15, 12)), true, "Sun 15 Nov 2026");
+  assert.equal(X.restDay(Date.UTC(2026, 10, 14, 23, 59)), false, "Sat 14 Nov 23:59 UTC");
+  assert.equal(X.restDay(Date.UTC(2026, 10, 16, 0)), false, "Mon 16 Nov 00:00 UTC");
+  assert.equal(X.restDay(Date.UTC(2026, 10, 8, 12)), false, "Sun 8 Nov 2026 is before Week 1");
+});
+
+test("R-BX-22: a scored Sunday target, or a review-day row on a play day, holds the week", async () => {
+  const cases = {
+    "a Sunday target given points": (wf) => { const s = wf.targets.find(sunday), p = wf.targets.find((x) => !sunday(x) && !x.void);
+      Object.assign(s, { void: undefined, card: p.card, picks: [[ALICE, s.signer, s.time - 3600000, 100, 1]] }); delete s.void; },
+    "a play-day target turned into a review-day row": (wf) => { const t = wf.targets.find((x) => !sunday(x) && !x.void && x.picks.some((p) => p[3] > 0)); Object.assign(t, { void: X.REST_NOTE, card: null, picks: [] }); },
+    "a review-day row with picks": (wf) => { const s = wf.targets.find(sunday); s.picks = [[ALICE, s.signer, s.time - 3600000, 0, 1]]; },
+  };
+  for (const [what, edit] of Object.entries(cases)) {
+    const { r, out } = await weekEditThenLook(edit, { prizesFromWeek: 0 });
+    assert.ok(heldNote(r), `${what}: held (${JSON.stringify(r.problems).slice(0, 300)})`);
+    assert.equal(r.board.lastWeek.final, false, what);
+    assert.ok(!fs.existsSync(path.join(out, "P003.json")), `${what}: nothing frozen`);
+  }
+});

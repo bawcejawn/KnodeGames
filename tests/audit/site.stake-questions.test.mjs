@@ -16,12 +16,14 @@ const ME = "1PlayerAddrXXXXXXXXXXXXXXXXXXXXXXX";
 const J = (x) => JSON.parse(JSON.stringify(x, (k, v) => (typeof v === "bigint" ? v.toString() : v)));
 
 /** A fake vault: get_state, list_games, get_player / get_week per question-game week, get_game_player (empty). */
-function env({ state, games = [], qnow = {}, qweeks = {}, gweeks = {} } = {}) {
-  const sent = [];
+function env({ state, games = [], qnow = {}, qweeks = {}, gweeks = {}, before = null } = {}) {
+  const sent = [], net = { now: 0, max: 0, calls: 0 };
   class Contract {
     constructor({ id }) { this.id = id; const self = this;
       this.functions = new Proxy({}, { get: (_, m) => async (args, opt) => {
         if (opt && opt.onlyOperation) return { operation: { call_contract: { contract_id: self.id }, _m: m, _a: args } };
+        net.calls++; net.now++; net.max = Math.max(net.max, net.now);
+        try { await new Promise((r) => setTimeout(r, 2)); if (before) await before(m, args); } finally { net.now--; }
         if (m === "get_state") return { result: state };
         if (m === "list_games") return { result: { games } };
         if (m === "get_player") return { result: args.week === String(state.week) ? qnow : { entry: (qweeks[args.week] || {}).e } };
@@ -37,12 +39,12 @@ function env({ state, games = [], qnow = {}, qweeks = {}, gweeks = {} } = {}) {
     koilib: { Contract, Provider: class {} },
     KWallet: { address: ME, kind: "kondor", label: () => "Kondor", subscribe: () => {}, send: async (label, ops, opts) => { sent.push({ label, ops, opts }); return "0xtx"; } },
     fetch: async () => ({ ok: true, json: async () => DEP }),
-    setInterval: () => 0, console, BigInt, Number, String, JSON, Promise, Object, Error,
+    setInterval: () => 0, setTimeout, console, BigInt, Number, String, JSON, Promise, Object, Error,
   };
   ctx.window = ctx;
   vm.createContext(ctx);
   vm.runInContext(src, ctx);
-  return { K: ctx.KStake, sent };
+  return { K: ctx.KStake, sent, net };
 }
 const LIVE = (o = {}) => ({ config: { genesis_time: String(DEP.genesisTime), week_length: "604800000", min_stake: String(UNIT), paused: false, v6_rule_week_plus_one: "3", max_sponsor_rc: "0" }, week: "5", time: "0",
   totals: { weeks_finalized: "4", seed_koin: "0", creator_fee: "0" }, vhp_balance: String(1000n * UNIT), koin_balance: "0", mana: String(10n * UNIT), ...o });
@@ -211,4 +213,39 @@ test("I-1: the own-Mana rule is worked out again at send time, from the vault as
   assert.deepEqual(J(ok.sent[0].opts), {}, "enough VHP: the wallet decides as usual");
   await ok.K.send("claim", { claims: [{ game: 1, week: 2n, reward: 5n * UNIT, free: true }] });
   assert.deepEqual(J(ok.sent[1].opts), { ownMana: true }, "a free prize: always own Mana");
+});
+
+// ── The node turning reads away (owner, 4 Nov: "Couldn't reach the Koinos network" on the staking page) ──
+const qweeksMany = (n) => { const o = {}; for (let w = 0; w < n; w++) o[w] = { W: { finalized: true }, buckets: [], e: { stake: "0", points: 0, counted: 0, eligible: false, settled: true } }; return o; };
+test("reads go out at most 2 at a time, also during the 104-week reward scan", async () => {
+  const e = env({ state: LIVE({ week: "41", totals: { weeks_finalized: "40", seed_koin: "0", creator_fee: "0" } }), games: [QGAME, RACE], qnow: {}, qweeks: qweeksMany(40) });
+  await e.K.overview(ME);
+  assert.ok(e.net.calls > 80, `the scan ran (${e.net.calls} reads)`);
+  assert.ok(e.net.max <= 2, `at most 2 at once (saw ${e.net.max})`);
+});
+test("a read the node turns away (Failed to fetch) is tried again; the page loads", async () => {
+  let n = 0;
+  const e = env({ state: LIVE(), games: [QGAME], qnow: {}, before: async (m) => { if (m === "get_state" && n++ < 1) throw new TypeError("Failed to fetch"); } });
+  const o = await e.K.overview(ME);
+  assert.equal(o.live, true); assert.equal(n, 2);
+  // Any other error isn't retried.
+  const bad = env({ state: LIVE(), games: [QGAME], before: async (m) => { if (m === "get_state") throw new Error("contract does not exist"); } });
+  await assert.rejects(bad.K.overview(ME), /contract does not exist/);
+});
+test("a reward scan the node keeps turning away leaves the stake shown and says rewards weren't checked", { timeout: 20000 }, async () => {
+  const e = env({ state: LIVE(), games: [QGAME, RACE], qnow: { player: { stake: String(10n * UNIT), pending: "0" }, active_stake: String(10n * UNIT) }, qweeks: qweeksMany(4),
+    before: async (m) => { if (m === "get_week") throw new TypeError("Failed to fetch"); } });
+  const o = await e.K.overview(ME);
+  const q = o.games.find((g) => g.id === 1);
+  assert.equal(q.mine, 10n * UNIT); assert.equal(q.claimsUnknown, true); assert.equal(q.claims.length, 0);
+  assert.equal(o.games.find((g) => g.id === 7).claimsUnknown, false);
+});
+test("F-1 (fix-check): a week record that isn't final yet is never remembered as nothing to claim", async () => {
+  const buckets = []; buckets[5] = { players: 1, sum_w: "100" };
+  const W = { finalized: true, sum_w: "100", pot_a: String(40n * UNIT), pot_b: "0", aw_hi: "0", aw_lo: String(1000n * UNIT), bw_hi: "0", bw_lo: "0", reward_rule: true, cutoff: 3 };
+  const qweeks = { 2: { W: { finalized: false }, buckets: [], e: { stake: String(10n * UNIT), points: 5, counted: 5, eligible: true, settled: true } } };
+  const e = env({ state: LIVE({ totals: { weeks_finalized: "3", seed_koin: "0", creator_fee: "0" } }), games: [QGAME], qnow: {}, qweeks });
+  assert.equal((await e.K.overview(ME)).games[0].claims.length, 0, "a node behind: nothing shown yet");
+  qweeks[2] = { ...qweeks[2], W, buckets };
+  assert.deepEqual(J((await e.K.overview(ME)).games[0].claims.map((c) => c.week)), ["2"], "the final record: shown at the next refresh");
 });

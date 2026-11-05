@@ -405,3 +405,18 @@ test("4b: the download carries on by itself after the connection drops, until it
     }
   } finally { srv.close(); }
 });
+
+test("Windows boxes work when PowerShell runs them line by line (right-click paste): no statement starts with elseif/else/catch/finally", () => {
+  // A right-click paste into a PowerShell console runs each complete line on its own. "} elseif" must stay on the
+  // same line as the closing brace, or PowerShell looks for a command named "elseif" (owner's test run, 5 Nov).
+  for (const b of boxes.filter((x) => x.os[0] === "win")) {
+    let depth = 0;
+    for (const line of b.text.split("\n")) {
+      const code = line.replace(/'[^']*'|"(?:[^"`]|`.)*"/g, "");
+      if (depth === 0) assert.doesNotMatch(line, /^\s*(elseif|else|catch|finally)\b/, `step ${b.step}: "${line.trim()}" would run on its own`);
+      depth += (code.match(/[{(]/g) || []).length - (code.match(/[})]/g) || []).length;
+    }
+    assert.equal(depth, 0, `step ${b.step}: balanced braces`);
+  }
+  assert.match(html, /If you then see <code>&gt;&gt;<\/code>/);
+});

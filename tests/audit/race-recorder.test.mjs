@@ -1028,8 +1028,11 @@ test("held alert: stakes that can't be read, the owner's hold, and a bad RACE_HO
   assert.equal(lastRun.held.length, 1); assert.match(lastRun.held[0], /HELD: still not final 17 h after the week ended: 1 Race stake\(s\) could not be read/);
   const a = await holdRun("2026-11-09T05:37Z", dir);
   await holdRun("2026-11-09T06:37Z", a, { holdWeeks: [2] });
-  assert.equal(lastRun.held.length, 1, "the owner's hold alerts at once (it's the owner's own choice, but it must not be forgotten)");
-  assert.match(lastRun.held[0], /HELD: you are holding it \(RACE_HOLD_WEEKS\).*\(1\) remove 2 from RACE_HOLD_WEEKS when you're happy with it/);
+  assert.deepEqual(lastRun.held, [], "L-4: the owner's own hold doesn't email every hour");
+  assert.match(lastProblems.join("\n"), /vault week 2: HELD by the owner/, "it's still in the run's notes every hour");
+  await holdRun("2026-11-09T16:37Z", a, { holdWeeks: [2] });
+  assert.equal(lastRun.held.length, 1, "L-4: the owner's hold reminds once a day, on the 16:37 UTC run (it must not be forgotten)");
+  assert.match(lastRun.held[0], /HELD: you are holding it \(RACE_HOLD_WEEKS; this reminder comes once a day\).*\(1\) remove 2 from RACE_HOLD_WEEKS when you're happy with it/);
   const old = process.env.RACE_HOLD_WEEKS;
   try {
     process.env.RACE_HOLD_WEEKS = "W2";
@@ -1264,6 +1267,27 @@ test("#E-11 H-1 (b): before a paid week goes final, its races are scored again f
   // An unpaid week isn't checked again (nothing is paid).
   await holdRun("2026-11-09T12:37Z", a, { custom: other, prizesFrom: 3 });
   assert.doesNotMatch(lastProblems.join("\n"), /when checking the week again|stored result isn't/);
+});
+
+test("L-4: under the owner's hold the chain re-check still runs (daily); a mismatch alerts on every run, a match stays held", async () => {
+  const { OWNER_HOLD_ALERT_HOUR, ownerAlertRun } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(OWNER_HOLD_ALERT_HOUR, 16);
+  assert.equal(ownerAlertRun(U("2026-11-09T16:37Z")), true); assert.equal(ownerAlertRun(U("2026-11-09T15:37Z")), false);
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  // The chain matches: still held (the owner's choice), and only the daily reminder alerts.
+  assert.deepEqual(vaultOf(await holdRun("2026-11-09T16:37Z", a, { holdWeeks: [2] })), WAIT);
+  assert.equal(lastRun.held.length, 1); assert.match(lastRun.held[0], /you are holding it/);
+  // The chain disagrees: on the daily run both alerts show, so the owner knows not to release it.
+  const other = weekTwoPicks.map((x) => (x[0] === W1 ? [W1, P[4], x[2]] : x));
+  assert.deepEqual(vaultOf(await holdRun("2026-11-09T16:37Z", a, { holdWeeks: [2], custom: other })), WAIT);
+  assert.equal(lastRun.held.length, 2);
+  assert.ok(lastRun.held.some((m) => /a race's stored result doesn't match the chain/.test(m)), "the mismatch alerts under the hold");
+  // Other hours skip the full re-check and say nothing (no hourly email), but a system wait still alerts as before.
+  await holdRun("2026-11-09T13:37Z", a, { holdWeeks: [2], custom: other });
+  assert.deepEqual(lastRun.held, []);
+  await holdRun("2026-11-09T17:37Z", dir, { holdWeeks: [2], staked: [W1], stakeFail: W3 });
+  assert.match(lastRun.held.join("\n"), /still not final 18 h after the week ended: 1 Race stake\(s\) could not be read/, "a system hold still alerts hourly");
 });
 
 test("#E-11 H-1 (b): a read failure while checking the week again waits (not final), and alerts once the week is late", async () => {

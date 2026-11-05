@@ -945,8 +945,13 @@ async function settle(candidate: VaultFile, weekEnd: number, now: number, proble
     heldAlert(w, weekEnd, now, `the repo variable RACE_HOLD_WEEKS ('${holdSetting.raw.replace(/[^0-9A-Za-z ,;]/g, "?").slice(0, 40)}') isn't a list like 3 or 3,4, so every pending week is held`, "fix RACE_HOLD_WEEKS (a week number like 3, or 3,4) or empty it");
     return waiting;
   }
-  if (holdSetting.weeks.includes(w)) heldAlert(w, weekEnd, now, "you are holding it (RACE_HOLD_WEEKS)", `remove ${w} from RACE_HOLD_WEEKS when you're happy with it (pending: ${summary})`);
-  if (holdSetting.weeks.includes(w)) { problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`); return waiting; }
+  // L-4 (owner, 4 Nov): the owner's own hold emails once a day (the OWNER_HOLD_ALERT_HOUR run), not hourly. The chain
+  // checks below still run while it's on, and anything they find alerts every hour as before.
+  const ownerHeld = holdSetting.weeks.includes(w);
+  if (ownerHeld) {
+    problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`);
+    if (ownerAlertRun(now)) heldAlert(w, weekEnd, now, "you are holding it (RACE_HOLD_WEEKS; this reminder comes once a day)", `remove ${w} from RACE_HOLD_WEEKS when you're happy with it (pending: ${summary})`);
+  }
   // D-125: on the rhythm the review day is before the week ends, so the week may go final from Monday 00:00 UTC.
   const afterEnd = onRhythm(w) ? 0 : hold.afterEnd;
   const readyAt = Math.max(weekEnd + afterEnd, at + hold.stable);
@@ -962,6 +967,8 @@ async function settle(candidate: VaultFile, weekEnd: number, now: number, proble
     }
   }
   if (now >= weekEnd + afterEnd && same && now - at >= hold.stable) {
+    // While the owner holds it, the full re-check runs once a day (with the reminder), not every hour.
+    if (ownerHeld && !ownerAlertRun(now)) return waiting;
     // Repo Lens #E-11 H-1 (b): a paid week goes final only once its races, scored again from the chain, match.
     if (w >= prizesFromWeek) {
       const wf = all.get(w);
@@ -978,6 +985,7 @@ async function settle(candidate: VaultFile, weekEnd: number, now: number, proble
         return waiting;
       }
     }
+    if (ownerHeld) return waiting;   // checked and matches the chain; still the owner's hold
     problems.push(`vault week ${w}: final after the hold (pending since ${new Date(at).toISOString()}). ${summary}`);
     return candidate;
   }
@@ -997,6 +1005,10 @@ export const RESULTS_DUE_AFTER = 3 * M.DAY;
  *  about 12:37 UTC on the Monday (the 12-hour hold, then the next run), so 15 h leaves two hourly runs of slack. */
 export const VAULT_ALERT_AFTER = 15 * M.HOUR;
 let heldAlerts: string[] = [];
+/** L-4: the owner's own hold reminds once a day, on the run in this UTC hour (16:37 UTC = 8:37 AM PST / 9:37 AM PDT).
+ *  On a week's last day that is still ~7 h before the results deadline (Thursday 00:00 UTC on the rhythm). */
+export const OWNER_HOLD_ALERT_HOUR = 16;
+export const ownerAlertRun = (now: number) => new Date(now).getUTCHours() === OWNER_HOLD_ALERT_HOUR;
 /** "Week 1" for the site's numbering (weeks.js, D-063: vault week 3 = Week 1). */
 const siteWeek = (w: number) => (w >= 3 ? `Week ${w - 2}` : `the week of ${new Date(M.weekStart(w)).toISOString().slice(0, 10)}`);
 /** One alert line: the game and week, why, the deadline, and what the owner can do, with the exact commands. */

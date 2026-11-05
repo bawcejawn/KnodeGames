@@ -121,6 +121,15 @@ export function sharedRulesWeek(config: any, w: number): boolean {
   return r > 0 && w + 1 >= r;
 }
 
+/** Repo Lens #E-16 N-1: the contract's qShared rule, as the bot reads it. A question-game week has no settle step when it
+ *  is a shared-rules week, or when game 1's game-week for it is already closed (a week closed the new way stays paid from
+ *  its results file even after a rollback moves the rule week: round 1 C-1). A failed read (v6 has no game-1 game-week)
+ *  counts as not closed. */
+export async function questionWeekShared(chain: Chain, config: any, w: number): Promise<boolean> {
+  if (sharedRulesWeek(config, w)) return true;
+  try { return !!(await chain.read("get_game", { game: Q_GAME, week: String(w) }))?.week?.closed; } catch { return false; }
+}
+
 /** Whether the vault bot handles this game's week `w`: every game, and the question game only from the shared-rules week. */
 export function vaultHandles(id: number, config: any, w: number): boolean {
   return id !== Q_GAME || sharedRulesWeek(config, w);

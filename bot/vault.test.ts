@@ -627,3 +627,17 @@ test("N-3: a transaction that ran out of Mana is retried next run, not remembere
   assert.equal(isRevert('{"error":"x","logs":["transaction reverted: results for that week are past their deadline"]}'), true);
   assert.equal(isRevert("sent, but not seen in a block within 3 minutes (will be re-checked next run)"), false);
 });
+
+test("Repo Lens #E-16 N-1: questionWeekShared follows the contract's qShared rule (rule week, or game 1's game-week closed)", async () => {
+  const { questionWeekShared } = await import("./vault.ts");
+  const chainWith = (closed: boolean | "throws") => ({ read: async (m: string, a: any) => {
+    assert.equal(m, "get_game"); assert.equal(a.game, 1);
+    if (closed === "throws") throw new Error("v6: no game-1 game-week");
+    return { week: { closed } };
+  } }) as any;
+  const c = { q60_rule_week_plus_one: "4" };                      // rule week 3
+  assert.equal(await questionWeekShared(chainWith(false), c, 3), true, "a shared-rules week, without reading");
+  assert.equal(await questionWeekShared(chainWith(false), c, 2), false, "an old-rules week whose game-week isn't closed");
+  assert.equal(await questionWeekShared(chainWith(true), {}, 2), true, "closed the new way: shared even after a rollback moved the rule week");
+  assert.equal(await questionWeekShared(chainWith("throws"), {}, 2), false, "v6 (no game-1 game-week): not shared");
+});

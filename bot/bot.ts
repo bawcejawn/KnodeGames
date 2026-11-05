@@ -49,7 +49,7 @@ import { pobAbi } from "./token-abi.ts";
 import { formatProduction, loadSigners, signerFromBlockItem, type SignedBlock } from "./production.ts";
 import { contractManaVerdict } from "./mana.ts";
 import { contractMetadata, checkMeta, sha256OfMeta, type Check } from "./chaincheck.ts";
-import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
+import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, sharedRulesWeek, questionWeekShared, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
 
 // ───────────────────────── settings ─────────────────────────
 
@@ -1089,6 +1089,8 @@ async function settlePass(ctx: Ctx) {
   const started = Date.now();
   const outOfTime = () => Date.now() - started > SETTLE_BUDGET_MS;
   for (let w = st.weeksFinalized; w < st.weeksClosed; w++) {
+    if (sharedRulesWeek(st.c, w)) continue;   // v6.1 (D-116): paid from its results file, no settle step (Repo Lens #E-16 N-1)
+    if (await questionWeekShared(ctx.chain, st.c, w)) continue;   // the same after a rollback (the contract's qShared rule)
     const wk = (await ctx.chain.read("get_week", { week: String(w) })).week ?? {};
     if (h < num(wk.settle_start) || h > num(wk.settle_end)) continue;
     // Free players (no stake that week) and voided entries (the player withdrew everything) can never be paid, so the

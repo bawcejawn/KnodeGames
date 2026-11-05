@@ -34,8 +34,8 @@ A weekly knockout tournament of Koinos block producers, like a March Madness bra
 
 ## Current status (5 Nov)
 - **▶ Reactivated 5 Nov (D-142): one of the next three games to launch. Its chat starts with `../platform/CHAT_REQUESTS.md` → R-ALL-9 (the catch-up on the 4–5 Nov standards), then its own section.**
-- Branch `kg-09-bracket` @ `5b2492e` ✅ (audited tip; earlier `ee676ea`) — pushed, **not merged, nothing deployed**; 16+ commits behind `main`.
-- **Repo Lens #E-3 (3 Nov): fix first** — 2 Critical, 6 High, 10 Medium, plus Low/Info. Report and failing tests are private, in the Claude project (`claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`). No launch date (D-088, D-113).
+- **Branch `kg-09-bracket` @ `8d3d942`, draft PR #186 (5 Nov):** the D-141 shape (max 32 players, D-153) and every Repo Lens #E-3 fix; on the weekly cycle (Sunday 00:00 seeding, no Sunday rounds — owner to confirm). **Not merged, nothing deployed.** Next: the #E-3 fix-check (`claude/bracket/REPOLENS-E3-FIXCHECK2-PROMPT.md`).
+- **Repo Lens #E-3 (3 Nov), audited tip `5b2492e`:** 2 Critical, 6 High, 10 Medium, plus Low/Info — fixed on the branch, fix-check pending. Report and failing tests are private, in the Claude project (`claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`). No launch date (D-088).
 - Evidence before the audit: the VHP rebuild matched all 780 race-card readings; over 100 days the better seed won 54% of 113 matchups, and a "last week's form" bracket averaged 14.8 points vs 4.8 for random. The sampling branches are already deleted ✅.
 - Work list: `../platform/CHAT_REQUESTS.md` → Producer Bracket.
 

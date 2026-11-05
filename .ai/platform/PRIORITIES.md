@@ -9,7 +9,7 @@
 ## Standing rules for every chat
 - **Push as soon as it's ready (D-133):** built, tested work is pushed, its PR opened and merged once green and any required Repo Lens review is GO. Mainnet sends, spending funds and anything irreversible still need the owner's OK.
 - **One weekly standard for every game (D-125, D-134):** `../standards/WEEK_CYCLE.md`; a new game follows `../standards/NEW_GAME.md`.
-- **Core first (D-113):** no new-game work until the Vault, sponsor, Questions upgrade and VHP ruler are done.
+- **Core first (D-113), with three games back (D-142):** core work (Vault, sponsor, Questions upgrade, VHP ruler) comes first; Fantasy, Block Golf and Bracket were reactivated 5 Nov as the next launches. Survivor, Last Node and Combo stay paused.
 
 ## P1 — Critical (this week; blocks value or risks funds)
 | # | Work | Value it creates | Owner | Refs |

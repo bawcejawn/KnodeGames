@@ -1,15 +1,15 @@
 # Knode Games — Library Health Check
 
-> **Purpose:** a CTO / architect review of the whole `.ai/` library and what it says about the platform: strengths, weaknesses, missing information, three quality scores and the top 10 priorities. A **dated snapshot**; for live status read `LAUNCH_BOARD.md`, `CALENDAR.md` and `AUDITS.md`.
+> **Purpose:** a CTO / architect review of the whole `.ai/` library and what it says about the platform: strengths, weaknesses, missing information, three quality scores and the top 10 priorities. A **dated snapshot**; for the whole system at a glance read [`../../STATUS.md`](../../STATUS.md); for live status read `LAUNCH_BOARD.md`, `CALENDAR.md` and `AUDITS.md`.
 > **Reviewed:** Thu 5 Nov 2026, ~05:45 UTC; architecture re-scored ~07:00 UTC after the target architecture was written (Wed 9:45 PM PT), after PRs #165, #166, #167 and #169. Every file in `.ai/` outside `archive/` (51 files, ~620 KB).
 > **Previous checks:** `../archive/2026-11-05/HEALTHCHECK-2026-11-04-evening.md` (7 / 7 / 5.5) and earlier copies in `../archive/`.
 
-**Open load:** 57 open issues · 51 owner to-dos · 78 chat requests · 19 debt items · 14 documentation gaps · 141 decisions (D-001 – D-141, index and entries match) · 125 ❓ marks · 11 `{{TBD}}` placeholders · 2 open PRs (#114 after Monday's upload, #141 after v6.1 is live).
+**Figures refreshed 5 Nov ~18:30 UTC:** 157 decisions (D-001 – D-157; 156 entries, D-152 indexed and its entry lands with PR #182). **Open load as of the review (~05:45 UTC):** 57 open issues · 51 owner to-dos · 78 chat requests · 19 debt items · 14 documentation gaps · 125 ❓ marks · 11 `{{TBD}}` placeholders · 2 open PRs (#114 after Monday's upload, #141 after v6.1 is live).
 
 ## 1. Current strengths
 - **Funds design is sound and written down.** Only the vault holds stakes; every stake is withdrawable; a withdrawals-only build is ready (D-003, D-016, D-021). `REPO_MAP.md` now sorts every part of the repo by funds risk (tier 1 contracts, tier 2 payout code, tier 3 the rest).
 - **One home per fact, and it holds.** Timing → `standards/WEEK_CYCLE.md`; sponsor numbers → `SPONSOR.md`; dates → `CALENDAR.md`; reviews and merge order → `AUDITS.md`; stages → `LAUNCH_BOARD.md`. Other files point instead of copying.
-- **Decisions are complete and in order.** 141 entries, oldest first, every one indexed, superseded ones marked, no open contradictions. The owner's words are quoted in each new entry.
+- **Decisions are complete and in order.** 157 decisions (156 entries; D-152 with #182), oldest first, every one indexed, superseded ones marked, no open contradictions. The owner's words are quoted in each new entry.
 - **The library is current.** Every working file was synced on 5 Nov from the chats' handoffs; finished items are in `../archive/DONE.md`, closed issues in `../archive/ISSUES_CLOSED.md`.
 - **Onboarding is a path, not a pile.** `START_HERE.md` opens with an "I want to…" map; a new game follows `standards/NEW_GAME.md` → `GO_LIVE_CHECKLIST.md`; every chat starts from `standards/AI_CHAT_STARTER.md` and ends with `SESSION_END_PROCESS.md`.
 - **Safety process is real.** Mainnet sends need `--send` and `CONFIRM_MAINNET`; contract upgrades are audited on the exact build, announced 48 h ahead, hash-checked; recorders publish pending results on the Sunday review day and hold on any mismatch.

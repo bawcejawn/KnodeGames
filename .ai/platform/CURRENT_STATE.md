@@ -1,7 +1,7 @@
 # Knode Games — Current State
 
 > **Purpose:** what exists and works **right now**, and the dates to watch. One page.
-> **Snapshot:** Thursday 5 Nov 2026, ~05:00 UTC (Wed 4 Nov 9 PM PT). Refresh after each launch step and at every weekly review; check the date before trusting it.
+> **Snapshot:** Thursday 5 Nov 2026, ~17:20 UTC (9:20 AM PT; games 2 and 7 applied in the vault). Whole system at a glance: [`../../STATUS.md`](../../STATUS.md). Refresh after each launch step and at every weekly review; check the date before trusting it.
 > **Where the rest lives:** work in progress and blockers → `LAUNCH_BOARD.md`; dates → `CALENDAR.md`; what matters most → `PRIORITIES.md`; the owner's steps → `TODOS.md`; the chats' work → `CHAT_REQUESTS.md`; problems → `OPENISSUES.md`. Earlier versions: `../archive/`.
 
 ## Live on chain (Koinos mainnet)

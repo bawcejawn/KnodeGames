@@ -2,7 +2,7 @@
 
 > **Purpose:** a plain-words guide to the free-prize switch: what it controls, what it never touches, how and when to use it, and the starting settings.
 > **Decisions:** D-081 (every game has Free play), D-082 (the switch). **Code:** `bot/free-prizes.ts`, `bot/vault.ts` (merged 3 Nov, PR #65). **Audit:** Repo Lens 3 Nov, GO.
-> **Last updated:** 5 Nov 2026 (status sync: Questions joins the shared rules at v6.1's rule week; paused games)
+> **Last updated:** 5 Nov 2026 (status sync: Questions joins the shared rules at v6.1's rule week; Fantasy, Golf, Bracket reactivated, D-142)
 
 ## 1. Three separate things
 | | What it is | Who gets it | Can the switch change it? |
@@ -41,7 +41,7 @@ So a game with its switch **OFF** still has free play and a Free play leaderboar
 | Block Golf | 6 | ✅ | ⛔ **OFF** for now | ✅ |
 | Combo Card | 8 | ✅ | ⛔ **OFF** for now | ✅ |
 
-**When to set them:** now, all eight, while no game but 2 and 7 is in the vault (the other games are paused, D-113). Setting a game that isn't in the vault yet is harmless, and it means each game starts with the right value. Avoid the Sunday quiet window.
+**When to set them:** now, all eight, while no game but 2 and 7 is in the vault (Fantasy, Golf and Bracket are on their branches, D-142; Survivor, Last Node and Combo paused, D-113). Setting a game that isn't in the vault yet is harmless, and it means each game starts with the right value. Avoid the Sunday quiet window.
 
 ## 5. How to use it
 **Admin panel** (`npm run admin`) → **Knode Vault** → *Free prizes: which games pay them* (read only), then *Free prize ON* or *Free prize OFF* → enter the game id → **Preview** → **Write the files**.

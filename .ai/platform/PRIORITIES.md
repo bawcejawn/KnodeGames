@@ -17,7 +17,7 @@
 | 1 | **Vault v6.1 live:** announce Thu 5 Nov, upload Mon 9, rule week Mon 16 (D-130); #152 ✅ merged, #114 after the upload | 60 questions a week and Daily Questions paid like every game: one set of rules players learn once | owner, Vault + Questions chats | D-116, D-127, D-130 |
 | 2 | **Put Block X and the Race in the vault:** `game-apply` Thu 5 – Sun 8 Nov, then `PRIZES_FROM_WEEK = 3` | Turns three games into **paying** games from Mon 9 Nov: the first real reason to stake | owner | D-077 |
 | 3 | **Make the first paid week safe:** Race payout safety ✅ (#133), Block X finals locked ✅ (#159); left: watch the 24 h correction window after each seal; Race gaps I-086, I-037 | A wrong first payout would cost more trust than any feature earns | Race chat; owner | TD-02, R-RACE-12 |
-| 4 | **Split the keys this weekend:** cold desk treasury, cold-key owner for the vault, Desk, Picks and Race picks; retire the old operator key | The desk's funds stop depending on one hot key; the safety story players can rely on | owner (+ Vault, Block X, Race chats for the tools) | TD-01, TD-04, I-001, D-083, D-096 |
+| 4 | **Split the keys this weekend:** cold desk treasury, cold-key owner for the vault, Desk, Picks and Race picks; retire the old operator key | The desk's funds stop depending on one key; the safety story players can rely on | owner (+ Vault, Block X, Race chats for the tools) | TD-01, TD-04, I-001, D-083, D-096 |
 | 6 | **Set the free-prize switch's starting values** and the `prize-settings` ruleset | Each game starts with the right free prize: on for 2, 7, 9, 13; off for 3, 4, 6, 8 | owner | D-082 |
 
 ## P2 — Important (next 2–3 weeks; grows players and stake)

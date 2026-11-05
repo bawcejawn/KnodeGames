@@ -34,7 +34,7 @@
 - [ ] Send Repo Lens `claude/blockx/ROUND-14-LOWS-FIXCHECK-PROMPT.md` (Block X Lows, branch `blockx-lows`) — P3
 - [ ] After #95: on `names.html`, from the producer wallet `1DAHmr…`, create `@primeproducer`, tap Make main, optionally Remove `@primeprocuder`; tell the Hub it works (then the Tools link goes in) — P3 — I-084
 - [ ] In GitHub → Settings → Secrets and variables → Actions, confirm `OPERATOR_WIF` exists only in the `bot` environment; delete any repo-level copy — P2 — D-012 (from MKKtXR t18)
-- [ ] **Weekend:** move `RACE_WIF` (the Race contract's own key) offline (weekend runbook) — P1
+- [ ] **Weekend:** retire the Race contract's own key from use (private runbook) — P1
 - [ ] Optional (Repo Lens asked): on the PC, `npm ci --ignore-scripts && npm run test:audit:serial` — P4
 - [ ] Check the Race status badge on the live Race page at phone width — P4
 - [ ] Delete old node basedir folders and the desk's ~50 GB broken copy, **only if `heal.log` is clean** — on or after Wed 4 Nov, 17:30 UTC (9:30 AM PT) — P3 — I-008
@@ -49,7 +49,7 @@
 - [ ] **Mon 16 Nov, 12:00 UTC (4 AM PT):** after the first vault close, check status, the buckets, the free prizes, and collect the fee with `claim-fee-vhp all` — P1
 
 ## Later
-- [ ] When you have a USB stick: once R-VAULT-10's script exists, back up the three producer keys (game/pool, Desk, personal) to it and keep it offline, apart from your wallet paper — P2 — TD-08
+- [ ] Once R-VAULT-10's script exists (#178): back up the three producer keys offline (details: private notes) — P2 — TD-08
 - [ ] C5-13 (CODEOWNERS + ruleset): **go** (owner, 5 Nov). Wait for the Hub chat (R-HUB-14): the bot commits game data to `main` every hour, so the ruleset must let the bot and you bypass it, or the games stop updating. The Hub chat gives the exact clicks — P3
 - [ ] The full platform audit: only once everything is confidently ready (D-102) — P1 — I-002
 - [ ] Compare the Desk node's blocks signed with what its VHP should give over 7 days (it was ~78%); if still under ~90%, check `heal.log` restarts — P3 — TD-08 (from the old checklist 5Rc9KF t05)

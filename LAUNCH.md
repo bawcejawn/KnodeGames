@@ -56,7 +56,7 @@ The keys are written to **`C:\kprediction\.env`**. Open it with `notepad .env`. 
 | Role | Key in `.env` | What it is |
 |---|---|---|
 | **contract** | `CONTRACT_WIF` | The game's own address. **Send it nothing.** It must stay empty until deploy. |
-| **admin** | `OWNER_WIF` | Owner and seed owner. **Back it up offline** (paper or a password manager). |
+| **admin** | `OWNER_WIF` | Owner and seed owner. **Back it up offline.** |
 | **bot** | `OPERATOR_WIF` | A new wallet used only by the bot (send it some KOIN for Mana). Posts and resolves questions; it can't move game funds. |
 | **player** | `PLAYER_WIF` | A new wallet, used for testing. |
 

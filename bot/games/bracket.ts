@@ -1,40 +1,41 @@
 /**
  * Producer Bracket recorder (run every hour by .github/workflows/games.yml; read-only on the chain, holds no key).
- * The rules live in site/bracket-math.js, the same file the page runs.
+ * The rules live in bracket-math.js, the same file the page runs. The week's shape (D-141) and its timing
+ * (standards/WEEK_CYCLE.md, D-125) are there too; this file records them and follows standards/RECORDER_STANDARD.md.
  *
  * Each run, for last week (until final), this week and next week:
- *  1. Seeding. From Saturday 12:00 UTC before a week, once that block is irreversible: every producer's exact VHP
- *     averaged over the 28,800 blocks before it (bracket-math.averageCard), on both nodes; they must agree.
- *     bracket-math.seeding turns it into the bracket (8, 16 with byes, or 32 producers; under 8: no bracket that week).
- *     Recorded once and never changed, with a sha256 of what it says. Not seeded 24 hours later: the week is void.
- *  2. Picks. Once the block at the lock (Sunday 23:55 UTC) is irreversible: every pick for the week's round from the
+ *  1. Seeding. From Sunday 00:00 UTC before a week, once that block is irreversible: every producer's exact VHP
+ *     averaged over the 28,800 blocks before it (vhp-standard averageCard), on both nodes; they must agree.
+ *     bracket-math.seeding turns it into the bracket (8, 16 or 32 producers; under 8: no bracket that week), each seed
+ *     on the lower of its average now and at last week's seeding (#E-3 M-6). Recorded once and never changed, with a
+ *     sha256 of what it says. Not seeded within 24 hours of its time: the week is void (#E-3 L-4: by time alone).
+ *  2. Picks. Once the block at the lock (Monday 23:55 UTC) is irreversible: every pick for the week's round from the
  *     Picks contract (game 9), on both nodes; they must agree. The chain refused picks after the lock.
- *  3. Hours. Every UTC hour of each round's day, once irreversible: its first and last height, how many blocks it had,
- *     how many each seed signed (by), its credited blocks (cr), its baseline (w: effective VHP at the day's start) and
- *     Σ 1 ÷ active VHP over the hour's blocks (q) — the KnodeGames VHP standard (site/vhp-standard.js). The VHP is rebuilt
- *     from the chain itself: each producer's balance is read once at the head (pinned to one block), and every VHP event
- *     in the blocks between (the per-block burn, transfers, mints from burning KOIN; not reverted transactions) is
- *     walked back. Done on both nodes; the hours must come out identical. At most 6 hours a run (audit A-2).
- *  4. Results and points: each round's day index (bracket-math.indexFromHours), the winners, every pick's points.
- *     The week is final 12 hours after the last round's day (the correction window); then nothing changes.
- *  5. Stakes. Once the week has started (its stakes are fixed: deposits count from the next week, and a wallet staked at
- *     the start stays staked all week), every player's stake in game 9 for that week is read from the Vault
- *     (get_game_player) on both nodes: at least 1 VHP = a staked player (owner's player rule, 2026-10-28).
- *  6. The Vault file (vault/W<week>.json, the Vault chat's hand-off of 2026-10-28): when the week is final and within
- *     3 days of its end: { game: 9, week, final: true, rows: staked players with ≥ 1 point, scores mapped onto 1–255
- *     keeping the bracket's order and ties, first / second: the Free play board's winners (owner 2026-10-28: the Bracket
- *     is a staked game AND pays the free prize, 2 VHP / 1 VHP, shared by ties; see freeWinners) }. Without the stakes
- *     the week waits; 3 days after its end it closes without a file (the Vault rolls the week over).
- *  7. Leaderboards (board.json): Next week (its seeding), This week, Last week and All time (final weeks only), each
- *     row marked ranked = staked, for the shared board's Staked and Free play tabs.
- *  8. Writes games-data/bracket/index.json, W<week>.json, board.json and vault/W<week>.json for the publish job.
+ *  3. Hours. Every UTC hour of each round's day (the final on Saturday), once irreversible and once a block after it is
+ *     too: its first and last height, how many blocks it had, how many each seed signed (by), its credited blocks (cr),
+ *     its baseline (w: effective VHP at the day's start), Σ 1 ÷ active VHP over its blocks (q), each seed's rate sum
+ *     (r, for the pooled rate index, #E-3 H-4) and its average effective VHP over the hour's blocks (av, for forfeits,
+ *     #E-3 H-5). The VHP is rebuilt from the chain itself (vhp-chain.ts). Done on both nodes; identical or nothing.
+ *     A later run re-reads every recorded hour on both nodes and marks it re: 1 only if it reads the same again (the
+ *     two-run rule): a week goes final only with every hour re-read. At most 6 new and 6 re-read hours a run.
+ *  4. Results and points: each round's day index, the winners, every pick's points.
+ *  5. Stakes. During the week, for the boards: who is staked in game 9 (the Vault's own rule, Block X's reader:
+ *     week_stake ≥ the week's minimum; RECORDER_STANDARD §2.4). Once the week has ended (#E-3 M-1, L-8): read again on
+ *     both nodes, with `held` (peak stake ≥ the minimum: the players the Vault refuses a free prize).
+ *  6. Final: no earlier than Monday 00:00 UTC after the week (Sunday is the review day), with every result in, every
+ *     hour re-read and the end-of-week stakes. Not final by Thursday 00:00 UTC (the Vault's backstop): closed without a
+ *     vault file (`vault: "missed"`, or void if its results could never be completed, #E-3 L-5).
+ *  7. The Vault file (vault/W<week>.json): once final and until Thursday 00:00 UTC: { game: 9, week, final: true,
+ *     rows: staked players with ≥ 1 point, valued so the Vault's top-30% cutoff pays exactly the earners (#E-3 C-1),
+ *     first / second: the Free play winners }.
+ *  8. Leaderboards (board.json) and index.json. Medals and prize lists come from exactly the rows the Vault is sent,
+ *     only for a final week that wasn't missed (#E-3 M-2).
  *
- * Every time decision uses the irreversible block's time, read on both nodes (audit F-4). The run refuses to write when
- * the last run's files are incomplete (audit F-3): a failed read must never wipe the history.
+ * Every time decision uses the lower of the two nodes' irreversible blocks, and its time (#E-3 M-8, audit F-4). The run
+ * refuses to write when the last run's files are incomplete (audit F-3): a failed read must never wipe the history.
+ * Two nodes are required to seed, record hours and read stakes (audit A-3): with RPC_CHECK off, those steps wait.
  *
- * Two nodes are required to seed and to record hours (audit A-3): with RPC_CHECK off, those steps wait.
- *
- *   RPC, RPC_CHECK, BRACKET_PREV (last run's files), BRACKET_OUT.
+ *   RPC, RPC_CHECK, BRACKET_PREV (last run's files), BRACKET_OUT, BRACKET_PRIZES_FROM_WEEK.
  *   npm run bracket         (or: npx tsx bot/games/bracket.ts)
  */
 import { Provider, Contract } from "koilib";
@@ -44,6 +45,7 @@ import * as crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { withRetry } from "../../common.ts";
 import { chainNode, heightAt, bookFor } from "../vhp-chain.ts";
+import { vaultReader } from "./blockx.ts";
 await import("../../race-math.js");
 await import("../../bracket-math.js");
 const M: any = (globalThis as any).KRaceMath;
@@ -53,31 +55,37 @@ const E = process.env;
 const RPC = E.RPC || "https://koinos.armana.io";
 const RPC_CHECK = E.RPC_CHECK && E.RPC_CHECK !== "off" && E.RPC_CHECK !== RPC ? E.RPC_CHECK : "";
 const HOUR = 3600000, DAY = 24 * HOUR;
-const SEED_GRACE = 24 * HOUR;              // not seeded this long after Saturday 12:00 → the week is void
-const CORRECTION = 12 * HOUR;              // final 12 hours after the last round's day
+const SEED_GRACE = 24 * HOUR;              // not seeded this long after its time → the week is void
 const MAX_HOURS_PER_RUN = 6;               // a long outage catches up over a few runs (audit A-2)
-const VAULT_DAYS = 3 * DAY;                 // the Vault takes a week's file until 3 days after the week ends
+const MAX_REREADS_PER_RUN = 6;             // hours re-read for the two-run rule, per run
+const VAULT_DAYS = 3 * DAY;                // the Vault takes a week's file until Thursday 00:00 UTC (WEEK_CYCLE backstop)
 const MAX_BOARD_ROWS = 1000;               // per leaderboard view (the page shows 50; your own score is in W<week>.json)
+const MAX_FILE_BYTES = 1900 * 1024;        // the publish job refuses files over 2 MB: never write one (#E-3 M-3)
+const MAX_PICK_PAGES = 1000;               // 100,000 picks a week; a full last page stops the run (#E-3 L-11)
 const isAddr = (a: unknown): a is string => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 
 export type RawPick = { player: string; number: number; time: number };
-type Hour = { from: number; to: number; n: number; by: Record<string, number>; cr: Record<string, number>; w: Record<string, number>; q: number; checked: number };
-type Seeding = { at: number; cardAt: number; size: number; seeds: string[]; vhp: number[]; totalVhp: number; out: string[]; pooled: string[]; hash: string };
+type Hour = { from: number; to: number; n: number; by: Record<string, number>; cr: Record<string, number>; w: Record<string, number>; q: number;
+  r: Record<string, number>; av: Record<string, number>; checked: number; re?: 1 };
+/** raw: every producer's average VHP on the seeding card (address → VHP), for next week's lower-of-two (#E-3 M-6). */
+type Seeding = { at: number; cardAt: number; size: number; seeds: string[]; vhp: number[]; totalVhp: number; out: string[]; outVhp: number[]; raw: Record<string, number>; pooled: string[]; hash: string };
 /** A recorded pick: [player, number, pick time (ms), valid bracket 1/0]. */
 type Pick = [string, number, number, number];
 /** Points: [player, points, correct champion 1/0, correct winners]. */
 type Points = [string, number, number, number];
 export type WeekFile = {
-  v: 4; week: number; start: number; end: number;
+  bad?: string;                                          // (not written) why a stored final week needs a look
+  v: 5; week: number; start: number; end: number;
   status: "waiting" | "none" | "void" | "open" | "locked" | "final";
   seeding: Seeding | null; picks: { checked: number; rows: Pick[] } | null;
   days: (Hour | null)[][];                 // [round][hour 0–23]
   results: { rounds: number[][]; done: boolean } | null;
   points: Points[]; void?: string;
-  staked: { checked: number; list: string[]; held?: string[] } | null;   // players with ≥ 1 VHP staked in game 9 that week
-                                                         // (sorted); held (read when the week closes): players the Vault
+  staked: { checked: number; list: string[]; held?: string[] } | null;   // players staked in game 9 that week by the
+                                                         // Vault's rule (sorted); with `held`, the read made after the week
+                                                         // ended (the one the vault file uses): held = players the Vault
                                                          // won't pay a free prize (≥ 1 VHP in game 9 at any time that week)
-  vault?: "missed";                                      // closed 3 days after its end without the stakes
+  vault?: "missed";                                      // closed at the backstop without a vault file
 };
 import type { Chain, Node } from "../vhp-chain.ts";
 export type { Chain, Node };
@@ -89,7 +97,8 @@ type Opts = {
   gameOf?: (node: any) => Promise<any>;                          // the Picks game's settings (for the tests)
   vault?: string | null;
   prizesFromWeek?: number | null;                        // the first week the Vault pays game 9 (medals and prize lists
-                                                         // only from then; default BRACKET_PRIZES_FROM_WEEK, else none)                                 // the Vault's address (pooled: never forfeits); default deployment.json
+                                                         // only from then; default BRACKET_PRIZES_FROM_WEEK, else none)
+                                                         // vault: the Vault's address (pooled); default deployment.json
   stakedOf?: (node: any, players: string[], week: number) => Promise<string[] | Stakes>;   // the Vault's stakes (tests;
                                                          // a plain list = staked, and held = the same)
   nodeOf?: (node: any) => Node;                                  // for the tests and the replay
@@ -103,42 +112,67 @@ function readJson(dir: string | undefined, name: string): any {
   try { if (fs.lstatSync(f).isSymbolicLink()) return null; return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return null; }
 }
 const wName = (w: number) => `W${String(w).padStart(3, "0")}.json`;
-const FILE_V = 4;   // v4 (2026-10-28): the KnodeGames VHP standard — hours carry by, cr, w (baselines), q; older files are not read
+/** The week file's version, shared with the publish job and the page (bracket-math FILE_V; #E-3 H-1). Older files
+ *  (v4: Saturday seeding, Monday rounds) are not read: no week was ever played on them. */
+export const FILE_V: number = B.FILE_V;
 const emptyDays = (size: number) => Array.from({ length: size ? B.roundsOf(size) : 0 }, () => new Array<Hour | null>(24).fill(null));
 function freshWeek(w: number): WeekFile {
-  return { v: FILE_V as 4, week: w, start: B.weekStart(w), end: B.weekStart(w + 1), status: "waiting", seeding: null, picks: null, days: [], results: null, points: [], staked: null };
+  return { v: FILE_V as 5, week: w, start: B.weekStart(w), end: B.weekStart(w + 1), status: "waiting", seeding: null, picks: null, days: [], results: null, points: [], staked: null };
 }
-const hourOk = (h: any) => h && Number.isInteger(h.from) && Number.isInteger(h.to) && h.to >= h.from - 1 && Number.isInteger(h.n) && h.n >= 0
-  && h.by && typeof h.by === "object" && h.cr && typeof h.cr === "object" && h.w && typeof h.w === "object"
-  && [...Object.values(h.cr), ...Object.values(h.w)].every((x: any) => Number.isFinite(x) && x >= 0)
-  && Number.isFinite(h.q) && h.q >= 0 && h.checked === 2;
+const recOk = (o: any, keys?: Set<string>) => !!o && typeof o === "object" && !Array.isArray(o) && Object.entries(o).every(([a, v]) => (!keys || keys.has(a)) && Number.isFinite(v as number) && (v as number) >= 0);
+/** A recorded hour, with exactly the recorder's fields (#E-3 M-9: the publish job applies the same rule). */
+export const hourOk = (h: any, seeds?: string[]) => {
+  if (!h || typeof h !== "object") return false;
+  const keys = Object.keys(h).sort().join(",");
+  if (keys !== "av,by,checked,cr,from,n,q,r,to,w" && keys !== "av,by,checked,cr,from,n,q,r,re,to,w") return false;
+  if ("re" in h && h.re !== 1) return false;
+  const ks = seeds ? new Set(seeds) : undefined;
+  return Number.isInteger(h.from) && Number.isInteger(h.to) && h.to === h.from + h.n - 1 && Number.isInteger(h.n) && h.n >= 0
+    && recOk(h.by, ks) && recOk(h.cr, ks) && recOk(h.w, ks) && recOk(h.r, ks) && recOk(h.av, ks)
+    && Object.values(h.by).every((x: any) => Number.isInteger(x) && x <= h.n)
+    && Number.isFinite(h.q) && h.q >= 0 && h.checked === 2;
+};
+/** The two hours say the same (everything but the re-read mark). */
+const sameHour = (a: any, b: any) => { const s = (h: any) => JSON.stringify({ ...h, checked: 2, re: undefined }); return s(a) === s(b); };
 function loadWeek(dir: string | undefined, w: number): WeekFile {
   const f = freshWeek(w), old = readJson(dir, wName(w));
   if (!old || old.v !== FILE_V || old.week !== w) return f;
   const s = old.seeding;
-  if (s && Number.isInteger(s.size) && [0, 8, 16, 32].includes(s.size) && Array.isArray(s.seeds) && s.seeds.every(isAddr) && s.seeds.length <= s.size
-      && Array.isArray(s.pooled) && s.pooled.every(isAddr) && typeof s.hash === "string" && s.hash === seedHash(w, s)) f.seeding = s;
+  if (seedingOk(w, s)) f.seeding = s;
   if (old.status === "void") { f.status = "void"; f.void = typeof old.void === "string" ? old.void.slice(0, 200) : "void"; }
   else if (old.status === "none" && f.seeding && f.seeding.size === 0) { f.status = "none"; f.void = typeof old.void === "string" ? old.void.slice(0, 200) : "no bracket this week"; }
   if (f.seeding && old.picks && Array.isArray(old.picks.rows)) f.picks = { checked: old.picks.checked === 2 ? 2 : 1, rows: old.picks.rows.filter((x: any) => Array.isArray(x) && isAddr(x[0]) && Number.isSafeInteger(x[1]) && x[1] >= 0).map((x: any) => [x[0], x[1], Number(x[2]) || 0, x[3] ? 1 : 0] as Pick) };
-  if (f.picks && old.staked && Array.isArray(old.staked.list) && old.staked.list.every(isAddr) && old.staked.checked === 2) {
+  if (f.picks && old.staked && Array.isArray(old.staked.list) && old.staked.list.every(isAddr) && old.staked.checked === 2 && sortedUnique(old.staked.list)
+      && (old.staked.held === undefined || (Array.isArray(old.staked.held) && sortedUnique(old.staked.held)))) {
     f.staked = { checked: 2, list: [...old.staked.list].sort() };
     if (Array.isArray(old.staked.held) && old.staked.held.every(isAddr)) f.staked.held = [...old.staked.held].sort();
   }
   if (old.vault === "missed") f.vault = "missed";
   f.days = emptyDays(f.seeding ? f.seeding.size : 0);
-  if (Array.isArray(old.days)) old.days.forEach((d: any, r: number) => { if (r < f.days.length && Array.isArray(d)) d.forEach((h: any, i: number) => { if (i < 24 && hourOk(h)) f.days[r][i] = h; }); });
+  if (Array.isArray(old.days)) old.days.forEach((d: any, r: number) => { if (r < f.days.length && Array.isArray(d)) d.forEach((h: any, i: number) => { if (i < 24 && hourOk(h, f.seeding!.seeds)) f.days[r][i] = h; }); });
   // A final week stays final and FROZEN (leaderboard standard: a published final board never changes): its stored
-  // results and points are kept as they are, so a later rule change can't rewrite it (fix-check F-10). Only a file
-  // whose stored results don't hold together is worked out again from what it recorded.
-  if (old.status === "final" && f.status === "waiting" && f.seeding && f.picks && finalOk(old, f)) {
-    f.status = "final"; f.results = { rounds: old.results.rounds, done: true }; f.points = old.points.map((x: any) => [x[0], x[1], x[2], x[3]] as Points);
+  // results and points are kept as they are, so a later rule change can't rewrite it (fix-check F-10). Repo Lens #E-3
+  // L-12: a stored final week that doesn't hold together is kept too, exactly as published, never re-scored (the
+  // publish job then holds the Bracket with an alert, since it doesn't pass its checks).
+  if (old.status === "final" && f.status === "waiting" && f.seeding && f.picks) {
+    f.status = "final"; f.results = old.results; f.points = Array.isArray(old.points) ? old.points : [];
+    if (!finalOk(old, f)) { f.bad = "its stored final results don't hold together; kept as published, please check"; }
     return f;
   }
-  // (fix-check F-10: so a scoring rule change re-scores past final weeks. Any rule change after launch must apply only
-  //  from a stated week on, e.g. `if (w >= RULE_FROM_WEEK)`. The forfeit rule is in from the start: no week exists yet.)
-  if (old.status === "final" && f.status === "waiting" && f.seeding && f.picks) { const sc = scoreWeek(f); if (sc.results && sc.results.done) { f.status = "final"; f.results = sc.results; f.points = sc.points; } }
   return f;
+}
+const sortedUnique = (l: string[]) => l.every((x, i) => i === 0 || l[i - 1] < x);
+/** A seeding as the recorder writes it (#E-3 M-9 / L-10: size, seeds, VHP, pooled and the hash agree). */
+export function seedingOk(w: number, s: any): s is Seeding {
+  if (!s || typeof s !== "object" || !Number.isInteger(s.size) || ![0, 8, 16, 32].includes(s.size)) return false;
+  if (s.at !== B.seedTime(w) || !Number.isSafeInteger(s.cardAt)) return false;
+  if (!Array.isArray(s.seeds) || !s.seeds.every(isAddr) || s.seeds.length !== s.size || new Set(s.seeds).size !== s.seeds.length) return false;
+  if (!Array.isArray(s.vhp) || s.vhp.length !== s.seeds.length || !s.vhp.every((v: any) => Number.isFinite(v) && v > 0)) return false;
+  if (!s.vhp.every((v: number, i: number) => i === 0 || s.vhp[i - 1] >= v)) return false;
+  if (!Array.isArray(s.out) || !s.out.every(isAddr) || !Array.isArray(s.outVhp) || s.outVhp.length !== s.out.length || s.out.some((a: string) => s.seeds.includes(a))) return false;
+  if (!s.raw || typeof s.raw !== "object" || Array.isArray(s.raw) || !Object.entries(s.raw).every(([a, v]) => isAddr(a) && Number.isFinite(v as number) && (v as number) > 0)) return false;
+  if (!Array.isArray(s.pooled) || !s.pooled.every((a: any) => isAddr(a) && s.seeds.includes(a)) || !Number.isFinite(s.totalVhp)) return false;
+  return typeof s.hash === "string" && s.hash === seedHash(w, s);
 }
 /** A stored final week's results and points: the bracket's shape, one row per recorded pick, in pick order. */
 function finalOk(old: any, f: WeekFile) {
@@ -149,8 +183,8 @@ function finalOk(old: any, f: WeekFile) {
   return Array.isArray(pt) && pt.length === pk.length && pt.every((x: any, i: number) => Array.isArray(x) && x.length === 4 && x[0] === pk[i][0]
     && Number.isInteger(x[1]) && x[1] >= 0 && x[1] <= B.maxPoints(f.seeding!.size) && (x[2] === 0 || x[2] === 1) && Number.isInteger(x[3]) && x[3] >= 0 && x[3] < f.seeding!.size);
 }
-function seedHash(w: number, s: Omit<Seeding, "hash">) {
-  return crypto.createHash("sha256").update(JSON.stringify({ week: w, at: s.at, cardAt: s.cardAt, size: s.size, seeds: s.seeds, vhp: s.vhp, totalVhp: s.totalVhp, out: s.out, pooled: s.pooled })).digest("hex");
+export function seedHash(w: number, s: Omit<Seeding, "hash">) {
+  return crypto.createHash("sha256").update(JSON.stringify({ week: w, at: s.at, cardAt: s.cardAt, size: s.size, seeds: s.seeds, vhp: s.vhp, totalVhp: s.totalVhp, out: s.out, outVhp: s.outVhp, raw: s.raw, pooled: s.pooled })).digest("hex");
 }
 function defaultPicksContract(): string | null {
   try { const d = JSON.parse(fs.readFileSync(new URL("../../picks-data/deployment.json", import.meta.url), "utf8")); return isAddr(d.contract) ? d.contract : null; } catch { return null; }
@@ -159,7 +193,9 @@ function defaultPicksContract(): string | null {
 /** Hour records for the given hour starts (all irreversible), on one node, from exact VHP. */
 export async function readHours(n: Node, head: Head, starts: number[], seeds: string[], base: Record<number, Record<string, number>> = {}) {
   const first = Math.min(...starts), last = Math.max(...starts);
-  const fromH = Math.max(1, (await heightAt(n, head, first)) - B.ACTIVE_BLOCKS), toH = (await heightAt(n, head, last + HOUR)) - 1;
+  // up to and including the first block after the last hour (#E-3 L-3: an hour is closed only by a block after it)
+  const fromH = Math.max(1, (await heightAt(n, head, first)) - B.ACTIVE_BLOCKS), toH = await heightAt(n, head, last + HOUR);
+  if (toH > head.lib) throw new Error("no irreversible block after the hour yet");
   const { c, book, effCheck } = await bookFor(n, fromH, toH, seeds); console.log(`effective VHP cross-check (hours): ${JSON.stringify(effCheck)}`);
   return B.exactHours(c, starts, seeds, book, base) as Omit<Hour, "checked">[];
 }
@@ -174,7 +210,8 @@ async function readPicks(node: any, contract: string, round: number): Promise<Ra
   const c = new Contract({ id: contract, abi: PICKS_ABI(), provider: node });
   const out: RawPick[] = [];
   let after: string | undefined;
-  for (let page = 0; page < 1000; page++) {
+  for (let page = 0; ; page++) {
+    if (page >= MAX_PICK_PAGES) throw new Error(`more than ${MAX_PICK_PAGES * 100} picks for round ${round}; not recorded (#E-3 L-11)`);
     const r: any = await withRetry(`picks for round ${round}`, () => (c.functions as any).list_picks({ game: B.GAME_ID, round: String(round), ...(after ? { start_after: after } : {}), limit: 100 }));
     const rows = r?.result?.rows ?? [];
     for (const x of rows) {
@@ -199,45 +236,40 @@ export function gameProblem(g: any): string | null {
   for (const [k, v] of want) if (Number(g[k] ?? 0) !== v) return `the Picks bracket game has ${k} ${g[k] ?? 0}, expected ${v}`;
   // tighten_game may lock earlier (a longer lead) or open later (a shorter ahead) at once; looser is never accepted (R-4)
   if (!(Number(g.lead ?? 0) >= B.LOCK_BEFORE)) return `the Picks bracket game has lead ${g.lead ?? 0}, expected at least ${B.LOCK_BEFORE}`;
-  if (!(Number(g.ahead ?? 0) > 0 && Number(g.ahead) <= B.SEED_BEFORE)) return `the Picks bracket game has ahead ${g.ahead ?? 0}, expected at most ${B.SEED_BEFORE}`;
+  // picks may open no earlier than the seeding: the target (Tuesday 00:00 UTC) − ahead ≥ Sunday 00:00 UTC (2 days)
+  const maxAhead = B.LOCK_DAY * B.DAY + B.SEED_BEFORE;
+  if (!(Number(g.ahead ?? 0) > Number(g.lead ?? 0) && Number(g.ahead) <= maxAhead)) return `the Picks bracket game has ahead ${g.ahead ?? 0}, expected at most ${maxAhead}`;
   return null;
 }
 
 // ── the Vault's stakes (game 9) ──
-const VAULT_ABI = () => { try { return JSON.parse(fs.readFileSync(new URL("../../game/abi/kpred.koilib.json", import.meta.url), "utf8")); } catch { return null; } };
 function defaultVault(): string | null {
   try { const d = JSON.parse(fs.readFileSync(new URL("../../game-data/deployment.json", import.meta.url), "utf8")); return isAddr(d.contract) ? d.contract : null; } catch { return null; }
 }
 type Stakes = { staked: string[]; held: string[] };
-/** For week w, from the Vault's get_game_player (Vault v6): staked = at least 1 VHP staked in game 9 for that week
- *  (rows); held = also every player the Vault would refuse a free prize: its own check, peak stake that week (or,
- *  without an entry, the stake now) of at least 1 VHP. */
-export async function readStaked(node: any, players: string[], w: number): Promise<Stakes> {
-  const abi = VAULT_ABI(), vault = defaultVault();
-  if (!abi || !abi.methods || !abi.methods.get_game_player || !vault) throw new Error("the Vault's per-game stakes can't be read yet (needs Vault v6)");
-  const c = new Contract({ id: vault, abi, provider: node });
-  // the Vault's own minimum stake for week w (fix-check F-8: set_min_stake can change it for later weeks)
-  const st: any = await withRetry("the Vault's settings", () => (c.functions as any).get_state({}));
-  const cf = st && st.result && st.result.config;
-  if (!cf || cf.min_stake === undefined) throw new Error("no answer reading the Vault's minimum stake");
-  const MIN = BigInt(cf.min_stake_next ?? "0") > 0n && w >= Number(cf.min_stake_next_week ?? "0") ? BigInt(cf.min_stake_next) : BigInt(cf.min_stake);
-  if (MIN <= 0n) throw new Error("the Vault's minimum stake reads as 0");
-  const staked: string[] = [], held: string[] = [];
-  for (const a of players) {
-    const r: any = await withRetry(`stake of ${a}`, () => (c.functions as any).get_game_player({ player: a, game: B.GAME_ID, week: String(w) }));
-    if (!r || typeof r !== "object" || !("result" in r)) throw new Error(`no answer reading the stake of ${a}`);
-    const x = r.result || {};
-    const isStaked = BigInt(x.entry?.stake ?? "0") >= MIN || BigInt(x.week_stake ?? "0") >= MIN;
-    const peak = BigInt((x.entry ? x.entry.peak_stake : x.active_stake) ?? "0");
-    if (isStaked) staked.push(a);
-    if (isStaked || peak >= MIN) held.push(a);
-  }
-  return { staked, held };
+/** The Vault's own rule, read with Block X's vault reader (RECORDER_STANDARD §2.4; #E-3 M-1, L-11): staked = the
+ *  stake the Vault counts for the week (`week_stake`, the lowest that week; 0 if all was withdrawn) is at least the
+ *  week's minimum, with the `v6_rule_week_plus_one` gate (before v6, nobody is staked); held = the most it had that
+ *  week (peak) reached the minimum: the Vault refuses those players a free prize. 8 reads at a time; a failed read is
+ *  an error, never "not staked". */
+export function stakesReader(vault: string | null = defaultVault()) {
+  const read = vaultReader(vault, B.GAME_ID);
+  return async (node: any, players: string[], w: number): Promise<Stakes> => {
+    const v = await read(node, players, w);
+    const staked: string[] = [], held: string[] = [];
+    for (const a of players) {
+      const x = v.players.get(a);
+      if (!v.live || !x) continue;
+      if (x.week >= v.min) staked.push(a);
+      if (x.week >= v.min || x.peak >= v.min) held.push(a);
+    }
+    return { staked, held };
+  };
 }
 const asStakes = (x: string[] | Stakes): Stakes => (Array.isArray(x) ? { staked: [...x], held: [...x] } : { staked: [...x.staked], held: [...x.held] });
 
 /** Order key for a week's standings: points, a right champion, right winners, then the earlier pick (owner 2026-10-29:
- *  ties go to who submitted first; same block → still tied). timeOf: player → pick time (ms); left out: no time. */
+ *  ties go to who submitted first; same block → still tied, D-087). timeOf: player → pick time (ms); left out: no time. */
 const keyOf = (r: Points, timeOf?: Map<string, number>) => [r[1], r[2], r[3], timeOf && timeOf.has(r[0]) ? -timeOf.get(r[0])! : 0];
 const cmpKey = (a: number[], b: number[]) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return b[i] - a[i]; return 0; };
 /** Groups of tied players, best first. */
@@ -247,15 +279,33 @@ function tiedGroups(rows: Points[], timeOf?: Map<string, number>): string[][] {
   s.forEach((x, i) => { if (i > 0 && cmpKey(s[i - 1].k, x.k) === 0) out[out.length - 1].push(x.p); else out.push([x.p]); });
   return out;
 }
-/** The Vault file's points: every staked player with ≥ 1 point, in the week's order (points, then a right champion,
- *  then right winners, then the earlier pick) mapped onto whole numbers 1–255 keeping the order and the ties. More than
- *  255 different places (fix-check F-9): the best 254 keep one value each, the rest share 1 (the Vault pays the top
- *  30%, so this only matters if the paid part alone holds 254+ places). */
+/** The Vault's cutoff on a list of groups (best first): the fewest whole groups holding at least ceil(30%) of the
+ *  players (Kpred.ts finalizeGameStep: need = ceil(30% of the rows posted), walked down from the top, groups whole). */
+const vaultNeed = (n: number) => Math.floor((n * 30 + 99) / 100);   // the Vault's own integer formula (WIN_PCT 30)
+function paidGroupCount(groups: string[][]): number {
+  const n = groups.reduce((t, g) => t + g.length, 0), need = vaultNeed(n);
+  let got = 0, k = 0;
+  while (k < groups.length && got < need) got += groups[k++].length;
+  return k;
+}
+/** The Vault file's rows (Repo Lens #E-3 C-1): every staked player with ≥ 1 point. The groups the Vault must pay (its
+ *  top 30%, groups whole, worked out first) get 255, 254, … in the week's order; every other row gets 1, so the
+ *  Vault's own cutoff takes exactly the paid groups however many places there are. More than 254 paid groups: the
+ *  lowest ones share 2 (still paid, the value-1 rows never). */
 export function vaultRows(points: Points[], staked: Set<string>, timeOf?: Map<string, number>) {
-  const groups = tiedGroups(points.filter(([p, pts]) => staked.has(p) && pts >= 1), timeOf), n = groups.length;
+  const groups = tiedGroups(points.filter(([p, pts]) => staked.has(p) && pts >= 1), timeOf);
+  const paid = paidGroupCount(groups);
   const out: { player: string; points: number }[] = [];
-  groups.forEach((g, i) => { const v = n <= 255 ? n - i : Math.max(1, 255 - i); for (const p of g) out.push({ player: p, points: v }); });
+  groups.forEach((g, i) => { const v = i < paid ? Math.max(2, 255 - i) : 1; for (const p of g) out.push({ player: p, points: v }); });
   return out.sort((x, y) => y.points - x.points || (x.player < y.player ? -1 : 1));
+}
+/** The players the Vault pays from a set of rows (its own cutoff: whole value groups from the top until ≥ 30%). */
+export function vaultPays(rows: { player: string; points: number }[]): string[] {
+  const need = vaultNeed(rows.length), by = new Map<number, string[]>();
+  for (const r of rows) by.set(r.points, [...(by.get(r.points) ?? []), r.player]);
+  const out: string[] = [];
+  for (const v of [...by.keys()].sort((a, b) => b - a)) { if (out.length >= need) break; out.push(...by.get(v)!); }
+  return out;
 }
 
 /** The free prize's winners (owner 2026-10-28; Vault payout rules): free players (not `held`) with at least 1 point,
@@ -274,11 +324,9 @@ export function freeWinners(points: Points[], held: Set<string>, timeOf?: Map<st
 /** BRACKET_PRIZES_FROM_WEEK (a repository variable): the first week the Vault pays game 9 — a plain week number 0-9999,
  *  else none (fails closed: no medals or prize lists are shown, as Block X's PRIZES_FROM_WEEK). */
 export const prizesFromEnv = (v: string | undefined) => (v && /^[0-9]{1,4}$/.test(v.trim()) ? Number(v.trim()) : null);
-/** The Staked board's earners: the top 30% by headcount of staked players with ≥ 1 point (rounded up), tied groups whole. */
+/** The Staked board's earners: exactly the players the Vault would pay from the vault rows (#E-3 M-2). */
 export function stakedEarners(points: Points[], timeOf?: Map<string, number>) {
-  const g = tiedGroups(points.filter((r) => r[1] >= 1), timeOf), n = g.reduce((t, x) => t + x.length, 0), cut = Math.ceil(n * 0.3);
-  const out: string[] = []; for (const x of g) { if (out.length >= cut) break; out.push(...x); }
-  return out;
+  return vaultPays(vaultRows(points, new Set(points.map((r) => r[0])), timeOf));
 }
 /** Each player's pick time (the last change, ms) from a week's recorded picks. */
 const timesOf = (wf: WeekFile | undefined) => new Map<string, number>((wf?.picks?.rows ?? []).map((r) => [r[0], r[2]]));
@@ -287,7 +335,7 @@ export function scoreWeek(wf: WeekFile) {
   if (!wf.seeding || !wf.seeding.size || !wf.picks) return { results: null, points: [] as Points[] };
   const { size, seeds } = wf.seeding;
   const days = wf.days.map((d) => (d.every(Boolean) ? B.indexFromHours(d) : null));
-  const res = B.results(seeds, size, days, wf.seeding.vhp, wf.seeding.pooled);   // with the forfeit rule (S-5, F-1)
+  const res = B.results(seeds, size, days, wf.seeding.vhp, wf.seeding.pooled);   // with the forfeit rule (H-5) and pooled (H-4)
   // During a round's day: the winners so far are not known, so only finished rounds score.
   const points: Points[] = wf.picks.rows.map(([player, number]) => {
     const s = B.score(B.decode(number, size, seeds.length), res, size, seeds.length);
@@ -295,6 +343,12 @@ export function scoreWeek(wf: WeekFile) {
   });
   return { results: { rounds: res.rounds, done: res.done }, points };
 }
+/** The hours of a week, as [round, hour, start] (start of the UTC hour). */
+const hoursOf = (w: number, wf: WeekFile) => { const out: [number, number, number][] = []; for (let r = 0; r < wf.days.length; r++) for (let h = 0; h < 24; h++) out.push([r, h, B.roundDay(w, r, wf.seeding!.size) + h * HOUR]); return out; };
+/** Every hour of every round recorded and re-read in a later run (the two-run rule). */
+const allReRead = (wf: WeekFile) => wf.days.length > 0 && wf.days.every((d) => d.every((h) => !!h && h.re === 1));
+/** A week's file as written (never the `bad` note). */
+const fileOf = (wf: WeekFile) => { const { bad: _bad, ...rest } = wf; return rest; };
 
 /** One run. Exported for the tests, which pass fake nodes. */
 export async function run(o: Opts) {
@@ -305,63 +359,76 @@ export async function run(o: Opts) {
   const contract = o.picksContract === undefined ? defaultPicksContract() : o.picksContract;
   const nodeP: Node = o.nodeOf ? o.nodeOf(o.p) : chainNode(o.p);
   const nodeC: Node | null = o.check ? (o.nodeOf ? o.nodeOf(o.check) : chainNode(o.check)) : null;
-  const head: Head = o.head ?? (await nodeP.head());
-  if (!o.head && nodeC) await nodeC.head();
-  // The clock for every decision: the irreversible block's time, the same on both nodes (audit F-4).
+  let head: Head = o.head ?? (await nodeP.head());
+  // Repo Lens #E-3 M-8: the lower of the two nodes' irreversible blocks, and its time and id read on both (audit F-4).
   if (nodeC) {
+    if (!o.head) { const hc = await nodeC.head(); if (hc.lib < head.lib) head = { ...head, lib: hc.lib, libTime: await nodeP.blockTime(hc.lib) }; }
     const t2 = await nodeC.blockTime(head.lib);
     const sameId = (await nodeP.blockId(head.lib)) === (await nodeC.blockId(head.lib));
     if (t2 !== head.libTime || !sameId) { const pr = `the two nodes disagree about block ${head.lib}'s time; nothing written this run`; console.log(`::warning::${pr}`); return { problems: [pr], weeks: new Map(), board: null }; }
   }
   const now = head.libTime;
   const picksRead = o.picksOf ?? (contract ? (node: any, r: number) => readPicks(node, contract, r) : null);
-  const stakedRead = o.stakedOf ?? readStaked;
+  const stakedRead = o.stakedOf ?? stakesReader(o.vault === undefined ? defaultVault() : o.vault);
   console.log(`head ${head.height} (${new Date(head.time).toISOString()}), irreversible ${head.lib} (${new Date(head.libTime).toISOString()})`);
 
   const idx = readJson(PREV, "index.json");
   const known = new Set<number>(Array.isArray(idx?.weeks) ? idx.weeks.filter((w: any) => Number.isInteger(w) && w >= 0 && w < 10000) : []);
   const nowW = B.weekOf(now);
-  // A week the last run published must still be there: a missing file means the read failed (audit F-3).
-  for (const w of known) if (w >= nowW - 1 && !readJson(PREV, wName(w))) throw new Error(`last run's ${wName(w)} is missing; refusing to write (it would wipe that week)`);
+  // A week the last run published must still be there: a missing file means the read failed (audit F-3). (A planted
+  // index week can't stall this: the publish job only lets index weeks in together with their file, #E-3 H-3.)
+  for (const w of known) if (w >= nowW - 1 && w <= nowW + 1 && !readJson(PREV, wName(w))) throw new Error(`last run's ${wName(w)} is missing; refusing to write (it would wipe that week)`);
   if (PREV && fs.existsSync(path.join(PREV, "board.json")) && !idx) throw new Error("last run's index.json is missing or unreadable; refusing to write");
   const weeks = new Map<number, WeekFile>();
   // Last week only if it was already being recorded (a first run doesn't void weeks from before it existed).
   for (const w of [nowW - 1, nowW, nowW + 1]) if (w >= 1 && (w >= nowW || known.has(w))) weeks.set(w, loadWeek(PREV, w));
-  let hoursLeft = MAX_HOURS_PER_RUN;
+  for (const wf of weeks.values()) if (wf.bad) problems.push(`week ${wf.week}: ${wf.bad}`);
+  let hoursLeft = MAX_HOURS_PER_RUN, rereadsLeft = MAX_REREADS_PER_RUN;
+
+  const readBoth = async (w: number, players: string[]): Promise<Stakes> => {
+    if (!nodeC) throw new Error("a second node is needed to read the stakes (RPC_CHECK)");
+    const s1 = asStakes(await stakedRead(o.p, players, w)), s2 = asStakes(await stakedRead(o.check, players, w));
+    for (const s of [s1, s2]) { s.staked.sort(); s.held.sort(); }
+    if (JSON.stringify(s1) !== JSON.stringify(s2)) throw new Error("the two nodes disagree about the stakes");
+    return s1;
+  };
 
   for (const [w, wf] of weeks) {
     if (wf.status === "final" || wf.status === "none" || wf.status === "void") continue;
+    const backstop = B.weekStart(w + 1) + VAULT_DAYS;
     // ── 1. seeding ──
     if (!wf.seeding) {
       const at = B.seedTime(w);
       if (now < at) continue;
+      // #E-3 L-4: void by time alone, once its 24 hours are over (a late read never seeds)
+      if (now >= at + SEED_GRACE) { wf.status = "void"; wf.void = "the seeding could not be read on two nodes within 24 hours; no bracket this week"; continue; }
       let card: any = null;
       try {
         if (!nodeC) throw new Error("a second node is needed to seed (RPC_CHECK)");
         const c1 = await readSeedCard(nodeP, head, at), c2 = await readSeedCard(nodeC, head, at);
         if (JSON.stringify(c1) !== JSON.stringify(c2)) throw new Error("the two nodes disagree about the seeding");
         card = c1;
-      } catch (e) {
-        if (now >= at + SEED_GRACE) { wf.status = "void"; wf.void = "the seeding could not be read on two nodes within 24 hours; no bracket this week"; }
-        else problems.push(`week ${w}: seeding: ${(e as Error).message} (tried again next run)`);
-        continue;
-      }
-      const s = B.seeding(card);
-      const vhpOf = new Map<string, number>(card.field.map((r: any) => [r.a, Number(r.vhp)]));
-      const totalVhp = Math.round([...card.field, ...card.paddock].reduce((t: number, r: any) => t + r.vhp, 0) * 100) / 100;
-      // pooled producers (never forfeit, fix-check F-1): the KnodeGames Vault, whose VHP is players' withdrawable stakes
+      } catch (e) { problems.push(`week ${w}: seeding: ${(e as Error).message} (tried again next run)`); continue; }
+      // #E-3 M-6: last week's raw averages (its recorded seeding), so each seed is on the lower of the two
+      const prev = weeks.get(w - 1) ?? loadWeek(PREV, w - 1);
+      const lastRaw = prev.seeding && prev.seeding.raw ? prev.seeding.raw : {};
+      const s = B.seeding(card, lastRaw);
+      const rows = [...card.field, ...card.paddock].filter((r: any) => isAddr(r.a) && Number.isFinite(r.vhp) && r.vhp > 0).sort((x: any, y: any) => (x.a < y.a ? -1 : 1));
+      const raw: Record<string, number> = {}; for (const r of rows) raw[r.a] = Number(r.vhp);
+      const totalVhp = Math.round(rows.reduce((t: number, r: any) => t + r.vhp, 0) * 100) / 100;
+      // pooled producers (the Knode Games Pool, i.e. the vault: its VHP is players' withdrawable stakes; D-086, #E-3 H-4)
       const pooledAll = [o.vault === undefined ? defaultVault() : o.vault].filter((a): a is string => !!a && isAddr(a));
-      const base = { at, cardAt: card.height, size: s.size, seeds: [...s.seeds], vhp: s.seeds.map((a: string) => vhpOf.get(a) ?? 0), totalVhp, out: [...s.out], pooled: pooledAll.filter((a) => s.seeds.includes(a)) };
+      const base = { at, cardAt: card.height, size: s.size, seeds: [...s.seeds], vhp: [...s.vhp], totalVhp, out: [...s.out], outVhp: [...s.outVhp], raw, pooled: pooledAll.filter((a) => s.seeds.includes(a)) };
       wf.seeding = { ...base, hash: seedHash(w, base) };
       wf.days = emptyDays(s.size);
       if (!s.size) { wf.status = "none"; wf.void = `only ${s.seeds.length + s.out.length} producers in the field (8 needed); no bracket this week`; continue; }
-      console.log(`week ${w}: seeded ${s.size}-producer bracket (${s.seeds.length} producers)`);
+      console.log(`week ${w}: seeded ${s.size}-producer bracket`);
     }
     const { size, seeds } = wf.seeding;
     wf.status = "open";
     // ── 2. picks ──
     if (!wf.picks) {
-      if (head.libTime < B.lockTime(w)) continue;
+      if (now < B.lockTime(w)) continue;
       if (!picksRead) wf.picks = { checked: nodeC ? 2 : 1, rows: [] };
       else {
         try {
@@ -397,11 +464,7 @@ export async function run(o: Opts) {
     }
     wf.status = "locked";
     // ── 3. hours: every irreversible hour of the round days not recorded yet, in one batch per run ──
-    const todo: [number, number, number][] = [];   // [round, hour, start]
-    for (let r = 0; r < wf.days.length; r++) for (let h = 0; h < 24; h++) {
-      const start = B.roundDay(w, r) + h * HOUR;
-      if (!wf.days[r][h] && start + HOUR <= head.libTime && todo.length < hoursLeft) todo.push([r, h, start]);
-    }
+    const todo = hoursOf(w, wf).filter(([r, h, start]) => !wf.days[r][h] && start + HOUR <= now).slice(0, hoursLeft);
     if (todo.length && !nodeC) problems.push(`week ${w}: hours wait for a second node (RPC_CHECK)`);
     else if (todo.length) {
       hoursLeft -= todo.length;
@@ -409,81 +472,92 @@ export async function run(o: Opts) {
         const starts = todo.map((x) => x[2]);
         // baselines for days whose first hour is already recorded (hours are recorded in order)
         const base: Record<number, Record<string, number>> = {};
-        for (const [r] of todo) if (wf.days[r][0]) base[B.roundDay(w, r)] = wf.days[r][0]!.w;
+        for (const [r] of todo) if (wf.days[r][0]) base[B.roundDay(w, r, size)] = wf.days[r][0]!.w;
         const a = await readHours(nodeP, head, starts, seeds, base);
         const b = await readHours(nodeC!, head, starts, seeds, base);
         const bad = a.findIndex((x, i) => JSON.stringify(x) !== JSON.stringify(b[i]));
         if (bad >= 0) throw new Error(`the two nodes disagree about round ${todo[bad][0] + 1} hour ${todo[bad][1]}; not recorded this run`);
-        const checked = 2;
-        todo.forEach(([r, h], i) => { wf.days[r][h] = { ...a[i], checked }; });
+        todo.forEach(([r, h], i) => { wf.days[r][h] = { ...a[i], checked: 2 }; });
         console.log(`week ${w}: ${todo.length} hour(s) recorded`);
       } catch (e) { problems.push(`week ${w}: hours: ${(e as Error).message} (tried again next run)`); }
     }
-    if (wf.status === "void") continue;
+    // ── 3b. the two-run rule: hours recorded by an EARLIER run are read again on both nodes and must match ──
+    const loaded = new Set(todo.map(([r, h]) => `${r}:${h}`));
+    const again = hoursOf(w, wf).filter(([r, h]) => wf.days[r][h] && wf.days[r][h]!.re !== 1 && !loaded.has(`${r}:${h}`)).slice(0, rereadsLeft);
+    if (again.length && nodeC) {
+      rereadsLeft -= again.length;
+      try {
+        const starts = again.map((x) => x[2]);
+        // each re-read works its baselines out again from the chain (hour 0 included), except days whose hour 0 isn't
+        // in this batch: those use the recorded hour 0's (which is itself re-read on its own)
+        const base: Record<number, Record<string, number>> = {};
+        for (const [r] of again) if (!again.some(([r2, h2]) => r2 === r && h2 === 0)) base[B.roundDay(w, r, size)] = wf.days[r][0]!.w;
+        const a = await readHours(nodeP, head, starts, seeds, base);
+        const b = await readHours(nodeC, head, starts, seeds, base);
+        again.forEach(([r, h], i) => {
+          const was = wf.days[r][h]!;
+          if (JSON.stringify(a[i]) === JSON.stringify(b[i]) && sameHour({ ...a[i], checked: 2 }, was)) wf.days[r][h] = { ...was, re: 1 };
+          else problems.push(`week ${w}: round ${r + 1} hour ${h} reads differently now than when it was recorded; the week can't go final until it's checked`);
+        });
+      } catch (e) { problems.push(`week ${w}: re-reading hours: ${(e as Error).message} (tried again next run)`); }
+    }
     // ── 4. results and points ──
     const sc = scoreWeek(wf);
     wf.results = sc.results; wf.points = sc.points;
-    const lastDayEnd = B.roundDay(w, wf.days.length - 1) + DAY;
-    // ── 5. stakes (fixed from the week's start) ──
-    const readBoth = async (players: string[]): Promise<Stakes> => {
-      if (!nodeC) throw new Error("a second node is needed to read the stakes (RPC_CHECK)");
-      const s1 = asStakes(await stakedRead(o.p, players, w)), s2 = asStakes(await stakedRead(o.check, players, w));
-      for (const s of [s1, s2]) { s.staked.sort(); s.held.sort(); }
-      if (JSON.stringify(s1) !== JSON.stringify(s2)) throw new Error("the two nodes disagree about the stakes");
-      return s1;
-    };
-    if (!wf.staked && wf.picks && now >= B.weekStart(w)) {
-      try {
-        const players = wf.picks.rows.map((r) => r[0]);
-        wf.staked = { checked: 2, list: (await readBoth(players)).staked };
-      } catch (e) { problems.push(`week ${w}: stakes: ${(e as Error).message} (tried again next run)`); }
-    }
-    if (sc.results && sc.results.done && now >= lastDayEnd + CORRECTION) {
-      // read once more as the week closes: who the Vault would refuse a free prize can change during the week
-      if (wf.staked && !wf.staked.held) {
-        try { const s = await readBoth(wf.picks!.rows.map((r) => r[0])); wf.staked = { checked: 2, list: s.staked, held: s.held }; }
-        catch (e) { problems.push(`week ${w}: stakes at the close: ${(e as Error).message} (tried again next run)`); }
+    const done = !!(sc.results && sc.results.done);
+    // ── 5. stakes: for the boards during the week; the vault file's own read once the week has ended ──
+    const players = wf.picks!.rows.map((r) => r[0]);
+    if (now >= B.weekStart(w + 1)) {
+      if (!wf.staked || !wf.staked.held) {
+        try { const st = await readBoth(w, players); wf.staked = { checked: 2, list: st.staked, held: st.held }; }
+        catch (e) { problems.push(`week ${w}: stakes after the week: ${(e as Error).message} (tried again next run)`); }
       }
-      if (wf.staked && wf.staked.held) { wf.status = "final"; console.log(`week ${w}: final`); }
-      else if (now >= B.weekStart(w + 1) + VAULT_DAYS) { wf.status = "final"; wf.vault = "missed"; problems.push(`week ${w}: closed without the Vault's stakes; no vault file (the Vault rolls the week over)`); }
-      else problems.push(`week ${w}: results are in; waiting for the Vault's stakes before the week is final`);
+    } else if (!wf.staked && now >= B.weekStart(w)) {
+      try { wf.staked = { checked: 2, list: (await readBoth(w, players)).staked }; }
+      catch (e) { problems.push(`week ${w}: stakes: ${(e as Error).message} (tried again next run)`); }
+    }
+    // ── 6. final (no earlier than Monday 00:00 UTC after the week; WEEK_CYCLE.md) ──
+    if (now >= B.finalFrom(w)) {
+      const reRead = allReRead(wf);
+      if (done && reRead && wf.staked && wf.staked.held) { wf.status = "final"; console.log(`week ${w}: final`); }
+      else if (now >= backstop) {
+        if (done && reRead) { wf.status = "final"; wf.vault = "missed"; problems.push(`week ${w}: closed at the backstop without the Vault's stakes; no vault file (the Vault rolls the week over)`); }
+        else { wf.status = "void"; wf.void = "its results could not be completed and checked within 3 days of the week's end; no vault file"; problems.push(`week ${w}: void at the backstop: results never completed or re-read`); }
+      } else problems.push(`week ${w}: in review: ${!done ? "results not all in" : !reRead ? "hours still being re-read" : "waiting for the Vault's stakes"}`);
     }
   }
 
-  // ── 5. leaderboards ──
+  // ── 7. leaderboards ──
   const allW = new Map(weeks);
   for (const w of known) if (!allW.has(w)) allW.set(w, loadWeek(PREV, w));
-  // each board keeps its own places: Staked (ranked) and Free play (the shared board shows the top 6 of those)
-  // Rows (leaderboard standard): place and boardPlace = the place on the player's own board (ties share); earns =
-  // 1 / 2 the free prize's 1st / 2nd, 3 a share of the Staked bucket (the Vault's top 30% by headcount, rounded up,
-  // tied groups whole), 0 nothing — only on This week / Last week, and only from the week the Vault pays (else 0).
-  type BRow = { player: string; points: number; champion: boolean; correct: number; ranked: boolean; time?: number };
-  const view = (rows: BRow[], earnsWeek: number | null) => {
-    const pays = earnsWeek !== null && PRIZES_FROM !== null && earnsWeek >= PRIZES_FROM;
-    const earn = new Map<string, number>();
-    if (pays) {
-      const asPts = (r: boolean) => rows.filter((x) => x.ranked === r).map((x) => [x.player, x.points, x.champion ? 1 : 0, x.correct] as Points);
-      const tm = new Map(rows.filter((x) => Number.isFinite(x.time)).map((x) => [x.player, x.time as number]));
-      const fw = freeWinners(asPts(false), new Set(), tm);
-      fw.first.forEach((a) => earn.set(a, 1)); fw.second.forEach((a) => earn.set(a, 2));
-      for (const a of stakedEarners(asPts(true), tm)) earn.set(a, 3);
-    }
+  // A week's medals and prizes (#E-3 M-2): only for a final week that wasn't missed, with the stakes read after it,
+  // from exactly the rows the vault file holds; and only from the week the Vault pays game 9.
+  const paysFor = (wf: WeekFile | undefined) => !!(wf && wf.status === "final" && wf.vault !== "missed" && wf.staked && wf.staked.held && PRIZES_FROM !== null && wf.week >= PRIZES_FROM);
+  type BRow = { player: string; points: number; champion: boolean; correct: number; ranked: boolean };
+  const earnsOf = (wf: WeekFile) => {
+    const earn = new Map<string, number>(), tm = timesOf(wf), heldSet = new Set([...(wf.staked!.held ?? []), ...wf.staked!.list]);
+    const fw = freeWinners(wf.points, heldSet, tm);
+    fw.first.forEach((a) => earn.set(a, 1)); fw.second.forEach((a) => earn.set(a, 2));
+    for (const a of vaultPays(vaultRows(wf.points, new Set(wf.staked!.list), tm))) earn.set(a, 3);
+    return earn;
+  };
+  const view = (rows: BRow[], earn: Map<string, number> | null) => {
     const part = (r: boolean) => B.rank(rows.filter((x) => x.ranked === r)).slice(0, MAX_BOARD_ROWS)
-      .map((x: any) => ({ a: x.player, place: x.place, boardPlace: x.place, pts: x.points, champion: x.champion, correct: x.correct, ranked: r, earns: earn.get(x.player) ?? 0 }));
+      .map((x: any) => ({ a: x.player, place: x.place, boardPlace: x.place, pts: x.points, champion: x.champion, correct: x.correct, ranked: r, earns: earn?.get(x.player) ?? 0 }));
     return [...part(true), ...part(false)];
   };
   // Staked board: staked that week, or held a stake in the Bracket during it (a withdrawal doesn't move a player to Free
-  // play, where it could never win the prize: fix-check F-5)
+  // play, where it could never win the prize: fix-check F-5); a held-only player earns nothing there (#E-3 M-2)
   const stakedSet = (wf: WeekFile | undefined) => new Set([...(wf?.staked?.list ?? []), ...(wf?.staked?.held ?? [])]);
-  const weekRows = (wf: WeekFile | undefined) => { const st = stakedSet(wf), tm = timesOf(wf); return wf ? wf.points.map(([player, points, champ, correct]) => ({ player, points, champion: !!champ, correct, ranked: st.has(player), time: tm.get(player) })) : []; };
-  const wv = (w: number, earns: boolean) => { const wf = allW.get(w); return { week: w, start: B.weekStart(w), status: wf ? wf.status : "waiting", final: wf?.status === "final", rows: view(weekRows(wf), earns ? w : null) }; };
+  const weekRows = (wf: WeekFile | undefined): BRow[] => { const st = stakedSet(wf); return wf ? wf.points.map(([player, points, champ, correct]) => ({ player, points, champion: !!champ, correct, ranked: st.has(player) })) : []; };
+  const wv = (w: number) => { const wf = allW.get(w); return { week: w, start: B.weekStart(w), status: wf ? wf.status : "waiting", final: wf?.status === "final", rows: view(weekRows(wf), paysFor(wf) ? earnsOf(wf!) : null) }; };
   /** Last week, with its free prizes once final (the Leaders page's medals): [{player, place, vhp}] by the Vault's
    *  payout rule — tied for 1st share all 3 VHP; a single 1st gets 2 and those tied for 2nd share 1. */
   const lastWeekView = (w: number) => {
-    const v: any = wv(w, true), wf = allW.get(w);
+    const v: any = wv(w), wf = allW.get(w);
     const prizes: { player: string; place: number; vhp: number }[] = [];
-    if (v.final && wf && wf.staked && PRIZES_FROM !== null && w >= PRIZES_FROM) {
-      const fw = freeWinners(wf.points, new Set([...(wf.staked.held ?? []), ...wf.staked.list]), timesOf(wf));
+    if (paysFor(wf)) {
+      const fw = freeWinners(wf!.points, new Set([...(wf!.staked!.held ?? []), ...wf!.staked!.list]), timesOf(wf));
       if (fw.first.length >= 2) for (const a of fw.first) prizes.push({ player: a, place: 1, vhp: 3 / fw.first.length });
       else { for (const a of fw.first) prizes.push({ player: a, place: 1, vhp: 2 }); for (const a of fw.second) prizes.push({ player: a, place: 2, vhp: 1 / fw.second.length }); }
     }
@@ -495,25 +569,29 @@ export async function run(o: Opts) {
     t.points += points; t.correct += correct; t.champs += champ; t.champion = t.champs > 0; t.ranked = t.ranked || st.has(player); tot.set(player, t);
   } }
   const allRows = view([...tot.values()], null);
-  const board = { v: 1, updated: new Date(now).toISOString(), next: wv(nowW + 1, false), week: wv(nowW, true), lastWeek: nowW >= 2 ? lastWeekView(nowW - 1) : null, allTime: { rows: allRows } };
+  const board = { v: 1, updated: new Date(now).toISOString(), next: wv(nowW + 1), week: wv(nowW), lastWeek: nowW >= 2 ? lastWeekView(nowW - 1) : null, allTime: { rows: allRows } };
 
-  // ── 6. write ──
-  fs.mkdirSync(OUT, { recursive: true });
+  // ── 8. write (everything first, so a file that would be too big stops the run before anything is written) ──
+  const files: [string, string][] = [];
   for (const [w, wf] of weeks) {
     if (wf.status === "waiting" && !wf.seeding) continue;
     known.add(w);
-    fs.writeFileSync(path.join(OUT, wName(w)), JSON.stringify(wf) + "\n");
+    files.push([wName(w), JSON.stringify(fileOf(wf)) + "\n"]);
   }
-  // the Vault files: final weeks with their stakes, until 3 days after the week ends
+  // the Vault files: final weeks with their end-of-week stakes, until Thursday 00:00 UTC after the week
   for (const [w, wf] of weeks) {
-    if (wf.status !== "final" || !wf.staked || wf.vault === "missed" || now > B.weekStart(w + 1) + VAULT_DAYS) continue;
-    fs.mkdirSync(path.join(OUT, "vault"), { recursive: true });
+    if (wf.status !== "final" || !wf.staked || !wf.staked.held || wf.vault === "missed" || wf.bad || now > B.weekStart(w + 1) + VAULT_DAYS) continue;
     const tm = timesOf(wf), prize = freeWinners(wf.points, new Set([...(wf.staked.held ?? []), ...wf.staked.list]), tm);
     const file = { game: B.GAME_ID, week: w, final: true, rows: vaultRows(wf.points, new Set(wf.staked.list), tm), first: prize.first, second: prize.second };
-    fs.writeFileSync(path.join(OUT, "vault", `W${w}.json`), JSON.stringify(file) + "\n");
+    files.push([path.join("vault", `W${w}.json`), JSON.stringify(file) + "\n"]);
   }
-  fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: B.GAME_ID, prizesFromWeek: PRIZES_FROM }) + "\n");
-  fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
+  files.push(["index.json", JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: B.GAME_ID, prizesFromWeek: PRIZES_FROM }) + "\n"]);
+  files.push(["board.json", JSON.stringify(board) + "\n"]);
+  const big = files.filter(([, t]) => Buffer.byteLength(t) > MAX_FILE_BYTES).map(([f]) => f);
+  if (big.length) throw new Error(`refusing to write files over ${MAX_FILE_BYTES} bytes (the publish job's limit): ${big.join(", ")}`);
+  fs.mkdirSync(path.join(OUT, "vault"), { recursive: true });
+  for (const [f, t] of files) fs.writeFileSync(path.join(OUT, f), t);
+  if (!fs.readdirSync(path.join(OUT, "vault")).length) fs.rmdirSync(path.join(OUT, "vault"));
   for (const pr of problems) console.log(`::warning::${pr}`);
   return { problems, weeks, board };
 }

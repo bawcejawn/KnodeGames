@@ -4,9 +4,15 @@
  *  - blocks with their receipts (4 reads at a time), every VHP event decoded (reverted transactions skipped);
  *  - each producer's balance AND effective balance read once, pinned to one block (the head did not move around the
  *    read), on each node; the VHP events walked back from there (bookFor);
- *  - the rebuilt effective VHP must equal the effective balance the VHP contract reports at that block (a missed or
- *    misread event can't slip through), and the block ids walked must be the ones the balances were read on (forks);
+ *  - the rebuilt effective VHP must equal the effective balance the VHP contract reports at the read block, and the
+ *    block ids walked must be the ones the balances were read on (forks);
+ *  - no balance may go below zero at ANY point of the walk (Repo Lens #E-3 M-7: checked at every VHP change, not only
+ *    at the start of the range);
  *  - games run this on two nodes and use the result only when both agree exactly.
+ * What this does NOT prove (#E-3 M-7, disclosed): the effective-balance cross-check covers about the 20 blocks before
+ * each read, so an event missed earlier in the range that leaves no negative balance can still pass, and both nodes run
+ * this same decoder, so two-node agreement doesn't catch a decoder miss. The Bracket re-reads every hour in a later run
+ * (the two-run rule), and the shared VHP ruler (D-090) is where an end-to-end check between two balance reads belongs.
  * Holds no key and sends nothing.
  */
 import { Contract, Serializer, utils } from "koilib";
@@ -96,8 +102,16 @@ export function chainNode(p: any): Node {
         if (!r || typeof r !== "object" || !("result" in r)) throw new Error(`no answer reading the VHP of ${a}`);
         // the contract's own effective balance is only a cross-check (audit S-3): if a read-only call can't give it,
         // the node is marked and the check is skipped, with a warning; the exact rebuild still decides
+        // #E-3 M-7: tried 3 times before the check is switched off for this node for the run
         let e: any = null;
-        if (!effDown) { try { e = await (vhp.functions as any).effective_balance_of({ owner: a }); if (!e || typeof e !== "object" || !("result" in e)) throw new Error("no result"); } catch (err) { effDown = String((err as Error)?.message || err).slice(0, 200); e = null; console.warn(`effective_balance_of unavailable as a read-only call (${effDown}); cross-check skipped`); } }
+        if (!effDown) {
+          let last = "";
+          for (let k = 0; k < 3 && !e; k++) {
+            try { const x = await (vhp.functions as any).effective_balance_of({ owner: a }); if (!x || typeof x !== "object" || !("result" in x)) throw new Error("no result"); e = x; }
+            catch (err) { last = String((err as Error)?.message || err).slice(0, 200); }
+          }
+          if (!e) { effDown = last; console.warn(`effective_balance_of unavailable as a read-only call after 3 tries (${effDown}); cross-check skipped on this node for this run`); }
+        }
         const h2 = await headNow();
         if (h1.id === h2.id) return { v: Number(r.result?.value ?? "0"), ...(e ? { eff: Number(e.result?.value ?? "0") } : {}), h: h1.height, id: h1.id };
       }
@@ -142,6 +156,12 @@ export async function bookFor(n: Node, fromH: number, toH: number, also: string[
     else throw new Error(`the VHP rebuild for ${a} doesn't match the contract's effective balance at block ${x.h}`);
   }
   if (effCheck.skipped) console.warn(`effective VHP cross-check skipped for ${effCheck.skipped} of ${who.length} producers`);
-  for (const a of who) { const v = book.before(a, fromH); if (v === null || v < -0.5) throw new Error(`the VHP rebuild for ${a} went below zero (a missed event)`); }
+  // #E-3 M-7: below zero at any point of the walk (the range start and every block where its VHP changed) = a missed event
+  const changes = new Map<string, number[]>();
+  for (const d of [...c.deltas, ...tail.deltas]) { const l = changes.get(d.a); if (l) l.push(d.h + 1); else changes.set(d.a, [d.h + 1]); }
+  for (const a of who) for (const h of [fromH, ...(changes.get(a) ?? [])]) {
+    const v = book.before(a, h);
+    if (v === null || v < -0.5) throw new Error(`the VHP rebuild for ${a} went below zero at block ${h} (a missed event)`);
+  }
   return { c, book, effCheck };
 }

@@ -6,6 +6,7 @@ export class Race {
     // const player = args.player;
     // const race = args.race;
     // const horse = args.horse;
+    // const type = args.type;
 
     // YOUR CODE HERE
 
@@ -17,6 +18,7 @@ export class Race {
   get_pick(args: race.get_pick_arguments): race.get_pick_result {
     // const player = args.player;
     // const race = args.race;
+    // const type = args.type;
 
     // YOUR CODE HERE
 
@@ -30,6 +32,7 @@ export class Race {
     // const race = args.race;
     // const start_after = args.start_after;
     // const limit = args.limit;
+    // const type = args.type;
 
     // YOUR CODE HERE
 

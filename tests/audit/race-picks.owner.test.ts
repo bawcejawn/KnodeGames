@@ -157,3 +157,13 @@ test("R-RACE-9 (Repo Lens #C-4 C4-3): a node with no race settings stops with a 
   // One node only: the same plain reason, also on a dry run.
   await assert.rejects(changeOwner(NEW, undefined, false, deps({ rpcCheck: undefined }, { a: {} }).d), /No race settings on chain at a/);
 });
+
+test("D-153 (contract v2): 0 = no per-game limit is a valid setting, and a missing value reads as 0 everywhere", async () => {
+  const { buildRaceConfig } = await import("../../bot/race-picks.ts");
+  assert.deepEqual(buildRaceConfig(NEW, true, 0), { owner: NEW, enabled: true, max_picks_per_day: 0 });
+  assert.throws(() => buildRaceConfig(NEW, true, 21), /0 \(no limit\) to 20/);
+  assert.throws(() => buildRaceConfig(NEW, true, -1), /0 \(no limit\) to 20/);
+  // The chain leaves a 0 out of its answer: the owner change keeps "no limit", not the default 5.
+  const keep = planOwnerChange({ ...base, cur: { owner: OLD, enabled: true } }).config;
+  assert.deepEqual(keep, { owner: NEW, enabled: true, max_picks_per_day: 0 });
+});

@@ -1,5 +1,6 @@
 
-ñ	
+Á
+
 assembly/proto/race.protoracekoinos/options.proto"i
 config
 owner (B€µRowner
@@ -12,28 +13,32 @@
 	day_count
 day (B0Rday
 count (Rcount"
-empty_object"b
+empty_object"v
 pick_arguments
 player (B€µRplayer
 race (B0Rrace
-horse (B€µRhorse"Š
+horse (B€µRhorse
+type (Rtype"ž
 
 pick_event
 player (B€µRplayer
 race (B0Rrace
 horse (B€µRhorse
 at (B0Rat
-change (Rchange"J
+change (Rchange
+type (Rtype"^
 get_pick_arguments
 player (B€µRplayer
-race (B0Rrace"8
+race (B0Rrace
+type (Rtype"8
 get_pick_result%
-pick (2.race.pick_objectRpick"k
+pick (2.race.pick_objectRpick"
 list_picks_arguments
 race (B0Rrace%
 start_after (B€µR
 startAfter
-limit (Rlimit"O
+limit (Rlimit
+type (Rtype"O
 pick_row
 player (B€µRplayer%
 pick (2.race.pick_objectRpick"7

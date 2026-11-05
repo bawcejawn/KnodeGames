@@ -128,6 +128,10 @@
                 "options": {
                   "(koinos.btype)": "ADDRESS"
                 }
+              },
+              "type": {
+                "type": "uint32",
+                "id": 4
               }
             }
           },
@@ -164,6 +168,10 @@
               "change": {
                 "type": "bool",
                 "id": 5
+              },
+              "type": {
+                "type": "uint32",
+                "id": 6
               }
             }
           },
@@ -182,6 +190,10 @@
                 "options": {
                   "jstype": "JS_STRING"
                 }
+              },
+              "type": {
+                "type": "uint32",
+                "id": 3
               }
             }
           },
@@ -212,6 +224,10 @@
               "limit": {
                 "type": "uint32",
                 "id": 3
+              },
+              "type": {
+                "type": "uint32",
+                "id": 4
               }
             }
           },

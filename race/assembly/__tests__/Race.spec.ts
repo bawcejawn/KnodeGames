@@ -93,12 +93,10 @@ describe("settings", () => {
     signedBy(SELF);
     CFG = new race.config(SELF, true, 5);
     expect(() => { setConfig(); }).toThrow(); errorIs("RACE: the owner must be a wallet, not this contract");
-    signedBy(SELF);
-    CFG = new race.config(OWNER, true, 0);
-    expect(() => { setConfig(); }).toThrow(); errorIs("RACE: picks per day must be 1 to 20");
+    // v2 (D-153): 0 = no per-game limit is allowed; above 20 is still refused.
     signedBy(SELF);
     CFG = new race.config(OWNER, true, 21);
-    expect(() => { setConfig(); }).toThrow(); errorIs("RACE: picks per day must be 1 to 20");
+    expect(() => { setConfig(); }).toThrow(); errorIs("RACE: picks per day must be 0 (no limit) to 20");
   });
 
   it("picks are closed before setup and when switched off", () => {

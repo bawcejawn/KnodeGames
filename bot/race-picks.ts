@@ -100,7 +100,8 @@ async function read(provider: Provider, id: string, method: string, args: any = 
 /** The settings to send. Exported for the tests. */
 export function buildRaceConfig(owner: string, enabled: boolean, perDay: number) {
   if (!/^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(owner)) throw new Error("The owner must be a Koinos address.");
-  if (!Number.isInteger(perDay) || perDay < 1 || perDay > 20) throw new Error("Picks per day must be a whole number from 1 to 20.");
+  // v2 (D-153): 0 = no per-game limit (the Mana sponsor's daily limit is the cap). The v1 contract refuses 0.
+  if (!Number.isInteger(perDay) || perDay < 0 || perDay > 20) throw new Error("Picks per day must be a whole number from 0 (no limit) to 20.");
   return { owner, enabled, max_picks_per_day: perDay };
 }
 
@@ -117,7 +118,7 @@ async function status() {
   log(`  Overrides      ${m.tx || m.call || m.upload ? "SOME ON (must all be off!)" : "none (as it should be)"}`);
   const cfg = await read(provider, A, "get_config");
   log(`  Owner          ${cfg.owner ?? "not set (npm run racepicks -- setup)"}${cfg.owner && cfg.owner !== g.owner ? "  (not the vault owner in game-data/deployment.json)" : ""}`);
-  log(`  Picks          ${cfg.enabled ? "ON" : "off"}, ${cfg.max_picks_per_day ?? 0} per wallet per day`);
+  log(`  Picks          ${cfg.enabled ? "ON" : "off"}, ${Number(cfg.max_picks_per_day ?? 0) === 0 ? "no per-game limit (v2)" : `${cfg.max_picks_per_day} per wallet per day`}`);
 }
 
 async function upload(send: boolean) {
@@ -214,7 +215,7 @@ export function planOwnerChange(p: OwnerPlanInput): { config: ReturnType<typeof 
   if (!utils.isChecksumAddress(next)) throw new Error(`${next} is not a valid Koinos address (its checksum fails). Copy it again from the wallet; don't type it by hand.`);
   if (next === p.cur.owner) throw new Error(`${next} is already the race contract's owner. Nothing to change.`);
   if (p.forbidden[next]) throw new Error(`${next} is ${p.forbidden[next]}. The owner must be a person's wallet that you hold the key for.`);
-  const perDay = Number(p.cur.max_picks_per_day);
+  const perDay = Number(p.cur.max_picks_per_day ?? 0);   // a 0 (no limit, v2) is left out of the answer
   const config = buildRaceConfig(next, !!p.cur.enabled, perDay);
   const notes: string[] = [];
   if (p.vaultOwner && p.vaultOwner !== next) notes.push(`⚠ ${next} is not the vault owner named in game-data/deployment.json (${p.vaultOwner}). Fine if that file hasn't been updated for the vault handover yet; otherwise stop and check.`);
@@ -258,8 +259,8 @@ export async function changeOwner(next: string, confirm: string | undefined, sen
     const other = await settingsOn(d.rpcCheck);
     // Repo Lens #D-5 R84-3: every setting must agree, not only the owner (a lagging node could undo a recent disable).
     for (const [k, label] of [["owner", "owner"], ["enabled", "picks on/off"], ["max_picks_per_day", "picks per day"]] as const) {
-      const a = k === "enabled" ? !!cur?.[k] : k === "owner" ? cur?.[k] : Number(cur?.[k]);
-      const b = k === "enabled" ? !!other?.[k] : k === "owner" ? other?.[k] : Number(other?.[k]);
+      const a = k === "enabled" ? !!cur?.[k] : k === "owner" ? cur?.[k] : Number(cur?.[k] ?? 0);
+      const b = k === "enabled" ? !!other?.[k] : k === "owner" ? other?.[k] : Number(other?.[k] ?? 0);
       if (a !== b) throw new Error(`The two nodes disagree about the race contract's ${label} (${d.rpc}: ${a}; ${d.rpcCheck}: ${b}). Nothing was sent. Try again in a few minutes.`);
     }
   } else d.log("  ⚠ Only one node (RPC_CHECK is not set): the settings are not cross-checked.");
@@ -294,7 +295,7 @@ export async function changeOwner(next: string, confirm: string | undefined, sen
     try { after = await d.readConfig(node); } catch (e) { problems.push(`${node}: couldn't read the settings (${(e as Error).message})`); continue; }
     if (after?.owner !== config.owner) problems.push(`${node}: owner reads ${after?.owner}, not ${config.owner}`);
     if (!!after?.enabled !== config.enabled) problems.push(`${node}: picks read ${after?.enabled ? "ON" : "off"}`);
-    if (Number(after?.max_picks_per_day) !== config.max_picks_per_day) problems.push(`${node}: picks per day read ${after?.max_picks_per_day}`);
+    if (Number(after?.max_picks_per_day ?? 0) !== config.max_picks_per_day) problems.push(`${node}: picks per day read ${after?.max_picks_per_day}`);
   }
   if (problems.length) {
     d.log(`⚠ The read-back doesn't match yet:\n  ${problems.join("\n  ")}`);
@@ -337,8 +338,9 @@ async function main() {
     case "status": return status();
     case "upload": return upload(send);
     case "setup": return setConfig(send, () => ({ enabled: true, perDay: DEFAULT_PICKS_PER_DAY }), true);
-    case "enable": return setConfig(send, (c) => ({ enabled: true, perDay: Number(c.max_picks_per_day) || DEFAULT_PICKS_PER_DAY }), false);
-    case "disable": return setConfig(send, (c) => ({ enabled: false, perDay: Number(c.max_picks_per_day) || DEFAULT_PICKS_PER_DAY }), false);
+    // A 0 value (no limit, v2) is left out of the chain's answer, so a missing value is 0, never the default.
+    case "enable": return setConfig(send, (c) => ({ enabled: true, perDay: Number(c.max_picks_per_day ?? 0) }), false);
+    case "disable": return setConfig(send, (c) => ({ enabled: false, perDay: Number(c.max_picks_per_day ?? 0) }), false);
     case "limit": return setConfig(send, (c) => ({ enabled: !!c.enabled, perDay: Number(a[0]) }), false);
     case "owner": {
       const next = a[0] && !a[0].startsWith("--") ? a[0] : "";

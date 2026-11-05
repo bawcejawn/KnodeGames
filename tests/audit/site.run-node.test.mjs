@@ -277,7 +277,7 @@ test("F-2, F-4, F-6 and the Lows: wording", () => {
   assert.match(html, /404/);
   assert.match(html, /about 180 GB/, "F-3");
   assert.match(html, /If you never saw it/, "F-8");
-  assert.match(html, /add those lines again after updating/, "F-9");
+  assert.match(html, /run that box again after updating/, "F-9");
   assert.equal((box("win", "Invoke-RestMethod https://snapshots.armana.io").match(/Tls12/g) || []).length, 1, "F-10");
   assert.match(html, /It never sends your address or anything you type/, "F-11");
 });
@@ -336,4 +336,16 @@ test("bold is kept for the steps (what to click or type), not for explanations",
   const outside = steps.replace(/<ol class="rn-list[^"]*"[^>]*>[\s\S]*?<\/ol>|<ul class="rn-list rn-warn">[\s\S]*?<\/ul>/g, "");
   assert.equal((outside.match(/<b>/g) || []).length, 0, "no bold in explanations, tips or fixes");
   assert.ok((steps.match(/<b>/g) || []).length > 10, "the action lists keep their bold");
+});
+
+test("second node on the same computer: the optional box moves all four published ports, the same on every system", () => {
+  const win = boxes.find((b) => b.os[0] === "win" && /JSONRPC_PORT=8110/.test(b.text)).text;
+  const nix = boxes.find((b) => b.os.includes("mac") && /JSONRPC_PORT=8110/.test(b.text)).text;
+  const want = { JSONRPC_PORT: "8110", P2P_PORT: "8918", AMQP_PORT: "5702", AMQP_ADMIN_PORT: "15702" };
+  for (const [k, v] of Object.entries(want)) { assert.ok(win.includes(`${k}=${v}`), `win ${k}`); assert.ok(nix.includes(`${k}=${v}`), `nix ${k}`); }
+  // Every port the Koinos compose file publishes for the profiles the guide uses is covered.
+  const compose = fs.readFileSync(`${APP}/tests/fixtures/koinos-docker-compose.yml`, "utf8");
+  const published = [...compose.matchAll(/\$\{(\w+_PORT):-\d+\}/g)].map((m) => m[1]);
+  for (const k of ["AMQP_PORT", "AMQP_ADMIN_PORT", "P2P_PORT", "JSONRPC_PORT"]) assert.ok(published.includes(k), k);
+  assert.match(html, /"port is already allocated" \(8080, 8888, 5672 or 15672\)/);
 });

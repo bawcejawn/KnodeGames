@@ -301,6 +301,23 @@ echo "COMPOSE_PROFILES=block_producer,jsonrpc" &gt;&gt; .env
 sed -i.bak 's|^  # producer:.*$|  producer: <span class="rn-addr">YOUR_PRODUCER_ADDRESS</span>|' config/config.yml
 grep "^  producer:" config/config.yml</code></pre>
       </div>
+      <h3 class="rn-sub">Only if this computer already runs another Koinos node</h3>
+      <p>Two nodes can't share the same network ports. Skip this box if this is your first node. Otherwise run it right after 3b (and again after 3b whenever you update): it gives this node its own ports. Then use <code>8110</code> wherever this page says <code>8080</code> (the check in 5b, and <code>-Rpc http://127.0.0.1:8110</code> / <code>--rpc=http://127.0.0.1:8110</code> for self-heal in step 8).</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+Add-Content .env "JSONRPC_PORT=8110"
+Add-Content .env "P2P_PORT=8918"
+Add-Content .env "AMQP_PORT=5702"
+Add-Content .env "AMQP_ADMIN_PORT=15702"
+Select-String -Path .env -Pattern '_PORT='</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+printf 'JSONRPC_PORT=8110\nP2P_PORT=8918\nAMQP_PORT=5702\nAMQP_ADMIN_PORT=15702\n' &gt;&gt; .env
+grep '_PORT=' .env</code></pre>
+      </div>
       <h3 class="rn-sub">3c. Keep the node's data in a Docker volume</h3>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
@@ -534,7 +551,7 @@ else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi
         <ul>
           <li>5b: "Unable to connect" or "Connection refused": the node is still starting. Wait 2 minutes and try again.</li>
           <li>Behind by stays the same (or grows) across two checks 15 minutes apart: your node is stuck. Restart it: <code>docker compose down</code> then <code>docker compose up -d</code> (in the <code>koinos</code> folder), and check again in 15 minutes.</li>
-          <li>5a: "port is already allocated" (8080 or 8888): another program uses that port. Pick free ones: add <code>JSONRPC_PORT=8090</code> and/or <code>P2P_PORT=8898</code> on new lines at the end of the <code>.env</code> file in the <code>koinos</code> folder, run 5a again, and use <code>8090</code> instead of <code>8080</code> in 5b. An update (step 10) rewrites <code>.env</code>, so add those lines again after updating.</li>
+          <li>5a: "port is already allocated" (8080, 8888, 5672 or 15672): another program, or another Koinos node, uses that port. Do the box "Only if this computer already runs another Koinos node" in step 3, then run 5a again and use <code>8110</code> instead of <code>8080</code> in 5b. An update (step 10) rewrites <code>.env</code>, so run that box again after updating.</li>
           <li>5a: "external volume koinos-data not found": run <code>docker volume create koinos-data</code>, then do step 4d again before starting.</li>
           <li>Mac: "platform (linux/amd64) does not match": turn on the Rosetta setting from step 2, restart Docker, and run 5a again.</li>
         </ul>
@@ -640,7 +657,7 @@ powershell -ExecutionPolicy Bypass -File C:\koinos-node\heal-one-node.ps1 -Insta
 python3 heal-one-node.py --dry-run
 python3 heal-one-node.py --install</code></pre>
       </div>
-      <p class="muted">You should see a line like <code>OK: height …, network …</code> from the try, then "OK … is set up". It never starts a node you stopped yourself with this page's stop box (it reminds you every few hours instead), and the repair, stop and update boxes pause it while they work. If you only press Stop in Docker Desktop, it starts the node again after about 40 minutes, so use the stop box in step 10 to keep it stopped. On Windows it shows a notification when it acts; on a Mac or Linux a notification may not appear, so look at <code>heal.log</code> in your <code>koinos-node</code> folder. To switch it off, run the same file with <code>-Uninstall</code> (Windows) or <code>--uninstall</code> (Mac/Linux). To update it when this page shows a new fingerprint, do the two boxes above again. Moved your node to another port in step 5? Add <code>-Rpc http://127.0.0.1:8090</code> (Windows) or <code>--rpc=http://127.0.0.1:8090</code> (Mac/Linux) to both lines.</p>
+      <p class="muted">You should see a line like <code>OK: height …, network …</code> from the try, then "OK … is set up". It never starts a node you stopped yourself with this page's stop box (it stays paused until you start the node again with step 5a), and the repair, stop and update boxes pause it while they work. If you only press Stop in Docker Desktop, it starts the node again after about 40 minutes, so use the stop box in step 10 to keep it stopped. On Windows it shows a notification when it acts; on a Mac or Linux a notification may not appear, so look at <code>heal.log</code> in your <code>koinos-node</code> folder. To switch it off, run the same file with <code>-Uninstall</code> (Windows) or <code>--uninstall</code> (Mac/Linux). To update it when this page shows a new fingerprint, do the two boxes above again. Moved your node to another port in step 5? Add <code>-Rpc http://127.0.0.1:8090</code> (Windows) or <code>--rpc=http://127.0.0.1:8090</code> (Mac/Linux) to both lines.</p>
       <h3 class="rn-sub">Once a week (1 minute)</h3>
       <ul class="rn-list">
         <li>Run the check from step 5b: Behind by should be under 10.</li>

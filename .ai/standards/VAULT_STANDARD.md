@@ -2,7 +2,7 @@
 
 > **Purpose:** what must always be true about how Knode Games holds, accounts for and pays out staked VHP. **Funds safety comes first: when in doubt, don't move funds** (D-003, D-016).
 > **Applies to:** the vault contract, the bot's vault code, and every game that sends results to the vault.
-> **Last updated:** 2026-11-03 (games 2 and 7 announced; every results file fills free winners; D-081 / D-082)
+> **Last updated:** 5 Nov 2026 (status sync: v6.1 in PR #114; sponsor numbers point to `SPONSOR.md`; timing points to `WEEK_CYCLE.md`; the Race's hold after D-125 / #133; game 1 on these rules from v6.1's rule week, Mon 16 Nov, D-116, D-130). Merge once v6.1 is live.
 > **Built from:** `platform/DECISIONS.md` (D-xxx), the Vault, Race, Survivor, Bracket, Golf, Last Node and Combo chats, and the repo. How the contract works in detail: `platform/ARCHITECTURE.md` → Vault v6. Tokens and keys: `TOKEN_STANDARD.md`.
 
 **Words:** **must** = required · **should** = expected · ✅ verified in the repo · ❓ = not yet decided
@@ -10,9 +10,9 @@
 ## 1. The vault today
 | Item | Value |
 |------|-------|
-| Contract | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` — the game contract, upgraded in place to Vault v6 on 2 Nov ✅ |
-| Builds | live `eed38f7c…`; emergency withdrawals-only `e84fec49…` ✅ |
-| Games | game 1 (Daily Questions) built in; results sources for 2, 3, 4, 6, 7, 8, 9, 13 in `vaultGames` ✅; games **2 (Block X) and 7 (Race) announced 3 Nov**, applicable Thu 5 Nov 15:51 UTC; the rest not yet added |
+| Contract | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` — the game contract, upgraded in place to Vault v6 on 2 Nov ✅; **v6.1** (PR #114: 60 questions a week, Daily Questions on the shared rules, the bot closes weeks) next — dates in `../platform/CALENDAR.md` |
+| Builds | live `eed38f7c…`; emergency withdrawals-only `e84fec49…` ✅. v6.1: release `11043e1f…`, withdrawals-only `04c27c1a…` |
+| Games | game 1 (Daily Questions) built in; results sources for 2, 3, 4, 6, 7, 8, 9, 13 in `vaultGames` ✅; games **2 (Block X) and 7 (Race) announced 3 Nov**, applicable from Thu 5 Nov 15:51 UTC (7:51 AM PT), deadline Sun 8 Nov 4 PM PT; the rest not yet added (paused, D-113) |
 | Seed | 21,050 VHP, seed owner `1K8VV…` (D-022) |
 | Producer | the **Knode Games Pool** = the vault address, via the game node (D-073) |
 | First paying week | vault week 3 (Mon 9 Nov) for games applied Wed 4 – Sun 8 Nov (D-062, D-063) |
@@ -43,11 +43,11 @@
 
 ## 5. Mana sponsorship of vault calls
 - The sponsor pays **stake, withdraw and claim**, never **`move_stake`** (D-027; the on-chain gap is I-021).
-- Caps: 1 Mana per transaction, 25 a day and 150 a week per wallet, 5,000 a day for everyone, 2,000 a day for free players; the wallet holds 25,000 KOIN (D-028, D-061).
-- Sponsor v3 refuses vault calls until its vault switch (`config.game_has_vault`) is on. **Switch it right after the first `game-add`**, passing the current caps exactly — a plain `config` resets them.
+- Caps and per-action rows: live values in `../platform/SPONSOR.md` (D-028, D-061, D-105, D-117, D-131).
+- Sponsor v3 refuses vault calls while its vault switch (`config.game_has_vault`) is off. The switch is **ON** (`SPONSOR.md` §2). Any sponsor `config` must pass the current caps exactly — a plain `config` resets them.
 
 ## 6. Results files (every game; game 1 from v6.1's rule week, D-116)
-**Game 1 (Daily Questions):** from the v6.1 rule week (`get_state` → `config.q60_rule_week_plus_one`; Mon 16 Nov with an upload on Thu 12) it is paid from `games-data:questions/vault/W<week>.json` and `board.json` like every game: no settle step, no 40/60 baskets. Its rows also need **at least 2 answers that week and no more points than answers** (the contract refuses otherwise; the recorder applies the full rule: at least 2 counted answers and at least 1 point; free winners never staked that week). More than 10 tied for a free place: the 10 with the earliest first answer that week share it (D-034's shared rule). Weeks before the rule week keep the old path (settle, `finalize_week`, `claim`), and their rewards stay claimable.
+**Game 1 (Daily Questions):** from the v6.1 rule week (`get_state` → `config.q60_rule_week_plus_one`; Mon 16 Nov with the upload on Mon 9, D-130) it is paid from `games-data:questions/vault/W<week>.json` and `board.json` like every game: no settle step, no 40/60 baskets. Its rows also need **at least 2 answers that week and no more points than answers** (the contract refuses otherwise; the recorder applies the full rule: at least 2 counted answers and at least 1 point; free winners never staked that week). More than 10 tied for a free place: the 10 with the earliest first answer that week share it (D-034's shared rule). Weeks before the rule week keep the old path (settle, `finalize_week`, `claim`), and their rewards stay claimable.
 
 **Where:** the game's source in `game-data/deployment.json` → `vaultGames` (`<branch>:<folder>`), file `W<week>.json` with an unpadded vault week ✅ (`bot/vault.ts` reads `origin/<branch>:<folder>/W<week>.json`).
 
@@ -69,12 +69,12 @@
 - **fail closed** — no final file if the ABI or contract is missing, `get_state` is empty, any stake read fails, or the two nodes disagree; a read failure is never "not staked" (V4);
 - pass the publish job's checks: right game id, ordered rows with points 1–255, ≤ 10 per free place, no wallet twice, canonical bytes, ≤ 2 MB, no nested folders; a failing vault file is held on its own while the game's other files still publish.
 
-**The Race's own hold:** the Race doesn't publish HOLD/RELEASE files. Its recorder keeps a final file pending for 12 hours after the week and until the same file was seen on two runs ≥ 1 hour apart, and the owner can hold weeks with `RACE_HOLD_WEEKS` (I-034, PR #85). The vault bot can't see that owner hold; it sees only that no final file exists yet.
+**The Race's own hold:** the Race doesn't publish HOLD/RELEASE files. Its recorder keeps the week pending through the review day (`WEEK_CYCLE.md`, D-125) and until the same file was seen on two runs ≥ 1 hour apart, re-scores the week from the chain, and the owner can hold weeks with `RACE_HOLD_WEEKS` (I-034, PR #85, PR #133). A held week fails the run and emails (D-107). The vault bot can't see that owner hold; it sees only that no final file exists yet.
 
 **Holds:** a game may publish `HOLD-W<week>.json` instead of paying (Last Node watch-and-hold, released by `LASTNODE_RELEASE_WEEKS`, D-055). Forged or unverified cards, or a stake disagreement, block that week's file (Combo).
 
 **Before any game pays from its file:**
-- the final file must not hinge on a single run with no hold (I-034);
+- the final file must not hinge on a single run with no hold (I-034; done for the Race, #85 / #133);
 - the vault recomputes what it can from the chain, since `games-data` files can't prove their own days or stake lists (I-051);
 - the vault bot honours HOLD files, verifies that every staked board player is in the file, and alerts on a refused prize post (I-052, I-064).
   - **Built in PR #74 (merged 4 Nov after Repo Lens #D-4 GO):**
@@ -94,7 +94,8 @@
 ## 7. Timing
 - A game applied in week W earns from W + 1; results are posted for registered games only, for weeks they earn (`from_week <= w`) ✅.
 - Results are due 3/7 of a week after the week ends; finalizing starts after `seal + 2 × close_delay` and `last_change + close_delay`; corrections and voids are allowed for 24 h after each seal and refused once finalizing starts.
-- **The weekly rhythm (D-125):** games play Mon 00:00 → Sat 24:00 UTC and review on Sunday; results files go final from Mon 00:00 UTC. The bot (hourly at :07, 30-min two-read check) posts and seals ~1–2 h later; finalizing is allowed 24 h after the seal, so claims open from about **Tue ~02:00–04:00 UTC (Mon 6–8 PM PST)**. No contract change: the vault week stays Monday to Monday. Game 1 (Daily Questions) keeps its own timing (claims from about Tue 12:00–15:00 UTC, Tue 4–7 AM PST, later if Saturday's questions resolve on Monday). Sunday fun rounds (D-129) never reach a vault results file.
+- **The weekly rhythm (D-125, D-129)** — play days, the review day, when files go final and when claims open — has one home: `WEEK_CYCLE.md`. No contract change: the vault week stays Monday to Monday. Sunday fun rounds never reach a vault results file. Game 1 (Daily Questions) keeps its own timing until v6.1's rule week (Mon 16 Nov), then the shared rhythm (D-116).
+- **v6.1 (D-127):** no player action closes or finalizes a week; the bot's hourly `close_week` / `finalize_week` do.
 
 ## 8. Admin powers
 | Action | Who | Safeguards |
@@ -115,7 +116,7 @@
 - [ ] Page shows the badge and stake panel (D-031)
 - [ ] `game-add` with `--staked --free --season N` (every game, D-082)
 - [ ] Free-prize switch set (D-082): **off** for games without a free prize yet — before the game's first week
-- [ ] Sponsor vault switch on (first game only), caps passed exactly
+- [x] Sponsor vault switch on (done; any `config` passes the caps exactly)
 - [ ] `game-apply` 48 h later, within 7 days
 - [ ] First week's file checked final and sensible
 

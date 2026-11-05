@@ -42,3 +42,15 @@ would read one waits ("not yet … from block N"). A node that can't answer a re
 the next run tries again. If a run fails the same way hour after hour (a red error each hour), or a day can't be rolled
 up ("over the … byte limit"), that needs a look: send the error to the VHP Ruler chat. A day that can't be rolled up
 keeps its hour files, and retention doesn't remove them, until that is handled.
+
+## v2.1 (R-RULER-2, branch `vhp-ruler-v21`; not on main, nothing pays on it)
+Built from `.ai/standards/VHP_RULER.md` §16, both languages byte for byte (`RULE_VERSION` 3):
+- **`pct(λ, x)`** (Fix A): the mid-p Poisson percentile of credited blocks against expected blocks, in millionths, exact
+  integer arithmetic. Scored cards carry `pct` per producer.
+- **`minK`, `poolRule`** (Fix B as settings): the entry bar in whole blocks (10 as approved) and the pool rule (`min` as
+  §3.2, `twa` the pooled producer's eff at every block). Both are card fields and required game settings in `recompute`.
+- **`rateOf`** (D-120): a steady producer's 14-day rate (every daily rate within ±0.15); expected = k × rate; its credited
+  blocks stop at expected × 1.15 (the steering cap).
+- Simulations: `sims/ruler/v21.mjs` (Fix A, the A′ proposal and Fix B side by side) and `sims/ruler/sim11.mjs`. Results
+  and the open design questions: the project doc `claude/ruler/V21-SIM-REPORT.md` (D-120 can't pass sim 8; Fix A fails
+  network-wide jumps; A′ with the 0.80 gate is the candidate).

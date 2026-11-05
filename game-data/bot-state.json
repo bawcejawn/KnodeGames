@@ -1,9 +1,9 @@
 {
-  "checkedUpTo": 70,
+  "checkedUpTo": 75,
   "orphans": [],
   "lastCompound": 40777559,
   "warnings": [],
-  "lastProduced": 40780525,
+  "lastProduced": 40802756,
   "producedByDay": {
     "1408": 52,
     "1409": 61,
@@ -12,45 +12,25 @@
     "1412": 47,
     "1413": 46,
     "1414": 66,
-    "1415": 40
+    "1415": 40,
+    "1416": 49
   },
-  "producerScannedTo": 40781166,
+  "producerScannedTo": 40802839,
   "settings": "{\"min_stake\":\"100000000\",\"min_stake_next\":\"0\",\"min_stake_next_week\":\"0\",\"max_sponsor_rc\":\"0\",\"min_sponsor_rc\":\"0\",\"paused\":false}",
-  "sealedAt": 40781162,
+  "sealedAt": 40802837,
   "desk": {
     "settings": "{\"fee_bps\":300,\"min_swap\":\"100000000\",\"max_swap\":\"0\",\"paused\":false,\"timelock\":\"172800000\"}",
-    "koin": "183627274645",
+    "koin": "198062875340",
     "koinOut": "291097000000",
-    "at": 1793771694780
+    "at": 1793838508020
   },
   "deskProducerKey": "AzCYCDLDa49PPVHKk60xQbOErS6XY1TcEA8bkSo8Sk6E",
   "notified": [
-    "settings:{\"min_stake\":\"100000000\",\"min_stake_next\":\"0\",\"min_stake_next_week\":\"0\",\"max_sponsor_rc\":\"0\",\"min_sponsor_rc\":\"0\",\"paused\":false}",
+    "upgrade:0x399171a28956ee236d6b41b5779bcda4e2fe18cdc5560ccbfc380c9cf3d9fced:1793950974690",
     "game-proposal:2:1793893887510",
     "game-proposal:7:1793893894960"
   ],
-  "vhpLists": {
-    "127c2149d7910a07e3073b5f6480e5814f533ef76de4aec10583097a041abb4c": {
-      "n": 5,
-      "last": 40781223
-    },
-    "de1fdd9e4b991eafe458e2dd9d760b416fe04a252ea68a93007f61e10c48a110": {
-      "n": 5,
-      "last": 40781223
-    },
-    "18ce6655e1f7892658a545a61b245c84cd180ed7aed6eece339bc2a256ae91d4": {
-      "n": 5,
-      "last": 40781223
-    },
-    "0637dab2f133bcdc942719a3425eeb58187d2b89d1633155bf16a7f6e52851d7": {
-      "n": 5,
-      "last": 40781223
-    },
-    "d29adda5f93a82d1023b1715c925bb5336610b222ee7cdba5f80eb0d0871911b": {
-      "n": 5,
-      "last": 40781223
-    }
-  },
+  "vhpLists": {},
   "manaByDay": {
     "2026-10-28": "114631106",
     "2026-10-29": "552457362",
@@ -59,9 +39,9 @@
     "2026-11-01": "189598934",
     "2026-11-02": "367677189",
     "2026-11-03": "492989686",
-    "2026-11-04": "114716045"
+    "2026-11-04": "529760643"
   },
   "games": "[[1,true,true,true,0,0,0]]",
   "vault": {},
-  "seal": "1025470fe3857ae09a9c6c3bb78439c37e7d90b6b734bf0abb087f5c4e938d94"
+  "seal": "38ca2bc1247419781bb11678a27374337e9e0b29fe327cc495663fb931bdfcbf"
 }

@@ -265,6 +265,9 @@ type Opts = {
   vaultHold?: false | { afterEnd: number; stable: number };
   /** Vault weeks the owner holds by hand (default: the RACE_HOLD_WEEKS variable). */
   holdWeeks?: number[];
+  /** D-125: the first vault week on the weekly rhythm (no Sunday races; Sunday review; final from Monday 00:00 UTC).
+   *  Default M.RHYTHM_FROM_WEEK (3); the tests pass their own. */
+  rhythmFrom?: number;
 };
 
 // ── the picks contract and the game (read only) ──
@@ -359,12 +362,14 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
   return min > 0n && peak >= min;
 }
 /** One run. Exported for the tests, which pass fake nodes. */
-export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks }: Opts) {
+export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks, rhythmFrom }: Opts) {
+  rhythmFromWeek = rhythmFrom ?? M.RHYTHM_FROM_WEEK;
   vaultRefused = null;
+  heldAlerts = [];
   prizesFromWeek = prizesFrom ?? PRIZES_FROM_WEEK;
   hold = vaultHold === undefined ? { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS } : vaultHold;
   holdSetting = holdWeeks ? { weeks: holdWeeks, bad: false, raw: holdWeeks.join(",") } : parseHoldWeeks(E.RACE_HOLD_WEEKS);
-  pendingOut = null;
+  pendingOut = null; pendingNew = false; chainCtx = null;
   if (prev !== undefined) PREV = prev;
   if (out !== undefined) OUT = out;
   // Cards: effective VHP (audit BX-3 b). Who is ranked is the vault stake (stakedOf), not a VHP balance.
@@ -390,6 +395,8 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   for (const s of [curLeg, nextLeg]) {
     if (s === nextLeg && s - now > CARD_AHEAD) continue;
     const ra = M.raceAt(s), race = raceById(ra.id);
+    // D-125 + Repo Lens #C-7 C7-2: cards are still taken on Sunday. They score nothing in the Race, but Block X scores
+    // each target with a Race card up to 3 h after its block (and the card in force at its lock).
     if (!race) continue;
     const leg = M.legOf(ra.start, s, race.cards.length);
     if (!race.cards[leg] && !want.some((x) => x.race === race && x.leg === leg)) want.push({ race, leg });
@@ -491,50 +498,19 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   }
 
   // ── 2. results ──
+  chainCtx = { p, check, headId, libH, libT, picksRead };
   // Races before the recorder's first card were never run; only a race after it with no card at all is "missed".
   let firstCard = Infinity;
   for (const wf of weeks.values()) for (const r of wf.races) if (r.cards.some(Boolean)) firstCard = Math.min(firstCard, r.start);
   for (const wf of weeks.values()) for (const race of wf.races) {
     if (race.result?.final || race.end > libT || race.end < now - LOOKBACK) continue;
+    if (M.restRace(race.start, rhythmFromWeek)) { race.result = { final: true, missed: true, note: REST_NOTE }; continue; }
     if (!race.cards.some(Boolean)) { if (race.start > firstCard) race.result = { final: true, missed: true, note: "no handicap card was recorded for this race" }; continue; }
     try {
-      // A height safely before the race start (blocks average 3 s apart; step further back until it is before).
-      const est = Math.ceil((libT - race.start) / 3000) + 600;
-      let lo = Math.max(1, libH - est);
-      while (lo > 1 && (await blockTime(p, headId, lo)) >= race.start) lo = Math.max(1, lo - est);
-      const a = await heightAt(p, headId, race.start, lo, libH), b = (await heightAt(p, headId, race.end, a, libH)) - 1;
-      const B = await readBlocks(p, headId, a, b);
-      let checked = 1;
-      if (check) {
-        const ch: any = await withRetry("check head", () => check.getHeadInfo());
-        const C = await readBlocks(check, ch.head_topology.id, a, b);
-        const same = C.ts.length === B.ts.length && C.ts.every((t, i) => t === B.ts[i] && C.signers[C.sig[i]] === B.signers[B.sig[i]]);
-        if (!same) { problems.push(`${race.id}: the two nodes disagree about the race's blocks; not final this run`); continue; }
-        checked = 2;
-      }
-      const st = M.standings(B, race, race.cards);
-      const winner = M.winners(st)[0] || null, showSet = new Set<string>(M.shows(st));
-      // The picks (locked by the chain since the race started), read on both nodes like the blocks.
-      let picks: any[] | undefined;
-      if (picksRead) {
-        const raceNo = M.raceIndex(race.start);
-        const mine = await picksRead(p, raceNo);
-        if (check) {
-          const theirs = await picksRead(check, raceNo);
-          const key = (x: Pick[]) => JSON.stringify([...x].sort((u, v) => (u[0] < v[0] ? -1 : 1)));
-          if (key(mine) !== key(theirs)) { problems.push(`${race.id}: the two nodes disagree about the race's picks; not final this run`); continue; }
-        }
-        // [player, horse, time, won (1/0), 0, show: 2nd or 3rd (1/0)]. The 5th field was "may be ranked" (1 VHP or a
-        // question-game stake) until 2026-10-28; the Staked / Free play split now comes from the vault, so it is no longer
-        // read (a race's result depends only on its blocks and picks) and is always 0.
-        picks = mine.map(([who, horse, at]) => [who, horse, at, horse === winner ? 1 : 0, 0, horse !== winner && showSet.has(horse) ? 1 : 0]);
-      }
-      race.result = {
-        final: true, checked, heights: [a, b], blocks: B.ts.length, line: M.finishLine(race.cards),
-        winner, standings: st.map((x: any) => ({ a: x.a, steps: x.steps, blocks: x.blocks })),
-        ...(picks ? { picks } : {}),
-      };
-      console.log(`${race.id}: final, winner ${race.result.winner} (${st[0]?.steps} steps), blocks ${a}-${b}, checked on ${checked} node(s)`);
+      const r = await scoreRace(race, chainCtx);
+      if (!r.ok) { problems.push(`${race.id}: ${r.why}; not final this run`); continue; }
+      race.result = r.result;
+      console.log(`${race.id}: final, winner ${race.result.winner} (${race.result.standings[0]?.steps} steps), blocks ${race.result.heights[0]}-${race.result.heights[1]}, checked on ${race.result.checked} node(s)`);
     } catch (e) { problems.push(`${race.id}: ${(e as Error).message} (tried again next run)`); }
     await sleep(200);
   }
@@ -554,13 +530,102 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   }
   fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((x, y) => x - y) }) + "\n");
   if (board) fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
+  // #85 merge check L-1: a NEW pending file is dated at the end of the run (the head block's time now), not its start,
+  // so a slow run (stake reads with retries) still fits the publish job's 35-minute window. Later is only ever safer:
+  // the hour's wait counts from this time. If the head can't be read, the start-of-run time stays.
+  if (pendingOut && pendingNew) {
+    try { const h: any = await p.getHeadInfo(); const t = Number(h?.head_block_time); if (Number.isSafeInteger(t) && t > pendingOut.at) pendingOut.at = t; } catch { /* keep the start time */ }
+  }
   if (vault || pendingOut) fs.mkdirSync(path.join(OUT, "vault"), { recursive: true });
   if (vault) fs.writeFileSync(path.join(OUT, "vault", `W${vault.week}.json`), JSON.stringify(vault) + "\n");
   if (pendingOut) fs.writeFileSync(path.join(OUT, "vault", `PENDING-W${pendingOut.week}.json`), JSON.stringify(pendingOut) + "\n");
   const hn = holdNote(holdSetting);
   if (hn) problems.unshift(hn);
-  for (const pr of problems) console.log(`::warning::${pr}`);
-  return { problems };
+  for (const pr of problems) console.log(`::warning::${cmdText(pr)}`);
+  // D-107 (R-RACE-13, I-087): a held paid week fails the run AFTER publishing (the alert job), so GitHub emails the
+  // owner. The recorder only says so; the workflow's last job does the failing.
+  for (const a of heldAlerts) console.log(`::error::${cmdText(a)}`);
+  if (heldAlerts.length && E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, "held=true\n");
+  // Repo Lens #E-11 L-2: tell the publish job files were written, so a lost hand-over between the jobs fails the run.
+  if (E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, "files=true\n");
+  return { problems, held: heldAlerts.slice() };
+}
+
+// ── one race's result from the chain (used to record it, and again before a paid week goes final: Repo Lens #E-11 H-1) ──
+type ChainCtx = { p: any; check: any | null; headId: string; libH: number; libT: number; picksRead: ((node: any, r: number) => Promise<Pick[]>) | null };
+let chainCtx: ChainCtx | null = null;
+/** Reads a finished race's blocks (and picks) on both nodes and scores it. `ok: false` with the reason when the two
+ *  nodes disagree; throws on a read failure. */
+async function scoreRace(race: Race, c: ChainCtx, hint?: [number, number]): Promise<{ ok: true; result: any } | { ok: false; why: string }> {
+  const { p, check, headId, libH, libT, picksRead } = c;
+  // Repo Lens #C-7 C7-1: a stored result's heights [a, b] are confirmed with 4 block reads (the block before a is
+  // before the start, a is at or after it; b is before the end, b + 1 at or after it). Only if that fails: the search.
+  let a = -1, b = -1;
+  if (hint && Number.isSafeInteger(hint[0]) && Number.isSafeInteger(hint[1]) && hint[0] > 1 && hint[1] >= hint[0] && hint[1] + 1 <= libH) {
+    const [ha, hb] = hint;
+    if ((await blockTime(p, headId, ha - 1)) < race.start && (await blockTime(p, headId, ha)) >= race.start
+      && (await blockTime(p, headId, hb)) < race.end && (await blockTime(p, headId, hb + 1)) >= race.end) { a = ha; b = hb; }
+  }
+  if (a < 0) {
+    // A height safely before the race start (blocks average 3 s apart; step further back until it is before).
+    const est = Math.ceil((libT - race.start) / 3000) + 600;
+    let lo = Math.max(1, libH - est);
+    while (lo > 1 && (await blockTime(p, headId, lo)) >= race.start) lo = Math.max(1, lo - est);
+    a = await heightAt(p, headId, race.start, lo, libH); b = (await heightAt(p, headId, race.end, a, libH)) - 1;
+  }
+  const B = await readBlocks(p, headId, a, b);
+  let checked = 1;
+  if (check) {
+    const ch: any = await withRetry("check head", () => check.getHeadInfo());
+    const C = await readBlocks(check, ch.head_topology.id, a, b);
+    const same = C.ts.length === B.ts.length && C.ts.every((t, i) => t === B.ts[i] && C.signers[C.sig[i]] === B.signers[B.sig[i]]);
+    if (!same) return { ok: false, why: "the two nodes disagree about the race's blocks" };
+    checked = 2;
+  }
+  const st = M.standings(B, race, race.cards);
+  const winner = M.winners(st)[0] || null, showSet = new Set<string>(M.shows(st));
+  // The picks (locked by the chain since the race started), read on both nodes like the blocks.
+  let picks: any[] | undefined;
+  if (picksRead) {
+    const raceNo = M.raceIndex(race.start);
+    const mine = await picksRead(p, raceNo);
+    if (check) {
+      const theirs = await picksRead(check, raceNo);
+      const key = (x: Pick[]) => JSON.stringify([...x].sort((u, v) => (u[0] < v[0] ? -1 : 1)));
+      if (key(mine) !== key(theirs)) return { ok: false, why: "the two nodes disagree about the race's picks" };
+    }
+    // [player, horse, time, won (1/0), 0, show: 2nd or 3rd (1/0)]. The 5th field was "may be ranked" (1 VHP or a
+    // question-game stake) until 2026-10-28; the Staked / Free play split now comes from the vault, so it is no longer
+    // read (a race's result depends only on its blocks and picks) and is always 0.
+    picks = mine.map(([who, horse, at]) => [who, horse, at, horse === winner ? 1 : 0, 0, horse !== winner && showSet.has(horse) ? 1 : 0]);
+  }
+  return { ok: true, result: {
+    final: true, checked, heights: [a, b], blocks: B.ts.length, line: M.finishLine(race.cards),
+    winner, standings: st.map((x: any) => ({ a: x.a, steps: x.steps, blocks: x.blocks })),
+    ...(picks ? { picks } : {}),
+  } };
+}
+/** A stored result as the chain decides it: everything but how many nodes checked it. */
+const resultKey = (r: any) => { const { checked, ...rest } = r || {}; return JSON.stringify(rest); };
+/** Repo Lens #E-11 H-1 (b): before a paid week's vault file goes final, every final race of the week is scored again
+ *  from the chain on both nodes and must equal the stored result. Returns "" when all agree, otherwise why not. A
+ *  read failure throws (the caller waits: not final this run). */
+/** Repo Lens #C-7 C7-1: how long one re-check of a week may take inside the 30-minute record job. Running out is "not
+ *  checked yet" (the week waits, and alerts once it's late), never a mismatch. */
+export const VERIFY_BUDGET_MS = 10 * 60000;
+export async function verifyWeek(wf: WeekFile, c: ChainCtx | null, budgetMs = VERIFY_BUDGET_MS, clock: () => number = Date.now): Promise<string> {
+  if (!c) return "the chain isn't available to check the week's races";
+  const stop = clock() + budgetMs;
+  for (const race of wf.races) {
+    if (!race.result?.final || race.result.missed) continue;
+    if (clock() > stop) throw new Error(`not checked yet: the re-check ran past its ${Math.round(budgetMs / 60000)}-minute budget (tried again next run)`);
+    const h = race.result.heights;
+    const r = await scoreRace(race, c, Array.isArray(h) && h.length === 2 ? [Number(h[0]), Number(h[1])] : undefined);
+    if (!r.ok) return `${race.id}: ${r.why} when checking the week again`;
+    if (resultKey(r.result) !== resultKey(race.result)) return `${race.id}: its stored result isn't what the chain says now (picks or standings differ)`;
+    await sleep(100);
+  }
+  return "";
 }
 
 // ── leaderboards ──
@@ -629,14 +694,17 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
   };
   const pub = (rows: Row[]) => rows.map(({ earning, ...r }) => r);   // board.json rows: the published fields only
   const lastRows = wNow > 0 ? await build(M.weekStart(wNow - 1), M.weekStart(wNow), wNow - 1, true) : [];
+  const weekRows = await build(M.weekStart(wNow), M.weekStart(wNow + 1), wNow, true);
   const board = {
     v: 1, updated: new Date(now).toISOString(),
     today: { day: M.dayOf(now), rows: pub(await build(day0, day0 + M.DAY, wNow)) },
-    week: { week: wNow, start: M.weekStart(wNow), rows: pub(await build(M.weekStart(wNow), M.weekStart(wNow + 1), wNow, true)) },
+    week: { week: wNow, start: M.weekStart(wNow), rows: pub(weekRows) },
     lastWeek: wNow > 0 ? { week: wNow - 1, start: M.weekStart(wNow - 1), rows: pub(lastRows) } : null,
     allTime: { rows: pub(await build(0, Infinity, wNow)) },
   };
-  return { board, vault: await vaultResults(all, wNow - 1, now, lastRows, failed, problems, stakedCheck) };
+  // D-125: on the review day (Sunday UTC) the vault file is this week's, published as pending; from Monday, last week's.
+  const review = reviewing(wNow, now);
+  return { board, vault: await vaultResults(all, review ? wNow : wNow - 1, now, review ? weekRows : lastRows, failed, problems, stakedCheck) };
 }
 
 // ── the KnodeGames Vault's results file (Vault v6 hand-offs, 2026-10-28) ──
@@ -645,7 +713,7 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
 export const VAULT_GAME = 7;
 /** The first vault week the Race earns in (owner, 2026-11-02: game 7 is applied in the vault and earns from week 3, Mon
  *  9 Nov 2026). Earlier weeks: no free-prize places, no staked rows and no medals (the vault skips them anyway). */
-export const PRIZES_FROM_WEEK = 3;
+export const PRIZES_FROM_WEEK = 3;   // also PRIZES_FROM in race.yml's publish check (Repo Lens #E-11 I-2): change both together
 let prizesFromWeek = PRIZES_FROM_WEEK;
 export const MAX_PRIZE_WINNERS = 10;
 export const MAX_ROW_POINTS = 255;
@@ -742,16 +810,23 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   const old = readPrev(`vault/W${w}.json`);
   if (old && old.final === true && old.game === VAULT_GAME && old.week === w) return old;
   const wf = all.get(w);
-  // No week file, or one with nothing recorded (e.g. the last run's files couldn't be read): write nothing.
-  if (!wf || !wf.races.some((r) => r.cards.some(Boolean) || r.result)) return null;
+  // No week file, or one with nothing recorded (e.g. the last run's files couldn't be read): write nothing. Repo Lens
+  // #E-11 L-1: for a paid week that's late, say so (it would otherwise roll over without a word).
+  if (!wf || !wf.races.some((r) => r.cards.some(Boolean) || r.result)) {
+    const end = M.weekStart(w + 1);
+    lateAlert(w, end, now, "nothing was recorded for that week (no race file, or no card and no result in it)");
+    return null;
+  }
   let firstCard = Infinity;
   for (const x of all.values()) for (const r of x.races) if (r.cards.some(Boolean)) firstCard = Math.min(firstCard, r.start);
-  const open = wf.races.filter((r) => !r.result?.final && !(r.start < firstCard && !r.cards.some(Boolean)));
-  const late = now >= wf.end + VAULT_SKIP_AFTER;
+  // D-125: a Sunday race on the rhythm scores nothing, so it never keeps the week open (the review day can start at
+  // Sunday 00:00 UTC, before those races' times have passed).
+  const open = wf.races.filter((r) => !r.result?.final && !M.restRace(r.start, rhythmFromWeek) && !(r.start < firstCard && !r.cards.some(Boolean)));
+  const late = now >= wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER);   // D-125: the review day comes first
   const unread = rows.filter((r) => failed.has(`stake:${r.a}|${w}`));
   const file: VaultFile = { game: VAULT_GAME, week: w, final: false, rows: [], first: [], second: [], skipped: [] };
-  const wait = (why: string) => { problems.push(`vault week ${w}: not final yet, ${why}`); return file; };
-  if (open.length && !late) return wait(`${open.length} race(s) still being checked (${open.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + VAULT_SKIP_AFTER).toISOString()}`);
+  const wait = (why: string) => { problems.push(`vault week ${w}: not final yet, ${why}`); lateAlert(w, wf.end, now, why); return file; };
+  if (open.length && !late) return wait(`${open.length} race(s) still being checked (${open.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
   if (unread.length) return wait(`${unread.length} Race stake(s) could not be read (tried again next run)`);
   if (stakedCheck) {
     for (const r of rows) {
@@ -766,21 +841,34 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
     const t = Number(x[2]); if (!firstPick.has(x[0]) || t < firstPick.get(x[0])!) firstPick.set(x[0], t);
   }
   // Before the Race earns in the vault: a final file with nothing to pay (the vault skips those weeks anyway).
-  if (w < prizesFromWeek) return settle({ ...file, final: true, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
+  if (w < prizesFromWeek) return await settle({ ...file, final: true, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
   const places = prizePlaces(rows, firstPick), staked = stakedRows(rows);
   for (const n of [...places.notes, ...staked.notes]) problems.push(`vault week ${w}: ${n}`);
-  return settle({ ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
+  return await settle({ ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
 }
 
 // ── the hold before a vault file goes final (I-034, R-RACE-1; owner 2026-11-03: 12 hours, then two matching runs) ──
 /** How long after its week ends a vault file is held before it can go final. */
-export const VAULT_HOLD_MS = 12 * M.HOUR;
+export const VAULT_HOLD_MS = 12 * M.HOUR;   // weeks before the rhythm (D-125) only
+// ── D-125: the weekly rhythm (owner, 4 Nov): races Mon–Sat; Sunday UTC is the review day; final from Monday 00:00 UTC ──
+let rhythmFromWeek = M.RHYTHM_FROM_WEEK;
+/** Is week w on the weekly rhythm? */
+const onRhythm = (w: number) => w >= rhythmFromWeek;
+/** The review day for week w: Sunday 00:00 → Monday 00:00 UTC, the 24 h after its last race. */
+const reviewing = (w: number, now: number) => onRhythm(w) && now >= M.playEnd(w) && now < M.weekStart(w + 1);
+/** A Sunday race on the rhythm: recorded as not run. */
+export const REST_NOTE = "Sunday: review day, no race (D-125)";
+/** How long after the week ends (Monday 00:00 UTC) a rhythm week alerts if still not final: it normally goes final at
+ *  the 00:37 or 01:37 run, after a whole Sunday of review. */
+export const RHYTHM_ALERT_AFTER = 3 * M.HOUR;
 /** How long the pending file must stay exactly the same (across hourly runs) before it can go final. */
 export const VAULT_STABLE_MS = M.HOUR;
 type Pending = { game: number; week: number; at: number; file: VaultFile };
 let hold: false | { afterEnd: number; stable: number } = { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS };
 let holdSetting: { weeks: number[]; bad: boolean; raw: string } = { weeks: [], bad: false, raw: "" };
 let pendingOut: Pending | null = null;
+/** True when this run's pending file has new content, so its date is set again at the end of the run (#85 L-1). */
+let pendingNew = false;
 
 /** RACE_HOLD_WEEKS: "3" or "3, 4" (vault week numbers, separated by commas). Repo Lens #D-5 R85-1: fail closed. If
  *  the value is set but any part isn't a plain week number ("3 4", "W3", "3;4", "W3,4"), `bad` is true and EVERY
@@ -819,28 +907,102 @@ function newThisWeek(all: Map<number, WeekFile>, w: number, who: string[]): stri
 
 /** candidate: the file this run would make final. Publishes it as pending, and returns it as the final file only when
  *  the hold is over and the pending file the last run published is identical and at least `stable` old. Otherwise
- *  the results file stays "not final" (empty) and the vault bot waits. */
-function settle(candidate: VaultFile, weekEnd: number, now: number, problems: string[], all: Map<number, WeekFile>): VaultFile {
+ *  the results file stays "not final" (empty) and the vault bot waits.
+ *  #85 merge check I-1: "two runs at least an hour apart" holds on the hourly schedule. A run started by hand (Actions →
+ *  Run workflow) can come sooner: the publish job accepts a new pending file dated up to 35 minutes back, so the two
+ *  runs can be as little as ~25 minutes apart. It is still never one run alone. */
+async function settle(candidate: VaultFile, weekEnd: number, now: number, problems: string[], all: Map<number, WeekFile>): Promise<VaultFile> {
   if (hold === false) return candidate;
   const w = candidate.week, waiting: VaultFile = { game: VAULT_GAME, week: w, final: false, rows: [], first: [], second: [], skipped: [] };
   const prev = prevPending(w, now);
   const same = !!prev && JSON.stringify(prev.file) === JSON.stringify(candidate);
   const at = same ? prev!.at : now;           // when this exact file was first seen
   pendingOut = { game: VAULT_GAME, week: w, at, file: candidate };
+  pendingNew = !same;
   const fresh = candidate.first.concat(candidate.second);
   const flag = newThisWeek(all, w, fresh);
   const who = (xs: string[]) => (xs.length ? xs.join(", ") : "nobody");
   const summary = `1st ${who(candidate.first)}; 2nd ${who(candidate.second)}; ${candidate.rows.length} staked row(s)` +
     (flag.length ? `; first picks ever this week (check them): ${flag.join(", ")}` : "");
-  if (holdSetting.bad) { problems.push(`vault week ${w}: HELD (RACE_HOLD_WEEKS isn't a list like 3 or 3,4). Pending: ${summary}.`); return waiting; }
+  if (holdSetting.bad) {
+    problems.push(`vault week ${w}: HELD (RACE_HOLD_WEEKS isn't a list like 3 or 3,4). Pending: ${summary}.`);
+    heldAlert(w, weekEnd, now, `the repo variable RACE_HOLD_WEEKS ('${holdSetting.raw.replace(/[^0-9A-Za-z ,;]/g, "?").slice(0, 40)}') isn't a list like 3 or 3,4, so every pending week is held`, "fix RACE_HOLD_WEEKS (a week number like 3, or 3,4) or empty it");
+    return waiting;
+  }
+  if (holdSetting.weeks.includes(w)) heldAlert(w, weekEnd, now, "you are holding it (RACE_HOLD_WEEKS)", `remove ${w} from RACE_HOLD_WEEKS when you're happy with it (pending: ${summary})`);
   if (holdSetting.weeks.includes(w)) { problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`); return waiting; }
-  const readyAt = Math.max(weekEnd + hold.afterEnd, at + hold.stable);
-  if (now >= weekEnd + hold.afterEnd && same && now - at >= hold.stable) {
+  // D-125: on the rhythm the review day is before the week ends, so the week may go final from Monday 00:00 UTC.
+  const afterEnd = onRhythm(w) ? 0 : hold.afterEnd;
+  const readyAt = Math.max(weekEnd + afterEnd, at + hold.stable);
+  // D-125: during the review day, each new pending file is checked against the chain at once (an early alert).
+  if (reviewing(w, now) && pendingNew && w >= prizesFromWeek) {
+    let why = "";
+    try { why = all.get(w) ? await verifyWeek(all.get(w)!, chainCtx) : ""; }
+    catch (e) { problems.push(`vault week ${w}: review day: couldn't check the races on the chain this run (${(e as Error).message})`); }
+    if (why) {
+      problems.push(`vault week ${w}: review day: HELD, ${why}`);
+      heldAlert(w, weekEnd, now, `a race's stored result doesn't match the chain (${why})`, "tell the Race chat with this alert: a recorder run wrote a wrong race result. Don't release it by hand");
+      return waiting;
+    }
+  }
+  if (now >= weekEnd + afterEnd && same && now - at >= hold.stable) {
+    // Repo Lens #E-11 H-1 (b): a paid week goes final only once its races, scored again from the chain, match.
+    if (w >= prizesFromWeek) {
+      const wf = all.get(w);
+      let why = "";
+      try { why = wf ? await verifyWeek(wf, chainCtx) : "its week file isn't loaded"; }
+      catch (e) {
+        problems.push(`vault week ${w}: couldn't check the week's races again (${(e as Error).message}); not final this run`);
+        lateAlert(w, weekEnd, now, "the week's races couldn't be checked again on the chain");
+        return waiting;
+      }
+      if (why) {
+        problems.push(`vault week ${w}: HELD, ${why}`);
+        heldAlert(w, weekEnd, now, `a race's stored result doesn't match the chain (${why})`, "tell the Race chat with this alert: a recorder run wrote a wrong race result. Don't release it by hand");
+        return waiting;
+      }
+    }
     problems.push(`vault week ${w}: final after the hold (pending since ${new Date(at).toISOString()}). ${summary}`);
     return candidate;
   }
   problems.push(`vault week ${w}: pending (I-034 hold), final at the earliest ${new Date(readyAt).toISOString()} if nothing changes${prev && !same ? " (it changed since the last run, so the wait starts again)" : ""}. ${summary}`);
+  lateAlert(w, weekEnd, now, `its results keep changing between runs, so the 1-hour check hasn't passed (pending since ${new Date(at).toISOString()})`);
   return waiting;
+}
+
+/** Repo Lens #E-11 L-3: text inside a workflow command (::warning:: / ::error::) is escaped as GitHub does, so a node's
+ *  error text with a newline can't start a command of its own (e.g. ::stop-commands::). */
+export const cmdText = (t: string) => String(t).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+
+// ── D-107 (R-RACE-13, I-087): a held paid week alerts, and says what to do ──
+/** The vault takes a week's results for 3 days after the week ends; after that the week rolls over. */
+export const RESULTS_DUE_AFTER = 3 * M.DAY;
+/** A paid week that still isn't final this long after its week ends is "held" and alerts. Normally it goes final at
+ *  about 12:37 UTC on the Monday (the 12-hour hold, then the next run), so 15 h leaves two hourly runs of slack. */
+export const VAULT_ALERT_AFTER = 15 * M.HOUR;
+let heldAlerts: string[] = [];
+/** "Week 1" for the site's numbering (weeks.js, D-063: vault week 3 = Week 1). */
+const siteWeek = (w: number) => (w >= 3 ? `Week ${w - 2}` : `the week of ${new Date(M.weekStart(w)).toISOString().slice(0, 10)}`);
+/** One alert line: the game and week, why, the deadline, and what the owner can do, with the exact commands. */
+export function heldMessage(w: number, weekEnd: number, now: number, why: string, first?: string): string {
+  const due = weekEnd + RESULTS_DUE_AFTER, left = Math.max(0, (due - now) / M.HOUR);
+  const opts = [
+    first ?? "wait: it clears by itself once the nodes agree and the week reads the same on two runs an hour apart",
+    `hold it longer while you check: GitHub → Settings → Secrets and variables → Actions → Variables → RACE_HOLD_WEEKS = ${w}`,
+    `give up on the week (its bucket stays in the Race for next week, its free prize goes back to the pool): npm run bot -- game-void 7 ${w} (dry run), then the same with --send`,
+  ];
+  return `Producer Race vault week ${w} (${siteWeek(w)}) is HELD: ${why}. Results are due ${new Date(due).toISOString().replace("T", " ").slice(0, 16)} UTC ` +
+    `(${left.toFixed(0)} h left); after that the week rolls over. What you can do: ${opts.map((o, i) => `(${i + 1}) ${o}`).join("; ")}. More: .ai/platform/RUNBOOK.md §3.`;
+}
+/** Only paid weeks, only before the deadline (after it the week has rolled over and there is nothing left to do). */
+export const alertsFor = (w: number, weekEnd: number, now: number, paidFrom: number) => w >= paidFrom && now < weekEnd + RESULTS_DUE_AFTER;
+function heldAlert(w: number, weekEnd: number, now: number, why: string, first?: string) {
+  if (!alertsFor(w, weekEnd, now, prizesFromWeek)) return;
+  const m = heldMessage(w, weekEnd, now, why, first);
+  if (!heldAlerts.includes(m)) heldAlerts.push(m);
+}
+function lateAlert(w: number, weekEnd: number, now: number, why: string) {
+  if (now >= weekEnd + (onRhythm(w) ? RHYTHM_ALERT_AFTER : VAULT_ALERT_AFTER)) heldAlert(w, weekEnd, now, `still not final ${((now - weekEnd) / M.HOUR).toFixed(0)} h after the week ended: ${why}`);
 }
 
 /** The producers (field and paddock) on the newest card in the published week files of the last day (audit BX-53). */
@@ -924,7 +1086,7 @@ export async function sample({ p, check, prev, out, vhpOf, vhpCheckOf, spreadMs 
   const file: SampleFile = { v: 1, updated: new Date(Math.min(now, clock())).toISOString(), samples: keep };
   fs.writeFileSync(path.join(OUT, SAMPLES), JSON.stringify(file) + "\n");
   console.log(`sample at block ${headH} (${new Date(now).toISOString()}), ${who.length} producers; ${keep.length} kept`);
-  for (const pr of problems) console.log(`::warning::${pr}`);
+  for (const pr of problems) console.log(`::warning::${cmdText(pr)}`);
   return { problems, delay };
 }
 

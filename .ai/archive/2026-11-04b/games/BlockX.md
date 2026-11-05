@@ -1,6 +1,6 @@
 # Who Signs Block X (game 2)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Block X and Picks, Race, Bracket, Combo, Vault chats), `DECISIONS.md` (D-036 – D-041, D-062, D-064, D-067), the owner's status checks, the repo. **Last updated:** 2026-11-03.
+> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Block X and Picks, Race, Bracket, Combo, Vault chats), `DECISIONS.md` (D-036 – D-041, D-062, D-064, D-067), the owner's status checks, the repo. **Last updated:** 2026-11-03.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose

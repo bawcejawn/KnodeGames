@@ -836,6 +836,8 @@
     init, setGuestConfig, connect, disconnect, send, isPhone, manageGuest, guestInfo: () => { guestCant([]); }, switchTo, forget,
     accounts: () => remembered(), subscribe: (f) => { listeners.add(f); return () => listeners.delete(f); },
     get address() { return W.address; }, get kind() { return W.kind; },
+    /** R-BX-21: true when this page sends through the Mana sponsor (deployment.json "payer": "sponsor"). */
+    get sponsorOn() { return W.payer === "sponsor" && !!(W.sponsor && W.sponsor.address); },
     label: () => (W.kind === "vault" ? "KOIN Vault" : W.kind === "kondor" ? "Kondor" : W.kind === "guest" ? "your guest wallet" : "your wallet"),
   };
 })();

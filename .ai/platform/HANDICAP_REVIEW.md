@@ -2,6 +2,7 @@
 
 > **Purpose:** how every game measures a producer's size (VHP or blocks), when it measures it, how it turns that into a handicap, what VHP changes do to it, and how it treats small producers. Then recommendations: what should become one standard and what should stay per game.
 > **Reviewed:** 2026-11-03/04, from the code on each game's branch (main for Race, Block X, Questions; `survivor`, `kg-09-bracket`, `lastnode`, `fantasy`, `combo`, `golf`). File and line references are in the review notes; the audit ids name where each weakness was found. Owner question, 3 Nov.
+> **Next:** the shared ruler is designed in `../standards/VHP_RULER.md` (D-108; owner to approve).
 > **Status:** owner decided 4 Nov: **one ruler** for every game, each game keeps its own formula, checks at random moments within a window (D-090); **lower Last Node's bar** (D-091). Then: the Race pays from 9 Nov with its two gaps open until the ruler fix (D-094); Survivor Season 1 on blocks (D-095); **every game uses a luck trim or a cap** (D-101). All four §6 questions are answered.
 
 ## 1. The idea all games share

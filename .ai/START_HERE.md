@@ -28,6 +28,11 @@ Free and staked prediction games on the Koinos blockchain, powered by our own bl
 | Problems and open questions | `platform/OPENISSUES.md` (I-xxx) |
 | Decisions | `platform/DECISIONS.md` (D-xxx) |
 | Dates and each game's path to launch | `platform/ROADMAP.md` |
+| Each game's launch stage (Not Started → Ready For Launch) | `platform/LAUNCH_BOARD.md` |
+| Who controls which wallet, contract and key (addresses only) | `platform/KEYS_AND_ROLES.md` |
+| The Mana sponsor's live settings and how to operate it | `platform/SPONSOR.md` |
+| Every alert, what it means and what the owner does | `platform/ALERTS.md` |
+| Recovering from losing the owner's PC | `platform/RECOVERY.md` |
 | Finished or settled items | `archive/DONE.md`; closed issues `archive/ISSUES_CLOSED.md` |
 
 **When sources disagree:** the owner's own words → `DECISIONS.md` → what's verified in the code or on chain (✅) → the other `.ai/` files → the repo's `docs/` → chat notes and handoffs (D-002). Log a C-xx and fix the lower source.
@@ -47,7 +52,7 @@ Free and staked prediction games on the Koinos blockchain, powered by our own bl
 4. **`platform/TODOS.md`** and **`platform/OPENISSUES.md`** — what's happening now and what's broken or waiting.
 5. **`platform/DEPENDENCIES.md`** — how the vault, games, leaderboards, rewards, wallets and swap desk connect.
 6. **The game you're working on** — `games/<Game>.md`.
-7. **The standards that apply** — `standards/GAME_STANDARD.md` first, then `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`. How every chat starts and hands work back: `standards/AI_CHAT_STARTER.md`. Building or fixing a game's recorder: `standards/RECORDER_STANDARD.md`. Launching a game: `standards/GO_LIVE_CHECKLIST.md`.
+7. **The standards that apply** — `standards/GAME_STANDARD.md` first, then `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`. How every chat starts and hands work back: `standards/AI_CHAT_STARTER.md`. Building or fixing a game's recorder: `standards/RECORDER_STANDARD.md`. Launching a game: `standards/GO_LIVE_CHECKLIST.md`. Measuring producer VHP or handicaps: `standards/VHP_RULER.md` (design, owner to approve).
 8. **Before any big decision:** `platform/FOUNDER_INTENT.md` (why this exists) and `platform/RULES.md` (what never changes casually).
 9. **Before touching prizes:** `platform/FREE_PRIZE_SWITCH.md` (free play vs free prizes vs staked prizes). **Before planning work:** `platform/TECHNICAL_DEBT.md` (risks and shortcuts) and `platform/DOCUMENTATION_GAPS.md` (what the library still lacks, with the action plan).
 10. **Only when needed:** `platform/ARCHITECTURE.md` (how things work in detail), `platform/KOINOS.md` (chain facts, testnet), `platform/ROADMAP.md` (plans), `platform/VISION.md` (why and brand).
@@ -58,7 +63,7 @@ Don't read `archive/` to learn the project: `CHAT_KNOWLEDGE.md` is an inbox of r
 The full list — including what must never change casually — is in **`platform/RULES.md`**. The essentials:
 - **Never ask for, print, store or handle private keys or seed phrases.** Keys live only in the owner's `.env`. If one is pasted, tell the owner to rotate it.
 - **Never push to `main`, merge, deploy, upload a contract or change chain settings without the owner's explicit OK.**
-- **Every mainnet tool is a dry run unless you add `--send`.** Always show the owner the dry run first, then the send — one step at a time. The Picks tool (`npm run picks`) also needs `--mainnet` (and `CONFIRM_MAINNET=yes` in `.env`); the bot, desk and sponsor tools (`npm run bot | desk | sponsor`) need only `--send`.
+- **Every mainnet tool is a dry run unless you add `--send`.** Always show the owner the dry run first, then the send — one step at a time. The Picks tool (`npm run picks`) also needs `--mainnet` (and `CONFIRM_MAINNET=yes` in `.env`); the bot, desk and sponsor tools (`npm run bot | desk | sponsor`) also refuse a mainnet send unless `CONFIRM_MAINNET=yes` is in `.env`. So every mainnet send needs **both** `--send` and `CONFIRM_MAINNET=yes`.
 - **Check the node in the dry run.** If it says `api.koinos.io`, set `$env:RPC = "https://koinos.armana.io"` in that PowerShell window first (that node has been unreliable).
 - **Emergencies** (a bad send, a stuck game, a node down, a leaked key): send nothing more, tell the owner at once, and follow **`platform/RUNBOOK.md`**. Tools that exist: `npm run bot -- game-stop <id> --send` stops one game (players keep their stake); the vault's emergency path is in `standards/VAULT_STANDARD.md` §8 and `docs/UPGRADE-V6.md` ("If something goes wrong").
 - **Don't delete anything** (files, folders, branches) without firm confirmation that it's safe.
@@ -80,4 +85,4 @@ The full list — including what must never change casually — is in **`platfor
 - Mark what you know: ✅ verified in the repo · 💬 from a chat · 👤 owner said · ❓ unknown.
 - **Before a session ends**, follow `platform/SESSION_END_PROCESS.md`: write the five-part session-end report; the library chat files it.
 - **Every Tuesday** the owner and the library chat run `platform/WEEKLY_REVIEW.md`; entries go in `platform/reviews/`.
-- New knowledge from a chat can be appended to `archive/CHAT_KNOWLEDGE.md` and filed later.
+- New knowledge from a chat can be appended to `claude/repo-history/CHAT_KNOWLEDGE.md (Claude project, private)` and filed later.

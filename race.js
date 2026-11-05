@@ -12,7 +12,7 @@
 
   const lib = window.koilib || window.koinos || window;
   const RPC = "https://koinos.armana.io";
-  const DATA = "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/";
+  const DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/";
   const VHP = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq";
   const EXPLORER = "https://koinosscan.com/address/";
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode Games pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Games Swap" };
@@ -106,9 +106,11 @@
     const legNow = M.legOf(race.start, Math.min(Date.now(), race.end - 1), nLegs), card = race.cards ? M.cardForLeg(race.cards, legNow) : null;
 
     // Title, tag and clock
-    $("race-title").textContent = `Race ${race.number} of 4 (${race.id.slice(11)}:00 UTC) · ${dayTime(race.start)} – ${clock(race.end)}`;
+    // D-125: a Sunday slot is the review day: shown, but it doesn't count (its cards are still taken for Block X).
+    const rest = M.restRace(race.start);
+    $("race-title").textContent = rest ? `Review day (Sunday ${race.id.slice(11)}:00 UTC) · no race, nothing counts` : `Race ${race.number} of 4 (${race.id.slice(11)}:00 UTC) · ${dayTime(race.start)} – ${clock(race.end)}`;
     const tag = $("race-tag");
-    tag.textContent = live ? "Live" : !ended ? "Upcoming" : final ? "Final" : race.result && race.result.missed ? "Not recorded" : "Checking";
+    tag.textContent = rest ? "Review day" : live ? "Live" : !ended ? "Upcoming" : final ? "Final" : race.result && race.result.missed ? "Not recorded" : "Checking";
     tag.classList.toggle("done", !live);
     const frac = Math.min(1, Math.max(0, (Date.now() - race.start) / M.RACE));
     $("clock-fill").style.width = `${frac * 100}%`;
@@ -295,9 +297,14 @@
     const max = usage ? Number(usage.max_picks_per_day) || 5 : 5, used = usage ? Number(usage.picks_today) || 0 : 0;
     $("picks-left").textContent = usage ? `${Math.max(0, max - used)} of ${max} picks left today` : "";
     const rows = [];
+    // D-125: Sunday UTC is the review day: no race, nothing to pick.
+    const restRow = (r) => el("div", { class: "pk-row done" },
+      el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: "review day" })),
+      el("div", { class: "pk-now", text: "Sunday is review day: no race. Results are checked on chain and go final on Monday; rewards can be claimed from Monday evening (Americas) / Tuesday UTC." }), el("span"));
     // The live race: locked.
     const live = raceObj(cur), mineLive = myPicks.get(cur);
-    rows.push(el("div", { class: "pk-row live" },
+    if (M.restRace(live.start)) rows.push(restRow(live));
+    else rows.push(el("div", { class: "pk-row live" },
       el("div", { class: "pk-when" }, el("b", { text: `Live now (${live.id.slice(11)}:00 UTC)` }), el("span", { text: `ends ${clock(live.end)}` })),
       el("div", { class: "pk-now", text: mineLive ? `Your pick: ${nameOf(mineLive)} 🔒` : "No pick for this race (locked)" }), el("span")));
     // The next 4: open.
@@ -307,6 +314,8 @@
     const fieldOf = (r) => (r.cards && !r.provisional && M.cardForLeg(r.cards, 0)) || latest();
     const label = (c, x) => { const tot = c.field.concat(c.paddock || []).reduce((t, y) => t + y.vhp, 0); const sh = tot ? (x.vhp / tot) * 100 : 0; return `${nameOf(x.a)} · ${fmt(sh, sh < 1 ? 2 : 1)}% VHP · ×${x.h.toFixed(2)} per block`; };
     for (let k = 1; k <= 4; k++) {
+      // One review-day row for the whole Sunday (the first Sunday race shown).
+      if (M.restRace(M.raceStart(cur + k))) { if (!M.restRace(M.raceStart(cur + k - 1))) rows.push(restRow(raceObj(cur + k))); continue; }
       const r = raceObj(cur + k), mine = myPicks.get(cur + k), c = fieldOf(r);
       const opts = c ? c.field : [];
       const sel = el("select", { "aria-label": `Horse for the race at ${dayTime(r.start)}` },
@@ -353,6 +362,7 @@
   async function sendPick(index, horse) {
     const who = me();
     if (!who || !raceContract || sending) return;
+    if (M.restRace(M.raceStart(index))) return;   // D-125: no race on Sunday (it wouldn't count)
     const when = `${dayTime(M.raceStart(index))} (${M.raceId(index).slice(11)}:00 UTC)`;
     if (!KBlocks.isAddr(horse)) return pickModal("info", "Choose a horse first", ["Pick a producer from the list, then press Pick."], [okBtn("OK")]);
     if (myPicks.get(index) === horse) return pickModal("info", "That is already your pick", [`${nameOf(horse)} for the race at ${when}.`], [okBtn("OK")]);
@@ -410,8 +420,8 @@
     summary: (r) => `${fmt(r.pts ?? 0)} pts · ${fmt(r.correct)} W ${fmt(r.shows ?? 0)} S`,
     name: nameOf, link: (a) => EXPLORER + a,
     me: (r, place) => `${place ? `You: #${place} with` : "Your score (only you see this):"} ${fmt(r.pts ?? 0)} points (${fmt(r.correct)} wins, ${fmt(r.shows ?? 0)} shows) from ${fmt(r.picks)} picks.`,
-    unranked: "To play on the Staked board, stake VHP in the Producer Race (once the Knode Games vault is live).",
-    free: { show: 6, prize: "1st and 2nd at the end of the week win the free-play prize (paid once the Knode Games vault is live)." },
+    unranked: "To play on the Staked board, stake at least 1 VHP in the Producer Race.",
+    free: { show: 6, prize: "1st and 2nd at the end of the week win 2 and 1 VHP (from Week 1, the week of Mon 9 Nov)." },
   }) : null;
   async function loadBoard() {
     try { const b = await fetchJson(DATA + "board.json"); if (b && b.v === 1 && lb) { board = b; $("board-box").hidden = false; renderBoard(); } } catch { /* none yet */ }

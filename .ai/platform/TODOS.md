@@ -8,20 +8,25 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today
-- [ ] **Delete `NEW_OWNER_WIF` from `.env`** now that the Race picks owner change is done; keep the new Race owner key (`1LMV8EcR…`) offline, loaded only on owner-action days — P1 — D-083
 - [ ] **Free-prize switch: set the starting values** — ON for 2, 7, 9, 13; OFF for 3, 4, 6, 8 (`FREE_PRIZE_SWITCH.md` §4–5); then the GitHub ruleset on `prize-settings` (no deletion, no force-push) — P1 — D-082
 - [ ] **Message the Hub chat** (start message): its list has the Stake tab (R-HUB-9), the admin follow-ups (R-HUB-8), @names (R-HUB-3) and the guest-wallet messages (R-HUB-4) — P2
 - [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
 
 ## This week
-- [ ] **Sponsor rollout (R-BX-15):** the Block X chat gives you the exact steps from `main` (upload the fix, then per-tx 1.5, the site PR, then `config` with 40/250 to switch the vault back on). Do it before players stake in games 2 and 7, ideally Thu — P1
+- [ ] **Vault upgrade, Path 2 (D-116):** Repo Lens round 1 (and round 2) → **Tue 10 Nov, after the handover accept: announce, signed by `1LMV8E…`** → **Thu 12: upload** (the new owner needs ≥ 95 KOIN of Mana) → merge #114, then #141 and #142. Don't announce earlier — P1 — D-116
+- [ ] Try one small sponsored stake on the live site (staking now asks 1.5 Mana) and tell the Block X chat it worked (R-BX-18, I-088) — P2
+- [ ] **Repo Lens queue, in this order:** (1) the vault upgrade #114 on its latest commit (ask the Vault chat for the prompt), before the Tue 10 announce; (2) Questions #152 `claude/questions/REPOLENS-PR152-PROMPT.md` (before the Thu 12 upload); (3) the ruler re-check `claude/ruler/REPOLENS-FIXCHECK-E14-B5-PROMPT.md`; (4) Race #155 `claude/race/REPOLENS-PR155-PROMPT.md`; (5) Stake page #154 (ask the Hub chat) — P1
+- [ ] Delete the 145 merged branches with the script `claude/BRANCH-CLEANUP-2026-11-04.md` (protect the data branches first) — P3 — D-115
+- [ ] Decide: move the audit reports and raw chat exports out of the public repo (doesn't touch `CHAT_REQUESTS.md`) — P2 — D-115
+- [ ] Send Repo Lens `claude/hub/REPOLENS-C5-FIXCHECK-PR95-PR111-PROMPT.md` anyway (#95 and #111 merged before their fix-check) — P2
+- [ ] Optional: delete the old branch `hub-ci-yaml` in GitHub (an unused copy; safe once #111 is merged, which it is) — P4
+- [ ] Later (on hold, your call): the GitHub CODEOWNERS / ruleset step (C5-13). Don't require code-owner review without a bypass for yourself — P3
 - [ ] Every PowerShell window for tools: `$env:RPC = "https://koinos.armana.io"` first (the deployment files still name `api.koinos.io`, I-015) — P3
-- [ ] **GitHub setting (Repo Lens C5-13):** a `.github/CODEOWNERS` file (`/.github/ @bawcejawn`, `/tests/audit/site.ci-deps.test.mjs @bawcejawn`, `/tests/audit/ci-guard-*`) and on `main` a ruleset making the **guard check required**. ⚠️ Don't turn on "Require review from Code Owners" without a bypass for yourself: the chats open PRs under your own account, and GitHub doesn't let you approve your own PR, so every merge would be blocked. Ask the library chat for exact clicks first — P2
 - [ ] Send Repo Lens `claude/blockx/ROUND-14-LOWS-FIXCHECK-PROMPT.md` (Block X Lows, branch `blockx-lows`) — P3
-- [ ] **Hub PRs** (all green): merge **#94** (Week 1, before Sun 4 PM PT), then **#100** (stake-panel text; rebases after #94), and **#97** (guest messages). Send **#95** (@names Make main / Remove; a burn can't be undone) and **#99** (CI guard) to Repo Lens first — P2
 - [ ] After #95: on `names.html`, from the producer wallet `1DAHmr…`, create `@primeproducer`, tap Make main, optionally Remove `@primeprocuder`; tell the Hub it works (then the Tools link goes in) — P3 — I-084
 - [ ] In GitHub → Settings → Secrets and variables → Actions, confirm `OPERATOR_WIF` exists only in the `bot` environment; delete any repo-level copy — P2 — D-012 (from MKKtXR t18)
-- [ ] After `game-apply 7` on Thu: merge **PR #86** (Race page wording) — P2
+- [ ] Paste the D-112 answers to the VHP Ruler chat (OK the plan; push to branch `vhp-ruler`) — P2 — D-112
+- [ ] Once R-VAULT-10's script exists: back up the three producer keys (game/pool, Desk, personal) to a USB stick kept offline, apart from your wallet paper — P2 — TD-08
 - [ ] **Weekend:** move `RACE_WIF` (the Race contract's own key) offline (weekend runbook) — P1
 - [ ] **Thu 5 Nov after 7:51 AM PT:** `npm run bot -- game-apply 2`, `game-apply 7` (dry run, then `--send`), then `games` must show "staked + free prize, from week 3"; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT** — P1 — D-077 (reminder Thu 9 AM PT)
 - [ ] **Wallet moves** per `docs/WALLETS.md` (D-083, D-096): **Fri 6 Nov** step 0 (read-only check; paste the output to the Vault chat), create the cold-key owner and cold treasury, start the treasury move (48 h) → **Sat** sweep the old operator `1JSTwo…` (I-045) → **Sun** after every `game-apply`, start the vault and Desk handovers → Mon/Tue accept. Race picks already moved (4 Nov); **Picks later** (D-106) — P1 — I-001
@@ -35,8 +40,8 @@
 - [ ] Confirm the phone-width status-bar screenshot reached the Hub chat — P4
 
 ## Before the first paid weeks close (Mon 16 Nov)
-- [ ] **Survivor** (Season 1 Mon 16 Nov, D-065): run Repo Lens pass 4 in `C:\kprediction-test` (`git pull`, `npm ci`, check `git log -1 --oneline` shows `a8a1979` or the Survivor chat's newer commit) and send back `AUDIT-SURVIVOR-REPORT-4.md`; then announce Sat 7 – Fri 13 Nov, `game-apply` Mon 9 – Sun 15 Nov; vault `game-add 3 "Survivor" --staked --free --season 2` with its free-prize switch OFF — P2 — I-050, D-064
-- [ ] **Run the other pending Repo Lens audits** and return the reports: Last Node round 3 (`claude/lastnode/FIXCHECK-3-PROMPT.md`; branch `lastnode`, `adf95be` or newer), Fantasy fix-check (`knode-fantasy-fixcheck.zip`), Combo fix-check 4 (`claude/audit-combo-fixcheck4-prompt.md`), Bracket fix-check once R-BR-1 is done — P1 — I-065
+- [ ] ⏸ **Paused (D-113): Survivor** (Season 1 no longer 16 Nov; restarts after the core work): run Repo Lens pass 4 in `C:\kprediction-test` (`git pull`, `npm ci`, check `git log -1 --oneline` shows `a8a1979` or the Survivor chat's newer commit) and send back `AUDIT-SURVIVOR-REPORT-4.md`; then announce Sat 7 – Fri 13 Nov, `game-apply` Mon 9 – Sun 15 Nov; vault `game-add 3 "Survivor" --staked --free --season 2` with its free-prize switch OFF — P2 — I-050, D-064
+- [ ] ⏸ **Paused (D-113): the other game audits**: Last Node round 3 (`claude/lastnode/FIXCHECK-3-PROMPT.md`; branch `lastnode`, `adf95be` or newer), Fantasy fix-check (`knode-fantasy-fixcheck.zip`), Combo fix-check 4 (`claude/audit-combo-fixcheck4-prompt.md`), Bracket fix-check once R-BR-1 is done — P1 — I-065
 - [ ] **Mon 16 Nov, 12:00 UTC (4 AM PT):** after the first vault close, check status, the buckets, the free prizes, and collect the fee with `claim-fee-vhp all` — P1
 
 ## Later
@@ -51,7 +56,7 @@
 - [ ] Recompute the daily Mana budget from `manaByDay` and `npm run sponsor -- status` after a week of play (`claude/mana-budget.md`) — P3
 - [ ] Combo launch: after the Picks v2 upgrade (see ROADMAP), raise the pick row to 0.25 and check with `mana-report` — P3 — D-038
 - [ ] After launch: empty and retire the test wallets (Fantasy practice wallets; old bot/test wallets from the owner checklist) — P3
-- [ ] Possibly already done ❓: compare `npm run bot -- status` with `before-upgrade.txt`; check the first "Kpred bot" run after v5 was green — P4
+- [ ] Possibly already done ❓: compare `npm run bot -- status` with `before-upgrade.txt`; check the first "Knode Games bot" run after v5 was green — P4
 - [ ] Optional: decide the on-chain `move_stake` sponsor cap (I-021); pick retention features (see ROADMAP) — P4
 - [ ] From the Race chat's owner checklist: pin the Desk node key; clean up the stale folder/branch (which one ❓); launch announcement; analytics decision; ads and the SwarmTales listing — P3
 - [ ] Then Fantasy, Golf, Combo and Last Node as each clears audits (`../standards/GO_LIVE_CHECKLIST.md`) — P3

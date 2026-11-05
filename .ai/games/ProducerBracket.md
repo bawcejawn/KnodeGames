@@ -3,6 +3,8 @@
 > **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Producer Bracket chat), `DECISIONS.md` (D-019, D-057, D-058, D-062), the repo (branch `kg-09-bracket`). **Last updated:** 5 Nov 2026; previous version `../archive/2026-11-04b/games/ProducerBracket.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
+> **Owner, 5 Nov (D-138):** one of the next four games after the core: "like the March madness with nodes head to head".
+
 ## Purpose
 A weekly knockout tournament of Koinos block producers, like a March Madness bracket: predict who wins each head-to-head matchup, one round a day. This chat also built the platform-wide **VHP standard** every game uses to measure VHP the same way (D-058).
 

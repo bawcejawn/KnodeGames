@@ -1,7 +1,7 @@
 # Knode Games — Audits and the Merge Queue
 
 > **Purpose:** how code gets reviewed before it reaches players or funds (Repo Lens), and the one list of **open PRs, in merge order**, with what each waits on.
-> **Last updated:** 2026-11-05 (first written; open PRs checked on GitHub)
+> **Last updated:** 2026-11-05 (fix-fast rules D-140; open findings list)
 > **Private by rule:** audit **reports and prompts** stay in the Claude project (`claude/<area>/…`), never in this public repo. This page names them by id and path only.
 
 ## 1. Repo Lens, step by step
@@ -36,5 +36,20 @@ Done recently: Questions #152 fix-check #E-17 fixes → **#152 merged** (5 Nov);
 
 Merged 5 Nov: #152 (Questions shared rules, page and bot side), #163 (VHP ruler, off until turned on). Closed unmerged, kept for salvage: #50 (R-HUB-6).
 
-## 4. Where the reports are
+## 4. Fixing fast (D-140)
+- **One pass:** the building chat fixes every Critical, High and Medium **in one PR, the same session**, each with the review's failing test or a new one. Lows go in the same pass unless the owner defers them.
+- **The chat writes its own fix-check prompt** (exact commit, finding ids, the tests that prove each fix) and saves it to `claude/<area>/`; the owner sends it the same day.
+- **No drip-feeding:** don't open a second PR for the rest of a review's findings, and don't wait for a reply before fixing what's clearly broken.
+- **Can't fix one?** Say so in the session-end report the same day, with the reason and what's needed (an owner decision becomes a D-xxx).
+- **Accepted as-is** needs the owner's word and is listed below.
+
+## 5. Open findings (until closed)
+| Review | Finding | What | Owner | Status |
+|---|---|---|---|---|
+| Ruler #E-14 | M-1 "stronger" | the publish job also re-reads burns, VHP events and balances | owner to decide | open (later) |
+| Ruler | L-5, L-6 | one backend under two names, no response-size limit; an undecodable block stops the ruler | Ruler chat | open |
+| Race #B-7 | B7-3, B7-5 | deadline from run start; Sunday results not re-checked | owner | accepted as-is (5 Nov) |
+| Vault #E-16 | watch | many week R−1 stakers and unsponsored settles: 10 per run may not reach everyone; #152's uncapped switch-over settles cover it | Vault chat | watch Mon 9–16 |
+
+## 6. Where the reports are
 `claude/<area>/` in the Claude project: `vault/`, `questions/`, `race/`, `blockx/`, `hub/`, `ruler/`, `sponsor/`; older reports in `claude/repo-history/`. The owner can ask the library chat for any of them.

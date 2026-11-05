@@ -9,7 +9,7 @@ Guess which block producer will sign a future target block. Simple to play, root
 ## Gameplay
 - Targets every **2,400 blocks** (about 2 hours): height = round × 2,400 + 0. Picks open up to 28,900 blocks ahead and lock 100 blocks before the target ✅ (`blockx-math.js` `MAINNET_GAME`).
 - Up to **30 picks a day**, with **one change per pick** (D-037) ✅ — "change it once" on the page.
-- **Weekly rhythm from Week 1** (D-125, D-129; PRs #160 and #171 ✅): the week counts Mon–Sat; Sunday (UTC) targets are fun rounds, offered (labelled "Fun round · not the week") and scored for Today and All time only, never the week's board, prizes or vault file. First Sunday of fun rounds: Sun 15 Nov. The week-end re-read checks a Sunday target's block only (a play-day target given a Sunday time holds the week).
+- **Weekly rhythm from Week 1** (D-125, D-129; PRs #160 and #175 ✅): the week counts Mon–Sat; Sunday (UTC) targets are fun rounds, offered (labelled "Fun round · not the week") and scored for Today and All time only, never the week's board, prizes or vault file. First Sunday of fun rounds: Sun 15 Nov. The week-end re-read checks a Sunday target's block only (a play-day target given a Sunday time holds the week).
 - A target with no usable handicap card is voided. 💬
 - Sponsored picks, guests included, within the caps (rows: `../platform/SPONSOR.md`). ✅
 
@@ -18,7 +18,7 @@ Guess which block producer will sign a future target block. Simple to play, root
 - Exact points per correct pick: ❓ (not in the chat exports — see `docs/blockx/MAINNET-LAUNCH.md` on `main`).
 - The recorder (`bot/games/blockx.ts`) voids a target at once only if both nodes report a non-canonical transfer; otherwise it holds and voids at the 3-day edge. Published cards never change (BX-44). 💬
 - **Published final results can't be rewritten** (PR #159 ✅, R-BX-20).
-- **Timing:** `../standards/WEEK_CYCLE.md` (the one home for game timing). Block X follows it fully: final **from Mon 00:00 UTC** once two runs at least an hour apart read the same week and the re-read passes (D-135, PR #171; the 12-h final is gone). In practice the last Sunday run and the first Monday run agree, so the week is final around Mon 00:10–01:10 UTC.
+- **Timing:** `../standards/WEEK_CYCLE.md` (the one home for game timing). Block X follows it fully: final **from Mon 00:00 UTC** once two runs at least an hour apart read the same week and the re-read passes (D-135, PR #175; the 12-h final is gone). In practice the last Sunday run and the first Monday run agree, so the week is final around Mon 00:10–01:10 UTC.
 
 ## Rewards
 - **Launched prize-free** on 3 Nov (D-036). Prizes start with the week of Mon 9 Nov (D-077), once game 2 is applied in the vault. The "before prizes" fixes (I-042, PR #80) are merged ✅.

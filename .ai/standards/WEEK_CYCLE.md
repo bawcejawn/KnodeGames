@@ -43,7 +43,7 @@ A game's chat adds or updates its row **in its first PR** and whenever its timin
 | Game (id) | On the cycle | Sunday | Goes final | Claims | PR / exception | To do |
 |---|---|---|---|---|---|---|
 | Daily Questions (1) | **from Mon 16 Nov** (Vault v6.1 rule week, D-116, D-130) | today: Saturday's windows resolve on Sunday's blocks | today: Tue ~12:00 | today: Tue 12:00–15:00 UTC, Tue 4–7 AM PST | own timing until the rule week; #114 (vault), #152 (page, bot) | Questions chat confirms the Sunday shape from Mon 16 (R-Q-4) |
-| Who Signs Block X (2) | **yes** (from Week 1, #160, #171) | fun rounds (Today and All time only), first **Sun 15 Nov** | **Mon 00:00** + two runs an hour apart + the re-read (D-135, #171) | Mon evening PT | #159, #160, #171 | none |
+| Who Signs Block X (2) | **yes** (from Week 1, #160, #175) | fun rounds (Today and All time only), first **Sun 15 Nov** | **Mon 00:00** + two runs an hour apart + the re-read (D-135, #175) | Mon evening PT | #159, #160, #175 | none |
 | Producer Race (7) | **yes** (#149) | fun races, unscored for the week (D-129, #155) | Mon 00:00 + checks (00:37 final run) | Mon 6–8 PM PT | #149, #155 | none |
 | Survivor (3) | ⏸ paused (D-113) | must rest on Sundays | built as 12 h after | — | branch `survivor` | adopt before launch (R-ALL-8) |
 | Fantasy (4, 5) | ⏸ paused | — | built as 12 h after | — | branch `fantasy` | adopt before launch |

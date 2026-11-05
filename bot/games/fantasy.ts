@@ -44,7 +44,10 @@ const FREAL: any = (globalThis as any).KFantasyMath;
 
 const E = process.env;
 const KEEP_DAYS = 21;                       // days kept in days.json at least (a sheet's form needs 7; last week and this one 14)
-const BLOCK_BUDGET = 120000;                // blocks read for whole days per run (a long outage catches up over runs)
+const BLOCK_BUDGET = 120000;
+/** RECORDER_STANDARD §4.2 (as the Race's verifyWeek, Repo Lens #E-11 H-1, #C-7 C7-1): how long the week's re-check from
+ *  the chain may take in one run. Running out is "not checked yet" (the week waits), never a mismatch. */
+export const VERIFY_BUDGET_MS = 10 * 60000;                // blocks read for whole days per run (a long outage catches up over runs)
 const isAddr = (a: unknown): a is string => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 const pad = (w: number) => String(w).padStart(3, "0");
 
@@ -79,6 +82,7 @@ export type Opts = {
   /** The free-prize switch as the boards show it (D-082; env FANTASY_FREE_PRIZE=on). Off: the Free play board pays no
    *  VHP, so no free medals and no prize list on the board. The vault file lists the free winners either way. */
   freePrize?: boolean;
+  verifyBudgetMs?: number;                                           // §4.2 re-check time budget (tests)
   /** The wallets staked in Fantasy that week (the Staked board; vault points are ranked among them only, audit FX-3).
    *  Everyone else plays on the Free play board. Default: the vault (v6) on both nodes, which must agree; null from it
    *  = the vault isn't live yet (nobody staked, no vault file, index.json vaultBasis "all"). */
@@ -281,6 +285,42 @@ export async function run(o: Opts) {
     }
   }
 
+  // ── RECORDER_STANDARD §4.2: re-check a week from the chain on both nodes before it goes final ──
+  /** Every play day's blocks (re-read on both nodes at the recorded heights, the heights re-found from the day's
+   *  times, the day index recomputed from the same cards) must equal the recorded day; every play day's team picks
+   *  and the week's rival challenges, re-read on both Picks nodes, must equal what the week holds. "" = all agree;
+   *  otherwise why not. A read failure or the time budget throws (the week waits: not final this run). */
+  const verifyWeek = async (wf: WeekFile): Promise<string> => {
+    const stop = Date.now() + (o.verifyBudgetMs ?? VERIFY_BUDGET_MS);
+    const late = () => { if (Date.now() > stop) throw new Error("not checked yet: the re-check ran past its time budget (tried again next run)"); };
+    const nodes: [any, any][] = [[p, headId]];
+    if (check) nodes.push([check, chk.head_topology.id]);
+    for (const d of F.weekDays(wf.week)) {
+      late();
+      const rec = days.get(d);
+      if (!rec?.final) return `day ${d} isn't final`;
+      const [a, b] = rec.heights;
+      for (const [node, hid] of nodes) {
+        const lib = Math.min(libH, Number((node === p ? head : chk).last_irreversible_block));
+        const h = await heightsOf(node, hid, lib, libT, F.dayStart(d), F.dayStart(d + 1));
+        if (h[0] !== a || h[1] !== b) return `day ${d}: its block heights read ${h[0]}-${h[1]} now, not ${a}-${b}`;
+        const B = await readBlocks(node, hid, a, b), ix = F.dayIndex(B, cards, d);
+        if (ix.uncovered > 0) return `day ${d}: ${ix.uncovered} hour(s) have no usable race card now`;
+        if (ix.blocks !== rec.blocks || JSON.stringify(ix.producers) !== JSON.stringify(rec.producers)) return `day ${d}: its stored result isn't what the chain says now`;
+      }
+      if (picksRead) for (const node of [pp, ...(pcheck ? [pcheck] : [])]) {
+        const now2 = sortPicks((await picksRead(node, G.team, d)).filter((x) => x[1].length >= 1));
+        if (!samePicks(now2, wf.picks[d] || [])) return `day ${d}: the team picks read differently now`;
+      }
+    }
+    if (picksRead) for (const node of [pp, ...(pcheck ? [pcheck] : [])]) {
+      late();
+      const r = sortPicks(await picksRead(node, G.rival, F.rivalRound(wf.week))).filter((x) => x[1].length === 1).map((x) => [x[0], x[1][0]]);
+      if (JSON.stringify(r) !== JSON.stringify(wf.rivals || [])) return "the rival challenges read differently now";
+    }
+    return "";
+  };
+
   // ── 4. scores ──
   const rivalsPrev = readJson(prev, "rivals.json");
   let records = rivalsPrev?.records && typeof rivalsPrev.records === "object" && !Array.isArray(rivalsPrev.records) ? rivalsPrev.records : {};
@@ -356,10 +396,18 @@ export async function run(o: Opts) {
       const pts = Object.fromEntries(wf.players.map((x) => [x.a, { points: x.points, full: x.full }]));
       const matches = F.matches(wf.rivals || [], pts, stakedRead || rivalByVault ? rivalOk || new Set() : null);
       const hash = resultHash(wf.players, matches);
-      if (!(wf.pending && wf.pending.hash === hash && now - wf.pending.at >= AGREE_GAP)) {
+      let why = "";
+      const agreed = !!wf.pending && wf.pending.hash === hash && now - wf.pending.at >= AGREE_GAP;
+      if (agreed) {
+        // §4.2: the run that makes the week final re-checks it from the chain on both nodes first.
+        try { why = await verifyWeek(wf); } catch (e) { why = `wait: ${(e as Error).message}`; }
+        if (why && !why.startsWith("wait: ")) problems.push(`ALERT week ${w} is held: ${why}. Not final; the owner checks it (a final file is never changed).`);
+        else if (why) problems.push(`week ${w}: ${why.slice(6)}`);
+      }
+      if (!agreed || why) {
         // First sight of this result (or it changed): wait for a later run to agree (two-run rule).
         if (!wf.pending || wf.pending.hash !== hash) wf.pending = { hash, at: now };
-        console.log(`week ${w}: settled, pending; final once a run from ${new Date(wf.pending.at + AGREE_GAP).toISOString()} agrees`);
+        if (!why) console.log(`week ${w}: settled, pending; final once a run from ${new Date(wf.pending.at + AGREE_GAP).toISOString()} agrees`);
       } else {
         wf.final = true;
         wf.pending = null;

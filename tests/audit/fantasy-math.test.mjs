@@ -207,6 +207,32 @@ test("score week: sum of the 6 play days, full only with a team on all 6; vault 
   assert.equal(vm.get(many[0].a), 255); assert.equal(vm.get(many[254].a), 1); assert.equal(vm.get(many[299].a), 1, "below the 255th score: 1");
 });
 
+test("RECORDER_STANDARD §4.3: vault points follow the vault's paid set (top 30% by headcount, ties whole), even past 255 scores", () => {
+  // The vault contract's own walk (game/assembly/Kpred.ts finalizeGameStep): need = ceil(rows × 30 / 100); from the
+  // highest value down, take whole value groups until at least `need`; every row at or above that value is paid.
+  const vaultPaid = (vp) => {
+    const vals = [...vp.values()], need = Math.ceil((vals.length * 30) / 100);
+    let cum = 0, cut = 0;
+    for (let p = 255; p >= 1 && need > 0; p--) { cum += vals.filter((v) => v === p).length; cut = p; if (cum >= need) break; }
+    return new Set([...vp].filter(([, v]) => cut >= 1 && v >= cut).map(([a]) => a));
+  };
+  const rowsOf = (scores) => scores.map((p, i) => ({ a: `1${String(i).padStart(33, "Q")}`, points: p }));
+  for (const scores of [
+    Array.from({ length: 300 }, (_, i) => 1000 - i),                       // 300 distinct: 90 paid
+    Array.from({ length: 1000 }, (_, i) => 5000 - i),                      // 1000 distinct: 300 paid (> 254)
+    Array.from({ length: 900 }, (_, i) => 2000 - Math.floor(i / 2)),       // pairs tied
+    Array.from({ length: 7 }, (_, i) => [50, 50, 40, 30, 30, 30, 10][i]),  // small field
+  ]) {
+    const rows = rowsOf(scores), vp = F.vaultPoints(rows);
+    const sorted = [...rows].sort((x, y) => y.points - x.points), need = Math.ceil((rows.length * 30) / 100);
+    const cutScore = sorted[need - 1].points, expected = new Set(sorted.filter((r) => r.points >= cutScore).map((r) => r.a));
+    assert.deepEqual([...vaultPaid(vp)].sort(), [...expected].sort(), `${rows.length} rows: the vault pays exactly the top 30%, ties whole`);
+    assert.deepEqual([...F.stakedEarners(rows.map((r) => ({ ...r, staked: true })))].sort(), [...expected].sort(), "the board's medals match the paid set");
+    for (const r of rows) for (const q of rows) if (r.points > q.points) assert.ok(vp.get(r.a) >= vp.get(q.a), "a better score never gets fewer points");
+    assert.ok([...vp.values()].every((v) => Number.isInteger(v) && v >= 1 && v <= 255));
+  }
+});
+
 test("rank: more points first; equal points share a place", () => {
   const r = F.rank([{ a: A, points: 5 }, { a: B, points: 9 }, { a: C, points: 5 }, { a: D, points: 1 }]);
   assert.deepEqual(r.map((x) => [x.a, x.place]), [[B, 1], [A, 2], [C, 2], [D, 4]]);

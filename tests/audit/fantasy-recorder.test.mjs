@@ -322,4 +322,39 @@ test("D-129 Sunday fun round: the Saturday team plays on; Today shows it on Sund
   assert.deepEqual(read(again.out, "alltime.json"), at, "a Sunday is added once");
 });
 
+test("RECORDER_STANDARD §4.2: the run that makes a week final re-checks it from the chain on both nodes; a block or a pick that reads differently holds it", async () => {
+  const s0 = await hourly(U("2026-11-01T12:30Z"), "");
+  const sheet = read(s0.out, "W002.json").sheet, days = F.weekDays(2), [pa, pb] = PLAYERS;
+  const cheap = [...sheet.pool].sort((x, y) => x.price - y.price).slice(0, 5).map((x) => x.a);
+  const base = { team: { [days[0]]: [[pa, cheap, 1], [pb, [cheap[1], cheap[0], ...cheap.slice(2)], 1]] }, rival: {} };
+  picks = JSON.parse(JSON.stringify(base));
+  const staked = async (who) => new Set(who.filter((a) => a === pa));
+  const mid = await hourly(U("2026-11-04T12:30Z"), s0.out, { stakedOf: staked });
+  const sun = await hourly(U("2026-11-08T18:30Z"), mid.out, { stakedOf: staked });
+  const pend = await hourly(U("2026-11-09T00:30Z"), sun.out, { stakedOf: staked });
+  assert.ok(read(pend.out, "W002.json").pending, "pending after the first run");
+  const go = async (at, prev, tamper, budget) => { const out = tmp(); const log = console.log; console.log = () => {}; let r;
+    try { r = await run({ p: node(at, { tamper }), check: node(at, { tamper }), prev, out, raceData, picksContract: "1PicksPicksPicksPicksPicksPicks11", picksOf, rivalStaked: async (who) => new Set(who), stakedOf: staked, verifyBudgetMs: budget }); } finally { console.log = log; }
+    return { out, problems: r.problems }; };
+  // A block of Tuesday reads with another signer now (both nodes): the stored day no longer matches the chain.
+  const tue = H0 + Math.floor((F.dayStart(days[1]) + 6 * 3600000 - T0) / STEP);
+  const bad = await go(U("2026-11-09T01:30Z"), pend.out, tue);
+  assert.equal(read(bad.out, "W002.json").final, false, "held: not final");
+  assert.ok(bad.problems.some((p) => /ALERT week 2 is held: day \d+: its stored result isn't what the chain says now/.test(p)), bad.problems.join("\n"));
+  assert.equal(fs.existsSync(path.join(bad.out, "vault", "W2.json")), false, "no vault file");
+  // A team pick that reads differently now: held too.
+  picks.team[days[2]] = [[pb, cheap, 2]];
+  const badPick = await go(U("2026-11-09T01:30Z"), pend.out, null);
+  assert.equal(read(badPick.out, "W002.json").final, false);
+  assert.ok(badPick.problems.some((p) => /ALERT week 2 is held: day \d+: the team picks read differently now/.test(p)), badPick.problems.join("\n"));
+  picks = JSON.parse(JSON.stringify(base));
+  // Out of time: not checked yet — it waits, without an alert.
+  const slow = await go(U("2026-11-09T01:30Z"), pend.out, null, -1);
+  assert.equal(read(slow.out, "W002.json").final, false);
+  assert.ok(slow.problems.some((p) => /time budget/.test(p)) && !slow.problems.some((p) => /ALERT week 2 is held/.test(p)));
+  // Everything matches: final.
+  const ok = await go(U("2026-11-09T01:30Z"), pend.out, null);
+  assert.equal(read(ok.out, "W002.json").final, true, ok.problems.join("\n"));
+});
+
 test.after(() => { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });

@@ -246,7 +246,18 @@
     function vaultPoints(rows, eligible = null) {
       const ok = rows.filter((r) => r.points > 0 && (!eligible || eligible.has(r.a)));
       const scores = [...new Set(ok.map((r) => r.points))].sort((x, y) => y - x);
-      const at = new Map(scores.map((p, i) => [p, Math.max(1, VAULT_MAX - i)]));
+      // RECORDER_STANDARD §4.3 (Bracket #E-3 C-1): the vault pays the top 30% of these rows by headcount (rounded up),
+      // walking down whole tied groups. Work out that paid set FIRST, so an unpaid score can never share a paid value.
+      const need = Math.ceil((ok.length * 30) / 100);
+      let paidScores = 0, cum = 0;
+      for (const p of scores) { if (cum >= need) break; cum += ok.filter((r) => r.points === p).length; paidScores++; }
+      const at = new Map();
+      if (scores.length <= VAULT_MAX) scores.forEach((p, i) => at.set(p, VAULT_MAX - i));   // the plain rule: 255, 254, …
+      else {
+        // More distinct scores than values: every unpaid score gets 1; paid scores keep 255, 254, … and never go below
+        // 2 (past 254 paid scores, the lowest paid ones share 2). The vault's cutoff then lands exactly on the paid set.
+        scores.forEach((p, i) => at.set(p, i < paidScores ? Math.max(2, VAULT_MAX - i) : 1));
+      }
       return new Map(ok.map((r) => [r.a, at.get(r.points)]));
     }
     /** A team as positions on the week's price list (the W files keep teams this small; audit FX-4), and back. */

@@ -1735,3 +1735,91 @@ test("D-152, publish job: the recompute follows the new line and D-159's 10 per 
   const over = await recomputeRun(pl, { mutateBoard: (bd) => { for (const x of bd.lastWeek.rows) if (x.ranked) x.earns = 3; } });
   assert.equal(over.final, false); assert.match(over.out, /isn't within the top 30%/);
 });
+
+// ── D-153 (owner, 5 Nov): race types beside the 6-hour race: the hour ledger, typed races, their points ──
+async function typesRun(at, prev, { typesFrom = 2, picksOf = async () => [], check = undefined } = {}) {
+  const out = tmp(), log = console.log; console.log = () => {};
+  try { lastRun = await run({ p: node(at), check: check === null ? null : node(at, check || {}), prev, out, vhpOf, raceContract: "x", picksOf, prizesFrom: 0, vaultHold: false, typesFrom, stakedOf: async () => false }); } finally { console.log = log; }
+  return out;
+}
+const tfile = (dir) => JSON.parse(fs.readFileSync(path.join(dir, "T002.json"), "utf8"));
+/** The expected standings of a typed race, straight from the made-up chain and the stored hour cards. */
+function expectTyped(dir, r) {
+  const tf = tfile(dir), wk = week(dir), steps = new Map(), last = new Map();
+  for (let h = r.start; h < r.end; h += H) {
+    const six = wk.races.find((x) => x.start <= h && h < x.end), base = M.cardForLeg(six.cards, M.legOf(six.start, h, M.legsOf(six.cards)));
+    const card = M.typeCard(base, r.type, tf.hours.find((x) => x.t === h).c[r.type - 1]);
+    const hm = new Map(card.field.map((x) => [x.a, x.h]));
+    for (const x of card.field) if (!steps.has(x.a)) steps.set(x.a, 0);
+    for (let i = 0; i < N; i++) if (chain.ts[i] >= h && chain.ts[i] < h + H && hm.has(chain.who[i])) { steps.set(chain.who[i], steps.get(chain.who[i]) + hm.get(chain.who[i])); last.set(chain.who[i], chain.ts[i]); }
+  }
+  return [...steps].map(([a, s]) => ({ a, s: Math.round(s * 1e4) / 1e4, l: last.get(a) || Infinity })).sort((x, y) => y.s - x.s || x.l - y.l || (x.a < y.a ? -1 : 1));
+}
+
+test("D-153: race types are off until TYPES_FROM_WEEK is set: no T file, the 6-hour files unchanged", async () => {
+  assert.equal(M.TYPES_FROM_WEEK, null, "off on main until the contract v2 is uploaded");
+  const a = await typesRun(U("2026-11-02T00:37Z"), "", { typesFrom: null });
+  assert.ok(!fs.existsSync(path.join(a, "T002.json")));
+  assert.deepEqual(Object.keys(week(a)), ["v", "week", "start", "end", "races"], "W002.json keeps its shape (Block X reads it)");
+});
+
+test("D-153: the hour ledger, and 1-hour and 2-hour races scored from it with their own cards, picks and points", async () => {
+  const { emptyTypes } = await import(path.resolve(APP, "bot/race.ts"));
+  const e = emptyTypes(2);
+  assert.deepEqual([1, 2, 3, 4].map((t) => e.races.filter((r) => r.type === t).length), [168, 84, 7, 1], "a week: 168 1-hour, 84 2-hour, 7 daily, 1 weekly");
+  assert.equal(e.races.find((r) => r.type === 4).id, "W-2026-11-02");
+  assert.equal(e.races.find((r) => r.type === 4).end, U("2026-11-08T00:00Z"), "the weekly race: Monday to Sunday 00:00 UTC");
+  // Monday 00:37, 01:37, 02:37: cards, then the ledger hours as they become irreversible.
+  const a = await typesRun(U("2026-11-02T00:37Z"), "");
+  const b = await typesRun(U("2026-11-02T01:37Z"), a);
+  const h1 = M.typedIndex(1, U("2026-11-02T01:00Z")), h2 = M.typedIndex(2, U("2026-11-02T00:00Z"));
+  const picksOf = async (n, r, type = 0) => (type === 1 && r === h1 ? [[W1, "WIN", 10], [W2, "SHOW", 11]] : type === 2 && r === h2 ? [[W1, "WIN2", 12]] : []);
+  // Picks name the winner the ledger will give: work it out first, then run with picks on it.
+  const c0 = await typesRun(U("2026-11-02T02:37Z"), b);
+  const tf = tfile(c0);
+  assert.deepEqual(tf.hours.map((h) => new Date(h.t).toISOString().slice(11, 13)), ["00", "01"], "hours 00 and 01 in the ledger; 02 still running");
+  assert.ok(tf.hours.every((h) => h.c.length === 4 && h.b >= h.a && Object.values(h.n).reduce((x, y) => x + y) === h.b - h.a + 1), "every block of the hour counted once");
+  const r1 = tf.races.find((r) => r.id === "H1-2026-11-02T01"), r2 = tf.races.find((r) => r.id === "H2-2026-11-02T00");
+  assert.ok(r1.result.final && r2.result.final);
+  assert.equal(tf.races.find((r) => r.id === "H1-2026-11-02T02").result, null, "the running hour isn't scored");
+  for (const r of [r1, r2]) assert.deepEqual(r.result.standings.map((x) => [x.a, x.steps]), expectTyped(c0, r).map((x) => [x.a, x.s]), `${r.id}: the ledger gives the chain's standings`);
+  // Score again with picks (a fresh run from b, so nothing is final yet): wins and shows by the type's own points.
+  const win1 = r1.result.winner, show1 = r1.result.standings[1].a, win2 = r2.result.winner;
+  const real = async (n, r, type = 0) => (await picksOf(n, r, type)).map(([w, h, t]) => [w, h === "WIN" ? win1 : h === "SHOW" ? show1 : win2, t]);
+  const c = await typesRun(U("2026-11-02T02:37Z"), b, { picksOf: real });
+  const t2 = tfile(c), p1 = t2.races.find((r) => r.id === r1.id).result.picks;
+  assert.deepEqual(p1.map((x) => [x[0], x[3], x[5]]), [[W1, 1, 0], [W2, 0, 1]]);
+  const board = JSON.parse(fs.readFileSync(path.join(c, "board.json"), "utf8"));
+  const row = (a) => board.week.rows.find((x) => x.a === a);
+  assert.deepEqual([row(W1).pts, row(W1).correct, row(W1).picks], [4, 2, 2], "W1: a 1-hour win (2) + a 2-hour win (2)");
+  assert.deepEqual([row(W2).pts, row(W2).shows], [1, 1], "W2: a 1-hour show (1)");
+  assert.deepEqual(Object.keys(week(c)), ["v", "week", "start", "end", "races"], "W002.json unchanged in shape");
+});
+
+test("D-153: the payout re-check reads the ledger hours again; a changed count or pick is caught", async () => {
+  const { verifyTypes } = await import(path.resolve(APP, "bot/race.ts"));
+  const a = await typesRun(U("2026-11-02T00:37Z"), "");
+  const b = await typesRun(U("2026-11-02T01:37Z"), a);
+  const c = await typesRun(U("2026-11-02T02:37Z"), b);
+  const tf = tfile(c), wk = week(c);
+  const ctx = (picks = async () => []) => ({ p: node(U("2026-11-02T03:00Z")), check: node(U("2026-11-02T03:00Z")), headId: "0xhead", libH: 1000 + N, libT: chain.ts[N - 1], picksRead: picks });
+  const byId = (id) => wk.races.find((r) => r.id === id) || null;
+  const log = console.log; console.log = () => {};
+  try {
+    assert.equal(await verifyTypes(tf, ctx(), Infinity, Date.now, byId), "", "an honest ledger and its races pass");
+    const bad = JSON.parse(JSON.stringify(tf)); const hr = bad.hours[1]; const who = Object.keys(hr.n)[0]; hr.n[who] += 1;
+    assert.match(await verifyTypes(bad, ctx(), Infinity, Date.now, byId), /hour 2026-11-02T01: its stored blocks aren't what the chain says now/);
+    const extra = await verifyTypes(tf, ctx(async (n, r, type) => (type === 1 ? [[W1, P[0], 5]] : [])), Infinity, Date.now, byId);
+    assert.match(extra, /H1-2026-11-02T0[01]: its stored result isn't what the chain says now/, "a pick the stored result doesn't have");
+    await assert.rejects(verifyTypes(tf, ctx(), 0, () => 1, byId), /not checked yet/, "the time budget applies");
+  } finally { console.log = log; }
+});
+
+test("D-153: the second node's different blocks keep an hour out of the ledger", async () => {
+  const a = await typesRun(U("2026-11-02T00:37Z"), "");
+  const b = await typesRun(U("2026-11-02T01:37Z"), a);
+  const c = await typesRun(U("2026-11-02T02:37Z"), b, { check: { tamper: 1000 + 25 * 1200 + 5 } });   // a block in Monday 01:00-02:00
+  const tf = tfile(c);
+  assert.deepEqual(tf.hours.map((h) => new Date(h.t).toISOString().slice(11, 13)), ["00"]);
+  assert.match(lastRun.problems.join("\n"), /hour 2026-11-02T01: the two nodes disagree about the hour's blocks/);
+});

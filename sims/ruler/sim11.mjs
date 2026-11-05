@@ -18,7 +18,7 @@ const { tl } = loadVhpData(dir), L = K.ledger(tl);
 const slots = raceSlots(L).filter((w) => w.W0 - K.FORM - K.ACTIVE >= L.from), cards = [], games = [];
 for (let i = 0; i < Math.min(want, slots.length); i++) {
   const w = slots[Math.floor(i * slots.length / Math.min(want, slots.length))];
-  const g = { game: 7, round: String(w.L), window: w, c: "500000", minK: [10, 15, 20, 30][i % 4], poolRule: i % 2 ? "twa" : "min", ownRule: ["spot", "high1h", "avg24h"][i % 3], paying: i % 2 === 0, pooled: [VAULT] };
+  const g = { game: 7, round: String(w.L), window: w, c: "500000", minK: [10, 15, 20, 30][i % 4], poolRule: "min", ownRule: ["spot", "high1h", "avg24h"][i % 3], paying: i % 2 === 0, pooled: [VAULT] };
   let c;
   try { c = K.makeCard(L, { ...g, c: 500000n }); c = K.scoreCard(L, c); } catch (e) { if (/not yet/.test(e.message)) continue; throw e; }
   cards.push(K.cardJson(c)); games.push(g);

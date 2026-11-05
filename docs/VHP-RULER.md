@@ -44,13 +44,18 @@ up ("over the … byte limit"), that needs a look: send the error to the VHP Rul
 keeps its hour files, and retention doesn't remove them, until that is handled.
 
 ## v2.1 (R-RULER-2, branch `vhp-ruler-v21`; not on main, nothing pays on it)
-Built from `.ai/standards/VHP_RULER.md` §16, both languages byte for byte (`RULE_VERSION` 3):
-- **`pct(λ, x)`** (Fix A): the mid-p Poisson percentile of credited blocks against expected blocks, in millionths, exact
-  integer arithmetic. Scored cards carry `pct` per producer.
-- **`minK`, `poolRule`** (Fix B as settings): the entry bar in whole blocks (10 as approved) and the pool rule (`min` as
-  §3.2, `twa` the pooled producer's eff at every block). Both are card fields and required game settings in `recompute`.
-- **`rateOf`** (D-120): a steady producer's 14-day rate (every daily rate within ±0.15); expected = k × rate; its credited
-  blocks stop at expected × 1.15 (the steering cap).
-- Simulations: `sims/ruler/v21.mjs` (Fix A, the A′ proposal and Fix B side by side) and `sims/ruler/sim11.mjs`. Results
-  and the open design questions: the project doc `claude/ruler/V21-SIM-REPORT.md` (D-120 can't pass sim 8; Fix A fails
-  network-wide jumps; A′ with the 0.80 gate is the candidate).
+Built from `.ai/standards/VHP_RULER.md` §16 and the owner's rulings of 5 Nov, both languages byte for byte (`RULE_VERSION` 3):
+- **`pct(λ, x)`** (Fix A): the mid-p Poisson percentile of credited blocks against expected blocks, millionths, exact
+  integers; below 1 unless λ = 0 (#B-9 B9-3).
+- **`fpct(n, a, b, x)`** (A′): the mid-p binomial percentile of credited blocks among the field's own signed blocks (the
+  field = producers with entry that aren't void). A jump that moves the whole network moves no one's percentile.
+- **`void`** (owner, 5 Nov): a producer whose effective VHP leaves own × (1 ± 10%) at any block of the scoring window is
+  void for that race (out of A′'s field, `fpct` null); the next race it plays as usual. About 1–1.6% of producer-races
+  on real days.
+- **Throttlers** (owner, 5 Nov, D-120): a steady producer (every daily rate within ±0.15 of its 14-day rate) is in the
+  field whatever its form; everyone is expected at full size (any expectation lowered to a producer's own throttling can
+  be beaten on purpose, #B-9 B9-2); `rate` is shown on the card only.
+- **Settings** `minK` (entry bar, whole blocks; 10) and `poolRule` (`min` only; `twa` removed, #B-9 B9-1), required in
+  `recompute`.
+- Simulations: `sims/ruler/v21.mjs` (each race drawn as on chain: a chain of exact binomials), `sim11.mjs`, `voids.mjs`,
+  `jumps.mjs`. Results: project doc `claude/ruler/V21-SIM-REPORT.md`.

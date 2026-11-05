@@ -18,17 +18,17 @@
 | **Recorders** | read the chain, score, publish boards and vault files | `games.yml`, `race.yml`, `race-samples.yml` | two-node checks, pending → final, holds | — |
 | **VHP ruler** | one fair measure of producer size for handicaps | `vhp-ruler.js`, `vhp_ruler.py`, `vhp-ruler.yml` | on `main` (#163), recording data only | **pays nothing** until all 11 simulations pass (D-111) |
 | **Nodes + self-heal** | three producers on the owner's PC | `node/`, `bot/heal.mjs`, `watch.yml` | chain v1.5.2 | one machine (D-147) |
-| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-158 | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
+| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-160 | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
 
 ## In progress
 | Work | Where | Next step |
 |---|---|---|
 | Go-live of Week 1 | owner | ✅ games 2 and 7 applied and `PRIZES_FROM_WEEK = 3` set (5 Nov); left: announce v6.1 ([TODOS](.ai/platform/TODOS.md)) |
 | Vault v6.1 | PR #114 | upload Mon 9, pin, handover 4a; accepts Tue 10; rule week Mon 16 |
-| **Questions results recorder** (P1) | Questions + Architecture chats | built as the kit's first game (D-158); Repo Lens, merge by Sun 15; hard limit Thu 26 Nov (W004's results window) (R-Q-4, R-ARCH-3) |
+| **Questions results recorder** (P1) | Questions chat | **PR #203** is the Mon 16 delivery (D-160): Repo Lens, merge by Sun 15; hard limit Thu 26 Nov; free-prize ties to D-159 once the owner defines its score time; ported onto the kit later |
 | VHP ruler v2.1 | `vhp-ruler-v21` | build A′ (D-154), re-run 11 sims (R-RULER-2) |
 | Fantasy, Block Golf, Bracket (next launches, D-142) | PRs #188, #187, #186 | port each recorder onto the kit (D-158, R-ALL-11), then Repo Lens fix-check, then launch steps |
-| **Shared Game Kit (D-146, D-158)** | Architecture chat | build `kit/` with Daily Questions as its first game (R-ARCH-3, [GAME_KIT](.ai/standards/GAME_KIT.md)); then Fantasy, Golf, Bracket; then Block X and Race (replay → two shadow weeks → switch) |
+| **Shared Game Kit (D-146, D-158)** | Architecture chat | build the kit's core only (R-ARCH-3, [GAME_KIT](.ai/standards/GAME_KIT.md), D-160); then Fantasy, Golf, Bracket; then port Questions #203; then Block X and Race (replay → two shadow weeks → switch) |
 | Site: guest-first, live stats | PRs #181, #185 | Repo Lens, then merge; `STATS_ENABLED` |
 | Run a Node page | PRs #173, #179 | Repo Lens fix-check, then merge |
 | Vault: alert summaries, key backup scripts | PRs #177, #178 | Repo Lens, then merge |
@@ -47,7 +47,7 @@
 |---|---|
 | Merge #114 (v6.1) | Monday's upload |
 | #141 (VAULT_STANDARD for game 1) | v6.1 live |
-| Questions paid like every game from Mon 16 | the results recorder on the kit (I-101, D-158) |
+| Questions paid like every game from Mon 16 | PR #203 (I-101, D-160) |
 | Any game paying on the ruler (Race, Bracket's percentile) | all 11 simulations pass; owner's D-120 choice |
 | Picks owner handover | owner picks a date (tool reviewed, #191) |
 | Fantasy / Golf / Bracket launch | the kit's core (D-158), then each its fix-check GO, sponsor rows, `game-add` (48 h, by Friday noon PT for the next Monday) |
@@ -83,7 +83,7 @@
 | Week | play Mon–Sat, Sunday review + fun rounds, final ≥ Mon 00:00, claims Mon evening, backstop Thu | [WEEK_CYCLE](.ai/standards/WEEK_CYCLE.md) | Questions on its own timing until Mon 16; Bracket has no Sunday round |
 | New game path | game file → branch → Repo Lens → go-live checklist | [NEW_GAME](.ai/standards/NEW_GAME.md), [GO_LIVE_CHECKLIST](.ai/standards/GO_LIVE_CHECKLIST.md) | — |
 | Results | two nodes, recompute at publish, holds, finals locked, vault file fills `first`/`second`, `board.json` | [RECORDER_STANDARD](.ai/standards/RECORDER_STANDARD.md), [VAULT_STANDARD](.ai/standards/VAULT_STANDARD.md) | Golf lacks recompute and holds (I-098, I-099); Fantasy §4.1/§4.2 in progress |
-| Rewards | 5% fee; staked share by stake; free 2 + 1 VHP where the switch is on; top 30% paid (D-152) | [WEEK_CYCLE](.ai/standards/WEEK_CYCLE.md) §3, [FREE_PRIZE_SWITCH](.ai/platform/FREE_PRIZE_SWITCH.md) | D-152 lands with #182 |
+| Rewards | 5% fee; staked share by stake; free 2 + 1 VHP where the switch is on, up to 10 a place, more than 10 → exactly 10 by earlier score time then address (D-159); top 30% paid (D-152) | [WEEK_CYCLE](.ai/standards/WEEK_CYCLE.md) §3, [FREE_PRIZE_SWITCH](.ai/platform/FREE_PRIZE_SWITCH.md) | D-152 lands with #182; free-prize cap: Block X (I-103), Race #182 (I-104), Questions #203 |
 | Registration | Picks announce → apply (48 h); vault `game-add … --staked --free` → `game-apply` (48 h) | [GO_LIVE_CHECKLIST](.ai/standards/GO_LIVE_CHECKLIST.md) | — |
 | Mana | every player action has a sponsor row under 2.4 | [SPONSOR](.ai/platform/SPONSOR.md) | rows missing for Fantasy (4, 5) and Bracket (9) |
 | Handicaps | only through the VHP ruler | [VHP_RULER](.ai/standards/VHP_RULER.md) | Race and Bracket still use their own index until v2.1 |

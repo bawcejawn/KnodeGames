@@ -114,7 +114,8 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
     const T = w.W0 + Math.floor(rng.next() * (w.W1 - w.W0 + 1));
     // D-120: each real producer's rate at T, from the real 14 days (steady ones sign at that rate in the races)
     const rates = {}, steady = {}, forms = {};
-    for (const p of ps) { const fo = R.formOf(L, p, T), r = R.rateOf(L, p, T, fo); rates[p] = Number(r.rate) / 1e6; steady[p] = r.steady; forms[p] = Number(fo.form) / 1e6; }
+    // NO_RATE=1: D-120 off (v2's plain 0.80 gate, rate 1, no steering cap), to compare
+    for (const p of ps) { const fo = R.formOf(L, p, T), r = R.rateOf(L, p, T, fo), off = process.env.NO_RATE === "1"; rates[p] = off ? 1 : Number(r.rate) / 1e6; steady[p] = off ? false : r.steady; forms[p] = Number(fo.form) / 1e6; }
     return { w, base, ps, paths, Nreal, T, rates, steady, forms };
   });
   log(`${days(L).toFixed(1)} days · ${fields.length} race cards · ${races} races each · configs ${Object.keys(configs).join(", ")}${dry ? " · DRY RUN (needs 29+ days)" : ""}`);
@@ -223,7 +224,7 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
           if (ch) for (const [p, x] of Object.entries(ch)) if (!moved(p, f.T - BLOCKS_PER_DAY, f.w.S1)) (per[p] ||= []).push(x);
         });
         const a = agg(per), enough = Object.fromEntries(Object.entries(a).filter(([, v]) => v.n >= 5)), [w0, w1] = span(enough, (x) => x.ratio);
-        out[sc] = { indexMin: Math.min(...rel), indexMax: Math.max(...rel), winMin: w0, winMax: w1 };
+        out[sc] = { indexMin: Math.min(...rel), indexMax: Math.max(...rel), winMin: w0, winMax: w1, low: Object.entries(enough).sort((x, y) => x[1].ratio - y[1].ratio).slice(0, 3).map(([p, v]) => ({ p, ratio: v.ratio, n: v.n, k: v.k })) };
       }
       const j = out["a 1% producer joins mid-race"], ok = j.indexMin >= 0.99 && j.indexMax <= 1.01 && ["the biggest producer leaves mid-race", "a mint adds 10% to the network mid-race"].every((k) => out[k].winMin >= 0.85 && out[k].winMax <= 1.15);
       say(9, "joining / leaving / network jumps", name, Object.entries(out).map(([k, v]) => `${k}: index × ${v.indexMin.toFixed(3)} … ${v.indexMax.toFixed(3)}, wins ${v.winMin.toFixed(2)} … ${v.winMax.toFixed(2)} of fair`).join("; "), ok, "one producer: index ±0.01; network jump: wins 0.85–1.15 of fair", out);

@@ -39,16 +39,17 @@ A game is announced to players only when all of these are true (D-064 — "only 
 - Locks are enforced **on chain** by the Picks contract's lock clock, not just by the page.
 - Weeks run Monday 00:00 to Monday 00:00 UTC (vault week = floor((t − genesis) ÷ 7 days)). Players see the week of Mon 9 Nov as "Week 1" (D-063).
 - **How every week closes (D-125):**
-  - **Play Monday 00:00 → Saturday 24:00 UTC** (Sat 4 PM PST / 5 PM PDT). Nothing that scores falls on Sunday UTC: no round, race, target or counted pick. Multi-week seasons rest on their Sundays too.
+  - **Play Monday 00:00 → Saturday 24:00 UTC** (Sat 4 PM PST / 5 PM PDT). Nothing that counts for the week falls on Sunday UTC (Sunday rounds are fun rounds, D-129). Multi-week seasons rest on their Sundays too.
   - **Sunday UTC is the review day:** the recorder settles the week, re-checks it on chain on both nodes, and publishes it as *pending*; the owner can look and hold.
   - **Final no earlier than Monday 00:00 UTC** (24 h after the last play), once two runs an hour apart agree and the chain still matches.
-  - **The page says so:** "Sunday is review day: results are checked and paid from Monday." It doesn't offer Sunday picks.
+  - **The page says so:** "Sunday is review day: results are checked and paid from Monday."
+  - **Sunday is not a dead day (D-129):** Sunday rounds still run as **fun rounds**. They are played and scored, and count on the Today and All time boards only: never on a week's board, medals, prizes, staked shares or vault file. The page offers Sunday picks, labelled "Today and All time, not the week".
   - Rewards are claimable about 24 h after the vault seals: from about **Mon 6–8 PM PST (Tue ~02:00–04:00 UTC)**, later if a game is held.
   - **Only scoring stops on Sunday (C7-3):** data other games read keeps running, including Race handicap cards (Block X needs a Race card up to 3 h after each target block, and the card in force at its lock), VHP samples and ruler hours.
-  - **Sunday picks:** a contract that opens picks ahead still accepts one for a Sunday slot. The page doesn't offer it, the recorder ignores it, and it still uses that UTC day's pick limit.
-  - **A Sunday slot is recorded as "not run"** (Race: `{ final: true, missed: true, note }`).
+  - **Sunday picks** use that UTC day's pick limit like any other day.
+  - **A Sunday round is recorded like any round**; every weekly tally (board, medals, vault file, the publish job's recompute) leaves it out.
   - **Backstop:** a week held on the review day has until **Thursday 00:00 UTC**, then it rolls over. A stake made on the review day counts from the next week.
-  - **Exception:** Daily Questions (game 1) keeps its own timing (Saturday's windows run on Sunday's blocks; paid Tue ~12:00 UTC).
+  - **Exception:** Daily Questions (game 1) keeps its own timing (Saturday's windows run on Sunday's blocks; claims from about Tue 12:00–15:00 UTC, Tue 4–7 AM PST, later if Saturday's questions resolve on Monday).
 - **Each game launches when it's audited and ready** (D-052, D-064; the older "launch on a Monday" rule, D-059, is superseded). Vault weeks still run Monday to Monday, so a game earns from the Monday after it's applied.
 
 ## 5. On-chain registration

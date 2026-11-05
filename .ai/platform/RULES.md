@@ -54,7 +54,7 @@
 9. **A prize needs a final, verified results file.** A missed, held or disputed week pays nothing until resolved.
 10. **There is no Knode Games token** (D-072).
 11. **Not gambling:** no wagers, odds or player-funded pots on any game; stakes are never at risk (D-075).
-12. **The weekly rhythm (D-125):** every game plays Monday 00:00 → Saturday 24:00 UTC; **Sunday UTC is the review day** (only scoring stops: data other games read, like Race cards, keeps running); results go final no earlier than Monday 00:00 UTC (24 h after the last play) and are claimable from about Mon 6–8 PM PST / 7–9 PM PDT (Tue ~02:00–04:00 UTC), later if a game is held. **Daily Questions** keeps its own timing (Saturday's windows run on Sunday's blocks; paid Tue ~12:00 UTC).
+12. **The weekly rhythm (D-125):** every game plays Monday 00:00 → Saturday 24:00 UTC; **Sunday UTC is the review day**, but not a dead day: Sunday rounds still run as **fun rounds** that count on the Today and All time boards only, never on the week's board, medals, prizes or vault file (D-129); data other games read, like Race cards, keeps running; results go final no earlier than Monday 00:00 UTC (24 h after the last play) and are claimable from about Mon 6–8 PM PST / 7–9 PM PDT (Tue ~02:00–04:00 UTC), later if a game is held. **Daily Questions** keeps its own timing (Saturday's windows run on Sunday's blocks; claims from about Tue 12:00–15:00 UTC, Tue 4–7 AM PST, later if Saturday's questions resolve on Monday).
 
 ## 5. Architecture rules
 1. **Cost $0:** a static site on GitHub Pages; the repo stays **public** (D-005, D-043).
@@ -89,7 +89,7 @@ These values are relied on by contracts, files or players. Changing one needs a 
 | Vault / pool address | `1Mpmf2…` | holds every stake; the producer |
 | Contract addresses | Picks `1LmgqB…`, Race `1EN7xU…`, sponsor `1ByDDS…`, desk `1FKTpX…` | the site, bots and players point at them |
 | Vault genesis and weeks | Mon 19 Oct 2026 00:00 UTC; Monday-to-Monday UTC weeks | every week number and file name depends on it |
-| Weekly rhythm (D-125) | play Mon 00:00 – Sat 24:00 UTC; Sunday review; final from Mon 00:00 UTC | players plan around it; the 24 h review protects payouts |
+| Weekly rhythm (D-125, D-129) | the week counts Mon 00:00 – Sat 24:00 UTC; Sunday review, with fun rounds for All time only; final from Mon 00:00 UTC | players plan around it; the 24 h review protects payouts |
 | Game ids | 1 Questions, 2 Block X, 3 Survivor, 4 Fantasy, 5 Rival, 6 Golf, 7 Race, 8 Combo, 9 Bracket, 13 Last Node | on-chain registration, results files |
 | Results file format and sources | `VAULT_STANDARD.md` §6; `vaultGames` | the vault reads them as-is |
 | Published final files | any final week, card or vault file | players were paid from them |

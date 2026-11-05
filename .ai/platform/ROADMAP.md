@@ -15,7 +15,7 @@ Dates and times live in **one place: `CALENDAR.md`** (this week, the v6.1 upgrad
 | Game | Path from here | Waiting on |
 |------|------|-----------|
 | Producer Race (7) | apply Thu 5 – Sun 8 → paid from Mon 9 Nov → the one VHP ruler (card credit, longer look-back) | R-RACE-5 (waits on the ruler's §16 design, D-111) |
-| Block X (2) | apply Thu 5 – Sun 8 → prizes from Mon 9 Nov (D-077); owner decision: final at Mon 00:00 UTC? | the one VHP ruler later |
+| Block X (2) | apply Thu 5 – Sun 8 → prizes from Mon 9 Nov (D-077); final moves to Mon 00:00 UTC (D-135) | the one VHP ruler later |
 | Block Golf (6) | practice: move Golf files to the site root, full suite, merge, `GOLF_ENABLED=true`. Staked: `main` merged into `golf` → register game 6 (48 h) → set `GOLF_STAKED_FROM_WEEK` | I-060; a Free board (no prize yet, D-081) |
 | Survivor (3) | Repo Lens pass 4 → fixes + fix-check → testnet season → register game 3 on Picks → set `FIRST_DAY` (a Monday, date ❓ after D-113), merge → menu + `games.json` live → `board.json` + Results adapter → vault `game-add 3 … --free --season 2` with its switch OFF | I-050, I-056 |
 | Last Node Standing (13) | clean round-3 review → lower entry bar (D-091) → add the Free board with its prize (D-081) → announce game 13 on Picks, apply after 48 h → 48 h of sampler readings → `lastnode` → `main` → `LASTNODE_ENABLED=true` → watch day 1 | I-058 |

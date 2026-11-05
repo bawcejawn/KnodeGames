@@ -111,4 +111,3 @@ More detail:
 
 - [CODE-WALKTHROUGH.md](CODE-WALKTHROUGH.md): what each part of the code does, step by step.
 - [TESTNET.md](TESTNET.md): the PowerShell runbook to put it on the testnet.
-- [TEST-PLAN.md](TEST-PLAN.md): the checklist for testing.

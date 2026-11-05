@@ -149,7 +149,7 @@ Node scripts present (✅): `node/repair-node-data.ps1` (general repair), `node/
 Player-call arguments (💬 Hub): `deposit_to {from, game, amount, koin}` · `withdraw_from {to, game, amount}` · `move_stake {player, from_game, to_game, amount}` · `claim_game {player, game, week}`. The vault is live when `config.v6_rule_week_plus_one > 0`. `game_object` fields: `next_stake` 13, `next_week` 14.
 | Token | `approve` 0x74e21680 · `balance_of` 0x5c721497 |
 
-### Measured on testnet (see `docs/TESTNET-V6-RESULTS.md`)
+### Measured on testnet (the old `docs/TESTNET-V6-RESULTS.md`, now in the Claude project: `claude/repo-history/docs-TESTNET-V6-RESULTS.md`)
 Heaviest player call 4.63 M ticks (a deposit closing a 13-game week, 1.6% of the per-transaction limit); 16-row post 1.50 M; finalize of 16 places 1.75 M; claim 2.44 M; withdraw 1.72 M; upload disk 86,257 B. Upper bounds: 50 rows ≈ 4.7 M ticks; 500-place finalize ≈ 55 M (19%). v6 upload cost 46.84 KOIN of Mana on mainnet vs 7.53 on testnet.
 Measured on mainnet (💬 Swap Desk, Oct): simple call ~0.21; each write ~0.02; answer or pick ~0.3; `deposit_koin` ~1.38; `compound` ~1.08; game v5 upload 26.8; `cancel_upgrade` ~0.25 Mana. Bot spend from `manaByDay` ✅: ~1.9–5.1 Mana a day (31 Oct – 2 Nov).
 Combo cards on testnet (player-paid): 2 legs 0.0588, 6 legs 0.0726, 10 legs 0.0916, a change 0.0538; Picks v2 upload 3.2528 on testnet, ~55 estimated on mainnet (💬 Combo). Sponsored figures: D-038.

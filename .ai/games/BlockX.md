@@ -18,7 +18,7 @@ Guess which block producer will sign a future target block. Simple to play, root
 - Exact points per correct pick: ❓ (not in the chat exports — see `docs/blockx/MAINNET-LAUNCH.md` on `main`).
 - The recorder (`bot/games/blockx.ts`) voids a target at once only if both nodes report a non-canonical transfer; otherwise it holds and voids at the 3-day edge. Published cards never change (BX-44). 💬
 - **Published final results can't be rewritten** (PR #159 ✅, R-BX-20).
-- **Timing:** `../standards/WEEK_CYCLE.md` (the one home for game timing). Block X's one difference: it goes final **12 h after the week ends (Mon 12:00 UTC)**, not Mon 00:00 — the owner is deciding whether to move it. 👤 ❓
+- **Timing:** `../standards/WEEK_CYCLE.md` (the one home for game timing). Block X's one difference today: it goes final **12 h after the week ends (Mon 12:00 UTC)**. **Owner decided 5 Nov (D-135): move it to Mon 00:00 like the Race** (R-BX-24).
 
 ## Rewards
 - **Launched prize-free** on 3 Nov (D-036). Prizes start with the week of Mon 9 Nov (D-077), once game 2 is applied in the vault. The "before prizes" fixes (I-042, PR #80) are merged ✅.

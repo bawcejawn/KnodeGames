@@ -16,6 +16,7 @@ The game itself (questions, answers, the page) is unchanged: `index.html`, `app.
 - `W<NNN>.json`: the week's inputs, as read on both nodes: `questions` `[id, outcome, lock time]`, `players` `[address, stake, peak stake, voided, [[question, option], …]]`, `min` (the week's minimum stake), `seen` (`hash` of the inputs and `at`, the chain time a run first read them) and `final`.
 - `board.json`: `lastWeek` with both boards' rows (`a`, `board` staked/free, `place`, `points`, `counted`, `answers`, `ranked`) and the prize winners. The vault bot checks the results file against it.
 - `vault/W<w>.json`: the results file (`VAULT_STANDARD.md` §6): staked rows with their real points (the contract checks points ≤ answers), and `first` / `second`, which are always filled. Written once, when the week is final.
+  - **Free-prize ties (owner, 5 Nov):** up to 10 wallets per place, ties share; a tie for 1st leaves 2nd empty. More than 10 qualifying for one place: exactly 10 are paid, by the **earlier score time**, then the address. A place is never left empty because of the cap. A player's score time is the lock time of the question that gave them their last point: entries on chain don't store when an answer was sent.
 - `vault/HOLD-W<w>.json` / `RELEASE-W<w>.json`: the owner's hold and release (repo variables `QUESTIONS_HOLD`, `QUESTIONS_HOLD_REASON`, `QUESTIONS_RELEASE`).
 
 ## When

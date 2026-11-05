@@ -13,4 +13,5 @@
 | Sponsor rows and their measured Mana | None new (players' `answer` is unchanged: limit 1.2 Mana). |
 | Handicap source | None (no VHP handicap in Daily Questions). |
 | Repo Lens reviews | Pending (PR for I-101). |
-| Accepted risks | More than 10 free players tied on a place: nobody is posted for it (the vault's limit), as Block X (owner to confirm). |
+| Free-prize ties | Up to 10 wallets per place, ties share. More than 10 qualifying for one place: exactly 10, by the earlier score time, then address (owner, 5 Nov); never zero for the cap. Score time = the lock time of the question that gave the player's last point (entries don't store answer times). |
+| Accepted risks | None beyond "Not covered" above. |

@@ -80,11 +80,22 @@ test("questions: first and second are the best free players; a tie for 1st leave
   assert.deepEqual(r.vault.second, []);
 });
 
-test("questions: more than 10 free players on a place: nobody on it (the vault takes at most 10)", () => {
-  const many = Array.from({ length: 11 }, (_, i) => "1" + String.fromCharCode(65 + i).repeat(33));
-  const r = week([q(1, 1), q(2, 1)], many.map((a) => p(a, 0, 0, [[1, 0], [2, 0]])));
-  assert.deepEqual(r.vault.first, []);
-  assert.deepEqual(r.vault.second, []);
+test("questions: more than 10 free players on a place: exactly 10 are paid, by earlier score time, then address", () => {
+  const many = Array.from({ length: 12 }, (_, i) => "1" + String.fromCharCode(65 + i).repeat(33));
+  // q1 locks first, q2 later: the players whose last point came on q1 reached their score earlier.
+  const qs = [q(1, 1, START + DAY), q(2, 1, START + 2 * DAY), q(3, 2, START + 3 * DAY)];
+  // everyone: 1 point. many[0..2] score on q2 (later); the others score on q1 (earlier).
+  const players = many.map((a, i) => p(a, 0, 0, i < 3 ? [[1, 1], [2, 0]] : [[1, 0], [2, 1]]));
+  let r = week(qs, players);
+  assert.equal(r.vault.first.length, 10, "never zero, never more than 10");
+  assert.deepEqual(r.vault.first, [...many.slice(3), many[2]].slice(0, 9).concat([many[0]]).sort(), "the 9 early scorers, then the lowest address of the later ones");
+  assert.deepEqual(r.vault.second, [], "a tie for 1st leaves 2nd empty");
+  // 2nd place capped the same way.
+  const top = "1" + "Z".repeat(33);
+  r = week(qs, [p(top, 0, 0, [[1, 0], [2, 0], [3, 1]]), ...players]);
+  assert.deepEqual(r.vault.first, [top]);
+  assert.equal(r.vault.second.length, 10);
+  assert.ok(!r.vault.second.includes(many[1]) && !r.vault.second.includes(many[2]));
 });
 
 test("questions: places on each board, ties share; rows by board, points, then address", () => {
@@ -107,21 +118,22 @@ const cut = () => {
 };
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32); }
 function randomWeek(r) {
-  const nq = 1 + Math.floor(r() * 50), qs = [];
+  const small = r() < 0.3;                            // few questions, many players: big ties (the 10-a-place cap)
+  const nq = small ? 2 + Math.floor(r() * 3) : 1 + Math.floor(r() * 50), qs = [];
   for (let i = 0; i < nq; i++) {
     const k = r();
     const outcome = k < 0.08 ? VOID : k < 0.12 ? 0 : 1 + Math.floor(r() * 2);
     const lock = START + Math.floor(r() * 7.2 * DAY);
     qs.push([100 + i, outcome, lock]);
   }
-  const np = Math.floor(r() * 40), ps = [];
+  const np = Math.floor(r() * (small ? 80 : 40)), ps = [];
   const stakes = ["0", "1", "99999999", "100000000", "100000001", "500000000", "1000000000000"];
   for (let i = 0; i < np; i++) {
     const a = "1" + String(i).padStart(4, "0").replace(/0/g, "o").replace(/1/g, "x").replace(/[2-9]/g, (c) => "ABCDEFGHJ"[Number(c) - 1]) + "Q".repeat(29);
     const ans = [];
-    for (const [id] of qs) if (r() < 0.6) ans.push([id, Math.floor(r() * 2)]);
+    for (const [id] of qs) if (r() < (small ? 0.95 : 0.6)) ans.push([id, Math.floor(r() * 2)]);
     if (!ans.length) ans.push([qs[0][0], 0]);
-    const stake = stakes[Math.floor(r() * stakes.length)], peak = r() < 0.3 ? stakes[Math.floor(r() * stakes.length)] : stake;
+    const stake = small && r() < 0.8 ? "0" : stakes[Math.floor(r() * stakes.length)], peak = r() < 0.3 ? stakes[Math.floor(r() * stakes.length)] : stake;
     ps.push([a, stake, peak, r() < 0.05 ? 1 : 0, ans]);
   }
   ps.sort((u, v) => (u[0] < v[0] ? -1 : 1));
@@ -138,7 +150,7 @@ test("questions: the publish job's Python scorer agrees with math.js on 3,000 ra
   const res = spawnSync("python3", ["-I", "-", "in", "pub", "held"], { input: py, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, env: { ...process.env, CHECK_NOW_MS: String(START) } });
   assert.equal(res.status, 0, res.stderr);
   const got = JSON.parse(res.stdout.trim().split("\n").pop());
-  const seen = { staked: 0, first: 0, second: 0, incomplete: 0, tie: 0 };
+  const seen = { staked: 0, first: 0, second: 0, incomplete: 0, tie: 0, capped: 0 };
   for (let i = 0; i < weeks.length; i++) {
     const js = scoreWeek({ week: { start: START }, questions: weeks[i].questions, players: weeks[i].players, min: MIN });
     assert.deepEqual(got[i], JSON.parse(JSON.stringify(js)), `week ${i} differs`);
@@ -147,6 +159,7 @@ test("questions: the publish job's Python scorer agrees with math.js on 3,000 ra
     if (js.vault.first.length > 1) seen.tie++;
     if (js.vault.second.length) seen.second++;
     if (!js.complete) seen.incomplete++;
+    if (js.vault.first.length === 10 || js.vault.second.length === 10) seen.capped++;
   }
   // The random weeks reach every case (so "they agree" means something).
   for (const [k, n] of Object.entries(seen)) assert.ok(n >= 50, `only ${n} random weeks with ${k}`);

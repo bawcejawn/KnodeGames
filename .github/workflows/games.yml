@@ -476,21 +476,23 @@ jobs:
               for qid, outcome, lock in j["questions"]:
                   counts = lock <= sunday
                   if counts and outcome == 0: complete = False
-                  out[qid] = (outcome, counts)
+                  out[qid] = (outcome, counts, lock)
               mn = int(j["min"]); rows = []; missing = set()
               for a, st, pk, vd, ans in j["players"]:
-                  pts = cnt = 0
+                  pts = cnt = score_at = 0
                   for qid, opt in ans:
                       q = out.get(qid)
                       if q is None: missing.add(qid); continue
                       if vd or not q[1] or q[0] == VOID or q[0] == 0: continue
                       cnt += 1
-                      if q[0] == opt + 1: pts += 1
+                      if q[0] == opt + 1:
+                          pts += 1
+                          if q[2] > score_at: score_at = q[2]
                   stake = 0 if vd else int(st); peak = max(int(pk), stake)
                   ok = not vd and cnt >= 2 and pts >= 1
                   staked = ok and stake > 0 and stake >= mn
                   free = ok and peak < mn
-                  rows.append({"a": a, "pts": pts, "counted": cnt, "answers": len(ans), "staked": staked, "free": free, "ranked": staked, "board": "staked" if peak >= mn and not vd else "free", "place": 0})
+                  rows.append({"a": a, "pts": pts, "counted": cnt, "answers": len(ans), "scoreAt": score_at, "staked": staked, "free": free, "ranked": staked, "board": "staked" if peak >= mn and not vd else "free", "place": 0})
               for b in ("staked", "free"):
                   xs = [r for r in rows if r["board"] == b]
                   for r in xs: r["place"] = 1 + sum(1 for o in xs if o["pts"] > r["pts"])
@@ -498,12 +500,13 @@ jobs:
               vrows = [{"player": r["a"], "points": r["pts"]} for r in rows if r["staked"]]
               fr = [r for r in rows if r["free"]]
               best = max([r["pts"] for r in fr], default=0)
-              first = sorted(r["a"] for r in fr if r["pts"] == best and best > 0)
+              # Up to 10 per place; past 10, the 10 with the earlier score time, then address (owner, 5 Nov). Never zero for the cap.
+              pick = lambda xs: sorted(r["a"] for r in sorted(xs, key=lambda r: (r["scoreAt"], r["a"]))[:MAXP])
+              tied_first = [r for r in fr if r["pts"] == best and best > 0]
+              first = pick(tied_first)
               rest = [r for r in fr if r["pts"] < best]
               nxt = max([r["pts"] for r in rest], default=0)
-              second = sorted(r["a"] for r in rest if r["pts"] == nxt and nxt > 0) if len(first) == 1 else []
-              if len(first) > MAXP: first = []
-              if len(second) > MAXP: second = []
+              second = pick([r for r in rest if r["pts"] == nxt and nxt > 0]) if len(tied_first) == 1 else []
               prizes = [{"player": p, "place": 1} for p in first] + [{"player": p, "place": 2} for p in second]
               return {"complete": complete, "missing": sorted(missing), "rows": rows, "vault": {"rows": vrows, "first": first, "second": second}, "prizes": prizes}
 

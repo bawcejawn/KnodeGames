@@ -48,7 +48,7 @@ The steps (Picks announce → apply, vault `game-add … --staked --free` → `g
 - **Sponsor headroom:** the per-action Mana limit is at least 1.25× the measured cost and at most the per-transaction cap; raise it when measured use reaches ~1.5× headroom (D-038). Live caps and rows: `../platform/SPONSOR.md`.
 
 ## 6. Recorder and data
-Every game that publishes results follows `RECORDER_STANDARD.md` (no keys, two nodes, irreversible blocks, write-once history, recompute at publish, per-file holds). Details not yet written there, kept here until they are:
+Every game that publishes results follows `RECORDER_STANDARD.md` (no keys, two nodes, irreversible blocks, write-once history, recompute at publish, per-file holds), and **launches on the Shared Game Kit** (`GAME_KIT.md`, D-158): the game writes only its GameModule (`roundsFor`, `resultOf`, `scoreRound`, picks source); the kit does the rest. Details not yet written there, kept here until they are:
 - canonical bytes `JSON.stringify(JSON.parse(text))+"\n"`, numbers JS-safe, ASCII `[0-9]` only;
 - fail closed on a missing ABI or empty state too (no final file);
 - its own `<GAME>_ENABLED` switch, not blocking other games' steps (or the dependency documented).
@@ -87,3 +87,4 @@ Every game that publishes results follows `RECORDER_STANDARD.md` (no keys, two n
 
 ## 10. Game folder and manifest (D-157)
 Every game lives in `games/<slug>/` with a `game.json` manifest (the one place its settings live), a README, a filled `SECURITY.md`, `math.js`, `recorder.ts` and `tests/`; it's created with `npm run game:new` and checked with `npm run game:check` (`NEW_GAME.md`). Today's games move into this layout one PR at a time; until then they keep their old paths. Contracts follow `CONTRACT_STANDARD.md`.
+Its `recorder.ts` is a GameModule for the Shared Game Kit (`GAME_KIT.md`, D-158); no game gets its own recorder runtime.

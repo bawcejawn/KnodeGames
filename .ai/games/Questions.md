@@ -20,6 +20,7 @@ The original Knode game: daily questions about what the Koinos chain will do, sc
 - Each correct answer scores points on the week's board; a player needs at least 1 point to place. Exact per-question points: ❓ (not in the chat exports).
 - **Timing (old rules, up to the switch-over week):** a week ends Mon 00:00 UTC, closes Mon 12:00 (the bot closes it; since the v6.1 Mana fix no player action does), settles 24 h, and is final **Tue 12:00 UTC**; the hourly bot pays at about 12:07 (I-066, C-08). The bot settles every staked player of the switch-over week itself. ✅
 - **Timing (shared rules, from the v6.1 rule week, D-116):** no settle step; the bot closes the week; the results file is due Thu 00:00 UTC, correctable 24 h after the seal, then final; claims on the Stake page (`claim_game`). Detected from `config.q60_rule_week_plus_one` (week + 1 ≥ it). 💬 Vault chat
+- **How questions are shown (D-144, #171):** the page words each question plainly (one block in `app.js` between `// question-words:start` and `:end`, tested by `site.question-words.test.mjs` for every line); `q.text` on chain is unchanged and stays in the tooltip. If `generator.ts` wording changes, update `networkWords` and the Race view's matching too.
 - **Where the week's timing lives:** `../standards/WEEK_CYCLE.md` (Daily Questions joins it at the rule week, Mon 16 Nov).
 
 ## Rewards

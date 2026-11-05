@@ -77,7 +77,7 @@ export const DEFAULT_CAPS = { perTx: "1", perPlayerDay: "25", perPlayerWeek: "15
 //  one; the caps are first come, first served. Sponsor v3 counts only a STAKE as a player, and releases the free
 //  pool by the hour, so neither pool can be emptied cheaply in one burst; status warns at 80%.)
 /** The audited sponsor build (sponsor/README.md "Build"). upload refuses any other wasm. v2 (race picks), audited
- *  2026-10-27 (docs/history/AUDIT-2026-10-27-race-picks.md); v1 was 8cfeff6209b8d5cbc3b3e5fa30751e995767f5904b77693ed8a41e323ea2a8ed. */
+ *  2026-10-27 (AUDIT-2026-10-27-race-picks.md (owner's private records)); v1 was 8cfeff6209b8d5cbc3b3e5fa30751e995767f5904b77693ed8a41e323ea2a8ed. */
 export const SPONSOR_SHA256 = "fa4659e65c6156da3dde34238e0545a489a8b7f00cdf51df9bf79517a0019f33";
 /** v3 (allowlist, free claims, 5,000 ceiling, per-action Mana limits, the vault switch). Repo Lens round 6
  *  (2026-10-30): "GO" for the mainnet upload (launch step 2): mainnet takes v3, and v2 stays allowed as the rollback. */
@@ -258,7 +258,13 @@ async function upload(send: boolean) {
   const m = await contractMetadata(provider, A);
   // Repo Lens SG-1: never put the trapping build back while the vault switch is on (an unreadable switch counts as on).
   let switchOn = false;
-  if (m.exists) { try { switchOn = !!(await readSponsor(provider, A, "get_config")).game_has_vault; } catch { switchOn = true; } }
+  if (m.exists) {
+    // Repo Lens #D-7 SR-1: only v3 code returns the switch. Over any other code (v2 after a rollback) the stored
+    // settings may still hold game_has_vault: true, which b61ac238 would read again, so the switch counts as on.
+    const onChain = String(m.hash || "").replace(/^0x1220/, "");
+    if (!V3_BUILDS.includes(onChain)) switchOn = true;
+    else { try { switchOn = !!(await readSponsor(provider, A, "get_config")).game_has_vault; } catch { switchOn = true; } }
+  }
   const up = uploadProblem(sha256hex(wasm), switchOn);
   if (up) throw new Error(up);
   const have = BigInt(await provider.getAccountRc(A));

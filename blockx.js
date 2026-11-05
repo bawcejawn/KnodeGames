@@ -38,9 +38,9 @@
     if (!TESTNET) {
       let picks = null;
       try { const d = await fetchJson(new URL("picks-data/deployment.json", ROOT)); if (isAddr(d.contract)) picks = d.contract; } catch { /* not live yet */ }
-      NET = { rpc: ["https://koinos.armana.io", "https://api.koinosblocks.com"], data: "https://raw.githubusercontent.com/bawcejawn/Knode/games-data/blockx/", raceData: "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/",
+      NET = { rpc: ["https://koinos.armana.io", "https://api.koinosblocks.com"], data: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/blockx/", raceData: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/",
         cards: "race", picks, explorer: "https://koinosscan.com/address/", chainId: MAINNET_CHAIN_ID,
-        prize: "1st and 2nd at the end of the week win the free-play prize (2 and 1 VHP, paid once the Knode Games vault is live)." };
+        prize: "1st and 2nd at the end of the week win the free-play prize (2 and 1 VHP, from Week 1, the week of Mon 9 Nov)." };
       G = X;
       provider = new lib.Provider(NET.rpc);
       W = window.KWallet || null;
@@ -203,8 +203,12 @@
     if (!head) return;
     renderStage();
     const list = $("targets");
-    const who = me(), rounds = G.offerRounds(head.height), ps = producers();
-    const key = JSON.stringify([who, W && W.kind, rounds[0], sending, !!picksContract, cardAt, ps.map((p) => p.a).join(), usage && usage.picks_today, [...myPicks.entries()].map(([r, p]) => [r, p.producers && p.producers[0], p.changes]), [...drafts.entries()]]);
+    // D-125 / R-BX-22: Sunday (UTC) is the review day; its targets score nothing, so they aren't offered (nor one due
+    // in the last 10 minutes of Saturday, which could slip past midnight).
+    const restAt = (r) => { const t = about(G.target(r)); return X.restDay(t) || X.restDay(t + 10 * 60000); };
+    const offered = G.offerRounds(head.height), skipped = offered.filter(restAt).length;
+    const who = me(), rounds = offered.filter((r) => !restAt(r)), ps = producers();
+    const key = JSON.stringify([who, W && W.kind, rounds[0], skipped, sending, !!picksContract, cardAt, ps.map((p) => p.a).join(), usage && usage.picks_today, [...myPicks.entries()].map(([r, p]) => [r, p.producers && p.producers[0], p.changes]), [...drafts.entries()]]);
     if (!force && key === targetsKey && list.childElementCount) { updateTimes(); return; }
     targetsKey = key;
     const max = usage ? Number(usage.max_picks_per_day) || G.PICKS_PER_DAY : G.PICKS_PER_DAY, used = usage ? Number(usage.picks_today) || 0 : 0;
@@ -214,7 +218,8 @@
     whoLine.replaceChildren();
     if (!card && ps.length) whoLine.append("Showing the producers signing right now. Multipliers appear with the first handicap card (the recorder takes one within the hour).");
     if (!card && !TESTNET && picksContract && rounds.length) whoLine.append("Picks open when the next handicap card is published (within the hour).");
-    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty", text: picksContract ? "No target is open right now." : "Picks open soon." })); return; }
+    if (skipped) whoLine.append(el("span", { class: "bx-rest", text: " Sunday (UTC) is the review day: its targets don't count, so they aren't offered. Play starts again Monday 00:00 UTC." }));
+    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty", text: !picksContract ? "Picks open soon." : skipped ? "Sunday is the review day: no target counts today. Monday's targets open here soon." : "No target is open right now." })); return; }
     const cards = rounds.map((r, i) => {
       const h = G.target(r), mine = myPicks.get(r), mineP = mine && mine.producers && mine.producers[0];
       const choice = drafts.get(r) || mineP || null;

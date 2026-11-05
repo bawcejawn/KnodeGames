@@ -155,12 +155,14 @@
   const localHour = (utcHour) => { const d = new Date(); d.setUTCHours(utcHour, 0, 0, 0); return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
   const localTime = (ms) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   // Question rounds, Monday to Saturday (D-092): each opens at `open` (hour UTC) and closes 12 hours later. From the
-  // week of Mon 16 Nov (week 4) two rounds a day. Keep in step with SCHEDULE in bot/bot.ts (a test checks).
-  const ROUNDS = [{ "fromWeek": 0, "rounds": [{ "open": 12, "count": 5 }] }, { "fromWeek": 4, "rounds": [{ "open": 0, "count": 2 }, { "open": 12, "count": 3 }] }];
+  // week of Mon 9 Nov (week 3) two rounds a day; an entry with minCap (more questions once the contract allows them)
+  // opens at the same hours, so the page, which only needs the times, skips it. Keep in step with SCHEDULE in
+  // bot/bot.ts (a test checks).
+  const ROUNDS = [{ "fromWeek": 0, "rounds": [{ "open": 12, "count": 5 }] }, { "fromWeek": 3, "rounds": [{ "open": 0, "count": 2 }, { "open": 12, "count": 3 }] }, { "fromWeek": 3, "minCap": 48, "rounds": [{ "open": 0, "count": 4 }, { "open": 12, "count": 4 }] }];
   function roundsOfDay(d) {
     if (!S.genesis || d < 0 || d % 7 >= 6) return [];
     const w = Math.floor(d / 7); let r = ROUNDS[0].rounds;
-    for (const x of ROUNDS) if (w >= x.fromWeek) r = x.rounds;
+    for (const x of ROUNDS) if (w >= x.fromWeek && !x.minCap) r = x.rounds;
     return [...r].sort((a, b) => a.open - b.open).map((x) => {
       const releaseAt = S.genesis + d * 86400000 + x.open * 3600000;
       return { label: `W${String(w).padStart(3, "0")}-D${(d % 7) + 1}${x.open === 12 ? "" : "-" + String(x.open).padStart(2, "0")}`, releaseAt, lockTime: releaseAt + 12 * 3600000, count: x.count };
@@ -169,7 +171,7 @@
   /** Each round's UTC hour and the first time it runs (for the calendar file and the schedule line). */
   function roundStarts() {
     const out = new Map();
-    for (const x of ROUNDS) for (const r of x.rounds) if (!out.has(r.open)) out.set(r.open, S.genesis ? S.genesis + x.fromWeek * 7 * 86400000 : 0);
+    for (const x of ROUNDS) if (!x.minCap) for (const r of x.rounds) if (!out.has(r.open)) out.set(r.open, S.genesis ? S.genesis + x.fromWeek * 7 * 86400000 : 0);
     return [...out].sort((a, b) => a[0] - b[0]).map(([hour, from]) => ({ hour, from }));
   }
   /** The round open at `now` (released, answers not closed) and the next round to open. */
@@ -1174,7 +1176,7 @@
       renderReminders();
     };
     return el("div", { class: "remind" },
-      el("p", { class: "muted" }, `New questions come out Monday to Saturday at ${localHour(12)} your time (from Monday 16 November also at ${localHour(0)}).`),
+      el("p", { class: "muted" }, `New questions come out Monday to Saturday at ${localHour(12)} your time (from Monday 9 November also at ${localHour(0)}).`),
       el("div", { class: "row-btns" },
         el("button", { class: "btn btn-primary", type: "button", onclick: ics }, "Add to my calendar"),
         canNotify() ? el("button", { class: "btn btn-ghost", type: "button", onclick: toggle }, notifyOn() ? "Turn notifications off" : "Notify me while Knode Games is open") : null),
@@ -1527,7 +1529,7 @@
   function setupDemo() {
     S.demo = true;
     $("#demo-note").hidden = false;
-    const qs = (window.KPRED_DEMO?.questions || []);
+    const qs = (window.KNODE_DEMO?.questions || []);
     const last = Math.max(...qs.map((q) => q.lockHeight));
     // ?demo=live previews the race: the last day's answers closed 4,500 blocks ago and its blocks are being counted.
     const liveDemo = /[?&]demo=live\b/.test(location.search);

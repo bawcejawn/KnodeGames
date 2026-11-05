@@ -12,7 +12,7 @@
 
   const lib = window.koilib || window.koinos || window;
   const RPC = "https://koinos.armana.io";
-  const DATA = "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/";
+  const DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/";
   const VHP = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq";
   const EXPLORER = "https://koinosscan.com/address/";
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode Games pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Games Swap" };
@@ -106,7 +106,9 @@
     const legNow = M.legOf(race.start, Math.min(Date.now(), race.end - 1), nLegs), card = race.cards ? M.cardForLeg(race.cards, legNow) : null;
 
     // Title, tag and clock
-    $("race-title").textContent = `Race ${race.number} of 4 (${race.id.slice(11)}:00 UTC) · ${dayTime(race.start)} – ${clock(race.end)}`;
+    // D-129: a Sunday race is a fun race: played and scored, counted on Today and All time, never on the week's board.
+    const fun = M.restRace(race.start);
+    $("race-title").textContent = `${fun ? "Sunday fun race" : "Race"} ${race.number} of 4 (${race.id.slice(11)}:00 UTC) · ${dayTime(race.start)} – ${clock(race.end)}${fun ? " · counts on All time, not the week" : ""}`;
     const tag = $("race-tag");
     tag.textContent = live ? "Live" : !ended ? "Upcoming" : final ? "Final" : race.result && race.result.missed ? "Not recorded" : "Checking";
     tag.classList.toggle("done", !live);
@@ -295,10 +297,12 @@
     const max = usage ? Number(usage.max_picks_per_day) || 5 : 5, used = usage ? Number(usage.picks_today) || 0 : 0;
     $("picks-left").textContent = usage ? `${Math.max(0, max - used)} of ${max} picks left today` : "";
     const rows = [];
+    // D-129: Sunday UTC races are fun races: pick as usual; they count on Today and All time, not the week's board.
+    const funNote = (r) => (M.restRace(r.start) ? " · Sunday fun race: Today and All time, not the week" : "");
     // The live race: locked.
     const live = raceObj(cur), mineLive = myPicks.get(cur);
     rows.push(el("div", { class: "pk-row live" },
-      el("div", { class: "pk-when" }, el("b", { text: `Live now (${live.id.slice(11)}:00 UTC)` }), el("span", { text: `ends ${clock(live.end)}` })),
+      el("div", { class: "pk-when" }, el("b", { text: `Live now (${live.id.slice(11)}:00 UTC)` }), el("span", { text: `ends ${clock(live.end)}${funNote(live)}` })),
       el("div", { class: "pk-now", text: mineLive ? `Your pick: ${nameOf(mineLive)} 🔒` : "No pick for this race (locked)" }), el("span")));
     // The next 4: open.
     // The field for a race: its own starting card once the recorder has set it (about an hour before the start);
@@ -317,7 +321,7 @@
       const btn = el("button", { class: "btn", type: "button", onclick: () => sendPick(cur + k, sel.value) }, mine ? "Change" : "Pick");
       if (sending || used >= max) btn.disabled = true;
       rows.push(el("div", { class: "pk-row" },
-        el("div", { class: "pk-when" }, el("b", { text: `${dayTime(r.start)}` }), el("span", { "data-lock": String(r.start), text: `${r.id.slice(11)}:00 UTC · locks in ${dur(r.start - Date.now())}` })),
+        el("div", { class: "pk-when" }, el("b", { text: `${dayTime(r.start)}${M.restRace(r.start) ? " · Sunday fun race (Today and All time, not the week)" : ""}` }), el("span", { "data-lock": String(r.start), text: `${r.id.slice(11)}:00 UTC · locks in ${dur(r.start - Date.now())}` })),
         el("div", {}, sel, mine ? el("div", { class: "pk-now ago", text: `Your pick: ${nameOf(mine)}` }) : null), btn));
     }
     // Finished races today with a pick: right or not.

@@ -12,7 +12,7 @@
   "use strict";
   const G = typeof globalThis !== "undefined" ? globalThis : window;
 
-  const DATA = "https://raw.githubusercontent.com/bawcejawn/Knode/names-data/names.json";
+  const DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/names.json";
   const PREFIX = "Knode Games name: ";
   const ADDR = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/;
   const DAY = 86400000;

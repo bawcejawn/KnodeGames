@@ -15,7 +15,7 @@
   if (!K || !K.overview || !$("hub")) return;
   const F = K.fmt, UNIT = 100000000n;
   const PAGES = { 1: "index.html#play", 2: "blockx.html", 3: "survivor.html", 4: "fantasy.html", 6: "golf.html", 7: "race.html", 8: "combo.html", 9: "bracket.html", 13: "lastnode.html" };
-  const Q = 1;   // Daily Questions: staked on its own page (its own contract calls); shown here with a link
+  const Q = 1;   // Daily Questions: managed here like every game (its own vault calls are built by stake-panel.js)
 
   function el(tag, attrs = {}, ...kids) {
     const n = document.createElement(tag);
@@ -34,7 +34,7 @@
   const rewardOf = (g) => sum(g.claims, (c) => c.reward);
 
   // open: { id, mode: "stake" | "withdraw" | "move", token, value, to }; done: the last success, shown as a receipt.
-  const S = { data: null, open: null, busy: false, note: "", noteCls: "", done: null, showClaims: false };
+  const S = { data: null, open: null, busy: false, note: "", noteCls: "", done: null, showClaims: false, choose: null };
   const W = () => K.wallet();
   const me = () => { const w = W(); return w && w.address && w.kind !== "guest" ? w.address : null; };
   const nextMonday = () => F.weekDate(S.data.config, S.data.week + 1n);
@@ -56,16 +56,26 @@
   function say(text, cls = "") { S.note = text; S.noteCls = cls; render(); }
 
   /** Send one action. receipt: { head, lines } shown after it lands. */
-  async function run(action, a, receipt) {
+  const run = (action, a, receipt) => steps([{ action, a }], receipt);
+  /** Send one or more transactions in order, each confirmed in the wallet (a list: free claims one at a time). Stops at
+   *  the first one that fails or is cancelled, and says how many went through. receipt(n) = { head, lines } for the n
+   *  that were sent. */
+  async function steps(list, receipt) {
     if (S.busy) return;
-    S.busy = true; S.done = null; say(`Step 2 of 2: confirm in ${W() && W().label ? W().label() : "your wallet"}…`);
+    S.busy = true; S.done = null; S.choose = null;
+    const who = W() && W().label ? W().label() : "your wallet";
+    let sent = 0, pending = false;
     try {
-      const id = await K.send(action, a);
+      for (const { action, a } of list) {
+        say(list.length > 1 ? `Claiming ${sent + 1} of ${list.length}: confirm in ${who}…` : `Step 2 of 2: confirm in ${who}…`);
+        const id = await K.send(action, a);
+        sent++; if (!id) pending = true;
+      }
       S.open = null; S.note = "";
-      S.done = { ...receipt, pending: !id };
     } catch (e) {
-      S.note = K.sayError(e); S.noteCls = "bad";
+      S.note = K.sayError(e) + (sent ? ` (${sent} of ${list.length} went through before that.)` : ""); S.noteCls = "bad";
     }
+    if (sent) S.done = { ...(typeof receipt === "function" ? receipt(sent) : receipt), pending };
     S.busy = false;
     await load();
     const r = $("hub-receipt"); if (r && r.scrollIntoView) r.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -75,7 +85,7 @@
 
   // ── the step-by-step box for one game: Stake (add), Withdraw or Move ──
   function form(g, mode) {
-    const d = S.data, others = d.games.filter((x) => x.active && x.id !== g.id && x.id !== Q);
+    const d = S.data, others = d.games.filter((x) => x.active && x.id !== g.id);
     const f = S.open;
     const bal = d.wallet ? (f.token === "KOIN" ? d.wallet.koin : d.wallet.vhp) : 0n;
     const most = mode === "stake" ? (bal / UNIT) * UNIT : g.mine;   // stakes are whole numbers
@@ -100,7 +110,7 @@
       else if (mode === "move" && !f.to) bad = "Pick the game to move it to.";
       // I-028: taking a staked wallet below the minimum mid-week loses this week's share and free prize (peak_stake).
       const drop = !bad && u && mode !== "stake" && g.staked && g.mine - u < d.min
-        ? `Heads up: this leaves less than ${F.exact(d.min)} VHP in ${g.name}, so you get no share of its rewards this week and no free prize.` : "";
+        ? `Heads up: this leaves less than ${F.exact(d.min)} VHP in ${g.name}, so you get no share of its rewards this week and no free prize.${g.id === Q && g.mine - u === 0n ? " Your answers this week stop counting too." : ""}` : "";
       let lines = [];
       if (!bad && u) {
         const amt = `${F.exact(u)} ${mode === "stake" ? f.token : "VHP"}`;
@@ -163,19 +173,17 @@
   function stakedRow(g) {
     const d = S.data, open = S.open && S.open.id === g.id ? S.open.mode : null, reward = rewardOf(g), [cls, text] = status(g);
     const b = (mode, label) => el("button", { type: "button", class: `btn btn-small ${open === mode ? "btn-primary" : "btn-ghost"}`, disabled: S.busy, "aria-expanded": String(open === mode), onclick: () => (open === mode ? (S.open = null, render()) : openBox(g, mode)) }, label);
-    const canMove = d.games.some((x) => x.active && x.id !== g.id && x.id !== Q);
+    const canMove = d.games.some((x) => x.active && x.id !== g.id);
     return el("li", { class: `hub-row mine ${cls}`, id: `g${g.id}` },
       el("div", { class: "hub-row-main" },
         el("div", { class: "hub-row-name" }, el("a", { href: PAGES[g.id] || "games.html" }, g.name),
           el("span", { class: `hub-status ${cls}` }, el("i", { "aria-hidden": "true" }), text)),
         el("div", { class: "hub-row-amt" }, el("b", {}, vhp(g.mine)), el("small", { class: "muted" }, `${pct(g.share)} of ${vhp(g.total)}`))),
-      g.id === Q
-        ? el("div", { class: "hub-btns" }, el("a", { class: "btn btn-small btn-ghost", href: PAGES[Q] }, "Add, withdraw or claim on Daily Questions →"))
-        : el("div", { class: "hub-btns" },
-          g.active && !d.paused ? b("stake", "+ Add") : null,
-          b("withdraw", "Withdraw"),
-          canMove ? b("move", "Move") : null,
-          reward > 0n ? el("button", { type: "button", class: "btn btn-small btn-tang", disabled: S.busy, onclick: () => claim(g.claims.map((c) => ({ g, ...c }))) }, `Claim ${vhp(reward)}`) : null),
+      el("div", { class: "hub-btns" },
+        g.active && !d.paused ? b("stake", "+ Add") : null,
+        b("withdraw", "Withdraw"),
+        canMove ? b("move", "Move") : null,
+        reward > 0n ? el("button", { type: "button", class: "btn btn-small btn-tang", disabled: S.busy, onclick: () => claim(g.claims.map((c) => ({ g, ...c }))) }, `Claim ${vhp(reward)}`) : null),
       open ? form(g, open) : null);
   }
 
@@ -185,21 +193,45 @@
     return el("li", { class: "hub-row", id: `g${g.id}` },
       el("div", { class: "hub-row-main" },
         el("div", { class: "hub-row-name" }, el("a", { href: PAGES[g.id] || "games.html" }, g.name),
-          el("small", { class: "muted" }, g.last != null ? `Last week paid ${F.amount(g.last)} VHP per 100 staked` : g.id === Q ? "Stake on its own page" : "New: no full week paid yet")),
+          el("small", { class: "muted" }, g.last != null ? `Last week paid ${F.amount(g.last)} VHP per 100 staked` : g.id === Q ? "Answer the daily questions; the best staked players share the week" : "New: no full week paid yet")),
         el("div", { class: "hub-row-amt" }, el("b", {}, vhp(g.total)), el("small", { class: "muted" }, "staked by everyone"))),
       who ? el("div", { class: "hub-btns" },
-        g.id === Q ? el("a", { class: "btn btn-small btn-ghost", href: PAGES[Q] }, "Stake on Daily Questions →")
-          : g.active && !d.paused ? el("button", { type: "button", class: `btn btn-small ${open ? "btn-primary" : "btn-ghost"}`, disabled: S.busy, "aria-expanded": String(!!open), onclick: () => (open ? (S.open = null, render()) : openBox(g, "stake")) }, "Stake") : null,
+        g.active && !d.paused ? el("button", { type: "button", class: `btn btn-small ${open ? "btn-primary" : "btn-ghost"}`, disabled: S.busy, "aria-expanded": String(!!open), onclick: () => (open ? (S.open = null, render()) : openBox(g, "stake")) }, "Stake") : null,
         reward > 0n ? el("button", { type: "button", class: "btn btn-small btn-tang", disabled: S.busy, onclick: () => claim(g.claims.map((c) => ({ g, ...c }))) }, `Claim ${vhp(reward)}`) : null) : null,
       open ? form(g, open) : null);
   }
 
-  /** Claim up to 10 rewards in one transaction. */
+  /** Claim up to 10 rewards: one transaction with the player's own Mana, or one per reward when the Mana sponsor pays (R-BX-21). */
+  // Claiming several rewards (owner, 4 Nov, after R-BX-21): the Mana sponsor pays at most 1.5 Mana a transaction and one
+  // claim costs about 1.1, so a batch of 2+ can't be sponsored. One reward goes straight out; for 2+ the player picks:
+  // free, one wallet approval per reward, or all at once (up to 10) with their own Mana.
+  const MANA_PER_CLAIM = 1.2;
+  const claimArg = (c) => ({ game: c.g.id, week: c.week, reward: c.reward, free: !!c.free, ownMana: !!c.ownMana });
+  const claimReceipt = (list) => (n) => {
+    const done = list.slice(0, n), games = [...new Set(done.map((c) => c.g.name))];
+    return { head: `Claimed ${vhp(sum(done, (c) => c.reward))}`, lines: [`From ${games.join(", ")}. It's in your wallet.`, list.length > n ? `${list.length - n} more to claim: tap Claim again.` : ""] };
+  };
   function claim(list) {
-    const first = list.slice(0, 10), total = sum(first, (c) => c.reward);
-    const games = [...new Set(first.map((c) => c.g.name))];
-    run("claim", { claims: first.map((c) => ({ game: c.g.id, week: c.week })) },
-      { head: `Claimed ${vhp(total)}`, lines: [`From ${games.join(", ")}. It's in your wallet.`, list.length > 10 ? `${list.length - 10} more to claim: tap Claim again.` : ""] });
+    if (list.length === 1) return steps([{ action: "claim", a: { claims: [claimArg(list[0])] } }], claimReceipt(list));
+    S.choose = list; S.note = ""; S.done = null; render();
+    const box = $("hub-choose"); if (box && box.scrollIntoView) box.scrollIntoView({ block: "nearest" });
+  }
+  function claimFree(list) {
+    steps(list.map((c) => ({ action: "claim", a: { claims: [claimArg(c)] } })), claimReceipt(list));
+  }
+  function claimOwn(list) {
+    const first = list.slice(0, 10);
+    steps([{ action: "claim", a: { claims: first.map(claimArg), ownMana: true } }], () => claimReceipt(list)(first.length));   // one transaction, first.length rewards
+  }
+  /** The choice for 2+ rewards. */
+  function chooser() {
+    const list = S.choose, n = list.length, first = Math.min(n, 10);
+    return el("div", { class: "hub-choose", id: "hub-choose", role: "group", "aria-label": "How to claim" },
+      el("div", { class: "hub-form-head" }, el("b", {}, `Claim ${n} rewards · ${vhp(sum(list, (c) => c.reward))}`), el("button", { class: "hub-x", type: "button", "aria-label": "Close", onclick: () => { S.choose = null; render(); } }, "✕")),
+      el("button", { type: "button", class: "btn btn-tang", disabled: S.busy, onclick: () => claimFree(list) }, `Free: one approval per reward (${n})`),
+      el("p", { class: "muted hub-sub" }, "Knode Games pays the Mana. Your wallet asks you to approve each reward, one after another."),
+      el("button", { type: "button", class: "btn btn-ghost", disabled: S.busy, onclick: () => claimOwn(list) }, `All at once with your own Mana${n > 10 ? " (the first 10)" : ""}`),
+      el("p", { class: "muted hub-sub" }, `One approval. Uses about ${(first * MANA_PER_CLAIM).toFixed(1)} of your own Mana (it refills by itself from the KOIN in your wallet).`));
   }
 
   function summary() {
@@ -248,8 +280,10 @@
         el("b", {}, `✓ ${S.done.head}${S.done.pending ? " (sent: it may take a minute to show)" : ""}`),
         ...S.done.lines.filter(Boolean).map((t) => el("p", {}, t)),
         el("button", { type: "button", class: "hub-x", "aria-label": "Close", onclick: () => { S.done = null; render(); } }, "✕")) : null,
+      S.choose && who ? chooser() : null,
       S.note ? el("p", { class: `hub-note ${S.noteCls}`, role: "status" }, S.note) : null,
-      d.paused ? el("p", { class: "hub-note bad" }, "New stakes are paused right now. Withdrawals and claims always work.") : null].filter(Boolean));
+      d.paused ? el("p", { class: "hub-note bad" }, "New stakes are paused right now. Withdrawals and claims always work.") : null,
+      who && d.games.some((g) => g.claimsUnknown) ? el("p", { class: "hub-note" }, `Couldn't check rewards for ${d.games.filter((g) => g.claimsUnknown).map((g) => g.name).join(", ")} just now (the network is busy). They show at the next refresh, in about a minute.`) : null].filter(Boolean));
     $("hub-body").replaceChildren(
       ...(mine.length ? [el("h2", {}, "Where you're staked"), el("ul", { class: "hub-list" }, ...mine.map(stakedRow))] : []),
       el("h2", {}, mine.length ? "Stake in another game" : "Pick a game to stake in"),
@@ -263,12 +297,12 @@
     if (!m || !S.data || !S.data.live) return;
     const g = S.data.games.find((x) => x.id === Number(m[1]));
     if (!g) return;
-    if (me() && g.id !== Q && !S.open) S.open = { id: g.id, mode: g.active ? "stake" : "withdraw", token: "VHP", value: "", to: null };
+    if (me() && !S.open) S.open = { id: g.id, mode: g.active ? "stake" : "withdraw", token: "VHP", value: "", to: null };
     render();
     const n = $(`g${g.id}`); if (n && n.scrollIntoView) n.scrollIntoView({ block: "center" });
   }
   window.addEventListener("hashchange", fromHash);
-  if (W() && W().subscribe) W().subscribe(() => { S.open = null; S.note = ""; S.done = null; load(); });
+  if (W() && W().subscribe) W().subscribe(() => { S.open = null; S.note = ""; S.done = null; S.choose = null; load(); });
   // The wallet needs the game's settings (network, chain id, Mana sponsor) to send from this page, as the game pages do.
   (async () => {
     const lib = window.koilib || window.koinos || window, w = W();
@@ -279,5 +313,5 @@
   })();
   K.badge($("q-badge"), { game: 1, href: "index.html#play" });
   load().then(fromHash);
-  setInterval(() => { if (!document.hidden && !S.open && !S.busy) load(); }, 60000);
+  setInterval(() => { if (!document.hidden && !S.open && !S.busy && !S.choose) load(); }, 60000);
 })();

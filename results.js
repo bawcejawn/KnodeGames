@@ -3,6 +3,9 @@
    `"results": true` and a drawing below gets its own tab: index.html#results/race and so on.
    Producer Race: every recorded week from the race recorder (race-data branch: index.json + W###.json), a day at a
    time, each race with its winner, top 3, how the picks went, the player's own pick and points, and the full standings.
+   Who Signs Block X (R-BX-12): every recorded week from the Block X recorder (games-data branch: blockx/index.json +
+   blockx/W###.json), a day at a time, each target block with its signer, how the picks went, the player's own pick and
+   points, and void targets with their reason.
    "Only mine" and search look through the whole week.
    Read-only: no transaction, no storage, everything built with textContent. */
 (() => {
@@ -14,7 +17,7 @@
   const M = window.KRaceMath;
   if (!host || !M) return;
   const W = window.KWallet;
-  const RAW = "https://raw.githubusercontent.com/bawcejawn/Knode/";
+  const RAW = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/";
   const EXPLORER = "https://koinosscan.com/address/";
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode Games pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Games Swap" };
   const ADDR = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/;
@@ -80,7 +83,8 @@
       if (this.day == null || !all.some((x) => dayOf(x) === this.day)) this.day = ended.length ? dayOf(ended[ended.length - 1]) : 0;
 
       // Band: title, the player's week, weeks and days.
-      const mineAll = all.filter((x) => x.my);
+      // D-129 (Repo Lens #B-7 B7-4): Sunday fun races count for no week, so they are left out of "pts this week".
+      const mineAll = all.filter((x) => x.my && !M.restRace(x.r.start));
       const score = me() ? el("p", { class: "rband-score" }, el("b", { text: fmt(mineAll.reduce((s, x) => s + x.myPts, 0)) }), ` pts this week · ${mineAll.length} pick${mineAll.length === 1 ? "" : "s"}`)
         : el("p", { class: "rband-score", text: `${ended.filter((x) => x.status === "final").length} races final this week` });
       const weeks = el("div", { class: "rweeks", role: "group", "aria-label": "Week" }, ...this.weeks.map((w) => {
@@ -148,9 +152,112 @@
     },
   };
 
+  // ───────────────── Who Signs Block X ─────────────────
+  // Points are stored ×100 (a right pick scores 100–300: ×1 to ×3), as on blockx.html.
+  const bxPts = (h) => fmt((Number(h) || 0) / 100, 2);
+  const blockx = {
+    weeks: null, files: new Map(), week: null, day: null, mine: false, q: "",
+    async open(box) {
+      this.box = box;
+      if (!this.weeks) {
+        box.replaceChildren(el("p", { class: "muted", text: "Loading Block X results…" }));
+        try {
+          const ix = await fetchJson(RAW + "games-data/blockx/index.json");
+          this.weeks = (ix && Array.isArray(ix.weeks) ? ix.weeks : []).filter((w) => Number.isInteger(w) && w >= 0 && w < 10000).sort((a, b) => b - a);
+        } catch { box.replaceChildren(el("p", { class: "muted", text: "Couldn't load Block X results right now. Try again in a moment." })); return; }
+      }
+      if (!this.weeks.length) { box.replaceChildren(el("div", { class: "empty", text: "No Block X targets recorded yet." })); return; }
+      if (this.week == null || !this.weeks.includes(this.week)) this.week = this.weeks[0];
+      await this.load(this.week);
+      this.draw();
+    },
+    async load(w) {
+      if (this.files.has(w)) return;
+      try {
+        const f = await fetchJson(RAW + `games-data/blockx/W${String(w).padStart(3, "0")}.json`);
+        if (f && f.v === 1 && f.week === w && Array.isArray(f.targets)) this.files.set(w, f);
+      } catch { /* drawn as "couldn't load" */ }
+    },
+    /** One target's facts, from the recorder's file: [player, producer, pick time, points ×100, staked]. */
+    facts(t) {
+      const picks = Array.isArray(t.picks) ? t.picks.filter((p) => Array.isArray(p) && ADDR.test(p[0]) && ADDR.test(p[1])) : [];
+      const isVoid = typeof t.void === "string";
+      const right = (p) => !isVoid && p[1] === t.signer && Number(p[3]) > 0;
+      const my = me() ? picks.find((p) => p[0] === me()) : null;
+      return { t, isVoid, picks, right, my, myPts: my && right(my) ? Number(my[3]) : 0 };
+    },
+    draw() {
+      const f = this.files.get(this.week), box = this.box, now = Date.now();
+      const weekStart = f && Number.isFinite(f.start) ? f.start : 0;
+      const all = f ? f.targets.filter((t) => t && Number.isInteger(t.height) && Number.isFinite(t.time)).map((t) => this.facts(t)) : [];
+      const dayOf = (x) => Math.floor((x.t.time - weekStart) / M.DAY);
+      if (this.day == null) { const last = all.reduce((m, x) => Math.max(m, dayOf(x)), -1); this.day = last >= 0 ? Math.min(6, last) : 0; }
+      const mineAll = all.filter((x) => x.my);
+      const score = me() ? el("p", { class: "rband-score" }, el("b", { text: bxPts(mineAll.reduce((s, x) => s + x.myPts, 0)) }), ` pts this week · ${mineAll.length} pick${mineAll.length === 1 ? "" : "s"}`)
+        : el("p", { class: "rband-score", text: `${all.filter((x) => !x.isVoid).length} targets scored this week` });
+      const weeks = el("div", { class: "rweeks", role: "group", "aria-label": "Week" }, ...this.weeks.map((w) => {
+        const b = el("button", { type: "button", "aria-pressed": String(w === this.week), text: w === M.weekOf(now) ? `This week (${WS(w)})` : `${WL(w)}` });
+        b.addEventListener("click", async () => { this.week = w; this.day = null; await this.load(w); this.draw(); });
+        return b;
+      }));
+      const days = el("div", { class: "rdays", role: "group", "aria-label": "Day" }, ...DAYS.map((d, i) => {
+        const has = all.some((x) => dayOf(x) === i);
+        const b = el("button", { type: "button", "aria-pressed": String(i === this.day && !this.mine && !this.q), text: d });
+        if (!has) b.disabled = true;
+        b.addEventListener("click", () => { this.day = i; this.mine = false; this.q = ""; this.draw(); });
+        return b;
+      }));
+      const band = el("div", { class: "rband" }, el("div", { class: "rband-top" }, el("h1", { text: "Block X results" }), score), weeks, days);
+      const search = el("input", { type: "search", "aria-label": "Find a producer or wallet", placeholder: "Find a producer or wallet", autocomplete: "off" });
+      search.value = this.q;
+      search.addEventListener("input", () => { this.q = search.value.trim(); this.drawList(); });
+      const mineBtn = el("button", { type: "button", class: "rmine", "aria-pressed": String(this.mine), text: "Only mine" });
+      mineBtn.hidden = !me();
+      mineBtn.addEventListener("click", () => { this.mine = !this.mine; mineBtn.setAttribute("aria-pressed", String(this.mine)); this.drawList(); });
+      const tools = el("div", { class: "rtools" }, el("label", { class: "rsearch" }, search), mineBtn);
+      this.list = el("div", { class: "results rr-list" });
+      this.all = all; this.dayOf = dayOf;
+      box.replaceChildren(band, tools, f ? this.list : el("div", { class: "empty", text: "Couldn't load this week's targets. Try again in a moment." }),
+        el("p", { class: "muted res-foot" }, "A target is recorded once its block is irreversible and two nodes agree; it is void (no points) when no handicap card can score it. ", el("a", { href: "blockx.html", text: "Pick the next blocks" }), " · ", el("a", { href: "index.html#leaderboard/blockx", text: "Block X leaderboard" })));
+      if (f) this.drawList();
+    },
+    drawList() {
+      const q = this.q.toLowerCase();
+      const hit = (x) => !q || [String(x.t.height), x.t.signer, nameOf(x.t.signer), ...x.picks.map((p) => p[0]), ...x.picks.map((p) => p[1]), ...x.picks.map((p) => nameOf(p[1]))].some((v) => String(v || "").toLowerCase().includes(q));
+      const filtered = this.mine || q ? this.all.filter((x) => (!this.mine || x.my) && hit(x)) : this.all.filter((x) => this.dayOf(x) === this.day);
+      const rows = filtered.slice().sort((a, b) => b.t.time - a.t.time);
+      this.list.replaceChildren(...(rows.length ? rows.map((x) => this.card(x))
+        : [el("div", { class: "empty", text: this.mine ? "No picks of yours this week." : q ? "Nothing matches that search this week." : "No targets recorded on this day yet." })]));
+    },
+    card(x) {
+      const { t } = x;
+      const head = el("div", { class: "rr-head" },
+        el("h3", {}, `Block ${fmt(t.height)} · ${utcDay(t.time)}, ${utcTime(t.time)}`),
+        el("span", { class: `rr-pill ${x.isVoid ? "missed" : "final"}`, text: x.isVoid ? "Void" : "Final" }));
+      const body = [el("p", { class: "res-line" }, "Signed by ", link(t.signer))];
+      if (x.isVoid) body.push(el("p", { class: "res-line muted", text: `Void, no points: ${String(t.void).slice(0, 200)}` }));
+      else {
+        const nR = x.picks.filter(x.right).length;
+        body.push(el("p", { class: "res-line rr-picks", text: x.picks.length ? `${x.picks.length} pick${x.picks.length === 1 ? "" : "s"}: ${nR} right` : "No picks on this block." }));
+      }
+      if (x.my) {
+        const outcome = x.isVoid ? "void · 0 pts" : x.right(x.my) ? `right · +${bxPts(x.my[3])} pts` : "missed · 0 pts";
+        body.push(el("p", { class: `res-line rr-mine ${x.myPts ? "ok" : ""}` }, el("b", { text: "You: " }), link(x.my[1]), ` ${outcome}`));
+      }
+      if (x.picks.length) {
+        const sorted = x.picks.slice().sort((a, b) => Number(b[3]) - Number(a[3]));
+        body.push(el("details", { class: "res-how" }, el("summary", {}, "All picks"),
+          el("div", { class: "table-wrap" }, el("table", { class: "board rr-table" },
+            el("thead", {}, el("tr", {}, el("th", { text: "Player" }), el("th", { text: "Pick" }), el("th", { class: "num", text: "Points" }))),
+            el("tbody", {}, ...sorted.map((p) => el("tr", { class: p[0] === me() ? "me" : null }, el("td", {}, link(p[0])), el("td", {}, link(p[1])), el("td", { class: "num", text: bxPts(x.right(p) ? p[3] : 0) }))))))));
+      }
+      return el("article", { class: `res rr res-st-${x.isVoid ? "wait" : x.my ? (x.myPts ? "right" : "wrong") : "none"}` }, head, ...body);
+    },
+  };
+
   // ───────────────── tabs ─────────────────
   // A drawing per game; a game shows here when games.json says `"results": true` and it has a drawing.
-  const ADAPTERS = { race };
+  const ADAPTERS = { race, blockx };
   let games = [{ id: "questions", name: "Daily Questions" }], current = "questions";
   const qPart = $("res-q"), gPart = $("res-g");
 
@@ -179,6 +286,6 @@
   }
   if (window.KNames) window.KNames.onChange(() => { if (current !== "questions" && ADAPTERS[current]) ADAPTERS[current].open(gPart); });
   window.addEventListener("hashchange", route);
-  if (W && W.subscribe) W.subscribe(() => { if (current !== "questions" && race.weeks) race.draw(); });
+  if (W && W.subscribe) W.subscribe(() => { const a = ADAPTERS[current]; if (current !== "questions" && a && a.weeks) a.draw(); });
   load();
 })();

@@ -494,9 +494,75 @@
             "1JrsQXbrDqkT9yUH6gtj4yhQi1kgWwsohh": "11827511657640"
           },
           "seal": "9798efae5e7c93917a90ba46a72005ab8b800cf212185374f60857eac58caaba"
+        },
+        {
+          "height": 40793349,
+          "readAt": "2026-11-04T16:15:12.938Z",
+          "values": {
+            "1JrsQXbrDqkT9yUH6gtj4yhQi1kgWwsohh": "11820565739808"
+          },
+          "seal": "e0d6d314017440add0a5424aa5de0321b91f8056838948230fb6aaa685001fe3"
+        },
+        {
+          "height": 40794058,
+          "readAt": "2026-11-04T16:52:45.163Z",
+          "values": {
+            "1JrsQXbrDqkT9yUH6gtj4yhQi1kgWwsohh": "11819339981688"
+          },
+          "seal": "78d9d2fa94f012ce585600042e0df93164b3e8df73ef71873dedeaa2076fe622"
+        },
+        {
+          "height": 40795229,
+          "readAt": "2026-11-04T17:53:22.153Z",
+          "values": {
+            "1JrsQXbrDqkT9yUH6gtj4yhQi1kgWwsohh": "11817705631332"
+          },
+          "seal": "da5571b42f6f2b08954456dbad3782768bef99eb02391b88de35347d786885e6"
         }
       ],
-      "vhpSeal": "67291ed4a9844c68150b58fe2f39d100115c27e16c90c123f2d3a0345243430c"
+      "vhpSeal": "1c75a07f97a3b385277dc2a771e01a64145d2bc46787e59324caf0d8d1fd1d88",
+      "result": {
+        "void": false,
+        "option": 0,
+        "value": "172",
+        "dataHash": "dbe4ce6e918be490ea42e39c62e4f98a34287ab593fffc4f46d94e73c7d9039c",
+        "resolvedAt": "2026-11-04T18:24:46.850Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40760431,
+          "decidedHeight": 40795822,
+          "readings": [
+            40776583,
+            40777555,
+            40778767,
+            40780054,
+            40781223,
+            40782595,
+            40784045,
+            40785959,
+            40787305,
+            40788207,
+            40788475,
+            40789007,
+            40789491,
+            40790955,
+            40793349,
+            40794058,
+            40795229
+          ],
+          "readingsInWindow": 17,
+          "values": {
+            "1JrsQXbrDqkT9yUH6gtj4yhQi1kgWwsohh": {
+              "release": "11944359481799",
+              "end": "11817705631332",
+              "change": "−1.06%",
+              "height": 40795229
+            }
+          }
+        }
+      },
+      "chainOutcome": 1,
+      "chainDataHash": "0xdbe4ce6e918be490ea42e39c62e4f98a34287ab593fffc4f46d94e73c7d9039c"
     },
     {
       "id": "W002-D2-4",

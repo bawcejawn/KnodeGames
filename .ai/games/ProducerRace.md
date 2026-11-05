@@ -1,13 +1,13 @@
 # Producer Race (game 7)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Race "KG 02 · Hub + Race Show", Hub, Vault, Block X chats), `DECISIONS.md` (D-033 – D-035, D-062, D-063, D-078), the repo. **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/ProducerRace.md`.
+> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Race "KG 02 · Hub + Race Show", Hub, Vault, Block X chats), `DECISIONS.md` (D-033 – D-035, D-062, D-063, D-078), the repo. **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/ProducerRace.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
 A fun, fast race between Koinos block producers: four races a day, each a mini "horse race" where handicaps level the field so small producers can win too. It also feeds other games — Combo Card legs and a Block Golf hole.
 
 ## Gameplay
-- **Four 6-hour races a day**, starting 00:00, 06:00, 12:00 and 18:00 UTC. Each race has six 1-hour legs with an hourly **handicap card** (races before 27 Oct had 3 cards). 💬
+- **Four 6-hour races a day, Monday to Saturday** (D-125, from vault week 3 = Week 1): 24 races a week, starting 00:00, 06:00, 12:00 and 18:00 UTC. **Sunday UTC is the review day**, but its four races still run as **fun races** (D-129): picked, scored and shown on the Today and All time boards, never on the week's board, medals, prizes or vault file. Handicap cards are taken on Sunday as on any day (Block X scores with them, Repo Lens #C-7 C7-2). Each race has six 1-hour legs with an hourly **handicap card** (races before 27 Oct had 3 cards). 💬
 - Players pick producers ("horses"). Picks lock when a race starts; up to 5 picks a day, changes included. The sponsor pays the Mana. 💬
 - A pick's time (`pick.at`) is its latest pick or change. 💬
 - Results use only irreversible blocks that match on two nodes. 💬
@@ -18,7 +18,9 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 - **Ranking:** points, then wins, then picks placed; wallets still tied share the place (D-034). 💬
 - A race that won't finalize is skipped 12 hours after its week ends; its picks don't count and it is listed in `skipped`. 💬
 - Vault file `race-data:vault/W<week>.json`: `rows` = staked players with ≥ 1 point, as 255, 254 … per tied group; `first` / `second` = free winners, at most 10 each. 💬
-- **Hold before final (I-034, owner 3 Nov):** while a week settles, the recorder publishes `vault/PENDING-W<week>.json` (the file it would make final, and when it first saw it). `W<week>.json` goes final only **12 h after the week ends** and once that pending file has stayed **exactly the same for 1 h** across runs. The publish job checks the same rule on its own clock. The owner can hold a week by hand with the repo variable `RACE_HOLD_WEEKS` (e.g. `3`); remove it to release. Each run's notes list the pending winners and flag free winners whose first race was that week (I-035, option A). ✅ PR (R-RACE-1)
+- **Hold before final (I-034, owner 3 Nov):** while a week settles, the recorder publishes `vault/PENDING-W<week>.json` (the file it would make final, and when it first saw it). `W<week>.json` goes final only **12 h after the week ends** and once that pending file has stayed **exactly the same for 1 h** across runs. The publish job checks the same rule on its own clock. A new pending file is dated at the end of its run. On the hourly schedule the two runs are an hour apart; a run started by hand can bring that down to about 25 minutes (the publish job accepts a pending file dated up to 35 minutes back), never to one run. The owner can hold a week by hand with the repo variable `RACE_HOLD_WEEKS` (e.g. `3`); remove it to release. Each run's notes list the pending winners and flag free winners whose first race was that week (I-035, option A). ✅ PR (R-RACE-1)
+- **Your own hold emails once a day (L-4, owner 4 Nov):** while `RACE_HOLD_WEEKS` names a week, the run notes say so every hour, but the alert (the failed run and its email) comes only on the 16:37 UTC run (8:37 AM PST / 9:37 AM PDT). The full chain re-check also runs on that run; a mismatch, unreadable stakes or any other system hold still alerts every hour as before.
+- **Weekly close on the rhythm (D-125, owner 4 Nov; replaces the 12 h hold from Week 1):** from Sunday 00:00 UTC the recorder publishes the week as pending and checks each new pending file against the chain. It goes final at the first Monday run (≈ 00:37 UTC) once two runs an hour apart agree and the chain still matches; the publish job allows a final file only from Monday 00:00 UTC. It alerts if still not final 3 h after the week. Rewards are claimable ~24 h after the vault seals: from about Mon 6–8 PM PST (Tue ~02:00–04:00 UTC). The chain re-check confirms each race's stored heights with 4 block reads and has a 10-minute budget; running out waits, it never holds (C7-1). It checks 4 races at a time, with one 10-minute deadline for the whole run (F-1); Sunday fun races aren't re-checked (nothing pays on them).
 
 ## Rewards
 - **Staked** (staked in game 7 that week): share the game's bucket; medals go to the vault's top 30% by headcount, rounded up, tied groups whole. 💬

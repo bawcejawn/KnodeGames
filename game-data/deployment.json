@@ -39,11 +39,17 @@
       "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq",
       "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK"
     ],
-    "rcLimit": "120000000",
-    "rcLimitOther": "100000000",
+    "rcLimit": "130000000",
+    "rcLimitOther": "240000000",
     "rcLimits": {
-      "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm:8ce33c6c": "120000000",
-      "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K:8ce33c6c": "120000000"
+      "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm:8ce33c6c": "130000000",
+      "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K:8ce33c6c": "120000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:0db52f40": "120000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:4107e3ab": "200000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:dd1b3c31": "200000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:5b0aaef8": "155000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:c26f22db": "155000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:6868e83d": "145000000"
     },
     "guest": true
   },
@@ -77,7 +83,8 @@
     "9": {
       "name": "Producer Bracket",
       "results": "games-data:bracket/vault",
-      "boardCap": 1000
+      "boardCap": 1000,
+      "capScope": "staked"
     },
     "13": {
       "name": "Last Node Standing",

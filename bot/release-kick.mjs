@@ -1,7 +1,7 @@
 /**
  * DAILY QUESTION RELEASE — backup starter, runs on your PC every 5 minutes (Windows Task Scheduler; set up with
  * node\install-release-kick.ps1). It does nothing except around each round's release, Monday to Saturday. Rounds open
- * at 12:00 UTC, and from the week of Mon 16 Nov also at 00:00 UTC (D-092; the same SCHEDULE as bot/bot.ts, a test
+ * at 12:00 UTC, and from the week of Mon 9 Nov also at 00:00 UTC (D-092; the same SCHEDULE as bot/bot.ts, a test
  * checks they agree). For each round (12:00 shown):
  *
  *   11:50-11:58 UTC   starts the bot on GitHub ("Kpred bot", Run workflow) unless one is already running. The bot
@@ -37,11 +37,14 @@ const EARLY_FROM = -10 * MIN, EARLY_TO = -2 * MIN;
 const CHECK_FROM = 6 * MIN, CHECK_TO = 2 * HOUR;
 const ALERT_AFTER = 20 * MIN;
 // Question rounds by week (week 0 = genesis week): must match SCHEDULE in bot/bot.ts (tests/audit/release-rounds.test.ts).
+// Entries with minCap (more questions once the chain allows them) open at the same hours, so this task, which only
+// needs the release times, skips them.
 export const SCHEDULE = [
   { fromWeek: 0, rounds: [{ open: 12, count: 5 }] },
-  { fromWeek: 4, rounds: [{ open: 0, count: 2 }, { open: 12, count: 3 }] },
+  { fromWeek: 3, rounds: [{ open: 0, count: 2 }, { open: 12, count: 3 }] },
+  { fromWeek: 3, minCap: 48, rounds: [{ open: 0, count: 4 }, { open: 12, count: 4 }] },
 ];
-const roundsOfWeek = (w) => { let r = SCHEDULE[0].rounds; for (const x of SCHEDULE) if (w >= x.fromWeek) r = x.rounds; return r; };
+const roundsOfWeek = (w) => { let r = SCHEDULE[0].rounds; for (const x of SCHEDULE) if (w >= x.fromWeek && !x.minCap) r = x.rounds; return r; };
 /** Every round release (label, ms) of UTC day `d` since genesis `g`; none on Sundays. */
 export function releasesOfDay(g, d) {
   if (d < 0 || d % 7 >= 6) return [];

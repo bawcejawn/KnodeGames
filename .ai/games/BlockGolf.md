@@ -1,6 +1,6 @@
 # Block Golf (game 6)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Block Golf chat), `DECISIONS.md` (D-056), the repo (branch `golf`). **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/BlockGolf.md`.
+> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Block Golf chat), `DECISIONS.md` (D-056), the repo (branch `golf`). **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/BlockGolf.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose

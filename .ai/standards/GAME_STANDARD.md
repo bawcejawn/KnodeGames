@@ -90,3 +90,6 @@ Every game that publishes results **must**:
 ## Known Issues    (I-xxx links)
 ## Future Plans
 ```
+
+## 10. Game folder and manifest (D-157)
+Every game lives in `games/<slug>/` with a `game.json` manifest (the one place its settings live), a README, a filled `SECURITY.md`, `math.js`, `recorder.ts` and `tests/`; it's created with `npm run game:new` and checked with `npm run game:check` (`NEW_GAME.md`). Today's games move into this layout one PR at a time; until then they keep their old paths. Contracts follow `CONTRACT_STANDARD.md`.

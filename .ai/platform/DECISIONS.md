@@ -167,6 +167,7 @@
 | D-154 | 2026-11-05 | VHP ruler v2.1 ranks by a field-conditional percentile (A′) | active (library design, 5 Nov; replaces §16's Fix A / Fix B) |
 | D-155 | 2026-11-05 | Live stats panel | active (in #185) |
 | D-156 | 2026-11-05 | The welcome page leads with free play; the play-first home page waits for a mockup review | active |
+| D-157 | 2026-11-05 | The Game Standard and the Contract Standard are official | active |
 
 ---
 
@@ -826,6 +827,9 @@
 
 ## D-156 — The welcome page leads with free play; the play-first home page waits for a mockup review
 - **Date:** 2026-11-05 (owner, to the Hub chat: "yes" to research item 5; the play-first home page mockup shared for review) · **Decision:** the welcome page leads with "Play free now" (no sign-up, no wallet needed); staking is the last step (built, #183). The play-first home page (Variant A) is built only after the owner reviews the mockup, then A/B tested once visit counts exist.
+
+## D-157 — The Game Standard and the Contract Standard are official
+- **Date:** 2026-11-05 (owner: "Adopt the proposed Game Standard and Contract Standard as the official standards for this repo") · **Decision:** every game lives in `games/<slug>/` with a `game.json` manifest (schema in `tools/game-manifest.mjs`), a README, a filled `SECURITY.md`, `math.js`, `recorder.ts` and `tests/`; it's created from `templates/game/` with `npm run game:new` and checked with `npm run game:check`; the path is copy → fill → check → review → go live (`standards/NEW_GAME.md`). Every contract folder follows `standards/CONTRACT_STANDARD.md` (README, a current SECURITY.md, one ABI, storage-compatibility tests, a CONTRACTS.md row, a release tag; timelocked changes). **Order:** the mechanical pieces first (template, schema and its test, the two tools, NEW_GAME.md), no live behaviour changed; then the shared kit (D-146); then each existing game moves in its own PR (Block X first), and each contract gets its missing docs and tests. Proposal: `claude/library/GAME-STANDARD-PROPOSAL-2026-11-05.md`.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

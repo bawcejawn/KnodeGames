@@ -70,9 +70,11 @@ test("N-4: load_ledger and checkKept accept a chained oldest kept hour (still un
   const A = new FakeNode(f.raw, { head }), B = new FakeNode(f.raw, { name: "B", head });
   const ch = await recordHours(A, B, f.texts[30], { ...opts, maxChained: 2 });
   assert.deepEqual(ch.map((t) => JSON.parse(t).kind), ["chained", "chained"]);
-  const head2 = at(f.n0 + 32) + 70 + 10000;   // then close enough for live reads
-  const live = await recordHours(new FakeNode(f.raw, { head: head2 }), new FakeNode(f.raw, { name: "B", head: head2 }), ch[1], { ...opts, maxHours: 6 });   // 2 + 6 hours: long enough for a ledger
-  assert.ok(live.length && JSON.parse(live[0]).kind === "live", "then a live hour");
+  const head2 = at(f.n0 + 32) + 70 + 4000;   // then close enough for live reads (#B-6: within ~5 h)
+  const live = await recordHours(new FakeNode(f.raw, { head: head2 }), new FakeNode(f.raw, { name: "B", head: head2 }), ch[1], { ...opts, maxHours: 6 });
+  assert.ok(live.length && JSON.parse(live[live.length - 1]).kind === "live", "then a live hour");
+  const head3 = head2 + 2 * H;   // one more run: long enough for a ledger
+  live.push(...await recordHours(new FakeNode(f.raw, { head: head3 }), new FakeNode(f.raw, { name: "B", head: head3 }), live[live.length - 1], { ...opts, maxHours: 6 }));
   // retention removed everything before the first chained hour
   const kept = [...ch, ...live], tree = path.join(dir, "kept"); fs.mkdirSync(path.join(tree, "h"), { recursive: true });
   for (const t of kept) fs.writeFileSync(path.join(tree, "h", `${JSON.parse(t).n}.json`), t);
@@ -207,4 +209,75 @@ except ValueError as e:
     print("raised", calls[0])`).trim();
   const m = /^raised (\d+)$/.exec(out); assert.ok(m, out);
   assert.ok(Number(m[1]) <= 16, `only the batches already running were tried (${m[1]} of ~49)`);
+});
+
+// ── Repo Lens #B-6 (re-check at a26571d) ──
+import { rollup, MAX_DAY_BYTES } from "../../bot/vhp-ruler.ts";
+
+test("#B-6 D-1: after any gap (1 h to 10 days, three alignments), every hour's tail stays short and every day file far under 16 MiB", async () => {
+  const f = makeChain({ seed: 101, hours: 31 + 250, np: 3, busy: 0, write: 31, rich: 100 });
+  const gapsH = [0.1, 1, 3, 4.9, 5.1, 8, 14, 18, 21, 26, 48, 240];
+  let worstTail = 0, worstDay = 0;
+  for (const gh of gapsH) for (const off of [0, 400, 900]) {
+    let head = at(f.n0 + 30) + Math.round(gh * H) + off + 60, prev = f.texts[30], k = 0, guard = 0;
+    const byDay = new Map();
+    for (const t of f.texts) { const n = JSON.parse(t).n, d = Math.floor(n / 24); byDay.set(d, (byDay.get(d) || 0) + Buffer.byteLength(t)); }
+    for (; guard < 60; guard++) {
+      const A = new FakeNode(f.raw, { head }), B = new FakeNode(f.raw, { name: "B", head });
+      for (const t of await recordHours(A, B, prev, { ...opts, maxChained: 48 })) {
+        const h = JSON.parse(t), tail = h.anchor.at - h.to;
+        assert.equal(D.checkHour(prev, t).ok, true);
+        worstTail = Math.max(worstTail, tail);
+        assert.ok(tail <= 2400, `gap ${gh} h +${off}: block-hour ${h.n} (${h.kind}) has a ${tail}-block tail`);
+        const d = Math.floor(h.n / 24); byDay.set(d, (byDay.get(d) || 0) + Buffer.byteLength(t));
+        prev = t; k++;
+      }
+      if (head - 60 - JSON.parse(prev).to < 2 * H) break;
+      head = Math.min(head + H + ((guard * 577 + off) % 1800), f.raw.top - 100);   // an hour passes, plus a late cron
+    }
+    assert.equal(JSON.parse(prev).kind, "live", `gap ${gh} h +${off}: ends live`);
+    for (const v of byDay.values()) { worstDay = Math.max(worstDay, v); assert.ok(v < MAX_DAY_BYTES / 2, `gap ${gh} h: a day of ${v} bytes`); }
+  }
+  assert.ok(worstTail > 0 && worstDay > 0);
+  console.log(`# D-1 sweep: longest tail ${worstTail} blocks; largest day ${worstDay} bytes (limit ${MAX_DAY_BYTES})`);
+});
+
+test("#B-6 D-1: rollup never writes a day file over the limit; its hours stay as hour files, with a red error", () => {
+  // every hour of day 1,396 shares one read at the day's end: long tails, the same blocks repeated (the old failure)
+  const g = makeChain({ seed: 103, hours: 48, np: 3, busy: 0, n0: 33480, share: 24, lag: 30000 });
+  const map = new Map(g.texts.map((t) => [JSON.parse(t).n, t])), logs = [];
+  const sizes = [0, 1].map((d) => g.texts.slice(d * 24, d * 24 + 24).reduce((s, t) => s + Buffer.byteLength(t), 0));
+  assert.ok(sizes.some((s) => s > MAX_DAY_BYTES), `the fixture really makes an oversized day (${sizes})`);
+  const { days, remove } = rollup(map, new Set(), 33480 + 24 * 5, 30, (s) => logs.push(s));
+  for (const [d, t] of Object.entries(days)) assert.ok(Buffer.byteLength(t) <= MAX_DAY_BYTES, `day ${d}`);
+  assert.ok(logs.some((l) => /^::error::day \d+ would be \d+ bytes, over the/.test(l)), logs.join("\n"));
+  const big = 1395 + sizes.findIndex((s) => s > MAX_DAY_BYTES);
+  assert.ok(!(big in days) && !remove.some((r) => r.startsWith(`h/${big * 24}.`)), "the oversized day isn't rolled up and its hours stay");
+});
+
+test("#B-6 B6-1, B6-3, B6-4: bad ranges get the 19-block lead-in; 'not yet' names where it starts; the size-window and history boundaries", () => {
+  const L0 = R.ledger(long.tl), card0 = R.makeCard(L0, game), T = card0.T;
+  // B6-1: a bad hour ending 19 blocks before the race flags the scored card; 20 blocks before doesn't
+  for (const [h, want] of [[win.S0 - 19, "flagged"], [win.S0 - 20, "ok"]]) {
+    const tl = { ...long.tl, bad: [{ h0: h - 100, h1: h }] }, L = R.ledger(tl), s = R.scoreCard(L, R.makeCard(L, game));
+    assert.ok(s.producers.every((p) => p.quality === want), `bad to S0 − ${win.S0 - h}: ${want}`);
+    assert.equal(pyCard(tl, game, true), R.cardJson(s));
+  }
+  // B6-3
+  assert.throws(() => R.makeCard(R.ledger({ ...long.tl, pending: [{ h0: T - 600, h1: T + 50 }] }), game), new RegExp(`from block ${T - 600}\\)`));
+  assert.match(pyCard({ ...long.tl, pending: [{ h0: T - 600, h1: T + 50 }] }, game), new RegExp(`from block ${T - 600}\\)`));
+  // B6-4: rebuilt at T − 28,819 flags, at T − 28,820 doesn't (both languages)
+  for (const [h, want] of [[T - 28819, "flagged"], [T - 28820, "ok"]]) {
+    const tl = { ...long.tl, rebuilt: [{ h0: h - 500, h1: h }] }, c = R.makeCard(R.ledger(tl), game);
+    assert.ok(c.producers.every((p) => p.quality === want), `rebuilt to T − ${T - h}: ${want}`);
+    assert.equal(pyCard(tl, game), R.cardJson(c));
+  }
+  // B6-4: history needs a block at or before T − 28,800 in the look-back
+  for (const [only, want] of [[T - 28800, true], [T - 28799, false]]) {
+    const x = custom({ from: W0 - 445000, n: 445000 + 15000, signerAt: (h, k) => { const s = (k * 7 + (k >> 5)) % 5; return s === 4 && h >= T - 410400 && h < T - 20000 && h !== only ? 3 : (h === only ? 4 : s); } });
+    const L = R.ledger(x.tl), got = R.newcomer(L, x.ps[4], T);
+    assert.equal(got.history, want, `only old block at T − ${T - only}`);
+    fs.writeFileSync(path.join(dir, "n.json"), toJson({ tl: x.tl, a: x.ps[4], T }));
+    assert.equal(PY(`j = json.load(open(${JSON.stringify(path.join(dir, "n.json"))})); print(json.dumps(V.newcomer(V.Ledger(j["tl"]), j["a"], j["T"]), separators=(",", ":")))`).trim(), JSON.stringify([got.isNew, got.history]));
+  }
 });

@@ -22,11 +22,15 @@ test("recordHours: the next irreversible hours, read on both nodes, chain onto t
   const texts = await recordHours(A, B, c.texts[30], opts);
   assert.equal(texts.length, 3);
   let prev = c.texts[30];
-  for (const t of texts) { const r = D.checkHour(prev, t); assert.equal(r.ok, true, r.why); assert.equal(r.quality, "ok"); assert.equal(r.effAt, "next"); prev = t; }
-  const h0 = JSON.parse(texts[0]);
+  for (const t of texts) { const r = D.checkHour(prev, t); assert.equal(r.ok, true, r.why); assert.equal(r.quality, "ok"); prev = t; }
+  assert.equal(D.checkHour(texts[1], texts[2]).effAt, "next");
+  const h0 = JSON.parse(texts[0]), h2 = JSON.parse(texts[2]);
   assert.equal(h0.n, c.n0 + 31);
-  assert.equal(h0.anchor.at, JSON.parse(texts[2]).anchor.at, "one live read serves the three hours of this run");
-  const reads = Object.values(h0.anchor.reads.A).map((r) => r[0]);
+  // #B-6 D-1: one live read per run, for its newest hour; the older hours are chained at their own end (no tail)
+  assert.deepEqual(texts.map((t) => JSON.parse(t).kind), ["chained", "chained", "live"]);
+  assert.equal(h0.anchor.at, h0.to, "an older hour of the run carries no tail");
+  assert.equal(D.timelineFrom([...c.texts, ...texts].slice(0, 31 + 3).map((t) => JSON.parse(t))).pending.length, 0, "the live hour checks them");
+  const reads = Object.values(h2.anchor.reads.A).map((r) => r[0]);
   assert.ok(new Set(reads).size > 1, "each address read at its own head block");
   // the timeline from published + recorded hours gives the exact effective VHP
   const all = [...c.texts.slice(0, 31), ...texts], hours = all.map((t) => JSON.parse(t));
@@ -35,7 +39,7 @@ test("recordHours: the next irreversible hours, read on both nodes, chain onto t
 });
 
 test("maxHours: a run records at most that many hours; the next run carries on", async () => {
-  const head = at(c.n0 + 36) + 70;
+  const head = at(c.n0 + 34) + 70;   // 4 hours behind: live (#B-6: chained only beyond ~5 h)
   const A = new FakeNode(c.raw, { name: "A", head }), B = new FakeNode(c.raw, { name: "B", head });
   const one = await recordHours(A, B, c.texts[30], { ...opts, maxHours: 2 });
   assert.equal(one.length, 2);
@@ -170,11 +174,11 @@ test("#D-10 M-2: 27 hours behind — the recorder chains, catches up, goes live;
   const A = new FakeNode(f.raw, { head }), B = new FakeNode(f.raw, { name: "B", head });
   const logs = [], log = (s) => logs.push(s);
   let all = f.texts.slice(), prev = f.texts[30];
-  for (let run = 0; run < 6; run++) {
+  for (let run = 0; run < 12; run++) {
     const texts = await recordHours(A, B, prev, { ...opts, log, maxChained: 4 });
     if (!texts.length) break;
     for (const t of texts) { const r = D.checkHour(prev, t); assert.equal(r.ok, true, r.why); prev = t; all.push(t); }
-    if (JSON.parse(texts[0]).kind === "live") break;
+    if (JSON.parse(texts[texts.length - 1]).kind === "live") break;
   }
   const kinds = all.slice(31).map((t) => JSON.parse(t).kind);
   assert.ok(kinds.includes("chained") && kinds[kinds.length - 1] === "live", kinds.join());

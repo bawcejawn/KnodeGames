@@ -40,10 +40,10 @@ export const blockId = (h) => "0x1220" + crypto.createHash("sha256").update(`blo
  *  of a group of `share` late hours); each address is read at its own block up to it, with exact effective balances
  *  from the contract copy at the block after its read. Returns { texts, n0, eff(h) per producer, producers }. */
 export function makeChain(opts = {}) {
-  const { seed = 1, hours = 30, np = 5, n0 = 33500, lag = 25, rebuiltHours = 0, busy = 0.01, share = 1 } = opts;
+  const { seed = 1, hours = 30, np = 5, n0 = 33500, lag = 25, rebuiltHours = 0, busy = 0.01, share = 1, rich = 1 } = opts;   // rich: × starting VHP (long chains)
   const r = rng(seed), H = D.HOUR, from = n0 * H, top = (n0 + hours) * H - 1 + lag;
   const ps = Array.from({ length: np }, (_, i) => addr(i));
-  const bal = ps.map((_, i) => BigInt(Math.floor(1e13 * (0.5 + r() * (i + 1)))));
+  const bal = ps.map((_, i) => BigInt(Math.floor(1e13 * (0.5 + r() * (i + 1)))) * BigInt(rich));
   const con = bal.map((b) => new ContractBalance(b));
   const blocks = [], events = [], effAt = new Map(), balAfter = new Map();
   for (let h = from; h <= top + 1; h++) {

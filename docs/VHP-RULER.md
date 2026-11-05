@@ -32,10 +32,12 @@ what and how to run it. Built by the VHP Ruler chat (R-RULER-1) on branch `vhp-r
 
 ## If it falls behind (a node down, the ruler switched off, a GitHub outage)
 Usually nothing to do by hand. More than 12 hours behind, each run shows a red `::error::` "the VHP ruler is N hours
-behind". More than about 20 hours behind, it writes **chained** hours (balances carried forward from the hour before,
-blocks checked on both nodes, no reads), up to 48 a run, until it is about 15 hours behind; the next run then goes back
-to live hours, and the first live hour checks the whole chain against real reads. A chained hour's anchor is its own last
-block, or the previous hour's anchor when that one is later. Chained hours with no live hour after them are unverified:
-a paying card that would read one waits ("not yet"). A node that can't answer a read stops the run without writing
-anything; the next run tries again. If a run fails the same way hour after hour (a red error each hour), that needs a
-look: send the error to the VHP Ruler chat.
+behind". More than about 5 hours behind, it writes **chained** hours (balances carried forward from the hour before,
+blocks checked on both nodes, no reads), up to 48 a run, until it is about 2 hours behind; the next run then reads live
+again. A live run reads once, for its newest hour; the older hours of that run are chained and checked by it in the same
+publish. So every hour file holds its own blocks plus at most about an hour more, and a day file stays near 3–5 MB, far
+under the publish job's 16 MiB limit (Repo Lens #B-6 D-1). A chained hour's anchor is its own last block, or the previous
+hour's anchor when that one is later. Chained hours with no live hour after them are unverified: a paying card that
+would read one waits ("not yet … from block N"). A node that can't answer a read stops the run without writing anything;
+the next run tries again. If a run fails the same way hour after hour (a red error each hour), or a day can't be rolled
+up ("over the … byte limit"), that needs a look: send the error to the VHP Ruler chat.

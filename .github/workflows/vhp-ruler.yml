@@ -560,7 +560,22 @@ jobs:
 
 
           EARLY = DELAY - 1   # a change up to 19 blocks before a window still moves effective VHP inside it (Repo Lens #B-5 N-7)
-          NOT_YET = "not yet: unverified chained hours in the card's windows; it is made once the next live hour checks them"
+
+
+          def _not_yet(L, h0, h1):
+              r = sorted((x for x in L.pending if x["h0"] <= h1 and x["h1"] >= h0), key=lambda x: x["h0"])[0]
+              return "not yet: unverified chained hours in the card's windows (from block %d); it is made once the next live hour checks them" % r["h0"]
+
+
+          def newcomer(L, a, T):
+              """(isNew, history) of producer a at T, as newcomer in vhp-ruler.js (Repo Lens #B-5 N-6)."""
+              lb0 = T - FORM - ACTIVE
+              if lb0 >= L.frm:
+                  return L.signed_in(a, lb0, T - FORM - 1) == 0, L.signed_in(a, lb0, T - HISTORY) > 0
+              first = L.first_signed(a)
+              seen_at_start = first is not None and first < L.valid_from
+              return ((not seen_at_start) and first is not None and T - first < FORM,
+                      first is not None and (T - L.frm >= HISTORY if seen_at_start else T - first >= HISTORY))
 
 
           def _js(v):
@@ -620,30 +635,21 @@ jobs:
               if paying and T - L.frm < FORM + ACTIVE:
                   raise ValueError("a paying card needs %d blocks of data before its moment (14 days + 6 h)" % (FORM + ACTIVE))
               if paying and _pending_in(L, T - AVG - EARLY, T):
-                  raise ValueError(NOT_YET)
+                  raise ValueError(_not_yet(L, T - AVG - EARLY, T))
               form_from = max(L.valid_from, T - FORM)
               look0 = min(T - AVG, form_from)
-              lb0 = T - FORM - ACTIVE
-              fixed = lb0 >= L.frm   # the fixed look-back (Repo Lens #B-5 N-6)
               blocks, tot = w["S1"] - w["S0"] + 1, total(L, T)
               rows = []
               for a in L.active(T):
                   o, av, f = own(L, a, T, own_rule), avg(L, a, T), form_of(L, a, T)
                   k = k_of(blocks, o, tot)
-                  if fixed:
-                      is_new = L.signed_in(a, lb0, T - FORM - 1) == 0
-                      history = L.signed_in(a, lb0, T - HISTORY) > 0
-                  else:
-                      first = L.first_signed(a)
-                      seen_at_start = first is not None and first < L.valid_from
-                      is_new = (not seen_at_start) and first is not None and T - first < FORM
-                      history = first is not None and (T - L.frm >= HISTORY if seen_at_start else T - first >= HISTORY)
+                  is_new, history = newcomer(L, a, T)
                   rows.append({"a": a, "own": o, "avg": av, "k": k, "form": f["form"],
                                "entry": k >= MIN_K and f["form"] >= FORM_GATE and history, "pooled": a in pooled,
                                "isNew": is_new, "quality": "ok"})
               rows.sort(key=lambda r: (-r["own"], r["a"]))
               # D-113: on a paying card only the 24-h size window must be free of rebuilt hours; form's older days may read them
-              if any(_bad_for(L, r["a"], look0, T) for r in rows) or (paying and _rebuilt_in(L, T - AVG - EARLY, T)):
+              if any(_bad_for(L, r["a"], look0 - EARLY, T) for r in rows) or (paying and _rebuilt_in(L, T - AVG - EARLY, T)):
                   for r in rows:
                       r["quality"] = "flagged"
               return {"ruleVersion": RULE_VERSION, "game": int(_dec(game, "game")), "round": _dec(rnd, "round"), "ownRule": own_rule, "paying": paying,
@@ -656,8 +662,8 @@ jobs:
               S0, S1 = card["window"]["S0"], card["window"]["S1"]
               tot = _int(card["total"])
               if card["paying"] and _pending_in(L, S0 - EARLY, S1):
-                  raise ValueError(NOT_YET)
-              flagged = any(p["quality"] == "flagged" or _bad_for(L, p["a"], S0, S1) for p in card["producers"]) \
+                  raise ValueError(_not_yet(L, S0 - EARLY, S1))
+              flagged = any(p["quality"] == "flagged" or _bad_for(L, p["a"], S0 - EARLY, S1) for p in card["producers"]) \
                   or (card["paying"] and _rebuilt_in(L, S0 - EARLY, S1))
               rows = []
               for p in card["producers"]:

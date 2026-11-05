@@ -93,7 +93,7 @@ export function fillHours(plan: Plan, blocks: Blk[], anc: { reads: any; tail: Bl
   const texts: string[] = [], seen = new Set<string>();
   let prev = "";
   for (let n = plan.startN; n <= plan.endN; n++) {
-    // #D-10 M-2: when the read is more than a day after the plan's end (the hours job ran late), the last hour is
+    // #D-10 M-2: when the read is more than 3 hours after the plan's end (the hours job ran late), the last hour is
     // rebuilt too; the hourly recorder then chains the gap and its first live hour checks it all
     const hf = n * HOUR, ht = hf + HOUR - 1, isLast = n === plan.endN && !opts.allRebuilt;
     for (const b of all) { if (b.h < hf) continue; if (b.h > (isLast ? anc.at : ht)) break; seen.add(b.s); }
@@ -148,7 +148,9 @@ async function main() {
     for (const b of JSON.parse(fs.readFileSync(chunkFile(dir, k), "utf8"))) blocks.push(b);
   }
   const lastTo = (plan.endN + 1) * HOUR - 1, anc = await fillAnchor(A, B, blocks, lastTo);
-  const late = anc.at - lastTo > 24000;
+  // the read more than 3 h after the plan's end: the last hour would carry a long tail, and the recorder's next hours
+  // would repeat it (#B-6 D-1), so every hour is written rebuilt and the recorder catches up from the plan's end
+  const late = anc.at - lastTo > 3600;
   if (late) console.log(`::warning::the read is ${((anc.at - lastTo) / 1200).toFixed(1)} hours after the plan's end: every hour is written rebuilt; the hourly recorder chains the gap, then goes live`);
   const texts = fillHours(plan, blocks, anc, { allRebuilt: late });
   fs.mkdirSync(path.join(out, "h"), { recursive: true });

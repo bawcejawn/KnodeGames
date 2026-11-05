@@ -195,9 +195,14 @@ export function balancesAt(reads: Record<"A" | "B", Record<string, Read>>, block
 const toHourBlocks = (bs: Blk[]) => bs.map((b) => ({ s: b.s, id: b.id, burn: b.burn }));
 const toHourEvents = (bs: Blk[]) => bs.flatMap((b) => b.events);
 
-// blocks: ~20 h behind → chain instead of live reads; chain down to ~15 h behind, so the next hourly run goes live
-// (Repo Lens #E-14 N-2: chaining only to 20 h left runs an hour apart chaining for ever); ~12 h → alert
-export const CHAIN_AFTER = 24000, CHAIN_TO = 18000, BEHIND_ALERT = 14400;
+// Every hour's tail stays short, so a day file stays far under its 16 MiB limit (Repo Lens #B-6 D-1: each hour file holds
+// its blocks up to its anchor, so long tails repeat the same blocks across a day's hours):
+//  - more than ~5 h behind → chained hours (no reads, no tail) down to ~2 h behind; the next hourly run then goes live
+//    (Repo Lens #E-14 N-2: the gap between CHAIN_TO and CHAIN_AFTER is larger than an hour, so it can't chain for ever);
+//  - a live run reads once, for its NEWEST hour only; the hours before it in the same run are chained, anchored at their
+//    own end with balances walked back from those reads, and that live hour checks them in the same publish.
+// ~12 h behind → a red alert every run.
+export const CHAIN_AFTER = 6000, CHAIN_TO = 2400, BEHIND_ALERT = 14400, MAX_DAY_BYTES = 16 << 20;
 /** Catch-up after an outage (#D-10 M-2): hours with no reads, balances carried forward from the previous hour plus the
  *  blocks both nodes agreed on; an address seen for the first time is read live and walked back. A chained hour's
  *  anchor is its own last block, or the previous anchor when that one is later (a live read can land past the next
@@ -256,19 +261,30 @@ export async function recordHours(A: RulerNode, B: RulerNode, prevText: string, 
   const texts: string[] = [];
   let p = prevText;
   for (let n = first; n <= last; n++) {
-    const hf = n * D.HOUR, mine = allBlocks.filter((b) => b.h >= hf);
-    const t = D.makeHour({ n, prevText: p, kind: "live", blocks: toHourBlocks(mine), events: toHourEvents(mine),
-      anchor: { at: anc.at, id: anc.id, bal, reads: { A: readOut("A"), B: readOut("B") } } });
+    const hf = n * D.HOUR, ht = hf + D.HOUR - 1, prevAt = JSON.parse(p).anchor.at;
+    let t: string;
+    if (n < last) {   // an older hour of this run: chained, anchored at its own end (or the previous anchor, if later)
+      const at = Math.max(ht, prevAt), mine = allBlocks.filter((b) => b.h >= hf && b.h <= at);
+      const set = new Set<string>([...Object.keys(JSON.parse(p).anchor.bal), ...mine.map((b) => b.s)]);
+      const hb: Record<string, bigint> = {};
+      for (const a of [...set].sort()) hb[a] = bal[a] - changesAfter(allBlocks, a, at, anc.at);
+      t = D.makeHour({ n, prevText: p, kind: "chained", blocks: toHourBlocks(mine), events: toHourEvents(mine), anchor: { at, id: mine[mine.length - 1].id, bal: hb, reads: { A: {}, B: {} } } });
+    } else {
+      const mine = allBlocks.filter((b) => b.h >= hf);
+      t = D.makeHour({ n, prevText: p, kind: "live", blocks: toHourBlocks(mine), events: toHourEvents(mine),
+        anchor: { at: anc.at, id: anc.id, bal, reads: { A: readOut("A"), B: readOut("B") } } });
+    }
     const c = D.checkHour(p, t);
     if (!c.ok) throw new Error(`block-hour ${n} fails its own check (${c.why}); nothing written`);
-    if (c.quality === "flagged") log(`::warning::block-hour ${n} is flagged: ${c.why}`); else log(`block-hour ${n}: ok (effective balances match at the ${c.effAt === "next" ? "block after each read" : "read block"})`);
+    if (n < last) log(`block-hour ${n}: chained (checked by block-hour ${last}'s live reads, written with it)`);
+    else if (c.quality === "flagged") log(`::warning::block-hour ${n} is flagged: ${c.why}`); else log(`block-hour ${n}: ok (effective balances match at the ${c.effAt === "next" ? "block after each read" : "read block"})`);
     texts.push(t); p = t;
   }
   return texts;
 }
 
 /** Rollups and retention: hour files of days at least 3 days old go into day files; days older than keepDays go. */
-export function rollup(hourTexts: Map<number, string>, dayNs: Set<number>, newestN: number, keepDays: number) {
+export function rollup(hourTexts: Map<number, string>, dayNs: Set<number>, newestN: number, keepDays: number, log: (s: string) => void = console.log) {
   const days: Record<number, string> = {}, remove: string[] = [];
   const today = Math.floor(newestN / 24);
   const byDay = new Map<number, number[]>();
@@ -276,7 +292,11 @@ export function rollup(hourTexts: Map<number, string>, dayNs: Set<number>, newes
   for (const [d, ns] of [...byDay].sort((x, y) => x[0] - y[0])) {
     if (d > today - 3 || ns.length !== 24 || dayNs.has(d)) continue;
     ns.sort((x, y) => x - y);
-    days[d] = D.makeDay(d, ns.map((n) => hourTexts.get(n)!));
+    const t = D.makeDay(d, ns.map((n) => hourTexts.get(n)!));
+    // #B-6 D-1: never hand the publish job a day file it must refuse (that would stop every later publish); the hours
+    // stay as hour files and a red error asks for a look
+    if (Buffer.byteLength(t, "utf8") > MAX_DAY_BYTES) { log(`::error::day ${d} would be ${Buffer.byteLength(t, "utf8")} bytes, over the ${MAX_DAY_BYTES}-byte limit: not rolled up (its hours stay); send this to the VHP Ruler chat`); continue; }
+    days[d] = t;
     for (const n of ns) remove.push(`h/${n}.json`);
   }
   for (const d of [...dayNs, ...Object.keys(days).map(Number)]) if (d < today - keepDays) remove.push(`d/${d}.json`);

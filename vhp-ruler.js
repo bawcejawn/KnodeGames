@@ -31,8 +31,8 @@
  *               paying card), so a card's bytes never depend on where the loaded data starts (Repo Lens #B-5 N-6):
  *               isNew = no block in [T − 410,400, T − 403,201]; history = a block in [T − 410,400, T − 28,800].
  *  pooled(p)    the card's pooled list (today the Knode Games Vault): expected = Σ_b floor(min(own, eff(p,b))·10^6 ÷ total).
- *  quality      for the whole card: "flagged" if any hour the card reads is bad for any active producer (its numbers feed
- *               everyone's total and form), or — on a paying card — any "rebuilt" hour in the 24-h size window
+ *  quality      for the whole card: "flagged" if any hour the card reads (from 19 blocks before its look-back or race,
+ *               #B-6 B6-1) is bad for any active producer (its numbers feed everyone's total and form), or — on a paying card — any "rebuilt" hour in the 24-h size window
  *               [T − 28,800 − 19, T] or the scoring window [S0 − 19, S1] (19 blocks earlier: a change there still moves
  *               effective VHP inside the window, Repo Lens #B-5 N-7); form's older days may read rebuilt hours (D-112,
  *               D-113; Repo Lens #E-12 L-2, #D-10 M-3). Else "ok". A paying card needs 14 days + 6 h of data before T.
@@ -293,7 +293,16 @@
   const rebuiltIn = (L, h0, h1) => L.rebuilt.some((r) => r.h0 <= h1 && r.h1 >= h0);
   const pendingIn = (L, h0, h1) => L.pending.some((r) => r.h0 <= h1 && r.h1 >= h0);
   const EARLY = DELAY - 1;   // a change up to 19 blocks before a window still moves effective VHP inside it (#B-5 N-7)
-  const NOT_YET = "not yet: unverified chained hours in the card's windows; it is made once the next live hour checks them";
+  // #B-6 B6-3: the message names where the unverified stretch starts, so a game can tell a short wait from a stuck ruler
+  const notYet = (L, h0, h1) => { const r = L.pending.filter((x) => x.h0 <= h1 && x.h1 >= h0).sort((x, y) => x.h0 - y.h0)[0]; return `not yet: unverified chained hours in the card's windows (from block ${r.h0}); it is made once the next live hour checks them`; };
+  /** isNew and history of producer a at T (Repo Lens #B-5 N-6): over the fixed look-back [T − 410,400, T − 1] when the
+   *  data reaches back that far (always on a paying card); else (a free card on shorter data) from the data's start. */
+  function newcomer(L, a, T) {
+    const lb0 = T - FORM - ACTIVE;
+    if (lb0 >= L.from) return { isNew: L.signedIn(a, lb0, T - FORM - 1) === 0, history: L.signedIn(a, lb0, T - HISTORY) > 0 };
+    const first = L.firstSigned(a), seenAtStart = first !== null && first < L.validFrom;
+    return { isNew: !seenAtStart && first !== null && T - first < FORM, history: first !== null && (seenAtStart ? T - L.from >= HISTORY : T - first >= HISTORY) };
+  }
 
   /** The canonical JSON form of a card: BigInt as decimal strings, fixed key order, one trailing newline. */
   function cardJson(card) {
@@ -319,26 +328,19 @@
     // Repo Lens #E-12 L-1: a paying card reads the full 14-day form look-back, so its bytes never depend on where the
     // loaded data starts (T − from ≥ 403,200 + 7,200, the network total's own warm-up)
     if (paying && T - L.from < FORM + ACTIVE) throw new Error(`a paying card needs ${FORM + ACTIVE} blocks of data before its moment (14 days + 6 h)`);
-    if (paying && pendingIn(L, T - AVG - EARLY, T)) throw new Error(NOT_YET);
+    if (paying && pendingIn(L, T - AVG - EARLY, T)) throw new Error(notYet(L, T - AVG - EARLY, T));
     const formFrom = imax(L.validFrom, T - FORM), look0 = imin(T - AVG, formFrom);
-    const fixed = T - FORM - ACTIVE >= L.from, lb0 = T - FORM - ACTIVE;   // the fixed look-back (#B-5 N-6)
     const blocks = w.S1 - w.S0 + 1, tot = total(L, T);
     const producers = L.active(T).map((a) => {
       const o = own(L, a, T, ownRule), av = avg(L, a, T), f = formOf(L, a, T), k = kOf(blocks, o, tot);
-      let isNew, history;
-      if (fixed) { isNew = L.signedIn(a, lb0, T - FORM - 1) === 0; history = L.signedIn(a, lb0, T - HISTORY) > 0; }
-      else {   // a free card on shorter data: the data's own start
-        const first = L.firstSigned(a), seenAtStart = first !== null && first < L.validFrom;
-        isNew = !seenAtStart && first !== null && T - first < FORM;
-        history = first !== null && (seenAtStart ? T - L.from >= HISTORY : T - first >= HISTORY);
-      }
+      const { isNew, history } = newcomer(L, a, T);
       return { a, own: o, avg: av, k, form: f.form, entry: k >= MIN_K && f.form >= FORM_GATE && history, pooled: pooled.has(a), isNew, quality: "ok" };
     }).sort((x, y) => (x.own > y.own ? -1 : x.own < y.own ? 1 : x.a < y.a ? -1 : 1));
     // quality, for the whole card: every producer's numbers feed everyone's total and form (Repo Lens #E-12 L-2), so a bad
     // range for any active producer in the look-back flags every producer. On a paying card, a rebuilt or unverified
     // hour in the 24-h size window [T − 28,800, T] flags it too; form's older days may read rebuilt hours (owner, 4 Nov,
     // D-113: "after 1 day is good"; Repo Lens #D-10 M-3 answered)
-    const flagged = producers.some((p) => badFor(L, p.a, look0, T)) || (paying && rebuiltIn(L, T - AVG - EARLY, T));
+    const flagged = producers.some((p) => badFor(L, p.a, look0 - EARLY, T)) || (paying && rebuiltIn(L, T - AVG - EARLY, T));
     if (flagged) for (const p of producers) p.quality = "flagged";
     return {
       ruleVersion: RULE_VERSION, game: Number(dec(opts.game, "game")), round: dec(opts.round, "round"), ownRule, paying,
@@ -350,8 +352,8 @@
   /** scoreCard: once S1 is in the data, fill expected, signed and credited for every producer (millionths). */
   function scoreCard(L, card) {
     const { S0, S1 } = card.window, tot = big(card.total);
-    if (card.paying && pendingIn(L, S0 - EARLY, S1)) throw new Error(NOT_YET);
-    const flagged = card.producers.some((p) => p.quality === "flagged" || badFor(L, p.a, S0, S1)) || (card.paying && rebuiltIn(L, S0 - EARLY, S1));
+    if (card.paying && pendingIn(L, S0 - EARLY, S1)) throw new Error(notYet(L, S0 - EARLY, S1));
+    const flagged = card.producers.some((p) => p.quality === "flagged" || badFor(L, p.a, S0 - EARLY, S1)) || (card.paying && rebuiltIn(L, S0 - EARLY, S1));
     const producers = card.producers.map((p) => {
       const o = big(p.own);
       let credited = 0n;
@@ -377,7 +379,9 @@
    *  M-1: never from the card's own settings, or a card made with the wrong window, c, own rule, paying flag or pooled
    *  list would pass). game = { game, round, window: { W0, W1, L, S0, S1 }, c, ownRule, paying, pooled }. */
   const SETTINGS = ["game", "round", "window", "c", "ownRule", "paying", "pooled"], WKEYS = ["W0", "W1", "L", "S0", "S1"];
-  /** The game's settings, strictly (Repo Lens #B-5 N-5): every key, no other key, each of its own type. Same in Python. */
+  /** The game's settings, strictly (Repo Lens #B-5 N-5): every key, no other key, each of its own type. Same in Python,
+   *  with one difference JavaScript can't see: JSON.parse reads 1.0 and 0e0 as plain numbers, which Python refuses
+   *  (#B-6 B6-2). The game's publish job runs the Python twin (recompute_main), so Python decides. */
   function checkSettings(g) {
     if (!g || typeof g !== "object" || Array.isArray(g)) throw new Error("recompute needs the game's own settings");
     const ks = Object.keys(g).sort();
@@ -409,5 +413,5 @@
   }
 
   root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES,
-    sha256, hex, dec, cardTime, isqrt, trim, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, makeCard, scoreCard, cardJson, checkSettings, recompute };
+    sha256, hex, dec, cardTime, isqrt, trim, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

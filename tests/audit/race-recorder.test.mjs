@@ -1106,7 +1106,7 @@ test("held alert, workflow: the alert job fails the run after publishing; the pu
 /** One synthetic paid week (vault week 2), checked by the publish job exactly as a 12:37 Monday run would be: the week
  *  file and the pending file are already published, this push carries the final file and the board. `mutate` changes
  *  the final file (and its pending copy, so only the recompute can catch it). Returns the publish check's output. */
-async function recomputeRun(players, { mutate = null, mutateBoard = null, prizesFrom = "0", skipSunday = false, rhythmFrom = undefined } = {}) {
+async function recomputeRun(players, { mutate = null, mutateBoard = null, prizesFrom = "0", skipSunday = false, rhythmFrom = undefined, typed = null } = {}) {
   const R = await import(path.resolve(APP, "bot/race.ts"));
   const start = M.weekStart(2), races = [];
   const t = new Map(), firstAt = new Map();
@@ -1119,7 +1119,19 @@ async function recomputeRun(players, { mutate = null, mutateBoard = null, prizes
     t.set(p.a, c);
     if (!firstAt.has(p.a) || at < firstAt.get(p.a)) firstAt.set(p.a, at);
   }
-  const rows = R.rank([...t].map(([a, c]) => ({ a, ...c, pts: 3 * c.correct + c.shows, ranked: players.find((p) => p.a === a).staked, earning: true })));
+  // D-153: typed picks, per player: [type, the race's place among that type's races, win, show, time] (their own points).
+  const tf = typed ? R.emptyTypes(2) : null;
+  for (const p of players) for (const [ty, k, right, show, at] of (typed && typed[p.a]) || []) {
+    const r = tf.races.filter((x) => x.type === ty)[k];
+    r.result = r.result || { final: true, checked: 2, picks: [] };
+    r.result.picks.push([p.a, P[0], at, right, 0, show]);
+    if (M.restRace(r.start, rhythmFrom === undefined ? 3 : Number(rhythmFrom))) continue;
+    const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0;
+    c.extra = (c.extra || 0) + (right ? M.pointsOf(ty).win - 3 : show ? M.pointsOf(ty).show - 1 : 0);
+    if ((right || show) && (c.reached === undefined || at > c.reached)) c.reached = at;
+    t.set(p.a, c);
+  }
+  const rows = R.rank([...t].map(([a, { extra = 0, ...c }]) => ({ a, ...c, pts: 3 * c.correct + c.shows + extra, ranked: players.find((p) => p.a === a).staked, earning: true })));
   void rhythmFrom;
   const placed = R.withEarns(R.withPlaces(R.cutLine(rows)), true).map(({ earning, reached, tb, ...r }) => r);
   const places = R.prizePlaces(rows), staked = R.stakedRows(R.cutLine(rows));
@@ -1132,6 +1144,7 @@ async function recomputeRun(players, { mutate = null, mutateBoard = null, prizes
   const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
   const wt = tmp(); execFileSync("git", ["init", "-q", "-b", "race-data", wt]);
   fs.writeFileSync(path.join(wt, "W002.json"), JSON.stringify({ v: 1, week: 2, start, end: start + 7 * 24 * H, races }) + "\n");
+  if (tf) fs.writeFileSync(path.join(wt, "T002.json"), JSON.stringify(tf) + "\n");
   fs.mkdirSync(path.join(wt, "vault"));
   fs.writeFileSync(path.join(wt, "vault", "PENDING-W2.json"), JSON.stringify({ game: 7, week: 2, at: U("2026-11-09T11:37Z"), file }) + "\n");
   fs.writeFileSync(path.join(wt, "vault", "W2.json"), JSON.stringify({ game: 7, week: 2, final: false, rows: [], first: [], second: [], skipped: [] }) + "\n");
@@ -1822,4 +1835,39 @@ test("D-153: the second node's different blocks keep an hour out of the ledger",
   const tf = tfile(c);
   assert.deepEqual(tf.hours.map((h) => new Date(h.t).toISOString().slice(11, 13)), ["00"]);
   assert.match(lastRun.problems.join("\n"), /hour 2026-11-02T01: the two nodes disagree about the hour's blocks/);
+});
+
+test("D-153, publish job: the recompute counts the race types' picks with their own points (and leaves Sunday's out)", async () => {
+  // A: a 6-hour win (3). B: a weekly win (12). C: a daily show (2) and a 1-hour win (2). D: a Sunday 1-hour win (fun, 0).
+  const pl = [{ a: addrN(1), staked: true, picks: [[0, 1, 0, 10]] }, { a: addrN(2), staked: true, picks: [[1, 0, 0, 11]] },
+    { a: addrN(3), staked: false, picks: [[2, 0, 0, 12]] }, { a: addrN(4), staked: false, picks: [[3, 0, 0, 13]] }];
+  const typed = { [addrN(2)]: [[4, 0, 1, 0, 20]], [addrN(3)]: [[3, 1, 0, 1, 21], [1, 5, 1, 0, 22]], [addrN(4)]: [[1, 150, 1, 0, 23]] };
+  const ok = await recomputeRun(pl, { typed, rhythmFrom: "0" });
+  assert.ok(ok.final, ok.out);
+  assert.deepEqual(ok.file.rows.map((r) => r.player), [addrN(2), addrN(1)], "B (12) above A (3)");
+  assert.deepEqual(ok.file.first, [addrN(3)], "C: 2 + 2 = 4; D's Sunday win counts for no week");
+  // The same file counting the typed picks as 6-hour ones (3 / 1) is held.
+  const flat = await recomputeRun(pl, { typed, rhythmFrom: "0", mutateBoard: (b) => { for (const x of b.lastWeek.rows) if (x.a === addrN(2)) x.pts = 3; } });
+  assert.equal(flat.final, false); assert.match(flat.out, /board's last week doesn't match the week's picks/);
+});
+
+test("D-153, publish job: a recorder's T file publishes; a changed ledger hour, a changed final typed result or a bad shape is refused", async () => {
+  const a = await typesRun(U("2026-11-02T00:37Z"), "");
+  const b = await typesRun(U("2026-11-02T01:37Z"), a);
+  const c = await typesRun(U("2026-11-02T02:37Z"), b);
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const first = publish(c, bare);
+  assert.ok(first.ok, first.out);
+  assert.equal(JSON.parse(execFileSync("git", ["--git-dir", bare, "show", "race-data:T002.json"]).toString()).hours.length, 2);
+  const again = (f) => { const d = tmp(); fs.cpSync(c, d, { recursive: true }); const tf = tfile(d); f(tf); fs.writeFileSync(path.join(d, "T002.json"), JSON.stringify(tf) + "\n"); return publish(d, bare); };
+  const hr = again((tf) => { const k = Object.keys(tf.hours[0].n)[0]; tf.hours[0].n[k] -= 1; tf.hours[0].a += 1; });
+  assert.equal(hr.ok, false); assert.match(hr.out, /a published ledger hour would change or go/);
+  const gone = again((tf) => { tf.hours.shift(); });
+  assert.equal(gone.ok, false); assert.match(gone.out, /a published ledger hour would change or go/);
+  const res = again((tf) => { const r = tf.races.find((x) => x.result?.final); r.result.checked = 1; });
+  assert.equal(res.ok, false); assert.match(res.out, /a published final result would change/);
+  const shape = again((tf) => { tf.races.pop(); });
+  assert.equal(shape.ok, false); assert.match(shape.out, /T002\.json: races/);
+  const sum = again((tf) => { tf.hours.push({ ...tf.hours[1], t: tf.hours[1].t + H, n: { [P[0]]: 999999 } }); });
+  assert.equal(sum.ok, false, "an hour whose counts don't add up to its heights is refused");
 });

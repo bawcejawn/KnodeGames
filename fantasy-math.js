@@ -303,6 +303,25 @@
       }
       return t;
     }
+    // ── Sunday fun round (D-129; owner 5 Nov: "Saturday team plays on") ──
+    /** The Sunday of game week w: the day after its 6 play days. Its round is a FUN round: it scores on the Today and
+     *  All time boards only, never the week (board, medals, vault file). */
+    const sundayOf = (w) => dayNo(weekStart(w)) + PLAY_DAYS;
+    /** Sunday's fun scores: each player's Saturday team (the team in force on the week's last play day) scored on the
+     *  Sunday's day record. No picks are made for Sunday. rows: { a, staked?, satTeam: [5 addresses] or null }. */
+    function funScores(rows, day) {
+      return rows.filter((r) => isAddr(r.a) && Array.isArray(r.satTeam)).map((r) => ({ a: r.a, points: dayScore(r.satTeam, day), staked: !!r.staked }));
+    }
+    /** Adds Sunday fun points to the All time table: points only (a fun round is not a week: weeks and best stay). */
+    function addFun(table, rows) {
+      const t = JSON.parse(JSON.stringify(table || {}));
+      for (const r of rows) {
+        if (!isAddr(r.a) || !(r.points > 0)) continue;
+        const x = (t[r.a] = t[r.a] || { points: 0, weeks: 0, best: 0, staked: !!r.staked });
+        x.points = round(x.points + r.points, 2);
+      }
+      return t;
+    }
     // ── Boards: Staked and Free play (owner, 2026-11-03, D-081) ──
     const FREE_PER_PLACE = 10;                     // the vault takes at most 10 wallets per free place
     /** The free-play winners of a week: wallets NOT staked in Fantasy that week, with a team on all 6 play days and at
@@ -347,7 +366,7 @@
     return {
       TEAM, BUDGET, DAY_CAP, CAPTAIN, PRICE, FORM_DAYS, PLAY_DAYS, VAULT_MAX, LEAD_MS, GAMES, isAddr,
       clock: Object.freeze({ ...C, week: WEEK }), DAY_MS: C.day, WEEK_MS: WEEK,
-      dayNo, dayStart, weekOf, weekStart, weekDays, isPlayDay, nextPlayDay, sheetTime, formDays, rivalRound, weekOfRivalRound, lockOfDay, lockOfWeek, games,
+      dayNo, dayStart, weekOf, weekStart, weekDays, isPlayDay, nextPlayDay, sundayOf, funScores, addFun, sheetTime, formDays, rivalRound, weekOfRivalRound, lockOfDay, lockOfWeek, games,
       freeWinners, stakedEarners, boardPlaces, FREE_PER_PLACE,
       cardAt, usableCard, MIN_CARD_SAMPLES, sharesOf, dayIndex, spanIndex, priceOf, medianOf, makeSheet, sheetText,
       checkTeam, changes, teamsForWeek, dayScore, scoreWeek, vaultPoints, packTeam, unpackTeam, rank,

@@ -9,7 +9,9 @@ Plan and owner decisions: `claude/builds/05-fantasy-plan.md` in the KnodeGames p
 - **The week (owner, 2026-11-03):** Monday to Saturday play, 6 days; Sunday is results day (no team plays, nothing is
   scored). Sunday is the review day (`.ai/standards/WEEK_CYCLE.md`, D-125): the week goes final from Monday 00:00 UTC,
   once the stakes are read and two recorder runs at least an hour apart compute the same result (`pending` in the W
-  file until then).
+  file until then). **Sunday fun round (D-129, owner 5 Nov):** each player's Saturday team plays on Sunday; it shows on
+  the Today board and adds to All time (points only, once, `alltime.json` → `sundays`), never the week, its board,
+  medals or the vault file. No picks are made for Sunday.
 - **Boards (owner, 2026-11-03, D-081):** wallets staked in Fantasy that week (the vault's rule: the most they had in game 4
   that week at or above the minimum, read on both nodes with Block X's vault reader) rank on the **Staked** board; everyone
   else on **Free play**. `board.json` has the shared shape (Today / This week / Last week / All time; rows `a, pts, days,

@@ -473,7 +473,8 @@ jobs:
                   assert set(j) == {"v", "weeks", "records"} and all(nat(w) for w in j["weeks"]), f
                   assert all(A(a) and set(r) == {"made", "received"} and all(type(r[k]) is list and len(r[k]) == 3 and all(nat(n) for n in r[k]) for k in r) for a, r in j["records"].items()), f
               elif f == "alltime.json":
-                  assert set(j) == {"v", "weeks", "players"} and all(nat(w) for w in j["weeks"]), f
+                  # D-129: `sundays` = the Sunday fun rounds (day numbers) already added to the totals, each once.
+                  assert set(j) == {"v", "weeks", "sundays", "players"} and all(nat(w) for w in j["weeks"]) and type(j["sundays"]) is list and all(nat(x) for x in j["sundays"]) and len(set(j["sundays"])) == len(j["sundays"]), f
                   assert all(A(a) and set(x) in ({"points", "weeks", "best"}, {"points", "weeks", "best", "staked"}) and num(x["points"]) and x["points"] >= 0 and nat(x["weeks"]) and num(x["best"]) and type(x.get("staked", False)) is bool for a, x in j["players"].items()), f
               elif f == "board.json":
                   # The shared board shape (board.js, the Leaders page): each row on its own board (ranked = Staked),
@@ -528,6 +529,7 @@ jobs:
                       assert n is not None and all(n[k][i] >= r[k][i] for k in ("made", "received") for i in range(3)), f + ": a rival record can't go down"
               elif f == "alltime.json":
                   assert set(o["weeks"]) <= set(j["weeks"]), f + ": counted weeks can't go missing"
+                  assert set(o.get("sundays", [])) <= set(j["sundays"]), f + ": counted Sunday fun rounds can't go missing"
                   for a, x in o["players"].items():
                       n = j["players"].get(a)
                       assert n is not None and n["points"] >= x["points"] and n["weeks"] >= x["weeks"] and n["best"] >= x["best"], f + ": an all-time total can't go down"

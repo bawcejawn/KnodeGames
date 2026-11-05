@@ -80,6 +80,19 @@ test("R-FA-3: card quality gate — a card with under 12 samples, a flagged prod
   assert.equal(F.dayIndex({ ts, sig, signers: [A] }, bads, DAYS[2]).uncovered, 1);
 });
 
+test("D-129 Sunday fun round: the week's Sunday; the Saturday team scores; All time gains points only", () => {
+  assert.equal(F.sundayOf(W), DAYS[5] + 1);
+  assert.equal(F.isPlayDay(F.sundayOf(W)), false);
+  const day = { producers: { [A]: [120, 100, 120], [B]: [90, 100, 90], [C]: [100, 100, 100], [D]: [100, 100, 100], [E]: [50, 100, 50] } };
+  const rows = F.funScores([{ a: X, satTeam: [A, B, C, D, E], staked: true }, { a: Y, satTeam: null }, { a: "bad", satTeam: [A, B, C, D, E] }], day);
+  assert.deepEqual(rows, [{ a: X, points: 120 * 2 + 90 + 100 + 100 + 50, staked: true }], "captain ×2; no Saturday team = no fun score");
+  const t0 = { [X]: { points: 1000, weeks: 1, best: 1000, staked: true } };
+  const t1 = F.addFun(t0, [...rows, { a: Y, points: 30 }]);
+  assert.deepEqual(t1[X], { points: 1580, weeks: 1, best: 1000, staked: true }, "points only: weeks and best unchanged");
+  assert.deepEqual(t1[Y], { points: 30, weeks: 0, best: 0, staked: false }, "a fun round alone gives a row, with no week");
+  assert.deepEqual(t0[X].points, 1000, "the table passed in is not changed");
+});
+
 test("price: 20 + 1.5 × (form − median form), rounded, clamped 8..40; no form = 20", () => {
   assert.equal(F.priceOf(100, 100), 20, "the median producer costs 20");
   assert.equal(F.priceOf(110, 100), 35);

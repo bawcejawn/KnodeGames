@@ -291,6 +291,8 @@ export async function run(o: Opts) {
   const allPrev = readJson(prev, "alltime.json");
   let allTime = allPrev?.players && typeof allPrev.players === "object" && !Array.isArray(allPrev.players) ? allPrev.players : {};
   const allCounted = new Set<number>(Array.isArray(allPrev?.weeks) ? allPrev.weeks.filter((w: any) => Number.isInteger(w)) : []);
+  // D-129: the Sunday fun rounds already added to the All time table (day numbers), so each is added once.
+  const funCounted = new Set<number>(Array.isArray(allPrev?.sundays) ? allPrev.sundays.filter((d: any) => Number.isInteger(d)) : []);
   // Stakes, read on both nodes (they must agree). The vault's Fantasy stakers once the vault is live; until then the
   // vault points rank everyone (vaultBasis "all") and no vault file is written.
   const gs = gameStakes();
@@ -331,6 +333,9 @@ export async function run(o: Opts) {
     if (w === wNow && live && F.isPlayDay(today)) {
       const i = wd.indexOf(today);
       todayRows = rows.map((r: any) => ({ a: r.a, pts: F.dayScore(r.days[i]?.team || null, live), staked: !!staked?.has(r.a) })).filter((x) => isAddr(x.a));
+    } else if (w === wNow && live && today === F.sundayOf(w)) {
+      // D-129 Sunday fun round: the Saturday team plays on; Today shows it (never the week's board).
+      todayRows = rows.map((r: any) => ({ a: r.a, pts: F.dayScore(r.days[lastI]?.team || null, live), staked: !!staked?.has(r.a) })).filter((x) => isAddr(x.a) && x.pts > 0);
     }
     wf.players = F.rank(rows.map((r) => ({ ...r, vault: vp.get(r.a) || 0 }))).map((r: any) => ({ a: r.a, points: r.points, vault: r.vault, full: r.full, place: r.place, staked: !!staked?.has(r.a),
       days: r.days.map((d: any) => (d.note ? [F.packTeam(wf.sheet, d.team), d.score, d.note] : [F.packTeam(wf.sheet, d.team), d.score])) }));
@@ -369,6 +374,17 @@ export async function run(o: Opts) {
       problems.push(`ALERT week ${w} is still not final ${Math.floor((now - wf.end) / F.DAY_MS)} days after it ended (days final: ${recs.filter((d: any) => d.final).length}/${wd.length}, picks read: ${F.weekDays(w).filter((d: number) => Array.isArray(wf.picks[d])).length}/${wd.length}, rivals ${wf.rivals ? "read" : "not read"}). The vault needs results within 3 days.`);
   }
 
+  // D-129: each final week's Sunday fun round goes into the All time table once its day is final (points only; never
+  // the week, its board, medals or vault file). The Saturday team is the one stored in the final week's day 6.
+  for (const [w, wf] of weeks) {
+    const d = F.sundayOf(w), rec = days.get(d);
+    if (!wf.final || !wf.sheet || !rec?.final || funCounted.has(d)) continue;
+    const sat = wf.players.map((x) => ({ a: x.a, staked: !!x.staked, satTeam: Array.isArray(x.days?.[F.PLAY_DAYS - 1]) && x.days[F.PLAY_DAYS - 1][0] ? F.unpackTeam(wf.sheet, x.days[F.PLAY_DAYS - 1][0]) : null }));
+    allTime = F.addFun(allTime, F.funScores(sat, rec));
+    funCounted.add(d);
+    console.log(`week ${w}: Sunday fun round added to All time`);
+  }
+
   // ── 5. write ──
   fs.mkdirSync(out, { recursive: true });
   for (const [w, wf] of weeks) {
@@ -388,7 +404,7 @@ export async function run(o: Opts) {
   }
   fs.writeFileSync(path.join(out, "days.json"), JSON.stringify({ v: 1, days: dayList, live }) + "\n");
   fs.writeFileSync(path.join(out, "rivals.json"), JSON.stringify({ v: 1, weeks: [...counted].sort((x, y) => x - y), records }) + "\n");
-  fs.writeFileSync(path.join(out, "alltime.json"), JSON.stringify({ v: 1, weeks: [...allCounted].sort((x, y) => x - y), players: allTime }) + "\n");
+  fs.writeFileSync(path.join(out, "alltime.json"), JSON.stringify({ v: 1, weeks: [...allCounted].sort((x, y) => x - y), sundays: [...funCounted].sort((x, y) => x - y), players: allTime }) + "\n");
   // The leaderboard in the shared shape (board.js, the Leaders page; LEADERBOARD_STANDARD): Today / This week / Last
   // week / All time, each row on its own board (ranked = Staked; everyone else = Free play), its place on that board
   // (boardPlace, ties share), and earns (3 = a share of Fantasy's bucket; 1 or 2 = a free prize, only when the switch is
@@ -405,7 +421,7 @@ export async function run(o: Opts) {
     return { week: w, start: F.weekStart(w), final: wf.final, rows, prizes };
   };
   const todayOwn = F.boardPlaces(todayRows.map((x) => ({ a: x.a, points: x.pts, staked: x.staked })));
-  const todayBoard = F.isPlayDay(today) ? { day: new Date(F.dayStart(today)).toISOString().slice(0, 10),
+  const todayBoard = F.isPlayDay(today) || todayRows.length ? { day: new Date(F.dayStart(today)).toISOString().slice(0, 10),
     rows: F.rank(todayRows.map((x) => ({ a: x.a, points: x.pts, staked: x.staked }))).map((x: any) => ({ a: x.a, pts: x.points, ranked: x.staked, boardPlace: todayOwn.get(x.a) || x.place, earns: 0 })) } : null;
   const atRows = F.allTimeRows(allTime).slice(0, 2000), atOwn = F.boardPlaces(atRows);
   const rivalRows = Object.entries(records).map(([a, x]: [string, any]) => ({ a, ...F.recordLine(x), made: x.made, received: x.received }))

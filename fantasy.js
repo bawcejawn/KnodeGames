@@ -392,9 +392,12 @@
     $("you-pts").textContent = fmt(total, 0);
     $("you-rank").textContent = mineRow ? `#${mineRow.boardPlace} ${mineRow.ranked ? "Staked" : "Free play"}` : "–";
     const tToday = mine.weekTeams[days.indexOf(today)];
-    $("you-today").textContent = tToday && tToday.team && lv && lv.day === today ? fmt(F.dayScore(tToday.team, lv), 0) : "–";
+    // D-129: on Sunday the Saturday team plays a fun round (Today and All time, not the week).
+    const sunday = today === F.sundayOf(wNow), funTeam = sunday ? mine.weekTeams[F.PLAY_DAYS - 1] : null;
+    $("you-today").textContent = sunday ? (funTeam && funTeam.team && lv && lv.day === today ? fmt(F.dayScore(funTeam.team, lv), 0) + " · fun round" : "–")
+      : tToday && tToday.team && lv && lv.day === today ? fmt(F.dayScore(tToday.team, lv), 0) : "–";
     $("you-rival").textContent = mine.rivalNow ? nameOf(mine.rivalNow) : "none";
-    $("week-note").textContent = !who ? "Connect a wallet to see your week." : `A ${TESTNET ? "test day" : "day"} counts once its blocks are irreversible and match on two nodes; today is provisional. A full day for 5 producers at their fair share is 600 (captain double).`;
+    $("week-note").textContent = !who ? "Connect a wallet to see your week." : sunday ? "Sunday is review day: results are checked and paid from Monday. Your Saturday team plays today's fun round, which counts on Today and All time, not the week." : `A ${TESTNET ? "test day" : "day"} counts once its blocks are irreversible and match on two nodes; today is provisional. A full day for 5 producers at their fair share is 600 (captain double).`;
   }
 
   // ── the league: the shared Staked / Free play board (board.js; D-081), the recorder's board.json ──

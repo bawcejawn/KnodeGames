@@ -60,4 +60,19 @@ test("pending: null or {hash, at}; never on a final week; a week file too far ah
   assert.ok(check({ "W002.json": week() }, start - 2 * 86400000).ok, "the next week's file from Saturday");
 });
 
+test("D-129: alltime.json carries the counted Sunday fun rounds; a counted Sunday can't go missing", () => {
+  const now = end + 3600000, A = "1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+  const at = (sundays) => ({ v: 1, weeks: [2], sundays, players: { [A]: { points: 700, weeks: 1, best: 600, staked: true } } });
+  assert.ok(check({ "alltime.json": at([20765]) }, now).ok);
+  assert.equal(check({ "alltime.json": { v: 1, weeks: [2], players: {} } }, now).ok, false, "the key is required");
+  assert.equal(check({ "alltime.json": at([20765, 20765]) }, now).ok, false, "no Sunday twice");
+  // Against a published file that already counted Sunday 20765:
+  const d = tmp(), inn = path.join(d, "in"), pub = path.join(d, "pub");
+  fs.mkdirSync(inn, { recursive: true }); fs.mkdirSync(path.join(pub, "vault"), { recursive: true });
+  fs.writeFileSync(path.join(pub, "alltime.json"), JSON.stringify(at([20765])) + "\n");
+  fs.writeFileSync(path.join(inn, "alltime.json"), JSON.stringify(at([])) + "\n");
+  const r = spawnSync("python3", ["-I", "-", inn, pub], { input: CHECK, encoding: "utf8", env: { ...process.env, CHECK_NOW_MS: String(now) } });
+  assert.notEqual(r.status, 0, "a counted Sunday dropped is refused");
+});
+
 test.after(() => { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });

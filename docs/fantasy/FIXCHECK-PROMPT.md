@@ -102,6 +102,13 @@ needs no contract change).
 11. **Merged with `main` again (5 Nov, 322 commits)**: the repo rename to `bawcejawn/KnodeGames` (CSP, data URLs),
     `api.koinosblocks.com` as the page's second node, the shared analytics script, and `main`'s games-data fetch
     guard (Repo Lens E4-1) combined with Fantasy's steps in `games.yml`.
+12. **Recorder standard (5 Nov):** blocks count only when irreversible on both nodes (the lower lib); the publish check
+    uses its own clock (no final week or vault file before the week's end; no week file more than 8 days ahead); a
+    failed Fantasy recorder step fails the run after publishing (the alert job) so the owner is emailed.
+13. **Sunday fun round (D-129, owner 5 Nov: the Saturday team plays on):** `F.sundayOf`, `F.funScores`, `F.addFun`.
+    On Sunday the Today board scores each player's Saturday team; once the week is final and Sunday's day is final, the
+    fun points go into All time once (`alltime.json` → `sundays`, which the publish check requires and never lets
+    shrink). The week's points, board, medals and vault file never include Sunday.
 
 ## 3. Please look hard at
 

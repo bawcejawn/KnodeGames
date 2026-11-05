@@ -290,4 +290,36 @@ test("WEEK_CYCLE two-run rule: a result that changes between runs starts the wai
   assert.equal(orderBreak(v.rows, places), "", "the file's points keep the board's places");
 });
 
+test("D-129 Sunday fun round: the Saturday team plays on; Today shows it on Sunday; All time adds it once; the week and the vault file never do", async () => {
+  const s0 = await hourly(U("2026-11-01T12:30Z"), "");
+  const sheet = read(s0.out, "W002.json").sheet, days = F.weekDays(2), [pa, pb] = PLAYERS;
+  const cheap = [...sheet.pool].sort((x, y) => x.price - y.price).slice(0, 5).map((x) => x.a);
+  picks = { team: { [days[0]]: [[pa, cheap, 1], [pb, [cheap[1], cheap[0], ...cheap.slice(2)], 1]] }, rival: {} };
+  const staked = async (who) => new Set(who.filter((a) => a === pa));
+  const mid = await hourly(U("2026-11-04T12:30Z"), s0.out, { stakedOf: staked });
+  const sun = await hourly(U("2026-11-08T18:30Z"), mid.out, { stakedOf: staked });
+  const bs = read(sun.out, "board.json");
+  assert.equal(bs.today.day, "2026-11-08", "Sunday has a Today board");
+  assert.ok(bs.today.rows.some((r) => r.a === pa && r.pts > 0), "the Saturday team plays the fun round");
+  const weekPts = read(sun.out, "W002.json").players.find((x) => x.a === pa).points;
+  const r1 = await hourly(U("2026-11-09T00:30Z"), sun.out, { stakedOf: staked });
+  const fin = await hourly(U("2026-11-09T01:30Z"), r1.out, { stakedOf: staked });
+  const w = read(fin.out, "W002.json");
+  assert.equal(w.final, true);
+  assert.equal(w.players.find((x) => x.a === pa).points, weekPts, "Sunday never changes the week's points");
+  assert.equal(w.players.find((x) => x.a === pa).days.length, 6, "the week still has 6 play days");
+  const dayRecs = read(fin.out, "days.json").days, sundayRec = dayRecs.find((x) => x.day === F.sundayOf(2));
+  assert.ok(sundayRec && sundayRec.final, "Sunday's day is recorded");
+  const at = read(fin.out, "alltime.json");
+  assert.ok(at.sundays.includes(F.sundayOf(2)), "week 2's Sunday counted");
+  const fun = F.dayScore(F.unpackTeam(w.sheet, w.players.find((x) => x.a === pa).days[5][0]), sundayRec);
+  assert.ok(fun > 0);
+  assert.equal(at.players[pa].points, Math.round((weekPts + fun) * 100) / 100, "All time = the week + the Sunday fun round");
+  assert.equal(at.players[pa].weeks, 1); assert.equal(at.players[pa].best, weekPts, "best week ignores Sunday");
+  const v = read(fin.out, "vault/W2.json");
+  assert.deepEqual(v.rows, [{ player: pa, points: 255 }], "the vault file comes from the week only");
+  const again = await hourly(U("2026-11-09T02:30Z"), fin.out, { stakedOf: staked });
+  assert.deepEqual(read(again.out, "alltime.json"), at, "a Sunday is added once");
+});
+
 test.after(() => { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });

@@ -2,18 +2,19 @@
 
 > **Purpose:** the **one owner checklist** (D-100): what the owner does: sends, merges, decisions, checks on the PC. Work for the chats is in `CHAT_REQUESTS.md`, not here.
 > **Rule:** when an item is done, move it to `../archive/DONE.md` with the date (don't strike it through here). Link each item to its issue or decision (I-xxx in `OPENISSUES.md`, D-xxx in `DECISIONS.md`).
-> **Last updated:** 2026-11-05 (v6.1 timeline D-130: announce Thu 5, upload Mon 9, rule week Mon 16; finished steps moved to `../archive/DONE.md`). Dates and times at a glance: `CALENDAR.md`.
+> **Last updated:** 2026-11-05 (the go-live order: game-apply first, then the v6.1 announce; 95 KOIN checked). Dates at a glance: `CALENDAR.md`.
 > Times are UTC, with your time (PT) where it helps.
 
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
-## Today — Thu 5 Nov
-- [ ] **Merge PR #162** if it still shows open (docs only: the weekend runbook with the new dates) — P2 — D-130
-- [ ] **Check `1635QU…` holds at least 95 KOIN** in Kondor (compare the full address). Short? Send KOIN now so its Mana is there by Monday. **Don't move its KOIN until after Monday's upload** — P1 — D-130
-- [ ] **Announce vault v6.1** (starts the 48 hours), signed by the current owner `1635QU…`: build and check on `vault-questions-60` (hashes `11043e1f…` and `04c27c1a…`, `chain-check` all ✔), then `upgrade schedule` dry run → CONFIRM ON → `--send` → CONFIRM OFF → delete `OWNER_WIF` from `.env`. Steps: the Vault handoff (`claude/vault/HANDOFF-2026-11-05.md`) and `docs/UPGRADE-V61.md` on #114. Paste the output to the Vault chat — P1 — D-130
-- [ ] **After 7:51 AM PT:** `npm run bot -- game-apply 2` and `game-apply 7` (dry run, then `--send`); `games` must show "staked + free prize, from week 3"; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT** — P1 — D-077
-- [ ] Optional Repo Lens: Race #155 post-merge (`claude/race/REPOLENS-PR155-POSTMERGE-PROMPT.md`). Nothing else is waiting on Repo Lens now (#152 and #163 merged 5 Nov). Queue: `AUDITS.md` — P4
-- [ ] Email filter: rename "Kpred bot" → "Knode Games bot" (the workflow name since #131) — P4
+## Today — Thu 5 Nov (the order to go live; do them top to bottom)
+- [x] `1635QU…` holds at least 95 KOIN (owner, 5 Nov: "over 100 koin"). Don't move it until after Monday's upload.
+- [ ] **1. After 7:51 AM PT: put Block X and the Race in the vault.** `npm run bot -- game-apply 2` and `game-apply 7` (dry run, then CONFIRM ON → `--send` → CONFIRM OFF); `npm run bot -- games` must show both "staked + free prize, from week 3"; then the repo variable `PRIZES_FROM_WEEK = 3`. Deadline Sun 8 Nov 4 PM PT — P1 — D-077
+- [ ] **2. Then announce vault v6.1** (starts the 48 h): build and check on `vault-questions-60`, `upgrade schedule` dry run → CONFIRM ON → `--send` → CONFIRM OFF → delete `OWNER_WIF`. Steps: `claude/vault/HANDOFF-2026-11-05.md`. Paste the output to the Vault chat. Latest: Sat 7 Nov 9 AM PT (48 h before Monday's upload) — P1 — D-130
+- [ ] **3. Turn the VHP ruler's recorder on:** repo variable `VHP_RULER_ENABLED = true` (data only, pays nothing) — P2 — D-128
+- [ ] **4. Tell players (after step 1 works):** "Week 1 starts Mon 9 Nov: Daily Questions, the Producer Race and Who Signs Block X all pay staked rewards, plus 2 + 1 VHP free prizes each week; Daily Questions goes to two rounds a day; free play is paid for by the Mana sponsor within daily limits." Don't announce v6.1's 60 questions until Monday's upload works — P2 — D-064
+- [ ] Merge PR #162 if it still shows open (docs only) — P2
+- [ ] Email filter: rename "Kpred bot" → "Knode Games bot" — P4
 
 ## This week
 - [ ] **Pages allow-list:** when the Hub chat's PR (R-HUB-14) is merged and its test run is checked: GitHub → Settings → Pages → Source: **GitHub Actions**; then open knodegames.com and two game pages. Undo = set Source back to "Deploy from a branch: main / root" — P2 — D-115
@@ -23,7 +24,7 @@
 - [ ] **Mon 9 Nov from 9:00 AM PT** (never before Sun 8, 4 PM PT): `upgrade apply` dry run → CONFIRM ON → `--send` → CONFIRM OFF; `status` must say "this week 30, next week 60"; pin `safeWasmSha256 = 04c27c1a…` in `game-data\deployment.json`; then vault handover **4a** by 4:30 PM PT; delete `OWNER_WIF`; paste everything to the Vault chat — P1 — D-130
 - [ ] **Tue 10 Nov:** handover accepts 4b and 5b (new cold owner `1LMV8E…`) — P1 — D-096
 - [ ] **Merge order:** ✅ #152 merged (5 Nov) → #114 (after the upload and the Vault chat's records PR / merge of `main`) → #141 (once v6.1 is live). Mon 16 at the latest — P1
-- [ ] **Before Mon 16:** tell players: 60 questions a week; Daily Questions staking and rewards work like every vault game; claims are per game and week (your text; the Questions chat has the site wording) — P2
+- [ ] **After Monday's upload works (before Mon 16):** tell players: 60 questions a week (4 + 4 a day); Daily Questions staking and rewards work like every vault game; claims are per game and week (your text; the Questions chat has the site wording) — P2
 - [ ] **Mainnet stake check** on the Stake page with small amounts: deposit, withdraw, move, claim; try "Free" with 2+ rewards once; tell the Hub and Block X chats (R-HUB-9, R-BX-18) — P2
 - [ ] **Free-prize switch: set the starting values** — ON for 2, 7, 9, 13; OFF for 3, 4, 6, 8 (`FREE_PRIZE_SWITCH.md` §4–5); then the GitHub ruleset on `prize-settings` (no deletion, no force-push) — P1 — D-082
 - [ ] Delete the 145 merged branches with the script `claude/BRANCH-CLEANUP-2026-11-04.md` (protect the data branches first) — P3 — D-115

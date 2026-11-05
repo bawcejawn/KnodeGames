@@ -9,14 +9,16 @@
 
 | When (UTC) | Pacific | What | Who | Source |
 |---|---|---|---|---|
-| **Thu 5 Nov** | morning | **Announce vault v6.1** (starts the 48 h), signed by the current owner `1635QU…` | Owner | D-130 |
 | Thu 5 Nov, 15:51 | 7:51 AM | Games 2 (Block X) and 7 (Race) become applicable: `game-apply 2`, `game-apply 7`, then `PRIZES_FROM_WEEK = 3` | Owner | D-077 |
+| **Thu 5 Nov** | after the apply (by Sat 7, 9 AM PT at the latest) | **Announce vault v6.1** (starts the 48 h), signed by the current owner `1635QU…` | Owner | D-130 |
+| Thu 5 Nov | after the apply | Tell players: Week 1 starts Mon 9 (three games paying, two Questions rounds a day, free prizes) | Owner | D-064 |
 | Fri 6 Nov | ~noon | Latest safe `game-add` for any game to earn from Mon 9 (none planned) | Owner | `GO_LIVE_CHECKLIST` timing rule |
 | Fri 6 Nov | — | Wallet runbook step 0 (read-only), then the weekend steps; `1635QU…` keeps ≥ 95 KOIN until the upload | Owner + Vault chat | `docs/WALLETS.md` §7, D-096 |
 | **Sun 8 Nov, 24:00** | **Sun 4 PM** | Deadline for `game-apply 2` / `7`. v6.1 upload **never before** this time | Owner | D-077, D-130 |
 | Sun 8 Nov, 23:48 | 3:48 PM | First 00:00 Questions round released (2 + 3 a day from Mon 9) | Bot | R-Q-3 |
 | **Mon 9 Nov, 00:00** | Sun 4 PM | **Week 1** (vault week 3) starts: the vault pays Questions, Race and Block X; 2 + 1 VHP free prizes where switched on | — | D-062, D-063 |
 | **Mon 9 Nov, from 17:00** | **from 9:00 AM** | **Upload v6.1** (`1635QU…`), then pin `safeWasmSha256 = 04c27c1a…`, then vault handover **4a** (by 4:30 PM PT) | Owner | D-130 |
+| Mon 9 Nov | after the upload | Tell players: 60 questions a week (4 + 4 a day) and Daily Questions staking and rewards like every game, from Mon 16 | Owner | D-064, D-130 |
 | Mon 9 – Sun 15 Nov | — | **Switch-over week (R − 1):** Questions on the old rules; the bot settles everyone | Bot | D-127, #152 |
 | **Tue 10 Nov** | — | Handover accepts **4b** and **5b** (new cold owner `1LMV8E…`) | Owner | D-096 |
 | Tue 10 Nov, ~12:07 | ~4 AM | Questions Week 3 paid (v5 split; free 1 + 1 VHP) | Bot | D-069 |

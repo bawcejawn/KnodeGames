@@ -131,7 +131,8 @@ test("seeding: waits while the nodes disagree and turns void after 24 hours; und
   assert.equal(readW(dir).status, "void");
   const one = tmp(); const r0 = await quiet(() => run({ p: "main", check: null, prev: one, out: one, head: headAt(B.seedTime(W) + H), picksContract: "1P", nodeOf: nodeOf(signerFn(field)) }));
   assert.ok(r0.problems.some((p) => p.includes("second node")), "one node can't seed");
-  const seedWith = async (f) => { const d = tmp(); await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), picksContract: "1P", nodeOf: nodeOf(signerFn(f)) })); return readW(d); };
+  // (two runs: the seeding counts once a later run reads it again, fix-check F2)
+  const seedWith = async (f) => { const d = tmp(); for (const t of [H, 2 * H]) await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + t), picksContract: "1P", nodeOf: nodeOf(signerFn(f)) })); return readW(d); };
   const w7 = await seedWith(fieldOf(7)); assert.equal(w7.status, "none"); assert.match(w7.void, /8 needed/);
   const w40 = await seedWith(fieldOf(40)); assert.equal(w40.seeding.size, 32); assert.equal(w40.days.length, 5, "Tuesday to Saturday");
   const w13 = await seedWith(fieldOf(13)); assert.equal(w13.seeding.size, 8, "the largest power of two that fits (D-141): no byes"); assert.equal(w13.seeding.seeds.length, 8);
@@ -197,6 +198,9 @@ test("a whole week: hours irreversible only, re-read in a later run, results equ
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.weekStart(W + 1) - 60000), ...o }));
   assert.equal(readW(dir).status, "locked", "still in review a minute before Monday 00:00 UTC");
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.weekStart(W + 1) + 0.5 * H), ...o }));
+  assert.equal(readW(dir).status, "locked", "the end-of-week stakes are read, but count only once a later run reads them the same (F1)");
+  assert.ok(readW(dir).staked.held);
+  await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.weekStart(W + 1) + 0.6 * H), ...o }));
   wf = readW(dir); assert.equal(wf.status, "final"); assert.ok(wf.staked.held, "the stakes read after the week ended");
   // after final, a different chain changes nothing
   const before = JSON.stringify(wf);
@@ -339,7 +343,13 @@ test("F-5: the Picks game must have the bracket's shape; picks timed at or after
 });
 test("F-6 / F-7: each recorder step can fail alone; leaderboards are capped at 1,000 rows", async () => {
   const wfy = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
-  assert.match(wfy, /- name: Record the Producer Bracket\n\s+id: bracket\n\s+continue-on-error: true/);
+  // fix-check F9: the Bracket records in its own job; a failure there never stops Block X's publish, and emails
+  const jobs = wfy.split(/\n  (?=[a-z_]+:\n)/);
+  const rb = jobs.find((j) => j.startsWith("record_bracket:")), rx = jobs.find((j) => j.startsWith("record:"));
+  assert.ok(rb && /- name: Record the Producer Bracket\n\s+id: bracket\n\s+run: npm run bracket/.test(rb) && /name: games-data-bracket/.test(rb), "its own job and artifact");
+  assert.doesNotMatch(rx.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n"), /bracket/i, "Block X's job runs no Bracket code");
+  assert.match(wfy, /needs: \[record, record_bracket\]\n\s+# [^\n]*\n\s+if: \$\{\{ always\(\) && vars\.GAMES_ENABLED == 'true' && github\.ref == 'refs\/heads\/main' && needs\.record\.result == 'success' \}\}/);
+  assert.match(wfy, /if: \$\{\{ always\(\) && \(needs\.record\.outputs\.held == 'true' \|\| needs\.record_bracket\.result == 'failure'\) \}\}/);
   assert.match(wfy, /if \[ -d "\$IN\/bracket" \]; then\n\s+\/usr\/bin\/python3 - "\$IN\/bracket"/, "no Bracket files: the check is skipped");
   const field = fieldOf(17), race = raceDir(field);
   const many = Array.from({ length: 1500 }, (_, i) => ({ player: ("1Many" + [0, 1, 2].map((k) => B58[Math.floor(i / 58 ** k) % 58]).join("")).padEnd(34, "x"), number: i % 3, time: 5 }));
@@ -527,7 +537,8 @@ test("fix-check F-1: the Vault (a pooled producer: players' withdrawable stakes)
   const s = readW(dir).seeding;
   assert.ok(s.seeds.includes(addr(2)), "the Vault is seeded like any producer");
   assert.deepEqual(s.pooled, [addr(2)]);
-  assert.ok(shapeOk(dir));
+  // fix-check F2: the publish job lets only the real Knode Games Pool be pooled, so a forged run can't exempt a producer
+  assert.equal(shapeOk(dir), false, "a test address marked pooled is refused");
 });
 
 test("publish check: the Vault file is accepted in the run that makes its week final (#E-3 M-5), and published history can't change", async () => {
@@ -539,8 +550,9 @@ test("publish check: the Vault file is accepted in the run that makes its week f
   await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 60000), ...o }));
   const mid = tmp(); fs.cpSync(d, mid, { recursive: true });           // the branch as published at the lock
   for (let i = 0; i < 40; i++) await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.weekStart(W + 1) - H), ...o }));
-  const review = tmp(); fs.cpSync(d, review, { recursive: true });     // the branch as published on the review day
-  assert.equal(readW(review).status, "locked");
+  await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.weekStart(W + 1) + H), ...o }));
+  const review = tmp(); fs.cpSync(d, review, { recursive: true });     // published Monday 01:00: end-of-week stakes read once
+  assert.equal(readW(review).status, "locked"); assert.ok(readW(review).staked.held);
   await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(NOW), ...o }));
   assert.equal(readW(d).status, "final"); assert.ok(fs.existsSync(path.join(d, "vault", `W${W}.json`)));
   // the run that makes the week final publishes its vault file too, once the week's recompute agrees
@@ -618,4 +630,52 @@ test("R-BR-4: the vault bot's own board check passes on the recorder's board and
   if (boardScore(lw.find((x) => x.a === P(1))) === boardScore(lw.find((x) => x.a === P(4)))) assert.ok(at.get(P(1)) < at.get(P(4)), "the earlier of two identical brackets places higher");
   if (boardScore(lw.find((x) => x.a === P(2))) === boardScore(lw.find((x) => x.a === P(5)))) assert.equal(at.get(P(2)), at.get(P(5)), "same block: same place (D-087)");
   for (const x of vf.rows) assert.ok(places.has(x.player), "every file row is on the board");
+});
+
+// ── fix-check of 5 Nov (PR #186): recorder side ──
+test("F3 / RC-4: picks are recorded within 3 h of the lock (or under BRACKET_RELEASE); never recorded → void at the backstop", async () => {
+  const field = fieldOf(17), rows = [{ player: P(1), number: 0, time: 1 }];
+  let down = true;
+  const o = { picksContract: addr(60), nodeOf: nodeOf(signerFn(field)), picksOf: async (n, r) => { if (down) throw new Error("node down"); return picksOf(rows)(n, r); } };
+  const d = await lockedWeek(o);
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + H), ...o }));
+  assert.equal(readW(d).picks, null, "the Picks reads fail: nothing recorded");
+  down = false;
+  const late = await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 4 * H), ...o }));
+  assert.equal(readW(d).picks, null, "4 h after the lock: not recorded any more");
+  assert.ok(late.problems.some((p) => /within 3 h of the lock/.test(p)), JSON.stringify(late.problems));
+  const d2 = tmp(); fs.cpSync(d, d2, { recursive: true });
+  await quiet(() => run({ p: "main", check: "check", prev: d2, out: d2, head: headAt(B.lockTime(W) + 4 * H), ...o, release: new Set([W]) }));
+  assert.equal(readW(d2).picks.rows.length, 1, "under BRACKET_RELEASE the late picks are recorded");
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.weekStart(W + 1) + 3 * DAY + H), ...o }));
+  assert.equal(readW(d).status, "void"); assert.match(readW(d).void, /picks could not be recorded/);
+});
+
+test("F2: the seeding counts only after a later run reads it the same; a different reading is held, or replaced under release (before picks)", async () => {
+  const d = tmp(), o = { picksContract: addr(60), picksOf: picksOf([]) };
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), ...o, nodeOf: nodeOf(signerFn(fieldOf(17))) }));
+  assert.equal(readW(d).seeding.re, undefined, "first read: not counted yet");
+  const r = await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + 2 * H), ...o, nodeOf: nodeOf(signerFn(fieldOf(40))) }));
+  assert.equal(readW(d).seeding.re, undefined); assert.ok(r.problems.some((p) => /seeding reads differently/.test(p)), JSON.stringify(r.problems));
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + 3 * H), ...o, nodeOf: nodeOf(signerFn(fieldOf(40))), release: new Set([W]) }));
+  assert.equal(readW(d).seeding.size, 32, "replaced under release"); assert.equal(readW(d).seeding.re, undefined, "…and read again before it counts");
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + 4 * H), ...o, nodeOf: nodeOf(signerFn(fieldOf(40))) }));
+  assert.equal(readW(d).seeding.re, 1);
+});
+
+test("F4: an hour that reads differently later is held; under BRACKET_RELEASE the new two-node reading replaces it and is read again", async () => {
+  const field = fieldOf(17), signer = signerFn(field), d = tmp();
+  const o = { picksContract: addr(60), nodeOf: nodeOf(signer), picksOf: picksOf([{ player: P(1), number: 0, time: 1 }]) };
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), ...o }));
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 60000), ...o }));
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(RD(0) + 3 * H), ...o }));   // hours 0-2 recorded
+  // a forged hour 1 in the published file (as a bad run would leave it)
+  const f = path.join(d, "W003.json"), wf = readW(d); wf.days[0][1] = { ...wf.days[0][1], q: wf.days[0][1].q + 1 }; fs.writeFileSync(f, JSON.stringify(wf) + "\n");
+  const r = await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(RD(0) + 3 * H), ...o }));
+  assert.ok(r.problems.some((p) => /hour 1 reads differently/.test(p)), JSON.stringify(r.problems)); assert.notEqual(readW(d).days[0][1].re, 1);
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(RD(0) + 3 * H), ...o, release: new Set([W]) }));
+  const fixed = readW(d).days[0][1];
+  assert.equal(fixed.q, wf.days[0][1].q - 1, "the chain's reading is back"); assert.equal(fixed.re, undefined, "not counted until read again");
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(RD(0) + 3 * H), ...o }));
+  assert.equal(readW(d).days[0][1].re, 1);
 });

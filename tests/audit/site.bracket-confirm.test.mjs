@@ -124,3 +124,14 @@ test("L-13: a Picks contract other than the pinned mainnet one is never used to 
   await p.review();
   assert.equal(p.sent.length, 0); assert.equal(p.picks.length, 0);
 });
+
+test("fix-check RC-3: a KOIN Vault request still open is never reported as cancelled, and blocks another send", async () => {
+  const p = await openPage({ now: SUNDAY });
+  p.w.KWallet.send = async () => { throw new Error("Still waiting in KOIN Vault. Approve or reject it there; don't send it again from here."); };
+  await p.fill(); await p.review(); await p.confirm();
+  assert.match(p.modalText(), /Still open in your wallet/); assert.doesNotMatch(p.modalText(), /Cancelled|Nothing was sent/);
+  p.button("OK").click(); await flush(p.w);
+  await p.fill(); await p.review();   // the draft starts again from the chain; filled again, it still can't be sent
+  assert.match(p.modalText(), /still open in your wallet/i, "no second send while the first may still be approved");
+  assert.equal(p.button("Confirm in wallet"), undefined);
+});

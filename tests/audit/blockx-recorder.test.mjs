@@ -630,7 +630,7 @@ test("E4-1 (a) / E4-7 in the workflow: a failed fetch of a branch that exists st
   assert.match(yml, /if \[ "\$rc" -eq 2 \]; then echo "No race-data branch yet: targets wait for cards."; else echo "::error::The race-data branch could not be fetched/);
   assert.match(yml, /held: \$\{\{ steps\.blockx\.outputs\.held \}\}/);
   // (the Bracket's failed-step alert shares this job: #E-3 M-4)
-  assert.match(yml, /alert:\n    needs: \[record, publish\]\n    if: \$\{\{ always\(\) && \(needs\.record\.outputs\.held == 'true' \|\| needs\.record\.outputs\.bracket_failed == 'true'\) \}\}/);
+  assert.match(yml, /alert:\n    needs: \[record, record_bracket, publish\]\n    if: \$\{\{ always\(\) && \(needs\.record\.outputs\.held == 'true' \|\| needs\.record_bracket\.result == 'failure'\) \}\}/);
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /fs\.appendFileSync\(E\.GITHUB_OUTPUT, "held=true\\n"\)/);
 });

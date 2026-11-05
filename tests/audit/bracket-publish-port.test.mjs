@@ -28,7 +28,10 @@ const addr = (i) => "1" + "Kq" + String(100000 + i).replace(/0/g, "z").padEnd(31
 function randomWeek(k) {
   const size = [8, 16, 32][k % 3], R = B.roundsOf(size);
   const seeds = Array.from({ length: size }, (_, i) => addr(k * 64 + i));
-  const vhp = seeds.map(() => 1 + int(1000)).sort((a, b) => b - a);
+  // fix-check B-2: every fifth week uses mainnet-sized VHP (sums far past 2^53) with seeds held exactly at, or one
+  // satoshi under, half their seeding VHP all day: the forfeit line itself
+  const big = k % 5 === 3;
+  const vhp = seeds.map(() => (big ? Math.round((1e5 + rnd() * 5e7) * 100) / 100 : 1 + int(1000))).sort((a, b) => b - a);
   const pooled = rnd() < 0.5 ? [seeds[int(size)]] : [];
   const known = int(R + 1);   // rounds whose 24 hours are all in
   // per round day and seed: about 1 in 5 hold well under their seeding VHP all day, around the forfeit line
@@ -44,6 +47,7 @@ function randomWeek(k) {
       w[a] = rnd() < 0.05 ? 0 : Math.round(vhp[i] * 1e8 * (0.3 + rnd()));          // some start under half (forfeits)
       rr[a] = Math.round(b * 1e7 / Math.max(1, vhp[i]) * (0.5 + rnd()) * 1e9) / 1e9;
       av[a] = Math.round(vhp[i] * 1e8 * (low[r][i] ? low[r][i] * (0.95 + 0.1 * rnd()) : 0.6 + rnd()));
+      if (big && low[r][i]) av[a] = Number(BigInt(Math.round(vhp[i] * 100)) * 1000000n / 2n) - (h === 0 && i % 2 ? 1 : 0);
     }
     if (rnd() < 0.03) for (const a of seeds) { by[a] = 0; cr[a] = 0; rr[a] = 0; }     // an hour nobody signed
     if (tieWeek) for (const a of seeds) { by[a] = 1; cr[a] = 1; rr[a] = 1; av[a] = vhp[0] * 1e8; w[a] = vhp[0] * 1e8; }   // dead heats
@@ -58,7 +62,8 @@ function randomWeek(k) {
   }).sort((x, y) => (x[0] < y[0] ? -1 : 1));
   const wf = { v: B.FILE_V, week: 3, seeding: { size, seeds, vhp, pooled }, picks: { checked: 2, rows: picks }, days };
   const sc = rec.scoreWeek(wf);
-  return { wf, js: { results: sc.results, points: sc.points } };
+  const atLine = big ? low.flat().filter(Boolean).length : 0;
+  return { wf, js: { results: sc.results, points: sc.points }, atLine };
 }
 
 test("the publish job's port scores every random week exactly like bracket-math.js (H-2)", () => {
@@ -76,7 +81,7 @@ for j in json.load(open(f)):
     out.append({"results": r, "points": p})
 print(json.dumps(out))
 `);
-  let bad = 0, firstBad = null, total = 0, withResults = 0, pooled = 0;
+  let bad = 0, firstBad = null, total = 0, withResults = 0, pooled = 0, forfeitsAtLine = 0;
   for (let batch = 0; batch < 20; batch++) {
     const weeks = Array.from({ length: 150 }, (_, k) => randomWeek(batch * 150 + k));
     const f = path.join(d, "weeks.json"); fs.writeFileSync(f, JSON.stringify(weeks.map((x) => x.wf)));
@@ -87,9 +92,11 @@ print(json.dumps(out))
       if (JSON.stringify(weeks[i].js) !== JSON.stringify(py[i])) { bad++; firstBad = firstBad ?? `${JSON.stringify(weeks[i].js).slice(0, 300)}\nPY ${JSON.stringify(py[i]).slice(0, 300)}`; }
       if (weeks[i].js.results.rounds.length) withResults++;
       if (weeks[i].wf.seeding.pooled.length) pooled++;
+      forfeitsAtLine += weeks[i].atLine;
     }
   }
   assert.equal(bad, 0, `${bad} of ${total} weeks differ; first:\nJS ${firstBad}`);
   assert.equal(total, 3000);
   assert.ok(withResults > 1500 && pooled > 1000, "the random weeks really exercise results and pooled producers");
+  assert.ok(forfeitsAtLine > 50, `the forfeit line itself is exercised (${forfeitsAtLine} seeds at or a satoshi under half)`);
 });

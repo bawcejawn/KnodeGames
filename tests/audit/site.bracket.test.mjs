@@ -108,8 +108,11 @@ test("#E-3 M-6: a producer's seeding VHP is the lower of its average now and at 
   // a producer new this week is seeded on today's average; a producer that grew is seeded on last week's
   const grew = M.seeding(cardOf(vhps.map((v, i) => (i === 3 ? v * 2 : v))), last);
   assert.equal(grew.vhp[grew.seeds.indexOf(addr(4))], vhps[3]);
+  // fix-check RC-1: an address missing from the last seeding counts 0 there (moving VHP to a fresh address buys nothing);
+  // only with no last seeding at all (the first bracket) is today's average used alone
   const fresh = M.seeding(today, { ...last, [addr(17)]: undefined });
-  assert.equal(fresh.seeds[0], addr(17));
+  assert.ok(!fresh.seeds.includes(addr(17)) && !fresh.out.includes(addr(17)), "a fresh address: out of the field");
+  assert.equal(M.seeding(today, {}).seeds[0], addr(17), "the first bracket ever: today's average");
   // the field rule (≥ 10 expected blocks in a 6-hour race) is applied to the lower number
   const tiny = cardOf([...vhps.slice(0, 15), 900, 900], []);
   const lastTiny = { ...last, [addr(16)]: 1, [addr(17)]: 1 };
@@ -313,6 +316,25 @@ test("#E-3 H-5: moving VHP away for the block at 00:00 no longer forfeits (judge
   const under = fakeChain(vhp, { seed: 1, moves: [{ at: M.ACTIVE_BLOCKS - 1, a: "1Fav", d: -60 }] });
   assert.equal(M.forfeits(M.dayIndex(under.B, DAY0, ["1Fav"], M.vhpBook(under.anchors, under.deltas)).get("1Fav"), 100), true, "a whole day at 40% of its seeding VHP forfeits");
 });
+test("fix-check B-1: the forfeit line is exact, whatever the size (sums past 2^53), and strictly under half", () => {
+  // the reviewer's shape: a seed holding V satoshi all day, about 1,200 blocks an hour, seeding VHP up to 50 million
+  let r = 7, mism = 0, trials = 0;
+  const rnd = () => { r = (Math.imul(r, 1103515245) + 12345) >>> 0; return r / 4294967296; };
+  for (let t = 0; t < 3000; t++) {
+    const vhp = Math.round((1e5 + rnd() * 5e7) * 100) / 100, seedSat = BigInt(Math.round(vhp * 100)) * 1000000n;
+    const ns = Array.from({ length: 24 }, () => 1150 + Math.floor(rnd() * 100));
+    for (const V of [seedSat / 2n - 1n, seedSat / 2n, seedSat / 2n + (seedSat % 2n), seedSat / 2n + 1n]) {
+      const hours = ns.map((n) => ({ from: 0, to: n - 1, n, by: { A: 0 }, cr: { A: 0 }, w: { A: Number(V) }, q: 1, r: { A: 0 }, av: { A: Number(V) } }));
+      const want = 2n * BigInt(Number(V)) < seedSat;   // the line in exact integers (V as JSON carries it)
+      trials++; if (M.forfeits(M.indexFromHours(hours).get("A"), vhp) !== want) mism++;
+    }
+  }
+  assert.equal(mism, 0, `${mism} of ${trials} threshold cases on the wrong side`);
+  // exactly half never forfeits; one satoshi under in one hour does
+  const at = (v, low) => Array.from({ length: 24 }, (_, h) => ({ from: 0, to: 1199, n: 1200, by: {}, cr: {}, w: { A: v }, q: 1, r: {}, av: { A: h === 0 ? v - low : v } }));
+  assert.equal(M.forfeits(M.indexFromHours(at(25_000_000e8, 0)).get("A"), 50_000_000), false, "exactly half: no forfeit");
+  assert.equal(M.forfeits(M.indexFromHours(at(25_000_000e8, 1)).get("A"), 50_000_000), true, "a satoshi under: forfeit");
+});
 test("a balance missing for an active producer stops the hour (never guessed)", () => {
   const { B, deltas, anchors } = fakeChain({ "1A": 1000, "1B": 1000 }, { hours: 1 });
   delete anchors["1B"];
@@ -437,7 +459,7 @@ test("the page says what the contract and recorder do (sizes, lock, scoring, tie
   for (const s of ["Seeding on Sunday 00:00 UTC, picks until Monday 23:55 UTC, one round a day, the final on Saturday", "Sunday is review day: results are checked and paid from Monday.",
     "32 or more play Tuesday to Saturday, 16 to 31 Wednesday to Saturday, 8 to 15 Thursday to Saturday", "Under 8, there is no bracket that week", "an exact tie goes to the lower seed",
     "1 point in the first round, then 2, 4, 8 (and 16 in a 32-producer bracket), plus 2 for the right champion", "ties go to a right champion, then more right picks",
-    "the lower of that average and its average at last week's seeding", "averaged over its round's day, is less than half its seeding VHP", "If both seeds are under half, the blocks decide",
+    "the lower of that average and its average at the last seeding (a producer that wasn't there counts zero)", "No rule can stop a producer from losing on purpose", "averaged over its round's day, is less than half its seeding VHP", "If both seeds are under half, the blocks decide",
     "Brackets sent in the same block share a place", "tied for 1st share all 3 VHP; otherwise 2 VHP to 1st and 1 VHP shared by those tied 2nd",
     "it never forfeits, and it is judged on a rate that no deposit or withdrawal can move"]) assert.ok(page.includes(s), s);
   assert.match(page, /Disclosure: a Knode Games node is in this bracket/);

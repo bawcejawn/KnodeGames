@@ -40,4 +40,5 @@ under the publish job's 16 MiB limit (Repo Lens #B-6 D-1). A chained hour's anch
 hour's anchor when that one is later. Chained hours with no live hour after them are unverified: a paying card that
 would read one waits ("not yet … from block N"). A node that can't answer a read stops the run without writing anything;
 the next run tries again. If a run fails the same way hour after hour (a red error each hour), or a day can't be rolled
-up ("over the … byte limit"), that needs a look: send the error to the VHP Ruler chat.
+up ("over the … byte limit"), that needs a look: send the error to the VHP Ruler chat. A day that can't be rolled up
+keeps its hour files, and retention doesn't remove them, until that is handled.

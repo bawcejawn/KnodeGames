@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { R, D, PY, makeChain, FakeNode, addr, toJson } from "./vhp-ruler.fixture.mjs";
 import { recordHours } from "../../bot/vhp-ruler.ts";
-import { fillAnchor } from "../../bot/vhp-fill.ts";
+import { fillAnchor, fillLate } from "../../bot/vhp-fill.ts";
 
 const H = 1200, at = (n) => (n + 1) * H - 1, quiet = () => {};
 const opts = { waitMs: 50, pollMs: 1, log: quiet, rounds: 3 };
@@ -236,6 +236,8 @@ test("#B-6 D-1: after any gap (1 h to 10 days, three alignments), every hour's t
       head = Math.min(head + H + ((guard * 577 + off) % 1800), f.raw.top - 100);   // an hour passes, plus a late cron
     }
     assert.equal(JSON.parse(prev).kind, "live", `gap ${gh} h +${off}: ends live`);
+    // half the limit for this light fixture (no VHP events, 3 producers: ~3.5x fewer bytes a block than mainnet); the
+    // re-check of #B-6 modelled mainnet density: worst day ~9.2 MB, 55% of the limit (I-1)
     for (const v of byDay.values()) { worstDay = Math.max(worstDay, v); assert.ok(v < MAX_DAY_BYTES / 2, `gap ${gh} h: a day of ${v} bytes`); }
   }
   assert.ok(worstTail > 0 && worstDay > 0);
@@ -280,4 +282,11 @@ test("#B-6 B6-1, B6-3, B6-4: bad ranges get the 19-block lead-in; 'not yet' name
     fs.writeFileSync(path.join(dir, "n.json"), toJson({ tl: x.tl, a: x.ps[4], T }));
     assert.equal(PY(`j = json.load(open(${JSON.stringify(path.join(dir, "n.json"))})); print(json.dumps(V.newcomer(V.Ledger(j["tl"]), j["a"], j["T"]), separators=(",", ":")))`).trim(), JSON.stringify([got.isNew, got.history]));
   }
+});
+
+test("re-check of #B-6, F-1: the first fill writes every hour rebuilt when its read is more than 3,600 blocks late", () => {
+  const lastTo = 40000 * 1200 - 1;
+  assert.equal(fillLate(lastTo + 3600, lastTo), false, "3,600 blocks late: the last hour stays live");
+  assert.equal(fillLate(lastTo + 3601, lastTo), true, "3,601 blocks late: every hour rebuilt");
+  assert.equal(fillLate(lastTo + 24000, lastTo), true, "a day late (the old threshold) is late too");
 });

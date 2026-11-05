@@ -58,6 +58,11 @@ export async function fillChunks(A: RulerNode, B: RulerNode, plan: Plan, dir: st
   }
   return true;
 }
+/** The read more than 3 h (3,600 blocks) after the plan's end: the last hour would carry a long tail and the recorder's
+ *  next hours would repeat it (#B-6 D-1), so every hour is written rebuilt and the recorder catches up from the plan's
+ *  end. Exported so the threshold is tested (Repo Lens re-check of #B-6, F-1). */
+export const FILL_LATE = 3600;
+export const fillLate = (at: number, lastTo: number) => at - lastTo > FILL_LATE;
 /** The fill's one live read of every producer; a producer that first signs in the tail is read too, as the recorder
  *  does (Repo Lens #E-14 N-6: asking for a re-run could never help, the same producer is in the tail again). */
 export async function fillAnchor(A: RulerNode, B: RulerNode, blocks: Blk[], lastTo: number, opts: any = {}) {
@@ -148,9 +153,7 @@ async function main() {
     for (const b of JSON.parse(fs.readFileSync(chunkFile(dir, k), "utf8"))) blocks.push(b);
   }
   const lastTo = (plan.endN + 1) * HOUR - 1, anc = await fillAnchor(A, B, blocks, lastTo);
-  // the read more than 3 h after the plan's end: the last hour would carry a long tail, and the recorder's next hours
-  // would repeat it (#B-6 D-1), so every hour is written rebuilt and the recorder catches up from the plan's end
-  const late = anc.at - lastTo > 3600;
+  const late = fillLate(anc.at, lastTo);
   if (late) console.log(`::warning::the read is ${((anc.at - lastTo) / 1200).toFixed(1)} hours after the plan's end: every hour is written rebuilt; the hourly recorder chains the gap, then goes live`);
   const texts = fillHours(plan, blocks, anc, { allRebuilt: late });
   fs.mkdirSync(path.join(out, "h"), { recursive: true });

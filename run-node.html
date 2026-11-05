@@ -184,10 +184,33 @@
         <li class="rn-only" data-os="mac">Mac: Apple menu → System Settings → Energy (or Battery → Options on a laptop) → turn on "Prevent automatic sleeping when the display is off". Keep a laptop plugged in.</li>
         <li class="rn-only" data-os="linux">Linux: run <code>sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target</code></li>
       </ul>
+      <h3 class="rn-sub">Short on space? See what's using it (optional)</h3>
+      <p>These boxes only look. They delete nothing. The usual big leftovers are an old Koinos snapshot download (<code>koinos-mainnet-….tar.gz</code>, about 60 GB) and old node folders.</p>
+      <p class="rn-do">Run this box to list your 15 biggest folders. On a full drive it can take 10–20 minutes; wait until the line you started with comes back.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>Get-PSDrive C
+Get-ChildItem C:\ -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object { $s = (Get-ChildItem $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum; [pscustomobject]@{ Folder = $_.FullName; GB = [math]::Round($s / 1GB, 1) } } | Sort-Object GB -Descending | Select-Object -First 15</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>df -h /
+du -xh -d 1 ~ 2&gt;/dev/null | sort -h | tail -15</code></pre>
+      </div>
+      <p class="rn-do">Then run this box to find big leftover files: old snapshot downloads and the disk files of old Docker or virtual-machine setups.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>Get-ChildItem C:\ -Recurse -File -Force -ErrorAction SilentlyContinue -Include *.tar.gz, *.vhdx | Where-Object Length -gt 2GB | Select-Object FullName, @{ n = 'GB'; e = { [math]::Round($_.Length / 1GB, 1) } }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>find ~ -xdev -type f \( -name '*.tar.gz' -o -name '*.raw' -o -name '*.vhdx' \) -size +2G -exec ls -lh {} \; 2&gt;/dev/null</code></pre>
+      </div>
+      <p class="muted">Before deleting anything, make sure you know what it is. An old snapshot download (<code>.tar.gz</code>) is safe to delete once you have unpacked it or don't need it. Don't delete a folder from a node that is still running, or one that holds a <code>.env</code> file or a <code>block_producer</code> folder (those hold keys) unless you are sure you no longer need them. On Windows, Settings → System → Storage → Cleanup recommendations safely clears temporary files and old Windows updates.</p>
       <p class="rn-see"><span class="rn-tag">You should see</span>A list of your drives. In the Free column (Windows) or Avail column (Mac/Linux), the number should be 150 GB (shown as 150G) or more.</p>
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
-          <li>Less than 150 GB free? Empty the Recycle Bin / Trash, uninstall programs you don't use, or move big folders (videos, photos) to another drive. On Windows you can also keep Docker's data on another drive: in step 2, Docker Desktop → Settings → Resources → Advanced → Disk image location.</li>
+          <li>Less than 150 GB free? Use "Short on space? See what's using it" above to find the big folders and files. Empty the Recycle Bin / Trash, uninstall programs you don't use, or move big folders (videos, photos) to another drive. On Windows you can also keep Docker's data on another drive: in step 2, Docker Desktop → Settings → Resources → Advanced → Disk image location.</li>
           <li>Windows says the command isn't found? Make sure you opened PowerShell (Start → type PowerShell → open Windows PowerShell), not the old Command Prompt.</li>
           <li>Only a laptop? It works, but keep it plugged in, lid open (or set "do nothing" when the lid closes), and on a cable if you can.</li>
         </ul>

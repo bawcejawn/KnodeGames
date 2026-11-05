@@ -143,7 +143,7 @@
         <li class="rn-only" data-os="win">Click inside the PowerShell window, then <b>right-click</b> to paste (or press <b>Ctrl+V</b>).</li>
         <li class="rn-only" data-os="mac">Click inside the Terminal window and press <b>⌘V</b> to paste.</li>
         <li class="rn-only" data-os="linux">Click inside the Terminal window and press <b>Ctrl+Shift+V</b> to paste.</li>
-        <li>Press <b>Enter</b>. (If the last line is still waiting after the paste, press <b>Enter</b> once more.)</li>
+        <li>Press <b>Enter</b>. If you then see <code>&gt;&gt;</code> at the start of the line, or the last line is still waiting, press <b>Enter</b> once more.</li>
         <li>Wait until the line you started with comes back (<span class="rn-only" data-os="win"><code>PS C:\…&gt;</code></span><span class="rn-only" data-os="mac linux">ending in <code>%</code> or <code>$</code></span>): that means the box has finished. Then compare what it printed with <b>You should see</b> under the step.</li>
       </ol>
       <p class="muted">Keep the same window open from box to box, or open a new one at any time: every box starts by going to the right folder itself. Never paste anything from other websites or chats into this window.</p>
@@ -515,16 +515,21 @@ for TRY in $(seq 1 200); do
 done</code></pre>
       </div>
       <h3 class="rn-sub">4c. Check the fingerprint</h3>
-      <p class="rn-do">When 4b has finished, run this box. It works quietly for several minutes, then prints MATCH or NO MATCH.</p>
+      <p class="rn-do">When 4b has said DOWNLOAD COMPLETE, run this box. If you see <code>&gt;&gt;</code> after pasting, press Enter once more. It works quietly for several minutes, then prints MATCH or NO MATCH.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
 $s = $null
 if (Test-Path snapshot.json) { $s = Get-Content snapshot.json -Raw | ConvertFrom-Json }
-if (-not $s -or $s.sha256 -notmatch '^[0-9a-fA-F]{64}$') { "STOP - no snapshot.json yet: do 4a first" }
-elseif (-not (Test-Path snapshot.tar.gz)) { "STOP - no snapshot.tar.gz yet: do 4b first" }
-elseif ((Get-FileHash snapshot.tar.gz -Algorithm SHA256).Hash -eq $s.sha256) { "MATCH - the download is complete and unchanged" }
-else { "NO MATCH - delete snapshot.tar.gz and download again" }</code></pre>
+if (-not $s -or $s.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
+  "STOP - no snapshot.json yet: do 4a first"
+} elseif (-not (Test-Path snapshot.tar.gz)) {
+  "STOP - no snapshot.tar.gz yet: do 4b first"
+} elseif ((Get-FileHash snapshot.tar.gz -Algorithm SHA256).Hash -eq $s.sha256) {
+  "MATCH - the download is complete and unchanged"
+} else {
+  "NO MATCH - delete snapshot.tar.gz and download again"
+}</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
@@ -583,7 +588,7 @@ docker compose up -d
 rm -f ~/koinos-node/heal-paused</code></pre>
       </div>
       <h3 class="rn-sub">5b. Is it caught up?</h3>
-      <p class="rn-do">Run this box now, then again every 15 minutes or so (paste the same box again). Your node is caught up when Behind by is under 10.</p>
+      <p class="rn-do">Run this box now, then again every 15 minutes or so (paste the same box again). If you see <code>&gt;&gt;</code> after pasting, press Enter once more. Your node is caught up when Behind by is under 10.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -591,9 +596,13 @@ $me = $null; $net = $null
 $body = '{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
 try { $me = [int64](Invoke-RestMethod http://127.0.0.1:8080 -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
 try { $net = [int64](Invoke-RestMethod https://koinos.armana.io -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
-if (-not ($me -gt 0)) { "Your node didn't answer yet - wait 2 minutes and try again" }
-elseif (-not ($net -gt 0)) { "Couldn't read the network height - try again in a minute" }
-else { "Your node: $me   Network: $net   Behind by: $($net - $me) blocks" }</code></pre>
+if (-not ($me -gt 0)) {
+  "Your node didn't answer yet - wait 2 minutes and try again"
+} elseif (-not ($net -gt 0)) {
+  "Couldn't read the network height - try again in a minute"
+} else {
+  "Your node: $me   Network: $net   Behind by: $($net - $me) blocks"
+}</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>

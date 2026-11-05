@@ -149,3 +149,115 @@ test("audit BX-47: the check node must be a different node from the primary", as
   assert.match(src, /is the same node as RPC: the check needs a second, independent node/);
   assert.match(src, /rpc: \[E\.RPC \|\| MAINNET_RPCS\[0\]\]/, "one primary node (no quiet fallback to the check node)");
 });
+
+// ── R-BX-3 (D-096, docs/blockx/OWNER-HANDOVER-PLAN.md): the owner handover commands ──
+import { planPropose, planAccept, planCancel, agreeOwnerViews, waitingOnContract, mainnetOwner, readOwnerView, readBack, syncPlan, groups4, MAINNET_OWNER, NOT_AN_OWNER } from "../../bot/picks.ts";
+const NEW = "1QKUvYDqLUzdhhPByhxCqinsLgc29PRQhx";   // Signer.fromSeed("knode-picks-handover-test"): a valid address no one uses
+const view = (o: any = {}) => ({ owner: MAINNET_OWNER, pending: null, eta: 0, upgradeHash: null, upgradeEta: 0, announced: [], ...o });
+const NOW = Date.UTC(2026, 10, 9, 18);
+const H = 3600000, DAY = 24 * H;
+
+test("R-BX-3: owner-propose refuses a bad address, the current owner, a Knode contract and a signer that isn't the owner", async () => {
+  const { utils } = await import("koilib");
+  const good = utils.isChecksumAddress(NEW) ? NEW : null;
+  assert.ok(good, "the test address is a valid Koinos address");
+  assert.throws(() => planPropose(view(), MAINNET_OWNER, "1notanaddress", NOW, {}, NEW), /not a valid Koinos address/);
+  assert.throws(() => planPropose(view(), MAINNET_OWNER, MAINNET_OWNER.slice(0, -1) + "8", NOW, {}, NEW), /not a valid Koinos address/, "a bad checksum");
+  assert.throws(() => planPropose(view(), MAINNET_OWNER, MAINNET_OWNER, NOW, {}, MAINNET_OWNER), /already the owner/);
+  for (const a of Object.keys(NOT_AN_OWNER)) assert.throws(() => planPropose(view(), MAINNET_OWNER, a, NOW, {}, a), /must be a wallet of its own/, a);
+  assert.throws(() => planPropose(view(), NEW, NEW, NOW, {}, NEW), /not the owner on chain/);
+  const lines = planPropose(view(), MAINNET_OWNER, NEW, NOW, {}, NEW).join("\n");
+  assert.match(lines, new RegExp(`accept from about ${new Date(NOW + 48 * H).toISOString()}`));
+  assert.match(lines, new RegExp(new Date(NOW + 48 * H + 7 * DAY).toISOString()));
+});
+
+test("R-BX-3: owner-propose and owner-accept refuse while a game announcement or an upgrade is waiting, naming each", () => {
+  const busy = view({ announced: [{ id: 8, name: "Combo" }], upgradeHash: "ab".repeat(32), upgradeEta: NOW });
+  assert.equal(waitingOnContract(busy).length, 2);
+  assert.throws(() => planPropose(busy, MAINNET_OWNER, NEW, NOW, {}, NEW), /game 8 \(Combo\) is announced.*a code upgrade/);
+  assert.throws(() => planAccept({ ...busy, pending: NEW, eta: NOW - H }, NEW, NOW), /game 8 \(Combo\)/);
+  assert.match(planPropose(view({ pending: "1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv", eta: NOW }), MAINNET_OWNER, NEW, NOW, {}, NEW).join("\n"), /replaces the waiting proposal/);
+});
+
+test("R-BX-3: owner-accept only for the proposed key, from 48 h until 7 days later", () => {
+  const v = view({ pending: NEW, eta: NOW });
+  assert.throws(() => planAccept(view(), NEW, NOW), /No new owner is proposed/);
+  assert.throws(() => planAccept(v, MAINNET_OWNER, NOW), /NEW_OWNER_WIF is .* but the proposed owner is/);
+  assert.throws(() => planAccept(v, NEW, NOW - 1), /Too early/);
+  assert.ok(planAccept(v, NEW, NOW).length);
+  assert.ok(planAccept(v, NEW, NOW + 7 * DAY - H - 1).length);
+  assert.throws(() => planAccept(v, NEW, NOW + 7 * DAY - 1), /less than an hour from now/, "Repo Lens #D-12: not in the last hour");
+  assert.throws(() => planAccept(v, NEW, NOW + 7 * DAY), /expired/);
+});
+
+test("R-BX-3: owner-cancel needs a proposal and the owner's key", () => {
+  assert.throws(() => planCancel(view(), MAINNET_OWNER), /No proposal is waiting/);
+  assert.throws(() => planCancel(view({ pending: NEW }), NEW), /not the owner on chain/);
+  assert.match(planCancel(view({ pending: NEW }), MAINNET_OWNER)[0], /Cancel the proposal/);
+});
+
+test("R-BX-3: the owner comes from picks-data/deployment.json once it has one; file vs chain and node vs node must agree", async () => {
+  assert.equal(mainnetOwner({}), MAINNET_OWNER, "no \"owner\" yet: the built-in owner, as today");
+  assert.equal(mainnetOwner({ owner: NEW }), NEW);
+  assert.equal(mainnetOwner({ owner: "junk" }), MAINNET_OWNER);
+  assert.equal(mainnetOwner(), MAINNET_OWNER, "the committed file has no owner yet");
+  assert.throws(() => agreeOwnerViews([view(), view({ pending: NEW })], MAINNET_OWNER), /two nodes disagree/);
+  assert.throws(() => agreeOwnerViews([view(), view()], NEW), /owner on chain is .* but the settings/);
+  assert.deepEqual(agreeOwnerViews([view(), view()], MAINNET_OWNER), view());
+  // readOwnerView reads get_config and list_pending (fake node)
+  const fake = async (_p: any, _id: string, m: string) => m === "get_config"
+    ? { owner: MAINNET_OWNER, pending_owner: NEW, pending_owner_eta: String(NOW), upgrade_hash: "", upgrade_eta: "0" }
+    : { pending: [{ game: { id: 8, name: "Combo" }, eta: String(NOW) }] };
+  assert.deepEqual(await readOwnerView({} as any, "1P", fake as any), view({ pending: NEW, eta: NOW, announced: [{ id: 8, name: "Combo" }] }));
+});
+
+test("R-BX-3: the commands are wired, are dry runs without --send, and a mainnet send needs --mainnet and CONFIRM_MAINNET", () => {
+  const src = fs.readFileSync("bot/picks.ts", "utf8");
+  for (const c of ["owner-propose", "owner-accept", "owner-cancel"]) assert.match(src, new RegExp(`case "${c}": return owner`));
+  for (const f of ["ownerPropose", "ownerAccept", "ownerCancel"]) {
+    const body = src.slice(src.indexOf(`async function ${f}(`), src.indexOf("\n}\n", src.indexOf(`async function ${f}(`)));
+    assert.match(body, /mainnetGuard\(net, send\);/, `${f}: the mainnet guard`);
+    assert.match(body, /await assertAuditedContract\(net, p\);/, `${f}: the audited contract on both nodes`);
+    assert.match(body, /await ownerViews\(/, `${f}: owner settings on both nodes, matching the file`);
+    assert.match(body, /if \(!send\) \{ log\("\\nDry run only\. Nothing was sent\./, `${f}: a dry run first`);
+  }
+  assert.match(src, /signerOf\("NEW_OWNER_WIF", p\)/, "accept is signed by the new owner's key");
+  assert.match(src, /const out: any = \{ \.\.\.st, owner, ownerSince:/, "after accept the file gets the new owner (saveOwner)");
+  assert.match(src, /owner: mainnetOwner\(st\)/, "network() uses the file's owner");
+});
+
+test("Repo Lens #D-12 F-1: owner-propose proposes only the pinned \"nextOwner\" (by a reviewed PR), shown in groups of 4", async () => {
+  const { Signer } = await import("koilib");
+  const OTHER = Signer.fromSeed("another valid wallet").getAddress();
+  assert.throws(() => planPropose(view(), MAINNET_OWNER, NEW, NOW, {}, null), /No planned new owner is set/);
+  assert.throws(() => planPropose(view(), MAINNET_OWNER, OTHER, NOW, {}, NEW), /is not the planned new owner/);
+  assert.match(planPropose(view(), MAINNET_OWNER, NEW, NOW, {}, NEW).join("\n"), new RegExp(groups4(NEW).replace(/ /g, " ")));
+  assert.equal(groups4("1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd"), "1LMV 8EcR FLFG RMFS C7rK w3eQ 3PSz LRRF md");
+  const dep = JSON.parse(fs.readFileSync("picks-data/deployment.json", "utf8"));
+  assert.equal(dep.nextOwner, "1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd", "the planned cold owner (KEYS_AND_ROLES.md), pinned in the deployment file");
+  assert.equal(network(false).nextOwner, dep.nextOwner);
+});
+
+test("Repo Lens #D-12 F-2: the read-back waits for a node one block behind; never catching up still saves the primary's owner as unchecked", async () => {
+  let n = 0;
+  const lagging = async () => { if (n++ < 2) throw new Error("The two nodes disagree"); return view({ owner: NEW }); };
+  const ok = await readBack(lagging, async () => view({ owner: NEW }), 5, 1);
+  assert.equal(ok.agreed?.owner, NEW); assert.equal(n, 3);
+  const never = await readBack(async () => { throw new Error("The two nodes disagree"); }, async () => view({ owner: NEW }), 3, 1);
+  assert.equal(never.agreed, null); assert.equal(never.primary?.owner, NEW, "the primary's view, for an unchecked save");
+  const src = fs.readFileSync("bot/picks.ts", "utf8");
+  assert.match(src, /saveOwner\(net, s\.getAddress\(\), !!got\.agreed, r\.txId \?\? null\);/);
+  assert.match(src, /if \(checked\) delete out\.ownerChecked; else out\.ownerChecked = false;/);
+  assert.match(src, /case "owner-sync": return ownerSync\(\);/);
+});
+
+test("Repo Lens #D-12 F-2: owner-sync writes the owner only when every node agrees", () => {
+  assert.deepEqual(syncPlan([view({ owner: NEW }), view({ owner: NEW })], MAINNET_OWNER), { owner: NEW, change: true });
+  assert.deepEqual(syncPlan([view(), view()], MAINNET_OWNER), { owner: MAINNET_OWNER, change: false });
+  assert.throws(() => syncPlan([view({ owner: NEW }), view()], MAINNET_OWNER), /nodes disagree/);
+});
+
+test("Repo Lens #D-12 F-3: the testnet owner comes from testnet/blockx.json's \"owner\" once a testnet handover wrote it", () => {
+  const src = fs.readFileSync("bot/picks.ts", "utf8");
+  assert.match(src, /const owner = isAddr\(cfg\.owner\) \? cfg\.owner : readJson\(TESTNET_MANIFEST\)\?\.owner/);
+});

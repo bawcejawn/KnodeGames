@@ -150,8 +150,7 @@ Read the dry run: only the arrows you meant to change (`old → new`), the 1.2 r
 
 | Item | State | Ref |
 |---|---|---|
-| **25,000 KOIN behind a hot key, no timelock** | accepted risk; protection: a PC used only for this, paper backup, never on GitHub, instant `disable` | D-085, `KEYS_AND_ROLES.md` §1 |
-| **Option to decide:** keep most KOIN in a cold wallet and a working float in the sponsor (e.g. enough for a few days), topped up by hand | owner to decide; reduces the worst case without changing players' experience. Trade-off: top-ups become an owner chore, and Mana refills from the balance, so a smaller balance means fewer Mana a day | `HEALTHCHECK.md` priority 4 |
+| **The sponsor's own key controls its settings and its KOIN** | the owner keeps all its KOIN in it so Mana recharges fully (D-148); the protections are in the owner's private notes; `disable` switches it off at once | D-085, D-148 |
 | Empty new wallets can use up the free pool | accepted (audit SP-3): 2,000 a day, by the hour; lower `--free-per-day` if spam appears | SP-3 |
 | Many 1-VHP staked wallets can use up the day | accepted (audit SP-2): raise `--min-vhp` if it happens | SP-2 |
 | Near 00:00 UTC a "Sent" transaction can drop from the block | the player retries | README |

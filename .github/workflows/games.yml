@@ -233,7 +233,7 @@ jobs:
           pb = pubjson("board.json"); plw = pb.get("lastWeek") if type(pb) is dict else None
           def week_final(w):
               return type(plw) is dict and plw.get("week") == w and plw.get("final") is True and plw.get("start") == GENESIS + w * WEEK \
-                  and type(plw.get("prizes")) is list and type(plw.get("rows")) is list and now >= GENESIS + (w + 1) * WEEK + 12 * 3600000
+                  and type(plw.get("prizes")) is list and type(plw.get("rows")) is list and now >= GENESIS + (w + 1) * WEEK   # D-135: final from Monday 00:00 UTC
           for f in sorted(os.listdir(d)):
               if not re.fullmatch(r"P[0-9]{3}\.json", f): continue
               j = json.load(open(os.path.join(d, f), encoding="utf-8"))
@@ -317,6 +317,9 @@ jobs:
                       for t in fresh:
                           h, tm = t.get("height"), t.get("time")
                           ok = type(tm) is int and type(h) is int and h == t["round"] * GROUND + GOFFSET and wstart <= tm < wstart + WEEK and tm <= now
+                          # Repo Lens #E-18 K-1: a new round must say it was read on chain (checked 1 or 2), unless it is a
+                          # 3-day-edge void (no picks, its block at least ~66 h old), the only kind the recorder writes unread.
+                          ok = ok and (t.get("checked") in (1, 2) or (type(t.get("void")) is str and t.get("picks") == [] and tm <= now - 66 * 3600000))
                           if not ok: bad.append(t["round"])
                       if bad: why = "new rounds " + ", ".join(str(r) for r in bad[:10]) + " aren't past target blocks of this week"
                   if why: rewrote.append(f + " (" + why + ")"); continue

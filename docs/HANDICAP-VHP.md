@@ -1,5 +1,7 @@
 # Handicap cards that are hard to game (owner approved 2026-10-28: checks 1 to 3)
 
+> **📜 Historical (5 Nov 2026).** The 28 Oct handicap rules; replaced by the shared VHP ruler (`.ai/standards/VHP_RULER.md`, D-110 – D-111, D-154). Kept because the Race sampler workflow cites it and the Race still uses these rules until it moves onto the ruler (R-RACE-5).
+
 Applies project wide: every game that sets multipliers from producers' VHP (Producer Race, Who Signs Block X, and
 any later game using the race card). **These rules only choose which VHP level feeds the card.** Each game keeps its
 own multiplier rule (Block X: min(3, top ÷ yours); the race: its handicap steps).

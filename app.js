@@ -115,27 +115,78 @@
     if (/quartiles|sextiles|eighths|^M1|^M9|^H1|^H3/.test(t)) return "range";
     return "network";
   }
-  const KIND_LABEL = { h2h: "Head-to-head", ou: "Over / under", range: "How many blocks", tail: "Smaller producers together", network: "Network", combo: "Double head-to-head" };
+  const KIND_LABEL = { h2h: "Head-to-head", ou: "Yes or no", range: "How many blocks", tail: "Smaller producers together", network: "Whole network", combo: "Double head-to-head" };
   const qSubjects = (q) => (q.subjects && q.subjects.length ? q.subjects : (String(q.text).match(ADDR_RE) || []));
   const qLine = (q) => (q.thresholds && q.thresholds.length ? q.thresholds[0] : Number((String(q.text).match(/more than ([\d,]+)/) || [])[1]?.replace(/,/g, "")));
+
+  // question-words:start  (pure: the plain wording players see; the on-chain wording, q.text, never changes and stays in
+  // the card's tooltip. Owner, 4 Nov: "simple for anyone to read and understand"; network questions "more inviting".)
+  /** A two-choice "No — … / Yes — …" question: shown as Yes / No, Yes first, never as letters. */
+  const isYesNo = (q) => !!q && Array.isArray(q.options) && q.options.length === 2 && /^No\b/.test(String(q.options[0].label)) && /^Yes\b/.test(String(q.options[1].label));
+  /** How a pick is named on cards, results and toasts: "Yes" / "No" on yes-or-no questions, else the letter. */
+  const optName = (q, i) => (isYesNo(q) ? (i === 1 ? "Yes" : "No") : String.fromCharCode(65 + i));
+  /** Head-to-head, "A's blocks minus B's > line": the question and both answers in words, whatever the sign of the line.
+   *  d = line + 1 is the smallest lead that makes it a Yes (a negative d means A may be behind by up to -d). */
+  function h2hWords(line) {
+    const d = line + 1, n = (x) => Number(x).toLocaleString();
+    if (d >= 2) return { ask: ["make at least ", { b: n(d) }, " more blocks than "], yes: `${n(d)} or more ahead`, no: `less than ${n(d)} ahead, or behind` };
+    if (d === 1) return { ask: ["make more blocks than "], yes: "ahead", no: "tied or behind" };
+    if (d === 0) return { ask: ["make at least as many blocks as "], yes: "tied or ahead", no: "behind" };
+    return { ask: ["finish no more than ", { b: n(-d) }, " blocks behind "], yes: `behind by ${n(-d)} or less, or ahead`, no: `behind by ${n(-d + 1)} or more` };
+  }
+  /** Network questions (M4–M7), by what the on-chain wording asks. */
+  function networkWords(text) {
+    const t = String(text);
+    if (/longest gap/i.test(t)) return { hook: "Any hiccups?", ask: "What will the longest wait between two blocks be?", hint: "Blocks usually come about every 3 seconds; a slow moment can stretch the wait." };
+    if (/average time/i.test(t)) return { hook: "How fast will Koinos run?", ask: "Pick the average time between blocks.", hint: "Usually about 3 seconds, so the choices are close on purpose." };
+    if (/no transactions/i.test(t)) return { hook: "How quiet will it be?", ask: "What share of blocks will be empty (no transactions)?", hint: null };
+    if (/transactions/i.test(t)) return { hook: "How busy will Koinos be?", ask: "How many transactions will these blocks hold?", hint: null };
+    return null;
+  }
+  /** The headline as tokens: strings, { chip: address } and { b: bold text }. */
+  function headlineWords(q) {
+    const kind = qKind(q), [A, B] = qSubjects(q), line = qLine(q), n = (x) => Number(x).toLocaleString();
+    if (kind === "h2h" && A && B && Number.isFinite(line)) return ["Will ", { chip: A }, " ", ...h2hWords(line).ask, { chip: B }, "?"];
+    if (kind === "ou" && A && Number.isFinite(line)) return ["Will ", { chip: A }, " make ", { b: `${n(line + 1)} or more` }, " blocks?"];
+    if (kind === "range" && A) return ["How many blocks will ", { chip: A }, " make?"];
+    if (kind === "tail" && q.group && q.group.length) return [`How many blocks will these ${q.group.length} smaller producers make together?`];
+    const w = kind === "network" ? networkWords(q.text) : null;
+    if (w) return [{ b: w.hook }, " ", w.ask];
+    return null;
+  }
+  /** Answer text shown on a choice: head-to-heads in words; everything else keeps its published label. */
+  function optionWords(q, o) {
+    if (qKind(q) === "h2h" && isYesNo(q) && Number.isFinite(qLine(q))) { const w = h2hWords(qLine(q)); return o.index === 1 ? `Yes — ${w.yes}` : `No — ${w.no}`; }
+    return String(o.label);
+  }
+  /** The counted blocks and when they should happen, in the viewer's time: counting starts when answers close
+   *  (lockTime) and runs about BLOCK_MS a block. Day names only when it isn't today. */
+  function windowWords(q, now, blockMs) {
+    const nb = q.windowEnd - q.windowStart + 1, start = Number(q.lockTime), end = start + nb * blockMs;
+    const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+    const at = (ms) => new Date(ms).toLocaleString([], sameDay(ms, now) ? { hour: "numeric", minute: "2-digit" } : { weekday: "short", hour: "numeric", minute: "2-digit" });
+    const hours = (nb * blockMs) / 3.6e6;
+    return { blocks: `Blocks ${q.windowStart.toLocaleString()} → ${q.windowEnd.toLocaleString()} (${nb.toLocaleString()})`,
+      when: Number.isFinite(start) && start > 0 ? `about ${at(start)} – ${at(end)} your time` : `about ${hours < 10 ? hours.toFixed(1) : Math.round(hours)} hours` };
+  }
+  // question-words:end
+
   /** The question as a short sentence, producers as chips. The full original wording stays in the tooltip. */
   function headline(q) {
-    const kind = qKind(q), [A, B] = qSubjects(q), line = qLine(q);
-    if (kind === "h2h" && A && B && Number.isFinite(line)) return ["Will ", pchip(A), " out-sign ", pchip(B), " by more than ", el("b", {}, fmtN(line)), " blocks?"];
-    if (kind === "ou" && A && Number.isFinite(line)) return ["Will ", pchip(A), " sign more than ", el("b", {}, fmtN(line)), " blocks?"];
-    if (kind === "range" && A) return ["How many blocks will ", pchip(A), " sign?"];
-    if (kind === "tail" && q.group && q.group.length) return [`How many blocks will these ${q.group.length} smaller producers sign together?`];
+    const w = headlineWords(q);
+    if (w) return w.map((x) => (typeof x === "string" ? x : x.chip ? pchip(x.chip) : el("b", {}, x.b)));
     const plain = String(q.text).replace(/,? between block [\d,]+ and block [\d,]+/, "").replace(/ \(about [^)]*\)/, "").replace(/ \(Full list[^)]*\)/, "");
     return chipify(plain);
   }
+  /** One short hint under some network questions (what "normal" looks like). */
+  const qHint = (q) => { const w = qKind(q) === "network" ? networkWords(q.text) : null; return w && w.hint ? el("p", { class: "q-hint" }, w.hint) : null; };
   /** For "these N producers together" questions: every producer in the group, as chips. */
   const groupView = (q) => (q.group && q.group.length ? el("div", { class: "q-group" },
     el("span", { class: "q-group-h" }, `The ${q.group.length} producers counted together:`), ...q.group.map(pchip)) : null);
-  /** "Counts blocks #a → #b · 10,000 blocks · about 8 h" */
+  /** "Blocks #a → #b (10,000) · about 12:00 PM – 8:35 PM your time" */
   function windowFacts(q) {
-    const n = q.windowEnd - q.windowStart + 1, hours = (n * BLOCK_MS) / 3.6e6;
-    return [el("span", { class: "fact" }, `Blocks ${fmtN(q.windowStart)} → ${fmtN(q.windowEnd)}`),
-      el("span", { class: "fact" }, `${fmtN(n)} blocks · about ${hours < 10 ? hours.toFixed(1) : Math.round(hours)} h`)];
+    const w = windowWords(q, nowMs(), BLOCK_MS);
+    return [el("span", { class: "fact" }, w.blocks), el("span", { class: "fact" }, w.when)];
   }
   /** What actually happened, in words. */
   function actualText(q) {
@@ -685,7 +736,7 @@
   // Every player action, answers included, asks the Mana sponsor first (site/wallet.js); when its caps are used up the
   // player's own Mana pays. The game contract no longer pays for anyone (owner, 2026-10-28): its Mana is kept for
   // burning block rewards back into VHP.
-  const answer = (q, option) => send(`answer ${String.fromCharCode(65 + option)}`, async () => [
+  const answer = (q, option) => send(`answer ${optName(q, option)}`, async () => [
     await opOf(writer(), "answer", { player: S.account, question_id: q.chainId, option }),
   ]);
 
@@ -945,7 +996,7 @@
     const head = el("div", { class: "race-head" },
       el("span", { class: "live-dot", "aria-hidden": "true" }), el("b", {}, L.frac >= 1 ? "All blocks counted" : "Live"),
       el("span", { class: "muted" }, `${fmtN(L.done)} of ${fmtN(L.total)} blocks · ${pct.toFixed(0)}%`),
-      L.pointsTo != null && L.frac < 1 ? el("span", { class: "race-points" }, `On pace for ${String.fromCharCode(65 + L.pointsTo)}`) : null);
+      L.pointsTo != null && L.frac < 1 ? el("span", { class: "race-points" }, `On pace for ${optName(q, L.pointsTo)}`) : null);
     const bar = el("div", { class: "race-track", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(pct)) }, el("i", { style: `width:${pct}%` }));
     if (compact) return el("div", { class: "race race-compact" }, head, bar);
     const lane = (who, v, proj, scale, marker, addr) => el("div", { class: "lane" },
@@ -978,7 +1029,7 @@
           at = w * i + w * Math.max(0.08, Math.min(0.92, (p - lo) / Math.max(1, hi - lo)));
         }
         body.push(el("div", { class: "lane lane-zones" }, el("div", { class: "lane-label muted" }, "Answers"),
-          el("div", { class: "zones" }, ...q.options.map((o) => el("span", { class: `zone${o.index === L.pointsTo ? " on" : ""}`, title: o.label }, String.fromCharCode(65 + o.index))),
+          el("div", { class: "zones" }, ...q.options.map((o) => el("span", { class: `zone${o.index === L.pointsTo ? " on" : ""}`, title: o.label }, optName(q, o.index))),
             at != null ? el("i", { class: "zone-dot", style: `left:${at}%`, title: `on pace for ${fmtN(Math.round(p))}` }) : null),
           el("div", {})));
       }
@@ -1001,7 +1052,9 @@
       el("div", { class: "q-tags" }, el("span", { class: `tier tier-${q.tier || "Medium"}` }, q.tier || "Question"), el("span", { class: "kind" }, KIND_LABEL[qKind(q)])),
       status);
     const pace = mode === "locked" && !oc ? liveOf(q)?.pointsTo : null;
-    const opts = el("div", { class: `opts n${q.options.length}` }, q.options.map((o) => {
+    const yn = isYesNo(q);
+    const shown = yn ? [q.options[1], q.options[0]] : q.options;   // Yes first; the chain's option numbers don't change
+    const opts = el("div", { class: `opts n${q.options.length}${yn ? " yn" : ""}` }, shown.map((o) => {
       let cls = "opt";
       if (pace === o.index && (q.windowEnd - q.windowStart) > 0) cls += " pace";
       if (mine === o.index) cls += " picked";
@@ -1010,24 +1063,24 @@
       const canAnswer = mode === "open" && mine === null && q.hashOk !== false && (S.demo || q.hashOk === true) && (S.demo || wordingHashed(q));
       return el("button", {
         class: cls, type: "button", disabled: !canAnswer,
-        "aria-label": `Option ${String.fromCharCode(65 + o.index)}: ${o.label}`,
+        "aria-label": yn ? optionWords(q, o) : `Option ${optName(q, o.index)}: ${optionWords(q, o)}`,
         onclick: () => answer(q, o.index),
-      }, el("span", { class: "letter" }, String.fromCharCode(65 + o.index)), el("span", { class: "opt-text" }, ...optLabel(o.label)));
+      }, yn ? null : el("span", { class: "letter" }, optName(q, o.index)), el("span", { class: "opt-text" }, ...optLabel(optionWords(q, o))));
     }));
     const act = oc && oc !== 1000 && (S.demo || q.result?.option + 1 === oc) ? actualText(q) : null;   // only once decided on chain
     const foot = el("div", { class: "q-foot" },
       el("span", { class: "q-where" }, qWhere(q, false)),
-      mine !== null ? el("span", { class: `q-done${oc && oc !== 1000 ? (mine + 1 === oc ? " ok" : " miss") : ""}` }, outcomeNote(mine, oc)) : mode === "open" ? el("span", { class: "q-cta" }, S.account ? "Tap an answer" : "Connect a wallet to answer") : null);
+      mine !== null ? el("span", { class: `q-done${oc && oc !== 1000 ? (mine + 1 === oc ? " ok" : " miss") : ""}` }, outcomeNote(q, mine, oc)) : mode === "open" ? el("span", { class: "q-cta" }, S.account ? "Tap an answer" : "Tap an answer to play: free, and a guest wallet works") : null);
     return el("article", { class: `q q-${(q.tier || "Medium")}${mine !== null ? " q-answered" : ""}` }, top,
-      el("h3", { title: q.text }, el("span", { class: "qno" }, qTag(q)), " ", ...headline(q)), groupView(q),
+      el("h3", { title: q.text }, el("span", { class: "qno" }, qTag(q)), " ", ...headline(q)), qHint(q), groupView(q),
       el("div", { class: "q-facts" }, ...windowFacts(q), mode === "open" ? el("span", { class: "fact" }, "Counting starts when answers close") : null),
       mode === "locked" && !oc ? raceView(q) : null,
       opts, act ? el("p", { class: "q-actual" }, ...act) : null, hashNote(q), foot);
   }
 
   /** What an answered card says: the pick, and once the chain records the outcome, whether it was right. */
-  function outcomeNote(mine, oc) {
-    const L = (i) => String.fromCharCode(65 + i);
+  function outcomeNote(q, mine, oc) {
+    const L = (i) => optName(q, i);
     if (!oc) return `✓ Answered: ${L(mine)}`;
     if (oc === 1000) return "Void: nobody scores";
     return mine + 1 === oc ? `✓ Right (${L(mine)})` : `✗ Missed: answer was ${L(oc - 1)} (you: ${L(mine)})`;
@@ -1484,10 +1537,10 @@
       }
       const answerLine = !done
         ? el("p", { class: "res-line" }, el("span", { class: "badge badge-wait" }, S.height > q.windowEnd ? "Result being posted" : `Result in ~${duration((q.windowEnd + 60 - S.height) * BLOCK_MS)}`),
-          mine !== null ? el("span", { class: "res-you" }, `You: ${String.fromCharCode(65 + mine)}`) : null)
+          mine !== null ? el("span", { class: "res-you" }, `You: ${optName(q, mine)}`) : null)
         : isVoid ? el("p", { class: "res-line" }, el("span", { class: "res-void-note" }, `Voided${agrees && r.reason ? `: ${r.reason}` : ""}. Nobody gains or loses a point.`))
           : el("p", { class: "res-line" }, el("span", { class: "res-k" }, "Answer"), el("span", { class: "res-letter" }, String.fromCharCode(64 + oc)), el("span", { class: "opt-text" }, ...(opt ? optLabel(opt.label) : [`Option ${String.fromCharCode(64 + oc)}`])),
-            mine !== null ? el("span", { class: `res-you${mine + 1 === oc ? " ok" : ""}` }, `You: ${String.fromCharCode(65 + mine)}`) : null);
+            mine !== null ? el("span", { class: `res-you${mine + 1 === oc ? " ok" : ""}` }, `You: ${optName(q, mine)}`) : null);
       const warns = [
         done && !agrees && !S.demo ? el("p", { class: "q-warn" }, fileOc === null
           ? "The question file has no result yet; the result shown is the one recorded on chain."
@@ -1499,7 +1552,7 @@
         agrees && actualText(q) ? el("p", { class: "q-actual" }, ...actualText(q)) : null,
         el("p", { class: "meta" }, `${qWhere(q)} · on-chain #${q.chainId}. Counted blocks ${fmtN(q.windowStart)} to ${fmtN(q.windowEnd)}${r && r.dataHash ? ` · fingerprint of those blocks ${String(r.dataHash).slice(0, 12)}…` : ""}. `,
           S.demo ? null : el("a", { href: DATA + f }, "See the data")),
-        el("p", { class: "meta" }, "All answers: ", (q.options || []).map((o) => `${String.fromCharCode(65 + o.index)} ${o.label}`).join(" · ")),
+        el("p", { class: "meta" }, "All answers: ", (isYesNo(q) ? [q.options[1], q.options[0]] : q.options || []).map((o) => (isYesNo(q) ? optionWords(q, o) : `${optName(q, o.index)} ${optionWords(q, o)}`)).join(" · ")),
         agrees && r.vhpCheck?.skipped ? el("p", { class: "meta" }, `The VHP-swing rule was not applied: ${r.vhpCheck.skipped}.`) : null,
         !S.demo && q.hashOk !== false && !wordingHashed(q) ? el("p", { class: "meta" }, "Released before the wording was covered by the on-chain fingerprint: the winning letter comes from the chain, but the option text shown can't be confirmed against it.") : null)
         : nowMs() >= q.lockTime ? raceView(q, true) : null;

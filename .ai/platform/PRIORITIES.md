@@ -17,14 +17,14 @@
 | 1 | **Vault v6.1 live:** announce Thu 5 Nov, upload Mon 9, rule week Mon 16 (D-130); #152 ✅ merged, #114 after the upload | 60 questions a week and Daily Questions paid like every game: one set of rules players learn once | owner, Vault + Questions chats | D-116, D-127, D-130 |
 | 2 | **Put Block X and the Race in the vault:** `game-apply` Thu 5 – Sun 8 Nov, then `PRIZES_FROM_WEEK = 3` | Turns three games into **paying** games from Mon 9 Nov: the first real reason to stake | owner | D-077 |
 | 3 | **Make the first paid week safe:** Race payout safety ✅ (#133), Block X finals locked ✅ (#159); left: watch the 24 h correction window after each seal; Race gaps I-086, I-037 | A wrong first payout would cost more trust than any feature earns | Race chat; owner | TD-02, R-RACE-12 |
-| 4 | **Split the keys this weekend:** cold desk treasury, cold-key owner for the vault, Desk, Picks and Race picks; retire the old operator key | The desk's funds stop depending on one hot key; the safety story players can rely on | owner (+ Vault, Block X, Race chats for the tools) | TD-01, TD-04, I-001, D-083, D-096 |
+| 4 | **Split the keys this weekend:** cold desk treasury, cold-key owner for the vault, Desk, Picks and Race picks; retire the old operator key | The desk's funds stop depending on one key; the safety story players can rely on | owner (+ Vault, Block X, Race chats for the tools) | TD-01, TD-04, I-001, D-083, D-096 |
 | 6 | **Set the free-prize switch's starting values** and the `prize-settings` ruleset | Each game starts with the right free prize: on for 2, 7, 9, 13; off for 3, 4, 6, 8 | owner | D-082 |
 
 ## P2 — Important (next 2–3 weeks; grows players and stake)
 | # | Work | Value it creates | Owner | Refs |
 |---|------|------------------|-------|------|
 | 8 | **Survivor** — ⏸ paused (D-113, core first); new date after the core work | A second staked + free game, a two-week hook that keeps players returning | Survivor chat + owner | D-113, I-050 |
-| 9 | **After the core (D-138): Last Node, Block Golf, Fantasy, Bracket (March-Madness head to head)**, then Survivor and Combo; career profile from day 1 (D-137); each follows `../standards/NEW_GAME.md` and `WEEK_CYCLE.md` | Each game is a new reason to stake; multi-game staking is encouraged (D-074) | game chats + owner | D-064, D-113, D-134, I-065 |
+| 9 | **Next three launches (D-142): Fantasy, Block Golf, Bracket (March-Madness head to head, D-141)**, then Last Node, Survivor and Combo; career profile from day 1 (D-137); each follows `../standards/NEW_GAME.md` and `WEEK_CYCLE.md` | Each game is a new reason to stake; multi-game staking is encouraged (D-074) | game chats + owner | D-064, D-113, D-134, I-065 |
 | 10 | **The one VHP ruler, Race first** (on `main`; recorder on, data only; **v2.1 build and simulations now, R-RULER-2**) | Closes the Race's proved trick before stakes grow; one fix for every game | VHP Ruler chat | D-110, D-111, D-128, R-RULER-1 |
 | 11 | **Turn on Block Golf practice** now that Block X is live | Rewards playing across games at almost no cost: no contract, no picks | Golf chat | D-056, I-060 |
 | 12 | **Tell players:** a launch announcement once the three paying games are in the vault | Players can't stake in a platform they haven't heard of | owner | ROADMAP |

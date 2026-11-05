@@ -28,6 +28,7 @@
 | `RECOVERY.md` | PC disaster recovery: what keeps running, what stops, how to rebuild, a stolen PC |
 | `OPENISSUES.md` / `TODOS.md` | open problems (I-xxx) and the owner's own steps |
 | `KOINOS.md` | chain facts, testnet, gotchas |
+| `CONTRACTS.md` | the register of every live contract: address, live build, upload date, how it can change, who controls it, last review |
 | `REPO_MAP.md` | every top-level folder, its funds-risk tier, audit coverage, and the structure plan |
 | `GLOSSARY.md` | the words: VHP, effective VHP, Mana, the pool, the seed, staked vs free, the week numbers |
 | `AUDITS.md` | how an audit works (Repo Lens package, prompt, report, GO, fix-check) and the list of audits |
@@ -101,16 +102,16 @@ Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Surv
 | Desk treasury | same as owner | to move to a cold treasury, 48 h timelock (I-001) | ✅ |
 | Seed owner | `1K8VV1utXfomeXHeifrwgLpBjUG6Ldkw2Z` | dedicated wallet since 30 Oct — done | ✅ |
 | Operator (bot) | `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv` | rotated in 26 Oct; pays its own Mana, target 50 KOIN (D-046); balance unconfirmed (I-046); **GitHub-only** (D-084) | ✅ |
-| Mana sponsor | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | 25,000 KOIN (D-061); hot key, risk accepted (D-085) | ✅ / 👤 |
-| Old operator (retired) | `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ` | key still in local `.env` (most likely as `OPERATOR_WIF`, D-084 ❓); ~100 KOIN left; sweep it, then remove the key (I-045) | 💬 |
+| Mana sponsor | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | 25,000 KOIN (D-061); its own key (D-085, D-148) | ✅ / 👤 |
+| Old operator (retired) | `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ` | retired; ~100 KOIN left, swept this weekend (I-045) | 💬 |
 | New owner (cold key, D-083) | `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` | exists; owns Race picks since 4 Nov (tx `0x1220bd9c…`); takes the vault and the Desk at the handover accepts | ✅ |
 | Cold treasury | ❓ | not created yet | |
 | Producer public keys | desk `AzCYCDLD…`, game `Ak0vGklN…` | — | ✅ |
 
-Procedure for moves: `docs/WALLETS.md` (PR #73; §7 updated by #162): wallet inventory, on-chain rules, never-list, and the weekend runbook Fri 6 – Tue 10 Nov. Who controls what today: `KEYS_AND_ROLES.md`. Contract keys `CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF` have no power while the upload rules are on; `RACE_WIF` still does. All four belong in offline backup (💬 Vault).
+Procedure for moves: `docs/WALLETS.md` (roles, on-chain rules, never-list, the weekend outline); the step-by-step runbook is private. Who controls what today: `KEYS_AND_ROLES.md`. Key storage: the owner's private notes.
 
 ## The owner's PC
-- **Folders:** `C:\kprediction` (main checkout; keys in `.env`; scheduled tasks — always check the branch first) · `C:\kprediction-vault` (worktree on `vault-v6`, frozen, D-025) · `C:\kg-combo-preview` (Combo) · `C:\kprediction-test` (testnet and audits) · `C:\kprediction-fantasy` (Fantasy practice only). 💬
+- **Folders:** `C:\kprediction` (main checkout; scheduled tasks — always check the branch first) · `C:\kprediction-vault` (worktree on `vault-v6`, frozen, D-025) · `C:\kg-combo-preview` (Combo) · `C:\kprediction-test` (testnet and audits) · `C:\kprediction-fantasy` (Fantasy practice only). 💬
 - **Nodes:** three mainnet nodes in Docker on Windows — desk `C:\kpred-desk-node`, game `C:\kpred-node`, personal `C:\koinos-personal` — and **no testnet nodes** (D-066). Volumes `<project>-basedir`. **Never delete `basedir\block_producer`: it holds `private.key`.** Ports are deliberately not written down (public repo). 💬 / 👤
 - **Scheduled tasks:** "Knode self-heal" every 20 min; "Knode question release" 11:45–14:05 UTC every 5 min, stored in UTC (next run checked 2 Nov: 3:45 AM local ✅ 👤).
 

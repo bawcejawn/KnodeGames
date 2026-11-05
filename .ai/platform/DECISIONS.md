@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, **oldest first** (D-001 at the top, the newest at the bottom; the index is in the same order). This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "superseded by D-XXX" in the index.
 > Consolidated 2026-11-02: the owner's answers to the open contradictions are recorded as D-061 – D-067.
-> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-141 added; index statuses brought up to date; nothing removed)
+> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-156 added (D-152 with PR #182); index statuses brought up to date; nothing removed)
 > Sources: owner in chat (2026-11-02), `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (all 12 chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · 👤 owner said · ⚠️ was a conflict (see the C-xx named next to it; all are resolved unless listed under Open) · ❓ unknown
@@ -148,10 +148,25 @@
 | D-135 | 2026-11-05 | Block X goes final at Monday 00:00 UTC, like the Race | active |
 | D-136 | 2026-11-05 | Daily Questions' free prize follows the free-prize switch from the rule week | active |
 | D-137 | 2026-11-05 | A career profile for every player from day 1 | active |
-| D-138 | 2026-11-05 | After the core: Last Node, Block Golf, Fantasy and Bracket next | active (amends D-113's "after the core") |
+| D-138 | 2026-11-05 | After the core: Last Node, Block Golf, Fantasy and Bracket next | active (amends D-113's "after the core"); order amended by D-142 |
 | D-139 | 2026-11-05 | Block Minute: an always-on quick pick, designed before it's built | idea (design first) |
 | D-140 | 2026-11-05 | Fix fast after every review: one pass, same day, tracked by finding | active (standing) |
-| D-141 | 2026-11-05 | Producer Bracket: up to 64 producers, one round a day, 8 to play | active (for the Bracket build) |
+| D-141 | 2026-11-05 | Producer Bracket: up to 64 producers, one round a day, 8 to play | active; max amended to 32 by D-153 |
+| D-142 | 2026-11-05 | Fantasy, Block Golf and Producer Bracket reactivated: the next three games to launch | active (amends D-113, D-138) |
+| D-143 | 2026-11-05 | Visit counting with PostHog: cookieless, our own pinned copy, for advertising numbers | active |
+| D-144 | 2026-11-05 | Daily Questions are shown in plain words; the wording on chain never changes | active |
+| D-145 | 2026-11-05 | The site's look follows the Hub's launch UI research | active |
+| D-146 | 2026-11-05 | Build the shared game kit now | active (ARCHITECTURE A6) |
+| D-147 | 2026-11-05 | Stay on one PC for the nodes for now | active (ARCHITECTURE A8 deferred) |
+| D-148 | 2026-11-05 | The sponsor keeps all its KOIN | active (decides D-085's open option) |
+| D-149 | 2026-11-05 | Public node guide defaults | active |
+| D-150 | 2026-11-05 | Fantasy: Sunday fun round, then the recorder checks before one fix-check | active |
+| D-151 | 2026-11-05 | Guest play first in the wallet sheet | active (in #181) |
+| D-152 | 2026-11-05 | Who gets paid in a staked game (exactly the top 30%; a tie across the line → who reached the score first; free prize ≤ 10 winners) | reserved: its entry lands with PR #182 (Race chat; R-ALL-10, R-VAULT-17) |
+| D-153 | 2026-11-05 | Producer Bracket: at most 32 producers | active (amends D-141's 64) |
+| D-154 | 2026-11-05 | VHP ruler v2.1 ranks by a field-conditional percentile (A′) | active (library design, 5 Nov; replaces §16's Fix A / Fix B) |
+| D-155 | 2026-11-05 | Live stats panel | active (in #185) |
+| D-156 | 2026-11-05 | The welcome page leads with free play; the play-first home page waits for a mockup review | active |
 
 ---
 
@@ -769,6 +784,48 @@
 
 ## D-141 — Producer Bracket: up to 64 producers, one round a day, 8 to play
 - **Date:** 2026-11-05 (owner: "right now there arent many producers. set it up for 64 possible with 1 per day is good, like a 24 hour sprint. minium needed to play would be 8 producers and still follows the same bracket rules of 1 round per day.") · **Decision:** the Bracket is a knockout of producers head to head, **one round a day (a 24-hour sprint per matchup)**. It holds **up to 64 producers** (6 rounds: Mon–Sat, the final on Saturday, inside the weekly cycle, `standards/WEEK_CYCLE.md`) and runs with **as few as 8** (3 rounds). With a field between sizes, it uses the largest power of two that fits (8, 16, 32, 64) and the rounds start so the final is on Saturday; fewer than 8 eligible producers → no bracket that week. Matchups are decided by the VHP ruler's luck percentile (`VHP_RULER.md` §16, D-138). The Bracket chat reshapes its Sat seeding / Sun picks to this (R-BR-8).
+
+## D-142 — Fantasy, Block Golf and Producer Bracket reactivated: the next three games to launch
+- **Date:** 2026-11-05 (owner: "im reactivating Fantasy producers chat and block golf … i also would like to get producer bracket reactivated too and these 3 games be the next focus of push and launch games to slot right in"; "make sure the admin page is getting the needed updates along with the career page") · **Decision:** the Fantasy, Block Golf and Producer Bracket chats restart now, alongside the core work; these three are the next launches, each through `standards/NEW_GAME.md` and `GO_LIVE_CHECKLIST.md`, starting with the catch-up item R-ALL-9 (the 4–5 Nov standards). Last Node follows them; Survivor and Combo stay paused. The admin page (R-HUB-17, with R-HUB-8) and the career profile (R-HUB-15) are built now so they're ready when the three launch. The core still comes first where the two compete (owner's sends and reviews: v6.1, the ruler).
+
+## D-143 — Visit counting with PostHog: cookieless, our own pinned copy, for advertising numbers
+- **Date:** 2026-11-04 (owner, to the Hub chat: PostHog chosen for advertising numbers, "generate big money on advertisement dollars") · **Decision:** the public pages count visits with PostHog in **cookieless mode** (nothing stored in the browser, no banner): page views and leaves only, no autocapture, recordings, surveys or heatmaps; counts only on `*.knodegames.com`. The script is **our own pinned copy** (`vendor/posthog-1.438.13.js`, sha256 pinned in `tests/audit/site.analytics.test.mjs`), so wallet pages load no third-party code; the CSP allows only `https://us.i.posthog.com`. Terms §8 says what is counted. Built in #168. Quote daily visitors and page views to advertisers (cookieless counting inflates weekly / monthly uniques, I-096).
+
+## D-144 — Daily Questions are shown in plain words; the wording on chain never changes
+- **Date:** 2026-11-04 (owner, to the Hub chat: "make sure the way the questions are asked is not confusing", "simple for anyone to read and understand", "you can make the question wording updates right now"; and the proposal's answers: keep the block numbers and add the estimated time window; network questions "more inviting but still easy to understand"; add a "New here?" line) · **Decision:** the page shows each question in plain words (e.g. "Will @A make 546 or more blocks?"), Yes before No without letters, the block window plus its estimated local time, no negative numbers. **Display only:** the on-chain wording (`q.text`, hashRule 2), the generator, the option numbers sent and the scoring are unchanged; `q.text` stays in the card's tooltip. The Hub chat may change the Questions card wording for this (one block in `app.js`, `question-words`, tested against every line). Built in #171.
+
+## D-145 — The site's look follows the Hub's launch UI research
+- **Date:** 2026-11-04 (owner trusts the direction of `claude/hub/UI-RESEARCH-2026-11-05.md`) · **Decision:** the Hub builds the research's list in order (R-HUB-21): readability first (#174), bigger tap targets, guest play first on phones, a play-first home (Variant A, then an A/B test once visit counts exist), one-button game cards (Variant B). Each is its own PR with site tests.
+
+## D-146 — Build the shared game kit now
+- **Date:** 2026-11-05 (owner: "build the shared game kit, there will be more games") · **Decision:** the Architecture chat starts now on ARCHITECTURE A6: one recorder library and one site library that every game uses (R-ARCH-1 part 2). Extracted from Block X and the Race first; Fantasy, Golf and Bracket build on it as it lands, without waiting for all of it.
+
+## D-147 — Stay on one PC for the nodes for now
+- **Date:** 2026-11-05 (owner: "stay on 1 pc for now") · **Decision:** no second machine yet; the three nodes stay on the owner's PC with self-heal, auto-repair and watchdog emails. A8 stays on the roadmap; `RECOVERY.md` is the plan if the PC is lost.
+
+## D-148 — The sponsor keeps all its KOIN
+- **Date:** 2026-11-05 (owner: "keep it all in the sponsor wallet its needed so it can recharge properly daily") · **Decision:** the Mana sponsor keeps its full 25,000 KOIN (Mana refills from the balance, so a smaller balance means fewer free plays a day). The hot-key risk stays accepted (D-085); protections: a PC used only for this, the paper backup, instant `disable`. ARCHITECTURE A1's sponsor float option is closed.
+
+## D-149 — Public node guide defaults
+- **Date:** 2026-11-05 (owner, to the Run a Node chat: "whatever is most secure and effective… least difficulties"; "don't waste time on it" for a phone node; the suggested start) · **Decision:** the Run a Node page uses a Docker volume from day one, the newest official Koinos code pinned by commit (`b05b833`), and repair from a fresh Armana snapshot; it suggests starting with **10,000 VHP and keeping 100 KOIN** unburned; no phone node. (R-NODE-1, #173, #179.)
+
+## D-150 — Fantasy: Sunday fun round, then the recorder checks before one fix-check
+- **Date:** 2026-11-05 (owner, to the Fantasy chat) · **Decision:** on Sunday the Saturday team plays a fun round (D-129); the Fantasy chat builds RECORDER_STANDARD §4.1 / §4.2 first, then one Repo Lens fix-check (not several); a Telegram reminder comes after launch.
+
+## D-151 — Guest play first in the wallet sheet
+- **Date:** 2026-11-05 (owner, to the Hub chat: "yes" to research items 4 and 8) · **Decision:** the wallet sheet offers "Play as a guest · free" first; a short note replaces the guest pop-up; "Save your progress" (back up the guest key) appears after the first answer; tap targets are at least 44 px. The audited guest rules still hold (play only, never send KOIN or VHP).
+
+## D-153 — Producer Bracket: at most 32 producers
+- **Date:** 2026-11-05 (owner, to the Bracket chat: capped at 32) · **Decision:** the Bracket holds **up to 32 producers** (5 rounds: Tue–Sat), 16 (Wed–Sat) or 8 (Thu–Sat), no byes; seeding Sun 00:00 UTC, picks lock Mon 23:55 UTC, one round a day, final Saturday, results final from Monday 00:00, backstop Thu 00:00. 64 only after a Picks upgrade, if ever wanted. Built on `kg-09-bracket` (#186).
+
+## D-154 — VHP ruler v2.1 ranks by a field-conditional percentile (A′)
+- **Date:** 2026-11-05 (library chat, as design owner of `VHP_RULER.md` §16, from the Ruler chat's simulations, `claude/ruler/V21-SIM-REPORT.md`) · **Decision:** producers are ranked by **A′**: given the blocks the whole field signed in the race (n), a producer's count is compared with Binomial(n, its share of the field's expected blocks), as an exact integer mid-p percentile in both languages. **Fix A dropped** (an absolute percentile isn't shift-invariant: a network-wide jump gave 0.02–5.3× fair, sim 9); **Fix B dropped** (any bar ≥ 15 keeps the Knode Games Vault out of every Race field, against D-123). **Sim 1's index mark** becomes relative to the field, like sim 9's (the 24-h total's ~1% lag is common to everyone). **D-120 needs the owner's choice:** the steady-rate-with-cap design can't pass sim 8 under any cap (a two-week throttler then wins ~6×); option 1 keeps the 0.80 gate, option 3 lets a steady throttler in at full size, unadjusted. Nothing pays until all eleven pass (D-111).
+
+## D-155 — Live stats panel
+- **Date:** 2026-11-05 (owner, to the Hub chat: "build the live stats panel") · **Decision:** the bot publishes an hourly public `stats.json` (players this week / last week / all time, answers and picks, VHP staked total and per game, free prizes, blocks made by the prize vault in 24 h, today's open questions, last week's top 3 per game) on its own `stats-data` branch; the home page shows a strip of the numbers that read well, the games page the full panel. Off until `STATS_ENABLED`; Repo Lens before switching it on.
+
+## D-156 — The welcome page leads with free play; the play-first home page waits for a mockup review
+- **Date:** 2026-11-05 (owner, to the Hub chat: "yes" to research item 5; the play-first home page mockup shared for review) · **Decision:** the welcome page leads with "Play free now" (no sign-up, no wallet needed); staking is the last step (built, #183). The play-first home page (Variant A) is built only after the owner reviews the mockup, then A/B tested once visit counts exist.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

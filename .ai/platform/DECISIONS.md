@@ -168,6 +168,7 @@
 | D-155 | 2026-11-05 | Live stats panel | active (in #185) |
 | D-156 | 2026-11-05 | The welcome page leads with free play; the play-first home page waits for a mockup review | active |
 | D-157 | 2026-11-05 | The Game Standard and the Contract Standard are official | active |
+| D-158 | 2026-11-05 | The Shared Game Kit design is adopted, with eight choices (every new game and the Questions recorder launch on the kit; current payout rules kept; generic recount; data branches kept; two shadow weeks; `kit/`; standards point to GAME_KIT.md) | active (`../standards/GAME_KIT.md`) |
 
 ---
 
@@ -830,6 +831,18 @@
 
 ## D-157 — The Game Standard and the Contract Standard are official
 - **Date:** 2026-11-05 (owner: "Adopt the proposed Game Standard and Contract Standard as the official standards for this repo") · **Decision:** every game lives in `games/<slug>/` with a `game.json` manifest (schema in `tools/game-manifest.mjs`), a README, a filled `SECURITY.md`, `math.js`, `recorder.ts` and `tests/`; it's created from `templates/game/` with `npm run game:new` and checked with `npm run game:check`; the path is copy → fill → check → review → go live (`standards/NEW_GAME.md`). Every contract folder follows `standards/CONTRACT_STANDARD.md` (README, a current SECURITY.md, one ABI, storage-compatibility tests, a CONTRACTS.md row, a release tag; timelocked changes). **Order:** the mechanical pieces first (template, schema and its test, the two tools, NEW_GAME.md), no live behaviour changed; then the shared kit (D-146); then each existing game moves in its own PR (Block X first), and each contract gets its missing docs and tests. Proposal: `claude/library/GAME-STANDARD-PROPOSAL-2026-11-05.md`.
+
+## D-158 — The Shared Game Kit design is adopted
+- **Date:** 2026-11-05 (owner: "Approved. Adopt the Shared Game Kit design as written." Decisions "recommended on all", then for choices 1 and 4: "everything new should launch with the new kit. not on their own recorders. i want to eliminate duplicate work and eliminate later unnecessary upgrades. lets get it done now and for good") · **Decision:** the kit (D-146) is built as designed (`../standards/GAME_KIT.md`; full design `claude/library/GAME-KIT-DESIGN-2026-11-05.md`, Claude project), with:
+  1. **The Questions recorder (I-101) is the first game on the kit:** the kit's core and the Questions GameModule are built together; no hand-built Questions recorder. Target merged by Sun 15; the hard limit is the vault's 3-day window for the first rule week (week of Mon 16 → its file by Thu 26 Nov 00:00 UTC).
+  2. **Payout rules unchanged by migration:** each game keeps its current rule (`legacy-tied-whole`); a switch to D-152 is a separate per-game PR with its own Repo Lens.
+  3. **Publish-job recompute:** the kit's generic week recount plus the recorder's two-node re-score of every round; no per-game ported scorer in the publish jobs (RECORDER §4.1 reworded).
+  4. **Every new game launches on the kit, never on its own recorder:** Fantasy, Block Golf and Bracket port their branch recorders into GameModules before launch (their Repo Lens reviews then cover the module plus the kit). Only the two live recorders (Block X, Race) migrate by replay → shadow → switch.
+  5. **Data branches stay** (`games-data`, `race-data`); consolidation later (ARCHITECTURE A3).
+  6. **Two full final weeks with zero differences** in shadow before each switch.
+  7. **`kit/` at the repo root, owned by the Architecture chat;** site files as root `kit-*.js` until the `web/` move.
+  8. **RECORDER_STANDARD and GAME_STANDARD point to GAME_KIT.md** for the "how" and keep only the rules (one library PR).
+- **Order:** the kit's core with Questions first; then Fantasy, Block Golf, Bracket (before their launches); then Block X and the Race (replay → shadow → switch); then the publish jobs and the site files. **Why:** five recorders repeat the same ~15 rules; one implementation, reviewed once, makes every game safer and new games faster.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

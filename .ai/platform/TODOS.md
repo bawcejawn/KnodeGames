@@ -2,35 +2,40 @@
 
 > **Purpose:** the **one owner checklist** (D-100): what the owner does: sends, merges, decisions, checks on the PC. Work for the chats is in `CHAT_REQUESTS.md`, not here.
 > **Rule:** when an item is done, move it to `../archive/DONE.md` with the date (don't strike it through here). Link each item to its issue or decision (I-xxx in `OPENISSUES.md`, D-xxx in `DECISIONS.md`).
-> **Last updated:** 2026-11-04 (cleanup: done items, and items that were really chat work, moved out; the full previous version is `../archive/2026-11-04/TODOS.md`)
+> **Last updated:** 2026-11-05 (the go-live order: game-apply first, then the v6.1 announce; 95 KOIN checked). Dates at a glance: `CALENDAR.md`.
 > Times are UTC, with your time (PT) where it helps.
 
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
-## Today
-- [ ] **Free-prize switch: set the starting values** — ON for 2, 7, 9, 13; OFF for 3, 4, 6, 8 (`FREE_PRIZE_SWITCH.md` §4–5); then the GitHub ruleset on `prize-settings` (no deletion, no force-push) — P1 — D-082
-- [ ] **Message the Hub chat** (start message): its list has the Stake tab (R-HUB-9), the admin follow-ups (R-HUB-8), @names (R-HUB-3) and the guest-wallet messages (R-HUB-4) — P2
-- [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
+## Today — Thu 5 Nov (the order to go live; do them top to bottom)
+- [x] `1635QU…` holds at least 95 KOIN (owner, 5 Nov: "over 100 koin"). Don't move it until after Monday's upload.
+- [ ] **1. After 7:51 AM PT: put Block X and the Race in the vault.** `npm run bot -- game-apply 2` and `game-apply 7` (dry run, then CONFIRM ON → `--send` → CONFIRM OFF); `npm run bot -- games` must show both "staked + free prize, from week 3"; then the repo variable `PRIZES_FROM_WEEK = 3`. Deadline Sun 8 Nov 4 PM PT — P1 — D-077
+- [ ] **2. Then announce vault v6.1** (starts the 48 h): build and check on `vault-questions-60`, `upgrade schedule` dry run → CONFIRM ON → `--send` → CONFIRM OFF → delete `OWNER_WIF`. Steps: `claude/vault/HANDOFF-2026-11-05.md`. Paste the output to the Vault chat. Latest: Sat 7 Nov 9 AM PT (48 h before Monday's upload) — P1 — D-130
+- [ ] **3. Turn the VHP ruler's recorder on:** repo variable `VHP_RULER_ENABLED = true` (data only, pays nothing) — P2 — D-128
+- [ ] **4. Tell players (after step 1 works):** "Week 1 starts Mon 9 Nov: Daily Questions, the Producer Race and Who Signs Block X all pay staked rewards, plus 2 + 1 VHP free prizes each week; Daily Questions goes to two rounds a day; free play is paid for by the Mana sponsor within daily limits." Don't announce v6.1's 60 questions until Monday's upload works — P2 — D-064
+- [ ] Merge PR #162 if it still shows open (docs only) — P2
+- [ ] Email filter: rename "Kpred bot" → "Knode Games bot" — P4
 
 ## This week
-- [ ] **Don't announce v6.1** (D-116: it's folded into one upgrade with Questions on the shared rules). Answer the Vault chat's plan for R-VAULT-13 when it comes — P1 — D-116
-- [ ] Repo Lens queue, in this order: (1) Block X B4 re-check `claude/blockx/ROUND-14-LOWS-B4-RECHECK-PROMPT.md`; (2) VHP ruler R1 math `claude/ruler/REPOLENS-R1-MATH-PROMPT.md` once the Ruler chat gives the commit; (3) later, the combined vault upgrade (60 questions + Questions on the shared rules, D-116) once the Vault chat has built and tested it; (4) ruler R2 after R1 is GO — P1
+- [ ] **Pages allow-list:** when the Hub chat's PR (R-HUB-14) is merged and its test run is checked: GitHub → Settings → Pages → Source: **GitHub Actions**; then open knodegames.com and two game pages. Undo = set Source back to "Deploy from a branch: main / root" — P2 — D-115
+- [ ] **Daily Questions free prize ON from Mon 16** (D-136): run the command the Vault chat gives (R-VAULT-14) during the week of Mon 9 — P2
+- [ ] **Turn the VHP ruler's recorder on** (data only, pays nothing, D-128): repo variable `VHP_RULER_ENABLED = true`, then the first fill (`docs/VHP-RULER.md` "Turning it on"); tell the Ruler chat — P2 — D-128
+- [ ] **Fri 6 Nov:** wallet runbook step 0 (read-only check; paste to the Vault chat), then the weekend steps in `docs/WALLETS.md` §7 — **with two changes:** vault 4a moves to Mon 9 after the upload; `1635QU…`'s KOIN stays put until then — P1 — D-083, D-096, D-130
+- [ ] **Mon 9 Nov from 9:00 AM PT** (never before Sun 8, 4 PM PT): `upgrade apply` dry run → CONFIRM ON → `--send` → CONFIRM OFF; `status` must say "this week 30, next week 60"; pin `safeWasmSha256 = 04c27c1a…` in `game-data\deployment.json`; then vault handover **4a** by 4:30 PM PT; delete `OWNER_WIF`; paste everything to the Vault chat — P1 — D-130
+- [ ] **Tue 10 Nov:** handover accepts 4b and 5b (new cold owner `1LMV8E…`) — P1 — D-096
+- [ ] **Merge order:** ✅ #152 merged (5 Nov) → #114 (after the upload and the Vault chat's records PR / merge of `main`) → #141 (once v6.1 is live). Mon 16 at the latest — P1
+- [ ] **After Monday's upload works (before Mon 16):** tell players: 60 questions a week (4 + 4 a day); Daily Questions staking and rewards work like every vault game; claims are per game and week (your text; the Questions chat has the site wording) — P2
+- [ ] **Mainnet stake check** on the Stake page with small amounts: deposit, withdraw, move, claim; try "Free" with 2+ rewards once; tell the Hub and Block X chats (R-HUB-9, R-BX-18) — P2
+- [ ] **Free-prize switch: set the starting values** — ON for 2, 7, 9, 13; OFF for 3, 4, 6, 8 (`FREE_PRIZE_SWITCH.md` §4–5); then the GitHub ruleset on `prize-settings` (no deletion, no force-push) — P1 — D-082
 - [ ] Delete the 145 merged branches with the script `claude/BRANCH-CLEANUP-2026-11-04.md` (protect the data branches first) — P3 — D-115
-- [ ] Decide: move the audit reports and raw chat exports out of the public repo (doesn't touch `CHAT_REQUESTS.md`) — P2 — D-115
 - [ ] Send Repo Lens `claude/hub/REPOLENS-C5-FIXCHECK-PR95-PR111-PROMPT.md` anyway (#95 and #111 merged before their fix-check) — P2
 - [ ] Optional: delete the old branch `hub-ci-yaml` in GitHub (an unused copy; safe once #111 is merged, which it is) — P4
-- [ ] Later (on hold, your call): the GitHub CODEOWNERS / ruleset step (C5-13). Don't require code-owner review without a bypass for yourself — P3
 - [ ] Every PowerShell window for tools: `$env:RPC = "https://koinos.armana.io"` first (the deployment files still name `api.koinos.io`, I-015) — P3
 - [ ] Send Repo Lens `claude/blockx/ROUND-14-LOWS-FIXCHECK-PROMPT.md` (Block X Lows, branch `blockx-lows`) — P3
 - [ ] After #95: on `names.html`, from the producer wallet `1DAHmr…`, create `@primeproducer`, tap Make main, optionally Remove `@primeprocuder`; tell the Hub it works (then the Tools link goes in) — P3 — I-084
 - [ ] In GitHub → Settings → Secrets and variables → Actions, confirm `OPERATOR_WIF` exists only in the `bot` environment; delete any repo-level copy — P2 — D-012 (from MKKtXR t18)
-- [ ] Paste the D-112 answers to the VHP Ruler chat (OK the plan; push to branch `vhp-ruler`) — P2 — D-112
-- [ ] Once R-VAULT-10's script exists: back up the three producer keys (game/pool, Desk, personal) to a USB stick kept offline, apart from your wallet paper — P2 — TD-08
 - [ ] **Weekend:** move `RACE_WIF` (the Race contract's own key) offline (weekend runbook) — P1
-- [ ] **Thu 5 Nov after 7:51 AM PT:** `npm run bot -- game-apply 2`, `game-apply 7` (dry run, then `--send`), then `games` must show "staked + free prize, from week 3"; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT** — P1 — D-077 (reminder Thu 9 AM PT)
-- [ ] **Wallet moves** per `docs/WALLETS.md` (D-083, D-096): **Fri 6 Nov** step 0 (read-only check; paste the output to the Vault chat), create the cold-key owner and cold treasury, start the treasury move (48 h) → **Sat** sweep the old operator `1JSTwo…` (I-045) → **Sun** after every `game-apply`, start the vault and Desk handovers → Mon/Tue accept. Race picks already moved (4 Nov); **Picks later** (D-106) — P1 — I-001
 - [ ] Optional (Repo Lens asked): on the PC, `npm ci --ignore-scripts && npm run test:audit:serial` — P4
-- [ ] Retry creating an @name on `names.html` and report the result — P3 — I-020
 - [ ] Check the Race status badge on the live Race page at phone width — P4
 - [ ] Delete old node basedir folders and the desk's ~50 GB broken copy, **only if `heal.log` is clean** — on or after Wed 4 Nov, 17:30 UTC (9:30 AM PT) — P3 — I-008
 - [ ] Retest "+ Add another account" with the real Kondor extension — P2 — I-004 — due {{TBD}}
@@ -44,6 +49,8 @@
 - [ ] **Mon 16 Nov, 12:00 UTC (4 AM PT):** after the first vault close, check status, the buckets, the free prizes, and collect the fee with `claim-fee-vhp all` — P1
 
 ## Later
+- [ ] When you have a USB stick: once R-VAULT-10's script exists, back up the three producer keys (game/pool, Desk, personal) to it and keep it offline, apart from your wallet paper — P2 — TD-08
+- [ ] C5-13 (CODEOWNERS + ruleset): **go** (owner, 5 Nov). Wait for the Hub chat (R-HUB-14): the bot commits game data to `main` every hour, so the ruleset must let the bot and you bypass it, or the games stop updating. The Hub chat gives the exact clicks — P3
 - [ ] The full platform audit: only once everything is confidently ready (D-102) — P1 — I-002
 - [ ] Compare the Desk node's blocks signed with what its VHP should give over 7 days (it was ~78%); if still under ~90%, check `heal.log` restarts — P3 — TD-08 (from the old checklist 5Rc9KF t05)
 - [ ] Decide the site's read RPC (Armana or `api.koinos.io`), and the `vault-v6` folder's node — P3 — I-006, I-015

@@ -84,7 +84,8 @@ export const RELEASE_HOUR = 12, LOCK_HOUR = 24, QUESTION_DAYS = 6;
  *  of Mon 9 Nov (week 3) two rounds a day, 2 questions at 00:00 and 3 at 12:00 UTC: 30 a week, the most the live
  *  contract takes. From the first week whose on-chain cap (`get_state.questions_cap`, Vault v6.1) is at least 48:
  *  4 + 4, 48 a week. An entry with `minCap` is used only for a week the chain allows that many questions in, so a
- *  late upgrade simply keeps 2 + 3. Sunday stays results day: the week still closes Monday 12:00, pays Tuesday 12:00. */
+ *  late upgrade simply keeps 2 + 3. Sunday stays results day: the week still closes Monday 12:00; claims open from about Tuesday 12:00–15:00 UTC
+ *  (later if Saturday's questions resolve on Monday; D-125, Repo Lens #B-7 B7-2). */
 export const ROUND_MS = 12 * HOUR_MS;
 export const SCHEDULE: readonly { fromWeek: number; minCap?: number; rounds: readonly { open: number; count: number }[] }[] = [
   { fromWeek: 0, rounds: [{ open: RELEASE_HOUR, count: 5 }] },
@@ -914,9 +915,11 @@ export async function postPass(ctx: Ctx, bs: BotState) {
   // (D-047). From week 3 the rounds are back to back, so a round is open while the run waits (Repo Lens #D-6 Q-1).
   const capOf = capsFrom(st.raw, st.genesis, st.weekLen, time);
   const { current, next } = roundsAt(st.genesis, time, capOf);
+  const wallStart = Date.now();
   if (current) await postRound(ctx, bs, st, current, capOf(current.week));
   if (!next) return;
-  const now = current ? (await state(ctx)).time : time;
+  // Chain time now: the time read above plus however long posting took (no extra read; Repo Lens #C-5 C5-1's test).
+  const now = time + (Date.now() - wallStart);
   const releaseAt = next.releaseAt, wait = releaseAt - now;
   if (wait <= 0) return; // (it opened meanwhile: the next run posts it)
   if (!ctx.dryRun && ctx.releaseWaitMs && wait <= ctx.releaseWaitMs) {
@@ -1083,14 +1086,22 @@ const FREE_SETTLE_MAX = 20;
 /** The settle pass stops after this long (audit L-6): the hourly run has to finish, and the next run continues. */
 const SETTLE_BUDGET_MS = 40 * 60_000;
 
+/** Vault v6.1 (D-116): from its rule week Daily Questions is paid from a results file like every vault game, with no
+ *  settle step (a settle there reverts). The same test as the Vault chat's sharedRulesWeek (bot/vault.ts on its branch):
+ *  config.q60_rule_week_plus_one > 0 and week + 1 >= it. The live v6 code has no such field: every week is old-rule. */
+export const questionsSharedWeek = (c: any, w: number) => { const v = num(c?.q60_rule_week_plus_one); return v > 0 && w + 1 >= v; };
+
 async function settlePass(ctx: Ctx) {
   const st = await state(ctx);
   const h = st.time;
   const started = Date.now();
   const outOfTime = () => Date.now() - started > SETTLE_BUDGET_MS;
   for (let w = st.weeksFinalized; w < st.weeksClosed; w++) {
+    if (questionsSharedWeek(st.c, w)) continue;   // shared rules: no settle step
     const wk = (await ctx.chain.read("get_week", { week: String(w) })).week ?? {};
     if (h < num(wk.settle_start) || h > num(wk.settle_end)) continue;
+    // The switch-over week (the last old-rule week) is settled by this pass alone: from the rule week on, a player's
+    // answers no longer settle their previous week (v6.1 Mana fix), so every staked player of it is settled here.
     // Free players (no stake that week) and voided entries (the player withdrew everything) can never be paid, so the
     // bot doesn't spend Mana settling them.
     const minStake = minStakeFor(st.c, w);
@@ -1098,9 +1109,12 @@ async function settlePass(ctx: Ctx) {
     // Largest stakes first, so if the bot has to stop paying, it stops at the smallest entries.
     const todo = (await unsettled()).sort((a, b) => (big(b.entry.stake) > big(a.entry.stake) ? 1 : big(b.entry.stake) < big(a.entry.stake) ? -1 : 0));
     const lastHours = num(wk.settle_end) - h <= SETTLE_LAST_HOURS_MS;
-    if (todo.length) log(`  settling ${todo.length} player(s) for week ${w}${lastHours ? " (last hours before settle_end: no cap on bot-paid settles)" : ""}`);
+    // The switch-over week: nobody's answer settles it, so the bot settles every staked player, without the per-run cap
+    // (still above the bot's Mana floor).
+    const switchOver = questionsSharedWeek(st.c, w + 1);
+    if (todo.length) log(`  settling ${todo.length} player(s) for week ${w}${switchOver ? " (the last old-rule week: the bot settles everyone)" : lastHours ? " (last hours before settle_end: no cap on bot-paid settles)" : ""}`);
     let n = 0;
-    ctx.botPaidUncapped = lastHours;
+    ctx.botPaidUncapped = lastHours || switchOver;
     try {
       for (const r of todo) {
         if (outOfTime()) { log(`  stopped settling for this run (time budget); the next run continues`); break; }

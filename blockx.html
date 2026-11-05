@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <!-- Only these sources may run scripts, load data or be framed. 'unsafe-eval' is needed by koilib (its protobuf
        encoder builds functions at run time); CDN scripts are pinned by their integrity hash. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://api.koinosblocks.com https://raw.githubusercontent.com/bawcejawn/KnodeGames/blocks-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/ https://koinvault.app; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://api.koinosblocks.com https://raw.githubusercontent.com/bawcejawn/KnodeGames/blocks-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/ https://koinvault.app https://us.i.posthog.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Who Signs Block X · Pick the Koinos producer of the next big blocks</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
@@ -228,7 +228,7 @@
         <p><b>The score.</b> Koinos picks who signs each block in proportion to VHP, so big producers sign more often. A right pick scores</p>
         <p><span class="formula">min(3, top producer's VHP ÷ your producer's VHP)</span></p>
         <p>with the VHP from the Producer Race's hourly handicap card at the lock. A wrong pick scores 0. Ties on the board go to more right picks, then the earlier last right pick.</p>
-        <p><b>Prizes.</b> Two boards, as in every Knode Games game: Staked (1 VHP or a Knode Games stake) and Free play (everyone else, guests too). Each week the top 2 of Free play (picks on at least 3 days) win 2 and 1 VHP. The <b>Staked</b> board shares Block X's weekly reward bucket. Prizes and bucket shares are paid from Week 1 (the week of Mon 9 Nov); winners claim them from the vault. A week is final 12 hours after it ends.</p>
+        <p><b>Prizes.</b> Two boards, as in every Knode Games game: Staked (1 VHP or a Knode Games stake) and Free play (everyone else, guests too). Each week the top 2 of Free play (picks on at least 3 days) win 2 and 1 VHP. The <b>Staked</b> board shares Block X's weekly reward bucket. Prizes and bucket shares are paid from Week 1 (the week of Mon 9 Nov); winners claim them from the vault. Targets count Monday to Saturday (UTC); Sunday is the review day, when no target scores (from Week 1). A week is final 12 hours after it ends.</p>
         <p><b>Fair checks.</b> Results come from irreversible blocks that match on two independent nodes, and the scoring code is public: the page and the recorder run the same file.</p>
       </div>
     </details>
@@ -287,5 +287,7 @@
   <script src="blockx-math.js"></script>
   <script src="board.js"></script>
   <script src="blockx.js"></script>
+  <script src="vendor/posthog-1.438.13.js"></script>
+  <script src="analytics.js"></script>
 </body>
 </html>

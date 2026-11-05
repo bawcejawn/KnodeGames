@@ -2,7 +2,7 @@
 
 > **Status:** design **v2, approved by the owner 4 Nov (D-111)**; built by the VHP Ruler chat (R-RULER-1). v1 was reviewed by **Repo Lens #E-7** ("approve with changes", on 8 days of real mainnet data); v2 makes every change it asked for (the list is in §14). Each game then moves onto it, Race first (R-RACE-5).
 > **Owner's decisions behind it:** D-058 (exact VHP from the chain's events), **D-090** (one ruler; each game keeps its own formula; checks at random moments within a window), D-091 (lower Last Node's bar), **D-093** (a look-back of about 2 weeks; fair to every producer, small and large; see §12 point 1: the review shows the 2-week average itself is unfair, so v2 asks to replace it), D-094, D-095, **D-101** (fair, with a bit of luck), **D-108**, **D-110**.
-> **Built from:** `../platform/HANDICAP_REVIEW.md`; `docs/VHP-STANDARD.md`, `vhp-standard.js`, `bot/vhp-chain.ts` on `kg-09-bracket`; `bot/race.ts`, `bot/games/blockx.ts`; Repo Lens #E-7 (private, artifact `63JUu9JWEt3hddhtzWzNVe`; its simulations: `claude/ruler/repolens-e7-sims/`).
+> **Built from:** `../archive/2026-11-05/HANDICAP_REVIEW.md`; `docs/VHP-STANDARD.md`, `vhp-standard.js`, `bot/vhp-chain.ts` on `kg-09-bracket`; `bot/race.ts`, `bot/games/blockx.ts`; Repo Lens #E-7 (private, artifact `63JUu9JWEt3hddhtzWzNVe`; its simulations: `claude/ruler/repolens-e7-sims/`).
 > **What it isn't:** a scoring formula. Each game keeps its own. The ruler only says **how big each producer is, when, and how much each signed block counts**, the same way everywhere.
 
 ## 0. In plain words
@@ -92,7 +92,7 @@ Card credit only caps VHP *above* the measured size. If a pooled producer's VHP 
 - **Honest shrinking is fair in v2.** Measured at `T`, a producer that shrinks ~1% a day (block burns, never re-burns) scores 1.00. On real data the v2 rule ("VHP at the card time") gave an honest mean index of 1.000 (lowest 0.972) and Race win chances of 0.79–1.10 of fair, against 0.955 (lowest 0.379) and 0.00–1.77 for v1's 2-week average.
 - **A sudden honest loss** (half the stake leaves at once) is measured at its new size from the next card; simulation 4 must show the expected index back within 0.02 of 1.00 within 24 h.
 - **Honest growth** is capped by credit and gives no gain (expected index stays ~1.00).
-- **New producers:** at least 24 h of history to enter; labelled "new". "First observed VHP" (L-5) = the producer's VHP at its **first signed block**.
+- **New producers:** at least 24 h of history to enter; labelled "new" (exact windows as built: §15). "First observed VHP" (L-5) = the producer's VHP at its **first signed block**.
 - **Small producers:** one bar, k ≥ 10 (Last Node's comes down to it, D-091, R-LN-4: in an hourly round that admits producers from ~0.83%, against 1.7% today), a luck trim in every game, and a visible paddock. The per-game simulations must show a producer with k near 10, which gets the largest trim, stays within the luck band.
 - **A pick on a producer that falls below the bar at `T` (L-4):** each game states its rule in its file. Default: **the pick is void and its slot can be re-picked if the game allows changes; otherwise it scores 0 points and the game's page says so before picking.** Combo prices are set before sending, and the ruler's card comes after the lock: Combo shows the estimated factor and voids a leg whose producer falls out.
 
@@ -141,7 +141,7 @@ Card credit only caps VHP *above* the measured size. If a pooled producer's VHP 
 | Own size | eff at `T`, or the highest eff in the 1,200 blocks before `T` | simulation 4 |
 | Average for others | 24 h (28,800 blocks) | simulation 1 |
 | Form | 14 days; **gate at 0.80**, no multiplier | simulation 8 |
-| Entry bar | k ≥ 10 in the scoring window; 24 h of history | `HANDICAP_REVIEW.md` §5.2; simulation 4 |
+| Entry bar | k ≥ 10 in the scoring window; 24 h of history | `../archive/2026-11-05/HANDICAP_REVIEW.md` §5.2; simulation 4 |
 | Luck trim `c` | per game, fixed or per card (each game states which) | each game's simulation |
 | Card window | per game (Race 6 h before lock; Block X 3 h) | each game |
 | Seed | the first irreversible block at or after `L + 20` (a VRF output if available); exact byte recipe D-112 | §2.3 |
@@ -210,3 +210,43 @@ function recompute(d: RulerData, published: Card): { same: boolean; diff?: strin
 | **M-4** rounding | integers / millionths everywhere; Card fields added; JS-vs-Python byte test (§13) |
 | **L-1 … L-7** | many-ID grinding + VRF option; compact per-block storage; Σk normalisation; picks below the bar + estimated card; first observed VHP; resumable first fill; active-set note |
 | §8 | 29+ days of data, pass marks, five more simulations |
+
+## 15. As built (VHP Ruler chat, 4 Nov 2026; on `main` since PR #163, merged 5 Nov at `978c96b`; off until `vars.VHP_RULER_ENABLED`)
+- **Data (§7):** hour files are **block-hours of 1,200 blocks**; each holds per-address live reads `[height, balance, eff]` (a node answers only at its head); kinds **live / rebuilt / chained** (#D-10 M-2 catch-up); block ids stored (~77% of each ~110 KB hour; ~2.7 MB a day, ~0.9 GB a year, I-094); **the publish job re-reads every new block's id and signer on the second node (`RPC_CHECK`) before publish** (#D-10 M-1; no third node, D-126). A chained hour's anchor is max(its end, the previous anchor) (#E-14 N-1); the oldest kept hour may be chained; **a live run reads once, for its newest hour, and writes the run's older hours chained** (#B-6 D-1), which keeps every day file about 3–5 MB, far under the publish job's 16 MiB limit. Audit S-3 answered on mainnet: `effective_balance_of` reads match the rebuild at **the block after** each read ("next").
+- **Interface (§13):** `Card` gains `formFrom`; `recompute(L, card, game)` takes the game's own settings (#E-12 M-1); **a paying card needs 14 days + 6 h of data** (#E-12 L-1); `quality` is per card (#E-12 L-2).
+- **Simulations (§8), 31 days, 60 race cards × 2,500 races:** pass 3, 4, 5, 8, 10, 11 (40 / 40 real cards byte-identical); miss 1, 2, 6, 7, 9 (I-091; proposals D-119, D-120, D-122).
+- **Windows and labels (§13):** rebuilt / pending checks start 19 blocks early (#B-5 N-7, #B-6 B6-1); a paying card is "not yet … (from block N)" while unverified chained hours are in its windows (#B-5 N-3, #B-6 B6-3). **"New" (decided by the library chat, 5 Nov, #B-6 B6-5):** the standard follows the build — *new* = no signed block in [T − 410,400, T − 403,201]; *history* (what entry uses) = a signed block in [T − 410,400, T − 28,800]. A long-standing producer that signs rarely can be labelled new; that is only a label (entry uses history), so it is accepted.
+- **Repo Lens:** #E-12, #D-10, #E-14, #B-5, #B-6 all fixed; the #B-6 re-check is **GO** (its notes F-1, I-1, I-2 fixed in `0d103a6`). Not done, owner's choice: #E-14 M-1 "stronger" (also re-read burns, VHP events and balances). Open Lows: L-5 (one backend under two names; no response-size limit), L-6 (a permanently undecodable block stops the ruler).
+- **Timing:** one day of blocks reads in about 1 min per node; the 30-day first fill about 30 min per node (10–15 min over three parallel jobs).
+
+## 16. v2.1: fixing the five missed simulations (library chat design, 4 Nov 2026; to simulate)
+Owner's rulings (to the VHP Ruler chat, 4 Nov): **"Platform nodes should never be withheld from games unless specifically stated"** (D-123: §3.2's fallback, leaving the Vault out, is rejected; the pool rule must pass sim 7); sims 1, 2, 6 and 9 go to the library chat for design or pass-mark changes (D-122).
+
+**The common cause of sims 1, 2 and 7.** A producer with few expected blocks has a noisier result. Ranking producers by handicapped blocks (blocks × multiplier, or blocks ÷ expected) gives the noisy ones more extreme scores, so they win too often or too rarely depending on the game's win rule. The Vault after a big withdrawal (fewer expected blocks at a bigger multiplier) is the same effect: 1.94× fair in sim 7. The luck trim `c ÷ √k` only partly corrects it.
+
+**Fix A (preferred): rank by luck percentile, not by raw ratio.** The ruler adds one output per producer and scoring window:
+- `pct(p)` = the producer's **mid-p Poisson percentile**: P(X < x) + ½·P(X = x), where x = its credited blocks and X ~ Poisson(expected blocks), in millionths, rounded down.
+- For an honest producer it's spread evenly between 0 and 1 **whatever its size**, so every honest producer wins its fair share; a pooled producer's lower expected blocks after a withdrawal (`min(own, eff)`, §3.2) no longer buys extra wins.
+- Games that rank producers against each other (Race, Last Node, Bracket matchups) rank by `pct`; ties broken by the card's seed. Games that pay by size (Block X's multiplier) keep their formula; the ruler's job there is only an honest `own`.
+- Integer math: the Poisson terms by the recursion p(i+1) = p(i)·λ/(i+1) on a wide fixed-point scale (e.g. 2^1024, so λ up to the largest one-hour expectation stays exact), floor at each step; JavaScript and Python byte-identical (sim 11).
+
+**Fix B (fallback, if A changes the games too much): tune, don't redesign.** Re-run sims 1 and 2 with the entry bar at k ≥ 15, 20 and 30 and the trim `c` recalibrated; pick the lowest bar that passes. For sim 7, a pooled producer's expected blocks use its **time-weighted average** eff over the scoring window instead of the minimum, and its `c` is set from that average.
+
+**Sim 6 (grinding, +0.62% vs 0.5% at the 90th percentile):** accept as a known residual (a fraction of one percent of one producer's expected blocks); keep logging the seed producer; move to a VRF seed if Koinos offers one. Re-measure under Fix A.
+
+**Sim 9 (a network-wide jump moves every index together ×1.10–1.27; rankings hold):** the ±0.01 mark stays for **one** producer joining or leaving. For a jump in the whole network, the mark becomes **relative win chances within 0.85–1.15 of fair** (Fix A makes this nearly automatic: percentiles move together).
+
+**Form for producers that throttle on purpose (D-120, owner to choose):** the owner notes JGA Pool #2 throttles its own production on purpose and steadily. Options for the Ruler chat to simulate:
+1. **Keep the 0.80 gate** (v2 as approved): a steady 0.66 producer stays out.
+2. **A consistency gate:** gate on a producer's form *falling* below 0.80 × its own 14-day form, not on the level; and its expected blocks use `own × its 14-day form` (capped at 1), so a steady throttler is handicapped at the size it really plays. Sim 8 must still pass (steering must never pay: lowering form for 14 days to get a softer handicap costs real block rewards, and the simulation has to show it never wins more).
+3. **Let it in unadjusted**, with its form shown on the card (it would usually lose).
+**Owner chose option 2 (D-120).** Design to build and simulate:
+- **Long-run rate:** `rate(p)` = the producer's signed blocks ÷ its expected blocks over the last **14 days** (form's window), in millionths, capped at 1; expected blocks for the card use `own × rate`.
+- **Only steady producers get it:** the rate is used only if each of the last 14 daily rates is within ±0.15 of the 14-day rate; otherwise rate = 1 (v2 as approved) and the 0.80 gate applies as before.
+- **Steering cap (the #E-7 H-2 protection):** in the scoring window, blocks signed above `own × rate × (1 + luck band)` earn no extra credit, the same way card credit caps VHP added after the card. So skipping blocks for two weeks to lower the rate, then signing in full during a race, can't pay beyond the luck band.
+- **Sim 8 must pass with it:** skipping blocks never raises a win chance; a 3-day outage gives no boost; a steady throttler (JGA Pool #2's real history) wins its fair share.
+
+**Rebuilt hours (D-119, owner to choose):** (a) **as D-112 is written**: only the 24 h before the card and the scoring window must be live, so paying cards can start about a day after the first fill; form's older days may use rebuilt hours (built from two-node-checked blocks, and the first live read matched the rebuild exactly, S-3); or (b) **strict**: no rebuilt hour anywhere in the 14-day look-back, so paying cards start ~15 days after the first fill. **Owner chose (a) (D-119)**; built (`0d0f35d`).
+
+**Order of work (R-RULER-1):** implement `pct` and Fix B side by side, re-run all eleven simulations, report both; the owner picks; then the fix-check and the PR. Nothing pays until all eleven pass (D-111).
+

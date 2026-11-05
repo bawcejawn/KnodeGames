@@ -74,14 +74,16 @@ All times are UTC. A week runs Monday 00:00 to Sunday 24:00.
 | The next day, 00:00 | Answers close (12 hours after release), before the blocks the question is about are made. |
 | After each question's blocks are final | The bot posts the result. Your points update right away. |
 | Sunday | No new questions: results day. |
-| Monday, 12:00 | The week closes (12 hours after it ends, so a wrong result can still be corrected). |
+| Monday, 12:00 | The week closes (12 hours after it ends, so a wrong result can still be corrected). The bot closes it: a player's action never does. |
 | Tuesday, 12:00 | Winners are final (24 hours to settle). Rewards can be collected from then on, with no deadline. |
+| Once the vault upgrade applies | Daily Questions is paid like every vault game: no settle step; its weekly results file is posted by **Thursday 00:00**, open to correction for 24 hours, then final; rewards are collected on the Stake page. |
 
 ### Playing
 
 - **Wallet.** Kondor in Chrome on a computer, KOIN Vault on a phone, or the site's built-in **guest** wallet (play only, no funds).
 - **Free play.** Anyone can answer and climb the leaderboard without staking.
-- **Staking.** Stake at least **1 VHP** (whole numbers) to share the weekly rewards. You can also stake KOIN: the game
+- **Staking.** Stake at least **1 VHP** (whole numbers) to share the weekly rewards, on the **Stake page** (`stake.html`),
+  the same for every game: stake, withdraw, or move stake between games. You can also stake KOIN: the game
   burns it into VHP for you. A stake counts from the next week. Your stake is never spent: you can withdraw any
   amount at any time, down to the last decimal. Withdraw part during a week and you keep playing with the lower
   stake; withdraw everything and you are out of that week's rewards.
@@ -91,11 +93,10 @@ All times are UTC. A week runs Monday 00:00 to Sunday 24:00.
 
 Daily Questions' pot each week is its share of what the vault earned producing blocks (see [How the vault pays](#how-the-vault-pays)). Rewards are paid in VHP.
 
-1. **5% producer fee** comes off first.
-2. **Free-player prize: a flat 2 VHP.** The 2 best free players get 1 VHP each (ties share). A free player is one whose
-   stake was never at or above the minimum that week, who answered at least 2 questions that counted and scored at
-   least 1 point. If only one qualifies, the other 1 VHP goes to basket B; if nobody does, all 2 VHP go to basket B. If
-   the pot is smaller than 2 VHP, the whole pot is the prize.
+1. **5% fee** comes off first (for the whole vault).
+2. **Free-player prize: 2 VHP for 1st and 1 VHP for 2nd** (from the week of 9 Nov, as every free game; the week of
+   2 Nov paid 1 + 1 VHP). A free player is one whose stake was never at or above the minimum that week, who answered
+   at least 2 questions that counted and scored at least 1 point.
 3. **Winners:** the top **30%** of staked players (by headcount) who scored at least 1 point. Ties at the line win too.
    Higher places weigh more: place *r* weighs 1/√*r*.
 4. **The rest is split in two baskets:**
@@ -103,7 +104,8 @@ Daily Questions' pot each week is its share of what the vault earned producing b
      earns a real share.
    - **Basket B, 60%:** shared by place weight × full stake, so staking more pays more.
 5. **No staked winners?** The free-player prize is still paid; the rest carries into next week.
-6. **Collect** from Tuesday 12:00 on the Play page. Unclaimed rewards wait for you and keep producing for the pool.
+6. **Collect** from Tuesday 12:00 on the Play page; once the vault upgrade applies, on the Stake page with every game's
+   rewards (earlier weeks stay collectable on the Play page). Unclaimed rewards wait for you and keep producing for the pool.
 
 Before v5 (Weeks 1 and 2) the rules were: 65% of what the seed and unclaimed pots earned was shared by place alone,
 the rest by place × stake; up to 64 questions a week; no free-player prize.
@@ -259,7 +261,7 @@ The site's **Trust** page shows the same numbers live. Upgrade runbooks are in [
 | `node/` | Scripts for the project's Koinos nodes ([`node/README.md`](node/README.md)) |
 | `tests/` | Security and regression tests from the reviews |
 | `docs/` | Runbooks and wallet procedures |
-| `.ai/` | The project's working library: plans, decisions, standards and status ([`.ai/START_HERE.md`](.ai/START_HERE.md)) |
+| `.ai/` | The project's working library: plans, decisions, standards and status ([`.ai/START_HERE.md`](.ai/START_HERE.md)). Adding a game: [`.ai/standards/NEW_GAME.md`](.ai/standards/NEW_GAME.md); how every game's week runs: [`.ai/standards/WEEK_CYCLE.md`](.ai/standards/WEEK_CYCLE.md) |
 
 ## Running the tests
 

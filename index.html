@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <!-- Only these sources may run scripts, load data or be framed. 'unsafe-eval' is needed by koilib (its protobuf
        encoder builds functions at run time); CDN scripts are pinned by their integrity hash. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://koinvault.app https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/; manifest-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://koinvault.app https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/ https://us.i.posthog.com; manifest-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Knode Games: the daily Koinos prediction game</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
@@ -102,12 +102,12 @@
           <li><span>1</span><div><b>Connect a wallet</b><p>KOIN Vault on your phone, or Kondor on a computer. <a href="get.html">No wallet or VHP yet?</a></p></div></li>
           <li><span>2</span><div><b>Stake 1 VHP or more, or play free</b><p>Your stake is never spent: take it back any time. Free players climb the board too.</p></div></li>
           <li><span>3</span><div><b>Answer the day's questions</b><p>New ones Monday to Saturday. Each right answer is a point.</p></div></li>
-          <li class="last"><span>4</span><div><b>Top 30% split the pool</b><p>Each week the staked players with the most points share what the pool earned (95% of it, minus the free players' prize). The 2 best free players get 1 VHP each.</p></div></li>
+          <li class="last"><span>4</span><div><b>Top 30% split the pool</b><p>Each week the staked players with the most points share what the pool earned (95% of it, minus the free players' prize). The 2 best free players win 2 VHP and 1 VHP.</p></div></li>
         </ol>
         <div class="welcome-also" id="welcome-games">
           <h2>All the games</h2>
           <a class="also-card" href="#play"><span aria-hidden="true">🎯</span><div><b>Daily Questions</b><p>Quick questions about block producers, Monday to Saturday. Free, or stake VHP to share the weekly rewards.</p></div></a>
-          <a class="also-card" href="race.html"><span aria-hidden="true">🏇</span><div><b>Producer Race</b><p>Pick the winning block producer, four races a day: 3 points for a win, 1 for a 2nd or 3rd. Free and just for fun.</p></div></a>
+          <a class="also-card" href="race.html"><span aria-hidden="true">🏇</span><div><b>Producer Race</b><p>Pick the winning block producer, four races a day (Sunday's are for fun): 3 points for a win, 1 for a 2nd or 3rd. Free and just for fun.</p></div></a>
           <a class="also-card" href="blockx.html"><span aria-hidden="true">🧱</span><div><b>Who Signs Block X</b><p>Pick the producer for the next 12 milestone blocks, about 2 hours apart.</p></div></a>
           <p class="also-soon-title">Coming soon</p>
           <div class="also-card soon"><span aria-hidden="true">🛡️</span><div><b>Survivor</b><p>One producer a day, two lives, four-week seasons.</p></div></div>
@@ -254,21 +254,21 @@
           <li><span class="ri" aria-hidden="true">🔒</span><div><b>Stake 1 VHP or more, or play free</b><p>Staking lets you share the weekly pool. Your stake is never spent: take it back any time.</p></div></li>
           <li><span class="ri" aria-hidden="true">✍️</span><div><b>Answer the day's questions</b><p>New ones Monday to Saturday at <b class="lt" data-utc-hour="12">12:00 UTC</b>. Answers close at <b class="lt" data-utc-hour="0">00:00 UTC</b>. From Monday 9 November there are two rounds a day, at <b class="lt" data-utc-hour="0">00:00 UTC</b> and <b class="lt" data-utc-hour="12">12:00 UTC</b>, each open for 12 hours.</p></div></li>
           <li><span class="ri" aria-hidden="true">📈</span><div><b>Climb the weekly leaderboard</b><p>Results come straight from the blocks. Check them on the Results page.</p></div></li>
-          <li><span class="ri" aria-hidden="true">🏆</span><div><b>Collect your reward</b><p>Winners are final on Tuesday at <b class="lt" data-utc-hour="12">12:00 UTC</b>. Rewards are paid in VHP and never expire.</p></div></li>
+          <li><span class="ri" aria-hidden="true">🏆</span><div><b>Collect your reward</b><p>Winners are final on Tuesday at <b class="lt" data-utc-hour="12">12:00 UTC</b>. Once the vault upgrade applies, Daily Questions is paid like every vault game: each week's results are posted by Thursday <b class="lt" data-utc-hour="0">00:00 UTC</b> and are final 24 hours later, and you collect on the <a href="stake.html#g1">Stake page</a>. Rewards are paid in VHP and never expire.</p></div></li>
         </ol>
         <div class="rules-good"><h3>Good to know</h3><ul>
           <li><b>Free to play.</b> Knode Games pays the Mana (the network's transaction fee) for you, within daily limits.</li>
-          <li><b>Who wins:</b> the top 30% of staked players with at least 1 point share 95% of the week's block rewards. The 2 best free players get 1 VHP each.</li>
-          <li><b>A stake counts from the next week.</b> You can withdraw any amount at any time.</li>
+          <li><b>Who wins:</b> the top 30% of staked players with at least 1 point share Daily Questions' part of the week's rewards: the vault's block rewards, after a flat 5% fee and the free prizes, are split across the staked games by each game's stake. The 2 best free players win 2 VHP and 1 VHP.</li>
+          <li><b>A stake counts from the next week.</b> You can withdraw any amount at any time, on the <a href="stake.html#g1">Stake page</a> (it works the same for every game).</li>
           <li><b>Reward split since the week of Monday 2 November:</b> 40% shared by place × stake up to 10 VHP, 60% by place × full stake. Details below.</li>
         </ul></div>
         <h3 class="rules-more">The details</h3>
         <details class="rules-d"><summary>How rewards are worked out</summary>
       <ol class="steps">
-        <li><h3>Play free, or stake VHP</h3><p>Anyone can answer and climb the leaderboard for free, and each week the 2 best free players win 1 VHP each (ties share; a free player is one who never held the minimum stake that week; from the October 2026 contract update). To share in the rewards, stake at least 1 VHP (whole numbers only), or KOIN, which is burned into VHP. A stake counts from the next week. You can withdraw any amount at any time, down to the last decimal. Withdraw part during a week and you keep playing with the lower stake; withdraw everything and you're out for that week.</p></li>
+        <li><h3>Play free, or stake VHP</h3><p>Anyone can answer and climb the leaderboard for free, and each week the 2 best free players win 2 VHP for 1st and 1 VHP for 2nd (from the week of 9 November; ties share; a free player is one who never held the minimum stake that week; from the October 2026 contract update). To share in the rewards, stake at least 1 VHP (whole numbers only), or KOIN, which is burned into VHP. A stake counts from the next week. You can withdraw any amount at any time, down to the last decimal. Withdraw part during a week and you keep playing with the lower stake; withdraw everything and you're out for that week.</p></li>
         <li><h3>Answer daily questions</h3><p>30 questions a week for now (48 once the upgraded contract allows it): new ones every Monday to Saturday at 12:00 UTC, and answers close at 00:00 UTC, 12 hours later, before the blocks they ask about are produced. From Monday 9 November they come in two rounds a day: at 00:00 UTC (answers close at 12:00) and at 12:00 UTC (answers close at 00:00). Every correct answer is one point. Sunday is results day.</p></li>
-        <li><h3>The week closes</h3><p><strong>95% of the week's block rewards go to the players</strong> (5% producer fee). Up to 2 VHP of it is the 2 best free players' prize; the rest goes to the top 30% of staked players who scored at least one point, ties included. Higher places earn more: 40% is shared by place × stake counted up to 10 VHP per wallet, so a small stake still earns a real share, and 60% by place × full stake, so staking more pays more. Winners are final Tuesday 12:00 UTC. No staked winners? The free players' prize is still paid, and the rest carries into next week.</p></li>
-        <li><h3>Collect your reward</h3><p>Your reward is paid in VHP. After a 5% producer fee, the top 30% of staked players who scored at least one point win, counted by headcount, and ties at the line win too. Each place weighs 1/√rank, so first place weighs the most. The pot is two baskets: 40% shared by place weight times your stake counted up to 10 VHP per wallet (so a small stake still earns a real share), and 60% shared by place weight times your full stake. Every correct answer is one point, so the week's top score is the number of questions that week (30 for now, 48 once the upgraded contract allows it). (These rules apply from the first full week after the October 2026 contract update; before it, the first basket was shared by place alone.) Unclaimed rewards wait for you, and keep producing for the pool meanwhile.</p></li>
+        <li><h3>The week closes</h3><p><strong>The vault's block rewards go to the players</strong> after a flat 5% fee: first the free players' prizes, then the rest is split across the staked games by each game's stake. Daily Questions' part goes to the top 30% of its staked players who scored at least one point, ties included. Higher places earn more: 40% is shared by place × stake counted up to 10 VHP per wallet, so a small stake still earns a real share, and 60% by place × full stake, so staking more pays more. Winners are final Tuesday 12:00 UTC; once the vault upgrade applies, Daily Questions works like every vault game: the bot closes the week, its results are posted by Thursday 00:00 UTC and are final 24 hours later. No staked winners? The free players' prize is still paid, and the rest carries into next week.</p></li>
+        <li><h3>Collect your reward</h3><p>Your reward is paid in VHP. From Daily Questions' part of the week's rewards, the top 30% of staked players who scored at least one point win, counted by headcount, and ties at the line win too. Each place weighs 1/√rank, so first place weighs the most. The pot is two baskets: 40% shared by place weight times your stake counted up to 10 VHP per wallet (so a small stake still earns a real share), and 60% shared by place weight times your full stake. Every correct answer is one point, so the week's top score is the number of questions that week (30 for now, 48 once the upgraded contract allows it). (These rules apply from the first full week after the October 2026 contract update; before it, the first basket was shared by place alone.) Unclaimed rewards wait for you, and keep producing for the pool meanwhile. Rewards from before the vault upgrade are collected on this page; later ones on the Stake page, with every game's.</p></li>
       </ol>
         </details>
         <details class="rules-d"><summary>Anyone can move the results: voids and the VHP rule</summary>
@@ -293,7 +293,7 @@
       <div class="rules-panel" id="rp-race" data-rules-panel="race" role="tabpanel" aria-labelledby="rt-race" hidden>
         <div class="rules-short"><h2>In short</h2><p>Every Koinos block producer is a horse, and every block it signs moves it forward. A handicap gives every horse the same chance. Pick the winner for 3 points, or score 1 point (a show) if your horse finishes 2nd or 3rd. It's free and just for fun.</p></div>
         <ol class="rules-steps">
-          <li><span class="ri" aria-hidden="true">🏇</span><div><b>Open the Race</b><p>Four 6-hour races a day, starting at 00:00, 06:00, 12:00 and 18:00 UTC<span class="lt-list" data-utc-hours="0,6,12,18"></span>.</p></div></li>
+          <li><span class="ri" aria-hidden="true">🏇</span><div><b>Open the Race</b><p>Four 6-hour races a day, every day, starting at 00:00, 06:00, 12:00 and 18:00 UTC (Sunday's races are for fun: they count on All time, not the week)<span class="lt-list" data-utc-hours="0,6,12,18"></span>.</p></div></li>
           <li><span class="ri" aria-hidden="true">👆</span><div><b>Pick one horse per race</b><p>For any of the next 4 races, so up to 24 hours ahead. Guests can pick too.</p></div></li>
           <li><span class="ri" aria-hidden="true">🔒</span><div><b>Change your mind until it starts</b><p>When the race starts, the chain locks your pick.</p></div></li>
           <li><span class="ri" aria-hidden="true">📺</span><div><b>Watch it live, then check the board</b><p>A win is 3 points, a show (2nd or 3rd) is 1. Leaderboards for today, this week and all time.</p></div></li>
@@ -397,23 +397,7 @@
     </div>
   </dialog>
 
-  <dialog id="stake-dialog">
-    <form method="dialog" id="stake-form">
-      <h2 id="stake-title">Stake</h2>
-      <p class="muted" id="stake-help"></p>
-      <label class="field"><span id="stake-label">Amount</span><span class="amount-row"><input id="stake-amount" inputmode="numeric" autocomplete="off" placeholder="e.g. 25" required><button class="btn btn-ghost btn-small" id="stake-max" type="button" hidden>Withdraw all</button></span></label>
-      <div class="seg" id="stake-token" role="radiogroup" aria-label="Token">
-        <label><input type="radio" name="tok" value="VHP" checked><span>VHP</span></label>
-        <label><input type="radio" name="tok" value="KOIN"><span>KOIN</span></label>
-      </div>
-      <p class="warn" id="stake-warn" hidden></p>
-      <p class="muted fine-print">Staking is optional; rewards aren't guaranteed and audits are in progress. <a href="terms.html" target="_blank" rel="noopener">Terms &amp; risks</a></p>
-      <div class="dialog-actions">
-        <button class="btn btn-ghost" value="cancel" type="submit" formnovalidate>Cancel</button>
-        <button class="btn btn-primary" id="stake-go" value="go" type="submit">Continue in your wallet</button>
-      </div>
-    </form>
-  </dialog>
+
 
   <script src="https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js" integrity="sha384-IAL9o3r4bQJvWhvszkorFINY2ct4LBA/LvyXE9NSOPCyYB25BsFV12JITA7Gxbk6" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js" integrity="sha384-WOeNFfSdOron0s4x9jdzLtA7Ic7RSqZCXZAaeQd6HRL6WezQp0KAtIF2XSa+11TL" crossorigin="anonymous"></script>
@@ -431,5 +415,7 @@
   <script src="leaders.js"></script>
   <script src="race-math.js"></script>
   <script src="results.js"></script>
+  <script src="vendor/posthog-1.438.13.js"></script>
+  <script src="analytics.js"></script>
 </body>
 </html>

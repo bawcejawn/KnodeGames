@@ -1,7 +1,7 @@
 # Knode Games — Koinos Reference
 
 > **Purpose:** the Koinos chain facts this project depends on. Verify anything time-sensitive before relying on it.
-> **Last updated:** 2026-11-02 (consolidated)
+> **Last updated:** 5 Nov 2026 (status sync; consolidated 2 Nov)
 > **Sources:** all 12 chat exports, the owner's answers on 2 Nov, and the repo. Project contract addresses live in `PLATFORM.md`; how the project's contracts work lives in `ARCHITECTURE.md`.
 
 **Legend:** ✅ verified in the repo · 💬 from a chat · 👤 owner said so · ⚠️ open contradiction · ❓ unknown
@@ -34,7 +34,7 @@
 - **Mana:** the per-account resource that pays for transactions. Cost per call = ticks × compute price + disk bytes × disk price + network bytes × network price. Testnet prices (29 Oct): compute 6 per tick, disk 7,130 per byte, network 1,079 per byte; mainnet prices are higher (v6 upload: 46.84 KOIN of Mana on mainnet vs 7.53 on testnet). Upload estimate used by the tools: 1.2 Mana per KB + 10. Measured costs per action: `ARCHITECTURE.md`. 💬
 - **Payer:** a transaction can name a payer contract; Knode Games uses its own Mana sponsor. KOIN Vault picks its own payer, so its users can't use the sponsor (I-007). 💬
 - **Upgrades:** the project's contracts use schedule → 48 h → upload within 7 days → clear (details per contract in `ARCHITECTURE.md`). 💬
-- **Time:** vault genesis = 1792368000 s = 1792368000000 ms = UTC day 20745 = Mon 19 Oct 2026 00:00 UTC; week = floor((t − genesis) / 7 days), Monday to Monday. Players will see the week of Mon 9 Nov as "Week 1" (D-063). ✅ / 💬
+- **Time:** vault genesis = 1792368000 s = 1792368000000 ms = UTC day 20745 = Mon 19 Oct 2026 00:00 UTC; week = floor((t − genesis) / 7 days), Monday to Monday. Players will see the week of Mon 9 Nov as "Week 1" (D-063). How every game's week runs (play days, review day, final, payout): `../standards/WEEK_CYCLE.md`. ✅ / 💬
 - **Three week labels — check which one a chat means:**
 
   | Week | Vault number (files, `W<n>.json`, contract) | Questions game label (v5, counts from 1) | What players will see (D-063) |
@@ -78,6 +78,6 @@ The project uses **only the public Koinos Foundation testnet**; the owner runs n
 - **koilib 9.4.1 in the browser** puts `Provider`, `Signer` and `utils` on `window`, not `window.koinos` — fall back to `window` (PR #49 fixed "getChainId of null"). 💬
 - **Kondor `signMessage`** signs sha256 of the text — verify with `Signer.recoverAddress`. 💬
 - **Busy Mana (code 104,** "insufficient pending account resources") on back-to-back actions — wait a minute and retry. 💬
-- **Sponsor caps count each transaction's Mana *limit*** (1 per action), not the Mana actually burned (~0.3). 💬
+- **Sponsor caps count each transaction's Mana *limit*** (the per-action row), not the Mana actually burned (rows and measured costs: `SPONSOR.md`). 💬
 - **Koinos node traffic is blocked** from the AI cloud workspace and the linked-PC sandbox (DNS / proxy 403): live chain reads run only in GitHub Actions or on the owner's own shell. 💬
 - **Armana** has shown browser CORS failures under bursts (likely rate limits); the site queues reads 4 at a time. 💬

@@ -1,7 +1,7 @@
 # Knode Games — Dependencies
 
 > **Purpose:** how the seven parts of Knode Games connect — Vault, Leaderboards, Rewards, Swap Desk, Wallets, Games and User Accounts — so a change to one part shows what it can affect.
-> **Last updated:** 2026-11-03 (free play on every game, D-081; the free-prize switch, D-082; sampler running)
+> **Last updated:** 5 Nov 2026 (status sync: sponsor numbers point to `SPONSOR.md`; Daily Questions on the Stake page; new games paused, D-113)
 > **Built from:** `DECISIONS.md` (D-xxx), `ARCHITECTURE.md`, the standards in `../standards/`, and the repo. Detail lives there; this file shows the links.
 
 **Legend:** ✅ verified in the repo · 💬 from a chat · ❓ unknown · **→** "depends on / sends to"
@@ -11,7 +11,7 @@
 |------|-----------|----------------|
 | **User account** | Not a login: a player *is* a Koinos wallet address. Optional display name = Koinos @name (D-030). The site keeps only public data in the browser (`kw-accounts`, `kw-active`, `kw-kind`) — never keys | the chain; `wallet.js`; `names.json` |
 | **Wallet** | How a player signs: Kondor (extension), KOIN Vault (mobile), or the site's Guest wallet (play-only, no funds). Plus the Mana sponsor, which pays Mana for players | `wallet.js` (`KWallet`), `header-wallet.js`, `guest.js`; sponsor `1ByDDS…` |
-| **Games** | Nine games. Picks go to the Picks contract (or the Race picks contract; Questions answers go to the vault itself); each game's recorder turns chain data into results | Picks `1LmgqB…`, Race `1EN7xU…`, vault `1Mpmf2…`; `bot/games/*`, `race.ts` |
+| **Games** | Nine games (three live: Questions, Block X, Race; the rest paused, D-113). Picks go to the Picks contract (or the Race picks contract; Questions answers go to the vault itself); each game's recorder turns chain data into results | Picks `1LmgqB…`, Race `1EN7xU…`, vault `1Mpmf2…`; `bot/games/*`, `race.ts` |
 | **Leaderboard** | Each game's published board (Staked / Free play), plus the weekly vault results file | data branches (`race-data`, `games-data`); `board.js` |
 | **Vault** | Holds every staked VHP, produces blocks as the **Knode Games Pool** (D-073), and pays rewards | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr`; `bot/vault.ts` |
 | **Rewards** | The weekly money: block rewards → 5% fee → free prizes → staked split by game → claims | inside the vault; claimed through the stake panel |
@@ -65,14 +65,14 @@ Read across: how the row part depends on or feeds the column part.
 |---|-----------|-----|------|--------------|
 | 1 | User account → Wallet | an address belongs to a Kondor, KOIN Vault or Guest key; the site remembers only public data | D-009 | the player reconnects; nothing on chain is lost |
 | 2 | User account → @name | name from the Koinos Nicknames contract, else a pool name; the short address always shows | D-030 | the board shows the address only |
-| 3 | Wallet → Mana sponsor | `sponsorFor()` names the sponsor as payer only if it covers every operation; caps 25/day, 150/week per wallet, 5,000/day total | D-027, D-028, D-061 | past the caps, players pay their own Mana; guests can't |
+| 3 | Wallet → Mana sponsor | `sponsorFor()` names the sponsor as payer only if it covers every operation, within its caps (live values: `SPONSOR.md`) | D-027, D-028, D-061 | past the caps, players pay their own Mana; guests can't |
 | 4 | Wallet → Games | picks to the Picks contract (or Race picks); answers to the vault (game 1); locks enforced on chain | GAME_STANDARD §4–5 | a pick after lock is refused by the chain |
 | 5 | Wallet → Vault | `approve` + `deposit_to` (whole VHP, KOIN may burn 1:1), `withdraw_from` any time, `move_stake`, `claim_game` | D-016, D-027 | withdrawals always work (emergency build, D-021) |
 | 6 | Wallet → Swap Desk | sends VHP, receives KOIN minus 3%; the desk pays its own Mana | D-007, D-039, D-044 | a swap pays at most min(desk KOIN, desk Mana) |
 | 7 | Games → Chain → Recorders | recorders read blocks and picks on **two agreeing nodes**, irreversible blocks only, with no keys | GAME_STANDARD §6 | nodes disagree → no final file (fail closed) |
 | 8 | Vault → Recorders | stake reads `get_game_player` / `get_player` / `get_state` on two nodes decide Staked vs Free | VAULT_STANDARD §4 | read fails → no final file, never "not staked" |
 | 9 | Recorders → Leaderboard | publish job (no repo code) writes `board.json`, final weeks frozen | LEADERBOARD_STANDARD §5 | a bad file is held; others still publish |
-| 10 | Leaderboard → Vault | weekly results file `W<week>.json` from the game's `vaultGames` source; the bot posts it | VAULT_STANDARD §6 | missing after 3 days → week missed, no pay; HOLD files pause payment |
+| 10 | Leaderboard → Vault | weekly results file `W<week>.json` from the game's `vaultGames` source; the bot posts it (when: `../standards/WEEK_CYCLE.md`) | VAULT_STANDARD §6 | missing after 3 days → week missed, no pay; HOLD files pause payment |
 | 11 | Vault → Chain | the vault's VHP produces blocks as the Knode Games Pool, through the game node on the owner's PC | D-073 | node down → fewer blocks, smaller rewards; stakes untouched |
 | 12 | Vault → Rewards | block rewards − 5% fee → free prizes (2 + 1 per week per game with its free prize allowed; the D-082 switch decides whether winners are posted) → the rest split across staked games by weight | D-029, D-062, D-081, D-082 | shortfall is cut, never owed |
 | 13 | Rewards → Wallet | the player claims (`claim_game`, up to 10 per transaction, 52 weeks back); the vault never pushes funds | TOKEN_STANDARD §5 | unclaimed rewards wait in the vault |

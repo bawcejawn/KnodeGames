@@ -158,11 +158,11 @@
     }
     $("g-soon").replaceChildren(...games.filter((g) => g.status === "soon").map(card));
     // "Where to stake": every game's stake side by side (stake-panel.js; hidden until the Knode Games vault is live).
-    // Each live game links to its own page's stake panel (#stake); Daily Questions stakes on its play page.
+    // Each live game links to its own page's stake panel (#stake); Daily Questions to its card on the Stake page.
     const stakeBox = $("stake-list");
     if (stakeBox && window.KStake) {
       const links = {};
-      for (const g of games) if (g.status === "live" && VAULT_IDS[g.id]) links[VAULT_IDS[g.id]] = g.id === "questions" ? g.href : `${g.href.split("#")[0]}#stake`;
+      for (const g of games) if (g.status === "live" && VAULT_IDS[g.id]) links[VAULT_IDS[g.id]] = g.id === "questions" ? "stake.html#g1" : `${g.href.split("#")[0]}#stake`;
       window.KStake.mountList(stakeBox, { links });
     }
     $("soon-box").hidden = !games.some((g) => g.status === "soon");

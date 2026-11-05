@@ -1,8 +1,8 @@
 # Knode Games — Launch Board
 
 > **Purpose:** one page showing where every game stands on its way to launch, and what moves it to the next stage. It is the one home for **each game's launch stage**; the detail stays in each game's file (`../games/`), the steps in `ROADMAP.md`, the work in `CHAT_REQUESTS.md` and the owner's steps in `TODOS.md`.
-> **Last updated:** Wed 4 Nov 2026, from the game files, `CURRENT_STATE.md`, `CHAT_REQUESTS.md`, `OPENISSUES.md`, `TODOS.md` and the open PRs. Where a game file was behind (guest picks fixed 4 Nov; PR #85 merged), the newer fact is used here.
-> **Focus (D-113, 4 Nov):** core first — no additional game launches until the Vault, sponsor, Questions upgrade, VHP ruler and repo cleanup are done; the paused games keep their stage.
+> **Last updated:** Thu 5 Nov 2026 (status-sync from the Vault, Block X, Hub and Ruler handoffs; v6.1 timing D-130).
+> **Focus (D-113, 4 Nov):** core first — no additional game launches until the Vault, sponsor, Questions upgrade, VHP ruler and repo cleanup are done; the paused games keep their stage. **Next after the core (D-138):** Last Node → Block Golf → Fantasy → Bracket, then Survivor and Combo.
 > **Update rule:** change a game's row when its stage changes (in the same PR as the change, or at session-end filing). Check this page in every weekly review.
 
 ## The five stages
@@ -21,9 +21,9 @@ A game that is already live for players but not yet paying keeps its row on the 
 
 | # | Game | Stage | Live now | Next step to move on | Who | Target | Detail |
 |---|---|---|---|---|---|---|---|
-| 1 | **Daily Questions** | ✅ **Ready For Launch → Live** | **Live and paying** (Vault v6, since 2 Nov) | Nothing to launch. Next change: two rounds a day (PR #119, Repo Lens prompt ready) and later 60 a week (PR #114, vault v6.1) | Questions chat, owner | First v5 payout Tue 10 Nov | `../games/Questions.md` |
-| 2 | **Who Signs Block X** | **Ready For Launch** (paid) | Live, prize-free since 3 Nov | `game-apply 2` (timelock opens Thu 5 Nov 15:51 UTC), `games`, `PRIZES_FROM_WEEK = 3` | Owner | Pays from Mon 9 Nov; apply by Sun 8 Nov 4 PM PT | `../games/BlockX.md` |
-| 7 | **Producer Race** | **Ready For Launch** (paid) | Live, prize-free | `game-apply 7` (Thu 5 Nov after 15:51 UTC), then merge PR #86 (page wording). Before the 16 Nov close: hold alerts (R-RACE-13, I-087) and vault-row recompute (I-085) | Owner, Race chat | Pays from Mon 9 Nov | `../games/ProducerRace.md` |
+| 1 | **Daily Questions** | ✅ **Live** | **Live and paying** (Vault v6, since 2 Nov) | Two rounds a day from Mon 9 (#98, #119, #122, #125, #126 ✅). Vault v6.1: announce Thu 5, upload Mon 9; 60 a week and the shared rules from **Mon 16** (D-130); Questions side ✅ #152 merged 5 Nov | Owner, Vault + Questions chats | Rule week Mon 16 Nov | `../games/Questions.md` |
+| 2 | **Who Signs Block X** | **Ready For Launch** (paid) | Live, prize-free since 3 Nov; weekly rhythm (#160), Results tab (#143), finals locked (#159) | `game-apply 2` (Thu 5 Nov after 7:51 AM PT), `games`, `PRIZES_FROM_WEEK = 3`. Final moves to Mon 00:00 like the Race (D-135, R-BX-24). | Owner | Pays from Mon 9 Nov; apply by Sun 8 Nov 4 PM PT | `../games/BlockX.md` |
+| 7 | **Producer Race** | **Ready For Launch** (paid) | Live, prize-free; weekly rhythm (#149, #155), payout safety (#133) | `game-apply 7` (Thu 5 Nov after 7:51 AM PT), then `PRIZES_FROM_WEEK = 3` (shared with Block X). Left: gaps I-086, I-037 (R-RACE-12) | Owner, Race chat | Pays from Mon 9 Nov | `../games/ProducerRace.md` |
 | 3 | **Survivor** | **Blocked** (⏸ paused, D-113) | No | Owner runs Repo Lens pass 4 on `a8a1979` (or newer); then fixes, fix-check, a testnet season, game 3 registration, merge (I-050, R-SV-2) | Owner → Survivor chat | **slipped** (D-113: core first); new date after the core work | `../games/Survivor.md` |
 | 9 | **Producer Bracket** | **In Progress** (⏸ paused, D-113) | No | Fix Repo Lens #E-3 (2 Critical, 6 High; R-BR-1), add the luck trim (R-BR-7), then fix-check. C-1 also needs the vault-value rule settled (`VAULT_STANDARD` §6 vs `RECORDER_STANDARD` §4.3) | Bracket chat; Vault chat + Librarian for C-1 | When its fix-check passes; no 9 Nov target (D-088) | `../games/ProducerBracket.md` |
 | 6 | **Block Golf** | **Ready For Testing** (⏸ paused, D-113) | No (`games.json` "soon") | Practice weeks on mainnet are its trial: owner reviews the "Block Golf Preview" artifact (t28) and turns practice on (t30); the chat moves the files to the site root and merges (R-GO-3) | Owner, Golf chat | Practice: when the owner turns it on; staked: after practice, register game 6 | `../games/BlockGolf.md` |
@@ -37,16 +37,16 @@ A game that is already live for players but not yet paying keeps its row on the 
 
 | Piece | Stage | Next step | Who | Needed by |
 |---|---|---|---|---|
-| **VHP ruler v2** (D-110 – D-112) | **In Progress** (chat started 4 Nov, plan OK'd) | Build steps (a)–(f) on branch `vhp-ruler` (R-RULER-1); 11 simulations must pass before anything pays on it | VHP Ruler chat (started 4 Nov; plan OK'd, D-112) | Race first, then Bracket, Block X, later Survivor seasons |
-| **Mana sponsor v3** (`b84e1add`) | ✅ Live | Mana report after a week of play (R-BX-18) | Block X chat | Guest play in every game |
+| **VHP ruler v2** (D-110 – D-128) | **In Progress** (✅ on `main`, #163; off until turned on) | Owner turns the recorder on, data only (D-128); library designs §16; all 11 simulations must pass before anything pays (D-111) | VHP Ruler chat, owner | Race first, then Bracket, Block X, later Survivor seasons |
+| **Mana sponsor v3** (`b84e1add`) | ✅ Live (cap 2.4, D-131) | Measure the first real sponsored stake / claim / withdraw and tighten rows (R-BX-18) | Block X chat | Guest play in every game |
 | **Free-prize switch** (D-082) | **Blocked** | Owner sets the starting values (ON 2, 7, 9, 13; OFF 3, 4, 6, 8) and the `prize-settings` ruleset | Owner | First free prizes, week of 9 Nov |
 | **Wallet moves** (`docs/WALLETS.md`) | **In Progress** (Race picks done 4 Nov) | Vault and Desk, Fri 6 – Tue 10 Nov; Picks later (D-106) | Owner + Vault chat | Safety before prizes grow |
-| **Vault upgrade: 60 questions + Questions on the shared rules** (PR #114 grows, D-116) | **In Progress** | Plan (R-VAULT-13, R-Q-4), build, testnet, Repo Lens, then announce by the new owner after the handover | Vault + Questions chats, owner | Doubled Questions; Questions like every game |
+| **Vault v6.1: 60 questions + Questions on the shared rules + the bot closes weeks** (PR #114; D-116, D-127, D-130) | **Ready For Launch** (Repo Lens #E-16 GO) | Announce Thu 5 Nov (current owner) → upload Mon 9 from 9:00 AM PT → pin + handover 4a → rule week Mon 16 | Owner, Vault chat | 60 a week; Questions like every game |
 | **Picks v2** (CARD type) | **Not Started** | Schedule after Combo's fix-check 4 (D-060) | Combo chat, owner | Combo Card |
 | **Full platform audit** (D-102) | **Not Started** | Only once every game is confidently ready (I-002) | Owner | Before the big launch |
 
 ## What would move the most rows
 
-1. **The owner's Repo Lens runs.** Survivor, Fantasy, Last Node and Combo are each waiting on one audit run (I-065). Four of the nine games are blocked on audits alone.
-2. **Thursday's `game-apply 2` and `game-apply 7`** turn two "Ready For Launch" rows into paying games.
+1. **The owner's Repo Lens runs.** Now: none required (#152 and #163 merged 5 Nov); optional: Race #155 post-merge, Hub C5. Later (paused games, D-113): Survivor, Fantasy, Last Node and Combo are each waiting on one audit run (I-065).
+2. **Thursday's `game-apply 2` and `game-apply 7`** turn two "Ready For Launch" rows into paying games; **Thursday's v6.1 announce** starts the last vault upgrade before the rule week.
 3. **Settling the vault-value rule** (255 places) unblocks part of the Bracket and protects Survivor and the Race (I-086).

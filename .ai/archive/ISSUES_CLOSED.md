@@ -3,6 +3,16 @@
 > **Purpose:** issues that are resolved, moved out of `platform/OPENISSUES.md`, newest first. Nothing here needs action.
 > **Full history:** each issue's original row, with every dated note, is in `2026-11-04/OPENISSUES.md` (for issues open on 4 Nov) or below.
 
+## Closed 2026-11-05
+| ID | Issue (as it was filed) | Closed | Resolution / where recorded |
+|----|-------|--------|-----------------------------|
+| I-093 | Check every game recorder for the Race #E-11 H-1 class (a published final round result rewritten by a later run); Block X first | 2026-11-05 | Block X checked: #159 (tests; no gap found). The paused games check it before launch (`standards/RECORDER_STANDARD.md` §3.3) |
+| I-022 | PN-8 / C2-4: the CI guard is regex-based and misses rare YAML spellings (indent digits, tags, anchors). Add a YAML parser before anyone else gets write access. **PR #99 merged (4 Nov)** (parses each workflow with `yaml` 2.6.1; a test proves it refuses 7 spellings the regex missed) | 2026-11-05 | #99 merged 4 Nov (YAML parser in the CI guard) |
+| I-085 | The Race publish job checks each pick's win/show flags and `pts = 3·wins + shows`, but doesn't recompute the vault file's `rows` / `first` / `second` from the week files (RECORDER_STANDARD §4.1). A recorder bug that writes a wrong vault file in step with the board would pass (Race chat, R-ALL-6 revi | 2026-11-05 | #133 merged 4 Nov (vault file recomputed at publish) |
+| I-087 | A held Race vault week (the I-034 hold, `RACE_HOLD_WEEKS`, a held file) is only a `::warning::`: the run stays green and no email is sent (§6.5). Block X now fails the run on a hold (E4-7). Owner decided it should, with the actions named (D-107) | 2026-11-05 | #133 merged 4 Nov (a held week fails the run and emails; owner-hold emails daily, L-4) |
+| I-090 | Repo Lens #E-11 H-1: a published final race result could be rewritten by a later run. **Fixed in PR #133** (publish job locks published finals; the paid week is re-scored on both nodes before final); close on merge | 2026-11-05 | #133 merged 4 Nov (published finals locked; paid week re-scored on both nodes) |
+| I-020 | PN-30: @name mint not confirmed end to end; the owner's name didn't show up. **Cause confirmed on mainnet (Hub, 4 Nov); fix in PR #95:** `names.html` mints the name but never calls `set_main_token`, and checks success with `get_address`, while the header and bot read `get_main_token`. Also, the hour | 2026-11-05 | owner fixed his @name on `names.html` (4 Nov); mint flow fixed in #95; Tools link #115 |
+
 ## Closed 2026-11-04 (cleanup)
 | ID | Issue (as it was filed) | Closed | Resolution / where recorded |
 |----|-------|--------|-----------------------------|
@@ -47,3 +57,4 @@
 | I-011 | Stale worktrees `C:\kg-combo-preview` and `C:\kprediction-vault` | 2026-11-02 | **Corrected, not an issue.** "Prunable" was an artifact of the AI's sandbox, which can't see Windows `C:\` paths. The Vault chat confirms `C:\kprediction-vault` is in use and frozen (D-025). Do not clean up either worktree. |
 | I-018 | `.ai` library nested as `.ai/.ai/…` on `main` | 2026-11-02 | Fixed by the Vault chat at 13:03 PT (commit `30a5d90`) ✅ |
 | — | Vault chat: `picks-data/deployment.json` showing as deleted in `C:\kprediction` | 2026-11-02 | Not seen: `git status` on 2026-11-02 shows no deleted files on `picks` ✅ |
+- I-094 (vhp-data size): decided 4 Nov, D-124 — stays in this repo with a yearly archive cut.

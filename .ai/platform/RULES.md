@@ -1,7 +1,7 @@
 # Knode Games — Rules
 
 > **Purpose:** the rules that protect players' funds and the platform. **Nothing here changes casually.**
-> **Last updated:** 2026-11-03
+> **Last updated:** 5 Nov 2026 (status sync: timing and sponsor numbers point to their one home; the owner's push-ASAP rule)
 > **Built from:** `DECISIONS.md` (D-xxx), the standards in `../standards/`, and the owner's standing instructions (👤). Where this file and `DECISIONS.md` disagree, `DECISIONS.md` wins — then fix this file.
 
 ## How a rule may change
@@ -54,6 +54,7 @@
 9. **A prize needs a final, verified results file.** A missed, held or disputed week pays nothing until resolved.
 10. **There is no Knode Games token** (D-072).
 11. **Not gambling:** no wagers, odds or player-funded pots on any game; stakes are never at risk (D-075).
+12. **The weekly rhythm (D-125, D-129):** every game plays Monday to Saturday UTC; **Sunday UTC is the review day** (results re-checked on chain, the owner can hold), with Sunday **fun rounds** that never count for a week; results go final no earlier than Monday 00:00 UTC, so nothing is paid before a full day of review. The times (final, payout, the held-week backstop) have one home: `../standards/WEEK_CYCLE.md`. **Daily Questions** keeps its own timing (Saturday's windows run on Sunday's blocks; claims from about Tue 12:00–15:00 UTC, Tue 4–7 AM PST, later if Saturday's questions resolve on Monday) until Vault v6.1's rule week (Mon 16 Nov), then follows the same rhythm (D-116).
 
 ## 5. Architecture rules
 1. **Cost $0:** a static site on GitHub Pages; the repo stays **public** (D-005, D-043).
@@ -62,7 +63,7 @@
 4. **Published history is write-once:** final weeks, cards and vault files never change.
 5. **Every game measures VHP the same way** — the VHP standard (D-058).
 6. **The Mana sponsor is the only payer** for players; Mana Station is shelved (D-053). Caps are passed exactly on any config change (a plain `config` resets them).
-7. **Merges and deploys only on the owner's explicit OK** (D-026); one branch and one PR per build; review-only PRs stay unmerged until audited.
+7. **Merges and deploys follow D-026 and the owner's standing push-ASAP rule** (D-133: built, tested work is pushed and its PR merged once green and any needed Repo Lens review is GO; the owner, or the library chat on his standing OK, presses merge); one branch and one PR per build; review-only PRs stay unmerged until audited. **Mainnet sends and spending funds always need the owner's OK.**
 8. **One chat owns each game's files** (D-035); requests for another chat's files go through the owner.
 9. **Pages:** at the site root, one strict CSP, no inline scripts, CDN scripts pinned by hash, content built with `textContent` only; the browser stores only public data.
 10. **Nothing is announced to players until it's built, audited and ready** (D-064).
@@ -88,6 +89,7 @@ These values are relied on by contracts, files or players. Changing one needs a 
 | Vault / pool address | `1Mpmf2…` | holds every stake; the producer |
 | Contract addresses | Picks `1LmgqB…`, Race `1EN7xU…`, sponsor `1ByDDS…`, desk `1FKTpX…` | the site, bots and players point at them |
 | Vault genesis and weeks | Mon 19 Oct 2026 00:00 UTC; Monday-to-Monday UTC weeks | every week number and file name depends on it |
+| Weekly rhythm (D-125, D-129) | `../standards/WEEK_CYCLE.md` | players plan around it; the 24 h review protects payouts |
 | Game ids | 1 Questions, 2 Block X, 3 Survivor, 4 Fantasy, 5 Rival, 6 Golf, 7 Race, 8 Combo, 9 Bracket, 13 Last Node | on-chain registration, results files |
 | Results file format and sources | `VAULT_STANDARD.md` §6; `vaultGames` | the vault reads them as-is |
 | Published final files | any final week, card or vault file | players were paid from them |
@@ -96,7 +98,7 @@ These values are relied on by contracts, files or players. Changing one needs a 
 | Minimum stake | 1 VHP per game | staked status, rankings |
 | Timelocks | 48 h upgrades, games, seed and treasury changes | the players' warning period |
 | Emergency build | withdrawals-only build kept ready | the last line of defence |
-| Sponsor caps | 25 / 150 per wallet, 5,000 a day | budgets and fairness |
+| Sponsor caps | live values: `SPONSOR.md` | budgets and fairness |
 | Picks game settings (once applied) | e.g. Block X 1 change per pick | players rely on the lock rules |
 | Question release | 12:00 UTC on the dot (D-047) | the site's integrity |
 | Keys location | the owner's `.env` only | fund safety |

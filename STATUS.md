@@ -1,6 +1,6 @@
 # Knode Games — Status
 
-> The one-page map of the whole system. **Snapshot: Thu 5 Nov 2026, ~17:20 UTC.** Details live in the linked docs; this page only points.
+> The one-page map of the whole system. **Snapshot: Thu 5 Nov 2026, ~19:30 UTC.** Details live in the linked docs; this page only points.
 > Update it at the end of every library session and at the weekly review (Tuesdays). If this page and a linked doc disagree, the linked doc wins and this page gets fixed.
 
 ## Built and live
@@ -18,17 +18,17 @@
 | **Recorders** | read the chain, score, publish boards and vault files | `games.yml`, `race.yml`, `race-samples.yml` | two-node checks, pending → final, holds | — |
 | **VHP ruler** | one fair measure of producer size for handicaps | `vhp-ruler.js`, `vhp_ruler.py`, `vhp-ruler.yml` | on `main` (#163), recording data only | **pays nothing** until all 11 simulations pass (D-111) |
 | **Nodes + self-heal** | three producers on the owner's PC | `node/`, `bot/heal.mjs`, `watch.yml` | chain v1.5.2 | one machine (D-147) |
-| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-156 | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
+| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-158 | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
 
 ## In progress
 | Work | Where | Next step |
 |---|---|---|
 | Go-live of Week 1 | owner | ✅ games 2 and 7 applied and `PRIZES_FROM_WEEK = 3` set (5 Nov); left: announce v6.1 ([TODOS](.ai/platform/TODOS.md)) |
 | Vault v6.1 | PR #114 | upload Mon 9, pin, handover 4a; accepts Tue 10; rule week Mon 16 |
-| **Questions results recorder** (P1) | Questions chat | build, Repo Lens, merge by Sun 15 (R-Q-4) |
+| **Questions results recorder** (P1) | Questions + Architecture chats | built as the kit's first game (D-158); Repo Lens, merge by Sun 15; hard limit Thu 26 Nov (W004's results window) (R-Q-4, R-ARCH-3) |
 | VHP ruler v2.1 | `vhp-ruler-v21` | build A′ (D-154), re-run 11 sims (R-RULER-2) |
-| Fantasy, Block Golf, Bracket (next launches, D-142) | PRs #188, #187, #186 | each its Repo Lens fix-check, then launch steps |
-| Shared game kit (D-146) | Architecture chat | extract recorder + site libraries (R-ARCH-1) |
+| Fantasy, Block Golf, Bracket (next launches, D-142) | PRs #188, #187, #186 | port each recorder onto the kit (D-158, R-ALL-11), then Repo Lens fix-check, then launch steps |
+| **Shared Game Kit (D-146, D-158)** | Architecture chat | build `kit/` with Daily Questions as its first game (R-ARCH-3, [GAME_KIT](.ai/standards/GAME_KIT.md)); then Fantasy, Golf, Bracket; then Block X and Race (replay → two shadow weeks → switch) |
 | Site: guest-first, live stats | PRs #181, #185 | Repo Lens, then merge; `STATS_ENABLED` |
 | Run a Node page | PRs #173, #179 | Repo Lens fix-check, then merge |
 | Vault: alert summaries, key backup scripts | PRs #177, #178 | Repo Lens, then merge |
@@ -47,10 +47,10 @@
 |---|---|
 | Merge #114 (v6.1) | Monday's upload |
 | #141 (VAULT_STANDARD for game 1) | v6.1 live |
-| Questions paid like every game from Mon 16 | the results recorder (I-101) |
+| Questions paid like every game from Mon 16 | the results recorder on the kit (I-101, D-158) |
 | Any game paying on the ruler (Race, Bracket's percentile) | all 11 simulations pass; owner's D-120 choice |
 | Picks owner handover | owner picks a date (tool reviewed, #191) |
-| Fantasy / Golf / Bracket launch | each its fix-check GO, sponsor rows, `game-add` (48 h, by Friday noon PT for the next Monday) |
+| Fantasy / Golf / Bracket launch | the kit's core (D-158), then each its fix-check GO, sponsor rows, `game-add` (48 h, by Friday noon PT for the next Monday) |
 | Website restructure | the Pages allow-list (R-HUB-14) |
 | Removing old audit reports from git history | owner's yes, after Monday |
 

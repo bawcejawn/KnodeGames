@@ -1,8 +1,9 @@
 # Knode Games — Recorder Standard
 
 > **Purpose:** the rules every game's recorder (the keyless bot that turns chain blocks and picks into results) and its publish job (the step that checks files and pushes them to a data branch) must follow. These are lessons already paid for in audits. Writing them once stops each new game from re-learning them.
-> **Applies to:** every game that publishes results: Race, Block X, Daily Questions (from v6.1's rule week, D-116), the paused games (Survivor, Bracket, Last Node, Fantasy, Combo, Golf; D-113), and any future game.
-> **Last updated:** 5 Nov 2026 (week timing points to `WEEK_CYCLE.md`; first version 3 Nov)
+> **Applies to:** every game that publishes results: Race, Block X, Daily Questions (from v6.1's rule week, D-116), Fantasy, Block Golf and Bracket (reactivated, D-142), the paused games (Survivor, Last Node, Combo; D-113), and any future game.
+> **Last updated:** 5 Nov 2026 (the rules stay here, the "how" is the Shared Game Kit, D-158; §4.1 reworded; week timing points to `WEEK_CYCLE.md`; first version 3 Nov)
+> **How:** the Shared Game Kit (`GAME_KIT.md`, `kit/`) implements every rule below once; every new game launches on it (D-158). A game on the kit meets this standard by passing `npm run game:check` and the kit's tests. The live recorders not yet moved (Block X, Race) meet it directly until their switch.
 > **Built from:** Block X and Race audits (BX-*, B1-*), Repo Lens #E-3 (Bracket), #D-3 (vault bot checks, PR #74), `VAULT_STANDARD.md` §6, `LEADERBOARD_STANDARD.md`. Each rule names the finding that taught it.
 > **Words:** **must** = required before launch · **should** = expected · the audit id in brackets is the example to read.
 
@@ -35,7 +36,7 @@
 5. **Device clocks are never trusted on pages:** lock guards use chain time and are re-checked at send (#E-3 L-2).
 
 ## 4. Points, ranks and the vault file
-1. **The publish job recomputes points** from published inputs (seeding, hours, checked picks), with a ported scorer that is differential-tested against the game's math file over thousands of random weeks. Any mismatch holds that game (BX-79, BX-88; #E-3 H-2).
+1. **Points are proven twice, by two different checks (D-158):** (a) the recorder **re-reads and re-scores every counted round on both nodes** in the run that makes a week final (§4.2); (b) the publish job **recounts the week from the published per-round points** — week tally (Sunday fun rounds out), paid set by the game's payout rule, vault values and `first` / `second` — and holds that game on any mismatch. No per-game scorer port lives in the publish job; the recount is the kit's one script, differential-tested against the kit's own tally over thousands of random weeks (BX-79, BX-88; #E-3 H-2).
 2. **Re-read the week's end on both nodes** before finalizing (BX-97 / BX-88), and **re-score every round of a paid week from the chain on both nodes in the run that makes it final** (Race #E-11 H-1: `scoreRace` / `verifyWeek`).
 3. **Vault values follow the vault's payout rule.** Work out the paid set first (top `ceil(30%)` of rows, tied groups whole), then map to 255 … 1 so unpaid rows can't share a paid value (#E-3 C-1). Test with the vault's cutoff, not just "values in 1–255".
 4. **`first` / `second` always filled** with free winners, never a staked or held wallet (D-082, `VAULT_STANDARD.md` §6). Ties share; at most 10 a place.

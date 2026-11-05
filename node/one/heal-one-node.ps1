@@ -4,10 +4,14 @@
   Every 20 minutes (a Windows scheduled task) it compares your node's block height with the Koinos network.
   The rules are the same ones Knode Games uses for its own nodes (bot/heal.mjs):
     - FROZEN: more than 200 blocks (~10 minutes) behind and not moving since the last check, or no answer at two
-      checks in a row, or the node isn't running at all -> full restart (docker compose down, then up -d);
+      checks in a row, or its containers exist but none is running at two checks in a row -> full restart
+      (docker compose down, then up -d);
     - behind but moving -> catching up, left alone;
-    - after a restart it waits at least 50 minutes before restarting again, and after 3 restarts in 6 hours it stops
-      trying and tells you to look by hand (a restart can't fix everything);
+    - STOPPED ON PURPOSE: no containers at all (someone ran "docker compose down" to repair, update or stop) -> it never
+      starts the node; it reminds you every 3 hours that the node is stopped. A file named heal-paused in the folder
+      pauses it completely (the guide's repair, stop and update boxes create it; starting the node removes it);
+    - after a restart (even one that failed) it waits at least 50 minutes before trying again, and after 3 tries in
+      6 hours it stops and tells you to look by hand (a restart can't fix everything);
     - CRASH LOOP: the block store or chain restarted 3+ times since the last check -> no restart (that doesn't cure
       damaged data); it tells you to "Repair from a fresh snapshot" (step 8 of the guide).
   It never deletes anything, never touches the node's key, and sends nothing anywhere except two read-only questions:
@@ -73,6 +77,10 @@ if ($Uninstall) {
 }
 if ($Install) {
   $self = $PSCommandPath
+  if ($Rpc -match '["\r\n]') { throw "-Rpc can't contain a double quote or a line break." }
+  $Folder = (Resolve-Path -LiteralPath $Folder -ErrorAction Stop).Path.TrimEnd('\')
+  $Koinos = Join-Path $Folder "koinos"
+  $LogFile = Join-Path $Folder "heal.log"
   if (-not (Test-Path (Join-Path $Koinos "docker-compose.yml"))) { throw "No node found in $Koinos. Do steps 3-5 of the guide first, or pass -Folder <your folder>." }
   $psArgs = '-NoProfile -ExecutionPolicy Bypass -File "{0}" -Folder "{1}" -Rpc "{2}"' -f $self, $Folder, $Rpc
   $conhost = Join-Path $env:SystemRoot "System32\conhost.exe"
@@ -119,21 +127,26 @@ function Compose([string[]]$a) {
   try { return DockerOut (@("compose") + $a) } finally { Pop-Location }
 }
 function ReadState {
-  $s = @{ lastHeight = 0; misses = 0; heals = @(); lastRestart = 0; nagAt = 0; dockerAlert = 0; restarts = @{} }
+  $s = @{ lastHeight = 0; misses = 0; heals = @(); lastRestart = 0; nagAt = 0; dockerAlert = 0; failAt = 0; stopAt = 0; restarts = @{} }
   if (Test-Path $StateFile) {
     try {
       $j = Get-Content $StateFile -Raw | ConvertFrom-Json
-      foreach ($k in @("lastHeight", "misses", "lastRestart", "nagAt", "dockerAlert")) { if ($null -ne $j.$k) { $s[$k] = [int64]$j.$k } }
+      foreach ($k in @("lastHeight", "misses", "lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt")) { if ($null -ne $j.$k) { $s[$k] = [int64]$j.$k } }
       if ($j.heals) { $s.heals = @($j.heals | ForEach-Object { [int64]$_ }) }
       if ($j.restarts) { foreach ($p in $j.restarts.PSObject.Properties) { $s.restarts[$p.Name] = [int64]$p.Value } }
     } catch { Log "The state file was unreadable; starting fresh." }
   }
+  # A time later than now (the clock was fast and was corrected) would block restarts until it caught up: drop it.
+  $n = NowMs
+  $s.heals = @($s.heals | Where-Object { $_ -le $n })
+  foreach ($k in @("lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt")) { if ($s[$k] -gt $n) { $s[$k] = 0 } }
   return $s
 }
 function WriteState($s) { if (-not $DryRun) { $s | ConvertTo-Json -Depth 4 | Set-Content -Path $StateFile -Encoding ascii } }
 
 # ---------- one check ----------
 if (-not (Test-Path (Join-Path $Koinos "docker-compose.yml"))) { Log "No node found in $Koinos - nothing to check."; return }
+if (Test-Path (Join-Path $Folder "heal-paused")) { Log "Paused (heal-paused is in $Folder): not checking. Starting the node with step 5a resumes it."; return }
 $now = NowMs
 $st = ReadState
 $st.heals = @($st.heals | Where-Object { $now - $_ -lt $WINDOW_MS })
@@ -175,11 +188,23 @@ if ($loop.Count) {
 }
 
 # Is it running, answering, and keeping up?
-$running = @()
-try { $running = @(Compose @("ps", "-q") | Where-Object { $_ }) } catch { }
+$all = @(); $running = @()
+try { $all = @(Compose @("ps", "-a", "-q") | Where-Object { $_ }); $running = @(Compose @("ps", "-q") | Where-Object { $_ }) } catch { }
 $local = $null
 $why = ""
-if (-not $running.Count) { $why = "the node isn't running" }
+if (-not $all.Count) {
+  # No containers at all: someone ran "docker compose down" (a repair, an update, or a stop). Never start it.
+  Log "The node is stopped (no containers: stopped on purpose). Not starting it."
+  if ($now - $st.stopAt -gt $NAG_MS) { Notify "Koinos node is stopped" "Start it with step 5a of knodegames.com/run-node.html when you're ready."; $st.stopAt = $now }
+  $st.misses = 0
+  WriteState $st
+  return
+}
+$st.stopAt = 0
+if (-not $running.Count) {
+  $st.misses = $st.misses + 1
+  if ($st.misses -ge 2) { $why = "its containers exist but none has been running at two checks in a row" } else { Log "None of the node's containers is running; checking again next time." }
+}
 else {
   try { $local = Height $Rpc 10; $st.misses = 0 }
   catch { $st.misses = $st.misses + 1; if ($st.misses -ge 2) { $why = "it hasn't answered at two checks in a row" } else { Log "The node didn't answer this time ($($_.Exception.Message)); checking again next time." } }
@@ -196,7 +221,7 @@ if ($why) {
   if ($st.heals.Count -ge $MAX_HEALS) {
     Log "FROZEN ($why), but it was already restarted $($st.heals.Count) times in 6 hours. Not trying again."
     if ($now - $st.nagAt -gt $NAG_MS) {
-      Notify "Koinos node needs you" "Restarts haven't fixed it. See 'If it keeps crashing' in step 8 of knodegames.com/run-node.html."
+      Notify "Koinos node needs you" "Restarts haven't fixed it. See 'What can go wrong' on knodegames.com/run-node.html, and heal.log."
       $st.nagAt = $now
     }
   } elseif ($st.lastRestart -and ($now - $st.lastRestart) -lt $COOLDOWN_MS) {
@@ -205,14 +230,19 @@ if ($why) {
     Log "FROZEN ($why): would restart it now (docker compose down, then up -d)."
   } else {
     Log "FROZEN ($why): restarting it."
+    # Counted before trying, so a restart that fails still waits 50 minutes and counts toward the 3-in-6-hours limit.
+    $st.heals = @($st.heals) + @($now)
+    $st.lastRestart = $now
+    $st.misses = 0
+    WriteState $st
     try {
       $null = Compose @("down")
       $null = Compose @("up", "-d")
-      $st.heals = @($st.heals) + @($now)
-      $st.lastRestart = $now
-      $st.misses = 0
       Notify "Koinos node restarted" "It had frozen ($why). Check it again in 30 minutes."
-    } catch { Notify "Koinos node: restart failed" "$($_.Exception.Message). Open Docker Desktop and see step 8 of knodegames.com/run-node.html." }
+    } catch {
+      Log "The restart failed: $($_.Exception.Message)"
+      if ($now - $st.failAt -gt $NAG_MS) { Notify "Koinos node: restart failed" "Open Docker Desktop, then see 'What can go wrong' on knodegames.com/run-node.html."; $st.failAt = $now }
+    }
   }
 }
 WriteState $st

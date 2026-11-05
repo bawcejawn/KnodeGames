@@ -4,9 +4,12 @@
 Every 20 minutes (cron) it compares your node's block height with the Koinos network. The rules are the same ones
 Knode Games uses for its own nodes (bot/heal.mjs) and the Windows version (heal-one-node.ps1):
   - FROZEN: more than 200 blocks (~10 minutes) behind and not moving since the last check, or no answer at two checks
-    in a row, or the node isn't running at all -> full restart (docker compose down, then up -d);
+    in a row, or its containers exist but none is running at two checks in a row -> full restart (down, then up -d);
   - behind but moving -> catching up, left alone;
-  - after a restart it waits at least 50 minutes before restarting again; after 3 restarts in 6 hours it stops trying;
+  - STOPPED ON PURPOSE: no containers at all (someone ran "docker compose down" to repair, update or stop) -> it never
+    starts the node; it reminds you every 3 hours. A file named heal-paused in the folder pauses it completely (the
+    guide's repair, stop and update boxes create it; starting the node removes it);
+  - after a restart (even one that failed) it waits at least 50 minutes; after 3 tries in 6 hours it stops trying;
   - CRASH LOOP: the block store or chain restarted 3+ times since the last check -> no restart (that doesn't cure
     damaged data); it tells you to "Repair from a fresh snapshot" (step 8 of the guide).
 It never deletes anything, never touches the node's key, and only asks two read-only questions: "what's your height?"
@@ -18,7 +21,7 @@ to your own node and to a public Koinos node. Log: ~/koinos-node/heal.log.
   Add --rpc=http://127.0.0.1:8090 to both if you moved your node to another port.
 Standard library only (Python 3.8+).
 """
-import json, os, shutil, subprocess, sys, time, urllib.request
+import json, os, shlex, shutil, subprocess, sys, time, urllib.request
 from datetime import datetime
 
 ARGS = sys.argv[1:]
@@ -29,11 +32,15 @@ NETWORK = os.environ.get("KG_HEAL_NETWORK", "https://koinos.armana.io,https://ap
 DOCKER = os.environ.get("KG_HEAL_DOCKER", "docker")
 KOINOS = os.path.join(FOLDER, "koinos")
 LOG = os.path.join(FOLDER, "heal.log")
+PAUSE = os.path.join(FOLDER, "heal-paused")
+LOCK = os.path.join(FOLDER, "heal.lock")
 STATE = os.path.join(FOLDER, "heal-state.json")
 BEHIND, COOLDOWN_MS, MAX_HEALS, WINDOW_MS, NAG_MS, LOOP_RESTARTS = 200, 50 * 60000, 3, 6 * 3600000, 3 * 3600000, 3
 CRON_TAG = "# knode-games-heal-one-node"
 # cron starts with a tiny PATH; Docker Desktop (Mac) and Homebrew live here.
-os.environ["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:" + os.environ.get("PATH", "")
+# Docker Desktop's CLI may also live in ~/.docker/bin ("User" install) or inside the app.
+os.environ["PATH"] = ":".join([os.path.expanduser("~/.docker/bin"), "/Applications/Docker.app/Contents/Resources/bin",
+                               "/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin", os.environ.get("PATH", "")])
 
 
 def now_ms():
@@ -74,7 +81,12 @@ def install():
     if not os.path.exists(os.path.join(KOINOS, "docker-compose.yml")):
         sys.exit(f"No node found in {KOINOS}. Do steps 3-5 of the guide first.")
     me = os.path.abspath(__file__)
-    line = f"*/20 * * * * {shutil.which('python3') or '/usr/bin/python3'} {me} --rpc={RPC} >/dev/null 2>&1 {CRON_TAG}"
+    py = shutil.which("python3") or "/usr/bin/python3"
+    for v in (me, py, RPC, FOLDER):
+        if "%" in v or "\n" in v or "\r" in v:
+            sys.exit("A path or --rpc can't contain % or a line break (cron can't run it). Move the folder or change --rpc.")
+    line = (f"*/20 * * * * KG_HEAL_FOLDER={shlex.quote(FOLDER)} {shlex.quote(py)} {shlex.quote(me)} "
+            f"{shlex.quote('--rpc=' + RPC)} >/dev/null 2>&1 {CRON_TAG}")
     old = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout if shutil.which("crontab") else None
     if old is None:
         sys.exit("cron isn't installed. On Linux: sudo apt-get install -y cron, then run --install again.")
@@ -126,18 +138,40 @@ def compose(*a):
     return [l.strip() for l in r.stdout.splitlines() if l.strip()]
 
 
-def read_state():
-    s = {"lastHeight": 0, "misses": 0, "heals": [], "lastRestart": 0, "nagAt": 0, "dockerAlert": 0, "restarts": {}}
+NUMS = ("lastHeight", "misses", "lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt")
+
+
+def read_state(now):
+    s = {"lastHeight": 0, "misses": 0, "heals": [], "lastRestart": 0, "nagAt": 0, "dockerAlert": 0, "failAt": 0, "stopAt": 0, "restarts": {}}
     try:
         with open(STATE) as f:
             j = json.load(f)
-        for k in s:
+        num = lambda v: isinstance(v, int) and not isinstance(v, bool)
+        if not isinstance(j, dict):
+            raise ValueError("not an object")
+        for k in NUMS:
             if k in j:
+                if not num(j[k]):
+                    raise ValueError(k)
                 s[k] = j[k]
+        if "heals" in j:
+            if not (isinstance(j["heals"], list) and all(num(t) for t in j["heals"])):
+                raise ValueError("heals")
+            s["heals"] = j["heals"]
+        if "restarts" in j:
+            if not (isinstance(j["restarts"], dict) and all(num(v) for v in j["restarts"].values())):
+                raise ValueError("restarts")
+            s["restarts"] = j["restarts"]
     except FileNotFoundError:
         pass
     except Exception:
         log("The state file was unreadable; starting fresh.")
+        s = {"lastHeight": 0, "misses": 0, "heals": [], "lastRestart": 0, "nagAt": 0, "dockerAlert": 0, "failAt": 0, "stopAt": 0, "restarts": {}}
+    # A time later than now (the clock was fast and was corrected) would block restarts until it caught up: drop it.
+    s["heals"] = [t for t in s["heals"] if t <= now]
+    for k in ("lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt"):
+        if s[k] > now:
+            s[k] = 0
     return s
 
 
@@ -151,8 +185,11 @@ def check():
     if not os.path.exists(os.path.join(KOINOS, "docker-compose.yml")):
         log(f"No node found in {KOINOS} - nothing to check.")
         return
+    if os.path.exists(PAUSE):
+        log(f"Paused (heal-paused is in {FOLDER}): not checking. Starting the node with step 5a resumes it.")
+        return
     now = now_ms()
-    st = read_state()
+    st = read_state(now)
     st["heals"] = [t for t in st["heals"] if now - t < WINDOW_MS]
     if DRY:
         log("(dry run: nothing is restarted, written or notified)")
@@ -160,6 +197,10 @@ def check():
         net = network_height()
     except Exception as e:
         log(f"Can't reach the Koinos network ({e}). Is the internet down? Skipping this check.")
+        return
+    if not shutil.which(DOCKER):
+        log("docker isn't on this computer's PATH for the scheduled check (cron). Docker may be fine: see step 8's tips.")
+        write_state(st)
         return
     try:
         docker("info", "--format", "{{.ServerVersion}}")
@@ -195,12 +236,27 @@ def check():
         return
 
     try:
+        everything = compose("ps", "-a", "-q")
         running = compose("ps", "-q")
     except Exception:
-        running = []
+        everything, running = [], []
     local, why = None, ""
+    if not everything:
+        # No containers at all: someone ran "docker compose down" (a repair, an update, or a stop). Never start it.
+        log("The node is stopped (no containers: stopped on purpose). Not starting it.")
+        if now - st["stopAt"] > NAG_MS:
+            notify("Koinos node is stopped", "Start it with step 5a of knodegames.com/run-node.html when you're ready.")
+            st["stopAt"] = now
+        st["misses"] = 0
+        write_state(st)
+        return
+    st["stopAt"] = 0
     if not running:
-        why = "the node isn't running"
+        st["misses"] += 1
+        if st["misses"] >= 2:
+            why = "its containers exist but none has been running at two checks in a row"
+        else:
+            log("None of the node's containers is running; checking again next time.")
     else:
         try:
             local = height(RPC, 10)
@@ -225,7 +281,7 @@ def check():
         if len(st["heals"]) >= MAX_HEALS:
             log(f"FROZEN ({why}), but it was already restarted {len(st['heals'])} times in 6 hours. Not trying again.")
             if now - st["nagAt"] > NAG_MS:
-                notify("Koinos node needs you", "Restarts haven't fixed it. See 'If it keeps crashing' in step 8 of knodegames.com/run-node.html.")
+                notify("Koinos node needs you", "Restarts haven't fixed it. See 'What can go wrong' on knodegames.com/run-node.html, and heal.log.")
                 st["nagAt"] = now
         elif st["lastRestart"] and now - st["lastRestart"] < COOLDOWN_MS:
             log(f"FROZEN ({why}), but it was restarted less than 50 minutes ago. Giving it time.")
@@ -233,15 +289,20 @@ def check():
             log(f"FROZEN ({why}): would restart it now (docker compose down, then up -d).")
         else:
             log(f"FROZEN ({why}): restarting it.")
+            # Counted before trying, so a restart that fails still waits 50 minutes and counts toward the limit.
+            st["heals"].append(now)
+            st["lastRestart"] = now
+            st["misses"] = 0
+            write_state(st)
             try:
                 compose("down")
                 compose("up", "-d")
-                st["heals"].append(now)
-                st["lastRestart"] = now
-                st["misses"] = 0
                 notify("Koinos node restarted", f"It had frozen ({why}). Check it again in 30 minutes.")
             except Exception as e:
-                notify("Koinos node: restart failed", f"{e}. Open Docker and see step 8 of knodegames.com/run-node.html.")
+                log(f"The restart failed: {e}")
+                if now - st["failAt"] > NAG_MS:
+                    notify("Koinos node: restart failed", "Open Docker, then see 'What can go wrong' on knodegames.com/run-node.html.")
+                    st["failAt"] = now
     write_state(st)
 
 
@@ -250,5 +311,14 @@ if __name__ == "__main__":
         install()
     elif "--uninstall" in ARGS:
         uninstall()
+    elif not os.path.isdir(FOLDER):
+        check()   # says there's no node here
     else:
-        check()
+        import fcntl
+        with open(LOCK, "a") as lk:
+            try:
+                fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                print("Another check is still running; skipping this one.")
+                sys.exit(0)
+            check()

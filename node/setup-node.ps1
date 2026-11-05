@@ -69,11 +69,11 @@ $repo = Join-Path $Root "koinos"
 if (-not (Test-Path $repo)) {
   git clone https://github.com/koinos/koinos.git $repo; if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
   git -C $repo -c advice.detachedHead=false checkout $KoinosCommit; if ($LASTEXITCODE -ne 0) { Remove-Item $repo -Recurse -Force; throw "Couldn't check out the pinned commit $KoinosCommit. Nothing was installed." }
-  if ((git -C $repo rev-parse HEAD).Trim() -ne $KoinosCommit) { Remove-Item $repo -Recurse -Force; throw "The downloaded node setup is not release $KoinosTag (commit $KoinosCommit). Nothing was installed." }
+  if ((git -C $repo rev-parse HEAD).Trim() -ne $KoinosCommit) { Remove-Item $repo -Recurse -Force; throw "The downloaded node setup is not the pinned commit $KoinosCommit ($KoinosTag). Nothing was installed." }
   Ok "official node setup $KoinosTag (commit $($KoinosCommit.Substring(0, 12)))"
 } elseif ((git -C $repo rev-parse HEAD).Trim() -ne $KoinosCommit) {
   Note "This folder's node setup is not the pinned commit ($KoinosTag). It keeps working;"
-  Note "to move to it, stop the node and run: git -C $repo fetch origin; git -C $repo checkout $KoinosCommit (then copy the new env.example tags into .env)"
+  Note "to move to it, stop the node and run: git -C $repo fetch origin $KoinosCommit; git -C $repo checkout $KoinosCommit (then copy the new env.example tags into .env)"
 }
 Set-Location $repo
 if (-not (Test-Path "config")) { Copy-Item "config-example" "config" -Recurse }
@@ -132,7 +132,7 @@ if ($haveData) {
     }
   }
   $snap = $candidates | Sort-Object { [int64]$_.height } -Descending | Select-Object -First 1
-  # A download already started keeps going, even if a newer snapshot appeared meanwhile (old ones stay up for a day).
+  # A download already started keeps going, even if a newer snapshot appeared meanwhile (Armana lists each snapshot for about two weeks, and keeps a retired one downloadable for a day).
   $partial = Get-ChildItem $Root -Filter "koinos-mainnet-*.tar.gz" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
   if ($partial) {
     $match = $listed | Where-Object { $_.name -eq $partial.Name } | Select-Object -First 1

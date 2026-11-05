@@ -51,6 +51,26 @@ function alias(w) {
   for (const i of [...small, ...large]) prob[i] = 1;
   return (u1, u2) => { const i = Math.floor(u1 * n); return u2 < prob[i] ? i : al[i]; };
 }
+/** an exact Binomial(n, p) draw: inversion for small means, Hörmann's BTRS (transformed rejection) above */
+function binom(n, p, rnd) {
+  if (n <= 0 || p <= 0) return 0;
+  if (p >= 1) return n;
+  if (p > 0.5) return n - binom(n, 1 - p, rnd);
+  if (n * p < 10) {   // inversion
+    const q = 1 - p, s = p / q; let k = 0, f = Math.pow(q, n), u = rnd();
+    while (u > f && k < n) { u -= f; f *= s * (n - k) / (k + 1); k++; }
+    return k;
+  }
+  const spq = Math.sqrt(n * p * (1 - p)), b = 1.15 + 2.53 * spq, a = -0.0873 + 0.0248 * b + 0.01 * p, c = n * p + 0.5, vr = 0.92 - 4.2 / b;
+  const alpha = (2.83 + 5.1 / b) * spq, lpq = Math.log(p / (1 - p)), m = Math.floor((n + 1) * p), h = logFact(m) + logFact(n - m);
+  for (;;) {
+    const u = rnd() - 0.5, v = rnd(), us = 0.5 - Math.abs(u), k = Math.floor((2 * a / us + b) * u + c);
+    if (k < 0 || k > n) continue;
+    if (us >= 0.07 && v <= vr) return k;
+    const vv = Math.log(v * alpha / (a / (us * us) + b));
+    if (vv <= h - logFact(k) - logFact(n - k) + (k - m) * lpq) return k;
+  }
+}
 /** an exact Poisson draw by inversion */
 const draw = (t, u) => { let lo = 0, hi = t.n + 1; while (lo < hi) { const m = (lo + hi) >> 1; if (t.below[m + 1] <= u) lo = m + 1; else hi = m; } return lo; };
 
@@ -89,11 +109,12 @@ export function chances(c, races, seed, cfg, opts = {}) {
   // the race block by block, as on chain (#B-9 follow-up): the window's B blocks each go to one producer, the field in
   // proportion to its λ (its real share × what it signs), everyone else to "the rest"; so the field's counts are
   // multinomial (a big producer's good race leaves fewer blocks for the others), not independent
-  const B = c.blocks, lamF = field.reduce((s, r) => s + r.lam, 0), pick = alias([...field.map((r) => r.lam), Math.max(0, B - lamF)]), cnt = new Int32Array(field.length + 1);
+  // drawn as a chain of exact binomials (the same distribution as block by block, far faster)
+  const B = c.blocks, lamF = field.reduce((s, r) => s + r.lam, 0), wts = [...field.map((r) => r.lam), Math.max(0, B - lamF)], wsum = wts.reduce((s, x) => s + x, 0), cnt = new Int32Array(field.length + 1), rnd = () => rng.next();
   for (let t = 0; t < races; t++) {
     let best = -Infinity, who = [];
     const xs = new Float64Array(field.length); let nF = 0;
-    cnt.fill(0); for (let b = 0; b < B; b++) cnt[pick(rng.next(), rng.next())]++;
+    { let left = B, wl = wsum; for (let i = 0; i < wts.length; i++) { const k = i === wts.length - 1 ? left : binom(left, wl > 0 ? wts[i] / wl : 0, rnd); cnt[i] = k; left -= k; wl -= wts[i]; } }
     for (let i = 0; i < field.length; i++) {
       const r = field[i], n = cnt[i];
       // thinned credit (a proposal): each signed block counts whole with probability own ÷ eff (on chain: decided by the

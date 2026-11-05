@@ -25,9 +25,10 @@ mainnet blocks, which only your PC can reach):
 
 ```powershell
 cd C:\
-git clone https://github.com/bawcejawn/Knode.git C:\kprediction-fantasy
+git clone https://github.com/bawcejawn/KnodeGames.git C:\kprediction-fantasy
 cd C:\kprediction-fantasy
 git checkout fantasy
+git branch --show-current
 npm ci
 Expand-Archive "$HOME\Downloads\fantasy-testnet.zip" -DestinationPath C:\kprediction-fantasy\testnet-data\fantasy
 npm run fantasy-test -- status
@@ -49,9 +50,10 @@ Keep it out of OneDrive-synced folders such as Desktop and Documents. In PowerSh
 
 ```powershell
 cd C:\
-git clone https://github.com/bawcejawn/Knode.git C:\kprediction-fantasy
+git clone https://github.com/bawcejawn/KnodeGames.git C:\kprediction-fantasy
 cd C:\kprediction-fantasy
 git checkout fantasy
+git branch --show-current
 npm ci
 cd picks
 npm ci

@@ -119,6 +119,25 @@ jobs:
             if [ "${RECORD_FILES:-}" = "true" ]; then echo "::error::The record job wrote its files, but they didn't reach the publish job (artifact hand-over failed). Nothing was published this run; the next run tries again."; exit 1; fi
             echo "Nothing to publish."; exit 0
           fi
+          # Round 8 (BX-122): the recorder's own JSON form, checked by the same script for the vault folder and the rest.
+          # It prints the files that fail, one per line, and exits 1.
+          canon='const fs=require("fs"),p=require("path"),bad=[];(function w(d){for(const f of fs.readdirSync(d)){const q=p.join(d,f),s=fs.lstatSync(q);if(s.isDirectory()){w(q);continue}if(!f.endsWith(".json"))continue;if(!s.isFile()){bad.push(p.relative(process.argv[1],q));continue}const raw=fs.readFileSync(q);let ok=false;try{ok=Buffer.compare(Buffer.from(JSON.stringify(JSON.parse(raw.toString("utf8")))+"\n","utf8"),raw)===0}catch(e){}if(!ok)bad.push(p.relative(process.argv[1],q))}})(process.argv[1]);if(bad.length){console.log(bad.join("\n"));process.exit(1)}'
+          command -v node >/dev/null || { echo "::error::node is missing on this runner; nothing published"; exit 1; }
+          # I-037 B1-4: a bad vault folder (an unexpected or nested file, a file over 2 MB, or one not in the recorder's
+          # own JSON form) is held on its own, as the per-file vault checks below already do: no vault file is published
+          # this run (no file means no prize; the alert says so), and the race cards Block X needs still publish.
+          hold_vault() {
+            echo "::error::vault results held, not published this run: $(printf '%s' "$1" | tr -c '[:alnum:]/._ ,:-' '?' | cut -c1-300) (the race cards still publish; I-037 B1-4)"
+            if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "held=true" >> "$GITHUB_OUTPUT"; fi
+            rm -rf "$IN/vault"
+          }
+          if [ -e "$IN/vault" ] || [ -L "$IN/vault" ]; then
+            vbad=$(find "$IN/vault" \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( ! -type d ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
+            if [ -n "$vbad" ]; then hold_vault "unexpected files in vault/: $vbad"
+            elif [ -n "$(find "$IN/vault" -type f -size +2048k -print)" ]; then hold_vault "a file in vault/ is over 2 MB"
+            elif ! vout=$(node -e "$canon" -- "$IN/vault"); then hold_vault "not in the recorder's own JSON form: $vout"
+            fi
+          fi
           bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( -type f ! -regex "$IN/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           big=$(find "$IN" -type f -size +2048k -print)
@@ -127,8 +146,7 @@ jobs:
           # JavaScript recorder writes for its own content (JSON.stringify of its parse, plus a newline). Then the next
           # recorder run reads back the same values and writes the same bytes, whatever Python thinks of them: no 5.0, no
           # -0, no 1e2, no big integer, no spacing or escaping a recorder never writes.
-          command -v node >/dev/null || { echo "::error::node is missing on this runner; nothing published"; exit 1; }
-          node -e 'const fs=require("fs"),p=require("path"),bad=[];(function w(d){for(const f of fs.readdirSync(d)){const q=p.join(d,f),s=fs.lstatSync(q);if(s.isDirectory()){w(q);continue}if(!f.endsWith(".json"))continue;if(!s.isFile()){bad.push(p.relative(process.argv[1],q));continue}const raw=fs.readFileSync(q);let ok=false;try{ok=Buffer.compare(Buffer.from(JSON.stringify(JSON.parse(raw.toString("utf8")))+"\n","utf8"),raw)===0}catch(e){}if(!ok)bad.push(p.relative(process.argv[1],q))}})(process.argv[1]);if(bad.length){console.log("::error::not in the recorders own JSON form (JSON.stringify of its parse), nothing published: "+bad.join(", "));process.exit(1)}' -- "$IN"
+          if ! out=$(node -e "$canon" -- "$IN"); then echo "::error::not in the recorders own JSON form (JSON.stringify of its parse), nothing published: $(printf '%s' "$out" | tr '\n' ' ')"; exit 1; fi
           # The content must be the recorder's own shape, not only parse as JSON.
           # The published files, to check that a card once published is never changed (audit BX-44).
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
@@ -337,7 +355,15 @@ jobs:
                       if out and (out[-1][0]["pts"], out[-1][0]["correct"], out[-1][0]["picks"]) == (r["pts"], r["correct"], r["picks"]): out[-1].append(r)
                       else: out.append([r])
                   return out
-              want_rows = [{"player": r["a"], "points": max(1, 255 - i)} for i, g in enumerate(groups([r for r in rows if r["ranked"] and r["pts"] >= 1])) for r in g]
+              # Values 255 … 1 per tied group. Past 255 groups (I-086) the paid set (the board's earns == 3, the vault's
+              # top 30%) is kept apart: if the paid groups reach the 255th group, groups 254 … the last paid share 2 and
+              # every unpaid wallet gets 1 (bot/race.ts rowValues).
+              sg = groups([r for r in rows if r["ranked"] and r["pts"] >= 1])
+              paid = {x.get("a") for x in lw["rows"] if type(x) is dict and x.get("earns") == 3}
+              last = max([i for i, g in enumerate(sg) if any(r["a"] in paid for r in g)], default=-1)
+              exact = len(sg) <= 255 or last <= 253
+              val = lambda i: max(1, 255 - i) if exact else (255 - i if i <= 252 else 2 if i <= last else 1)
+              want_rows = [{"player": r["a"], "points": val(i)} for i, g in enumerate(sg) for r in g]
               fg = groups([r for r in rows if not r["ranked"] and r["pts"] >= 1])
               early = lambda g: [r["a"] for r in sorted(g, key=lambda r: (first_at.get(r["a"], float("inf")), r["a"]))][:10]
               if not fg: want_first, want_second = [], []

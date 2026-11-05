@@ -518,9 +518,11 @@ test("publish job: pushes vault/W<week>.json to race-data and refuses to change 
   const again = publish(out, bare);
   assert.equal(again.ok, false); assert.match(again.out, /Refusing to change vault\/W2\.json/);
   assert.equal(execFileSync("git", ["--git-dir", bare, "rev-parse", "race-data"]).toString(), head);
-  // Anything else in vault/ is refused.
-  const odd = tmp(); fs.mkdirSync(path.join(odd, "vault")); fs.writeFileSync(path.join(odd, "vault", "notes.json"), "{}");
-  assert.equal(publish(odd, bare).ok, false);
+  // Anything else in vault/ holds the vault folder (I-037 B1-4: not the whole run), and the alert job hears about it.
+  const odd = tmp(); fs.mkdirSync(path.join(odd, "vault")); fs.writeFileSync(path.join(odd, "vault", "notes.json"), "{}\n");
+  const go = path.join(tmp(), "github-output"), oddRun = publish(odd, bare, CHECK_NOW, { GITHUB_OUTPUT: go });
+  assert.ok(oddRun.ok, oddRun.out); assert.match(oddRun.out, /vault results held, not published this run: unexpected files in vault\/: .*notes\.json/);
+  assert.match(fs.readFileSync(go, "utf8"), /held=true/);
 });
 
 test("vault: more than 10 tied for 1st, end to end: the 10 that picked first share 1st, the rest get nothing", async () => {
@@ -604,8 +606,12 @@ test("publish job: a final file stays locked even when it was stored pretty-prin
   const v = vaultOf(out);
   // Round 8 (BX-122): the publish job itself never writes a pretty-printed file: it isn't the recorder's own form.
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify(v, null, 2));
-  const pretty = publish(out, bare);
-  assert.equal(pretty.ok, false); assert.match(pretty.out, /recorders own JSON form/);
+  // I-037 B1-4: it holds the vault folder only; the race files still publish.
+  const pc = tmp(); fs.cpSync(out, pc, { recursive: true });   // the publish step removes a held vault folder
+  const pretty = publish(pc, bare);
+  assert.ok(pretty.ok, pretty.out); assert.match(pretty.out, /vault results held, not published this run: not in the recorder.s own JSON form: W2\.json/);
+  const tree = execFileSync("git", ["--git-dir", bare, "ls-tree", "-r", "--name-only", "race-data"]).toString();
+  assert.match(tree, /^W002\.json$/m, "the race file published"); assert.doesNotMatch(tree, /^vault\//m, "no vault file published");
   // But one already on the branch (put there some other way) still locks: "final": true, with a space.
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify(v) + "\n");
   stagePending(out, bare);
@@ -1583,4 +1589,71 @@ test("Repo Lens #B-7: the no-changes window starts the paid week's Monday; resul
   assert.match(rj, /const mineAll = all\.filter\(\(x\) => x\.my && !M\.restRace\(x\.r\.start\)\);/);
   for (const f of [".ai/platform/RULES.md", ".ai/standards/GAME_STANDARD.md", ".ai/standards/VAULT_STANDARD.md", ".ai/platform/DECISIONS.md"])
     assert.match(fs.readFileSync(path.resolve(APP, f), "utf8"), /Tue 12:00–15:00 UTC, Tue 4–7 AM PST/, f);
+});
+
+// ── I-086 (R-RACE-12 gap 2): more than 255 different scores among staked players ──
+// The vault's payout rule (Kpred finalizeGameStep): walk the points values from the top until the winners are at least
+// 30% of the players with a point (rounded up), everyone at the line included.
+const vaultPaid = (rows) => {
+  const need = Math.ceil((rows.length * 30) / 100), paid = new Set();
+  let cum = 0;
+  for (let p = 255; p >= 1 && cum < need; p--) { const at = rows.filter((r) => r.points === p); for (const r of at) paid.add(r.player); cum += at.length; }
+  return paid;
+};
+const addrI = (i) => "1" + String(i).padStart(33, "0").replace(/0/g, "A");
+test("I-086: past 255 different scores, the vault still pays exactly the top 30% (paid groups never share a value with unpaid ones)", async () => {
+  const R = await import(path.resolve(APP, "bot/race.ts"));
+  // 900 staked wallets, each with its own score: the paid line (270 wallets) lands past the 255th group.
+  const tuples = [];
+  for (let p = 1; tuples.length < 900; p++) for (let c = 0; c <= p; c++) for (let s = 0; c + s <= p; s++) if (c + s >= 1 && tuples.length < 900) tuples.push([c, s, p]);
+  const rows = R.rank(tuples.map(([c, s, p], i) => ({ a: addrI(i), correct: c, shows: s, picks: p, pts: 3 * c + s, ranked: true, earning: true })));
+  const want = R.stakedWinners(rows), { rows: vr, notes } = R.stakedRows(rows);
+  assert.equal(want.size, 270);
+  assert.deepEqual([...vaultPaid(vr)].sort(), [...want].sort(), "the vault pays exactly the wallets the recorder means to pay");
+  assert.ok(vr.every((r) => (want.has(r.player) ? r.points >= 2 : r.points === 1)), "paid wallets hold 255 … 2, unpaid ones 1");
+  assert.match(notes.join("\n"), /share 2 points, unpaid wallets get 1 \(I-086\)/);
+  // The old mapping (max(1, 255 − group)) put paid and unpaid wallets together at 1: the vault would pay all 900.
+  const old = vr.map((r, i) => ({ ...r, points: Math.max(1, 255 - i) }));
+  assert.equal(vaultPaid(old).size, 900, "the bug this fixes");
+  // Fewer than 255 groups, or a paid line inside the first 254: the values are exactly as before.
+  const small = rows.slice(0, 200), sv = R.stakedRows(small).rows;
+  assert.deepEqual(sv.map((r) => r.points), sv.map((_, i) => 255 - i));
+  assert.deepEqual([...vaultPaid(sv)].sort(), [...R.stakedWinners(small)].sort());
+});
+
+test("I-086, publish job: the recompute gives the same values past 255 groups and refuses the old mapping", async () => {
+  const tuples = [];
+  for (let p = 1; tuples.length < 900; p++) for (let c = 0; c <= p; c++) for (let s = 0; c + s <= p; s++) if (c + s >= 1 && tuples.length < 900) tuples.push([c, s, p]);
+  // One pick per race: the first c are wins, the next s are shows, the rest are misses (races 0–23, Monday to Saturday).
+  const pl = tuples.map(([c, s, p], i) => ({ a: addrI(i), staked: true, picks: Array.from({ length: p }, (_, k) => [k, k < c ? 1 : 0, k >= c && k < c + s ? 1 : 0, 1000 + i * 30 + k]) }));
+  const ok = await recomputeRun(pl);
+  assert.ok(ok.final, ok.out);
+  assert.equal(ok.file.rows.filter((r) => r.points === 1).length, 630, "the 630 unpaid wallets share 1");
+  const bad = await recomputeRun(pl, { mutate: (f) => ({ ...f, rows: f.rows.map((r, i) => ({ ...r, points: Math.max(1, 255 - i) })) }) });
+  assert.equal(bad.final, false); assert.match(bad.out, /staked rows aren't/);
+});
+
+test("I-037 B1-4: a nested folder, a file over 2 MB or a non-canonical file in vault/ holds the vault folder only; the race cards still publish", async () => {
+  const { dir } = await weekTwoDone();
+  const out = await picksRun(U("2026-11-09T05:37Z"), dir);
+  const cases = [
+    ["a nested folder", (d) => { fs.mkdirSync(path.join(d, "vault", "x")); fs.writeFileSync(path.join(d, "vault", "x", "W2.json"), "{}\n"); }, /unexpected files in vault\//],
+    ["a file over 2 MB", (d) => fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify({ ...vaultOf(out), pad: "x".repeat(2100 * 1024) }) + "\n"), /a file in vault\/ is over 2 MB/],
+    ["not canonical", (d) => fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify(vaultOf(out), null, 1) + "\n"), /not in the recorder.s own JSON form/],
+    ["a symlink", (d) => fs.symlinkSync("/etc/hostname", path.join(d, "vault", "W9.json")), /unexpected files in vault\//],
+  ];
+  for (const [name, spoil, why] of cases) {
+    const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+    const d = tmp(); fs.cpSync(out, d, { recursive: true }); spoil(d);
+    const go = path.join(tmp(), "github-output"), r = publish(d, bare, CHECK_NOW, { GITHUB_OUTPUT: go });
+    assert.ok(r.ok, name + ": " + r.out); assert.match(r.out, why, name);
+    assert.match(fs.readFileSync(go, "utf8"), /held=true/, name + ": the alert job fails the run");
+    const tree = execFileSync("git", ["--git-dir", bare, "ls-tree", "-r", "--name-only", "race-data"]).toString();
+    assert.match(tree, /^W002\.json$/m, name + ": the race cards published"); assert.doesNotMatch(tree, /^vault\//m, name);
+  }
+  // A bad file outside vault/ still stops the whole publish (nothing goes out).
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const d = tmp(); fs.cpSync(out, d, { recursive: true }); fs.writeFileSync(path.join(d, "W002.json"), JSON.stringify(week(out), null, 1));
+  const r = publish(d, bare);
+  assert.equal(r.ok, false); assert.match(r.out, /recorders own JSON form.*nothing published/);
 });

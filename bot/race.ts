@@ -801,12 +801,26 @@ export function prizePlaces(rows: Row[], firstPick: Map<string, number> = new Ma
 }
 
 /** The staked players' rows for the vault: every wallet staked in the Race that week with at least 1 point, in the
- *  board's order, as points 255, 254, ... per tied group (only the order and the ties matter to the vault). Beyond 255
- *  groups the rest all get 1 point and the run warns. Exported. */
+ *  board's order, as points 255, 254, ... per tied group (only the order and the ties matter to the vault). Exported.
+ *  Beyond 255 groups the values run out (I-086, RECORDER_STANDARD §4.3): the paid set (stakedWinners, the vault's top
+ *  30%) is worked out first, so an unpaid wallet never shares a value with a paid one. Normally the lowest groups just
+ *  share 1 point. When the paid groups themselves reach the 255th group, the best 253 groups keep 255 … 3, the rest of
+ *  the paid groups share 2 (their rank weights are averaged), and every unpaid wallet gets 1. The run notes either case. */
+export function rowValues(groups: Row[][], paid: Set<string>): number[] {
+  const last = groups.reduce((m, g, i) => (g.some((r) => paid.has(r.a)) ? i : m), -1);
+  const exact = groups.length <= MAX_ROW_POINTS || last <= MAX_ROW_POINTS - 2;
+  return groups.map((_, i) => (exact ? Math.max(1, MAX_ROW_POINTS - i) : i <= MAX_ROW_POINTS - 3 ? MAX_ROW_POINTS - i : i <= last ? 2 : 1));
+}
 export function stakedRows(rows: Row[]): { rows: VaultRow[]; notes: string[] } {
   const groups = groupsOf(rows.filter((r) => r.ranked && r.pts >= 1)), out: VaultRow[] = [], notes: string[] = [];
-  groups.forEach((g, i) => { for (const r of g) out.push({ player: r.a, points: Math.max(1, MAX_ROW_POINTS - i) }); });
-  if (groups.length > MAX_ROW_POINTS) notes.push(`${groups.length} different scores among staked players: the lowest ${groups.length - MAX_ROW_POINTS + 1} share 1 point`);
+  const paid = stakedWinners(rows), v = rowValues(groups, paid);
+  groups.forEach((g, i) => { for (const r of g) out.push({ player: r.a, points: v[i] }); });
+  if (groups.length > MAX_ROW_POINTS) {
+    const twos = v.filter((x) => x === 2).length;
+    notes.push(v[MAX_ROW_POINTS - 2] === 2 && twos > 1
+      ? `${groups.length} different scores among staked players: the paid groups from place-group 254 on (${twos} of them) share 2 points, unpaid wallets get 1 (I-086)`
+      : `${groups.length} different scores among staked players: the lowest ${groups.length - MAX_ROW_POINTS + 1} (all unpaid) share 1 point`);
+  }
   return { rows: out, notes };
 }
 

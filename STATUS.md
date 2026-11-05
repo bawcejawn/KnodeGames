@@ -23,7 +23,7 @@
 ## In progress
 | Work | Where | Next step |
 |---|---|---|
-| Go-live of Week 1 | owner | ✅ games 2 and 7 applied (5 Nov); left: `PRIZES_FROM_WEEK = 3`, announce v6.1 ([TODOS](.ai/platform/TODOS.md)) |
+| Go-live of Week 1 | owner | ✅ games 2 and 7 applied and `PRIZES_FROM_WEEK = 3` set (5 Nov); left: announce v6.1 ([TODOS](.ai/platform/TODOS.md)) |
 | Vault v6.1 | PR #114 | upload Mon 9, pin, handover 4a; accepts Tue 10; rule week Mon 16 |
 | **Questions results recorder** (P1) | Questions chat | build, Repo Lens, merge by Sun 15 (R-Q-4) |
 | VHP ruler v2.1 | `vhp-ruler-v21` | build A′ (D-154), re-run 11 sims (R-RULER-2) |

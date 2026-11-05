@@ -47,7 +47,10 @@ test("the page's stroke key matches the shared rules", () => {
   const G = box.window.KGolf;
   assert.equal(JSON.stringify(G.BANDS.map((b) => b[0])), "[5,25,65,90,100]");
   for (const pct of [5, 25, 65, 90]) assert.ok(html.includes(`Top ${pct}%`) || js.includes(`Top ${pct}%`), `${pct}% in the key`);
-  assert.match(html, /fewer than 5 such players/);
+  assert.match(html, /at least 5 Block Golf stakers with at least 10 VHP/);
+  assert.match(html, /In practice weeks every player who scored counts, and 3 make a hole/, "Repo Lens G-6");
+  assert.equal(G.PRACTICE_MIN_FIELD, 3);
+  assert.doesNotMatch(html + js, /at least 1 VHP\)|hold at least 1 VHP or stake in Knode Games/, "Repo Lens G-6: Golf's own staking rule");
   assert.match(html, /counted by the VHP they have staked/);
   assert.equal(G.MIN_FIELD, 5);
 });

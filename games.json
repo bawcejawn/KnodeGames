@@ -23,7 +23,7 @@
       "line": "Draft 5 producers under a salary cap, with a captain who scores double." },
     { "id": "golf", "name": "Block Golf", "kinds": ["staked"], "status": "soon", "href": "",
       "line": "Every Knode Games game is a hole. Your place on each game's weekly leaderboard sets your strokes; lowest score of the week wins.",
-      "board": { "data": "games-data/golf/board.json", "unranked": "To be ranked, hold at least 1 VHP or stake in Knode Games.",
+      "board": { "data": "games-data/golf/board.json", "unranked": "To be on the Staked board, stake in Block Golf this week (at least the vault's minimum, 1 VHP today).",
         "free": { "show": 6, "prize": "The Free play board pays no VHP prize for now. Players staked in Block Golf share its weekly bucket." },
         "columns": [{ "key": "pts", "label": "Points" }, { "key": "topar", "label": "To par" }, { "key": "holes", "label": "Holes played", "wide": true }, { "key": "lost", "label": "Lost balls", "wide": true }] } }
   ]

@@ -127,11 +127,11 @@ function Compose([string[]]$a) {
   try { return DockerOut (@("compose") + $a) } finally { Pop-Location }
 }
 function ReadState {
-  $s = @{ lastHeight = 0; misses = 0; heals = @(); lastRestart = 0; nagAt = 0; dockerAlert = 0; failAt = 0; stopAt = 0; healDownAt = 0; restarts = @{} }
+  $s = @{ lastHeight = 0; misses = 0; heals = @(); lastRestart = 0; nagAt = 0; dockerAlert = 0; failAt = 0; stopAt = 0; healDownAt = 0; psFail = 0; psNagAt = 0; restarts = @{} }
   if (Test-Path $StateFile) {
     try {
       $j = Get-Content $StateFile -Raw | ConvertFrom-Json
-      foreach ($k in @("lastHeight", "misses", "lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt")) { if ($null -ne $j.$k) { $s[$k] = [int64]$j.$k } }
+      foreach ($k in @("lastHeight", "misses", "lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt", "psFail", "psNagAt")) { if ($null -ne $j.$k) { $s[$k] = [int64]$j.$k } }
       if ($j.heals) { $s.heals = @($j.heals | ForEach-Object { [int64]$_ }) }
       if ($j.restarts) { foreach ($p in $j.restarts.PSObject.Properties) { $s.restarts[$p.Name] = [int64]$p.Value } }
     } catch { Log "The state file was unreadable; starting fresh." }
@@ -139,7 +139,7 @@ function ReadState {
   # A time later than now (the clock was fast and was corrected) would block restarts until it caught up: drop it.
   $n = NowMs
   $s.heals = @($s.heals | Where-Object { $_ -le $n })
-  foreach ($k in @("lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt")) { if ($s[$k] -gt $n) { $s[$k] = 0 } }
+  foreach ($k in @("lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt", "psNagAt")) { if ($s[$k] -gt $n) { $s[$k] = 0 } }
   return $s
 }
 function WriteState($s) { if (-not $DryRun) { $s | ConvertTo-Json -Depth 4 | Set-Content -Path $StateFile -Encoding ascii } }
@@ -197,7 +197,15 @@ if ($loop.Count) {
 # Is it running, answering, and keeping up?
 $all = @(); $running = @()
 try { $all = @(Compose @("ps", "-a", "-q") | Where-Object { $_ }); $running = @(Compose @("ps", "-q") | Where-Object { $_ }) }
-catch { Log "Couldn't list the node's containers this time; checking again next time."; WriteState $st; return }
+catch {
+  # Docker answers but can't list this node (a broken settings file, say). Say so after 3 checks in a row, every 3 hours.
+  $st.psFail = $st.psFail + 1
+  Log "Couldn't list the node's containers this time ($($st.psFail) in a row); checking again next time."
+  if ($st.psFail -ge 3 -and $now - $st.psNagAt -gt $NAG_MS) { Notify "Koinos node: can't check it" "Docker is running but can't list your node. See heal.log and 'What can go wrong' on knodegames.com/run-node.html."; $st.psNagAt = $now }
+  WriteState $st
+  return
+}
+$st.psFail = 0
 $local = $null
 $why = ""
 if (-not $all.Count -and $st.healDownAt) {

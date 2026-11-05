@@ -140,11 +140,11 @@ def compose(*a):
     return [l.strip() for l in r.stdout.splitlines() if l.strip()]
 
 
-NUMS = ("lastHeight", "misses", "lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt")
+NUMS = ("lastHeight", "misses", "lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt", "psFail", "psNagAt")
 
 
 def read_state(now):
-    s = {"lastHeight": 0, "misses": 0, "heals": [], "lastRestart": 0, "nagAt": 0, "dockerAlert": 0, "failAt": 0, "stopAt": 0, "healDownAt": 0, "restarts": {}}
+    s = {"lastHeight": 0, "misses": 0, "heals": [], "lastRestart": 0, "nagAt": 0, "dockerAlert": 0, "failAt": 0, "stopAt": 0, "healDownAt": 0, "psFail": 0, "psNagAt": 0, "restarts": {}}
     try:
         with open(STATE) as f:
             j = json.load(f)
@@ -168,10 +168,10 @@ def read_state(now):
         pass
     except Exception:
         log("The state file was unreadable; starting fresh.")
-        s = {"lastHeight": 0, "misses": 0, "heals": [], "lastRestart": 0, "nagAt": 0, "dockerAlert": 0, "failAt": 0, "stopAt": 0, "healDownAt": 0, "restarts": {}}
+        s = {"lastHeight": 0, "misses": 0, "heals": [], "lastRestart": 0, "nagAt": 0, "dockerAlert": 0, "failAt": 0, "stopAt": 0, "healDownAt": 0, "psFail": 0, "psNagAt": 0, "restarts": {}}
     # A time later than now (the clock was fast and was corrected) would block restarts until it caught up: drop it.
     s["heals"] = [t for t in s["heals"] if t <= now]
-    for k in ("lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt"):
+    for k in ("lastRestart", "nagAt", "dockerAlert", "failAt", "stopAt", "healDownAt", "psNagAt"):
         if s[k] > now:
             s[k] = 0
     return s
@@ -249,9 +249,15 @@ def check():
         everything = compose("ps", "-a", "-q")
         running = compose("ps", "-q")
     except Exception:
-        log("Couldn't list the node's containers this time; checking again next time.")
+        # Docker answers but can't list this node (a broken settings file, say). Say so after 3 checks in a row, every 3 h.
+        st["psFail"] += 1
+        log(f"Couldn't list the node's containers this time ({st['psFail']} in a row); checking again next time.")
+        if st["psFail"] >= 3 and now - st["psNagAt"] > NAG_MS:
+            notify("Koinos node: can't check it", "Docker is running but can't list your node. See heal.log and 'What can go wrong' on knodegames.com/run-node.html.")
+            st["psNagAt"] = now
         write_state(st)
         return
+    st["psFail"] = 0
     local, why = None, ""
     if not everything and st["healDownAt"]:
         # No containers because the self-heal's OWN restart ran "docker compose down" and its "up" didn't finish: try

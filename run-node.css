@@ -77,3 +77,38 @@ body[data-rn-os="linux"] .rn-cmd:not([data-os~="linux"]), body[data-rn-os="linux
 .rn-sources { font-size: .88rem; padding: 6px 4px 0; }
 .rn-sources h2 { font-size: 1rem; margin: 10px 0 6px; }
 .rn-sources ul { padding-left: 20px; display: grid; gap: 4px; }
+
+/* ---- Readability (owner, 5 Nov: "crisper but not obnoxious"). The guide's running text uses the computer's own
+   UI font (Segoe UI on Windows, San Francisco on a Mac): the system tunes it for the screen, so it renders sharper
+   than a web font at reading size. Slightly larger, darker text; bold only for the steps themselves. ---- */
+.rn {
+  --rn-text: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --rn-mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", ui-monospace, monospace;
+  --muted: #3F4A44;
+  font: 400 17px/1.65 var(--rn-text);
+  color: var(--ink);
+  text-rendering: optimizeLegibility;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rn { --muted: #C4CCC6; } }
+:root[data-theme="dark"] .rn { --muted: #C4CCC6; }
+.rn .lede { font-size: 1.08rem; color: var(--muted); }
+.rn p, .rn li, .rn td { font-family: var(--rn-text); }
+.rn .muted { color: var(--muted); }
+.rn b, .rn strong { font-weight: 600; }
+.rn-step-h h2 { font-size: 1.32rem; font-weight: 800; }
+.rn-sub { font: 700 1.06rem/1.35 var(--rn-text); margin: 22px 0 8px; color: var(--ink); }
+.rn-tag { display: block; font: 700 .74rem/1.2 var(--rn-text); letter-spacing: .07em; text-transform: uppercase; color: var(--violet); margin: 0 0 3px; }
+.rn-what, .rn-see { line-height: 1.6; }
+.rn-see { padding: 12px 14px; }
+.rn ol.rn-list > li::marker { font-weight: 700; color: var(--violet); }
+.rn-list { gap: 10px; }
+.rn code, .rn-cmd code { font-family: var(--rn-mono); }
+.rn p code, .rn li code, .rn td code { font-size: .88em; padding: 1px 6px; }
+.rn-cmd code { font-size: .9rem; line-height: 1.65; color: #F7F3EA; }
+.rn-cmd-h { font: 600 .82rem/1.2 var(--rn-text); color: #D6DDEA; }
+.rn-fix summary { font: 700 1rem var(--rn-text); }
+.rn-fix ul { color: var(--ink); }
+.rn-notice { border-left: 4px solid var(--sun); }
+.rn-notice p { margin: 0 0 8px; }
+.rn-legal { font-size: .95rem; }
+.rn-legal ul { padding-left: 20px; display: grid; gap: 8px; margin: 0 0 12px; }

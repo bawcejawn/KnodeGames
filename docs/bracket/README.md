@@ -1,17 +1,19 @@
 # Producer Bracket (game 9) — how it works, for reviewers
 
-A weekly knockout bracket of Koinos block producers. Players pick every winner of the whole bracket before Monday, as
-**one number** on the Knode Games Picks contract (game 9). A keyless recorder turns the chain's blocks and picks into
-results, points, boards and one weekly file for the Vault (v6), which pays the Bracket's stake bucket and its free-play
-prize. Nothing in this game holds or moves tokens.
+A weekly knockout of Koinos block producers, head to head (D-141): one round a day, the final on Saturday. Players
+pick every winner of the whole bracket by Monday night, as **one number** on the Knode Games Picks contract (game 9).
+A keyless recorder turns the chain's blocks and picks into results, points, boards and one weekly file for the Vault
+(v6), which pays the Bracket's stake bucket and its free-play prize. Nothing in this game holds or moves tokens.
+Timing follows `.ai/standards/WEEK_CYCLE.md`; the recorder follows `.ai/standards/RECORDER_STANDARD.md`.
 
 ## The week (all times UTC)
 | When | What |
 |---|---|
-| Saturday 12:00 | **Seeding**: every producer's exact effective VHP averaged over the 28,800 blocks before; the field = producers expected to sign ≥ 10 blocks in a 6-hour race; biggest = seed 1. Picks open. |
-| Sunday 23:55 | Picks lock (Picks `lead` 5 min, `ahead` 36 h, TIME lock, `round_size` 7 days, round = week + 2,963). |
-| Monday … Friday | One round per UTC day. 8–11 producers → 8 (Mon–Wed); 12–15 → 16 with byes; 16–31 → top 16 (Mon–Thu); 32+ → 32 (Mon–Fri); under 8 → no bracket. |
-| last round + 12 h | Results final, once the Vault's stakes are read on both nodes (or 3 days after the week ends: closed, no file). |
+| Sunday 00:00 (before the week) | **Seeding**: every producer's exact effective VHP averaged over the 28,800 blocks before; each producer's seeding VHP is the **lower** of that and its average at last week's seeding (#E-3 M-6); the field = producers expected to sign ≥ 10 blocks in a 6-hour race on that VHP; biggest = seed 1. Picks open. Not seeded within 24 h → the week is void. |
+| Monday 23:55 | Picks lock (Picks `lead` 5 min, `ahead` ≤ 48 h, TIME lock, `round_size` 7 days, target = Tuesday 00:00, round = week + 2,963). |
+| one round a day, final Saturday | **32** (32+ producers) Tue–Sat; **16** (16–31) Wed–Sat; **8** (8–15) Thu–Sat; under 8 → no bracket. No byes. Capped at 32 so the bracket fits one Picks number (31 matchups). |
+| Sunday | Review day: every recorded hour is read again on both nodes in a later run (the two-run rule); results are **pending**. Picks for the next week open. |
+| Monday 00:00 (after the week) | Final, once every result is in, every hour is re-read and the Vault's end-of-week stakes are read on both nodes. Not done by **Thursday 00:00** → closed without a vault file (`vault: "missed"`, or void if the results never completed). |
 
 ## A matchup (bracket-math.js, on the VHP standard in vhp-standard.js and docs/VHP-STANDARD.md)
 - **baseline** = the seed's effective VHP just before the day's first block (received VHP counts after 20 blocks).
@@ -19,57 +21,76 @@ prize. Nothing in this game holds or moves tokens.
 - **credited** = Σ over the blocks it signed of min(1, baseline ÷ its effective VHP at that block).
 - index = credited ÷ expected; higher wins; exact tie → the lower seed (underdog). The shared Σ cancels within a matchup,
   so gifts and top-ups are neutral and moving VHP away only lowers a producer's own chances.
-- **Forfeit**: baseline < 0.5 × the seed's seeding VHP → it loses the matchup (both forfeit → the index decides). The
-  **KnodeGames Vault never forfeits** (its VHP is players' withdrawable stakes); the recorder records it as `pooled` in
-  the seeding.
+- **The Knode Games Pool** (the vault, `pooled` in the seeding; D-086, #E-3 H-4) stays in the field and is judged on a
+  **rate index**: Σ over the blocks it signed of 1 ÷ its effective VHP then, divided by the same Σ q. Its expected value
+  is 1 for any VHP path, so deposits and withdrawals timed around 00:00 can't move it. It never forfeits.
+- **Forfeit** (#E-3 H-5): the seed's effective VHP **averaged over its round's day** (over the day's blocks) < 0.5 × its
+  seeding VHP → it loses the matchup (both forfeit → the index decides). A one-block dip at midnight forfeits nothing.
+- D-141: matchups move to the VHP ruler's luck percentile once ruler v2.1 passes its simulations (R-RULER-2).
 
 ## Scoring and ranking
-- 1 / 2 / 4 / 8 / 16 points by round, +2 for the right champion; byes score nothing.
-- The number: bit n = "the lower seed wins matchup n"; bye bits must be 0; any other number scores nothing.
+- 1 / 2 / 4 / 8 / 16 points by round, +2 for the right champion.
+- The number: bit n = "the lower seed wins matchup n"; any number ≥ 2^(size − 1) scores nothing.
 - Order: points → a right champion → more right winners → **the earlier bracket** (its last change's time, from the
-  Picks contract) → still tied (same block) shares the place. The all-time board shares ties.
+  Picks contract, i.e. its block's time) → still tied shares the place. Identical brackets sent in the **same block
+  share the place** (D-087, #E-3 H-6): a producer that also plays could put its copy in the same block as the original.
+  The all-time board shares ties.
 
 ## Players, boards and the Vault file
-- **Staked player**: at least the Vault's minimum stake (1 VHP today, read from `get_state` per week) staked in game 9
-  that week (`get_game_player`: `entry.stake` or `week_stake`). Read on both nodes once the week starts and again as it closes.
-- **Free player**: anyone else, guests included. A player the Vault would refuse a free prize (its own rule: peak stake
-  that week, or the stake now without an entry, ≥ the minimum) is "held" and is shown on the Staked board.
+- **Staked player**: the Vault's own rule (Block X's reader, with the `v6_rule_week_plus_one` gate): `week_stake` (the
+  lowest that week; 0 if everything was withdrawn) ≥ the week's minimum stake (1 VHP today). Read on both nodes during
+  the week for the boards, and **again after the week has ended** for the vault file (#E-3 M-1, L-8).
+- **Free player**: anyone else, guests included. A player the Vault would refuse a free prize (peak stake that week ≥
+  the minimum) is "held" and is shown on the Staked board, where it earns nothing (#E-3 M-2).
 - `vault/W<week>.json` = `{game: 9, week, final: true, rows, first, second}`:
-  - `rows`: staked players with ≥ 1 point, the order above mapped onto 1–255 (ties kept; past 255 places the best 254 exact).
+  - `rows`: staked players with ≥ 1 point. The groups the Vault must pay (its top 30% by headcount, ceil, ties whole,
+    worked out first) get 255, 254, … in the order above; every other row gets 1, so the Vault's own cutoff pays exactly
+    those groups whatever the number of places (#E-3 C-1). More than 254 paid groups: the lowest share 2.
   - `first` / `second`: free players with ≥ 1 point. One player in 1st → those tied next are 2nd. Several tied for 1st →
     they share all 3 VHP, no 2nd. More than 10 tied at a place → that place and below stay empty (back to the pool).
-  - Written only when the week is final and no later than 3 days after the week ends.
+  - Written only when the week is final, from Monday 00:00 to Thursday 00:00 UTC after it.
 
 ## Data flow and trust model
 1. `bot/games/bracket.ts` (GitHub Actions, `.github/workflows/games.yml`, no secrets) reads **irreversible** blocks with
-   receipts on **two** nodes (`bot/vhp-chain.ts`); every decision uses the irreversible block's time agreed by both.
+   receipts on **two** nodes (`bot/vhp-chain.ts`); every decision uses the **lower** of the two nodes' irreversible
+   blocks and its time, read on both (#E-3 M-8).
 2. Exact VHP is rebuilt from the VHP contract's events (reverted transactions skipped), anchored by balance reads pinned
-   to one block; fork check on block ids; cross-check against the contract's `effective_balance_of` (skipped with a
-   warning if a node can't answer it as a read-only call — not yet seen live).
-3. Both nodes must produce identical hours, seeding, picks and stakes, or nothing is written.
-4. The publish job runs **no repo code** (the same rules Block X earned in its audit rounds):
-   - every file must be exactly the recorder's own JSON form and JavaScript-safe (BX-95 / BX-112 / BX-122);
-   - a strict shape check of every file;
-   - **published history is kept**: a published seeding, recorded hour, checked pick list or final week never changes,
-     and `index.json`'s week list only grows — a run that tries is held whole, with an alert (as BX-88);
-   - a **Vault file is judged against the published branch**: it is published only once its week is final there, it
-     must equal what that published final week gives (rows, first, second, rebuilt in the job), and only within 3 days
-     of the week's end; Vault files are write-once (as BX-79 / BX-81).
-5. The page (`bracket.html`, `bracket.js`) reads only those published files and the Picks contract; it signs only a
-   `pick` for game 9's current round (wallet, or a sponsored guest wallet).
-6. The Vault bot (branch `vault-v6-next`, `bot/vault.ts`) reads `games-data:bracket/vault/W<week>.json` and posts it.
+   to one block; fork check on block ids; no balance below zero at any point of the walk; cross-check against the
+   contract's `effective_balance_of` (3 tries, then skipped with a warning — not yet seen live, R-BR-6). Known limits
+   (#E-3 M-7, L-1, L-9) are written in `bot/vhp-chain.ts`.
+3. Both nodes must produce identical hours, seeding, picks and stakes, or nothing is written. Every hour is read again
+   in a later run before the week can go final.
+4. The publish job runs **no repo code**, and a bad Bracket file holds only the Bracket (never Block X, #E-3 M-3):
+   - every file must be exactly the recorder's own JSON form and JavaScript-safe; names and sizes are checked per game;
+   - the recorder's own load rules (seeding hash, sizes, sorted lists, hour fields; #E-3 M-9);
+   - **results and points are recomputed in the job** from the published seeding, hours and checked picks, with a port
+     of `bracket-math.js` differential-tested against it (`tests/audit/bracket-publish-port.test.mjs`; #E-3 H-2);
+   - **the job's own clock bounds new history** (#E-3 H-3): new weeks only last/this/next week and never final; index
+     weeks only with their file; seeding after its time; picks after the lock; an hour after it ends, and marked re-read
+     only in a later run; stakes after the week starts, the end-of-week read after it ends; final no earlier than
+     Monday 00:00 UTC after the week; nothing goes backwards (no locked → void before the backstop, no stakes → null);
+   - **published history is kept**: a published seeding, recorded hour, checked pick list or final week never changes;
+   - a **Vault file** must equal what the final week gives (in the same run that makes it final, #E-3 M-5), within its
+     window; Vault files are write-once.
+5. The page (`bracket.html`, `bracket.js`) reads only those published files and the pinned Picks contract (#E-3 L-13);
+   it signs only a `pick` for game 9's round, and only the exact bracket, account and week shown in the check pop-up
+   (frozen at review, re-checked at send, the page behind made inert; the lock guard uses the chain's clock; #E-3 C-2,
+   L-2).
+6. The Vault bot (`bot/vault.ts`) reads `games-data:bracket/vault/W<week>.json` and posts it.
+7. A recorder failure fails the run after publishing (the alert job), so the owner gets an email (#E-3 M-4).
 
 ## Leaderboards (leaderboard standard)
 - Rows `{a, place, boardPlace, pts, champion, correct, ranked, earns}`: places on the player's own board (ties share);
-  `earns` 1 / 2 = the free prize's 1st / 2nd, 3 = a share of the Staked bucket (the top 30% by headcount, rounded up,
-  tied groups whole), 0 = nothing — only on This week / Last week and only from `BRACKET_PRIZES_FROM_WEEK` (a repository
-  variable: the first week the Vault pays game 9; unset → no medals, no prize lists).
+  `earns` 1 / 2 = the free prize's 1st / 2nd, 3 = paid from the Staked bucket — **from exactly the vault file's rows**,
+  only for a final week that wasn't missed and only from `BRACKET_PRIZES_FROM_WEEK` (a repository variable: the first
+  week the Vault pays game 9; unset → no medals, no prize lists).
 - `lastWeek.prizes` (once final): `[{player, place, vhp}]` by the Vault's payout rule (Leaders page medals).
-- **Final weeks are frozen**: a later run keeps a final week's stored results and points (a rule change never rewrites one).
+- **Final weeks are frozen**: a later run keeps a final week's stored results and points as published.
 - `games.json` has the Bracket's `board` entry (`earns: true`, `hide: ["today"]`); `leaders.js` reads both options.
 
 ## Launch (owner, only after the Repo Lens audit passes — D-064)
-1. Announce game 9 in Picks (48 h).
+1. Announce game 9 in Picks (48 h): kind NUMBER, TIME lock, `round_size` 7 days, `round_offset` = Tuesday 00:00 UTC
+   (`ROUND_OFFSET` in bracket-math.js), `lead` 5 min, `ahead` 48 h, `number_max` 2^31 − 1.
 2. Vault: `game-add 9 "Producer Bracket" --staked --free --season 1` (48 h); the free-prize switch for game 9 stays ON (D-082).
 3. Set `BRACKET_PRIZES_FROM_WEEK` to game 9's first paying week.
 4. Sponsor allowlist row for game 9 picks.
@@ -86,3 +107,4 @@ prize. Nothing in this game holds or moves tokens.
 - 8-day sample (`data/bracket-vhp-sample.json.gz`): the rebuild matched all 780 race-card VHP readings;
   `tools/sim/bracket/replay.mjs` runs the real recorder over it as one week.
 - 100 days (branch `bracket-history`): 0 node disagreements; the better seed won 54.0% of 113 matchups.
+- Repo Lens #E-3 (3 Nov) → every Critical, High and Medium fixed in one pass with D-141's shape (5 Nov); fix-check next.

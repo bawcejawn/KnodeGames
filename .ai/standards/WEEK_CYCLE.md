@@ -49,7 +49,7 @@ A game's chat adds or updates its row **in its first PR** and whenever its timin
 | Fantasy (4, 5) | ⏸ paused | — | built as 12 h after | — | branch `fantasy` | adopt before launch |
 | Block Golf (6) | ⏸ paused | — | — | — | branch `golf` | adopt before launch |
 | Combo Card (8) | ⏸ paused | — | built as 12 h after | — | branch `combo` | adopt before launch |
-| Producer Bracket (9) | ⏸ paused | Sat seeding / Sun picks must be reshaped | — | — | branch `kg-09-bracket` | reshape and adopt before launch |
+| Producer Bracket (9) | **yes, built** (D-141; branch `kg-09-bracket`, not launched) | review day: every hour re-read in a later run, results pending; **Sunday 00:00 seeding opens next week's picks** (lock Mon 23:55); no Sunday rounds (a knockout: the final is Saturday) | **Mon 00:00 + checks** (results in, every hour re-read, end-of-week stakes read on both nodes); backstop Thu 00:00 → closed without a file | Mon evening PT | `kg-09-bracket` (Repo Lens #E-3 fixes + D-141) | fix-check; Sunday fun rounds: none (owner to confirm) |
 | Last Node Standing (13) | ⏸ paused | — | built as 12 h after | — | branch `lastnode` | adopt before launch |
 
 ## 5. Checking a game against this page

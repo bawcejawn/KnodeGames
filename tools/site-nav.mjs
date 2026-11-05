@@ -1,11 +1,13 @@
 // Writes the site's navigation into every page, so all pages stay the same. Edit the lists here, then run:
 //   node tools/site-nav.mjs
-// - TOP: the menu at the top (computers and tablets): Games ▾ · Leaderboards · Results · Tools ▾ · Rules ·
-//   New to Koinos? · Info ▾ (owner, 2026-10-28). Dropdowns are <details> menus (they work without JavaScript;
+// - TOP: the menu at the top (computers and tablets): Games ▾ · Leaderboards · Results · Stake · Tools ▾ · Rules ·
+//   New to Koinos? (owner, 2026-10-28; Stake added and the Info menu removed, R-HUB-9 / R-HUB-10). Dropdowns are <details> menus (they work without JavaScript;
 //   nav.js closes them on an outside tap or Escape).
-// - TABS + MORE: the phone tab bar (Games · Leaders · Results · Swap · More, owner 2026-10-28) and the "More" sheet,
+// - TABS + MORE: the phone tab bar (Games · Leaders · Stake · Results · More; Swap moved into More's Tools, R-HUB-9)
+//   and the "More" sheet,
 //   grouped like the top menu (Play, Tools, Learn, About).
-// - FOOT: the footer's links: only the few that belong at the bottom of every site (the rest is in the menus).
+// - FOOT: the footer's links: only the few that belong at the bottom of every site (the rest is in the menus), plus
+//   the quick tour now that the Info menu is gone.
 // On index.html the question-game views are links to "#view" with data-view (app.js switches views in place);
 // on every other page they link to "index.html#view".
 import fs from "node:fs";
@@ -30,16 +32,18 @@ const I = {
   install: '<path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M5 20h14"></path>',
   blockx: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path>',
   trust: '<path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"></path>',
+  stake: '<ellipse cx="12" cy="6" rx="7" ry="2.5"></ellipse><path d="M5 6v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"></path><path d="M5 10v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"></path><path d="M5 14v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"></path>',
+  name: '<circle cx="12" cy="12" r="3.5"></circle><path d="M15.5 12v1.5a2.5 2.5 0 0 0 5 0V12a8.5 8.5 0 1 0-3.3 6.7"></path>',
   terms: '<path d="M7 3h7l4 4v14H7z"></path><path d="M10 12h5M10 16h5"></path>',
 };
 
 // [label, link, icon]. A link starting with "#" is a question-game view on index.html.
-export const TABS = [["Games", "games.html", "games"], ["Leaders", "#leaderboard", "leaders"], ["Results", "#results", "results"], ["Swap", "swap.html", "swap"]];
+export const TABS = [["Games", "games.html", "games"], ["Leaders", "#leaderboard", "leaders"], ["Stake", "stake.html", "stake"], ["Results", "#results", "results"]];
 // The More sheet, in groups (each group a heading, then its links).
 export const MORE_GROUPS = [
   ["Play", [["Daily Questions", "#play", "play"], ["Producer Race", "race.html", "race"], ["Who Signs Block X", "blockx.html", "blockx"], ["Rules", "#how", "rules"]]],
-  ["Tools", [["Burn KOIN", "burn.html", "burn"], ["Mana levels", "mana.html", "mana"], ["Producer lookup", "node.html", "lookup"], ["Network pulse", "pulse.html", "pulse"]]],
-  ["Learn", [["New to Koinos?", "start.html", "welcome"], ["New here? Quick tour", "#welcome", "welcome"], ["Get VHP", "get.html", "get"]]],
+  ["Tools", [["Get VHP", "get.html", "get"], ["Get an @name", "names.html", "name"], ["Swap VHP → KOIN", "swap.html", "swap"], ["Burn KOIN", "burn.html", "burn"], ["Mana levels", "mana.html", "mana"], ["Producer lookup", "node.html", "lookup"], ["Network pulse", "pulse.html", "pulse"]]],
+  ["Learn", [["New to Koinos?", "start.html", "welcome"], ["New here? Quick tour", "#welcome", "welcome"]]],
   ["About", [["Install app", "install.html", "install"], ["Trust", "trust.html", "trust"], ["Terms &amp; risks", "terms.html", "terms"]]],
 ];
 export const MORE = MORE_GROUPS.flatMap(([, links]) => links);
@@ -48,14 +52,14 @@ export const TOP = [
   { label: "Games", items: [["All games", "games.html"], ["Daily Questions", "#play"], ["Producer Race", "race.html"], ["Who Signs Block X", "blockx.html"]] },
   { label: "Leaderboards", link: "#leaderboard" },
   { label: "Results", link: "#results" },
-  { label: "Tools", items: [["Swap VHP → KOIN", "swap.html"], ["Burn KOIN", "burn.html"], ["Mana levels", "mana.html"], ["Producer lookup", "node.html"], ["Network pulse", "pulse.html"]] },
+  { label: "Stake", link: "stake.html" },
+  { label: "Tools", items: [["Get VHP", "get.html"], ["Get an @name", "names.html"], ["Swap VHP → KOIN", "swap.html"], ["Burn KOIN", "burn.html"], ["Mana levels", "mana.html"], ["Producer lookup", "node.html"], ["Network pulse", "pulse.html"]] },
   { label: "Rules", link: "#how" },
   { label: "New to Koinos?", link: "start.html", cls: "tab-start" },
-  { label: "Info", items: [["Get VHP", "get.html"], ["New here? Quick tour", "#welcome"], ["Install app", "install.html"], ["Trust", "trust.html"], ["Terms &amp; risks", "terms.html"]] },
 ];
 // Rules opens on the page's own game where there is one.
 const RULES_TAB = { "race.html": "race", "swap.html": "swap" };
-export const FOOT = [["Trust", "trust.html"], ["Terms &amp; risks", "terms.html"], ["Install app", "install.html"], ["Source code", "https://github.com/bawcejawn/Knode"]];
+export const FOOT = [["New here? Quick tour", "#welcome"], ["Trust", "trust.html"], ["Terms &amp; risks", "terms.html"], ["Install app", "install.html"], ["Source code", "https://github.com/bawcejawn/KnodeGames"]];
 
 const svg = (k) => `<svg aria-hidden="true" viewBox="0 0 24 24">${I[k]}</svg>`;
 function href(file, link) {
@@ -97,8 +101,8 @@ export function topBlock(file) {
 }
 
 /** The footer's links. */
-export function footBlock() {
-  const links = FOOT.map(([l, h]) => (h.startsWith("http") ? `<a href="${h}" target="_blank" rel="noopener">${l}</a>` : `<a href="${h}">${l}</a>`));
+export function footBlock(file = "index.html") {
+  const links = FOOT.map(([l, h]) => (h.startsWith("http") ? `<a href="${h}" target="_blank" rel="noopener">${l}</a>` : `<a ${href(file, h)}>${l}</a>`));
   return `<span class="foot-links">${links.join(" · ")}</span>`;
 }
 
@@ -111,7 +115,7 @@ export function withNav(file, html) {
     const end = out.indexOf("</nav>", t);
     out = out.slice(0, t) + topBlock(file) + out.slice(end + "</nav>".length);
   }
-  out = out.replace(/<span class="foot-links">[^\n]*?<\/span>/, footBlock());
+  out = out.replace(/<span class="foot-links">[^\n]*?<\/span>/, footBlock(file));
   const i = out.indexOf('<nav class="tabbar"');
   if (i < 0) return out;
   const sheet = out.indexOf('<div class="more-sheet"', i);

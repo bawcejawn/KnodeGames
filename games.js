@@ -8,7 +8,7 @@
   const W = window.KWallet;
   const BASE = "./";
   const GAME_DATA = BASE + "game-data/";
-  const RACE_DATA = "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/";
+  const RACE_DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/";
   const $ = (id) => document.getElementById(id);
   const SVG = "http://www.w3.org/2000/svg";
 
@@ -108,12 +108,12 @@
   async function loadQuestions() {
     try {
       const idx = await fetchJson(GAME_DATA + "index.json");
-      const days = Array.isArray(idx && idx.days) ? idx.days.filter((d) => typeof d === "string" && /^questions\/W\d{3}-D[1-7]\.json$/.test(d)) : [];
+      const days = Array.isArray(idx && idx.days) ? idx.days.filter((d) => typeof d === "string" && /^questions\/W\d{3}-D[1-7](-\d{2})?\.json$/.test(d)) : [];
       if (!days.length) return;
       const day = await fetchJson(GAME_DATA + days[days.length - 1]);
       const now = Date.now(), qs = Array.isArray(day && day.questions) ? day.questions : [];
       questionsOpen = qs.filter((q) => q && Number(q.lockTime) > now).length;
-      if (!questionsOpen) nextQuestions = "New questions Mon–Sat, 12:00 UTC";
+      if (!questionsOpen) nextQuestions = Date.now() >= Date.UTC(2026, 10, 9) ? "New questions Mon–Sat, 00:00 and 12:00 UTC" : "New questions Mon–Sat, 12:00 UTC";
     } catch { /* no data: leave the card plain */ }
     refresh();
   }
@@ -158,11 +158,11 @@
     }
     $("g-soon").replaceChildren(...games.filter((g) => g.status === "soon").map(card));
     // "Where to stake": every game's stake side by side (stake-panel.js; hidden until the Knode Games vault is live).
-    // Each live game links to its own page's stake panel (#stake); Daily Questions stakes on its play page.
+    // Each live game links to its own page's stake panel (#stake); Daily Questions to its card on the Stake page.
     const stakeBox = $("stake-list");
     if (stakeBox && window.KStake) {
       const links = {};
-      for (const g of games) if (g.status === "live" && VAULT_IDS[g.id]) links[VAULT_IDS[g.id]] = g.id === "questions" ? g.href : `${g.href.split("#")[0]}#stake`;
+      for (const g of games) if (g.status === "live" && VAULT_IDS[g.id]) links[VAULT_IDS[g.id]] = g.id === "questions" ? "stake.html#g1" : `${g.href.split("#")[0]}#stake`;
       window.KStake.mountList(stakeBox, { links });
     }
     $("soon-box").hidden = !games.some((g) => g.status === "soon");

@@ -440,6 +440,21 @@
                 "options": {
                   "jstype": "JS_STRING"
                 }
+              },
+              "player": {
+                "type": "bytes",
+                "id": 1
+              },
+              "entry": {
+                "type": "bytes",
+                "id": 2
+              },
+              "active_stake": {
+                "type": "uint64",
+                "id": 3,
+                "options": {
+                  "jstype": "JS_STRING"
+                }
               }
             }
           },
@@ -473,6 +488,10 @@
                 "options": {
                   "jstype": "JS_STRING"
                 }
+              },
+              "entry": {
+                "type": "bytes",
+                "id": 2
               }
             }
           },

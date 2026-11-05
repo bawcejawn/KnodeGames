@@ -37,14 +37,18 @@ async function world({ heights = {}, crash = [], state = {}, task = true, lock =
     for (const b of backups.filter((x) => x.node === k)) fs.mkdirSync(path.join(base, b.sub, b.name), { recursive: true });
     nodes.push({ name: `${k} node`, dir, k, base });
   }
-  const emails = [];
+  const emails = [], netCalls = [];
   const server = http.createServer((req, res) => {
     let body = "";
     req.on("data", (d) => (body += d));
     req.on("end", () => {
       if (req.url.startsWith("/repos/")) { emails.push(JSON.parse(body).inputs); res.writeHead(204); return res.end(); }
       const who = req.url.slice(1);
-      const h = who === "net" ? NET : heights[who] ?? NET;
+      netCalls.push(who);
+      // A public node that answers with an HTML error page (as koinos.armana.io sometimes does), and one that does so
+      // only on its first call.
+      if (who === "bad" || (who === "flaky" && netCalls.filter((x) => x === "flaky").length === 1)) { res.writeHead(502, { "content-type": "text/html" }); return res.end("<html><h1>502 Bad Gateway</h1></html>"); }
+      const h = ["net", "flaky", "backup"].includes(who) ? NET : heights[who] ?? NET;
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { head_topology: { height: String(h) } } }));
     });
@@ -60,19 +64,20 @@ async function world({ heights = {}, crash = [], state = {}, task = true, lock =
   fs.writeFileSync(path.join(healDir, "heal-state.json"), JSON.stringify(fullState));
   if (task) fs.writeFileSync(path.join(healDir, "heal-task.json"), JSON.stringify({ version: 2, limitMinutes: 120 }));
   if (lock) fs.writeFileSync(path.join(healDir, "repair.lock"), JSON.stringify(lock));
-  const run = (args = []) => new Promise((resolve) => {
+  const run = (args = [], more = {}) => new Promise((resolve) => {
     execFile(process.execPath, [HEAL, ...args], {
       cwd: tmp,
       env: {
         PATH: process.env.PATH, HOME: tmp, RPC: `${url}/net`, HEAL_GITHUB_API: url, GITHUB_ALERT_TOKEN: "test", HEAL_DIR: healDir,
         HEAL_DOCKER: fakeDocker, HEAL_POWERSHELL: fakePs, HEAL_DISK_MARGIN_BYTES: "0",
-        HEAL_NODES: JSON.stringify(nodes.map((n) => ({ name: n.name, dir: n.dir, rpc: `${url}/${n.k}` }))), ...env,
+        HEAL_NODES: JSON.stringify(nodes.map((n) => ({ name: n.name, dir: n.dir, rpc: `${url}/${n.k}` }))), HEAL_RPC_FALLBACKS: "", ...env,
+        ...Object.fromEntries(Object.entries(more).map(([k, v]) => [k, String(v).replaceAll("{url}", url)])),
       },
     }, (err, stdout, stderr) => resolve({ out: stdout + stderr }));
   });
   const done = () => new Promise((r) => server.close(r));
   return {
-    tmp, healDir, nodes, emails, run, done,
+    tmp, healDir, nodes, emails, run, done, netCalls,
     calls: () => fs.readFileSync(calls, "utf8"),
     state: () => JSON.parse(fs.readFileSync(path.join(healDir, "heal-state.json"), "utf8")),
   };
@@ -218,4 +223,36 @@ test("the repair script runs unattended and returns an exit code (0 repaired, 1 
   const inst = fs.readFileSync(path.join(ROOT, "node", "install-heal.ps1"), "utf8");
   assert.match(inst, /ExecutionTimeLimit \(New-TimeSpan -Hours 2\)/);
   assert.match(inst, /heal-task\.json/);
+});
+
+// The network check (heal.log showed "Can't reach the Koinos network" when koinos.armana.io answered one call with an
+// HTML error page; it does so about 1 call in 10 at times). One failed answer no longer skips the whole check.
+test("network check: a one-off error page from the main public node is retried, and the nodes are still checked", async () => {
+  const w = await world();
+  try {
+    const { out } = await w.run([], { RPC: "{url}/flaky" });
+    assert.doesNotMatch(out, /Can't reach the Koinos network/);
+    assert.match(out, /second try at 127\.0\.0\.1/);
+    assert.match(out, /desk node: OK/);
+  } finally { await w.done(); }
+});
+
+test("network check: when the main public node keeps failing, a fallback node is used", async () => {
+  const w = await world();
+  try {
+    const { out } = await w.run([], { RPC: "{url}/bad", HEAL_RPC_FALLBACKS: "{url}/backup" });
+    assert.doesNotMatch(out, /Can't reach the Koinos network/);
+    assert.match(out, /The network check used 127\.0\.0\.1/);
+    assert.match(out, /game node: OK/);
+    assert.deepEqual(w.netCalls.filter((x) => ["bad", "backup"].includes(x)), ["bad", "bad", "backup"]);
+  } finally { await w.done(); }
+});
+
+test("network check: skipped only when no public node answers, with every error listed", async () => {
+  const w = await world();
+  try {
+    const { out } = await w.run([], { RPC: "{url}/bad", HEAL_RPC_FALLBACKS: "{url}/bad" });
+    assert.match(out, /Can't reach the Koinos network \(127\.0\.0\.1:\d+: .*; 127\.0\.0\.1:\d+: /);
+    assert.doesNotMatch(out, /desk node: OK/);
+  } finally { await w.done(); }
 });

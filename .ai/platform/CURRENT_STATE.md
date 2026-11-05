@@ -1,68 +1,43 @@
 # Knode Games — Current State
 
-> **Snapshot:** Tuesday 3 Nov 2026, morning (Pacific). This file goes stale fast — update it when something ships, and check the date before trusting it.
-> **Sources:** the repo and GitHub (branches, PRs, workflow runs checked 3 Nov), `DECISIONS.md`, `OPENISSUES.md`, `TODOS.md`. Detail lives there; this is the summary.
+> **Purpose:** what exists and works **right now**, and the dates to watch. One page.
+> **Snapshot:** Thursday 5 Nov 2026, ~05:00 UTC (Wed 4 Nov 9 PM PT). Refresh after each launch step and at every weekly review; check the date before trusting it.
+> **Where the rest lives:** work in progress and blockers → `LAUNCH_BOARD.md`; dates → `CALENDAR.md`; what matters most → `PRIORITIES.md`; the owner's steps → `TODOS.md`; the chats' work → `CHAT_REQUESTS.md`; problems → `OPENISSUES.md`. Earlier versions: `../archive/`.
 
-## Completed systems
-**On chain (Koinos mainnet)**
-- **Vault v6** — live since Mon 2 Nov 02:33 UTC at `1Mpmf2…`; holds every stake; produces blocks as the **Knode Games Pool** (D-073). Emergency withdrawals-only build ready (D-021). Holdings 21,133.83 vs 21,124.07 owed (3 Nov).
-- **Seed** — 21,050 VHP from a dedicated seed owner wallet (D-022).
-- **Mana sponsor v3** — live; 25,000 KOIN; caps 25 a day / 150 a week per wallet, 5,000 a day total (D-061). Vault switch still off.
-- **Picks contract** — live since 30 Oct; **Block X (game 2) applied** with 1 change per pick (D-070).
-- **Race picks contract** and **Swap Desk v2** (3% fee, no daily cap) — live.
+## Live on chain (Koinos mainnet)
+- **Vault v6** at `1Mpmf2…` since Mon 2 Nov 02:33 UTC. It holds every stake and produces blocks as the **Knode Games Pool** (D-073). Holdings 21,133.83 VHP vs 21,124.07 owed (3 Nov). The emergency withdrawals-only build is ready (D-021).
+- **Seed:** 21,050 VHP from a dedicated seed owner wallet (D-022).
+- **Mana sponsor v3** at `1ByDDSB…`, code **`b84e1add…`** since 4 Nov 07:27 UTC (the guest-trap fix): switch ON, vault switch ON; caps **2.4 Mana per transaction** (D-131, tx `0x1220a593…1bfc`), 40 a day and 250 a week per player (D-105), 5,000 a day in total, 2,000 a day for free players. Per-action rows and measured costs: `SPONSOR.md`.
+- **Picks contract** `1LmgqB…` since 30 Oct; **Block X (game 2) applied**, 1 change per pick (D-070).
+- **Race picks contract** `1EN7xU…` and **Swap Desk v2** `1FKTpX…` (3% fee, no daily cap).
+- **Vault games:** game 1 (Questions) is built in. **Games 2 (Block X) and 7 (Race) announced 3 Nov**, applicable from **Thu 5 Nov 15:51 UTC** (owner applies them, then `PRIZES_FROM_WEEK = 3`).
+- **Vault v6.1** (60 questions a week, Questions on the shared rules, the bot closes weeks): built and cleared (PR #114, release `11043e1f…`, Repo Lens #E-16 GO); announce Thu 5 Nov, upload Mon 9 (D-130).
 
-**Live for players**
-- **Daily Questions (game 1)** — five questions Mon–Sat at 12:00 UTC; Week 2 finalized and paid 3 Nov; 70 questions posted so far.
-- **Producer Race (game 7)** — four races a day, Staked / Free boards, status badge.
-- **Site** — knodegames.com on GitHub Pages: staking hub, status bars, @names, guest play, swap page.
+## Live for players
+- **Daily Questions (game 1):** five questions Mon–Sat at 12:00 UTC. Week 2 finalized and paid 3 Nov; 70 questions posted so far.
+- **Producer Race (game 7):** four races a day, Staked and Free boards, status badge, nicknames; on the weekly rhythm (#149) with unscored Sunday fun races (#155, D-129); payout safety (#133).
+- **Who Signs Block X (game 2):** live since 3 Nov with nicknames and a Results tab (#143); recorder on; on the weekly rhythm from Week 1 (#160; first rest day Sun 15 Nov); published finals can't be rewritten (#159); prize-free until it pays from Mon 9 Nov (D-077).
+- **Site:** knodegames.com on GitHub Pages: staking hub (its own **Stake** tab since 4 Nov, D-109; manages Daily Questions too, #142, #150; claiming 2+ rewards asks free one-by-one or all at once with own Mana, #157, D-132), status bars, @names (Make main / Remove, PR #95), guest play, swap page, Leaders page (Questions, Race, Block X); "Week 1" labels from Mon 9 Nov (PR #94). The CI guard reads workflows' parsed YAML and expressions (PRs #99, #111).
 
-**Operations**
-- **Bot** — hourly (plus the 11:48 UTC release run); release on time at 12:00 UTC; recovers on its own from node hiccups.
-- **Three mainnet nodes** on the owner's PC (desk, game/pool, personal), self-heal every 20 min, watchdog emails, question-release backup task.
-- **Two-node checks** — Armana plus `api.koinosblocks.com`, both answering (3 Nov).
+## Running in the background
+- **VHP ruler** (#163, merged 5 Nov): the shared ruler, its hourly recorder and simulations are on `main`, **off** until the owner sets `VHP_RULER_ENABLED`; then it records data only and pays nothing (D-111, D-128).
+- **Bot:** hourly, plus the 11:48 UTC release run; recovers by itself from node hiccups. Since PR #74 it also checks each game's results before posting them (HOLD files, `board.json`, two-run rule, refusal alerts).
+- **VHP sampler** (`race-samples.yml`): GitHub runs it about hourly; each run takes up to 12 samples (~48 per 6-h card, PR #67).
+- **Free-prize switch** (D-082, PR #65): built, not used yet (the `prize-settings` branch appears with the first ON/OFF send). Guide: `FREE_PRIZE_SWITCH.md`.
+- **Three mainnet nodes** on the owner's PC (desk, game/pool, personal): self-heal every 20 min, watchdog emails, question-release backup task.
+- **Two-node checks:** Armana plus `api.koinosblocks.com`.
+- **Weekly review:** Tuesdays 10 AM PT (`WEEKLY_REVIEW.md`), reminder at 9:45 AM PT. First review Tue 10 Nov.
 
-**Documentation**
-- The `.ai/` library: start guide, platform docs, nine game files, four standards, all 12 chats filed; 74 decisions; no open contradictions.
-
-## In-progress systems
-| System | Where it stands | Next step |
-|--------|-----------------|-----------|
-| **Block X (game 2)** | applied on Picks; round 12 GO; PR #57 merged; **live on the Games page** (PR #58) and recorder on (`GAMES_ENABLED`), prize-free until it's in the vault | `game-add 2` today → apply Thu–Sun → pays from Mon 9 Nov (D-077) |
-| **Vault game registration** | game 1 built in; **games 2 and 7 announced 3 Nov**, applicable Thu 5 Nov 15:51 UTC; sponsor vault switch **done** | `game-apply 2` and `7` Thu–Sun → Questions, Race and Block X pay from Mon 9 Nov (D-077) |
-| **Sponsor vault switch** | **done 3 Nov** — vault live, caps unchanged | — |
-| **Site "Week 1" refresh** | Race `PRIZES_FROM_WEEK = 3` done (PR #56) | show 9 Nov as Week 1 site-wide; replace "vault not yet live" text (I-069, I-027) |
-| **Survivor (3)** | branch `survivor` @ `a8a1979`, not merged | Repo Lens pass 4 → testnet season → register game 3 → Season 1 **Mon 16 Nov** (D-065) |
-| **Last Node Standing (13)** | branch `lastnode` @ `adf95be` | round-3 review; needs 48 h of VHP sampler data first |
-| **Producer Bracket (9)** | branch `kg-09-bracket` @ `ee676ea` | Repo Lens audit (never run yet) |
-| **Fantasy Producers (4)** | branch `fantasy` @ `2bee805`; testnet practice deployed | fix-check; a full test week; real-data simulation |
-| **Combo Card (8)** | branch `combo` @ `c8c652e` | fix-check 4; then the Picks v2 upgrade after Block X |
-| **Block Golf (6)** | branch `golf` @ `6b2200a` | practice with Block X; staked after `game-add 6` |
-| **Wallet moves** | seed done | hardware-wallet owner, cold desk treasury, retire old operator key — this weekend |
-
-**Every game has Free play** (D-081). Free 2 + 1 VHP prizes on Questions, Block X, Race, Bracket (and Last Node when it launches) from Mon 9 Nov (D-062); Combo, Golf, Survivor and Fantasy have a Free board with no prize until the owner switches it on.
-
-## Known blockers
-1. **Audits not run yet.** Five games wait on Repo Lens (Block X round 12, Survivor pass 4, Last Node round 3, Bracket, Fantasy, Combo fix-check 4). Starting today. Nothing is announced until each passes (D-064).
-2. ~~PR #57 must merge~~ — **merged 3 Nov.** The VHP sampler workflow (`race-samples.yml`, every 5 min) is now on `main`; its first runs hadn't started at 15:12 UTC. Last Node's 48 h of samples counts from its first good run (I-059). **First run 15:58 UTC (green); no second run by 16:41** — GitHub runs frequent schedules late (`watch.yml`, every 15 min on paper, runs about hourly), so samples may be too thin for Block X cards (12 per 6 h).
-   - Last Node can't launch (needs 48 h of samples),
-   - Combo cards would all be void, and Fantasy pricing lacks samples (I-059),
-   - Block Golf practice can't start.
-3. **Race prizes need two fixes first** — the vault file must not be decided by a single run with no hold (I-034), and the free-prize farming question (I-035) needs an owner decision. Block X has its own "before prizes" list (I-042).
-4. **The vault bot needs three checks** before paying other games — honour HOLD files, verify staked lists, alert on refused prize posts (I-052, I-064).
-5. **Combo needs the Picks v2 upgrade**, which itself waits for Block X to launch (D-060).
-
-Not blocking: the main node (Armana) has short outages — the bot stops and catches up next hour; a fallback node is on hold.
-
-## Highest priorities
-1. ~~Repo Lens round 12 for Block X → merge PR #57~~ — **done 3 Nov.** Next for Block X: confirm the sampler is running, announce, `game-add 2`.
-2. **`game-add` the Race (7) by Fri 6 Nov 4 PM PT**, then the sponsor vault switch, then `game-apply` before Sun 8 Nov, so the Race earns and pays from Mon 9 Nov. Add Block X and any other game that has passed its audit.
-3. **Race prize fixes (I-034) and the farming decision (I-035)** before its first paid week.
-4. **Site "Week 1" refresh** before Mon 9 Nov (I-069).
-5. **Survivor pass 4 and testnet season** to hold the Mon 16 Nov start.
-6. **Wallet moves this weekend** — move the owner to a hardware wallet and the desk treasury to cold storage; move the old operator's leftover KOIN, then remove its key (I-001, I-045).
-7. **Remaining audits** — Last Node, Bracket, Fantasy, Combo — each launches when it passes.
+## Library
+- `.ai/`: start guide, platform docs, nine game files, ten standards (Game, Week cycle, New game, Vault, Leaderboard, Token, Recorder, VHP ruler, Go-live checklist, AI chat starter), the runbook, session-end and weekly-review processes; 134 decisions (D-001 – D-134); health check `HEALTHCHECK.md`; no open contradictions.
 
 ## Watch list
-- **Tue 10 Nov ~12:07 UTC:** first Questions payout under the v5 split; free players get 1 + 1 VHP for that week (D-069).
-- **Mon 16 Nov 12:00 UTC:** first vault close with other games in it — check status, buckets, free prizes and the fee.
-- **PR #50** — **closed, not merged, and stays that way** (owner, 3 Nov); branch kept; useful parts to be rebuilt now that #57 is in (I-072, handoff `claude/handoff-pr50-salvage.md`). **PR #57** (Block X launch) — **don't merge until round 12 is GO** (owner).
+- **Thu 5 Nov 15:51 UTC (7:51 AM PT):** games 2 and 7 become applicable (reminder 9 AM PT). Apply before **Sun 8 Nov 4 PM PT**.
+- **Vault v6.1 (D-130):** announce **Thu 5 Nov** (current owner `1635QU…`, keeps ≥ 95 KOIN); upload **Mon 9 from 9:00 AM PT**, then the pin and handover 4a; accepts Tue 10; rule week **Mon 16 Nov** (60 a week; Questions paid like every game). The week of Mon 9 is the switch-over week: old rules, the bot settles everyone.
+- **Sun 8 Nov 23:48 UTC:** the first 00:00 Questions round (2 + 3 a day from Mon 9).
+- **Fri 6 – Tue 10 Nov:** the wallet moves (`docs/WALLETS.md` §7; vault 4a moved to Mon 9 after the upload).
+- **Sun 15 Nov:** Block X's first review day (no scoring).
+- **Mon 9 Nov 00:00 UTC:** the vault starts paying Questions, Race and Block X; players see this week as "Week 1" (D-063).
+- **Tue 10 Nov ~12:07 UTC:** first Questions payout under the v5 split; free players get 1 + 1 VHP for that week (D-069). First weekly review at 10 AM PT.
+- **Mon 16 Nov 12:00 UTC:** first vault close with other games in it; check status, buckets, free prizes, the switch and the fee. (Survivor Season 1 no longer starts that day: core first, D-113.)
+- **PR #50** stays closed and unmerged (owner, 3 Nov); its useful parts are to be rebuilt (I-072).

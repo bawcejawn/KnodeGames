@@ -24,6 +24,14 @@
  */
 (function (root) {
   "use strict";
+  // What players call a week (weeks.js, D-063): the week of Mon 9 Nov (vault week 3) is "Week 1"; earlier weeks show
+  // their date. Pages that don't load weeks.js yet (race.html, blockx.html) get the same rule here; a test keeps the
+  // two in step.
+  const WL = (w) => {
+    if (root.KWeeks) return root.KWeeks.label(w);
+    const n = Math.trunc(Number(w));
+    return n >= 3 ? `Week ${n - 2}` : `Week of ${new Date(1792368000000 + n * 604800000).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`;
+  };
   const MEDAL = ["🥇", "🥈", "🥉"], ORD = ["1st", "2nd", "3rd"];
   const LABELS = Object.freeze({ staked: "Staked", free: "Free play" });   // the same in every game
   // "Last week" appears only when the data has it, so the week that just ended stays visible on Monday.
@@ -92,7 +100,7 @@
       if (mode === "last" && btns[2].hidden) { mode = "week"; btns.forEach((x, i) => x.setAttribute("aria-pressed", String(MODES[i][0] === mode))); return render(); }
       if (F && kind === "free") return renderFree(part, rows, weekly);
       const ranked = rows.filter((r) => r && r.ranked);
-      sub.textContent = weekly && part && part.start ? `Week ${part.week + 1}, from ${day(part.start)} (UTC)` : mode === "today" && part && part.day ? `${part.day} (UTC)` : mode === "all" ? "Every week so far" : "";
+      sub.textContent = weekly && part && part.start ? `${WL(part.week)}, from ${day(part.start)} (UTC)` : mode === "today" && part && part.day ? `${part.day} (UTC)` : mode === "all" ? "Every week so far" : "";
       // Audit BX-41: the row's own-board place (boardPlace, ties share it) when the game publishes one.
       const placeOf = (r, i) => (Number.isInteger(r.boardPlace) && r.boardPlace > 0 ? r.boardPlace : i + 1);
       // o.earned(row, weekly) → whether the row earns a reward: only those get a medal (places 1–3) and the highlight.

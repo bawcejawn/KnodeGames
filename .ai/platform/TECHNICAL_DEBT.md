@@ -1,24 +1,20 @@
 # Knode Games — Technical Debt
 
 > **Purpose:** the shortcuts, unfinished systems, temporary fixes and known risks we're carrying, ranked by how much harm they could do — so they're paid down in the right order.
-> **Reviewed:** 2026-11-03, from `OPENISSUES.md`, the chats' audit notes, `DECISIONS.md` and the repo. Each item links to its issue (I-xxx) or decision (D-xxx); fixes are tracked there, not here.
+> **Reviewed:** 2026-11-03, from `OPENISSUES.md`, the chats' audit notes, `DECISIONS.md` and the repo; cleaned 2026-11-04 (paid-down items TD-06 and TD-07 moved to `../archive/DONE.md`; ids kept); status sync 5 Nov 2026 (TD-02, TD-13, TD-15, TD-24 paid down; TD-03 in part). Each item links to its issue (I-xxx) or decision (D-xxx); fixes are tracked there, not here.
 > **Severity:** **Critical** — could lose or mispay funds · **High** — could stop games or payouts, or weakens a key safeguard · **Medium** — hurts players, growth or reliability · **Low** — tidy-up.
 > **Type:** 🔐 security · 📜 smart contract · 🚧 unfinished system · 🩹 temporary fix · ⏩ shortcut · 📈 scalability
 
 ## Critical
 | ID | Type | Debt | Why it matters | Pay it down | Refs |
 |----|------|------|----------------|-------------|------|
-| TD-01 | 🔐 | **One hot key controls everything, and the desk treasury *is* that key.** The single-signature owner wallet `1635QU…` owns the vault, the desk and the Picks contract, and is also the desk treasury. All hot keys (owner, sponsor, operator, seed) sit in one `.env` on one home PC | A stolen owner key could withdraw the desk's funds at once (no timelock, since the treasury is already that wallet). Vault stakes are protected by the 48 h upgrade notice and always-open withdrawals, but only if someone notices in time | This weekend: cold desk treasury (48 h timelock), owner on a hardware wallet; later, consider a multisig owner | I-001, D-013 |
-| TD-02 | 📜 | **The vault pays from files it can't fully verify.** Game results reach the vault as files in `games-data` written by off-chain recorders; forged days or stake lists can't be caught without the chain; HOLD files aren't honoured yet; a Race vault file is decided by one run and locked forever, with no hold | A recorder bug or a bad push could pay the wrong players, permanently. The first payouts beyond Daily Questions start from the vault week of **Mon 9 Nov** (first close Mon 16 Nov) | Before any other game pays: the vault checks staked lists and honours HOLD files, alerts on refused posts, and the Race file gets a hold (or a re-derive) | I-034, I-051, I-052, I-064 |
+| TD-01 | 🔐 | **One hot key controls everything, and the desk treasury *is* that key.** The single-signature owner wallet `1635QU…` owns the vault, the desk and the Picks contract, and is also the desk treasury. All hot keys (owner, sponsor, operator, seed) sit in one `.env` on one home PC | A stolen owner key could withdraw the desk's funds at once (no timelock, since the treasury is already that wallet). Vault stakes are protected by the 48 h upgrade notice and always-open withdrawals, but only if someone notices in time | The weekend runbook (`docs/WALLETS.md` §7; dates: `CALENDAR.md`): cold desk treasury (48 h timelock), then the **cold-key** owner `1LMV8E…` (exists; already owns Race picks since 4 Nov) takes the vault and the Desk (D-083; no hardware wallet can sign these calls today); the Picks handover later, once its tool is built and checked (D-106; I-076); multisig on the roadmap. The sponsor's hot key (25,000 KOIN) stays, risk accepted (D-085). The operator goes GitHub-only (D-084) | I-001, D-013, D-083 |
 
 ## High
 | ID | Type | Debt | Why it matters | Pay it down | Refs |
 |----|------|------|----------------|-------------|------|
-| TD-03 | 🔐 | **Anything pushed to `main` runs with the operator key.** The bot needs to push to `main`, so there's no pull-request requirement; `OPERATOR_WIF` is limited to `main`; AI sessions push docs to `main` directly; the workflow guard is regex-based and misses some YAML spellings | The operator can't move funds, but it posts results and resolves questions — bad code on `main` could post wrong results, which decides who gets paid | Keep pushes to reviewed branches only (owner merges); move the bot's data commits off `main`, then require reviews; finish the YAML-parser guard | I-022, D-012, D-026 |
+| TD-03 | 🔐 | **Anything pushed to `main` runs with the operator key.** The bot needs to push to `main`, so there's no pull-request requirement; `OPERATOR_WIF` is limited to `main`; AI work reaches `main` only through PRs. The workflow guard part is **fixed** (it parses each workflow, #99 / #111); **the bot still pushes its data to `main`** | The operator can't move funds, but it posts results and resolves questions — bad code on `main` could post wrong results, which decides who gets paid | Move the bot's data commits off `main`, then require reviews | I-022, D-012, D-026 |
 | TD-04 | 🔐 | **The retired operator's key is still in `.env`** | A forgotten key with KOIN on it is a free target | Move its KOIN, then remove the key | I-045 |
-| TD-05 | 📜 | **The game/vault contract still pays Mana for other people's transactions** (`max_sponsor_rc` = 2 KOIN) | ~317 KOIN of compounding lost by 28 Oct; the drain continues while it's on | `sponsor-limit 0` with `maxSponsorRc: "0"` in the same change | I-044, D-046 |
-| TD-06 | 🚧 | ~~Race staking reads still use the old contract interface on `main`~~ — **paid down 3 Nov:** the v6 fix (`d7fad7c`) reached `main` with PR #57 | — | — | I-033 |
-| TD-07 | 🚧 | ~~The VHP sampler isn't running~~ — **running since 3 Nov 15:58 UTC** (first run green) | Last Node's 48 h clock started | Keep an eye on its runs — **only 1 run by 16:41 UTC**; GitHub throttles `*/5` schedules (watch `*/15` runs ~hourly), so samples may fall short of 12 per 6 h | I-059 |
 | TD-08 | 📈 | **All three block producers, plus the question-release backup, run on one home PC and internet line** | A power or internet cut stops the Knode Games Pool's production (smaller rewards), the desk's production and the 12:00 release backup at the same time | Accept for now; later, a second machine or a hosted backup node for the pool | D-048, D-047 |
 
 ## Medium
@@ -26,11 +22,8 @@
 |----|------|------|----------------|-------------|------|
 | TD-09 | ⏩ | **Audits are the owner's own programs only** — no independent third-party audit before contract upgrades | A shared blind spot can survive every round | Consider one outside review of the vault before TVL grows toward the 1,000,000 VHP target | D-017, D-076 |
 | TD-10 | 📈 | **One RPC node for everything.** The site (every player's browser), the bot and the recorders all read from Armana; the second node is only a checker; no fallback | Armana outages already caused failed runs (3 Nov); more players means more rate-limit failures | Fallback node (on hold); lighter polling from the PR #50 salvage | I-006, I-072 |
-| TD-11 | 📈 | **Free prizes can be farmed with many empty wallets**, and they share the sponsor's first-come free pool | Real players can find the free pool empty; prizes go to farmers | Owner decision before Race and Block X free prizes | I-035 |
-| TD-12 | 📈 | **Sponsor sizing is still an estimate** — 25,000 KOIN, 5,000 Mana a day, first come first served | Success (D-076) means demand outgrows it; when the daily cap is hit, guests can't play at all | Measure real use after launch; set per-action limits; plan top-ups | D-061, D-028 |
-| TD-13 | 🚧 | **Block X has a "before prizes" fix list** (week-end re-reads on both nodes, board freeze, VHP decoder, card clock and others) | Block X launches prize-free until these are done | Before Block X prizes | I-042 |
+| TD-12 | 📈 | **Sponsor sizing is still an estimate** — a fixed daily cap, first come first served (live values: `SPONSOR.md`) | Success (D-076) means demand outgrows it; when the daily cap is hit, guests can't play at all | Measure real use after launch; set per-action limits; plan top-ups | D-061, D-028 |
 | TD-14 | 📜 | **Trust and untested paths in the newer games:** Last Node's form, c and staked list aren't re-checked on publish, and its JSON-RPC client has never run on a real node; Combo's verify job design is unreviewed; `effective_balance_of` (Bracket) has never been seen live | Each could publish wrong results at launch | Their audits; watch each game's first live day | I-058, I-061, I-063 |
-| TD-15 | 🚧 | **Nicknames don't stick** — the mint never sets the main token, and the refresh only reads known wallets | Players create a name and never see it | Hub chat fix + audit | I-020 |
 | TD-16 | 🚧 | **KOIN Vault (mobile) can't use the sponsor** — it picks its own payer | Mobile free play, a top founder priority, depends on the guest wallet workaround | KOIN Vault developer request | I-007 |
 | TD-17 | 🚧 | **Unfinished pieces before launch:** the site's "Week 1" display, Survivor's leaderboard and Results adapter, Race and Block X onto the VHP standard, the next sponsor version (guest prize claims, L-3) | Inconsistent player experience across games | Per the roadmap | I-069, I-056, D-058, I-005 |
 | TD-18 | 📈 | **File and size limits in the recorders:** `names.json` freezes near 1 MB; a Survivor season file stops past 2 MB (~10k one-day wallets); boards cap at 2,000 rows; vault points collapse past 255 places; Race board reads grow with players; one failing step in `games.yml` stops the steps after it | Growth breaks quietly | Revisit each limit as player counts grow | I-023, I-029, I-055 |
@@ -39,20 +32,26 @@
 | ID | Type | Debt | Refs |
 |----|------|------|------|
 | TD-19 | 🩹 | Legacy label fallback (`legacyLabelsOk`) for questions released before `hashRule` 2 | WEB3-31 |
-| TD-20 | 🩹 | Records that disagree with the chain: `main`'s sponsor record still says v2; the `vault-v6` folder still names `api.koinos.io` | I-043, I-015 |
+| TD-20 | 🩹 | Records that disagree with the chain: the `vault-v6` folder still names `api.koinos.io` (the sponsor-record part was fixed by PR #57, I-043) | I-015 |
 | TD-21 | 🩹 | Leftovers kept "just in case": old node data folders and the desk's ~50 GB broken copy; PR #50's branch; testnet tools aimed at a local node the owner doesn't run | I-008, I-072, I-068 |
 | TD-22 | ⏩ | The Questions game's v5 free-prize rule is fixed on chain — changing it needs a contract upgrade | D-069 |
 | TD-23 | 🔐 | Sponsor v3 would still pay for a `move_stake` sent outside the site | I-021 |
-| TD-24 | 🔐 | Legacy name-claim workflow keeps `issues` permissions | I-026 |
 | TD-25 | ⏩ | Tests run only on Linux; the owner can't run the full suite on Windows. Known flaky tests (an audit test, Bracket VHP read, Survivor rehearsal) | I-047, I-057 |
 | TD-26 | 📈 | Daily compounding drifts ~1 hour a day (28,800-block "day") | I-049 |
 | TD-27 | 🚧 | No bot support for the public-testnet vault copy; its owner key lives only in one chat's sandbox | I-014, I-017 |
 
+## Paid down since 4 Nov (move to `../archive/DONE.md` at the next cleanup)
+- **TD-02, the vault paying from files it can't fully verify (Race):** fixed by the Race hold (#85), the payout safety PR #133 (held-week alerts, the vault file recomputed from the chain, published final race results locked) and the Sunday review day (D-125). Block X's published finals are locked too (#159). The general bot-side points recompute for every game stays I-080 (`../standards/RECORDER_STANDARD.md` §1).
+- **TD-13, Block X's "before prizes" fix list:** PR #80 merged.
+- **TD-15, nicknames don't stick:** fixed by PR #95 (I-020).
+- **TD-24, the legacy name-claim workflow's `issues` permissions:** removed with the claim flow (#137, D-118); the CI guard now refuses any `issues` permission.
+
 ## Accepted on purpose (not debt to fix — risks the owner chose)
+- **TD-11, free-prize farming** with many empty wallets (D-097, 4 Nov): accepted for now; a farmed prize can be removed in the correction window.
 - Last Node's slow form-skimming (N-6) and its hold rate (D-055); Bracket's seeding-day VHP trick (F-2); a whale withdrawal sinking the vault's Bracket index; Combo's lagging-node hold (FC3-9) and clock-edge hold (FC2-19); Survivor's accepted list (I-055); one person running many free wallets (owner, 28 Oct).
 
 ## Suggested order
-1. **This weekend:** TD-01, TD-04.
-2. **Before the first vault close (Mon 16 Nov):** TD-02, TD-03 (stop direct pushes to `main`), TD-05.
-3. **Before each game's prizes:** TD-11, TD-13, TD-14.
+1. **This weekend (dates: `CALENDAR.md`):** TD-01, TD-04.
+2. **Next:** TD-03 (move the bot's data commits off `main`).
+3. **Before each paused game launches (D-113):** TD-14.
 4. **As players grow:** TD-08 – TD-10, TD-12, TD-18.

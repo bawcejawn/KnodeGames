@@ -129,8 +129,25 @@
         <li><a href="#step-9">Check you're producing blocks</a></li>
         <li><a href="#step-10">Stop, restart, update, back up</a></li>
       </ol>
-      <p class="muted">How to paste: on Windows, open PowerShell and right-click (or Ctrl+V) to paste, then press Enter. On a Mac or Linux, open Terminal, press ⌘V or Ctrl+Shift+V, then Enter. Run each box once and wait for it to finish before the next.</p>
+      <p class="muted">New to commands? Read <a href="#howto">How to run a command</a> first. It takes one minute.</p>
     </nav>
+
+    <section class="pg-card" id="howto">
+      <h2>How to run a command</h2>
+      <p>Most steps have grey boxes with commands. Each box is run the same way:</p>
+      <ol class="rn-list">
+        <li class="rn-only" data-os="win">Open <b>PowerShell</b>: click <b>Start</b>, type <b>PowerShell</b>, and click <b>Windows PowerShell</b>. A dark window opens with a line like <code>PS C:\Users\you&gt;</code>.</li>
+        <li class="rn-only" data-os="mac">Open <b>Terminal</b>: press <b>⌘ Space</b>, type <b>Terminal</b>, and press <b>Return</b>. A window opens with a line ending in <code>%</code>.</li>
+        <li class="rn-only" data-os="linux">Open <b>Terminal</b>: press <b>Ctrl+Alt+T</b> (or find Terminal in your apps). A window opens with a line ending in <code>$</code>.</li>
+        <li>On this page, click the yellow <b>Copy</b> button on the box.</li>
+        <li class="rn-only" data-os="win">Click inside the PowerShell window, then <b>right-click</b> to paste (or press <b>Ctrl+V</b>).</li>
+        <li class="rn-only" data-os="mac">Click inside the Terminal window and press <b>⌘V</b> to paste.</li>
+        <li class="rn-only" data-os="linux">Click inside the Terminal window and press <b>Ctrl+Shift+V</b> to paste.</li>
+        <li>Press <b>Enter</b>. (If the last line is still waiting after the paste, press <b>Enter</b> once more.)</li>
+        <li>Wait until the line you started with comes back (<span class="rn-only" data-os="win"><code>PS C:\…&gt;</code></span><span class="rn-only" data-os="mac linux">ending in <code>%</code> or <code>$</code></span>): that means the box has finished. Then compare what it printed with <b>You should see</b> under the step.</li>
+      </ol>
+      <p class="muted">Keep the same window open from box to box, or open a new one at any time: every box starts by going to the right folder itself. Never paste anything from other websites or chats into this window.</p>
+    </section>
 
     <section class="rn-step pg-card" id="step-1">
       <div class="rn-step-h">
@@ -148,7 +165,7 @@
         <li>A Koinos wallet (Kondor on a computer or KOIN Vault on a phone) with some KOIN. Its address is your producer address. No wallet yet? <a href="get.html">Get one here</a>.</li>
         <li>Time: about an hour of your own work, plus a few hours of waiting while the download runs.</li>
       </ul>
-      <p>Check your free disk space:</p>
+      <p class="rn-do">Open <span class="rn-only" data-os="win">PowerShell</span><span class="rn-only" data-os="mac linux">Terminal</span> (see <a href="#howto">How to run a command</a>), copy this box, paste it and press Enter. Then find your main drive in the list and read how much space is free.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>Get-PSDrive C</code></pre>
@@ -161,7 +178,7 @@
         <div class="rn-cmd-h"><span>Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>df -h /</code></pre>
       </div>
-      <p>Then stop the computer from going to sleep (a sleeping node misses its blocks):</p>
+      <p class="rn-do">Then stop the computer from going to sleep (a sleeping node misses its blocks):</p>
       <ul class="rn-list">
         <li class="rn-only" data-os="win">Windows: Start → Settings → System → Power (&amp; battery) → Screen and sleep → set "When plugged in, put my device to sleep after" to Never. Also: Settings → Accounts → Sign-in options → turn on "Use my sign-in info to automatically finish setting up after an update", so your node comes back by itself after Windows updates.</li>
         <li class="rn-only" data-os="mac">Mac: Apple menu → System Settings → Energy (or Battery → Options on a laptop) → turn on "Prevent automatic sleeping when the display is off". Keep a laptop plugged in.</li>
@@ -263,6 +280,7 @@ docker run --rm hello-world</code></pre>
       <p class="rn-what"><span class="rn-tag">What this does</span>Downloads the official Koinos node setup at a version Knode Games has checked, tells it to produce blocks for your address, and keeps all of the node's data in a Docker volume (a private storage space inside Docker; it's faster and much less likely to get damaged than an ordinary folder).</p>
       <div class="rn-addr-hint" hidden>Type your producer address at the top of the page first. The commands below fill it in for you.</div>
       <h3 class="rn-sub">3a. Download the node files</h3>
+      <p class="rn-do">Run this box in <span class="rn-only" data-os="win">PowerShell</span><span class="rn-only" data-os="mac linux">Terminal</span>. It downloads for about a minute; wait until the line you started with comes back. The last line it prints must be the long code below.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>New-Item -ItemType Directory -Force C:\koinos-node | Out-Null
@@ -282,6 +300,7 @@ git rev-parse HEAD</code></pre>
       </div>
       <p>The last line must print exactly <code class="mono">b05b8337d0a8d09748f9c2d1faef810ee2f5de28</code>. That proves you have the checked version.</p>
       <h3 class="rn-sub">3b. Settings: block production for your address</h3>
+      <p class="rn-do">Check that your producer address is typed in <a href="#setup">Your setup</a> at the top of this page (the box shows it in yellow), then run this box.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
@@ -319,6 +338,7 @@ printf 'JSONRPC_PORT=8110\nP2P_PORT=8918\nAMQP_PORT=5702\nAMQP_ADMIN_PORT=15702\
 grep '_PORT=' .env</code></pre>
       </div>
       <h3 class="rn-sub">3c. Keep the node's data in a Docker volume</h3>
+      <p class="rn-do">Run this box. It finishes in a few seconds.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
@@ -404,6 +424,7 @@ docker compose config | grep koinos-data</code></pre>
       </div>
       <p class="rn-what"><span class="rn-tag">What this does</span>Saves you days. Instead of replaying the whole chain from block 1, your node starts from Armana's weekly snapshot: a full copy of the chain, made every Sunday at about 04:00 UTC and published about an hour later. The fingerprint (SHA-256) check proves your download is complete and exactly the file Armana published.</p>
       <h3 class="rn-sub">4a. Find the newest snapshot</h3>
+      <p class="rn-do">Run this box. It prints the newest snapshot, its size and its fingerprint, then one line saying whether Armana's two fingerprints agree.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
@@ -443,7 +464,7 @@ EOF</code></pre>
       </div>
       <p class="muted">Extra careful (recommended): both fingerprints above come from Armana. To check against a second source, compare the Fingerprint line with the one Armana posts in the Koinos community (Discord or Telegram) or with another node runner's. If they differ, don't use the snapshot.</p>
       <h3 class="rn-sub">4b. Download it (the long part)</h3>
-      <p>Leave this window open until it finishes. If it stops for any reason, paste the same box again: it carries on where it left off.</p>
+      <p class="rn-do">Run this box and leave the window open until it finishes: 2–8 hours, depending on your internet. A progress line counts up to 100%. If it stops for any reason, paste the same box again: it carries on where it left off.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
@@ -457,6 +478,7 @@ URL=$(python3 -c 'import json;print(json.load(open("snapshot.json"))["url"])')
 curl -L --fail --retry 10 -C - -o snapshot.tar.gz "$URL"</code></pre>
       </div>
       <h3 class="rn-sub">4c. Check the fingerprint</h3>
+      <p class="rn-do">When 4b has finished, run this box. It works quietly for several minutes, then prints MATCH or NO MATCH.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
@@ -479,6 +501,7 @@ else
 fi</code></pre>
       </div>
       <h3 class="rn-sub">4d. Unpack it into the node's volume</h3>
+      <p class="rn-do">If 4c said MATCH, run this box and leave the window open: it takes 30–60 minutes and shows nothing until it prints UNPACKED OK.</p>
       <p>This unpacks only the two parts a block producer needs (<code>chain</code> and <code>block_store</code>). It never touches your node's key.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
@@ -509,6 +532,7 @@ fi</code></pre>
       </div>
       <p class="rn-what"><span class="rn-tag">What this does</span>Starts your node. It reads the snapshot, then fetches the blocks made since Sunday from other nodes until it's level with the network.</p>
       <h3 class="rn-sub">5a. Start</h3>
+      <p class="rn-do">Run this box. The first time, it downloads the node's programs for a few minutes.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
@@ -522,7 +546,7 @@ docker compose up -d
 rm -f ~/koinos-node/heal-paused</code></pre>
       </div>
       <h3 class="rn-sub">5b. Is it caught up?</h3>
-      <p>Run this now, then again every 15 minutes or so. Your node is caught up when Behind by is under 10.</p>
+      <p class="rn-do">Run this box now, then again every 15 minutes or so (paste the same box again). Your node is caught up when Behind by is under 10.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -566,6 +590,7 @@ else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi
       </div>
       <p class="rn-what"><span class="rn-tag">What this does</span>Tells Koinos: "blocks signed by this node count for my address, using my VHP". Your node made its own key pair when it first started. You register only the public half, from your wallet. The private half never leaves the node, and you never need to see it.</p>
       <h3 class="rn-sub">6a. Show your node's PUBLIC key</h3>
+      <p class="rn-do">Run this box. It prints one line starting with A: select that line with your mouse and <span class="rn-only" data-os="win">right-click (or press Ctrl+C)</span><span class="rn-only" data-os="mac linux">press ⌘C (Mac) or Ctrl+Shift+C (Linux)</span> to copy it.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>docker run --rm -v koinos-data:/k:ro alpine:3.20 cat /k/block_producer/public.key</code></pre>
@@ -631,7 +656,7 @@ else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi
       </ul>
       <h3 class="rn-sub">Turn on automatic self-heal (recommended)</h3>
       <p>A small script checks your node every 20 minutes, using the same rules Knode Games uses for its own nodes. If the node has frozen (far behind and not moving, or not answering), it restarts it: at most once every 50 minutes and 3 times in 6 hours, then it stops and tells you. If the node keeps crashing, it doesn't restart it (that can't fix damaged data); it tells you to repair it (below). It never deletes anything, never touches your key, and only asks your node and a public Koinos node for their height. It tells you with a notification and writes a log (<code>heal.log</code> in your <code>koinos-node</code> folder).</p>
-      <p>First download it and check its fingerprint:</p>
+      <p class="rn-do">First run this box: it downloads the self-heal script and checks its fingerprint.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
@@ -645,7 +670,7 @@ curl -fsSL -o heal-one-node.py https://raw.githubusercontent.com/bawcejawn/Knode
 GOT=$( (sha256sum heal-one-node.py 2&gt;/dev/null || shasum -a 256 heal-one-node.py) | cut -d' ' -f1)
 [ "$GOT" = "c0082c80e1dc9c5a69f1273411ff318af2752a7a5c696c91f0721ba9522f13dd" ] &amp;&amp; echo "MATCH - the file arrived intact" || echo "NO MATCH - don't run it; delete heal-one-node.py"</code></pre>
       </div>
-      <p>If it says MATCH, the file arrived exactly as published on Knode Games' GitHub. Try it once (it changes nothing), then switch it on:</p>
+      <p class="rn-do">If it says MATCH, the file arrived exactly as published on Knode Games' GitHub. Then run this box: the first line tries it once (it changes nothing), the second switches it on.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>powershell -ExecutionPolicy Bypass -File C:\koinos-node\heal-one-node.ps1 -DryRun
@@ -665,6 +690,7 @@ python3 heal-one-node.py --install</code></pre>
       </ul>
       <h3 class="rn-sub">If it's stuck: restart it</h3>
       <p>Stuck means Behind by is large and doesn't shrink across two checks 15 minutes apart.</p>
+      <p class="rn-do">Run this box. It stops and starts the node; give it 15 minutes, then check again with 5b.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
@@ -681,6 +707,7 @@ rm -f ~/koinos-node/heal-paused</code></pre>
       </div>
       <h3 class="rn-sub">If it keeps crashing: repair from a fresh snapshot</h3>
       <p>Damaged means it keeps restarting or freezing again soon after every restart: <code>docker compose ps</code> shows Restarting, or <code>docker compose logs --tail 40 block_store</code> shows panic. A restart won't cure that; fresh chain data will. This keeps your node's key, sets the old data aside (not deleted) and clears the old download. Short of space? A repair briefly needs room for the old data, a new download and a new unpack (about 180 GB). If your drive is smaller, delete the old data right after this box with the last box below: it's damaged anyway.</p>
+      <p class="rn-do">Run this box. It stops the node and sets the damaged data aside.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
@@ -699,7 +726,8 @@ docker run --rm -v koinos-data:/k alpine:3.20 sh -c "set -e; rm -rf /k/chain-old
 cd ~/koinos-node
 rm -f snapshot.tar.gz snapshot.json</code></pre>
       </div>
-      <p>Then do <a href="#step-4">step 4</a> again (4a to 4d) and <a href="#step-5">step 5</a>. You don't need to register again. Once it's run well for a day, delete the old data:</p>
+      <p>Then do <a href="#step-4">step 4</a> again (4a to 4d) and <a href="#step-5">step 5</a>. You don't need to register again.</p>
+      <p class="rn-do">Once it has run well for a day, run this box to delete the old data.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>docker run --rm -v koinos-data:/k alpine:3.20 rm -rf /k/chain-old /k/block_store-old</code></pre>
@@ -733,6 +761,7 @@ rm -f snapshot.tar.gz snapshot.json</code></pre>
         <li>It shows the blocks your address has signed and what to expect for your amount of VHP. With less VHP, blocks come less often: give it a few hours.</li>
         <li>For a closer look, see what your block producer is doing:</li>
       </ol>
+      <p class="rn-do">For a closer look, run this box: it shows the block producer's latest 30 lines.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
@@ -759,22 +788,38 @@ docker compose logs --tail 30 block_producer</code></pre>
         <label class="rn-done"><input type="checkbox" data-check="step-10"> Done</label>
       </div>
       <p class="rn-what"><span class="rn-tag">What this does</span>Covers everyday care: stopping safely, updating to new Koinos versions, and an optional offline backup of your node's key.</p>
-      <h3 class="rn-sub">Stop and start safely</h3>
+      <h3 class="rn-sub">Stop the node</h3>
+      <p class="rn-do">Run this box. The node stops within a minute, and self-heal pauses until you start it again.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
-New-Item -Force C:\koinos-node\heal-paused | Out-Null; docker compose down      # stop (self-heal pauses)
-docker compose up -d; Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue     # start again</code></pre>
+New-Item -Force C:\koinos-node\heal-paused | Out-Null
+docker compose down</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd ~/koinos-node/koinos
-touch ~/koinos-node/heal-paused; docker compose down      # stop (self-heal pauses)
-docker compose up -d; rm -f ~/koinos-node/heal-paused     # start again</code></pre>
+touch ~/koinos-node/heal-paused
+docker compose down</code></pre>
+      </div>
+      <h3 class="rn-sub">Start it again</h3>
+      <p class="rn-do">Run this box. The node starts, and self-heal switches back on.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+docker compose up -d
+Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+docker compose up -d
+rm -f ~/koinos-node/heal-paused</code></pre>
       </div>
       <p>Restarting the computer is fine too: the node comes back by itself when Docker starts.</p>
       <h3 class="rn-sub">Update to a new Koinos version</h3>
       <p>When a new Koinos node version is announced, Knode Games checks it and updates the version code in step 3a on this page. To update: stop the node, fetch the new files, run 3b again (it rebuilds the settings from the new version, with your address), then start:</p>
+      <p class="rn-do">Run this box: it stops the node and fetches the new version. Then do step 3b again, then step 5a.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
@@ -793,9 +838,10 @@ git fetch origin
 git -c advice.detachedHead=false checkout b05b8337d0a8d09748f9c2d1faef810ee2f5de28
 git rev-parse HEAD</code></pre>
       </div>
-      <p>Then step 3b, then step 5a. Your data, key and the volume setting (3c) stay as they are.</p>
+      <p>Your data, key and the volume setting (3c) stay as they are.</p>
       <h3 class="rn-sub">Back up your node's key (optional)</h3>
       <p>Your node's private key is the file <code>block_producer/private.key</code> inside its volume. It controls nothing but signing blocks for your address; your KOIN and VHP stay safe in your wallet. You don't have to back it up: on a new computer you can simply register the new node's key (step 6). If you'd like a copy anyway, put it straight onto a USB stick, then keep the stick somewhere safe and offline. Plug in the stick first and use its drive letter or name:</p>
+      <p class="rn-do">Plug in the USB stick first, then run this box. If your stick has a different letter or name, change it in the box before you press Enter.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell (USB stick is E:)</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>if (Test-Path E:\) { docker run --rm -v koinos-data:/k:ro -v E:/:/usb alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key; if (Test-Path E:\koinos-node-private.key) { "Saved on E:" } } else { "STOP - there is no drive E: Plug in the USB stick and use its letter" }</code></pre>

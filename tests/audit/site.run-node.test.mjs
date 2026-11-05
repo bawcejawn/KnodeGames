@@ -349,3 +349,24 @@ test("second node on the same computer: the optional box moves all four publishe
   for (const k of ["AMQP_PORT", "AMQP_ADMIN_PORT", "P2P_PORT", "JSONRPC_PORT"]) assert.ok(published.includes(k), k);
   assert.match(html, /"port is already allocated" \(8080, 8888, 5672 or 15672\)/);
 });
+
+test("every command box has a 'Do this' line before it, and 'How to run a command' comes before step 1", () => {
+  const howto = html.indexOf('id="howto"'), step1 = html.indexOf('id="step-1"');
+  assert.ok(howto > 0 && howto < step1);
+  const h = html.slice(howto, step1);
+  for (const want of [/Windows PowerShell/, /right-click/, /Copy<\/b> button/, /Press <b>Enter<\/b>/, /Terminal/, /⌘V/, /Ctrl\+Shift\+V/]) assert.match(h, want);
+  // Walk the steps: between a box group and the previous box group (or the step start) there must be a .rn-do line,
+  // unless the box follows a numbered action list (step 2, step 9) or the second-node box's own paragraph.
+  const steps = html.slice(step1, html.indexOf('id="trouble"'));
+  const groups = steps.split(/(?:\s*<div class="rn-cmd" data-os="[^"]+">[\s\S]*?<\/pre>\s*<\/div>)+/);
+  groups.slice(0, -1).forEach((before, i) => {
+    const tail = before.slice(Math.max(before.lastIndexOf("<section"), before.lastIndexOf("</h3>"), before.lastIndexOf("</p>\n      <p"), 0));
+    assert.ok(/class="rn-do"|<\/ol>|Two nodes can't share/.test(before.slice(-1200)), `box group ${i + 1} has an action line before it: …${tail.slice(-160)}`);
+  });
+  // Step 10: stop and start are separate boxes (pasting the stop box never restarts the node).
+  for (const os of ["win", "mac"]) {
+    const stop = boxes.filter((b) => b.step === 10 && b.os.includes(os) && /heal-paused/.test(b.text) && /docker compose down/.test(b.text) && !/git fetch/.test(b.text));
+    assert.equal(stop.length, 1, `${os}: one stop box`);
+    assert.doesNotMatch(stop[0].text, /up -d/, `${os}: the stop box doesn't start the node again`);
+  }
+});

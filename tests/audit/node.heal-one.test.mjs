@@ -300,7 +300,8 @@ for (const R of runners) {
       let out = "";
       for (let i = 0; i < 4; i++) out += (await R.run(e, l.url, n.url, 1e12 + i * 20 * MIN)).out;
       assert.match(out, /Couldn't list the node's containers this time/);
-      assert.doesNotMatch(out, /stopped on purpose|NOTICE/);
+      assert.doesNotMatch(out, /stopped on purpose|NOTICE: Koinos node (is stopped|restarted)/);
+      assert.equal((out.match(/NOTICE/g) || []).length, 1, "only the \"can't check it\" notice (N-1)");
       assert.doesNotMatch(e.calls(), /compose (down|up)/);
     } finally { l.srv.close(); n.srv.close(); fs.rmSync(e.dir, { recursive: true, force: true }); }
   });
@@ -352,6 +353,29 @@ exit 0
       const ups = (e.calls().match(/compose up/g) || []).length;
       assert.ok(ups >= 2, `the failed "up" is tried again within 3 hours (compose up calls: ${ups})`);
       assert.doesNotMatch(out, /stopped on purpose/, "its own failed restart is not a stop on purpose");
+    } finally { l.srv.close(); n.srv.close(); fs.rmSync(e.dir, { recursive: true, force: true }); }
+  });
+}
+
+// Repo Lens (PR #179 fix-check) N-1: a container list that keeps failing is no longer silent.
+for (const R of runners) {
+  test(`${R.name}: N-1: "can't check it" after 3 failed container lists in a row, at most every 3 hours; counter resets`, async () => {
+    const e = setup();
+    const l = await node({ height: 1000 }), n = await node({ height: 1000 });
+    try {
+      fs.writeFileSync(path.join(e.dir, "fake", "ps_fails"), "");
+      const outs = [];
+      for (let i = 0; i < 6; i++) outs.push((await R.run(e, l.url, n.url, 1e12 + i * 20 * MIN)).out);
+      assert.doesNotMatch(outs[0] + outs[1], /NOTICE/, "not on the 1st or 2nd failure");
+      assert.match(outs[2], /NOTICE: Koinos node: can't check it/, "on the 3rd failure in a row");
+      assert.doesNotMatch(outs.slice(3).join(""), /NOTICE/, "not again within 3 hours");
+      assert.doesNotMatch(e.calls(), /compose (down|up)/);
+      fs.rmSync(path.join(e.dir, "fake", "ps_fails"));
+      let r = await R.run(e, l.url, n.url, 1e12 + 6 * 20 * MIN);
+      assert.match(r.out, /OK: height/);
+      fs.writeFileSync(path.join(e.dir, "fake", "ps_fails"), "");
+      r = await R.run(e, l.url, n.url, 1e12 + 7 * 20 * MIN);
+      assert.match(r.out, /\(1 in a row\)/, "the count starts again after a good check");
     } finally { l.srv.close(); n.srv.close(); fs.rmSync(e.dir, { recursive: true, force: true }); }
   });
 }

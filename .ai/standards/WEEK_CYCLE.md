@@ -32,7 +32,7 @@
 
 ## 3. Rewards (every game)
 - **Fee:** a flat **5%** of the week's vault rewards.
-- **Free play prizes:** **2 VHP for 1st, 1 VHP for 2nd** each week (D-062), only on games whose free-prize switch is ON (D-081, D-082; a change counts from the next week). Ties: a tie for 1st shares all 3 VHP and 2nd stays empty (D-034).
+- **Free play prizes:** **2 VHP for 1st, 1 VHP for 2nd** each week (D-062), only on games whose free-prize switch is ON (D-081, D-082; a change counts from the next week). Ties: a tie for 1st shares all 3 VHP and 2nd stays empty (D-034). **Each place pays up to 10 wallets; if more than 10 qualify, exactly 10 are paid, by earlier score time, then address; a place is never left empty because of the cap; wallets cut by the cap get nothing (D-159).**
 - **Season games:** 4 + 2 VHP for the season, when their free prize is on.
 - **Staked play:** the rest of the week's rewards is split across the staked games **by each game's share of the stake**, then inside a game by its results file (`VAULT_STANDARD.md` §6).
 - **Boards:** every game has a Staked board and a Free play board (`LEADERBOARD_STANDARD.md`). The results file always fills `first` / `second`; the switch decides whether they're paid.

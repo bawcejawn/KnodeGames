@@ -39,7 +39,8 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 - The Mana sponsor's Race pick row (`../platform/SPONSOR.md`).
 
 ## Current status (5 Nov)
-- **Live as a game.** Vault `game-add 7` sent 3 Nov (tx `0x1220d394…`); `game-apply` from Thu 5 Nov after 7:51 AM PT, deadline Sun 8 Nov 4 PM PT; it earns from vault week 3 (Mon 9 Nov). Free-prize switch: ON (D-082). `PRIZES_FROM_WEEK = 3` is on `main` (PR #56) ✅. 👤 / 💬
+- **Live as a game.** Vault `game-add 7` sent 3 Nov (tx `0x1220d394…`); **`game-apply 7` done 5 Nov** ✅: staked + free prize from vault week 3 (Mon 9 Nov, "Week 1"). Free-prize switch: ON (D-082). `PRIZES_FROM_WEEK = 3` is on `main` (PR #56) ✅. 👤 / 💬
+- **Who gets paid (D-152, ties across the line)** and the paid set past 255 scores (I-086): PR #182, Repo Lens fix-check next.
 - **On the weekly rhythm** (#149, #155 merged) and **payout safety merged** (#133, test fix #153). ✅
 - **Pays from 9 Nov with its two known handicap gaps open** (the > 6-h hide and VHP added after a card) until the one VHP ruler lands (D-094, D-090, D-093).
 - The v6-ABI stake fix `d7fad7c` (B1-1) and the RV-1 process exit are on `main` (PR #57, Repo Lens round 12 GO; the Race notes said 13, the owner and other files record 12 ❓) ✅. Nicknames on the page (PR #62) ✅.

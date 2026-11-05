@@ -1,7 +1,7 @@
 # Knode Games — Dependencies
 
 > **Purpose:** how the seven parts of Knode Games connect — Vault, Leaderboards, Rewards, Swap Desk, Wallets, Games and User Accounts — so a change to one part shows what it can affect.
-> **Last updated:** 5 Nov 2026 (status sync: sponsor numbers point to `SPONSOR.md`; Daily Questions on the Stake page; new games paused, D-113)
+> **Last updated:** 5 Nov 2026 (status sync: sponsor numbers point to `SPONSOR.md`; Daily Questions on the Stake page; Fantasy, Golf, Bracket reactivated, D-142)
 > **Built from:** `DECISIONS.md` (D-xxx), `ARCHITECTURE.md`, the standards in `../standards/`, and the repo. Detail lives there; this file shows the links.
 
 **Legend:** ✅ verified in the repo · 💬 from a chat · ❓ unknown · **→** "depends on / sends to"
@@ -11,7 +11,7 @@
 |------|-----------|----------------|
 | **User account** | Not a login: a player *is* a Koinos wallet address. Optional display name = Koinos @name (D-030). The site keeps only public data in the browser (`kw-accounts`, `kw-active`, `kw-kind`) — never keys | the chain; `wallet.js`; `names.json` |
 | **Wallet** | How a player signs: Kondor (extension), KOIN Vault (mobile), or the site's Guest wallet (play-only, no funds). Plus the Mana sponsor, which pays Mana for players | `wallet.js` (`KWallet`), `header-wallet.js`, `guest.js`; sponsor `1ByDDS…` |
-| **Games** | Nine games (three live: Questions, Block X, Race; the rest paused, D-113). Picks go to the Picks contract (or the Race picks contract; Questions answers go to the vault itself); each game's recorder turns chain data into results | Picks `1LmgqB…`, Race `1EN7xU…`, vault `1Mpmf2…`; `bot/games/*`, `race.ts` |
+| **Games** | Nine games (three live: Questions, Block X, Race; three next launches on branches: Fantasy, Block Golf, Bracket, D-142; Survivor, Last Node, Combo paused, D-113). Picks go to the Picks contract (or the Race picks contract; Questions answers go to the vault itself); each game's recorder turns chain data into results | Picks `1LmgqB…`, Race `1EN7xU…`, vault `1Mpmf2…`; `bot/games/*`, `race.ts` |
 | **Leaderboard** | Each game's published board (Staked / Free play), plus the weekly vault results file | data branches (`race-data`, `games-data`); `board.js` |
 | **Vault** | Holds every staked VHP, produces blocks as the **Knode Games Pool** (D-073), and pays rewards | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr`; `bot/vault.ts` |
 | **Rewards** | The weekly money: block rewards → 5% fee → free prizes → staked split by game → claims | inside the vault; claimed through the stake panel |

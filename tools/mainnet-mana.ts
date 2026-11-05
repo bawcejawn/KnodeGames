@@ -24,15 +24,21 @@ export function manaOf(c: Pick<Call, "compute" | "disk" | "network">, p: Prices)
   return BigInt(c.compute) * p.compute + BigInt(c.disk) * p.disk + BigInt(c.network) * p.network;
 }
 
-/** The limit a call must fit, in Mana, if it has one (owner, 4 Nov: every call must fit its limit):
- *  - a player's answer or settle: 1 (what the site asks the sponsor for an answer, and its own-Mana limit);
- *  - a player's stake, withdrawal or claim: 1.5 (the sponsor's per-transaction cap from the 4 Nov rollout; the site asks
- *    each action's own row, sponsor-data/mana-limits.json);
- *  - the bot's close, results, seal and finalize: 2 (the bot's per-transaction limit, bot/chain.ts).
- *  The testnet batches (10 posts or resolves in one transaction) and the upload have no fixed limit. */
+/** The limit a call must fit, in Mana, if it has one (owner, 4 Nov: every call must fit its limit).
+ *  Paid by the Mana sponsor (keys ending in "Sp"), the per-action limits the owner chose on 4 Nov (per transaction 2.4):
+ *    an answer 1.2, a claim 2.0, a stake (approve + deposit_to) 2.4, a withdrawal 1.55.
+ *  Paid from the player's own Mana (wallet.js, audit BX-10): an answer or settle 1; a stake, withdrawal or claim 10.
+ *  The bot's close, results, seal and finalize: 2 (bot/chain.ts). Testnet batches and the upload: none. */
 export function limitOf(key: string): number | null {
+  if (key.endsWith("Sp")) {
+    if (/^answer/.test(key)) return 1.2;
+    if (/^claim/.test(key)) return 2.0;
+    if (/^deposit/.test(key)) return 2.4;
+    if (/^withdraw/.test(key)) return 1.55;
+    return null;
+  }
   if (/^answer|^firstAnswer|^settle/.test(key)) return 1;
-  if (/^deposit|^withdraw|^claim/.test(key)) return 1.5;
+  if (/^deposit|^withdraw|^claim/.test(key)) return 10;
   if (/^close|^postResults|^seal|^finalize/.test(key)) return 2;
   return null;
 }

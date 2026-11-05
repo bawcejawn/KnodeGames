@@ -94,7 +94,7 @@
 ## 7. Timing
 - A game applied in week W earns from W + 1; results are posted for registered games only, for weeks they earn (`from_week <= w`) ✅.
 - Results are due 3/7 of a week after the week ends; finalizing starts after `seal + 2 × close_delay` and `last_change + close_delay`; corrections and voids are allowed for 24 h after each seal and refused once finalizing starts.
-- **The weekly rhythm (D-125, D-129)** — play days, the review day, when files go final and when claims open — has one home: `WEEK_CYCLE.md`. No contract change: the vault week stays Monday to Monday. Sunday fun rounds never reach a vault results file. Game 1 (Daily Questions) keeps its own timing until v6.1's rule week (Mon 16 Nov), then the shared rhythm (D-116).
+- **The weekly rhythm (D-125, D-129)** — play days, the review day, when files go final and when claims open — has one home: `WEEK_CYCLE.md`. No contract change: the vault week stays Monday to Monday. Sunday fun rounds never reach a vault results file. Game 1 (Daily Questions) keeps its own timing until v6.1's rule week (Mon 16 Nov: claims from about Tue 12:00–15:00 UTC, Tue 4–7 AM PST, later if Saturday's questions resolve on Monday), then the shared rhythm (D-116).
 - **v6.1 (D-127):** no player action closes or finalizes a week; the bot's hourly `close_week` / `finalize_week` do.
 
 ## 8. Admin powers

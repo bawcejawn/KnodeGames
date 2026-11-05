@@ -1,6 +1,6 @@
 # Last Node Standing (game 13)
 
-> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Last Node Standing chat), `DECISIONS.md` (D-054, D-055), the repo (branch `lastnode`). **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/LastNodeStanding.md`.
+> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Last Node Standing chat), `DECISIONS.md` (D-054, D-055), the repo (branch `lastnode`). **Last updated:** 5 Nov 2026; previous version `../archive/2026-11-04b/games/LastNodeStanding.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -20,7 +20,7 @@ A daily elimination event among block producers: each hour the weakest node (by 
 - **Watch-and-hold:** a node at weekly z ≥ 3.4 with 2+ wins, or z ≥ 5 in one event it won, is flagged; the week's vault file is held until released with `LASTNODE_RELEASE_WEEKS` (D-055). 💬
 
 ## Rewards
-- **Staked:** vault file `{game: 13, week, final, rows: [{player, points 1–255}], first: [], second: []}` as built — rows are wallets staked in game 13 that week with ≥ 1 point; **to change:** `first` / `second` must now hold the free winners (D-081, next line); written 12 h to 3 days after the week ends. 💬
+- **Staked:** vault file `{game: 13, week, final, rows: [{player, points 1–255}], first: [], second: []}` as built — rows are wallets staked in game 13 that week with ≥ 1 point; **to change:** `first` / `second` must now hold the free winners (D-081, next line). Timing: `../standards/WEEK_CYCLE.md` (built as "12 h to 3 days after the week"; moves to the shared rhythm before launch, D-125). 💬
 - **Free play:** **yes — Free play and Staked boards** (D-081, 3 Nov; was staked-only, D-071). **The Free board pays the 2 + 1 VHP weekly prize from the start** (owner, 3 Nov): the results file fills `first` / `second`, and the free-prize switch (D-082) stays on for game 13. The branch was built staked-only — the Last Node chat must add the free board. 👤
 
 ## Dependencies
@@ -29,11 +29,12 @@ A daily elimination event among block producers: each hour the weakest node (by 
 - Race cards (`race-data`), two nodes, `lastnode.yml` with its own publish-job JSON-RPC client. 💬
 - Vault v6 (staked list and HOLD files: built in PR #74; Last Node publishes a RELEASE marker, R-LN-3); sponsor coverage for game-13 picks to confirm (R-LN-5). 💬
 
-## Current status (4 Nov)
+## Current status (5 Nov)
+- **⏸ Paused (D-113): no new-game work until the core is done; branch kept.**
 - Branch `lastnode` @ `adf95be` ✅ — pushed, **not merged, nothing deployed**; behind `main`. Tests: 718 (708 pass, 0 fail).
 - Round-2 fix-check done except L-9 and part of L-7; round-3 review prompt ready (`claude/lastnode/FIXCHECK-3-PROMPT.md`), not yet run.
 - To add: the Free play board with its prize (free-winner rule to decide, `claude/lastnode/FREE-PLAY-PROPOSAL.md`), the RELEASE marker for held weeks, and the lower entry bar.
-- Work list: `../platform/CHAT_REQUESTS.md` → Last Node Standing (R-LN-1 – R-LN-5).
+- Work list: `../platform/CHAT_REQUESTS.md` → Last Node Standing.
 
 ## Known issues
 - **I-058:** c, form and the staked list are trusted to the record job; the publish job's JSON-RPC client has never run against real mainnet nodes; L-9 sample averages aren't time-weighted; N-6 (accepted) — a steady 3% form-skim is largely undetectable; `games.yml` lost `lastnode`'s push-retry loop; the branch is behind `main`.

@@ -179,8 +179,8 @@ npm run picks -- status --mainnet
 ```
 
 `status` reads **two nodes** (koinos.armana.io and api.koinosblocks.com) and must show on both: **Code ✔ (the
-expected build)**, **Overrides ✔ all three ON** and **Owner 1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717 ✔**. Copy that output
-into `docs/blockx/TESTNET-RESULTS.md` under "Mainnet upload" (or send it to Claude to record).
+expected build)**, **Overrides ✔ all three ON** and **Owner 1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717 ✔**. Send that output
+to Claude to record (the old `docs/blockx/TESTNET-RESULTS.md` is now in the Claude project).
 
 Retire the Picks key (audit BX-9): once the contract is on, the key has no power left, but nobody needs it either.
 Open `.env` in Notepad, delete the `PICKS_WIF=` line, save. Send Claude the contract address; Claude commits

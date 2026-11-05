@@ -73,6 +73,8 @@ export type Opts = {
   reverifyBudgetMs?: number;
   /** Fix-check L-2: BLOCKX_RELEASE, "<week>:<release code>" (default: the environment's). */
   release?: string | null;
+  /** Tests: the first vault week on the D-125 rhythm (Sunday targets don't count); default X.RHYTHM_FROM_WEEK. */
+  restFromWeek?: number;
   picksOf?: (node: any, round: number) => Promise<RawPick[]>;             // for the tests
   blockOf?: (node: any, height: number) => Promise<{ signer: string; time: number }>;
   /** Tests: who was staked in this game in `week` (stake at least the vault's minimum at some point that week). */
@@ -587,6 +589,10 @@ export async function run(o: Opts) {
     done.add(r);
   };
 
+  /** D-125 / R-BX-22: a target whose block falls on Sunday UTC (the review day) counts for nothing. */
+  const REST_FROM = Number.isInteger(o.restFromWeek) ? o.restFromWeek! : X.RHYTHM_FROM_WEEK;
+  const rest = (t: number) => X.restDay(t, REST_FROM);
+
   /** I-042: the week read again from the chain, target by target, before its prize list is frozen. Returns why it must
    *  be held, or null when every target reads the same on both nodes:
    *  - every round is a target block of the game, already irreversible (a future round can't be in it: G-K-1);
@@ -641,6 +647,17 @@ export async function run(o: Opts) {
       if (t.height !== G.target(t.round)) { const x = hold(` isn't round ${t.round}'s target block`); if (x) return x; }
       // Repo Lens B3-3: not yet irreversible passes on its own: never released.
       if (t.height > head.lib) return hold(" isn't irreversible yet", true);   // passing: never ignored by a release
+      // D-125 / R-BX-22: a review-day row must be a Sunday block (read again on both nodes), with no picks; and a Sunday
+      // block can't be scored.
+      if (X.isRest(t)) {
+        if (t.picks.length || t.card !== null || !t.checked) { const x = hold(": a review-day row with picks, a card or no reads"); if (x) return x; }
+        for (const read of nodes) {
+          const b = await timed(() => read(t.height)), l = await timed(() => read(t.height - G.LEAD));
+          if ((isAddr(b.signer) ? b.signer : null) !== t.signer || b.time !== t.time || l.time !== t.lockTime) { const x = hold(": its signer or times read differently now"); if (x) return x; }
+        }
+        return rest(t.time) ? null : hold(": a review-day row for a block that isn't on a Sunday");
+      }
+      if (rest(t.time) && !t.void) { const x = hold(": a Sunday (review-day) target was scored"); if (x) return x; }
       if (t.void && !t.checked) { if (t.picks.length) { const x = hold(": a void row with picks"); if (x) return x; } return null; }
       for (const read of nodes) {
         const b = await timed(() => read(t.height)), l = await timed(() => read(t.height - G.LEAD));
@@ -721,6 +738,16 @@ export async function run(o: Opts) {
         const b2 = await blockC(h), l2 = await blockC(h - G.LEAD);
         if (b2.signer !== b.signer || b2.time !== b.time || l2.time !== lock.time) { problems.push(`block ${h}: the two nodes disagree; not recorded this run`); if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about this block until it left the 3-day window"); continue; }
         checked = 2;
+      }
+      // D-125 / R-BX-22: a Sunday (UTC) block is on the review day. Its row keeps the block (signer and times, read on
+      // both nodes) but no picks and no points: picks sent for it are ignored, as every game does on Sunday.
+      if (rest(b.time)) {
+        const t: Target = { round: r, height: h, final: true, checked, signer: isAddr(b.signer) ? b.signer : null, time: b.time, lockTime: lock.time, card: null, void: X.REST_NOTE, picks: [] };
+        const wf = weekFor(M.weekOf(b.time));
+        wf.targets = wf.targets.filter((x) => x.round !== r).concat([t]).sort((x, y) => x.round - y.round);
+        done.add(r);
+        console.log(`block ${h}: signed by ${b.signer} on the Sunday review day: no points`);
+        continue;
       }
       let raw: RawPick[] = [];
       if (picksRead) {

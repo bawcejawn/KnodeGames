@@ -4,9 +4,9 @@ name: Workflow guard
 
 on:
   push:
-    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs", "tests/audit/ci-guard-*"]
+    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs", "tests/audit/ci-guard-*", "vhp_ruler.py", "tools/vhp-ruler-workflow.mjs", "bot/vhp-fill.ts", "tests/audit/vhp-ruler.*"]
   pull_request:
-    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs", "tests/audit/ci-guard-*"]
+    paths: [".github/workflows/**", "bot/workflow.test.ts", "tests/audit/*publish*", "tests/audit/published-files.test.ts", "tests/audit/site.ci-deps.test.mjs", "tests/audit/ci-guard-*", "vhp_ruler.py", "tools/vhp-ruler-workflow.mjs", "bot/vhp-fill.ts", "tests/audit/vhp-ruler.*"]
   workflow_dispatch: {}
 
 permissions:
@@ -32,3 +32,6 @@ jobs:
       - run: node --test tests/audit/ci-guard-bypass.*.test.mjs
       # The publish job's own tests (they run its shell and merge code against a scratch repository).
       - run: node --import tsx --test --test-concurrency=1 tests/audit/*publish*.test.ts tests/audit/*publish*.test.mjs tests/audit/published-files.test.ts
+      # The VHP ruler's publish job: its embedded Python is vhp_ruler.py byte for byte, run against a scratch repository
+      # (Repo Lens #D-10 L-2).
+      - run: node --import tsx --test --test-concurrency=1 tests/audit/vhp-ruler.workflow.test.mjs

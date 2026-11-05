@@ -364,6 +364,7 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
 /** One run. Exported for the tests, which pass fake nodes. */
 export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks, rhythmFrom }: Opts) {
   rhythmFromWeek = rhythmFrom ?? M.RHYTHM_FROM_WEEK;
+  verifyDeadline = Date.now() + VERIFY_BUDGET_MS;
   vaultRefused = null;
   heldAlerts = [];
   prizesFromWeek = prizesFrom ?? PRIZES_FROM_WEEK;
@@ -504,7 +505,6 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   for (const wf of weeks.values()) for (const r of wf.races) if (r.cards.some(Boolean)) firstCard = Math.min(firstCard, r.start);
   for (const wf of weeks.values()) for (const race of wf.races) {
     if (race.result?.final || race.end > libT || race.end < now - LOOKBACK) continue;
-    if (M.restRace(race.start, rhythmFromWeek)) { race.result = { final: true, missed: true, note: REST_NOTE }; continue; }
     if (!race.cards.some(Boolean)) { if (race.start > firstCard) race.result = { final: true, missed: true, note: "no handicap card was recorded for this race" }; continue; }
     try {
       const r = await scoreRace(race, chainCtx);
@@ -613,16 +613,28 @@ const resultKey = (r: any) => { const { checked, ...rest } = r || {}; return JSO
 /** Repo Lens #C-7 C7-1: how long one re-check of a week may take inside the 30-minute record job. Running out is "not
  *  checked yet" (the week waits, and alerts once it's late), never a mismatch. */
 export const VERIFY_BUDGET_MS = 10 * 60000;
-export async function verifyWeek(wf: WeekFile, c: ChainCtx | null, budgetMs = VERIFY_BUDGET_MS, clock: () => number = Date.now): Promise<string> {
+/** Repo Lens #C-7 fix-check F-1: one deadline per recorder run, shared by every re-check in it (a late week and a new
+ *  pending one), so the run as a whole stays inside the 30-minute job. Set at the start of run(). */
+let verifyDeadline = Infinity;
+/** Races re-checked at once (F-1): each race's reads are sequential, so a few in parallel keep a slow node inside the
+ *  budget without trusting any earlier run's "already checked" note. */
+export const VERIFY_PARALLEL = 4;
+export async function verifyWeek(wf: WeekFile, c: ChainCtx | null, budgetMs?: number, clock: () => number = Date.now): Promise<string> {
   if (!c) return "the chain isn't available to check the week's races";
-  const stop = clock() + budgetMs;
-  for (const race of wf.races) {
-    if (!race.result?.final || race.result.missed) continue;
-    if (clock() > stop) throw new Error(`not checked yet: the re-check ran past its ${Math.round(budgetMs / 60000)}-minute budget (tried again next run)`);
-    const h = race.result.heights;
-    const r = await scoreRace(race, c, Array.isArray(h) && h.length === 2 ? [Number(h[0]), Number(h[1])] : undefined);
-    if (!r.ok) return `${race.id}: ${r.why} when checking the week again`;
-    if (resultKey(r.result) !== resultKey(race.result)) return `${race.id}: its stored result isn't what the chain says now (picks or standings differ)`;
+  const stop = budgetMs === undefined ? verifyDeadline : clock() + budgetMs;
+  // D-129: Sunday races count for no week, so they aren't checked for its payout.
+  const todo = wf.races.filter((race) => race.result?.final && !race.result.missed && forWeek(race));
+  const why: string[] = new Array(todo.length).fill("");
+  for (let i = 0; i < todo.length; i += VERIFY_PARALLEL) {
+    if (clock() > stop) throw new Error(`not checked yet: the re-check ran past its time budget (tried again next run)`);
+    await Promise.all(todo.slice(i, i + VERIFY_PARALLEL).map(async (race, k) => {
+      const h = race.result.heights;
+      const r = await scoreRace(race, c, Array.isArray(h) && h.length === 2 ? [Number(h[0]), Number(h[1])] : undefined);
+      why[i + k] = !r.ok ? `${race.id}: ${r.why} when checking the week again`
+        : resultKey(r.result) !== resultKey(race.result) ? `${race.id}: its stored result isn't what the chain says now (picks or standings differ)` : "";
+    }));
+    const first = why.slice(i, i + VERIFY_PARALLEL).find(Boolean);
+    if (first) return first;
     await sleep(100);
   }
   return "";
@@ -639,10 +651,14 @@ export function rank(rows: Row[]): Row[] {
   return [...rows].sort((x, y) => y.pts - x.pts || y.correct - x.correct || y.picks - x.picks || (x.a < y.a ? -1 : 1));
 }
 /** The picks of final races in [from, to): per wallet, wins, shows and picks placed. */
-function tally(weeks: Map<number, WeekFile>, from: number, to: number) {
+/** D-129 (owner, 4 Nov): Sunday races on the rhythm are played and scored for fun: they count on the Today and All
+ *  time boards (a wallet's career), never on a week's board, its medals, prizes or vault file. */
+const forWeek = (r: Race) => !M.restRace(r.start, rhythmFromWeek);
+function tally(weeks: Map<number, WeekFile>, from: number, to: number, weekly = false) {
   const t = new Map<string, { correct: number; shows: number; picks: number }>();
   for (const wf of weeks.values()) for (const r of wf.races) {
     if (r.start < from || r.start >= to || !r.result?.final || !Array.isArray(r.result.picks)) continue;
+    if (weekly && !forWeek(r)) continue;
     for (const [who, , , right, , show] of r.result.picks) {
       const x = t.get(who) || { correct: 0, shows: 0, picks: 0 };
       x.picks++; x.correct += right ? 1 : 0; x.shows += !right && show ? 1 : 0;
@@ -685,7 +701,7 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
   // ended now.
   const build = async (from: number, to: number, stakeWeek: number, weekly = false) => {
     const rows: Row[] = [];
-    for (const [a, x] of tally(all, from, to)) {
+    for (const [a, x] of tally(all, from, to, weekly)) {
       const st = await staked(a, stakeWeek);
       rows.push({ a, pts: x.correct * M.POINTS.win + x.shows * M.POINTS.show, correct: x.correct, shows: x.shows, picks: x.picks, ranked: st.staked, earning: st.earning });
     }
@@ -726,7 +742,7 @@ const tied = (x: Row, y: Row) => x.pts === y.pts && x.correct === y.correct && x
 function firstPicks(all: Map<number, WeekFile>, from: number, to: number): Map<string, number> {
   const m = new Map<string, number>();
   for (const wf of all.values()) for (const r of wf.races) {
-    if (r.start < from || r.start >= to || !r.result?.final || !Array.isArray(r.result.picks)) continue;
+    if (r.start < from || r.start >= to || !r.result?.final || !Array.isArray(r.result.picks) || !forWeek(r)) continue;
     for (const x of r.result.picks) { const t = Number(x[2]); if (!m.has(x[0]) || t < m.get(x[0])!) m.set(x[0], t); }
   }
   return m;
@@ -837,7 +853,7 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   }
   if (open.length) problems.push(`vault week ${w}: ${open.length} race(s) never became final and are skipped: ${open.map((r) => r.id).join(", ")}`);
   const firstPick = new Map<string, number>();
-  for (const r of wf.races) if (r.result?.final && Array.isArray(r.result.picks)) for (const x of r.result.picks) {
+  for (const r of wf.races) if (r.result?.final && Array.isArray(r.result.picks) && forWeek(r)) for (const x of r.result.picks) {
     const t = Number(x[2]); if (!firstPick.has(x[0]) || t < firstPick.get(x[0])!) firstPick.set(x[0], t);
   }
   // Before the Race earns in the vault: a final file with nothing to pay (the vault skips those weeks anyway).
@@ -856,8 +872,8 @@ let rhythmFromWeek = M.RHYTHM_FROM_WEEK;
 const onRhythm = (w: number) => w >= rhythmFromWeek;
 /** The review day for week w: Sunday 00:00 → Monday 00:00 UTC, the 24 h after its last race. */
 const reviewing = (w: number, now: number) => onRhythm(w) && now >= M.playEnd(w) && now < M.weekStart(w + 1);
-/** A Sunday race on the rhythm: recorded as not run. */
-export const REST_NOTE = "Sunday: review day, no race (D-125)";
+/** D-129: Sunday races on the rhythm run as usual (for fun); this note is what the page says about them. */
+export const REST_NOTE = "Sunday fun race: counts on the all-time board, not the week (D-129)";
 /** How long after the week ends (Monday 00:00 UTC) a rhythm week alerts if still not final: it normally goes final at
  *  the 00:37 or 01:37 run, after a whole Sunday of review. */
 export const RHYTHM_ALERT_AFTER = 3 * M.HOUR;
@@ -900,7 +916,7 @@ function prevPending(w: number, now: number): Pending | null {
  *  prize (I-035, owner 2026-11-03 option A: flag, don't block). */
 function newThisWeek(all: Map<number, WeekFile>, w: number, who: string[]): string[] {
   const start = M.weekStart(w), first = new Map<string, number>();
-  for (const wf of all.values()) for (const r of wf.races) if (r.result?.final && Array.isArray(r.result.picks))
+  for (const wf of all.values()) for (const r of wf.races) if (r.result?.final && Array.isArray(r.result.picks) && forWeek(r))
     for (const x of r.result.picks) if (!first.has(x[0]) || r.start < first.get(x[0])!) first.set(x[0], r.start);   // the race, not the pick's own time
   return who.filter((a) => (first.get(a) ?? Infinity) >= start);
 }
@@ -929,8 +945,13 @@ async function settle(candidate: VaultFile, weekEnd: number, now: number, proble
     heldAlert(w, weekEnd, now, `the repo variable RACE_HOLD_WEEKS ('${holdSetting.raw.replace(/[^0-9A-Za-z ,;]/g, "?").slice(0, 40)}') isn't a list like 3 or 3,4, so every pending week is held`, "fix RACE_HOLD_WEEKS (a week number like 3, or 3,4) or empty it");
     return waiting;
   }
-  if (holdSetting.weeks.includes(w)) heldAlert(w, weekEnd, now, "you are holding it (RACE_HOLD_WEEKS)", `remove ${w} from RACE_HOLD_WEEKS when you're happy with it (pending: ${summary})`);
-  if (holdSetting.weeks.includes(w)) { problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`); return waiting; }
+  // L-4 (owner, 4 Nov): the owner's own hold emails once a day (the OWNER_HOLD_ALERT_HOUR run), not hourly. The chain
+  // checks below still run while it's on, and anything they find alerts every hour as before.
+  const ownerHeld = holdSetting.weeks.includes(w);
+  if (ownerHeld) {
+    problems.push(`vault week ${w}: HELD by the owner (RACE_HOLD_WEEKS). Pending: ${summary}. Remove the week from RACE_HOLD_WEEKS to let it go final (results are due 3 days after the week).`);
+    if (ownerAlertRun(now)) heldAlert(w, weekEnd, now, "you are holding it (RACE_HOLD_WEEKS; this reminder comes once a day)", `remove ${w} from RACE_HOLD_WEEKS when you're happy with it (pending: ${summary})`);
+  }
   // D-125: on the rhythm the review day is before the week ends, so the week may go final from Monday 00:00 UTC.
   const afterEnd = onRhythm(w) ? 0 : hold.afterEnd;
   const readyAt = Math.max(weekEnd + afterEnd, at + hold.stable);
@@ -946,6 +967,8 @@ async function settle(candidate: VaultFile, weekEnd: number, now: number, proble
     }
   }
   if (now >= weekEnd + afterEnd && same && now - at >= hold.stable) {
+    // While the owner holds it, the full re-check runs once a day (with the reminder), not every hour.
+    if (ownerHeld && !ownerAlertRun(now)) return waiting;
     // Repo Lens #E-11 H-1 (b): a paid week goes final only once its races, scored again from the chain, match.
     if (w >= prizesFromWeek) {
       const wf = all.get(w);
@@ -962,6 +985,7 @@ async function settle(candidate: VaultFile, weekEnd: number, now: number, proble
         return waiting;
       }
     }
+    if (ownerHeld) return waiting;   // checked and matches the chain; still the owner's hold
     problems.push(`vault week ${w}: final after the hold (pending since ${new Date(at).toISOString()}). ${summary}`);
     return candidate;
   }
@@ -981,6 +1005,10 @@ export const RESULTS_DUE_AFTER = 3 * M.DAY;
  *  about 12:37 UTC on the Monday (the 12-hour hold, then the next run), so 15 h leaves two hourly runs of slack. */
 export const VAULT_ALERT_AFTER = 15 * M.HOUR;
 let heldAlerts: string[] = [];
+/** L-4: the owner's own hold reminds once a day, on the run in this UTC hour (16:37 UTC = 8:37 AM PST / 9:37 AM PDT).
+ *  On a week's last day that is still ~7 h before the results deadline (Thursday 00:00 UTC on the rhythm). */
+export const OWNER_HOLD_ALERT_HOUR = 16;
+export const ownerAlertRun = (now: number) => new Date(now).getUTCHours() === OWNER_HOLD_ALERT_HOUR;
 /** "Week 1" for the site's numbering (weeks.js, D-063: vault week 3 = Week 1). */
 const siteWeek = (w: number) => (w >= 3 ? `Week ${w - 2}` : `the week of ${new Date(M.weekStart(w)).toISOString().slice(0, 10)}`);
 /** One alert line: the game and week, why, the deadline, and what the owner can do, with the exact commands. */

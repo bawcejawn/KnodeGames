@@ -1,6 +1,6 @@
 # Fantasy Producers (game 4) and Weekly Rival (game 5)
 
-> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Fantasy Producers chat), `DECISIONS.md` (D-059), the repo (branch `fantasy`). **Last updated:** 2026-11-03; cleaned 2026-11-04; previous version `../archive/2026-11-04b/games/FantasyProducers.md`.
+> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Fantasy Producers chat), `DECISIONS.md` (D-059), the repo (branch `fantasy`). **Last updated:** 5 Nov 2026; previous version `../archive/2026-11-04b/games/FantasyProducers.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -15,7 +15,7 @@ Fantasy football for block producers: draft five producers under a salary cap, c
 
 ## Scoring
 - Each day a producer scores **100 × blocks signed ÷ blocks expected, at most 130**; the captain counts double. A week's score is the sum of its 7 days. 💬
-- A week is final 12 h after it ends, once all 7 days, the rivals and stakes are read (FX-1); a day is final only when every hour with blocks has a race card (FX-5). 💬
+- **Timing:** `../standards/WEEK_CYCLE.md` (the one home for game timing); the branch was built with 7-day weeks final 12 h after the end and moves to the shared rhythm before launch (D-125). A week is final only once all its days, the rivals and stakes are read (FX-1); a day is final only when every hour with blocks has a race card (FX-5). 💬
 - **Rival:** a match counts only if both players had a team all 7 days and both are staked; records keep challenges made and received apart. An all-time table (total, weeks played, best week). 💬
 
 ## Rewards
@@ -29,11 +29,12 @@ Fantasy football for block producers: draft five producers under a salary cap, c
 - Recorder `bot/games/fantasy.ts` + `fantasy-math.js`, published by `games.yml` behind `FANTASY_ENABLED` (it never blocks Block X); files up to 8 MB. 💬
 - Vault v6: game 4 staked; results `games-data:fantasy/vault/W<week>.json` ✅ (C-22 resolved).
 
-## Current status (4 Nov)
+## Current status (5 Nov)
+- **⏸ Paused (D-113): no new-game work until the core is done; branch kept.**
 - Branch `fantasy` @ `2bee805` ✅ — pushed, **not merged, nothing deployed**; behind `main`. Testnet practice deployed (Picks copy `1DZX8RV…`); the owner's practice run stopped mid-week on 29 Oct, no full test week yet.
 - Repo Lens fix-check package ready (`knode-fantasy-fixcheck.zip`), not yet run. Tests (2 Nov): 522 pass, 1 fail (most likely the mobile-nav test below ❓).
 - No Free play board yet (D-081).
-- Work list: `../platform/CHAT_REQUESTS.md` → Fantasy Producers (R-FA-1 – R-FA-3).
+- Work list: `../platform/CHAT_REQUESTS.md` → Fantasy Producers.
 
 ## Known issues (I-062)
 - BX-38 race cards use the highest VHP over 6 h, so a producer whose VHP drops scores under 100 for up to 6 h; flagged low-sample cards still used — add the card quality gate (≥ 12 samples, no flags) like Block X and Combo (R-FA-3).

@@ -2,7 +2,7 @@
 
 > **Purpose:** how every game's leaderboard is built, ranked, published and shown, so all boards look and behave the same.
 > **Applies to:** every game, through the shared `board.js` (`KBoard`). **Every game has both boards** (D-079).
-> **Last updated:** 2026-11-03
+> **Last updated:** 5 Nov 2026 (week timing points to `WEEK_CYCLE.md`)
 > **Built from:** `platform/DECISIONS.md` (D-xxx) and the shared board as the Race, Hub and game chats built it.
 
 **Words:** **must** = required · **should** = expected · ❓ = not yet decided
@@ -21,7 +21,7 @@
 
 ## 2. Periods
 - Tabs: **Today**, **This week**, **Last week**, **All time** (games may omit Today when it makes no sense).
-- A week runs **Monday 00:00 to Monday 00:00 UTC**. Week numbers in files follow the vault (week 0 = Mon 19 Oct); **players see the week of Mon 9 Nov as "Week 1"** (D-063).
+- A vault week runs **Monday 00:00 to Monday 00:00 UTC**; what counts for the week, and Sunday's fun rounds (Today and All time only), follow `WEEK_CYCLE.md` (D-125, D-129). Week numbers in files follow the vault (week 0 = Mon 19 Oct); **players see the week of Mon 9 Nov as "Week 1"** (D-063).
 - Prizes are shown only from the vault's first paying week (`PRIZES_FROM_WEEK = 3` in vault numbering), never for weeks the vault won't pay (D-063).
 
 ## 3. Ranking

@@ -231,10 +231,10 @@ $env:RPC = "https://koinos.armana.io"
 | **Fri 6 Nov, by 10:00** | 0. Read-only check · 1. New wallets and KOIN for the new owner · 2a. Treasury: schedule | 2a must be in by Fri 10:00 for 2b on Sun at 10:00 (48 h on chain). If 2a goes out later, 2b moves later by the same amount |
 | Sat 7 Nov | 3. Sweep the old operator | any time |
 | **Sun 8 Nov, from 10:00** (48 h after 2a) | 2b. Treasury: apply | `chain-check` shows the exact time it can be applied ("from …") |
-| **Sun 8 Nov, after every `game-apply`** (Bracket's deadline is 16:00) | 4a. Vault owner: propose · 5a. Desk owner: propose | Both the same afternoon, e.g. 16:30 |
+| **Thu 5 Nov** (Fri 6 by 9:00 at the latest) | The vault upgrade v6.1 (60 questions **and** Daily Questions on the shared game rules, release `11043e1f…`): **announce**, signed by the **current** owner `1635QU…` | Owner, 4 Nov: "push everything ASAP". Repo Lens #E-16: GO. Commands in `docs/UPGRADE-V61.md` (PR #114 branch) |
+| **Sun 8 Nov, after every `game-apply`** (Bracket's deadline is 16:00) | 5a. Desk owner: propose | e.g. 16:30. **The vault's 4a moves to Monday** (below): the vault upgrade must be uploaded first |
+| **Mon 9 Nov, from 9:00** (never before Sun 8, 16:00) | The vault upgrade: **upload**, signed by `1635QU…`, which needs **at least 95 KOIN of Mana**; then **4a. Vault owner: propose** (by 16:30) | Rule week = Mon 16 Nov. 4a only after the upload: an accept wipes an upgrade that is announced but not uploaded |
 | **Tue 10 Nov, 48 h after 5a** (e.g. from 16:30) | 4b. Vault owner: accept · 5b. Desk owner: accept · 6. Clean-up | **Both accepts in the same sitting**, so there is never a day when the vault and the Desk have different owners |
-| **Tue 10 Nov, after 4b** (D-116, Path 2) | The vault upgrade (60 questions **and** Daily Questions on the shared game rules, release `4dcc89a6…`): **announce**, signed by the **new** owner `1LMV8E…` | Only after Repo Lens GO; the Vault chat gives the exact commands (`docs/UPGRADE-V61.md`). **Never between 4a and 4b** |
-| **Thu 12 Nov, 48 h later** | The upgrade: **upload**, then the records PR and merge #114 | The new owner needs **at least 95 KOIN of Mana** (step 1c). Rule week = Mon 16 Nov |
 
 **Why the accepts wait until Tuesday:** the vault's accept is possible from Monday, but there's no rush. Until it's
 accepted, the old key stays the vault owner and works for everything as today. Doing both accepts together means
@@ -278,9 +278,9 @@ koinos.io before installing).
 4. **Remove the wallet from the browser:** Chrome → profile icon → Manage profiles → Knode treasury → Delete. Its
    only copies are now your two papers.
 
-**1c. Make sure the new owner holds KOIN for Mana:** at least 10 for the accepts. **The next vault upgrade (60 questions and
-Daily Questions on the shared game rules, D-116) is announced and uploaded by this wallet after the handover: it needs
-at least 95 KOIN of Mana by upload day** (about 47 is spent).
+**1c. Make sure the new owner holds KOIN for Mana:** at least 10 for the accepts. (The vault upgrade v6.1 is announced and
+uploaded **before** the handover, by the **old** owner `1635QU…`, which needs **at least 95 KOIN of Mana on Mon 9**, about
+65 spent. Owner, 4 Nov: push before Tue 10.)
 Check its balance in Kondor first. To top it up: Either:
 - **from any Kondor wallet of yours that holds KOIN** (not the treasury): Kondor → Send → KOIN → paste
   `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` → 10. Compare the full address before confirming; or
@@ -500,6 +500,7 @@ has not passed yet":** wait until the 5a date. Nothing happened either way.
    - move `CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF` and `RACE_WIF` to your offline backup **after checking each
      is on paper**, then delete them from `.env`. `RACE_WIF` matters most: it can still replace the Race picks code.
 4. Leave the old owner `1635QU…` about 5 KOIN, for the later Picks handover (§7.1). Move the rest to the new owner
+   (only now: until the vault upgrade's upload on Mon 9 it needed about 95 KOIN for that upload's Mana)
    (Kondor, or `tools/send-koin.ts`). Keep its recovery words.
 5. **Never run `npm run bot -- keys`** (or the desk or picks `keys`) from now on: missing entries are intended.
 

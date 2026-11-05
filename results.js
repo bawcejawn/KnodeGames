@@ -83,7 +83,8 @@
       if (this.day == null || !all.some((x) => dayOf(x) === this.day)) this.day = ended.length ? dayOf(ended[ended.length - 1]) : 0;
 
       // Band: title, the player's week, weeks and days.
-      const mineAll = all.filter((x) => x.my);
+      // D-129 (Repo Lens #B-7 B7-4): Sunday fun races count for no week, so they are left out of "pts this week".
+      const mineAll = all.filter((x) => x.my && !M.restRace(x.r.start));
       const score = me() ? el("p", { class: "rband-score" }, el("b", { text: fmt(mineAll.reduce((s, x) => s + x.myPts, 0)) }), ` pts this week · ${mineAll.length} pick${mineAll.length === 1 ? "" : "s"}`)
         : el("p", { class: "rband-score", text: `${ended.filter((x) => x.status === "final").length} races final this week` });
       const weeks = el("div", { class: "rweeks", role: "group", "aria-label": "Week" }, ...this.weeks.map((w) => {

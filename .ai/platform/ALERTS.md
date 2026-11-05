@@ -2,7 +2,7 @@
 
 > **Purpose:** every alert the platform can send the owner: what triggers it, how it reaches you, how often, what it means, and **what you can do about it** (D-107: an alert must name the owner's actions, not only notify). Also the conditions that are **silent** today, so nobody assumes they're watched.
 > **One home:** this page is the home for **the list of alerts**. What to do in a real emergency stays in `RUNBOOK.md` (it points here); the emails expected during the wallet moves are in `../../docs/WALLETS.md` §6.
-> **Last updated:** Wed 4 Nov 2026, from a read of every workflow (`.github/workflows/*.yml`), `bot/bot.ts`, `bot/vault.ts`, `bot/sponsor.ts`, `bot/watch.mjs`, `bot/heal.mjs`, `bot/release-kick.mjs`, `bot/games/*`, `bot/race.ts`, `bot/names.ts` and the node install scripts, on `main` @ `38702c4`. File:line references are to that commit.
+> **Last updated:** Thu 5 Nov 2026 (status sync: Race held-week alerts merged in #133; sponsor numbers point to `SPONSOR.md`). Built 4 Nov from a read of every workflow (`.github/workflows/*.yml`), `bot/bot.ts`, `bot/vault.ts`, `bot/sponsor.ts`, `bot/watch.mjs`, `bot/heal.mjs`, `bot/release-kick.mjs`, `bot/games/*`, `bot/race.ts`, `bot/names.ts` and the node install scripts, on `main` @ `38702c4`. File:line references are to that commit.
 > **Update rule:** any PR that adds, removes or rewords an alert updates this page in the same PR (the game chats and the Vault chat). The Librarian checks it at each weekly review.
 
 ---
@@ -20,7 +20,7 @@
 - A plain-language summary at the top of each failed run (what happened, does it matter, what to do) is on the way (R-VAULT-9).
 
 ## 1. How alerts reach you
-> The bot workflow is named **"Knode Games bot"** from PR #131 (it was "Kpred bot"); emails before that merge say "Kpred bot".
+> The bot workflow is named **"Knode Games bot"** since PR #131 (merged); older emails say "Kpred bot".
 
 - **The repo sends no email of its own.** Nothing uses a mail server. **Every alert email is GitHub's "Run failed" email** for a workflow run that failed on purpose.
 - **One failed run = one email, whatever is inside it.** The bot's problem list, the chain watch and the sponsor alert all arrive inside the **same** "Run failed: Knode Games bot" email. Open the run (Actions → the red run) to read the lines marked **"Needs attention"**. ❓ Whether GitHub's email body shows those lines is unchecked; the run page always does.
@@ -99,7 +99,7 @@ The bot compares the chain with the records on `main` (`game-data/deployment.jso
 
 ## 4. Knode Games bot — vault results checks (paying the games)
 
-**Once per game, week and kind**, plus one reminder under 12 h before the deadline. Every hold says the safe outcome: if nothing is fixed, the week **rolls over** (stakers' bucket stays in the game, free prize back to the pool). Deadline: results are due **3 days** after the week ends (Mon 00:00 → Thu 00:00 UTC).
+**Once per game, week and kind**, plus one reminder under 12 h before the deadline. Every hold says the safe outcome: if nothing is fixed, the week **rolls over** (stakers' bucket stays in the game, free prize back to the pool). Deadline: results are due **3 days** after the week ends (Mon 00:00 → Thu 00:00 UTC; the whole week's timing: `../standards/WEEK_CYCLE.md`).
 
 | Alert | Trigger | What you can do |
 |---|---|---|
@@ -127,7 +127,7 @@ Correcting after a seal (24 h window), `game-unprize`, `game-void`: `RUNBOOK.md`
 
 | Alert | Trigger | What you can do (`SPONSOR.md` §5–6) |
 |---|---|---|
-| "Mana sponsor: everyone's sponsored Mana today is N% used" | > 80% of 5,000 a day | usually fine (players then pay their own Mana until 00:00 UTC); watch for spam |
+| "Mana sponsor: everyone's sponsored Mana today is N% used" | > 80% of the everyone-per-day cap (live values: `SPONSOR.md`) | usually fine (players then pay their own Mana until 00:00 UTC); watch for spam |
 | "Mana sponsor: free play has used N% of what is released so far today" | > 80% of the free pool released so far | lower `--free-per-day` with the **full** config line if spam |
 | "the sponsor wallet has N Mana, less than … today's caps still allow" | sponsor's own Mana low | send it KOIN, or lower `--per-day` |
 | "Mana sponsor watch failed: …" | couldn't read the chain | wait a run |
@@ -181,7 +181,7 @@ Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub email
 | Alert | Trigger | What you can do |
 |---|---|---|
 | race-data unreadable / `npm run race` error / publish refused / "Refusing to change vault/W…: already published as final" | job errors | wait a run; then Race chat |
-| ⚠ **A held Race week does NOT email** (I-087) | see §10 | fix in progress: R-RACE-13 |
+| **"Producer Race vault week N … is HELD"** (the run fails, D-107) | a Race week isn't final 3 h after the week, a stored race result doesn't match the chain, or your own `RACE_HOLD_WEEKS` hold (that one emails once a day, L-4) | follow the options in the alert; `RUNBOOK.md` §3 (merged in #133, I-087) |
 
 **VHP sampler (`race-samples.yml`):** emails if **no** sample succeeded in a run, or a publish is refused (a published sample would change or drop). → wait a run; then Race chat (the ruler and handicaps depend on these samples).
 
@@ -201,7 +201,7 @@ Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub email
 
 | # | Condition | Effect | Fix / owner |
 |---|---|---|---|
-| 1 | **Race holds** (`RACE_HOLD_WEEKS`, a bad hold list, the I-034 pending hold) and Race publish-side holds — warning only | the vault sees "not final" and stays quiet until 12 h before the deadline, then emails hourly | **R-RACE-13 / I-087**, before 16 Nov (D-107) |
+| 1 | ~~Race holds~~ — **now alert** (PR #133 merged: held weeks fail the run; the owner's own hold emails daily, L-4). Check whether the Race's publish-side holds alert too ❓ | — | Race chat |
 | 2 | **Vault "results not ready"** or a malformed results file, earlier than 12 h before the deadline | log only | consider an earlier warning (Vault chat) |
 | 3 | **Block X:** notice-level holds and every non-hold problem — node disagreements, missing race cards, a voided target, a 10+ tie that empties a place, "no results file within the vault's 3 days", "running on ONE node" | warning only | Block X chat to decide which should fail the run |
 | 4 | **Watchdog blind:** when the public RPC can't be read or the script crashes, and when `PERSONAL_PRODUCER` is unset | warning or notice only — blind exactly when Armana is down | Hub / Vault chat; second RPC (TD-10) |
@@ -216,6 +216,6 @@ Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub email
 ## 11. Known corrections to other pages (for the status-sync pass)
 
 - ✅ Done 4 Nov: `RUNBOOK.md` §1 now says they're one email and has the **"Heal alert"** row.
-- `RUNBOOK.md` §1 implies sponsor alerts are occasional: they repeat **every hour** while true.
+- ✅ Done: `RUNBOOK.md` §1 says sponsor alerts repeat every hour while true.
 - ✅ Done 4 Nov: `docs/WALLETS.md` §6 now lists the other expected emails (`game-add`, `game-apply`, `game-stop`, corrections, voids, pause, upgrade, key and operator changes) with what each means.
 - `bot/sponsor.ts` line ~224 comment says the watch exits 0 either way: out of date (it exits 1 on an alert).

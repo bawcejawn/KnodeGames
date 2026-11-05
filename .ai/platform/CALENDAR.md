@@ -35,7 +35,7 @@ See `../standards/WEEK_CYCLE.md` §2: play Mon 00:00 → Sat 24:00 UTC; Sunday r
 - After v6.1 is live: merge #141 (`VAULT_STANDARD` for game 1).
 - After 16 Nov: R-VAULT-4 (recompute in the bot).
 - VHP ruler merged (#163, 5 Nov): the owner turns the recorder on, data only (D-128); paying waits for all 11 simulations (D-111).
-- After the core work (D-113): the paused games, one at a time (`../standards/NEW_GAME.md`).
+- Fantasy, Block Golf, Bracket (reactivated 5 Nov, D-142): each launches when its go-live checklist is done; earliest earning week is the Monday after its `game-apply` (`game-add` by Friday ~noon PT the week before).
 - Picks owner handover (D-106), when its tool is ready.
 - Before stake nears 1,000,000 VHP: the full platform audit (D-102).
 - Before the first year of `vhp-data` ends: the yearly archive (D-124).

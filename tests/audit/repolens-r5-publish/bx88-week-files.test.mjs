@@ -171,9 +171,11 @@ test("BX-72 (review): a non-canonical transfer into the signer voids the target 
 test("the mainnet publish check is given Block X's own round size and offset (blockx-math.js MAINNET_GAME)", () => {
   const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8");
   const G = globalThis.KBlockX.forGame ? globalThis.KBlockX.forGame() : null;
-  const m = /python3 - "\$IN\/blockx" 2 "\$PUB\/blockx" "\$HELD" blockx (\d+) (\d+) <<'PY'/.exec(y);
-  assert.ok(m, "the round size and offset are passed");
+  const m = /python3 - "\$IN\/blockx" 2 "\$PUB\/blockx" "\$HELD" blockx (\d+) (\d+) (\d+):(\d+):(\d+):(\d+) <<'PY'/.exec(y);
+  assert.ok(m, "the round size and offset are passed, and the hourly game's switch (R-BX-25)");
   assert.equal(Number(m[1]), G ? G.ROUND : X.ROUND); assert.equal(Number(m[2]), G ? G.OFFSET : 0);
+  const H = X.MAINNET_HOURLY;
+  assert.deepEqual([m[3], m[4], m[5], m[6]].map(Number), [H.id, H.round, H.offset, X.HOURLY_FROM_WEEK], "game:round:offset:week as blockx-math.js");
 });
 
 // Audit BX-95 (round 6): a number above 2^53 - 1 (which the JavaScript recorder can't read back exactly) never gets
@@ -369,4 +371,38 @@ test("Repo Lens #E-18 K-1: the publish job refuses a new unread round, but lets 
   // the same void published 3 days later is let in (as BX-16's edge voids are)
   p = publish(r.inn, now + 3 * 86400000);
   assert.equal(p.status, 0, "an old edge void is let in: " + p.stdout.slice(-600));
+});
+
+// R-BX-25: from week 4 a week file is hourly Picks game 12's (every 1,200 blocks); the publish job checks each week
+// against its own game.
+test("R-BX-25: the publish job takes week 4 only as game 12's hourly rounds, and week 3 only as game 2's", async () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "bx25-")), remote = path.join(d, "r.git");
+  spawnSync("git", ["init", "-q", "--bare", remote]);
+  const sh = path.join(d, "publish.sh"); fs.writeFileSync(sh, publishScript());
+  const race = fs.mkdtempSync(path.join(d, "race-"));
+  for (const w of [2, 3, 4, 5]) {
+    const races = [];
+    for (let t = M.weekStart(w); t < M.weekStart(w + 1); t += M.RACE) races.push({ id: M.raceId(M.raceIndex(t)), start: t, end: t + M.RACE, cards: Array.from({ length: 6 }, (_, l) => ({ at: t + l * 3600000 + 37 * 60000, c: 1, blocksPerRace: 7200, fairness: null, samples: 36, field: [{ a: BIG, vhp: 2000, k: 600, h: 1 }, { a: MID, vhp: 1000, k: 300, h: 2 }], paddock: [{ a: SMALL, vhp: 10, k: 3 }] })), result: null });
+    fs.writeFileSync(path.join(race, `W${String(w).padStart(3, "0")}.json`), JSON.stringify({ v: 1, week: w, start: M.weekStart(w), end: M.weekStart(w + 1), races }) + "\n");
+  }
+  const picksH = async (_n, r, g) => [{ player: ALICE, producer: MID, time: T(g === 12 ? r * 1200 : r * 2400) - 3600000 }];
+  const w4H = H0 - 1200 + 7 * 28800;   // Mon 16 Nov 00:00
+  const lib = w4H + 6 * 1200 + 50, now = T(lib + 60);
+  const inn = fs.mkdtempSync(path.join(d, "in-")), out = path.join(inn, "blockx");
+  await quiet(() => run({ p: "main", check: "check", out, raceDir: race, picksContract: "1PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP", blockOf, picksOf: picksH, rankedOf,
+    schedule: X.MAINNET_SCHEDULE, vaultGame: X.VAULT_GAME, head: { height: lib + 60, time: now, lib } }));
+  const w4 = JSON.parse(fs.readFileSync(path.join(out, "W004.json"), "utf8"));
+  assert.equal(w4.game, 12); assert.ok(w4.targets.length >= 5 && w4.targets.every((t) => t.height === t.round * 1200));
+  const copy = () => { const i2 = fs.mkdtempSync(path.join(d, "in-")); fs.cpSync(out, path.join(i2, "blockx"), { recursive: true }); return i2; };
+  const publish = (i) => spawnSync("bash", [sh], { env: { ...ENV, IN: i, REMOTE: remote, CHECK_NOW_MS: String(now) }, encoding: "utf8" });
+  // a week-4 file that says game 2 is refused (the files check fails the job)
+  let i = copy(); let f = path.join(i, "blockx", "W004.json"); let j = JSON.parse(fs.readFileSync(f, "utf8")); j.game = 2; fs.writeFileSync(f, JSON.stringify(j) + "\n");
+  assert.notEqual(publish(i).status, 0, "week 4 as game 2 is refused");
+  // a new week-4 round at a 2-hourly height for an hourly round number is refused
+  i = copy(); f = path.join(i, "blockx", "W004.json"); j = JSON.parse(fs.readFileSync(f, "utf8")); j.targets[0].height = j.targets[0].round * 2400; fs.writeFileSync(f, JSON.stringify(j) + "\n");
+  let p = publish(i);
+  assert.notEqual(p.status, 0); assert.match(p.stdout, /aren't past target blocks/);
+  // the honest run publishes
+  p = publish(copy());
+  assert.equal(p.status, 0, p.stdout + p.stderr);
 });

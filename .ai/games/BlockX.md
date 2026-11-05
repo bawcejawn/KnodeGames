@@ -7,8 +7,9 @@
 Guess which block producer will sign a future target block. Simple to play, rooted in how Koinos production really works, and the first game on the shared Picks contract — the foundation the later games (Survivor, Last Node, Bracket, Fantasy, Combo) build on.
 
 ## Gameplay
-- Targets every **2,400 blocks** (about 2 hours): height = round × 2,400 + 0. Picks open up to 28,900 blocks ahead and lock 100 blocks before the target ✅ (`blockx-math.js` `MAINNET_GAME`).
-- Up to **30 picks a day**, with **one change per pick** (D-037) ✅ — "change it once" on the page.
+- Targets every **2,400 blocks** (about 2 hours) on Picks game 2, until Sun 15 Nov 2026: height = round × 2,400 + 0. Picks open up to 28,900 blocks ahead and lock 100 blocks before the target ✅ (`blockx-math.js` `MAINNET_GAME`).
+- **Hourly from Mon 16 Nov 2026 00:00 UTC (Week 2)** (R-BX-25, owner 5 Nov "go ahead"; `docs/blockx/HOURLY-TARGETS-PLAN.md`): Picks **game 12**, every **1,200 blocks**, the same lead and ahead (24 open targets), **48 picks a day**, one change per pick (`MAINNET_HOURLY`, `MAINNET_SCHEDULE`). A game's round size can't change on the Picks contract (`sameShape`), so it is a new game entry in the same contract (no new contract). The vault game stays **2** (stakes, prize and vault files). A target belongs to the game whose weeks its block's real time falls in. 🔨 built, waiting for Repo Lens, then `announce 12` / `apply 12` by the owner.
+- Up to **30 picks a day** on game 2, with **one change per pick** (D-037) ✅ — "change it once" on the page.
 - **Weekly rhythm from Week 1** (D-125, D-129; PRs #160 and #175 ✅): the week counts Mon–Sat; Sunday (UTC) targets are fun rounds, offered (labelled "Fun round · not the week") and scored for Today and All time only, never the week's board, prizes or vault file. First Sunday of fun rounds: Sun 15 Nov. The week-end re-read checks a Sunday target's block only (a play-day target given a Sunday time holds the week).
 - A target with no usable handicap card is voided. 💬
 - Sponsored picks, guests included, within the caps (rows: `../platform/SPONSOR.md`). ✅

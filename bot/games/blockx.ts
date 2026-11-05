@@ -65,6 +65,11 @@ export type Opts = {
   p: any; check: any | null; prev?: string; out?: string; raceDir?: string;
   picksContract?: string | null;                                           // default: picks-data/deployment.json
   game?: Partial<{ id: number; round: number; offset: number; lead: number; ahead: number; picksPerDay: number; maxChanges: number }>;
+  /** R-BX-25: the games by week ({ game, fromWeek, toWeek }); default: `game` (or game 2) for every week (tests,
+   *  testnet). The mainnet run passes X.MAINNET_SCHEDULE (game 2, then hourly game 12 from week 4). */
+  schedule?: { game: any; fromWeek: number; toWeek: number }[];
+  /** The vault game (stakes, the vault file, the prize file); default: the first scheduled game's id. */
+  vaultGame?: number;
   cards?: "race" | "self";                                                 // default: race
   vhpContract?: string;                                                    // default: mainnet VHP
   knodeGame?: string | null;                                               // the Knode vault (v6): who is staked in THIS game
@@ -75,7 +80,7 @@ export type Opts = {
   release?: string | null;
   /** Tests: the first vault week on the D-125 rhythm (Sunday targets don't count); default X.RHYTHM_FROM_WEEK. */
   restFromWeek?: number;
-  picksOf?: (node: any, round: number) => Promise<RawPick[]>;             // for the tests
+  picksOf?: (node: any, round: number, game?: number) => Promise<RawPick[]>;   // for the tests
   blockOf?: (node: any, height: number) => Promise<{ signer: string; time: number }>;
   /** Tests: who was staked in this game in `week` (stake at least the vault's minimum at some point that week). */
   rankedOf?: (who: string[], node: any, week?: number) => Promise<Set<string>>;
@@ -494,7 +499,12 @@ const selfCardAfter = (cards: Card[], t: number, signer = ""): Card | null => fi
 
 /** One run for one game. Exported for the tests, which pass fake nodes. */
 export async function run(o: Opts) {
-  const G = X.forGame(o.game ?? X.MAINNET_GAME);
+  // R-BX-25: the game for each week. A target belongs to the game whose weeks its block's real time falls in.
+  const SCHED = (o.schedule ?? [{ game: o.game ?? X.MAINNET_GAME, fromWeek: 0, toWeek: Infinity }])
+    .map((e: any) => ({ G: X.forGame(e.game), fromWeek: e.fromWeek, toWeek: e.toWeek, from: M.weekStart(e.fromWeek), to: e.toWeek === Infinity ? Infinity : M.weekStart(e.toWeek) }));
+  const GW = (w: number): any => (SCHED.find((e) => w >= e.fromWeek && w < e.toWeek) ?? SCHED[0]).G;
+  const inGame = (Gx: any, t: number) => SCHED.some((e) => e.G === Gx && t >= e.from && t < e.to);
+  const VG = o.vaultGame ?? SCHED[0].G.GAME_ID;
   const OUT = o.out ?? E.BLOCKX_OUT ?? "games-data/blockx";
   const PREV = o.prev ?? E.BLOCKX_PREV ?? "";
   const RACE = o.raceDir ?? E.RACE_DATA ?? "";
@@ -525,17 +535,21 @@ export async function run(o: Opts) {
   // A failed read, or no such game, records nothing this run (it never falls back to the recorder's own settings).
   if (!o.picksOf && contract) {
     for (const node of [o.p, o.check].filter(Boolean)) {
-      const r: any = await withRetry(`game ${G.GAME_ID} settings`, () => (new Contract({ id: contract, abi: PICKS_ABI(), provider: node }).functions as any).get_game({ game: G.GAME_ID }));
-      const gc = r?.result?.game;
-      if (!gc) throw new Error(`game ${G.GAME_ID} is not on the Picks contract (or the node didn't answer). Nothing recorded this run.`);
-      if (Number(gc.round_size) !== G.ROUND || Number(gc.round_offset ?? 0) !== G.OFFSET || Number(gc.lead) !== G.LEAD) {
-        throw new Error(`game ${G.GAME_ID} on chain has round ${gc.round_size}, offset ${gc.round_offset ?? 0}, lead ${gc.lead}; this recorder scores ${G.ROUND}/${G.OFFSET}/${G.LEAD}. Nothing recorded: update the game settings in the recorder first.`);
+      // R-BX-25: every game whose weeks this run can touch (the last 3 days and now): a game not started yet isn't read.
+      for (const e of SCHED.filter((x) => x.from <= head.time && x.to > head.time - LOOKBACK_BLOCKS * X.BLOCK_MS - 7 * X.DAY)) {
+        const G = e.G;
+        const r: any = await withRetry(`game ${G.GAME_ID} settings`, () => (new Contract({ id: contract, abi: PICKS_ABI(), provider: node }).functions as any).get_game({ game: G.GAME_ID }));
+        const gc = r?.result?.game;
+        if (!gc) throw new Error(`game ${G.GAME_ID} is not on the Picks contract (or the node didn't answer). Nothing recorded this run.`);
+        if (Number(gc.round_size) !== G.ROUND || Number(gc.round_offset ?? 0) !== G.OFFSET || Number(gc.lead) !== G.LEAD) {
+          throw new Error(`game ${G.GAME_ID} on chain has round ${gc.round_size}, offset ${gc.round_offset ?? 0}, lead ${gc.lead}; this recorder scores ${G.ROUND}/${G.OFFSET}/${G.LEAD}. Nothing recorded: update the game settings in the recorder first.`);
+        }
       }
     }
   }
-  const picksRead = o.picksOf ?? (contract ? (node: any, r: number) => readPicks(node, contract, G.GAME_ID, r) : null);
+  const picksRead: ((node: any, r: number, g: number) => Promise<RawPick[]>) | null = o.picksOf ?? (contract ? (node: any, r: number, g: number) => readPicks(node, contract, g, r) : null);
   // Audit BX-63: one vault reader for the whole run (each wallet read once per node and week, in parallel).
-  const vaultOnce = vaultReader(KNODE, G.GAME_ID);
+  const vaultOnce = vaultReader(KNODE, VG);
   const vaultRead = o.stakeOf ? null : (who: string[], node: any, week: number) => vaultOnce(node, who, week);
   const rankedRead = o.rankedOf ?? (async (who: string[], node: any, week = 0) => stakedSet(await vaultRead!(who, node, week)));
   const weekStakes = async (who: string[], node: any, week: number): Promise<{ min: bigint; week: Map<string, bigint> } | null> => {
@@ -544,7 +558,8 @@ export async function run(o: Opts) {
     const v = await vaultRead!(who, node, week);
     return v.live ? { min: v.min, week: new Map([...v.players.entries()].map(([a, x]) => [a, x.week])) } : null;
   };
-  console.log(`game ${G.GAME_ID}: every ${G.ROUND} blocks, lock ${G.LEAD} before; head ${head.height} (${new Date(head.time).toISOString()}), irreversible ${head.lib}`);
+  for (const e of SCHED) console.log(`game ${e.G.GAME_ID} (weeks ${e.fromWeek}–${e.toWeek === Infinity ? "on" : e.toWeek - 1}): every ${e.G.ROUND} blocks, lock ${e.G.LEAD} before`);
+  console.log(`vault game ${VG}; head ${head.height} (${new Date(head.time).toISOString()}), irreversible ${head.lib}`);
 
   // ── self-made cards (CARDS=self): one per hour, from the VHP of the producers of the last ~6 hours ──
   let cards: Card[] = [];
@@ -573,20 +588,21 @@ export async function run(o: Opts) {
 
   // The weeks touched: the last 3 days and now.
   const weeks = new Map<number, WeekFile>();
-  const weekFor = (w: number) => { let f = weeks.get(w); if (!f) { f = loadWeek(PREV, w, G); weeks.set(w, f); } return f; };
+  const weekFor = (w: number) => { let f = weeks.get(w); if (!f) { f = loadWeek(PREV, w, GW(w)); weeks.set(w, f); } return f; };
   const idx = readJson(PREV, "index.json");
   const known = new Set<number>(Array.isArray(idx?.weeks) ? idx.weeks.filter((w: any) => Number.isInteger(w) && w >= 0 && w < 10000) : []);
-  const done = new Set<number>();
+  const done = new Set<string>();   // "<game>:<round>"
   const nowW = M.weekOf(head.time);
-  for (const w of [nowW - 1, nowW]) if (w >= 0) for (const t of weekFor(w).targets) done.add(t.round);
+  for (const w of [nowW - 1, nowW]) if (w >= 0) for (const t of weekFor(w).targets) done.add(`${GW(w).GAME_ID}:${t.round}`);
 
   /** A void row (no points) for a target that couldn't be recorded before it left the 3-day window (audit BX-16). */
-  const voidAt = (r: number, h: number, time: number, lockTime: number, why: string) => {
+  const voidAt = (r: number, h: number, time: number, lockTime: number, why: string, G: any) => {
     const t = time || (head.time - (head.height - h) * X.BLOCK_MS);
+    if (!inGame(G, t)) return;   // R-BX-25: not this game's weeks
     const wf = weekFor(M.weekOf(t));
     if (wf.targets.some((x) => x.round === r)) return;
     wf.targets = wf.targets.concat([{ round: r, height: h, final: true, checked: 0, signer: null, time: Math.round(t), lockTime: Math.round(lockTime || t - G.LEAD * X.BLOCK_MS), card: null, void: why.replace(/[\r\n]+/g, " "), picks: [] }]).sort((x, y) => x.round - y.round);
-    done.add(r);
+    done.add(`${G.GAME_ID}:${r}`);
   };
 
   /** D-125 / D-129: a target whose block falls on Sunday UTC is a fun round: Today and All time only, never the week. */
@@ -608,14 +624,15 @@ export async function run(o: Opts) {
   // vault reader and each page of picks; and its own vault reader with REVERIFY_TRIES tries per read (not the default 6).
   const reDeadline = runStart + (o.reverifyBudgetMs ?? REVERIFY_BUDGET_MS);
   const beforeRead = () => { if (Date.now() > reDeadline) throw new OutOfTime(); };
-  const reVault = vaultReader(KNODE, G.GAME_ID, VAULT_ABI, REVERIFY_TRIES, beforeRead);
+  const reVault = vaultReader(KNODE, VG, VAULT_ABI, REVERIFY_TRIES, beforeRead);
   const rerank = o.rankedOf ?? (o.stakeOf ? rankedRead : (async (who: string[], node: any, week = 0) => stakedSet(await reVault(node, who, week))));
   /** Repo Lens B3-1 / B4-1: `ignore` is the one hold a matching BLOCKX_RELEASE lets through: that round and that exact
    *  reason. Every target is still read, that round included, and every other check on it still runs. */
   const reverify = async (wf: WeekFile, ignore: { round: number; why: string } | null = null): Promise<Hold | null> => {
     // Fix-check L-1: REVERIFY_TRIES tries per read here (a failed read holds the week; the next run tries again).
     const nodes = (o.blockOf ? [blockP, blockC] : [blockReader(o.p, headId, REVERIFY_TRIES), o.check ? blockReader(o.check, checkHeadId, REVERIFY_TRIES) : null]).filter(Boolean) as ((h: number) => Promise<{ signer: string; time: number }>)[];
-    const reread = o.picksOf ?? (contract ? (node: any, r: number) => readPicks(node, contract, G.GAME_ID, r, REVERIFY_TRIES, beforeRead) : null);
+    const reread: ((node: any, r: number, g: number) => Promise<RawPick[]>) | null = o.picksOf ?? (contract ? (node: any, r: number, g: number) => readPicks(node, contract, g, r, REVERIFY_TRIES, beforeRead) : null);
+    const G = GW(wf.week);   // R-BX-25: the week's own game
     const pnodes = [o.p, o.check].filter(Boolean);
     const sameRaw = (a: [string, string, number][], b: [string, string, number][]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
     const deadline = reDeadline;
@@ -669,7 +686,7 @@ export async function run(o: Opts) {
       if (reread) {
         const mine = t.picks.map((x) => [x[0], x[1], x[2]] as [string, string, number]);
         for (const node of pnodes) {
-          const raw = (await timed(() => reread(node, t.round))).map((x) => [x.player, x.producer, x.time] as [string, string, number]);
+          const raw = (await timed(() => reread(node, t.round, G.GAME_ID))).map((x) => [x.player, x.producer, x.time] as [string, string, number]);
           if (!sameRaw(raw, mine)) { const x = hold(": its picks read differently now"); if (x) return x; }
         }
       }
@@ -721,17 +738,28 @@ export async function run(o: Opts) {
     .map((t) => `week ${wf.week}: block ${t.height} was voided for a non-standard VHP transfer to ${t.signer ?? "its signer"}; check it in the correction window (who gains if it stands?)`);
 
   // ── 1–3. targets ──
-  let firstRound = Math.max(1, Math.ceil((head.lib - LOOKBACK_BLOCKS - G.OFFSET) / G.ROUND));
-  // CARDS=self: only targets whose lock comes at most ~an hour (1,200 blocks) before the first run; earlier ones could
-  // never have a card, so they are not part of this recorder's game at all (no "void" rows for days before it ran).
-  if (CARDS === "self") firstRound = Math.max(firstRound, Math.ceil((startHeight - 1200 + G.LEAD - G.OFFSET) / G.ROUND));
-  const lastRound = Math.floor((head.lib - G.OFFSET) / G.ROUND);
+  // R-BX-25: every game's rounds in the window (the last 3 days), newest first across the games.
+  const slots: { G: any; r: number; h: number }[] = [];
+  for (const e of SCHED) {
+    const G = e.G;
+    if (e.from > head.time) continue;   // a game whose weeks haven't started
+    let firstRound = Math.max(1, Math.ceil((head.lib - LOOKBACK_BLOCKS - G.OFFSET) / G.ROUND));
+    // CARDS=self: only targets whose lock comes at most ~an hour (1,200 blocks) before the first run; earlier ones could
+    // never have a card, so they are not part of this recorder's game at all (no "void" rows for days before it ran).
+    if (CARDS === "self") firstRound = Math.max(firstRound, Math.ceil((startHeight - 1200 + G.LEAD - G.OFFSET) / G.ROUND));
+    const lastRound = Math.floor((head.lib - G.OFFSET) / G.ROUND);
+    for (let r = lastRound; r >= firstRound; r--) slots.push({ G, r, h: G.target(r) });
+  }
+  slots.sort((a, b) => b.h - a.h || b.G.ROUND - a.G.ROUND);
   let n = 0;
   // Newest first, so targets that keep waiting (no card) never crowd out the new ones within a run's budget.
-  for (let r = lastRound; r >= firstRound && n < MAX_TARGETS_PER_RUN; r--) {
-    if (done.has(r)) continue;
-    const h = G.target(r);
+  for (const { G, r, h } of slots) {
+    if (n >= MAX_TARGETS_PER_RUN) break;
+    if (done.has(`${G.GAME_ID}:${r}`)) continue;
     if (h <= G.LEAD) continue;
+    // R-BX-25: a block clearly outside this game's weeks (by its expected time, a day either side) isn't read at all.
+    const est = head.time - (head.height - h) * X.BLOCK_MS;
+    if (!SCHED.some((e) => e.G === G && est >= e.from - X.DAY && est < e.to + X.DAY)) continue;
     n++;
     const old = h < head.lib - LOOKBACK_BLOCKS + G.ROUND;
     try {
@@ -739,16 +767,18 @@ export async function run(o: Opts) {
       let checked = 1;
       if (blockC) {
         const b2 = await blockC(h), l2 = await blockC(h - G.LEAD);
-        if (b2.signer !== b.signer || b2.time !== b.time || l2.time !== lock.time) { problems.push(`block ${h}: the two nodes disagree; not recorded this run`); if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about this block until it left the 3-day window"); continue; }
+        if (b2.signer !== b.signer || b2.time !== b.time || l2.time !== lock.time) { problems.push(`block ${h}: the two nodes disagree; not recorded this run`); if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about this block until it left the 3-day window", G); continue; }
         checked = 2;
       }
+      // R-BX-25: the block's real time decides the game (game 2 before the switch, hourly game 12 from it).
+      if (!inGame(G, b.time)) continue;
       let raw: RawPick[] = [];
       if (picksRead) {
-        raw = await picksRead(o.p, r);
+        raw = await picksRead(o.p, r, G.GAME_ID);
         if (o.check) {
-          const other = await picksRead(o.check, r);
+          const other = await picksRead(o.check, r, G.GAME_ID);
           const key = (x: RawPick[]) => JSON.stringify([...x].sort((u, v) => (u.player < v.player ? -1 : 1)));
-          if (key(raw) !== key(other)) { problems.push(`block ${h}: the two nodes disagree about the picks; not recorded this run`); if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about its picks until it left the 3-day window"); continue; }
+          if (key(raw) !== key(other)) { problems.push(`block ${h}: the two nodes disagree about the picks; not recorded this run`); if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about its picks until it left the 3-day window", G); continue; }
         }
       }
       const card = cardAt(lock.time);
@@ -756,7 +786,7 @@ export async function run(o: Opts) {
       // the target waits, and only at the 3-day edge is it voided, with that reason.
       if (!card && raceMissing(lock.time - CARD_MAX_AGE_MS, lock.time)) {
         problems.push(`block ${h}: this run has no race cards for its lock (the race-data files are missing); not recorded this run`);
-        if (old) voidAt(r, h, b.time, lock.time, "the race cards for its lock could not be read until it left the 3-day window");
+        if (old) voidAt(r, h, b.time, lock.time, "the race cards for its lock could not be read until it left the 3-day window", G);
         continue;
       }
       // CARDS=self: cards are only ever taken going forward, so a lock more than an hour before the first card will
@@ -770,7 +800,7 @@ export async function run(o: Opts) {
       // Repo Lens E4-1 (a): the same for the first card after the block.
       if (card && !after && raceMissing(b.time, b.time + CARD_MAX_AGE_MS)) {
         problems.push(`block ${h}: this run has no race cards for the hours after the block (the race-data files are missing); not recorded this run`);
-        if (old) voidAt(r, h, b.time, lock.time, "the race cards after the block could not be read until it left the 3-day window");
+        if (old) voidAt(r, h, b.time, lock.time, "the race cards after the block could not be read until it left the 3-day window", G);
         continue;
       }
       if (card && !after && !old && !afterNever) { problems.push(`block ${h}: waiting for the first handicap card after the block (scored with the lower of the two); tried again next run`); continue; }
@@ -780,7 +810,7 @@ export async function run(o: Opts) {
       const ranked = await rankedRead(players, o.p, wk);
       if (o.check) {
         const other = await rankedRead(players, o.check, wk);
-        if (ranked.size !== other.size || [...ranked].some((a) => !other.has(a))) { problems.push(`block ${h}: the two nodes disagree about which players are Staked; not recorded this run`); if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about Staked status until it left the 3-day window"); continue; }
+        if (ranked.size !== other.size || [...ranked].some((a) => !other.has(a))) { problems.push(`block ${h}: the two nodes disagree about which players are Staked; not recorded this run`); if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about Staked status until it left the 3-day window", G); continue; }
       }
       // Audit BX-55: a lock card on which the two nodes disagreed about the signer's VHP is never scored: the target
       // waits (the lock card can't change, so it is voided at the usual 3-hour limit).
@@ -803,7 +833,7 @@ export async function run(o: Opts) {
         const ncP = mp instanceof NonCanonicalTransfer, ncC = mc instanceof NonCanonicalTransfer;
         if (ncP !== ncC) {
           problems.push(`block ${h}: only one node reports a non-standard VHP transfer to ${b.signer}; not recorded this run`);
-          if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about the VHP moved to its signer until it left the 3-day window");
+          if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about the VHP moved to its signer until it left the 3-day window", G);
           continue;
         }
         if (ncP) {
@@ -830,19 +860,19 @@ export async function run(o: Opts) {
       else if (nonCanonical) t.void = `${nonCanonical} between its lock card and the block, so the VHP moved can't be read; no points`;
       const wf = weekFor(M.weekOf(b.time));
       wf.targets = wf.targets.filter((x) => x.round !== r).concat([t]).sort((x, y) => x.round - y.round);
-      done.add(r);
+      done.add(`${G.GAME_ID}:${r}`);
       console.log(`block ${h}: signed by ${b.signer}, ${picks.length} picks, ${picks.filter((x) => x[3] > 0).length} right, checked on ${checked} node(s)`);
     } catch (e) {
       problems.push(`block ${h}: ${(e as Error).message} (tried again next run)`);
       // Audit BX-16: a target that keeps failing is voided, with its reason, when it reaches the edge of the window, so
       // the week can still become final.
-      if (old) voidAt(r, h, 0, 0, `could not be recorded within 3 days: ${String((e as Error).message).slice(0, 120)}`);
+      if (old) voidAt(r, h, 0, 0, `could not be recorded within 3 days: ${String((e as Error).message).slice(0, 120)}`, G);
     }
   }
 
   // ── 4. leaderboards ──
   const all = new Map(weeks);
-  for (const w of known) if (!all.has(w)) all.set(w, loadWeek(PREV, w, G));
+  for (const w of known) if (!all.has(w)) all.set(w, loadWeek(PREV, w, GW(w)));
   const rowsOf = (from: number, to: number) => {
     const rows: any[] = [];
     for (const wf of all.values()) for (const t of wf.targets) {
@@ -880,7 +910,9 @@ export async function run(o: Opts) {
     // once two runs at least an hour apart agree (the run before published the same rows for this week, an hour or more
     // ago) and the week-end re-read below passes.
     const wf = all.get(lw);
-    const complete = !!wf && wf.targets.length > 0 && targetsCover(wf, M.weekStart(lw), weekEnd(lw), all);
+    // (R-BX-25: rounds are a game's own, so only that game's weeks are searched for the neighbours.)
+    const sameGame = new Map([...all].filter(([w]) => GW(w) === GW(lw)));
+    const complete = !!wf && wf.targets.length > 0 && targetsCover(wf, M.weekStart(lw), weekEnd(lw), sameGame);
     // (The run before is the last one on Sunday, whose "this week" board is this week's Mon–Sat, or one on Monday.)
     const prevBoard = readJson(PREV, "board.json");
     const pw = prevBoard && [prevBoard.lastWeek, prevBoard.week].find((x: any) => x && x.week === lw && Array.isArray(x.rows));
@@ -899,7 +931,7 @@ export async function run(o: Opts) {
     // use that file, so a target recorded late can't change a prize list that was already final.
     const frozen = readJson(PREV, pName(lw));
     if (ready && !agreed && !frozen) console.log(`week ${lw}: pending; it goes final once a run at least an hour after this one reads the same week`);
-    if (frozen && frozen.v === 1 && frozen.week === lw && frozen.game === G.GAME_ID && Array.isArray(frozen.prizes)) {
+    if (frozen && frozen.v === 1 && frozen.week === lw && frozen.game === VG && Array.isArray(frozen.prizes)) {
       lastWeek.final = true; lastWeek.prizes = frozen.prizes; lastWeek.frozenAt = frozen.at;
     } else if (ready) {
       // (D-135: read again from the first run that can go final, so a difference holds at once; it freezes only once
@@ -937,7 +969,7 @@ export async function run(o: Opts) {
         const note = `week ${lw}: held before its prize list: ${held}. Nothing is paid until a run reads the whole week the same (tried again next run).${code}`;
         problems.push(note); holds.push(note);
         lastWeek.final = false; lastWeek.prizes = [];
-      } else if (agreed) freeze = { v: 1, week: lw, game: G.GAME_ID, at: new Date(head.time).toISOString(), prizes: lastWeek.prizes };
+      } else if (agreed) freeze = { v: 1, week: lw, game: VG, at: new Date(head.time).toISOString(), prizes: lastWeek.prizes };
     }
   }
   const board = {
@@ -955,7 +987,7 @@ export async function run(o: Opts) {
     known.add(w);
     fs.writeFileSync(path.join(OUT, wName(w)), JSON.stringify(wf) + "\n");
   }
-  fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(head.time).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: G.GAME_ID, prizesFromWeek: PRIZES_FROM }) + "\n");
+  fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(head.time).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: VG, prizesFromWeek: PRIZES_FROM }) + "\n");
   fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
   if (freeze) fs.writeFileSync(path.join(OUT, pName(freeze.week)), JSON.stringify(freeze) + "\n");
   // The Vault (v6) results file for the week just ended, once final (from the frozen prize list, so it never changes):
@@ -982,7 +1014,7 @@ export async function run(o: Opts) {
         counted = ca;
       }
       const ranked = X.places(X.board(lastRowsOf(lastWeek.week).filter((x: any) => counted.has(x.player)))).map((x: any) => ({ player: x.player, place: x.place }));
-      const vf = vaultFile(G.GAME_ID, lastWeek.week, lastWeek.prizes, vaultPoints(ranked));
+      const vf = vaultFile(VG, lastWeek.week, lastWeek.prizes, vaultPoints(ranked));
       for (const pr of vf.problems) problems.push(pr);
       fs.mkdirSync(path.join(OUT, "vault"), { recursive: true });
       fs.writeFileSync(path.join(OUT, "vault", `W${lastWeek.week}.json`), JSON.stringify(vf.file) + "\n");
@@ -1053,7 +1085,8 @@ async function main() {
     // Audit BX-59: never quietly down to one node on mainnet; ALLOW_ONE_NODE=yes says so out loud.
     if (!RPC_CHECK && E.ALLOW_ONE_NODE !== "yes") throw new Error("no second node (RPC_CHECK is off, missing or the same as RPC): Block X needs two on mainnet. Set RPC_CHECK, or ALLOW_ONE_NODE=yes to run on one node.");
     if (!RPC_CHECK) console.log("::warning::running on ONE node (ALLOW_ONE_NODE=yes): blocks, picks and stakes are not cross-checked");
-    const r = await run({ p: new Provider([RPC]), check: RPC_CHECK ? new Provider([RPC_CHECK]) : null, prizesFromWeek: prizesFromEnv(E.PRIZES_FROM_WEEK) });
+    // R-BX-25: mainnet runs the schedule (game 2, then hourly game 12 from Mon 16 Nov), vault game 2 throughout.
+    const r = await run({ p: new Provider([RPC]), check: RPC_CHECK ? new Provider([RPC_CHECK]) : null, prizesFromWeek: prizesFromEnv(E.PRIZES_FROM_WEEK), schedule: X.MAINNET_SCHEDULE as any, vaultGame: X.VAULT_GAME });
     // Repo Lens E4-7: tell the workflow a week is held; its last job fails the run (an email) after publishing.
     if (r.held.length && E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, "held=true\n");
     return r;

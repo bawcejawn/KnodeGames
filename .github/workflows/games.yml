@@ -141,7 +141,7 @@ jobs:
             done
           else git read-tree --empty; fi
           # The content must be the recorder's own shape, not only parse as JSON.
-          /usr/bin/python3 - "$IN/blockx" 2 "$PUB/blockx" "$HELD" blockx 2400 0 <<'PY'
+          /usr/bin/python3 - "$IN/blockx" 2 "$PUB/blockx" "$HELD" blockx 2400 0 12:1200:0:4 <<'PY'
           import json, os, re, sys
           d = sys.argv[1]; gid = int(sys.argv[2]); addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
           iso = re.compile(r"[0-9]{4}-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9](\.[0-9]{3})?Z"); ymd = re.compile(r"[0-9]{4}-[0-9][0-9]-[0-9][0-9]")
@@ -223,6 +223,15 @@ jobs:
           # The game's round size and offset (a target's height is round * size + offset), for the new-target check.
           GROUND = int(sys.argv[6]) if len(sys.argv) > 6 and re.fullmatch(r"[1-9][0-9]{0,6}", sys.argv[6]) else None
           GOFFSET = int(sys.argv[7]) if len(sys.argv) > 7 and re.fullmatch(r"[0-9]{1,7}", sys.argv[7]) else None
+          # R-BX-25: from a vault week on, another Picks game (hourly Block X, game 12 from week 4): "game:round:offset:week".
+          # A week file names its game, and its targets are that game's rounds; the vault, prize and index files stay game gid.
+          SWITCH = None
+          if len(sys.argv) > 8 and re.fullmatch(r"[1-9][0-9]{0,3}:[1-9][0-9]{0,6}:[0-9]{1,7}:[0-9]{1,4}", sys.argv[8]):
+              SWITCH = tuple(int(x) for x in sys.argv[8].split(":"))
+          def week_game(w):
+              """(Picks game, round size, offset) for vault week w."""
+              if SWITCH and type(w) is int and w >= SWITCH[3]: return SWITCH[0], SWITCH[1], SWITCH[2]
+              return gid, GROUND, GOFFSET
           held = []
           def hold(name, why, alert):
               held.append(name); print(("::error::" if alert else "::notice::") + "held, not published: " + name + ": " + why)
@@ -311,12 +320,13 @@ jobs:
                   why = None
                   if wstart is None or new.get("start") != wstart or not (cw - 1 <= wk <= cw): why = "new targets for a week that isn't this one or the one just ended, by this job's clock"
                   elif pubjson("P%03d.json" % wk) is not None: why = "new targets for a week whose prize file is already published"
-                  elif GROUND is None or GOFFSET is None: why = "this job doesn't know the game's round size, so it can't check new targets"
+                  elif week_game(wk)[1] is None or week_game(wk)[2] is None: why = "this job doesn't know the game's round size, so it can't check new targets"
                   else:
                       bad = []
                       for t in fresh:
                           h, tm = t.get("height"), t.get("time")
-                          ok = type(tm) is int and type(h) is int and h == t["round"] * GROUND + GOFFSET and wstart <= tm < wstart + WEEK and tm <= now
+                          _g, wround, woff = week_game(wk)
+                          ok = type(tm) is int and type(h) is int and h == t["round"] * wround + woff and wstart <= tm < wstart + WEEK and tm <= now
                           # Repo Lens #E-18 K-1: a new round must say it was read on chain (checked 1 or 2), unless it is a
                           # 3-day-edge void (no picks, its block at least ~66 h old), the only kind the recorder writes unread.
                           ok = ok and (t.get("checked") in (1, 2) or (type(t.get("void")) is str and t.get("picks") == [] and tm <= now - 66 * 3600000))
@@ -366,7 +376,7 @@ jobs:
                   assert (type(j["game"]) is int and j["game"] == gid) and (j["prizesFromWeek"] is None or nat(j["prizesFromWeek"])), f
                   assert j["contract"] is None or isaddr(j["contract"]), f
                   continue
-              assert set(j) == {"v", "week", "start", "end", "game", "targets"} and one(j["v"]) and (type(j["game"]) is int and j["game"] == gid) and nat(j["week"]) and f == "W%03d.json" % j["week"], f
+              assert set(j) == {"v", "week", "start", "end", "game", "targets"} and one(j["v"]) and nat(j["week"]) and (type(j["game"]) is int and j["game"] == week_game(j["week"])[0]) and f == "W%03d.json" % j["week"], f
               assert nat(j["start"]) and nat(j["end"]) and j["end"] - j["start"] == WEEK, f
               assert type(j["targets"]) is list and len(j["targets"]) <= 1000 and all(target_ok(t) for t in j["targets"]), f
           print("games files ok:", d)

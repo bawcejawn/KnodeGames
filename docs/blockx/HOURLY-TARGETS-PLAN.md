@@ -1,8 +1,8 @@
 # Plan: a Block X target every hour (R-BX-25, proposed 5 Nov 2026)
 
-> Status: **proposed; waiting for the owner's OK** on the decisions in §6. Nothing is built or sent. Asked for by the
-> owner (5 Nov, through the VHP Ruler chat): *"Block X also only having blocks to chose from for every 2 hours seems slow
-> to play."* Written by the Block X chat after checking the code (main @ `96a49ac`).
+> Status: **approved by the owner 5 Nov ("go ahead"), built** (PR: see §7). Asked for by the owner (5 Nov, through the
+> VHP Ruler chat): *"Block X also only having blocks to chose from for every 2 hours seems slow to play."* No new
+> contract: a new game entry in the same Picks contract (the owner: "I dont want a new contract").
 
 ## 1. What changes for players
 - A target block every **1,200 blocks (about an hour)** instead of every 2,400 (about two hours).
@@ -76,3 +76,16 @@ Either option is ready by Mon 16. **Option A** keeps the new owner's first job s
 4. **Daily pick cap:** 48 (every target plus one change each), or something else up to 50?
 5. **The pick Mana limit:** lower it 1.3 → 1.2 (a sponsor config send by the owner)?
 6. **Handover order:** Option A or Option B (§5)?
+
+## 7. What was decided (5 Nov; the owner said "go ahead" without picking, so the recommended options)
+1. **Start:** Mon 16 Nov 2026 00:00 UTC (Week 2). Week 1 and its payout stay every 2 hours.
+2. **Game 2 stops at the switch:** the page offers its targets only before it (10 minutes clear), the recorder records a
+   game-2 target only if its block lands before Mon 16 00:00, and game 12's only from then. Pause game 2 on chain after
+   its last target (optional; nothing records it anyway).
+3. **The sponsor:** (a), no change. Hourly picks are paid from the free pool (stakers too). A mapping of Picks game 12 to
+   vault game 2 goes into the next sponsor version (R-BX-5).
+4. **Daily cap 48**, one change per pick.
+5. **The pick Mana row stays 1.3** for now (lowering it to 1.2 is an optional config send).
+6. **Handover order A:** after Repo Lens's GO, `announce 12` with today's owner key (by Mon 9), `apply 12` 48 h later;
+   then the Picks handover (propose after the apply, accept 48 h later). Game 12 must be applied before Mon 16 00:00:
+   the recorder refuses to record a game that isn't on the contract once its weeks have started.

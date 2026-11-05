@@ -80,8 +80,8 @@ test("ten steps, each with what it does, what you should see, a fix list and a D
   const steps = [...html.matchAll(/<section class="rn-step pg-card" id="step-(\d+)">([\s\S]*?)<\/section>/g)];
   assert.deepEqual(steps.map((s) => Number(s[1])), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   for (const [, n, body] of steps) {
-    assert.match(body, /<b>What this does:<\/b>/, `step ${n}`);
-    assert.match(body, /<b>You should see:<\/b>/, `step ${n}`);
+    assert.match(body, /<p class="rn-what"><span class="rn-tag">What this does<\/span>/, `step ${n}`);
+    assert.match(body, /<p class="rn-see"><span class="rn-tag">You should see<\/span>/, `step ${n}`);
     assert.match(body, /<summary>If it doesn't work<\/summary>\s*<ul>\s*<li>/, `step ${n}`);
     assert.match(body, new RegExp(`data-check="step-${n}"`), `step ${n}`);
     const oses = new Set(boxes.filter((b) => b.step === Number(n)).flatMap((b) => b.os));
@@ -318,4 +318,22 @@ test("L-1: on Linux an ordinary folder named like the stick is not a USB stick",
   assert.match(bash(linux, t, { PATH: `${t}:${process.env.PATH}`, USER: "me" }), /STOP - no USB stick named MYUSB/);
   assert.ok(!fs.existsSync(path.join(t, "calls")), "docker never ran");
   fs.rmSync(t, { recursive: true, force: true });
+});
+
+test("disclaimers: a short notice before the steps and a full disclaimer at the end, both linking the Terms", () => {
+  const notice = html.indexOf('id="notice"'), first = html.indexOf('id="step-1"'), legal = html.indexOf('id="disclaimer"');
+  assert.ok(notice > 0 && notice < first, "the notice comes before step 1");
+  assert.ok(legal > html.indexOf('id="step-10"'), "the full disclaimer comes after the steps");
+  const block = html.slice(legal, html.indexOf("</section>", legal));
+  for (const need of [/isn't financial, investment, tax or legal advice/, /at your own risk/, /provided as is, without any warranty/,
+    /not liable for any loss or damage/, /isn't affiliated with them/, /rewards aren't guaranteed/, /will never ask for your private key or recovery words/,
+    /href="terms\.html"/]) assert.match(block, need);
+  assert.match(html.slice(notice, first), /href="#disclaimer"/);
+});
+
+test("bold is kept for the steps (what to click or type), not for explanations", () => {
+  const steps = html.slice(html.indexOf('id="step-1"'), html.indexOf('id="trouble"'));
+  const outside = steps.replace(/<ol class="rn-list[^"]*"[^>]*>[\s\S]*?<\/ol>|<ul class="rn-list rn-warn">[\s\S]*?<\/ul>/g, "");
+  assert.equal((outside.match(/<b>/g) || []).length, 0, "no bold in explanations, tips or fixes");
+  assert.ok((steps.match(/<b>/g) || []).length > 10, "the action lists keep their bold");
 });

@@ -17,6 +17,9 @@ const H = 3600000, DAY = 24 * H;
 const P = Array.from({ length: 12 }, (_, i) => "1" + "ABCDEFGHJKLMNPQRSTUVWXYZ"[i].repeat(33));
 const FREE = "1" + "a".repeat(33);
 const W = 3, START = M.weekStart(W), END = M.weekStart(W + 1);
+// The publish checks use their own clock (CHECK_NOW_MS in the tests; the workflow never sets it): by default a week
+// after the test week, so every test week has ended. Tests about the clock set their own.
+process.env.CHECK_NOW_MS ??= String(END + 7 * DAY);
 const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const write = (dir, name, j) => { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, name), JSON.stringify(j)); };
 const SOURCES = [
@@ -357,6 +360,29 @@ test("the publish job's shape check accepts the recorder's files and refuses tam
   const bad3 = copyDir(out);
   const w3 = readOut(bad3, "W003.json"); w3.start += 1; write(bad3, "W003.json", w3);
   assert.throws(() => execFileSync("python3", [shape, bad3], { stdio: "pipe" }), "start not the week's");
+});
+
+test("the publish job's clock (RECORDER_STANDARD §3.1): no final before the week ends, no future weeks or stamps", async (t) => {
+  try { execFileSync("python3", ["--version"]); } catch { t.skip("no python3 here"); return; }
+  const [shape] = checks();
+  const at = (ms) => ({ ...process.env, CHECK_NOW_MS: String(ms) });
+  const out = tmp("golf-");
+  await settle(base({ now: END + 13 * H, out, raceDir: raceDir(), gamesDir: FINAL_GAMES() }));
+  assert.match(execFileSync("python3", [shape, out], { encoding: "utf8", env: at(END + 14 * H) }), /golf files ok/);
+  // The same files seen by a publish clock still inside the week: a final week that hasn't ended is refused
+  assert.throws(() => execFileSync("python3", [shape, out], { stdio: "pipe", env: at(END - H) }), /final before the week ended|sent before its week ended/);
+  // A week file and an index week from more than a week ahead
+  const fut = copyDir(out);
+  const idx = readOut(fut, "index.json"); idx.weeks.push(W + 3); write(fut, "index.json", idx);
+  assert.throws(() => execFileSync("python3", [shape, fut], { stdio: "pipe", env: at(END + 14 * H) }), /from the future/);
+  // A pending week's check stamp from the future, or from before the week ended
+  const p = tmp("golf-");
+  await run(base({ now: END, out: p, raceDir: raceDir(), gamesDir: FINAL_GAMES() }));
+  assert.match(execFileSync("python3", [shape, p], { encoding: "utf8", env: at(END + H / 2) }), /golf files ok/);
+  assert.throws(() => execFileSync("python3", [shape, p], { stdio: "pipe", env: at(END - 1) }), /check stamp outside its time|final before/);
+  const early = copyDir(p);
+  const wf = readOut(early, "W003.json"); wf.check.at = END - H; write(early, "W003.json", wf);
+  assert.throws(() => execFileSync("python3", [shape, early], { stdio: "pipe", env: at(END + H) }), /check stamp outside its time/);
 });
 
 test("the publish job's history check: final weeks can't change, weeks only grow, joining weeks stay", async (t) => {

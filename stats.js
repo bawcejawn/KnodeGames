@@ -14,16 +14,20 @@
   // The strip shows a number only once it reads well (research item 18).
   const MIN = { staked: 1000, players: 20, plays: 100 };
 
+  // Game names: the same rule as bot/stats.ts BAD_NAME and the publish job (Repo Lens C9-5).
+  const BAD_NAME = /[<>\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\u3164]/;
   const int = (n) => Number.isInteger(n) && n >= 0 && n < 1e9;
   const num = (n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n < 1e12;
   /** The file's shape, or null. */
-  function check(s) {
+  function check(s, now = Date.now()) {
     if (!s || s.v !== 1 || typeof s.updated !== "string" || s.updated.length > 40 || !Number.isFinite(Date.parse(s.updated))) return null;
+    if (Date.parse(s.updated) - now > 10 * 60000) return null;                         // dated in the future (C9-3)
+    if (!s.week || !Number.isInteger(s.week.start) || !Number.isInteger(s.week.end) || s.week.end <= s.week.start) return null;
     const p = s.players, pl = s.plays, st = s.staked, t = s.today, top = s.top;
     if (!p || !int(p.week) || !int(p.lastWeek) || !int(p.allTime)) return null;
     if (!pl || !["answers", "racePicks", "blockxPicks", "total"].every((k) => int(pl[k]))) return null;
     if (!st || !num(st.total) || !Array.isArray(st.games) || st.games.length > 20) return null;
-    for (const g of st.games) if (!g || !int(g.id) || typeof g.name !== "string" || g.name.length > 40 || !num(g.vhp)) return null;
+    for (const g of st.games) if (!g || !int(g.id) || typeof g.name !== "string" || !g.name || g.name.length > 40 || BAD_NAME.test(g.name) || !num(g.vhp)) return null;
     if (!s.blocks || !(s.blocks.vault24h === null || int(s.blocks.vault24h))) return null;
     if (!t || !int(t.open) || !int(t.answers) || !(t.closes === null || (Number.isInteger(t.closes) && t.closes > 1.6e12 && t.closes < 4e12))) return null;
     if (!top) return null;
@@ -40,6 +44,8 @@
       try {
         const r = await fetch(URL_, { cache: "no-cache" });
         if (!r.ok) return null;
+        const len = Number(r.headers && r.headers.get && r.headers.get("content-length"));
+        if (len > 65536) return null;                                                       // before downloading it (C9-6)
         const text = await r.text();
         if (text.length > 65536) return null;
         return check(JSON.parse(text));
@@ -71,7 +77,8 @@
   async function strip(box) {
     if (!box) return;
     const s = await load(), now = Date.now();
-    if (!s || now - Date.parse(s.updated) > STALE_MS) { box.hidden = true; return; }
+    // Hidden when old, or once its week is over: "players this week" must not carry into a new week (C9-3).
+    if (!s || now - Date.parse(s.updated) > STALE_MS || now >= s.week.end) { box.hidden = true; return; }
     box.replaceChildren(...stripFacts(s, now).map(([v, l]) => { const f = el("span", "stats-fact"); f.append(el("b", null, v), " ", el("span", null, l)); return f; }));
     box.hidden = false;
   }
@@ -98,7 +105,7 @@
     head.append(el("h2", null, "Knode Games right now"), el("small", null, `Updated ${ago(s.updated, now)}`));
     const tiles = el("div", "stats-tiles");
     tiles.append(
-      tile(fmt(s.players.week), "players this week", `${fmt(s.players.lastWeek)} last week · ${fmt(s.players.allTime)} all time`),
+      tile(fmt(s.players.week), "players this week", `${fmt(s.players.lastWeek)} last week · ${fmt(s.players.allTime)} wallets all time`),
       tile(fmt(s.plays.total), "answers and picks this week", `${fmt(s.plays.answers)} answers · ${fmt(s.plays.racePicks)} race picks · ${fmt(s.plays.blockxPicks)} Block X picks`),
       tile(`${vhpText(s.staked.total)} VHP`, "staked in the prize vault", s.staked.games.length ? s.staked.games.map((g) => `${g.name} ${vhpText(g.vhp)}`).join(" · ") : null),
       tile("2 + 1 VHP", "free prizes every week", "for the 2 best free players"),
@@ -109,7 +116,8 @@
     tops.append(topList("Daily Questions", s.top.questions, "point"), topList("Producer Race", s.top.race, "point"), topList("Who Signs Block X", s.top.blockx, "point"));
     const lw = el("h3", "stats-lw", "Last week's top 3");
     box.replaceChildren(head, tiles, lw, tops);
-    if (now - Date.parse(s.updated) > STALE_MS) box.append(el("p", "stats-none", "These numbers are more than 6 hours old; they refresh every hour when the update runs."));
+    if (now >= s.week.end) box.append(el("p", "stats-none", "These are last week's numbers: this week's appear within the hour."));
+    else if (now - Date.parse(s.updated) > STALE_MS) box.append(el("p", "stats-none", "These numbers are more than 6 hours old; they refresh every hour when the update runs."));
     box.hidden = false;
     if (!box.dataset.named && window.KNames && typeof window.KNames.onChange === "function") { box.dataset.named = "1"; window.KNames.onChange(() => panel(box)); }
   }

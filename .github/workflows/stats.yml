@@ -101,13 +101,17 @@ jobs:
           if [ -n "$BASE" ] && ! [[ "$BASE" =~ ^[0-9a-f]{40}$ ]]; then echo "::error::bad base"; exit 1; fi
           # stats.json's own shape (the same rules as bot/stats.ts checkStats and stats.js), not only valid JSON.
           /usr/bin/python3 - "$IN/stats.json" <<'PY'
-          import json, re, sys
+          import json, re, sys, time, calendar
           s = json.load(open(sys.argv[1], encoding="utf-8"))
           addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
           def i(n): return type(n) is int and 0 <= n < 10**9
           def num(n): return type(n) in (int, float) and n == n and 0 <= n < 10**12
           assert type(s) is dict and set(s) == {"v", "updated", "week", "players", "plays", "staked", "prizes", "blocks", "today", "top"}, "top level"
-          assert s["v"] == 1 and type(s["updated"]) is str and len(s["updated"]) <= 40, "v / updated"
+          assert type(s["v"]) is int and s["v"] == 1 and type(s["updated"]) is str and len(s["updated"]) <= 40, "v / updated"
+          m = re.fullmatch(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d{3}Z", s["updated"])
+          assert m, "updated: format"
+          age = calendar.timegm(time.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S"))
+          assert abs(time.time() - age) <= 2 * 3600, "updated: more than 2 hours from now"
           assert type(s["week"]) is dict and set(s["week"]) == {"start", "end"} and all(type(s["week"][k]) is int for k in ("start", "end")), "week"
           assert set(s["players"]) == {"week", "lastWeek", "allTime"} and all(i(v) for v in s["players"].values()), "players"
           assert set(s["plays"]) == {"answers", "racePicks", "blockxPicks", "total"} and all(i(v) for v in s["plays"].values()), "plays"
@@ -115,7 +119,8 @@ jobs:
           assert set(st) == {"total", "games"} and num(st["total"]) and type(st["games"]) is list and len(st["games"]) <= 20, "staked"
           for g in st["games"]:
               assert set(g) == {"id", "name", "vhp"} and i(g["id"]) and type(g["name"]) is str and len(g["name"]) <= 40 and num(g["vhp"]), "staked game"
-              assert not re.search(r"[<>\x00-\x1f\x7f-\x9f​-‏‪-‮⁦-⁩]", g["name"]), "game name"
+              # the same rule as bot/stats.ts BAD_NAME and stats.js (Repo Lens C9-5); written as \u codes, no raw invisible characters
+              assert g["name"] and not re.search(r"[<>\x00-\x1f\x7f-\x9f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\u3164]", g["name"]), "game name"
           assert s["prizes"] == {"free": [2, 1]}, "prizes"
           assert set(s["blocks"]) == {"vault24h"} and (s["blocks"]["vault24h"] is None or i(s["blocks"]["vault24h"])), "blocks"
           t = s["today"]

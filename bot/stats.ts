@@ -52,17 +52,32 @@ export type Inputs = {
   blockxBoard: any;                                        // games-data blockx/board.json
   recentBlocks: any;                                       // blocks-data recent-blocks.json
 };
+/** Characters a game name may not contain: < >, control characters, and invisible or direction-changing ones (Repo
+ *  Lens C9-5). The same rule is in stats.js and the publish job. */
+export const BAD_NAME = /[<>\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\u3164]/;
+/** A source counts only if it was made within this long (C9-2): a stalled recorder must not pass for "this week". */
+export const MAX_SOURCE_AGE = 3 * HOUR;
+/** null when a source is missing, unreadable or older than MAX_SOURCE_AGE (by its `updated` or `made` time). */
+export function fresh(src: any, now: number): any {
+  if (!src) return null;
+  const t = Date.parse(String(src.updated ?? src.made ?? ""));
+  return Number.isFinite(t) && now - t <= MAX_SOURCE_AGE && t - now <= 10 * 60000 ? src : null;
+}
 const vhp = (units: bigint) => Number(units / UNIT) + Number(units % UNIT) / 1e8;
 const round2 = (x: number) => Math.round(x * 100) / 100;
-const rowsOf = (board: any, key: string): any[] => (board && board[key] && Array.isArray(board[key].rows) ? board[key].rows : []).filter((r: any) => r && typeof r.a === "string" && ADDR.test(r.a));
-/** A board's week section counts only if it is this week (the recorder may not have rolled over yet). */
-const boardWeekRows = (board: any, key: "week" | "lastWeek", start: number) => {
-  const sec = board && board[key];
-  if (!sec || typeof sec.start !== "number") return [];
-  const want = key === "week" ? start : start - WEEK;
-  return Math.abs(sec.start - want) < HOUR ? rowsOf(board, key) : [];
-};
-const picksOf = (rows: any[]) => rows.reduce((s, r) => s + (Number.isFinite(r.picks) && r.picks > 0 ? Math.floor(r.picks) : 0), 0);
+const okInt = (n: any) => Number.isInteger(n) && n >= 0 && n < 1e9;
+/** A board's rows with a real address; a row with a malformed number is dropped, not the whole file (C9-7). */
+const rowsOf = (board: any, key: string): any[] => (board && board[key] && Array.isArray(board[key].rows) ? board[key].rows : [])
+  .filter((r: any) => r && typeof r.a === "string" && ADDR.test(r.a) && (r.pts === undefined || okInt(r.pts)) && (r.picks === undefined || okInt(r.picks)));
+const sectionAt = (board: any, key: string, want: number) => { const sec = board && board[key]; return !!sec && typeof sec.start === "number" && Math.abs(sec.start - want) < HOUR; };
+/** This week's and last week's rows from a board, by each section's own start. Just after Monday 00:00 a board that
+ *  hasn't rolled over yet still calls last week "week": it is then used as last week (Repo Lens C9-2). */
+export function boardWeeks(board: any, start: number): { week: any[]; last: any[] } {
+  const week = sectionAt(board, "week", start) ? rowsOf(board, "week") : [];
+  const last = sectionAt(board, "lastWeek", start - WEEK) ? rowsOf(board, "lastWeek") : sectionAt(board, "week", start - WEEK) ? rowsOf(board, "week") : [];
+  return { week, last };
+}
+const picksOf = (rows: any[]) => rows.reduce((s, r) => s + (okInt(r.picks) ? r.picks : 0), 0);
 /** Top 3 by points (ties share a place); only players with at least 1 point. */
 export function top3(rows: { a: string; pts: number }[]): { a: string; pts: number; place: number }[] {
   const s = rows.filter((r) => ADDR.test(r.a) && r.pts > 0).sort((x, y) => y.pts - x.pts || (x.a < y.a ? -1 : 1));
@@ -93,8 +108,10 @@ export function blocksBy(rb: any, who: string, hours: number): number | null {
 
 export function buildStats(x: Inputs) {
   const { now, week } = x;
-  const raceWeek = boardWeekRows(x.raceBoard, "week", week.start), raceLast = boardWeekRows(x.raceBoard, "lastWeek", week.start);
-  const bxWeek = boardWeekRows(x.blockxBoard, "week", week.start), bxLast = boardWeekRows(x.blockxBoard, "lastWeek", week.start);
+  // A stale board or block snapshot isn't used for this week / last week / the last 24 hours (C9-2); the players it
+  // lists still count all time.
+  const rb = fresh(x.raceBoard, now), bb = fresh(x.blockxBoard, now);
+  const { week: raceWeek, last: raceLast } = boardWeeks(rb, week.start), { week: bxWeek, last: bxLast } = boardWeeks(bb, week.start);
   const qWeek = x.qWeek.filter((r) => ADDR.test(r.address) && r.answers.length > 0);
   const qLast = x.qLastWeek.filter((r) => ADDR.test(r.address) && r.answers.length > 0);
   const set = (...lists: string[][]) => new Set(lists.flat());
@@ -106,16 +123,16 @@ export function buildStats(x: Inputs) {
   const openIds = new Set(x.open.filter((q) => q.lockTime > now).map((q) => q.id));
   const todayAnswers = qWeek.reduce((s, r) => s + r.answers.filter((a) => openIds.has(Number(a.question_id))).length, 0);
   const closes = x.open.filter((q) => q.lockTime > now).map((q) => q.lockTime).sort((a, b) => a - b)[0] ?? null;
-  const pts = (rows: any[]) => rows.map((r) => ({ a: r.a, pts: Number.isFinite(r.pts) ? r.pts : 0 }));
+  const pts = (rows: any[]) => rows.map((r) => ({ a: r.a, pts: okInt(r.pts) ? r.pts : 0 }));
   return {
     v: 1,
     updated: new Date(now).toISOString(),
     week: { start: week.start, end: week.end },
     players: { week: thisWeek.size, lastWeek: lastWeek.size, allTime: all.size },
     plays: { answers, racePicks, blockxPicks, total: answers + racePicks + blockxPicks },
-    staked: { total: round2(vhp(x.totalStake)), games: x.games.filter((g) => g.staked).map((g) => ({ id: g.id, name: String(g.name).slice(0, 40), vhp: round2(vhp(g.stake)) })) },
+    staked: { total: round2(vhp(x.totalStake)), games: x.games.filter((g) => g.staked).map((g) => ({ id: g.id, name: BAD_NAME.test(String(g.name)) ? `Game ${g.id}` : String(g.name).slice(0, 40), vhp: round2(vhp(g.stake)) })) },
     prizes: { free: FREE_PRIZES },
-    blocks: { vault24h: blocksBy(x.recentBlocks, VAULT, 24) },
+    blocks: { vault24h: blocksBy(fresh(x.recentBlocks, now), VAULT, 24) },
     today: { open: openIds.size, closes, answers: todayAnswers },
     top: { questions: top3(questionPoints(qLast, x.outcomes)), race: top3(pts(raceLast)), blockx: top3(pts(bxLast)) },
   };
@@ -129,7 +146,8 @@ export function checkStats(s: any): string | null {
   if (!int(s.players?.week) || !int(s.players?.lastWeek) || !int(s.players?.allTime)) return "players";
   if (!["answers", "racePicks", "blockxPicks", "total"].every((k) => int(s.plays?.[k]))) return "plays";
   if (!num(s.staked?.total) || !Array.isArray(s.staked.games) || s.staked.games.length > 20) return "staked";
-  for (const g of s.staked.games) if (!int(g.id) || typeof g.name !== "string" || g.name.length > 40 || !num(g.vhp)) return "staked game";
+  for (const g of s.staked.games) if (!int(g.id) || typeof g.name !== "string" || !g.name || g.name.length > 40 || BAD_NAME.test(g.name) || !num(g.vhp)) return "staked game";
+  if (!(s.week && Number.isInteger(s.week.start) && Number.isInteger(s.week.end) && s.week.end > s.week.start)) return "week";
   if (!(s.blocks && (s.blocks.vault24h === null || int(s.blocks.vault24h)))) return "blocks";
   if (!(s.today && int(s.today.open) && int(s.today.answers) && (s.today.closes === null || (Number.isInteger(s.today.closes) && s.today.closes > 1.6e12 && s.today.closes < 4e12)))) return "today";
   for (const k of ["questions", "race", "blockx"]) {
@@ -151,9 +169,16 @@ function within<T>(p: Promise<T>, ms = CALL_MS): Promise<T> {
 export function vaultReader(rpcs: string[]) {
   const abi = JSON.parse(fs.readFileSync(path.join(ROOT, "game/abi/kpred.koilib.json"), "utf8"));
   const fns = rpcs.map((rpc) => new Contract({ id: VAULT, provider: new Provider([rpc]), abi }).functions);
+  // Once a node fails a call, the other one is asked first for the rest of the run (Repo Lens C9-1): a node that holds
+  // requests without answering would otherwise cost 8 s on every call.
+  let first = 0;
   const read = async (fn: string, args: any): Promise<any> => {
     let last: unknown;
-    for (const f of fns) { try { return (await within(f[fn](args))).result || {}; } catch (e) { last = e; } }
+    const from = first;   // this call's order is fixed before it starts
+    for (let k = 0; k < fns.length; k++) {
+      const i = (from + k) % fns.length;
+      try { return (await within(fns[i][fn](args))).result || {}; } catch (e) { last = e; if (i === from) first = (from + 1) % fns.length; }
+    }
     throw last;
   };
   return {
@@ -163,14 +188,17 @@ export function vaultReader(rpcs: string[]) {
     players: (week: string) => pagePlayers((args) => read("list_players", args), week),
   };
 }
-/** Every player row, 50 at a time (at most 3,000), with that week's answers. */
-export async function pagePlayers(list: (args: any) => Promise<any>, week: string): Promise<QRow[]> {
+export const MAX_PAGES = 200;
+/** Every player row, 50 at a time (at most MAX_PAGES × 50 = 10,000), with that week's answers. Past the cap it says so
+ *  (Repo Lens C9-4): the counts are then a lower bound. */
+export async function pagePlayers(list: (args: any) => Promise<any>, week: string, warn: (m: string) => void = console.warn): Promise<QRow[]> {
       const out: QRow[] = [];
       let start: string | undefined;
-      for (let page = 0; page < 60; page++) {
+      for (let page = 0; page < MAX_PAGES; page++) {
         const rows: any[] = (await list({ ...(start ? { start } : {}), limit: 50, week })).rows || [];
         for (const r of rows) if (typeof r.address === "string") out.push({ address: r.address, answers: ((r.entry && r.entry.answers) || []).map((a: any) => ({ question_id: Number(a.question_id), option: Number(a.option || 0) })) });
         if (rows.length < 50) break;
+        if (page === MAX_PAGES - 1) warn(`more than ${MAX_PAGES * 50} players: the counts are a lower bound`);
         start = rows[rows.length - 1].address;
       }
       return out;
@@ -220,7 +248,10 @@ async function main(argv: string[]) {
   const cmd = argv[0] || "show";
   const rpcs = [process.env.RPC || "https://koinos.armana.io", process.env.RPC_CHECK || "https://api.koinosblocks.com"];
   const dataDir = process.env.DATA_DIR || path.join(ROOT, ".stats-data");
-  const stats = buildStats(await gather(Date.now(), vaultReader(rpcs), dataDir));
+  const now = Date.now(), x = await gather(now, vaultReader(rpcs), dataDir);
+  for (const [name, src] of [["race board", x.raceBoard], ["Block X board", x.blockxBoard], ["recent blocks", x.recentBlocks]] as const)
+    if (!fresh(src, now)) console.log(`${name}: missing or more than ${MAX_SOURCE_AGE / HOUR} hours old, not used this hour.`);
+  const stats = buildStats(x);
   const bad = checkStats(stats);
   if (bad) throw new Error(`stats.json failed its own check (${bad}); nothing written`);
   const text = JSON.stringify(stats) + "\n";
@@ -232,4 +263,8 @@ async function main(argv: string[]) {
     console.log(`stats.json: ${stats.players.week} players this week, ${stats.plays.total} plays, ${stats.staked.total} VHP staked.`);
   } else console.log(JSON.stringify(stats, null, 2));
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv.slice(2)).catch((e) => { console.error(String(e && e.message || e).replace(/::/g, ": :")); process.exit(1); });
+// Exit as soon as the work is done (Repo Lens C9-1): a request a node never answered may still hold the process open,
+// and the job would then run to its time limit and publish nothing.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main(process.argv.slice(2)).then(() => process.exit(0), (e) => { console.error(String(e && e.message || e).replace(/::/g, ": :")); process.exit(1); });
+}

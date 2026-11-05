@@ -7,9 +7,10 @@ const W = 7 * 86400000, START = 1793577600000;                          // Mon 2
 const A = "1Nti1ZmdisnJ8J9FJsmTSt1nMKPyzWZxdz", B = "1LRshrZHPmft4SuaniExEsyzFecCPctMBV", C = "1Fdg4H1bGyooDhUZgHNw8WUNxvyP1sGdvF";
 const D = "1MVRxwjaDxjqtYEKsV2rsc69wo3YLYHceM", E = "14ZefZYvDHPXfALKoktwCkbdY8Ku1AiDxZ";
 const UNIT = 100000000n;
-const board = (week: any[], last: any[], all: any[] = []) => ({ v: 1, week: { start: START, rows: week }, lastWeek: { start: START - W, rows: last }, allTime: { rows: all } });
+const NOW = START + 3 * 86400000 + 5 * 3600000, FRESH = new Date(NOW - 40 * 60000).toISOString();
+const board = (week: any[], last: any[], all: any[] = []) => ({ v: 1, updated: FRESH, week: { start: START, rows: week }, lastWeek: { start: START - W, rows: last }, allTime: { rows: all } });
 function inputs(over: Partial<Inputs> = {}): Inputs {
-  const now = START + 3 * 86400000 + 5 * 3600000;
+  const now = NOW;
   return {
     now, week: { start: START, end: START + W },
     totalStake: 48250n * UNIT + 12345678n,
@@ -21,7 +22,7 @@ function inputs(over: Partial<Inputs> = {}): Inputs {
     open: [{ id: 41, lockTime: now + 3600000 }, { id: 42, lockTime: now + 7200000 }, { id: 40, lockTime: now - 1 }],
     raceBoard: board([{ a: A, pts: 3, picks: 4 }, { a: D, pts: 0, picks: 2 }], [{ a: C, pts: 4, picks: 8 }, { a: D, pts: 1, picks: 5 }], [{ a: C, pts: 9 }]),
     blockxBoard: board([{ a: E, pts: 0, picks: 3 }], []),
-    recentBlocks: { v: 1, signers: ["1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531", VAULT], sig: [1, 0, 0, 1, 0, 1], dts: [0, 3000, 3000, 3000, 3000, 3000] },
+    recentBlocks: { v: 1, made: FRESH, signers: ["1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531", VAULT], sig: [1, 0, 0, 1, 0, 1], dts: [0, 3000, 3000, 3000, 3000, 3000] },
     ...over,
   };
 }
@@ -42,7 +43,7 @@ test("players, plays, stake, today and last week's top 3 from the published sour
 });
 
 test("a board that hasn't rolled over to this week isn't counted as this week", () => {
-  const stale = { v: 1, week: { start: START - W, rows: [{ a: E, pts: 5, picks: 9 }] }, lastWeek: { start: START - 2 * W, rows: [] } };
+  const stale = { v: 1, updated: FRESH, week: { start: START - W, rows: [{ a: E, pts: 5, picks: 9 }] }, lastWeek: { start: START - 2 * W, rows: [] } };
   const s = buildStats(inputs({ raceBoard: stale, blockxBoard: null }));
   assert.equal(s.plays.racePicks, 0); assert.equal(s.players.week, 2);
   assert.equal(s.players.allTime, 5, "its players still count all-time");
@@ -119,4 +120,59 @@ test("gather: the week from genesis_time and week_length at chain time, every pl
   assert.equal(x.totalStake, 4825012345678n);
   const s = buildStats(x);
   assert.equal(checkStats(s), null); assert.equal(s.staked.total, 48250.12); assert.equal(s.top.questions.length, 1);
+});
+
+// ── Repo Lens #C-9 ──
+import { fresh, boardWeeks, BAD_NAME, MAX_PAGES } from "../../bot/stats.ts";
+import { spawnSync } from "node:child_process";
+test("C9-1: the job exits once stats.json is written, and the reader stops asking a node that failed", () => {
+  const src = fs.readFileSync("bot/stats.ts", "utf8");
+  assert.match(src, /main\(process\.argv\.slice\(2\)\)\.then\(\(\) => process\.exit\(0\), \(e\) => \{[^}]*process\.exit\(1\); \}\)/);
+  assert.match(src, /const from = first;[\s\S]*if \(i === from\) first = \(from \+ 1\) % fns\.length;/);
+  // The real reader against a node that never answers and one that refuses: every call after the first skips the silent one.
+  const probe = `
+    import http from "node:http";
+    import { vaultReader } from "${process.cwd()}/bot/stats.ts";
+    const silent = http.createServer(() => {}).listen(0);
+    const ok = http.createServer((q, r) => { let b = ""; q.on("data", (c) => b += c); q.on("end", () => { r.setHeader("content-type", "application/json"); r.end(JSON.stringify({ jsonrpc: "2.0", id: JSON.parse(b).id, result: { result: "" } })); }); }).listen(0);
+    const v = vaultReader(["http://127.0.0.1:" + silent.address().port, "http://127.0.0.1:" + ok.address().port]);
+    const t0 = Date.now(); for (let i = 0; i < 4; i++) await v.games();
+    console.log("ELAPSED", Date.now() - t0); process.exit(0);`;
+  const r = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", probe], { encoding: "utf8", timeout: 40000 });
+  const ms = Number((r.stdout.match(/ELAPSED (\d+)/) || [])[1]);
+  assert.ok(ms >= 7000 && ms < 14000, `4 reads took ${ms} ms (one 8 s wait, then the working node): ${r.stderr.slice(0, 300)}`);
+});
+test("C9-2: just after Monday 00:00 a board that hasn't rolled over still gives last week; stale sources aren't used", () => {
+  const b = { v: 1, updated: FRESH, week: { start: START - W, rows: [{ a: C, pts: 4, picks: 8 }] }, lastWeek: { start: START - 2 * W, rows: [{ a: D, pts: 9, picks: 1 }] } };
+  assert.deepEqual(boardWeeks(b, START), { week: [], last: [{ a: C, pts: 4, picks: 8 }] });
+  const s = buildStats(inputs({ raceBoard: b, blockxBoard: null }));
+  assert.deepEqual(s.top.race, [{ a: C, pts: 4, place: 1 }]);
+  const old = new Date(NOW - 4 * 3600000).toISOString();
+  assert.equal(fresh({ updated: old }, NOW), null); assert.equal(fresh({ made: old }, NOW), null); assert.equal(fresh({}, NOW), null);
+  assert.ok(fresh({ updated: FRESH }, NOW));
+  const st = buildStats(inputs({ raceBoard: { ...board([{ a: D, pts: 1, picks: 7 }], [{ a: C, pts: 4 }]), updated: old }, recentBlocks: { ...inputs().recentBlocks, made: old } }));
+  assert.equal(st.plays.racePicks, 0); assert.deepEqual(st.top.race, []); assert.equal(st.blocks.vault24h, null);
+  assert.equal(st.players.allTime, 5, "a stale board's players still count all time");
+});
+test("C9-4: past the page cap the count is flagged as a lower bound", async () => {
+  const warns: string[] = [];
+  const list = async (args: any) => ({ rows: Array.from({ length: 50 }, (_, i) => ({ address: (args.start || "1A") + "x" + i })) });
+  const rows = await pagePlayers(list, "2", (m) => warns.push(m));
+  assert.equal(rows.length, MAX_PAGES * 50); assert.ok(MAX_PAGES >= 200);
+  assert.match(warns.join(" "), /lower bound/);
+});
+test("C9-5 / C9-7: one name rule everywhere; a malformed board row is dropped, not the whole file", () => {
+  for (const ch of ["<", ">", "\u0000", "؜", "​", "‮", " ", " ", "⁠", "⁤", "⁦", "﻿", "ㅤ"]) assert.ok(BAD_NAME.test("Game" + ch), JSON.stringify(ch));
+  assert.ok(!BAD_NAME.test("Daily Questions"));
+  const s = buildStats(inputs({ games: [{ id: 4, name: "Golf⁠", staked: true, stake: 5n * UNIT }] }));
+  assert.deepEqual(s.staked.games, [{ id: 4, name: "Game 4", vhp: 5 }]); assert.equal(checkStats(s), null);
+  const bad = buildStats(inputs({ raceBoard: board([{ a: A, pts: 3.5, picks: 2 }, { a: D, pts: 1, picks: 1e9 }, { a: B, pts: 2, picks: 3 }], []) }));
+  assert.equal(checkStats(bad), null); assert.equal(bad.plays.racePicks, 3);
+  const pub = fs.readFileSync(".github/workflows/stats.yml", "utf8"), page = fs.readFileSync("stats.js", "utf8");
+  for (const cls of ["\\u061c", "\\u2028-\\u202e", "\\u2060-\\u2069", "\\ufeff", "\\u3164"]) { assert.ok(pub.includes(cls), "publish job: " + cls); assert.ok(page.includes(cls), "stats.js: " + cls); }
+});
+test("C9-3 / C9-8: the publish job refuses a stale or future file and a non-integer version", () => {
+  const pub = fs.readFileSync(".github/workflows/stats.yml", "utf8");
+  assert.match(pub, /type\(s\["v"\]\) is int and s\["v"\] == 1/);
+  assert.match(pub, /abs\(time\.time\(\) - age\) <= 2 \* 3600/);
 });

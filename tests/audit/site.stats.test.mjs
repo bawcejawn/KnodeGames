@@ -11,20 +11,22 @@ const A = "1Nti1ZmdisnJ8J9FJsmTSt1nMKPyzWZxdz", B = "1LRshrZHPmft4SuaniExEsyzFec
 
 function sample(over = {}) {
   const now = Date.now();
-  return { v: 1, updated: new Date(now - 20 * 60000).toISOString(), week: { start: 1793577600000, end: 1794182400000 },
+  return { v: 1, updated: new Date(now - 20 * 60000).toISOString(), week: { start: now - 2 * 86400000, end: now + 5 * 86400000 },
     players: { week: 64, lastWeek: 51, allTime: 230 }, plays: { answers: 410, racePicks: 120, blockxPicks: 35, total: 565 },
     staked: { total: 48250.12, games: [{ id: 1, name: "Daily Questions", vhp: 40000 }, { id: 3, name: "Block Golf", vhp: 8250.12 }] },
     prizes: { free: [2, 1] }, blocks: { vault24h: 48 }, today: { open: 3, closes: now + 3 * 3600000, answers: 41 },
     top: { questions: [{ a: A, pts: 22, place: 1 }, { a: B, pts: 19, place: 2 }], race: [], blockx: [{ a: B, pts: 1, place: 1 }] }, ...over };
 }
-async function page(body, data, { names = false } = {}) {
+async function page(body, data, { names = false, ...over } = {}) {
   const dom = new JSDOM(`<!doctype html><body>${body}</body>`, { runScripts: "outside-only", url: "https://knodegames.com/" });
   const w = dom.window, calls = [];
-  w.fetch = async (url) => { calls.push(url); return data === "down" ? { ok: false } : { ok: true, text: async () => (typeof data === "string" ? data : JSON.stringify(data)) }; };
+  const reads = [];
+  w.fetch = async (url) => { calls.push(url); const body = typeof data === "string" ? data : JSON.stringify(data);
+    return data === "down" ? { ok: false } : { ok: true, headers: { get: (h) => (h === "content-length" ? String(over.len ?? body.length) : null) }, text: async () => { reads.push(url); return body; } }; };
   if (names) w.KNames = { of: (a) => (a === A ? "@alice · 1Nti1Z…zdxz" : a.slice(0, 6) + "…"), onChange: () => {} };
   w.eval(src);
   await new Promise((r) => setTimeout(r, 20));
-  return { w, d: w.document, calls };
+  return { w, d: w.document, calls, reads };
 }
 const STRIP = '<div id="stats-strip" hidden></div>', PANEL = '<section id="stats-panel" hidden></section>';
 
@@ -55,7 +57,7 @@ test("the panel shows every number and last week's top 3 with @names, all as tex
   const p = d.getElementById("stats-panel");
   assert.equal(p.hidden, false);
   const t = p.textContent;
-  for (const want of ["64players this week", "51 last week · 230 all time", "565answers and picks this week", "410 answers · 120 race picks · 35 Block X picks",
+  for (const want of ["64players this week", "51 last week · 230 wallets all time", "565answers and picks this week", "410 answers · 120 race picks · 35 Block X picks",
     "48,250 VHPstaked in the prize vault", "Daily Questions 40,000 · Block Golf 8,250", "2 + 1 VHPfree prizes every week", "48blocks made by the prize vault", "3 openquestions, answers close in", "41 answers so far", "Updated 20 min ago"]) assert.ok(t.includes(want), `missing "${want}" in ${t}`);
   const qs = [...p.querySelectorAll(".stats-top")][0];
   assert.deepEqual([...qs.querySelectorAll("li")].map((l) => l.textContent), ["#1@alice · 1Nti1Z…zdxz22 points", "#2" + B.slice(0, 6) + "…19 points"]);
@@ -77,4 +79,27 @@ test("stats.js never writes HTML or stores anything, and both pages load it with
   }
   assert.match(fs.readFileSync(`${APP}/index.html`, "utf8"), /<div class="stats-strip" id="stats-strip" hidden><\/div>/);
   assert.match(fs.readFileSync(`${APP}/games.html`, "utf8"), /<section class="stats-panel" id="stats-panel" aria-label="Live stats" hidden><\/section>/);
+});
+
+// ── Repo Lens #C-9 ──
+test("C9-3: a file dated in the future is refused; once its week is over the strip hides and the panel says so", async () => {
+  assert.equal((await page(STRIP, sample({ updated: new Date(Date.now() + 30 * 60000).toISOString() }))).d.getElementById("stats-strip").hidden, true);
+  const ended = sample({ week: { start: Date.now() - 7 * 86400000 - 3600000, end: Date.now() - 3600000 } });
+  assert.equal((await page(STRIP, ended)).d.getElementById("stats-strip").hidden, true);
+  const { d } = await page(PANEL, ended);
+  assert.match(d.getElementById("stats-panel").textContent, /These are last week's numbers/);
+  assert.equal((await page(STRIP, sample({ week: { start: 5, end: 1 } }))).d.getElementById("stats-strip").hidden, true, "a week that ends before it starts");
+});
+test("C9-5: a game name with an invisible or direction character is refused", async () => {
+  for (const ch of ["\u061c", "\u2028", "\u2060", "\ufeff", "\u3164", "\u202e"]) {
+    const { d } = await page(STRIP, sample({ staked: { total: 48250, games: [{ id: 1, name: "Daily" + ch, vhp: 1 }] } }));
+    assert.equal(d.getElementById("stats-strip").hidden, true, JSON.stringify(ch));
+  }
+});
+test("C9-6: a file announced as over 64 KB isn't even downloaded", async () => {
+  const { d, reads } = await page(STRIP, sample(), { len: 70000 });
+  assert.equal(d.getElementById("stats-strip").hidden, true); assert.equal(reads.length, 0);
+});
+test("C9-4: the panel calls the all-time number wallets (stakers who never answered count too)", async () => {
+  assert.match((await page(PANEL, sample())).d.getElementById("stats-panel").textContent, /230 wallets all time/);
 });

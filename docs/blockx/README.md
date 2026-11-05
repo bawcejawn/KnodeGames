@@ -22,10 +22,11 @@ It only keeps everyone's picks and makes the chain enforce the rules.
 
 1. **Open the page** and connect a wallet (mainnet: your Knode wallet; testnet: *Make a Test wallet*, then get free
    test KOIN for it from the Telegram faucet bot `@KoinosTestnetFaucetBot` with `/faucet <your address>`).
-2. **Pick.** The next 12 targets are always open. For each, choose a producer from the list. The list shows each
-   producer's share of the VHP and what a right pick on them would score.
-3. **Change your mind** up to 5 times per target, until the lock. Each change counts toward the daily limit of 30
-   picks (50 on the fast test game).
+2. **Pick.** About a day of targets is always open: 12 at a time on the every-2-hours game (until Sun 15 Nov 2026), 24
+   on the hourly game (from Mon 16 Nov 2026, Picks game 12). For each, choose a producer from the list. The list shows
+   each producer's share of the VHP and what a right pick on them would score.
+3. **Change your mind** once per target (mainnet), until the lock. Each change counts toward the daily limit: 30 picks
+   on the every-2-hours game, 48 on the hourly game (50 on the fast test game).
 4. **The lock.** A target stops taking picks 100 blocks (about 5 minutes) before it is made. The chain enforces this,
    so nobody, the owner included, can pick after the lock.
 5. **The result.** Once the target block is irreversible, the recorder reads who signed it, scores every pick and

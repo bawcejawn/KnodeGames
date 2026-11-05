@@ -69,6 +69,22 @@
       settings: Object.freeze(s), target, lockHeight, isOpen, openRounds, offerRounds, roundOf });
   }
   const MAIN = forGame(MAINNET_GAME);
+  /** R-BX-25 (owner 5 Nov: "go ahead"; docs/blockx/HOURLY-TARGETS-PLAN.md): from vault week 4 (Mon 16 Nov 2026 00:00 UTC,
+   *  "Week 2") Block X has a target every 1,200 blocks (about an hour). A game's round size can never change on the Picks
+   *  contract (sameShape), so hourly targets are a new Picks game, 12, in the same contract; game 2 stops at the switch.
+   *  The vault game stays 2 (stakes, the vault file, the prize file). A target belongs to the game whose weeks its block
+   *  falls in (the block's real time). */
+  const HOURLY_FROM_WEEK = 4;
+  const MAINNET_HOURLY = Object.freeze({ id: 12, round: 1200, offset: 0, lead: 100, ahead: 28900, picksPerDay: 48, maxChanges: 1 });
+  const VAULT_GAME = 2;
+  const MAINNET_SCHEDULE = Object.freeze([
+    Object.freeze({ game: MAINNET_GAME, fromWeek: 0, toWeek: HOURLY_FROM_WEEK }),
+    Object.freeze({ game: MAINNET_HOURLY, fromWeek: HOURLY_FROM_WEEK, toWeek: Infinity }),
+  ]);
+  /** The schedule entry for week w (null before the first). */
+  const scheduleOf = (w, sched = MAINNET_SCHEDULE) => sched.find((e) => w >= e.fromWeek && w < e.toWeek) || null;
+  /** When an entry's weeks start and end (ms; end may be Infinity). */
+  const periodOf = (e) => ({ from: GENESIS + e.fromWeek * WEEK, to: e.toWeek === Infinity ? Infinity : GENESIS + e.toWeek * WEEK });
   /** About when block h will be made, from the head block's height and time. */
   const aboutTime = (h, headHeight, headTime) => headTime + (h - headHeight) * BLOCK_MS;
 
@@ -151,6 +167,7 @@
   root.KBlockX = {
     // the mainnet game's settings and target functions (game 2), and forGame for any other settings
     ...MAIN, MAINNET_GAME, forGame,
+    HOURLY_FROM_WEEK, MAINNET_HOURLY, VAULT_GAME, MAINNET_SCHEDULE, scheduleOf, periodOf,
     CAP, OPEN, MIN_PRIZE_DAYS, BLOCK_MS, DAY, WEEK, GENESIS,
     aboutTime, vhpOf, multiplier, pointsOf, dayOf, weekOf, board, places, prizes,
     RHYTHM_FROM_WEEK, restDay, playEnd,

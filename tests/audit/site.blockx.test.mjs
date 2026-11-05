@@ -323,7 +323,8 @@ test("R-BX-22 / D-129: the page offers Sunday (UTC) targets as fun rounds, label
   const js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
   assert.match(js, /const funAt = \(r\) => X\.restDay\(about\(G\.target\(r\)\)\);/);
   assert.match(js, /May fall on Sunday: then a fun round/, "Repo Lens #E-18 F-1: Saturday's last 10 minutes say so");
-  assert.match(js, /rounds = G\.offerRounds\(head\.height\)/, "every open target is offered, Sunday's too");
+  assert.match(js, /const offer = \(\) => G\.offerRounds\(head\.height\)\.filter\(inPlay\);/, "every open target in the game's weeks is offered, Sunday's too");
+  assert.match(js, /rounds = offer\(\)/);
   assert.match(js, /Fun round · not the week/);
   assert.match(js, /Sunday is review day: results are checked and paid from Monday\./, "WEEK_CYCLE.md §2's required page line");
   const html = fs.readFileSync(path.join(APP, "blockx.html"), "utf8");
@@ -333,4 +334,20 @@ test("R-BX-22 / D-129: the page offers Sunday (UTC) targets as fun rounds, label
   // The rule itself: Sunday UTC from Week 1 (vault week 3), the same as the Race.
   for (let t = Date.UTC(2026, 10, 9); t < Date.UTC(2026, 10, 30); t += 3600000)
     assert.equal(X.restDay(t), RM.restRace(t), new Date(t).toISOString());
+});
+
+test("R-BX-25: the page shows game 2 until Mon 16 Nov and hourly game 12 from it, both as tabs around the switch; stakes stay vault game 2", () => {
+  const js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
+  assert.match(js, /const games = X\.MAINNET_SCHEDULE\.map\(/);
+  assert.match(js, /const inPlay = \(r\) => \{ const t = about\(G\.target\(r\)\); return t >= PERIOD\.from \+ 10 \* 60000 && t < PERIOD\.to - 10 \* 60000; \};/, "10 minutes clear of the switch");
+  assert.match(js, /const rounds = G\.openRounds\(head\.height\)\.filter\(inPlay\);/, "your picks are read for the shown game's rounds");
+  for (const k of ['badge($("stake-badge"), { game: VAULT_GAME })', 'mount($("blockx-stake"), { game: VAULT_GAME })', "get_game_player({ player: who, game: VAULT_GAME,"]) assert.ok(js.includes(k), k);
+  assert.ok(js.includes("picksContract.functions.pick({ player: who, game: G.GAME_ID,"), "a pick goes to the shown game");
+  assert.match(js, /Block X is hourly from Mon 16 Nov: /);
+  assert.match(js, /on = !!\(g && g\.game && g\.game\.enabled\); \} catch \{ on = true; \}/, "no picks offered for a game the contract doesn't have yet");
+  assert.match(fs.readFileSync(path.join(APP, "blockx.html"), "utf8"), /<div class="bx-games" id="game-tabs" hidden><\/div>/);
+  // The rule: game 12 is every 1,200 blocks with 24 open targets; game 2's last weeks end at the switch.
+  const H = X.forGame(X.MAINNET_HOURLY);
+  assert.equal(H.ROUND, 1200); assert.equal(H.PICKS_PER_DAY, 48);
+  assert.equal(X.periodOf(X.MAINNET_SCHEDULE[0]).to, Date.UTC(2026, 10, 16));
 });

@@ -34,6 +34,9 @@
   // ── the network ──
   // NET: { rpc, data (this game's data folder), cards ("race" | "self"), game settings, picks contract, wallet, words }
   let NET = null, G = X, provider = null, W = null;
+  // R-BX-25: mainnet Block X is game 2 (every 2,400 blocks) until Mon 16 Nov 2026 00:00 UTC, then hourly game 12 (every
+  // 1,200). PERIOD is the shown game's weeks; VAULT_GAME is the vault game for stakes (2 throughout).
+  let PERIOD = { from: -Infinity, to: Infinity }, VAULT_GAME = X.VAULT_GAME;
   async function setupNet() {
     if (!TESTNET) {
       let picks = null;
@@ -41,7 +44,14 @@
       NET = { rpc: ["https://koinos.armana.io", "https://api.koinosblocks.com"], data: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/blockx/", raceData: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/",
         cards: "race", picks, explorer: "https://koinosscan.com/address/", chainId: MAINNET_CHAIN_ID,
         prize: "1st and 2nd at the end of the week win the free-play prize (2 and 1 VHP, from Week 1, the week of Mon 9 Nov)." };
-      G = X;
+      // The game whose weeks contain now, or the one the #game-N link asks for; both as tabs around the switch.
+      const now = Date.now(), want = /^#game-(\d+)$/.exec(location.hash);
+      const games = X.MAINNET_SCHEDULE.map((e) => ({ ...e.game, ...X.periodOf(e), name: e.game.id === X.MAINNET_HOURLY.id ? `Hourly (from ${new Date(X.periodOf(e).from).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })})` : "Every 2 hours" }));
+      const game = games.find((g) => want && g.id === Number(want[1])) || games.find((g) => now >= g.from && now < g.to) || games[0];
+      G = X.forGame(game);
+      PERIOD = { from: game.from, to: game.to };
+      const sw = X.periodOf(X.MAINNET_SCHEDULE[1]).from;
+      if (now >= sw - 2 * X.DAY && now < sw + 7 * X.DAY) { NET.games = games; renderGameTabs(); }
       provider = new lib.Provider(NET.rpc);
       W = window.KWallet || null;
       return;
@@ -51,6 +61,7 @@
     const want = /^#game-(\d+)$/.exec(location.hash), games = Array.isArray(cfg.games) ? cfg.games : [];
     const game = games.find((g) => want && g.id === Number(want[1])) || games[0];
     G = X.forGame(game);
+    VAULT_GAME = G.GAME_ID;
     // On the owner's own computer (npm run testnet-site), the recorder's files in testnet-data/ on that computer.
     const local = location.hostname === "localhost" || location.hostname === "127.0.0.1";
     const data = local ? new URL(`testnet-data/blockx-${game.id}/`, ROOT).href : `${cfg.data}blockx-${game.id}/`;
@@ -113,6 +124,10 @@
     box.replaceChildren(...recent.map((b) => { const t = dot(b.signer, "bx-blk" + (prev && b.h > prev ? " new" : "")); t.title = `Block ${fmt(b.h)} · ${nameOf(b.signer)}`; return t; }));
   }
   const about = (h) => X.aboutTime(h, head.height, head.time);
+  /** R-BX-25: only rounds inside the shown game's weeks, 10 minutes clear of either edge (a block can land a little early
+   *  or late; one that lands in the other game's weeks isn't scored). */
+  const inPlay = (r) => { const t = about(G.target(r)); return t >= PERIOD.from + 10 * 60000 && t < PERIOD.to - 10 * 60000; };
+  const offer = () => G.offerRounds(head.height).filter(inPlay);
 
   // ── the producers and their multipliers ──
   async function loadCard() {
@@ -149,7 +164,16 @@
   async function setupPicks() {
     if (!NET.picks) return;
     const abi = await fetchJson(new URL("picks/abi/picks.koilib.json", ROOT));
-    picksContract = new lib.Contract({ id: NET.picks, abi, provider });
+    const c = new lib.Contract({ id: NET.picks, abi, provider });
+    // R-BX-25: the hourly game (12) may not be on the contract yet (announced, then applied 48 h later): until it is,
+    // its tab shows the targets with "Picks open soon" instead of offering picks the contract would refuse.
+    if (!TESTNET) {
+      let on = false;
+      // (A failed read keeps picks on, as before: the contract refuses a pick for a game it doesn't have anyway.)
+      try { const g = (await c.functions.get_game({ game: G.GAME_ID })).result; on = !!(g && g.game && g.game.enabled); } catch { on = true; }
+      if (!on) return;
+    }
+    picksContract = c;
     if (!TESTNET && W) {
       let dep = null;
       try { dep = await fetchJson(new URL("game-data/deployment.json", ROOT)); } catch { /* the wallet keeps its defaults */ }
@@ -163,7 +187,7 @@
     const who = me();
     myPicks = new Map(); usage = null;
     if (who) {
-      const rounds = G.openRounds(head.height);
+      const rounds = G.openRounds(head.height).filter(inPlay);
       try {
         const got = await Promise.all(rounds.map((r) => picksContract.functions.get_pick({ game: G.GAME_ID, round: String(r), player: who })
           .then((x) => [r, x.result && x.result.pick && Array.isArray(x.result.pick.producers) ? x.result.pick : null])));
@@ -182,7 +206,7 @@
   const mmss = (t) => { const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), x = t % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}` : `${m}:${String(x).padStart(2, "0")}`; };
   function renderStage() {
     if (!head || !$("stage")) return;
-    const rounds = G.offerRounds(head.height), r = rounds[0];
+    const rounds = offer(), r = rounds[0];
     if (r == null) return;
     const x = G.target(r), lock = G.lockHeight(r), mine = myPicks.get(r), mineP = mine && mine.producers && mine.producers[0];
     $("head-num").textContent = fmt(head.height);
@@ -208,7 +232,7 @@
     const funAt = (r) => X.restDay(about(G.target(r)));
     // Repo Lens #E-18 F-1: one due in Saturday's last 10 minutes may land either side of midnight.
     const edgeAt = (r) => { const t = about(G.target(r)); return !X.restDay(t) && X.restDay(t + 10 * 60000); };
-    const who = me(), rounds = G.offerRounds(head.height), ps = producers(), funs = rounds.filter((r) => funAt(r) || edgeAt(r)).length;
+    const who = me(), rounds = offer(), ps = producers(), funs = rounds.filter((r) => funAt(r) || edgeAt(r)).length;
     const key = JSON.stringify([who, W && W.kind, rounds[0], funs, sending, !!picksContract, cardAt, ps.map((p) => p.a).join(), usage && usage.picks_today, [...myPicks.entries()].map(([r, p]) => [r, p.producers && p.producers[0], p.changes]), [...drafts.entries()]]);
     if (!force && key === targetsKey && list.childElementCount) { updateTimes(); return; }
     targetsKey = key;
@@ -220,7 +244,9 @@
     if (!card && ps.length) whoLine.append("Showing the producers signing right now. Multipliers appear with the first handicap card (the recorder takes one within the hour).");
     if (!card && !TESTNET && picksContract && rounds.length) whoLine.append("Picks open when the next handicap card is published (within the hour).");
     if (funs) whoLine.append(el("span", { class: "bx-rest", text: " Sunday is review day: results are checked and paid from Monday. Sunday (UTC) targets are fun rounds: they count on Today and All time, not the week." }));
-    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty", text: picksContract ? "No target is open right now." : "Picks open soon." })); return; }
+    // R-BX-25: once the every-2-hours game's last target has passed, point to the hourly game.
+    const ended = PERIOD.to !== Infinity && about(head.height) >= PERIOD.to - 10 * 60000 - G.LEAD * X.BLOCK_MS;
+    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty" }, !picksContract ? "Picks open soon." : ended ? el("span", {}, "Block X is hourly from Mon 16 Nov: ", el("a", { href: `#game-${X.MAINNET_HOURLY.id}`, text: "pick the hourly targets" }), ".") : "No target is open right now.")); return; }
     const cards = rounds.map((r, i) => {
       const h = G.target(r), mine = myPicks.get(r), mineP = mine && mine.producers && mine.producers[0];
       const choice = drafts.get(r) || mineP || null;
@@ -509,8 +535,8 @@
     // The site's shared stake panel (stake-panel.js, Hub chat): Stake / Withdraw / Move / Claim for game 2. It stays
     // hidden until the vault (v6) is live and Block X has a stake bucket.
     // The Hub's staked / free status bar at the top of the page (links to stake.html#g2); the full panel stays lower.
-    if (window.KStake && typeof window.KStake.badge === "function" && $("stake-badge")) window.KStake.badge($("stake-badge"), { game: G.GAME_ID });
-    if (window.KStake && typeof window.KStake.mount === "function" && $("blockx-stake")) window.KStake.mount($("blockx-stake"), { game: G.GAME_ID });
+    if (window.KStake && typeof window.KStake.badge === "function" && $("stake-badge")) window.KStake.badge($("stake-badge"), { game: VAULT_GAME });
+    if (window.KStake && typeof window.KStake.mount === "function" && $("blockx-stake")) window.KStake.mount($("blockx-stake"), { game: VAULT_GAME });
     try {
       const dep = await fetchJson(new URL("game-data/deployment.json", ROOT));
       if (!dep || !isAddr(dep.contract)) return;
@@ -529,7 +555,7 @@
     if (!vault || !who) { box.hidden = true; return; }
     try {
       const week = M.weekOf(Date.now());
-      const r = (await vault.functions.get_game_player({ player: who, game: G.GAME_ID, week: String(week) })).result || {};
+      const r = (await vault.functions.get_game_player({ player: who, game: VAULT_GAME, week: String(week) })).result || {};
       const now = Number(r.week_stake || 0) / 1e8, pend = Number(r.player?.pending || 0) / 1e8;
       // Audit BX-64: the recorder's rule (bot/games/blockx.ts vaultView/stakedSet): the most staked here this week (the
       // entry's peak_stake, else the active stake) at least the vault's minimum for the week.

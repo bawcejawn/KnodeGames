@@ -55,6 +55,11 @@
   // own throttling can be beaten on purpose by signing in full, so no producer's expected blocks follow its rate).
   // Fix B's "twa" pool rule is removed (Repo Lens #B-9 B9-1: no change after a withdrawal, over-expects after a deposit).
   const STEADY_BAND = 150000n;
+  // owner, 5 Nov: "Any address can go and increase or decrease their VHP balance any time which could result in void
+  // options for that race or game pick ... when an address is voided its not a permanent thing": a producer whose
+  // effective VHP leaves own × (1 ± VOID_BAND) at any block of the scoring window is void for that race (it plays the
+  // next one as usual). Real days: about 1–1.6% of producer-races (sims/ruler/voids.mjs)
+  const VOID_BAND = 100000n;
   const PCT_SCALE = 1n << 256n;   // the Poisson terms' fixed-point scale (pct)
 
   // ── sha256 (pure, for the card time; tested against node:crypto) ──
@@ -432,9 +437,10 @@
     };
   }
 
-  /** scoreCard: once S1 is in the data, fill expected, signed, credited, pct and fpct for every producer (millionths).
+  /** scoreCard: once S1 is in the data, fill expected, signed, credited, pct, void and fpct for every producer.
    *  expected = k, or for a pooled producer Σ min(own, eff)/total per block (§3.2); pct = the luck percentile (Fix A);
-   *  fpct = the field percentile (A′) for producers in the field (entry), null for the others. */
+   *  void = its VHP left own × (1 ± 10%) during the race (owner, 5 Nov); fpct = the field percentile (A′) among the
+   *  producers with entry that aren't void, null for the others. */
   function scoreCard(L, card) {
     const { S0, S1 } = card.window, tot = big(card.total);
     if (card.paying && pendingIn(L, S0 - EARLY, S1)) throw new Error(notYet(L, S0 - EARLY, S1));
@@ -444,6 +450,14 @@
       let credited = 0n;
       for (const b of L.signedBlocks(p.a, S0, S1)) credited += creditOf(o, L.eff(p.a, b));
       let expected = big(p.k);
+      const lo = (o * (M - VOID_BAND)) / M, hi = (o * (M + VOID_BAND)) / M;
+      let isVoid = false;
+      for (let H = S0; H <= S1;) {   // runs of equal eff
+        const e = L.eff(p.a, H); let H2 = H;
+        while (H2 + 1 <= S1 && L.eff(p.a, H2 + 1) === e) H2++;
+        if (e < lo || e > hi) { isVoid = true; break; }
+        H = H2 + 1;
+      }
       if (p.pooled) {   // §3.2: min(own, eff at each block), each block rounded down
         expected = 0n;
         for (let H = S0; H <= S1;) {
@@ -455,12 +469,14 @@
         }
       }
       const quality = flagged ? "flagged" : "ok";
-      return { ...p, quality, expected, signed: L.signedIn(p.a, S0, S1), credited, pct: pct(expected, credited) };
+      return { ...p, quality, expected, signed: L.signedIn(p.a, S0, S1), credited, pct: pct(expected, credited), void: isVoid };
     });
-    // A′: the field is the producers with entry; n = the blocks they signed in [S0, S1]; b = their expected blocks
+    // A′: the field is the producers with entry that aren't void; n = the blocks they signed in [S0, S1]; b = their
+    // expected blocks
+    const inField = (p) => p.entry && !p.void;
     let n = 0n, b = 0n;
-    for (const p of producers) if (p.entry) { n += BigInt(p.signed); b += p.expected; }
-    for (const p of producers) p.fpct = p.entry ? fpct(n, p.expected, b, p.credited) : null;
+    for (const p of producers) if (inField(p)) { n += BigInt(p.signed); b += p.expected; }
+    for (const p of producers) p.fpct = inField(p) ? fpct(n, p.expected, b, p.credited) : null;
     return { ...card, producers };
   }
 
@@ -503,6 +519,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND,
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, VOID_BAND,
     sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -12,6 +12,7 @@ M = 1000000
 MIN_K, FORM_GATE = 10 * M, 800000
 RULE_VERSION, OWN_RULES, POOL_RULES = 3, ("spot", "high1h", "avg24h"), ("min",)
 STEADY_BAND = 150000   # D-120 as the owner ruled (5 Nov), millionths: steady = every daily rate within this of the 14-day rate
+VOID_BAND = 100000     # owner, 5 Nov: a producer whose VHP leaves own × (1 ± this) during the race is void for that race
 PCT_SCALE = 1 << 256
 
 
@@ -528,6 +529,18 @@ def score_card(L, card):
         o = _int(p["own"])
         credited = sum(credit_of(o, L.eff(p["a"], b)) for b in L.signed_blocks(p["a"], S0, S1))
         expected = _int(p["k"])
+        lo, hi = o * (M - VOID_BAND) // M, o * (M + VOID_BAND) // M
+        is_void = False
+        H = S0
+        while H <= S1:
+            e = L.eff(p["a"], H)
+            H2 = H
+            while H2 + 1 <= S1 and L.eff(p["a"], H2 + 1) == e:
+                H2 += 1
+            if e < lo or e > hi:
+                is_void = True
+                break
+            H = H2 + 1
         if p["pooled"]:
             expected = 0
             H = S0
@@ -541,12 +554,13 @@ def score_card(L, card):
                 H = H2 + 1
         q = dict(p)
         q.update({"quality": "flagged" if flagged else "ok", "expected": expected,
-                  "signed": L.signed_in(p["a"], S0, S1), "credited": credited, "pct": pct(expected, credited)})
+                  "signed": L.signed_in(p["a"], S0, S1), "credited": credited, "pct": pct(expected, credited),
+                  "void": is_void})
         rows.append(q)
-    n = sum(r["signed"] for r in rows if r["entry"])
-    b = sum(r["expected"] for r in rows if r["entry"])
+    n = sum(r["signed"] for r in rows if r["entry"] and not r["void"])
+    b = sum(r["expected"] for r in rows if r["entry"] and not r["void"])
     for r in rows:
-        r["fpct"] = fpct(n, r["expected"], b, r["credited"]) if r["entry"] else None
+        r["fpct"] = fpct(n, r["expected"], b, r["credited"]) if r["entry"] and not r["void"] else None
     out = dict(card)
     out["producers"] = rows
     return out

@@ -78,3 +78,27 @@ test("B9-3: pct rounds down: just below certain is 999,999, never exactly 1 (bot
   assert.equal(R.pct(1n, 12n * M), 999999n);
   assert.equal(PY(`print(V.pct(1, 12 * 10**6))`).trim(), "999999");
 });
+
+// ── owner, 5 Nov: a producer whose VHP moves more than ±10% during the race is void for that race (never for good) ──
+test("void: a deposit or withdrawal of more than 10% during the race voids that producer for the race; block burns don't (both languages)", () => {
+  const scored = (extra) => { const { tl, ps } = rotation({ extra }), L = R.ledger(tl), g = { ...game, paying: false }; return { tl, ps, L, s: R.scoreCard(L, R.makeCard(L, g)), g }; };
+  const base = scored([]);
+  assert.ok(base.s.producers.every((p) => p.void === false), "ordinary block burns never void anyone");
+  for (const [what, v, want] of [["a deposit of +50%", 2n * 10n ** 15n, true], ["a withdrawal of −50%", -2n * 10n ** 15n, true], ["a deposit of +5%", 2n * 10n ** 14n, false]]) {
+    const { tl, ps, s, g } = scored([{ h: win.S0 + 3600, i: 2, v }]), p = s.producers.find((x) => x.a === ps[2]);
+    assert.equal(p.void, want, what);
+    if (want) assert.equal(p.fpct, null, "a void producer has no field percentile");
+    const field = s.producers.filter((x) => x.entry && !x.void), n = field.reduce((t, x) => t + BigInt(x.signed), 0n), b = field.reduce((t, x) => t + x.expected, 0n);
+    for (const x of field) assert.equal(x.fpct, R.fpct(n, x.expected, b, x.credited), `${what}: the field without the void producer`);
+    const out = py(`L = V.Ledger(j["tl"]); g = j["g"]
+c = V.make_card(L, g["game"], g["round"], g["window"], g["c"], g["ownRule"], g["paying"], g["pooled"], g["minK"], g["poolRule"])
+sys.stdout.write(V.card_json(V.score_card(L, c)))`, { tl, g });
+    assert.equal(out, R.cardJson(s), `Python, ${what}`);
+  }
+  // the next race, with the VHP stable at its new size, plays as usual
+  const { tl, ps } = rotation({ n: 445000 + 30000, extra: [{ h: win.S0 + 3600, i: 2, v: 2n * 10n ** 15n }] }), L = R.ledger(tl);
+  const w2 = { W0: win.W0 + 14400, W1: win.W0 + 14400 + 7199, L: win.W0 + 21600, S0: win.W0 + 21601, S1: win.W0 + 28800 };
+  assert.ok(w2.S1 <= tl.to, "the chain holds the next race");
+  const s2 = R.scoreCard(L, R.makeCard(L, { ...game, paying: false, window: w2 }));
+  assert.equal(s2.producers.find((x) => x.a === ps[2]).void, false, "not void for good: the next race, at its new size, plays as usual");
+});

@@ -2,7 +2,7 @@
 
 > **Purpose:** everything unresolved: bugs, unanswered questions, things waiting on someone. One row per issue, **current state only**.
 > **Rules:** when an issue is resolved, move its row to `../archive/ISSUES_CLOSED.md` with the date and where the answer was recorded (usually a D-xxx). Never reuse an id. Who does the work is in `CHAT_REQUESTS.md` (R-xxx) or `TODOS.md`; this file says what's wrong, not the steps.
-> **Last updated:** 2026-11-05 (I-020, I-022, I-085, I-087, I-090, I-093 closed → `../archive/ISSUES_CLOSED.md`; I-006 site mitigation; I-095 new). Older history: `git log -- .ai/platform/OPENISSUES.md`.
+> **Last updated:** 2026-11-05 late (I-096, I-097 from the Hub; earlier: I-020, I-022, I-085, I-087, I-090, I-093 closed, I-095 new). Older history: `git log -- .ai/platform/OPENISSUES.md`.
 
 **Legend:** ✅ verified · 💬 chat only · 👤 owner said · ❓ unknown
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
@@ -68,6 +68,8 @@ Contradictions are tracked in `DECISIONS.md` → Contradictions (none open).
 | I-057 | P4 | tests | Survivor rehearsal flake: the fake testnet sometimes reports a pick "not mined" within its 2-min wait; rerun | — | 2026-11-02 |
 | I-068 | P4 | tooling | `bot --testnet` and the admin page's "Vault v6 trial (local node)" target a local Harbinger testnet node the owner doesn't run (D-066). Retarget them to the public testnet or remove them | R-VAULT-8 | 2026-11-02 |
 | I-095 | P3 | sponsor / site | A sponsored transaction whose Mana adds up to more than the 2.4 cap (D-131) is turned down, then retried with the player's own Mana (Kondor asks again). Today that's mostly several Block X picks in one transaction. Fix: split or warn before sending | R-BX (Block X chat, with the Hub chat) | 2026-11-05 |
+| I-096 | P3 | analytics | Cookieless counting (D-143) counts the same person again each day, so weekly / monthly unique visitors are inflated: quote daily visitors and page views to advertisers, with on-chain stats as proof | Hub, owner | 2026-11-05 |
+| I-097 | P4 | site | Daily Questions demo mode repeats question numbers (Q18, Q18…) after editing; cosmetic, demo only | Hub | 2026-11-05 |
 
 ## Closed
 Moved to **`../archive/ISSUES_CLOSED.md`** (newest first), with the date and where each answer was recorded.

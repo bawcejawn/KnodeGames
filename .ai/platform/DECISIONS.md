@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, **oldest first** (D-001 at the top, the newest at the bottom; the index is in the same order). This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "superseded by D-XXX" in the index.
 > Consolidated 2026-11-02: the owner's answers to the open contradictions are recorded as D-061 – D-067.
-> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-142 added; index statuses brought up to date; nothing removed)
+> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-145 added; index statuses brought up to date; nothing removed)
 > Sources: owner in chat (2026-11-02), `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (all 12 chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · 👤 owner said · ⚠️ was a conflict (see the C-xx named next to it; all are resolved unless listed under Open) · ❓ unknown
@@ -153,6 +153,9 @@
 | D-140 | 2026-11-05 | Fix fast after every review: one pass, same day, tracked by finding | active (standing) |
 | D-141 | 2026-11-05 | Producer Bracket: up to 64 producers, one round a day, 8 to play | active (for the Bracket build) |
 | D-142 | 2026-11-05 | Fantasy, Block Golf and Producer Bracket reactivated: the next three games to launch | active (amends D-113, D-138) |
+| D-143 | 2026-11-05 | Visit counting with PostHog: cookieless, our own pinned copy, for advertising numbers | active |
+| D-144 | 2026-11-05 | Daily Questions are shown in plain words; the wording on chain never changes | active |
+| D-145 | 2026-11-05 | The site's look follows the Hub's launch UI research | active |
 
 ---
 
@@ -773,6 +776,15 @@
 
 ## D-142 — Fantasy, Block Golf and Producer Bracket reactivated: the next three games to launch
 - **Date:** 2026-11-05 (owner: "im reactivating Fantasy producers chat and block golf … i also would like to get producer bracket reactivated too and these 3 games be the next focus of push and launch games to slot right in"; "make sure the admin page is getting the needed updates along with the career page") · **Decision:** the Fantasy, Block Golf and Producer Bracket chats restart now, alongside the core work; these three are the next launches, each through `standards/NEW_GAME.md` and `GO_LIVE_CHECKLIST.md`, starting with the catch-up item R-ALL-9 (the 4–5 Nov standards). Last Node follows them; Survivor and Combo stay paused. The admin page (R-HUB-17, with R-HUB-8) and the career profile (R-HUB-15) are built now so they're ready when the three launch. The core still comes first where the two compete (owner's sends and reviews: v6.1, the ruler).
+
+## D-143 — Visit counting with PostHog: cookieless, our own pinned copy, for advertising numbers
+- **Date:** 2026-11-04 (owner, to the Hub chat: PostHog chosen for advertising numbers, "generate big money on advertisement dollars") · **Decision:** the public pages count visits with PostHog in **cookieless mode** (nothing stored in the browser, no banner): page views and leaves only, no autocapture, recordings, surveys or heatmaps; counts only on `*.knodegames.com`. The script is **our own pinned copy** (`vendor/posthog-1.438.13.js`, sha256 pinned in `tests/audit/site.analytics.test.mjs`), so wallet pages load no third-party code; the CSP allows only `https://us.i.posthog.com`. Terms §8 says what is counted. Built in #168. Quote daily visitors and page views to advertisers (cookieless counting inflates weekly / monthly uniques, I-096).
+
+## D-144 — Daily Questions are shown in plain words; the wording on chain never changes
+- **Date:** 2026-11-04 (owner, to the Hub chat: "make sure the way the questions are asked is not confusing", "simple for anyone to read and understand", "you can make the question wording updates right now"; and the proposal's answers: keep the block numbers and add the estimated time window; network questions "more inviting but still easy to understand"; add a "New here?" line) · **Decision:** the page shows each question in plain words (e.g. "Will @A make 546 or more blocks?"), Yes before No without letters, the block window plus its estimated local time, no negative numbers. **Display only:** the on-chain wording (`q.text`, hashRule 2), the generator, the option numbers sent and the scoring are unchanged; `q.text` stays in the card's tooltip. The Hub chat may change the Questions card wording for this (one block in `app.js`, `question-words`, tested against every line). Built in #171.
+
+## D-145 — The site's look follows the Hub's launch UI research
+- **Date:** 2026-11-04 (owner trusts the direction of `claude/hub/UI-RESEARCH-2026-11-05.md`) · **Decision:** the Hub builds the research's list in order (R-HUB-21): readability first (#174), bigger tap targets, guest play first on phones, a play-first home (Variant A, then an A/B test once visit counts exist), one-button game cards (Variant B). Each is its own PR with site tests.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

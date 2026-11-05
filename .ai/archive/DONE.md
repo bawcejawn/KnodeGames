@@ -4,6 +4,41 @@
 > **How it grows:** when an item in `platform/TODOS.md`, `platform/CHAT_REQUESTS.md`, `platform/PRIORITIES.md`, `platform/ROADMAP.md`, `platform/DOCUMENTATION_GAPS.md` or `platform/TECHNICAL_DEBT.md` is done, the library chat moves it here under the date it was moved, newest first. Closed issues go to `ISSUES_CLOSED.md`.
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
+## Moved 2026-11-05 (late)
+- Merged 5 Nov: #164 (token addresses), #165 (status-sync), #166 (owner answers), #167 (D-137 – D-140, REPO_MAP), #168 (visit counting), #169 (go-live order), #170 (HEALTHCHECK), #171 (question wording), #172 (three games reactivated) — 2026-11-05
+- Owner: `1635QU…` holds over 100 KOIN (enough for Monday's upload) — 2026-11-05
+
+Finished chat requests:
+| R-RULER-1 | **Build the shared VHP ruler** from `../standards/VHP_RULER.md` (its §7 data, §8 simulations, §10 plan, §13 interface), starting from the Bracket's `vhp-standard.js` / `bot/vhp-chain.ts` (branch `kg-09-bracket`): `vhp-ruler.js`, `bot/vhp-ruler.ts`, the `vhp-data` recorder and publish check, tests and the 11 simulations of §8; then Repo Lens. Fold in any changes from the design review | D-108, D-110, R-LIB-5 | library + tests + simulations + Repo Lens GO; the Race chat then moves first (R-RACE-5) | ✅ merged to `main` (#163 @ `978c96b`; #B-6 re-check GO). Recorder on: owner sets `VHP_RULER_ENABLED` (data only, D-128). The v2.1 build is **R-RULER-2** |
+| R-HUB-18 | Official token addresses card on Get VHP and New to Koinos (KOIN, VHP, vKOIN on Ethereum and Solana; owner confirmed the addresses) | owner 4–5 Nov | PR | ✅ #164 merged 5 Nov |
+| R-HUB-19 | Cookieless visit counting with PostHog (our own pinned copy, page views only, Terms §8) | owner 4 Nov, D-143 | PR | ✅ #168 merged 5 Nov |
+| R-HUB-20 | Daily Questions in plain words, display only (on-chain wording, hash and scoring unchanged) | owner 4 Nov, D-144 | PR | ✅ #171 merged 5 Nov |
+
+Owner steps done:
+- [x] `1635QU…` holds at least 95 KOIN (owner, 5 Nov: "over 100 koin"). Don't move it until after Monday's upload.
+
+Technical debt paid down (as it stood):
+- **TD-02, the vault paying from files it can't fully verify (Race):** fixed by the Race hold (#85), the payout safety PR #133 (held-week alerts, the vault file recomputed from the chain, published final race results locked) and the Sunday review day (D-125). Block X's published finals are locked too (#159). The general bot-side points recompute for every game stays I-080 (`../standards/RECORDER_STANDARD.md` §1).
+- **TD-13, Block X's "before prizes" fix list:** PR #80 merged.
+- **TD-15, nicknames don't stick:** fixed by PR #95 (I-020).
+- **TD-24, the legacy name-claim workflow's `issues` permissions:** removed with the claim flow (#137, D-118); the CI guard now refuses any `issues` permission.
+
+Documentation gaps closed (as they stood):
+- **Keys and roles** (#3): `KEYS_AND_ROLES.md`.
+- **Sponsor** (#10): `SPONSOR.md`, the one home for its live values.
+- **PC recovery**: `RECOVERY.md` (its own open points are #33 – #35).
+- **Alerts**: `ALERTS.md`; #36 closed too (`docs/WALLETS.md` §6 lists the other expected emails, 4 Nov).
+- **README and `SECURITY.md`**: the root README describes the whole platform and `SECURITY.md` says how to report a problem (D-115, PR #131).
+
+## Closed 5 Nov (library sync)
+- Gap 8: closed 5 Nov — VISION folded into `FOUNDER_INTENT.md` (old file in `../archive/2026-11-05/`)
+- Gap 12: closed 5 Nov — `AUDITS.md` written
+- Gap 13: closed 5 Nov — `GLOSSARY.md` written
+- Gap 30: closed 5 Nov — `../standards/WEEK_CYCLE.md` §1 and `GLOSSARY.md` hold the week labels
+
+## Written 5 Nov (was: being written)
+`platform/CALENDAR.md` (every dated step), `platform/AUDITS.md` (closes #12), `platform/GLOSSARY.md` (closes #13), `standards/WEEK_CYCLE.md` (the one home for every game's weekly timing), `standards/NEW_GAME.md` (step-by-step onboarding for a new game).
+
 ## Moved 2026-11-05 (status-sync, evening)
 - Merged 4–5 Nov: #142, #150, #157 (Stake page manages Daily Questions; gentle reads; claim choice D-132), #143 (Block X Results tab), #154 (one sponsored claim per transaction, fallback), #155 (Race Sunday fun races, D-129; L-4 daily), #158 (site Mana limits at the 2.4 cap, D-131), #159 (Block X finals locked, tests), #160 (Block X on the weekly rhythm), #161 (HEALTHCHECK), #162 (v6.1 weekend runbook dates, D-130) — 2026-11-05
 - Sponsor config on mainnet: cap 2.4 and 8 rows, switch ON, vault switch ON (tx `0x1220a593…1bfc`, owner) — 2026-11-04

@@ -24,6 +24,8 @@ Free and staked prediction games on the Koinos blockchain, powered by our own bl
 | check the Mana sponsor's numbers | `platform/SPONSOR.md` |
 | react to an alert email | `platform/ALERTS.md` → `platform/RUNBOOK.md` |
 | know what each folder is and whether it can touch funds | `platform/REPO_MAP.md` |
+| see every live contract, its build and its last review | `platform/CONTRACTS.md` |
+| see where the architecture is going | `platform/ARCHITECTURE.md` → "Target architecture and roadmap" |
 | look up a decision | `platform/DECISIONS.md` (oldest first; index at the top) |
 | end a session | `platform/SESSION_END_PROCESS.md` |
 

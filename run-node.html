@@ -387,7 +387,8 @@ docker compose config | grep koinos-data</code></pre>
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $i = Invoke-RestMethod https://snapshots.armana.io/index.json
 $s = $i.archives | Sort-Object { [int64]$_.height } -Descending | Select-Object -First 1
-if ((Test-Path snapshot.json) -and (Test-Path snapshot.tar.gz) -and ((Get-Content snapshot.json -Raw | ConvertFrom-Json).name -ne $s.name)) { Remove-Item snapshot.tar.gz; "A newer snapshot is out: the half-finished older download was removed, so 4b starts fresh." }
+$old = $null; try { $old = (Get-Content snapshot.json -Raw -ErrorAction Stop | ConvertFrom-Json).name } catch { }
+if ((Test-Path snapshot.tar.gz) -and ($old -ne $s.name)) { Remove-Item snapshot.tar.gz; "A newer snapshot is out: the half-finished older download was removed, so 4b starts fresh." }
 $s | ConvertTo-Json -Depth 5 | Set-Content snapshot.json
 $f = ((curl.exe -sL --ssl-no-revoke $s.sha256_url) -split '\s+')[0]
 "Newest snapshot: $($s.name)"
@@ -403,11 +404,12 @@ import json, os, urllib.request
 i = json.load(urllib.request.urlopen("https://snapshots.armana.io/index.json"))
 s = max(i["archives"], key=lambda a: int(a["height"]))
 try:
-    if json.load(open("snapshot.json"))["name"] != s["name"] and os.path.exists("snapshot.tar.gz"):
-        os.remove("snapshot.tar.gz")
-        print("A newer snapshot is out: the half-finished older download was removed, so 4b starts fresh.")
+    old = json.load(open("snapshot.json"))["name"]
 except Exception:
-    pass
+    old = None
+if os.path.exists("snapshot.tar.gz") and old != s["name"]:
+    os.remove("snapshot.tar.gz")
+    print("A newer snapshot is out: the half-finished older download was removed, so 4b starts fresh.")
 json.dump(s, open("snapshot.json", "w"), indent=1)
 f = urllib.request.urlopen(s["sha256_url"]).read().decode().split()[0]
 print("Newest snapshot:", s["name"])
@@ -510,11 +512,12 @@ else { "Your node: $me   Network: $net   Behind by: $($net - $me) blocks" }</cod
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>B='{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
-H='import json,sys;print(json.load(sys.stdin)["result"]["head_topology"]["height"])'
+H='import json,sys;h=int(json.load(sys.stdin)["result"]["head_topology"]["height"]);assert h>0;print(h)'
 ME=$(curl -s -X POST -H 'content-type: application/json' -d "$B" http://127.0.0.1:8080 | python3 -c "$H" 2&gt;/dev/null)
 NET=$(curl -s -X POST -H 'content-type: application/json' -d "$B" https://koinos.armana.io | python3 -c "$H" 2&gt;/dev/null)
 if [ -z "$ME" ]; then echo "Your node didn't answer yet - wait 2 minutes and try again"
 elif [ -z "$NET" ]; then echo "Couldn't read the network height - try again in a minute"
+elif [ "$NET" -lt "$ME" ]; then echo "Couldn't read the network height - try again in a minute"
 else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi</code></pre>
       </div>
       <p>Want to watch it work? <code>docker compose logs --tail 20 chain</code> (in the <code>koinos</code> folder) shows the latest progress lines.</p>
@@ -768,11 +771,11 @@ git rev-parse HEAD</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac">
         <div class="rn-cmd-h"><span>Mac · Terminal (USB stick named MYUSB)</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>if [ -d /Volumes/MYUSB ]; then docker run --rm -v koinos-data:/k:ro -v /Volumes/MYUSB:/usb alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key &amp;&amp; ls /Volumes/MYUSB/koinos-node-private.key; else echo "STOP - no USB stick named MYUSB: plug it in and use its name"; fi</code></pre>
+        <pre><code>if [ -d /Volumes/MYUSB ] &amp;&amp; diskutil info /Volumes/MYUSB &gt;/dev/null 2&gt;&amp;1; then docker run --rm -v koinos-data:/k:ro -v /Volumes/MYUSB:/usb alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key &amp;&amp; ls /Volumes/MYUSB/koinos-node-private.key; else echo "STOP - no USB stick named MYUSB: plug it in and use its name"; fi</code></pre>
       </div>
       <div class="rn-cmd" data-os="linux">
         <div class="rn-cmd-h"><span>Linux · Terminal (USB stick named MYUSB)</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>if [ -d "/media/$USER/MYUSB" ]; then docker run --rm -v koinos-data:/k:ro -v "/media/$USER/MYUSB:/usb" alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key &amp;&amp; ls "/media/$USER/MYUSB/koinos-node-private.key"; else echo "STOP - no USB stick named MYUSB: plug it in and use its name"; fi</code></pre>
+        <pre><code>if mountpoint -q "/media/$USER/MYUSB" 2&gt;/dev/null; then docker run --rm -v koinos-data:/k:ro -v "/media/$USER/MYUSB:/usb" alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key &amp;&amp; ls "/media/$USER/MYUSB/koinos-node-private.key"; else echo "STOP - no USB stick named MYUSB: plug it in and use its name"; fi</code></pre>
       </div>
       <ul class="rn-list rn-warn">
         <li>Never open it, paste it, email it, upload it or type it into any website or chat, including this one.</li>

@@ -62,7 +62,7 @@ jobs:
             git fetch -q --depth 1 "$url" race-data
             git ls-tree -r -z --name-only FETCH_HEAD > "$RUNNER_TEMP/prev-files"   # fails the step if it fails (review V2)
             while IFS= read -r -d '' f; do
-              # D-153: T<week>.json, the race types' ledger and results, comes back to the recorder too.
+              # D-161: T<week>.json, the race types' ledger and results, comes back to the recorder too.
               if [[ "$f" =~ ^(index|board|[WT][0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
               if [[ "$f" =~ ^vault/(PENDING-)?W[0-9]{1,4}\.json$ ]]; then mkdir -p "$RUNNER_TEMP/prev/vault"; git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
             done < "$RUNNER_TEMP/prev-files"
@@ -235,7 +235,7 @@ jobs:
               return type(rows) is list and len(rows) <= 100000 and all(type(x) is dict and set(x) == {"a", "pts", "correct", "shows", "picks", "ranked", "boardPlace", "earns"}
                   and type(x["earns"]) is int and x["earns"] in (0, 1, 2, 3) and (x["earns"] != 3 or x["ranked"] is True) and (x["earns"] not in (1, 2) or x["ranked"] is False)
                   and isaddr(x["a"]) and all(type(x[k]) is int and 0 <= x[k] < 10**9 for k in ("pts", "correct", "shows", "picks")) and type(x["boardPlace"]) is int and 1 <= x["boardPlace"] <= len(rows)
-                  # D-153: the race types score their own points (a win 2, 3, 6 or 12; a show 1, 2 or 4), so pts lies between
+                  # D-161: the race types score their own points (a win 2, 3, 6 or 12; a show 1, 2 or 4), so pts lies between
                   # those bounds; the recompute below checks the last week's exactly.
                   and x["correct"] + x["shows"] <= x["picks"] and 2 * x["correct"] + x["shows"] <= x["pts"] <= 12 * x["correct"] + 4 * x["shows"] and type(x["ranked"]) is bool for x in rows)
           import time
@@ -327,7 +327,7 @@ jobs:
               if type(wf) is not dict or wf.get("week") != w or type(wf.get("races")) is not list: return "its week's race file can't be read to check it"
               t, reached = {}, {}
               import datetime as _dt
-              # D-153: the 6-hour races (W file), then the race types (T file, this push's else the published one), each
+              # D-161: the 6-hour races (W file), then the race types (T file, this push's else the published one), each
               # with its own points: [win, show] by type.
               tw = week_json(w, "T%03d.json")
               typed = tw.get("races") if type(tw) is dict and tw.get("week") == w and type(tw.get("races")) is list else []
@@ -439,7 +439,7 @@ jobs:
                       assert type(pw) is not list or all(w in pw or cw - 1 <= w <= cw + 1 for w in j["weeks"]), f + ": a new week that isn't around this one"
                   continue
               if re.fullmatch(r"T[0-9]{3}\.json", f):
-                  # D-153: the race types' week file: the hour ledger and the week's 260 races of types 1-4.
+                  # D-161: the race types' week file: the hour ledger and the week's 260 races of types 1-4.
                   import datetime
                   assert set(j) == {"v", "week", "start", "end", "hours", "races"} and one(j["v"]) and type(j["week"]) is int and 0 <= j["week"] < 10000 and f == "T%03d.json" % j["week"], f
                   assert j["start"] == 1792368000000 + j["week"] * 7 * 86400000 and j["end"] == j["start"] + 7 * 86400000, f

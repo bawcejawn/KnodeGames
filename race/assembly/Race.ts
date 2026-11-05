@@ -5,7 +5,7 @@ import { race } from "./proto/race";
  * Knode Producer Race picks. See assembly/proto/race.proto for the rules.
  * Free to play: it holds no funds, takes no fee and never pays Mana. It only keeps one pick per wallet per race and
  * lets the chain enforce the lock (no pick once a race has started), the window picks open in, and the daily limit.
- * v2 (owner 5 Nov 2026, D-153): race types 0-4 (6-hour as v1, 1-hour, 2-hour, daily, weekly) in an optional `type`
+ * v2 (owner 5 Nov 2026, D-161): race types 0-4 (6-hour as v1, 1-hour, 2-hour, daily, weekly) in an optional `type`
  * field; type 0's picks keep v1's storage and keys; a daily limit of 0 means no per-game limit (the Mana sponsor's
  * daily limit across the platform is the cap).
  * Uploaded with no authority overrides: upgrades need this contract's own key; settings need the owner's key.
@@ -22,7 +22,7 @@ export const DAY_MS: u64 = 86400000;
 /** Picks are open for the next 4 races: the coming 24 hours. */
 export const LOOKAHEAD: u64 = 4;
 export const MAX_PICKS_LIMIT: u32 = 20;
-/** v2 race types (D-153): 0 = 6-hour (v1), 1 = 1-hour, 2 = 2-hour, 3 = daily, 4 = weekly (Monday to Sunday 00:00 UTC). */
+/** v2 race types (D-161): 0 = 6-hour (v1), 1 = 1-hour, 2 = 2-hour, 3 = daily, 4 = weekly (Monday to Sunday 00:00 UTC). */
 export const TYPES: u32 = 5;
 export const HOUR_MS: u64 = 3600000;
 export const WEEK_MS: u64 = 604800000;
@@ -71,7 +71,7 @@ export class Race {
     const had = old != null && old.horse != null && old.horse!.length > 0;
     System.require(!had || !Arrays.equal(old!.horse, args.horse), SAME);
 
-    // 0 = no per-game limit (v2, D-153): nothing is counted or stored.
+    // 0 = no per-game limit (v2, D-161): nothing is counted or stored.
     if (cfg.max_picks_per_day > 0) {
       const day = now / DAY_MS;
       const dc = this.days.get(player)!;

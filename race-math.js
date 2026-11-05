@@ -26,7 +26,7 @@
  * SCORING A PICK
  * - A pick on the winner scores a win (3 points); a pick on the horse that finishes 2nd or 3rd scores a show (1 point).
  *
- * RACE TYPES (owner, 5 Nov 2026, D-153; Race contract v2)
+ * RACE TYPES (owner, 5 Nov 2026, D-161; Race contract v2)
  * - Type 0 is the 6-hour race above, unchanged. Types 1-4 run around the clock beside it: the 1-hour race (every hour),
  *   the 2-hour race (every even hour), the daily race (each UTC day) and the weekly race (Monday 00:00 to Sunday 00:00
  *   UTC, the play week). Points: 1- and 2-hour win 2 / show 1; 6-hour 3 / 1; daily 6 / 2; weekly 12 / 4. All count on
@@ -68,7 +68,7 @@
   /** When play ends in week w: Saturday 24:00 UTC = Sunday 00:00 UTC. */
   const playEnd = (w) => weekStart(w) + 6 * DAY;
 
-  // ── race types (D-153) ──
+  // ── race types (D-161) ──
   /** len: how long the race runs; step: how often one starts; win / show: its points. Type numbers match the contract. */
   const TYPES = Object.freeze([
     Object.freeze({ id: 0, key: "6h", name: "6-hour", len: RACE, step: RACE, win: 3, show: 1 }),
@@ -105,7 +105,7 @@
   }
   const pointsOf = (type) => ({ win: TYPES[type].win, show: TYPES[type].show });
   /** The first Knode Games week the race types (1-4) run in: null = not yet (the Race contract v2 isn't uploaded).
-   *  The owner sets it with the upload (D-153); until then the recorder, the publish job and the page show only the
+   *  The owner sets it with the upload (D-161); until then the recorder, the publish job and the page show only the
    *  6-hour race. */
   const TYPES_FROM_WEEK = null;
 
@@ -163,7 +163,7 @@
     const total = all.reduce((s, [, v]) => s + v, 0);
     const rows = all.map(([a, v]) => ({ a, vhp: v, k: total > 0 ? blocksPerRace * v / total : 0 })).sort((x, y) => y.vhp - x.vhp || (x.a < y.a ? -1 : 1));
     const field = rows.filter((r) => r.k >= MIN_K), paddock = rows.filter((r) => r.k < MIN_K);
-    // fixedC: a type's card rebuilt from a stored c (D-153), without simulating again.
+    // fixedC: a type's card rebuilt from a stored c (D-161), without simulating again.
     const ks = field.map((r) => r.k), cal = fixedC === undefined ? calibrate(ks) : { c: fixedC, min: NaN, max: NaN };
     return {
       at, blocksPerRace: round(blocksPerRace, 1), c: cal.c,

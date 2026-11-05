@@ -109,7 +109,7 @@
     .pk-row { display: grid; grid-template-columns: 170px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--paper); font-size: 14px; }
     .pk-row.live { background: var(--mint-soft); }
     .pk-row.done { background: transparent; border: 1px solid var(--line); }
-    /* D-153: the race-type toggle */
+    /* D-161: the race-type toggle */
     .rt-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
     .rt-tabs button { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 14px; cursor: pointer; color: inherit; }
     .rt-tabs button[aria-pressed="true"] { background: var(--ink, #1d2a24); color: var(--paper, #fff); border-color: transparent; font-weight: 600; }
@@ -211,7 +211,7 @@
     <p class="lede">Every Koinos block producer is a horse. Each block it signs moves it forward, and smaller producers get a handicap so every horse has the same chance.<span class="lede-more"> Four 6-hour races a day, every day, starting at 00:00, 06:00, 12:00 and 18:00 UTC.</span> Free, just for fun.</p>
     <nav class="tools" aria-label="On this page"><a href="#live">Live race</a><a href="#pick-zone" class="go-pick">Pick a horse</a><a href="#board-box">Race board</a><a href="#history">Results</a><a href="#how">How it works</a><a href="node.html" class="hide-sm">Producer lookup</a></nav>
 
-    <!-- D-153: race types. Hidden until the Race contract v2 is live (TYPES_FROM_WEEK in race-math.js). -->
+    <!-- D-161: race types. Hidden until the Race contract v2 is live (TYPES_FROM_WEEK in race-math.js). -->
     <nav class="rt-tabs" id="race-types" aria-label="Race type" hidden></nav>
     <section class="card" id="typed" hidden>
       <div class="head"><h2 id="rt-title">–</h2><span class="tag" id="rt-tag">–</span></div>

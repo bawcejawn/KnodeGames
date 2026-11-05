@@ -171,6 +171,7 @@
 | D-158 | 2026-11-05 | The Shared Game Kit design is adopted, with eight choices (every new game and the Questions recorder launch on the kit; current payout rules kept; generic recount; data branches kept; two shadow weeks; `kit/`; standards point to GAME_KIT.md) | active; choices 1 and 4 corrected by D-160 |
 | D-159 | 2026-11-05 | Free-prize ties: up to 10 paid per place; more than 10 → exactly 10 by earlier score time, then address; never zero because of the cap | active (every standard; mismatches I-103, I-104) |
 | D-160 | 2026-11-05 | Kit rollout corrected: #203 delivers Questions for Mon 16; the kit is built as core only, then #203 is ported byte-compatibly; no second hand-built runner; any rule ambiguity stops the build and goes to the owner | active |
+| D-161 | 2026-11-05 | Producer Race types: 1-hour, 2-hour, 6-hour, daily, weekly, all on one board (points 2/1, 2/1, 3/1, 6/2, 12/4); no per-game pick limit | built on `race-types` (contract v2 + recorder + page), off until `TYPES_FROM_WEEK`; audit and upload pending |
 
 ---
 
@@ -865,6 +866,16 @@
   2. **Phase 0 is the kit's core only** (R-ARCH-3); no second Questions recorder.
   3. **No game launches a second hand-built runner while the kit is being built:** Fantasy, Block Golf and Bracket launch on the kit (R-ALL-11).
   4. **Any rule ambiguity stops the build** and goes to the owner; no chat guesses a rule.
+
+## D-161 — Producer Race types, and no per-game pick limit
+- **Date:** 2026-11-05 (owner, to the Ruler chat: "Throw a 1 day race in there every day, throw a weekly race in there which runs Monday - Saturday just like all the other games. Throw a sprint race in there which is 1 or 2 hours ... This is really what helps expand the fun and utility and actions one can do on the platform." To the Race chat, the same day: "maybe make it 4 / 5 different boards and users can toggle through the time period they want to play in. 1 hour and 2 hour games should count as 2 points for win and 1 point for show. 6 hour games should count as 3 points for win 1 point for show. daily games should be 6 points for win and 2 points for show. then weekly should be 12 for win and 4 for show. The points all count toward the same Producer Race leaderboard"; "12 a day. The races should run around the clock like the 6 hour race. Hourly should run hourly for 24 per day."; "The sponsor wallet shouldnt have limitations on how many actions they can play in a single game. they should have a daily mana limit across the platform. if they have mana they can play. or provide their own mana"; "yes build it. get it ready for ASAP and we will push the upgrade when its clean audit and ready to go") · **Decision:**
+  - **Five race types, around the clock:** 1-hour (24 a day), 2-hour (12 a day), 6-hour (4 a day, unchanged), daily (each UTC day) and weekly (Monday 00:00 → Sunday 00:00 UTC, the play week). Sunday's races of every type but the weekly are fun races (D-129).
+  - **Points, all on the one Producer Race board:** win / show = 2 / 1 (1- and 2-hour), 3 / 1 (6-hour), 6 / 2 (daily), 12 / 4 (weekly). D-152 decides who gets paid; one vault results file a week.
+  - **The page:** a toggle per type (1-hour, 2-hour, 6-hour, daily, weekly), so a player always sees which race they're playing.
+  - **Handicaps:** the same formula; each type's k is the blocks expected in that race, from the same hourly VHP reading. So a short race has a smaller field (today: 12 producers at 1 hour, 15 at 2 hours, 17 at 6, 19 daily, 20 weekly). The Vault is out of 1- and 2-hour races until it holds about 109,000 / 54,000 VHP; the page says so (the bar isn't lowered).
+  - **No per-game pick limit:** the Race contract's daily limit is set to 0 (no limit). The Mana sponsor's daily limit across the platform is the cap, or the player's own Mana. Other games' per-game limits: R-ALL-13.
+- **How:** the Race contract v2 (same address, one optional `type` field, old picks untouched; audit and Repo Lens first, then upload in a Monday 01:40–06:30 UTC slot with the owner's key); the recorder's hour ledger and `T<week>.json` (W files and Block X unchanged); `TYPES_FROM_WEEK` in `race-math.js` turns it on with the upload.
+
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

@@ -285,7 +285,7 @@ async function readPicks(node: any, contract: string, raceNo: number, type = 0):
   const out: Pick[] = [];
   let after: string | undefined;
   for (let page = 0; page < 1000; page++) {
-    // D-153: a race type other than 0 (the 6-hour race) is asked for by its type; type 0 is asked exactly as before v2.
+    // D-161: a race type other than 0 (the 6-hour race) is asked for by its type; type 0 is asked exactly as before v2.
     const r: any = await withRetry(`picks for race ${raceNo}${type ? ` (type ${type})` : ""}`, () => (c.functions as any).list_picks({ race: String(raceNo), ...(after ? { start_after: after } : {}), limit: 100, ...(type ? { type } : {}) }));
     const rows = r?.result?.rows ?? [];
     for (const x of rows) if (isAddr(x.player) && isAddr(x.pick?.horse)) out.push([x.player, x.pick.horse, Number(x.pick.at || 0)]);
@@ -519,7 +519,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
     await sleep(200);
   }
 
-  // ── 2b. race types (D-153): the hour ledger, then the 1-hour, 2-hour, daily and weekly races scored from it ──
+  // ── 2b. race types (D-161): the hour ledger, then the 1-hour, 2-hour, daily and weekly races scored from it ──
   for (const wf of weeks.values()) {
     if (!typesOn(wf.week)) continue;
     const tf = loadTypes(wf.week);
@@ -564,7 +564,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   return { problems, held: heldAlerts.slice() };
 }
 
-// ── race types (D-153, owner 5 Nov 2026; Race contract v2): T<week>.json ──
+// ── race types (D-161, owner 5 Nov 2026; Race contract v2): T<week>.json ──
 // The 1-hour, 2-hour, daily and weekly races beside the 6-hour race. Their own file, so W<week>.json (which Block X and
 // the 6-hour pages read) never changes. It holds:
 // - hours: the hour ledger. For each UTC hour of the week, once it is irreversible: the blocks' heights [a, b], each
@@ -834,7 +834,7 @@ export function rank(rows: Row[]): Row[] {
 const forWeek = (r: Race) => !M.restRace(r.start, rhythmFromWeek);
 function tally(weeks: Map<number, WeekFile>, from: number, to: number, weekly = false) {
   const t = new Map<string, { pts: number; correct: number; shows: number; picks: number; reached?: number }>();
-  // D-153: the 6-hour races, then the race types (their own points), all on the one board.
+  // D-161: the 6-hour races, then the race types (their own points), all on the one board.
   const races: { start: number; result: any; type: number }[] = [];
   for (const wf of weeks.values()) for (const r of wf.races) races.push({ start: r.start, result: r.result, type: 0 });
   for (const tf of typesAll.values()) for (const r of tf.races) races.push({ start: r.start, result: r.result, type: r.type });
@@ -1044,7 +1044,7 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   // D-125: a Sunday race on the rhythm scores nothing, so it never keeps the week open (the review day can start at
   // Sunday 00:00 UTC, before those races' times have passed).
   const open = wf.races.filter((r) => !r.result?.final && !M.restRace(r.start, rhythmFromWeek) && !(r.start < firstCard && !r.cards.some(Boolean)));
-  // D-153: a typed race of the week still being scored keeps it open too (never past the same deadline).
+  // D-161: a typed race of the week still being scored keeps it open too (never past the same deadline).
   const openTyped = (typesAll.get(w)?.races || []).filter((r) => !r.result?.final && forWeek(r));
   const late = now >= wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER);   // D-125: the review day comes first
   const unread = rows.filter((r) => failed.has(`stake:${r.a}|${w}`));

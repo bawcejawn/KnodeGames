@@ -165,7 +165,7 @@ test("the race page sends only one thing itself: the wallet's own pick on the ra
   const js = read("race.js");
   const sends = [...js.matchAll(/\.send\(/g)];
   assert.equal(sends.length, 1, "one send");
-  // D-153 (contract v2): the pick carries the race type when it isn't the 6-hour race; nothing else is added.
+  // D-161 (contract v2): the pick carries the race type when it isn't the 6-hour race; nothing else is added.
   assert.match(js, /const args = \{ player: who, race: String\(index\), \.\.\.\(type \? \{ type \} : \{\}\) \};/);
   assert.match(js, /raceContract\.functions\.pick\(\{ \.\.\.args, horse \}, \{ onlyOperation: true \}\)/);
   assert.match(js, /await W\.send\(`pick [^`]*`, \[operation\]\)/);
@@ -229,7 +229,7 @@ test("R-RACE-7 (I-082): pick errors: only the Race picks contract's own messages
   assert.match(why("User rejected the request"), /Cancelled in your wallet/);
 });
 
-test("D-153: the race-type toggle stays hidden until TYPES_FROM_WEEK is set; each type's points and the pool's sit-out are explained", () => {
+test("D-161: the race-type toggle stays hidden until TYPES_FROM_WEEK is set; each type's points and the pool's sit-out are explained", () => {
   const js = read("race.js"), html = read("race.html"), math = read("race-math.js");
   assert.match(math, /const TYPES_FROM_WEEK = null;/, "off on main until the contract v2 is uploaded");
   assert.match(js, /const typesLive = \(\) => M\.TYPES_FROM_WEEK !== null && M\.weekOf\(Date\.now\(\)\) >= M\.TYPES_FROM_WEEK;/);

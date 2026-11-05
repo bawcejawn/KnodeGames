@@ -1,5 +1,5 @@
 // =====================================================================
-// Race picks v2: race types (owner 5 Nov 2026, D-153). Type 0 (6-hour) is v1 unchanged; types 1-4 (1-hour, 2-hour,
+// Race picks v2: race types (owner 5 Nov 2026, D-161). Type 0 (6-hour) is v1 unchanged; types 1-4 (1-hour, 2-hour,
 // daily, weekly) lock at their start, open 24 h ahead (1- and 2-hour) or from the race before (daily, weekly), live in
 // their own storage space, and the daily limit 0 means no per-game limit.
 // =====================================================================

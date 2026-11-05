@@ -295,7 +295,7 @@
       return;
     }
     $("picks-who").textContent = `Picking as ${nameOf(who)}${W.kind === "guest" ? " (guest)" : ""}.`;
-    // D-153 (contract v2): a limit of 0 (left out of the chain's answer) = no per-game limit; the Mana sponsor's daily
+    // D-161 (contract v2): a limit of 0 (left out of the chain's answer) = no per-game limit; the Mana sponsor's daily
     // limit across the platform is the cap.
     const max = usage ? Number(usage.max_picks_per_day ?? 0) : 5, used = usage ? Number(usage.picks_today) || 0 : 0;
     $("picks-left").textContent = !usage ? "" : max > 0 ? `${Math.max(0, max - used)} of ${max} picks left today` : "No per-game pick limit";
@@ -361,7 +361,7 @@
   async function sendPick(index, horse, type = 0) {
     const who = me();
     if (!who || !raceContract || sending) return;
-    // D-153: a race type other than 0 (the 6-hour race) goes with its type; type 0 is sent exactly as before v2.
+    // D-161: a race type other than 0 (the 6-hour race) goes with its type; type 0 is sent exactly as before v2.
     const tr = M.typedRace(type, index), mineNow = type ? rtPicks.get(`${type}:${index}`) : myPicks.get(index);
     const when = type ? `the ${M.TYPES[type].name.toLowerCase()} race at ${dayTime(tr.start)}` : `${dayTime(M.raceStart(index))} (${M.raceId(index).slice(11)}:00 UTC)`;
     const args = { player: who, race: String(index), ...(type ? { type } : {}) };
@@ -406,7 +406,7 @@
         : /pending account resources|insufficient.*(rc|mana|resources)/i.test(m) ? "Your Mana is still held by your last pick. It frees up within a few minutes of each pick; try again in a minute."
         : /reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."
         : `Not sent: ${m.slice(0, 200)}`;
-      // D-153: the daily and weekly races open when the day or week before them starts.
+      // D-161: the daily and weekly races open when the day or week before them starts.
       const shown = type >= 3 && /isn't open yet/.test(why) ? `That race isn't open yet: picks open when the ${type === 3 ? "day" : "week"} before it starts.` : why;
       pickModal(/Cancelled/.test(shown) ? "info" : "bad", /Cancelled/.test(shown) ? "Cancelled" : "Pick not sent", [shown], [okBtn("OK")]);
     } finally { sending = false; await loadMine(); renderPicks(true); if (type) { await rtLoadMine(); rtRender(true); } }
@@ -440,7 +440,7 @@
   $("h-today").onclick = () => setMode("today");
   $("h-week").onclick = () => setMode("week");
 
-  // ── race types (D-153): the toggle and the 1-hour, 2-hour, daily and weekly races ──
+  // ── race types (D-161): the toggle and the 1-hour, 2-hour, daily and weekly races ──
   // Shown only from M.TYPES_FROM_WEEK (the week the Race contract v2 is live). The 6-hour race above is unchanged.
   const typesLive = () => M.TYPES_FROM_WEEK !== null && M.weekOf(Date.now()) >= M.TYPES_FROM_WEEK;
   const ORDER = [1, 2, 0, 3, 4];

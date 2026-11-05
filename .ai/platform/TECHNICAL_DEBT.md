@@ -40,11 +40,8 @@
 | TD-26 | 📈 | Daily compounding drifts ~1 hour a day (28,800-block "day") | I-049 |
 | TD-27 | 🚧 | No bot support for the public-testnet vault copy; its owner key lives only in one chat's sandbox | I-014, I-017 |
 
-## Paid down since 4 Nov (move to `../archive/DONE.md` at the next cleanup)
-- **TD-02, the vault paying from files it can't fully verify (Race):** fixed by the Race hold (#85), the payout safety PR #133 (held-week alerts, the vault file recomputed from the chain, published final race results locked) and the Sunday review day (D-125). Block X's published finals are locked too (#159). The general bot-side points recompute for every game stays I-080 (`../standards/RECORDER_STANDARD.md` §1).
-- **TD-13, Block X's "before prizes" fix list:** PR #80 merged.
-- **TD-15, nicknames don't stick:** fixed by PR #95 (I-020).
-- **TD-24, the legacy name-claim workflow's `issues` permissions:** removed with the claim flow (#137, D-118); the CI guard now refuses any `issues` permission.
+## Paid down
+Moved to `../archive/DONE.md` ("Moved 2026-11-05 (late)").
 
 ## Accepted on purpose (not debt to fix — risks the owner chose)
 - **TD-11, free-prize farming** with many empty wallets (D-097, 4 Nov): accepted for now; a farmed prize can be removed in the correction window.

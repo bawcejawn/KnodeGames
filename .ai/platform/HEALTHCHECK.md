@@ -1,7 +1,7 @@
 # Knode Games — Library Health Check
 
 > **Purpose:** a CTO / architect review of the whole `.ai/` library and what it says about the platform: strengths, weaknesses, missing information, three quality scores and the top 10 priorities. A **dated snapshot**; for live status read `LAUNCH_BOARD.md`, `CALENDAR.md` and `AUDITS.md`.
-> **Reviewed:** Thu 5 Nov 2026, ~05:45 UTC (Wed 9:45 PM PT), after PRs #165, #166, #167 and #169. Every file in `.ai/` outside `archive/` (51 files, ~620 KB).
+> **Reviewed:** Thu 5 Nov 2026, ~05:45 UTC; architecture re-scored ~07:00 UTC after the target architecture was written (Wed 9:45 PM PT), after PRs #165, #166, #167 and #169. Every file in `.ai/` outside `archive/` (51 files, ~620 KB).
 > **Previous checks:** `../archive/2026-11-05/HEALTHCHECK-2026-11-04-evening.md` (7 / 7 / 5.5) and earlier copies in `../archive/`.
 
 **Open load:** 57 open issues · 51 owner to-dos · 78 chat requests · 19 debt items · 14 documentation gaps · 141 decisions (D-001 – D-141, index and entries match) · 125 ❓ marks · 11 `{{TBD}}` placeholders · 2 open PRs (#114 after Monday's upload, #141 after v6.1 is live).
@@ -48,10 +48,10 @@
 | Area | Score | Was (4 Nov eve) | Why |
 |---|---|---|---|
 | **Documentation quality** | **8.5** | 7 | current, plain-language, one home per fact, onboarding path, glossary, calendar; held back by the ❓ / TBD count and the three missing references in §3 |
-| **Architecture quality** | **7** | 7 | funds isolation, audited timelocked contracts, two-node checks and holds are strong; hot owner key until Tue, bot pushes to `main`, whole-repo site, one PC, ruler not yet paying and no full audit hold it back |
+| **Architecture quality** | **7.5** | 7 | funds isolation, audited timelocked contracts, two-node checks and holds are strong; now written as principles, a contract register (`CONTRACTS.md`) and a dated target architecture (ARCHITECTURE A1–A10); held back until those steps land: hot owner key until Tue, bot pushes to `main`, whole-repo site, one PC, ruler not yet paying and no full audit hold it back |
 | **Organization quality** | **8** | 5.5 | decisions ordered, overlap retired, archive clean, paused work set aside, funds-risk map; held back by the crowded root, the size of three files and the overlapping status lists |
 
-**To reach 10:** documentation — write the three files in §3's top rows and clear the TBDs; architecture — the handover (Tue 10), the Pages allow-list, the ruler v2.1, a review gate for the bot's pushes, the full audit; organization — `REPO_MAP.md` §4 steps 1–4, then split `DECISIONS.md` by year or area once it passes ~150 entries.
+**To reach 10:** documentation — write the three files in §3's top rows and clear the TBDs; architecture — ARCHITECTURE "Target architecture" A1–A10 (cold keys Tue 10, required CI on every PR, data off `main`, Pages allow-list, tagged releases, the shared game kit, ruler v2.1, a standby machine, observability, the full audit); organization — `REPO_MAP.md` §4 steps 1–4, then split `DECISIONS.md` by year or area once it passes ~150 entries.
 
 ## 5. Top 10 priorities
 | # | Priority | Who | When |

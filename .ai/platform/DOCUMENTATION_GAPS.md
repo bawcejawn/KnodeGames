@@ -24,21 +24,8 @@
 | 29 | P3 | M | **No announcements process**: D-064 says *when* to announce, not where (site, X, Telegram?), who writes it, or the checklist | — | Owner decision, then a short section in the go-live checklist |
 | 32 | P4 | C | **Mixed date headers** ("Last updated", "Reviewed", "Snapshot") with no rule for when each is refreshed | — | Rule: snapshot files (CURRENT_STATE, LAUNCH_BOARD) at each weekly review; every other file whenever its content changes |
 
-## Closed since 4 Nov (move to `../archive/DONE.md` at the next cleanup)
-- **Keys and roles** (#3): `KEYS_AND_ROLES.md`.
-- **Sponsor** (#10): `SPONSOR.md`, the one home for its live values.
-- **PC recovery**: `RECOVERY.md` (its own open points are #33 – #35).
-- **Alerts**: `ALERTS.md`; #36 closed too (`docs/WALLETS.md` §6 lists the other expected emails, 4 Nov).
-- **README and `SECURITY.md`**: the root README describes the whole platform and `SECURITY.md` says how to report a problem (D-115, PR #131).
-
-## Closed 5 Nov (library sync)
-- Gap 8: closed 5 Nov — VISION folded into `FOUNDER_INTENT.md` (old file in `../archive/2026-11-05/`)
-- Gap 12: closed 5 Nov — `AUDITS.md` written
-- Gap 13: closed 5 Nov — `GLOSSARY.md` written
-- Gap 30: closed 5 Nov — `../standards/WEEK_CYCLE.md` §1 and `GLOSSARY.md` hold the week labels
-
-## Written 5 Nov (was: being written)
-`platform/CALENDAR.md` (every dated step), `platform/AUDITS.md` (closes #12), `platform/GLOSSARY.md` (closes #13), `standards/WEEK_CYCLE.md` (the one home for every game's weekly timing), `standards/NEW_GAME.md` (step-by-step onboarding for a new game).
+## Closed
+Moved to `../archive/DONE.md` ("Moved 2026-11-05 (late)").
 
 ## Systems not fully defined
 These need a decision or a design, not just writing. Each has an owner.

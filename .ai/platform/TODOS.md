@@ -8,7 +8,6 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today — Thu 5 Nov (the order to go live; do them top to bottom)
-- [x] `1635QU…` holds at least 95 KOIN (owner, 5 Nov: "over 100 koin"). Don't move it until after Monday's upload.
 - [ ] **1. After 7:51 AM PT: put Block X and the Race in the vault.** `npm run bot -- game-apply 2` and `game-apply 7` (dry run, then CONFIRM ON → `--send` → CONFIRM OFF); `npm run bot -- games` must show both "staked + free prize, from week 3"; then the repo variable `PRIZES_FROM_WEEK = 3`. Deadline Sun 8 Nov 4 PM PT — P1 — D-077
 - [ ] **2. Then announce vault v6.1** (starts the 48 h): build and check on `vault-questions-60`, `upgrade schedule` dry run → CONFIRM ON → `--send` → CONFIRM OFF → delete `OWNER_WIF`. Steps: `claude/vault/HANDOFF-2026-11-05.md`. Paste the output to the Vault chat. Latest: Sat 7 Nov 9 AM PT (48 h before Monday's upload) — P1 — D-130
 - [ ] **3. Turn the VHP ruler's recorder on:** repo variable `VHP_RULER_ENABLED = true` (data only, pays nothing) — P2 — D-128
@@ -17,6 +16,7 @@
 - [ ] Email filter: rename "Kpred bot" → "Knode Games bot" — P4
 
 ## This week
+- [ ] **Open the Golf PR** from the Golf chat's compare link (`golf-v2`), then its Repo Lens (queue 7) — P2
 - [ ] **Pages allow-list:** when the Hub chat's PR (R-HUB-14) is merged and its test run is checked: GitHub → Settings → Pages → Source: **GitHub Actions**; then open knodegames.com and two game pages. Undo = set Source back to "Deploy from a branch: main / root" — P2 — D-115
 - [ ] **Daily Questions free prize ON from Mon 16** (D-136): run the command the Vault chat gives (R-VAULT-14) during the week of Mon 9 — P2
 - [ ] **Turn the VHP ruler's recorder on** (data only, pays nothing, D-128): repo variable `VHP_RULER_ENABLED = true`, then the first fill (`docs/VHP-RULER.md` "Turning it on"); tell the Ruler chat — P2 — D-128

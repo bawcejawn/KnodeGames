@@ -9,7 +9,7 @@ Guess which block producer will sign a future target block. Simple to play, root
 ## Gameplay
 - Targets every **2,400 blocks** (about 2 hours): height = round × 2,400 + 0. Picks open up to 28,900 blocks ahead and lock 100 blocks before the target ✅ (`blockx-math.js` `MAINNET_GAME`).
 - Up to **30 picks a day**, with **one change per pick** (D-037) ✅ — "change it once" on the page.
-- **Weekly rhythm from Week 1** (D-125, PR #160 ✅): play Mon–Sat; Sunday targets stay as fun rounds, scored for Today and All time only (D-129). First rest day Sun 15 Nov.
+- **Weekly rhythm from Week 1** (D-125, D-129; PRs #160 and #175 ✅): the week counts Mon–Sat; Sunday (UTC) targets are fun rounds, offered (labelled "Fun round · not the week") and scored for Today and All time only, never the week's board, prizes or vault file. First Sunday of fun rounds: Sun 15 Nov. The week-end re-read checks a Sunday target's block only (a play-day target given a Sunday time holds the week).
 - A target with no usable handicap card is voided. 💬
 - Sponsored picks, guests included, within the caps (rows: `../platform/SPONSOR.md`). ✅
 
@@ -18,7 +18,7 @@ Guess which block producer will sign a future target block. Simple to play, root
 - Exact points per correct pick: ❓ (not in the chat exports — see `docs/blockx/MAINNET-LAUNCH.md` on `main`).
 - The recorder (`bot/games/blockx.ts`) voids a target at once only if both nodes report a non-canonical transfer; otherwise it holds and voids at the 3-day edge. Published cards never change (BX-44). 💬
 - **Published final results can't be rewritten** (PR #159 ✅, R-BX-20).
-- **Timing:** `../standards/WEEK_CYCLE.md` (the one home for game timing). Block X's one difference today: it goes final **12 h after the week ends (Mon 12:00 UTC)**. **Owner decided 5 Nov (D-135): move it to Mon 00:00 like the Race** (R-BX-24).
+- **Timing:** `../standards/WEEK_CYCLE.md` (the one home for game timing). Block X follows it fully: final **from Mon 00:00 UTC** once two runs at least an hour apart read the same week and the re-read passes (D-135, PR #175; the 12-h final is gone). In practice the last Sunday run and the first Monday run agree, so the week is final around Mon 00:10–01:10 UTC.
 
 ## Rewards
 - **Launched prize-free** on 3 Nov (D-036). Prizes start with the week of Mon 9 Nov (D-077), once game 2 is applied in the vault. The "before prizes" fixes (I-042, PR #80) are merged ✅.
@@ -35,7 +35,7 @@ Guess which block producer will sign a future target block. Simple to play, root
 ## Current status (5 Nov)
 - **Live for players** ✅ since 3 Nov: Games page (PR #58), menus and home page (PR #59), Leaders tab (PR #63), nicknames (PR #60, D-078), **Results tab** (PR #143 ✅); `GAMES_ENABLED = true`.
 - **Vault:** `game-add 2 "Who Signs Block X" --staked --free` announced 3 Nov (tx `0x122082c6…e71760e3`); `game-apply` from Thu 5 Nov after 7:51 AM PT (15:51 UTC), deadline Sun 8 Nov 4 PM PT. After the apply: repo variable `PRIZES_FROM_WEEK = 3` (Settings → Secrets and variables → Actions → Variables). 👤
-- **Pays from vault week 3** (site "Week 1", Mon 9 – Mon 16 Nov); final Mon 16 12:00 UTC, then the vault bot posts and seals, then the owner has 24 h to correct (D-077).
+- **Pays from vault week 3** (site "Week 1", Mon 9 – Mon 16 Nov); final from Mon 16 00:00 UTC (D-135), then the vault bot posts and seals, then the owner has 24 h to correct (D-077).
 - **PR #80 (before prizes, I-042): merged ✅.** Built: week-end re-read on both nodes (BX-88, BX-97, BX-98, G-K-1), race card clock (BX-118), void alert (BX-72), RV-2, and the round-14 fixes (E4-1, E4-2, E4-3, E4-7); BX-105 (board freeze, display only) is accepted, not built.
   - *Re-read:* before a final week's prize list is frozen (and its vault file written), every target is read again from both nodes and compared whole: signer and times, picks, Staked flags, the cards in force, and every pick's points recomputed; any difference holds the week (no prize list, no vault file, an alert) and it is tried again next run. Not re-scanned: the VHP moved into a signer (BX-53, read on both nodes when recorded). It also re-checks each void's reason, and a run stops if the race-data fetch fails.
   - *Board freeze (BX-105), not built:* once a week's prize list is published no new round of that week is accepted and published targets never change, so the board can't change either; the vault reads its own write-once file, and the vault bot holds a week whose board and file disagree.

@@ -184,7 +184,7 @@
       const isVoid = typeof t.void === "string";
       const right = (p) => !isVoid && p[1] === t.signer && Number(p[3]) > 0;
       const my = me() ? picks.find((p) => p[0] === me()) : null;
-      return { t, isVoid, picks, right, my, myPts: my && right(my) ? Number(my[3]) : 0 };
+      return { t, isVoid, picks, right, my, myPts: my && right(my) ? Number(my[3]) : 0, fun: M.restRace(t.time) };
     },
     draw() {
       const f = this.files.get(this.week), box = this.box, now = Date.now();
@@ -192,9 +192,10 @@
       const all = f ? f.targets.filter((t) => t && Number.isInteger(t.height) && Number.isFinite(t.time)).map((t) => this.facts(t)) : [];
       const dayOf = (x) => Math.floor((x.t.time - weekStart) / M.DAY);
       if (this.day == null) { const last = all.reduce((m, x) => Math.max(m, dayOf(x)), -1); this.day = last >= 0 ? Math.min(6, last) : 0; }
-      const mineAll = all.filter((x) => x.my);
+      // D-129 (R-BX-23): Sunday targets are fun rounds and count for no week, so they are left out of "pts this week".
+      const mineAll = all.filter((x) => x.my && !x.fun);
       const score = me() ? el("p", { class: "rband-score" }, el("b", { text: bxPts(mineAll.reduce((s, x) => s + x.myPts, 0)) }), ` pts this week · ${mineAll.length} pick${mineAll.length === 1 ? "" : "s"}`)
-        : el("p", { class: "rband-score", text: `${all.filter((x) => !x.isVoid).length} targets scored this week` });
+        : el("p", { class: "rband-score", text: `${all.filter((x) => !x.isVoid && !x.fun).length} targets scored this week` });
       const weeks = el("div", { class: "rweeks", role: "group", "aria-label": "Week" }, ...this.weeks.map((w) => {
         const b = el("button", { type: "button", "aria-pressed": String(w === this.week), text: w === M.weekOf(now) ? `This week (${WS(w)})` : `${WL(w)}` });
         b.addEventListener("click", async () => { this.week = w; this.day = null; await this.load(w); this.draw(); });
@@ -233,7 +234,7 @@
       const { t } = x;
       const head = el("div", { class: "rr-head" },
         el("h3", {}, `Block ${fmt(t.height)} · ${utcDay(t.time)}, ${utcTime(t.time)}`),
-        el("span", { class: `rr-pill ${x.isVoid ? "missed" : "final"}`, text: x.isVoid ? "Void" : "Final" }));
+        el("span", { class: `rr-pill ${x.isVoid ? "missed" : "final"}`, text: x.isVoid ? "Void" : x.fun ? "Fun round · not the week" : "Final" }));
       const body = [el("p", { class: "res-line" }, "Signed by ", link(t.signer))];
       if (x.isVoid) body.push(el("p", { class: "res-line muted", text: `Void, no points: ${String(t.void).slice(0, 200)}` }));
       else {

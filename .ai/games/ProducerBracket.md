@@ -3,7 +3,7 @@
 > **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Producer Bracket chat), `DECISIONS.md` (D-019, D-057, D-058, D-062), the repo (branch `kg-09-bracket`). **Last updated:** 5 Nov 2026; previous version `../archive/2026-11-04b/games/ProducerBracket.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
-> **Owner, 5 Nov (D-138):** one of the next four games after the core: "like the March madness with nodes head to head".
+> **Owner, 5 Nov (D-138):** reactivated as one of the next three games (D-142): "like the March madness with nodes head to head". **Shape (D-141):** up to 64 producers, one round a day (a 24-hour sprint per matchup), Mon–Sat with the final on Saturday; runs with as few as 8 (3 rounds); matchups by the ruler's luck percentile.
 
 ## Purpose
 A weekly knockout tournament of Koinos block producers, like a March Madness bracket: predict who wins each head-to-head matchup, one round a day. This chat also built the platform-wide **VHP standard** every game uses to measure VHP the same way (D-058).
@@ -33,7 +33,7 @@ A weekly knockout tournament of Koinos block producers, like a March Madness bra
 - Recorder `bot/games/bracket.ts` in `games.yml`; data branch `bracket-history` (keep) ✅.
 
 ## Current status (5 Nov)
-- **⏸ Paused (D-113): no new-game work until the core is done; branch kept.**
+- **▶ Reactivated 5 Nov (D-142): one of the next three games to launch. Its chat starts with `../platform/CHAT_REQUESTS.md` → R-ALL-9 (the catch-up on the 4–5 Nov standards), then its own section.**
 - Branch `kg-09-bracket` @ `5b2492e` ✅ (audited tip; earlier `ee676ea`) — pushed, **not merged, nothing deployed**; 16+ commits behind `main`.
 - **Repo Lens #E-3 (3 Nov): fix first** — 2 Critical, 6 High, 10 Medium, plus Low/Info. Report and failing tests are private, in the Claude project (`claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`). No launch date (D-088, D-113).
 - Evidence before the audit: the VHP rebuild matched all 780 race-card readings; over 100 days the better seed won 54% of 113 matchups, and a "last week's form" bracket averaged 14.8 points vs 4.8 for random. The sampling branches are already deleted ✅.

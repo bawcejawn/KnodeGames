@@ -112,7 +112,12 @@ jobs:
           if [ -n "$big" ]; then echo "::error::Refusing to publish files over 8 MB: $big"; exit 1; fi
           # The content must be the recorder's own shape, not only parse as JSON.
           /usr/bin/python3 - "$IN/golf" <<'PY'
-          import json, os, re, sys
+          import json, os, re, sys, time
+          # The publish job's own clock (RECORDER_STANDARD.md §3.1-2). CHECK_NOW_MS: the tests' fixed clock; the
+          # workflow never sets it.
+          NOW = int(os.environ.get("CHECK_NOW_MS") or time.time() * 1000)
+          GENESIS, WEEK = 1792368000000, 604800000
+          CW = (NOW - GENESIS) // WEEK
           d = sys.argv[1]; addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
           isaddr = lambda x: type(x) is str and addr.fullmatch(x) is not None
           nat = lambda x: type(x) is int and 0 <= x < 10**16
@@ -139,6 +144,7 @@ jobs:
           for f in (os.listdir(vd) if os.path.isdir(vd) else []):
               j = json.load(open(os.path.join(vd, f), encoding="utf-8"))
               assert set(j) == {"game", "week", "final", "rows", "first", "second"} and j["game"] == 6 and j["final"] is True and nat(j["week"]) and f == "W%d.json" % j["week"], "vault/" + f
+              assert GENESIS + (j["week"] + 1) * WEEK <= NOW, "vault/" + f + ": sent before its week ended"
               assert type(j["rows"]) is list and len(j["rows"]) <= 100000 and all(type(r) is dict and set(r) == {"player", "points"} and isaddr(r["player"]) and type(r["points"]) is int and 1 <= r["points"] <= 255 for r in j["rows"]), "vault/" + f
               assert len({r["player"] for r in j["rows"]}) == len(j["rows"]), "vault/" + f
               assert all(type(x) is list and len(x) <= 10 and len(set(x)) == len(x) and all(isaddr(a) for a in x) for x in (j["first"], j["second"])), "vault/" + f
@@ -166,7 +172,7 @@ jobs:
               j = json.load(open(os.path.join(d, f), encoding="utf-8"))
               if f == "index.json":
                   assert set(j) == {"v", "updated", "weeks", "course", "stakedFromWeek"} and j["v"] == 1, f
-                  assert type(j["weeks"]) is list and all(type(w) is int and 0 <= w < 10000 for w in j["weeks"]), f
+                  assert type(j["weeks"]) is list and all(type(w) is int and 0 <= w <= CW + 1 for w in j["weeks"]), f + ": a week from the future"
                   assert type(j["course"]) is dict and len(j["course"]) <= 32 and all(isid(k) and type(v) is int and 0 <= v < 10000 for k, v in j["course"].items()), f
                   assert j["stakedFromWeek"] is None or (type(j["stakedFromWeek"]) is int and 0 <= j["stakedFromWeek"] < 10000), f
                   continue
@@ -180,6 +186,11 @@ jobs:
               c = j["check"]
               assert c is None or (type(c) is dict and set(c) == {"sig", "at"} and type(c["sig"]) is str and re.fullmatch(r"[0-9a-f]{64}", c["sig"]) is not None and nat(c["at"])), f
               assert not (j["final"] is True and c is not None), f
+              # Clock: no week file from the future; final only once the week has ended (Mon 00:00 UTC, WEEK_CYCLE.md),
+              # and a check stamp only from a run after the week ended, never in the future.
+              assert j["week"] <= CW + 1, f + ": a week from the future"
+              assert not (j["final"] is True and j["end"] > NOW), f + ": final before the week ended"
+              assert c is None or j["end"] <= c["at"] <= NOW, f + ": a check stamp outside its time"
               assert nat(j["start"]) and j["start"] == 1792368000000 + j["week"] * 604800000 and j["end"] == j["start"] + 604800000 and type(j["final"]) is bool and type(j["practice"]) is bool, f
               assert type(j["holes"]) is list and len(j["holes"]) <= 32 and all(hole_ok(h) for h in j["holes"]), f
               ids = {h["id"] for h in j["holes"]}

@@ -440,6 +440,80 @@ jobs:
               return type(p) is dict and len(p) <= 500 and all(A(a) and type(v) is list and len(v) == 3 and nat(v[0]) and num(v[1]) and (v[2] is None or num(v[2])) for a, v in p.items())
           def day_ok(x, final):
               return type(x) is dict and set(x) <= {"day", "final", "checked", "heights", "blocks", "producers", "upTo"} and nat(x["day"]) and x["final"] is final and ix_ok(x["producers"]) and nat(x["blocks"])
+          # ── Fantasy scorer, ported from fantasy-math.js (RECORDER_STANDARD §4.1; tests/audit/fantasy-publish.test.mjs runs
+          # this block against the JavaScript over thousands of random weeks). It uses nothing but the published files. ──
+          import math
+          def rjs(x):                                   # JavaScript's round(x, 2): Math.round(x * 100) / 100, ties toward +inf
+              y = x * 100; f = math.floor(y)
+              return (f + (1 if y - f >= 0.5 else 0)) / 100
+          def fx_day_score(team, producers):            # F.dayScore: each index capped at 130, the captain (first) double
+              if team is None: return 0
+              s = 0
+              for i, a in enumerate(team):
+                  x = producers.get(a)
+                  ix = min(130, x[2]) if type(x) is list and len(x) == 3 and x[2] is not None else 0
+                  s += ix * (2 if i == 0 else 1)
+              return rjs(s)
+          def fx_team_ok(sheet, t):                     # positions on the price list: 5 different, on the list, within budget
+              if t is None: return True
+              pool = sheet["pool"]
+              if not (type(t) is list and len(t) == 5 and len(set(t)) == 5 and all(type(i) is int and 0 <= i < len(pool) for i in t)): return False
+              return sum(pool[i]["price"] for i in t) <= (sheet.get("budget") or 100)
+          def fx_changes(prev, nxt):                    # F.changes: swapped out, plus 1 if the captaincy moved inside the team
+              out = len([a for a in prev if a not in nxt])
+              return out + (1 if prev[0] != nxt[0] and nxt[0] in prev else 0)
+          def fx_rank(rows):                            # F.rank: more points first; equal points share a place
+              s = sorted(rows, key=lambda r: (-r["points"], r["a"])); out = {}; place = 0
+              for i, r in enumerate(s):
+                  if i == 0 or r["points"] != s[i - 1]["points"]: place = i + 1
+                  out[r["a"]] = place
+              return out
+          def fx_vault_points(rows):                    # F.vaultPoints over the staked rows (paid set first, §4.3)
+              ok = [r for r in rows if r["points"] > 0]
+              scores = sorted({r["points"] for r in ok}, reverse=True)
+              need = -(-(len(ok) * 30) // 100); paid = 0; cum = 0
+              for p in scores:
+                  if cum >= need: break
+                  cum += len([r for r in ok if r["points"] == p]); paid += 1
+              at = {p: 255 - i for i, p in enumerate(scores)} if len(scores) <= 255 else {p: (max(2, 255 - i) if i < paid else 1) for i, p in enumerate(scores)}
+              return {r["a"]: at[r["points"]] for r in ok}
+          def fx_free_winners(rows):                    # F.freeWinners: not staked, a team all 6 days, >= 1 point; ties share
+              ok = sorted([r for r in rows if not r["staked"] and r["full"] is True and r["points"] >= 1], key=lambda r: (-r["points"], r["a"]))
+              first, second = [], []
+              if ok:
+                  first = [r["a"] for r in ok if r["points"] == ok[0]["points"]]
+                  rest = [r for r in ok if r["points"] < ok[0]["points"]]
+                  if len(first) < 2 and rest: second = [r["a"] for r in rest if r["points"] == rest[0]["points"]]
+              if len(first) > 10: first = []
+              if len(second) > 10: second = []
+              return sorted(first), sorted(second)
+          def fx_week_errors(wk, dayrecs):              # "" when every stored number of a week file is what the scorer says
+              s = wk["sheet"]
+              if s is None: return "" if not wk["players"] else "players without a price list"
+              pool = s["pool"]; d0 = (wk["start"] // 86400000)
+              recs = [dayrecs.get(d0 + i) for i in range(6)]
+              if any(r is None for r in recs) and wk["final"]: return "a final week whose play days aren't all in days.json"
+              rows = []
+              for r in wk["players"]:
+                  prev = None; total = 0
+                  for i, x in enumerate(r["days"]):
+                      t = x[0]
+                      if not fx_team_ok(s, t): return r["a"] + ": a team off the list, doubled or over budget"
+                      team = [pool[k]["a"] for k in t] if t is not None else None
+                      if prev is not None and team is None: return r["a"] + ": a team disappeared mid-week"
+                      if prev is not None and team is not None and i > 0 and fx_changes(prev, team) > 1: return r["a"] + ": more than one change in a day"
+                      sc = fx_day_score(team, (recs[i] or {}).get("producers", {})) if recs[i] is not None else 0
+                      if x[1] != sc: return r["a"] + ": day %d scores %r, the scorer says %r" % (i + 1, x[1], sc)
+                      total += sc; prev = team if team is not None else prev
+                  if r["points"] != rjs(total): return r["a"] + ": points %r, the scorer says %r" % (r["points"], rjs(total))
+                  if r["full"] is not all(x[0] is not None for x in r["days"]): return r["a"] + ": full is wrong"
+                  rows.append({"a": r["a"], "points": r["points"], "staked": r.get("staked", False) is True, "full": r["full"]})
+              pl = fx_rank(rows)
+              if any(r["place"] != pl[r["a"]] for r in wk["players"]): return "places aren't the scorer's"
+              vp = fx_vault_points([x for x in rows if x["staked"]]) if any(x["staked"] for x in rows) else {}
+              if any(r["vault"] != vp.get(r["a"], 0) for r in wk["players"]): return "vault points aren't the scorer's"
+              return ""
+          # ── end of the Fantasy scorer ──
           # The vault's files (claude/handoff-vault-results.md): game 4, staked rows only, final, never changed once published.
           vd = os.path.join(d, "vault")
           for f in (os.listdir(vd) if os.path.isdir(vd) else []):
@@ -515,6 +589,37 @@ jobs:
                   assert all(A(m["a"]) and A(m["b"]) and m["result"] in ("a", "b", "draw") for m in j["matches"]), f
           # Compare with what is already published.
           old = lambda f: json.load(open(os.path.join(parent, f), encoding="utf-8")) if os.path.exists(os.path.join(parent, f)) else None
+          # RECORDER_STANDARD §4.1: every new or changed week file is re-scored here, from the day records only (incoming
+          # days.json, else the published one), with the ported scorer above; its vault file and boards must follow it.
+          src = lambda f: json.load(open(os.path.join(d, f), encoding="utf-8")) if os.path.exists(os.path.join(d, f)) else old(f)
+          dj = src("days.json"); dayrecs = {x["day"]: x for x in (dj["days"] if dj else []) if x.get("final") is True}
+          od = old("days.json")
+          for x in (od["days"] if od else []):
+              if x.get("final") is True and x["day"] in dayrecs: assert dayrecs[x["day"]] == x, "days.json: a published final day can't change (day %d)" % x["day"]
+          weeks_in = {}
+          for f in os.listdir(d):
+              if re.fullmatch(r"W[0-9]{3}\.json", f):
+                  j = json.load(open(os.path.join(d, f), encoding="utf-8")); weeks_in[j["week"]] = j
+                  if j != old(f):
+                      why = fx_week_errors(j, dayrecs)
+                      assert why == "", f + ": " + why
+          for f in (os.listdir(vd) if os.path.isdir(vd) else []):
+              j = json.load(open(os.path.join(vd, f), encoding="utf-8"))
+              if os.path.exists(os.path.join(parent, "vault", f)): continue          # published: compared above, unchanged
+              wk = weeks_in.get(j["week"]) or old("W%03d.json" % j["week"])
+              assert wk is not None and fx_week_errors(wk, dayrecs) == "", "vault/" + f + ": its week doesn't re-score"
+              want = sorted([{"player": r["a"], "points": r["vault"]} for r in wk["players"] if r.get("staked") is True and r["vault"] >= 1], key=lambda x: (-x["points"], x["player"]))
+              assert j["rows"] == want, "vault/" + f + ": rows aren't the re-scored week's stakers"
+              fr = [{"a": r["a"], "points": r["points"], "staked": r.get("staked", False) is True, "full": r["full"]} for r in wk["players"]]
+              assert (j["first"], j["second"]) == fx_free_winners(fr), "vault/" + f + ": first / second aren't the re-scored free winners"
+          bj = src("board.json")
+          for k in ("week", "lastWeek"):
+              b = bj and bj.get(k)
+              if not b: continue
+              wk = weeks_in.get(b["week"]) or old("W%03d.json" % b["week"])
+              assert wk is not None, "board.json: " + k + " has no week file"
+              got = {r["a"]: (r["pts"], r["ranked"]) for r in b["rows"]}
+              assert got == {r["a"]: (r["points"], r.get("staked", False) is True) for r in wk["players"]}, "board.json: " + k + " isn't the week file's players, points and boards"
           for f in os.listdir(d):
               if f == "vault": continue
               j, o = json.load(open(os.path.join(d, f), encoding="utf-8")), old(f)

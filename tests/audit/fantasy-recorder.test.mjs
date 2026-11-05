@@ -357,4 +357,48 @@ test("RECORDER_STANDARD §4.2: the run that makes a week final re-checks it from
   assert.equal(read(ok.out, "W002.json").final, true, ok.problems.join("\n"));
 });
 
+test("end to end: every run's real output passes the real publish check against the run before; tampered copies are refused (§3.3, §4.1)", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const y = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8").split("\n");
+  const a0 = y.findIndex((l) => l.includes(`if [ -d "$IN/fantasy" ] && ! /usr/bin/python3 - "$IN/fantasy" "$FPUB" <<'PY'`));
+  const e0 = y.findIndex((l, i) => i > a0 && l.trim() === "PY");
+  const CHECK = y.slice(a0 + 1, e0).map((l) => l.replace(/^ {10}/, "")).join("\n");
+  const publish = (dir, parent, at) => { const p = parent || tmp(); fs.mkdirSync(path.join(p, "vault"), { recursive: true });
+    const r = spawnSync("python3", ["-I", "-", dir, p], { input: CHECK, encoding: "utf8", env: { ...process.env, CHECK_NOW_MS: String(at) } }); return { ok: r.status === 0, out: r.stdout + r.stderr }; };
+  const s0 = await hourly(U("2026-11-01T12:30Z"), "");
+  const sheet = read(s0.out, "W002.json").sheet, days = F.weekDays(2), [pa, pb, pc] = PLAYERS;
+  const byPrice = [...sheet.pool].sort((x, y) => x.price - y.price).map((x) => x.a);
+  picks = { team: { [days[0]]: [[pa, byPrice.slice(0, 5), 1], [pb, [byPrice[1], byPrice[0], ...byPrice.slice(2, 5)], 1], [pc, byPrice.slice(0, 5), 1]],
+    [days[2]]: [[pa, [byPrice[0], byPrice[1], byPrice[2], byPrice[3], byPrice[5]], 2]] }, rival: {} };
+  const staked = async (who) => new Set(who.filter((a) => a !== pc));
+  let prev = s0.out, prevAt = U("2026-11-01T12:30Z");
+  assert.ok(publish(s0.out, null, prevAt).ok, "the first run");
+  let last, parent = null;
+  for (const t of ["2026-11-03T12:30Z", "2026-11-05T12:30Z", "2026-11-08T18:30Z", "2026-11-09T00:30Z", "2026-11-09T01:30Z"]) {
+    last = await hourly(U(t), prev, { stakedOf: staked });
+    const r = publish(last.out, prev, U(t));
+    assert.ok(r.ok, `${t}: ${r.out}`);
+    parent = prev; prev = last.out; prevAt = U(t);
+  }
+  assert.equal(read(last.out, "W002.json").final, true);
+  assert.ok(fs.existsSync(path.join(last.out, "vault", "W2.json")));
+  // Tampered copies of the final run, each refused against the run before it:
+  const tamper = (fn) => { const d = tmp(); fs.cpSync(last.out, d, { recursive: true }); fn(d); return publish(d, parent, U("2026-11-09T01:30Z")); };
+  const edit = (d, f, g) => { const j = JSON.parse(fs.readFileSync(path.join(d, f), "utf8")); g(j); fs.writeFileSync(path.join(d, f), JSON.stringify(j) + "\n"); };
+  assert.ok(tamper(() => {}).ok, "the untouched copy passes");
+  const cases = {
+    "a day score raised": (d) => edit(d, "W002.json", (j) => { j.players[0].days[1][1] += 10; j.players[0].points += 10; }),
+    "points not the sum": (d) => edit(d, "W002.json", (j) => { j.players[0].points += 1; }),
+    "a team over budget / off the list": (d) => edit(d, "W002.json", (j) => { j.players[0].days[3][0] = [0, 0, 1, 2, 3]; }),
+    "two changes in a day": (d) => edit(d, "W002.json", (j) => { const t = j.players[0].days[4][0]; const spare = j.sheet.pool.map((_, i) => i).filter((i) => !t.includes(i)); j.players[0].days[4][0] = [t[0], t[1], t[2], spare[0], spare[1]]; }),
+    "a free player given vault points": (d) => edit(d, "W002.json", (j) => { const r = j.players.find((x) => !x.staked); r.vault = 200; }),
+    "a vault row added": (d) => edit(d, "vault/W2.json", (j) => { j.rows.push({ player: pc, points: 1 }); }),
+    "vault points changed": (d) => edit(d, "vault/W2.json", (j) => { j.rows[j.rows.length - 1].points = 255; }),
+    "free winners changed": (d) => edit(d, "vault/W2.json", (j) => { j.first = []; }),
+    "a final day changed": (d) => edit(d, "days.json", (j) => { const x = j.days.find((z) => z.day === days[0]); const k = Object.keys(x.producers)[0]; x.producers[k][0] += 1; }),
+    "board points changed": (d) => edit(d, "board.json", (j) => { j.lastWeek.rows[0].pts += 5; }),
+  };
+  for (const [name, fn] of Object.entries(cases)) assert.equal(tamper(fn).ok, false, name + " must be refused");
+});
+
 test.after(() => { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });

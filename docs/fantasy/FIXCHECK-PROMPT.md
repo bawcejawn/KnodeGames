@@ -71,8 +71,8 @@ needs no contract change).
      the origin and a token, and serves only top-level scripts, styles, images and `media/`.
 
 6. **Six play days (owner, 2026-11-03).** `F.weekDays` is Monday to Saturday; Sunday is results day (`F.isPlayDay`,
-   `F.nextPlayDay`). The page and the kit never offer a Sunday; the recorder never scores or reads Sunday picks. The
-   week is still final on Monday 12:00 UTC (after the stake reads). "Full" (a team every play day) is now 6 days.
+   `F.nextPlayDay`). The page and the kit never offer a Sunday; the recorder never scores or reads Sunday picks. "Full"
+   (a team every play day) is now 6 days. (The final time changed again on 5 Nov: item 10.)
 7. **Free play board (owner, 2026-11-03, D-081 and D-082).**
    - Stakes are read every run, on both nodes, with Block X's audited vault reader (`vaultReader`, `stakedSet`:
      staked = the most a wallet had in game 4 that week at or above the minimum). Each W file player row carries
@@ -89,6 +89,19 @@ needs no contract change).
    - The page shows the shared board, says the Free play board pays no VHP, and shows names from `names.js` and the
      stake badge.
 8. **Merged with `main`** (vault v6 live, Block X live, names, the shared board and stake panel).
+9. **Card quality gate (R-FA-3, 5 Nov).** `F.usableCard`: a race card counts only with `samples` ≥ 12 and no
+   `flagged` producer and no `topInDoubt`. `F.cardAt` treats an unusable card as missing (leg positions kept), so the
+   latest earlier good card within 24 hours is used; with none, the hour is uncovered and the day can't go final.
+   Fantasy uses every producer's share, so one disputed producer makes the whole card unusable.
+10. **The shared weekly cycle (`.ai/standards/WEEK_CYCLE.md`, D-125, 5 Nov).** A week can settle only from Monday
+    00:00 UTC (never during Sunday's review day). The first run that can settle it writes `pending` (the sha256 of
+    the players' rows and rival matches, and the time); the week goes final only when a run at least an hour later
+    (`AGREE_GAP`, 1/24 of a test day) computes the same hash. A changed result restarts the wait. The publish check
+    accepts `pending` (null or `{hash, at}`) and refuses it on a final week. The page says "Sunday is review day:
+    results are checked and paid from Monday."
+11. **Merged with `main` again (5 Nov, 322 commits)**: the repo rename to `bawcejawn/KnodeGames` (CSP, data URLs),
+    `api.koinosblocks.com` as the page's second node, the shared analytics script, and `main`'s games-data fetch
+    guard (Repo Lens E4-1) combined with Fantasy's steps in `games.yml`.
 
 ## 3. Please look hard at
 
@@ -107,7 +120,8 @@ needs no contract change).
      fair to Fantasy players?
    - Can anyone move a drafted producer's score by moving VHP (their own, or VHP sent to that producer) around a
      sample?
-   - Should Fantasy skip flagged cards, as Block X does, or treat them some other way?
+   - Fantasy now skips them (item 9). Check the gate can't be gamed: can anyone make a card unusable on purpose
+     (to fall back to an older card that suits their team), and does a run of bad cards stall days fairly?
 4. **The recorder.**
    - Two-node agreement; irreversible blocks only; a day is final only when every hour with blocks has a card.
    - The Saturday sheet, made once and never remade, with its sha256.
@@ -121,7 +135,9 @@ needs no contract change).
    - Does a withdrawal mid-week change a board unfairly?
    - Is the vault file's `first` / `second` exactly the rule above, with no staked wallet?
    - Does the publish check accept anything it shouldn't?
-   - Is the Sunday results day safe: no Sunday pick counts, no week final before its stakes are read?
+   - Is the Sunday results day safe: no Sunday pick counts, no week final before Monday 00:00 or before its stakes
+     are read? Can the two-run rule be fooled (a stale `pending` in a previous-run file, a hash that leaves out
+     something the vault file depends on)?
 6. **Weekly Rival.** Throwaway wallets, collusion, challenging someone with no team, the stake rule, and the record
    counting made and received separately.
 7. **The page.**

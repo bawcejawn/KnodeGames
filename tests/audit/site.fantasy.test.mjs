@@ -60,3 +60,10 @@ test("owner 2026-10-28: All time tab; rivals need a stake; Terms say Knode's nod
   assert.match(terms, /can't control what other producers or stakers do/);
   assert.match(terms, /rival match counts only when both players hold a Knode Games stake/);
 });
+
+test("WEEK_CYCLE §2: the page carries the review-day line and the Monday 00:00 final, not the old 12:00", () => {
+  const h = fs.readFileSync(path.join(APP, "fantasy.html"), "utf8");
+  assert.match(h, /Sunday is review day: results are checked and paid from Monday\./);
+  assert.match(h, /final from Monday 00:00 UTC/);
+  assert.doesNotMatch(h, /Monday at 12:00 UTC/);
+});

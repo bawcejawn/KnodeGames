@@ -46,7 +46,7 @@ A game's chat adds or updates its row **in its first PR** and whenever its timin
 | Who Signs Block X (2) | **yes** (from Week 1, #160) | review day; first rest day **Sun 15 Nov**; Sunday targets count for All time only | **Mon 12:00** today → **Mon 00:00 + checks** (D-135) | Mon evening PT | #160, #159 | Block X chat moves the final to Mon 00:00 (R-BX-24) |
 | Producer Race (7) | **yes** (#149) | fun races, unscored for the week (D-129, #155) | Mon 00:00 + checks (00:37 final run) | Mon 6–8 PM PT | #149, #155 | none |
 | Survivor (3) | ⏸ paused (D-113) | must rest on Sundays | built as 12 h after | — | branch `survivor` | adopt before launch (R-ALL-8) |
-| Fantasy (4, 5) | ⏸ paused | — | built as 12 h after | — | branch `fantasy` | adopt before launch |
+| Fantasy (4, 5) | **built** on branch `fantasy` (owner unpaused it 5 Nov; not launched) | review day; no Sunday play yet | **Mon 00:00 + two runs ≥ 1 h apart agree** | Mon evening PT | branch `fantasy` | Sunday fun rounds (D-129): owner to choose the shape |
 | Block Golf (6) | ⏸ paused | — | — | — | branch `golf` | adopt before launch |
 | Combo Card (8) | ⏸ paused | — | built as 12 h after | — | branch `combo` | adopt before launch |
 | Producer Bracket (9) | ⏸ paused | Sat seeding / Sun picks must be reshaped | — | — | branch `kg-09-bracket` | reshape and adopt before launch |

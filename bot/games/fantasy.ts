@@ -16,8 +16,10 @@
  *     irreversible (they locked 5 minutes before), on both Picks nodes, which must agree. The week's rival challenges
  *     are read the same way when the week starts.
  *  4. Scores. Each player's day-by-day team (one change a day, budget, pool), day scores and week points. A week is
- *     "checking" until half a day after it ends (real clock: Monday 12:00 UTC) and all its days are final; then final,
- *     with the vault points (1..255) the operator bot posts to the vault. Rival matches of a final week are added to
+ *     pending through Sunday, the review day (WEEK_CYCLE.md, D-125). From the week's end (Monday 00:00 UTC), once all
+ *     its days, picks, rivals and stakes are read, a run records the result's fingerprint (`pending`); the week goes
+ *     final only when a later run, at least an hour on, computes the identical result (the two-run rule). Then it is
+ *     final, with the vault points (1..255) the operator bot posts to the vault. Rival matches of a final week are added to
  *     the records once.
  *  5. Writes index.json, days.json, W<week>.json, rivals.json and board.json to FANTASY_OUT, for the publish job.
  *
@@ -61,6 +63,9 @@ type WeekFile = {
   rivals: [string, string][] | null;                  // [challenger, target], read when the week started
   players: PlayerRow[];
   matches: { a: string; b: string; mutual: boolean; result: string }[];
+  /** WEEK_CYCLE §2 (two-run rule): the sha256 of the result (players and rival matches) a run computed once the week
+   *  could be settled, and when. Final only when a run at least AGREE_GAP later computes the same; null once final. */
+  pending: { hash: string; at: number } | null;
 };
 export type Opts = {
   p: any; check: any | null;                                         // the chain whose blocks score the teams
@@ -197,8 +202,8 @@ export async function run(o: Opts) {
   const wNow = F.weekOf(now), weeks = new Map<number, WeekFile>();
   const load = (w: number): WeekFile => {
     const x = readJson(prev, `W${pad(w)}.json`);
-    if (x && x.v === 1 && x.week === w && x.start === F.weekStart(w)) return x;
-    return { v: 1, week: w, start: F.weekStart(w), end: F.weekStart(w + 1), final: false, sheet: null, sha256: null, picks: {}, rivals: null, players: [], matches: [] };
+    if (x && x.v === 1 && x.week === w && x.start === F.weekStart(w)) return { ...x, pending: okPending(x.pending) ? x.pending : null };
+    return { v: 1, week: w, start: F.weekStart(w), end: F.weekStart(w + 1), final: false, sheet: null, sha256: null, picks: {}, rivals: null, players: [], matches: [], pending: null };
   };
   const idx = readJson(prev, "index.json"), known = new Set<number>(Array.isArray(idx?.weeks) ? idx.weeks.filter((w: any) => Number.isInteger(w) && w >= 0 && w < 100000) : []);
   for (const w of [...known].filter((w) => w >= wNow - WEEKS_BACK && w < wNow - 1)) { const x = load(w); if (!x.final && x.sheet) weeks.set(w, x); }
@@ -278,7 +283,9 @@ export async function run(o: Opts) {
   const rivalsPrev = readJson(prev, "rivals.json");
   let records = rivalsPrev?.records && typeof rivalsPrev.records === "object" && !Array.isArray(rivalsPrev.records) ? rivalsPrev.records : {};
   const counted = new Set<number>(Array.isArray(rivalsPrev?.weeks) ? rivalsPrev.weeks.filter((w: any) => Number.isInteger(w)) : []);
-  const correction = F.DAY_MS / 2;                         // real clock: Monday 12:00 UTC
+  // WEEK_CYCLE §2 (D-125, D-135): a week can go final from its end (Monday 00:00 UTC), never during Sunday's review
+  // day, and only after two runs at least AGREE_GAP apart agree (1 hour on the real clock).
+  const AGREE_GAP = Math.min(3600000, F.DAY_MS / 24);
   const allPrev = readJson(prev, "alltime.json");
   let allTime = allPrev?.players && typeof allPrev.players === "object" && !Array.isArray(allPrev.players) ? allPrev.players : {};
   const allCounted = new Set<number>(Array.isArray(allPrev?.weeks) ? allPrev.weeks.filter((w: any) => Number.isInteger(w)) : []);
@@ -331,21 +338,30 @@ export async function run(o: Opts) {
     // Rival matches count only between two staked wallets, read on both nodes when the week is finished.
     let rivalOk: Set<string> | null = null, rivalReady = true;
     const inRivals = [...new Set((wf.rivals || []).flat())];
-    if (allFinal && allPicks && now >= wf.end + correction && stakedRead && inRivals.length) {
+    if (allFinal && allPicks && now >= wf.end && stakedRead && inRivals.length) {
       try {
         rivalOk = await stakedRead(inRivals, p);
         if (check) { const other = await stakedRead(inRivals, check); if (other.size !== rivalOk.size || [...rivalOk].some((a) => !other.has(a))) { rivalReady = false; problems.push(`week ${w}: the two nodes disagree about who is staked; not final this run`); } }
       } catch (e) { rivalReady = false; problems.push(`week ${w}: stakes for the rival matches: ${(e as Error).message}`); }
     }
     if (rivalByVault) rivalOk = staked;
-    if (allFinal && allPicks && rivalReady && stakesKnown && now >= wf.end + correction && (wf.rivals || !picksRead)) {
-      wf.final = true;
-      wf.picks = {};                                       // in the players' days now; the file stays small
+    if (allFinal && allPicks && rivalReady && stakesKnown && now >= wf.end && (wf.rivals || !picksRead)) {
       const pts = Object.fromEntries(wf.players.map((x) => [x.a, { points: x.points, full: x.full }]));
-      wf.matches = F.matches(wf.rivals || [], pts, stakedRead || rivalByVault ? rivalOk || new Set() : null);
-      if (!allCounted.has(w)) { allTime = F.addAllTime(allTime, wf.players); allCounted.add(w); }
-      if (!counted.has(w)) { records = F.addRecords(records, wf.matches); counted.add(w); }
-      console.log(`week ${w}: final, ${wf.players.length} players, ${wf.matches.length} rival matches`);
+      const matches = F.matches(wf.rivals || [], pts, stakedRead || rivalByVault ? rivalOk || new Set() : null);
+      const hash = resultHash(wf.players, matches);
+      if (!(wf.pending && wf.pending.hash === hash && now - wf.pending.at >= AGREE_GAP)) {
+        // First sight of this result (or it changed): wait for a later run to agree (two-run rule).
+        if (!wf.pending || wf.pending.hash !== hash) wf.pending = { hash, at: now };
+        console.log(`week ${w}: settled, pending; final once a run from ${new Date(wf.pending.at + AGREE_GAP).toISOString()} agrees`);
+      } else {
+        wf.final = true;
+        wf.pending = null;
+        wf.picks = {};                                       // in the players' days now; the file stays small
+        wf.matches = matches;
+        if (!allCounted.has(w)) { allTime = F.addAllTime(allTime, wf.players); allCounted.add(w); }
+        if (!counted.has(w)) { records = F.addRecords(records, wf.matches); counted.add(w); }
+        console.log(`week ${w}: final, ${wf.players.length} players, ${wf.matches.length} rival matches`);
+      }
     }
     if (!wf.final && now >= wf.end + 2 * F.DAY_MS)
       problems.push(`ALERT week ${w} is still not final ${Math.floor((now - wf.end) / F.DAY_MS)} days after it ended (days final: ${recs.filter((d: any) => d.final).length}/${wd.length}, picks read: ${F.weekDays(w).filter((d: number) => Array.isArray(wf.picks[d])).length}/${wd.length}, rivals ${wf.rivals ? "read" : "not read"}). The vault needs results within 3 days.`);
@@ -403,6 +419,11 @@ export async function run(o: Opts) {
   for (const pr of problems) console.log(`::warning::${pr.replace(/[\r\n]+/g, " ").replace(/::/g, ": ")}`);
   return { problems, weeks, days: dayList, live };
 }
+
+/** WEEK_CYCLE §2: the fingerprint two runs must agree on before a week is final (the players' rows, in order, and the
+ *  rival matches). Exported for the tests. */
+export const resultHash = (players: unknown, matches: unknown) => crypto.createHash("sha256").update(JSON.stringify({ players, matches })).digest("hex");
+const okPending = (x: any) => !!x && typeof x === "object" && typeof x.hash === "string" && /^[0-9a-f]{64}$/.test(x.hash) && Number.isInteger(x.at) && x.at > 0;
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const RPC = E.RPC || "https://koinos.armana.io";

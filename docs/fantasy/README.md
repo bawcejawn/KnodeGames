@@ -7,7 +7,9 @@ Plan and owner decisions: `claude/builds/05-fantasy-plan.md` in the KnodeGames p
 ## The rules (fantasy-math.js)
 - **Team:** 5 different producers from the week's price list, cost at most 100. The first one is the captain (×2).
 - **The week (owner, 2026-11-03):** Monday to Saturday play, 6 days; Sunday is results day (no team plays, nothing is
-  scored). The week is final on Monday 12:00 UTC once the stakes are read.
+  scored). Sunday is the review day (`.ai/standards/WEEK_CYCLE.md`, D-125): the week goes final from Monday 00:00 UTC,
+  once the stakes are read and two recorder runs at least an hour apart compute the same result (`pending` in the W
+  file until then).
 - **Boards (owner, 2026-11-03, D-081):** wallets staked in Fantasy that week (the vault's rule: the most they had in game 4
   that week at or above the minimum, read on both nodes with Block X's vault reader) rank on the **Staked** board; everyone
   else on **Free play**. `board.json` has the shared shape (Today / This week / Last week / All time; rows `a, pts, days,
@@ -70,15 +72,18 @@ node --import tsx tools/fantasy-testnet/rehearse.mjs        # about 5 minutes: 2
   at the week's start) and at least 1 point, as 255 for the best week and one less per lower score (ties kept).
   Stakes are read on both nodes and must agree.
 - Written only once the vault is live (the game ABI has `get_game_player`); until then `index.json` says
-  `vaultBasis: "all"` and there is no vault file. A week is normally final 12 hours after it ends (vault deadline 3
-  days; ALERT at 2). The publish job refuses to change a vault file once published.
+  `vaultBasis: "all"` and there is no vault file. A week is normally final about an hour after it ends (two agreeing
+  runs; vault deadline 3 days; ALERT at 2). The publish job refuses to change a vault file once published.
 - Weekly Rival with the vault live: a match counts only when both players are staked in Fantasy that week.
 
 ## Safety rails (audit 2026-10-28, FX-1 to FX-10)
 - A week is final only when all 6 play days' blocks (two nodes) and picks are read, the rivals are read, and
-  12 hours have passed. A week still not final 2 days after it ends raises an `ALERT` warning (the vault deadline is 3 days); unfinished weeks are
+  two runs at least an hour apart from Monday 00:00 UTC agree (WEEK_CYCLE two-run rule). A week still not final 2 days after it ends raises an `ALERT` warning (the vault deadline is 3 days); unfinished weeks are
   retried for 8 weeks.
 - A day is final only when every hour with blocks has a race card.
+- **Card quality gate (R-FA-3, I-062):** a race card counts only with at least 12 VHP samples and no node disagreement
+  (no `flagged` producer, no `topInDoubt`), as Block X. A bad card is treated as missing: the latest earlier good card
+  (within 24 hours) is used, else the hour is uncovered and the day waits (`F.usableCard`).
 - The workflow stops rather than record from empty files if the games-data branch can't be read, and the publish job
   refuses to change a published price list, a final week, counted rival weeks, a rival record or an all-time total.
 - Final days must be checked on two nodes. Final weeks keep teams as positions on the price list (small files);

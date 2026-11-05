@@ -97,7 +97,7 @@ test("a day the two nodes disagree on is not final; it is recorded when they agr
   assert.ok(read(b.out, "W002.json").sheet);
 });
 
-test("a week: teams scored day by day, final after the 12 h window, rivals counted once", async () => {
+test("a week: teams scored day by day, pending on Sunday's review day, final from Monday 00:00 once two runs an hour apart agree, rivals counted once", async () => {
   const s = await hourly(U("2026-11-01T12:30Z"), "");
   const sheet = read(s.out, "W002.json").sheet, price = Object.fromEntries(sheet.pool.map((x) => [x.a, x.price]));
   // Teams that fit the budget: a chosen captain plus the cheapest others.
@@ -121,12 +121,21 @@ test("a week: teams scored day by day, final after the 12 h window, rivals count
   assert.equal(wm.players.find((x) => x.a === pd).days[0][0], null, "an invalid pick (same producer twice) doesn't start a team");
   assert.match(wm.players.find((x) => x.a === pd).days[0][2], /twice/);
   assert.equal(wm.players.find((x) => x.a === pc), undefined, "Thursday's joiner has no row yet on Wednesday");
-  // After Monday 9 Nov 00:00 but before 12:00: still checking.
-  const late = await hourly(U("2026-11-09T06:30Z"), mid.out);
-  assert.equal(read(late.out, "W002.json").final, false, "the correction window");
-  const fin = await hourly(U("2026-11-09T12:30Z"), late.out);
+  // WEEK_CYCLE (D-125): Sunday is the review day — the week is never settled before Monday 00:00 UTC.
+  const sun = await hourly(U("2026-11-08T18:30Z"), mid.out);
+  assert.equal(read(sun.out, "W002.json").final, false, "Sunday: review day");
+  assert.equal(read(sun.out, "W002.json").pending, null, "nothing is settled during the review day");
+  // Monday 00:30: settled, but pending until a run at least an hour later agrees (the two-run rule).
+  const first = await hourly(U("2026-11-09T00:30Z"), sun.out);
+  const p1 = read(first.out, "W002.json");
+  assert.equal(p1.final, false); assert.match(p1.pending.hash, /^[0-9a-f]{64}$/); assert.equal(p1.pending.at, U("2026-11-09T00:30Z"));
+  const soon = await hourly(U("2026-11-09T01:00Z"), first.out);
+  assert.equal(read(soon.out, "W002.json").final, false, "30 minutes later is too soon");
+  assert.deepEqual(read(soon.out, "W002.json").pending, p1.pending, "the same result keeps its first sighting");
+  const fin = await hourly(U("2026-11-09T01:30Z"), soon.out);
   const w = read(fin.out, "W002.json");
-  assert.equal(w.final, true);
+  assert.equal(w.final, true, "final: two runs an hour apart agreed");
+  assert.equal(w.pending, null);
   const row = (a) => w.players.find((x) => x.a === a);
   assert.equal(row(pa).full, true); assert.equal(row(pb).full, true);
   assert.equal(row(pc).full, false); assert.equal(row(pd).full, false);
@@ -175,7 +184,9 @@ test("audit FX-1: a week is never final while a day's picks are unread; then it 
   assert.ok(last.r.problems.some((p) => /ALERT week 2 is still not final/.test(p)), "and it says so");
   fail = -1;
   const ok = await run1(U("2026-11-11T14:30Z"), last.out);
-  assert.equal(read(ok.out, "W002.json").final, true, "final once every day's picks are read");
+  assert.equal(read(ok.out, "W002.json").final, false, "every day's picks read: pending (two-run rule)");
+  const ok2 = await run1(U("2026-11-11T15:30Z"), ok.out);
+  assert.equal(read(ok2.out, "W002.json").final, true, "final once every day's picks are read and a second run agrees");
 });
 
 test("vault hand-off: one file per final week, rows for Fantasy stakers only, ranked 1..255 keeping ties", async () => {
@@ -189,6 +200,8 @@ test("vault hand-off: one file per final week, rows for Fantasy stakers only, ra
   let cur = await go(U("2026-11-04T12:30Z"), s0.out, async (who) => new Set(who.filter((a) => stakers.has(a))));
   assert.equal(fs.existsSync(path.join(cur, "vault", "W2.json")), false, "no vault file before the week is final");
   cur = await go(U("2026-11-09T12:30Z"), cur, async (who) => new Set(who.filter((a) => stakers.has(a))));
+  assert.equal(fs.existsSync(path.join(cur, "vault", "W2.json")), false, "no vault file while the week is pending");
+  cur = await go(U("2026-11-09T13:30Z"), cur, async (who) => new Set(who.filter((a) => stakers.has(a))));
   const v = JSON.parse(fs.readFileSync(path.join(cur, "vault", "W2.json"), "utf8"));
   assert.equal(v.game, 4); assert.equal(v.week, 2); assert.equal(v.final, true);
   assert.deepEqual(v.first, [pd], "the only free player, with a team on all 6 play days: 1st on Free play (D-081)");
@@ -203,7 +216,7 @@ test("vault hand-off: one file per final week, rows for Fantasy stakers only, ra
   // Rivals: pa↔pc and pc↔pb count (all staked, full weeks); pb→pa too.
   assert.ok(w.matches.every((m) => stakers.has(m.a) && stakers.has(m.b)));
   assert.equal(read(cur, "index.json").vaultBasis, "staked");
-  const again = await go(U("2026-11-09T13:30Z"), cur, async (who) => new Set(who.filter((a) => stakers.has(a))));
+  const again = await go(U("2026-11-09T14:30Z"), cur, async (who) => new Set(who.filter((a) => stakers.has(a))));
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(again, "vault", "W2.json"), "utf8")), v, "the same file every run");
   const none = await go(U("2026-11-09T12:30Z"), cur, null);
   assert.equal(fs.existsSync(path.join(none, "vault")), false, "without the vault's stakes, no vault file");
@@ -236,13 +249,45 @@ test("owner 2026-11-03 (D-081): Staked and Free play boards in board.json, the s
   assert.equal(row(pa).boardPlace, 1);
   assert.ok(b.week.rows.filter((r) => !r.ranked).every((r) => r.earns === 0), "the free prize is off: no free medals");
   assert.ok(b.today.rows.every((r) => typeof r.pts === "number"), "today so far");
-  const fin = await hourly(U("2026-11-09T12:30Z"), mid.out, { stakedOf: staked });
+  const pend = await hourly(U("2026-11-09T12:30Z"), mid.out, { stakedOf: staked });
+  const fin = await hourly(U("2026-11-09T13:30Z"), pend.out, { stakedOf: staked });
   const f = read(fin.out, "board.json");
   assert.equal(f.week.week, 3); assert.equal(f.lastWeek.week, 2); assert.equal(f.lastWeek.final, true);
   assert.deepEqual(f.lastWeek.prizes, [], "no prize list while the switch is off");
   const v = read(fin.out, "vault/W2.json");
   assert.ok(v.first.length >= 1 && !v.first.includes(pd), "the vault file still lists the free winners; pd joined on Wednesday, so not all 6 days");
   assert.ok(!v.first.includes(pa) && !v.second.includes(pa), "a staked player never wins the free prize");
+});
+
+test("WEEK_CYCLE two-run rule: a result that changes between runs starts the wait again; the vault bot's checks accept the files", async () => {
+  const { checkResults, orderBreak, boardScore } = await import(path.resolve(APP, "bot/vault.ts"));
+  const s0 = await hourly(U("2026-11-01T12:30Z"), "");
+  const sheet = read(s0.out, "W002.json").sheet, days = F.weekDays(2), [pa, pb, pc, pd] = PLAYERS;
+  const cheap = [...sheet.pool].sort((x, y) => x.price - y.price).slice(0, 5).map((x) => x.a);
+  picks = { team: { [days[0]]: [[pa, cheap, 1], [pb, [cheap[1], cheap[0], ...cheap.slice(2)], 1], [pc, cheap, 1], [pd, cheap, 1]] }, rival: {} };
+  let stakers = new Set([pa]);
+  const staked = async (who) => new Set(who.filter((a) => stakers.has(a)));
+  const mid = await hourly(U("2026-11-04T12:30Z"), s0.out, { stakedOf: staked });
+  const sun = await hourly(U("2026-11-08T18:30Z"), mid.out, { stakedOf: staked });
+  const r1 = await hourly(U("2026-11-09T00:30Z"), sun.out, { stakedOf: staked });
+  const h1 = read(r1.out, "W002.json").pending;
+  stakers = new Set([pa, pb]);                     // the stakes read differently: a different result
+  const r2 = await hourly(U("2026-11-09T01:30Z"), r1.out, { stakedOf: staked });
+  const w2 = read(r2.out, "W002.json");
+  assert.equal(w2.final, false, "a changed result is never made final");
+  assert.notEqual(w2.pending.hash, h1.hash); assert.equal(w2.pending.at, U("2026-11-09T01:30Z"), "the wait starts again");
+  const r3 = await hourly(U("2026-11-09T02:30Z"), r2.out, { stakedOf: staked });
+  assert.equal(read(r3.out, "W002.json").final, true, "final once two runs agree on the new result");
+  // The vault bot's own checks (bot/vault.ts, PR #74) on this file and board.
+  const v = read(r3.out, "vault/W2.json"), b = read(r3.out, "board.json").lastWeek;
+  assert.equal(checkResults(v, 4, 2), "");
+  assert.equal(b.week, 2, "board.json's lastWeek is the vault week");
+  const places = new Map(b.rows.filter((r) => r.ranked).map((r) => [r.a, r.boardPlace]));
+  const inFile = new Set(v.rows.map((r) => r.player));
+  for (const r of b.rows) if (r.ranked && boardScore(r) > 0) assert.ok(inFile.has(r.a), "every staked board wallet with points is in the file");
+  const onBoard = new Set(b.rows.map((r) => r.a));
+  for (const r of v.rows) assert.ok(onBoard.has(r.player), "every file wallet is on the board");
+  assert.equal(orderBreak(v.rows, places), "", "the file's points keep the board's places");
 });
 
 test.after(() => { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });

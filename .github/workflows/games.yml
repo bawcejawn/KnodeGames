@@ -477,7 +477,12 @@ jobs:
                   assert type(j["rivals"]) is list and all(A(r["a"]) for r in j["rivals"]) and all(A(x["a"]) and nat(x["n"]) for x in j["mostChallenged"]), f
               else:
                   assert re.fullmatch(r"W[0-9]{3}\.json", f) and f == "W%03d.json" % j["week"], f
-                  assert set(j) == {"v", "week", "start", "end", "final", "sheet", "sha256", "picks", "rivals", "players", "matches"}, f
+                  assert set(j) == {"v", "week", "start", "end", "final", "sheet", "sha256", "picks", "rivals", "players", "matches", "pending"}, f
+                  # WEEK_CYCLE two-run rule: a settled week waits as pending (its result's sha256 and when it was first
+                  # seen) until a later run agrees; a final week has none.
+                  p = j["pending"]
+                  assert p is None or (type(p) is dict and set(p) == {"hash", "at"} and re.fullmatch(r"[0-9a-f]{64}", str(p["hash"])) and nat(p["at"]) and p["at"] > 0), f
+                  assert not (j["final"] and p is not None), f
                   s = j["sheet"]
                   assert s is None or (s["week"] == j["week"] and nat(s["budget"]) and len(s["pool"]) <= 200 and all(A(p["a"]) and nat(p["price"]) and 8 <= p["price"] <= 40 for p in s["pool"])), f
                   assert j["sha256"] is None or re.fullmatch(r"[0-9a-f]{64}", j["sha256"]), f

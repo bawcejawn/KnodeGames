@@ -8,7 +8,6 @@
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
 ## Today — Thu 5 Nov (the order to go live; do them top to bottom)
-- [x] `1635QU…` holds at least 95 KOIN (owner, 5 Nov: "over 100 koin"). Don't move it until after Monday's upload.
 - [ ] **1. After 7:51 AM PT: put Block X and the Race in the vault.** `npm run bot -- game-apply 2` and `game-apply 7` (dry run, then CONFIRM ON → `--send` → CONFIRM OFF); `npm run bot -- games` must show both "staked + free prize, from week 3"; then the repo variable `PRIZES_FROM_WEEK = 3`. Deadline Sun 8 Nov 4 PM PT — P1 — D-077
 - [ ] **2. Then announce vault v6.1** (starts the 48 h): build and check on `vault-questions-60`, `upgrade schedule` dry run → CONFIRM ON → `--send` → CONFIRM OFF → delete `OWNER_WIF`. Steps: `claude/vault/HANDOFF-2026-11-05.md`. Paste the output to the Vault chat. Latest: Sat 7 Nov 9 AM PT (48 h before Monday's upload) — P1 — D-130
 - [ ] **3. Turn the VHP ruler's recorder on:** repo variable `VHP_RULER_ENABLED = true` (data only, pays nothing) — P2 — D-128
@@ -49,6 +48,7 @@
 - [ ] **Mon 16 Nov, 12:00 UTC (4 AM PT):** after the first vault close, check status, the buckets, the free prizes, and collect the fee with `claim-fee-vhp all` — P1
 
 ## Later
+- [ ] **Architecture decisions** (ARCHITECTURE "Target architecture"): (A6) build the shared game kit before or after Fantasy, Golf and Bracket launch; (A8) a second machine for a standby node, or stay on one PC for now; (A1) keep the sponsor's 25,000 KOIN hot, or most cold with a small float — P2
 - [ ] When you have a USB stick: once R-VAULT-10's script exists, back up the three producer keys (game/pool, Desk, personal) to it and keep it offline, apart from your wallet paper — P2 — TD-08
 - [ ] C5-13 (CODEOWNERS + ruleset): **go** (owner, 5 Nov). Wait for the Hub chat (R-HUB-14): the bot commits game data to `main` every hour, so the ruleset must let the bot and you bypass it, or the games stop updating. The Hub chat gives the exact clicks — P3
 - [ ] The full platform audit: only once everything is confidently ready (D-102) — P1 — I-002

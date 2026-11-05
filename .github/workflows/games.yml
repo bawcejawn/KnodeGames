@@ -274,7 +274,7 @@ jobs:
           pb = pubjson("board.json"); plw = pb.get("lastWeek") if type(pb) is dict else None
           def week_final(w):
               return type(plw) is dict and plw.get("week") == w and plw.get("final") is True and plw.get("start") == GENESIS + w * WEEK \
-                  and type(plw.get("prizes")) is list and type(plw.get("rows")) is list and now >= GENESIS + (w + 1) * WEEK + 12 * 3600000
+                  and type(plw.get("prizes")) is list and type(plw.get("rows")) is list and now >= GENESIS + (w + 1) * WEEK   # D-135: final from Monday 00:00 UTC
           for f in sorted(os.listdir(d)):
               if not re.fullmatch(r"P[0-9]{3}\.json", f): continue
               j = json.load(open(os.path.join(d, f), encoding="utf-8"))

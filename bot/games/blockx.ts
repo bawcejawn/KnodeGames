@@ -19,8 +19,8 @@
  *     `lead` blocks before the target. Each pick is stored with its time, points and whether the wallet is Staked
  *     (holds 1 VHP or has a Knode stake when the target is recorded) or Free play (everyone else).
  *  4. Leaderboards (board.json): Today, This week, Last week and All time, by blockx-math.js, the same file the
- *     page runs, for the two boards of board.js (Staked / Free play). A week is final 12 hours after it ends (the
- *     correction window) when every target in it is recorded. Prizes (2 / 1 VHP to the week's top 2: every Block X player is a free player,
+ *     page runs, for the two boards of board.js (Staked / Free play). A week is final from Monday 00:00 UTC (D-135) when
+ *     every counted target in it is recorded, two runs an hour apart agree and the week-end re-read passes. Prizes (2 / 1 VHP to the week's top 2: every Block X player is a free player,
  *     picks on 3+ days, ≥ 1 point) are listed only for weeks from PRIZES_FROM_WEEK: none until the Knode Games vault is
  *     live (owner, 2026-10-28). The vault pays them; this file only records.
  *  5. Writes index.json, W<week>.json, board.json (and cards.json with CARDS=self); the publish job puts them on the
@@ -43,7 +43,7 @@ const X: any = (globalThis as any).KBlockX;
 const E = process.env;
 const LOOKBACK_BLOCKS = 3 * 28800;          // targets older than ~3 days: void if they still can't be recorded
 const MAX_TARGETS_PER_RUN = 48;             // so a long outage catches up over a few runs
-const CORRECTION_MS = 12 * 3600000;         // a week's results are final 12 hours after it ends
+const STABLE_MS = 3600000;                  // D-135: final once two runs at least an hour apart read the week the same
 const VAULT_WINDOW_MS = 3 * 86400000;       // the vault takes a week's results file within 3 days of its end (games.yml)
 const CARD_BLOCKS = 7200;                   // a self-made card looks at the last ~6 hours of blocks
 const CARD_KEEP_MS = 8 * 86400000;          // and cards.json keeps 8 days of them
@@ -589,7 +589,7 @@ export async function run(o: Opts) {
     done.add(r);
   };
 
-  /** D-125 / R-BX-22: a target whose block falls on Sunday UTC (the review day) counts for nothing. */
+  /** D-125 / D-129: a target whose block falls on Sunday UTC is a fun round: Today and All time only, never the week. */
   const REST_FROM = Number.isInteger(o.restFromWeek) ? o.restFromWeek! : X.RHYTHM_FROM_WEEK;
   const rest = (t: number) => X.restDay(t, REST_FROM);
 
@@ -647,17 +647,16 @@ export async function run(o: Opts) {
       if (t.height !== G.target(t.round)) { const x = hold(` isn't round ${t.round}'s target block`); if (x) return x; }
       // Repo Lens B3-3: not yet irreversible passes on its own: never released.
       if (t.height > head.lib) return hold(" isn't irreversible yet", true);   // passing: never ignored by a release
-      // D-125 / R-BX-22: a review-day row must be a Sunday block (read again on both nodes), with no picks; and a Sunday
-      // block can't be scored.
-      if (X.isRest(t)) {
-        if (t.picks.length || t.card !== null || !t.checked) { const x = hold(": a review-day row with picks, a card or no reads"); if (x) return x; }
+      // D-129: a Sunday (UTC) target is a fun round and pays nothing, so only its block is read again (so a run can't
+      // move a play-day target out of the week by giving it a Sunday time); its picks and points aren't re-checked.
+      if (rest(t.time)) {
+        if (!t.checked) return null;
         for (const read of nodes) {
-          const b = await timed(() => read(t.height)), l = await timed(() => read(t.height - G.LEAD));
-          if ((isAddr(b.signer) ? b.signer : null) !== t.signer || b.time !== t.time || l.time !== t.lockTime) { const x = hold(": its signer or times read differently now"); if (x) return x; }
+          const b = await timed(() => read(t.height));
+          if ((isAddr(b.signer) ? b.signer : null) !== t.signer || b.time !== t.time) { const x = hold(": its signer or times read differently now"); if (x) return x; }
         }
-        return rest(t.time) ? null : hold(": a review-day row for a block that isn't on a Sunday");
+        return null;
       }
-      if (rest(t.time) && !t.void) { const x = hold(": a Sunday (review-day) target was scored"); if (x) return x; }
       if (t.void && !t.checked) { if (t.picks.length) { const x = hold(": a void row with picks"); if (x) return x; } return null; }
       for (const read of nodes) {
         const b = await timed(() => read(t.height)), l = await timed(() => read(t.height - G.LEAD));
@@ -738,16 +737,6 @@ export async function run(o: Opts) {
         const b2 = await blockC(h), l2 = await blockC(h - G.LEAD);
         if (b2.signer !== b.signer || b2.time !== b.time || l2.time !== lock.time) { problems.push(`block ${h}: the two nodes disagree; not recorded this run`); if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about this block until it left the 3-day window"); continue; }
         checked = 2;
-      }
-      // D-125 / R-BX-22: a Sunday (UTC) block is on the review day. Its row keeps the block (signer and times, read on
-      // both nodes) but no picks and no points: picks sent for it are ignored, as every game does on Sunday.
-      if (rest(b.time)) {
-        const t: Target = { round: r, height: h, final: true, checked, signer: isAddr(b.signer) ? b.signer : null, time: b.time, lockTime: lock.time, card: null, void: X.REST_NOTE, picks: [] };
-        const wf = weekFor(M.weekOf(b.time));
-        wf.targets = wf.targets.filter((x) => x.round !== r).concat([t]).sort((x, y) => x.round - y.round);
-        done.add(r);
-        console.log(`block ${h}: signed by ${b.signer} on the Sunday review day: no points`);
-        continue;
       }
       let raw: RawPick[] = [];
       if (picksRead) {
@@ -873,17 +862,28 @@ export async function run(o: Opts) {
     for (const side of [true, false]) for (const x of X.places(X.board(rows.filter((r: any) => rk.has(r.player) === side)))) own.set(x.player, x.place);
     return X.places(X.board(rows)).map((x: any) => ({ a: x.player, place: x.place, boardPlace: own.get(x.player) || x.place, pts: x.pts, correct: x.correct, picks: x.picks, days: x.days, lastCorrect: x.lastCorrect, ranked: rk.has(x.player) }));
   };
-  const lastRowsOf = (w: number) => rowsOf(M.weekStart(w), M.weekStart(w + 1));
+  /** A week's counted play (WEEK_CYCLE.md §2): Monday 00:00 → Saturday 24:00 UTC from Week 1; Sunday's fun rounds are left out. */
+  const weekEnd = (w: number) => X.playEnd(w, REST_FROM);
+  const weekRowsOf = (w: number) => rowsOf(M.weekStart(w), weekEnd(w));
+  const lastRowsOf = weekRowsOf;
   const day0 = Math.floor(head.time / M.DAY) * M.DAY;
   const lw = nowW - 1;
   let lastWeek: any = null;
   let freeze: any = null;
   if (lw >= 0) {
-    const rows = rowsOf(M.weekStart(lw), M.weekStart(nowW));
-    // Final: 12 hours after the week ended, with every target of the week recorded.
+    const rows = weekRowsOf(lw);
+    // Final (D-135, WEEK_CYCLE.md §2): no earlier than Monday 00:00 UTC, with every counted target of the week recorded,
+    // once two runs at least an hour apart agree (the run before published the same rows for this week, an hour or more
+    // ago) and the week-end re-read below passes.
     const wf = all.get(lw);
-    const complete = !!wf && wf.targets.length > 0 && targetsCover(wf, M.weekStart(lw), M.weekStart(nowW), all);
-    const final = head.time >= M.weekStart(nowW) + CORRECTION_MS && complete;
+    const complete = !!wf && wf.targets.length > 0 && targetsCover(wf, M.weekStart(lw), weekEnd(lw), all);
+    // (The run before is the last one on Sunday, whose "this week" board is this week's Mon–Sat, or one on Monday.)
+    const prevBoard = readJson(PREV, "board.json");
+    const pw = prevBoard && [prevBoard.lastWeek, prevBoard.week].find((x: any) => x && x.week === lw && Array.isArray(x.rows));
+    const prevAt = prevBoard && typeof prevBoard.updated === "string" ? Date.parse(prevBoard.updated) : NaN;
+    const agreed = !!pw && JSON.stringify(pw.rows) === JSON.stringify(view(rows)) && Number.isFinite(prevAt) && head.time - prevAt >= STABLE_MS;
+    const ready = head.time >= M.weekStart(nowW) && complete;
+    const final = ready && agreed;
     // Prizes: the Free play board's top 2 (picks on 3 days, ties share), only from PRIZES_FROM_WEEK (none until the
     // vault). Player rule (owner, 2026-10-28, every game): staked = at least the vault's minimum staked IN Block X
     // that week (the Staked board, which shares the game's weekly bucket); everyone else is a free player and plays
@@ -894,9 +894,12 @@ export async function run(o: Opts) {
     // Audit BX-5: a final week's prizes are written once (P<week>.json) and never recomputed: later runs, and the page,
     // use that file, so a target recorded late can't change a prize list that was already final.
     const frozen = readJson(PREV, pName(lw));
+    if (ready && !agreed && !frozen) console.log(`week ${lw}: pending; it goes final once a run at least an hour after this one reads the same week`);
     if (frozen && frozen.v === 1 && frozen.week === lw && frozen.game === G.GAME_ID && Array.isArray(frozen.prizes)) {
       lastWeek.final = true; lastWeek.prizes = frozen.prizes; lastWeek.frozenAt = frozen.at;
-    } else if (final) {
+    } else if (ready) {
+      // (D-135: read again from the first run that can go final, so a difference holds at once; it freezes only once
+      // two runs an hour apart agree.)
       // I-042 (BX-88, BX-97, BX-98, G-K-1): before a week's prize list is frozen (and its vault file written), every
       // target of the week is read again from both nodes and compared whole. Any difference holds the week (no prize
       // list, no vault file, an alert); the next run tries again.
@@ -927,13 +930,13 @@ export async function run(o: Opts) {
         const note = `week ${lw}: held before its prize list: ${held}. Nothing is paid until a run reads the whole week the same (tried again next run).${code}`;
         problems.push(note); holds.push(note);
         lastWeek.final = false; lastWeek.prizes = [];
-      } else freeze = { v: 1, week: lw, game: G.GAME_ID, at: new Date(head.time).toISOString(), prizes: lastWeek.prizes };
+      } else if (agreed) freeze = { v: 1, week: lw, game: G.GAME_ID, at: new Date(head.time).toISOString(), prizes: lastWeek.prizes };
     }
   }
   const board = {
     v: 1, updated: new Date(head.time).toISOString(),
     today: { day: M.dayOf(head.time), rows: view(rowsOf(day0, day0 + M.DAY)) },
-    week: { week: nowW, start: M.weekStart(nowW), rows: view(rowsOf(M.weekStart(nowW), M.weekStart(nowW + 1))) },
+    week: { week: nowW, start: M.weekStart(nowW), rows: view(weekRowsOf(nowW)) },
     lastWeek,
     allTime: { rows: view(rowsOf(0, Infinity)) },
   };
@@ -991,7 +994,11 @@ export function targetsCover(wf: WeekFile, from: number, to: number, all: Map<nu
   const rs = wf.targets.map((t) => t.round).sort((a, b) => a - b);
   for (let i = 1; i < rs.length; i++) if (rs[i] !== rs[i - 1] + 1) return false;
   const find = (r: number) => { for (const w of all.values()) { const t = w.targets.find((x) => x.round === r); if (t) return t; } return null; };
-  const after = find(rs[rs.length - 1] + 1);
+  // D-129: `to` may end before the week does (Saturday 24:00): Sunday's fun rounds after the last counted target don't
+  // hold the week up; the round right after that target must be recorded and fall at or after `to`.
+  const inside = wf.targets.filter((t) => t.time < to).map((t) => t.round);
+  if (!inside.length) return false;
+  const after = find(Math.max(...inside) + 1);
   if (!after || after.time < to) return false;
   const before = find(rs[0] - 1);
   if (before) return before.time < from;

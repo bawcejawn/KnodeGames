@@ -24,7 +24,7 @@
 | # | Work | Value it creates | Owner | Refs |
 |---|------|------------------|-------|------|
 | 8 | **Survivor** — ⏸ paused (D-113, core first); new date after the core work | A second staked + free game, a two-week hook that keeps players returning | Survivor chat + owner | D-113, I-050 |
-| 9 | **After the core (D-138): Last Node, Block Golf, Fantasy, Bracket (March-Madness head to head)**, then Survivor and Combo; career profile from day 1 (D-137); each follows `../standards/NEW_GAME.md` and `WEEK_CYCLE.md` | Each game is a new reason to stake; multi-game staking is encouraged (D-074) | game chats + owner | D-064, D-113, D-134, I-065 |
+| 9 | **Next three launches (D-142): Fantasy, Block Golf, Bracket (March-Madness head to head, D-141)**, then Last Node, Survivor and Combo; career profile from day 1 (D-137); each follows `../standards/NEW_GAME.md` and `WEEK_CYCLE.md` | Each game is a new reason to stake; multi-game staking is encouraged (D-074) | game chats + owner | D-064, D-113, D-134, I-065 |
 | 10 | **The one VHP ruler, Race first** (on `main`; recorder on, data only; **v2.1 build and simulations now, R-RULER-2**) | Closes the Race's proved trick before stakes grow; one fix for every game | VHP Ruler chat | D-110, D-111, D-128, R-RULER-1 |
 | 11 | **Turn on Block Golf practice** now that Block X is live | Rewards playing across games at almost no cost: no contract, no picks | Golf chat | D-056, I-060 |
 | 12 | **Tell players:** a launch announcement once the three paying games are in the vault | Players can't stake in a platform they haven't heard of | owner | ROADMAP |

@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, **oldest first** (D-001 at the top, the newest at the bottom; the index is in the same order). This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "superseded by D-XXX" in the index.
 > Consolidated 2026-11-02: the owner's answers to the open contradictions are recorded as D-061 – D-067.
-> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-140 added; index statuses brought up to date; nothing removed)
+> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-141 added; index statuses brought up to date; nothing removed)
 > Sources: owner in chat (2026-11-02), `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (all 12 chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · 👤 owner said · ⚠️ was a conflict (see the C-xx named next to it; all are resolved unless listed under Open) · ❓ unknown
@@ -151,6 +151,7 @@
 | D-138 | 2026-11-05 | After the core: Last Node, Block Golf, Fantasy and Bracket next | active (amends D-113's "after the core") |
 | D-139 | 2026-11-05 | Block Minute: an always-on quick pick, designed before it's built | idea (design first) |
 | D-140 | 2026-11-05 | Fix fast after every review: one pass, same day, tracked by finding | active (standing) |
+| D-141 | 2026-11-05 | Producer Bracket: up to 64 producers, one round a day, 8 to play | active (for the Bracket build) |
 
 ---
 
@@ -755,7 +756,7 @@
 - **Date:** 2026-11-05 (owner: "yes asboslutely", to "After Mon 16, should Daily Questions' free prize follow the on/off switch like the other games?") · **Decision:** from Vault v6.1's rule week (Mon 16 Nov), Daily Questions (game 1) is on the free-prize switch like every vault game (D-082): the bot posts its free winners only when game 1's switch is ON. Its starting value is **ON**, set in the week before the rule week so it counts from Mon 16. The Vault chat confirms how game 1 is read by the switch and the bot (R-VAULT-14). `FREE_PRIZE_SWITCH.md` §4.
 
 ## D-137 — A career profile for every player from day 1
-- **Date:** 2026-11-05 (owner: "i think career profile is important from day 1") · **Decision:** every wallet gets a **career profile** page as soon as possible, built from data the games already publish: All time points per game (Sunday fun rounds included, D-129), weeks played, medals, best placings, current streaks, nickname (D-078) and staked games. Shareable as a card. Read-only (no transactions). Built by the Hub chat (R-HUB-15) with each game's boards; not part of any payout.
+- **Date:** 2026-11-05 (owner: "i think career profile is important from day 1") · **Decision:** every wallet gets a **career profile** page as soon as possible, built from data the games already publish: All time points per game (Sunday fun rounds included, D-129), weeks played, medals, best placings, current streaks, nickname (D-078) and staked games. Shareable as a card; **showing the staked amount on the shared card is the player's choice, off by default** (owner, 5 Nov: "let shairng their staked amount be optional when they share their card"). Read-only (no transactions). Built by the Hub chat (R-HUB-15) with each game's boards; not part of any payout.
 
 ## D-138 — After the core: Last Node, Block Golf, Fantasy and Bracket next
 - **Date:** 2026-11-05 (owner: "we will get everything announced and upgraded ASAP and then start addign the additional games. I think last node, block golf, and fantasy along with bracket. if im thinking bracket is like the March madness with nodes head to head - seems real cool and fun.") · **Decision:** once the core work is live (v6.1, the sponsor, the ruler's v2.1 build), the next games are **Last Node Standing, Block Golf, Fantasy Producers and Producer Bracket**, each through `standards/NEW_GAME.md`. **Bracket is a March-Madness style knockout: producers head to head**, round by round. Survivor and Combo follow later. Ideas logged, not scheduled: **Block Minute** (a pick available every minute, D-139), **Squads**.
@@ -765,6 +766,9 @@
 
 ## D-140 — Fix fast after every review: one pass, same day, tracked by finding
 - **Date:** 2026-11-05 (owner: "I feel like we need to do better with our fixes after repo lens and audits. we need to be more effective and direct with getting things solved and bugs cleaned up") · **Decision:** after a Repo Lens report the building chat fixes **every Critical, High and Medium in one PR, the same session**, each with the review's failing test (or a new one), then writes the fix-check prompt itself; **Lows are fixed in the same pass unless the owner defers them**; nothing is split across several PRs unless the owner asks. The library tracks each open finding in `AUDITS.md` §5 until closed. A chat that can't fix a finding says why in its session-end report the same day.
+
+## D-141 — Producer Bracket: up to 64 producers, one round a day, 8 to play
+- **Date:** 2026-11-05 (owner: "right now there arent many producers. set it up for 64 possible with 1 per day is good, like a 24 hour sprint. minium needed to play would be 8 producers and still follows the same bracket rules of 1 round per day.") · **Decision:** the Bracket is a knockout of producers head to head, **one round a day (a 24-hour sprint per matchup)**. It holds **up to 64 producers** (6 rounds: Mon–Sat, the final on Saturday, inside the weekly cycle, `standards/WEEK_CYCLE.md`) and runs with **as few as 8** (3 rounds). With a field between sizes, it uses the largest power of two that fits (8, 16, 32, 64) and the rounds start so the final is on Saturday; fewer than 8 eligible producers → no bracket that week. Matchups are decided by the VHP ruler's luck percentile (`VHP_RULER.md` §16, D-138). The Bracket chat reshapes its Sat seeding / Sun picks to this (R-BR-8).
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

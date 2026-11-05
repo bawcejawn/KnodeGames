@@ -620,7 +620,7 @@ if ((Get-FileHash heal-one-node.ps1).Hash -eq "2888638cfa73a41a626015c41d419d2fe
         <pre><code>cd ~/koinos-node
 curl -fsSL -o heal-one-node.py https://raw.githubusercontent.com/bawcejawn/KnodeGames/main/node/one/heal-one-node.py
 GOT=$( (sha256sum heal-one-node.py 2&gt;/dev/null || shasum -a 256 heal-one-node.py) | cut -d' ' -f1)
-[ "$GOT" = "76c8c5091c09f14ceb840854c25eebec76fd09fe407878a73ffa1145ddf4ec97" ] &amp;&amp; echo "MATCH - the file arrived intact" || echo "NO MATCH - don't run it; delete heal-one-node.py"</code></pre>
+[ "$GOT" = "d4e1d680d1ac4cce959a8165dbe3879c49c72c6ede5f486ad90f01c187ef5ba3" ] &amp;&amp; echo "MATCH - the file arrived intact" || echo "NO MATCH - don't run it; delete heal-one-node.py"</code></pre>
       </div>
       <p>If it says <b>MATCH</b>, the file arrived exactly as published on Knode Games' GitHub. Try it once (it changes nothing), then switch it on:</p>
       <div class="rn-cmd" data-os="win">

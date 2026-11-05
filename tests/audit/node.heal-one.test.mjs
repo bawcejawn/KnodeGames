@@ -245,6 +245,7 @@ if (PYTHON) {
       let r = await run(PYTHON, [script, "--install", "--rpc=http://127.0.0.1:8090"], env);
       assert.match(r.out, /is set up/);
       const line = fs.readFileSync(tab, "utf8").split("\n").find((x) => x.includes("knode-games-heal-one-node"));
+      assert.ok(line, "the fake crontab received the line");
       const cmd = line.replace(/^\*\/20 \* \* \* \* /, "").replace(/ >\/dev\/null 2>&1 # knode-games-heal-one-node$/, "");
       // Run the cron command itself (with sh, as cron does) in dry-run form: it must reach the script with the right folder and port.
       const dry = execFileSync("sh", ["-c", cmd.replace(/ '--rpc=/, " --dry-run '--rpc=")], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });

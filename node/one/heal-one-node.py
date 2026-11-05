@@ -38,9 +38,11 @@ STATE = os.path.join(FOLDER, "heal-state.json")
 BEHIND, COOLDOWN_MS, MAX_HEALS, WINDOW_MS, NAG_MS, LOOP_RESTARTS = 200, 50 * 60000, 3, 6 * 3600000, 3 * 3600000, 3
 CRON_TAG = "# knode-games-heal-one-node"
 # cron starts with a tiny PATH; Docker Desktop (Mac) and Homebrew live here.
-# Docker Desktop's CLI may also live in ~/.docker/bin ("User" install) or inside the app.
-os.environ["PATH"] = ":".join([os.path.expanduser("~/.docker/bin"), "/Applications/Docker.app/Contents/Resources/bin",
-                               "/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin", os.environ.get("PATH", "")])
+# cron's PATH is tiny: keep it first, then add where Docker Desktop's CLI may live (~/.docker/bin for a "User" install,
+# or inside the app) and Homebrew.
+os.environ["PATH"] = ":".join([x for x in [os.environ.get("PATH", ""), os.path.expanduser("~/.docker/bin"),
+                               "/Applications/Docker.app/Contents/Resources/bin", "/usr/local/bin", "/opt/homebrew/bin",
+                               "/usr/bin", "/bin", "/usr/sbin", "/sbin"] if x])
 
 
 def now_ms():

@@ -268,6 +268,10 @@
   }
   const LOCK_MARGIN = 120000;   // too close to the lock: two minutes, by the chain's clock at send time (#E-3 L-2)
   let checking = null;          // { n, account, week, seeds } frozen when "Check your bracket" opens (#E-3 C-2)
+  // fix-check RC-3: a wallet request that may still be approved (KOIN Vault keeps it open after its window closes).
+  // While one is open, no other bracket is sent from this page: if the old one were approved last, it would win.
+  let openRequestUntil = 0;
+  const OPEN_REQUEST_MS = 10 * 60000;
   async function chainNow() {
     try { const h = await provider.getHeadInfo(); const t = Number(h && h.head_block_time); if (Number.isFinite(t) && t > 0) return t; } catch { /* below */ }
     return Date.now();
@@ -275,6 +279,7 @@
   function review() {
     const n = draftNumber(), who = me(), s = seeding();
     if (n === null || !who || !picksContract || !s) return;
+    if (Date.now() < openRequestUntil) return pop("info", "A bracket request is still open in your wallet", ["Approve or reject it in KOIN Vault first. If you approve it, that bracket is the one that counts; this page shows it once it's on the chain. You can send a new one after it's settled, or in a few minutes."], [btn("OK", close)]);
     if (BM.lockTime(view) - Date.now() < LOCK_MARGIN) return pop("bad", "Too close to the lock", [`Brackets lock ${dayTime(BM.lockTime(view))}. This one can't make it in time.`], [btn("OK", close)]);
     const frozen = { n, account: who, week: view, seeds: s.seeds.join(","), size: s.size };
     pop("info", "Check your bracket", [...summaryOf(n, s),
@@ -308,12 +313,18 @@
       else pop("info", "Sent, not seen on the chain yet", ["Your wallet sent it. It usually shows within a minute; this page updates by itself."], [btn("OK", close)]);
     } catch (e) {
       const m = String((e && e.message) || e);
+      // fix-check RC-3: "still waiting" (the window was closed) and "no answer in time" mean the request may still be
+      // approved in KOIN Vault: never "Cancelled … Nothing was sent"
+      if (/still waiting|no answer from koin vault|check the wallet before trying again/i.test(m)) {
+        openRequestUntil = Date.now() + OPEN_REQUEST_MS;
+        return pop("info", "Still open in your wallet", ["Your bracket request is still open in KOIN Vault: approve or reject it there. Don't send another bracket until it's settled; this page shows it once it's on the chain."], [btn("OK", close)]);
+      }
       const why = /locked/i.test(m) ? "Brackets are locked: they close Monday 23:55 UTC."
         : /not open yet/i.test(m) ? "Picks for this week aren't open yet (they open at the seeding, Sunday 00:00 UTC)."
         : /used up/i.test(m) ? "Today's picks are used up. More after 00:00 UTC."
         : /changed again/i.test(m) ? `This bracket has been changed ${BM.MAX_CHANGES} times already.`
         : /already your pick/i.test(m) ? "That is already your bracket."
-        : /reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."
+        : /cancelled in koin vault|\breject(ed)?\b|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."
         : `Not sent: ${m.slice(0, 200)}`;
       pop(/Cancelled/.test(why) ? "info" : "bad", /Cancelled/.test(why) ? "Cancelled" : "Bracket not sent", [why], [btn("OK", close)]);
     } finally { sending = false; await loadMine(); }

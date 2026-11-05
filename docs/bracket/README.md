@@ -9,11 +9,11 @@ Timing follows `.ai/standards/WEEK_CYCLE.md`; the recorder follows `.ai/standard
 ## The week (all times UTC)
 | When | What |
 |---|---|
-| Sunday 00:00 (before the week) | **Seeding**: every producer's exact effective VHP averaged over the 28,800 blocks before; each producer's seeding VHP is the **lower** of that and its average at last week's seeding (#E-3 M-6); the field = producers expected to sign ≥ 10 blocks in a 6-hour race on that VHP; biggest = seed 1. Picks open. Not seeded within 24 h → the week is void. |
-| Monday 23:55 | Picks lock (Picks `lead` 5 min, `ahead` ≤ 48 h, TIME lock, `round_size` 7 days, target = Tuesday 00:00, round = week + 2,963). |
+| Sunday 00:00 (before the week) | **Seeding**: every producer's exact effective VHP averaged over the 28,800 blocks before; each producer's seeding VHP is the **lower** of that and its average at the last seeding up to 4 weeks back, **0 if it wasn't there** (#E-3 M-6, fix-check RC-1; only the very first bracket uses today's average alone); the field = producers expected to sign ≥ 10 blocks in a 6-hour race on that VHP; biggest = seed 1. It counts only once a **later run reads it again** on both nodes and finds the same (fix-check F2). Picks open. Not seeded within 24 h → the week is void. |
+| Monday 23:55 | Picks lock (Picks `lead` 5 min, `ahead` **46 h** recommended so picks open after the seeding is published (fix-check RC-6; the recorder accepts ≤ 48 h), TIME lock, `round_size` 7 days, target = Tuesday 00:00, round = week + 2,963). Picks are recorded from two nodes within **3 h of the lock**, or the week closes at the backstop (fix-check F3, RC-4). |
 | one round a day, final Saturday | **32** (32+ producers) Tue–Sat; **16** (16–31) Wed–Sat; **8** (8–15) Thu–Sat; under 8 → no bracket. No byes. Capped at 32 so the bracket fits one Picks number (31 matchups). |
 | Sunday | Review day: every recorded hour is read again on both nodes in a later run (the two-run rule); results are **pending**. Picks for the next week open. |
-| Monday 00:00 (after the week) | Final, once every result is in, every hour is re-read and the Vault's end-of-week stakes are read on both nodes. Not done by **Thursday 00:00** → closed without a vault file (`vault: "missed"`, or void if the results never completed). |
+| Monday 00:00 (after the week) | Final, once every result is in, every hour is re-read, and the Vault's end-of-week stakes have read **the same in two runs** on both nodes (fix-check F1). Not done by **Thursday 00:00** → closed without a vault file (`vault: "missed"`, or void if the results never completed). |
 
 ## A matchup (bracket-math.js, on the VHP standard in vhp-standard.js and docs/VHP-STANDARD.md)
 - **baseline** = the seed's effective VHP just before the day's first block (received VHP counts after 20 blocks).
@@ -26,6 +26,11 @@ Timing follows `.ai/standards/WEEK_CYCLE.md`; the recorder follows `.ai/standard
   is 1 for any VHP path, so deposits and withdrawals timed around 00:00 can't move it. It never forfeits.
 - **Forfeit** (#E-3 H-5): the seed's effective VHP **averaged over its round's day** (over the day's blocks) < 0.5 × its
   seeding VHP → it loses the matchup (both forfeit → the index decides). A one-block dip at midnight forfeits nothing.
+  Compared in exact integers everywhere: 2 × Σ(av × n) < seeding satoshi × Σ n (fix-check B-1: float sums pass 2^53).
+- **Disclosed (fix-check RC-2):** no rule can stop a producer from losing on purpose (e.g. signing from a second address
+  of its own); it can never make itself win. The Knode Games Pool's rate index can be moved only by a depositor holding
+  almost all of the pool (RC-5, ≥ 99.9%). Matchups are mostly luck by design (RC-7: the underdog wins 44–52%; D-141
+  moves them to the ruler's luck percentile).
 - D-141: matchups move to the VHP ruler's luck percentile once ruler v2.1 passes its simulations (R-RULER-2).
 
 ## Scoring and ranking
@@ -78,6 +83,26 @@ Timing follows `.ai/standards/WEEK_CYCLE.md`; the recorder follows `.ai/standard
    L-2).
 6. The Vault bot (`bot/vault.ts`) reads `games-data:bracket/vault/W<week>.json` and posts it.
 7. A recorder failure fails the run after publishing (the alert job), so the owner gets an email (#E-3 M-4).
+
+## Fix-check of 5 Nov (Repo Lens, PR #186) and how each finding is closed
+| Finding | Closed by |
+|---|---|
+| B-1 forfeit float vs integer | exact integers on page, recorder and job; strict "under half"; threshold and 2^53+ cases in `bracket-publish-port` |
+| F1 stakes trusted | end-of-week stakes must read the same in two runs; the job takes a final week only with stakes an earlier run published |
+| F2 seeding trusted | the job re-derives seeds, VHP and size from `seeding.raw` and the last seeding's; a later run must re-read the seeding (`re`); no first seeding after 24 h; only the Pool may be pooled |
+| F3 late picks | two-node picks only; first recorded within 3 h of the lock (job's clock), never changed |
+| F4 forged hour can't be repaired | `BRACKET_RELEASE` (repo variable, weeks): a disagreeing two-node re-read may replace seeding (before picks), hours or end-of-week stakes; the new reading is re-read again before final |
+| F5 hash text | seeding VHP values are whole hundredths, 0.01–1e9, on both sides |
+| F6 size gap | one limit: 2048 KiB |
+| F7 file flood | at most 12 Bracket files a run |
+| F9 shared job | the Bracket records in its own job and artifact |
+| RC-1 fresh address | missing from the last seeding → 0 |
+| RC-2 throwing | disclosed (above, page) |
+| RC-3 open KOIN Vault request | reported as still open, and no new send for 10 minutes |
+| RC-4 picks never recorded | void at the backstop |
+| RC-6 bots first | `ahead` 46 h recommended |
+| F8 (Low) | the vault bot skips rows it can't post; our rows use the same stake rule, so a skip means a stake changed on chain: Vault chat to confirm |
+| B-3 (Low) | single values > 2^53 satoshi need a producer with ~90M VHP: more than all VHP that exists; refused (held) if ever |
 
 ## Leaderboards (leaderboard standard)
 - Rows `{a, place, boardPlace, pts, champion, correct, ranked, earns}`: places on the player's own board (ties share);

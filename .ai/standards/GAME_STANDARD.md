@@ -2,8 +2,8 @@
 
 > **Purpose:** what every Knode Games game must do and prove before it is announced. A game that doesn't meet this isn't ready (D-064).
 > **Applies to:** every game in `.ai/games/`, new or changed.
-> **Last updated:** 2026-11-03
-> **Built from:** `platform/DECISIONS.md` (cited as D-xxx) and the rules the game chats already follow. Related standards: `LEADERBOARD_STANDARD.md`, `VAULT_STANDARD.md`, `TOKEN_STANDARD.md`.
+> **Last updated:** 5 Nov 2026 (§4 now points to `WEEK_CYCLE.md`, the one home for game timing)
+> **Built from:** `platform/DECISIONS.md` (cited as D-xxx) and the rules the game chats already follow. Related standards: `LEADERBOARD_STANDARD.md`, `VAULT_STANDARD.md`, `TOKEN_STANDARD.md`, `RECORDER_STANDARD.md`, `VHP_RULER.md`, `GO_LIVE_CHECKLIST.md`; `WEEK_CYCLE.md` (weekly timing) and `NEW_GAME.md` (onboarding a new game), both being written.
 
 **Words:** **must** = required for launch · **should** = expected unless the owner agrees otherwise · ❓ = not yet decided
 
@@ -13,7 +13,8 @@ A game is announced to players only when all of these are true (D-064 — "only 
 - [ ] It passed the owner's audit programs, including any fix-checks, on the exact commit that ships (D-017).
 - [ ] It ran on the **public Koinos testnet** first, where it has on-chain parts (D-066; Block Golf is the agreed exception — its practice weeks on mainnet are the trial, D-056).
 - [ ] Its full test suite passes on Linux.
-- [ ] It meets the leaderboard, vault and token standards.
+- [ ] It meets the leaderboard, vault, token and recorder standards.
+- [ ] It follows `WEEK_CYCLE.md` and has its row in that file's compliance table.
 - [ ] The owner gives an explicit OK to merge and to deploy (D-026).
 
 ## 2. Play types and prizes
@@ -35,27 +36,19 @@ A game is announced to players only when all of these are true (D-064 — "only 
 - **Ties** share a place unless the game's rules give a written tie-break.
 
 ## 4. Timing — nothing should feel rushed
+**The week every game follows (play days, the Sunday review day and its fun rounds, when results go final, when rewards are claimable, the held-week backstop) has one home: `WEEK_CYCLE.md`** (D-125, D-129). Don't repeat its times here or in a game file; point to it.
+
+What stays here (not timing of the week):
 - Picks should open well ahead (days where the game allows) and be changeable until each round's own lock (D-059).
 - Locks are enforced **on chain** by the Picks contract's lock clock, not just by the page.
-- Weeks run Monday 00:00 to Monday 00:00 UTC (vault week = floor((t − genesis) ÷ 7 days)). Players see the week of Mon 9 Nov as "Week 1" (D-063).
-- **How every week closes (D-125):**
-  - **Play Monday 00:00 → Saturday 24:00 UTC** (Sat 4 PM PST / 5 PM PDT). Nothing that counts for the week falls on Sunday UTC (Sunday rounds are fun rounds, D-129). Multi-week seasons rest on their Sundays too.
-  - **Sunday UTC is the review day:** the recorder settles the week, re-checks it on chain on both nodes, and publishes it as *pending*; the owner can look and hold.
-  - **Final no earlier than Monday 00:00 UTC** (24 h after the last play), once two runs an hour apart agree and the chain still matches.
-  - **The page says so:** "Sunday is review day: results are checked and paid from Monday."
-  - **Sunday is not a dead day (D-129):** Sunday rounds still run as **fun rounds**. They are played and scored, and count on the Today and All time boards only: never on a week's board, medals, prizes, staked shares or vault file. The page offers Sunday picks, labelled "Today and All time, not the week".
-  - Rewards are claimable about 24 h after the vault seals: from about **Mon 6–8 PM PST (Tue ~02:00–04:00 UTC)**, later if a game is held.
-  - **Only scoring stops on Sunday (C7-3):** data other games read keeps running, including Race handicap cards (Block X needs a Race card up to 3 h after each target block, and the card in force at its lock), VHP samples and ruler hours.
-  - **Sunday picks** use that UTC day's pick limit like any other day.
-  - **A Sunday round is recorded like any round**; every weekly tally (board, medals, vault file, the publish job's recompute) leaves it out.
-  - **Backstop:** a week held on the review day has until **Thursday 00:00 UTC**, then it rolls over. A stake made on the review day counts from the next week.
-  - **Exception:** Daily Questions (game 1) keeps its own timing (Saturday's windows run on Sunday's blocks; claims from about Tue 12:00–15:00 UTC, Tue 4–7 AM PST, later if Saturday's questions resolve on Monday).
-- **Each game launches when it's audited and ready** (D-052, D-064; the older "launch on a Monday" rule, D-059, is superseded). Vault weeks still run Monday to Monday, so a game earns from the Monday after it's applied.
+- Week numbers follow the vault (week 0 = Mon 19 Oct 2026); players see the week of Mon 9 Nov as "Week 1" (D-063).
+- **Each game launches when it's audited and ready** (D-052, D-064; the older "launch on a Monday" rule, D-059, is superseded); a game earns from the vault week after it's applied. New games wait for the core work (D-113).
+- **Daily Questions (game 1)** keeps its own timing (Saturday's windows run on Sunday's blocks; claims from about Tue 12:00–15:00 UTC, Tue 4–7 AM PST, later if Saturday's questions resolve on Monday) only until Vault v6.1's rule week, **Mon 16 Nov**; from then it follows `WEEK_CYCLE.md` like every game (D-116).
 
 ## 5. On-chain registration
 - **Picks contract:** announce the game (owner key) → wait 48 h → apply within the window. Settings (kind, list size, lock mode, round size and offset, lead, ahead, changes, picks a day) are written in the game's spec. Hard limits: 50 picks a day, 50 changes, list size 10, ahead ≤ 35 days, lead ≥ 5 min.
 - **Vault:** `game-add <id> "<name>" --staked --free --season <n>` (**`--free` on every game**, D-082; the free-prize switch decides whether free winners are paid — `platform/FREE_PRIZE_SWITCH.md`) → 48 h → `game-apply` within 7 days; a game applied in week W earns from W + 1 (see `VAULT_STANDARD.md`).
-- **Sponsor:** an allowlist row for the game's picks, with a per-action Mana limit at least 1.25× the measured cost and at most the per-transaction cap; raise it when measured use reaches ~1.5× headroom (D-038).
+- **Sponsor:** an allowlist row for the game's picks, with a per-action Mana limit at least 1.25× the measured cost and at most the per-transaction cap; raise it when measured use reaches ~1.5× headroom (D-038). Live caps and rows: `../platform/SPONSOR.md`.
 
 ## 6. Recorder and data
 Every game that publishes results **must**:
@@ -79,7 +72,7 @@ Every game that publishes results **must**:
 
 ## 8. Ownership and process
 - One chat owns each game's files; other chats send requests through the owner (D-035).
-- One branch and one PR per build; merges and deploys only on the owner's explicit OK (D-026).
+- One branch and one PR per build; merges follow D-026 and the owner's push-ASAP rule (`AI_CHAT_STARTER.md` §1 rule 11): built, tested work is merged once green; mainnet sends and spending funds need the owner's OK.
 - Mainnet sends are dry runs unless `--send`; every chain tool also needs `CONFIRM_MAINNET=yes` in `.env`, and the Picks tool (`npm run picks`) alone also needs `--mainnet` on the command line ✅ (code checked 3 Nov), and they go one step at a time as copy-paste PowerShell for `C:\kprediction` (D-004, D-042).
 - Never handle, print or store private keys; if one is pasted, the owner rotates it (D-003, D-042).
 - Root-cause fixes, and a blind review before each audit round (D-042).

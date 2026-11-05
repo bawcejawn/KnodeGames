@@ -2,7 +2,7 @@
 
 > **Purpose:** what to do if the owner's PC goes off, breaks, dies or is stolen: what keeps running without it, what stops, and how to get back, in order, with how long each step takes. It answers the health check's risk #1 (`HEALTHCHECK.md` §2a, TD-08).
 > **One home:** this page is the home for **recovering from losing the PC**. A planned move to a new PC (old PC still working) is `../../docs/MIGRATION.md`; a single alert or node hiccup is `RUNBOOK.md`; who controls which wallet is `KEYS_AND_ROLES.md`.
-> **Last updated:** Wed 4 Nov 2026, from `docs/MIGRATION.md`, `RUNBOOK.md`, `PLATFORM.md` (the owner's PC), `ARCHITECTURE.md` (infrastructure), `bot/heal.mjs`, `bot/release-kick.mjs`, `node/setup-node.ps1`, `docs/WALLETS.md` and `KEYS_AND_ROLES.md`. **Not yet rehearsed** — times marked ❓ are estimates.
+> **Last updated:** Thu 5 Nov 2026 (status sync; handover dates in `CALENDAR.md`). Built 4 Nov from `docs/MIGRATION.md`, `RUNBOOK.md`, `PLATFORM.md` (the owner's PC), `ARCHITECTURE.md` (infrastructure), `bot/heal.mjs`, `bot/release-kick.mjs`, `node/setup-node.ps1`, `docs/WALLETS.md` and `KEYS_AND_ROLES.md`. **Not yet rehearsed** — times marked ❓ are estimates.
 > **Golden rule:** **players' stakes never depend on the PC.** They sit in the vault on chain and are always withdrawable. Losing the PC costs block rewards and convenience, not players' funds — unless the PC's keys are stolen (§5).
 
 ---
@@ -33,7 +33,7 @@
 
 | # | Prepare | Why | State |
 |---|---|---|---|
-| 1 | **Paper backup of every key you'd need to rebuild `.env`**: owner, seed owner, sponsor, Race picks owner; the four contract keys (`CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF`, `RACE_WIF`) | `.env` can't be recovered from a dead disk; GitHub never holds them | owner, seed, sponsor 👤; contract keys ❓ — confirm each is on paper before Tue's clean-up (`docs/WALLETS.md` step 6) |
+| 1 | **Paper backup of every key you'd need to rebuild `.env`**: owner, seed owner, sponsor, Race picks owner; the four contract keys (`CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF`, `RACE_WIF`) | `.env` can't be recovered from a dead disk; GitHub never holds them | owner, seed, sponsor 👤; contract keys ❓ — confirm each is on paper before the weekend clean-up (`docs/WALLETS.md` step 6; date: `CALENDAR.md`) |
 | 2 | Know which **Kondor wallets** come back from which recovery words (personal producer, owner's daily wallet) | rebuilding Kondor on a new PC | 👤 |
 | 3 | A **second machine you could use** (another PC, or a cloud server ❓) with ~300 GB free SSD | two big nodes need the space during setup | ❓ owner to decide |
 | 4 | **Decide: back up each node's `block_producer\private.key` offline, or not** | with a backup, a new PC can produce **at once** with the same key; without, the **Desk needs a 48 h wait** to register a new key (the pool's re-register is immediate). Only one machine may run a given key at a time | **owner: yes, all three nodes** (4 Nov). The backup and restore scripts are R-VAULT-10; then copy the keys to a USB stick kept offline |
@@ -97,7 +97,7 @@
 |---|---|---|---|
 | 1 | **Sponsor** `SPONSOR_WIF` | 25,000 KOIN, **no wait**: a thief can move it at once | from a clean machine with the key from paper: move its KOIN to a safe wallet of yours, then `npm run sponsor -- disable --send`. Players then pay their own Mana and can still withdraw ❓ (Vault chat to confirm steps) |
 | 2 | **Race picks contract** `RACE_WIF` (if still in `.env`) | can replace the Race picks code at once | tell the Race chat; switch Race picks off with its owner key if needed |
-| 3 | **Owner** `OWNER_WIF` | changes wait 48 h / ~1 day and email you | watch for chain-watch emails; propose your own address again to replace any hostile handover; `npm run bot -- pause on --send`; Desk `owner cancel`. After the weekend move the owner key is **not** in `.env` except on action days |
+| 3 | **Owner** `OWNER_WIF` | changes wait 48 h / ~1 day and email you | watch for chain-watch emails; propose your own address again to replace any hostile handover; `npm run bot -- pause on --send`; Desk `owner cancel`. After the handover (`CALENDAR.md`) the owner key is **not** in `.env` except on action days |
 | 4 | **Seed owner** `SEED_WIF` | a seed withdrawal waits 48 h | Vault chat at once; change the seed owner (two steps, 28,800 blocks apart) |
 | 5 | **`GITHUB_ALERT_TOKEN`** | can only start workflows; can't read secrets or change files | revoke it in GitHub → Settings → Developer settings |
 | 6 | Contract keys `CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF` | no power while the upload rules are on | none urgent; replace at the next upgrade |

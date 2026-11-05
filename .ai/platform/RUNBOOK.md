@@ -1,7 +1,7 @@
 # Knode Games — Emergency Runbook
 
 > **Purpose:** what to do when something goes wrong: how to recognise it, what to run, what to check after. Written for the owner at 3 AM: one section per problem, copy-paste PowerShell, dry run first.
-> **Last updated:** 2026-11-04. Vault chat (R-VAULT-5) checked every vault, Desk, sponsor and key step against the code on `main` (`f3a7cb1`): the contract (`game/assembly/Kpred.ts`), `bot/bot.ts`, `bot/desk.ts`, `bot/sponsor.ts` and `docs/UPGRADE-V6.md`. No ❓ steps are left.
+> **Last updated:** 5 Nov 2026 (status sync: Race held-week alerts merged, #133; sponsor and timing numbers point to their homes). 4 Nov: Vault chat (R-VAULT-5) checked every vault, Desk, sponsor and key step against the code on `main` (`f3a7cb1`): the contract (`game/assembly/Kpred.ts`), `bot/bot.ts`, `bot/desk.ts`, `bot/sponsor.ts` and `docs/UPGRADE-V6.md`. No ❓ steps are left.
 > **Golden rules:**
 > 1. **Stakes are always withdrawable.** No step here can lock players' funds. When in doubt, **stop new money, don't move existing money.**
 > 2. **Send nothing more until you understand the problem.** A wrong fix is worse than a held week: results have a 3-day window, upgrades 48 h.
@@ -39,20 +39,20 @@ The full list of every alert, its trigger and your actions is `ALERTS.md`. Note:
 | The sponsor email or `sponsor -- watch` says over 80% of the daily caps | sponsor watch | free Mana is running out today | §8 |
 
 ## 2. The bot keeps failing
-1. Open GitHub → **Actions** → **Knode Games bot** (was "Kpred bot") → the red run → read the last lines.
+1. Open GitHub → **Actions** → **Knode Games bot** (emails before PR #131 say "Kpred bot") → the red run → read the last lines.
 2. **"node" / "timeout" / "HTML error" / "fetch failed"** is a node problem. It recovers by itself (Armana outage, 3 Nov). Wait one more run. If three runs in a row fail, check `https://koinos.armana.io` in a browser, then tell the library chat.
 3. **"not seen in a block"**: the transaction was sent but not confirmed in 3 minutes. The next run re-checks it. Don't resend by hand.
 4. **Anything else** (a code error, "operator only", "insufficient Mana"): send nothing. Paste the last 30 lines to the Vault chat.
    - "Insufficient Mana": the bot wallet (`1HsM33…`) needs KOIN (target ~50, I-046).
 
 ## 3. A game's week is held, or a send was refused
-The vault bot holds a week instead of paying it whenever something is in doubt. That's safe: results have **3 days** after the week ends (Monday 00:00 UTC → Thursday 00:00 UTC). After that the week **rolls over**: its stakers' bucket stays in the game for next week, and its free prize goes back to the pool. Nobody loses their stake.
+The vault bot holds a week instead of paying it whenever something is in doubt. That's safe: results have **3 days** after the week ends (the Thursday 00:00 UTC backstop, `../standards/WEEK_CYCLE.md`). After that the week **rolls over**: its stakers' bucket stays in the game for next week, and its free prize goes back to the pool. Nobody loses their stake.
 
 | The alert says | Meaning | What to do |
 |---|---|---|
 | "results not ready" | the game's recorder hasn't published its final file yet | wait; it's normal on Monday–Tuesday. Under 12 h left: tell that game's chat |
 | "free-prize switches can't be read" | the `prize-settings` file is broken or GitHub is down. Stakers' points are still posted; only free winners and the seal wait | check with `npm run prizes -- list`. Fix by sending the right setting again (it rewrites the file). Under 6 h before the deadline the bot seals without free winners by itself |
-| "Producer Race vault week N … is HELD" (the **Producer race** run fails, D-107) | the Race's results for that week aren't final. From Week 1 (D-125) they're pending through Sunday (the review day) and go final at about 00:37 UTC Monday (Sun 4:37 PM PST); it alerts if still not final 3 h after the week. The alert says why: still not final 3 h after the week (15 h for weeks before Week 1) (stakes unreadable, nodes disagree, results keep changing, the chain re-check didn't finish in time), **a race's stored result doesn't match the chain** (tell the Race chat; don't release it), **your own hold** (L-4: this one emails once a day, on the 16:37 UTC run = 8:37 AM PST; the chain checks keep running and anything they find still alerts every hour), a bad `RACE_HOLD_WEEKS` value, or the publish job held the file | follow the options in the alert: (1) **wait** if it says it clears by itself; (2) **hold it longer** while you check: GitHub → Settings → Secrets and variables → Actions → Variables → `RACE_HOLD_WEEKS` = the week number; (3) **release your hold**: remove the week from `RACE_HOLD_WEEKS` (it goes final on the next runs); (4) **give up on the week**: `npm run bot -- game-void 7 <week>` (dry run), then `--send`. Unsure: tell the Race chat with the alert text |
+| "Producer Race vault week N … is HELD" (the **Producer race** run fails, D-107) | the Race's results for that week aren't final. From Week 1 they're pending through the Sunday review day and go final from Monday (times: `../standards/WEEK_CYCLE.md`, D-125); it alerts if still not final 3 h after the week. The alert says why: still not final 3 h after the week (15 h for weeks before Week 1) (stakes unreadable, nodes disagree, results keep changing, the chain re-check didn't finish in time), **a race's stored result doesn't match the chain** (tell the Race chat; don't release it), **your own hold** (L-4: this one emails once a day, on the 16:37 UTC run = 8:37 AM PST; the chain checks keep running and anything they find still alerts every hour), a bad `RACE_HOLD_WEEKS` value, or the publish job held the file | follow the options in the alert: (1) **wait** if it says it clears by itself; (2) **hold it longer** while you check: GitHub → Settings → Secrets and variables → Actions → Variables → `RACE_HOLD_WEEKS` = the week number; (3) **release your hold**: remove the week from `RACE_HOLD_WEEKS` (it goes final on the next runs); (4) **give up on the week**: `npm run bot -- game-void 7 <week>` (dry run), then `--send`. Unsure: tell the Race chat with the alert text |
 | "HOLD" (Last Node) | the game's watch-and-hold flagged the week | the Last Node chat decides; release with `LASTNODE_RELEASE_WEEKS` (needs R-LN-3 / PR #74 VB-1 first) |
 | "board missing / not on board / order" (after PR #74) | the results file doesn't match the game's published leaderboard | tell that game's chat (R-ALL-3). Don't post by hand unless the chat confirms the file is right |
 | "file changed after it was first read" (after PR #74) | a final file changed: something is wrong upstream | don't post. Tell that game's chat and the Vault chat. Post by hand (`game-post`) only after both confirm |
@@ -88,7 +88,7 @@ npm run bot -- game-correct <game> <week> <player address> <right points> --send
 
 ## 6. The daily question wasn't released at 12:00 UTC
 1. The release run (11:48 UTC) and the PC's backup task (11:45 – 14:05 UTC, every 5 min) both try. Check `node\release-kick.log` on the PC.
-2. **Start the bot on GitHub by hand:** GitHub → **Actions** → **Knode Games bot** (was "Kpred bot") → **Run workflow** (branch `main`) → **Run workflow**. It takes a few minutes; it releases the question and does the hour's other work.
+2. **Start the bot on GitHub by hand:** GitHub → **Actions** → **Knode Games bot** → **Run workflow** (branch `main`) → **Run workflow**. It takes a few minutes; it releases the question and does the hour's other work.
    - Don't use `npm run bot -- tick` on the PC to release: since D-084 the PC has no operator key, and a real `tick` stops at once with "OPERATOR_WIF is missing". `npm run bot -- tick --dry-run` still works and shows what the bot would do (read-only).
    - Never put the operator key on the PC to get around this (D-084).
 3. A late question still counts once released. Tell the Questions chat.
@@ -141,7 +141,7 @@ The thief can move the sponsor's KOIN at once (no timelock; risk accepted, D-085
 5. A new sponsor needs a new upload and new KOIN: the Vault chat plans it with you.
 
 ## 8. The sponsor is running out
-1. `npm run sponsor -- status` shows today's use against the caps (since 4 Nov: 40 a day / 250 a week per wallet, 5,000 a day in total, 2,000 a day for free players; the live values are in `SPONSOR.md` §2).
+1. `npm run sponsor -- status` shows today's use against the caps (live values: `SPONSOR.md` §2).
 2. Running out today only means some players pay their own Mana until midnight UTC; nobody loses anything.
 3. To change caps, pass **all of them exactly** (a plain `config` resets them): the full command line, rollback and emergency steps are in `SPONSOR.md` §5–6.
 

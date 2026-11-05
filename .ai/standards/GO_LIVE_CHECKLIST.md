@@ -1,13 +1,13 @@
 # Knode Games — Game Go-Live Checklist
 
 > **Purpose:** the one ordered list every game follows from "built" to "paying", so no launch step is missed. Use it for each new game, and for a game restarting after a stop.
-> **Applies to:** every game (Survivor, Bracket, Last Node, Fantasy, Combo, Golf, and any future game).
-> **Last updated:** 2026-11-03
+> **Applies to:** every game (Survivor, Bracket, Last Node, Fantasy, Combo, Golf — all paused until the core work is done, D-113 — and any future game). A new game starts with `NEW_GAME.md` (being written), which leads here.
+> **Last updated:** 5 Nov 2026 (points to `WEEK_CYCLE.md` and `NEW_GAME.md`; new games paused, D-113)
 > **Built from:** `GAME_STANDARD.md`, `VAULT_STANDARD.md` §9, `LEADERBOARD_STANDARD.md`, `RECORDER_STANDARD.md`, `../platform/FREE_PRIZE_SWITCH.md`, decisions D-064, D-077 – D-082, D-089.
 > **How to use:** copy the checklist into the game's work list (`../platform/CHAT_REQUESTS.md`) or the game file, tick items as they're done, and paste the ticked list into the session-end report.
 
 ## The timing rule (read first)
-- A game **earns from the vault week after it's applied** (weeks start Monday 00:00 UTC = Sunday 4 PM PT).
+- A game **earns from the vault week after it's applied** (weeks start Monday 00:00 UTC = Sunday 4 PM PT). How the game's own week runs once live: `WEEK_CYCLE.md`.
 - `game-add` starts a **48 h** notice; `game-apply` must follow **within 7 days**.
 - So to earn from Monday *M*: `game-apply` before Sunday 4 PM PT, which means `game-add` **at least 48 h earlier, with a margin**. Latest safe `game-add` is **Friday ~noon PT**. A Friday 4 PM `game-add` becomes applicable exactly at the deadline, which leaves no room.
 - The free-prize switch, like any change, counts from **next** Monday. Set it **the same week as `game-add` or earlier**.
@@ -20,7 +20,8 @@
   - Staked + Free play boards (D-079, D-081);
   - nicknames through `names.js` (D-078);
   - the VHP standard where VHP is measured (D-058);
-  - plain page text that matches the code.
+  - plain page text that matches the code;
+  - the weekly timing in `WEEK_CYCLE.md`, with the game's row in its compliance table.
 - [ ] Recorder meets `RECORDER_STANDARD.md` (clock checks, recompute at publish, per-file holds, two nodes, write-once).
 - [ ] Vault results file per `VAULT_STANDARD.md` §6, **always filling `first` / `second`** (D-082).
 - [ ] `board.json` in the shape the vault check reads (`LEADERBOARD_STANDARD.md` §1, I-079), or the board path agreed with the Vault chat.

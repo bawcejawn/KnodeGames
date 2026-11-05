@@ -2,7 +2,7 @@
 
 > **Purpose:** how Knode Games handles KOIN, VHP, Mana and keys — which contracts may hold tokens, how amounts are measured and shown, and how every send is kept safe.
 > **Applies to:** every contract, bot, tool and page in the project.
-> **Last updated:** 2026-11-02 (first written)
+> **Last updated:** 5 Nov 2026 (status sync; first written 2 Nov)
 > **Built from:** `platform/DECISIONS.md` (D-xxx), `platform/KOINOS.md`, the chats' standing rules and the repo. Related: `VAULT_STANDARD.md`.
 
 **Words:** **must** = required · **should** = expected · ✅ verified in the repo · ❓ = not yet decided
@@ -24,12 +24,12 @@ Knode Games has **no token of its own** (D-072). The possibility stays open for 
 | **Mana sponsor** (`1ByDDS…`) | its own KOIN, for Mana only | never holds player funds (D-061) |
 | **Picks, Race picks** | nothing | hold no tokens and never pay Mana ✅ |
 | **Guest wallets** | nothing | play-only keys; never hold funds |
-| Owner, treasury, seed owner, operator | their own funds | separate wallets for separate roles; moves follow `docs/WALLETS.md` — **stale: rewrite before any move** (I-001) |
+| Owner, treasury, seed owner, operator | their own funds | separate wallets for separate roles; moves follow `docs/WALLETS.md` (rewritten in #73, §7 updated in #162); who controls what: `../platform/KEYS_AND_ROLES.md` |
 
 New contracts **must not** hold player tokens unless the owner decides otherwise and the vault standard's invariants are kept.
 
 ## 3. Amounts
-- **Units:** VHP and KOIN use 8 decimals: 1 VHP = 100,000,000 base units (`minStake` = 100000000 = 1 VHP ✅). Mana limits use the same units (0.2 Mana = 20,000,000).
+- **Units:** VHP and KOIN use 8 decimals: 1 VHP = 100,000,000 base units (`minStake` = 100000000 = 1 VHP ✅). Mana limits use the same units (1.3 Mana = 130,000,000; live limits: `../platform/SPONSOR.md`).
 - **Deposits** are whole VHP (`deposit_to`); withdrawals and moves may be any amount.
 - **On chain and in code**, amounts are integers in base units; never floating point. In published JSON, numbers must be JS-safe (within ±2⁵³−1, finite, no integer-valued floats).
 - **On the page**, show VHP and KOIN in whole units with sensible decimals, and Mana as a small decimal; explain what each amount means (D-059).

@@ -1,4 +1,5 @@
 # Knode Games — Health Check
+> **Superseded status:** this is a dated snapshot (4 Nov evening). For current status read `LAUNCH_BOARD.md`, `CALENDAR.md` and `AUDITS.md` (v6.1 timing is D-130, not Path 2).
 
 > **Purpose:** a CTO-level read of where Knode Games stands: strengths, weaknesses, missing information, quality scores and the top 10 priorities. Repeat it monthly, or after a big launch.
 > **Date:** Wednesday 4 Nov 2026, evening PT (Thu 5 Nov UTC). Replaces the morning check of the same day (`../archive/2026-11-05/HEALTHCHECK-2026-11-04.md`), because about 30 PRs and 16 decisions (D-113 – D-128) landed in between.

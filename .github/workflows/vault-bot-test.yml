@@ -5,9 +5,9 @@ name: Vault bot tests
 
 on:
   push:
-    paths: ["bot/vault*.ts", "bot/bot.ts", "bot/chain*.ts", "game/**", "game-data/deployment.json", "package.json", "package-lock.json", ".github/workflows/vault-bot-test.yml"]
+    paths: ["bot/vault*.ts", "bot/bot.ts", "bot/chain*.ts", "bot/free-prizes*.ts", "game/**", "game-data/deployment.json", "package.json", "package-lock.json", ".github/workflows/vault-bot-test.yml"]
   pull_request:
-    paths: ["bot/vault*.ts", "bot/bot.ts", "bot/chain*.ts", "game/**", "game-data/deployment.json", "package.json", "package-lock.json", ".github/workflows/vault-bot-test.yml"]
+    paths: ["bot/vault*.ts", "bot/bot.ts", "bot/chain*.ts", "bot/free-prizes*.ts", "game/**", "game-data/deployment.json", "package.json", "package-lock.json", ".github/workflows/vault-bot-test.yml"]
   workflow_dispatch: {}
 
 permissions:
@@ -44,8 +44,8 @@ jobs:
         run: |
           set -o pipefail
           node --import tsx --test --test-reporter=tap \
-            bot/vault.test.ts bot/vault-fuzz.test.ts bot/chain-keyorder.test.ts \
-            game/scripts/storage-compat.test.ts game/scripts/storage-compat-v6.test.ts 2>&1 | tee vault-test.log
+            bot/vault.test.ts bot/vault-fuzz.test.ts bot/chain-keyorder.test.ts bot/free-prizes.test.ts \
+            game/scripts/storage-compat.test.ts game/scripts/storage-compat-v6.test.ts game/scripts/storage-compat-v61.test.ts 2>&1 | tee vault-test.log
           skipped=$(sed -n 's/^# skipped \([0-9][0-9]*\)$/\1/p' vault-test.log | tail -1)
           if [ -z "$skipped" ]; then echo "::error::no test summary found"; exit 1; fi
           if [ "$skipped" != "0" ]; then

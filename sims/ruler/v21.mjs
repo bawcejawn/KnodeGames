@@ -43,6 +43,14 @@ export function midp(t, x) {
   const m0 = t.below[n] + t.pmf[n] / 2, m1 = t.below[n + 1] + t.pmf[n + 1] / 2;
   return Math.min(1, m0 * (1 - f) + m1 * f);
 }
+/** Walker's alias table over weights w: one draw per block in O(1) */
+function alias(w) {
+  const n = w.length, sum = w.reduce((s, x) => s + x, 0), prob = new Float64Array(n), al = new Int32Array(n), sc = w.map((x) => x * n / sum), small = [], large = [];
+  sc.forEach((x, i) => (x < 1 ? small : large).push(i));
+  while (small.length && large.length) { const s0 = small.pop(), l = large.pop(); prob[s0] = sc[s0]; al[s0] = l; sc[l] = sc[l] + sc[s0] - 1; (sc[l] < 1 ? small : large).push(l); }
+  for (const i of [...small, ...large]) prob[i] = 1;
+  return (u1, u2) => { const i = Math.floor(u1 * n); return u2 < prob[i] ? i : al[i]; };
+}
 /** an exact Poisson draw by inversion */
 const draw = (t, u) => { let lo = 0, hi = t.n + 1; while (lo < hi) { const m = (lo + hi) >> 1; if (t.below[m + 1] <= u) lo = m + 1; else hi = m; } return lo; };
 
@@ -78,11 +86,16 @@ export function chances(c, races, seed, cfg, opts = {}) {
     hs = field.map((r) => RM.handicapOf(r.e, kTop, cal.c));
   }
   const rng = RM.rng(seed), wins = new Float64Array(field.length);
+  // the race block by block, as on chain (#B-9 follow-up): the window's B blocks each go to one producer, the field in
+  // proportion to its λ (its real share × what it signs), everyone else to "the rest"; so the field's counts are
+  // multinomial (a big producer's good race leaves fewer blocks for the others), not independent
+  const B = c.blocks, lamF = field.reduce((s, r) => s + r.lam, 0), pick = alias([...field.map((r) => r.lam), Math.max(0, B - lamF)]), cnt = new Int32Array(field.length + 1);
   for (let t = 0; t < races; t++) {
     let best = -Infinity, who = [];
     const xs = new Float64Array(field.length); let nF = 0;
+    cnt.fill(0); for (let b = 0; b < B; b++) cnt[pick(rng.next(), rng.next())]++;
     for (let i = 0; i < field.length; i++) {
-      const r = field[i], n = draw(draws[i], rng.next());
+      const r = field[i], n = cnt[i];
       // thinned credit (a proposal): each signed block counts whole with probability own ÷ eff (on chain: decided by the
       // block id), so the count stays Poisson at the card's size; today's credit counts each block at that fraction
       let x = n * r.credFrac;

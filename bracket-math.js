@@ -104,8 +104,8 @@
   const roundOffset = (size, r) => size - size / 2 ** r;
 
   /** The seeding from a seeding card ({ field, paddock }: averages in VHP, vhp-standard averageCard) and, optionally,
-   *  last week's raw averages (address → VHP; Repo Lens #E-3 M-6). Each producer's seeding VHP is the lower of its
-   *  average now and last week's (when it had one); the field rule (≥ MIN_K expected blocks in a 6-hour race) is applied
+   *  the last seeding's raw averages (address → VHP; Repo Lens #E-3 M-6). Each producer's seeding VHP is the lower of
+   *  its average now and then (0 then if it wasn't there, RC-1); the field rule (≥ MIN_K expected blocks in a 6-hour race) is applied
    *  to that, against the card's total. Returns { size, seeds: [address of seed 1, …] (the producers in the bracket),
    *  vhp: [their seeding VHP], out: [the rest of the field], outVhp: [theirs] }. size 0 means no bracket this week. */
   function seeding(card, last) {
@@ -117,7 +117,10 @@
     for (const r of card && Array.isArray(card.field) ? card.field : []) {
       if (!r || typeof r.a !== "string" || !Number.isFinite(r.vhp) || r.vhp <= 0 || seen.has(r.a)) continue;
       seen.add(r.a);
-      const prev = Number(before.get(r.a)), vhp = Number.isFinite(prev) && prev > 0 ? Math.min(r.vhp, prev) : r.vhp;
+      // Repo Lens fix-check RC-1: with last week's numbers, a producer missing from them (a fresh address) counts 0
+      // there, so moving VHP to a new address for the seeding day buys nothing. Without any (the first bracket, or no
+      // seeding in the weeks before), everyone is on today's average.
+      const prev = Number(before.get(r.a)), vhp = before.size ? Math.min(r.vhp, Number.isFinite(prev) && prev > 0 ? prev : 0) : r.vhp;
       if (total > 0 && RACE_BLOCKS * vhp / total >= MIN_K) rows.push({ a: r.a, vhp });
     }
     rows.sort((x, y) => y.vhp - x.vhp || (x.a < y.a ? -1 : x.a > y.a ? 1 : 0));
@@ -218,7 +221,7 @@
    *  index; rate (Σ r) and q (Σ q) for the pooled rate index; avg (satoshi), the effective VHP averaged over the
    *  day's blocks (the baseline if the day had no blocks). */
   function sumHours(hours) {
-    const out = new Map(), get = (a) => { let x = out.get(a); if (!x) out.set(a, (x = { blocks: 0, credited: 0, baseline: 0, expected: 0, index: 0, rate: 0, q: 0, avgSum: 0, n: 0, avg: 0 })); return x; };
+    const out = new Map(), get = (a) => { let x = out.get(a); if (!x) out.set(a, (x = { blocks: 0, credited: 0, baseline: 0, expected: 0, index: 0, rate: 0, q: 0, avgSum: 0, n: 0, avg: 0, avgSumExact: 0n, nExact: 0n })); return x; };
     const ok = (x) => Number.isFinite(x) && x >= 0;
     let q = 0;
     for (const hr of hours) {
@@ -226,7 +229,8 @@
       for (const [a, b] of Object.entries(hr.by || {})) if (ok(b)) get(a).blocks += b;
       for (const [a, c] of Object.entries(hr.cr || {})) if (ok(c)) get(a).credited += c;
       for (const [a, c] of Object.entries(hr.r || {})) if (ok(c)) get(a).rate += c;
-      for (const [a, v] of Object.entries(hr.av || {})) if (ok(v)) { const x = get(a); x.avgSum += v * hr.n; x.n += hr.n; }
+      // the forfeit sum in exact integers too (fix-check B-1: a float sum passes 2^53 and can land either side of the line)
+      for (const [a, v] of Object.entries(hr.av || {})) if (ok(v)) { const x = get(a); x.avgSum += v * hr.n; x.n += hr.n; x.avgSumExact += BigInt(Math.round(v)) * BigInt(hr.n); x.nExact += BigInt(hr.n); }
     }
     for (const [a, v] of Object.entries(hours[0].w || {})) if (ok(v)) get(a).baseline = v;   // one baseline a day
     for (const x of out.values()) {
@@ -277,12 +281,16 @@
     return sb > sa - tol;   // other's index ≥ better's index → other (tie → underdog)
   }
 
-  /** Does a seed forfeit its day? Its effective VHP averaged over the day's blocks (satoshi; #E-3 H-5) is under
-   *  FORFEIT_SHARE of its seeding VHP (VHP). A producer with no record for the day forfeits nothing here. */
+  /** Does a seed forfeit its day? Its effective VHP averaged over the day's blocks (satoshi; #E-3 H-5) is strictly
+   *  under half (FORFEIT_SHARE) of its seeding VHP (VHP, whole hundredths). Fix-check B-1: compared in exact integers —
+   *  2 × Σ(av × n) < seeding satoshi × Σ n — so the page, the recorder and the publish job's port always agree, even
+   *  when the sums pass 2^53. A day without blocks compares its baseline. No record for the day: no forfeit here. */
   function forfeits(x, vhp) {
     if (!(vhp > 0) || !x) return false;
-    const v = Number.isFinite(x.avg) ? x.avg : Number.isFinite(x.baseline) ? x.baseline : 0;
-    return v < FORFEIT_SHARE * vhp * 1e8;
+    const seedSat = BigInt(Math.round(vhp * 100)) * 1000000n;
+    if (typeof x.nExact === "bigint" && x.nExact > 0n) return 2n * x.avgSumExact < seedSat * x.nExact;
+    const v = Number.isFinite(x.avg) && !(typeof x.nExact === "bigint") ? x.avg : Number.isFinite(x.baseline) ? x.baseline : 0;
+    return 2n * BigInt(Math.round(v)) < seedSat;
   }
 
   /** The real results of a week: seeds (addresses), days: [dayIndex Map for each round, or null if not known yet],

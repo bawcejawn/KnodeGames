@@ -219,7 +219,12 @@ jobs:
           import time
           GENESIS, WEEK = 1792368000, 7 * 86400   # the vault's week 0 (Mon 19 Oct 2026 00:00 UTC), in seconds
           NOW = float(os.environ.get("RACE_CHECK_NOW") or time.time())   # the tests set a clock; the workflow never does
-          def vault_ok(f, j):
+          # D-125 (owner, 4 Nov): the weekly rhythm. From RHYTHM_FROM (M.RHYTHM_FROM_WEEK in race-math.js; tests only set
+          # RACE_RHYTHM_FROM) races run Mon 00:00 -> Sat 24:00 UTC, Sunday UTC is the review day, and a week may go final
+          # from Monday 00:00 UTC (no 12-hour wait after it: the review day came first).
+          RHYTHM_FROM = int(os.environ.get("RACE_RHYTHM_FROM") or 3)
+          DAY_S = 86400
+          def vault_ok(f, j, early=False):
               # The KnodeGames Vault's results (game 7, the Producer Race). rows: staked players, points 1-255 in board
               # order. first/second: free-prize places, at most 10 wallets each. No wallet twice. Nothing before the week
               # is final, and final only once the week has ended by this runner's clock. 2nd only after a single 1st (a
@@ -236,7 +241,7 @@ jobs:
               if not all(isaddr(x) for x in a + b) or len(set(who)) != len(who): return False
               if not all(type(x) is str and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T(00|06|12|18)", x) for x in sk): return False
               if not j["final"]: return not (a or b or rows or sk)
-              if GENESIS + (j["week"] + 1) * WEEK > NOW: return False
+              if GENESIS + (j["week"] + 1) * WEEK > NOW and not early: return False
               return not (b and len(a) != 1)
           # I-034 (R-RACE-1): the hold. PENDING-W<n>.json is the file the recorder WOULD make final, and when it first saw
           # it ("at", ms). A pending file with new content must be dated now, within 35 minutes, so a run can't backdate it (a slow record job still fits); one whose content is
@@ -258,8 +263,11 @@ jobs:
               if not m or type(j) is not dict or set(j) != {"game", "week", "at", "file"} or type(j["game"]) is not int or j["game"] != 7: return False
               if type(j["week"]) is not int or f != "PENDING-W%d.json" % j["week"] or type(j["at"]) is not int: return False
               fl = j["file"]
-              if type(fl) is not dict or fl.get("final") is not True or fl.get("week") != j["week"] or not vault_ok("W%d.json" % j["week"], fl): return False
-              if j["at"] < (GENESIS + (j["week"] + 1) * WEEK) * 1000: return False
+              rhythm = j["week"] >= RHYTHM_FROM
+              play_end = GENESIS + (j["week"] + 1) * WEEK - (DAY_S if rhythm else 0)   # D-125: pending from Sunday 00:00 UTC
+              if NOW < play_end: return False
+              if type(fl) is not dict or fl.get("final") is not True or fl.get("week") != j["week"] or not vault_ok("W%d.json" % j["week"], fl, early=rhythm): return False
+              if j["at"] < play_end * 1000: return False
               if not pub: return True                                            # the offline shape tests (no published folder)
               old = pub_json("vault/" + f)
               if type(old) is dict and same(old.get("file"), fl): return same(old.get("at"), j["at"])
@@ -270,7 +278,9 @@ jobs:
               if not pub or type(j) is not dict or j.get("final") is not True: return ""
               old = pub_json("vault/" + f)
               if type(old) is dict and old.get("final") is True: return ""        # already final: the lock below decides
-              if NOW < GENESIS + (j["week"] + 1) * WEEK + HOLD_S: return "less than 12 hours after its week"
+              if j["week"] >= RHYTHM_FROM:
+                  if NOW < GENESIS + (j["week"] + 1) * WEEK: return "its week hasn't ended (D-125: final from Monday 00:00 UTC)"
+              elif NOW < GENESIS + (j["week"] + 1) * WEEK + HOLD_S: return "less than 12 hours after its week"
               p = pub_json("vault/PENDING-" + f)
               if type(p) is not dict or not same(p.get("file"), j): return "no published pending file with exactly this content"
               if type(p.get("at")) is not int or p["at"] > NOW * 1000 - STABLE_S * 1000: return "its pending file is less than an hour old"
@@ -385,6 +395,10 @@ jobs:
               for r in j["races"]:
                   assert set(r) == {"id", "start", "end", "cards", "result"} and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T(00|06|12|18)", r["id"]), f
                   assert type(r["cards"]) is list and len(r["cards"]) in (3, 6) and all(card_ok(c) for c in r["cards"]) and result_ok(r["result"]), f + " " + r["id"]
+                  # D-125: nothing scores on a Sunday on the rhythm: no result but "not run". Cards are still taken (Repo Lens
+                  # #C-7 C7-2: Block X scores its targets with Race cards).
+                  if j["week"] >= RHYTHM_FROM and datetime.datetime.fromtimestamp(r["start"] / 1000, datetime.timezone.utc).weekday() == 6:
+                      assert r["result"] is None or r["result"].get("missed") is True, f + " " + r["id"] + ": a Sunday race (review day, D-125) can't have a scored result"
                   # Audit BX-54: a card's time fits its leg: taken at most 2 hours before the leg starts and before it ends.
                   leg = (r["end"] - r["start"]) // len(r["cards"]) if type(r.get("start")) is int and type(r.get("end")) is int else 0
                   for i, c in enumerate(r["cards"]):

@@ -1,6 +1,6 @@
 # Knode Games — Status
 
-> The one-page map of the whole system. **Snapshot: Thu 5 Nov 2026, ~16:00 UTC.** Details live in the linked docs; this page only points.
+> The one-page map of the whole system. **Snapshot: Thu 5 Nov 2026, ~17:20 UTC.** Details live in the linked docs; this page only points.
 > Update it at the end of every library session and at the weekly review (Tuesdays). If this page and a linked doc disagree, the linked doc wins and this page gets fixed.
 
 ## Built and live
@@ -11,8 +11,8 @@
 | **Mana sponsor** `1ByDDS…` | pays players' Mana within caps (2.4 a transaction) | `sponsor/` | v3 guest fix (4 Nov) | one key controls it ([SPONSOR](.ai/platform/SPONSOR.md)) |
 | **Picks** `1LmgqB…` / **Race picks** `1EN7xU…` | record picks, enforce locks on chain | `picks/`, `race/` | 30 Oct / 27 Oct | Picks owner handover tool built (#180, #191); date not set |
 | **Daily Questions** (game 1) | quick questions, weekly board, staked + free | `generator.ts`, `resolver.ts`, `bot/bot.ts`, `app.js` | 5 a day now; **2 + 3 a day from Mon 9**; plain wording (#171) | **results recorder for the rule week not built (I-101)** |
-| **Producer Race** (game 7) | pick the 6-hour race winner | `bot/race.ts`, `race.*` | weekly rhythm + Sunday fun races (#155) | pays from Mon 9 after `game-apply 7`; gaps I-086, I-037 in #182 |
-| **Who Signs Block X** (game 2) | pick who signs a target block | `bot/games/blockx.ts`, `blockx.*` | final Mon 00:00, fun Sundays (#175, #189) | pays from Mon 9 after `game-apply 2` |
+| **Producer Race** (game 7) | pick the 6-hour race winner | `bot/race.ts`, `race.*` | weekly rhythm + Sunday fun races (#155) | **applied 5 Nov: pays from week 3** (Mon 9); gaps I-086, I-037 in #182 |
+| **Who Signs Block X** (game 2) | pick who signs a target block | `bot/games/blockx.ts`, `blockx.*` | final Mon 00:00, fun Sundays (#175, #189) | **applied 5 Nov: pays from week 3** (Mon 9) |
 | **Website** knodegames.com | every game page, Stake page, Results, Leaders, guest play, swap, names | repo root (`*.html/js/css`) | welcome page (#183), readability (#174), visit counting (#168) | served from the whole repo until the Pages allow-list (R-HUB-14) |
 | **Hourly bot** | posts questions and results, seals vault weeks, chain watch, alerts | `bot/`, `.github/workflows/bot.yml` | v6 rules; D-127 (bot closes weeks) arrives with v6.1 | commits data to `main` (TD-03) |
 | **Recorders** | read the chain, score, publish boards and vault files | `games.yml`, `race.yml`, `race-samples.yml` | two-node checks, pending → final, holds | — |
@@ -23,7 +23,7 @@
 ## In progress
 | Work | Where | Next step |
 |---|---|---|
-| Go-live of Week 1 | owner | today: `game-apply 2` and `7`, `PRIZES_FROM_WEEK = 3`, announce v6.1 ([TODOS](.ai/platform/TODOS.md)) |
+| Go-live of Week 1 | owner | ✅ games 2 and 7 applied (5 Nov); left: `PRIZES_FROM_WEEK = 3`, announce v6.1 ([TODOS](.ai/platform/TODOS.md)) |
 | Vault v6.1 | PR #114 | upload Mon 9, pin, handover 4a; accepts Tue 10; rule week Mon 16 |
 | **Questions results recorder** (P1) | Questions chat | build, Repo Lens, merge by Sun 15 (R-Q-4) |
 | VHP ruler v2.1 | `vhp-ruler-v21` | build A′ (D-154), re-run 11 sims (R-RULER-2) |

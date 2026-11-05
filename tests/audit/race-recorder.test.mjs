@@ -387,14 +387,15 @@ test("vault: free-prize places from the free players' rows; ties on every measur
 
   assert.deepEqual(prizePlaces([r(A[0], 0)]), { first: [], second: [], notes: [] }, "nobody qualifies");
   assert.deepEqual(prizePlaces([]), { first: [], second: [], notes: [] });
-  // More than 10 tied (owner, 2026-10-28): the 10 with the earliest first pick take the place; the rest get nothing.
-  const eleven = A.slice(0, 11).map((a) => r(a, 6));
-  const when = new Map(A.map((a, i) => [a, 1000 - i]));               // A[10] picked first, A[0] last
-  const x = prizePlaces([...eleven, r(A[12], 3)], when);
+  // More than fit (owner, 5 Nov, D-152): at most 10 winners a week; the wallets that reached their score first get in.
+  const eleven = A.slice(0, 11).map((a, i) => r(a, 6, { reached: 1000 - i }));   // A[10] reached 6 points first, A[0] last
+  const x = prizePlaces([...eleven, r(A[12], 3)]);
   assert.deepEqual([x.first, x.second], [A.slice(1, 11).reverse(), []], "11 tied for 1st: the 10 earliest share 1st; nobody is 2nd");
-  assert.match(x.notes[0], /11 wallets are tied for 1st/);
-  const y = prizePlaces([r(A[12], 9), ...eleven], when);
-  assert.deepEqual([y.first, y.second], [[A[12]], A.slice(1, 11).reverse()], "11 tied for 2nd: the 10 earliest share 2nd"); assert.match(y.notes[0], /tied for 2nd/);
+  assert.match(x.notes[0], /11 wallets are tied for 1st: the 10 that reached their score first/);
+  const y = prizePlaces([r(A[12], 9), ...eleven]);
+  assert.deepEqual([y.first, y.second], [[A[12]], A.slice(2, 11).reverse()], "11 tied for 2nd: the 9 earliest share 2nd (10 winners at most)"); assert.match(y.notes[0], /tied for 2nd: the 9 that reached/);
+  const tenFor2nd = prizePlaces([r(A[12], 9), ...eleven.slice(0, 10)]);
+  assert.equal(tenFor2nd.first.length + tenFor2nd.second.length, 10, "a single 1st and 10 tied for 2nd: 10 winners in all");
   const same = prizePlaces(A.slice(0, 11).map((a) => r(a, 6)));       // no times: the address decides, so it's repeatable
   assert.deepEqual(same.first, A.slice(0, 10));
   const ten = prizePlaces(A.slice(0, 10).map((a) => r(a, 6)));
@@ -718,14 +719,16 @@ test("earns: the staked bucket's winners by the vault's rule (top 30% by headcou
   const ten = Array.from({ length: 10 }, (_, i) => r("s" + i, 30 - i));
   assert.deepEqual([...stakedWinners(ten)], ["s0", "s1", "s2"], "10 players: 3 win");
   const tie = [r("a", 9), r("b", 9), r("c", 7), r("d", 7), r("e", 7), r("f", 4), r("g", 3), r("h", 2), r("i", 1), r("j", 1)];
-  assert.deepEqual([...stakedWinners(tie)], ["a", "b", "c", "d", "e"], "need 3: the 7-point group at the line is taken whole");
+  assert.deepEqual([...stakedWinners(tie)], ["a", "b", "c"], "need 3 (D-152): exactly 3; the 7-point tie at the line lets in the first by address when no times are known");
+  const timed = tie.map((x) => ({ ...x, reached: { c: 30, d: 10, e: 20 }[x.a] ?? 1 }));
+  assert.deepEqual([...stakedWinners(timed)], ["a", "b", "d"], "D-152: d reached 7 points first, so d gets the last spot");
   assert.deepEqual([...stakedWinners([r("x", 5), r("y", 4, { earning: false }), r("z", 0)])], ["x"], "withdrew below the minimum, or 0 points: not counted");
   assert.deepEqual([...stakedWinners([r("x", 5, { ranked: false })])], [], "free players aren't in the bucket");
   // Both boards together, and nothing earned outside the weekly boards.
   const mixed = [r("s1", 9), r("f1", 7, { ranked: false }), r("s2", 6), r("f2", 6, { ranked: false }), r("f3", 6, { ranked: false }), r("s3", 3)];
-  const out = Object.fromEntries(withEarns(mixed, new Map()).map((x) => [x.a, x.earns]));
+  const out = Object.fromEntries(withEarns(mixed, true).map((x) => [x.a, x.earns]));
   assert.deepEqual(out, { s1: 3, f1: 1, s2: 0, f2: 2, f3: 2, s3: 0 }, "staked: 1 of 3 wins; free: f1 1st, f2 and f3 tie for 2nd");
-  assert.ok(withEarns(mixed, null).every((x) => x.earns === 0), "Today and All time: no medals");
+  assert.ok(withEarns(mixed, false).every((x) => x.earns === 0), "Today and All time: no medals");
 });
 
 test("earns: in the recorder's board, weekly boards only; >10 free tied: the 10 earliest; the publish check holds it", async () => {
@@ -1111,13 +1114,15 @@ async function recomputeRun(players, { mutate = null, mutateBoard = null, prizes
   for (const p of players) for (const [ri, right, show, at] of p.picks) {
     races[ri].result.picks.push([p.a, P[0], at, right, 0, show]);
     if (skipSunday && ri >= 24) continue;   // races 24–27 are the week's Sunday (D-129: they count for no week)
-    const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0; t.set(p.a, c);
+    const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0;
+    if ((right || show) && (c.reached === undefined || at > c.reached)) c.reached = at;   // D-152: when it reached its score
+    t.set(p.a, c);
     if (!firstAt.has(p.a) || at < firstAt.get(p.a)) firstAt.set(p.a, at);
   }
   const rows = R.rank([...t].map(([a, c]) => ({ a, ...c, pts: 3 * c.correct + c.shows, ranked: players.find((p) => p.a === a).staked, earning: true })));
   void rhythmFrom;
-  const placed = R.withEarns(R.withPlaces(rows), firstAt).map(({ earning, ...r }) => r);
-  const places = R.prizePlaces(rows, firstAt), staked = R.stakedRows(rows);
+  const placed = R.withEarns(R.withPlaces(R.cutLine(rows)), true).map(({ earning, reached, tb, ...r }) => r);
+  const places = R.prizePlaces(rows), staked = R.stakedRows(R.cutLine(rows));
   let file = { game: 7, week: 2, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: [] };
   if (mutate) file = mutate(JSON.parse(JSON.stringify(file)));
   const board = { v: 1, updated: "2026-11-09T12:37:00.000Z", today: { day: 0, rows: [] }, week: { week: 3, start: M.weekStart(3), rows: [] },
@@ -1682,4 +1687,51 @@ test("Repo Lens #B-8: B8-B1 a changed final also publishes the race cards; B8-B2
   const d2 = tmp(); fs.cpSync(out, d2, { recursive: true }); fs.writeFileSync(path.join(d2, "vault", "notes.json"), "{}\n");
   const r2 = publish(d2, tmp());
   assert.match(r2.out, /unexpected files in vault\/: vault\/notes\.json/); assert.doesNotMatch(r2.out, /recorder\?s/);
+});
+
+// ── D-152 (owner, 5 Nov): the staked line pays exactly the top 30%; a tie that crosses it lets in who reached the score first ──
+test("D-152: a staked tie across the 30% line: the vault pays exactly the top 30%, the earliest to reach the score get in, places split", async () => {
+  const R = await import(path.resolve(APP, "bot/race.ts"));
+  const { orderBreak } = await import(path.resolve(APP, "bot/vault.ts"));
+  // 10 staked wallets: need 3. A (9 pts) is clear; 4 wallets tie on 6 pts for the last 2 spots.
+  const r = (a, pts, reached, extra = {}) => ({ a, pts, correct: Math.floor(pts / 3), shows: pts % 3, picks: 5, ranked: true, earning: true, reached, ...extra });
+  const rows = R.rank([r(addrI(1), 9, 50), r(addrI(2), 6, 400), r(addrI(3), 6, 100), r(addrI(4), 6, 300), r(addrI(5), 6, 200),
+    r(addrI(6), 3, 10), r(addrI(7), 3, 20), r(addrI(8), 1, 30), r(addrI(9), 1, 40), r(addrI(10), 1, 60)]);
+  const paid = R.stakedWinners(rows);
+  assert.deepEqual([...paid], [addrI(1), addrI(3), addrI(5)], "exactly 3: A, then the two that reached 6 points first (times 100 and 200)");
+  const board = R.withEarns(R.withPlaces(R.cutLine(rows)), true);
+  const place = Object.fromEntries(board.map((x) => [x.a, x.boardPlace]));
+  assert.deepEqual([place[addrI(3)], place[addrI(5)], place[addrI(4)], place[addrI(2)]], [2, 2, 4, 4], "the two that got in share 2nd; the other two take 4th");
+  assert.deepEqual(board.filter((x) => x.earns === 3).map((x) => x.a), [...paid]);
+  const file = R.stakedRows(R.cutLine(rows)).rows;
+  assert.deepEqual([...vaultPaid(file)].sort(), [...paid].sort(), "the vault's own walk pays exactly them");
+  assert.equal(orderBreak(file, new Map(board.map((x) => [x.a, x.boardPlace]))), "", "the vault bot's place check passes");
+  // A tie above the line stays whole and shares its level: 2 tied at the top, need 3 → both in, plus the next.
+  const top = R.rank([r(addrI(1), 9, 5), r(addrI(2), 9, 1), r(addrI(3), 6, 9), r(addrI(4), 6, 2), ...[5, 6, 7, 8, 9, 10].map((i) => r(addrI(i), 1, i))]);
+  const tv = R.stakedRows(R.cutLine(top)).rows;
+  assert.equal(tv[0].points, tv[1].points, "tied above the line: same value, so they share their places' weights");
+  assert.deepEqual([...vaultPaid(tv)].sort(), [addrI(1), addrI(2), addrI(4)].sort());
+  // Non-earning wallets (below the minimum stake) don't count toward the 30% or take a spot.
+  const ne = R.rank([r(addrI(1), 9, 1), r(addrI(2), 6, 1, { earning: false }), r(addrI(3), 6, 2), r(addrI(4), 6, 3), ...[5, 6, 7, 8, 9, 10].map((i) => r(addrI(i), 1, i))]);
+  assert.deepEqual([...R.stakedWinners(ne)], [addrI(1), addrI(3), addrI(4)].slice(0, 3), "9 earning → need 3: A, then the earliest two earning wallets at 6");
+});
+
+test("D-152, publish job: the recompute follows the new line and the 10-winner free prize, and refuses a paid list over 30%", async () => {
+  // Staked: S1 clear; S2..S5 tie, S3 and S5 reach the score first. Free: 11 tie for 2nd behind F0.
+  const pl = [{ a: addrI(1), staked: true, picks: [[0, 1, 0, 10], [1, 1, 0, 11], [2, 1, 0, 12]] }];
+  for (const [i, at] of [[2, 400], [3, 100], [4, 300], [5, 200]]) pl.push({ a: addrI(i), staked: true, picks: [[0, 1, 0, at], [1, 1, 0, at + 1]] });
+  for (let i = 6; i <= 10; i++) pl.push({ a: addrI(i), staked: true, picks: [[0, 0, 1, i]] });
+  pl.push({ a: addrI(20), staked: false, picks: [[0, 1, 0, 5], [1, 1, 0, 6]] });
+  for (let i = 21; i <= 31; i++) pl.push({ a: addrI(i), staked: false, picks: [[2, 1, 0, 1000 - i]] });
+  const ok = await recomputeRun(pl);
+  assert.ok(ok.final, ok.out);
+  assert.deepEqual([ok.file.first, ok.file.second.length], [[addrI(20)], 9], "one 1st, 9 tied 2nds: 10 winners");
+  assert.deepEqual(ok.file.second, Array.from({ length: 9 }, (_, k) => addrI(31 - k)), "the 9 that reached the score first");
+  assert.deepEqual(ok.file.rows.slice(0, 5).map((x) => [x.player, x.points]), [[addrI(1), 255], [addrI(3), 254], [addrI(5), 254], [addrI(4), 253], [addrI(2), 253]]);
+  // The old line (the whole tie paid) is refused.
+  const whole = await recomputeRun(pl, { mutate: (f) => ({ ...f, rows: f.rows.map((x) => ([addrI(2), addrI(4)].includes(x.player) ? { ...x, points: 254 } : x.points < 254 ? { ...x, points: x.points + 1 } : x)) }) });
+  assert.equal(whole.final, false); assert.match(whole.out, /staked rows aren't/);
+  // A board that marks too many as paid (earns 3) is refused (Repo Lens #B-8 B8-A1, the cheap guard).
+  const over = await recomputeRun(pl, { mutateBoard: (bd) => { for (const x of bd.lastWeek.rows) if (x.ranked) x.earns = 3; } });
+  assert.equal(over.final, false); assert.match(over.out, /isn't within the top 30%/);
 });

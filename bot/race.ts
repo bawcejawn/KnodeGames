@@ -645,23 +645,29 @@ export async function verifyWeek(wf: WeekFile, c: ChainCtx | null, budgetMs?: nu
 /** ranked: on the Staked board, i.e. staked in the Race in the vault that week (owner, 2026-10-28; before then it meant
  *  "holds 1 VHP or a question-game stake"). boardPlace: the place on its own board (Staked or Free play), tied wallets
  *  sharing it (1, 1, 3, …), which the site shows (board.js). */
-type Row = { a: string; pts: number; correct: number; shows: number; picks: number; ranked: boolean; boardPlace?: number; earns?: number; earning?: boolean };
-/** Sort: points, then more wins, then more picks placed; the address only orders wallets that share a place. Exported. */
+/** reached: when the wallet reached its score (its last scoring pick's time). tb: 1 for wallets of a tied group that
+ *  come after its last paid wallet (cutLine), so they take the next place. Neither is published. */
+type Row = { a: string; pts: number; correct: number; shows: number; picks: number; ranked: boolean; boardPlace?: number; earns?: number; earning?: boolean; reached?: number; tb?: number };
+/** Sort: points, then more wins, then more picks placed; within a tie, the wallet that reached its score first (owner,
+ *  5 Nov, D-152), then the address. Exported. */
 export function rank(rows: Row[]): Row[] {
-  return [...rows].sort((x, y) => y.pts - x.pts || y.correct - x.correct || y.picks - x.picks || (x.a < y.a ? -1 : 1));
+  const at = (r: Row) => r.reached ?? Infinity;
+  return [...rows].sort((x, y) => y.pts - x.pts || y.correct - x.correct || y.picks - x.picks || (at(x) < at(y) ? -1 : at(x) > at(y) ? 1 : 0) || (x.a < y.a ? -1 : 1));
 }
 /** The picks of final races in [from, to): per wallet, wins, shows and picks placed. */
 /** D-129 (owner, 4 Nov): Sunday races on the rhythm are played and scored for fun: they count on the Today and All
  *  time boards (a wallet's career), never on a week's board, its medals, prizes or vault file. */
 const forWeek = (r: Race) => !M.restRace(r.start, rhythmFromWeek);
 function tally(weeks: Map<number, WeekFile>, from: number, to: number, weekly = false) {
-  const t = new Map<string, { correct: number; shows: number; picks: number }>();
+  const t = new Map<string, { correct: number; shows: number; picks: number; reached?: number }>();
   for (const wf of weeks.values()) for (const r of wf.races) {
     if (r.start < from || r.start >= to || !r.result?.final || !Array.isArray(r.result.picks)) continue;
     if (weekly && !forWeek(r)) continue;
-    for (const [who, , , right, , show] of r.result.picks) {
+    for (const [who, , at, right, , show] of r.result.picks) {
       const x = t.get(who) || { correct: 0, shows: 0, picks: 0 };
       x.picks++; x.correct += right ? 1 : 0; x.shows += !right && show ? 1 : 0;
+      // D-152: when the wallet reached its score = its latest scoring pick (a win or a show).
+      if ((right || show) && (x.reached === undefined || Number(at) > x.reached)) x.reached = Number(at);
       t.set(who, x);
     }
   }
@@ -703,12 +709,14 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
     const rows: Row[] = [];
     for (const [a, x] of tally(all, from, to, weekly)) {
       const st = await staked(a, stakeWeek);
-      rows.push({ a, pts: x.correct * M.POINTS.win + x.shows * M.POINTS.show, correct: x.correct, shows: x.shows, picks: x.picks, ranked: st.staked, earning: st.earning });
+      rows.push({ a, pts: x.correct * M.POINTS.win + x.shows * M.POINTS.show, correct: x.correct, shows: x.shows, picks: x.picks, ranked: st.staked, earning: st.earning, reached: x.reached });
     }
-    // Prizes and bucket shares only for weeks the Race earns in the vault (PRIZES_FROM_WEEK).
-    return withEarns(withPlaces(rank(rows)), weekly && stakeWeek >= prizesFromWeek ? firstPicks(all, from, to) : null);
+    // Prizes and bucket shares only for weeks the Race earns in the vault (PRIZES_FROM_WEEK). D-152: on those boards the
+    // staked tie at the 30% line is cut (cutLine), so the wallets that get in hold their own place.
+    const paying = weekly && stakeWeek >= prizesFromWeek;
+    return withEarns(withPlaces(paying ? cutLine(rank(rows)) : rank(rows)), paying);
   };
-  const pub = (rows: Row[]) => rows.map(({ earning, ...r }) => r);   // board.json rows: the published fields only
+  const pub = (rows: Row[]) => rows.map(({ earning, reached, tb, ...r }) => r);   // board.json rows: the published fields only
   const lastRows = wNow > 0 ? await build(M.weekStart(wNow - 1), M.weekStart(wNow), wNow - 1, true) : [];
   const weekRows = await build(M.weekStart(wNow), M.weekStart(wNow + 1), wNow, true);
   const board = {
@@ -736,32 +744,38 @@ export const MAX_ROW_POINTS = 255;
 type VaultRow = { player: string; points: number };
 type VaultFile = { game: number; week: number; final: boolean; rows: VaultRow[]; first: string[]; second: string[]; skipped: string[] };
 
-/** Two rows tie when every ranking measure is equal (rank() sorts by exactly these, so ties sit next to each other). */
-const tied = (x: Row, y: Row) => x.pts === y.pts && x.correct === y.correct && x.picks === y.picks;
-/** Each wallet's {earliest pick time} among the final races in [from, to). */
-function firstPicks(all: Map<number, WeekFile>, from: number, to: number): Map<string, number> {
-  const m = new Map<string, number>();
-  for (const wf of all.values()) for (const r of wf.races) {
-    if (r.start < from || r.start >= to || !r.result?.final || !Array.isArray(r.result.picks) || !forWeek(r)) continue;
-    for (const x of r.result.picks) { const t = Number(x[2]); if (!m.has(x[0]) || t < m.get(x[0])!) m.set(x[0], t); }
-  }
-  return m;
-}
-/** The staked players who share the bucket, by the vault's rule (finalizeGameStep): the top 30% by headcount of the
- *  earning staked players with at least 1 point, rounded up, a tied group at the line taken whole. Exported. */
+/** Two rows tie when every ranking measure is equal (rank() sorts by exactly these, so ties sit next to each other),
+ *  and no 30% line runs between them (tb, D-152). */
+const tied = (x: Row, y: Row) => x.pts === y.pts && x.correct === y.correct && x.picks === y.picks && (x.tb ?? 0) === (y.tb ?? 0);
+/** The staked players who share the bucket (owner, 5 Nov, D-152): exactly the top 30% by headcount of the earning
+ *  staked players with at least 1 point, rounded up, in rank() order. Tied wallets above the line all get in and share
+ *  their level; a tie that crosses the line lets in the wallets that reached that score first. Exported. */
 export function stakedWinners(rows: Row[]): Set<string> {
-  const groups = groupsOf(rows.filter((r) => r.ranked && r.earning !== false && r.pts >= 1));
-  const n = groups.reduce((t, g) => t + g.length, 0), need = Math.ceil((n * 30) / 100), out = new Set<string>();
-  let cum = 0;
-  for (const g of groups) { if (cum >= need) break; for (const r of g) out.add(r.a); cum += g.length; }
+  const elig = rank(rows.filter((r) => r.ranked && r.earning !== false && r.pts >= 1));
+  return new Set(elig.slice(0, Math.ceil((elig.length * 30) / 100)).map((r) => r.a));
+}
+/** D-152: in each staked tied group that holds a paid wallet, the wallets after its last paid one take the next place
+ *  (tb = 1), so the vault (which pays whole values) pays exactly stakedWinners and the board's places match the file.
+ *  Rows stay in rank() order. Exported. */
+export function cutLine(rows: Row[]): Row[] {
+  const paid = stakedWinners(rows), out = rows.map((r) => ({ ...r, tb: 0 }));
+  const same = (x: Row, y: Row) => x.pts === y.pts && x.correct === y.correct && x.picks === y.picks;
+  const staked = out.filter((r) => r.ranked && r.pts >= 1);
+  for (let i = 0; i < staked.length; ) {
+    let j = i; while (j < staked.length && same(staked[i], staked[j])) j++;
+    const g = staked.slice(i, j);
+    let last = -1; g.forEach((r, k) => { if (paid.has(r.a)) last = k; });
+    if (last >= 0) for (const r of g.slice(last + 1)) r.tb = 1;
+    i = j;
+  }
   return out;
 }
 /** earns, on the weekly boards (owner, 2026-10-29: only wallets that earn get a medal): 1 or 2 = the free prize's 1st
  *  or 2nd (prizePlaces: ties, and the 10 earliest when more are tied), 3 = a share of the staked bucket, 0 = nothing.
  *  Other boards: 0. Exported. */
-export function withEarns(rows: Row[], firstPick: Map<string, number> | null): Row[] {
-  if (!firstPick) return rows.map((r) => ({ ...r, earns: 0 }));
-  const free = prizePlaces(rows, firstPick), share = stakedWinners(rows);
+export function withEarns(rows: Row[], paying: boolean): Row[] {
+  if (!paying) return rows.map((r) => ({ ...r, earns: 0 }));
+  const free = prizePlaces(rows), share = stakedWinners(rows);
   const place = new Map<string, number>([...free.first.map((a): [string, number] => [a, 1]), ...free.second.map((a): [string, number] => [a, 2])]);
   return rows.map((r) => ({ ...r, earns: r.ranked ? (share.has(r.a) ? 3 : 0) : place.get(r.a) || 0 }));
 }
@@ -783,21 +797,20 @@ function groupsOf(rows: Row[]): Row[][] {
 
 /** The free prize's places from a week's rows in rank() order. Every free player (not staked in the Race that week)
  *  with at least 1 point qualifies (owner, 2026-10-28). Wallets tied on every measure (points, wins, picks) share a
- *  place: a tie for 1st takes both prizes, so 2nd stays empty. The vault takes at most 10 wallets a place: when more are
- *  tied, the 10 that made their first pick of the week earliest (the time the chain recorded it; then the address)
- *  take the place and the rest get nothing (owner, 2026-10-28). `firstPick`: each wallet's earliest pick time that
- *  week. Exported. */
-export function prizePlaces(rows: Row[], firstPick: Map<string, number> = new Map()): { first: string[]; second: string[]; notes: string[] } {
-  const groups = groupsOf(rows.filter((r) => !r.ranked && r.pts >= 1));
+ *  place: a tie for 1st takes both prizes, so 2nd stays empty. At most 10 winners in a week (owner, 5 Nov, D-152): a tie
+ *  for 1st lets in up to 10; a single 1st leaves up to 9 for 2nd. When more are tied, the wallets that reached their
+ *  score first get in (rank() order), the rest get nothing. Exported. */
+export function prizePlaces(rows: Row[]): { first: string[]; second: string[]; notes: string[] } {
+  const groups = groupsOf(rows.filter((r) => !r.ranked && r.pts >= 1).map((r) => ({ ...r, tb: 0 })));
   const notes: string[] = [];
-  const at = (a: string) => firstPick.get(a) ?? Infinity;
-  const early = (g: Row[]) => [...g].sort((x, y) => at(x.a) - at(y.a) || (x.a < y.a ? -1 : 1)).map((r) => r.a).slice(0, MAX_PRIZE_WINNERS);
+  const early = (g: Row[], n: number) => rank(g).map((r) => r.a).slice(0, n);
   const [g1, g2] = groups;
   if (!g1) return { first: [], second: [], notes };
-  if (g1.length > MAX_PRIZE_WINNERS) notes.push(`${g1.length} wallets are tied for 1st: the ${MAX_PRIZE_WINNERS} with the earliest first pick share it, ${g1.length - MAX_PRIZE_WINNERS} get nothing`);
-  if (g1.length > 1 || !g2) return { first: early(g1), second: [], notes };
-  if (g2.length > MAX_PRIZE_WINNERS) notes.push(`${g2.length} wallets are tied for 2nd: the ${MAX_PRIZE_WINNERS} with the earliest first pick share it, ${g2.length - MAX_PRIZE_WINNERS} get nothing`);
-  return { first: [g1[0].a], second: early(g2), notes };
+  if (g1.length > MAX_PRIZE_WINNERS) notes.push(`${g1.length} wallets are tied for 1st: the ${MAX_PRIZE_WINNERS} that reached their score first share it, ${g1.length - MAX_PRIZE_WINNERS} get nothing`);
+  if (g1.length > 1 || !g2) return { first: early(g1, MAX_PRIZE_WINNERS), second: [], notes };
+  const room = MAX_PRIZE_WINNERS - 1;
+  if (g2.length > room) notes.push(`${g2.length} wallets are tied for 2nd: the ${room} that reached their score first share it (10 winners at most), ${g2.length - room} get nothing`);
+  return { first: [g1[0].a], second: early(g2, room), notes };
 }
 
 /** The staked players' rows for the vault: every wallet staked in the Race that week with at least 1 point, in the
@@ -866,13 +879,9 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
     }
   }
   if (open.length) problems.push(`vault week ${w}: ${open.length} race(s) never became final and are skipped: ${open.map((r) => r.id).join(", ")}`);
-  const firstPick = new Map<string, number>();
-  for (const r of wf.races) if (r.result?.final && Array.isArray(r.result.picks) && forWeek(r)) for (const x of r.result.picks) {
-    const t = Number(x[2]); if (!firstPick.has(x[0]) || t < firstPick.get(x[0])!) firstPick.set(x[0], t);
-  }
   // Before the Race earns in the vault: a final file with nothing to pay (the vault skips those weeks anyway).
   if (w < prizesFromWeek) return await settle({ ...file, final: true, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
-  const places = prizePlaces(rows, firstPick), staked = stakedRows(rows);
+  const places = prizePlaces(rows), staked = stakedRows(cutLine(rank(rows)));
   for (const n of [...places.notes, ...staked.notes]) problems.push(`vault week ${w}: ${n}`);
   return await settle({ ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
 }

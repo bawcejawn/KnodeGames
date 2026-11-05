@@ -322,7 +322,7 @@ jobs:
                   return "" if not (j["rows"] or j["first"] or j["second"]) else "a week before the Race pays must list nobody"
               wf = week_json(w)
               if type(wf) is not dict or wf.get("week") != w or type(wf.get("races")) is not list: return "its week's race file can't be read to check it"
-              t, first_at = {}, {}
+              t, reached = {}, {}
               import datetime as _dt
               for r in wf["races"]:
                   # D-129: a Sunday race in a rhythm week counts on no week's board or prize.
@@ -333,7 +333,8 @@ jobs:
                       who, right, show = x[0], x[3] == 1, len(x) > 5 and x[5] == 1
                       c = t.setdefault(who, [0, 0, 0])
                       c[2] += 1; c[0] += 1 if right else 0; c[1] += 1 if (not right and show) else 0
-                      if who not in first_at or x[2] < first_at[who]: first_at[who] = x[2]
+                      # D-152: when the wallet reached its score = its latest scoring pick (a win or a show).
+                      if (right or show) and (who not in reached or x[2] > reached[who]): reached[who] = x[2]
               bp = os.path.join(d, "board.json")
               try: b = json.load(open(bp, encoding="utf-8")) if os.path.isfile(bp) else None
               except Exception: b = None
@@ -349,7 +350,7 @@ jobs:
                   if c is None or [x.get("correct"), x.get("shows"), x.get("picks")] != c: return "the board's last week doesn't match the week's picks (" + str(x.get("a")) + ")"
               if set(staked) != set(t): return "the board's last week leaves out a wallet that picked"
               rows = sorted(({"a": a, "correct": c[0], "shows": c[1], "picks": c[2], "pts": 3 * c[0] + c[1], "ranked": staked[a]} for a, c in t.items()),
-                            key=lambda r: (-r["pts"], -r["correct"], -r["picks"], r["a"]))
+                            key=lambda r: (-r["pts"], -r["correct"], -r["picks"], reached.get(r["a"], float("inf")), r["a"]))
               def groups(rs):
                   out = []
                   for r in rs:
@@ -359,17 +360,27 @@ jobs:
               # Values 255 … 1 per tied group. Past 255 groups (I-086) the paid set (the board's earns == 3, the vault's
               # top 30%) is kept apart: if the paid groups reach the 255th group, groups 254 … the last paid share 2 and
               # every unpaid wallet gets 1 (bot/race.ts rowValues).
-              sg = groups([r for r in rows if r["ranked"] and r["pts"] >= 1])
+              srows = [r for r in rows if r["ranked"] and r["pts"] >= 1]
               paid = {x.get("a") for x in lw["rows"] if type(x) is dict and x.get("earns") == 3}
+              # Repo Lens #B-8 B8-A1, the cheap guard: the board's paid list can't be more than the top 30% of the staked
+              # wallets with a point, and only those can be in it (the vault bot's own check is R-VAULT, D-152).
+              if not paid <= {r["a"] for r in srows} or len(paid) > (len(srows) * 30 + 99) // 100: return "its paid list (earns 3) isn't within the top 30% of the staked wallets with a point"
+              # D-152: in each tied group with a paid wallet, the wallets after its last paid one take the next place
+              # (bot/race.ts cutLine), so the vault pays exactly the top 30%.
+              sg = []
+              for g in groups(srows):
+                  k = max([i for i, r in enumerate(g) if r["a"] in paid], default=-1)
+                  sg += [g[:k + 1], g[k + 1:]] if 0 <= k < len(g) - 1 else [g]
               last = max([i for i, g in enumerate(sg) if any(r["a"] in paid for r in g)], default=-1)
               exact = len(sg) <= 255 or last <= 253
               val = lambda i: max(1, 255 - i) if exact else (255 - i if i <= 252 else 2 if i <= last else 1)
               want_rows = [{"player": r["a"], "points": val(i)} for i, g in enumerate(sg) for r in g]
               fg = groups([r for r in rows if not r["ranked"] and r["pts"] >= 1])
-              early = lambda g: [r["a"] for r in sorted(g, key=lambda r: (first_at.get(r["a"], float("inf")), r["a"]))][:10]
+              # D-152: at most 10 winners a week; within a tie, the wallets that reached their score first (rows' order).
+              early = lambda g, n: [r["a"] for r in g][:n]
               if not fg: want_first, want_second = [], []
-              elif len(fg[0]) > 1 or len(fg) == 1: want_first, want_second = early(fg[0]), []
-              else: want_first, want_second = [fg[0][0]["a"]], early(fg[1])
+              elif len(fg[0]) > 1 or len(fg) == 1: want_first, want_second = early(fg[0], 10), []
+              else: want_first, want_second = [fg[0][0]["a"]], early(fg[1], 9)
               if not same(j["rows"], want_rows): return "its staked rows aren't what the week's picks and the board give"
               if not same(j["first"], want_first) or not same(j["second"], want_second): return "its free-prize winners aren't what the week's picks and the board give"
               return ""

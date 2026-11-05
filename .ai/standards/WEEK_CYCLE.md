@@ -32,9 +32,10 @@
 
 ## 3. Rewards (every game)
 - **Fee:** a flat **5%** of the week's vault rewards.
-- **Free play prizes:** **2 VHP for 1st, 1 VHP for 2nd** each week (D-062), only on games whose free-prize switch is ON (D-081, D-082; a change counts from the next week). Ties: a tie for 1st shares all 3 VHP and 2nd stays empty (D-034).
+- **Free play prizes:** **2 VHP for 1st, 1 VHP for 2nd** each week (D-062), only on games whose free-prize switch is ON (D-081, D-082; a change counts from the next week). Ties: a tie for 1st shares all 3 VHP and 2nd stays empty (D-034). **At most 10 winners a week** (D-152): a tie for 1st lets in up to 10; a single 1st leaves up to 9 for 2nd; when more are tied, the wallets that reached their score first get in.
 - **Season games:** 4 + 2 VHP for the season, when their free prize is on.
 - **Staked play:** the rest of the week's rewards is split across the staked games **by each game's share of the stake**, then inside a game by its results file (`VAULT_STANDARD.md` §6).
+- **Who gets paid in a staked game (D-152, every game):** exactly the **top 30%** of the game's earning stakers with at least 1 point (by headcount, rounded up). Tied wallets above the line share their level, which leaves less for the levels below. A tie that crosses the line lets in the wallets that **reached that score first** (the time of their last scoring pick or answer that week, then the address); the rest of the tie gets nothing that week. (Daily Questions keeps "the whole tie at the line" until a vault upgrade, R-VAULT-17.)
 - **Boards:** every game has a Staked board and a Free play board (`LEADERBOARD_STANDARD.md`). The results file always fills `first` / `second`; the switch decides whether they're paid.
 
 ## 4. Compliance table (one row per game)

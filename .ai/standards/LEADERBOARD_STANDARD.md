@@ -33,7 +33,7 @@
 ## 4. Medals and prize marks
 - **Only wallets that earn get a medal**, and only on the weekly boards (D-034).
   - Free play: the paid 1st and 2nd.
-  - Staked: the wallets that earn a share of the game's bucket (for the Race, the vault's top 30% by headcount, rounded up, tied groups whole).
+  - Staked: the wallets that earn a share of the game's bucket (D-152: exactly the top 30% by headcount, rounded up; a tie across the line lets in who reached the score first, and the rest of that tie takes the next place).
 - The `earns` field marks it: 1 or 2 = a free-prize place, 3 = a share of the staked bucket, 0 = nothing; nonzero only on This week and Last week.
 
 ## 5. Data

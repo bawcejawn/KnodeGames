@@ -49,6 +49,7 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 ## Known issues
 - **I-035:** owner chose option A (3 Nov): accept the risk for now, flag new-wallet free winners in the run notes, use the review day and the hold; revisit (option B: hold ≥ 1 VHP at a random moment) if farming shows up.
 - **I-037 B1-4 (fixed in PR #182):** a bad vault folder (an unexpected or nested file, over 2 MB, not in the recorder's own JSON form) is now held on its own with an alert; the race cards still publish. (B1-5 shipped with PR #57.)
+- **Who gets paid (D-152, PR #182):** exactly the top 30% of earning stakers; a tie across the line lets in who reached the score first (latest scoring pick), the rest take the next place. Free prize: at most 10 winners, same tie-break.
 - **I-086 (fixed in PR #182):** past 255 different staked scores, the vault values keep the paid set (top 30%) apart: unpaid wallets get 1, paid groups never share it (`rowValues`; the publish job's recompute mirrors it using the board's `earns`).
 - **I-028:** "Staked board" is based on `peak_stake` — a mid-week withdrawal below the minimum forfeits the week; the panel should explain this.
 - **I-030:** with `RPC_CHECK` off, stakes are classified on one node without a warning. **I-029:** board reads grow with players.

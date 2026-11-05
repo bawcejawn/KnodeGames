@@ -646,7 +646,7 @@
 
 ## D-129 — Sunday stays playable: fun rounds that count for no week
 - **Date:** 2026-11-04 (owner, to the Race chat: "Games should still be playable on sunday just no real score tracking counts towards the week. the points can count toward a wallet's career profile but basially be a null for the week before or next week to play. but i dont want a dead platform for a whole day.") · **Decision:** amends D-125. Sunday UTC is still the review day, but it is **not a dead day**: games keep running Sunday rounds as **fun rounds**. A Sunday round is played and scored like any other, and its points count on the **Today** and **All time** (career) boards only. It counts for **no week**: never on a week's board, its medals, its free prizes, its staked shares or its vault results file, and it isn't part of the review day's chain re-check (nothing it scores is paid).
-- **What changes from D-125:** pages offer Sunday picks again, labelled as fun rounds ("All time only"); recorders score Sunday rounds and keep them out of every weekly tally; the publish job's recompute leaves Sunday rounds out of the week; a Sunday round is no longer recorded as "not run". Everything else in D-125 stands (the review day, final from Monday 00:00 UTC, the payout timing).
+- **What changes from D-125:** pages offer Sunday picks again, labelled as fun rounds ("Today and All time, not the week"); recorders score Sunday rounds and keep them out of every weekly tally; the publish job's recompute leaves Sunday rounds out of the week; a Sunday round is no longer recorded as "not run". Everything else in D-125 stands (the review day, final from Monday 00:00 UTC, the payout timing).
 - **Block X (R-ALL-8):** keeps Sunday targets, scored for All time only.
 - **Daily Questions (game 1):** unchanged (its own timing).
 - **Standards:** `GAME_STANDARD.md` §4, `RECORDER_STANDARD.md` §3.1, `VAULT_STANDARD.md` §7, `RULES.md` §4.12.
@@ -673,7 +673,7 @@
   - **Backstop:** a week held on the review day has until **Thursday 00:00 UTC** (the vault's results deadline); after that it rolls over.
   - **Stakes:** a stake made on the review day counts from the **next** week (the vault puts it in `pending_week = w + 1`).
   - **Play restarts** Monday 00:00 UTC (Sun 4 PM PT), the start of the next vault week. The vault's own week (Monday 00:00 → Monday 00:00 UTC, D-063) does not change.
-- **Replaces:** the Race's 12-hour hold after the week (I-034, 3 Nov): the Race now reviews during Sunday and can go final from Mon 00:00. **Daily Questions (game 1) is the exception (C7-5):** answers Mon–Sat, but Saturday's question windows run on Sunday's blocks, and it pays on the main game's own timing (claims from about Tue 13:00–15:00 UTC, Tue 5–7 AM PST; F-3).
+- **Replaces:** the Race's 12-hour hold after the week (I-034, 3 Nov): the Race now reviews during Sunday and can go final from Mon 00:00. **Daily Questions (game 1) is the exception (C7-5):** answers Mon–Sat, but Saturday's question windows run on Sunday's blocks, and it pays on the main game's own timing (claims from about Tue 12:00–15:00 UTC, Tue 4–7 AM PST, later if Saturday's questions resolve on Monday; F-3).
 - **Needs:** each game's chat moves its game onto the rhythm (R-ALL-8). Race first (R-RACE-14). Paused games (D-113) adopt it before they launch. Block X stops scoring Sunday targets. Bracket's Saturday seeding / Sunday picks schedule needs a new shape.
 - **Standards:** `GAME_STANDARD.md` §4, `RECORDER_STANDARD.md` §3, `VAULT_STANDARD.md` §7, `RULES.md` §4 and "Never change casually".
 

@@ -298,7 +298,7 @@
     $("picks-left").textContent = usage ? `${Math.max(0, max - used)} of ${max} picks left today` : "";
     const rows = [];
     // D-129: Sunday UTC races are fun races: pick as usual; they count on Today and All time, not the week's board.
-    const funNote = (r) => (M.restRace(r.start) ? " · Sunday fun race: All time only" : "");
+    const funNote = (r) => (M.restRace(r.start) ? " · Sunday fun race: Today and All time, not the week" : "");
     // The live race: locked.
     const live = raceObj(cur), mineLive = myPicks.get(cur);
     rows.push(el("div", { class: "pk-row live" },
@@ -321,7 +321,7 @@
       const btn = el("button", { class: "btn", type: "button", onclick: () => sendPick(cur + k, sel.value) }, mine ? "Change" : "Pick");
       if (sending || used >= max) btn.disabled = true;
       rows.push(el("div", { class: "pk-row" },
-        el("div", { class: "pk-when" }, el("b", { text: `${dayTime(r.start)}${M.restRace(r.start) ? " · Sunday fun race (All time only)" : ""}` }), el("span", { "data-lock": String(r.start), text: `${r.id.slice(11)}:00 UTC · locks in ${dur(r.start - Date.now())}` })),
+        el("div", { class: "pk-when" }, el("b", { text: `${dayTime(r.start)}${M.restRace(r.start) ? " · Sunday fun race (Today and All time, not the week)" : ""}` }), el("span", { "data-lock": String(r.start), text: `${r.id.slice(11)}:00 UTC · locks in ${dur(r.start - Date.now())}` })),
         el("div", {}, sel, mine ? el("div", { class: "pk-now ago", text: `Your pick: ${nameOf(mine)}` }) : null), btn));
     }
     // Finished races today with a pick: right or not.

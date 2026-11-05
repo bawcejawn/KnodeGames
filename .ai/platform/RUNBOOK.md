@@ -58,7 +58,7 @@ The vault bot holds a week instead of paying it whenever something is in doubt. 
 | "file changed after it was first read" (after PR #74) | a final file changed: something is wrong upstream | don't post. Tell that game's chat and the Vault chat. Post by hand (`game-post`) only after both confirm |
 | "refused: …" | the vault contract said no; the reason is in the alert | paste the alert to the Vault chat. Don't retry by hand |
 
-**Race: no changes during a paid week's close (Repo Lens #C-7 C7-9).** From **Sunday 00:00 UTC** (the review day, when the week's pending file is first checked) until that week's final Race file, don't merge a `race-math.js` scoring change, upgrade the Race picks contract, or move `race-data/deployment.json`: the chain re-check would score the week differently and hold it.
+**Race: no changes during a paid week's close (Repo Lens #C-7 C7-9).** From the paid week's **Monday 00:00 UTC** until that week's final Race file (about the next Monday 00:40 UTC), don't merge a `race-math.js` scoring change, upgrade the Race picks contract, or move `race-data/deployment.json` (Repo Lens #B-7 B7-1). The Sunday and Monday re-check scores every Monday–Saturday race of the week again with the **current** `race-math.js` and picks contract, so a change merged mid-week makes the earlier races mismatch and holds an honest week, with an alert that wrongly says a recorder run wrote a wrong result. **The safe slot is about Monday 01:40–06:30 UTC** (Sun 5:40–10:30 PM PST): after week w's final file, before week w+1's first race result is stored. A change to points only (`POINTS`) or to how cards are made is safe at any time.
 
 **Wrong results after a seal** (you have **24 hours** after each seal to correct):
 ```powershell

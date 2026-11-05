@@ -84,7 +84,8 @@ export const RELEASE_HOUR = 12, LOCK_HOUR = 24, QUESTION_DAYS = 6;
  *  of Mon 9 Nov (week 3) two rounds a day, 2 questions at 00:00 and 3 at 12:00 UTC: 30 a week, the most the live
  *  contract takes. From the first week whose on-chain cap (`get_state.questions_cap`, Vault v6.1) is at least 48:
  *  4 + 4, 48 a week. An entry with `minCap` is used only for a week the chain allows that many questions in, so a
- *  late upgrade simply keeps 2 + 3. Sunday stays results day: the week still closes Monday 12:00, pays Tuesday 12:00. */
+ *  late upgrade simply keeps 2 + 3. Sunday stays results day: the week still closes Monday 12:00; claims open from about Tuesday 12:00–15:00 UTC
+ *  (later if Saturday's questions resolve on Monday; D-125, Repo Lens #B-7 B7-2). */
 export const ROUND_MS = 12 * HOUR_MS;
 export const SCHEDULE: readonly { fromWeek: number; minCap?: number; rounds: readonly { open: number; count: number }[] }[] = [
   { fromWeek: 0, rounds: [{ open: RELEASE_HOUR, count: 5 }] },

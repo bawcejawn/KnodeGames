@@ -1574,3 +1574,13 @@ test("D-129, publish job: the recompute leaves Sunday races out of the week (a f
   const offRhythm = await recomputeRun(pl, {});                          // week 2 off the rhythm: Sunday counts as before
   assert.ok(offRhythm.final, offRhythm.out);
 });
+
+test("Repo Lens #B-7: the no-changes window starts the paid week's Monday; results.js leaves Sunday fun races out of the week total", () => {
+  const rb = fs.readFileSync(path.resolve(APP, ".ai/platform/RUNBOOK.md"), "utf8");
+  assert.match(rb, /From the paid week's \*\*Monday 00:00 UTC\*\* until that week's final Race file/);
+  assert.match(rb, /safe slot is about Monday 01:40–06:30 UTC/);
+  const rj = fs.readFileSync(path.resolve(APP, "results.js"), "utf8");
+  assert.match(rj, /const mineAll = all\.filter\(\(x\) => x\.my && !M\.restRace\(x\.r\.start\)\);/);
+  for (const f of [".ai/platform/RULES.md", ".ai/standards/GAME_STANDARD.md", ".ai/standards/VAULT_STANDARD.md", ".ai/platform/DECISIONS.md"])
+    assert.match(fs.readFileSync(path.resolve(APP, f), "utf8"), /Tue 12:00–15:00 UTC, Tue 4–7 AM PST/, f);
+});

@@ -9,7 +9,7 @@
 
 ## 1. Shared rules for every chat
 1. **The `.ai/` library is the source of truth.** Read `.ai/START_HERE.md` first and follow its reading order. Where sources disagree, the order is: the owner's own words → `DECISIONS.md` → what's verified in the code or on chain (✅) → the other `.ai/` files → the repo's `docs/` → chat notes and handoffs (D-002).
-2. **One owner per area.** Each area belongs to one chat (`platform/PLATFORM.md` → "Chats and ownership"; D-035). Active chats: Vault · Daily Questions · VHP Ruler · Block X (with Picks and the sponsor) · Race · Hub · Library. Paused (D-113, core first): Survivor, Fantasy, Last Node, Combo, Golf, Bracket. Work only on your area's files. If you need a change in another chat's files, write the request in your session-end report and the owner passes it on.
+2. **One owner per area.** Each area belongs to one chat (`platform/PLATFORM.md` → "Chats and ownership"; D-035). Active chats: Vault · Daily Questions · VHP Ruler · Block X (with Picks and the sponsor) · Race · Hub · Library · Fantasy · Block Golf · Bracket (reactivated 5 Nov, D-142). Paused (D-113, core first): Survivor, Last Node, Combo. Work only on your area's files. If you need a change in another chat's files, write the request in your session-end report and the owner passes it on.
 3. **Work on a branch, ship by pull request.** Use your area's branch, or a new branch from `main`. Open a PR into `main`; its tests must pass. Never push to `main` directly. Merging follows rule 11.
 4. **Funds and keys:** never ask for, print or store keys or seed phrases. Every mainnet tool is a dry run until `--send`, one step at a time, dry run first (`platform/RULES.md` §1). Anything touching funds, contracts or the vault passes an audit before it ships (D-017).
 5. **Standards apply to every game.** The 8 standards in `standards/`: `GAME_STANDARD.md`, `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`, `RECORDER_STANDARD.md`, `VHP_RULER.md`, `GO_LIVE_CHECKLIST.md` and this file. Being written: `WEEK_CYCLE.md` (the weekly timing every game follows: play days, review day, final, payout) and `NEW_GAME.md` (step-by-step onboarding for a new game). Examples: nicknames on every page (D-078); Staked and Free play boards on every game (D-079, D-081); free prizes held by the owner's switch (D-082); the VHP standard (D-058).
@@ -61,7 +61,7 @@ You're joining Knode Games as the <Game name> (game <id>) chat. Repo: github.com
 Before anything else:
 1. Read .ai/START_HERE.md and follow its reading order.
 2. Read .ai/standards/AI_CHAT_STARTER.md §1 (shared rules) and .ai/platform/SESSION_END_PROCESS.md (how to end the session). Follow both.
-3. Read .ai/games/<GameFile>.md, then every standard in .ai/standards/: GAME_STANDARD, VAULT_STANDARD, LEADERBOARD_STANDARD, TOKEN_STANDARD, RECORDER_STANDARD, VHP_RULER, GO_LIVE_CHECKLIST, WEEK_CYCLE and NEW_GAME.
+3. Read .ai/games/<GameFile>.md, then every standard in .ai/standards/: GAME_STANDARD, CONTRACT_STANDARD, VAULT_STANDARD, LEADERBOARD_STANDARD, TOKEN_STANDARD, RECORDER_STANDARD, VHP_RULER, GO_LIVE_CHECKLIST, WEEK_CYCLE and NEW_GAME.
 4. Check the Claude project's claude/<game>/ notes and recent prompts (claude/prompts-*.md).
 
 Every game must meet the standards:
@@ -73,6 +73,12 @@ Every game must meet the standards:
 - vault registration with --staked --free.
 
 Your game follows standards/WEEK_CYCLE.md; add your row to its compliance table in your first PR, and follow standards/NEW_GAME.md.
+
+The game folder (D-157):
+- A new game starts with: npm run game:new -- <slug> --id <n> --name "<Name>" (creates games/<slug>/ with game.json).
+- Fill every {{…}} in games/<slug>/game.json; it's the one place the game's settings live.
+- Run npm run game:check -- <slug> and get "All required checks passed" before asking for review.
+- Today's games keep their old paths until each is moved into games/<slug>/ (one PR per game); don't move yours unless asked.
 
 You own only your game's files. Shared files (board.js, games.json, site-nav, the bot's vault code) belong to other chats. Ask through the owner, or ship the smallest change in your PR and say so clearly.
 
@@ -186,7 +192,7 @@ Write no code and open no PRs. A diagram is welcome if it helps.
 |---|---|
 | Work on the site, hub, admin panel, bot, nodes, names, sponsor or swap desk | 3.1 Platform |
 | Work on the shared VHP ruler | the VHP Ruler chat (its own first prompt, `claude/ruler/START-PROMPT.md` in the Claude project) |
-| Build or change one game (new games: also `NEW_GAME.md`; paused until the core work is done, D-113) | 3.2 Game |
+| Build or change one game (new games: also `NEW_GAME.md`; Survivor, Last Node and Combo stay paused, D-113) | 3.2 Game |
 | Get a branch or PR reviewed before merging | 3.3 Audit |
 | Fix one thing that's broken | 3.4 Bug fixing |
 | Decide how something big should work before anyone builds it | 3.5 Architecture |

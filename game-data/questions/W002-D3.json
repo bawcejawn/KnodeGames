@@ -271,9 +271,17 @@
             "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2074496353124"
           },
           "seal": "e4fa96496503d3dad83a1a93d89a9a3df1062725ee0c0a32e7b41a35308c69ed"
+        },
+        {
+          "height": 40814003,
+          "readAt": "2026-11-05T09:57:13.041Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2072453272700"
+          },
+          "seal": "25fec1d10de8262a67db0e5d23909436179367354e97435b05c831105317c369"
         }
       ],
-      "vhpSeal": "8d94634bb65b0beec289970879d0403378c2ac360a0ecebc17f229e4fe21682b"
+      "vhpSeal": "b620b4f5fe546e5a75bd69b6989a4e6fdbdc63481f2e8df95ea0294f85bba016"
     },
     {
       "id": "W002-D3-3",
@@ -409,7 +417,37 @@
           "seal": "0fb9abe0ef830437c8297a7528e3e6dd3bc8cb77b80744cc067853323d31e160"
         }
       ],
-      "vhpSeal": "8e129f47058709a69c29b129d41f351cc6d2d45e0cfe0de8470789389c63f614"
+      "vhpSeal": "8e129f47058709a69c29b129d41f351cc6d2d45e0cfe0de8470789389c63f614",
+      "result": {
+        "void": false,
+        "option": 2,
+        "value": "589",
+        "dataHash": "d6c6c93d5e4140fcc6e976b83c0cab40d860bf2bece98767a158983f94d6d618",
+        "resolvedAt": "2026-11-05T09:49:47.660Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40788434,
+          "decidedHeight": 40813844,
+          "readings": [
+            40804810,
+            40805781,
+            40806907,
+            40808090,
+            40809312,
+            40810716,
+            40812771
+          ],
+          "readingsInWindow": 7,
+          "values": {
+            "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": {
+              "release": "70309504342259",
+              "end": "69717447900838",
+              "change": "−0.84%",
+              "height": 40812771
+            }
+          }
+        }
+      }
     },
     {
       "id": "W002-D3-4",

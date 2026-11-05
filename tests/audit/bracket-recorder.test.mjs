@@ -1,8 +1,9 @@
-// Producer Bracket recorder (bot/games/bracket.ts): seeding once from the Saturday 12:00 card (never changed later,
+// Producer Bracket recorder (bot/games/bracket.ts): seeding once from the Sunday 00:00 card (never changed later,
 // void without a card, none under 8 producers), picks only after the lock and only when both nodes agree, hours only
-// once irreversible and identical on both nodes, expected blocks from exact VHP rebuilt from the chain's VHP events
-// (balances read at the head and walked back), results equal to the shared math run on the same blocks, final after the
-// correction window and frozen afterwards, and the leaderboards. Offline: fake nodes with a made-up VHP history.
+// once irreversible and identical on both nodes, re-read in a later run (the two-run rule), expected blocks from exact
+// VHP rebuilt from the chain's VHP events (balances read at the head and walked back), results equal to the shared math
+// run on the same blocks, final from Monday 00:00 UTC after the week (D-125, D-141) and frozen afterwards, and the
+// leaderboards. Offline: fake nodes with a made-up VHP history.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -19,7 +20,8 @@ const plain = (x) => JSON.parse(JSON.stringify(x));
 const H = 3600000, DAY = 24 * H;
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const addr = (i) => "1" + Array.from({ length: 33 }, (_, k) => B58[(i * 7 + k * (i + 3)) % 58]).join("");
-const W = 3;                                   // week 3: Mon 2 Nov 2026
+const W = 3;                                   // week 3: Mon 9 Nov 2026 (16-producer rounds Wed–Sat)
+const RD = (r, size = 16) => B.roundDay(W, r, size);   // the day round r is played
 const T0 = B.weekStart(W) - 4 * DAY;           // the fake chain starts the Thursday before
 const H0 = 40_000_000;
 const T = (h) => T0 + (h - H0) * 3000;
@@ -95,7 +97,7 @@ async function runUntil(t, o, dir, times = 40) {   // at most 6 hours a run (aud
   return last;
 }
 
-test("seeding: exact VHP averaged over the day before Saturday 12:00, on two nodes; recorded once with a hash, never changed", async () => {
+test("seeding: exact VHP averaged over the day before Sunday 00:00, on two nodes; recorded once with a hash, never changed", async () => {
   const field = fieldOf(17), dir = tmp();
   const o = { picksContract: "1P", nodeOf: nodeOf(signerFn(field)), picksOf: picksOf([]) };
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.seedTime(W) - H), ...o }));
@@ -105,7 +107,7 @@ test("seeding: exact VHP averaged over the day before Saturday 12:00, on two nod
   assert.equal(wf.status, "open"); assert.equal(wf.seeding.size, 16); assert.equal(wf.seeding.seeds.length, 16);
   assert.deepEqual(wf.seeding.seeds, field.slice(0, 16).map((r) => r.a)); assert.deepEqual(wf.seeding.out, [field[16].a]);
   assert.match(wf.seeding.hash, /^[0-9a-f]{64}$/); assert.equal(wf.days.length, 4);
-  assert.equal(wf.seeding.cardAt, hAt(B.seedTime(W)), "the block at Saturday 12:00");
+  assert.equal(wf.seeding.cardAt, hAt(B.seedTime(W)), "the block at Sunday 00:00");
   // the average is over the day before: seed 1's average is its starting VHP less about half a day's burns
   assert.ok(wf.seeding.vhp[0] < field[0].vhp * 1000 && wf.seeding.vhp[0] > field[0].vhp * 1000 * 0.99);
   // a later run on another chain keeps the published seeding
@@ -117,7 +119,7 @@ test("seeding: exact VHP averaged over the day before Saturday 12:00, on two nod
   assert.equal(readW(dir).seeding.size, 32, "re-seeded from the chain, not the tampered file");
 });
 
-test("seeding: waits while the nodes disagree and turns void after 24 hours; under 8 is no bracket; 13 has byes; 40 is a 32-bracket", async () => {
+test("seeding: waits while the nodes disagree and turns void after 24 hours; under 8 is no bracket; 13 is the top 8; 40 is a 32-bracket", async () => {
   const field = fieldOf(17), dir = tmp();
   const skew = (name) => { const n = nodeOf(signerFn(field))(name); return name === "check" ? { ...n, balance: async (a) => { const b = await n.balance(a); return { ...b, v: b.v + 1e8, eff: b.eff + 1e8 }; } } : n; };
   const o = { picksContract: "1P", nodeOf: skew, picksOf: picksOf([]) };
@@ -131,8 +133,9 @@ test("seeding: waits while the nodes disagree and turns void after 24 hours; und
   assert.ok(r0.problems.some((p) => p.includes("second node")), "one node can't seed");
   const seedWith = async (f) => { const d = tmp(); await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), picksContract: "1P", nodeOf: nodeOf(signerFn(f)) })); return readW(d); };
   const w7 = await seedWith(fieldOf(7)); assert.equal(w7.status, "none"); assert.match(w7.void, /8 needed/);
-  const w40 = await seedWith(fieldOf(40)); assert.equal(w40.seeding.size, 32); assert.equal(w40.days.length, 5, "Monday to Friday");
-  const w13 = await seedWith(fieldOf(13)); assert.equal(w13.seeding.size, 16); assert.equal(w13.seeding.seeds.length, 13);
+  const w40 = await seedWith(fieldOf(40)); assert.equal(w40.seeding.size, 32); assert.equal(w40.days.length, 5, "Tuesday to Saturday");
+  const w13 = await seedWith(fieldOf(13)); assert.equal(w13.seeding.size, 8, "the largest power of two that fits (D-141): no byes"); assert.equal(w13.seeding.seeds.length, 8);
+  assert.equal(w13.seeding.out.length, 5); assert.equal(w13.days.length, 3, "Thursday to Saturday");
 });
 
 test("picks: only after the lock is irreversible, only when both nodes agree; bad numbers kept but marked invalid", async () => {
@@ -153,28 +156,29 @@ test("picks: only after the lock is irreversible, only when both nodes agree; ba
   assert.deepEqual(wf.picks.rows.map((x) => [x[0], x[3]]), [[P(1), 1], [P(2), 1], [P(3), 0]]);
 });
 
-test("a whole week: hours irreversible only, results equal the shared math on the same blocks, final after 12 hours, then frozen", async () => {
+test("a whole week: hours irreversible only, re-read in a later run, results equal the shared math on the same blocks, final from Monday 00:00 UTC, then frozen", async () => {
   const field = fieldOf(17), offline = new Set([field[0].a]);   // seed 1 goes offline from Monday: it loses round 1
   const signer = signerFn(field, offline, hAt(B.weekStart(W))), race = raceDir(field), dir = tmp();
   // perfect bracket computed straight from the fake chain with bracket-math (balances read at the end, walked back)
   const seeds = field.slice(0, 16).map((r) => r.a), fake = nodeOf(signer)("main");
-  headAt(B.roundDay(W, 4) + H);
-  const ch = await fake.chain(hAt(B.roundDay(W, 0)) - B.ACTIVE_BLOCKS, TOP);
+  headAt(RD(3) + DAY + H);
+  const ch = await fake.chain(hAt(RD(0)) - B.ACTIVE_BLOCKS, TOP);
   const anchors = {}; for (const r of field) anchors[r.a] = await fake.balance(r.a);
   const book = B.vhpBook(anchors, ch.deltas);
-  const days = [0, 1, 2, 3].map((r) => B.dayIndex(ch, B.roundDay(W, r), seeds, book));
+  const days = [0, 1, 2, 3].map((r) => B.dayIndex(ch, RD(r), seeds, book));
   const truth = B.results(seeds, 16, days);
   const perfect = B.encode(truth.rounds, 16, 16);
   const rows = [{ player: P(1), number: perfect, time: 1 }, { player: P(2), number: 0, time: 2 }];
   const o = { raceDir: race, picksContract: "1P", nodeOf: nodeOf(signer), picksOf: picksOf(rows) };
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.seedTime(W) + H), ...o }));
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.lockTime(W) + 60000), ...o }));
-  // Tuesday 10:30: Monday done, Tuesday hours up to 10:00 recorded, nothing later
-  const last = await runUntil(B.roundDay(W, 1) + 10.5 * H, o, dir);
+  // Thursday 10:30: Wednesday (round 1) done, Thursday hours up to 10:00 recorded, nothing later
+  const last = await runUntil(RD(1) + 10.5 * H, o, dir);
   assert.deepEqual(last.problems, []);
   let wf = readW(dir);
   assert.ok(wf.days[0].every(Boolean)); assert.equal(wf.days[1].filter(Boolean).length, 10); assert.ok(wf.days[2].every((x) => x === null));
-  assert.ok(wf.days[0].every((x) => x.checked === 2 && x.q > 0 && Object.keys(x.cr).length === 16 && Object.keys(x.w).length === 16));
+  assert.ok(wf.days[0].every((x) => x.checked === 2 && x.q > 0 && Object.keys(x.cr).length === 16 && Object.keys(x.w).length === 16 && Object.keys(x.r).length === 16 && Object.keys(x.av).length === 16));
+  assert.ok(wf.days[0].every((x) => x.re === 1), "every hour recorded by an earlier run was read again and matched");
   assert.ok(wf.days[0].every((x) => JSON.stringify(x.w) === JSON.stringify(wf.days[0][0].w)), "one baseline per seed for the whole day");
   assert.equal(B.indexFromHours(wf.days[0]).get(field[0].a).blocks, 0, "seed 1 signed nothing");
   assert.ok(B.indexFromHours(wf.days[0]).get(field[0].a).expected > 100, "…but was expected to, by its VHP");
@@ -183,17 +187,20 @@ test("a whole week: hours irreversible only, results equal the shared math on th
   assert.equal(wf.points.find((p) => p[0] === P(1))[1], 8, "8 right in round 1 so far");
   // heights recorded per hour are contiguous
   for (let h = 1; h < 24; h++) assert.equal(wf.days[0][h].from, wf.days[0][h - 1].to + 1);
-  // Friday 06:00: all rounds in, not final yet (correction window until Friday 12:00)
-  await runUntil(B.roundDay(W, 4) + 6 * H, o, dir);
+  // Sunday 06:00 (the review day): all rounds in, not final yet (final from Monday 00:00 UTC)
+  const rv = await runUntil(RD(3) + 30 * H, o, dir);
   wf = readW(dir);
   assert.equal(wf.status, "locked"); assert.equal(wf.results.done, true); assert.deepEqual(wf.results.rounds, plain(truth.rounds));
+  assert.ok(rv.problems.every((p) => !p.includes("final")), "no final talk before Monday: " + JSON.stringify(rv.problems));
   assert.deepEqual(wf.points.find((p) => p[0] === P(1)), [P(1), 34, 1, 15], "perfect bracket: 34 points, champion, 15 right");
   assert.equal(wf.points.find((p) => p[0] === P(2))[2], 0, "chalk picked seed 1 as champion");
-  await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.roundDay(W, 4) + 12.5 * H), ...o }));
-  wf = readW(dir); assert.equal(wf.status, "final");
+  await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.weekStart(W + 1) - 60000), ...o }));
+  assert.equal(readW(dir).status, "locked", "still in review a minute before Monday 00:00 UTC");
+  await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.weekStart(W + 1) + 0.5 * H), ...o }));
+  wf = readW(dir); assert.equal(wf.status, "final"); assert.ok(wf.staked.held, "the stakes read after the week ended");
   // after final, a different chain changes nothing
   const before = JSON.stringify(wf);
-  await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.roundDay(W, 5) + H), ...o, nodeOf: nodeOf(signerFn(field)) }));
+  await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.weekStart(W + 1) + H), ...o, nodeOf: nodeOf(signerFn(field)) }));
   assert.equal(JSON.stringify(readW(dir)), before);
   // scoreWeek on the file gives the same points (the page can check it)
   assert.deepEqual(plain(scoreWeek(wf).points), wf.points);
@@ -206,23 +213,23 @@ test("a whole week: hours irreversible only, results equal the shared math on th
 
 test("hours: the two nodes must agree; a fork while reading is caught; VHP moved mid-day is followed exactly", async () => {
   const field = fieldOf(17), signer = signerFn(field), dir = tmp();
-  const mover = field[5].a, h5 = hAt(B.roundDay(W, 0) + 5 * H);
+  const mover = field[5].a, h5 = hAt(RD(0) + 5 * H);
   // the mover parks almost all its VHP elsewhere from 05:00 to 05:10 on Monday, then takes it back
   const moves = [{ h: h5, a: mover, d: -0.99 * field[5].vhp * 1000 }, { h: h5 + 200, a: mover, d: 0.99 * field[5].vhp * 1000 }];
   const o = { raceDir: raceDir(field), picksContract: "1P", nodeOf: nodeOf(signer, null, { moves }), picksOf: picksOf([]) };
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.seedTime(W) + H), ...o }));
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.lockTime(W) + 60000), ...o }));
-  const badH = hAt(B.roundDay(W, 0) + 5 * H + 1000);
-  const r = await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.roundDay(W, 0) + 8 * H), ...o, nodeOf: nodeOf(signer, (h) => h === badH, { moves }) }));
+  const badH = hAt(RD(0) + 5 * H + 1000);
+  const r = await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(RD(0) + 8 * H), ...o, nodeOf: nodeOf(signer, (h) => h === badH, { moves }) }));
   assert.ok(r.problems.some((p) => p.includes("disagree")));
   assert.ok(readW(dir).days[0].every((x) => x === null), "nothing recorded while the nodes disagree");
   // a fork between the hour and the head while reading (the block a balance was read at changed): nothing recorded
-  const r2 = await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.roundDay(W, 0) + 8 * H), ...o, nodeOf: nodeOf(signer, null, { moves, forkAt: { node: "main", h: hAt(B.roundDay(W, 0) + 8 * H) + 1 } }) }));
+  const r2 = await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(RD(0) + 8 * H), ...o, nodeOf: nodeOf(signer, null, { moves, forkAt: { node: "main", h: hAt(RD(0) + 8 * H) + 1 } }) }));
   assert.ok(r2.problems.some((p) => p.includes("fork")), JSON.stringify(r2.problems));
   // agreeing nodes: recorded (at most 6 hours a run); parking VHP for 10 minutes doesn't lower the mover's baseline
-  const r3 = await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.roundDay(W, 0) + 8 * H), ...o }));
+  const r3 = await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(RD(0) + 8 * H), ...o }));
   assert.equal(readW(dir).days[0].filter(Boolean).length, 6, "6 hours a run (audit A-2) " + JSON.stringify(r3.problems));
-  await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.roundDay(W, 0) + 8 * H), ...o }));
+  await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(RD(0) + 8 * H), ...o }));
   const wf = readW(dir);
   assert.equal(wf.days[0].filter(Boolean).length, 8, "00:00–07:59 are irreversible by 08:00");
   assert.equal(wf.days[0][5].w[mover], wf.days[0][0].w[mover], "the baseline is the day's start, whatever happens later");
@@ -247,12 +254,12 @@ test("files: only the expected names, sizes and fields", async () => {
 import { execFileSync } from "node:child_process";
 const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
 const pys = [...yml.matchAll(/<<'PY'\n([\s\S]*?)\n\s*PY\n/g)].map((m) => m[1].split("\n").map((l) => l.replace(/^ {10}/, "")).join("\n"));
-const bracketPy = pys.find((p) => p.includes("bracket files ok"));
+const bracketPy = pys.find((p) => p.includes("bracket check done"));
 // The publish job's Bracket check: `pub` = the published branch's bracket folder (default: the same files, as if this
-// run's files were already published), `now` = the job's clock (default: the test week's Friday, after the final).
-const NOW = B.roundDay(W, 4) + 13 * H;
+// run's files were already published), `now` = the job's clock (default: Monday 02:00 after the test week, final).
+const NOW = B.weekStart(W + 1) + 2 * H;   // Monday 02:00 UTC after the week: final
 const checkRun = (dir, { pub = dir, now = NOW, held = "" } = {}) => execFileSync("python3", ["-c", bracketPy, dir, pub, held], { stdio: "pipe", env: { ...process.env, CHECK_NOW_MS: String(now) } }).toString();
-const shapeOk = (dir, opt) => { try { checkRun(dir, opt); return true; } catch { return false; } };
+const shapeOk = (dir, opt) => { try { checkRun(dir, opt); return true; } catch (e) { if (process.env.BR_DEBUG) console.error(String(e.stdout || "") + String(e.stderr || "")); return false; } };
 
 test("workflow: records the bracket with the same prev/out/race folders and publishes only its own files", () => {
   assert.ok(bracketPy, "a bracket shape check in the publish job");
@@ -268,7 +275,7 @@ test("workflow shape check: accepts a whole recorded week, refuses tampered file
   const o = { raceDir: race, picksContract: addr(60), nodeOf: nodeOf(signer), picksOf: picksOf([{ player: P(1), number: 5, time: 1 }, { player: P(2), number: 2 ** 20, time: 2 }]) };
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.seedTime(W) + H), ...o }));
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.lockTime(W) + 60000), ...o }));
-  await runUntil(B.roundDay(W, 4) + 13 * H, o, dir);
+  await runUntil(NOW, o, dir);
   assert.equal(readW(dir).status, "final");
   assert.ok(shapeOk(dir), "the recorder's own files pass");
   const bad = (f, mut) => { const d = tmp(); fs.cpSync(dir, d, { recursive: true }); const j = JSON.parse(fs.readFileSync(path.join(d, f), "utf8")); mut(j); fs.writeFileSync(path.join(d, f), JSON.stringify(j)); return shapeOk(d); };
@@ -312,11 +319,12 @@ test("F-4: decisions use the irreversible block's time; a node far ahead can't v
   assert.equal(fs.readdirSync(d2).length, 0);
 });
 test("F-5: the Picks game must have the bracket's shape; picks timed at or after the lock never count", async () => {
-  const good = { kind: 3, lock_mode: 2, round_size: String(B.WEEK), round_offset: String(B.ROUND_OFFSET), lead: String(B.LOCK_BEFORE), ahead: String(B.SEED_BEFORE), number_min: "0", number_max: String(B.NUMBER_MAX) };
+  // D-141: picks open at the seeding (Sunday 00:00) and lock Monday 23:55, so `ahead` is at most 2 days before Tuesday 00:00
+  const good = { kind: 3, lock_mode: 2, round_size: String(B.WEEK), round_offset: String(B.ROUND_OFFSET), lead: String(B.LOCK_BEFORE), ahead: String(2 * B.DAY), number_min: "0", number_max: String(B.NUMBER_MAX) };
   assert.equal(gameProblem(good), null);
-  for (const [k, v] of [["kind", 2], ["round_offset", "0"], ["round_size", String(B.DAY)], ["lead", "299999"], ["ahead", String(B.SEED_BEFORE + 1)], ["ahead", "0"], ["number_max", "32767"]]) assert.match(gameProblem({ ...good, [k]: v }), new RegExp(k));
+  for (const [k, v] of [["kind", 2], ["round_offset", "0"], ["round_size", String(B.DAY)], ["lead", "299999"], ["ahead", String(2 * B.DAY + 1)], ["ahead", "0"], ["number_max", "32767"]]) assert.match(gameProblem({ ...good, [k]: v }), new RegExp(k));
   // R-4: the owner's tighten_game (earlier lock, later opening) is still a valid bracket game
-  assert.equal(gameProblem({ ...good, lead: String(B.LOCK_BEFORE * 3), ahead: String(B.SEED_BEFORE / 2) }), null);
+  assert.equal(gameProblem({ ...good, lead: String(B.LOCK_BEFORE * 3), ahead: String(B.DAY) }), null);
   assert.match(gameProblem(null), /no bracket game/);
   const field = fieldOf(17), race = raceDir(field);
   const rows = [{ player: P(1), number: 0, time: B.lockTime(W) - 1 }, { player: P(2), number: 1, time: B.lockTime(W) }, { player: P(3), number: 2, time: B.lockTime(W) + 9e5 }];
@@ -331,21 +339,21 @@ test("F-5: the Picks game must have the bracket's shape; picks timed at or after
 });
 test("F-6 / F-7: each recorder step can fail alone; leaderboards are capped at 1,000 rows", async () => {
   const wfy = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
-  assert.match(wfy, /- name: Record the Producer Bracket\n\s+continue-on-error: true/);
-  assert.match(wfy, /if not os\.path\.isdir\(d\): print\("no bracket files"\); sys\.exit\(0\)/);
+  assert.match(wfy, /- name: Record the Producer Bracket\n\s+id: bracket\n\s+continue-on-error: true/);
+  assert.match(wfy, /if \[ -d "\$IN\/bracket" \]; then\n\s+\/usr\/bin\/python3 - "\$IN\/bracket"/, "no Bracket files: the check is skipped");
   const field = fieldOf(17), race = raceDir(field);
   const many = Array.from({ length: 1500 }, (_, i) => ({ player: ("1Many" + [0, 1, 2].map((k) => B58[Math.floor(i / 58 ** k) % 58]).join("")).padEnd(34, "x"), number: i % 3, time: 5 }));
   const o = { raceDir: race, picksContract: addr(60), nodeOf: nodeOf(signerFn(field)), picksOf: picksOf(many) };
   const dir = await lockedWeek(o);
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.lockTime(W) + 60000), ...o }));
-  const r = await runUntil(B.roundDay(W, 0) + 25 * H, o, dir, 2);
+  const r = await runUntil(RD(0) + 25 * H, o, dir, 2);
   assert.equal(r.board.week.rows.length, 1000); assert.equal(readW(dir).points.length, 1500, "every score stays in the week file");
   assert.ok(shapeOk(dir));
 });
 
 test("R-4: the two nodes must agree about the Picks game", async () => {
   const field = fieldOf(17), base = { raceDir: raceDir(field), picksContract: addr(60), nodeOf: nodeOf(signerFn(field)), picksOf: picksOf([{ player: P(1), number: 0, time: 1 }]) };
-  const good = { kind: 3, lock_mode: 2, round_size: String(B.WEEK), round_offset: String(B.ROUND_OFFSET), lead: String(B.LOCK_BEFORE), ahead: String(B.SEED_BEFORE), number_min: "0", number_max: String(B.NUMBER_MAX) };
+  const good = { kind: 3, lock_mode: 2, round_size: String(B.WEEK), round_offset: String(B.ROUND_OFFSET), lead: String(B.LOCK_BEFORE), ahead: String(2 * B.DAY), number_min: "0", number_max: String(B.NUMBER_MAX) };
   const dir = await lockedWeek(base);
   const r = await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.lockTime(W) + 60000), ...base, gameOf: async (n) => (n === "check" ? { ...good, enabled: false } : good) }));
   assert.equal(readW(dir).picks, null); assert.ok(r.problems.some((p) => p.includes("disagree about the Picks game")));
@@ -368,21 +376,31 @@ test("audit S-3: when a node can't give the effective balance as a read-only cal
 });
 
 // ── the Vault file (Vault v6 hand-off, 2026-10-28) ──
-test("vault rows: staked players with ≥ 1 point, the bracket's order (points, champion, right winners) and ties kept on 1–255", () => {
+test("vault rows (#E-3 C-1): the groups the Vault must pay get 255, 254, …; every other row gets 1, so its cutoff pays exactly them", () => {
   const pts = [[P(1), 20, 1, 9], [P(2), 20, 0, 9], [P(3), 20, 0, 9], [P(4), 31, 0, 12], [P(5), 0, 0, 0], [P(6), 5, 0, 4], [P(7), 40, 1, 14]];
   const staked = new Set([P(1), P(2), P(3), P(4), P(5), P(7)]);   // P(6) is a free player
   const rows = plain(vaultRows(pts, staked));
   assert.deepEqual(rows.map((r) => r.player), [P(7), P(4), P(1), P(2), P(3)], "best first; P(5) has no point; P(6) isn't staked");
   const v = Object.fromEntries(rows.map((r) => [r.player, r.points]));
-  assert.ok(v[P(7)] > v[P(4)] && v[P(4)] > v[P(1)] && v[P(1)] > v[P(2)], "order kept, including the champion tie-break");
-  assert.equal(v[P(2)], v[P(3)], "a full tie stays a tie");
+  // 5 rows: the Vault pays ceil(30%) = 2 → P(7) and P(4); everyone else 1
+  assert.deepEqual([v[P(7)], v[P(4)], v[P(1)], v[P(2)], v[P(3)]], [255, 254, 1, 1, 1]);
+  assert.deepEqual(plain(rec.vaultPays(rows)).sort(), [P(4), P(7)].sort());
   assert.ok(rows.every((r) => Number.isInteger(r.points) && r.points >= 1 && r.points <= 255));
   assert.deepEqual(plain(vaultRows(pts, new Set())), [], "nobody qualifies: no rows");
-  // more than 255 different scores: falls back to the plain points (order kept, ties merged), still 1–255
-  const many = Array.from({ length: 300 }, (_, i) => [("1Many" + String(i).padStart(4, "1")).padEnd(34, "x"), 1 + (i % 80), i % 2, i % 15]);
-  const big = plain(vaultRows(many, new Set(many.map((r) => r[0]))));
-  assert.equal(big.length, 300); assert.ok(big.every((r) => r.points >= 1 && r.points <= 255));
-  for (let i = 1; i < big.length; i++) assert.ok(big[i - 1].points >= big[i].points);
+  // a tied group straddling the cutoff is paid whole (the Vault's own rule)
+  const tie = [[P(1), 9, 0, 5], [P(2), 7, 0, 4], [P(3), 7, 0, 4], [P(4), 7, 0, 4], [P(5), 2, 0, 1], [P(6), 1, 0, 1]];
+  const tr = plain(vaultRows(tie, new Set(tie.map((r) => r[0]))));
+  assert.deepEqual(plain(rec.vaultPays(tr)).sort(), [P(1), P(2), P(3), P(4)].sort(), "need 2: P(1), then the 3-way tie whole");
+  // any number of places: the Vault's cutoff pays exactly the earners (stakedEarners), never the value-1 rows
+  for (const N of [10, 300, 846, 847, 1000, 3000]) {
+    const many = Array.from({ length: N }, (_, i) => [("1M" + String(i).padStart(6, "1")).padEnd(34, "x"), 1 + (i % 97), i % 2, i % 15]);
+    const tm = new Map(many.map((r, i) => [r[0], 1_800_000_000_000 + i * 3000]));   // each in its own block
+    const big = plain(vaultRows(many, new Set(many.map((r) => r[0])), tm));
+    assert.equal(big.length, N); assert.ok(big.every((r) => r.points >= 1 && r.points <= 255));
+    for (let i = 1; i < big.length; i++) assert.ok(big[i - 1].points >= big[i].points);
+    assert.deepEqual(plain(rec.vaultPays(big)).sort(), plain(rec.stakedEarners(many, tm)).sort(), `N=${N}`);
+    assert.equal(rec.vaultPays(big).length, Math.floor((N * 30 + 99) / 100), `N=${N}: exactly the Vault's 30%, ceil`);
+  }
 });
 
 test("vault file: written once the week is final, with only staked players; none when the stakes can't be read in 3 days", async () => {
@@ -391,7 +409,7 @@ test("vault file: written once the week is final, with only staked players; none
   const base = { picksContract: addr(60), nodeOf: nodeOf(signer), picksOf: picksOf(rows) };
   const play = async (o, until) => { const d = tmp(); await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), ...base, ...o })); await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 60000), ...base, ...o })); for (let i = 0; i < 40; i++) await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(until), ...base, ...o })); return d; };
   // P(1) and P(3) are staked; P(2) plays free
-  const d = await play({ stakedOf: async (_n, ps) => ps.filter((p) => p !== P(2)) }, B.roundDay(W, 4) + 13 * H);
+  const d = await play({ stakedOf: async (_n, ps) => ps.filter((p) => p !== P(2)) }, NOW);
   const wf = readW(d); assert.equal(wf.status, "final"); assert.deepEqual(wf.staked.list, [P(1), P(3)].sort());
   const vf = JSON.parse(fs.readFileSync(path.join(d, "vault", `W${W}.json`), "utf8"));
   assert.deepEqual(Object.keys(vf).sort(), ["final", "first", "game", "rows", "second", "week"]);
@@ -399,21 +417,22 @@ test("vault file: written once the week is final, with only staked players; none
   const p2 = readW(d).points.find((r) => r[0] === P(2));
   assert.deepEqual(vf.first, p2 && p2[1] >= 1 ? [P(2)] : [], "the only free player with a point is 1st on the Free play board");
   assert.deepEqual(vf.second, []);
-  assert.deepEqual(readW(d).staked.held, [P(1), P(3)].sort(), "read again as the week closes");
+  assert.deepEqual(readW(d).staked.held, [P(1), P(3)].sort(), "read again after the week ended");
   assert.ok(vf.rows.every((r) => r.player !== P(2)), "free players never in the rows");
   assert.equal(vf.week, B.weekOf(B.weekStart(W) + 1), "the Vault's week number = the KnodeGames week");
   // the board marks staked rows as ranked (Staked tab) and the rest as free play
   const board = JSON.parse(fs.readFileSync(path.join(d, "board.json"), "utf8"));
-  const lw = board.week.rows; assert.ok(lw.find((r) => r.a === P(2)).ranked === false && lw.find((r) => r.a === P(1)).ranked === true);
+  const lw = board.lastWeek.rows; assert.ok(lw.find((r) => r.a === P(2)).ranked === false && lw.find((r) => r.a === P(1)).ranked === true);
   // the nodes disagree about the stakes: results in, not final
-  const d2 = await play({ stakedOf: async (n, ps) => (n === "check" ? [] : ps) }, B.roundDay(W, 4) + 13 * H);
+  const d2 = await play({ stakedOf: async (n, ps) => (n === "check" ? [] : ps) }, NOW);
   assert.equal(readW(d2).status, "locked"); assert.ok(!fs.existsSync(path.join(d2, "vault")));
   // still unreadable 3 days after the week ends: final without a file (the Vault rolls the week over)
   await quiet(() => rec.run({ p: "main", check: "check", prev: d2, out: d2, head: headAt(B.weekStart(W + 1) + 3 * DAY + H), ...base, stakedOf: async () => { throw new Error("no Vault v6 yet"); } }));
   assert.equal(readW(d2).status, "final"); assert.equal(readW(d2).vault, "missed"); assert.ok(!fs.existsSync(path.join(d2, "vault")));
-  // the publish check refuses a bad vault file
-  const badV = (mut) => { const x = tmp(); fs.cpSync(d, x, { recursive: true }); const f = path.join(x, "vault", `W${W}.json`); const j = JSON.parse(fs.readFileSync(f, "utf8")); mut(j); fs.writeFileSync(f, JSON.stringify(j)); return shapeOk(x); };
-  assert.ok(shapeOk(d));
+  // the publish check refuses a bad vault file (judged against a branch without it: a published one is write-once)
+  const noVault = tmp(); fs.cpSync(d, noVault, { recursive: true }); fs.rmSync(path.join(noVault, "vault"), { recursive: true });
+  const badV = (mut) => { const x = tmp(); fs.cpSync(d, x, { recursive: true }); const f = path.join(x, "vault", `W${W}.json`); const j = JSON.parse(fs.readFileSync(f, "utf8")); mut(j); fs.writeFileSync(f, JSON.stringify(j)); return shapeOk(x, { pub: noVault }); };
+  assert.ok(shapeOk(d)); assert.ok(shapeOk(d, { pub: noVault }), "the recorder's own vault file passes");
   assert.equal(badV((j) => { j.rows[0].points = 0; }), false, "points 0");
   assert.equal(badV((j) => { j.rows[0].points = 256; }), false, "points over 255");
   assert.equal(badV((j) => { j.rows.push({ ...j.rows[0] }); }), false, "a player twice");
@@ -465,15 +484,16 @@ test("fix-check F-5: a player who withdrew mid-week stays on the Staked board an
   const stakedOf = async () => (closing ? { staked: [P(1)], held: [P(1), P(2)] } : { staked: [P(1), P(2)], held: [P(1), P(2)] });
   const d = tmp(), go = (t) => quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(t), ...base, stakedOf }));
   await go(B.seedTime(W) + H); await go(B.lockTime(W) + 60000); await go(B.weekStart(W) + H);
-  closing = true; for (let i = 0; i < 40; i++) await go(B.roundDay(W, 4) + 13 * H);
+  closing = true; for (let i = 0; i < 40; i++) await go(NOW);
   assert.equal(readW(d).status, "final");
-  const lw = JSON.parse(fs.readFileSync(path.join(d, "board.json"), "utf8")).week.rows;
+  const lw = JSON.parse(fs.readFileSync(path.join(d, "board.json"), "utf8")).lastWeek.rows;
   assert.equal(lw.find((r) => r.a === P(2)).ranked, true, "on the Staked board");
+  assert.equal(lw.find((r) => r.a === P(2)).earns, 0, "…earning nothing there (#E-3 M-2)");
   const vf = JSON.parse(fs.readFileSync(path.join(d, "vault", `W${W}.json`), "utf8"));
   assert.ok(!vf.first.includes(P(2)) && !vf.second.includes(P(2)) && !vf.rows.some((r) => r.player === P(2)));
 });
 
-test("owner 2026-10-29: ties go to who submitted first (a copied bracket can't tie the original); same block still shares", () => {
+test("owner 2026-10-29 / D-087: ties go to who submitted first; brackets in the same block share (a same-block copy ties)", () => {
   const pts = [[P(1), 9, 0, 5], [P(2), 9, 0, 5], [P(3), 9, 0, 5], [P(4), 4, 0, 2]];
   const tm = new Map([[P(1), 3000], [P(2), 1000], [P(3), 1000], [P(4), 500]]);
   assert.deepEqual(plain(freeWinners(pts, new Set(), tm)), { first: [P(2), P(3)].sort(), second: [] }, "P(2) and P(3) picked in the same block: they share 1st");
@@ -485,10 +505,10 @@ test("owner 2026-10-29: ties go to who submitted first (a copied bracket can't t
   assert.deepEqual(plain(freeWinners([[P(1), 9, 0, 5], ...copies], new Set(), tm3)).first, [P(1)]);
   // the champion and right winners still come before the time
   assert.deepEqual(plain(freeWinners([[P(1), 9, 0, 5], [P(2), 9, 1, 5]], new Set(), new Map([[P(1), 1], [P(2), 9]]))).first, [P(2)]);
-  // the Vault rows keep the same order
+  // the Vault rows keep the same order for the paid groups (4 rows: the top 2 are paid)
   const v = plain(vaultRows(pts, new Set(pts.map((r) => r[0])), tm2));
   const at = Object.fromEntries(v.map((r) => [r.player, r.points]));
-  assert.ok(at[P(2)] > at[P(3)] && at[P(3)] > at[P(1)] && at[P(1)] > at[P(4)]);
+  assert.ok(at[P(2)] > at[P(3)] && at[P(3)] > at[P(1)] && at[P(1)] === 1 && at[P(4)] === 1);
   // the boards rank the same way
   const ranked = B.rank([{ player: P(1), points: 9, champion: false, correct: 5, time: 3000 }, { player: P(2), points: 9, champion: false, correct: 5, time: 1000 }]);
   assert.deepEqual(ranked.map((r) => [r.player, r.place]), [[P(2), 1], [P(1), 2]]);
@@ -496,7 +516,8 @@ test("owner 2026-10-29: ties go to who submitted first (a copied bracket can't t
 });
 
 test("fix-check F-1: the Vault (a pooled producer: players' withdrawable stakes) never forfeits; it stays in the field", async () => {
-  const day = new Map([["1Vault", { baseline: 10e8, credited: 5, expected: 0.1 }], ["1Dog", { baseline: 100e8, credited: 1, expected: 1 }]]);
+  // a pooled producer is judged on its rate index (rate ÷ q, #E-3 H-4); everyone else on credited ÷ expected
+  const day = new Map([["1Vault", { baseline: 10e8, credited: 5, expected: 0.1, rate: 5, q: 0.1 }], ["1Dog", { baseline: 100e8, credited: 1, expected: 1, rate: 1, q: 1 }]]);
   const sv = new Map([["1Vault", 100], ["1Dog", 100]]);
   assert.equal(B.otherWins(day, "1Vault", "1Dog", sv), true, "an ordinary producer this far under would forfeit");
   assert.equal(B.otherWins(day, "1Vault", "1Dog", sv, new Set(["1Vault"])), false, "the Vault doesn't: its index decides");
@@ -509,31 +530,30 @@ test("fix-check F-1: the Vault (a pooled producer: players' withdrawable stakes)
   assert.ok(shapeOk(dir));
 });
 
-test("publish check: a Vault file waits for its week to be final on the published branch, and published history can't change", async () => {
+test("publish check: the Vault file is accepted in the run that makes its week final (#E-3 M-5), and published history can't change", async () => {
   const field = fieldOf(17), signer = signerFn(field);
   const rows = [{ player: P(1), number: 0, time: 1 }, { player: P(2), number: 5, time: 2 }, { player: P(3), number: 9, time: 3 }];
   const o = { picksContract: addr(60), nodeOf: nodeOf(signer), picksOf: picksOf(rows), stakedOf: async (_n, ps) => ps.filter((p) => p !== P(2)) };
   const d = tmp();
   await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), ...o }));
   await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 60000), ...o }));
-  const mid = tmp(); fs.cpSync(d, mid, { recursive: true });           // the branch as published mid-week
-  for (let i = 0; i < 40; i++) await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(NOW), ...o }));
-  assert.ok(fs.existsSync(path.join(d, "vault", `W${W}.json`)));
-  // the branch doesn't yet have the final week: the vault file is held, quietly ("not yet"), and published next run
+  const mid = tmp(); fs.cpSync(d, mid, { recursive: true });           // the branch as published at the lock
+  for (let i = 0; i < 40; i++) await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.weekStart(W + 1) - H), ...o }));
+  const review = tmp(); fs.cpSync(d, review, { recursive: true });     // the branch as published on the review day
+  assert.equal(readW(review).status, "locked");
+  await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(NOW), ...o }));
+  assert.equal(readW(d).status, "final"); assert.ok(fs.existsSync(path.join(d, "vault", `W${W}.json`)));
+  // the run that makes the week final publishes its vault file too, once the week's recompute agrees
   const hf = path.join(tmp(), "held"); fs.writeFileSync(hf, "");
-  checkRun(d, { pub: mid, held: hf });
-  const held = fs.readFileSync(hf, "utf8").split("\n").filter(Boolean);
-  assert.deepEqual(held, [`bracket/vault/W${W}.json`], "held without an alert");
-  // once the final week is published: accepted
-  assert.ok(shapeOk(d, { pub: d }));
-  // too late: more than 3 days after the week ends
-  assert.equal(shapeOk(d, { pub: d, now: B.weekStart(W + 1) + 3 * DAY + 1 }), false);
+  checkRun(d, { pub: review, held: hf });
+  assert.deepEqual(fs.readFileSync(hf, "utf8").split("\n").filter(Boolean), [], "nothing held");
+  // too late: after Thursday 00:00 UTC (the window), by the job's clock
+  assert.equal(shapeOk(d, { pub: review, now: B.weekStart(W + 1) + 3 * DAY + 1 }), false);
   // published history: a final week, a seeding or a recorded hour that changes holds the whole run, with an alert
-  const tamper = (mut) => { const x = tmp(); fs.cpSync(d, x, { recursive: true }); const f = path.join(x, `W${String(W).padStart(3, "0")}.json`); const j = JSON.parse(fs.readFileSync(f, "utf8")); mut(j); fs.writeFileSync(f, JSON.stringify(j) + "\n"); const h = path.join(tmp(), "held"); fs.writeFileSync(h, ""); checkRun(x, { pub: d, held: h }); return fs.readFileSync(h, "utf8"); };
-  assert.match(tamper((j) => { j.points[0][1] += 1; }), /!alert/, "a final week changed");
-  const tamperMid = (mut) => { const x = tmp(); fs.cpSync(mid, x, { recursive: true }); const f = path.join(x, `W${String(W).padStart(3, "0")}.json`); const j = JSON.parse(fs.readFileSync(f, "utf8")); mut(j); fs.writeFileSync(f, JSON.stringify(j) + "\n"); const h = path.join(tmp(), "held"); fs.writeFileSync(h, ""); checkRun(x, { pub: mid, held: h, now: B.lockTime(W) + 60000 }); return fs.readFileSync(h, "utf8"); };
-  assert.match(tamperMid((j) => { j.seeding.vhp[0] += 1; }), /!alert/, "the seeding changed");
-  assert.equal(tamperMid(() => {}), "", "an unchanged run passes");
+  const tamper = (mut, pub, now) => { const x = tmp(); fs.cpSync(pub === mid ? mid : d, x, { recursive: true }); const f = path.join(x, `W${String(W).padStart(3, "0")}.json`); const j = JSON.parse(fs.readFileSync(f, "utf8")); mut(j); fs.writeFileSync(f, JSON.stringify(j) + "\n"); const h = path.join(tmp(), "held"); fs.writeFileSync(h, ""); checkRun(x, { pub, held: h, now }); return fs.readFileSync(h, "utf8"); };
+  assert.match(tamper((j) => { j.points[0][1] += 1; }, d), /!alert/, "a final week changed");
+  assert.match(tamper((j) => { j.seeding.vhp[0] += 1; }, mid, B.lockTime(W) + 60000), /!alert/, "the seeding changed");
+  assert.equal(tamper(() => {}, mid, B.lockTime(W) + 60000), "", "an unchanged run passes");
 });
 
 test("board rows follow the leaderboard standard: boardPlace and earns (medals only from the week the Vault pays)", async () => {
@@ -548,15 +568,15 @@ test("board rows follow the leaderboard standard: boardPlace and earns (medals o
     return { d, board: JSON.parse(fs.readFileSync(path.join(d, "board.json"), "utf8")) };
   };
   const off = await go(null);
-  assert.ok(off.board.week.rows.every((r) => r.earns === 0), "no from-week: nobody is marked as earning");
-  assert.ok(off.board.week.rows.every((r) => r.boardPlace === r.place && r.boardPlace >= 1));
+  assert.ok(off.board.lastWeek.rows.every((r) => r.earns === 0), "no from-week: nobody is marked as earning");
+  assert.ok(off.board.lastWeek.rows.every((r) => r.boardPlace === r.place && r.boardPlace >= 1));
   const on = await go(W);
-  const wr = on.board.week.rows, free = wr.filter((r) => !r.ranked), staked = wr.filter((r) => r.ranked);
+  const wr = on.board.lastWeek.rows, free = wr.filter((r) => !r.ranked), staked = wr.filter((r) => r.ranked);
   const vf = JSON.parse(fs.readFileSync(path.join(on.d, "vault", `W${W}.json`), "utf8"));
   assert.deepEqual(free.filter((r) => r.earns === 1).map((r) => r.a).sort(), vf.first, "the Free play medal is the Vault file's 1st");
   assert.deepEqual(free.filter((r) => r.earns === 2).map((r) => r.a).sort(), vf.second);
-  const scored = staked.filter((r) => r.pts >= 1).length;
-  assert.ok(staked.filter((r) => r.earns === 3).length >= Math.min(scored, Math.ceil(scored * 0.3)), "the Staked top 30% (rounded up) earn");
+  // #E-3 M-2: the Staked medals are exactly the players the Vault pays from the file's rows
+  assert.deepEqual(staked.filter((r) => r.earns === 3).map((r) => r.a).sort(), plain(rec.vaultPays(vf.rows)).sort());
   assert.ok(shapeOk(on.d), "the publish check accepts the board");
   assert.equal(JSON.parse(fs.readFileSync(path.join(on.d, "index.json"), "utf8")).prizesFromWeek, W);
 });

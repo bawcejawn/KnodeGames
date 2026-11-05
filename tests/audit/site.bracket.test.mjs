@@ -1,7 +1,8 @@
-// Producer Bracket (site/bracket-math.js, shared by bracket.js and the recorder bot/games/bracket.ts): the week's
-// timing, bracket size from the field (8 / 16 with byes / 32), the one-number pick (encode/decode, byes, invalid
-// numbers), the day index from hourly race cards, tie → underdog, results, scoring and ranking, and fairness of the
-// plain handicap end to end. Offline.
+// Producer Bracket (bracket-math.js, shared by bracket.js and the recorder bot/games/bracket.ts): the week's timing
+// (D-141: seeding Sunday, lock Monday 23:55, one round a day, final Saturday), bracket size from the field (8 / 16 /
+// 32, the largest that fits), the one-number pick (encode/decode, invalid numbers), the day index from exact VHP,
+// forfeits on the day's average and the pooled rate index (#E-3 H-4, H-5), tie → underdog, results, scoring and
+// ranking, and fairness end to end. Offline.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -21,34 +22,38 @@ const addr = (i) => `1Producer${String(i).padStart(3, "0")}xxxxxxxxxxxxxxxx`;
 const cardOf = (vhps, paddock = []) => ({ field: vhps.map((v, i) => ({ a: addr(i + 1), vhp: v })), paddock: paddock.map((v, i) => ({ a: addr(900 + i), vhp: v })) });
 
 // ── timing ──
-test("week, seeding and lock times: Saturday 12:00 and Sunday 23:55 UTC before a Monday week", () => {
+test("the week (D-141): seeding Sunday 00:00, lock Monday 23:55 UTC, one round a day with the final on Saturday", () => {
   assert.equal(M.GENESIS, dep.genesisTime); assert.equal(M.WEEK, dep.weekLength); assert.equal(M.GENESIS, R.GENESIS);
   for (const w of [1, 2, 3, 52]) assert.equal(M.weekStart(w), R.weekStart(w));
-  assert.equal(new Date(M.seedTime(2)).toISOString(), "2026-10-31T12:00:00.000Z");
-  assert.equal(new Date(M.lockTime(2)).toISOString(), "2026-11-01T23:55:00.000Z");
-  assert.equal(new Date(M.seedTime(2)).getUTCDay(), 6, "a Saturday");
-  assert.ok(M.weekStart(2) - M.lockTime(2) >= 100 * 3000, "locks at least 100 blocks (~5 min) before Monday");
-  assert.equal(M.lockTime(2) - M.seedTime(2), 36 * H - 5 * 60000, "about 36 hours to pick");
-  assert.deepEqual([0, 1, 2, 3, 4].map((r) => new Date(M.roundDay(2, r)).getUTCDay()), [1, 2, 3, 4, 5], "rounds Monday → Friday");
+  assert.equal(new Date(M.seedTime(3)).toISOString(), "2026-11-08T00:00:00.000Z", "Sunday before the week");
+  assert.equal(new Date(M.lockTime(3)).toISOString(), "2026-11-09T23:55:00.000Z", "Monday 23:55 UTC");
+  assert.equal(M.lockTime(3) - M.seedTime(3), 48 * H - 5 * 60000, "about 48 hours to pick");
+  const days = (size) => Array.from({ length: M.roundsOf(size) }, (_, r) => new Date(M.roundDay(3, r, size)).getUTCDay());
+  assert.deepEqual(days(32), [2, 3, 4, 5, 6], "32: Tuesday → Saturday");
+  assert.deepEqual(days(16), [3, 4, 5, 6], "16: Wednesday → Saturday");
+  assert.deepEqual(days(8), [4, 5, 6], "8: Thursday → Saturday");
+  for (const size of [8, 16, 32]) {
+    assert.ok(M.roundDay(3, 0, size) >= M.lockTime(3) + 5 * 60000, "the first round starts after the lock");
+    assert.ok(M.roundDay(3, M.roundsOf(size) - 1, size) + 24 * H <= M.weekStart(4) - 24 * H, "nothing is played on Sunday, the review day");
+  }
+  assert.equal(M.finalFrom(3), M.weekStart(4), "final no earlier than Monday 00:00 UTC after the week (WEEK_CYCLE.md)");
 });
 
-test("the Picks round for a week targets that week's Monday 00:00 UTC", () => {
+test("the Picks round for a week targets Tuesday 00:00 UTC of that week (lock = target − 5 min, opens ≤ 48 h before)", () => {
   assert.ok(M.ROUND_OFFSET >= 0 && M.ROUND_OFFSET < M.WEEK, "the Picks contract needs round_offset < round_size");
   for (const w of [0, 1, 2, 10, 500]) {
     const r = M.picksRound(w);
-    assert.equal(r * M.WEEK + M.ROUND_OFFSET, M.weekStart(w));
+    assert.equal(r * M.WEEK + M.ROUND_OFFSET, M.weekStart(w) + 24 * H);
     assert.equal(M.weekOfPicksRound(r), w);
-    // the contract locks at target − lead: lead 5 min = M.LOCK_BEFORE, opens at target − ahead (36 h = SEED_BEFORE)
     assert.equal(r * M.WEEK + M.ROUND_OFFSET - M.LOCK_BEFORE, M.lockTime(w));
-    assert.equal(r * M.WEEK + M.ROUND_OFFSET - M.SEED_BEFORE, M.seedTime(w));
+    assert.equal(r * M.WEEK + M.ROUND_OFFSET - 48 * H, M.seedTime(w), "an `ahead` of 48 h opens picks at the seeding");
   }
-  assert.ok(M.SEED_BEFORE <= 35 * 24 * H, "within the contract's 35-day `ahead` limit");
   assert.ok(M.LOCK_BEFORE >= 300000, "the contract's minimum time lead is 5 minutes");
 });
 
 // ── shape ──
-test("bracket size follows the field: <8 none, 8–11 → 8, 12–31 → 16, 32+ → 32 (also at 50)", () => {
-  const want = (n) => (n < 8 ? 0 : n < 12 ? 8 : n < 32 ? 16 : 32);
+test("bracket size: the largest power of two that fits (D-141): <8 none, 8–15 → 8, 16–31 → 16, 32+ → 32 (also at 50)", () => {
+  const want = (n) => (n < 8 ? 0 : n < 16 ? 8 : n < 32 ? 16 : 32);
   for (let n = 0; n <= 60; n++) assert.equal(M.sizeFor(n), want(n), `field ${n}`);
   assert.deepEqual([8, 16, 32].map(M.roundsOf), [3, 4, 5]);
   assert.deepEqual([0, 8, 16, 32].map(M.maxPoints), [0, 14, 34, 82]);
@@ -80,16 +85,35 @@ test("seeding from a race card: by VHP, ties by address, paddock and bad rows le
   const bad = M.seeding({ field: [{ a: addr(1), vhp: 9 }, { a: addr(1), vhp: 9 }, { a: 7, vhp: 9 }, { a: addr(2), vhp: -1 }, { a: addr(3), vhp: NaN }, null] });
   assert.equal(bad.size, 0); assert.equal(bad.seeds.length, 0, "a field of 1 is no bracket");
   assert.equal(M.seeding(null).size, 0);
-  // 13 → 16 slots, 13 seeds; seeds 1–3 get byes
+  // 13 → the top 8 (no byes, D-141); 5 sit out
   const s13 = M.seeding(cardOf(Array.from({ length: 13 }, (_, i) => 100 - i)));
-  assert.equal(s13.size, 16); assert.equal(s13.seeds.length, 13);
-  const fr = plain(M.firstRound(16, 13)), byes = fr.filter(([, b]) => b === 0).map(([a]) => a).sort((a, b) => a - b);
-  assert.deepEqual(byes, [1, 2, 3]);
+  assert.equal(s13.size, 8); assert.equal(s13.seeds.length, 8); assert.equal(s13.out.length, 5);
+  assert.deepEqual(plain(s13.vhp), [100, 99, 98, 97, 96, 95, 94, 93], "each seed's seeding VHP, in seed order");
   // 50 → 32 producers, 18 out
   const s50 = M.seeding(cardOf(Array.from({ length: 50 }, (_, i) => 5000 - i)));
   assert.equal(s50.size, 32); assert.equal(s50.seeds.length, 32); assert.equal(s50.out.length, 18);
   // 7 → no bracket
   assert.equal(M.seeding(cardOf([7, 6, 5, 4, 3, 2, 1])).size, 0);
+});
+
+test("#E-3 M-6: a producer's seeding VHP is the lower of its average now and at last week's seeding (a one-day loan buys nothing)", () => {
+  const vhps = Array.from({ length: 17 }, (_, i) => 1000 - i * 10);
+  // addr(17) borrows 5,000 VHP for the seeding day: on today's average it would be seed 1
+  const today = cardOf(vhps.map((v, i) => (i === 16 ? v + 5000 : v)));
+  const last = Object.fromEntries(vhps.map((v, i) => [addr(i + 1), v]));
+  assert.equal(M.seeding(today).seeds[0], addr(17), "without last week's numbers the loan works");
+  const s = M.seeding(today, last);
+  assert.ok(!s.seeds.includes(addr(17)), "with them it is seeded on its own VHP: 17th, out of the 16");
+  assert.deepEqual(plain(s.out), [addr(17)]);
+  // a producer new this week is seeded on today's average; a producer that grew is seeded on last week's
+  const grew = M.seeding(cardOf(vhps.map((v, i) => (i === 3 ? v * 2 : v))), last);
+  assert.equal(grew.vhp[grew.seeds.indexOf(addr(4))], vhps[3]);
+  const fresh = M.seeding(today, { ...last, [addr(17)]: undefined });
+  assert.equal(fresh.seeds[0], addr(17));
+  // the field rule (≥ 10 expected blocks in a 6-hour race) is applied to the lower number
+  const tiny = cardOf([...vhps.slice(0, 15), 900, 900], []);
+  const lastTiny = { ...last, [addr(16)]: 1, [addr(17)]: 1 };
+  assert.equal(M.seeding(tiny, lastTiny).size, 8, "two producers that were tiny last week drop out of the field: 15 → the top 8");
 });
 
 // ── the one-number pick ──
@@ -141,7 +165,7 @@ const DAY0 = U("2026-11-02T00:00:00Z"), E8 = 1e8;
 function fakeChain(vhp, { hours = 24, seed = 7, moves = [], offline = () => false, h0 = 50_000_000, startHour = 0, luck = null } = {}) {
   const rnd = R.rng(seed), names = Object.keys(vhp), bal = new Map(names.map((a) => [a, vhp[a] * E8]));
   const burn = Math.round(4 * E8 * Object.values(vhp).reduce((t, v) => t + v, 0) / 12e6);
-  const pre = M.ACTIVE_BLOCKS, n = pre + hours * 1200, t0 = DAY0 + startHour * H - pre * 3000;
+  const pre = M.ACTIVE_BLOCKS, n = pre + hours * 1200 + 1, t0 = DAY0 + startHour * H - pre * 3000;   // + the block after the last hour
   const hs = [], ts = [], sig = [], deltas = [];
   for (let i = 0; i < n; i++) {
     const h = h0 + i;
@@ -253,6 +277,42 @@ test("a seed that goes offline is still expected to sign by its VHP, and loses",
   assert.ok(idx.get("1Dog").index < 0.2, `dog ${idx.get("1Dog").index}`);
   assert.equal(M.otherWins(idx, "1Fav", "1Dog"), false);
 });
+test("#E-3 H-4: deposits in and out of the vault around 00:00 can't make the Knode Games Pool lose (its rate index)", () => {
+  // the review's attack: the pool and its opponent at 100 VHP each, +900 deposited 100 blocks before 00:00, withdrawn at 00:00
+  const vhp = { "1Pool": 100, "1Opp": 100, "1Rest": 2000 };
+  const moves = [{ at: M.ACTIVE_BLOCKS - 100, a: "1Pool", d: 900 }, { at: M.ACTIVE_BLOCKS, a: "1Pool", d: -900 }];
+  const sv = new Map([["1Pool", 100], ["1Opp", 100]]), pooled = new Set(["1Pool"]);
+  let lostOld = 0, lostNew = 0, sumRate = 0; const N = 20;
+  for (let d = 0; d < N; d++) {
+    const c = fakeChain(vhp, { seed: 700 + d, moves });
+    const idx = M.dayIndex(c.B, DAY0, ["1Pool", "1Opp"], M.vhpBook(c.anchors, c.deltas));
+    if (M.otherWins(idx, "1Pool", "1Opp", sv, new Set())) lostOld++;   // as an ordinary producer (the old rule)
+    if (M.otherWins(idx, "1Pool", "1Opp", sv, pooled)) lostNew++;
+    sumRate += M.indexOf(idx.get("1Pool"), true);
+  }
+  assert.ok(lostOld >= N - 1, `as an ordinary producer the attack wins (${lostOld} of ${N}): its baseline has the deposit in it`);
+  assert.ok(lostNew > 3 && lostNew < N - 3, `as a pooled producer it's a fair matchup again: lost ${lostNew} of ${N}`);
+  assert.ok(Math.abs(sumRate / N - 1) < 0.15, `its rate index averages about 1 (${(sumRate / N).toFixed(3)})`);
+});
+test("#E-3 H-5: moving VHP away for the block at 00:00 no longer forfeits (judged on the day's average)", () => {
+  // the review's attack: −60 VHP of 100 one block before 00:00, back at 00:00 (back VHP counts after 20 blocks)
+  const vhp = { "1Fav": 100, "1Dog": 100, "1Rest": 2000 };
+  const moves = [{ at: M.ACTIVE_BLOCKS - 1, a: "1Fav", d: -60 }, { at: M.ACTIVE_BLOCKS, a: "1Fav", d: 60 }];
+  const sv = new Map([["1Fav", 100], ["1Dog", 100]]);
+  let forfeits = 0, lost = 0; const N = 20;
+  for (let d = 0; d < N; d++) {
+    const c = fakeChain(vhp, { seed: 800 + d, moves });
+    const idx = M.dayIndex(c.B, DAY0, ["1Fav", "1Dog"], M.vhpBook(c.anchors, c.deltas));
+    assert.ok(idx.get("1Fav").baseline < 0.5 * 100e8, "its baseline at 00:00 is under half (the old rule forfeited here)");
+    if (M.forfeits(idx.get("1Fav"), 100)) forfeits++;
+    if (M.otherWins(idx, "1Fav", "1Dog", sv)) lost++;
+  }
+  assert.equal(forfeits, 0, "the day's average is near its full VHP: no forfeit");
+  assert.ok(lost < N - 3, `so it doesn't lose for sure (${lost} of ${N})`);
+  // a real day under half still forfeits
+  const under = fakeChain(vhp, { seed: 1, moves: [{ at: M.ACTIVE_BLOCKS - 1, a: "1Fav", d: -60 }] });
+  assert.equal(M.forfeits(M.dayIndex(under.B, DAY0, ["1Fav"], M.vhpBook(under.anchors, under.deltas)).get("1Fav"), 100), true, "a whole day at 40% of its seeding VHP forfeits");
+});
 test("a balance missing for an active producer stops the hour (never guessed)", () => {
   const { B, deltas, anchors } = fakeChain({ "1A": 1000, "1B": 1000 }, { hours: 1 });
   delete anchors["1B"];
@@ -276,7 +336,7 @@ function weekDays(seeds, rule) { // rule(day, address) → index; builds a Map p
   return Array.from({ length: 5 }, (_, d) => new Map(seeds.map((a, i) => [a, { blocks: rule(d, i + 1) * 1000, expected: 1000 }])));
 }
 test("results, a perfect bracket scores the maximum, champion bonus only once the final is known", () => {
-  for (const [size, n] of [[8, 9], [16, 16], [16, 13], [32, 40]]) {
+  for (const [size, n] of [[8, 9], [16, 16], [8, 13], [32, 40]]) {
     const s = M.seeding(cardOf(Array.from({ length: n }, (_, i) => 10000 - i)));
     assert.equal(s.size, size);
     const days = weekDays(s.seeds, (d, seed) => ((seed * 7 + d * 3) % 11) + 1);
@@ -350,30 +410,39 @@ test("the shared math is read only and has no betting words", () => {
 // ── the page (site/bracket.html, bracket.js) ──
 const page = read("bracket.html"), js = read("bracket.js");
 test("the page: scripts in order, the shared board, reads only the bracket files, the block snapshot and the site", () => {
-  assert.match(page, /<script src="vhp-standard\.js"><\/script>\s*<script src="bracket-math\.js"><\/script>\s*<script src="board\.js"><\/script>\s*<script src="bracket\.js"><\/script>/);
+  assert.match(page, /<script src="names\.js"><\/script>\s*<script src="stake-panel\.js"><\/script>\s*<script src="vhp-standard\.js"><\/script>\s*<script src="bracket-math\.js"><\/script>\s*<script src="board\.js"><\/script>\s*<script src="bracket\.js"><\/script>/);
   assert.match(page, /<link rel="stylesheet" href="board\.css">/);
   const csp = page.match(/Content-Security-Policy" content="([^"]+)"/)[1];
-  assert.match(csp, /connect-src [^;]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/games-data\//);
-  assert.match(csp, /connect-src [^;]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/blocks-data\//);
+  assert.match(csp, /connect-src [^;]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/games-data\//);
+  assert.match(csp, /connect-src [^;]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/blocks-data\//);
   assert.doesNotMatch(page, /<script>(?!\s*<\/script>)|\son[a-z]+="/i, "no inline scripts or handlers");
   const urls = [...js.matchAll(/"(https:\/\/[^"]+)"/g)].map((m) => m[1]);
-  for (const u of urls) assert.ok(/^https:\/\/(raw\.githubusercontent\.com\/bawcejawn\/Knode\/(games-data\/bracket\/|blocks-data\/recent-blocks\.json)|api\.koinos\.io|koinosscan\.com\/address\/)/.test(u), u);
+  for (const u of urls) assert.ok(/^https:\/\/(raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/(games-data\/bracket\/|blocks-data\/recent-blocks\.json)|koinos\.armana\.io|api\.koinosblocks\.com|koinosscan\.com\/address\/)$/.test(u), u);
+  const body = page.slice(page.indexOf("<body>"));
+  assert.doesNotMatch(body + js, /bawcejawn\/Knode\/|bawcejawn\.github\.io\/Knode|api\.koinos\.io/, "no old URLs (#E-3 L-15)");
   assert.match(js, /new URL\("picks-data\/deployment\.json", ROOT\)/);
 });
 test("the page builds everything with textContent and sends one thing: a pick of game 9 as one number", () => {
   assert.doesNotMatch(js, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|localStorage|sessionStorage|indexedDB/);
   const sends = [...js.matchAll(/W\.send\(/g)]; assert.equal(sends.length, 1, "one send");
-  assert.match(js, /picksContract\.functions\.pick\(\{ player: who, game: BM\.GAME_ID, round: String\(BM\.picksRound\(view\)\), producers: \[\], number: String\(n\) \}, \{ onlyOperation: true \}\)/);
+  assert.match(js, /picksContract\.functions\.pick\(\{ player: frozen\.account, game: BM\.GAME_ID, round: String\(BM\.picksRound\(wk\)\), producers: \[\], number: String\(n\) \}, \{ onlyOperation: true \}\)/);
   const calls = new Set([...js.matchAll(/picksContract\.functions\.([a-z_]+)/g)].map((m) => m[1]));
   assert.deepEqual([...calls].sort(), ["get_pick", "pick"]);
   // the number sent is the one shown in the check pop-up, and it is encoded by the shared math
   assert.match(js, /const draftNumber = \(\) => \{ const s = seeding\(\); try \{ return filled\(\) \? BM\.encode\(draft, s\.size, s\.seeds\.length\) : null;/);
-  assert.match(js, /btn\("Confirm in wallet", \(\) => send\(n\)\)/);
-  assert.match(js, /BM\.lockTime\(view\) - Date\.now\(\) < 120000/, "refuses to send within 2 minutes of the lock");
+  assert.match(js, /btn\("Confirm in wallet", \(\) => send\(frozen\)\)/, "Confirm sends exactly what was checked (#E-3 C-2; behaviour: site.bracket-confirm)");
+  assert.match(js, /const LOCK_MARGIN = 120000;/, "refuses to send within 2 minutes of the lock");
 });
 test("the page says what the contract and recorder do (sizes, lock, scoring, ties, own nodes)", () => {
-  for (const s of ["Saturday at 12:00 UTC", "Sunday 23:55 UTC", "with 12 to 15 the top seeds get a bye", "from 32 it is a 32-producer bracket", "under 8 there is no bracket", "an exact tie goes to the lower seed", "1 point in the first round, then 2, 4, 8 (and 16 in a 32-bracket), plus 2 for the right champion", "ties go to a right champion, then more right picks"]) assert.ok(page.includes(s), s);
-  assert.match(page, /Disclosure: a KnodeGames node is in this bracket/);
+  for (const s of ["Seeding on Sunday 00:00 UTC, picks until Monday 23:55 UTC, one round a day, the final on Saturday", "Sunday is review day: results are checked and paid from Monday.",
+    "32 or more play Tuesday to Saturday, 16 to 31 Wednesday to Saturday, 8 to 15 Thursday to Saturday", "Under 8, there is no bracket that week", "an exact tie goes to the lower seed",
+    "1 point in the first round, then 2, 4, 8 (and 16 in a 32-producer bracket), plus 2 for the right champion", "ties go to a right champion, then more right picks",
+    "the lower of that average and its average at last week's seeding", "averaged over its round's day, is less than half its seeding VHP", "If both seeds are under half, the blocks decide",
+    "Brackets sent in the same block share a place", "tied for 1st share all 3 VHP; otherwise 2 VHP to 1st and 1 VHP shared by those tied 2nd",
+    "it never forfeits, and it is judged on a rate that no deposit or withdrawal can move"]) assert.ok(page.includes(s), s);
+  assert.match(page, /Disclosure: a Knode Games node is in this bracket/);
+  const main = page.slice(page.indexOf("<main"), page.indexOf("</main>"));
+  assert.doesNotMatch(main + page.match(/<meta name="description" content="[^"]*"/)[0], /Sixteen|same chance|\bbyes?\b|can't tie the original|a drop isn't its choice/i, "#E-3 M-10: no old or wrong claims");
   assert.match(read("terms.html"), /The Producer Bracket seeds whichever producers are in the field, by VHP/);
   assert.doesNotMatch(page + js, /\bodds\b|\bwager|\bbet\b|\bpays\s+\d/i);
 });
@@ -384,5 +453,5 @@ test("the page and the recorder both use the recorded exact hours (no card share
   const rec = fs.readFileSync(`${APP}/bot/games/bracket.ts`, "utf8");
   assert.match(rec, /const days = wf\.days\.map\(\(d\) => \(d\.every\(Boolean\) \? B\.indexFromHours\(d\) : null\)\);/);
   assert.doesNotMatch(rec + read("bracket-math.js") + js, /floorOf|provenOf|sharesOf|hourOf\(/);
-  assert.match(page, /Nothing to gain by moving VHP/);
+  assert.match(page, /VHP added during the day neither helps nor hurts/);
 });

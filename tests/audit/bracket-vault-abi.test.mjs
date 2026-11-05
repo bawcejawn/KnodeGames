@@ -22,7 +22,7 @@ function fakeNode(minStake, minNext, nextWeek, players) {
       if (!m) throw new Error("unknown entry point");
       const [name, meth] = m;
       if (name === "get_state") {
-        const r = await ser.serialize({ config: { min_stake: String(minStake), min_stake_next: String(minNext), min_stake_next_week: String(nextWeek) } }, meth.return);
+        const r = await ser.serialize({ config: { owner: dep.contract, min_stake: String(minStake), min_stake_next: String(minNext), min_stake_next_week: String(nextWeek), v6_rule_week_plus_one: "3" } }, meth.return);
         return { result: utils.encodeBase64url(r) };
       }
       if (name === "get_game_player") {
@@ -42,7 +42,7 @@ test("the Vault v6 interface has the reads the recorder uses, and deployment.jso
   assert.equal(dep.vaultGames["9"].results, "games-data:bracket/vault");
 });
 
-test("stakes read through the real interface: staked (entry or week stake), held (the Vault's peak-stake rule), the Vault's minimum", async () => {
+test("stakes read through the real interface (Block X's reader, #E-3 M-1): staked = week stake, held = the Vault's peak-stake rule, the Vault's minimum", async () => {
   const V = 100000000n;
   const players = {
     [P(1)]: { entry: { stake: String(2n * V), peak_stake: String(2n * V) }, week_stake: String(2n * V) },   // staked
@@ -50,12 +50,12 @@ test("stakes read through the real interface: staked (entry or week stake), held
     [P(3)]: { active_stake: "0" },                                                                            // free
   };
   const ps = [P(1), P(2), P(3)];
-  const s = await rec.readStaked(fakeNode(V, 0n, 0, players), ps, 5);
+  const s = await rec.stakesReader(dep.contract)(fakeNode(V, 0n, 0, players), ps, 5);
   assert.deepEqual(JSON.parse(JSON.stringify(s)), { staked: [P(1)], held: [P(1), P(2)] });
   // the minimum rises to 3 VHP from week 5: 2 VHP no longer counts as staked, and P(2)'s 3 VHP peak still holds
-  const s2 = await rec.readStaked(fakeNode(V, 3n * V, 5, players), ps, 5);
+  const s2 = await rec.stakesReader(dep.contract)(fakeNode(V, 3n * V, 5, players), ps, 5);
   assert.deepEqual(JSON.parse(JSON.stringify(s2)), { staked: [], held: [P(2)] });
   // …but not for an earlier week
-  const s3 = await rec.readStaked(fakeNode(V, 3n * V, 6, players), ps, 5);
+  const s3 = await rec.stakesReader(dep.contract)(fakeNode(V, 3n * V, 6, players), ps, 5);
   assert.deepEqual(JSON.parse(JSON.stringify(s3)).staked, [P(1)]);
 });

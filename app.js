@@ -375,8 +375,9 @@
         if (sharedWeek(w)) {
           // Shared rules (Repo Lens F-1): the posted result is the game entry (get_game_player), not the old entry, which
           // is never settled on these weeks. Rewards are collected on the Stake page (claim_game), so no claim here.
-          const [gp, gg] = await Promise.all([read("get_game_player", { player: a, game: 1, week: String(w) }), read("get_game", { game: 1, week: String(w) })]);
-          const h = sharedHistoryRow(w, gp, gg, minStakeFor(w));
+          const [gp, gg, p] = await Promise.all([read("get_game_player", { player: a, game: 1, week: String(w) }), read("get_game", { game: 1, week: String(w) }),
+            read("get_player", { player: a, week: String(w) }).catch(() => ({}))]);
+          const h = sharedHistoryRow(w, gp, gg, minStakeFor(w), p && p.entry);
           if (h) history.push(h);
           return;
         }
@@ -447,22 +448,46 @@
   const sharedWeek = (week) => { const v = num((S.st && S.st.config || {}).q60_rule_week_plus_one); return v > 0 && week + 1 >= v; };
   const STAKE_HREF = "stake.html#g1";
   const STAKE_LINK = "\u0000stake-link";   // historyText's marker for "collect on the Stake page" (a link)
-  /** "Your past weeks" row for a shared-rules week (Repo Lens F-1): from the posted game entry (get_game_player) and
-   *  the game week (get_game), never the old entry, which these weeks never settle. null: the wallet wasn't in it. */
-  function sharedHistoryRow(w, gp, gg, min) {
-    const ge = (gp && gp.entry) || null, G = (gg && gg.week) || {}, st = big(gp && gp.week_stake);
-    if (!ge && st === 0n) return null;
-    const place = num(ge && ge.prize_place);
-    return { week: w, pts: num(ge && ge.points), counted: num(ge && ge.points), staked: st > 0n && st >= min, voided: false,
-      claimed: !!(ge && ge.claimed), cutoff: num(G.cutoff), reward: big(ge && ge.reward), free: place === 1 || place === 2, shared: true,
-      pending: !G.finalized, rolled: !!(G.rolled_over || G.voided) };
+  /** "Your past weeks" row for a shared-rules week (Repo Lens F-1, E-17 G-1/G-2/G-3): from the game entry (get_game_player)
+   *  and the game week with its buckets (get_game), never the old entry's result, which these weeks never settle.
+   *  `old` is get_player's entry for the week (only to know whether the wallet answered). For game 1 the vault always
+   *  returns an entry, so: null unless the wallet answered or has a posted result (G-2).
+   *  The vault writes an entry's `reward` only when it is collected (claim_game), so before that the amount is worked out
+   *  here with the vault's claimableG rule (stake-panel.js claimable, the same lines) (G-1). A rolled-over week still
+   *  pays its free prizes (G-3). */
+  function sharedHistoryRow(w, gp, gg, min, old) {
+    const ge = (gp && gp.entry) || {}, G = (gg && gg.week) || {}, st = big(gp && gp.week_stake);
+    const pts = num(ge.points), place = num(ge.prize_place), claimed = !!ge.claimed;
+    const answered = !!(old && ((old.answers && old.answers.length) || num(old.counted) > 0));
+    if (!answered && pts === 0 && place === 0 && !claimed) return null;
+    const cutoff = num(G.cutoff), rolledOver = !!G.rolled_over, voided = !!G.voided;
+    const prize = place === 1 ? big(G.prize_first) : place === 2 ? big(G.prize_second) : 0n;
+    const free = prize > 0n;
+    const win = !voided && !rolledOver && cutoff >= 1 && pts >= cutoff && st > 0n;   // a staked winner
+    let reward = 0n;
+    if (claimed) reward = big(ge.reward);
+    else if (G.finalized && !voided) {
+      if (place === 1 || place === 2) reward = prize;
+      else if (win) {
+        const b = ((gg && gg.buckets) || [])[pts], n = big(b && b.players);
+        if (n > 0n) {
+          const CAPA = 1000000000n, sumW = big(b.sum_w), stake = big(ge.stake);
+          const aw = (big(G.aw_hi) << 64n) + big(G.aw_lo), bw = (big(G.bw_hi) << 64n) + big(G.bw_lo);
+          if (aw > 0n) reward = (big(G.pot_a) * ((sumW * (stake < CAPA ? stake : CAPA)) / n)) / aw;
+          if (bw > 0n) reward += (big(G.pot_b) * ((sumW * stake) / n)) / bw;
+        }
+      }
+    }
+    return { week: w, pts, counted: pts, staked: st > 0n && st >= min, voided: false, claimed, cutoff, reward, free, win,
+      shared: true, pending: !G.finalized, rolled: voided || (rolledOver && !free) };
   }
   /** The result text of a "Your past weeks" row (parts; STAKE_LINK becomes a link). */
   function historyText(h) {
     if (h.shared) {
-      if (h.rolled) return ["no results for this week (its share rolled over)"];
       if (h.pending) return [h.staked ? "staked: results not final yet" : "free play: results not final yet"];
+      if (h.rolled && !(h.reward > 0n)) return ["no results for this week (its share rolled over)"];
       if (h.reward > 0n) return [`${h.free ? "Top free player: " : "Won "}${amount(h.reward)} VHP${h.claimed ? " · collected" : " · "}`, ...(h.claimed ? [] : [STAKE_LINK])];
+      if (h.win && !h.claimed) return ["in the top 30% · ", STAKE_LINK];   // amount not readable just now; the Stake page has it
       return [h.staked ? (h.cutoff > 0 && h.pts >= h.cutoff ? "in the top 30%" : `missed the line${h.cutoff ? ` (${h.cutoff} pts)` : ""}`) : "free play"];
     }
     return [h.voided ? "withdrew (answers didn't count)"
@@ -474,7 +499,9 @@
     const DAYM = 86400000, G = P.G || {}, due = P.end + 3 * DAYM, finalAt = num(G.seal_time) ? num(G.seal_time) + DAYM : 0;
     // The vault week can close only from week end + close_delay; the bot then closes it on its next run.
     const closeAt = P.end + (closeDelay || 43200000);
-    const noResults = !!(G.rolled_over || G.voided);   // no results by the deadline, or voided: nothing to collect
+    // No results by the deadline, or voided: nothing to collect. A rolled-over week still pays its free prizes (E-17 G-3).
+    const freePaid = big(G.prize_first) > 0n || big(G.prize_second) > 0n;
+    const noResults = !!G.voided || (!!G.rolled_over && !freePaid);
     return {
       hidden: noResults ? now > P.end + 4 * DAYM : !!G.finalized && finalAt > 0 && now > finalAt + DAYM,
       k: `${WL(P.week)} · ${P.Gerr ? "…" : !G.closed ? "closing" : !G.finalized ? "closed" : "final"}`,
@@ -483,7 +510,9 @@
         : noResults ? "no results for this week: its share rolls over to next week"
         : !G.closed ? `waiting for the weekly close, ${now < closeAt ? `about ${dayTime(closeAt)}` : "within about an hour"}`
         : !G.sealed ? `Daily Questions' share; results posted by ${dayTime(due)}`
-          : !G.finalized ? `results posted; final ${finalAt ? dayTime(finalAt) : "24 hours after posting"}` : "final: collect on the Stake page",
+          : !G.finalized ? `results posted; final ${finalAt ? dayTime(finalAt) : "24 hours after posting"}`
+          : G.rolled_over ? "final: no staked winners, so the stakers' share rolls over; free prizes: collect on the Stake page"
+          : "final: collect on the Stake page",
     };
   }
   const CAP_A = 10n * UNIT;

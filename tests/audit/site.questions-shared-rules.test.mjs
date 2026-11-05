@@ -52,7 +52,9 @@ const UNIT = 100000000n;
 test("F-1: a posted shared-week result shows its real points and reward, never \"0 pts · free play\"", () => {
   const { sharedHistoryRow, historyText } = helpers;
   // q60_rule_week_plus_one = 4: week 3 is shared; finalized; a staked winner with 12 points.
-  const h = sharedHistoryRow(3, { week_stake: String(5n * UNIT), entry: { points: "12", reward: String(3n * UNIT), claimed: false } }, { week: { finalized: true, cutoff: 9 } }, UNIT);
+  const h = sharedHistoryRow(3, { week_stake: String(5n * UNIT), entry: { points: "12", stake: String(5n * UNIT) } },
+    { week: { finalized: true, cutoff: 9, pot_a: String(UNIT), aw_lo: String(5n * UNIT), pot_b: String(2n * UNIT), bw_lo: String(5n * UNIT) }, buckets: { 12: { players: 1, sum_w: 1 } } }, UNIT);
+  // (E-17: an unclaimed entry has no reward yet; the amount comes from the week's pots and the player's score group.)
   assert.equal(h.pts, 12);
   assert.equal(h.staked, true);
   const t = historyText(h);
@@ -60,9 +62,9 @@ test("F-1: a posted shared-week result shows its real points and reward, never \
   assert.ok(!t.join(" ").includes("free play"));
   // A staked player below the line, a free winner, a week not final yet, a rolled-over week.
   assert.deepEqual(historyText(sharedHistoryRow(3, { week_stake: String(UNIT), entry: { points: "4" } }, { week: { finalized: true, cutoff: 9 } }, UNIT)), ["missed the line (9 pts)"]);
-  assert.deepEqual(historyText(sharedHistoryRow(3, { week_stake: "0", entry: { points: "20", prize_place: 1, reward: String(2n * UNIT), claimed: true } }, { week: { finalized: true } }, UNIT)), ["Top free player: 2 VHP · collected"]);
+  assert.deepEqual(historyText(sharedHistoryRow(3, { week_stake: "0", entry: { points: "20", prize_place: 1, reward: String(2n * UNIT), claimed: true } }, { week: { finalized: true, prize_first: String(2n * UNIT) } }, UNIT)), ["Top free player: 2 VHP · collected"]);
   assert.deepEqual(historyText(sharedHistoryRow(3, { week_stake: String(UNIT), entry: { points: "7" } }, { week: { closed: true } }, UNIT)), ["staked: results not final yet"]);
-  assert.deepEqual(historyText(sharedHistoryRow(3, { week_stake: String(UNIT) }, { week: { finalized: true, rolled_over: true } }, UNIT)), ["no results for this week (its share rolled over)"]);
+  assert.deepEqual(historyText(sharedHistoryRow(3, { week_stake: String(UNIT), entry: {} }, { week: { finalized: true, rolled_over: true } }, UNIT, { answers: [{ question_id: 1 }] })), ["no results for this week (its share rolled over)"]);
   assert.equal(sharedHistoryRow(3, { week_stake: "0" }, { week: {} }, UNIT), null, "not in that week: no row");
 });
 
@@ -88,4 +90,6 @@ test("F-2: the shared-week last-week box: the close time, a rolled-over week, a 
 
 test("F-3: no \"1 VHP each\" left for the free prize on the page", () => {
   assert.doesNotMatch(html, /1 VHP each/);
+  // E-17 leftover: the Games page said it too.
+  assert.doesNotMatch(fs.readFileSync(`${APP}/games.html`, "utf8"), /free players win 1 VHP each/);
 });

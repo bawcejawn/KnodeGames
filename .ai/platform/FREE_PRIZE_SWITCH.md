@@ -2,7 +2,7 @@
 
 > **Purpose:** a plain-words guide to the free-prize switch: what it controls, what it never touches, how and when to use it, and the starting settings.
 > **Decisions:** D-081 (every game has Free play), D-082 (the switch). **Code:** `bot/free-prizes.ts`, `bot/vault.ts` (merged 3 Nov, PR #65). **Audit:** Repo Lens 3 Nov, GO.
-> **Last updated:** 2026-11-03
+> **Last updated:** 5 Nov 2026 (status sync: Questions joins the shared rules at v6.1's rule week; paused games)
 
 ## 1. Three separate things
 | | What it is | Who gets it | Can the switch change it? |
@@ -19,7 +19,7 @@ So a game with its switch **OFF** still has free play and a Free play leaderboar
 3. **After each week ends, the bot reads the switch**, then posts the results to the vault:
    - **ON:** it posts the stakers' points and the free winners. Free winners get 2 + 1 VHP.
    - **OFF:** it posts the stakers' points only. The 3 VHP that was set aside goes back into the next week's pot, without the 5% fee, and is split as usual. It never leaves the vault.
-4. **Questions (game 1) is not on the switch.** Its free prize is built into the vault contract.
+4. **Questions (game 1) is not on the switch** today: its free prize is built into the vault contract. From Vault v6.1's rule week (Mon 16 Nov, D-116) Questions is a regular vault game; whether its free prize then follows the switch is ❓ (Vault chat to confirm).
 
 ## 3. The timing rules
 - **A change always starts next Monday 00:00 UTC (Sunday 4 PM PT).** It never changes the week in progress or a past week. A change made on Wednesday of week 4 counts from week 5.
@@ -31,7 +31,7 @@ So a game with its switch **OFF** still has free play and a Free play leaderboar
 ## 4. Starting settings (owner, D-081)
 | Game | Id | Free play | Free prize | Staked prize |
 |---|---|---|---|---|
-| Daily Questions | 1 | ✅ | ✅ built into the vault (not on the switch) | ✅ |
+| Daily Questions | 1 | ✅ | ✅ built into the vault (not on the switch; ❓ from Mon 16 Nov) | ✅ |
 | Who Signs Block X | 2 | ✅ | ✅ **ON** | ✅ |
 | Producer Race | 7 | ✅ | ✅ **ON** | ✅ |
 | Producer Bracket | 9 | ✅ | ✅ **ON** | ✅ |
@@ -41,7 +41,7 @@ So a game with its switch **OFF** still has free play and a Free play leaderboar
 | Block Golf | 6 | ✅ | ⛔ **OFF** for now | ✅ |
 | Combo Card | 8 | ✅ | ⛔ **OFF** for now | ✅ |
 
-**When to set them:** now, all eight, while no game but 2 and 7 is in the vault. Setting a game that isn't in the vault yet is harmless, and it means each game starts with the right value. Avoid the Sunday quiet window.
+**When to set them:** now, all eight, while no game but 2 and 7 is in the vault (the other games are paused, D-113). Setting a game that isn't in the vault yet is harmless, and it means each game starts with the right value. Avoid the Sunday quiet window.
 
 ## 5. How to use it
 **Admin panel** (`npm run admin`) → **Knode Vault** → *Free prizes: which games pay them* (read only), then *Free prize ON* or *Free prize OFF* → enter the game id → **Preview** → **Write the files**.

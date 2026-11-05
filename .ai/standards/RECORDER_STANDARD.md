@@ -1,8 +1,8 @@
 # Knode Games — Recorder Standard
 
 > **Purpose:** the rules every game's recorder (the keyless bot that turns chain blocks and picks into results) and its publish job (the step that checks files and pushes them to a data branch) must follow. These are lessons already paid for in audits. Writing them once stops each new game from re-learning them.
-> **Applies to:** every game that publishes results: Race, Block X, Survivor, Bracket, Last Node, Fantasy, Combo, Golf, and any future game.
-> **Last updated:** 2026-11-03 (first version)
+> **Applies to:** every game that publishes results: Race, Block X, Daily Questions (from v6.1's rule week, D-116), the paused games (Survivor, Bracket, Last Node, Fantasy, Combo, Golf; D-113), and any future game.
+> **Last updated:** 5 Nov 2026 (week timing points to `WEEK_CYCLE.md`; first version 3 Nov)
 > **Built from:** Block X and Race audits (BX-*, B1-*), Repo Lens #E-3 (Bracket), #D-3 (vault bot checks, PR #74), `VAULT_STANDARD.md` §6, `LEADERBOARD_STANDARD.md`. Each rule names the finding that taught it.
 > **Words:** **must** = required before launch · **should** = expected · the audit id in brackets is the example to read.
 
@@ -26,7 +26,7 @@
    - a seeding or card only after its time;
    - picks only after their lock;
    - an hour only after it ends;
-   - "final" only after the review day: **no earlier than Monday 00:00 UTC**, 24 h after the week's last play (Sat 24:00 UTC), D-125.
+   - "final" only after the review day, never before the time in `WEEK_CYCLE.md` (D-125).
    - Nothing on Sunday UTC counts for the week (D-129): Sunday rounds are scored as fun rounds for the Today and All time boards, and every weekly tally (board, medals, vault file, the publish job's recompute) leaves them out. **Data other games read keeps being taken on Sunday** (Race cards, VHP samples, ruler hours; Repo Lens #C-7 C7-3).
    - During Sunday the recorder publishes the week as **pending** and **re-scores it from the chain** before it may go final (Race: `verifyWeek`, Repo Lens #E-11 H-1; Sunday fun rounds are not part of it, since nothing pays on them).
 2. **Use the publish job's own clock**, not the recorder's (a recorder run can be wrong or forged).

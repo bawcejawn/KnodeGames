@@ -4,6 +4,60 @@
 > **How it grows:** when an item in `platform/TODOS.md`, `platform/CHAT_REQUESTS.md`, `platform/PRIORITIES.md`, `platform/ROADMAP.md`, `platform/DOCUMENTATION_GAPS.md` or `platform/TECHNICAL_DEBT.md` is done, the library chat moves it here under the date it was moved, newest first. Closed issues go to `ISSUES_CLOSED.md`.
 > **Full copies:** the working files as they stood before the 4 Nov cleanup are in `2026-11-04/`.
 
+## Moved 2026-11-05 (status-sync, evening)
+- Merged 4–5 Nov: #142, #150, #157 (Stake page manages Daily Questions; gentle reads; claim choice D-132), #143 (Block X Results tab), #154 (one sponsored claim per transaction, fallback), #155 (Race Sunday fun races, D-129; L-4 daily), #158 (site Mana limits at the 2.4 cap, D-131), #159 (Block X finals locked, tests), #160 (Block X on the weekly rhythm), #161 (HEALTHCHECK), #162 (v6.1 weekend runbook dates, D-130) — 2026-11-05
+- Sponsor config on mainnet: cap 2.4 and 8 rows, switch ON, vault switch ON (tx `0x1220a593…1bfc`, owner) — 2026-11-04
+- Vault v6.1 Repo Lens round 2 (#E-16): GO to announce; N-1 fixed in `3f74a33` — 2026-11-04
+- VHP ruler Repo Lens #E-14, #B-5, #B-6 findings fixed (`a26571d`, `b7259a3`); #B-6 re-check GO; **PR #163 merged** at `978c96b` (off until turned on) — 2026-11-05
+- Race #155 merged (Sunday fun races D-129, L-4 daily owner-hold email, Repo Lens #B-7 GO); R-RACE-13, R-RACE-14 done — 2026-11-05
+Owner steps done or replaced (from TODOS, as they last stood):
+- [ ] **Message the Hub chat** (start message): its list has the Stake tab (R-HUB-9), the admin follow-ups (R-HUB-8), @names (R-HUB-3) and the guest-wallet messages (R-HUB-4) — P2
+- [ ] **Send every chat the same start message** (`CHAT_REQUESTS.md` §1) — P2 — D-089
+- [ ] **Vault upgrade, Path 2 (D-116):** Repo Lens round 1 (and round 2) → **Tue 10 Nov, after the handover accept: announce, signed by `1LMV8E…`** → **Thu 12: upload** (the new owner needs ≥ 95 KOIN of Mana) → merge #114, then #141 and #142. Don't announce earlier — P1 — D-116
+- [ ] Try one small sponsored stake on the live site (staking now asks 1.5 Mana) and tell the Block X chat it worked (R-BX-18, I-088) — P2
+- [ ] **Repo Lens queue, in this order:** (1) the vault upgrade #114 on its latest commit (ask the Vault chat for the prompt), before the Tue 10 announce; (2) Questions #152 `claude/questions/REPOLENS-PR152-PROMPT.md` (before the Thu 12 upload); (3) the ruler re-check `claude/ruler/REPOLENS-FIXCHECK-E14-B5-PROMPT.md`; (4) Race #155 `claude/race/REPOLENS-PR155-PROMPT.md`; (5) Stake page #154 (ask the Hub chat) — P1
+- [ ] Decide: move the audit reports and raw chat exports out of the public repo (doesn't touch `CHAT_REQUESTS.md`) — P2 — D-115
+- [ ] Later (on hold, your call): the GitHub CODEOWNERS / ruleset step (C5-13). Don't require code-owner review without a bypass for yourself — P3
+- [ ] Paste the D-112 answers to the VHP Ruler chat (OK the plan; push to branch `vhp-ruler`) — P2 — D-112
+- [ ] Once R-VAULT-10's script exists: back up the three producer keys (game/pool, Desk, personal) to a USB stick kept offline, apart from your wallet paper — P2 — TD-08
+- [ ] **Thu 5 Nov after 7:51 AM PT:** `npm run bot -- game-apply 2`, `game-apply 7` (dry run, then `--send`), then `games` must show "staked + free prize, from week 3"; then repo variable `PRIZES_FROM_WEEK = 3`. Deadline **Sun 8 Nov 4 PM PT** — P1 — D-077 (reminder Thu 9 AM PT)
+- [ ] **Wallet moves** per `docs/WALLETS.md` (D-083, D-096): **Fri 6 Nov** step 0 (read-only check; paste the output to the Vault chat), create the cold-key owner and cold treasury, start the treasury move (48 h) → **Sat** sweep the old operator `1JSTwo…` (I-045) → **Sun** after every `game-apply`, start the vault and Desk handovers → Mon/Tue accept. Race picks already moved (4 Nov); **Picks later** (D-106) — P1 — I-001
+- [ ] Retry creating an @name on `names.html` and report the result — P3 — I-020
+
+Priorities done (from PRIORITIES):
+| 7 | **Site "Week 1" refresh** before Mon 9 Nov | Players see one clear starting line for the vault era | Hub, Race chats | I-069, D-063 |
+| 14 | **Fix nicknames** (the mint never sets the main name) | Players see their own name on the boards: identity drives engagement | Hub chat | I-020, TD-15 | (done: #94, #95, owner fixed his @name)
+
+ROADMAP's key-dates table as it last stood (now `platform/CALENDAR.md`; Survivor 16 Nov and the 23/30 Nov Questions upgrade are superseded by D-113 and D-130):
+
+Times in UTC, with Pacific time where it helps.
+
+| When | What | |
+|------|------|-|
+| Wed 4 Nov, 17:30 (9:30 AM PT) | Earliest time to remove old node data folders, only if `heal.log` is clean (I-008) | 💬 |
+| Thu 5 Nov, 15:51 (7:51 AM PT) | Games 2 and 7 become applicable in the vault; apply before Sun 8 Nov 4 PM PT. A game applied Wed 4 – Sun 8 Nov earns from vault week 3 (Mon 9 Nov) | ✅ tx, 💬 Vault |
+| Fri 6 Nov, ~noon PT | Latest safe `game-add` for any game to pay from 9 Nov (the apply comes 48 h later and must land before Sun 4 PM PT; a Fri 4 PM `game-add` leaves no margin). No game is planned for it now (the Bracket launches when ready, D-088) | 👤 / 💬 Vault |
+| Fri 6 – Tue 10 Nov | Wallet moves (`docs/WALLETS.md`; D-083, D-096) | 👤 |
+| **Mon 9 Nov, 00:00** | **The vault starts paying:** v6 rules begin; 2 + 1 VHP free prizes on the games whose free prize is on (D-062, D-081, D-082); players see this as **"Week 1"** (D-063). PR #80 (Block X) must be merged before | 👤 / 💬 |
+| Tue 10 Nov, 10 AM PT | First weekly review (`WEEKLY_REVIEW.md`) | owner + library chat |
+| Tue 10 Nov, 12:00 (4 AM PT) | Questions Week 3 winners final; the bot pays out ≈ 12:07. First week with the v5 split; free players get 1 + 1 VHP (D-069) | ✅ chain, 👤 |
+| Sat 7 – Fri 13 Nov | Survivor announce window; apply Mon 9 – Sun 15 Nov | 💬 |
+| **Mon 16 Nov** | **Survivor Season 1 starts** (D-065); first vault close with other games in it, 12:00 | 👤 / 💬 |
+| Week of 23 or 30 Nov | Doubled Questions vault upgrade (D-092, R-VAULT-6), after the first paid weeks | 👤 |
+
+
+Finished chat requests (rows as they last stood):
+| R-RACE-13 | **A held Race week fails the run and says what to do (D-107):** make the I-034 hold / `RACE_HOLD_WEEKS` / held-file cases `::error::` after publishing (like Block X's E4-7), with a message naming the week, why, the deadline and the owner's options (wait; `RACE_HOLD_WEEKS` to hold longer; how to release; `game-void`). Add the Race's lines to `RUNBOOK.md` §3 | I-087, D-107 | PR + tests | ✅ done: #133 (test fix #153); L-4 "daily" owner-hold email built in #155 (`OWNER_HOLD_ALERT_HOUR` 16; chain checks still run under the hold); Repo Lens #B-7 GO |
+| R-VAULT-5 | **Check `platform/RUNBOOK.md`:** confirm or correct every vault, Desk, sponsor and key step, especially those marked ❓ (§6 manual tick without an operator key, §7 hostile owner announcement and sponsor key, §9 withdrawals-only build). Edit it in your PR | DOCUMENTATION_GAPS #2 | runbook confirmed | ✅ #105 merged |
+| R-VAULT-7 | **#D-4 follow-ups:** (1) make sure CI builds the sim before `bot/vault.test.ts`, since the VB tests are *skipped*, not failed, without it; (2) N-2 `capScope: "staked"` for game 9 before the Bracket nears 1,000 players; (3) N-3 treat a resource/rc revert as temporary; (4) take the Picks handover **out** of this weekend's runbook (D-106: later, once its tool is ready), and record that the **Race picks owner already moved** on 4 Nov to `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` (tx `0x1220bd9c…`), with `RACE_WIF` going offline at the weekend | #D-4, D-096 | (1) and (4) before the weekend; (2), (3) before the Bracket launches | ✅ #106, #108 merged |
+| R-Q-1 | **Plan doubled Questions (D-092):** 10 a day Mon–Sat, rounds at 12:00 and 00:00 UTC, the second opening when the first closes; starting after the first paid weeks. Plan: bot release/lock schedule, the release backup task, scoring and weekly points, question supply, Mana per player, site text. The contract cap (30 a week) is the Vault chat's part (R-VAULT-6) | D-092 | plan → owner OK | ✅ #98 merged with the Repo Lens #D-6 fixes; step 2 (60 a week) is R-VAULT-6 |
+| R-BX-12 | **Block X on the Results page** (owner, 4 Nov): `index.html#results` has tabs only for Daily Questions and the Race. Add a Block X tab: set `"results": true` for `blockx` in `games.json` and add its drawing in `results.js` (as the Race's: each recorded week from `games-data/blockx/index.json` + `W###.json`, each target with its signer, how the picks went, the player's own pick and points, voids with their reason; "Only mine" and search). Read-only, built with `textContent`, nicknames through `names.js`. `results.js` is a shared site file: tell the Hub chat | — | PR + site tests; tab live | ✅ #143 merged |
+| R-BX-20 | **Check the Race #E-11 H-1 class in Block X:** can `games.yml` rewrite a published final **target result** (not only the vault file)? `games.yml` already holds a changed write-once file and a rewrite of published history (BX-88); confirm with a test that a final target result can't change, per `RECORDER_STANDARD.md` §3.3 (new line, 4 Nov) | I-093 | test or fix before Mon 16 Nov | ✅ #159 (tests; no gap found) |
+| R-BX-21 | **Sponsor check for Daily Questions on the shared calls (from the Hub, 4 Nov; read-only first):** from the v6.1 rule week the Stake page sends game 1 through `deposit_to` / `withdraw_from` / `claim_game` (PR #142; claims batched up to 10, mixing games). Confirm: (1) with the vault switch on, does `Sponsor.ts` (`gamesOfOps`, any per-game list, `checkOperation`) pay those calls for game 1; (2) the `rcLimits` rows cover them with game 1 and a 10-claim batch, and the old calls (`deposit_vhp`, `deposit_koin`, `withdraw`, `claim`) stay covered; (3) `move_stake` is never sponsored, into or out of game 1. Any change: dry run first, nothing to mainnet without the owner's OK. Needed before Thu 12 Nov | D-116, D-121, PR #142 | answer + any config / PR before the upload | ✅ #154 + the 2.4 cap (#158 and the owner's config send, D-131); the Stake page asks the player (#157, D-132) |
+| R-BX-22 | **The weekly rhythm (D-125, PR #148) for Block X (R-ALL-8):** play Mon–Sat, Sunday is the review day, final from Monday 00:00 UTC; Sunday targets stay, scored for All time only (D-129), from Week 1 | D-125 | PR + tests | ✅ #160 (first rest day Sun 15 Nov) |
+| R-RACE-14 | **Race onto the weekly rhythm (D-125):** Sunday races are fun races, All time only (D-129; 24 count a week); pending through Sunday, re-checked on chain; final from Mon 00:00 UTC (replaces the 12 h hold); page shows Sunday as review day with fun races | D-125 | PR + Repo Lens | ✅ #149, #155 (D-129) |
+| R-HUB-3 | **@names:** the mint doesn't set the main name (I-020). Also add two buttons on `names.html`: **"Make this my main @name"** (Nicknames `set_main_token`) and **"Remove an @name"** (`burn`), each from the wallet itself, with the player's own Mana. First use: the owner's producer `1DAHmrQJ…VdbBrd` shows `@primeprocuder` (typo) and should show `@primeproducer`. **Then put the names page in the Tools menu** (owner, 4 Nov): add "@names" → `names.html` to the Tools dropdown (`TOP`) and the phone More sheet's Tools group (`MORE_GROUPS`) in `tools/site-nav.mjs`, run `node tools/site-nav.mjs` and the site tests. Only after the owner has corrected his own @name with the new buttons and confirms it works | I-020, I-084 | fixed; both buttons live; owner confirms; names page in Tools | ✅ owner fixed his @name (4 Nov); Tools link #115 |
+
 ## Moved 2026-11-05
 - Merged 4 Nov: #133 (Race payout safety), #153 (test fix), #148 (weekly rhythm standard, D-125), #149 (Race on the rhythm), #150 (Stake page gentle reads) — 2026-11-04
 - PC updated to `main` @ `23dd23d`; self-heal dry run: all three nodes OK, 0 behind — 2026-11-04

@@ -2,17 +2,17 @@
 
 > **Purpose:** one way to start every AI chat, so all chats build on the same library, follow the same rules and hand their work back the same way. No chat works on its own.
 > **Applies to:** every new chat working on Knode Games: platform, game, audit, bug fix or architecture.
-> **Last updated:** 2026-11-03
+> **Last updated:** 5 Nov 2026 (all standards listed; the owner's push-ASAP rule; the VHP Ruler chat; new games follow `WEEK_CYCLE.md` and `NEW_GAME.md`)
 > **How to use it:** copy the prompt for the kind of chat you're starting (§3), fill in the `<…>` parts, and paste it as the chat's first message. Each prompt points the chat back to this file for the shared rules (§1) and to `platform/SESSION_END_PROCESS.md` for how to end.
 
 ---
 
 ## 1. Shared rules for every chat
 1. **The `.ai/` library is the source of truth.** Read `.ai/START_HERE.md` first and follow its reading order. Where sources disagree, the order is: the owner's own words → `DECISIONS.md` → what's verified in the code or on chain (✅) → the other `.ai/` files → the repo's `docs/` → chat notes and handoffs (D-002).
-2. **One owner per area.** Each area belongs to one chat (`platform/PLATFORM.md` → "Chats and ownership"; D-035). Work only on your area's files. If you need a change in another chat's files, write the request in your session-end report and the owner passes it on.
-3. **Work on a branch, ship by pull request.** Use your area's branch, or a new branch from `main`. Open a PR into `main`; its tests must pass. **Only the owner merges** (D-026). Never push to `main`.
+2. **One owner per area.** Each area belongs to one chat (`platform/PLATFORM.md` → "Chats and ownership"; D-035). Active chats: Vault · Daily Questions · VHP Ruler · Block X (with Picks and the sponsor) · Race · Hub · Library. Paused (D-113, core first): Survivor, Fantasy, Last Node, Combo, Golf, Bracket. Work only on your area's files. If you need a change in another chat's files, write the request in your session-end report and the owner passes it on.
+3. **Work on a branch, ship by pull request.** Use your area's branch, or a new branch from `main`. Open a PR into `main`; its tests must pass. Never push to `main` directly. Merging follows rule 11.
 4. **Funds and keys:** never ask for, print or store keys or seed phrases. Every mainnet tool is a dry run until `--send`, one step at a time, dry run first (`platform/RULES.md` §1). Anything touching funds, contracts or the vault passes an audit before it ships (D-017).
-5. **Standards apply to every game:** `standards/GAME_STANDARD.md`, `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`. Examples: nicknames on every page (D-078); Staked and Free play boards on every game (D-079, D-081); free prizes held by the owner's switch (D-082); the VHP standard (D-058).
+5. **Standards apply to every game.** The 8 standards in `standards/`: `GAME_STANDARD.md`, `VAULT_STANDARD.md`, `LEADERBOARD_STANDARD.md`, `TOKEN_STANDARD.md`, `RECORDER_STANDARD.md`, `VHP_RULER.md`, `GO_LIVE_CHECKLIST.md` and this file. Being written: `WEEK_CYCLE.md` (the weekly timing every game follows: play days, review day, final, payout) and `NEW_GAME.md` (step-by-step onboarding for a new game). Examples: nicknames on every page (D-078); Staked and Free play boards on every game (D-079, D-081); free prizes held by the owner's switch (D-082); the VHP standard (D-058).
 6. **No new decisions on your own.** If something needs a decision, ask the owner. Then record it as a proposed **D-xxx** in your session-end report. The library chat files it.
 7. **Nothing is announced to players until it's built, audited and ready** (D-064). Nothing is deleted without firm confirmation that it's safe.
 8. **Working with the owner:**
@@ -22,6 +22,7 @@
    - The name is **"Knode Games"** (two words). Times are UTC unless marked PT.
 9. **Mark what you know:** ✅ verified in the repo · 💬 from a chat · 👤 owner said · ❓ unknown. Never present a guess as a fact.
 10. **Your work list lives in GitHub:** at the start of every session, read your chat's section of `platform/CHAT_REQUESTS.md` (and §2, for every game chat) and work its open items in order (D-089). Report finished items in your session-end report. Don't wait for separate messages.
+11. **Push ASAP (owner's standing rule, 5 Nov):** "always assume i want to push everything ASAP. if something is built and ready i want to move forward on it and get it live." Built, tested work gets pushed and its PR opened right away; it merges as soon as its checks are green and any Repo Lens review it needs is GO (D-133). **Who presses merge:** the owner, or the library chat on the owner's standing OK; a game chat merges only when the owner says so in that chat (D-026). Don't hold finished work for a separate go. **Mainnet sends and spending funds still need the owner's OK.**
 
 ## 2. The handoff: how every chat ends a piece of work
 Every chat ends a piece of work, or a session, with the **session-end report** in `platform/SESSION_END_PROCESS.md`. It has five parts: what changed, what was completed, documentation to update, what the next AI should know, and current blockers. The owner pastes it into the library chat, which files it into `.ai/` in one docs PR and logs any contradiction as a **C-xx**.
@@ -32,10 +33,10 @@ Every chat ends a piece of work, or a session, with the **session-end report** i
 For shared parts of the platform: the site, staking hub, admin panel, bot, nodes, names, sponsor or swap desk.
 
 ```
-You're joining Knode Games as the <area> chat (e.g. Hub / site, Swap Desk, bot and operations). Repo: github.com/bawcejawn/KnodeGames. The owner's copy is C:\kprediction on Windows.
+You're joining Knode Games as the <area> chat (e.g. Hub / site, Vault, VHP Ruler, Swap Desk, bot and operations). Repo: github.com/bawcejawn/KnodeGames. The owner's copy is C:\kprediction on Windows.
 
 Before anything else:
-1. Read .ai/START_HERE.md and follow its reading order (CURRENT_STATE, PRIORITIES, ACTIVE_WORK, PLATFORM, DECISIONS, TODOS, OPENISSUES, DEPENDENCIES).
+1. Read .ai/START_HERE.md and follow its reading order (CURRENT_STATE, LAUNCH_BOARD, PRIORITIES, PLATFORM, DECISIONS, TODOS, OPENISSUES, DEPENDENCIES).
 2. Read .ai/standards/AI_CHAT_STARTER.md §1 (shared rules) and .ai/platform/SESSION_END_PROCESS.md (how to end the session). Follow both.
 3. Read every standard in .ai/standards/ that touches <area>, and check the Claude project's claude/*.md handoffs for <area>.
 
@@ -59,7 +60,7 @@ You're joining Knode Games as the <Game name> (game <id>) chat. Repo: github.com
 Before anything else:
 1. Read .ai/START_HERE.md and follow its reading order.
 2. Read .ai/standards/AI_CHAT_STARTER.md §1 (shared rules) and .ai/platform/SESSION_END_PROCESS.md (how to end the session). Follow both.
-3. Read .ai/games/<GameFile>.md, then .ai/standards/GAME_STANDARD.md, VAULT_STANDARD.md, LEADERBOARD_STANDARD.md and TOKEN_STANDARD.md.
+3. Read .ai/games/<GameFile>.md, then every standard in .ai/standards/: GAME_STANDARD, VAULT_STANDARD, LEADERBOARD_STANDARD, TOKEN_STANDARD, RECORDER_STANDARD, VHP_RULER, GO_LIVE_CHECKLIST, WEEK_CYCLE and NEW_GAME.
 4. Check the Claude project's claude/<game>/ notes and recent prompts (claude/prompts-*.md).
 
 Every game must meet the standards:
@@ -69,6 +70,8 @@ Every game must meet the standards:
 - the VHP standard;
 - a fail-closed vault results file (VAULT_STANDARD §6), with first/second filled in; the owner's free-prize switch (D-082) decides whether they're paid;
 - vault registration with --staked --free.
+
+Your game follows standards/WEEK_CYCLE.md; add your row to its compliance table in your first PR, and follow standards/NEW_GAME.md.
 
 You own only your game's files. Shared files (board.js, games.json, site-nav, the bot's vault code) belong to other chats. Ask through the owner, or ship the smallest change in your PR and say so clearly.
 
@@ -90,7 +93,7 @@ You're auditing <what: game / PR #NN / contract> for Knode Games, a set of free 
 
 Context to read first:
 - .ai/START_HERE.md, .ai/platform/RULES.md, .ai/platform/DECISIONS.md;
-- .ai/standards/ (GAME, VAULT, LEADERBOARD, TOKEN);
+- .ai/standards/ (GAME, VAULT, LEADERBOARD, TOKEN, RECORDER, VHP_RULER, GO_LIVE_CHECKLIST, WEEK_CYCLE);
 - .ai/games/<GameFile>.md, if it's a game;
 - the branch's own docs (<docs/... README>).
 
@@ -139,7 +142,7 @@ How to work:
    - Is any player's stake, prize or result at risk right now? If yes, tell me at once. Don't send or change anything.
    - The likely cause, with evidence (logs, code lines).
 2. Propose the smallest fix and a test that fails before it and passes after.
-3. Wait for my go. Then fix it on a new branch from main (or the owner's branch for that area), run the tests, and open a PR. Don't merge.
+3. Wait for my go. Then fix it on a new branch from main (or the owner's branch for that area), run the tests, and open a PR; it merges once green (AI_CHAT_STARTER §1 rule 11).
 4. If the fix is in another chat's files, write it as a request in your session-end report instead.
 5. End with the session-end report (SESSION_END_PROCESS.md), with the I- number updated or proposed.
 
@@ -181,10 +184,11 @@ Write no code and open no PRs. A diagram is welcome if it helps.
 | You want to… | Use |
 |---|---|
 | Work on the site, hub, admin panel, bot, nodes, names, sponsor or swap desk | 3.1 Platform |
-| Build or change one game | 3.2 Game |
+| Work on the shared VHP ruler | the VHP Ruler chat (its own first prompt, `claude/ruler/START-PROMPT.md` in the Claude project) |
+| Build or change one game (new games: also `NEW_GAME.md`; paused until the core work is done, D-113) | 3.2 Game |
 | Get a branch or PR reviewed before merging | 3.3 Audit |
 | Fix one thing that's broken | 3.4 Bug fixing |
 | Decide how something big should work before anyone builds it | 3.5 Architecture |
 | File what chats did into `.ai/` | the library chat: paste the session-end reports |
 
-**Restarting an existing chat** (it ran out of context): use the same starter, add "You are continuing; your last session-end report was: <paste>", and ask it to read `ACTIVE_WORK.md` for its area first.
+**Restarting an existing chat** (it ran out of context): use the same starter, add "You are continuing; your last session-end report was: <paste>", and ask it to read `../platform/LAUNCH_BOARD.md` and its `CHAT_REQUESTS.md` section for its area first.

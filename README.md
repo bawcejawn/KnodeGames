@@ -261,7 +261,7 @@ The site's **Trust** page shows the same numbers live. Upgrade runbooks are in [
 | `node/` | Scripts for the project's Koinos nodes ([`node/README.md`](node/README.md)) |
 | `tests/` | Security and regression tests from the reviews |
 | `docs/` | Runbooks and wallet procedures |
-| `.ai/` | The project's working library: plans, decisions, standards and status ([`.ai/START_HERE.md`](.ai/START_HERE.md)) |
+| `.ai/` | The project's working library: plans, decisions, standards and status ([`.ai/START_HERE.md`](.ai/START_HERE.md)). Adding a game: [`.ai/standards/NEW_GAME.md`](.ai/standards/NEW_GAME.md); how every game's week runs: [`.ai/standards/WEEK_CYCLE.md`](.ai/standards/WEEK_CYCLE.md) |
 
 ## Running the tests
 

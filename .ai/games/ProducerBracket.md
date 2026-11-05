@@ -3,7 +3,7 @@
 > **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Producer Bracket chat), `DECISIONS.md` (D-019, D-057, D-058, D-062), the repo (branch `kg-09-bracket`). **Last updated:** 5 Nov 2026; previous version `../archive/2026-11-04b/games/ProducerBracket.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
-> **Owner, 5 Nov (D-138):** reactivated as one of the next three games (D-142): "like the March madness with nodes head to head". **Shape (D-141):** up to 64 producers, one round a day (a 24-hour sprint per matchup), Mon–Sat with the final on Saturday; runs with as few as 8 (3 rounds); matchups by the ruler's luck percentile.
+> **Owner, 5 Nov (D-138):** reactivated as one of the next three games (D-142): "like the March madness with nodes head to head". **Shape (D-141, D-153; built on `kg-09-bracket` @ `ef146b2a`, PR #186):** up to **32** producers (5 rounds Tue–Sat; 16: Wed–Sat; 8: Thu–Sat; no byes), one round a day (a 24-hour sprint per matchup); seeding Sun 00:00 UTC, picks lock Mon 23:55; final Saturday; results final from Monday 00:00 after two agreeing runs; backstop Thu 00:00. Every Repo Lens #E-3 Critical / High / Medium fixed; fix-check next. Matchups use today's index until the ruler v2.1 percentile is ready (D-154; owner to confirm launching before it).
 
 ## Purpose
 A weekly knockout tournament of Koinos block producers, like a March Madness bracket: predict who wins each head-to-head matchup, one round a day. This chat also built the platform-wide **VHP standard** every game uses to measure VHP the same way (D-058).

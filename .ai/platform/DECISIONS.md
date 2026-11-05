@@ -3,7 +3,7 @@
 > Purpose: Record of decisions made, **oldest first** (D-001 at the top, the newest at the bottom; the index is in the same order). This file wins over any other .ai file.
 > Rule: Never delete a decision. If it changes, add a new entry and mark the old one "superseded by D-XXX" in the index.
 > Consolidated 2026-11-02: the owner's answers to the open contradictions are recorded as D-061 – D-067.
-> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-151 added; index statuses brought up to date; nothing removed)
+> Last updated: 2026-11-05 (re-ordered oldest first; D-129 indexed; D-130 – D-156 added (D-152 with PR #182); index statuses brought up to date; nothing removed)
 > Sources: owner in chat (2026-11-02), `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (all 12 chats), repo branches `picks` and `main`.
 
 **Legend:** ✅ verified in repo · 💬 chat only · 👤 owner said · ⚠️ was a conflict (see the C-xx named next to it; all are resolved unless listed under Open) · ❓ unknown
@@ -151,7 +151,7 @@
 | D-138 | 2026-11-05 | After the core: Last Node, Block Golf, Fantasy and Bracket next | active (amends D-113's "after the core"); order amended by D-142 |
 | D-139 | 2026-11-05 | Block Minute: an always-on quick pick, designed before it's built | idea (design first) |
 | D-140 | 2026-11-05 | Fix fast after every review: one pass, same day, tracked by finding | active (standing) |
-| D-141 | 2026-11-05 | Producer Bracket: up to 64 producers, one round a day, 8 to play | active (for the Bracket build) |
+| D-141 | 2026-11-05 | Producer Bracket: up to 64 producers, one round a day, 8 to play | active; max amended to 32 by D-153 |
 | D-142 | 2026-11-05 | Fantasy, Block Golf and Producer Bracket reactivated: the next three games to launch | active (amends D-113, D-138) |
 | D-143 | 2026-11-05 | Visit counting with PostHog: cookieless, our own pinned copy, for advertising numbers | active |
 | D-144 | 2026-11-05 | Daily Questions are shown in plain words; the wording on chain never changes | active |
@@ -162,6 +162,11 @@
 | D-149 | 2026-11-05 | Public node guide defaults | active |
 | D-150 | 2026-11-05 | Fantasy: Sunday fun round, then the recorder checks before one fix-check | active |
 | D-151 | 2026-11-05 | Guest play first in the wallet sheet | active (in #181) |
+| D-152 | 2026-11-05 | Who gets paid in a staked game (exactly the top 30%; a tie across the line → who reached the score first; free prize ≤ 10 winners) | reserved: its entry lands with PR #182 (Race chat; R-ALL-10, R-VAULT-17) |
+| D-153 | 2026-11-05 | Producer Bracket: at most 32 producers | active (amends D-141's 64) |
+| D-154 | 2026-11-05 | VHP ruler v2.1 ranks by a field-conditional percentile (A′) | active (library design, 5 Nov; replaces §16's Fix A / Fix B) |
+| D-155 | 2026-11-05 | Live stats panel | active (in #185) |
+| D-156 | 2026-11-05 | The welcome page leads with free play; the play-first home page waits for a mockup review | active |
 
 ---
 
@@ -809,6 +814,18 @@
 
 ## D-151 — Guest play first in the wallet sheet
 - **Date:** 2026-11-05 (owner, to the Hub chat: "yes" to research items 4 and 8) · **Decision:** the wallet sheet offers "Play as a guest · free" first; a short note replaces the guest pop-up; "Save your progress" (back up the guest key) appears after the first answer; tap targets are at least 44 px. The audited guest rules still hold (play only, never send KOIN or VHP).
+
+## D-153 — Producer Bracket: at most 32 producers
+- **Date:** 2026-11-05 (owner, to the Bracket chat: capped at 32) · **Decision:** the Bracket holds **up to 32 producers** (5 rounds: Tue–Sat), 16 (Wed–Sat) or 8 (Thu–Sat), no byes; seeding Sun 00:00 UTC, picks lock Mon 23:55 UTC, one round a day, final Saturday, results final from Monday 00:00, backstop Thu 00:00. 64 only after a Picks upgrade, if ever wanted. Built on `kg-09-bracket` (#186).
+
+## D-154 — VHP ruler v2.1 ranks by a field-conditional percentile (A′)
+- **Date:** 2026-11-05 (library chat, as design owner of `VHP_RULER.md` §16, from the Ruler chat's simulations, `claude/ruler/V21-SIM-REPORT.md`) · **Decision:** producers are ranked by **A′**: given the blocks the whole field signed in the race (n), a producer's count is compared with Binomial(n, its share of the field's expected blocks), as an exact integer mid-p percentile in both languages. **Fix A dropped** (an absolute percentile isn't shift-invariant: a network-wide jump gave 0.02–5.3× fair, sim 9); **Fix B dropped** (any bar ≥ 15 keeps the Knode Games Vault out of every Race field, against D-123). **Sim 1's index mark** becomes relative to the field, like sim 9's (the 24-h total's ~1% lag is common to everyone). **D-120 needs the owner's choice:** the steady-rate-with-cap design can't pass sim 8 under any cap (a two-week throttler then wins ~6×); option 1 keeps the 0.80 gate, option 3 lets a steady throttler in at full size, unadjusted. Nothing pays until all eleven pass (D-111).
+
+## D-155 — Live stats panel
+- **Date:** 2026-11-05 (owner, to the Hub chat: "build the live stats panel") · **Decision:** the bot publishes an hourly public `stats.json` (players this week / last week / all time, answers and picks, VHP staked total and per game, free prizes, blocks made by the prize vault in 24 h, today's open questions, last week's top 3 per game) on its own `stats-data` branch; the home page shows a strip of the numbers that read well, the games page the full panel. Off until `STATS_ENABLED`; Repo Lens before switching it on.
+
+## D-156 — The welcome page leads with free play; the play-first home page waits for a mockup review
+- **Date:** 2026-11-05 (owner, to the Hub chat: "yes" to research item 5; the play-first home page mockup shared for review) · **Decision:** the welcome page leads with "Play free now" (no sign-up, no wallet needed); staking is the last step (built, #183). The play-first home page (Variant A) is built only after the owner reviews the mockup, then A/B tested once visit counts exist.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

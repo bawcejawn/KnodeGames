@@ -3,7 +3,7 @@
 > **Purpose:** every alert the platform can send the owner: what triggers it, how it reaches you, how often, what it means, and **what you can do about it** (D-107: an alert must name the owner's actions, not only notify). Also the conditions that are **silent** today, so nobody assumes they're watched.
 > **One home:** this page is the home for **the list of alerts**. What to do in a real emergency stays in `RUNBOOK.md` (it points here); the emails expected during the wallet moves are in `../../docs/WALLETS.md` §6.
 > **Last updated:** Thu 5 Nov 2026 (status sync: Race held-week alerts merged in #133; sponsor numbers point to `SPONSOR.md`). Built 4 Nov from a read of every workflow (`.github/workflows/*.yml`), `bot/bot.ts`, `bot/vault.ts`, `bot/sponsor.ts`, `bot/watch.mjs`, `bot/heal.mjs`, `bot/release-kick.mjs`, `bot/games/*`, `bot/race.ts`, `bot/names.ts` and the node install scripts, on `main` @ `38702c4`. File:line references are to that commit.
-> **Update rule:** any PR that adds, removes or rewords an alert updates this page in the same PR (the game chats and the Vault chat). The Librarian checks it at each weekly review.
+> **Update rule:** any PR that adds, removes or rewords an alert updates this page in the same PR (the game chats and the Vault chat). The Librarian checks it at each weekly review. **The run-page summaries read this page** (`bot/alert-summary.mjs` matches each alert line to the quoted words in a table row's first cell): keep the alert's opening words in quotes, and the action in the "What you can do" column.
 
 ---
 
@@ -17,7 +17,7 @@
 - **Players' stakes are never at risk from an alert by itself.** The worst case of a held or late week is that it **rolls over** to the next week.
 - **If you just did an owner step** (a `game-apply`, a wallet move, a pause, an upgrade), the email is most likely the expected echo of it (§2 and `docs/WALLETS.md` §6).
 - **One email can hold several alerts**; the next hour's run may already be green.
-- A plain-language summary at the top of each failed run (what happened, does it matter, what to do) is on the way (R-VAULT-9).
+- **Each failed run now starts with a plain-language summary** (R-VAULT-9): open the run, and the top of the page lists every alert with **What happened · Does it matter · Expected? · What to do · Deadline** (UTC and PT), taken from this page. The bot and the watchdog explain each alert line; the heal alert explains its message; the game recorders and data jobs (§8) say which step failed and which chat to ask. An alert this page doesn't list says so: paste it to the Vault chat.
 
 ## 1. How alerts reach you
 > The bot workflow is named **"Knode Games bot"** since PR #131 (merged); older emails say "Kpred bot".

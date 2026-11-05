@@ -460,3 +460,25 @@ jobs:
         run: |
           echo "::error::The Producer Race held a vault week. The record or publish job's errors above name the week, why, the deadline and what you can do (.ai/platform/RUNBOOK.md §3). Everything else was published."
           exit 1
+
+  # R-VAULT-9: when this run fails, a plain-language summary at the top of the run page (what happened, does it
+  # matter, what to do), from .ai/platform/ALERTS.md §8. Reads two files from main; no secrets, read-only.
+  summary:
+    needs: [record, publish, alert]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            bot/alert-summary.mjs
+            .ai/platform/ALERTS.md
+          sparse-checkout-cone-mode: false
+      - name: Plain-language summary (ALERTS.md §8)
+        env:
+          WORKFLOW_NAME: Producer race
+        run: node bot/alert-summary.mjs --workflow "$WORKFLOW_NAME" --section 8

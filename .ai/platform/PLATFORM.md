@@ -28,6 +28,7 @@
 | `RECOVERY.md` | PC disaster recovery: what keeps running, what stops, how to rebuild, a stolen PC |
 | `OPENISSUES.md` / `TODOS.md` | open problems (I-xxx) and the owner's own steps |
 | `KOINOS.md` | chain facts, testnet, gotchas |
+| `CONTRACTS.md` | the register of every live contract: address, live build, upload date, how it can change, who controls it, last review |
 | `REPO_MAP.md` | every top-level folder, its funds-risk tier, audit coverage, and the structure plan |
 | `GLOSSARY.md` | the words: VHP, effective VHP, Mana, the pool, the seed, staked vs free, the week numbers |
 | `AUDITS.md` | how an audit works (Repo Lens package, prompt, report, GO, fix-check) and the list of audits |

@@ -96,13 +96,13 @@
   // ── time ──
   const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
   const weekOf = (t) => (t <= GENESIS ? 0 : Math.floor((t - GENESIS) / WEEK));
-  /** The weekly rhythm (D-125, R-BX-22): targets count Monday 00:00 → Saturday 24:00 UTC; a target whose block falls on
-   *  Sunday UTC (the review day) scores nothing, from vault week 3 (Mon 9 Nov 2026, "Week 1"), as race-math.js. */
+  /** The weekly cycle (standards/WEEK_CYCLE.md; D-125, D-129): play counts for the week Monday 00:00 → Saturday 24:00
+   *  UTC. A Sunday (UTC) target is a fun round: scored, on the Today and All time boards, but in no week's board,
+   *  prizes or vault file. From vault week 3 (Mon 9 Nov 2026, "Week 1"), as race-math.js. */
   const RHYTHM_FROM_WEEK = 3;
-  const REST_NOTE = "Sunday is the review day: Block X targets don't count on Sundays (UTC); no points";
   const restDay = (t, from = RHYTHM_FROM_WEEK) => new Date(t).getUTCDay() === 0 && weekOf(t) >= from;
-  /** Is this recorded target a review-day row (the recorder's own note)? */
-  const isRest = (t) => !!t && t.void === REST_NOTE;
+  /** When the week's counted play ends: Saturday 24:00 UTC from Week 1, the week's end before it. */
+  const playEnd = (w, from = RHYTHM_FROM_WEEK) => GENESIS + w * WEEK + (w >= from ? 6 * DAY : WEEK);
 
   // ── leaderboard ──
   /** rows: [{ player, round, height (target), time (target block time), pickTime, correct, pts }] (pts in hundredths).
@@ -153,6 +153,6 @@
     ...MAIN, MAINNET_GAME, forGame,
     CAP, OPEN, MIN_PRIZE_DAYS, BLOCK_MS, DAY, WEEK, GENESIS,
     aboutTime, vhpOf, multiplier, pointsOf, dayOf, weekOf, board, places, prizes,
-    RHYTHM_FROM_WEEK, REST_NOTE, restDay, isRest,
+    RHYTHM_FROM_WEEK, restDay, playEnd,
   };
 })(typeof window !== "undefined" ? window : globalThis);

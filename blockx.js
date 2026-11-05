@@ -203,12 +203,11 @@
     if (!head) return;
     renderStage();
     const list = $("targets");
-    // D-125 / R-BX-22: Sunday (UTC) is the review day; its targets score nothing, so they aren't offered (nor one due
-    // in the last 10 minutes of Saturday, which could slip past midnight).
-    const restAt = (r) => { const t = about(G.target(r)); return X.restDay(t) || X.restDay(t + 10 * 60000); };
-    const offered = G.offerRounds(head.height), skipped = offered.filter(restAt).length;
-    const who = me(), rounds = offered.filter((r) => !restAt(r)), ps = producers();
-    const key = JSON.stringify([who, W && W.kind, rounds[0], skipped, sending, !!picksContract, cardAt, ps.map((p) => p.a).join(), usage && usage.picks_today, [...myPicks.entries()].map(([r, p]) => [r, p.producers && p.producers[0], p.changes]), [...drafts.entries()]]);
+    // D-129 (WEEK_CYCLE.md §2): Sunday (UTC) targets are fun rounds, offered and scored for Today and All time, never
+    // the week. (One due in Saturday's last 10 minutes may slip past midnight, so it says so too.)
+    const funAt = (r) => { const t = about(G.target(r)); return X.restDay(t) || X.restDay(t + 10 * 60000); };
+    const who = me(), rounds = G.offerRounds(head.height), ps = producers(), funs = rounds.filter(funAt).length;
+    const key = JSON.stringify([who, W && W.kind, rounds[0], funs, sending, !!picksContract, cardAt, ps.map((p) => p.a).join(), usage && usage.picks_today, [...myPicks.entries()].map(([r, p]) => [r, p.producers && p.producers[0], p.changes]), [...drafts.entries()]]);
     if (!force && key === targetsKey && list.childElementCount) { updateTimes(); return; }
     targetsKey = key;
     const max = usage ? Number(usage.max_picks_per_day) || G.PICKS_PER_DAY : G.PICKS_PER_DAY, used = usage ? Number(usage.picks_today) || 0 : 0;
@@ -218,8 +217,8 @@
     whoLine.replaceChildren();
     if (!card && ps.length) whoLine.append("Showing the producers signing right now. Multipliers appear with the first handicap card (the recorder takes one within the hour).");
     if (!card && !TESTNET && picksContract && rounds.length) whoLine.append("Picks open when the next handicap card is published (within the hour).");
-    if (skipped) whoLine.append(el("span", { class: "bx-rest", text: " Sunday (UTC) is the review day: its targets don't count, so they aren't offered. Play starts again Monday 00:00 UTC." }));
-    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty", text: !picksContract ? "Picks open soon." : skipped ? "Sunday is the review day: no target counts today. Monday's targets open here soon." : "No target is open right now." })); return; }
+    if (funs) whoLine.append(el("span", { class: "bx-rest", text: " Sunday is review day: results are checked and paid from Monday. Sunday (UTC) targets are fun rounds: they count on Today and All time, not the week." }));
+    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty", text: picksContract ? "No target is open right now." : "Picks open soon." })); return; }
     const cards = rounds.map((r, i) => {
       const h = G.target(r), mine = myPicks.get(r), mineP = mine && mine.producers && mine.producers[0];
       const choice = drafts.get(r) || mineP || null;
@@ -236,7 +235,8 @@
       const foot = el("div", { class: "bx-t-foot" },
         mineP ? el("span", { class: "bx-yours", text: `Yours: ${nameOf(mineP)}${noChanges ? " (no changes left)" : ""}` }) : el("span", { text: who && used >= max ? "Today's picks are used up" : choice ? `${nameOf(choice)} · about ${multText(ps.find((p) => p.a === choice)?.mult)} if right` : "Choose a producer", title: "By the current handicap card. The card taken at or before the lock decides the score." }), btn);
       return el("article", { class: "bx-t" + (i === 0 ? " first" : "") + (mineP ? " mine" : ""), id: `t-${r}` },
-        el("div", { class: "bx-t-top" }, el("b", { text: `Block ${fmt(h)}` }), el("span", { "data-h": String(h), class: "bx-eta", text: etaText(r) }), i === 0 ? el("em", { text: "Next up" }) : null),
+        el("div", { class: "bx-t-top" }, el("b", { text: `Block ${fmt(h)}` }), el("span", { "data-h": String(h), class: "bx-eta", text: etaText(r) }), i === 0 ? el("em", { text: "Next up" }) : null,
+          funAt(r) ? el("em", { class: "bx-fun", title: "Sunday (UTC): counts on Today and All time, not the week", text: "Fun round · not the week" }) : null),
         chips, foot);
     });
     // The soonest few, then the rest on request (6 on a wide screen, 3 on a phone).

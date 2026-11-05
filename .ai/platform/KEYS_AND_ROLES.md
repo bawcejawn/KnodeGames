@@ -178,3 +178,6 @@ Fantasy practice wallets and old test wallets: to empty and retire after launch 
 - ✅ Owner decided (4 Nov): back up all three producer `private.key` files offline (USB), once the backup script exists (R-VAULT-10); see `RECOVERY.md` §2.
 - ❓ Owner decision: keep most of the sponsor's 25,000 KOIN in a cold wallet with a working float (`SPONSOR.md` §7).
 - Later (roadmap): a 2-of-3 **multisig owner**, so one stolen key can't act alone.
+
+## Public keys that belong in the page
+- **PostHog project key** (`phc_mheGAgU6…`): a public, write-only key meant to be in the page (visit counting, D-143). The owner holds the PostHog account login; it is not in the repo.

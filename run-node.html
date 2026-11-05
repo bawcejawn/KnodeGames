@@ -488,18 +488,31 @@ EOF</code></pre>
       </div>
       <p class="muted">Extra careful (recommended): both fingerprints above come from Armana. To check against a second source, compare the Fingerprint line with the one Armana posts in the Koinos community (Discord or Telegram) or with another node runner's. If they differ, don't use the snapshot.</p>
       <h3 class="rn-sub">4b. Download it (the long part)</h3>
-      <p class="rn-do">Run this box and leave the window open until it finishes: 2–8 hours, depending on your internet. A progress line counts up to 100%. If it stops for any reason, paste the same box again: it carries on where it left off.</p>
+      <p class="rn-do">Run this box and leave the window open: it takes 2–8 hours, depending on your internet. You can walk away. If the connection drops, it waits 30 seconds and carries on by itself where it left off. It's done when it prints DOWNLOAD COMPLETE.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
 $s = Get-Content snapshot.json -Raw | ConvertFrom-Json
-curl.exe -L --fail --ssl-no-revoke --retry 10 -C - -o snapshot.tar.gz $s.url</code></pre>
+$size = [int64]$s.size_bytes
+for ($try = 1; $try -le 200; $try++) {
+  $have = 0; if (Test-Path snapshot.tar.gz) { $have = (Get-Item snapshot.tar.gz).Length }
+  if ($have -eq $size) { "DOWNLOAD COMPLETE - go on to 4c"; break }
+  if ($have -gt $size) { "STOP: the file is bigger than the snapshot. Delete snapshot.tar.gz, then do 4a and 4b again."; break }
+  curl.exe -L --fail --ssl-no-revoke --retry 5 -C - -o snapshot.tar.gz $s.url
+  if ($LASTEXITCODE -ne 0) { "The connection dropped (try $try of 200). Carrying on by itself in 30 seconds..."; Start-Sleep -Seconds 30 }
+}</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd ~/koinos-node
 URL=$(python3 -c 'import json;print(json.load(open("snapshot.json"))["url"])')
-curl -L --fail --retry 10 -C - -o snapshot.tar.gz "$URL"</code></pre>
+SIZE=$(python3 -c 'import json;print(int(json.load(open("snapshot.json"))["size_bytes"]))')
+for TRY in $(seq 1 200); do
+  HAVE=$(python3 -c 'import os;print(os.path.getsize("snapshot.tar.gz") if os.path.exists("snapshot.tar.gz") else 0)')
+  if [ "$HAVE" -eq "$SIZE" ]; then echo "DOWNLOAD COMPLETE - go on to 4c"; break; fi
+  if [ "$HAVE" -gt "$SIZE" ]; then echo "STOP: the file is bigger than the snapshot. Delete snapshot.tar.gz, then do 4a and 4b again."; break; fi
+  curl -L --fail --retry 5 -C - -o snapshot.tar.gz "$URL" || { echo "The connection dropped (try $TRY of 200). Carrying on by itself in 30 seconds..."; sleep 30; }
+done</code></pre>
       </div>
       <h3 class="rn-sub">4c. Check the fingerprint</h3>
       <p class="rn-do">When 4b has finished, run this box. It works quietly for several minutes, then prints MATCH or NO MATCH.</p>
@@ -535,11 +548,11 @@ fi</code></pre>
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>docker run --rm -v koinos-data:/k -v "$HOME/koinos-node:/dl:ro" debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
       </div>
-      <p class="rn-see"><span class="rn-tag">You should see</span>4a: the newest snapshot's name (like <code>koinos-mainnet-2026-11-01-h40694989.tar.gz</code>), its size (about 58 GB) and "The list and its fingerprint file agree (both from Armana)". 4b: a progress line that counts up to 100%. 4c: MATCH (it takes several minutes to answer). 4d: after 30–60 minutes, UNPACKED OK and the words <code>block_store</code> and <code>chain</code>.</p>
+      <p class="rn-see"><span class="rn-tag">You should see</span>4a: the newest snapshot's name (like <code>koinos-mainnet-2026-11-01-h40694989.tar.gz</code>), its size (about 58 GB) and "The list and its fingerprint file agree (both from Armana)". 4b: a progress line that counts up to 100% (it may restart its count after a dropped connection), then DOWNLOAD COMPLETE. 4c: MATCH (it takes several minutes to answer). 4d: after 30–60 minutes, UNPACKED OK and the words <code>block_store</code> and <code>chain</code>.</p>
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
           <li>4a says STOP: don't use that snapshot. (On older Windows 10, "Could not create SSL/TLS secure channel" means Windows needs its updates; the box already asks for the modern connection type.) Wait an hour and try again; if it keeps happening, ask in the Koinos community.</li>
-          <li>4b stops or the computer restarts: paste the 4b box again. It continues where it stopped. A new snapshot appearing meanwhile doesn't matter: Armana keeps each one listed for about two weeks. If it ever stops with "404", that snapshot was retired: do 4a again (it clears the old half-download), then 4b.</li>
+          <li>4b keeps saying "The connection dropped": that's normal now and then; it carries on by itself. If the window was closed or the computer restarted, paste the 4b box again: it continues the same download. A new snapshot appearing meanwhile doesn't matter: Armana keeps each one listed for about two weeks. If it ever stops with "404", that snapshot was retired: do 4a again (it clears the old half-download), then 4b.</li>
           <li>4c says NO MATCH: delete the file (Windows: <code>Remove-Item C:\koinos-node\snapshot.tar.gz</code>; Mac/Linux: <code>rm ~/koinos-node/snapshot.tar.gz</code>), then do 4a, 4b and 4c again.</li>
           <li>4d says "No space left on device": if you're repairing a node (step 8), delete the old data first, it's damaged anyway: <code>docker run --rm -v koinos-data:/k alpine:3.20 rm -rf /k/chain-old /k/block_store-old</code>. Otherwise free up disk space (Windows: Docker Desktop → Settings → Resources; Mac: raise Docker's disk limit to 200 GB), then run 4d again. It cleans up its half-done work first.</li>
           <li>4d says "STOP: this volume already holds chain data": if you saw UNPACKED OK before, it's done: go on to step 5. If you never saw it (for example you started the node before 4d), do the repair box in step 8, then 4d again, or the node rebuilds the chain from block 1, which takes days. (If you're repairing a node, follow "Repair from a fresh snapshot" in step 8.)</li>

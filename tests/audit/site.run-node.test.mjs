@@ -370,3 +370,38 @@ test("every command box has a 'Do this' line before it, and 'How to run a comman
     assert.doesNotMatch(stop[0].text, /up -d/, `${os}: the stop box doesn't start the node again`);
   }
 });
+
+test("4b: the download carries on by itself after the connection drops, until it's complete (Mac/Linux, and Windows with pwsh)", async () => {
+  const crypto = await import("node:crypto");
+  const data = crypto.randomBytes(3 * 1024 * 1024);
+  let drops = 0;
+  const srv = http.createServer((req, res) => {
+    const m = /bytes=(\d+)-/.exec(req.headers.range || ""); const from = m ? Number(m[1]) : 0;
+    const part = data.subarray(from);
+    res.writeHead(m ? 206 : 200, { "content-length": part.length, "accept-ranges": "bytes", ...(m ? { "content-range": `bytes ${from}-${data.length - 1}/${data.length}` } : {}) });
+    if (drops < 2) { drops++; res.write(part.subarray(0, Math.floor(part.length / 3))); setTimeout(() => res.socket.destroy(), 50); return; }   // the server closes abruptly
+    res.end(part);
+  });
+  await new Promise((ok) => srv.listen(0, "127.0.0.1", ok));
+  const url = `http://127.0.0.1:${srv.address().port}/snap.tar.gz`;
+  const run = (cmd, args, cwd, env = {}) => new Promise((ok) => execFile(cmd, args, { cwd, encoding: "utf8", env: { ...process.env, ...env }, timeout: 120_000 }, (e, out, err) => ok(out + err)));
+  try {
+    const cases = [["bash", (b) => ["-c", b.replace("cd ~/koinos-node", "").replace("sleep 30", "sleep 0")], box("mac", "DOWNLOAD COMPLETE")]];
+    if (PWSH) {
+      const shim = tmp(); fs.symlinkSync(execFileSync("sh", ["-c", "command -v curl"], { encoding: "utf8" }).trim(), path.join(shim, "curl.exe"));
+      cases.push([PWSH, (b) => ["-NoProfile", "-NonInteractive", "-Command", b.replace("cd C:\\koinos-node", "").replace("--ssl-no-revoke ", "").replace("Start-Sleep -Seconds 30", "Start-Sleep -Seconds 0")], box("win", "DOWNLOAD COMPLETE"), { PATH: `${shim}:${process.env.PATH}` }]);
+    }
+    for (const [cmd, args, b, env] of cases) {
+      drops = 0;
+      const t = tmp();
+      fs.writeFileSync(path.join(t, "snapshot.json"), JSON.stringify({ url, size_bytes: data.length }));
+      const out = await run(cmd, args(b), t, env);
+      assert.match(out, /The connection dropped \(try 1 of 200\)/, `${cmd}: it noticed the drop`);
+      assert.match(out, /DOWNLOAD COMPLETE - go on to 4c/, `${cmd}: ${out.slice(-400)}`);
+      assert.ok(fs.readFileSync(path.join(t, "snapshot.tar.gz")).equals(data), `${cmd}: the file is complete and exact`);
+      // A file that is already complete: nothing is downloaded again.
+      assert.match(await run(cmd, args(b), t, env), /DOWNLOAD COMPLETE/);
+      fs.rmSync(t, { recursive: true, force: true });
+    }
+  } finally { srv.close(); }
+});

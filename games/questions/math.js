@@ -24,6 +24,9 @@ export const MAX_PLACE = 10;              // the vault's limit per prize place
 export const DAY = 86400000;
 
 const big = (x) => BigInt(x ?? 0);
+
+/** One answer: correct when the question's outcome (winning option + 1) is the answer's option + 1. */
+export const correct = (outcome, option) => Number(outcome) !== VOID && Number(outcome) > 0 && Number(outcome) === Number(option) + 1;
 const cmpAddr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**

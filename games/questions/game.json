@@ -9,10 +9,16 @@
   "status": "live",
   "picks": { "contract": "vault", "gameId": 1 },
   "sponsor": { "actions": [ { "name": "answer", "manaLimit": 1.2 } ] },
-  "week": { "standard": "WEEK_CYCLE", "sundayFunRound": false, "finalNotBefore": "Mon 00:00 UTC" },
+  "week": { "standard": "WEEK_CYCLE", "sundayFunRound": true, "finalNotBefore": "Mon 00:00 UTC" },
   "data": { "board": "games-data:questions/board.json", "vaultFolder": "games-data:questions/vault" },
-  "workflow": { "file": "games.yml", "enabledVar": "GAMES_ENABLED", "prizesFromVar": "QUESTIONS_PRIZES_FROM_WEEK" },
+  "workflow": { "file": "games.yml", "enabledVar": "QUESTIONS_ENABLED", "prizesFromVar": "QUESTIONS_PRIZES_FROM_WEEK" },
   "page": "index.html",
   "rulesDoc": ".ai/games/Questions.md",
-  "ownerChat": "Questions"
+  "ownerChat": "Questions",
+  "payoutRule": "legacy-tied-whole",
+  "vaultValues": "points",
+  "minPts": 0,
+  "rowCap": 0,
+  "entry": { "minRounds": 2, "minPoints": 1 },
+  "roundsCorrectable": true
 }

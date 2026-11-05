@@ -165,8 +165,8 @@ test("the race page sends only one thing itself: the wallet's own pick on the ra
   const js = read("race.js");
   const sends = [...js.matchAll(/\.send\(/g)];
   assert.equal(sends.length, 1, "one send");
-  // D-161 (contract v2): the pick carries the race type when it isn't the 6-hour race; nothing else is added.
-  assert.match(js, /const args = \{ player: who, race: String\(index\), \.\.\.\(type \? \{ type \} : \{\}\) \};/);
+  // D-161 (contract v2): the race type rides in the race number's top byte; the pick is still player, race, horse.
+  assert.match(js, /const args = \{ player: who, race: M\.contractRace\(type, index\) \};/);
   assert.match(js, /raceContract\.functions\.pick\(\{ \.\.\.args, horse \}, \{ onlyOperation: true \}\)/);
   assert.match(js, /await W\.send\(`pick [^`]*`, \[operation\]\)/);
   assert.doesNotMatch(js, /signTransaction|sendTransaction|privateKey|wif/i);

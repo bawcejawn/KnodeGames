@@ -4,7 +4,7 @@
 // =====================================================================
 
 import { Arrays, Base58, MockVM, Protobuf, authority, chain } from "@koinos/sdk-as";
-import { Race, RACE_MS, DAY_MS, LOCKED, TOO_EARLY, USED_UP, NOT_SIGNED, pickKey } from "../Race";
+import { Race, RACE_MS, DAY_MS, LOCKED, TOO_EARLY, USED_UP, NOT_SIGNED, pickKey, BAD_TYPE } from "../Race";
 import { race } from "../proto/race";
 
 const SELF = Base58.decode("1EDaCKVmBjUxLxgWCmDbRA8gWKkSQ6ByzY");
@@ -69,8 +69,10 @@ describe("AUDIT race: lock and window boundaries", () => {
   });
   it("u64 edges: race 2^64-1, 2^64-2, and the far past are refused without overflow", () => {
     start(T);
-    refused(P1, 0xffffffffffffffff, H1, TOO_EARLY);
-    refused(P1, 0xfffffffffffffffe, H1, TOO_EARLY);
+    // v2 (D-161): the top byte is the race type, so these are an unknown type (255): still refused, no overflow.
+    refused(P1, 0xffffffffffffffff, H1, BAD_TYPE);
+    refused(P1, 0xfffffffffffffffe, H1, BAD_TYPE);
+    refused(P1, 0x00ffffffffffffff, H1, TOO_EARLY);          // the largest type-0 number: too far ahead
     refused(P1, 0, H1, LOCKED);
   });
 });

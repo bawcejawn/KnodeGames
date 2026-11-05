@@ -5,8 +5,11 @@ import { race } from "./proto/race";
  * Knode Producer Race picks. See assembly/proto/race.proto for the rules.
  * Free to play: it holds no funds, takes no fee and never pays Mana. It only keeps one pick per wallet per race and
  * lets the chain enforce the lock (no pick once a race has started), the window picks open in, and the daily limit.
- * v2 (owner 5 Nov 2026, D-161): race types 0-4 (6-hour as v1, 1-hour, 2-hour, daily, weekly) in an optional `type`
- * field; type 0's picks keep v1's storage and keys; a daily limit of 0 means no per-game limit (the Mana sponsor's
+ * v2 (owner 5 Nov 2026, D-161): race types, carried in the race number's top byte, so the pick's arguments stay v1's
+ * three fields (the Mana sponsor reads them field for field) and type 0 is v1 exactly:
+ *   race = type * 2^56 + index; type 0 = the 6-hour race (index = start / 6 h), 1 = 1-hour (start / 1 h),
+ *   2 = 2-hour (start / 2 h), 3 = daily (start / 24 h), 4 = weekly (the Monday-based UTC week).
+ * Each type's picks sit under their own first key byte. A daily limit of 0 means no per-game limit (the Mana sponsor's
  * daily limit across the platform is the cap).
  * Uploaded with no authority overrides: upgrades need this contract's own key; settings need the owner's key.
  */
@@ -14,7 +17,6 @@ import { race } from "./proto/race";
 const CONFIG_SPACE = 0;
 const PICKS_SPACE = 1;     // key: race (8 bytes, big-endian) + player (25 bytes) → pick_object
 const DAYS_SPACE = 2;      // key: player → day_count
-const TYPED_SPACE = 3;     // v2: key: type (1 byte) + race (8 bytes, big-endian) + player (25 bytes) → pick_object
 
 const ADDRESS_LENGTH = 25;
 export const RACE_MS: u64 = 21600000;      // 6 hours
@@ -22,8 +24,11 @@ export const DAY_MS: u64 = 86400000;
 /** Picks are open for the next 4 races: the coming 24 hours. */
 export const LOOKAHEAD: u64 = 4;
 export const MAX_PICKS_LIMIT: u32 = 20;
-/** v2 race types (D-161): 0 = 6-hour (v1), 1 = 1-hour, 2 = 2-hour, 3 = daily, 4 = weekly (Monday to Sunday 00:00 UTC). */
-export const TYPES: u32 = 5;
+/** v2 race types (D-161): 0 = 6-hour (v1), 1 = 1-hour, 2 = 2-hour, 3 = daily, 4 = weekly (Monday to Sunday 00:00 UTC),
+ *  in the race number's top byte. */
+export const TYPES: u64 = 5;
+export const TYPE_SHIFT: u64 = 56;
+export const INDEX_MASK: u64 = 0x00ffffffffffffff;
 export const HOUR_MS: u64 = 3600000;
 export const WEEK_MS: u64 = 604800000;
 /** 1970-01-05 00:00 UTC, the first Monday: weekly race w starts at WEEK_OFFSET + w * WEEK_MS. */
@@ -43,7 +48,6 @@ export class Race {
 
   config: Storage.Obj<race.config> = new Storage.Obj(this.contractId, CONFIG_SPACE, race.config.decode, race.config.encode, () => new race.config());
   picks: Storage.Map<Uint8Array, race.pick_object> = new Storage.Map(this.contractId, PICKS_SPACE, race.pick_object.decode, race.pick_object.encode, () => new race.pick_object());
-  typed: Storage.Map<Uint8Array, race.pick_object> = new Storage.Map(this.contractId, TYPED_SPACE, race.pick_object.decode, race.pick_object.encode, () => new race.pick_object());
   days: Storage.Map<Uint8Array, race.day_count> = new Storage.Map(this.contractId, DAYS_SPACE, race.day_count.decode, race.day_count.encode, () => new race.day_count());
 
   pick(args: race.pick_arguments): race.empty_object {
@@ -58,16 +62,17 @@ export class Race {
     const caller = System.getCaller().caller;
     System.require(caller == null || caller!.length == 0 || Arrays.equal(caller!, player), NOT_SIGNED);
 
-    System.require(args.type < TYPES, BAD_TYPE);
+    const type = args.race >> TYPE_SHIFT, index = args.race & INDEX_MASK;
+    System.require(type < TYPES, BAD_TYPE);
     const now = System.getHeadInfo().head_block_time;
-    const current = slotOf(args.type, now);         // the race of this type running now; it started at or before now
-    // A race number above `current` starts after now. Equal or below: started (or over): locked.
-    System.require(args.race > current, LOCKED);
-    System.require(args.race <= current + lookahead(args.type), TOO_EARLY);
+    const current = slotOf(type, now);              // the race of this type running now; it started at or before now
+    // A race index above `current` starts after now. Equal or below: started (or over): locked.
+    System.require(index > current, LOCKED);
+    System.require(index <= current + lookahead(type), TOO_EARLY);
 
-    const store = args.type == 0 ? this.picks : this.typed;
-    const key = keyOf(args.type, args.race, player);
-    const old = store.get(key);
+    // The key is the whole race number (type byte first), so type 0 keeps v1's keys and each type has its own range.
+    const key = pickKey(args.race, player);
+    const old = this.picks.get(key);
     const had = old != null && old.horse != null && old.horse!.length > 0;
     System.require(!had || !Arrays.equal(old!.horse, args.horse), SAME);
 
@@ -80,16 +85,16 @@ export class Race {
       this.days.put(player, new race.day_count(day, count + 1));
     }
 
-    store.put(key, new race.pick_object(args.horse, now, had ? old!.changes + 1 : 0));
-    const ev = new race.pick_event(player, args.race, args.horse, now, had, args.type);
+    this.picks.put(key, new race.pick_object(args.horse, now, had ? old!.changes + 1 : 0));
+    const ev = new race.pick_event(player, args.race, args.horse, now, had);
     System.event("race.pick_event", Protobuf.encode(ev, race.pick_event.encode), [player]);
     return new race.empty_object();
   }
 
   get_pick(args: race.get_pick_arguments): race.get_pick_result {
     const out = new race.get_pick_result();
-    if (!isAddress(args.player) || args.type >= TYPES) return out;
-    const p = (args.type == 0 ? this.picks : this.typed).get(keyOf(args.type, args.race, args.player!));
+    if (!isAddress(args.player)) return out;
+    const p = this.picks.get(pickKey(args.race, args.player!));
     if (p != null && p.horse != null && p.horse!.length > 0) out.pick = p;
     return out;
   }
@@ -97,9 +102,7 @@ export class Race {
   list_picks(args: race.list_picks_arguments): race.list_picks_result {
     const out = new race.list_picks_result();
     const limit: u32 = args.limit == 0 || args.limit > MAX_LIST ? MAX_LIST : args.limit;
-    System.require(args.type < TYPES, BAD_TYPE);
-    const store = args.type == 0 ? this.picks : this.typed;
-    const prefix = args.type == 0 ? raceBytes(args.race) : concat(typeByte(args.type), raceBytes(args.race));
+    const prefix = raceBytes(args.race);
     // Start just before the first wallet (an all-zero address, which can't be a real one), or after start_after.
     // Every key has the same length (33 bytes), so they sort by race, then by player, byte by byte on the chain.
     // Audit R-1: a cursor that isn't empty and isn't 25 bytes is an error, never a silent restart.
@@ -108,12 +111,11 @@ export class Race {
     const after = given ? args.start_after! : new Uint8Array(ADDRESS_LENGTH);
     let key = concat(prefix, after);
     while (<u32>out.rows.length < limit) {
-      const obj = store.getNext(key);
+      const obj = this.picks.getNext(key);
       if (obj == null || obj.key == null) break;
       const k = obj.key!;
-      const p = prefix.length;
-      if (k.length != p + ADDRESS_LENGTH || !Arrays.equal(k.subarray(0, p), prefix)) break;   // past this race
-      out.rows.push(new race.pick_row(k.slice(p), obj.value));
+      if (k.length != 8 + ADDRESS_LENGTH || !Arrays.equal(k.subarray(0, 8), prefix)) break;   // past this race
+      out.rows.push(new race.pick_row(k.slice(8), obj.value));
       key = k;
     }
     return out;
@@ -161,13 +163,10 @@ function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
 export function pickKey(r: u64, player: Uint8Array): Uint8Array {
   return concat(raceBytes(r), player);
 }
-function typeByte(t: u32): Uint8Array { const b = new Uint8Array(1); b[0] = <u8>t; return b; }
-/** v2: type 0 keeps v1's key (race + player); other types: type + race + player, in their own space. */
-export function keyOf(t: u32, r: u64, player: Uint8Array): Uint8Array {
-  return t == 0 ? pickKey(r, player) : concat(concat(typeByte(t), raceBytes(r)), player);
-}
-/** The race number of type t running at time `now` (it started at or before now). */
-export function slotOf(t: u32, now: u64): u64 {
+/** The race number for type t and index i (type 0: i itself, so v1's numbers are unchanged). */
+export function raceNumber(t: u64, i: u64): u64 { return (t << TYPE_SHIFT) | (i & INDEX_MASK); }
+/** The index of the race of type t running at time `now` (it started at or before now). */
+export function slotOf(t: u64, now: u64): u64 {
   if (t == 0) return now / RACE_MS;
   if (t == 1) return now / HOUR_MS;
   if (t == 2) return now / (2 * HOUR_MS);
@@ -175,7 +174,7 @@ export function slotOf(t: u32, now: u64): u64 {
   return now < WEEK_OFFSET ? 0 : (now - WEEK_OFFSET) / WEEK_MS;
 }
 /** How many races ahead picks are open: 24 hours for the 6-, 2- and 1-hour races; the next one for daily and weekly. */
-export function lookahead(t: u32): u64 {
+export function lookahead(t: u64): u64 {
   if (t == 0) return LOOKAHEAD;
   if (t == 1) return 24;
   if (t == 2) return 12;

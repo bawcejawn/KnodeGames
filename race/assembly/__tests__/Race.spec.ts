@@ -5,7 +5,7 @@
 // =====================================================================
 
 import { Arrays, Base58, MockVM, Protobuf, authority, chain } from "@koinos/sdk-as";
-import { Race, RACE_MS, DAY_MS, CLOSED, LOCKED, TOO_EARLY, USED_UP, SAME, NOT_SIGNED } from "../Race";
+import { Race, RACE_MS, DAY_MS, CLOSED, LOCKED, TOO_EARLY, USED_UP, SAME, NOT_SIGNED, BAD_TYPE } from "../Race";
 import { race } from "../proto/race";
 
 const SELF = Base58.decode("1EDaCKVmBjUxLxgWCmDbRA8gWKkSQ6ByzY");      // the race contract
@@ -140,7 +140,8 @@ describe("picking", () => {
   it("picks open for the next 4 races only (the coming 24 hours)", () => {
     pick(P1, R + 4, H1);
     refused(P1, R + 5, H1, TOO_EARLY);
-    refused(P1, 0xffffffffffffffff, H1, TOO_EARLY);
+    refused(P1, 0xffffffffffffffff, H1, BAD_TYPE);        // v2 (D-161): top byte 255 = an unknown race type
+    refused(P1, 0x00ffffffffffffff, H1, TOO_EARLY);
   });
 
   it("one pick per wallet per race: a change replaces it and is counted; the same horse again is refused", () => {

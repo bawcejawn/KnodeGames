@@ -213,11 +213,6 @@ export namespace race {
         writer.uint32(26);
         writer.bytes(unique_name_horse);
       }
-
-      if (message.type != 0) {
-        writer.uint32(32);
-        writer.uint32(message.type);
-      }
     }
 
     static decode(reader: Reader, length: i32): pick_arguments {
@@ -239,10 +234,6 @@ export namespace race {
             message.horse = reader.bytes();
             break;
 
-          case 4:
-            message.type = reader.uint32();
-            break;
-
           default:
             reader.skipType(tag & 7);
             break;
@@ -255,18 +246,15 @@ export namespace race {
     player: Uint8Array | null;
     race: u64;
     horse: Uint8Array | null;
-    type: u32;
 
     constructor(
       player: Uint8Array | null = null,
       race: u64 = 0,
-      horse: Uint8Array | null = null,
-      type: u32 = 0
+      horse: Uint8Array | null = null
     ) {
       this.player = player;
       this.race = race;
       this.horse = horse;
-      this.type = type;
     }
   }
 
@@ -298,11 +286,6 @@ export namespace race {
         writer.uint32(40);
         writer.bool(message.change);
       }
-
-      if (message.type != 0) {
-        writer.uint32(48);
-        writer.uint32(message.type);
-      }
     }
 
     static decode(reader: Reader, length: i32): pick_event {
@@ -332,10 +315,6 @@ export namespace race {
             message.change = reader.bool();
             break;
 
-          case 6:
-            message.type = reader.uint32();
-            break;
-
           default:
             reader.skipType(tag & 7);
             break;
@@ -350,22 +329,19 @@ export namespace race {
     horse: Uint8Array | null;
     at: u64;
     change: bool;
-    type: u32;
 
     constructor(
       player: Uint8Array | null = null,
       race: u64 = 0,
       horse: Uint8Array | null = null,
       at: u64 = 0,
-      change: bool = false,
-      type: u32 = 0
+      change: bool = false
     ) {
       this.player = player;
       this.race = race;
       this.horse = horse;
       this.at = at;
       this.change = change;
-      this.type = type;
     }
   }
 
@@ -380,11 +356,6 @@ export namespace race {
       if (message.race != 0) {
         writer.uint32(16);
         writer.uint64(message.race);
-      }
-
-      if (message.type != 0) {
-        writer.uint32(24);
-        writer.uint32(message.type);
       }
     }
 
@@ -403,10 +374,6 @@ export namespace race {
             message.race = reader.uint64();
             break;
 
-          case 3:
-            message.type = reader.uint32();
-            break;
-
           default:
             reader.skipType(tag & 7);
             break;
@@ -418,16 +385,10 @@ export namespace race {
 
     player: Uint8Array | null;
     race: u64;
-    type: u32;
 
-    constructor(
-      player: Uint8Array | null = null,
-      race: u64 = 0,
-      type: u32 = 0
-    ) {
+    constructor(player: Uint8Array | null = null, race: u64 = 0) {
       this.player = player;
       this.race = race;
-      this.type = type;
     }
   }
 
@@ -486,11 +447,6 @@ export namespace race {
         writer.uint32(24);
         writer.uint32(message.limit);
       }
-
-      if (message.type != 0) {
-        writer.uint32(32);
-        writer.uint32(message.type);
-      }
     }
 
     static decode(reader: Reader, length: i32): list_picks_arguments {
@@ -512,10 +468,6 @@ export namespace race {
             message.limit = reader.uint32();
             break;
 
-          case 4:
-            message.type = reader.uint32();
-            break;
-
           default:
             reader.skipType(tag & 7);
             break;
@@ -528,18 +480,15 @@ export namespace race {
     race: u64;
     start_after: Uint8Array | null;
     limit: u32;
-    type: u32;
 
     constructor(
       race: u64 = 0,
       start_after: Uint8Array | null = null,
-      limit: u32 = 0,
-      type: u32 = 0
+      limit: u32 = 0
     ) {
       this.race = race;
       this.start_after = start_after;
       this.limit = limit;
-      this.type = type;
     }
   }
 

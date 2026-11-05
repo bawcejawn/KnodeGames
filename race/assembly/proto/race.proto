@@ -7,22 +7,22 @@ syntax = "proto3";
 // horse (a block producer) for a race; the race recorder (bot/race.ts) scores
 // the picks after the race. This contract only keeps the picks, and makes the
 // chain itself enforce the rules:
-//   - race types (v2, owner 5 Nov 2026, D-161). `type` 0 is the 6-hour race and
-//     works exactly as in v1; picks of every other type live apart:
-//       type 0  6-hour: race r = start / 6 h (00:00, 06:00, 12:00, 18:00 UTC)
-//       type 1  1-hour: race r = start / 1 h (every hour)
-//       type 2  2-hour: race r = start / 2 h (every even hour)
-//       type 3  daily:  race r = start / 24 h (each UTC day)
-//       type 4  weekly: race r = Monday-based UTC week = (start - 4 days) / 7 d
-//                       (week 0 began Monday 1970-01-05; Mon 00:00 to Sun 00:00)
-//   - picks LOCK when the race starts (a pick is refused once the head block's
-//     time has reached the race's start). They open 24 hours ahead for the
-//     6-, 2- and 1-hour races, and from the start of the race before for the
-//     daily (the previous day) and weekly (the previous week) races;
+//   - a race is a 6-hour UTC window: race number r runs from r * 6 h to
+//     (r + 1) * 6 h after 1970-01-01 00:00 UTC (races start at 00:00, 06:00,
+//     12:00 and 18:00 UTC);
+//   - picks are open for the next 4 races (the coming 24 hours) and LOCK when
+//     the race starts: a pick is refused once the head block's time has
+//     reached the race's start;
+//   - v2 (D-161): race TYPES in the race number's top byte, so the arguments
+//     stay these three fields: race = type * 2^56 + index. Type 0 is the
+//     6-hour race above (unchanged); 1 = 1-hour (index = start / 1 h, open
+//     24 h ahead); 2 = 2-hour (start / 2 h, 24 h ahead); 3 = daily (start /
+//     24 h, open from the day before); 4 = weekly (Monday-based UTC week,
+//     index = (start - 4 days) / 7 days, open from the week before);
 //   - one pick per wallet per race; it can be changed until the race starts;
-//   - max_picks_per_day picks (new picks and changes together) per wallet per
-//     UTC day, every type together; 0 = no limit (v2: the Mana sponsor's daily
-//     limit across the platform is the cap, D-161);
+//   - at most max_picks_per_day picks (new picks and changes together) per
+//     wallet per UTC day, every type together; v2: 0 = no per-game limit (the
+//     Mana sponsor's daily limit across the platform is the cap);
 //   - the pick must be signed by the wallet it is for.
 // The horse is any valid address: the race's handicap card is set off the
 // chain, so a pick on a producer that is not in the race simply can't win.
@@ -40,7 +40,7 @@ message config {
   // The Knode owner: the only one who may change the settings.
   bytes owner = 1 [(koinos.btype) = ADDRESS];
   bool enabled = 2;
-  // Picks (new picks and changes) per wallet per UTC day, every type together. 0 = no limit (v2), else 1 to 20.
+  // Picks (new picks and changes) per wallet per UTC day. 1 to 20; v2: 0 = no limit.
   uint32 max_picks_per_day = 3;
 }
 
@@ -65,11 +65,9 @@ message empty_object {}
 // @result empty_object
 message pick_arguments {
   bytes player = 1 [(koinos.btype) = ADDRESS];
-  // Race number for the race's type (see the top; type 0: the UTC start time in ms divided by 21600000).
+  // Race number: the race's UTC start time in ms divided by 21600000 (v2: plus type * 2^56 for the other race types).
   uint64 race = 2 [jstype = JS_STRING];
   bytes horse = 3 [(koinos.btype) = ADDRESS];
-  // v2: the race type, 0 to 4 (0 = the 6-hour race, the v1 default).
-  uint32 type = 4;
 }
 
 message pick_event {
@@ -78,7 +76,6 @@ message pick_event {
   bytes horse = 3 [(koinos.btype) = ADDRESS];
   uint64 at = 4 [jstype = JS_STRING];
   bool change = 5;
-  uint32 type = 6;
 }
 
 // @description One wallet's pick for one race (empty if none).
@@ -87,7 +84,6 @@ message pick_event {
 message get_pick_arguments {
   bytes player = 1 [(koinos.btype) = ADDRESS];
   uint64 race = 2 [jstype = JS_STRING];
-  uint32 type = 3;
 }
 
 message get_pick_result {
@@ -101,7 +97,6 @@ message list_picks_arguments {
   uint64 race = 1 [jstype = JS_STRING];
   bytes start_after = 2 [(koinos.btype) = ADDRESS];
   uint32 limit = 3;
-  uint32 type = 4;
 }
 
 message pick_row {

@@ -361,10 +361,10 @@
   async function sendPick(index, horse, type = 0) {
     const who = me();
     if (!who || !raceContract || sending) return;
-    // D-161: a race type other than 0 (the 6-hour race) goes with its type; type 0 is sent exactly as before v2.
+    // D-161: the contract v2 takes the race type in the race number's top byte; type 0 is sent exactly as before v2.
     const tr = M.typedRace(type, index), mineNow = type ? rtPicks.get(`${type}:${index}`) : myPicks.get(index);
     const when = type ? `the ${M.TYPES[type].name.toLowerCase()} race at ${dayTime(tr.start)}` : `${dayTime(M.raceStart(index))} (${M.raceId(index).slice(11)}:00 UTC)`;
-    const args = { player: who, race: String(index), ...(type ? { type } : {}) };
+    const args = { player: who, race: M.contractRace(type, index) };
     if (!KBlocks.isAddr(horse)) return pickModal("info", "Choose a horse first", ["Pick a producer from the list, then press Pick."], [okBtn("OK")]);
     if (mineNow === horse) return pickModal("info", "That is already your pick", [`${nameOf(horse)} for the race at ${when}.`], [okBtn("OK")]);
     if (Date.now() >= tr.start) return pickModal("bad", "That race has started", ["Picks lock when a race starts."], [okBtn("OK")]);
@@ -506,7 +506,7 @@
     if (!who || !raceContract || !rtype) return;
     const list = [M.typedRace(rtype, M.typedIndex(rtype, Date.now())), ...upcoming(rtype)];
     try {
-      const got = await Promise.all(list.map((r) => raceContract.functions.get_pick({ player: who, race: String(r.index), type: rtype }).then((x) => [r.index, x.result && x.result.pick && x.result.pick.horse])));
+      const got = await Promise.all(list.map((r) => raceContract.functions.get_pick({ player: who, race: M.contractRace(rtype, r.index) }).then((x) => [r.index, x.result && x.result.pick && x.result.pick.horse])));
       for (const [i, h] of got) if (h) rtPicks.set(`${rtype}:${i}`, h);
     } catch { /* shown as no pick */ }
   }

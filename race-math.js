@@ -26,7 +26,7 @@
  * SCORING A PICK
  * - A pick on the winner scores a win (3 points); a pick on the horse that finishes 2nd or 3rd scores a show (1 point).
  *
- * RACE TYPES (owner, 5 Nov 2026, D-161; Race contract v2)
+ * RACE TYPES (owner, 5 Nov 2026, D-161; Race contract v2, which takes race = type * 2^56 + index)
  * - Type 0 is the 6-hour race above, unchanged. Types 1-4 run around the clock beside it: the 1-hour race (every hour),
  *   the 2-hour race (every even hour), the daily race (each UTC day) and the weekly race (Monday 00:00 to Sunday 00:00
  *   UTC, the play week). Points: 1- and 2-hour win 2 / show 1; 6-hour 3 / 1; daily 6 / 2; weekly 12 / 4. All count on
@@ -104,6 +104,9 @@
     return out;
   }
   const pointsOf = (type) => ({ win: TYPES[type].win, show: TYPES[type].show });
+  /** The Race contract v2's race number for a type's race i, as a decimal string: type * 2^56 + i (the type rides in
+   *  the top byte, so the pick's arguments stay three fields; type 0 is v1's number, unchanged). */
+  const contractRace = (type, i) => ((BigInt(type) << 56n) + BigInt(i)).toString();
   /** The first Knode Games week the race types (1-4) run in: null = not yet (the Race contract v2 isn't uploaded).
    *  The owner sets it with the upload (D-161); until then the recorder, the publish job and the page show only the
    *  6-hour race. */
@@ -263,7 +266,7 @@
   root.KRaceMath = {
     HOUR, RACE, LEG, LEGS, DAY, WEEK, GENESIS, MIN_K, SEED, TRIALS,
     raceIndex, raceStart, raceId, parseRaceId, raceAt, legOf, legsOf, weekOf, weekStart, dayOf, RHYTHM_FROM_WEEK, restRace, playEnd,
-    TYPES, TYPES_FROM_WEEK, WEEK_OFFSET, typedIndex, typedStart, typedId, parseTypedId, typedRace, typedRacesIn, pointsOf, typeCard, ledgerStandings, ledgerLine,
+    TYPES, TYPES_FROM_WEEK, WEEK_OFFSET, contractRace, typedIndex, typedStart, typedId, parseTypedId, typedRace, typedRacesIn, pointsOf, typeCard, ledgerStandings, ledgerLine,
     rng, handicapOf, winChances, calibrate, makeCard, cardForLeg, finishLine, standings, winners, shows, POINTS, track, LIVE_MAX, lowerBound,
   };
 })(typeof window !== "undefined" ? window : globalThis);

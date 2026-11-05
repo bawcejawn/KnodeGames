@@ -285,8 +285,8 @@ async function readPicks(node: any, contract: string, raceNo: number, type = 0):
   const out: Pick[] = [];
   let after: string | undefined;
   for (let page = 0; page < 1000; page++) {
-    // D-161: a race type other than 0 (the 6-hour race) is asked for by its type; type 0 is asked exactly as before v2.
-    const r: any = await withRetry(`picks for race ${raceNo}${type ? ` (type ${type})` : ""}`, () => (c.functions as any).list_picks({ race: String(raceNo), ...(after ? { start_after: after } : {}), limit: 100, ...(type ? { type } : {}) }));
+    // D-161: the contract v2 takes the race type in the race number's top byte (type 0: v1's number, unchanged).
+    const r: any = await withRetry(`picks for race ${raceNo}${type ? ` (type ${type})` : ""}`, () => (c.functions as any).list_picks({ race: M.contractRace(type, raceNo), ...(after ? { start_after: after } : {}), limit: 100 }));
     const rows = r?.result?.rows ?? [];
     for (const x of rows) if (isAddr(x.player) && isAddr(x.pick?.horse)) out.push([x.player, x.pick.horse, Number(x.pick.at || 0)]);
     if (!rows.length) break;                                    // audit BX-18: page until an empty page

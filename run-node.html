@@ -495,12 +495,14 @@ fi</code></pre>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
-docker compose up -d</code></pre>
+docker compose up -d
+Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd ~/koinos-node/koinos
-docker compose up -d</code></pre>
+docker compose up -d
+rm -f ~/koinos-node/heal-paused</code></pre>
       </div>
       <h3 class="rn-sub">5b. Is it caught up?</h3>
       <p>Run this now, then again every 15 minutes or so. Your node is caught up when Behind by is under 10.</p>
@@ -610,6 +612,35 @@ else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi
         <li>Restarts fix themselves: Docker starts when you sign in (step 2) and starts your node with it.</li>
         <li>Safer storage: your node's data sits in a Docker volume (step 3), not an ordinary folder. A folder shared between Windows and Docker is slow for a database and the most likely cause of damaged node data.</li>
       </ul>
+      <h3 class="rn-sub">Turn on automatic self-heal (recommended)</h3>
+      <p>A small script checks your node every 20 minutes, using the same rules Knode Games uses for its own nodes. If the node has frozen (far behind and not moving, or not answering), it restarts it: at most once every 50 minutes and 3 times in 6 hours, then it stops and tells you. If the node keeps crashing, it doesn't restart it (that can't fix damaged data); it tells you to repair it (below). It never deletes anything, never touches your key, and only asks your node and a public Koinos node for their height. It tells you with a notification and writes a log (<code>heal.log</code> in your <code>koinos-node</code> folder).</p>
+      <p>First download it and check its fingerprint:</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node
+Invoke-WebRequest https://raw.githubusercontent.com/bawcejawn/KnodeGames/main/node/one/heal-one-node.ps1 -OutFile heal-one-node.ps1 -UseBasicParsing
+if ((Get-FileHash heal-one-node.ps1).Hash -eq "b82c3f22b65d7be1f2286212dd6414ca752756d42d4c95d5d8367a73d7b7c79c") { "MATCH - the file arrived intact" } else { "NO MATCH - don't run it; delete heal-one-node.ps1" }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node
+curl -fsSL -o heal-one-node.py https://raw.githubusercontent.com/bawcejawn/KnodeGames/main/node/one/heal-one-node.py
+GOT=$( (sha256sum heal-one-node.py 2&gt;/dev/null || shasum -a 256 heal-one-node.py) | cut -d' ' -f1)
+[ "$GOT" = "931f03b8a2f387742f098853aa227bb152ee3b5dba6bed3616d79d1164dedb33" ] &amp;&amp; echo "MATCH - the file arrived intact" || echo "NO MATCH - don't run it; delete heal-one-node.py"</code></pre>
+      </div>
+      <p>If it says MATCH, the file arrived exactly as published on Knode Games' GitHub. Try it once (it changes nothing), then switch it on:</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>powershell -ExecutionPolicy Bypass -File C:\koinos-node\heal-one-node.ps1 -DryRun
+powershell -ExecutionPolicy Bypass -File C:\koinos-node\heal-one-node.ps1 -Install</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node
+python3 heal-one-node.py --dry-run
+python3 heal-one-node.py --install</code></pre>
+      </div>
+      <p class="muted">You should see a line like <code>OK: height …, network …</code> from the try, then "OK … is set up". It never starts a node you stopped yourself with this page's stop box or <code>docker compose down</code> (it reminds you every few hours instead), and the repair, stop and update boxes pause it while they work. If you only press Stop in Docker Desktop, it starts the node again after about 40 minutes, so use the stop box in step 10 to keep it stopped. On Windows it shows a notification when it acts; on a Mac or Linux a notification may not appear, so look at <code>heal.log</code> in your <code>koinos-node</code> folder. To switch it off, run the same file with <code>-Uninstall</code> (Windows) or <code>--uninstall</code> (Mac/Linux). To update it when this page shows a new fingerprint, do the two boxes above again. Moved your node to another port in step 5? Add <code>-Rpc http://127.0.0.1:8090</code> (Windows) or <code>--rpc=http://127.0.0.1:8090</code> (Mac/Linux) to both lines.</p>
       <h3 class="rn-sub">Once a week (1 minute)</h3>
       <ul class="rn-list">
         <li>Run the check from step 5b: Behind by should be under 10.</li>
@@ -621,19 +652,22 @@ else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
 docker compose down
-docker compose up -d</code></pre>
+docker compose up -d
+Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd ~/koinos-node/koinos
 docker compose down
-docker compose up -d</code></pre>
+docker compose up -d
+rm -f ~/koinos-node/heal-paused</code></pre>
       </div>
       <h3 class="rn-sub">If it keeps crashing: repair from a fresh snapshot</h3>
       <p>Damaged means it keeps restarting or freezing again soon after every restart: <code>docker compose ps</code> shows Restarting, or <code>docker compose logs --tail 40 block_store</code> shows panic. A restart won't cure that; fresh chain data will. This keeps your node's key, sets the old data aside (not deleted) and clears the old download. Short of space? A repair briefly needs room for the old data, a new download and a new unpack (about 180 GB). If your drive is smaller, delete the old data right after this box with the last box below: it's damaged anyway.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>cd C:\koinos-node\koinos
+        <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
+cd C:\koinos-node\koinos
 docker compose down
 docker run --rm -v koinos-data:/k alpine:3.20 sh -c "set -e; rm -rf /k/chain-old /k/block_store-old; mv /k/chain /k/chain-old; mv /k/block_store /k/block_store-old; echo MOVED ASIDE; ls /k"
 cd C:\koinos-node
@@ -641,7 +675,8 @@ Remove-Item snapshot.tar.gz, snapshot.json -ErrorAction SilentlyContinue</code><
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>cd ~/koinos-node/koinos
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
 docker compose down
 docker run --rm -v koinos-data:/k alpine:3.20 sh -c "set -e; rm -rf /k/chain-old /k/block_store-old; mv /k/chain /k/chain-old; mv /k/block_store /k/block_store-old; echo MOVED ASIDE; ls /k"
 cd ~/koinos-node
@@ -662,6 +697,8 @@ rm -f snapshot.tar.gz snapshot.json</code></pre>
           <li>Disk getting full? Once your node has caught up, delete the download: Windows <code>Remove-Item C:\koinos-node\snapshot.tar.gz</code>, Mac/Linux <code>rm ~/koinos-node/snapshot.tar.gz</code>. You can also remove old Docker programs: <code>docker image prune</code>.</li>
           <li>Never run <code>docker volume prune</code>, <code>docker system prune --volumes</code> or <code>docker volume rm koinos-data</code> unless you mean to delete your node: they erase its data and its key.</li>
           <li>The repair box says "can't rename" or "No such file": there was nothing to move (the data was already gone). Go straight to step 4.</li>
+          <li>Self-heal says NO MATCH: don't run it. Delete the file, wait a few minutes and download it again; if it still doesn't match, the page or the file is being updated, so try again later.</li>
+          <li>Mac: a box asks if Terminal may "administer your computer" when you switch on self-heal: click OK. That lets it add its 20-minute timer.</li>
           <li>Still stuck after a repair: check your internet connection and that the PC's date and time are correct (Settings → Time &amp; language → Set time automatically).</li>
         </ul>
       </details>
@@ -709,21 +746,22 @@ docker compose logs --tail 30 block_producer</code></pre>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
-docker compose down      # stop
-docker compose up -d     # start again</code></pre>
+New-Item -Force C:\koinos-node\heal-paused | Out-Null; docker compose down      # stop (self-heal pauses)
+docker compose up -d; Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue     # start again</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd ~/koinos-node/koinos
-docker compose down      # stop
-docker compose up -d     # start again</code></pre>
+touch ~/koinos-node/heal-paused; docker compose down      # stop (self-heal pauses)
+docker compose up -d; rm -f ~/koinos-node/heal-paused     # start again</code></pre>
       </div>
       <p>Restarting the computer is fine too: the node comes back by itself when Docker starts.</p>
       <h3 class="rn-sub">Update to a new Koinos version</h3>
       <p>When a new Koinos node version is announced, Knode Games checks it and updates the version code in step 3a on this page. To update: stop the node, fetch the new files, run 3b again (it rebuilds the settings from the new version, with your address), then start:</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>cd C:\koinos-node\koinos
+        <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
+cd C:\koinos-node\koinos
 docker compose down
 git fetch origin
 git -c advice.detachedHead=false checkout b05b8337d0a8d09748f9c2d1faef810ee2f5de28
@@ -731,7 +769,8 @@ git rev-parse HEAD</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>cd ~/koinos-node/koinos
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
 docker compose down
 git fetch origin
 git -c advice.detachedHead=false checkout b05b8337d0a8d09748f9c2d1faef810ee2f5de28
@@ -760,7 +799,7 @@ git rev-parse HEAD</code></pre>
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
           <li>Your USB stick isn't E:? Open File Explorer → This PC to see its letter, and change <code>E:/</code> in the box. On a Mac, the name under Locations in Finder replaces <code>MYUSB</code> (on Linux, the name in your file manager). If it says STOP, the stick isn't where the box looks: nothing was copied.</li>
-          <li>Want to remove the node completely? <code>docker compose down</code>, then <code>docker volume rm koinos-data</code> (this deletes its data and key), then delete the <code>koinos-node</code> folder. Your VHP and KOIN stay in your wallet.</li>
+          <li>Want to remove the node completely? Switch self-heal off first (<code>-Uninstall</code> / <code>--uninstall</code>, step 8), then <code>docker compose down</code>, then <code>docker volume rm koinos-data</code> (this deletes its data and key), then delete the <code>koinos-node</code> folder. Your VHP and KOIN stay in your wallet.</li>
         </ul>
       </details>
     </section>

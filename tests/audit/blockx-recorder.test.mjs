@@ -484,7 +484,7 @@ test("PRIZES_FROM_WEEK: the repository variable reaches the recorder, and only a
 
 // ── I-042: the whole week read again before its prize list is frozen (BX-88, BX-97, BX-98, G-K-1) ──
 /** Records week 3 like weekThenLook, lets `edit` change the published week file, then runs at `hoursAfter` into week 4. */
-async function weekEditThenLook(edit, extra = {}, run2 = {}) {
+async function weekEditThenLook(edit, extra = {}, run2 = {}, late = null) {
   const rd = raceDir();
   let prev;
   const startH = H0 - Math.floor(3600000 / 3000), endH = startH + 7 * 28800;
@@ -500,6 +500,8 @@ async function weekEditThenLook(edit, extra = {}, run2 = {}) {
   // and recorded Sunday's targets; `run2` applies to the run looked at only).
   const first = endH - 600, mid = tmp();
   await quiet(() => run({ p: "main", check: "check", prev, out: mid, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksGuest, rankedOf, head: { height: first, time: T(first), lib: first - 60 }, ...extra }));
+  // `late`: an edit of the published week after Sunday's targets are in (Repo Lens #E-18).
+  if (late) { const g = path.join(mid, "W003.json"), w2 = JSON.parse(fs.readFileSync(g, "utf8")); late(w2); fs.writeFileSync(g, JSON.stringify(w2)); }
   const at = endH + 13 * 1200, out = tmp();
   const r = await quiet(() => run({ p: "main", check: "check", prev: mid, out, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksGuest, rankedOf, head: { height: at, time: T(at), lib: at - 60 }, ...extra, ...run2 }));
   return { r, out };
@@ -862,4 +864,45 @@ test("D-135: final from Monday 00:00 once two runs an hour apart agree; a run th
   assert.match(src, /const STABLE_MS = 3600000;/);
   assert.match(src, /const ready = head\.time >= M\.weekStart\(nowW\) && complete;/);
   assert.ok(!/CORRECTION_MS/.test(src), "the 12-hour final is gone");
+});
+// Repo Lens #E-18 K-1 (PR #175, post-merge): append to the END of tests/audit/blockx-recorder.test.mjs
+// (it uses that file's own helpers: weekEditThenLook, sunday, heldNote, fs, path, assert).
+// A play-day target given a Sunday time AND "checked: 0" (as one bad recording run could write it) must still hold the week:
+// the re-read has to read its block, not skip it because the row says it was never checked.
+
+test("Repo Lens #E-18 K-1: a play-day target given a Sunday time and checked 0 still holds the week", async () => {
+  const { r, out } = await weekEditThenLook((wf) => {
+    const t = wf.targets.filter((x) => !sunday(x) && !x.void && x.picks.some((p) => p[3] > 0))[10];   // mid-week, scored
+    t.time = Date.UTC(2026, 10, 15, 1);   // a Sunday (as the D-129 test above)
+    t.checked = 0;                         // "never read": the new Sunday branch returns at once
+  }, { prizesFromWeek: 0 });
+  assert.ok(heldNote(r), "held: " + JSON.stringify(r.problems).slice(0, 300));
+  assert.equal(r.board.lastWeek.final, false);
+  assert.ok(!fs.existsSync(path.join(out, "P003.json")), "no prize file");
+  assert.ok(!fs.existsSync(path.join(out, "vault", "W3.json")), "no vault file");
+});
+
+test("Repo Lens #E-18 K-1: a Sunday row with picks and checked 0 holds the week (only a void row with no picks may be unread)", async () => {
+  // (Sunday's targets are recorded by the Sunday 23:30 run, so the edit is made after it: `late`.)
+  const { r } = await weekEditThenLook(() => {}, { prizesFromWeek: 0 }, {}, (wf) => {
+    const t = wf.targets.find((x) => sunday(x) && !x.void && x.picks.length > 0);
+    t.checked = 0;
+  });
+  assert.ok(heldNote(r), "held: " + JSON.stringify(r.problems).slice(0, 300));
+});
+
+test("Repo Lens #E-18 K-1: any non-void row with checked 0 holds; a 3-day-edge void row (no picks) still passes unread", async () => {
+  const a = await weekEditThenLook((wf) => { wf.targets.filter((x) => !sunday(x) && !x.void)[5].checked = 0; }, { prizesFromWeek: 0 });
+  assert.match(heldNote(a.r) || "", /never read on chain/);
+  const b = await weekEditThenLook((wf) => {
+    const t = wf.targets.filter((x) => !sunday(x) && !x.void)[5];
+    Object.assign(t, { checked: 0, signer: null, card: null, picks: [], void: "could not be recorded within 3 days: node keeps failing" });
+  }, { prizesFromWeek: 0 });
+  assert.equal(heldNote(b.r), undefined, JSON.stringify(b.r.problems).slice(0, 300));
+});
+
+test("Repo Lens #E-18 K-2: a release on a run that can't freeze yet doesn't say it froze", () => {
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /if \(!h\) problems\.push\(agreed\n\s+\? `week \$\{lw\}: RELEASED by BLOCKX_RELEASE/);
+  assert.match(src, /keep BLOCKX_RELEASE until the board shows the week final/);
 });

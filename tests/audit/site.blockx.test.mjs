@@ -321,7 +321,8 @@ test("pick errors: only the Picks contract's own messages get the game's wording
 
 test("R-BX-22 / D-129: the page offers Sunday (UTC) targets as fun rounds, labelled, with the review-day line", () => {
   const js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
-  assert.match(js, /const funAt = \(r\) => \{ const t = about\(G\.target\(r\)\); return X\.restDay\(t\) \|\| X\.restDay\(t \+ 10 \* 60000\); \};/);
+  assert.match(js, /const funAt = \(r\) => X\.restDay\(about\(G\.target\(r\)\)\);/);
+  assert.match(js, /May fall on Sunday: then a fun round/, "Repo Lens #E-18 F-1: Saturday's last 10 minutes say so");
   assert.match(js, /rounds = G\.offerRounds\(head\.height\)/, "every open target is offered, Sunday's too");
   assert.match(js, /Fun round · not the week/);
   assert.match(js, /Sunday is review day: results are checked and paid from Monday\./, "WEEK_CYCLE.md §2's required page line");

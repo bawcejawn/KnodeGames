@@ -317,6 +317,9 @@ jobs:
                       for t in fresh:
                           h, tm = t.get("height"), t.get("time")
                           ok = type(tm) is int and type(h) is int and h == t["round"] * GROUND + GOFFSET and wstart <= tm < wstart + WEEK and tm <= now
+                          # Repo Lens #E-18 K-1: a new round must say it was read on chain (checked 1 or 2), unless it is a
+                          # 3-day-edge void (no picks, its block at least ~66 h old), the only kind the recorder writes unread.
+                          ok = ok and (t.get("checked") in (1, 2) or (type(t.get("void")) is str and t.get("picks") == [] and tm <= now - 66 * 3600000))
                           if not ok: bad.append(t["round"])
                       if bad: why = "new rounds " + ", ".join(str(r) for r in bad[:10]) + " aren't past target blocks of this week"
                   if why: rewrote.append(f + " (" + why + ")"); continue

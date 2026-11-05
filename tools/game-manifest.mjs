@@ -14,6 +14,10 @@ export const SPONSOR_TX_CAP = 2.4; // Mana per sponsored transaction (D-131, .ai
 export const STATUSES = ["building", "review", "live", "paused"];
 export const KINDS = ["staked", "free"];
 export const PICKS_CONTRACTS = ["picks", "racepicks", "vault", "none"];
+// Shared Game Kit (D-158, GAME_KIT.md §4): who gets paid, and how the vault file carries points.
+export const PAYOUT_RULES = ["legacy-tied-whole", "d152"];
+export const VAULT_VALUES = ["dense255", "points"];
+export const BUDGET_KEYS = ["reads", "ms", "atOnce", "tries"];
 
 const SLUG = /^[a-z][a-z0-9-]{1,23}$/;
 const PLACEHOLDER = /\{\{[^}]*\}\}/;
@@ -61,7 +65,29 @@ export function validateManifest(m, opts = {}) {
   need(typeof m.page === "string" && /^[a-z0-9-]+\.html$/.test(m.page), "page: the page's file name (e.g. blockx.html)");
   need(typeof m.rulesDoc === "string" && m.rulesDoc.startsWith(".ai/games/") && m.rulesDoc.endsWith(".md"), "rulesDoc: .ai/games/<Game>.md");
   need(typeof m.ownerChat === "string" && m.ownerChat.length > 0, "ownerChat: the chat that owns the game's files");
+  // The kit's fields (GAME_KIT.md §4): checked whenever any is present, and required for a game whose recorder is a kit
+  // GameModule (game:check passes opts.kit). A game still on its old recorder (Daily Questions until its port, D-160)
+  // may leave them out.
+  if (opts.kit || KIT_FIELDS.some((f) => m[f] !== undefined)) checkKitFields(m, need);
   return p;
+}
+
+export const KIT_FIELDS = ["payoutRule", "vaultValues", "minPts", "rowCap", "entry", "budgets", "liveWeek", "roundsCorrectable"];
+function checkKitFields(m, need) {
+  need(PAYOUT_RULES.includes(m.payoutRule), `payoutRule: one of ${PAYOUT_RULES.join(", ")} (a migration keeps the game's current rule, D-158)`);
+  need(VAULT_VALUES.includes(m.vaultValues), `vaultValues: one of ${VAULT_VALUES.join(", ")} ("points" only where the vault takes real points, game 1)`);
+  if (m.payoutRule === "d152") need(m.vaultValues === "dense255", "payoutRule d152 needs vaultValues \"dense255\" (a tie split across the line needs its own value)");
+  need(Number.isInteger(m.minPts) && m.minPts >= 0, "minPts: the vault file's points floor (0 = none; must match vaultGames.<id>.minPts)");
+  need(Number.isInteger(m.rowCap) && m.rowCap >= 0, "rowCap: the most board rows (0 = no cap; over it → no files)");
+  const en = m.entry || {};
+  need(Number.isInteger(en.minRounds) && en.minRounds >= 1 && Number.isInteger(en.minPoints) && en.minPoints >= 0,
+    "entry: { minRounds ≥ 1, minPoints ≥ 0 }, the rounds and points a wallet needs to be ranked");
+  if (m.budgets !== undefined) {
+    const b = m.budgets;
+    need(b && typeof b === "object" && !Array.isArray(b) && Object.keys(b).every((k) => BUDGET_KEYS.includes(k) && Number.isInteger(b[k]) && b[k] > 0),
+      `budgets: optional whole numbers above 0 for ${BUDGET_KEYS.join(", ")}`);
+  }
+  for (const f of ["liveWeek", "roundsCorrectable"]) if (m[f] !== undefined) need(typeof m[f] === "boolean", `${f}: true or false`);
 }
 
 /** Every games/<slug>/game.json in the repo. */

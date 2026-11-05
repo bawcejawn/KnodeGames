@@ -596,3 +596,26 @@ test("final weeks are frozen: a later run keeps the stored results and points as
   await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(NOW + H), ...o }));
   assert.deepEqual(JSON.parse(fs.readFileSync(f, "utf8")).points, wf.points);
 });
+
+test("R-BR-4: the vault bot's own board check passes on the recorder's board and vault file (ties broken by pick time on both)", async () => {
+  const { orderBreak, boardScore, boardSpec } = await import(path.resolve(APP, "bot/vault.ts"));
+  const dep = JSON.parse(fs.readFileSync(path.resolve(APP, "game-data/deployment.json"), "utf8"));
+  assert.equal(boardSpec(dep.vaultGames["9"].results, dep.vaultGames["9"].board), "games-data:bracket/board.json", "the board sits next to the vault folder");
+  const field = fieldOf(17), signer = signerFn(field);
+  // P(1) and P(4) send the same bracket in different blocks; P(2) and P(5) the same one in the same block
+  const rows = [{ player: P(1), number: 0, time: 1000 }, { player: P(4), number: 0, time: 4000 }, { player: P(2), number: 5, time: 2000 }, { player: P(5), number: 5, time: 2000 }, { player: P(3), number: 9, time: 3000 }];
+  const o = { picksContract: addr(60), nodeOf: nodeOf(signer), picksOf: picksOf(rows), stakedOf: async (_n, ps) => ps };
+  const d = tmp();
+  await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), ...o }));
+  await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 60000), ...o }));
+  for (let i = 0; i < 40; i++) await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(NOW), ...o }));
+  const board = JSON.parse(fs.readFileSync(path.join(d, "board.json"), "utf8")), vf = JSON.parse(fs.readFileSync(path.join(d, "vault", `W${W}.json`), "utf8"));
+  assert.equal(board.lastWeek.week, W);
+  const lw = board.lastWeek.rows.filter((x) => x.ranked);
+  const places = new Map(lw.map((x) => [x.a, x.place]));
+  assert.equal(orderBreak(vf.rows, places), "", "the file's values follow the board's places");
+  const at = new Map(lw.map((x) => [x.a, x.place]));
+  if (boardScore(lw.find((x) => x.a === P(1))) === boardScore(lw.find((x) => x.a === P(4)))) assert.ok(at.get(P(1)) < at.get(P(4)), "the earlier of two identical brackets places higher");
+  if (boardScore(lw.find((x) => x.a === P(2))) === boardScore(lw.find((x) => x.a === P(5)))) assert.equal(at.get(P(2)), at.get(P(5)), "same block: same place (D-087)");
+  for (const x of vf.rows) assert.ok(places.has(x.player), "every file row is on the board");
+});

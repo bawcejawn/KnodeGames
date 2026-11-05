@@ -533,7 +533,7 @@ export async function run(o: Opts) {
   // A week's medals and prizes (#E-3 M-2): only for a final week that wasn't missed, with the stakes read after it,
   // from exactly the rows the vault file holds; and only from the week the Vault pays game 9.
   const paysFor = (wf: WeekFile | undefined) => !!(wf && wf.status === "final" && wf.vault !== "missed" && wf.staked && wf.staked.held && PRIZES_FROM !== null && wf.week >= PRIZES_FROM);
-  type BRow = { player: string; points: number; champion: boolean; correct: number; ranked: boolean };
+  type BRow = { player: string; points: number; champion: boolean; correct: number; ranked: boolean; time?: number };
   const earnsOf = (wf: WeekFile) => {
     const earn = new Map<string, number>(), tm = timesOf(wf), heldSet = new Set([...(wf.staked!.held ?? []), ...wf.staked!.list]);
     const fw = freeWinners(wf.points, heldSet, tm);
@@ -549,7 +549,9 @@ export async function run(o: Opts) {
   // Staked board: staked that week, or held a stake in the Bracket during it (a withdrawal doesn't move a player to Free
   // play, where it could never win the prize: fix-check F-5); a held-only player earns nothing there (#E-3 M-2)
   const stakedSet = (wf: WeekFile | undefined) => new Set([...(wf?.staked?.list ?? []), ...(wf?.staked?.held ?? [])]);
-  const weekRows = (wf: WeekFile | undefined): BRow[] => { const st = stakedSet(wf); return wf ? wf.points.map(([player, points, champ, correct]) => ({ player, points, champion: !!champ, correct, ranked: st.has(player) })) : []; };
+  // with each pick's time, so the board's places break ties exactly as the vault file's values do (the vault bot holds a
+  // week whose file and board disagree on the order, bot/vault.ts orderBreak)
+  const weekRows = (wf: WeekFile | undefined): BRow[] => { const st = stakedSet(wf), tm = timesOf(wf); return wf ? wf.points.map(([player, points, champ, correct]) => ({ player, points, champion: !!champ, correct, ranked: st.has(player), time: tm.get(player) })) : []; };
   const wv = (w: number) => { const wf = allW.get(w); return { week: w, start: B.weekStart(w), status: wf ? wf.status : "waiting", final: wf?.status === "final", rows: view(weekRows(wf), paysFor(wf) ? earnsOf(wf!) : null) }; };
   /** Last week, with its free prizes once final (the Leaders page's medals): [{player, place, vhp}] by the Vault's
    *  payout rule — tied for 1st share all 3 VHP; a single 1st gets 2 and those tied for 2nd share 1. */

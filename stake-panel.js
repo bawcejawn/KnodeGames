@@ -426,7 +426,8 @@
       // A question-game claim under the old rules that must be paid with the player's own Mana (a free prize, or the
       // pool short of VHP: qNeedsOwnMana, worked out again now) makes the whole transaction own-Mana, as the home page does.
       const own = (c) => Number(c.game) === Q_GAME && !qShared(cfg, c.week) && (c.free || c.ownMana || qNeedsOwnMana({ reward: c.reward }, st));
-      if (list.some(own)) opts = { ownMana: true };
+      // a.ownMana: the player chose "all at once with your own Mana" for 2+ rewards (a sponsored batch can't fit, R-BX-21).
+      if (a.ownMana === true || list.some(own)) opts = { ownMana: true };
     } else {
       ops = await buildOps(k, action, { ...a, player: W.address });
       label = action === "stake" ? `stake ${exact(a.units)} ${a.koin ? "KOIN" : "VHP"}` : action === "withdraw" ? `withdraw ${exact(a.units)} VHP` : `move ${exact(a.units)} VHP`;

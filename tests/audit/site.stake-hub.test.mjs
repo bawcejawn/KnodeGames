@@ -51,7 +51,7 @@ test("summary: total staked, where, what's earning, wallet, and rewards with one
   assert.match(s, /Rewards to claim 0\.75 VHP Claim all/);
   p.button(".hub-sum", "Claim all").click(); await tick();
   assert.deepEqual(p.sent.map((x) => x.action), ["claim"]);
-  assert.deepEqual(p.sent[0].a.claims.map((c) => [c.game, String(c.week)]), [[7, "1"]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(p.sent[0].a.claims.map((c) => [c.game, String(c.week)]))), [[7, "1"]]);
   assert.match(p.text("#hub-receipt"), /✓ Claimed 0\.75 VHP From Producer Race\. It's in your wallet\./);
 });
 
@@ -161,11 +161,38 @@ test("paused: no Add or Stake buttons; Withdraw and Claim stay", async () => {
   assert.match(p.text("#hub-top"), /New stakes are paused right now\. Withdrawals and claims always work\./);
 });
 
-test("more than 10 rewards: one transaction claims the first 10", async () => {
+test("2+ rewards (R-BX-21): the player chooses free one-by-one or all at once with own Mana", async () => {
+  const d = data(); d.games[0].claims = Array.from({ length: 3 }, (_, i) => ({ week: BigInt(i), reward: U }));
+  let p = await boot(d);
+  p.button(".hub-sum", "Claim all").click(); await tick();
+  assert.equal(p.sent.length, 0, "nothing sent before the player chooses");
+  assert.match(p.text("#hub-choose"), /Claim 3 rewards · 3 VHP.*Free: one approval per reward \(3\).*All at once with your own Mana.*about 3\.6 of your own Mana/);
+  p.button("#hub-choose", "Free:").click(); await tick(100);
+  assert.deepEqual(p.sent.map((x) => [x.action, x.a.claims.length, !!x.a.ownMana]), [["claim", 1, false], ["claim", 1, false], ["claim", 1, false]], "one sponsored claim per transaction");
+  assert.match(p.text("#hub-receipt"), /✓ Claimed 3 VHP/);
+  p = await boot(d);
+  p.button(".hub-sum", "Claim all").click(); await tick();
+  p.button("#hub-choose", "All at once").click(); await tick();
+  assert.deepEqual(p.sent.map((x) => [x.action, x.a.claims.length, x.a.ownMana]), [["claim", 3, true]], "one transaction, own Mana");
+});
+
+test("free one-by-one stops at a cancel and says how many went through", async () => {
+  const d = data(); d.games[0].claims = Array.from({ length: 3 }, (_, i) => ({ week: BigInt(i), reward: U }));
+  const p = await boot(d);
+  let n = 0; p.w.KStake.send = async (action, a) => { p.sent.push({ action, a }); if (++n === 2) throw new Error("User rejected"); return "tx"; };
+  p.button(".hub-sum", "Claim all").click(); await tick();
+  p.button("#hub-choose", "Free:").click(); await tick(100);
+  assert.equal(p.sent.length, 2);
+  assert.match(p.text("#hub-top"), /Cancelled in your wallet\. Nothing was sent\. \(1 of 3 went through before that\.\)/);
+  assert.match(p.text("#hub-receipt"), /✓ Claimed 1 VHP.*2 more to claim/);
+});
+
+test("more than 10 rewards, own Mana: one transaction claims the first 10", async () => {
   const d = data(); d.games[0].claims = Array.from({ length: 12 }, (_, i) => ({ week: BigInt(i), reward: U }));
   const p = await boot(d);
   p.button(".hub-sum", "Claim (10 at a time)").click(); await tick();
-  assert.equal(p.sent[0].a.claims.length, 10);
+  p.button("#hub-choose", "All at once").click(); await tick();
+  assert.equal(p.sent[0].a.claims.length, 10); assert.equal(p.sent[0].a.ownMana, true);
   assert.match(p.text("#hub-receipt"), /2 more to claim: tap Claim again\./);
 });
 
@@ -178,7 +205,7 @@ test("Daily Questions: + Add, Withdraw and Claim on its card; its claims pass th
   p.button("#g1 .hub-form", "Stake 3 VHP").click(); await tick();
   assert.deepEqual([p.sent[0].action, p.sent[0].a.game, String(p.sent[0].a.units)], ["stake", 1, String(3n * U)]);
   p.button("#g1", "Claim").click(); await tick();
-  assert.deepEqual(p.sent[1].a.claims.map((c) => [c.game, String(c.week), c.ownMana]), [[1, "2", true]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(p.sent[1].a.claims.map((c) => [c.game, String(c.week), c.ownMana]))), [[1, "2", true]]);
   assert.match(p.text(".hub-sum"), /Rewards to claim 1\.25 VHP/, "Daily Questions rewards count in Claim all");
 });
 

@@ -34,7 +34,7 @@
   const rewardOf = (g) => sum(g.claims, (c) => c.reward);
 
   // open: { id, mode: "stake" | "withdraw" | "move", token, value, to }; done: the last success, shown as a receipt.
-  const S = { data: null, open: null, busy: false, note: "", noteCls: "", done: null, showClaims: false };
+  const S = { data: null, open: null, busy: false, note: "", noteCls: "", done: null, showClaims: false, choose: null };
   const W = () => K.wallet();
   const me = () => { const w = W(); return w && w.address && w.kind !== "guest" ? w.address : null; };
   const nextMonday = () => F.weekDate(S.data.config, S.data.week + 1n);
@@ -56,16 +56,26 @@
   function say(text, cls = "") { S.note = text; S.noteCls = cls; render(); }
 
   /** Send one action. receipt: { head, lines } shown after it lands. */
-  async function run(action, a, receipt) {
+  const run = (action, a, receipt) => steps([{ action, a }], receipt);
+  /** Send one or more transactions in order, each confirmed in the wallet (a list: free claims one at a time). Stops at
+   *  the first one that fails or is cancelled, and says how many went through. receipt(n) = { head, lines } for the n
+   *  that were sent. */
+  async function steps(list, receipt) {
     if (S.busy) return;
-    S.busy = true; S.done = null; say(`Step 2 of 2: confirm in ${W() && W().label ? W().label() : "your wallet"}…`);
+    S.busy = true; S.done = null; S.choose = null;
+    const who = W() && W().label ? W().label() : "your wallet";
+    let sent = 0, pending = false;
     try {
-      const id = await K.send(action, a);
+      for (const { action, a } of list) {
+        say(list.length > 1 ? `Claiming ${sent + 1} of ${list.length}: confirm in ${who}…` : `Step 2 of 2: confirm in ${who}…`);
+        const id = await K.send(action, a);
+        sent++; if (!id) pending = true;
+      }
       S.open = null; S.note = "";
-      S.done = { ...receipt, pending: !id };
     } catch (e) {
-      S.note = K.sayError(e); S.noteCls = "bad";
+      S.note = K.sayError(e) + (sent ? ` (${sent} of ${list.length} went through before that.)` : ""); S.noteCls = "bad";
     }
+    if (sent) S.done = { ...(typeof receipt === "function" ? receipt(sent) : receipt), pending };
     S.busy = false;
     await load();
     const r = $("hub-receipt"); if (r && r.scrollIntoView) r.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -192,11 +202,36 @@
   }
 
   /** Claim up to 10 rewards: one transaction with the player's own Mana, or one per reward when the Mana sponsor pays (R-BX-21). */
+  // Claiming several rewards (owner, 4 Nov, after R-BX-21): the Mana sponsor pays at most 1.5 Mana a transaction and one
+  // claim costs about 1.1, so a batch of 2+ can't be sponsored. One reward goes straight out; for 2+ the player picks:
+  // free, one wallet approval per reward, or all at once (up to 10) with their own Mana.
+  const MANA_PER_CLAIM = 1.2;
+  const claimArg = (c) => ({ game: c.g.id, week: c.week, reward: c.reward, free: !!c.free, ownMana: !!c.ownMana });
+  const claimReceipt = (list) => (n) => {
+    const done = list.slice(0, n), games = [...new Set(done.map((c) => c.g.name))];
+    return { head: `Claimed ${vhp(sum(done, (c) => c.reward))}`, lines: [`From ${games.join(", ")}. It's in your wallet.`, list.length > n ? `${list.length - n} more to claim: tap Claim again.` : ""] };
+  };
   function claim(list) {
-    const first = list.slice(0, 10), total = sum(first, (c) => c.reward);
-    const games = [...new Set(first.map((c) => c.g.name))];
-    run("claim", { claims: first.map((c) => ({ game: c.g.id, week: c.week, reward: c.reward, free: !!c.free, ownMana: !!c.ownMana })) },
-      { head: `Claimed ${vhp(total)}`, lines: [`From ${games.join(", ")}. It's in your wallet.`, list.length > 10 ? `${list.length - 10} more to claim: tap Claim again.` : ""] });
+    if (list.length === 1) return steps([{ action: "claim", a: { claims: [claimArg(list[0])] } }], claimReceipt(list));
+    S.choose = list; S.note = ""; S.done = null; render();
+    const box = $("hub-choose"); if (box && box.scrollIntoView) box.scrollIntoView({ block: "nearest" });
+  }
+  function claimFree(list) {
+    steps(list.map((c) => ({ action: "claim", a: { claims: [claimArg(c)] } })), claimReceipt(list));
+  }
+  function claimOwn(list) {
+    const first = list.slice(0, 10);
+    steps([{ action: "claim", a: { claims: first.map(claimArg), ownMana: true } }], () => claimReceipt(list)(first.length));   // one transaction, first.length rewards
+  }
+  /** The choice for 2+ rewards. */
+  function chooser() {
+    const list = S.choose, n = list.length, first = Math.min(n, 10);
+    return el("div", { class: "hub-choose", id: "hub-choose", role: "group", "aria-label": "How to claim" },
+      el("div", { class: "hub-form-head" }, el("b", {}, `Claim ${n} rewards · ${vhp(sum(list, (c) => c.reward))}`), el("button", { class: "hub-x", type: "button", "aria-label": "Close", onclick: () => { S.choose = null; render(); } }, "✕")),
+      el("button", { type: "button", class: "btn btn-tang", disabled: S.busy, onclick: () => claimFree(list) }, `Free: one approval per reward (${n})`),
+      el("p", { class: "muted hub-sub" }, "Knode Games pays the Mana. Your wallet asks you to approve each reward, one after another."),
+      el("button", { type: "button", class: "btn btn-ghost", disabled: S.busy, onclick: () => claimOwn(list) }, `All at once with your own Mana${n > 10 ? " (the first 10)" : ""}`),
+      el("p", { class: "muted hub-sub" }, `One approval. Uses about ${(first * MANA_PER_CLAIM).toFixed(1)} of your own Mana (it refills by itself from the KOIN in your wallet).`));
   }
 
   function summary() {
@@ -245,6 +280,7 @@
         el("b", {}, `✓ ${S.done.head}${S.done.pending ? " (sent: it may take a minute to show)" : ""}`),
         ...S.done.lines.filter(Boolean).map((t) => el("p", {}, t)),
         el("button", { type: "button", class: "hub-x", "aria-label": "Close", onclick: () => { S.done = null; render(); } }, "✕")) : null,
+      S.choose && who ? chooser() : null,
       S.note ? el("p", { class: `hub-note ${S.noteCls}`, role: "status" }, S.note) : null,
       d.paused ? el("p", { class: "hub-note bad" }, "New stakes are paused right now. Withdrawals and claims always work.") : null,
       who && d.games.some((g) => g.claimsUnknown) ? el("p", { class: "hub-note" }, `Couldn't check rewards for ${d.games.filter((g) => g.claimsUnknown).map((g) => g.name).join(", ")} just now (the network is busy). They show at the next refresh, in about a minute.`) : null].filter(Boolean));
@@ -266,7 +302,7 @@
     const n = $(`g${g.id}`); if (n && n.scrollIntoView) n.scrollIntoView({ block: "center" });
   }
   window.addEventListener("hashchange", fromHash);
-  if (W() && W().subscribe) W().subscribe(() => { S.open = null; S.note = ""; S.done = null; load(); });
+  if (W() && W().subscribe) W().subscribe(() => { S.open = null; S.note = ""; S.done = null; S.choose = null; load(); });
   // The wallet needs the game's settings (network, chain id, Mana sponsor) to send from this page, as the game pages do.
   (async () => {
     const lib = window.koilib || window.koinos || window, w = W();
@@ -277,5 +313,5 @@
   })();
   K.badge($("q-badge"), { game: 1, href: "index.html#play" });
   load().then(fromHash);
-  setInterval(() => { if (!document.hidden && !S.open && !S.busy) load(); }, 60000);
+  setInterval(() => { if (!document.hidden && !S.open && !S.busy && !S.choose) load(); }, 60000);
 })();

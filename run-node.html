@@ -129,8 +129,25 @@
         <li><a href="#step-9">Check you're producing blocks</a></li>
         <li><a href="#step-10">Stop, restart, update, back up</a></li>
       </ol>
-      <p class="muted">How to paste: on Windows, open PowerShell and right-click (or Ctrl+V) to paste, then press Enter. On a Mac or Linux, open Terminal, press ⌘V or Ctrl+Shift+V, then Enter. Run each box once and wait for it to finish before the next.</p>
+      <p class="muted">New to commands? Read <a href="#howto">How to run a command</a> first. It takes one minute.</p>
     </nav>
+
+    <section class="pg-card" id="howto">
+      <h2>How to run a command</h2>
+      <p>Most steps have grey boxes with commands. Each box is run the same way:</p>
+      <ol class="rn-list">
+        <li class="rn-only" data-os="win">Open <b>PowerShell</b>: click <b>Start</b>, type <b>PowerShell</b>, and click <b>Windows PowerShell</b>. A dark window opens with a line like <code>PS C:\Users\you&gt;</code>.</li>
+        <li class="rn-only" data-os="mac">Open <b>Terminal</b>: press <b>⌘ Space</b>, type <b>Terminal</b>, and press <b>Return</b>. A window opens with a line ending in <code>%</code>.</li>
+        <li class="rn-only" data-os="linux">Open <b>Terminal</b>: press <b>Ctrl+Alt+T</b> (or find Terminal in your apps). A window opens with a line ending in <code>$</code>.</li>
+        <li>On this page, click the yellow <b>Copy</b> button on the box.</li>
+        <li class="rn-only" data-os="win">Click inside the PowerShell window, then <b>right-click</b> to paste (or press <b>Ctrl+V</b>).</li>
+        <li class="rn-only" data-os="mac">Click inside the Terminal window and press <b>⌘V</b> to paste.</li>
+        <li class="rn-only" data-os="linux">Click inside the Terminal window and press <b>Ctrl+Shift+V</b> to paste.</li>
+        <li>Press <b>Enter</b>. If you then see <code>&gt;&gt;</code> at the start of the line, or the last line is still waiting, press <b>Enter</b> once more.</li>
+        <li>Wait until the line you started with comes back (<span class="rn-only" data-os="win"><code>PS C:\…&gt;</code></span><span class="rn-only" data-os="mac linux">ending in <code>%</code> or <code>$</code></span>): that means the box has finished. Then compare what it printed with <b>You should see</b> under the step.</li>
+      </ol>
+      <p class="muted">Keep the same window open from box to box, or open a new one at any time: every box starts by going to the right folder itself. Never paste anything from other websites or chats into this window.</p>
+    </section>
 
     <section class="rn-step pg-card" id="step-1">
       <div class="rn-step-h">
@@ -148,7 +165,7 @@
         <li>A Koinos wallet (Kondor on a computer or KOIN Vault on a phone) with some KOIN. Its address is your producer address. No wallet yet? <a href="get.html">Get one here</a>.</li>
         <li>Time: about an hour of your own work, plus a few hours of waiting while the download runs.</li>
       </ul>
-      <p>Check your free disk space:</p>
+      <p class="rn-do">Open <span class="rn-only" data-os="win">PowerShell</span><span class="rn-only" data-os="mac linux">Terminal</span> (see <a href="#howto">How to run a command</a>), copy this box, paste it and press Enter. Then find your main drive in the list and read how much space is free.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>Get-PSDrive C</code></pre>
@@ -161,16 +178,45 @@
         <div class="rn-cmd-h"><span>Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>df -h /</code></pre>
       </div>
-      <p>Then stop the computer from going to sleep (a sleeping node misses its blocks):</p>
+      <p class="rn-do">Then stop the computer from going to sleep (a sleeping node misses its blocks):</p>
       <ul class="rn-list">
         <li class="rn-only" data-os="win">Windows: Start → Settings → System → Power (&amp; battery) → Screen and sleep → set "When plugged in, put my device to sleep after" to Never. Also: Settings → Accounts → Sign-in options → turn on "Use my sign-in info to automatically finish setting up after an update", so your node comes back by itself after Windows updates.</li>
         <li class="rn-only" data-os="mac">Mac: Apple menu → System Settings → Energy (or Battery → Options on a laptop) → turn on "Prevent automatic sleeping when the display is off". Keep a laptop plugged in.</li>
         <li class="rn-only" data-os="linux">Linux: run <code>sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target</code></li>
       </ul>
+      <p class="rn-do">Then make sure the computer's clock is exact. A node whose clock is off by even a minute thinks it's out of date and stops producing ("gossip disabled… halting block production"):</p>
+      <ul class="rn-list">
+        <li class="rn-only" data-os="win">Windows: Start → Settings → Time &amp; language → Date &amp; time → turn on Set time automatically, then press Sync now.</li>
+        <li class="rn-only" data-os="mac">Mac: Apple menu → System Settings → General → Date &amp; Time → turn on Set time and date automatically.</li>
+        <li class="rn-only" data-os="linux">Linux: run <code>sudo timedatectl set-ntp true</code>, then <code>timedatectl</code> should say "System clock synchronized: yes".</li>
+      </ul>
+      <h3 class="rn-sub">Short on space? See what's using it (optional)</h3>
+      <p>These boxes only look. They delete nothing. The usual big leftovers are an old Koinos snapshot download (<code>koinos-mainnet-….tar.gz</code>, about 60 GB) and old node folders.</p>
+      <p class="rn-do">Run this box to list your 15 biggest folders. On a full drive it can take 10–20 minutes; wait until the line you started with comes back.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>Get-PSDrive C
+Get-ChildItem C:\ -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object { $s = (Get-ChildItem $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum; [pscustomobject]@{ Folder = $_.FullName; GB = [math]::Round($s / 1GB, 1) } } | Sort-Object GB -Descending | Select-Object -First 15</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>df -h /
+du -xh -d 1 ~ 2&gt;/dev/null | sort -h | tail -15</code></pre>
+      </div>
+      <p class="rn-do">Then run this box to find big leftover files: old snapshot downloads and the disk files of old Docker or virtual-machine setups.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>Get-ChildItem C:\ -Recurse -File -Force -ErrorAction SilentlyContinue -Include *.tar.gz, *.vhdx | Where-Object Length -gt 2GB | Select-Object FullName, @{ n = 'GB'; e = { [math]::Round($_.Length / 1GB, 1) } }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>find ~ -xdev -type f \( -name '*.tar.gz' -o -name '*.raw' -o -name '*.vhdx' \) -size +2G -exec ls -lh {} \; 2&gt;/dev/null</code></pre>
+      </div>
+      <p class="muted">Before deleting anything, make sure you know what it is. An old snapshot download (<code>.tar.gz</code>) is safe to delete once you have unpacked it or don't need it. Don't delete a folder from a node that is still running, or one that holds a <code>.env</code> file or a <code>block_producer</code> folder (those hold keys) unless you are sure you no longer need them. On Windows, Settings → System → Storage → Cleanup recommendations safely clears temporary files and old Windows updates.</p>
       <p class="rn-see"><span class="rn-tag">You should see</span>A list of your drives. In the Free column (Windows) or Avail column (Mac/Linux), the number should be 150 GB (shown as 150G) or more.</p>
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
-          <li>Less than 150 GB free? Empty the Recycle Bin / Trash, uninstall programs you don't use, or move big folders (videos, photos) to another drive. On Windows you can also keep Docker's data on another drive: in step 2, Docker Desktop → Settings → Resources → Advanced → Disk image location.</li>
+          <li>Less than 150 GB free? Use "Short on space? See what's using it" above to find the big folders and files. Empty the Recycle Bin / Trash, uninstall programs you don't use, or move big folders (videos, photos) to another drive. On Windows you can also keep Docker's data on another drive: in step 2, Docker Desktop → Settings → Resources → Advanced → Disk image location.</li>
           <li>Windows says the command isn't found? Make sure you opened PowerShell (Start → type PowerShell → open Windows PowerShell), not the old Command Prompt.</li>
           <li>Only a laptop? It works, but keep it plugged in, lid open (or set "do nothing" when the lid closes), and on a cable if you can.</li>
         </ul>
@@ -187,7 +233,7 @@
       <h3 class="rn-sub rn-only" data-os="win">Windows</h3>
       <ol class="rn-list rn-only" data-os="win">
         <li>Click Start, type <b>PowerShell</b>, right-click <b>Windows PowerShell</b> → <b>Run as administrator</b> → Yes.</li>
-        <li>Paste the first box below and press Enter. When it says so, <b>restart your computer</b>.</li>
+        <li>Paste the first box below and press Enter. It installs WSL only (Docker doesn't need a Linux system of its own). When it says so, <b>restart your computer</b>.</li>
         <li>Download <b>Docker Desktop for Windows</b> from <a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener">docker.com</a> and run the installer. Keep <b>"Use WSL 2 instead of Hyper-V"</b> ticked. Restart when it asks.</li>
         <li>Open <b>Docker Desktop</b>. Accept the terms; you can skip signing in. Click the gear (Settings) → General → tick <b>"Start Docker Desktop when you sign in to your computer"</b> → Apply.</li>
         <li>Open a normal (not administrator) <b>PowerShell</b> window and paste the second box to install Git. Then close PowerShell and open it again.</li>
@@ -195,7 +241,7 @@
       </ol>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell (as administrator)</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>wsl --install
+        <pre><code>wsl --install --no-distribution
 wsl --update</code></pre>
       </div>
       <div class="rn-cmd" data-os="win">
@@ -246,6 +292,7 @@ docker run --rm hello-world</code></pre>
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
           <li>"docker: command not found" or "cannot connect to the Docker daemon": Docker Desktop isn't open yet. Open it, wait until its whale icon stops moving, then try again.</li>
+          <li>Windows: a window asks for a "UNIX username": that's the Ubuntu Linux system, which an older WSL command installs. Docker doesn't need it: just close the window. To remove it, run <code>wsl --unregister Ubuntu</code> in PowerShell (it's empty and unused).</li>
           <li>Windows: Docker says WSL needs updating or won't start: in an administrator PowerShell run <code>wsl --update</code>, then <code>wsl --shutdown</code>, and open Docker Desktop again.</li>
           <li>Windows: "virtualization is not enabled": open Task Manager → Performance → CPU and look at Virtualization. If it says Disabled, turn it on in your computer's BIOS/UEFI settings (search the web for your PC maker + "enable virtualization").</li>
           <li>Windows: "winget is not recognized": install App Installer from the Microsoft Store, or download Git from <a href="https://git-scm.com/download/win" target="_blank" rel="noopener">git-scm.com</a> and keep every default.</li>
@@ -263,6 +310,7 @@ docker run --rm hello-world</code></pre>
       <p class="rn-what"><span class="rn-tag">What this does</span>Downloads the official Koinos node setup at a version Knode Games has checked, tells it to produce blocks for your address, and keeps all of the node's data in a Docker volume (a private storage space inside Docker; it's faster and much less likely to get damaged than an ordinary folder).</p>
       <div class="rn-addr-hint" hidden>Type your producer address at the top of the page first. The commands below fill it in for you.</div>
       <h3 class="rn-sub">3a. Download the node files</h3>
+      <p class="rn-do">Run this box in <span class="rn-only" data-os="win">PowerShell</span><span class="rn-only" data-os="mac linux">Terminal</span>. It downloads for about a minute; wait until the line you started with comes back. The last line it prints must be the long code below.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>New-Item -ItemType Directory -Force C:\koinos-node | Out-Null
@@ -282,6 +330,7 @@ git rev-parse HEAD</code></pre>
       </div>
       <p>The last line must print exactly <code class="mono">b05b8337d0a8d09748f9c2d1faef810ee2f5de28</code>. That proves you have the checked version.</p>
       <h3 class="rn-sub">3b. Settings: block production for your address</h3>
+      <p class="rn-do">Check that your producer address is typed in <a href="#setup">Your setup</a> at the top of this page (the box shows it in yellow), then run this box.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
@@ -319,6 +368,7 @@ printf 'JSONRPC_PORT=8110\nP2P_PORT=8918\nAMQP_PORT=5702\nAMQP_ADMIN_PORT=15702\
 grep '_PORT=' .env</code></pre>
       </div>
       <h3 class="rn-sub">3c. Keep the node's data in a Docker volume</h3>
+      <p class="rn-do">Run this box. It finishes in a few seconds.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
@@ -404,6 +454,7 @@ docker compose config | grep koinos-data</code></pre>
       </div>
       <p class="rn-what"><span class="rn-tag">What this does</span>Saves you days. Instead of replaying the whole chain from block 1, your node starts from Armana's weekly snapshot: a full copy of the chain, made every Sunday at about 04:00 UTC and published about an hour later. The fingerprint (SHA-256) check proves your download is complete and exactly the file Armana published.</p>
       <h3 class="rn-sub">4a. Find the newest snapshot</h3>
+      <p class="rn-do">Run this box. It prints the newest snapshot, its size and its fingerprint, then one line saying whether Armana's two fingerprints agree.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
@@ -443,29 +494,48 @@ EOF</code></pre>
       </div>
       <p class="muted">Extra careful (recommended): both fingerprints above come from Armana. To check against a second source, compare the Fingerprint line with the one Armana posts in the Koinos community (Discord or Telegram) or with another node runner's. If they differ, don't use the snapshot.</p>
       <h3 class="rn-sub">4b. Download it (the long part)</h3>
-      <p>Leave this window open until it finishes. If it stops for any reason, paste the same box again: it carries on where it left off.</p>
+      <p class="rn-do">Run this box and leave the window open: it takes 2–8 hours, depending on your internet. You can walk away. If the connection drops, it waits 30 seconds and carries on by itself where it left off. It's done when it prints DOWNLOAD COMPLETE.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
 $s = Get-Content snapshot.json -Raw | ConvertFrom-Json
-curl.exe -L --fail --ssl-no-revoke --retry 10 -C - -o snapshot.tar.gz $s.url</code></pre>
+$size = [int64]$s.size_bytes
+for ($try = 1; $try -le 200; $try++) {
+  $have = 0; if (Test-Path snapshot.tar.gz) { $have = (Get-Item snapshot.tar.gz).Length }
+  if ($have -eq $size) { "DOWNLOAD COMPLETE - go on to 4c"; break }
+  if ($have -gt $size) { "STOP: the file is bigger than the snapshot. Delete snapshot.tar.gz, then do 4a and 4b again."; break }
+  curl.exe -L --fail --ssl-no-revoke --retry 5 -C - -o snapshot.tar.gz $s.url
+  if ($LASTEXITCODE -ne 0) { "The connection dropped (try $try of 200). Carrying on by itself in 30 seconds..."; Start-Sleep -Seconds 30 }
+}</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd ~/koinos-node
 URL=$(python3 -c 'import json;print(json.load(open("snapshot.json"))["url"])')
-curl -L --fail --retry 10 -C - -o snapshot.tar.gz "$URL"</code></pre>
+SIZE=$(python3 -c 'import json;print(int(json.load(open("snapshot.json"))["size_bytes"]))')
+for TRY in $(seq 1 200); do
+  HAVE=$(python3 -c 'import os;print(os.path.getsize("snapshot.tar.gz") if os.path.exists("snapshot.tar.gz") else 0)')
+  if [ "$HAVE" -eq "$SIZE" ]; then echo "DOWNLOAD COMPLETE - go on to 4c"; break; fi
+  if [ "$HAVE" -gt "$SIZE" ]; then echo "STOP: the file is bigger than the snapshot. Delete snapshot.tar.gz, then do 4a and 4b again."; break; fi
+  curl -L --fail --retry 5 -C - -o snapshot.tar.gz "$URL" || { echo "The connection dropped (try $TRY of 200). Carrying on by itself in 30 seconds..."; sleep 30; }
+done</code></pre>
       </div>
       <h3 class="rn-sub">4c. Check the fingerprint</h3>
+      <p class="rn-do">When 4b has said DOWNLOAD COMPLETE, run this box. If you see <code>&gt;&gt;</code> after pasting, press Enter once more. It works quietly for several minutes, then prints MATCH or NO MATCH.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
 $s = $null
 if (Test-Path snapshot.json) { $s = Get-Content snapshot.json -Raw | ConvertFrom-Json }
-if (-not $s -or $s.sha256 -notmatch '^[0-9a-fA-F]{64}$') { "STOP - no snapshot.json yet: do 4a first" }
-elseif (-not (Test-Path snapshot.tar.gz)) { "STOP - no snapshot.tar.gz yet: do 4b first" }
-elseif ((Get-FileHash snapshot.tar.gz -Algorithm SHA256).Hash -eq $s.sha256) { "MATCH - the download is complete and unchanged" }
-else { "NO MATCH - delete snapshot.tar.gz and download again" }</code></pre>
+if (-not $s -or $s.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
+  "STOP - no snapshot.json yet: do 4a first"
+} elseif (-not (Test-Path snapshot.tar.gz)) {
+  "STOP - no snapshot.tar.gz yet: do 4b first"
+} elseif ((Get-FileHash snapshot.tar.gz -Algorithm SHA256).Hash -eq $s.sha256) {
+  "MATCH - the download is complete and unchanged"
+} else {
+  "NO MATCH - delete snapshot.tar.gz and download again"
+}</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
@@ -479,20 +549,21 @@ else
 fi</code></pre>
       </div>
       <h3 class="rn-sub">4d. Unpack it into the node's volume</h3>
+      <p class="rn-do">If 4c said MATCH, run this box and leave the window open: it takes 30–60 minutes. Every minute it prints the size unpacked so far (it keeps growing), and at the end UNPACKED OK.</p>
       <p>This unpacks only the two parts a block producer needs (<code>chain</code> and <code>block_store</code>). It never touches your node's key.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>docker run --rm -v koinos-data:/k -v C:/koinos-node:/dl:ro debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
+        <pre><code>docker run --rm -v koinos-data:/k -v C:/koinos-node:/dl:ro debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; echo Unpacking. This takes 30 to 60 minutes. Size so far, every minute:; ( while sleep 60; do du -sh /k/restore 2&gt;/dev/null; done ) &amp; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>docker run --rm -v koinos-data:/k -v "$HOME/koinos-node:/dl:ro" debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
+        <pre><code>docker run --rm -v koinos-data:/k -v "$HOME/koinos-node:/dl:ro" debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; echo Unpacking. This takes 30 to 60 minutes. Size so far, every minute:; ( while sleep 60; do du -sh /k/restore 2&gt;/dev/null; done ) &amp; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
       </div>
-      <p class="rn-see"><span class="rn-tag">You should see</span>4a: the newest snapshot's name (like <code>koinos-mainnet-2026-11-01-h40694989.tar.gz</code>), its size (about 58 GB) and "The list and its fingerprint file agree (both from Armana)". 4b: a progress line that counts up to 100%. 4c: MATCH (it takes several minutes to answer). 4d: after 30–60 minutes, UNPACKED OK and the words <code>block_store</code> and <code>chain</code>.</p>
+      <p class="rn-see"><span class="rn-tag">You should see</span>4a: the newest snapshot's name (like <code>koinos-mainnet-2026-11-01-h40694989.tar.gz</code>), its size (about 58 GB) and "The list and its fingerprint file agree (both from Armana)". 4b: a progress line that counts up to 100% (it may restart its count after a dropped connection), then DOWNLOAD COMPLETE. 4c: MATCH (it takes several minutes to answer). 4d: a growing size every minute (like <code>14G /k/restore</code>), then after 30–60 minutes UNPACKED OK and the words <code>block_store</code> and <code>chain</code>.</p>
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
           <li>4a says STOP: don't use that snapshot. (On older Windows 10, "Could not create SSL/TLS secure channel" means Windows needs its updates; the box already asks for the modern connection type.) Wait an hour and try again; if it keeps happening, ask in the Koinos community.</li>
-          <li>4b stops or the computer restarts: paste the 4b box again. It continues where it stopped. A new snapshot appearing meanwhile doesn't matter: Armana keeps each one listed for about two weeks. If it ever stops with "404", that snapshot was retired: do 4a again (it clears the old half-download), then 4b.</li>
+          <li>4b keeps saying "The connection dropped": that's normal now and then; it carries on by itself. If the window was closed or the computer restarted, paste the 4b box again: it continues the same download. A new snapshot appearing meanwhile doesn't matter: Armana keeps each one listed for about two weeks. If it ever stops with "404", that snapshot was retired: do 4a again (it clears the old half-download), then 4b.</li>
           <li>4c says NO MATCH: delete the file (Windows: <code>Remove-Item C:\koinos-node\snapshot.tar.gz</code>; Mac/Linux: <code>rm ~/koinos-node/snapshot.tar.gz</code>), then do 4a, 4b and 4c again.</li>
           <li>4d says "No space left on device": if you're repairing a node (step 8), delete the old data first, it's damaged anyway: <code>docker run --rm -v koinos-data:/k alpine:3.20 rm -rf /k/chain-old /k/block_store-old</code>. Otherwise free up disk space (Windows: Docker Desktop → Settings → Resources; Mac: raise Docker's disk limit to 200 GB), then run 4d again. It cleans up its half-done work first.</li>
           <li>4d says "STOP: this volume already holds chain data": if you saw UNPACKED OK before, it's done: go on to step 5. If you never saw it (for example you started the node before 4d), do the repair box in step 8, then 4d again, or the node rebuilds the chain from block 1, which takes days. (If you're repairing a node, follow "Repair from a fresh snapshot" in step 8.)</li>
@@ -509,6 +580,7 @@ fi</code></pre>
       </div>
       <p class="rn-what"><span class="rn-tag">What this does</span>Starts your node. It reads the snapshot, then fetches the blocks made since Sunday from other nodes until it's level with the network.</p>
       <h3 class="rn-sub">5a. Start</h3>
+      <p class="rn-do">Run this box. The first time, it downloads the node's programs for a few minutes.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
@@ -522,7 +594,7 @@ docker compose up -d
 rm -f ~/koinos-node/heal-paused</code></pre>
       </div>
       <h3 class="rn-sub">5b. Is it caught up?</h3>
-      <p>Run this now, then again every 15 minutes or so. Your node is caught up when Behind by is under 10.</p>
+      <p class="rn-do">Run this box now, then again every 15 minutes or so (paste the same box again). If you see <code>&gt;&gt;</code> after pasting, press Enter once more. Your node is caught up when Behind by is under 10.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -530,9 +602,13 @@ $me = $null; $net = $null
 $body = '{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
 try { $me = [int64](Invoke-RestMethod http://127.0.0.1:8080 -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
 try { $net = [int64](Invoke-RestMethod https://koinos.armana.io -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
-if (-not ($me -gt 0)) { "Your node didn't answer yet - wait 2 minutes and try again" }
-elseif (-not ($net -gt 0)) { "Couldn't read the network height - try again in a minute" }
-else { "Your node: $me   Network: $net   Behind by: $($net - $me) blocks" }</code></pre>
+if (-not ($me -gt 0)) {
+  "Your node didn't answer yet - wait 2 minutes and try again"
+} elseif (-not ($net -gt 0)) {
+  "Couldn't read the network height - try again in a minute"
+} else {
+  "Your node: $me   Network: $net   Behind by: $($net - $me) blocks"
+}</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
@@ -550,7 +626,7 @@ else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
           <li>5b: "Unable to connect" or "Connection refused": the node is still starting. Wait 2 minutes and try again.</li>
-          <li>Behind by stays the same (or grows) across two checks 15 minutes apart: your node is stuck. Restart it: <code>docker compose down</code> then <code>docker compose up -d</code> (in the <code>koinos</code> folder), and check again in 15 minutes.</li>
+          <li>Behind by stays the same (or grows) across two checks 15 minutes apart: your node is stuck. Restart it: <code>docker compose down</code> then <code>docker compose up -d</code> (in the <code>koinos</code> folder), and check again in 15 minutes. Still stuck after that? Check the computer's clock is set automatically and press Sync now (step 1), restart again, then if needed reset Docker (step 8, "Still stuck after a restart").</li>
           <li>5a: "port is already allocated" (8080, 8888, 5672 or 15672): another program, or another Koinos node, uses that port. Do the box "Only if this computer already runs another Koinos node" in step 3, then run 5a again and use <code>8110</code> instead of <code>8080</code> in 5b. An update (step 10) rewrites <code>.env</code>, so run that box again after updating.</li>
           <li>5a: "external volume koinos-data not found": run <code>docker volume create koinos-data</code>, then do step 4d again before starting.</li>
           <li>Mac: "platform (linux/amd64) does not match": turn on the Rosetta setting from step 2, restart Docker, and run 5a again.</li>
@@ -566,6 +642,7 @@ else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi
       </div>
       <p class="rn-what"><span class="rn-tag">What this does</span>Tells Koinos: "blocks signed by this node count for my address, using my VHP". Your node made its own key pair when it first started. You register only the public half, from your wallet. The private half never leaves the node, and you never need to see it.</p>
       <h3 class="rn-sub">6a. Show your node's PUBLIC key</h3>
+      <p class="rn-do">Run this box. It prints one line starting with A: select that line with your mouse and <span class="rn-only" data-os="win">right-click (or press Ctrl+C)</span><span class="rn-only" data-os="mac linux">press ⌘C (Mac) or Ctrl+Shift+C (Linux)</span> to copy it.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>docker run --rm -v koinos-data:/k:ro alpine:3.20 cat /k/block_producer/public.key</code></pre>
@@ -631,7 +708,7 @@ else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi
       </ul>
       <h3 class="rn-sub">Turn on automatic self-heal (recommended)</h3>
       <p>A small script checks your node every 20 minutes, using the same rules Knode Games uses for its own nodes. If the node has frozen (far behind and not moving, or not answering), it restarts it: at most once every 50 minutes and 3 times in 6 hours, then it stops and tells you. If the node keeps crashing, it doesn't restart it (that can't fix damaged data); it tells you to repair it (below). It never deletes anything, never touches your key, and only asks your node and a public Koinos node for their height. It tells you with a notification and writes a log (<code>heal.log</code> in your <code>koinos-node</code> folder).</p>
-      <p>First download it and check its fingerprint:</p>
+      <p class="rn-do">First run this box: it downloads the self-heal script and checks its fingerprint.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
@@ -645,7 +722,7 @@ curl -fsSL -o heal-one-node.py https://raw.githubusercontent.com/bawcejawn/Knode
 GOT=$( (sha256sum heal-one-node.py 2&gt;/dev/null || shasum -a 256 heal-one-node.py) | cut -d' ' -f1)
 [ "$GOT" = "c0082c80e1dc9c5a69f1273411ff318af2752a7a5c696c91f0721ba9522f13dd" ] &amp;&amp; echo "MATCH - the file arrived intact" || echo "NO MATCH - don't run it; delete heal-one-node.py"</code></pre>
       </div>
-      <p>If it says MATCH, the file arrived exactly as published on Knode Games' GitHub. Try it once (it changes nothing), then switch it on:</p>
+      <p class="rn-do">If it says MATCH, the file arrived exactly as published on Knode Games' GitHub. Then run this box: the first line tries it once (it changes nothing), the second switches it on.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>powershell -ExecutionPolicy Bypass -File C:\koinos-node\heal-one-node.ps1 -DryRun
@@ -659,12 +736,39 @@ python3 heal-one-node.py --install</code></pre>
       </div>
       <p class="muted">You should see a line like <code>OK: height …, network …</code> from the try, then "OK … is set up". It never starts a node you stopped yourself with this page's stop box (it stays paused until you start the node again with step 5a), and the repair, stop and update boxes pause it while they work. If you only press Stop in Docker Desktop, it starts the node again after about 40 minutes, so use the stop box in step 10 to keep it stopped. On Windows it shows a notification when it acts; on a Mac or Linux a notification may not appear, so look at <code>heal.log</code> in your <code>koinos-node</code> folder. To switch it off, run the same file with <code>-Uninstall</code> (Windows) or <code>--uninstall</code> (Mac/Linux). To update it when this page shows a new fingerprint, do the two boxes above again. Moved your node to another port in step 5? Add <code>-Rpc http://127.0.0.1:8090</code> (Windows) or <code>--rpc=http://127.0.0.1:8090</code> (Mac/Linux) to both lines.</p>
       <h3 class="rn-sub">Once a week (1 minute)</h3>
+      <p class="rn-do">Run this health check. It only reads: it shows how many of the node's 7 parts are running, how far behind it is, and whether the computer's clock is right. (Second node on this computer? Use <code>8110</code> instead of <code>8080</code>.)</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+"Parts running: $(@(docker compose ps --status running --services).Count) of 7"
+$me = $null; $net = $null; $nt = $null
+$body = '{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
+try { $me = [int64](Invoke-RestMethod http://127.0.0.1:8080 -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
+try { $r = (Invoke-RestMethod https://koinos.armana.io -Method Post -ContentType application/json -Body $body).result; $net = [int64]$r.head_topology.height; $nt = [int64]$r.head_block_time } catch { }
+$clock = $null; if ($nt -gt 0) { $clock = [math]::Round(([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - $nt) / 1000) }
+if (-not ($me -gt 0) -or -not ($net -gt 0) -or $null -eq $clock) { "Couldn't read a height - wait 2 minutes and try again" } elseif ($clock -lt -3 -or $clock -gt 30) { "CLOCK OFF by about $clock seconds - sync your clock (step 1), then restart the node (below)" } elseif (($net - $me) -lt 10) { "HEALTHY - behind by $($net - $me) blocks, clock OK" } else { "BEHIND by $($net - $me) blocks - run this again in 15 minutes. Not shrinking? Restart it (below)." }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+echo "Parts running: $(docker compose ps --status running --services | wc -l | tr -d ' ') of 7"
+B='{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
+H='import json,sys;r=json.load(sys.stdin)["result"];h=int(r["head_topology"]["height"]);t=int(r["head_block_time"]);assert h&gt;0 and t&gt;0;print(h,t//1000)'
+read -r ME MT &lt;&lt;&lt; "$(curl -s -X POST -H 'content-type: application/json' -d "$B" http://127.0.0.1:8080 | python3 -c "$H" 2&gt;/dev/null)"
+read -r NET NT &lt;&lt;&lt; "$(curl -s -X POST -H 'content-type: application/json' -d "$B" https://koinos.armana.io | python3 -c "$H" 2&gt;/dev/null)"
+if [ -z "$ME" ] || [ -z "$NET" ] || [ "$NET" -lt "$ME" ]; then echo "Couldn't read a height - wait 2 minutes and try again"
+elif [ $(( $(date +%s) - NT )) -lt -3 ] || [ $(( $(date +%s) - NT )) -gt 30 ]; then echo "CLOCK OFF by about $(( $(date +%s) - NT )) seconds - sync your clock (step 1), then restart the node (below)"
+elif [ $((NET - ME)) -lt 10 ]; then echo "HEALTHY - behind by $((NET - ME)) blocks, clock OK"
+else echo "BEHIND by $((NET - ME)) blocks - run this again in 15 minutes. Not shrinking? Restart it (below)."; fi</code></pre>
+      </div>
+      <p class="muted">Parts running should say 7 of 7. Fewer? Restart it (below).</p>
       <ul class="rn-list">
-        <li>Run the check from step 5b: Behind by should be under 10.</li>
         <li>Look up your address on <a href="node.html">Producer lookup</a> (it works from your phone too): you should see recent blocks.</li>
       </ul>
       <h3 class="rn-sub">If it's stuck: restart it</h3>
       <p>Stuck means Behind by is large and doesn't shrink across two checks 15 minutes apart.</p>
+      <p class="rn-do">Run this box. It stops and starts the node; give it 15 minutes, then check again with 5b.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
@@ -679,8 +783,46 @@ docker compose down
 docker compose up -d
 rm -f ~/koinos-node/heal-paused</code></pre>
       </div>
+      <h3 class="rn-sub">Still stuck after a restart: reset Docker</h3>
+      <p>First run the health check: if it says CLOCK OFF, sync the clock (step 1) and restart; that's the usual cause. If the clock is fine, everything shows "Up", and Behind by still grows after a restart, Docker itself may have stopped passing blocks to the node (it can happen after many hours or after the computer changes networks). Restarting Docker clears that. Your node's key and chain data stay as they are.</p>
+      <p class="rn-do">Run this box. It stops the node, closes Docker, starts Docker again, waits for it and starts the node. Give it 15 minutes, then check again with the health check above.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
+cd C:\koinos-node\koinos
+docker compose down
+Stop-Process -Name "Docker Desktop" -Force -ErrorAction SilentlyContinue
+wsl --shutdown
+Start-Sleep -Seconds 10
+Start-Process "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+"Waiting for Docker to start (up to 5 minutes)..."
+$ok = $false; for ($i = 0; $i -lt 60 -and -not $ok; $i++) { Start-Sleep -Seconds 5; docker info *&gt; $null; $ok = ($LASTEXITCODE -eq 0) }
+if ($ok) { docker compose up -d; Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue; "RESET DONE - check again in 15 minutes" } else { "Docker didn't start yet - open Docker Desktop from the Start menu, wait until it says running, then run step 5a" }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac">
+        <div class="rn-cmd-h"><span>Mac · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
+docker compose down
+osascript -e 'quit app "Docker"'
+sleep 15
+open -a Docker
+echo "Waiting for Docker to start (up to 5 minutes)..."
+OK=0; for i in $(seq 60); do sleep 5; if docker info &gt;/dev/null 2&gt;&amp;1; then OK=1; break; fi; done
+if [ "$OK" = 1 ]; then docker compose up -d &amp;&amp; rm -f ~/koinos-node/heal-paused &amp;&amp; echo "RESET DONE - check again in 15 minutes"; else echo "Docker didn't start yet - open Docker from Applications, wait until it says running, then run step 5a"; fi</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="linux">
+        <div class="rn-cmd-h"><span>Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
+docker compose down
+sudo systemctl restart docker
+sleep 10
+docker compose up -d &amp;&amp; rm -f ~/koinos-node/heal-paused &amp;&amp; echo "RESET DONE - check again in 15 minutes"</code></pre>
+      </div>
       <h3 class="rn-sub">If it keeps crashing: repair from a fresh snapshot</h3>
       <p>Damaged means it keeps restarting or freezing again soon after every restart: <code>docker compose ps</code> shows Restarting, or <code>docker compose logs --tail 40 block_store</code> shows panic. A restart won't cure that; fresh chain data will. This keeps your node's key, sets the old data aside (not deleted) and clears the old download. Short of space? A repair briefly needs room for the old data, a new download and a new unpack (about 180 GB). If your drive is smaller, delete the old data right after this box with the last box below: it's damaged anyway.</p>
+      <p class="rn-do">Run this box. It stops the node and sets the damaged data aside.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
@@ -699,7 +841,8 @@ docker run --rm -v koinos-data:/k alpine:3.20 sh -c "set -e; rm -rf /k/chain-old
 cd ~/koinos-node
 rm -f snapshot.tar.gz snapshot.json</code></pre>
       </div>
-      <p>Then do <a href="#step-4">step 4</a> again (4a to 4d) and <a href="#step-5">step 5</a>. You don't need to register again. Once it's run well for a day, delete the old data:</p>
+      <p>Then do <a href="#step-4">step 4</a> again (4a to 4d) and <a href="#step-5">step 5</a>. You don't need to register again.</p>
+      <p class="rn-do">Once it has run well for a day, run this box to delete the old data.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>docker run --rm -v koinos-data:/k alpine:3.20 rm -rf /k/chain-old /k/block_store-old</code></pre>
@@ -733,6 +876,7 @@ rm -f snapshot.tar.gz snapshot.json</code></pre>
         <li>It shows the blocks your address has signed and what to expect for your amount of VHP. With less VHP, blocks come less often: give it a few hours.</li>
         <li>For a closer look, see what your block producer is doing:</li>
       </ol>
+      <p class="rn-do">For a closer look, run this box: it shows the block producer's latest 30 lines.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
@@ -759,22 +903,38 @@ docker compose logs --tail 30 block_producer</code></pre>
         <label class="rn-done"><input type="checkbox" data-check="step-10"> Done</label>
       </div>
       <p class="rn-what"><span class="rn-tag">What this does</span>Covers everyday care: stopping safely, updating to new Koinos versions, and an optional offline backup of your node's key.</p>
-      <h3 class="rn-sub">Stop and start safely</h3>
+      <h3 class="rn-sub">Stop the node</h3>
+      <p class="rn-do">Run this box. The node stops within a minute, and self-heal pauses until you start it again.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node\koinos
-New-Item -Force C:\koinos-node\heal-paused | Out-Null; docker compose down      # stop (self-heal pauses)
-docker compose up -d; Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue     # start again</code></pre>
+New-Item -Force C:\koinos-node\heal-paused | Out-Null
+docker compose down</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd ~/koinos-node/koinos
-touch ~/koinos-node/heal-paused; docker compose down      # stop (self-heal pauses)
-docker compose up -d; rm -f ~/koinos-node/heal-paused     # start again</code></pre>
+touch ~/koinos-node/heal-paused
+docker compose down</code></pre>
+      </div>
+      <h3 class="rn-sub">Start it again</h3>
+      <p class="rn-do">Run this box. The node starts, and self-heal switches back on.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+docker compose up -d
+Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+docker compose up -d
+rm -f ~/koinos-node/heal-paused</code></pre>
       </div>
       <p>Restarting the computer is fine too: the node comes back by itself when Docker starts.</p>
       <h3 class="rn-sub">Update to a new Koinos version</h3>
       <p>When a new Koinos node version is announced, Knode Games checks it and updates the version code in step 3a on this page. To update: stop the node, fetch the new files, run 3b again (it rebuilds the settings from the new version, with your address), then start:</p>
+      <p class="rn-do">Run this box: it stops the node and fetches the new version. Then do step 3b again, then step 5a.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
@@ -793,9 +953,10 @@ git fetch origin
 git -c advice.detachedHead=false checkout b05b8337d0a8d09748f9c2d1faef810ee2f5de28
 git rev-parse HEAD</code></pre>
       </div>
-      <p>Then step 3b, then step 5a. Your data, key and the volume setting (3c) stay as they are.</p>
+      <p>Your data, key and the volume setting (3c) stay as they are.</p>
       <h3 class="rn-sub">Back up your node's key (optional)</h3>
       <p>Your node's private key is the file <code>block_producer/private.key</code> inside its volume. It controls nothing but signing blocks for your address; your KOIN and VHP stay safe in your wallet. You don't have to back it up: on a new computer you can simply register the new node's key (step 6). If you'd like a copy anyway, put it straight onto a USB stick, then keep the stick somewhere safe and offline. Plug in the stick first and use its drive letter or name:</p>
+      <p class="rn-do">Plug in the USB stick first, then run this box. If your stick has a different letter or name, change it in the box before you press Enter.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell (USB stick is E:)</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>if (Test-Path E:\) { docker run --rm -v koinos-data:/k:ro -v E:/:/usb alpine:3.20 cp /k/block_producer/private.key /usb/koinos-node-private.key; if (Test-Path E:\koinos-node-private.key) { "Saved on E:" } } else { "STOP - there is no drive E: Plug in the USB stick and use its letter" }</code></pre>
@@ -827,7 +988,9 @@ git rev-parse HEAD</code></pre>
         <table class="addr-table">
           <thead><tr><th>You notice</th><th>What it means</th><th>The fix</th></tr></thead>
           <tbody>
-            <tr><td>Node behind: "Behind by" is large and not shrinking</td><td>The node is stuck</td><td>Restart it (<a href="#step-8">step 8</a>). Check again in 15 minutes.</td></tr>
+            <tr><td>Node behind: "Behind by" is large and not shrinking</td><td>The node is stuck</td><td>Restart it (<a href="#step-8">step 8</a>). Check again in 15 minutes. Still stuck? Reset Docker (<a href="#step-8">step 8</a>).</td></tr>
+            <tr><td>Logs say "gossip disabled" and "halting block production"</td><td>The node thinks it's out of date and stops producing to stay safe. Usually the computer's clock is wrong</td><td>Sync the clock (<a href="#step-1">step 1</a>), then restart (<a href="#step-8">step 8</a>). The health check in step 8 shows if the clock is off.</td></tr>
+            <tr><td>Logs say "Error connecting to seed … no good addresses" or "dial backoff"</td><td>Normal: some of the fixed start-up addresses are offline. The node uses its other connections</td><td>Nothing, while Behind by stays under 10. If Behind by grows: restart, then reset Docker (<a href="#step-8">step 8</a>).</td></tr>
             <tr><td>Crash loop: parts keep "Restarting", or it freezes again soon after every restart</td><td>Its chain data is damaged</td><td>Repair from a fresh snapshot (<a href="#step-8">step 8</a>). Your key stays.</td></tr>
             <tr><td>Disk full</td><td>The download or Docker filled the drive</td><td>Delete the downloaded snapshot once caught up, run <code>docker image prune</code>. Never prune volumes.</td></tr>
             <tr><td>Docker won't start</td><td>Docker Desktop or WSL needs a kick</td><td>Restart the computer. Windows: <code>wsl --update</code>, then <code>wsl --shutdown</code>, then open Docker Desktop (<a href="#step-2">step 2</a>).</td></tr>

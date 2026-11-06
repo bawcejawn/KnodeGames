@@ -2,7 +2,7 @@
 
 > **Purpose:** everything unresolved: bugs, unanswered questions, things waiting on someone. One row per issue, **current state only**.
 > **Rules:** when an issue is resolved, move its row to `../archive/ISSUES_CLOSED.md` with the date and where the answer was recorded (usually a D-xxx). Never reuse an id. Who does the work is in `CHAT_REQUESTS.md` (R-xxx) or `TODOS.md`; this file says what's wrong, not the steps.
-> **Last updated:** 2026-11-05 ~15:00 UTC (I-101 Questions recorder, I-102 ruler sim 2, I-103 free-prize cap mismatch). Older history: `git log -- .ai/platform/OPENISSUES.md`.
+> **Last updated:** 2026-11-05 ~15:00 UTC (I-101 Questions recorder, I-102 ruler sim 2). Older history: `git log -- .ai/platform/OPENISSUES.md`.
 
 **Legend:** ✅ verified · 💬 chat only · 👤 owner said · ❓ unknown
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
@@ -75,7 +75,8 @@ Contradictions are tracked in `DECISIONS.md` → Contradictions (none open).
 | I-100 | P3 | Block Golf | Golf's Questions hole reads the vault contract; after the v6.1 rule week it could read Daily Questions' results board instead (optional; v6.1 keeps the calls Golf uses) | Golf chat | 2026-11-05 |
 | I-101 | P1 | Daily Questions / vault | The Daily Questions results recorder isn't built: from the v6.1 rule week (Mon 16) the vault pays game 1 only from a results file; without it the week's staker share rolls over (no funds at risk) | Questions chat (R-Q-4), by Sun 15 | 2026-11-05 |
 | I-102 | P3 | VHP ruler | Sim 2 under A′ missed narrowly (0.80–1.21×) using a normal approximation above 30 expected blocks: re-run with exact arithmetic once A′ is built | Ruler chat (R-RULER-2) | 2026-11-05 |
-| I-103 | P2 | Block X, Producer Race, Producer Bracket / standards | **Standard mismatch: more than 10 free winners on one place.** The rule (owner, 5 Nov; `RECORDER_STANDARD.md` §4.4): up to 10 per place, ties share; more than 10 → pay exactly 10 by the earlier score time, then address; never zero because of the cap. Block X (`bot/games/blockx.ts` `vaultFile`, and the `games.yml` publish check) leaves the place empty; Bracket's rules (`games/ProducerBracket.md`) leave it empty; the Race pays 10 by the earliest first pick, not the score time. Daily Questions follows the rule (`games/questions/`, PR #203). Fix each in its own PR | Block X, Race and Bracket chats | 2026-11-05 |
+| I-103 | P2 | Block X, Producer Bracket | Standard mismatch (D-159): when more than 10 free wallets tie for a place, `bot/games/blockx.ts` `vaultFile` (and the `games.yml` publish check) and Bracket's recorder (#186, `bot/games/bracket.ts`, and its rules file) leave that place empty (pay nobody). The rule: exactly 10 by earlier score time, then address. Fix later, own PR + Repo Lens; don't copy it | Block X chat (or with the kit migration, R-ARCH-3); Bracket when it ports onto the kit | 2026-11-05 |
+| I-104 | P1 | Producer Race | Standard mismatch (D-159) in PR #182: `prizePlaces` caps 1st and 2nd at 10 together (a single 1st leaves 9 for 2nd) and picks the 10 by earliest first pick, not score time. The rule: up to 10 per place, earlier score time, then address. Fix in #182 before merge | Race chat (#182) | 2026-11-05 |
 
 ## Closed
 Moved to **`../archive/ISSUES_CLOSED.md`** (newest first), with the date and where each answer was recorded.

@@ -45,6 +45,7 @@ What stays here (not timing of the week):
 ## 5. On-chain registration
 The steps (Picks announce → apply, vault `game-add … --staked --free` → `game-apply`, sponsor row) are in `GO_LIVE_CHECKLIST.md` Step 4 and `NEW_GAME.md`; a game that needs its own contract also follows `CONTRACT_STANDARD.md`. Two limits that live only here:
 - **Picks hard limits:** 50 picks a day, 50 changes, list size 10, ahead ≤ 35 days, lead ≥ 5 min; the game's Picks settings (kind, list size, lock mode, round size and offset, lead, ahead, changes, picks a day) are written in its spec.
+- **Daily Mana (every game):** each player address has one daily sponsored Mana budget (40 a day, use it or lose it: it starts again at 00:00 UTC and there is no weekly cap) shared by every game and action; a new game adds its sponsor row and counts against that budget, never one of its own (`../platform/SPONSOR.md` §1).
 - **Sponsor headroom:** the per-action Mana limit is at least 1.25× the measured cost and at most the per-transaction cap; raise it when measured use reaches ~1.5× headroom (D-038). Live caps and rows: `../platform/SPONSOR.md`.
 
 ## 6. Recorder and data

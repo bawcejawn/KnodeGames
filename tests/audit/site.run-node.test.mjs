@@ -159,7 +159,7 @@ test("the unpack command takes only chain and block_store, works with either arc
     fs.writeFileSync(path.join(t, "src/.koinos/account_history/z"), "3");
     fs.mkdirSync(path.join(t, "dl")); fs.mkdirSync(path.join(t, "k"));
     execFileSync("tar", ["-czf", path.join(t, "dl/snapshot.tar.gz"), prefix], { cwd: path.join(t, "src") });
-    const local = sh.replaceAll("/k/", `${t}/k/`).replaceAll(" /k;", ` ${t}/k;`).replaceAll("ls /k", `ls ${t}/k`).replaceAll("/dl/", `${t}/dl/`);
+    const local = sh.replace("while sleep 60", "while false").replaceAll("/k/", `${t}/k/`).replaceAll(" /k;", ` ${t}/k;`).replaceAll("ls /k", `ls ${t}/k`).replaceAll("/dl/", `${t}/dl/`);
     const out = execFileSync("sh", ["-c", local], { encoding: "utf8" });
     assert.match(out, /UNPACKED OK/);
     assert.deepEqual(fs.readdirSync(path.join(t, "k")).sort(), ["block_store", "chain"], prefix);
@@ -261,7 +261,7 @@ test("F-7: an archive holding links is refused and leaves nothing behind", { ski
   fs.symlinkSync("/koinos/block_producer/private.key", path.join(t, "src/.koinos/block_store/db/LOG"));
   fs.mkdirSync(path.join(t, "dl")); fs.mkdirSync(path.join(t, "k"));
   execFileSync("tar", ["-czf", path.join(t, "dl/snapshot.tar.gz"), ".koinos"], { cwd: path.join(t, "src") });
-  const local = sh.replaceAll("/k/", `${t}/k/`).replaceAll("ls /k", `ls ${t}/k`).replaceAll("/dl/", `${t}/dl/`);
+  const local = sh.replace("while sleep 60", "while false").replaceAll("/k/", `${t}/k/`).replaceAll("ls /k", `ls ${t}/k`).replaceAll("/dl/", `${t}/dl/`);
   let out = "";
   try { execFileSync("sh", ["-c", local], { encoding: "utf8" }); } catch (e) { out = String(e.stdout); }
   assert.match(out, /STOP: the snapshot holds unexpected links/);
@@ -348,4 +348,144 @@ test("second node on the same computer: the optional box moves all four publishe
   const published = [...compose.matchAll(/\$\{(\w+_PORT):-\d+\}/g)].map((m) => m[1]);
   for (const k of ["AMQP_PORT", "AMQP_ADMIN_PORT", "P2P_PORT", "JSONRPC_PORT"]) assert.ok(published.includes(k), k);
   assert.match(html, /"port is already allocated" \(8080, 8888, 5672 or 15672\)/);
+});
+
+test("every command box has a 'Do this' line before it, and 'How to run a command' comes before step 1", () => {
+  const howto = html.indexOf('id="howto"'), step1 = html.indexOf('id="step-1"');
+  assert.ok(howto > 0 && howto < step1);
+  const h = html.slice(howto, step1);
+  for (const want of [/Windows PowerShell/, /right-click/, /Copy<\/b> button/, /Press <b>Enter<\/b>/, /Terminal/, /⌘V/, /Ctrl\+Shift\+V/]) assert.match(h, want);
+  // Walk the steps: between a box group and the previous box group (or the step start) there must be a .rn-do line,
+  // unless the box follows a numbered action list (step 2, step 9) or the second-node box's own paragraph.
+  const steps = html.slice(step1, html.indexOf('id="trouble"'));
+  const groups = steps.split(/(?:\s*<div class="rn-cmd" data-os="[^"]+">[\s\S]*?<\/pre>\s*<\/div>)+/);
+  groups.slice(0, -1).forEach((before, i) => {
+    const tail = before.slice(Math.max(before.lastIndexOf("<section"), before.lastIndexOf("</h3>"), before.lastIndexOf("</p>\n      <p"), 0));
+    assert.ok(/class="rn-do"|<\/ol>|Two nodes can't share/.test(before.slice(-1200)), `box group ${i + 1} has an action line before it: …${tail.slice(-160)}`);
+  });
+  // Step 10: stop and start are separate boxes (pasting the stop box never restarts the node).
+  for (const os of ["win", "mac"]) {
+    const stop = boxes.filter((b) => b.step === 10 && b.os.includes(os) && /heal-paused/.test(b.text) && /docker compose down/.test(b.text) && !/git fetch/.test(b.text));
+    assert.equal(stop.length, 1, `${os}: one stop box`);
+    assert.doesNotMatch(stop[0].text, /up -d/, `${os}: the stop box doesn't start the node again`);
+  }
+});
+
+test("4b: the download carries on by itself after the connection drops, until it's complete (Mac/Linux, and Windows with pwsh)", async () => {
+  const crypto = await import("node:crypto");
+  const data = crypto.randomBytes(3 * 1024 * 1024);
+  let drops = 0;
+  const srv = http.createServer((req, res) => {
+    const m = /bytes=(\d+)-/.exec(req.headers.range || ""); const from = m ? Number(m[1]) : 0;
+    const part = data.subarray(from);
+    res.writeHead(m ? 206 : 200, { "content-length": part.length, "accept-ranges": "bytes", ...(m ? { "content-range": `bytes ${from}-${data.length - 1}/${data.length}` } : {}) });
+    if (drops < 2) { drops++; res.write(part.subarray(0, Math.floor(part.length / 3))); setTimeout(() => res.socket.destroy(), 50); return; }   // the server closes abruptly
+    res.end(part);
+  });
+  await new Promise((ok) => srv.listen(0, "127.0.0.1", ok));
+  const url = `http://127.0.0.1:${srv.address().port}/snap.tar.gz`;
+  const run = (cmd, args, cwd, env = {}) => new Promise((ok) => execFile(cmd, args, { cwd, encoding: "utf8", env: { ...process.env, ...env }, timeout: 120_000 }, (e, out, err) => ok(out + err)));
+  try {
+    const cases = [["bash", (b) => ["-c", b.replace("cd ~/koinos-node", "").replace("sleep 30", "sleep 0")], box("mac", "DOWNLOAD COMPLETE")]];
+    if (PWSH) {
+      const shim = tmp(); fs.symlinkSync(execFileSync("sh", ["-c", "command -v curl"], { encoding: "utf8" }).trim(), path.join(shim, "curl.exe"));
+      cases.push([PWSH, (b) => ["-NoProfile", "-NonInteractive", "-Command", b.replace("cd C:\\koinos-node", "").replace("--ssl-no-revoke ", "").replace("Start-Sleep -Seconds 30", "Start-Sleep -Seconds 0")], box("win", "DOWNLOAD COMPLETE"), { PATH: `${shim}:${process.env.PATH}` }]);
+    }
+    for (const [cmd, args, b, env] of cases) {
+      drops = 0;
+      const t = tmp();
+      fs.writeFileSync(path.join(t, "snapshot.json"), JSON.stringify({ url, size_bytes: data.length }));
+      const out = await run(cmd, args(b), t, env);
+      assert.match(out, /The connection dropped \(try 1 of 200\)/, `${cmd}: it noticed the drop`);
+      assert.match(out, /DOWNLOAD COMPLETE - go on to 4c/, `${cmd}: ${out.slice(-400)}`);
+      assert.ok(fs.readFileSync(path.join(t, "snapshot.tar.gz")).equals(data), `${cmd}: the file is complete and exact`);
+      // A file that is already complete: nothing is downloaded again.
+      assert.match(await run(cmd, args(b), t, env), /DOWNLOAD COMPLETE/);
+      fs.rmSync(t, { recursive: true, force: true });
+    }
+  } finally { srv.close(); }
+});
+
+test("Windows boxes work when PowerShell runs them line by line (right-click paste): no statement starts with elseif/else/catch/finally", () => {
+  // A right-click paste into a PowerShell console runs each complete line on its own. "} elseif" must stay on the
+  // same line as the closing brace, or PowerShell looks for a command named "elseif" (owner's test run, 5 Nov).
+  for (const b of boxes.filter((x) => x.os[0] === "win")) {
+    let depth = 0;
+    for (const line of b.text.split("\n")) {
+      const code = line.replace(/'[^']*'|"(?:[^"`]|`.)*"/g, "");
+      if (depth === 0) assert.doesNotMatch(line, /^\s*(elseif|else|catch|finally)\b/, `step ${b.step}: "${line.trim()}" would run on its own`);
+      depth += (code.match(/[{(]/g) || []).length - (code.match(/[})]/g) || []).length;
+    }
+    assert.equal(depth, 0, `step ${b.step}: balanced braces`);
+  }
+  assert.match(html, /If you then see <code>&gt;&gt;<\/code>/);
+});
+
+test("4d prints progress every minute while it unpacks (no silent hour), without any $ for the host shell", () => {
+  for (const os of ["win", "mac"]) {
+    const sh = box(os, "debian:bookworm-slim").match(/sh -c "([^"]+)"$/)[1];
+    assert.match(sh, /\( while sleep 60; do du -sh \/k\/restore 2>\/dev\/null; done \) & tar -xzf/);
+    assert.doesNotMatch(sh, /[$`]/);
+  }
+  assert.match(html, /Every minute it prints the size unpacked so far/);
+});
+
+
+test("step 8 health check: parts running, clock and a verdict, only when both heights were read; a hostile answer runs nothing", async () => {
+  const nix = box("mac", "HEALTHY - behind by");
+  const t = tmp();
+  fs.writeFileSync(path.join(t, "docker"), `#!/bin/sh\nprintf 'amqp\\nchain\\np2p\\nmempool\\nblock_store\\nblock_producer\\njsonrpc\\n'\n`, { mode: 0o755 });
+  fs.mkdirSync(path.join(t, "koinos-node/koinos"), { recursive: true });
+  // time: the block's age in seconds as the computer's clock sees it (negative = the computer's clock is behind)
+  const serve = (h, age = 2) => new Promise((ok) => { const s = http.createServer((q, r) => { q.resume(); q.on("end", () => r.end(JSON.stringify({ result: { head_topology: { height: h }, head_block_time: String(Date.now() - age * 1000) } }))); }); s.listen(0, "127.0.0.1", () => ok(s)); });
+  const run = (script) => new Promise((ok) => execFile("bash", ["-c", script], { cwd: t, encoding: "utf8", env: { ...process.env, HOME: t, PATH: `${t}:${process.env.PATH}` } }, (e, out) => ok(out)));
+  const at = (s) => `http://127.0.0.1:${s.address().port}`;
+  const me = await serve("1000"), near = await serve("1005"), far = await serve("1500"), bad = await serve("a[$(touch PWNED)]");
+  const ahead = await serve("1005", -90), behind = await serve("1005", 120);
+  const with_ = (mine, net) => nix.replace("http://127.0.0.1:8080", mine).replace("https://koinos.armana.io", net);
+  try {
+    let out = await run(with_(at(me), at(near)));
+    assert.match(out, /Parts running: 7 of 7/); assert.match(out, /HEALTHY - behind by 5 blocks, clock OK/);
+    assert.match(await run(with_(at(me), at(far))), /BEHIND by 500 blocks/);
+    assert.match(await run(with_(at(me), at(ahead))), /CLOCK OFF by about -9\d seconds/, "computer's clock behind real time");
+    assert.match(await run(with_(at(me), at(behind))), /CLOCK OFF by about 1[12]\d seconds/, "computer's clock ahead of real time");
+    out = await run(with_(at(me), at(bad)));
+    assert.match(out, /Couldn't read a height/); assert.doesNotMatch(out, /HEALTHY|BEHIND|CLOCK/);
+    assert.ok(!fs.existsSync(path.join(t, "PWNED")), "nothing ran");
+    assert.match(await run(with_("http://127.0.0.1:9", at(near))), /Couldn't read a height/);
+  } finally { for (const s of [me, near, far, bad, ahead, behind]) s.close(); }
+  fs.rmSync(t, { recursive: true, force: true });
+  const win = box("win", "HEALTHY - behind by");
+  assert.match(win, /^\$me = \$null; \$net = \$null; \$nt = \$null$/m);
+  assert.match(win, /if \(-not \(\$me -gt 0\) -or -not \(\$net -gt 0\) -or \$null -eq \$clock\) \{ "Couldn't read a height/);
+  assert.match(win, /elseif \(\$clock -lt -3 -or \$clock -gt 30\) \{ "CLOCK OFF/);
+  // step 1 tells everyone to set the clock automatically; the trouble table explains "gossip disabled"
+  assert.match(html, /Set time automatically, then press Sync now/);
+  assert.match(html, /timedatectl set-ntp true/);
+  assert.match(html, /"gossip disabled" and "halting block production"/);
+});
+
+test("step 8 Docker reset (owner's test node, 5 Nov): pauses self-heal, stops the node first, and only starts it and unpauses once Docker answers", () => {
+  const win = box("win", "Docker Desktop.exe");
+  const order = ["New-Item -Force C:\\koinos-node\\heal-paused", "docker compose down", "Stop-Process -Name \"Docker Desktop\"", "wsl --shutdown", "Start-Process", "docker info"];
+  let at = -1;
+  for (const s of order) { const i = win.indexOf(s); assert.ok(i > at, s); at = i; }
+  assert.match(win, /if \(\$ok\) \{ docker compose up -d; Remove-Item C:\\koinos-node\\heal-paused/);
+  assert.doesNotMatch(win, /volume|prune/);
+  const mac = box("mac", "open -a Docker");
+  for (const [info, done] of [["exit 0", true], ["exit 1", false]]) {
+    const t = tmp();
+    fs.mkdirSync(path.join(t, "koinos-node/koinos"), { recursive: true });
+    fs.writeFileSync(path.join(t, "docker"), `#!/bin/sh\necho "$*" >> "${t}/calls"\n[ "$1" = info ] && ${info}\nexit 0\n`, { mode: 0o755 });
+    for (const f of ["osascript", "open", "sleep"]) fs.writeFileSync(path.join(t, f), `#!/bin/sh\necho "${f} $*" >> "${t}/calls"\n`, { mode: 0o755 });
+    const out = bash(mac, t, { HOME: t, PATH: `${t}:${process.env.PATH}` });
+    const calls = fs.readFileSync(path.join(t, "calls"), "utf8");
+    assert.ok(calls.indexOf("compose down") < calls.indexOf("osascript"), "node stopped before Docker quits");
+    assert.equal(/compose up -d/.test(calls), done);
+    assert.equal(fs.existsSync(path.join(t, "koinos-node/heal-paused")), !done, "self-heal stays paused until the node is back");
+    assert.match(out, done ? /RESET DONE/ : /Docker didn't start yet/);
+    fs.rmSync(t, { recursive: true, force: true });
+  }
+  assert.match(box("linux", "systemctl restart docker"), /^touch ~\/koinos-node\/heal-paused\ncd ~\/koinos-node\/koinos\ndocker compose down\nsudo systemctl restart docker/);
+  assert.match(html, /Error connecting to seed … no good addresses/);
 });

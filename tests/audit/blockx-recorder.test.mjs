@@ -34,9 +34,9 @@ function picksOf(tamperRound = null) {
 }
 const rankedOf = async (who) => new Set(who.filter((a) => a !== GUEST));
 const CARD = { at: 0, c: 1, blocksPerRace: 7200, fairness: null, field: [{ a: BIG, vhp: 2000, k: 600, h: 1 }, { a: MID, vhp: 1000, k: 300, h: 2 }], paddock: [{ a: SMALL, vhp: 10, k: 3 }] };
-function raceDir({ withCards = true } = {}) {
+function raceDir({ withCards = true, weeks = [2, 3, 4] } = {}) {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "race-"));
-  for (const w of [2, 3, 4]) {
+  for (const w of weeks) {
     const races = [];
     // Each hourly card stamped with the time the race recorder took it (37 minutes into its hour), as on mainnet.
     for (let t = M.weekStart(w); t < M.weekStart(w + 1); t += M.RACE) { const i = M.raceIndex(t); races.push({ id: M.raceId(i), start: t, end: t + M.RACE, cards: Array.from({ length: 6 }, (_, l) => (withCards ? { ...CARD, samples: 36, at: t + l * 3600000 + 37 * 60000 } : null)), result: null }); }
@@ -646,7 +646,7 @@ test("L-1: the re-read's budget counts from the start of the run, and reads in i
   assert.match(src, /export const REVERIFY_TRIES = 2;/);
   assert.match(src, /const reDeadline = runStart \+ \(o\.reverifyBudgetMs \?\? REVERIFY_BUDGET_MS\);/);
   assert.match(src, /blockReader\(o\.p, headId, REVERIFY_TRIES\)/);
-  assert.match(src, /readPicks\(node, contract, G\.GAME_ID, r, REVERIFY_TRIES, beforeRead\)/);
+  assert.match(src, /readPicks\(node, contract, g, r, REVERIFY_TRIES, beforeRead\)/, "R-BX-25: the week's game");
 });
 
 // One problem with nothing after it: the guest's Staked flag (Repo Lens B4-1: a release lets through only that reason,
@@ -731,8 +731,8 @@ test("B3-2: past the deadline, a target already in flight stops before its next 
   assert.doesNotMatch(note, /BLOCKX_RELEASE/, "a timeout prints no release code");
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /const timed = <T,>\(f: \(\) => Promise<T>\): Promise<T> => \(Date\.now\(\) > deadline \? Promise\.reject\(new OutOfTime\(\)\) : f\(\)\);/);
-  for (const call of ["timed(() => read(t.height))", "timed(() => read(t.height - G.LEAD))", "timed(() => reread(node, t.round))", "timed(() => rerank(players, node, M.weekOf(t.time)))"]) assert.ok(src.includes(call), call);
-  assert.match(src, /const reVault = vaultReader\(KNODE, G\.GAME_ID, VAULT_ABI, REVERIFY_TRIES, beforeRead\);/);
+  for (const call of ["timed(() => read(t.height))", "timed(() => read(t.height - G.LEAD))", "timed(() => reread(node, t.round, G.GAME_ID))", "timed(() => rerank(players, node, M.weekOf(t.time)))"]) assert.ok(src.includes(call), call);
+  assert.match(src, /const reVault = vaultReader\(KNODE, VG, VAULT_ABI, REVERIFY_TRIES, beforeRead\);/, "R-BX-25: the vault game");
   // Repo Lens B4-2: the deadline inside the vault reader's reads and each picks page too
   assert.match(src, /beforeRead\(\);   \/\/ Repo Lens B4-2: the re-read's deadline before every one of these reads too/);
   assert.match(src, /beforeRead\(\);   \/\/ Repo Lens B4-2: before every page, not only the first/);
@@ -905,4 +905,152 @@ test("Repo Lens #E-18 K-2: a release on a run that can't freeze yet doesn't say 
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /if \(!h\) problems\.push\(agreed\n\s+\? `week \$\{lw\}: RELEASED by BLOCKX_RELEASE/);
   assert.match(src, /keep BLOCKX_RELEASE until the board shows the week final/);
+});
+
+// ── R-BX-25 (owner 5 Nov: "go ahead"): hourly targets from Mon 16 Nov (vault week 4) as Picks game 12; vault game 2 ──
+// (The mainnet switch is week 3; the test switches at week 4 so week 3 can be game 2's, with this file's 2-hourly fakes.)
+const SW4 = [{ game: X.MAINNET_GAME, fromWeek: 0, toWeek: 4 }, { game: X.MAINNET_HOURLY, fromWeek: 4, toWeek: Infinity }];
+test("R-BX-25: week 3 on game 2 (every 2,400 blocks), week 4 on hourly game 12 (every 1,200), both final with vault game 2", async () => {
+  const rd = raceDir({ weeks: [2, 3, 4, 5] });
+  const startH = H0 - 1200, w4H = startH + 7 * 28800, w5H = startH + 14 * 28800;
+  const seen = [];
+  const picksH = async (node, r, g) => {
+    const h = g === 12 ? r * 1200 : r * 2400, t = T(h) - 3600000 * (1 + (r % 3));
+    seen.push(g);
+    return [{ player: GUEST, producer: signerOf(h), time: t }, { player: BOB, producer: BIG, time: t }];
+  };
+  let prev; const outs = [];
+  for (let lib = startH + 14400; lib <= w5H + 2400; lib += 14400) {
+    const o = tmp();
+    await quiet(() => run({ p: "main", check: "check", prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksH, rankedOf, prizesFromWeek: 3,
+      schedule: SW4, vaultGame: X.VAULT_GAME, head: { height: lib + 60, time: T(lib + 60), lib } }));
+    prev = o; outs.push(o);
+  }
+  const last = prev, read = (d, f) => JSON.parse(fs.readFileSync(path.join(d, f), "utf8"));
+  const latest = (f) => read([...outs].reverse().find((d) => fs.existsSync(path.join(d, f))), f);   // as the branch keeps it
+  const w3 = latest("W003.json"), w4 = latest("W004.json");
+  assert.equal(w3.game, 2); assert.equal(w4.game, 12);
+  assert.equal(w3.targets.length, 84, "week 3: every 2,400 blocks (12 a day)");
+  assert.ok(w3.targets.every((t) => t.height === t.round * 2400 && t.time >= M.weekStart(3) && t.time < M.weekStart(4)));
+  assert.ok(w4.targets.length >= 160 && w4.targets.length <= 168, `week 4: every 1,200 blocks (24 a day): ${w4.targets.length}`);
+  assert.ok(w4.targets.every((t) => t.height === t.round * 1200 && t.time >= M.weekStart(4) && t.time < M.weekStart(5)), "no hourly target before the switch, none of game 2 after it");
+  assert.ok(seen.includes(2) && seen.includes(12), "picks read from each game");
+  // Both weeks final and frozen once; the prize and vault files are vault game 2's.
+  const find = (f) => outs.map((d) => path.join(d, f)).find((x) => fs.existsSync(x));
+  for (const [w, f] of [[3, "P003.json"], [4, "P004.json"]]) {
+    const pf = find(f);
+    assert.ok(pf, `${f} frozen`);
+    assert.equal(JSON.parse(fs.readFileSync(pf, "utf8")).game, 2, `${f}: vault game 2`);
+    const vf = find(path.join("vault", `W${w}.json`));
+    assert.ok(vf, `vault file for week ${w}`);
+    assert.equal(JSON.parse(fs.readFileSync(vf, "utf8")).game, 2);
+  }
+  const idx = read(last, "index.json");
+  assert.equal(idx.game, 2, "index.json names the vault game, as before");
+  // Week 4's board counts Monday to Saturday's 144 hourly targets (Sunday's 24 are fun rounds, D-129).
+  const board = read(last, "board.json");
+  assert.equal(board.lastWeek.week, 4); assert.equal(board.lastWeek.final, true);
+  const play = w4.targets.filter((t) => new Date(t.time).getUTCDay() !== 0);
+  assert.equal(play.length, 144);
+  const bobPts = play.flatMap((t) => t.picks).filter((p) => p[0] === BOB).reduce((s, p) => s + p[3], 0);
+  assert.equal(board.lastWeek.rows.find((x) => x.a === BOB).pts, bobPts);
+});
+
+test("R-BX-25: the mainnet schedule, the page and the tool agree on game 12", () => {
+  assert.deepEqual(plain(X.MAINNET_HOURLY), { id: 12, round: 1200, offset: 0, lead: 100, ahead: 28900, picksPerDay: 48, maxChanges: 1 });
+  assert.equal(X.HOURLY_FROM_WEEK, 3); assert.equal(M.weekStart(3), Date.UTC(2026, 10, 9), "owner 5 Nov: from Mon 9 Nov 2026 00:00 UTC (Week 1)");
+  assert.equal(X.scheduleOf(2).game.id, 2); assert.equal(X.scheduleOf(3).game.id, 12); assert.equal(X.VAULT_GAME, 2);
+  const G12 = X.forGame(X.MAINNET_HOURLY);
+  assert.equal(G12.openRounds(48_000_000).length, 24, "24 open targets a day ahead");
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /schedule: X\.MAINNET_SCHEDULE as any, vaultGame: X\.VAULT_GAME/, "the mainnet run uses the schedule");
+});
+
+test("owner 5 Nov: the multiplier's cap is ×5 from Week 1 (×3 before), by the target's own time; the same points per pick hourly", () => {
+  const card = { field: [{ a: BIG, vhp: 1000, k: 1, h: 1 }, { a: MID, vhp: 250, k: 1, h: 1 }], paddock: [{ a: SMALL, vhp: 10, k: 1 }] };
+  const w2 = Date.UTC(2026, 10, 8, 12), w3 = Date.UTC(2026, 10, 9, 0, 30);
+  assert.equal(X.multiplier(card, MID, w2), 3, "before Week 1: capped at ×3");
+  assert.equal(X.multiplier(card, MID, w3), 4, "from Week 1: top ÷ VHP = 4, under the ×5 cap");
+  assert.equal(X.multiplier(card, SMALL, w2), 3); assert.equal(X.multiplier(card, SMALL, w3), 5);
+  assert.equal(X.multiplier(card, BIG, w3), 1);
+  assert.equal(X.pointsOf(card, SMALL, SMALL, w3), 500); assert.equal(X.pointsOf(card, SMALL, SMALL, w2), 300);
+  assert.equal(X.pointsOf(card, SMALL, BIG, w3), 0);
+  assert.equal(X.capAt(), 5, "no time: the newest cap (the page's producer list)");
+  // The same points per right pick on the hourly game as on the 2-hour game (owner: "the same point value").
+  assert.equal(X.pointsOf(card, MID, MID, w3), 400);
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /X\.pointsOf\(lockC, producer, b\.signer, b\.time\), X\.pointsOf\(afterC, producer, b\.signer, b\.time\)/, "recorded with the target's own cap");
+  assert.match(src, /X\.pointsOf\(lockC, p\[1\], t\.signer, t\.time\), X\.pointsOf\(afterC, p\[1\], t\.signer, t\.time\)/, "re-read with the target's own cap");
+});
+
+test("Repo Lens #E-21 L-1: after the switch a run doesn't read blocks that can't be its games' (more than 6 h past an edge)", async () => {
+  const rd = raceDir({ weeks: [2, 3, 4, 5] });
+  const startH = H0 - 1200, w4H = startH + 7 * 28800, sw = M.weekStart(4);
+  const picksH = async (node, r, g) => { const h = g === 12 ? r * 1200 : r * 2400; return [{ player: GUEST, producer: signerOf(h), time: T(h) - 3600000 }]; };
+  let prev;
+  for (let lib = w4H - 3 * 28800; lib < w4H; lib += 14400) {
+    const o = tmp();
+    await quiet(() => run({ p: "main", check: "check", prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksH, rankedOf, schedule: SW4, vaultGame: 2, head: { height: lib + 60, time: T(lib + 60), lib } }));
+    prev = o;
+  }
+  const read = [];
+  const spy = blockOf();
+  const at = w4H + 12 * 1200;   // Monday 12:00
+  await quiet(() => run({ p: "main", check: "check", prev, out: tmp(), raceDir: rd, picksContract: "1P", blockOf: (node, h) => { read.push(h); return spy(node, h); }, picksOf: picksH, rankedOf, schedule: SW4, vaultGame: 2, head: { height: at + 60, time: T(at + 60), lib: at } }));
+  const targets = [...new Set(read)].filter((h) => h % 1200 === 0);   // target blocks (locks are 100 below)
+  const g12Before = targets.filter((h) => (h / 1200) % 2 === 1 && T(h) < sw - 6 * 3600000);   // E-23 I-1: ±6 h
+  assert.deepEqual(g12Before, [], "no hourly-only round from before Sunday 18:00 is read");
+  assert.ok(read.length > 0 && read.length < 4 * (12 + 6) * 2, `few reads: ${read.length}`);
+});
+
+test("Repo Lens #E-21 L-2: a game that starts within 2 days is checked early; a wrong started game is skipped, not the whole run", () => {
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /SCHED\.filter\(\(x\) => x\.from <= head\.time \+ 2 \* X\.DAY && x\.to > head\.time - LOOKBACK_BLOCKS \* X\.BLOCK_MS - 7 \* X\.DAY\)/);
+  assert.match(src, /announce and apply it before then \(npm run picks -- announce \$\{G\.GAME_ID\}/);
+  assert.match(src, /badGames\.add\(G\);/);
+  assert.match(src, /if \(e\.from > head\.time \|\| badGames\.has\(e\.G\)\) continue;/);
+  assert.match(src, /if \(startedGames\.length && startedGames\.every\(\(G\) => badGames\.has\(G\)\)\) throw new Error/);
+  assert.match(src, /Number\(pg\.eta\) <= e\.from\) \{ console\.log\(`game \$\{G\.GAME_ID\}: announced, can be applied from/, "announced in time: no alarm during the 48 h wait");
+});
+
+test("Repo Lens #E-23 L-1: game 12 applied 4 days after its weeks start: its early targets are recorded with no picks and the week still goes final", async () => {
+  const rd = raceDir({ weeks: [2, 3, 4, 5] });
+  const startH = H0 - 1200, w5H = startH + 14 * 28800, applied = M.weekStart(4) + 4 * X.DAY;
+  const cfg = (g) => ({ round_size: String(g.round), round_offset: "0", lead: String(g.lead), enabled: true });
+  let now = 0;
+  const gameOf = async (_node, id) => (id === 2 ? { result: { game: cfg(X.MAINNET_GAME) } } : now >= applied ? { result: { game: cfg(X.MAINNET_HOURLY) } } : { result: {} });
+  const read12 = [];
+  const picksH = async (node, r, g) => {
+    const h = g === 12 ? r * 1200 : r * 2400, t = T(h) - 3600000;
+    if (g === 12) read12.push(now);
+    if (g === 12 && t < applied) return [];   // as the chain: nobody could pick before the game existed
+    return [{ player: BOB, producer: signerOf(h), time: t }];
+  };
+  let prev; const outs = []; let problems = [];
+  for (let lib = startH + 14400; lib <= w5H + 2400; lib += 14400) {
+    const o = tmp(); now = T(lib + 60);
+    const r = await quiet(() => run({ p: "main", check: "check", prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksH, gameOf, rankedOf, prizesFromWeek: 3,
+      schedule: SW4, vaultGame: X.VAULT_GAME, head: { height: lib + 60, time: now, lib } }));
+    problems.push(...(r.problems || []));
+    prev = o; outs.push(o);
+  }
+  const read = (d, f) => JSON.parse(fs.readFileSync(path.join(d, f), "utf8"));
+  const w4 = read([...outs].reverse().find((d) => fs.existsSync(path.join(d, "W004.json"))), "W004.json");
+  assert.equal(w4.game, 12);
+  assert.ok(w4.targets.length >= 160, `week 4 has its hourly targets from Monday: ${w4.targets.length}`);
+  assert.ok(w4.targets[0].time < M.weekStart(4) + 2 * 3600000, "the first target is at the start of the week");
+  const early = w4.targets.filter((t) => t.time < applied - 3 * X.DAY - 3600000);
+  assert.ok(early.length > 0 && early.every((t) => !t.void && t.picks.length === 0), "targets from before the apply: recorded, no picks");
+  assert.ok(read12.every((t) => t >= applied), "picks are never read while game 12 isn't on the contract");
+  assert.ok(problems.some((p) => /game 12 is not on the Picks contract.*recorded with no picks/.test(p)), "the run says so");
+  const board = read(prev, "board.json");
+  assert.equal(board.lastWeek.week, 4); assert.equal(board.lastWeek.final, true, "week 4 goes final");
+});
+
+test("Repo Lens #E-23 L-1: only when every node says game 12 is missing are its picks skipped; a disagreement skips the game", async () => {
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /if \(v === nodeCount\) \{ badGames\.delete\(G\); missingGames\.add\(G\);/);
+  assert.match(src, /else badGames\.add\(G\);   \/\/ the nodes disagree/);
+  assert.match(src, /if \(picksRead && !missingGames\.has\(G\)\) \{/);
+  assert.match(src, /est >= e\.from - 6 \* 3600000 && est < e\.to \+ 6 \* 3600000/, "E-23 I-1: ±6 h");
 });

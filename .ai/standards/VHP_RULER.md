@@ -257,3 +257,17 @@ Built on `vhp-ruler-v21` @ `414c85d` (Fix A `pct`, Fix B settings `minK` / `pool
 - **Decided (D-154): rank by A′**, a percentile conditional on the field's own blocks in the race (Binomial(n, share of the field's expected blocks), exact integer mid-p). With D-120 off, A′ passed sims 1, 3, 7, 9, 10 (and 4, 5, 11); sim 2 missed narrowly under the simulation's normal approximation (I-102). Sim 1's index mark becomes relative like sim 9's.
 - **Owner to choose for D-120:** option 1 (keep the 0.80 gate) or option 3 (a steady throttler plays unadjusted at full size, its form shown).
 - **Next (R-RULER-2):** build A′ exactly in both languages, re-run all eleven, Repo Lens. Nothing pays until all eleven pass (D-111).
+
+## 18. Repo Lens #B-11 and the owner's rulings (5 Nov 2026, library chat)
+Built on `vhp-ruler-v21` @ `208fe00` (RULE_VERSION 3: `pct` exact mid-p Poisson, `fpct` A′ exact mid-p binomial, the producer void, D-120 as ruled; `minK` / `poolRule` "min" only; 111 pass, 3 todo). Round 3 sims passed every judged sim; #B-11 then found **N-1 (High):** with core members weighted at their 14-day rate, a member signing above its rate pushes everyone else down (an 18% member at 0.80 wins ~54% of races it picks; fair 17%). Options A–E measured in `claude/ruler/TO-LIBRARY-B11-YARDSTICK-2026-11-05.md` (Claude project).
+- **Yardstick (D-165):** option **E**: only members with form ≥ **0.97 × the field's median form** set A′'s yardstick, at full size; everyone else plays at full size but moves no one. Residual: a member just above the line under-signing by at most ~3%, gaining nothing for itself.
+- **Sim 1's mark (N-2, D-165):** fair = 1 ÷ (field − members that can't win).
+- **Late voids (N-3, D-164):** kept: any VHP change beyond ±10% during the race voids the producer for that race, whoever sent it; a pick on a voided producer counts as a loss; nothing refunded.
+- **Also ruled:** the Vault and the Pool race under the same rules (D-162); steady throttlers stay in at full size (D-163).
+- **Next (R-RULER-2):** build E in both languages, re-run all eleven sims on both histories plus a new sim 8 case (a core member at 0.80–0.95 signing in full), turn the N-1 `todo` tests on, Repo Lens fix-check (`claude/ruler/REPOLENS-V21-RECHECK-PROMPT.md`, updated by the Ruler chat). Nothing pays until all eleven pass (D-111).
+
+### 18.1 E built, marks settled (6 Nov 2026, D-170)
+Built at `vhp-ruler-v21` @ `1cf5d4d` (115 pass, 1 todo; sim 11 40/40). N-1 is fixed: an 18% member steady at 0.80 – 0.95 that signs in full wins 0.057 – 0.058 against 0.084 honest. Passes: 2, 3, 7, 9, 10, 11 (4, 5 unchanged; 6 accepted). On the original marks sim 1 missed by 0.01 (0.84 – 1.09 / 0.85 – 1.07) and sim 8's others by the spread of the attacker's lost wins (0.85 – 1.15 / 0.85 – 1.17).
+- **Sim 1 mark:** 0.84 – 1.16 of fair, fair = 1 ÷ (field − steady throttlers). The big-producer edge S1 is an accepted residual.
+- **Sim 8 others:** pass if none drops more than 0.05 below its honest result (no upper limit).
+- **E's details:** median form over the entered, non-void field (even count: the two middle averaged, rounded down); no 0.80 floor on the core; "can't win" = a steady member below the core line.

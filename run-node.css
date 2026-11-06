@@ -112,3 +112,8 @@ body[data-rn-os="linux"] .rn-cmd:not([data-os~="linux"]), body[data-rn-os="linux
 .rn-notice p { margin: 0 0 8px; }
 .rn-legal { font-size: .95rem; }
 .rn-legal ul { padding-left: 20px; display: grid; gap: 8px; margin: 0 0 12px; }
+
+/* "Do this" lines: the action for the box that follows (owner, 5 Nov: say exactly what to do at every step). */
+.rn-do { position: relative; margin: 14px 0 6px; padding-left: 24px; font-weight: 600; color: var(--ink); }
+.rn-do::before { content: "▸"; position: absolute; left: 4px; top: 0; color: var(--violet); font-weight: 800; }
+#howto ol.rn-list li { line-height: 1.6; }

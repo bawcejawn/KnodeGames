@@ -69,7 +69,9 @@ const TESTNET_WASM = "picks/build/testnet/contract.wasm", TESTNET_MANIFEST = "pi
 const MAINNET_STATE = path.join("picks-data", "deployment.json");
 const TESTNET_CONFIG = path.join("testnet", "blockx.json");
 /** Mainnet games this tool may register: Who Signs Block X, exactly as in claude/builds/03-block-x-plan.md. */
-const MAINNET_GAMES = [{ ...X.MAINNET_GAME, name: "Who Signs Block X" }];
+// R-BX-25: game 12 is hourly Block X (a target every 1,200 blocks) from Mon 16 Nov 2026; game 2 stops at that switch
+// (its round size can never change on the contract, sameShape). `npm run picks -- announce 12`, then `apply 12` 48 h later.
+const MAINNET_GAMES = [{ ...X.MAINNET_GAME, name: "Who Signs Block X" }, { ...X.MAINNET_HOURLY, name: "Who Signs Block X (hourly)" }];
 /** The picks per wallet per day and changes per pick the Picks contract allows at most. */
 const MAX_PICKS_PER_DAY = 50, MAX_CHANGES = 50;
 
@@ -289,7 +291,7 @@ export function buildGameConfig(g: any, enabled = true) {
 }
 function gameOf(net: Net, id: number) {
   const g = net.games.find((x) => x.id === id);
-  if (!g) throw new Error(`Game ${id} is not one this tool registers on ${net.testnet ? "the testnet (testnet/blockx.json)" : "mainnet (Who Signs Block X is game 2)"}.`);
+  if (!g) throw new Error(`Game ${id} is not one this tool registers on ${net.testnet ? "the testnet (testnet/blockx.json)" : "mainnet (Who Signs Block X is game 2; hourly from Mon 16 Nov, game 12)"}.`);
   return g;
 }
 async function sendCall(net: Net, p: Provider, chainId: string, signer: Signer, method: string, args: any, rcKoin = 2) {

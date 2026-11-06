@@ -39,7 +39,7 @@ A module **must not**: use the network, the clock, files, randomness or environm
 - **Pending → final** only after Mon 00:00 UTC, the week-end re-read and re-score of every counted round on both nodes, and two runs at least 1 h apart that agree (D-135); Thursday 00:00 backstop.
 - Published rounds are append-only; final weeks, prize files and vault files are write-once (RECORDER §3.3, §4.7).
 - Holds: `HOLD-W<n>.json` / `RELEASE-W<n>.json`; owner holds by `<SLUG>_HOLD_WEEKS`; release of one exact hold by `<SLUG>_RELEASE = "<week>:<code>"`.
-- The paid set by the game's `payoutRule` (`legacy-tied-whole` or `d152`), vault values 255 → 1, `first` / `second` always filled (≤ 10 a place), the 3-day results window, `board.json` in the LEADERBOARD §1 shape.
+- The paid set by the game's `payoutRule` (`legacy-tied-whole` or `d152`), vault values 255 → 1, `first` / `second` always filled by the one free-prize rule (D-159: up to 10 a place, ties share; more than 10 → exactly 10 by earlier score time, then address; never empty because of the cap; a tie for 1st leaves 2nd empty; wallets cut by the cap get nothing), the 3-day results window, `board.json` in the LEADERBOARD §1 shape.
 - The publish job re-checks all of this with its own clock and recomputes each game's week from published per-round points (the generic recount: week tally → paid set → vault values → winners); per-round scoring is proven by the recorder's two-node re-score of every round before final, so no per-game scorer port lives in the publish job (D-158). One bad game holds only itself.
 
 ## 4. Manifest fields the kit reads (`game.json`)
@@ -50,7 +50,7 @@ A module **must not**: use the network, the clock, files, randomness or environm
 - `npm run test:audit` runs the kit's own tests and the rendered-workflow check (the committed publish steps equal the kit's).
 
 ## 6. New games, and moving a live game onto the kit (never changes payouts)
-**Every new game launches on the kit; no game gets its own recorder again (D-158).** Order: the kit's core with Daily Questions as its first game (I-101); then Fantasy, Block Golf and Bracket, ported to GameModules before they launch; then the two live recorders, Block X and the Race, by the steps below; then the publish jobs and the site files. Data stays on today's branches (`games-data`, `race-data`) until ARCHITECTURE A3.
+**Every new game launches on the kit; no game gets its own recorder again (D-158, D-160).** Order: the kit's core only (R-ARCH-3); Fantasy, Block Golf and Bracket ported to GameModules before they launch; Daily Questions' recorder (PR #203, the Mon 16 delivery) ported onto the kit with a byte-compatible replay and its scoring unchanged; then Block X and the Race by the steps below; then the publish jobs and the site files. **Any rule ambiguity stops the build and goes to the owner (D-160).** Data stays on today's branches (`games-data`, `race-data`) until ARCHITECTURE A3.
 
 For a live game (today Block X and the Race):
 1. Write `games/<slug>/recorder.ts` with the game's current `payoutRule`.

@@ -12,7 +12,7 @@ games/<slug>/
   README.md     a short pointer page; the rules live in .ai/games/<Game>.md
   SECURITY.md   the filled security checklist
   math.js       scoring shared by the page and the recorder (pure, tested)
-  recorder.ts   only the game's own part; the shared kit (D-146) does reads, holds, finals, vault files
+  recorder.ts   the game's GameModule (roundsFor, resultOf, scoreRound, picks source); the kit (GAME_KIT.md) does everything else
   tests/        math, recorder and page tests
 ```
 A game holds no tokens and no keys. It almost never needs its own contract: it registers on Picks (or uses the vault) and in the vault. A game that does need a contract also follows `CONTRACT_STANDARD.md`.
@@ -33,7 +33,7 @@ npm run game:new -- <slug> --id <vault game id> --name "<Display name>"
 | every `{{…}}` in `game.json` | `games/<slug>/game.json` | the schema prints what each field needs |
 | the rules (purpose, gameplay, scoring, rewards, status) | `.ai/games/<Game>.md` (template: `GAME_STANDARD.md` §9) | `GAME_STANDARD.md` |
 | scoring | `math.js` + `tests/` | the rules file |
-| the game's recorder part | `recorder.ts` | `RECORDER_STANDARD.md`, the shared kit |
+| the game's GameModule | `recorder.ts` | `GAME_KIT.md` §2 (`RECORDER_STANDARD.md` rules), D-159 free-prize places |
 | the page (Staked + Free boards, nicknames, stake badge and panel, the Sunday line) | page files | `GAME_STANDARD.md` §7, `LEADERBOARD_STANDARD.md` |
 | its row in the week-cycle table | `WEEK_CYCLE.md` §4 | `WEEK_CYCLE.md` |
 | a sponsor row for each player action (measured on testnet, ≤ 2.4 Mana) | Block X chat adds it on chain | `../platform/SPONSOR.md` |
@@ -44,7 +44,7 @@ npm run game:new -- <slug> --id <vault game id> --name "<Display name>"
 npm run game:check -- <slug>
 npm run test:audit
 ```
-`game:check` must end "All required checks passed": manifest valid and unique, required files present, rules doc present, the week-cycle row, tests present; from status `review` on, also listed in `games.json` with its page.
+`game:check` also runs the kit's conformance suite on your GameModule (`GAME_KIT.md` §5). It must end "All required checks passed": manifest valid and unique, required files present, rules doc present, the week-cycle row, tests present; from status `review` on, also listed in `games.json` with its page.
 
 ## 4. Review (owner + Repo Lens)
 The chat writes the Repo Lens prompt (`../platform/AUDITS.md`), the owner sends it on the exact commit, the chat fixes **every finding in one pass** (D-140), then a fix-check to GO. Reports stay private.

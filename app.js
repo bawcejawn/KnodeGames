@@ -686,6 +686,26 @@
     renderBoard(S.week).then(renderPlay).catch(() => {});
   }
 
+  /** Play first (mockup version 2, owner 5 Nov): the welcome view shows today's first open question, the one still to
+   *  answer if there is one, as the same card as the Play tab (same buttons, same answer path), and how many more
+   *  there are. With none open it says when the next ones come and offers the games. Wallet users get their own row,
+   *  hidden once a wallet (or guest) is connected. */
+  function renderWelcomeToday(open, emptyText) {
+    const wq = $("#welcome-question");
+    if (!wq) return;
+    const first = open.find((q) => myAnswer(q) === null) || open[0];
+    wq.replaceChildren(...(first ? [questionCard(first, "open")]
+      : [el("p", { class: "welcome-none" }, emptyText), el("a", { class: "btn btn-primary btn-big", href: "#play" }, "See the questions and games")]));
+    const more = $("#welcome-more");
+    if (more) {
+      const left = open.filter((q) => q !== first && myAnswer(q) === null).length;
+      more.hidden = !first;
+      more.replaceChildren(el("span", {}, left ? `${left} more question${left === 1 ? "" : "s"} today` : open.length > 1 ? "All today's questions" : "Today's question"), el("a", { href: "#play" }, "See them all →"));
+    }
+    const paths = $("#welcome-paths");
+    if (paths) paths.hidden = !!S.account;
+  }
+
   async function connect() {
     if (S.demo) {
       S.account = "1DemoP1ayerXXXXXXXXXXXXXXXXXXXXXX";
@@ -1334,6 +1354,7 @@
         ? `New questions are on their way. They're posted on the Koinos chain at ${localTime(round.releaseAt)} your time and show up here within a few minutes. This page checks every minute, so there's no need to refresh.`
         : `No open questions right now. ${nextRound ? `The next ones come out ${dayTime(nextRound.releaseAt)}.` : `New questions arrive Monday to Saturday at ${localHour(12)} your time.`}`;
     oq.replaceChildren(...(open.length ? open.map((q) => questionCard(q, "open")) : [el("div", { class: "empty" }, emptyText)]));
+    renderWelcomeToday(open, emptyText);
     const answeredToday = open.filter((q) => myAnswer(q) !== null).length;
     const tn = $("#today-note");
     if (tn) tn.textContent = !open.length ? "" : S.account ? `${answeredToday} of ${open.length} answered${open.length && open[0] ? ` · answers close in ${duration(open[0].lockTime - now)}` : ""}` : `${open.length} to answer · answers close in ${duration(open[0].lockTime - now)}`;
@@ -1714,6 +1735,8 @@
     if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
     // The header's wallet button and its account menu are header-wallet.js (shared by every page). In the demo it
     // only explains itself.
+    const wc2 = $("#welcome-connect");
+    if (wc2) wc2.addEventListener("click", () => connect());
     if (/[?&]demo\b/.test(location.search) || !window.KWallet) $("#connect").addEventListener("click", () => { if (!S.account) return connect(); toast(`Connected with the demo wallet: ${S.account}.`, 5000); });
     const initWallet = () => window.KWallet && window.KWallet.init({
       provider: S.provider, toast, chainId: S.dep && S.dep.chainId, payer: S.dep && S.dep.payer, sponsor: S.dep && S.dep.sponsor, game: S.dep && S.dep.contract,

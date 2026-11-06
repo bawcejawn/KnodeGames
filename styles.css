@@ -821,6 +821,35 @@ body[data-view="welcome"] .foot .eco { display: none; }
 .stats-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stats-pts { color: var(--muted); font-variant-numeric: tabular-nums; }
 
+/* Play first (mockup version 2): the hero holds today's question; wide screens put it beside the intro. */
+.welcome-hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }   /* minmax: a long producer chip wraps instead of widening the page */
+.welcome-intro { display: flex; flex-direction: column; gap: 10px; }
+.welcome-paths { display: grid; gap: 8px; margin-top: 4px; }
+.welcome-path { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; padding: 10px 12px; border-radius: var(--r-sm); background: var(--surface); border: 1px solid var(--line); }
+.welcome-path b { grid-column: 1; }
+.welcome-path span { grid-column: 1; color: var(--muted); font-size: .95rem; }
+.welcome-path .btn { grid-column: 2; grid-row: 1 / span 2; white-space: nowrap; }
+.welcome-q .q { margin: 0; }
+.welcome-q > .btn { margin-right: 10px; }
+.welcome-none { color: var(--muted); margin-bottom: 10px; }
+.welcome-more { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-weight: 700; }
+.welcome-more a { color: var(--violet); }
+@media (max-width: 600px) {
+  .welcome-path-new { display: none; }
+  .welcome-path { padding: 8px 10px; } .welcome-path span { display: none; }
+  /* The home page's card on a phone: only the time window; the block numbers and the "counting starts" note stay
+     on the Play tab's cards, so the answer buttons stay on the first screen. */
+  .welcome-q .q-facts .fact:not(:nth-child(2)) { display: none; }
+  .welcome-lede { font-size: 1rem; }
+  .welcome { padding-top: 14px; } .welcome-card { gap: 16px; }
+}
+@media (min-width: 960px) {
+  .welcome-card { max-width: 1080px; }
+  .welcome-card > :not(.welcome-hero) { width: 100%; max-width: 680px; margin-inline: auto; }
+  .welcome-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); grid-template-areas: "intro today" "stats today"; column-gap: 40px; align-items: start; }
+  .welcome-intro { grid-area: intro; } .welcome-today { grid-area: today; } .welcome-hero > .stats-strip { grid-area: stats; margin-top: 0; }
+}
+
 /* Tap targets: at least 44 px tall, Apple's guideline (launch UI research item 4, owner 5 Nov). Layout and look stay the
    same; producer chips get a larger invisible tap area instead of a taller chip. */
 button.btn { min-height: 44px; }

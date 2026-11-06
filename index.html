@@ -90,14 +90,27 @@
     <!-- ───────────── WELCOME (first visit, and "New here?") ───────────── -->
     <section class="view welcome" id="view-welcome" data-view="welcome" hidden>
       <div class="welcome-card">
-        <p class="welcome-kicker">Welcome to Knode Games</p>
-        <h1>Guess what the blockchain does next.</h1>
-        <p class="welcome-lede">Free prediction games about Koinos block producers: daily questions, races and more on the way. A fresh leaderboard every week, and prizes for the best players.</p>
-        <div class="welcome-actions welcome-actions-top">
-          <a class="btn btn-primary btn-big" href="#play">Play free now</a>
-          <span class="welcome-note">No sign-up, no wallet needed</span>
+        <!-- Play first (launch UI research item 7, mockup version 2, owner 5 Nov: "build the mock up version 2"):
+             today's question with its answer buttons on the first screen, a clear path for wallet users beside it. -->
+        <div class="welcome-hero">
+          <div class="welcome-intro">
+            <p class="welcome-kicker">Free · new questions Mon–Sat</p>
+            <h1>Guess what the blockchain does next.</h1>
+            <p class="welcome-lede">Pick an answer. Right answers score points; the best players win VHP every week.</p>
+            <div class="welcome-paths" id="welcome-paths">
+              <div class="welcome-path welcome-path-new"><b>New here?</b><span>Tap an answer on today's question. You play free as a guest: no sign-up, no wallet.</span></div>
+              <div class="welcome-path"><b>Have a Koinos wallet? Stake and play with it.</b><span>Connect KOIN Vault or Kondor to play with it and stake.</span><button class="btn btn-ghost" type="button" id="welcome-connect">Connect wallet</button></div>
+            </div>
+          </div>
+          <div class="welcome-today">
+            <div class="welcome-q" id="welcome-question">
+              <a class="btn btn-primary btn-big" href="#play">Play free now</a>
+              <span class="welcome-note">No sign-up, no wallet needed</span>
+            </div>
+            <p class="welcome-more" id="welcome-more" hidden></p>
+          </div>
+          <div class="stats-strip" id="stats-strip" hidden></div>
         </div>
-        <div class="stats-strip" id="stats-strip" hidden></div>
         <div class="welcome-why">
           <h2>What's going on</h2>
           <p>Koinos adds a new block every few seconds. Each block is made by a <b>producer</b>, a computer that earns a small reward for it. We ask things like <i>"How many blocks will this producer make in the next 4 hours?"</i></p>

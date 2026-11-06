@@ -1,8 +1,8 @@
 # Plan: a Block X target every hour (R-BX-25, proposed 5 Nov 2026)
 
-> Status: **proposed; waiting for the owner's OK** on the decisions in §6. Nothing is built or sent. Asked for by the
-> owner (5 Nov, through the VHP Ruler chat): *"Block X also only having blocks to chose from for every 2 hours seems slow
-> to play."* Written by the Block X chat after checking the code (main @ `96a49ac`).
+> Status: **approved by the owner 5 Nov, built; starts Mon 9 Nov** (Repo Lens #E-21 GO; §7). Asked for by the owner (5 Nov, through the
+> VHP Ruler chat): *"Block X also only having blocks to chose from for every 2 hours seems slow to play."* No new
+> contract: a new game entry in the same Picks contract (the owner: "I dont want a new contract").
 
 ## 1. What changes for players
 - A target block every **1,200 blocks (about an hour)** instead of every 2,400 (about two hours).
@@ -49,7 +49,7 @@
 7. **Docs** as in §2.
 
 ## 4. What stays the same
-- Week 1 (Mon 9 Nov) and the first payout (Mon 16 Nov) stay on 2-hourly targets.
+- ~~Week 1 stays 2-hourly~~ superseded: hourly from Week 1 (Mon 9 Nov), §7.
 - D-125 / D-129 / D-135 timing: Sunday fun rounds, final from Monday 00:00.
 - Points, handicap, prizes, the vault split and the 3-days rule.
 
@@ -76,3 +76,32 @@ Either option is ready by Mon 16. **Option A** keeps the new owner's first job s
 4. **Daily pick cap:** 48 (every target plus one change each), or something else up to 50?
 5. **The pick Mana limit:** lower it 1.3 → 1.2 (a sponsor config send by the owner)?
 6. **Handover order:** Option A or Option B (§5)?
+
+## 7. What was decided (5 Nov; the owner said "go ahead" without picking, so the recommended options)
+1. **Start:** ~~Mon 16 Nov~~ **Mon 9 Nov 2026 00:00 UTC** (vault week 3, site "Week 1"; owner 5 Nov after Repo Lens
+   #E-21 GO: "push today for eligible starting next week of 11/9"). Week 1 is hourly from its first target.
+2. **Game 2 stops at the switch:** the page offers its targets only before it (10 minutes clear), the recorder records a
+   game-2 target only if its block lands before Mon 9 00:00, and game 12's only from then. Pause game 2 on chain after
+   its last target (optional; nothing records it anyway).
+3. **The sponsor:** (a), no change. Hourly picks are paid from the free pool (stakers too). A mapping of Picks game 12 to
+   vault game 2 goes into the next sponsor version (R-BX-5).
+4. **Daily cap 48**, one change per pick.
+5. **The pick Mana row stays 1.3** for now (lowering it to 1.2 is an optional config send).
+6. **Handover order A:** after Repo Lens's GO, `announce 12` with today's owner key (by Mon 9), `apply 12` 48 h later;
+   then the Picks handover (propose after the apply, accept 48 h later). Game 12 must be applied before **Mon 9 00:00**:
+   the recorder skips (and reports) a game that isn't on the contract once its weeks have started (E-21 L-2).
+7. **Points carry over** (owner 5 Nov): a right pick scores the same on an hourly target as on a 2-hour one.
+8. **Multiplier cap ×5 from Week 1** (owner 5 Nov, "adjusted some for picking one that's less likely"): min(5, top ÷
+   producer VHP) for targets from Mon 9 Nov; ×3 before. With 5 Nov's field, ×3 under-paid every producer under about
+   6% of the stake; ×5 is fair down to about 3.6%. The publish job's pick-points bound is 500.
+9. **Pick popup** (owner 5 Nov, "ease of use, simplicity is key"): tapping a producer opens one box: the pick, its
+   time and multiplier, **Pick** (or **Change my pick**), **Choose another**, and an ✕.
+10. **Repo Lens #E-21 fixes:** L-1 (a block read is checked against its game's weeks; the expected-time filter is ±2 h),
+    L-2 (a game not yet started only warns; a started game missing on chain is skipped and reported, the run fails only
+    if every started game is bad), I-3 (the first-target check uses 1.5 rounds of the week's game). I-1: vault id 12
+    stays reserved for Block X hourly.
+11. **Repo Lens #E-23 fixes** (GO): L-1 (a started game that **every** node says isn't on the Picks contract has its
+    targets recorded with no picks, so a late apply never stops the week going final; a disagreement still skips it),
+    L-2 (the page's "How it works" follows the shown game: open targets, picks a day, the cap), I-1 (±6 h), I-2
+    (sponsor wording), I-3 (pick points ≤ 300 before Week 1, ≤ 500 from it), I-4 (the popup keeps Tab inside and gives
+    focus back to the producer).

@@ -67,6 +67,7 @@ npm run prizes -- off 3 --send
 
 ## 7. Limits to know
 - The switch can only **hold back** a free prize the vault allows. It can never pay more, add a winner, or touch stakers' buckets.
+- **Who wins is the same rule on every game (D-159):** 1st and 2nd each pay up to 10 wallets; ties share; more than 10 qualifying → exactly 10, by earlier score time, then address; never zero because of the cap. The switch decides only whether those winners are paid.
 - **While a game is OFF, the vault still sets aside its 3 VHP a week** from the seed's part, then returns it the next week. If the seed's part were ever smaller than all the set-asides together (about 27 VHP a week with 9 games), every free prize, Questions included, would be cut in proportion. Today the seed's part is about 85–90 VHP a week, so this doesn't happen (Vault chat, 3 Nov). A later vault upgrade could make an OFF game set aside nothing.
 - Anyone who can push to the repo could edit the branch. The ruleset and keeping push access to yourself are the protection.
 - **Seasons and restarts:** don't change a game's season length after a gap while its old last week is still open (Repo Lens FP-6).

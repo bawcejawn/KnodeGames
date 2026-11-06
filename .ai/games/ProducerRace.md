@@ -26,7 +26,7 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 
 ## Rewards
 - **Staked** (staked in game 7 that week): share the game's bucket; medals go to the vault's top 30% by headcount, rounded up, tied groups whole. 💬
-- **Free play:** 2 VHP for 1st, 1 VHP for 2nd (D-062), from the vault's start. A tie for 1st shares all 3 VHP and 2nd stays empty; more than 10 tied → the 10 with the earliest first pick that week share. Any free player can win — no VHP or minimum play needed. Medals only on weekly boards. 💬
+- **Free play:** 2 VHP for 1st, 1 VHP for 2nd (D-062), from the vault's start. A tie for 1st shares all 3 VHP and 2nd stays empty; more than 10 tied → the 10 with the earliest first pick that week share. Any free player can win — no VHP or minimum play needed. Medals only on weekly boards. 💬 **⚠ This is today's code, not the rule: D-159 pays exactly 10 by earlier score time, then address, never zero for the cap (I-104, fixed in code separately).**
 - **Weeks 1 and 2 pay nothing:** the vault never reads them (D-063). The site shows prizes from vault week 3 only (`PRIZES_FROM_WEEK = 3`). 💬 Vault
 
 ## Dependencies

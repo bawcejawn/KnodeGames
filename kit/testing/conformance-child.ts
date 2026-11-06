@@ -8,6 +8,8 @@ import crypto from "node:crypto";
 import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+// Loaded before any trap, so the kit's own budget clock is the real one (nodes.ts KIT_WALL, #E-25 NE-3).
+import "../recorder/nodes.ts";
 
 const [slug, root] = process.argv.slice(2);
 const gameDir = path.join(root, "games", slug);
@@ -18,24 +20,36 @@ const RealError = Error;
 Object.defineProperty(RealError, "stackTraceLimit", { value: Infinity, writable: false, configurable: false });
 Object.defineProperty(RealError, "prepareStackTrace", { value: undefined, writable: false, configurable: false });
 const stackOf = () => { const o: { stack?: string } = {}; RealError.captureStackTrace(o); return String(o.stack ?? ""); };
-// The caller that counts is the nearest frame outside this file: a builtin like Array.map in between doesn't hide the
-// game; the kit's own call, made while a game function is further up the stack, isn't the game's.
-// Deny on doubt (Repo Lens #E-24 NE-1): a trapped function called with NO frame from any file at all — only this
-// file, Node's own code and builtins, as when the game hands `Date.now` itself to a promise or timer it doesn't await —
-// counts as the game's. Node's internals take their own copies of these functions before the module loads, so they
-// never reach the traps this way. For the environment (`nodeIsCaller`), a Node frame still means Node is reading it
-// (its source maps read process.env while running the game's code).
+// Whose call is it? For the clock, randomness, workers and processes (#E-25 NE-3): a game frame ANYWHERE on the stack
+// (an `at async` one included) makes it the game's — the game handing Date.now to a kit helper that calls it back is
+// still the game reading the clock. With no frame from any file at all (only this file, Node's own code and builtins:
+// a builtin handed to a timer or an un-awaited promise, #E-24 NE-1), it is the game's too: deny on doubt. Only a call
+// with a kit or package frame and no game frame is not. The kit's own clock reads don't get here: its budget clock is
+// taken before the traps (nodes.ts), and Node's internals take their own copies before the module loads.
+// For the environment (`nodeIsCaller`), the nearest caller decides, and a Node frame means Node is reading it (its
+// source maps read process.env while running the game's code).
 const SELF = new URL(import.meta.url).pathname;
 const inGame = (l: string) => l.includes(gameDir) || l.includes(pathToFileURL(gameDir).href);
+const LOADER = /[\\/]node_modules[\\/]tsx[\\/]dist[\\/]/;
+const isNode = (l: string) => /\(node:|at node:/.test(l);
+const isBuiltin = (l: string) => /\(<anonymous>\)|^\s*at [^(]*$|native/.test(l) && !/\.(ts|mts|js|mjs|cjs):\d+/.test(l);
 const fromGame = (nodeIsCaller = false) => {
-  for (const l of stackOf().split("\n").slice(1)) {
-    if (l.includes(SELF)) continue;
-    if (/\(node:|at node:/.test(l)) { if (nodeIsCaller) return false; continue; }
-    if (inGame(l)) return true;
-    if (/\(<anonymous>\)|^\s*at [^(]*$|native/.test(l) && !/\.(ts|mts|js|mjs|cjs):\d+/.test(l)) continue;   // a builtin in between
-    return false;                                            // a file of the kit's, tsx's or a package's is the caller
+  const frames = stackOf().split("\n").slice(1).filter((l) => !l.includes(SELF));
+  if (!nodeIsCaller) {
+    // The TypeScript loader's own clock read (its transform cache, while the game imports a file) is the loader's: it
+    // calls Date.now itself, so a game can't route a callback through it.
+    const nearest = frames.find((l) => !isNode(l) && !isBuiltin(l));
+    if (nearest && LOADER.test(nearest)) return false;
+    if (frames.some(inGame)) return true;
+    return frames.every((l) => isNode(l) || isBuiltin(l));
   }
-  return !nodeIsCaller;
+  for (const l of frames) {
+    if (isNode(l)) return false;
+    if (inGame(l)) return true;
+    if (isBuiltin(l)) continue;
+    return false;
+  }
+  return false;
 };
 function trap<T extends object>(obj: T, key: keyof T & string, what: string) {
   const orig = (obj as any)[key];

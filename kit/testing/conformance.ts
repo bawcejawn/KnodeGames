@@ -45,7 +45,7 @@ export const FORBIDDEN: [RegExp, string][] = [
   // a type annotation, and Math's pure functions and constants. Never aliased, passed by reference or read by brackets.
   [/(?<!:\s*|\binstanceof\s+|\bnew\s+)\bDate\b(?!\s*\.\s*(UTC|parse)\b)|\bnew\s+Date\b(?!\s*\()/, "uses Date other than new Date(<time>), Date.UTC or Date.parse (aliasing it, passing it on or reading it by brackets reaches the clock)"],
   [/\bMath\b(?!\s*\.\s*(abs|floor|ceil|round|trunc|min|max|pow|sqrt|cbrt|sign|log|log2|log10|log1p|exp|expm1|hypot|imul|clz32|fround|sin|cos|tan|atan2?|PI|E|LN2|LN10|SQRT2)\b)/, "uses Math other than its pure functions (aliasing it, passing it on or reading it by brackets reaches Math.random)"],
-  [/\bglobalThis\b|\bself\b\s*\./, "reaches the global object"],
+  [/\bglobalThis\b|\bglobal\b|\bself\b\s*\.|\bwindow\b/, "reaches the global object (globalThis, global, self, window: #E-25 NE-3)"],
   [/\bstackTraceLimit\b|\bprepareStackTrace\b|\bcaptureStackTrace\b/, "changes how stack traces work (the sandbox reads them, NK-6)"],
   [/\.\s*constructor\b|\[\s*["'`]constructor["'`]\s*\]|\bgetPrototypeOf\b|__proto__/, "reaches a constructor or prototype (a way around the trapped clock, NK-6)"],
   [/\bgetBuiltinModule\b|\bworker_threads\b|\bchild_process\b/, "reaches Node's modules at run time"],

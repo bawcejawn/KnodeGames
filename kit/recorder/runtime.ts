@@ -67,7 +67,7 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
   const alerts = newAlerts();
   if (m.slug !== cfg.slug) throw new Error(`module slug "${m.slug}" isn't game.json's "${cfg.slug}"`);
   const prev = Prev.load(o.prev, cfg);
-  const budget = new Budget({ ...DEFAULT_BUDGETS, ...(cfg.budgets ?? {}) }, o.wall ?? Date.now);
+  const budget = new Budget({ ...DEFAULT_BUDGETS, ...(cfg.budgets ?? {}) }, o.wall);
   const [A, B] = o.nodes;
   const va = budgeted(A.vault, budget), vb = budgeted(B.vault, budget);
   const REL = varName(cfg.slug, "RELEASE"), HW = varName(cfg.slug, "HOLD_WEEKS");

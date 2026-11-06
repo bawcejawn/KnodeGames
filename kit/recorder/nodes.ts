@@ -36,11 +36,15 @@ export type Budgets = { reads: number; ms: number; atOnce: number; tries: number
 // The time budget fits inside the game's own 25-minute record job with room for a read already under way (KC-4).
 export const DEFAULT_BUDGETS: Budgets = { reads: 40000, ms: 18 * 60000, atOnce: 8, tries: 4 };
 
+// The kit's own wall clock for budgets, taken when this file loads: the conformance sandbox loads it before it traps
+// the clock, so the kit's budget checks never look like the game's clock reads (#E-25 NE-3). Not exported.
+const KIT_WALL: () => number = Date.now.bind(Date);
+
 /** Counts reads and time against a budget; throws OutOfBudget before a read once either is used up. */
 export class Budget {
   private n = 0;
   private readonly t0: number;
-  constructor(readonly b: Budgets = DEFAULT_BUDGETS, private readonly clock: () => number = Date.now) { this.t0 = clock(); }
+  constructor(readonly b: Budgets = DEFAULT_BUDGETS, private readonly clock: () => number = KIT_WALL) { this.t0 = clock(); }
   take(what: string) {
     if (++this.n > this.b.reads) throw new OutOfBudget(`${what}: more than ${this.b.reads} reads`);
     if (this.clock() - this.t0 > this.b.ms) throw new OutOfBudget(`${what}: over ${Math.round(this.b.ms / 60000)} min`);

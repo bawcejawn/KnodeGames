@@ -118,6 +118,14 @@ Timing follows `.ai/standards/WEEK_CYCLE.md`; the recorder follows `.ai/standard
 | I-1 release parser | plain spaces and digits only, the same on both sides; never crashes the job |
 | T-1 | the port test also runs half + 1 sat |
 
+## Fix-check 3 (#B-15, 6 Nov, at 3b46546f) and how each finding is closed
+| Finding | Closed by |
+|---|---|
+| B15-2 release residual | a week goes final only when the **published** copy already carries every hour's and the picks' `re` (and the same stakes, F1): the run that confirms an item never also closes the week; the recorder goes final one run after its last re-read |
+| B15-1 32-seed picks window | the "round 1's first hour" limit applies only under release, on both sides; without one, picks are taken until lock + 3 h; the recorder no longer suggests a release that can't help |
+| B15-4 lock while approving | the page writes the lock **before** asking the wallet (30 min, extended to KOIN Vault's expiry when known) and clears it on a definite answer (on the chain, refused, rejected) |
+| B15-3 held week as last seeding | an incoming week file that failed this run is never used as the last seeding; the published copy is |
+
 ## Leaderboards (leaderboard standard)
 - Rows `{a, place, boardPlace, pts, champion, correct, ranked, earns}`: places on the player's own board (ties share);
   `earns` 1 / 2 = the free prize's 1st / 2nd, 3 = paid from the Staked bucket — **from exactly the vault file's rows**,

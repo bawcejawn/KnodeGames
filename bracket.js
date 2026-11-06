@@ -288,6 +288,11 @@
     try { localStorage.setItem(openKey(a, w), String(until)); } catch { /* the in-page lock still holds */ }
     return until;
   }
+  /** On a definite answer (on the chain, refused, rejected) the request can't land any more: the lock goes. */
+  function clearOpenLock(a, w) {
+    openRequestUntil = 0;
+    try { localStorage.removeItem(openKey(a, w)); } catch { /* nothing kept */ }
+  }
   async function chainNow() {
     try { const h = await provider.getHeadInfo(); const t = Number(h && h.head_block_time); if (Number.isFinite(t) && t > 0) return t; } catch { /* below */ }
     return Date.now();
@@ -319,7 +324,11 @@
     pop("busy", W.kind === "guest" ? "Sending your bracket…" : `Confirm in ${wallet}`, [...summary(), "The Knode Games Mana sponsor pays the Mana."]);
     try {
       const { operation } = await picksContract.functions.pick({ player: frozen.account, game: BM.GAME_ID, round: String(BM.picksRound(wk)), producers: [], number: String(n) }, { onlyOperation: true });
+      // #B-15 B15-4: the lock is written BEFORE the wallet is asked, so a reload or a second tab while the request
+      // waits for approval (KOIN Vault, on a phone often in another app) can't send a second bracket
+      openRequestUntil = setOpenLock(frozen.account, wk, null);   // localStorage, per account and week
       const id = await W.send(`your bracket for week ${wk + 1}`, [operation]);
+      clearOpenLock(frozen.account, wk);
       pop("busy", "Sent. Checking the chain…", summary());
       let seen = false;
       for (let t = 0; t < 10 && !seen; t++) {
@@ -333,7 +342,7 @@
       // fix-check RC-3: "still waiting" (the window was closed) and "no answer in time" mean the request may still be
       // approved in KOIN Vault: never "Cancelled … Nothing was sent"
       if (/still waiting|no answer from koin vault|check the wallet before trying again|failed to fetch|networkerror|network error|load failed/i.test(m)) {
-        openRequestUntil = setOpenLock(frozen.account, wk, e);   // localStorage, per account and week (fix-check 2 W-1)
+        openRequestUntil = setOpenLock(frozen.account, wk, e);   // localStorage, per account and week, to KOIN Vault's expiry (fix-check 2 W-1)
         return pop("info", "Still open in your wallet", [/koin vault/i.test(m) ? "Your bracket request is still open in KOIN Vault: approve or reject it there." : "The connection dropped while sending, so this bracket may still go through.",
           `Don't send another bracket until it's settled (this page waits until ${dayTime(openRequestUntil)}); it shows here once it's on the chain.`], [btn("OK", close)]);
       }
@@ -344,6 +353,7 @@
         : /already your pick/i.test(m) ? "That is already your bracket."
         : /cancelled in koin vault|\breject(ed)?\b|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."
         : `Not sent: ${m.slice(0, 200)}`;
+      clearOpenLock(frozen.account, wk);   // a definite answer (refused, rejected, failed): this request can't land
       pop(/Cancelled/.test(why) ? "info" : "bad", /Cancelled/.test(why) ? "Cancelled" : "Bracket not sent", [why], [btn("OK", close)]);
     } finally { sending = false; await loadMine(); }
   }

@@ -62,9 +62,23 @@ sys.stdout.write(V.card_json(V.score_card(L, V.make_card(L, g["game"], g["round"
   }
 });
 
-test("D-165: the median of an even field averages the two middle forms (rounded down), and the line is 970,000 millionths of it", () => {
-  const ps = [1100000n, 1200000n, 900000n, 1000001n].map((form, i) => ({ a: "p" + i, entry: true, void: false, form: String(form), signed: 10, expected: 10n, credited: 10n * M }));
-  const { line, core } = coreOf(ps);
-  assert.equal(line, ((1000001n + 1100000n) / 2n * 970000n) / M);
-  assert.deepEqual(core.map((p) => p.a).sort(), ["p0", "p1"], "line 1,018,500: p3 (1,000,001) is below it");
+test("D-171: the median is weighted by expected blocks (half the field's expected blocks at or below it; an exact tie takes the lower form), and the line is 970,000 millionths of it", () => {
+  const row = (a, form, e) => ({ a, entry: true, void: false, form: String(form), signed: 10, expected: BigInt(e), credited: 10n * M });
+  // weights 10, 10, 10, 70 by form: half of 100 is reached at the big member, so its form is the median
+  let { median, line } = coreOf([row("p0", 1100000n, 10), row("p1", 1200000n, 10), row("p2", 900000n, 10), row("p3", 1000001n, 70)]);
+  assert.equal(median, 1000001n);
+  assert.equal(line, (1000001n * 970000n) / M);
+  // an exact tie: 50 of 100 at or below 1,000,000 → the lower member's form
+  ({ median } = coreOf([row("q0", 1000000n, 50), row("q1", 1200000n, 50)]));
+  assert.equal(median, 1000000n);
+});
+
+test("D-171 on a real card: every row's core flag follows the weighted-median line, and fpct the band rule", () => {
+  // (16 small steady addresses at 0.80 are sim 8's case, on real history)
+  const base = n1chain(20), L0 = R.ledger(base.tl), s0 = R.scoreCard(L0, R.makeCard(L0, game));
+  const { line: line0 } = coreOf(s0.producers);
+  assert.ok(line0 > 0n);
+  for (const x of s0.producers) assert.equal(x.core, x.entry && !x.void && BigInt(x.form) >= line0, `${x.a}: core as the rule says`);
+  const want = fieldFpct(s0.producers);
+  for (const x of s0.producers) if (x.entry && !x.void) assert.equal(x.fpct, want[x.a]);
 });

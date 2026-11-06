@@ -106,11 +106,12 @@ export function chances(c, races, seed, cfg, opts = {}) {
   const field = c.rows.filter((r) => r.k >= cfg.minK && !r.gated && !(cfg.void && r.dev > cfg.void) && !(opts.out || []).includes(r.p)).map((r) => ({ ...r, e: exp(r) })).sort((x, y) => y.e - x.e);
   if (field.length < 2) return null;
   const draws = field.map((r) => pois(r.lam)), tabs = cfg.rank === "A" ? field.map((r) => pois(r.e)) : null;
-  // A′ as built (D-165): the core is the field members with form ≥ 0.97 × the field's median form (even count: the two
-  // middle forms averaged), each at full size; everyone else against the core plus itself at full size
-  const fsrt = field.map((r) => r.form).sort((x, y) => x - y), h = fsrt.length, med = h % 2 ? fsrt[(h - 1) / 2] : (fsrt[h / 2 - 1] + fsrt[h / 2]) / 2;
+  // A′ as built (D-165, D-171): the core is the field members with form ≥ 0.97 × the field's median form, the median
+  // weighted by expected blocks (exact tie: the lower form); a producer's yardstick is the core less any other core
+  // member more than 2 sd from its share of the core's blocks (the band, decided per race below), plus itself
+  const byForm = field.map((r, i) => i).sort((a, b) => field[a].form - field[b].form), eAll = field.reduce((s, r) => s + r.e, 0);
+  let med = 0; { let cum = 0; for (const i of byForm) { cum += field[i].e; if (2 * cum >= eAll - 1e-9) { med = field[i].form; break; } } }
   const core = field.map((r) => r.form >= 0.97 * med), eC = field.reduce((s, r, i) => s + (core[i] ? r.e : 0), 0);
-  const share = field.map((r, i) => (core[i] ? r.e / eC : r.e / (eC + r.e)));
   let hs = null;
   if (cfg.rank === "B") {
     const ks = field.map((r) => r.e), cal = RM.calibrate(ks, 1500);
@@ -135,9 +136,13 @@ export function chances(c, races, seed, cfg, opts = {}) {
       if (cfg.thin && r.credFrac < 1) { x = 0; for (let j = 0; j < n; j++) if (rng.next() < r.credFrac) x++; }
       xs[i] = x; if (core[i]) nF += n;
     }
+    // the band (D-171): core members more than 2 sd from their share of the core's blocks this race
+    let nY = nF, eY = eC;
+    const aside = field.map((r, j) => { if (!core[j] || eC <= 0) return false; const p = r.e / eC, mu = nF * p, sd = Math.sqrt(nF * p * (1 - p)); const out = Math.abs(cnt[j] - mu) > 2 * sd; if (out) { nY -= cnt[j]; eY -= r.e; } return out; });
+    if (opts.asides) for (let j = 0; j < field.length; j++) if (aside[j]) opts.asides[field[j].p] = (opts.asides[field[j].p] || 0) + 1;
     for (let i = 0; i < field.length; i++) {
-      const r = field[i], x = xs[i];
-      const s = cfg.rank === "A" ? midp(tabs[i], x) : cfg.rank === "A2" ? binMidp(core[i] ? nF : nF + cnt[i], share[i], x) : x * hs[i];
+      const r = field[i], x = xs[i], self = core[i] && !aside[i];
+      const s = cfg.rank === "A" ? midp(tabs[i], x) : cfg.rank === "A2" ? binMidp(self ? nY : nY + cnt[i], self ? r.e / eY : r.e / (eY + r.e), x) : x * hs[i];
       if (s > best + 1e-12) { best = s; who = [i]; } else if (Math.abs(s - best) <= 1e-12) who.push(i);
     }
     for (const i of who) wins[i] += 1 / who.length;   // ties: split (on a card: broken by the card's seed)
@@ -308,12 +313,51 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
         return { chance: n ? c0 / n : 0, others: [lo, hi], each: Object.fromEntries(Object.entries(each).map(([p, v]) => [p, v.ratio])) };
       };
       out.n1 = { honest: n1(1), at95: n1(0.95), at90: n1(0.9), at80: n1(0.8) };
+      // Repo Lens #B-12 N-4 / D-171: an 18% core member (full record) that signs 0.97 or 0.90 of its share in the race.
+      // Judged: no producer drops more than 0.05 below its honest result (D-170), and the skipper plus any one partner
+      // never beats the same pair honest (skipping to lift a partner gains nothing)
+      const n4 = (signs) => {
+        const per = {}, mine = [];
+        fields.forEach((f, ci) => {
+          const e = synthetic(f.Nreal, 0.22, true), N = new Float64Array(f.w.S1 - f.w.S0 + 1);
+          for (let b = f.w.S0; b <= f.w.S1; b++) N[b - f.w.S0] = f.Nreal[b - f.base] + e[b - f.base] * signs;
+          const ch = chances(field(f, { add: { "~n4": e }, signs: { "~n4": signs }, steady: { "~n4": false }, forms: { "~n4": 1 }, N }), races, 8900 + ci, cfg);
+          mine.push(ch ? Object.fromEntries(Object.entries(ch).map(([p, x]) => [p, x.chance])) : {});
+          if (ch) for (const [p, x] of Object.entries(ch)) if (p !== "~n4" && !moved(p, f.T - BLOCKS_PER_DAY, f.w.S1)) (per[p] ||= []).push(x);
+        });
+        const each = Object.fromEntries(Object.entries(agg(per)).filter(([, v]) => v.n >= 5));
+        return { each: Object.fromEntries(Object.entries(each).map(([p, v]) => [p, v.ratio])), cards: mine };
+      };
+      out.n4 = { honest: n4(1), at97: n4(0.97), at90: n4(0.9) };
+      const pairGain = (k) => {   // the largest (skipper + partner) win-chance gain over the honest pair, averaged over cards
+        const ps = new Set(); for (const c of out.n4.honest.cards) for (const p of Object.keys(c)) if (p !== "~n4") ps.add(p);
+        let worst = -Infinity;
+        for (const p of ps) { let d = 0, n = 0; out.n4[k].cards.forEach((c, i) => { const h = out.n4.honest.cards[i]; if (p in c && p in h) { d += (c["~n4"] || 0) + c[p] - (h["~n4"] || 0) - h[p]; n++; } }); if (n >= 5) worst = Math.max(worst, d / n); }
+        return worst;
+      };
+      out.n4.pairGain = { at97: pairGain("at97"), at90: pairGain("at90") };
+      const drop = (o, k) => Math.max(0, ...Object.entries(o[k].each).filter(([p]) => p in o.honest.each).map(([p, x]) => o.honest.each[p] - x));
+      // D-171's other half: 16 small steady addresses (~0.14% of the network each, about 17,500 VHP, k ≥ 10) at 0.80 of
+      // full can't move the weighted median: no real producer's core flag changes on any card; no one drops > 0.05
+      let flips = 0, cardsSeen = 0; const perS = {}, perB = {};
+      fields.forEach((f, ci) => {
+        const add = {}, signs = {}, steady = {}, forms = {}, N = new Float64Array(f.w.S1 - f.w.S0 + 1);
+        for (let j = 0; j < 16; j++) { const k = "~small" + j; add[k] = synthetic(f.Nreal, 0.0014, true); signs[k] = 0.8; steady[k] = true; forms[k] = 0.8; }
+        for (let b = f.w.S0; b <= f.w.S1; b++) { let t = f.Nreal[b - f.base]; for (const k of Object.keys(add)) t += add[k][b - f.base] * 0.8; N[b - f.w.S0] = t; }
+        const base = chances(field(f, {}), races, 9100 + ci, cfg), withS = chances(field(f, { add, signs, steady, forms, N }), races, 9100 + ci, cfg);
+        if (!base || !withS) return; cardsSeen++;
+        for (const [p, x] of Object.entries(base)) { if (p in withS && withS[p].core !== x.core) flips++; if (!moved(p, f.T - BLOCKS_PER_DAY, f.w.S1)) { (perB[p] ||= []).push(x); if (p in withS) (perS[p] ||= []).push(withS[p]); } }
+      });
+      const rB = Object.fromEntries(Object.entries(agg(perB)).filter(([, v]) => v.n >= 5).map(([p, v]) => [p, v.ratio])), rS = Object.fromEntries(Object.entries(agg(perS)).filter(([, v]) => v.n >= 5).map(([p, v]) => [p, v.ratio]));
+      out.small16 = { cards: cardsSeen, coreFlips: flips, largestDrop: Math.max(0, ...Object.keys(rS).filter((p) => p in rB).map((p) => rB[p] - rS[p])) };
       const err = 2 * Math.sqrt(Math.max(out.honest.chance, 1e-4) / (races * Math.max(out.honest.cards, 1)));
       const errP = 2 * Math.sqrt(Math.max(out.parked.honestPair, 1e-4) / (races * Math.max(out.honest.cards, 1)));
       const errN = 2 * Math.sqrt(Math.max(out.n1.honest.chance, 1e-4) / (races * Math.max(out.honest.cards, 1)));
       const n1ok = ["at95", "at90", "at80"].every((k) => out.n1[k].chance <= out.n1.honest.chance + errN && Object.entries(out.n1[k].each).every(([p, x]) => !(p in out.n1.honest.each) || x >= out.n1.honest.each[p] - 0.05));   // D-170: low side only, per producer
-      const pass = out.steerer.chance <= out.honest.chance + err && out.throttler.inField === out.throttler.cards && out.outage.inField === 0 && out.parked.parked <= out.parked.honestPair + errP && out.parked.switchOn <= out.parked.honestPair + errP && n1ok;
-      say(8, "throttlers and steering", name, `JGA Pool #2 (real, signing at its real rate): steady on ${out.jga.steadyCards} of ${out.jga.cards} cards, in the field on ${out.jga.inField} (benched on ${out.jga.benched}: not steady and below 0.80), wins ${out.jga.ratio.toFixed(2)}× fair there; a 2% producer: honest ${out.honest.chance.toFixed(3)} (${out.honest.ratio.toFixed(2)}× fair), steady throttler at 0.66 in the field on ${out.throttler.inField} of ${out.throttler.cards} cards, wins ${out.throttler.chance.toFixed(3)} (${out.throttler.ratio.toFixed(2)}×), steerer ${out.steerer.chance.toFixed(3)} (${out.steerer.ratio.toFixed(2)}×); after a 3-day outage: in the field on ${out.outage.inField} of ${out.outage.cards} cards (back once steady or at 0.80); a 2% producer plus an 8% address parked at 0.05: ${out.parked.parked.toFixed(3)} parked, ${out.parked.switchOn.toFixed(3)} switched on in the race, vs ${out.parked.honestPair.toFixed(3)} run honestly (${out.parked.honest10.toFixed(3)} as one 10% producer); an 18% member steady at 0.95 / 0.90 / 0.80 that signs in full: ${["at95", "at90", "at80"].map((k) => out.n1[k].chance.toFixed(3)).join(" / ")} vs ${out.n1.honest.chance.toFixed(3)} honest, others ${["at95", "at90", "at80"].map((k) => out.n1[k].others.map((x) => x.toFixed(2)).join("–")).join(" / ")} (honest ${out.n1.honest.others.map((x) => x.toFixed(2)).join("–")}); the largest drop of any producer from its honest result: ${["at95", "at90", "at80"].map((k) => Math.max(0, ...Object.entries(out.n1[k].each).filter(([p]) => p in out.n1.honest.each).map(([p, x]) => out.n1.honest.each[p] - x)).toFixed(3)).join(" / ")}`, pass, "steering never beats honest; a steady throttler stays in; an outage gives no boost; parking or switching on a parked address never beats running it honestly; a member kept below its rate that signs in full in the race gains nothing and moves no one (#B-11 N-1)", out);
+      const errQ = 2 * Math.sqrt(0.3 / (races * Math.max(out.honest.cards, 1)));
+      const n4ok = ["at97", "at90"].every((k) => drop(out.n4, k) <= 0.05 && out.n4.pairGain[k] <= errQ), smallOk = out.small16.coreFlips === 0 && out.small16.largestDrop <= 0.05;
+      const pass = out.steerer.chance <= out.honest.chance + err && out.throttler.inField === out.throttler.cards && out.outage.inField === 0 && out.parked.parked <= out.parked.honestPair + errP && out.parked.switchOn <= out.parked.honestPair + errP && n1ok && n4ok && smallOk;
+      say(8, "throttlers and steering", name, `JGA Pool #2 (real, signing at its real rate): steady on ${out.jga.steadyCards} of ${out.jga.cards} cards, in the field on ${out.jga.inField} (benched on ${out.jga.benched}: not steady and below 0.80), wins ${out.jga.ratio.toFixed(2)}× fair there; a 2% producer: honest ${out.honest.chance.toFixed(3)} (${out.honest.ratio.toFixed(2)}× fair), steady throttler at 0.66 in the field on ${out.throttler.inField} of ${out.throttler.cards} cards, wins ${out.throttler.chance.toFixed(3)} (${out.throttler.ratio.toFixed(2)}×), steerer ${out.steerer.chance.toFixed(3)} (${out.steerer.ratio.toFixed(2)}×); after a 3-day outage: in the field on ${out.outage.inField} of ${out.outage.cards} cards (back once steady or at 0.80); a 2% producer plus an 8% address parked at 0.05: ${out.parked.parked.toFixed(3)} parked, ${out.parked.switchOn.toFixed(3)} switched on in the race, vs ${out.parked.honestPair.toFixed(3)} run honestly (${out.parked.honest10.toFixed(3)} as one 10% producer); an 18% member steady at 0.95 / 0.90 / 0.80 that signs in full: ${["at95", "at90", "at80"].map((k) => out.n1[k].chance.toFixed(3)).join(" / ")} vs ${out.n1.honest.chance.toFixed(3)} honest, others ${["at95", "at90", "at80"].map((k) => out.n1[k].others.map((x) => x.toFixed(2)).join("–")).join(" / ")} (honest ${out.n1.honest.others.map((x) => x.toFixed(2)).join("–")}); the largest drop of any producer from its honest result: ${["at95", "at90", "at80"].map((k) => Math.max(0, ...Object.entries(out.n1[k].each).filter(([p]) => p in out.n1.honest.each).map(([p, x]) => out.n1.honest.each[p] - x)).toFixed(3)).join(" / ")}; an 18% core member signing 0.97 / 0.90 (N-4): largest drop of another producer ${drop(out.n4, "at97").toFixed(3)} / ${drop(out.n4, "at90").toFixed(3)}, its best pair gain ${out.n4.pairGain.at97.toFixed(4)} / ${out.n4.pairGain.at90.toFixed(4)}; 16 small steady addresses at 0.80: core flags changed on ${out.small16.coreFlips} producer-cards of ${out.small16.cards} cards, largest drop ${out.small16.largestDrop.toFixed(3)}`, pass, "steering never beats honest; a steady throttler stays in; an outage gives no boost; parking or switching on a parked address never beats running it honestly; a member kept below its rate that signs in full in the race gains nothing and moves no one (#B-11 N-1); a core member that skips lifts no partner and drops no one > 0.05 (#B-12 N-4); 16 small steady addresses move no one across the line (D-171)", out);
     }
     if (want(9)) {
       const out = {};

@@ -13,6 +13,8 @@ MIN_K, FORM_GATE = 10 * M, 800000
 RULE_VERSION, OWN_RULES, POOL_RULES = 3, ("spot", "high1h", "avg24h"), ("min",)
 STEADY_BAND = 150000   # D-120 as the owner ruled (5 Nov), millionths: steady = every daily rate within this of the 14-day rate
 CORE_LINE = 970000     # D-165: A′'s core is the field members with form ≥ this × the field's median form (millionths)
+BAND_SD = 2            # D-171: an other core member more than this many sd from its share is left out of a yardstick
+SET_ASIDE_EXPECTED = 45500  # D-172: millionths of core member-races a 2-sd band leaves aside by chance
 VOID_BAND = 100000     # owner, 5 Nov: a producer whose VHP leaves own × (1 ± this) during the race is void for that race
 PCT_SCALE = 1 << 256
 
@@ -149,13 +151,14 @@ def vhp_deltas(events, contract=VHP_CONTRACT):
         if not re.fullmatch(r"[0-9]+", str(e.get("value"))):
             raise ValueError("bad VHP event value at block %d" % e["h"])
         v = int(e["value"])
+        # kind and c (the other address) are recorded for D-172's void record only; no number uses them
         if n.endswith("transfer_event"):
-            out.append({"h": e["h"], "a": e["from"], "d": -v, "inc": 0})
-            out.append({"h": e["h"], "a": e["to"], "d": v, "inc": v})
+            out.append({"h": e["h"], "a": e["from"], "d": -v, "inc": 0, "kind": "out", "c": str(e["to"])})
+            out.append({"h": e["h"], "a": e["to"], "d": v, "inc": v, "kind": "in", "c": str(e["from"])})
         elif n.endswith("mint_event"):
-            out.append({"h": e["h"], "a": e["to"], "d": v, "inc": v})
+            out.append({"h": e["h"], "a": e["to"], "d": v, "inc": v, "kind": "mint", "c": None})
         else:
-            out.append({"h": e["h"], "a": e["from"], "d": -v, "inc": 0})
+            out.append({"h": e["h"], "a": e["from"], "d": -v, "inc": 0, "kind": "burn", "c": None})
     return out
 
 
@@ -201,6 +204,7 @@ class Ledger:
             g[0] += _int(x["d"])
             g[1] += _int(x.get("inc", 0))
         self.addrs, self.ix, self.sig = addrs, ix, sig
+        self.allx = allx
         lo, hi = frm + DELAY, to + 1
         self.cp, self.ev, self.ps, self.bal = [], [], [], []
         for i, a in enumerate(addrs):
@@ -338,6 +342,15 @@ class Ledger:
         l = self.signed_at[self._need(a)]
         return l[bisect.bisect_left(l, H0):bisect.bisect_right(l, H1)]
 
+    def moves(self, a, H0, H1):
+        """D-172: a producer's VHP moves in [H0, H1], in data order."""
+        out = []
+        for x in self.allx[self._need(a)]:
+            if H0 <= x["h"] <= H1:
+                d = _int(x["d"])
+                out.append({"h": x["h"], "d": d, "kind": x.get("kind") or ("burn" if d < 0 else "in"), "c": x.get("c")})
+        return out
+
     def first_signed(self, a):
         l = self.signed_at[self._need(a)]
         return l[0] if l else None
@@ -448,7 +461,45 @@ def _js(v):
 
 
 # the card's fields that are BigInt in JavaScript (written as decimal strings)
-_BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "credited", "pct", "fpct")
+_BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "credited", "pct", "z", "fpct")
+
+
+def week_summary(cards):
+    """D-172's weekly summary, as weekSummary in vhp-ruler.js. Data only."""
+    voids, sets, senders = {}, {}, {}
+    races = field_races = core_races = set_asides = void_count = own_moves = 0
+    for c in cards:
+        c = json.loads(c) if isinstance(c, str) else c
+        if not any("credited" in p for p in c.get("producers") or []):
+            continue
+        races += 1
+        race = "%s:%s" % (c["game"], c["round"])
+        for p in c["producers"]:
+            if p["entry"] and not p["void"]:
+                field_races += 1
+            if p.get("core"):
+                core_races += 1
+            if p.get("setAside"):
+                set_asides += 1
+                sets[p["a"]] = sets.get(p["a"], 0) + 1
+            if p["void"] and p.get("moves"):
+                void_count += 1
+                voids[p["a"]] = voids.get(p["a"], 0) + 1
+                if p["moves"]["ownMove"]:
+                    own_moves += 1
+                for r in p["moves"].get("received") or []:
+                    x = senders.setdefault(r["a"], (set(), set()))
+                    x[0].add(race)
+                    x[1].add(p["a"])
+
+    def counts(m):
+        return [{"a": a, "races": k} for a, k in sorted(m.items(), key=lambda t: (-t[1], t[0]))]
+    repeat = sorted(({"a": a, "races": len(x[0]), "producers": sorted(x[1])} for a, x in senders.items() if len(x[0]) >= 2),
+                    key=lambda t: (-t["races"], t["a"]))
+    return {"races": races, "fieldRaces": field_races, "coreRaces": core_races, "voids": void_count, "ownMoves": own_moves,
+            "setAsides": set_asides, "setAsideRate": set_asides * 1000000 // core_races if core_races else 0,
+            "setAsideExpected": SET_ASIDE_EXPECTED, "voidsByProducer": counts(voids), "setAsidesByProducer": counts(sets),
+            "repeatSenders": repeat}
 
 
 def card_json(card):
@@ -520,6 +571,47 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, po
             "c": c, "minK": min_k, "poolRule": pool_rule, "total": tot, "formFrom": form_from, "producers": rows}
 
 
+def isqrt(v):
+    """floor(sqrt(v)) for a whole number v ≥ 0, as isqrt in vhp-ruler.js."""
+    if v < 2:
+        return v
+    x = 1 << ((v.bit_length() + 1) // 2)
+    y = (x + v // x) >> 1
+    while y < x:
+        x = y
+        y = (x + v // x) >> 1
+    return x
+
+
+def void_record(L, a, o, T, S0, S1):
+    """D-172, as voidRecord in vhp-ruler.js. Data only."""
+    lo = hi = None
+    H = S0
+    while H <= S1:
+        e = L.eff(a, H)
+        H2 = H
+        while H2 + 1 <= S1 and L.eff(a, H2 + 1) == e:
+            H2 += 1
+        lo = e if lo is None or e < lo else lo
+        hi = e if hi is None or e > hi else hi
+        H = H2 + 1
+    inn, out, minted, burned = {}, {}, 0, 0
+    for x in L.moves(a, T + 1, S1):
+        if x["kind"] == "mint":
+            minted += x["d"]
+        elif x["kind"] == "burn":
+            burned -= x["d"]
+        else:
+            m = inn if x["kind"] == "in" else out
+            k = "?" if x["c"] is None else x["c"]
+            m[k] = m.get(k, 0) + abs(x["d"])
+
+    def lst(m):
+        return [{"a": k, "v": str(m[k])} for k in sorted(m)]
+    return {"own": str(o), "effS0": str(L.eff(a, S0)), "effS1": str(L.eff(a, S1)), "lo": str(lo), "hi": str(hi),
+            "received": lst(inn), "sent": lst(out), "minted": str(minted), "burned": str(burned), "ownMove": len(out) > 0}
+
+
 def score_card(L, card):
     S0, S1 = card["window"]["S0"], card["window"]["S1"]
     tot = _int(card["total"])
@@ -558,29 +650,47 @@ def score_card(L, card):
         q = dict(p)
         q.update({"quality": "flagged" if flagged else "ok", "expected": expected,
                   "signed": L.signed_in(p["a"], S0, S1), "credited": credited, "pct": pct(expected, credited),
-                  "void": is_void})
+                  "void": is_void, "moves": void_record(L, p["a"], o, card["T"], S0, S1) if is_void else None})
         rows.append(q)
-    # A′ (D-165): the core is the field members with form ≥ CORE_LINE × the field's median form (even count: the two
-    # middle forms averaged, rounded down), each at full size; everyone else is scored against the core plus itself, as
-    # scoreCard in vhp-ruler.js
+    # A′ (D-165, D-171), as scoreCard in vhp-ruler.js: the core is the field members with form ≥ CORE_LINE × the field's
+    # median form weighted by expected blocks (exact tie: the lower member's form), at full size; a producer's yardstick
+    # is the core less any other core member more than BAND_SD sd from its share of the core's blocks, plus itself
     def in_field(r):
         return r["entry"] and not r["void"]
-    forms = sorted(_int(r["form"]) for r in rows if in_field(r))
-    h = len(forms)
-    median = 0 if h == 0 else forms[(h - 1) // 2] if h % 2 else (forms[h // 2 - 1] + forms[h // 2]) // 2
+    frows = sorted((r for r in rows if in_field(r)), key=lambda r: _int(r["form"]))
+    e_all = sum(r["expected"] for r in frows)
+    median, cum = 0, 0
+    for r in frows:
+        cum += r["expected"]
+        if 2 * cum >= e_all:
+            median = _int(r["form"])
+            break
     line = median * CORE_LINE // M
 
     def in_core(r):
         return in_field(r) and _int(r["form"]) >= line
     n = sum(r["signed"] for r in rows if in_core(r))
     b = sum(r["expected"] for r in rows if in_core(r))
+    nY, bY = n, b
+    for r in rows:
+        r["core"], r["z"], r["setAside"] = in_core(r), None, False
+        if not r["core"]:
+            continue
+        dev, v = r["signed"] * b - n * r["expected"], n * r["expected"] * (b - r["expected"])
+        if v > 0:
+            q = abs(dev) * M // isqrt(v)
+            r["z"] = -q if dev < 0 else q
+        if dev * dev > BAND_SD * BAND_SD * v:
+            r["setAside"] = True
+            nY -= r["signed"]
+            bY -= r["expected"]
     for r in rows:
         if not in_field(r):
             r["fpct"] = None
-        elif in_core(r):
-            r["fpct"] = fpct(n, r["expected"], b, r["credited"])
+        elif r["core"] and not r["setAside"]:
+            r["fpct"] = fpct(nY, r["expected"], bY, r["credited"])
         else:
-            r["fpct"] = fpct(n + r["signed"], r["expected"], b + r["expected"], r["credited"])
+            r["fpct"] = fpct(nY + r["signed"], r["expected"], bY + r["expected"], r["credited"])
     out = dict(card)
     out["producers"] = rows
     return out

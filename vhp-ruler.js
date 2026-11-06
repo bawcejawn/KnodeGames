@@ -59,7 +59,7 @@
   // options for that race or game pick ... when an address is voided its not a permanent thing": a producer whose
   // effective VHP leaves own × (1 ± VOID_BAND) at any block of the scoring window is void for that race (it plays the
   // next one as usual). Real days: about 1–1.6% of producer-races (sims/ruler/voids.mjs)
-  const VOID_BAND = 100000n, CORE_LINE = 970000n;
+  const VOID_BAND = 100000n, CORE_LINE = 970000n, BAND_SD = 2n;
   const PCT_SCALE = 1n << 256n;   // the Poisson terms' fixed-point scale (pct)
 
   // ── sha256 (pure, for the card time; tested against node:crypto) ──
@@ -206,7 +206,7 @@
   const lowerBound = (a, x) => { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } return lo; };
   const upperBound = (a, x) => { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= x) lo = m + 1; else hi = m; } return lo; };
 
-  /** VHP changes from decoded VHP-contract events: [{ h, a, d (BigInt satoshi), inc (BigInt received) }].
+  /** VHP changes from decoded VHP-contract events: [{ h, a, d (BigInt satoshi), inc (BigInt received), kind, c }].
    *  events: [{ h, src, name, from, to, value }]; approve and other contracts' events are ignored. */
   function vhpDeltas(events, contract = VHP_CONTRACT) {
     const out = [];
@@ -216,9 +216,10 @@
       if (!/^(token\.)?(transfer|mint|burn)_event$/.test(n)) continue;
       if (!/^[0-9]+$/.test(String(e.value))) throw new Error(`bad VHP event value at block ${e.h}`);
       const v = BigInt(e.value);
-      if (/transfer_event$/.test(n)) { out.push({ h: e.h, a: e.from, d: -v, inc: 0n }); out.push({ h: e.h, a: e.to, d: v, inc: v }); }
-      else if (/mint_event$/.test(n)) out.push({ h: e.h, a: e.to, d: v, inc: v });
-      else out.push({ h: e.h, a: e.from, d: -v, inc: 0n });
+      // kind and c (the other address) are recorded for D-172's void record only; no number uses them
+      if (/transfer_event$/.test(n)) { out.push({ h: e.h, a: e.from, d: -v, inc: 0n, kind: "out", c: String(e.to) }); out.push({ h: e.h, a: e.to, d: v, inc: v, kind: "in", c: String(e.from) }); }
+      else if (/mint_event$/.test(n)) out.push({ h: e.h, a: e.to, d: v, inc: v, kind: "mint", c: null });
+      else out.push({ h: e.h, a: e.from, d: -v, inc: 0n, kind: "burn", c: null });
     }
     return out;
   }
@@ -330,6 +331,9 @@
       },
       signedIn: (a, H0, H1) => signedIn(need(a), H0, H1),
       signedBlocks: (a, H0, H1) => { const l = signedAt[need(a)]; return l.slice(lowerBound(l, H0), upperBound(l, H1)); },
+      // D-172: a producer's VHP moves in [H0, H1], in data order: [{ h, d, kind ("in" | "out" | "mint" | "burn"), c }];
+      // a delta without kind (not from vhpDeltas) reads as a burn when negative, a receipt from "?" when positive
+      moves: (a, H0, H1) => all[need(a)].filter((x) => x.h >= H0 && x.h <= H1).map((x) => ({ h: x.h, d: big(x.d), kind: x.kind || (big(x.d) < 0n ? "burn" : "in"), c: x.c === undefined ? null : x.c })),
       firstSigned: (a) => { const l = signedAt[need(a)]; return l.length ? l[0] : null; },
       /** Σ floor(eff(a,H)·10^6 ÷ N(H)) for H in [H0, H1] (millionths of a block) */
       shareSum(a, H0, H1) {
@@ -442,6 +446,29 @@
    *  expected = k, or for a pooled producer Σ min(own, eff)/total per block (§3.2); pct = the luck percentile (Fix A);
    *  void = its VHP left own × (1 ± 10%) during the race (owner, 5 Nov); fpct = the field percentile (A′) among the
    *  producers with entry that aren't void, null for the others. */
+  /** floor(√v) for a BigInt v ≥ 0 (Newton's method on whole numbers). */
+  function isqrt(v) {
+    if (v < 2n) return v;
+    let x = 1n << BigInt((v.toString(2).length + 1) >> 1), y = (x + v / x) >> 1n;
+    while (y < x) { x = y; y = (x + v / x) >> 1n; }
+    return x;
+  }
+  /** D-172: what a void producer's VHP did, from the card time T to the race's end. own (the card's size), eff at S0 and
+   *  S1, the lowest and highest eff in [S0, S1], VHP received from each sender and sent to each receiver in (T, S1]
+   *  (sorted by address), minted and burned totals, and whether the producer moved VHP out itself. Data only. */
+  function voidRecord(L, a, o, T, S0, S1) {
+    let lo = null, hi = null;
+    for (let H = S0; H <= S1;) { const e = L.eff(a, H); let H2 = H; while (H2 + 1 <= S1 && L.eff(a, H2 + 1) === e) H2++; if (lo === null || e < lo) lo = e; if (hi === null || e > hi) hi = e; H = H2 + 1; }
+    const inn = new Map(), out = new Map(); let minted = 0n, burned = 0n;
+    for (const x of L.moves(a, T + 1, S1)) {
+      if (x.kind === "mint") minted += x.d; else if (x.kind === "burn") burned -= x.d;
+      else { const m = x.kind === "in" ? inn : out, k = x.c === null ? "?" : x.c; m.set(k, (m.get(k) || 0n) + (x.d < 0n ? -x.d : x.d)); }
+    }
+    const list = (m) => [...m.keys()].sort().map((k) => ({ a: k, v: m.get(k).toString(10) }));
+    return { own: o.toString(10), effS0: L.eff(a, S0).toString(10), effS1: L.eff(a, S1).toString(10), lo: lo.toString(10), hi: hi.toString(10),
+      received: list(inn), sent: list(out), minted: minted.toString(10), burned: burned.toString(10), ownMove: out.size > 0 };
+  }
+
   function scoreCard(L, card) {
     const { S0, S1 } = card.window, tot = big(card.total);
     if (card.paying && pendingIn(L, S0 - EARLY, S1)) throw new Error(notYet(L, S0 - EARLY, S1));
@@ -470,20 +497,64 @@
         }
       }
       const quality = flagged ? "flagged" : "ok";
-      return { ...p, quality, expected, signed: L.signedIn(p.a, S0, S1), credited, pct: pct(expected, credited), void: isVoid };
+      return { ...p, quality, expected, signed: L.signedIn(p.a, S0, S1), credited, pct: pct(expected, credited), void: isVoid, moves: isVoid ? voidRecord(L, p.a, o, card.T, S0, S1) : null };
     });
-    // A′ (D-165, Repo Lens #B-11): the field is the producers with entry that aren't void. Its yardstick is the core:
-    // the members whose form is at least CORE_LINE of the field's median form (the middle form; with an even count, the
-    // two middle forms averaged, rounded down), each at full size: n = the blocks the core signed in [S0, S1], b = the
-    // core's expected blocks. Every other member plays at full size (D-163) against the core plus itself, and moves no
-    // one, so neither signing below its share nor above its own record can lift or sink anyone else
-    const inField = (p) => p.entry && !p.void, fieldForms = producers.filter(inField).map((p) => big(p.form)).sort((x, y) => (x < y ? -1 : x > y ? 1 : 0));
-    const h = fieldForms.length, median = h === 0 ? 0n : h % 2 ? fieldForms[(h - 1) / 2] : (fieldForms[h / 2 - 1] + fieldForms[h / 2]) / 2n;
+    // A′ (D-165, D-171): the field is the producers with entry that aren't void. Its core is the members whose form is
+    // at least CORE_LINE of the field's median form, the median weighted by expected blocks (the form at which half the
+    // field's expected blocks lie at or below it; an exact tie takes the lower member's form), each at full size.
+    // A producer's yardstick is the core less any OTHER core member whose race count is more than 2 sd from its expected
+    // share of the core's blocks, either way (the band, D-171: it voids no one and removes no one from the race), plus
+    // the producer itself at full size. A member outside the core plays at full size (D-163) and moves no one.
+    const inField = (p) => p.entry && !p.void, fieldRows = producers.filter(inField).sort((x, y) => { const fx = big(x.form), fy = big(y.form); return fx < fy ? -1 : fx > fy ? 1 : 0; });
+    const eAll = fieldRows.reduce((t, p) => t + p.expected, 0n);
+    let median = 0n, cum = 0n;
+    for (const p of fieldRows) { cum += p.expected; if (2n * cum >= eAll) { median = big(p.form); break; } }
     const line = (median * CORE_LINE) / M, inCore = (p) => inField(p) && big(p.form) >= line;
     let n = 0n, b = 0n;
     for (const p of producers) if (inCore(p)) { n += BigInt(p.signed); b += p.expected; }
-    for (const p of producers) p.fpct = !inField(p) ? null : inCore(p) ? fpct(n, p.expected, b, p.credited) : fpct(n + BigInt(p.signed), p.expected, b + p.expected, p.credited);
+    let nY = n, bY = b;
+    for (const p of producers) {
+      p.core = inCore(p); p.z = null; p.setAside = false;
+      if (!p.core) continue;
+      const s0 = BigInt(p.signed), dev = s0 * b - n * p.expected, v = n * p.expected * (b - p.expected);
+      if (v > 0n) { const r = isqrt(v), q = ((dev < 0n ? -dev : dev) * M) / r; p.z = dev < 0n ? -q : q; }
+      if (dev * dev > BAND_SD * BAND_SD * v) { p.setAside = true; nY -= s0; bY -= p.expected; }
+    }
+    for (const p of producers) {
+      if (!inField(p)) { p.fpct = null; continue; }
+      const self = inCore(p) && !p.setAside;   // already in the yardstick
+      p.fpct = self ? fpct(nY, p.expected, bY, p.credited) : fpct(nY + BigInt(p.signed), p.expected, bY + p.expected, p.credited);
+    }
     return { ...card, producers };
+  }
+
+  /** D-172's weekly summary, data only: from a week's scored cards, the voids and band set-asides per producer, the
+   *  senders seen in more than one void race, and the set-aside rate (millionths of core member-races) against the
+   *  ~45,500 a 2-sd band leaves aside by chance (about 1 in 22). Counts only; nothing pays from it. */
+  const SET_ASIDE_EXPECTED = 45500;
+  function weekSummary(cards) {
+    const voids = new Map(), sets = new Map(), senders = new Map();
+    let races = 0, fieldRaces = 0, coreRaces = 0, setAsides = 0, voidCount = 0, ownMoves = 0;
+    const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+    for (const c0 of cards) {
+      const c = typeof c0 === "string" ? JSON.parse(c0) : c0, race = `${c.game}:${c.round}`;
+      if (!(c.producers || []).some((p) => "credited" in p)) continue;   // not scored yet
+      races++;
+      for (const p of c.producers) {
+        if (p.entry && !p.void) fieldRaces++;
+        if (p.core) coreRaces++;
+        if (p.setAside) { setAsides++; bump(sets, p.a); }
+        if (p.void && p.moves) {
+          voidCount++; bump(voids, p.a); if (p.moves.ownMove) ownMoves++;
+          for (const r of p.moves.received || []) { let x = senders.get(r.a); if (!x) senders.set(r.a, (x = { races: new Set(), producers: new Set() })); x.races.add(race); x.producers.add(p.a); }
+        }
+      }
+    }
+    const counts = (m) => [...m.entries()].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0)).map(([a, n]) => ({ a, races: n }));
+    const repeat = [...senders.entries()].filter(([, x]) => x.races.size >= 2).map(([a, x]) => ({ a, races: x.races.size, producers: [...x.producers].sort() }))
+      .sort((x, y) => y.races - x.races || (x.a < y.a ? -1 : x.a > y.a ? 1 : 0));
+    return { races, fieldRaces, coreRaces, voids: voidCount, ownMoves, setAsides, setAsideRate: coreRaces ? Number((BigInt(setAsides) * 1000000n) / BigInt(coreRaces)) : 0, setAsideExpected: SET_ASIDE_EXPECTED,
+      voidsByProducer: counts(voids), setAsidesByProducer: counts(sets), repeatSenders: repeat };
   }
 
   /** recompute (§13): rebuild a published card FROM THE GAME'S OWN SETTINGS and compare byte for byte (Repo Lens #E-12
@@ -525,6 +596,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, VOID_BAND, CORE_LINE,
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, VOID_BAND, CORE_LINE, BAND_SD, isqrt, weekSummary,
     sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -162,7 +162,7 @@
 | D-149 | 2026-11-05 | Public node guide defaults | active |
 | D-150 | 2026-11-05 | Fantasy: Sunday fun round, then the recorder checks before one fix-check | active |
 | D-151 | 2026-11-05 | Guest play first in the wallet sheet | active (in #181) |
-| D-152 | 2026-11-05 | Who gets paid in a staked game (exactly the top 30%; a tie across the line → who reached the score first; free prize per place: see D-159) | reserved: its entry lands with PR #182 (Race chat; R-ALL-10, R-VAULT-17) |
+| D-152 | 2026-11-05 | Who gets paid in a staked game (exactly the top 30%; a tie across the line → who reached the score first; free prize per place: see D-159) | active (Race in #182; R-ALL-10, R-VAULT-20) |
 | D-153 | 2026-11-05 | Producer Bracket: at most 32 producers | active (amends D-141's 64) |
 | D-154 | 2026-11-05 | VHP ruler v2.1 ranks by a field-conditional percentile (A′) | active (library design, 5 Nov; replaces §16's Fix A / Fix B) |
 | D-155 | 2026-11-05 | Live stats panel | active (in #185) |
@@ -828,6 +828,16 @@
 
 ## D-151 — Guest play first in the wallet sheet
 - **Date:** 2026-11-05 (owner, to the Hub chat: "yes" to research items 4 and 8) · **Decision:** the wallet sheet offers "Play as a guest · free" first; a short note replaces the guest pop-up; "Save your progress" (back up the guest key) appears after the first answer; tap targets are at least 44 px. The audited guest rules still hold (play only, never send KOIN or VHP).
+
+## D-152 — Who gets paid in a staked game, and how ties are broken (every game)
+- **Date:** 2026-11-05 (owner, to the Race chat: "For the staked games, every address in the top 30% of that game should be in the earning group. Tied scores share rewards for their level and take away from levels below. There are only so many rewards to go around each week … If there is a tie that results in too many people to pay, the cut off tie breaker should be based on who submitted their correct answers first … payout should be a vault decision and should be a standard for all games and how they are paid." Choices the same day: "reached the score first"; for free prizes "1 rule, but … no more than 10 addresses should be winners that week") · **Decision:**
+  - **Staked:** exactly the **top 30%** (by headcount, rounded up) of the game's earning stakers with at least 1 point are paid. Tied wallets **above** the line all get in and **share their level** (their places' weights, evenly), which leaves less for the levels below.
+  - **A tie that crosses the line:** the wallets that **reached that score first** get the remaining spots. "Reached" = the time of the wallet's last scoring pick or answer that week (the chain's time; then the address). The rest of the tie gets nothing that week.
+  - **Free prize:** the same tie-break (who reached the score first). The cap per place is **D-159** (owner, later on 5 Nov): 1st and 2nd each up to 10; a tie for 1st leaves 2nd empty; cut wallets get nothing. It replaces this entry's first reading ("at most 10 winners a week") and the old "earliest first pick" tie-break (owner, 28 Oct).
+  - **How it reaches the vault:** each recorder writes the line into its results file. The paid wallets at the line hold a value of their own, the rest of the tie the next value down, so the vault contract's unchanged walk (255 → 1, ties whole) pays exactly that set. No vault upgrade is needed for games with a results file.
+- **Exception until a vault upgrade:** Daily Questions (game 1) is scored by the vault contract itself, which pays the whole tie at the line; the Vault chat plans the change (R-VAULT-20).
+- **Needs:** every game's recorder (R-ALL-10; the Race first, PR #182); the vault bot's own check of the paid set (R-VAULT-20, Repo Lens #B-8 B8-A1).
+- **Standards:** `WEEK_CYCLE.md` §3, `VAULT_STANDARD.md` §6, `LEADERBOARD_STANDARD.md` §4.
 
 ## D-153 — Producer Bracket: at most 32 producers
 - **Date:** 2026-11-05 (owner, to the Bracket chat: capped at 32) · **Decision:** the Bracket holds **up to 32 producers** (5 rounds: Tue–Sat), 16 (Wed–Sat) or 8 (Thu–Sat), no byes; seeding Sun 00:00 UTC, picks lock Mon 23:55 UTC, one round a day, final Saturday, results final from Monday 00:00, backstop Thu 00:00. 64 only after a Picks upgrade, if ever wanted. Built on `kg-09-bracket` (#186).

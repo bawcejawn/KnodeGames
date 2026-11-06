@@ -387,14 +387,15 @@ test("vault: free-prize places from the free players' rows; ties on every measur
 
   assert.deepEqual(prizePlaces([r(A[0], 0)]), { first: [], second: [], notes: [] }, "nobody qualifies");
   assert.deepEqual(prizePlaces([]), { first: [], second: [], notes: [] });
-  // More than 10 tied (owner, 2026-10-28): the 10 with the earliest first pick take the place; the rest get nothing.
-  const eleven = A.slice(0, 11).map((a) => r(a, 6));
-  const when = new Map(A.map((a, i) => [a, 1000 - i]));               // A[10] picked first, A[0] last
-  const x = prizePlaces([...eleven, r(A[12], 3)], when);
+  // More than fit (owner, 5 Nov, D-159): each place up to 10 wallets; the wallets that reached their score first get in (D-152).
+  const eleven = A.slice(0, 11).map((a, i) => r(a, 6, { reached: 1000 - i }));   // A[10] reached 6 points first, A[0] last
+  const x = prizePlaces([...eleven, r(A[12], 3)]);
   assert.deepEqual([x.first, x.second], [A.slice(1, 11).reverse(), []], "11 tied for 1st: the 10 earliest share 1st; nobody is 2nd");
-  assert.match(x.notes[0], /11 wallets are tied for 1st/);
-  const y = prizePlaces([r(A[12], 9), ...eleven], when);
-  assert.deepEqual([y.first, y.second], [[A[12]], A.slice(1, 11).reverse()], "11 tied for 2nd: the 10 earliest share 2nd"); assert.match(y.notes[0], /tied for 2nd/);
+  assert.match(x.notes[0], /11 wallets are tied for 1st: the 10 that reached their score first/);
+  const y = prizePlaces([r(A[12], 9), ...eleven]);
+  assert.deepEqual([y.first, y.second], [[A[12]], A.slice(1, 11).reverse()], "11 tied for 2nd: the 10 earliest share 2nd (D-159: 10 per place)"); assert.match(y.notes[0], /tied for 2nd: the 10 that reached/);
+  const tenFor2nd = prizePlaces([r(A[12], 9), ...eleven.slice(0, 10)]);
+  assert.deepEqual([tenFor2nd.first.length, tenFor2nd.second.length], [1, 10], "a single 1st and 10 tied for 2nd: all 10 share 2nd (D-159)");
   const same = prizePlaces(A.slice(0, 11).map((a) => r(a, 6)));       // no times: the address decides, so it's repeatable
   assert.deepEqual(same.first, A.slice(0, 10));
   const ten = prizePlaces(A.slice(0, 10).map((a) => r(a, 6)));
@@ -515,12 +516,16 @@ test("publish job: pushes vault/W<week>.json to race-data and refuses to change 
   assert.ok(publish(out, bare).ok);
   const head = execFileSync("git", ["--git-dir", bare, "rev-parse", "race-data"]).toString();
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify({ ...vaultOf(out), first: [W3], second: [] }) + "\n");
-  const again = publish(out, bare);
-  assert.equal(again.ok, false); assert.match(again.out, /Refusing to change vault\/W2\.json/);
-  assert.equal(execFileSync("git", ["--git-dir", bare, "rev-parse", "race-data"]).toString(), head);
-  // Anything else in vault/ is refused.
-  const odd = tmp(); fs.mkdirSync(path.join(odd, "vault")); fs.writeFileSync(path.join(odd, "vault", "notes.json"), "{}");
-  assert.equal(publish(odd, bare).ok, false);
+  // Repo Lens #B-8 B8-B1: that file is held on its own (alert, held=true); the run goes on and the race files publish.
+  const go1 = path.join(tmp(), "github-output"), again = publish(out, bare, CHECK_NOW, { GITHUB_OUTPUT: go1 });
+  assert.ok(again.ok, again.out); assert.match(again.out, /Refusing to change vault\/W2\.json: it was already published as final \(vault file held; race cards still publish\)/);
+  assert.match(fs.readFileSync(go1, "utf8"), /held=true/);
+  assert.equal(execFileSync("git", ["--git-dir", bare, "rev-parse", "race-data"]).toString(), head, "nothing else changed, so the branch is untouched");
+  // Anything else in vault/ holds the vault folder (I-037 B1-4: not the whole run), and the alert job hears about it.
+  const odd = tmp(); fs.mkdirSync(path.join(odd, "vault")); fs.writeFileSync(path.join(odd, "vault", "notes.json"), "{}\n");
+  const go = path.join(tmp(), "github-output"), oddRun = publish(odd, bare, CHECK_NOW, { GITHUB_OUTPUT: go });
+  assert.ok(oddRun.ok, oddRun.out); assert.match(oddRun.out, /vault results held, not published this run: unexpected files in vault\/: .*notes\.json/);
+  assert.match(fs.readFileSync(go, "utf8"), /held=true/);
 });
 
 test("vault: more than 10 tied for 1st, end to end: the 10 that picked first share 1st, the rest get nothing", async () => {
@@ -604,8 +609,12 @@ test("publish job: a final file stays locked even when it was stored pretty-prin
   const v = vaultOf(out);
   // Round 8 (BX-122): the publish job itself never writes a pretty-printed file: it isn't the recorder's own form.
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify(v, null, 2));
-  const pretty = publish(out, bare);
-  assert.equal(pretty.ok, false); assert.match(pretty.out, /recorders own JSON form/);
+  // I-037 B1-4: it holds the vault folder only; the race files still publish.
+  const pc = tmp(); fs.cpSync(out, pc, { recursive: true });   // the publish step removes a held vault folder
+  const pretty = publish(pc, bare);
+  assert.ok(pretty.ok, pretty.out); assert.match(pretty.out, /vault results held, not published this run: not in the recorders own JSON form: W2\.json/);
+  const tree = execFileSync("git", ["--git-dir", bare, "ls-tree", "-r", "--name-only", "race-data"]).toString();
+  assert.match(tree, /^W002\.json$/m, "the race file published"); assert.doesNotMatch(tree, /^vault\//m, "no vault file published");
   // But one already on the branch (put there some other way) still locks: "final": true, with a space.
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify(v) + "\n");
   stagePending(out, bare);
@@ -616,7 +625,8 @@ test("publish job: a final file stays locked even when it was stored pretty-prin
   g("commit", "-qam", "pretty"); g("push", "-q", "origin", "race-data");
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify({ ...v, first: [W3], second: [] }) + "\n");
   const r = publish(out, bare);
-  assert.equal(r.ok, false); assert.match(r.out, /Refusing to change vault\/W2\.json/);
+  assert.ok(r.ok, r.out); assert.match(r.out, /Refusing to change vault\/W2\.json/);
+  assert.equal(execFileSync("git", ["--git-dir", bare, "show", "race-data:vault/W2.json"]).toString(), JSON.stringify(v, null, 2), "the published file stays byte for byte");
 });
 
 test("record job: last run's files are read; a missing branch starts fresh; any other failure stops the run", async () => {
@@ -709,14 +719,16 @@ test("earns: the staked bucket's winners by the vault's rule (top 30% by headcou
   const ten = Array.from({ length: 10 }, (_, i) => r("s" + i, 30 - i));
   assert.deepEqual([...stakedWinners(ten)], ["s0", "s1", "s2"], "10 players: 3 win");
   const tie = [r("a", 9), r("b", 9), r("c", 7), r("d", 7), r("e", 7), r("f", 4), r("g", 3), r("h", 2), r("i", 1), r("j", 1)];
-  assert.deepEqual([...stakedWinners(tie)], ["a", "b", "c", "d", "e"], "need 3: the 7-point group at the line is taken whole");
+  assert.deepEqual([...stakedWinners(tie)], ["a", "b", "c"], "need 3 (D-152): exactly 3; the 7-point tie at the line lets in the first by address when no times are known");
+  const timed = tie.map((x) => ({ ...x, reached: { c: 30, d: 10, e: 20 }[x.a] ?? 1 }));
+  assert.deepEqual([...stakedWinners(timed)], ["a", "b", "d"], "D-152: d reached 7 points first, so d gets the last spot");
   assert.deepEqual([...stakedWinners([r("x", 5), r("y", 4, { earning: false }), r("z", 0)])], ["x"], "withdrew below the minimum, or 0 points: not counted");
   assert.deepEqual([...stakedWinners([r("x", 5, { ranked: false })])], [], "free players aren't in the bucket");
   // Both boards together, and nothing earned outside the weekly boards.
   const mixed = [r("s1", 9), r("f1", 7, { ranked: false }), r("s2", 6), r("f2", 6, { ranked: false }), r("f3", 6, { ranked: false }), r("s3", 3)];
-  const out = Object.fromEntries(withEarns(mixed, new Map()).map((x) => [x.a, x.earns]));
+  const out = Object.fromEntries(withEarns(mixed, true).map((x) => [x.a, x.earns]));
   assert.deepEqual(out, { s1: 3, f1: 1, s2: 0, f2: 2, f3: 2, s3: 0 }, "staked: 1 of 3 wins; free: f1 1st, f2 and f3 tie for 2nd");
-  assert.ok(withEarns(mixed, null).every((x) => x.earns === 0), "Today and All time: no medals");
+  assert.ok(withEarns(mixed, false).every((x) => x.earns === 0), "Today and All time: no medals");
 });
 
 test("earns: in the recorder's board, weekly boards only; >10 free tied: the 10 earliest; the publish check holds it", async () => {
@@ -755,7 +767,7 @@ test("blind review V1 (round 10): the publish job holds a bad vault file and sti
   assert.ok(publish(again, bare).ok);
   fs.writeFileSync(path.join(again, "vault", "W2.json"), JSON.stringify({ ...vaultOf(again), first: [W3], second: [] }) + "\n");
   const ch = publish(again, bare);
-  assert.equal(ch.ok, false); assert.match(ch.out, /Refusing to change vault\/W2\.json/);
+  assert.ok(ch.ok, ch.out); assert.match(ch.out, /Refusing to change vault\/W2\.json/);
 });
 
 test("prizes from week: the Race earns in the vault from week 3; earlier weeks pay nothing and show no medals", async () => {
@@ -1102,13 +1114,15 @@ async function recomputeRun(players, { mutate = null, mutateBoard = null, prizes
   for (const p of players) for (const [ri, right, show, at] of p.picks) {
     races[ri].result.picks.push([p.a, P[0], at, right, 0, show]);
     if (skipSunday && ri >= 24) continue;   // races 24–27 are the week's Sunday (D-129: they count for no week)
-    const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0; t.set(p.a, c);
+    const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0;
+    if ((right || show) && (c.reached === undefined || at > c.reached)) c.reached = at;   // D-152: when it reached its score
+    t.set(p.a, c);
     if (!firstAt.has(p.a) || at < firstAt.get(p.a)) firstAt.set(p.a, at);
   }
   const rows = R.rank([...t].map(([a, c]) => ({ a, ...c, pts: 3 * c.correct + c.shows, ranked: players.find((p) => p.a === a).staked, earning: true })));
   void rhythmFrom;
-  const placed = R.withEarns(R.withPlaces(rows), firstAt).map(({ earning, ...r }) => r);
-  const places = R.prizePlaces(rows, firstAt), staked = R.stakedRows(rows);
+  const placed = R.withEarns(R.withPlaces(R.cutLine(rows)), true).map(({ earning, reached, tb, ...r }) => r);
+  const places = R.prizePlaces(rows), staked = R.stakedRows(R.cutLine(rows));
   let file = { game: 7, week: 2, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: [] };
   if (mutate) file = mutate(JSON.parse(JSON.stringify(file)));
   const board = { v: 1, updated: "2026-11-09T12:37:00.000Z", today: { day: 0, rows: [] }, week: { week: 3, start: M.weekStart(3), rows: [] },
@@ -1583,4 +1597,141 @@ test("Repo Lens #B-7: the no-changes window starts the paid week's Monday; resul
   assert.match(rj, /const mineAll = all\.filter\(\(x\) => x\.my && !M\.restRace\(x\.r\.start\)\);/);
   for (const f of [".ai/platform/RULES.md", ".ai/standards/GAME_STANDARD.md", ".ai/standards/VAULT_STANDARD.md", ".ai/platform/DECISIONS.md"])
     assert.match(fs.readFileSync(path.resolve(APP, f), "utf8"), /Tue 12:00–15:00 UTC, Tue 4–7 AM PST/, f);
+});
+
+// ── I-086 (R-RACE-12 gap 2): more than 255 different scores among staked players ──
+// The vault's payout rule (Kpred finalizeGameStep): walk the points values from the top until the winners are at least
+// 30% of the players with a point (rounded up), everyone at the line included.
+const vaultPaid = (rows) => {
+  const need = Math.ceil((rows.length * 30) / 100), paid = new Set();
+  let cum = 0;
+  for (let p = 255; p >= 1 && cum < need; p--) { const at = rows.filter((r) => r.points === p); for (const r of at) paid.add(r.player); cum += at.length; }
+  return paid;
+};
+const addrI = (i) => "1" + String(i).padStart(33, "0").replace(/0/g, "A");
+test("I-086: past 255 different scores, the vault still pays exactly the top 30% (paid groups never share a value with unpaid ones)", async () => {
+  const R = await import(path.resolve(APP, "bot/race.ts"));
+  // 900 staked wallets, each with its own score: the paid line (270 wallets) lands past the 255th group.
+  const tuples = [];
+  for (let p = 1; tuples.length < 900; p++) for (let c = 0; c <= p; c++) for (let s = 0; c + s <= p; s++) if (c + s >= 1 && tuples.length < 900) tuples.push([c, s, p]);
+  const rows = R.rank(tuples.map(([c, s, p], i) => ({ a: addrI(i), correct: c, shows: s, picks: p, pts: 3 * c + s, ranked: true, earning: true })));
+  const want = R.stakedWinners(rows), { rows: vr, notes } = R.stakedRows(rows);
+  assert.equal(want.size, 270);
+  assert.deepEqual([...vaultPaid(vr)].sort(), [...want].sort(), "the vault pays exactly the wallets the recorder means to pay");
+  assert.ok(vr.every((r) => (want.has(r.player) ? r.points >= 2 : r.points === 1)), "paid wallets hold 255 … 2, unpaid ones 1");
+  assert.match(notes.join("\n"), /share 2 points, unpaid wallets get 1 \(I-086\)/);
+  // The old mapping (max(1, 255 − group)) put paid and unpaid wallets together at 1: the vault would pay all 900.
+  const old = vr.map((r, i) => ({ ...r, points: Math.max(1, 255 - i) }));
+  assert.equal(vaultPaid(old).size, 900, "the bug this fixes");
+  // Fewer than 255 groups, or a paid line inside the first 254: the values are exactly as before.
+  const small = rows.slice(0, 200), sv = R.stakedRows(small).rows;
+  assert.deepEqual(sv.map((r) => r.points), sv.map((_, i) => 255 - i));
+  assert.deepEqual([...vaultPaid(sv)].sort(), [...R.stakedWinners(small)].sort());
+});
+
+test("I-086, publish job: the recompute gives the same values past 255 groups and refuses the old mapping", async () => {
+  const tuples = [];
+  for (let p = 1; tuples.length < 900; p++) for (let c = 0; c <= p; c++) for (let s = 0; c + s <= p; s++) if (c + s >= 1 && tuples.length < 900) tuples.push([c, s, p]);
+  // One pick per race: the first c are wins, the next s are shows, the rest are misses (races 0–23, Monday to Saturday).
+  const pl = tuples.map(([c, s, p], i) => ({ a: addrI(i), staked: true, picks: Array.from({ length: p }, (_, k) => [k, k < c ? 1 : 0, k >= c && k < c + s ? 1 : 0, 1000 + i * 30 + k]) }));
+  const ok = await recomputeRun(pl);
+  assert.ok(ok.final, ok.out);
+  assert.equal(ok.file.rows.filter((r) => r.points === 1).length, 630, "the 630 unpaid wallets share 1");
+  const bad = await recomputeRun(pl, { mutate: (f) => ({ ...f, rows: f.rows.map((r, i) => ({ ...r, points: Math.max(1, 255 - i) })) }) });
+  assert.equal(bad.final, false); assert.match(bad.out, /staked rows aren't/);
+});
+
+test("I-037 B1-4: a nested folder, a file over 2 MB or a non-canonical file in vault/ holds the vault folder only; the race cards still publish", async () => {
+  const { dir } = await weekTwoDone();
+  const out = await picksRun(U("2026-11-09T05:37Z"), dir);
+  const cases = [
+    ["a nested folder", (d) => { fs.mkdirSync(path.join(d, "vault", "x")); fs.writeFileSync(path.join(d, "vault", "x", "W2.json"), "{}\n"); }, /unexpected files in vault\//],
+    ["a file over 2 MB", (d) => fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify({ ...vaultOf(out), pad: "x".repeat(2100 * 1024) }) + "\n"), /a file in vault\/ is over 2 MB/],
+    ["not canonical", (d) => fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify(vaultOf(out), null, 1) + "\n"), /not in the recorders own JSON form/],
+    ["a symlink", (d) => fs.symlinkSync("/etc/hostname", path.join(d, "vault", "W9.json")), /unexpected files in vault\//],
+  ];
+  for (const [name, spoil, why] of cases) {
+    const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+    const d = tmp(); fs.cpSync(out, d, { recursive: true }); spoil(d);
+    const go = path.join(tmp(), "github-output"), r = publish(d, bare, CHECK_NOW, { GITHUB_OUTPUT: go });
+    assert.ok(r.ok, name + ": " + r.out); assert.match(r.out, why, name);
+    assert.match(fs.readFileSync(go, "utf8"), /held=true/, name + ": the alert job fails the run");
+    const tree = execFileSync("git", ["--git-dir", bare, "ls-tree", "-r", "--name-only", "race-data"]).toString();
+    assert.match(tree, /^W002\.json$/m, name + ": the race cards published"); assert.doesNotMatch(tree, /^vault\//m, name);
+  }
+  // A bad file outside vault/ still stops the whole publish (nothing goes out).
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const d = tmp(); fs.cpSync(out, d, { recursive: true }); fs.writeFileSync(path.join(d, "W002.json"), JSON.stringify(week(out), null, 1));
+  const r = publish(d, bare);
+  assert.equal(r.ok, false); assert.match(r.out, /recorders own JSON form.*nothing published/);
+});
+
+test("Repo Lens #B-8: B8-B1 a changed final also publishes the race cards; B8-B2 a file Python can't read holds vault/ only; B8-B3 short paths", async () => {
+  const { dir } = await weekTwoDone();
+  const out = await picksRun(U("2026-11-09T05:37Z"), dir);
+  // B8-B1: a changed final file next to new race data: the race data publishes, the published vault file doesn't change.
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  stagePending(out, bare); assert.ok(publish(out, bare).ok);
+  const pub = execFileSync("git", ["--git-dir", bare, "show", "race-data:vault/W2.json"]).toString();
+  const d = tmp(); fs.cpSync(out, d, { recursive: true });
+  fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify({ ...vaultOf(out), first: [W3], second: [] }) + "\n");
+  const b = JSON.parse(fs.readFileSync(path.join(d, "board.json"), "utf8")); b.updated = "2026-11-09T13:37:00.000Z"; fs.writeFileSync(path.join(d, "board.json"), JSON.stringify(b) + "\n");
+  const r = publish(d, bare);
+  assert.ok(r.ok, r.out); assert.match(r.out, /Race files published/);
+  assert.equal(execFileSync("git", ["--git-dir", bare, "show", "race-data:vault/W2.json"]).toString(), pub);
+  assert.match(execFileSync("git", ["--git-dir", bare, "show", "race-data:board.json"]).toString(), /2026-11-09T13:37:00\.000Z/, "the new board published");
+  // B8-B2: the Python check reads vault files inside a try.
+  const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/race.yml"), "utf8");
+  assert.match(yml, /def vgood\(g\):\n\s+try:\n\s+j = load\(g\)/);
+  // B8-B3: the hold message shows paths relative to the incoming folder.
+  const d2 = tmp(); fs.cpSync(out, d2, { recursive: true }); fs.writeFileSync(path.join(d2, "vault", "notes.json"), "{}\n");
+  const r2 = publish(d2, tmp());
+  assert.match(r2.out, /unexpected files in vault\/: vault\/notes\.json/); assert.doesNotMatch(r2.out, /recorder\?s/);
+});
+
+// ── D-152 (owner, 5 Nov): the staked line pays exactly the top 30%; a tie that crosses it lets in who reached the score first ──
+test("D-152: a staked tie across the 30% line: the vault pays exactly the top 30%, the earliest to reach the score get in, places split", async () => {
+  const R = await import(path.resolve(APP, "bot/race.ts"));
+  const { orderBreak } = await import(path.resolve(APP, "bot/vault.ts"));
+  // 10 staked wallets: need 3. A (9 pts) is clear; 4 wallets tie on 6 pts for the last 2 spots.
+  const r = (a, pts, reached, extra = {}) => ({ a, pts, correct: Math.floor(pts / 3), shows: pts % 3, picks: 5, ranked: true, earning: true, reached, ...extra });
+  const rows = R.rank([r(addrI(1), 9, 50), r(addrI(2), 6, 400), r(addrI(3), 6, 100), r(addrI(4), 6, 300), r(addrI(5), 6, 200),
+    r(addrI(6), 3, 10), r(addrI(7), 3, 20), r(addrI(8), 1, 30), r(addrI(9), 1, 40), r(addrI(10), 1, 60)]);
+  const paid = R.stakedWinners(rows);
+  assert.deepEqual([...paid], [addrI(1), addrI(3), addrI(5)], "exactly 3: A, then the two that reached 6 points first (times 100 and 200)");
+  const board = R.withEarns(R.withPlaces(R.cutLine(rows)), true);
+  const place = Object.fromEntries(board.map((x) => [x.a, x.boardPlace]));
+  assert.deepEqual([place[addrI(3)], place[addrI(5)], place[addrI(4)], place[addrI(2)]], [2, 2, 4, 4], "the two that got in share 2nd; the other two take 4th");
+  assert.deepEqual(board.filter((x) => x.earns === 3).map((x) => x.a), [...paid]);
+  const file = R.stakedRows(R.cutLine(rows)).rows;
+  assert.deepEqual([...vaultPaid(file)].sort(), [...paid].sort(), "the vault's own walk pays exactly them");
+  assert.equal(orderBreak(file, new Map(board.map((x) => [x.a, x.boardPlace]))), "", "the vault bot's place check passes");
+  // A tie above the line stays whole and shares its level: 2 tied at the top, need 3 → both in, plus the next.
+  const top = R.rank([r(addrI(1), 9, 5), r(addrI(2), 9, 1), r(addrI(3), 6, 9), r(addrI(4), 6, 2), ...[5, 6, 7, 8, 9, 10].map((i) => r(addrI(i), 1, i))]);
+  const tv = R.stakedRows(R.cutLine(top)).rows;
+  assert.equal(tv[0].points, tv[1].points, "tied above the line: same value, so they share their places' weights");
+  assert.deepEqual([...vaultPaid(tv)].sort(), [addrI(1), addrI(2), addrI(4)].sort());
+  // Non-earning wallets (below the minimum stake) don't count toward the 30% or take a spot.
+  const ne = R.rank([r(addrI(1), 9, 1), r(addrI(2), 6, 1, { earning: false }), r(addrI(3), 6, 2), r(addrI(4), 6, 3), ...[5, 6, 7, 8, 9, 10].map((i) => r(addrI(i), 1, i))]);
+  assert.deepEqual([...R.stakedWinners(ne)], [addrI(1), addrI(3), addrI(4)].slice(0, 3), "9 earning → need 3: A, then the earliest two earning wallets at 6");
+});
+
+test("D-152, publish job: the recompute follows the new line and D-159's 10 per free place, and refuses a paid list over 30%", async () => {
+  // Staked: S1 clear; S2..S5 tie, S3 and S5 reach the score first. Free: 11 tie for 2nd behind F0.
+  const pl = [{ a: addrI(1), staked: true, picks: [[0, 1, 0, 10], [1, 1, 0, 11], [2, 1, 0, 12]] }];
+  for (const [i, at] of [[2, 400], [3, 100], [4, 300], [5, 200]]) pl.push({ a: addrI(i), staked: true, picks: [[0, 1, 0, at], [1, 1, 0, at + 1]] });
+  for (let i = 6; i <= 10; i++) pl.push({ a: addrI(i), staked: true, picks: [[0, 0, 1, i]] });
+  pl.push({ a: addrI(20), staked: false, picks: [[0, 1, 0, 5], [1, 1, 0, 6]] });
+  for (let i = 21; i <= 31; i++) pl.push({ a: addrI(i), staked: false, picks: [[2, 1, 0, 1000 - i]] });
+  const ok = await recomputeRun(pl);
+  assert.ok(ok.final, ok.out);
+  assert.deepEqual([ok.file.first, ok.file.second.length], [[addrI(20)], 10], "one 1st, 11 tied for 2nd: 10 share it (D-159)");
+  assert.deepEqual(ok.file.second, Array.from({ length: 10 }, (_, k) => addrI(31 - k)), "the 10 that reached the score first");
+  assert.deepEqual(ok.file.rows.slice(0, 5).map((x) => [x.player, x.points]), [[addrI(1), 255], [addrI(3), 254], [addrI(5), 254], [addrI(4), 253], [addrI(2), 253]]);
+  // The old line (the whole tie paid) is refused.
+  const whole = await recomputeRun(pl, { mutate: (f) => ({ ...f, rows: f.rows.map((x) => ([addrI(2), addrI(4)].includes(x.player) ? { ...x, points: 254 } : x.points < 254 ? { ...x, points: x.points + 1 } : x)) }) });
+  assert.equal(whole.final, false); assert.match(whole.out, /staked rows aren't/);
+  // A board that marks too many as paid (earns 3) is refused (Repo Lens #B-8 B8-A1, the cheap guard).
+  const over = await recomputeRun(pl, { mutateBoard: (bd) => { for (const x of bd.lastWeek.rows) if (x.ranked) x.earns = 3; } });
+  assert.equal(over.final, false); assert.match(over.out, /isn't within the top 30%/);
 });

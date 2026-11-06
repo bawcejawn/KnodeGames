@@ -176,6 +176,7 @@
 | D-163 | 2026-11-05 | Steady throttlers stay in the games at full size (refines D-120); out only when unsteady below 0.80, back once steady | active |
 | D-164 | 2026-11-05 | Producer void: any VHP change beyond ±10% during a race voids that producer for that race, whoever sent it; a pick on a voided producer counts as a loss; nothing is refunded | active |
 | D-165 | 2026-11-05 | VHP Ruler A′ yardstick: only steady full-rate members (form ≥ 0.97 × the field's median form) set it, at full size; sim 1 marks fair among those who can win | active (`../standards/VHP_RULER.md` §18) |
+| D-167 | 2026-11-05 | Shared Game Kit: the owner's answers after Repo Lens #B-11 (hold variables, vault-bot checks, payout pin, D-159 on the kit for Block X and Bracket, Survivor later, Combo's "10 max per card" to confirm) | active (filed from PR #222, renumbered from D-162) |
 
 ---
 
@@ -875,6 +876,15 @@
 
 ## D-165 — The A′ yardstick: a steady full-rate core
 - **Date:** 2026-11-05 (owner, on Repo Lens #B-11 N-1: option "E: steady full-rate core"; on N-2: "Fair among those who can win") · **Decision:** in A′, only members whose form is **≥ 0.97 × the field's median form** set the yardstick, each at full size; every other member still plays at full size but moves no one. **Sim 1** marks "fair" as 1 ÷ (field − members that can't win). The Ruler chat builds it in one pass, re-runs all eleven sims on both histories, adds a sim 8 case (a core member at 0.80–0.95 signing in full), and sends Repo Lens a fix-check. Nothing pays until all eleven pass (D-111).
+
+## D-167 — Shared Game Kit: the owner's answers after Repo Lens #B-11
+- **Date:** 2026-11-05 (owner, in the doc "Shared Game Kit: what it does and where it goes") · **Decision:**
+  1. **Hold variables, every kit game:** `<GAME>_HOLD_WEEKS` (weeks kept pending) and `<GAME>_RELEASE = "<week>:<code>"` (releases one exact hold), as Block X today; hyphens in a slug become `_`. ("okay")
+  2. **Vault bot (`bot/vault.ts`), Vault chat:** check a RELEASE file's code itself (#B-11 KC-3), and hold a week instead of skipping a bad row (KC-15) (R-VAULT-17, R-VAULT-18). ("yes send both")
+  3. **Payout pin:** once the vault pays a kit game, `game-data/deployment.json` `vaultGames.<id>.kit` repeats its payout fields (`payoutRule`, `vaultValues`, `entry`, `sundayFunRound`, `roundsCorrectable`, `liveWeek`); the Vault chat adds it with each game's move (KC-26, R-VAULT-19). ("ok")
+  4. **Block X and Producer Bracket free places follow D-159 on the kit** (exactly 10 by earlier score time, then address, past 10; never empty), each as its own payout-change PR when the game moves, not in the migration PR (D-158). ("ok")
+  5. **Survivor's seasons on the kit come later**, after Block Golf, Fantasy and Bracket. ("survivor later")
+  6. **Combo Card:** a week counts only the best 10 cards, ties by more hits, then the earlier last hit. The owner added "10 max per card"; what that limits (points, legs, or the cards counted) is to be confirmed before the kit builds Combo's week rule (D-160: no guessing).
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

@@ -475,7 +475,7 @@
 
 ## D-060 — Combo Card rules
 - **Legs:** Win, Show, Top half (on 6-hour Race races) and Block X; up to 3 legs per race (one of each); one leg per producer per card. Race legs lock 25 min before the start, open 24 h ahead; Block X legs lock 500 blocks before the target, open 28,800 ahead.
-- **Cards:** 3 a day, each changeable up to 3 times; the game runs at 6 legs (contract allows 10). Worth = clamp(0.5 / chance, 0.25, 3); Block X keeps ×3 as its cap. Points by legs: 2→3, 3→7, 4→15, 5→30, 6→60 (… 10→960); no point cap. 10% rule kept (RL-16); a horse missing from standings is void, dropped (RL-15).
+- **Cards:** 3 a day, each changeable up to 3 times; the game runs at 6 legs (contract allows 10; **raised to 10 by D-167 item 6**). Worth = clamp(0.5 / chance, 0.25, 3); Block X keeps ×3 as its cap. Points by legs: 2→3, 3→7, 4→15, 5→30, 6→60 (… 10→960); no point cap. 10% rule kept (RL-16); a horse missing from standings is void, dropped (RL-15).
 - **Players:** stake-only; at least 1 full point in the week; a week = best 10 cards; ties: more hits, the earlier last hit, address. Vault points by board rank.
 - **Order and security:** the CARD upgrade goes on chain after Block X launches. Build the verify job (owner, 30 Oct, FC3-3). Unresolved legs never let a card score. Vault files are write-once; published final cards are immutable.
 - **Source:** 💬 Combo
@@ -887,7 +887,7 @@
   3. **Payout pin:** once the vault pays a kit game, `game-data/deployment.json` `vaultGames.<id>.kit` repeats its payout fields (`payoutRule`, `vaultValues`, `entry`, `sundayFunRound`, `roundsCorrectable`, `liveWeek`); the Vault chat adds it with each game's move (KC-26, R-VAULT-19). ("ok")
   4. **Block X and Producer Bracket free places follow D-159 on the kit** (exactly 10 by earlier score time, then address, past 10; never empty), each as its own payout-change PR when the game moves, not in the migration PR (D-158). ("ok")
   5. **Survivor's seasons on the kit come later**, after Block Golf, Fantasy and Bracket. ("survivor later")
-  6. **Combo Card:** a week counts only the best 10 cards, ties by more hits, then the earlier last hit. The owner added "10 max per card"; what that limits (points, legs, or the cards counted) is to be confirmed before the kit builds Combo's week rule (D-160: no guessing).
+  6. **Combo Card:** a week counts only the best 10 cards, ties by more hits, then the earlier last hit. "10 max per card" limits the **legs**: up to **10 game picks per card**, and a player plays up to **3 cards a day** (owner, 5 Nov: "10 game picks per card. user can play 3 cards per day"). This raises the game's leg limit from D-060's 6 to the contract's 10 (points by legs already run to 10 → 960); the cards a week counts stay the best 10.
 
 ## D-168 — The sponsor covers moving stake and (next version) Knode Swap
 - **Date:** 2026-11-05 (owner, to the Block X chat, on the daily Mana rule: moving stake and Knode Swap "cover them"; free players and the 2,000-a-day pool "ok") · **Decision:**

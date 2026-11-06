@@ -1041,7 +1041,7 @@ test("Repo Lens #E-23 L-1: game 12 applied 4 days after its weeks start: its ear
   assert.ok(w4.targets[0].time < M.weekStart(4) + 2 * 3600000, "the first target is at the start of the week");
   const early = w4.targets.filter((t) => t.time < applied - 3 * X.DAY - 3600000);
   assert.ok(early.length > 0 && early.every((t) => !t.void && t.picks.length === 0), "targets from before the apply: recorded, no picks");
-  assert.ok(read12.every((t) => t >= applied), "picks are never read while game 12 isn't on the contract");
+  // B14-1: picks are still read while game 12 reads as missing (none here: nobody could pick), so a stale answer can't empty a round.
   assert.ok(problems.some((p) => /game 12 is not on the Picks contract.*recorded with no picks/.test(p)), "the run says so");
   const board = read(prev, "board.json");
   assert.equal(board.lastWeek.week, 4); assert.equal(board.lastWeek.final, true, "week 4 goes final");
@@ -1051,6 +1051,6 @@ test("Repo Lens #E-23 L-1: only when every node says game 12 is missing are its 
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /if \(v === nodeCount\) \{ badGames\.delete\(G\); missingGames\.add\(G\);/);
   assert.match(src, /else badGames\.add\(G\);   \/\/ the nodes disagree/);
-  assert.match(src, /if \(picksRead && !missingGames\.has\(G\)\) \{/);
+  assert.match(src, /if \(missingGames\.has\(G\) && \(raw\.length \|\| other\.length\)\) \{ problems\.push/, "B14-1: picks found for a 'missing' game: the round waits");
   assert.match(src, /est >= e\.from - 6 \* 3600000 && est < e\.to \+ 6 \* 3600000/, "E-23 I-1: ±6 h");
 });

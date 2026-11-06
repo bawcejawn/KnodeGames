@@ -19,12 +19,12 @@ Every Koinos transaction costs **Mana**, which comes from holding KOIN. New play
 
 ### The daily Mana rule (owner, 5 Nov 2026 — every game, every action)
 - **Every player address has one daily Mana budget: 40 Mana a day, shared across every game and every action** — picks, answers, stakes, moves, claims, withdrawals, settles. No game or action has its own separate budget.
-- **Use it or lose it** (owner, 5 Nov): the budget starts again at 00:00 UTC every day and nothing carries over. There is no weekly cap: the contract still needs a weekly number, so it is set to 7 × 40 = 280, which a player can never reach (§2).
+- **Use it or lose it** (owner, 5 Nov): the budget starts again at 00:00 UTC every day and nothing carries over. No weekly cap: the contract still needs a weekly number, so it becomes 7 × 40 = 280, which never refuses anything the daily cap allows (§2). **Until the owner's config send to 280, the chain still has 250 a week** (Repo Lens #B-14 B14-4).
 - **Inside that budget the sponsor pays everything a player does on Knode Games.** Once it is used up, the player pays with their own Mana until 00:00 UTC (the page asks once more in the wallet). Withdrawals always work either way (D-027).
 - A new game or action **must** get a sponsor row (§2) and count against this same budget. It never gets a budget of its own, and a game never raises the per-player cap for itself.
 - Two limits sit above it and don't change the rule: one transaction can ask for at most 2.4 Mana, and everyone together gets at most 5,000 a day (free players 2,000 of it).
 - **Free players** (no stake in the call's game, which today includes every hourly Block X pick) count against their own 40 a day **and** the shared 2,000-a-day free pool (Repo Lens #E-23 I-2; owner 5 Nov: "ok").
-- **Moving stake** (`move_stake`) is covered (owner, 5 Nov: "cover them"; replaces D-027). The contract always allowed it; the page now asks the sponsor for it too.
+- **Moving stake** (`move_stake`) is covered (owner, 5 Nov: "cover them"; replaces D-027). The contract always allowed it; the page now asks the sponsor for it too. Its Mana isn't measured yet, so a move asks for the 2.4 per-transaction cap: after the first real sponsored move, run `npm run sponsor -- mana-report` and add its row (B14-3, R-BX-18).
 - **Knode Swap** is to be covered too (owner, 5 Nov), but sponsor v3 refuses swaps in its code (audit SP-24), so it waits for the **next sponsor version** (with R-BX-5, game 12 → vault game 2). A swap names no game, so it would count as free play (the 2,000 pool) as well as the swapper's own 40.
 
 ---

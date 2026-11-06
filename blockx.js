@@ -84,7 +84,7 @@
     const mins = Math.round(G.ROUND * X.BLOCK_MS / 60000), about = mins >= 90 ? `about every ${Math.round(mins / 60)} hours` : `about every ${mins} minutes`;
     const words = { every: `Every ${G.ROUND.toLocaleString("en-US")} blocks (${about})`, round: G.ROUND.toLocaleString("en-US"), about, perday: String(G.PICKS_PER_DAY),
       changes: String(G.MAX_CHANGES), changesw: G.MAX_CHANGES === 1 ? "once" : `up to ${G.MAX_CHANGES} times`,
-      open: String(Math.floor((G.AHEAD - G.LEAD) / G.ROUND)), cap: String(X.capAt(Math.max(Date.now(), PERIOD.from))) };
+      open: String(Math.floor((G.AHEAD - G.LEAD) / G.ROUND)), cap: String(X.capAt(Math.min(Math.max(Date.now(), PERIOD.from), PERIOD.to - 1))) };   // B14-5: a past game's own cap
     for (const e of document.querySelectorAll("[data-bx]")) { const w = words[e.getAttribute("data-bx")]; if (w) e.textContent = w; }
   }
   /** Testnet: one button per game in the settings (the real settings, and the fast test game). */
@@ -428,6 +428,10 @@
     if (e.key === "Escape" && !modal.querySelector(".pk-spin")) { closeModal(); return; }
     // Tab stays inside the box while it is open (E-23 I-4).
     if (e.key === "Tab") {
+      // Repo Lens #B-14 B14-2: only while this box is the top one. A wallet box (KOIN Vault's Approve, .kw-back) or
+      // another dialog on top keeps its own Tab order.
+      const act = document.activeElement, inOther = act && act.closest && act.closest('[aria-modal="true"]');
+      if (document.querySelector(".kw-back") || (inOther && inOther !== modal)) return;   // wallet.js removes it on close
       const f = [...modal.querySelectorAll("button, a[href], input, select, textarea")].filter((x) => !x.disabled);
       if (!f.length) { e.preventDefault(); return; }
       const i = f.indexOf(document.activeElement), next = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : (i < 0 || i === f.length - 1 ? 0 : i + 1);

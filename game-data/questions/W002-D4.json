@@ -121,9 +121,17 @@
             "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": "176921938468155"
           },
           "seal": "94434a7b7efabc1cff59419302dd6ae1dd5e97be6ff47a5dfb954cbee87b5ad6"
+        },
+        {
+          "height": 40838596,
+          "readAt": "2026-11-06T07:06:23.377Z",
+          "values": {
+            "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": "176847154869174"
+          },
+          "seal": "e8391dffb70447b4a154a8a112e7a8dcdc5964f119ad727ac6288bdaae0df5f8"
         }
       ],
-      "vhpSeal": "86fd5a4d74a02e11ade8a4ed7cb027312d62faa1dca51ae4240e71130fb1d4f1"
+      "vhpSeal": "597d3ff7b2c5b0b11871c8332cf7fa6cbce4425fb74bb66d955c37246d299af1"
     },
     {
       "id": "W002-D4-2",
@@ -254,7 +262,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1,
+      "chainDataHash": "0x61bb291edb810e58a8a31112ec4d9498c1ca6190a8430cf53f164ea9898d7d48"
     },
     {
       "id": "W002-D4-3",
@@ -375,7 +385,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 3,
+      "chainDataHash": "0x61bb291edb810e58a8a31112ec4d9498c1ca6190a8430cf53f164ea9898d7d48"
     },
     {
       "id": "W002-D4-4",
@@ -506,7 +518,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 4,
+      "chainDataHash": "0x61bb291edb810e58a8a31112ec4d9498c1ca6190a8430cf53f164ea9898d7d48"
     },
     {
       "id": "W002-D4-5",
@@ -686,9 +700,25 @@
             "1Lk4D5bYDzMeh4CFXLWTpLEeJFqKmqbkEt": "60005548636455"
           },
           "seal": "ea813cc623d81b1b2bfb2e78ec556f6868cb21ad43b196cb56a7a6986fcb4279"
+        },
+        {
+          "height": 40838596,
+          "readAt": "2026-11-06T07:06:23.377Z",
+          "values": {
+            "14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb": "62306681383267",
+            "1JrsQXbrDqkT9yUH6gtj4yhQi1kgWwsohh": "11962700818434",
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1147780802964",
+            "1F96MSYgSsgY1WJHnTBtjtgPEN9te7xNxp": "552099185506",
+            "122hrgzoXVmmxWxUs8TUrCFGcKG9czYgvf": "28424098327",
+            "1932QKYoPzaGmwBxTnnYhNqV9LQi2sYLHT": "106011661371",
+            "15jueaBcMieDCMGw6wAmEK6cNSUVicknG1": "45476633374",
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2079704761715",
+            "1Lk4D5bYDzMeh4CFXLWTpLEeJFqKmqbkEt": "59986750570592"
+          },
+          "seal": "8b5b875cb24358d8dc1b9e50408531d0fbf1fcd0dee2cff4665a853e82438f43"
         }
       ],
-      "vhpSeal": "5e8b189310583e6292d4a7513a78c8f11f86538e0eeb67dc0842244b561af2f2"
+      "vhpSeal": "613413f964da02e0413c2c5fcf4aae310b9d69b7f9526759c65da1e7f44e30a2"
     }
   ],
   "daySeal": "d9d329fcb8ac36cd95d015bd8ac088c2131e36e5b9590b0904d0a4d851bf08bd"

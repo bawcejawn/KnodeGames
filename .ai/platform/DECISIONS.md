@@ -171,6 +171,7 @@
 | D-158 | 2026-11-05 | The Shared Game Kit design is adopted, with eight choices (every new game and the Questions recorder launch on the kit; current payout rules kept; generic recount; data branches kept; two shadow weeks; `kit/`; standards point to GAME_KIT.md) | active; choices 1 and 4 corrected by D-160 |
 | D-159 | 2026-11-05 | Free-prize ties: up to 10 paid per place; more than 10 → exactly 10 by earlier score time, then address; never zero because of the cap | active (every standard; mismatches I-103, I-104) |
 | D-160 | 2026-11-05 | Kit rollout corrected: #203 delivers Questions for Mon 16; the kit is built as core only, then #203 is ported byte-compatibly; no second hand-built runner; any rule ambiguity stops the build and goes to the owner | active |
+| D-161 | 2026-11-05 | Block Golf holds for the Shared Game Kit: no launch on its hand-built recorder (`golf-launch` kept, not merged or switched on) | active |
 
 ---
 
@@ -855,6 +856,9 @@
   2. **Phase 0 is the kit's core only** (R-ARCH-3); no second Questions recorder.
   3. **No game launches a second hand-built runner while the kit is being built:** Fantasy, Block Golf and Bracket launch on the kit (R-ALL-11).
   4. **Any rule ambiguity stops the build** and goes to the owner; no chat guesses a rule.
+
+## D-161 — Block Golf waits for the kit
+- **Date:** 2026-11-05 (owner: "hold on golf wait for the kit") · **Decision:** Block Golf does not launch from `golf-launch` (`02c86e1`) or `golf-v2` on its own recorder (D-160). `GOLF_ENABLED` stays off; `golf-launch` and PR #187 stay open as the source for the port. When the kit's core merges (R-ARCH-3), Golf ports its recorder into `games/golf/recorder.ts` (R-ALL-11), keeps its scoring, and launches on the kit. The Repo Lens findings already fixed carry over.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

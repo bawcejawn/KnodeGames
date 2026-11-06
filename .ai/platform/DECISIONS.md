@@ -180,6 +180,7 @@
 | D-167 | 2026-11-05 | Shared Game Kit: the owner's answers after Repo Lens #B-11 (hold variables, vault-bot checks, payout pin, D-159 on the kit for Block X and Bracket, Survivor later, Combo's "10 max per card" to confirm) | active (filed from PR #222, renumbered from D-162) |
 | D-168 | 2026-11-05 | The sponsor covers moving stake now and Knode Swap from the next sponsor version; free players count against their own 40 a day and the shared 2,000-a-day pool (replaces D-027 and the 29 Oct "never sponsor swaps") | active |
 | D-169 | 2026-11-05 | Daily Mana only: 40 a day per address, use it or lose it, no weekly cap (contract weekly number 280 = 7 × 40, by the owner's `config` send; amends D-105) | active; 280 on chain since 5 Nov (`0x1220a4fa…81f4c`) |
+| D-170 | 2026-11-06 | VHP Ruler marks: sim 1 judged on 0.84 – 1.16 (the remaining big-producer edge accepted); sim 8's other producers judged on the low side only (no one more than 0.05 below honest); E's details recorded | active (`../standards/VHP_RULER.md` §18) |
 
 ---
 
@@ -898,6 +899,13 @@
 
 ## D-169 — Daily Mana only: use it or lose it (amends D-105)
 - **Date:** 2026-11-05 (owner: "daily limit remove weekly - use it or lose it") · **Decision:** every address has **40 Mana a day**, shared across every game and action, reset at 00:00 UTC, nothing carried over, **no weekly cap**. The contract needs a weekly number, so it is set to **280** (7 × 40, never reached) by the **owner's `config` send**; until that send, **250** is on chain. C-02 and `CURRENT_STATE.md` change when the owner confirms the send.
+
+## D-170 — VHP Ruler marks after option E (sim 1 and sim 8)
+- **Date:** 2026-11-06 (owner, on the Ruler chat's E results at `vhp-ruler-v21` @ `1cf5d4d`: "Widen the marks" for the remaining big-producer edge; for sim 8's others "No one pushed down", then "Only judge the low side") · **Decision:**
+  1. **Sim 1** passes on **0.84 – 1.16** of fair (was 0.85 – 1.15), with fair = 1 ÷ (field − steady throttlers). The remaining edge (S1: the biggest core members ~1.07 – 1.09, a few mid-size and small producers ~0.84 – 0.93) is an **accepted residual**; no per-card calibration now.
+  2. **Sim 8's other producers** (the N-1 case) pass if **no producer drops more than 0.05 below its honest result**; gaining from the attacker's lost wins is not harm, so there is no upper limit for them. The attacker itself must gain nothing (it wins 0.057 – 0.058 against 0.084 honest: passes).
+  3. **E's details as built (owner's answers to the Ruler chat):** the median form is taken over the field (entered, not void), the two middle forms averaged and rounded down on an even count; no 0.80 floor on the core; "can't win" (N-2) = a steady member below the core line.
+- **Next:** the Ruler chat re-judges sims 1 and 8 on these marks (no rebuild), records them in the sim report, and sends Repo Lens the E fix-check (`claude/ruler/REPOLENS-V21-RECHECK-PROMPT.md` at `1cf5d4d`). Nothing pays until all eleven pass on the stated marks and the review is GO (D-111).
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

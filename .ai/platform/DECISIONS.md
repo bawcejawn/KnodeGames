@@ -176,7 +176,7 @@
 | D-163 | 2026-11-05 | Steady throttlers stay in the games at full size (refines D-120); out only when unsteady below 0.80, back once steady | active |
 | D-164 | 2026-11-05 | Producer void: any VHP change beyond ±10% during a race voids that producer for that race, whoever sent it; a pick on a voided producer counts as a loss; nothing is refunded | active |
 | D-165 | 2026-11-05 | VHP Ruler A′ yardstick: only steady full-rate members (form ≥ 0.97 × the field's median form) set it, at full size; sim 1 marks fair among those who can win | active (`../standards/VHP_RULER.md` §18) |
-| D-166 | 2026-11-05 | Producer Race types (1-hour, 2-hour, daily, weekly beside the 6-hour race) | reserved: the entry lands with PR #216, which must renumber its "D-161" to D-166 (D-161 is Block Golf's hold) |
+| D-166 | 2026-11-05 | Producer Race types: 1-hour, 2-hour, 6-hour, daily, weekly, all on one board (points 2/1, 2/1, 3/1, 6/2, 12/4); no per-game pick limit | built on `race-types` (contract v2 + recorder + page), off until `TYPES_FROM_WEEK`; audit and upload pending |
 | D-167 | 2026-11-05 | Shared Game Kit: the owner's answers after Repo Lens #B-11 (hold variables, vault-bot checks, payout pin, D-159 on the kit for Block X and Bracket, Survivor later, Combo's "10 max per card" to confirm) | active (filed from PR #222, renumbered from D-162) |
 | D-168 | 2026-11-05 | The sponsor covers moving stake now and Knode Swap from the next sponsor version; free players count against their own 40 a day and the shared 2,000-a-day pool (replaces D-027 and the 29 Oct "never sponsor swaps") | active |
 | D-169 | 2026-11-05 | Daily Mana only: 40 a day per address, use it or lose it, no weekly cap (contract weekly number 280 = 7 × 40, by the owner's `config` send; amends D-105) | active; 280 on chain since 5 Nov (`0x1220a4fa…81f4c`) |
@@ -891,31 +891,15 @@
 ## D-165 — The A′ yardstick: a steady full-rate core
 - **Date:** 2026-11-05 (owner, on Repo Lens #B-11 N-1: option "E: steady full-rate core"; on N-2: "Fair among those who can win") · **Decision:** in A′, only members whose form is **≥ 0.97 × the field's median form** set the yardstick, each at full size; every other member still plays at full size but moves no one. **Sim 1** marks "fair" as 1 ÷ (field − members that can't win). The Ruler chat builds it in one pass, re-runs all eleven sims on both histories, adds a sim 8 case (a core member at 0.80–0.95 signing in full), and sends Repo Lens a fix-check. Nothing pays until all eleven pass (D-111).
 
-## D-167 — Shared Game Kit: the owner's answers after Repo Lens #B-11
-- **Date:** 2026-11-05 (owner, in the doc "Shared Game Kit: what it does and where it goes") · **Decision:**
-  1. **Hold variables, every kit game:** `<GAME>_HOLD_WEEKS` (weeks kept pending) and `<GAME>_RELEASE = "<week>:<code>"` (releases one exact hold), as Block X today; hyphens in a slug become `_`. ("okay")
-  2. **Vault bot (`bot/vault.ts`), Vault chat:** check a RELEASE file's code itself (#B-11 KC-3), and hold a week instead of skipping a bad row (KC-15) (R-VAULT-17, R-VAULT-18). ("yes send both")
-  3. **Payout pin:** once the vault pays a kit game, `game-data/deployment.json` `vaultGames.<id>.kit` repeats its payout fields (`payoutRule`, `vaultValues`, `entry`, `sundayFunRound`, `roundsCorrectable`, `liveWeek`); the Vault chat adds it with each game's move (KC-26, R-VAULT-19). ("ok")
-  4. **Block X and Producer Bracket free places follow D-159 on the kit** (exactly 10 by earlier score time, then address, past 10; never empty), each as its own payout-change PR when the game moves, not in the migration PR (D-158). ("ok")
-  5. **Survivor's seasons on the kit come later**, after Block Golf, Fantasy and Bracket. ("survivor later")
-  6. **Combo Card:** a week counts only the best 10 cards, ties by more hits, then the earlier last hit. The owner added "10 max per card"; what that limits (points, legs, or the cards counted) is to be confirmed before the kit builds Combo's week rule (D-160: no guessing).
+## D-166 — Producer Race types, and no per-game pick limit
+- **Date:** 2026-11-05 (owner, to the Ruler chat: "Throw a 1 day race in there every day, throw a weekly race in there which runs Monday - Saturday just like all the other games. Throw a sprint race in there which is 1 or 2 hours ... This is really what helps expand the fun and utility and actions one can do on the platform." To the Race chat, the same day: "maybe make it 4 / 5 different boards and users can toggle through the time period they want to play in. 1 hour and 2 hour games should count as 2 points for win and 1 point for show. 6 hour games should count as 3 points for win 1 point for show. daily games should be 6 points for win and 2 points for show. then weekly should be 12 for win and 4 for show. The points all count toward the same Producer Race leaderboard"; "12 a day. The races should run around the clock like the 6 hour race. Hourly should run hourly for 24 per day."; "The sponsor wallet shouldnt have limitations on how many actions they can play in a single game. they should have a daily mana limit across the platform. if they have mana they can play. or provide their own mana"; "yes build it. get it ready for ASAP and we will push the upgrade when its clean audit and ready to go") · **Decision:**
+  - **Five race types, around the clock:** 1-hour (24 a day), 2-hour (12 a day), 6-hour (4 a day, unchanged), daily (each UTC day) and weekly (Monday 00:00 → Sunday 00:00 UTC, the play week). Sunday's races of every type but the weekly are fun races (D-129).
+  - **Points, all on the one Producer Race board:** win / show = 2 / 1 (1- and 2-hour), 3 / 1 (6-hour), 6 / 2 (daily), 12 / 4 (weekly). D-152 decides who gets paid; one vault results file a week.
+  - **The page:** a toggle per type (1-hour, 2-hour, 6-hour, daily, weekly), so a player always sees which race they're playing.
+  - **Handicaps:** the same formula; each type's k is the blocks expected in that race, from the same hourly VHP reading. So a short race has a smaller field (today: 12 producers at 1 hour, 15 at 2 hours, 17 at 6, 19 daily, 20 weekly). The Vault is out of 1- and 2-hour races until it holds about 109,000 / 54,000 VHP; the page says so (the bar isn't lowered).
+  - **No per-game pick limit:** the Race contract's daily limit is set to 0 (no limit). The Mana sponsor's daily limit across the platform is the cap, or the player's own Mana. Other games' per-game limits: R-ALL-13.
+- **How:** the Race contract v2 (same address; the race type rides in the race number from bit 48 (race = type × 2^48 + index, below 2^53 so every JavaScript client sends it exactly; Repo Lens #D-13 H-1), so a pick is still v1's three fields and the Mana sponsor needs no change; old picks untouched; audit and Repo Lens first, then upload in a Monday 01:40–06:30 UTC slot with the owner's key); the recorder's hour ledger and `T<week>.json` (W files and Block X unchanged); `TYPES_FROM_WEEK` in `race-math.js` turns it on with the upload.
 
-## D-168 — The sponsor covers moving stake and (next version) Knode Swap
-- **Date:** 2026-11-05 (owner, to the Block X chat, on the daily Mana rule: moving stake and Knode Swap "cover them"; free players and the 2,000-a-day pool "ok") · **Decision:**
-  1. **`move_stake` is covered** (replaces D-027's "never `move_stake`"). The sponsor contract always allowed it (vault call, the payer's own); the site now asks for it (Block X chat, branch `blockx-e23-fixes`).
-  2. **Knode Swap is covered** (replaces the 29 Oct "never sponsor swaps", audit SP-24) **from the next sponsor version**: sponsor v3 refuses swaps in code. It ships with R-BX-5 (Picks game 12 → vault game 2). A swap names no game, so it counts as free play: the shared 2,000-a-day pool plus the swapper's own 40 a day.
-  3. **Free players** count against their own 40 a day **and** the shared 2,000-a-day free pool (Repo Lens #E-23 I-2 wording).
-- Rules: `SPONSOR.md` §1 "The daily Mana rule". Withdrawals never depend on the sponsor (RULES).
-
-## D-169 — Daily Mana only: use it or lose it (amends D-105)
-- **Date:** 2026-11-05 (owner: "daily limit remove weekly - use it or lose it") · **Decision:** every address has **40 Mana a day**, shared across every game and action, reset at 00:00 UTC, nothing carried over, **no weekly cap**. The contract needs a weekly number, so it is set to **280** (7 × 40, never reached) by the **owner's `config` send**; until that send, **250** is on chain. C-02 and `CURRENT_STATE.md` change when the owner confirms the send.
-
-## D-170 — VHP Ruler marks after option E (sim 1 and sim 8)
-- **Date:** 2026-11-06 (owner, on the Ruler chat's E results at `vhp-ruler-v21` @ `1cf5d4d`: "Widen the marks" for the remaining big-producer edge; for sim 8's others "No one pushed down", then "Only judge the low side") · **Decision:**
-  1. **Sim 1** passes on **0.84 – 1.16** of fair (was 0.85 – 1.15), with fair = 1 ÷ (field − steady throttlers). The remaining edge (S1: the biggest core members ~1.07 – 1.09, a few mid-size and small producers ~0.84 – 0.93) is an **accepted residual**; no per-card calibration now.
-  2. **Sim 8's other producers** (the N-1 case) pass if **no producer drops more than 0.05 below its honest result**; gaining from the attacker's lost wins is not harm, so there is no upper limit for them. The attacker itself must gain nothing (it wins 0.057 – 0.058 against 0.084 honest: passes).
-  3. **E's details as built (owner's answers to the Ruler chat):** the median form is taken over the field (entered, not void), the two middle forms averaged and rounded down on an even count; no 0.80 floor on the core; "can't win" (N-2) = a steady member below the core line.
-- **Next:** the Ruler chat re-judges sims 1 and 8 on these marks (no rebuild), records them in the sim report, and sends Repo Lens the E fix-check (`claude/ruler/REPOLENS-V21-RECHECK-PROMPT.md` at `1cf5d4d`). Nothing pays until all eleven pass on the stated marks and the review is GO (D-111).
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.
@@ -952,3 +936,29 @@ Repo wins over chats (D-002); the owner's answers win over both.
 | C-22 | Fantasy results path | same place: the vault bot reads `games-data:fantasy/vault/W<week>.json`, which is where Fantasy writes | code ✅ (`bot/vault.ts`, `bot/games/fantasy.ts`) |
 | C-23 | Launch order | superseded by D-052 / D-064 | owner |
 | C-24 | Survivor free prize | 2 + 1 per week = 4 + 2 per 2-week season, paid once at season end | owner (D-068) |
+
+## D-167 — Shared Game Kit: the owner's answers after Repo Lens #B-11
+- **Date:** 2026-11-05 (owner, in the doc "Shared Game Kit: what it does and where it goes") · **Decision:**
+  1. **Hold variables, every kit game:** `<GAME>_HOLD_WEEKS` (weeks kept pending) and `<GAME>_RELEASE = "<week>:<code>"` (releases one exact hold), as Block X today; hyphens in a slug become `_`. ("okay")
+  2. **Vault bot (`bot/vault.ts`), Vault chat:** check a RELEASE file's code itself (#B-11 KC-3), and hold a week instead of skipping a bad row (KC-15) (R-VAULT-17, R-VAULT-18). ("yes send both")
+  3. **Payout pin:** once the vault pays a kit game, `game-data/deployment.json` `vaultGames.<id>.kit` repeats its payout fields (`payoutRule`, `vaultValues`, `entry`, `sundayFunRound`, `roundsCorrectable`, `liveWeek`); the Vault chat adds it with each game's move (KC-26, R-VAULT-19). ("ok")
+  4. **Block X and Producer Bracket free places follow D-159 on the kit** (exactly 10 by earlier score time, then address, past 10; never empty), each as its own payout-change PR when the game moves, not in the migration PR (D-158). ("ok")
+  5. **Survivor's seasons on the kit come later**, after Block Golf, Fantasy and Bracket. ("survivor later")
+  6. **Combo Card:** a week counts only the best 10 cards, ties by more hits, then the earlier last hit. The owner added "10 max per card"; what that limits (points, legs, or the cards counted) is to be confirmed before the kit builds Combo's week rule (D-160: no guessing).
+
+## D-168 — The sponsor covers moving stake and (next version) Knode Swap
+- **Date:** 2026-11-05 (owner, to the Block X chat, on the daily Mana rule: moving stake and Knode Swap "cover them"; free players and the 2,000-a-day pool "ok") · **Decision:**
+  1. **`move_stake` is covered** (replaces D-027's "never `move_stake`"). The sponsor contract always allowed it (vault call, the payer's own); the site now asks for it (Block X chat, branch `blockx-e23-fixes`).
+  2. **Knode Swap is covered** (replaces the 29 Oct "never sponsor swaps", audit SP-24) **from the next sponsor version**: sponsor v3 refuses swaps in code. It ships with R-BX-5 (Picks game 12 → vault game 2). A swap names no game, so it counts as free play: the shared 2,000-a-day pool plus the swapper's own 40 a day.
+  3. **Free players** count against their own 40 a day **and** the shared 2,000-a-day free pool (Repo Lens #E-23 I-2 wording).
+- Rules: `SPONSOR.md` §1 "The daily Mana rule". Withdrawals never depend on the sponsor (RULES).
+
+## D-169 — Daily Mana only: use it or lose it (amends D-105)
+- **Date:** 2026-11-05 (owner: "daily limit remove weekly - use it or lose it") · **Decision:** every address has **40 Mana a day**, shared across every game and action, reset at 00:00 UTC, nothing carried over, **no weekly cap**. The contract needs a weekly number, so it is set to **280** (7 × 40, never reached) by the **owner's `config` send**; until that send, **250** is on chain. C-02 and `CURRENT_STATE.md` change when the owner confirms the send.
+
+## D-170 — VHP Ruler marks after option E (sim 1 and sim 8)
+- **Date:** 2026-11-06 (owner, on the Ruler chat's E results at `vhp-ruler-v21` @ `1cf5d4d`: "Widen the marks" for the remaining big-producer edge; for sim 8's others "No one pushed down", then "Only judge the low side") · **Decision:**
+  1. **Sim 1** passes on **0.84 – 1.16** of fair (was 0.85 – 1.15), with fair = 1 ÷ (field − steady throttlers). The remaining edge (S1: the biggest core members ~1.07 – 1.09, a few mid-size and small producers ~0.84 – 0.93) is an **accepted residual**; no per-card calibration now.
+  2. **Sim 8's other producers** (the N-1 case) pass if **no producer drops more than 0.05 below its honest result**; gaining from the attacker's lost wins is not harm, so there is no upper limit for them. The attacker itself must gain nothing (it wins 0.057 – 0.058 against 0.084 honest: passes).
+  3. **E's details as built (owner's answers to the Ruler chat):** the median form is taken over the field (entered, not void), the two middle forms averaged and rounded down on an even count; no 0.80 floor on the core; "can't win" (N-2) = a steady member below the core line.
+- **Next:** the Ruler chat re-judges sims 1 and 8 on these marks (no rebuild), records them in the sim report, and sends Repo Lens the E fix-check (`claude/ruler/REPOLENS-V21-RECHECK-PROMPT.md` at `1cf5d4d`). Nothing pays until all eleven pass on the stated marks and the review is GO (D-111).

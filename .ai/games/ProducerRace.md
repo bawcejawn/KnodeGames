@@ -40,6 +40,7 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 
 ## Current status (5 Nov)
 - **Live as a game.** Vault `game-add 7` sent 3 Nov (tx `0x1220d394…`); **`game-apply 7` done 5 Nov** ✅: staked + free prize from vault week 3 (Mon 9 Nov, "Week 1"). Free-prize switch: ON (D-082). `PRIZES_FROM_WEEK = 3` is on `main` (PR #56) ✅. 👤 / 💬
+- **Race types (D-166, built on `race-types`, off until `TYPES_FROM_WEEK`):** 1-hour (24 a day), 2-hour (12 a day), 6-hour, daily and weekly (Mon–Sat) races; points 2/1, 2/1, 3/1, 6/2, 12/4 on the one board; a toggle per type on the page. Contract v2: race = type × 2^48 + index, always below 2^53 so browsers send it exactly (type 0 = the 6-hour race, v1's numbers unchanged; the pick is still three fields, so the Mana sponsor needs no change), daily limit 0 = none. Recorder: the hour ledger (each producer's blocks per UTC hour, both nodes) and `T<week>.json` with the week's 260 typed races; W files and Block X unchanged. Turning it on: upload v2 (Monday 01:40–06:30 UTC), set `TYPES_FROM_WEEK`, `npm run racepicks -- limit 0 --send`.
 - **Who gets paid (D-152, ties across the line)** and the paid set past 255 scores (I-086): PR #182, Repo Lens fix-check next.
 - **On the weekly rhythm** (#149, #155 merged) and **payout safety merged** (#133, test fix #153). ✅
 - **Pays from 9 Nov with its two known handicap gaps open** (the > 6-h hide and VHP added after a card) until the one VHP ruler lands (D-094, D-090, D-093).

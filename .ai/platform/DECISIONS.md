@@ -37,7 +37,7 @@
 | D-024 | ❓ | Launch games as soon as ready; vault upgrades need 48 h notice | active |
 | D-025 | ❓ | Branch hygiene for `vault-v6` | active |
 | D-026 | ❓ | Merges only on the owner's explicit OK | active |
-| D-027 | 2026-10-30 | Sponsor pays stake, withdraw and claim — never `move_stake` | active |
+| D-027 | 2026-10-30 | Sponsor pays stake, withdraw and claim — never `move_stake` | superseded by D-168 (5 Nov: `move_stake` covered) |
 | D-028 | ❓ | Sponsor caps 25 Mana per wallet per day, 150 per week | active (see D-061); caps superseded by D-105, D-131 |
 | D-029 | ❓ | Prize and liability rules | active |
 | D-030 | 2026-10-30 | Names: one Koinos @name per wallet | active |
@@ -115,7 +115,7 @@
 | D-102 | 2026-11-04 | The full platform audit runs only once everything is confidently ready | active |
 | D-103 | 2026-11-04 | A new Race pending file may be dated up to 35 minutes back (was 15) | active |
 | D-104 | 2026-11-04 | The sponsor's Picks pick row is 1 Mana (was 0.2); the site asks 1 Mana; vault switch off until the guest-trap fix is uploaded | active; superseded by D-117, D-131 |
-| D-105 | 2026-11-04 | Sponsor per-player caps 40 Mana a day and 250 a week (were 25 / 150); not higher, for spam | active |
+| D-105 | 2026-11-04 | Sponsor per-player caps 40 Mana a day and 250 a week (were 25 / 150); not higher, for spam | amended by D-169 (40 a day, no weekly cap) |
 | D-106 | 2026-11-04 | The Picks owner handover waits until its tool is built and checked, after Survivor's game 3 is applied; not this weekend | active (amends D-096 for Picks) |
 | D-107 | 2026-11-04 | A held week fails its run and emails the owner, and the alert names what the owner can do about it | active |
 | D-108 | 2026-11-04 | Build the shared VHP ruler (R-ARCH-1); the Race's two gaps are closed by it, not by a Race-only fix | active; builder amended by D-110 |
@@ -178,6 +178,8 @@
 | D-165 | 2026-11-05 | VHP Ruler A′ yardstick: only steady full-rate members (form ≥ 0.97 × the field's median form) set it, at full size; sim 1 marks fair among those who can win | active (`../standards/VHP_RULER.md` §18) |
 | D-166 | 2026-11-05 | Producer Race types (1-hour, 2-hour, daily, weekly beside the 6-hour race) | reserved: the entry lands with PR #216, which must renumber its "D-161" to D-166 (D-161 is Block Golf's hold) |
 | D-167 | 2026-11-05 | Shared Game Kit: the owner's answers after Repo Lens #B-11 (hold variables, vault-bot checks, payout pin, D-159 on the kit for Block X and Bracket, Survivor later, Combo's "10 max per card" to confirm) | active (filed from PR #222, renumbered from D-162) |
+| D-168 | 2026-11-05 | The sponsor covers moving stake now and Knode Swap from the next sponsor version; free players count against their own 40 a day and the shared 2,000-a-day pool (replaces D-027 and the 29 Oct "never sponsor swaps") | active |
+| D-169 | 2026-11-05 | Daily Mana only: 40 a day per address, use it or lose it, no weekly cap (contract weekly number 280 = 7 × 40, by the owner's `config` send; amends D-105) | active; 250 on chain until the owner's send |
 
 ---
 
@@ -886,6 +888,16 @@
   4. **Block X and Producer Bracket free places follow D-159 on the kit** (exactly 10 by earlier score time, then address, past 10; never empty), each as its own payout-change PR when the game moves, not in the migration PR (D-158). ("ok")
   5. **Survivor's seasons on the kit come later**, after Block Golf, Fantasy and Bracket. ("survivor later")
   6. **Combo Card:** a week counts only the best 10 cards, ties by more hits, then the earlier last hit. The owner added "10 max per card"; what that limits (points, legs, or the cards counted) is to be confirmed before the kit builds Combo's week rule (D-160: no guessing).
+
+## D-168 — The sponsor covers moving stake and (next version) Knode Swap
+- **Date:** 2026-11-05 (owner, to the Block X chat, on the daily Mana rule: moving stake and Knode Swap "cover them"; free players and the 2,000-a-day pool "ok") · **Decision:**
+  1. **`move_stake` is covered** (replaces D-027's "never `move_stake`"). The sponsor contract always allowed it (vault call, the payer's own); the site now asks for it (Block X chat, branch `blockx-e23-fixes`).
+  2. **Knode Swap is covered** (replaces the 29 Oct "never sponsor swaps", audit SP-24) **from the next sponsor version**: sponsor v3 refuses swaps in code. It ships with R-BX-5 (Picks game 12 → vault game 2). A swap names no game, so it counts as free play: the shared 2,000-a-day pool plus the swapper's own 40 a day.
+  3. **Free players** count against their own 40 a day **and** the shared 2,000-a-day free pool (Repo Lens #E-23 I-2 wording).
+- Rules: `SPONSOR.md` §1 "The daily Mana rule". Withdrawals never depend on the sponsor (RULES).
+
+## D-169 — Daily Mana only: use it or lose it (amends D-105)
+- **Date:** 2026-11-05 (owner: "daily limit remove weekly - use it or lose it") · **Decision:** every address has **40 Mana a day**, shared across every game and action, reset at 00:00 UTC, nothing carried over, **no weekly cap**. The contract needs a weekly number, so it is set to **280** (7 × 40, never reached) by the **owner's `config` send**; until that send, **250** is on chain. C-02 and `CURRENT_STATE.md` change when the owner confirms the send.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

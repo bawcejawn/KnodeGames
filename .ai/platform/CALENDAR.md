@@ -10,7 +10,7 @@
 | When (UTC) | Pacific | What | Who | Source |
 |---|---|---|---|---|
 | Thu 5 Nov, 15:51 | 7:51 AM | Games 2 (Block X) and 7 (Race) become applicable: `game-apply 2`, `game-apply 7`, then `PRIZES_FROM_WEEK = 3` | Owner | D-077 |
-| **Thu 5 Nov** | after the apply (by Sat 7, 9 AM PT at the latest) | **Announce vault v6.1** (starts the 48 h), signed by the current owner `1635QU…` | Owner | D-130 |
+| **Thu 5 Nov** | ✅ ~11:01 AM PT | **Vault v6.1 announced** ✅ (`11043e1f…`, tx `0x1220a4a9…66b0`, signed by `1635QU…`; replaced the 4 Nov `399171a2…` announcement); uploadable from Sat 7 19:01 UTC | Owner | D-130 |
 | Thu 5 Nov | after the apply | Tell players: Week 1 starts Mon 9 (three games paying, two Questions rounds a day, free prizes) | Owner | D-064 |
 | Thu 5 Nov | any time | Turn the VHP ruler's recorder on (`VHP_RULER_ENABLED = true`; data only) | Owner | D-128 |
 | Fri 6 Nov | ~noon | Latest safe `game-add` for any game to earn from Mon 9 (none planned) | Owner | `GO_LIVE_CHECKLIST` timing rule |

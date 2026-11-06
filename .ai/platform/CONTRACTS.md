@@ -17,7 +17,7 @@
 | Contract | Build | Purpose | Status |
 |---|---|---|---|
 | Vault v6 withdrawals-only | `e84fec492d47e08f583c352bb26e3d36dc0149926c0482d0820b0dbd97af9fe3` | emergency: players can only withdraw (D-021) | pinned today as `safeWasmSha256` |
-| **Vault v6.1** release | `11043e1fde1d8d7dbac75e9e5e788d058a7116b0dab6149fc09ecdc7b1c4258b` | 60-question cap, Questions on the shared rules, the bot closes weeks | Repo Lens #E-16 GO; announce Thu 5, upload Mon 9 (D-130) |
+| **Vault v6.1** release | `11043e1fde1d8d7dbac75e9e5e788d058a7116b0dab6149fc09ecdc7b1c4258b` | 60-question cap, Questions on the shared rules, the bot closes weeks | Repo Lens #E-16 GO; **announced 5 Nov** (tx `0x1220a4a9…66b0`, uploadable from Sat 7 19:01 UTC); upload Mon 9 (D-130) |
 | **Vault v6.1** withdrawals-only | `04c27c1acde570b97a430dea403d41aab47e083ae30115353ee5f89932dad0bb` | the emergency build for v6.1 | pinned right after Monday's upload; **the only rollback once the rule week starts** |
 
 ## 3. History (the builds that were live)

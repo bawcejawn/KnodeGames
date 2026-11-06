@@ -265,3 +265,9 @@ Built on `vhp-ruler-v21` @ `208fe00` (RULE_VERSION 3: `pct` exact mid-p Poisson,
 - **Late voids (N-3, D-164):** kept: any VHP change beyond ±10% during the race voids the producer for that race, whoever sent it; a pick on a voided producer counts as a loss; nothing refunded.
 - **Also ruled:** the Vault and the Pool race under the same rules (D-162); steady throttlers stay in at full size (D-163).
 - **Next (R-RULER-2):** build E in both languages, re-run all eleven sims on both histories plus a new sim 8 case (a core member at 0.80–0.95 signing in full), turn the N-1 `todo` tests on, Repo Lens fix-check (`claude/ruler/REPOLENS-V21-RECHECK-PROMPT.md`, updated by the Ruler chat). Nothing pays until all eleven pass (D-111).
+
+### 18.1 E built, marks settled (6 Nov 2026, D-170)
+Built at `vhp-ruler-v21` @ `1cf5d4d` (115 pass, 1 todo; sim 11 40/40). N-1 is fixed: an 18% member steady at 0.80 – 0.95 that signs in full wins 0.057 – 0.058 against 0.084 honest. Passes: 2, 3, 7, 9, 10, 11 (4, 5 unchanged; 6 accepted). On the original marks sim 1 missed by 0.01 (0.84 – 1.09 / 0.85 – 1.07) and sim 8's others by the spread of the attacker's lost wins (0.85 – 1.15 / 0.85 – 1.17).
+- **Sim 1 mark:** 0.84 – 1.16 of fair, fair = 1 ÷ (field − steady throttlers). The big-producer edge S1 is an accepted residual.
+- **Sim 8 others:** pass if none drops more than 0.05 below its honest result (no upper limit).
+- **E's details:** median form over the entered, non-void field (even count: the two middle averaged, rounded down); no 0.80 floor on the core; "can't win" = a steady member below the core line.

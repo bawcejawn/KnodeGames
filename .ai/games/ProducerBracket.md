@@ -34,7 +34,13 @@ A weekly knockout tournament of Koinos block producers, like a March Madness bra
 
 ## Current status (5 Nov)
 - **▶ Reactivated 5 Nov (D-142): one of the next three games to launch. Its chat starts with `../platform/CHAT_REQUESTS.md` → R-ALL-9 (the catch-up on the 4–5 Nov standards), then its own section.**
-- **Branch `kg-09-bracket` @ `8d3d942`, draft PR #186 (5 Nov):** the D-141 shape (max 32 players, D-153) and every Repo Lens #E-3 fix; on the weekly cycle (Sunday 00:00 seeding, no Sunday rounds — owner to confirm). **Not merged, nothing deployed.** Next: the #E-3 fix-check (`claude/bracket/REPOLENS-E3-FIXCHECK2-PROMPT.md`).
+- **Branch `kg-09-bracket` @ `3b46546f`, draft PR #186 (6 Nov):** Repo Lens fix-check 2 (at `8d3d942f`) was NO-GO; every finding fixed (PK-1 High, PK-2, R-1, F9-1, S-1, W-1, FL-1, P-2, I-1, T-1). Full `npm run test:audit` 1,135 pass, 0 fail; 6 of 6 mutations caught; the reviewer's 14 tests added (`tests/audit/repolens-e3fc2-*`). **Not merged, nothing deployed.** Next: fix-check 3 (`claude/bracket/REPOLENS-E3-FIXCHECK3-PROMPT.md`), then the port onto the kit before launch (D-158, D-160, R-ALL-11).
+  - **Picks follow the two-run rule** (`picks.re`), like hours; stakes, final and the vault file need it. Picks still unconfirmed at the backstop → void.
+  - **Late picks:** never after round 1's first hour, even under `BRACKET_RELEASE`.
+  - **`BRACKET_RELEASE`:** set it only to correct a week; a week named in it can't go final, so the owner clears it after the correction. Picks can be corrected only until round 1's first hour, a seeding only within its 24 h.
+  - **Per-week hold:** a bad Bracket week file is held on its own (with its vault file and board), not the whole game; the publish job downloads the Bracket artifact to its own folder.
+  - **Page:** the KOIN Vault open-request lock is kept per account and week until KOIN Vault's expiry (else 30 min), and on a lost network answer. Shared `wallet.js` gained `openUntil` on three KOIN Vault errors (no behaviour change; Hub chat told).
+  - Picks announce: `ahead` 46 h (RC-6). Waiting on other chats: Vault F8; Block X the sponsor row for game 9; Ruler v2.1 pct.
 - **Repo Lens #E-3 (3 Nov), audited tip `5b2492e`:** 2 Critical, 6 High, 10 Medium, plus Low/Info — fixed on the branch, fix-check pending. Report and failing tests are private, in the Claude project (`claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`). No launch date (D-088).
 - Evidence before the audit: the VHP rebuild matched all 780 race-card readings; over 100 days the better seed won 54% of 113 matchups, and a "last week's form" bracket averaged 14.8 points vs 4.8 for random. The sampling branches are already deleted ✅.
 - Work list: `../platform/CHAT_REQUESTS.md` → Producer Bracket.

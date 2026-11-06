@@ -10,8 +10,8 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { renderAll, kitGames } from "../../tools/kit-render-workflows.mjs";
 import YAML from "yaml";
-import { inlineScript, renderJobs, BEGIN, END, HEREDOC, TRAILER, RECORD_TIMEOUT_MIN } from "../publish/render.mjs";
-import { canon, boardOf, tally } from "../publish/check.inline.mjs";
+import { inlineScript, renderJobs, BEGIN, END, HEREDOC, TRAILER, RECORD_TIMEOUT_MIN, SETUP_MIN, LEGACY_WAIT_MAX_MIN } from "../publish/render.mjs";
+import { canon, boardOf, tally, FRESH_MS, MAX_BEHIND_MS } from "../publish/check.inline.mjs";
 import { validateManifest, BUDGET_MAX } from "../../tools/game-manifest.mjs";
 import { dataFolder } from "../recorder/manifest.ts";
 import { makeWeek } from "../testing/weekfile.ts";
@@ -102,7 +102,7 @@ const TWO = (() => {
 })();
 
 test("render: one record job per kit game, each with its own timeout, artifact and variable (KC-4, KC-13)", () => {
-  assert.deepEqual(Object.keys(TWO).sort(), ["publish", "publish-kit", "record-kit-example", "record-kit-other"]);
+  assert.deepEqual(Object.keys(TWO).sort(), ["kit-alerts", "publish", "publish-kit", "record-kit-example", "record-kit-other"]);
   for (const [slug, v] of [["kit-example", "KIT_EXAMPLE"], ["kit-other", "KIT_OTHER"]]) {
     const j = TWO[`record-${slug}`];
     assert.equal(j["timeout-minutes"], RECORD_TIMEOUT_MIN);
@@ -111,11 +111,14 @@ test("render: one record job per kit game, each with its own timeout, artifact a
     const upl = j.steps.find((s: any) => String(s.uses).startsWith("actions/upload-artifact@"));
     assert.equal(upl.with.name, `kit-games-data-${slug}`, "its own artifact");
     const rec = j.steps.find((s: any) => s.id === "rec");
-    assert.match(rec.run, new RegExp(`npm run kit -- ${slug}; rc=\\$\\?`));
+    assert.match(rec.run, new RegExp(`rc=0; npm run kit -- ${slug} \\|\\| rc=\\$\\?`), "the exit code is captured, never fatal under bash -e (NK-1)");
+    assert.equal(upl.if, "${{ steps.rec.outputs.rc == '0' || steps.rec.outputs.rc == '1' }}", "a run that wrote files (0 or 1) uploads them");
     assert.equal(rec.env[`${v}_RELEASE`], `\${{ vars.${v}_RELEASE }}`);
   }
-  // A game's budget fits its job: the manifest caps budgets.ms at 20 minutes.
-  assert.ok(BUDGET_MAX.ms / 60000 + 4 <= RECORD_TIMEOUT_MIN);
+  // A game's budget fits its job (NK-15): budgets.ms (≤ 20 min), a last read's retries (6 tries: ~4.1 min) and setup.
+  assert.ok(BUDGET_MAX.ms / 60000 + 4.1 + SETUP_MIN <= RECORD_TIMEOUT_MIN);
+  // …and the publish check's freshness window covers the chain lag plus every job publish-kit waits for (NK-11).
+  assert.ok(RECORD_TIMEOUT_MIN <= LEGACY_WAIT_MAX_MIN && FRESH_MS >= MAX_BEHIND_MS + (LEGACY_WAIT_MAX_MIN + 5) * 60000);
 });
 
 test("render: the publish job takes each game's files only from that game's artifact, and reads the owner's releases itself (KC-3, KC-13, KC-29)", () => {
@@ -133,8 +136,12 @@ test("render: the publish job takes each game's files only from that game's arti
   for (const s of p.steps) if (s.uses) assert.match(s.uses, /^actions\/(download-artifact|setup-node)@[0-9a-f]{40}$/);
   const runs = p.steps.map((s: any) => s.run ?? "").join("\n");
   for (const bad of [/actions\/checkout/, /\bnpm\b/, /\btsx\b/, /^\s*node\s+(?!--input-type=module - )/m, /kit\/recorder/]) assert.doesNotMatch(runs, bad);
-  // The two alerts say different things (KC-28).
-  assert.ok(p.steps.some((s: any) => /stopped/.test(s.name)) && p.steps.some((s: any) => /needs the owner/.test(s.name)));
+  // The alerts are their own always-run job, so they fire even when publish-kit is skipped (NK-16), and say different
+  // things (KC-28).
+  const a = TWO["kit-alerts"];
+  assert.deepEqual(a.needs, ["record-kit-example", "record-kit-other", "publish-kit"]);
+  assert.match(a.if, /^\$\{\{ always\(\) && /);
+  assert.ok(a.steps.some((s: any) => /stopped/.test(s.name)) && a.steps.some((s: any) => /needs the owner/.test(s.name)));
 });
 
 test("render: a name, slug, variable or branch that isn't plain is refused (KC-14, KC-23); the manifest refuses it too", () => {

@@ -55,10 +55,10 @@ function orderBreak(rows: any[], places: Map<string, number>) {
   return "";
 }
 
-test("control: honest pending, then honest final an hour later, publish", () => {
+test("control: honest pending, then honest final an hour after the pending copy could have been published (NK-8: 2 h after seen.at), publish", () => {
   const p = week("pending", END + 60000), f = week("final", END + 60000);
   assert.deepEqual(check({ "W004.json": p }, {}, END + 2 * 60000).held, []);
-  const r = check({ "W004.json": f, "vault/W4.json": vaultFileOf(f, tally(f, Q)) }, { "W004.json": p }, END + 2 * H);
+  const r = check({ "W004.json": f, "vault/W4.json": vaultFileOf(f, tally(f, Q)) }, { "W004.json": p }, END + 60000 + 2 * H);
   assert.deepEqual(r.held, []);
 });
 
@@ -169,7 +169,8 @@ test("KC-6 (Medium): after final, a run where node b disagrees writes no HOLD; a
   const rp2 = new Replay(flaky as any, cfg, rp.root);
   const h = await rp2.hour(nodes2(wd), t + 300000);
   assert.equal(rp.read("vault/HOLD-W4.json"), null, "one bad run writes no HOLD");
-  assert.ok(h.result!.alerts.warnings.some((w) => /couldn't re-read every round/.test(w)));
+  // …but it does alert the owner: two nodes disagreeing on a final week can't go quiet (#B-12 NK-12).
+  assert.ok(h.result!.alerts.errors.some((w) => /nodes disagree on its rounds/.test(w)));
   // A real change after final (both nodes): HOLD once, then an alert on every later run until released.
   t += H;
   const changed = () => { const x = wd(); x.players[0].entry.answers[1].option = 0; return x; };

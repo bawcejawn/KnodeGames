@@ -102,16 +102,20 @@ test("KC-21: past the results deadline unfinal, every run alerts (not only withi
   }
 });
 
-test("KC-22: vault-stakes: the live gate is w + 1 ≥ v6_rule_week_plus_one; the minimum isn't replaced; voided from void_week_plus_one", async () => {
+test("KC-22, NK-2: vault-stakes: the live gate is w + 1 ≥ v6_rule_week_plus_one; the minimum isn't replaced; voided from the week's entry", async () => {
   const wd = world(at(5, 0, 1));
   const node = (cfg: any, p: any) => ({ label: "n", read: async (m: string) => (m === "get_state" ? { time: String(wd.time), config: { ...wd.config, ...cfg } } : p) });
   const A = addr(1);
   let r = await readVaultStakes(node({ v6_rule_week_plus_one: "6" }, {}) as any, 2, [A], 4, wd.time);
   assert.equal(r.live, false, "week 4 is before the v6 rule week (5 + 1 = 6)");
-  r = await readVaultStakes(node({ v6_rule_week_plus_one: "5", min_stake: "0" }, { week_stake: "7", entry: { stake: "7", peak_stake: "9" }, player: { void_week_plus_one: "5" } }) as any, 2, [A], 4, wd.time);
+  r = await readVaultStakes(node({ v6_rule_week_plus_one: "5", min_stake: "0" }, { week_stake: "7", entry: { stake: "7", peak_stake: "9", voided: true }, player: { void_week_plus_one: "6" } }) as any, 2, [A], 4, wd.time);
   assert.equal(r.live, true);
   assert.equal(r.min, "0", "the vault's own minimum, not 1 KOIN");
-  assert.deepEqual(r.stakes.get(A), { stake: "7", peak: "9", voided: true });
+  assert.deepEqual(r.stakes.get(A), { stake: "7", peak: "9", voided: true }, "the entry's frozen flag, not the player's later void week");
+  r = await readVaultStakes(node({ v6_rule_week_plus_one: "5" }, { week_stake: "7", entry: { stake: "7", peak_stake: "9", voided: false }, player: { void_week_plus_one: "5" } }) as any, 2, [A], 4, wd.time);
+  assert.equal(r.stakes.get(A)!.voided, false, "an entry that isn't voided wins over the player's field");
+  r = await readVaultStakes(node({ v6_rule_week_plus_one: "5" }, { week_stake: "0", player: { void_week_plus_one: "5" } }) as any, 2, [A], 4, wd.time);
+  assert.equal(r.stakes.get(A)!.voided, true, "no entry: the player's void week is the fallback");
 });
 
 test("KC-24: a game whose decided rounds can't change (roundsCorrectable false) stops on an on-chain change, naming the round", async () => {

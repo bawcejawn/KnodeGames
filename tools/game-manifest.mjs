@@ -61,7 +61,7 @@ export function validateManifest(m, opts = {}) {
   need(typeof d.vaultFolder === "string" && d.vaultFolder.length > 0, "data.vaultFolder: where the weekly vault files are published");
   const wf = m.workflow || {};
   need(typeof wf.file === "string" && /^[a-z0-9-]+\.yml$/.test(wf.file), "workflow.file: the recorder workflow (e.g. games.yml)");
-  need(typeof wf.enabledVar === "string" && /^[A-Z][A-Z0-9_]+$/.test(wf.enabledVar), "workflow.enabledVar: the repo variable that turns the recorder on");
+  need(typeof wf.enabledVar === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(wf.enabledVar), "workflow.enabledVar: the repo variable that turns the recorder on (at most 64 characters, as the kit's render allows; NK-20)");
   need(typeof wf.prizesFromVar === "string" && /^[A-Z][A-Z0-9_]+$/.test(wf.prizesFromVar), "workflow.prizesFromVar: the repo variable for the first paid week");
   need(typeof m.page === "string" && /^[a-z0-9-]+\.html$/.test(m.page), "page: the page's file name (e.g. blockx.html)");
   need(typeof m.rulesDoc === "string" && m.rulesDoc.startsWith(".ai/games/") && m.rulesDoc.endsWith(".md"), "rulesDoc: .ai/games/<Game>.md");

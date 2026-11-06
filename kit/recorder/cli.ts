@@ -12,29 +12,32 @@ import { print } from "./alerts.ts";
 export async function main(argv = process.argv.slice(2), env = process.env): Promise<number> {
   const slug = argv[0];
   if (!slug || !/^[a-z][a-z0-9-]{1,23}$/.test(slug)) { console.error("Usage: npm run kit -- <slug>"); return 2; }
-  const m = loadManifest(slug);
-  const dep = readDeployment();
-  const cfg = kitConfig(m, dep);
-  const rpc = env.RPC || dep.rpc, check = env.RPC_CHECK;
-  if (!check || check === rpc) { console.error("::error::two different nodes are required (RPC and RPC_CHECK): RECORDER §2.1"); return 2; }
-  const ids = { vault: dep.contract, picks: dep.sponsor?.picks, racepicks: dep.sponsor?.race };
-  const nodes = [await koinosNode("rpc", rpc, ids), await koinosNode("rpc_check", check, ids)] as const;
-  // A field the vault ABI doesn't know is silently dropped by the decoder: game 1's rule week would read as "not set"
-  // and the recorder would quietly record nothing. Fail loudly instead until the v6.1 ABI is in (PR #114).
-  if (m.picks?.contract === "vault" && !abiHasConfigField("q60_rule_week_plus_one")) { console.error("::error::game/abi/kpred.koilib.json predates v6.1 (no q60_rule_week_plus_one): the vault-answers source can't tell a shared-rules week. Update the ABI (PR #114) first."); return 2; }
-  const { game } = await import(pathToFileURL(new URL(`../../games/${slug}/recorder.ts`, import.meta.url).pathname).href);
-  const up = slug.toUpperCase().replace(/-/g, "_");
-  const prev = env.KIT_PREV || `${slug}-prev`, out = env.KIT_OUT || `${slug}-out`;
-  fs.mkdirSync(out, { recursive: true });
+  const out = env.KIT_OUT || `${slug}-out`;
+  const clear = () => { fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out, { recursive: true }); };
+  // Everything, the manifest and the module import included, is inside the try: a throw anywhere is a stop (exit 2,
+  // nothing written), never exit 1's "needs the owner; files were published" (#B-12 NK-14).
   try {
+    const m = loadManifest(slug);
+    const dep = readDeployment();
+    const cfg = kitConfig(m, dep);
+    const rpc = env.RPC || dep.rpc, check = env.RPC_CHECK;
+    if (!check || check === rpc) { console.error("::error::two different nodes are required (RPC and RPC_CHECK): RECORDER §2.1"); clear(); return 2; }
+    const ids = { vault: dep.contract, picks: dep.sponsor?.picks, racepicks: dep.sponsor?.race };
+    const nodes = [await koinosNode("rpc", rpc, ids), await koinosNode("rpc_check", check, ids)] as const;
+    // A field the vault ABI doesn't know is silently dropped by the decoder: game 1's rule week would read as "not set"
+    // and the recorder would quietly record nothing. Fail loudly instead until the v6.1 ABI is in (PR #114).
+    if (m.picks?.contract === "vault" && !abiHasConfigField("q60_rule_week_plus_one")) { console.error("::error::game/abi/kpred.koilib.json predates v6.1 (no q60_rule_week_plus_one): the vault-answers source can't tell a shared-rules week. Update the ABI (PR #114) first."); clear(); return 2; }
+    const { game } = await import(pathToFileURL(new URL(`../../games/${slug}/recorder.ts`, import.meta.url).pathname).href);
+    const up = slug.toUpperCase().replace(/-/g, "_");
+    const prev = env.KIT_PREV || `${slug}-prev`;
+    fs.mkdirSync(out, { recursive: true });
     const r = await runGame(game, cfg, { nodes: [nodes[0], nodes[1]], prev, out, holdWeeks: env[`${up}_HOLD_WEEKS`], release: env[`${up}_RELEASE`], wallNow: Date.now });
     print(r.alerts, slug);
     console.log(`done: ${r.state}; wrote ${r.written.length} file(s)`);
     return r.alerts.errors.length ? 1 : 0;
   } catch (e) {
-    console.log(`::error::${slug}: ${(e as Error).message}. Nothing recorded this run; the next run tries again.`);
-    fs.rmSync(out, { recursive: true, force: true });
-    fs.mkdirSync(out, { recursive: true });
+    console.log(`::error::${slug}: ${(e as Error)?.message ?? e}. Nothing recorded this run; the next run tries again.`);
+    clear();
     return 2;
   }
 }

@@ -13,8 +13,9 @@
 //   { v: 2, game, week, start, end, min, state: "open" | "pending" | "final", seen: { hash, at },
 //     rounds:  [[id, day, fun 0|1, status "s"|"v"|"p", [[i, points] | [i, points, at], …]], …]   by id; rows by i
 //     players: [[wallet, stake, peak, voided 0|1], …] }                                            by wallet
-//   i = the wallet's index in `players`; `at` (the score time, D-159) only on a row with points (Repo Lens #B-11 KC-9:
-//   about 10 bytes a row, so ~2,000 wallets answering 60 questions fit the cap).
+//   i = the wallet's index in `players`; `at` (the score time, D-159) only on a row with points, in ms after the week's
+//   start and before its results deadline (start ≤ score time < end + 3 days; #B-12 NK-3, NK-19). About 19 bytes a
+//   scored row: ~1,900 wallets answering all 60 questions fit the recorder's 1.9 MB cap (GAME_KIT.md §6 limits).
 //   status: "s" scored · "v" void (nothing scores) · "p" pending (not decided yet; rows hold points 0)
 //   Rows record every wallet that took part in the round (points 0 included), so the entry rule ("at least N counted
 //   rounds") is re-checked here without a per-game scorer.
@@ -34,7 +35,17 @@ export const STABLE_MS = HOUR;                      // final once two runs at le
 export const MAX_PER_PLACE = 10;                    // the vault takes at most 10 wallets per free place
 export const MAX_VAULT_POINTS = 255;
 export const FUTURE_SLACK_MS = 10 * 60000;          // a recorder's "seen at" may run this far ahead of the job's clock
-export const FRESH_MS = 40 * 60000;                 // …and a NEW seen.at at most this far behind it (KC-1)
+// How far behind the job's clock a NEW seen.at may be (KC-1), derived from the workflow's own limits (#B-12 NK-11):
+//   MAX_BEHIND_MS  the chain time a recorder stamps may lag the runner's clock this much (the recorder stops beyond it);
+//   JOB_WAIT_MS    from a kit record job's start to the publish job's check: the hand-written record job (≤ 30 min) and
+//                  publish job (≤ 10 min) it waits for, plus 5 for its own setup. tools/kit-render-workflows.mjs refuses
+//                  a workflow whose timeouts don't fit (RECORD_TIMEOUT_MIN, LEGACY_*_MAX_MIN in kit/publish/render.mjs).
+export const MAX_BEHIND_MS = 15 * 60000;
+export const JOB_WAIT_MS = 45 * 60000;
+export const FRESH_MS = MAX_BEHIND_MS + JOB_WAIT_MS;
+// A final needs its content first read at least this long ago: a pending copy is published at most FRESH_MS after its
+// seen.at, so the final then comes at least an hour after the pending copy was published (D-135; #B-12 NK-8).
+export const FINAL_WAIT_MS = STABLE_MS + FRESH_MS;
 export const MAX_ROUNDS = 10000;                    // the recorder refuses more too (KC-11)
 export const MAX_PLAYERS = 20000;                   // wallets with an entry THIS week (KC-9)
 export const DATA_BRANCHES = ["games-data", "race-data", "games-data-testnet"];   // KC-23
@@ -73,8 +84,11 @@ export const isSunday = (day) => (((Math.floor(day / DAY) + 4) % 7) + 7) % 7 ===
 // ───────────────────────── the week file ─────────────────────────
 export const WEEK_KEYS = ["v", "game", "week", "start", "end", "min", "state", "seen", "rounds", "players"];
 export const STATES = ["open", "pending", "final"];
-/** A round with its rows by wallet address: [id, day, fun, status, [[wallet, points, at], …]] (at 0 when no points). */
-export const resolveRound = (j, r) => [r[0], r[1], r[2], r[3], r[4].map((x) => [j.players[x[0]][0], x[1], x[2] ?? 0])];
+/** A round with its rows by wallet address: [id, day, fun, status, [[wallet, points, at], …]], `at` the absolute score
+ *  time in ms (0 when no points). */
+export const resolveRound = (j, r) => [r[0], r[1], r[2], r[3], r[4].map((x) => [j.players[x[0]][0], x[1], x.length === 3 ? j.start + x[2] : 0])];
+/** The latest score-time offset a row may carry: before the week's results deadline (end + 3 days). */
+export const atLimit = (j) => j.end - j.start + RESULTS_DAYS * DAY;
 /** What decides a week's results (seen.hash): counted rounds by wallet address and the stakes of the wallets in them.
  *  Sunday fun rounds and wallets that only played them are left out (KC-5): they never change the week. */
 export function weekHash(j) {
@@ -119,7 +133,8 @@ export function weekShape(j, name, cfg) {
     let lw = -1;
     for (const x of rows) {
       if (!Array.isArray(x) || !nat(x[0]) || x[0] >= j.players.length || !nat(x[1])) return `round ${id}: bad row`;
-      if (x.length !== (x[1] > 0 ? 3 : 2) || (x.length === 3 && !(nat(x[2]) && x[2] > 0))) return `round ${id}: a row has its score time only when it has points`;
+      if (x.length !== (x[1] > 0 ? 3 : 2)) return `round ${id}: a row has its score time only when it has points`;
+      if (x.length === 3 && !(nat(x[2]) && x[2] < atLimit(j))) return `round ${id}: a score time outside the week's start to its results deadline`;
       if (x[0] <= lw) return `round ${id}: rows not sorted or repeated`;
       if (st !== "s" && x[1] !== 0) return `round ${id}: points in a round that isn't scored`;
       if (x[1] > (cfg.maxRoundPoints ?? 1000000)) return `round ${id}: points over the game's maximum`;
@@ -217,7 +232,7 @@ export function tally(j, cfg) {
       x.answers++;
       if (fun || st !== "s") continue;
       x.counted++; x.pts += p;
-      if (p > 0 && at > x.at) x.at = at;
+      if (p > 0 && j.start + at > x.at) x.at = j.start + at;
     }
   }
   const rows = [];
@@ -257,20 +272,30 @@ export function tally(j, cfg) {
 
 /** board.json (LEADERBOARD §1, the vault bot's board check): lastWeek with both boards. Over the game's rowCap the
  *  board keeps every ranked (vault) row and the best others up to the cap, and says how many it left out (KC-9). */
+export const BOARD_MAX_BYTES = 1_500_000;           // board.json's own budget, under the recorder's 1.9 MB write cap (#B-12 NK-4)
+/** board.json for week `j` from its tally. Every ranked (staked) row and every free prize winner's row is kept (NK-17);
+ *  the other rows, best first, while they fit the game's rowCap (when set) and the board's byte budget. A board whose
+ *  kept rows alone pass the budget is still returned: the recorder then doesn't write it and alerts (NK-4). */
 export function boardOf(j, t, updated, rowCap = 0) {
-  let rows = t.rows, cut = 0;
-  if (rowCap > 0 && rows.length > rowCap) {
-    let room = Math.max(0, rowCap - rows.filter((x) => x.ranked).length);
-    rows = rows.filter((x) => x.ranked || room-- > 0);
-    cut = t.rows.length - rows.length;
-  }
-  const lastWeek = {
-    week: j.week, start: j.start, final: j.state === "final", complete: t.complete,
-    rows: rows.map((x) => ({ a: x.a, board: x.board, place: x.place, pts: x.pts, points: x.pts, counted: x.counted, answers: x.answers, ranked: x.ranked })),
-    prizes: t.prizes,
+  const winners = new Set(t.prizes.map((p) => p.player));
+  const row = (x) => ({ a: x.a, board: x.board, place: x.place, pts: x.pts, points: x.pts, counted: x.counted, answers: x.answers, ranked: x.ranked });
+  const must = (x) => x.ranked || winners.has(x.a);
+  const shell = (rows, cut) => {
+    const lastWeek = { week: j.week, start: j.start, final: j.state === "final", complete: t.complete, rows, prizes: t.prizes };
+    if (cut) lastWeek.cut = cut;
+    return { v: 1, updated, lastWeek };
   };
-  if (cut) lastWeek.cut = cut;
-  return { v: 1, updated, lastWeek };
+  let bytes = Buffer.byteLength(canon(shell([], t.rows.length || 0)));
+  let room = rowCap > 0 ? Math.max(0, rowCap - t.rows.filter(must).length) : Infinity;
+  for (const x of t.rows) if (must(x)) bytes += Buffer.byteLength(JSON.stringify(row(x))) + 1;
+  const keep = t.rows.filter((x) => {
+    if (must(x)) return true;
+    if (room <= 0) return false;
+    const n = Buffer.byteLength(JSON.stringify(row(x))) + 1;
+    if (bytes + n > BOARD_MAX_BYTES) { room = 0; return false; }
+    bytes += n; room--; return true;
+  });
+  return shell(keep.map(row), t.rows.length - keep.length);
 }
 /** The vault's results file for a final week (VAULT §6): rows (staked), first and second always filled. */
 export function vaultFileOf(j, t) {
@@ -321,7 +346,9 @@ export function roundsChange(prev, j, cfg) {
     const a = resolveRound(prev, r0), b = now.get(a[0]);
     if (!b) return `it drops published round ${a[0]}`;
     if (a[3] === "p") continue;
-    if (!cfg.roundsCorrectable) { if (JSON.stringify(a) !== JSON.stringify(b)) return `it changes decided round ${a[0]}`; continue; }
+    // A Sunday fun round never counts toward the payout, so it may be corrected even in a game whose decided rounds
+    // can't change (#B-12 NK-13); it still keeps its day and stays decided.
+    if (!cfg.roundsCorrectable && !a[2]) { if (JSON.stringify(a) !== JSON.stringify(b)) return `it changes decided round ${a[0]}`; continue; }
     if (a[1] !== b[1] || a[2] !== b[2]) return `it moves decided round ${a[0]} to another day`;
     if (b[3] === "p") return `decided round ${a[0]} goes back to pending`;
     if (a[4].map((x) => x[0]).join() !== b[4].map((x) => x[0]).join()) return `it changes who played decided round ${a[0]}`;
@@ -366,7 +393,10 @@ export function checkGame(cfg, inDir, pubDir, now, release = "") {
     if (prev) { const ch = roundsChange(prev, j, cfg); if (ch) { hold(f, ch); continue; } }
     // KC-1: seen.at is the recorder's claim. Kept only while the hash is the published one, and exactly; a new hash must
     // be stamped by this hour's run (by this job's clock), and for an ended week after its end.
-    if (prev && prev.seen.hash === j.seen.hash) {
+    // An unchanged hash first read before the week ended (an open copy under liveWeek) may be stamped again once the
+    // week has ended, by the same window rules (#B-12 NK-7): otherwise its final could never pass the end rule below.
+    const restamp = !!prev && prev.seen.hash === j.seen.hash && prev.seen.at < j.end && j.seen.at !== prev.seen.at;
+    if (prev && prev.seen.hash === j.seen.hash && !restamp) {
       if (j.seen.at !== prev.seen.at) { hold(f, "it changes when its unchanged content was first read"); continue; }
     } else {
       if (j.seen.at > now + FUTURE_SLACK_MS) { hold(f, "seen in the future by this job's clock"); continue; }
@@ -386,7 +416,7 @@ export function checkGame(cfg, inDir, pubDir, now, release = "") {
       if (now < j.end) { hold(f, "final before Mon 00:00 UTC (D-125)"); continue; }
       if (!(prev && prev.state === "pending" && prev.seen.hash === j.seen.hash)) { hold(f, "final without an earlier published run of the same week"); continue; }
       if (j.seen.at < j.end) { hold(f, "final, but its content was first read before the week ended"); continue; }
-      if (now - j.seen.at < STABLE_MS) { hold(f, "final less than an hour after the week was first read the same", false); continue; }
+      if (now - j.seen.at < FINAL_WAIT_MS) { hold(f, "final less than an hour after its pending copy could have been published", false); continue; }
     }
     okWeeks.set(w, j); heldWeeks.delete(w); publish.push(f);
   }
@@ -434,7 +464,8 @@ export function checkGame(cfg, inDir, pubDir, now, release = "") {
       if (!h) { hold(f, "releases a week with no HOLD file published by an earlier run"); continue; }
       const code = sha256(h.reason).slice(0, 16);
       if (j.code !== code) { hold(f, "its code isn't the HOLD's (sha256 of its reason, first 16)"); continue; }
-      if (String(release ?? "").trim() !== `${w}:${code}`) { hold(f, `not released by the owner: the game's RELEASE variable isn't "${w}:${code}"`); continue; }
+      const rel = parseRelease(release);
+      if (!(rel && rel.week === w && rel.code === code)) { hold(f, `not released by the owner: the game's RELEASE variable isn't "${w}:${code}"`); continue; }
       publish.push(f);
       continue;
     }
@@ -447,6 +478,13 @@ export function checkGame(cfg, inDir, pubDir, now, release = "") {
     publish.push(f);
   }
   return { publish, held };
+}
+
+/** The owner's `<SLUG>_RELEASE` value, "<week>:<code>" (week without leading zeros, code 16 hex), or null. The
+ *  recorder and the publish check both read it with this one parser (#B-12 NK-9). */
+export function parseRelease(s) {
+  const m = typeof s === "string" ? /^\s*(0|[1-9][0-9]{0,3}):([0-9a-f]{16})\s*$/.exec(s) : null;
+  return m ? { week: Number(m[1]), code: m[2] } : null;
 }
 
 /** The env variable a game's owner release lives in, in the publish job: KIT_RELEASE_<SLUG> (hyphens → _). */

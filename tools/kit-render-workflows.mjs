@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ROOT, listManifests, readManifest, validateManifest, duplicateKeys } from "./game-manifest.mjs";
-import { renderJobs, inlineScript, BEGIN, END } from "../kit/publish/render.mjs";
+import { renderJobs, inlineScript, BEGIN, END, LEGACY_WAIT_MAX_MIN } from "../kit/publish/render.mjs";
 import { publishConfig, dataFolder, readDeployment } from "../kit/recorder/manifest.ts";
 
 /** The kit games, by workflow file: [{ file, branch, games }]. */
@@ -29,7 +29,31 @@ export function kitGames(root = ROOT) {
     by.get(key).games.push({ slug: m.slug, name: m.name, enabledVar: m.workflow.enabledVar, cfg: publishConfig(m, dep) });
   }
   for (const v of by.values()) v.games.sort((a, b) => (a.slug < b.slug ? -1 : 1));
+  // One kit block per workflow file: two data branches in one file would render two blocks, the second replacing the
+  // first (#B-12 NK-16).
+  const files = new Map();
+  for (const v of by.values()) {
+    if (files.has(v.file)) throw new Error(`${v.file}: kit games on two data branches (${files.get(v.file)}, ${v.branch}); one workflow file takes one branch`);
+    files.set(v.file, v.branch);
+  }
   return [...by.values()];
+}
+
+/** The hand-written jobs publish-kit waits for must exist and finish in time (NK-11, NK-16): a `publish` job, and the
+ *  `record` and `publish` jobs' timeouts together at most LEGACY_WAIT_MAX_MIN. Outside the kit block only. */
+export function checkHost(text, file) {
+  const a = text.indexOf(BEGIN), b = text.indexOf(END);
+  const host = a >= 0 && b > a ? text.slice(0, a) + text.slice(b + END.length) : text;
+  const job = (name) => {
+    const m = new RegExp(`^  ${name}:\\n((?:    .*\\n|\\s*\\n)*)`, "m").exec(host);
+    if (!m) return null;
+    const t = /^    timeout-minutes:\s*([0-9]+)\s*$/m.exec(m[1]);
+    return t ? Number(t[1]) : Infinity;
+  };
+  const rec = job("record"), pub = job("publish");
+  if (pub === null) throw new Error(`${file}: no publish job for the kit's publish job to wait on`);
+  const wait = (rec ?? 0) + pub;
+  if (wait > LEGACY_WAIT_MAX_MIN) throw new Error(`${file}: its record and publish jobs may take ${wait} min, more than the ${LEGACY_WAIT_MAX_MIN} the kit's publish check allows for (NK-11)`);
 }
 
 /** The workflow text with its kit block rendered (inserted at the end of the file the first time). */
@@ -45,6 +69,7 @@ export function renderAll(root = ROOT) {
   return kitGames(root).map(({ file, branch, games }) => {
     const p = path.join(root, ".github/workflows", file);
     const now = fs.readFileSync(p, "utf8");
+    checkHost(now, file);
     return { file: p, now, want: renderWorkflow(now, renderJobs({ branch, games, script })) };
   });
 }

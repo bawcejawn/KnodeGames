@@ -12,7 +12,26 @@ import { pathToFileURL } from "node:url";
 const [slug, root] = process.argv.slice(2);
 const gameDir = path.join(root, "games", slug);
 const violations = new Set<string>();
-const fromGame = () => (new Error().stack ?? "").split("\n").slice(2).some((l) => l.includes(gameDir) || l.includes(pathToFileURL(gameDir).href));
+// Every trap asks the stack "is this the game?". The module must not be able to switch that off (#B-12 NK-6): the
+// whole stack is kept (no frame limit to hide behind), and stackTraceLimit / prepareStackTrace are frozen before it loads.
+const RealError = Error;
+Object.defineProperty(RealError, "stackTraceLimit", { value: Infinity, writable: false, configurable: false });
+Object.defineProperty(RealError, "prepareStackTrace", { value: undefined, writable: false, configurable: false });
+const stackOf = () => { const o: { stack?: string } = {}; RealError.captureStackTrace(o); return String(o.stack ?? ""); };
+// The caller that counts is the nearest frame outside this file: a builtin like Array.map in between doesn't hide the
+// game; the kit's or Node's own call, made while a game function is further up the stack, isn't the game's.
+const SELF = new URL(import.meta.url).pathname;
+const inGame = (l: string) => l.includes(gameDir) || l.includes(pathToFileURL(gameDir).href);
+const fromGame = () => {
+  for (const l of stackOf().split("\n").slice(1)) {
+    if (l.includes(SELF)) continue;
+    if (/\(node:|at node:/.test(l)) return false;           // Node's own code is the caller (e.g. its source maps)
+    if (inGame(l)) return true;
+    if (/\(<anonymous>\)|^\s*at [^(]*$|native/.test(l) && !/\.(ts|mts|js|mjs):\d+/.test(l)) continue;   // a builtin in between
+    return false;
+  }
+  return false;
+};
 function trap<T extends object>(obj: T, key: keyof T & string, what: string) {
   const orig = (obj as any)[key];
   if (typeof orig !== "function") return;
@@ -32,6 +51,8 @@ const TrapDate: any = function (this: unknown, ...a: unknown[]) {
   return new (RealDate as any)(...a);
 };
 TrapDate.prototype = RealDate.prototype;
+// (new Date(0)).constructor is the trapped Date too, not a way back to the real one (NK-6).
+Object.defineProperty(RealDate.prototype, "constructor", { value: TrapDate, writable: false, configurable: false });
 TrapDate.UTC = RealDate.UTC; TrapDate.parse = RealDate.parse;
 TrapDate.now = () => { if (fromGame()) { violations.add("Date.now"); throw new Error("conformance: the module used Date.now"); } return RealDate.now(); };
 (globalThis as any).Date = TrapDate;
@@ -46,6 +67,21 @@ syncBuiltinESMExports();
 if ((globalThis as any).crypto) for (const k of ["getRandomValues", "randomUUID"]) trap((globalThis as any).crypto, k, `crypto.${k}`);
 // The network.
 trap(globalThis as any, "fetch", "fetch");
+// Workers and processes (NK-5): a worker would run with none of these traps, so the game may not start one, whichever
+// way it reaches the module (getBuiltinModule, an eval'd import(): the patched export is what every import sees).
+import * as wt from "node:worker_threads";
+import cp from "node:child_process";
+{
+  const RealWorker = (wt as any).Worker;
+  const TrapWorker = function (this: unknown, ...a: unknown[]) {
+    if (fromGame()) { violations.add("worker_threads.Worker"); throw new Error("conformance: the module started a Worker"); }
+    return new RealWorker(...a);
+  };
+  try { (wt as any).default.Worker = TrapWorker; } catch { /* read-only */ }
+  for (const k of ["spawn", "spawnSync", "exec", "execSync", "execFile", "execFileSync", "fork"]) trap(cp as any, k, `child_process.${k}`);
+}
+trap(process as any, "getBuiltinModule", "process.getBuiltinModule");
+syncBuiltinESMExports();
 // The environment (read at import too: the traps are in place before the module loads).
 const realEnv = process.env;
 (process as any).env = new Proxy(realEnv, {
@@ -109,6 +145,6 @@ try {
   ok(finalAt >= 0, "the sample week goes final on fake nodes through the real publish check");
   ok(vaultAt >= 0, "its vault file is published");
 } catch (e) {
-  ok(false, `the module ran in the sandbox (${(e as Error).message.split("\n")[0]})`);
+  ok(false, `the module ran in the sandbox (${(e as Error).message.split("\n")[0]}${(e as any)?.resource ? `: ${(e as any).resource}` : ""})`);
 }
 process.stdout.write(JSON.stringify({ violations: [...violations], checks }) + "\n");

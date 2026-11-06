@@ -46,7 +46,7 @@ test("runtime: before the rule week it records nothing", async () => {
   assert.equal((await hour(rp, wd)).result?.state, "not-active");
 });
 
-test("runtime: pending, then final after a second matching run an hour later; then written once", async () => {
+test("runtime: pending, then final once two runs 2 hours apart read the same (an hour after the pending copy could be published, NK-8); then written once", async () => {
   const wd = qworld(), rp = new Replay(game, cfg);
   let h = await hour(rp, wd);
   assert.equal(h.result?.state, "pending");
@@ -54,8 +54,11 @@ test("runtime: pending, then final after a second matching run an hour later; th
   assert.deepEqual(h.published.sort(), ["W004.json", "board.json"]);
   wd.time += 30 * 60000;
   h = await hour(rp, wd);
-  assert.equal(h.result?.state, "pending", "30 minutes isn't an hour");
-  wd.time += 31 * 60000;
+  assert.equal(h.result?.state, "pending", "30 minutes isn't enough");
+  wd.time += 61 * 60000;
+  h = await hour(rp, wd);
+  assert.equal(h.result?.state, "pending", "91 minutes isn't enough");
+  wd.time += 30 * 60000;
   h = await hour(rp, wd);
   assert.equal(h.result?.state, "final");
   assert.deepEqual(h.held, []);

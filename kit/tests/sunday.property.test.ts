@@ -17,13 +17,13 @@ function randomWeek(r: () => number, withSunday: boolean, base?: any) {
   const players: any[] = base ? structuredClone(base.players) : ADDRS.slice(0, 24).filter(() => r() < 0.6).map((a) => [a, r() < 0.5 ? "200000000" : "0", r() < 0.5 ? "200000000" : "0", r() < 0.05 ? 1 : 0]);
   const rounds: any[] = base ? structuredClone(base.rounds) : [];
   if (!base) for (let d = 0; d < 6; d++) for (let k = 0; k < 2; k++) {
-    const rows = players.filter(() => r() < 0.7).map(([a]: any) => [a, Math.floor(r() * 4), 1 + Math.floor(r() * 1000)]);
+    const rows = players.filter(() => r() < 0.7).map(([a]: any) => [a, Math.floor(r() * 4), at(4) + 1 + Math.floor(r() * 1000)]);
     rounds.push([`r${d}${k}`, at(4, d), 0, "s", rows]);
   }
   if (withSunday) {
     for (const a of ADDRS.slice(24)) if (r() < 0.7) players.push([a, "500000000", "500000000", 0]);   // Sunday-only wallets
     for (let k = 0; k < 3; k++) {
-      const rows = players.filter(() => r() < 0.8).map(([a]: any) => [a, Math.floor(r() * 50), 1 + Math.floor(r() * 1000)]);
+      const rows = players.filter(() => r() < 0.8).map(([a]: any) => [a, Math.floor(r() * 50), at(4) + 1 + Math.floor(r() * 1000)]);
       rounds.push([`s${k}`, at(4, 6), 1, r() < 0.8 ? "s" : "p", rows]);
     }
   }

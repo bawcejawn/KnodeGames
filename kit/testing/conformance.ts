@@ -42,6 +42,9 @@ export const FORBIDDEN: [RegExp, string][] = [
   [/\bWorker\b|\bspawn\b|\bexec(Sync|File)?\b/, "starts workers or processes"],
   [/\beval\s*\(|\bnew\s+Function\b|\bFunction\s*\(/, "evaluates code"],
   [/\bglobalThis\b|\bself\b\s*\./, "reaches the global object"],
+  [/\bstackTraceLimit\b|\bprepareStackTrace\b|\bcaptureStackTrace\b/, "changes how stack traces work (the sandbox reads them, NK-6)"],
+  [/\.\s*constructor\b|\[\s*["'`]constructor["'`]\s*\]|\bgetPrototypeOf\b|__proto__/, "reaches a constructor or prototype (a way around the trapped clock, NK-6)"],
+  [/\bgetBuiltinModule\b|\bworker_threads\b|\bchild_process\b/, "reaches Node's modules at run time"],
   [/\b(signTransaction|sendTransaction|PrivateKey|WIF)\b|\.sign\(|\.send\(/, "signs or sends"],
 ];
 
@@ -50,7 +53,21 @@ export function staticChecks(source: string): Check[] {
   return FORBIDDEN.map(([re, why]) => ({ pass: !re.test(code), msg: `must not: ${why}` }));
 }
 
-/** Every file the module imports, outside kit/, by relative path (recursively). */
+/** How tsx resolves a relative import: the path as written, a .js/.mjs/.cjs written for a .ts/.mts/.cts file, the path
+ *  with an extension added, or a folder's index file (#B-12 NK-5). null when none exists. */
+export function resolveLikeTsx(from: string, spec: string): string | null {
+  const p = path.resolve(path.dirname(from), spec);
+  const isFile = (f: string) => { try { return fs.statSync(f).isFile(); } catch { return false; } };
+  const swap: Record<string, string[]> = { ".js": [".ts", ".tsx"], ".jsx": [".tsx"], ".mjs": [".mts"], ".cjs": [".cts"] };
+  const ext = path.extname(p);
+  const tries = [p, ...(swap[ext] ?? []).map((e) => p.slice(0, -ext.length) + e)];
+  for (const e of [".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json"]) tries.push(p + e);
+  for (const e of [".ts", ".tsx", ".mts", ".js", ".mjs"]) tries.push(path.join(p, "index" + e));
+  return tries.find(isFile) ?? null;
+}
+
+/** Every file the module imports, outside kit/, by relative path (recursively), resolved the way tsx does. A relative
+ *  import that resolves to nothing throws: a file the scan can't find is a file it can't check (NK-5). */
 export function moduleFiles(entry: string, root: string): string[] {
   const kitDir = path.join(root, "kit") + path.sep, realKit = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..") + path.sep;
   const seen = new Set<string>(), todo = [entry];
@@ -59,10 +76,11 @@ export function moduleFiles(entry: string, root: string): string[] {
     if (seen.has(f)) continue;
     seen.add(f);
     const src = fs.readFileSync(f, "utf8");
-    for (const m of src.matchAll(/(?:from|import)\s*\(?\s*["'](\.{1,2}\/[^"']+)["']/g)) {
-      const p = path.resolve(path.dirname(f), m[1]);
+    for (const m of src.matchAll(/(?:from|import)\s*\(?\s*["'](\.{1,2}\/[^"']+|\.{1,2})["']/g)) {
+      const p = resolveLikeTsx(f, m[1]);
+      if (!p) throw new Error(`${path.relative(root, f)} imports "${m[1]}", which resolves to no file`);
       if (p.startsWith(kitDir) || p.startsWith(realKit)) continue;
-      if (fs.existsSync(p)) todo.push(p);
+      todo.push(p);
     }
   }
   return [...seen].sort();
@@ -72,8 +90,17 @@ export function moduleFiles(entry: string, root: string): string[] {
 export function sandboxed(slug: string, root: string): { violations: string[]; checks: Check[]; error?: string } {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "kit-conf-sbx-"));
   const child = path.join(path.dirname(new URL(import.meta.url).pathname), "conformance-child.ts");
+  // Reads only inside the repo, the game's root and the temp folder: never /proc (the parent's environment), the home
+  // folder or the rest of the machine (NK-5). Workers stay allowed for tsx's loader, but the game can't start one.
+  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+  const reads = [...new Set([repo, path.resolve(root), tmp])].map((d) => `--allow-fs-read=${d}/*`);
+  // tsx looks for package.json and tsconfig.json in every folder above a file: those two names only.
+  for (const top of [repo, path.resolve(root)]) for (let d = path.dirname(top); ; d = path.dirname(d)) {
+    for (const f of ["package.json", "tsconfig.json"]) reads.push(`--allow-fs-read=${path.join(d, f)}`);
+    if (d === path.dirname(d)) break;
+  }
   const r = spawnSync(process.execPath, [
-    "--experimental-permission", "--allow-fs-read=*", `--allow-fs-write=${tmp}/*`, "--allow-worker",
+    "--experimental-permission", ...reads, `--allow-fs-write=${tmp}/*`, "--allow-worker",
     "--no-warnings", "--import", "tsx", child, slug, root,
   ], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", TMPDIR: tmp, HOME: tmp, NODE_OPTIONS: "" }, timeout: 120000 });
   fs.rmSync(tmp, { recursive: true, force: true });
@@ -85,7 +112,9 @@ export async function conformance(slug: string, root = ROOT): Promise<Check[]> {
   const res: Check[] = [];
   const ok = (pass: boolean, msg: string) => res.push({ pass, msg });
   const dir = path.join(root, "games", slug);
-  for (const f of moduleFiles(path.join(dir, "recorder.ts"), root)) {
+  let files: string[] = [];
+  try { files = moduleFiles(path.join(dir, "recorder.ts"), root); } catch (e) { ok(false, `every file the module imports can be scanned (${(e as Error).message})`); }
+  for (const f of files) {
     const rel = path.relative(root, f);
     for (const c of staticChecks(fs.readFileSync(f, "utf8"))) ok(c.pass, `${rel}: ${c.msg}`);
   }

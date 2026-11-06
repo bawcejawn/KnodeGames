@@ -53,7 +53,8 @@ test("faults: the lower of two close chain clocks is the run's clock; a node far
   wd.time = at(5, 0, 0) + 2 * 60000;        // 00:02 Monday on node a
   // node b 3 minutes behind (still Sunday): for the run the week hasn't ended, so it records nothing for week 4.
   const r = await run(fakeNode("a", () => wd), fakeNode("b", () => wd, { lagMs: 3 * 60000 }));
-  assert.equal(r.week, 3);
+  assert.notEqual(r.week, 4, "week 4 hasn't ended for this run");
+  assert.ok(!r.written.some((f) => f.startsWith("W004")));
   // 2 hours behind, or 3.5 days: the run stops (exit 2 in the CLI) instead of silently recording the wrong week.
   for (const lag of [2 * HOUR, 3.5 * DAY]) await assert.rejects(run(fakeNode("a", () => wd), fakeNode("b", () => wd, { lagMs: lag })), /min apart/);
   // Both nodes stalled at the same place: caught against the runner's clock.

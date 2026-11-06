@@ -3,6 +3,7 @@
 // with the games' settings as a literal. tools/kit-render-workflows.mjs writes the result between markers in the
 // workflow; a test fails if the committed workflow differs from what this renders.
 import fs from "node:fs";
+import { DATA_BRANCHES, JOB_WAIT_MS } from "./check.inline.mjs";
 
 export const BEGIN = "  # ── BEGIN kit-rendered jobs (tools/kit-render-workflows.mjs; edit kit/, never these lines) ──";
 export const END = "  # ── END kit-rendered jobs ──";
@@ -27,7 +28,16 @@ const ind = (s, n) => s.split("\n").map((l) => (l ? " ".repeat(n) + l : l)).join
 /** A YAML-safe quoted string (names are validated too, KC-14). */
 const q = (s) => JSON.stringify(String(s));
 const up = (slug) => slug.toUpperCase().replace(/-/g, "_");
-export const RECORD_TIMEOUT_MIN = 25;   // a game's budget is at most 20 min (tools/game-manifest.mjs BUDGET_MAX, KC-4)
+// A game's budget is at most 20 min (tools/game-manifest.mjs BUDGET_MAX); a read started just before the end can take
+// ~4 min more (6 tries), and checkout, setup-node, npm ci and the fetch ~3: 20 + 4.1 + 3 ≤ 30 (#B-12 NK-15).
+export const RECORD_TIMEOUT_MIN = 30;
+export const SETUP_MIN = 3;
+// The hand-written jobs publish-kit waits for may take at most this long (record + publish), so a kit game's files are
+// checked within the publish check's JOB_WAIT_MS of its record job's start (#B-12 NK-11). kitGames refuses more.
+export const LEGACY_WAIT_MAX_MIN = JOB_WAIT_MS / 60000 - 5;
+export const PUBLISH_KIT_TIMEOUT_MIN = 10;
+/** The week-file name in the shell's [[ =~ ]] tests: the check's own rule (W004 … W999, W1000 … W9999; NK-20). */
+const WEEK_SH = "W([0-9]{3}|[1-9][0-9]{3})";
 
 /** The fetch of last run's files for ONE game (a public branch, read without a token; allow-listed names only). */
 function fetchStep(branch, slug) {
@@ -37,7 +47,7 @@ function fetchStep(branch, slug) {
           P="$RUNNER_TEMP/prev"; mkdir -p "$P/vault"
           if git fetch -q --depth 1 "https://github.com/\${GITHUB_REPOSITORY}.git" ${branch} 2>/dev/null; then
             { git ls-tree --name-only FETCH_HEAD:${slug} 2>/dev/null || true; } | while IFS= read -r f; do
-              if [[ "$f" =~ ^(board|W[0-9]{3,4})\\.json$ ]]; then git show "FETCH_HEAD:${slug}/$f" > "$P/$f"; fi
+              if [[ "$f" =~ ^(board|${WEEK_SH})\\.json$ ]]; then git show "FETCH_HEAD:${slug}/$f" > "$P/$f"; fi
             done
             { git ls-tree --name-only FETCH_HEAD:${slug}/vault 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^((HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3}))\\.json$ ]]; then git show "FETCH_HEAD:${slug}/vault/$f" > "$P/vault/$f"; fi
@@ -57,7 +67,7 @@ function fetchStep(branch, slug) {
  */
 export function renderJobs({ branch, games, script }) {
   if (!games.length) return `${BEGIN}\n${END}\n`;
-  if (!["games-data", "race-data", "games-data-testnet"].includes(branch)) throw new Error(`not a data branch: ${branch} (KC-23)`);
+  if (!DATA_BRANCHES.includes(branch)) throw new Error(`not a data branch: ${branch} (KC-23)`);
   for (const g of games) {
     if (!/^[a-z][a-z0-9-]{1,23}$/.test(g.slug)) throw new Error(`bad slug ${g.slug}`);
     if (!/^[A-Z][A-Z0-9_]{1,63}$/.test(g.enabledVar)) throw new Error(`bad variable ${g.enabledVar}`);
@@ -85,11 +95,14 @@ export function renderJobs({ branch, games, script }) {
 ${fetchStep(branch, g.slug)}
       - name: Record
         id: rec
+        # GitHub runs this as bash -e: the recorder's exit code is captured, never fatal, so the files it wrote (a HOLD
+        # included) are always uploaded and outputs.rc always carries 0, 1 or 2 (#B-12 NK-1).
         run: |
           set -uo pipefail
           O="$RUNNER_TEMP/out"; rm -rf "$O"; mkdir -p "$O"
-          npm run kit -- ${g.slug}; rc=$?
+          rc=0; npm run kit -- ${g.slug} || rc=$?
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 1 ]; then rm -rf "$O"; mkdir -p "$O"; echo "rc $rc: a stop, nothing uploaded"; fi
         env:
           RPC: \${{ vars.RPC || 'https://koinos.armana.io' }}
           RPC_CHECK: \${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
@@ -99,6 +112,7 @@ ${fetchStep(branch, g.slug)}
           ${up(g.slug)}_HOLD_WEEKS: \${{ vars.${up(g.slug)}_HOLD_WEEKS }}
           ${up(g.slug)}_RELEASE: \${{ vars.${up(g.slug)}_RELEASE }}
       - uses: ${UP}
+        if: \${{ steps.rec.outputs.rc == '0' || steps.rec.outputs.rc == '1' }}
         with:
           name: kit-${branch}-${g.slug}
           path: \${{ runner.temp }}/out/
@@ -112,7 +126,7 @@ ${fetchStep(branch, g.slug)}
   const releaseEnv = games.map((g) => `          KIT_RELEASE_${up(g.slug)}: \${{ vars.${up(g.slug)}_RELEASE }}`).join("\n");
   const kitGames = JSON.stringify(games.map((g) => g.cfg));
   const ran = games.map((g) => `needs.${job(g)}.result == 'success'`).join(" || ");
-  const stopped = games.map((g) => `needs.${job(g)}.outputs.rc == '2' || needs.${job(g)}.result == 'failure' || needs.${job(g)}.result == 'cancelled'`).join(" || ");
+  const stopped = games.map((g) => `(needs.${job(g)}.result == 'success' && needs.${job(g)}.outputs.rc != '0' && needs.${job(g)}.outputs.rc != '1') || needs.${job(g)}.result == 'failure' || needs.${job(g)}.result == 'cancelled'`).join(" || ");
   const owner = games.map((g) => `needs.${job(g)}.outputs.rc == '1'`).join(" || ");
   return `${BEGIN}
   # Games on the Shared Game Kit (.ai/standards/GAME_KIT.md): ${games.map((g) => g.name).join(", ")}. One record job per game
@@ -124,7 +138,7 @@ ${recordJobs}
     needs: [${games.map(job).join(", ")}, publish]
     if: \${{ always() && github.ref == 'refs/heads/main' && (${ran}) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: ${PUBLISH_KIT_TIMEOUT_MIN}
     permissions:
       contents: write         # push the ${branch} branch (never main)
     steps:
@@ -154,7 +168,7 @@ ${releaseEnv}
             for g in ${games.map((g) => g.slug).join(" ")}; do
               mkdir -p "$PUB/$g/vault"
               { git ls-tree --name-only "$parent:$g" 2>/dev/null || true; } | while IFS= read -r f; do
-                if [[ "$f" =~ ^(board|W[0-9]{3,4})\\.json$ ]]; then git show "$parent:$g/$f" > "$PUB/$g/$f"; fi
+                if [[ "$f" =~ ^(board|${WEEK_SH})\\.json$ ]]; then git show "$parent:$g/$f" > "$PUB/$g/$f"; fi
               done
               { git ls-tree --name-only "$parent:$g/vault" 2>/dev/null || true; } | while IFS= read -r f; do
                 if [[ "$f" =~ ^((HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3}))\\.json$ ]]; then git show "$parent:$g/vault/$f" > "$PUB/$g/vault/$f"; fi
@@ -171,7 +185,7 @@ ${releaseEnv}
 ${ind(script, 10).replace(/\n$/, "")}
           ${HEREDOC}
           while IFS= read -r name; do
-            [[ "$name" =~ ^[a-z][a-z0-9-]{1,23}/((board|W[0-9]{3,4})|vault/(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3}))\\.json$ ]] || { echo "::error::bad name from the check: $name"; exit 1; }
+            [[ "$name" =~ ^[a-z][a-z0-9-]{1,23}/((board|${WEEK_SH})|vault/(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3}))\\.json$ ]] || { echo "::error::bad name from the check: $name"; exit 1; }
             h=$(git hash-object -w "$IN/$name")
             git update-index --add --cacheinfo "100644,$h,$name"
           done < "$LIST"
@@ -183,16 +197,30 @@ ${ind(script, 10).replace(/\n$/, "")}
             echo "Published $(wc -l < "$LIST") file(s) to ${branch}."
           fi
           if [ -f "$LIST.alert" ]; then echo "::error::Some kit files were held (see above): the rest was published."; exit 1; fi
-      # Fail the run AFTER publishing, so the owner gets an email (KC-28: the two cases say different things).
+
+  kit-alerts:
+    # Its own job, always run (#B-12 NK-16): the alerts fire even when publish-kit is skipped (every kit job failed,
+    # timed out or was cancelled). Failing this job is what emails the owner; the two cases say different things (KC-28).
+    needs: [${games.map(job).join(", ")}, publish-kit]
+    if: \${{ always() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
       - name: Alert on a kit recorder that stopped
-        if: \${{ always() && (${stopped}) }}
+        if: \${{ ${stopped} }}
         run: |
-          echo "::error::A kit game's recorder stopped (or its job failed or timed out): nothing from that game was recorded this run. See its record job."
+          echo "::error::A kit game's recorder stopped (or its job failed, timed out or was cancelled): nothing from that game was recorded this run. See its record job."
           exit 1
       - name: Alert on a kit recorder that needs the owner
-        if: \${{ always() && (${owner}) }}
+        if: \${{ ${owner} }}
         run: |
           echo "::error::A kit game's recorder raised an alert that needs the owner (see its record job). Its files were checked and published as usual."
+          exit 1
+      - name: Alert on a publish job that didn't finish
+        if: \${{ needs.publish-kit.result == 'failure' || needs.publish-kit.result == 'cancelled' }}
+        run: |
+          echo "::error::The kit's publish job failed or was cancelled (held files, or the push): see publish-kit."
           exit 1
 ${END}
 `;

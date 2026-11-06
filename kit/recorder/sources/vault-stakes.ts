@@ -18,7 +18,7 @@ export async function readVaultStakes(node: NodeReader, game: number, wallets: s
   const { clock, minFor, config } = clockFromState(st);
   if (now < clock.span(week).end) throw new Error(`stakes for week ${week} are read only after the week has ended (RECORDER §2.5)`);
   // KC-22: the v6 rule applies to week w when w + 1 ≥ v6_rule_week_plus_one (Kpred v6Rule); the minimum is the vault's
-  // own, never replaced; voided comes from the player's void_week_plus_one, as the contract reads it.
+  // own, never replaced; voided comes from the week's entry, as the contract's resultEntry reads it (NK-2).
   const v6 = Number(config.v6_rule_week_plus_one ?? 0);
   const live = v6 > 0 && week + 1 >= v6;
   const stakes = new Map<string, StakeView>();
@@ -30,7 +30,9 @@ export async function readVaultStakes(node: NodeReader, game: number, wallets: s
     const act = BigInt(r?.active_stake ?? "0");
     const peak = e ? [BigInt(e.peak_stake ?? "0"), BigInt(e.stake ?? "0")].reduce((x, y) => (y > x ? y : x)) : act;
     const ws = BigInt(r?.week_stake ?? "0");
-    const voided = Number(r?.player?.void_week_plus_one ?? 0) === week + 1;
+    // The week's own entry is frozen at withdraw time (Kpred v6.1 takeG, resultEntry); the player's void_week_plus_one
+    // is overwritten by a later withdraw, so it is only the fallback when there is no entry (#B-12 NK-2).
+    const voided = e ? !!e.voided : Number(r?.player?.void_week_plus_one ?? 0) === week + 1;
     return [a, { stake: String(ws), peak: String(peak), voided }] as [string, StakeView];
   });
   for (const [a, v] of got) stakes.set(a, v);

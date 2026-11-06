@@ -23,7 +23,7 @@ supplies only its own rounds, results and scoring. The standard is `.ai/standard
 
 **Week file** (`W<NNN>.json`, format v2): `{ v, game, week, start, end, min, state, seen: {hash, at}, rounds, players }` with every
 round as `[id, day, fun, status, [[i, points] | [i, points, at], …]]` (`i` = the wallet's index in `players`; `at` only on a row
-with points) — rows for every wallet that took part, so the publish job recounts the week (entry rule included) without a
+with points: its score time in ms after the week's start, before the results deadline) — rows for every wallet that took part, so the publish job recounts the week (entry rule included) without a
 per-game scorer (D-158 #3). `seen.hash` leaves out Sunday fun rounds.
 
 **Changing the kit:** Repo Lens on every change; tests with every change; `npm run kit:render` after a change to `publish/`

@@ -811,7 +811,9 @@ jobs:
               # ── week files: shape, load rules, recompute (M-9, H-2) and the clock (H-3) ──
               def week_of(wk):
                   f = "W%03d.json" % wk
-                  if os.path.isfile(os.path.join(d, f)):
+                  # #B-15 B15-3: an incoming copy that failed this run (weeks are judged in order, so an earlier week's
+                  # verdict is known) is never the last seeding: the published copy is
+                  if os.path.isfile(os.path.join(d, f)) and not any(p_.startswith(f + ": ") for p_ in problems):
                       try: return load(os.path.join(d, f))
                       except Exception: return None
                   return pubjson(f)
@@ -891,7 +893,9 @@ jobs:
                       # fix-check F3: picks are taken within PICKS_GRACE of the lock (plus an hour for the run). Fix-check 2 PK-2:
                       # under release too, never once round 1's first hour is over (no picks written with hindsight)
                       if now > lock_time(w) + PICKS_GRACE + HOUR and not rel: problems.append(f + ": picks first recorded more than %d h after the lock (BRACKET_RELEASE not set for it)" % (PICKS_GRACE // HOUR)); continue
-                      if now > round_day(w, 0, s["size"]) + HOUR: problems.append(f + ": picks recorded after round 1's first hour (fix-check 2 PK-2)"); continue
+                      # (#B-15 B15-1: only under release, as the recorder: without one, the window is lock + PICKS_GRACE above,
+                      #  which for 32 seeds runs past round 1's start)
+                      if rel and now > round_day(w, 0, s["size"]) + HOUR: problems.append(f + ": picks recorded under release after round 1's first hour (fix-check 2 PK-2)"); continue
                   if j["picks"] is not None and any(x[2] >= lock_time(w) for x in j["picks"]["rows"]): problems.append(f + ": a pick timed at or after the lock"); continue
                   if s is not None and s["size"]:
                       od = (old.get("days") if old else None) or []
@@ -917,6 +921,10 @@ jobs:
                           if now < week_start(w + 1) + VAULT_DAYS: problems.append(f + ": closed as missed before its backstop"); continue
                       # fix-check F1: the end-of-week stakes a final week pays from were published by an EARLIER run, unchanged
                       elif not (old and same(old.get("staked"), j["staked"])): problems.append(f + ": final with end-of-week stakes no earlier run published (the two-run rule, fix-check F1)"); continue
+                      # #B-15 B15-2: likewise every hour's and the picks' re-read mark must already be in the PUBLISHED copy:
+                      # the run that confirms an item (e.g. one replaced under a release just cleared) never also closes the week
+                      elif not (all(type(h) is dict and h.get("re") == 1 for dd in (old.get("days") or [[None]]) for h in dd) and type(old.get("picks")) is dict and old["picks"].get("re") == 1):
+                          problems.append(f + ": final in the run that re-reads its hours or picks (the published copy must already carry every re mark; #B-15 B15-2)"); continue
               # fix-check 2 S-1: a week file that fails is held on its own (with its vault file and the board), never every
               # Bracket file: another week's final and vault file are still judged and published
               bad_weeks = {}

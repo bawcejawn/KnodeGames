@@ -407,6 +407,9 @@ export async function run(o: Opts) {
     if (wf.status === "final" || wf.status === "none" || wf.status === "void") continue;
     const backstop = B.weekStart(w + 1) + VAULT_DAYS;
     const released = RELEASE_W.has(w);   // the owner's one-off correction window for this week (BRACKET_RELEASE, fix-check F4)
+    // #B-15 B15-2: every re-read mark already in the published copy before this run: the run that confirms an item
+    // never also closes the week (the publish job checks the same)
+    const confirmedBefore = allReRead(wf);
     // ── 1. seeding ──
     const readCard = async (at: number) => {
       if (!nodeC) throw new Error("a second node is needed to seed (RPC_CHECK)");
@@ -489,7 +492,7 @@ export async function run(o: Opts) {
       if (now < B.lockTime(w)) continue;
       // fix-check RC-4: a week whose picks never get recorded closes at the backstop
       if (now >= backstop) { wf.status = "void"; wf.void = "its picks could not be recorded; no vault file"; continue; }
-      if (now >= picksWindowEnd) { problems.push(released ? `week ${w}: picks can't be recorded once round 1's first hour is over, even under BRACKET_RELEASE (fix-check 2 PK-2). The week closes at the backstop` : `week ${w}: picks weren't recorded within ${PICKS_GRACE / HOUR} h of the lock; the publish job won't take them later (BRACKET_RELEASE = ${w} allows a late record until round 1's first hour is over). The week closes at the backstop`); continue; }
+      if (now >= picksWindowEnd) { problems.push(released ? `week ${w}: picks can't be recorded once round 1's first hour is over, even under BRACKET_RELEASE (fix-check 2 PK-2). The week closes at the backstop` : `week ${w}: picks weren't recorded within ${PICKS_GRACE / HOUR} h of the lock; the publish job won't take them later${now < B.roundDay(w, 0, size) + HOUR ? ` (BRACKET_RELEASE = ${w} allows a late record until round 1's first hour is over)` : " (and round 1's first hour is over, so not even BRACKET_RELEASE can)"}. The week closes at the backstop`); continue; }
       if (!nodeC) { problems.push(`week ${w}: picks wait for a second node (RPC_CHECK)`); continue; }
       try {
         const rows = await readPicksBoth();
@@ -579,12 +582,12 @@ export async function run(o: Opts) {
     // ── 6. final (no earlier than Monday 00:00 UTC after the week; WEEK_CYCLE.md) ──
     if (now >= B.finalFrom(w) && released) problems.push(`week ${w}: BRACKET_RELEASE names this week, so it can't go final; clear it once the correction is in (fix-check 2 R-1)`);
     else if (now >= B.finalFrom(w)) {
-      const reRead = allReRead(wf);
+      const reRead = allReRead(wf) && confirmedBefore;
       if (done && reRead && stakesConfirmed) { wf.status = "final"; console.log(`week ${w}: final`); }
       else if (now >= backstop) {
-        if (done && reRead) { wf.status = "final"; wf.vault = "missed"; problems.push(`week ${w}: closed at the backstop without the Vault's stakes; no vault file (the Vault rolls the week over)`); }
+        if (done && allReRead(wf)) { wf.status = "final"; wf.vault = "missed"; problems.push(`week ${w}: closed at the backstop without the Vault's stakes; no vault file (the Vault rolls the week over)`); }
         else { wf.status = "void"; wf.void = "its results could not be completed and checked within 3 days of the week's end; no vault file"; problems.push(`week ${w}: void at the backstop: results never completed or re-read`); }
-      } else problems.push(`week ${w}: in review: ${!done ? "results not all in" : !reRead ? "picks or hours still being re-read" : "waiting for the Vault's stakes to read the same twice"}`);
+      } else problems.push(`week ${w}: in review: ${!done ? "results not all in" : !reRead ? "picks or hours still being re-read (final comes a run after the last re-read)" : "waiting for the Vault's stakes to read the same twice"}`);
     }
   }
 

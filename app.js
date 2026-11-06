@@ -129,9 +129,9 @@
    *  d = line + 1 is the smallest lead that makes it a Yes (a negative d means A may be behind by up to -d). */
   function h2hWords(line) {
     const d = line + 1, n = (x) => Number(x).toLocaleString();
-    if (d >= 2) return { ask: ["make at least ", { b: n(d) }, " more blocks than "], yes: `${n(d)} or more ahead`, no: `less than ${n(d)} ahead, or behind` };
-    if (d === 1) return { ask: ["make more blocks than "], yes: "ahead", no: "tied or behind" };
-    if (d === 0) return { ask: ["make at least as many blocks as "], yes: "tied or ahead", no: "behind" };
+    if (d >= 2) return { ask: ["produce at least ", { b: n(d) }, " more blocks than "], yes: `${n(d)} or more ahead`, no: `less than ${n(d)} ahead, or behind` };
+    if (d === 1) return { ask: ["produce more blocks than "], yes: "ahead", no: "tied or behind" };
+    if (d === 0) return { ask: ["produce at least as many blocks as "], yes: "tied or ahead", no: "behind" };
     return { ask: ["finish no more than ", { b: n(-d) }, " blocks behind "], yes: `behind by ${n(-d)} or less, or ahead`, no: `behind by ${n(-d + 1)} or more` };
   }
   /** Network questions (M4–M7), by what the on-chain wording asks. */
@@ -147,9 +147,9 @@
   function headlineWords(q) {
     const kind = qKind(q), [A, B] = qSubjects(q), line = qLine(q), n = (x) => Number(x).toLocaleString();
     if (kind === "h2h" && A && B && Number.isFinite(line)) return ["Will ", { chip: A }, " ", ...h2hWords(line).ask, { chip: B }, "?"];
-    if (kind === "ou" && A && Number.isFinite(line)) return ["Will ", { chip: A }, " make ", { b: `${n(line + 1)} or more` }, " blocks?"];
-    if (kind === "range" && A) return ["How many blocks will ", { chip: A }, " make?"];
-    if (kind === "tail" && q.group && q.group.length) return [`How many blocks will these ${q.group.length} smaller producers make together?`];
+    if (kind === "ou" && A && Number.isFinite(line)) return ["Will ", { chip: A }, " produce ", { b: `${n(line + 1)} or more` }, " blocks?"];
+    if (kind === "range" && A) return ["How many blocks will ", { chip: A }, " produce?"];
+    if (kind === "tail" && q.group && q.group.length) return [`How many blocks will these ${q.group.length} smaller producers produce together?`];
     const w = kind === "network" ? networkWords(q.text) : null;
     if (w) return [{ b: w.hook }, " ", w.ask];
     return null;
@@ -161,13 +161,19 @@
   }
   /** The counted blocks and when they should happen, in the viewer's time: counting starts when answers close
    *  (lockTime) and runs about BLOCK_MS a block. Day names only when it isn't today. */
-  function windowWords(q, now, blockMs) {
-    const nb = q.windowEnd - q.windowStart + 1, start = Number(q.lockTime), end = start + nb * blockMs;
-    const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
-    const at = (ms) => new Date(ms).toLocaleString([], sameDay(ms, now) ? { hour: "numeric", minute: "2-digit" } : { weekday: "short", hour: "numeric", minute: "2-digit" });
-    const hours = (nb * blockMs) / 3.6e6;
-    return { blocks: `Blocks ${q.windowStart.toLocaleString()} → ${q.windowEnd.toLocaleString()} (${nb.toLocaleString()})`,
-      when: Number.isFinite(start) && start > 0 ? `about ${at(start)} – ${at(end)} your time` : `about ${hours < 10 ? hours.toFixed(1) : Math.round(hours)} hours` };
+  /** Owner, 5 Nov: a length of time ("about 8½ hours"), not clock times, and no long block numbers on the card: they
+   *  stay one hover / long-press away (`exact`). The block count stays, as a round number. */
+  function windowWords(q, open, blockMs) {
+    const nb = q.windowEnd - q.windowStart + 1;
+    return { text: open ? `The ${nb.toLocaleString()} blocks after answers close (${aboutHours(nb * blockMs)})` : `Counted over ${nb.toLocaleString()} blocks (${aboutHours(nb * blockMs)})`,
+      exact: `Blocks ${q.windowStart.toLocaleString()} to ${q.windowEnd.toLocaleString()}` };
+  }
+  /** "about 8½ hours", "about 1 hour", "under an hour": to the nearest half hour. */
+  function aboutHours(ms) {
+    const h = Math.round((ms / 3.6e6) * 2) / 2;
+    if (h < 1) return "under an hour";
+    const n = h % 1 ? `${Math.floor(h)}½` : String(h);
+    return `about ${n} hour${h === 1 ? "" : "s"}`;
   }
   // question-words:end
 
@@ -184,9 +190,9 @@
   const groupView = (q) => (q.group && q.group.length ? el("div", { class: "q-group" },
     el("span", { class: "q-group-h" }, `The ${q.group.length} producers counted together:`), ...q.group.map(pchip)) : null);
   /** "Blocks #a → #b (10,000) · about 12:00 PM – 8:35 PM your time" */
-  function windowFacts(q) {
-    const w = windowWords(q, nowMs(), BLOCK_MS);
-    return [el("span", { class: "fact" }, w.blocks), el("span", { class: "fact" }, w.when)];
+  function windowFacts(q, mode) {
+    const w = windowWords(q, mode === "open", BLOCK_MS);
+    return [el("span", { class: "fact", title: w.exact }, w.text)];
   }
   /** What actually happened, in words. */
   function actualText(q) {
@@ -1093,7 +1099,7 @@
       mine !== null ? el("span", { class: `q-done${oc && oc !== 1000 ? (mine + 1 === oc ? " ok" : " miss") : ""}` }, outcomeNote(q, mine, oc)) : mode === "open" ? el("span", { class: "q-cta" }, S.account ? "Tap an answer" : "Tap an answer to play: free, and a guest wallet works") : null);
     return el("article", { class: `q q-${(q.tier || "Medium")}${mine !== null ? " q-answered" : ""}` }, top,
       el("h3", { title: q.text }, el("span", { class: "qno" }, qTag(q)), " ", ...headline(q)), qHint(q), groupView(q),
-      el("div", { class: "q-facts" }, ...windowFacts(q), mode === "open" ? el("span", { class: "fact" }, "Counting starts when answers close") : null),
+      el("div", { class: "q-facts" }, ...windowFacts(q, mode)),
       mode === "locked" && !oc ? raceView(q) : null,
       opts, act ? el("p", { class: "q-actual" }, ...act) : null, hashNote(q), foot);
   }

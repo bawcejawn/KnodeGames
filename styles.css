@@ -837,9 +837,6 @@ body[data-view="welcome"] .foot .eco { display: none; }
 @media (max-width: 600px) {
   .welcome-path-new { display: none; }
   .welcome-path { padding: 8px 10px; } .welcome-path span { display: none; }
-  /* The home page's card on a phone: only the time window; the block numbers and the "counting starts" note stay
-     on the Play tab's cards, so the answer buttons stay on the first screen. */
-  .welcome-q .q-facts .fact:not(:nth-child(2)) { display: none; }
   .welcome-lede { font-size: 1rem; }
   .welcome { padding-top: 14px; } .welcome-card { gap: 16px; }
 }

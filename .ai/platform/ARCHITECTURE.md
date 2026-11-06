@@ -1,13 +1,41 @@
 # Knode Games — Architecture
 
-> Purpose: How the pieces fit together. Describe, don't prescribe — rules live in `DECISIONS.md` and `../standards/`.
-> Last updated: 5 Nov 2026 (status sync: sponsor numbers point to `SPONSOR.md`; Vault v6.1 in PR #114; Race payout safety #133; CI guard #99 / #111; claim flow removed #137). Code facts last re-checked on `main` 3 Nov.
+> Purpose: How the pieces fit together, the principles they follow, and the **target architecture** with the steps to get there. Rules live in `DECISIONS.md` and `../standards/`; the live contracts in `CONTRACTS.md`; the folder map and funds-risk tiers in `REPO_MAP.md`.
+> Last updated: 5 Nov 2026 late (principles, target architecture and roadmap A1–A10; contract and workflow tables filled; earlier: status sync: sponsor numbers point to `SPONSOR.md`; Vault v6.1 in PR #114; Race payout safety #133; CI guard #99 / #111; claim flow removed #137). Code facts last re-checked on `main` 3 Nov.
 > Sources: `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (all 12 chats), checked against branches `picks` and `main` on 2026-11-02.
 
 **Legend:** ✅ verified in repo · 💬 chat only · ⚠️ conflict (see `DECISIONS.md`) · ❓ unknown
 
 ## Contents
-1. System diagram · 2. Layers (frontend, wallets, contracts, Mana sponsor, bots, data, infrastructure) · 3. Game contract duties kept from v5 · 4. Desk contract · 5. Vault v6 (entry points, measured costs, Hub pages, publish checks, Survivor kit, VHP standard, Picks contract, CI guards) · 6. Stack & tooling · 7. Tests · 8. Repository layout · 9. Security boundaries · 10. Known constraints
+0. Architecture principles · Target architecture and roadmap (A1–A10) · 1. System diagram · 2. Layers (frontend, wallets, contracts, Mana sponsor, bots, data, infrastructure) · 3. Game contract duties kept from v5 · 4. Desk contract · 5. Vault v6 (entry points, measured costs, Hub pages, publish checks, Survivor kit, VHP standard, Picks contract, CI guards) · 6. Stack & tooling · 7. Tests · 8. Repository layout · 9. Security boundaries · 10. Known constraints
+
+## Architecture principles
+1. **Funds in as few places as possible.** Only the vault holds stakes; the sponsor and the Desk hold KOIN for their one job; nothing else holds tokens (D-003, D-016). New features never add a token holder without an owner decision and an audit.
+2. **Small, audited, timelocked contracts; everything else off chain.** Contracts store stakes, picks and results; scoring, boards and pages run off chain where a bug can be corrected before money moves.
+3. **Fail closed, then correct.** A recorder or the bot that can't verify something holds the week instead of guessing; payouts wait for the Sunday review, two-node checks and a 24 h correction window (`standards/RECORDER_STANDARD.md`, D-125).
+4. **One way to do each thing.** One week cycle (`standards/WEEK_CYCLE.md`), one VHP ruler, one place that builds transactions (`stake-panel.js`), one results-file format; games add their rules on top, never their own copy.
+5. **Two independent sources for every chain fact that decides a payout** (Armana plus `api.koinosblocks.com`).
+6. **Least privilege for keys and workflows.** Cold keys own contracts; the bot's key can post results but not move funds; workflows get only the permissions the CI guard allows.
+7. **Reproducible and reviewable.** Every live hash rebuilds from a commit; every change to tier 1 or 2 code goes through a reviewed PR with its tests.
+8. **Free to run.** $0 hosting (D-005): GitHub Pages and Actions, the owner's nodes.
+
+## Target architecture and roadmap
+Where the platform is going, and the steps that move the architecture score (7 today, `HEALTHCHECK.md`) to 9–10. Each step has a work item; the order is by risk removed per unit of effort.
+
+| # | Step | Why (risk removed) | Work item | Status |
+|---|---|---|---|---|
+| A1 | **Cold-key ownership everywhere:** vault and Desk to `1LMV8E…` (Tue 10), cold Desk treasury, the Race picks contract key retired from use, Picks handover (D-106); the sponsor keeps all its KOIN (owner 5 Nov, D-148) | one stolen key can't change a contract or move the Desk's or sponsor's KOIN | TODOS (weekend runbook), R-BX-3, owner decision | in progress (Tue 10) |
+| A2 | **One required CI check on every PR**: run `npm run test:audit` and the contract tests with **no path filter**, and make it required on `main`. Today `test:audit` runs only when certain paths change; `.ai/` docs that tests read (RULES, GAME_STANDARD, VAULT_STANDARD, DECISIONS, RUNBOOK) don't trigger it | a docs or data change can't silently break a test that guards payouts | R-HUB-23 | open |
+| A3 | **Separate game data from code:** the bot and recorders commit results to a data branch (as `vhp-data`, `prize-settings` already do) instead of `main`; then `main` can require reviewed PRs and code owners (C5-13) without blocking the bot | today anything that can push to `main` can change code the bot runs (TD-03) | R-VAULT-15 (with Hub, Race, Block X) | open (design first) |
+| A4 | **Publish only the website** (Pages allow-list), then move it into `web/` | internal files stop being served; the root holds only project files | R-HUB-14, R-HUB-16 | open |
+| A5 | **Reproducible, tagged releases:** each live contract build has a git tag (`vault-v6.1`, `sponsor-v3.1`…) and a register row (`CONTRACTS.md`) | anyone can rebuild and verify a live hash; audits pin an exact commit | R-VAULT-16 | open (start with v6.1) |
+| A6 | **A shared game kit:** one recorder library (two-node reads, pending → final, holds, the vault file and `board.json` writers, Sunday fun rounds) and one site library (boards, stake panel, claim rules: I-092); each game supplies only its picks and scoring | new games are faster and safer; fixes land once for every game | R-ARCH-1 part 2 (with the Fantasy, Golf, Bracket chats) | **go: build now (D-146)** |
+| A7 | **VHP ruler v2.1 live** (all eleven simulations pass), then every handicap reads it | one fair, tested size measure; closes the Race's known tricks | R-RULER-2, R-RACE-5 | building |
+| A8 | **No single machine:** a warm standby node and producer key procedure on a second machine (or a $0 fallback), rehearsed recovery | a home outage or dead PC no longer stops block production or the bot's checks | TD-08, TD-10, `RECOVERY.md` gaps #33 – #35 | deferred: one PC for now (D-147); rehearse `RECOVERY.md` instead |
+| A9 | **Observability:** one hourly status file (pool production, sponsor use, held weeks, bot health) feeding the admin page and a public stats strip; plain-language alerts | problems are seen in minutes, by the owner, without reading logs | R-VAULT-9, R-HUB-17, R-HUB-22 | open |
+| A10 | **The full platform audit**, tier 1 against each live hash, then tier 2 | independent confidence before stake grows (D-102) | I-002 | after the core |
+
+**Score path:** A1 + A2 + A4 + A5 → about 8.5; A3 + A7 + A9 → about 9.5; A6 + A8 + A10 → 10.
 
 ## System Diagram
 ```
@@ -55,14 +83,14 @@ Owner PC: 3 Docker nodes (desk, game, personal) + self-heal
 - **Guest** — see `guest.js` above.
 
 ### Smart Contracts
-See `PLATFORM.md` → Contracts for addresses and hashes.
+Addresses, live hashes, owners and reviews: **`CONTRACTS.md`** (the one register).
 | Contract | Version | Upgradable? | Timelock | Confidence |
 |----------|---------|-------------|----------|-----------|
 | Game / Vault | v6 (upgraded in place from v5); v6.1 in PR #114 (dates: `CALENDAR.md`) | yes — 48 h notice for any vault upgrade (D-024) | 48 h (`timelockLength 172800000`) | ✅ |
-| Desk | v2 | {{TBD}} | 48 h | ✅ |
-| Sponsor | v3 guest fix `b84e1add…` (since 4 Nov; history in `SPONSOR.md`) | yes, by its own key, no timelock | none | ✅ |
-| Race | {{TBD}} | {{TBD}} | {{TBD}} | ✅ address only |
-| Picks | {{TBD}} | {{TBD}} | {{TBD}} | ✅ address only |
+| Desk | v2 `309506cc…` (28 Oct) | yes — owner announces, 48 h, then uploads | 48 h | ✅ |
+| Sponsor | v3 guest fix `b84e1add…` (since 4 Nov; history in `SPONSOR.md`) | yes, by its own key | none | ✅ |
+| Race picks | v1 `61e8f212…` (27 Oct) | yes — by its own key `RACE_WIF` (no overrides); settings by its owner `1LMV8E…` | none on code (see A1) | ✅ |
+| Picks | v1 `700c296a…` (30 Oct) | yes — `upgrade-schedule`, 48 h, `upgrade-upload` | 48 h | ✅ |
 
 Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GENESIS` 1792368000000), weeks Monday to Monday UTC, week = floor((t − genesis) / 7 days), so vault week 0 = Mon 19 Oct and week 2 = Mon 2 Nov (💬 Hub, Race; week labels: `KOINOS.md` → Time and D-063), close delay 12 h, settle 24 h, min stake 1 VHP (`100000000`); the vault's own Mana limit for others is now 0 (D-099; the record's `maxSponsorRc` was 2). How each game's week runs: `../standards/WEEK_CYCLE.md`.
 
@@ -96,12 +124,13 @@ Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GE
 | Release kick (owner's PC) | 11:50–14:00 UTC | 11:50–11:58 starts `bot.yml` unless a run is active; 12:06–14:00 checks `game-data/questions/W###-D#.json` is on `main` (public API, no token), restarts the bot at most every 12 min, emails once at 12:20, marks the day done when the file appears. Day labels `W{week:03}-D{day}`, Monday = D1, no questions Sunday | `bot/release-kick.mjs` | 💬 Swap Desk |
 | Heal alert | started by the owner's PC | fails on purpose so GitHub emails the owner | `.github/workflows/heal-alert.yml` | 💬 Swap Desk |
 | Self-heal | every 20 min | repairs a crash-looping node via `node/repair-node-data.ps1` | `bot/heal.mjs` | file ✅, schedule 💬 Restarts a node (`docker compose down`, `up -d`) when 200+ blocks behind and not moving, or silent on two checks; 50-min cooldown; stops after 3 restarts in 6 h and emails "check by hand"; a block store started 3+ times in 20 min is a crash loop (emails; auto-repair added later); every heal emails via `heal-alert.yml` 💬 Swap Desk |
-| Other workflows | {{TBD}} | {{TBD}} | `.github/workflows/` (15 files) | ✅ list |
+| Test workflows | on push / PR, by path | `test.yml` (vault contract), `desk-test.yml`, `sponsor-test.yml`, `picks-test.yml`, `race-test.yml`, `vault-bot-test.yml`, `status-test.yml`, `resolver-test.yml` (runs `npm run test:audit`), `workflow-guard.yml` (CI guard). **Path-filtered: a change outside their paths runs none of them (A2)** | `.github/workflows/` (18 files) | ✅ |
+| Other scheduled | hourly / 5–15 min | `names.yml` (:04, @names), `race-samples.yml` (every 5 min, VHP samples), `vhp-ruler.yml` (:12, off until `VHP_RULER_ENABLED`), `games-testnet.yml` (Block X testnet, every 20 min), `watch.yml` (every 15 min), `heal-alert.yml` (started by the PC) | `.github/workflows/` | ✅ |
 
 Node scripts present (✅): `node/repair-node-data.ps1` (general repair), `node/move-node-to-volume.ps1`; `node/repair-desk-data.ps1` (copied the game node's `block_store\db` and `chain\blockchain` onto the desk node, kept old data as `…-broken-<stamp>`, never touched keys/p2p/config) was later removed.
 
 ### Data
-- On-chain state: {{TBD}}
+- On-chain state: the vault (stakes per wallet and game, week records, posted results, free winners, seals, config including the v6.1 rule week), Picks (each game's picks and locks), Race picks (race picks), the sponsor (caps, rows, daily and weekly use), the Desk (KOIN balance, fee, treasury); read-only tools: `npm run bot -- status`, `chain-check`, `npm run sponsor -- status`, `npm run picks -- status` ✅
 - Scheduled workflows run only from `main`. `race-samples.yml` runs from `main` since 3 Nov 15:58 UTC ✅. GitHub runs its 5-minute schedule only about hourly, so each run takes up to 12 samples, ≥ 4 min apart (PR #67). 💬 Last Node
 - Off-chain: `game-data/`, `desk-data/` (has `v1UploadTx` ✅), `sponsor-data/`, `race-data/`, `picks-data/`, `games.json` — ✅
 - Vault results: `W${week}.json` (unpadded) from each game's `vaultGames` source — ✅ sources on `main`; naming 💬. Branch `games-data` holds folders blockx, survivor, fantasy, combo, bracket, lastnode, golf — 💬
@@ -111,7 +140,7 @@ Node scripts present (✅): `node/repair-node-data.ps1` (general repair), `node/
 
 ### Infrastructure
 - Nodes: 3 mainnet nodes on the owner's PC, Docker Compose on Windows, Docker volumes; no testnet nodes (D-066). Images (as of Oct): chain v1.5.2, block_store v1.1.0, p2p v1.3.0, block_producer v1.3.1 — 💬 (folders in `PLATFORM.md`)
-- `GITHUB_ALERT_TOKEN` (in the local `.env`): a fine-grained token for this repo only, Actions read/write, used by `heal.mjs` and `release-kick.mjs` — 💬
+- `GITHUB_ALERT_TOKEN`: a fine-grained token for this repo only, Actions read/write, used by `heal.mjs` and `release-kick.mjs` — 💬
 - Old basedir folders kept until 2026-11-04 — 💬
 
 ## Game contract duties kept from v5 — 💬 Swap Desk (✅ where marked)
@@ -231,14 +260,14 @@ How to run: `npm run test:audit` (also `test:audit:serial`, `test:resolver`, `cd
 | Vault v6 | 162/162 specs, 38/38 node tests | 💬 |
 
 ## Repository Layout
-{{TBD: full folder map}} — top level includes site files at root, `bot/`, `game/`, `desk/`, `sponsor/`, `race/`, `picks/`, `node/`, `tests/`, `docs/`, `*-data/` (✅).
+The folder map, with each part's funds-risk tier and the plan to tidy the root: **`REPO_MAP.md`** ✅.
 
 ## Security Boundaries
-- Keys live only in `.env` on the owner's PC; never pasted in chat — 💬 (D-003)
+- Private keys are never in the repo, GitHub (except `OPERATOR_WIF`) or chats; where they're kept is in the owner's private notes (D-003)
 - GitHub: only `OPERATOR_WIF` stored, in environment `bot`; the main workflow uses it — 💬
-- Branch ruleset: restrict deletions, block force pushes; no PR requirement (it would block the bot) — 💬
+- Branch ruleset: restrict deletions, block force pushes; no PR requirement yet, because the bot commits data to `main` (A3 removes that blocker) — 💬
 - Mainnet sends need `CONFIRM_MAINNET=yes`; commands are dry runs unless `--send` — 💬 (D-004)
-- Audit process: `AUDITS.md` (being written, 5 Nov); the starter audit prompt is `../standards/AI_CHAT_STARTER.md` §3.3
+- Audit process: `AUDITS.md` (fix-fast rules D-140); the starter audit prompt is `../standards/AI_CHAT_STARTER.md` §3.3
 
 ## Known Constraints
 - Hosting must cost $0 — 💬

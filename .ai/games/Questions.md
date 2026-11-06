@@ -20,6 +20,7 @@ The original Knode game: daily questions about what the Koinos chain will do, sc
 - Each correct answer scores points on the week's board; a player needs at least 1 point to place. Exact per-question points: ❓ (not in the chat exports).
 - **Timing (old rules, up to the switch-over week):** a week ends Mon 00:00 UTC, closes Mon 12:00 (the bot closes it; since the v6.1 Mana fix no player action does), settles 24 h, and is final **Tue 12:00 UTC**; the hourly bot pays at about 12:07 (I-066, C-08). The bot settles every staked player of the switch-over week itself. ✅
 - **Timing (shared rules, from the v6.1 rule week, D-116):** no settle step; the bot closes the week; the results file is due Thu 00:00 UTC, correctable 24 h after the seal, then final; claims on the Stake page (`claim_game`). Detected from `config.q60_rule_week_plus_one` (week + 1 ≥ it). 💬 Vault chat
+- **How questions are shown (D-144, #171):** the page words each question plainly (one block in `app.js` between `// question-words:start` and `:end`, tested by `site.question-words.test.mjs` for every line); `q.text` on chain is unchanged and stays in the tooltip. If `generator.ts` wording changes, update `networkWords` and the Race view's matching too.
 - **Where the week's timing lives:** `../standards/WEEK_CYCLE.md` (Daily Questions joins it at the rule week, Mon 16 Nov).
 
 ## Rewards
@@ -36,7 +37,8 @@ The original Knode game: daily questions about what the Koinos chain will do, sc
 
 ## Current status (5 Nov)
 - **Live and paying** on Vault v6 since 2 Nov. Week 2 finalized and paid 3 Nov. First v5-rule payout Tue 10 Nov ~12:07 UTC. ✅ / 💬
-- **Two rounds a day from Mon 9 Nov** (2 + 3, 30 a week): merged. The first two-round week is watched by R-Q-3. ✅
+- **⚠ P1: the results recorder isn't built (I-101).** From the rule week (Mon 16) the vault pays game 1 only from a results file; build, Repo Lens and merge by Sun 15 (R-Q-4).
+- **5 questions a day now; two rounds a day from Mon 9 Nov** (2 + 3, 30 a week): merged. The first two-round week is watched by R-Q-3. ✅
 - **Vault v6.1 (PR #114, open; Repo Lens round 2 GO to announce):** announce Thu 5 Nov, upload Mon 9 Nov, rule week **Mon 16 Nov** — from then 60 a week and the shared vault rules (D-116). 👤
 - **PR #152 ✅ merged 5 Nov** (the shared rules, page and bot side, including the settle pass for the switch-over week; Repo Lens #E-17 fixes). 1 is live.
 - **Managed on the Stake page** (D-121): ✅ merged (#142, #150, #157).
@@ -54,4 +56,4 @@ The original Knode game: daily questions about what the Koinos chain will do, sc
 ## Future plans
 - Players will see the week of 9 Nov as "Week 1" (D-063, I-069).
 - Optional: compound at a fixed time each day.
-- Block Golf (paused, D-113) will use this game as a hole, read straight from the contract on two nodes (D-056).
+- Block Golf (reactivated, D-142; PR #187) will use this game as a hole, read straight from the contract on two nodes (D-056).

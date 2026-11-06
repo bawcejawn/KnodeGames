@@ -23,7 +23,10 @@
     "picks": "tsx bot/picks.ts",
     "testnet-site": "node tools/testnet-site.mjs",
     "names": "tsx bot/names.ts",
-    "prizes": "tsx bot/free-prizes.ts"
+    "stats": "tsx bot/stats.ts",
+    "prizes": "tsx bot/free-prizes.ts",
+    "game:new": "node tools/new-game.mjs",
+    "game:check": "node tools/game-check.mjs"
   },
   "dependencies": {
     "koilib": "9.4.1"

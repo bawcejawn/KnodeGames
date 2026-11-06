@@ -3,7 +3,7 @@
 > **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Producer Bracket chat), `DECISIONS.md` (D-019, D-057, D-058, D-062), the repo (branch `kg-09-bracket`). **Last updated:** 5 Nov 2026; previous version `../archive/2026-11-04b/games/ProducerBracket.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
-> **Owner, 5 Nov (D-138):** reactivated as one of the next three games (D-142): "like the March madness with nodes head to head". **Shape (D-141):** up to 64 producers, one round a day (a 24-hour sprint per matchup), Mon–Sat with the final on Saturday; runs with as few as 8 (3 rounds); matchups by the ruler's luck percentile.
+> **Owner, 5 Nov (D-138):** reactivated as one of the next three games (D-142): "like the March madness with nodes head to head". **Shape (D-141, D-153; built on `kg-09-bracket` @ `ef146b2a`, PR #186):** up to **32** producers (5 rounds Tue–Sat; 16: Wed–Sat; 8: Thu–Sat; no byes), one round a day (a 24-hour sprint per matchup); seeding Sun 00:00 UTC, picks lock Mon 23:55; final Saturday; results final from Monday 00:00 after two agreeing runs; backstop Thu 00:00. Every Repo Lens #E-3 Critical / High / Medium fixed; fix-check next. Matchups use today's index until the ruler v2.1 percentile is ready (D-154; owner to confirm launching before it).
 
 ## Purpose
 A weekly knockout tournament of Koinos block producers, like a March Madness bracket: predict who wins each head-to-head matchup, one round a day. This chat also built the platform-wide **VHP standard** every game uses to measure VHP the same way (D-058).
@@ -24,7 +24,7 @@ A weekly knockout tournament of Koinos block producers, like a March Madness bra
 
 ## Rewards
 - **Staked:** at least the vault minimum (1 VHP) staked in game 9; staked at the week's start stays staked that week. 💬
-- **Free play: 2 VHP for 1st, 1 VHP for 2nd** (D-019, D-062). Tied for 1st share all 3 VHP; a single 1st → tied 2nd share 1 VHP; at most 10 per place (more than 10 tied → that place and below stay empty). Minimum play: one bracket with ≥ 1 point. Guests eligible. 1-week seasons. 💬
+- **Free play: 2 VHP for 1st, 1 VHP for 2nd** (D-019, D-062). Tied for 1st share all 3 VHP; a single 1st → tied 2nd share 1 VHP; at most 10 per place (more than 10 tied → that place and below stay empty). Minimum play: one bracket with ≥ 1 point. Guests eligible. 1-week seasons. 💬 **⚠ This is today's code, not the rule: D-159 pays exactly 10 by earlier score time, then address, never zero for the cap (I-103, fixed in code separately).**
 
 ## Dependencies
 - **Picks contract:** announce game 9 (48 h). **Vault:** `game-add 9 "Producer Bracket" --staked --free --season 1` (48 h; when its fix-check passes and the pause ends, D-088, D-113), free-prize switch ON (D-082); results `games-data:bracket/vault/W<week>.json` ✅ `vaultGames`.
@@ -34,8 +34,8 @@ A weekly knockout tournament of Koinos block producers, like a March Madness bra
 
 ## Current status (5 Nov)
 - **▶ Reactivated 5 Nov (D-142): one of the next three games to launch. Its chat starts with `../platform/CHAT_REQUESTS.md` → R-ALL-9 (the catch-up on the 4–5 Nov standards), then its own section.**
-- Branch `kg-09-bracket` @ `5b2492e` ✅ (audited tip; earlier `ee676ea`) — pushed, **not merged, nothing deployed**; 16+ commits behind `main`.
-- **Repo Lens #E-3 (3 Nov): fix first** — 2 Critical, 6 High, 10 Medium, plus Low/Info. Report and failing tests are private, in the Claude project (`claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`). No launch date (D-088, D-113).
+- **Branch `kg-09-bracket` @ `8d3d942`, draft PR #186 (5 Nov):** the D-141 shape (max 32 players, D-153) and every Repo Lens #E-3 fix; on the weekly cycle (Sunday 00:00 seeding, no Sunday rounds — owner to confirm). **Not merged, nothing deployed.** Next: the #E-3 fix-check (`claude/bracket/REPOLENS-E3-FIXCHECK2-PROMPT.md`).
+- **Repo Lens #E-3 (3 Nov), audited tip `5b2492e`:** 2 Critical, 6 High, 10 Medium, plus Low/Info — fixed on the branch, fix-check pending. Report and failing tests are private, in the Claude project (`claude/bracket/AUDIT-2026-11-03-E3.md`, `claude/bracket/repolens-e3-tests/`). No launch date (D-088).
 - Evidence before the audit: the VHP rebuild matched all 780 race-card readings; over 100 days the better seed won 54% of 113 matchups, and a "last week's form" bracket averaged 14.8 points vs 4.8 for random. The sampling branches are already deleted ✅.
 - Work list: `../platform/CHAT_REQUESTS.md` → Producer Bracket.
 

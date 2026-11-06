@@ -1,6 +1,7 @@
 # Start Here — Onboarding to Knode Games
 
 > For any AI (or person) joining the project. Read this first, then follow the reading order.
+> **Whole system at a glance:** [`../STATUS.md`](../STATUS.md) at the top of the repo — read it first.
 > **Where this lives:** every file named below is in the **`.ai/`** folder at the root of the repo (this file is `.ai/START_HERE.md`). Paths like `platform/RULES.md` mean `.ai/platform/RULES.md`.
 
 ## What Knode Games is
@@ -24,6 +25,8 @@ Free and staked prediction games on the Koinos blockchain, powered by our own bl
 | check the Mana sponsor's numbers | `platform/SPONSOR.md` |
 | react to an alert email | `platform/ALERTS.md` → `platform/RUNBOOK.md` |
 | know what each folder is and whether it can touch funds | `platform/REPO_MAP.md` |
+| see every live contract, its build and its last review | `platform/CONTRACTS.md` |
+| see where the architecture is going | `platform/ARCHITECTURE.md` → "Target architecture and roadmap" |
 | look up a decision | `platform/DECISIONS.md` (oldest first; index at the top) |
 | end a session | `platform/SESSION_END_PROCESS.md` |
 

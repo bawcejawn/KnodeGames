@@ -1,0 +1,119 @@
+/* run-node.html: the "Run a node" guide. Builds on styles.css and pages.css (site colours, cards, buttons). */
+.rn { max-width: 760px; }
+
+/* quick facts */
+.rn-facts { list-style: none; margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.rn-facts li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px; display: grid; gap: 2px; }
+.rn-facts b { font: 800 1.35rem/1.1 var(--display); color: var(--violet); }
+.rn-facts span { color: var(--muted); font-size: .85rem; line-height: 1.3; }
+@media (max-width: 560px) { .rn-facts { grid-template-columns: repeat(2, 1fr); } }
+
+/* setup card */
+.rn-setup { border-color: var(--violet); box-shadow: 0 0 0 1px var(--violet), var(--shadow); }
+.rn-os { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 14px; }
+.rn-os-b { font: 700 .95rem/1 var(--body); padding: 11px 18px; border-radius: 999px; border: 0; cursor: pointer;
+  background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
+.rn-os-b[aria-pressed="true"] { background: var(--violet); color: var(--violet-ink); box-shadow: none; }
+.rn-label { display: block; font-weight: 700; margin: 4px 0 6px; }
+.rn-input { width: 100%; padding: 12px 14px; font: 500 1rem var(--body); border-radius: var(--r-sm); border: 1.5px solid var(--line);
+  background: var(--paper); color: var(--ink); }
+.rn-input:focus { outline: none; border-color: var(--violet); }
+.rn-addr-msg { margin: 6px 0 12px; font-size: .9rem; }
+.rn-good { color: var(--mint); font-weight: 700; }
+.rn-bad { color: var(--rose); font-weight: 700; }
+.rn-progress { display: flex; align-items: center; gap: 12px; font-size: .9rem; color: var(--muted); }
+.rn-bar { flex: 1; height: 8px; border-radius: 99px; background: var(--violet-soft); overflow: hidden; }
+.rn-bar i { display: block; height: 100%; width: 0; background: var(--mint); transition: width .25s ease; }
+
+/* table of contents */
+.rn-toc ol { margin: 0 0 10px; padding-left: 22px; display: grid; gap: 4px; }
+.rn-toc a { color: var(--ink); }
+
+/* steps */
+.rn-step { scroll-margin-top: 80px; }
+.rn-step-h { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 8px; }
+.rn-step-h > div { flex: 1; }
+.rn-step-h h2 { margin: 2px 0 2px; }
+.rn-num { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--violet); color: var(--violet-ink); font: 800 1rem/1 var(--num); }
+.rn-time { margin: 0; color: var(--muted); font-size: .85rem; }
+.rn-done { flex: none; display: flex; gap: 6px; align-items: center; font-weight: 700; font-size: .9rem; cursor: pointer;
+  padding: 6px 10px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--line); }
+.rn-done input, .rn-checklist input { width: 18px; height: 18px; accent-color: var(--mint); }
+.rn-step.rn-is-done .rn-num { background: var(--mint); }
+.rn-step.rn-is-done .rn-done { background: var(--mint-soft); color: var(--mint); box-shadow: none; }
+.rn-what { margin: 0 0 12px; }
+.rn-sub { font-size: 1rem; margin: 18px 0 8px; }
+.rn-list { margin: 0 0 12px; padding-left: 22px; display: grid; gap: 8px; }
+.rn-warn li { color: var(--rose); font-weight: 600; }
+.rn-see { margin: 14px 0 10px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--mint-soft); }
+.rn-addr-hint { margin: 0 0 12px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--sun-soft); }
+.rn-fix { border-top: 1px solid var(--line); padding-top: 10px; }
+.rn-fix summary { cursor: pointer; font-weight: 700; color: var(--rose); }
+.rn-fix ul { margin: 10px 0 0; padding-left: 22px; display: grid; gap: 8px; }
+.rn code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .86em; }
+.rn p code, .rn li code { background: var(--paper); padding: 1px 5px; border-radius: 5px; word-break: break-word; }
+
+/* command boxes */
+.rn-cmd { margin: 8px 0 10px; border-radius: var(--r-md); overflow: hidden; background: var(--navy); color: var(--navy-ink); }
+.rn-cmd-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px 8px 14px;
+  background: var(--navy-2); font-size: .8rem; color: var(--navy-muted); font-weight: 700; }
+.rn-copy { font: 700 .8rem/1 var(--body); padding: 8px 14px; border-radius: 999px; border: 0; cursor: pointer; background: var(--sun); color: #2b1d00; }
+.rn-cmd pre { margin: 0; padding: 12px 14px; overflow-x: auto; }
+.rn-cmd code { font-size: .82rem; line-height: 1.55; white-space: pre; color: var(--navy-ink); }
+.rn-addr { background: var(--rose); color: #fff; border-radius: 4px; padding: 0 3px; }
+.rn-addr.rn-addr-set { background: transparent; color: var(--sun); padding: 0; }
+
+/* only this computer's commands, once a computer is picked (without JavaScript every box shows, each labelled) */
+body[data-rn-os="win"] .rn-cmd:not([data-os~="win"]), body[data-rn-os="win"] .rn-only:not([data-os~="win"]),
+body[data-rn-os="mac"] .rn-cmd:not([data-os~="mac"]), body[data-rn-os="mac"] .rn-only:not([data-os~="mac"]),
+body[data-rn-os="linux"] .rn-cmd:not([data-os~="linux"]), body[data-rn-os="linux"] .rn-only:not([data-os~="linux"]) { display: none; }
+
+/* trouble table, checklist, sources */
+.rn-table { box-shadow: none; padding: 0; background: transparent; }
+.rn-checklist { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 10px; }
+.rn-checklist label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.rn-checklist input { flex: none; margin-top: 3px; }
+.rn-sources { font-size: .88rem; padding: 6px 4px 0; }
+.rn-sources h2 { font-size: 1rem; margin: 10px 0 6px; }
+.rn-sources ul { padding-left: 20px; display: grid; gap: 4px; }
+
+/* ---- Readability (owner, 5 Nov: "crisper but not obnoxious"). The guide's running text uses the computer's own
+   UI font (Segoe UI on Windows, San Francisco on a Mac): the system tunes it for the screen, so it renders sharper
+   than a web font at reading size. Slightly larger, darker text; bold only for the steps themselves. ---- */
+.rn {
+  --rn-text: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --rn-mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", ui-monospace, monospace;
+  --muted: #3F4A44;
+  font: 400 17px/1.65 var(--rn-text);
+  color: var(--ink);
+  text-rendering: optimizeLegibility;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rn { --muted: #C4CCC6; } }
+:root[data-theme="dark"] .rn { --muted: #C4CCC6; }
+.rn .lede { font-size: 1.08rem; color: var(--muted); }
+.rn p, .rn li, .rn td { font-family: var(--rn-text); }
+.rn .muted { color: var(--muted); }
+.rn b, .rn strong { font-weight: 600; }
+.rn-step-h h2 { font-size: 1.32rem; font-weight: 800; }
+.rn-sub { font: 700 1.06rem/1.35 var(--rn-text); margin: 22px 0 8px; color: var(--ink); }
+.rn-tag { display: block; font: 700 .74rem/1.2 var(--rn-text); letter-spacing: .07em; text-transform: uppercase; color: var(--violet); margin: 0 0 3px; }
+.rn-what, .rn-see { line-height: 1.6; }
+.rn-see { padding: 12px 14px; }
+.rn ol.rn-list > li::marker { font-weight: 700; color: var(--violet); }
+.rn-list { gap: 10px; }
+.rn code, .rn-cmd code { font-family: var(--rn-mono); }
+.rn p code, .rn li code, .rn td code { font-size: .88em; padding: 1px 6px; }
+.rn-cmd code { font-size: .9rem; line-height: 1.65; color: #F7F3EA; }
+.rn-cmd-h { font: 600 .82rem/1.2 var(--rn-text); color: #D6DDEA; }
+.rn-fix summary { font: 700 1rem var(--rn-text); }
+.rn-fix ul { color: var(--ink); }
+.rn-notice { border-left: 4px solid var(--sun); }
+.rn-notice p { margin: 0 0 8px; }
+.rn-legal { font-size: .95rem; }
+.rn-legal ul { padding-left: 20px; display: grid; gap: 8px; margin: 0 0 12px; }
+
+/* "Do this" lines: the action for the box that follows (owner, 5 Nov: say exactly what to do at every step). */
+.rn-do { position: relative; margin: 14px 0 6px; padding-left: 24px; font-weight: 600; color: var(--ink); }
+.rn-do::before { content: "▸"; position: absolute; left: 4px; top: 0; color: var(--violet); font-weight: 800; }
+#howto ol.rn-list li { line-height: 1.6; }

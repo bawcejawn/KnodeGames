@@ -59,7 +59,7 @@
   // options for that race or game pick ... when an address is voided its not a permanent thing": a producer whose
   // effective VHP leaves own × (1 ± VOID_BAND) at any block of the scoring window is void for that race (it plays the
   // next one as usual). Real days: about 1–1.6% of producer-races (sims/ruler/voids.mjs)
-  const VOID_BAND = 100000n;
+  const VOID_BAND = 100000n, CORE_LINE = 970000n;
   const PCT_SCALE = 1n << 256n;   // the Poisson terms' fixed-point scale (pct)
 
   // ── sha256 (pure, for the card time; tested against node:crypto) ──
@@ -472,17 +472,17 @@
       const quality = flagged ? "flagged" : "ok";
       return { ...p, quality, expected, signed: L.signedIn(p.a, S0, S1), credited, pct: pct(expected, credited), void: isVoid };
     });
-    // A′: the field is the producers with entry that aren't void (Repo Lens #B-10 F1). Its totals come from the core, the
-    // members at form ≥ FORM_GATE: n = the blocks the core signed in [S0, S1]; b counts every other core member at its
-    // expected blocks × its rate (a steady producer signs at its 14-day rate, so its unsigned blocks lift no one) and the
-    // producer itself at full size (B9-2). A member below the gate (a steady throttler, in at full size by the owner's
-    // ruling) is scored against the core plus itself at full size and counts in no one else's totals, so a parked
-    // address that suddenly signs in full can't move the others either
-    const inField = (p) => p.entry && !p.void, inCore = (p) => inField(p) && big(p.form) >= FORM_GATE;
-    const atRate = (p) => (p.expected * big(p.rate)) / M;
-    let n = 0n, bw = 0n;
-    for (const p of producers) if (inCore(p)) { n += BigInt(p.signed); bw += atRate(p); }
-    for (const p of producers) p.fpct = !inField(p) ? null : inCore(p) ? fpct(n, p.expected, bw - atRate(p) + p.expected, p.credited) : fpct(n + BigInt(p.signed), p.expected, bw + p.expected, p.credited);
+    // A′ (D-165, Repo Lens #B-11): the field is the producers with entry that aren't void. Its yardstick is the core:
+    // the members whose form is at least CORE_LINE of the field's median form (the middle form; with an even count, the
+    // two middle forms averaged, rounded down), each at full size: n = the blocks the core signed in [S0, S1], b = the
+    // core's expected blocks. Every other member plays at full size (D-163) against the core plus itself, and moves no
+    // one, so neither signing below its share nor above its own record can lift or sink anyone else
+    const inField = (p) => p.entry && !p.void, fieldForms = producers.filter(inField).map((p) => big(p.form)).sort((x, y) => (x < y ? -1 : x > y ? 1 : 0));
+    const h = fieldForms.length, median = h === 0 ? 0n : h % 2 ? fieldForms[(h - 1) / 2] : (fieldForms[h / 2 - 1] + fieldForms[h / 2]) / 2n;
+    const line = (median * CORE_LINE) / M, inCore = (p) => inField(p) && big(p.form) >= line;
+    let n = 0n, b = 0n;
+    for (const p of producers) if (inCore(p)) { n += BigInt(p.signed); b += p.expected; }
+    for (const p of producers) p.fpct = !inField(p) ? null : inCore(p) ? fpct(n, p.expected, b, p.credited) : fpct(n + BigInt(p.signed), p.expected, b + p.expected, p.credited);
     return { ...card, producers };
   }
 
@@ -525,6 +525,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, VOID_BAND,
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, VOID_BAND, CORE_LINE,
     sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -95,7 +95,7 @@ export function card(paths, base, T, S0, S1, opts = {}) {
     // `signs`: the share of its blocks the producer really signs (1: honest; sim 8 sets throttlers and steerers)
     // the form gate as the owner ruled (5 Nov): a steady producer is in whatever its level; others need form ≥ 0.80
     const form = (opts.forms && opts.forms[p]) ?? 1, steady = !!(opts.steady && opts.steady[p]), gated = !steady && form < 0.8;
-    return { p, own: own[p], avg: avg[p], k, rate, lam: lam * signs, credFrac: lam > 0 ? cred / lam : 0, pmin, ptwa, pooled: (opts.pooled || []).includes(p), gated, form, dev };
+    return { p, own: own[p], avg: avg[p], k, rate, lam: lam * signs, credFrac: lam > 0 ? cred / lam : 0, pmin, ptwa, pooled: (opts.pooled || []).includes(p), gated, form, steady, dev };
   });
   return { rows, total, blocks };
 }
@@ -106,10 +106,11 @@ export function chances(c, races, seed, cfg, opts = {}) {
   const field = c.rows.filter((r) => r.k >= cfg.minK && !r.gated && !(cfg.void && r.dev > cfg.void) && !(opts.out || []).includes(r.p)).map((r) => ({ ...r, e: exp(r) })).sort((x, y) => y.e - x.e);
   if (field.length < 2) return null;
   const draws = field.map((r) => pois(r.lam)), tabs = cfg.rank === "A" ? field.map((r) => pois(r.e)) : null;
-  // A′ as built (Repo Lens #B-10 F1): totals from the core (form ≥ 0.80), each other core member at e × rate and the
-  // producer itself at full size; a member below 0.80 (a steady throttler) against the core plus itself at full size
-  const core = field.map((r) => r.form >= 0.8), ew = field.reduce((s, r, i) => s + (core[i] ? r.e * r.rate : 0), 0);
-  const share = field.map((r, i) => (core[i] ? r.e / (ew - r.e * r.rate + r.e) : r.e / (ew + r.e)));
+  // A′ as built (D-165): the core is the field members with form ≥ 0.97 × the field's median form (even count: the two
+  // middle forms averaged), each at full size; everyone else against the core plus itself at full size
+  const fsrt = field.map((r) => r.form).sort((x, y) => x - y), h = fsrt.length, med = h % 2 ? fsrt[(h - 1) / 2] : (fsrt[h / 2 - 1] + fsrt[h / 2]) / 2;
+  const core = field.map((r) => r.form >= 0.97 * med), eC = field.reduce((s, r, i) => s + (core[i] ? r.e : 0), 0);
+  const share = field.map((r, i) => (core[i] ? r.e / eC : r.e / (eC + r.e)));
   let hs = null;
   if (cfg.rank === "B") {
     const ks = field.map((r) => r.e), cal = RM.calibrate(ks, 1500);
@@ -141,7 +142,10 @@ export function chances(c, races, seed, cfg, opts = {}) {
     }
     for (const i of who) wins[i] += 1 / who.length;   // ties: split (on a card: broken by the card's seed)
   }
-  return Object.fromEntries(field.map((r, i) => [r.p, { chance: wins[i] / races, fair: 1 / field.length, ratio: wins[i] / races * field.length, index: r.lam * r.credFrac / r.e, k: r.k, e: r.e }]));
+  // D-165 (N-2): with opts.fairWin, fair = 1 ÷ (field − members that can't win): the steady throttlers, i.e. steady
+  // members below the core line; they get no ratio (cantWin)
+  const cantWin = field.map((r, i) => !!opts.fairWin && r.steady && !core[i]), F = field.length - cantWin.filter(Boolean).length;
+  return Object.fromEntries(field.map((r, i) => [r.p, { chance: wins[i] / races, fair: 1 / F, ratio: wins[i] / races * F, index: r.lam * r.credFrac / r.e, k: r.k, e: r.e, cantWin: cantWin[i], core: core[i] }]));
 }
 
 export const CONFIGS = { "A′ + void": { rank: "A2", minK: 10, poolRule: "min", void: 0.1 }, "A + void": { rank: "A", minK: 10, poolRule: "min", void: 0.1 }, "A′ (fpct)": { rank: "A2", minK: 10, poolRule: "min" }, "A′ + thinned credit (proposal)": { rank: "A2", minK: 10, poolRule: "min", thin: true }, "A (pct)": { rank: "A", minK: 10, poolRule: "min" } };
@@ -165,12 +169,22 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
   const say = (id, name, cfg, metric, pass, mark, detail) => { res.push({ id, name, cfg, metric, pass: dry ? null : pass, mark, detail }); log(`${dry ? "DRY " : pass ? "PASS" : "MISS"} sim ${id} [${cfg}] ${name}: ${metric} (mark: ${mark})`); };
   const agg = (per) => Object.fromEntries(Object.entries(per).map(([p, xs]) => [p, { n: xs.length, ratio: xs.reduce((s, x) => s + x.chance, 0) / xs.reduce((s, x) => s + x.fair, 0), index: xs.reduce((s, x) => s + x.index, 0) / xs.length, k: xs.reduce((s, x) => s + x.k, 0) / xs.length }]));
   const span = (o, f) => { const v = Object.values(o).map(f); return v.length ? [Math.min(...v), Math.max(...v)] : [NaN, NaN]; };
-  const field = (f, extra = {}) => card({ ...f.paths, ...(extra.add || {}) }, f.base, f.T, f.w.S0, f.w.S1, { pooled: [VAULT, ...(extra.pooled || [])], rates: { ...f.rates, ...(extra.rates || {}) }, signs: extra.signs, N: extra.N, forms: { ...f.forms, ...(extra.forms || {}) }, steady: { ...f.steady, ...(extra.steady || {}) } });
-  const honest = (cfg, mk, steadyOnly = true, seed0 = 1000) => {
+  // synthetic producers' forms are given relative to signing in full; on real cards everyone else's form is ~1.1–1.3
+  // (a big throttler's blocks go to the rest), so a synthetic form is scaled by the card's median real form, and a
+  // synthetic producer without one signs in full at that median (D-165's core line is relative to the field)
+  const medForm = (f) => { const xs = f.ps.map((p) => f.forms[p]).filter((x) => x > 0).sort((a, b) => a - b), h = xs.length; return h === 0 ? 1 : h % 2 ? xs[(h - 1) / 2] : (xs[h / 2 - 1] + xs[h / 2]) / 2; };
+  const field = (f, extra = {}) => {
+    const m = extra.forms && extra.forms.__abs ? 1 : medForm(f), syn = {};
+    for (const p of Object.keys(extra.add || {})) syn[p] = m * ((extra.forms && extra.forms[p]) ?? 1);
+    const forms = { ...f.forms, ...(extra.forms && extra.forms.__abs ? extra.forms : {}), ...syn };
+    if (extra.forms && !extra.forms.__abs) for (const [p, v] of Object.entries(extra.forms)) if (!(p in syn)) forms[p] = v * m;
+    return card({ ...f.paths, ...(extra.add || {}) }, f.base, f.T, f.w.S0, f.w.S1, { pooled: [VAULT, ...(extra.pooled || [])], rates: { ...f.rates, ...(extra.rates || {}) }, signs: extra.signs, N: extra.N, forms, steady: { ...f.steady, ...(extra.steady || {}) } });
+  };
+  const honest = (cfg, mk, steadyOnly = true, seed0 = 1000, copts = {}) => {
     const per = {};
     fields.forEach((f, ci) => {
-      const ch = chances(field(f, mk ? mk(f) : {}), races, seed0 + ci, cfg); if (!ch) return;
-      for (const [p, x] of Object.entries(ch)) { if (steadyOnly && !p.startsWith("~") && moved(p, f.T - BLOCKS_PER_DAY, f.w.S1)) continue; (per[p] ||= []).push(x); }
+      const ch = chances(field(f, mk ? mk(f) : {}), races, seed0 + ci, cfg, copts); if (!ch) return;
+      for (const [p, x] of Object.entries(ch)) { if (x.cantWin) continue; if (steadyOnly && !p.startsWith("~") && moved(p, f.T - BLOCKS_PER_DAY, f.w.S1)) continue; (per[p] ||= []).push(x); }
     });
     return agg(per);
   };
@@ -179,17 +193,15 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
       // (a) every producer honest and signing in full (rate 1, form 1: what a full producer's record shows)
       const adds = (f) => ({ "~shrinks 1%/day": synthetic(f.Nreal, 0.03, false), "~re-burns hourly": synthetic(f.Nreal, 0.03, true) });
       const ones = (f) => Object.fromEntries(f.ps.map((p) => [p, 1]));
-      const r = honest(cfg, (f) => ({ add: adds(f), rates: ones(f), forms: ones(f) }));
+      const r = honest(cfg, (f) => ({ add: adds(f), rates: ones(f), forms: { ...ones(f), __abs: true } }));
       const enough = Object.fromEntries(Object.entries(r).filter(([, v]) => v.n >= 5));
       const [w0, w1] = span(enough, (x) => x.ratio), [i0, i1] = span(enough, (x) => x.index);
-      // (b) as on the real days (Repo Lens #B-10 Info): each steady producer signs at its real 14-day rate. Shown, not
-      // marked: a throttler in the field practically never wins (owner's ruling), so the others share its 1 ÷ field and
-      // all sit above 1 of fair by about field ÷ (field − throttlers); the mark is (a)
-      const rr = honest(cfg, (f) => ({ add: adds(f), signs: Object.fromEntries(f.ps.filter((p) => f.steady[p]).map((p) => [p, f.rates[p]])) }));
-      const fullRate = {}; fields.forEach((f) => { for (const p of f.ps) (fullRate[p] ||= []).push(f.steady[p] ? f.rates[p] : 1); });
-      const full = Object.fromEntries(Object.entries(rr).filter(([p, v]) => v.n >= 5 && (p.startsWith("~") || Math.min(...fullRate[p]) >= 0.97)));
+      // (b) as on the real days: each steady producer signs at its real 14-day rate. Marked (D-165, N-2) against fair =
+      // 1 ÷ (field − members that can't win): the steady throttlers (steady members below the core line) are left out
+      const rr = honest(cfg, (f) => ({ add: adds(f), signs: Object.fromEntries(f.ps.filter((p) => f.steady[p]).map((p) => [p, f.rates[p]])) }), true, 1000, { fairWin: true });
+      const full = Object.fromEntries(Object.entries(rr).filter(([, v]) => v.n >= 5));
       const [x0, x1] = span(full, (x) => x.ratio);
-      say(1, "honest field", name, `all full: win chance ${w0.toFixed(2)} … ${w1.toFixed(2)} of fair (${Object.keys(enough).length} producers in 5+ races), index ${i0.toFixed(4)} … ${i1.toFixed(4)}; real rates: full producers ${x0.toFixed(2)} … ${x1.toFixed(2)} (${Object.keys(full).length})`, w0 >= 0.85 && w1 <= 1.15, "all full: wins 0.85–1.15 of fair (real rates shown; index: see report)", { allFull: r, realRates: rr });
+      say(1, "honest field", name, `all full: win chance ${w0.toFixed(2)} … ${w1.toFixed(2)} of fair (${Object.keys(enough).length} producers in 5+ races), index ${i0.toFixed(4)} … ${i1.toFixed(4)}; real rates (fair = 1 ÷ field less steady throttlers): ${x0.toFixed(2)} … ${x1.toFixed(2)} (${Object.keys(full).length})`, w0 >= 0.85 && w1 <= 1.15 && x0 >= 0.85 && x1 <= 1.15, "wins 0.85–1.15 of fair, all full and at real rates (index: see report)", { allFull: r, realRates: rr });
     }
     if (want(2)) {
       const r = honest(cfg, (f) => ({ add: Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`~small${String(i).padStart(3, "0")}`, synthetic(f.Nreal, 0.0005 + i * 0.0001, i % 2 === 0)])) }));
@@ -282,10 +294,26 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
       };
       const big = () => { let c0 = 0, n = 0; fields.forEach((f, ci) => { const e = synthetic(f.Nreal, 0.1, true), N = new Float64Array(f.w.S1 - f.w.S0 + 1); for (let b = f.w.S0; b <= f.w.S1; b++) N[b - f.w.S0] = f.Nreal[b - f.base] + e[b - f.base]; const ch = chances(field(f, { add: { "~me": e }, steady: { "~me": false }, forms: { "~me": 1 }, N }), races, 8700 + ci, cfg); n++; if (ch && ch["~me"]) c0 += ch["~me"].chance; }); return n ? c0 / n : 0; };
       out.parked = { honest10: big(), honestPair: pair(1, true), parked: pair(0.05), switchOn: pair(1) };
+      // Repo Lens #B-11 N-1 / D-165: an 18% member kept steady at 0.80, 0.90 or 0.95 of full (in the field) that signs in
+      // full in the race, against the same member honest at full; and the others' win range beside it
+      const n1 = (form) => {
+        let c0 = 0, n = 0; const per = {};
+        fields.forEach((f, ci) => {
+          const e = synthetic(f.Nreal, 0.22, true), N = new Float64Array(f.w.S1 - f.w.S0 + 1);
+          for (let b = f.w.S0; b <= f.w.S1; b++) N[b - f.w.S0] = f.Nreal[b - f.base] + e[b - f.base];
+          const ch = chances(field(f, { add: { "~n1": e }, steady: { "~n1": form < 1 }, forms: { "~n1": form }, N }), races, 8800 + ci, cfg); n++;
+          if (ch) for (const [p, x] of Object.entries(ch)) if (p === "~n1") c0 += x.chance; else if (!moved(p, f.T - BLOCKS_PER_DAY, f.w.S1)) (per[p] ||= []).push(x);
+        });
+        const [lo, hi] = span(Object.fromEntries(Object.entries(agg(per)).filter(([, v]) => v.n >= 5)), (x) => x.ratio);
+        return { chance: n ? c0 / n : 0, others: [lo, hi] };
+      };
+      out.n1 = { honest: n1(1), at95: n1(0.95), at90: n1(0.9), at80: n1(0.8) };
       const err = 2 * Math.sqrt(Math.max(out.honest.chance, 1e-4) / (races * Math.max(out.honest.cards, 1)));
       const errP = 2 * Math.sqrt(Math.max(out.parked.honestPair, 1e-4) / (races * Math.max(out.honest.cards, 1)));
-      const pass = out.steerer.chance <= out.honest.chance + err && out.throttler.inField === out.throttler.cards && out.outage.inField === 0 && out.parked.parked <= out.parked.honestPair + errP && out.parked.switchOn <= out.parked.honestPair + errP;
-      say(8, "throttlers and steering", name, `JGA Pool #2 (real, signing at its real rate): steady on ${out.jga.steadyCards} of ${out.jga.cards} cards, in the field on ${out.jga.inField} (benched on ${out.jga.benched}: not steady and below 0.80), wins ${out.jga.ratio.toFixed(2)}× fair there; a 2% producer: honest ${out.honest.chance.toFixed(3)} (${out.honest.ratio.toFixed(2)}× fair), steady throttler at 0.66 in the field on ${out.throttler.inField} of ${out.throttler.cards} cards, wins ${out.throttler.chance.toFixed(3)} (${out.throttler.ratio.toFixed(2)}×), steerer ${out.steerer.chance.toFixed(3)} (${out.steerer.ratio.toFixed(2)}×); after a 3-day outage: in the field on ${out.outage.inField} of ${out.outage.cards} cards (back once steady or at 0.80); a 2% producer plus an 8% address parked at 0.05: ${out.parked.parked.toFixed(3)} parked, ${out.parked.switchOn.toFixed(3)} switched on in the race, vs ${out.parked.honestPair.toFixed(3)} run honestly (${out.parked.honest10.toFixed(3)} as one 10% producer)`, pass, "steering never beats honest; a steady throttler stays in; an outage gives no boost; parking or switching on a parked address never beats running it honestly", out);
+      const errN = 2 * Math.sqrt(Math.max(out.n1.honest.chance, 1e-4) / (races * Math.max(out.honest.cards, 1)));
+      const n1ok = ["at95", "at90", "at80"].every((k) => out.n1[k].chance <= out.n1.honest.chance + errN && out.n1[k].others[0] >= out.n1.honest.others[0] - 0.05 && out.n1[k].others[1] <= out.n1.honest.others[1] + 0.05);
+      const pass = out.steerer.chance <= out.honest.chance + err && out.throttler.inField === out.throttler.cards && out.outage.inField === 0 && out.parked.parked <= out.parked.honestPair + errP && out.parked.switchOn <= out.parked.honestPair + errP && n1ok;
+      say(8, "throttlers and steering", name, `JGA Pool #2 (real, signing at its real rate): steady on ${out.jga.steadyCards} of ${out.jga.cards} cards, in the field on ${out.jga.inField} (benched on ${out.jga.benched}: not steady and below 0.80), wins ${out.jga.ratio.toFixed(2)}× fair there; a 2% producer: honest ${out.honest.chance.toFixed(3)} (${out.honest.ratio.toFixed(2)}× fair), steady throttler at 0.66 in the field on ${out.throttler.inField} of ${out.throttler.cards} cards, wins ${out.throttler.chance.toFixed(3)} (${out.throttler.ratio.toFixed(2)}×), steerer ${out.steerer.chance.toFixed(3)} (${out.steerer.ratio.toFixed(2)}×); after a 3-day outage: in the field on ${out.outage.inField} of ${out.outage.cards} cards (back once steady or at 0.80); a 2% producer plus an 8% address parked at 0.05: ${out.parked.parked.toFixed(3)} parked, ${out.parked.switchOn.toFixed(3)} switched on in the race, vs ${out.parked.honestPair.toFixed(3)} run honestly (${out.parked.honest10.toFixed(3)} as one 10% producer); an 18% member steady at 0.95 / 0.90 / 0.80 that signs in full: ${["at95", "at90", "at80"].map((k) => out.n1[k].chance.toFixed(3)).join(" / ")} vs ${out.n1.honest.chance.toFixed(3)} honest, others ${["at95", "at90", "at80"].map((k) => out.n1[k].others.map((x) => x.toFixed(2)).join("–")).join(" / ")} (honest ${out.n1.honest.others.map((x) => x.toFixed(2)).join("–")})`, pass, "steering never beats honest; a steady throttler stays in; an outage gives no boost; parking or switching on a parked address never beats running it honestly; a member kept below its rate that signs in full in the race gains nothing and moves no one (#B-11 N-1)", out);
     }
     if (want(9)) {
       const out = {};

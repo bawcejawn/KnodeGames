@@ -12,6 +12,7 @@ M = 1000000
 MIN_K, FORM_GATE = 10 * M, 800000
 RULE_VERSION, OWN_RULES, POOL_RULES = 3, ("spot", "high1h", "avg24h"), ("min",)
 STEADY_BAND = 150000   # D-120 as the owner ruled (5 Nov), millionths: steady = every daily rate within this of the 14-day rate
+CORE_LINE = 970000     # D-165: A′'s core is the field members with form ≥ this × the field's median form (millionths)
 VOID_BAND = 100000     # owner, 5 Nov: a producer whose VHP leaves own × (1 ± this) during the race is void for that race
 PCT_SCALE = 1 << 256
 
@@ -559,26 +560,27 @@ def score_card(L, card):
                   "signed": L.signed_in(p["a"], S0, S1), "credited": credited, "pct": pct(expected, credited),
                   "void": is_void})
         rows.append(q)
-    # A′: totals from the field's core (form ≥ FORM_GATE, Repo Lens #B-10 F1), each other core member at its expected
-    # blocks × its rate and the producer itself at full size; a member below the gate is scored against the core plus
-    # itself at full size, as scoreCard in vhp-ruler.js
+    # A′ (D-165): the core is the field members with form ≥ CORE_LINE × the field's median form (even count: the two
+    # middle forms averaged, rounded down), each at full size; everyone else is scored against the core plus itself, as
+    # scoreCard in vhp-ruler.js
     def in_field(r):
         return r["entry"] and not r["void"]
+    forms = sorted(_int(r["form"]) for r in rows if in_field(r))
+    h = len(forms)
+    median = 0 if h == 0 else forms[(h - 1) // 2] if h % 2 else (forms[h // 2 - 1] + forms[h // 2]) // 2
+    line = median * CORE_LINE // M
 
     def in_core(r):
-        return in_field(r) and _int(r["form"]) >= FORM_GATE
-
-    def at_rate(r):
-        return r["expected"] * _int(r["rate"]) // M
+        return in_field(r) and _int(r["form"]) >= line
     n = sum(r["signed"] for r in rows if in_core(r))
-    bw = sum(at_rate(r) for r in rows if in_core(r))
+    b = sum(r["expected"] for r in rows if in_core(r))
     for r in rows:
         if not in_field(r):
             r["fpct"] = None
         elif in_core(r):
-            r["fpct"] = fpct(n, r["expected"], bw - at_rate(r) + r["expected"], r["credited"])
+            r["fpct"] = fpct(n, r["expected"], b, r["credited"])
         else:
-            r["fpct"] = fpct(n + r["signed"], r["expected"], bw + r["expected"], r["credited"])
+            r["fpct"] = fpct(n + r["signed"], r["expected"], b + r["expected"], r["credited"])
     out = dict(card)
     out["producers"] = rows
     return out

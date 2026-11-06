@@ -579,7 +579,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 4,
+      "chainDataHash": "0x529c9bb6f0fef856e53b398aa90f1f7c4d0bf98b9c57901cf66e86d18623c0d7"
     },
     {
       "id": "W002-D3-3",

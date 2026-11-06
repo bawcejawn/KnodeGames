@@ -28,7 +28,7 @@ function variant(edit: (recorder: string) => string) {
 const HELPERS = `const G: any = global;\nconst D = G["Da" + "te"], M = G["Ma" + "th"];\n`;
 const IMPORT = (kit: string) => `import { print } from "${kit}/recorder/alerts.ts";\n`;
 const withRead = (read: string) => (s: string) =>
-  (IMPORT(KIT) + s).replace("export const game", `${HELPERS}export const game`)
+  (IMPORT(KIT.split(path.sep).join("/")) + s).replace("export const game", `${HELPERS}export const game`)
     .replace("async resultOf(round, _read, inputs) {", `async resultOf(round, _read, inputs) { ${read}`);
 // print() calls `out` for every error line, from inside the kit's file. (pool() in nodes.ts hands the value back too.)
 const VIA_KIT_CLOCK = `print({ errors: ["x"], warnings: [], notes: [] }, "s", D["no" + "w"]);`;

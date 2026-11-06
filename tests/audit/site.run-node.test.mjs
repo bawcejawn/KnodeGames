@@ -431,29 +431,38 @@ test("4d prints progress every minute while it unpacks (no silent hour), without
 });
 
 
-test("step 8 health check: parts running and a verdict, only when both heights were read; a hostile answer runs nothing", async () => {
+test("step 8 health check: parts running, clock and a verdict, only when both heights were read; a hostile answer runs nothing", async () => {
   const nix = box("mac", "HEALTHY - behind by");
   const t = tmp();
   fs.writeFileSync(path.join(t, "docker"), `#!/bin/sh\nprintf 'amqp\\nchain\\np2p\\nmempool\\nblock_store\\nblock_producer\\njsonrpc\\n'\n`, { mode: 0o755 });
   fs.mkdirSync(path.join(t, "koinos-node/koinos"), { recursive: true });
-  const serve = (h) => new Promise((ok) => { const s = http.createServer((q, r) => { q.resume(); q.on("end", () => r.end(JSON.stringify({ result: { head_topology: { height: h } } }))); }); s.listen(0, "127.0.0.1", () => ok(s)); });
+  // time: the block's age in seconds as the computer's clock sees it (negative = the computer's clock is behind)
+  const serve = (h, age = 2) => new Promise((ok) => { const s = http.createServer((q, r) => { q.resume(); q.on("end", () => r.end(JSON.stringify({ result: { head_topology: { height: h }, head_block_time: String(Date.now() - age * 1000) } }))); }); s.listen(0, "127.0.0.1", () => ok(s)); });
   const run = (script) => new Promise((ok) => execFile("bash", ["-c", script], { cwd: t, encoding: "utf8", env: { ...process.env, HOME: t, PATH: `${t}:${process.env.PATH}` } }, (e, out) => ok(out)));
   const at = (s) => `http://127.0.0.1:${s.address().port}`;
   const me = await serve("1000"), near = await serve("1005"), far = await serve("1500"), bad = await serve("a[$(touch PWNED)]");
+  const ahead = await serve("1005", -90), behind = await serve("1005", 120);
   const with_ = (mine, net) => nix.replace("http://127.0.0.1:8080", mine).replace("https://koinos.armana.io", net);
   try {
     let out = await run(with_(at(me), at(near)));
-    assert.match(out, /Parts running: 7 of 7/); assert.match(out, /HEALTHY - behind by 5 blocks/);
+    assert.match(out, /Parts running: 7 of 7/); assert.match(out, /HEALTHY - behind by 5 blocks, clock OK/);
     assert.match(await run(with_(at(me), at(far))), /BEHIND by 500 blocks/);
+    assert.match(await run(with_(at(me), at(ahead))), /CLOCK OFF by about -9\d seconds/, "computer's clock behind real time");
+    assert.match(await run(with_(at(me), at(behind))), /CLOCK OFF by about 1[12]\d seconds/, "computer's clock ahead of real time");
     out = await run(with_(at(me), at(bad)));
-    assert.match(out, /Couldn't read a height/); assert.doesNotMatch(out, /HEALTHY|BEHIND/);
+    assert.match(out, /Couldn't read a height/); assert.doesNotMatch(out, /HEALTHY|BEHIND|CLOCK/);
     assert.ok(!fs.existsSync(path.join(t, "PWNED")), "nothing ran");
     assert.match(await run(with_("http://127.0.0.1:9", at(near))), /Couldn't read a height/);
-  } finally { for (const s of [me, near, far, bad]) s.close(); }
+  } finally { for (const s of [me, near, far, bad, ahead, behind]) s.close(); }
   fs.rmSync(t, { recursive: true, force: true });
   const win = box("win", "HEALTHY - behind by");
-  assert.match(win, /^\$me = \$null; \$net = \$null$/m);
-  assert.match(win, /if \(-not \(\$me -gt 0\) -or -not \(\$net -gt 0\)\) \{ "Couldn't read a height/);
+  assert.match(win, /^\$me = \$null; \$net = \$null; \$nt = \$null$/m);
+  assert.match(win, /if \(-not \(\$me -gt 0\) -or -not \(\$net -gt 0\) -or \$null -eq \$clock\) \{ "Couldn't read a height/);
+  assert.match(win, /elseif \(\$clock -lt -3 -or \$clock -gt 30\) \{ "CLOCK OFF/);
+  // step 1 tells everyone to set the clock automatically; the trouble table explains "gossip disabled"
+  assert.match(html, /Set time automatically, then press Sync now/);
+  assert.match(html, /timedatectl set-ntp true/);
+  assert.match(html, /"gossip disabled" and "halting block production"/);
 });
 
 test("step 8 Docker reset (owner's test node, 5 Nov): pauses self-heal, stops the node first, and only starts it and unpauses once Docker answers", () => {

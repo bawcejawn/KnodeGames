@@ -10,7 +10,8 @@
  *  2. Each hole's standings for this week and last week, from that game's own published results (never recomputed):
  *       questions  the question game contract, read on two nodes that must agree: each answer to a resolved question
  *                  scores 1 if right (as the site does); final when the week is closed and every question resolved.
- *                  Daily Questions' entry rule: at least 2 counted answers and at least 1 point (Repo Lens G-7).
+ *                  Every wallet that answered at least one question has played the hole (owner, 28 Oct and 6 Nov):
+ *                  with no correct answer it scores 6 strokes ("played, scored nothing"), never a lost ball.
  *       race       race-data/board.json (this week / last week); final when every race of the week is final AND the
  *                  Race's own vault file for the week (race-data/vault/W<w>.json) is final (Repo Lens G-3); a week the
  *                  Race never finalizes is skipped at the 60-hour deadline.
@@ -76,7 +77,7 @@ type Check = { sig: string; at: number };
 type WeekFile = { v: 1; week: number; start: number; end: number; final: boolean; practice: boolean; holes: HoleRec[]; cards: CardRec[]; notFree: string[]; check: Check | null };
 /** The week's fingerprint: its holes and scorecards, as they would be published. */
 export const weekSig = (holes: HoleRec[], cards: CardRec[], notFree: string[]) => crypto.createHash("sha256").update(JSON.stringify({ holes, cards, notFree })).digest("hex");
-/** counted: answers on questions that resolved and weren't voided (Daily Questions' own entry rule, Repo Lens G-7). */
+/** counted: answers on questions that resolved and weren't voided (read for reference; Golf counts every wallet that answered). */
 export type QWeek = { closed: boolean; questions: number; resolved: number; rows: { a: string; pts: number; answered: number; counted?: number }[] };
 /** Block Golf stakes for a week: whole VHP counted (week_stake at least the minimum) and who reached the minimum at
  *  any point that week (peak). A test may return a plain Map of counted stakes; then peak = the counted stakers. */
@@ -360,9 +361,8 @@ export async function run(o: Opts) {
   const holdSetting = parseHoldWeeks(o.holdWeeks === undefined ? E.GOLF_HOLD_WEEKS : o.holdWeeks);
   const heldWeek = (w: number) => holdSetting.bad || holdSetting.weeks.includes(w);
 
-  // The question game, once per week per run, on two nodes that must agree. Daily Questions' own entry rule (Repo
-  // Lens G-7; the v6.1 recorder's rule): a wallet counts on the hole only with at least 2 counted answers (resolved,
-  // not voided) and at least 1 point. Who counts for Golf is decided by Golf (practice: everyone; staked weeks: the
+  // The question game, once per week per run, on two nodes that must agree. Every wallet that answered counts as
+  // having played (owner, 6 Nov); who counts for Golf is decided by Golf (practice: everyone; staked weeks: the
   // Block Golf stakes), so nothing else is read here (Repo Lens G-4).
   const qCache = new Map<number, Read>();
   const questions = async (w: number): Promise<Read> => {
@@ -376,7 +376,9 @@ export async function run(o: Opts) {
       if (JSON.stringify(a) !== JSON.stringify(b)) { problems.push(`question game, week ${w}: the two nodes don't agree yet`); r = { state: "live", rows: [], why: "the two nodes don't agree yet", failed: true }; }
       else {
         const final = now >= M.weekStart(w + 1) && a.closed && a.questions > 0 && a.resolved >= a.questions;
-        const counts = (x: QWeek["rows"][number]) => (x.counted ?? x.answered) >= 2 && x.pts >= 1;
+        // Owner, 6 Nov (restoring decision #9 of 28 Oct, which Repo Lens G-7 had replaced with Daily Questions'
+        // own entry rule): answering at least one question is playing the hole; 0 correct = 6 strokes, not a lost ball.
+        const counts = (x: QWeek["rows"][number]) => x.answered >= 1;
         r = { state: final ? "final" : "live", rows: a.rows.filter((x) => counts(x) && isAddr(x.a) && cleanScore(x.pts) !== null).map((x) => ({ a: x.a, score: cleanScore(x.pts)!, scored: x.pts > 0, ranked: true })) };
       }
     } catch (e) { problems.push(`question game, week ${w}: ${(e as Error).message}`); r = { state: "live", rows: [], why: "couldn't read the question game this run", failed: true }; }

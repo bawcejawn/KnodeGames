@@ -30,7 +30,7 @@ What each hole waits for (a hole is final only when its game's own week is final
 
 | Hole | Read from | Final when |
 |---|---|---|
-| Daily Questions | the game contract, on two nodes that must agree | the week is closed and every question resolved. A wallet counts only with at least 2 counted answers (resolved, not voided) and at least 1 point, Daily Questions' own entry rule (Repo Lens G-7). |
+| Daily Questions | the game contract, on two nodes that must agree | the week is closed and every question resolved. Every wallet that answered at least one question has played the hole; with no correct answer it scores 6 strokes, not a lost ball (owner, 28 Oct and 6 Nov). |
 | Producer Race | `race-data/board.json` and `race-data/vault/W<w>.json` | every race is final **and** the Race's own vault file for the week is final (its two-run check, chain re-check and `RACE_HOLD_WEEKS`; Repo Lens G-3). A Race week you hold past 60 hours makes Golf skip the Race hole for everyone that week (Repo Lens I-2). |
 | Who Signs Block X | `games-data/blockx/board.json` | its `lastWeek.final` (set after Block X's own two-run check and week-end re-read). |
 

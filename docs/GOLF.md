@@ -16,7 +16,7 @@ prize switch), D-125 / D-129 (weekly rhythm), D-138 (launch order). Game file: `
 | Recorder | `bot/games/golf.ts` | Every hour: builds every player's scorecard from each game's results and writes `games-data/golf/`. Reads only; holds no key. |
 | Mainnet workflow | `.github/workflows/golf.yml` | Runs the recorder hourly at :57; its publish job pushes only `games-data/golf`. **Off until `GOLF_ENABLED` = `true`.** |
 | Page | `golf.html`, `golf.js`, `golf.css` | Your scorecard, holes you haven't played, the Staked and Free play boards, the stake badge and panel (game 6), nicknames. |
-| Listing | `games.json` → `golf` | `"status": "soon"` until launch; the board's columns and the Free play note. |
+| Listing | `games.json` → `golf` | `"status": "live"` (5 Nov); the board's columns, the Free play note and `free.byPlace` (medals by Golf's places). |
 
 ## How a game becomes a hole
 
@@ -30,7 +30,7 @@ What each hole waits for (a hole is final only when its game's own week is final
 
 | Hole | Read from | Final when |
 |---|---|---|
-| Daily Questions | the game contract, on two nodes that must agree | the week is closed and every question resolved. A wallet counts only with at least 2 counted answers (resolved, not voided) and at least 1 point, Daily Questions' own entry rule (Repo Lens G-7). |
+| Daily Questions | the game contract, on two nodes that must agree | the week is closed and every question resolved. Every wallet that answered at least one question has played the hole; with no correct answer it scores 6 strokes, not a lost ball (owner, 28 Oct and 6 Nov). |
 | Producer Race | `race-data/board.json` and `race-data/vault/W<w>.json` | every race is final **and** the Race's own vault file for the week is final (its two-run check, chain re-check and `RACE_HOLD_WEEKS`; Repo Lens G-3). A Race week you hold past 60 hours makes Golf skip the Race hole for everyone that week (Repo Lens I-2). |
 | Who Signs Block X | `games-data/blockx/board.json` | its `lastWeek.final` (set after Block X's own two-run check and week-end re-read). |
 

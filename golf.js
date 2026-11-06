@@ -59,6 +59,8 @@
 
   function drawCard() {
     const wf = weeks[showing];
+    // The practice note follows the week on screen (Repo Lens B13-B6).
+    $("practice").hidden = !(wf && wf.practice);
     const who = me();
     $("wk-last").hidden = !weeks.last;
     $("wk-this").setAttribute("aria-pressed", String(showing === "this"));
@@ -144,6 +146,8 @@
         columns: [{ key: "pts", label: "Points" }, { key: "topar", label: "To par" }, { key: "holes", label: "Holes played", wide: true }, { key: "lost", label: "Lost balls", wide: true }],
         name: nameOf, link: (a) => EXPLORER + a,
         scored: (r) => r.pts > 0,
+        // Free play medals by Golf's own places (B13-B1), the same rule as the vault file's first/second.
+        freeWinners: (_part, rows, weekly) => (weekly ? G.freeMedals(rows) : new Map()),
         summary: (r) => `${G.toParText(r.topar)} · ${r.pts} pts`,
         me: (r, place) => `${place ? `You: #${place} at` : "Your score (only you see this):"} ${G.toParText(r.topar)}, ${r.pts} points.`,
         unranked: "To be on the Staked board, stake in Block Golf this week (at least the vault's minimum, 1 VHP today).",
@@ -183,8 +187,6 @@
       weeks.this = ok[ok.length - 1] || null;
       weeks.last = ok.length > 1 ? ok[ok.length - 2] : null;
       board = await fetchJson(DATA + "board.json").catch(() => null);
-      // The practice note shows only while the week on screen is a practice week.
-      $("practice").hidden = !(weeks.this && weeks.this.practice);
       say(weeks.this ? "" : "No Block Golf week yet.");
     } catch {
       say("The first Block Golf scorecards appear within an hour of the course opening. Until then, play the games: every one of them is a hole.");

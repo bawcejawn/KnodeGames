@@ -80,6 +80,9 @@ test("week labels: Golf names weeks as players see them (D-063: vault week 3 is 
   assert.doesNotMatch(js, /wf\.week \+ 1/, "never vault week + 1");
   assert.match(js, /window\.KWeeks\.label\(w\)/);
   assert.match(js, /G\.shareText\(card, weekLabel\(wf\.week\)\)/);
+  // B13-B5: the card line itself names the week through weekLabel, and no other `Week ${…}` is built on the page
+  assert.match(js, /\$\("card-sub"\)\.textContent = `\$\{weekLabel\(wf\.week\)\}, from /);
+  assert.deepEqual(js.match(/`Week \$\{[^}]*\}/g), ["`Week ${w}"], "only weekLabel's own fallback");
   const box = { window: {} }; box.globalThis = box.window;
   new Function("window", "globalThis", fs.readFileSync(`${APP}/weeks.js`, "utf8"))(box.window, box.window);
   assert.equal(box.window.KWeeks.label(3), "Week 1");

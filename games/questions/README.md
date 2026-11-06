@@ -28,5 +28,24 @@ The game itself (questions, answers, the page) is unchanged: `index.html`, `app.
 | The vault bot posts | After it has read the same file twice, at least 30 minutes apart; then seal, then the 24-hour correction window. |
 | Deadline | Thu 00:00 (week end + 3 days). Without a file the stakers' share rolls over: no funds at risk. |
 
+## Repo variables (Settings → Secrets and variables → Actions → Variables)
+| Variable | What it does |
+|---|---|
+| `QUESTIONS_FROM_WEEK` | **Set it to `4`** (the week of Mon 16 Nov). From that week, a week the vault reads as "not shared" fails the run, so you're emailed, instead of rolling over quietly (Repo Lens C11-1; for example if v6.1 is live but #114's ABI isn't on main). |
+| `QUESTIONS_HOLD` / `QUESTIONS_HOLD_REASON` / `QUESTIONS_RELEASE` | The owner's hold and release of a week. |
+
+## Alerts (the run fails and GitHub emails you)
+- A failed read, or the two nodes disagree (the next hour reads again).
+- A week from `QUESTIONS_FROM_WEEK` on that reads as not shared.
+- Under 24 hours before the results are due and the week still isn't final: the message names the unresolved questions (resolve or void them) (Repo Lens C11-4).
+- The first run past the deadline when no final was written (the stakers' share rolls over).
+- The publish job held a file for a reason other than "not yet".
+
+## TODO: size (Repo Lens C11-2, plan only)
+- Today a player's row is `[address, stake, peak, voided, [[question, option], …]]`, about 615 bytes at 60 answers, so the 1.9 MB cap fits about 3,000 players answering everything (5,500 at 30 answers). Past it every run stops with an alert, and no week is paid.
+- Plan: store answers as one string per player, one character per question of the week in id order (`"-"` = not answered, `"0"`–`"9"` = the option): 60 characters instead of about 480. A row is then about 120 bytes, so 1.9 MB fits about 15,000 players. For more, split the inputs into `W<NNN>-<part>.json` files with the hash over all parts.
+- `MAX_PLAYERS` (20,000) now counts only players who answered that week (done).
+- Change the format before the player count passes about 2,000, with the publish job's copy and its tests in the same PR.
+
 ## Running it by hand
 - `npm run questions -- --week <n>`: read-only. Reads any week on both nodes, scores it and compares it with the contract's own settled points (old-rules weeks). Nothing is written. Needs `RPC` and `RPC_CHECK` to be two different nodes (defaults: Armana and koinosblocks).

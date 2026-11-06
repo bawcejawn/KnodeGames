@@ -89,7 +89,8 @@ async function listPlayers(node: Node, week: number): Promise<any[]> {
       if (seen.has(r.address)) throw new Error(`list_players repeated ${r.address}: stopping`);
       seen.add(r.address); rows.push(r);
     }
-    if (rows.length > MAX_PLAYERS) throw new Error(`list_players returned more than ${MAX_PLAYERS} rows: stopping`);
+    if (rows.filter((r) => r.entry?.answers?.length).length > MAX_PLAYERS) throw new Error(`more than ${MAX_PLAYERS} players answered that week: stopping`);
+    if (rows.length > 10 * MAX_PLAYERS) throw new Error(`list_players returned more than ${10 * MAX_PLAYERS} rows: stopping`);
     if (page.length < 50) return rows;
     start = page[page.length - 1].address;
   }
@@ -165,6 +166,12 @@ export function weekList(s: string | undefined): number[] {
 
 export type RunOpts = {
   nodes: [Node, Node]; prev: string; out: string;
+  /** QUESTIONS_FROM_WEEK: from this vault week the owner expects results files; reading such a week as "not shared"
+   *  is then an error (an alert), never a quiet rollover (Repo Lens C11-1). */
+  fromWeek?: number;
+  /** The nodes are read at their heads: if they disagree (a resolve landing between the two reads), read once more
+   *  after this long before failing (Repo Lens C11-7). Default one minute. */
+  retryMs?: number;
   hold?: number[]; holdReason?: string; release?: number[];
   log?: (s: string) => void;
 };
@@ -191,14 +198,26 @@ export async function run(o: RunOpts): Promise<{ week: number | null; state: str
   }
   if (w < 0 || !ka.shared(w) || !kb.shared(w)) {
     if (ka.shared(w) !== kb.shared(w)) throw new Error("the two nodes disagree on the v6.1 rule week");
+    if (o.fromWeek != null && w >= o.fromWeek) throw new Error(`week ${w} should be paid from a results file (QUESTIONS_FROM_WEEK = ${o.fromWeek}), but the vault reads no v6.1 rule week for it: is #114's ABI on main? Nothing recorded.`);
     log(`Daily Questions: week ${w} is not paid from a results file (old rules or no v6.1 yet): nothing to record.`);
     return { week: null, state: "not-shared" };
   }
-  if (now >= ka.resultsDue(w)) { log(`Daily Questions: week ${w}'s results were due ${new Date(ka.resultsDue(w)).toISOString()}: nothing more to record.`); return { week: w, state: "past-due" }; }
   const prevFile: WeekFile | null = readJson(path.join(o.prev, `W${pad(w)}.json`));
+  if (now >= ka.resultsDue(w)) {
+    // Past due with no final: the stakers' share rolls over. Say so loudly once (the first run past the deadline).
+    if (!prevFile?.final && now < ka.resultsDue(w) + STABLE_MS) throw new Error(`week ${w}'s results were due ${new Date(ka.resultsDue(w)).toISOString()} and no final file was written: its stakers' share rolls over.`);
+    log(`Daily Questions: week ${w}'s results were due ${new Date(ka.resultsDue(w)).toISOString()}: nothing more to record.`);
+    return { week: w, state: "past-due" };
+  }
   const prevVault = readJson(path.join(o.prev, "vault", `W${w}.json`));
-  const [a, b] = await Promise.all([readSnapshot(A, w), readSnapshot(B, w)]);
-  const why = agree(a, b);
+  let [a, b] = await Promise.all([readSnapshot(A, w), readSnapshot(B, w)]);
+  let why = agree(a, b);
+  if (why) {
+    log(`  week ${w}: ${why}; reading both nodes again in ${Math.round((o.retryMs ?? 60_000) / 1000)} s`);
+    await new Promise((r) => setTimeout(r, o.retryMs ?? 60_000));
+    [a, b] = await Promise.all([readSnapshot(A, w), readSnapshot(B, w)]);
+    why = agree(a, b);
+  }
   if (why) throw new Error(`week ${w}: ${why}. Nothing recorded this run; the next run reads again.`);
   if (prevFile?.final) {
     // Written once: a published final never changes. Its snapshot must still be the chain's.
@@ -217,6 +236,12 @@ export async function run(o: RunOpts): Promise<{ week: number | null; state: str
   const built = buildWeek(a, prevFile, now);
   write(o.out, built.file, built.board, built.vault, w);
   const n = built.result.rows.length;
+  if (!built.file.final && now >= ka.resultsDue(w) - 24 * STABLE_MS) {
+    // Under 24 h left and not final: the files are written; fail the run so the owner is emailed (Repo Lens C11-4).
+    const sunday = a.start + 6 * 86400000;
+    const open = a.questions.filter(([, outcome, lock]) => outcome === 0 && lock <= sunday).map(([id]) => id);
+    throw new Error(`week ${w} is still pending ${((ka.resultsDue(w) - now) / STABLE_MS).toFixed(1)} h before its results are due (${new Date(ka.resultsDue(w)).toISOString()}): ${open.length ? `unresolved questions ${open.join(", ")} (resolve or void them)` : "waiting for a second matching run"}.`);
+  }
   log(`Daily Questions week ${w}: ${built.file.final ? "FINAL" : built.complete ? "pending (waiting for a second matching run an hour later)" : "pending (questions still to resolve)"}; ${a.questions.length} questions, ${n} players, ${built.result.vault.rows.length} staked rows, first ${built.result.vault.first.length}, second ${built.result.vault.second.length}.`);
   return { week: w, state: built.file.final ? "final" : "pending" };
 }
@@ -262,6 +287,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const res = await run({
     nodes, prev: E.QUESTIONS_PREV || "questions-prev", out: E.QUESTIONS_OUT || "questions-out",
     hold: weekList(E.QUESTIONS_HOLD), holdReason: E.QUESTIONS_HOLD_REASON, release: weekList(E.QUESTIONS_RELEASE),
+    fromWeek: weekList(E.QUESTIONS_FROM_WEEK)[0],
   });
   console.log(`done: ${res.state}`);
 }

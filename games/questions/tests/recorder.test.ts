@@ -142,9 +142,9 @@ test("questions recorder: a snapshot that changes restarts the hour", async () =
 test("questions recorder: the two nodes must agree; a failed read stops the run", async () => {
   const wd = world(), { prev, out } = dirs();
   const other = node(wd, (m, r) => { if (m === "list_players") r.rows = r.rows.map((x: any) => (x.address === A ? { ...x, entry: { ...x.entry, stake: "1" } } : x)); return r; });
-  await assert.rejects(run({ nodes: [node(wd), other], prev, out, log: quiet }), /disagree on the players/);
+  await assert.rejects(run({ nodes: [node(wd), other], prev, out, log: quiet, retryMs: 0 }), /disagree on the players/);
   const otherQ = node(wd, (m, r) => { if (m === "get_question" && r.question?.week === "4") r.question.outcome = 2; return r; });
-  await assert.rejects(run({ nodes: [node(wd), otherQ], prev, out, log: quiet }), /disagree on the week's questions/);
+  await assert.rejects(run({ nodes: [node(wd), otherQ], prev, out, log: quiet, retryMs: 0 }), /disagree on the week's questions/);
   const down = { ...wd, fail: "list_players" };
   await assert.rejects(run({ nodes: [node(wd), node(down)], prev, out, log: quiet }), /node down/);
   assert.deepEqual(files(out).filter((f) => !f.startsWith("vault/HOLD")), []);
@@ -165,10 +165,30 @@ test("questions recorder: a final week that the chain later reads differently st
   await assert.rejects(run({ nodes: [node(wd), node(wd)], prev: pub, out, log: quiet }), /final, but the chain now reads differently/);
 });
 
-test("questions recorder: past the results deadline it stops recording", async () => {
+test("questions recorder: past the results deadline: one loud run if no final was written, then it stops recording", async () => {
   const wd = world(); wd.time = G + 5 * WK + 3 * DAY + 1;
   const { prev, out } = dirs();
+  await assert.rejects(run({ nodes: [node(wd), node(wd)], prev, out, log: quiet }), /no final file was written: its stakers' share rolls over/);
+  wd.time += H;
   assert.equal((await run({ nodes: [node(wd), node(wd)], prev, out, log: quiet })).state, "past-due");
+  // a week that did go final is quiet past the deadline
+  const w2 = world(), d2 = dirs(), pub = path.join(d2.d, "pub");
+  await hour(w2, pub, d2.d); w2.time += 2 * H; await hour(w2, pub, d2.d);
+  w2.time = G + 5 * WK + 3 * DAY + 1;
+  assert.equal((await run({ nodes: [node(w2), node(w2)], prev: pub, out: fs.mkdtempSync(path.join(d2.d, "o-")), log: quiet })).state, "past-due");
+});
+
+test("questions recorder: QUESTIONS_FROM_WEEK set, an older week read as not shared stays quiet", async () => {
+  const wd = world(); wd.time = G + 4 * WK + 2 * H;     // week 3 just ended (old rules), fromWeek 4
+  const { prev, out } = dirs();
+  assert.equal((await run({ nodes: [node(wd), node(wd)], prev, out, log: quiet, fromWeek: 4 })).state, "not-shared");
+});
+
+test("questions recorder: under 24 h left, the pending files are still written before the run fails", async () => {
+  const wd = world(); wd.questions[204].outcome = 0; wd.time = G + 5 * WK + 3 * DAY - 12 * H;
+  const { prev, out } = dirs();
+  await assert.rejects(run({ nodes: [node(wd), node(wd)], prev, out, log: quiet }), /unresolved questions 204/);
+  assert.equal(j(path.join(out, "W004.json")).final, false);
 });
 
 test("questions recorder: the owner's HOLD and RELEASE files are added once", async () => {
@@ -212,4 +232,31 @@ test("questions recorder: the vault bot's own checks pass on its final files (bo
   // every Staked (ranked) row with points is in the file, and every file row is on the board
   const ranked = b.lastWeek.rows.filter((r: any) => r.ranked === true && (boardScore(r) ?? 0) > 0).map((r: any) => r.a);
   assert.deepEqual(ranked, v.rows.map((r: any) => r.player));
+});
+// Repo Lens #C-11 — APPEND to games/questions/tests/recorder.test.ts (uses its world, node, dirs, quiet, run, G, WK, H).
+// Written by reading the code; Repo Lens did not run it. Expected: both FAIL on b416a96 (the fixes are new behaviour).
+
+// C11-1: the vault is on the v6.1 rules (rule week 4) but the reader sees no q60_rule_week_plus_one (main's ABI before
+// #114, or a node that leaves the field out). Today: "not-shared", a log line and no alert, so week 4's stakers' share
+// rolls over silently. With QUESTIONS_FROM_WEEK = 4 (a repo variable passed as `fromWeek`), that must be an error.
+test("Repo Lens C11-1: a week the owner expects to be paid from a file, read as not-shared, fails the run", async () => {
+  const wd = world(); wd.rule = 0;                       // the field didn't decode
+  const { prev, out } = dirs();
+  await assert.rejects(() => run({ nodes: [node(wd), node(wd)], prev, out, log: quiet, fromWeek: 4 }), /not paid from a results file|q60|rule week/);
+});
+
+// C11-4: a counted question that never resolves keeps the week pending until it is past due, with no alert at any
+// point: the stakers' share rolls over silently. Under 24 h before the deadline, a still-pending week must fail the run.
+test("Repo Lens C11-4: a week still pending under 24 h before its results are due fails the run (the alert)", async () => {
+  const wd = world(); wd.questions[204].outcome = 0;    // one counted question never resolved
+  wd.time = G + 5 * WK + 3 * 24 * H - 12 * H;          // 12 h before week 4's results are due
+  const { prev, out } = dirs();
+  await assert.rejects(() => run({ nodes: [node(wd), node(wd)], prev, out, log: quiet }), /due|pending|unresolved/);
+});
+
+test("questions recorder: two nodes that disagree for a moment (a resolve between the reads) agree on the second read", async () => {
+  const wd = world(), { prev, out } = dirs();
+  let calls = 0;
+  const lagging = node(wd, (m, r) => { if (m === "get_question" && r.question?.week === "4" && calls++ < 4) r.question.outcome = 0; return r; });
+  assert.equal((await run({ nodes: [node(wd), lagging], prev, out, log: quiet, retryMs: 0 })).state, "pending");
 });

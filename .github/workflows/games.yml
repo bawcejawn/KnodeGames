@@ -129,6 +129,9 @@ jobs:
           QUESTIONS_HOLD: ${{ vars.QUESTIONS_HOLD }}
           QUESTIONS_HOLD_REASON: ${{ vars.QUESTIONS_HOLD_REASON }}
           QUESTIONS_RELEASE: ${{ vars.QUESTIONS_RELEASE }}
+          # QUESTIONS_FROM_WEEK = the first vault week paid from a results file (4, Mon 16 Nov): from then a week read as
+          # "not shared" fails the run (an email) instead of rolling over quietly (Repo Lens C11-1).
+          QUESTIONS_FROM_WEEK: ${{ vars.QUESTIONS_FROM_WEEK }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: games-data
@@ -418,10 +421,11 @@ jobs:
           mkdir -p "$PUB/questions/vault"
           if [ -n "$parent" ]; then
             { git ls-tree --name-only "$parent:questions" 2>/dev/null || true; } | while IFS= read -r f; do
-              if [[ "$f" =~ ^(board|W[0-9]{3})\.json$ ]]; then git show "$parent:questions/$f" > "$PUB/questions/$f"; fi
+              # A file that can't be read is left out (|| rm), so only Daily Questions is affected, never Block X (C11-6).
+              if [[ "$f" =~ ^(board|W[0-9]{3})\.json$ ]]; then git show "$parent:questions/$f" > "$PUB/questions/$f" || rm -f "$PUB/questions/$f"; fi
             done
             { git ls-tree --name-only "$parent:questions/vault" 2>/dev/null || true; } | while IFS= read -r f; do
-              if [[ "$f" =~ ^((HOLD-|RELEASE-)?W[0-9]+)\.json$ ]]; then git show "$parent:questions/vault/$f" > "$PUB/questions/vault/$f"; fi
+              if [[ "$f" =~ ^((HOLD-|RELEASE-)?W[0-9]+)\.json$ ]]; then git show "$parent:questions/vault/$f" > "$PUB/questions/vault/$f" || rm -f "$PUB/questions/vault/$f"; fi
             done
           fi
           /usr/bin/python3 - "$IN/questions" "$PUB/questions" "$HELD" <<'PY'

@@ -25,6 +25,9 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 
+// The job's clock, taken when this file loads (the conformance sandbox loads it before it traps the clock, #E-26 NE-4).
+const KIT_NOW = Date.now.bind(Date);
+
 export const KIT_FILE_VERSION = 2;
 export const DAY = 86400000;
 export const HOUR = 3600000;
@@ -495,7 +498,7 @@ export const releaseEnv = (slug) => `KIT_RELEASE_${String(slug).toUpperCase().re
 export function main(argv = process.argv.slice(2), env = process.env) {
   const [inRoot, pubRoot, listFile] = argv;
   const games = JSON.parse(env.KIT_GAMES || "[]");
-  const now = env.CHECK_NOW_MS ? Number(env.CHECK_NOW_MS) : Date.now();
+  const now = env.CHECK_NOW_MS ? Number(env.CHECK_NOW_MS) : KIT_NOW();
   const lines = [];
   let alert = false;
   const top = fs.existsSync(inRoot) ? fs.readdirSync(inRoot) : [];

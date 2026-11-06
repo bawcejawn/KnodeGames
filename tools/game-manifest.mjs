@@ -3,8 +3,9 @@
 // nothing sent anywhere: it only reads files.
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-export const ROOT = path.resolve(new URL("../", import.meta.url).pathname);
+export const ROOT = path.resolve(fileURLToPath(new URL("../", import.meta.url)));   // a real path on Windows too
 
 // Vault game ids already in use or reserved (.ai/platform/PLATFORM.md games table).
 export const RESERVED_IDS = { 1: "questions", 2: "blockx", 3: "survivor", 4: "fantasy", 5: "fantasy-rival",

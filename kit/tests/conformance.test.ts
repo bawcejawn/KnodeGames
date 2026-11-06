@@ -35,9 +35,9 @@ function variant(edit: (recorder: string) => string, extra: Record<string, strin
   fs.cpSync(path.join(EXAMPLE_ROOT, "games"), path.join(d, "games"), { recursive: true });
   const dir = path.join(d, "games/kit-example");
   const rec = path.join(dir, "recorder.ts");
-  fs.writeFileSync(rec, edit(fs.readFileSync(rec, "utf8").replace(/"\.\.\/\.\.\/\.\.\/\.\.\//g, `"${KIT}/`)));
+  fs.writeFileSync(rec, edit(fs.readFileSync(rec, "utf8").replace(/"\.\.\/\.\.\/\.\.\/\.\.\//g, `"${KIT.split(path.sep).join("/")}/`)));
   const sample = path.join(dir, "tests/sample.ts");
-  fs.writeFileSync(sample, fs.readFileSync(sample, "utf8").replace(/"(\.\.\/)+/g, (m) => `"${path.resolve(EXAMPLE_ROOT, "games/kit-example/tests", m.slice(1))}/`));
+  fs.writeFileSync(sample, fs.readFileSync(sample, "utf8").replace(/"(\.\.\/)+/g, (m) => `"${path.resolve(EXAMPLE_ROOT, "games/kit-example/tests", m.slice(1)).split(path.sep).join("/")}/`));
   for (const [f, src] of Object.entries(extra)) fs.writeFileSync(path.join(dir, f), src);
   return d;
 }

@@ -27,7 +27,7 @@ export async function main(argv = process.argv.slice(2), env = process.env): Pro
     // A field the vault ABI doesn't know is silently dropped by the decoder: game 1's rule week would read as "not set"
     // and the recorder would quietly record nothing. Fail loudly instead until the v6.1 ABI is in (PR #114).
     if (m.picks?.contract === "vault" && !abiHasConfigField("q60_rule_week_plus_one")) { console.error("::error::game/abi/kpred.koilib.json predates v6.1 (no q60_rule_week_plus_one): the vault-answers source can't tell a shared-rules week. Update the ABI (PR #114) first."); clear(); return 2; }
-    const { game } = await import(pathToFileURL(new URL(`../../games/${slug}/recorder.ts`, import.meta.url).pathname).href);
+    const { game } = await import(new URL(`../../games/${slug}/recorder.ts`, import.meta.url).href);
     const up = slug.toUpperCase().replace(/-/g, "_");
     const prev = env.KIT_PREV || `${slug}-prev`;
     fs.mkdirSync(out, { recursive: true });

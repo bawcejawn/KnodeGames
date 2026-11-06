@@ -11,6 +11,7 @@ import "../../kit/tests/repolens-b11.test.ts";
 import "../../kit/tests/repolens-b12.test.ts";
 import "../../kit/tests/repolens-e24.test.ts";
 import "../../kit/tests/repolens-e25.test.ts";
+import "../../kit/tests/repolens-e26.test.ts";
 import "../../kit/tests/lows.test.ts";
 
 import test from "node:test";

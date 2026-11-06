@@ -7,9 +7,11 @@
 import crypto from "node:crypto";
 import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-// Loaded before any trap, so the kit's own budget clock is the real one (nodes.ts KIT_WALL, #E-25 NE-3).
+import { fileURLToPath, pathToFileURL } from "node:url";
+// Loaded before any trap, so the kit's own clocks are the real ones (nodes.ts KIT_WALL #E-25 NE-3; the publish check's
+// KIT_NOW #E-26 NE-4).
 import "../recorder/nodes.ts";
+import "../publish/check.inline.mjs";
 
 const [slug, root] = process.argv.slice(2);
 const gameDir = path.join(root, "games", slug);
@@ -20,36 +22,34 @@ const RealError = Error;
 Object.defineProperty(RealError, "stackTraceLimit", { value: Infinity, writable: false, configurable: false });
 Object.defineProperty(RealError, "prepareStackTrace", { value: undefined, writable: false, configurable: false });
 const stackOf = () => { const o: { stack?: string } = {}; RealError.captureStackTrace(o); return String(o.stack ?? ""); };
-// Whose call is it? For the clock, randomness, workers and processes (#E-25 NE-3): a game frame ANYWHERE on the stack
-// (an `at async` one included) makes it the game's — the game handing Date.now to a kit helper that calls it back is
-// still the game reading the clock. With no frame from any file at all (only this file, Node's own code and builtins:
-// a builtin handed to a timer or an un-awaited promise, #E-24 NE-1), it is the game's too: deny on doubt. Only a call
-// with a kit or package frame and no game frame is not. The kit's own clock reads don't get here: its budget clock is
-// taken before the traps (nodes.ts), and Node's internals take their own copies before the module loads.
-// For the environment (`nodeIsCaller`), the nearest caller decides, and a Node frame means Node is reading it (its
-// source maps read process.env while running the game's code).
-const SELF = new URL(import.meta.url).pathname;
-const inGame = (l: string) => l.includes(gameDir) || l.includes(pathToFileURL(gameDir).href);
-const LOADER = /[\\/]node_modules[\\/]tsx[\\/]dist[\\/]/;
+// Whose call is it? Before the game's module starts loading, only the game's own frames count (none exist yet). From
+// the moment it does, EVERY trapped call is denied (#E-26 NE-4: no kit helper, timer or promise route can be found
+// around that), with two exceptions that a game can't steer:
+//   - Node's own code, when it is the nearest caller of an environment read (its source maps read process.env);
+//   - the repo's own TypeScript loader (by absolute path, so a game file can't pose as it: NE-5), when it is the
+//     nearest file on the stack: it reads Date.now for its transform cache, itself, as the game's files load.
+// The kit itself never needs a trapped function once the game loads: its budget clock (nodes.ts KIT_WALL) and the
+// publish check's clock (check.inline.mjs) are taken before the traps, and its modules are all loaded by then.
+const SELF = [fileURLToPath(import.meta.url), import.meta.url];
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const LOADER = [path.join(REPO, "node_modules", "tsx", "dist") + path.sep, pathToFileURL(path.join(REPO, "node_modules", "tsx", "dist")).href + "/"];
+const gameRefs = [gameDir + path.sep, pathToFileURL(gameDir).href + "/"];
+const has = (l: string, refs: string[]) => refs.some((r) => l.includes(r));
+const inGame = (l: string) => has(l, gameRefs);
 const isNode = (l: string) => /\(node:|at node:/.test(l);
 const isBuiltin = (l: string) => /\(<anonymous>\)|^\s*at [^(]*$|native/.test(l) && !/\.(ts|mts|js|mjs|cjs):\d+/.test(l);
-const fromGame = (nodeIsCaller = false) => {
-  const frames = stackOf().split("\n").slice(1).filter((l) => !l.includes(SELF));
-  if (!nodeIsCaller) {
-    // The TypeScript loader's own clock read (its transform cache, while the game imports a file) is the loader's: it
-    // calls Date.now itself, so a game can't route a callback through it.
-    const nearest = frames.find((l) => !isNode(l) && !isBuiltin(l));
-    if (nearest && LOADER.test(nearest)) return false;
-    if (frames.some(inGame)) return true;
-    return frames.every((l) => isNode(l) || isBuiltin(l));
-  }
-  for (const l of frames) {
-    if (isNode(l)) return false;
-    if (inGame(l)) return true;
-    if (isBuiltin(l)) continue;
-    return false;
-  }
-  return false;
+let gameLoading = false;
+const fromGame = (env = false) => {
+  const frames = stackOf().split("\n").slice(1).filter((l) => !has(l, SELF));
+  const nearest = frames.find((l) => !isBuiltin(l));
+  if (env && nearest && isNode(nearest)) return false;                 // Node reading its own settings
+  // The real loader, as the nearest file: it calls Date.now itself (a game can't hand it a function), also while a
+  // game file is importing another one (the game's frame further up).
+  const file = frames.find((l) => !isNode(l) && !isBuiltin(l));
+  if (!env && file && has(file, LOADER)) return false;
+  if (frames.some(inGame)) return true;
+  if (!gameLoading) return !env && frames.every((l) => isNode(l) || isBuiltin(l));   // deny on doubt (#E-24)
+  return true;
 };
 function trap<T extends object>(obj: T, key: keyof T & string, what: string) {
   const orig = (obj as any)[key];
@@ -120,6 +120,11 @@ try {
   const { PENDING } = await import("../recorder/types.ts");
   const { readVaultAnswers } = await import("../recorder/sources/vault-answers.ts");
   const cfg = kitConfig(loadManifest(slug, root));
+  // Every kit module the run needs is loaded before the game, so from here on nothing of the kit's own loads or calls
+  // a trapped function: then every trapped call from now on is the game's (NE-4).
+  const { Replay } = await import("./replay.ts");
+  const { isSunday } = await import("../publish/check.inline.mjs");
+  gameLoading = true;
   const mod = (await import(pathToFileURL(path.join(gameDir, "recorder.ts")).href)).game;   // top-level code runs trapped
   const sample = (await import(pathToFileURL(path.join(gameDir, "tests", "sample.ts")).href)).sample();
   const t0 = sample.hours.chain(0);
@@ -149,8 +154,6 @@ try {
   ok(mod.picks?.source === want[m.picks.contract], `picks.source matches game.json picks.contract (${m.picks.contract} → ${want[m.picks.contract]})`);
 
   // End to end on fake nodes, hour by hour, through the real publish check (in this sandbox's own temp folder).
-  const { Replay } = await import("./replay.ts");
-  const { isSunday } = await import("../publish/check.inline.mjs");
   const rp = new Replay(mod, cfg);
   let finalAt = -1, vaultAt = -1, funOk = true, sawSunday = false;
   for (let i = 0; i < sample.hours.count; i++) {

@@ -2,11 +2,12 @@
 // and the vault's clock from game-data/deployment.json. One schema; the publish job's config is rendered from these.
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { validateManifest, duplicateKeys } from "../../tools/game-manifest.mjs";
 import { DATA_BRANCHES } from "../publish/check.inline.mjs";
 import type { KitGameCfg } from "./runtime.ts";
 
-export const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 export function readDeployment(root = ROOT): any {
   const p = path.join(root, "game-data/deployment.json");

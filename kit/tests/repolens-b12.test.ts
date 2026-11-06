@@ -2,10 +2,12 @@
 // the NEW findings (NK numbers as in the report), each asserting the correct behaviour, moved here from tests/audit/
 // once fixed; the three to-dos are real tests now, and every Low and Info finding fixed in the same pass has one too.
 import test from "node:test";
+const NO_BASH = process.platform === "win32" ? "runs bash (the CI runner is Linux)" : false;
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import YAML from "yaml";
 import { checkGame, canon, weekHash, weekShape, vaultFileOf, tally, atLimit, FRESH_MS, MAX_BEHIND_MS, JOB_WAIT_MS, BOARD_MAX_BYTES, DATA_BRANCHES } from "../publish/check.inline.mjs";
@@ -29,7 +31,7 @@ import { world } from "../testing/fake-nodes.ts";
 import { moduleFiles } from "../testing/conformance.ts";
 
 const Q: any = exampleCfg(), MIN = 60000, S4 = at(4), END = at(5);
-const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const nodes = (w: () => any): [any, any] => [fakeNode("a", w), fakeNode("b", w)];
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const ad = (i: number) => { let s = "", x = i; for (let k = 0; k < 8; k++) { s = B58[x % 58] + s; x = Math.floor(x / 58); } return "1" + "q".repeat(25) + s; };
@@ -70,7 +72,7 @@ function evalIf(expr: string, ctx: Record<string, string>) {
   return Function(`return (${e});`)() as boolean;
 }
 
-test("NK-1 (High): the Record step never fails on the recorder's exit code; 0 and 1 upload their files, 2 and a crash don't; the right alert fires", () => {
+test("NK-1 (High): the Record step never fails on the recorder's exit code; 0 and 1 upload their files, 2 and a crash don't; the right alert fires", { skip: NO_BASH }, () => {
   for (const [code, upload, alert] of [[0, true, ""], [1, true, "owner"], [2, false, "stopped"], [134, false, "stopped"]] as const) {
     const r = recordStep(code);
     assert.equal(r.status, 0, `npm exit ${code}: the step exits ${r.status} under bash -e`);
@@ -131,8 +133,8 @@ function variant(edit: (recorder: string) => string) {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "kit-b12-var-"));
   fs.cpSync(path.join(EXAMPLE_ROOT, "games"), path.join(d, "games"), { recursive: true });
   const dir = path.join(d, "games/kit-example"), rec = path.join(dir, "recorder.ts"), sample = path.join(dir, "tests/sample.ts");
-  fs.writeFileSync(rec, edit(fs.readFileSync(rec, "utf8").replace(/"\.\.\/\.\.\/\.\.\/\.\.\//g, `"${KIT}/`)));
-  fs.writeFileSync(sample, fs.readFileSync(sample, "utf8").replace(/"(\.\.\/)+/g, (m) => `"${path.resolve(EXAMPLE_ROOT, "games/kit-example/tests", m.slice(1))}/`));
+  fs.writeFileSync(rec, edit(fs.readFileSync(rec, "utf8").replace(/"\.\.\/\.\.\/\.\.\/\.\.\//g, `"${KIT.split(path.sep).join("/")}/`)));
+  fs.writeFileSync(sample, fs.readFileSync(sample, "utf8").replace(/"(\.\.\/)+/g, (m) => `"${path.resolve(EXAMPLE_ROOT, "games/kit-example/tests", m.slice(1)).split(path.sep).join("/")}/`));
   return d;
 }
 const G = `const G: any = (0, eval)("this");`;
@@ -302,8 +304,10 @@ test("NK-19 (Info): a row's score time must lie in [start, results deadline); NK
   assert.equal(weekShape(ok, "W004.json", Q), "");
   const yml = renderJobs({ branch: "games-data", script: "", games: [{ slug: "kit-example", name: "Kit Example", enabledVar: "KIT_EXAMPLE_ENABLED", cfg: Q }] });
   assert.ok(!/W\[0-9\]\{3,4\}/.test(yml), "the shell uses the check's week-name rule (W0004 refused)");
-  const sh = spawnSync("bash", ["-c", `for f in W004.json W0004.json W1000.json; do [[ "$f" =~ ^(board|W([0-9]{3}|[1-9][0-9]{3}))\\.json$ ]] && echo "$f"; done`], { encoding: "utf8" });
-  assert.deepEqual(sh.stdout.trim().split("\n"), ["W004.json", "W1000.json"]);
+  if (!NO_BASH) {
+    const sh = spawnSync("bash", ["-c", `for f in W004.json W0004.json W1000.json; do [[ "$f" =~ ^(board|W([0-9]{3}|[1-9][0-9]{3}))\\.json$ ]] && echo "$f"; done`], { encoding: "utf8" });
+    assert.deepEqual(sh.stdout.trim().split("\n"), ["W004.json", "W1000.json"]);
+  }
   assert.throws(() => renderJobs({ branch: "vhp-data", script: "", games: [{ slug: "kit-example", name: "Kit Example", enabledVar: "KIT_EXAMPLE_ENABLED", cfg: Q }] }), /not a data branch/);
   assert.deepEqual(DATA_BRANCHES, ["games-data", "race-data", "games-data-testnet"]);
   const m = exampleManifest(); m.workflow.enabledVar = "K" + "X".repeat(64);

@@ -2,6 +2,7 @@
 // publish job embeds kit/publish/check.inline.mjs byte for byte and imports nothing else; the embedded copy RUNS and
 // gives the same verdicts as the kit's file; the hand-written Block X jobs are untouched; the shell parses.
 import test from "node:test";
+const NO_BASH = process.platform === "win32" ? "runs bash (the CI runner is Linux)" : false;
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -155,7 +156,7 @@ test("render: a name, slug, variable or branch that isn't plain is refused (KC-1
   assert.throws(() => dataFolder({ ...m, data: { board: "main:kit-example/board.json", vaultFolder: "main:kit-example/vault" } }), /data branch/);
 });
 
-test("render: the run blocks are valid bash", () => {
+test("render: the run blocks are valid bash", { skip: NO_BASH }, () => {
   const blocks: string[] = [];
   const all = [yml.slice(yml.indexOf(BEGIN)), ...Object.values(TWO).flatMap((j: any) => (j.steps ?? []).map((s: any) => s.run).filter(Boolean))];
   for (const text of all.slice(0, 1)) {

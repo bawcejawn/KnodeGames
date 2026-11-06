@@ -80,6 +80,7 @@ Every Koinos transaction costs **Mana**, which comes from holding KOIN. New play
 - Questions: `answer`, `settle`, `claim`, `close_week`, `finalize_week`, deposits and withdrawals of the question game.
 - The vault (switch on): `deposit_to`, `withdraw_from`, `move_stake`, `claim_game`, `finalize_game_week` for the payee.
 - A `pick` on Race picks, and the Picks contract's `pick`, for the player's own wallet.
+- **Node runners** (owner, 5 Nov): Proof-of-Burn `register_public_key` (`159myq…iyv`, entry `0x53192be1`, arguments producer + key only), for the producer's own key, as free play. An allowlist row: a `config` send, no new code. Live once the owner's config send shows `allowlisted calls … → …, 159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv:1394158561`; the site lists it in `sponsor.covers` only after that.
 - A VHP or KOIN `approve` whose spender is the game and owner is the player.
 
 **Never pays:** Knode Swap until the next sponsor version (v3 refuses it in code; the owner wants it covered, 5 Nov); owner, operator, seed or upgrade actions; burning KOIN into VHP; any transaction signed by anyone besides the player.

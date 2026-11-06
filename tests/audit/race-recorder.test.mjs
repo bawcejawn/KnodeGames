@@ -1106,7 +1106,7 @@ test("held alert, workflow: the alert job fails the run after publishing; the pu
 /** One synthetic paid week (vault week 2), checked by the publish job exactly as a 12:37 Monday run would be: the week
  *  file and the pending file are already published, this push carries the final file and the board. `mutate` changes
  *  the final file (and its pending copy, so only the recompute can catch it). Returns the publish check's output. */
-async function recomputeRun(players, { mutate = null, mutateBoard = null, prizesFrom = "0", skipSunday = false, rhythmFrom = undefined, typed = null } = {}) {
+async function recomputeRun(players, { mutate = null, mutateBoard = null, prizesFrom = "0", skipSunday = false, rhythmFrom = undefined, typed = null, typesFrom = undefined, mutateTypes = null } = {}) {
   const R = await import(path.resolve(APP, "bot/race.ts"));
   const start = M.weekStart(2), races = [];
   const t = new Map(), firstAt = new Map();
@@ -1121,9 +1121,10 @@ async function recomputeRun(players, { mutate = null, mutateBoard = null, prizes
   }
   // D-161: typed picks, per player: [type, the race's place among that type's races, win, show, time] (their own points).
   const tf = typed ? R.emptyTypes(2) : null;
+  // Repo Lens #D-13 L-3: a typed week goes final only with every typed race final (here: scored, nobody picked).
+  if (tf) for (const r of tf.races) r.result = { final: true, checked: 2, picks: [] };
   for (const p of players) for (const [ty, k, right, show, at] of (typed && typed[p.a]) || []) {
     const r = tf.races.filter((x) => x.type === ty)[k];
-    r.result = r.result || { final: true, checked: 2, picks: [] };
     r.result.picks.push([p.a, P[0], at, right, 0, show]);
     if (M.restRace(r.start, rhythmFrom === undefined ? 3 : Number(rhythmFrom))) continue;
     const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0;
@@ -1144,6 +1145,7 @@ async function recomputeRun(players, { mutate = null, mutateBoard = null, prizes
   const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
   const wt = tmp(); execFileSync("git", ["init", "-q", "-b", "race-data", wt]);
   fs.writeFileSync(path.join(wt, "W002.json"), JSON.stringify({ v: 1, week: 2, start, end: start + 7 * 24 * H, races }) + "\n");
+  if (tf && mutateTypes) mutateTypes(tf);
   if (tf) fs.writeFileSync(path.join(wt, "T002.json"), JSON.stringify(tf) + "\n");
   fs.mkdirSync(path.join(wt, "vault"));
   fs.writeFileSync(path.join(wt, "vault", "PENDING-W2.json"), JSON.stringify({ game: 7, week: 2, at: U("2026-11-09T11:37Z"), file }) + "\n");
@@ -1153,7 +1155,7 @@ async function recomputeRun(players, { mutate = null, mutateBoard = null, prizes
   const inc = tmp(); fs.mkdirSync(path.join(inc, "vault"));
   fs.writeFileSync(path.join(inc, "vault", "W2.json"), JSON.stringify(file) + "\n");
   fs.writeFileSync(path.join(inc, "board.json"), JSON.stringify(board) + "\n");
-  const env = { ...process.env, IN: inc, GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r", RUNNER_TEMP: tmp(), RACE_CHECK_NOW: String(U("2026-11-09T12:38Z") / 1000), RACE_PRIZES_FROM: prizesFrom, ...(rhythmFrom !== undefined ? { RACE_RHYTHM_FROM: rhythmFrom } : {}),
+  const env = { ...process.env, IN: inc, GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r", RUNNER_TEMP: tmp(), RACE_CHECK_NOW: String(U("2026-11-09T12:38Z") / 1000), RACE_PRIZES_FROM: prizesFrom, ...(rhythmFrom !== undefined ? { RACE_RHYTHM_FROM: rhythmFrom } : {}), ...(typesFrom !== undefined ? { RACE_TYPES_FROM: typesFrom } : typed ? { RACE_TYPES_FROM: "2" } : {}),
     GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: `url.${bare}.insteadOf`, GIT_CONFIG_VALUE_0: "https://x-access-token:t@github.com/o/r.git" };
   let out;
   try { out = execFileSync("bash", ["-c", publishSh], { cwd: tmp(), env, stdio: "pipe" }).toString(); } catch (e) { out = "FAILED " + String(e.stdout) + String(e.stderr); }
@@ -1851,23 +1853,70 @@ test("D-161, publish job: the recompute counts the race types' picks with their 
   assert.equal(flat.final, false); assert.match(flat.out, /board's last week doesn't match the week's picks/);
 });
 
-test("D-161, publish job: a recorder's T file publishes; a changed ledger hour, a changed final typed result or a bad shape is refused", async () => {
+test("D-161, publish job: a recorder's T file publishes; a changed ledger hour, a changed final typed result or a bad shape holds the T file alone (Repo Lens #D-13 M-3)", async () => {
   const a = await typesRun(U("2026-11-02T00:37Z"), "");
   const b = await typesRun(U("2026-11-02T01:37Z"), a);
   const c = await typesRun(U("2026-11-02T02:37Z"), b);
   const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
-  const first = publish(c, bare);
+  const TY = { RACE_TYPES_FROM: "2" };
+  const first = publish(c, bare, CHECK_NOW, TY);
   assert.ok(first.ok, first.out);
-  assert.equal(JSON.parse(execFileSync("git", ["--git-dir", bare, "show", "race-data:T002.json"]).toString()).hours.length, 2);
-  const again = (f) => { const d = tmp(); fs.cpSync(c, d, { recursive: true }); const tf = tfile(d); f(tf); fs.writeFileSync(path.join(d, "T002.json"), JSON.stringify(tf) + "\n"); return publish(d, bare); };
-  const hr = again((tf) => { const k = Object.keys(tf.hours[0].n)[0]; tf.hours[0].n[k] -= 1; tf.hours[0].a += 1; });
-  assert.equal(hr.ok, false); assert.match(hr.out, /a published ledger hour would change or go/);
-  const gone = again((tf) => { tf.hours.shift(); });
-  assert.equal(gone.ok, false); assert.match(gone.out, /a published ledger hour would change or go/);
-  const res = again((tf) => { const r = tf.races.find((x) => x.result?.final); r.result.checked = 1; });
-  assert.equal(res.ok, false); assert.match(res.out, /a published final result would change/);
-  const shape = again((tf) => { tf.races.pop(); });
-  assert.equal(shape.ok, false); assert.match(shape.out, /T002\.json: races/);
-  const sum = again((tf) => { tf.hours.push({ ...tf.hours[1], t: tf.hours[1].t + H, n: { [P[0]]: 999999 } }); });
-  assert.equal(sum.ok, false, "an hour whose counts don't add up to its heights is refused");
+  const pubT = () => execFileSync("git", ["--git-dir", bare, "show", "race-data:T002.json"]).toString();
+  const t0 = pubT();
+  assert.equal(JSON.parse(t0).hours.length, 2);
+  // Each bad T file: the run still publishes (W, board, index), the T file stays as published, and the run says why
+  // and raises the alert (held=true).
+  const again = (f, extra = TY) => {
+    const d = tmp(); fs.cpSync(c, d, { recursive: true }); const tf = tfile(d); f(tf);
+    fs.writeFileSync(path.join(d, "T002.json"), JSON.stringify(tf) + "\n");
+    const w = JSON.parse(fs.readFileSync(path.join(d, "W002.json"), "utf8")); w.races[27].cards = w.races[27].cards;   // unchanged W
+    const out = path.join(tmp(), "gh-out"); const r = publish(d, bare, CHECK_NOW, { ...extra, GITHUB_OUTPUT: out });
+    return { ...r, held: fs.existsSync(out) && /held=true/.test(fs.readFileSync(out, "utf8")) };
+  };
+  const cases = [
+    ["a changed ledger hour", (tf) => { const k = Object.keys(tf.hours[0].n)[0]; tf.hours[0].n[k] -= 1; tf.hours[0].a += 1; }, /a published ledger hour would change or go|standings aren't the ledger's counts|heights don't run on/],
+    ["a dropped hour", (tf) => { tf.hours.shift(); }, /a published ledger hour would change or go|an hour of it isn't in the ledger/],
+    ["a changed final result", (tf) => { const r = tf.races.find((x) => x.result?.final); r.result.checked = 1; }, /a published final result would change/],
+    ["a missing race", (tf) => { tf.races.pop(); }, /T002\.json: races/],
+    ["counts that don't add up", (tf) => { tf.hours.push({ ...tf.hours[1], t: tf.hours[1].t + H, n: { [P[0]]: 999999 } }); }, /T002\.json/],
+    // L-8: the ledger's heights run on, and a scored race's standings are the ledger's counts.
+    ["heights that don't run on", (tf) => { tf.hours.push({ t: tf.hours[1].t + H, a: tf.hours[1].b + 5, b: tf.hours[1].b + 5, n: { [P[0]]: 1 }, l: { [P[0]]: tf.hours[1].t + H + 1 }, c: [1, 1, 1, 1] }); }, /heights don't run on/],
+    ["standings that aren't the ledger's", (tf) => { const r = tf.races.find((x) => x.result?.final && x.type === 2); r.result.standings[0].blocks += 1; }, /standings aren't the ledger's counts|a published final result would change/],
+  ];
+  for (const [what, f, why] of cases) {
+    const r = again(f);
+    assert.ok(r.ok, `${what}: the run still publishes the rest\n${r.out}`);
+    assert.match(r.out, /T002\.json \(race types\) held, not published this run/, what);
+    assert.match(r.out, why, what);
+    assert.ok(r.held, `${what}: the alert fires`);
+    assert.equal(pubT(), t0, `${what}: the published T file is unchanged`);
+  }
+  // L-2: before TYPES_FROM (the workflow's default: off) a T file is held, the rest publishes.
+  const off = again(() => {}, {});
+  assert.ok(off.ok, off.out); assert.match(off.out, /race types aren't on for that week/);
+  // M-1: a T file over 2 MB is held alone too.
+  const big = again((tf) => { tf.pad = "x".repeat(2100 * 1024); });
+  assert.ok(big.ok, big.out); assert.match(big.out, /T002\.json \(race types\) held, not published this run: over 2 MB/);
+});
+
+test("Repo Lens #D-13 L-2 / L-3: a typed week's vault file goes final only with its T file and every typed race final", async () => {
+  const pl = [{ a: addrN(1), staked: true, picks: [[0, 1, 0, 10]] }, { a: addrN(2), staked: false, picks: [[1, 1, 0, 11]] }];
+  const typed = { [addrN(2)]: [[1, 5, 1, 0, 22]] };
+  const ok = await recomputeRun(pl, { typed, rhythmFrom: "0" });
+  assert.ok(ok.final, ok.out);
+  const open = await recomputeRun(pl, { typed, rhythmFrom: "0", mutateTypes: (tf) => { tf.races.find((r) => r.type === 2).result = null; } });
+  assert.equal(open.final, false); assert.match(open.out, /a typed race of the week isn't final yet/);
+  const none = await recomputeRun(pl, { typed: {}, rhythmFrom: "0", mutateTypes: (tf) => { tf.week = 9; } });
+  assert.equal(none.final, false); assert.match(none.out, /race-types file \(T\) can't be read/);
+  // Before TYPES_FROM the T file isn't read at all: a board that counted typed points is held.
+  const early = await recomputeRun(pl, { typed, rhythmFrom: "0", typesFrom: "3" });
+  assert.equal(early.final, false); assert.match(early.out, /board's last week doesn't match the week's picks/);
+});
+
+test("Repo Lens #D-13 L-2: the publish job's race-types switch is off while TYPES_FROM_WEEK is null, and the workflow never sets the test value", () => {
+  const yml = fs.readFileSync(path.join(APP, ".github/workflows/race.yml"), "utf8");
+  assert.match(yml, /TYPES_FROM = int\(os\.environ\.get\("RACE_TYPES_FROM"\) or TYPES_FROM_WEEK\)/);
+  assert.doesNotMatch(yml, /RACE_TYPES_FROM\s*[:=]/, "tests only");
+  const ymlWeek = yml.match(/^\s*TYPES_FROM_WEEK = (\w+)/m)[1];
+  assert.equal(ymlWeek, M.TYPES_FROM_WEEK === null ? "TYPES_OFF" : String(M.TYPES_FROM_WEEK), "race.yml's TYPES_FROM_WEEK is race-math.js's (null = TYPES_OFF)");
 });

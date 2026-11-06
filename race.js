@@ -361,7 +361,7 @@
   async function sendPick(index, horse, type = 0) {
     const who = me();
     if (!who || !raceContract || sending) return;
-    // D-161: the contract v2 takes the race type in the race number's top byte; type 0 is sent exactly as before v2.
+    // D-161: the contract v2 takes the race type in the race number from bit 48 (below 2^53, so exact in the browser: #D-13 H-1); type 0 is sent exactly as before v2.
     const tr = M.typedRace(type, index), mineNow = type ? rtPicks.get(`${type}:${index}`) : myPicks.get(index);
     const when = type ? `the ${M.TYPES[type].name.toLowerCase()} race at ${dayTime(tr.start)}` : `${dayTime(M.raceStart(index))} (${M.raceId(index).slice(11)}:00 UTC)`;
     const args = { player: who, race: M.contractRace(type, index) };
@@ -490,6 +490,7 @@
   }
   function rtSelect(t) {
     rtype = t;
+    for (const id of ["rt-rows", "rt-picks"]) { const z = $(id); if (z) z.replaceChildren(); }   // L-9: no row of the old type stays on screen
     try { localStorage.setItem("pr-type", String(t)); } catch { /* per-viewer convenience only */ }
     for (const id of ["live", "pick-zone", "history"]) { const n = $(id); if (n) n.hidden = t !== 0; }
     $("typed").hidden = t === 0;
@@ -543,8 +544,12 @@
           el("option", { value: "", text: !opts.length ? "Loading the horses…" : mine ? "Change to…" : "Choose a horse…" }),
           ...opts.map((x) => { const o = el("option", { value: x.a, text: `${nameOf(x.a)} · ×${x.h.toFixed(2)} per block` }); if (x.a === (rtDrafts.get(k) || mine)) o.selected = true; return o; }));
         sel.addEventListener("change", () => { if (sel.value) rtDrafts.set(k, sel.value); else rtDrafts.delete(k); });
-        const btn = el("button", { class: "btn", type: "button", onclick: () => sendPick(r.index, sel.value, rtype) }, mine ? "Change" : "Pick");
-        if (sending || !opts.length) btn.disabled = true;
+        // Repo Lens #D-13 L-9: the row's own type, fixed when it is drawn (not read at the click, after a toggle).
+        const rowType = rtype;
+        const btn = el("button", { class: "btn", type: "button", onclick: () => sendPick(r.index, sel.value, rowType) }, mine ? "Change" : "Pick");
+        // L-10: a per-game daily limit above 0, once used up, holds the typed buttons too (the count covers every type).
+        const lim = usage ? Number(usage.max_picks_per_day ?? 0) : 0, used = usage ? Number(usage.picks_today) || 0 : 0;
+        if (sending || !opts.length || (lim > 0 && used >= lim)) btn.disabled = true;
         rows.push(el("div", { class: "pk-row" }, el("div", { class: "pk-when" }, el("b", { text: `${dayTime(r.start)}${M.restRace(r.start) ? " · Sunday fun race" : ""}` }), el("span", { text: `locks in ${dur(r.start - Date.now())}` })),
           el("div", {}, sel, mine ? el("div", { class: "pk-now ago", text: `Your pick: ${nameOf(mine)}` }) : null), btn));
       }

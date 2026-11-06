@@ -1,8 +1,8 @@
 // =====================================================================
-// Race picks v2: race types (owner 5 Nov 2026, D-161), carried in the race number's top byte (race = type * 2^56 +
-// index), so the pick's arguments stay v1's three fields (the Mana sponsor reads them field for field). Type 0 (6-hour)
+// Race picks v2: race types (owner 5 Nov 2026, D-161), carried in the race number from bit 48 (race = type * 2^48 +
+// index, always below 2^53 so JavaScript carries it exactly: Repo Lens #D-13 H-1), so the pick's arguments stay v1's three fields (the Mana sponsor reads them field for field). Type 0 (6-hour)
 // is v1 unchanged; types 1-4 (1-hour, 2-hour, daily, weekly) lock at their start, open 24 h ahead (1- and 2-hour) or
-// from the race before (daily, weekly), sit under their own first key byte, and the daily limit 0 means no limit.
+// from the race before (daily, weekly), sit under their own key prefix, and the daily limit 0 means no limit.
 // =====================================================================
 
 import { Arrays, Base58, MockVM, Protobuf, authority, chain } from "@koinos/sdk-as";
@@ -18,7 +18,9 @@ const H2 = Base58.decode("1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW");
 
 // Tue 2029-10-23 10:00 UTC. The mock VM handles storage keys as text, so key bytes of 0x80 and above can collide
 // there (never on chain, where keys are bytes). At this time every race number these tests use, for every type, has
-// only bytes below 0x80. (The v1 tests' time has the same property.)
+// only bytes below 0x80. (The v1 tests' time has the same property.) Repo Lens #C-10 C10-2: the mock compares keys as
+// UTF-8 text, so the test addresses matter too: SELF, OWNER, P1, P2, P3, H1 and H2 were checked to decode to distinct
+// texts (no two collapse), so no test can pass or fail through a mock collision. Keep it so when adding addresses.
 const NOW: u64 = 1887444000000;
 
 function setTime(ms: u64): void { MockVM.setHeadInfo(new chain.head_info(null, ms, 0)); }
@@ -45,7 +47,7 @@ function start(limit: u32): void {
 }
 
 describe("race types: numbering", () => {
-  it("each type's index and window; the type rides in the top byte", () => {
+  it("each type's index and window; the type rides from bit 48", () => {
     expect(slotOf(0, NOW)).toBe(NOW / RACE_MS);
     expect(slotOf(1, NOW)).toBe(NOW / HOUR_MS);
     expect(slotOf(2, NOW)).toBe(NOW / (2 * HOUR_MS));
@@ -58,9 +60,12 @@ describe("race types: numbering", () => {
     expect(lookahead(0)).toBe(4); expect(lookahead(1)).toBe(24); expect(lookahead(2)).toBe(12);
     expect(lookahead(3)).toBe(1); expect(lookahead(4)).toBe(1);
     expect(raceNumber(0, 83013)).toBe(83013);                 // type 0: v1's numbers, unchanged
-    expect(raceNumber(1, 7) >> 56).toBe(1);
-    expect(pickKey(raceNumber(2, 7), P1)[0]).toBe(2);         // each type under its own first key byte
-    expect(pickKey(raceNumber(0, 7), P1)[0]).toBe(0);
+    expect(raceNumber(1, 7) >> 48).toBe(1);
+    expect(raceNumber(4, 0)).toBe(<u64>4 << 48);              // the largest type's numbers stay below 5 * 2^48 < 2^53
+    expect(raceNumber(4, 0) < (<u64>1 << 53)).toBe(true);
+    expect(pickKey(raceNumber(2, 7), P1)[0]).toBe(0);         // each type under its own key prefix (the second byte)
+    expect(pickKey(raceNumber(2, 7), P1)[1]).toBe(2);
+    expect(pickKey(raceNumber(0, 7), P1)[1]).toBe(0);
   });
 });
 
@@ -130,5 +135,31 @@ describe("race types: no per-game limit (0)", () => {
     pick(P1, 3, slotOf(3, NOW) + 1, H1); pick(P1, 4, slotOf(4, NOW) + 1, H1);
     expect(pickOf(P1, 1, h + 24)).not.toBeNull();
     expect(new Race().get_usage(new race.get_usage_arguments(P1)).picks_today).toBe(0);   // nothing counted or stored
+  });
+});
+
+// Repo Lens #C-10 item 1: the exact lock and open edges for every type, at the millisecond. One race per type (the one
+// after NOW's, whose key bytes are below 0x80), with the time moved around it and the horse alternated so no edge
+// pick is refused as "already your pick".
+function startOf(t: u64, i: u64): u64 {
+  if (t == 0) return i * RACE_MS;
+  if (t == 1) return i * HOUR_MS;
+  if (t == 2) return i * 2 * HOUR_MS;
+  if (t == 3) return i * DAY_MS;
+  return WEEK_OFFSET + i * WEEK_MS;
+}
+describe("race types: lock and open edges (C-10)", () => {
+  it("each type opens exactly its look-ahead earlier and locks at its first millisecond", () => {
+    start(0);
+    for (let t: u64 = 0; t < 5; t++) {
+      const i = slotOf(t, NOW) + 1;
+      const open = startOf(t, i - lookahead(t)), begin = startOf(t, i);
+      setTime(open - 1); refused(P1, t, i, H1, TOO_EARLY);   // 1 ms before it opens
+      setTime(open); pick(P1, t, i, H1);                      // the first millisecond it is open
+      setTime(begin - 1); pick(P1, t, i, H2);                 // the last millisecond before the start
+      setTime(begin); refused(P1, t, i, H1, LOCKED);          // the start: locked
+      expect(Arrays.equal(pickOf(P1, t, i)!.horse, H2)).toBe(true);
+    }
+    setTime(NOW);
   });
 });

@@ -69,10 +69,11 @@ describe("AUDIT race: lock and window boundaries", () => {
   });
   it("u64 edges: race 2^64-1, 2^64-2, and the far past are refused without overflow", () => {
     start(T);
-    // v2 (D-161): the top byte is the race type, so these are an unknown type (255): still refused, no overflow.
+    // v2 (D-161): the race type sits from bit 48, so these are an unknown type (65535): still refused, no overflow.
     refused(P1, 0xffffffffffffffff, H1, BAD_TYPE);
     refused(P1, 0xfffffffffffffffe, H1, BAD_TYPE);
-    refused(P1, 0x00ffffffffffffff, H1, TOO_EARLY);          // the largest type-0 number: too far ahead
+    refused(P1, 0x00ffffffffffffff, H1, BAD_TYPE);          // v2 (#D-13 H-1): the type sits from bit 48, so this is type 255
+    refused(P1, 0x0000ffffffffffff, H1, TOO_EARLY);          // the largest type-0 number: too far ahead
     refused(P1, 0, H1, LOCKED);
   });
 });

@@ -104,9 +104,16 @@
     return out;
   }
   const pointsOf = (type) => ({ win: TYPES[type].win, show: TYPES[type].show });
-  /** The Race contract v2's race number for a type's race i, as a decimal string: type * 2^56 + i (the type rides in
-   *  the top byte, so the pick's arguments stay three fields; type 0 is v1's number, unchanged). */
-  const contractRace = (type, i) => ((BigInt(type) << 56n) + BigInt(i)).toString();
+  /** The Race contract v2's race number for a type's race i, as a decimal string: type * 2^48 + i (the type rides
+   *  above bit 48, so the pick's arguments stay three fields; type 0 is v1's number, unchanged). Every number is below
+   *  5 * 2^48 < 2^53, so koilib's browser bundle (no Long library) and any JSON client carry it exactly (Repo Lens
+   *  #D-13 H-1: at 2^56 the browser rounded typed numbers onto other races). */
+  const RACE_TYPE_SHIFT = 48;
+  const contractRace = (type, i) => {
+    if (!Number.isInteger(type) || type < 0 || type >= TYPES.length) throw new Error(`contractRace: unknown race type ${type}`);
+    if (!Number.isSafeInteger(i) || i < 0 || i >= 2 ** RACE_TYPE_SHIFT) throw new Error(`contractRace: race index ${i} out of range`);
+    return String(type * 2 ** RACE_TYPE_SHIFT + i);
+  };
   /** The first Knode Games week the race types (1-4) run in: null = not yet (the Race contract v2 isn't uploaded).
    *  The owner sets it with the upload (D-161); until then the recorder, the publish job and the page show only the
    *  6-hour race. */

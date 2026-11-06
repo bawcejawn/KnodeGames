@@ -285,7 +285,7 @@ async function readPicks(node: any, contract: string, raceNo: number, type = 0):
   const out: Pick[] = [];
   let after: string | undefined;
   for (let page = 0; page < 1000; page++) {
-    // D-161: the contract v2 takes the race type in the race number's top byte (type 0: v1's number, unchanged).
+    // D-161: the contract v2 takes the race type in the race number from bit 48 (type 0: v1's number, unchanged).
     const r: any = await withRetry(`picks for race ${raceNo}${type ? ` (type ${type})` : ""}`, () => (c.functions as any).list_picks({ race: M.contractRace(type, raceNo), ...(after ? { start_after: after } : {}), limit: 100 }));
     const rows = r?.result?.rows ?? [];
     for (const x of rows) if (isAddr(x.player) && isAddr(x.pick?.horse)) out.push([x.player, x.pick.horse, Number(x.pick.at || 0)]);
@@ -540,7 +540,13 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
     known.add(w);
     fs.writeFileSync(path.join(OUT, `W${String(w).padStart(3, "0")}.json`), JSON.stringify(wf) + "\n");
   }
-  for (const [w, tf] of typesAll) if (weeks.has(w) && (tf.hours.length || tf.races.some((r) => r.result))) fs.writeFileSync(path.join(OUT, `T${String(w).padStart(3, "0")}.json`), JSON.stringify(tf) + "\n");
+  for (const [w, tf] of typesAll) if (weeks.has(w) && (tf.hours.length || tf.races.some((r) => r.result))) {
+    const text = JSON.stringify(tf) + "\n";
+    // Repo Lens #D-13 M-1: the publish job holds a T file over 2 MB on its own (the 6-hour files still publish); warn
+    // well before that.
+    if (text.length > T_WARN_BYTES) problems.push(`T${String(w).padStart(3, "0")}.json is ${(text.length / 1048576).toFixed(2)} MB: near the 2 MB publish limit (the race types' file would be held)`);
+    fs.writeFileSync(path.join(OUT, `T${String(w).padStart(3, "0")}.json`), text);
+  }
   fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((x, y) => x - y) }) + "\n");
   if (board) fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
   // #85 merge check L-1: a NEW pending file is dated at the end of the run (the head block's time now), not its start,
@@ -580,6 +586,8 @@ let typesAll = new Map<number, TypesFile>();
 const typesOn = (w: number) => typesFromWeek !== null && w >= typesFromWeek;
 /** Ledger hours read per run at most (a catch-up after an outage spreads over a few runs). Exported for the tests. */
 export const HOURS_PER_RUN = 24;
+/** Repo Lens #D-13 M-1: a T file past this size warns in every run (the publish limit is 2 MB). */
+export const T_WARN_BYTES = 1.5 * 1048576;
 export function emptyTypes(w: number): TypesFile {
   const start = M.weekStart(w), end = start + M.WEEK, races: Typed[] = [];
   for (const type of [1, 2, 3, 4]) for (const r of M.typedRacesIn(type, start, end)) races.push({ type, id: r.id, start: r.start, end: r.end, result: null });
@@ -672,7 +680,9 @@ async function recordTypes(tf: TypesFile, raceById: (id: string) => Race | null,
     if (!base) continue;                                    // no 6-hour card: that hour's typed races are missed (below)
     try {
       const r = await readHour(c, t);
-      if (!r.ok) { problems.push(`hour ${new Date(t).toISOString().slice(0, 13)}: ${r.why}; not in the ledger this run`); continue; }
+      // Repo Lens #D-13 L-11: a disagreement counts against the run's hours too, so a bad check node can't make every
+      // run re-read the whole week.
+      if (!r.ok) { budget--; problems.push(`hour ${new Date(t).toISOString().slice(0, 13)}: ${r.why}; not in the ledger this run`); continue; }
       led.set(t, { ...r.hour, c: [1, 2, 3, 4].map((type) => M.typeCard(base, type).c) });
       budget--;
     } catch (e) { problems.push(`hour ${new Date(t).toISOString().slice(0, 13)}: ${(e as Error).message} (tried again next run)`); break; }
@@ -695,28 +705,39 @@ async function recordTypes(tf: TypesFile, raceById: (id: string) => Race | null,
 /** Repo Lens #E-11 H-1 (b) for the race types: every ledger hour is read again on both nodes and must match, and every
  *  final typed race of the week (not Sunday's) is scored again from it, with its picks read again. */
 export async function verifyTypes(tf: TypesFile, c: ChainCtx, stop: number, clock: () => number = Date.now, raceById?: (id: string) => Race | null): Promise<string> {
+  const byId = new Map<string, Race>();
+  for (const wf of [...typesWeekFiles.values()]) for (const r of wf.races) byId.set(r.id, r);
+  const find = raceById || ((id: string) => byId.get(id) || null);
   const fresh = new Map<number, Hour>();
   const hours = tf.hours.filter((h) => tf.races.some((r) => r.result?.final && !r.result.missed && forWeek(r) && h.t >= r.start && h.t < r.end));
   for (let i = 0; i < hours.length; i += VERIFY_PARALLEL) {
     if (clock() > stop) throw new Error(`not checked yet: the re-check ran past its time budget (tried again next run)`);
     const got = await Promise.all(hours.slice(i, i + VERIFY_PARALLEL).map((h) => readHour(c, h.t, [h.a, h.b])));
     for (let k = 0; k < got.length; k++) {
-      const g = got[k], h = hours[i + k];
-      if (!g.ok) return `hour ${new Date(h.t).toISOString().slice(0, 13)}: ${g.why} when checking the week again`;
-      if (JSON.stringify([g.hour.a, g.hour.b, g.hour.n, g.hour.l]) !== JSON.stringify([h.a, h.b, h.n, h.l])) return `hour ${new Date(h.t).toISOString().slice(0, 13)}: its stored blocks aren't what the chain says now`;
+      const g = got[k], h = hours[i + k], at = new Date(h.t).toISOString().slice(0, 13);
+      if (!g.ok) return `hour ${at}: ${g.why} when checking the week again`;
+      if (JSON.stringify([g.hour.a, g.hour.b, g.hour.n, g.hour.l]) !== JSON.stringify([h.a, h.b, h.n, h.l])) return `hour ${at}: its stored blocks aren't what the chain says now`;
+      // Repo Lens #D-13 L-1: each type's luck trim c decides the winner, so it is tuned again from that hour's 6-hour
+      // card and must be the stored one.
+      const base = baseCard(find, h.t);
+      if (!base) return `hour ${at}: its 6-hour card is missing when checking the week again`;
+      const cs = [1, 2, 3, 4].map((type) => M.typeCard(base, type).c);
+      if (JSON.stringify(cs) !== JSON.stringify(h.c)) return `hour ${at}: its stored luck trims aren't what its 6-hour card gives`;
       fresh.set(h.t, { ...g.hour, c: h.c });
     }
   }
+  // Repo Lens #D-13 M-2: the races are scored again VERIFY_PARALLEL at a time (each one's picks are read on both nodes).
   const races = tf.races.filter((r) => r.result?.final && !r.result.missed && forWeek(r));
-  const byId = new Map<string, Race>();
-  for (const wf of [...typesWeekFiles.values()]) for (const r of wf.races) byId.set(r.id, r);
-  const find = raceById || ((id: string) => byId.get(id) || null);
-  for (const r of races) {
+  for (let i = 0; i < races.length; i += VERIFY_PARALLEL) {
     if (clock() > stop) throw new Error(`not checked yet: the re-check ran past its time budget (tried again next run)`);
-    const res = await scoreTyped(r, fresh, typedCardAt(find, fresh, r.type), c);
-    if (!res) return `${r.id}: an hour of it is missing when checking the week again`;
-    if (!res.ok) return `${r.id}: ${res.why} when checking the week again`;
-    if (resultKey(res.result) !== resultKey(r.result)) return `${r.id}: its stored result isn't what the chain says now (picks or standings differ)`;
+    const why = await Promise.all(races.slice(i, i + VERIFY_PARALLEL).map(async (r) => {
+      const res = await scoreTyped(r, fresh, typedCardAt(find, fresh, r.type), c);
+      if (!res) return `${r.id}: an hour of it is missing when checking the week again`;
+      if (!res.ok) return `${r.id}: ${res.why} when checking the week again`;
+      return resultKey(res.result) !== resultKey(r.result) ? `${r.id}: its stored result isn't what the chain says now (picks or standings differ)` : "";
+    }));
+    const first = why.find(Boolean);
+    if (first) return first;
   }
   return "";
 }

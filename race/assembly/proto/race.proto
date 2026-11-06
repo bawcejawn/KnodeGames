@@ -13,8 +13,8 @@ syntax = "proto3";
 //   - picks are open for the next 4 races (the coming 24 hours) and LOCK when
 //     the race starts: a pick is refused once the head block's time has
 //     reached the race's start;
-//   - v2 (D-161): race TYPES in the race number's top byte, so the arguments
-//     stay these three fields: race = type * 2^56 + index. Type 0 is the
+//   - v2 (D-161): race TYPES in the race number from bit 48, so the arguments
+//     stay these three fields: race = type * 2^48 + index. Type 0 is the
 //     6-hour race above (unchanged); 1 = 1-hour (index = start / 1 h, open
 //     24 h ahead); 2 = 2-hour (start / 2 h, 24 h ahead); 3 = daily (start /
 //     24 h, open from the day before); 4 = weekly (Monday-based UTC week,
@@ -65,7 +65,7 @@ message empty_object {}
 // @result empty_object
 message pick_arguments {
   bytes player = 1 [(koinos.btype) = ADDRESS];
-  // Race number: the race's UTC start time in ms divided by 21600000 (v2: plus type * 2^56 for the other race types).
+  // Race number: the race's UTC start time in ms divided by 21600000 (v2: plus type * 2^48 for the other race types).
   uint64 race = 2 [jstype = JS_STRING];
   bytes horse = 3 [(koinos.btype) = ADDRESS];
 }

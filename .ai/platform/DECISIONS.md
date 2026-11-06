@@ -874,7 +874,7 @@
   - **The page:** a toggle per type (1-hour, 2-hour, 6-hour, daily, weekly), so a player always sees which race they're playing.
   - **Handicaps:** the same formula; each type's k is the blocks expected in that race, from the same hourly VHP reading. So a short race has a smaller field (today: 12 producers at 1 hour, 15 at 2 hours, 17 at 6, 19 daily, 20 weekly). The Vault is out of 1- and 2-hour races until it holds about 109,000 / 54,000 VHP; the page says so (the bar isn't lowered).
   - **No per-game pick limit:** the Race contract's daily limit is set to 0 (no limit). The Mana sponsor's daily limit across the platform is the cap, or the player's own Mana. Other games' per-game limits: R-ALL-13.
-- **How:** the Race contract v2 (same address; the race type rides in the race number's top byte, so a pick is still v1's three fields and the Mana sponsor needs no change; old picks untouched; audit and Repo Lens first, then upload in a Monday 01:40–06:30 UTC slot with the owner's key); the recorder's hour ledger and `T<week>.json` (W files and Block X unchanged); `TYPES_FROM_WEEK` in `race-math.js` turns it on with the upload.
+- **How:** the Race contract v2 (same address; the race type rides in the race number from bit 48 (race = type × 2^48 + index, below 2^53 so every JavaScript client sends it exactly; Repo Lens #D-13 H-1), so a pick is still v1's three fields and the Mana sponsor needs no change; old picks untouched; audit and Repo Lens first, then upload in a Monday 01:40–06:30 UTC slot with the owner's key); the recorder's hour ledger and `T<week>.json` (W files and Block X unchanged); `TYPES_FROM_WEEK` in `race-math.js` turns it on with the upload.
 
 
 ## Contradictions

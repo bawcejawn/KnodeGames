@@ -140,8 +140,9 @@ describe("picking", () => {
   it("picks open for the next 4 races only (the coming 24 hours)", () => {
     pick(P1, R + 4, H1);
     refused(P1, R + 5, H1, TOO_EARLY);
-    refused(P1, 0xffffffffffffffff, H1, BAD_TYPE);        // v2 (D-161): top byte 255 = an unknown race type
-    refused(P1, 0x00ffffffffffffff, H1, TOO_EARLY);
+    refused(P1, 0xffffffffffffffff, H1, BAD_TYPE);        // v2 (D-161): type 65535 (bits 48 and up) = an unknown race type
+    refused(P1, 0x00ffffffffffffff, H1, BAD_TYPE);          // v2 (#D-13 H-1): the type sits from bit 48, so this is type 255
+    refused(P1, 0x0000ffffffffffff, H1, TOO_EARLY);          // the largest type-0 number: too far ahead
   });
 
   it("one pick per wallet per race: a change replaces it and is counted; the same horse again is refused", () => {

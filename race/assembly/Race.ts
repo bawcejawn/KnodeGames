@@ -5,11 +5,11 @@ import { race } from "./proto/race";
  * Knode Producer Race picks. See assembly/proto/race.proto for the rules.
  * Free to play: it holds no funds, takes no fee and never pays Mana. It only keeps one pick per wallet per race and
  * lets the chain enforce the lock (no pick once a race has started), the window picks open in, and the daily limit.
- * v2 (owner 5 Nov 2026, D-161): race types, carried in the race number's top byte, so the pick's arguments stay v1's
- * three fields (the Mana sponsor reads them field for field) and type 0 is v1 exactly:
- *   race = type * 2^56 + index; type 0 = the 6-hour race (index = start / 6 h), 1 = 1-hour (start / 1 h),
+ * v2 (owner 5 Nov 2026, D-161): race types, carried in the race number above bit 48, so the pick's arguments stay
+ * v1's three fields (the Mana sponsor reads them field for field) and type 0 is v1 exactly:
+ *   race = type * 2^48 + index (always below 2^51, so JavaScript numbers carry it exactly: Repo Lens #D-13 H-1); type 0 = the 6-hour race (index = start / 6 h), 1 = 1-hour (start / 1 h),
  *   2 = 2-hour (start / 2 h), 3 = daily (start / 24 h), 4 = weekly (the Monday-based UTC week).
- * Each type's picks sit under their own first key byte. A daily limit of 0 means no per-game limit (the Mana sponsor's
+ * Each type's picks sit under their own key prefix (the race number's second byte is the type). A daily limit of 0 means no per-game limit (the Mana sponsor's
  * daily limit across the platform is the cap).
  * Uploaded with no authority overrides: upgrades need this contract's own key; settings need the owner's key.
  */
@@ -25,10 +25,10 @@ export const DAY_MS: u64 = 86400000;
 export const LOOKAHEAD: u64 = 4;
 export const MAX_PICKS_LIMIT: u32 = 20;
 /** v2 race types (D-161): 0 = 6-hour (v1), 1 = 1-hour, 2 = 2-hour, 3 = daily, 4 = weekly (Monday to Sunday 00:00 UTC),
- *  in the race number's top byte. */
+ *  in the race number's bits 48 and up (anything from 5 * 2^48 up is refused). */
 export const TYPES: u64 = 5;
-export const TYPE_SHIFT: u64 = 56;
-export const INDEX_MASK: u64 = 0x00ffffffffffffff;
+export const TYPE_SHIFT: u64 = 48;
+export const INDEX_MASK: u64 = 0x0000ffffffffffff;
 export const HOUR_MS: u64 = 3600000;
 export const WEEK_MS: u64 = 604800000;
 /** 1970-01-05 00:00 UTC, the first Monday: weekly race w starts at WEEK_OFFSET + w * WEEK_MS. */
@@ -70,7 +70,7 @@ export class Race {
     System.require(index > current, LOCKED);
     System.require(index <= current + lookahead(type), TOO_EARLY);
 
-    // The key is the whole race number (type byte first), so type 0 keeps v1's keys and each type has its own range.
+    // The key is the whole race number (the type in its second byte), so type 0 keeps v1's keys and each type has its own range.
     const key = pickKey(args.race, player);
     const old = this.picks.get(key);
     const had = old != null && old.horse != null && old.horse!.length > 0;

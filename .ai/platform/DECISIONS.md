@@ -860,6 +860,15 @@
 ## D-161 — Block Golf waits for the kit
 - **Date:** 2026-11-05 (owner: "hold on golf wait for the kit") · **Decision:** Block Golf does not launch from `golf-launch` (`02c86e1`) or `golf-v2` on its own recorder (D-160). `GOLF_ENABLED` stays off; `golf-launch` and PR #187 stay open as the source for the port. When the kit's core merges (R-ARCH-3), Golf ports its recorder into `games/golf/recorder.ts` (R-ALL-11), keeps its scoring, and launches on the kit. The Repo Lens findings already fixed carry over.
 
+## D-162 — Shared Game Kit: the owner's answers after Repo Lens #B-11
+- **Date:** 2026-11-05 (owner, in the doc "Shared Game Kit: what it does and where it goes") · **Decision:**
+  1. **Hold variables, every kit game:** `<GAME>_HOLD_WEEKS` (weeks kept pending) and `<GAME>_RELEASE = "<week>:<code>"` (releases one exact hold), as Block X today; hyphens in a slug become `_`. ("okay")
+  2. **Vault bot (`bot/vault.ts`), Vault chat:** check a RELEASE file's code itself (#B-11 KC-3), and hold a week instead of skipping a bad row (KC-15) (R-VAULT-17, R-VAULT-18). ("yes send both")
+  3. **Payout pin:** once the vault pays a kit game, `game-data/deployment.json` `vaultGames.<id>.kit` repeats its payout fields (`payoutRule`, `vaultValues`, `entry`, `sundayFunRound`, `roundsCorrectable`, `liveWeek`); the Vault chat adds it with each game's move (KC-26, R-VAULT-19). ("ok")
+  4. **Block X and Producer Bracket free places follow D-159 on the kit** (exactly 10 by earlier score time, then address, past 10; never empty), each as its own payout-change PR when the game moves, not in the migration PR (D-158). ("ok")
+  5. **Survivor's seasons on the kit come later**, after Block Golf, Fantasy and Bracket. ("survivor later")
+  6. **Combo Card:** a week counts only the best 10 cards, ties by more hits, then the earlier last hit. The owner added "10 max per card"; what that limits (points, legs, or the cards counted) is to be confirmed before the kit builds Combo's week rule (D-160: no guessing).
+
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.
 

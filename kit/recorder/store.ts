@@ -23,15 +23,15 @@ export class Prev {
       let v: any;
       try { v = JSON.parse(raw); } catch { throw new Error(`last run's ${rel} can't be read: refusing to write`); }
       if (canon(v) !== raw) throw new Error(`last run's ${rel} isn't in the recorders' own form: refusing to write`);
-      if (/^W[0-9]{3}\.json$/.test(rel)) {
+      if (/^W[0-9]{3,4}\.json$/.test(rel)) {
         const why = weekShape(v, rel, cfg);
         if (why) throw new Error(`last run's ${rel} isn't a kit week file (${why}): refusing to write`);
       }
       files.set(rel, v);
     };
-    for (const f of fs.readdirSync(dir).sort()) if (/^(board|W[0-9]{3})\.json$/.test(f)) take(f);
+    for (const f of fs.readdirSync(dir).sort()) if (/^(board|W([0-9]{3}|[1-9][0-9]{3}))\.json$/.test(f)) take(f);
     const vd = path.join(dir, "vault");
-    if (fs.existsSync(vd)) for (const f of fs.readdirSync(vd).sort()) if (/^(HOLD-|RELEASE-)?W[0-9]{1,4}\.json$/.test(f)) take(`vault/${f}`);
+    if (fs.existsSync(vd)) for (const f of fs.readdirSync(vd).sort()) if (/^(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3})\.json$/.test(f)) take(`vault/${f}`);
     return new Prev(dir, files);
   }
 
@@ -48,7 +48,7 @@ export class Out {
   readonly written: string[] = [];
   constructor(readonly dir: string) { fs.mkdirSync(path.join(dir, "vault"), { recursive: true }); }
   write(rel: string, v: unknown) {
-    if (!/^(board\.json|W[0-9]{3}\.json|vault\/(HOLD-|RELEASE-)?W[0-9]{1,4}\.json)$/.test(rel)) throw new Error(`the kit never writes ${rel}`);
+    if (!/^(board\.json|W([0-9]{3}|[1-9][0-9]{3})\.json|vault\/(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3})\.json)$/.test(rel)) throw new Error(`the kit never writes ${rel}`);
     const s = canon(v);
     if (Buffer.byteLength(s) > MAX_WRITE_BYTES) throw new Error(`${rel} would be over ${MAX_WRITE_BYTES} bytes: stopping (RECORDER §6.7)`);
     fs.writeFileSync(path.join(this.dir, rel), s);

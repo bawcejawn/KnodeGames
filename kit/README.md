@@ -21,9 +21,10 @@ supplies only its own rounds, results and scoring. The standard is `.ai/standard
 | `testing/` | fake nodes and clock, hour-by-hour replay through the real publish check, the conformance suite, the `kit-example` test fixture |
 | `tests/` | the kit's own tests (run by `npm run test:audit` through `tests/audit/kit-suite.test.ts`) |
 
-**Week file** (`W<NNN>.json`): `{ v, game, week, start, end, min, state, seen: {hash, at}, rounds, players }` with every round as
-`[id, day, fun, status, [[wallet, points, at], …]]` — rows for every wallet that took part, so the publish job recounts the week
-(entry rule included) without a per-game scorer (D-158 #3).
+**Week file** (`W<NNN>.json`, format v2): `{ v, game, week, start, end, min, state, seen: {hash, at}, rounds, players }` with every
+round as `[id, day, fun, status, [[i, points] | [i, points, at], …]]` (`i` = the wallet's index in `players`; `at` only on a row
+with points) — rows for every wallet that took part, so the publish job recounts the week (entry rule included) without a
+per-game scorer (D-158 #3). `seen.hash` leaves out Sunday fun rounds.
 
 **Changing the kit:** Repo Lens on every change; tests with every change; `npm run kit:render` after a change to `publish/`
 (a test fails if a committed workflow differs). Games never edit `kit/` (D-035): ask the Architecture chat through the owner.

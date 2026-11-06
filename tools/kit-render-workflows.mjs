@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { ROOT, listManifests, readManifest } from "./game-manifest.mjs";
+import { ROOT, listManifests, readManifest, validateManifest, duplicateKeys } from "./game-manifest.mjs";
 import { renderJobs, inlineScript, BEGIN, END } from "../kit/publish/render.mjs";
 import { publishConfig, dataFolder, readDeployment } from "../kit/recorder/manifest.ts";
 
@@ -15,9 +15,14 @@ export function kitGames(root = ROOT) {
   const dep = readDeployment(root);
   const by = new Map();
   for (const file of listManifests(root)) {
-    const m = readManifest(file);
     const rec = path.join(path.dirname(file), "recorder.ts");
     if (!fs.existsSync(rec) || !/GameModule/.test(fs.readFileSync(rec, "utf8"))) continue;
+    // A kit game is validated in kit mode before anything of it is rendered (KC-14, KC-25, KC-26).
+    const dup = duplicateKeys(fs.readFileSync(file, "utf8"));
+    if (dup.length) throw new Error(`${path.relative(root, file)} repeats a key: ${dup.join(", ")}`);
+    const m = readManifest(file);
+    const probs = validateManifest(m, { kit: true });
+    if (probs.length) throw new Error(`${path.relative(root, file)}: ${probs.join("; ")}`);
     const { branch } = dataFolder(m);
     const key = `${m.workflow.file}|${branch}`;
     if (!by.has(key)) by.set(key, { file: m.workflow.file, branch, games: [] });

@@ -33,7 +33,8 @@ export class OutOfBudget extends Error {
 
 /** Read budgets (game.json `budgets` overrides). Block X's REVERIFY limits are the defaults (BX-63, B3-2, L-1). */
 export type Budgets = { reads: number; ms: number; atOnce: number; tries: number };
-export const DEFAULT_BUDGETS: Budgets = { reads: 40000, ms: 22 * 60000, atOnce: 8, tries: 4 };
+// The time budget fits inside the game's own 25-minute record job with room for a read already under way (KC-4).
+export const DEFAULT_BUDGETS: Budgets = { reads: 40000, ms: 18 * 60000, atOnce: 8, tries: 4 };
 
 /** Counts reads and time against a budget; throws OutOfBudget before a read once either is used up. */
 export class Budget {

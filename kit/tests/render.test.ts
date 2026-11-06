@@ -9,8 +9,12 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { renderAll, kitGames } from "../../tools/kit-render-workflows.mjs";
-import { inlineScript, BEGIN, END, HEREDOC, TRAILER } from "../publish/render.mjs";
-import { weekHash, canon, boardOf, tally } from "../publish/check.inline.mjs";
+import YAML from "yaml";
+import { inlineScript, renderJobs, BEGIN, END, HEREDOC, TRAILER, RECORD_TIMEOUT_MIN } from "../publish/render.mjs";
+import { canon, boardOf, tally } from "../publish/check.inline.mjs";
+import { validateManifest, BUDGET_MAX } from "../../tools/game-manifest.mjs";
+import { dataFolder } from "../recorder/manifest.ts";
+import { makeWeek } from "../testing/weekfile.ts";
 import { exampleCfg, EXAMPLE_ROOT } from "../testing/example/index.ts";
 import { at, HOUR } from "../testing/fake-clock.ts";
 
@@ -68,8 +72,7 @@ test("render: the embedded copy runs and publishes an honest pending week (as th
   fs.mkdirSync(path.join(inn, "kit-example"), { recursive: true }); fs.mkdirSync(pub);
   const A = "1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
   const now = at(5, 0, 2);
-  const j: any = { v: 1, game: 250, week: 4, start: at(4), end: at(5), min: "100000000", state: "pending", seen: { hash: "", at: now }, rounds: [["q00000001", at(4), 0, "s", [[A, 1, 0]]], ["q00000002", at(4, 1), 0, "s", [[A, 1, 0]]]], players: [[A, "200000000", "200000000", 0]] };
-  j.seen.hash = weekHash(j);
+  const j = makeWeek({ game: 250, week: 4, start: at(4), end: at(5), state: "pending", seenAt: now, rounds: [["q00000001", at(4), 0, "s", [[A, 1, at(4) + 1]]], ["q00000002", at(4, 1), 0, "s", [[A, 1, at(4, 1) + 1]]]], players: [[A, "200000000", "200000000", 0]] });
   fs.writeFileSync(path.join(inn, "kit-example/W004.json"), canon(j));
   fs.writeFileSync(path.join(inn, "kit-example/board.json"), canon(boardOf(j, tally(j, cfg), new Date(now).toISOString())));
   const env = { ...process.env, KIT_GAMES: yml.match(/KIT_GAMES: '(.*)'/)![1], CHECK_NOW_MS: String(now + 5 * 60000) };
@@ -87,24 +90,79 @@ test("render: the hand-written Block X jobs are untouched, and the kit jobs sit 
     assert.ok(yml.startsWith(before), "everything before the kit block is main's games.yml unchanged");
   }
   assert.ok(yml.indexOf(BEGIN) > 0 && yml.indexOf(END) > yml.indexOf(BEGIN));
-  assert.match(yml, /record-kit:[\s\S]*if: \$\{\{ \(vars\.KIT_EXAMPLE_ENABLED == 'true'\) && github\.ref == 'refs\/heads\/main' \}\}/);
-  assert.match(yml, /- name: Record Kit Example \(test fixture\) \(kit\)\n\s+id: kit-example\n\s+if: \$\{\{ vars\.KIT_EXAMPLE_ENABLED == 'true' \}\}\n\s+continue-on-error: true/);
-  // The publish job holds the write token: no checkout, no npm, no tsx, no repository file run.
-  const pubJob = yml.slice(yml.indexOf("  publish-kit:"), yml.indexOf(END));
-  for (const bad of [/actions\/checkout/, /\bnpm\b/, /\btsx\b/, /^\s+node\s+(?!--input-type=module - )/m, /\.\/kit\/|kit\/recorder/]) assert.doesNotMatch(pubJob, bad);
+});
+
+/** Two kit games on one branch, rendered and PARSED as YAML (duplicate keys refused) (KC-4, KC-13, KC-14, KC-24). */
+const TWO = (() => {
+  const cfg = exampleCfg();
+  const block = renderJobs({ branch: "games-data", script: "export function main() {}\n", games: [
+    { slug: "kit-example", name: "Kit Example", enabledVar: "KIT_EXAMPLE_ENABLED", cfg },
+    { slug: "kit-other", name: "Kit Other (2)", enabledVar: "KIT_OTHER_ENABLED", cfg: { ...cfg, slug: "kit-other", game: 251 } }] });
+  return YAML.parse(`jobs:\n  publish:\n    runs-on: ubuntu-latest\n    steps: [{ run: "true" }]\n${block}`, { uniqueKeys: true }).jobs;
+})();
+
+test("render: one record job per kit game, each with its own timeout, artifact and variable (KC-4, KC-13)", () => {
+  assert.deepEqual(Object.keys(TWO).sort(), ["publish", "publish-kit", "record-kit-example", "record-kit-other"]);
+  for (const [slug, v] of [["kit-example", "KIT_EXAMPLE"], ["kit-other", "KIT_OTHER"]]) {
+    const j = TWO[`record-${slug}`];
+    assert.equal(j["timeout-minutes"], RECORD_TIMEOUT_MIN);
+    assert.equal(j.if, `\${{ vars.${v}_ENABLED == 'true' && github.ref == 'refs/heads/main' }}`);
+    assert.deepEqual(j.permissions, { contents: "read" });
+    const upl = j.steps.find((s: any) => String(s.uses).startsWith("actions/upload-artifact@"));
+    assert.equal(upl.with.name, `kit-games-data-${slug}`, "its own artifact");
+    const rec = j.steps.find((s: any) => s.id === "rec");
+    assert.match(rec.run, new RegExp(`npm run kit -- ${slug}; rc=\\$\\?`));
+    assert.equal(rec.env[`${v}_RELEASE`], `\${{ vars.${v}_RELEASE }}`);
+  }
+  // A game's budget fits its job: the manifest caps budgets.ms at 20 minutes.
+  assert.ok(BUDGET_MAX.ms / 60000 + 4 <= RECORD_TIMEOUT_MIN);
+});
+
+test("render: the publish job takes each game's files only from that game's artifact, and reads the owner's releases itself (KC-3, KC-13, KC-29)", () => {
+  const p = TWO["publish-kit"];
+  assert.deepEqual(p.needs, ["record-kit-example", "record-kit-other", "publish"]);
+  assert.match(p.if, /needs\.record-kit-example\.result == 'success' \|\| needs\.record-kit-other\.result == 'success'/, "runs when any one game recorded");
+  assert.deepEqual(p.permissions, { contents: "write" });
+  const dl = p.steps.filter((s: any) => String(s.uses).startsWith("actions/download-artifact@"));
+  assert.deepEqual(dl.map((s: any) => [s.with.name, s.with.path]), [["kit-games-data-kit-example", "${{ runner.temp }}/incoming/kit-example"], ["kit-games-data-kit-other", "${{ runner.temp }}/incoming/kit-other"]]);
+  const chk = p.steps.find((s: any) => /Check and push/.test(s.name));
+  assert.equal(chk.env.CHECK_NOW_MS, "");
+  assert.equal(chk.env.KIT_RELEASE_KIT_EXAMPLE, "${{ vars.KIT_EXAMPLE_RELEASE }}");
+  assert.equal(chk.env.KIT_RELEASE_KIT_OTHER, "${{ vars.KIT_OTHER_RELEASE }}");
+  // Only pinned actions; no checkout, npm, tsx or repository file in the job that holds the write token.
+  for (const s of p.steps) if (s.uses) assert.match(s.uses, /^actions\/(download-artifact|setup-node)@[0-9a-f]{40}$/);
+  const runs = p.steps.map((s: any) => s.run ?? "").join("\n");
+  for (const bad of [/actions\/checkout/, /\bnpm\b/, /\btsx\b/, /^\s*node\s+(?!--input-type=module - )/m, /kit\/recorder/]) assert.doesNotMatch(runs, bad);
+  // The two alerts say different things (KC-28).
+  assert.ok(p.steps.some((s: any) => /stopped/.test(s.name)) && p.steps.some((s: any) => /needs the owner/.test(s.name)));
+});
+
+test("render: a name, slug, variable or branch that isn't plain is refused (KC-14, KC-23); the manifest refuses it too", () => {
+  const cfg = exampleCfg();
+  const g = { slug: "kit-example", name: "Kit Example", enabledVar: "KIT_EXAMPLE_ENABLED", cfg };
+  for (const bad of [{ name: "Evil\n      - name: injected\n        run: echo INJECTED" }, { name: "a: b" }, { name: "x${{ secrets.T }}" }, { slug: "Evil slug" }, { enabledVar: "X' || true" }])
+    assert.throws(() => renderJobs({ branch: "games-data", script: "", games: [{ ...g, ...bad }] }), JSON.stringify(bad));
+  assert.throws(() => renderJobs({ branch: "main", script: "", games: [g] }), /data branch/);
+  const m = JSON.parse(fs.readFileSync(path.join(EXAMPLE_ROOT, "games/kit-example/game.json"), "utf8"));
+  assert.ok(validateManifest({ ...m, name: "Evil\nname" }, { kit: true }).some((p: string) => /one plain line/.test(p)));
+  assert.throws(() => dataFolder({ ...m, data: { board: "main:kit-example/board.json", vaultFolder: "main:kit-example/vault" } }), /data branch/);
 });
 
 test("render: the run blocks are valid bash", () => {
-  const lines = yml.slice(yml.indexOf(BEGIN)).split("\n");
   const blocks: string[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const m = /^(\s+)run: \|$/.exec(lines[i]);
-    if (!m) continue;
-    const ind = m[1].length + 2, body: string[] = [];
-    for (i++; i < lines.length && (lines[i].trim() === "" || lines[i].startsWith(" ".repeat(ind))); i++) body.push(lines[i].slice(ind));
-    i--;
-    blocks.push(body.join("\n").replace(/\$\{\{[^}]*\}\}/g, "X"));
+  const all = [yml.slice(yml.indexOf(BEGIN)), ...Object.values(TWO).flatMap((j: any) => (j.steps ?? []).map((s: any) => s.run).filter(Boolean))];
+  for (const text of all.slice(0, 1)) {
+    const lines = text.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const m = /^(\s+)run: \|$/.exec(lines[i]);
+      if (!m) continue;
+      const ind = m[1].length + 2, body: string[] = [];
+      for (i++; i < lines.length && (lines[i].trim() === "" || lines[i].startsWith(" ".repeat(ind))); i++) body.push(lines[i].slice(ind));
+      i--;
+      blocks.push(body.join("\n"));
+    }
   }
-  assert.ok(blocks.length >= 4);
-  for (const b of blocks) { const r = spawnSync("bash", ["-n"], { input: b, encoding: "utf8" }); assert.equal(r.status, 0, r.stderr + "\n" + b.slice(0, 300)); }
+  blocks.push(...all.slice(1));
+  assert.ok(blocks.length >= 8);
+  for (const b of blocks) { const r = spawnSync("bash", ["-n"], { input: b.replace(/\$\{\{[^}]*\}\}/g, "X"), encoding: "utf8" }); assert.equal(r.status, 0, r.stderr + "\n" + b.slice(0, 300)); }
 });

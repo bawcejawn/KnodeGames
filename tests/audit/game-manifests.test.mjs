@@ -39,6 +39,18 @@ test("a complete manifest passes; each broken rule is caught", () => {
   bad((m) => (m.name = "{{name}}"), /placeholders/);
 });
 
+test("every kit game (a GameModule recorder), and the kit's fixture, validates in KIT mode (Repo Lens #B-11 KC-25)", async () => {
+  const roots = [ROOT, path.join(ROOT, "kit/testing/example")];
+  let n = 0;
+  for (const root of roots) for (const f of listManifests(root)) {
+    const rec = path.join(path.dirname(f), "recorder.ts");
+    if (!fs.existsSync(rec) || !/GameModule/.test(fs.readFileSync(rec, "utf8"))) continue;
+    assert.deepEqual(validateManifest(readManifest(f), { kit: true }), [], f);
+    n++;
+  }
+  assert.ok(n >= 1, "the fixture at least");
+});
+
 test("the kit's fields (GAME_KIT.md §4): optional for a game still on its old recorder, required and checked for a kit game", () => {
   const kit = () => ({ ...good(), payoutRule: "legacy-tied-whole", vaultValues: "dense255", minPts: 0, rowCap: 0, entry: { minRounds: 1, minPoints: 1 } });
   assert.deepEqual(validateManifest(good()), [], "no kit fields: still valid (not on the kit yet)");

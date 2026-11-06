@@ -28,7 +28,8 @@ export class Replay {
     let result: RunResult | undefined, error: string | undefined;
     try { result = await runGame(this.m, this.cfg, { nodes, prev, out, ...env, log: () => {} }); }
     catch (e) { error = (e as Error).message; fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out); }
-    const r = checkGame(this.cfg, out, this.pub, jobNow);
+    // The publish job reads the owner's release variable itself (KC-3): the same value the recorder got.
+    const r = checkGame(this.cfg, out, this.pub, jobNow, env.release ?? "");
     for (const f of r.publish) {
       const to = path.join(this.pub, f);
       fs.mkdirSync(path.dirname(to), { recursive: true });

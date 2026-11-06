@@ -8,7 +8,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { checkGame, main, weekHash, boardOf, tally, vaultFileOf, canon, sha256 } from "../publish/check.inline.mjs";
+import { checkGame, main, boardOf, tally, vaultFileOf, canon, sha256 } from "../publish/check.inline.mjs";
+import { makeWeek } from "../testing/weekfile.ts";
 import { exampleCfg } from "../testing/example/index.ts";
 import { at, DAY, HOUR as H } from "../testing/fake-clock.ts";
 
@@ -17,10 +18,10 @@ const A = "1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", B = "1BBBBBBBBBBBBBBBBBBBBBBBBBB
 const S4 = at(4), END = at(5), NOW = END + 3 * H;
 const day = (d: number) => S4 + d * DAY;
 
-/** A kit week file for week 4 (state, seen.at), consistent with its own hash. */
+/** A kit week file for week 4 (state, seen.at), consistent with its own hash; `edit` works on the rows by address. */
 function week(state: "pending" | "final" | "open", at0: number, edit?: (j: any) => void) {
   const j: any = {
-    v: 1, game: 250, week: 4, start: S4, end: END, min: "100000000", state, seen: { hash: "", at: at0 },
+    game: 250, week: 4, start: S4, end: END, min: "100000000", state, seenAt: at0,
     rounds: [
       ["q00000201", day(0), 0, "s", [[A, 1, 0], [B, 1, 0], [C, 1, 0]]],
       ["q00000202", day(1), 0, "s", [[A, 1, 0], [B, 1, 0], [C, 0, 0]]],
@@ -29,21 +30,21 @@ function week(state: "pending" | "final" | "open", at0: number, edit?: (j: any) 
     players: [[A, "500000000", "500000000", 0], [B, "0", "0", 0], [C, "0", "0", 0]],
   };
   edit?.(j);
-  j.seen.hash = weekHash(j);
-  return j;
+  return makeWeek(j);
 }
 const board = (j: any, upd = new Date(NOW).toISOString()) => boardOf(j, tally(j, Q), upd);
 const vault = (j: any) => vaultFileOf(j, tally(j, Q));
 const put = (dir: string, name: string, v: any) => { fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true }); fs.writeFileSync(path.join(dir, name), typeof v === "string" ? v : canon(v)); };
-function check(inFiles: Record<string, any>, pubFiles: Record<string, any>, now = NOW, cfg: any = Q) {
+function check(inFiles: Record<string, any>, pubFiles: Record<string, any>, now = NOW, cfg: any = Q, release = "") {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "kit-pub-")), inn = path.join(d, "in"), pub = path.join(d, "pub");
   fs.mkdirSync(inn); fs.mkdirSync(pub);
   for (const [k, v] of Object.entries(inFiles)) put(inn, k, v);
   for (const [k, v] of Object.entries(pubFiles)) put(pub, k, v);
-  const r = checkGame(cfg, inn, pub, now);
+  const r = checkGame(cfg, inn, pub, now, release);
   return { ...r, heldNames: r.held.map((h: any) => h.name), alert: r.held.some((h: any) => h.alert), why: r.held.map((h: any) => `${h.name}: ${h.why}`).join("; ") };
 }
 const pending = week("pending", NOW - 2 * H), final = week("final", NOW - 2 * H);
+const fresh = week("pending", NOW - 5 * 60000);     // a pending copy this hour's run just read
 const finalIn = () => ({ "W004.json": final, "board.json": board(final), "vault/W4.json": vault(final) });
 
 test("publish: the honest pending run, then the honest final run, publish with nothing held; then copied forward", () => {
@@ -110,16 +111,17 @@ test("publish: a vault file outside the vault's 3 days, or before its week is fi
 });
 
 test("publish: a board whose rows aren't recomputed from the week file is held (alert)", () => {
-  const b = board(pending, new Date(NOW).toISOString());
+  const b = board(fresh, new Date(NOW).toISOString());
   b.lastWeek.rows[0].points = 9;
-  const r = check({ "W004.json": pending, "board.json": b }, {});
+  const r = check({ "W004.json": fresh, "board.json": b }, {});
   assert.ok(r.heldNames.includes("board.json") && r.alert);
-  const b2 = board(pending, new Date(NOW + DAY).toISOString());
-  assert.ok(check({ "W004.json": pending, "board.json": b2 }, {}).heldNames.includes("board.json"), "updated in the future");
+  assert.deepEqual(check({ "W004.json": fresh, "board.json": board(fresh) }, {}).held, [], "the honest board publishes");
+  const b2 = board(fresh, new Date(NOW + DAY).toISOString());
+  assert.ok(check({ "W004.json": fresh, "board.json": b2 }, {}).heldNames.includes("board.json"), "updated in the future");
 });
 
 test("publish: a week file whose hash isn't its content's, or for another week, is held (alert)", () => {
-  const j = structuredClone(pending); j.rounds[0][4][0][1] = 0;
+  const j = structuredClone(pending); j.min = "1";
   assert.match(check({ "W004.json": j }, {}).why, /hash/);
   const w3 = week("pending", NOW - 2 * H);
   assert.ok(check({ "W003.json": w3 }, {}).alert, "named for another week");
@@ -149,10 +151,10 @@ test("publish: Sunday rounds must be tagged fun, and a decided round can't chang
   const sun = week("pending", NOW - 2 * H, (j) => j.rounds.push(["q00000204", day(6), 0, "s", [[A, 1, 0]]]));
   assert.match(check({ "W004.json": sun }, {}).why, /fun flag/);
   const strict = { ...Q, roundsCorrectable: false };
-  const changed = week("pending", NOW - H, (j) => (j.rounds[0][4][0][1] = 0));
-  assert.match(check({ "W004.json": changed }, { "W004.json": pending }, NOW, strict).why, /changes or drops published round/);
-  const dropped = week("pending", NOW - H, (j) => j.rounds.pop());
-  assert.match(check({ "W004.json": dropped }, { "W004.json": pending }, NOW, strict).why, /drops published round|changes or drops/);
+  const changed = week("pending", NOW - 10 * 60000, (j) => (j.rounds[0][4][0][1] = 0));
+  assert.match(check({ "W004.json": changed }, { "W004.json": pending }, NOW, strict).why, /changes decided round/);
+  const dropped = week("pending", NOW - 10 * 60000, (j) => j.rounds.pop());
+  assert.match(check({ "W004.json": dropped }, { "W004.json": pending }, NOW, strict).why, /drops published round/);
   // Questions: an owner correction on chain may change a decided round while the week is pending.
   assert.deepEqual(check({ "W004.json": changed }, { "W004.json": pending }).held, []);
 });
@@ -162,9 +164,13 @@ test("publish: HOLD and RELEASE: shapes, a RELEASE needs a HOLD and its exact co
   assert.deepEqual(check({ "vault/HOLD-W4.json": hold }, {}).held, []);
   assert.ok(check({ "vault/HOLD-W4.json": { game: 250, week: 4 } }, {}).alert);
   const rel = { game: 250, week: 4, code: sha256(hold.reason).slice(0, 16) };
-  assert.deepEqual(check({ "vault/RELEASE-W4.json": rel }, { "vault/HOLD-W4.json": hold }).held, []);
+  const owner = `4:${rel.code}`;
+  assert.deepEqual(check({ "vault/RELEASE-W4.json": rel }, { "vault/HOLD-W4.json": hold }, NOW, Q, owner).held, [], "the owner's release");
+  assert.ok(check({ "vault/RELEASE-W4.json": rel }, { "vault/HOLD-W4.json": hold }).alert, "without the owner's variable (KC-3)");
+  assert.ok(check({ "vault/RELEASE-W4.json": rel }, { "vault/HOLD-W4.json": hold }, NOW, Q, `5:${rel.code}`).alert, "the variable names another week");
+  assert.ok(check({ "vault/HOLD-W4.json": hold, "vault/RELEASE-W4.json": rel }, {}, NOW, Q, owner).heldNames.includes("vault/RELEASE-W4.json"), "a HOLD from this same run can't be released");
   assert.ok(check({ "vault/RELEASE-W4.json": rel }, {}).alert, "no HOLD");
-  assert.ok(check({ "vault/RELEASE-W4.json": { ...rel, code: "0000000000000000" } }, { "vault/HOLD-W4.json": hold }).alert, "wrong code");
+  assert.ok(check({ "vault/RELEASE-W4.json": { ...rel, code: "0000000000000000" } }, { "vault/HOLD-W4.json": hold }, NOW, Q, "4:0000000000000000").alert, "wrong code");
   assert.ok(check({ "vault/HOLD-W4.json": { ...hold, reason: "other" } }, { "vault/HOLD-W4.json": hold }).alert, "a published HOLD never changes");
 });
 

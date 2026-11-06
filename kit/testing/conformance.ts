@@ -2,12 +2,11 @@
 // runs it for games on the kit. A game supplies a sample (games/<slug>/tests/sample.ts → `sample()`): a week on fake
 // nodes, with one round still undecided and one Sunday round if the game has any.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { canon, isSunday } from "../publish/check.inline.mjs";
-import { kitConfig, loadManifest, ROOT } from "../recorder/manifest.ts";
-import { PENDING, type GameModule } from "../recorder/types.ts";
+import { spawnSync } from "node:child_process";
+import { loadManifest, ROOT } from "../recorder/manifest.ts";
 import type { KitNode } from "../recorder/nodes.ts";
-import { Replay } from "./replay.ts";
 
 export type Sample = {
   /** The vault week the sample plays. */
@@ -24,87 +23,81 @@ export type Sample = {
 
 export type Check = { pass: boolean; msg: string };
 
-/** Things a module's source must not contain (no network, clock, files, randomness or environment). */
+/** Things a game's own files must not contain (no network, clock, files, processes, randomness or environment). Every
+ *  file the module imports outside kit/ is scanned, not only recorder.ts (KC-12). */
 export const FORBIDDEN: [RegExp, string][] = [
-  [/from\s+["']node:(fs|net|http|https|child_process|dgram|worker_threads|os)["']/, "imports a node module that reaches files, the network or processes"],
-  [/from\s+["'](fs|net|http|https|child_process|koilib|axios|node-fetch)["']/, "imports files, the network or a chain client"],
-  [/\bprocess\s*\.\s*env\b/, "reads environment variables"],
-  [/\bDate\s*\.\s*now\s*\(|\bnew\s+Date\s*\(\s*\)/, "reads the clock (use ctx.now)"],
-  [/\bMath\s*\.\s*random\s*\(/, "uses randomness"],
-  [/\bfetch\s*\(/, "uses the network"],
-  [/\b(writeFile|appendFile|mkdir|rmSync|unlink)\w*\s*\(/, "writes files"],
-  [/\b(signTransaction|sendTransaction|\.sign\(|\.send\(|PrivateKey|WIF)\b/, "signs or sends"],
+  [/\bfrom\s+["']node:/, "imports a Node built-in (files, network, processes, crypto)"],
+  [/\bimport\s+["']node:/, "imports a Node built-in"],
+  [/\bfrom\s+["'](?![./])/, "imports a package (only the game's own files and kit/ are allowed)"],
+  [/\bimport\s*\(/, "imports dynamically"],
+  [/\brequire\s*\(|\bcreateRequire\b|\bmodule\.require\b/, "uses require"],
+  [/\bprocess\b/, "touches process (environment, clock, exit)"],
+  [/\bnew\s+Date\s*(\(\s*\)|(?!\s*\())/, "reads the clock (new Date with no argument; use ctx.now)"],
+  [/\bDate\s*\.\s*now\b|\bDate\s*\(\s*\)/, "reads the clock (use ctx.now)"],
+  [/\bperformance\b|\bhrtime\b/, "reads a timer"],
+  [/\bIntl\b/, "uses Intl (time zones, the clock's locale)"],
+  [/\bMath\s*\.\s*random\b|\bcrypto\b|\bgetRandomValues\b|\brandomUUID\b/, "uses randomness or crypto"],
+  [/\bfetch\b|\bXMLHttpRequest\b|\bWebSocket\b/, "uses the network"],
+  [/\b(writeFile|appendFile|mkdir|rmSync|unlink|createWriteStream)\w*\b/, "writes files"],
+  [/\bWorker\b|\bspawn\b|\bexec(Sync|File)?\b/, "starts workers or processes"],
+  [/\beval\s*\(|\bnew\s+Function\b|\bFunction\s*\(/, "evaluates code"],
+  [/\bglobalThis\b|\bself\b\s*\./, "reaches the global object"],
+  [/\b(signTransaction|sendTransaction|PrivateKey|WIF)\b|\.sign\(|\.send\(/, "signs or sends"],
 ];
 
 export function staticChecks(source: string): Check[] {
-  return FORBIDDEN.map(([re, why]) => ({ pass: !re.test(source), msg: `must not: ${why}` }));
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");   // comments don't count
+  return FORBIDDEN.map(([re, why]) => ({ pass: !re.test(code), msg: `must not: ${why}` }));
 }
 
-/** Runs fn with the clock, randomness, network and environment trapped: any use throws. */
-export async function trapped<T>(fn: () => Promise<T> | T): Promise<T> {
-  const g: any = globalThis;
-  const saved = { now: Date.now, random: Math.random, fetch: g.fetch, env: process.env };
-  const trap = (what: string) => () => { throw new Error(`conformance: the module used ${what}`); };
-  Date.now = trap("Date.now") as any;
-  Math.random = trap("Math.random") as any;
-  g.fetch = trap("fetch");
-  (process as any).env = new Proxy({}, { get: (_t, k) => { if (typeof k === "string") throw new Error(`conformance: the module read process.env.${k}`); return undefined; } });
-  try { return await fn(); } finally { Date.now = saved.now; Math.random = saved.random; g.fetch = saved.fetch; (process as any).env = saved.env; }
+/** Every file the module imports, outside kit/, by relative path (recursively). */
+export function moduleFiles(entry: string, root: string): string[] {
+  const kitDir = path.join(root, "kit") + path.sep, realKit = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..") + path.sep;
+  const seen = new Set<string>(), todo = [entry];
+  while (todo.length) {
+    const f = todo.pop()!;
+    if (seen.has(f)) continue;
+    seen.add(f);
+    const src = fs.readFileSync(f, "utf8");
+    for (const m of src.matchAll(/(?:from|import)\s*\(?\s*["'](\.{1,2}\/[^"']+)["']/g)) {
+      const p = path.resolve(path.dirname(f), m[1]);
+      if (p.startsWith(kitDir) || p.startsWith(realKit)) continue;
+      if (fs.existsSync(p)) todo.push(p);
+    }
+  }
+  return [...seen].sort();
+}
+
+/** Runs the module in a child process under Node's permission model, with every trap set (conformance-child.ts). */
+export function sandboxed(slug: string, root: string): { violations: string[]; checks: Check[]; error?: string } {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "kit-conf-sbx-"));
+  const child = path.join(path.dirname(new URL(import.meta.url).pathname), "conformance-child.ts");
+  const r = spawnSync(process.execPath, [
+    "--experimental-permission", "--allow-fs-read=*", `--allow-fs-write=${tmp}/*`, "--allow-worker",
+    "--no-warnings", "--import", "tsx", child, slug, root,
+  ], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", TMPDIR: tmp, HOME: tmp, NODE_OPTIONS: "" }, timeout: 120000 });
+  fs.rmSync(tmp, { recursive: true, force: true });
+  const line = (r.stdout ?? "").trim().split("\n").pop() ?? "";
+  try { return JSON.parse(line); } catch { return { violations: [], checks: [], error: `the sandbox didn't finish (exit ${r.status}): ${(r.stderr ?? "").trim().split("\n").slice(-3).join(" / ").slice(0, 300)}` }; }
 }
 
 export async function conformance(slug: string, root = ROOT): Promise<Check[]> {
   const res: Check[] = [];
   const ok = (pass: boolean, msg: string) => res.push({ pass, msg });
   const dir = path.join(root, "games", slug);
-  const src = fs.readFileSync(path.join(dir, "recorder.ts"), "utf8");
-  for (const c of staticChecks(src)) ok(c.pass, `recorder.ts: ${c.msg}`);
-  const m = loadManifest(slug, root);
-  const cfg = kitConfig(m);
-  const mod: GameModule<any, any, any> = (await import(path.join(dir, "recorder.ts"))).game;
-  ok(!!mod && mod.slug === m.slug, `recorder.ts exports game with slug "${m.slug}"`);
-  const want = { vault: "vault-answers", picks: "picks-contract", racepicks: "race-picks", none: "none" } as Record<string, string>;
-  ok(mod.picks?.source === want[m.picks.contract], `picks.source matches game.json picks.contract (${m.picks.contract} → ${want[m.picks.contract]})`);
-  const samplePath = path.join(dir, "tests", "sample.ts");
-  if (!fs.existsSync(samplePath)) { ok(false, "tests/sample.ts exists (a sample week for the conformance suite)"); return res; }
-  const sample: Sample = (await import(samplePath)).sample();
-  const t0 = sample.hours.chain(0);
-  const span = { week: sample.week, start: cfg.genesis + sample.week * cfg.weekMs, end: cfg.genesis + (sample.week + 1) * cfg.weekMs };
-
-  // Purity and determinism on the sample's inputs (read through the kit's source, as the runtime would).
-  const [na] = sample.nodes(t0);
-  const read = sample.source ? await sample.source(na, sample.week) : null;
-  const inputs = read?.inputs ?? (mod.picks.source === "vault-answers" ? (await (await import("../recorder/sources/vault-answers.ts")).readVaultAnswers(na.vault, sample.week)).inputs : undefined);
-  let rounds: any[] = [];
-  try {
-    rounds = await trapped(() => mod.roundsFor(span, { now: t0, inputs }));
-    const again = await trapped(() => mod.roundsFor(span, { now: t0, inputs }));
-    ok(canon(rounds) === canon(again), "roundsFor is deterministic");
-    ok(rounds.every((r) => r.day % 86400000 === 0 && r.day >= span.start && r.day < span.end), "every round's day is a UTC day inside the week");
-  } catch (e) { ok(false, `roundsFor runs without clock, network, randomness or environment (${(e as Error).message})`); }
-  try {
-    for (const id of sample.undecided) {
-      const r = rounds.find((x) => x.id === id);
-      const v = r ? await trapped(() => mod.resultOf(r, na.vault, inputs)) : null;
-      ok(v === PENDING, `resultOf(${id}) is PENDING while undecided (never a guess)`);
-    }
-  } catch (e) { ok(false, `resultOf runs without clock, network, randomness or environment (${(e as Error).message})`); }
-
-  // End to end on fake nodes, hour by hour, through the real publish check.
-  const rp = new Replay(mod, cfg);
-  let finalAt = -1, vaultAt = -1, funOk = true, sawSunday = false;
-  for (let i = 0; i < sample.hours.count; i++) {
-    if (i === sample.hours.decideAfter) sample.hours.decide();
-    const h = await rp.hour(sample.nodes(sample.hours.chain(i)), sample.hours.job(i));
-    if (h.error) { ok(false, `hour ${i}: the recorder stopped (${h.error})`); break; }
-    if (h.held.some((x) => x.alert)) { ok(false, `hour ${i}: the publish check held ${h.held.filter((x) => x.alert).map((x) => `${x.name} (${x.why})`).join(", ")}`); break; }
-    const wf = rp.read(`W${String(sample.week).padStart(3, "0")}.json`);
-    for (const r of wf?.rounds ?? []) { if (isSunday(r[1])) sawSunday = true; if (r[2] !== (cfg.sundayFunRound && isSunday(r[1]) ? 1 : 0)) funOk = false; }
-    if (wf?.state === "final" && finalAt < 0) finalAt = i;
-    if (rp.read(`vault/W${sample.week}.json`) && vaultAt < 0) vaultAt = i;
+  for (const f of moduleFiles(path.join(dir, "recorder.ts"), root)) {
+    const rel = path.relative(root, f);
+    for (const c of staticChecks(fs.readFileSync(f, "utf8"))) ok(c.pass, `${rel}: ${c.msg}`);
   }
-  ok(funOk, `Sunday rounds are tagged as fun rounds (D-129)${sawSunday ? "" : " (the sample has no Sunday round)"}`);
-  ok(finalAt >= 0, "the sample week goes final on fake nodes through the real publish check");
-  ok(vaultAt >= 0, "its vault file is published");
+  loadManifest(slug, root);
+  if (!fs.existsSync(path.join(dir, "tests", "sample.ts"))) { ok(false, "tests/sample.ts exists (a sample week for the conformance suite)"); return res; }
+  // The module itself runs ONLY in the sandbox (KC-12): its top-level code, roundsFor, resultOf and scoreRound twice
+  // each, then the sample week hour by hour through the real publish check, with every clock, randomness, environment,
+  // file and process entry point trapped. This process never imports it.
+  const sb = sandboxed(slug, root);
+  if (sb.error) ok(false, sb.error);
+  ok(sb.violations.length === 0, `the module never touches the clock, randomness, the network or the environment${sb.violations.length ? ` (it used ${sb.violations.join(", ")})` : ""}`);
+  for (const c of sb.checks) ok(c.pass, c.msg);
   return res;
 }
 

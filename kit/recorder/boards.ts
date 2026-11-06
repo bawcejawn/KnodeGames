@@ -6,4 +6,4 @@ import { boardOf, tally } from "../publish/check.inline.mjs";
 export { boardOf, tally };
 
 /** board.json for week file `j`, stamped with the chain time `now`. */
-export const boardFor = (j: any, cfg: any, now: number) => boardOf(j, tally(j, cfg), new Date(now).toISOString());
+export const boardFor = (j: any, cfg: any, now: number) => boardOf(j, tally(j, cfg), new Date(now).toISOString(), cfg.rowCap ?? 0);

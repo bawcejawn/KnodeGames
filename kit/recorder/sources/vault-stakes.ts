@@ -17,18 +17,21 @@ export async function readVaultStakes(node: NodeReader, game: number, wallets: s
   if (!st?.config?.owner) throw new Error("no answer reading the vault's state (no owner in it)");
   const { clock, minFor, config } = clockFromState(st);
   if (now < clock.span(week).end) throw new Error(`stakes for week ${week} are read only after the week has ended (RECORDER §2.5)`);
-  const live = Number(config.v6_rule_week_plus_one ?? 0) > 0;
+  // KC-22: the v6 rule applies to week w when w + 1 ≥ v6_rule_week_plus_one (Kpred v6Rule); the minimum is the vault's
+  // own, never replaced; voided comes from the player's void_week_plus_one, as the contract reads it.
+  const v6 = Number(config.v6_rule_week_plus_one ?? 0);
+  const live = v6 > 0 && week + 1 >= v6;
   const stakes = new Map<string, StakeView>();
-  let min = minFor(week);
+  const min = minFor(week);
   if (!live) return { live, min: String(min), stakes };
-  if (min <= 0n) min = 100000000n;
   const got = await pool([...new Set(wallets)].sort(), READS_AT_ONCE, async (a) => {
     const r = await node.read("get_game_player", { player: a, game, week: String(week) });
     const e = r?.entry;
     const act = BigInt(r?.active_stake ?? "0");
     const peak = e ? [BigInt(e.peak_stake ?? "0"), BigInt(e.stake ?? "0")].reduce((x, y) => (y > x ? y : x)) : act;
     const ws = BigInt(r?.week_stake ?? "0");
-    return [a, { stake: String(ws), peak: String(peak), voided: !!e?.voided }] as [string, StakeView];
+    const voided = Number(r?.player?.void_week_plus_one ?? 0) === week + 1;
+    return [a, { stake: String(ws), peak: String(peak), voided }] as [string, StakeView];
   });
   for (const [a, v] of got) stakes.set(a, v);
   return { live, min: String(min), stakes };

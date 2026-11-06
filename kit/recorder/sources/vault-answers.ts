@@ -9,7 +9,8 @@ import { isAddr } from "../../publish/check.inline.mjs";
 import type { NodeReader, Pick, SourceRead, StakeView } from "../types.ts";
 
 export const PAGE = 50;
-export const MAX_PLAYERS = 20000;
+export const MAX_PLAYERS = 20000;          // wallets with an entry THIS week (KC-9)
+export const MAX_LISTED = 200000;          // every question player ever listed: a runaway listing stops
 export const MAX_QUESTIONS_BACK = 400;
 
 export type Question = [id: number, outcome: number, lockTime: number];
@@ -37,7 +38,7 @@ async function listPlayers(node: NodeReader, week: number): Promise<any[]> {
       if (seen.has(r.address)) throw new Error(`list_players repeated ${r.address}: stopping`);
       seen.add(r.address); rows.push(r);
     }
-    if (rows.length > MAX_PLAYERS) throw new Error(`list_players returned more than ${MAX_PLAYERS} rows: stopping`);
+    if (rows.length > MAX_LISTED) throw new Error(`list_players returned more than ${MAX_LISTED} rows: stopping`);
     if (page.length < PAGE) return rows;
     start = page[page.length - 1].address;
   }
@@ -74,6 +75,7 @@ export async function readVaultAnswers(node: NodeReader, week: number, any = fal
   for (const r of await listPlayers(node, week)) {
     const e = r.entry;
     if (!e || !Array.isArray(e.answers) || !e.answers.length) continue;
+    if (stakes.size >= MAX_PLAYERS) throw new Error(`more than ${MAX_PLAYERS} wallets answered in week ${week}: stopping (KC-9)`);
     stakes.set(r.address, { stake: String(big(e.stake)), peak: String(big(e.peak_stake)), voided: !!e.voided });
     for (const x of e.answers) {
       const qid = num(x.question_id);

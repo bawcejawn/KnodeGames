@@ -27,7 +27,7 @@ export async function main(argv = process.argv.slice(2), env = process.env): Pro
   const prev = env.KIT_PREV || `${slug}-prev`, out = env.KIT_OUT || `${slug}-out`;
   fs.mkdirSync(out, { recursive: true });
   try {
-    const r = await runGame(game, cfg, { nodes: [nodes[0], nodes[1]], prev, out, holdWeeks: env[`${up}_HOLD_WEEKS`], release: env[`${up}_RELEASE`] });
+    const r = await runGame(game, cfg, { nodes: [nodes[0], nodes[1]], prev, out, holdWeeks: env[`${up}_HOLD_WEEKS`], release: env[`${up}_RELEASE`], wallNow: Date.now });
     print(r.alerts, slug);
     console.log(`done: ${r.state}; wrote ${r.written.length} file(s)`);
     return r.alerts.errors.length ? 1 : 0;

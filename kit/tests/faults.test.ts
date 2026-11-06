@@ -48,13 +48,17 @@ test("faults: the nodes disagree on each kind of value — the run stops (no fil
   for (const [what, tweak] of tweaks) await assert.rejects(run(fakeNode("a", () => wd), fakeNode("b", () => wd, { tweak })), (e: any) => e instanceof Disagree || /disagree|isn't game-data/.test(e.message), what);
 });
 
-test("faults: a lagging node's lower clock is the run's clock (never the runner's)", async () => {
+test("faults: the lower of two close chain clocks is the run's clock; a node far behind stops the run (KC-7)", async () => {
   const wd = W();
-  wd.time = at(5, 0, 0) + 30 * 60000;       // 00:30 Monday on node a
-  const { prev, out } = dirs();
-  // node b lags 2 hours: its time is still Sunday, so for the run the week hasn't ended — it records nothing for week 4.
-  const r = await runGame(game, cfg, { nodes: [fakeNode("a", () => wd), fakeNode("b", () => wd, { lagMs: 2 * HOUR })], prev, out, log: () => {} });
+  wd.time = at(5, 0, 0) + 2 * 60000;        // 00:02 Monday on node a
+  // node b 3 minutes behind (still Sunday): for the run the week hasn't ended, so it records nothing for week 4.
+  const r = await run(fakeNode("a", () => wd), fakeNode("b", () => wd, { lagMs: 3 * 60000 }));
   assert.equal(r.week, 3);
+  // 2 hours behind, or 3.5 days: the run stops (exit 2 in the CLI) instead of silently recording the wrong week.
+  for (const lag of [2 * HOUR, 3.5 * DAY]) await assert.rejects(run(fakeNode("a", () => wd), fakeNode("b", () => wd, { lagMs: lag })), /min apart/);
+  // Both nodes stalled at the same place: caught against the runner's clock.
+  const { prev, out } = dirs();
+  await assert.rejects(runGame(game, cfg, { nodes: [fakeNode("a", () => wd), fakeNode("b", () => wd)], prev, out, log: () => {}, wallNow: () => wd.time + HOUR }), /stalled/);
 });
 
 test("nodes: agree(), budgets, retries", async () => {

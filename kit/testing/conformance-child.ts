@@ -19,18 +19,23 @@ Object.defineProperty(RealError, "stackTraceLimit", { value: Infinity, writable:
 Object.defineProperty(RealError, "prepareStackTrace", { value: undefined, writable: false, configurable: false });
 const stackOf = () => { const o: { stack?: string } = {}; RealError.captureStackTrace(o); return String(o.stack ?? ""); };
 // The caller that counts is the nearest frame outside this file: a builtin like Array.map in between doesn't hide the
-// game; the kit's or Node's own call, made while a game function is further up the stack, isn't the game's.
+// game; the kit's own call, made while a game function is further up the stack, isn't the game's.
+// Deny on doubt (Repo Lens #E-24 NE-1): a trapped function called with NO frame from any file at all — only this
+// file, Node's own code and builtins, as when the game hands `Date.now` itself to a promise or timer it doesn't await —
+// counts as the game's. Node's internals take their own copies of these functions before the module loads, so they
+// never reach the traps this way. For the environment (`nodeIsCaller`), a Node frame still means Node is reading it
+// (its source maps read process.env while running the game's code).
 const SELF = new URL(import.meta.url).pathname;
 const inGame = (l: string) => l.includes(gameDir) || l.includes(pathToFileURL(gameDir).href);
-const fromGame = () => {
+const fromGame = (nodeIsCaller = false) => {
   for (const l of stackOf().split("\n").slice(1)) {
     if (l.includes(SELF)) continue;
-    if (/\(node:|at node:/.test(l)) return false;           // Node's own code is the caller (e.g. its source maps)
+    if (/\(node:|at node:/.test(l)) { if (nodeIsCaller) return false; continue; }
     if (inGame(l)) return true;
-    if (/\(<anonymous>\)|^\s*at [^(]*$|native/.test(l) && !/\.(ts|mts|js|mjs):\d+/.test(l)) continue;   // a builtin in between
-    return false;
+    if (/\(<anonymous>\)|^\s*at [^(]*$|native/.test(l) && !/\.(ts|mts|js|mjs|cjs):\d+/.test(l)) continue;   // a builtin in between
+    return false;                                            // a file of the kit's, tsx's or a package's is the caller
   }
-  return false;
+  return !nodeIsCaller;
 };
 function trap<T extends object>(obj: T, key: keyof T & string, what: string) {
   const orig = (obj as any)[key];
@@ -85,12 +90,15 @@ syncBuiltinESMExports();
 // The environment (read at import too: the traps are in place before the module loads).
 const realEnv = process.env;
 (process as any).env = new Proxy(realEnv, {
-  get(t, k) { if (typeof k === "string" && fromGame()) { violations.add(`process.env.${k}`); return undefined; } return Reflect.get(t, k); },
-  ownKeys(t) { if (fromGame()) violations.add("process.env (listing)"); return Reflect.ownKeys(t); },
+  get(t, k) { if (typeof k === "string" && fromGame(true)) { violations.add(`process.env.${k}`); return undefined; } return Reflect.get(t, k); },
+  ownKeys(t) { if (fromGame(true)) violations.add("process.env (listing)"); return Reflect.ownKeys(t); },
 });
 
 const checks: { pass: boolean; msg: string }[] = [];
 const ok = (pass: boolean, msg: string) => checks.push({ pass, msg });
+// A trap that fires from a timer or a promise nobody awaits throws outside every call: report it, don't crash (NE-1).
+for (const ev of ["uncaughtException", "unhandledRejection"] as const)
+  process.on(ev, (e: unknown) => ok(false, `the module threw outside any call, from a timer or an un-awaited promise (${String((e as Error)?.message ?? e).split("\n")[0]})`));
 const canon = (v: unknown) => JSON.stringify(v, (_k, x) => (x instanceof Map ? [...x.entries()] : typeof x === "symbol" ? String(x) : x));
 
 try {

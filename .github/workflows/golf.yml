@@ -210,9 +210,9 @@ jobs:
               out = []
               for a in {a for _, res in live for a in res}:
                   row = [(hid, res[a][2], res[a][0], res[a][1], True) if a in res else (hid, LOST, None, None, False) for hid, res in live]
-                  played = [x for x in row if x[4]]
-                  drop = played[0]
-                  for x in played:
+                  # The mulligan: the worst hole of any kind, a lost ball included; the first in course order on a tie.
+                  drop = row[0]
+                  for x in row:
                       if x[1] > drop[1]: drop = x
                   counted = [x for x in row if x is not drop]
                   st = sum(x[1] for x in counted); par = PAR * len(counted)

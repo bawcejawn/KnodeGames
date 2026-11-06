@@ -80,7 +80,7 @@ test("mid-week, first run: every live game joins at once; live holes and scoreca
   assert.equal(wf.practice, false);
   const p0 = wf.cards.find((c) => c.a === P[0]);
   assert.equal(p0.holes.find((x) => x[0] === "questions")[1], 7, "didn't play the question game: lost ball");
-  assert.notEqual(p0.mulligan, "questions", "a lost ball is never the mulligan");
+  assert.equal(p0.mulligan, "questions", "the mulligan drops the worst hole of any kind: here the missed game (owner, 6 Nov)");
   // The free race wallet (100 pts, unranked) beats the ranked field: hole in one, but it isn't in the field
   const free = wf.cards.find((c) => c.a === FREE);
   assert.equal(free.holes.find((x) => x[0] === "race")[1], 1);

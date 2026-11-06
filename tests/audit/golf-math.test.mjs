@@ -90,29 +90,31 @@ test("bad rows are ignored; a wallet listed twice keeps its better score", () =>
 
 const hole = (id, strokesByAddr, skipped = false) => ({ id, skipped, results: Object.fromEntries(Object.entries(strokesByAddr).map(([a, s]) => [a, { place: 1, of: 10, strokes: s }])) });
 
-test("the owner's example week: −1, 27 on par 28", () => {
+test("the owner's example week (mulligan of any kind, 6 Nov): −3, 25 on par 28", () => {
   const A = addr(1);
   const holes = [hole("questions", { [A]: 3 }), hole("race", { [A]: 4 }), hole("blockx", { [A]: 2 }), hole("survivor", { [A]: 4 }),
     hole("lastnode", {}), hole("bracket", { [A]: 5 }), hole("fantasy", { [A]: 3 }), hole("combo", { [A]: 4 })];
   const c = G.card(holes, A);
-  assert.equal(c.mulligan, "bracket");
-  assert.equal(c.strokes, 27); assert.equal(c.par, 28); assert.equal(c.toPar, -1);
-  assert.equal(c.pts, 7 * 7 - 27);
-  assert.equal(c.lost, 1); assert.equal(c.under, 3); assert.equal(c.best, 2);
-  assert.equal(G.toParText(c.toPar), "−1");
-  assert.match(G.shareText(c, "Week 3"), /Week 3: −1 \(27 on par 28\) 🐦⚪🦅⚪⬛🟧🐦⚪$/);
+  assert.equal(c.mulligan, "lastnode", "the missed game is the worst hole");
+  assert.equal(c.strokes, 25); assert.equal(c.par, 28); assert.equal(c.toPar, -3);
+  assert.equal(c.pts, 7 * 7 - 25);
+  assert.equal(c.lost, 0); assert.equal(c.under, 3); assert.equal(c.best, 2);
+  assert.equal(G.toParText(c.toPar), "−3");
+  assert.match(G.shareText(c, "Week 3"), /Week 3: −3 \(25 on par 28\) 🐦⚪🦅⚪⬛🟧🐦⚪$/);
 });
 
-test("the mulligan never drops a lost ball; a skipped hole doesn't count at all", () => {
+test("the mulligan drops the worst hole of any kind, a lost ball included; a skipped hole doesn't count at all (owner, 6 Nov)", () => {
   const A = addr(1);
   const c = G.card([hole("a", { [A]: 6 }), hole("b", {}), hole("c", { [A]: 3 }), hole("d", { [A]: 9 }, true)], A);
-  assert.equal(c.mulligan, "a");
+  assert.equal(c.mulligan, "b", "the missed game (7) is the worst hole");
   assert.equal(c.holes.length, 3);
-  assert.equal(c.strokes, 7 + 3);
+  assert.equal(c.strokes, 6 + 3);
   assert.equal(c.par, 8);
-  assert.equal(c.pts, 14 - 10);
+  assert.equal(c.pts, 14 - 9);
+  assert.equal(c.lost, 0, "the dropped lost ball isn't counted");
   // ties for worst: the first in course order is dropped
   assert.equal(G.card([hole("a", { [A]: 5 }), hole("b", { [A]: 5 })], A).mulligan, "a");
+  assert.equal(G.card([hole("a", { [A]: 5 }), hole("b", {}), hole("c", {})], A).mulligan, "b");
 });
 
 test("no scorecard without a played hole or with under 2 holes", () => {
@@ -133,12 +135,14 @@ test("points are never negative and stay within the vault's 1–255", () => {
 
 test("places: points, then fewer lost balls, then more under par, then best hole; full ties share", () => {
   const [A, B, C, D, E] = [1, 2, 3, 4, 5].map(addr);
-  // A and B: same points; B has a lost ball → A ahead. C = D exactly → shared place.
+  // A and B: same points (12); B has a counted lost ball (two missed games, the mulligan drops one) → A ahead.
+  // C = D exactly → shared place. E: three 6s and two missed games → last.
   const holes = [
     hole("h1", { [A]: 4, [B]: 1, [C]: 3, [D]: 3, [E]: 6 }),
     hole("h2", { [A]: 4, [C]: 5, [D]: 5, [E]: 6 }),
-    hole("h3", { [A]: 3, [B]: 3, [C]: 4, [D]: 4, [E]: 6 }),
+    hole("h3", { [A]: 4, [C]: 4, [D]: 4, [E]: 6 }),
     hole("h4", { [A]: 4, [B]: 4, [C]: 4, [D]: 4 }),
+    hole("h5", { [A]: 4, [B]: 4, [C]: 4, [D]: 4 }),
   ];
   const cs = G.cards(holes);
   const by = Object.fromEntries(cs.map((c) => [c.a, c]));
@@ -174,12 +178,13 @@ test("practice weeks: everyone is in the field and 3 players make a hole; staked
   assert.deepEqual(h.results[addr(1)], { place: 1, of: 3, strokes: 1 });
 });
 
-test("a single played hole is dropped by the mulligan: 0 points, which can't win (the vault needs 1+)", () => {
+test("a single played hole counts: the mulligan drops a missed game instead (owner, 6 Nov)", () => {
   const A = addr(1), B = addr(2);
   const holes = [hole("a", { [A]: 1, [B]: 3 }), hole("b", { [B]: 3 }), hole("c", { [B]: 3 })];
   const c = G.card(holes, A);
-  assert.equal(c.pts, 0);
-  assert.equal(c.mulligan, "a");
+  assert.equal(c.mulligan, "b");
+  assert.equal(c.pts, 14 - (1 + 7), "the hole in one counts, plus one lost ball");
+  assert.equal(c.lost, 1);
 });
 
 test("staked weeks count VHP: your own stake never moves you; splitting it into idle wallets changes nothing (fix-check V1)", () => {

@@ -761,8 +761,10 @@
     catch (e) {
       if (e.status === 404 || e.status === 410) { dropVault(); throw new Error("KOIN Vault connection expired. Connect again, then retry."); }
       // Bracket fix-check 2 W-1: no HTTP status = the answer was lost (KOIN Vault may still have made the request); pages
-      // that must not send twice read `openUntil: null` as "may be open, lifetime unknown"
-      throw Object.assign(new Error(e.status === 409 ? `${e.message} (KOIN Vault)` : e.message), e.status ? {} : { openUntil: null });
+      // that must not send twice read `openUntil: null` as "may be open, lifetime unknown". Repo Lens #E-26 E26-2: a 5xx
+      // too (a gateway can time out after KOIN Vault made the request)
+      const maybeOpen = !e.status || e.status >= 500;
+      throw Object.assign(new Error(e.status === 409 ? `${e.message} (KOIN Vault)` : e.message), e.status ? { status: e.status } : {}, maybeOpen ? { openUntil: null } : {});
     }
     const status = h("div", { class: "kw-status", role: "status" }, "Waiting for your approval in KOIN Vault…");
     open(h("h3", {}, `Approve in KOIN Vault`), h("p", {}, `“${label}”. Open KOIN Vault, check the details and approve with your fingerprint or face, then come back here.`),

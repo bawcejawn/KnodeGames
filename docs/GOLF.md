@@ -16,7 +16,7 @@ prize switch), D-125 / D-129 (weekly rhythm), D-138 (launch order). Game file: `
 | Recorder | `bot/games/golf.ts` | Every hour: builds every player's scorecard from each game's results and writes `games-data/golf/`. Reads only; holds no key. |
 | Mainnet workflow | `.github/workflows/golf.yml` | Runs the recorder hourly at :57; its publish job pushes only `games-data/golf`. **Off until `GOLF_ENABLED` = `true`.** |
 | Page | `golf.html`, `golf.js`, `golf.css` | Your scorecard, holes you haven't played, the Staked and Free play boards, the stake badge and panel (game 6), nicknames. |
-| Listing | `games.json` → `golf` | `"status": "soon"` until launch; the board's columns and the Free play note. |
+| Listing | `games.json` → `golf` | `"status": "live"` (5 Nov); the board's columns, the Free play note and `free.byPlace` (medals by Golf's places). |
 
 ## How a game becomes a hole
 

@@ -103,7 +103,14 @@ function readJson(dir: string | undefined, name: string): any {
   const f = path.join(dir, name);
   try { if (fs.lstatSync(f).isSymbolicLink() || fs.statSync(f).size > MAX_FILE) return null; return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return null; }
 }
-/** Why a game's file couldn't be used (Repo Lens F-3), or "" if it can be read. */
+/** Why a file that IS there can't be used (Repo Lens B13-A2), or "" if it is absent or readable. */
+function broken(dir: string | undefined, name: string): string {
+  if (!dir) return "";
+  try { fs.lstatSync(path.join(dir, name)); } catch { return ""; }
+  return unreadable(dir, name);
+}
+/** Why a game's file couldn't be used (Repo Lens F-3), or "" if it can be read. B13-A3: a file holding JSON null
+ *  (or anything that isn't an object) is reported too. */
 function unreadable(dir: string | undefined, name: string): string {
   if (!dir) return "its folder wasn't given to this run";
   const f = path.join(dir, name);
@@ -111,7 +118,7 @@ function unreadable(dir: string | undefined, name: string): string {
   try { st = fs.lstatSync(f); } catch { return `${name} isn't there`; }
   if (st.isSymbolicLink()) return `${name} is a link (not read)`;
   if (st.size > MAX_FILE) return `${name} is over ${MAX_FILE / 1024 / 1024} MB (not read)`;
-  try { JSON.parse(fs.readFileSync(f, "utf8")); return ""; } catch { return `${name} can't be read as JSON`; }
+  try { const j = JSON.parse(fs.readFileSync(f, "utf8")); return j && typeof j === "object" ? "" : `${name} isn't a results file`; } catch { return `${name} can't be read as JSON`; }
 }
 const exists = (dir: string | undefined, name: string) => { if (!dir) return false; try { fs.lstatSync(path.join(dir, name)); return true; } catch { return false; } };
 const wName = (w: number) => `W${String(w).padStart(3, "0")}.json`;
@@ -162,12 +169,18 @@ const READERS: Record<string, (src: Source, w: number, c: Ctx) => Promise<Read>>
     // Repo Lens G-3: the Race's own week is final only once its vault file is (its two-run check, its chain re-check
     // and the owner's RACE_HOLD_WEEKS). Golf waits for that file, even when the board has moved on.
     const rv = readJson(path.join(c.raceDir || "", "vault"), `W${w}.json`);
+    // B13-A2: the Race's week files are said aloud too when they are there but can't be used.
+    const fail = (why: string) => ({ state: "live" as const, rows: [], why: "couldn't read the race results this run", failed: true, problem: `race-data ${why}` });
+    const vBad = broken(path.join(c.raceDir || "", "vault"), `W${w}.json`);
+    if (vBad) return fail(`vault/${vBad}`);
     const raceWeekFinal = !!rv && rv.final === true && rv.week === w;
     const v = boardView(b, w);
     if (!v) return movedOn(b, w) ? (raceWeekFinal ? { ...KEPT } : { ...KEPT, state: "live", why: "waiting for the Race's own week to be final" }) : { state: "live", rows: [], why: "waiting for the race results" };
     const end = M.weekStart(w + 1);
     let final = false;
     if (c.now >= end) {
+      const wBad = broken(c.raceDir, wName(w));
+      if (wBad) return fail(wBad);
       const wf = readJson(c.raceDir, wName(w));
       const races = wf && Array.isArray(wf.races) ? wf.races.filter((r: any) => r && r.start >= M.weekStart(w) && r.start < end) : [];
       final = races.length > 0 && races.every((r: any) => r.result && r.result.final === true);
@@ -552,7 +565,17 @@ export async function run(o: Opts) {
   const weekList = [...known].sort((a, b) => a - b);
   fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: weekList, course, stakedFromWeek: STAKED_FROM }) + "\n");
 
-  const view = (wf: WeekFile | undefined) => (wf ? wf.cards : []).map((c) => ({ a: c.a, place: c.place, pts: c.pts, topar: c.toPar, strokes: c.strokes, holes: c.holes.filter((x) => x[2] !== null).length, lost: c.lost, ranked: c.ranked || c.free === false }));
+  // boardPlace (Repo Lens B13-B1): the place on the row's own board (Staked or Free play) by Golf's tie key (points,
+  // fewer lost balls, more under par, best hole), ties sharing it; the pages give medals by it, matching the vault file.
+  const view = (wf: WeekFile | undefined) => {
+    const last: Record<string, { k: string; place: number; n: number }> = {};
+    return (wf ? wf.cards : []).map((c) => {
+      const staked = c.ranked || c.free === false, b = staked ? "staked" : "free", k = [c.pts, -c.lost, c.under, -c.best].join(",");
+      const prev = last[b], n = (prev ? prev.n : 0) + 1, boardPlace = prev && prev.k === k ? prev.place : n;
+      last[b] = { k, place: boardPlace, n };
+      return { a: c.a, place: c.place, boardPlace, pts: c.pts, topar: c.toPar, strokes: c.strokes, holes: c.holes.filter((x) => x[2] !== null).length, lost: c.lost, ranked: staked };
+    });
+  };
   // All time: final weeks only, points summed; places by points, then more holes played.
   const tot = new Map<string, { pts: number; toPar: number; strokes: number; holes: number; lost: number; ranked: boolean }>();
   for (const w of weekList) {
@@ -586,19 +609,23 @@ export async function run(o: Opts) {
 // ── npm run golf -- status: a read-only look at what Block Golf has published (for the owner and the admin page) ──
 const PUBLISHED = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/golf/";
 /** One line per week and per hole, in plain words, from the published index and week files. Reads only. */
+/** Text from the published files, made safe for a terminal (B13-B3): no control or bidi characters, at most 200. */
+export const plain = (x: unknown): string => String(x ?? "").replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "").slice(0, 200);
 export function statusLines(idx: any, files: Map<number, any>, now: number): string[] {
   const out: string[] = [];
   if (!idx || idx.v !== 1) return ["Block Golf has published nothing yet. Turn it on: GitHub → Settings → Secrets and variables → Actions → Variables → GOLF_ENABLED = true, then Actions → \"Block Golf recorder\" → Run workflow."];
   const label = (w: number) => (w >= 3 ? `Week ${w - 2}` : `the week of ${new Date(M.weekStart(w)).toUTCString().slice(5, 11)}`);
-  out.push(`Last published: ${idx.updated}. Course: ${Object.entries(idx.course || {}).map(([g, w]) => `${g} (from ${label(w as number)})`).join(", ") || "none yet"}.`);
+  const course = idx.course && typeof idx.course === "object" ? Object.entries(idx.course).filter(([, w]) => Number.isInteger(w)) : [];
+  out.push(`Last published: ${plain(idx.updated)}. Course: ${course.map(([g, w]) => `${plain(g)} (from ${label(w as number)})`).join(", ") || "none yet"}.`);
   out.push(idx.stakedFromWeek === null || idx.stakedFromWeek === undefined
     ? "Every week is a PRACTICE week (no prizes): GOLF_STAKED_FROM_WEEK isn't set."
     : `Staked play from vault week ${idx.stakedFromWeek} (${label(idx.stakedFromWeek)}); earlier weeks are practice.`);
   for (const [w, f] of [...files].sort((x, y) => x[0] - y[0])) {
-    if (!f) { out.push(`${label(w)} (vault week ${w}): its file couldn't be read.`); continue; }
-    const state = f.final ? "FINAL" : f.check ? `waiting for its second matching run (first one ${new Date(f.check.at).toISOString().slice(0, 16)} UTC)` : now >= f.end ? "results being checked (review)" : "in play";
+    if (!f || typeof f !== "object" || !Array.isArray(f.holes) || !Array.isArray(f.cards) || !Number.isInteger(f.end)) { out.push(`${label(w)} (vault week ${w}): its file couldn't be read.`); continue; }
+    const at = f.check && Number.isInteger(f.check.at) ? new Date(f.check.at).toISOString().slice(0, 16) : "?";
+    const state = f.final ? "FINAL" : f.check ? `waiting for its second matching run (first one ${at} UTC)` : now >= f.end ? "results being checked (review)" : "in play";
     out.push(`${label(w)} (vault week ${w}), ${f.practice ? "practice" : "staked"}: ${state}; ${f.cards.length} scorecard(s).`);
-    for (const h of f.holes) out.push(`   hole ${h.id}: ${h.status}${h.why ? ` (${h.why})` : ""}; ${h.field} in the field`);
+    for (const h of f.holes) out.push(`   hole ${plain(h?.id)}: ${plain(h?.status)}${h?.why ? ` (${plain(h.why)})` : ""}; ${Number(h?.field) || 0} in the field`);
   }
   out.push("", "Switches (GitHub → Settings → Secrets and variables → Actions → Variables):",
     "   GOLF_ENABLED = true                turns the hourly recorder on (false or deleted: off)",
@@ -607,7 +634,7 @@ export function statusLines(idx: any, files: Map<number, any>, now: number): str
   return out;
 }
 async function status(): Promise<void> {
-  const get = async (f: string) => { const r = await fetch(PUBLISHED + f, { cache: "no-store" } as any); if (r.status === 404) return null; if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`); return r.json(); };
+  const get = async (f: string) => { const r = await fetch(PUBLISHED + f, { cache: "no-store", signal: AbortSignal.timeout(20000) } as any); if (r.status === 404) return null; if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`); return r.json(); };
   const idx = await get("index.json");
   const files = new Map<number, any>();
   const weeks: number[] = idx && Array.isArray(idx.weeks) ? idx.weeks.filter((w: any) => Number.isInteger(w)).slice(-2) : [];
@@ -617,9 +644,15 @@ async function status(): Promise<void> {
   if (hold.raw) console.log(`(This PC's GOLF_HOLD_WEEKS is "${hold.raw}"; the recorder uses the GitHub variable.)`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href && process.argv[2] === "status") {
+const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+// Repo Lens B13-B2: `npm run golf -- status` is the only argument; anything else (a typo, "Status", "--status") stops
+// with the usage instead of running the recorder. The workflow passes no argument.
+if (isMain && process.argv[2] !== undefined && process.argv[2] !== "status") {
+  console.error(`Unknown argument "${plain(process.argv[2])}". Usage: npm run golf -- status   (read-only; the recorder itself runs on GitHub)`);
+  process.exit(1);
+} else if (isMain && process.argv[2] === "status") {
   status().catch((e) => { console.error(`Couldn't read Block Golf's published files: ${(e as Error).message}`); process.exit(1); });
-} else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+} else if (isMain) {
   const raw = (E.GOLF_STAKED_FROM_WEEK || "").trim();
   if (raw && !/^\d{1,4}$/.test(raw)) { console.error(`GOLF_STAKED_FROM_WEEK must be a week number, not "${raw}"`); process.exit(1); }
   const sf = raw ? Number(raw) : null;

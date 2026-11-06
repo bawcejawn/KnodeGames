@@ -142,6 +142,20 @@
 
   /** "−3", "E", "+5". */
   const toParText = (n) => (n === 0 ? "E" : n < 0 ? `−${-n}` : `+${n}`);
+  /** Free play medals by Golf's own places (Repo Lens B13-B1), the vault file's first/second rule: rows of the Free
+   *  play board in order, each with boardPlace (ties share it) and pts; only pts >= 1 count. 1st = the first place's
+   *  wallets; 2nd only when 1st is a single wallet; a place shared by more than 10 is left empty. Map(address → 1 | 2). */
+  function freeMedals(rows) {
+    const ok = (rows || []).filter((r) => r && Number.isInteger(r.pts) && r.pts >= 1 && Number.isInteger(r.boardPlace));
+    const groups = [];
+    for (const r of ok) { const g = groups[groups.length - 1]; if (g && g[0].boardPlace === r.boardPlace) g.push(r); else groups.push([r]); }
+    const m = new Map();
+    const first = groups[0] || [], second = first.length === 1 ? groups[1] || [] : [];
+    if (first.length <= 10) for (const r of first) m.set(r.a, 1);
+    if (second.length <= 10) for (const r of second) m.set(r.a, 2);
+    return m;
+  }
+
   /** The share line: "⛳ Knode Games · Block Golf · Week 1: −1 (27 on par 28) 🐦⚪🦅⚪⬛🟧🐦⚪". weekLabel: what players call
    *  the week (weeks.js KWeeks.label, D-063: vault week 3 is "Week 1"). */
   function shareText(c, weekLabel) {
@@ -168,6 +182,6 @@
 
   root.KGolf = {
     PAR, LOST, MIN_FIELD, PRACTICE_MIN_FIELD, MIN_FIELD_VHP, rule, weightOf, BANDS, NAMES, SHORT, ICON, COURSE_ORDER,
-    strokesFor, scoreHole, card, cards, toParText, shareText, courseFor, orderOf, isAddr,
+    strokesFor, scoreHole, card, cards, toParText, shareText, freeMedals, courseFor, orderOf, isAddr,
   };
 })(typeof window !== "undefined" ? window : globalThis);

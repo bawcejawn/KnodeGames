@@ -90,7 +90,7 @@ test("mid-week, first run: every live game joins at once; live holes and scoreca
   assert.equal(board.week.week, W);
   assert.equal(board.week.rows.length, wf.cards.length);
   assert.deepEqual(board.allTime.rows, [], "all time counts final weeks only");
-  assert.deepEqual(Object.keys(board.week.rows[0]).sort(), ["a", "holes", "lost", "place", "pts", "ranked", "strokes", "topar"]);
+  assert.deepEqual(Object.keys(board.week.rows[0]).sort(), ["a", "boardPlace", "holes", "lost", "place", "pts", "ranked", "strokes", "topar"]);
   assert.equal(r.problems.length, 0);
 });
 
@@ -972,6 +972,7 @@ test("npm run golf -- status: plain lines from the published files, read-only", 
   assert.match(lines, /hole race: final/);
   assert.match(lines, /GOLF_HOLD_WEEKS = <week>/);
   const src = fs.readFileSync(path.join(APP, "bot/games/golf.ts"), "utf8");
-  const body = src.slice(src.indexOf("async function status()"), src.indexOf("if (process.argv[1]"));
+  const body = src.slice(src.indexOf("async function status()"), src.indexOf("const isMain"));
+  assert.ok(body.length > 200 && body.length < 2000, "the status function, and only it");
   assert.doesNotMatch(body, /writeFile|signTransaction|\.send\(|Provider/, "status only reads");
 });

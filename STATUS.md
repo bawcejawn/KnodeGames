@@ -18,14 +18,14 @@
 | **Recorders** | read the chain, score, publish boards and vault files | `games.yml`, `race.yml`, `race-samples.yml` | two-node checks, pending → final, holds | — |
 | **VHP ruler** | one fair measure of producer size for handicaps | `vhp-ruler.js`, `vhp_ruler.py`, `vhp-ruler.yml` | on `main` (#163), recording data only | **pays nothing** until all 11 simulations pass (D-111) |
 | **Nodes + self-heal** | three producers on the owner's PC | `node/`, `bot/heal.mjs`, `watch.yml` | chain v1.5.2 | one machine (D-147) |
-| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-167 (D-166 reserved for #216; D-168 / D-169 daily Mana; D-170 ruler marks); one free-prize rule in every standard (D-159) | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
+| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-167 (D-166 reserved for #216; D-168 / D-169 daily Mana; D-170 – D-172 ruler); one free-prize rule in every standard (D-159) | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
 
 ## In progress
 | Work | Where | Next step |
 |---|---|---|
 | Vault v6.1 | PR #114 | ✅ announced 5 Nov; upload Mon 9 from 9 AM PT, pin `04c27c1a…`, handover 4a; accepts Tue 10; rule week Mon 16 |
 | **Questions results recorder** (P1) | Questions chat | **PR #203** is the Mon 16 delivery (D-160), D-159 ties built in: Repo Lens (`claude/questions/REPOLENS-QREC-PROMPT.md`), merge by Sun 15; hard limit Thu 26 Nov; ported onto the kit later |
-| VHP ruler v2.1 | `vhp-ruler-v21` | E built (`1cf5d4d`), marks settled (D-170): re-judge sims 1 and 8, Repo Lens fix-check, then the PR (R-RULER-2) |
+| VHP ruler v2.1 | `vhp-ruler-v21` | all eleven sims pass (D-170); #B-12 settled (D-171 band + weighted median, D-172 void log): build, re-run, Repo Lens fix-check, then the PR (R-RULER-2) |
 | Fantasy, Block Golf, Bracket (next launches, D-142) | PRs #188, #218 (replaces #187), #186 | **all wait for the kit's core** (D-158, D-160, D-161 for Golf): then port to a GameModule (R-ALL-11), Repo Lens fix-check, launch |
 | **Shared Game Kit (D-146, D-158)** | Architecture chat, PR #210 (`kit-core`) | Repo Lens #B-12 fix-check (`claude/architecture/REPOLENS-KIT-CORE-B12-FIXCHECK-PROMPT.md`), merge; then Fantasy, Golf, Bracket; then port Questions #203; then Block X and Race (replay → two shadow weeks → switch); owner's answers D-167 |
 | Live stats | merged (#185) | turn on `STATS_ENABLED` when you want it |

@@ -181,6 +181,8 @@
 | D-168 | 2026-11-05 | The sponsor covers moving stake now and Knode Swap from the next sponsor version; free players count against their own 40 a day and the shared 2,000-a-day pool (replaces D-027 and the 29 Oct "never sponsor swaps") | active |
 | D-169 | 2026-11-05 | Daily Mana only: 40 a day per address, use it or lose it, no weekly cap (contract weekly number 280 = 7 × 40, by the owner's `config` send; amends D-105) | active; 280 on chain since 5 Nov (`0x1220a4fa…81f4c`) |
 | D-170 | 2026-11-06 | VHP Ruler marks: sim 1 judged on 0.84 – 1.16 (the remaining big-producer edge accepted); sim 8's other producers judged on the low side only (no one more than 0.05 below honest); E's details recorded | active (`../standards/VHP_RULER.md` §18) |
+| D-171 | 2026-11-06 | VHP Ruler after Repo Lens #B-12: a 2-sd two-sided band on the yardstick (N-4) and the field median weighted by expected blocks, lower member on a tie | active (`../standards/VHP_RULER.md` §18.2) |
+| D-172 | 2026-11-06 | Track every producer void and every band set-aside (who moved the VHP), with a weekly summary to the owner, so the ruler can be adjusted | active (R-RULER-2) |
 
 ---
 
@@ -900,6 +902,18 @@
   - **No per-game pick limit:** the Race contract's daily limit is set to 0 (no limit). The Mana sponsor's daily limit across the platform is the cap, or the player's own Mana. Other games' per-game limits: R-ALL-13.
 - **How:** the Race contract v2 (same address; the race type rides in the race number from bit 48 (race = type × 2^48 + index, below 2^53 so every JavaScript client sends it exactly; Repo Lens #D-13 H-1), so a pick is still v1's three fields and the Mana sponsor needs no change; old picks untouched; audit and Repo Lens first, then upload in a Monday 01:40–06:30 UTC slot with the owner's key); the recorder's hour ledger and `T<week>.json` (W files and Block X unchanged); `TYPES_FROM_WEEK` in `race-math.js` turns it on with the upload.
 
+
+## D-171 — VHP Ruler: the band (N-4) and the weighted median
+- **Date:** 2026-11-06 (owner, on Repo Lens #B-12 at `vhp-ruler-v21` @ `df7d751`. First: "if a big producer throttles, it then increases everyone elses production … i dont want producers being voided all the time because 1 user tries to game the game. I want fair will an appeal for little producers to shine while keeping things fair … fairness and trusting users are being honest is core." and "Im expecting a lot of small producers to come online from this games. we just need to keep things in order and trust our formulas are keeping things fair." Then, told that the band voids no one and that the weighted median keeps order as small producers join: "Band at 2 sd, both sides" and "Weighted median") · **Decision:**
+  1. **N-4 band:** when scoring a producer, any *other* core member whose race count is more than **2 standard deviations** from its expected share of the core's blocks, **in either direction**, is left out of that producer's yardstick for that race. The band **voids no one and removes no one from the race**: the set-aside producer still plays and can win. Expected: an honest producer is set aside about 1 race in 20 by chance; worst measured case (A signs 0.80) drops from 2.52× to ~1.04×. A small skip (~3%) can't be told from bad luck and stays an accepted residual like S1 (D-170).
+  2. **Weighted median:** the field median for the core line is weighted by **expected blocks** (the form at which half the field's expected blocks lie at or below it); on an exact tie, the **lower member's form**. Many small producers joining don't move the line.
+- **Next:** the Ruler chat builds both in one pass, adds the sim 8 cases (a core member signing 0.97 / 0.90; 16 small steady addresses at 0.80), re-runs all eleven on D-170's marks, then the Repo Lens fix-check. Nothing pays until all eleven pass and the review is GO (D-111).
+
+## D-172 — Track voids and set-asides
+- **Date:** 2026-11-06 (owner: "We should add something to track void actions so we can adjust the VHP Ruler as needed"; then chose all three: every void with who moved the VHP, a weekly summary, band set-asides too) · **Decision:** the ruler's recorder writes, for every race:
+  - each **producer void**: producer, race, VHP before and after, the sending address(es), and whether the producer moved it itself;
+  - each **band set-aside**: producer, race, its count against its expected share, in sd.
+  It's data only and pays nothing. A **weekly summary** (counts per producer, repeat senders, set-aside rates against the ~1 in 20 expected) goes into the weekly review and the owner's alert email, so the ruler's settings can be adjusted by a later decision.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

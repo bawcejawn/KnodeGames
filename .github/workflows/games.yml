@@ -167,7 +167,8 @@ jobs:
         continue-on-error: true
         with:
           name: games-data-bracket
-          path: ${{ runner.temp }}/incoming
+          # fix-check 2 F9-1: its own folder; only its bracket/ folder is ever taken (below)
+          path: ${{ runner.temp }}/incoming-bracket
       # Audit BX-131 (round 9): the same Node as the recorders (22), for the recorders'-own-JSON check below.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -184,6 +185,20 @@ jobs:
           # Repo Lens #E-3 M-3: the Producer Bracket's names, sizes and JSON form are checked on their own first. A bad Bracket
           # file holds the Bracket only (its folder is set aside, with an alert); it never stops Block X being published.
           BRACKET_ALERT=""
+          # fix-check 2 F9-1: the Bracket's files come only from its own artifact (its own folder), and only its bracket/
+          # folder: Block X's artifact never carries Bracket files, and anything else in the Bracket's artifact (a stray
+          # file, blockx/ files) holds the Bracket this run and never reaches Block X's files.
+          rm -rf "$IN/bracket"
+          BRIN="${RUNNER_TEMP:-$(dirname "$IN")}/incoming-bracket"   # (= $RUNNER_TEMP on GitHub: IN is $RUNNER_TEMP/incoming)
+          if [ -e "$BRIN" ] || [ -L "$BRIN" ]; then
+            brstray=$(find "$BRIN" -mindepth 1 -maxdepth 1 ! \( -name bracket -type d \) -print)
+            if [ -L "$BRIN" ] || [ -n "$brstray" ]; then
+              echo "::error::Producer Bracket artifact held this run (files outside bracket/; nothing of the Bracket is published; Block X still is): $brstray"
+              BRACKET_ALERT=1
+            elif [ -d "$BRIN/bracket" ]; then
+              mv "$BRIN/bracket" "$IN/bracket"
+            fi
+          fi
           if [ -d "$IN/bracket" ]; then
             brbad=$(find "$IN/bracket" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/bracket/vault" \) -o \( -type f ! -regex "$IN/bracket/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/bracket/vault/W[0-9][0-9]*\.json" \) -o \( -type f -size +2048k \) \) -print)
             if [ -z "$brbad" ] && ! node -e 'const fs=require("fs"),p=require("path");let bad=0;(function w(d){for(const f of fs.readdirSync(d)){const q=p.join(d,f),s=fs.lstatSync(q);if(s.isDirectory()){w(q);continue}const raw=fs.readFileSync(q);let ok=false;try{ok=Buffer.compare(Buffer.from(JSON.stringify(JSON.parse(raw.toString("utf8")))+"\n","utf8"),raw)===0}catch(e){}if(!ok)bad++}})(process.argv[1]);process.exit(bad?1:0)' -- "$IN/bracket"; then brbad="a file not in the recorder's own JSON form"; fi
@@ -494,7 +509,8 @@ jobs:
           # (before picks), recorded hours or end-of-week stakes may be replaced by a new two-node reading, and whose picks may be
           # recorded late (F3). Anything that isn't a plain list of week numbers releases nothing.
           _rel = os.environ.get("BRACKET_RELEASE") or ""
-          RELEASE = set(int(x) for x in _rel.split(",")) if re.fullmatch(r"\s*[0-9]{1,4}(\s*,\s*[0-9]{1,4})*\s*", _rel) else set()
+          # fix-check 2 I-1: plain spaces only (Python's \s takes \x1c-\x1f), the same pattern as the recorder's; never crashes
+          RELEASE = set(int(x.strip(" ")) for x in _rel.split(",")) if re.fullmatch(r" *[0-9]{1,4}( *, *[0-9]{1,4})* *", _rel) else set()
           SAFE = 2**53 - 1
           addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}"); iso = re.compile(r"[0-9]{4}-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9](\.[0-9]{3})?Z")
           isa = lambda v: type(v) is str and addr.fullmatch(v) is not None
@@ -661,7 +677,9 @@ jobs:
           def vhp2(v):
               # a VHP value as the recorder writes it: whole hundredths, 0.01 ... 1e9 (fix-check F5: then this job's number text and
               # JavaScript's agree, so a seeding hash the job accepts is one the recorder accepts too)
-              return num(v) and 0.01 <= v <= 1e9 and abs(round(v * 100) - v * 100) < 1e-6
+              # fix-check 2 P-2: judged on the number's shortest text (what JSON.stringify wrote), not v * 100, whose float
+              # step passes 1e-6 above ~86M VHP
+              return num(v) and 0.01 <= v <= 1e9 and re.fullmatch(r"[0-9]{1,10}(\.[0-9]{1,2})?", repr(v)) is not None
           def seeding_ok(w, s):
               if type(s) is not dict or set(s) not in ({"at", "cardAt", "size", "seeds", "vhp", "totalVhp", "out", "outVhp", "raw", "pooled", "hash"}, {"at", "cardAt", "size", "seeds", "vhp", "totalVhp", "out", "outVhp", "raw", "pooled", "hash", "re"}): return False
               if "re" in s and not one(s["re"]): return False
@@ -677,16 +695,16 @@ jobs:
           def derive_seeding(raw, last):
               # fix-check F2: the seeds, their seeding VHP and the size, worked out here from the recorded raw averages and the
               # last seeding's (bracket-math.js seeding over vhp-standard.js fieldOf), never taken on trust
+              # fix-check 2 FL-1: field membership in whole cents (RACE_BLOCKS x cents >= MIN_K x total cents), as bracket-math.js
               rows = sorted(raw.items(), key=lambda x: (-x[1], x[0]))
-              tot = 0
-              for _a, v in rows: tot += v
-              field = [(a, v) for a, v in rows if (RACE_BLOCKS * v / tot if tot > 0 else 0) >= MIN_K]
-              total = 0
-              for _a, v in rows: total += v
+              tot_c = 0
+              for _a, v in rows: tot_c += int(round(v * 100))
+              def in_field(v): return tot_c > 0 and RACE_BLOCKS * int(round(v * 100)) >= MIN_K * tot_c
               picked = []
-              for a, v in field:
+              for a, v in rows:
+                  if not in_field(v): continue
                   if last: p = last.get(a); v = min(v, p if (type(p) in (int, float) and p > 0) else 0)
-                  if total > 0 and RACE_BLOCKS * v / total >= MIN_K: picked.append((a, v))
+                  if in_field(v): picked.append((a, v))
               picked.sort(key=lambda x: (-x[1], x[0]))
               size = size_for(len(picked)); n = min(len(picked), size)
               return {"size": size, "seeds": [a for a, _ in picked[:n]], "vhp": [v for _, v in picked[:n]], "out": [a for a, _ in picked[n:]], "outVhp": [v for _, v in picked[n:]]}
@@ -710,13 +728,15 @@ jobs:
               pk = j["picks"]
               if pk is not None:
                   if s is None or not s["size"]: return "picks without a bracket"
-                  if type(pk) is not dict or set(pk) != {"checked", "rows"} or type(pk["checked"]) is not int or pk["checked"] != 2 or type(pk["rows"]) is not list or len(pk["rows"]) > 100000: return "picks (two nodes only, fix-check F3)"
+                  if type(pk) is not dict or set(pk) not in ({"checked", "rows"}, {"checked", "rows", "re"}) or ("re" in pk and not one(pk["re"])) or type(pk["checked"]) is not int or pk["checked"] != 2 or type(pk["rows"]) is not list or len(pk["rows"]) > 100000: return "picks (two nodes only, fix-check F3)"
                   if s.get("re") != 1: return "picks before the seeding was read again (fix-check F2)"
                   if not all(type(x) is list and len(x) == 4 and isa(x[0]) and nat(x[1]) and x[1] < 2**31 and nat(x[2]) and type(x[3]) is int and x[3] == (1 if decode(x[1], s["size"], len(seeds)) is not None else 0) for x in pk["rows"]): return "pick rows"
                   if not sorted_unique([x[0] for x in pk["rows"]]): return "picks not sorted or repeated"
               st = j["staked"]
               if st is not None:
                   if pk is None: return "stakes without picks"
+                  # fix-check 2 PK-1: stakes are read only for the players in picks a later run confirmed
+                  if pk.get("re") != 1: return "stakes before the picks were read again (fix-check 2 PK-1)"
                   if type(st) is not dict or set(st) not in ({"checked", "list"}, {"checked", "list", "held"}) or not (type(st["checked"]) is int and st["checked"] == 2) or not alist(st["list"]) or not sorted_unique(st["list"]): return "staked"
                   if "held" in st and not (alist(st["held"]) and sorted_unique(st["held"])): return "held"
               r = j["results"]; pts = j["points"]
@@ -733,6 +753,7 @@ jobs:
                   if not same(pts, pp): return "its points don't follow from its results and picks (recomputed here)"
               if j["status"] == "final":
                   if pk is None or not r["done"]: return "final without every result"
+                  if pk.get("re") != 1: return "final on picks no later run read again (fix-check 2 PK-1)"
                   if not all(h is not None and h.get("re") == 1 for day in ds for h in day): return "final before every hour was re-read in a later run"
                   if j.get("vault") != "missed" and (st is None or "held" not in st): return "final without the end-of-week stakes"
               return None
@@ -813,7 +834,13 @@ jobs:
                       if ns in order and os_ in order and order[ns] < order[os_]: problems.append(f + ": status went backwards (" + str(os_) + " -> " + ns + ")"); continue
                       if ns == "void" and os_ in ("open", "locked") and now < week_start(w + 1) + VAULT_DAYS: problems.append(f + ": turned void before its backstop"); continue
                       op, np_ = old.get("picks"), j["picks"]
-                      if op is not None and not same(np_, op): problems.append(f + ": its picks changed"); continue
+                      # fix-check 2 PK-1: picks, like hours, need two runs. Picks a later run confirmed (re) never change; picks
+                      # without it may only gain it, or (under release, before round 1's first hour is over) be replaced
+                      if op is not None:
+                          plain = lambda x: {k: v for k, v in x.items() if k != "re"} if type(x) is dict else x
+                          if np_ is None: problems.append(f + ": its picks went missing"); continue
+                          if op.get("re") == 1 and not same(np_, op): problems.append(f + ": its picks changed after a later run confirmed them"); continue
+                          if op.get("re") != 1 and not same(plain(np_), plain(op)) and not (rel and "re" not in np_): problems.append(f + ": its picks changed (BRACKET_RELEASE not set for it)"); continue
                       ost, nst = old.get("staked"), j["staked"]
                       if ost is not None and nst is None: problems.append(f + ": its stakes went missing"); continue
                       if type(ost) is dict and "held" in ost and not same(nst, ost) and not (rel and ns != "final"): problems.append(f + ": its end-of-week stakes changed (BRACKET_RELEASE not set for it)"); continue
@@ -857,10 +884,14 @@ jobs:
                       if not all(same(dv[k], s[k]) for k in ("size", "seeds", "vhp", "out", "outVhp")): problems.append(f + ": its seeding doesn't follow from its raw averages and the last seeding's (fix-check F2)"); continue
                   if j["status"] == "void" and (old is None or old.get("status") in (None, "waiting")) and s is None and now < seed_time(w) + SEED_GRACE: problems.append(f + ": void before the seeding's 24 hours were over"); continue
                   oldpk = old.get("picks") if old else None
-                  if j["picks"] is not None and oldpk is None:
+                  newpk = j["picks"] is not None and (oldpk is None or not same({k: v for k, v in j["picks"].items() if k != "re"}, {k: v for k, v in oldpk.items() if k != "re"}))
+                  if newpk:
                       if now < lock_time(w): problems.append(f + ": picks recorded before the lock"); continue
-                      # fix-check F3: picks are taken within PICKS_GRACE of the lock (plus an hour for the run), or under release
+                      if "re" in j["picks"]: problems.append(f + ": picks marked read again in the run that recorded them (the two-run rule, fix-check 2 PK-1)"); continue
+                      # fix-check F3: picks are taken within PICKS_GRACE of the lock (plus an hour for the run). Fix-check 2 PK-2:
+                      # under release too, never once round 1's first hour is over (no picks written with hindsight)
                       if now > lock_time(w) + PICKS_GRACE + HOUR and not rel: problems.append(f + ": picks first recorded more than %d h after the lock (BRACKET_RELEASE not set for it)" % (PICKS_GRACE // HOUR)); continue
+                      if now > round_day(w, 0, s["size"]) + HOUR: problems.append(f + ": picks recorded after round 1's first hour (fix-check 2 PK-2)"); continue
                   if j["picks"] is not None and any(x[2] >= lock_time(w) for x in j["picks"]["rows"]): problems.append(f + ": a pick timed at or after the lock"); continue
                   if s is not None and s["size"]:
                       od = (old.get("days") if old else None) or []
@@ -879,10 +910,21 @@ jobs:
                   if st is not None and "held" in st and not (old and type(old.get("staked")) is dict and "held" in old["staked"]) and now < week_start(w + 1): problems.append(f + ": end-of-week stakes read before the week ended"); continue
                   if j["status"] == "final" and not (old and old.get("status") == "final"):
                       if now < week_start(w + 1): problems.append(f + ": final before Monday 00:00 UTC after the week (the review day)"); continue
+                      # fix-check 2 R-1: a week the owner has opened for correction never goes final (nor gets a vault file) until
+                      # the release is cleared, so every replaced item is read again by a run outside the release first
+                      if rel: problems.append(f + ": final while BRACKET_RELEASE names it (fix-check 2 R-1)"); continue
                       if j.get("vault") == "missed":
                           if now < week_start(w + 1) + VAULT_DAYS: problems.append(f + ": closed as missed before its backstop"); continue
                       # fix-check F1: the end-of-week stakes a final week pays from were published by an EARLIER run, unchanged
                       elif not (old and same(old.get("staked"), j["staked"])): problems.append(f + ": final with end-of-week stakes no earlier run published (the two-run rule, fix-check F1)"); continue
+              # fix-check 2 S-1: a week file that fails is held on its own (with its vault file and the board), never every
+              # Bracket file: another week's final and vault file are still judged and published
+              bad_weeks = {}
+              for p_ in problems:
+                  m_ = re.match(r"(W([0-9]{3})\.json): ", p_)
+                  if m_ and m_.group(1) not in bad_weeks: bad_weeks[m_.group(1)] = p_
+              problems = [p_ for p_ in problems if not re.match(r"W[0-9]{3}\.json: ", p_)]
+              for f_ in bad_weeks: weeks_in.pop(int(f_[1:4]), None)
               # ── index: only weeks with their file, only last, this or next week when new; none lost (H-3) ──
               ni = load(os.path.join(d, "index.json")) if os.path.isfile(os.path.join(d, "index.json")) else None
               pi = pubjson("index.json")
@@ -907,8 +949,10 @@ jobs:
                           and type(j["allTime"]) is dict and set(j["allTime"]) == {"rows"} and rows_ok(j["allTime"]["rows"])): problems.append("board.json: shape")
               for f in os.listdir(d):
                   if f not in ("vault", "board.json", "index.json") and not re.fullmatch(r"W[0-9]{3}\.json", f): problems.append(f + ": an unexpected file")
-              if problems: return "; ".join(problems[:5])
-              # ── the Vault files (now that every week file passed) ──
+              if problems: return "; ".join((problems + list(bad_weeks.values()))[:5])
+              for f_, why_ in bad_weeks.items(): hold("bracket/" + f_, why_, True)
+              if bad_weeks and os.path.isfile(bp): hold("bracket/board.json", "a week file was held this run (" + ", ".join(sorted(bad_weeks)) + ")", True)
+              # ── the Vault files (every week file they could come from passed) ──
               vdir = os.path.join(d, "vault")
               for f in (sorted(os.listdir(vdir)) if os.path.isdir(vdir) else []):
                   name = "bracket/vault/" + f; j = load(os.path.join(vdir, f))
@@ -916,6 +960,7 @@ jobs:
                   if pv is not None and same(j, pv): continue            # #E-3 L-6: already published, unchanged: nothing to judge
                   if not vault_shape(j, f): hold(name, "not the vault file's shape", True); continue
                   w = j["week"]; end = week_start(w + 1)
+                  if "W%03d.json" % w in bad_weeks: hold(name, "its week file was held this run", True); continue
                   if now < end or now > end + VAULT_DAYS: hold(name, "outside its window (after the week ends, until Thursday 00:00 UTC), by this job's clock", True); continue
                   src = weeks_in.get(w)
                   if not (src and src["status"] == "final"): src = pubjson("W%03d.json" % w)

@@ -159,7 +159,7 @@ test("the unpack command takes only chain and block_store, works with either arc
     fs.writeFileSync(path.join(t, "src/.koinos/account_history/z"), "3");
     fs.mkdirSync(path.join(t, "dl")); fs.mkdirSync(path.join(t, "k"));
     execFileSync("tar", ["-czf", path.join(t, "dl/snapshot.tar.gz"), prefix], { cwd: path.join(t, "src") });
-    const local = sh.replaceAll("/k/", `${t}/k/`).replaceAll(" /k;", ` ${t}/k;`).replaceAll("ls /k", `ls ${t}/k`).replaceAll("/dl/", `${t}/dl/`);
+    const local = sh.replace("while sleep 60", "while false").replaceAll("/k/", `${t}/k/`).replaceAll(" /k;", ` ${t}/k;`).replaceAll("ls /k", `ls ${t}/k`).replaceAll("/dl/", `${t}/dl/`);
     const out = execFileSync("sh", ["-c", local], { encoding: "utf8" });
     assert.match(out, /UNPACKED OK/);
     assert.deepEqual(fs.readdirSync(path.join(t, "k")).sort(), ["block_store", "chain"], prefix);
@@ -261,7 +261,7 @@ test("F-7: an archive holding links is refused and leaves nothing behind", { ski
   fs.symlinkSync("/koinos/block_producer/private.key", path.join(t, "src/.koinos/block_store/db/LOG"));
   fs.mkdirSync(path.join(t, "dl")); fs.mkdirSync(path.join(t, "k"));
   execFileSync("tar", ["-czf", path.join(t, "dl/snapshot.tar.gz"), ".koinos"], { cwd: path.join(t, "src") });
-  const local = sh.replaceAll("/k/", `${t}/k/`).replaceAll("ls /k", `ls ${t}/k`).replaceAll("/dl/", `${t}/dl/`);
+  const local = sh.replace("while sleep 60", "while false").replaceAll("/k/", `${t}/k/`).replaceAll("ls /k", `ls ${t}/k`).replaceAll("/dl/", `${t}/dl/`);
   let out = "";
   try { execFileSync("sh", ["-c", local], { encoding: "utf8" }); } catch (e) { out = String(e.stdout); }
   assert.match(out, /STOP: the snapshot holds unexpected links/);
@@ -420,3 +420,13 @@ test("Windows boxes work when PowerShell runs them line by line (right-click pas
   }
   assert.match(html, /If you then see <code>&gt;&gt;<\/code>/);
 });
+
+test("4d prints progress every minute while it unpacks (no silent hour), without any $ for the host shell", () => {
+  for (const os of ["win", "mac"]) {
+    const sh = box(os, "debian:bookworm-slim").match(/sh -c "([^"]+)"$/)[1];
+    assert.match(sh, /\( while sleep 60; do du -sh \/k\/restore 2>\/dev\/null; done \) & tar -xzf/);
+    assert.doesNotMatch(sh, /[$`]/);
+  }
+  assert.match(html, /Every minute it prints the size unpacked so far/);
+});
+

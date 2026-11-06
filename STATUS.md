@@ -18,7 +18,7 @@
 | **Recorders** | read the chain, score, publish boards and vault files | `games.yml`, `race.yml`, `race-samples.yml` | two-node checks, pending → final, holds | — |
 | **VHP ruler** | one fair measure of producer size for handicaps | `vhp-ruler.js`, `vhp_ruler.py`, `vhp-ruler.yml` | on `main` (#163), recording data only | **pays nothing** until all 11 simulations pass (D-111) |
 | **Nodes + self-heal** | three producers on the owner's PC | `node/`, `bot/heal.mjs`, `watch.yml` | chain v1.5.2 | one machine (D-147) |
-| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-167 (D-166 reserved for #216); one free-prize rule in every standard (D-159) | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
+| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-167 (D-166 reserved for #216; D-168 / D-169 daily Mana); one free-prize rule in every standard (D-159) | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
 
 ## In progress
 | Work | Where | Next step |

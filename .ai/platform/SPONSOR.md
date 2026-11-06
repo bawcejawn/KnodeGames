@@ -40,7 +40,7 @@ Every Koinos transaction costs **Mana**, which comes from holding KOIN. New play
 | **Vault switch** (`game_has_vault`) | **ON** (tx `0x12208deb…6f81`, 4 Nov) | lets it pay vault calls (`deposit_to`, `withdraw_from`, `move_stake`, `claim_game`, `finalize_game_week`) |
 | Per transaction | **2.4 Mana** (D-131; was 1.5) | config tx `0x1220a593…1bfc` (4 Nov), read back on chain; site side #158 |
 | Per player per day | **40 Mana** | D-105 (was 25) |
-| Per player per week | **250 Mana** today → **280** (7 × 40, never reached: daily only) after the owner's config send (owner, 5 Nov) | D-105 (was 150) |
+| Per player per week | **280 Mana** (7 × 40, never reached: daily only), set 5 Nov (`0x1220a4fa…81f4c`) | D-169 (was 250, D-105; 150 before) |
 | Everyone per day | **5,000 Mana** (the v3 ceiling, `CAP_LIMIT`) | D-061 |
 | Free players per day | **2,000 Mana** of the 5,000, **released by the hour** (~83 an hour) | D-061 |
 | Real player | a wallet with **≥ 1 VHP of active stake this week** in the call's own game (`--min-vhp 1`); holding VHP doesn't count | v3 |
@@ -123,7 +123,7 @@ Select-String -Path .env -Pattern '^CONFIRM_MAINNET='
 ```powershell
 npm run sponsor -- config --per-tx 2.4 --per-player-day 40 --per-player-week 280 --per-day 5000 --min-vhp 1 --free-per-day 2000
 ```
-(280 = 7 × 40: daily only, owner 5 Nov. Until that send, the chain has 250.) Read the dry run: only the arrows you meant to change (`old → new`), the 1.2 rows, no `⚠ website` lines. Then Turn ON, the same line with `--send`, Turn OFF.
+(280 = 7 × 40: daily only, owner 5 Nov, D-169; on chain since 5 Nov, tx `0x1220a4fa…81f4c`.) Read the dry run: only the arrows you meant to change (`old → new`), the 1.2 rows, no `⚠ website` lines. Then Turn ON, the same line with `--send`, Turn OFF.
 
 | You want to | Change in the line above | Notes |
 |---|---|---|

@@ -179,7 +179,7 @@
 | D-166 | 2026-11-05 | Producer Race types (1-hour, 2-hour, daily, weekly beside the 6-hour race) | reserved: the entry lands with PR #216, which must renumber its "D-161" to D-166 (D-161 is Block Golf's hold) |
 | D-167 | 2026-11-05 | Shared Game Kit: the owner's answers after Repo Lens #B-11 (hold variables, vault-bot checks, payout pin, D-159 on the kit for Block X and Bracket, Survivor later, Combo's "10 max per card" to confirm) | active (filed from PR #222, renumbered from D-162) |
 | D-168 | 2026-11-05 | The sponsor covers moving stake now and Knode Swap from the next sponsor version; free players count against their own 40 a day and the shared 2,000-a-day pool (replaces D-027 and the 29 Oct "never sponsor swaps") | active |
-| D-169 | 2026-11-05 | Daily Mana only: 40 a day per address, use it or lose it, no weekly cap (contract weekly number 280 = 7 × 40, by the owner's `config` send; amends D-105) | active; 250 on chain until the owner's send |
+| D-169 | 2026-11-05 | Daily Mana only: 40 a day per address, use it or lose it, no weekly cap (contract weekly number 280 = 7 × 40, by the owner's `config` send; amends D-105) | active; 280 on chain since 5 Nov (`0x1220a4fa…81f4c`) |
 
 ---
 
@@ -912,7 +912,7 @@ Repo wins over chats (D-002); the owner's answers win over both.
 | C-25 | Questions game free prize on chain | Week 3 pays the v5 1 + 1 VHP as fixed on chain; v6 2 + 1 from Mon 9 Nov | owner, 2026-11-02 (D-069) |
 | C-08 | Questions payout time | Tue 12:00 UTC on time (≈ 12:07 when the hourly bot finalizes); 21:00 came from a chat check-in reminder, not code | chain + repo, Questions chat 2026-11-02 (I-066) |
 | C-01 | Sponsor version | v3 code `b84e1add…` is live (upgraded 4 Nov; earlier `b61ac238…`); the record on `main` matches (I-043 closed) | repo + chain (4 Nov), `SPONSOR.md` |
-| C-02 | Sponsor caps | per transaction 2.4 (D-131); per player 40 a day / 250 a week (D-105); everyone 5,000 a day; free players 2,000 a day. History: 1 / 25 / 150 (D-061), then D-105; the 1,000/day set was the v2 era | owner (D-061 → D-105 → D-131), chain, `SPONSOR.md` |
+| C-02 | Sponsor caps | per transaction 2.4 (D-131); per player 40 a day, use it or lose it (weekly number 280 since 5 Nov, never reached; D-169, amends D-105); everyone 5,000 a day; free players 2,000 a day. History: 1 / 25 / 150 (D-061), then 40 / 250 (D-105), then daily only (D-169); the 1,000/day set was the v2 era | owner (D-061 → D-105 → D-131 → D-169), chain, `SPONSOR.md` |
 | C-03 | Sponsor KOIN | 25,000 KOIN in the wallet | owner (D-061) |
 | C-04 | Site read RPC | Armana everywhere | repo |
 | C-05 | `rcLimitOther` | 2.4 Mana since #158 (was 1, then 1.5; 3 was the v2-era value) | repo (#158), D-131 |

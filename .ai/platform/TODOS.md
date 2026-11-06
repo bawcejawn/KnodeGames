@@ -16,7 +16,7 @@
 - [ ] Email filter: rename "Kpred bot" → "Knode Games bot" — P4
 
 ## This week
-- [ ] **Sponsor weekly number → 280** (D-169: daily 40 only, no weekly cap): the `config` send the Block X chat gives you (dry run, then `--send` with `CONFIRM_MAINNET=yes`); then tell the library chat so C-02 and `CURRENT_STATE.md` say 280 — P2
+- [x] **Sponsor weekly number → 280** (D-169) ✅ 👤 5 Nov, tx `0x1220a4fa…81f4c`
 - [ ] ~~Open the Golf PR~~ **⏸ Golf held for the kit (D-161)**: nothing to do until `kit-core` merges
 - [ ] **Pages allow-list:** when the Hub chat's PR (R-HUB-14) is merged and its test run is checked: GitHub → Settings → Pages → Source: **GitHub Actions**; then open knodegames.com and two game pages. Undo = set Source back to "Deploy from a branch: main / root" — P2 — D-115
 - [ ] **Daily Questions free prize ON from Mon 16** (D-136): run the command the Vault chat gives (R-VAULT-14) during the week of Mon 9 — P2

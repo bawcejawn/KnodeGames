@@ -489,3 +489,36 @@ test("step 8 Docker reset (owner's test node, 5 Nov): pauses self-heal, stops th
   assert.match(box("linux", "systemctl restart docker"), /^touch ~\/koinos-node\/heal-paused\ncd ~\/koinos-node\/koinos\ndocker compose down\nsudo systemctl restart docker/);
   assert.match(html, /Error connecting to seed … no good addresses/);
 });
+
+test("producer.js: the Mana sponsor settings come from game-data/deployment.json (the shared payer flow); a guest account is refused; no deployment file = own Mana", async () => {
+  const vm = await import("node:vm");
+  const src = read("producer.js");
+  const dep = JSON.parse(read("game-data/deployment.json"));
+  const load = async (fetchImpl, kind = "kondor") => {
+    const els = {}, el = (id) => (els[id] ||= { id, value: "", textContent: "", disabled: false, onclick: null });
+    let initArgs = null, sent = 0;
+    const W = { kind, init: (a) => { initArgs = a; }, label: () => "Kondor", send: async () => { sent++; return "0xid"; }, connect: async () => {} };
+    class Contract { constructor() { this.functions = { register_public_key: async () => ({ operation: { call_contract: {} } }) }; } }
+    const ctx = { window: { KWallet: W, koilib: { Provider: class {}, Contract } }, document: { getElementById: el }, fetch: fetchImpl, atob: (b) => Buffer.from(b, "base64").toString("binary"), console };
+    ctx.window.window = ctx.window;
+    vm.createContext(ctx);
+    vm.runInContext(src, ctx);
+    for (let i = 0; i < 20 && !initArgs; i++) await new Promise((r) => setTimeout(r, 5));
+    return { initArgs, el, W, sent: () => sent };
+  };
+  const ok = await load(async (u) => { assert.equal(String(u), "game-data/deployment.json"); return { ok: true, json: async () => dep }; });
+  assert.equal(ok.initArgs.sponsor, dep.sponsor); assert.equal(ok.initArgs.payer, dep.payer); assert.equal(ok.initArgs.chainId, dep.chainId);
+  const none = await load(async () => { throw new Error("offline"); });
+  assert.ok(none.initArgs && !none.initArgs.sponsor, "without the file the wallet pays its own Mana");
+  const g = await load(async () => ({ ok: true, json: async () => dep }), "guest");
+  g.initArgs.onChange("1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8");
+  g.el("key").value = Buffer.concat([Buffer.from([2]), Buffer.alloc(32, 7)]).toString("base64url");
+  await g.el("send").onclick();
+  assert.match(g.el("msg").textContent, /guest account can't run a node/);
+  assert.equal(g.sent(), 0);
+  const k = await load(async () => ({ ok: true, json: async () => dep }));
+  k.initArgs.onChange("1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8");
+  k.el("key").value = Buffer.concat([Buffer.from([2]), Buffer.alloc(32, 7)]).toString("base64url");
+  await k.el("send").onclick();
+  assert.equal(k.sent(), 1, "a Kondor wallet goes through the shared send (which picks sponsor or own Mana)");
+});

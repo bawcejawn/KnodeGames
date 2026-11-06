@@ -32,6 +32,7 @@ A platform-wide "course": every other live game is a par-4 hole, and how well yo
 - The move of all pages to the site root before merging (`claude/site-at-root.md`). 💬
 
 ## Current status (5 Nov)
+- **⏸ Held for the Shared Game Kit (D-161, owner 5 Nov: "hold on golf wait for the kit").** No launch on the hand-built recorder; `GOLF_ENABLED` stays off. `golf-launch` @ `02c86e1` (go-live + fix-check F-1 – F-3, I-1 – I-3) and PR #187 are kept as the source for the port to `games/golf/recorder.ts` once the kit's core merges (R-ARCH-3, R-ALL-11).
 - **Branch `golf-v2` @ `6ce7b5d`, PR #187 (5 Nov):** site root, weekly rhythm (pending to Mon 00:00, two-run check), Free play board, the current page frame; Golf 60/60, full suite 1,082 / 0. Next: Repo Lens, then I-098 / I-099 (recompute at publish, holds) before launch; launch steps in `docs/GOLF.md`.
 - **▶ Reactivated 5 Nov (D-142): one of the next three games to launch. Its chat starts with `../platform/CHAT_REQUESTS.md` → R-ALL-9 (the catch-up on the 4–5 Nov standards), then its own section.**
 - **Not merged, nothing deployed**; `games.json` "soon" ✅. The old branch `golf` @ `6b2200a` (audit trail all fixed) is kept for history.

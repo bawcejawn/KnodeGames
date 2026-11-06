@@ -18,7 +18,7 @@
 | **Recorders** | read the chain, score, publish boards and vault files | `games.yml`, `race.yml`, `race-samples.yml` | two-node checks, pending → final, holds | — |
 | **VHP ruler** | one fair measure of producer size for handicaps | `vhp-ruler.js`, `vhp_ruler.py`, `vhp-ruler.yml` | on `main` (#163), recording data only | **pays nothing** until all 11 simulations pass (D-111) |
 | **Nodes + self-heal** | three producers on the owner's PC | `node/`, `bot/heal.mjs`, `watch.yml` | chain v1.5.2 | one machine (D-147) |
-| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-160 | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
+| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-161 | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
 
 ## In progress
 | Work | Where | Next step |
@@ -27,7 +27,7 @@
 | Vault v6.1 | PR #114 | upload Mon 9, pin, handover 4a; accepts Tue 10; rule week Mon 16 |
 | **Questions results recorder** (P1) | Questions chat | **PR #203** is the Mon 16 delivery (D-160): Repo Lens, merge by Sun 15; hard limit Thu 26 Nov; free-prize ties to D-159 once the owner defines its score time; ported onto the kit later |
 | VHP ruler v2.1 | `vhp-ruler-v21` | build A′ (D-154), re-run 11 sims (R-RULER-2) |
-| Fantasy, Block Golf, Bracket (next launches, D-142) | PRs #188, #187, #186 | port each recorder onto the kit (D-158, R-ALL-11), then Repo Lens fix-check, then launch steps |
+| Fantasy, Block Golf, Bracket (next launches, D-142) | PRs #188, #187, #186 | port each recorder onto the kit (D-158, R-ALL-11), then Repo Lens fix-check, then launch steps; **Golf held for the kit (D-161)** |
 | **Shared Game Kit (D-146, D-158)** | Architecture chat | build the kit's core only (R-ARCH-3, [GAME_KIT](.ai/standards/GAME_KIT.md), D-160); then Fantasy, Golf, Bracket; then port Questions #203; then Block X and Race (replay → two shadow weeks → switch) |
 | Site: guest-first, live stats | PRs #181, #185 | Repo Lens, then merge; `STATS_ENABLED` |
 | Run a Node page | PRs #173, #179 | Repo Lens fix-check, then merge |

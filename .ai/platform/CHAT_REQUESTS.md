@@ -95,6 +95,7 @@ New chats start with their starter prompt (`../standards/AI_CHAT_STARTER.md` §3
 | R-FA-2 | Fix the Repo Lens findings, fix-check, a full test week (owner restarts practice in `C:\kprediction-fantasy`), the real-data simulation of the price formula; re-merge `main` | I-062 | done | in progress: `fantasy` @ `9b63675` (main merged; WEEK_CYCLE adopted with the Saturday-team Sunday fun round; price-sim tool built, re-run with `--form 7` around 12 Nov). **Next (owner, 5 Nov): build RECORDER_STANDARD §4.1 / §4.2 first, then one Repo Lens fix-check**, then a full test week; sponsor row for Picks games 4 and 5 (Block X chat) |
 
 ### Block Golf
+**⏸ D-161 (5 Nov): hold for the kit.** Don't launch or switch on `GOLF_ENABLED`; keep `golf-launch` and #187 as the source; port to the kit once `kit-core` merges (R-ALL-11).
 **▶ Reactivated 5 Nov (D-142):** one of the next three games to launch. **Start with R-ALL-9** (the catch-up on the 4–5 Nov standards), then the items below in order.
 | Id | Request | Link | Done when | Status |
 |---|---|---|---|---|

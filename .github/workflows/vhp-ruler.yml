@@ -1104,13 +1104,13 @@ jobs:
 
               def take(b, start):
                   for i, v in enumerate(b["burns"]):
-                      out.append({"h": start + i, "a": h["addrs"][b["sig"][i]], "d": -int(v), "inc": 0})
-                  for eh, k, f, t, v in b["events"]:
+                      out.append({"h": start + i, "a": h["addrs"][b["sig"][i]], "d": -int(v), "inc": 0, "kind": "burn", "c": None})
+                  for eh, k, f, t, v in b["events"]:  # kind and c (the other address): D-172's void record only
                       x = int(v)
                       if k != "m":
-                          out.append({"h": eh, "a": f, "d": -x, "inc": 0})
+                          out.append({"h": eh, "a": f, "d": -x, "inc": 0, "kind": "burn" if k == "b" else "out", "c": None if k == "b" else t})
                       if k != "b":
-                          out.append({"h": eh, "a": t, "d": x, "inc": x})
+                          out.append({"h": eh, "a": t, "d": x, "inc": x, "kind": "mint" if k == "m" else "in", "c": None if k == "m" else f})
               take(h, h["from"])
               if with_tail:
                   take(h["tail"], h["to"] + 1)

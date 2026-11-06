@@ -165,7 +165,7 @@ test("the race page sends only one thing itself: the wallet's own pick on the ra
   const js = read("race.js");
   const sends = [...js.matchAll(/\.send\(/g)];
   assert.equal(sends.length, 1, "one send");
-  // D-161 (contract v2): the race type rides in the race number from bit 48; the pick is still player, race, horse.
+  // D-166 (contract v2): the race type rides in the race number from bit 48; the pick is still player, race, horse.
   assert.match(js, /const args = \{ player: who, race: M\.contractRace\(type, index\) \};/);
   assert.match(js, /raceContract\.functions\.pick\(\{ \.\.\.args, horse \}, \{ onlyOperation: true \}\)/);
   assert.match(js, /await W\.send\(`pick [^`]*`, \[operation\]\)/);
@@ -265,7 +265,7 @@ test("Repo Lens #D-13 H-1: a typed pick goes out of the page's own koilib bundle
   for (const [t, i] of [[5, 1], [-1, 1], [1.5, 1], [0, -1], [0, 2 ** 48], [1, 0.5], [1, "7"]]) assert.throws(() => M.contractRace(t, i), /contractRace/);
 });
 
-test("D-161: the race-type toggle stays hidden until TYPES_FROM_WEEK is set; each type's points and the pool's sit-out are explained", () => {
+test("D-166: the race-type toggle stays hidden until TYPES_FROM_WEEK is set; each type's points and the pool's sit-out are explained", () => {
   const js = read("race.js"), html = read("race.html"), math = read("race-math.js");
   assert.match(math, /const TYPES_FROM_WEEK = null;/, "off on main until the contract v2 is uploaded");
   // Repo Lens #C-12 C12-1: the page goes by TYPES_ON_WEEK, which stays null until TYPES_READY.

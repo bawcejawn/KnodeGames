@@ -143,7 +143,7 @@
         <li class="rn-only" data-os="win">Click inside the PowerShell window, then <b>right-click</b> to paste (or press <b>Ctrl+V</b>).</li>
         <li class="rn-only" data-os="mac">Click inside the Terminal window and press <b>⌘V</b> to paste.</li>
         <li class="rn-only" data-os="linux">Click inside the Terminal window and press <b>Ctrl+Shift+V</b> to paste.</li>
-        <li>Press <b>Enter</b>. (If the last line is still waiting after the paste, press <b>Enter</b> once more.)</li>
+        <li>Press <b>Enter</b>. If you then see <code>&gt;&gt;</code> at the start of the line, or the last line is still waiting, press <b>Enter</b> once more.</li>
         <li>Wait until the line you started with comes back (<span class="rn-only" data-os="win"><code>PS C:\…&gt;</code></span><span class="rn-only" data-os="mac linux">ending in <code>%</code> or <code>$</code></span>): that means the box has finished. Then compare what it printed with <b>You should see</b> under the step.</li>
       </ol>
       <p class="muted">Keep the same window open from box to box, or open a new one at any time: every box starts by going to the right folder itself. Never paste anything from other websites or chats into this window.</p>
@@ -183,6 +183,12 @@
         <li class="rn-only" data-os="win">Windows: Start → Settings → System → Power (&amp; battery) → Screen and sleep → set "When plugged in, put my device to sleep after" to Never. Also: Settings → Accounts → Sign-in options → turn on "Use my sign-in info to automatically finish setting up after an update", so your node comes back by itself after Windows updates.</li>
         <li class="rn-only" data-os="mac">Mac: Apple menu → System Settings → Energy (or Battery → Options on a laptop) → turn on "Prevent automatic sleeping when the display is off". Keep a laptop plugged in.</li>
         <li class="rn-only" data-os="linux">Linux: run <code>sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target</code></li>
+      </ul>
+      <p class="rn-do">Then make sure the computer's clock is exact. A node whose clock is off by even a minute thinks it's out of date and stops producing ("gossip disabled… halting block production"):</p>
+      <ul class="rn-list">
+        <li class="rn-only" data-os="win">Windows: Start → Settings → Time &amp; language → Date &amp; time → turn on Set time automatically, then press Sync now.</li>
+        <li class="rn-only" data-os="mac">Mac: Apple menu → System Settings → General → Date &amp; Time → turn on Set time and date automatically.</li>
+        <li class="rn-only" data-os="linux">Linux: run <code>sudo timedatectl set-ntp true</code>, then <code>timedatectl</code> should say "System clock synchronized: yes".</li>
       </ul>
       <h3 class="rn-sub">Short on space? See what's using it (optional)</h3>
       <p>These boxes only look. They delete nothing. The usual big leftovers are an old Koinos snapshot download (<code>koinos-mainnet-….tar.gz</code>, about 60 GB) and old node folders.</p>
@@ -515,16 +521,21 @@ for TRY in $(seq 1 200); do
 done</code></pre>
       </div>
       <h3 class="rn-sub">4c. Check the fingerprint</h3>
-      <p class="rn-do">When 4b has finished, run this box. It works quietly for several minutes, then prints MATCH or NO MATCH.</p>
+      <p class="rn-do">When 4b has said DOWNLOAD COMPLETE, run this box. If you see <code>&gt;&gt;</code> after pasting, press Enter once more. It works quietly for several minutes, then prints MATCH or NO MATCH.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>cd C:\koinos-node
 $s = $null
 if (Test-Path snapshot.json) { $s = Get-Content snapshot.json -Raw | ConvertFrom-Json }
-if (-not $s -or $s.sha256 -notmatch '^[0-9a-fA-F]{64}$') { "STOP - no snapshot.json yet: do 4a first" }
-elseif (-not (Test-Path snapshot.tar.gz)) { "STOP - no snapshot.tar.gz yet: do 4b first" }
-elseif ((Get-FileHash snapshot.tar.gz -Algorithm SHA256).Hash -eq $s.sha256) { "MATCH - the download is complete and unchanged" }
-else { "NO MATCH - delete snapshot.tar.gz and download again" }</code></pre>
+if (-not $s -or $s.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
+  "STOP - no snapshot.json yet: do 4a first"
+} elseif (-not (Test-Path snapshot.tar.gz)) {
+  "STOP - no snapshot.tar.gz yet: do 4b first"
+} elseif ((Get-FileHash snapshot.tar.gz -Algorithm SHA256).Hash -eq $s.sha256) {
+  "MATCH - the download is complete and unchanged"
+} else {
+  "NO MATCH - delete snapshot.tar.gz and download again"
+}</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
@@ -538,17 +549,17 @@ else
 fi</code></pre>
       </div>
       <h3 class="rn-sub">4d. Unpack it into the node's volume</h3>
-      <p class="rn-do">If 4c said MATCH, run this box and leave the window open: it takes 30–60 minutes and shows nothing until it prints UNPACKED OK.</p>
+      <p class="rn-do">If 4c said MATCH, run this box and leave the window open: it takes 30–60 minutes. Every minute it prints the size unpacked so far (it keeps growing), and at the end UNPACKED OK.</p>
       <p>This unpacks only the two parts a block producer needs (<code>chain</code> and <code>block_store</code>). It never touches your node's key.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>docker run --rm -v koinos-data:/k -v C:/koinos-node:/dl:ro debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
+        <pre><code>docker run --rm -v koinos-data:/k -v C:/koinos-node:/dl:ro debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; echo Unpacking. This takes 30 to 60 minutes. Size so far, every minute:; ( while sleep 60; do du -sh /k/restore 2&gt;/dev/null; done ) &amp; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
-        <pre><code>docker run --rm -v koinos-data:/k -v "$HOME/koinos-node:/dl:ro" debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
+        <pre><code>docker run --rm -v koinos-data:/k -v "$HOME/koinos-node:/dl:ro" debian:bookworm-slim sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; echo Unpacking. This takes 30 to 60 minutes. Size so far, every minute:; ( while sleep 60; do du -sh /k/restore 2&gt;/dev/null; done ) &amp; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
       </div>
-      <p class="rn-see"><span class="rn-tag">You should see</span>4a: the newest snapshot's name (like <code>koinos-mainnet-2026-11-01-h40694989.tar.gz</code>), its size (about 58 GB) and "The list and its fingerprint file agree (both from Armana)". 4b: a progress line that counts up to 100% (it may restart its count after a dropped connection), then DOWNLOAD COMPLETE. 4c: MATCH (it takes several minutes to answer). 4d: after 30–60 minutes, UNPACKED OK and the words <code>block_store</code> and <code>chain</code>.</p>
+      <p class="rn-see"><span class="rn-tag">You should see</span>4a: the newest snapshot's name (like <code>koinos-mainnet-2026-11-01-h40694989.tar.gz</code>), its size (about 58 GB) and "The list and its fingerprint file agree (both from Armana)". 4b: a progress line that counts up to 100% (it may restart its count after a dropped connection), then DOWNLOAD COMPLETE. 4c: MATCH (it takes several minutes to answer). 4d: a growing size every minute (like <code>14G /k/restore</code>), then after 30–60 minutes UNPACKED OK and the words <code>block_store</code> and <code>chain</code>.</p>
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
           <li>4a says STOP: don't use that snapshot. (On older Windows 10, "Could not create SSL/TLS secure channel" means Windows needs its updates; the box already asks for the modern connection type.) Wait an hour and try again; if it keeps happening, ask in the Koinos community.</li>
@@ -583,7 +594,7 @@ docker compose up -d
 rm -f ~/koinos-node/heal-paused</code></pre>
       </div>
       <h3 class="rn-sub">5b. Is it caught up?</h3>
-      <p class="rn-do">Run this box now, then again every 15 minutes or so (paste the same box again). Your node is caught up when Behind by is under 10.</p>
+      <p class="rn-do">Run this box now, then again every 15 minutes or so (paste the same box again). If you see <code>&gt;&gt;</code> after pasting, press Enter once more. Your node is caught up when Behind by is under 10.</p>
       <div class="rn-cmd" data-os="win">
         <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
         <pre><code>[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -591,9 +602,13 @@ $me = $null; $net = $null
 $body = '{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
 try { $me = [int64](Invoke-RestMethod http://127.0.0.1:8080 -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
 try { $net = [int64](Invoke-RestMethod https://koinos.armana.io -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
-if (-not ($me -gt 0)) { "Your node didn't answer yet - wait 2 minutes and try again" }
-elseif (-not ($net -gt 0)) { "Couldn't read the network height - try again in a minute" }
-else { "Your node: $me   Network: $net   Behind by: $($net - $me) blocks" }</code></pre>
+if (-not ($me -gt 0)) {
+  "Your node didn't answer yet - wait 2 minutes and try again"
+} elseif (-not ($net -gt 0)) {
+  "Couldn't read the network height - try again in a minute"
+} else {
+  "Your node: $me   Network: $net   Behind by: $($net - $me) blocks"
+}</code></pre>
       </div>
       <div class="rn-cmd" data-os="mac linux">
         <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
@@ -611,7 +626,7 @@ else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
           <li>5b: "Unable to connect" or "Connection refused": the node is still starting. Wait 2 minutes and try again.</li>
-          <li>Behind by stays the same (or grows) across two checks 15 minutes apart: your node is stuck. Restart it: <code>docker compose down</code> then <code>docker compose up -d</code> (in the <code>koinos</code> folder), and check again in 15 minutes.</li>
+          <li>Behind by stays the same (or grows) across two checks 15 minutes apart: your node is stuck. Restart it: <code>docker compose down</code> then <code>docker compose up -d</code> (in the <code>koinos</code> folder), and check again in 15 minutes. Still stuck after that? Check the computer's clock is set automatically and press Sync now (step 1), restart again, then if needed reset Docker (step 8, "Still stuck after a restart").</li>
           <li>5a: "port is already allocated" (8080, 8888, 5672 or 15672): another program, or another Koinos node, uses that port. Do the box "Only if this computer already runs another Koinos node" in step 3, then run 5a again and use <code>8110</code> instead of <code>8080</code> in 5b. An update (step 10) rewrites <code>.env</code>, so run that box again after updating.</li>
           <li>5a: "external volume koinos-data not found": run <code>docker volume create koinos-data</code>, then do step 4d again before starting.</li>
           <li>Mac: "platform (linux/amd64) does not match": turn on the Rosetta setting from step 2, restart Docker, and run 5a again.</li>
@@ -721,8 +736,34 @@ python3 heal-one-node.py --install</code></pre>
       </div>
       <p class="muted">You should see a line like <code>OK: height …, network …</code> from the try, then "OK … is set up". It never starts a node you stopped yourself with this page's stop box (it stays paused until you start the node again with step 5a), and the repair, stop and update boxes pause it while they work. If you only press Stop in Docker Desktop, it starts the node again after about 40 minutes, so use the stop box in step 10 to keep it stopped. On Windows it shows a notification when it acts; on a Mac or Linux a notification may not appear, so look at <code>heal.log</code> in your <code>koinos-node</code> folder. To switch it off, run the same file with <code>-Uninstall</code> (Windows) or <code>--uninstall</code> (Mac/Linux). To update it when this page shows a new fingerprint, do the two boxes above again. Moved your node to another port in step 5? Add <code>-Rpc http://127.0.0.1:8090</code> (Windows) or <code>--rpc=http://127.0.0.1:8090</code> (Mac/Linux) to both lines.</p>
       <h3 class="rn-sub">Once a week (1 minute)</h3>
+      <p class="rn-do">Run this health check. It only reads: it shows how many of the node's 7 parts are running, how far behind it is, and whether the computer's clock is right. (Second node on this computer? Use <code>8110</code> instead of <code>8080</code>.)</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+"Parts running: $(@(docker compose ps --status running --services).Count) of 7"
+$me = $null; $net = $null; $nt = $null
+$body = '{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
+try { $me = [int64](Invoke-RestMethod http://127.0.0.1:8080 -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
+try { $r = (Invoke-RestMethod https://koinos.armana.io -Method Post -ContentType application/json -Body $body).result; $net = [int64]$r.head_topology.height; $nt = [int64]$r.head_block_time } catch { }
+$clock = $null; if ($nt -gt 0) { $clock = [math]::Round(([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - $nt) / 1000) }
+if (-not ($me -gt 0) -or -not ($net -gt 0) -or $null -eq $clock) { "Couldn't read a height - wait 2 minutes and try again" } elseif ($clock -lt -3 -or $clock -gt 30) { "CLOCK OFF by about $clock seconds - sync your clock (step 1), then restart the node (below)" } elseif (($net - $me) -lt 10) { "HEALTHY - behind by $($net - $me) blocks, clock OK" } else { "BEHIND by $($net - $me) blocks - run this again in 15 minutes. Not shrinking? Restart it (below)." }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+echo "Parts running: $(docker compose ps --status running --services | wc -l | tr -d ' ') of 7"
+B='{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
+H='import json,sys;r=json.load(sys.stdin)["result"];h=int(r["head_topology"]["height"]);t=int(r["head_block_time"]);assert h&gt;0 and t&gt;0;print(h,t//1000)'
+read -r ME MT &lt;&lt;&lt; "$(curl -s -X POST -H 'content-type: application/json' -d "$B" http://127.0.0.1:8080 | python3 -c "$H" 2&gt;/dev/null)"
+read -r NET NT &lt;&lt;&lt; "$(curl -s -X POST -H 'content-type: application/json' -d "$B" https://koinos.armana.io | python3 -c "$H" 2&gt;/dev/null)"
+if [ -z "$ME" ] || [ -z "$NET" ] || [ "$NET" -lt "$ME" ]; then echo "Couldn't read a height - wait 2 minutes and try again"
+elif [ $(( $(date +%s) - NT )) -lt -3 ] || [ $(( $(date +%s) - NT )) -gt 30 ]; then echo "CLOCK OFF by about $(( $(date +%s) - NT )) seconds - sync your clock (step 1), then restart the node (below)"
+elif [ $((NET - ME)) -lt 10 ]; then echo "HEALTHY - behind by $((NET - ME)) blocks, clock OK"
+else echo "BEHIND by $((NET - ME)) blocks - run this again in 15 minutes. Not shrinking? Restart it (below)."; fi</code></pre>
+      </div>
+      <p class="muted">Parts running should say 7 of 7. Fewer? Restart it (below).</p>
       <ul class="rn-list">
-        <li>Run the check from step 5b: Behind by should be under 10.</li>
         <li>Look up your address on <a href="node.html">Producer lookup</a> (it works from your phone too): you should see recent blocks.</li>
       </ul>
       <h3 class="rn-sub">If it's stuck: restart it</h3>
@@ -741,6 +782,43 @@ Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue</code></pre
 docker compose down
 docker compose up -d
 rm -f ~/koinos-node/heal-paused</code></pre>
+      </div>
+      <h3 class="rn-sub">Still stuck after a restart: reset Docker</h3>
+      <p>First run the health check: if it says CLOCK OFF, sync the clock (step 1) and restart; that's the usual cause. If the clock is fine, everything shows "Up", and Behind by still grows after a restart, Docker itself may have stopped passing blocks to the node (it can happen after many hours or after the computer changes networks). Restarting Docker clears that. Your node's key and chain data stay as they are.</p>
+      <p class="rn-do">Run this box. It stops the node, closes Docker, starts Docker again, waits for it and starts the node. Give it 15 minutes, then check again with the health check above.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
+cd C:\koinos-node\koinos
+docker compose down
+Stop-Process -Name "Docker Desktop" -Force -ErrorAction SilentlyContinue
+wsl --shutdown
+Start-Sleep -Seconds 10
+Start-Process "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+"Waiting for Docker to start (up to 5 minutes)..."
+$ok = $false; for ($i = 0; $i -lt 60 -and -not $ok; $i++) { Start-Sleep -Seconds 5; docker info *&gt; $null; $ok = ($LASTEXITCODE -eq 0) }
+if ($ok) { docker compose up -d; Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue; "RESET DONE - check again in 15 minutes" } else { "Docker didn't start yet - open Docker Desktop from the Start menu, wait until it says running, then run step 5a" }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac">
+        <div class="rn-cmd-h"><span>Mac · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
+docker compose down
+osascript -e 'quit app "Docker"'
+sleep 15
+open -a Docker
+echo "Waiting for Docker to start (up to 5 minutes)..."
+OK=0; for i in $(seq 60); do sleep 5; if docker info &gt;/dev/null 2&gt;&amp;1; then OK=1; break; fi; done
+if [ "$OK" = 1 ]; then docker compose up -d &amp;&amp; rm -f ~/koinos-node/heal-paused &amp;&amp; echo "RESET DONE - check again in 15 minutes"; else echo "Docker didn't start yet - open Docker from Applications, wait until it says running, then run step 5a"; fi</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="linux">
+        <div class="rn-cmd-h"><span>Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
+docker compose down
+sudo systemctl restart docker
+sleep 10
+docker compose up -d &amp;&amp; rm -f ~/koinos-node/heal-paused &amp;&amp; echo "RESET DONE - check again in 15 minutes"</code></pre>
       </div>
       <h3 class="rn-sub">If it keeps crashing: repair from a fresh snapshot</h3>
       <p>Damaged means it keeps restarting or freezing again soon after every restart: <code>docker compose ps</code> shows Restarting, or <code>docker compose logs --tail 40 block_store</code> shows panic. A restart won't cure that; fresh chain data will. This keeps your node's key, sets the old data aside (not deleted) and clears the old download. Short of space? A repair briefly needs room for the old data, a new download and a new unpack (about 180 GB). If your drive is smaller, delete the old data right after this box with the last box below: it's damaged anyway.</p>
@@ -910,7 +988,9 @@ git rev-parse HEAD</code></pre>
         <table class="addr-table">
           <thead><tr><th>You notice</th><th>What it means</th><th>The fix</th></tr></thead>
           <tbody>
-            <tr><td>Node behind: "Behind by" is large and not shrinking</td><td>The node is stuck</td><td>Restart it (<a href="#step-8">step 8</a>). Check again in 15 minutes.</td></tr>
+            <tr><td>Node behind: "Behind by" is large and not shrinking</td><td>The node is stuck</td><td>Restart it (<a href="#step-8">step 8</a>). Check again in 15 minutes. Still stuck? Reset Docker (<a href="#step-8">step 8</a>).</td></tr>
+            <tr><td>Logs say "gossip disabled" and "halting block production"</td><td>The node thinks it's out of date and stops producing to stay safe. Usually the computer's clock is wrong</td><td>Sync the clock (<a href="#step-1">step 1</a>), then restart (<a href="#step-8">step 8</a>). The health check in step 8 shows if the clock is off.</td></tr>
+            <tr><td>Logs say "Error connecting to seed … no good addresses" or "dial backoff"</td><td>Normal: some of the fixed start-up addresses are offline. The node uses its other connections</td><td>Nothing, while Behind by stays under 10. If Behind by grows: restart, then reset Docker (<a href="#step-8">step 8</a>).</td></tr>
             <tr><td>Crash loop: parts keep "Restarting", or it freezes again soon after every restart</td><td>Its chain data is damaged</td><td>Repair from a fresh snapshot (<a href="#step-8">step 8</a>). Your key stays.</td></tr>
             <tr><td>Disk full</td><td>The download or Docker filled the drive</td><td>Delete the downloaded snapshot once caught up, run <code>docker image prune</code>. Never prune volumes.</td></tr>
             <tr><td>Docker won't start</td><td>Docker Desktop or WSL needs a kick</td><td>Restart the computer. Windows: <code>wsl --update</code>, then <code>wsl --shutdown</code>, then open Docker Desktop (<a href="#step-2">step 2</a>).</td></tr>

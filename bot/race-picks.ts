@@ -100,7 +100,7 @@ async function read(provider: Provider, id: string, method: string, args: any = 
 /** The settings to send. Exported for the tests. */
 export function buildRaceConfig(owner: string, enabled: boolean, perDay: number) {
   if (!/^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(owner)) throw new Error("The owner must be a Koinos address.");
-  // v2 (D-161): 0 = no per-game limit (the Mana sponsor's daily limit is the cap). The v1 contract refuses 0.
+  // v2 (D-166): 0 = no per-game limit (the Mana sponsor's daily limit is the cap). The v1 contract refuses 0.
   if (!Number.isInteger(perDay) || perDay < 0 || perDay > 20) throw new Error("Picks per day must be a whole number from 0 (no limit) to 20.");
   return { owner, enabled, max_picks_per_day: perDay };
 }

@@ -62,7 +62,7 @@ jobs:
             git fetch -q --depth 1 "$url" race-data
             git ls-tree -r -z --name-only FETCH_HEAD > "$RUNNER_TEMP/prev-files"   # fails the step if it fails (review V2)
             while IFS= read -r -d '' f; do
-              # D-161: T<week>.json, the race types' ledger and results, comes back to the recorder too.
+              # D-166: T<week>.json, the race types' ledger and results, comes back to the recorder too.
               if [[ "$f" =~ ^(index|board|[WT][0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
               if [[ "$f" =~ ^vault/(PENDING-)?W[0-9]{1,4}\.json$ ]]; then mkdir -p "$RUNNER_TEMP/prev/vault"; git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
             done < "$RUNNER_TEMP/prev-files"
@@ -250,7 +250,7 @@ jobs:
               return type(rows) is list and len(rows) <= 100000 and all(type(x) is dict and set(x) == {"a", "pts", "correct", "shows", "picks", "ranked", "boardPlace", "earns"}
                   and type(x["earns"]) is int and x["earns"] in (0, 1, 2, 3) and (x["earns"] != 3 or x["ranked"] is True) and (x["earns"] not in (1, 2) or x["ranked"] is False)
                   and isaddr(x["a"]) and all(type(x[k]) is int and 0 <= x[k] < 10**9 for k in ("pts", "correct", "shows", "picks")) and type(x["boardPlace"]) is int and 1 <= x["boardPlace"] <= len(rows)
-                  # D-161: the race types score their own points (a win 2, 3, 6 or 12; a show 1, 2 or 4), so pts lies between
+                  # D-166: the race types score their own points (a win 2, 3, 6 or 12; a show 1, 2 or 4), so pts lies between
                   # those bounds; the recompute below checks the last week's exactly.
                   and x["correct"] + x["shows"] <= x["picks"] and (x["pts"] == 3 * x["correct"] + x["shows"] if TYPES_FROM >= TYPES_OFF else 2 * x["correct"] + x["shows"] <= x["pts"] <= 12 * x["correct"] + 4 * x["shows"]) and type(x["ranked"]) is bool for x in rows)
           import time
@@ -260,7 +260,7 @@ jobs:
           # RACE_RHYTHM_FROM) races run Mon 00:00 -> Sat 24:00 UTC, Sunday UTC is the review day, and a week may go final
           # from Monday 00:00 UTC (no 12-hour wait after it: the review day came first).
           RHYTHM_FROM = int(os.environ.get("RACE_RHYTHM_FROM") or 3)
-          # D-161, Repo Lens #D-13 L-2: the first week the race types count (M.TYPES_FROM_WEEK in race-math.js; TYPES_OFF
+          # D-166, Repo Lens #D-13 L-2: the first week the race types count (M.TYPES_FROM_WEEK in race-math.js; TYPES_OFF
           # while it is null; tests only set RACE_TYPES_FROM). Before it a T file is refused; from it a final vault week
           # needs its T file with every typed race final.
           TYPES_OFF = 1000000
@@ -348,7 +348,7 @@ jobs:
               if type(wf) is not dict or wf.get("week") != w or type(wf.get("races")) is not list: return "its week's race file can't be read to check it"
               t, reached = {}, {}
               import datetime as _dt
-              # D-161: the 6-hour races (W file), then the race types (T file, this push's else the published one), each
+              # D-166: the 6-hour races (W file), then the race types (T file, this push's else the published one), each
               # with its own points: [win, show] by type.
               tw = week_json(w, "T%03d.json") if w >= TYPES_FROM else None
               typed = tw.get("races") if type(tw) is dict and tw.get("week") == w and type(tw.get("races")) is list else []
@@ -424,7 +424,7 @@ jobs:
           def check_types(f, j):
               # Repo Lens #D-14 N-1: first, values the recorder (JavaScript) reads back exactly (no 2^53, 1e+21, deep nesting).
               assert js_safe(j), f + ": a value the recorder (JavaScript) can't read back exactly"
-              # D-161: the race types' week file: the hour ledger and the week's 260 races of types 1-4.
+              # D-166: the race types' week file: the hour ledger and the week's 260 races of types 1-4.
               assert j["week"] >= TYPES_FROM if type(j) is dict and type(j.get("week")) is int else False, f + ": race types aren't on for that week (TYPES_FROM)"
               import datetime
               assert set(j) == {"v", "week", "start", "end", "hours", "races"} and one(j["v"]) and type(j["week"]) is int and 0 <= j["week"] < 10000 and f == "T%03d.json" % j["week"], f

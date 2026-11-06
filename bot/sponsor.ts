@@ -66,6 +66,14 @@ export const PICKS_ARG_TYPES = "0x0301011301";
  *  "cards": true (the Picks v2 contract with the CARD type is live); a config change, no new sponsor code. */
 export const PICKS_ARG_TYPES_CARDS = "0x030101130113";
 export const PICKS_GAME_ARG = 2;
+/** Owner, 5 Nov 2026 (Run a Node chat): the Koinos Proof-of-Burn system contract's register_public_key, so a new node
+ *  runner can register a producer key with no KOIN. Arguments (producer.js): producer bytes (field 1, the player, who
+ *  must sign), public_key bytes (field 2); nothing else, no nested messages. No game: it counts as free play. */
+export const POB_MAINNET = "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv";
+export const POB_REGISTER = 0x53192be1;
+export const POB_ARG_TYPES = "0x0303";
+/** The PoB contract for this network: mainnet's, or TESTNET_POB on the testnet (none: no row). */
+export const pobFor = (mainnet: boolean) => (mainnet ? POB_MAINNET : process.env.TESTNET_POB || undefined);
 /** Suggested caps (Mana): per transaction, per player per day, per player per week, everyone per day.
  *  Owner's decisions 2026-10-28: everyone 5,000 a day (the sponsor wallet holds at least 25,000 KOIN, whose Mana refills
  *  in about 5 days), of which free players (no stake this week; guests too) share at most 2,000 (2026-10-29: 25 per
@@ -310,7 +318,7 @@ async function upload(send: boolean) {
 function flag(a: string[], name: string, d: string) { const i = a.indexOf(name); return i >= 0 && a[i + 1] && !a[i + 1].startsWith("--") ? a[i + 1] : d; }
 
 /** Builds the config: the pinned game, Desk, VHP and KOIN, and the caps. Exported for the tests. */
-export function buildConfig(game: any, desk: any, caps: { perTx: string; perPlayerDay: string; perPlayerWeek: string; perDay: string; minVhp?: string; freePerDay?: string }, enabled: boolean, race?: string, picks?: string, manaRows: ReturnType<typeof readLimits>["rows"] = [], picksCards = false, gameHasVault = false) {
+export function buildConfig(game: any, desk: any, caps: { perTx: string; perPlayerDay: string; perPlayerWeek: string; perDay: string; minVhp?: string; freePerDay?: string }, enabled: boolean, race?: string, picks?: string, manaRows: ReturnType<typeof readLimits>["rows"] = [], picksCards = false, gameHasVault = false, pob?: string) {
   const vhp = game.vhp ?? PINNED_MAINNET.vhp;
   const c = {
     enabled, game: game.contract, desk: desk.contract, tokens: [vhp, game.koin ?? PINNED_MAINNET.koin],
@@ -326,7 +334,11 @@ export function buildConfig(game: any, desk: any, caps: { perTx: string; perPlay
     // Producer Race picks are free play like answers (sponsor v2). Left out: picks aren't sponsored.
     ...(race ? { race } : {}),
     // v3: the KnodeGames Picks contract's picks are free play like answers (the payee's own, arguments in the Picks shape).
-    ...(picks ? { allowed: [{ contract: picks, entry_point: PICKS_PICK, free_play: true, arg_types: picksCards ? PICKS_ARG_TYPES_CARDS : PICKS_ARG_TYPES, game_arg: PICKS_GAME_ARG }] } : {}),
+    // v3, owner 5 Nov: Proof-of-Burn register_public_key (a new node's producer key), the payee's own, free play.
+    ...(picks || pob ? { allowed: [
+      ...(picks ? [{ contract: picks, entry_point: PICKS_PICK, free_play: true, arg_types: picksCards ? PICKS_ARG_TYPES_CARDS : PICKS_ARG_TYPES, game_arg: PICKS_GAME_ARG }] : []),
+      ...(pob ? [{ contract: pob, entry_point: POB_REGISTER, free_play: true, arg_types: POB_ARG_TYPES, game_arg: 0 }] : []),
+    ] } : {}),
     // v3: each action's own Mana limit (sponsor-data/mana-limits.json, from mana-report). No rows: the per-transaction cap.
     ...(manaRows.length ? { mana_caps: chainRows(manaRows) } : {}),
     // v3, audit SP-37: ask the game for a stake in another game (get_game_player) only once it is the vault (v6).
@@ -335,6 +347,7 @@ export function buildConfig(game: any, desk: any, caps: { perTx: string; perPlay
   checkRows(manaRows, BigInt(units(caps.perTx)));
   if (race && [c.game, c.desk, ...c.tokens].includes(race)) throw new Error("The race contract must differ from the game, Knode Swap and the tokens.");
   if (picks && [c.game, c.desk, ...c.tokens, race].includes(picks)) throw new Error("The Picks contract must differ from the game, Knode Swap, the race and the tokens.");
+  if (pob && [c.game, c.desk, ...c.tokens, race, picks].includes(pob)) throw new Error("The Proof-of-Burn contract must differ from the game, Knode Swap, the race, Picks and the tokens.");
   if (BigInt(c.min_vhp) === 0n) throw new Error("The VHP minimum must be above 0 (empty wallets would be sponsored).");
   const n = (x: string) => BigInt(x);
   if (!(n(c.max_mana_per_tx) <= n(c.max_mana_per_account_day) && n(c.max_mana_per_account_day) <= n(c.max_mana_per_account_week) && n(c.max_mana_per_account_day) <= n(c.max_mana_per_day)))
@@ -440,7 +453,7 @@ async function setConfig(a: string[], send: boolean, enabledArg?: boolean) {
   const vp = vaultOnProblem(code, vaultLive);
   if (vp) throw new Error(vp);
   if (vaultOff) log("  --vault off: the vault switch stays OFF (guest-trap stopgap): vault-only stakes count as free play, and the vault's own calls are not sponsored");
-  const config: any = buildConfig(game, desk, caps, enabled, race, v3 ? picks : undefined, v3 ? limits.rows : [], picksCards, vaultLive);
+  const config: any = buildConfig(game, desk, caps, enabled, race, v3 ? picks : undefined, v3 ? limits.rows : [], picksCards, vaultLive, v3 ? pobFor(mainnet) : undefined);
   if (!v3 && (picks || limits.rows.length)) log(`  ⚠ the code on chain (${code.slice(0, 12)}…) is not sponsor v3: the KnodeGames picks row and per-action limits are left out (upload v3 first)`);
   const row = (label: string, was: string, now: string) => log(`  ${label.padEnd(28)} ${was === now ? now : `${was} → ${now}`}`);
   log(`To the sponsor contract ${A} on ${rpc}${mainnet ? "   ⚠ MAINNET" : ""}, signed and paid by the sponsor wallet:`);
@@ -456,7 +469,9 @@ async function setConfig(a: string[], send: boolean, enabledArg?: boolean) {
   row("tokens", (cur.tokens ?? []).join(", "), (config.tokens ?? []).join(", "));
   row("allowlisted calls", (cur.allowed ?? []).map((x: any) => `${x.contract}:${x.entry_point}`).join(", ") || "(none)", (config.allowed ?? []).map((x: any) => `${x.contract}:${x.entry_point}`).join(", ") || "(none)");
   log(`  race picks: ${race ? `free play like answers, on ${race}` : "not sponsored (no race-data/deployment.json yet)"}`);
-  log(`  KnodeGames picks: ${config.allowed ? `free play like answers, on ${picks}${picksCards ? " (with Combo cards)" : ""}; a stake in the pick's game counts` : "not sponsored"}`);
+  log(`  KnodeGames picks: ${picks && config.allowed ? `free play like answers, on ${picks}${picksCards ? " (with Combo cards)" : ""}; a stake in the pick's game counts` : "not sponsored"}`);
+  const pobRow = (config.allowed ?? []).find((x: any) => x.entry_point === POB_REGISTER);
+  log(`  node runners: ${pobRow ? `registering a producer key (Proof-of-Burn register_public_key on ${pobRow.contract}) is free play, the producer's own` : "registering a producer key is not sponsored"}`);
   log(`  players: any covered call for any wallet, within its caps; a wallet without ${caps.minVhp} VHP STAKED this week (holding VHP doesn't count) draws from the free pool; Knode Swap is never paid`);
   log(`  free players share ${Number(config.max_mana_free_day) / 1e8} Mana a day, released by the hour (1/24 at 00:00 UTC, 1/24 more each hour)`);
   if (config.mana_caps) {
@@ -593,7 +608,7 @@ async function setSwitch(rpc: string, provider: Provider, s: Signer, A: string, 
     try { code = String((await contractMetadata(provider, A)).hash || "").replace(/^0x1220/, ""); } catch { /* treated as not v3: no Picks row while off */ }
     const v3 = V3_BUILDS.includes(code);
     const { caps, unreadable } = tighterCaps(cur, other, code);
-    config = buildConfig(game, desk, caps, false, race, v3 ? picks : undefined, [], picksCards, false);
+    config = buildConfig(game, desk, caps, false, race, v3 ? picks : undefined, [], picksCards, false, v3 ? pobFor(mainnet) : undefined);
     log("  ⚠ no second node agrees with this node's settings: switching off with the settings rebuilt from this PC's files,");
     log(unreadable ? "    and every cap 0 (this node's caps couldn't be read): before enable, run config with your caps"
       : `    each cap the LOWEST of this node's${other ? ", the second node's" : ""} and your default (never looser), and no per-action limits until enable or config`);
@@ -786,20 +801,22 @@ async function manaReport(a: string[]) {
 
 // ═══════════════════════════════ website payer ═══════════════════════════════
 /** Who the website asks to pay: writes "payer" (and the "sponsor" block) into both deployment files. Exported for tests. */
-export function setPayer(choice: "sponsor" | "self", rcLimitMana = "1", files: { game: string; desk: string; state: string; race?: string; picks?: string } = { game: GAME_DEP, desk: DESK_DEP, state: STATE, race: RACE_DEP, picks: PICKS_DEP }) {
+export function setPayer(choice: "sponsor" | "self", rcLimitMana = "1", files: { game: string; desk: string; state: string; race?: string; picks?: string; pob?: string } = { game: GAME_DEP, desk: DESK_DEP, state: STATE, race: RACE_DEP, picks: PICKS_DEP, pob: POB_MAINNET }) {
   const game = readJson(files.game), desk = readJson(files.desk), st = readJson(files.state);
   const race = files.race ? readJson(files.race)?.contract : undefined;
   const picks = files.picks ? readJson(files.picks)?.contract : undefined;
+  const pob = files.pob;   // owner 5 Nov: a node runner's register_public_key (producer.html)
   if (!game?.contract || !desk?.contract) throw new Error("game-data and desk-data deployment.json are needed.");
   if (choice === "sponsor" && !st?.address) throw new Error(`${files.state} has no sponsor yet: upload it first (npm run sponsor -- upload --send).`);
   const block = st?.address ? {
     address: st.address,
     // Owner, 2026-10-29: Knode Swap is never sponsored, so it isn't among what the sponsor covers.
-    covers: [game.contract, game.vhp ?? PINNED_MAINNET.vhp, game.koin ?? PINNED_MAINNET.koin, ...(race ? [race] : []), ...(picks ? [picks] : [])],
+    covers: [game.contract, game.vhp ?? PINNED_MAINNET.vhp, game.koin ?? PINNED_MAINNET.koin, ...(race ? [race] : []), ...(picks ? [picks] : []), ...(pob ? [pob] : [])],
     // Producer Race picks: free play like answers (the website asks with the answers' Mana limit).
     ...(race ? { race } : {}),
     // KnodeGames picks (sponsor v3): free play like answers.
     ...(picks ? { picks } : {}),
+    ...(pob ? { pob } : {}),
     tokens: [game.vhp ?? PINNED_MAINNET.vhp, game.koin ?? PINNED_MAINNET.koin],
     rcLimit: units(rcLimitMana),
     // Staking, withdrawing, swapping and claiming do more than an answer, but the sponsor pays at most its

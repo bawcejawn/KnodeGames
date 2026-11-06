@@ -1128,7 +1128,7 @@ async function recomputeRun(players, { mutate = null, mutateBoard = null, prizes
     t.set(p.a, c);
     if (!firstAt.has(p.a) || at < firstAt.get(p.a)) firstAt.set(p.a, at);
   }
-  // D-161: typed picks, per player: [type, the race's place among that type's races, win, show, time] (their own points).
+  // D-166: typed picks, per player: [type, the race's place among that type's races, win, show, time] (their own points).
   const tf = typed ? R.emptyTypes(2) : null;
   // Repo Lens #D-13 L-3: a typed week goes final only with every typed race final (here: scored, nobody picked).
   if (tf) for (const r of tf.races) r.result = { final: true, checked: 2, picks: [] };
@@ -1760,7 +1760,7 @@ test("D-152, publish job: the recompute follows the new line and D-159's 10 per 
   assert.equal(over.final, false); assert.match(over.out, /isn't within the top 30%/);
 });
 
-// ── D-161 (owner, 5 Nov): race types beside the 6-hour race: the hour ledger, typed races, their points ──
+// ── D-166 (owner, 5 Nov): race types beside the 6-hour race: the hour ledger, typed races, their points ──
 async function typesRun(at, prev, { typesFrom = 2, picksOf = async () => [], check = undefined } = {}) {
   const out = tmp(), log = console.log; console.log = () => {};
   try { lastRun = await run({ p: node(at), check: check === null ? null : node(at, check || {}), prev, out, vhpOf, raceContract: "x", picksOf, prizesFrom: 0, vaultHold: false, typesFrom, stakedOf: async () => false }); } finally { console.log = log; }
@@ -1780,14 +1780,14 @@ function expectTyped(dir, r) {
   return [...steps].map(([a, s]) => ({ a, s: Math.round(s * 1e4) / 1e4, l: last.get(a) || Infinity })).sort((x, y) => y.s - x.s || x.l - y.l || (x.a < y.a ? -1 : 1));
 }
 
-test("D-161: race types are off until TYPES_FROM_WEEK is set: no T file, the 6-hour files unchanged", async () => {
+test("D-166: race types are off until TYPES_FROM_WEEK is set: no T file, the 6-hour files unchanged", async () => {
   assert.equal(M.TYPES_FROM_WEEK, null, "off on main until the contract v2 is uploaded");
   const a = await typesRun(U("2026-11-02T00:37Z"), "", { typesFrom: null });
   assert.ok(!fs.existsSync(path.join(a, "T002.json")));
   assert.deepEqual(Object.keys(week(a)), ["v", "week", "start", "end", "races"], "W002.json keeps its shape (Block X reads it)");
 });
 
-test("D-161: the hour ledger, and 1-hour and 2-hour races scored from it with their own cards, picks and points", async () => {
+test("D-166: the hour ledger, and 1-hour and 2-hour races scored from it with their own cards, picks and points", async () => {
   const { emptyTypes } = await import(path.resolve(APP, "bot/race.ts"));
   const e = emptyTypes(2);
   assert.deepEqual([1, 2, 3, 4].map((t) => e.races.filter((r) => r.type === t).length), [168, 84, 7, 1], "a week: 168 1-hour, 84 2-hour, 7 daily, 1 weekly");
@@ -1820,7 +1820,7 @@ test("D-161: the hour ledger, and 1-hour and 2-hour races scored from it with th
   assert.deepEqual(Object.keys(week(c)), ["v", "week", "start", "end", "races"], "W002.json unchanged in shape");
 });
 
-test("D-161: the payout re-check reads the ledger hours again; a changed count or pick is caught", async () => {
+test("D-166: the payout re-check reads the ledger hours again; a changed count or pick is caught", async () => {
   const { verifyTypes } = await import(path.resolve(APP, "bot/race.ts"));
   const a = await typesRun(U("2026-11-02T00:37Z"), "");
   const b = await typesRun(U("2026-11-02T01:37Z"), a);
@@ -1839,7 +1839,7 @@ test("D-161: the payout re-check reads the ledger hours again; a changed count o
   } finally { console.log = log; }
 });
 
-test("D-161: the second node's different blocks keep an hour out of the ledger", async () => {
+test("D-166: the second node's different blocks keep an hour out of the ledger", async () => {
   const a = await typesRun(U("2026-11-02T00:37Z"), "");
   const b = await typesRun(U("2026-11-02T01:37Z"), a);
   const c = await typesRun(U("2026-11-02T02:37Z"), b, { check: { tamper: 1000 + 25 * 1200 + 5 } });   // a block in Monday 01:00-02:00
@@ -1848,7 +1848,7 @@ test("D-161: the second node's different blocks keep an hour out of the ledger",
   assert.match(lastRun.problems.join("\n"), /hour 2026-11-02T01: the two nodes disagree about the hour's blocks/);
 });
 
-test("D-161, publish job: the recompute counts the race types' picks with their own points (and leaves Sunday's out)", async () => {
+test("D-166, publish job: the recompute counts the race types' picks with their own points (and leaves Sunday's out)", async () => {
   // A: a 6-hour win (3). B: a weekly win (12). C: a daily show (2) and a 1-hour win (2). D: a Sunday 1-hour win (fun, 0).
   const pl = [{ a: addrN(1), staked: true, picks: [[0, 1, 0, 10]] }, { a: addrN(2), staked: true, picks: [[1, 0, 0, 11]] },
     { a: addrN(3), staked: false, picks: [[2, 0, 0, 12]] }, { a: addrN(4), staked: false, picks: [[3, 0, 0, 13]] }];
@@ -1862,7 +1862,7 @@ test("D-161, publish job: the recompute counts the race types' picks with their 
   assert.equal(flat.final, false); assert.match(flat.out, /board's last week doesn't match the week's picks/);
 });
 
-test("D-161, publish job: a recorder's T file publishes; a changed ledger hour, a changed final typed result or a bad shape holds the T file alone (Repo Lens #D-13 M-3)", async () => {
+test("D-166, publish job: a recorder's T file publishes; a changed ledger hour, a changed final typed result or a bad shape holds the T file alone (Repo Lens #D-13 M-3)", async () => {
   const a = await typesRun(U("2026-11-02T00:37Z"), "");
   const b = await typesRun(U("2026-11-02T01:37Z"), a);
   const c = await typesRun(U("2026-11-02T02:37Z"), b);

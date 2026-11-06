@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildConfig, setPayer, syncSiteLimits, DEFAULT_CAPS, SPONSOR_SHA256, SPONSOR_V3_CANDIDATE, SPONSOR_V3_GUESTFIX, allowedBuilds, vaultOnProblem, uploadProblem, VAULT_SAFE_BUILDS } from "../../bot/sponsor.ts";
+import { buildConfig, setPayer, syncSiteLimits, POB_MAINNET, POB_REGISTER, POB_ARG_TYPES, pobFor, DEFAULT_CAPS, SPONSOR_SHA256, SPONSOR_V3_CANDIDATE, SPONSOR_V3_GUESTFIX, allowedBuilds, vaultOnProblem, uploadProblem, VAULT_SAFE_BUILDS } from "../../bot/sponsor.ts";
 import { summarize, suggest, merge, checkRows, siteMap, chainRows, key, transitionRows, siteFits } from "../../bot/mana-limits.ts";
 
 const GAME = { contract: "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr", vhp: "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq", koin: "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK" };
@@ -350,4 +350,25 @@ test("SR-1: upload treats the switch as on over non-v3 code (a v2 rollback): b61
   assert.match(uploadProblem(SPONSOR_V3_CANDIDATE, true) ?? "", /^Not sent: the vault switch is ON/);
   assert.equal(uploadProblem(SPONSOR_V3_GUESTFIX, true), null);
   assert.equal(uploadProblem(SPONSOR_SHA256, true), null);
+});
+
+test("owner 5 Nov: the sponsor pays a new node runner's Proof-of-Burn register_public_key (the producer's own, free play)", () => {
+  const PICKS = "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW", RACE = "15CM9Qr4GKREDgqnyXJ8tckPj2biERTM1T";
+  assert.equal(POB_MAINNET, "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv"); assert.equal(POB_REGISTER, 0x53192be1); assert.equal(pobFor(true), POB_MAINNET);
+  const c: any = buildConfig(GAME, DESK, DEFAULT_CAPS, true, RACE, PICKS, [], false, false, POB_MAINNET);
+  assert.deepEqual(c.allowed, [
+    { contract: PICKS, entry_point: 0x8ce33c6c, free_play: true, arg_types: "0x0301011301", game_arg: 2 },
+    { contract: POB_MAINNET, entry_point: 0x53192be1, free_play: true, arg_types: "0x0303", game_arg: 0 },
+  ], "the Picks row stays first; PoB: field 1 the producer (bytes), field 2 the key (bytes), nothing else, no game");
+  assert.deepEqual((buildConfig(GAME, DESK, DEFAULT_CAPS, true, RACE, undefined, [], false, false, POB_MAINNET) as any).allowed.map((x: any) => x.entry_point), [0x53192be1]);
+  for (const bad of [GAME.contract, DESK.contract, GAME.vhp, GAME.koin, RACE, PICKS]) assert.throws(() => buildConfig(GAME, DESK, DEFAULT_CAPS, true, RACE, PICKS, [], false, false, bad), /must differ/);
+  // The shape matches what producer.html sends (producer.js's ABI): producer bytes 1, public_key bytes 2, no nested messages.
+  const pj = fs.readFileSync("producer.js", "utf8");
+  assert.match(pj, /const POB = "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv"/);
+  assert.match(pj, /register_public_key: \{ entry_point: 0x53192be1,/);
+  const fields = pj.slice(pj.indexOf("register_public_key_arguments: {"), pj.indexOf("register_public_key_result: {"));
+  assert.match(fields, /producer: \{ type: "bytes", id: 1/); assert.match(fields, /public_key: \{ type: "bytes", id: 2/);
+  assert.equal((fields.match(/id: \d/g) || []).length, 2, "exactly two fields");
+  const src = fs.readFileSync("bot/sponsor.ts", "utf8");
+  assert.match(src, /vaultLive, v3 \? pobFor\(mainnet\) : undefined\);/, "config sends it on v3");
 });

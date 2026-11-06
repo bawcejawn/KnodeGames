@@ -57,7 +57,7 @@ test("the panel shows every number and last week's top 3 with @names, all as tex
   const p = d.getElementById("stats-panel");
   assert.equal(p.hidden, false);
   const t = p.textContent;
-  for (const want of ["64players this week", "51 last week · 230 wallets all time", "565answers and picks this week", "410 answers · 120 race picks · 35 Block X picks",
+  for (const want of ["64players this week", "51 the week before · 230 wallets all time", "565answers and picks this week", "410 answers · 120 race picks · 35 Block X picks",
     "48,250 VHPstaked in the prize vault", "Daily Questions 40,000 · Block Golf 8,250", "2 + 1 VHPfree prizes every week", "48blocks made by the prize vault", "3 openquestions, answers close in", "41 answers so far", "Updated 20 min ago"]) assert.ok(t.includes(want), `missing "${want}" in ${t}`);
   const qs = [...p.querySelectorAll(".stats-top")][0];
   assert.deepEqual([...qs.querySelectorAll("li")].map((l) => l.textContent), ["#1@alice · 1Nti1Z…zdxz22 points", "#2" + B.slice(0, 6) + "…19 points"]);
@@ -88,6 +88,8 @@ test("C9-3: a file dated in the future is refused; once its week is over the str
   assert.equal((await page(STRIP, ended)).d.getElementById("stats-strip").hidden, true);
   const { d } = await page(PANEL, ended);
   assert.match(d.getElementById("stats-panel").textContent, /These are last week's numbers/);
+  assert.match(d.getElementById("stats-panel").textContent, /players the week just ended/, "tiles say which week (fix-check note)");
+  assert.doesNotMatch(d.getElementById("stats-panel").textContent, /players this week/);
   assert.equal((await page(STRIP, sample({ week: { start: 5, end: 1 } }))).d.getElementById("stats-strip").hidden, true, "a week that ends before it starts");
 });
 test("C9-5: a game name with an invisible or direction character is refused", async () => {
@@ -102,4 +104,11 @@ test("C9-6: a file announced as over 64 KB isn't even downloaded", async () => {
 });
 test("C9-4: the panel calls the all-time number wallets (stakers who never answered count too)", async () => {
   assert.match((await page(PANEL, sample())).d.getElementById("stats-panel").textContent, /230 wallets all time/);
+});
+
+test("fix-check finding 2: the extra invisible characters and look-alike spaces are refused too", async () => {
+  for (const code of [0x00a0, 0x00ad, 0x034f, 0x115f, 0x1160, 0x180e, 0x3000, 0xfff9, 0xfffb]) {
+    const { d } = await page(STRIP, sample({ staked: { total: 48250, games: [{ id: 1, name: "Daily" + String.fromCharCode(code), vhp: 1 }] } }));
+    assert.equal(d.getElementById("stats-strip").hidden, true, code.toString(16));
+  }
 });

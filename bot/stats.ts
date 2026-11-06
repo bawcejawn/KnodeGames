@@ -54,7 +54,7 @@ export type Inputs = {
 };
 /** Characters a game name may not contain: < >, control characters, and invisible or direction-changing ones (Repo
  *  Lens C9-5). The same rule is in stats.js and the publish job. */
-export const BAD_NAME = /[<>\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\u3164]/;
+export const BAD_NAME = /[<>\u0000-\u001f\u007f-\u009f\u00a0\u00ad\u034f\u115f\u1160\u180e\u3000\ufff9-\ufffb\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\u3164]/;
 /** A source counts only if it was made within this long (C9-2): a stalled recorder must not pass for "this week". */
 export const MAX_SOURCE_AGE = 3 * HOUR;
 /** null when a source is missing, unreadable or older than MAX_SOURCE_AGE (by its `updated` or `made` time). */
@@ -160,6 +160,7 @@ export function checkStats(s: any): string | null {
 }
 
 // ═══════════════ the chain (read-only) ═══════════════
+const TIMED_OUT = /^no answer in /;
 function within<T>(p: Promise<T>, ms = CALL_MS): Promise<T> {
   let t: ReturnType<typeof setTimeout>;
   return Promise.race([p, new Promise<T>((_, no) => { t = setTimeout(() => no(new Error(`no answer in ${ms / 1000} s`)), ms); })]).finally(() => clearTimeout(t));
@@ -169,15 +170,18 @@ function within<T>(p: Promise<T>, ms = CALL_MS): Promise<T> {
 export function vaultReader(rpcs: string[]) {
   const abi = JSON.parse(fs.readFileSync(path.join(ROOT, "game/abi/kpred.koilib.json"), "utf8"));
   const fns = rpcs.map((rpc) => new Contract({ id: VAULT, provider: new Provider([rpc]), abi }).functions);
-  // Once a node fails a call, the other one is asked first for the rest of the run (Repo Lens C9-1): a node that holds
-  // requests without answering would otherwise cost 8 s on every call.
-  let first = 0;
+  // Repo Lens C9-1 and its fix-check: a node that once held a request without answering (a timeout) goes to the back
+  // for the rest of the run, so it costs one 8 s wait, not one per call. A node that answers with an error (a 500 or a
+  // 429) is asked once more before the next node, and isn't sent to the back for it.
+  const slow = fns.map(() => false);
   const read = async (fn: string, args: any): Promise<any> => {
     let last: unknown;
-    const from = first;   // this call's order is fixed before it starts
-    for (let k = 0; k < fns.length; k++) {
-      const i = (from + k) % fns.length;
-      try { return (await within(fns[i][fn](args))).result || {}; } catch (e) { last = e; if (i === from) first = (from + 1) % fns.length; }
+    const order = fns.map((_, i) => i).sort((a, b) => Number(slow[a]) - Number(slow[b]) || a - b);   // fixed before the call starts
+    for (const i of order) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try { return (await within(fns[i][fn](args))).result || {}; }
+        catch (e) { last = e; if (TIMED_OUT.test(String((e as Error)?.message ?? e))) { slow[i] = true; break; } }
+      }
     }
     throw last;
   };

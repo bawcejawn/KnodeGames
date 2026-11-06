@@ -128,7 +128,7 @@ import { spawnSync } from "node:child_process";
 test("C9-1: the job exits once stats.json is written, and the reader stops asking a node that failed", () => {
   const src = fs.readFileSync("bot/stats.ts", "utf8");
   assert.match(src, /main\(process\.argv\.slice\(2\)\)\.then\(\(\) => process\.exit\(0\), \(e\) => \{[^}]*process\.exit\(1\); \}\)/);
-  assert.match(src, /const from = first;[\s\S]*if \(i === from\) first = \(from \+ 1\) % fns\.length;/);
+  assert.match(src, /const slow = fns\.map\(\(\) => false\);[\s\S]*if \(TIMED_OUT\.test\(.*\)\) \{ slow\[i\] = true; break; \}/);
   // The real reader against a node that never answers and one that refuses: every call after the first skips the silent one.
   const probe = `
     import http from "node:http";
@@ -175,4 +175,37 @@ test("C9-3 / C9-8: the publish job refuses a stale or future file and a non-inte
   const pub = fs.readFileSync(".github/workflows/stats.yml", "utf8");
   assert.match(pub, /type\(s\["v"\]\) is int and s\["v"\] == 1/);
   assert.match(pub, /abs\(time\.time\(\) - age\) <= 2 \* 3600/);
+});
+
+test("C9-1 fix-check: one error from the working node is retried on that node, never sent back to a silent one", () => {
+  const probe = `
+    import http from "node:http";
+    import { vaultReader } from "${process.cwd()}/bot/stats.ts";
+    let silentHits = 0, okCalls = 0;
+    const silent = http.createServer(() => { silentHits++; }).listen(0);
+    const ok = http.createServer((q, r) => { let b = ""; q.on("data", (c) => b += c); q.on("end", () => {
+      okCalls++;
+      if (okCalls === 3) { r.statusCode = 500; r.end("busy"); return; }
+      r.setHeader("content-type", "application/json"); r.end(JSON.stringify({ jsonrpc: "2.0", id: JSON.parse(b).id, result: { result: "" } })); }); }).listen(0);
+    const v = vaultReader(["http://127.0.0.1:" + silent.address().port, "http://127.0.0.1:" + ok.address().port]);
+    const t0 = Date.now(); const done = [];
+    for (let i = 0; i < 6; i++) { await v.games(); done.push(Date.now() - t0); }
+    console.log("RESULT", JSON.stringify({ silentHits, done })); process.exit(0);`;
+  const r = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", probe], { encoding: "utf8", timeout: 40000 });
+  const m = r.stdout.match(/RESULT (.*)/);
+  assert.ok(m, r.stderr.slice(0, 300));
+  const { silentHits, done } = JSON.parse(m[1]);
+  assert.equal(silentHits, 1, "the silent node is asked once in the whole run");
+  assert.ok(done[5] - done[0] < 3000, `after the first 8 s wait, the rest (including the 500) take no more waits: ${done}`);
+});
+
+test("fix-check finding 2: BAD_NAME also refuses the soft hyphen, combining and filler marks, look-alike spaces and FFF9-FFFB", () => {
+  for (const code of [0x00a0, 0x00ad, 0x034f, 0x115f, 0x1160, 0x180e, 0x3000, 0xfff9, 0xfffa, 0xfffb]) assert.ok(BAD_NAME.test("Golf" + String.fromCharCode(code)), code.toString(16));
+  assert.ok(!BAD_NAME.test("Daily Questions"), "an ordinary space is fine");
+  const pub = fs.readFileSync(".github/workflows/stats.yml", "utf8");
+  const BS = String.fromCharCode(92);
+  for (const c of ["00a0", "00ad", "034f", "115f", "1160", "180e", "3000", "fff9"]) {
+    assert.ok(pub.includes(BS + "u" + c), "publish job " + c);
+    assert.ok(fs.readFileSync("stats.js", "utf8").includes(BS + "u" + c), "stats.js " + c);
+  }
 });

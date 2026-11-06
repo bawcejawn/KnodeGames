@@ -15,7 +15,7 @@
   const MIN = { staked: 1000, players: 20, plays: 100 };
 
   // Game names: the same rule as bot/stats.ts BAD_NAME and the publish job (Repo Lens C9-5).
-  const BAD_NAME = /[<>\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\u3164]/;
+  const BAD_NAME = /[<>\u0000-\u001f\u007f-\u009f\u00a0\u00ad\u034f\u115f\u1160\u180e\u3000\ufff9-\ufffb\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\u3164]/;
   const int = (n) => Number.isInteger(n) && n >= 0 && n < 1e9;
   const num = (n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n < 1e12;
   /** The file's shape, or null. */
@@ -64,6 +64,8 @@
   const left = (ms) => { const m = Math.max(1, Math.round(ms / 60000)), h = Math.floor(m / 60); return h ? `${h}h ${m % 60}m` : `${m}m`; };
   const who = (a) => (window.KNames && typeof window.KNames.of === "function" ? window.KNames.of(a) : `${a.slice(0, 6)}…${a.slice(-4)}`);
 
+  /** "this week", or once its week is over (the file not yet replaced), "the week just ended" (Repo Lens #C-9 fix-check). */
+  const weekWord = (s, now) => (now >= s.week.end ? "the week just ended" : "this week");
   /** The strip's facts, strongest first: [value, label]. Free prizes always qualify. */
   function stripFacts(s, now = Date.now()) {
     const out = [];
@@ -105,8 +107,8 @@
     head.append(el("h2", null, "Knode Games right now"), el("small", null, `Updated ${ago(s.updated, now)}`));
     const tiles = el("div", "stats-tiles");
     tiles.append(
-      tile(fmt(s.players.week), "players this week", `${fmt(s.players.lastWeek)} last week · ${fmt(s.players.allTime)} wallets all time`),
-      tile(fmt(s.plays.total), "answers and picks this week", `${fmt(s.plays.answers)} answers · ${fmt(s.plays.racePicks)} race picks · ${fmt(s.plays.blockxPicks)} Block X picks`),
+      tile(fmt(s.players.week), `players ${weekWord(s, now)}`, `${fmt(s.players.lastWeek)} the week before · ${fmt(s.players.allTime)} wallets all time`),
+      tile(fmt(s.plays.total), `answers and picks ${weekWord(s, now)}`, `${fmt(s.plays.answers)} answers · ${fmt(s.plays.racePicks)} race picks · ${fmt(s.plays.blockxPicks)} Block X picks`),
       tile(`${vhpText(s.staked.total)} VHP`, "staked in the prize vault", s.staked.games.length ? s.staked.games.map((g) => `${g.name} ${vhpText(g.vhp)}`).join(" · ") : null),
       tile("2 + 1 VHP", "free prizes every week", "for the 2 best free players"),
     );

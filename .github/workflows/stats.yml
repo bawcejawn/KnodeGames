@@ -120,7 +120,7 @@ jobs:
           for g in st["games"]:
               assert set(g) == {"id", "name", "vhp"} and i(g["id"]) and type(g["name"]) is str and len(g["name"]) <= 40 and num(g["vhp"]), "staked game"
               # the same rule as bot/stats.ts BAD_NAME and stats.js (Repo Lens C9-5); written as \u codes, no raw invisible characters
-              assert g["name"] and not re.search(r"[<>\x00-\x1f\x7f-\x9f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\u3164]", g["name"]), "game name"
+              assert g["name"] and not re.search(r"[<>\x00-\x1f\x7f-\x9f\u00a0\u00ad\u034f\u115f\u1160\u180e\u3000\ufff9-\ufffb\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\u3164]", g["name"]), "game name"
           assert s["prizes"] == {"free": [2, 1]}, "prizes"
           assert set(s["blocks"]) == {"vault24h"} and (s["blocks"]["vault24h"] is None or i(s["blocks"]["vault24h"])), "blocks"
           t = s["today"]

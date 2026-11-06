@@ -26,7 +26,7 @@
  * SCORING A PICK
  * - A pick on the winner scores a win (3 points); a pick on the horse that finishes 2nd or 3rd scores a show (1 point).
  *
- * RACE TYPES (owner, 5 Nov 2026, D-161; Race contract v2, which takes race = type * 2^56 + index)
+ * RACE TYPES (owner, 5 Nov 2026, D-161; Race contract v2, which takes race = type * 2^48 + index)
  * - Type 0 is the 6-hour race above, unchanged. Types 1-4 run around the clock beside it: the 1-hour race (every hour),
  *   the 2-hour race (every even hour), the daily race (each UTC day) and the weekly race (Monday 00:00 to Sunday 00:00
  *   UTC, the play week). Points: 1- and 2-hour win 2 / show 1; 6-hour 3 / 1; daily 6 / 2; weekly 12 / 4. All count on
@@ -118,6 +118,9 @@
    *  The owner sets it with the upload (D-161); until then the recorder, the publish job and the page show only the
    *  6-hour race. */
   const TYPES_FROM_WEEK = null;
+  /** Repo Lens #D-14 N-2: false until R-RACE-18 is done (the T file split; verified hours and races kept across runs;
+   *  a timed slow-node re-check test). Only that PR may set it to true; a test refuses TYPES_FROM_WEEK until then. */
+  const TYPES_READY = false;
 
   // ── seeded random numbers ──
   function rng(seed) {
@@ -273,7 +276,7 @@
   root.KRaceMath = {
     HOUR, RACE, LEG, LEGS, DAY, WEEK, GENESIS, MIN_K, SEED, TRIALS,
     raceIndex, raceStart, raceId, parseRaceId, raceAt, legOf, legsOf, weekOf, weekStart, dayOf, RHYTHM_FROM_WEEK, restRace, playEnd,
-    TYPES, TYPES_FROM_WEEK, WEEK_OFFSET, contractRace, typedIndex, typedStart, typedId, parseTypedId, typedRace, typedRacesIn, pointsOf, typeCard, ledgerStandings, ledgerLine,
+    TYPES, TYPES_FROM_WEEK, TYPES_READY, WEEK_OFFSET, contractRace, typedIndex, typedStart, typedId, parseTypedId, typedRace, typedRacesIn, pointsOf, typeCard, ledgerStandings, ledgerLine,
     rng, handicapOf, winChances, calibrate, makeCard, cardForLeg, finishLine, standings, winners, shows, POINTS, track, LIVE_MAX, lowerBound,
   };
 })(typeof window !== "undefined" ? window : globalThis);

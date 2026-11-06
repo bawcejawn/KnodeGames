@@ -206,7 +206,8 @@ jobs:
           for _root, _dirs, _files in os.walk(d):
               if os.path.relpath(_root, d).split(os.sep)[0] == "vault": continue   # checked below, on its own (blind review V1)
               for _f in _files:
-                  if _f.endswith(".json"):
+                  # Repo Lens #D-14 N-1: T files are checked on their own (check_types), so a bad one is held alone.
+                  if _f.endswith(".json") and not (_root == d and re.fullmatch(r"T[0-9]{3}\.json", _f)):
                       assert js_safe(json.load(open(os.path.join(_root, _f), encoding="utf-8"))), "a value the recorder (JavaScript) can't read back exactly: " + _f
           def card_ok(c):
               # Audit BX-44: exact keys (cards feed Block X's scores). "samples" (how many VHP samples it used) is new.
@@ -421,6 +422,8 @@ jobs:
               if not same(j["first"], want_first) or not same(j["second"], want_second): return "its free-prize winners aren't what the week's picks and the board give"
               return ""
           def check_types(f, j):
+              # Repo Lens #D-14 N-1: first, values the recorder (JavaScript) reads back exactly (no 2^53, 1e+21, deep nesting).
+              assert js_safe(j), f + ": a value the recorder (JavaScript) can't read back exactly"
               # D-161: the race types' week file: the hour ledger and the week's 260 races of types 1-4.
               assert j["week"] >= TYPES_FROM if type(j) is dict and type(j.get("week")) is int else False, f + ": race types aren't on for that week (TYPES_FROM)"
               import datetime
@@ -497,7 +500,7 @@ jobs:
                           held_out()
                           os.remove(os.path.join(d, f, g))
                   continue
-              j = json.load(open(os.path.join(d, f), encoding="utf-8"))
+              j = None if re.fullmatch(r"T[0-9]{3}\.json", f) else json.load(open(os.path.join(d, f), encoding="utf-8"))
               if f == "board.json":
                   assert set(j) == {"v", "updated", "today", "week", "lastWeek", "allTime"} and one(j["v"]), f
                   assert all(rows_ok(j[k]) for k in ("today", "week", "allTime")) and (j["lastWeek"] is None or rows_ok(j["lastWeek"])), f
@@ -520,7 +523,9 @@ jobs:
                   # an alert), so the race types can never stop the 6-hour race's files, the board or the vault. Checked
                   # before everything else (the sort below), so the vault recount then reads the published T, which a
                   # board that counted the held results won't match: the vault holds (fails closed).
-                  try: check_types(f, j)
+                  try:
+                      j = json.load(open(os.path.join(d, f), encoding="utf-8"))
+                      check_types(f, j)
                   except Exception as e:
                       print("::error::" + f + " (race types) held, not published this run: " + re.sub(r"[^A-Za-z0-9 ./:,_()'-]", "?", str(e))[:300] + " (the 6-hour race files still publish; Repo Lens #D-13 M-3)")
                       held_out()

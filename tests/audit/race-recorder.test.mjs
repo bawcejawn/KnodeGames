@@ -1890,6 +1890,10 @@ test("D-161, publish job: a recorder's T file publishes; a changed ledger hour, 
     ["counts that don't add up", (tf) => { tf.hours.push({ ...tf.hours[1], t: tf.hours[1].t + H, n: { [P[0]]: 999999 } }); }, /T002\.json/],
     // L-8: the ledger's heights run on, and a scored race's standings are the ledger's counts.
     ["heights that don't run on", (tf) => { tf.hours.push({ t: tf.hours[1].t + H, a: tf.hours[1].b + 5, b: tf.hours[1].b + 5, n: { [P[0]]: 1 }, l: { [P[0]]: tf.hours[1].t + H + 1 }, c: [1, 1, 1, 1] }); }, /heights don't run on/],
+    // Repo Lens #D-14 N-1: canonical JSON the recorder can't read back exactly is held alone too.
+    ["an integer of 2^53", (tf) => { tf.hours[0].a = 9007199254740992; }, /can't read back exactly/],
+    ["1e+21", (tf) => { tf.hours[0].c[0] = 1e21; }, /can't read back exactly/],
+    ["nesting 70 deep", (tf) => { let x = []; for (let i = 0; i < 70; i++) x = [x]; tf.races[0].result = { final: false, deep: x }; }, /can't read back exactly/],
     ["standings that aren't the ledger's", (tf) => { const r = tf.races.find((x) => x.result?.final && x.type === 2); r.result.standings[0].blocks += 1; }, /standings aren't the ledger's counts|a published final result would change/],
   ];
   for (const [what, f, why] of cases) {
@@ -1920,6 +1924,11 @@ test("Repo Lens #D-13 L-2 / L-3: a typed week's vault file goes final only with 
   // Before TYPES_FROM the T file isn't read at all: a board that counted typed points is held.
   const early = await recomputeRun(pl, { typed, rhythmFrom: "0", typesFrom: "3" });
   assert.equal(early.final, false); assert.match(early.out, /board's last week doesn't match the week's picks/);
+});
+
+test("Repo Lens #D-14 N-2: the race types can't be switched on before R-RACE-18 (TYPES_READY)", () => {
+  assert.equal(typeof M.TYPES_READY, "boolean");
+  if (!M.TYPES_READY) assert.equal(M.TYPES_FROM_WEEK, null, "TYPES_FROM_WEEK stays null until the R-RACE-18 PR sets TYPES_READY");
 });
 
 test("Repo Lens #D-13 L-2: the publish job's race-types switch is off while TYPES_FROM_WEEK is null, and the workflow never sets the test value", () => {

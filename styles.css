@@ -798,3 +798,25 @@ body[data-view="welcome"] .foot .eco { display: none; }
 /* Welcome: a play button on the first screen (launch UI research item 5). */
 .welcome-actions-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 .welcome-note { font-size: .95rem; color: var(--muted); }
+
+/* Live stats (stats.js): a strip on the home page's first screen, the full panel on the games page. */
+.stats-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.stats-fact { display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: .95rem; color: var(--muted); }
+.stats-fact b { color: var(--ink); font-family: var(--num); font-variant-numeric: tabular-nums; }
+.stats-panel { margin: 18px 0 6px; padding: 16px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }
+.stats-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.stats-head h2 { font-size: 1.15rem; }
+.stats-head small, .stats-tile small, .stats-none { color: var(--muted); font-size: .9rem; }
+.stats-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.stats-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: var(--r-sm); background: var(--paper); }
+.stats-tile b { font: 800 1.35rem/1.15 var(--num); font-variant-numeric: tabular-nums; color: var(--ink); }
+.stats-tile > span { font-size: .95rem; color: var(--ink); }
+.stats-lw { margin-top: 16px; font-size: 1rem; }
+.stats-tops { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 8px; }
+.stats-top { padding: 10px 12px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+.stats-top h3 { font-size: .95rem; margin-bottom: 6px; }
+.stats-top ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.stats-top li { display: grid; grid-template-columns: 2.2em minmax(0, 1fr) auto; gap: 6px; align-items: baseline; font-size: .95rem; }
+.stats-place { font-weight: 800; color: var(--violet); }
+.stats-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats-pts { color: var(--muted); font-variant-numeric: tabular-nums; }

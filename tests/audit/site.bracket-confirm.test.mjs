@@ -135,3 +135,27 @@ test("fix-check RC-3: a KOIN Vault request still open is never reported as cance
   assert.match(p.modalText(), /still open in your wallet/i, "no second send while the first may still be approved");
   assert.equal(p.button("Confirm in wallet"), undefined);
 });
+
+test("fix-check 2 W-1: the lock survives a reload, lasts until KOIN Vault's own expiry, and a lost answer locks too", async () => {
+  const until = SUNDAY + 45 * 60000;
+  const p = await openPage({ now: SUNDAY });
+  p.w.KWallet.send = async () => { throw Object.assign(new Error("Still waiting in KOIN Vault. Approve or reject it there; don't send it again from here."), { openUntil: until }); };
+  await p.fill(); await p.review(); await p.confirm();
+  const key = Object.keys(p.w.localStorage).find((k) => k.startsWith("kb-open-request:"));
+  assert.ok(key && key.includes(ALICE), "kept in localStorage for this account");
+  assert.equal(Number(p.w.localStorage.getItem(key)), until, "until KOIN Vault's expiry, not a fixed 10 min");
+  // a reload: a fresh page in the same browser storage
+  const q = await openPage({ now: SUNDAY + 20 * 60000 });
+  q.w.localStorage.setItem(key, p.w.localStorage.getItem(key));
+  await q.fill(); await q.review();
+  assert.match(q.modalText(), /still open in your wallet/i, "a reloaded page still won't send");
+  assert.equal(q.button("Confirm in wallet"), undefined);
+  // a lost answer ("Failed to fetch") locks as well
+  const r = await openPage({ now: SUNDAY });
+  r.w.KWallet.send = async () => { throw new TypeError("Failed to fetch"); };
+  await r.fill(); await r.review(); await r.confirm();
+  assert.match(r.modalText(), /may still go through/);
+  r.button("OK").click(); await flush(r.w);
+  await r.fill(); await r.review();
+  assert.match(r.modalText(), /still open in your wallet/i);
+});

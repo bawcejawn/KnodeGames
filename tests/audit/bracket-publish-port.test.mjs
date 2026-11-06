@@ -47,7 +47,7 @@ function randomWeek(k) {
       w[a] = rnd() < 0.05 ? 0 : Math.round(vhp[i] * 1e8 * (0.3 + rnd()));          // some start under half (forfeits)
       rr[a] = Math.round(b * 1e7 / Math.max(1, vhp[i]) * (0.5 + rnd()) * 1e9) / 1e9;
       av[a] = Math.round(vhp[i] * 1e8 * (low[r][i] ? low[r][i] * (0.95 + 0.1 * rnd()) : 0.6 + rnd()));
-      if (big && low[r][i]) av[a] = Number(BigInt(Math.round(vhp[i] * 100)) * 1000000n / 2n) - (h === 0 && i % 2 ? 1 : 0);
+      if (big && low[r][i]) av[a] = Number(BigInt(Math.round(vhp[i] * 100)) * 1000000n / 2n) + (h === 0 ? [0, -1, 1][i % 3] : 0);   // exactly half, half − 1 sat, half + 1 sat (fix-check 2 T-1)
     }
     if (rnd() < 0.03) for (const a of seeds) { by[a] = 0; cr[a] = 0; rr[a] = 0; }     // an hour nobody signed
     if (tieWeek) for (const a of seeds) { by[a] = 1; cr[a] = 1; rr[a] = 1; av[a] = vhp[0] * 1e8; w[a] = vhp[0] * 1e8; }   // dead heats

@@ -40,7 +40,7 @@ function week(w, status, { reread = true, held = status === "final" } = {}) {
     h0 += n; return hr;
   }));
   const rows = [0, 1, 2, 3].map((i) => [A(i), [0, 5, 77, 127][i], B.lockTime(w) - HOUR - i * 3000, 1]).sort((x, y) => (x[0] < y[0] ? -1 : 1));
-  const wf = { v: B.FILE_V, week: w, start: B.weekStart(w), end: B.weekStart(w + 1), status, seeding, picks: { checked: 2, rows }, days, results: null, points: [],
+  const wf = { v: B.FILE_V, week: w, start: B.weekStart(w), end: B.weekStart(w + 1), status, seeding, picks: { checked: 2, rows, re: 1 }, days, results: null, points: [],
     staked: { checked: 2, list: [A(0), A(1)].sort(), ...(held ? { held: [A(0), A(1)].sort() } : {}) } };
   const sc = rec.scoreWeek(wf); wf.results = sc.results; wf.points = sc.points;
   return wf;
@@ -132,7 +132,7 @@ test("F2: only the Knode Games Pool may be pooled (never forfeits)", () => {
 test("F3: picks are two-node, first recorded within 3 h of the lock, and never change", () => {
   const before = week(W, "locked"); before.picks = null; before.results = null; before.points = []; before.staked = null; before.status = "open"; for (const d of before.days) d.fill(null);
   const pub = { "W003.json": before, "index.json": index([3]) };
-  const lockedNow = () => { const x = week(W, "locked"); x.staked = null; for (const d of x.days) d.fill(null); const sc = rec.scoreWeek(x); x.results = sc.results; x.points = sc.points; return x; };
+  const lockedNow = () => { const x = week(W, "locked"); x.staked = null; delete x.picks.re; for (const d of x.days) d.fill(null); const sc = rec.scoreWeek(x); x.results = sc.results; x.points = sc.points; return x; };
   assert.ok(ok(check(pub, { "W003.json": lockedNow(), "index.json": index([3]) }, B.lockTime(W) + 3600000)), "control: an hour after the lock");
   assert.ok(!ok(check(pub, { "W003.json": lockedNow(), "index.json": index([3]) }, B.lockTime(W) + 5 * 3600000)), "first recorded 5 h after the lock");
   assert.ok(withEnv({ BRACKET_RELEASE: "3" }, () => ok(check(pub, { "W003.json": lockedNow(), "index.json": index([3]) }, B.lockTime(W) + 5 * 3600000))), "…unless the owner released week 3");

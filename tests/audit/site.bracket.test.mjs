@@ -445,7 +445,11 @@ test("the page: scripts in order, the shared board, reads only the bracket files
   assert.match(js, /new URL\("picks-data\/deployment\.json", ROOT\)/);
 });
 test("the page builds everything with textContent and sends one thing: a pick of game 9 as one number", () => {
-  assert.doesNotMatch(js, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|localStorage|sessionStorage|indexedDB/);
+  // fix-check 2 W-1: the one thing kept in browser storage is the open-wallet-request lock (per account and week)
+  const stored = js.match(/localStorage\.\w+\([^)]*\)?/g) || [];
+  assert.deepEqual([...new Set(stored.map((x) => x.replace(/\(.*/, "")))].sort(), ["localStorage.getItem", "localStorage.setItem"], "storage only for the request lock");
+  assert.ok(stored.every((x) => /\(openKey\(/.test(x)), "only under the kb-open-request key: " + stored.join(" | "));
+  assert.doesNotMatch(js, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|sessionStorage|indexedDB/);
   const sends = [...js.matchAll(/W\.send\(/g)]; assert.equal(sends.length, 1, "one send");
   assert.match(js, /picksContract\.functions\.pick\(\{ player: frozen\.account, game: BM\.GAME_ID, round: String\(BM\.picksRound\(wk\)\), producers: \[\], number: String\(n\) \}, \{ onlyOperation: true \}\)/);
   const calls = new Set([...js.matchAll(/picksContract\.functions\.([a-z_]+)/g)].map((m) => m[1]));

@@ -12,7 +12,7 @@ import path from "node:path";
 
 const APP = process.env.APP || ".";
 const rec = await import(path.resolve(APP, "bot/games/bracket.ts"));
-const { scoreWeek, vaultRows, freeWinners } = rec;
+const { scoreWeek, vaultRows, freeWinners, releaseFromEnv } = rec;
 // The Vault's stakes: unless a test says otherwise, every player is staked in the Bracket
 const run = (o) => rec.run({ stakedOf: async (_n, players) => players, ...o });
 const M = globalThis.KRaceMath, B = globalThis.KBracketMath;
@@ -200,6 +200,11 @@ test("a whole week: hours irreversible only, re-read in a later run, results equ
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.weekStart(W + 1) + 0.5 * H), ...o }));
   assert.equal(readW(dir).status, "locked", "the end-of-week stakes are read, but count only once a later run reads them the same (F1)");
   assert.ok(readW(dir).staked.held);
+  assert.equal(readW(dir).picks.re, 1, "the picks were read again by a later run (fix-check 2 PK-1)");
+  // fix-check 2 R-1: while BRACKET_RELEASE names the week it never goes final
+  const rel = tmp(); fs.cpSync(dir, rel, { recursive: true });
+  const rr = await quiet(() => run({ p: "main", check: "check", prev: rel, out: rel, head: headAt(B.weekStart(W + 1) + 0.6 * H), ...o, release: new Set([W]) }));
+  assert.equal(readW(rel).status, "locked"); assert.ok(rr.problems.some((p) => /BRACKET_RELEASE names this week/.test(p)), JSON.stringify(rr.problems));
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.weekStart(W + 1) + 0.6 * H), ...o }));
   wf = readW(dir); assert.equal(wf.status, "final"); assert.ok(wf.staked.held, "the stakes read after the week ended");
   // after final, a different chain changes nothing
@@ -678,4 +683,42 @@ test("F4: an hour that reads differently later is held; under BRACKET_RELEASE th
   assert.equal(fixed.q, wf.days[0][1].q - 1, "the chain's reading is back"); assert.equal(fixed.re, undefined, "not counted until read again");
   await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(RD(0) + 3 * H), ...o }));
   assert.equal(readW(d).days[0][1].re, 1);
+});
+
+// ── fix-check 2 (PR #186 @ 8d3d942f) ──
+test("PK-1 / PK-2: picks count only once a later run reads them the same; a different read is held, replaced only under release before round 1's first hour", async () => {
+  const field = fieldOf(17);
+  let cur = [{ player: P(1), number: 0, time: 1 }];
+  const o = { picksContract: addr(60), nodeOf: nodeOf(signerFn(field)), picksOf: async (n, r) => picksOf(cur)(n, r) };
+  const d = await lockedWeek(o);
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + H), ...o }));
+  assert.equal(readW(d).picks.rows.length, 1); assert.equal(readW(d).picks.re, undefined, "first read: not counted yet");
+  assert.equal(readW(d).staked, null, "no stakes are read for unconfirmed picks");
+  cur = [...cur, { player: P(2), number: 5, time: 2 }];   // a later reading differs (a forged first run dropped P(2))
+  const r = await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 2 * H), ...o }));
+  assert.ok(r.problems.some((p) => /picks read differently/.test(p)), JSON.stringify(r.problems)); assert.equal(readW(d).picks.rows.length, 1);
+  const late = tmp(); fs.cpSync(d, late, { recursive: true });
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 3 * H), ...o, release: new Set([W]) }));
+  assert.equal(readW(d).picks.rows.length, 2, "replaced under release"); assert.equal(readW(d).picks.re, undefined, "…and read again before it counts");
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 4 * H), ...o }));
+  assert.equal(readW(d).picks.re, 1);
+  // PK-2: after round 1's first hour, not even a release replaces them (every result could be known)
+  const r2 = await quiet(() => run({ p: "main", check: "check", prev: late, out: late, head: headAt(B.roundDay(W, 0, 16) + 2 * H), ...o, release: new Set([W]) }));
+  assert.equal(readW(late).picks.rows.length, 1); assert.equal(readW(late).picks.re, undefined);
+  assert.ok(r2.problems.some((p) => /round 1's first hour/.test(p)), JSON.stringify(r2.problems));
+  // never confirmed → void at the backstop
+  await quiet(() => run({ p: "main", check: "check", prev: late, out: late, head: headAt(B.weekStart(W + 1) + 3 * DAY + H), ...o }));
+  assert.equal(readW(late).status, "void"); assert.match(readW(late).void, /picks could not be confirmed/);
+});
+
+test("S-1: a seeding that reads differently after its 24 hours is never replaced, even under release (the publish job would refuse it)", async () => {
+  const d = tmp(), o = { picksContract: addr(60), picksOf: picksOf([]) };
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), ...o, nodeOf: nodeOf(signerFn(fieldOf(17))) }));
+  const r = await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + 27 * H), ...o, nodeOf: nodeOf(signerFn(fieldOf(40))), release: new Set([W]) }));
+  assert.equal(readW(d).seeding.size, 16, "not replaced"); assert.ok(r.problems.some((p) => /24 hours are over/.test(p)), JSON.stringify(r.problems));
+});
+
+test("I-1: BRACKET_RELEASE takes plain week numbers only (no other whitespace), like the publish job", () => {
+  assert.deepEqual([...releaseFromEnv(" 3, 4 ")], [3, 4]);
+  for (const v of ["\uFEFF3", "3\u001c", "3\t", "\u00a03", "3,", "x"]) assert.deepEqual([...releaseFromEnv(v)], [], JSON.stringify(v));
 });

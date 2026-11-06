@@ -270,8 +270,24 @@
   let checking = null;          // { n, account, week, seeds } frozen when "Check your bracket" opens (#E-3 C-2)
   // fix-check RC-3: a wallet request that may still be approved (KOIN Vault keeps it open after its window closes).
   // While one is open, no other bracket is sent from this page: if the old one were approved last, it would win.
+  // Fix-check 2 W-1: the lock is kept in localStorage per account and week (a reload or a second tab sees it), lasts until
+  // KOIN Vault's own expiry of the request when the wallet knows it (else OPEN_REQUEST_MS), and is also set when the answer
+  // to a send was lost on the network (the request or transaction may still go through). The Picks contract keeps the LAST
+  // pick, so an older request approved last would replace the newer bracket.
   let openRequestUntil = 0;
-  const OPEN_REQUEST_MS = 10 * 60000;
+  const OPEN_REQUEST_MS = 30 * 60000, OPEN_REQUEST_MAX = 2 * 3600000;
+  const openKey = (a, w) => `kb-open-request:${a}:${w}`;
+  function openLockUntil(a, w) {
+    let t = 0;
+    try { t = Number(localStorage.getItem(openKey(a, w))) || 0; } catch { /* storage blocked: the in-page lock below */ }
+    return Math.max(t, openRequestUntil);
+  }
+  function setOpenLock(a, w, e) {
+    const now = Date.now(), x = e && Number(e.openUntil);
+    const until = Number.isFinite(x) && x > now ? Math.min(x, now + OPEN_REQUEST_MAX) : now + OPEN_REQUEST_MS;
+    try { localStorage.setItem(openKey(a, w), String(until)); } catch { /* the in-page lock still holds */ }
+    return until;
+  }
   async function chainNow() {
     try { const h = await provider.getHeadInfo(); const t = Number(h && h.head_block_time); if (Number.isFinite(t) && t > 0) return t; } catch { /* below */ }
     return Date.now();
@@ -279,7 +295,8 @@
   function review() {
     const n = draftNumber(), who = me(), s = seeding();
     if (n === null || !who || !picksContract || !s) return;
-    if (Date.now() < openRequestUntil) return pop("info", "A bracket request is still open in your wallet", ["Approve or reject it in KOIN Vault first. If you approve it, that bracket is the one that counts; this page shows it once it's on the chain. You can send a new one after it's settled, or in a few minutes."], [btn("OK", close)]);
+    const lockedUntil = openLockUntil(who, view);
+    if (Date.now() < lockedUntil) return pop("info", "A bracket request is still open in your wallet", [`Approve or reject it in your wallet first. If it goes through, that bracket is the one that counts; this page shows it once it's on the chain. You can send a new one after it's settled, or after ${dayTime(lockedUntil)}.`], [btn("OK", close)]);
     if (BM.lockTime(view) - Date.now() < LOCK_MARGIN) return pop("bad", "Too close to the lock", [`Brackets lock ${dayTime(BM.lockTime(view))}. This one can't make it in time.`], [btn("OK", close)]);
     const frozen = { n, account: who, week: view, seeds: s.seeds.join(","), size: s.size };
     pop("info", "Check your bracket", [...summaryOf(n, s),
@@ -315,9 +332,10 @@
       const m = String((e && e.message) || e);
       // fix-check RC-3: "still waiting" (the window was closed) and "no answer in time" mean the request may still be
       // approved in KOIN Vault: never "Cancelled … Nothing was sent"
-      if (/still waiting|no answer from koin vault|check the wallet before trying again/i.test(m)) {
-        openRequestUntil = Date.now() + OPEN_REQUEST_MS;
-        return pop("info", "Still open in your wallet", ["Your bracket request is still open in KOIN Vault: approve or reject it there. Don't send another bracket until it's settled; this page shows it once it's on the chain."], [btn("OK", close)]);
+      if (/still waiting|no answer from koin vault|check the wallet before trying again|failed to fetch|networkerror|network error|load failed/i.test(m)) {
+        openRequestUntil = setOpenLock(frozen.account, wk, e);   // localStorage, per account and week (fix-check 2 W-1)
+        return pop("info", "Still open in your wallet", [/koin vault/i.test(m) ? "Your bracket request is still open in KOIN Vault: approve or reject it there." : "The connection dropped while sending, so this bracket may still go through.",
+          `Don't send another bracket until it's settled (this page waits until ${dayTime(openRequestUntil)}); it shows here once it's on the chain.`], [btn("OK", close)]);
       }
       const why = /locked/i.test(m) ? "Brackets are locked: they close Monday 23:55 UTC."
         : /not open yet/i.test(m) ? "Picks for this week aren't open yet (they open at the seeding, Sunday 00:00 UTC)."

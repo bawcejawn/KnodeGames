@@ -10,7 +10,7 @@ Timing follows `.ai/standards/WEEK_CYCLE.md`; the recorder follows `.ai/standard
 | When | What |
 |---|---|
 | Sunday 00:00 (before the week) | **Seeding**: every producer's exact effective VHP averaged over the 28,800 blocks before; each producer's seeding VHP is the **lower** of that and its average at the last seeding up to 4 weeks back, **0 if it wasn't there** (#E-3 M-6, fix-check RC-1; only the very first bracket uses today's average alone); the field = producers expected to sign ≥ 10 blocks in a 6-hour race on that VHP; biggest = seed 1. It counts only once a **later run reads it again** on both nodes and finds the same (fix-check F2). Picks open. Not seeded within 24 h → the week is void. |
-| Monday 23:55 | Picks lock (Picks `lead` 5 min, `ahead` **46 h** recommended so picks open after the seeding is published (fix-check RC-6; the recorder accepts ≤ 48 h), TIME lock, `round_size` 7 days, target = Tuesday 00:00, round = week + 2,963). Picks are recorded from two nodes within **3 h of the lock**, or the week closes at the backstop (fix-check F3, RC-4). |
+| Monday 23:55 | Picks lock (Picks `lead` 5 min, `ahead` **46 h** recommended so picks open after the seeding is published (fix-check RC-6; the recorder accepts ≤ 48 h), TIME lock, `round_size` 7 days, target = Tuesday 00:00, round = week + 2,963). Picks are recorded from two nodes within **3 h of the lock**, or the week closes at the backstop (fix-check F3, RC-4). Like hours, they count only once a **later run reads them the same** (`picks.re`); stakes are read and the week goes final only after that (fix-check 2 PK-1). |
 | one round a day, final Saturday | **32** (32+ producers) Tue–Sat; **16** (16–31) Wed–Sat; **8** (8–15) Thu–Sat; under 8 → no bracket. No byes. Capped at 32 so the bracket fits one Picks number (31 matchups). |
 | Sunday | Review day: every recorded hour is read again on both nodes in a later run (the two-run rule); results are **pending**. Picks for the next week open. |
 | Monday 00:00 (after the week) | Final, once every result is in, every hour is re-read, and the Vault's end-of-week stakes have read **the same in two runs** on both nodes (fix-check F1). Not done by **Thursday 00:00** → closed without a vault file (`vault: "missed"`, or void if the results never completed). |
@@ -98,11 +98,25 @@ Timing follows `.ai/standards/WEEK_CYCLE.md`; the recorder follows `.ai/standard
 | F9 shared job | the Bracket records in its own job and artifact |
 | RC-1 fresh address | missing from the last seeding → 0 |
 | RC-2 throwing | disclosed (above, page) |
-| RC-3 open KOIN Vault request | reported as still open, and no new send for 10 minutes |
+| RC-3 open KOIN Vault request | reported as still open, and no new send while it may still be approved (see W-1 below) |
 | RC-4 picks never recorded | void at the backstop |
 | RC-6 bots first | `ahead` 46 h recommended |
 | F8 (Low) | the vault bot skips rows it can't post; our rows use the same stake rule, so a skip means a stake changed on chain: Vault chat to confirm |
 | B-3 (Low) | single values > 2^53 satoshi need a producer with ~90M VHP: more than all VHP that exists; refused (held) if ever |
+
+## Fix-check 2 of 5 Nov (at 8d3d942f) and how each finding is closed
+| Finding | Closed by |
+|---|---|
+| PK-1 picks a one-run fact (High) | the two-run rule for picks: a later run's equal two-node reading adds `picks.re`; stakes, final and the vault file need it; unconfirmed by the backstop → void |
+| PK-2 late picks under release | picks (first or replacement) never after round 1's first hour, release or not |
+| R-1 release + two forged runs | no final (so no vault file) while `BRACKET_RELEASE` names the week: every replaced item is read again by a run outside the release first. **Clear the variable before the week can close.** |
+| F9-1 one download folder | the Bracket's artifact downloads to its own folder; only its `bracket/` folder is taken; anything else in it holds the Bracket (alert) and never reaches Block X; Bracket files in Block X's artifact are dropped |
+| S-1 late seeding repair | the recorder never replaces a seeding after its 24 h (as the job); a failing week file is held on its own (with its vault file and the board), not every Bracket file |
+| W-1 KOIN Vault double send | the page's lock is kept in browser storage per account and week, lasts until KOIN Vault's own expiry of the request (else 30 min), and is also set when a send's answer was lost on the network |
+| FL-1 field line | field membership in whole cents (7200 × cents ≥ 10 × total cents) on both sides |
+| P-2 big VHP | the job checks hundredths on the number's text, not v × 100 |
+| I-1 release parser | plain spaces and digits only, the same on both sides; never crashes the job |
+| T-1 | the port test also runs half + 1 sat |
 
 ## Leaderboards (leaderboard standard)
 - Rows `{a, place, boardPlace, pts, champion, correct, ranked, earns}`: places on the player's own board (ties share);

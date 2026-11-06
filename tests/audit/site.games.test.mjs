@@ -19,7 +19,7 @@ test("games.json: known kinds and statuses, plain text, live games link to this 
     assert.doesNotMatch(g.name + g.line, /[<>]/, `${g.id}: plain text`);
     if (g.status === "live" && g.href.includes(".html")) assert.ok(fs.existsSync(`${APP}/${g.href.split("#")[0]}`), `${g.id}: page exists`);
   }
-  assert.deepEqual(games.filter((g) => g.status === "live").map((g) => g.id).sort(), ["blockx", "questions", "race"]);
+  assert.deepEqual(games.filter((g) => g.status === "live").map((g) => g.id).sort(), ["blockx", "golf", "questions", "race"]);
 });
 
 test("games.js only reads and draws: no sending, no storage, no HTML from data; it checks games.json itself", () => {

@@ -29,7 +29,7 @@ Repo Lens is the outside reviewer the owner runs. One review = one prompt, on on
 | 5 | **Vault #178** (producer key backup / restore) | `vault-producer-keys` @ `fbbeff68` | Vault chat writes it (D-140) | handles producer keys |
 | 6 | **Vault #177** (plain-language alert summaries) | `vault-alert-summaries` @ `27d60caf` | Vault chat writes it (D-140) | touches six workflows |
 | 7 | **Golf v2** PR #187 (fix-check, if the first review ran) | `golf-v2` | `claude/golf/REPOLENS-GOLF-V2-PROMPT.md`, then `claude/golf/REPOLENS-GOLF-V2-FIXCHECK-PROMPT.md` | a new paying game |
-| 7b | **Bracket #186 fix-check** (#E-3) | `kg-09-bracket` @ `ef146b2a` | `claude/bracket/REPOLENS-E3-FIXCHECK-PROMPT.md` | a new paying game |
+| 7b | **Bracket #186 fix-check 3** (#E-3; fix-check 2 NO-GO, all fixed) | `kg-09-bracket` @ `3b46546f` | `claude/bracket/REPOLENS-E3-FIXCHECK3-PROMPT.md` | a new paying game (launches on the kit, D-160) |
 | 7c | **Fantasy #188 fix-check** | `fantasy` | `claude/fantasy/REPOLENS-FANTASY-FIXCHECK-PROMPT.md` | a new paying game |
 | 7d | **Hub #185 live stats** (before `STATS_ENABLED`) | `hub-live-stats` | `claude/hub/REPOLENS-LIVE-STATS-PROMPT.md` | a new workflow with write access |
 | 7e | **Ruler v2.1** (after A′ is built) | `vhp-ruler-v21` | `claude/ruler/REPOLENS-V21-PROMPT.md` | the shared handicap |
@@ -67,6 +67,7 @@ Merged 5 Nov: #183 (welcome page, free play first), #175 (Block X fun rounds, Mo
 | Ruler #E-14 | M-1 "stronger" | the publish job also re-reads burns, VHP events and balances | owner to decide | open (later) |
 | Ruler | L-5, L-6 | one backend under two names, no response-size limit; an undecodable block stops the ruler | Ruler chat | open |
 | Race #B-7 | B7-3, B7-5 | deadline from run start; Sunday results not re-checked | owner | accepted as-is (5 Nov) |
+| Bracket #E-3 fix-check 2 | PK-1 (High), PK-2, R-1, F9-1, S-1, W-1, FL-1, P-2, I-1, T-1 | picks two-run, late picks, release can't finalize, per-week hold, open-request lock | Bracket chat | fixed at `3b46546f` 6 Nov; fix-check 3 pending |
 | Vault #E-16 | watch | many week R−1 stakers and unsponsored settles: 10 per run may not reach everyone; #152's uncapped switch-over settles cover it | Vault chat | watch Mon 9–16 |
 
 ## 6. Where the reports are

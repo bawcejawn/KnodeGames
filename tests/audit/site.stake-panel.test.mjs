@@ -479,10 +479,10 @@ test("R-BX-21: KWallet tells the page when the Mana sponsor pays", () => {
   assert.match(w, /get sponsorOn\(\) \{ return W\.payer === "sponsor" && !!\(W\.sponsor && W\.sponsor\.address\); \}/);
 });
 
-test("the Mana sponsor never pays for moving stake (owner, 2026-10-30); stake, withdraw and claim it may", () => {
+test("owner 5 Nov: the Mana sponsor pays for moving stake too (within the daily Mana), as for stake, withdraw and claim", () => {
   const w = fs.readFileSync(`${APP}/wallet.js`, "utf8");
-  assert.match(w, /MOVE_STAKE = 0x7c268e69/);
-  assert.match(w, /if \(c\.contract_id === sp\.covers\[0\] && Number\(c\.entry_point\) === MOVE_STAKE\) return null;/);
+  assert.doesNotMatch(w, /=== MOVE_STAKE\) return null;/, "the page no longer refuses the sponsor for a move");
+  assert.match(w, /const VAULT_CALLS = \[0x7bb5c436, 0x5b0aaef8, 0x7c268e69, 0x4107e3ab\];/, "a move's game is read for would_pay");
 });
 
 test("plain-words errors: a busy-Mana refusal says to wait a minute", () => {

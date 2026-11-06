@@ -185,8 +185,9 @@ jobs:
               if c is not None and (type(c) is not dict or set(c) not in ({"at", "top", "signerVhp"}, {"at", "top", "signerVhp", "afterAt"}) or not num(c["at"]) or not num(c["top"]) or not (c["signerVhp"] is None or num(c["signerVhp"])) or ("afterAt" in c and not (num(c["afterAt"]) and c["afterAt"] > c["at"]))): return False
               if "void" in t and (type(t["void"]) is not str or len(t["void"]) > 200): return False
               pk = t.get("picks")
+              top = 500 if (t["time"] - GENESIS) // WEEK >= 3 else 300   # ×5 cap from Week 1 (vault week 3, owner 5 Nov), ×3 before (E-23 I-3)
               return type(pk) is list and len(pk) <= 100000 and all(type(x) is list and len(x) == 5 and isaddr(x[0]) and isaddr(x[1])
-                  and nat(x[2]) and type(x[3]) is int and 0 <= x[3] <= 500 and type(x[4]) is int and x[4] in (0, 1) for x in pk)   # ×5 cap from Week 1 (owner, 5 Nov)
+                  and nat(x[2]) and type(x[3]) is int and 0 <= x[3] <= top and type(x[4]) is int and x[4] in (0, 1) for x in pk)
           def rows_ok(rows):
               return type(rows) is list and len(rows) <= 100000 and all(type(x) is dict and set(x) == {"a", "place", "boardPlace", "pts", "correct", "picks", "days", "lastCorrect", "ranked"} and isaddr(x["a"])
                   and all(nat(x[k]) for k in ("place", "boardPlace", "pts", "correct", "picks", "days", "lastCorrect")) and type(x["ranked"]) is bool for x in rows)

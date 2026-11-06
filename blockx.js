@@ -52,6 +52,7 @@
       PERIOD = { from: game.from, to: game.to };
       const sw = X.periodOf(X.MAINNET_SCHEDULE[1]).from;
       if (now >= sw - 2 * X.DAY && now < sw + 7 * X.DAY) { NET.games = games; renderGameTabs(); }
+      fillWords();
       provider = new lib.Provider(NET.rpc);
       W = window.KWallet || null;
       return;
@@ -74,10 +75,17 @@
     W = window.KTestWallet || null;
     if (W) W.init({ provider, chainId: NET.chainId, picks: NET.picks, sponsor: isAddr(cfg.sponsor) ? cfg.sponsor : null });   // sponsor v3 trial
     // The page's fixed wording, for this game's own settings (the fast game has a target every 300 blocks).
-    const mins = Math.round(G.ROUND * X.BLOCK_MS / 60000), about = mins >= 90 ? `about every ${Math.round(mins / 60)} hours` : `about every ${mins} minutes`;
-    const words = { every: `Every ${G.ROUND.toLocaleString("en-US")} blocks (${about})`, round: G.ROUND.toLocaleString("en-US"), about, perday: String(G.PICKS_PER_DAY), changes: String(G.MAX_CHANGES) };
-    for (const e of document.querySelectorAll("[data-bx]")) { const w = words[e.getAttribute("data-bx")]; if (w) e.textContent = w; }
+    fillWords();
     renderGameTabs();
+  }
+  /** The page's fixed wording, for the shown game's own settings (Repo Lens #E-23 L-2: open targets, picks a day, the
+   *  multiplier's cap). The testnet's fast game has a target every 300 blocks. */
+  function fillWords() {
+    const mins = Math.round(G.ROUND * X.BLOCK_MS / 60000), about = mins >= 90 ? `about every ${Math.round(mins / 60)} hours` : `about every ${mins} minutes`;
+    const words = { every: `Every ${G.ROUND.toLocaleString("en-US")} blocks (${about})`, round: G.ROUND.toLocaleString("en-US"), about, perday: String(G.PICKS_PER_DAY),
+      changes: String(G.MAX_CHANGES), changesw: G.MAX_CHANGES === 1 ? "once" : `up to ${G.MAX_CHANGES} times`,
+      open: String(Math.floor((G.AHEAD - G.LEAD) / G.ROUND)), cap: String(X.capAt(Math.max(Date.now(), PERIOD.from))) };
+    for (const e of document.querySelectorAll("[data-bx]")) { const w = words[e.getAttribute("data-bx")]; if (w) e.textContent = w; }
   }
   /** Testnet: one button per game in the settings (the real settings, and the fast test game). */
   function renderGameTabs() {
@@ -252,7 +260,7 @@
       const choice = drafts.get(r) || mineP || null;
       const noChanges = mine && Number(mine.changes) >= G.MAX_CHANGES;
       const chips = el("div", { class: "bx-chips", role: "radiogroup", "aria-label": `Who signs block ${fmt(h)}` },
-        ...(ps.length ? ps : []).map((p) => el("button", { type: "button", class: "bx-chip" + (p.a === mineP ? " picked" : ""), role: "radio", "aria-checked": String(p.a === choice), disabled: sending || noChanges ? "" : null,
+        ...(ps.length ? ps : []).map((p) => el("button", { type: "button", class: "bx-chip" + (p.a === mineP ? " picked" : ""), role: "radio", "aria-checked": String(p.a === choice), "data-chip": `${r}:${p.a}`, disabled: sending || noChanges ? "" : null,
           onclick: () => choose(r, p.a) },
           dot(p.a), el("span", { class: "bx-name", text: nameOf(p.a) }), el("span", { class: "bx-share", text: shareText(p.share) }), el("span", { class: "bx-mult", text: multText(card ? X.multiplier(card, p.a, about(h)) : p.mult) }))));
       if (!ps.length) chips.append(el("div", { class: "bx-empty", text: "Loading producers…" }));
@@ -283,18 +291,19 @@
   function choose(r, a) {
     if (!me()) { drafts.set(r, a); startPlaying(); return; }
     drafts.set(r, a); renderTargets(true);
+    const chip = document.querySelector(`[data-chip="${r}:${a}"]`); if (chip) chip.focus();   // the box returns focus here
     const mine = myPicks.get(r), mineP = mine && mine.producers && mine.producers[0];
     if (sending || a === mineP) return;
     const h = G.target(r), mult = card ? X.multiplier(card, a, about(h)) : null;
     const pick = el("button", { class: "btn", type: "button", onclick: () => { closeModal(); sendPick(r, a); } }, mineP ? "Change my pick" : "Pick");
-    const other = el("button", { class: "btn ghost", type: "button", onclick: () => { drafts.delete(r); closeModal(); renderTargets(true); } }, "Choose another");
+    const other = el("button", { class: "btn ghost", type: "button", onclick: () => { drafts.delete(r); renderTargets(true); closeModal(); } }, "Choose another");
     pickModal("info", `${nameOf(a)} for block ${fmt(h)}?`, [
       el("p", {}, "About ", el("b", { text: dayTime(about(h)) }), ` · scores ${multText(mult)} if right`),
       ...(mineP ? [`Your pick now: ${nameOf(mineP)}. You can change it once.`] : []),
     ], [pick, other]);
     // The ✕ in the corner, as well as a tap outside, closes it to choose another.
     const box = modal && modal.querySelector(".pk-box");
-    if (box) box.prepend(el("button", { type: "button", class: "pk-x", "aria-label": "Close and choose another", onclick: () => { drafts.delete(r); closeModal(); renderTargets(true); } }, "✕"));
+    if (box) box.prepend(el("button", { type: "button", class: "pk-x", "aria-label": "Close and choose another", onclick: () => { drafts.delete(r); renderTargets(true); closeModal(); } }, "✕"));
     pick.focus();
   }
   function updateTimes() {
@@ -392,7 +401,9 @@
 
   // ── the pick pop-up: wallet → sent → confirmed on the chain ──
   let modal = null;
+  let modalBack = null;   // Repo Lens #E-23 I-4: focus goes back to what opened the box
   function pickModal(state, title, lines = [], actions = []) {
+    if (!modal || modal.hidden) modalBack = document.activeElement;
     if (!modal) {
       modal = el("div", { class: "pk-modal", role: "dialog", "aria-modal": "true", "aria-labelledby": "pk-m-title" });
       modal.addEventListener("click", (e) => { if (e.target === modal && !modal.querySelector(".pk-spin")) closeModal(); });
@@ -404,8 +415,25 @@
     modal.hidden = false;
     const b = modal.querySelector("button"); if (b) b.focus();
   }
-  function closeModal() { if (modal) modal.hidden = true; }
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && modal && !modal.hidden && !modal.querySelector(".pk-spin")) closeModal(); });
+  function closeModal() {
+    if (!modal || modal.hidden) return;
+    modal.hidden = true;
+    const back = modalBack; modalBack = null;
+    // A redrawn list replaces the chip: find it again by its round and producer.
+    const el2 = back && back.isConnected ? back : back && back.dataset && back.dataset.chip ? document.querySelector(`[data-chip="${back.dataset.chip}"]`) : null;
+    if (el2 && typeof el2.focus === "function") el2.focus();
+  }
+  document.addEventListener("keydown", (e) => {
+    if (!modal || modal.hidden) return;
+    if (e.key === "Escape" && !modal.querySelector(".pk-spin")) { closeModal(); return; }
+    // Tab stays inside the box while it is open (E-23 I-4).
+    if (e.key === "Tab") {
+      const f = [...modal.querySelectorAll("button, a[href], input, select, textarea")].filter((x) => !x.disabled);
+      if (!f.length) { e.preventDefault(); return; }
+      const i = f.indexOf(document.activeElement), next = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : (i < 0 || i === f.length - 1 ? 0 : i + 1);
+      e.preventDefault(); f[next].focus();
+    }
+  });
   const okBtn = (text = "Done") => el("button", { class: "btn", type: "button", onclick: closeModal }, text);
 
   async function sendPick(r, producer) {

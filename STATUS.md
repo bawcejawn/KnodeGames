@@ -1,38 +1,38 @@
 # Knode Games — Status
 
-> The one-page map of the whole system. **Snapshot: Thu 5 Nov 2026, ~19:30 UTC.** Details live in the linked docs; this page only points.
+> The one-page map of the whole system. **Snapshot: Fri 6 Nov 2026, ~04:30 UTC.** Details live in the linked docs; this page only points.
 > Update it at the end of every library session and at the weekly review (Tuesdays). If this page and a linked doc disagree, the linked doc wins and this page gets fixed.
 
 ## Built and live
 | Piece | Purpose | Code | Version / last change | Known limits |
 |---|---|---|---|---|
-| **Vault** `1Mpmf2…` | holds every stake, produces blocks as the Knode Games Pool, pays weekly rewards | `game/` | v6 (2 Nov); **v6.1 cleared**, upload Mon 9 ([CALENDAR](.ai/platform/CALENDAR.md)) | owner key hot until the cold-owner handover Tue 10 |
+| **Vault** `1Mpmf2…` | holds every stake, produces blocks as the Knode Games Pool, pays weekly rewards | `game/` | v6 (2 Nov); **v6.1 announced on chain 5 Nov** (`11043e1f…`, tx `0x1220a4a9…`, uploadable from Sat 7 19:01 UTC), upload Mon 9 ([CALENDAR](.ai/platform/CALENDAR.md)) | owner key hot until the cold-owner handover Tue 10 |
 | **Swap Desk** `1FKTpX…` | VHP → KOIN, 3% fee | `desk/` | v2 (28 Oct) | owner is also its treasury until the weekend runbook |
 | **Mana sponsor** `1ByDDS…` | pays players' Mana within caps (2.4 a transaction) | `sponsor/` | v3 guest fix (4 Nov) | one key controls it ([SPONSOR](.ai/platform/SPONSOR.md)) |
 | **Picks** `1LmgqB…` / **Race picks** `1EN7xU…` | record picks, enforce locks on chain | `picks/`, `race/` | 30 Oct / 27 Oct | Picks owner handover tool built (#180, #191); date not set |
 | **Daily Questions** (game 1) | quick questions, weekly board, staked + free | `generator.ts`, `resolver.ts`, `bot/bot.ts`, `app.js` | 5 a day now; **2 + 3 a day from Mon 9**; plain wording (#171) | **results recorder for the rule week not built (I-101)** |
 | **Producer Race** (game 7) | pick the 6-hour race winner | `bot/race.ts`, `race.*` | weekly rhythm + Sunday fun races (#155) | **applied 5 Nov: pays from week 3** (Mon 9); gaps I-086, I-037 in #182 |
-| **Who Signs Block X** (game 2) | pick who signs a target block | `bot/games/blockx.ts`, `blockx.*` | final Mon 00:00, fun Sundays (#175, #189) | **applied 5 Nov: pays from week 3** (Mon 9) |
-| **Website** knodegames.com | every game page, Stake page, Results, Leaders, guest play, swap, names | repo root (`*.html/js/css`) | welcome page (#183), readability (#174), visit counting (#168) | served from the whole repo until the Pages allow-list (R-HUB-14) |
+| **Who Signs Block X** (game 2) | pick who signs a target block | `bot/games/blockx.ts`, `blockx.*` | final Mon 00:00, fun Sundays (#175, #189); hourly targets from Mon 16 as Picks game 12 (#217) | **applied 5 Nov: pays from week 3** (Mon 9) |
+| **Website** knodegames.com | every game page, Stake page, Results, Leaders, guest play, swap, names | repo root (`*.html/js/css`) | guest play first + 44 px taps (#181), live stats panel (#185, off until `STATS_ENABLED`), welcome page (#183), Run a Node guide + self-heal (#173, #179) | served from the whole repo until the Pages allow-list (R-HUB-14) |
 | **Hourly bot** | posts questions and results, seals vault weeks, chain watch, alerts | `bot/`, `.github/workflows/bot.yml` | v6 rules; D-127 (bot closes weeks) arrives with v6.1 | commits data to `main` (TD-03) |
 | **Recorders** | read the chain, score, publish boards and vault files | `games.yml`, `race.yml`, `race-samples.yml` | two-node checks, pending → final, holds | — |
 | **VHP ruler** | one fair measure of producer size for handicaps | `vhp-ruler.js`, `vhp_ruler.py`, `vhp-ruler.yml` | on `main` (#163), recording data only | **pays nothing** until all 11 simulations pass (D-111) |
 | **Nodes + self-heal** | three producers on the owner's PC | `node/`, `bot/heal.mjs`, `watch.yml` | chain v1.5.2 | one machine (D-147) |
-| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-165 | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
+| **Library** | docs, decisions, standards | `.ai/` | D-001 – D-167 (D-166 reserved for #216); one free-prize rule in every standard (D-159) | big files ([HEALTHCHECK](.ai/platform/HEALTHCHECK.md)) |
 
 ## In progress
 | Work | Where | Next step |
 |---|---|---|
-| Go-live of Week 1 | owner | ✅ games 2 and 7 applied and `PRIZES_FROM_WEEK = 3` set (5 Nov); left: announce v6.1 ([TODOS](.ai/platform/TODOS.md)) |
-| Vault v6.1 | PR #114 | upload Mon 9, pin, handover 4a; accepts Tue 10; rule week Mon 16 |
-| **Questions results recorder** (P1) | Questions chat | **PR #203** is the Mon 16 delivery (D-160): Repo Lens, merge by Sun 15; hard limit Thu 26 Nov; free-prize ties to D-159 once the owner defines its score time; ported onto the kit later |
+| Vault v6.1 | PR #114 | ✅ announced 5 Nov; upload Mon 9 from 9 AM PT, pin `04c27c1a…`, handover 4a; accepts Tue 10; rule week Mon 16 |
+| **Questions results recorder** (P1) | Questions chat | **PR #203** is the Mon 16 delivery (D-160), D-159 ties built in: Repo Lens (`claude/questions/REPOLENS-QREC-PROMPT.md`), merge by Sun 15; hard limit Thu 26 Nov; ported onto the kit later |
 | VHP ruler v2.1 | `vhp-ruler-v21` | #B-11 decided (D-165: yardstick E): build, re-run 11 sims + sim 8 case, Repo Lens fix-check (R-RULER-2) |
-| Fantasy, Block Golf, Bracket (next launches, D-142) | PRs #188, #187, #186 | port each recorder onto the kit (D-158, R-ALL-11), then Repo Lens fix-check, then launch steps; **Golf held for the kit (D-161)** |
-| **Shared Game Kit (D-146, D-158)** | Architecture chat | build the kit's core only (R-ARCH-3, [GAME_KIT](.ai/standards/GAME_KIT.md), D-160); then Fantasy, Golf, Bracket; then port Questions #203; then Block X and Race (replay → two shadow weeks → switch) |
-| Site: guest-first, live stats | PRs #181, #185 | Repo Lens, then merge; `STATS_ENABLED` |
-| Run a Node page | PRs #173, #179 | Repo Lens fix-check, then merge |
+| Fantasy, Block Golf, Bracket (next launches, D-142) | PRs #188, #218 (replaces #187), #186 | **all wait for the kit's core** (D-158, D-160, D-161 for Golf): then port to a GameModule (R-ALL-11), Repo Lens fix-check, launch |
+| **Shared Game Kit (D-146, D-158)** | Architecture chat, PR #210 (`kit-core`) | Repo Lens #B-12 fix-check (`claude/architecture/REPOLENS-KIT-CORE-B12-FIXCHECK-PROMPT.md`), merge; then Fantasy, Golf, Bracket; then port Questions #203; then Block X and Race (replay → two shadow weeks → switch); owner's answers D-167 |
+| Live stats | merged (#185) | turn on `STATS_ENABLED` when you want it |
 | Vault: alert summaries, key backup scripts | PRs #177, #178 | Repo Lens, then merge |
-| Race payout rule (D-152) | PR #182 | Repo Lens fix-check, then merge |
+| Race payout rule (D-152) + free-prize places (I-104 fixed) | PR #182 | Repo Lens fix-check (`claude/race/REPOLENS-PR182-FIXCHECK-PROMPT.md`), merge before Mon 16 |
+| Race types: 1-hour, 2-hour, daily, weekly (D-166) | PR #216, stacked on #182 | renumber its D-161 → D-166; Repo Lens + contract review (race picks v2) after #182 |
+| Repo cleanup | — | ✅ 222 old branches deleted 5 Nov (43 remain: main, data, protected, open PRs, current work); list `claude/library/BRANCH-DELETE-LIST-2026-11-05.md` |
 | Wallet moves | owner + Vault chat | weekend runbook (private) Fri 6 – Tue 10 |
 
 ## Planned but not started
@@ -50,7 +50,7 @@
 | Questions paid like every game from Mon 16 | PR #203 (I-101, D-160) |
 | Any game paying on the ruler (Race, Bracket's percentile) | all 11 simulations pass (D-165 build, R-RULER-2) |
 | Picks owner handover | owner picks a date (tool reviewed, #191) |
-| Fantasy / Golf / Bracket launch | the kit's core (D-158), then each its fix-check GO, sponsor rows, `game-add` (48 h, by Friday noon PT for the next Monday) |
+| Fantasy / Golf / Bracket launch | the kit's core, PR #210 (D-158, D-160, D-161), then each its port, fix-check GO, sponsor rows, `game-add` (48 h, by Friday noon PT for the next Monday) |
 | Website restructure | the Pages allow-list (R-HUB-14) |
 | Removing old audit reports from git history | owner's yes, after Monday |
 

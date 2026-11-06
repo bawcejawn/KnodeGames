@@ -368,3 +368,22 @@ test("pick popup: choosing a producer opens one popup with Pick, Choose another 
   assert.match(body, /pk-x/, "an ✕ to close");
   for (const f of ["blockx.html", "blockx-testnet.html"]) assert.match(fs.readFileSync(path.join(APP, f), "utf8"), /\.pk-x\s*\{/, f + " styles the ✕");
 });
+
+test("Repo Lens #E-23 L-2 / I-4: 'How it works' follows the shown game; the popup keeps Tab inside and gives focus back", () => {
+  const html = fs.readFileSync(path.join(APP, "blockx.html"), "utf8"), js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
+  assert.doesNotMatch(html, /12 targets are always open|up to 30 picks a day|min\(3, top/, "no old wording");
+  for (const k of ['data-bx="open"', 'data-bx="perday"', 'data-bx="cap"', 'data-bx="changesw"']) assert.ok(html.includes(k), k);
+  assert.match(js, /open: String\(Math\.floor\(\(G\.AHEAD - G\.LEAD\) \/ G\.ROUND\)\)/);
+  assert.match(js, /cap: String\(X\.capAt\(Math\.max\(Date\.now\(\), PERIOD\.from\)\)\)/);
+  assert.match(js, /fillWords\(\);\n\s+provider = new lib\.Provider\(NET\.rpc\);\n\s+W = window\.KWallet/, "mainnet fills them too");
+  for (const g of [X.MAINNET_GAME, X.MAINNET_HOURLY]) { const G = X.forGame(g); assert.equal(Math.floor((G.AHEAD - G.LEAD) / G.ROUND), G.openRounds(48_000_000).length); }
+  assert.match(js, /if \(e\.key === "Tab"\)/, "Tab stays in the box");
+  assert.match(js, /data-chip/, "focus goes back to the producer");
+  assert.match(js, /drafts\.delete\(r\); renderTargets\(true\); closeModal\(\);/, "redraw first, then give focus back");
+});
+
+test("Repo Lens #E-23 I-3: the publish job allows 300 points a pick before Week 1 and 500 from it", () => {
+  const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8");
+  assert.match(y, /top = 500 if \(t\["time"\] - GENESIS\) \/\/ WEEK >= 3 else 300/);
+  assert.match(y, /0 <= x\[3\] <= top/);
+});

@@ -70,6 +70,8 @@ export type Opts = {
   schedule?: { game: any; fromWeek: number; toWeek: number }[];
   /** The vault game (stakes, the vault file, the prize file); default: the first scheduled game's id. */
   vaultGame?: number;
+  /** Tests: the Picks contract's get_game for (node, game id); default: read from the chain. Turns the settings check on. */
+  gameOf?: (node: any, game: number) => Promise<any>;
   cards?: "race" | "self";                                                 // default: race
   vhpContract?: string;                                                    // default: mainnet VHP
   knodeGame?: string | null;                                               // the Knode vault (v6): who is staked in THIS game
@@ -532,9 +534,13 @@ export async function run(o: Opts) {
     }
   }
   const badGames = new Set<any>();   // R-BX-25 / Repo Lens #E-21 L-2: started games whose settings on chain are wrong
+  // Repo Lens #E-23 L-1: a started game that is not on the Picks contract at all. Nobody could pick, so its targets are
+  // recorded with no picks (and voided at the 3-day edge as usual), and the week can still go final if it is applied late.
+  // Only when every node read says so (a lagging node alone never empties a target's picks).
+  const missingGames = new Set<any>(), missingVotes = new Map<any, number>(), nodeCount = [o.p, o.check].filter(Boolean).length;
   // Audit BX-33 / BX-46: the game's lock settings on chain (both nodes) must be the ones this recorder scores with.
   // A failed read, or no such game, records nothing this run (it never falls back to the recorder's own settings).
-  if (!o.picksOf && contract) {
+  if ((o.gameOf || !o.picksOf) && contract) {
     for (const node of [o.p, o.check].filter(Boolean)) {
       // R-BX-25: every game whose weeks this run can touch (the last 3 days and now), and (Repo Lens #E-21 L-2) one that
       // starts within 2 days, so a missing or wrong announce shows before the switch. A game not started yet only adds a
@@ -542,12 +548,13 @@ export async function run(o: Opts) {
       // games still record and go final. Only when every started game is wrong does the run record nothing, as before.
       for (const e of SCHED.filter((x) => x.from <= head.time + 2 * X.DAY && x.to > head.time - LOOKBACK_BLOCKS * X.BLOCK_MS - 7 * X.DAY)) {
         const G = e.G, started = e.from <= head.time;
-        let why = "";
+        let why = "", missingOnChain = false;
         try {
-          const r: any = await withRetry(`game ${G.GAME_ID} settings`, () => (new Contract({ id: contract, abi: PICKS_ABI(), provider: node }).functions as any).get_game({ game: G.GAME_ID }));
+          const r: any = await withRetry(`game ${G.GAME_ID} settings`, () => o.gameOf ? o.gameOf(node, G.GAME_ID) : (new Contract({ id: contract, abi: PICKS_ABI(), provider: node }).functions as any).get_game({ game: G.GAME_ID }));
           const gc = r?.result?.game, pg = r?.result?.pending;
           const same = (c: any) => Number(c.round_size) === G.ROUND && Number(c.round_offset ?? 0) === G.OFFSET && Number(c.lead) === G.LEAD;
           if (!gc && !started && pg?.game && same(pg.game) && Number(pg.eta) <= e.from) { console.log(`game ${G.GAME_ID}: announced, can be applied from ${new Date(Number(pg.eta)).toISOString()} (before its weeks start)`); continue; }
+          if (!gc) missingOnChain = true;   // not registered: picks are refused, whatever is announced
           if (!gc) why = `game ${G.GAME_ID} is not on the Picks contract${pg?.game ? ` (it is announced${same(pg.game) ? "" : " with other settings"}, applicable from ${new Date(Number(pg.eta)).toISOString()})` : ""}`;
           else if (Number(gc.round_size) !== G.ROUND || Number(gc.round_offset ?? 0) !== G.OFFSET || Number(gc.lead) !== G.LEAD) why = `game ${G.GAME_ID} on chain has round ${gc.round_size}, offset ${gc.round_offset ?? 0}, lead ${gc.lead}; this recorder scores ${G.ROUND}/${G.OFFSET}/${G.LEAD}`;
         } catch (err) {
@@ -555,6 +562,13 @@ export async function run(o: Opts) {
           why = `game ${G.GAME_ID}'s settings could not be read (${String((err as Error).message).slice(0, 80)})`;
         }
         if (!why) continue;
+        if (started && missingOnChain) {
+          const v = (missingVotes.get(G) ?? 0) + 1;
+          missingVotes.set(G, v);
+          if (v === nodeCount) { badGames.delete(G); missingGames.add(G); problems.push(`${why}. Nobody can pick in it, so its targets are recorded with no picks until it is applied`); }
+          else badGames.add(G);   // the nodes disagree: skip it this run, as before
+          continue;
+        }
         if (!started) { problems.push(`${why}. Its weeks start ${new Date(e.from).toISOString()}: announce and apply it before then (npm run picks -- announce ${G.GAME_ID}, then apply ${G.GAME_ID} 48 h later)`); continue; }
         badGames.add(G);
         problems.push(`${why}. Its targets are not recorded this run; the other games are. Fix the game on chain or in the recorder`);
@@ -776,7 +790,7 @@ export async function run(o: Opts) {
     // R-BX-25 (Repo Lens #E-21 L-1): a block clearly outside this game's weeks (by its expected time, more than 2 hours
     // past either edge) isn't read at all, and doesn't count toward the run's budget.
     const est = head.time - (head.height - h) * X.BLOCK_MS;
-    if (!SCHED.some((e) => e.G === G && est >= e.from - 2 * 3600000 && est < e.to + 2 * 3600000)) continue;
+    if (!SCHED.some((e) => e.G === G && est >= e.from - 6 * 3600000 && est < e.to + 6 * 3600000)) continue;   // E-23 I-1: ±6 h
     n++;
     const old = h < head.lib - LOOKBACK_BLOCKS + G.ROUND;
     try {
@@ -791,7 +805,7 @@ export async function run(o: Opts) {
       // belongs to the other game is never read again and doesn't use up this run's budget (Repo Lens #E-21 L-1).
       if (!inGame(G, b.time)) { done.add(`${G.GAME_ID}:${r}`); n--; continue; }
       let raw: RawPick[] = [];
-      if (picksRead) {
+      if (picksRead && !missingGames.has(G)) {
         raw = await picksRead(o.p, r, G.GAME_ID);
         if (o.check) {
           const other = await picksRead(o.check, r, G.GAME_ID);

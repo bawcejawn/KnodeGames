@@ -18,11 +18,14 @@ Every Koinos transaction costs **Mana**, which comes from holding KOIN. New play
 - **KOIN Vault** (the mobile wallet) picks its own payer, so its users never use the sponsor (I-007).
 
 ### The daily Mana rule (owner, 5 Nov 2026 — every game, every action)
-- **Every player address has one daily Mana budget: 40 Mana a day** (and 250 a week), **shared across every game and every action** — picks, answers, stakes, claims, withdrawals, settles. No game or action has its own separate budget.
+- **Every player address has one daily Mana budget: 40 Mana a day, shared across every game and every action** — picks, answers, stakes, moves, claims, withdrawals, settles. No game or action has its own separate budget.
+- **Use it or lose it** (owner, 5 Nov): the budget starts again at 00:00 UTC every day and nothing carries over. There is no weekly cap: the contract still needs a weekly number, so it is set to 7 × 40 = 280, which a player can never reach (§2).
 - **Inside that budget the sponsor pays everything a player does on Knode Games.** Once it is used up, the player pays with their own Mana until 00:00 UTC (the page asks once more in the wallet). Withdrawals always work either way (D-027).
 - A new game or action **must** get a sponsor row (§2) and count against this same budget. It never gets a budget of its own, and a game never raises the per-player cap for itself.
 - Two limits sit above it and don't change the rule: one transaction can ask for at most 2.4 Mana, and everyone together gets at most 5,000 a day (free players 2,000 of it).
-- **Today's exceptions, waiting for the owner:** `move_stake` and Knode Swap are never sponsored; free players (no stake in the call's game, which today includes every hourly Block X pick) are paid from the shared 2,000-a-day free pool before their own 40; and whether to keep the 250-a-week cap.
+- **Free players** (no stake in the call's game, which today includes every hourly Block X pick) count against their own 40 a day **and** the shared 2,000-a-day free pool (Repo Lens #E-23 I-2; owner 5 Nov: "ok").
+- **Moving stake** (`move_stake`) is covered (owner, 5 Nov: "cover them"; replaces D-027). The contract always allowed it; the page now asks the sponsor for it too.
+- **Knode Swap** is to be covered too (owner, 5 Nov), but sponsor v3 refuses swaps in its code (audit SP-24), so it waits for the **next sponsor version** (with R-BX-5, game 12 → vault game 2). A swap names no game, so it would count as free play (the 2,000 pool) as well as the swapper's own 40.
 
 ---
 
@@ -34,10 +37,10 @@ Every Koinos transaction costs **Mana**, which comes from holding KOIN. New play
 | Code | v3 guest-fix **`b84e1add3ffa14a7d1933d5ce5a4ad33caa4bca887a489f87f710b3c121c83a6`** ✅ | 4 Nov 07:27 UTC, upload tx `0x122093bb…c340` |
 | Chain switches | pays for transactions **ON**; calls and uploads **not** overridden (stay with its own key) | checked by `status` |
 | Switched | **ON** | — |
-| **Vault switch** (`game_has_vault`) | **ON** (tx `0x12208deb…6f81`, 4 Nov) | lets it pay vault calls (`deposit_to`, `withdraw_from`, `claim_game`, `finalize_game_week`; `move_stake` never) |
+| **Vault switch** (`game_has_vault`) | **ON** (tx `0x12208deb…6f81`, 4 Nov) | lets it pay vault calls (`deposit_to`, `withdraw_from`, `move_stake`, `claim_game`, `finalize_game_week`) |
 | Per transaction | **2.4 Mana** (D-131; was 1.5) | config tx `0x1220a593…1bfc` (4 Nov), read back on chain; site side #158 |
 | Per player per day | **40 Mana** | D-105 (was 25) |
-| Per player per week | **250 Mana** (weeks Monday 00:00 UTC) | D-105 (was 150) |
+| Per player per week | **250 Mana** today → **280** (7 × 40, never reached: daily only) after the owner's config send (owner, 5 Nov) | D-105 (was 150) |
 | Everyone per day | **5,000 Mana** (the v3 ceiling, `CAP_LIMIT`) | D-061 |
 | Free players per day | **2,000 Mana** of the 5,000, **released by the hour** (~83 an hour) | D-061 |
 | Real player | a wallet with **≥ 1 VHP of active stake this week** in the call's own game (`--min-vhp 1`); holding VHP doesn't count | v3 |
@@ -75,11 +78,11 @@ Every Koinos transaction costs **Mana**, which comes from holding KOIN. New play
 
 **Pays** (when the player signs alone, and every operation is covered, within the caps):
 - Questions: `answer`, `settle`, `claim`, `close_week`, `finalize_week`, deposits and withdrawals of the question game.
-- The vault (switch on): `deposit_to`, `withdraw_from`, `claim_game`, `finalize_game_week` for the payee.
+- The vault (switch on): `deposit_to`, `withdraw_from`, `move_stake`, `claim_game`, `finalize_game_week` for the payee.
 - A `pick` on Race picks, and the Picks contract's `pick`, for the player's own wallet.
 - A VHP or KOIN `approve` whose spender is the game and owner is the player.
 
-**Never pays:** Knode Swap (owner, 29 Oct); `move_stake` (D-027); owner, operator, seed or upgrade actions; burning KOIN into VHP; any transaction signed by anyone besides the player.
+**Never pays:** Knode Swap until the next sponsor version (v3 refuses it in code; the owner wants it covered, 5 Nov); owner, operator, seed or upgrade actions; burning KOIN into VHP; any transaction signed by anyone besides the player.
 
 ---
 
@@ -118,15 +121,15 @@ Select-String -Path .env -Pattern '^CONFIRM_MAINNET='
 
 **Change the caps: always pass all of them, exactly.** A plain `config` resets anything you leave out (an unset free cap means 500). Today's full line:
 ```powershell
-npm run sponsor -- config --per-tx 2.4 --per-player-day 40 --per-player-week 250 --per-day 5000 --min-vhp 1 --free-per-day 2000
+npm run sponsor -- config --per-tx 2.4 --per-player-day 40 --per-player-week 280 --per-day 5000 --min-vhp 1 --free-per-day 2000
 ```
-Read the dry run: only the arrows you meant to change (`old → new`), the 1.2 rows, no `⚠ website` lines. Then Turn ON, the same line with `--send`, Turn OFF.
+(280 = 7 × 40: daily only, owner 5 Nov. Until that send, the chain has 250.) Read the dry run: only the arrows you meant to change (`old → new`), the 1.2 rows, no `⚠ website` lines. Then Turn ON, the same line with `--send`, Turn OFF.
 
 | You want to | Change in the line above | Notes |
 |---|---|---|
 | Slow down spam from new wallets | lower `--free-per-day` | `0` turns free play off |
 | Slow down staked-wallet farming | raise `--min-vhp` | — |
-| Let heavy players play more | raise `--per-player-day` / `--per-player-week` | the owner keeps these moderate because of spam (D-105) |
+| Let heavy players play more | raise `--per-player-day`, and set `--per-player-week` to 7 × it | the owner keeps the day moderate because of spam (D-105) |
 | More than 5,000 a day in total | **can't**: needs a new contract version (raise `CAP_LIMIT`, audit, upload) | add KOIN first |
 
 **Other commands** (each a dry run until `--send`):
@@ -144,7 +147,7 @@ Read the dry run: only the arrows you meant to change (`old → new`), the 1.2 r
 
 | Situation | Do this |
 |---|---|
-| Guests refused again / a trap after a change | Turn ON, then `npm run sponsor -- config --vault off --per-tx 2.4 --per-player-day 40 --per-player-week 250 --per-day 5000 --min-vhp 1 --free-per-day 2000 --send`, Turn OFF. (Vault calls then aren't sponsored; picks and answers are.) Tell the Block X chat |
+| Guests refused again / a trap after a change | Turn ON, then `npm run sponsor -- config --vault off --per-tx 2.4 --per-player-day 40 --per-player-week 280 --per-day 5000 --min-vhp 1 --free-per-day 2000 --send`, Turn OFF. (Vault calls then aren't sponsored; picks and answers are.) Tell the Block X chat |
 | Free Mana draining fast (watch email) | lower `--free-per-day` with the full line (§5). Running out only means players pay their own Mana until 00:00 UTC; nobody loses anything |
 | Sponsor Mana low (watch email) | send it KOIN from a wallet of yours (Kondor). **Never** from the vault or Desk |
 | Something looks wrong and you don't know what | `npm run sponsor -- disable --send`. It's instant and harmless to players |

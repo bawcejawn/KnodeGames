@@ -100,3 +100,8 @@ Either option is ready by Mon 16. **Option A** keeps the new owner's first job s
     L-2 (a game not yet started only warns; a started game missing on chain is skipped and reported, the run fails only
     if every started game is bad), I-3 (the first-target check uses 1.5 rounds of the week's game). I-1: vault id 12
     stays reserved for Block X hourly.
+11. **Repo Lens #E-23 fixes** (GO): L-1 (a started game that **every** node says isn't on the Picks contract has its
+    targets recorded with no picks, so a late apply never stops the week going final; a disagreement still skips it),
+    L-2 (the page's "How it works" follows the shown game: open targets, picks a day, the cap), I-1 (±6 h), I-2
+    (sponsor wording), I-3 (pick points ≤ 300 before Week 1, ≤ 500 from it), I-4 (the popup keeps Tab inside and gives
+    focus back to the producer).

@@ -172,6 +172,10 @@
 | D-159 | 2026-11-05 | Free-prize ties: up to 10 paid per place; more than 10 → exactly 10 by earlier score time, then address; never zero because of the cap | active (every standard; mismatches I-103, I-104) |
 | D-160 | 2026-11-05 | Kit rollout corrected: #203 delivers Questions for Mon 16; the kit is built as core only, then #203 is ported byte-compatibly; no second hand-built runner; any rule ambiguity stops the build and goes to the owner | active |
 | D-161 | 2026-11-05 | Block Golf holds for the Shared Game Kit: no launch on its hand-built recorder (`golf-launch` kept, not merged or switched on) | active |
+| D-162 | 2026-11-05 | The Vault and the Pool stay in the races under the same rules as every producer; the owner tops up their VHP to keep them producing | active |
+| D-163 | 2026-11-05 | Steady throttlers stay in the games at full size (refines D-120); out only when unsteady below 0.80, back once steady | active |
+| D-164 | 2026-11-05 | Producer void: any VHP change beyond ±10% during a race voids that producer for that race, whoever sent it; a pick on a voided producer counts as a loss; nothing is refunded | active |
+| D-165 | 2026-11-05 | VHP Ruler A′ yardstick: only steady full-rate members (form ≥ 0.97 × the field's median form) set it, at full size; sim 1 marks fair among those who can win | active (`../standards/VHP_RULER.md` §18) |
 
 ---
 
@@ -859,6 +863,18 @@
 
 ## D-161 — Block Golf waits for the kit
 - **Date:** 2026-11-05 (owner: "hold on golf wait for the kit") · **Decision:** Block Golf does not launch from `golf-launch` (`02c86e1`) or `golf-v2` on its own recorder (D-160). `GOLF_ENABLED` stays off; `golf-launch` and PR #187 stay open as the source for the port. When the kit's core merges (R-ARCH-3), Golf ports its recorder into `games/golf/recorder.ts` (R-ALL-11), keeps its scoring, and launches on the kit. The Repo Lens findings already fixed carry over.
+
+## D-162 — The Vault and the Pool stay in the races
+- **Date:** 2026-11-05 (owner, to the VHP Ruler chat: "Knode Games Vault and pool should remain in the races and I can add to their VHP to keep them producing at a neccessary threshold of blocks per 6 hour or 24 hour period." and on #B-10: "The Vault and Pool should share the same rule as the other prodcuers. no special treatment") · **Decision:** the Vault and the Pool race like every producer, with no special rule; the bar stays 10 blocks; the owner keeps the Vault above ~17,550 VHP for 6-hour races (~25,000 recommended; it held ~20,742 on 5 Nov).
+
+## D-163 — Steady throttlers stay in (refines D-120)
+- **Date:** 2026-11-05 (owner: "they should still be in the games and should not have to be sidelined unless they actually break the variance threshold … follow the structures we have in place … when an address is voided its not a perminant thing."; then "✅" to the outcome: in, but practically never wins) · **Decision:** a steady producer passes the form gate and plays at full size, its rate shown only; it's out only when unsteady (and below 0.80) and back once steady. No steering cap.
+
+## D-164 — Producer void: ±10% during the race, a pick on it is a loss
+- **Date:** 2026-11-05 (owner: "Any address can go and increase or decrease their VHP balance any time which could result in void options for that race or game pick … Tighten the void variances if necessary."; on #B-10: "If a question or round of a game is void then so be it. players get their pick back but mana cannot be refunded ... void applies"; on #B-11 N-3: "keep - but there are no picks to give back unfortunetly. the user isnt actually spending anything other than mana and mana is a fee so its used when the transaction submits. nothing to give back. users can just pick again."; and "Pick counts as a loss") · **Decision:** a producer whose VHP moves outside its own × (1 ± 10%) during a race is void for that race and out of A′'s field, **whoever moved it, at any time in the race** (N-3: kept). A pick on a voided producer **counts as a loss**; nothing is refunded (Mana is the transaction fee); players can pick again while picks are open. Measured: 1–1.6% of producer-races on real days; voiding a small rival late costs the sender ~10% of its VHP (~1,750 VHP near the bar).
+
+## D-165 — The A′ yardstick: a steady full-rate core
+- **Date:** 2026-11-05 (owner, on Repo Lens #B-11 N-1: option "E: steady full-rate core"; on N-2: "Fair among those who can win") · **Decision:** in A′, only members whose form is **≥ 0.97 × the field's median form** set the yardstick, each at full size; every other member still plays at full size but moves no one. **Sim 1** marks "fair" as 1 ÷ (field − members that can't win). The Ruler chat builds it in one pass, re-runs all eleven sims on both histories, adds a sim 8 case (a core member at 0.80–0.95 signing in full), and sends Repo Lens a fix-check. Nothing pays until all eleven pass (D-111).
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

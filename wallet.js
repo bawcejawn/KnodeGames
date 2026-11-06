@@ -45,6 +45,7 @@
   .kw-x{float:right;font:inherit;font-size:22px;line-height:1;border:0;background:none;color:var(--muted,#5d6283);cursor:pointer;padding:0 0 0 10px}
   .kw-link{font:inherit;background:none;border:0;color:var(--violet,#5a43e6);text-decoration:underline;cursor:pointer;padding:0;font-size:14px}
   .kw-opt[disabled]{opacity:.55;cursor:not-allowed}
+  .kw-opt.kw-main{border:2px solid var(--violet,#5a43e6);background:var(--surface,#fff)} .kw-box p.kw-or{margin:22px 0 0;padding-top:16px;border-top:1px solid var(--line,#e2e4ef)}
   .kw-warn{background:var(--sun-soft,#fff4dc);color:var(--ink,#181b34)!important;border-radius:10px;padding:10px 12px}
   .kw-key{font-family:ui-monospace,Consolas,monospace;font-size:13px;word-break:break-all;background:var(--paper,#f4f5fb);border:1px solid var(--line,#e2e4ef);border-radius:10px;padding:10px;margin:8px 0}
   .kw-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -266,7 +267,11 @@
       const vault = h("button", { class: "kw-opt", type: "button", onclick: pick(connectVault) }, h("span", { class: "kw-ic", "aria-hidden": "true" }, "📱"),
         h("div", {}, h("b", {}, "KOIN Vault", phone ? h("span", { class: "kw-tag" }, "for phones") : null), h("span", {}, "Fingerprint or face, no extension. Works on any phone")));
       const guest = guestOption(pick);
-      open(h("h3", {}, "Connect a wallet"), h("p", {}, "Your wallet signs everything. Knode Games never sees a key."), ...(phone ? [vault, kondor] : [kondor, vault]), guest);
+      // Launch UI research item 8 (owner, 5 Nov): free guest play comes first, the real wallets below it.
+      open(h("h3", {}, guest ? "Start playing" : "Connect a wallet"), guest,
+        guest ? h("p", { class: "kw-or" }, "Have a Koinos wallet? Connect it to stake and share the weekly pool. It signs everything; Knode Games never sees a key.")
+          : h("p", {}, "Your wallet signs everything. Knode Games never sees a key."),
+        ...(phone ? [vault, kondor] : [kondor, vault]));
       onClose = () => resolve(null);
     });
   }
@@ -338,10 +343,10 @@
   function guestOption(pick) {
     if (!window.KGuest || !guestOn()) return null;   // guest.js missing, or guest play switched off (every page loads it; a guest signs only answers and picks)
     const ready = guestReady();
-    const btn = h("button", { class: "kw-opt", type: "button", ...(ready ? {} : { disabled: "", "aria-disabled": "true" }), onclick: ready ? pick(connectGuest) : () => {} },
+    const btn = h("button", { class: "kw-opt kw-main", type: "button", ...(ready ? {} : { disabled: "", "aria-disabled": "true" }), onclick: ready ? pick(connectGuest) : () => {} },
       h("span", { class: "kw-ic", "aria-hidden": "true" }, "🎟️"),
       h("div", {}, h("b", {}, "Play as a guest", h("span", { class: "kw-tag" }, "free")),
-        h("span", {}, ready ? "No wallet, no KOIN. Answer the daily questions and pick race horses for free on this device." : "Guest play turns on when the Mana sponsor is live.")));
+        h("span", {}, ready ? "No wallet, no KOIN, no sign-up. Answer questions and pick race horses on this device." : "Guest play turns on when the Mana sponsor is live.")));
     if (!ready) return btn;
     return h("div", {}, btn, h("p", {}, "Moving from another phone? ", h("button", { class: "kw-link", type: "button", onclick: pick(restoreGuest) }, "Restore a guest key")));
   }
@@ -373,13 +378,13 @@
       onClose = () => resolve(null);
     });
   }
+  /** A new guest: a short note, no pop-up to dismiss before the first answer (launch UI research item 8, owner 5 Nov).
+   *  The warnings aren't dropped: the note says it's play-only and that the browser can delete it by itself (audit M-2),
+   *  and right after the first answer guestNudge asks the player to save their progress. */
   function guestWelcome(address) {
-    open(h("h3", {}, "You're playing as a guest"),
-      h("p", {}, "Your guest wallet is ", h("b", {}, address.slice(0, 6) + "…" + address.slice(-4)), ". Answering is free: the Knode Games Mana sponsor pays."),
-      h("p", { class: "kw-warn" }, GUEST_WARN),
-      h("p", {}, "It lives only in this browser. Back it up if you want to keep your points when you change phone or clear your browser."),
-      // Audit (guest) M-2: the browser can delete it by itself (Safari after 7 days without a visit).
-      h("p", { class: "kw-warn" }, GUEST_EVICT),
+    const note = `You're playing free as a guest (${address.slice(0, 6)}…${address.slice(-4)}). ${GUEST_WARN} Your browser can delete it by itself, so back it up from the wallet button.`;
+    if (W.toast) { W.toast(note, 12000); return; }
+    open(h("h3", {}, "You're playing as a guest"), h("p", {}, note), h("p", { class: "kw-warn" }, GUEST_EVICT),
       h("div", { class: "kw-row" }, h("button", { class: "kw-btn", type: "button", onclick: () => backupGuest() }, "Back up guest key"), h("button", { class: "kw-btn", type: "button", onclick: () => close() }, "Start playing")));
   }
   async function backupGuest() {
@@ -502,9 +507,11 @@
     if (store.get(localStorage, "kn-guest-nudged") === "1") return;
     store.set(localStorage, "kn-guest-nudged", "1");
     setTimeout(() => {
-      open(h("h3", {}, "Back up your guest"),
+      open(h("h3", {}, "Save your progress"),
         h("p", {}, "Nice, your first answer is in! " + GUEST_EVICT),
-        h("div", { class: "kw-row" }, h("button", { class: "kw-btn", type: "button", onclick: () => backupGuest() }, "Back up guest key"), h("button", { class: "kw-btn", type: "button", onclick: () => close() }, "Later")));
+        h("p", { class: "kw-warn" }, GUEST_WARN),
+        h("div", { class: "kw-row" }, h("button", { class: "kw-btn", type: "button", onclick: () => backupGuest() }, "Back up guest key"), h("button", { class: "kw-btn", type: "button", onclick: () => close() }, "Later")),
+        h("p", {}, "You can do it any time from the wallet button."));
     }, 0);
   }
   /** Throws unless the transaction is exactly: the sponsor pays, this guest is the payee, Koinos mainnet (or the pinned

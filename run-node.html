@@ -620,7 +620,7 @@ else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi
       <details class="rn-fix"><summary>If it doesn't work</summary>
         <ul>
           <li>5b: "Unable to connect" or "Connection refused": the node is still starting. Wait 2 minutes and try again.</li>
-          <li>Behind by stays the same (or grows) across two checks 15 minutes apart: your node is stuck. Restart it: <code>docker compose down</code> then <code>docker compose up -d</code> (in the <code>koinos</code> folder), and check again in 15 minutes.</li>
+          <li>Behind by stays the same (or grows) across two checks 15 minutes apart: your node is stuck. Restart it: <code>docker compose down</code> then <code>docker compose up -d</code> (in the <code>koinos</code> folder), and check again in 15 minutes. Still stuck after that? Reset Docker (step 8, "Still stuck after a restart").</li>
           <li>5a: "port is already allocated" (8080, 8888, 5672 or 15672): another program, or another Koinos node, uses that port. Do the box "Only if this computer already runs another Koinos node" in step 3, then run 5a again and use <code>8110</code> instead of <code>8080</code> in 5b. An update (step 10) rewrites <code>.env</code>, so run that box again after updating.</li>
           <li>5a: "external volume koinos-data not found": run <code>docker volume create koinos-data</code>, then do step 4d again before starting.</li>
           <li>Mac: "platform (linux/amd64) does not match": turn on the Rosetta setting from step 2, restart Docker, and run 5a again.</li>
@@ -730,8 +730,32 @@ python3 heal-one-node.py --install</code></pre>
       </div>
       <p class="muted">You should see a line like <code>OK: height …, network …</code> from the try, then "OK … is set up". It never starts a node you stopped yourself with this page's stop box (it stays paused until you start the node again with step 5a), and the repair, stop and update boxes pause it while they work. If you only press Stop in Docker Desktop, it starts the node again after about 40 minutes, so use the stop box in step 10 to keep it stopped. On Windows it shows a notification when it acts; on a Mac or Linux a notification may not appear, so look at <code>heal.log</code> in your <code>koinos-node</code> folder. To switch it off, run the same file with <code>-Uninstall</code> (Windows) or <code>--uninstall</code> (Mac/Linux). To update it when this page shows a new fingerprint, do the two boxes above again. Moved your node to another port in step 5? Add <code>-Rpc http://127.0.0.1:8090</code> (Windows) or <code>--rpc=http://127.0.0.1:8090</code> (Mac/Linux) to both lines.</p>
       <h3 class="rn-sub">Once a week (1 minute)</h3>
+      <p class="rn-do">Run this health check. It only reads: it shows how many of the node's 7 parts are running and how far behind it is. (Second node on this computer? Use <code>8110</code> instead of <code>8080</code>.)</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+"Parts running: $(@(docker compose ps --status running --services).Count) of 7"
+$me = $null; $net = $null
+$body = '{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
+try { $me = [int64](Invoke-RestMethod http://127.0.0.1:8080 -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
+try { $net = [int64](Invoke-RestMethod https://koinos.armana.io -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
+if (-not ($me -gt 0) -or -not ($net -gt 0)) { "Couldn't read a height - wait 2 minutes and try again" } elseif (($net - $me) -lt 10) { "HEALTHY - behind by $($net - $me) blocks" } else { "BEHIND by $($net - $me) blocks - run this again in 15 minutes. Not shrinking? Restart it (below)." }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+echo "Parts running: $(docker compose ps --status running --services | wc -l | tr -d ' ') of 7"
+B='{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
+H='import json,sys;h=int(json.load(sys.stdin)["result"]["head_topology"]["height"]);assert h&gt;0;print(h)'
+ME=$(curl -s -X POST -H 'content-type: application/json' -d "$B" http://127.0.0.1:8080 | python3 -c "$H" 2&gt;/dev/null)
+NET=$(curl -s -X POST -H 'content-type: application/json' -d "$B" https://koinos.armana.io | python3 -c "$H" 2&gt;/dev/null)
+if [ -z "$ME" ] || [ -z "$NET" ] || [ "$NET" -lt "$ME" ]; then echo "Couldn't read a height - wait 2 minutes and try again"
+elif [ $((NET - ME)) -lt 10 ]; then echo "HEALTHY - behind by $((NET - ME)) blocks"
+else echo "BEHIND by $((NET - ME)) blocks - run this again in 15 minutes. Not shrinking? Restart it (below)."; fi</code></pre>
+      </div>
+      <p class="muted">Parts running should say 7 of 7. Fewer? Restart it (below).</p>
       <ul class="rn-list">
-        <li>Run the check from step 5b: Behind by should be under 10.</li>
         <li>Look up your address on <a href="node.html">Producer lookup</a> (it works from your phone too): you should see recent blocks.</li>
       </ul>
       <h3 class="rn-sub">If it's stuck: restart it</h3>
@@ -750,6 +774,43 @@ Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue</code></pre
 docker compose down
 docker compose up -d
 rm -f ~/koinos-node/heal-paused</code></pre>
+      </div>
+      <h3 class="rn-sub">Still stuck after a restart: reset Docker</h3>
+      <p>Sometimes Docker itself stops passing blocks to the node after many hours, or after the computer changes networks. Everything shows "Up", but Behind by keeps growing, and a restart doesn't help. Restarting Docker fixes it (the owner's own test node, 5 Nov). Your node's key and chain data stay as they are.</p>
+      <p class="rn-do">Run this box. It stops the node, closes Docker, starts Docker again, waits for it and starts the node. Give it 15 minutes, then check again with the health check above.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
+cd C:\koinos-node\koinos
+docker compose down
+Stop-Process -Name "Docker Desktop" -Force -ErrorAction SilentlyContinue
+wsl --shutdown
+Start-Sleep -Seconds 10
+Start-Process "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+"Waiting for Docker to start (up to 5 minutes)..."
+$ok = $false; for ($i = 0; $i -lt 60 -and -not $ok; $i++) { Start-Sleep -Seconds 5; docker info *&gt; $null; $ok = ($LASTEXITCODE -eq 0) }
+if ($ok) { docker compose up -d; Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue; "RESET DONE - check again in 15 minutes" } else { "Docker didn't start yet - open Docker Desktop from the Start menu, wait until it says running, then run step 5a" }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac">
+        <div class="rn-cmd-h"><span>Mac · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
+docker compose down
+osascript -e 'quit app "Docker"'
+sleep 15
+open -a Docker
+echo "Waiting for Docker to start (up to 5 minutes)..."
+OK=0; for i in $(seq 60); do sleep 5; if docker info &gt;/dev/null 2&gt;&amp;1; then OK=1; break; fi; done
+if [ "$OK" = 1 ]; then docker compose up -d &amp;&amp; rm -f ~/koinos-node/heal-paused &amp;&amp; echo "RESET DONE - check again in 15 minutes"; else echo "Docker didn't start yet - open Docker from Applications, wait until it says running, then run step 5a"; fi</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="linux">
+        <div class="rn-cmd-h"><span>Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
+docker compose down
+sudo systemctl restart docker
+sleep 10
+docker compose up -d &amp;&amp; rm -f ~/koinos-node/heal-paused &amp;&amp; echo "RESET DONE - check again in 15 minutes"</code></pre>
       </div>
       <h3 class="rn-sub">If it keeps crashing: repair from a fresh snapshot</h3>
       <p>Damaged means it keeps restarting or freezing again soon after every restart: <code>docker compose ps</code> shows Restarting, or <code>docker compose logs --tail 40 block_store</code> shows panic. A restart won't cure that; fresh chain data will. This keeps your node's key, sets the old data aside (not deleted) and clears the old download. Short of space? A repair briefly needs room for the old data, a new download and a new unpack (about 180 GB). If your drive is smaller, delete the old data right after this box with the last box below: it's damaged anyway.</p>
@@ -919,7 +980,8 @@ git rev-parse HEAD</code></pre>
         <table class="addr-table">
           <thead><tr><th>You notice</th><th>What it means</th><th>The fix</th></tr></thead>
           <tbody>
-            <tr><td>Node behind: "Behind by" is large and not shrinking</td><td>The node is stuck</td><td>Restart it (<a href="#step-8">step 8</a>). Check again in 15 minutes.</td></tr>
+            <tr><td>Node behind: "Behind by" is large and not shrinking</td><td>The node is stuck</td><td>Restart it (<a href="#step-8">step 8</a>). Check again in 15 minutes. Still stuck? Reset Docker (<a href="#step-8">step 8</a>).</td></tr>
+            <tr><td>Logs say "Error connecting to seed … no good addresses" or "dial backoff"</td><td>Normal: some of the fixed start-up addresses are offline. The node uses its other connections</td><td>Nothing, while Behind by stays under 10. If Behind by grows: restart, then reset Docker (<a href="#step-8">step 8</a>).</td></tr>
             <tr><td>Crash loop: parts keep "Restarting", or it freezes again soon after every restart</td><td>Its chain data is damaged</td><td>Repair from a fresh snapshot (<a href="#step-8">step 8</a>). Your key stays.</td></tr>
             <tr><td>Disk full</td><td>The download or Docker filled the drive</td><td>Delete the downloaded snapshot once caught up, run <code>docker image prune</code>. Never prune volumes.</td></tr>
             <tr><td>Docker won't start</td><td>Docker Desktop or WSL needs a kick</td><td>Restart the computer. Windows: <code>wsl --update</code>, then <code>wsl --shutdown</code>, then open Docker Desktop (<a href="#step-2">step 2</a>).</td></tr>

@@ -67,7 +67,7 @@ const LAST_SEEDING_WEEKS = 4;              // how far back the last seeding's ra
 /** BRACKET_RELEASE (a repository variable the owner sets for one run): the weeks whose recorded seeding, hours or
  *  end-of-week stakes may be replaced when a two-node re-read disagrees with them (fix-check F4), and whose picks may
  *  be recorded late (F3). "3" or "3,4". Anything else: no release. The publish job reads the same variable. */
-export const releaseFromEnv = (v: string | undefined) => new Set(v && /^\s*\d{1,4}(\s*,\s*\d{1,4})*\s*$/.test(v) ? v.split(",").map((x) => Number(x.trim())) : []);
+export const releaseFromEnv = (v: string | undefined) => new Set(v && /^ *[0-9]{1,4}( *, *[0-9]{1,4})* *$/.test(v) ? v.split(",").map((x) => Number(x.replace(/ /g, ""))) : []);
 const RELEASE = releaseFromEnv(E.BRACKET_RELEASE);
 const MAX_PICK_PAGES = 1000;               // 100,000 picks a week; a full last page stops the run (#E-3 L-11)
 const isAddr = (a: unknown): a is string => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
@@ -85,7 +85,7 @@ export type WeekFile = {
   bad?: string;                                          // (not written) why a stored final week needs a look
   v: 5; week: number; start: number; end: number;
   status: "waiting" | "none" | "void" | "open" | "locked" | "final";
-  seeding: Seeding | null; picks: { checked: number; rows: Pick[] } | null;
+  seeding: Seeding | null; picks: { checked: number; rows: Pick[]; re?: 1 } | null;
   days: (Hour | null)[][];                 // [round][hour 0–23]
   results: { rounds: number[][]; done: boolean } | null;
   points: Points[]; void?: string;
@@ -150,7 +150,7 @@ function loadWeek(dir: string | undefined, w: number): WeekFile {
   if (seedingOk(w, s)) f.seeding = s;
   if (old.status === "void") { f.status = "void"; f.void = typeof old.void === "string" ? old.void.slice(0, 200) : "void"; }
   else if (old.status === "none" && f.seeding && f.seeding.size === 0) { f.status = "none"; f.void = typeof old.void === "string" ? old.void.slice(0, 200) : "no bracket this week"; }
-  if (f.seeding && old.picks && Array.isArray(old.picks.rows)) f.picks = { checked: old.picks.checked === 2 ? 2 : 1, rows: old.picks.rows.filter((x: any) => Array.isArray(x) && isAddr(x[0]) && Number.isSafeInteger(x[1]) && x[1] >= 0).map((x: any) => [x[0], x[1], Number(x[2]) || 0, x[3] ? 1 : 0] as Pick) };
+  if (f.seeding && old.picks && Array.isArray(old.picks.rows)) f.picks = { checked: old.picks.checked === 2 ? 2 : 1, rows: old.picks.rows.filter((x: any) => Array.isArray(x) && isAddr(x[0]) && Number.isSafeInteger(x[1]) && x[1] >= 0).map((x: any) => [x[0], x[1], Number(x[2]) || 0, x[3] ? 1 : 0] as Pick), ...(old.picks.re === 1 ? { re: 1 as const } : {}) };
   if (f.picks && old.staked && Array.isArray(old.staked.list) && old.staked.list.every(isAddr) && old.staked.checked === 2 && sortedUnique(old.staked.list)
       && (old.staked.held === undefined || (Array.isArray(old.staked.held) && sortedUnique(old.staked.held)))) {
     f.staked = { checked: 2, list: [...old.staked.list].sort() };
@@ -355,7 +355,7 @@ export function scoreWeek(wf: WeekFile) {
 /** The hours of a week, as [round, hour, start] (start of the UTC hour). */
 const hoursOf = (w: number, wf: WeekFile) => { const out: [number, number, number][] = []; for (let r = 0; r < wf.days.length; r++) for (let h = 0; h < 24; h++) out.push([r, h, B.roundDay(w, r, wf.seeding!.size) + h * HOUR]); return out; };
 /** Every hour of every round recorded and re-read in a later run (the two-run rule). */
-const allReRead = (wf: WeekFile) => wf.days.length > 0 && wf.days.every((d) => d.every((h) => !!h && h.re === 1));
+const allReRead = (wf: WeekFile) => wf.days.length > 0 && wf.days.every((d) => d.every((h) => !!h && h.re === 1)) && wf.picks?.re === 1;
 /** A week's file as written (never the `bad` note). */
 const fileOf = (wf: WeekFile) => { const { bad: _bad, ...rest } = wf; return rest; };
 
@@ -448,50 +448,65 @@ export async function run(o: Opts) {
         const again = seedingFrom(await readCard(B.seedTime(w)));
         const { hash: _h, re: _r, ...was } = wf.seeding;
         if (JSON.stringify(again) === JSON.stringify(was)) { wf.seeding = { ...wf.seeding, re: 1 }; }
-        else if (released && !wf.picks) { wf.seeding = { ...again, hash: seedHash(w, again) }; wf.days = emptyDays(again.size); problems.push(`week ${w}: the seeding read differently again; replaced under BRACKET_RELEASE (read again next run)`); continue; }
-        else { problems.push(`week ${w}: the seeding reads differently now than when it was recorded; held until it's checked (BRACKET_RELEASE = ${w} lets the next run replace it)`); }
+        else if (released && !wf.picks && now < B.seedTime(w) + SEED_GRACE) { wf.seeding = { ...again, hash: seedHash(w, again) }; wf.days = emptyDays(again.size); problems.push(`week ${w}: the seeding read differently again; replaced under BRACKET_RELEASE (read again next run)`); continue; }
+        else if (now >= B.seedTime(w) + SEED_GRACE) { problems.push(`week ${w}: the seeding reads differently now than when it was recorded, and its 24 hours are over: it can't be replaced (fix-check 2 S-1); the week closes void at the backstop`); }
+        else { problems.push(`week ${w}: the seeding reads differently now than when it was recorded; held until it's checked (BRACKET_RELEASE = ${w} lets the next run replace it, within the seeding's 24 hours)`); }
       } catch (e) { problems.push(`week ${w}: seeding re-read: ${(e as Error).message} (tried again next run)`); }
       if (wf.seeding.re !== 1) { if (now >= backstop) { wf.status = "void"; wf.void = "its seeding could not be confirmed by a second read before the backstop; no vault file"; } continue; }
     }
     if (!wf.seeding.size) { wf.status = "none"; wf.void = `only ${wf.seeding.out.length} producers in the field (8 needed); no bracket this week`; continue; }
     const { size, seeds } = wf.seeding;
     if (wf.status === "waiting") wf.status = "open";
-    // ── 2. picks (two nodes only; recorded no later than PICKS_GRACE after the lock, fix-check F3) ──
+    // ── 2. picks (two nodes only; recorded no later than PICKS_GRACE after the lock, fix-check F3; and, like hours,
+    //       read again by a LATER run before stakes are read or the week goes final, fix-check 2 PK-1) ──
+    const picksWindowEnd = released ? B.roundDay(w, 0, size) + HOUR : B.lockTime(w) + PICKS_GRACE;   // fix-check 2 PK-2
+    const readPicksBoth = async (): Promise<Pick[] | string> => {
+      if (!picksRead) return [];
+      if (!o.picksOf || o.gameOf) {
+        const g1 = o.gameOf ? await o.gameOf(o.p) : await readGame(o.p, contract!);
+        const gp = gameProblem(g1);
+        if (gp) return `${gp}; picks not recorded`;
+        const g2 = o.gameOf ? await o.gameOf(o.check) : await readGame(o.check, contract!);
+        if (JSON.stringify(g1) !== JSON.stringify(g2)) return "the two nodes disagree about the Picks game; picks not recorded this run";
+      }
+      const round = B.picksRound(w), raw = await picksRead(o.p, round);
+      const other = await picksRead(o.check, round);
+      const key = (x: RawPick[]) => JSON.stringify([...x].sort((u, v) => (u.player < v.player ? -1 : 1)));
+      if (key(raw) !== key(other)) return "the two nodes disagree about the picks; not recorded this run";
+      const seen = new Set<string>();
+      const rows: Pick[] = [];
+      let late = 0;
+      for (const x of raw) {
+        if (seen.has(x.player)) continue;
+        if (!(x.time < B.lockTime(w))) { late++; continue; }   // the chain should refuse these; never count one (audit F-5)
+        seen.add(x.player); rows.push([x.player, x.number, x.time, B.decode(x.number, size, seeds.length) ? 1 : 0]);
+      }
+      if (late) problems.push(`week ${w}: ${late} pick(s) timed at or after the lock were left out`);
+      return rows.sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    };
+    let picksNew = false;
     if (!wf.picks) {
       if (now < B.lockTime(w)) continue;
       // fix-check RC-4: a week whose picks never get recorded closes at the backstop
       if (now >= backstop) { wf.status = "void"; wf.void = "its picks could not be recorded; no vault file"; continue; }
-      if (now >= B.lockTime(w) + PICKS_GRACE && !released) { problems.push(`week ${w}: picks weren't recorded within ${PICKS_GRACE / HOUR} h of the lock; the publish job won't take them later (BRACKET_RELEASE = ${w} allows one late record). The week closes at the backstop`); continue; }
+      if (now >= picksWindowEnd) { problems.push(released ? `week ${w}: picks can't be recorded once round 1's first hour is over, even under BRACKET_RELEASE (fix-check 2 PK-2). The week closes at the backstop` : `week ${w}: picks weren't recorded within ${PICKS_GRACE / HOUR} h of the lock; the publish job won't take them later (BRACKET_RELEASE = ${w} allows a late record until round 1's first hour is over). The week closes at the backstop`); continue; }
       if (!nodeC) { problems.push(`week ${w}: picks wait for a second node (RPC_CHECK)`); continue; }
-      if (!picksRead) wf.picks = { checked: 2, rows: [] };
-      else {
-        try {
-          if (!o.picksOf || o.gameOf) {
-            const g1 = o.gameOf ? await o.gameOf(o.p) : await readGame(o.p, contract!);
-            const gp = gameProblem(g1);
-            if (gp) { problems.push(`week ${w}: ${gp}; picks not recorded`); continue; }
-            const g2 = o.gameOf ? await o.gameOf(o.check) : await readGame(o.check, contract!);
-            if (JSON.stringify(g1) !== JSON.stringify(g2)) { problems.push(`week ${w}: the two nodes disagree about the Picks game; picks not recorded this run`); continue; }
-          }
-          const round = B.picksRound(w), raw = await picksRead(o.p, round);
-          const other = await picksRead(o.check, round);
-          const key = (x: RawPick[]) => JSON.stringify([...x].sort((u, v) => (u.player < v.player ? -1 : 1)));
-          if (key(raw) !== key(other)) { problems.push(`week ${w}: the two nodes disagree about the picks; not recorded this run`); continue; }
-          const seen = new Set<string>();
-          const rows: Pick[] = [];
-          let late = 0;
-          for (const x of raw) {
-            if (seen.has(x.player)) continue;
-            if (!(x.time < B.lockTime(w))) { late++; continue; }   // the chain should refuse these; never count one (audit F-5)
-            seen.add(x.player); rows.push([x.player, x.number, x.time, B.decode(x.number, size, seeds.length) ? 1 : 0]);
-          }
-          if (late) problems.push(`week ${w}: ${late} pick(s) timed at or after the lock were left out`);
-          rows.sort((a, b) => (a[0] < b[0] ? -1 : 1));
-          wf.picks = { checked: 2, rows };
-          console.log(`week ${w}: ${rows.length} brackets locked (${rows.filter((r) => r[3]).length} valid)`);
-        } catch (e) { problems.push(`week ${w}: picks: ${(e as Error).message} (tried again next run)`); continue; }
-      }
+      try {
+        const rows = await readPicksBoth();
+        if (typeof rows === "string") { problems.push(`week ${w}: ${rows}`); continue; }
+        wf.picks = { checked: 2, rows }; picksNew = true;
+        console.log(`week ${w}: ${rows.length} brackets locked (${rows.filter((r) => r[3]).length} valid); read again next run before they count`);
+      } catch (e) { problems.push(`week ${w}: picks: ${(e as Error).message} (tried again next run)`); continue; }
+    } else if (wf.picks.re !== 1 && nodeC) {
+      try {
+        const rows = await readPicksBoth();
+        if (typeof rows === "string") problems.push(`week ${w}: picks re-read: ${rows}`);
+        else if (JSON.stringify(rows) === JSON.stringify(wf.picks.rows)) wf.picks = { ...wf.picks, re: 1 };
+        else if (released && now < picksWindowEnd) { wf.picks = { checked: 2, rows }; picksNew = true; problems.push(`week ${w}: the picks read differently; replaced under BRACKET_RELEASE (read again next run)`); }
+        else problems.push(`week ${w}: the picks read differently now than when they were recorded; held until they're checked (BRACKET_RELEASE = ${w} lets a run replace them until round 1's first hour is over; else the week closes at the backstop)`);
+      } catch (e) { problems.push(`week ${w}: picks re-read: ${(e as Error).message} (tried again next run)`); }
     }
+    if (wf.picks!.re !== 1 && !picksNew && now >= backstop) { wf.status = "void"; wf.void = "its picks could not be confirmed by a second read before the backstop; no vault file"; continue; }
     wf.status = "locked";
     // ── 3. hours: every irreversible hour of the round days not recorded yet, in one batch per run ──
     const todo = hoursOf(w, wf).filter(([r, h, start]) => !wf.days[r][h] && start + HOUR <= now).slice(0, hoursLeft);
@@ -548,7 +563,8 @@ export async function run(o: Opts) {
     // fix-check F1: the end-of-week stakes count only once a LATER run has read them again on both nodes and found the
     // same (the two-run rule, as for hours): one forged run can't decide who is paid
     let stakesConfirmed = false;
-    if (now >= B.weekStart(w + 1)) {
+    if (wf.picks!.re !== 1) { if (now >= B.weekStart(w)) problems.push(`week ${w}: stakes wait for the picks to be read again (fix-check 2 PK-1)`); }
+    else if (now >= B.weekStart(w + 1)) {
       try {
         const st = await readBoth(w, players), read = { checked: 2, list: st.staked, held: st.held };
         if (!wf.staked || !wf.staked.held) wf.staked = read;
@@ -561,13 +577,14 @@ export async function run(o: Opts) {
       catch (e) { problems.push(`week ${w}: stakes: ${(e as Error).message} (tried again next run)`); }
     }
     // ── 6. final (no earlier than Monday 00:00 UTC after the week; WEEK_CYCLE.md) ──
-    if (now >= B.finalFrom(w)) {
+    if (now >= B.finalFrom(w) && released) problems.push(`week ${w}: BRACKET_RELEASE names this week, so it can't go final; clear it once the correction is in (fix-check 2 R-1)`);
+    else if (now >= B.finalFrom(w)) {
       const reRead = allReRead(wf);
       if (done && reRead && stakesConfirmed) { wf.status = "final"; console.log(`week ${w}: final`); }
       else if (now >= backstop) {
         if (done && reRead) { wf.status = "final"; wf.vault = "missed"; problems.push(`week ${w}: closed at the backstop without the Vault's stakes; no vault file (the Vault rolls the week over)`); }
         else { wf.status = "void"; wf.void = "its results could not be completed and checked within 3 days of the week's end; no vault file"; problems.push(`week ${w}: void at the backstop: results never completed or re-read`); }
-      } else problems.push(`week ${w}: in review: ${!done ? "results not all in" : !reRead ? "hours still being re-read" : "waiting for the Vault's stakes to read the same twice"}`);
+      } else problems.push(`week ${w}: in review: ${!done ? "results not all in" : !reRead ? "picks or hours still being re-read" : "waiting for the Vault's stakes to read the same twice"}`);
     }
   }
 

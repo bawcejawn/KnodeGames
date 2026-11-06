@@ -111,17 +111,21 @@
   function seeding(card, last) {
     const all = [...(card && Array.isArray(card.field) ? card.field : []), ...(card && Array.isArray(card.paddock) ? card.paddock : [])]
       .filter((r) => r && typeof r.a === "string" && Number.isFinite(r.vhp) && r.vhp > 0);
-    const total = all.reduce((t, r) => t + r.vhp, 0);
+    // Repo Lens fix-check 2 FL-1: who is in the field is decided here in whole cents (RACE_BLOCKS × cents ≥ MIN_K × total
+    // cents), never by a float sum whose order differs between the recorder and the publish job
+    const cents = (v) => Math.round(v * 100), totC = all.reduce((t, r) => t + cents(r.vhp), 0);
+    const inField = (v) => totC > 0 && RACE_BLOCKS * cents(v) >= MIN_K * totC;
     const before = last instanceof Map ? last : new Map(Object.entries(last && typeof last === "object" ? last : {}));
     const seen = new Set(), rows = [];
-    for (const r of card && Array.isArray(card.field) ? card.field : []) {
-      if (!r || typeof r.a !== "string" || !Number.isFinite(r.vhp) || r.vhp <= 0 || seen.has(r.a)) continue;
+    for (const r of all) {
+      if (seen.has(r.a)) continue;
       seen.add(r.a);
+      if (!inField(r.vhp)) continue;
       // Repo Lens fix-check RC-1: with last week's numbers, a producer missing from them (a fresh address) counts 0
       // there, so moving VHP to a new address for the seeding day buys nothing. Without any (the first bracket, or no
       // seeding in the weeks before), everyone is on today's average.
       const prev = Number(before.get(r.a)), vhp = before.size ? Math.min(r.vhp, Number.isFinite(prev) && prev > 0 ? prev : 0) : r.vhp;
-      if (total > 0 && RACE_BLOCKS * vhp / total >= MIN_K) rows.push({ a: r.a, vhp });
+      if (inField(vhp)) rows.push({ a: r.a, vhp });
     }
     rows.sort((x, y) => y.vhp - x.vhp || (x.a < y.a ? -1 : x.a > y.a ? 1 : 0));
     const size = sizeFor(rows.length), n = Math.min(rows.length, size);

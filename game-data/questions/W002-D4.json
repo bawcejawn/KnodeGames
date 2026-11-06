@@ -900,9 +900,25 @@
             "1Lk4D5bYDzMeh4CFXLWTpLEeJFqKmqbkEt": "59804078016784"
           },
           "seal": "05bfa12fc7d1c039ed56ec3d37837f394cfea3b1e593fb7a5813450cc57a952d"
+        },
+        {
+          "height": 40850986,
+          "readAt": "2026-11-06T17:45:23.266Z",
+          "values": {
+            "14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb": "62121147853728",
+            "1JrsQXbrDqkT9yUH6gtj4yhQi1kgWwsohh": "11911617886959",
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1142470873838",
+            "1F96MSYgSsgY1WJHnTBtjtgPEN9te7xNxp": "548421211383",
+            "122hrgzoXVmmxWxUs8TUrCFGcKG9czYgvf": "28424098327",
+            "1932QKYoPzaGmwBxTnnYhNqV9LQi2sYLHT": "106011661371",
+            "15jueaBcMieDCMGw6wAmEK6cNSUVicknG1": "45885283753",
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2072348822546",
+            "1Lk4D5bYDzMeh4CFXLWTpLEeJFqKmqbkEt": "59788957123713"
+          },
+          "seal": "81685bc3ec093a4df29764369bfc51a91056ff3154ff223f66fb635fd7b42708"
         }
       ],
-      "vhpSeal": "b87196a5a8c499379018977d70d821b3dfe4a0b32703ce872be019d60bce0766"
+      "vhpSeal": "211f863d42fdb58bdad5a2928b910e4b304d02c26b87f023683e585d4ebe97ae"
     }
   ],
   "daySeal": "d9d329fcb8ac36cd95d015bd8ac088c2131e36e5b9590b0904d0a4d851bf08bd"

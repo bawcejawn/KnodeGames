@@ -34,7 +34,7 @@
   // ── the network ──
   // NET: { rpc, data (this game's data folder), cards ("race" | "self"), game settings, picks contract, wallet, words }
   let NET = null, G = X, provider = null, W = null;
-  // R-BX-25: mainnet Block X is game 2 (every 2,400 blocks) until Mon 16 Nov 2026 00:00 UTC, then hourly game 12 (every
+  // R-BX-25: mainnet Block X is game 2 (every 2,400 blocks) until Mon 9 Nov 2026 00:00 UTC, then hourly game 12 (every
   // 1,200). PERIOD is the shown game's weeks; VAULT_GAME is the vault game for stakes (2 throughout).
   let PERIOD = { from: -Infinity, to: Infinity }, VAULT_GAME = X.VAULT_GAME;
   async function setupNet() {
@@ -157,7 +157,7 @@
       return [...seen.entries()].sort((a, b) => b[1] - a[1]).map(([a, n]) => ({ a, share: n / tot, mult: null }));
     }
     const { m } = X.vhpOf(card), tot = [...m.values()].reduce((s, v) => s + v, 0);
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([a, v]) => ({ a, share: tot ? v / tot : 0, mult: X.multiplier(card, a) }));
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([a, v]) => ({ a, share: tot ? v / tot : 0, mult: X.multiplier(card, a, Date.now()) }));
   }
 
   // ── the Picks contract ──
@@ -246,7 +246,7 @@
     if (funs) whoLine.append(el("span", { class: "bx-rest", text: " Sunday is review day: results are checked and paid from Monday. Sunday (UTC) targets are fun rounds: they count on Today and All time, not the week." }));
     // R-BX-25: once the every-2-hours game's last target has passed, point to the hourly game.
     const ended = PERIOD.to !== Infinity && about(head.height) >= PERIOD.to - 10 * 60000 - G.LEAD * X.BLOCK_MS;
-    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty" }, !picksContract ? "Picks open soon." : ended ? el("span", {}, "Block X is hourly from Mon 16 Nov: ", el("a", { href: `#game-${X.MAINNET_HOURLY.id}`, text: "pick the hourly targets" }), ".") : "No target is open right now.")); return; }
+    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty" }, !picksContract ? "Picks open soon." : ended ? el("span", {}, `Block X is hourly from ${new Date(X.periodOf(X.MAINNET_SCHEDULE[1]).from).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}: `, el("a", { href: `#game-${X.MAINNET_HOURLY.id}`, text: "pick the hourly targets" }), ".") : "No target is open right now.")); return; }
     const cards = rounds.map((r, i) => {
       const h = G.target(r), mine = myPicks.get(r), mineP = mine && mine.producers && mine.producers[0];
       const choice = drafts.get(r) || mineP || null;
@@ -254,14 +254,14 @@
       const chips = el("div", { class: "bx-chips", role: "radiogroup", "aria-label": `Who signs block ${fmt(h)}` },
         ...(ps.length ? ps : []).map((p) => el("button", { type: "button", class: "bx-chip" + (p.a === mineP ? " picked" : ""), role: "radio", "aria-checked": String(p.a === choice), disabled: sending || noChanges ? "" : null,
           onclick: () => choose(r, p.a) },
-          dot(p.a), el("span", { class: "bx-name", text: nameOf(p.a) }), el("span", { class: "bx-share", text: shareText(p.share) }), el("span", { class: "bx-mult", text: multText(p.mult) }))));
+          dot(p.a), el("span", { class: "bx-name", text: nameOf(p.a) }), el("span", { class: "bx-share", text: shareText(p.share) }), el("span", { class: "bx-mult", text: multText(card ? X.multiplier(card, p.a, about(h)) : p.mult) }))));
       if (!ps.length) chips.append(el("div", { class: "bx-empty", text: "Loading producers…" }));
       const changed = choice && choice !== mineP;
       const btn = el("button", { type: "button", class: "bx-lockin", onclick: () => (who ? sendPick(r, choice) : startPlaying()) },
         !who ? (TESTNET ? "Play free to pick" : "Connect to pick") : mineP && !changed ? "Picked" : mineP ? "Change pick" : "Lock in pick");
       if (who && (sending || !changed || used >= max || noChanges)) btn.disabled = true;
       const foot = el("div", { class: "bx-t-foot" },
-        mineP ? el("span", { class: "bx-yours", text: `Yours: ${nameOf(mineP)}${noChanges ? " (no changes left)" : ""}` }) : el("span", { text: who && used >= max ? "Today's picks are used up" : choice ? `${nameOf(choice)} · about ${multText(ps.find((p) => p.a === choice)?.mult)} if right` : "Choose a producer", title: "By the current handicap card. The card taken at or before the lock decides the score." }), btn);
+        mineP ? el("span", { class: "bx-yours", text: `Yours: ${nameOf(mineP)}${noChanges ? " (no changes left)" : ""}` }) : el("span", { text: who && used >= max ? "Today's picks are used up" : choice ? `${nameOf(choice)} · about ${multText(card ? X.multiplier(card, choice, about(h)) : ps.find((p) => p.a === choice)?.mult)} if right` : "Choose a producer", title: "By the current handicap card. The card taken at or before the lock decides the score." }), btn);
       return el("article", { class: "bx-t" + (i === 0 ? " first" : "") + (mineP ? " mine" : ""), id: `t-${r}` },
         el("div", { class: "bx-t-top" }, el("b", { text: `Block ${fmt(h)}` }), el("span", { "data-h": String(h), class: "bx-eta", text: etaText(r) }), i === 0 ? el("em", { text: "Next up" }) : null,
           funAt(r) ? el("em", { class: "bx-fun", title: "Sunday (UTC): counts on Today and All time, not the week", text: "Fun round · not the week" })
@@ -278,9 +278,24 @@
   }
   let showAll = false;
   const etaText = (r) => `about ${clock(about(G.target(r)))} · locks in ${dur(secsTo(G.lockHeight(r)) * 1000)}`;
+  // Owner, 5 Nov: "after they select the producer it gives a pop up to pick them or x out and select another".
+  // Tapping a producer opens one small box: the pick, what it scores, and two buttons (Pick / Choose another).
   function choose(r, a) {
     if (!me()) { drafts.set(r, a); startPlaying(); return; }
     drafts.set(r, a); renderTargets(true);
+    const mine = myPicks.get(r), mineP = mine && mine.producers && mine.producers[0];
+    if (sending || a === mineP) return;
+    const h = G.target(r), mult = card ? X.multiplier(card, a, about(h)) : null;
+    const pick = el("button", { class: "btn", type: "button", onclick: () => { closeModal(); sendPick(r, a); } }, mineP ? "Change my pick" : "Pick");
+    const other = el("button", { class: "btn ghost", type: "button", onclick: () => { drafts.delete(r); closeModal(); renderTargets(true); } }, "Choose another");
+    pickModal("info", `${nameOf(a)} for block ${fmt(h)}?`, [
+      el("p", {}, "About ", el("b", { text: dayTime(about(h)) }), ` · scores ${multText(mult)} if right`),
+      ...(mineP ? [`Your pick now: ${nameOf(mineP)}. You can change it once.`] : []),
+    ], [pick, other]);
+    // The ✕ in the corner, as well as a tap outside, closes it to choose another.
+    const box = modal && modal.querySelector(".pk-box");
+    if (box) box.prepend(el("button", { type: "button", class: "pk-x", "aria-label": "Close and choose another", onclick: () => { drafts.delete(r); closeModal(); renderTargets(true); } }, "✕"));
+    pick.focus();
   }
   function updateTimes() {
     if (!head) return;
@@ -403,7 +418,7 @@
     try { await readHead(); } catch { /* use the last head */ }
     if (!(G.lockHeight(r) - head.height > 20)) return pickModal("bad", "Too close to the lock", [`Block ${fmt(h)} locks in a few minutes. Pick a later one.`], [okBtn("OK")]);
     sending = true; renderTargets(true);
-    const mult = X.multiplier(card, producer);
+    const mult = X.multiplier(card, producer, about(h));   // the cap of the target's own week (×3 before Week 1, ×5 from it)
     const what = `${nameOf(producer)} signs block ${fmt(h)} (about ${dayTime(about(h))})`;
     const wallet = W.kind === "guest" ? "your guest wallet" : W.label ? W.label() : "your wallet";
     // Audit BX-12: say who really pays on this wallet.

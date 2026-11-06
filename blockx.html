@@ -8,12 +8,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Who Signs Block X · Pick the Koinos producer of the next big blocks</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
-  <meta name="description" content="Every 2,400 Koinos blocks is a target. Pick the producer you think signs it; smaller producers score more, up to 3×. Free, with weekly VHP prizes.">
+  <meta name="description" content="A Koinos block about every hour is a target. Pick the producer you think signs it; smaller producers score more, up to 5×. Free, with weekly VHP prizes.">
   <link rel="canonical" href="https://knodegames.com/blockx.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Knode Games">
   <meta property="og:title" content="Who Signs Block X">
-  <meta property="og:description" content="Every 2,400 Koinos blocks is a target. Pick the producer you think signs it; smaller producers score more, up to 3×. Free, with weekly VHP prizes.">
+  <meta property="og:description" content="A Koinos block about every hour is a target. Pick the producer you think signs it; smaller producers score more, up to 5×. Free, with weekly VHP prizes.">
   <meta property="og:url" content="https://knodegames.com/blockx.html">
   <meta property="og:image" content="https://knodegames.com/media/og-knode.png">
   <meta property="og:image:width" content="1200">
@@ -21,7 +21,7 @@
   <meta property="og:image:alt" content="Who Signs Block X">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Who Signs Block X">
-  <meta name="twitter:description" content="Every 2,400 Koinos blocks is a target. Pick the producer you think signs it; smaller producers score more, up to 3×. Free, with weekly VHP prizes.">
+  <meta name="twitter:description" content="A Koinos block about every hour is a target. Pick the producer you think signs it; smaller producers score more, up to 5×. Free, with weekly VHP prizes.">
   <meta name="twitter:image" content="https://knodegames.com/media/og-knode.png">
   <!-- seo:end -->
   <link rel="icon" href="media/icon.svg" type="image/svg+xml">
@@ -64,6 +64,8 @@
     .pk-box p { margin: 6px 0; font-size: 14px; color: var(--muted); }
     .pk-box p b { color: var(--ink); }
     .pk-box .pk-acts { margin-top: 16px; display: flex; justify-content: center; gap: 8px; }
+    .pk-box { position: relative; }
+    .pk-x { position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 16px; cursor: pointer; }
     .pk-big { display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; font-size: 30px; font-weight: 800; background: var(--paper); }
     .pk-big.ok { background: var(--mint-soft); color: var(--mint); } .pk-big.bad { background: var(--rose-soft); color: var(--rose); }
     .pk-spin { display: inline-block; width: 44px; height: 44px; border-radius: 50%; border: 4px solid var(--line); border-top-color: var(--violet); animation: spin .9s linear infinite; }
@@ -159,7 +161,7 @@
     <div class="bx-intro">
       <div>
         <h1>Who Signs Block X</h1>
-        <p>Every 2,400 blocks (about every 2 hours) is a target. Guess which producer signs it. Smaller producers score more, up to ×3. Free to play.</p>
+        <p>A target about every hour (every 1,200 blocks, from Mon 9 Nov). Guess which producer signs it. Smaller producers score more, up to ×5. Free to play.</p>
       </div>
     </div>
     <p class="status" id="status" role="status">Reading the chain…</p>
@@ -187,7 +189,7 @@
     <ol class="bx-steps" id="steps">
       <li><span><b>Connect a wallet</b>Kondor, KOIN Vault, or a free guest wallet. Picks cost you nothing: the Knode Games Mana sponsor pays.</span></li>
       <li><span><b>Pick who signs a target</b>12 targets are always open. Change your pick until it locks.</span></li>
-      <li><span><b>Score when you're right</b>×1 for the biggest producer, up to ×3 for small ones. The Free play board's top 2 win 2 and 1 VHP each week, from Week 1 (the week of Mon 9 Nov).</span></li>
+      <li><span><b>Score when you're right</b>×1 for the biggest producer, up to ×5 for small ones (×3 before Week 1). The Free play board's top 2 win 2 and 1 VHP each week, from Week 1 (the week of Mon 9 Nov).</span></li>
     </ol>
 
     <section class="bx-sec" id="targets-box">
@@ -225,7 +227,7 @@
     <details class="bx-how" id="how">
       <summary>How it works</summary>
       <div class="explain">
-        <p><b>The targets.</b> Every block whose number is a multiple of 2,400 is a target, about every 2 hours. The next 12 are always open, about a day ahead. Nobody chooses them.</p>
+        <p><b>The targets.</b> From Mon 9 Nov 2026, every block whose number is a multiple of 1,200 is a target, about every hour (before that, every 2,400 blocks). About a day of targets is always open. Nobody chooses them.</p>
         <p><b>The lock.</b> The Picks contract refuses a pick once the chain reaches 100 blocks before the target, so every pick is in before anyone can know who signs it. You can change a pick once, and make up to 30 picks a day (a change counts).</p>
         <p><b>The score.</b> Koinos picks who signs each block in proportion to VHP, so big producers sign more often. A right pick scores</p>
         <p><span class="formula">min(3, top producer's VHP ÷ your producer's VHP)</span></p>

@@ -531,21 +531,37 @@ export async function run(o: Opts) {
       if (ch.lib < head.lib) head.lib = ch.lib;
     }
   }
+  const badGames = new Set<any>();   // R-BX-25 / Repo Lens #E-21 L-2: started games whose settings on chain are wrong
   // Audit BX-33 / BX-46: the game's lock settings on chain (both nodes) must be the ones this recorder scores with.
   // A failed read, or no such game, records nothing this run (it never falls back to the recorder's own settings).
   if (!o.picksOf && contract) {
     for (const node of [o.p, o.check].filter(Boolean)) {
-      // R-BX-25: every game whose weeks this run can touch (the last 3 days and now): a game not started yet isn't read.
-      for (const e of SCHED.filter((x) => x.from <= head.time && x.to > head.time - LOOKBACK_BLOCKS * X.BLOCK_MS - 7 * X.DAY)) {
-        const G = e.G;
-        const r: any = await withRetry(`game ${G.GAME_ID} settings`, () => (new Contract({ id: contract, abi: PICKS_ABI(), provider: node }).functions as any).get_game({ game: G.GAME_ID }));
-        const gc = r?.result?.game;
-        if (!gc) throw new Error(`game ${G.GAME_ID} is not on the Picks contract (or the node didn't answer). Nothing recorded this run.`);
-        if (Number(gc.round_size) !== G.ROUND || Number(gc.round_offset ?? 0) !== G.OFFSET || Number(gc.lead) !== G.LEAD) {
-          throw new Error(`game ${G.GAME_ID} on chain has round ${gc.round_size}, offset ${gc.round_offset ?? 0}, lead ${gc.lead}; this recorder scores ${G.ROUND}/${G.OFFSET}/${G.LEAD}. Nothing recorded: update the game settings in the recorder first.`);
+      // R-BX-25: every game whose weeks this run can touch (the last 3 days and now), and (Repo Lens #E-21 L-2) one that
+      // starts within 2 days, so a missing or wrong announce shows before the switch. A game not started yet only adds a
+      // problem line; a started game that is missing or different is skipped (its rounds aren't read) while the other
+      // games still record and go final. Only when every started game is wrong does the run record nothing, as before.
+      for (const e of SCHED.filter((x) => x.from <= head.time + 2 * X.DAY && x.to > head.time - LOOKBACK_BLOCKS * X.BLOCK_MS - 7 * X.DAY)) {
+        const G = e.G, started = e.from <= head.time;
+        let why = "";
+        try {
+          const r: any = await withRetry(`game ${G.GAME_ID} settings`, () => (new Contract({ id: contract, abi: PICKS_ABI(), provider: node }).functions as any).get_game({ game: G.GAME_ID }));
+          const gc = r?.result?.game, pg = r?.result?.pending;
+          const same = (c: any) => Number(c.round_size) === G.ROUND && Number(c.round_offset ?? 0) === G.OFFSET && Number(c.lead) === G.LEAD;
+          if (!gc && !started && pg?.game && same(pg.game) && Number(pg.eta) <= e.from) { console.log(`game ${G.GAME_ID}: announced, can be applied from ${new Date(Number(pg.eta)).toISOString()} (before its weeks start)`); continue; }
+          if (!gc) why = `game ${G.GAME_ID} is not on the Picks contract${pg?.game ? ` (it is announced${same(pg.game) ? "" : " with other settings"}, applicable from ${new Date(Number(pg.eta)).toISOString()})` : ""}`;
+          else if (Number(gc.round_size) !== G.ROUND || Number(gc.round_offset ?? 0) !== G.OFFSET || Number(gc.lead) !== G.LEAD) why = `game ${G.GAME_ID} on chain has round ${gc.round_size}, offset ${gc.round_offset ?? 0}, lead ${gc.lead}; this recorder scores ${G.ROUND}/${G.OFFSET}/${G.LEAD}`;
+        } catch (err) {
+          if (started) throw err;   // a failed read of a running game: nothing recorded this run (BX-46)
+          why = `game ${G.GAME_ID}'s settings could not be read (${String((err as Error).message).slice(0, 80)})`;
         }
+        if (!why) continue;
+        if (!started) { problems.push(`${why}. Its weeks start ${new Date(e.from).toISOString()}: announce and apply it before then (npm run picks -- announce ${G.GAME_ID}, then apply ${G.GAME_ID} 48 h later)`); continue; }
+        badGames.add(G);
+        problems.push(`${why}. Its targets are not recorded this run; the other games are. Fix the game on chain or in the recorder`);
       }
     }
+    const startedGames = SCHED.filter((e) => e.from <= head.time).map((e) => e.G);
+    if (startedGames.length && startedGames.every((G) => badGames.has(G))) throw new Error(`${problems.slice(-1)[0]}. Nothing recorded this run: update the game settings in the recorder first.`);
   }
   const picksRead: ((node: any, r: number, g: number) => Promise<RawPick[]>) | null = o.picksOf ?? (contract ? (node: any, r: number, g: number) => readPicks(node, contract, g, r) : null);
   // Audit BX-63: one vault reader for the whole run (each wallet read once per node and week, in parallel).
@@ -714,7 +730,7 @@ export async function run(o: Opts) {
       const lockC = withMoved(card, t.signer!, moved), afterC = withMoved(after, t.signer!, moved);
       const { m, top } = X.vhpOf(lockC);
       if (top !== t.card.top || (m.get(t.signer) ?? null) !== t.card.signerVhp) { const x = hold(": its card values read differently now"); if (x) return x; }
-      for (const p of t.picks) if (Math.min(X.pointsOf(lockC, p[1], t.signer), X.pointsOf(afterC, p[1], t.signer)) !== p[3]) { const x = hold(`: ${p[0]}'s points recompute differently`); if (x) return x; }
+      for (const p of t.picks) if (Math.min(X.pointsOf(lockC, p[1], t.signer, t.time), X.pointsOf(afterC, p[1], t.signer, t.time)) !== p[3]) { const x = hold(`: ${p[0]}'s points recompute differently`); if (x) return x; }
       return null;
     };
     // Repo Lens E4-3: REVERIFY_AT_ONCE targets at a time, within a time budget. Past the budget the week is held and
@@ -742,7 +758,7 @@ export async function run(o: Opts) {
   const slots: { G: any; r: number; h: number }[] = [];
   for (const e of SCHED) {
     const G = e.G;
-    if (e.from > head.time) continue;   // a game whose weeks haven't started
+    if (e.from > head.time || badGames.has(e.G)) continue;   // a game whose weeks haven't started, or whose settings are wrong
     let firstRound = Math.max(1, Math.ceil((head.lib - LOOKBACK_BLOCKS - G.OFFSET) / G.ROUND));
     // CARDS=self: only targets whose lock comes at most ~an hour (1,200 blocks) before the first run; earlier ones could
     // never have a card, so they are not part of this recorder's game at all (no "void" rows for days before it ran).
@@ -757,9 +773,10 @@ export async function run(o: Opts) {
     if (n >= MAX_TARGETS_PER_RUN) break;
     if (done.has(`${G.GAME_ID}:${r}`)) continue;
     if (h <= G.LEAD) continue;
-    // R-BX-25: a block clearly outside this game's weeks (by its expected time, a day either side) isn't read at all.
+    // R-BX-25 (Repo Lens #E-21 L-1): a block clearly outside this game's weeks (by its expected time, more than 2 hours
+    // past either edge) isn't read at all, and doesn't count toward the run's budget.
     const est = head.time - (head.height - h) * X.BLOCK_MS;
-    if (!SCHED.some((e) => e.G === G && est >= e.from - X.DAY && est < e.to + X.DAY)) continue;
+    if (!SCHED.some((e) => e.G === G && est >= e.from - 2 * 3600000 && est < e.to + 2 * 3600000)) continue;
     n++;
     const old = h < head.lib - LOOKBACK_BLOCKS + G.ROUND;
     try {
@@ -770,8 +787,9 @@ export async function run(o: Opts) {
         if (b2.signer !== b.signer || b2.time !== b.time || l2.time !== lock.time) { problems.push(`block ${h}: the two nodes disagree; not recorded this run`); if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about this block until it left the 3-day window", G); continue; }
         checked = 2;
       }
-      // R-BX-25: the block's real time decides the game (game 2 before the switch, hourly game 12 from it).
-      if (!inGame(G, b.time)) continue;
+      // R-BX-25: the block's real time decides the game (game 2 before the switch, hourly game 12 from it). One that
+      // belongs to the other game is never read again and doesn't use up this run's budget (Repo Lens #E-21 L-1).
+      if (!inGame(G, b.time)) { done.add(`${G.GAME_ID}:${r}`); n--; continue; }
       let raw: RawPick[] = [];
       if (picksRead) {
         raw = await picksRead(o.p, r, G.GAME_ID);
@@ -845,7 +863,7 @@ export async function run(o: Opts) {
       const lockC = withMoved(card, b.signer, moved), afterC = withMoved(after, b.signer, moved);
       const { m, top } = lockC ? X.vhpOf(lockC) : { m: new Map(), top: 0 };
       const scoring = card && after && !lockFlagged && !nonCanonical ? lockC : null;
-      const pointsOf = (producer: string) => (scoring ? Math.min(X.pointsOf(lockC, producer, b.signer), X.pointsOf(afterC, producer, b.signer)) : 0);
+      const pointsOf = (producer: string) => (scoring ? Math.min(X.pointsOf(lockC, producer, b.signer, b.time), X.pointsOf(afterC, producer, b.signer, b.time)) : 0);
       const picks: Pick[] = raw.map((x) => [x.player, x.producer, x.time, pointsOf(x.producer), ranked.has(x.player) ? 1 : 0]);
       const t: Target = {
         round: r, height: h, final: true, checked, signer: isAddr(b.signer) ? b.signer : null, time: b.time, lockTime: lock.time,
@@ -912,7 +930,7 @@ export async function run(o: Opts) {
     const wf = all.get(lw);
     // (R-BX-25: rounds are a game's own, so only that game's weeks are searched for the neighbours.)
     const sameGame = new Map([...all].filter(([w]) => GW(w) === GW(lw)));
-    const complete = !!wf && wf.targets.length > 0 && targetsCover(wf, M.weekStart(lw), weekEnd(lw), sameGame);
+    const complete = !!wf && wf.targets.length > 0 && targetsCover(wf, M.weekStart(lw), weekEnd(lw), sameGame, 1.5 * GW(lw).ROUND * X.BLOCK_MS);
     // (The run before is the last one on Sunday, whose "this week" board is this week's Mon–Sat, or one on Monday.)
     const prevBoard = readJson(PREV, "board.json");
     const pw = prevBoard && [prevBoard.lastWeek, prevBoard.week].find((x: any) => x && x.week === lw && Array.isArray(x.rows));
@@ -1029,7 +1047,7 @@ export async function run(o: Opts) {
  *  the round right after the last one is recorded and falls at or after the week's end (so no target at the end of
  *  the week is missing), and the round right before the first one is recorded before the week's start (or, for the
  *  game's first week, the first target is within 3 hours of the start). */
-export function targetsCover(wf: WeekFile, from: number, to: number, all: Map<number, WeekFile>): boolean {
+export function targetsCover(wf: WeekFile, from: number, to: number, all: Map<number, WeekFile>, firstWithinMs = 3 * 3600000): boolean {
   const rs = wf.targets.map((t) => t.round).sort((a, b) => a - b);
   for (let i = 1; i < rs.length; i++) if (rs[i] !== rs[i - 1] + 1) return false;
   const find = (r: number) => { for (const w of all.values()) { const t = w.targets.find((x) => x.round === r); if (t) return t; } return null; };
@@ -1043,7 +1061,7 @@ export function targetsCover(wf: WeekFile, from: number, to: number, all: Map<nu
   if (before) return before.time < from;
   const first = wf.targets.find((t) => t.round === rs[0])!;
   const earlier = [...all.keys()].some((w) => w < wf.week && (all.get(w)?.targets.length ?? 0) > 0);
-  return !earlier && first.time - from < 3 * 3600000;
+  return !earlier && first.time - from < firstWithinMs;   // (Repo Lens #E-21 I-3: 1.5 rounds, so 3 h every 2 hours, 1.5 h hourly)
 }
 
 // ── the testnet config (testnet/blockx.json), read and checked ──

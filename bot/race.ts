@@ -969,10 +969,21 @@ export function cutLine(rows: Row[]): Row[] {
     if (last >= 0) for (const r of g.slice(last + 1)) r.tb = 1;
     i = j;
   }
+  // Repo Lens #E-22 L-2: the same for a free place cut at 10 (D-159): the tied wallets after its last winner take the
+  // next place on the board, so the board never shows a wallet at a paid place it isn't paid for.
+  const prize = new Set([...prizePlaces(rows).first, ...prizePlaces(rows).second]);
+  const free = out.filter((r) => !r.ranked && r.pts >= 1);
+  for (let i = 0; i < free.length; ) {
+    let j = i; while (j < free.length && same(free[i], free[j])) j++;
+    const g = free.slice(i, j);
+    let last = -1; g.forEach((r, k) => { if (prize.has(r.a)) last = k; });
+    if (last >= 0) for (const r of g.slice(last + 1)) r.tb = 1;
+    i = j;
+  }
   return out;
 }
 /** earns, on the weekly boards (owner, 2026-10-29: only wallets that earn get a medal): 1 or 2 = the free prize's 1st
- *  or 2nd (prizePlaces: ties, and the 10 earliest when more are tied), 3 = a share of the staked bucket, 0 = nothing.
+ *  or 2nd (prizePlaces: ties, up to 10 per place by score time then address, D-152 / D-159), 3 = a share of the staked bucket, 0 = nothing.
  *  Other boards: 0. Exported. */
 export function withEarns(rows: Row[], paying: boolean): Row[] {
   if (!paying) return rows.map((r) => ({ ...r, earns: 0 }));

@@ -396,6 +396,15 @@ test("vault: free-prize places from the free players' rows; ties on every measur
   assert.deepEqual([y.first, y.second], [[A[12]], A.slice(1, 11).reverse()], "11 tied for 2nd: the 10 earliest share 2nd (D-159: 10 per place)"); assert.match(y.notes[0], /tied for 2nd: the 10 that reached/);
   const tenFor2nd = prizePlaces([r(A[12], 9), ...eleven.slice(0, 10)]);
   assert.deepEqual([tenFor2nd.first.length, tenFor2nd.second.length], [1, 10], "a single 1st and 10 tied for 2nd: all 10 share 2nd (D-159)");
+  // Repo Lens #E-22 L-2: on the board, the tied wallets cut from a free place take the next place (no medal, no place 1).
+  const { cutLine, withPlaces, withEarns, rank } = await import(path.resolve(APP, "bot/race.ts"));
+  const bx = withEarns(withPlaces(cutLine(rank([...eleven, r(A[12], 3)]))), true);
+  const at = (a) => bx.find((q) => q.a === a);
+  assert.deepEqual(A.slice(1, 11).map((a) => [at(a).boardPlace, at(a).earns]), A.slice(1, 11).map(() => [1, 1]), "the 10 paid share 1st");
+  assert.deepEqual([at(A[0]).boardPlace, at(A[0]).earns], [11, 0], "the 11th (reached last) shows 11th, not 1st");
+  assert.deepEqual([at(A[12]).boardPlace, at(A[12]).earns], [12, 0]);
+  const by = withEarns(withPlaces(cutLine(rank([r(A[12], 9), ...eleven]))), true);
+  assert.deepEqual([by.find((q) => q.a === A[0]).boardPlace, by.find((q) => q.a === A[1]).boardPlace], [12, 2], "cut from 2nd: the next place");
   const same = prizePlaces(A.slice(0, 11).map((a) => r(a, 6)));       // no times: the address decides, so it's repeatable
   assert.deepEqual(same.first, A.slice(0, 10));
   const ten = prizePlaces(A.slice(0, 10).map((a) => r(a, 6)));

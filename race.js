@@ -416,7 +416,7 @@
   const lb = window.KBoard ? window.KBoard.create($("race-board"), {
     label: "Race leaderboard",
     // Medals only for wallets that earn (owner, 2026-10-29), as the recorder works them out by the vault's rules:
-    // earns 1 / 2 = the free prize's 1st / 2nd (ties, and the 10 earliest when more tie), 3 = a share of the staked bucket.
+    // earns 1 / 2 = the free prize's 1st / 2nd (up to 10 per place, by score time then address: D-152, D-159), 3 = a share of the staked bucket.
     freeWinners: (part, free, weekly) => new Map(weekly ? free.filter((r) => r.earns === 1 || r.earns === 2).map((r) => [r.a, r.earns]) : []),
     earned: (r, weekly) => weekly && r.earns === 3,
     columns: [{ key: "pts", label: "Points" }, { key: "correct", label: "Wins" }, { key: "shows", label: "Shows" }, { key: "picks", label: "Picks", wide: true }],

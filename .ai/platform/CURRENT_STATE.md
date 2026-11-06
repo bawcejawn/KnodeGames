@@ -7,7 +7,7 @@
 ## Live on chain (Koinos mainnet)
 - **Vault v6** at `1Mpmf2…` since Mon 2 Nov 02:33 UTC. It holds every stake and produces blocks as the **Knode Games Pool** (D-073). Holdings 21,133.83 VHP vs 21,124.07 owed (3 Nov). The emergency withdrawals-only build is ready (D-021).
 - **Seed:** 21,050 VHP from a dedicated seed owner wallet (D-022).
-- **Mana sponsor v3** at `1ByDDSB…`, code **`b84e1add…`** since 4 Nov 07:27 UTC (the guest-trap fix): switch ON, vault switch ON; caps **2.4 Mana per transaction** (D-131, tx `0x1220a593…1bfc`), 40 a day and 250 a week per player (D-105), 5,000 a day in total, 2,000 a day for free players. Per-action rows and measured costs: `SPONSOR.md`.
+- **Mana sponsor v3** at `1ByDDSB…`, code **`b84e1add…`** since 4 Nov 07:27 UTC (the guest-trap fix): switch ON, vault switch ON; caps **2.4 Mana per transaction** (D-131, tx `0x1220a593…1bfc`), 40 a day per player, use it or lose it (weekly number 280, never reached; set 5 Nov, tx `0x1220a4fa…81f4c`, D-169), 5,000 a day in total, 2,000 a day for free players. Per-action rows and measured costs: `SPONSOR.md`.
 - **Picks contract** `1LmgqB…` since 30 Oct; **Block X (game 2) applied**, 1 change per pick (D-070).
 - **Race picks contract** `1EN7xU…` and **Swap Desk v2** `1FKTpX…` (3% fee, no daily cap).
 - **Vault games:** game 1 (Questions) is built in. **Games 2 (Block X) and 7 (Race) applied Thu 5 Nov** ✅: staked + free prize, **from week 3** (Mon 9 Nov, "Week 1"). `PRIZES_FROM_WEEK = 3` (repo variable) set ✅ 👤 (5 Nov).

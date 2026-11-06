@@ -268,7 +268,9 @@ test("Repo Lens #D-13 H-1: a typed pick goes out of the page's own koilib bundle
 test("D-161: the race-type toggle stays hidden until TYPES_FROM_WEEK is set; each type's points and the pool's sit-out are explained", () => {
   const js = read("race.js"), html = read("race.html"), math = read("race-math.js");
   assert.match(math, /const TYPES_FROM_WEEK = null;/, "off on main until the contract v2 is uploaded");
-  assert.match(js, /const typesLive = \(\) => M\.TYPES_FROM_WEEK !== null && M\.weekOf\(Date\.now\(\)\) >= M\.TYPES_FROM_WEEK;/);
+  // Repo Lens #C-12 C12-1: the page goes by TYPES_ON_WEEK, which stays null until TYPES_READY.
+  assert.match(js, /const typesLive = \(\) => M\.TYPES_ON_WEEK !== null && M\.weekOf\(Date\.now\(\)\) >= M\.TYPES_ON_WEEK;/);
+  assert.match(math, /const TYPES_ON_WEEK = TYPES_READY \? TYPES_FROM_WEEK : null;/);
   assert.match(html, /<nav class="rt-tabs" id="race-types" aria-label="Race type" hidden><\/nav>/);
   assert.match(html, /<section class="card" id="typed" hidden>/);
   assert.match(js, /const ORDER = \[1, 2, 0, 3, 4\];/, "1-hour, 2-hour, 6-hour, daily, weekly");

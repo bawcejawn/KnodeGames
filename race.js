@@ -442,7 +442,7 @@
 
   // ── race types (D-161): the toggle and the 1-hour, 2-hour, daily and weekly races ──
   // Shown only from M.TYPES_FROM_WEEK (the week the Race contract v2 is live). The 6-hour race above is unchanged.
-  const typesLive = () => M.TYPES_FROM_WEEK !== null && M.weekOf(Date.now()) >= M.TYPES_FROM_WEEK;
+  const typesLive = () => M.TYPES_ON_WEEK !== null && M.weekOf(Date.now()) >= M.TYPES_ON_WEEK;   // #C-12 C12-1: needs TYPES_READY
   const ORDER = [1, 2, 0, 3, 4];
   const POOL = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
   let rtype = 0, tweeks = new Map(), rtPicks = new Map(), rtKey = "";

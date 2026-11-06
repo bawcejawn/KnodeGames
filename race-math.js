@@ -121,6 +121,9 @@
   /** Repo Lens #D-14 N-2: false until R-RACE-18 is done (the T file split; verified hours and races kept across runs;
    *  a timed slow-node re-check test). Only that PR may set it to true; a test refuses TYPES_FROM_WEEK until then. */
   const TYPES_READY = false;
+  /** Repo Lens #C-12 C12-1: the week the types really start for the recorder and the page: TYPES_FROM_WEEK, but only
+   *  once TYPES_READY (null otherwise). The publish job mirrors it with its own TYPES_FROM_WEEK line. */
+  const TYPES_ON_WEEK = TYPES_READY ? TYPES_FROM_WEEK : null;
 
   // ── seeded random numbers ──
   function rng(seed) {
@@ -276,7 +279,7 @@
   root.KRaceMath = {
     HOUR, RACE, LEG, LEGS, DAY, WEEK, GENESIS, MIN_K, SEED, TRIALS,
     raceIndex, raceStart, raceId, parseRaceId, raceAt, legOf, legsOf, weekOf, weekStart, dayOf, RHYTHM_FROM_WEEK, restRace, playEnd,
-    TYPES, TYPES_FROM_WEEK, TYPES_READY, WEEK_OFFSET, contractRace, typedIndex, typedStart, typedId, parseTypedId, typedRace, typedRacesIn, pointsOf, typeCard, ledgerStandings, ledgerLine,
+    TYPES, TYPES_FROM_WEEK, TYPES_READY, TYPES_ON_WEEK, WEEK_OFFSET, contractRace, typedIndex, typedStart, typedId, parseTypedId, typedRace, typedRacesIn, pointsOf, typeCard, ledgerStandings, ledgerLine,
     rng, handicapOf, winChances, calibrate, makeCard, cardForLeg, finishLine, standings, winners, shows, POINTS, track, LIVE_MAX, lowerBound,
   };
 })(typeof window !== "undefined" ? window : globalThis);

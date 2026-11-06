@@ -365,7 +365,7 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
 /** One run. Exported for the tests, which pass fake nodes. */
 export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks, rhythmFrom, typesFrom }: Opts) {
   rhythmFromWeek = rhythmFrom ?? M.RHYTHM_FROM_WEEK;
-  typesFromWeek = typesFrom === undefined ? M.TYPES_FROM_WEEK : typesFrom;
+  typesFromWeek = typesFrom === undefined ? M.TYPES_ON_WEEK : typesFrom;
   typesAll = new Map(); typesWeekFiles = new Map();
   verifyDeadline = Date.now() + VERIFY_BUDGET_MS;
   vaultRefused = null;
@@ -581,7 +581,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
 type Hour = { t: number; a: number; b: number; n: Record<string, number>; l: Record<string, number>; c: number[] };
 type Typed = { type: number; id: string; start: number; end: number; result: any | null };
 type TypesFile = { v: 1; week: number; start: number; end: number; hours: Hour[]; races: Typed[] };
-let typesFromWeek: number | null = M.TYPES_FROM_WEEK;
+let typesFromWeek: number | null = M.TYPES_ON_WEEK;   // #C-12 C12-1: off unless TYPES_READY
 let typesAll = new Map<number, TypesFile>();
 const typesOn = (w: number) => typesFromWeek !== null && w >= typesFromWeek;
 /** Ledger hours read per run at most (a catch-up after an outage spreads over a few runs). Exported for the tests. */

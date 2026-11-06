@@ -447,7 +447,7 @@ test("the page: scripts in order, the shared board, reads only the bracket files
 test("the page builds everything with textContent and sends one thing: a pick of game 9 as one number", () => {
   // fix-check 2 W-1: the one thing kept in browser storage is the open-wallet-request lock (per account and week)
   const stored = js.match(/localStorage\.\w+\([^)]*\)?/g) || [];
-  assert.deepEqual([...new Set(stored.map((x) => x.replace(/\(.*/, "")))].sort(), ["localStorage.getItem", "localStorage.setItem"], "storage only for the request lock");
+  assert.deepEqual([...new Set(stored.map((x) => x.replace(/\(.*/, "")))].sort(), ["localStorage.getItem", "localStorage.removeItem", "localStorage.setItem"], "storage only for the request lock");
   assert.ok(stored.every((x) => /\(openKey\(/.test(x)), "only under the kb-open-request key: " + stored.join(" | "));
   assert.doesNotMatch(js, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|sessionStorage|indexedDB/);
   const sends = [...js.matchAll(/W\.send\(/g)]; assert.equal(sends.length, 1, "one send");

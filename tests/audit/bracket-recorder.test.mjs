@@ -205,6 +205,13 @@ test("a whole week: hours irreversible only, re-read in a later run, results equ
   const rel = tmp(); fs.cpSync(dir, rel, { recursive: true });
   const rr = await quiet(() => run({ p: "main", check: "check", prev: rel, out: rel, head: headAt(B.weekStart(W + 1) + 0.6 * H), ...o, release: new Set([W]) }));
   assert.equal(readW(rel).status, "locked"); assert.ok(rr.problems.some((p) => /BRACKET_RELEASE names this week/.test(p)), JSON.stringify(rr.problems));
+  // #B-15 B15-2: the run that re-reads an hour (here one whose re mark is missing, as after a release) never also closes the week
+  const one = tmp(); fs.cpSync(dir, one, { recursive: true });
+  { const f1 = path.join(one, "W003.json"), x = readW(one); delete x.days[0][0].re; fs.writeFileSync(f1, JSON.stringify(x) + "\n"); }
+  await quiet(() => run({ p: "main", check: "check", prev: one, out: one, head: headAt(B.weekStart(W + 1) + 0.6 * H), ...o }));
+  assert.equal(readW(one).days[0][0].re, 1, "re-read"); assert.equal(readW(one).status, "locked", "…but not final in the same run");
+  await quiet(() => run({ p: "main", check: "check", prev: one, out: one, head: headAt(B.weekStart(W + 1) + 0.7 * H), ...o }));
+  assert.equal(readW(one).status, "final", "final the run after");
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.weekStart(W + 1) + 0.6 * H), ...o }));
   wf = readW(dir); assert.equal(wf.status, "final"); assert.ok(wf.staked.held, "the stakes read after the week ended");
   // after final, a different chain changes nothing
@@ -721,4 +728,16 @@ test("S-1: a seeding that reads differently after its 24 hours is never replaced
 test("I-1: BRACKET_RELEASE takes plain week numbers only (no other whitespace), like the publish job", () => {
   assert.deepEqual([...releaseFromEnv(" 3, 4 ")], [3, 4]);
   for (const v of ["\uFEFF3", "3\u001c", "3\t", "\u00a03", "3,", "x"]) assert.deepEqual([...releaseFromEnv(v)], [], JSON.stringify(v));
+});
+
+test("#B-15 B15-1: a 32-seed week's picks are recorded until lock + 3 h without a release (round 1 starts 5 min after the lock)", async () => {
+  const o = { picksContract: addr(60), nodeOf: nodeOf(signerFn(fieldOf(40))), picksOf: picksOf([{ player: P(1), number: 0, time: 1 }]) };
+  const d = await lockedWeek(o);
+  assert.equal(readW(d).seeding.size, 32);
+  await quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 170 * 60000), ...o }));
+  assert.equal(readW(d).picks.rows.length, 1, "recorded 170 min after the lock");
+  const late = await lockedWeek(o);
+  const r = await quiet(() => run({ p: "main", check: "check", prev: late, out: late, head: headAt(B.lockTime(W) + 190 * 60000), ...o }));
+  assert.equal(readW(late).picks, null);
+  assert.ok(r.problems.some((p) => /not even BRACKET_RELEASE can/.test(p)), "no advice to use a release that can't help: " + JSON.stringify(r.problems));
 });

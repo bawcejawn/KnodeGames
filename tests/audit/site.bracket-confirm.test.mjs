@@ -159,3 +159,15 @@ test("fix-check 2 W-1: the lock survives a reload, lasts until KOIN Vault's own 
   await r.fill(); await r.review();
   assert.match(r.modalText(), /still open in your wallet/i);
 });
+
+test("#B-15 B15-4: the lock is cleared on a definite answer (on the chain, or refused), so the player isn't blocked for nothing", async () => {
+  const p = await openPage({ now: SUNDAY });
+  await p.fill(); await p.review(); await p.confirm();
+  assert.match(p.modalText(), /Bracket confirmed/);
+  assert.deepEqual(Object.keys(p.w.localStorage).filter((k) => k.startsWith("kb-open-request:")), [], "cleared after a send that landed");
+  const q = await openPage({ now: SUNDAY });
+  q.w.KWallet.send = async () => { throw new Error("Rejected in KOIN Vault"); };
+  await q.fill(); await q.review(); await q.confirm();
+  assert.match(q.modalText(), /Cancelled/);
+  assert.deepEqual(Object.keys(q.w.localStorage).filter((k) => k.startsWith("kb-open-request:")), [], "cleared after a rejection");
+});

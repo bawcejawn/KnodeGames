@@ -43,7 +43,7 @@
   $("send").onclick = async () => {
     const key = $("key").value.trim();
     if (!account) return say("Connect a wallet first.");
-    if (!keyBytesOk(key)) return say("That isn't a node PUBLIC key (33 bytes, base64url, starts with A). Copy it again from node-key.");
+    if (!keyBytesOk(key)) return say("That isn't a node PUBLIC key (33 bytes, base64url, starts with A). Copy it again from your node's public.key (Run a node, step 6).");
     try {
       const pob = new lib.Contract({ id: POB, abi: ABI, provider });
       const { operation } = await pob.functions.register_public_key({ producer: account, public_key: key }, { onlyOperation: true });

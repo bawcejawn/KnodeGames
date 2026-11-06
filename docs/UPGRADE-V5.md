@@ -1,5 +1,7 @@
 # Upgrade to game v5 and Desk v2: runbook
 
+> **📜 Historical (5 Nov 2026).** Game v5 and Desk v2 went live in October 2026; this runbook is kept for the record and because `LAUNCH.md` and `desk/SECURITY.md` link to it. Don't follow it for a new upgrade. Current contracts: `.ai/platform/CONTRACTS.md`. The Desk's live settings rules: `.ai/platform/KEYS_AND_ROLES.md` §3.
+
 Nothing in this file has been run. Every command that changes something is a dry run until you add `--send`
 (mainnet also needs `CONFIRM_MAINNET=yes` in `.env`). The same steps are buttons on the admin page (`npm run admin`).
 

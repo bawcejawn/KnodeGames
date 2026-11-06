@@ -1,5 +1,7 @@
 # Upgrade to game v6, the KnodeGames Vault: runbook
 
+> **📜 Historical, except one section (5 Nov 2026).** The v6 upgrade went live on 2 Nov 2026; sections 1–8 are kept for the record and because the contract code links here. **Still current: "Emergency: the withdrawals-only build"** (below) until the v6.1 upload on Mon 9 Nov, when `docs/UPGRADE-V61.md` (PR #114) takes over. Current contracts: `.ai/platform/CONTRACTS.md`.
+
 Nothing in this file has been run. Every command that changes something is a dry run until you add `--send`, and
 mainnet also needs `CONFIRM_MAINNET=yes` in `.env`. Run everything in PowerShell in `C:\kprediction`.
 

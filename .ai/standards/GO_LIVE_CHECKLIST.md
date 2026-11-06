@@ -1,8 +1,8 @@
 # Knode Games — Game Go-Live Checklist
 
 > **Purpose:** the one ordered list every game follows from "built" to "paying", so no launch step is missed. Use it for each new game, and for a game restarting after a stop.
-> **Applies to:** every game (Survivor, Bracket, Last Node, Fantasy, Combo, Golf — all paused until the core work is done, D-113 — and any future game). A new game starts with `NEW_GAME.md` (being written), which leads here.
-> **Last updated:** 5 Nov 2026 (points to `WEEK_CYCLE.md` and `NEW_GAME.md`; new games paused, D-113)
+> **Applies to:** every game (today's next launches: Fantasy, Block Golf and Producer Bracket, reactivated 5 Nov, D-142; Survivor, Last Node and Combo stay paused, D-113; and any future game). A new game starts with `NEW_GAME.md` (copy → fill → check → review → go live, D-157), which leads here.
+> **Last updated:** 5 Nov 2026 (header current: D-142 reactivations; `game:check` required in Step 1; free-prize defaults live in each `game.json`, D-157)
 > **Built from:** `GAME_STANDARD.md`, `VAULT_STANDARD.md` §9, `LEADERBOARD_STANDARD.md`, `RECORDER_STANDARD.md`, `../platform/FREE_PRIZE_SWITCH.md`, decisions D-064, D-077 – D-082, D-089.
 > **How to use:** copy the checklist into the game's work list (`../platform/CHAT_REQUESTS.md`) or the game file, tick items as they're done, and paste the ticked list into the session-end report.
 
@@ -25,6 +25,7 @@
 - [ ] Recorder meets `RECORDER_STANDARD.md` (clock checks, recompute at publish, per-file holds, two nodes, write-once).
 - [ ] Vault results file per `VAULT_STANDARD.md` §6, **always filling `first` / `second`** (D-082).
 - [ ] `board.json` in the shape the vault check reads (`LEADERBOARD_STANDARD.md` §1, I-079), or the board path agreed with the Vault chat.
+- [ ] **`npm run game:check -- <slug>` ends "All required checks passed"** (D-157; manifest, files, rules doc, week-cycle row, tests). Today's games not yet moved into `games/<slug>/` note "not migrated yet" here.
 - [ ] Tests pass: `npm run test:audit` and `node --test tests/audit/site.*.test.mjs`.
 - [ ] A testnet run (week or season) where the game has one.
 
@@ -41,7 +42,7 @@
 
 ## Step 4 — On chain (owner, PowerShell; dry run first every time)
 - [ ] **Picks contract** (picks-based games): `npm run picks -- announce <id> --mainnet` → 48 h → `npm run picks -- apply <id> --mainnet` (each: dry run, then `--send`). Sponsor allowlist row for its picks, if needed.
-- [ ] **Free-prize switch** set for the game (`FREE_PRIZE_SWITCH.md` §4): ON for Bracket and Last Node; OFF for now for Survivor, Fantasy, Golf, Combo. Command: `npm run prizes -- on <id>` or `off <id>`, then `--send`.
+- [ ] **Free-prize switch** set to the game's starting setting (its `game.json` `freePrizeDefault`; today's games: `../platform/FREE_PRIZE_SWITCH.md` §4). Command: `npm run prizes -- on <id>` or `off <id>`, then `--send`.
 - [ ] **Vault, step 1:** `npm run bot -- game-add <id> "<Name>" --staked --free --season <weeks>` (every game gets `--free`, D-082). The bot emails about the 48 h notice; that's expected.
 - [ ] **Vault, step 2:** 48 h later, before Sunday 4 PM PT: `npm run bot -- game-apply <id>`.
 - [ ] Check: `npm run bot -- games` shows the game as "staked + free prize, from week <n>".
@@ -59,6 +60,7 @@
 - [ ] The bot posts and seals within 3 days. Watch the alerts (`../platform/RUNBOOK.md` §3).
 - [ ] 24 h correction window after the seal: spot-check the top rows against the board.
 - [ ] Finalized; claims work; the weekly review covers the game (`../platform/WEEKLY_REVIEW.md`).
+- [ ] Once the game is actually paying (first paid week sealed and claimed, no correction): set `"status": "live"` in `games/<slug>/game.json` (D-157; games not yet migrated: note it in the game file).
 - [ ] The library chat updates `CURRENT_STATE.md`, the game file and `CHAT_REQUESTS.md`.
 
 ## Stopping or restarting a game

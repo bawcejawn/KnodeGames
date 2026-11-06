@@ -1,7 +1,7 @@
 # Knode Games — Platform Overview
 
 > **Purpose:** the one-page picture of what Knode Games is today: games, contracts, money, wallets, machines, branches and who owns what.
-> **Last updated:** 5 Nov 2026 (status sync: sponsor v3 guest fix live, Vault v6.1 in PR #114, new games paused (D-113), VHP Ruler chat, library and standards lists)
+> **Last updated:** 5 Nov 2026 (status sync: sponsor v3 guest fix live, Vault v6.1 in PR #114, Fantasy, Golf, Bracket reactivated (D-142), games 2 and 7 applied; earlier: VHP Ruler chat, library and standards lists)
 > **Sources:** the 12 chat exports in `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private), the owner's answers on 2 Nov, and the repo (`main` and `picks`, checked 2 Nov).
 > **Rule:** if this file disagrees with `DECISIONS.md`, `DECISIONS.md` wins. The full order of sources is in D-002.
 
@@ -61,14 +61,14 @@ Vault ids and results sources: ✅ `game-data/deployment.json` → `vaultGames` 
 | Id | Game | Play | Rules | Status (5 Nov) | Code |
 |----|------|------|-------|----------------|------|
 | 1 | Daily Questions | Staked + Free | D-045, D-047, D-062, D-116 | live and paying; built into the vault. Vault v6.1 (PR #114) brings 60 questions a week and the shared game rules from its rule week (dates: `CALENDAR.md`) | `main` |
-| 2 | Who Signs Block X | Staked + Free | D-036 – D-041, D-070, D-077 | **live since 3 Nov**; vault `game-apply` window Thu 5 – Sun 8 Nov, then `PRIZES_FROM_WEEK = 3`: pays from Mon 9 Nov ("Week 1"); published final results can't be rewritten (#159) | `main` |
+| 2 | Who Signs Block X | Staked + Free | D-036 – D-041, D-070, D-077 | **live since 3 Nov**; **applied in the vault 5 Nov**: staked + free prize from week 3, Mon 9 Nov ("Week 1"); published final results can't be rewritten (#159) | `main` |
 | 3 | Survivor | Staked + Free board, **no free prize yet** (D-081); 2-week seasons | D-051, D-065, D-081 | **paused (D-113)**: Season 1 no longer starts Mon 16 Nov; when it restarts: audit pass 4, testnet season, Picks registration (I-050), register **with `--free`**, free-prize switch off (D-082) | `survivor` @ `a8a1979` ✅ |
-| 4 | Fantasy Producers | Staked + Free board, **no free prize yet** (D-081) | D-059 | **paused (D-113)**; then fix-check, full test week, real-data simulation | `fantasy` @ `2bee805` ✅ |
-| 5 | Weekly Rival | records only, no prize; not a vault game ✅ | D-059 | ships with Fantasy (paused) | `fantasy` |
-| 6 | Block Golf | Staked + Free board, **no free prize yet** (D-081); free practice weeks | D-056 | **paused (D-113)**; then practice with Block X, staked after `game-add 6` | `golf` @ `6b2200a` ✅ |
-| 7 | Producer Race | Staked + Free | D-033 – D-035 | live; on the weekly rhythm (#149, #155); payout safety merged (#133); vault `game-apply` window Thu 5 – Sun 8 Nov, then pays from Mon 9 Nov | `main` |
+| 4 | Fantasy Producers | Staked + Free board, **no free prize yet** (D-081) | D-059, D-150 | **▶ reactivated 5 Nov (D-142)**: PR #188 (Repo Lens fix-check next), then launch steps | `fantasy` @ `a60da0b` |
+| 5 | Weekly Rival | records only, no prize; not a vault game ✅ | D-059 | ships with Fantasy | `fantasy` |
+| 6 | Block Golf | Staked + Free board, **no free prize yet** (D-081); free practice weeks | D-056 | **▶ reactivated 5 Nov (D-142)**: PR #187 (Repo Lens next; I-098, I-099), then launch steps (`docs/GOLF.md`) | `golf-v2` @ `6ce7b5d` |
+| 7 | Producer Race | Staked + Free | D-033 – D-035 | live; on the weekly rhythm (#149, #155); payout safety merged (#133); **applied in the vault 5 Nov**: pays from week 3, Mon 9 Nov; payout rule D-152 in PR #182 | `main` |
 | 8 | Combo Card | Staked + Free board, **no free prize yet** (D-081) | D-060 | **paused (D-113)**; then fix-check 4 and the Picks v2 upgrade | `combo` @ `c8c652e` ✅ |
-| 9 | Producer Bracket | Staked + Free, 1-week seasons | D-019, D-057 | **paused (D-113)**; Repo Lens #E-3: fix first; launches when ready (D-088) | `kg-09-bracket` @ `ee676ea` ✅ |
+| 9 | Producer Bracket | Staked + Free, 1-week seasons | D-019, D-057, D-141, D-153 | **▶ reactivated 5 Nov (D-142)**: draft PR #186 (D-141 shape, max 32, every #E-3 fix) → fix-check; launches when ready (D-088) | `kg-09-bracket` @ `8d3d942` |
 | 13 | Last Node Standing | Staked + Free, **free prize from the start** (D-081) | D-054, D-055 | **paused (D-113)**; then round-3 review (I-059) | `lastnode` @ `adf95be` ✅ |
 
 Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Survivor, FantasyProducers, BlockGolf, ComboCard, ProducerBracket, LastNodeStanding). Ids 10–12 are unused. All unlaunched branches are pushed, not merged, and nothing from them is deployed ✅. Launch paths per game: `ROADMAP.md`. Readiness gaps: I-065.
@@ -102,23 +102,23 @@ Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Surv
 | Desk treasury | same as owner | to move to a cold treasury, 48 h timelock (I-001) | ✅ |
 | Seed owner | `1K8VV1utXfomeXHeifrwgLpBjUG6Ldkw2Z` | dedicated wallet since 30 Oct — done | ✅ |
 | Operator (bot) | `1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv` | rotated in 26 Oct; pays its own Mana, target 50 KOIN (D-046); balance unconfirmed (I-046); **GitHub-only** (D-084) | ✅ |
-| Mana sponsor | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | 25,000 KOIN (D-061); hot key, risk accepted (D-085) | ✅ / 👤 |
-| Old operator (retired) | `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ` | key still in local `.env` (most likely as `OPERATOR_WIF`, D-084 ❓); ~100 KOIN left; sweep it, then remove the key (I-045) | 💬 |
+| Mana sponsor | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | 25,000 KOIN (D-061); its own key (D-085, D-148) | ✅ / 👤 |
+| Old operator (retired) | `1JSTwoKYNAUq2gmmTg4r1kdYCERR2kUrZ` | retired; ~100 KOIN left, swept this weekend (I-045) | 💬 |
 | New owner (cold key, D-083) | `1LMV8EcRFLFGRMFSC7rKw3eQ3PSzLRRFmd` | exists; owns Race picks since 4 Nov (tx `0x1220bd9c…`); takes the vault and the Desk at the handover accepts | ✅ |
 | Cold treasury | ❓ | not created yet | |
 | Producer public keys | desk `AzCYCDLD…`, game `Ak0vGklN…` | — | ✅ |
 
-Procedure for moves: `docs/WALLETS.md` (PR #73; §7 updated by #162): wallet inventory, on-chain rules, never-list, and the weekend runbook Fri 6 – Tue 10 Nov. Who controls what today: `KEYS_AND_ROLES.md`. Contract keys `CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF` have no power while the upload rules are on; `RACE_WIF` still does. All four belong in offline backup (💬 Vault).
+Procedure for moves: `docs/WALLETS.md` (roles, on-chain rules, never-list, the weekend outline); the step-by-step runbook is private. Who controls what today: `KEYS_AND_ROLES.md`. Key storage: the owner's private notes.
 
 ## The owner's PC
-- **Folders:** `C:\kprediction` (main checkout; keys in `.env`; scheduled tasks — always check the branch first) · `C:\kprediction-vault` (worktree on `vault-v6`, frozen, D-025) · `C:\kg-combo-preview` (Combo) · `C:\kprediction-test` (testnet and audits) · `C:\kprediction-fantasy` (Fantasy practice only). 💬
+- **Folders:** `C:\kprediction` (main checkout; scheduled tasks — always check the branch first) · `C:\kprediction-vault` (worktree on `vault-v6`, frozen, D-025) · `C:\kg-combo-preview` (Combo) · `C:\kprediction-test` (testnet and audits) · `C:\kprediction-fantasy` (Fantasy practice only). 💬
 - **Nodes:** three mainnet nodes in Docker on Windows — desk `C:\kpred-desk-node`, game `C:\kpred-node`, personal `C:\koinos-personal` — and **no testnet nodes** (D-066). Volumes `<project>-basedir`. **Never delete `basedir\block_producer`: it holds `private.key`.** Ports are deliberately not written down (public repo). 💬 / 👤
 - **Scheduled tasks:** "Knode self-heal" every 20 min; "Knode question release" 11:45–14:05 UTC every 5 min, stored in UTC (next run checked 2 Nov: 3:45 AM local ✅ 👤).
 
 ## Branches
 - `main`: the live site; changes only through PRs the owner merges (D-026). Scheduled workflows run only from here.
 - `picks`: was the development branch (Block X, Picks tooling, the admin page, the VHP sampler). `vault-v6` was merged into it on 2 Nov (I-019), and **all of `picks` reached `main` with PR #57 on 3 Nov** ✅ (`picks` has no commits that `main` lacks). The owner's folder runs the tools from `main` ✅ (4 Nov).
-- Game branches (paused, D-113): `survivor`, `fantasy`, `golf`, `kg-09-bracket`, `combo`, `lastnode`. Vault: `vault-v6` (frozen), `vault-v6-next` (backup), `vault-questions-60` (v6.1, PR #114). Ruler: `vhp-ruler`.
+- Game branches: reactivated (D-142) `fantasy` (#188), `golf-v2` (#187; old `golf` kept), `kg-09-bracket` (#186); paused (D-113) `survivor`, `combo`, `lastnode`. Vault: `vault-v6` (frozen), `vault-v6-next` (backup), `vault-questions-60` (v6.1, PR #114). Ruler: `vhp-ruler`.
 - Data branches: `race-data`, `games-data`, `blocks-data`, `names-data`, `testnet-data`, `bracket-history` (keep). `race-samples` (created by the sampler's first run, 3 Nov ✅). `prize-settings` (the free-prize switch, D-082) appears after its first send.
 
 ## Chats and ownership
@@ -132,6 +132,7 @@ Procedure for moves: `docs/WALLETS.md` (PR #73; §7 updated by #162): wallet inv
 | Block X and Picks | Block X, the Picks contract, the Mana sponsor and its tool, publish checks |
 | VHP Ruler | the shared VHP ruler (D-110; `../standards/VHP_RULER.md`), branch `vhp-ruler` |
 | Swap Desk | the desk, nodes, self-heal, question release (ran 16–28 Oct) |
-| Survivor · Last Node Standing · Block Golf · Producer Bracket · Fantasy (+ Rival) · Combo Card (+ Picks v2) | their game and branch — **paused (D-113)** |
+| Fantasy (+ Rival) · Block Golf · Producer Bracket | their game and branch — **▶ reactivated 5 Nov (D-142)** |
+| Survivor · Last Node Standing · Combo Card (+ Picks v2) | their game and branch — **paused (D-113)** |
 
 No other chats exist 👤. The work list for each is `CHAT_REQUESTS.md`. **Repo Lens is not part of Knode Games** — it is the owner's separate audit project that game chats send packages to 👤.

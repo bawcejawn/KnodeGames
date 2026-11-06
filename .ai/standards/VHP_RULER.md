@@ -250,3 +250,18 @@ Owner's rulings (to the VHP Ruler chat, 4 Nov): **"Platform nodes should never b
 
 **Order of work (R-RULER-1):** implement `pct` and Fix B side by side, re-run all eleven simulations, report both; the owner picks; then the fix-check and the PR. Nothing pays until all eleven pass (D-111).
 
+## 17. v2.1 results and the A′ decision (5 Nov 2026)
+Built on `vhp-ruler-v21` @ `414c85d` (Fix A `pct`, Fix B settings `minK` / `poolRule`, D-120 `rateOf` + steering cap, `RULE_VERSION` 3; 89 tests; JS = Python on 40 / 40 live cards). Full numbers: `claude/ruler/V21-SIM-REPORT.md` (Claude project).
+- **No option passed all eleven.** Fix A missed sim 8 (steerer 5.9× fair) and sim 9 (a network jump: 0.02–5.32×): an absolute percentile against a fixed expectation isn't shift-invariant, so §16's "percentiles move together" doesn't hold. Fix B keeps the Vault (12–13 expected blocks in 6 h) out of every Race field at any bar ≥ 15 (against D-123).
+- **D-120's rate with a steering cap can't pass sim 8** under any cap (×1.0: honest throttler 0.00×; ×1.15: steerer 5.9×; ×1.3: steerer 16.5×). JGA Pool #2 under D-120: steady on 24 of 60 cards, 0.94× fair.
+- **Decided (D-154): rank by A′**, a percentile conditional on the field's own blocks in the race (Binomial(n, share of the field's expected blocks), exact integer mid-p). With D-120 off, A′ passed sims 1, 3, 7, 9, 10 (and 4, 5, 11); sim 2 missed narrowly under the simulation's normal approximation (I-102). Sim 1's index mark becomes relative like sim 9's.
+- **Owner to choose for D-120:** option 1 (keep the 0.80 gate) or option 3 (a steady throttler plays unadjusted at full size, its form shown).
+- **Next (R-RULER-2):** build A′ exactly in both languages, re-run all eleven, Repo Lens. Nothing pays until all eleven pass (D-111).
+
+## 18. Repo Lens #B-11 and the owner's rulings (5 Nov 2026, library chat)
+Built on `vhp-ruler-v21` @ `208fe00` (RULE_VERSION 3: `pct` exact mid-p Poisson, `fpct` A′ exact mid-p binomial, the producer void, D-120 as ruled; `minK` / `poolRule` "min" only; 111 pass, 3 todo). Round 3 sims passed every judged sim; #B-11 then found **N-1 (High):** with core members weighted at their 14-day rate, a member signing above its rate pushes everyone else down (an 18% member at 0.80 wins ~54% of races it picks; fair 17%). Options A–E measured in `claude/ruler/TO-LIBRARY-B11-YARDSTICK-2026-11-05.md` (Claude project).
+- **Yardstick (D-165):** option **E**: only members with form ≥ **0.97 × the field's median form** set A′'s yardstick, at full size; everyone else plays at full size but moves no one. Residual: a member just above the line under-signing by at most ~3%, gaining nothing for itself.
+- **Sim 1's mark (N-2, D-165):** fair = 1 ÷ (field − members that can't win).
+- **Late voids (N-3, D-164):** kept: any VHP change beyond ±10% during the race voids the producer for that race, whoever sent it; a pick on a voided producer counts as a loss; nothing refunded.
+- **Also ruled:** the Vault and the Pool race under the same rules (D-162); steady throttlers stay in at full size (D-163).
+- **Next (R-RULER-2):** build E in both languages, re-run all eleven sims on both histories plus a new sim 8 case (a core member at 0.80–0.95 signing in full), turn the N-1 `todo` tests on, Repo Lens fix-check (`claude/ruler/REPOLENS-V21-RECHECK-PROMPT.md`, updated by the Ruler chat). Nothing pays until all eleven pass (D-111).

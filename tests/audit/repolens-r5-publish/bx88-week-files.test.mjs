@@ -38,13 +38,15 @@ function raceDir() {
 }
 const quiet = async (f) => { const log = console.log; console.log = () => {}; try { return await f(); } finally { console.log = log; } };
 
-function publishScript() {
+// (Most tests here record one game, 2, into weeks 3+. The hourly switch (R-BX-25) is kept only for its own test.)
+function publishScript(keepSwitch = false) {
   const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split("\n");
   const s = y.findIndex((l) => l.includes("Push games-data (and nothing else)"));
   const a = y.findIndex((l, i) => i > s && l.trim() === "set -euo pipefail"), e = y.findIndex((l, i) => i > a && l.includes('echo "Games files published."'));
   return y.slice(a, e + 1).map((l) => l.slice(10)).join("\n")
     .replace(/^remote=.*$/m, 'remote="$REMOTE"').replace(/^git init -q work && cd work$/m, 'cd "$(mktemp -d)" && git init -q work && cd work')
-    .replace("/usr/bin/python3 - ", "python3 -I - ");
+    .replace("/usr/bin/python3 - ", "python3 -I - ")
+    .replace(/ blockx 2400 0 \d+:\d+:\d+:\d+ <<'PY'/, keepSwitch ? (m) => m : " blockx 2400 0 <<'PY'");
 }
 
 test("BX-88: a rewritten published week file is refused whole, and the recorder then scores the honest targets", async () => {
@@ -375,10 +377,10 @@ test("Repo Lens #E-18 K-1: the publish job refuses a new unread round, but lets 
 
 // R-BX-25: from week 4 a week file is hourly Picks game 12's (every 1,200 blocks); the publish job checks each week
 // against its own game.
-test("R-BX-25: the publish job takes week 4 only as game 12's hourly rounds, and week 3 only as game 2's", async () => {
+test("R-BX-25: the publish job takes week 3 on only as game 12's hourly rounds (owner 5 Nov: from Mon 9 Nov)", async () => {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "bx25-")), remote = path.join(d, "r.git");
   spawnSync("git", ["init", "-q", "--bare", remote]);
-  const sh = path.join(d, "publish.sh"); fs.writeFileSync(sh, publishScript());
+  const sh = path.join(d, "publish.sh"); fs.writeFileSync(sh, publishScript(true));
   const race = fs.mkdtempSync(path.join(d, "race-"));
   for (const w of [2, 3, 4, 5]) {
     const races = [];

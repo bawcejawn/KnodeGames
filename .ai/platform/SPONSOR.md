@@ -2,7 +2,7 @@
 
 > **Purpose:** the Mana sponsor on one page: what it is, what it pays for, its live settings, how to check it, change it, top it up, roll it back and switch it off, and its risks. Written so the owner can act on it without asking a chat.
 > **One home:** this page is the home for **the sponsor's live settings and how to operate it**. Other files should point here instead of repeating the caps (several still show the old 25 / 150 / 1 numbers — `HEALTHCHECK.md` §2b). The contract's design and audit notes stay in `../../sponsor/README.md`; the decisions in `DECISIONS.md`.
-> **Last updated:** Thu 5 Nov 2026 (cap 2.4 and the per-action rows, D-131; claim choice, D-132). Sources: `sponsor-data/deployment.json`, `sponsor-data/mana-limits.json`, `game-data/deployment.json` (`sponsor`), `bot/sponsor.ts`, `sponsor/README.md`, the Block X and Vault handoffs (5 Nov).
+> **Last updated:** Thu 5 Nov 2026 (the daily Mana rule, §1; cap 2.4 and the per-action rows, D-131; claim choice, D-132). Sources: `sponsor-data/deployment.json`, `sponsor-data/mana-limits.json`, `game-data/deployment.json` (`sponsor`), `bot/sponsor.ts`, `sponsor/README.md`, the Block X and Vault handoffs (5 Nov).
 > **Update rule:** any `config`, `upload`, `enable` / `disable` or top-up → update §2 the same day (the Block X chat owns the sponsor tool; the Librarian files the change).
 
 ---
@@ -16,6 +16,13 @@ Every Koinos transaction costs **Mana**, which comes from holding KOIN. New play
 - **Withdrawals never depend on it** (D-027): if it's off or capped, players pay their own Mana and can still withdraw.
 - It is the **only payer** for players (Mana Station is shelved, D-053). The vault itself pays Mana for no one (`max_sponsor_rc` = 0, D-099).
 - **KOIN Vault** (the mobile wallet) picks its own payer, so its users never use the sponsor (I-007).
+
+### The daily Mana rule (owner, 5 Nov 2026 — every game, every action)
+- **Every player address has one daily Mana budget: 40 Mana a day** (and 250 a week), **shared across every game and every action** — picks, answers, stakes, claims, withdrawals, settles. No game or action has its own separate budget.
+- **Inside that budget the sponsor pays everything a player does on Knode Games.** Once it is used up, the player pays with their own Mana until 00:00 UTC (the page asks once more in the wallet). Withdrawals always work either way (D-027).
+- A new game or action **must** get a sponsor row (§2) and count against this same budget. It never gets a budget of its own, and a game never raises the per-player cap for itself.
+- Two limits sit above it and don't change the rule: one transaction can ask for at most 2.4 Mana, and everyone together gets at most 5,000 a day (free players 2,000 of it).
+- **Today's exceptions, waiting for the owner:** `move_stake` and Knode Swap are never sponsored; free players (no stake in the call's game, which today includes every hourly Block X pick) are paid from the shared 2,000-a-day free pool before their own 40; and whether to keep the 250-a-week cap.
 
 ---
 

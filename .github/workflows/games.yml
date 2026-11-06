@@ -141,7 +141,7 @@ jobs:
             done
           else git read-tree --empty; fi
           # The content must be the recorder's own shape, not only parse as JSON.
-          /usr/bin/python3 - "$IN/blockx" 2 "$PUB/blockx" "$HELD" blockx 2400 0 12:1200:0:4 <<'PY'
+          /usr/bin/python3 - "$IN/blockx" 2 "$PUB/blockx" "$HELD" blockx 2400 0 12:1200:0:3 <<'PY'
           import json, os, re, sys
           d = sys.argv[1]; gid = int(sys.argv[2]); addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
           iso = re.compile(r"[0-9]{4}-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9](\.[0-9]{3})?Z"); ymd = re.compile(r"[0-9]{4}-[0-9][0-9]-[0-9][0-9]")
@@ -186,7 +186,7 @@ jobs:
               if "void" in t and (type(t["void"]) is not str or len(t["void"]) > 200): return False
               pk = t.get("picks")
               return type(pk) is list and len(pk) <= 100000 and all(type(x) is list and len(x) == 5 and isaddr(x[0]) and isaddr(x[1])
-                  and nat(x[2]) and type(x[3]) is int and 0 <= x[3] <= 300 and type(x[4]) is int and x[4] in (0, 1) for x in pk)
+                  and nat(x[2]) and type(x[3]) is int and 0 <= x[3] <= 500 and type(x[4]) is int and x[4] in (0, 1) for x in pk)   # ×5 cap from Week 1 (owner, 5 Nov)
           def rows_ok(rows):
               return type(rows) is list and len(rows) <= 100000 and all(type(x) is dict and set(x) == {"a", "place", "boardPlace", "pts", "correct", "picks", "days", "lastCorrect", "ranked"} and isaddr(x["a"])
                   and all(nat(x[k]) for k in ("place", "boardPlace", "pts", "correct", "picks", "days", "lastCorrect")) and type(x["ranked"]) is bool for x in rows)
@@ -223,7 +223,7 @@ jobs:
           # The game's round size and offset (a target's height is round * size + offset), for the new-target check.
           GROUND = int(sys.argv[6]) if len(sys.argv) > 6 and re.fullmatch(r"[1-9][0-9]{0,6}", sys.argv[6]) else None
           GOFFSET = int(sys.argv[7]) if len(sys.argv) > 7 and re.fullmatch(r"[0-9]{1,7}", sys.argv[7]) else None
-          # R-BX-25: from a vault week on, another Picks game (hourly Block X, game 12 from week 4): "game:round:offset:week".
+          # R-BX-25: from a vault week on, another Picks game (hourly Block X, game 12 from week 3): "game:round:offset:week".
           # A week file names its game, and its targets are that game's rounds; the vault, prize and index files stay game gid.
           SWITCH = None
           if len(sys.argv) > 8 and re.fullmatch(r"[1-9][0-9]{0,3}:[1-9][0-9]{0,6}:[0-9]{1,7}:[0-9]{1,4}", sys.argv[8]):

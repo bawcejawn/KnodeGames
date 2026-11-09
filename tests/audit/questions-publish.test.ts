@@ -9,13 +9,15 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { buildWeek, snapshotHash, type Snapshot } from "../../games/questions/recorder.ts";
+// Windows has `python`, not `python3` (Repo Lens F3-2); its held list ends lines with \r\n, so splits take /\r?\n/.
+const PYTHON = process.platform === "win32" ? "python" : "python3";
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const G = 1792368000000, DAY = 86400000, WK = 7 * DAY, H = 3600000;
 const A = "1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", B = "1BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", C = "1CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
 const S4 = G + 4 * WK, END = S4 + WK, NOW = END + 3 * H;
 const SRC = (() => {
-  const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split("\n");
+  const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split(/\r?\n/);
   const a = y.findIndex((l) => l.includes(`/usr/bin/python3 - "$IN/questions" "$PUB/questions" "$HELD" <<'PY'`));
   const e = y.findIndex((l, i) => i > a && l.trim() === "PY");
   return y.slice(a + 1, e).map((l) => l.replace(/^ {10}/, "")).join("\n");
@@ -31,9 +33,9 @@ function check(inFiles: Record<string, any>, pubFiles: Record<string, any>, now 
   fs.mkdirSync(path.join(inn, "vault"), { recursive: true }); fs.mkdirSync(path.join(pub, "vault"), { recursive: true });
   for (const [k, v] of Object.entries(inFiles)) write(inn, k, v);
   for (const [k, v] of Object.entries(pubFiles)) write(pub, k, v);
-  const r = spawnSync("python3", ["-I", "-", inn, pub, held], { input: SRC, encoding: "utf8", env: { ...process.env, CHECK_NOW_MS: String(now) } });
+  const r = spawnSync(PYTHON, ["-I", "-", inn, pub, held], { input: SRC, encoding: "utf8", env: { ...process.env, CHECK_NOW_MS: String(now) } });
   assert.equal(r.status, 0, "the check never fails the job itself (Block X still publishes): " + r.stderr);
-  const lines = fs.readFileSync(held, "utf8").split("\n").filter(Boolean);
+  const lines = fs.readFileSync(held, "utf8").split(/\r?\n/).filter(Boolean);
   return { held: lines.filter((x) => x !== "!alert"), alert: lines.includes("!alert"), log: r.stdout };
 }
 /** The honest sequence: a pending file seen at `seen`, then the final one (and its board and vault file). */

@@ -38,6 +38,10 @@ jobs:
         with:
           ref: main
           persist-credentials: false
+      # When this job started: the Daily Questions recorder below runs only for the time left of the job's 30 minutes
+      # (Repo Lens F3-1), so a slow Block X plus a slow Questions run can't cancel the job before the upload.
+      - name: Note the job's start
+        run: date +%s > "$RUNNER_TEMP/job-start"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -122,7 +126,13 @@ jobs:
         run: |
           set -euo pipefail
           O="$RUNNER_TEMP/questions-out"; rm -rf "$O"; mkdir -p "$O"
-          rc=0; npm run questions || rc=$?
+          # Time left of the job's 30 minutes, keeping 2.5 minutes for the upload; at most 7.5 minutes (Repo Lens F3-1).
+          # coreutils timeout exits 124, which takes the "failed" path below (holds still go out, and an alert).
+          start=$(cat "$RUNNER_TEMP/job-start" 2>/dev/null || date +%s)
+          left=$(( 30 * 60 - 150 - $(date +%s) + start )); [ "$left" -gt 450 ] && left=450
+          rc=0
+          if [ "$left" -lt 60 ]; then echo "::warning::Daily Questions skipped this run: only ${left} s of the job left."; rc=124
+          else timeout --kill-after=15s "${left}s" npm run questions || rc=$?; fi
           D="$RUNNER_TEMP/games-data/questions"; mkdir -p "$RUNNER_TEMP/games-data"; rm -rf "$D"
           if [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]; then cp -r "$O" "$D"
           else

@@ -9,6 +9,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { scoreWeek, VOID, DAY } from "../math.js";
+// Windows has `python`, not `python3` (Repo Lens F3-2); its held list ends lines with \r\n, so splits take /\r?\n/.
+const PYTHON = process.platform === "win32" ? "python" : "python3";
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const START = 1792368000000 + 4 * 7 * DAY;           // vault week 4 (Mon 16 Nov 2026)
@@ -110,7 +112,7 @@ test("questions: answers to a question not read are reported (the recorder never
 
 // ── The publish job's copy (Python) must agree with math.js over random weeks ──
 const cut = () => {
-  const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split("\n");
+  const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split(/\r?\n/);
   const a = y.findIndex((l) => l.includes(`/usr/bin/python3 - "$IN/questions" "$PUB/questions" "$HELD" <<'PY'`));
   const e = y.findIndex((l, i) => i > a && l.trim() === "PY");
   assert.ok(a > 0 && e > a, "the Daily Questions publish check is in games.yml");
@@ -147,9 +149,9 @@ test("questions: the publish job's Python scorer agrees with math.js on 3,000 ra
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "q-math-")), wf = path.join(dir, "weeks.json");
   fs.writeFileSync(wf, JSON.stringify(weeks));
   const py = `${src}\nimport json, sys\nout=[]\nfor w in json.load(open(${JSON.stringify(wf)})):\n    j={"start":${START},"min":"${MIN}","questions":w["questions"],"players":w["players"]}\n    out.append(score(j))\nprint(json.dumps(out))\n`;
-  const res = spawnSync("python3", ["-I", "-", "in", "pub", "held"], { input: py, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, env: { ...process.env, CHECK_NOW_MS: String(START) } });
+  const res = spawnSync(PYTHON, ["-I", "-", "in", "pub", "held"], { input: py, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, env: { ...process.env, CHECK_NOW_MS: String(START) } });
   assert.equal(res.status, 0, res.stderr);
-  const got = JSON.parse(res.stdout.trim().split("\n").pop());
+  const got = JSON.parse(res.stdout.trim().split(/\r?\n/).pop());
   const seen = { staked: 0, first: 0, second: 0, incomplete: 0, tie: 0, capped: 0 };
   for (let i = 0; i < weeks.length; i++) {
     const js = scoreWeek({ week: { start: START }, questions: weeks[i].questions, players: weeks[i].players, min: MIN });

@@ -9,6 +9,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { run, snapshotHash, weekList, type Node } from "../recorder.ts";
+// Windows has `python`, not `python3` (Repo Lens F3-2); its held list ends lines with \r\n, so splits take /\r?\n/.
+const PYTHON = process.platform === "win32" ? "python" : "python3";
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const G = 1792368000000, DAY = 86400000, WK = 7 * DAY, H = 3600000;
@@ -56,15 +58,15 @@ const j = (p: string) => JSON.parse(fs.readFileSync(p, "utf8"));
 const quiet = () => {};
 /** What the publish job does with a run's files: check them against the published copy, then publish (copy) what isn't held. */
 function publish(out: string, pub: string, now: number) {
-  const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split("\n");
+  const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split(/\r?\n/);
   const a = y.findIndex((l) => l.includes(`/usr/bin/python3 - "$IN/questions" "$PUB/questions" "$HELD" <<'PY'`));
   const e = y.findIndex((l, i) => i > a && l.trim() === "PY");
   const src = y.slice(a + 1, e).map((l) => l.replace(/^ {10}/, "")).join("\n");
   const held = path.join(path.dirname(pub), `held-${now}`);
   fs.mkdirSync(path.join(pub, "vault"), { recursive: true });
-  const r = spawnSync("python3", ["-I", "-", out, pub, held], { input: src, encoding: "utf8", env: { ...process.env, CHECK_NOW_MS: String(now) } });
+  const r = spawnSync(PYTHON, ["-I", "-", out, pub, held], { input: src, encoding: "utf8", env: { ...process.env, CHECK_NOW_MS: String(now) } });
   assert.equal(r.status, 0, r.stderr + r.stdout);
-  const hl = fs.readFileSync(held, "utf8").split("\n").filter(Boolean);
+  const hl = fs.readFileSync(held, "utf8").split(/\r?\n/).filter(Boolean);
   for (const f of files(out)) {
     if (hl.includes("questions/" + f)) continue;
     const to = path.join(pub, f);
@@ -292,7 +294,7 @@ async function wfHour(wd: any, pub: string, root: string) {
 /** Runs the REAL "Record Daily Questions" step script from games.yml with a stub `npm` that writes the given files into
  *  $QUESTIONS_OUT and exits with `code`. Returns the step's exit status and which files reached the artifact folder. */
 function recordStep(code: number, write: string[]) {
-  const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split("\n");
+  const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split(/\r?\n/);
   const at = y.findIndex((l) => l.includes("name: Record Daily Questions"));
   const r0 = y.findIndex((l, i) => i > at && l.trim() === "run: |");
   const body: string[] = [];
@@ -386,4 +388,27 @@ test("Repo Lens QF-1: both Daily Questions steps have their own time limit and c
     assert.ok(m && Number(m[1]) <= 10, `${name}: needs timeout-minutes (at most 10) so it can't use up the job's 30 minutes`);
     assert.match(step, /\n {8}continue-on-error: true/, `${name}: must stay continue-on-error`);
   }
+});
+
+// Repo Lens F3-1: the recorder gets only what is left of the job's 30 minutes (minus 2.5 for the upload).
+test("Repo Lens F3-1: with no time left in the job the recorder is skipped and the step takes the failed path", { skip: NEEDS_BASH }, () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "q-f31-"));
+  const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split(/\r?\n/);
+  const at = y.findIndex((l) => l.includes("name: Record Daily Questions"));
+  const r0 = y.findIndex((l, i) => i > at && l.trim() === "run: |");
+  const body: string[] = [];
+  for (let i = r0 + 1; i < y.length && (y[i].startsWith("          ") || y[i].trim() === ""); i++) body.push(y[i].replace(/^ {10}/, ""));
+  const bin = path.join(tmp, "bin"); fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, "npm"), `#!/bin/sh\necho ran > "$RUNNER_TEMP/npm-ran"\nexit 0\n`, { mode: 0o755 });
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: tmp, QUESTIONS_OUT: path.join(tmp, "questions-out") };
+  // started 29 minutes ago: under a minute left
+  fs.writeFileSync(path.join(tmp, "job-start"), String(Math.floor(Date.now() / 1000) - 29 * 60));
+  let r = spawnSync("bash", ["-c", body.join("\n")], { encoding: "utf8", env });
+  assert.equal(r.status, 124, r.stdout + r.stderr);
+  assert.ok(!fs.existsSync(path.join(tmp, "npm-ran")), "the recorder didn't start");
+  // started just now: it runs
+  fs.writeFileSync(path.join(tmp, "job-start"), String(Math.floor(Date.now() / 1000)));
+  r = spawnSync("bash", ["-c", body.join("\n")], { encoding: "utf8", env });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(fs.existsSync(path.join(tmp, "npm-ran")));
 });

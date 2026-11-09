@@ -374,7 +374,7 @@ test("Repo Lens #E-23 L-2 / I-4: 'How it works' follows the shown game; the popu
   assert.doesNotMatch(html, /12 targets are always open|up to 30 picks a day|min\(3, top/, "no old wording");
   for (const k of ['data-bx="open"', 'data-bx="perday"', 'data-bx="cap"', 'data-bx="changesw"']) assert.ok(html.includes(k), k);
   assert.match(js, /open: String\(Math\.floor\(\(G\.AHEAD - G\.LEAD\) \/ G\.ROUND\)\)/);
-  assert.match(js, /cap: String\(X\.capAt\(Math\.max\(Date\.now\(\), PERIOD\.from\)\)\)/);
+  assert.match(js, /cap: String\(X\.capAt\(Math\.min\(Math\.max\(Date\.now\(\), PERIOD\.from\), PERIOD\.to - 1\)\)\)/, "B14-5: game 2's tab shows its own ×3");
   assert.match(js, /fillWords\(\);\n\s+provider = new lib\.Provider\(NET\.rpc\);\n\s+W = window\.KWallet/, "mainnet fills them too");
   for (const g of [X.MAINNET_GAME, X.MAINNET_HOURLY]) { const G = X.forGame(g); assert.equal(Math.floor((G.AHEAD - G.LEAD) / G.ROUND), G.openRounds(48_000_000).length); }
   assert.match(js, /if \(e\.key === "Tab"\)/, "Tab stays in the box");

@@ -955,3 +955,52 @@ describe("guest trap: the most common shapes for a new staker (Repo Lens SG-8)",
     expect(r.free).toBe(false);
   });
 });
+
+// Owner, 5 Nov 2026 (Run a Node chat): Proof-of-Burn register_public_key, allowlisted with arg_types 0x0303 and no game.
+const POB = Base58.decode("159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv");
+const REGISTER: u32 = 0x53192be1;
+/** register_public_key_arguments { bytes producer = 1; bytes public_key = 2 } (a 33-byte compressed key). */
+function registerArgs(producer: Uint8Array, keyLen: i32 = 33, extra: bool = false): Uint8Array {
+  const n = 2 + producer.length + 2 + keyLen + (extra ? 2 : 0);
+  const a = new Uint8Array(n);
+  let i = 0;
+  a[i++] = 0x0a; a[i++] = <u8>producer.length; a.set(producer, i); i += producer.length;
+  a[i++] = 0x12; a[i++] = <u8>keyLen; for (let k = 0; k < keyLen; k++) a[i++] = <u8>(k + 2);
+  if (extra) { a[i++] = 0x18; a[i++] = 1; }   // a field 3 the row doesn't allow
+  return a;
+}
+describe("owner 5 Nov: a new node runner's register_public_key on Proof-of-Burn", () => {
+  it("is paid for the producer's own key (free play) and refused for anyone else's or in another shape", () => {
+    start();
+    CFG = v3Config(); CFG.allowed.push(new sponsor.allowed_call(POB, REGISTER, true, bytes([3, 3]), 0)); setConfig(); MockVM.commitTransaction();
+    emptyWallet();
+    OPS = [call(POB, REGISTER, registerArgs(USER))];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    expect(new Sponsor().get_free_usage(new sponsor.get_free_usage_arguments()).used_day).toBe(MANA);
+    emptyWallet();
+    OPS = [call(POB, REGISTER, registerArgs(OTHER))];
+    refused("SPONSOR: an allowlisted call must be the payee's own, with arguments in the listed shape");
+    OPS = [call(POB, REGISTER, registerArgs(USER, 33, true))];
+    refused("SPONSOR: an allowlisted call must be the payee's own, with arguments in the listed shape");
+    OPS = [call(POB, 0x859facc5, registerArgs(USER))];   // another PoB entry point (burn)
+    refused("SPONSOR: only Knode calls are sponsored");
+  });
+  it("Repo Lens #D-15 I-1: no key is accepted (it only clears the payee's own key); a repeated key or a key as a number is refused", () => {
+    start();
+    CFG = v3Config(); CFG.allowed.push(new sponsor.allowed_call(POB, REGISTER, true, bytes([3, 3]), 0)); setConfig(); MockVM.commitTransaction();
+    emptyWallet();
+    const only1 = new Uint8Array(2 + USER.length); only1[0] = 0x0a; only1[1] = <u8>USER.length; only1.set(USER, 2);
+    OPS = [call(POB, REGISTER, only1)];
+    expect(pays()).toBe(true);
+    MockVM.commitTransaction();
+    emptyWallet();
+    const k = registerArgs(USER), twice = new Uint8Array(k.length + 35);
+    twice.set(k, 0); twice[k.length] = 0x12; twice[k.length + 1] = 33;
+    OPS = [call(POB, REGISTER, twice)];
+    refused("SPONSOR: an allowlisted call must be the payee's own, with arguments in the listed shape");
+    const asNum = new Uint8Array(only1.length + 2); asNum.set(only1, 0); asNum[only1.length] = 0x10; asNum[only1.length + 1] = 1;
+    OPS = [call(POB, REGISTER, asNum)];
+    refused("SPONSOR: an allowlisted call must be the payee's own, with arguments in the listed shape");
+  });
+});

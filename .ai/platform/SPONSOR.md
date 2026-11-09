@@ -19,12 +19,12 @@ Every Koinos transaction costs **Mana**, which comes from holding KOIN. New play
 
 ### The daily Mana rule (owner, 5 Nov 2026 — every game, every action)
 - **Every player address has one daily Mana budget: 40 Mana a day, shared across every game and every action** — picks, answers, stakes, moves, claims, withdrawals, settles. No game or action has its own separate budget.
-- **Use it or lose it** (owner, 5 Nov): the budget starts again at 00:00 UTC every day and nothing carries over. There is no weekly cap: the contract still needs a weekly number, so it is set to 7 × 40 = 280, which a player can never reach (§2).
+- **Use it or lose it** (owner, 5 Nov): the budget starts again at 00:00 UTC every day and nothing carries over. No weekly cap: the contract still needs a weekly number, so it becomes 7 × 40 = 280, which never refuses anything the daily cap allows (§2). **Until the owner's config send to 280, the chain still has 250 a week** (Repo Lens #B-14 B14-4).
 - **Inside that budget the sponsor pays everything a player does on Knode Games.** Once it is used up, the player pays with their own Mana until 00:00 UTC (the page asks once more in the wallet). Withdrawals always work either way (D-027).
 - A new game or action **must** get a sponsor row (§2) and count against this same budget. It never gets a budget of its own, and a game never raises the per-player cap for itself.
 - Two limits sit above it and don't change the rule: one transaction can ask for at most 2.4 Mana, and everyone together gets at most 5,000 a day (free players 2,000 of it).
 - **Free players** (no stake in the call's game, which today includes every hourly Block X pick) count against their own 40 a day **and** the shared 2,000-a-day free pool (Repo Lens #E-23 I-2; owner 5 Nov: "ok").
-- **Moving stake** (`move_stake`) is covered (owner, 5 Nov: "cover them"; replaces D-027). The contract always allowed it; the page now asks the sponsor for it too.
+- **Moving stake** (`move_stake`) is covered (owner, 5 Nov: "cover them"; replaces D-027). The contract always allowed it; the page now asks the sponsor for it too. Its Mana isn't measured yet, so a move asks for the 2.4 per-transaction cap: after the first real sponsored move, run `npm run sponsor -- mana-report` and add its row (B14-3, R-BX-18).
 - **Knode Swap** is to be covered too (owner, 5 Nov), but sponsor v3 refuses swaps in its code (audit SP-24), so it waits for the **next sponsor version** (with R-BX-5, game 12 → vault game 2). A swap names no game, so it would count as free play (the 2,000 pool) as well as the swapper's own 40.
 
 ---
@@ -63,6 +63,7 @@ Every Koinos transaction costs **Mana**, which comes from holding KOIN. New play
 - **Claiming several rewards (D-132, #157):** with 2 or more rewards the Stake page asks the player: **free, one approval per reward** (one sponsored claim per transaction) or **all at once with your own Mana** (up to 10 in one transaction). #154 splits a sponsored batch as a fallback. With KOIN Vault or the player's own Mana a batch stays one transaction.
 - **Over the cap:** a sponsored transaction whose Mana adds up to more than 2.4 (e.g. several Block X picks at once) is turned down, then retried with the player's own Mana (I-095).
 - The caps count each transaction's **Mana limit**, not what it really used, so tighter rows mean more plays per cap. Plan: after the first real sponsored stake, claim and withdraw, run `mana-report` and tighten each row to about **1.25 × the most used** (R-BX-18).
+- **Race picks with no per-game limit (Race contract v2, `max_picks_per_day` 0; Repo Lens #C-10 C10-1, C10-6):** one wallet can then use its whole `--per-player-day` of the free pool on picks (about 45 a day), and the free pool is one record shared by every unstaked wallet, so about 50 fresh wallets can empty it for everyone until 00:00 UTC (they then pay their own Mana). Sponsored KOIN/VHP `approve`s already allow the same today (no cap row, repeatable). If new wallets drain free play: lower `--free-per-day`, or keep a race limit. The real fix needs a sponsor version: a per-wallet free sub-cap and a cap row for `approve`.
 - **How a cap or row is raised (order matters):** dry run → `config --send` on chain → **then** merge the site PR (`site-limits`). The site must never ask for more Mana than the chain allows. Steps: `claude/sponsor/ROLLOUT-STEPS-2026-11-04.md` and `ROLLOUT-STEP-8-2026-11-04.md` (Claude project).
 
 ### Code history
@@ -80,6 +81,7 @@ Every Koinos transaction costs **Mana**, which comes from holding KOIN. New play
 - Questions: `answer`, `settle`, `claim`, `close_week`, `finalize_week`, deposits and withdrawals of the question game.
 - The vault (switch on): `deposit_to`, `withdraw_from`, `move_stake`, `claim_game`, `finalize_game_week` for the payee.
 - A `pick` on Race picks, and the Picks contract's `pick`, for the player's own wallet.
+- **Node runners** (owner, 5 Nov): Proof-of-Burn `register_public_key` (`159myq…iyv`, entry `0x53192be1`, arguments producer + key only), for the producer's own key, as free play. An allowlist row: a `config` send, no new code. Live once the owner's config send shows `allowlisted calls … → …, 159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv:1394158561`; the site lists it in `sponsor.covers` only after that. Repo Lens #D-15: GO (6 Nov). Checked on mainnet 6 Nov (`get_contract_meta`): PoB lists `register_public_key` at `0x53192be1` with exactly producer (1, bytes) and public_key (2, bytes). Its Mana isn't measured, so a registration asks for up to 2.4 until a `mana-report` after the first real one (D-15 L-1).
 - A VHP or KOIN `approve` whose spender is the game and owner is the player.
 
 **Never pays:** Knode Swap until the next sponsor version (v3 refuses it in code; the owner wants it covered, 5 Nov); owner, operator, seed or upgrade actions; burning KOIN into VHP; any transaction signed by anyone besides the player.

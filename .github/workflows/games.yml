@@ -90,10 +90,14 @@ jobs:
           BLOCKX_RELEASE: ${{ vars.BLOCKX_RELEASE }}
       # Daily Questions (game 1), from Vault v6.1's rule week (D-116): games/questions/recorder.ts. Independent of Block X
       # (RECORDER_STANDARD §6.5): its steps may fail without stopping the others; the questions-alert job then fails
-      # the run after publishing, so the owner is emailed. Its files go out only if the recorder finished.
+      # the run after publishing, so the owner is emailed. Its files go out only if the recorder finished (exit 0) or wrote
+      # them and raised the late alert (exit 3); the owner's HOLD and RELEASE files go out whatever the exit.
+      # Each step has its own time limit, so a node that never answers can't use up the job's 30 minutes and cost Block X
+      # its hour (Repo Lens QF-1); a step that times out fails alone and the upload still runs.
       - name: Take Daily Questions' last files
         id: questions-prev
         continue-on-error: true
+        timeout-minutes: 3
         run: |
           set -euo pipefail
           P="$RUNNER_TEMP/prev/questions"; mkdir -p "$P/vault"
@@ -114,11 +118,18 @@ jobs:
         id: questions
         if: ${{ steps.questions-prev.outcome == 'success' }}
         continue-on-error: true
+        timeout-minutes: 8
         run: |
           set -euo pipefail
           O="$RUNNER_TEMP/questions-out"; rm -rf "$O"; mkdir -p "$O"
-          npm run questions
-          mkdir -p "$RUNNER_TEMP/games-data"; rm -rf "$RUNNER_TEMP/games-data/questions"; cp -r "$O" "$RUNNER_TEMP/games-data/questions"
+          rc=0; npm run questions || rc=$?
+          D="$RUNNER_TEMP/games-data/questions"; mkdir -p "$RUNNER_TEMP/games-data"; rm -rf "$D"
+          if [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]; then cp -r "$O" "$D"
+          else
+            mkdir -p "$D/vault"
+            for f in "$O"/vault/HOLD-W*.json "$O"/vault/RELEASE-W*.json; do [ -f "$f" ] && cp "$f" "$D/vault/"; done
+          fi
+          exit "$rc"
         env:
           RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
           RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
@@ -444,7 +455,7 @@ jobs:
           # job's own clock, never against this run's own files. A file that fails is HELD (not published) and the rest of the
           # run, Block X included, still publishes. Any failure that isn't just "not yet" fails the job at the end (an email).
           # The points are recomputed here from the published inputs with this job's own copy of games/questions/math.js
-          # (games/questions/tests/publish.test.mjs runs both over thousands of random weeks).
+          # (games/questions/tests/math.test.mjs and tests/audit/questions-publish.test.ts run both over thousands of random weeks).
           import hashlib, json, os, re, sys, time
           d, pub, heldf = sys.argv[1], sys.argv[2], sys.argv[3]
           GENESIS = 1792368000000; WEEK = 7 * 86400000; DAY = 86400000; HOUR = 3600000; VOID = 1000; MAXP = 10

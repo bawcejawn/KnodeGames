@@ -32,6 +32,7 @@ import * as path from "node:path";
 import * as crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { scoreWeek } from "./math.js";
+import { withRetry } from "../../common.ts";
 
 export const GAME = 1;
 export const STABLE_MS = 3_600_000;              // final once two runs at least an hour apart read the same snapshot
@@ -172,6 +173,9 @@ export type RunOpts = {
   /** The nodes are read at their heads: if they disagree (a resolve landing between the two reads), read once more
    *  after this long before failing (Repo Lens C11-7). Default one minute. */
   retryMs?: number;
+  /** Each node read gives up after this long (3 tries in all), so a node that accepts the connection but never answers
+   *  fails the run instead of holding it past the step's time limit (Repo Lens QF-1). Default 30 s. */
+  callTimeoutMs?: number;
   hold?: number[]; holdReason?: string; release?: number[];
   log?: (s: string) => void;
 };
@@ -180,7 +184,10 @@ export type RunOpts = {
 export async function run(o: RunOpts): Promise<{ week: number | null; state: string }> {
   const log = o.log ?? ((s: string) => console.log(s));
   if (!fs.existsSync(path.join(o.prev, ".fetched"))) throw new Error(`${o.prev}/.fetched is missing: the last run's files weren't fetched, refusing to write (it could rewrite a published week)`);
-  const [A, B] = o.nodes;
+  // Every node read has a time limit and retries (Repo Lens QF-1): a node that never answers fails the run, never holds it.
+  const limit = o.callTimeoutMs ?? 30_000;
+  const timed = (node: Node): Node => ({ read: (m: string, a?: any) => withRetry(m, () => node.read(m, a), 3, limit) });
+  const [A, B] = [timed(o.nodes[0]), timed(o.nodes[1])];
   const [sa, sb] = await Promise.all([A.read("get_state", {}), B.read("get_state", {})]);
   const ka = clockOf(sa), kb = clockOf(sb);
   // The chain's clock, never the runner's: the earlier of the two nodes' head times.
@@ -204,8 +211,9 @@ export async function run(o: RunOpts): Promise<{ week: number | null; state: str
   }
   const prevFile: WeekFile | null = readJson(path.join(o.prev, `W${pad(w)}.json`));
   if (now >= ka.resultsDue(w)) {
-    // Past due with no final: the stakers' share rolls over. Say so loudly once (the first run past the deadline).
-    if (!prevFile?.final && now < ka.resultsDue(w) + STABLE_MS) throw new Error(`week ${w}'s results were due ${new Date(ka.resultsDue(w)).toISOString()} and no final file was written: its stakers' share rolls over.`);
+    // Past due with no final: the stakers' share rolls over. Say so loudly on the runs of the first 3 h past the deadline
+    // (3 h, not 1 h, so a delayed scheduled run can't skip it: Repo Lens QF-5).
+    if (!prevFile?.final && now < ka.resultsDue(w) + 3 * STABLE_MS) throw new Error(`week ${w}'s results were due ${new Date(ka.resultsDue(w)).toISOString()} and no final file was written: its stakers' share rolls over.`);
     log(`Daily Questions: week ${w}'s results were due ${new Date(ka.resultsDue(w)).toISOString()}: nothing more to record.`);
     return { week: w, state: "past-due" };
   }
@@ -237,10 +245,13 @@ export async function run(o: RunOpts): Promise<{ week: number | null; state: str
   write(o.out, built.file, built.board, built.vault, w);
   const n = built.result.rows.length;
   if (!built.file.final && now >= ka.resultsDue(w) - 24 * STABLE_MS) {
-    // Under 24 h left and not final: the files are written; fail the run so the owner is emailed (Repo Lens C11-4).
+    // Under 24 h left and not final: the alert (Repo Lens C11-4). The files are written and must still go out, or a week
+    // whose snapshot changes now (the owner resolving a question) could never go final: so no throw, state "late",
+    // and the command line exits 3, which the workflow publishes and still emails on (Repo Lens QF-2).
     const sunday = a.start + 6 * 86400000;
     const open = a.questions.filter(([, outcome, lock]) => outcome === 0 && lock <= sunday).map(([id]) => id);
-    throw new Error(`week ${w} is still pending ${((ka.resultsDue(w) - now) / STABLE_MS).toFixed(1)} h before its results are due (${new Date(ka.resultsDue(w)).toISOString()}): ${open.length ? `unresolved questions ${open.join(", ")} (resolve or void them)` : "waiting for a second matching run"}.`);
+    log(`::error::week ${w} is still pending ${((ka.resultsDue(w) - now) / STABLE_MS).toFixed(1)} h before its results are due (${new Date(ka.resultsDue(w)).toISOString()}): ${open.length ? `unresolved questions ${open.join(", ")} (resolve or void them)` : "waiting for a second matching run"}. Its files were written and go out with this run.`);
+    return { week: w, state: "late" };
   }
   log(`Daily Questions week ${w}: ${built.file.final ? "FINAL" : built.complete ? "pending (waiting for a second matching run an hour later)" : "pending (questions still to resolve)"}; ${a.questions.length} questions, ${n} players, ${built.result.vault.rows.length} staked rows, first ${built.result.vault.first.length}, second ${built.result.vault.second.length}.`);
   return { week: w, state: built.file.final ? "final" : "pending" };
@@ -284,10 +295,15 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     console.log(`settled entries compared: ${same} same, ${diff} different`);
     process.exit(diff ? 1 : 0);
   }
-  const res = await run({
+  // Exit codes: 0 done, 3 "late" (files written, alert: the workflow publishes them and emails), 1 any error (nothing
+  // goes out but the owner's HOLD / RELEASE files). Always process.exit, as bot/games/blockx.ts does, so a request left
+  // open after withRetry gave up on it can't keep the process alive (Repo Lens QF-1, QF-2).
+  run({
     nodes, prev: E.QUESTIONS_PREV || "questions-prev", out: E.QUESTIONS_OUT || "questions-out",
     hold: weekList(E.QUESTIONS_HOLD), holdReason: E.QUESTIONS_HOLD_REASON, release: weekList(E.QUESTIONS_RELEASE),
     fromWeek: weekList(E.QUESTIONS_FROM_WEEK)[0],
-  });
-  console.log(`done: ${res.state}`);
+  }).then(
+    (res) => { console.log(`done: ${res.state}`); process.exit(res.state === "late" ? 3 : 0); },
+    (e) => { console.error(`error: ${String((e && (e as Error).message) || e).replace(/[\r\n]+/g, " ").replace(/::/g, ": ").slice(0, 500)}`); process.exit(1); },
+  );
 }

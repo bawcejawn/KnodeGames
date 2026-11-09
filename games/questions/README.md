@@ -31,14 +31,15 @@ The game itself (questions, answers, the page) is unchanged: `index.html`, `app.
 ## Repo variables (Settings → Secrets and variables → Actions → Variables)
 | Variable | What it does |
 |---|---|
-| `QUESTIONS_FROM_WEEK` | **Set it to `4`** (the week of Mon 16 Nov). From that week, a week the vault reads as "not shared" fails the run, so you're emailed, instead of rolling over quietly (Repo Lens C11-1; for example if v6.1 is live but #114's ABI isn't on main). |
+| `QUESTIONS_FROM_WEEK` | Set it to the vault week of v6.1's rule week (4 if v6.1 is uploaded in time for Mon 16 Nov; `npm run bot -- status` shows it). Set it only once v6.1 is uploaded (Repo Lens QF-4). From that week, a week the vault reads as "not shared" fails the run, so you're emailed, instead of rolling over quietly (Repo Lens C11-1; for example if v6.1 is live but #114's ABI isn't on main). |
 | `QUESTIONS_HOLD` / `QUESTIONS_HOLD_REASON` / `QUESTIONS_RELEASE` | The owner's hold and release of a week. |
 
 ## Alerts (the run fails and GitHub emails you)
-- A failed read, or the two nodes disagree (the next hour reads again).
+- A failed read (including a node that doesn't answer within 30 s, 3 tries: Repo Lens QF-1), or the two nodes disagree (the next hour reads again).
 - A week from `QUESTIONS_FROM_WEEK` on that reads as not shared.
-- Under 24 hours before the results are due and the week still isn't final: the message names the unresolved questions (resolve or void them) (Repo Lens C11-4).
-- The first run past the deadline when no final was written (the stakers' share rolls over).
+- Under 24 hours before the results are due and the week still isn't final: the message names the unresolved questions (resolve or void them) (Repo Lens C11-4). The run's files still go out (the recorder exits 3, "late"), so a week you resolve now can still go final an hour later (Repo Lens QF-2).
+- The runs of the first 3 hours past the deadline when no final was written (the stakers' share rolls over) (Repo Lens QF-5).
+- On any failed run, the owner's HOLD and RELEASE files still go out; nothing else from that run does (Repo Lens QF-3).
 - The publish job held a file for a reason other than "not yet".
 
 ## TODO: size (Repo Lens C11-2, plan only)

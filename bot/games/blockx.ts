@@ -805,13 +805,17 @@ export async function run(o: Opts) {
       // belongs to the other game is never read again and doesn't use up this run's budget (Repo Lens #E-21 L-1).
       if (!inGame(G, b.time)) { done.add(`${G.GAME_ID}:${r}`); n--; continue; }
       let raw: RawPick[] = [];
-      if (picksRead && !missingGames.has(G)) {
+      if (picksRead) {
         raw = await picksRead(o.p, r, G.GAME_ID);
+        let other: RawPick[] = raw;
         if (o.check) {
-          const other = await picksRead(o.check, r, G.GAME_ID);
+          other = await picksRead(o.check, r, G.GAME_ID);
           const key = (x: RawPick[]) => JSON.stringify([...x].sort((u, v) => (u.player < v.player ? -1 : 1)));
           if (key(raw) !== key(other)) { problems.push(`block ${h}: the two nodes disagree about the picks; not recorded this run`); if (old) voidAt(r, h, b.time, lock.time, "the two nodes disagreed about its picks until it left the 3-day window", G); continue; }
         }
+        // Repo Lens #B-14 B14-1: both nodes said the game isn't on the Picks contract, yet picks are there: their
+        // settings answer is stale. Never write such a round with no picks; it waits for a run that reads the game.
+        if (missingGames.has(G) && (raw.length || other.length)) { problems.push(`block ${h}: game ${G.GAME_ID} reads as not on the Picks contract but has picks; not recorded this run`); continue; }
       }
       const card = cardAt(lock.time);
       // Repo Lens E4-1 (a): no race files for the lock's races (e.g. this run's race-data fetch failed) is not "no card":

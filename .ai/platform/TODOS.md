@@ -7,16 +7,17 @@
 
 **Priority:** P1 funds or security · P2 breaks a game or the site · P3 confusing or annoying · P4 nice to have
 
-## Today — Thu 5 Nov (the order to go live; do them top to bottom)
+## Thu 5 Nov (the order to go live; do them top to bottom)
 - [x] **1. Block X and the Race are in the vault** ✅ (5 Nov ~17:10 UTC): `games` shows game 2 and game 7 "staked + free prize, from week 3". Repo variable `PRIZES_FROM_WEEK = 3` set ✅ 👤 (owner, 5 Nov) — D-077
-- [ ] **2. Then announce vault v6.1** (starts the 48 h): build and check on `vault-questions-60`, `upgrade schedule` dry run → CONFIRM ON → `--send` → CONFIRM OFF → delete `OWNER_WIF`. Steps: `claude/vault/HANDOFF-2026-11-05.md`. Paste the output to the Vault chat. Latest: Sat 7 Nov 9 AM PT (48 h before Monday's upload) — P1 — D-130
+- [x] **2. Vault v6.1 announced** ✅ 👤 (5 Nov ~19:01 UTC): `upgrade schedule --send`, build `11043e1f…`, tx `0x1220a4a9…66b0`; it replaced the old 4 Nov announcement of `399171a2…`. Uploadable from **Sat 7 Nov 19:01 UTC**, valid about 7 days; upload stays **Mon 9 from 9:00 AM PT** — D-130
 - [ ] **3. Turn the VHP ruler's recorder on:** repo variable `VHP_RULER_ENABLED = true` (data only, pays nothing) — P2 — D-128
 - [ ] **4. Tell players (after step 1 works):** "Week 1 starts Mon 9 Nov: Daily Questions, the Producer Race and Who Signs Block X all pay staked rewards, plus 2 + 1 VHP free prizes each week; Daily Questions goes to two rounds a day; free play is paid for by the Mana sponsor within daily limits." Don't announce v6.1's 60 questions until Monday's upload works — P2 — D-064
 - [ ] Merge PR #162 if it still shows open (docs only) — P2
 - [ ] Email filter: rename "Kpred bot" → "Knode Games bot" — P4
 
 ## This week
-- [ ] **Open the Golf PR** from the Golf chat's compare link (`golf-v2`), then its Repo Lens (queue 7) — P2
+- [x] **Sponsor weekly number → 280** (D-169) ✅ 👤 5 Nov, tx `0x1220a4fa…81f4c`
+- [ ] ~~Open the Golf PR~~ **⏸ Golf held for the kit (D-161)**: nothing to do until `kit-core` merges
 - [ ] **Pages allow-list:** when the Hub chat's PR (R-HUB-14) is merged and its test run is checked: GitHub → Settings → Pages → Source: **GitHub Actions**; then open knodegames.com and two game pages. Undo = set Source back to "Deploy from a branch: main / root" — P2 — D-115
 - [ ] **Daily Questions free prize ON from Mon 16** (D-136): run the command the Vault chat gives (R-VAULT-14) during the week of Mon 9 — P2
 - [ ] **Turn the VHP ruler's recorder on** (data only, pays nothing, D-128): repo variable `VHP_RULER_ENABLED = true`, then the first fill (`docs/VHP-RULER.md` "Turning it on"); tell the Ruler chat — P2 — D-128

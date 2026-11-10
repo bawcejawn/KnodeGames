@@ -165,10 +165,13 @@ test("the race page sends only one thing itself: the wallet's own pick on the ra
   const js = read("race.js");
   const sends = [...js.matchAll(/\.send\(/g)];
   assert.equal(sends.length, 1, "one send");
-  assert.match(js, /raceContract\.functions\.pick\(\{ player: who, race: String\(index\), horse \}, \{ onlyOperation: true \}\)/);
+  // D-166 (contract v2): the race type rides in the race number from bit 48; the pick is still player, race, horse.
+  assert.match(js, /const args = \{ player: who, race: M\.contractRace\(type, index\) \};/);
+  assert.match(js, /raceContract\.functions\.pick\(\{ \.\.\.args, horse \}, \{ onlyOperation: true \}\)/);
   assert.match(js, /await W\.send\(`pick [^`]*`, \[operation\]\)/);
   assert.doesNotMatch(js, /signTransaction|sendTransaction|privateKey|wif/i);
-  assert.match(js, /if \(Date\.now\(\) >= M\.raceStart\(index\)\)/, "the page also refuses a started race (the chain enforces it)");
+  assert.match(js, /const tr = M\.typedRace\(type, index\)/);
+  assert.match(js, /if \(Date\.now\(\) >= tr\.start\)/, "the page also refuses a started race (the chain enforces it)");
   assert.match(read("race.js"), /localStorage\.removeItem\("pr-guesses-v1"\)/);
   assert.match(read("race.html"), /<script src="race-math\.js"><\/script>\s*<script src="board\.js"><\/script>\s*<script src="stake-panel\.js"><\/script>\s*<script src="race\.js"><\/script>/);
 });
@@ -224,4 +227,58 @@ test("R-RACE-7 (I-082): pick errors: only the Race picks contract's own messages
     assert.ok(why(m).includes(m), "the wallet's own reason is shown");
   }
   assert.match(why("User rejected the request"), /Cancelled in your wallet/);
+});
+
+test("Repo Lens #D-13 H-1: a typed pick goes out of the page's own koilib bundle (no Long library, as in a browser) with the exact race number, for every type", async () => {
+  // The bundle race.html loads from the CDN, checked by its integrity value, run with no require and no Long (a browser).
+  const bundle = fs.readFileSync(`${APP}/node_modules/koilib/dist/koinos.min.js`);
+  const sri = read("race.html").match(/koilib@9\.4\.1\/dist\/koinos\.min\.js" integrity="(sha384-[^"]+)"/)[1];
+  const { createHash } = await import("node:crypto");
+  assert.equal(`sha384-${createHash("sha384").update(bundle).digest("base64")}`, sri, "the bundle tested is the page's");
+  const g = { TextEncoder, TextDecoder, Uint8Array, crypto: globalThis.crypto, console, setTimeout, clearTimeout, atob, btoa, URL };
+  g.window = g; g.self = g; g.globalThis = g;
+  vm.createContext(g); vm.runInContext(bundle.toString("utf8"), g);
+  assert.equal(typeof g.require, "undefined"); assert.equal(typeof g.Long, "undefined");
+  const abi = JSON.parse(read("race/abi/race.koilib.json"));
+  const ser = new g.Serializer(abi.koilib_types);
+  const P = "1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv";
+  const raceOf = (bytes) => {                              // field 2 (race), a varint, read back exactly
+    for (let i = 0; i < bytes.length;) {
+      const tag = bytes[i++];
+      if (tag === 0x10) { let v = 0n, sh = 0n; for (;;) { const b = bytes[i++]; v |= BigInt(b & 0x7f) << sh; sh += 7n; if (!(b & 0x80)) return v; } }
+      i += 1 + bytes[i];                                   // a 25-byte address field
+    }
+  };
+  const now = U("2026-11-09T10:00Z");
+  for (let type = 0; type < 5; type++) {
+    const cur = M.typedIndex(type, now);
+    // the open window, and indexes far ahead (the year 2100) and at the top of the layout
+    const idx = [...Array(30).keys()].map((k) => cur + k).concat([M.typedIndex(type, U("2100-01-01T00:00Z")), 2 ** 48 - 1]);
+    for (const i of idx) {
+      const want = (BigInt(type) << 48n) + BigInt(i);
+      assert.equal(M.contractRace(type, i), want.toString());
+      const bytes = await ser.serialize({ player: P, race: M.contractRace(type, i), horse: P }, "race.pick_arguments");
+      assert.equal(raceOf(bytes), want, `type ${type}, race ${i}: sent exactly`);
+    }
+  }
+  // Outside the layout, the page refuses to build a number at all.
+  for (const [t, i] of [[5, 1], [-1, 1], [1.5, 1], [0, -1], [0, 2 ** 48], [1, 0.5], [1, "7"]]) assert.throws(() => M.contractRace(t, i), /contractRace/);
+});
+
+test("D-166: the race-type toggle stays hidden until TYPES_FROM_WEEK is set; each type's points and the pool's sit-out are explained", () => {
+  const js = read("race.js"), html = read("race.html"), math = read("race-math.js");
+  assert.match(math, /const TYPES_FROM_WEEK = null;/, "off on main until the contract v2 is uploaded");
+  // Repo Lens #C-12 C12-1: the page goes by TYPES_ON_WEEK, which stays null until TYPES_READY.
+  assert.match(js, /const typesLive = \(\) => M\.TYPES_ON_WEEK !== null && M\.weekOf\(Date\.now\(\)\) >= M\.TYPES_ON_WEEK;/);
+  assert.match(math, /const TYPES_ON_WEEK = TYPES_READY \? TYPES_FROM_WEEK : null;/);
+  assert.match(html, /<nav class="rt-tabs" id="race-types" aria-label="Race type" hidden><\/nav>/);
+  assert.match(html, /<section class="card" id="typed" hidden>/);
+  assert.match(js, /const ORDER = \[1, 2, 0, 3, 4\];/, "1-hour, 2-hour, 6-hour, daily, weekly");
+  assert.match(js, /A win scores \$\{T\.win\} points, a show \(2nd or 3rd\) \$\{T\.show\}, on the one Producer Race board\./);
+  assert.match(js, /sits out \$\{T\.name\.toLowerCase\(\)\} races for now/);
+  // The pick limit: 0 (no per-game limit, contract v2) is shown as such, never as "5".
+  assert.match(js, /const max = usage \? Number\(usage\.max_picks_per_day \?\? 0\) : 5/);
+  assert.match(js, /"No per-game pick limit"/);
+  // The remembered tab is a per-viewer convenience, wrapped in try/catch.
+  assert.match(js, /try \{ const v = Number\(localStorage\.getItem\("pr-type"\)\);/);
 });

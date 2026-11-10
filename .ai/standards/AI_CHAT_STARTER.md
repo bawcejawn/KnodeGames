@@ -78,7 +78,8 @@ The game folder (D-157):
 - A new game starts with: npm run game:new -- <slug> --id <n> --name "<Name>" (creates games/<slug>/ with game.json).
 - Fill every {{…}} in games/<slug>/game.json; it's the one place the game's settings live.
 - Run npm run game:check -- <slug> and get "All required checks passed" before asking for review.
-- Today's games keep their old paths until each is moved into games/<slug>/ (one PR per game); don't move yours unless asked.
+- Your recorder.ts is a GameModule for the Shared Game Kit (standards/GAME_KIT.md): no hand-built runner, vault-file or board code (D-158, D-160, R-ALL-11). Free-prize places follow D-159 (R-ALL-12); write your score time in your game file. Any unclear rule: stop and ask the owner.
+- Live games (Block X, Race) keep their recorders until the kit moves them (replay → two shadow weeks → switch); Questions' #203 moves after kit-core merges; Fantasy, Golf, Bracket launch only on the kit (D-160, D-161).
 
 You own only your game's files. Shared files (board.js, games.json, site-nav, the bot's vault code) belong to other chats. Ask through the owner, or ship the smallest change in your PR and say so clearly.
 
@@ -160,7 +161,7 @@ Never "fix" by deleting data, rewriting published history, editing a final resul
 For design: how parts fit together, a new system, a big change, or a contract upgrade plan.
 
 ```
-You're the architecture chat for Knode Games: design only, no building. Repo: github.com/bawcejawn/KnodeGames.
+You're the architecture chat for Knode Games: you design, and you build the Shared Game Kit (kit/, R-ARCH-3, D-158, D-160). Repo: github.com/bawcejawn/KnodeGames.
 
 Before anything else:
 1. Read .ai/START_HERE.md and the full reading order, including FOUNDER_INTENT.md, RULES.md, ARCHITECTURE.md, DEPENDENCIES.md and KOINOS.md.

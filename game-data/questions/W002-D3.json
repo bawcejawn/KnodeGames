@@ -439,9 +439,149 @@
             "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2060742515422"
           },
           "seal": "3f1b959572c84705f7d13ef412ac6794aed1c4345fadd1bb1ece2c8fc193ef4e"
+        },
+        {
+          "height": 40836016,
+          "readAt": "2026-11-06T04:54:02.287Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2060742515422"
+          },
+          "seal": "09a47189444df6de9514f2b7b43341171420b8a6b08c67ef8b963d2d8a604870"
+        },
+        {
+          "height": 40837193,
+          "readAt": "2026-11-06T05:55:05.595Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2081339377106"
+          },
+          "seal": "b1fea92a80864b5bfb4994be8bf2477e486df228f4e697b03cff9fabe91e5e58"
+        },
+        {
+          "height": 40838596,
+          "readAt": "2026-11-06T07:06:23.377Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2079704761715"
+          },
+          "seal": "0229aacf91317234b26924d87b4448030c25fe08a46ff2e880fd8d8f21a0d7e5"
+        },
+        {
+          "height": 40840042,
+          "readAt": "2026-11-06T08:19:01.186Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2078478794971"
+          },
+          "seal": "c4a4d3d14073a391d833550e0e0c527f8fca7e0f2b3b53b0a9dd7acbbcdc6b14"
+        },
+        {
+          "height": 40841962,
+          "readAt": "2026-11-06T09:57:45.684Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2077661478107"
+          },
+          "seal": "51be1d83b0917daa48117a9d561cf1d0c6f19b2e876d57ab97d3b0821b575dbb"
+        },
+        {
+          "height": 40843120,
+          "readAt": "2026-11-06T10:57:16.123Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2076844157669"
+          },
+          "seal": "990e93e9bfab2468e5c6e382c7beb4228ad5027e883862dab32073ff566c2842"
+        },
+        {
+          "height": 40844124,
+          "readAt": "2026-11-06T11:48:41.048Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2075618170819"
+          },
+          "seal": "e9445130547fd5f278458e42e43f6db88f8fff1f377677fdd58d665513d49c18"
+        },
+        {
+          "height": 40845084,
+          "readAt": "2026-11-06T12:37:35.364Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2075209506902"
+          },
+          "seal": "d15daa19618a6d0590d80bd3437c56e5d685d47960ef194868974246823f4f8b"
+        },
+        {
+          "height": 40845426,
+          "readAt": "2026-11-06T12:56:20.460Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2075209506902"
+          },
+          "seal": "1a4c7bbcde488b1c61f917ec39103bd9f9c8b8f8e98f8d067d8984dbc817e939"
+        },
+        {
+          "height": 40846879,
+          "readAt": "2026-11-06T14:09:28.221Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2073983506955"
+          },
+          "seal": "731896d719b41f0fc00f338b95bf303dab014cef8f191fec0c59d5c61e63065d"
         }
       ],
-      "vhpSeal": "5e18631274503fda0373d01410aa43793214119c8f87e5ac2a807b1f7fe0c74f"
+      "vhpSeal": "30ea1e6f3e23c66fda92f57c035a1125066a953f338553d1019cffa663556547",
+      "result": {
+        "void": false,
+        "option": 3,
+        "value": "72",
+        "dataHash": "529c9bb6f0fef856e53b398aa90f1f7c4d0bf98b9c57901cf66e86d18623c0d7",
+        "resolvedAt": "2026-11-06T14:18:31.720Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40788434,
+          "decidedHeight": 40844687,
+          "readings": [
+            40804810,
+            40805781,
+            40806907,
+            40808090,
+            40809312,
+            40810716,
+            40812771,
+            40814003,
+            40815188,
+            40816159,
+            40816423,
+            40817126,
+            40817530,
+            40819060,
+            40820962,
+            40822285,
+            40823288,
+            40824350,
+            40825534,
+            40826630,
+            40827722,
+            40828897,
+            40829985,
+            40830846,
+            40831422,
+            40832769,
+            40833694,
+            40834765,
+            40836016,
+            40837193,
+            40838596,
+            40840042,
+            40841962,
+            40843120,
+            40844124
+          ],
+          "readingsInWindow": 38,
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": {
+              "release": "2068494330372",
+              "end": "2051333481766",
+              "change": "−0.83%",
+              "height": 40806907
+            }
+          }
+        }
+      },
+      "chainOutcome": 4,
+      "chainDataHash": "0x529c9bb6f0fef856e53b398aa90f1f7c4d0bf98b9c57901cf66e86d18623c0d7"
     },
     {
       "id": "W002-D3-3",

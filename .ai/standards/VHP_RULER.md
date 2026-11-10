@@ -265,3 +265,15 @@ Built on `vhp-ruler-v21` @ `208fe00` (RULE_VERSION 3: `pct` exact mid-p Poisson,
 - **Late voids (N-3, D-164):** kept: any VHP change beyond ±10% during the race voids the producer for that race, whoever sent it; a pick on a voided producer counts as a loss; nothing refunded.
 - **Also ruled:** the Vault and the Pool race under the same rules (D-162); steady throttlers stay in at full size (D-163).
 - **Next (R-RULER-2):** build E in both languages, re-run all eleven sims on both histories plus a new sim 8 case (a core member at 0.80–0.95 signing in full), turn the N-1 `todo` tests on, Repo Lens fix-check (`claude/ruler/REPOLENS-V21-RECHECK-PROMPT.md`, updated by the Ruler chat). Nothing pays until all eleven pass (D-111).
+
+### 18.1 E built, marks settled (6 Nov 2026, D-170)
+Built at `vhp-ruler-v21` @ `1cf5d4d` (115 pass, 1 todo; sim 11 40/40). N-1 is fixed: an 18% member steady at 0.80 – 0.95 that signs in full wins 0.057 – 0.058 against 0.084 honest. Passes: 2, 3, 7, 9, 10, 11 (4, 5 unchanged; 6 accepted). On the original marks sim 1 missed by 0.01 (0.84 – 1.09 / 0.85 – 1.07) and sim 8's others by the spread of the attacker's lost wins (0.85 – 1.15 / 0.85 – 1.17).
+- **Sim 1 mark:** 0.84 – 1.16 of fair, fair = 1 ÷ (field − steady throttlers). The big-producer edge S1 is an accepted residual.
+- **Sim 8 others:** pass if none drops more than 0.05 below its honest result (no upper limit).
+- **E's details:** median form over the entered, non-void field (even count: the two middle averaged, rounded down); no 0.80 floor on the core; "can't win" = a steady member below the core line.
+
+### 18.2 Repo Lens #B-12 settled (6 Nov 2026, D-171, D-172)
+At `df7d751` all eleven sims passed on D-170's marks; Repo Lens #B-12 (fix-check of E at `1cf5d4d`) said fix first: **N-4 (High)**, a core member under-signing lifts the others, the biggest most (A at 0.80 → B 2.52× fair); **median pull-down (Medium)**, many small steady addresses can move the core line.
+- **Band (D-171):** when scoring a producer, any other core member more than **2 sd** from its expected share of the core's blocks, **either direction**, is left out of that producer's yardstick for that race. It voids no one and removes no one from the race. Measured: A at 0.80 → B ~1.04×; honest field 0.87 – 1.11.
+- **Weighted median (D-171):** the core line's median is weighted by expected blocks; exact tie → the lower member's form.
+- **Tracking (D-172):** every void (who moved the VHP, before / after, own move or not) and every set-aside is recorded per race; a weekly summary goes to the owner. Data only.

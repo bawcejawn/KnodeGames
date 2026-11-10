@@ -109,7 +109,7 @@ npm run bot -- status
     with week 4's close.
 
   Until #114 is on `main`, `main`'s bot resolves week-3 questions from their blocks. If one got a real answer first, the
-  bot emails "… must be VOID": void it with the owner key, `npm run bot -- void <#> test week --send`, before week 3
+  bot emails "… must be VOID": void it with the owner key, `npm run bot -- void-test <#> --send` (the alert gives the exact line), before week 3
   closes.
 
 ## The rollback rule (Repo Lens C-1; replaces V61-A1)

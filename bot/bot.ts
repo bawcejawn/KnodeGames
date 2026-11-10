@@ -721,6 +721,10 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
   // rolls over. The file keeps the real answer, and the site shows it as a practice result (app.js practiceOf).
   const tw = testWeeks(readJson(ctx.P.deployment, null));
   const testWeek = (q: any) => tw.includes(num(q.week));
+  // Repo Lens #F-6 F6-1: a test-week question with a real outcome on chain alerts on every run until it is VOID, and the
+  // alert carries the exact owner command (F6-2), which posts the practice data_hash.
+  const mustVoid = async (q: any, chainOutcome: number, week: number) =>
+    ctx.problems.push(`${q.id} (#${q.chainId}) is in test week ${q.week} (vaultTestWeeks), so it must be VOID, but it has outcome ${chainOutcome} on chain. Void it with the owner key: npm run bot -- void-test ${q.chainId} --send (posts VOID with data_hash 0x${practiceHash(q.result)}, the practice hash of the real result ${q.result?.dataHash ?? "?"}); ${await correctionDeadline(ctx, st, week)}.`);
   const windowOf = async (q: any, csv: Blk[]) => {
     if (!ctx.windowBlocks) return csv;
     const k = `${q.windowStart}-${q.windowEnd}`;
@@ -734,7 +738,13 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
       let dirty = false;
       for (const q of f.data.questions ?? []) {
         if (q.chainId === undefined) continue;
-        if (q.chainOutcome !== undefined) { if (q.week >= st.weeksClosed && await correctionCheck(ctx, q)) dirty = true; continue; }
+        if (q.chainOutcome !== undefined) {
+          if (q.week >= st.weeksClosed) {
+            if (await correctionCheck(ctx, q, testWeek(q) ? practiceHash(q.result) : undefined)) dirty = true;
+            if (testWeek(q) && q.chainOutcome !== 1000 && q.result) await mustVoid(q, q.chainOutcome, num(q.week));
+          }
+          continue;
+        }
         const onChain = (await ctx.chain.read("get_question", { id: q.chainId })).question;
         const resolved = num(onChain.outcome) !== 0;
         if (!resolved && !due(onChain)) continue;
@@ -776,7 +786,7 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
             }
             if (mine !== q.chainOutcome) {
               log(`  ⚠ ${q.id} (#${q.chainId}): on-chain outcome ${q.chainOutcome} differs from the blocks (${mine}${scored.result.void ? ", void" : ""}).`);
-              if (testWeek(q)) ctx.problems.push(`${q.id} (#${q.chainId}) is in test week ${q.week} (vaultTestWeeks), so it must be VOID, but it has outcome ${q.chainOutcome} on chain. Void it with the owner key: npm run bot -- void ${q.chainId} test week --send; ${await correctionDeadline(ctx, st, num(onChain.week))}.`);
+              if (testWeek(q)) await mustVoid(q, q.chainOutcome, num(onChain.week));
               else ctx.problems.push(`${q.id} (#${q.chainId}): the on-chain outcome (${q.chainOutcome}) differs from what the blocks say (${mine}${scored.result.void ? ", void" : ""}). Check it; ${await correctionDeadline(ctx, st, num(onChain.week))}.`);
             }
           }
@@ -820,7 +830,7 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
           }
         }
         const outcome = testWeek(q) ? 1000 : chainOutcome(scored.result);
-        const dataHash = "0x" + scored.result.dataHash;
+        const dataHash = "0x" + (testWeek(q) ? practiceHash(scored.result) : scored.result.dataHash);
         const label = testWeek(q) ? `VOID (week ${q.week} is a test week: practice result only)`
           : scored.result.void ? `VOID (${scored.result.reason})` : `option ${String.fromCharCode(65 + (scored.result.option ?? 0))} (actual ${scored.result.value})`;
         // Not marked done here: the next pass reads the outcome back from the chain, so a transaction that never
@@ -847,10 +857,18 @@ async function correctionDeadline(ctx: Ctx, st: { genesis: number; weekLen: numb
 }
 
 /** A posted result changed on chain (only the owner can do that, with correct_question): record it and email. */
-async function correctionCheck(ctx: Ctx, q: any): Promise<boolean> {
+async function correctionCheck(ctx: Ctx, q: any, testVoidHash?: string): Promise<boolean> {
   const onChain = (await ctx.chain.read("get_question", { id: q.chainId })).question ?? {};
   const now = num(onChain.outcome);
   const hex = (x: any) => String(x ?? "").replace(/^0x/, "").toLowerCase();
+  // A test-week question voided with void-test (VOID + its practice hash) is the expected owner step: a log line, no alarm.
+  if (testVoidHash && now === 1000 && q.chainOutcome !== 1000 && hex(onChain.data_hash) === hex(testVoidHash)) {
+    log(`  ${q.id} (#${q.chainId}): voided for the test week, as expected`);
+    (q.corrections ??= []).push({ from: q.chainOutcome, to: now, dataHash: onChain.data_hash, seenAt: new Date().toISOString(), testWeek: true });
+    q.chainOutcome = now;
+    q.chainDataHash = String(onChain.data_hash);
+    return true;
+  }
   if (now === q.chainOutcome) {
     // Same outcome: compare the data_hash with the one recorded (or, for older files, the bot's own result).
     const known = hex(q.chainDataHash ?? q.result?.dataHash), seen = hex(onChain.data_hash);
@@ -1098,6 +1116,22 @@ const SETTLE_BUDGET_MS = 40 * 60_000;
  *  settle step (a settle there reverts). The same test as sharedRulesWeek in bot/vault.ts (one rule, two names):
  *  config.q60_rule_week_plus_one > 0 and week + 1 >= it. The live v6 code has no such field: every week is old-rule. */
 export const questionsSharedWeek = sharedRulesWeek;
+/** The owner's `void-test <#>` call: correct_question to VOID with the question file's practice hash. Refuses a question
+ *  that is not in a test week (bot void is for those) or has no result in its file yet. */
+export function voidTestArgs(P: Paths, id: number) {
+  const q: any = dayFiles(P).flatMap((f) => f.data.questions ?? []).find((x: any) => Number(x.chainId) === id);
+  if (!q) throw new Error(`question #${id} is in no question file`);
+  if (!testWeeks(readJson(P.deployment, null)).includes(num(q.week))) throw new Error(`question #${id} is in week ${q.week}, which is not a test week (vaultTestWeeks): use bot void for other weeks`);
+  if (!q.result?.dataHash) throw new Error(`question #${id} has no result in its file yet: the bot posts it VOID itself when it resolves`);
+  return { id, outcome: 1000, data_hash: "0x" + practiceHash(q.result) };
+}
+/** The data_hash a test-week question is posted VOID with (Repo Lens #F-6 F6-3): sha256 of the blocks' data_hash, ":practice:"
+ *  and the real option, so the page can check that the practice answer it shows is the bot's, not an edited file's. A
+ *  result that is itself void keeps its own data_hash (the page shows it as void). */
+export function practiceHash(result: any): string {
+  if (!result || result.void || !Number.isInteger(result.option)) return String(result?.dataHash ?? "");
+  return sha256hex(`${result.dataHash}:practice:${result.option}`);
+}
 
 async function settlePass(ctx: Ctx) {
   const st = await state(ctx);
@@ -1615,7 +1649,8 @@ async function verifyResults(days: number, rpcArg?: string) {
     // A result that can't be recounted is not a pass (audit L-8).
     if (!sc.ok) { bad++; lines.push(`VERIFY-ALERT ?  ${q.id} (#${q.chainId}): could not recount (${sc.reason})`); continue; }
     checked++;
-    const mine = testWeeks(readJson(P.deployment, null)).includes(num(q.week)) ? 1000 : storedOutcome(sc.result), hashOk = String(oc.data_hash ?? "").replace(/^0x/, "").toLowerCase() === sc.result.dataHash;
+    const test = testWeeks(readJson(P.deployment, null)).includes(num(q.week));
+    const mine = test ? 1000 : storedOutcome(sc.result), hashOk = String(oc.data_hash ?? "").replace(/^0x/, "").toLowerCase() === (test ? practiceHash(sc.result) : sc.result.dataHash);
     const show = (o: number) => (o === 1000 ? "void" : `option ${String.fromCharCode(64 + o)}`);
     if (mine === outcome && hashOk) lines.push(`✔  ${q.id} (#${q.chainId}): ${show(outcome)} — matches your node's blocks`);
     else {
@@ -1847,6 +1882,11 @@ async function friendly(cmd: string, a: string[], send: boolean): Promise<boolea
     case "claim": await act("player", "claim", { player: me("player"), week: need(0, "week number") }, send); return true;
     case "claim-fee": await act("owner", "claim_creator_fee", { to: a[0] && !a[0].startsWith("--") ? a[0] : me("owner") }, send); return true;
     case "void": await act("owner", "correct_question", { id: Number(need(0, "question number")), outcome: 1000, data_hash: "0x" + sha256hex(`voided by the owner: ${a.slice(1).filter((x) => !x.startsWith("--")).join(" ") || "no reason given"}`) }, send); return true;
+    case "void-test": {
+      // void-test <question #>: a test-week question (vaultTestWeeks) with a real outcome becomes VOID, with the practice
+      // data_hash of the bot's real result, so the page keeps showing it as practice and verify agrees (Repo Lens #F-6 F6-2).
+      await act("owner", "correct_question", voidTestArgs(paths(E.GEN_DIR ?? "game-data"), Number(need(0, "question number"))), send); return true;
+    }
     case "sponsor-limit": await act("owner", "set_sponsor_limit", { max_sponsor_rc: units(need(0, "KOIN of Mana (0 = off)")), min_sponsor_rc: units(a[1] && !a[1].startsWith("--") ? a[1] : "0") }, send); return true;
     case "min-stake": await act("owner", "set_min_stake", { min_stake: whole(need(0, "VHP (whole number, at least 1)")) }, send); return true;
     case "pause": await act("owner", "set_paused", { paused: need(0, "on or off") === "on" }, send); return true;

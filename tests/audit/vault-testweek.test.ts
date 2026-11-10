@@ -11,7 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Signer } from "koilib";
-import { tick, paths, postPass } from "../../bot/bot.ts";
+import { tick, paths, postPass, practiceHash, voidTestArgs } from "../../bot/bot.ts";
 
 const fixture = JSON.parse(fs.readFileSync("tests/audit/fixtures/W000-D3.at-6b37c46.json", "utf8"));
 const original = fixture.questions.find((q: any) => q.template === "M7");
@@ -61,7 +61,8 @@ test("F4-1: a test-week question is resolved VOID, and the next run raises no al
   assert.equal(r.resolves.length, 1, "resolved once");
   assert.equal(r.resolves[0].args.outcome, 1000, "a test-week question must be VOID on chain");
   assert.match(r.resolves[0].args.data_hash, /^0x[0-9a-f]{64}$/);
-  assert.equal(r.resolves[0].args.data_hash.slice(2), r.file.questions[0].result.dataHash, "the chain carries the real result's data_hash (the site checks it)");
+  assert.equal(r.resolves[0].args.data_hash.slice(2), practiceHash(r.file.questions[0].result), "the chain carries the real result's practice hash (the site checks it, #F-6 F6-3)");
+  assert.notEqual(practiceHash(r.file.questions[0].result), r.file.questions[0].result.dataHash);
   assert.ok(!r.problems.some((p) => /differs|must be VOID/.test(p)), r.problems.join("\n"));
   assert.ok(r.file.questions[0].result && !r.file.questions[0].result.void, "the file keeps the real answer for the site");
 });
@@ -134,4 +135,21 @@ test("F4-4: the committed deployment.json marks only vault week 3 (Mon 9 Nov) as
   const dep = JSON.parse(fs.readFileSync("game-data/deployment.json", "utf8"));
   assert.deepEqual(dep.vaultTestWeeks, [3]);
   assert.equal(dep.vaultPayFromWeek, undefined, "the old setting would stop week 2 from paying");
+});
+
+// Repo Lens #F-6 F6-1/F6-2: main's bot resolved and recorded a week-3 question to a real option; after #114 the bot alerts
+// with "void-test", the owner runs it, and the next run takes it as the expected step (no "admin key" alarm, no alert).
+test("F6-2: void-test posts VOID with the practice hash; afterwards the bot raises no alarm and stops asking", async () => {
+  const r = await resolveWith(null);                                  // main's bot: a real outcome on chain
+  assert.notEqual(r.resolves[0].args.outcome, 1000);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "f6vt-"));
+  const P = paths(dir);
+  fs.mkdirSync(P.questions, { recursive: true });
+  fs.writeFileSync(path.join(P.questions, "W000-D3.json"), JSON.stringify(r.file));
+  fs.writeFileSync(P.deployment, JSON.stringify({ vaultTestWeeks: [0] }));
+  const args = voidTestArgs(P, 0);
+  assert.deepEqual(args, { id: 0, outcome: 1000, data_hash: "0x" + practiceHash(r.file.questions[0].result) });
+  fs.writeFileSync(P.deployment, JSON.stringify({ vaultTestWeeks: [3] }));
+  assert.throws(() => voidTestArgs(P, 0), /not a test week/);
+  assert.throws(() => voidTestArgs(P, 9), /in no question file/);
 });

@@ -53,6 +53,13 @@
     return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
   }
   // params-hash:end
+  /** The data_hash the bot posts a test-week question VOID with (bot.ts practiceHash, Repo Lens #F-6 F6-3): sha256 of the
+   *  blocks' data_hash, ":practice:" and the real option. It ties the practice answer to the option, not only the blocks. */
+  async function practiceHashOf(r) {
+    if (!r || typeof r !== "object" || r.void || !Number.isInteger(r.option)) return "";
+    const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${r.dataHash}:practice:${r.option}`));
+    return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
 
   // ═══════════════ small helpers ═══════════════
   const $ = (s) => document.querySelector(s);
@@ -372,6 +379,7 @@
         q.hashOk = ok;
         q.chainSays = chainOutcomes.get(id);
         q.chainSaysHash = chainDataHashes.get(id) || "";
+        q.practiceHash = await practiceHashOf(q.result);
       } catch { q.hashOk = null; }
       if (q.chainSays === undefined) q.chainSays = null;
     }));
@@ -836,15 +844,15 @@
   /** The outcome stored on chain (the demo has no chain: it uses its sample results). */
   const outcomeOf = (q) => (S.demo ? (q.chainOutcome !== undefined ? q.chainOutcome : q.result ? (q.result.void ? 1000 : q.result.option + 1) : 0) : practiceOf(q) || num(q.chainSays));
   /** Owner, 10 Nov: a test week (deployment.json "vaultTestWeeks", today [3] = the week of Mon 9 Nov) plays but pays
-   *  nothing. The bot posts its questions VOID on chain (so no entry can win: Repo Lens #F-4 F4-1) with the data_hash of
-   *  the real result; the page shows that real result as a practice result. Only when the file's result carries the same
-   *  data_hash the chain holds, and the file matches the on-chain question, so an edited file can't choose it. */
+   *  nothing. The bot posts its questions VOID on chain (so no entry can win: Repo Lens #F-4 F4-1) with the practice hash
+   *  of the real result (practiceHashOf: blocks and option); the page shows that result as a practice result only when the
+   *  file's result gives the same hash and the file matches the on-chain question, so an edited file can't choose it. */
   const isTestWeek = (w) => !S.demo && Array.isArray(S.dep?.vaultTestWeeks) && S.dep.vaultTestWeeks.includes(num(w));
   function practiceOf(q) {
     if (!isTestWeek(weekOfQ(q)) || num(q.chainSays) !== 1000 || q.hashOk !== true) return 0;
     const r = q.result;
     if (!r || r.void || !Number.isInteger(r.option) || r.option < 0 || r.option >= (q.options || []).length) return 0;
-    return q.chainSaysHash && String(r.dataHash || "").toLowerCase() === q.chainSaysHash ? r.option + 1 : 0;
+    return q.chainSaysHash && q.practiceHash === q.chainSaysHash ? r.option + 1 : 0;
   }
   /** Questions released before their wording was hashed (hashRule 2): the page can't confirm their options. */
   const wordingHashedRule = (q) => Number(q.hashRule ?? 0) >= 2;

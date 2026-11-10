@@ -1,11 +1,11 @@
 // Owner, 10 Nov: a test week (deployment.json vaultTestWeeks) plays but pays nothing. The bot posts its questions VOID on
-// chain with the real result's data_hash; the page shows that real result as a practice result, only when the hashes match
-// (Repo Lens #F-4 F4-1). Other weeks: a chain void stays void. Harness copied from site.results-chain.test.mjs.
+// chain with the practice hash of the real result (sha256 of its data_hash + ":practice:" + option, Repo Lens #F-6 F6-3);
+// the page shows that real result as a practice result only when the file's result gives the same hash (#F-4 F4-1). Other weeks: a chain void stays void. Harness copied from site.results-chain.test.mjs.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
-import { webcrypto } from "node:crypto";
+import { webcrypto, createHash } from "node:crypto";
 
 const APP = process.env.APP || ".";
 const src = fs.readFileSync(`${APP}/app.js`, "utf8");
@@ -89,6 +89,8 @@ const factsOf = (q) => ({ k: (q.options || []).length, lock_time: String(q.lockT
 async function post(h, id, q, outcome = 0) { h.chain.set(id, { params_hash: await h.T.paramsHashOf(structuredClone(q)), outcome, facts: factsOf(q) }); }
 const qOf = (h, id) => h.S.questions.find((q) => Number(q.chainId) === id);
 
+const practiceHash = (dataHash, option) => createHash("sha256").update(`${dataHash}:practice:${option}`).digest("hex");
+const REAL = "0x" + practiceHash("ab".repeat(32), 1);
 async function practice({ testWeeks, chainHash, fileResult = { option: 1, value: "412", dataHash: "ab".repeat(32) } }) {
   const h = harness();
   h.S.dep = { vaultTestWeeks: testWeeks };
@@ -104,21 +106,23 @@ async function practice({ testWeeks, chainHash, fileResult = { option: 1, value:
 }
 
 test("test week: VOID on chain with the result's data_hash shows the real answer as practice, with no warning", async () => {
-  const r = await practice({ testWeeks: [1], chainHash: "0x" + "ab".repeat(32) });
+  const r = await practice({ testWeeks: [1], chainHash: REAL });
   assert.deepEqual(r.letters, ["B"]);
   assert.deepEqual(r.warn, []);
   assert.equal(r.badge.length, 1);
 });
 
-test("test week: a file whose data_hash differs from the chain's is not shown as practice (stays void)", async () => {
-  const r = await practice({ testWeeks: [1], chainHash: "0x" + "cd".repeat(32) });
+test("test week: a chain hash that isn't the file result's practice hash is not shown as practice (stays void)", async () => {
+  for (const chainHash of ["0x" + "cd".repeat(32), "0x" + "ab".repeat(32)]) {   // another hash, or the bare blocks hash
+  const r = await practice({ testWeeks: [1], chainHash });
   assert.deepEqual(r.letters, []);
   assert.equal(r.badge.length, 0);
+  }
 });
 
 test("not a test week: a chain void stays void, whatever the file says", async () => {
   for (const testWeeks of [[3], undefined]) {
-    const r = await practice({ testWeeks, chainHash: "0x" + "ab".repeat(32) });
+    const r = await practice({ testWeeks, chainHash: REAL });
     assert.deepEqual(r.letters, [], JSON.stringify(testWeeks));
     assert.equal(r.badge.length, 0);
   }

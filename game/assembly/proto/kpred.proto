@@ -31,6 +31,7 @@ message config_object {
   uint64 reward_rule_week_plus_one = 20 [jstype = JS_STRING]; // v5: first week (+1) paid 40% by rank x capped stake / 60% by rank x stake; 0 = not set yet
   uint64 v6_rule_week_plus_one = 21 [jstype = JS_STRING];   // v6: first week (+1) closed by the KnodeGames vault split; 0 = not set yet
   uint32 game_count = 22;                                   // v6: games registered besides the question game (at most 12)
+  uint64 q60_rule_week_plus_one = 23 [jstype = JS_STRING]; // v6.1: first week (+1) that may hold 60 questions (30 before it); 0 = not set yet
 }
 
 message totals_object {
@@ -183,6 +184,8 @@ message get_state_result {
   timelock_object seed_withdrawal = 10;
   uint64 time = 11 [jstype = JS_STRING];              // the current block's time (ms)
   bool safe_mode = 12;                                // v6: this is the withdrawals-only build (fix-check 2, V2-2)
+  uint32 questions_cap = 13;                          // v6.1: the most questions the current week can hold (30 or 60)
+  uint32 questions_cap_next = 14;                     // v6.1: the same for next week (the bot plans its rounds from it)
 }
 
 // @description A player's stake and their entry for a week.

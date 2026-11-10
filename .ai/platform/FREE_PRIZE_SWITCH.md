@@ -31,7 +31,7 @@ So a game with its switch **OFF** still has free play and a Free play leaderboar
 ## 4. Starting settings (owner, D-081)
 | Game | Id | Free play | Free prize | Staked prize |
 |---|---|---|---|---|
-| Daily Questions | 1 | ✅ | ✅ built into the vault (not on the switch until Mon 16 Nov; then on it, starting ON, D-136) | ✅ |
+| Daily Questions | 1 | ✅ | ✅ on the switch from v6.1's rule week, Mon 16 Nov, starting **ON** (D-136; set it in the week of Mon 9, below). Weeks before that pay the old way | ✅ |
 | Who Signs Block X | 2 | ✅ | ✅ **ON** | ✅ |
 | Producer Race | 7 | ✅ | ✅ **ON** | ✅ |
 | Producer Bracket | 9 | ✅ | ✅ **ON** | ✅ |
@@ -40,6 +40,17 @@ So a game with its switch **OFF** still has free play and a Free play leaderboar
 | Fantasy Producers | 4 | ✅ | ⛔ **OFF** for now | ✅ |
 | Block Golf | 6 | ✅ | ⛔ **OFF** for now | ✅ |
 | Combo Card | 8 | ✅ | ⛔ **OFF** for now | ✅ |
+
+**Daily Questions (game 1, D-136):** from v6.1's rule week (Mon 16 Nov) the bot posts game 1's free winners only when its switch is on, like every game. Set it **ON once, in the week of Mon 9 Nov, after PR #114 is merged** (the bot on `main` must know game 1 is a switch game first; an older bot would refuse the whole file and hold every game's free winners). Any time from Mon 9 (after the merge) to Sun 15 Nov 3:30 PM PT (before the Sunday quiet window):
+```powershell
+cd C:\kprediction
+git branch --show-current
+git pull
+npm run prizes -- on 1
+npm run prizes -- on 1 --send
+npm run prizes -- list
+```
+The preview must say "Daily Questions (game 1) free prize on from week 4" (week 4 = Mon 16 Nov); `list` then shows game 1 ON for next week.
 
 **When to set them:** now, all eight, while no game but 2 and 7 is in the vault (Fantasy, Golf and Bracket are on their branches, D-142; Survivor, Last Node and Combo paused, D-113). Setting a game that isn't in the vault yet is harmless, and it means each game starts with the right value. Avoid the Sunday quiet window.
 

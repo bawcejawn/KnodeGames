@@ -46,7 +46,12 @@ const NEW_FIELDS = new Set(["min_stake_next", "min_stake_next_week", "pending_ow
   "peak_stake", "free_player",
   // v6: the KnodeGames vault
   "v6_rule_week_plus_one", "game_count", "fee_vhp", "games_rolled", "stake_other", "prize_v6", "prizes", "split",
-  "acc_seed_hi", "acc_seed_lo", "seed_part", "season_weeks", "prize_held"]);
+  "acc_seed_hi", "acc_seed_lo", "seed_part", "season_weeks", "prize_held",
+  // v6.1: doubled Questions (the rule week; get_state's caps are worked out, never stored)
+  "q60_rule_week_plus_one", "questions_cap", "questions_cap_next"]);
+/** Read-only values worked out on every read (Repo Lens V61-B2: checked, not waived). Right after the upgrade, before
+ *  the first write sets the rule week: 30 this week, 60 next. */
+const COMPUTED: Record<string, number> = { questions_cap: 30, questions_cap_next: 60 };
 const isDefault = (v: any) => v === undefined || v === null || v === false || v === 0 || v === "0" || v === "";
 
 /** Every value in `before` must be in `after` unchanged; anything only in `after` must be a new field at its default
@@ -58,7 +63,8 @@ function sameAsBefore(before: any, after: any, where: string, allowed: Set<strin
   for (const k of Object.keys(after)) {
     if (k in before) continue;
     assert.ok(NEW_FIELDS.has(k), `${where}.${k}: a field the live code never returned (${JSON.stringify(after[k])})`);
-    if (!allowed.has(k)) assert.ok(isDefault(after[k]), `${where}.${k} should read as its default, got ${JSON.stringify(after[k])}`);
+    if (k in COMPUTED) assert.equal(after[k], COMPUTED[k], `${where}.${k}`);
+    else if (!allowed.has(k)) assert.ok(isDefault(after[k]), `${where}.${k} should read as its default, got ${JSON.stringify(after[k])}`);
   }
 }
 

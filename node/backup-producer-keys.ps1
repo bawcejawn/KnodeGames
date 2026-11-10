@@ -10,8 +10,9 @@
   the node's folder, or from its Docker volume after node\move-node-to-volume.ps1), checks each copy is identical to
   the original, then prints ONLY each node's PUBLIC key and checks it against the key registered on chain.
 
-  It never prints, uploads or sends a private key. It refuses to write into C:\kprediction (the repository) or into a
-  node's own folder.
+  It never prints, uploads or sends a private key. It refuses to write into C:\kprediction (the repository), into a
+  node's own folder, through a link or junction, or into a cloud-synced folder (OneDrive); a drive that isn't removable
+  needs a typed YES. No image code ever runs with the key mounted, and the helper container has no network.
 
   !! Never run two nodes with the same key at the same time (the old node must be off for good first). Keep the stick
      offline (a drawer, not a cloud folder), and never put a key file in a chat, an email or the repository.
@@ -40,11 +41,36 @@ function VolumeOf($dir) {
   if ($m) { return $m.Matches[0].Groups[1].Value } else { return $null }
 }
 function Sha($file) { return (Get-FileHash -Algorithm SHA256 -Path $file).Hash.ToLowerInvariant() }
+# Repo Lens #F-8 F8-6: a junction or symlink anywhere on the path could point into the repository or a node folder, and
+# Inside() compares the path as written. Refuse any link on the way instead of guessing where it leads.
+function LinkOnPath($p) {
+  $cur = Full $p
+  while ($cur) {
+    $i = Get-Item -LiteralPath $cur -Force -ErrorAction SilentlyContinue
+    if ($i -and $i.LinkType) { return "$cur ($($i.LinkType) to $($i.Target))" }
+    $parent = Split-Path $cur -Parent
+    if (-not $parent -or $parent -eq $cur) { break }
+    $cur = $parent
+  }
+  return $null
+}
 
 # ---------- 1. where to ----------
 if (-not (Test-Path $To)) { throw "Not found: $To. Plug in the USB stick and give its folder (e.g. -To E:\). Nothing was written." }
 if (Inside $To $Repo) { throw "Refusing to write keys inside the repository ($Repo): they could end up on GitHub. Use the USB stick. Nothing was written." }
 foreach ($r in $Roots.Values) { if ((Test-Path $r) -and (Inside $To $r)) { throw "Refusing to write into a node's own folder ($r). Use the USB stick. Nothing was written." } }
+$link = LinkOnPath $To
+if ($link) { throw "Refusing: the destination goes through a link or junction ($link). Give the USB stick's own folder (e.g. -To E:\). Nothing was written." }
+foreach ($cloud in @($env:OneDrive, $env:OneDriveConsumer, $env:OneDriveCommercial)) {
+  if ($cloud -and (Inside $To $cloud)) { throw "Refusing to write keys into a cloud-synced folder ($cloud): they would be uploaded. Use the USB stick. Nothing was written." }
+}
+$letter = try { (Split-Path -Qualifier (Full $To)).TrimEnd(':') } catch { "" }   # a network path has no drive letter
+$volInfo = if ($letter) { Get-Volume -DriveLetter $letter -ErrorAction SilentlyContinue } else { $null }
+if (-not $volInfo -or $volInfo.DriveType -ne "Removable") {
+  Warn "$To is not on a removable drive (a USB stick). A key backup belongs offline, not on a disk that stays in this PC or syncs anywhere."
+  $answer = Read-Host "Type YES to write the backup there anyway"
+  if ($answer -cne "YES") { throw "Not confirmed. Nothing was written." }
+}
 $Dest = Join-Path $To "knode-producer-keys-$stamp"
 if (Test-Path $Dest) { throw "$Dest already exists. Wait a minute and run again. Nothing was written." }
 New-Item -ItemType Directory -Path $Dest | Out-Null
@@ -64,18 +90,30 @@ foreach ($node in @("game", "desk", "personal")) {
     # straight to the Windows path, so the USB stick never has to be shared with Docker).
     if ((DockerExit @("info", "--format", "{{.ServerVersion}}")) -ne 0) { throw "Docker isn't running, and the $node node keeps its key in the volume $vol. Open Docker Desktop and run again." }
     $ErrorActionPreference = "Continue"
-    $id = (& docker create -v "${vol}:/from:ro" $Alpine true 2>$null | Select-Object -Last 1)
+    # The helper is created, never started: no image code runs with the key mounted (Repo Lens #F-8 F8-9), and it has no
+    # network. The copy is checked by a second, independent read of the same file.
+    $id = (& docker create --network none -v "${vol}:/from:ro" $Alpine true 2>$null | Select-Object -Last 1)
     $ErrorActionPreference = "Stop"
     if (-not $id) { throw "Couldn't create the helper container for the volume $vol (internet for the $Alpine image?)." }
+    $second = $null
     try {
       $ErrorActionPreference = "Continue"
       & docker cp "${id}:/from/block_producer/private.key" $target 2>$null | Out-Null
       $code = $LASTEXITCODE
-      $sum = (& docker run --rm -v "${vol}:/from:ro" $Alpine sha256sum /from/block_producer/private.key 2>$null | Select-Object -Last 1)
+      $second = Join-Path $out "check.key"
+      & docker cp "${id}:/from/block_producer/private.key" $second 2>$null | Out-Null
+      $code2 = $LASTEXITCODE
       $ErrorActionPreference = "Stop"
       if ($code -ne 0 -or -not (Test-Path $target)) { throw "Couldn't copy the $node node's key out of the volume $vol." }
-      if (-not $sum -or ($sum.Substring(0, 64).ToLowerInvariant() -ne (Sha $target))) { throw "The copy of the $node node's key isn't identical to the one in the volume. Run again." }
-    } finally { $ErrorActionPreference = "Continue"; & docker rm $id 2>$null | Out-Null; $ErrorActionPreference = "Stop" }
+      $same = ($code2 -eq 0) -and (Test-Path $second) -and ((Sha $second) -eq (Sha $target))
+      if (Test-Path $second) { Remove-Item -LiteralPath $second -Force }
+      if (-not $same) { throw "The copy of the $node node's key isn't identical to a second read of the one in the volume. Run again." }
+    } finally {
+      $ErrorActionPreference = "Continue"
+      if ($second -and (Test-Path $second)) { Remove-Item -LiteralPath $second -Force }
+      & docker rm $id 2>$null | Out-Null
+      $ErrorActionPreference = "Stop"
+    }
     Ok "$node node: key copied from the volume $vol and checked"
   } else {
     $src = Join-Path $dir "basedir\block_producer\private.key"

@@ -63,6 +63,24 @@ if ($RestoreKey) {
   Write-Host "!! its key folder deleted) before this one starts." -ForegroundColor Yellow
   $answer = Read-Host "Type YES if the old node is off for good"
   if ($answer -cne "YES") { throw "Not confirmed. Nothing was changed." }
+  # A node already moved to a Docker volume (node\move-node-to-volume.ps1) reads its key from the volume, not from
+  # basedir: a key put in basedir would never be used (Repo Lens #F-8 F8-8). A restore is for a fresh folder.
+  $override = Join-Path (Join-Path $Root "koinos") "docker-compose.override.yml"
+  if ((Test-Path $override) -and (Select-String -Path $override -Pattern "^#\s*knode-volume:" -Quiet)) {
+    throw "This node runs from a Docker volume (knode-volume in $override): -RestoreKey would put the key where the node doesn't read it. Restore into a fresh folder (a new -Root), or ask the Vault chat. Nothing was changed."
+  }
+  # The key must be the one registered on chain for -Producer (Repo Lens #F-8 F8-7): the game key restored into the desk
+  # node, or any wrong file, is refused here. Read-only; prints the PUBLIC key only.
+  Push-Location (Split-Path $PSScriptRoot -Parent)
+  try {
+    $ErrorActionPreference = "Continue"
+    if (-not $env:RPC) { $env:RPC = "https://koinos.armana.io" }
+    & npx tsx tools/producer-keys.ts --restore-check $RestoreKey $Producer
+    $rc = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+  } finally { Pop-Location }
+  if ($rc -eq 1) { throw "This key is not the one registered on chain for $Producer (see above). Check you picked the right node's file (game, desk or personal). Nothing was changed." }
+  if ($rc -ne 0) { throw "Couldn't check the key against the chain (it needs the internet, and npm ci done in the repository folder). Nothing was changed." }
 }
 
 # ------------- 1. checks -------------

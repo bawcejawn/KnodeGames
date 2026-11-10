@@ -6,6 +6,9 @@
  *   npx tsx tools/producer-keys.ts <backup folder>     the folder node\backup-producer-keys.ps1 wrote
  *                                                       (game\private.key, desk\private.key, personal\private.key)
  *   npx tsx tools/producer-keys.ts --file <key file>   one key file: its public key only (no chain read)
+ *   npx tsx tools/producer-keys.ts --restore-check <key file> <producer>
+ *                                                       before a restore (node\setup-node.ps1 -RestoreKey): exit 0 if the
+ *                                                       key is the one registered for <producer>, 1 if not, 2 if unreadable
  *
  * The node: $env:RPC if set, else https://koinos.armana.io (mainnet only; the chain id is checked).
  * The personal producer: $env:PERSONAL_PRODUCER if set, else the owner's address in KEYS_AND_ROLES.md.
@@ -71,8 +74,33 @@ export async function checkBackup(folder: string, registeredKey: (producer: stri
   return rows;
 }
 
+/** Before a restore (Repo Lens #F-8 F8-7): is this key file the one registered on chain for `producer`? */
+export async function restoreCheck(file: string, producer: string, registeredKey: (producer: string) => Promise<string>): Promise<{ ok: boolean; publicKey: string; registered: string }> {
+  const publicKey = publicKeyOf(fs.readFileSync(file, "utf8"));
+  const registered = await registeredKey(producer);
+  return { ok: !!registered && registered === publicKey, publicKey, registered };
+}
+
+async function mainnetPob() {
+  const rpc = process.env.RPC || "https://koinos.armana.io";
+  const provider = new Provider([rpc]);
+  if ((await provider.getChainId()) !== MAINNET_CHAIN_ID) throw new Error(`${rpc} is not Koinos mainnet. Stopping.`);
+  const pob = new Contract({ id: MAINNET_POB, abi: pobAbi as any, provider });
+  return async (producer: string) => String(((await (pob.functions as any).get_public_key({ producer })).result ?? {}).value ?? "");
+}
+
 async function main() {
   const a = process.argv.slice(2);
+  if (a[0] === "--restore-check") {
+    if (!a[1] || !fs.existsSync(a[1]) || !a[2]) { console.error("Give the key file and the producer: --restore-check <file> <producer>"); process.exitCode = 2; return; }
+    let r;
+    try { r = await restoreCheck(a[1], a[2], await mainnetPob()); }
+    catch (e: any) { console.error(`Couldn't check the key: ${e?.message ?? e}`); process.exitCode = 2; return; }
+    console.log(`Public key of the file (safe to share): ${r.publicKey}\nRegistered for ${a[2]}: ${r.registered || "none"}`);
+    console.log(r.ok ? "✔ the key is the one registered on chain" : "✖ NOT the registered key: this file can't produce for that producer");
+    process.exitCode = r.ok ? 0 : 1;
+    return;
+  }
   if (a[0] === "--file") {
     if (!a[1] || !fs.existsSync(a[1])) throw new Error("Give the key file: npx tsx tools/producer-keys.ts --file <path>");
     console.log(`Public key (safe to share): ${publicKeyOf(fs.readFileSync(a[1], "utf8"))}`);
@@ -80,12 +108,7 @@ async function main() {
   }
   const folder = a[0];
   if (!folder || !fs.existsSync(folder)) throw new Error("Give the backup folder: npx tsx tools/producer-keys.ts <folder>");
-  const rpc = process.env.RPC || "https://koinos.armana.io";
-  const provider = new Provider([rpc]);
-  if ((await provider.getChainId()) !== MAINNET_CHAIN_ID) throw new Error(`${rpc} is not Koinos mainnet. Stopping.`);
-  const pob = new Contract({ id: MAINNET_POB, abi: pobAbi as any, provider });
-  const reg = async (producer: string) => String(((await (pob.functions as any).get_public_key({ producer })).result ?? {}).value ?? "");
-  const rows = await checkBackup(folder, reg);
+  const rows = await checkBackup(folder, await mainnetPob());
   console.log("Producer key backup (public keys only; safe to share):\n");
   for (const r of rows) console.log(`${r.ok ? "✔" : "✖"} ${r.node.padEnd(8)} ${r.publicKey ?? "-"}\n    ${r.note}`);
   const bad = rows.filter((r) => !r.ok).length;

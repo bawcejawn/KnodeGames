@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Signer } from "koilib";
-import { publicKeyOf, checkBackup, producers } from "../../tools/producer-keys.ts";
+import { publicKeyOf, checkBackup, producers, restoreCheck } from "../../tools/producer-keys.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const backup = fs.readFileSync(path.join(ROOT, "node/backup-producer-keys.ps1"), "utf8");
@@ -64,4 +64,18 @@ test("setup-node -RestoreKey: confirmed first, never replaces a different key, i
   const start = setup.indexOf("docker compose up -d");
   assert.ok(restore > 0 && start > restore, "the key is copied before docker compose up");
   assert.ok(setup.indexOf("Read-Host \"Type YES") < setup.indexOf('Step "1/5'), "the confirmation comes before any download");
+});
+
+test("restoreCheck (Repo Lens #F-8 F8-7): a restore goes ahead only with the key registered for that producer", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pk-r-"));
+  const game = Signer.fromSeed("game node"), desk = Signer.fromSeed("desk node");
+  const file = path.join(dir, "private.key");
+  fs.writeFileSync(file, game.getPrivateKey("wif", true));
+  const onChain: Record<string, string> = { "1Game": pub(game), "1Desk": pub(desk) };
+  const reg = async (p: string) => onChain[p] ?? "";
+  assert.equal((await restoreCheck(file, "1Game", reg)).ok, true);
+  assert.equal((await restoreCheck(file, "1Desk", reg)).ok, false, "the game key restored into the desk node");
+  assert.equal((await restoreCheck(file, "1Nobody", reg)).ok, false, "no key registered");
+  const r = await restoreCheck(file, "1Game", reg);
+  assert.ok(!JSON.stringify(r).includes(game.getPrivateKey("wif", true)), "never returns the private key");
 });

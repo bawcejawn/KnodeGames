@@ -96,20 +96,28 @@
              today's question with its answer buttons on the first screen, a clear path for wallet users beside it. -->
         <div class="welcome-hero">
           <div class="welcome-intro">
-            <p class="welcome-kicker">Free · new questions Mon–Sat</p>
+            <p class="welcome-kicker">Free · four races a day</p>
             <h1>Guess what the blockchain does next.</h1>
-            <p class="welcome-lede">Pick an answer. Right answers score points; the best players win VHP every week.</p>
+            <p class="welcome-lede">Pick the block producer you think wins the race. A win scores points, and the best players win VHP every week.</p>
             <div class="welcome-paths" id="welcome-paths">
               <div class="welcome-path welcome-path-new"><b>New here? Play free.</b><span>Pick a horse in the Producer Race as a guest: no sign-up, no wallet.</span><a class="btn btn-primary" href="race.html#pick-zone">Play free</a></div>
               <div class="welcome-path"><b>Have a Koinos wallet? Stake and play with it.</b><span>Connect KOIN Vault or Kondor to play with it and stake.</span><button class="btn btn-ghost" type="button" id="welcome-connect">Connect wallet</button></div>
             </div>
           </div>
           <div class="welcome-today">
-            <div class="welcome-q" id="welcome-question">
+            <div class="welcome-q welcome-race" id="welcome-race">
+              <h2>Producer Race</h2>
+              <p class="welcome-race-line">Every Koinos block producer is a horse, and every block it signs moves it forward. A handicap gives every horse the same chance.</p>
+              <ul class="welcome-race-facts">
+                <li><b>4 races a day</b><span>6 hours each, starting at 00:00, 06:00, 12:00 and 18:00 UTC</span></li>
+                <li><b>Pick one horse per race</b><span>Change your mind until the race starts. Up to 5 picks a day.</span></li>
+                <li><b>3 points for a win, 1 for 2nd or 3rd</b><span>Climb today's, this week's and the all-time board.</span></li>
+                <li><b>Free</b><span>No sign-up, no wallet. Knode Games pays the network fee for your picks.</span></li>
+              </ul>
               <a class="btn btn-primary btn-big" href="race.html#pick-zone">Play free now</a>
               <span class="welcome-note">No sign-up, no wallet needed</span>
+              <p class="welcome-more"><a href="race.html">See today's races →</a><a href="#how/race">Race rules</a></p>
             </div>
-            <p class="welcome-more" id="welcome-more" hidden></p>
           </div>
           <div class="stats-strip" id="stats-strip" hidden></div>
         </div>
@@ -118,32 +126,32 @@
           <p>Koinos adds a new block every few seconds. Each block is made by a <b>producer</b>, a computer that earns a small reward for it. We ask things like <i>"How many blocks will this producer make in the next 4 hours?"</i></p>
           <p>The VHP players stake helps Knode Games' own producer make blocks. Those block rewards fill the weekly prize pool, so the more people stake, the bigger the pool.</p>
         </div>
-        <h2 class="welcome-steps-title">How Daily Questions work</h2>
+        <h2 class="welcome-steps-title">How the Producer Race works</h2>
         <ol class="welcome-steps">
-          <li><span>1</span><div><b>Pick an answer (free, no sign-up)</b><p>Tap an answer and you're playing as a guest on this device. Nothing to install.</p></div></li>
-          <li><span>2</span><div><b>Score points all week</b><p>New questions Monday to Saturday. Each right answer is a point on the week's leaderboard.</p></div></li>
-          <li><span>3</span><div><b>The best free players win VHP</b><p>Each week the 2 best free players win 2 VHP and 1 VHP.</p></div></li>
-          <li class="last"><span>4</span><div><b>Want more? Stake to share the pool</b><p>With a Koinos wallet (KOIN Vault on a phone, Kondor on a computer), stake 1 VHP or more: the top 30% of staked players share the week's pool (95% of what it earned, minus the free players' prize). Your stake is never spent: take it back any time. <a href="get.html">No wallet or VHP yet?</a></p></div></li>
+          <li><span>1</span><div><b>Pick a horse (free, no sign-up)</b><p>Open the Race and tap a producer. You're playing as a guest on this device. Nothing to install.</p></div></li>
+          <li><span>2</span><div><b>Watch it run</b><p>Each block a producer signs moves its horse forward. After 6 hours, the horse furthest ahead wins.</p></div></li>
+          <li><span>3</span><div><b>The best free players win VHP</b><p>A win is 3 points and a 2nd or 3rd is 1. Each week the 2 best free players win 2 VHP and 1 VHP, starting with Week 1 (Mon 16 Nov).</p></div></li>
+          <li class="last"><span>4</span><div><b>Want more? Stake to share the pool</b><p>With a Koinos wallet (KOIN Vault on a phone, Kondor on a computer), stake 1 VHP or more in a game to share that game's part of the week's rewards. Your stake is never spent: take it back any time. <a href="get.html">No wallet or VHP yet?</a></p></div></li>
         </ol>
         <div class="welcome-also" id="welcome-games">
           <h2>All the games</h2>
+          <a class="also-card" href="race.html"><span aria-hidden="true">🏇</span><div><b>Producer Race</b><p>Pick the winning block producer, four races a day (Sunday's are for fun): 3 points for a win, 1 for a 2nd or 3rd. Free, or stake VHP to share the weekly rewards.</p></div></a>
           <a class="also-card" href="#play"><span aria-hidden="true">🎯</span><div><b>Daily Questions</b><p>Quick questions about block producers, Monday to Saturday. Free, or stake VHP to share the weekly rewards.</p></div></a>
-          <a class="also-card" href="race.html"><span aria-hidden="true">🏇</span><div><b>Producer Race</b><p>Pick the winning block producer, four races a day (Sunday's are for fun): 3 points for a win, 1 for a 2nd or 3rd. Free and just for fun.</p></div></a>
-          <a class="also-card" href="blockx.html"><span aria-hidden="true">🧱</span><div><b>Who Signs Block X</b><p>Pick the producer for the next 12 milestone blocks, about 2 hours apart.</p></div></a>
-          <p class="also-soon-title">Coming soon</p>
-          <div class="also-card soon"><span aria-hidden="true">🛡️</span><div><b>Survivor</b><p>One producer a day, two lives, four-week seasons.</p></div></div>
-          <div class="also-card soon"><span aria-hidden="true">📋</span><div><b>Fantasy Producers</b><p>Draft 5 producers under a salary cap. A staked game.</p></div></div>
-          <div class="also-card soon"><span aria-hidden="true">⛳</span><div><b>Block Golf</b><p>Nine holes a day: guess when a producer signs next. A staked game.</p></div></div>
+          <a class="also-card" href="blockx.html"><span aria-hidden="true">🧱</span><div><b>Who Signs Block X</b><p>Pick the producer for the next milestone blocks, about an hour apart.</p></div></a>
+          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">⛳</span><div><b>Block Golf</b><p>Every game is a hole: your place on each game's weekly board sets your strokes. Nothing to pick; lowest score wins.</p></div></div>
+          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">📋</span><div><b>Fantasy Producers</b><p>Draft 5 producers under a salary cap, with a captain who scores double.</p></div></div>
+          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">🏆</span><div><b>Producer Bracket</b><p>Pick the winner of every matchup in a weekly knockout bracket of producers.</p></div></div>
+          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">🛡️</span><div><b>Survivor</b><p>One producer a day, two lives, four-week seasons.</p></div></div>
           <a class="also-more" href="games.html">See every game and your standing →</a>
           <h2>Also on Knode Games</h2>
           <a class="also-card" href="swap.html"><span aria-hidden="true">🔁</span><div><b>Knode Games Swap</b><p>Turn VHP back into KOIN in one step, for a 3% fee.</p></div></a>
+          <a class="also-card" href="run-node.html"><span aria-hidden="true">🖥️</span><div><b>Run a node</b><p>Run your own Koinos block-producer node, with step-by-step help.</p></div></a>
         </div>
         <div class="welcome-actions">
-          <a class="btn btn-primary btn-big" href="#play" id="welcome-go">Start playing</a>
+          <a class="btn btn-primary btn-big" href="race.html#pick-zone" id="welcome-go">Start playing</a>
           <a class="btn btn-ghost btn-big" href="#how">The full rules</a>
         </div>
         <p class="welcome-app"><a href="install.html">Get the Knode Games app on your phone</a>: no app store, three taps.</p>
-        <div class="welcome-remind-box"><h2>Never miss a day</h2><div id="welcome-remind"></div></div>
       </div>
     </section>
 
@@ -261,11 +269,12 @@
     <section class="view rules" id="view-how" data-view="how" hidden>
       <div class="section-head big">
         <h1>Rules</h1>
-        <p class="muted">Three things to do on Knode Games. Pick one to see how it works in a minute.</p>
+        <p class="muted">The rules for every open game. Pick one to see how it works in a minute.</p>
       </div>
       <div class="rules-tabs" role="tablist" aria-label="Rules for">
         <button type="button" role="tab" id="rt-game" data-rules="game" aria-controls="rp-game"><span aria-hidden="true">🎯</span>Daily Questions</button>
         <button type="button" role="tab" id="rt-race" data-rules="race" aria-controls="rp-race"><span aria-hidden="true">🏇</span>Producer Race</button>
+        <button type="button" role="tab" id="rt-blockx" data-rules="blockx" aria-controls="rp-blockx"><span aria-hidden="true">🧱</span>Who Signs Block X</button>
         <button type="button" role="tab" id="rt-swap" data-rules="swap" aria-controls="rp-swap"><span aria-hidden="true">🔁</span>Knode Games Swap</button>
       </div>
 
@@ -333,6 +342,22 @@
           <p><a href="race.html#how">The full handicap explanation</a> is on the Race page.</p>
         </details>
         <p class="rules-cta"><a class="btn btn-primary btn-big" href="race.html">Go to the Race</a></p>
+      </div>
+
+      <div class="rules-panel" id="rp-blockx" data-rules-panel="blockx" role="tabpanel" aria-labelledby="rt-blockx" hidden>
+        <div class="rules-short"><h2>In short</h2><p>Every hour or so, the chain reaches a milestone block. Pick which producer will sign it. A right pick scores more points the smaller the producer, because small producers sign less often. It's free to play.</p></div>
+        <ol class="rules-steps">
+          <li><span class="ri" aria-hidden="true">👛</span><div><b>Connect, or play as a guest</b><p>Kondor, KOIN Vault, or a free guest wallet. Knode Games pays the Mana (the network fee) for your picks.</p></div></li>
+          <li><span class="ri" aria-hidden="true">👆</span><div><b>Pick who signs a target</b><p>About a day of targets is always open: every block whose number is a multiple of 1,200, about one an hour. Change a pick until it locks, 100 blocks before the target.</p></div></li>
+          <li><span class="ri" aria-hidden="true">📈</span><div><b>Score when you're right</b><p>A right pick scores from ×1 for the biggest producer up to ×5 for the smallest. A wrong pick scores 0.</p></div></li>
+          <li><span class="ri" aria-hidden="true">🏆</span><div><b>Climb the weekly board</b><p>The Free play board's top 2 win 2 VHP and 1 VHP every week, from Week 1 (Mon 16 Nov). Players staked in Block X share its weekly rewards.</p></div></li>
+        </ol>
+        <div class="rules-good"><h3>Good to know</h3><ul>
+          <li><b>Up to 48 picks a day,</b> counting changes.</li>
+          <li><b>Two boards:</b> Staked (1 VHP or more staked in Block X) and Free play (everyone else, guests too; picks on at least 3 days to win the prize).</li>
+          <li><b>Results are final</b> once the blocks are irreversible and match on two independent Koinos nodes.</li>
+        </ul></div>
+        <p class="rules-cta"><a class="btn btn-primary btn-big" href="blockx.html">Go to Block X</a></p>
       </div>
 
       <div class="rules-panel" id="rp-swap" data-rules-panel="swap" role="tabpanel" aria-labelledby="rt-swap" hidden>

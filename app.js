@@ -256,7 +256,7 @@
   const seenWelcome = () => { try { return localStorage.getItem(SEEN_KEY) === "1"; } catch { return true; } };
   const markWelcomed = () => { try { localStorage.setItem(SEEN_KEY, "1"); } catch { /* private window: shown again next time */ } };
   function route() {
-    // "#how/race" opens the Rules on the Race tab (also "#how/game", "#how/swap").
+    // "#how/race" opens the Rules on the Race tab (also "#how/game", "#how/blockx", "#how/swap").
     const [view, sub] = (location.hash || "").slice(1).split("/");
     const known = ["play", "leaderboard", "results", "how", "welcome"];
     // Opening the site (or the installed app) with no particular page asked for always starts on the short welcome
@@ -273,7 +273,7 @@
   }
 
   // ═══════════════ Rules: one tab per part of Knode Games (game, Producer Race, Swap) ═══════════════
-  const RULE_TABS = ["game", "race", "swap"];
+  const RULE_TABS = ["game", "race", "blockx", "swap"];
   function showRulesTab(name) {
     const t = RULE_TABS.includes(name) ? name : "game";
     document.querySelectorAll("[data-rules]").forEach((b) => { const on = b.dataset.rules === t; b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; });
@@ -692,22 +692,9 @@
     renderBoard(S.week).then(renderPlay).catch(() => {});
   }
 
-  /** Play first (mockup version 2, owner 5 Nov): the welcome view shows today's first open question, the one still to
-   *  answer if there is one, as the same card as the Play tab (same buttons, same answer path), and how many more
-   *  there are. With none open it says when the next ones come and offers the games. Wallet users get their own row,
-   *  hidden once a wallet (or guest) is connected. */
-  function renderWelcomeToday(open, emptyText) {
-    const wq = $("#welcome-question");
-    if (!wq) return;
-    const first = open.find((q) => myAnswer(q) === null) || open[0];
-    wq.replaceChildren(...(first ? [questionCard(first, "open")]
-      : [el("p", { class: "welcome-none" }, emptyText), el("a", { class: "btn btn-primary btn-big", href: "#play" }, "See the questions and games")]));
-    const more = $("#welcome-more");
-    if (more) {
-      const left = open.filter((q) => q !== first && myAnswer(q) === null).length;
-      more.hidden = !first;
-      more.replaceChildren(el("span", {}, left ? `${left} more question${left === 1 ? "" : "s"} today` : open.length > 1 ? "All today's questions" : "Today's question"), el("a", { href: "#play" }, "See them all →"));
-    }
+  /** The home page's hero shows the Producer Race (owner, 10 Nov: "Play free" goes to the race). Wallet users get their own
+   *  row beside it, hidden once a wallet (or guest) is connected. */
+  function renderWelcomeToday() {
     const paths = $("#welcome-paths");
     if (paths) paths.hidden = !!S.account;
   }
@@ -1360,7 +1347,7 @@
         ? `New questions are on their way. They're posted on the Koinos chain at ${localTime(round.releaseAt)} your time and show up here within a few minutes. This page checks every minute, so there's no need to refresh.`
         : `No open questions right now. ${nextRound ? `The next ones come out ${dayTime(nextRound.releaseAt)}.` : `New questions arrive Monday to Saturday at ${localHour(12)} your time.`}`;
     oq.replaceChildren(...(open.length ? open.map((q) => questionCard(q, "open")) : [el("div", { class: "empty" }, emptyText)]));
-    renderWelcomeToday(open, emptyText);
+    renderWelcomeToday();
     const answeredToday = open.filter((q) => myAnswer(q) !== null).length;
     const tn = $("#today-note");
     if (tn) tn.textContent = !open.length ? "" : S.account ? `${answeredToday} of ${open.length} answered${open.length && open[0] ? ` · answers close in ${duration(open[0].lockTime - now)}` : ""}` : `${open.length} to answer · answers close in ${duration(open[0].lockTime - now)}`;

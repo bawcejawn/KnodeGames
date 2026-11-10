@@ -883,3 +883,13 @@ button.btn { min-height: 44px; }
   .btn-play-free { margin-left: auto; }
   .tabs a, .tabs .dd > summary { padding: 9px 12px; font-size: 15.5px; }
 }
+
+/* The home page's hero shows the Producer Race (owner, 10 Nov). */
+.welcome-race h2 { margin: 0 0 6px; }
+.welcome-race-line { margin: 0 0 10px; color: var(--muted); }
+.welcome-race-facts { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; }
+.welcome-race-facts li { display: grid; gap: 1px; padding: 8px 12px; border-radius: var(--r-sm, 12px); background: var(--surface); border: 1px solid var(--line); }
+.welcome-race-facts span { color: var(--muted); font-size: .95rem; }
+.welcome-race > .btn { margin-right: 10px; }
+.also-card.soon[aria-disabled="true"] { cursor: default; pointer-events: none; opacity: .6; }
+@media (max-width: 600px) { .welcome-race-line, .welcome-race-facts span { display: none; } .welcome-race-facts li { padding: 6px 10px; } .welcome-race-facts li:nth-child(n+3) { display: none; } }

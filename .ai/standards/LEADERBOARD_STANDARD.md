@@ -22,6 +22,7 @@
 ## 2. Periods
 - Tabs: **Today**, **This week**, **Last week**, **All time** (games may omit Today when it makes no sense).
 - A vault week runs **Monday 00:00 to Monday 00:00 UTC**; what counts for the week, and Sunday's fun rounds (Today and All time only), follow `WEEK_CYCLE.md` (D-125, D-129). Week numbers in files follow the vault (week 0 = Mon 19 Oct); **players see the week of Mon 9 Nov as "Week 1"** (D-063).
+- **Free-prize places (D-159, the same for every game):** 1st and 2nd are each paid to **at most 10 wallets**. Wallets tied on a place share it. If more than 10 qualify for the same place, **exactly 10** are paid, chosen by a deterministic tie-break: **earlier score time, then address**. A place is **never left empty because of the cap**. A tie for 1st leaves 2nd empty (D-034); wallets cut by the cap get nothing. Each game's file says what its "score time" is; a game that can't say stops and asks the owner (D-160). Pages show the paid wallets with that tie-break, so the board and the vault file never disagree.
 - Prizes are shown only from the vault's first paying week (`PRIZES_FROM_WEEK = 3` in vault numbering), never for weeks the vault won't pay (D-063).
 
 ## 3. Ranking
@@ -33,7 +34,7 @@
 ## 4. Medals and prize marks
 - **Only wallets that earn get a medal**, and only on the weekly boards (D-034).
   - Free play: the paid 1st and 2nd.
-  - Staked: the wallets that earn a share of the game's bucket (for the Race, the vault's top 30% by headcount, rounded up, tied groups whole).
+  - Staked: the wallets that earn a share of the game's bucket (D-152: exactly the top 30% by headcount, rounded up; a tie across the line lets in who reached the score first, and the rest of that tie takes the next place).
 - The `earns` field marks it: 1 or 2 = a free-prize place, 3 = a share of the staked bucket, 0 = nothing; nonzero only on This week and Last week.
 
 ## 5. Data

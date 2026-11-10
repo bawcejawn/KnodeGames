@@ -63,7 +63,7 @@ test("BXS-4: last week is not final while its last target is unrecorded", async 
   let prev;
   const rd = raceDir(CARD());
   const blockOf = async (_n, h) => { if (h === lastTarget || h === lastTarget - 100) throw new Error("node down"); return { signer: BIG, time: T(h) }; };
-  for (let lib = H0 + 12 * X.ROUND; lib <= endH + 4 * X.ROUND; lib += 12 * X.ROUND) {
+  for (let lib = H0 + 12 * X.ROUND; lib < endH; lib += 12 * X.ROUND) {
     const o = tmp(); await quiet(() => run({ p: "main", check: null, prev, out: o, raceDir: rd, picksContract: "1P", blockOf,
       picksOf: async (_n, r) => [{ player: ALICE, producer: BIG, time: T(r * X.ROUND) - 3600000 * (1 + (r % 3)) }], rankedOf: async () => new Set(), prizesFromWeek: 0,
       head: { height: lib, time: T(lib), lib } })); prev = o;

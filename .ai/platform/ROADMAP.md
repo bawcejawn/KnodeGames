@@ -23,7 +23,7 @@ Dates and times live in **one place: `CALENDAR.md`** (this week, the v6.1 upgrad
 | Fantasy (4) + Rival (5) | fix-check → fixes → real-data simulation → a full test week → register Picks games 4 and 5 (48 h) → merge, `FANTASY_ENABLED=true`, menus, remove `noindex`; first price list the Saturday before launch | I-062 |
 | Combo Card (8) | fix-check 4 → re-merge `main` → Picks v2 upgrade (publish source + build → `upgrade-schedule --code 92d555d0` → 48 h → `upgrade-upload` → `upgrade-clear` → record in `picks-data/deployment.json` by PR → pick row 0.25 Mana) → announce game 8 (48 h) → `COMBO_ENABLED=true`, `"cards": true` | I-063 |
 
-**Paused (D-113):** Golf, Survivor, Last Node, Bracket, Fantasy and Combo wait for the core work. **Reactivated 5 Nov (D-142): Fantasy, Block Golf, Bracket** are the next three launches; then Last Node, Survivor and Combo; Survivor's 16 Nov start no longer holds. Each adopts `../standards/WEEK_CYCLE.md` and follows `../standards/NEW_GAME.md` before launch.
+**Reactivated 5 Nov (D-142): Fantasy (#188), Block Golf (#187), Bracket (#186)** are the next three launches; **paused (D-113):** Survivor, Last Node and Combo wait for the core work; then Last Node, Survivor and Combo; Survivor's 16 Nov start no longer holds. Each adopts `../standards/WEEK_CYCLE.md` and follows `../standards/NEW_GAME.md` before launch.
 
 Order: the owner's goal is every game, each in its best version (D-052, D-064). Earlier chat orders (Hub, Golf, Vault) are superseded (C-14, C-23).
 

@@ -13,7 +13,7 @@
  *                    A = 40% of the pot, by rank weight × stake counted up to 10 VHP (v5; before: 65% of what the
  *                        house earned, by rank weight only)
  *                    B = the other 60%, by rank weight × full stake
- *                  At most 30 questions a week, so at most 30 points (v5).
+ *                  At most 30 questions a week, so at most 30 points (v5); 60 from the week after the v6.1 upgrade.
  * All of this runs on-chain. The only off-chain inputs are the operator's question parameters and resolutions.
  *
  * Who can do what:
@@ -33,6 +33,9 @@ import { Tokens } from "./Tokens";
 
 const VOID: u32 = 1000;
 const MAX_QUESTIONS_PER_WEEK: u32 = 30;   // v5: at most 30 questions, so at most 30 points, a week
+// v6.1 (D-092, R-VAULT-6): from the week after this code is uploaded, a week may hold 60 questions (doubled Questions:
+// two rounds a day). Never mid-week: the week the upload lands in keeps 30, so no week's maximum points change.
+const MAX_QUESTIONS_PER_WEEK_V61: u32 = 60;
 const FEE_BPS: u64 = 500;       // 5% producer fee (KOIN), charged once on everything the pool earns
 const WIN_PCT: u64 = 30;        // winners = the top 30% of eligible (staked) players by headcount, ties included
 const BASKET_A_BPS: u64 = 6500; // before v5: basket A = 65% of what the house (seed + unclaimed pots) earned, by rank only
@@ -74,6 +77,10 @@ export function testSetFinalizePage(n: u32): void { if (BUILD_FOR_TESTING) final
 let initV6Rule: u64 = BUILD_FOR_TESTING ? 1_000_000 : 1;
 /** Test hook: the v6 rule week (+1) that init will set. */
 export function testSetInitV6Rule(n: u64): void { if (BUILD_FOR_TESTING) initV6Rule = n; }
+/** v6.1: the rule week (+1) a fresh deployment starts the 60-question cap from. Mainnet: from week 0. Tests: never,
+ *  unless a test sets it, so the older tests keep the 30 cap. (An upgraded contract sets it in cfg() instead.) */
+let initQ60Rule: u64 = BUILD_FOR_TESTING ? 1_000_000 : 1;
+export function testSetInitQ60Rule(n: u64): void { if (BUILD_FOR_TESTING) initQ60Rule = n; }
 // The withdrawals-only build (assembly/Mode.ts). Tests switch it on with the hook; the release builds fold it away.
 let testSafeMode: bool = false;
 /** Test hook: behave as the withdrawals-only build. */
@@ -231,7 +238,30 @@ export class Kpred {
       this.config.put(c);
       this.initQuestionGame(this.weekOf(c, this.now()));
     }
+    // First action after the v6.1 upgrade: 60 questions a week from the NEXT week, never the one being played.
+    if (c.q60_rule_week_plus_one == 0) {
+      c.q60_rule_week_plus_one = this.weekOf(c, this.now()) + 2;
+      this.config.put(c);
+    }
     return c;
+  }
+
+  /** v6.1 (D-092, D-116): whether week `w` runs by the v6.1 rules: up to 60 questions, and the question game is paid like
+   *  every other game (a results file: post_results … claim_game; no settle). Weeks before it keep the old rules. */
+  v61Rule(c: kpred.config_object, w: u64): bool {
+    return c.q60_rule_week_plus_one > 0 && w + 1 >= c.q60_rule_week_plus_one;
+  }
+
+  /** v6.1 (Repo Lens C-1): whether week `w` of the question game is paid from its results file: a week of the rule, or
+   *  one the vault already closed into game 1's game-week (only the new path does that, so such a week stays payable,
+   *  and is never settled, even after a rollback and a re-upload that moves the rule week). */
+  qShared(c: kpred.config_object, w: u64): bool {
+    return this.v61Rule(c, w) || this.gweeks.get(this.gweekKey(Q_GAME, w))!.closed;
+  }
+
+  /** v6.1: the most questions week `w` can hold. */
+  questionsCap(c: kpred.config_object, w: u64): u32 {
+    return this.v61Rule(c, w) ? MAX_QUESTIONS_PER_WEEK_V61 : MAX_QUESTIONS_PER_WEEK;
   }
 
   /** Whether week `w` is closed by the v6 vault split. */
@@ -368,10 +398,11 @@ export class Kpred {
   }
 
   // ───────────── automatic week progression ─────────────
-  // A blockchain never runs code by itself: something has to send a transaction. So every game action
-  // (deposit, withdraw, answer, settle, claim, compound, posting or resolving a question) first performs the
-  // overdue steps — finalizing the oldest settled week and closing the next finished week (at most one of each) —
-  // so the game moves forward on its own whenever anyone plays. The operator bot and the public close_week / finalize_week calls do the same thing.
+  // A blockchain never runs code by itself: something has to send a transaction. The operator's calls (posting,
+  // resolving and correcting a question) and the public close_week / finalize_week first perform the overdue steps —
+  // finalizing the oldest settled week and closing the next finished week (at most one of each). v6.1 (owner, 4 Nov
+  // 2026): player actions no longer do (closing all games' weeks cost a player up to ~0.7 Mana more than the action,
+  // over the sponsor's per-transaction limit), so the operator bot closes and finalizes; anyone can, with close_week.
 
   /** Earliest time week `w` may close: close_delay after the week ends AND close_delay after its latest resolution or
    *  correction, so every result can still be corrected for a while after it is posted. */
@@ -460,6 +491,8 @@ export class Kpred {
   }
 
   settleCheck(player: Uint8Array, w: u64): string {
+    // v6.1 (D-116): from the rule week the question game has no settle step; its results file pays it.
+    if (this.qShared(this.config.get()!, w)) return "that week is paid from its results file (no settle step)";
     const wk = this.weeks.get(u64Key(w))!;
     if (!wk.closed) return "week not closed yet";
     const h = this.now();
@@ -516,6 +549,11 @@ export class Kpred {
     if (isAddress(c.owner)) {
       r.week = this.weekOf(c, r.time);
       r.week_end = this.weekEnd(c, r.week);
+      // v6.1: before the first action after the upgrade sets the rule week, any action this week sets it to next week.
+      const q = new kpred.config_object();
+      q.q60_rule_week_plus_one = c.q60_rule_week_plus_one > 0 ? c.q60_rule_week_plus_one : r.week + 2;
+      r.questions_cap = this.questionsCap(q, r.week);
+      r.questions_cap_next = this.questionsCap(q, r.week + 1);
     }
     r.vhp_balance = Tokens.vhpBalance(this.contractId);
     r.koin_balance = Tokens.koinBalance(this.contractId);
@@ -589,6 +627,7 @@ export class Kpred {
     c.scorer_rule_week_plus_one = 1;
     c.reward_rule_week_plus_one = 1;
     c.v6_rule_week_plus_one = initV6Rule;
+    c.q60_rule_week_plus_one = initQ60Rule;
     this.config.put(c);
     this.initQuestionGame(0);
     return new kpred.init_result();
@@ -606,9 +645,12 @@ export class Kpred {
 
   // ═══════════════════════ players ═══════════════════════
 
+  /** A question-game stake. v6.1 (D-116): deposit_to(game 1) and the old deposit_vhp / deposit_koin are the same call
+   *  (the old ones are kept as aliases, owner 4 Nov); all of them land in the player's own record. */
   deposit(from: Uint8Array, amount: u64, isKoin: bool): void {
     const c = this.cfg();
-    this.advance(c);
+    // v6.1 (owner, 4 Nov): a player action never closes or finalizes a week (that cost up to ~0.7 Mana more, over the
+    // sponsor's per-transaction limit); the operator bot and the public close_week / finalize_week do it.
     System.require(!c.paused, "new deposits are paused");
     System.require(amount > 0, "amount must be positive");
     System.require(amount % WHOLE == 0, "stake whole numbers only (1, 2, 3 …)");
@@ -622,7 +664,7 @@ export class Kpred {
     const h = this.now();
     const w = this.weekOf(c, h);
     const p = this.players.get(from)!;
-    this.autoSettle(c, from, p);
+    if (!this.v61Rule(c, w)) this.autoSettle(c, from, p);   // v6.1: from the rule week the old week is settled by its own call (Mana)
     this.normalize(p, w);
     // Counts from the next week. Before the game starts (genesis), it counts from week 0.
     p.pending += amount;
@@ -655,15 +697,20 @@ export class Kpred {
     const to = args.to!;
     System.requireAuthority(authority.authorization_type.contract_call, to);
     System.require(args.amount > 0, "amount must be positive");
-    const fromWeek = this.takeQ(c, to, args.amount);
+    this.withdrawQ(c, to, args.amount);
+    return new kpred.withdraw_result();
+  }
+
+  /** A question-game withdrawal (withdraw, or withdraw_from game 1): the player's own records, the totals, the transfer. */
+  withdrawQ(c: kpred.config_object, to: Uint8Array, amount: u64): void {
+    const fromWeek = this.takeQ(c, to, amount);
     const t = this.totals.get()!;
     this.accrue(t);
-    t.total_stake -= args.amount;
+    t.total_stake -= amount;
     this.totals.put(t);
-    this.gameStakeSub(Q_GAME, args.amount - fromWeek, fromWeek);
-    this.ensureVhp(args.amount);
-    Tokens.sendVhp(to, args.amount);
-    return new kpred.withdraw_result();
+    this.gameStakeSub(Q_GAME, amount - fromWeek, fromWeek);
+    this.ensureVhp(amount);
+    Tokens.sendVhp(to, amount);
   }
 
   /** Take `amount` out of a player's question-game stake (a withdrawal, or the source of a move). Returns the part
@@ -708,10 +755,11 @@ export class Kpred {
     System.requireAuthority(authority.authorization_type.contract_call, player);
     const why = this.answerCheck(c, player, args.question_id, args.option);
     System.require(why.length == 0, why);
-    this.advance(c);
+    // v6.1 (owner, 4 Nov): a player action never closes or finalizes a week (that cost up to ~0.7 Mana more, over the
+    // sponsor's per-transaction limit); the operator bot and the public close_week / finalize_week do it.
     const q = this.questions.get(u32Key(args.question_id))!;
     const p = this.players.get(player)!;
-    this.autoSettle(c, player, p);
+    if (!this.v61Rule(c, q.week)) this.autoSettle(c, player, p);   // v6.1: from the rule week, settle the old week by its own call (Mana)
     const key = this.entryKey(player, q.week);
     let e = this.entries.get(key);
     if (!e) {
@@ -731,7 +779,7 @@ export class Kpred {
 
   settle(args: kpred.settle_arguments): kpred.settle_result {
     const c = this.cfg();
-    this.advance(c);
+    // v6.1: no advance (a player action never closes or finalizes a week; see deposit).
     const player = args.player!;
     const why = this.settleCheck(player, args.week);
     System.require(why.length == 0, why);
@@ -817,7 +865,7 @@ export class Kpred {
   claim(args: kpred.claim_arguments): kpred.claim_result {
     const player = args.player!;
     System.requireAuthority(authority.authorization_type.contract_call, player);
-    this.advance(this.cfg());
+    // v6.1: no advance (a player action never closes or finalizes a week; see deposit).
     const why = this.claimCheck(player, args.week);
     System.require(why.length == 0, why);
     const wkKey = u64Key(args.week);
@@ -1085,7 +1133,7 @@ export class Kpred {
     const wkKey = u64Key(w);
     const wk = this.weeks.get(wkKey)!;
     System.require(!wk.closed, "week already closed");
-    System.require(wk.questions < MAX_QUESTIONS_PER_WEEK, "too many questions this week");
+    System.require(wk.questions < this.questionsCap(c, w), "too many questions this week");
     const t = this.totals.get()!;
     const id = t.next_question_id;
     t.next_question_id += 1;
@@ -1596,7 +1644,7 @@ export class Kpred {
     const wk = this.weeks.get(wkKey)!;
     for (let i = 0; i < n; i++) {
       const g = list[i];
-      if (g.id == Q_GAME) {
+      if (g.id == Q_GAME && !this.v61Rule(c, week)) {
         const qpot = bucket[i] + g.rolled + got[i];
         rolledUsed += g.rolled;
         g.rolled = 0;
@@ -1674,6 +1722,7 @@ export class Kpred {
 
   /** The stake that counts for a player in `game` during week `w` (0 = voided or none). */
   weekStakeG(game: u32, player: Uint8Array, w: u64): u64 {
+    if (game == Q_GAME) return this.qEntry(w, player).stake;
     const e = this.gentries.get(this.gentryKey(game, w, player));
     if (e != null) return e.voided ? 0 : e.stake;
     const p = this.gplayers.get(this.gplayerKey(game, player))!;
@@ -1686,6 +1735,42 @@ export class Kpred {
     const g = this.games.get(u32Key(id));
     System.require(g != null, "no such game");
     return g!;
+  }
+
+  /** v6.1 (D-116): a game whose results file pays week `w`: any other game, and the question game from the rule week. */
+  resultsGame(c: kpred.config_object, id: u32, w: u64): kpred.game_object {
+    if (id == Q_GAME) {
+      System.require(this.qShared(c, w), "that week of the question game is paid by the old rules (settle and claim)");
+      return this.games.get(u32Key(Q_GAME))!;
+    }
+    return this.otherGame(id);
+  }
+
+  /** v6.1: the question game's week record for `player`, in the per-game shape (read in place from its own records:
+   *  the answer entry if there is one, else the stake). Nothing is copied. */
+  /** v6.1 (D-116, owner 4 Nov: Questions keeps its entry rules): a question-game result row or free winner answered at
+   *  least 2 questions that week, and its points can't be more than its answers. (The recorder applies the full rule,
+   *  at least 2 counted answers and at least 1 point; this is the contract's own floor.) */
+  qEntryRule(w: u64, player: Uint8Array, points: u32): void {
+    const e = this.entries.get(this.entryKey(player, w));
+    const n: u32 = e ? <u32>e.answers.length : 0;
+    System.require(n >= 2 && points <= n, "a question-game result needs at least 2 answers that week, and no more points than answers");
+  }
+
+  qEntry(w: u64, player: Uint8Array): kpred.gentry_object {
+    const n = new kpred.gentry_object();
+    const e = this.entries.get(this.entryKey(player, w));
+    if (e) {
+      n.voided = e.voided;
+      n.stake = e.voided ? 0 : e.stake;
+      n.peak_stake = e.peak_stake > e.stake ? e.peak_stake : e.stake;
+      return n;
+    }
+    const p = this.players.get(player)!;
+    n.voided = p.void_week_plus_one == w + 1;
+    n.stake = n.voided ? 0 : this.activeStake(p, w);
+    n.peak_stake = n.stake;
+    return n;
   }
 
   /** Add a pending deposit to a player's stake in another game (counts from next week). Returns the week it starts. */
@@ -1742,8 +1827,14 @@ export class Kpred {
 
   deposit_to(args: kpred.deposit_to_arguments): kpred.deposit_to_result {
     this.live();
+    // v6.1 (D-116): the question game takes stakes through the same call as every game, into its own records.
+    if (args.game == Q_GAME) {
+      System.require(isAddress(args.from), "address required");
+      this.deposit(args.from!, args.amount, args.koin);
+      return new kpred.deposit_to_result();
+    }
     const c = this.cfg();
-    this.advance(c);
+    // v6.1: no advance (a player action never closes or finalizes a week; see deposit).
     const g = this.otherGame(args.game);
     System.require(g.active && g.staked, "that game does not take stakes now");
     System.require(!c.paused, "new deposits are paused");
@@ -1776,6 +1867,11 @@ export class Kpred {
     const to = args.to!;
     System.requireAuthority(authority.authorization_type.contract_call, to);
     System.require(args.amount > 0, "amount must be positive");
+    // v6.1 (D-116): the question game's stake comes out through the same call as every game (rule 1: any time).
+    if (args.game == Q_GAME) {
+      this.withdrawQ(c, to, args.amount);
+      return new kpred.withdraw_from_result();
+    }
     this.otherGame(args.game);
     const fromWeek = this.takeG(c, args.game, to, args.amount);
     this.playerOther(to, 0, args.amount);
@@ -1846,7 +1942,7 @@ export class Kpred {
 
   /** The common checks for the operator's posts: the game earned that week, the week is over and still open. */
   postable(c: kpred.config_object, game: u32, w: u64): kpred.gweek_object {
-    const g = this.otherGame(game);
+    const g = this.resultsGame(c, game, w);
     const gw = this.gweeks.get(this.gweekKey(game, w))!;
     this.requireResults(c, g, w, gw);
     const now = this.now();
@@ -1883,6 +1979,11 @@ export class Kpred {
   resultEntry(game: u32, w: u64, player: Uint8Array): kpred.gentry_object {
     const e = this.gentries.get(this.gentryKey(game, w, player));
     if (e != null) return e;
+    if (game == Q_GAME) {
+      // Repo Lens H-1: a result comes from the week's own answers; with none, the stake can't be read for that week.
+      System.require(this.entries.get(this.entryKey(player, w)) != null, "that player has no answers that week");
+      return this.qEntry(w, player);
+    }
     const n = new kpred.gentry_object();
     const p = this.gplayers.get(this.gplayerKey(game, player))!;
     n.voided = p.void_week_plus_one == w + 1;
@@ -1896,7 +1997,7 @@ export class Kpred {
     System.requireAuthority(authority.authorization_type.contract_call, c.operator!);
     const gw = this.postable(c, args.game, args.week);
     // Fix-check VN-9: a week that closed with a bucket takes results even if the game has since dropped its stakes.
-    System.require(this.otherGame(args.game).staked || gw.bucket > 0, "that game has no stake bucket");
+    System.require(this.resultsGame(c, args.game, args.week).staked || gw.bucket > 0, "that game has no stake bucket");
     System.require(args.rows.length > 0 && args.rows.length <= MAX_ROWS, "1 to 50 results per call");
     const min = this.minStakeFor(c, args.week);
     for (let i = 0; i < args.rows.length; i++) {
@@ -1906,6 +2007,7 @@ export class Kpred {
       const e = this.resultEntry(args.game, args.week, row.player!);
       System.require(e.points == 0 && e.prize_place == 0, "that player already has a result this week");
       System.require(!e.voided && e.stake > 0 && e.stake >= min, "that player was not staked in that game that week");
+      if (args.game == Q_GAME) this.qEntryRule(args.week, row.player!, row.points);
       this.addPoints(args.game, args.week, gw, e, row.points);
       this.gentries.put(this.gentryKey(args.game, args.week, row.player!), e);
     }
@@ -1917,7 +2019,7 @@ export class Kpred {
     const c = this.cfg();
     System.requireAuthority(authority.authorization_type.contract_call, c.operator!);
     const gw = this.postable(c, args.game, args.week);
-    const pg = this.otherGame(args.game);
+    const pg = this.resultsGame(c, args.game, args.week);
     System.require(pg.free_prize, "that game has no free prize");
     // The last week of a season (once the week is closed: a week that holds a prize, which also covers a game restarted
     // after a gap, whose seasons start again).
@@ -1934,6 +2036,7 @@ export class Kpred {
       // A free player never held the minimum stake in this game that week (the question game's rule: someone staked at
       // the start of the week who withdraws later is still a staked player that week, not a free one).
       System.require(e.peak_stake < min, "staked players can't win the free prize");
+      if (args.game == Q_GAME) this.qEntryRule(args.week, who!, 1);
       e.prize_place = args.place;
       this.gentries.put(this.gentryKey(args.game, args.week, who), e);
     }
@@ -1969,7 +2072,7 @@ export class Kpred {
   correct_result(args: kpred.correct_result_arguments): kpred.correct_result_result {
     const c = this.cfg();
     System.require(this.isOwner(c), "owner only");
-    const g = this.otherGame(args.game);
+    const g = this.resultsGame(c, args.game, args.week);
     const gk = this.gweekKey(args.game, args.week);
     const gw = this.gweeks.get(gk)!;
     this.requireResults(c, g, args.week, gw);
@@ -1988,6 +2091,7 @@ export class Kpred {
       if (args.points > 0) {
         System.require(e.prize_place == 0, "that player holds a free-prize place");
         System.require(!e.voided && e.stake > 0 && e.stake >= this.minStakeFor(c, args.week), "that player was not staked in that game that week");
+        if (args.game == Q_GAME) this.qEntryRule(args.week, args.player!, args.points);
         this.addPoints(args.game, args.week, gw, e, args.points);
       }
     }
@@ -2000,7 +2104,7 @@ export class Kpred {
   void_game_week(args: kpred.void_game_week_arguments): kpred.void_game_week_result {
     const c = this.cfg();
     System.require(this.isOwner(c), "owner only");
-    const g = this.otherGame(args.game);
+    const g = this.resultsGame(c, args.game, args.week);
     // Audit V6-5: only a week the game earned, after it ended, within the same window as a correction.
     const gk = this.gweekKey(args.game, args.week);
     const gw = this.gweeks.get(gk)!;
@@ -2018,7 +2122,7 @@ export class Kpred {
   finalize_game_week(args: kpred.finalize_game_week_arguments): kpred.finalize_game_week_result {
     this.live();
     const c = this.cfg();
-    const g = this.otherGame(args.game);
+    const g = this.resultsGame(c, args.game, args.week);
     const gk = this.gweekKey(args.game, args.week);
     const gw = this.gweeks.get(gk)!;
     System.require(gw.closed, "the vault has not closed that week yet");
@@ -2162,8 +2266,9 @@ export class Kpred {
   claim_game(args: kpred.claim_game_arguments): kpred.claim_game_result {
     const player = args.player!;
     System.requireAuthority(authority.authorization_type.contract_call, player);
-    this.advance(this.cfg());
-    this.otherGame(args.game);
+    const c = this.cfg();
+    // v6.1: no advance (a player action never closes or finalizes a week; see deposit).
+    this.resultsGame(c, args.game, args.week);
     const gk = this.gweekKey(args.game, args.week);
     const gw = this.gweeks.get(gk)!;
     const ek = this.gentryKey(args.game, args.week, player);
@@ -2310,7 +2415,7 @@ export class Kpred {
     const r = new kpred.get_game_result();
     r.game = this.games.get(u32Key(args.game));
     r.proposal = this.gproposals.get(u32Key(args.game));
-    if (args.game != Q_GAME) {
+    {
       const gw = this.gweeks.get(this.gweekKey(args.game, args.week))!;
       r.week = gw;
       for (let p: u32 = 0; p <= gw.max_points; p++) r.buckets.push(this.gbuckets.get(this.gbucketKey(args.game, args.week, p))!);
@@ -2328,6 +2433,21 @@ export class Kpred {
 
   get_game_player(args: kpred.get_game_player_arguments): kpred.get_game_player_result {
     const r = new kpred.get_game_player_result();
+    if (args.game == Q_GAME) {
+      // v6.1 (D-116): game 1 in the same shape as every game, read from its own records.
+      const q = this.players.get(args.player!)!;
+      const gp = new kpred.gplayer_object();
+      gp.stake = q.stake;
+      gp.pending = q.pending;
+      gp.pending_week = q.pending_week;
+      gp.void_week_plus_one = q.void_week_plus_one;
+      r.player = gp;
+      const posted = this.gentries.get(this.gentryKey(Q_GAME, args.week, args.player!));
+      r.entry = posted != null ? posted : this.qEntry(args.week, args.player!);
+      r.active_stake = this.activeStake(q, args.week);
+      r.week_stake = this.qEntry(args.week, args.player!).stake;
+      return r;
+    }
     const p = this.gplayers.get(this.gplayerKey(args.game, args.player!))!;
     r.player = p;
     r.entry = this.gentries.get(this.gentryKey(args.game, args.week, args.player!));
@@ -2386,13 +2506,13 @@ export class Kpred {
       const a = Protobuf.decode<kpred.settle_arguments>(cc.args, kpred.settle_arguments.decode);
       if (!Arrays.equal(Protobuf.encode(a, kpred.settle_arguments.encode), cc.args)) return false;
       if (!isAddress(a.player)) return false;
+      if (this.qShared(c, a.week)) return false;      // Repo Lens L-1: no settle step from the rule week
       const se = this.entries.get(this.entryKey(a.player!, a.week));
       // free players' entries are never paid for
       if (se == null || se.voided || se.stake == 0 || se.stake < this.minStakeFor(c, a.week)) return false;
-      if (this.settleCheck(a.player!, a.week).length == 0) return true;
-      // The week may simply not be closed yet although it is due: the settle call closes it first, then settles.
-      const t = this.totals.get()!;
-      return a.week == t.weeks_closed && this.closeDue(c, t, this.now()) && !se.settled;
+      // v6.1: only a settle that is valid right now (a settle no longer closes a due week first, so one sent before the
+      // bot closes the week would revert, with the pool's Mana spent for nothing).
+      return this.settleCheck(a.player!, a.week).length == 0;
     }
     if (cc.entry_point == EP_CLAIM) {
       const a = Protobuf.decode<kpred.claim_arguments>(cc.args, kpred.claim_arguments.decode);

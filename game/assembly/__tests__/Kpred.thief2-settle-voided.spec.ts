@@ -174,9 +174,15 @@ describe("REDTEAM thief (fix check 2): the settle sponsorship voided check", () 
     nobody();
     expect(k.totals.get()!.weeks_closed).toBe(0);
     settleTx(B, 0);
-    expect(sponsor(k)).toBe(true);                    // (control) B's settle would close the week and settle: paid
+    // v6.1: a settle no longer closes the week first, so before the bot closes it nobody's settle is paid (it would revert)
+    expect(sponsor(k)).toBe(false, "v6.1: the pool paid for a settle sent before the week was closed (it would revert)");
     settleTx(A, 0);
     expect(sponsor(k)).toBe(false, "THIEF2-SETTLE-1: the pool paid for a voided entry's settle via the close-due branch");
+    k.close_week(new kpred.close_week_arguments(0));  // the bot closes it
+    settleTx(B, 0);
+    expect(sponsor(k)).toBe(true);                    // (control) now B's settle is paid
+    settleTx(A, 0);
+    expect(sponsor(k)).toBe(false, "THIEF2-SETTLE-1: the pool paid for a voided entry's settle after the close");
   });
 
   // Legitimate use: a player who withdraws everything in the NEXT week (before last week is closed) must still get the

@@ -641,3 +641,42 @@ test("Repo Lens #E-16 N-1: questionWeekShared follows the contract's qShared rul
   assert.equal(await questionWeekShared(chainWith(true), {}, 2), true, "closed the new way: shared even after a rollback moved the rule week");
   assert.equal(await questionWeekShared(chainWith("throws"), {}, 2), false, "v6 (no game-1 game-week): not shared");
 });
+
+test("owner 9 Nov (Week 1 = Mon 16): a week before vaultPayFromWeek posts nothing and rolls over at its deadline", { skip: !fs.existsSync(NEW) && `${NEW} missing: run npm run build:sim in game/` }, async () => {
+  const { paysFrom } = await import("./vault.ts");
+  assert.equal(paysFrom({ vaultPayFromWeek: 4 }), 4);
+  assert.equal(paysFrom({}), 0);
+  assert.equal(paysFrom({ vaultPayFromWeek: "x" }), 0);
+  const { sim, at, ok } = await world();
+  await ok([["propose_game", { game: 2, name: "Fantasy", staked: true, free_prize: false, season_weeks: 1 }], ["propose_game", { game: 3, name: "Block X", staked: false, free_prize: true, season_weeks: 1 }]], [owner]);
+  at(T0 + 2 * DAY + HOUR);
+  await ok([["apply_game", { game: 2 }], ["apply_game", { game: 3 }]], [owner]);
+  await ok([["seed_deposit_vhp", { amount: String(2000n * VHP) }]], [seedOwner]);
+  for (const p of [A, B]) {
+    await sim.ledgerSet(2, addr(p), 100n * VHP); await sim.ledgerSet(3, addr(p), 100n * VHP);
+    await ok([["deposit_to", { from: addr(p), game: 2, amount: String(VHP), koin: false }]], [p]);
+  }
+  at(GENESIS + WEEK + 12 * HOUR + 1);
+  await ok([["close_week", { week: "0" }]], []);
+  await sim.ledgerAdd(2, addr(contract), 100n * VHP);
+  at(GENESIS + 2 * WEEK + 12 * HOUR + 1);
+  await ok([["close_week", { week: "1" }]], []);
+  const results = {
+    "mem:fantasy/W1": { game: 2, week: 1, final: true, rows: [{ player: addr(A), points: 5 }, { player: addr(B), points: 3 }] },
+    "mem:blockx/W1": { game: 3, week: 1, final: true, rows: [], first: [addr(C)], second: [] },
+  };
+  const v = vctx(sim, results);
+  v.deployment.vaultPayFromWeek = 2;                       // week 1 is the test week
+  const sent: string[] = [];
+  await vaultResultsPass(v, sendAs(sim, operator, sent));
+  assert.deepEqual(sent, [], "nothing is posted for a week before the first paying week");
+  assert.deepEqual(v.problems, []);
+  const before = (await sim.read("get_game", { game: 2, week: "1" })).week;
+  assert.ok(BigInt(before.bucket ?? 0) > 0n, "the test week has a bucket to roll");
+  at(GENESIS + 2 * WEEK + 3 * DAY + 13 * HOUR);           // past week 1's results deadline
+  await vaultFinalizePass(v, sendAs(sim, operator, sent));
+  assert.deepEqual(sent.filter((x) => !x.startsWith("Questions")).sort(), ["Block X week 1: finalize (no results: roll the week over)", "Fantasy week 1: finalize (no results: roll the week over)"]);
+  const after = (await sim.read("get_game", { game: 2, week: "1" })).week;
+  assert.equal(after.rolled_over, true, "the bucket stays in the game for its next week");
+  assert.equal(BigInt((await sim.read("get_game", { game: 2 })).game.rolled ?? 0), BigInt(before.bucket), "added to the game's next week");
+});

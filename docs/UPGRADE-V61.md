@@ -92,7 +92,12 @@ npm run bot -- status
 
 ## 4. Records (one pull request into `main`)
 - `game-data/deployment.json`: `wasmSha256` → `11043e1f…` (the tool wrote it on apply) and `safeWasmSha256` → `04c27c1a…` (step 3): commit both.
-- Merge PR #114 the same day if it isn't merged yet (after PR #152, the Questions side; the Vault chat merges `main` into #114 first if both touch the settle pass).
+- **Merge PR #114 the same day, and before Sun 15 Nov 23:00 UTC at the latest** (#152 is already on `main`, and `main` is merged into #114). It carries `"vaultPayFromWeek": 4` in `game-data/deployment.json` (owner, 9 Nov: Week 1 = Mon 16; the week of Mon 9, vault week 3, is a test week). With it the bot posts no results, prize winners or settles for vault week 3:
+  - each game's week 3 rolls over at its deadline (Thu 19 Nov 00:00 UTC);
+  - its stakers' bucket stays in the game and is added to week 4;
+  - its prize goes back to the pool and is paid out with week 4's close.
+
+  Without it, the bot would post week 3's Block X and Race results from about Mon 16 01:00 UTC. One gap remains, and only a contract change could close it: a player can still send `settle` for week 3 of Daily Questions straight to the contract (not from the site). With the bot and the site not settling, that's the only way week 3 pays anything.
 
 ## The rollback rule (Repo Lens C-1; replaces V61-A1)
 - **Before the rule week starts:** a rollback to the v6 normal build is possible; nothing of the new path has run yet.

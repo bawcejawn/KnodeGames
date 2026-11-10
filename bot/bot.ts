@@ -49,7 +49,7 @@ import { pobAbi } from "./token-abi.ts";
 import { formatProduction, loadSigners, signerFromBlockItem, type SignedBlock } from "./production.ts";
 import { contractManaVerdict } from "./mana.ts";
 import { contractMetadata, checkMeta, sha256OfMeta, type Check } from "./chaincheck.ts";
-import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, sharedRulesWeek, questionWeekShared, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
+import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, sharedRulesWeek, questionWeekShared, paysFrom, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
 
 // ───────────────────────── settings ─────────────────────────
 
@@ -1096,7 +1096,9 @@ async function settlePass(ctx: Ctx) {
   const h = st.time;
   const started = Date.now();
   const outOfTime = () => Date.now() - started > SETTLE_BUDGET_MS;
+  const payFrom = paysFrom(readJson(ctx.P.deployment, null));
   for (let w = st.weeksFinalized; w < st.weeksClosed; w++) {
+    if (w < payFrom) continue;   // owner, 9 Nov: a test week pays nothing; nobody settles it, so its pot rolls over
     if (sharedRulesWeek(st.c, w)) continue;   // v6.1 (D-116): paid from its results file, no settle step (Repo Lens #E-16 N-1)
     if (await questionWeekShared(ctx.chain, st.c, w)) continue;   // the same after a rollback (the contract's qShared rule)
     const wk = (await ctx.chain.read("get_week", { week: String(w) })).week ?? {};

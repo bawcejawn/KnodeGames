@@ -131,6 +131,15 @@ export async function questionWeekShared(chain: Chain, config: any, w: number): 
 }
 
 /** Whether the vault bot handles this game's week `w`: every game, and the question game only from the shared-rules week. */
+/** Owner, 9 Nov (Week 1 = Mon 16 Nov): `vaultPayFromWeek` in game-data/deployment.json is the first vault week that pays.
+ *  Below it the bot posts no results, no prize winners and no settles: each game's week rolls over at its results
+ *  deadline (its stakers' bucket stays in the game and is added to its next week; its prize goes back to the pool, paid
+ *  out with the next close). 0 or missing = every week pays. */
+export function paysFrom(deployment: any): number {
+  const n = Number(deployment?.vaultPayFromWeek);
+  return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
 export function vaultHandles(id: number, config: any, w: number): boolean {
   return id !== Q_GAME || sharedRulesWeek(config, w);
 }
@@ -290,6 +299,12 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
     const gw = (await ctx.chain.read("get_game", { game: id, week: String(w) })).week ?? {};
     // Fix-check VN-3: the contract's rule. A game restarted after a gap keeps the weeks it earned (closed with it).
     if (!earnedWeek(g, w, gw)) { if (only) throw new Error(`${name} has no results for week ${w}.`); continue; }
+    if (w < paysFrom(ctx.deployment)) {
+      // Owner, 9 Nov: a test week pays nothing; it rolls over at its deadline (the finalize pass sends that).
+      if (only) throw new Error(`Week ${w} of ${name} is before the first paying week (vaultPayFromWeek ${paysFrom(ctx.deployment)} in deployment.json): it pays nothing and rolls over.`);
+      log(ctx, `  ${name} week ${w}: before the first paying week (${paysFrom(ctx.deployment)}): no results posted; it rolls over at ${utc(k.resultsDue(w))}`);
+      continue;
+    }
     const source = only?.source ?? cfg[String(id)]?.results;
     if (!source) { log(ctx, `  ${name}: no results source in deployment.json (vaultGames.${id}.results)`); continue; }
     if (k.time < k.weekEnd(w)) { if (only) throw new Error(`Week ${w} of ${name} is not over yet.`); continue; }

@@ -110,3 +110,9 @@ test("answer bands: network decimal choices get a plain name before their exact 
   const m1 = { template: "M1", title: "quartiles", unit: "blocks", text: "How many blocks will producer X sign", options: opts(["539 or fewer", "540 to 566"]) };
   assert.equal(W.bandWords(m1, m1.options[0]), null);
 });
+
+test("a wallet with something to collect sees one plain 'reward is waiting' line above the Collect buttons", () => {
+  const app = fs.readFileSync(`${APP}/app.js`, "utf8");
+  assert.match(app, /S\.claims\.length \? \[el\("p", \{ class: "muted", id: "claim-waiting" \}, "A reward is waiting for you\. It never expires; collect it any time\."\)\] : \[\]/);
+  assert.ok(app.indexOf("claim-waiting") < app.indexOf('claim-row'), "the line comes before the rows");
+});

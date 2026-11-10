@@ -893,3 +893,5 @@ button.btn { min-height: 44px; }
 .welcome-race > .btn { margin-right: 10px; }
 .also-card.soon[aria-disabled="true"] { cursor: default; pointer-events: none; opacity: .6; }
 @media (max-width: 600px) { .welcome-race-line, .welcome-race-facts span { display: none; } .welcome-race-facts li { padding: 6px 10px; } .welcome-race-facts li:nth-child(n+3) { display: none; } }
+.welcome-race-soon { margin: 0 0 12px; padding: 8px 12px; border-radius: var(--r-sm, 12px); background: var(--sun-soft); font-size: .95rem; }
+.rules-soon { border-left: 4px solid var(--violet); }

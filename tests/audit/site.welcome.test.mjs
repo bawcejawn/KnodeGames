@@ -28,7 +28,8 @@ test("All the games lists every game; only the open ones are links; no 'Coming s
   for (const name of ["Block Golf", "Fantasy Producers", "Producer Bracket", "Survivor"]) assert.match(g, new RegExp(`<div class="also-card soon" aria-disabled="true"><span[^>]*>[^<]*</span><div><b>${name}</b>`), `${name} is not a link`);
   assert.match(g, /<a class="also-card" href="swap\.html">[\s\S]*Knode Games Swap/);
   assert.match(g, /<a class="also-card" href="run-node\.html">[\s\S]*Run a node/);
-  assert.doesNotMatch(welcome, /Coming soon|Never miss a day|welcome-remind/);
+  assert.doesNotMatch(g, /Coming soon/);   // the games list has no label (the race card says what is coming)
+  assert.doesNotMatch(welcome, /Never miss a day|welcome-remind/);
 });
 test("the Rules tab has a tab and a panel for every open game", () => {
   for (const t of ["game", "race", "blockx", "swap"]) { assert.match(html, new RegExp(`data-rules="${t}"`)); assert.match(html, new RegExp(`data-rules-panel="${t}"`)); }
@@ -44,4 +45,13 @@ test("step 1 is a free pick with no sign-up; wallets and staking are the last st
   assert.match(steps[0].b, /free, no sign-up/i);
   assert.doesNotMatch(steps.slice(0, 3).map((s) => s.b + s.p).join(" "), /wallet|stake|Kondor|KOIN Vault/i, "no wallet talk before the last step");
   assert.match(steps[3].b + steps[3].p, /Stake/); assert.match(steps[3].p, /never spent/); assert.match(steps[3].p, /get\.html/);
+});
+
+test("more race types are shown as coming soon only; today's live points stay 3 for a win and 1 for a show (owner, 10 Nov)", () => {
+  assert.match(welcome, /<b>Coming soon:<\/b> 1-hour, 2-hour, daily and weekly races too, all on one board\./);
+  const at = html.indexOf('id="race-types-soon"'), soon = html.slice(at, html.indexOf('class="rules-more"', at));
+  assert.match(soon, /planned, not live yet/);
+  assert.match(soon, /Until this is announced as live, the points above stay as they are today/);
+  assert.match(html, /A win is 3 points, a show \(2nd or 3rd\) is 1\./);
+  assert.doesNotMatch(welcome, /Week 1 \(Mon 9|from Mon 9 Nov/);
 });

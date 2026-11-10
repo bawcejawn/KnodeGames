@@ -64,7 +64,18 @@
       },
       "hashRule": 2,
       "paramsHash": "2db6545392306f84e7bbfb969f081bfc9c7a4bd3ccef02a89cc7d8d11c9b835e",
-      "chainId": 85
+      "chainId": 85,
+      "vhpReadings": [
+        {
+          "height": 40958909,
+          "readAt": "2026-11-10T14:18:08.887Z",
+          "values": {
+            "1KfD7n93LnnihyygopWUVTkbtWVe5aXXGW": "5478111570672"
+          },
+          "seal": "283d04802153e72a421241feb5faef214e96aa0432234ac96dd32ca1a0467596"
+        }
+      ],
+      "vhpSeal": "1284b7944e1ccf634362e9971e857f297a6f3271cebc3579eed55b6163d70c59"
     },
     {
       "id": "W003-D2-00-2",
@@ -125,7 +136,19 @@
       },
       "hashRule": 2,
       "paramsHash": "3c67bfdc058515b447290f55d9b0811607df157674db7efeb86ef6f32df79bc8",
-      "chainId": 86
+      "chainId": 86,
+      "vhpReadings": [
+        {
+          "height": 40958909,
+          "readAt": "2026-11-10T14:18:08.887Z",
+          "values": {
+            "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": "115758900008467",
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "86652994359400"
+          },
+          "seal": "1e8267ffab33666516ef5142936b67f5b7c22636e2e94f8ca491003c67f7cbae"
+        }
+      ],
+      "vhpSeal": "3871e35872774faa1bf1429fb16e9db2665361efca242f80c9f896734d5a17b2"
     }
   ],
   "daySeal": "224d616a6e62f2dba8939b2025144a62c0096ae74c0c7bed5505b14723a1eb87"

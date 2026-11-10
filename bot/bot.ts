@@ -49,7 +49,8 @@ import { pobAbi } from "./token-abi.ts";
 import { formatProduction, loadSigners, signerFromBlockItem, type SignedBlock } from "./production.ts";
 import { contractManaVerdict } from "./mana.ts";
 import { contractMetadata, checkMeta, sha256OfMeta, type Check } from "./chaincheck.ts";
-import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
+import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, sharedRulesWeek, questionWeekShared, testWeeks, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
+import { writeSummary } from "./alert-summary.mjs";
 
 // ───────────────────────── settings ─────────────────────────
 
@@ -205,7 +206,16 @@ type BotState = {
   games?: string;
   /** Other games' results (bot/vault.ts VaultMemo): when each results file was first read, refusals, alerts sent. */
   vault?: VaultMemo;
+  /** When this bot sent its own resolve_question transactions (ms, newest last, at most 60): a week held open by the
+   *  bot's own late result (after an outage) is reported as expected, not as a possible key compromise. */
+  ownResolves?: number[];
 };
+/** How close a week's last_resolved_time must be to one of the bot's own resolves to count as that resolve (the
+ *  bot's transaction lands seconds after it is sent; a wider window could swallow an owner correction). */
+export const OWN_RESOLVE_SLACK_MS = 3 * 60_000;
+/** Was a week's latest result (its last_resolved_time) the bot's own resolve? Unknown (no record) counts as not. */
+export const lateResultIsOurs = (own: number[] | undefined, lastResolved: number) =>
+  lastResolved > 0 && (own ?? []).some((t) => Math.abs(t - lastResolved) <= OWN_RESOLVE_SLACK_MS);
 const vhpKey = (q: any) => String(q.paramsHash ?? "").toLowerCase();
 /** Records the list the bot just sealed. */
 function noteReadings(bs: BotState, q: any) {
@@ -504,6 +514,12 @@ async function healthPass(ctx: Ctx, bs: BotState) {
     if (st.time > closeAt(st, w, wk)) log(`  Safe mode: closes are paused (week ${w} waits for the normal build).`);
   } else if (st.time > closeAt(st, w, wk) + 3 * HOUR_MS) {
     ctx.problems.push(`Week ${w} is overdue to close (${num(wk.questions) - num(wk.resolved)} question(s) still open).`);
+  } else if (st.time > weekEnd(st, w) + st.closeDelay + 3 * HOUR_MS && num(wk.last_resolved_time) > weekEnd(st, w)
+    && lateResultIsOurs(bs.ownResolves, num(wk.last_resolved_time))) {
+    // The bot's own late resolve (it was down, e.g. a GitHub outage) moved the close: expected, said plainly, no alarm.
+    const msg = `Week ${w} closes at ${utc(closeAt(st, w, wk))}: 12 h after its latest result (${utc(num(wk.last_resolved_time))}), which was this bot's own late resolve after it was down. This is expected; nothing to do.`;
+    log(`  note: ${msg}`);
+    if (process.env.GITHUB_ACTIONS) console.log(`::notice::${msg}`);
   } else if (st.time > weekEnd(st, w) + st.closeDelay + 3 * HOUR_MS && num(wk.last_resolved_time) > weekEnd(st, w)) {
     ctx.problems.push(`Week ${w} is still open ${((st.time - weekEnd(st, w) - st.closeDelay) / HOUR_MS).toFixed(0)} h after its normal close: its latest result or correction was at ${utc(num(wk.last_resolved_time))}. Only the owner key can change results; if you did not, your admin key may be compromised.`);
   }
@@ -568,7 +584,7 @@ async function healthPass(ctx: Ctx, bs: BotState) {
   if (ctx.desk) await deskHealth(ctx, bs, ownerAlert);
   // v6: game announcements, changes to the game list, owner corrections and voided game weeks.
   const view = await vaultView(ctx.chain);
-  if (view) bs.games = vaultAlerts(view, st, await recentGameWeeks(ctx.chain, view, st.weeksClosed), ownerAlert, bs.games);
+  if (view) bs.games = vaultAlerts(view, st, await recentGameWeeks(ctx.chain, view, st.weeksClosed, st.c), ownerAlert, bs.games);
   bs.notified = [...still];
   if (st.c.operator && st.c.operator !== ctx.operator.getAddress() && ctx.chain.kind === "koinos" && E.OPERATOR_WIF)
     ctx.problems.push(`The contract's operator is ${st.c.operator}, not this bot (${ctx.operator.getAddress()}).`);
@@ -715,6 +731,16 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
   // On the simulated chain the blocks come from blocks.csv, and the generator is asked to download missing ones.
   let ranGenerator = false;
   const fresh = new Map<string, Blk[]>();
+  // Owner, 10 Nov: a test week (vaultTestWeeks) plays but pays nothing. Its questions are posted VOID on chain, whatever
+  // their blocks say: under the old rules anyone can settle anyone, so with the bot settling nobody a lone settled
+  // player would take the week's whole pot (Repo Lens #F-4 F4-1). VOID = no answer counts = no entry can win = the pot
+  // rolls over. The file keeps the real answer, and the site shows it as a practice result (app.js practiceOf).
+  const tw = testWeeks(readJson(ctx.P.deployment, null));
+  const testWeek = (q: any) => tw.includes(num(q.week));
+  // Repo Lens #F-6 F6-1: a test-week question with a real outcome on chain alerts on every run until it is VOID, and the
+  // alert carries the exact owner command (F6-2), which posts the practice data_hash.
+  const mustVoid = async (q: any, chainOutcome: number, week: number) =>
+    ctx.problems.push(`${q.id} (#${q.chainId}) is in test week ${q.week} (vaultTestWeeks), so it must be VOID, but it has outcome ${chainOutcome} on chain. Void it with the owner key: npm run bot -- void-test ${q.chainId} --send (posts VOID with data_hash 0x${practiceHash(q.result)}, the practice hash of the real result ${q.result?.dataHash ?? "?"}); ${await correctionDeadline(ctx, st, week)}.`);
   const windowOf = async (q: any, csv: Blk[]) => {
     if (!ctx.windowBlocks) return csv;
     const k = `${q.windowStart}-${q.windowEnd}`;
@@ -728,7 +754,13 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
       let dirty = false;
       for (const q of f.data.questions ?? []) {
         if (q.chainId === undefined) continue;
-        if (q.chainOutcome !== undefined) { if (q.week >= st.weeksClosed && await correctionCheck(ctx, q)) dirty = true; continue; }
+        if (q.chainOutcome !== undefined) {
+          if (q.week >= st.weeksClosed) {
+            if (await correctionCheck(ctx, q, testWeek(q) ? practiceHash(q.result) : undefined)) dirty = true;
+            if (testWeek(q) && q.chainOutcome !== 1000 && q.result) await mustVoid(q, q.chainOutcome, num(q.week));
+          }
+          continue;
+        }
         const onChain = (await ctx.chain.read("get_question", { id: q.chainId })).question;
         const resolved = num(onChain.outcome) !== 0;
         if (!resolved && !due(onChain)) continue;
@@ -764,13 +796,14 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
             ctx.problems.push(`${q.id} (#${q.chainId}) got outcome ${q.chainOutcome}${q.chainOutcome === 1000 ? " (void)" : ""} on chain before its window's blocks were final; the bot did not post it. If you did not void it, your admin key may be compromised.`);
           }
           if (scored.ok) {
-            const mine = storedOutcome(scored.result);
+            const mine = testWeek(q) ? 1000 : storedOutcome(scored.result);
             if (!q.result || q.result.dataHash !== scored.result.dataHash || q.result.void !== scored.result.void || q.result.option !== scored.result.option) {
               q.result = scored.result;
             }
             if (mine !== q.chainOutcome) {
               log(`  ⚠ ${q.id} (#${q.chainId}): on-chain outcome ${q.chainOutcome} differs from the blocks (${mine}${scored.result.void ? ", void" : ""}).`);
-              ctx.problems.push(`${q.id} (#${q.chainId}): the on-chain outcome (${q.chainOutcome}) differs from what the blocks say (${mine}${scored.result.void ? ", void" : ""}). Check it; ${await correctionDeadline(ctx, st, num(onChain.week))}.`);
+              if (testWeek(q)) await mustVoid(q, q.chainOutcome, num(onChain.week));
+              else ctx.problems.push(`${q.id} (#${q.chainId}): the on-chain outcome (${q.chainOutcome}) differs from what the blocks say (${mine}${scored.result.void ? ", void" : ""}). Check it; ${await correctionDeadline(ctx, st, num(onChain.week))}.`);
             }
           }
           continue;
@@ -812,12 +845,14 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
             continue;
           }
         }
-        const outcome = chainOutcome(scored.result);
-        const dataHash = "0x" + scored.result.dataHash;
-        const label = scored.result.void ? `VOID (${scored.result.reason})` : `option ${String.fromCharCode(65 + (scored.result.option ?? 0))} (actual ${scored.result.value})`;
+        const outcome = testWeek(q) ? 1000 : chainOutcome(scored.result);
+        const dataHash = "0x" + (testWeek(q) ? practiceHash(scored.result) : scored.result.dataHash);
+        const label = testWeek(q) ? `VOID (week ${q.week} is a test week: practice result only)`
+          : scored.result.void ? `VOID (${scored.result.reason})` : `option ${String.fromCharCode(65 + (scored.result.option ?? 0))} (actual ${scored.result.value})`;
         // Not marked done here: the next pass reads the outcome back from the chain, so a transaction that never
         // made it into a block is simply sent again.
-        await sendOp(ctx, `resolve ${q.id} (#${q.chainId}) → ${label}`, [{ method: "resolve_question", args: { id: q.chainId, outcome, data_hash: dataHash } }]);
+        if (await sendOp(ctx, `resolve ${q.id} (#${q.chainId}) → ${label}`, [{ method: "resolve_question", args: { id: q.chainId, outcome, data_hash: dataHash } }]) && !ctx.dryRun)
+          bs.ownResolves = [...(bs.ownResolves ?? []), Date.now()].slice(-60);
       }
       if (dirty && !ctx.dryRun) writeJson(f.file, f.data);
     }
@@ -839,10 +874,18 @@ async function correctionDeadline(ctx: Ctx, st: { genesis: number; weekLen: numb
 }
 
 /** A posted result changed on chain (only the owner can do that, with correct_question): record it and email. */
-async function correctionCheck(ctx: Ctx, q: any): Promise<boolean> {
+async function correctionCheck(ctx: Ctx, q: any, testVoidHash?: string): Promise<boolean> {
   const onChain = (await ctx.chain.read("get_question", { id: q.chainId })).question ?? {};
   const now = num(onChain.outcome);
   const hex = (x: any) => String(x ?? "").replace(/^0x/, "").toLowerCase();
+  // A test-week question voided with void-test (VOID + its practice hash) is the expected owner step: a log line, no alarm.
+  if (testVoidHash && now === 1000 && q.chainOutcome !== 1000 && hex(onChain.data_hash) === hex(testVoidHash)) {
+    log(`  ${q.id} (#${q.chainId}): voided for the test week, as expected`);
+    (q.corrections ??= []).push({ from: q.chainOutcome, to: now, dataHash: onChain.data_hash, seenAt: new Date().toISOString(), testWeek: true });
+    q.chainOutcome = now;
+    q.chainDataHash = String(onChain.data_hash);
+    return true;
+  }
   if (now === q.chainOutcome) {
     // Same outcome: compare the data_hash with the one recorded (or, for older files, the bot's own result).
     const known = hex(q.chainDataHash ?? q.result?.dataHash), seen = hex(onChain.data_hash);
@@ -1087,17 +1130,36 @@ const FREE_SETTLE_MAX = 20;
 const SETTLE_BUDGET_MS = 40 * 60_000;
 
 /** Vault v6.1 (D-116): from its rule week Daily Questions is paid from a results file like every vault game, with no
- *  settle step (a settle there reverts). The same test as the Vault chat's sharedRulesWeek (bot/vault.ts on its branch):
+ *  settle step (a settle there reverts). The same test as sharedRulesWeek in bot/vault.ts (one rule, two names):
  *  config.q60_rule_week_plus_one > 0 and week + 1 >= it. The live v6 code has no such field: every week is old-rule. */
-export const questionsSharedWeek = (c: any, w: number) => { const v = num(c?.q60_rule_week_plus_one); return v > 0 && w + 1 >= v; };
+export const questionsSharedWeek = sharedRulesWeek;
+/** The owner's `void-test <#>` call: correct_question to VOID with the question file's practice hash. Refuses a question
+ *  that is not in a test week (bot void is for those) or has no result in its file yet. */
+export function voidTestArgs(P: Paths, id: number) {
+  const q: any = dayFiles(P).flatMap((f) => f.data.questions ?? []).find((x: any) => Number(x.chainId) === id);
+  if (!q) throw new Error(`question #${id} is in no question file`);
+  if (!testWeeks(readJson(P.deployment, null)).includes(num(q.week))) throw new Error(`question #${id} is in week ${q.week}, which is not a test week (vaultTestWeeks): use bot void for other weeks`);
+  if (!q.result?.dataHash) throw new Error(`question #${id} has no result in its file yet: the bot posts it VOID itself when it resolves`);
+  return { id, outcome: 1000, data_hash: "0x" + practiceHash(q.result) };
+}
+/** The data_hash a test-week question is posted VOID with (Repo Lens #F-6 F6-3): sha256 of the blocks' data_hash, ":practice:"
+ *  and the real option, so the page can check that the practice answer it shows is the bot's, not an edited file's. A
+ *  result that is itself void keeps its own data_hash (the page shows it as void). */
+export function practiceHash(result: any): string {
+  if (!result || result.void || !Number.isInteger(result.option)) return String(result?.dataHash ?? "");
+  return sha256hex(`${result.dataHash}:practice:${result.option}`);
+}
 
 async function settlePass(ctx: Ctx) {
   const st = await state(ctx);
   const h = st.time;
   const started = Date.now();
   const outOfTime = () => Date.now() - started > SETTLE_BUDGET_MS;
+  const tw = testWeeks(readJson(ctx.P.deployment, null));
   for (let w = st.weeksFinalized; w < st.weeksClosed; w++) {
-    if (questionsSharedWeek(st.c, w)) continue;   // shared rules: no settle step
+    if (tw.includes(w)) continue;   // owner, 10 Nov: a test week pays nothing (its questions are VOID); nobody settles it
+    if (sharedRulesWeek(st.c, w)) continue;   // v6.1 (D-116): paid from its results file, no settle step (Repo Lens #E-16 N-1)
+    if (await questionWeekShared(ctx.chain, st.c, w)) continue;   // the same after a rollback (the contract's qShared rule)
     const wk = (await ctx.chain.read("get_week", { week: String(w) })).week ?? {};
     if (h < num(wk.settle_start) || h > num(wk.settle_end)) continue;
     // The switch-over week (the last old-rule week) is settled by this pass alone: from the rule week on, a player's
@@ -1188,6 +1250,11 @@ export async function status(ctx: Ctx) {
   log(now < st.genesis ? `Game starts ${utc(st.genesis)} (in ${inH(st.genesis)})`
     : `Week ${w + 1}: ends ${utc(weekEnd(st, w))} (in ${inH(weekEnd(st, w))}); results final ${utc(weekEnd(st, w) + st.closeDelay)}`);
   log(`Weeks closed ${st.weeksClosed}, finalized ${st.weeksFinalized}; questions posted ${st.nextId}`);
+  // v6.1: how many questions a week may hold (week numbers here are 1-based, so the stored rule week (+1) is the label).
+  if (st.raw.questions_cap !== undefined) {
+    const rule = Number(st.raw.config?.q60_rule_week_plus_one ?? 0);
+    log(`Questions a week  this week ${st.raw.questions_cap ?? 30}, next week ${st.raw.questions_cap_next ?? 30}; ${rule > 0 ? `60 from Week ${rule} (stored rule ${rule})` : "the 60 rule is not set yet (the next action sets it: 60 from next week)"}`);
+  }
   log(`Holdings  ${showKoin(holdings)}  (VHP ${showKoin(st.raw.vhp_balance)} + KOIN ${showKoin(st.raw.koin_balance)})   contract Mana ${showKoin(st.raw.mana)}`);
   log(`Owed      ${showKoin(owed)}  = stakes ${showKoin(t.total_stake)} + seed ${showKoin(big(t.seed_vhp) + big(t.seed_koin))} + producer fee ${showKoin(big(t.creator_fee) + big(t.fee_vhp))} + unclaimed pots ${showKoin(t.pots_outstanding)}${big(t.games_rolled) > 0n ? ` + buckets rolling over ${showKoin(t.games_rolled)}` : ""}${big(t.owner_share) > 0n ? ` + old owner share ${showKoin(t.owner_share)}` : ""}`);
   log(`Earned since the last close (not yet split): ${showKoin(holdings - owed)}${big(t.rolled_over) > 0n ? `  (includes ${showKoin(t.rolled_over)} carried over from a week with no winners; no fee on that part)` : ""}`);
@@ -1599,7 +1666,8 @@ async function verifyResults(days: number, rpcArg?: string) {
     // A result that can't be recounted is not a pass (audit L-8).
     if (!sc.ok) { bad++; lines.push(`VERIFY-ALERT ?  ${q.id} (#${q.chainId}): could not recount (${sc.reason})`); continue; }
     checked++;
-    const mine = storedOutcome(sc.result), hashOk = String(oc.data_hash ?? "").replace(/^0x/, "").toLowerCase() === sc.result.dataHash;
+    const test = testWeeks(readJson(P.deployment, null)).includes(num(q.week));
+    const mine = test ? 1000 : storedOutcome(sc.result), hashOk = String(oc.data_hash ?? "").replace(/^0x/, "").toLowerCase() === (test ? practiceHash(sc.result) : sc.result.dataHash);
     const show = (o: number) => (o === 1000 ? "void" : `option ${String.fromCharCode(64 + o)}`);
     if (mine === outcome && hashOk) lines.push(`✔  ${q.id} (#${q.chainId}): ${show(outcome)} — matches your node's blocks`);
     else {
@@ -1831,6 +1899,11 @@ async function friendly(cmd: string, a: string[], send: boolean): Promise<boolea
     case "claim": await act("player", "claim", { player: me("player"), week: need(0, "week number") }, send); return true;
     case "claim-fee": await act("owner", "claim_creator_fee", { to: a[0] && !a[0].startsWith("--") ? a[0] : me("owner") }, send); return true;
     case "void": await act("owner", "correct_question", { id: Number(need(0, "question number")), outcome: 1000, data_hash: "0x" + sha256hex(`voided by the owner: ${a.slice(1).filter((x) => !x.startsWith("--")).join(" ") || "no reason given"}`) }, send); return true;
+    case "void-test": {
+      // void-test <question #>: a test-week question (vaultTestWeeks) with a real outcome becomes VOID, with the practice
+      // data_hash of the bot's real result, so the page keeps showing it as practice and verify agrees (Repo Lens #F-6 F6-2).
+      await act("owner", "correct_question", voidTestArgs(paths(E.GEN_DIR ?? "game-data"), Number(need(0, "question number"))), send); return true;
+    }
     case "sponsor-limit": await act("owner", "set_sponsor_limit", { max_sponsor_rc: units(need(0, "KOIN of Mana (0 = off)")), min_sponsor_rc: units(a[1] && !a[1].startsWith("--") ? a[1] : "0") }, send); return true;
     case "min-stake": await act("owner", "set_min_stake", { min_stake: whole(need(0, "VHP (whole number, at least 1)")) }, send); return true;
     case "pause": await act("owner", "set_paused", { paused: need(0, "on or off") === "on" }, send); return true;
@@ -2176,6 +2249,8 @@ async function main() {
       log(`\n⚠ NEEDS ATTENTION (${ctx.problems.length}):\n${ctx.problems.map((p) => "  • " + p).join("\n")}`);
       // On GitHub, also show each one on the run's summary page (and in the email), not only inside the log.
       if (process.env.GITHUB_ACTIONS) for (const p of ctx.problems) console.log(`::error title=Needs attention::${p.replace(/\r?\n/g, " ")}`);
+      // R-VAULT-9: the same alerts in plain language at the top of the run page (what happened, does it matter, what to do).
+      if (process.env.GITHUB_ACTIONS) writeSummary({ workflow: "Knode Games bot", lines: ctx.problems, section: 3 });
       process.exitCode = 1; // a failed scheduled run makes GitHub email you
     }
     return;
@@ -2196,6 +2271,8 @@ async function main() {
   // Vault v6: copy the live contract's state to a file (read-only, no key), and rehearse the upgrade on that copy.
   if (cmd === "vault-snapshot") { const { snapshotCommand } = await import("./rehearse-v6.ts"); return snapshotCommand(gameChain(), opt("--out", "v5-snapshot.json")!); }
   if (cmd === "testnet-v6") { const { testnetV6 } = await import("./testnet-v6.ts"); return testnetV6(rest.filter((a) => !a.startsWith("--"))); }
+  if (cmd === "testnet-v61-sponsor") { const { testnetV61Sponsor } = await import("./testnet-v61-sponsor.ts"); return testnetV61Sponsor(); }
+  if (cmd === "testnet-v61-d8") { const { testnetV61D8 } = await import("./testnet-v61-d8.ts"); return testnetV61D8(rest.filter((a) => !a.startsWith("--"))); }
   if (cmd === "rehearse-v6") { const { rehearseCommand } = await import("./rehearse-v6.ts"); return rehearseCommand(opt("--snapshot", "v5-snapshot.json")!, Number(opt("--weeks", "3")), opt("--reward")); }
   throw new Error(`Unknown command "${cmd}". See bot/README.md for the list of commands.`);
 }

@@ -47,6 +47,23 @@ before the start, the override is set aside and the node starts on its old folde
 - The self-heal and `repair-node-data.ps1` know volume nodes: they read the block-store log and old backups inside the
   volume, and repairs copy into or out of it with the same small container.
 
+## Backing up the block-producer keys (and restoring one)
+Each node signs blocks with its own key, `basedir\block_producer\private.key` (or inside its Docker volume). With an
+offline copy, a replacement PC produces at once with the same key: the pool needs no re-registering and the Desk
+avoids its 48-hour key wait (`.ai/platform/RECOVERY.md` §2 #4, §4).
+
+```powershell
+cd C:\kprediction
+powershell -ExecutionPolicy Bypass -File node\backup-producer-keys.ps1 -To E:\
+```
+It writes `E:\knode-producer-keys-<date>\<game|desk|personal>\private.key`, checks each copy is identical, and prints
+**only the public keys**, each checked against the key registered on chain (`tools/producer-keys.ts`, read-only). It
+refuses to write into the repository or a node's folder. To restore on a new PC: `node\setup-node.ps1 … -RestoreKey
+<that private.key>` (it asks you to confirm the old node is off for good, and never replaces a different key).
+
+**Never run two nodes with the same key at the same time.** Keep the stick offline; never put a key in a chat, an
+email or the repository.
+
 ## Other scripts
 - `setup-node.ps1`: set up a mainnet node and block producer (downloads a checked chain snapshot). See also `.ai/platform/RECOVERY.md`.
 - `install-release-kick.ps1`: the PC's backup starter for the Daily Questions release (`bot/release-kick.mjs`).

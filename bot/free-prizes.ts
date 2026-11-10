@@ -30,9 +30,11 @@ export const FILE = "free-prizes.json";
 /** Vault week 0 began Mon 19 Oct 2026 00:00 UTC; weeks are 7 days (the contract's genesis_time / week_length). */
 export const GENESIS_MS = Date.UTC(2026, 9, 19);
 export const WEEK_MS = 7 * 24 * 3_600_000;
-/** The vault's game ids besides game 1 (game 1, the questions, pays its free prize on its own). */
+/** The vault's game ids. Game 1 (Daily Questions) is on the switch from v6.1's rule week (D-136, owner 5 Nov): from then
+ *  its free winners come from its results file like every game's, and the bot posts them only when the switch is on.
+ *  Weeks before the rule week pay game 1's free prize the old way (settle and claim); the switch doesn't reach them. */
 export const GAMES: Record<string, string> = {
-  "2": "Who Signs Block X", "3": "Survivor", "4": "Fantasy Producers", "6": "Block Golf", "7": "Producer Race",
+  "1": "Daily Questions", "2": "Who Signs Block X", "3": "Survivor", "4": "Fantasy Producers", "6": "Block Golf", "7": "Producer Race",
   "8": "Combo Card", "9": "Producer Bracket", "13": "Last Node Standing",
 };
 const MAX_CHANGES = 200;
@@ -56,7 +58,7 @@ export const empty = (): Switches => ({ v: 1, games: {} });
 export function checkSwitches(s: any): string {
   if (!s || typeof s !== "object" || s.v !== 1 || !s.games || typeof s.games !== "object" || Array.isArray(s.games)) return "not a v1 switches file";
   for (const [id, list] of Object.entries(s.games)) {
-    if (!/^[0-9]{1,3}$/.test(id) || id === "1") return `bad game id ${id}`;
+    if (!/^[0-9]{1,3}$/.test(id)) return `bad game id ${id}`;
     if (!Array.isArray(list) || list.length > MAX_CHANGES) return `game ${id}: changes must be a list (at most ${MAX_CHANGES})`;
     let last = -1;
     for (const c of list as any[]) {

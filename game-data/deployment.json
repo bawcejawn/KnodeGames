@@ -8,7 +8,7 @@
   "koin": "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK",
   "vhp": "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq",
   "pob": "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv",
-  "wasmSha256": "eed38f7ce130d9d2e0dfafa8ddd5c4a6f383e2c7ce12ab87b02c584f43920b3d",
+  "wasmSha256": "11043e1fde1d8d7dbac75e9e5e788d058a7116b0dab6149fc09ecdc7b1c4258b",
   "uploaded": true,
   "uploadTx": "0x1220b0341e1e8cec8fc5b0c6780862705d6aa45c49ff9d2d065fa972f1572fc6aa08",
   "genesisTime": 1792368000000,
@@ -20,7 +20,7 @@
   "minStake": "100000000",
   "maxSponsorRc": "0",
   "deployedAt": "2026-10-16T02:03:38.621Z",
-  "upgradedAt": "2026-11-02T02:29:33.874Z",
+  "upgradedAt": "2026-11-10T14:57:00.000Z",
   "producerKey": "Ak0vGklNyfkjroA5_nT04sfBy_IkloaNbXYiOClcjMm3",
   "chainId": "EiBZK_GGVP0H_fXVAM3j6EAuz3-B-l3ejxRSewi7qIBfSA==",
   "payer": "sponsor",
@@ -53,7 +53,12 @@
     },
     "guest": true
   },
+  "vaultTestWeeks": [3],
   "vaultGames": {
+    "1": {
+      "name": "Daily Questions",
+      "results": "games-data:questions/vault"
+    },
     "2": {
       "name": "Who Signs Block X",
       "results": "games-data:blockx/vault"
@@ -92,5 +97,5 @@
       "boardCap": 2000
     }
   },
-  "safeWasmSha256": "e84fec492d47e08f583c352bb26e3d36dc0149926c0482d0820b0dbd97af9fe3"
+  "safeWasmSha256": "04c27c1acde570b97a430dea403d41aab47e083ae30115353ee5f89932dad0bb"
 }

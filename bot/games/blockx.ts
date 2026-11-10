@@ -43,6 +43,7 @@ const X: any = (globalThis as any).KBlockX;
 const E = process.env;
 const LOOKBACK_BLOCKS = 3 * 28800;          // targets older than ~3 days: void if they still can't be recorded
 const MAX_TARGETS_PER_RUN = 48;             // so a long outage catches up over a few runs
+const STRANDED_PER_RUN = 24;                // stranded holes filled per run (3b), so a long gap catches up too
 const STABLE_MS = 3600000;                  // D-135: final once two runs at least an hour apart read the week the same
 const VAULT_WINDOW_MS = 3 * 86400000;       // the vault takes a week's results file within 3 days of its end (games.yml)
 const CARD_BLOCKS = 7200;                   // a self-made card looks at the last ~6 hours of blocks
@@ -903,6 +904,44 @@ export async function run(o: Opts) {
       // Audit BX-16: a target that keeps failing is voided, with its reason, when it reaches the edge of the window, so
       // the week can still become final.
       if (old) voidAt(r, h, 0, 0, `could not be recorded within 3 days: ${String((e as Error).message).slice(0, 120)}`, G);
+    }
+  }
+
+  // ── 3b. stranded targets (owner, 10 Nov 2026, after the GitHub outage of 6-10 Nov) ──
+  // A target the recorder never reached before it left the 3-day window (the recorder wasn't running) leaves a hole in
+  // its week, and the week can then never become final. A hole between two recorded targets of the same game, in last
+  // week or this week, is filled with a void row, but only when BOTH nodes read the same block and its lock and NO picks
+  // for that round (nobody can lose points). A hole with picks, or that the nodes read differently, is never filled: it
+  // is reported every run for the owner.
+  if (picksRead) {
+    let filled = 0;
+    for (const w of [nowW - 1, nowW]) {
+      if (w < 0) continue;
+      const G = GW(w);
+      if (badGames.has(G)) continue;
+      const firstRound = Math.max(1, Math.ceil((head.lib - LOOKBACK_BLOCKS - G.OFFSET) / G.ROUND));
+      const rounds = [...new Set([...weekFor(w - 1 >= 0 ? w - 1 : w).targets, ...weekFor(w).targets, ...(w + 1 <= nowW ? weekFor(w + 1).targets : [])]
+        .filter((t) => GW(M.weekOf(t.time)) === G).map((t) => t.round))].sort((x, y) => x - y);
+      for (let i = 1; i < rounds.length; i++) {
+        for (let r = rounds[i - 1] + 1; r < rounds[i] && r < firstRound; r++) {
+          if (filled >= STRANDED_PER_RUN) break;
+          if (done.has(`${G.GAME_ID}:${r}`)) continue;
+          const h = G.target(r);
+          try {
+            const b = await blockP(h), lock = await blockP(h - G.LEAD);
+            if (blockC) {
+              const b2 = await blockC(h), l2 = await blockC(h - G.LEAD);
+              if (b2.signer !== b.signer || b2.time !== b.time || l2.time !== lock.time) { problems.push(`block ${h}: a stranded target the two nodes read differently; left for the owner`); continue; }
+            }
+            if (!inGame(G, b.time) || M.weekOf(b.time) < nowW - 1) continue;   // never a week before last week
+            const p1 = await picksRead(o.p, r, G.GAME_ID), p2 = o.check ? await picksRead(o.check, r, G.GAME_ID) : p1;
+            if (p1.length || p2.length) { problems.push(`block ${h}: a stranded target (not recorded within 3 days) has ${Math.max(p1.length, p2.length)} pick(s) on chain; left for the owner`); continue; }
+            voidAt(r, h, b.time, lock.time, "not recorded within 3 days (the recorder wasn't running); no picks on chain, so no points", G);
+            filled++;
+            console.log(`block ${h}: stranded target recorded as void (no picks on either node)`);
+          } catch (e) { problems.push(`block ${h}: stranded target: ${(e as Error).message} (tried again next run)`); }
+        }
+      }
     }
   }
 

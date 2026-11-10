@@ -1054,3 +1054,57 @@ test("Repo Lens #E-23 L-1: only when every node says game 12 is missing are its 
   assert.match(src, /if \(missingGames\.has\(G\) && \(raw\.length \|\| other\.length\)\) \{ problems\.push/, "B14-1: picks found for a 'missing' game: the round waits");
   assert.match(src, /est >= e\.from - 6 \* 3600000 && est < e\.to \+ 6 \* 3600000/, "E-23 I-1: ±6 h");
 });
+
+// ── Owner 10 Nov 2026 (option 2, after the GitHub outage of 6-10 Nov): stranded targets ──
+/** Week 3 with no runs from Wednesday ~12:00 to Sunday ~12:00 (the recorder wasn't running), then hourly Monday runs. */
+async function outageWeek(picks, { check = null, blocks = blockOf() } = {}) {
+  const rd = raceDir();
+  let prev, last;
+  const startH = H0 - Math.floor(3600000 / 3000), endH = startH + 7 * 28800;
+  const off = [startH + 2.5 * 28800, startH + 6.5 * 28800];
+  for (let lib = startH + 12 * X.ROUND; lib < endH; lib += 12 * X.ROUND) {
+    if (lib > off[0] && lib < off[1]) continue;
+    const o = tmp();
+    await quiet(() => run({ p: "main", check, prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blocks, picksOf: picks, rankedOf, head: { height: lib, time: T(lib), lib } }));
+    prev = o;
+  }
+  for (let k = 0; k < 5; k++) {
+    const at = endH + (13 + 1.5 * k) * 1200, o = tmp();
+    last = await quiet(() => run({ p: "main", check, prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blocks, picksOf: picks, rankedOf, head: { height: at, time: T(at), lib: at - 60 } }));
+    prev = o;
+  }
+  return { r: last, w3: JSON.parse(fs.readFileSync(path.join(prev, "W003.json"), "utf8")) };
+}
+const holeFrom = T(H0 - 1200 + 2 * 28800), holeTo = T(H0 - 1200 + 4.5 * 28800);
+const inHole = (r) => T(r * X.ROUND) > holeFrom && T(r * X.ROUND) < holeTo;
+const STRANDED = /not recorded within 3 days \(the recorder wasn't running\)/;
+
+test("owner 10 Nov (option 2): a hole the recorder never reached, with no picks on either node, is recorded void and the week goes final", async () => {
+  const picks = async (node, r) => (inHole(r) ? [] : picksGuest(node, r));
+  const { r, w3 } = await outageWeek(picks, { check: "check" });
+  const rs = w3.targets.map((t) => t.round);
+  for (let i = 1; i < rs.length; i++) assert.equal(rs[i], rs[i - 1] + 1, "no hole left in week 3");
+  const filled = w3.targets.filter((t) => typeof t.void === "string" && STRANDED.test(t.void));
+  assert.ok(filled.length > 24, `the long hole is filled over more than one run (${filled.length} rows, 24 a run)`);
+  assert.ok(filled.every((t) => t.picks.length === 0 && t.checked === 0 && inHole(t.round)), "only rows inside the hole, no picks, unread like a 3-day-edge void");
+  assert.equal(r.board.lastWeek.week, 3); assert.equal(r.board.lastWeek.final, true, "week 3 goes final");
+});
+
+test("owner 10 Nov (option 2): a stranded hole with picks on chain is never filled; the week waits for the owner", async () => {
+  let pickRound = null;
+  const picks = async (node, r) => { if (!inHole(r)) return picksGuest(node, r); pickRound ??= r; return r === pickRound ? [{ player: BOB, producer: BIG, time: T(r * X.ROUND) - 3600000 }] : []; };
+  const { r, w3 } = await outageWeek(picks, { check: "check" });
+  assert.ok(!w3.targets.some((t) => t.round === pickRound), "the round with a pick is not written");
+  assert.ok(r.problems.some((p) => /a stranded target \(not recorded within 3 days\) has 1 pick\(s\) on chain; left for the owner/.test(p)), "and is reported");
+  assert.equal(r.board.lastWeek.final, false, "the week waits");
+});
+
+test("owner 10 Nov (option 2): a stranded block the two nodes read differently is never filled", async () => {
+  let bad = null;
+  const blocks = async (node, h) => { const t = T(h); if (bad === null && t > holeFrom + 3600000 && t < holeTo && h % X.ROUND === 0) bad = h; return { signer: node === "check" && h === bad ? SMALL : signerOf(h), time: t }; };
+  const picks = async (node, r) => (inHole(r) ? [] : picksGuest(node, r));
+  const { r, w3 } = await outageWeek(picks, { check: "check", blocks });
+  assert.ok(bad !== null && !w3.targets.some((t) => t.height === bad), "the disputed block is not written");
+  assert.ok(r.problems.some((p) => p.includes(`block ${bad}: a stranded target the two nodes read differently; left for the owner`)));
+  assert.equal(r.board.lastWeek.final, false);
+});

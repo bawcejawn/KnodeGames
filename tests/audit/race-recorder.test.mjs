@@ -1970,3 +1970,20 @@ test("F11-1 (High): with PRIZES_FROM_WEEK unset, a finished week is not made fin
   const said = (lastProblems || []).some((p) => /PRIZES_FROM_WEEK/.test(p));
   assert.ok(said && !(f && f.final), `unset: the week-2 vault file is ${JSON.stringify(f)}; problems: ${JSON.stringify(lastProblems)}. Fail closed by holding (no final file) AND alerting every run.`);
 });
+
+// Repo Lens #F-12 (optional): APPEND to tests/audit/race-recorder.test.mjs. Passes at 973c3d1d: a week held for the unset
+// variable goes final by itself on the next run once the variable is set, and the alert stops.
+test("F11 fix-check probe: a week held for the unset variable goes final by itself on the next run once it is set", async () => {
+  const saved = process.env.PRIZES_FROM_WEEK;
+  try {
+    delete process.env.PRIZES_FROM_WEEK;
+    let dir = await picksRun(U("2026-11-09T05:37Z"), (await weekTwoDone()).dir, { staked: [W1], prizesFrom: null });
+    assert.equal(vaultOf(dir).final, false, "unset: pending");
+    assert.ok(lastRun.held.some((m) => /PRIZES_FROM_WEEK/.test(m)), "unset: a held alert names the variable: " + JSON.stringify(lastRun.held));
+    process.env.PRIZES_FROM_WEEK = "2";
+    dir = await picksRun(U("2026-11-09T06:37Z"), dir, { staked: [W1], prizesFrom: null });
+    const f = vaultOf(dir);
+    assert.ok(f.final && f.rows.length > 0, "set: final with rows on the next run: " + JSON.stringify(f));
+    assert.ok(!lastRun.held.some((m) => /PRIZES_FROM_WEEK/.test(m)), "set: the alert stops");
+  } finally { if (saved === undefined) delete process.env.PRIZES_FROM_WEEK; else process.env.PRIZES_FROM_WEEK = saved; }
+});

@@ -259,7 +259,7 @@ type Opts = {
    *  passes Date.now; the offline tests (fake chains in the future) leave it out. */
   clock?: () => number;
   stakedOf?: (node: any, who: string, week: number) => Promise<boolean>;   // staked in the Race in the vault (tests)
-  prizesFrom?: number;                                                // the tests' PRIZES_FROM_WEEK
+  prizesFrom?: number;                                                // the tests' PRIZES_FROM_WEEK (else the variable)
   /** I-034: the hold before a vault file goes final. Production always uses the defaults (VAULT_HOLD_MS after the week,
    *  then VAULT_STABLE_MS unchanged). `false` is for the older offline tests of the file's CONTENT only. */
   vaultHold?: false | { afterEnd: number; stable: number };
@@ -370,7 +370,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   verifyDeadline = Date.now() + VERIFY_BUDGET_MS;
   vaultRefused = null;
   heldAlerts = [];
-  prizesFromWeek = prizesFrom ?? PRIZES_FROM_WEEK;
+  prizesFromWeek = prizesFrom ?? prizesFromEnv(E.PRIZES_FROM_WEEK) ?? NO_PRIZES;   // owner, 10 Nov: the one variable Block X reads (fails closed: unset or bad = no prizes)
   hold = vaultHold === undefined ? { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS } : vaultHold;
   holdSetting = holdWeeks ? { weeks: holdWeeks, bad: false, raw: holdWeeks.join(",") } : parseHoldWeeks(E.RACE_HOLD_WEEKS);
   pendingOut = null; pendingNew = false; chainCtx = null;
@@ -938,8 +938,11 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
 export const VAULT_GAME = 7;
 /** The first vault week the Race earns in (owner, 2026-11-02: game 7 is applied in the vault and earns from week 3, Mon
  *  9 Nov 2026). Earlier weeks: no free-prize places, no staked rows and no medals (the vault skips them anyway). */
-export const PRIZES_FROM_WEEK = 3;   // also PRIZES_FROM in race.yml's publish check (Repo Lens #E-11 I-2): change both together
-let prizesFromWeek = PRIZES_FROM_WEEK;
+/** PRIZES_FROM_WEEK (the repository variable Block X reads too; owner, 10 Nov: both games start paying together): a plain week
+ *  number 0-9999, else no prizes at all (fails closed). The publish job in race.yml reads the same variable (Repo Lens #E-11 I-2). */
+export const prizesFromEnv = (v: string | undefined) => (v && /^[0-9]{1,4}$/.test(v.trim()) ? Number(v.trim()) : null);
+export const NO_PRIZES = Number.POSITIVE_INFINITY;
+let prizesFromWeek = NO_PRIZES;
 export const MAX_PRIZE_WINNERS = 10;
 export const MAX_ROW_POINTS = 255;
 type VaultRow = { player: string; points: number };

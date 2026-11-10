@@ -779,9 +779,13 @@ test("blind review V1 (round 10): the publish job holds a bad vault file and sti
   assert.ok(ch.ok, ch.out); assert.match(ch.out, /Refusing to change vault\/W2\.json/);
 });
 
-test("prizes from week: the Race earns in the vault from week 3; earlier weeks pay nothing and show no medals", async () => {
-  const { PRIZES_FROM_WEEK } = await import(path.resolve(APP, "bot/race.ts"));
-  assert.equal(PRIZES_FROM_WEEK, 3, "owner, 2026-11-02: game 7 earns from vault week 3 (Mon 9 Nov 2026)");
+test("prizes from week: the Race earns in the vault from the variable's week; earlier weeks pay nothing and show no medals", async () => {
+  // Owner, 10 Nov: the Race reads the repository variable PRIZES_FROM_WEEK, as Block X does (first paid week 4 = Mon 16 Nov);
+  // unset or anything but a plain week number 0-9999 means no prizes at all (fails closed).
+  const { prizesFromEnv, NO_PRIZES } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(prizesFromEnv("4"), 4); assert.equal(prizesFromEnv(" 4 "), 4); assert.equal(prizesFromEnv("0"), 0); assert.equal(prizesFromEnv("9999"), 9999);
+  for (const bad of [undefined, "", "x", "-1", "4.5", "04x", "10000", "1e3", "4 5"]) assert.equal(prizesFromEnv(bad), null, JSON.stringify(bad));
+  assert.equal(NO_PRIZES, Infinity);
   // The made-up week 2 with prizes starting at week 3: final, but nothing in it, and no medals on the boards.
   const { dir } = await weekTwoDone();
   const out = await picksRun(U("2026-11-09T05:37Z"), dir, { staked: [W1], prizesFrom: 3 });
@@ -1220,10 +1224,26 @@ test("I-085: the publish job's recompute agrees with the recorder's rules on 120
   }
 });
 
-test("I-085: the workflow never sets the recompute's test-only RACE_PRIZES_FROM (the job's default is PRIZES_FROM_WEEK)", async () => {
-  const { PRIZES_FROM_WEEK } = await import(path.resolve(APP, "bot/race.ts"));
-  assert.match(yml, new RegExp(`PRIZES_FROM = int\\(os\\.environ\\.get\\("RACE_PRIZES_FROM"\\) or ${PRIZES_FROM_WEEK}\\)`));
-  assert.equal((yml.match(/RACE_PRIZES_FROM/g) || []).length, 1, "only read, never set");
+test("I-085: the workflow never sets the recompute's test-only RACE_PRIZES_FROM, and both jobs get the one PRIZES_FROM_WEEK variable (owner, 10 Nov)", async () => {
+  assert.match(yml, /_pf = \(os\.environ\.get\("RACE_PRIZES_FROM"\) or os\.environ\.get\("PRIZES_FROM_WEEK"\) or ""\)\.strip\(\)/);
+  assert.match(yml, /PRIZES_FROM = int\(_pf\) if re\.fullmatch\(r"\[0-9\]\{1,4\}", _pf\) else 10 \*\* 9/, "the same rule as prizesFromEnv; anything else: no prizes");
+  assert.equal((yml.match(/RACE_PRIZES_FROM/g) || []).length, 2, "only read (the line and its comment), never set");
+  assert.equal((yml.match(/^\s+PRIZES_FROM_WEEK: \$\{\{ vars\.PRIZES_FROM_WEEK \}\}$/gm) || []).length, 2, "the record job and the publish job");
+  assert.doesNotMatch(yml, /PRIZES_FROM_WEEK: *['"]?\d/, "never a fixed number in the workflow");
+});
+
+test("owner 10 Nov: with PRIZES_FROM_WEEK unset or bad the Race pays nothing (fails closed); set to 4, week 3 is practice and a week from 4 pays", async () => {
+  const { dir } = await weekTwoDone();
+  // week 2 (the made-up week) with the variable unset: no prizes, a final empty file, no medals
+  const saved = process.env.PRIZES_FROM_WEEK; delete process.env.PRIZES_FROM_WEEK;
+  let none; try { none = await picksRun(U("2026-11-09T05:37Z"), dir, { staked: [W1], prizesFrom: null }); } finally { if (saved !== undefined) process.env.PRIZES_FROM_WEEK = saved; }
+  assert.deepEqual(vaultOf(none), { game: 7, week: 2, final: true, rows: [], first: [], second: [], skipped: [] });
+  const board = JSON.parse(fs.readFileSync(path.join(none, "board.json"), "utf8"));
+  for (const r of [...(board.lastWeek?.rows || []), ...(board.thisWeek?.rows || [])]) assert.ok(!r.earns && !r.prizes, "no medals");
+  // the variable "2" (week 2 is the first paid week): the same data now pays, read from the variable and not from the test option
+  process.env.PRIZES_FROM_WEEK = "2";
+  let paid; try { paid = await picksRun(U("2026-11-09T05:37Z"), (await weekTwoDone()).dir, { staked: [W1], prizesFrom: null }); } finally { if (saved === undefined) delete process.env.PRIZES_FROM_WEEK; else process.env.PRIZES_FROM_WEEK = saved; }
+  assert.ok(vaultOf(paid).rows.length > 0, "week 2 pays when the variable says so");
 });
 
 test("#85 merge check L-1: a new pending file is dated at the end of the run (head read again); a kept one keeps its date", async () => {
@@ -1373,8 +1393,8 @@ test("#E-11 L-3: text in ::warning:: / ::error:: lines is escaped (%, CR, LF), s
   for (const x of prints) assert.match(x, /\$\{cmdText\(/, x);
 });
 
-test("#E-11 I-2: PRIZES_FROM_WEEK says where its second copy is", () => {
-  assert.match(fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8"), /export const PRIZES_FROM_WEEK = 3;\s+\/\/ also PRIZES_FROM in race\.yml/);
+test("#E-11 I-2: the recorder says the publish job reads the same variable (its second copy)", () => {
+  assert.match(fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8"), /The publish job in race\.yml reads the same variable/);
 });
 
 // ── D-125 (owner, 4 Nov): the weekly rhythm — races Mon–Sat, Sunday UTC is the review day, final from Monday 00:00 UTC.
@@ -1388,8 +1408,8 @@ test("D-125 rhythm: race-math says which races rest (Sunday UTC, from week 3) an
   assert.equal(M.restRace(U("2026-11-08T06:00Z")), false, "week 2 isn't on the rhythm");
   assert.equal(M.restRace(U("2026-11-08T06:00Z"), 0), true);
   assert.equal(M.playEnd(3), U("2026-11-15T00:00Z"), "play ends Saturday 24:00 UTC");
-  const { PRIZES_FROM_WEEK } = await import(path.resolve(APP, "bot/race.ts"));
-  assert.equal(M.RHYTHM_FROM_WEEK, PRIZES_FROM_WEEK, "the rhythm starts with the first paid week");
+  // Owner, 10 Nov: prizes start from week 4 (the PRIZES_FROM_WEEK variable); the rhythm still starts with week 3, which is
+  // then the practice week: the same schedule, nothing paid.
   assert.match(yml, /RHYTHM_FROM = int\(os\.environ\.get\("RACE_RHYTHM_FROM"\) or 3\)/);
   assert.doesNotMatch(yml, /RACE_RHYTHM_FROM\s*[:=]/, "the workflow never sets the test-only value");
 });

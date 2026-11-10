@@ -137,9 +137,17 @@
             "1KfD7n93LnnihyygopWUVTkbtWVe5aXXGW": "5460940036527"
           },
           "seal": "94529a2aad3ca535f2af3facec4c3daa26ebf196610a3766dd2fb554d3f13f7a"
+        },
+        {
+          "height": 40969886,
+          "readAt": "2026-11-10T23:40:42.540Z",
+          "values": {
+            "1KfD7n93LnnihyygopWUVTkbtWVe5aXXGW": "5458078059413"
+          },
+          "seal": "ed4b30bd2945508ed621eb3284aa77c7cb69805668eacbc53dca9ee773f246d2"
         }
       ],
-      "vhpSeal": "7c82b54a535c4d20e4c043724f88dbe7f94e3ed496bb50d21fe21d10febc5a08"
+      "vhpSeal": "09a91981aed610a59b7ed1176f76068c353346f092bd754748ee8ac013190994"
     },
     {
       "id": "W003-D2-00-2",
@@ -311,7 +319,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1000,
+      "chainDataHash": "0x6891cd42d58756d025be816ffb7014187b077ceb7931e1bed8744a36dea05c16"
     }
   ],
   "daySeal": "224d616a6e62f2dba8939b2025144a62c0096ae74c0c7bed5505b14723a1eb87"

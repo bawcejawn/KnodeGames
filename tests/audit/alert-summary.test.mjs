@@ -44,7 +44,7 @@ test("every alert gets the five parts; an unknown one points to the Vault chat",
 
 test("deadlines are shown in UTC and Pacific time", () => {
   assert.deepEqual(deadlines("results are due 2026-11-19 00:00 UTC"), ["Thu, Nov 19 00:00 UTC (Wed, Nov 18 4:00 PM PT)"]);
-  assert.deepEqual(deadlines("from 2026-11-07T05:00:00.000Z"), ["Sat, Nov 7 05:00 UTC (Fri, Nov 6 9:00 PM PT)"]);
+  assert.deepEqual(deadlines("settle it before 2026-11-07T05:00:00.000Z"), ["Sat, Nov 7 05:00 UTC (Fri, Nov 6 9:00 PM PT)"]);
   assert.deepEqual(deadlines("no time here"), []);
 });
 

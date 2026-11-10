@@ -92,7 +92,9 @@ The bot compares the chain with the records on `main` (`game-data/deployment.jso
 | "Week N: … staked player(s) are still not settled" | settling incomplete | Vault chat |
 | "A transaction failed: …" / "<step> failed: …" | a bot send failed | usually a node hiccup; if it repeats, paste to the Vault chat (`RUNBOOK.md` §2) |
 | "the two nodes disagree … One node is wrong or lying" / RPC_CHECK unreadable | the two-node check failed | wait a run; if it repeats, Vault chat (TD-10) |
-| Question file / params hash / VHP list mismatch; result changed on chain; resolver failed; generator failed; no fair questions; day file not sealed by this bot; week slot full | question pipeline problems | Questions chat; don't post by hand |
+| "A result was changed on chain: …" / "A result was re-posted on chain with the same outcome: …" / "… on chain before its window's blocks were final …" | a question's result changed by a key other than the bot's own send | **if you did NOT do it, act at once**: `RUNBOOK.md` §7, then the Vault chat. If you voided it yourself (`void`, `void-test`): expected, fires once |
+| "… is in test week N (vaultTestWeeks), so it must be VOID, but it has outcome …" | a test-week question has a real result on chain (resolved before the test-week rule was on `main`) | run the line's own command, `npm run bot -- void-test <#> --send` (owner key), before the week closes; the next run takes it as done and stops |
+| Question file / params hash / VHP list mismatch; resolver failed; generator failed; no fair questions; day file not sealed by this bot; week slot full | question pipeline problems | Questions chat; don't post by hand |
 | "bot-state.json … was not written by this bot" | state file distrusted | fires once; tell the Vault chat |
 
 ---
@@ -118,6 +120,7 @@ The bot compares the chain with the records on `main` (`game-data/deployment.jso
 | "free-prize switches can't be read" | the `prize-settings` file broken | `npm run prizes -- list`; resend the setting. Under 6 h the bot seals without free winners |
 | prize winner already has a result / was staked / too many tied | free-prize list problem | game chat |
 | "didn't go through" | network or Mana; retried | wait; Vault chat if it repeats |
+| "… is a test week (vaultTestWeeks in deployment.json): it plays but pays nothing …" | `game-post` was asked for a test week (owner, 10 Nov: the week of Mon 9 Nov) | nothing: the week rolls over at its deadline, and its earnings go to Week 1 |
 
 Correcting after a seal (24 h window), `game-unprize`, `game-void`: `RUNBOOK.md` §3.
 

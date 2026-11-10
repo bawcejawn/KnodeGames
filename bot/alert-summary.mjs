@@ -19,6 +19,17 @@ import { fileURLToPath } from "node:url";
 export const ALERTS_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".ai", "platform", "ALERTS.md");
 const MAX_LINES = 40;            // one summary never lists more alerts than this (the rest are counted)
 const MAX_LINE = 600;            // characters of one alert line shown
+const MIN_KEY = 16;              // a key shorter than this is too generic to decide a match ("has outcome", "is pending": Repo Lens #F-8 F8-1)
+const MIN_LEAD = 10;             // a row's opening words count from this length, but only at the start of the line
+/** A line that says a key may be stolen gets this, whatever its row says (Repo Lens #F-8 F8-2): the owner key can
+ *  schedule an upgrade, so a real compromise does put funds at risk. */
+const KEY_RISK = /compromised|stolen|if you did not|if you didn't/i;
+const RISK = {
+  matter: "Possibly serious. If you did NOT make this change yourself, act at once: your admin key may be stolen, and the owner key can schedule a contract upgrade. If you made it (an upgrade, a handover, a void, a setting), it's the expected echo.",
+  expected: "Only if you just made this change yourself",
+  todo: "if you did NOT make it: follow `RUNBOOK.md` §7 now (and `KEYS_AND_ROLES.md`), then tell the Vault chat. If you did: nothing; it stops once the records are updated",
+};
+const UNKNOWN_MATTER = "This line isn't in the catalogue yet, so this summary can't judge it: read the line itself.";
 
 /** What each section of ALERTS.md means for the players' money, and whether it is usually expected. */
 const SECTION = {
@@ -54,34 +65,47 @@ export function loadAlertRows(md) {
     const cols = {};
     header.forEach((name, i) => { cols[name] = plain(c[i] ?? ""); });
     const quoted = [...c[0].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-    const keys = [];
+    const keys = [], leads = [];
+    for (const q of quoted) {
+      // The row's opening words: the alert text's literal start, matched only at the start of a line.
+      const lead = plain(q).split(/…|\.\.\.|<[^>]*>|\b[NXY]\b| \/ /)[0].toLowerCase().replace(/[“”"]/g, "").trim();
+      if (lead.length >= MIN_LEAD) leads.push(lead);
+    }
     for (const q of quoted.length ? quoted : [plain(c[0])]) {
       // Literal pieces between the "…", the placeholders (N, X, Y, <…>) and " / " alternatives, long enough to be specific.
       for (const piece of plain(q).split(/…|\.\.\.|<[^>]*>|\b[NXY]\b| \/ /)) {
         const k = piece.toLowerCase().replace(/[“”"]/g, "").trim();
-        if (k.length >= 10) keys.push(k);
+        if (k.length >= MIN_KEY) keys.push(k);
       }
     }
-    if (keys.length) rows.push({ section, title, keys, cols });
+    if (keys.length || leads.length) rows.push({ section, title, keys, leads, cols });
   }
   return rows;
 }
 
-/** The row an alert line belongs to: the one with the longest piece found in the line, or null. */
+/** The row an alert line belongs to: the one with the longest specific piece found in the line (at least MIN_KEY
+ *  characters), or whose opening words start the line; null when none fits (Repo Lens #F-8 F8-1). */
 export function matchAlert(line, rows) {
   const l = plain(line).toLowerCase();
   let best = null, len = 0;
-  for (const r of rows) for (const k of r.keys) if (k.length > len && l.includes(k)) { best = r; len = k.length; }
+  for (const r of rows) {
+    for (const k of r.keys) if (k.length > len && l.includes(k)) { best = r; len = k.length; }
+    for (const k of r.leads ?? []) if (k.length > len && l.startsWith(k)) { best = r; len = k.length; }
+  }
   return best;
 }
 
 const col = (r, re) => { for (const [k, v] of Object.entries(r.cols)) if (re.test(k) && v) return v; return ""; };
 
-/** "2026-11-16 00:00 UTC" or an ISO time in the line → "Mon 16 Nov 00:00 UTC (Sun 15 Nov 4:00 PM PT)". */
+/** A time in the line that is a deadline ("until / by / before / due / deadline / closes / ends …") →
+ *  "Mon 16 Nov 00:00 UTC (Sun 15 Nov 4:00 PM PT)". A past event time ("last block at …") is not one (Repo Lens #F-8 F8-5). */
 export function deadlines(line) {
   const out = [];
   const re = /(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d)(?::\d\d(?:\.\d+)?)?(?:Z| UTC)/g;
-  for (const m of String(line).matchAll(re)) {
+  const text = String(line);
+  for (const m of text.matchAll(re)) {
+    const before = text.slice(Math.max(0, m.index - 30), m.index);
+    if (!/\b(until|by|before|due|deadline|closes?|ends?)\b[^.;:]*$/i.test(before)) continue;
     const t = Date.parse(`${m[1]}T${m[2]}:00Z`);
     if (!Number.isFinite(t)) continue;
     const day = (opts) => new Intl.DateTimeFormat("en-US", { weekday: "short", day: "numeric", month: "short", ...opts }).format(t);
@@ -100,25 +124,28 @@ export function renderSummary({ workflow, lines, rows, section }) {
   if (!list.length) {
     const s = SECTION[section] ?? DEFAULT_SECTION;
     out.push(
-      "**What happened:** a step of this run failed without a known alert line (a network hiccup, a job error, or a publish check that refused).",
+      "**What happened:** a step of this run failed without a known alert line (a held week, a publish check that refused, a network hiccup or a job error).",
       `**Does it matter:** ${s.matter}`,
-      "**Expected?** Sometimes: one failed run is often a hiccup, and the next run retries.",
-      `**What to do:** nothing yet. If the next run fails too, open the step with the red ✖, copy its red lines (never \`.env\`) and paste them to the chat named in \`.ai/platform/ALERTS.md\`${section ? ` §${section}` : ""}.`,
+      "**Expected?** Not if it's a held week: that fails every run until it's dealt with. A one-off failure is often a hiccup the next run retries.",
+      `**What to do:** open the step with the red ✖ and read its red lines first. If they say a week is HELD, it needs action before that week's results deadline (\`RUNBOOK.md\` §3, and the game's chat). Otherwise, if the next run fails too, copy the red lines (never \`.env\`) and paste them to the chat named in \`.ai/platform/ALERTS.md\`${section ? ` §${section}` : ""}.`,
       "");
     return out.join("\n");
   }
   out.push(`${list.length} alert${list.length === 1 ? "" : "s"}. Players' stakes are never at risk from an alert by itself. Each one is explained below; the full catalogue is \`.ai/platform/ALERTS.md\`.`, "");
   list.slice(0, MAX_LINES).forEach((line, i) => {
     const r = matchAlert(line, rows ?? []);
+    const risk = KEY_RISK.test(line);
     const s = (r && SECTION[r.section]) || SECTION[section] || DEFAULT_SECTION;
     const shown = line.length > MAX_LINE ? line.slice(0, MAX_LINE) + " …" : line;
     out.push(`### ${i + 1}. ${plain(shown).slice(0, 90)}${plain(shown).length > 90 ? " …" : ""}`);
     out.push(`- **What happened:** ${plain(shown)}`);
-    out.push(`- **Does it matter:** ${s.matter}${r && col(r, /^trigger/i) ? ` (It fires when: ${col(r, /^trigger/i)}.)` : ""}`);
+    const fires = r && col(r, /^trigger/i) ? ` (It fires when: ${col(r, /^trigger/i)}.)` : "";
+    out.push(`- **Does it matter:** ${risk ? RISK.matter : r ? s.matter : UNKNOWN_MATTER}${fires}`);
     const exp = r && col(r, /expected/i);
-    out.push(`- **Expected?** ${exp ? `Yes, after: ${exp}. Otherwise no.` : s.expected + "."}`);
+    const never = !exp || /^(never|none|no|—|-|n\/a)\.?$/i.test(exp.trim());
+    out.push(`- **Expected?** ${!never ? `Yes, after: ${exp}. Otherwise no.` : exp ? "No." : risk ? RISK.expected + "." : r ? s.expected + "." : "Unknown: it isn't in the catalogue."}`);
     const todo = r && col(r, /what you can do|did not do it|how to/i);
-    out.push(`- **What to do:** ${todo || "it isn't in the catalogue yet: paste this line (never `.env`) to the Vault chat."}${r ? ` (ALERTS.md §${r.section}: ${r.title})` : ""}`);
+    out.push(`- **What to do:** ${todo || (risk ? RISK.todo + "." : "it isn't in the catalogue yet: paste this line (never `.env`) to the Vault chat.")}${r ? ` (ALERTS.md §${r.section}: ${r.title})` : ""}`);
     const d = deadlines(line);
     out.push(`- **Deadline:** ${d.length ? d.join("; ") : "none stated in the alert"}`);
     out.push("");

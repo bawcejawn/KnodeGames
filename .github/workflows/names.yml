@@ -153,3 +153,25 @@ jobs:
           git push -q "$remote" "$commit:refs/heads/names-data"
           echo "names.json published."
 
+
+  # R-VAULT-9: when this run fails, a plain-language summary at the top of the run page (what happened, does it
+  # matter, what to do), from .ai/platform/ALERTS.md §8. Reads two files from main; no secrets, read-only.
+  summary:
+    needs: [check, publish]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            bot/alert-summary.mjs
+            .ai/platform/ALERTS.md
+          sparse-checkout-cone-mode: false
+      - name: Plain-language summary (ALERTS.md §8)
+        env:
+          WORKFLOW_NAME: Knode Games names
+        run: node bot/alert-summary.mjs --workflow "$WORKFLOW_NAME" --section 8

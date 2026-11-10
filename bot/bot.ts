@@ -50,6 +50,7 @@ import { formatProduction, loadSigners, signerFromBlockItem, type SignedBlock } 
 import { contractManaVerdict } from "./mana.ts";
 import { contractMetadata, checkMeta, sha256OfMeta, type Check } from "./chaincheck.ts";
 import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, sharedRulesWeek, questionWeekShared, testWeeks, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
+import { writeSummary } from "./alert-summary.mjs";
 
 // ───────────────────────── settings ─────────────────────────
 
@@ -2232,6 +2233,8 @@ async function main() {
       log(`\n⚠ NEEDS ATTENTION (${ctx.problems.length}):\n${ctx.problems.map((p) => "  • " + p).join("\n")}`);
       // On GitHub, also show each one on the run's summary page (and in the email), not only inside the log.
       if (process.env.GITHUB_ACTIONS) for (const p of ctx.problems) console.log(`::error title=Needs attention::${p.replace(/\r?\n/g, " ")}`);
+      // R-VAULT-9: the same alerts in plain language at the top of the run page (what happened, does it matter, what to do).
+      if (process.env.GITHUB_ACTIONS) writeSummary({ workflow: "Knode Games bot", lines: ctx.problems, section: 3 });
       process.exitCode = 1; // a failed scheduled run makes GitHub email you
     }
     return;

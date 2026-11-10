@@ -1447,7 +1447,7 @@
     // the older weeks' rewards, claimable forever.
     const sharedEnded = S.week > 0 && sharedWeek(S.week - 1);
     cp.hidden = !S.claims.length && !sharedEnded;
-    $("#claim-body").replaceChildren(...(sharedEnded ? [el("p", { class: "muted" }, "Rewards from the newer weeks are collected on the ", el("a", { href: STAKE_HREF }, "Stake page"), ", with every game's. Earlier weeks' rewards stay here and never expire.")] : []), ...S.claims.map((c) => el("div", { class: "claim-row" },
+    $("#claim-body").replaceChildren(...(sharedEnded ? [el("p", { class: "muted" }, "Rewards from the newer weeks are collected on the ", el("a", { href: STAKE_HREF }, "Stake page"), ", with every game's. Earlier weeks' rewards stay here and never expire.")] : []), ...(S.claims.length ? [el("p", { class: "muted", id: "claim-waiting" }, "A reward is waiting for you. It never expires; collect it any time.")] : []), ...S.claims.map((c) => el("div", { class: "claim-row" },
       el("span", {}, el("b", {}, `${amount(c.reward)} VHP`), el("br"), el("span", { class: "muted" }, c.free ? `${WL(c.week)}: top free player prize. Stake it to share the full pool next week!` : `${WL(c.week)}`)),
       el("button", { class: "btn btn-sun", type: "button", onclick: () => claim(c.week) }, "Collect"))));
     // pool

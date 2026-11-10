@@ -48,7 +48,7 @@ The original Knode game: daily questions about what the Koinos chain will do, sc
 ## Known issues
 - **I-044 ✅ closed by D-099:** the vault no longer pays Mana for other people's transactions (`max_sponsor_rc` = 0).
 - **I-049:** daily compounding drifts ~1 hour later each day (a 28,800-block "day").
-- **I-046:** the bot wallet's KOIN/Mana hasn't been confirmed (target 50 KOIN).
+- **I-046:** the bot wallet's KOIN/Mana. 10 Nov: 30 KOIN, Mana 28.7. At 5 questions a day the bot used 3.7 to 5.7 Mana a day (`bot-state` `manaByDay`, all its transactions); the wallet refills about its KOIN balance over 5 days (30 KOIN = about 6 a day). 60 questions a week needs about 8 to 12 a day (estimate), so the owner sends 75 KOIN (105 in all, about 21 a day). The KOIN is not spent. To confirm after the first 4+4 week (Mon 16 Nov) from `npm run bot -- status`. The alert for a low bot wallet is at 2 Mana (`bot/bot.ts` health pass).
 - **I-048:** `npm run bot -- status` "last produced" reads a cached file.
 - **I-004:** the "+ Add another account" Kondor fix needs a real-extension retest.
 - **I-082:** the guest wallet shows "Free answers are used up" for any sponsor refusal, so players can see the wrong reason (R-HUB-4).

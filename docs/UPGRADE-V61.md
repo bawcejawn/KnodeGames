@@ -81,7 +81,11 @@ npm run bot -- upgrade apply --send
 npm run bot -- status
 ```
 - `upgrade apply --send` uploads, then clears the notice with `cancel_upgrade` (step "2/2"). That owner call is the first
-  action on the new code: it fixes the rule week at once, so no extra action is needed (D8-9, V61-A2).
+  action on the new code: it fixes the rule week at once, so no extra action is needed (D8-9, V61-A2). The rule week is
+  set by the **first contract action after the upload** (that action's week + 2), not by the upload itself (Repo Lens
+  #F-4 F4-2). **If step 2/2 failed**, send `npm run bot -- upgrade cancel --send` (or let the bot run once) **before
+  Mon 16 Nov 00:00 UTC**, then check `status` as below. After Mon 16 00:00 UTC, week 4 would run the old rules: stop and
+  tell the Vault chat.
 - **Check (D8-6):** `status` shows `Questions a week  this week 30, next week 60; 60 from Week 5 (stored rule 5)`.
   Week 5 in `status` is the week from Mon 16 Nov (an upload on Mon 9). If the rule says anything else, stop and tell the
   Vault chat.
@@ -92,12 +96,19 @@ npm run bot -- status
 
 ## 4. Records (one pull request into `main`)
 - `game-data/deployment.json`: `wasmSha256` → `11043e1f…` (the tool wrote it on apply) and `safeWasmSha256` → `04c27c1a…` (step 3): commit both.
-- **Merge PR #114 the same day, and before Sun 15 Nov 23:00 UTC at the latest** (#152 is already on `main`, and `main` is merged into #114). It carries `"vaultPayFromWeek": 4` in `game-data/deployment.json` (owner, 9 Nov: Week 1 = Mon 16; the week of Mon 9, vault week 3, is a test week). With it the bot posts no results, prize winners or settles for vault week 3:
-  - each game's week 3 rolls over at its deadline (Thu 19 Nov 00:00 UTC);
-  - its stakers' bucket stays in the game and is added to week 4;
-  - its prize goes back to the pool and is paid out with week 4's close.
+- **Merge PR #114 as soon as Repo Lens gives GO** (it no longer waits for the upload). `main`'s bot doesn't know
+  `"vaultPayFromWeek": 4` (owner, 9 Nov: Week 1 = Mon 16; the week of Mon 9, vault week 3, is a test week), so until #114
+  is on `main` it keeps posting week-3 Daily Questions and would resolve them from their blocks. With #114 the bot:
+  - posts no Daily Questions for week 3 (Repo Lens #F-4 F4-1: in an old-rules week anyone can settle anyone, and a lone
+    settled player would take the whole week-3 pot);
+  - resolves the week-3 questions already posted as **VOID**, so no answer counts, no entry can win and game 1's week-3
+    pot rolls into week 4 (the question files keep the real answers for the site);
+  - posts no results, prize winners or settles for vault week 3: each game's week 3 rolls over at its deadline
+    (Thu 19 Nov 00:00 UTC), its stakers' bucket is added to week 4, and its prize goes back to the pool and is paid out
+    with week 4's close.
 
-  Without it, the bot would post week 3's Block X and Race results from about Mon 16 01:00 UTC. One gap remains, and only a contract change could close it: a player can still send `settle` for week 3 of Daily Questions straight to the contract (not from the site). With the bot and the site not settling, that's the only way week 3 pays anything.
+  If a week-3 question was resolved with a real answer before #114 merged, the bot emails "… must be VOID": void it
+  with the owner key, `npm run bot -- void <#> test week --send`, before week 3 closes.
 
 ## The rollback rule (Repo Lens C-1; replaces V61-A1)
 - **Before the rule week starts:** a rollback to the v6 normal build is possible; nothing of the new path has run yet.

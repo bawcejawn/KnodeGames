@@ -261,6 +261,7 @@ export async function rehearseV6(snap: Snapshot, opts: { weeks?: number; reward?
     chain: sim, operator: Signer.fromSeed("unused"), dryRun: false, problems: [], quiet: true,
     deployment: { vaultGames: { "2": { results: "mem:2" }, "3": { results: "mem:3" }, "13": { results: "mem:13" } } },
     readResults: (src, w) => files[`${src}/W${w}`] ?? null,
+    readPrizeSwitches: () => null,   // a rehearsal never reads the live prize-settings branch (Repo Lens #F-4 F4-5)
   };
   const opSend = async (what: string, calls: any[]) => {
     const r = await sim.sendAs(calls, [operator]);

@@ -47,6 +47,7 @@ function vctx(sim: SimChain, results: Record<string, any>): VaultCtx & { problem
     chain: sim, operator, dryRun: false, problems: [], quiet: true,
     deployment: { vaultGames: { "2": { results: "mem:fantasy" }, "3": { results: "mem:blockx" } } },
     readResults: (source, week) => results[`${source}/W${week}`] ?? null,
+    readPrizeSwitches: () => null,   // no git remote needed (Repo Lens #F-4 F4-5): null = follow registrations
   };
 }
 const sendAs = (sim: SimChain, signer: Signer, sent: string[]) => async (what: string, calls: any[]) => {
@@ -237,7 +238,7 @@ function fctx(sim: SimChain, files: Record<string, any>, memo?: VaultMemo): Vaul
     const v = files[spec];
     return v === undefined ? { state: "missing" } : v === "ERR" ? { state: "error", error: "test: unreadable" } : { state: "ok", data: JSON.parse(JSON.stringify(v)) };
   };
-  return { chain: sim, operator, dryRun: false, problems: [], quiet: true, readFile, memo,
+  return { chain: sim, operator, dryRun: false, problems: [], quiet: true, readFile, memo, readPrizeSwitches: () => null,
     deployment: { vaultGames: { "2": { results: "mem:fantasy/vault" }, "3": { results: "mem:blockx/vault" } } } };
 }
 const allFiles = () => ({ "mem:fantasy/vault/W1.json": fantasyW1(), "mem:fantasy/board.json": fantasyBoard(), "mem:blockx/vault/W1.json": blockxW1() });
@@ -646,7 +647,9 @@ test("owner 9 Nov (Week 1 = Mon 16): a week before vaultPayFromWeek posts nothin
   const { paysFrom } = await import("./vault.ts");
   assert.equal(paysFrom({ vaultPayFromWeek: 4 }), 4);
   assert.equal(paysFrom({}), 0);
-  assert.equal(paysFrom({ vaultPayFromWeek: "x" }), 0);
+  assert.throws(() => paysFrom({ vaultPayFromWeek: "x" }), /not a week number/);
+  assert.throws(() => paysFrom({ vaultPayFromWeek: true }), /not a week number/);
+  assert.throws(() => paysFrom({ vaultPayFromWeek: "4" }), /not a week number/);
   const { sim, at, ok } = await world();
   await ok([["propose_game", { game: 2, name: "Fantasy", staked: true, free_prize: false, season_weeks: 1 }], ["propose_game", { game: 3, name: "Block X", staked: false, free_prize: true, season_weeks: 1 }]], [owner]);
   at(T0 + 2 * DAY + HOUR);

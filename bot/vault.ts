@@ -134,10 +134,13 @@ export async function questionWeekShared(chain: Chain, config: any, w: number): 
 /** Owner, 9 Nov (Week 1 = Mon 16 Nov): `vaultPayFromWeek` in game-data/deployment.json is the first vault week that pays.
  *  Below it the bot posts no results, no prize winners and no settles: each game's week rolls over at its results
  *  deadline (its stakers' bucket stays in the game and is added to its next week; its prize goes back to the pool, paid
- *  out with the next close). 0 or missing = every week pays. */
+ *  out with the next close). Missing = every week pays. Present but not a whole number >= 0 (a typo, `true`, "4"):
+ *  throws, so the run fails and alerts instead of paying every week (Repo Lens #F-4 F4-4). */
 export function paysFrom(deployment: any): number {
-  const n = Number(deployment?.vaultPayFromWeek);
-  return Number.isInteger(n) && n > 0 ? n : 0;
+  const v = deployment?.vaultPayFromWeek;
+  if (v === undefined || v === null) return 0;
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 0) throw new Error(`vaultPayFromWeek in deployment.json is not a week number (${JSON.stringify(v)})`);
+  return v;
 }
 
 export function vaultHandles(id: number, config: any, w: number): boolean {

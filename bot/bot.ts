@@ -715,6 +715,11 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
   // On the simulated chain the blocks come from blocks.csv, and the generator is asked to download missing ones.
   let ranGenerator = false;
   const fresh = new Map<string, Blk[]>();
+  // A question of a week before vaultPayFromWeek (the test week) is posted VOID on chain, whatever its blocks say: no
+  // answer counts, so no entry can win and the week's pot rolls over (Repo Lens #F-4 F4-1, for questions posted before
+  // the bot stopped making them). The file keeps the real answer for the site.
+  const payFrom = paysFrom(readJson(ctx.P.deployment, null));
+  const testWeek = (q: any) => num(q.week) < payFrom;
   const windowOf = async (q: any, csv: Blk[]) => {
     if (!ctx.windowBlocks) return csv;
     const k = `${q.windowStart}-${q.windowEnd}`;
@@ -764,13 +769,14 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
             ctx.problems.push(`${q.id} (#${q.chainId}) got outcome ${q.chainOutcome}${q.chainOutcome === 1000 ? " (void)" : ""} on chain before its window's blocks were final; the bot did not post it. If you did not void it, your admin key may be compromised.`);
           }
           if (scored.ok) {
-            const mine = storedOutcome(scored.result);
+            const mine = testWeek(q) ? 1000 : storedOutcome(scored.result);
             if (!q.result || q.result.dataHash !== scored.result.dataHash || q.result.void !== scored.result.void || q.result.option !== scored.result.option) {
               q.result = scored.result;
             }
             if (mine !== q.chainOutcome) {
               log(`  ⚠ ${q.id} (#${q.chainId}): on-chain outcome ${q.chainOutcome} differs from the blocks (${mine}${scored.result.void ? ", void" : ""}).`);
-              ctx.problems.push(`${q.id} (#${q.chainId}): the on-chain outcome (${q.chainOutcome}) differs from what the blocks say (${mine}${scored.result.void ? ", void" : ""}). Check it; ${await correctionDeadline(ctx, st, num(onChain.week))}.`);
+              if (testWeek(q)) ctx.problems.push(`${q.id} (#${q.chainId}) is in week ${q.week}, before the first paying week (${payFrom}), so it must be VOID, but it has outcome ${q.chainOutcome} on chain. Void it with the owner key: npm run bot -- void ${q.chainId} test week --send; ${await correctionDeadline(ctx, st, num(onChain.week))}.`);
+              else ctx.problems.push(`${q.id} (#${q.chainId}): the on-chain outcome (${q.chainOutcome}) differs from what the blocks say (${mine}${scored.result.void ? ", void" : ""}). Check it; ${await correctionDeadline(ctx, st, num(onChain.week))}.`);
             }
           }
           continue;
@@ -812,9 +818,10 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
             continue;
           }
         }
-        const outcome = chainOutcome(scored.result);
+        const outcome = testWeek(q) ? 1000 : chainOutcome(scored.result);
         const dataHash = "0x" + scored.result.dataHash;
-        const label = scored.result.void ? `VOID (${scored.result.reason})` : `option ${String.fromCharCode(65 + (scored.result.option ?? 0))} (actual ${scored.result.value})`;
+        const label = testWeek(q) ? `VOID (week ${q.week} is a test week, before the first paying week ${payFrom})`
+          : scored.result.void ? `VOID (${scored.result.reason})` : `option ${String.fromCharCode(65 + (scored.result.option ?? 0))} (actual ${scored.result.value})`;
         // Not marked done here: the next pass reads the outcome back from the chain, so a transaction that never
         // made it into a block is simply sent again.
         await sendOp(ctx, `resolve ${q.id} (#${q.chainId}) → ${label}`, [{ method: "resolve_question", args: { id: q.chainId, outcome, data_hash: dataHash } }]);
@@ -916,8 +923,13 @@ export async function postPass(ctx: Ctx, bs: BotState) {
   const capOf = capsFrom(st.raw, st.genesis, st.weekLen, time);
   const { current, next } = roundsAt(st.genesis, time, capOf);
   const wallStart = Date.now();
-  if (current) await postRound(ctx, bs, st, current, capOf(current.week));
-  if (!next) return;
+  // Owner, 9 Nov (Week 1 = Mon 16): no Daily Questions in a week before vaultPayFromWeek. Old-rules entries of a
+  // non-paying week could be settled by anyone, and a lone settled player would take that week's whole pot
+  // (Repo Lens #F-4 F4-1). No questions = no entries = the pot rolls over.
+  const payFrom = paysFrom(readJson(ctx.P.deployment, null));
+  if (current && current.week < payFrom) { if (!ctx.quiet) log(`  week ${current.week} is before the first paying week (${payFrom}): no questions`); }
+  else if (current) await postRound(ctx, bs, st, current, capOf(current.week));
+  if (!next || next.week < payFrom) return;
   // Chain time now: the time read above plus however long posting took (no extra read; Repo Lens #C-5 C5-1's test).
   const now = time + (Date.now() - wallStart);
   const releaseAt = next.releaseAt, wait = releaseAt - now;
@@ -1607,7 +1619,7 @@ async function verifyResults(days: number, rpcArg?: string) {
     // A result that can't be recounted is not a pass (audit L-8).
     if (!sc.ok) { bad++; lines.push(`VERIFY-ALERT ?  ${q.id} (#${q.chainId}): could not recount (${sc.reason})`); continue; }
     checked++;
-    const mine = storedOutcome(sc.result), hashOk = String(oc.data_hash ?? "").replace(/^0x/, "").toLowerCase() === sc.result.dataHash;
+    const mine = num(q.week) < paysFrom(readJson(P.deployment, null)) ? 1000 : storedOutcome(sc.result), hashOk = String(oc.data_hash ?? "").replace(/^0x/, "").toLowerCase() === sc.result.dataHash;
     const show = (o: number) => (o === 1000 ? "void" : `option ${String.fromCharCode(64 + o)}`);
     if (mine === outcome && hashOk) lines.push(`✔  ${q.id} (#${q.chainId}): ${show(outcome)} — matches your node's blocks`);
     else {

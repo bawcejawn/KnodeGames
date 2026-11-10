@@ -41,3 +41,18 @@ test("every page's tab bar and More sheet are exactly what tools/site-nav.mjs wr
   const { withNav } = await import(`${process.cwd()}/${APP}/tools/site-nav.mjs`);
   for (const p of pages) { const h = read(p); assert.equal(withNav(p, h), h, `${p}: run node tools/site-nav.mjs`); }
 });
+
+test("every page with the top menu has a 'Play free' button that goes to the Producer Race's picks (owner, 9 Nov)", () => {
+  for (const p of pages) {
+    const h = read(p);
+    if (!h.includes('<nav class="tabs"')) continue;
+    const want = p === "race.html" ? "#pick-zone" : "race.html#pick-zone";
+    assert.ok(h.includes(`</nav>\n      <a class="btn btn-play-free" href="${want}">Play free</a>`), `${p}: Play free → ${want}`);
+    assert.equal(h.split("btn-play-free").length - 1, 1, `${p}: one Play free button`);
+  }
+  assert.match(read("race.html"), /<div id="pick-zone">/);
+  // The home page's own "Play free" goes to the race too, never to the questions.
+  const idx = read("index.html");
+  assert.match(idx, /<b>New here\? Play free\.<\/b><span>[^<]*Producer Race[^<]*<\/span><a class="btn btn-primary" href="race\.html#pick-zone">Play free<\/a>/);
+  assert.doesNotMatch(idx, /href="#play">Play free/);
+});

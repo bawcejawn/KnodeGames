@@ -3,7 +3,7 @@
    With no deployment yet (or ?demo in the address), it runs a preview on sample data. */
 (() => {
   "use strict";
-  // What players call a week (weeks.js, D-063): the week of Mon 9 Nov is "Week 1"; earlier weeks show their date.
+  // What players call a week (weeks.js, D-063): the week of Mon 16 Nov is "Week 1", the week of Mon 9 Nov the "Test week"; earlier weeks show their date.
   const WL = (w) => (window.KWeeks ? window.KWeeks.label(w) : `Week ${Number(w) + 1}`);
   const WS = (w) => (window.KWeeks ? window.KWeeks.short(w) : String(Number(w) + 1));
 

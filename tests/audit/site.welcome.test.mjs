@@ -11,7 +11,7 @@ const welcome = html.slice(html.indexOf('id="view-welcome"'), html.indexOf("<!--
 test("the headline is the game, not the money; today's question (or a 'Play free now' button) comes before the explanation", () => {
   assert.match(welcome, /<h1>Guess what the blockchain does next\.<\/h1>/);
   assert.doesNotMatch(welcome.match(/<h1>[\s\S]*?<\/h1>/)[0], /pool|win|VHP/i);
-  const q = welcome.indexOf('id="welcome-question"'), play = welcome.indexOf('href="#play">Play free now</a>'), why = welcome.indexOf('class="welcome-why"');
+  const q = welcome.indexOf('id="welcome-question"'), play = welcome.indexOf('href="race.html#pick-zone">Play free now</a>'), why = welcome.indexOf('class="welcome-why"');
   assert.ok(q > 0 && q < play && play < why, "the question slot, with Play free now inside it until the questions load, above 'What's going on'");
 });
 test("play first (mockup version 2): app.js puts today's first open question in the welcome view, as the Play tab's own card", () => {

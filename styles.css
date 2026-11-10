@@ -835,7 +835,6 @@ body[data-view="welcome"] .foot .eco { display: none; }
 .welcome-more { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-weight: 700; }
 .welcome-more a { color: var(--violet); }
 @media (max-width: 600px) {
-  .welcome-path-new { display: none; }
   .welcome-path { padding: 8px 10px; } .welcome-path span { display: none; }
   .welcome-lede { font-size: 1rem; }
   .welcome { padding-top: 14px; } .welcome-card { gap: 16px; }
@@ -856,3 +855,31 @@ button.btn { min-height: 44px; }
 .pchip { position: relative; }
 .pchip::after { content: ""; position: absolute; inset: -9px -3px; z-index: 1; }
 .how > summary { min-height: 44px; display: flex; align-items: center; }
+
+/* "Play free" beside the wallet button on every page (owner, 9 Nov): to the Producer Race's picks (tools/site-nav.mjs). */
+.btn-play-free { background: var(--surface); color: var(--violet); box-shadow: inset 0 0 0 1.5px var(--violet); white-space: nowrap; }
+.btn-play-free:hover { background: var(--violet-soft, var(--paper)); }
+.btn-play-free + .hw-wrap, .btn-play-free + .btn-wallet { margin-left: 0; }
+@media (max-width: 760px) {
+  .btn-play-free { margin-left: auto; padding: 10px 14px; }
+}
+@media (max-width: 400px) {
+  .top-row { gap: 8px; }
+  .btn-play-free, .top-row .btn-wallet { padding: 10px 11px; font-size: .95rem; }
+}
+
+/* The test week banner (nav.js, 9–16 Nov 2026). */
+.test-week { margin: 14px 0 16px; padding: 10px 14px; border-radius: var(--r-sm, 12px); background: var(--sun-soft); color: var(--ink); border: 1px solid var(--line); font-size: .95rem; }
+.test-week b { margin-right: 4px; }
+/* With "Play free" in the header the top menu needs a little less room on laptop widths, so every tab stays whole. */
+@media (min-width: 761px) {
+  .top-row { gap: 14px; }
+  .tabs { gap: 0; }
+  .tabs a, .tabs .dd > summary { padding-left: 10px; padding-right: 10px; font-size: 15.5px; }
+  .btn-play-free, .top-row .btn-wallet { padding-left: 14px; padding-right: 14px; }
+}
+/* Tablets: the menu has its own row (above), so Play free and the wallet button sit together on the right of the logo. */
+@media (max-width: 1180px) and (min-width: 761px) {
+  .btn-play-free { margin-left: auto; }
+  .tabs a, .tabs .dd > summary { padding: 9px 12px; font-size: 15.5px; }
+}

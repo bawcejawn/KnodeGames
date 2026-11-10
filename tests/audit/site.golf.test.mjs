@@ -85,7 +85,7 @@ test("week labels: Golf names weeks as players see them (D-063: vault week 3 is 
   assert.deepEqual(js.match(/`Week \$\{[^}]*\}/g), ["`Week ${w}"], "only weekLabel's own fallback");
   const box = { window: {} }; box.globalThis = box.window;
   new Function("window", "globalThis", fs.readFileSync(`${APP}/weeks.js`, "utf8"))(box.window, box.window);
-  assert.equal(box.window.KWeeks.label(3), "Week 1");
+  assert.equal(box.window.KWeeks.label(4), "Week 1");   // owner, 9 Nov: Week 1 = Mon 16 (vault week 4)
 });
 
 test("npm run golf exists (golf.yml runs it every hour)", () => {

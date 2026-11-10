@@ -42,14 +42,17 @@ const KIT_WALL: () => number = Date.now.bind(Date);
 
 /** Counts reads and time against a budget; throws OutOfBudget before a read once either is used up. */
 export class Budget {
-  private n = 0;
-  private readonly t0: number;
-  constructor(readonly b: Budgets = DEFAULT_BUDGETS, private readonly clock: () => number = KIT_WALL) { this.t0 = clock(); }
+  // JavaScript's own #private fields, not TypeScript's `private` (erased at run time): the kit's real clock is taken
+  // before the sandbox's traps, so nothing outside this class may reach it (Repo Lens #F-2 F2-3).
+  #n = 0;
+  readonly #t0: number;
+  readonly #clock: () => number;
+  constructor(readonly b: Budgets = DEFAULT_BUDGETS, clock: () => number = KIT_WALL) { this.#clock = clock; this.#t0 = clock(); }
   take(what: string) {
-    if (++this.n > this.b.reads) throw new OutOfBudget(`${what}: more than ${this.b.reads} reads`);
-    if (this.clock() - this.t0 > this.b.ms) throw new OutOfBudget(`${what}: over ${Math.round(this.b.ms / 60000)} min`);
+    if (++this.#n > this.b.reads) throw new OutOfBudget(`${what}: more than ${this.b.reads} reads`);
+    if (this.#clock() - this.#t0 > this.b.ms) throw new OutOfBudget(`${what}: over ${Math.round(this.b.ms / 60000)} min`);
   }
-  get used() { return this.n; }
+  get used() { return this.#n; }
 }
 
 /** A reader that charges every read to the budget and wraps failures as ReadFailed (never a value). */

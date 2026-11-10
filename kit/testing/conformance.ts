@@ -60,36 +60,77 @@ export const FORBIDDEN: [RegExp, string, true?][] = [
   [/\b(signTransaction|sendTransaction|PrivateKey|WIF)\b|\.sign\(|\.send\(/, "signs or sends"],
 ];
 
-/** The source with the text of every string blanked (quotes kept; a template's ${…} code kept), so an ordinary word
- *  in a string ("the pick window", "global leaderboard") never trips a rule about code (#E-26 NE-8). */
-export function blankStrings(code: string): string {
-  let out = "", i = 0;
-  const lit = (q: string) => { out += q; i++; while (i < code.length && code[i] !== q) { if (code[i] === "\\") i++; i++; } out += q; i++; };
-  const tpl = () => {
-    out += "`"; i++;
-    while (i < code.length && code[i] !== "`") {
-      if (code[i] === "\\") { i += 2; continue; }
-      if (code[i] === "$" && code[i + 1] === "{") {
-        let depth = 1, j = i + 2;
-        while (j < code.length && depth) { if (code[j] === "{") depth++; else if (code[j] === "}") depth--; j++; }
-        out += "${" + blankStrings(code.slice(i + 2, j - 1)) + "}"; i = j; continue;
-      }
-      i++;
-    }
-    out += "`"; i++;
+/** Reads JavaScript / TypeScript source the way the language does, in one pass (Repo Lens #F-2 F2-5): comments,
+ *  strings, templates (with their ${…} code) and regex literals. Returns the source twice:
+ *  - `code`: comments removed, everything else as written (a "//" inside a string or a regex stays);
+ *  - `bare`: the same, with the text of every string, template and regex blanked (quotes, slashes and ${…} code kept),
+ *    so an ordinary word in a string ("the pick window", "global leaderboard") never trips a rule about code (NE-8).
+ *  A "/" starts a regex where an expression can start (after an operator, an opening bracket, a comma, at the start, or
+ *  after a keyword like `return`); anywhere else it is division. */
+export function readSource(source: string): { code: string; bare: string } {
+  let code = "", bare = "", i = 0;
+  const KEYWORDS = new Set(["return", "typeof", "case", "do", "else", "in", "of", "new", "delete", "void", "throw", "yield", "await", "instanceof"]);
+  const emit = (t: string, keep: boolean) => { code += t; if (keep) bare += t; };
+  const regexCanStart = () => {
+    const t = code.replace(/\s+$/, "");
+    if (t === "" || /[(,=:[!&|?{};+\-*%<>~^]$/.test(t)) return true;
+    const w = /([A-Za-z_$][\w$]*)$/.exec(t)?.[1];
+    return !!w && KEYWORDS.has(w);
   };
-  while (i < code.length) {
-    const c = code[i];
-    if (c === '"' || c === "'") lit(c);
-    else if (c === "`") tpl();
-    else { out += c; i++; }
-  }
-  return out;
+  // Code, until the "}" that closes a template's ${…} (when inTemplate) or the end of the source.
+  const readCode = (inTemplate: boolean) => {
+    let depth = 0;
+    while (i < source.length) {
+      const c = source[i], n = source[i + 1];
+      if (c === "/" && n === "/") { while (i < source.length && source[i] !== "\n") i++; continue; }
+      if (c === "/" && n === "*") { const e = source.indexOf("*/", i + 2); i = e < 0 ? source.length : e + 2; emit(" ", true); continue; }
+      if (c === '"' || c === "'") {
+        emit(c, true); i++;
+        while (i < source.length && source[i] !== c && source[i] !== "\n") { const k = source[i] === "\\" ? 2 : 1; emit(source.slice(i, i + k), false); i += k; }
+        if (i < source.length && source[i] === c) { emit(c, true); i++; }
+        continue;
+      }
+      if (c === "`") { readTemplate(); continue; }
+      if (c === "/" && regexCanStart()) {
+        emit("/", true); i++;
+        let cls = false;
+        while (i < source.length && source[i] !== "\n") {
+          if (source[i] === "\\") { emit(source.slice(i, i + 2), false); i += 2; continue; }
+          if (source[i] === "/" && !cls) break;
+          if (source[i] === "[") cls = true; else if (source[i] === "]") cls = false;
+          emit(source[i], false); i++;
+        }
+        if (source[i] === "/") { emit("/", true); i++; }
+        continue;
+      }
+      if (inTemplate && c === "{") depth++;
+      if (inTemplate && c === "}") { if (depth === 0) return; depth--; }
+      emit(c, true); i++;
+    }
+  };
+  const readTemplate = () => {
+    emit("`", true); i++;
+    while (i < source.length && source[i] !== "`") {
+      if (source[i] === "\\") { emit(source.slice(i, i + 2), false); i += 2; continue; }
+      if (source[i] === "$" && source[i + 1] === "{") {
+        emit("${", true); i += 2;
+        readCode(true);
+        if (source[i] === "}") { emit("}", true); i++; }
+        continue;
+      }
+      emit(source[i], false); i++;
+    }
+    if (source[i] === "`") { emit("`", true); i++; }
+  };
+  readCode(false);
+  return { code, bare };
 }
 
+/** The source with the text of every string, template and regex blanked (see readSource). */
+export const blankStrings = (source: string) => readSource(source).bare;
+
 export function staticChecks(source: string): Check[] {
-  const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");   // comments don't count
-  const bare = blankStrings(code);
+  const { code, bare } = readSource(source);   // comments don't count; strings, templates and regexes are known
   return FORBIDDEN.map(([re, why, raw]) => ({ pass: !re.test(raw ? code : bare), msg: `must not: ${why}` }));
 }
 
@@ -106,6 +147,10 @@ export function resolveLikeTsx(from: string, spec: string): string | null {
   return tries.find(isFile) ?? null;
 }
 
+/** The kit files a game may import: its types, the clock helpers and the shared sources (Repo Lens #F-2 F2-3). */
+export const GAME_IMPORTS = [/^recorder\/types\.ts$/, /^recorder\/clock\.ts$/, /^recorder\/sources\/[A-Za-z0-9-]+\.ts$/];
+const GAME_IMPORTS_TEXT = "kit/recorder/types.ts, kit/recorder/clock.ts and kit/recorder/sources/*";
+
 /** Every file the module imports, outside kit/, by relative path (recursively), resolved the way tsx does. A relative
  *  import that resolves to nothing throws: a file the scan can't find is a file it can't check (NK-5). */
 export function moduleFiles(entry: string, root: string): string[] {
@@ -116,11 +161,18 @@ export function moduleFiles(entry: string, root: string): string[] {
     if (seen.has(f)) continue;
     seen.add(f);
     const src = fs.readFileSync(f, "utf8");
-    for (const m of src.matchAll(/(?:from|import)\s*\(?\s*["'](\.{1,2}\/[^"']+|\.{1,2})["']/g)) {
+    for (const m of src.matchAll(/(?:from|import)\s*\(?\s*["'](\.{1,2}\/[^"']+|\.{1,2}|\/[^"']+)["']/g)) {
       const p = resolveLikeTsx(f, m[1]);
       if (!p) throw new Error(`${path.relative(root, f)} imports "${m[1]}", which resolves to no file`);
       if (p.split(path.sep).includes("node_modules")) throw new Error(`${path.relative(root, f)} imports "${m[1]}" from a node_modules folder: a game's files can't live there (#E-26 NE-5)`);
-      if (p.startsWith(kitDir) || p.startsWith(realKit)) continue;
+      const kit = p.startsWith(kitDir) ? kitDir : p.startsWith(realKit) ? realKit : "";
+      if (kit) {
+        // A game may use only the kit's game-facing files (Repo Lens #F-2 F2-3): never the runtime, the node readers and
+        // their budget clock, the publish check or the test harness.
+        const rel = path.relative(kit, p).split(path.sep).join("/");
+        if (!GAME_IMPORTS.some((re) => re.test(rel))) throw new Error(`${path.relative(root, f)} imports kit/${rel}: a game may import only ${GAME_IMPORTS_TEXT} from kit/`);
+        continue;
+      }
       todo.push(p);
     }
   }
@@ -129,6 +181,19 @@ export function moduleFiles(entry: string, root: string): string[] {
 
 /** The permission model's flag on this Node: --permission (Node 24, and 22.13+), else --experimental-permission. */
 export const permissionFlag = () => (process.allowedNodeEnvironmentFlags.has("--permission") ? "--permission" : "--experimental-permission");
+
+let cpNeeded: boolean | undefined;
+/** Does tsx need --allow-child-process on this Node? Asked once per process, of a canary that loads one kit file
+ *  (kit/testing/fake-clock.ts) and no game code, under the sandbox's own flags (Repo Lens #F-2 F2-1). */
+function childProcessNeeded(perm: string, reads: string[], tmp: string): boolean {
+  if (cpNeeded !== undefined) return cpNeeded;
+  const canary = path.join(HERE, "fake-clock.ts");
+  const ok = (extra: string[]) => spawnSync(process.execPath, [perm, ...reads, `--allow-fs-write=${path.join(tmp, "*")}`, "--allow-worker", ...extra, "--no-warnings", "--import", "tsx", canary],
+    { encoding: "utf8", env: sandboxEnv(tmp), timeout: 120000 }).status === 0;
+  cpNeeded = !ok([]) && ok(["--allow-child-process"]);
+  return cpNeeded;
+}
+const sandboxEnv = (tmp: string) => ({ PATH: process.env.PATH ?? "", TMPDIR: tmp, TEMP: tmp, TMP: tmp, HOME: tmp, USERPROFILE: tmp, NODE_OPTIONS: "", SystemRoot: process.env.SystemRoot ?? "" });
 
 /** Runs the module in a child process under Node's permission model, with every trap set (conformance-child.ts). */
 export function sandboxed(slug: string, root: string): { violations: string[]; checks: Check[]; error?: string } {
@@ -149,12 +214,11 @@ export function sandboxed(slug: string, root: string): { violations: string[]; c
   const run = (extra: string[]) => spawnSync(process.execPath, [
     perm, ...reads, `--allow-fs-write=${path.join(tmp, "*")}`, "--allow-worker", ...extra,
     "--no-warnings", "--import", "tsx", child, slug, root,
-  ], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", TMPDIR: tmp, TEMP: tmp, TMP: tmp, HOME: tmp, USERPROFILE: tmp, NODE_OPTIONS: "", SystemRoot: process.env.SystemRoot ?? "" }, timeout: 120000 });
-  let r = run([]);
-  // Where tsx's transform runs esbuild as a child process (#E-26 NE-7: Linux, Node 22.22), the permission model refuses
-  // it and the sandbox can't start. Then, and only then, child processes are allowed: the game still can't start one,
-  // since every child_process function is trapped and denied once the game loads, and the static scan refuses the name.
-  if (r.status !== 0 && /allow-child-process/.test(r.stderr ?? "") && !/"violations"/.test(r.stdout ?? "")) r = run(["--allow-child-process"]);
+  ], { encoding: "utf8", env: sandboxEnv(tmp), timeout: 120000 });
+  const r = run(childProcessNeeded(perm, reads, tmp) ? ["--allow-child-process"] : []);
+  // Whether this Node's loader needs --allow-child-process (#E-26 NE-7) is decided before any game code runs, by a canary
+  // that loads one kit file and no game, under the same flags: a game can never ask for it by failing (#F-2 F2-1), and it
+  // runs exactly once. Even with the flag, every child_process function is trapped and denied for the game.
   fs.rmSync(tmp, { recursive: true, force: true });
   const line = (r.stdout ?? "").trim().split("\n").pop() ?? "";
   try { return JSON.parse(line); } catch { return { violations: [], checks: [], error: `the sandbox didn't finish (exit ${r.status}): ${(r.stderr ?? "").trim().split("\n").slice(-3).join(" / ").slice(0, 300)}` }; }

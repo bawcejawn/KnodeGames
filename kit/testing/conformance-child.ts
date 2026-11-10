@@ -26,36 +26,48 @@ const stackOf = () => { const o: { stack?: string } = {}; RealError.captureStack
 // the moment it does, EVERY trapped call is denied (#E-26 NE-4: no kit helper, timer or promise route can be found
 // around that), with two exceptions that a game can't steer:
 //   - Node's own code, when it is the nearest caller of an environment read (its source maps read process.env);
-//   - the repo's own TypeScript loader (by absolute path, so a game file can't pose as it: NE-5), when it is the
-//     nearest file on the stack: it reads Date.now for its transform cache, itself, as the game's files load.
+//   - the repo's own TypeScript loader (by the LOCATION of its code, never a function's name: NE-5, #F-2 F2-2), when it
+//     is the nearest file on the stack, for the clock traps only: it reads Date.now for its transform cache.
+//   (And esbuild starting its own transform worker, for the Worker trap only: #F-2 F2-6.)
 // The kit itself never needs a trapped function once the game loads: its budget clock (nodes.ts KIT_WALL) and the
 // publish check's clock (check.inline.mjs) are taken before the traps, and its modules are all loaded by then.
-const SELF = [fileURLToPath(import.meta.url), import.meta.url];
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const LOADER = [path.join(REPO, "node_modules", "tsx", "dist") + path.sep, pathToFileURL(path.join(REPO, "node_modules", "tsx", "dist")).href + "/"];
-const gameRefs = [gameDir + path.sep, pathToFileURL(gameDir).href + "/"];
-const has = (l: string, refs: string[]) => refs.some((r) => l.includes(r));
-const inGame = (l: string) => has(l, gameRefs);
-const isNode = (l: string) => /\(node:|at node:/.test(l);
-const isBuiltin = (l: string) => /\(<anonymous>\)|^\s*at [^(]*$|native/.test(l) && !/\.(ts|mts|js|mjs|cjs):\d+/.test(l);
+const both = (dir: string) => [dir + path.sep, pathToFileURL(dir).href + "/"];
+const SELF = [fileURLToPath(import.meta.url), import.meta.url];
+const LOADER = both(path.join(REPO, "node_modules", "tsx", "dist"));
+// esbuild's own code starts its transform worker the first time tsx transforms a file synchronously (Node 22.22, a game
+// outside the repo: Repo Lens #F-2 F2-6). Allowed for a Worker only, and only as the nearest file.
+const ESBUILD = both(path.join(REPO, "node_modules", "esbuild", "lib"));
+const gameRefs = both(gameDir);
+// WHERE a stack line's code lives: the location in the line's last "(…:line:col)", or after "at " when the function has
+// no name. Never the function's name, which a game can choose at run time ({ [name]: fn }, Repo Lens #F-2 F2-2, F2-4).
+// "" for a builtin, native or eval'd frame with no file of its own.
+const where = (l: string) => (/\(([^()]*):\d+:\d+\)\s*$/.exec(l) ?? /^\s*at (?:async )?([^\s()]+):\d+:\d+\s*$/.exec(l))?.[1] ?? "";
+const at = (l: string, refs: string[]) => { const w = where(l); return w !== "" && refs.some((r) => w.startsWith(r)); };
+const isSelf = (l: string) => { const w = where(l); return w === SELF[0] || w === SELF[1]; };
+const isNode = (l: string) => where(l).startsWith("node:");
+const isBuiltin = (l: string) => where(l) === "";
+// The game's frames by text (anywhere in the line, its name included): matching too much only denies more.
+const inGame = (l: string) => gameRefs.some((r) => l.includes(r));
 let gameLoading = false;
-const fromGame = (env = false) => {
-  const frames = stackOf().split("\n").slice(1).filter((l) => !has(l, SELF));
+type Kind = "clock" | "env" | "worker" | "other";
+const fromGame = (kind: Kind = "other") => {
+  const frames = stackOf().split("\n").slice(1).filter((l) => !isSelf(l));
   const nearest = frames.find((l) => !isBuiltin(l));
-  if (env && nearest && isNode(nearest)) return false;                 // Node reading its own settings
-  // The real loader, as the nearest file: it calls Date.now itself (a game can't hand it a function), also while a
-  // game file is importing another one (the game's frame further up).
-  const file = frames.find((l) => !isNode(l) && !isBuiltin(l));
-  if (!env && file && has(file, LOADER)) return false;
+  if (kind === "env" && nearest && isNode(nearest)) return false;      // Node reading its own settings
+  const file = frames.find((l) => !isNode(l) && !isBuiltin(l));         // the nearest frame from a file
+  // The real loader reads the clock itself for its cache, also while a game file imports another (the game further up).
+  if (kind === "clock" && file && at(file, LOADER)) return false;
+  if (kind === "worker" && file && at(file, ESBUILD)) return false;
   if (frames.some(inGame)) return true;
-  if (!gameLoading) return !env && frames.every((l) => isNode(l) || isBuiltin(l));   // deny on doubt (#E-24)
+  if (!gameLoading) return kind !== "env" && frames.every((l) => isNode(l) || isBuiltin(l));   // deny on doubt (#E-24)
   return true;
 };
-function trap<T extends object>(obj: T, key: keyof T & string, what: string) {
+function trap<T extends object>(obj: T, key: keyof T & string, what: string, kind: Kind = "other") {
   const orig = (obj as any)[key];
   if (typeof orig !== "function") return;
   const fn = function (this: unknown, ...a: unknown[]) {
-    if (fromGame()) { violations.add(what); throw new Error(`conformance: the module used ${what}`); }
+    if (fromGame(kind)) { violations.add(what); throw new Error(`conformance: the module used ${what}`); }
     return orig.apply(this, a);
   };
   try { (obj as any)[key] = fn; } catch { /* a getter-only property */ }
@@ -65,19 +77,19 @@ function trap<T extends object>(obj: T, key: keyof T & string, what: string) {
 // The clock.
 const RealDate = Date;
 const TrapDate: any = function (this: unknown, ...a: unknown[]) {
-  if (!new.target) { if (fromGame()) { violations.add("Date()"); throw new Error("conformance: the module used Date()"); } return RealDate(); }
-  if (a.length === 0 && fromGame()) { violations.add("new Date() (the clock)"); throw new Error("conformance: the module used new Date()"); }
+  if (!new.target) { if (fromGame("clock")) { violations.add("Date()"); throw new Error("conformance: the module used Date()"); } return RealDate(); }
+  if (a.length === 0 && fromGame("clock")) { violations.add("new Date() (the clock)"); throw new Error("conformance: the module used new Date()"); }
   return new (RealDate as any)(...a);
 };
 TrapDate.prototype = RealDate.prototype;
 // (new Date(0)).constructor is the trapped Date too, not a way back to the real one (NK-6).
 Object.defineProperty(RealDate.prototype, "constructor", { value: TrapDate, writable: false, configurable: false });
 TrapDate.UTC = RealDate.UTC; TrapDate.parse = RealDate.parse;
-TrapDate.now = () => { if (fromGame()) { violations.add("Date.now"); throw new Error("conformance: the module used Date.now"); } return RealDate.now(); };
+TrapDate.now = () => { if (fromGame("clock")) { violations.add("Date.now"); throw new Error("conformance: the module used Date.now"); } return RealDate.now(); };
 (globalThis as any).Date = TrapDate;
-trap(performance, "now", "performance.now");
-trap(process, "hrtime", "process.hrtime");
-trap(process.hrtime, "bigint", "process.hrtime.bigint");
+trap(performance, "now", "performance.now", "clock");
+trap(process, "hrtime", "process.hrtime", "clock");
+trap(process.hrtime, "bigint", "process.hrtime.bigint", "clock");
 trap(process, "uptime", "process.uptime");
 // Randomness.
 trap(Math, "random", "Math.random");
@@ -93,7 +105,7 @@ import cp from "node:child_process";
 {
   const RealWorker = (wt as any).Worker;
   const TrapWorker = function (this: unknown, ...a: unknown[]) {
-    if (fromGame()) { violations.add("worker_threads.Worker"); throw new Error("conformance: the module started a Worker"); }
+    if (fromGame("worker")) { violations.add("worker_threads.Worker"); throw new Error("conformance: the module started a Worker"); }
     return new RealWorker(...a);
   };
   try { (wt as any).default.Worker = TrapWorker; } catch { /* read-only */ }
@@ -104,8 +116,8 @@ syncBuiltinESMExports();
 // The environment (read at import too: the traps are in place before the module loads).
 const realEnv = process.env;
 (process as any).env = new Proxy(realEnv, {
-  get(t, k) { if (typeof k === "string" && fromGame(true)) { violations.add(`process.env.${k}`); return undefined; } return Reflect.get(t, k); },
-  ownKeys(t) { if (fromGame(true)) violations.add("process.env (listing)"); return Reflect.ownKeys(t); },
+  get(t, k) { if (typeof k === "string" && fromGame("env")) { violations.add(`process.env.${k}`); return undefined; } return Reflect.get(t, k); },
+  ownKeys(t) { if (fromGame("env")) violations.add("process.env (listing)"); return Reflect.ownKeys(t); },
 });
 
 const checks: { pass: boolean; msg: string }[] = [];

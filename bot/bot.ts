@@ -49,7 +49,7 @@ import { pobAbi } from "./token-abi.ts";
 import { formatProduction, loadSigners, signerFromBlockItem, type SignedBlock } from "./production.ts";
 import { contractManaVerdict } from "./mana.ts";
 import { contractMetadata, checkMeta, sha256OfMeta, type Check } from "./chaincheck.ts";
-import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, sharedRulesWeek, questionWeekShared, paysFrom, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
+import { vaultView, vaultResultsPass, vaultFinalizePass, vaultAlerts, recentGameWeeks, vaultStatus, sharedRulesWeek, questionWeekShared, testWeeks, type VaultCtx, type VaultMemo, type SendResult } from "./vault.ts";
 
 // ───────────────────────── settings ─────────────────────────
 
@@ -715,11 +715,12 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
   // On the simulated chain the blocks come from blocks.csv, and the generator is asked to download missing ones.
   let ranGenerator = false;
   const fresh = new Map<string, Blk[]>();
-  // A question of a week before vaultPayFromWeek (the test week) is posted VOID on chain, whatever its blocks say: no
-  // answer counts, so no entry can win and the week's pot rolls over (Repo Lens #F-4 F4-1, for questions posted before
-  // the bot stopped making them). The file keeps the real answer for the site.
-  const payFrom = paysFrom(readJson(ctx.P.deployment, null));
-  const testWeek = (q: any) => num(q.week) < payFrom;
+  // Owner, 10 Nov: a test week (vaultTestWeeks) plays but pays nothing. Its questions are posted VOID on chain, whatever
+  // their blocks say: under the old rules anyone can settle anyone, so with the bot settling nobody a lone settled
+  // player would take the week's whole pot (Repo Lens #F-4 F4-1). VOID = no answer counts = no entry can win = the pot
+  // rolls over. The file keeps the real answer, and the site shows it as a practice result (app.js practiceOf).
+  const tw = testWeeks(readJson(ctx.P.deployment, null));
+  const testWeek = (q: any) => tw.includes(num(q.week));
   const windowOf = async (q: any, csv: Blk[]) => {
     if (!ctx.windowBlocks) return csv;
     const k = `${q.windowStart}-${q.windowEnd}`;
@@ -775,7 +776,7 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
             }
             if (mine !== q.chainOutcome) {
               log(`  ⚠ ${q.id} (#${q.chainId}): on-chain outcome ${q.chainOutcome} differs from the blocks (${mine}${scored.result.void ? ", void" : ""}).`);
-              if (testWeek(q)) ctx.problems.push(`${q.id} (#${q.chainId}) is in week ${q.week}, before the first paying week (${payFrom}), so it must be VOID, but it has outcome ${q.chainOutcome} on chain. Void it with the owner key: npm run bot -- void ${q.chainId} test week --send; ${await correctionDeadline(ctx, st, num(onChain.week))}.`);
+              if (testWeek(q)) ctx.problems.push(`${q.id} (#${q.chainId}) is in test week ${q.week} (vaultTestWeeks), so it must be VOID, but it has outcome ${q.chainOutcome} on chain. Void it with the owner key: npm run bot -- void ${q.chainId} test week --send; ${await correctionDeadline(ctx, st, num(onChain.week))}.`);
               else ctx.problems.push(`${q.id} (#${q.chainId}): the on-chain outcome (${q.chainOutcome}) differs from what the blocks say (${mine}${scored.result.void ? ", void" : ""}). Check it; ${await correctionDeadline(ctx, st, num(onChain.week))}.`);
             }
           }
@@ -820,7 +821,7 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
         }
         const outcome = testWeek(q) ? 1000 : chainOutcome(scored.result);
         const dataHash = "0x" + scored.result.dataHash;
-        const label = testWeek(q) ? `VOID (week ${q.week} is a test week, before the first paying week ${payFrom})`
+        const label = testWeek(q) ? `VOID (week ${q.week} is a test week: practice result only)`
           : scored.result.void ? `VOID (${scored.result.reason})` : `option ${String.fromCharCode(65 + (scored.result.option ?? 0))} (actual ${scored.result.value})`;
         // Not marked done here: the next pass reads the outcome back from the chain, so a transaction that never
         // made it into a block is simply sent again.
@@ -923,13 +924,8 @@ export async function postPass(ctx: Ctx, bs: BotState) {
   const capOf = capsFrom(st.raw, st.genesis, st.weekLen, time);
   const { current, next } = roundsAt(st.genesis, time, capOf);
   const wallStart = Date.now();
-  // Owner, 9 Nov (Week 1 = Mon 16): no Daily Questions in a week before vaultPayFromWeek. Old-rules entries of a
-  // non-paying week could be settled by anyone, and a lone settled player would take that week's whole pot
-  // (Repo Lens #F-4 F4-1). No questions = no entries = the pot rolls over.
-  const payFrom = paysFrom(readJson(ctx.P.deployment, null));
-  if (current && current.week < payFrom) { if (!ctx.quiet) log(`  week ${current.week} is before the first paying week (${payFrom}): no questions`); }
-  else if (current) await postRound(ctx, bs, st, current, capOf(current.week));
-  if (!next || next.week < payFrom) return;
+  if (current) await postRound(ctx, bs, st, current, capOf(current.week));
+  if (!next) return;
   // Chain time now: the time read above plus however long posting took (no extra read; Repo Lens #C-5 C5-1's test).
   const now = time + (Date.now() - wallStart);
   const releaseAt = next.releaseAt, wait = releaseAt - now;
@@ -1108,9 +1104,9 @@ async function settlePass(ctx: Ctx) {
   const h = st.time;
   const started = Date.now();
   const outOfTime = () => Date.now() - started > SETTLE_BUDGET_MS;
-  const payFrom = paysFrom(readJson(ctx.P.deployment, null));
+  const tw = testWeeks(readJson(ctx.P.deployment, null));
   for (let w = st.weeksFinalized; w < st.weeksClosed; w++) {
-    if (w < payFrom) continue;   // owner, 9 Nov: a test week pays nothing; nobody settles it, so its pot rolls over
+    if (tw.includes(w)) continue;   // owner, 10 Nov: a test week pays nothing (its questions are VOID); nobody settles it
     if (sharedRulesWeek(st.c, w)) continue;   // v6.1 (D-116): paid from its results file, no settle step (Repo Lens #E-16 N-1)
     if (await questionWeekShared(ctx.chain, st.c, w)) continue;   // the same after a rollback (the contract's qShared rule)
     const wk = (await ctx.chain.read("get_week", { week: String(w) })).week ?? {};
@@ -1619,7 +1615,7 @@ async function verifyResults(days: number, rpcArg?: string) {
     // A result that can't be recounted is not a pass (audit L-8).
     if (!sc.ok) { bad++; lines.push(`VERIFY-ALERT ?  ${q.id} (#${q.chainId}): could not recount (${sc.reason})`); continue; }
     checked++;
-    const mine = num(q.week) < paysFrom(readJson(P.deployment, null)) ? 1000 : storedOutcome(sc.result), hashOk = String(oc.data_hash ?? "").replace(/^0x/, "").toLowerCase() === sc.result.dataHash;
+    const mine = testWeeks(readJson(P.deployment, null)).includes(num(q.week)) ? 1000 : storedOutcome(sc.result), hashOk = String(oc.data_hash ?? "").replace(/^0x/, "").toLowerCase() === sc.result.dataHash;
     const show = (o: number) => (o === 1000 ? "void" : `option ${String.fromCharCode(64 + o)}`);
     if (mine === outcome && hashOk) lines.push(`✔  ${q.id} (#${q.chainId}): ${show(outcome)} — matches your node's blocks`);
     else {

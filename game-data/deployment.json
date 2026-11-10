@@ -53,7 +53,7 @@
     },
     "guest": true
   },
-  "vaultPayFromWeek": 4,
+  "vaultTestWeeks": [3],
   "vaultGames": {
     "1": {
       "name": "Daily Questions",

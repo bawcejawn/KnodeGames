@@ -643,13 +643,14 @@ test("Repo Lens #E-16 N-1: questionWeekShared follows the contract's qShared rul
   assert.equal(await questionWeekShared(chainWith("throws"), {}, 2), false, "v6 (no game-1 game-week): not shared");
 });
 
-test("owner 9 Nov (Week 1 = Mon 16): a week before vaultPayFromWeek posts nothing and rolls over at its deadline", { skip: !fs.existsSync(NEW) && `${NEW} missing: run npm run build:sim in game/` }, async () => {
-  const { paysFrom } = await import("./vault.ts");
-  assert.equal(paysFrom({ vaultPayFromWeek: 4 }), 4);
-  assert.equal(paysFrom({}), 0);
-  assert.throws(() => paysFrom({ vaultPayFromWeek: "x" }), /not a week number/);
-  assert.throws(() => paysFrom({ vaultPayFromWeek: true }), /not a week number/);
-  assert.throws(() => paysFrom({ vaultPayFromWeek: "4" }), /not a week number/);
+test("owner 10 Nov (Week 1 = Mon 16): a test week (vaultTestWeeks) posts nothing and rolls over at its deadline", { skip: !fs.existsSync(NEW) && `${NEW} missing: run npm run build:sim in game/` }, async () => {
+  const { testWeeks, isTestWeek } = await import("./vault.ts");
+  assert.deepEqual(testWeeks({ vaultTestWeeks: [3] }), [3]);
+  assert.deepEqual(testWeeks({}), []);
+  assert.equal(isTestWeek({ vaultTestWeeks: [3] }, 3), true);
+  assert.equal(isTestWeek({ vaultTestWeeks: [3] }, 2), false, "only the listed week: the week before still pays");
+  assert.equal(isTestWeek({ vaultTestWeeks: [3] }, 4), false);
+  for (const bad of [3, "3", true, ["3"], [3.5], [-1], {}]) assert.throws(() => testWeeks({ vaultTestWeeks: bad }), /not a list of week numbers/, JSON.stringify(bad));
   const { sim, at, ok } = await world();
   await ok([["propose_game", { game: 2, name: "Fantasy", staked: true, free_prize: false, season_weeks: 1 }], ["propose_game", { game: 3, name: "Block X", staked: false, free_prize: true, season_weeks: 1 }]], [owner]);
   at(T0 + 2 * DAY + HOUR);
@@ -669,10 +670,10 @@ test("owner 9 Nov (Week 1 = Mon 16): a week before vaultPayFromWeek posts nothin
     "mem:blockx/W1": { game: 3, week: 1, final: true, rows: [], first: [addr(C)], second: [] },
   };
   const v = vctx(sim, results);
-  v.deployment.vaultPayFromWeek = 2;                       // week 1 is the test week
+  v.deployment.vaultTestWeeks = [1];                       // week 1 is the test week
   const sent: string[] = [];
   await vaultResultsPass(v, sendAs(sim, operator, sent));
-  assert.deepEqual(sent, [], "nothing is posted for a week before the first paying week");
+  assert.deepEqual(sent, [], "nothing is posted for a test week");
   assert.deepEqual(v.problems, []);
   const before = (await sim.read("get_game", { game: 2, week: "1" })).week;
   assert.ok(BigInt(before.bucket ?? 0) > 0n, "the test week has a bucket to roll");

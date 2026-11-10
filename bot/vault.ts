@@ -131,17 +131,22 @@ export async function questionWeekShared(chain: Chain, config: any, w: number): 
 }
 
 /** Whether the vault bot handles this game's week `w`: every game, and the question game only from the shared-rules week. */
-/** Owner, 9 Nov (Week 1 = Mon 16 Nov): `vaultPayFromWeek` in game-data/deployment.json is the first vault week that pays.
- *  Below it the bot posts no results, no prize winners and no settles: each game's week rolls over at its results
- *  deadline (its stakers' bucket stays in the game and is added to its next week; its prize goes back to the pool, paid
- *  out with the next close). Missing = every week pays. Present but not a whole number >= 0 (a typo, `true`, "4"):
- *  throws, so the run fails and alerts instead of paying every week (Repo Lens #F-4 F4-4). */
-export function paysFrom(deployment: any): number {
-  const v = deployment?.vaultPayFromWeek;
-  if (v === undefined || v === null) return 0;
-  if (typeof v !== "number" || !Number.isInteger(v) || v < 0) throw new Error(`vaultPayFromWeek in deployment.json is not a week number (${JSON.stringify(v)})`);
+/** Owner, 9-10 Nov (Week 1 = Mon 16 Nov = vault week 4): `vaultTestWeeks` in game-data/deployment.json lists the vault
+ *  weeks that play but pay nothing (today [3], the week of Mon 9 Nov). Every game plays as normal; for those weeks the
+ *  bot posts no results, no prize winners and no settles: each game's week rolls over at its results deadline (its
+ *  stakers' bucket stays in the game and is added to its next week; its prize goes back to the pool, paid out with the
+ *  next close), and Daily Questions of those weeks are resolved VOID on chain (bot.ts resolvePass) so no entry can win.
+ *  Weeks not listed pay as normal (week 2, 2-9 Nov, pays). Missing = no test week. Present but not a list of whole
+ *  numbers >= 0: throws, so the run fails and alerts instead of paying a test week (Repo Lens #F-4 F4-4). */
+export function testWeeks(deployment: any): number[] {
+  const v = deployment?.vaultTestWeeks;
+  if (v === undefined || v === null) return [];
+  if (!Array.isArray(v) || !v.every((w) => typeof w === "number" && Number.isInteger(w) && w >= 0)) {
+    throw new Error(`vaultTestWeeks in deployment.json is not a list of week numbers (${JSON.stringify(v)})`);
+  }
   return v;
 }
+export const isTestWeek = (deployment: any, w: number) => testWeeks(deployment).includes(Number(w));
 
 export function vaultHandles(id: number, config: any, w: number): boolean {
   return id !== Q_GAME || sharedRulesWeek(config, w);
@@ -302,10 +307,9 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
     const gw = (await ctx.chain.read("get_game", { game: id, week: String(w) })).week ?? {};
     // Fix-check VN-3: the contract's rule. A game restarted after a gap keeps the weeks it earned (closed with it).
     if (!earnedWeek(g, w, gw)) { if (only) throw new Error(`${name} has no results for week ${w}.`); continue; }
-    if (w < paysFrom(ctx.deployment)) {
-      // Owner, 9 Nov: a test week pays nothing; it rolls over at its deadline (the finalize pass sends that).
-      if (only) throw new Error(`Week ${w} of ${name} is before the first paying week (vaultPayFromWeek ${paysFrom(ctx.deployment)} in deployment.json): it pays nothing and rolls over.`);
-      log(ctx, `  ${name} week ${w}: before the first paying week (${paysFrom(ctx.deployment)}): no results posted; it rolls over at ${utc(k.resultsDue(w))}`);
+    if (isTestWeek(ctx.deployment, w)) {
+      if (only) throw new Error(`Week ${w} of ${name} is a test week (vaultTestWeeks in deployment.json): it plays but pays nothing, and rolls over.`);
+      log(ctx, `  ${name} week ${w}: a test week (vaultTestWeeks): no results posted; it rolls over at ${utc(k.resultsDue(w))}`);
       continue;
     }
     const source = only?.source ?? cfg[String(id)]?.results;

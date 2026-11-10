@@ -96,19 +96,21 @@ npm run bot -- status
 
 ## 4. Records (one pull request into `main`)
 - `game-data/deployment.json`: `wasmSha256` → `11043e1f…` (the tool wrote it on apply) and `safeWasmSha256` → `04c27c1a…` (step 3): commit both.
-- **Merge PR #114 as soon as Repo Lens gives GO** (it no longer waits for the upload). `main`'s bot doesn't know
-  `"vaultPayFromWeek": 4` (owner, 9 Nov: Week 1 = Mon 16; the week of Mon 9, vault week 3, is a test week), so until #114
-  is on `main` it keeps posting week-3 Daily Questions and would resolve them from their blocks. With #114 the bot:
-  - posts no Daily Questions for week 3 (Repo Lens #F-4 F4-1: in an old-rules week anyone can settle anyone, and a lone
-    settled player would take the whole week-3 pot);
-  - resolves the week-3 questions already posted as **VOID**, so no answer counts, no entry can win and game 1's week-3
-    pot rolls into week 4 (the question files keep the real answers for the site);
-  - posts no results, prize winners or settles for vault week 3: each game's week 3 rolls over at its deadline
+- **Merge PR #114 as soon as Repo Lens gives GO** (it no longer waits for the upload). Owner, 10 Nov: **Week 1 = Mon 16
+  Nov (vault week 4).** The week of Mon 9 (vault week 3) is a **test week**: every game plays, nothing pays, and its
+  earnings go to Week 1's pool. **Last week (vault week 2, 2-9 Nov) pays as normal.** #114 sets this with
+  `"vaultTestWeeks": [3]` in `game-data/deployment.json`. For week 3 the bot:
+  - still posts Daily Questions, but resolves them **VOID** on chain with the real result's data_hash. In an old-rules
+    week anyone can settle anyone, so a lone settled player would otherwise take the whole week-3 pot (Repo Lens #F-4
+    F4-1). The Questions page shows the real answer as a **practice** result and practice standings, with no rewards;
+  - settles nobody, so game 1's week-3 pot rolls into week 4 (the bot still settles week 2);
+  - posts no results, prize winners or settles for Block X and the Race: each game's week 3 rolls over at its deadline
     (Thu 19 Nov 00:00 UTC), its stakers' bucket is added to week 4, and its prize goes back to the pool and is paid out
     with week 4's close.
 
-  If a week-3 question was resolved with a real answer before #114 merged, the bot emails "… must be VOID": void it
-  with the owner key, `npm run bot -- void <#> test week --send`, before week 3 closes.
+  Until #114 is on `main`, `main`'s bot resolves week-3 questions from their blocks. If one got a real answer first, the
+  bot emails "… must be VOID": void it with the owner key, `npm run bot -- void <#> test week --send`, before week 3
+  closes.
 
 ## The rollback rule (Repo Lens C-1; replaces V61-A1)
 - **Before the rule week starts:** a rollback to the v6 normal build is possible; nothing of the new path has run yet.

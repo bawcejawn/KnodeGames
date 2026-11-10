@@ -160,9 +160,10 @@ Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub email
 | "Repairing the X from the Y…" / "Repair finished" / "Repair FAILED" | auto-repair | once each | on FAILED: Vault chat with `node\repair-<node>-<time>.log` |
 | "This is a test of the Knode self-healing email." | `node bot\heal.mjs --test-alert` | manual | proves the email path works |
 
-**"Knode question release"** (every 5 min, 11:45 – 14:05 and 23:45 – 02:05 UTC, `bot/release-kick.mjs`, log `node\release-kick.log`):
+**"Knode question release"** (every 5 min, all day, `bot/release-kick.mjs`, log `node\release-kick.log`; re-run `node\install-release-kick.ps1` after the 10 Nov update):
 | Alert | Trigger | What you can do |
 |---|---|---|
+| "The Kpred bot hadn't run since …, so the PC started it…" | heartbeat: no bot run for 75 min (at most 6 starts a day; it backs off 15 min → 4 h after a GitHub error) | re-enable the schedules (`RECOVERY.md` §7); Questions chat |
 | "…today's questions are not out yet at …" | the round's file missing 20 min after release | `RUNBOOK.md` §6; Questions chat |
 | "…the bot skipped today's questions (…)" | the bot logged a skip | Questions chat |
 

@@ -117,6 +117,7 @@ If it emails that it can't fix a node: open Docker Desktop, check the three cont
 | `api.koinos.io` (the site's reads) | site reads may fail or show HTML errors | the site's RPC choice is open (I-006, I-015) |
 | **GitHub Actions** | no questions, results or payouts until it's back; deadlines: results have 3 days after a week ends, then the week rolls over safely | wait; nothing to do on chain. If it's over a day near a deadline, tell the Vault chat |
 | **GitHub account locked** | no merges or secret changes; site and bot keep running | GitHub account recovery (2FA codes, §2 #5) |
+| **GitHub account suspended** (6–9 Nov 2026) | site, bot, recorders and emails all stop; stakes stay withdrawable on chain; weeks close late; rounds whose answers would close within the hour are skipped, not posted late | wait. **When it's back:** (1) Actions → each scheduled workflow → ⋯ Disable workflow, then Enable workflow (GitHub doesn't restart schedules by itself; the PC's heartbeat starts the bot meanwhile); (2) run "Knode Games bot" once by hand; (3) expect late closes: a week closes 12 h after its latest result, and the bot says so as a notice, not an alarm |
 | Snapshot server (`snapshots.armana.io`) | a new node must replay the chain (much slower ❓) | get the snapshot and its hash from a second operator |
 
 ---

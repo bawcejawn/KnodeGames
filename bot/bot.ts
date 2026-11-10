@@ -205,7 +205,15 @@ type BotState = {
   games?: string;
   /** Other games' results (bot/vault.ts VaultMemo): when each results file was first read, refusals, alerts sent. */
   vault?: VaultMemo;
+  /** When this bot sent its own resolve_question transactions (ms, newest last, at most 60): a week held open by the
+   *  bot's own late result (after an outage) is reported as expected, not as a possible key compromise. */
+  ownResolves?: number[];
 };
+/** How close a week's last_resolved_time must be to one of the bot's own resolves to count as that resolve. */
+export const OWN_RESOLVE_SLACK_MS = 20 * 60_000;
+/** Was a week's latest result (its last_resolved_time) the bot's own resolve? Unknown (no record) counts as not. */
+export const lateResultIsOurs = (own: number[] | undefined, lastResolved: number) =>
+  lastResolved > 0 && (own ?? []).some((t) => Math.abs(t - lastResolved) <= OWN_RESOLVE_SLACK_MS);
 const vhpKey = (q: any) => String(q.paramsHash ?? "").toLowerCase();
 /** Records the list the bot just sealed. */
 function noteReadings(bs: BotState, q: any) {
@@ -504,6 +512,12 @@ async function healthPass(ctx: Ctx, bs: BotState) {
     if (st.time > closeAt(st, w, wk)) log(`  Safe mode: closes are paused (week ${w} waits for the normal build).`);
   } else if (st.time > closeAt(st, w, wk) + 3 * HOUR_MS) {
     ctx.problems.push(`Week ${w} is overdue to close (${num(wk.questions) - num(wk.resolved)} question(s) still open).`);
+  } else if (st.time > weekEnd(st, w) + st.closeDelay + 3 * HOUR_MS && num(wk.last_resolved_time) > weekEnd(st, w)
+    && lateResultIsOurs(bs.ownResolves, num(wk.last_resolved_time))) {
+    // The bot's own late resolve (it was down, e.g. a GitHub outage) moved the close: expected, said plainly, no alarm.
+    const msg = `Week ${w} closes at ${utc(closeAt(st, w, wk))}: 12 h after its latest result (${utc(num(wk.last_resolved_time))}), which was this bot's own late resolve after it was down. This is expected; nothing to do.`;
+    log(`  note: ${msg}`);
+    if (process.env.GITHUB_ACTIONS) console.log(`::notice::${msg}`);
   } else if (st.time > weekEnd(st, w) + st.closeDelay + 3 * HOUR_MS && num(wk.last_resolved_time) > weekEnd(st, w)) {
     ctx.problems.push(`Week ${w} is still open ${((st.time - weekEnd(st, w) - st.closeDelay) / HOUR_MS).toFixed(0)} h after its normal close: its latest result or correction was at ${utc(num(wk.last_resolved_time))}. Only the owner key can change results; if you did not, your admin key may be compromised.`);
   }
@@ -817,7 +831,8 @@ async function resolvePass(ctx: Ctx, bs: BotState) {
         const label = scored.result.void ? `VOID (${scored.result.reason})` : `option ${String.fromCharCode(65 + (scored.result.option ?? 0))} (actual ${scored.result.value})`;
         // Not marked done here: the next pass reads the outcome back from the chain, so a transaction that never
         // made it into a block is simply sent again.
-        await sendOp(ctx, `resolve ${q.id} (#${q.chainId}) → ${label}`, [{ method: "resolve_question", args: { id: q.chainId, outcome, data_hash: dataHash } }]);
+        if (await sendOp(ctx, `resolve ${q.id} (#${q.chainId}) → ${label}`, [{ method: "resolve_question", args: { id: q.chainId, outcome, data_hash: dataHash } }]) && !ctx.dryRun)
+          bs.ownResolves = [...(bs.ownResolves ?? []), Date.now()].slice(-60);
       }
       if (dirty && !ctx.dryRun) writeJson(f.file, f.data);
     }

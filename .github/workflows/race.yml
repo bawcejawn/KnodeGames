@@ -361,7 +361,8 @@ jobs:
           # PRIZES_FROM_WEEK, the variable bot/race.ts reads (a plain week number 0-9999, else no prizes: fails closed);
           # RACE_PRIZES_FROM is the tests' override.
           _pf = (os.environ.get("RACE_PRIZES_FROM") or os.environ.get("PRIZES_FROM_WEEK") or "").strip()
-          PRIZES_FROM = int(_pf) if re.fullmatch(r"[0-9]{1,4}", _pf) else 10 ** 9
+          PRIZES_OK = re.fullmatch(r"[0-9]{1,4}", _pf) is not None
+          PRIZES_FROM = int(_pf) if PRIZES_OK else 10 ** 9
           def week_json(w, pattern="W%03d.json"):
               name = pattern % w
               for q in (os.path.join(d, name), os.path.join(pub, name) if pub else ""):
@@ -371,6 +372,8 @@ jobs:
               return None
           def recompute_held(j):
               w = j["week"]
+              # Repo Lens #F-11 F11-1: no valid PRIZES_FROM_WEEK (and no test override) = hold every final vault file, loudly.
+              if not PRIZES_OK: return "the variable PRIZES_FROM_WEEK is not set to a plain week number"
               if w < PRIZES_FROM:
                   return "" if not (j["rows"] or j["first"] or j["second"]) else "a week before the Race pays must list nobody"
               wf = week_json(w)

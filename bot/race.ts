@@ -370,7 +370,9 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   verifyDeadline = Date.now() + VERIFY_BUDGET_MS;
   vaultRefused = null;
   heldAlerts = [];
-  prizesFromWeek = prizesFrom ?? prizesFromEnv(E.PRIZES_FROM_WEEK) ?? NO_PRIZES;   // owner, 10 Nov: the one variable Block X reads (fails closed: unset or bad = no prizes)
+  prizesFromWeek = prizesFrom ?? prizesFromEnv(E.PRIZES_FROM_WEEK) ?? NO_PRIZES;
+  // Repo Lens #F-11 F11-1: unset or malformed is never silent. No prizes AND no final vault file (a published final can't change), and a problem + alert every run.
+  prizesUnset = prizesFrom == null && prizesFromEnv(E.PRIZES_FROM_WEEK) === null ? JSON.stringify(E.PRIZES_FROM_WEEK ?? null) : null;   // owner, 10 Nov: the one variable Block X reads (fails closed: unset or bad = no prizes)
   hold = vaultHold === undefined ? { afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS } : vaultHold;
   holdSetting = holdWeeks ? { weeks: holdWeeks, bad: false, raw: holdWeeks.join(",") } : parseHoldWeeks(E.RACE_HOLD_WEEKS);
   pendingOut = null; pendingNew = false; chainCtx = null;
@@ -936,13 +938,15 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
 /** The Producer Race's game number in the KnodeGames Vault, the vault's limit of wallets per prize place, and its
  *  points range for staked players' rows. */
 export const VAULT_GAME = 7;
-/** The first vault week the Race earns in (owner, 2026-11-02: game 7 is applied in the vault and earns from week 3, Mon
- *  9 Nov 2026). Earlier weeks: no free-prize places, no staked rows and no medals (the vault skips them anyway). */
+/** The first vault week the Race earns in is now the variable PRIZES_FROM_WEEK (owner, 10 Nov: week 4, Mon 16 Nov; on chain game 7's
+ *  from_week is still 3, and the vault skips week 3 while it is a test week). Earlier weeks: no free-prize places, no staked rows, no medals. */
 /** PRIZES_FROM_WEEK (the repository variable Block X reads too; owner, 10 Nov: both games start paying together): a plain week
  *  number 0-9999, else no prizes at all (fails closed). The publish job in race.yml reads the same variable (Repo Lens #E-11 I-2). */
 export const prizesFromEnv = (v: string | undefined) => (v && /^[0-9]{1,4}$/.test(v.trim()) ? Number(v.trim()) : null);
 export const NO_PRIZES = Number.POSITIVE_INFINITY;
 let prizesFromWeek = NO_PRIZES;
+/** Set (to the raw value) while PRIZES_FROM_WEEK is unset or not a plain week number: every vault file is held, not made final and empty. */
+let prizesUnset: string | null = null;
 export const MAX_PRIZE_WINNERS = 10;
 export const MAX_ROW_POINTS = 255;
 type VaultRow = { player: string; points: number };
@@ -1085,6 +1089,11 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   const unread = rows.filter((r) => failed.has(`stake:${r.a}|${w}`));
   const file: VaultFile = { game: VAULT_GAME, week: w, final: false, rows: [], first: [], second: [], skipped: [] };
   const wait = (why: string) => { problems.push(`vault week ${w}: not final yet, ${why}`); lateAlert(w, wf.end, now, why); return file; };
+  if (prizesUnset !== null) {
+    const why = `the repository variable PRIZES_FROM_WEEK is not set to a plain week number (it reads ${prizesUnset}); set it (Settings → Secrets and variables → Actions → Variables, the same one Block X reads: 4 = first paid week Mon 16 Nov). The week stays pending, nothing is made final`;
+    problems.push(`vault week ${w}: not final yet, ${why}`); heldAlert(w, wf.end, now, why, "set the variable PRIZES_FROM_WEEK; the week goes final by itself on the next run");
+    return file;
+  }
   if (open.length && !late) return wait(`${open.length} race(s) still being checked (${open.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
   if (openTyped.length && !late) return wait(`${openTyped.length} race(s) of the other types still being scored (${openTyped.slice(0, 5).map((r) => r.id).join(", ")}${openTyped.length > 5 ? ", …" : ""}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
   if (unread.length) return wait(`${unread.length} Race stake(s) could not be read (tried again next run)`);
@@ -1266,7 +1275,7 @@ export function heldMessage(w: number, weekEnd: number, now: number, why: string
 /** Only paid weeks, only before the deadline (after it the week has rolled over and there is nothing left to do). */
 export const alertsFor = (w: number, weekEnd: number, now: number, paidFrom: number) => w >= paidFrom && now < weekEnd + RESULTS_DUE_AFTER;
 function heldAlert(w: number, weekEnd: number, now: number, why: string, first?: string) {
-  if (!alertsFor(w, weekEnd, now, prizesFromWeek)) return;
+  if (!alertsFor(w, weekEnd, now, prizesUnset !== null ? 0 : prizesFromWeek)) return;   // unset: every week alerts until its deadline (F11-1)
   const m = heldMessage(w, weekEnd, now, why, first);
   if (!heldAlerts.includes(m)) heldAlerts.push(m);
 }

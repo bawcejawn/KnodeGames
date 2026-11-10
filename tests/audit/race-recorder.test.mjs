@@ -1226,7 +1226,8 @@ test("I-085: the publish job's recompute agrees with the recorder's rules on 120
 
 test("I-085: the workflow never sets the recompute's test-only RACE_PRIZES_FROM, and both jobs get the one PRIZES_FROM_WEEK variable (owner, 10 Nov)", async () => {
   assert.match(yml, /_pf = \(os\.environ\.get\("RACE_PRIZES_FROM"\) or os\.environ\.get\("PRIZES_FROM_WEEK"\) or ""\)\.strip\(\)/);
-  assert.match(yml, /PRIZES_FROM = int\(_pf\) if re\.fullmatch\(r"\[0-9\]\{1,4\}", _pf\) else 10 \*\* 9/, "the same rule as prizesFromEnv; anything else: no prizes");
+  assert.match(yml, /PRIZES_OK = re\.fullmatch\(r"\[0-9\]\{1,4\}", _pf\) is not None\n\s+PRIZES_FROM = int\(_pf\) if PRIZES_OK else 10 \*\* 9/, "the same rule as prizesFromEnv");
+  assert.match(yml, /if not PRIZES_OK: return "the variable PRIZES_FROM_WEEK is not set to a plain week number"/, "Repo Lens #F-11 F11-1: anything else holds every final vault file");
   assert.equal((yml.match(/RACE_PRIZES_FROM/g) || []).length, 2, "only read (the line and its comment), never set");
   assert.equal((yml.match(/^\s+PRIZES_FROM_WEEK: \$\{\{ vars\.PRIZES_FROM_WEEK \}\}$/gm) || []).length, 2, "the record job and the publish job");
   assert.doesNotMatch(yml, /PRIZES_FROM_WEEK: *['"]?\d/, "never a fixed number in the workflow");
@@ -1234,10 +1235,10 @@ test("I-085: the workflow never sets the recompute's test-only RACE_PRIZES_FROM,
 
 test("owner 10 Nov: with PRIZES_FROM_WEEK unset or bad the Race pays nothing (fails closed); set to 4, week 3 is practice and a week from 4 pays", async () => {
   const { dir } = await weekTwoDone();
-  // week 2 (the made-up week) with the variable unset: no prizes, a final empty file, no medals
+  // week 2 (the made-up week) with the variable unset: no prizes, NO final file (held, Repo Lens #F-11 F11-1), no medals
   const saved = process.env.PRIZES_FROM_WEEK; delete process.env.PRIZES_FROM_WEEK;
   let none; try { none = await picksRun(U("2026-11-09T05:37Z"), dir, { staked: [W1], prizesFrom: null }); } finally { if (saved !== undefined) process.env.PRIZES_FROM_WEEK = saved; }
-  assert.deepEqual(vaultOf(none), { game: 7, week: 2, final: true, rows: [], first: [], second: [], skipped: [] });
+  assert.deepEqual(vaultOf(none), { game: 7, week: 2, final: false, rows: [], first: [], second: [], skipped: [] });
   const board = JSON.parse(fs.readFileSync(path.join(none, "board.json"), "utf8"));
   for (const r of [...(board.lastWeek?.rows || []), ...(board.thisWeek?.rows || [])]) assert.ok(!r.earns && !r.prizes, "no medals");
   // the variable "2" (week 2 is the first paid week): the same data now pays, read from the variable and not from the test option
@@ -1957,4 +1958,15 @@ test("Repo Lens #D-13 L-2: the publish job's race-types switch is off while TYPE
   assert.doesNotMatch(yml, /RACE_TYPES_FROM\s*[:=]/, "tests only");
   const ymlWeek = yml.match(/^\s*TYPES_FROM_WEEK = (\w+)/m)[1];
   assert.equal(ymlWeek, M.TYPES_FROM_WEEK === null ? "TYPES_OFF" : String(M.TYPES_FROM_WEEK), "race.yml's TYPES_FROM_WEEK is race-math.js's (null = TYPES_OFF)");
+});
+
+// Repo Lens #F-11 (race-prizes-var @ 745f0860): F11-1. The variable unset (deleted, renamed, or a typo such as "week 4") must never be silent: today the week goes final with
+// nothing to pay (write-once once published) and no alert.
+test("F11-1 (High): with PRIZES_FROM_WEEK unset, a finished week is not made final in silence", async () => {
+  const saved = process.env.PRIZES_FROM_WEEK; delete process.env.PRIZES_FROM_WEEK;
+  let out; try { out = await picksRun(U("2026-11-09T05:37Z"), (await weekTwoDone()).dir, { staked: [W1], prizesFrom: null }); }
+  finally { if (saved !== undefined) process.env.PRIZES_FROM_WEEK = saved; }
+  const f = vaultOf(out);
+  const said = (lastProblems || []).some((p) => /PRIZES_FROM_WEEK/.test(p));
+  assert.ok(said && !(f && f.final), `unset: the week-2 vault file is ${JSON.stringify(f)}; problems: ${JSON.stringify(lastProblems)}. Fail closed by holding (no final file) AND alerting every run.`);
 });

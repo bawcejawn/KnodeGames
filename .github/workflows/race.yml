@@ -84,7 +84,8 @@ jobs:
             git fetch -q --depth 1 "$url" race-data
             git ls-tree -r -z --name-only FETCH_HEAD > "$RUNNER_TEMP/prev-files"   # fails the step if it fails (review V2)
             while IFS= read -r -d '' f; do
-              if [[ "$f" =~ ^(index|board|W[0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
+              # D-166: T<week>.json, the race types' ledger and results, comes back to the recorder too.
+              if [[ "$f" =~ ^(index|board|[WT][0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
               if [[ "$f" =~ ^vault/(PENDING-)?W[0-9]{1,4}\.json$ ]]; then mkdir -p "$RUNNER_TEMP/prev/vault"; git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
             done < "$RUNNER_TEMP/prev-files"
           fi
@@ -141,7 +142,41 @@ jobs:
             if [ "${RECORD_FILES:-}" = "true" ]; then echo "::error::The record job wrote its files, but they didn't reach the publish job (artifact hand-over failed). Nothing was published this run; the next run tries again."; exit 1; fi
             echo "Nothing to publish."; exit 0
           fi
-          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( -type f ! -regex "$IN/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
+          # Round 8 (BX-122): the recorder's own JSON form, checked by the same script for the vault folder and the rest.
+          # It prints the files that fail, one per line, and exits 1.
+          canon='const fs=require("fs"),p=require("path"),bad=[];(function w(d){for(const f of fs.readdirSync(d)){const q=p.join(d,f),s=fs.lstatSync(q);if(s.isDirectory()){w(q);continue}if(!f.endsWith(".json"))continue;if(!s.isFile()){bad.push(p.relative(process.argv[1],q));continue}const raw=fs.readFileSync(q);let ok=false;try{ok=Buffer.compare(Buffer.from(JSON.stringify(JSON.parse(raw.toString("utf8")))+"\n","utf8"),raw)===0}catch(e){}if(!ok)bad.push(p.relative(process.argv[1],q))}})(process.argv[1]);if(bad.length){console.log(bad.join("\n"));process.exit(1)}'
+          command -v node >/dev/null || { echo "::error::node is missing on this runner; nothing published"; exit 1; }
+          # I-037 B1-4: a bad vault folder (an unexpected or nested file, a file over 2 MB, or one not in the recorder's
+          # own JSON form) is held on its own, as the per-file vault checks below already do: no vault file is published
+          # this run (no file means no prize; the alert says so), and the race cards Block X needs still publish.
+          hold_vault() {
+            # Repo Lens #B-8 B8-B3: paths relative to $IN, and no apostrophe in the fixed text (tr would turn it into ?).
+            echo "::error::vault results held, not published this run: $(printf '%s' "$1" | sed "s#$IN/##g" | tr -c '[:alnum:]/._ ,:-' '?' | cut -c1-300) (the race cards still publish; I-037 B1-4)"
+            if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "held=true" >> "$GITHUB_OUTPUT"; fi
+            rm -rf "$IN/vault"
+          }
+          if [ -e "$IN/vault" ] || [ -L "$IN/vault" ]; then
+            vbad=$(find "$IN/vault" \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( ! -type d ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
+            if [ -n "$vbad" ]; then hold_vault "unexpected files in vault/: $vbad"
+            elif [ -n "$(find "$IN/vault" -type f -size +2048k -print)" ]; then hold_vault "a file in vault/ is over 2 MB"
+            elif ! vout=$(node -e "$canon" -- "$IN/vault"); then hold_vault "not in the recorders own JSON form: $vout"
+            fi
+          fi
+          # Repo Lens #D-13 M-1 / M-3: a race-types file (T) over 2 MB or not in the recorder's own JSON form is held on
+          # its own, like the vault folder: the 6-hour race's files, the board and the vault still publish.
+          for tf in "$IN"/T[0-9][0-9][0-9].json; do
+            [ -f "$tf" ] && [ ! -L "$tf" ] || continue
+            tdir="$RUNNER_TEMP/tcheck"; rm -rf "$tdir"; mkdir -p "$tdir"; cp "$tf" "$tdir/"
+            twhy=""
+            if [ -n "$(find "$tf" -size +2048k -print)" ]; then twhy="over 2 MB"
+            elif ! node -e "$canon" -- "$tdir" >/dev/null; then twhy="not in the recorders own JSON form"; fi
+            if [ -n "$twhy" ]; then
+              echo "::error::$(basename "$tf") (race types) held, not published this run: $twhy (the 6-hour race files still publish; Repo Lens #D-13 M-3)"
+              if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "held=true" >> "$GITHUB_OUTPUT"; fi
+              rm -f "$tf"
+            fi
+          done
+          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( -type f ! -regex "$IN/\(index\|board\|[WT][0-9][0-9][0-9]\)\.json" ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           big=$(find "$IN" -type f -size +2048k -print)
           if [ -n "$big" ]; then echo "::error::Refusing to publish files over 2 MB: $big"; exit 1; fi
@@ -149,7 +184,6 @@ jobs:
           # JavaScript recorder writes for its own content (JSON.stringify of its parse, plus a newline). Then the next
           # recorder run reads back the same values and writes the same bytes, whatever Python thinks of them: no 5.0, no
           # -0, no 1e2, no big integer, no spacing or escaping a recorder never writes.
-          command -v node >/dev/null || { echo "::error::node is missing on this runner; nothing published"; exit 1; }
           node -e 'const fs=require("fs"),p=require("path"),bad=[];(function w(d){for(const f of fs.readdirSync(d)){const q=p.join(d,f),s=fs.lstatSync(q);if(s.isDirectory()){w(q);continue}if(!f.endsWith(".json"))continue;if(!s.isFile()){bad.push(p.relative(process.argv[1],q));continue}const raw=fs.readFileSync(q);let ok=false;try{ok=Buffer.compare(Buffer.from(JSON.stringify(JSON.parse(raw.toString("utf8")))+"\n","utf8"),raw)===0}catch(e){}if(!ok)bad.push(p.relative(process.argv[1],q))}})(process.argv[1]);if(bad.length){console.log("::error::not in the recorders own JSON form (JSON.stringify of its parse), nothing published: "+bad.join(", "));process.exit(1)}' -- "$IN"
           # The content must be the recorder's own shape, not only parse as JSON.
           # The published files, to check that a card once published is never changed (audit BX-44).
@@ -160,7 +194,7 @@ jobs:
           if git -C work fetch -q --depth 1 "$remote" race-data 2>/dev/null; then
             parent=$(git -C work rev-parse FETCH_HEAD)
             git -C work ls-tree --name-only FETCH_HEAD | while IFS= read -r f; do
-              if [[ "$f" =~ ^(W[0-9]{3}|index)\.json$ ]]; then git -C work show "FETCH_HEAD:$f" > "$RUNNER_TEMP/published/$f"; fi
+              if [[ "$f" =~ ^([WT][0-9]{3}|index)\.json$ ]]; then git -C work show "FETCH_HEAD:$f" > "$RUNNER_TEMP/published/$f"; fi
             done
             # I-034: the published vault files, to check the hold (a final file needs its pending file, published earlier).
             git -C work ls-tree --name-only FETCH_HEAD vault/ | while IFS= read -r f; do
@@ -194,7 +228,8 @@ jobs:
           for _root, _dirs, _files in os.walk(d):
               if os.path.relpath(_root, d).split(os.sep)[0] == "vault": continue   # checked below, on its own (blind review V1)
               for _f in _files:
-                  if _f.endswith(".json"):
+                  # Repo Lens #D-14 N-1: T files are checked on their own (check_types), so a bad one is held alone.
+                  if _f.endswith(".json") and not (_root == d and re.fullmatch(r"T[0-9]{3}\.json", _f)):
                       assert js_safe(json.load(open(os.path.join(_root, _f), encoding="utf-8"))), "a value the recorder (JavaScript) can't read back exactly: " + _f
           def card_ok(c):
               # Audit BX-44: exact keys (cards feed Block X's scores). "samples" (how many VHP samples it used) is new.
@@ -237,7 +272,9 @@ jobs:
               return type(rows) is list and len(rows) <= 100000 and all(type(x) is dict and set(x) == {"a", "pts", "correct", "shows", "picks", "ranked", "boardPlace", "earns"}
                   and type(x["earns"]) is int and x["earns"] in (0, 1, 2, 3) and (x["earns"] != 3 or x["ranked"] is True) and (x["earns"] not in (1, 2) or x["ranked"] is False)
                   and isaddr(x["a"]) and all(type(x[k]) is int and 0 <= x[k] < 10**9 for k in ("pts", "correct", "shows", "picks")) and type(x["boardPlace"]) is int and 1 <= x["boardPlace"] <= len(rows)
-                  and x["correct"] + x["shows"] <= x["picks"] and x["pts"] == 3 * x["correct"] + x["shows"] and type(x["ranked"]) is bool for x in rows)
+                  # D-166: the race types score their own points (a win 2, 3, 6 or 12; a show 1, 2 or 4), so pts lies between
+                  # those bounds; the recompute below checks the last week's exactly.
+                  and x["correct"] + x["shows"] <= x["picks"] and (x["pts"] == 3 * x["correct"] + x["shows"] if TYPES_FROM >= TYPES_OFF else 2 * x["correct"] + x["shows"] <= x["pts"] <= 12 * x["correct"] + 4 * x["shows"]) and type(x["ranked"]) is bool for x in rows)
           import time
           GENESIS, WEEK = 1792368000, 7 * 86400   # the vault's week 0 (Mon 19 Oct 2026 00:00 UTC), in seconds
           NOW = float(os.environ.get("RACE_CHECK_NOW") or time.time())   # the tests set a clock; the workflow never does
@@ -245,6 +282,12 @@ jobs:
           # RACE_RHYTHM_FROM) races run Mon 00:00 -> Sat 24:00 UTC, Sunday UTC is the review day, and a week may go final
           # from Monday 00:00 UTC (no 12-hour wait after it: the review day came first).
           RHYTHM_FROM = int(os.environ.get("RACE_RHYTHM_FROM") or 3)
+          # D-166, Repo Lens #D-13 L-2: the first week the race types count (M.TYPES_FROM_WEEK in race-math.js; TYPES_OFF
+          # while it is null; tests only set RACE_TYPES_FROM). Before it a T file is refused; from it a final vault week
+          # needs its T file with every typed race final.
+          TYPES_OFF = 1000000
+          TYPES_FROM_WEEK = TYPES_OFF   # = M.TYPES_FROM_WEEK when the owner turns the types on (a test checks they match)
+          TYPES_FROM = int(os.environ.get("RACE_TYPES_FROM") or TYPES_FROM_WEEK)
           DAY_S = 86400
           def vault_ok(f, j, early=False):
               # The KnodeGames Vault's results (game 7, the Producer Race). rows: staked players, points 1-255 in board
@@ -312,8 +355,8 @@ jobs:
           # recorder's own rules (bot/race.ts: tally, rank, stakedRows, prizePlaces). Anything different holds the file.
           # Who is staked comes from board.json; the vault bot checks that list against the chain (PR #74).
           PRIZES_FROM = int(os.environ.get("RACE_PRIZES_FROM") or 3)   # PRIZES_FROM_WEEK in bot/race.ts; tests only set it
-          def week_json(w):
-              name = "W%03d.json" % w
+          def week_json(w, pattern="W%03d.json"):
+              name = pattern % w
               for q in (os.path.join(d, name), os.path.join(pub, name) if pub else ""):
                   if q and os.path.isfile(q):
                       try: return json.load(open(q, encoding="utf-8"))
@@ -325,18 +368,32 @@ jobs:
                   return "" if not (j["rows"] or j["first"] or j["second"]) else "a week before the Race pays must list nobody"
               wf = week_json(w)
               if type(wf) is not dict or wf.get("week") != w or type(wf.get("races")) is not list: return "its week's race file can't be read to check it"
-              t, first_at = {}, {}
+              t, reached = {}, {}
               import datetime as _dt
-              for r in wf["races"]:
+              # D-166: the 6-hour races (W file), then the race types (T file, this push's else the published one), each
+              # with its own points: [win, show] by type.
+              tw = week_json(w, "T%03d.json") if w >= TYPES_FROM else None
+              typed = tw.get("races") if type(tw) is dict and tw.get("week") == w and type(tw.get("races")) is list else []
+              if w >= TYPES_FROM:
+                  # Repo Lens #D-13 L-2 / L-3: a week with race types goes final only with its T file, and with every typed
+                  # race that counts for it (not Sunday's) final (scored, or missed for want of a card).
+                  if not typed: return "its race-types file (T) can't be read to check it"
+                  if any(type(r) is not dict or type(r.get("result")) is not dict or r["result"].get("final") is not True for r in typed
+                         if not (w >= RHYTHM_FROM and type(r) is dict and type(r.get("start")) is int and _dt.datetime.fromtimestamp(r["start"] / 1000, _dt.timezone.utc).weekday() == 6)):
+                      return "a typed race of the week isn't final yet"
+              PTS = {0: (3, 1), 1: (2, 1), 2: (2, 1), 3: (6, 2), 4: (12, 4)}
+              for r in [dict(x, type=0) if type(x) is dict else x for x in wf["races"]] + typed:
                   # D-129: a Sunday race in a rhythm week counts on no week's board or prize.
                   if w >= RHYTHM_FROM and type(r) is dict and type(r.get("start")) is int and _dt.datetime.fromtimestamp(r["start"] / 1000, _dt.timezone.utc).weekday() == 6: continue
                   res = r.get("result") if type(r) is dict else None
                   if type(res) is not dict or res.get("final") is not True or type(res.get("picks")) is not list: continue
+                  pw, ps = PTS.get(r.get("type"), (0, 0))
                   for x in res["picks"]:
                       who, right, show = x[0], x[3] == 1, len(x) > 5 and x[5] == 1
-                      c = t.setdefault(who, [0, 0, 0])
-                      c[2] += 1; c[0] += 1 if right else 0; c[1] += 1 if (not right and show) else 0
-                      if who not in first_at or x[2] < first_at[who]: first_at[who] = x[2]
+                      c = t.setdefault(who, [0, 0, 0, 0])
+                      c[2] += 1; c[0] += 1 if right else 0; c[1] += 1 if (not right and show) else 0; c[3] += pw if right else ps if show else 0
+                      # D-152: when the wallet reached its score = its latest scoring pick (a win or a show).
+                      if (right or show) and (who not in reached or x[2] > reached[who]): reached[who] = x[2]
               bp = os.path.join(d, "board.json")
               try: b = json.load(open(bp, encoding="utf-8")) if os.path.isfile(bp) else None
               except Exception: b = None
@@ -349,33 +406,109 @@ jobs:
                   if type(x) is not dict or x.get("a") in staked: return "the board's last week lists a wallet twice"
                   staked[x.get("a")] = x.get("ranked") is True
                   c = t.get(x.get("a"))
-                  if c is None or [x.get("correct"), x.get("shows"), x.get("picks")] != c: return "the board's last week doesn't match the week's picks (" + str(x.get("a")) + ")"
+                  if c is None or [x.get("correct"), x.get("shows"), x.get("picks"), x.get("pts")] != c: return "the board's last week doesn't match the week's picks (" + str(x.get("a")) + ")"
               if set(staked) != set(t): return "the board's last week leaves out a wallet that picked"
-              rows = sorted(({"a": a, "correct": c[0], "shows": c[1], "picks": c[2], "pts": 3 * c[0] + c[1], "ranked": staked[a]} for a, c in t.items()),
-                            key=lambda r: (-r["pts"], -r["correct"], -r["picks"], r["a"]))
+              rows = sorted(({"a": a, "correct": c[0], "shows": c[1], "picks": c[2], "pts": c[3], "ranked": staked[a]} for a, c in t.items()),
+                            key=lambda r: (-r["pts"], -r["correct"], -r["picks"], reached.get(r["a"], float("inf")), r["a"]))
               def groups(rs):
                   out = []
                   for r in rs:
                       if out and (out[-1][0]["pts"], out[-1][0]["correct"], out[-1][0]["picks"]) == (r["pts"], r["correct"], r["picks"]): out[-1].append(r)
                       else: out.append([r])
                   return out
-              want_rows = [{"player": r["a"], "points": max(1, 255 - i)} for i, g in enumerate(groups([r for r in rows if r["ranked"] and r["pts"] >= 1])) for r in g]
+              # Values 255 … 1 per tied group. Past 255 groups (I-086) the paid set (the board's earns == 3, the vault's
+              # top 30%) is kept apart: if the paid groups reach the 255th group, groups 254 … the last paid share 2 and
+              # every unpaid wallet gets 1 (bot/race.ts rowValues).
+              srows = [r for r in rows if r["ranked"] and r["pts"] >= 1]
+              paid = {x.get("a") for x in lw["rows"] if type(x) is dict and x.get("earns") == 3}
+              # Repo Lens #B-8 B8-A1, the cheap guard: the board's paid list can't be more than the top 30% of the staked
+              # wallets with a point, and only those can be in it (the vault bot's own check is R-VAULT, D-152).
+              if not paid <= {r["a"] for r in srows} or len(paid) > (len(srows) * 30 + 99) // 100: return "its paid list (earns 3) isn't within the top 30% of the staked wallets with a point"
+              # D-152: in each tied group with a paid wallet, the wallets after its last paid one take the next place
+              # (bot/race.ts cutLine), so the vault pays exactly the top 30%.
+              sg = []
+              for g in groups(srows):
+                  k = max([i for i, r in enumerate(g) if r["a"] in paid], default=-1)
+                  sg += [g[:k + 1], g[k + 1:]] if 0 <= k < len(g) - 1 else [g]
+              last = max([i for i, g in enumerate(sg) if any(r["a"] in paid for r in g)], default=-1)
+              exact = len(sg) <= 255 or last <= 253
+              val = lambda i: max(1, 255 - i) if exact else (255 - i if i <= 252 else 2 if i <= last else 1)
+              want_rows = [{"player": r["a"], "points": val(i)} for i, g in enumerate(sg) for r in g]
               fg = groups([r for r in rows if not r["ranked"] and r["pts"] >= 1])
-              early = lambda g: [r["a"] for r in sorted(g, key=lambda r: (first_at.get(r["a"], float("inf")), r["a"]))][:10]
+              # D-159: each place up to 10 wallets; within a tie, the wallets that reached their score first (rows' order, D-152).
+              early = lambda g, n: [r["a"] for r in g][:n]
               if not fg: want_first, want_second = [], []
-              elif len(fg[0]) > 1 or len(fg) == 1: want_first, want_second = early(fg[0]), []
-              else: want_first, want_second = [fg[0][0]["a"]], early(fg[1])
+              elif len(fg[0]) > 1 or len(fg) == 1: want_first, want_second = early(fg[0], 10), []
+              else: want_first, want_second = [fg[0][0]["a"]], early(fg[1], 10)
               if not same(j["rows"], want_rows): return "its staked rows aren't what the week's picks and the board give"
               if not same(j["first"], want_first) or not same(j["second"], want_second): return "its free-prize winners aren't what the week's picks and the board give"
               return ""
-          for f in os.listdir(d):
+          def check_types(f, j):
+              # Repo Lens #D-14 N-1: first, values the recorder (JavaScript) reads back exactly (no 2^53, 1e+21, deep nesting).
+              assert js_safe(j), f + ": a value the recorder (JavaScript) can't read back exactly"
+              # D-166: the race types' week file: the hour ledger and the week's 260 races of types 1-4.
+              assert j["week"] >= TYPES_FROM if type(j) is dict and type(j.get("week")) is int else False, f + ": race types aren't on for that week (TYPES_FROM)"
+              import datetime
+              assert set(j) == {"v", "week", "start", "end", "hours", "races"} and one(j["v"]) and type(j["week"]) is int and 0 <= j["week"] < 10000 and f == "T%03d.json" % j["week"], f
+              assert j["start"] == 1792368000000 + j["week"] * 7 * 86400000 and j["end"] == j["start"] + 7 * 86400000, f
+              hs = j["hours"]
+              assert type(hs) is list and len(hs) <= 168, f + ": hours"
+              for k, h in enumerate(hs):
+                  assert type(h) is dict and set(h) == {"t", "a", "b", "n", "l", "c"} and type(h["t"]) is int and j["start"] <= h["t"] < j["end"] and h["t"] % 3600000 == 0 \
+                      and (k == 0 or hs[k - 1]["t"] < h["t"]) and type(h["a"]) is int and type(h["b"]) is int and 0 < h["a"] <= h["b"] + 1 < 10**12, f + ": an hour"
+                  assert type(h["n"]) is dict and len(h["n"]) <= 500 and all(isaddr(a) and type(v) is int and 0 <= v <= 100000 for a, v in h["n"].items()) \
+                      and sum(h["n"].values()) == h["b"] - h["a"] + 1, f + ": an hour's block counts"
+                  assert type(h["l"]) is dict and set(h["l"]) <= set(h["n"]) and all(type(v) is int and h["t"] <= v < h["t"] + 3600000 for v in h["l"].values()), f + ": an hour's last block times"
+                  assert type(h["c"]) is list and len(h["c"]) == 4 and all(num(v) and 0 <= v <= 2.5 for v in h["c"]), f + ": an hour's luck trims"
+              def iso(ms, fmt): return datetime.datetime.fromtimestamp(ms / 1000, datetime.timezone.utc).strftime(fmt)
+              want = []
+              for ty, step, ln, pre, fmt in ((1, 3600000, 3600000, "H1-", "%Y-%m-%dT%H"), (2, 7200000, 7200000, "H2-", "%Y-%m-%dT%H"), (3, 86400000, 86400000, "D-", "%Y-%m-%d"), (4, 7 * 86400000, 6 * 86400000, "W-", "%Y-%m-%d")):
+                  for st in range(j["start"], j["end"], step): want.append((ty, pre + iso(st, fmt), st, st + ln))
+              assert type(j["races"]) is list and len(j["races"]) == len(want) == 260, f + ": races"
+              for r, (ty, rid, st, en) in zip(j["races"], want):
+                  assert type(r) is dict and set(r) == {"type", "id", "start", "end", "result"} and r["type"] == ty and type(r["type"]) is int and r["id"] == rid \
+                      and r["start"] == st and type(r["start"]) is int and r["end"] == en and type(r["end"]) is int, f + ": race " + str(rid)
+                  assert result_ok(r["result"]) and (r["result"] is None or "heights" not in r["result"]), f + " " + rid
+              # Repo Lens #D-13 L-8: the ledger runs on from hour to hour, every producer with blocks has its last time,
+              # and a scored typed race is over, has all its hours in the ledger, and its standings' blocks are the
+              # ledger's counts.
+              for k in range(1, len(hs)):
+                  if hs[k]["t"] == hs[k - 1]["t"] + 3600000: assert hs[k]["a"] == hs[k - 1]["b"] + 1, f + ": the ledger's heights don't run on"
+              for h in hs: assert set(h["l"]) == set(h["n"]), f + ": an hour's last block times"
+              byt = {h["t"]: h for h in hs}
+              for r in j["races"]:
+                  x = r["result"]
+                  if type(x) is dict and x.get("final") is True and not x.get("missed"):
+                      assert r["end"] <= NOW * 1000, f + " " + r["id"] + ": scored before it ended"
+                      hrs = list(range(r["start"], r["end"], 3600000))
+                      assert all(t0 in byt for t0 in hrs), f + " " + r["id"] + ": an hour of it isn't in the ledger"
+                      assert type(x.get("standings")) is list and all(type(e) is dict and e.get("blocks") == sum(byt[t0]["n"].get(e.get("a"), 0) for t0 in hrs) for e in x["standings"]), f + " " + r["id"] + ": its standings aren't the ledger's counts"
+              if pub and os.path.exists(os.path.join(pub, f)):
+                  o = json.load(open(os.path.join(pub, f), encoding="utf-8"))
+                  # Like the 6-hour cards and results (H-1 a): a published ledger hour and a published final result
+                  # never change.
+                  oh = {h.get("t"): h for h in o.get("hours", []) if type(h) is dict}
+                  nh = {h["t"]: h for h in hs}
+                  for t0, h in oh.items(): assert t0 in nh and same(h, nh[t0]), f"{f}: a published ledger hour would change or go"
+                  orr = {r.get("id"): r for r in o.get("races", []) if type(r) is dict}
+                  for r in j["races"]:
+                      x = orr.get(r["id"])
+                      if x and type(x.get("result")) is dict and x["result"].get("final") is True: assert same(x["result"], r["result"]), f"{f} {r['id']}: a published final result would change"
+          # Repo Lens #D-13 M-3: the T files first, so a held one is gone before the vault recount reads it.
+          for f in sorted(os.listdir(d), key=lambda f: (0 if re.fullmatch(r"T[0-9]{3}\.json", f) else 1, f)):
               if f == "vault":
                   # Blind review V1 (round 10): a vault file that fails its check is held on its own (not published this
                   # run: no file means no prize), so a bug there can't stop the race cards Block X needs. A file already
                   # published as final still never changes (the push loop below).
                   load = lambda g: json.load(open(os.path.join(d, f, g), encoding="utf-8"))
-                  bad = [g for g in sorted(os.listdir(os.path.join(d, f)))
-                         if not (lambda j: js_safe(j) and (pending_ok(g, j) if g.startswith("PENDING-") else vault_ok(g, j)))(load(g))]
+                  # Repo Lens #B-8 B8-B2: any error reading or checking a file (RecursionError included) holds vault/ only.
+                  def vgood(g):
+                      try:
+                          j = load(g)
+                          return js_safe(j) and (pending_ok(g, j) if g.startswith("PENDING-") else vault_ok(g, j))
+                      except Exception:
+                          return False
+                  bad = [g for g in sorted(os.listdir(os.path.join(d, f))) if not vgood(g)]
                   if bad:
                       import shutil
                       print("::error::vault results held, not published this run: " + ", ".join("vault/" + g for g in bad) + " (they failed the publish check; the race cards still publish)")
@@ -389,7 +522,7 @@ jobs:
                           held_out()
                           os.remove(os.path.join(d, f, g))
                   continue
-              j = json.load(open(os.path.join(d, f), encoding="utf-8"))
+              j = None if re.fullmatch(r"T[0-9]{3}\.json", f) else json.load(open(os.path.join(d, f), encoding="utf-8"))
               if f == "board.json":
                   assert set(j) == {"v", "updated", "today", "week", "lastWeek", "allTime"} and one(j["v"]), f
                   assert all(rows_ok(j[k]) for k in ("today", "week", "allTime")) and (j["lastWeek"] is None or rows_ok(j["lastWeek"])), f
@@ -406,6 +539,19 @@ jobs:
                       import time
                       cw = (int(os.environ.get("CHECK_NOW_MS") or time.time() * 1000) - 1792368000000) // (7 * 86400000)
                       assert type(pw) is not list or all(w in pw or cw - 1 <= w <= cw + 1 for w in j["weeks"]), f + ": a new week that isn't around this one"
+                  continue
+              if re.fullmatch(r"T[0-9]{3}\.json", f):
+                  # Repo Lens #D-13 M-3: a T file that fails any check is held on its own (removed from this push, with
+                  # an alert), so the race types can never stop the 6-hour race's files, the board or the vault. Checked
+                  # before everything else (the sort below), so the vault recount then reads the published T, which a
+                  # board that counted the held results won't match: the vault holds (fails closed).
+                  try:
+                      j = json.load(open(os.path.join(d, f), encoding="utf-8"))
+                      check_types(f, j)
+                  except Exception as e:
+                      print("::error::" + f + " (race types) held, not published this run: " + re.sub(r"[^A-Za-z0-9 ./:,_()'-]", "?", str(e))[:300] + " (the 6-hour race files still publish; Repo Lens #D-13 M-3)")
+                      held_out()
+                      os.remove(os.path.join(d, f))
                   continue
               assert set(j) == {"v", "week", "start", "end", "races"} and one(j["v"]) and type(j["week"]) is int and 0 <= j["week"] < 10000 and f == "W%03d.json" % j["week"], f
               assert type(j["races"]) is list and len(j["races"]) == 28, f
@@ -458,7 +604,13 @@ jobs:
             # A vault results file already published as final never changes: the vault may have posted it.
             if [[ "$rel" == vault/* ]] && [ -n "$parent" ] && git show "$parent:$rel" > "$RUNNER_TEMP/old.json" 2>/dev/null \
               && /usr/bin/python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("final") is True else 1)' "$RUNNER_TEMP/old.json" \
-              && ! cmp -s "$RUNNER_TEMP/old.json" "$f"; then echo "::error::Refusing to change $rel: it was already published as final."; exit 1; fi
+              && ! cmp -s "$RUNNER_TEMP/old.json" "$f"; then
+              # Repo Lens #B-8 B8-B1: hold that file only (the published copy stays, from read-tree) and alert; the race
+              # cards still publish.
+              echo "::error::Refusing to change $rel: it was already published as final (vault file held; race cards still publish)."
+              if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "held=true" >> "$GITHUB_OUTPUT"; fi
+              continue
+            fi
             blob=$(git hash-object -w "$f")
             git update-index --add --cacheinfo 100644 "$blob" "$rel"
           done

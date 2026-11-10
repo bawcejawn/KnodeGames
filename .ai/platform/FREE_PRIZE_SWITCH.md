@@ -2,7 +2,7 @@
 
 > **Purpose:** a plain-words guide to the free-prize switch: what it controls, what it never touches, how and when to use it, and the starting settings.
 > **Decisions:** D-081 (every game has Free play), D-082 (the switch). **Code:** `bot/free-prizes.ts`, `bot/vault.ts` (merged 3 Nov, PR #65). **Audit:** Repo Lens 3 Nov, GO.
-> **Last updated:** 5 Nov 2026 (status sync: Questions joins the shared rules at v6.1's rule week; paused games)
+> **Last updated:** 5 Nov 2026 (status sync: Questions joins the shared rules at v6.1's rule week; Fantasy, Golf, Bracket reactivated, D-142)
 
 ## 1. Three separate things
 | | What it is | Who gets it | Can the switch change it? |
@@ -31,7 +31,7 @@ So a game with its switch **OFF** still has free play and a Free play leaderboar
 ## 4. Starting settings (owner, D-081)
 | Game | Id | Free play | Free prize | Staked prize |
 |---|---|---|---|---|
-| Daily Questions | 1 | ✅ | ✅ built into the vault (not on the switch until Mon 16 Nov; then on it, starting ON, D-136) | ✅ |
+| Daily Questions | 1 | ✅ | ✅ on the switch from v6.1's rule week, Mon 16 Nov, starting **ON** (D-136; set it in the week of Mon 9, below). Weeks before that pay the old way | ✅ |
 | Who Signs Block X | 2 | ✅ | ✅ **ON** | ✅ |
 | Producer Race | 7 | ✅ | ✅ **ON** | ✅ |
 | Producer Bracket | 9 | ✅ | ✅ **ON** | ✅ |
@@ -41,7 +41,18 @@ So a game with its switch **OFF** still has free play and a Free play leaderboar
 | Block Golf | 6 | ✅ | ⛔ **OFF** for now | ✅ |
 | Combo Card | 8 | ✅ | ⛔ **OFF** for now | ✅ |
 
-**When to set them:** now, all eight, while no game but 2 and 7 is in the vault (the other games are paused, D-113). Setting a game that isn't in the vault yet is harmless, and it means each game starts with the right value. Avoid the Sunday quiet window.
+**Daily Questions (game 1, D-136):** from v6.1's rule week (Mon 16 Nov) the bot posts game 1's free winners only when its switch is on, like every game. Set it **ON once, in the week of Mon 9 Nov, after PR #114 is merged** (the bot on `main` must know game 1 is a switch game first; an older bot would refuse the whole file and hold every game's free winners). Any time from Mon 9 (after the merge) to Sun 15 Nov 3:30 PM PT (before the Sunday quiet window):
+```powershell
+cd C:\kprediction
+git branch --show-current
+git pull
+npm run prizes -- on 1
+npm run prizes -- on 1 --send
+npm run prizes -- list
+```
+The preview must say "Daily Questions (game 1) free prize on from week 4" (week 4 = Mon 16 Nov); `list` then shows game 1 ON for next week.
+
+**When to set them:** now, all eight, while no game but 2 and 7 is in the vault (Fantasy, Golf and Bracket are on their branches, D-142; Survivor, Last Node and Combo paused, D-113). Setting a game that isn't in the vault yet is harmless, and it means each game starts with the right value. Avoid the Sunday quiet window.
 
 ## 5. How to use it
 **Admin panel** (`npm run admin`) → **Knode Vault** → *Free prizes: which games pay them* (read only), then *Free prize ON* or *Free prize OFF* → enter the game id → **Preview** → **Write the files**.
@@ -67,6 +78,7 @@ npm run prizes -- off 3 --send
 
 ## 7. Limits to know
 - The switch can only **hold back** a free prize the vault allows. It can never pay more, add a winner, or touch stakers' buckets.
+- **Who wins is the same rule on every game (D-159):** 1st and 2nd each pay up to 10 wallets; ties share; more than 10 qualifying → exactly 10, by earlier score time, then address; never zero because of the cap. The switch decides only whether those winners are paid.
 - **While a game is OFF, the vault still sets aside its 3 VHP a week** from the seed's part, then returns it the next week. If the seed's part were ever smaller than all the set-asides together (about 27 VHP a week with 9 games), every free prize, Questions included, would be cut in proportion. Today the seed's part is about 85–90 VHP a week, so this doesn't happen (Vault chat, 3 Nov). A later vault upgrade could make an OFF game set aside nothing.
 - Anyone who can push to the repo could edit the branch. The ruleset and keeping push access to yourself are the protection.
 - **Seasons and restarts:** don't change a game's season length after a gap while its old last week is still open (Repo Lens FP-6).

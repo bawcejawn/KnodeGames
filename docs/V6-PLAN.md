@@ -1,5 +1,7 @@
 # KnodeGames Vault (game v6): design
 
+> **📜 Historical design (5 Nov 2026).** This is the v6 vault design as approved on 27 Oct 2026; v6 went live on 2 Nov. The contract code cites its rule numbers, so it stays. What's live now: `.ai/standards/VAULT_STANDARD.md`, `.ai/platform/CONTRACTS.md`; what changes next: v6.1 (D-116, D-127, D-130).
+
 Status: **being built on branch `vault-v6`.** Nothing here is deployed or scheduled. Every rule below was confirmed by
 the owner on 2026-10-27 (checklist questions 1–9).
 

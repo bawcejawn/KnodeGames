@@ -53,7 +53,12 @@
     },
     "guest": true
   },
+  "vaultTestWeeks": [3],
   "vaultGames": {
+    "1": {
+      "name": "Daily Questions",
+      "results": "games-data:questions/vault"
+    },
     "2": {
       "name": "Who Signs Block X",
       "results": "games-data:blockx/vault"

@@ -34,7 +34,9 @@ function publishScript() {
   const a = y.findIndex((l, i) => i > s && l.trim() === "set -euo pipefail"), e = y.findIndex((l, i) => i > a && l.includes('echo "Games files published."'));
   return y.slice(a, e + 1).map((l) => l.slice(10)).join("\n")
     .replace(/^remote=.*$/m, 'remote="$REMOTE"').replace(/^git init -q work && cd work$/m, 'cd "$(mktemp -d)" && git init -q work && cd work')
-    .replace("/usr/bin/python3 - ", "python3 -I - ");
+    .replace("/usr/bin/python3 - ", "python3 -I - ")
+    // (These tests record one game, 2, into weeks 3+; the hourly switch (R-BX-25) is tested in bx88-week-files.test.mjs.)
+    .replace(/ blockx 2400 0 \d+:\d+:\d+:\d+ <<'PY'/, " blockx 2400 0 <<'PY'");
 }
 function world() {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "hk-")), remote = path.join(d, "r.git");

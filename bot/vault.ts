@@ -30,6 +30,11 @@ import { readSwitches, prizeOn, type Switches } from "./free-prizes.ts";
 export const Q_GAME = 1;
 export const MAX_ROWS = 50;                   // results per post_results call (the contract's limit)
 export const MAX_PRIZE_WINNERS = 10;          // wallets per prize place (the contract's limit)
+/** Wallets per post_results / post_prize_winners transaction (owner, 4 Nov: every transaction must fit its Mana limit).
+ *  At mainnet prices (4 Nov 2026, docs/testnet-v61-units.json) a results call costs about 0.35 Mana plus about 0.19 per
+ *  wallet (its compute and the bytes it stores). Six wallets ≈ 1.5 Mana: under the bot's 2-Mana limit per transaction
+ *  (bot/chain.ts) with room for prices to rise by a third. 50 at once (the contract's limit) would need ~10 Mana. */
+export const ROWS_PER_TX = 6;
 export const MAX_POINTS = 255;
 const HOUR_MS = 3_600_000;
 
@@ -109,6 +114,44 @@ export function seasonEnds(g: any, w: number): boolean {
 /** Whether a game earns (has a week to report) for week w. */
 /** Whether a game has results for week w, as the contract decides (requireResults): it earns that week now, or the
  *  vault closed that week with it earning (a game restarted after a gap keeps those weeks). */
+/** v6.1 (D-116): whether week `w` of the question game is paid like every game (from its results file), read from the
+ *  vault's settings (`config.q60_rule_week_plus_one`; 0 = not set: none yet). Earlier weeks are paid the old way. */
+export function sharedRulesWeek(config: any, w: number): boolean {
+  const r = num(config?.q60_rule_week_plus_one);
+  return r > 0 && w + 1 >= r;
+}
+
+/** Repo Lens #E-16 N-1: the contract's qShared rule, as the bot reads it. A question-game week has no settle step when it
+ *  is a shared-rules week, or when game 1's game-week for it is already closed (a week closed the new way stays paid from
+ *  its results file even after a rollback moves the rule week: round 1 C-1). A failed read (v6 has no game-1 game-week)
+ *  counts as not closed. */
+export async function questionWeekShared(chain: Chain, config: any, w: number): Promise<boolean> {
+  if (sharedRulesWeek(config, w)) return true;
+  try { return !!(await chain.read("get_game", { game: Q_GAME, week: String(w) }))?.week?.closed; } catch { return false; }
+}
+
+/** Whether the vault bot handles this game's week `w`: every game, and the question game only from the shared-rules week. */
+/** Owner, 9-10 Nov (Week 1 = Mon 16 Nov = vault week 4): `vaultTestWeeks` in game-data/deployment.json lists the vault
+ *  weeks that play but pay nothing (today [3], the week of Mon 9 Nov). Every game plays as normal; for those weeks the
+ *  bot posts no results, no prize winners and no settles: each game's week rolls over at its results deadline (its
+ *  stakers' bucket stays in the game and is added to its next week; its prize goes back to the pool, paid out with the
+ *  next close), and Daily Questions of those weeks are resolved VOID on chain (bot.ts resolvePass) so no entry can win.
+ *  Weeks not listed pay as normal (week 2, 2-9 Nov, pays). Missing = no test week. Present but not a list of whole
+ *  numbers >= 0: throws, so the run fails and alerts instead of paying a test week (Repo Lens #F-4 F4-4). */
+export function testWeeks(deployment: any): number[] {
+  const v = deployment?.vaultTestWeeks;
+  if (v === undefined || v === null) return [];
+  if (!Array.isArray(v) || !v.every((w) => typeof w === "number" && Number.isInteger(w) && w >= 0)) {
+    throw new Error(`vaultTestWeeks in deployment.json is not a list of week numbers (${JSON.stringify(v)})`);
+  }
+  return v;
+}
+export const isTestWeek = (deployment: any, w: number) => testWeeks(deployment).includes(Number(w));
+
+export function vaultHandles(id: number, config: any, w: number): boolean {
+  return id !== Q_GAME || sharedRulesWeek(config, w);
+}
+
 export function earnedWeek(g: any, w: number, gw: any): boolean {
   return !!gw?.closed || gameEarns(g, w);
 }
@@ -256,13 +299,19 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
   const sw = () => (switches ??= (() => { try { return { s: (ctx.readPrizeSwitches ?? (() => readSwitches().s))() }; } catch (e: any) { return { error: String(e?.message ?? e) }; } })());
   for (const g of view.games) {
     const id = num(g.id);
-    if (id === Q_GAME || (only && only.game !== id)) continue;
+    if (only && only.game !== id) continue;
     const w = only ? only.week : k.week - 1;
+    if (!vaultHandles(id, k.c, w)) { if (only) throw new Error(`Week ${w} of the question game is paid by the old rules (settle and claim), not from a results file.`); continue; }
     const name = g.name ?? `game ${id}`;
     if (w < 0) { if (only) throw new Error(`${name} has no results for week ${w}.`); continue; }
     const gw = (await ctx.chain.read("get_game", { game: id, week: String(w) })).week ?? {};
     // Fix-check VN-3: the contract's rule. A game restarted after a gap keeps the weeks it earned (closed with it).
     if (!earnedWeek(g, w, gw)) { if (only) throw new Error(`${name} has no results for week ${w}.`); continue; }
+    if (isTestWeek(ctx.deployment, w)) {
+      if (only) throw new Error(`Week ${w} of ${name} is a test week (vaultTestWeeks in deployment.json): it plays but pays nothing, and rolls over.`);
+      log(ctx, `  ${name} week ${w}: a test week (vaultTestWeeks): no results posted; it rolls over at ${utc(k.resultsDue(w))}`);
+      continue;
+    }
     const source = only?.source ?? cfg[String(id)]?.results;
     if (!source) { log(ctx, `  ${name}: no results source in deployment.json (vaultGames.${id}.results)`); continue; }
     if (k.time < k.weekEnd(w)) { if (only) throw new Error(`Week ${w} of ${name} is not over yet.`); continue; }
@@ -444,13 +493,15 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
       return false;
     };
     let ok = true;
-    for (let i = 0; i < rows.length && ok; i += MAX_ROWS) {
-      const batch = rows.slice(i, i + MAX_ROWS);
+    for (let i = 0; i < rows.length && ok; i += ROWS_PER_TX) {
+      const batch = rows.slice(i, i + ROWS_PER_TX);
       ok = await go(`${name} week ${w}: points for ${batch.length} player(s)`, "post_results", [{ method: "post_results", args: { game: id, week: String(w), rows: batch } }]);
     }
     for (const pl of places) {
-      if (!ok) break;
-      ok = await go(`${name} week ${w}: prize place ${pl.place} → ${pl.players.join(", ")}`, "post_prize_winners", [{ method: "post_prize_winners", args: { game: id, week: String(w), place: pl.place, players: pl.players } }]);
+      for (let i = 0; i < pl.players.length && ok; i += ROWS_PER_TX) {
+        const part = pl.players.slice(i, i + ROWS_PER_TX);
+        ok = await go(`${name} week ${w}: prize place ${pl.place} → ${part.join(", ")}`, "post_prize_winners", [{ method: "post_prize_winners", args: { game: id, week: String(w), place: pl.place, players: part } }]);
+      }
     }
     if (ok && holdSeal) log(ctx, `  ${name} week ${w}: seal held (free-prize switches unreadable)`);
     if (ok && !holdSeal) await go(`${name} week ${w}: seal the results (the owner can correct them for 24 h)`, "seal_results", [{ method: "seal_results", args: { game: id, week: String(w) } }]);
@@ -511,10 +562,10 @@ export async function vaultFinalizePass(ctx: VaultCtx, send: Send) {
   if (k.raw?.safe_mode) { log(ctx, "  withdrawals-only build: finalizing waits for the normal build"); return; }   // V2-2
   for (const g of view.games) {
     const id = num(g.id);
-    if (id === Q_GAME) continue;
     // Every closed week of the game (a closed game week is one it earned, also before a restart: fix-check VN-3).
     // Twelve weeks back, so a long bot outage is caught up (fix-check 2, V2-8); older weeks: game-finalize by hand.
     for (let w = Math.max(0, k.weeksClosed - 12); w < k.weeksClosed; w++) {
+      if (!vaultHandles(id, k.c, w)) continue;
       for (let page = 0; page < 20; page++) {
         const gw = (await ctx.chain.read("get_game", { game: id, week: String(w) })).week ?? {};
         if (!gw.closed || gw.finalized) break;
@@ -546,12 +597,12 @@ export function vaultAlerts(view: VaultView, k: { weeksClosed: number }, gameWee
 }
 
 /** The weeks the alerts look at: each game's last 3 weeks. Returns "game <name>:<week>" → week record. */
-export async function recentGameWeeks(chain: Chain, view: VaultView, weeksClosed: number): Promise<Map<string, any>> {
+export async function recentGameWeeks(chain: Chain, view: VaultView, weeksClosed: number, config?: any): Promise<Map<string, any>> {
   const out = new Map<string, any>();
   for (const g of view.games) {
     const id = num(g.id);
-    if (id === Q_GAME) continue;
     for (let w = Math.max(0, weeksClosed - 3); w <= weeksClosed; w++) {
+      if (!vaultHandles(id, config, w)) continue;
       const gw = (await chain.read("get_game", { game: id, week: String(w) })).week ?? {};
       if (!earnedWeek(g, w, gw)) continue;
       out.set(`${g.name ?? `game ${id}`}:${w}`, gw);
@@ -575,8 +626,8 @@ export async function vaultStatus(chain: Chain, print: (s: string) => void) {
     if (big(g.rolled) > 0n) line += `; rolling over ${showKoin(g.rolled)}`;
     if (big(g.prize_held) > 0n) line += `; season prize held ${showKoin(g.prize_held)}`;
     print(line);
-    if (id === Q_GAME) continue;
     const w = k.weeksClosed - 1;
+    if (!vaultHandles(id, k.c, w)) continue;
     const gw = w >= 0 ? (await chain.read("get_game", { game: id, week: String(w) })).week ?? {} : {};
     if (w >= 0 && earnedWeek(g, w, gw)) {
       const st = gw.finalized ? (gw.rolled_over ? "rolled over" : `final: ${num(gw.winners)} winner(s), cutoff ${num(gw.cutoff)}, claimed ${showKoin(gw.claimed)}`)

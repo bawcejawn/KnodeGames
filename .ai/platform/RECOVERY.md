@@ -2,7 +2,8 @@
 
 > **Purpose:** what to do if the owner's PC goes off, breaks, dies or is stolen: what keeps running without it, what stops, and how to get back, in order, with how long each step takes. It answers the health check's risk #1 (`HEALTHCHECK.md` §2a, TD-08).
 > **One home:** this page is the home for **recovering from losing the PC**. A planned move to a new PC (old PC still working) is `../../docs/MIGRATION.md`; a single alert or node hiccup is `RUNBOOK.md`; who controls which wallet is `KEYS_AND_ROLES.md`.
-> **Last updated:** Thu 5 Nov 2026 (status sync; handover dates in `CALENDAR.md`). Built 4 Nov from `docs/MIGRATION.md`, `RUNBOOK.md`, `PLATFORM.md` (the owner's PC), `ARCHITECTURE.md` (infrastructure), `bot/heal.mjs`, `bot/release-kick.mjs`, `node/setup-node.ps1`, `docs/WALLETS.md` and `KEYS_AND_ROLES.md`. **Not yet rehearsed** — times marked ❓ are estimates.
+> **Last updated:** Thu 5 Nov 2026 (made public-safe: key backup details and the compromise order moved to the private notes; handover dates in `CALENDAR.md`). Built 4 Nov from `docs/MIGRATION.md`, `RUNBOOK.md`, `PLATFORM.md` (the owner's PC), `ARCHITECTURE.md` (infrastructure), `bot/heal.mjs`, `bot/release-kick.mjs`, `node/setup-node.ps1`, `docs/WALLETS.md` and `KEYS_AND_ROLES.md`. **Not yet rehearsed** — times marked ❓ are estimates.
+> **Private part:** the list of which keys are backed up and how, and the key-compromise order with each key's value, are in the owner's private notes (Claude project `claude/private/RECOVERY-FULL.md`). This public page keeps the steps.
 > **Golden rule:** **players' stakes never depend on the PC.** They sit in the vault on chain and are always withdrawable. Losing the PC costs block rewards and convenience, not players' funds — unless the PC's keys are stolen (§5).
 
 ---
@@ -21,7 +22,7 @@
 | **Personal node** — the owner's own producer `1DAHmr…` | the PC | ❌ stops (owner's own rewards) |
 | **Self-heal task** ("Knode self-heal", every 20 min) | the PC (Task Scheduler) | ❌ stops (nothing to heal) |
 | **Question release backup** ("Knode question release", 11:45 – 14:05 UTC) | the PC | ❌ stops: only GitHub's own 11:48 UTC run releases questions (GitHub sometimes starts late; it did by 38 min on 28 Oct) |
-| **Keys** in `.env`: owner, seed, sponsor, contract keys, `GITHUB_ALERT_TOKEN` | the PC (+ paper) | ❌ no owner actions until restored from paper: no `game-apply`, corrections, fee claims, sponsor changes, upgrades |
+| **Admin keys** (owner, seed, sponsor and the PC's alert token) | the PC, with an offline backup | ❌ no owner actions until restored from the backup: no `game-apply`, corrections, fee claims, sponsor changes, upgrades |
 | Admin page (`npm run admin`) | the PC | ❌ unavailable |
 | Audit and practice folders (`C:\kprediction-test`, `-fantasy`, `kg-combo-preview`) | the PC | ❌ re-clone; nothing in them is unique ❓ |
 
@@ -33,11 +34,11 @@
 
 | # | Prepare | Why | State |
 |---|---|---|---|
-| 1 | **Paper backup of every key you'd need to rebuild `.env`**: owner, seed owner, sponsor, Race picks owner; the four contract keys (`CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF`, `RACE_WIF`) | `.env` can't be recovered from a dead disk; GitHub never holds them | owner, seed, sponsor 👤; contract keys ❓ — confirm each is on paper before the weekend clean-up (`docs/WALLETS.md` step 6; date: `CALENDAR.md`) |
+| 1 | **An offline backup of every key you'd need to rebuild `.env`** (the list and its state: private notes) | `.env` can't be recovered from a dead disk; GitHub never holds them | private notes |
 | 2 | Know which **Kondor wallets** come back from which recovery words (personal producer, owner's daily wallet) | rebuilding Kondor on a new PC | 👤 |
 | 3 | A **second machine you could use** (another PC, or a cloud server ❓) with ~300 GB free SSD | two big nodes need the space during setup | ❓ owner to decide |
-| 4 | **Decide: back up each node's `block_producer\private.key` offline, or not** | with a backup, a new PC can produce **at once** with the same key; without, the **Desk needs a 48 h wait** to register a new key (the pool's re-register is immediate). Only one machine may run a given key at a time | **owner: yes, all three nodes** (4 Nov). The backup and restore scripts are R-VAULT-10; then copy the keys to a USB stick kept offline |
-| 5 | GitHub: a **second way into your account** (2FA recovery codes on paper) | GitHub holds the bot, the site and the secret | ❓ |
+| 4 | **An offline backup of each node's producer key** | with a backup, a new PC can produce **at once** with the same key; without, the **Desk needs a 48 h wait** to register a new key (the pool's re-register is immediate). Only one machine may run a given key at a time | owner: yes (4 Nov); scripts in R-VAULT-10 (#178) |
+| 5 | GitHub: a **second way into your account** (2FA recovery codes, kept offline) | GitHub holds the bot, the site and the secret | ❓ |
 | 6 | This page and `KEYS_AND_ROLES.md` printed, or readable from your phone | the PC holding the instructions is the thing that broke | — |
 
 ---
@@ -65,7 +66,7 @@
 
 ---
 
-## 4. Scenario B — the PC is dead (disk, motherboard), keys safe on paper
+## 4. Scenario B — the PC is dead (disk, motherboard), keys safe in the offline backup
 
 **Goal:** get the **game/pool node** producing again first (it earns for every game), then the Desk node, then the personal node and the PC tasks.
 
@@ -74,7 +75,7 @@
 | 0 | **Tell the Vault and Hub chats** (or the Librarian) — they hold the commands; nothing on chain is urgent | 5 min | — |
 | 1 | Set up the replacement machine: Git, Node.js LTS, Docker Desktop (start at sign-in), power "never sleep" | 1 h | replacement machine |
 | 2 | Clone the repo: `git clone https://github.com/bawcejawn/KnodeGames C:\kprediction`, then `cd C:\kprediction`, `npm ci --ignore-scripts` | 15 min | internet |
-| 3 | **Rebuild `.env` from paper**, one key at a time, only the ones needed now (owner key for re-registering; nothing else yet). Never type a key into a chat. Check with `npm run bot -- status` that each address printed matches `KEYS_AND_ROLES.md` | 20 min | paper backups |
+| 3 | **Rebuild `.env` from the offline backup**, one key at a time, only the ones needed now (owner key for re-registering; nothing else yet). Never type a key into a chat. Check with `npm run bot -- status` that each address printed matches `KEYS_AND_ROLES.md` | 20 min | the offline backup |
 | 4 | **Game / pool node:** `powershell -ExecutionPolicy Bypass -File node\setup-node.ps1 -Producer 1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr -SnapshotSha256 <hash from a second source> -KeepArchive` | snapshot download (~60 GB) + unpack + catch-up: **several hours** | ~150–300 GB SSD |
 | 5 | When `npm run bot -- node-status` says caught up: **register the new key** — `npm run bot -- register-key node` (dry run shows the **new** public key), then with `--send` (and `CONFIRM_MAINNET=yes`). The pool produces about a minute later | 5 min | owner key in `.env` |
 | 6 | **Desk node:** the same setup in `C:\kpred-desk-node` for the Desk `1FKTpX…`, then `npm run desk -- register-key node --send`, then **wait 48 h** and `npm run desk -- settings apply --send` ❓ (exact desk-node setup steps: Swap Desk / Vault chat to confirm) | hours + **48 h** | owner key |
@@ -91,18 +92,7 @@
 
 ## 5. Scenario C — the PC is stolen, or someone else got into it
 
-**Treat every key that was in `.env` as stolen**, even if nothing has happened yet (D-003, D-042). Act in this order — highest value and fastest-acting first. Use **another device** and your **paper keys**.
-
-| Order | Key | Why first | What to do (details `RUNBOOK.md` §7) |
-|---|---|---|---|
-| 1 | **Sponsor** `SPONSOR_WIF` | 25,000 KOIN, **no wait**: a thief can move it at once | from a clean machine with the key from paper: move its KOIN to a safe wallet of yours, then `npm run sponsor -- disable --send`. Players then pay their own Mana and can still withdraw ❓ (Vault chat to confirm steps) |
-| 2 | **Race picks contract** `RACE_WIF` (if still in `.env`) | can replace the Race picks code at once | tell the Race chat; switch Race picks off with its owner key if needed |
-| 3 | **Owner** `OWNER_WIF` | changes wait 48 h / ~1 day and email you | watch for chain-watch emails; propose your own address again to replace any hostile handover; `npm run bot -- pause on --send`; Desk `owner cancel`. After the handover (`CALENDAR.md`) the owner key is **not** in `.env` except on action days |
-| 4 | **Seed owner** `SEED_WIF` | a seed withdrawal waits 48 h | Vault chat at once; change the seed owner (two steps, 28,800 blocks apart) |
-| 5 | **`GITHUB_ALERT_TOKEN`** | can only start workflows; can't read secrets or change files | revoke it in GitHub → Settings → Developer settings |
-| 6 | Contract keys `CONTRACT_WIF`, `DESK_CONTRACT_WIF`, `PICKS_WIF` | no power while the upload rules are on | none urgent; replace at the next upgrade |
-| 7 | **Producer `private.key` files** | can't move funds or redirect rewards; a thief could only run a node with them | register new keys (Scenario B steps 5–6) |
-| 8 | GitHub session / browser logins on the PC | could reach the repo and the `OPERATOR_WIF` secret | change the GitHub password, sign out other sessions, check Settings → Security log; rotate `OPERATOR_WIF` (`set_operator` + update the secret) |
+**Treat every key that was in `.env` as stolen**, even if nothing has happened yet (D-003, D-042). Use **another device** and your offline backup. Act on the fastest-acting keys first, in the order in your private notes (`claude/private/RECOVERY-FULL.md` §5); `RUNBOOK.md` §7 has the commands. In short: switch the sponsor off and move its funds, protect the owner role (propose your own address again, pause, Desk `owner cancel`), tell the Vault chat about the seed owner, revoke the PC's GitHub token, change the GitHub password and rotate the operator key, then register new producer keys.
 
 Then rebuild as in Scenario B, with **new** keys where you replaced them, and update `KEYS_AND_ROLES.md`.
 
@@ -136,4 +126,4 @@ If it emails that it can't fix a node: open Docker Desktop, check the three cont
 - **Not rehearsed.** A dry rehearsal on a spare machine (without registering any key) would turn the ❓ times into facts.
 - `docs/MIGRATION.md` is out of date: it clones the old repo name (`bawcejawn/knode`), covers only two nodes (no Desk node), and expects 47 game tests. Vault chat to refresh it.
 - The Desk node's exact rebuild steps (folder, Docker project, `register-key`, `settings apply`) aren't written anywhere; Vault / Swap Desk chat to add them.
-- Owner decisions: the offline `private.key` backups (§2 #4), a replacement machine (§2 #3), and, longer term, moving the pool node off the home PC (TD-08).
+- Owner decisions: a replacement machine (§2 #3; one PC for now, D-147).

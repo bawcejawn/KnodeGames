@@ -161,9 +161,28 @@
     if (w) return [{ b: w.hook }, " ", w.ask];
     return null;
   }
-  /** Answer text shown on a choice: head-to-heads in words; everything else keeps its published label. */
+  /** Network questions with decimal choices (the longest wait, the average time between blocks, the share of empty
+   *  blocks): a plain name for the choice in front of its exact numbers (owner, 9 Nov: "plainer answer bands"). The
+   *  choices are cut around the model's expected value, so the middle choice of an odd number is "About as expected",
+   *  the two either side of the middle are "A little …", and the outer ones plain "Faster" / "Slower" (and so on). The
+   *  exact published label always follows, so nobody has to trust the words alone. Null: not such a question. */
+  function bandWords(q, o) {
+    if (qKind(q) !== "network" || !/^(ms|permille)$/.test(String(q.unit || "")) || !Array.isArray(q.options) || q.options.length < 2) return null;
+    const t = String(q.text || "");
+    const [lo, hi] = /average time/i.test(t) ? ["faster", "slower"] : /longest gap/i.test(t) ? ["shorter wait", "longer wait"]
+      : /no transactions/i.test(t) ? ["busier (fewer empty blocks)", "quieter (more empty blocks)"] : [null, null];
+    if (!lo) return null;
+    const n = q.options.length, mid = (n - 1) / 2, d = o.index - mid, side = d < 0 ? lo : hi;
+    if (d === 0) return "About as expected";
+    const word = Math.abs(d) <= 0.5 || (n % 2 === 1 && Math.abs(d) === 1 && n > 3) ? `A little ${side}` : side[0].toUpperCase() + side.slice(1);
+    return word;
+  }
+  /** Answer text shown on a choice: head-to-heads in words; network decimal bands get a plain name first; everything
+   *  else keeps its published label. */
   function optionWords(q, o) {
     if (qKind(q) === "h2h" && isYesNo(q) && Number.isFinite(qLine(q))) { const w = h2hWords(qLine(q)); return o.index === 1 ? `Yes — ${w.yes}` : `No — ${w.no}`; }
+    const band = bandWords(q, o);
+    if (band) return `${band}: ${o.label}`;
     return String(o.label);
   }
   /** The counted blocks and when they should happen, in the viewer's time: counting starts when answers close
@@ -237,6 +256,22 @@
     const d = S.genesis ? Math.floor((now - S.genesis) / 86400000) : -1;
     const list = [d - 1, d, d + 1, d + 2].flatMap(roundsOfDay);
     return { current: list.filter((r) => r.releaseAt <= now && now < r.lockTime).pop() || null, next: list.find((r) => r.releaseAt > now) || null };
+  }
+  /** This week's rounds that closed with none of their questions posted, with why (owner, 9 Nov: "better for people to
+   *  know what's going on"). A round with a skip file says its reason; one with no file at all was missed because the
+   *  bot was down. The current round is left to the "on their way / running late" line. */
+  function skippedRounds(now, week, files, questions) {
+    if (!S.genesis || !Number.isFinite(week)) return [];
+    const out = [];
+    for (let d = week * 7; d < week * 7 + 6; d++) for (const r of roundsOfDay(d)) {
+      if (r.lockTime > now) continue;
+      const file = (files || []).find((x) => x && x.d && x.d.date === r.label);
+      const posted = (file && (file.d.questions || []).some((q) => q.chainId !== undefined)) || (questions || []).some((q) => Number(q.lockTime) === r.lockTime);
+      if (posted) continue;
+      const why = file && file.d.skipped && /fair/i.test(file.d.skipped) ? "no fair questions could be made" : "the bot was down";
+      out.push({ ...r, why });
+    }
+    return out;
   }
   /** A moment in the viewer's own time zone, short: "Mon 5:00 AM". */
   const dayTime = (ms) => new Date(ms).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
@@ -1357,6 +1392,13 @@
         ? `New questions are on their way. They're posted on the Koinos chain at ${localTime(round.releaseAt)} your time and show up here within a few minutes. This page checks every minute, so there's no need to refresh.`
         : `No open questions right now. ${nextRound ? `The next ones come out ${dayTime(nextRound.releaseAt)}.` : `New questions arrive Monday to Saturday at ${localHour(12)} your time.`}`;
     oq.replaceChildren(...(open.length ? open.map((q) => questionCard(q, "open")) : [el("div", { class: "empty" }, emptyText)]));
+    const sk = $("#skipped-rounds");
+    if (sk) {
+      const miss = skippedRounds(now, S.week, S.files, S.questions);
+      const why = [...new Set(miss.map((r) => r.why))];
+      sk.hidden = !miss.length;
+      sk.textContent = miss.length ? `Skipped this week: ${miss.map((r) => dayTime(r.releaseAt)).join(", ")}. ${why.map((x) => x[0].toUpperCase() + x.slice(1)).join("; ")}, so ${miss.length === 1 ? "that round wasn't" : "those rounds weren't"} posted. Nothing you answered is affected.` : "";
+    }
     const answeredToday = open.filter((q) => myAnswer(q) !== null).length;
     const tn = $("#today-note");
     if (tn) tn.textContent = !open.length ? "" : S.account ? `${answeredToday} of ${open.length} answered${open.length && open[0] ? ` · answers close in ${duration(open[0].lockTime - now)}` : ""}` : `${open.length} to answer · answers close in ${duration(open[0].lockTime - now)}`;

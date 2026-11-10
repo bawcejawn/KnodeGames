@@ -61,7 +61,7 @@
   const dayOf = (t) => new Date(t).toISOString().slice(0, 10);   // UTC day
   /** The weekly rhythm (D-125, D-129): races Monday 00:00 → Saturday 24:00 UTC count for the week; Sunday UTC is the
    *  review day, and its races are fun races (Today and All time only, never the week). From vault week 3
-   *  (Mon 9 Nov 2026, "Week 1"), the first paid week. */
+   *  (Mon 9 Nov 2026), a practice week on the same schedule; the first paid week is set by PRIZES_FROM_WEEK. */
   const RHYTHM_FROM_WEEK = 3;
   /** Is a race starting at t on a review day (Sunday UTC, from `from`), i.e. a fun race that counts for no week? */
   const restRace = (t, from = RHYTHM_FROM_WEEK) => new Date(t).getUTCDay() === 0 && weekOf(t) >= from;

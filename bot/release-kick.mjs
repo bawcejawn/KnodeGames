@@ -124,6 +124,7 @@ async function gh(method, url, body, auth = true) {
     method,
     headers: { ...(auth ? { authorization: `Bearer ${process.env.GITHUB_ALERT_TOKEN}` } : {}), accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", ...(body ? { "content-type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(30_000), // a hung call must fail (and back off), not stall the task until it is killed
   });
   return r;
 }

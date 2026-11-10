@@ -209,8 +209,9 @@ type BotState = {
    *  bot's own late result (after an outage) is reported as expected, not as a possible key compromise. */
   ownResolves?: number[];
 };
-/** How close a week's last_resolved_time must be to one of the bot's own resolves to count as that resolve. */
-export const OWN_RESOLVE_SLACK_MS = 20 * 60_000;
+/** How close a week's last_resolved_time must be to one of the bot's own resolves to count as that resolve (the
+ *  bot's transaction lands seconds after it is sent; a wider window could swallow an owner correction). */
+export const OWN_RESOLVE_SLACK_MS = 3 * 60_000;
 /** Was a week's latest result (its last_resolved_time) the bot's own resolve? Unknown (no record) counts as not. */
 export const lateResultIsOurs = (own: number[] | undefined, lastResolved: number) =>
   lastResolved > 0 && (own ?? []).some((t) => Math.abs(t - lastResolved) <= OWN_RESOLVE_SLACK_MS);

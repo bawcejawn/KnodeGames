@@ -90,7 +90,7 @@ test("mid-week, first run: every live game joins at once; live holes and scoreca
   assert.equal(board.week.week, W);
   assert.equal(board.week.rows.length, wf.cards.length);
   assert.deepEqual(board.allTime.rows, [], "all time counts final weeks only");
-  assert.deepEqual(Object.keys(board.week.rows[0]).sort(), ["a", "holes", "lost", "place", "pts", "ranked", "strokes", "topar"]);
+  assert.deepEqual(Object.keys(board.week.rows[0]).sort(), ["a", "boardPlace", "holes", "lost", "place", "pts", "ranked", "strokes", "topar"]);
   assert.equal(r.problems.length, 0);
 });
 
@@ -216,17 +216,24 @@ test("practice weeks read nothing about who is ranked: every scorer counts with 
   assert.ok(wf.cards.every((c) => c.free === true && c.ranked === false));
 });
 
-test("Daily Questions' entry rule: at least 2 counted answers and at least 1 point (Repo Lens G-7)", async () => {
+test("the Questions hole: answering at least one question is playing it; no correct answer = 6 strokes, not a lost ball (owner, 6 Nov)", async () => {
   const rows = [
-    { a: P[0], pts: 5, answered: 9, counted: 9 },     // counts
-    { a: P[1], pts: 0, answered: 9, counted: 9 },     // no point: out
-    { a: P[2], pts: 1, answered: 3, counted: 1 },     // one counted answer (two voided): out
-    { a: P[3], pts: 1, answered: 2, counted: 2 },     // counts
-    { a: P[4], pts: 2, answered: 2, counted: 2 },     // counts
+    { a: P[0], pts: 5, answered: 9, counted: 9 },
+    { a: P[1], pts: 0, answered: 9, counted: 9 },     // played, nothing right
+    { a: P[2], pts: 1, answered: 3, counted: 1 },
+    { a: P[3], pts: 1, answered: 2, counted: 2 },
+    { a: P[4], pts: 2, answered: 2, counted: 2 },
+    { a: P[5], pts: 0, answered: 1, counted: 0 },     // one answer on a voided question: still played
   ];
   const out = tmp("golf-");
   await settle(base({ stakedFromWeek: null, now: END + 20 * H, out, raceDir: raceDir(), gamesDir: FINAL_GAMES(), questionsOf: async () => ({ ...qWeek(), rows }) }));
-  assert.deepEqual(holeOf(out, "questions").rows.map((r) => r[0]).sort(), [P[0], P[3], P[4]].sort());
+  const h = holeOf(out, "questions");
+  assert.deepEqual(h.rows.map((r) => r[0]).sort(), P.slice(0, 6).sort(), "everyone who answered is on the hole");
+  const wf = readOut(out, "W003.json");
+  const strokes = (a) => wf.cards.find((c) => c.a === a).holes.find((x) => x[0] === "questions")[1];
+  assert.equal(strokes(P[1]), 6, "played, nothing right: 6");
+  assert.equal(strokes(P[5]), 6);
+  assert.ok(wf.cards.filter((c) => !P.slice(0, 6).includes(c.a)).every((c) => c.holes.find((x) => x[0] === "questions")[1] === 7), "didn't answer: lost ball");
 });
 
 test("a question game that can't be read is skipped at the 60-hour deadline, never guessed", async () => {
@@ -972,6 +979,7 @@ test("npm run golf -- status: plain lines from the published files, read-only", 
   assert.match(lines, /hole race: final/);
   assert.match(lines, /GOLF_HOLD_WEEKS = <week>/);
   const src = fs.readFileSync(path.join(APP, "bot/games/golf.ts"), "utf8");
-  const body = src.slice(src.indexOf("async function status()"), src.indexOf("if (process.argv[1]"));
+  const body = src.slice(src.indexOf("async function status()"), src.indexOf("const isMain"));
+  assert.ok(body.length > 200 && body.length < 2000, "the status function, and only it");
   assert.doesNotMatch(body, /writeFile|signTransaction|\.send\(|Provider/, "status only reads");
 });

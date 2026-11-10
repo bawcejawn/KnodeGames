@@ -131,7 +131,7 @@ jobs:
           num = lambda x: type(x) in (int, float) and x == x and abs(x) < 1e16
           # A hole score as the recorder writes it (Repo Lens F-2): 0 to 1e12, at most 4 decimals (so it is written with
           # the same bytes in JS and here, and the week's fingerprint matches).
-          score_ok = lambda x: type(x) in (int, float) and x == x and 0 <= x <= 1e12 and round(x * 10000) == x * 10000
+          score_ok = lambda x: type(x) in (int, float) and x == x and 0 <= x <= 1e12 and round(x, 4) == x   # B13-A1
           def text_ok(t):
               try: t.encode("utf-8"); return True
               except UnicodeEncodeError: return False
@@ -151,7 +151,9 @@ jobs:
           def rows_ok(v, extra=()):
               if type(v) is not dict or type(v.get("rows")) is not list or len(v["rows"]) > 100000: return False
               keys = {"a", "place", "pts", "topar", "strokes", "holes", "lost", "ranked"}
-              return all(type(x) is dict and set(x) == keys and isaddr(x["a"]) and type(x["ranked"]) is bool
+              # boardPlace (B13-B1): on the week boards (this week / last week), not on All time
+              return all(type(x) is dict and set(x) - {"boardPlace"} == keys and ("boardPlace" not in x or (nat(x["boardPlace"]) and x["boardPlace"] >= 1))
+                  and isaddr(x["a"]) and type(x["ranked"]) is bool
                   and all(small(x[k]) for k in ("place", "pts", "topar", "strokes", "holes", "lost")) for x in v["rows"])
           # ── a port of golf-math.js (scoreHole, card, cards); integers only, like the original ──
           PAR, LOST, MIN_FIELD, PRACTICE_MIN_FIELD, MIN_FIELD_VHP = 4, 7, 5, 3, 10

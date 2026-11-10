@@ -34,6 +34,9 @@ export type Area = {
   contract?: string;        // which contract or wallet it runs on
   docs?: string;            // the runbook in the repository
   later?: string;           // planned games: what will appear here and when
+  /** Steps the page can't run for you (GitHub settings): a numbered card with a button that opens the page to do them
+   *  on. The link must be on this repository's GitHub (the page refuses any other). */
+  guides?: { title: string; intro?: string; steps: string[]; link: { label: string; url: string } }[];
 };
 
 export const AREAS: Area[] = [
@@ -62,9 +65,20 @@ export const AREAS: Area[] = [
   { id: "fantasy", name: "Fantasy Producers", section: "Games", status: "planned", gameId: 4,
     what: "Pick a team of five producers for the week (game 4), with a weekly rival (game 5).",
     later: "Staked + Free play (free prize off for now): in audit fix-checks and a test week (branch fantasy). Controls appear here when it launches." },
-  { id: "golf", name: "Block Golf", section: "Games", status: "planned", gameId: 6,
-    what: "The platform's golf course: scored from every game's weekly board, no picks of its own.",
-    later: "Staked + Free play (free prize off for now). Practice scorecards (no prizes) first, now that Block X is live; then staked. It has no contract of its own: it only needs its vault entry (Knode Vault → Add a game, id 6)." },
+  { id: "golf", name: "Block Golf", section: "Games", status: "live", gameId: 6,
+    what: "The platform's golf course: every live game is a hole, and a player's place on that game's weekly board sets their strokes. Nothing to pick. Practice weeks (no prizes) first; staked from the week after game 6 is applied in the vault. Free play board pays no VHP for now (switch OFF).",
+    contract: "No contract: the hourly Block Golf recorder (.github/workflows/golf.yml) and its files on games-data/golf", docs: "docs/GOLF.md",
+    guides: [{
+      title: "GitHub switches for Block Golf (the admin page can't set these)",
+      intro: "Each is a repository variable: Settings → Secrets and variables → Actions → Variables tab. The button opens that page.",
+      steps: [
+        "Turn the recorder on: New repository variable GOLF_ENABLED = true. Then Actions → \"Block Golf recorder\" → Run workflow; it should finish green. Then press Block Golf status on this page.",
+        "Start staked play (once, only after the launch steps below are done and step 3 succeeded): New variable GOLF_STAKED_FROM_WEEK = the vault week Golf earns from (Vault: is Block Golf in? prints it; for an apply on Sat 7 Nov it is 3). Set it before that week's first run, Monday 00:57 UTC (Sunday 4:57 PM PST). Never change it afterwards: the publish job refuses a change.",
+        "Hold a week (any time): variable GOLF_HOLD_WEEKS = the vault week, e.g. 3 (or 3,4). That week can't go final, so nothing is paid. To release it, delete the variable or remove the week. The vault takes results until Thursday 00:00 UTC; after that a held week rolls over. A value that isn't a plain list of numbers (e.g. W3) holds every week until fixed.",
+        "Turn the recorder off: set GOLF_ENABLED to false. The site keeps the last published files; stakes are untouched.",
+      ],
+      link: { label: "Open GitHub repository variables", url: "https://github.com/bawcejawn/KnodeGames/settings/variables/actions" },
+    }] },
   { id: "race", name: "Producer Race", section: "Games", status: "live", gameId: 7,
     what: "Players pick the producers who sign the most blocks in a day (Win and Show). Cards and results are made automatically every few minutes.",
     contract: "Race picks contract (owner wallet OWNER_WIF)" },
@@ -101,7 +115,7 @@ export type Action = {
   effect: "none" | "chain" | "files";   // read-only / changes the blockchain / changes files on this PC
   timing?: string;         // when the change takes effect
   step?: number;           // for a numbered sequence inside an area
-  tool: "bot" | "desk" | "sponsor" | "picks" | "racepicks" | "names" | "prizes";
+  tool: "bot" | "desk" | "sponsor" | "picks" | "racepicks" | "names" | "prizes" | "golf";
   args: string[];          // {name} is replaced by the parameter's value
   params?: Param[];
   sends: boolean;          // false = read-only, never takes --send
@@ -246,6 +260,17 @@ export const ACTIONS: Action[] = [
   { id: "vault-game-unprize", area: "vault", kind: "settings", label: "Remove a player's free prize", what: "Takes a free-game prize away from one player for a week (for example a farmed wallet). Only before the week is finalized.", signer: OWNER, effect: "chain", timing: AT_ONCE, tool: "bot", args: ["game-unprize", "{game}", "{week}", "{player}"], params: [{ name: "game", label: "Game id", ...VGAME }, { name: "week", label: "Week", ...WEEK }, { name: "player", label: "Player address", ...ADDRESS }], sends: true },
   { id: "vault-game-void", area: "vault", kind: "settings", label: "Void a game's week", what: "Cancels a week in one game: its bucket rolls over within the game and its free prize goes back to the pool.", when: "Only if the whole week was broken.", signer: OWNER, effect: "chain", timing: AT_ONCE, tool: "bot", args: ["game-void", "{game}", "{week}"], params: [{ name: "game", label: "Game id", ...VGAME }, { name: "week", label: "Week", ...WEEK }], sends: true },
   { id: "vault-fee-vhp", area: "vault", kind: "money", label: "Collect the 5% fee (VHP)", what: "Sends all of the vault's fee owed in VHP to the owner wallet.", signer: OWNER, effect: "chain", timing: AT_ONCE, tool: "bot", args: ["claim-fee-vhp", "all"], sends: true },
+
+  // ════════ Block Golf (game 6; no contract: docs/GOLF.md; the Golf chat's spec claude/golf/TO-HUB-ADMIN-GOLF.md) ════════
+  // Game 6 is fixed in each command (not a box to fill in), so none of these can touch another game by mistake.
+  { id: "golf-status", area: "golf", kind: "check", label: "Block Golf status", what: "Reads Block Golf's published files from GitHub and prints the course, each week's state, each hole and why it waits, and the switches. Changes nothing.", when: "The first thing to press, and after any switch change.", signer: RO, effect: "none", tool: "golf", args: ["status"], sends: false },
+  { id: "golf-games", area: "golf", kind: "check", label: "Vault: is Block Golf in?", what: "Every game in the vault. After the launch steps, expect \"Block Golf … staked + free prize, from week <n>\": that week number is what GOLF_STAKED_FROM_WEEK gets.", signer: RO, effect: "none", tool: "bot", args: ["games"], sends: false },
+  { id: "golf-prize-off", area: "golf", kind: "launch", label: "Launch, step 1: free prize OFF for Block Golf (before adding it)", what: "Records that game 6 pays no 2 + 1 VHP free prize. Free play and its board stay.", when: "Send it the same week as step 2, or earlier. Otherwise game 6 pays the free prize: a game with no switch entry follows how it was added (with the free prize = ON).", signer: GIT_PRIZES, effect: "files", timing: "From next Monday 00:00 UTC; never this week", step: 1, tool: "prizes", args: ["off", "6"], sends: true },
+  { id: "golf-game-add", area: "golf", kind: "launch", label: "Launch, step 2: add Block Golf to the vault (48-hour notice)", what: "Announces game 6, \"Block Golf\", in the vault: a stake bucket, the free prize allowed (switched off by step 1), a 1-week season. Players get 48 hours' notice.", when: "Latest Friday about noon PT to earn from the next Monday.", signer: OWNER, effect: "chain", timing: "Starts the 48-hour notice", step: 2, tool: "bot", args: ["game-add", "6", "Block Golf", "--staked", "--free", "--season", "1"], sends: true },
+  { id: "golf-game-apply", area: "golf", kind: "launch", label: "Launch, step 3: switch Block Golf on in the vault", what: "Puts game 6 in force: players can stake in Block Golf from the staking page. Then press Vault: is Block Golf in? for the week it earns from.", when: "After the 48 hours, before Sunday 4 PM PT; within 7 days.", signer: OWNER, effect: "chain", timing: "At once; stakes count from the next Monday", step: 3, tool: "bot", args: ["game-apply", "6"], sends: true },
+  { id: "golf-game-stop", area: "golf", kind: "emergency", label: "Stop Block Golf in the vault", what: "Game 6 takes no new stakes from now and earns through this week. Players keep full access to their stake and can still claim what they won.", signer: OWNER, effect: "chain", timing: AT_ONCE, tool: "bot", args: ["game-stop", "6"], sends: true },
+  { id: "golf-game-correct", area: "golf", kind: "emergency", label: "Correct a player's Block Golf points", what: "Changes one player's points for a sealed Block Golf week (0 removes them). Only before the week is finalized.", when: "Only if a result was wrong. To stop a week being paid at all, hold it instead (GitHub switches, step 3).", signer: OWNER, effect: "chain", timing: AT_ONCE, tool: "bot", args: ["game-correct", "6", "{week}", "{player}", "{points}"], params: [{ name: "week", label: "Week", ...WEEK }, { name: "player", label: "Player address", ...ADDRESS }, { name: "points", label: "Points (0 removes them)", ...INT }], sends: true },
+  { id: "golf-game-void", area: "golf", kind: "emergency", label: "Void a Block Golf week", what: "Cancels a week in Block Golf: its bucket rolls over within the game.", when: "Only if the whole week was broken.", signer: OWNER, effect: "chain", timing: AT_ONCE, tool: "bot", args: ["game-void", "6", "{week}"], params: [{ name: "week", label: "Week", ...WEEK }], sends: true },
 
   // ════════ Wallet names (docs/NAMES.md) ════════
   { id: "names-list", area: "names", kind: "check", label: "Names on the site", what: "Every @name, pool name and hidden address now published.", signer: RO, effect: "none", tool: "names", args: ["list"], sends: false },

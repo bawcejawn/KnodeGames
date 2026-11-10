@@ -2,7 +2,7 @@
 
 > **Purpose:** what every Knode Games game must do and prove before it is announced. A game that doesn't meet this isn't ready (D-064).
 > **Applies to:** every game in `.ai/games/`, new or changed.
-> **Last updated:** 5 Nov 2026 (§4 now points to `WEEK_CYCLE.md`, the one home for game timing)
+> **Last updated:** 5 Nov 2026 (§2's per-game free-prize list moved to each `game.json` / `FREE_PRIZE_SWITCH.md`; §5 and §6 now point to their standards)
 > **Built from:** `platform/DECISIONS.md` (cited as D-xxx) and the rules the game chats already follow. Related standards: `LEADERBOARD_STANDARD.md`, `VAULT_STANDARD.md`, `TOKEN_STANDARD.md`, `RECORDER_STANDARD.md`, `VHP_RULER.md`, `GO_LIVE_CHECKLIST.md`; `WEEK_CYCLE.md` (weekly timing) and `NEW_GAME.md` (onboarding a new game), both being written.
 
 **Words:** **must** = required for launch · **should** = expected unless the owner agrees otherwise · ❓ = not yet decided
@@ -11,7 +11,7 @@
 A game is announced to players only when all of these are true (D-064 — "only the correct and best version"):
 - [ ] Its spec is written in `.ai/games/<Game>.md` with the eight sections (Purpose, Gameplay, Scoring, Rewards, Dependencies, Current Status, Known Issues, Future Plans).
 - [ ] It passed the owner's audit programs, including any fix-checks, on the exact commit that ships (D-017).
-- [ ] It ran on the **public Koinos testnet** first, where it has on-chain parts (D-066; Block Golf is the agreed exception — its practice weeks on mainnet are the trial, D-056).
+- [ ] It ran on the **public Koinos testnet** first, where it has on-chain parts (D-066). A game-specific exception is recorded in that game's file and `game.json`, not here (today: Block Golf, D-056 — see `../games/BlockGolf.md`).
 - [ ] Its full test suite passes on Linux.
 - [ ] It meets the leaderboard, vault, token and recorder standards.
 - [ ] It follows `WEEK_CYCLE.md` and has its row in that file's compliance table.
@@ -20,10 +20,7 @@ A game is announced to players only when all of these are true (D-064 — "only 
 ## 2. Play types and prizes
 - **Every game must be stakeable** (D-018); a staked player has at least **1 VHP** staked in that game that week. Players may — and are encouraged to — stake in several games at once (D-074); pages should make that easy.
 - **Every game is Staked + Free play** (D-081; the older "Staked only" option, D-071, is superseded):
-  - **Every game has Free play** (a Free play board; D-081). What differs is the free VHP prize:
-  - Free board **with** the 2 + 1 VHP prize: Daily Questions, Block X, Producer Race, Producer Bracket, Last Node Standing.
-  - Free board **without** a prize for now (standings only): Combo Card, Block Golf, Survivor, Fantasy Producers (D-081).
-  - The owner switches the free prize on for each remaining game when the seed is ready (D-081).
+  - **Every game has Free play** (a Free play board; D-081). What differs per game is whether its free VHP prize is on: each game's starting setting is its `game.json` `freePrizeDefault` (today's games: `../platform/FREE_PRIZE_SWITCH.md` §4), and the owner switches it with the free-prize switch (D-081, D-082).
 - **Free prize: 2 VHP for 1st, 1 VHP for 2nd per week**, from the vault's start (D-062). A multi-week season pays its total once, at season end, to the season's winners (rule kept for later — Survivor's free prize is off for now, D-081; it would be 4 + 2 per 2-week season, D-068). Nothing is paid for weeks before the vault start (D-063).
 - Free rewards are extra and come second to stakers; a shortfall is cut, never owed (D-029).
 - Records-only side games (Weekly Rival) carry no prize and must say so.
@@ -46,18 +43,16 @@ What stays here (not timing of the week):
 - **Daily Questions (game 1)** keeps its own timing (Saturday's windows run on Sunday's blocks; claims from about Tue 12:00–15:00 UTC, Tue 4–7 AM PST, later if Saturday's questions resolve on Monday) only until Vault v6.1's rule week, **Mon 16 Nov**; from then it follows `WEEK_CYCLE.md` like every game (D-116).
 
 ## 5. On-chain registration
-- **Picks contract:** announce the game (owner key) → wait 48 h → apply within the window. Settings (kind, list size, lock mode, round size and offset, lead, ahead, changes, picks a day) are written in the game's spec. Hard limits: 50 picks a day, 50 changes, list size 10, ahead ≤ 35 days, lead ≥ 5 min.
-- **Vault:** `game-add <id> "<name>" --staked --free --season <n>` (**`--free` on every game**, D-082; the free-prize switch decides whether free winners are paid — `platform/FREE_PRIZE_SWITCH.md`) → 48 h → `game-apply` within 7 days; a game applied in week W earns from W + 1 (see `VAULT_STANDARD.md`).
-- **Sponsor:** an allowlist row for the game's picks, with a per-action Mana limit at least 1.25× the measured cost and at most the per-transaction cap; raise it when measured use reaches ~1.5× headroom (D-038). Live caps and rows: `../platform/SPONSOR.md`.
+The steps (Picks announce → apply, vault `game-add … --staked --free` → `game-apply`, sponsor row) are in `GO_LIVE_CHECKLIST.md` Step 4 and `NEW_GAME.md`; a game that needs its own contract also follows `CONTRACT_STANDARD.md`. Two limits that live only here:
+- **Picks hard limits:** 50 picks a day, 50 changes, list size 10, ahead ≤ 35 days, lead ≥ 5 min; the game's Picks settings (kind, list size, lock mode, round size and offset, lead, ahead, changes, picks a day) are written in its spec.
+- **Daily Mana (every game):** each player address has one daily sponsored Mana budget (40 a day, use it or lose it: it starts again at 00:00 UTC and there is no weekly cap) shared by every game and action; a new game adds its sponsor row and counts against that budget, never one of its own (`../platform/SPONSOR.md` §1).
+- **Sponsor headroom:** the per-action Mana limit is at least 1.25× the measured cost and at most the per-transaction cap; raise it when measured use reaches ~1.5× headroom (D-038). Live caps and rows: `../platform/SPONSOR.md`.
 
 ## 6. Recorder and data
-Every game that publishes results **must**:
-- run its recorder with **no keys and no secrets**, reading **two nodes** that must agree, using **irreversible blocks only**;
-- publish through a job that **runs no repository code** (shape checks in plain Python or Node, canonical bytes `JSON.stringify(JSON.parse(text))+"\n"`, numbers JS-safe, ASCII `[0-9]` only, files ≤ 2 MB unless agreed);
-- keep **published history write-once** (final weeks, cards and vault files never change; a run that rewrites history is held whole);
-- **fail closed** — on missing ABI, empty state, a failed stake read or node disagreement, publish no final file;
-- refuse to start if the last run's files exist but can't be read;
-- sit behind its own `<GAME>_ENABLED` switch and not block other games' steps (or document the dependency).
+Every game that publishes results follows `RECORDER_STANDARD.md` (no keys, two nodes, irreversible blocks, write-once history, recompute at publish, per-file holds), and **launches on the Shared Game Kit** (`GAME_KIT.md`, D-158): the game writes only its GameModule (`roundsFor`, `resultOf`, `scoreRound`, picks source); the kit does the rest. Details not yet written there, kept here until they are:
+- canonical bytes `JSON.stringify(JSON.parse(text))+"\n"`, numbers JS-safe, ASCII `[0-9]` only;
+- fail closed on a missing ABI or empty state too (no final file);
+- its own `<GAME>_ENABLED` switch, not blocking other games' steps (or the dependency documented).
 
 ## 7. Page
 - At the site root (never under `site/`), with one strict CSP meta tag, no inline scripts, CDN scripts pinned by integrity hash, content built with `textContent` only.
@@ -90,3 +85,7 @@ Every game that publishes results **must**:
 ## Known Issues    (I-xxx links)
 ## Future Plans
 ```
+
+## 10. Game folder and manifest (D-157)
+Every game lives in `games/<slug>/` with a `game.json` manifest (the one place its settings live), a README, a filled `SECURITY.md`, `math.js`, `recorder.ts` and `tests/`; it's created with `npm run game:new` and checked with `npm run game:check` (`NEW_GAME.md`). Today's games move into this layout one PR at a time; until then they keep their old paths. Contracts follow `CONTRACT_STANDARD.md`.
+Its `recorder.ts` is a GameModule for the Shared Game Kit (`GAME_KIT.md`, D-158); no game gets its own recorder runtime.

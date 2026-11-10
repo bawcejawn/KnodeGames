@@ -37,7 +37,7 @@
 | Subject | Workflow | Section |
 |---|---|---|
 | Run failed: **Knode Games bot** | `bot.yml` (hourly, 11:48 and 23:48 UTC) | §2 – §5 |
-| Run failed: **Node watchdog** | `watch.yml` (every 15 min on paper) | §6 |
+| Run failed: **Node watchdog** | `watch.yml` (scheduled every 15 min) | §6 |
 | Run failed: **Heal alert** | `heal-alert.yml`, started by your PC | §7 |
 | Run failed: **KnodeGames recorders** (Block X) | `games.yml` (hourly at :47) | §8 |
 | Run failed: **Producer race** | `race.yml` (hourly at :37) | §8 |
@@ -148,7 +148,7 @@ It watches **only the personal node**; the pool's silence is caught by the bot (
 
 ## 7. Heal alert — from your PC's scheduled tasks
 
-Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub emails you. The run title names the node (or "daily questions"). Needs `GITHUB_ALERT_TOKEN` in `.env`.
+Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub emails you. The run title names the node (or "daily questions"). Needs the PC's alert token (`GITHUB_ALERT_TOKEN`, RUNBOOK).
 
 **"Knode self-heal"** (every 20 min, `bot/heal.mjs`, log `node\heal.log`):
 | Alert | Trigger | How often | What you can do |

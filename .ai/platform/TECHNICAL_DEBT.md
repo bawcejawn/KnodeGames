@@ -8,14 +8,14 @@
 ## Critical
 | ID | Type | Debt | Why it matters | Pay it down | Refs |
 |----|------|------|----------------|-------------|------|
-| TD-01 | 🔐 | **One hot key controls everything, and the desk treasury *is* that key.** The single-signature owner wallet `1635QU…` owns the vault, the desk and the Picks contract, and is also the desk treasury. All hot keys (owner, sponsor, operator, seed) sit in one `.env` on one home PC | A stolen owner key could withdraw the desk's funds at once (no timelock, since the treasury is already that wallet). Vault stakes are protected by the 48 h upgrade notice and always-open withdrawals, but only if someone notices in time | The weekend runbook (`docs/WALLETS.md` §7; dates: `CALENDAR.md`): cold desk treasury (48 h timelock), then the **cold-key** owner `1LMV8E…` (exists; already owns Race picks since 4 Nov) takes the vault and the Desk (D-083; no hardware wallet can sign these calls today); the Picks handover later, once its tool is built and checked (D-106; I-076); multisig on the roadmap. The sponsor's hot key (25,000 KOIN) stays, risk accepted (D-085). The operator goes GitHub-only (D-084) | I-001, D-013, D-083 |
+| TD-01 | 🔐 | **One owner wallet controls the vault, the Desk and Picks, and is also the Desk treasury.** The single-signature owner `1635QU…` owns all three and receives Desk withdrawals | A stolen owner key could withdraw the Desk's funds at once (the treasury is the same wallet). Vault stakes are protected by the 48 h upgrade notice and always-open withdrawals | The weekend runbook (`docs/WALLETS.md` §7; dates: `CALENDAR.md`): cold desk treasury (48 h timelock), then the **cold-key** owner `1LMV8E…` (exists; already owns Race picks since 4 Nov) takes the vault and the Desk (D-083; no hardware wallet can sign these calls today); the Picks handover later, once its tool is built and checked (D-106; I-076); multisig on the roadmap. The sponsor keeps its own key (D-085, D-148). The operator stays GitHub-only (D-084) | I-001, D-013, D-083 |
 
 ## High
 | ID | Type | Debt | Why it matters | Pay it down | Refs |
 |----|------|------|----------------|-------------|------|
 | TD-03 | 🔐 | **Anything pushed to `main` runs with the operator key.** The bot needs to push to `main`, so there's no pull-request requirement; `OPERATOR_WIF` is limited to `main`; AI work reaches `main` only through PRs. The workflow guard part is **fixed** (it parses each workflow, #99 / #111); **the bot still pushes its data to `main`** | The operator can't move funds, but it posts results and resolves questions — bad code on `main` could post wrong results, which decides who gets paid | Move the bot's data commits off `main`, then require reviews | I-022, D-012, D-026 |
-| TD-04 | 🔐 | **The retired operator's key is still in `.env`** | A forgotten key with KOIN on it is a free target | Move its KOIN, then remove the key | I-045 |
-| TD-08 | 📈 | **All three block producers, plus the question-release backup, run on one home PC and internet line** | A power or internet cut stops the Knode Games Pool's production (smaller rewards), the desk's production and the 12:00 release backup at the same time | Accept for now; later, a second machine or a hosted backup node for the pool | D-048, D-047 |
+| TD-04 | 🔐 | **The retired operator wallet still holds about 100 KOIN** | A forgotten wallet with KOIN on it is a target | Sweep its KOIN this weekend (I-045) | I-045 |
+| TD-08 | 📈 | **All three block producers, plus the question-release backup, run on one machine** | A power or internet cut stops the Knode Games Pool's production (smaller rewards), the Desk's production and the release backup together | Accepted for now (D-147); `RECOVERY.md` | D-048, D-047 |
 
 ## Medium
 | ID | Type | Debt | Why it matters | Pay it down | Refs |
@@ -40,11 +40,8 @@
 | TD-26 | 📈 | Daily compounding drifts ~1 hour a day (28,800-block "day") | I-049 |
 | TD-27 | 🚧 | No bot support for the public-testnet vault copy; its owner key lives only in one chat's sandbox | I-014, I-017 |
 
-## Paid down since 4 Nov (move to `../archive/DONE.md` at the next cleanup)
-- **TD-02, the vault paying from files it can't fully verify (Race):** fixed by the Race hold (#85), the payout safety PR #133 (held-week alerts, the vault file recomputed from the chain, published final race results locked) and the Sunday review day (D-125). Block X's published finals are locked too (#159). The general bot-side points recompute for every game stays I-080 (`../standards/RECORDER_STANDARD.md` §1).
-- **TD-13, Block X's "before prizes" fix list:** PR #80 merged.
-- **TD-15, nicknames don't stick:** fixed by PR #95 (I-020).
-- **TD-24, the legacy name-claim workflow's `issues` permissions:** removed with the claim flow (#137, D-118); the CI guard now refuses any `issues` permission.
+## Paid down
+Moved to `../archive/DONE.md` ("Moved 2026-11-05 (late)").
 
 ## Accepted on purpose (not debt to fix — risks the owner chose)
 - **TD-11, free-prize farming** with many empty wallets (D-097, 4 Nov): accepted for now; a farmed prize can be removed in the correction window.

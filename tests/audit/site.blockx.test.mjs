@@ -53,11 +53,14 @@ const CARD = {
   paddock: [{ a: "1Small", vhp: 100_000, k: 20 }],
 };
 
-test("score: min(3, top VHP ÷ picked VHP) for a correct pick, 0 for a wrong one; missing from the card scores ×1 (audit BX-3)", () => {
+test("score: min(cap, top VHP ÷ picked VHP) for a correct pick (cap 3 before Week 1, 5 from it), 0 for a wrong one; missing from the card scores ×1 (audit BX-3)", () => {
+  const W2 = Date.UTC(2026, 10, 5), W3 = Date.UTC(2026, 10, 9, 1);
   assert.equal(X.multiplier(CARD, "1Big"), 1);
   assert.equal(X.multiplier(CARD, "1Mid"), 2);
   assert.equal(X.multiplier(CARD, "1Third"), 3);
-  assert.equal(X.multiplier(CARD, "1Small"), 3, "capped (30× uncapped)");
+  assert.equal(X.multiplier(CARD, "1Small", W2), 3, "capped at 3 before Week 1 (30× uncapped)");
+  assert.equal(X.multiplier(CARD, "1Small", W3), 5, "capped at 5 from Week 1");
+  assert.equal(X.multiplier(CARD, "1Small"), 5, "no time = the current cap");
   assert.equal(X.multiplier(CARD, "1New"), 1, "a fresh producer is never worth the cap");
   assert.equal(X.pointsOf(CARD, "1Mid", "1Mid"), 200);
   assert.equal(X.pointsOf(CARD, "1Mid", "1Big"), 0);
@@ -319,13 +322,68 @@ test("pick errors: only the Picks contract's own messages get the game's wording
   }
 });
 
-test("R-BX-22 (D-125): the page offers no Sunday (UTC) target, nor one due in Saturday's last 10 minutes, and says why", () => {
+test("R-BX-22 / D-129: the page offers Sunday (UTC) targets as fun rounds, labelled, with the review-day line", () => {
   const js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
-  assert.match(js, /const restAt = \(r\) => \{ const t = about\(G\.target\(r\)\); return X\.restDay\(t\) \|\| X\.restDay\(t \+ 10 \* 60000\); \};/);
-  assert.match(js, /rounds = offered\.filter\(\(r\) => !restAt\(r\)\)/);
-  assert.match(js, /Sunday \(UTC\) is the review day/);
-  assert.match(fs.readFileSync(path.join(APP, "blockx.html"), "utf8"), /Sunday is the review day, when no target scores/);
+  assert.match(js, /const funAt = \(r\) => X\.restDay\(about\(G\.target\(r\)\)\);/);
+  assert.match(js, /May fall on Sunday: then a fun round/, "Repo Lens #E-18 F-1: Saturday's last 10 minutes say so");
+  assert.match(js, /const offer = \(\) => G\.offerRounds\(head\.height\)\.filter\(inPlay\);/, "every open target in the game's weeks is offered, Sunday's too");
+  assert.match(js, /rounds = offer\(\)/);
+  assert.match(js, /Fun round · not the week/);
+  assert.match(js, /Sunday is review day: results are checked and paid from Monday\./, "WEEK_CYCLE.md §2's required page line");
+  const html = fs.readFileSync(path.join(APP, "blockx.html"), "utf8");
+  assert.match(html, /Sunday is review day: results are checked and paid from Monday\./);
+  assert.match(html, /final from Monday 00:00 UTC/);
+  assert.doesNotMatch(html, /final 12 hours after/);
   // The rule itself: Sunday UTC from Week 1 (vault week 3), the same as the Race.
   for (let t = Date.UTC(2026, 10, 9); t < Date.UTC(2026, 10, 30); t += 3600000)
     assert.equal(X.restDay(t), RM.restRace(t), new Date(t).toISOString());
+});
+
+test("R-BX-25: the page shows game 2 until Mon 9 Nov and hourly game 12 from it, both as tabs around the switch; stakes stay vault game 2", () => {
+  const js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
+  assert.match(js, /const games = X\.MAINNET_SCHEDULE\.map\(/);
+  assert.match(js, /const inPlay = \(r\) => \{ const t = about\(G\.target\(r\)\); return t >= PERIOD\.from \+ 10 \* 60000 && t < PERIOD\.to - 10 \* 60000; \};/, "10 minutes clear of the switch");
+  assert.match(js, /const rounds = G\.openRounds\(head\.height\)\.filter\(inPlay\);/, "your picks are read for the shown game's rounds");
+  for (const k of ['badge($("stake-badge"), { game: VAULT_GAME })', 'mount($("blockx-stake"), { game: VAULT_GAME })', "get_game_player({ player: who, game: VAULT_GAME,"]) assert.ok(js.includes(k), k);
+  assert.ok(js.includes("picksContract.functions.pick({ player: who, game: G.GAME_ID,"), "a pick goes to the shown game");
+  assert.ok(js.includes("Block X is hourly from ${new Date(X.periodOf(X.MAINNET_SCHEDULE[1]).from).toLocaleDateString("), "the switch date comes from the schedule");
+  assert.match(js, /on = !!\(g && g\.game && g\.game\.enabled\); \} catch \{ on = true; \}/, "no picks offered for a game the contract doesn't have yet");
+  assert.match(fs.readFileSync(path.join(APP, "blockx.html"), "utf8"), /<div class="bx-games" id="game-tabs" hidden><\/div>/);
+  // The rule: game 12 is every 1,200 blocks with 24 open targets; game 2's last weeks end at the switch.
+  const H = X.forGame(X.MAINNET_HOURLY);
+  assert.equal(H.ROUND, 1200); assert.equal(H.PICKS_PER_DAY, 48);
+  assert.equal(X.periodOf(X.MAINNET_SCHEDULE[0]).to, Date.UTC(2026, 10, 9));
+  assert.equal(X.periodOf(X.MAINNET_SCHEDULE[1]).from, Date.UTC(2026, 10, 9));
+});
+
+test("pick popup: choosing a producer opens one popup with Pick, Choose another and ✕; no hunting for the button", () => {
+  const js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
+  const i = js.indexOf("function choose(");
+  assert.ok(i > 0, "choose() exists");
+  const body = js.slice(i, i + 2500);
+  assert.match(body, /pickModal\(/, "a popup opens on choose");
+  assert.match(body, /sendPick\(r, a\)/, "its main button sends the pick");
+  assert.match(body, /Choose another/, "a way back to the list");
+  assert.match(body, /drafts\.delete\(r\)/, "choosing another drops the draft");
+  assert.match(body, /pk-x/, "an ✕ to close");
+  for (const f of ["blockx.html", "blockx-testnet.html"]) assert.match(fs.readFileSync(path.join(APP, f), "utf8"), /\.pk-x\s*\{/, f + " styles the ✕");
+});
+
+test("Repo Lens #E-23 L-2 / I-4: 'How it works' follows the shown game; the popup keeps Tab inside and gives focus back", () => {
+  const html = fs.readFileSync(path.join(APP, "blockx.html"), "utf8"), js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
+  assert.doesNotMatch(html, /12 targets are always open|up to 30 picks a day|min\(3, top/, "no old wording");
+  for (const k of ['data-bx="open"', 'data-bx="perday"', 'data-bx="cap"', 'data-bx="changesw"']) assert.ok(html.includes(k), k);
+  assert.match(js, /open: String\(Math\.floor\(\(G\.AHEAD - G\.LEAD\) \/ G\.ROUND\)\)/);
+  assert.match(js, /cap: String\(X\.capAt\(Math\.min\(Math\.max\(Date\.now\(\), PERIOD\.from\), PERIOD\.to - 1\)\)\)/, "B14-5: game 2's tab shows its own ×3");
+  assert.match(js, /fillWords\(\);\n\s+provider = new lib\.Provider\(NET\.rpc\);\n\s+W = window\.KWallet/, "mainnet fills them too");
+  for (const g of [X.MAINNET_GAME, X.MAINNET_HOURLY]) { const G = X.forGame(g); assert.equal(Math.floor((G.AHEAD - G.LEAD) / G.ROUND), G.openRounds(48_000_000).length); }
+  assert.match(js, /if \(e\.key === "Tab"\)/, "Tab stays in the box");
+  assert.match(js, /data-chip/, "focus goes back to the producer");
+  assert.match(js, /drafts\.delete\(r\); renderTargets\(true\); closeModal\(\);/, "redraw first, then give focus back");
+});
+
+test("Repo Lens #E-23 I-3: the publish job allows 300 points a pick before Week 1 and 500 from it", () => {
+  const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8");
+  assert.match(y, /top = 500 if \(t\["time"\] - GENESIS\) \/\/ WEEK >= 3 else 300/);
+  assert.match(y, /0 <= x\[3\] <= top/);
 });

@@ -69,6 +69,22 @@
       settings: Object.freeze(s), target, lockHeight, isOpen, openRounds, offerRounds, roundOf });
   }
   const MAIN = forGame(MAINNET_GAME);
+  /** R-BX-25 (owner 5 Nov: "go ahead"; docs/blockx/HOURLY-TARGETS-PLAN.md): from vault week 3 (Mon 9 Nov 2026 00:00 UTC,
+   *  "Week 1") Block X has a target every 1,200 blocks (about an hour). A game's round size can never change on the Picks
+   *  contract (sameShape), so hourly targets are a new Picks game, 12, in the same contract; game 2 stops at the switch.
+   *  The vault game stays 2 (stakes, the vault file, the prize file). A target belongs to the game whose weeks its block
+   *  falls in (the block's real time). */
+  const HOURLY_FROM_WEEK = 3;   // owner, 5 Nov: from the week of Mon 9 Nov ("Week 1"), was 4
+  const MAINNET_HOURLY = Object.freeze({ id: 12, round: 1200, offset: 0, lead: 100, ahead: 28900, picksPerDay: 48, maxChanges: 1 });
+  const VAULT_GAME = 2;
+  const MAINNET_SCHEDULE = Object.freeze([
+    Object.freeze({ game: MAINNET_GAME, fromWeek: 0, toWeek: HOURLY_FROM_WEEK }),
+    Object.freeze({ game: MAINNET_HOURLY, fromWeek: HOURLY_FROM_WEEK, toWeek: Infinity }),
+  ]);
+  /** The schedule entry for week w (null before the first). */
+  const scheduleOf = (w, sched = MAINNET_SCHEDULE) => sched.find((e) => w >= e.fromWeek && w < e.toWeek) || null;
+  /** When an entry's weeks start and end (ms; end may be Infinity). */
+  const periodOf = (e) => ({ from: GENESIS + e.fromWeek * WEEK, to: e.toWeek === Infinity ? Infinity : GENESIS + e.toWeek * WEEK });
   /** About when block h will be made, from the head block's height and time. */
   const aboutTime = (h, headHeight, headTime) => headTime + (h - headHeight) * BLOCK_MS;
 
@@ -82,27 +98,34 @@
     }
     return { m, top };
   }
-  /** What a correct pick on `producer` scores with this card: min(3, top ÷ its VHP), 2 decimals; 1 if not on the card. */
-  function multiplier(card, producer) {
+  /** The multiplier's cap for a target at time t (ms): ×3 until Week 1, ×5 from it (owner, 5 Nov: "I would like to see
+   *  the multipliers adjusted some for picking one thats less likely to produce a block"). top ÷ VHP is fair (every
+   *  producer's expected points are the same) up to the cap; ×5 keeps it fair down to a fifth of the top producer's VHP
+   *  (about 3.6% of the network on 5 Nov) instead of a third. No t: the newest cap (for the page's display). */
+  const CAP_FROM_WEEK = 3, CAP_NEW = 5;
+  const capAt = (t) => (t == null || weekOf(t) >= CAP_FROM_WEEK ? CAP_NEW : CAP);
+  /** What a correct pick on `producer` scores with this card: min(cap, top ÷ its VHP), 2 decimals; 1 if not on the card.
+   *  `t` is the target block's time (it picks the cap: ×3 before Week 1, ×5 from it). */
+  function multiplier(card, producer, t) {
     const { m, top } = vhpOf(card);
-    const v = m.get(producer);
-    if (!top) return CAP;          // no card at all: never used for points (the recorder voids such targets)
+    const v = m.get(producer), cap = capAt(t);
+    if (!top) return cap;          // no card at all: never used for points (the recorder voids such targets)
     if (!v) return 1;              // audit BX-3: a producer missing from the card scores ×1, never the cap
-    return round2(Math.min(CAP, top / v));
+    return round2(Math.min(cap, top / v));
   }
-  /** Points (hundredths) for a pick: the multiplier if it named the signer, else 0. */
-  const pointsOf = (card, picked, signer) => (picked && picked === signer ? Math.round(multiplier(card, picked) * 100) : 0);
+  /** Points (hundredths) for a pick: the multiplier if it named the signer, else 0 (t: the target block's time). */
+  const pointsOf = (card, picked, signer, t) => (picked && picked === signer ? Math.round(multiplier(card, picked, t) * 100) : 0);
 
   // ── time ──
   const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
   const weekOf = (t) => (t <= GENESIS ? 0 : Math.floor((t - GENESIS) / WEEK));
-  /** The weekly rhythm (D-125, R-BX-22): targets count Monday 00:00 → Saturday 24:00 UTC; a target whose block falls on
-   *  Sunday UTC (the review day) scores nothing, from vault week 3 (Mon 9 Nov 2026, "Week 1"), as race-math.js. */
+  /** The weekly cycle (standards/WEEK_CYCLE.md; D-125, D-129): play counts for the week Monday 00:00 → Saturday 24:00
+   *  UTC. A Sunday (UTC) target is a fun round: scored, on the Today and All time boards, but in no week's board,
+   *  prizes or vault file. From vault week 3 (Mon 9 Nov 2026, "Week 1"), as race-math.js. */
   const RHYTHM_FROM_WEEK = 3;
-  const REST_NOTE = "Sunday is the review day: Block X targets don't count on Sundays (UTC); no points";
   const restDay = (t, from = RHYTHM_FROM_WEEK) => new Date(t).getUTCDay() === 0 && weekOf(t) >= from;
-  /** Is this recorded target a review-day row (the recorder's own note)? */
-  const isRest = (t) => !!t && t.void === REST_NOTE;
+  /** When the week's counted play ends: Saturday 24:00 UTC from Week 1, the week's end before it. */
+  const playEnd = (w, from = RHYTHM_FROM_WEEK) => GENESIS + w * WEEK + (w >= from ? 6 * DAY : WEEK);
 
   // ── leaderboard ──
   /** rows: [{ player, round, height (target), time (target block time), pickTime, correct, pts }] (pts in hundredths).
@@ -151,8 +174,9 @@
   root.KBlockX = {
     // the mainnet game's settings and target functions (game 2), and forGame for any other settings
     ...MAIN, MAINNET_GAME, forGame,
+    HOURLY_FROM_WEEK, MAINNET_HOURLY, VAULT_GAME, MAINNET_SCHEDULE, scheduleOf, periodOf,
     CAP, OPEN, MIN_PRIZE_DAYS, BLOCK_MS, DAY, WEEK, GENESIS,
-    aboutTime, vhpOf, multiplier, pointsOf, dayOf, weekOf, board, places, prizes,
-    RHYTHM_FROM_WEEK, REST_NOTE, restDay, isRest,
+    aboutTime, vhpOf, multiplier, pointsOf, capAt, CAP_FROM_WEEK, CAP_NEW, dayOf, weekOf, board, places, prizes,
+    RHYTHM_FROM_WEEK, restDay, playEnd,
   };
 })(typeof window !== "undefined" ? window : globalThis);

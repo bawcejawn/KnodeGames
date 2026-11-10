@@ -109,6 +109,13 @@
     .pk-row { display: grid; grid-template-columns: 170px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--paper); font-size: 14px; }
     .pk-row.live { background: var(--mint-soft); }
     .pk-row.done { background: transparent; border: 1px solid var(--line); }
+    /* D-166: the race-type toggle */
+    .rt-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
+    .rt-tabs button { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 14px; cursor: pointer; color: inherit; }
+    .rt-tabs button[aria-pressed="true"] { background: var(--ink, #1d2a24); color: var(--paper, #fff); border-color: transparent; font-weight: 600; }
+    .rt-tabs button small { opacity: .75; margin-left: 4px; }
+    .rt-h3 { font-size: 16px; margin: 18px 0 6px; }
+    .rt-table td.num, .rt-table th.num { text-align: right; }
     .pk-when b { display: block; }
     .pk-when span { font-size: 12px; color: var(--muted); }
     .pk-row select { font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); width: 100%; min-width: 0; }
@@ -173,6 +180,7 @@
             <a href="index.html#play">Daily Questions</a>
             <a href="race.html" aria-current="page">Producer Race</a>
             <a href="blockx.html">Who Signs Block X</a>
+            <a href="golf.html">Block Golf</a>
           </div>
         </details>
         <a href="index.html#leaderboard">Leaderboards</a>
@@ -187,6 +195,7 @@
             <a href="burn.html">Burn KOIN</a>
             <a href="mana.html">Mana levels</a>
             <a href="node.html">Producer lookup</a>
+            <a href="run-node.html">Run a node</a>
             <a href="pulse.html">Network pulse</a>
           </div>
         </details>
@@ -203,6 +212,18 @@
     <p class="lede">Every Koinos block producer is a horse. Each block it signs moves it forward, and smaller producers get a handicap so every horse has the same chance.<span class="lede-more"> Four 6-hour races a day, every day, starting at 00:00, 06:00, 12:00 and 18:00 UTC.</span> Free, just for fun.</p>
     <nav class="tools" aria-label="On this page"><a href="#live">Live race</a><a href="#pick-zone" class="go-pick">Pick a horse</a><a href="#board-box">Race board</a><a href="#history">Results</a><a href="#how">How it works</a><a href="node.html" class="hide-sm">Producer lookup</a></nav>
 
+    <!-- D-166: race types. Hidden until the Race contract v2 is live (TYPES_FROM_WEEK in race-math.js). -->
+    <nav class="rt-tabs" id="race-types" aria-label="Race type" hidden></nav>
+    <section class="card" id="typed" hidden>
+      <div class="head"><h2 id="rt-title">–</h2><span class="tag" id="rt-tag">–</span></div>
+      <p class="note" id="rt-note" style="margin-top:0"></p>
+      <table class="hist rt-table"><thead><tr><th>#</th><th>Horse</th><th class="num">Handicap now</th><th class="num">Steps</th><th class="num hide-sm">Blocks</th></tr></thead><tbody id="rt-rows"></tbody></table>
+      <h3 class="rt-h3">My picks</h3>
+      <p class="note" id="rt-who" style="margin-top:0"></p>
+      <div class="pk-list" id="rt-picks"></div>
+      <h3 class="rt-h3">Latest results</h3>
+      <div class="pk-list" id="rt-results"></div>
+    </section>
     <section class="card" id="live">
       <p class="status" id="status" role="status">Getting the horses ready…</p>
       <div class="head"><h2 id="race-title">–</h2><span class="tag" id="race-tag">–</span></div>
@@ -228,7 +249,7 @@
       <div class="head"><h2>My picks</h2><span class="note" id="picks-left" style="margin:0"></span></div>
       <p class="note" style="margin-top:0" id="picks-who"></p>
       <div class="pk-list" id="pk-list"></div>
-      <p class="note">Free: one horse per race, for the next 4 races. You can change a pick until its race starts; then the chain locks it. Up to 5 picks a day (changes count). The Mana is paid by Knode Games' Mana sponsor.</p>
+      <p class="note">Free: one horse per race, for the next 4 races. You can change a pick until its race starts; then the chain locks it. <span id="pk-limit-note">Up to 5 picks a day (changes count).</span> The Mana is paid by Knode Games' Mana sponsor.</p>
       <p class="note pk-msg" id="pk-msg" role="status"></p>
     </section>
     </div>
@@ -236,7 +257,7 @@
     <section class="card" id="board-box" hidden>
       <div class="head"><h2>Leaderboard</h2></div>
       <div id="race-board"></div>
-      <p class="note">A pick on the winner is a win (3 points). A pick on the horse that finishes 2nd or 3rd is a show (1 point). Ranked by points; ties go to more wins, then more picks placed. Wallets still tied share the place. Weeks are Knode Games weeks (Monday 00:00 UTC). Races run every day. Monday to Saturday count for the week. <b>Sunday is review day</b>: the week's results are checked on chain while you keep playing. Sunday's races are <b>fun races</b>: they score on the Today and All time boards, but never on a week's board, medals or prizes. The week's results go final from Monday 00:00 UTC, and rewards can be claimed from Monday evening (Americas) / Tuesday UTC. The <b>Staked</b> board is for wallets with VHP staked in the Producer Race that week; they share the Race's weekly reward bucket. Everyone else plays on the <b>Free play</b> board, where 1st and 2nd win the weekly free-play prize (2 VHP and 1 VHP). Prizes and bucket shares are paid from Week 1 (the week of Mon 9 Nov); winners claim them from the vault. If your Race stake drops below 1 VHP during a week, you sit out that week's share (your VHP stays yours and can always be withdrawn).</p>
+      <p class="note">A pick on the winner is a win (3 points). A pick on the horse that finishes 2nd or 3rd is a show (1 point). Ranked by points; ties go to more wins, then more picks placed. Wallets still tied share the place. <b>Who gets paid:</b> on the Staked board, exactly the top 30% of staked players with a point share the Race's bucket, and tied wallets share their level. If a tie crosses that line, the wallets that reached the score first (their last scoring pick was earlier) get the spots. On the Free play board, 1st and 2nd each go to at most 10 wallets, with ties broken the same way. Weeks are Knode Games weeks (Monday 00:00 UTC). Races run every day. Monday to Saturday count for the week. <b>Sunday is review day</b>: the week's results are checked on chain while you keep playing. Sunday's races are <b>fun races</b>: they score on the Today and All time boards, but never on a week's board, medals or prizes. The week's results go final from Monday 00:00 UTC, and rewards can be claimed from Monday evening (Americas) / Tuesday UTC. The <b>Staked</b> board is for wallets with VHP staked in the Producer Race that week; they share the Race's weekly reward bucket. Everyone else plays on the <b>Free play</b> board, where 1st and 2nd win the weekly free-play prize (2 VHP and 1 VHP). Prizes and bucket shares are paid from Week 1 (the week of Mon 9 Nov); winners claim them from the vault. If your Race stake drops below 1 VHP during a week, you sit out that week's share (your VHP stays yours and can always be withdrawn).</p>
     </section>
 
     <section class="card" id="stake" hidden></section>
@@ -288,6 +309,7 @@
       <a href="index.html#play"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.6 6.7 19.4l1.2-6L3.4 9.3l6-.7z"></path></svg><span>Daily Questions</span></a>
       <a href="race.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 21V4"></path><path d="M5 4h12l-2.5 4L17 12H5"></path></svg><span>Producer Race</span></a>
       <a href="blockx.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path></svg><span>Who Signs Block X</span></a>
+      <a href="golf.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 21V4l9 4-9 4"></path><path d="M4 21h8"></path></svg><span>Block Golf</span></a>
       <a href="index.html#how"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><path d="M9 9h6M9 13h6"></path></svg><span>Rules</span></a>
       <p class="ms-h">Tools</p>
       <a href="get.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 8v8M8 12h8"></path></svg><span>Get VHP</span></a>
@@ -296,6 +318,7 @@
       <a href="burn.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 21c-4 0-6.5-2.6-6.5-6 0-3.5 3-5.5 3.5-9 2 1.5 3 3 3 5 1-1 1.5-2 1.5-3.5 2.5 2 4.5 4.6 4.5 7.5 0 3.4-2.5 6-6 6z"></path></svg><span>Burn KOIN</span></a>
       <a href="mana.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7 8-11h-6z"></path></svg><span>Mana levels</span></a>
       <a href="node.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4.5 4.5"></path></svg><span>Producer lookup</span></a>
+      <a href="run-node.html"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="6.5" rx="1.5"></rect><rect x="4" y="13.5" width="16" height="6.5" rx="1.5"></rect><path d="M8 7.25h.01M8 16.75h.01"></path></svg><span>Run a node</span></a>
       <a href="pulse.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"></path></svg><span>Network pulse</span></a>
       <p class="ms-h">Learn</p>
       <a href="start.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New to Koinos?</span></a>

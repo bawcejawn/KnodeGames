@@ -51,6 +51,9 @@
   .facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 10px 0 0; font-size: 14px; }
   .facts dt { color: var(--muted); }
   .facts dd { margin: 0; }
+  .guide { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line, #ccd); border-radius: 8px; }
+  .guide h3 { margin: 0 0 6px; font-size: 1rem; } .guide ol { margin: 8px 0 12px; padding-left: 22px; } .guide li { margin: 6px 0; line-height: 1.45; }
+  .guide-link { display: inline-block; text-decoration: none; }
   .later { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--soft); color: var(--muted); }
   code { font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
@@ -225,6 +228,17 @@
     return out;
   }
 
+  // Steps the page can't run (GitHub settings): numbered text and a button. Only this repository's GitHub pages open.
+  const GUIDE_URL = /^https:\/\/github\.com\/bawcejawn\/KnodeGames\/[A-Za-z0-9\/_.-]*$/;
+  function guide(g) {
+    const ok = GUIDE_URL.test(g.link && g.link.url || "");
+    return el("section", { class: "guide" },
+      el("h3", {}, g.title),
+      g.intro ? el("p", {}, g.intro) : null,
+      el("ol", {}, ...g.steps.map((t) => el("li", {}, t))),
+      ok ? el("a", { class: "btn guide-link", href: g.link.url, target: "_blank", rel: "noopener noreferrer" }, g.link.label + " ↗") : null);
+  }
+
   function openArea(id) {
     const area = CAT.areas.find((x) => x.id === id) || CAT.areas[0];
     store.set("kg-admin-area", area.id);
@@ -241,6 +255,7 @@
         el("p", {}, area.what),
         facts.length ? el("dl", { class: "facts" }, ...facts) : null,
         area.later ? el("div", { class: "later" }, area.later) : null,
+        ...(area.guides || []).map(guide),
         !list.length && !area.later ? el("div", { class: "later" }, "No controls here yet.") : null),
       ...byKind(list));
     window.scrollTo({ top: 0 });

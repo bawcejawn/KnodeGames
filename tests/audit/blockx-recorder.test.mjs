@@ -34,9 +34,9 @@ function picksOf(tamperRound = null) {
 }
 const rankedOf = async (who) => new Set(who.filter((a) => a !== GUEST));
 const CARD = { at: 0, c: 1, blocksPerRace: 7200, fairness: null, field: [{ a: BIG, vhp: 2000, k: 600, h: 1 }, { a: MID, vhp: 1000, k: 300, h: 2 }], paddock: [{ a: SMALL, vhp: 10, k: 3 }] };
-function raceDir({ withCards = true } = {}) {
+function raceDir({ withCards = true, weeks = [2, 3, 4] } = {}) {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "race-"));
-  for (const w of [2, 3, 4]) {
+  for (const w of weeks) {
     const races = [];
     // Each hourly card stamped with the time the race recorder took it (37 minutes into its hour), as on mainnet.
     for (let t = M.weekStart(w); t < M.weekStart(w + 1); t += M.RACE) { const i = M.raceIndex(t); races.push({ id: M.raceId(i), start: t, end: t + M.RACE, cards: Array.from({ length: 6 }, (_, l) => (withCards ? { ...CARD, samples: 36, at: t + l * 3600000 + 37 * 60000 } : null)), result: null }); }
@@ -98,7 +98,7 @@ async function weekThenLook(picks, hoursAfter, extra = {}) {
   const rd = raceDir();
   let prev;
   const startH = H0 - Math.floor(3600000 / 3000), endH = startH + 7 * 28800;   // W3 00:00, W4 00:00
-  for (let lib = startH + 12 * X.ROUND; lib <= endH + 4 * X.ROUND; lib += 12 * X.ROUND) {
+  for (let lib = startH + 12 * X.ROUND; lib < endH; lib += 12 * X.ROUND) {
     const o = tmp();
     await quiet(() => run({ p: "main", check: null, prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picks, rankedOf, head: { height: lib, time: T(lib), lib }, ...extra }));
     prev = o;
@@ -117,13 +117,13 @@ test("no prizes are listed until PRIZES_FROM_WEEK (prizes start with the vault, 
   assert.deepEqual(later.board.lastWeek.prizes, [], "week 3 is before the first prize week 4");
 });
 
-test("prizes, from the first prize week: only after the 12-hour correction window, and only the Free play board's top 2", async () => {
-  const early = await weekThenLook(picksGuest, 6, { prizesFromWeek: 3 });
-  assert.equal(early.board.lastWeek.week, 3);
-  assert.equal(early.board.lastWeek.final, false, "6 h after the week: still in the correction window");
+test("prizes, from the first prize week: final from Monday 00:00 once two runs an hour apart agree (D-135), only the Free play board's top 2", async () => {
+  const early = await weekThenLook(picksGuest, -1, { prizesFromWeek: 3 });
+  assert.equal(early.board.lastWeek.week, 2, "Sunday 23:00: week 3 isn't last week yet, so it can't be final");
+  assert.equal(early.board.week.week, 3);
   assert.deepEqual(early.board.lastWeek.prizes, []);
-  const late = await weekThenLook(picksGuest, 13, { prizesFromWeek: 3 });
-  assert.equal(late.board.lastWeek.final, true);
+  const late = await weekThenLook(picksGuest, 1.5, { prizesFromWeek: 3 });
+  assert.equal(late.board.lastWeek.final, true, "Monday 01:30: the run at 00:00 read the same week");
   // Player rule (owner, 2026-10-28): Bob is staked in Block X (the Staked board, the game's bucket), so only the
   // free players play for the prize: the guest, right every time, takes 1st (2 VHP); nobody free is 2nd.
   assert.deepEqual(plain(late.board.lastWeek.prizes).map((x) => [x.player, x.vhp]), [[GUEST, 2]]);
@@ -268,7 +268,7 @@ test("BX-3: a card taken after the lock is never used for it; a signer missing f
 });
 test("BX-5: last week is not final while its last target is unrecorded; it is once that target is in", async () => {
   const startH = H0 - Math.floor(3600000 / 3000), endH = startH + 7 * 28800;
-  const lastTarget = Math.floor((endH - 1) / X.ROUND) * X.ROUND;
+  const lastTarget = Math.floor((endH - 28800 - 1) / X.ROUND) * X.ROUND;   // Saturday's last (Sunday targets are fun rounds, D-129)
   const down = async (node, h) => { if (h === lastTarget || h === lastTarget - X.ROUND / 24) throw new Error("node down"); return { signer: signerOf(h), time: T(h) }; };
   const missing = await weekThenLook(picksGuest, 13, { blockOf: down, prizesFromWeek: 0 });
   assert.equal(missing.board.lastWeek.final, false, "final with its last target missing");
@@ -334,7 +334,7 @@ test("BX-5 / BX-23: a final week's prizes are frozen once (P###.json); the mainn
   const rd = raceDir();
   const startH = H0 - Math.floor(3600000 / 3000), endH = startH + 7 * 28800;
   let prev;
-  for (let lib = startH + 12 * X.ROUND; lib <= endH + 4 * X.ROUND; lib += 12 * X.ROUND) {
+  for (let lib = startH + 12 * X.ROUND; lib < endH; lib += 12 * X.ROUND) {
     const o = tmp();
     await quiet(() => run({ p: "main", check: null, prev, out: o, raceDir: rd, picksContract: VALID, blockOf: blockOf(), picksOf: picksGuest, rankedOf, prizesFromWeek: 0, head: { height: lib, time: T(lib), lib } }));
     prev = o;
@@ -428,7 +428,7 @@ test("stakes: the vault file lists only players the vault counts as staked for t
   const rd = raceDir(); let prev;
   const weekRun = async (stakeOf, rankedOfX) => {
     prev = undefined;
-    for (let lib = startH + 12 * X.ROUND; lib <= endH + 4 * X.ROUND; lib += 12 * X.ROUND) {
+    for (let lib = startH + 12 * X.ROUND; lib < endH; lib += 12 * X.ROUND) {
       const o = tmp();
       await quiet(() => run({ p: "main", check: "check", prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksGuest, rankedOf: rankedOfX, stakeOf, prizesFromWeek: 0, head: { height: lib, time: T(lib), lib } }));
       prev = o;
@@ -484,11 +484,11 @@ test("PRIZES_FROM_WEEK: the repository variable reaches the recorder, and only a
 
 // ── I-042: the whole week read again before its prize list is frozen (BX-88, BX-97, BX-98, G-K-1) ──
 /** Records week 3 like weekThenLook, lets `edit` change the published week file, then runs at `hoursAfter` into week 4. */
-async function weekEditThenLook(edit, extra = {}, run2 = {}) {
+async function weekEditThenLook(edit, extra = {}, run2 = {}, late = null) {
   const rd = raceDir();
   let prev;
   const startH = H0 - Math.floor(3600000 / 3000), endH = startH + 7 * 28800;
-  for (let lib = startH + 12 * X.ROUND; lib <= endH + 4 * X.ROUND; lib += 12 * X.ROUND) {
+  for (let lib = startH + 12 * X.ROUND; lib < endH; lib += 12 * X.ROUND) {
     const o = tmp();
     await quiet(() => run({ p: "main", check: "check", prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksGuest, rankedOf, head: { height: lib, time: T(lib), lib }, ...extra }));
     prev = o;
@@ -496,8 +496,14 @@ async function weekEditThenLook(edit, extra = {}, run2 = {}) {
   const f = path.join(prev, "W003.json"), wf = JSON.parse(fs.readFileSync(f, "utf8"));
   edit(wf);
   fs.writeFileSync(f, JSON.stringify(wf));
+  // D-135: the run looked at (13 h into week 4) agrees with the one before it (Sunday 23:30, which read the edited file
+  // and recorded Sunday's targets; `run2` applies to the run looked at only).
+  const first = endH - 600, mid = tmp();
+  await quiet(() => run({ p: "main", check: "check", prev, out: mid, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksGuest, rankedOf, head: { height: first, time: T(first), lib: first - 60 }, ...extra }));
+  // `late`: an edit of the published week after Sunday's targets are in (Repo Lens #E-18).
+  if (late) { const g = path.join(mid, "W003.json"), w2 = JSON.parse(fs.readFileSync(g, "utf8")); late(w2); fs.writeFileSync(g, JSON.stringify(w2)); }
   const at = endH + 13 * 1200, out = tmp();
-  const r = await quiet(() => run({ p: "main", check: "check", prev, out, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksGuest, rankedOf, head: { height: at, time: T(at), lib: at - 60 }, ...extra, ...run2 }));
+  const r = await quiet(() => run({ p: "main", check: "check", prev: mid, out, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksGuest, rankedOf, head: { height: at, time: T(at), lib: at - 60 }, ...extra, ...run2 }));
   return { r, out };
 }
 const heldNote = (r) => r.problems.find((p) => /week 3: held before its prize list/.test(p));
@@ -640,7 +646,7 @@ test("L-1: the re-read's budget counts from the start of the run, and reads in i
   assert.match(src, /export const REVERIFY_TRIES = 2;/);
   assert.match(src, /const reDeadline = runStart \+ \(o\.reverifyBudgetMs \?\? REVERIFY_BUDGET_MS\);/);
   assert.match(src, /blockReader\(o\.p, headId, REVERIFY_TRIES\)/);
-  assert.match(src, /readPicks\(node, contract, G\.GAME_ID, r, REVERIFY_TRIES, beforeRead\)/);
+  assert.match(src, /readPicks\(node, contract, g, r, REVERIFY_TRIES, beforeRead\)/, "R-BX-25: the week's game");
 });
 
 // One problem with nothing after it: the guest's Staked flag (Repo Lens B4-1: a release lets through only that reason,
@@ -725,8 +731,8 @@ test("B3-2: past the deadline, a target already in flight stops before its next 
   assert.doesNotMatch(note, /BLOCKX_RELEASE/, "a timeout prints no release code");
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /const timed = <T,>\(f: \(\) => Promise<T>\): Promise<T> => \(Date\.now\(\) > deadline \? Promise\.reject\(new OutOfTime\(\)\) : f\(\)\);/);
-  for (const call of ["timed(() => read(t.height))", "timed(() => read(t.height - G.LEAD))", "timed(() => reread(node, t.round))", "timed(() => rerank(players, node, M.weekOf(t.time)))"]) assert.ok(src.includes(call), call);
-  assert.match(src, /const reVault = vaultReader\(KNODE, G\.GAME_ID, VAULT_ABI, REVERIFY_TRIES, beforeRead\);/);
+  for (const call of ["timed(() => read(t.height))", "timed(() => read(t.height - G.LEAD))", "timed(() => reread(node, t.round, G.GAME_ID))", "timed(() => rerank(players, node, M.weekOf(t.time)))"]) assert.ok(src.includes(call), call);
+  assert.match(src, /const reVault = vaultReader\(KNODE, VG, VAULT_ABI, REVERIFY_TRIES, beforeRead\);/, "R-BX-25: the vault game");
   // Repo Lens B4-2: the deadline inside the vault reader's reads and each picks page too
   assert.match(src, /beforeRead\(\);   \/\/ Repo Lens B4-2: the re-read's deadline before every one of these reads too/);
   assert.match(src, /beforeRead\(\);   \/\/ Repo Lens B4-2: before every page, not only the first/);
@@ -761,7 +767,7 @@ test("B3-1: a release lets through only its own target: one problem released fre
   assert.ok(ok.r.problems.some((p) => /RELEASED by BLOCKX_RELEASE .* the rest of the week read the same/.test(p)), JSON.stringify(ok.r.problems).slice(0, 300));
   assert.ok(fs.existsSync(path.join(ok.out, "P003.json")) && fs.existsSync(path.join(ok.out, "vault", "W3.json")));
   // the B3-1 case itself (two problems) is the Repo Lens test above; here: the run says why it stays held
-  const two = (wf) => { one(wf); const live = wf.targets.filter((x) => !x.void && x.picks.length); live[live.length - 1].picks[0][3] += 100; };
+  const two = (wf) => { one(wf); const live = wf.targets.filter((x) => !x.void && x.picks.length && !sunday(x)); live[live.length - 1].picks[0][3] += 100; };
   const b = await weekEditThenLook(two, { prizesFromWeek: 0 }, { release: `3:${releaseCode(reason)}` });
   assert.ok(b.r.problems.some((p) => /BLOCKX_RELEASE matches .* but the rest of the week doesn't read the same either; still held/.test(p)));
   const note = heldNote(b.r);
@@ -796,48 +802,255 @@ test("B4-1: a released signer change still has its round's other checks run (the
   assert.ok(!fs.existsSync(path.join(b.out, "P003.json")));
 });
 
-// ── R-BX-22 (D-125): the weekly rhythm. Play Mon–Sat; a Sunday (UTC) target is on the review day and scores nothing ──
+// ── R-BX-22 / R-BX-23 (D-125, D-129, WEEK_CYCLE.md): play counts Mon–Sat; Sunday targets are fun rounds (scored, on
+// Today and All time, never the week's board, prizes or vault file) ──
 const sunday = (t) => new Date(t.time).getUTCDay() === 0;
-test("R-BX-22: Sunday targets (from Week 1) are review-day rows: the block, no picks, no points; the week still goes final", async () => {
+test("D-129: Sunday targets (from Week 1) are scored as fun rounds: All time yes, the week's board and prizes no", async () => {
   const { r, out } = await weekEditThenLook(() => {}, { prizesFromWeek: 0 });
   const wf = JSON.parse(fs.readFileSync(path.join(out, "W003.json"), "utf8"));
-  const sun = wf.targets.filter(sunday), rest = wf.targets.filter((t) => !sunday(t));
-  assert.ok(sun.length === 12 && rest.length === 72, `a full week (${sun.length} Sunday, ${rest.length} other targets)`);
-  for (const t of sun) {
-    assert.equal(t.void, X.REST_NOTE); assert.deepEqual(t.picks, []); assert.equal(t.card, null);
-    assert.ok(t.checked >= 1 && (t.signer === BIG || t.signer === MID), "the block itself is still read and shown");
-  }
-  assert.ok(rest.every((t) => t.void !== X.REST_NOTE), "no review-day row on a play day");
-  assert.ok(rest.some((t) => t.picks.some((p) => p[3] > 0)), "Monday to Saturday score as before");
+  const sun = wf.targets.filter(sunday), play = wf.targets.filter((t) => !sunday(t));
+  assert.ok(sun.length === 12 && play.length === 72, `a full week (${sun.length} Sunday, ${play.length} other targets)`);
+  assert.ok(sun.every((t) => !t.void && t.picks.length > 0) && sun.some((t) => t.picks.some((p) => p[3] > 0)), "Sunday targets are recorded and scored like any target");
+  const pts = (ts, who) => ts.flatMap((t) => t.picks).filter((p) => p[0] === who).reduce((s, p) => s + p[3], 0);
   assert.equal(heldNote(r), undefined, JSON.stringify(r.problems).slice(0, 300));
-  assert.equal(r.board.lastWeek.final, true, "review-day rows pass the week-end re-read");
-  const sunPts = r.board.lastWeek.rows.reduce((s, x) => s + x.pts, 0);
-  const playPts = rest.flatMap((t) => t.picks).reduce((s, p) => s + p[3], 0);
-  assert.equal(sunPts, playPts, "the board's points are the play days' points only");
+  assert.equal(r.board.lastWeek.final, true, "the week goes final with its fun rounds left out");
+  for (const who of [GUEST, BOB]) {
+    assert.equal(r.board.lastWeek.rows.find((x) => x.a === who).pts, pts(play, who), `${who}: the week counts Monday to Saturday only`);
+    assert.ok(r.board.allTime.rows.find((x) => x.a === who).pts >= pts(wf.targets, who), `${who}: All time counts Sunday too`);
+  }
+  const vf = JSON.parse(fs.readFileSync(path.join(out, "vault", "W3.json"), "utf8"));
+  assert.deepEqual(plain(vf.rows).map((x) => x.player), [BOB], "the vault file comes from the week's board (Sunday left out)");
 });
 
-test("R-BX-22: before Week 1 a Sunday still scores (restFromWeek), and the page's math says which days rest", async () => {
-  const { out } = await weekEditThenLook(() => {}, { restFromWeek: 4 });
+test("D-129: before Week 1 a Sunday counts for the week; the cycle's math", async () => {
+  const { r, out } = await weekEditThenLook(() => {}, { restFromWeek: 4 });
   const wf = JSON.parse(fs.readFileSync(path.join(out, "W003.json"), "utf8"));
-  assert.ok(wf.targets.filter(sunday).every((t) => t.void !== X.REST_NOTE && t.picks.length > 0), "Sunday picks recorded and scored as before");
+  const all = wf.targets.flatMap((t) => t.picks).filter((p) => p[0] === GUEST).reduce((s, p) => s + p[3], 0);
+  assert.equal(r.board.lastWeek.rows.find((x) => x.a === GUEST).pts, all, "the whole week, Sunday included");
   assert.equal(X.RHYTHM_FROM_WEEK, 3, "Week 1 = vault week 3 (Mon 9 Nov 2026), as the Race (race-math.js)");
   assert.equal(X.restDay(Date.UTC(2026, 10, 15, 12)), true, "Sun 15 Nov 2026");
   assert.equal(X.restDay(Date.UTC(2026, 10, 14, 23, 59)), false, "Sat 14 Nov 23:59 UTC");
   assert.equal(X.restDay(Date.UTC(2026, 10, 16, 0)), false, "Mon 16 Nov 00:00 UTC");
   assert.equal(X.restDay(Date.UTC(2026, 10, 8, 12)), false, "Sun 8 Nov 2026 is before Week 1");
+  assert.equal(X.playEnd(3), Date.UTC(2026, 10, 15), "Week 1 counts until Sat 24:00 UTC");
+  assert.equal(X.playEnd(2), Date.UTC(2026, 10, 9), "before Week 1: the whole week");
 });
 
-test("R-BX-22: a scored Sunday target, or a review-day row on a play day, holds the week", async () => {
-  const cases = {
-    "a Sunday target given points": (wf) => { const s = wf.targets.find(sunday), p = wf.targets.find((x) => !sunday(x) && !x.void);
-      Object.assign(s, { void: undefined, card: p.card, picks: [[ALICE, s.signer, s.time - 3600000, 100, 1]] }); delete s.void; },
-    "a play-day target turned into a review-day row": (wf) => { const t = wf.targets.find((x) => !sunday(x) && !x.void && x.picks.some((p) => p[3] > 0)); Object.assign(t, { void: X.REST_NOTE, card: null, picks: [] }); },
-    "a review-day row with picks": (wf) => { const s = wf.targets.find(sunday); s.picks = [[ALICE, s.signer, s.time - 3600000, 0, 1]]; },
-  };
-  for (const [what, edit] of Object.entries(cases)) {
-    const { r, out } = await weekEditThenLook(edit, { prizesFromWeek: 0 });
-    assert.ok(heldNote(r), `${what}: held (${JSON.stringify(r.problems).slice(0, 300)})`);
-    assert.equal(r.board.lastWeek.final, false, what);
-    assert.ok(!fs.existsSync(path.join(out, "P003.json")), `${what}: nothing frozen`);
+test("D-129: a play-day target given a Sunday time (to drop it from the week) holds the week", async () => {
+  const { r, out } = await weekEditThenLook((wf) => {
+    const t = wf.targets.filter((x) => !sunday(x) && !x.void && x.picks.some((p) => p[3] > 0))[10];   // mid-week
+    t.time = Date.UTC(2026, 10, 15, 1);   // a Sunday
+  }, { prizesFromWeek: 0 });
+  assert.ok(heldNote(r), JSON.stringify(r.problems).slice(0, 300));
+  assert.equal(r.board.lastWeek.final, false);
+  assert.ok(!fs.existsSync(path.join(out, "P003.json")));
+});
+
+test("D-135: final from Monday 00:00 once two runs an hour apart agree; a run that reads the week differently waits", async () => {
+  // weekThenLook's last recording run is Sunday 00:00. Monday 00:30 agrees with it (a day apart): final.
+  assert.equal((await weekThenLook(picksGuest, 0.5, { prizesFromWeek: 3 })).board.lastWeek.final, true);
+  // The last Sunday run (its "this week" board is the week's Mon–Sat) and the first Monday run, an hour apart: final at once.
+  const rd = raceDir(), startH = H0 - 1200, endH = startH + 7 * 28800;
+  let prev;
+  for (const lib of [startH + 24 * X.ROUND, startH + 48 * X.ROUND, startH + 72 * X.ROUND, endH - 1200 - 60]) {
+    const o = tmp();
+    await quiet(() => run({ p: "main", check: null, prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksGuest, rankedOf, prizesFromWeek: 3, head: { height: lib + 60, time: T(lib + 60), lib } }));
+    prev = o;
   }
+  const at = endH + 120;   // Monday 00:06
+  const mon = await quiet(() => run({ p: "main", check: null, prev, out: tmp(), raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksGuest, rankedOf, prizesFromWeek: 3, head: { height: at, time: T(at), lib: at - 60 } }));
+  assert.equal(mon.board.lastWeek.final, true, "Sunday 23:00 and Monday 00:06 read the same Mon–Sat week: final");
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /const STABLE_MS = 3600000;/);
+  assert.match(src, /const ready = head\.time >= M\.weekStart\(nowW\) && complete;/);
+  assert.ok(!/CORRECTION_MS/.test(src), "the 12-hour final is gone");
+});
+// Repo Lens #E-18 K-1 (PR #175, post-merge): append to the END of tests/audit/blockx-recorder.test.mjs
+// (it uses that file's own helpers: weekEditThenLook, sunday, heldNote, fs, path, assert).
+// A play-day target given a Sunday time AND "checked: 0" (as one bad recording run could write it) must still hold the week:
+// the re-read has to read its block, not skip it because the row says it was never checked.
+
+test("Repo Lens #E-18 K-1: a play-day target given a Sunday time and checked 0 still holds the week", async () => {
+  const { r, out } = await weekEditThenLook((wf) => {
+    const t = wf.targets.filter((x) => !sunday(x) && !x.void && x.picks.some((p) => p[3] > 0))[10];   // mid-week, scored
+    t.time = Date.UTC(2026, 10, 15, 1);   // a Sunday (as the D-129 test above)
+    t.checked = 0;                         // "never read": the new Sunday branch returns at once
+  }, { prizesFromWeek: 0 });
+  assert.ok(heldNote(r), "held: " + JSON.stringify(r.problems).slice(0, 300));
+  assert.equal(r.board.lastWeek.final, false);
+  assert.ok(!fs.existsSync(path.join(out, "P003.json")), "no prize file");
+  assert.ok(!fs.existsSync(path.join(out, "vault", "W3.json")), "no vault file");
+});
+
+test("Repo Lens #E-18 K-1: a Sunday row with picks and checked 0 holds the week (only a void row with no picks may be unread)", async () => {
+  // (Sunday's targets are recorded by the Sunday 23:30 run, so the edit is made after it: `late`.)
+  const { r } = await weekEditThenLook(() => {}, { prizesFromWeek: 0 }, {}, (wf) => {
+    const t = wf.targets.find((x) => sunday(x) && !x.void && x.picks.length > 0);
+    t.checked = 0;
+  });
+  assert.ok(heldNote(r), "held: " + JSON.stringify(r.problems).slice(0, 300));
+});
+
+test("Repo Lens #E-18 K-1: any non-void row with checked 0 holds; a 3-day-edge void row (no picks) still passes unread", async () => {
+  const a = await weekEditThenLook((wf) => { wf.targets.filter((x) => !sunday(x) && !x.void)[5].checked = 0; }, { prizesFromWeek: 0 });
+  assert.match(heldNote(a.r) || "", /never read on chain/);
+  const b = await weekEditThenLook((wf) => {
+    const t = wf.targets.filter((x) => !sunday(x) && !x.void)[5];
+    Object.assign(t, { checked: 0, signer: null, card: null, picks: [], void: "could not be recorded within 3 days: node keeps failing" });
+  }, { prizesFromWeek: 0 });
+  assert.equal(heldNote(b.r), undefined, JSON.stringify(b.r.problems).slice(0, 300));
+});
+
+test("Repo Lens #E-18 K-2: a release on a run that can't freeze yet doesn't say it froze", () => {
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /if \(!h\) problems\.push\(agreed\n\s+\? `week \$\{lw\}: RELEASED by BLOCKX_RELEASE/);
+  assert.match(src, /keep BLOCKX_RELEASE until the board shows the week final/);
+});
+
+// ── R-BX-25 (owner 5 Nov: "go ahead"): hourly targets from Mon 16 Nov (vault week 4) as Picks game 12; vault game 2 ──
+// (The mainnet switch is week 3; the test switches at week 4 so week 3 can be game 2's, with this file's 2-hourly fakes.)
+const SW4 = [{ game: X.MAINNET_GAME, fromWeek: 0, toWeek: 4 }, { game: X.MAINNET_HOURLY, fromWeek: 4, toWeek: Infinity }];
+test("R-BX-25: week 3 on game 2 (every 2,400 blocks), week 4 on hourly game 12 (every 1,200), both final with vault game 2", async () => {
+  const rd = raceDir({ weeks: [2, 3, 4, 5] });
+  const startH = H0 - 1200, w4H = startH + 7 * 28800, w5H = startH + 14 * 28800;
+  const seen = [];
+  const picksH = async (node, r, g) => {
+    const h = g === 12 ? r * 1200 : r * 2400, t = T(h) - 3600000 * (1 + (r % 3));
+    seen.push(g);
+    return [{ player: GUEST, producer: signerOf(h), time: t }, { player: BOB, producer: BIG, time: t }];
+  };
+  let prev; const outs = [];
+  for (let lib = startH + 14400; lib <= w5H + 2400; lib += 14400) {
+    const o = tmp();
+    await quiet(() => run({ p: "main", check: "check", prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksH, rankedOf, prizesFromWeek: 3,
+      schedule: SW4, vaultGame: X.VAULT_GAME, head: { height: lib + 60, time: T(lib + 60), lib } }));
+    prev = o; outs.push(o);
+  }
+  const last = prev, read = (d, f) => JSON.parse(fs.readFileSync(path.join(d, f), "utf8"));
+  const latest = (f) => read([...outs].reverse().find((d) => fs.existsSync(path.join(d, f))), f);   // as the branch keeps it
+  const w3 = latest("W003.json"), w4 = latest("W004.json");
+  assert.equal(w3.game, 2); assert.equal(w4.game, 12);
+  assert.equal(w3.targets.length, 84, "week 3: every 2,400 blocks (12 a day)");
+  assert.ok(w3.targets.every((t) => t.height === t.round * 2400 && t.time >= M.weekStart(3) && t.time < M.weekStart(4)));
+  assert.ok(w4.targets.length >= 160 && w4.targets.length <= 168, `week 4: every 1,200 blocks (24 a day): ${w4.targets.length}`);
+  assert.ok(w4.targets.every((t) => t.height === t.round * 1200 && t.time >= M.weekStart(4) && t.time < M.weekStart(5)), "no hourly target before the switch, none of game 2 after it");
+  assert.ok(seen.includes(2) && seen.includes(12), "picks read from each game");
+  // Both weeks final and frozen once; the prize and vault files are vault game 2's.
+  const find = (f) => outs.map((d) => path.join(d, f)).find((x) => fs.existsSync(x));
+  for (const [w, f] of [[3, "P003.json"], [4, "P004.json"]]) {
+    const pf = find(f);
+    assert.ok(pf, `${f} frozen`);
+    assert.equal(JSON.parse(fs.readFileSync(pf, "utf8")).game, 2, `${f}: vault game 2`);
+    const vf = find(path.join("vault", `W${w}.json`));
+    assert.ok(vf, `vault file for week ${w}`);
+    assert.equal(JSON.parse(fs.readFileSync(vf, "utf8")).game, 2);
+  }
+  const idx = read(last, "index.json");
+  assert.equal(idx.game, 2, "index.json names the vault game, as before");
+  // Week 4's board counts Monday to Saturday's 144 hourly targets (Sunday's 24 are fun rounds, D-129).
+  const board = read(last, "board.json");
+  assert.equal(board.lastWeek.week, 4); assert.equal(board.lastWeek.final, true);
+  const play = w4.targets.filter((t) => new Date(t.time).getUTCDay() !== 0);
+  assert.equal(play.length, 144);
+  const bobPts = play.flatMap((t) => t.picks).filter((p) => p[0] === BOB).reduce((s, p) => s + p[3], 0);
+  assert.equal(board.lastWeek.rows.find((x) => x.a === BOB).pts, bobPts);
+});
+
+test("R-BX-25: the mainnet schedule, the page and the tool agree on game 12", () => {
+  assert.deepEqual(plain(X.MAINNET_HOURLY), { id: 12, round: 1200, offset: 0, lead: 100, ahead: 28900, picksPerDay: 48, maxChanges: 1 });
+  assert.equal(X.HOURLY_FROM_WEEK, 3); assert.equal(M.weekStart(3), Date.UTC(2026, 10, 9), "owner 5 Nov: from Mon 9 Nov 2026 00:00 UTC (Week 1)");
+  assert.equal(X.scheduleOf(2).game.id, 2); assert.equal(X.scheduleOf(3).game.id, 12); assert.equal(X.VAULT_GAME, 2);
+  const G12 = X.forGame(X.MAINNET_HOURLY);
+  assert.equal(G12.openRounds(48_000_000).length, 24, "24 open targets a day ahead");
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /schedule: X\.MAINNET_SCHEDULE as any, vaultGame: X\.VAULT_GAME/, "the mainnet run uses the schedule");
+});
+
+test("owner 5 Nov: the multiplier's cap is ×5 from Week 1 (×3 before), by the target's own time; the same points per pick hourly", () => {
+  const card = { field: [{ a: BIG, vhp: 1000, k: 1, h: 1 }, { a: MID, vhp: 250, k: 1, h: 1 }], paddock: [{ a: SMALL, vhp: 10, k: 1 }] };
+  const w2 = Date.UTC(2026, 10, 8, 12), w3 = Date.UTC(2026, 10, 9, 0, 30);
+  assert.equal(X.multiplier(card, MID, w2), 3, "before Week 1: capped at ×3");
+  assert.equal(X.multiplier(card, MID, w3), 4, "from Week 1: top ÷ VHP = 4, under the ×5 cap");
+  assert.equal(X.multiplier(card, SMALL, w2), 3); assert.equal(X.multiplier(card, SMALL, w3), 5);
+  assert.equal(X.multiplier(card, BIG, w3), 1);
+  assert.equal(X.pointsOf(card, SMALL, SMALL, w3), 500); assert.equal(X.pointsOf(card, SMALL, SMALL, w2), 300);
+  assert.equal(X.pointsOf(card, SMALL, BIG, w3), 0);
+  assert.equal(X.capAt(), 5, "no time: the newest cap (the page's producer list)");
+  // The same points per right pick on the hourly game as on the 2-hour game (owner: "the same point value").
+  assert.equal(X.pointsOf(card, MID, MID, w3), 400);
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /X\.pointsOf\(lockC, producer, b\.signer, b\.time\), X\.pointsOf\(afterC, producer, b\.signer, b\.time\)/, "recorded with the target's own cap");
+  assert.match(src, /X\.pointsOf\(lockC, p\[1\], t\.signer, t\.time\), X\.pointsOf\(afterC, p\[1\], t\.signer, t\.time\)/, "re-read with the target's own cap");
+});
+
+test("Repo Lens #E-21 L-1: after the switch a run doesn't read blocks that can't be its games' (more than 6 h past an edge)", async () => {
+  const rd = raceDir({ weeks: [2, 3, 4, 5] });
+  const startH = H0 - 1200, w4H = startH + 7 * 28800, sw = M.weekStart(4);
+  const picksH = async (node, r, g) => { const h = g === 12 ? r * 1200 : r * 2400; return [{ player: GUEST, producer: signerOf(h), time: T(h) - 3600000 }]; };
+  let prev;
+  for (let lib = w4H - 3 * 28800; lib < w4H; lib += 14400) {
+    const o = tmp();
+    await quiet(() => run({ p: "main", check: "check", prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksH, rankedOf, schedule: SW4, vaultGame: 2, head: { height: lib + 60, time: T(lib + 60), lib } }));
+    prev = o;
+  }
+  const read = [];
+  const spy = blockOf();
+  const at = w4H + 12 * 1200;   // Monday 12:00
+  await quiet(() => run({ p: "main", check: "check", prev, out: tmp(), raceDir: rd, picksContract: "1P", blockOf: (node, h) => { read.push(h); return spy(node, h); }, picksOf: picksH, rankedOf, schedule: SW4, vaultGame: 2, head: { height: at + 60, time: T(at + 60), lib: at } }));
+  const targets = [...new Set(read)].filter((h) => h % 1200 === 0);   // target blocks (locks are 100 below)
+  const g12Before = targets.filter((h) => (h / 1200) % 2 === 1 && T(h) < sw - 6 * 3600000);   // E-23 I-1: ±6 h
+  assert.deepEqual(g12Before, [], "no hourly-only round from before Sunday 18:00 is read");
+  assert.ok(read.length > 0 && read.length < 4 * (12 + 6) * 2, `few reads: ${read.length}`);
+});
+
+test("Repo Lens #E-21 L-2: a game that starts within 2 days is checked early; a wrong started game is skipped, not the whole run", () => {
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /SCHED\.filter\(\(x\) => x\.from <= head\.time \+ 2 \* X\.DAY && x\.to > head\.time - LOOKBACK_BLOCKS \* X\.BLOCK_MS - 7 \* X\.DAY\)/);
+  assert.match(src, /announce and apply it before then \(npm run picks -- announce \$\{G\.GAME_ID\}/);
+  assert.match(src, /badGames\.add\(G\);/);
+  assert.match(src, /if \(e\.from > head\.time \|\| badGames\.has\(e\.G\)\) continue;/);
+  assert.match(src, /if \(startedGames\.length && startedGames\.every\(\(G\) => badGames\.has\(G\)\)\) throw new Error/);
+  assert.match(src, /Number\(pg\.eta\) <= e\.from\) \{ console\.log\(`game \$\{G\.GAME_ID\}: announced, can be applied from/, "announced in time: no alarm during the 48 h wait");
+});
+
+test("Repo Lens #E-23 L-1: game 12 applied 4 days after its weeks start: its early targets are recorded with no picks and the week still goes final", async () => {
+  const rd = raceDir({ weeks: [2, 3, 4, 5] });
+  const startH = H0 - 1200, w5H = startH + 14 * 28800, applied = M.weekStart(4) + 4 * X.DAY;
+  const cfg = (g) => ({ round_size: String(g.round), round_offset: "0", lead: String(g.lead), enabled: true });
+  let now = 0;
+  const gameOf = async (_node, id) => (id === 2 ? { result: { game: cfg(X.MAINNET_GAME) } } : now >= applied ? { result: { game: cfg(X.MAINNET_HOURLY) } } : { result: {} });
+  const read12 = [];
+  const picksH = async (node, r, g) => {
+    const h = g === 12 ? r * 1200 : r * 2400, t = T(h) - 3600000;
+    if (g === 12) read12.push(now);
+    if (g === 12 && t < applied) return [];   // as the chain: nobody could pick before the game existed
+    return [{ player: BOB, producer: signerOf(h), time: t }];
+  };
+  let prev; const outs = []; let problems = [];
+  for (let lib = startH + 14400; lib <= w5H + 2400; lib += 14400) {
+    const o = tmp(); now = T(lib + 60);
+    const r = await quiet(() => run({ p: "main", check: "check", prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picksH, gameOf, rankedOf, prizesFromWeek: 3,
+      schedule: SW4, vaultGame: X.VAULT_GAME, head: { height: lib + 60, time: now, lib } }));
+    problems.push(...(r.problems || []));
+    prev = o; outs.push(o);
+  }
+  const read = (d, f) => JSON.parse(fs.readFileSync(path.join(d, f), "utf8"));
+  const w4 = read([...outs].reverse().find((d) => fs.existsSync(path.join(d, "W004.json"))), "W004.json");
+  assert.equal(w4.game, 12);
+  assert.ok(w4.targets.length >= 160, `week 4 has its hourly targets from Monday: ${w4.targets.length}`);
+  assert.ok(w4.targets[0].time < M.weekStart(4) + 2 * 3600000, "the first target is at the start of the week");
+  const early = w4.targets.filter((t) => t.time < applied - 3 * X.DAY - 3600000);
+  assert.ok(early.length > 0 && early.every((t) => !t.void && t.picks.length === 0), "targets from before the apply: recorded, no picks");
+  // B14-1: picks are still read while game 12 reads as missing (none here: nobody could pick), so a stale answer can't empty a round.
+  assert.ok(problems.some((p) => /game 12 is not on the Picks contract.*recorded with no picks/.test(p)), "the run says so");
+  const board = read(prev, "board.json");
+  assert.equal(board.lastWeek.week, 4); assert.equal(board.lastWeek.final, true, "week 4 goes final");
+});
+
+test("Repo Lens #E-23 L-1: only when every node says game 12 is missing are its picks skipped; a disagreement skips the game", async () => {
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /if \(v === nodeCount\) \{ badGames\.delete\(G\); missingGames\.add\(G\);/);
+  assert.match(src, /else badGames\.add\(G\);   \/\/ the nodes disagree/);
+  assert.match(src, /if \(missingGames\.has\(G\) && \(raw\.length \|\| other\.length\)\) \{ problems\.push/, "B14-1: picks found for a 'missing' game: the round waits");
+  assert.match(src, /est >= e\.from - 6 \* 3600000 && est < e\.to \+ 6 \* 3600000/, "E-23 I-1: ±6 h");
 });

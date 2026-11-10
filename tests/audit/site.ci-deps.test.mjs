@@ -200,8 +200,9 @@ const TRIGGERS_OK = ["push", "pull_request", "schedule", "workflow_dispatch", "w
 /** Where a write token is allowed (C5-14): file → job → scopes. Everything else is read or none. */
 const WRITES = {
   "bot.yml": { publish: ["contents"] }, "games.yml": { publish: ["contents"] }, "games-testnet.yml": { publish: ["contents"] },
-  "race.yml": { publish: ["contents"] }, "race-samples.yml": { publish: ["contents"] }, "names.yml": { publish: ["contents"] },
+  "race.yml": { publish: ["contents"] }, "race-samples.yml": { publish: ["contents"] }, "names.yml": { publish: ["contents"] }, "stats.yml": { publish: ["contents"] },
   "vhp-ruler.yml": { publish: ["contents"] },   // the VHP ruler pushes only its vhp-data branch (R-RULER-1)
+  "golf.yml": { publish: ["contents"] },        // Block Golf pushes only games-data/golf, like games.yml (R-GO-3)
 };
 const onOf = (doc) => doc && (doc.on ?? doc[true] ?? doc["true"]);
 const jobsOf = (doc) => Object.entries((doc && doc.jobs) || {});

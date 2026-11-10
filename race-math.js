@@ -24,7 +24,16 @@
  * - The biggest producer always moves exactly 1 step per block. Handicaps are rounded to 4 decimals.
  *
  * SCORING A PICK
- * - A pick on the winner scores a win (3 points); a pick on the horse that finishes 2nd or 3rd scores a show (1 point). */
+ * - A pick on the winner scores a win (3 points); a pick on the horse that finishes 2nd or 3rd scores a show (1 point).
+ *
+ * RACE TYPES (owner, 5 Nov 2026, D-166; Race contract v2, which takes race = type * 2^48 + index)
+ * - Type 0 is the 6-hour race above, unchanged. Types 1-4 run around the clock beside it: the 1-hour race (every hour),
+ *   the 2-hour race (every even hour), the daily race (each UTC day) and the weekly race (Monday 00:00 to Sunday 00:00
+ *   UTC, the play week). Points: 1- and 2-hour win 2 / show 1; 6-hour 3 / 1; daily 6 / 2; weekly 12 / 4. All count on
+ *   the one Producer Race board.
+ * - Their handicap is the same formula with k = the blocks a producer is expected to sign in THAT race (so the field
+ *   is bigger the longer the race), from the same hourly VHP reading as the 6-hour card of that hour, and its own c.
+ * - They are scored from the hour ledger: each producer's block count (and last block time) in each UTC hour. */
 (function (root) {
   "use strict";
   const HOUR = 3600000, RACE = 6 * HOUR, LEG = HOUR, LEGS = 6, DAY = 24 * HOUR, WEEK = 7 * DAY;
@@ -58,6 +67,63 @@
   const restRace = (t, from = RHYTHM_FROM_WEEK) => new Date(t).getUTCDay() === 0 && weekOf(t) >= from;
   /** When play ends in week w: Saturday 24:00 UTC = Sunday 00:00 UTC. */
   const playEnd = (w) => weekStart(w) + 6 * DAY;
+
+  // ── race types (D-166) ──
+  /** len: how long the race runs; step: how often one starts; win / show: its points. Type numbers match the contract. */
+  const TYPES = Object.freeze([
+    Object.freeze({ id: 0, key: "6h", name: "6-hour", len: RACE, step: RACE, win: 3, show: 1 }),
+    Object.freeze({ id: 1, key: "1h", name: "1-hour", len: HOUR, step: HOUR, win: 2, show: 1 }),
+    Object.freeze({ id: 2, key: "2h", name: "2-hour", len: 2 * HOUR, step: 2 * HOUR, win: 2, show: 1 }),
+    Object.freeze({ id: 3, key: "day", name: "Daily", len: DAY, step: DAY, win: 6, show: 2 }),
+    Object.freeze({ id: 4, key: "week", name: "Weekly", len: 6 * DAY, step: WEEK, win: 12, show: 4 }),
+  ]);
+  /** The contract's weekly race w starts at 1970-01-05 (the first Monday) + w weeks. */
+  const WEEK_OFFSET = 4 * DAY;
+  const ID_PREFIX = ["", "H1-", "H2-", "D-", "W-"];
+  const typedIndex = (type, t) => (type === 4 ? Math.floor((t - WEEK_OFFSET) / WEEK) : Math.floor(t / TYPES[type].step));
+  const typedStart = (type, i) => (type === 4 ? WEEK_OFFSET + i * WEEK : i * TYPES[type].step);
+  /** "H1-2026-11-09T05", "H2-2026-11-09T04", "D-2026-11-09", "W-2026-11-09"; type 0 keeps "2026-11-09T06". */
+  function typedId(type, i) {
+    const iso = new Date(typedStart(type, i)).toISOString();
+    return ID_PREFIX[type] + (type >= 3 ? iso.slice(0, 10) : iso.slice(0, 13));
+  }
+  function parseTypedId(id) {
+    const m = /^(H1-|H2-|D-|W-)?(\d{4}-\d{2}-\d{2})(?:T(\d{2}))?$/.exec(String(id));
+    if (!m) return null;
+    const type = m[1] ? ID_PREFIX.indexOf(m[1]) : 0;
+    if ((type >= 3) !== (m[3] === undefined)) return null;
+    const t = Date.parse(`${m[2]}T${m[3] || "00"}:00:00Z`), i = typedIndex(type, t);
+    return typedStart(type, i) === t ? { type, index: i } : null;
+  }
+  /** A race of a type: { type, index, id, start, end }. */
+  function typedRace(type, i) { const start = typedStart(type, i); return { type, index: i, id: type === 0 ? raceId(i) : typedId(type, i), start, end: start + TYPES[type].len }; }
+  /** The races of a type that start in [from, to). */
+  function typedRacesIn(type, from, to) {
+    const out = [];
+    for (let i = typedIndex(type, from - 1) + 1; typedStart(type, i) < to; i++) out.push(typedRace(type, i));
+    return out;
+  }
+  const pointsOf = (type) => ({ win: TYPES[type].win, show: TYPES[type].show });
+  /** The Race contract v2's race number for a type's race i, as a decimal string: type * 2^48 + i (the type rides
+   *  above bit 48, so the pick's arguments stay three fields; type 0 is v1's number, unchanged). Every number is below
+   *  5 * 2^48 < 2^53, so koilib's browser bundle (no Long library) and any JSON client carry it exactly (Repo Lens
+   *  #D-13 H-1: at 2^56 the browser rounded typed numbers onto other races). */
+  const RACE_TYPE_SHIFT = 48;
+  const contractRace = (type, i) => {
+    if (!Number.isInteger(type) || type < 0 || type >= TYPES.length) throw new Error(`contractRace: unknown race type ${type}`);
+    if (!Number.isSafeInteger(i) || i < 0 || i >= 2 ** RACE_TYPE_SHIFT) throw new Error(`contractRace: race index ${i} out of range`);
+    return String(type * 2 ** RACE_TYPE_SHIFT + i);
+  };
+  /** The first Knode Games week the race types (1-4) run in: null = not yet (the Race contract v2 isn't uploaded).
+   *  The owner sets it with the upload (D-166); until then the recorder, the publish job and the page show only the
+   *  6-hour race. */
+  const TYPES_FROM_WEEK = null;
+  /** Repo Lens #D-14 N-2: false until R-RACE-18 is done (the T file split; verified hours and races kept across runs;
+   *  a timed slow-node re-check test). Only that PR may set it to true; a test refuses TYPES_FROM_WEEK until then. */
+  const TYPES_READY = false;
+  /** Repo Lens #C-12 C12-1: the week the types really start for the recorder and the page: TYPES_FROM_WEEK, but only
+   *  once TYPES_READY (null otherwise). The publish job mirrors it with its own TYPES_FROM_WEEK line. */
+  const TYPES_ON_WEEK = TYPES_READY ? TYPES_FROM_WEEK : null;
 
   // ── seeded random numbers ──
   function rng(seed) {
@@ -108,15 +174,16 @@
 
   /** A handicap card from VHP readings. vhp: [[address, VHP as a number], ...] for the producers seen recently;
    *  blocksPerRace: how many blocks a 6-hour race is expected to have (from the recent fill rate). */
-  function makeCard(vhp, blocksPerRace, at = 0) {
+  function makeCard(vhp, blocksPerRace, at = 0, fixedC = undefined) {
     const all = vhp.filter(([a, v]) => typeof a === "string" && Number.isFinite(v) && v > 0);
     const total = all.reduce((s, [, v]) => s + v, 0);
     const rows = all.map(([a, v]) => ({ a, vhp: v, k: total > 0 ? blocksPerRace * v / total : 0 })).sort((x, y) => y.vhp - x.vhp || (x.a < y.a ? -1 : 1));
     const field = rows.filter((r) => r.k >= MIN_K), paddock = rows.filter((r) => r.k < MIN_K);
-    const ks = field.map((r) => r.k), cal = calibrate(ks);
+    // fixedC: a type's card rebuilt from a stored c (D-166), without simulating again.
+    const ks = field.map((r) => r.k), cal = fixedC === undefined ? calibrate(ks) : { c: fixedC, min: NaN, max: NaN };
     return {
       at, blocksPerRace: round(blocksPerRace, 1), c: cal.c,
-      fairness: field.length ? [round(cal.min, 4), round(cal.max, 4)] : null,
+      fairness: field.length && fixedC === undefined ? [round(cal.min, 4), round(cal.max, 4)] : null,
       field: field.map((r) => ({ a: r.a, vhp: round(r.vhp, 2), k: round(r.k, 2), h: round(handicapOf(r.k, ks[0], cal.c), 4) })),
       paddock: paddock.map((r) => ({ a: r.a, vhp: round(r.vhp, 2), k: round(r.k, 2) })),
     };
@@ -173,11 +240,46 @@
     const scale = ended ? lead : Math.max(line > 0 ? line : 0, lead / LIVE_MAX);
     return st.map((r) => ({ ...r, x: scale > 0 ? Math.min(1, Math.max(0, r.steps) / scale) : 0, behind: round(lead - r.steps, 1) }));
   }
+  /** A type's card for an hour, from that hour's 6-hour card (the same VHP reading), with blocks scaled to the type's
+   *  length. c: the type's stored c for that hour, or undefined to tune it (the recorder does, once, and stores it). */
+  function typeCard(base, type, c = undefined) {
+    if (!base) return null;
+    const vhp = [...(base.field || []), ...(base.paddock || [])].map((r) => [r.a, r.vhp]);
+    return makeCard(vhp, base.blocksPerRace * TYPES[type].len / RACE, base.at, c);
+  }
+  /** A typed race's standings from the hour ledger. hours: Map(hour start → { n: {address: blocks}, l: {address: last
+   *  block time} }); cardAt(hour start) → that hour's card for the race's type. null while an hour is missing. Same
+   *  order as standings(): steps, then whoever reached the total first, then the address. */
+  function ledgerStandings(hours, race, cardAt) {
+    const horses = new Map();
+    for (let h = race.start; h < race.end; h += HOUR) {
+      const led = hours.get(h), card = cardAt(h);
+      if (!led || !card) return null;
+      for (const r of card.field) if (!horses.has(r.a)) horses.set(r.a, { a: r.a, steps: 0, blocks: 0, last: 0 });
+      const hm = new Map(card.field.map((r) => [r.a, r.h]));
+      for (const [a, n] of Object.entries(led.n || {})) {
+        const h1 = hm.get(a);
+        if (!h1 || !(n > 0)) continue;
+        const x = horses.get(a); x.steps += n * h1; x.blocks += n; x.last = Math.max(x.last, Number((led.l || {})[a]) || 0);
+      }
+    }
+    const out = [...horses.values()].map((r) => ({ ...r, steps: round(r.steps, 4) }));
+    out.sort((x, y) => y.steps - x.steps || (x.last || Infinity) - (y.last || Infinity) || (x.a < y.a ? -1 : 1));
+    return out;
+  }
+  /** A typed race's finish line: the biggest producer's expected steps, an hour at a time. */
+  function ledgerLine(race, cardAt) {
+    let s = 0;
+    const n = Math.round((race.end - race.start) / HOUR);
+    for (let h = race.start; h < race.end; h += HOUR) { const c = cardAt(h); if (!c || !c.field.length) return null; s += c.field[0].k / n; }
+    return round(s, 2);
+  }
   function lowerBound(ts, t) { let lo = 0, hi = ts.length; while (lo < hi) { const m = (lo + hi) >> 1; if (ts[m] < t) lo = m + 1; else hi = m; } return lo; }
 
   root.KRaceMath = {
     HOUR, RACE, LEG, LEGS, DAY, WEEK, GENESIS, MIN_K, SEED, TRIALS,
     raceIndex, raceStart, raceId, parseRaceId, raceAt, legOf, legsOf, weekOf, weekStart, dayOf, RHYTHM_FROM_WEEK, restRace, playEnd,
+    TYPES, TYPES_FROM_WEEK, TYPES_READY, TYPES_ON_WEEK, WEEK_OFFSET, contractRace, typedIndex, typedStart, typedId, parseTypedId, typedRace, typedRacesIn, pointsOf, typeCard, ledgerStandings, ledgerLine,
     rng, handicapOf, winChances, calibrate, makeCard, cardForLeg, finishLine, standings, winners, shows, POINTS, track, LIVE_MAX, lowerBound,
   };
 })(typeof window !== "undefined" ? window : globalThis);

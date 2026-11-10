@@ -81,3 +81,9 @@ The project uses **only the public Koinos Foundation testnet**; the owner runs n
 - **Sponsor caps count each transaction's Mana *limit*** (the per-action row), not the Mana actually burned (rows and measured costs: `SPONSOR.md`). 💬
 - **Koinos node traffic is blocked** from the AI cloud workspace and the linked-PC sandbox (DNS / proxy 403): live chain reads run only in GitHub Actions or on the owner's own shell. 💬
 - **Armana** has shown browser CORS failures under bursts (likely rate limits); the site queues reads 4 at a time. 💬
+
+## Node facts (5 Nov 2026, Run a Node chat)
+- **Armana snapshots:** weekly, taken Sundays ~04:00 UTC, published ~05:11 UTC (`snapshots.armana.io/index.json`); two archives listed (~2 weeks each), a retired one deleted 1 day after retirement; each has a `sha256_url`, its versions (chain v1.5.2) and its layout ✅ (owner's read).
+- **Koinos node code:** `koinos/koinos` newest commit `b05b833` (18 Sep 2026): chain v1.5.2 and updated seed peers; the last tag v2.2.1 has chain v1.4.1 ✅.
+- **The owner's three nodes** run chain v1.5.2, block producer v1.3.1, jsonrpc v1.2.0 (owner's `docker ps`, 5 Nov) ✅.
+- A node's public key: `basedir/block_producer/public.key` (docs.koinos.io) ✅.

@@ -44,6 +44,8 @@
     .pk-modal[hidden] { display: none; }
     .pk-box { background: var(--surface); color: var(--ink); width: 100%; max-width: 400px; border-radius: 20px; padding: 24px 22px; box-shadow: 0 20px 60px rgba(0,0,0,.35); text-align: center; }
     .pk-box h3 { font-family: var(--display); font-size: 21px; margin: 10px 0 6px; }
+    .pk-box { position: relative; }
+    .pk-x { position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 16px; cursor: pointer; }
     .pk-box p { margin: 6px 0; font-size: 14px; color: var(--muted); }
     .pk-box p b { color: var(--ink); }
     .pk-box .pk-acts { margin-top: 16px; display: flex; justify-content: center; gap: 8px; }
@@ -177,10 +179,10 @@
     <details class="bx-how" id="how">
       <summary>How it works</summary>
       <div class="explain">
-        <p><b>The targets.</b> Every block whose number is a multiple of <span data-bx="round">2,400</span> is a target, <span data-bx="about">about every 2 hours</span>. The next 12 are always open. Nobody chooses them.</p>
+        <p><b>The targets.</b> Every block whose number is a multiple of <span data-bx="round">2,400</span> is a target, <span data-bx="about">about every 2 hours</span>. The next <span data-bx="open">12</span> are always open. Nobody chooses them.</p>
         <p><b>The lock.</b> The Picks contract refuses a pick once the chain reaches 100 blocks before the target, so every pick is in before anyone can know who signs it. You can change a pick up to <span data-bx="changes">5</span> times, and make up to <span data-bx="perday">30</span> picks a day (changes count).</p>
         <p><b>The score.</b> Koinos picks who signs each block in proportion to VHP, so big producers sign more often. A right pick scores</p>
-        <p><span class="formula">min(3, top producer's VHP ÷ your producer's VHP)</span></p>
+        <p><span class="formula">min(<span data-bx="cap">5</span>, top producer's VHP ÷ your producer's VHP)</span></p>
         <p>with the VHP from the hourly handicap card at the lock. A wrong pick scores 0. Ties on the board go to more right picks, then the earlier last right pick.</p>
         <p><b>Prizes.</b> Each week the top 2 players (wallets that picked on at least 3 days, on either board) win 2 and 1 VHP on mainnet. Here on the testnet, prizes are listed but never paid.</p>
         <p><b>Testnet.</b> Same contract code as mainnet except three settings (its owner and 10-minute waits instead of 48 hours), proven by the build script. Your Test wallet lives only in this browser and never touches your mainnet wallets.</p>

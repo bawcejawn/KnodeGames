@@ -148,10 +148,10 @@ a { color: var(--violet); }
 .q-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .kind { font-size: .8rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .qno { font: 800 .85rem/1 var(--display); padding: 5px 9px; border-radius: 8px; background: var(--ink); color: var(--surface); }
-.tier { font-weight: 800; font-size: .78rem; letter-spacing: .03em; padding: 4px 10px; border-radius: 999px; }
-.tier-Easy { background: var(--mint-soft); color: var(--mint); }
+.tier { font-weight: 800; font-size: .84rem; letter-spacing: .03em; padding: 4px 10px; border-radius: 999px; }
+.tier-Easy { background: var(--mint-soft); color: color-mix(in srgb, var(--mint) 70%, var(--ink)); }
 .tier-Medium { background: var(--violet-soft); color: var(--violet); }
-.tier-Hard { background: var(--rose-soft); color: var(--rose); }
+.tier-Hard { background: var(--rose-soft); color: color-mix(in srgb, var(--rose) 82%, var(--ink)); }   /* 4.5:1 in both themes */
 .timer { font-weight: 800; font-size: .9rem; display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; background: var(--paper); color: var(--ink); }
 .timer.soon { color: var(--rose); background: var(--rose-soft); }
 .q h3, .res h3 { overflow-wrap: anywhere; font: 700 1.32rem/1.45 var(--display); letter-spacing: -.01em; color: var(--ink); }
@@ -162,7 +162,7 @@ a { color: var(--violet); }
 .q-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
 .q-group-h { font-size: .85rem; font-weight: 700; color: var(--muted); margin-right: 2px; }
 .q-facts { display: flex; flex-wrap: wrap; gap: 6px 8px; margin-top: 10px; }
-.fact { font-size: .82rem; font-weight: 600; color: var(--muted); background: var(--paper); border-radius: 8px; padding: 4px 9px; }
+.fact { font-size: .9rem; font-weight: 600; color: var(--muted); background: var(--paper); border-radius: 8px; padding: 4px 9px; }
 .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 16px; }
 .opt { display: flex; align-items: center; gap: 12px; text-align: left; font: 1rem/1.3 var(--body); color: var(--ink); background: var(--surface); border: 2px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; min-height: 58px; cursor: pointer; transition: border-color .12s ease, background-color .12s ease, transform .12s ease; }
 .opt:hover:not([disabled]) { border-color: var(--violet); background: var(--violet-soft); }
@@ -171,7 +171,7 @@ a { color: var(--violet); }
 .opt .letter, .res-letter { flex: none; width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--violet-soft); color: var(--violet); font: 800 1rem/1 var(--display); }
 .opt-text { display: flex; flex-direction: column; gap: 1px; }
 .opt-text b { font-weight: 800; font-size: 1.02rem; }
-.opt-detail { font-size: .88rem; color: var(--muted); font-weight: 600; }
+.opt-detail { font-size: .95rem; color: var(--muted); font-weight: 600; }
 .opt.picked { border-color: var(--sun); background: var(--sun-soft); }
 .opt.picked .letter { background: var(--sun); color: #2b1d00; }
 .opt.correct { border-color: var(--mint); background: var(--mint-soft); }
@@ -186,6 +186,10 @@ a { color: var(--violet); }
 .q-warn { margin-top: 12px; padding: 8px 12px; border-radius: var(--r-sm); background: var(--rose-soft); color: var(--rose); font-weight: 600; }
 .q-foot { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: .86rem; color: var(--muted); }
 .q-cta { color: var(--violet); font-weight: 700; }
+.q-intro { margin: 0 0 14px; padding: 10px 14px; border-radius: var(--r-sm); background: var(--paper); color: var(--ink); font-size: .95rem; line-height: 1.5; }
+.q-intro a { color: var(--violet); font-weight: 700; }
+.q-hint { margin-top: 6px; font-size: .92rem; color: var(--muted); }
+.opts.yn .opt-text b { font-size: 1.12rem; }
 .badge { font-weight: 800; padding: 4px 10px; border-radius: 999px; font-size: .8rem; }
 .badge-void { background: var(--line); color: var(--ink); }
 .badge-ok { background: var(--mint-soft); color: var(--mint); }
@@ -458,8 +462,8 @@ a.btn-onnavy { text-decoration: none; display: inline-flex; align-items: center;
 .welcome-why h2 { font-size: 1.15rem; }
 .welcome-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
 .welcome-steps li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; }
-.welcome-steps li > span { width: 40px; height: 40px; border-radius: 50%; background: var(--ink); color: var(--sun); display: grid; place-items: center; font: 800 1.1rem/1 var(--display); }
-.welcome-steps li.last > span { background: var(--sun); color: var(--ink); }
+.welcome-steps li > span { width: 40px; height: 40px; border-radius: 50%; background: var(--navy); color: var(--sun); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sun) 35%, transparent); display: grid; place-items: center; font: 800 1.1rem/1 var(--display); }
+.welcome-steps li.last > span { background: var(--sun); color: var(--tang-ink); }   /* fixed dark text: --ink turns light in dark mode */
 .welcome-steps b { font-size: 1.06rem; }
 .welcome-steps p { color: var(--muted); margin-top: 2px; }
 .welcome-actions { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -790,3 +794,39 @@ body[data-view="welcome"] .foot .eco { display: none; }
 .kbadge .kb-link { font-weight: 700; white-space: nowrap; margin-left: auto; }
 .g-stake { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
 .g-stake.on { color: var(--mint-ink, #1f7a4d); border-color: var(--mint, #2f9e6b); }
+
+/* Welcome: a play button on the first screen (launch UI research item 5). */
+.welcome-actions-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.welcome-note { font-size: .95rem; color: var(--muted); }
+
+/* Live stats (stats.js): a strip on the home page's first screen, the full panel on the games page. */
+.stats-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.stats-fact { display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: .95rem; color: var(--muted); }
+.stats-fact b { color: var(--ink); font-family: var(--num); font-variant-numeric: tabular-nums; }
+.stats-panel { margin: 18px 0 6px; padding: 16px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }
+.stats-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.stats-head h2 { font-size: 1.15rem; }
+.stats-head small, .stats-tile small, .stats-none { color: var(--muted); font-size: .9rem; }
+.stats-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.stats-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: var(--r-sm); background: var(--paper); }
+.stats-tile b { font: 800 1.35rem/1.15 var(--num); font-variant-numeric: tabular-nums; color: var(--ink); }
+.stats-tile > span { font-size: .95rem; color: var(--ink); }
+.stats-lw { margin-top: 16px; font-size: 1rem; }
+.stats-tops { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 8px; }
+.stats-top { padding: 10px 12px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+.stats-top h3 { font-size: .95rem; margin-bottom: 6px; }
+.stats-top ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.stats-top li { display: grid; grid-template-columns: 2.2em minmax(0, 1fr) auto; gap: 6px; align-items: baseline; font-size: .95rem; }
+.stats-place { font-weight: 800; color: var(--violet); }
+.stats-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats-pts { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Tap targets: at least 44 px tall, Apple's guideline (launch UI research item 4, owner 5 Nov). Layout and look stay the
+   same; producer chips get a larger invisible tap area instead of a taller chip. */
+button.btn { min-height: 44px; }
+.brand { min-height: 44px; }
+.foot-links a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
+.also-more { display: inline-flex; align-items: center; min-height: 44px; }
+.pchip { position: relative; }
+.pchip::after { content: ""; position: absolute; inset: -9px -3px; z-index: 1; }
+.how > summary { min-height: 44px; display: flex; align-items: center; }

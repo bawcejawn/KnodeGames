@@ -59,6 +59,12 @@ export const TOP = [
   { label: "Rules", link: "#how" },
   { label: "New to Koinos?", link: "start.html", cls: "tab-start" },
 ];
+// "Play free" beside the wallet button on every page (owner, 9 Nov: yes; "it should take them to the producer race game,
+// NOT THE QUESTIONS game"): straight to the Producer Race's pick list, where a guest plays free with no sign-up.
+export const PLAY_FREE = "race.html#pick-zone";
+export function playFree(file) {
+  return `<a class="btn btn-play-free" href="${file === "race.html" ? "#pick-zone" : PLAY_FREE}">Play free</a>`;
+}
 // Rules opens on the page's own game where there is one.
 const RULES_TAB = { "race.html": "race", "swap.html": "swap" };
 export const FOOT = [["New here? Quick tour", "#welcome"], ["Trust", "trust.html"], ["Terms &amp; risks", "terms.html"], ["Install app", "install.html"], ["Source code", "https://github.com/bawcejawn/KnodeGames"]];
@@ -99,7 +105,7 @@ export function topBlock(file) {
     return [`        <details class="dd${on ? " on" : ""}">`, `          <summary>${t.label}</summary>`, '          <div class="dd-menu">',
       ...t.items.map(([l, h]) => `            ${a(l, h)}`), "          </div>", "        </details>"].join("\n");
   });
-  return ['<nav class="tabs" aria-label="Sections">', ...rows, "      </nav>"].join("\n");
+  return ['<nav class="tabs" aria-label="Sections">', ...rows, "      </nav>", `      ${playFree(file)}`].join("\n");
 }
 
 /** The footer's links. */
@@ -115,7 +121,10 @@ export function withNav(file, html) {
   if (t >= 0) {
     // The top menu ends at its own closing </nav> (dropdowns use <details>, never a nested <nav>).
     const end = out.indexOf("</nav>", t);
-    out = out.slice(0, t) + topBlock(file) + out.slice(end + "</nav>".length);
+    let rest = out.slice(end + "</nav>".length);
+    const old = /^\n\s*<a class="btn btn-play-free"[^\n]*<\/a>/.exec(rest);   // the Play free button written last time
+    if (old) rest = rest.slice(old[0].length);
+    out = out.slice(0, t) + topBlock(file) + rest;
   }
   out = out.replace(/<span class="foot-links">[^\n]*?<\/span>/, footBlock(file));
   const i = out.indexOf('<nav class="tabbar"');

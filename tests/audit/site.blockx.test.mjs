@@ -160,8 +160,8 @@ test("blockx.html: strict CSP with the games-data and race-data branches, script
   // (R-BX-14, as the Race #86): never "once the vault is live" any more.
   assert.match(h, /<script src="board\.js"><\/script>/);
   assert.match(js, /free: \{ show: 6/);
-  assert.match(js, /2 and 1 VHP, from Week 1, the week of Mon 9 Nov/);
-  assert.match(h, /paid from Week 1 \(the week of Mon 9 Nov\)/);
+  assert.match(js, /2 and 1 VHP, from Week 1, the week of Mon 16 Nov/);
+  assert.match(h, /paid from Week 1 \(the week of Mon 16 Nov\)/);
   for (const src of [h, js]) assert.doesNotMatch(src, /(paid )?once the (Knode Games )?vault is live\./);
 });
 

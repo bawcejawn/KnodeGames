@@ -289,9 +289,10 @@
     if (!force && key === picksKey && list.childElementCount) return;
     picksKey = key;
     if (!who) {
-      $("picks-who").textContent = "Connect a wallet to pick (Kondor, KOIN Vault or a guest wallet).";
+      // Where the header's "Play free" lands (owner, 9 Nov): the free guest comes first, a wallet is the other choice.
+      $("picks-who").textContent = "Pick a horse for free as a guest: no sign-up, no wallet. Or connect Kondor or KOIN Vault.";
       $("picks-left").textContent = "";
-      list.replaceChildren(el("button", { class: "btn", type: "button", onclick: () => W && W.connect() }, "Connect wallet"));
+      list.replaceChildren(el("button", { class: "btn btn-primary", type: "button", onclick: () => W && W.connect() }, "Play free or connect a wallet"));
       return;
     }
     $("picks-who").textContent = `Picking as ${nameOf(who)}${W.kind === "guest" ? " (guest)" : ""}.`;

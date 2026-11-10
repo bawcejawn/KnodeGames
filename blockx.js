@@ -43,7 +43,7 @@
       try { const d = await fetchJson(new URL("picks-data/deployment.json", ROOT)); if (isAddr(d.contract)) picks = d.contract; } catch { /* not live yet */ }
       NET = { rpc: ["https://koinos.armana.io", "https://api.koinosblocks.com"], data: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/blockx/", raceData: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/",
         cards: "race", picks, explorer: "https://koinosscan.com/address/", chainId: MAINNET_CHAIN_ID,
-        prize: "1st and 2nd at the end of the week win the free-play prize (2 and 1 VHP, from Week 1, the week of Mon 9 Nov)." };
+        prize: "1st and 2nd at the end of the week win the free-play prize (2 and 1 VHP, from Week 1, the week of Mon 16 Nov)." };
       // The game whose weeks contain now, or the one the #game-N link asks for; both as tabs around the switch.
       const now = Date.now(), want = /^#game-(\d+)$/.exec(location.hash);
       const games = X.MAINNET_SCHEDULE.map((e) => ({ ...e.game, ...X.periodOf(e), name: e.game.id === X.MAINNET_HOURLY.id ? `Hourly (from ${new Date(X.periodOf(e).from).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })})` : "Every 2 hours" }));
@@ -450,7 +450,7 @@
     try { await readHead(); } catch { /* use the last head */ }
     if (!(G.lockHeight(r) - head.height > 20)) return pickModal("bad", "Too close to the lock", [`Block ${fmt(h)} locks in a few minutes. Pick a later one.`], [okBtn("OK")]);
     sending = true; renderTargets(true);
-    const mult = X.multiplier(card, producer, about(h));   // the cap of the target's own week (×3 before Week 1, ×5 from it)
+    const mult = X.multiplier(card, producer, about(h));   // the cap of the target's own week (×3 before Mon 9 Nov, ×5 from then)
     const what = `${nameOf(producer)} signs block ${fmt(h)} (about ${dayTime(about(h))})`;
     const wallet = W.kind === "guest" ? "your guest wallet" : W.label ? W.label() : "your wallet";
     // Audit BX-12: say who really pays on this wallet.

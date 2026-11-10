@@ -23,13 +23,13 @@
  */
 (function (root) {
   "use strict";
-  // What players call a week (weeks.js, D-063): the week of Mon 9 Nov (vault week 3) is "Week 1"; earlier weeks show
-  // their date. Pages that don't load weeks.js yet (race.html, blockx.html) get the same rule here; a test keeps the
+  // What players call a week (weeks.js, D-063): the week of Mon 16 Nov (vault week 4) is "Week 1", the week of Mon 9 Nov
+  // (vault week 3) the "Test week" (owner, 9 Nov); earlier weeks show their date. Pages that don't load weeks.js yet (race.html, blockx.html) get the same rule here; a test keeps the
   // two in step.
   const WL = (w) => {
     if (root.KWeeks) return root.KWeeks.label(w);
     const n = Math.trunc(Number(w));
-    return n >= 3 ? `Week ${n - 2}` : `Week of ${new Date(1792368000000 + n * 604800000).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`;
+    return n >= 4 ? `Week ${n - 3}` : n === 3 ? "Test week" : `Week of ${new Date(1792368000000 + n * 604800000).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`;
   };
   const MEDAL = ["🥇", "🥈", "🥉"], ORD = ["1st", "2nd", "3rd"];
   const LABELS = Object.freeze({ staked: "Staked", free: "Free play" });   // the same in every game

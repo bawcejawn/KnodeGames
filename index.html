@@ -75,6 +75,7 @@
         <a href="#how" data-view="how">Rules</a>
         <a href="start.html" class="tab-start">New to Koinos?</a>
       </nav>
+      <a class="btn btn-play-free" href="race.html#pick-zone">Play free</a>
       <button class="btn btn-wallet" id="connect" type="button">Connect wallet</button>
     </div>
   </header>
@@ -91,45 +92,67 @@
     <!-- ───────────── WELCOME (first visit, and "New here?") ───────────── -->
     <section class="view welcome" id="view-welcome" data-view="welcome" hidden>
       <div class="welcome-card">
-        <p class="welcome-kicker">Welcome to Knode Games</p>
-        <h1>Guess what the blockchain does next.</h1>
-        <p class="welcome-lede">Free prediction games about Koinos block producers: daily questions, races and more on the way. A fresh leaderboard every week, and prizes for the best players.</p>
-        <div class="welcome-actions welcome-actions-top">
-          <a class="btn btn-primary btn-big" href="#play">Play free now</a>
-          <span class="welcome-note">No sign-up, no wallet needed</span>
+        <!-- Play first (launch UI research item 7, mockup version 2, owner 5 Nov: "build the mock up version 2"):
+             today's question with its answer buttons on the first screen, a clear path for wallet users beside it. -->
+        <div class="welcome-hero">
+          <div class="welcome-intro">
+            <p class="welcome-kicker">Free · four races a day</p>
+            <h1>Guess what the blockchain does next.</h1>
+            <p class="welcome-lede">Pick the block producer you think wins the race. A win scores points, and the best players win VHP every week.</p>
+            <div class="welcome-paths" id="welcome-paths">
+              <div class="welcome-path welcome-path-new"><b>New here? Play free.</b><span>Pick a horse in the Producer Race as a guest: no sign-up, no wallet.</span><a class="btn btn-primary" href="race.html#pick-zone">Play free</a></div>
+              <div class="welcome-path"><b>Have a Koinos wallet? Stake and play with it.</b><span>Connect KOIN Vault or Kondor to play with it and stake.</span><button class="btn btn-ghost" type="button" id="welcome-connect">Connect wallet</button></div>
+            </div>
+          </div>
+          <div class="welcome-today">
+            <div class="welcome-q welcome-race" id="welcome-race">
+              <h2>Producer Race</h2>
+              <p class="welcome-race-line">Every Koinos block producer is a horse, and every block it signs moves it forward. A handicap gives every horse the same chance.</p>
+              <ul class="welcome-race-facts">
+                <li><b>4 races a day</b><span>6 hours each, starting at 00:00, 06:00, 12:00 and 18:00 UTC</span></li>
+                <li><b>Pick one horse per race</b><span>Change your mind until the race starts.</span></li>
+                <li><b>3 points for a win, 1 for 2nd or 3rd</b><span>Climb today's, this week's and the all-time board.</span></li>
+                <li><b>Free</b><span>No sign-up, no wallet. Knode Games pays the network fee for your picks.</span></li>
+              </ul>
+              <p class="welcome-race-soon"><b>Coming soon:</b> 1-hour, 2-hour, daily and weekly races too, all on one board.</p>
+              <a class="btn btn-primary btn-big" href="race.html#pick-zone">Play free now</a>
+              <span class="welcome-note">No sign-up, no wallet needed</span>
+              <p class="welcome-more"><a href="race.html">See today's races →</a><a href="#how/race">Race rules</a></p>
+            </div>
+          </div>
+          <div class="stats-strip" id="stats-strip" hidden></div>
         </div>
-        <div class="stats-strip" id="stats-strip" hidden></div>
         <div class="welcome-why">
           <h2>What's going on</h2>
           <p>Koinos adds a new block every few seconds. Each block is made by a <b>producer</b>, a computer that earns a small reward for it. We ask things like <i>"How many blocks will this producer make in the next 4 hours?"</i></p>
           <p>The VHP players stake helps Knode Games' own producer make blocks. Those block rewards fill the weekly prize pool, so the more people stake, the bigger the pool.</p>
         </div>
-        <h2 class="welcome-steps-title">How Daily Questions work</h2>
+        <h2 class="welcome-steps-title">How the Producer Race works</h2>
         <ol class="welcome-steps">
-          <li><span>1</span><div><b>Pick an answer (free, no sign-up)</b><p>Tap an answer and you're playing as a guest on this device. Nothing to install.</p></div></li>
-          <li><span>2</span><div><b>Score points all week</b><p>New questions Monday to Saturday. Each right answer is a point on the week's leaderboard.</p></div></li>
-          <li><span>3</span><div><b>The best free players win VHP</b><p>Each week the 2 best free players win 2 VHP and 1 VHP.</p></div></li>
-          <li class="last"><span>4</span><div><b>Want more? Stake to share the pool</b><p>With a Koinos wallet (KOIN Vault on a phone, Kondor on a computer), stake 1 VHP or more: the top 30% of staked players share the week's pool (95% of what it earned, minus the free players' prize). Your stake is never spent: take it back any time. <a href="get.html">No wallet or VHP yet?</a></p></div></li>
+          <li><span>1</span><div><b>Pick a horse (free, no sign-up)</b><p>Open the Race and tap a producer. You're playing as a guest on this device. Nothing to install.</p></div></li>
+          <li><span>2</span><div><b>Watch it run</b><p>Each block a producer signs moves its horse forward. After 6 hours, the horse furthest ahead wins.</p></div></li>
+          <li><span>3</span><div><b>The best free players win VHP</b><p>A win is 3 points and a 2nd or 3rd is 1. Each week the 2 best free players win 2 VHP and 1 VHP, starting with Week 1 (Mon 16 Nov).</p></div></li>
+          <li class="last"><span>4</span><div><b>Want more? Stake to share the pool</b><p>With a Koinos wallet (KOIN Vault on a phone, Kondor on a computer), stake 1 VHP or more in a game to share that game's part of the week's rewards. Your stake is never spent: take it back any time. <a href="get.html">No wallet or VHP yet?</a></p></div></li>
         </ol>
         <div class="welcome-also" id="welcome-games">
           <h2>All the games</h2>
+          <a class="also-card" href="race.html"><span aria-hidden="true">🏇</span><div><b>Producer Race</b><p>Pick the winning block producer, four races a day (Sunday's are for fun): 3 points for a win, 1 for a 2nd or 3rd. Free, or stake VHP to share the weekly rewards.</p></div></a>
           <a class="also-card" href="#play"><span aria-hidden="true">🎯</span><div><b>Daily Questions</b><p>Quick questions about block producers, Monday to Saturday. Free, or stake VHP to share the weekly rewards.</p></div></a>
-          <a class="also-card" href="race.html"><span aria-hidden="true">🏇</span><div><b>Producer Race</b><p>Pick the winning block producer, four races a day (Sunday's are for fun): 3 points for a win, 1 for a 2nd or 3rd. Free and just for fun.</p></div></a>
-          <a class="also-card" href="blockx.html"><span aria-hidden="true">🧱</span><div><b>Who Signs Block X</b><p>Pick the producer for the next 12 milestone blocks, about 2 hours apart.</p></div></a>
-          <p class="also-soon-title">Coming soon</p>
-          <div class="also-card soon"><span aria-hidden="true">🛡️</span><div><b>Survivor</b><p>One producer a day, two lives, four-week seasons.</p></div></div>
-          <div class="also-card soon"><span aria-hidden="true">📋</span><div><b>Fantasy Producers</b><p>Draft 5 producers under a salary cap. A staked game.</p></div></div>
-          <div class="also-card soon"><span aria-hidden="true">⛳</span><div><b>Block Golf</b><p>Nine holes a day: guess when a producer signs next. A staked game.</p></div></div>
+          <a class="also-card" href="blockx.html"><span aria-hidden="true">🧱</span><div><b>Who Signs Block X</b><p>Pick the producer for the next milestone blocks, about an hour apart.</p></div></a>
+          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">⛳</span><div><b>Block Golf</b><p>Every game is a hole: your place on each game's weekly board sets your strokes. Nothing to pick; lowest score wins.</p></div></div>
+          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">📋</span><div><b>Fantasy Producers</b><p>Draft 5 producers under a salary cap, with a captain who scores double.</p></div></div>
+          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">🏆</span><div><b>Producer Bracket</b><p>Pick the winner of every matchup in a weekly knockout bracket of producers.</p></div></div>
+          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">🛡️</span><div><b>Survivor</b><p>One producer a day, two lives, four-week seasons.</p></div></div>
           <a class="also-more" href="games.html">See every game and your standing →</a>
           <h2>Also on Knode Games</h2>
           <a class="also-card" href="swap.html"><span aria-hidden="true">🔁</span><div><b>Knode Games Swap</b><p>Turn VHP back into KOIN in one step, for a 3% fee.</p></div></a>
+          <a class="also-card" href="run-node.html"><span aria-hidden="true">🖥️</span><div><b>Run a node</b><p>Run your own Koinos block-producer node, with step-by-step help.</p></div></a>
         </div>
         <div class="welcome-actions">
-          <a class="btn btn-primary btn-big" href="#play" id="welcome-go">Start playing</a>
+          <a class="btn btn-primary btn-big" href="race.html#pick-zone" id="welcome-go">Start playing</a>
           <a class="btn btn-ghost btn-big" href="#how">The full rules</a>
         </div>
         <p class="welcome-app"><a href="install.html">Get the Knode Games app on your phone</a>: no app store, three taps.</p>
-        <div class="welcome-remind-box"><h2>Never miss a day</h2><div id="welcome-remind"></div></div>
       </div>
     </section>
 
@@ -248,11 +271,12 @@
     <section class="view rules" id="view-how" data-view="how" hidden>
       <div class="section-head big">
         <h1>Rules</h1>
-        <p class="muted">Three things to do on Knode Games. Pick one to see how it works in a minute.</p>
+        <p class="muted">The rules for every open game. Pick one to see how it works in a minute.</p>
       </div>
       <div class="rules-tabs" role="tablist" aria-label="Rules for">
         <button type="button" role="tab" id="rt-game" data-rules="game" aria-controls="rp-game"><span aria-hidden="true">🎯</span>Daily Questions</button>
         <button type="button" role="tab" id="rt-race" data-rules="race" aria-controls="rp-race"><span aria-hidden="true">🏇</span>Producer Race</button>
+        <button type="button" role="tab" id="rt-blockx" data-rules="blockx" aria-controls="rp-blockx"><span aria-hidden="true">🧱</span>Who Signs Block X</button>
         <button type="button" role="tab" id="rt-swap" data-rules="swap" aria-controls="rp-swap"><span aria-hidden="true">🔁</span>Knode Games Swap</button>
       </div>
 
@@ -274,7 +298,7 @@
         <h3 class="rules-more">The details</h3>
         <details class="rules-d"><summary>How rewards are worked out</summary>
       <ol class="steps">
-        <li><h3>Play free, or stake VHP</h3><p>Anyone can answer and climb the leaderboard for free, and each week the 2 best free players win 2 VHP for 1st and 1 VHP for 2nd (from the week of 9 November; ties share; from 16 November, up to 10 wallets share a place, and if more tie, the 10 whose last point came earliest, then by wallet address, so ties at the same time go to the lower address; a free player is one who never held the minimum stake that week; from the October 2026 contract update). To share in the rewards, stake at least 1 VHP (whole numbers only), or KOIN, which is burned into VHP. A stake counts from the next week. You can withdraw any amount at any time, down to the last decimal. Withdraw part during a week and you keep playing with the lower stake; withdraw everything and you're out for that week.</p></li>
+        <li><h3>Play free, or stake VHP</h3><p>Anyone can answer and climb the leaderboard for free, and each week the 2 best free players win 2 VHP for 1st and 1 VHP for 2nd (from Week 1, the week of 16 November; ties share; from 16 November, up to 10 wallets share a place, and if more tie, the 10 whose last point came earliest, then by wallet address, so ties at the same time go to the lower address; a free player is one who never held the minimum stake that week; from the October 2026 contract update). To share in the rewards, stake at least 1 VHP (whole numbers only), or KOIN, which is burned into VHP. A stake counts from the next week. You can withdraw any amount at any time, down to the last decimal. Withdraw part during a week and you keep playing with the lower stake; withdraw everything and you're out for that week.</p></li>
         <li><h3>Answer daily questions</h3><p>30 questions a week for now (48 once the upgraded contract allows it): new ones every Monday to Saturday at 12:00 UTC, and answers close at 00:00 UTC, 12 hours later, before the blocks they ask about are produced. From Monday 9 November they come in two rounds a day: at 00:00 UTC (answers close at 12:00) and at 12:00 UTC (answers close at 00:00). Every correct answer is one point. Sunday is results day.</p></li>
         <li><h3>The week closes</h3><p><strong>The vault's block rewards go to the players</strong> after a flat 5% fee: first the free players' prizes, then the rest is split across the staked games by each game's stake. Daily Questions' part goes to the top 30% of its staked players who scored at least one point, ties included. Higher places earn more: 40% is shared by place × stake counted up to 10 VHP per wallet, so a small stake still earns a real share, and 60% by place × full stake, so staking more pays more. Winners are final Tuesday 12:00 UTC; once the vault upgrade applies, Daily Questions works like every vault game: the bot closes the week, its results are posted by Thursday 00:00 UTC and are final 24 hours later. No staked winners? The free players' prize is still paid, and the rest carries into next week.</p></li>
         <li><h3>Collect your reward</h3><p>Your reward is paid in VHP. From Daily Questions' part of the week's rewards, the top 30% of staked players who scored at least one point win, counted by headcount, and ties at the line win too. Each place weighs 1/√rank, so first place weighs the most. The pot is two baskets: 40% shared by place weight times your stake counted up to 10 VHP per wallet (so a small stake still earns a real share), and 60% shared by place weight times your full stake. Every correct answer is one point, so the week's top score is the number of questions that week (30 for now, 48 once the upgraded contract allows it). (These rules apply from the first full week after the October 2026 contract update; before it, the first basket was shared by place alone.) Unclaimed rewards wait for you, and keep producing for the pool meanwhile. Rewards from before the vault upgrade are collected on this page; later ones on the Stake page, with every game's.</p></li>
@@ -309,9 +333,14 @@
         </ol>
         <div class="rules-good"><h3>Good to know</h3><ul>
           <li><b>Free.</b> No entry fee, no wager, no prize pool. Knode Games pays the Mana for picks.</li>
-          <li><b>Up to 5 picks a day,</b> counting changes.</li>
+          <li><b>Picks are limited by your Mana, not by a count.</b> Knode Games gives every wallet a daily Mana allowance (a rolling 24 hours) for picks and everything else on the platform.</li>
           <li><b>Two boards:</b> Staked (at least 1 VHP staked in the Race, sharing its weekly rewards) and Free play (everyone else; from Week 1, the week of Mon 16 Nov, 1st and 2nd win 2 VHP and 1 VHP).</li>
           <li><b>Results are final</b> once the race's blocks are irreversible and match on two independent Koinos nodes.</li>
+        </ul></div>
+        <div class="rules-good rules-soon" id="race-types-soon"><h3>Coming soon: more races</h3><ul>
+          <li><b>Five race lengths, one board.</b> 1-hour, 2-hour, 6-hour (today's race), daily and weekly races will run side by side. Points from every length add up on the same Producer Race board. Pick any length, as often as you like, within your daily Mana.</li>
+          <li><b>Points for 1st, 2nd and 3rd</b> (planned, not live yet): 1-hour and 2-hour 3 / 2 / 1, 6-hour 4 / 2 / 1, daily 6 / 3 / 2, weekly 12 / 6 / 4. A 2nd or 3rd place scores only if that producer signed a block in the race.</li>
+          <li><b>Until this is announced as live, the points above stay as they are today:</b> 3 for a win and 1 for a show in the 6-hour race.</li>
         </ul></div>
         <h3 class="rules-more">The details</h3>
         <details class="rules-d"><summary>How the handicap works</summary>
@@ -320,6 +349,22 @@
           <p><a href="race.html#how">The full handicap explanation</a> is on the Race page.</p>
         </details>
         <p class="rules-cta"><a class="btn btn-primary btn-big" href="race.html">Go to the Race</a></p>
+      </div>
+
+      <div class="rules-panel" id="rp-blockx" data-rules-panel="blockx" role="tabpanel" aria-labelledby="rt-blockx" hidden>
+        <div class="rules-short"><h2>In short</h2><p>Every hour or so, the chain reaches a milestone block. Pick which producer will sign it. A right pick scores more points the smaller the producer, because small producers sign less often. It's free to play.</p></div>
+        <ol class="rules-steps">
+          <li><span class="ri" aria-hidden="true">👛</span><div><b>Connect, or play as a guest</b><p>Kondor, KOIN Vault, or a free guest wallet. Knode Games pays the Mana (the network fee) for your picks.</p></div></li>
+          <li><span class="ri" aria-hidden="true">👆</span><div><b>Pick who signs a target</b><p>About a day of targets is always open: every block whose number is a multiple of 1,200, about one an hour. Change a pick until it locks, 100 blocks before the target.</p></div></li>
+          <li><span class="ri" aria-hidden="true">📈</span><div><b>Score when you're right</b><p>A right pick scores from ×1 for the biggest producer up to ×5 for the smallest. A wrong pick scores 0.</p></div></li>
+          <li><span class="ri" aria-hidden="true">🏆</span><div><b>Climb the weekly board</b><p>The Free play board's top 2 win 2 VHP and 1 VHP every week, from Week 1 (Mon 16 Nov). Players staked in Block X share its weekly rewards.</p></div></li>
+        </ol>
+        <div class="rules-good"><h3>Good to know</h3><ul>
+          <li><b>Picks are limited by your Mana, not by a count.</b> Knode Games gives every wallet a daily Mana allowance (a rolling 24 hours) for picks and everything else on the platform.</li>
+          <li><b>Two boards:</b> Staked (1 VHP or more staked in Block X) and Free play (everyone else, guests too; picks on at least 3 days to win the prize).</li>
+          <li><b>Results are final</b> once the blocks are irreversible and match on two independent Koinos nodes.</li>
+        </ul></div>
+        <p class="rules-cta"><a class="btn btn-primary btn-big" href="blockx.html">Go to Block X</a></p>
       </div>
 
       <div class="rules-panel" id="rp-swap" data-rules-panel="swap" role="tabpanel" aria-labelledby="rt-swap" hidden>

@@ -14,5 +14,10 @@
   "workflow": { "file": "games.yml", "enabledVar": "{{ENABLED_VARIABLE}}", "prizesFromVar": "{{PRIZES_FROM_VARIABLE}}" },
   "page": "{{slug}}.html",
   "rulesDoc": ".ai/games/{{Title}}.md",
-  "ownerChat": "{{owning chat}}"
+  "ownerChat": "{{owning chat}}",
+  "payoutRule": "{{legacy-tied-whole-or-d152}}",
+  "vaultValues": "dense255",
+  "minPts": 0,
+  "rowCap": "{{board-row-cap-or-0}}",
+  "entry": { "minRounds": 1, "minPoints": 1 }
 }

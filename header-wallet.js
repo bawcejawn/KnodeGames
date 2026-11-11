@@ -62,6 +62,15 @@
     document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(e.target)) toggle(false); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hidden) { toggle(false); btn.focus(); } });
     paint();
+    // "Play free" (top right) opens the same chooser as "Connect wallet" when nobody is connected yet, then goes on to the race (owner, 11 Nov).
+    for (const pf of row.querySelectorAll("a.btn-play-free")) pf.addEventListener("click", async (e) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+      if (W.address || W.accounts().length) return;       // already someone: follow the link to the race
+      e.preventDefault();
+      const dest = pf.getAttribute("href");
+      await connect();
+      if (W.address) { if (dest.startsWith("#")) { location.hash = dest; } else location.href = dest; }
+    });
   }
   async function connect() {
     toggle(false);

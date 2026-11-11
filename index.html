@@ -36,7 +36,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="board.css">
 </head>
-<body>
+<body class="play-wait">
   <a class="skip" href="#main">Skip to the game</a>
   <noscript><p class="noscript">Knode Games is a free daily prediction game on the Koinos blockchain: daily questions about block producers, a weekly leaderboard, VHP prizes for the top free players in games whose free prize is on, and shared rewards for stakers. It needs JavaScript to read the chain and connect your wallet; please turn JavaScript on. <a href="get.html">How to get started</a> · <a href="terms.html">Terms</a></p></noscript>
 
@@ -149,6 +149,7 @@
     <!-- ───────────── PLAY ───────────── -->
     <section class="view" id="view-play" data-view="play">
       <nav class="qtabs" aria-label="Daily Questions"><a href="#play" data-view="play">Questions</a><a href="#leaderboard" data-view="leaderboard">Leaderboard</a><a href="#results" data-view="results">Results</a></nav>
+      <p class="play-loading" id="play-loading" role="status">Loading today's questions…</p>
       <div id="stake-badge" hidden></div>
       <section class="band" id="band" aria-label="Your week"></section>
 

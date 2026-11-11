@@ -1809,6 +1809,7 @@
       },
     });
     route();
+    setTimeout(() => document.body.classList.remove("play-wait"), 9000);   // never leave the page hidden if the network is slow
     const wantDemo = /[?&]demo\b/.test(location.search);
     let dep = null;
     if (!wantDemo) dep = await fetchJson(DATA + "deployment.json").catch(() => null);
@@ -1824,6 +1825,7 @@
       setInterval(async () => { try { await loadLive(); S.board[S.week] = undefined; renderPlay(); } catch {} await updateLive(); renderPlay(); if (!$("#view-results").hidden) renderResults(); }, 60000);
       updateLive().then(() => { renderPlay(); if (!$("#view-results").hidden) renderResults(); });
     }
+    document.body.classList.remove("play-wait");   // the real data (or the demo) is in: show the Questions page
     $("#producers-link").href = EXPLORER_PRODUCERS;
     $("#schedule").textContent = (() => {
       const t = nowMs(), all = roundStarts(), now = all.filter((r) => r.from <= t), later = all.filter((r) => r.from > t);

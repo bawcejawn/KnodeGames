@@ -57,11 +57,13 @@
           </div>
         </details>
         <a href="#leaderboard" data-view="leaderboard">Leaderboards</a>
-        <a href="#results" data-view="results">Results</a>
         <a href="stake.html">Stake</a>
         <details class="dd">
-          <summary>Tools</summary>
+          <summary>More</summary>
           <div class="dd-menu">
+            <a href="#results" data-view="results">Results</a>
+            <a href="#how" data-view="how">Rules</a>
+            <a href="start.html">New to Koinos?</a>
             <a href="get.html">Get VHP</a>
             <a href="names.html">Get an @name</a>
             <a href="swap.html">Swap VHP → KOIN</a>
@@ -72,8 +74,6 @@
             <a href="pulse.html">Network pulse</a>
           </div>
         </details>
-        <a href="#how" data-view="how">Rules</a>
-        <a href="start.html" class="tab-start">New to Koinos?</a>
       </nav>
       <a class="btn btn-play-free" href="race.html#pick-zone">Play free</a>
       <button class="btn btn-wallet" id="connect" type="button">Connect wallet</button>
@@ -94,34 +94,16 @@
       <div class="welcome-card">
         <!-- Play first (launch UI research item 7, mockup version 2, owner 5 Nov: "build the mock up version 2"):
              today's question with its answer buttons on the first screen, a clear path for wallet users beside it. -->
-        <div class="welcome-hero">
-          <div class="welcome-intro">
-            <p class="welcome-kicker">Free · four races a day</p>
-            <h1>Guess what the blockchain does next.</h1>
-            <p class="welcome-lede">Pick the block producer you think wins the race. A win scores points. From Mon 16 Nov, free boards pay 2 VHP and 1 VHP prizes in games whose free prize is on, and staked boards share the week's rewards after a flat 5% fee.</p>
-            <div class="welcome-paths" id="welcome-paths">
-              <div class="welcome-path welcome-path-new"><b>New here? Play free.</b><span>Pick a horse in the Producer Race as a guest: no sign-up, no wallet.</span><a class="btn btn-primary" href="race.html#pick-zone">Play free</a></div>
-              <div class="welcome-path"><b>Have a Koinos wallet? Stake and play with it.</b><span>Connect KOIN Vault or Kondor to play with it and stake.</span><button class="btn btn-ghost" type="button" id="welcome-connect">Connect wallet</button></div>
-            </div>
+        <div class="home-hero">
+          <p class="tagline">Call the next block.</p>
+          <h1>Guess what the blockchain does next.</h1>
+          <p class="lede">Free prediction games on the Koinos blockchain. Pick a block producer, watch it run, and climb the weekly leaderboard.</p>
+          <div class="home-cta">
+            <a class="btn btn-primary btn-big" href="race.html#pick-zone" id="welcome-go">Play free</a>
+            <span class="muted" id="welcome-paths">Have a Koinos wallet? <button class="linklike" type="button" id="welcome-connect">Connect it</button></span>
           </div>
-          <div class="welcome-today">
-            <div class="welcome-q welcome-race" id="welcome-race">
-              <h2>Producer Race</h2>
-              <p class="welcome-race-line">Every Koinos block producer is a horse, and every block it signs moves it forward. A handicap gives every horse the same chance.</p>
-              <ul class="welcome-race-facts">
-                <li><b>4 races a day</b><span>6 hours each, starting at 00:00, 06:00, 12:00 and 18:00 UTC</span></li>
-                <li><b>Pick one horse per race</b><span>Change your mind until the race starts.</span></li>
-                <li><b>3 points for a win, 1 for 2nd or 3rd</b><span>Climb today's, this week's and the all-time board.</span></li>
-                <li><b>Free</b><span>No sign-up, no wallet. Knode Games pays the network fee for your picks.</span></li>
-              </ul>
-              <p class="welcome-race-soon"><b>Coming soon:</b> 1-hour, 2-hour, daily and weekly races too, all on one board.</p>
-              <a class="btn btn-primary btn-big" href="race.html#pick-zone">Play free now</a>
-              <span class="welcome-note">No sign-up, no wallet needed</span>
-              <p class="welcome-more"><a href="race.html">See today's races →</a><a href="#how/race">Race rules</a></p>
-            </div>
-          </div>
-          <div class="stats-strip" id="stats-strip" hidden></div>
         </div>
+        <div id="welcome-race" hidden></div>
         <div class="welcome-why">
           <h2>What is Knode Games?</h2>
           <p>Free and staked prediction games on Koinos. Guess which block producer does what next, and correct calls climb a weekly leaderboard.</p>
@@ -150,8 +132,8 @@
           <a class="also-card" href="swap.html"><span aria-hidden="true">🔁</span><div><b>Knode Games Swap</b><p>Turn VHP back into KOIN in one step, for a 3% fee.</p></div></a>
           <a class="also-card" href="run-node.html"><span aria-hidden="true">🖥️</span><div><b>Run a node</b><p>Run your own Koinos block-producer node, with step-by-step help.</p></div></a>
         </div>
+        <div class="stats-strip" id="stats-strip" hidden></div>
         <div class="welcome-actions">
-          <a class="btn btn-primary btn-big" href="race.html#pick-zone" id="welcome-go">Start playing</a>
           <a class="btn btn-ghost btn-big" href="#how">The full rules</a>
         </div>
         <p class="welcome-app"><a href="install.html">Get the Knode Games app on your phone</a>: no app store, three taps.</p>
@@ -393,9 +375,8 @@
 
   <nav class="tabbar" aria-label="Main">
     <a href="games.html"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"></rect></svg>Games</a>
-    <a href="#leaderboard" data-view="leaderboard"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 20V10M12 20V4M18 20v-7"></path></svg>Leaders</a>
     <a href="stake.html"><svg aria-hidden="true" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.5"></ellipse><path d="M5 6v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"></path><path d="M5 10v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"></path><path d="M5 14v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"></path></svg>Stake</a>
-    <a href="#results" data-view="results"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"></path><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"></path></svg>Results</a>
+    <a href="#leaderboard" data-view="leaderboard"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 20V10M12 20V4M18 20v-7"></path></svg>Leaders</a>
     <button type="button" class="tb-more" aria-expanded="false" aria-controls="more-sheet"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg>More</button>
   </nav>
   <div class="more-sheet" id="more-sheet" hidden>
@@ -405,6 +386,7 @@
       <a href="race.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 21V4"></path><path d="M5 4h12l-2.5 4L17 12H5"></path></svg><span>Producer Race</span></a>
       <a href="blockx.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path></svg><span>Who Signs Block X</span></a>
       <a href="golf.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 21V4l9 4-9 4"></path><path d="M4 21h8"></path></svg><span>Block Golf</span></a>
+      <a href="#results" data-view="results"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"></path><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"></path></svg><span>Results</span></a>
       <a href="#how" data-view="how"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><path d="M9 9h6M9 13h6"></path></svg><span>Rules</span></a>
       <p class="ms-h">Tools</p>
       <a href="get.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 8v8M8 12h8"></path></svg><span>Get VHP</span></a>

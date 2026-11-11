@@ -8,12 +8,14 @@ const APP = process.env.APP || ".";
 const html = fs.readFileSync(`${APP}/index.html`, "utf8");
 const welcome = html.slice(html.indexOf('id="view-welcome"'), html.indexOf("<!-- ───────────── PLAY"));
 
-test("the headline is the game, not the money; the Producer Race and its Play free now button come before the explanation (owner, 10 Nov)", () => {
+test("the home hero is short and calm: the tagline, the headline (no money in it), one lede, one Play free to the race, a wallet link (owner, 11 Nov)", () => {
   assert.match(welcome, /<h1>Guess what the blockchain does next\.<\/h1>/);
   assert.doesNotMatch(welcome.match(/<h1>[\s\S]*?<\/h1>/)[0], /pool|win|VHP/i);
-  const race = welcome.indexOf('id="welcome-race"'), play = welcome.indexOf('href="race.html#pick-zone">Play free now</a>'), why = welcome.indexOf('class="welcome-why"');
-  assert.ok(race > 0 && race < play && play < why, "the race card, with Play free now in it, above 'What's going on'");
-  for (const t of ["4 races a day", "Pick one horse per race", "3 points for a win, 1 for 2nd or 3rd", "Free"]) assert.ok(welcome.includes(`<b>${t}</b>`), t);
+  assert.match(welcome, /<p class="tagline">Call the next block\.<\/p>/);
+  assert.equal(welcome.split('href="race.html#pick-zone"').length - 1, 1, "exactly one Play free button on the home page");
+  assert.match(welcome, /id="welcome-go">Play free<\/a>/);
+  const hero = welcome.slice(welcome.indexOf('class="home-hero"'), welcome.indexOf('class="welcome-why"'));
+  assert.doesNotMatch(hero, /VHP|prize|fee|bet|odds|earn|guarantee/i, "no money wording in the first screen");
   assert.doesNotMatch(welcome, /welcome-question|href="#play">Play free/);
 });
 test("the home page hero no longer loads a question; wallet users' row hides once connected", () => {
@@ -36,8 +38,8 @@ test("the Rules tab has a tab and a panel for every open game", () => {
   for (const t of ["game", "race", "blockx", "swap"]) { assert.match(html, new RegExp(`data-rules="${t}"`)); assert.match(html, new RegExp(`data-rules-panel="${t}"`)); }
   assert.match(fs.readFileSync(`${APP}/app.js`, "utf8"), /RULE_TABS = \["game", "race", "blockx", "swap"\]/);
 });
-test("wallet users get their own clear path: a Connect wallet button beside the race", () => {
-  assert.match(welcome, /<b>Have a Koinos wallet\? Stake and play with it\.<\/b>[\s\S]*?<button class="btn btn-ghost" type="button" id="welcome-connect">Connect wallet<\/button>/);
+test("wallet users get a Connect it link beside Play free, hidden once connected", () => {
+  assert.match(welcome, /id="welcome-paths">Have a Koinos wallet\? <button class="linklike" type="button" id="welcome-connect">Connect it<\/button>/);
   assert.match(fs.readFileSync(`${APP}/app.js`, "utf8"), /wc2\.addEventListener\("click", \(\) => connect\(\)\)/);
 });
 test("step 1 is a free pick with no sign-up; wallets and staking are the last step", () => {
@@ -49,7 +51,6 @@ test("step 1 is a free pick with no sign-up; wallets and staking are the last st
 });
 
 test("more race types are shown as coming soon only; today's live points stay 3 for a win and 1 for a show (owner, 10 Nov)", () => {
-  assert.match(welcome, /<b>Coming soon:<\/b> 1-hour, 2-hour, daily and weekly races too, all on one board\./);
   const at = html.indexOf('id="race-types-soon"'), soon = html.slice(at, html.indexOf('class="rules-more"', at));
   assert.match(soon, /planned, not live yet/);
   assert.match(soon, /Until this is announced as live, the points above stay as they are today/);

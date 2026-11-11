@@ -32,6 +32,14 @@
   const dayTime = (t) => new Date(t).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
   const dayName = (t) => new Date(t).toLocaleDateString(undefined, { weekday: "long", timeZone: "UTC" });
   const dur = (ms) => { const m = Math.max(0, Math.ceil(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${String(m % 60).padStart(2, "0")} min` : `${m} min`; };
+  // What players call a week (weeks.js, D-063): vault week 4 (Mon 16 Nov) = "Week 1"; vault week 3 = "Test week"
+  const weekLabel = (w) => (w >= 4 ? `Week ${w - 3}` : w === 3 ? "Test week" : `Week of ${new Date(BM.weekStart(w)).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`);
+  const weekDate = (w) => new Date(BM.weekStart(w)).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const fullTime = (t) => new Date(t).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+  // Picks game 9's `ahead` is 46 h (owner 11 Nov): target Tue 00:00 UTC − 46 h = Sun 02:00 UTC, 2 h after the seeding.
+  // Before then (or while the Picks game isn't live on chain) the bracket is shown, but can't be filled in or sent.
+  const PICKS_OPEN_AFTER_SEED = 2 * 3600000;
+  const picksOpenAt = (w) => BM.seedTime(w) + PICKS_OPEN_AFTER_SEED;
   const say = (t) => { $("status").textContent = t; $("status").hidden = !t; };
   async function fetchJson(url) { const r = await fetch(url, { cache: "no-cache" }); if (!r.ok) throw new Error(String(r.status)); return r.json(); }
   const me = () => (W && W.address) || null;
@@ -41,6 +49,7 @@
   let board = null, form = new Map(), view = null, round = 0;
   let prizesFrom;                   // index.json prizesFromWeek: the first paid week; null = none yet; undefined = not read
   let picksContract = null, mine = null, sending = false;
+  let gameLive = null;              // Picks game 9 on chain: true live, false not (yet) there or paused, null unknown
   let draft = null, draftWeek = null; // winner seeds per round for the bracket being filled in
 
   // ── data ──
@@ -76,8 +85,9 @@
     const now = Date.now(), w = BM.weekOf(now);
     const next = weeks.get(w + 1);
     if (next && next.seeding && next.seeding.size && now < BM.lockTime(w + 1)) return w + 1;
-    if (weeks.get(w)) return w;
-    return next ? w + 1 : w;
+    // a week with a bracket is shown; otherwise the coming week (its seeding and when picks open), owner 11 Nov
+    const cur = weeks.get(w);
+    return cur && cur.seeding && cur.seeding.size ? w : w + 1;
   }
   const wf = () => weeks.get(view);
   /** The round being played (or last played) in the shown week; 0 before its first round's day. */
@@ -86,7 +96,7 @@
     return Math.max(0, Math.min(BM.roundsOf(s.size) - 1, Math.floor((Date.now() - BM.roundDay(view, 0, s.size)) / BM.DAY)));
   }
   const seeding = () => (wf() && wf().seeding && wf().seeding.size ? wf().seeding : null);
-  const isOpen = () => !!seeding() && Date.now() < BM.lockTime(view) && !(wf().picks);
+  const isOpen = () => !!seeding() && Date.now() >= picksOpenAt(view) && gameLive !== false && Date.now() < BM.lockTime(view) && !(wf().picks);
 
   // ── producers ──
   function info(seed) {
@@ -142,6 +152,8 @@
     try { dep = await fetchJson(new URL("game-data/deployment.json", ROOT)); } catch { /* defaults */ }
     const abi = await fetchJson(new URL("picks/abi/picks.koilib.json", ROOT));
     picksContract = new lib.Contract({ id: pdep.contract, abi, provider });
+    // Is Picks game 9 live? (announced but not applied yet = no game; a failed read = unknown, the chain decides)
+    try { const r = await picksContract.functions.get_game({ game: BM.GAME_ID }); const g = r && r.result && r.result.game; gameLive = g ? g.enabled !== false : false; } catch { gameLive = null; }
     if (W) W.init({ provider, chainId: dep && dep.chainId, payer: dep && dep.payer, sponsor: dep && dep.sponsor, onChange: () => loadMine() });
     $("picks-soon").hidden = true;
   }
@@ -169,12 +181,14 @@
     renderPractice();
     // the week line
     const lines = [];
-    if (!w && view) lines.push(now < BM.seedTime(view) ? `The next bracket is seeded ${dayTime(BM.seedTime(view))} (in ${dur(BM.seedTime(view) - now)}).` : "Waiting for the recorder…");
-    else if (w && (w.status === "none" || w.status === "void")) lines.push(`Week ${view + 1}: no bracket. ${w.void || ""}`);
-    else if (s && isOpen()) lines.push(`Week ${view + 1}: ${s.size}-producer bracket. Picks lock ${dayTime(BM.lockTime(view))} (in ${dur(BM.lockTime(view) - now)}).`);
-    else if (s && w.status === "final") lines.push(`Week ${view + 1}: final.`);
-    else if (s && now >= BM.weekStart(view + 1) - BM.DAY) lines.push(`Week ${view + 1}: in review (Sunday is review day: results are checked and paid from Monday).`);
-    else if (s) { const r = currentRound(), d0 = BM.roundDay(view, 0, s.size); lines.push(`Week ${view + 1}: locked. ${now < d0 ? `${BM.ROUND_NAMES[s.size][0]} starts ${dayName(d0)} 00:00 UTC.` : `${BM.ROUND_NAMES[s.size][r]} today (UTC).`}`); }
+    if (!w && view) lines.push(now < BM.seedTime(view) ? `${weekLabel(view)}: the bracket is seeded ${fullTime(BM.seedTime(view))} (in ${dur(BM.seedTime(view) - now)}), and picks open ${fullTime(picksOpenAt(view))}.` : "Waiting for the recorder…");
+    else if (w && (w.status === "none" || w.status === "void")) lines.push(`${weekLabel(view)}: no bracket. ${w.void || ""}`);
+    else if (s && !w.picks && now < BM.lockTime(view) && now < picksOpenAt(view)) lines.push(`${weekLabel(view)}: ${s.size}-producer bracket, seeded. Picks open ${fullTime(picksOpenAt(view))} (in ${dur(picksOpenAt(view) - now)}) and lock ${fullTime(BM.lockTime(view))}.`);
+    else if (s && !w.picks && now < BM.lockTime(view) && gameLive === false) lines.push(`${weekLabel(view)}: ${s.size}-producer bracket, seeded. Picks open as soon as the Bracket's Picks game is live on the chain (it isn't yet). Picks lock ${fullTime(BM.lockTime(view))}.`);
+    else if (s && isOpen()) lines.push(`${weekLabel(view)}: ${s.size}-producer bracket. Picks lock ${dayTime(BM.lockTime(view))} (in ${dur(BM.lockTime(view) - now)}).`);
+    else if (s && w.status === "final") lines.push(`${weekLabel(view)}: final.`);
+    else if (s && now >= BM.weekStart(view + 1) - BM.DAY) lines.push(`${weekLabel(view)}: in review (Sunday is review day: results are checked and paid from Monday).`);
+    else if (s) { const r = currentRound(), d0 = BM.roundDay(view, 0, s.size); lines.push(`${weekLabel(view)}: locked. ${now < d0 ? `${BM.ROUND_NAMES[s.size][0]} starts ${dayName(d0)} 00:00 UTC.` : `${BM.ROUND_NAMES[s.size][r]} today (UTC).`}`); }
     $("week-line").textContent = lines.join(" ");
     $("week-tabs").replaceChildren(...[...weeks.keys()].sort((a, b) => b - a).filter((x) => weeks.get(x).seeding).map((x) =>
       el("button", { type: "button", "aria-pressed": String(x === view), onclick: () => { view = x; round = currentRound(); draftWeek = null; loadMine(); } }, x > BM.weekOf(now) ? "Next week" : x === BM.weekOf(now) ? "This week" : "Last week")));
@@ -375,7 +389,7 @@
     const ink = css.getPropertyValue("--ink").trim() || "#14213D", paper = css.getPropertyValue("--paper").trim() || "#FFF8EC", acc = css.getPropertyValue("--tang").trim() || "#F28C28";
     g.fillStyle = paper; g.fillRect(0, 0, W1, H1);
     g.fillStyle = ink; g.font = "800 64px system-ui, sans-serif"; g.fillText("My Producer Bracket", 64, 120);
-    g.font = "400 34px system-ui, sans-serif"; g.fillText(`Knode Games · week ${view + 1} · ${s.size} producers`, 64, 176);
+    g.font = "400 34px system-ui, sans-serif"; g.fillText(`Knode Games · ${weekLabel(view)} · ${s.size} producers`, 64, 176);
     const champ = draft[draft.length - 1][0];
     g.fillStyle = acc; g.fillRect(64, 220, W1 - 128, 150);
     g.fillStyle = "#1b1206"; g.font = "700 34px system-ui, sans-serif"; g.fillText("🏆 Champion", 96, 280);
@@ -392,7 +406,7 @@
     g.font = "400 28px system-ui, sans-serif"; g.fillText(SITE, 64, H1 - 60);
     c.toBlob(async (blob) => {
       if (!blob) return;
-      const file = new File([blob], `knodegames-bracket-week${view + 1}.png`, { type: "image/png" });
+      const file = new File([blob], `knodegames-bracket-${weekLabel(view).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.png`, { type: "image/png" });
       try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: "My Producer Bracket" }); return; } } catch { /* fall back to a download */ }
       const a = el("a", { href: URL.createObjectURL(blob), download: file.name });
       document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
@@ -416,8 +430,6 @@
     earned: (r, weekly) => weekly && r.earns === 3,
   }) : null;
   /** Owner 11 Nov: the week on show (this week or next week's picks), if before the first paid week (index.json prizesFromWeek) is practice, and the page says so. */
-  const weekLabel = (w) => (w >= 4 ? `Week ${w - 3}` : w === 3 ? "Test week" : "This week");   // vault week 4 = Week 1 (weeks.js)
-  const weekDate = (w) => new Date(BM.weekStart(w)).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
   function practiceText(w) {
     if (prizesFrom === undefined) return "";
     if (prizesFrom !== null && w >= prizesFrom) return "";

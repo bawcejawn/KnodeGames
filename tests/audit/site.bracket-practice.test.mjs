@@ -20,7 +20,7 @@ const windows = [];
 after(() => { for (const w of windows) w.close(); });   // the page's refresh timers would keep the test alive
 const flush = async (w, n = 8) => { for (let i = 0; i < n; i++) await new Promise((r) => w.setTimeout(r, 0)); };
 
-async function openPage({ now, chainNow = now, picksDeployment = PINNED, index } = {}) {
+async function openPage({ now, chainNow = now, picksDeployment = PINNED, index, game, noWeek = false } = {}) {
   const W = 4;   // shown week: seeded Sunday, picks until Monday 23:55
   const weekFile = { v: BM.FILE_V, week: W, start: BM.weekStart(W), end: BM.weekStart(W + 1), status: "open",
     seeding: { at: BM.seedTime(W), cardAt: 1, size: 8, seeds, vhp: seeds.map((_, i) => 8 - i), totalVhp: 36, out: [], outVhp: [], raw: {}, pooled: [], hash: "x" },
@@ -36,7 +36,7 @@ async function openPage({ now, chainNow = now, picksDeployment = PINNED, index }
     if (s.endsWith("picks-data/deployment.json")) return json({ contract: picksDeployment });
     if (s.endsWith("game-data/deployment.json")) return json({ chainId: "x" });
     if (s.endsWith("picks/abi/picks.koilib.json")) return json({ methods: {} });
-    if (s.endsWith(`W00${W}.json`)) return json(weekFile);
+    if (s.endsWith(`W00${W}.json`) && !noWeek) return json(weekFile);
     if (s.endsWith("bracket/index.json") && index !== undefined) return json(index);
     return { ok: false, status: 404, json: async () => null };
   };
@@ -46,6 +46,7 @@ async function openPage({ now, chainNow = now, picksDeployment = PINNED, index }
       constructor(o) {
         this.id = o.id;
         this.functions = {
+          ...(game === undefined ? {} : { get_game: async () => ({ result: game === null ? {} : { game } }) }),
           get_pick: async () => ({ result: chainPick === null ? {} : { pick: { number: String(chainPick), time: "1" } } }),
           pick: async (args) => { picks.push({ ...args, contract: o.id }); return { operation: { args } }; },
         };
@@ -94,4 +95,38 @@ test("practice notice: hidden once the week on show is a paid week, and when ind
   assert.equal(note(paid).hidden, true);
   const none = await openPage({ now: SUNDAY });
   assert.equal(note(none).hidden, true);
+});
+
+// Before picks open (owner 11 Nov: merge Thursday, picks open Sat 14 Nov 9 PM ET = Sun 15 Nov 02:00 UTC, the Picks
+// game's ahead of 46 h): the page says when picks open, the bracket can't be filled in or sent, and nothing errors.
+const OPEN = BM.seedTime(4) + 2 * 3600000;
+test("before the seeding (Thursday): the line names the seeding and when picks open; no bracket to send", async () => {
+  const p = await openPage({ now: BM.seedTime(4) - 2 * 86400000, noWeek: true, index: idx(5) });
+  const line = p.$("week-line").textContent;
+  assert.match(line, /^Week 1: the bracket is seeded Sat, Nov 14, .*, and picks open Sat, Nov 14, .*\.$/);
+  assert.equal(new Date(OPEN).toISOString(), "2026-11-15T02:00:00.000Z");
+  assert.equal(p.$("bk-actions").hidden, true, "no Submit");
+});
+
+test("seeded but before picks open (Sat 7–9 PM ET): bracket shown read-only, 'Picks open' line, no Submit", async () => {
+  const p = await openPage({ now: BM.seedTime(4) + 3600000, index: idx(5) });
+  assert.match(p.$("week-line").textContent, /^Week 1: 8-producer bracket, seeded\. Picks open Sat, Nov 14, .* \(in 1 h 00 min\) and lock Mon, Nov 16, /);
+  assert.equal(p.$("bk-actions").hidden, true, "no Submit before picks open");
+  assert.equal(p.w.document.querySelectorAll("#bk-list button").length, 0, "no pick buttons");
+  assert.equal(p.modalText(), "", "no error pop-up");
+});
+
+test("picks open but the Picks game isn't on chain yet: says so, no Submit; once it's live the bracket opens", async () => {
+  const none = await openPage({ now: OPEN + 60000, index: idx(5), game: null });
+  assert.match(none.$("week-line").textContent, /Picks open as soon as the Bracket's Picks game is live on the chain \(it isn't yet\)/);
+  assert.equal(none.$("bk-actions").hidden, true);
+  const live = await openPage({ now: OPEN + 60000, index: idx(5), game: { id: 9, enabled: true } });
+  assert.match(live.$("week-line").textContent, /^Week 1: 8-producer bracket\. Picks lock /);
+  assert.equal(live.$("bk-actions").hidden, false, "Submit shown once the game is live");
+});
+
+test("weeks are named as players know them: vault week 4 is 'Week 1', never 'Week 5'", async () => {
+  const p = await openPage({ now: SUNDAY, index: idx(5) });
+  assert.match(p.$("week-line").textContent, /^Week 1: /);
+  assert.doesNotMatch(p.w.document.body.textContent, /Week 5/);
 });

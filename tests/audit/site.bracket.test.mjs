@@ -453,7 +453,7 @@ test("the page builds everything with textContent and sends one thing: a pick of
   const sends = [...js.matchAll(/W\.send\(/g)]; assert.equal(sends.length, 1, "one send");
   assert.match(js, /picksContract\.functions\.pick\(\{ player: frozen\.account, game: BM\.GAME_ID, round: String\(BM\.picksRound\(wk\)\), producers: \[\], number: String\(n\) \}, \{ onlyOperation: true \}\)/);
   const calls = new Set([...js.matchAll(/picksContract\.functions\.([a-z_]+)/g)].map((m) => m[1]));
-  assert.deepEqual([...calls].sort(), ["get_pick", "pick"]);
+  assert.deepEqual([...calls].sort(), ["get_game", "get_pick", "pick"], "get_game: read-only, is game 9 live (owner 11 Nov)");
   // the number sent is the one shown in the check pop-up, and it is encoded by the shared math
   assert.match(js, /const draftNumber = \(\) => \{ const s = seeding\(\); try \{ return filled\(\) \? BM\.encode\(draft, s\.size, s\.seeds\.length\) : null;/);
   assert.match(js, /btn\("Confirm in wallet", \(\) => send\(frozen\)\)/, "Confirm sends exactly what was checked (#E-3 C-2; behaviour: site.bracket-confirm)");

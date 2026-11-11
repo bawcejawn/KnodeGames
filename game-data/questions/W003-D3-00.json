@@ -121,9 +121,17 @@
             "1GGxRhLN7Ek54xycG5XaZBE4bCgwV2xtvk": "122221330953939"
           },
           "seal": "62fcc32ba3f91ddaaec5758fa8378e7666344a58645402f5f1564899c71b2e03"
+        },
+        {
+          "height": 40992354,
+          "readAt": "2026-11-11T18:59:10.476Z",
+          "values": {
+            "1GGxRhLN7Ek54xycG5XaZBE4bCgwV2xtvk": "122174717690491"
+          },
+          "seal": "2b7e6a57fe15150d37dfb75510eccbae0e60d0eebf8541d922cf924823c039cc"
         }
       ],
-      "vhpSeal": "3e8bdb25d758e111c772018e18abfd0f322af413a4c659892ca3995c1c2bcca3"
+      "vhpSeal": "1bc64e4a68fc08caa535f4cec849c3a87abfdd6cb1a6d885afcf4d985db98a95"
     },
     {
       "id": "W003-D3-00-2",
@@ -255,7 +263,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1000,
+      "chainDataHash": "0x41fa0127a6444ecc6921cbcb3f311cf9c8b4a03383a94a90b20479061ac44b37"
     }
   ],
   "daySeal": "e40d667e1faf26452ff50e2255aa37c20066e1a25781dbfe7d21ed323d858d97"

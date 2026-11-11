@@ -36,12 +36,13 @@ test("B10-P1 (Info, fixed): a certain result is 1,000,000 on a degenerate share 
   assert.equal(py(`print(V.fpct(3, 1, 2, 4000000), V.fpct(3, 2, 2, 4000000), V.fpct(3, 0, 2, 1000000))`, {}).trim(), "1000000 1000000 1000000");
 });
 
-test("card bytes: row order ends … expected, signed, credited, pct, void, moves, core, z, setAside, fpct (D-171, D-172); fpct null off the field; RULE_VERSION 3; JS = Python on void + pooled rows (passes: regression guard)", () => {
+test("card bytes: row order ends … sample, expected, signed, credited, pct, void, moves, core, z, setAside, fpct (D-171, D-172; sample: the luck cap); fpct null off the field; RULE_VERSION 4; JS = Python on void + pooled rows (passes: regression guard)", () => {
   const { tl, ps } = chain({ extra: [{ h: win.S0 + 3600, i: 2, v: 2n * 10n ** 15n }] }), L = R.ledger(tl), g = { ...game, pooled: [ps[2], ps[0]], minK: 2000 };
   const s = R.scoreCard(L, R.makeCard(L, g)), js = R.cardJson(s);
-  assert.equal(s.ruleVersion, 3);
-  for (const p of s.producers) assert.deepEqual(Object.keys(p).slice(-10), ["expected", "signed", "credited", "pct", "void", "moves", "core", "z", "setAside", "fpct"]);
+  assert.equal(s.ruleVersion, 4);
+  for (const p of s.producers) assert.deepEqual(Object.keys(p).slice(-11), ["sample", "expected", "signed", "credited", "pct", "void", "moves", "core", "z", "setAside", "fpct"]);
   assert.ok(s.producers.some((p) => p.void) && s.producers.some((p) => !p.entry && p.fpct === null), "has a void row and an out-of-field row");
+  for (const p of s.producers) assert.ok(Number.isSafeInteger(p.sample) && p.sample >= 1 && p.sample <= 1000000);
   const out = py(`L = V.Ledger(j["tl"]); g = j["g"]
 sys.stdout.write(V.card_json(V.score_card(L, V.make_card(L, g["game"], g["round"], g["window"], g["c"], g["ownRule"], g["paying"], g["pooled"], g["minK"], g["poolRule"]))))`, { tl, g });
   assert.equal(out, js);

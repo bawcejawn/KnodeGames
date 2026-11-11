@@ -44,6 +44,8 @@ up ("over the … byte limit"), that needs a look: send the error to the VHP Rul
 keeps its hour files, and retention doesn't remove them, until that is handled.
 
 ## v2.1 (R-RULER-2, branch `vhp-ruler-v21`; not on main, nothing pays on it)
+**Read with the last section, "Rules for every race length" (RULE_VERSION 4), which replaces the void's ±10%, the
+pooled-only `min` rule and the raw-block yardstick described here.**
 Built from `.ai/standards/VHP_RULER.md` §16 and the owner's rulings of 5 Nov, both languages byte for byte (`RULE_VERSION` 3):
 - **`pct(λ, x)`** (Fix A): the mid-p Poisson percentile of credited blocks against expected blocks, millionths, exact
   integers; below 1 unless λ = 0 (#B-9 B9-3).
@@ -108,3 +110,51 @@ daily-length fix passes; Last Node and Combo at launch; Survivor from Season 2 (
 - **Going back:** a week already played never changes method. If the ruler misbehaves in an "on" week, the game holds that
   week with its existing hold. Turning a game off for future weeks would need a later decision (an end week); there is
   none today.
+
+## Rules for every race length (RULE_VERSION 4; owner, 11 Nov 2026; a D-new, numbered by the Library; not on main)
+Until 11 Nov the eleven simulations had only been run on 6-hour races. Run at every length, v2.1 was fair from 1 to 6
+hours and not at a day (win chances 0.65–1.45 of fair). Four changes, both languages byte for byte, make one rule set
+for 1-hour, 2-hour, 6-hour, 1-day and 6-day races (results: project doc `claude/ruler/FAIR-RULES-EVERY-LENGTH-2026-11-11.md`):
+1. **Expected blocks follow each producer's VHP block by block, capped at the card's own size, for every producer**
+   (§3.2's pooled rule, now for all; `pooled` changes no number). The natural burn (about 1% a day), a withdrawal or a
+   re-burn no longer leaves a producer measured against a stale size.
+2. **The yardstick counts credited blocks**, the same blocks the expected blocks are for. Counting raw signed blocks
+   against capped expected blocks raised every expectation a little whenever a member's VHP was above its card size;
+   the same relative lift costs a producer in proportion to √(its blocks), so big producers lost and small ones gained,
+   more the longer the race. This was the 1.2–1.25 edge left at daily length.
+3. **The void band depends on the race's length, down and up apart** (`voidBand(blocks)` / `void_band`):
+
+   | Race | Down | Up |
+   |---|---|---|
+   | up to 2 hours (2,400 blocks) | 5% | 25% |
+   | up to 6 hours (7,200) | 10% (as D-164) | 25% |
+   | up to 1 day (28,800) | 12% | 50% |
+   | longer (the 6-day race) | 15% | 100% |
+
+   Down is tight because shrinking once the luck is good ("stop when ahead") is the one mid-race move that gains: up to
+   15% it gains nothing measurable, at 50% about +0.15 of fair, at 97% about +0.5 (`sims/ruler/midrace.mjs`); it must
+   clear the natural burn (≈ 1% a day, ≈ 6% over six days without a re-burn). Up is wide because VHP added in the race
+   is capped by card credit: it lowers the producer's own win chance and moves no one else. A void is for that race only
+   (D-164); a pick on a void producer counts as a loss. On 30 days of live data no producer that only produced blocks and
+   re-burned was void at any length; every void was a real stake move of 6% or more, all but two of 27% or more
+   (`sims/ruler/moves.mjs`).
+4. **The luck cap** (`LUCK_CAP`, 1,000 expected blocks): above it, a share of the window's blocks counts for that
+   producer (`sample`, millionths, on every scored row; block H counts when the first 8 bytes of
+   sha256("sample|" + seedBlockId + "|" + H), mod 1,000,000, are below `sample`; one draw a block, so the sets are
+   nested). In a long race a big producer signs thousands of blocks, its luck all but disappears, and a 1% difference in
+   uptime decides everything (±1% gave 0.18–2.90 of fair at a day and 0.00–5.90 at six days; with the cap, the same
+   0.5–1.7 as a 6-hour race, `sims/ruler/lengths.mjs`). Short races are untouched unless a producer has more than about
+   14% of the network in a 6-hour race.
+- **No mid-race rebalance in any game.** Rule 1 already follows every producer down block by block. Re-measuring a
+  producer UP during a race would let an unlucky producer add VHP and start over, so it is not done: VHP added in a race
+  counts in full from the next race's card. The band is measured against the card's own size for the whole race and
+  starts again with the next card.
+- **Pass mark proposed for every length:** each honest producer signing in full within 0.90–1.10 of fair on a clean
+  field (a result within 0.01 of a line passes, owner 6 Nov), and the averages of the big (> 5%) and small (< 1%)
+  producers each within 0.95–1.05. On real history, where fewer cards carry each producer: 0.84–1.16 (D-170).
+- **Block X** uses the card's `own` and `avg`, not `fpct`: with multiplier = the biggest full-signing producer's `avg` ÷
+  `own`, credited at the target block, every full-signing producer's pick has the same expected payout. A cap on the
+  multiplier breaks that for producers smaller than top ÷ cap (cap 3: under about 6% of the network).
+- Row order now ends `… quality, sample, expected, signed, credited, pct, void, moves, core, z, setAside, fpct`.
+- Design tools: `sims/ruler/lengths.mjs`, `midrace.mjs`, `moves.mjs`; `RULER_SIM_RACE=<blocks>` runs `v21.mjs` at any
+  length with `--configs "v4 (as built)"`.

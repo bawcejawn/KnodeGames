@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { R, PY, addr, toJson, fieldFpct } from "./vhp-ruler.fixture.mjs";
+import { R, PY, addr, toJson, fieldFpct, expectedOf, creditedOf } from "./vhp-ruler.fixture.mjs";
 
 const M = 1000000n, dir = fs.mkdtempSync(path.join(os.tmpdir(), "vhp-v21-"));
 const py = (code, data) => { const f = path.join(dir, `in${Math.random().toString(36).slice(2)}.json`); fs.writeFileSync(f, toJson(data)); return PY(`j = json.load(open(${JSON.stringify(f)}))\n${code}`); };
@@ -105,9 +105,9 @@ test("D-120: a producer whose daily rate swings by more than 0.15 isn't steady: 
 test("owner, 5 Nov: no producer's expected blocks follow its rate; nothing is capped; every row has pct", () => {
   const card = R.makeCard(L, game), s = R.scoreCard(L, card);
   for (const p of s.producers) {
-    assert.equal(p.expected, p.k);
-    let raw = 0n; for (const b of L.signedBlocks(p.a, win.S0, win.S1)) raw += R.creditOf(p.own, L.eff(p.a, b));
-    assert.equal(p.credited, raw);
+    // RULE_VERSION 4: from its VHP alone (min(own, eff) per block, over the blocks that count for it), never its rate
+    assert.equal(p.expected, expectedOf(L, s, p));
+    assert.equal(p.credited, creditedOf(L, s, p));
     assert.equal(p.pct, R.pct(p.expected, p.credited));
   }
   assert.equal(pyCard(game), R.cardJson(card) + R.cardJson(s), "Python: the same bytes");
@@ -118,8 +118,8 @@ test("minK sets the entry bar on the producer's full size; the pooled producer u
   for (const p of card900.producers) if (p.k < 900n * M) assert.equal(p.entry, false);
   assert.ok(card900.producers.filter((p) => p.entry).length <= card10.producers.filter((p) => p.entry).length);
   const g2 = { ...game, pooled: [ps[2]] }, s = R.scoreCard(L, R.makeCard(L, g2)), p = s.producers.find((x) => x.pooled);
-  let want = 0n; for (let H = win.S0; H <= win.S1; H++) { const e = L.eff(p.a, H); want += ((e < p.own ? e : p.own) * M) / s.total; }
-  assert.equal(p.expected, want);
+  assert.equal(p.expected, expectedOf(L, s, p));
+  for (const q of s.producers) assert.equal(q.expected, expectedOf(L, s, q), "RULE_VERSION 4: the same rule for every producer");
   assert.equal(pyCard(g2), R.cardJson(R.makeCard(L, g2)) + R.cardJson(s));
   assert.throws(() => R.makeCard(L, { ...game, minK: 0 }), /minK/);
   assert.throws(() => R.makeCard(L, { ...game, poolRule: "twa" }), /poolRule/);

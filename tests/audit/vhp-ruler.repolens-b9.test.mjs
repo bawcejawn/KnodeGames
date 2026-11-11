@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { R, PY, addr, toJson, fieldFpct } from "./vhp-ruler.fixture.mjs";
+import { R, PY, addr, toJson, fieldFpct, expectedOf, creditedOf, countsFor } from "./vhp-ruler.fixture.mjs";
 
 const M = 1000000n, dir = fs.mkdtempSync(path.join(os.tmpdir(), "vhp-b9-"));
 const py = (code, data) => { const f = path.join(dir, `in${Math.random().toString(36).slice(2)}.json`); fs.writeFileSync(f, toJson(data)); return PY(`j = json.load(open(${JSON.stringify(f)}))\n${code}`); };
@@ -32,7 +32,7 @@ test("B9-1: every pool rule expects what a pooled producer can be credited on av
   for (const poolRule of R.POOL_RULES) {
     const g = { ...game, poolRule, pooled: [ps[2]] }, s = R.scoreCard(L, R.makeCard(L, g)), p = s.producers.find((x) => x.a === ps[2]);
     let fair = 0n; const tot = BigInt(s.total), own = BigInt(p.own);
-    for (let H = win.S0; H <= win.S1; H++) { const e = L.eff(ps[2], H); fair += (((e * M) / tot) * R.creditOf(own, e)) / M; }
+    for (let H = win.S0; H <= win.S1; H++) if (countsFor(s, p, H)) { const e = L.eff(ps[2], H); fair += (((e * M) / tot) * R.creditOf(own, e)) / M; }   // RULE_VERSION 4: over the blocks that count for it (the luck cap)
     fair = (fair * BigInt(p.rate)) / M;
     const gap = BigInt(p.expected) > fair ? BigInt(p.expected) - fair : fair - BigInt(p.expected);
     assert.ok(gap * 1000n <= fair, `poolRule ${poolRule}: expected ${p.expected} vs fair mean credited ${fair} (more than 0.1% apart)`);
@@ -66,9 +66,11 @@ test("B9-2: steering can't pay: a steady throttler that signs in full in the rac
   assert.ok(BigInt(p.rate) < M, "it is a steady throttler");
   assert.equal(p.entry, true, "it stays in the game (owner, 5 Nov) although its form is below 0.80");
   assert.ok(BigInt(p.form) < 800000n);
-  assert.equal(BigInt(p.expected), BigInt(p.k), "expected at its full size: its throttling never lowers what it must beat");
-  let raw = 0n; for (const b of L.signedBlocks(p.a, win.S0, win.S1)) raw += R.creditOf(BigInt(p.own), L.eff(p.a, b));
-  assert.equal(BigInt(p.credited), raw, "nothing is capped");
+  // RULE_VERSION 4: expected follows its VHP (never its rate), capped at the card's own size, over the blocks that count
+  assert.equal(BigInt(p.expected), expectedOf(L, s, p), "expected from its VHP alone: its throttling never lowers what it must beat");
+  assert.ok(BigInt(p.expected) * M >= ((BigInt(p.k) * BigInt(p.sample)) / M) * 980000n, "within 2% of its full size on those blocks (block burns and the draw only)");
+  const raw = creditedOf(L, s, p);
+  assert.equal(BigInt(p.credited), raw, "nothing is capped by its rate");
   assert.equal(BigInt(p.pct), R.pct(BigInt(p.expected), raw), "ranked exactly as any producer of its size with those blocks");
 });
 

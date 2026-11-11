@@ -90,12 +90,12 @@ export function card(paths, base, T, S0, S1, opts = {}) {
   if (!N) { N = new Float64Array(blocks); for (let b = S0; b <= S1; b++) { let n = 0; for (const p of ps) n += at(p, b); N[b - S0] = n; } }
   const rows = ps.map((p) => {
     const k = blocks * own[p] / total, rate = (opts.rates && opts.rates[p]) || 1, signs = (opts.signs && opts.signs[p]) ?? 1;
-    let lam = 0, cred = 0, pmin = 0, ptwa = 0, dev = 0, pminN = 0;
-    for (let b = S0; b <= S1; b++) { const e = at(p, b), pr = e / N[b - S0]; lam += pr; cred += pr * (e <= own[p] ? 1 : own[p] / e); pmin += Math.min(own[p], e) / total; pminN += Math.min(own[p], e) / N[b - S0]; ptwa += e / total; if (own[p] > 0) dev = Math.max(dev, Math.abs(e / own[p] - 1)); }
+    let lam = 0, cred = 0, pmin = 0, ptwa = 0, dev = 0, pminN = 0, devUp = 0, devDown = 0;
+    for (let b = S0; b <= S1; b++) { const e = at(p, b), pr = e / N[b - S0]; lam += pr; cred += pr * (e <= own[p] ? 1 : own[p] / e); pmin += Math.min(own[p], e) / total; pminN += Math.min(own[p], e) / N[b - S0]; ptwa += e / total; if (own[p] > 0) { dev = Math.max(dev, Math.abs(e / own[p] - 1)); devUp = Math.max(devUp, e / own[p] - 1); devDown = Math.max(devDown, 1 - e / own[p]); } }
     // `signs`: the share of its blocks the producer really signs (1: honest; sim 8 sets throttlers and steerers)
     // the form gate as the owner ruled (5 Nov): a steady producer is in whatever its level; others need form ≥ 0.80
     const form = (opts.forms && opts.forms[p]) ?? 1, steady = !!(opts.steady && opts.steady[p]), gated = !steady && form < 0.8;
-    return { p, own: own[p], avg: avg[p], k, rate, lam: lam * signs, credFrac: lam > 0 ? cred / lam : 0, pmin, pminN, ptwa, pooled: (opts.pooled || []).includes(p), gated, form, steady, dev };
+    return { p, own: own[p], avg: avg[p], k, rate, lam: lam * signs, credFrac: lam > 0 ? cred / lam : 0, pmin, pminN, ptwa, pooled: (opts.pooled || []).includes(p), gated, form, steady, dev, devUp, devDown };
   });
   return { rows, total, blocks };
 }
@@ -103,7 +103,12 @@ export function card(paths, base, T, S0, S1, opts = {}) {
 export function chances(c, races, seed, cfg, opts = {}) {
   const exp = (r) => (cfg.minAllN ? r.pminN : r.pooled || cfg.minAll ? r.pmin : r.k);   /* cfg.minAll (a proposal, 11 Nov): everyone expected along its own path, capped at own */   // everyone at full size (owner, 5 Nov; #B-9 B9-2)
   // cfg.void: the owner's producer void (VHP more than ±void away from own during the race: out of that race)
-  const field = c.rows.filter((r) => r.k >= cfg.minK && !r.gated && !(cfg.void && r.dev > cfg.void) && !(opts.out || []).includes(r.p)).map((r) => ({ ...r, e: exp(r) })).sort((x, y) => y.e - x.e);
+  // cfg.v4 (RULE_VERSION 4, 11 Nov): the void band by race length, down and up; expected blocks along the producer's own
+  // path capped at own, for everyone; the luck cap (a producer above cfg.cap expected blocks is scored on a sample of the
+  // blocks); the yardstick counts credited blocks
+  const band = cfg.v4 ? R.voidBand(c.blocks).map((x) => Number(x) / 1e6) : null, cap = cfg.v4 ? Number(R.LUCK_CAP) / 1e6 : Infinity;
+  const isVoid = (r) => (cfg.v4 ? r.devDown > band[0] || r.devUp > band[1] : cfg.void && r.dev > cfg.void);
+  const field = c.rows.filter((r) => r.k >= cfg.minK && !r.gated && !isVoid(r) && !(opts.out || []).includes(r.p)).map((r) => { const q = Math.min(1, cap / r.k); return { ...r, q, e: (cfg.v4 ? r.pmin : exp(r)) * q }; }).sort((x, y) => y.e - x.e);
   if (field.length < 2) return null;
   const draws = field.map((r) => pois(r.lam)), tabs = cfg.rank === "A" ? field.map((r) => pois(r.e)) : null;
   // A′ as built (D-165, D-171): the core is the field members with form ≥ 0.97 × the field's median form, the median
@@ -118,7 +123,7 @@ export function chances(c, races, seed, cfg, opts = {}) {
     const topAvg = Math.max(...c.rows.map((r) => r.avg)), kTop = c.blocks * topAvg / c.total;
     hs = field.map((r) => RM.handicapOf(r.e, kTop, cal.c));
   }
-  const rng = RM.rng(seed), wins = new Float64Array(field.length);
+  const rng = RM.rng(seed), rngCap = RM.rng(seed + 770077), rnd2 = () => rngCap.next(), wins = new Float64Array(field.length);
   // the race block by block, as on chain (#B-9 follow-up): the window's B blocks each go to one producer, the field in
   // proportion to its λ (its real share × what it signs), everyone else to "the rest"; so the field's counts are
   // multinomial (a big producer's good race leaves fewer blocks for the others), not independent
@@ -126,23 +131,24 @@ export function chances(c, races, seed, cfg, opts = {}) {
   const B = c.blocks, lamF = field.reduce((s, r) => s + r.lam, 0), wts = [...field.map((r) => r.lam), Math.max(0, B - lamF)], wsum = wts.reduce((s, x) => s + x, 0), cnt = new Int32Array(field.length + 1), rnd = () => rng.next();
   for (let t = 0; t < races; t++) {
     let best = -Infinity, who = [];
-    const xs = new Float64Array(field.length); let nF = 0;
+    const xs = new Float64Array(field.length), ys = new Float64Array(field.length); let nF = 0;   // ys: what the yardstick counts (v4: credited)
     { let left = B, wl = wsum; for (let i = 0; i < wts.length; i++) { const k = i === wts.length - 1 ? left : binom(left, wl > 0 ? wts[i] / wl : 0, rnd); cnt[i] = k; left -= k; wl -= wts[i]; } }
     for (let i = 0; i < field.length; i++) {
       const r = field[i], n = cnt[i];
       // thinned credit (a proposal): each signed block counts whole with probability own ÷ eff (on chain: decided by the
       // block id), so the count stays Poisson at the card's size; today's credit counts each block at that fraction
-      let x = n * r.credFrac;
+      const cn = r.q < 1 ? binom(n, r.q, rnd2) : n;   // the luck cap: the blocks that count for it (its own random stream, so runs that share draws still do)
+      let x = cn * r.credFrac;
       if (cfg.thin && r.credFrac < 1) { x = 0; for (let j = 0; j < n; j++) if (rng.next() < r.credFrac) x++; }
-      xs[i] = x; if (core[i]) nF += n;
+      xs[i] = x; ys[i] = cfg.v4 ? x : n; if (core[i]) nF += ys[i];
     }
     // the band (D-171): core members more than 2 sd from their share of the core's blocks this race
     let nY = nF, eY = eC;
-    const aside = field.map((r, j) => { if (!core[j] || eC <= 0) return false; const p = r.e / eC, mu = nF * p, sd = Math.sqrt(nF * p * (1 - p)); const out = Math.abs(cnt[j] - mu) > 2 * sd; if (out) { nY -= cnt[j]; eY -= r.e; } return out; });
+    const aside = field.map((r, j) => { if (!core[j] || eC <= 0) return false; const p = r.e / eC, mu = nF * p, sd = Math.sqrt(nF * p * (1 - p)); const out = Math.abs(ys[j] - mu) > 2 * sd; if (out) { nY -= ys[j]; eY -= r.e; } return out; });
     if (opts.asides) for (let j = 0; j < field.length; j++) if (aside[j]) opts.asides[field[j].p] = (opts.asides[field[j].p] || 0) + 1;
     for (let i = 0; i < field.length; i++) {
       const r = field[i], x = xs[i], self = core[i] && !aside[i];
-      const s = cfg.rank === "A" ? midp(tabs[i], x) : cfg.rank === "A2" ? binMidp(self ? nY : nY + cnt[i], self ? r.e / eY : r.e / (eY + r.e), x) : x * hs[i];
+      const s = cfg.rank === "A" ? midp(tabs[i], x) : cfg.rank === "A2" ? binMidp(cfg.v4 ? Math.floor(self ? nY : nY + ys[i]) : self ? nY : nY + cnt[i], self ? r.e / eY : r.e / (eY + r.e), x) : x * hs[i];
       if (s > best + 1e-12) { best = s; who = [i]; } else if (Math.abs(s - best) <= 1e-12) who.push(i);
     }
     for (const i of who) wins[i] += 1 / who.length;   // ties: split (on a card: broken by the card's seed)
@@ -150,10 +156,10 @@ export function chances(c, races, seed, cfg, opts = {}) {
   // D-165 (N-2): with opts.fairWin, fair = 1 ÷ (field − members that can't win): the steady throttlers, i.e. steady
   // members below the core line; they get no ratio (cantWin)
   const cantWin = field.map((r, i) => !!opts.fairWin && r.steady && !core[i]), F = field.length - cantWin.filter(Boolean).length;
-  return Object.fromEntries(field.map((r, i) => [r.p, { chance: wins[i] / races, fair: 1 / F, ratio: wins[i] / races * F, index: r.lam * r.credFrac / r.e, k: r.k, e: r.e, cantWin: cantWin[i], core: core[i] }]));
+  return Object.fromEntries(field.map((r, i) => [r.p, { chance: wins[i] / races, fair: 1 / F, ratio: wins[i] / races * F, index: r.lam * r.credFrac * (r.q ?? 1) / r.e, k: r.k, e: r.e, cantWin: cantWin[i], core: core[i] }]));
 }
 
-export const CONFIGS = { "A′ + void": { rank: "A2", minK: 10, poolRule: "min", void: 0.1 }, "A + void": { rank: "A", minK: 10, poolRule: "min", void: 0.1 }, "A′ (fpct)": { rank: "A2", minK: 10, poolRule: "min" }, "A′ + thinned credit (proposal)": { rank: "A2", minK: 10, poolRule: "min", thin: true }, "A (pct)": { rank: "A", minK: 10, poolRule: "min" }, "A′ + void + min for all (proposal)": { rank: "A2", minK: 10, poolRule: "min", void: 0.1, minAll: true }, "A′ + void + per-block min for all (proposal)": { rank: "A2", minK: 10, poolRule: "min", void: 0.1, minAllN: true } };
+export const CONFIGS = { "v4 (as built)": { rank: "A2", minK: 10, poolRule: "min", v4: true }, "A′ + void": { rank: "A2", minK: 10, poolRule: "min", void: 0.1 }, "A + void": { rank: "A", minK: 10, poolRule: "min", void: 0.1 }, "A′ (fpct)": { rank: "A2", minK: 10, poolRule: "min" }, "A′ + thinned credit (proposal)": { rank: "A2", minK: 10, poolRule: "min", thin: true }, "A (pct)": { rank: "A", minK: 10, poolRule: "min" }, "A′ + void + min for all (proposal)": { rank: "A2", minK: 10, poolRule: "min", void: 0.1, minAll: true }, "A′ + void + per-block min for all (proposal)": { rank: "A2", minK: 10, poolRule: "min", void: 0.1, minAllN: true } };
 
 export function run(L, { cards = 40, races = 2500, only = null, log = console.log, moved = () => false, configs = CONFIGS } = {}) {
   const dry = days(L) < 29, res = [], want = (i) => !only || only.includes(i);
@@ -188,7 +194,8 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
   const honest = (cfg, mk, steadyOnly = true, seed0 = 1000, copts = {}) => {
     const per = {};
     fields.forEach((f, ci) => {
-      const ch = chances(field(f, mk ? mk(f) : {}), races, seed0 + ci, cfg, copts); if (!ch) return;
+      const cd = field(f, mk ? mk(f) : {}), ch = chances(cd, races, seed0 + ci, cfg, copts); if (!ch) return;
+      if (process.env.RULER_SIM_DIAG) for (const r of cd.rows) if (ch[r.p]) console.error(JSON.stringify({ ci, p: r.p.slice(0, 10), k: +r.k.toFixed(1), lam: +r.lam.toFixed(1), cf: +r.credFrac.toFixed(4), pminN: +r.pminN.toFixed(1), pmin: +r.pmin.toFixed(1), dev: +r.dev.toFixed(4), ratio: +ch[r.p].ratio.toFixed(2) }));
       for (const [p, x] of Object.entries(ch)) { if (x.cantWin) continue; if (steadyOnly && !p.startsWith("~") && moved(p, f.T - BLOCKS_PER_DAY, f.w.S1)) continue; (per[p] ||= []).push(x); }
     });
     return agg(per);
@@ -257,7 +264,7 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
       }
       out.voidRate = voids; out.winShareVoidAsLoss = asLoss;
       const lbls = Object.keys(voids), v = lbls.map((k) => out[k]), num = v.filter((x) => typeof x === "number");
-      say(7, "Vault deposit swings", name, lbls.map((k) => `${k}: ${out[k] === null ? "n/a" : out[k] === "void" ? "void for that race" : out[k].toFixed(2) + "× fair"} (void ${(voids[k] * 100).toFixed(0)}%, ${asLoss[k].toFixed(2)}× counting void as a loss)`).join("; "), typeof out["no change"] === "number" && v.every((x) => x === "void" || (typeof x === "number" && Math.abs(x - num[0]) <= 0.15)), "no withdrawal or deposit moves the Vault beyond ±0.15 of its no-change case (a void race counts as no move)", out);
+      say(7, "Vault deposit swings", name, lbls.map((k) => `${k}: ${out[k] === null ? "n/a" : out[k] === "void" ? "void for that race" : out[k].toFixed(2) + "× fair"} (void ${(voids[k] * 100).toFixed(0)}%, ${asLoss[k].toFixed(2)}× counting void as a loss)`).join("; "), typeof out["no change"] === "number" && v.every((x) => x === "void" || x === null || (typeof x === "number" && Math.abs(x - num[0]) <= 0.15))   /* null: void on every card */, "no withdrawal or deposit moves the Vault beyond ±0.15 of its no-change case (a void race counts as no move)", out);
     }
     if (want(8)) {   // throttlers (owner, 5 Nov): in the games at full size while steady; steering can't pay
       const out = {};
@@ -388,7 +395,7 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
     }
   }
   if (want(6)) {   // grinding under Fix A: the best moment's win chance against the average moment's, per producer
-    const moves = [], cfg = configs["A′ (fpct)"] || CONFIGS["A′ (fpct)"];
+    const moves = [], cfg = configs["v4 (as built)"] || configs["A′ (fpct)"] || CONFIGS["A′ (fpct)"];
     fields.slice(0, 20).forEach((f, ci) => {
       const Ts = []; for (let T = f.w.W0; T <= f.w.W1; T += 600) Ts.push(T);
       const per = {};

@@ -234,13 +234,25 @@ jobs:
           DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER = 20, 7200, 1200, 28800, 403200, 28800, 20
           M = 1000000
           MIN_K, FORM_GATE = 10 * M, 800000
-          RULE_VERSION, OWN_RULES, POOL_RULES = 3, ("spot", "high1h", "avg24h"), ("min",)
+          RULE_VERSION, OWN_RULES, POOL_RULES = 4, ("spot", "high1h", "avg24h"), ("min",)
           STEADY_BAND = 150000   # D-120 as the owner ruled (5 Nov), millionths: steady = every daily rate within this of the 14-day rate
           CORE_LINE = 970000     # D-165: A′'s core is the field members with form ≥ this × the field's median form (millionths)
           BAND_SD = 2            # D-171: an other core member more than this many sd from its share is left out of a yardstick
           SET_ASIDE_EXPECTED = 45500  # D-172: millionths of core member-races a 2-sd band leaves aside by chance
-          VOID_BAND = 100000     # owner, 5 Nov: a producer whose VHP leaves own × (1 ± this) during the race is void for that race
           PCT_SCALE = 1 << 256
+          # Rules for every race length (owner, 11 Nov 2026; RULE_VERSION 4), as in vhp-ruler.js: the void band [down, up] by the
+          # scoring window's length, and the luck cap (no producer is scored on more than LUCK_CAP expected blocks)
+          VOID_BANDS, VOID_LONG = ((2400, 50000, 250000), (7200, 100000, 250000), (28800, 120000, 500000)), (150000, 1000000)
+          LUCK_CAP = 1000 * M
+
+
+          def void_band(blocks):
+              if type(blocks) is not int or blocks < 1:
+                  raise ValueError("blocks must be a whole number from 1")
+              for up_to, down, up in VOID_BANDS:
+                  if blocks <= up_to:
+                      return (down, up)
+              return VOID_LONG
 
 
           def _int(x):
@@ -888,13 +900,25 @@ jobs:
                   raise ValueError(_not_yet(L, S0 - EARLY, S1))
               flagged = any(p["quality"] == "flagged" or _bad_for(L, p["a"], S0 - EARLY, S1) for p in card["producers"]) \
                   or (card["paying"] and _rebuilt_in(L, S0 - EARLY, S1))
+              blocks = S1 - S0 + 1
+              band_down, band_up = void_band(blocks)
+              draws = {}
+
+              def draw(H):
+                  u = draws.get(H)
+                  if u is None:
+                      d = hashlib.sha256(("sample|%s|%d" % (card["seedBlockId"], H)).encode("utf-8")).digest()
+                      u = int.from_bytes(d[:8], "big") % M
+                      draws[H] = u
+                  return u
               rows = []
               for p in card["producers"]:
-                  o = _int(p["own"])
-                  credited = sum(credit_of(o, L.eff(p["a"], b)) for b in L.signed_blocks(p["a"], S0, S1))
-                  expected = _int(p["k"])
-                  lo, hi = o * (M - VOID_BAND) // M, o * (M + VOID_BAND) // M
-                  is_void = False
+                  o, k = _int(p["own"]), _int(p["k"])
+                  sample = LUCK_CAP * M // k if k > LUCK_CAP else M
+                  every = sample == M
+                  credited = sum(credit_of(o, L.eff(p["a"], b)) for b in L.signed_blocks(p["a"], S0, S1) if every or draw(b) < sample)
+                  lo, hi = o * (M - band_down) // M, o * (M + band_up) // M
+                  is_void, expected = False, 0
                   H = S0
                   while H <= S1:
                       e = L.eff(p["a"], H)
@@ -903,21 +927,12 @@ jobs:
                           H2 += 1
                       if e < lo or e > hi:
                           is_void = True
-                          break
+                      cnt = H2 - H + 1 if every else sum(1 for b in range(H, H2 + 1) if draw(b) < sample)
+                      m = e if e < o else o
+                      expected += cnt * (m * M // tot if tot > 0 else 0)
                       H = H2 + 1
-                  if p["pooled"]:
-                      expected = 0
-                      H = S0
-                      while H <= S1:
-                          e = L.eff(p["a"], H)
-                          H2 = H
-                          while H2 + 1 <= S1 and L.eff(p["a"], H2 + 1) == e:
-                              H2 += 1
-                          m = e if e < o else o
-                          expected += (H2 - H + 1) * (m * M // tot if tot > 0 else 0)
-                          H = H2 + 1
                   q = dict(p)
-                  q.update({"quality": "flagged" if flagged else "ok", "expected": expected,
+                  q.update({"quality": "flagged" if flagged else "ok", "sample": sample, "expected": expected,
                             "signed": L.signed_in(p["a"], S0, S1), "credited": credited, "pct": pct(expected, credited),
                             "void": is_void, "moves": void_record(L, p["a"], o, card["T"], S0, S1) if is_void else None})
                   rows.append(q)
@@ -938,28 +953,29 @@ jobs:
 
               def in_core(r):
                   return in_field(r) and _int(r["form"]) >= line
-              n = sum(r["signed"] for r in rows if in_core(r))
+              # the yardstick counts CREDITED blocks (millionths), as in vhp-ruler.js
+              n = sum(r["credited"] for r in rows if in_core(r))
               b = sum(r["expected"] for r in rows if in_core(r))
               nY, bY = n, b
               for r in rows:
                   r["core"], r["z"], r["setAside"] = in_core(r), None, False
                   if not r["core"]:
                       continue
-                  dev, v = r["signed"] * b - n * r["expected"], n * r["expected"] * (b - r["expected"])
+                  dev, v = r["credited"] * b - n * r["expected"], n * r["expected"] * (b - r["expected"]) * M
                   if v > 0:
                       q = abs(dev) * M // isqrt(v)
                       r["z"] = -q if dev < 0 else q
                   if dev * dev > BAND_SD * BAND_SD * v:
                       r["setAside"] = True
-                      nY -= r["signed"]
+                      nY -= r["credited"]
                       bY -= r["expected"]
               for r in rows:
                   if not in_field(r):
                       r["fpct"] = None
                   elif r["core"] and not r["setAside"]:
-                      r["fpct"] = fpct(nY, r["expected"], bY, r["credited"])
+                      r["fpct"] = fpct(nY // M, r["expected"], bY, r["credited"])
                   else:
-                      r["fpct"] = fpct(nY + r["signed"], r["expected"], bY + r["expected"], r["credited"])
+                      r["fpct"] = fpct((nY + r["credited"]) // M, r["expected"], bY + r["expected"], r["credited"])
               out = dict(card)
               out["producers"] = rows
               return out

@@ -46,10 +46,10 @@ test("D-172: a void from VHP the producer sent out itself is an own move, with t
 
 test("D-172: core members carry z (millionths of an sd, signed) and setAside, exactly the band's decision; others null / false", () => {
   const { tl } = chain(), L = R.ledger(tl), s = R.scoreCard(L, R.makeCard(L, game));
-  const core = s.producers.filter((p) => p.core), n = core.reduce((t, p) => t + BigInt(p.signed), 0n), b = core.reduce((t, p) => t + p.expected, 0n);
+  const core = s.producers.filter((p) => p.core), n = core.reduce((t, p) => t + p.credited, 0n), b = core.reduce((t, p) => t + p.expected, 0n);   // RULE_VERSION 4: credited blocks, in millionths
   for (const p of s.producers) {
     if (!p.core) { assert.equal(p.z, null); assert.equal(p.setAside, false); continue; }
-    const d = BigInt(p.signed) * b - n * p.expected, v = n * p.expected * (b - p.expected);
+    const d = p.credited * b - n * p.expected, v = n * p.expected * (b - p.expected) * 1000000n;
     assert.equal(p.setAside, d * d > 4n * v);
     const r = R.isqrt(v), q = ((d < 0n ? -d : d) * 1000000n) / r;
     assert.equal(p.z, d < 0n ? -q : q);

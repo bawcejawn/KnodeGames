@@ -40,8 +40,8 @@ test("B10-V3 (as built, owner: \"any time\"): void compares eff during the race 
   // a gap between own and eff in the race means each block is credited at own ÷ eff, which bunches the producer's result
   // (the sim 7 problem the void exists for), so the void applies whether the move came during the race or before it
   const T = R.makeCard(R.ledger(chain().tl), game).T;
-  const a = score({ ...game, ownRule: "avg24h", paying: false }, [{ h: T - 14400, i: 2, v: 12n * 10n ** 14n }]), pa = a.s.producers.find((x) => x.a === a.ps[2]);
-  assert.equal(pa.void, true, `avg24h: own ${pa.own} is more than 10% below its VHP in the race`);
+  const a = score({ ...game, ownRule: "avg24h", paying: false }, [{ h: T - 14400, i: 2, v: 40n * 10n ** 14n }]), pa = a.s.producers.find((x) => x.a === a.ps[2]);
+  assert.equal(pa.void, true, `avg24h: own ${pa.own} is more than the up band (25% on a 6-hour race, RULE_VERSION 4) below its VHP in the race`);
   const b = score({ ...game, paying: false }, [{ h: T + 10, i: 2, v: 12n * 10n ** 14n }]), pb = b.s.producers.find((x) => x.a === b.ps[2]);
   assert.equal(pb.void, true, "spot: a deposit after the card is made");
   const c = score({ ...game, paying: false }, [{ h: T + 10, i: 2, v: 2n * 10n ** 14n }]), pc = c.s.producers.find((x) => x.a === c.ps[2]);

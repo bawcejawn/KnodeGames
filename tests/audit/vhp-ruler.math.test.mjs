@@ -2,6 +2,7 @@
 // data rules D-112. Step (a): the pure math, integers only, the same in JavaScript and Python.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { expectedOf, creditedOf } from "./vhp-ruler.fixture.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -203,17 +204,17 @@ test("makeCard: fields, order, entry bar, pooled, quality, D-112's rebuilt rule"
   assert.throws(() => cardOn(tl, { paying: true }), /14 days/, "#E-12 L-1: a paying card needs 14 days + 6 h of data");
 });
 
-test("scoreCard: credited ≤ signed; the pooled rule uses min(own, eff) per block", () => {
+test("scoreCard: credited ≤ signed; EVERY producer's expected blocks are min(own, eff) per block over the blocks that count for it (RULE_VERSION 4)", () => {
   const { tl, ps } = randomTimeline(31, 32000, 5, { busy: true });
   const { L, card } = cardOn(tl, { pooled: [ps[1]] });
   const s = R.scoreCard(L, card);
   for (const p of s.producers) {
     assert.ok(p.credited <= BigInt(p.signed) * M);
-    if (!p.pooled) assert.equal(p.expected, (p.k * p.rate) / M);
+    assert.equal(p.expected, expectedOf(L, s, p), `${p.a}: expected, pooled or not`);
+    assert.equal(p.credited, creditedOf(L, s, p), `${p.a}: credited`);
+    assert.ok(p.expected <= p.k, "never above its card size");
   }
-  const p = s.producers.find((x) => x.pooled), own = p.own;
-  let want = 0n; for (let H = card.window.S0; H <= card.window.S1; H++) { const e = L.eff(p.a, H); want += ((e < own ? e : own) * M) / card.total; }
-  assert.equal(p.expected, want);
+  assert.ok(s.producers.some((x) => x.pooled) && s.producers.some((x) => !x.pooled));
   const game = { game: 7, round: "2026111006", window: card.window, c: 500000n, minK: 10, poolRule: "min", ownRule: "spot", paying: false, pooled: [ps[1]] };
   assert.equal(R.recompute(L, R.cardJson(s), game).same, true);
   const tampered = R.cardJson(s).replace(/"credited":"(\d)/, (m, d) => `"credited":"${(+d + 1) % 10}`);

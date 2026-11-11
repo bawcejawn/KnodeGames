@@ -45,7 +45,7 @@ test("B10-F2 (owner, 5 Nov: a steady throttler stays in): a producer parked at f
   // the five full producers are scored among themselves only (D-165): exactly as if the parked address weren't on the card
   const { core } = coreOf(s.producers), want = fieldFpct(s.producers);
   assert.equal(core.includes(p), false, "below 0.97 × the median form: not in the yardstick");
-  const n = core.reduce((t, x) => t + BigInt(x.signed), 0n), bC = core.reduce((t, x) => t + x.expected, 0n);
+  const n = core.reduce((t, x) => t + x.credited, 0n) / 1000000n, bC = core.reduce((t, x) => t + x.expected, 0n);   // RULE_VERSION 4: the yardstick counts credited blocks
   for (const x of core) { assert.equal(x.fpct, R.fpct(n, x.expected, bC, x.credited), `${x.a}: the parked address moved its fpct`); assert.equal(x.fpct, want[x.a]); }
   const out = py(`L = V.Ledger(j["tl"]); g = j["g"]
 sys.stdout.write(V.card_json(V.score_card(L, V.make_card(L, g["game"], g["round"], g["window"], g["c"], g["ownRule"], g["paying"], g["pooled"], g["minK"], g["poolRule"]))))`, { tl, g: game });

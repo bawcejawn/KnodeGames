@@ -47,7 +47,7 @@
   const VHP_CONTRACT = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq";   // mainnet VHP
   const DELAY = 20, ACTIVE = 7200, HIGH = 1200, AVG = 28800, FORM = 403200, HISTORY = 28800, SEED_AFTER = 20;
   const M = 1000000n, MIN_K = 10n * M, FORM_GATE = 800000n;
-  const RULE_VERSION = 3, OWN_RULES = ["spot", "high1h", "avg24h"], POOL_RULES = ["min"];
+  const RULE_VERSION = 4, OWN_RULES = ["spot", "high1h", "avg24h"], POOL_RULES = ["min"];
   // v2.1 (VHP_RULER.md §16, R-RULER-2): a producer is "steady" when each of its last 14 daily rates is within ±0.15 of its
   // 14-day rate (D-120). Owner, 5 Nov: a producer that throttles on purpose stays in the games and "should not have to be
   // sidelined unless they actually break the variance threshold": a steady producer passes the form gate whatever its
@@ -57,9 +57,24 @@
   const STEADY_BAND = 150000n;
   // owner, 5 Nov: "Any address can go and increase or decrease their VHP balance any time which could result in void
   // options for that race or game pick ... when an address is voided its not a permanent thing": a producer whose
-  // effective VHP leaves own × (1 ± VOID_BAND) at any block of the scoring window is void for that race (it plays the
-  // next one as usual). Real days: about 1–1.6% of producer-races (sims/ruler/voids.mjs)
-  const VOID_BAND = 100000n, CORE_LINE = 970000n, BAND_SD = 2n;
+  // effective VHP leaves the card's own size by more than the race's band (voidBand, below) at any block of the scoring
+  // window is void for that race (it plays the next one as usual).
+  const CORE_LINE = 970000n, BAND_SD = 2n;
+  // Rules for every race length (owner, 11 Nov 2026; D-new, numbered by the Library; RULE_VERSION 4):
+  //  - voidBand(blocks): how far a producer's VHP may move from the card's own size during the race before it is void
+  //    for that race only, in millionths, [down, up], by the scoring window's length: up to 2 hours 5% / 25%, up to
+  //    6 hours 10% / 25% (down as D-164), up to a day 12% / 50%, longer 15% / 100%. Down is tight (shrinking once the
+  //    luck is good, "stop when ahead", is the only move that gains: nothing measurable up to 15%; it must clear the
+  //    natural burn of about 1% a day); up is wide (VHP added in the race is capped by card credit and gains nothing).
+  //  - LUCK_CAP: no producer is scored on more than this many expected blocks (millionths). Above it, a share of the
+  //    window's blocks, drawn from the card's seed, counts for that producer (sample < 1,000,000).
+  const VOID_BANDS = [[2400, 50000n, 250000n], [7200, 100000n, 250000n], [28800, 120000n, 500000n]], VOID_LONG = [150000n, 1000000n];
+  const LUCK_CAP = 1000n * 1000000n;
+  function voidBand(blocks) {
+    if (!Number.isSafeInteger(blocks) || blocks < 1) throw new Error("blocks must be a whole number from 1");
+    for (const [upTo, down, up] of VOID_BANDS) if (blocks <= upTo) return [down, up];
+    return VOID_LONG;
+  }
   const PCT_SCALE = 1n << 256n;   // the Poisson terms' fixed-point scale (pct)
 
   // ── sha256 (pure, for the card time; tested against node:crypto) ──
@@ -473,31 +488,34 @@
     const { S0, S1 } = card.window, tot = big(card.total);
     if (card.paying && pendingIn(L, S0 - EARLY, S1)) throw new Error(notYet(L, S0 - EARLY, S1));
     const flagged = card.producers.some((p) => p.quality === "flagged" || badFor(L, p.a, S0 - EARLY, S1)) || (card.paying && rebuiltIn(L, S0 - EARLY, S1));
+    // the luck cap's draw: block H counts for a producer whose sample is q when draw(H) < q (one draw a block, from the
+    // card's seed, so the blocks that count for a bigger producer are among those that count for a smaller one)
+    const blocks = S1 - S0 + 1, [bandDown, bandUp] = voidBand(blocks), draws = new Map();
+    const draw = (H) => {
+      let u = draws.get(H);
+      if (u === undefined) { const d = sha256(`sample|${card.seedBlockId}|${H}`); let n = 0n; for (let i = 0; i < 8; i++) n = (n << 8n) | BigInt(d[i]); u = n % M; draws.set(H, u); }
+      return u;
+    };
     const producers = card.producers.map((p) => {
-      const o = big(p.own);
+      const o = big(p.own), k = big(p.k), sample = k > LUCK_CAP ? (LUCK_CAP * M) / k : M, all = sample === M;
       let credited = 0n;
-      for (const b of L.signedBlocks(p.a, S0, S1)) credited += creditOf(o, L.eff(p.a, b));
-      let expected = big(p.k);
-      const lo = (o * (M - VOID_BAND)) / M, hi = (o * (M + VOID_BAND)) / M;
-      let isVoid = false;
+      for (const b of L.signedBlocks(p.a, S0, S1)) if (all || draw(b) < sample) credited += creditOf(o, L.eff(p.a, b));
+      // expected blocks follow the producer's VHP block by block, capped at the card's own size (§3.2's rule, now for
+      // every producer), over the blocks that count for it; and the void: VHP outside own × (1 − down … 1 + up)
+      const lo = (o * (M - bandDown)) / M, hi = (o * (M + bandUp)) / M;
+      let isVoid = false, expected = 0n;
       for (let H = S0; H <= S1;) {   // runs of equal eff
         const e = L.eff(p.a, H); let H2 = H;
         while (H2 + 1 <= S1 && L.eff(p.a, H2 + 1) === e) H2++;
-        if (e < lo || e > hi) { isVoid = true; break; }
+        if (e < lo || e > hi) isVoid = true;
+        let cnt = BigInt(H2 - H + 1);
+        if (!all) { cnt = 0n; for (let b = H; b <= H2; b++) if (draw(b) < sample) cnt++; }
+        const m = e < o ? e : o;
+        expected += cnt * (tot > 0n ? (m * M) / tot : 0n);
         H = H2 + 1;
       }
-      if (p.pooled) {   // §3.2: min(own, eff at each block), each block rounded down
-        expected = 0n;
-        for (let H = S0; H <= S1;) {
-          const e = L.eff(p.a, H); let H2 = H;
-          while (H2 + 1 <= S1 && L.eff(p.a, H2 + 1) === e) H2++;   // a run of equal eff
-          const m = e < o ? e : o;
-          expected += BigInt(H2 - H + 1) * (tot > 0n ? (m * M) / tot : 0n);
-          H = H2 + 1;
-        }
-      }
       const quality = flagged ? "flagged" : "ok";
-      return { ...p, quality, expected, signed: L.signedIn(p.a, S0, S1), credited, pct: pct(expected, credited), void: isVoid, moves: isVoid ? voidRecord(L, p.a, o, card.T, S0, S1) : null };
+      return { ...p, quality, sample: Number(sample), expected, signed: L.signedIn(p.a, S0, S1), credited, pct: pct(expected, credited), void: isVoid, moves: isVoid ? voidRecord(L, p.a, o, card.T, S0, S1) : null };
     });
     // A′ (D-165, D-171): the field is the producers with entry that aren't void. Its core is the members whose form is
     // at least CORE_LINE of the field's median form, the median weighted by expected blocks (the form at which half the
@@ -510,20 +528,23 @@
     let median = 0n, cum = 0n;
     for (const p of fieldRows) { cum += p.expected; if (2n * cum >= eAll) { median = big(p.form); break; } }
     const line = (median * CORE_LINE) / M, inCore = (p) => inField(p) && big(p.form) >= line;
+    // The yardstick counts CREDITED blocks (millionths), the same blocks each producer's expected blocks are for: counting
+    // raw signed blocks against capped expected blocks lifted every expectation a little whenever a member's VHP was
+    // above its card size, which cost big producers most and grew with the race's length (found 11 Nov on daily races).
     let n = 0n, b = 0n;
-    for (const p of producers) if (inCore(p)) { n += BigInt(p.signed); b += p.expected; }
+    for (const p of producers) if (inCore(p)) { n += p.credited; b += p.expected; }
     let nY = n, bY = b;
     for (const p of producers) {
       p.core = inCore(p); p.z = null; p.setAside = false;
       if (!p.core) continue;
-      const s0 = BigInt(p.signed), dev = s0 * b - n * p.expected, v = n * p.expected * (b - p.expected);
+      const dev = p.credited * b - n * p.expected, v = n * p.expected * (b - p.expected) * M;
       if (v > 0n) { const r = isqrt(v), q = ((dev < 0n ? -dev : dev) * M) / r; p.z = dev < 0n ? -q : q; }
-      if (dev * dev > BAND_SD * BAND_SD * v) { p.setAside = true; nY -= s0; bY -= p.expected; }
+      if (dev * dev > BAND_SD * BAND_SD * v) { p.setAside = true; nY -= p.credited; bY -= p.expected; }
     }
     for (const p of producers) {
       if (!inField(p)) { p.fpct = null; continue; }
       const self = inCore(p) && !p.setAside;   // already in the yardstick
-      p.fpct = self ? fpct(nY, p.expected, bY, p.credited) : fpct(nY + BigInt(p.signed), p.expected, bY + p.expected, p.credited);
+      p.fpct = self ? fpct(nY / M, p.expected, bY, p.credited) : fpct((nY + p.credited) / M, p.expected, bY + p.expected, p.credited);
     }
     return { ...card, producers };
   }
@@ -631,6 +652,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, VOID_BAND, CORE_LINE, BAND_SD, isqrt, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, isqrt, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
     sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

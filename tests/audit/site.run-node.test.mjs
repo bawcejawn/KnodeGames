@@ -111,7 +111,7 @@ test("one pinned Koinos version everywhere; the official repo; the volume is nev
   for (const b of boxes) if (/private\.key/.test(b.text)) {
     // Only ever: check the stick is there, then copy the key file straight onto it (read-only volume).
     assert.match(b.text, /^if (\(Test-Path E:\\\)|\[ -d \/Volumes\/MYUSB \] && diskutil info \/Volumes\/MYUSB|mountpoint -q "\/media\/\$USER\/MYUSB")/, b.text);
-    assert.match(b.text, /docker run --rm -v koinos-data:\/k:ro -v \S+ alpine:3\.20 cp \/k\/block_producer\/private\.key \/usb\/koinos-node-private\.key/, b.text);
+    assert.match(b.text, /docker run --rm --network none -v koinos-data:\/k:ro -v \S+ alpine:3\.20@sha256:[0-9a-f]{64} cp \/k\/block_producer\/private\.key \/usb\/koinos-node-private\.key/, b.text);
     assert.doesNotMatch(b.text.replace(/\/usb\/koinos-node-private\.key|\/k\/block_producer\/private\.key|[\w/"$]*\/koinos-node-private\.key"?|E:\\koinos-node-private\.key/g, ""), /private\.key/, b.text);
   }
   assert.doesNotMatch(all, /cat \/k\/block_producer\/private/);
@@ -521,4 +521,15 @@ test("producer.js: the Mana sponsor settings come from game-data/deployment.json
   k.el("key").value = Buffer.concat([Buffer.from([2]), Buffer.alloc(32, 7)]).toString("base64url");
   await k.el("send").onclick();
   assert.equal(k.sent(), 1, "a Kondor wallet goes through the shared send (which picks sponsor or own Mana)");
+});
+
+test("Repo Lens #F-8 F8-9: every helper container that mounts the node's volume runs with no network", () => {
+  const helpers = boxes.filter((b) => /docker run[^\n]*koinos-data:\/k/.test(b.text));
+  assert.ok(helpers.length >= 10, String(helpers.length));
+  for (const b of helpers) for (const line of b.text.split("\n").filter((l) => /docker run[^\n]*koinos-data:\/k/.test(l)))
+    assert.match(line, /docker run --rm --network none -v koinos-data:\/k/, line);
+  for (const m of html.matchAll(/<code>(docker run [^<]*koinos-data[^<]*)<\/code>/g)) assert.match(m[1], /--network none/, m[1]);
+  // ...and its image is pinned by digest, so the code it runs can't change under the same tag.
+  for (const b of helpers) assert.match(b.text, /(alpine:3\.20|debian:bookworm-slim)@sha256:[0-9a-f]{64} /, b.text.slice(0, 80));
+  assert.doesNotMatch(html, /alpine:3\.20(?!@sha256:[0-9a-f]{64})|debian:bookworm-slim(?!@sha256:[0-9a-f]{64})/);
 });

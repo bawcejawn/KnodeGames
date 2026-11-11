@@ -117,3 +117,8 @@ body[data-rn-os="linux"] .rn-cmd:not([data-os~="linux"]), body[data-rn-os="linux
 .rn-do { position: relative; margin: 14px 0 6px; padding-left: 24px; font-weight: 600; color: var(--ink); }
 .rn-do::before { content: "▸"; position: absolute; left: 4px; top: 0; color: var(--violet); font-weight: 800; }
 #howto ol.rn-list li { line-height: 1.6; }
+
+/* Optional extras folded away (owner, 6 Nov: fewer words on screen; nothing removed). */
+.rn-more { margin: 14px 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.rn-more > summary { cursor: pointer; font-weight: 700; color: var(--violet); }
+.rn-more[open] > summary { margin-bottom: 8px; }

@@ -40,24 +40,22 @@ const I = {
 };
 
 // [label, link, icon]. A link starting with "#" is a question-game view on index.html.
-export const TABS = [["Games", "games.html", "games"], ["Leaders", "#leaderboard", "leaders"], ["Stake", "stake.html", "stake"], ["Results", "#results", "results"]];
+export const TABS = [["Games", "games.html", "games"], ["Stake", "stake.html", "stake"], ["Leaders", "#leaderboard", "leaders"]];
 // The More sheet, in groups (each group a heading, then its links).
 export const MORE_GROUPS = [
-  ["Play", [["Daily Questions", "#play", "play"], ["Producer Race", "race.html", "race"], ["Who Signs Block X", "blockx.html", "blockx"], ["Block Golf", "golf.html", "golf"], ["Rules", "#how", "rules"]]],
+  ["Play", [["Daily Questions", "#play", "play"], ["Producer Race", "race.html", "race"], ["Who Signs Block X", "blockx.html", "blockx"], ["Block Golf", "golf.html", "golf"], ["Results", "#results", "results"], ["Rules", "#how", "rules"]]],
   ["Tools", [["Get VHP", "get.html", "get"], ["Get an @name", "names.html", "name"], ["Swap VHP → KOIN", "swap.html", "swap"], ["Burn KOIN", "burn.html", "burn"], ["Mana levels", "mana.html", "mana"], ["Producer lookup", "node.html", "lookup"], ["Run a node", "run-node.html", "server"], ["Network pulse", "pulse.html", "pulse"]]],
   ["Learn", [["New to Koinos?", "start.html", "welcome"], ["New here? Quick tour", "#welcome", "welcome"]]],
   ["About", [["Install app", "install.html", "install"], ["Trust", "trust.html", "trust"], ["Terms &amp; risks", "terms.html", "terms"]]],
 ];
 export const MORE = MORE_GROUPS.flatMap(([, links]) => links);
 // The top menu: a link, or a dropdown { label, items }. Add a new live game to the Games dropdown when it ships.
+const TOOLS_ITEMS = [["Get VHP", "get.html"], ["Get an @name", "names.html"], ["Swap VHP → KOIN", "swap.html"], ["Burn KOIN", "burn.html"], ["Mana levels", "mana.html"], ["Producer lookup", "node.html"], ["Run a node", "run-node.html"], ["Network pulse", "pulse.html"]];
 export const TOP = [
   { label: "Games", items: [["All games", "games.html"], ["Daily Questions", "#play"], ["Producer Race", "race.html"], ["Who Signs Block X", "blockx.html"], ["Block Golf", "golf.html"]] },
   { label: "Leaderboards", link: "#leaderboard" },
-  { label: "Results", link: "#results" },
   { label: "Stake", link: "stake.html" },
-  { label: "Tools", items: [["Get VHP", "get.html"], ["Get an @name", "names.html"], ["Swap VHP → KOIN", "swap.html"], ["Burn KOIN", "burn.html"], ["Mana levels", "mana.html"], ["Producer lookup", "node.html"], ["Run a node", "run-node.html"], ["Network pulse", "pulse.html"]] },
-  { label: "Rules", link: "#how" },
-  { label: "New to Koinos?", link: "start.html", cls: "tab-start" },
+  { label: "More", items: [["Results", "#results"], ["Rules", "#how"], ["New to Koinos?", "start.html"], ...TOOLS_ITEMS] },
 ];
 // "Play free" beside the wallet button on every page (owner, 9 Nov: yes; "it should take them to the producer race game,
 // NOT THE QUESTIONS game"): straight to the Producer Race's pick list, where a guest plays free with no sign-up.

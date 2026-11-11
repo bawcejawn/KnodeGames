@@ -3,28 +3,28 @@
    chosen for contrast: body text is 15:1 or better, muted text 7:1 or better, buttons 5:1 or better (site.readability
    test). Variable names are kept so every page inherits it: --violet is the main accent, --navy/--tang the scoreboard. */
 :root {
-  --paper: #F6F4FF;
+  --paper: #F5F6F8;
   --surface: #FFFFFF;
   --ink: #15122B;
   --muted: #4B4766;
-  --line: #E4E0F5;
-  --contour: #D9D3F2;
-  --violet: #5B2EE0;
+  --line: #E2E4EA;
+  --contour: #D5D8E0;
+  --violet: #1F5AE6;
   --violet-ink: #FFFFFF;
-  --violet-soft: #EEE9FF;
+  --violet-soft: #E7EEFF;
   --sun: #F2B33D;
   --sun-soft: #FBE9C8;
   --mint: #12704F;
   --mint-soft: #DDF1E6;
   --rose: #A63A27;
   --rose-soft: #F8E2DA;
-  --navy: #1B1440;
-  --navy-2: #2A2260;
+  --navy: #14161F;
+  --navy-2: #262A3B;
   --navy-ink: #FFFFFF;
-  --navy-muted: #D4CFF5;
+  --navy-muted: #CDD2E0;
   --tang: #FF8A4C;
-  --tang-ink: #1B1440;
-  --shadow: 0 1px 0 rgba(21, 18, 43, 0.05), 0 10px 26px -16px rgba(21, 18, 43, 0.28);
+  --tang-ink: #14161F;
+  --shadow: 0 1px 0 rgba(20, 22, 31, 0.05), 0 10px 26px -16px rgba(20, 22, 31, 0.28);
   --r-lg: 20px;
   --r-md: 14px;
   --r-sm: 10px;
@@ -35,19 +35,19 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #120F2B; --surface: #1E1A42; --ink: #F4F2FF; --muted: #C9C4EE; --line: #2F2A66; --contour: #2A2560;
-    --violet: #A48BFF; --violet-ink: #120F2B; --violet-soft: #2A2260; --sun: #F2B33D; --sun-soft: #3A2F14;
+    --paper: #111216; --surface: #1B1C22; --ink: #F4F5F8; --muted: #C6C9D2; --line: #2D2F38; --contour: #2D2F38;
+    --violet: #86A8FF; --violet-ink: #0F1115; --violet-soft: #1E2A4D; --sun: #F2B33D; --sun-soft: #3A2F14;
     --mint: #5CCB9A; --mint-soft: #173528; --rose: #F08B74; --rose-soft: #3B201A;
-    --navy: #0C0A22; --navy-2: #1E1A5A;
+    --navy: #0A0B0F; --navy-2: #1E2130;
     --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 30px -14px rgba(0, 0, 0, 0.7);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --paper: #120F2B; --surface: #1E1A42; --ink: #F4F2FF; --muted: #C9C4EE; --line: #2F2A66; --contour: #2A2560;
-  --violet: #A48BFF; --violet-ink: #120F2B; --violet-soft: #2A2260; --sun: #F2B33D; --sun-soft: #3A2F14;
+  --paper: #111216; --surface: #1B1C22; --ink: #F4F5F8; --muted: #C6C9D2; --line: #2D2F38; --contour: #2D2F38;
+  --violet: #86A8FF; --violet-ink: #0F1115; --violet-soft: #1E2A4D; --sun: #F2B33D; --sun-soft: #3A2F14;
   --mint: #5CCB9A; --mint-soft: #173528; --rose: #F08B74; --rose-soft: #3B201A;
-  --navy: #0C0A22; --navy-2: #1E1A5A;
+  --navy: #0A0B0F; --navy-2: #1E2130;
   --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 30px -14px rgba(0, 0, 0, 0.7);
   color-scheme: dark;
 }
@@ -396,8 +396,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 /* ═════════════ redesign: trail-map paper + scoreboard band ═════════════ */
 body {
   background-color: var(--paper);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='360' viewBox='0 0 1200 360'%3E%3Cg fill='none' stroke='%23D9D3C2' stroke-width='1.4'%3E%3Cpath d='M-20 80 C 160 30, 330 150, 560 70 S 900 40, 1220 110'/%3E%3Cpath d='M-20 120 C 170 70, 340 190, 570 112 S 910 82, 1220 152'/%3E%3Cpath d='M-20 160 C 180 112, 350 230, 580 154 S 920 124, 1220 194'/%3E%3Cpath d='M-20 200 C 190 154, 360 270, 590 196 S 930 166, 1220 236'/%3E%3C/g%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: top center; background-size: max(1200px, 100%) auto;
+  background-image: none;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body { background-image: none; } }
 :root[data-theme="dark"] body { background-image: none; }
@@ -526,7 +525,7 @@ body[data-view="welcome"] .foot .eco { display: none; }
 @media (max-width: 760px) {
   .tabs { display: none; }
   .top-row { flex-wrap: nowrap; padding: 0; min-height: 60px; }
-  .tabbar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: var(--navy); padding: 6px 6px calc(8px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -8px 24px -12px rgba(20, 33, 61, .5); }
+  .tabbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: var(--navy); padding: 6px 6px calc(8px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -8px 24px -12px rgba(20, 33, 61, .5); }
   .tabbar a, .tabbar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; padding: 0; text-decoration: none; font: inherit; font-size: .74rem; font-weight: 700; color: var(--navy-muted); background: none; border: 0; border-radius: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .tabbar svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .tabbar .tb-more svg circle { fill: currentColor; stroke: none; }
@@ -902,3 +901,50 @@ button.btn { min-height: 44px; }
 .welcome-how > summary { cursor: pointer; font: 700 1.05rem var(--display); padding: 12px 0; min-height: 44px; display: flex; align-items: center; }
 .welcome-how[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 14px; }
 .welcome-how .welcome-steps { padding-bottom: 14px; }
+
+/* Home redesign (owner, 11 Nov): plain page, white cards with a soft shadow instead of outlines, short calm first screen. */
+.welcome .also-card, .welcome .welcome-why, .welcome .welcome-how { border-color: transparent; box-shadow: var(--shadow); }
+.home-hero { display: grid; gap: 14px; padding: 8px 0 4px; max-width: 640px; }
+.home-hero .tagline { font: 700 1.05rem var(--display); color: var(--violet); }
+.home-hero h1 { font-size: clamp(2rem, 7vw, 3.2rem); }
+.home-hero .lede { font-size: 1.1rem; color: var(--muted); max-width: 34em; }
+.home-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 4px; }
+.home-cta .btn-big { min-width: 180px; justify-content: center; }
+.home-cta .linklike { background: none; border: 0; padding: 10px 0; font: inherit; font-weight: 600; color: var(--violet); text-decoration: underline; cursor: pointer; min-height: 44px; }
+.welcome-card { gap: 22px; }
+@media (min-width: 960px) { .welcome-card { max-width: 900px; margin-inline: auto; } .welcome-card > :not(.welcome-hero) { max-width: none; margin-inline: 0; width: 100%; } }
+.welcome-also .also-more { grid-column: 1 / -1; font-weight: 700; min-height: 44px; }
+
+/* ── Game-lobby home (owner, 11 Nov): a dark stage with Blocky, colourful game tiles, a plain light page. ── */
+.stage { position: relative; overflow: hidden; border-radius: 28px; padding: 28px 24px; color: #fff; background:
+  radial-gradient(420px 300px at 85% 40%, rgba(122, 76, 255, .55), transparent 70%),
+  linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px) 0 0 / 28px 28px,
+  linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px) 0 0 / 28px 28px, #14161F;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; }
+.stage .tagline { color: #3DF2A5; }
+.stage h1 { color: #fff; font-size: clamp(1.9rem, 6.4vw, 3.1rem); }
+.stage .lede { color: #D9DDEA; }
+.stage .linklike, .stage .muted { color: #D9DDEA; }
+.stage .linklike { text-decoration: underline; }
+.stage .btn-primary { background: #3DF2A5; color: #0B1B14; border-color: #3DF2A5; }
+.stage .btn-primary:hover { background: #6FF7BE; }
+.stage-blocky { width: clamp(110px, 24vw, 260px); height: auto; filter: drop-shadow(0 14px 24px rgba(0, 0, 0, .45)); }
+@media (max-width: 640px) { .stage, .home-hero.stage { grid-template-columns: 1fr; padding: 22px 18px; } .stage-blocky { width: 112px; order: -1; } }
+.home-hero.stage { max-width: none; padding: 30px 26px; gap: 22px; }
+.stage-text { display: grid; gap: 14px; justify-items: start; }
+.game-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 800px) { .game-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.game-grid h2, .game-grid > .game-head { grid-column: 1 / -1; }
+.welcome-also .gtile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); text-decoration: none; color: var(--ink); border: 0; min-height: 132px; grid-template-columns: none; }
+.welcome-also .gtile:hover { transform: translateY(-2px); }
+.gtile > span { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 1.5rem; background: var(--violet-soft); }
+.gtile:nth-of-type(1) > span { background: #FFE3D3; } .gtile:nth-of-type(2) > span { background: #DDE8FF; } .gtile:nth-of-type(3) > span { background: #D7F7E8; }
+.gtile:nth-of-type(4) > span { background: #FFF0B8; } .gtile:nth-of-type(5) > span { background: #E2F4D2; }
+.gtile b { font: 700 1.05rem/1.2 var(--display); }
+.gtile p { margin: 0; color: var(--muted); font-size: .92rem; }
+.gtile.soon { background: transparent; box-shadow: none; border: 1.5px dashed var(--line); min-height: 0; }
+@media (max-width: 640px) { .test-week { font-size: .9rem; padding: 8px 12px; } }
+
+.brand-mark { width: 32px; height: 32px; border-radius: 9px; box-shadow: none; background: url("media/icon.svg") center / cover no-repeat; }
+.brand-mark i, .brand-mark i:first-child { display: none; }
+.welcome-how .also-card { margin-bottom: 10px; box-shadow: none; }

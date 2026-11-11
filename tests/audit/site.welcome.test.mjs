@@ -56,3 +56,11 @@ test("more race types are shown as coming soon only; today's live points stay 3 
   assert.match(html, /A win is 3 points, a show \(2nd or 3rd\) is 1\./);
   assert.doesNotMatch(welcome, /Week 1 \(Mon 9|from Mon 9 Nov/);
 });
+
+test("home tidy-up (owner, 11 Nov): a short 'What is Knode Games?' box, a 'Pick a game' list, and the long steps folded away", () => {
+  assert.match(welcome, /<div class="welcome-why">\s*<h2>What is Knode Games\?<\/h2>/);
+  assert.match(welcome, /<h2>Pick a game<\/h2>/);
+  assert.match(welcome, /<details class="welcome-how">\s*<summary>How the Producer Race works<\/summary>/);
+  assert.doesNotMatch(welcome.match(/<div class="welcome-why">[\s\S]*?<\/div>/)[0], /earn|bet|odds|guarantee/i);
+  for (const m of welcome.matchAll(/<div class="welcome-also"[\s\S]*?<div class="welcome-actions">/g)) assert.ok(m[0].length < 5200, "game cards stay short");
+});

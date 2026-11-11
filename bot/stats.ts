@@ -7,6 +7,8 @@
  * What it counts (all public):
  *   - players this week / last week / all time: wallets that answered Daily Questions (the vault's list_players),
  *     picked in Producer Race (race-data board.json) or Who Signs Block X (games-data blockx/board.json)
+ *   - players today (UTC day): wallets on the Race or Block X board's `today` section (the board's own day must be
+ *     today's date), plus wallets that answered a question still open. A lower bound, never a guess.
  *   - plays this week: question answers + race picks + Block X picks
  *   - VHP staked: the vault's total stake, and each game's (list_games)
  *   - free prizes: 2 VHP and 1 VHP a week (the vault rule, D-062)
@@ -77,6 +79,12 @@ export function boardWeeks(board: any, start: number): { week: any[]; last: any[
   const last = sectionAt(board, "lastWeek", start - WEEK) ? rowsOf(board, "lastWeek") : sectionAt(board, "week", start - WEEK) ? rowsOf(board, "week") : [];
   return { week, last };
 }
+/** Wallets with at least one pick on a board's `today` section, only when that section is for today's UTC date. */
+export function boardToday(board: any, now: number): string[] {
+  const t = board && board.today;
+  if (!t || t.day !== new Date(now).toISOString().slice(0, 10) || !Array.isArray(t.rows)) return [];
+  return t.rows.filter((r: any) => r && typeof r.a === "string" && ADDR.test(r.a) && (r.picks === undefined || (okInt(r.picks) && r.picks > 0))).map((r: any) => r.a);
+}
 const picksOf = (rows: any[]) => rows.reduce((s, r) => s + (okInt(r.picks) ? r.picks : 0), 0);
 /** Top 3 by points (ties share a place); only players with at least 1 point. */
 export function top3(rows: { a: string; pts: number }[]): { a: string; pts: number; place: number }[] {
@@ -121,6 +129,7 @@ export function buildStats(x: Inputs) {
   const answers = qWeek.reduce((s, r) => s + r.answers.length, 0);
   const racePicks = picksOf(raceWeek), blockxPicks = picksOf(bxWeek);
   const openIds = new Set(x.open.filter((q) => q.lockTime > now).map((q) => q.id));
+  const todayPlayers = set(boardToday(rb, now), boardToday(bb, now), qWeek.filter((r) => r.answers.some((a) => openIds.has(Number(a.question_id)))).map((r) => r.address));
   const todayAnswers = qWeek.reduce((s, r) => s + r.answers.filter((a) => openIds.has(Number(a.question_id))).length, 0);
   const closes = x.open.filter((q) => q.lockTime > now).map((q) => q.lockTime).sort((a, b) => a - b)[0] ?? null;
   const pts = (rows: any[]) => rows.map((r) => ({ a: r.a, pts: okInt(r.pts) ? r.pts : 0 }));
@@ -128,7 +137,7 @@ export function buildStats(x: Inputs) {
     v: 1,
     updated: new Date(now).toISOString(),
     week: { start: week.start, end: week.end },
-    players: { week: thisWeek.size, lastWeek: lastWeek.size, allTime: all.size },
+    players: { week: thisWeek.size, lastWeek: lastWeek.size, allTime: all.size, today: todayPlayers.size },
     plays: { answers, racePicks, blockxPicks, total: answers + racePicks + blockxPicks },
     staked: { total: round2(vhp(x.totalStake)), games: x.games.filter((g) => g.staked).map((g) => ({ id: g.id, name: BAD_NAME.test(String(g.name)) ? `Game ${g.id}` : String(g.name).slice(0, 40), vhp: round2(vhp(g.stake)) })) },
     prizes: { free: FREE_PRIZES },
@@ -143,7 +152,7 @@ export function checkStats(s: any): string | null {
   const int = (n: any) => Number.isInteger(n) && n >= 0 && n < 1e9;
   const num = (n: any) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n < 1e12;
   if (!s || s.v !== 1 || typeof s.updated !== "string" || s.updated.length > 40) return "top level";
-  if (!int(s.players?.week) || !int(s.players?.lastWeek) || !int(s.players?.allTime)) return "players";
+  if (!int(s.players?.week) || !int(s.players?.lastWeek) || !int(s.players?.allTime) || !int(s.players?.today)) return "players";
   if (!["answers", "racePicks", "blockxPicks", "total"].every((k) => int(s.plays?.[k]))) return "plays";
   if (!num(s.staked?.total) || !Array.isArray(s.staked.games) || s.staked.games.length > 20) return "staked";
   for (const g of s.staked.games) if (!int(g.id) || typeof g.name !== "string" || !g.name || g.name.length > 40 || BAD_NAME.test(g.name) || !num(g.vhp)) return "staked game";

@@ -119,9 +119,18 @@
             "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW": "215652995060184"
           },
           "seal": "58f87e95480bf1ccce48d132e780fbc2a9c8837027ded757a4e1b15a3a218476"
+        },
+        {
+          "height": 40980564,
+          "readAt": "2026-11-11T08:50:33.788Z",
+          "values": {
+            "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": "224532997805769",
+            "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW": "215529107541842"
+          },
+          "seal": "e188402e9d334d79311d605747a9d9fefcb893f791626cca9f5d93191cebd848"
         }
       ],
-      "vhpSeal": "820ed157c27e7e5c95b6aef1fb8dc6ae8be3202e113f0f219dcd0736c4bdefdc"
+      "vhpSeal": "0918360c0264da38d13a20be15d4bf7504dd841b0c6b25924590b966d34d5748"
     },
     {
       "id": "W003-D2-2",
@@ -231,9 +240,17 @@
             "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1102391549208"
           },
           "seal": "ad7975956c11105803212481623c8d57937e36d58d5df533d29e1a4c3b88677c"
+        },
+        {
+          "height": 40980564,
+          "readAt": "2026-11-11T08:50:33.788Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1101573810597"
+          },
+          "seal": "682422c17600ac6052b89b96d370692e28d7523bee6bee0cce143caa2b70639c"
         }
       ],
-      "vhpSeal": "ba507359ab5aacd1ccc5f0dfd7df1f876f72e4a89cfbbbf116aeb724c9d9f994"
+      "vhpSeal": "2c05e12dd5cc784e1fc193cb7a64eea38975c5460ce2f63052bc545cf77bc69a"
     },
     {
       "id": "W003-D2-3",
@@ -343,9 +360,17 @@
             "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": "172173861512457"
           },
           "seal": "9ed2ea163f4579936635b37ada4138363331fcea13887403f4a1b0196612ffee"
+        },
+        {
+          "height": 40980564,
+          "readAt": "2026-11-11T08:50:33.788Z",
+          "values": {
+            "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": "172059377985651"
+          },
+          "seal": "5913265fa40c8e8a3173552786a8def0900207fc769e356b878376a31982ef44"
         }
       ],
-      "vhpSeal": "bc0350055adaed81c183e19359c08a019b24d61c08f2d51404a0868955ba1b76"
+      "vhpSeal": "58d2cf028147a97aec9c136cffe6ef9923c0751ea90da26eff289e10f70326be"
     }
   ],
   "daySeal": "7e663e6e4721f6faa96ed3fe6a491c8a566f16f1584e33401a19a459b034763b"

@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
-import { buildGameConfig, uploadBuild, encodeNonce, network, mainnetGuard, uploadTx, assertAuditedContract, PICKS_SHA256, PICKS_ABI_SHA256, MAINNET_CHAIN_ID } from "../../bot/picks.ts";
+import { buildGameConfig, BRACKET_GAME, timeRounds, uploadBuild, encodeNonce, network, mainnetGuard, uploadTx, assertAuditedContract, PICKS_SHA256, PICKS_ABI_SHA256, MAINNET_CHAIN_ID } from "../../bot/picks.ts";
 
 const require = createRequire(import.meta.url);
 const sha = (b: Buffer) => crypto.createHash("sha256").update(b).digest("hex");
@@ -70,7 +70,7 @@ test("the Block X game config: game 2 on mainnet is exactly the plan's settings;
   assert.throws(() => buildGameConfig({ ...base, id: 128 }), /1 to 127/);
   assert.throws(() => buildGameConfig({ ...base, name: "x".repeat(41) }), /1 to 40 bytes/);
   const mainnet = network(false);
-  assert.equal(mainnet.games.length, 2, "on mainnet the tool registers Who Signs Block X: game 2 and (R-BX-25) hourly game 12");
+  assert.equal(mainnet.games.length, 3, "on mainnet the tool registers Who Signs Block X (game 2, hourly game 12) and Producer Bracket (game 9)");
   assert.deepEqual(buildGameConfig(mainnet.games[0]), c);
   assert.deepEqual(buildGameConfig(mainnet.games[1]), { id: 12, name: "Who Signs Block X (hourly)", kind: 1, list_size: 1, number_min: "0", number_max: "0", lock_mode: 1,
     round_size: "1200", round_offset: "0", lead: "100", ahead: "28900", max_picks_per_day: 48, max_changes: 1, enabled: true }, "R-BX-25: every 1,200 blocks, 48 picks a day");
@@ -262,4 +262,57 @@ test("Repo Lens #D-12 F-2: owner-sync writes the owner only when every node agre
 test("Repo Lens #D-12 F-3: the testnet owner comes from testnet/blockx.json's \"owner\" once a testnet handover wrote it", () => {
   const src = fs.readFileSync("bot/picks.ts", "utf8");
   assert.match(src, /const owner = isAddr\(cfg\.owner\) \? cfg\.owner : readJson\(TESTNET_MANIFEST\)\?\.owner/);
+});
+
+test("Producer Bracket, game 9 (owner 11 Nov): the exact config announced, pinned value by value (the shape can never change)", async () => {
+  const mainnet = network(false);
+  const g = mainnet.games.find((x: any) => x.id === 9);
+  assert.ok(g, "game 9 is a mainnet game of this tool");
+  assert.deepEqual(buildGameConfig(g), { id: 9, name: "Producer Bracket", kind: 3, list_size: 0, number_min: "0", number_max: "2147483647", lock_mode: 2,
+    round_size: "604800000", round_offset: "432000000", lead: "300000", ahead: "165600000", max_picks_per_day: 20, max_changes: 20, enabled: true });
+  // round_offset = (GENESIS + 1 day) mod WEEK: every target is a Tuesday 00:00 UTC.
+  const X = (globalThis as any).KBlockX;
+  assert.equal(BRACKET_GAME.offset, (X.GENESIS + 86400000) % (7 * 86400000));
+  const rs = timeRounds(BRACKET_GAME, Date.parse("2026-11-12T20:00:00Z"));
+  assert.deepEqual(rs[0], { round: rs[0].round, target: "2026-11-17T00:00:00.000Z", opens: "2026-11-15T02:00:00.000Z", locks: "2026-11-16T23:55:00.000Z" });
+  assert.equal(new Date(rs[1].target).getUTCDay(), 2, "Tuesday");
+  // The contract's limits and the Bracket's own: each refused.
+  assert.throws(() => buildGameConfig({ ...g, lead: 299999 }), /lead at least 5 minutes/);
+  assert.throws(() => buildGameConfig({ ...g, ahead: 2 * 86400000 + 1 }), /at most 48 hours/);
+  assert.throws(() => buildGameConfig({ ...g, numberMax: 2 ** 31 }), /2\^31/);
+  assert.throws(() => buildGameConfig({ ...g, offset: g.round }), /above round_offset/);
+  assert.throws(() => buildGameConfig({ ...g, picksPerDay: 51 }), /1 to 50/);
+  // The Bracket build agrees, once it is on main (PR #186): the recorder's gameProblem must accept exactly this.
+  const bm = path.resolve("bracket-math.js");
+  if (fs.existsSync(bm)) {
+    if (fs.existsSync(path.resolve("vhp-standard.js"))) await import(path.resolve("vhp-standard.js"));   // bracket-math needs it first
+    await import(bm);
+    const B = (globalThis as any).KBracketMath;
+    assert.ok(B, "bracket-math.js sets KBracketMath");
+    { assert.equal(B.GAME_ID, 9); assert.equal(B.ROUND_OFFSET, BRACKET_GAME.offset); assert.equal(B.NUMBER_MAX, BRACKET_GAME.numberMax);
+      assert.equal(B.LOCK_BEFORE, BRACKET_GAME.lead); assert.equal(B.PICKS_PER_DAY, BRACKET_GAME.picksPerDay); assert.equal(B.MAX_CHANGES, BRACKET_GAME.maxChanges); }
+  }
+});
+
+
+// ── Repo Lens #G-7 (picks-announce-bracket-9 6b1d1c63): G7-1. Append to tests/audit/picks.tool.test.ts. Fails today. ──
+// G7-1: `apply` makes the announced game permanent (its shape can never change) but checks nothing about what is pending.
+// Before sending, it must compare the pending game on chain with the tool's pinned config and refuse any difference.
+// koilib drops zero / empty fields when it decodes (list_size 0, number_min "0", max_changes 0), so the comparison
+// must treat a missing field as its zero value.
+test("G7-1 (Low): apply refuses a pending game that isn't exactly the pinned config (zero fields may be missing on chain)", async () => {
+  const m: any = await import("../../bot/picks.ts");
+  assert.equal(typeof m.pendingProblem, "function", "bot/picks.ts exports pendingProblem(pendingGame, g)");
+  const g = network(false).games.find((x: any) => x.id === 9);
+  const want = buildGameConfig(g);
+  assert.equal(m.pendingProblem(want, g), null, "the exact config passes");
+  const { list_size, number_min, ...fromChain } = want as any;   // as koilib decodes it: the zero fields are gone
+  assert.equal(m.pendingProblem(fromChain, g), null, "missing zero fields are zeros");
+  assert.match(m.pendingProblem({ ...want, number_max: "4294967295" }, g), /number_max/);
+  assert.match(m.pendingProblem({ ...want, round_offset: "0" }, g), /round_offset/);
+  assert.match(m.pendingProblem({ ...want, ahead: "172800000" }, g), /ahead/);
+  assert.match(m.pendingProblem({ ...want, name: "Producer Bracket 2" }, g), /name/);
+  assert.match(m.pendingProblem(null, g), /nothing/i);
+  const src = fs.readFileSync("bot/picks.ts", "utf8");
+  assert.match(src, /async function apply[\s\S]{0,900}pendingProblem\(pend\.game, /, "apply checks it before sending");
 });

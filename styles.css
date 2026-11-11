@@ -1,29 +1,30 @@
-/* Knode — warm trail-map paper with a scoreboard band: stone and moss for calm reading, navy and tangerine for the
-   numbers that matter (your place, your points, the pot). Variable names are kept so every page inherits it:
-   --violet is the main accent (moss), --navy/--tang the scoreboard. */
+/* Knode Games — clean white-lavender paper with dark ink for easy reading, one purple accent (Blocky's colour), and a deep
+   purple scoreboard band with tangerine for the numbers that matter (your place, your points, the pot). Colours were
+   chosen for contrast: body text is 15:1 or better, muted text 7:1 or better, buttons 5:1 or better (site.readability
+   test). Variable names are kept so every page inherits it: --violet is the main accent, --navy/--tang the scoreboard. */
 :root {
-  --paper: #F3F1EA;
+  --paper: #F6F4FF;
   --surface: #FFFFFF;
-  --ink: #22302B;
-  --muted: #5E6B63;
-  --line: #E2DCCC;
-  --contour: #D9D3C2;
-  --violet: #2F6B4F;
+  --ink: #15122B;
+  --muted: #4B4766;
+  --line: #E4E0F5;
+  --contour: #D9D3F2;
+  --violet: #5B2EE0;
   --violet-ink: #FFFFFF;
-  --violet-soft: #E3EFE7;
+  --violet-soft: #EEE9FF;
   --sun: #F2B33D;
   --sun-soft: #FBE9C8;
-  --mint: #23845E;
+  --mint: #12704F;
   --mint-soft: #DDF1E6;
-  --rose: #B4432F;
+  --rose: #A63A27;
   --rose-soft: #F8E2DA;
-  --navy: #14213D;
-  --navy-2: #1E2E52;
-  --navy-ink: #FFF8F1;
-  --navy-muted: #C9D2E3;
+  --navy: #1B1440;
+  --navy-2: #2A2260;
+  --navy-ink: #FFFFFF;
+  --navy-muted: #D4CFF5;
   --tang: #FF8A4C;
-  --tang-ink: #14213D;
-  --shadow: 0 1px 0 rgba(34, 48, 43, 0.05), 0 10px 26px -16px rgba(34, 48, 43, 0.28);
+  --tang-ink: #1B1440;
+  --shadow: 0 1px 0 rgba(21, 18, 43, 0.05), 0 10px 26px -16px rgba(21, 18, 43, 0.28);
   --r-lg: 20px;
   --r-md: 14px;
   --r-sm: 10px;
@@ -34,19 +35,19 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #131A17; --surface: #1B2420; --ink: #ECEAE2; --muted: #A5AFA8; --line: #2C3832; --contour: #25302A;
-    --violet: #7CC29C; --violet-ink: #0F1E17; --violet-soft: #1F3529; --sun: #F2B33D; --sun-soft: #3A2F14;
+    --paper: #120F2B; --surface: #1E1A42; --ink: #F4F2FF; --muted: #C9C4EE; --line: #2F2A66; --contour: #2A2560;
+    --violet: #A48BFF; --violet-ink: #120F2B; --violet-soft: #2A2260; --sun: #F2B33D; --sun-soft: #3A2F14;
     --mint: #5CCB9A; --mint-soft: #173528; --rose: #F08B74; --rose-soft: #3B201A;
-    --navy: #0E182E; --navy-2: #18264A;
+    --navy: #0C0A22; --navy-2: #1E1A5A;
     --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 30px -14px rgba(0, 0, 0, 0.7);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --paper: #131A17; --surface: #1B2420; --ink: #ECEAE2; --muted: #A5AFA8; --line: #2C3832; --contour: #25302A;
-  --violet: #7CC29C; --violet-ink: #0F1E17; --violet-soft: #1F3529; --sun: #F2B33D; --sun-soft: #3A2F14;
+  --paper: #120F2B; --surface: #1E1A42; --ink: #F4F2FF; --muted: #C9C4EE; --line: #2F2A66; --contour: #2A2560;
+  --violet: #A48BFF; --violet-ink: #120F2B; --violet-soft: #2A2260; --sun: #F2B33D; --sun-soft: #3A2F14;
   --mint: #5CCB9A; --mint-soft: #173528; --rose: #F08B74; --rose-soft: #3B201A;
-  --navy: #0E182E; --navy-2: #18264A;
+  --navy: #0C0A22; --navy-2: #1E1A5A;
   --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 30px -14px rgba(0, 0, 0, 0.7);
   color-scheme: dark;
 }

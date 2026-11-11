@@ -948,3 +948,7 @@ button.btn { min-height: 44px; }
 .brand-mark { width: 32px; height: 32px; border-radius: 9px; box-shadow: none; background: url("media/icon.svg") center / cover no-repeat; }
 .brand-mark i, .brand-mark i:first-child { display: none; }
 .welcome-how .also-card { margin-bottom: 10px; box-shadow: none; }
+
+/* No wrong-page flash (owner, 11 Nov): early-view.js sets html[data-v] before the page is drawn; only that view shows until app.js takes over. */
+html[data-v="welcome"] .view:not(#view-welcome), html[data-v="play"] .view:not(#view-play), html[data-v="leaderboard"] .view:not(#view-leaderboard),
+html[data-v="results"] .view:not(#view-results), html[data-v="how"] .view:not(#view-how) { display: none; }

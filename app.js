@@ -308,6 +308,7 @@
     document.querySelectorAll(".view").forEach((s) => (s.hidden = s.dataset.view !== v));
     document.querySelectorAll(".tabs a, .tabbar a").forEach((a) => { if (a.dataset.view === v) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     document.body && document.body.setAttribute && document.body.setAttribute("data-view", v);
+    document.documentElement.setAttribute("data-v", v);   // keeps early-view.js's first guess in step
     if (v === "leaderboard") renderBoard();
     if (v === "results") renderResults();
     if (v === "how") showRulesTab(sub);

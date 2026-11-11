@@ -1258,7 +1258,7 @@ export async function status(ctx: Ctx) {
   log(now < st.genesis ? `Game starts ${utc(st.genesis)} (in ${inH(st.genesis)})`
     : `${vaultWeek(w)}: ends ${utc(weekEnd(st, w))} (in ${inH(weekEnd(st, w))}); results final ${utc(weekEnd(st, w) + st.closeDelay)}`);
   log(`Weeks closed ${st.weeksClosed}, finalized ${st.weeksFinalized}; questions posted ${st.nextId}`);
-  // v6.1: how many questions a week may hold (week numbers here are 1-based, so the stored rule week (+1) is the label).
+  // v6.1: how many questions a week may hold. The stored rule is a week number + 1, so its label is vaultWeek(rule - 1).
   if (st.raw.questions_cap !== undefined) {
     const rule = Number(st.raw.config?.q60_rule_week_plus_one ?? 0);
     log(`Questions a week  this week ${st.raw.questions_cap ?? 30}, next week ${st.raw.questions_cap_next ?? 30}; ${rule > 0 ? `60 from ${vaultWeek(rule - 1)} (stored rule ${rule})` : "the 60 rule is not set yet (the next action sets it: 60 from next week)"}`);

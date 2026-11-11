@@ -70,8 +70,9 @@ Built from `.ai/standards/VHP_RULER.md` §16 and the owner's rulings of 5 Nov, b
 
 ## Switching a game onto the ruler (owner, 11 Nov 2026; a D-new, numbered by the Library)
 Every game is meant to score on the ruler. Each one switches by **its own PR, made by its own chat**, with its own Repo
-Lens GO (it is a money path). Order: **Bracket first**, then the Race (after its race types are live), then Block X, Last
-Node, Fantasy, Combo, and Survivor from Season 2 (`.ai/standards/VHP_RULER.md` §6). Merging v2.1 itself switches no one.
+Lens GO (it is a money path). Order: by what is proven fair at the game's race length (project doc
+`claude/ruler/FAIRNESS-BY-RACE-LENGTH-2026-11-11.md`): the Race's 6-hour race, Block X, then day-long games once the
+daily-length fix passes; Last Node and Combo at launch; Survivor from Season 2 (`.ai/standards/VHP_RULER.md` §6). Merging v2.1 itself switches no one.
 
 **The switch: one repository variable per game, `<GAME>_RULER_FROM_WEEK`** (for example `BRACKET_RULER_FROM_WEEK`).
 - **Unset or empty:** every week scores with the game's own method, as today (D-094).
@@ -85,9 +86,11 @@ Node, Fantasy, Combo, and Survivor from Season 2 (`.ai/standards/VHP_RULER.md` �
   - `switchFrom(v)` / `switch_from(v)`: reads the variable strictly. Empty → null; `1`…`999999` → the week; anything
     else (a space, `07`, a word) stops the run loudly. Never guess.
   - `rulerMode(week, from)` / `ruler_mode(week, from)`: `"off"`, `"shadow"` or `"on"`.
-  - `switchChange(prev, next, week)` / `switch_change(prev, next, week)`: null, or why a change is refused. **A change may
-    never change the mode of a week that has started.** So a first switch-on during week w must be N ≥ w + 2 (a whole
-    shadow week first); a shadow week that started can't be cancelled; a week already played never changes method.
+  - `switchChange(prev, next, week)` / `switch_change(prev, next, week)`: null, or why a change is refused. **A week that
+    has started never changes whether the ruler scores it.** So a first switch-on during week w can be N = w + 1 (from
+    next Monday); an "on" week never goes back; off and shadow may swap mid-week (shadow counts for nothing). A
+    missing previous value counts as unset. Shadow data for any race length is also available from
+    `node tools/vhp-ruler-shadow.mjs <vhp-data folder>` (the real ruler code on live data, read-only).
 - **What each game's switch PR must do:**
   1. Read its `<GAME>_RULER_FROM_WEEK` with `switchFrom`, and record the value it used (`rulerFrom`) and the week's mode
      (`rulerMode`) in every week file it publishes.

@@ -1,5 +1,5 @@
 // The ruler switch (owner, 11 Nov 2026; D-new, numbered by the Library): <GAME>_RULER_FROM_WEEK = N makes week N − 1 the
-// shadow week and every week from N "on"; unset is "off". A change may never touch a week that has started.
+// shadow week and every week from N "on"; unset is "off". A started week never changes whether the ruler scores it.
 // Run: node --import tsx --test tests/audit/vhp-ruler.switch.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -24,26 +24,27 @@ test("rulerMode: unset is off; N − 1 is the shadow week; from N it is on", () 
   for (const bad of [-1, 1.5, "5", 1000000]) assert.throws(() => R.rulerMode(bad, "7"), /week must be a vault week/);
 });
 
-test("switchChange: no week that has started changes method; a first switch-on gets a whole shadow week", () => {
-  // this week is 4 (Week 1). Off -> on at 6: week 5 is the shadow week, nothing started changes.
+test("switchChange: a started week never changes whether the ruler scores it; off and shadow may swap", () => {
+  // this week is 4 (Week 1). A first switch-on from next Monday: allowed (week 4 becomes the shadow week part-way: no money effect)
+  assert.equal(R.switchChange("", "5", 4), null);
   assert.equal(R.switchChange("", "6", 4), null);
-  // off -> 5 during week 4 would make week 4 (already running) the shadow week: refused
-  assert.match(R.switchChange("", "5", 4), /week 4 has started and would change from off to shadow; .* 6 or later/);
-  // off -> 4 during week 4: refused (the current week would turn on)
-  assert.match(R.switchChange(null, 4, 4), /week 3 has started and would change from off to shadow/);
+  // a first switch-on for the week that is running: refused
+  assert.match(R.switchChange("", "4", 4), /week 4 has started and would change from off to on; .*a first switch-on: 5 or later/);
+  assert.match(R.switchChange(null, 2, 4), /week 2 has started and would change from off to on/);
   // unchanged is always fine
   assert.equal(R.switchChange("7", "7", 50), null);
-  // moving a switch whose shadow week hasn't started: allowed, earlier or later, or back to unset
+  // moving a switch that isn't on yet: allowed, earlier (not before next week) or later, or back to unset
   assert.equal(R.switchChange("8", "9", 5), null);
-  assert.equal(R.switchChange("9", "7", 5), null);
+  assert.equal(R.switchChange("9", "6", 5), null);
   assert.equal(R.switchChange("8", "", 5), null);
-  // once the shadow week started, it can't be cancelled or moved
-  assert.match(R.switchChange("8", "", 7), /week 7 has started and would change from shadow to off/);
-  assert.match(R.switchChange("8", "10", 7), /week 7 has started and would change from shadow to off/);
-  // once on, a game never goes back to its old method for a week already played
-  assert.match(R.switchChange("6", "", 9), /week 5 has started and would change from shadow to off/);
-  assert.match(R.switchChange("6", "12", 9), /would change/);
-  assert.match(R.switchChange("6", "5", 9), /week 4 has started and would change from off to shadow/);
+  assert.equal(R.switchChange("8", "", 7), null);         // shadow week 7 cancelled: nothing it published counted
+  assert.match(R.switchChange("9", "5", 5), /week 5 has started and would change from off to on/);
+  // once on, a week already played never goes back to the game's own method, and never moves
+  assert.match(R.switchChange("6", "", 9), /week 6 has started and would change from on to off/);
+  assert.match(R.switchChange("6", "12", 9), /week 6 has started and would change from on to off/);
+  assert.match(R.switchChange("6", "5", 9), /week 5 has started and would change from shadow to on/);
+  assert.match(R.switchChange("6", "", 6), /week 6 has started and would change from on to off/);
+  assert.equal(R.switchChange("6", "10", 5), null);       // in its shadow week, the start can still move later
 });
 
 test("switchChange agrees with a week-by-week check of every started week (random cases)", () => {
@@ -51,7 +52,7 @@ test("switchChange agrees with a week-by-week check of every started week (rando
   for (let i = 0; i < 3000; i++) {
     const p = pick(), n = pick(), w = Math.floor(r() * 32);
     let want = true;
-    for (let x = 0; x <= w; x++) if (R.rulerMode(x, p) !== R.rulerMode(x, n)) want = false;
+    for (let x = 0; x <= w; x++) if ((R.rulerMode(x, p) === "on") !== (R.rulerMode(x, n) === "on")) want = false;
     assert.equal(R.switchChange(p, n, w) === null, want, `${p} -> ${n} at week ${w}`);
   }
 });
@@ -83,14 +84,15 @@ print(json.dumps(out))
   assert.deepEqual(py, js);
 });
 
-test("tools/vhp-ruler-switch.mjs: OK for a first switch-on two weeks out, refused for next week", () => {
+test("tools/vhp-ruler-switch.mjs: OK for a first switch-on from next Monday, refused for this week", () => {
   const run = (...a) => { try { return { code: 0, out: execFileSync("node", [`${APP}/tools/vhp-ruler-switch.mjs`, ...a], { encoding: "utf8" }) }; } catch (e) { return { code: e.status, out: String(e.stdout) }; } };
   const ok = run("7", "--week", "5");
   assert.equal(ok.code, 0, ok.out);
   assert.match(ok.out, /week   6  Mon, 30 Nov 2026  now: off     after: shadow/);
   assert.match(ok.out, /week   7  Mon, 07 Dec 2026  now: off     after: on/);
   assert.match(ok.out, /^OK: /m);
-  const no = run("6", "--week", "5");
+  assert.equal(run("6", "--week", "5").code, 0);
+  const no = run("5", "--week", "5");
   assert.equal(no.code, 1);
-  assert.match(no.out, /REFUSED: .*week 5 has started and would change from off to shadow/);
+  assert.match(no.out, /REFUSED: .*week 5 has started and would change from off to on/);
 });

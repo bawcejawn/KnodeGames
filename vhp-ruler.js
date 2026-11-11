@@ -563,8 +563,10 @@
    *  ruler's result beside its real one; it counts for nothing and never reaches a vault file) and every week from N is
    *  "on". switchFrom reads the variable strictly (anything else stops the run, loudly). switchChange is for the game's
    *  publish check: prev is the value its last published week file recorded, next is this run's, week is the vault week
-   *  now. A change may never change the mode of a week that has started, so a first switch-on always gets a whole
-   *  shadow week first, and a week already played or scored never changes method. It returns null, or the reason. */
+   *  now. A change may never change WHETHER a week that has started is scored by the ruler ("on"): a week already played
+   *  or scored never changes method. Off and shadow differ only in what is published beside the real score, so the
+   *  current week may move between them. A first switch-on during week w is N ≥ w + 1 (from next Monday at the
+   *  earliest). It returns null, or the reason. */
   const SWITCH_MAX = 999999;
   function switchFrom(v) {
     if (v === undefined || v === null || v === "") return null;
@@ -585,7 +587,7 @@
     const at = [0, w, p === null ? -1 : p - 1, p === null ? -1 : p, n === null ? -1 : n - 1, n === null ? -1 : n].filter((x) => x >= 0 && x <= w).sort((x, y) => x - y);
     for (const x of at) {
       const a = modeOf(x, p), b = modeOf(x, n);
-      if (a !== b) return `the ruler switch moved from ${p === null ? "unset" : p} to ${n === null ? "unset" : n}: week ${x} has started and would change from ${a} to ${b}; a change may only touch weeks after ${w} (a first switch-on: ${w + 2} or later)`;
+      if ((a === "on") !== (b === "on")) return `the ruler switch moved from ${p === null ? "unset" : p} to ${n === null ? "unset" : n}: week ${x} has started and would change from ${a} to ${b}; whether a started week is scored by the ruler never changes (a first switch-on: ${w + 1} or later)`;
     }
     return null;
   }

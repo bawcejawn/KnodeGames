@@ -14,7 +14,7 @@ const here = new URL("../../", import.meta.url).pathname;
 const box = { window: {} };
 vm.runInNewContext(fs.readFileSync(here + "vhp-ruler.js", "utf8") + fs.readFileSync(here + "race-math.js", "utf8"), box);
 const R = box.window.KRuler, RM = box.window.KRaceMath;
-export const BLOCKS_PER_DAY = 28800, RACE = 7200, VAULT = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr", BURN = 4.08e8;
+export const BLOCKS_PER_DAY = 28800, RACE = Number(process.env.RULER_SIM_RACE || 7200), VAULT = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr", BURN = 4.08e8;
 
 // ── the field at one card: every active producer's effective VHP, block by block, as plain numbers ──
 /** eff of a over [H0, H1] as a Float64Array (exact: balances are below 2^53) */

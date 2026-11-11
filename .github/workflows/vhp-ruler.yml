@@ -756,7 +756,7 @@ jobs:
 
 
           def switch_change(prev, nxt, week):
-              """as switchChange: None, or why the change touches a week that has started."""
+              """as switchChange: None, or why the change would change whether a started week is scored by the ruler."""
               w, p, n = _switch_week(week), switch_from(prev), switch_from(nxt)
               if p == n:
                   return None
@@ -764,10 +764,10 @@ jobs:
                                       -1 if n is None else n) if 0 <= x <= w)
               for x in at:
                   a, b = _mode_of(x, p), _mode_of(x, n)
-                  if a != b:
-                      return ("the ruler switch moved from %s to %s: week %d has started and would change from %s to %s; a change may "
-                              "only touch weeks after %d (a first switch-on: %d or later)"
-                              % ("unset" if p is None else p, "unset" if n is None else n, x, a, b, w, w + 2))
+                  if (a == "on") != (b == "on"):
+                      return ("the ruler switch moved from %s to %s: week %d has started and would change from %s to %s; whether a "
+                              "started week is scored by the ruler never changes (a first switch-on: %d or later)"
+                              % ("unset" if p is None else p, "unset" if n is None else n, x, a, b, w + 1))
               return None
 
 

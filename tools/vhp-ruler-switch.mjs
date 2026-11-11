@@ -27,5 +27,5 @@ for (let w = lo; w <= hi; w++) {
   console.log(`  week ${String(w).padStart(3)}  ${monday(w)}  now: ${R.rulerMode(w, prev).padEnd(6)}  after: ${R.rulerMode(w, next).padEnd(6)}${w >= 4 ? `  (Week ${w - 3})` : ""}${w === now ? "  <- this week" : ""}`);
 }
 const why = R.switchChange(prev, next, now);
-console.log(why === null ? "OK: this change touches no week that has started." : `REFUSED: ${why}`);
+console.log(why === null ? "OK: no week that has started changes method." : `REFUSED: ${why}`);
 process.exit(why === null ? 0 : 1);

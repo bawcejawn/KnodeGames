@@ -24,7 +24,7 @@ $ErrorActionPreference = "Stop"
 $Roots = @{ game = "C:\kpred-node"; desk = "C:\kpred-desk-node"; personal = "C:\koinos-personal" }
 if ($env:KNODE_TEST_ROOTS) { $Roots = @{}; ($env:KNODE_TEST_ROOTS | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $Roots[$_.Name] = $_.Value } }   # tests only
 $Repo = Split-Path $PSScriptRoot -Parent
-$Alpine = "alpine:3.20"
+$Alpine = "alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"   # the same pinned image as the Node chat's scripts (Repo Lens #F-8 F8-9)
 $stamp = Get-Date -Format "yyyyMMdd-HHmm"
 
 function Say($m) { Write-Host $m }

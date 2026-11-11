@@ -305,6 +305,14 @@ async function state(ctx: Ctx) {
 }
 /** Time (ms) week w ends. */
 const weekEnd = (st: { genesis: number; weekLen: number }, w: number) => st.genesis + (w + 1) * st.weekLen;
+/** How the bot names a week: by the vault's own number, the one in deployment.json (vaultTestWeeks), the contract and
+ *  the question files (W003 = vault week 3). It used to print one higher ("Week 4" for vault week 3), which the owner
+ *  and the chats kept having to translate (owner, 10 Nov). A test week says so. */
+export function vaultWeek(w: number, dep: any = readJson(paths(E.GEN_DIR ?? "game-data").deployment, null)): string {
+  let test = false;
+  try { test = testWeeks(dep).includes(w); } catch { /* a bad setting is reported elsewhere */ }
+  return `vault week ${w}${test ? " (test week)" : ""}`;
+}
 /** Earliest time (ms) week w can close: close_delay after the week ends and after its latest resolution (v4). */
 const closeAt = (st: { genesis: number; weekLen: number; closeDelay: number }, w: number, wk: any) =>
   Math.max(weekEnd(st, w), num(wk?.last_resolved_time)) + st.closeDelay;
@@ -551,7 +559,7 @@ async function healthPass(ctx: Ctx, bs: BotState) {
     max_sponsor_rc: String(st.c.max_sponsor_rc ?? "0"), min_sponsor_rc: String(st.c.min_sponsor_rc ?? "0"), paused: !!st.c.paused };
   const fp = JSON.stringify(settings), odd: string[] = [];
   if (dep?.minStake !== undefined && settings.min_stake !== String(dep.minStake)) odd.push(`min_stake is ${showKoin(settings.min_stake)} VHP (deployment.json: ${showKoin(dep.minStake)})`);
-  if (big(settings.min_stake_next) > 0n && big(settings.min_stake_next) !== big(settings.min_stake)) odd.push(`min_stake changes to ${showKoin(settings.min_stake_next)} VHP from week ${num(settings.min_stake_next_week) + 1}`);
+  if (big(settings.min_stake_next) > 0n && big(settings.min_stake_next) !== big(settings.min_stake)) odd.push(`min_stake changes to ${showKoin(settings.min_stake_next)} VHP from vault week ${num(settings.min_stake_next_week)}`);
   if (dep?.maxSponsorRc !== undefined && settings.max_sponsor_rc !== String(dep.maxSponsorRc)) odd.push(`free transactions are capped at ${showKoin(settings.max_sponsor_rc)} Mana (deployment.json: ${showKoin(dep.maxSponsorRc)})`);
   if (settings.paused) odd.push("the game is paused");
   if (bs.settings && bs.settings !== fp) odd.push("the owner settings changed since the last run");
@@ -993,7 +1001,7 @@ async function postRound(ctx: Ctx, bs: BotState, st: Awaited<ReturnType<typeof s
     // they end early enough for the week to close on time even at the slowest pace (the contract checks both).
     const windowStart = height + Math.ceil((lockTime - time) / MIN_BLOCK_MS) + 20;
     const maxEnd = height + Math.floor((wEnd + st.closeDelay - time) / MAX_BLOCK_MS) - RESOLVE_MARGIN - RESOLVE_SLACK;
-    log(`  releasing ${label} (week ${w + 1}, day ${dd + 1}) — answers close ${utc(lockTime)}; watched blocks from ${windowStart}`);
+    log(`  releasing ${label} (vault week ${w}, day ${dd + 1}) — answers close ${utc(lockTime)}; watched blocks from ${windowStart}`);
     if (ctx.dryRun) { log(`  [dry run] would run the generator and post its questions`); return; }
     const g = ctx.generator(["release", "--label", label, "--week", String(w), "--day", String(dd), "--count", String(current.count), ...(roundsOfWeek(w, cap).length > 1 ? ["--avoid-overlap"] : []),
       // More questions a week than 30: each producer may be in proportionally more of them (game.json's cap is for 30).
@@ -1248,12 +1256,12 @@ export async function status(ctx: Ctx) {
   const inH = (ms: number) => `${((ms - now) / HOUR_MS).toFixed(1)} h`;
   log(`Contract ${ctx.chain.contractId}  (${ctx.chain.kind})   block ${height} (irreversible ${lib}), chain time ${utc(now)}`);
   log(now < st.genesis ? `Game starts ${utc(st.genesis)} (in ${inH(st.genesis)})`
-    : `Week ${w + 1}: ends ${utc(weekEnd(st, w))} (in ${inH(weekEnd(st, w))}); results final ${utc(weekEnd(st, w) + st.closeDelay)}`);
+    : `${vaultWeek(w)}: ends ${utc(weekEnd(st, w))} (in ${inH(weekEnd(st, w))}); results final ${utc(weekEnd(st, w) + st.closeDelay)}`);
   log(`Weeks closed ${st.weeksClosed}, finalized ${st.weeksFinalized}; questions posted ${st.nextId}`);
-  // v6.1: how many questions a week may hold (week numbers here are 1-based, so the stored rule week (+1) is the label).
+  // v6.1: how many questions a week may hold. The stored rule is a week number + 1, so its label is vaultWeek(rule - 1).
   if (st.raw.questions_cap !== undefined) {
     const rule = Number(st.raw.config?.q60_rule_week_plus_one ?? 0);
-    log(`Questions a week  this week ${st.raw.questions_cap ?? 30}, next week ${st.raw.questions_cap_next ?? 30}; ${rule > 0 ? `60 from Week ${rule} (stored rule ${rule})` : "the 60 rule is not set yet (the next action sets it: 60 from next week)"}`);
+    log(`Questions a week  this week ${st.raw.questions_cap ?? 30}, next week ${st.raw.questions_cap_next ?? 30}; ${rule > 0 ? `60 from ${vaultWeek(rule - 1)} (stored rule ${rule})` : "the 60 rule is not set yet (the next action sets it: 60 from next week)"}`);
   }
   log(`Holdings  ${showKoin(holdings)}  (VHP ${showKoin(st.raw.vhp_balance)} + KOIN ${showKoin(st.raw.koin_balance)})   contract Mana ${showKoin(st.raw.mana)}`);
   log(`Owed      ${showKoin(owed)}  = stakes ${showKoin(t.total_stake)} + seed ${showKoin(big(t.seed_vhp) + big(t.seed_koin))} + producer fee ${showKoin(big(t.creator_fee) + big(t.fee_vhp))} + unclaimed pots ${showKoin(t.pots_outstanding)}${big(t.games_rolled) > 0n ? ` + buckets rolling over ${showKoin(t.games_rolled)}` : ""}${big(t.owner_share) > 0n ? ` + old owner share ${showKoin(t.owner_share)}` : ""}`);
@@ -1261,7 +1269,7 @@ export async function status(ctx: Ctx) {
   for (let k = Math.max(0, st.weeksClosed - 2); k <= Math.min(w, st.weeksClosed); k++) {
     const r = await ctx.chain.read("get_week", { week: String(k) });
     const wk = r.week ?? {};
-    log(`  week ${k + 1}: ${num(wk.questions)} questions (${num(wk.resolved)} resolved)` + (wk.closed
+    log(`  ${vaultWeek(k)}: ${num(wk.questions)} questions (${num(wk.resolved)} resolved)` + (wk.closed
       ? `, gain ${showKoin(wk.gain)} → pot ${showKoin(wk.pot)}; ${num(wk.eligible_players)} eligible` + (wk.finalized ? `, cutoff ${num(wk.cutoff)} pts, ${num(wk.winners)} winner(s), claimed ${showKoin(wk.claimed)}${wk.rolled_over ? " (rolled over)" : ""}` : `, settling until ${utc(num(wk.settle_end))}`)
       : ""));
   }
@@ -1413,7 +1421,7 @@ async function deploy(send: boolean) {
   log(`Owner              ${owner}`);
   log(`Seed owner         ${seedOwner}`);
   log(`Week 1 starts      ${utc(genesis)} (a Monday). Every week: Monday 00:00 → next Monday 00:00 UTC`);
-  log(`Daily questions    Monday–Saturday: ${SCHEDULE.map((s) => `${s.fromWeek ? `from week ${s.fromWeek + 1}${s.minCap ? ` (chain cap ≥ ${s.minCap})` : ""}: ` : ""}${s.rounds.map((r) => `${r.count} at ${String(r.open).padStart(2, "0")}:00`).join(" + ")} UTC`).join("; ")}; answers close 12 hours after each round opens. Sunday: results day`);
+  log(`Daily questions    Monday–Saturday: ${SCHEDULE.map((s) => `${s.fromWeek ? `from vault week ${s.fromWeek}${s.minCap ? ` (chain cap ≥ ${s.minCap})` : ""}: ` : ""}${s.rounds.map((r) => `${r.count} at ${String(r.open).padStart(2, "0")}:00`).join(" + ")} UTC`).join("; ")}; answers close 12 hours after each round opens. Sunday: results day`);
   log(`After each week    corrections until Monday 12:00 UTC, then winners are final Tuesday 12:00 UTC; code/seed timelock 48 h`);
   log(`Settings           min stake ${showKoin(init.min_stake)} VHP, sponsored tx limit ${showKoin(init.max_sponsor_rc)} Mana`);
   log(`Tokens             KOIN ${tokens.koin}  VHP ${tokens.vhp}  PoB ${tokens.pob}`);

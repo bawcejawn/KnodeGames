@@ -557,6 +557,39 @@
       voidsByProducer: counts(voids), setAsidesByProducer: counts(sets), repeatSenders: repeat };
   }
 
+  /** The ruler switch (owner, 11 Nov 2026: a D-new, numbered by the Library). Each game has ONE repository variable,
+   *  <GAME>_RULER_FROM_WEEK, holding a vault week N (week 0 = Mon 19 Oct 2026 00:00 UTC). Unset or empty: every week is
+   *  "off" and the game scores with its own method (D-094). Set: week N − 1 is the "shadow" week (the game publishes the
+   *  ruler's result beside its real one; it counts for nothing and never reaches a vault file) and every week from N is
+   *  "on". switchFrom reads the variable strictly (anything else stops the run, loudly). switchChange is for the game's
+   *  publish check: prev is the value its last published week file recorded, next is this run's, week is the vault week
+   *  now. A change may never change the mode of a week that has started, so a first switch-on always gets a whole
+   *  shadow week first, and a week already played or scored never changes method. It returns null, or the reason. */
+  const SWITCH_MAX = 999999;
+  function switchFrom(v) {
+    if (v === undefined || v === null || v === "") return null;
+    if (typeof v === "string" && /^[1-9][0-9]{0,5}$/.test(v)) return Number(v);
+    if (typeof v === "number" && Number.isSafeInteger(v) && v >= 1 && v <= SWITCH_MAX) return v;
+    throw new Error("the ruler switch must be empty or a vault week from 1 to 999999");
+  }
+  function switchWeek(w) {
+    if (typeof w === "number" && Number.isSafeInteger(w) && w >= 0 && w <= SWITCH_MAX) return w;
+    throw new Error("week must be a vault week from 0 to 999999");
+  }
+  function modeOf(w, f) { return f === null || w < f - 1 ? "off" : w < f ? "shadow" : "on"; }
+  function rulerMode(week, from) { return modeOf(switchWeek(week), switchFrom(from)); }
+  function switchChange(prev, next, week) {
+    const w = switchWeek(week), p = switchFrom(prev), n = switchFrom(next);
+    if (p === n) return null;
+    // each mode is constant between its two steps (N − 1 and N), so the first week ≤ w that differs is one of these
+    const at = [0, w, p === null ? -1 : p - 1, p === null ? -1 : p, n === null ? -1 : n - 1, n === null ? -1 : n].filter((x) => x >= 0 && x <= w).sort((x, y) => x - y);
+    for (const x of at) {
+      const a = modeOf(x, p), b = modeOf(x, n);
+      if (a !== b) return `the ruler switch moved from ${p === null ? "unset" : p} to ${n === null ? "unset" : n}: week ${x} has started and would change from ${a} to ${b}; a change may only touch weeks after ${w} (a first switch-on: ${w + 2} or later)`;
+    }
+    return null;
+  }
+
   /** recompute (§13): rebuild a published card FROM THE GAME'S OWN SETTINGS and compare byte for byte (Repo Lens #E-12
    *  M-1: never from the card's own settings, or a card made with the wrong window, c, own rule, paying flag or pooled
    *  list would pass). game = { game, round, window: { W0, W1, L, S0, S1 }, c, minK, poolRule, ownRule, paying, pooled }. */
@@ -596,6 +629,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, VOID_BAND, CORE_LINE, BAND_SD, isqrt, weekSummary,
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, VOID_BAND, CORE_LINE, BAND_SD, isqrt, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
     sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

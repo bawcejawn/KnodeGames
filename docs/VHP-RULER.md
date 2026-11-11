@@ -67,3 +67,41 @@ Built from `.ai/standards/VHP_RULER.md` §16 and the owner's rulings of 5 Nov, b
   `recompute`.
 - Simulations: `sims/ruler/v21.mjs` (each race drawn as on chain: a chain of exact binomials), `sim11.mjs`, `voids.mjs`,
   `jumps.mjs`. Results: project doc `claude/ruler/V21-SIM-REPORT.md`.
+
+## Switching a game onto the ruler (owner, 11 Nov 2026; a D-new, numbered by the Library)
+Every game is meant to score on the ruler. Each one switches by **its own PR, made by its own chat**, with its own Repo
+Lens GO (it is a money path). Order: **Bracket first**, then the Race (after its race types are live), then Block X, Last
+Node, Fantasy, Combo, and Survivor from Season 2 (`.ai/standards/VHP_RULER.md` §6). Merging v2.1 itself switches no one.
+
+**The switch: one repository variable per game, `<GAME>_RULER_FROM_WEEK`** (for example `BRACKET_RULER_FROM_WEEK`).
+- **Unset or empty:** every week scores with the game's own method, as today (D-094).
+- **Set to vault week N:** week N − 1 is the **shadow week** and every week from N is **on**.
+  - Shadow: the game makes and scores the ruler's cards and publishes the ruler's result **beside** its real one. It
+    counts for nothing, isn't shown as a score, and never reaches a vault file. The ruler's weekly summary (`node
+    tools/vhp-ruler-week.mjs`) for that week is checked before week N starts.
+  - On: the ruler's cards decide the round (credited blocks, `fpct`, voids, as in the v2.1 section above).
+- **Shared code, the same in both languages** (`vhp-ruler.js` / `vhp_ruler.py`, so the game's publish job, which embeds
+  `vhp_ruler.py`, runs exactly the rule the recorder ran):
+  - `switchFrom(v)` / `switch_from(v)`: reads the variable strictly. Empty → null; `1`…`999999` → the week; anything
+    else (a space, `07`, a word) stops the run loudly. Never guess.
+  - `rulerMode(week, from)` / `ruler_mode(week, from)`: `"off"`, `"shadow"` or `"on"`.
+  - `switchChange(prev, next, week)` / `switch_change(prev, next, week)`: null, or why a change is refused. **A change may
+    never change the mode of a week that has started.** So a first switch-on during week w must be N ≥ w + 2 (a whole
+    shadow week first); a shadow week that started can't be cancelled; a week already played never changes method.
+- **What each game's switch PR must do:**
+  1. Read its `<GAME>_RULER_FROM_WEEK` with `switchFrom`, and record the value it used (`rulerFrom`) and the week's mode
+     (`rulerMode`) in every week file it publishes.
+  2. Its publish job compares the previous published week file's `rulerFrom` with this run's using `switch_change`, and
+     holds the run (with an alert) if it is refused.
+  3. Shadow: publish the ruler's cards (`makeCard` / `scoreCard`) and the result they'd give, marked `"shadow": true`,
+     in their own file; the vault-file check refuses any row that came from a shadow week.
+  4. On: score from the ruler's cards; the publish job rebuilds every card with `recompute_main` from the game's own
+     settings (never the card's).
+  5. Page text in the same PR: what the ruler measures, that a pick on a voided producer counts as a loss (D-164), and
+     from which calendar Monday.
+  6. Tests: the three modes, the refused changes, a shadow row never reaching a vault file, JS = Python.
+- **Before setting the variable (owner):** `node tools/vhp-ruler-switch.mjs <N>` prints each week's mode with its
+  calendar Monday and says OK or REFUSED. It reads the clock only.
+- **Going back:** a week already played never changes method. If the ruler misbehaves in an "on" week, the game holds that
+  week with its existing hold. Turning a game off for future weeks would need a later decision (an end week); there is
+  none today.

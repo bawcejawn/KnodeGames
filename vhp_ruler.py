@@ -502,6 +502,51 @@ def week_summary(cards):
             "repeatSenders": repeat}
 
 
+SWITCH_MAX = 999999
+
+
+def switch_from(v):
+    """The ruler switch (owner, 11 Nov 2026), as switchFrom in vhp-ruler.js: None, or the vault week N."""
+    if v is None or (type(v) is str and v == ""):
+        return None
+    if type(v) is str and re.fullmatch(r"[1-9][0-9]{0,5}", v):
+        return int(v)
+    if type(v) is int and 1 <= v <= SWITCH_MAX:
+        return v
+    raise ValueError("the ruler switch must be empty or a vault week from 1 to 999999")
+
+
+def _switch_week(w):
+    if type(w) is int and 0 <= w <= SWITCH_MAX:
+        return w
+    raise ValueError("week must be a vault week from 0 to 999999")
+
+
+def _mode_of(w, f):
+    return "off" if f is None or w < f - 1 else "shadow" if w < f else "on"
+
+
+def ruler_mode(week, frm):
+    """as rulerMode: "off", "shadow" (week N − 1) or "on" (from week N)."""
+    return _mode_of(_switch_week(week), switch_from(frm))
+
+
+def switch_change(prev, nxt, week):
+    """as switchChange: None, or why the change touches a week that has started."""
+    w, p, n = _switch_week(week), switch_from(prev), switch_from(nxt)
+    if p == n:
+        return None
+    at = sorted(x for x in (0, w, -1 if p is None else p - 1, -1 if p is None else p, -1 if n is None else n - 1,
+                            -1 if n is None else n) if 0 <= x <= w)
+    for x in at:
+        a, b = _mode_of(x, p), _mode_of(x, n)
+        if a != b:
+            return ("the ruler switch moved from %s to %s: week %d has started and would change from %s to %s; a change may "
+                    "only touch weeks after %d (a first switch-on: %d or later)"
+                    % ("unset" if p is None else p, "unset" if n is None else n, x, a, b, w, w + 2))
+    return None
+
+
 def card_json(card):
     c = dict(card)
     for k in _BIG_TOP:

@@ -148,7 +148,9 @@ Timing follows `.ai/standards/WEEK_CYCLE.md`; the recorder follows `.ai/standard
    and the free-prize texts in `games.json`, `bracket.js` and `bracket.html` change with it).
 3. Set `BRACKET_PRIZES_FROM_WEEK` to game 9's first paying week: **5** (owner 11 Nov: Week 1, Mon 16 Nov, is practice).
 4. Sponsor allowlist row for game 9 picks.
-5. `games.json`: Bracket `status` → `live`, `href` → `bracket.html` (its Leaders board then shows).
+5. `games.json`: Bracket `status` → `live`, `href` → `bracket.html` (its Leaders board then shows), and the Hub card in
+   `index.html` is a link: **done in PR #186** (owner 11 Nov), so both go live when it merges. Their text says Week 1
+   (Mon 16 Nov) is practice and staked rewards start Week 2 (Mon 23 Nov).
 
 ## Review history
 - Card-era audit and two fix-checks → replaced by exact VHP (option A).

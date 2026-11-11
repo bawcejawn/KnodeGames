@@ -30,7 +30,7 @@ function inputs(over: Partial<Inputs> = {}): Inputs {
 test("players, plays, stake, today and last week's top 3 from the published sources and the vault", () => {
   const s = buildStats(inputs({ recentBlocks: null }));
   assert.equal(checkStats(s), null);
-  assert.deepEqual(s.players, { week: 4, lastWeek: 4, allTime: 5 }, "this week: A, C (answers; B has none), D (race), E (Block X)");
+  assert.deepEqual(s.players, { week: 4, lastWeek: 4, allTime: 5, today: 2 }, "this week: A, C (answers; B has none), D (race), E (Block X)");
   assert.deepEqual(s.plays, { answers: 3, racePicks: 6, blockxPicks: 3, total: 12 });
   assert.equal(s.staked.total, 48250.12);
   assert.deepEqual(s.staked.games, [{ id: 1, name: "Daily Questions", vhp: 40000 }, { id: 3, name: "Block Golf", vhp: 8250 }], "free games are left out");
@@ -40,6 +40,22 @@ test("players, plays, stake, today and last week's top 3 from the published sour
   assert.deepEqual(s.top.questions, [{ a: A, pts: 2, place: 1 }, { a: D, pts: 1, place: 2 }], "a void question scores nobody; E has 0 points so isn't listed");
   assert.deepEqual(s.top.race, [{ a: C, pts: 4, place: 1 }, { a: D, pts: 1, place: 2 }]);
   assert.deepEqual(s.top.blockx, []);
+});
+
+test("players today: today's board rows and open-question answers, only for today's UTC date, no double counting", () => {
+  const day = new Date(NOW).toISOString().slice(0, 10), old = new Date(NOW - 86400000).toISOString().slice(0, 10);
+  const withToday = (b: any, d: string, rows: any[]) => ({ ...b, today: { day: d, rows } });
+  const s = buildStats(inputs({
+    raceBoard: withToday(board([], []), day, [{ a: D, picks: 2 }, { a: C, picks: 0 }, { a: "not-an-address", picks: 1 }]),
+    blockxBoard: withToday(board([], []), day, [{ a: D, picks: 1 }, { a: E, picks: 3 }]),
+  }));
+  assert.equal(checkStats(s), null);
+  assert.equal(s.players.today, 4, "D (race + Block X, once), E, and A + C who answered open question 41; C's 0-pick race row adds nothing new");
+  const stale = buildStats(inputs({ raceBoard: withToday(board([], []), old, [{ a: D, picks: 2 }]), blockxBoard: null, qWeek: [] }));
+  assert.equal(stale.players.today, 0, "a board whose day is not today's date counts nobody");
+  assert.ok(checkStats({ ...s, players: { ...s.players, today: -1 } }));
+  assert.ok(checkStats({ ...s, players: { ...s.players, today: "<img>" } }));
+  assert.match(fs.readFileSync(".github/workflows/stats.yml", "utf8"), /\{"week", "lastWeek", "allTime", "today"\}/, "the publish job allows the new field");
 });
 
 test("a board that hasn't rolled over to this week isn't counted as this week", () => {

@@ -1,11 +1,10 @@
 {
-  "checkedUpTo": 92,
+  "checkedUpTo": 95,
   "orphans": [],
   "lastCompound": 40970620,
   "warnings": [],
-  "lastProduced": 40976050,
+  "lastProduced": 40990688,
   "producedByDay": {
-    "1414": 66,
     "1415": 40,
     "1416": 59,
     "1417": 47,
@@ -13,35 +12,32 @@
     "1419": 40,
     "1420": 55,
     "1421": 39,
-    "1422": 45
+    "1422": 53,
+    "1423": 8
   },
-  "producerScannedTo": 40976056,
+  "producerScannedTo": 40991138,
   "settings": "{\"min_stake\":\"100000000\",\"min_stake_next\":\"0\",\"min_stake_next_week\":\"0\",\"max_sponsor_rc\":\"0\",\"min_sponsor_rc\":\"0\",\"paused\":false}",
-  "sealedAt": 40976053,
+  "sealedAt": 40991134,
   "desk": {
     "settings": "{\"fee_bps\":300,\"min_swap\":\"100000000\",\"max_swap\":\"0\",\"paused\":false,\"timelock\":\"172800000\"}",
-    "koin": "294475593628",
+    "koin": "303398087925",
     "koinOut": "291097000000",
-    "at": 1794373370290
+    "at": 1794419922620
   },
   "deskProducerKey": "AzCYCDLDa49PPVHKk60xQbOErS6XY1TcEA8bkSo8Sk6E",
   "notified": [],
   "vhpLists": {
-    "2db6545392306f84e7bbfb969f081bfc9c7a4bd3ccef02a89cc7d8d11c9b835e": {
-      "n": 17,
-      "last": 40976115
-    },
-    "c2ef22a998da25749c30efa2454a4833cf33648c1390223d606779bb4673f1fb": {
-      "n": 4,
-      "last": 40976115
-    },
     "069b0e3c16ead32b2ed4639376e76c2d7d58d4747a873bc22ab30be42c31393e": {
-      "n": 4,
-      "last": 40976115
+      "n": 19,
+      "last": 40991195
     },
-    "8501197ef9c7a73638f202fc1209af5105fad0fcd281a2c06869c776e111bb3a": {
+    "2111a5eecb98d1f422f7eb918f3aaaba73a52084ec3b7dac02651968f2a988f7": {
+      "n": 5,
+      "last": 40991195
+    },
+    "1919e8a6fe6a89f6c9e9fdd21fd461134fdb0a99645bee2fce19cf922c943eec": {
       "n": 4,
-      "last": 40976115
+      "last": 40990068
     }
   },
   "manaByDay": {
@@ -57,12 +53,16 @@
     "2026-11-06": "574410116",
     "2026-11-09": "314523691",
     "2026-11-10": "375332298",
-    "2026-11-11": "204579887"
+    "2026-11-11": "500177080"
   },
   "games": "[[1,true,true,true,0,0,0],[2,true,true,true,1,3,0],[7,true,true,true,1,3,0]]",
   "vault": {},
   "ownResolves": [
-    1794350878062
+    1794350878062,
+    1794381458841,
+    1794391382307,
+    1794391408240,
+    1794419906680
   ],
-  "seal": "ed20913d1b022f276142c38443699431b964f4b54790d946c2c78a08ec8f4080"
+  "seal": "6ce0ae5a62d2b26c57c57b825e514b93fa70eb5d9d7cbab14c8afeec530c9e51"
 }

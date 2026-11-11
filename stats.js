@@ -24,7 +24,7 @@
     if (Date.parse(s.updated) - now > 10 * 60000) return null;                         // dated in the future (C9-3)
     if (!s.week || !Number.isInteger(s.week.start) || !Number.isInteger(s.week.end) || s.week.end <= s.week.start) return null;
     const p = s.players, pl = s.plays, st = s.staked, t = s.today, top = s.top;
-    if (!p || !int(p.week) || !int(p.lastWeek) || !int(p.allTime)) return null;
+    if (!p || !int(p.week) || !int(p.lastWeek) || !int(p.allTime) || !(p.today === undefined || int(p.today))) return null;   // today: older files lack it
     if (!pl || !["answers", "racePicks", "blockxPicks", "total"].every((k) => int(pl[k]))) return null;
     if (!st || !num(st.total) || !Array.isArray(st.games) || st.games.length > 20) return null;
     for (const g of st.games) if (!g || !int(g.id) || typeof g.name !== "string" || !g.name || g.name.length > 40 || BAD_NAME.test(g.name) || !num(g.vhp)) return null;
@@ -70,6 +70,7 @@
   function stripFacts(s, now = Date.now()) {
     const out = [];
     if (s.staked.total >= MIN.staked) out.push([`${vhpText(s.staked.total)} VHP`, "staked in the prize vault"]);
+    if (s.players.today >= MIN.players && now < s.week.end) out.push([fmt(s.players.today), "players today"]);
     if (s.players.week >= MIN.players) out.push([fmt(s.players.week), "players this week"]);
     if (s.plays.total >= MIN.plays) out.push([fmt(s.plays.total), "answers and picks this week"]);
     out.push(["2 + 1 VHP", "weekly free prizes in games with prizes on"]);
@@ -106,6 +107,7 @@
     head.append(el("h2", null, "Knode Games right now"), el("small", null, `Updated ${ago(s.updated, now)}`));
     const tiles = el("div", "stats-tiles");
     tiles.append(
+      ...(s.players.today === undefined || now >= s.week.end ? [] : [tile(fmt(s.players.today), "players today", "wallets with a pick since 00:00 UTC")]),
       tile(fmt(s.players.week), `players ${weekWord(s, now)}`, `${fmt(s.players.lastWeek)} the week before · ${fmt(s.players.allTime)} wallets all time`),
       tile(fmt(s.plays.total), `answers and picks ${weekWord(s, now)}`, `${fmt(s.plays.answers)} answers · ${fmt(s.plays.racePicks)} race picks · ${fmt(s.plays.blockxPicks)} Block X picks`),
       tile(`${vhpText(s.staked.total)} VHP`, "staked in the prize vault", s.staked.games.length ? s.staked.games.map((g) => `${g.name} ${vhpText(g.vhp)}`).join(" · ") : null),

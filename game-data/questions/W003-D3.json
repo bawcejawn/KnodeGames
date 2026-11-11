@@ -1,0 +1,227 @@
+{
+  "date": "W003-D3",
+  "week": 3,
+  "day": 3,
+  "tier": "Medium",
+  "released": "2026-11-11T12:02:26.614Z",
+  "questions": [
+    {
+      "id": "W003-D3-1",
+      "date": "W003-D3",
+      "week": 3,
+      "day": 3,
+      "tier": "Medium",
+      "template": "M5",
+      "releaseHeight": 40984193,
+      "lockHeight": 40999697,
+      "lockTime": 1794441600000,
+      "title": "Average block interval",
+      "text": "What will be the average time between blocks between block 40,999,698 and block 41,004,697?",
+      "subjects": [],
+      "unit": "ms",
+      "windowStart": 40999698,
+      "windowEnd": 41004697,
+      "thresholds": [
+        3066,
+        3084,
+        3103
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "3.066 s or less",
+          "min": null,
+          "max": 3066
+        },
+        {
+          "index": 1,
+          "label": "3.067 s to 3.084 s",
+          "min": 3067,
+          "max": 3084
+        },
+        {
+          "index": 2,
+          "label": "3.085 s to 3.103 s",
+          "min": 3085,
+          "max": 3103
+        },
+        {
+          "index": 3,
+          "label": "3.104 s or more",
+          "min": 3104,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.25609756097560976,
+        0.24390243902439024,
+        0.24390243902439024,
+        0.25609756097560976
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {},
+        "window": 5000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "network": "2293747390653830"
+        },
+        "vhpHeight": 40984302,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "a357834bbd03a1afd50ee84dfdef9dedf2363f140dc655a7efef13cb83e550b9",
+      "chainId": 92
+    },
+    {
+      "id": "W003-D3-2",
+      "date": "W003-D3",
+      "week": 3,
+      "day": 3,
+      "tier": "Medium",
+      "template": "M1",
+      "releaseHeight": 40984193,
+      "lockHeight": 40999697,
+      "lockTime": 1794441600000,
+      "title": "Core producer quartiles",
+      "text": "How many blocks will producer 1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU sign between block 40,999,698 and block 41,009,697 (about 8 hours)?",
+      "subjects": [
+        "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU"
+      ],
+      "unit": "count",
+      "windowStart": 40999698,
+      "windowEnd": 41009697,
+      "thresholds": [
+        663,
+        690,
+        724
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "663 or fewer",
+          "min": null,
+          "max": 663
+        },
+        {
+          "index": 1,
+          "label": "664 to 690",
+          "min": 664,
+          "max": 690
+        },
+        {
+          "index": 2,
+          "label": "691 to 724",
+          "min": 691,
+          "max": 724
+        },
+        {
+          "index": 3,
+          "label": "725 or more",
+          "min": 725,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.24838411819021236,
+        0.25115420129270544,
+        0.25761772853185594,
+        0.24284395198522624
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {
+          "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": 0.07152777777777777
+        },
+        "forecast": {
+          "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": 0.06875
+        },
+        "window": 10000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "85915825040037"
+        },
+        "vhpHeight": 40984302,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "ba77799a19b2244f5e7c5536144298be72a4b83d74167143cb4adbc18979ae8b",
+      "chainId": 93
+    },
+    {
+      "id": "W003-D3-3",
+      "date": "W003-D3",
+      "week": 3,
+      "day": 3,
+      "tier": "Medium",
+      "template": "M7",
+      "releaseHeight": 40984193,
+      "lockHeight": 40999697,
+      "lockTime": 1794441600000,
+      "title": "Transactions in the window",
+      "text": "How many transactions will be included in blocks between block 40,999,698 and block 41,004,697?",
+      "subjects": [],
+      "unit": "count",
+      "windowStart": 40999698,
+      "windowEnd": 41004697,
+      "thresholds": [
+        26,
+        31,
+        41
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "26 or fewer",
+          "min": null,
+          "max": 26
+        },
+        {
+          "index": 1,
+          "label": "27 to 31",
+          "min": 27,
+          "max": 31
+        },
+        {
+          "index": 2,
+          "label": "32 to 41",
+          "min": 32,
+          "max": 41
+        },
+        {
+          "index": 3,
+          "label": "42 or more",
+          "min": 42,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.25609756097560976,
+        0.24390243902439024,
+        0.24390243902439024,
+        0.25609756097560976
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {},
+        "window": 5000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "network": "2293747390653830"
+        },
+        "vhpHeight": 40984302,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "262a07ad5681ca8eaf1b5b0455a52ca49ee5b3b2f33ec96d1845673755cef8e1",
+      "chainId": 94
+    }
+  ],
+  "daySeal": "3ed34960d7e3a78c9d85a5c54535dea1c0e913ee6d3c788632880f753bda0f17"
+}

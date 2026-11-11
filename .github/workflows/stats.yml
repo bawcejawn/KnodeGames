@@ -113,7 +113,7 @@ jobs:
           age = calendar.timegm(time.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S"))
           assert abs(time.time() - age) <= 2 * 3600, "updated: more than 2 hours from now"
           assert type(s["week"]) is dict and set(s["week"]) == {"start", "end"} and all(type(s["week"][k]) is int for k in ("start", "end")), "week"
-          assert set(s["players"]) == {"week", "lastWeek", "allTime"} and all(i(v) for v in s["players"].values()), "players"
+          assert set(s["players"]) == {"week", "lastWeek", "allTime", "today"} and all(i(v) for v in s["players"].values()), "players"
           assert set(s["plays"]) == {"answers", "racePicks", "blockxPicks", "total"} and all(i(v) for v in s["plays"].values()), "plays"
           st = s["staked"]
           assert set(st) == {"total", "games"} and num(st["total"]) and type(st["games"]) is list and len(st["games"]) <= 20, "staked"

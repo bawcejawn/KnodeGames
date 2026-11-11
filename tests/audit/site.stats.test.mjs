@@ -12,7 +12,7 @@ const A = "1Nti1ZmdisnJ8J9FJsmTSt1nMKPyzWZxdz", B = "1LRshrZHPmft4SuaniExEsyzFec
 function sample(over = {}) {
   const now = Date.now();
   return { v: 1, updated: new Date(now - 20 * 60000).toISOString(), week: { start: now - 2 * 86400000, end: now + 5 * 86400000 },
-    players: { week: 64, lastWeek: 51, allTime: 230 }, plays: { answers: 410, racePicks: 120, blockxPicks: 35, total: 565 },
+    players: { week: 64, lastWeek: 51, allTime: 230, today: 27 }, plays: { answers: 410, racePicks: 120, blockxPicks: 35, total: 565 },
     staked: { total: 48250.12, games: [{ id: 1, name: "Daily Questions", vhp: 40000 }, { id: 3, name: "Block Golf", vhp: 8250.12 }] },
     prizes: { free: [2, 1] }, blocks: { vault24h: 48 }, today: { open: 3, closes: now + 3 * 3600000, answers: 41 },
     top: { questions: [{ a: A, pts: 22, place: 1 }, { a: B, pts: 19, place: 2 }], race: [], blockx: [{ a: B, pts: 1, place: 1 }] }, ...over };
@@ -36,7 +36,7 @@ test("the strip shows up to 3 strong facts, from one fetch of the stats-data fil
   const s = d.getElementById("stats-strip");
   assert.equal(s.hidden, false);
   const facts = [...s.querySelectorAll(".stats-fact")].map((f) => f.textContent);
-  assert.deepEqual(facts, ["48,250 VHP staked in the prize vault", "64 players this week", "565 answers and picks this week"]);
+  assert.deepEqual(facts, ["48,250 VHP staked in the prize vault", "27 players today", "64 players this week"]);
 });
 test("small numbers stay off the strip (research item 18); free prizes always qualify", async () => {
   const { d } = await page(STRIP, sample({ players: { week: 14, lastWeek: 9, allTime: 30 }, plays: { answers: 30, racePicks: 5, blockxPicks: 1, total: 36 }, staked: { total: 300, games: [] } }));
@@ -57,7 +57,7 @@ test("the panel shows every number and last week's top 3 with @names, all as tex
   const p = d.getElementById("stats-panel");
   assert.equal(p.hidden, false);
   const t = p.textContent;
-  for (const want of ["64players this week", "51 the week before · 230 wallets all time", "565answers and picks this week", "410 answers · 120 race picks · 35 Block X picks",
+  for (const want of ["27players today", "64players this week", "51 the week before · 230 wallets all time", "565answers and picks this week", "410 answers · 120 race picks · 35 Block X picks",
     "48,250 VHPstaked in the prize vault", "Daily Questions 40,000 · Block Golf 8,250", "2 + 1 VHPweekly free prizes in games with prizes on", "48blocks made by the prize vault", "3 openquestions, answers close in", "41 answers so far", "Updated 20 min ago"]) assert.ok(t.includes(want), `missing "${want}" in ${t}`);
   const qs = [...p.querySelectorAll(".stats-top")][0];
   assert.deepEqual([...qs.querySelectorAll("li")].map((l) => l.textContent), ["#1@alice · 1Nti1Z…zdxz22 points", "#2" + B.slice(0, 6) + "…19 points"]);

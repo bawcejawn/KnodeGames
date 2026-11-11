@@ -10,7 +10,7 @@
 | When (UTC) | Pacific | What | Who | Source |
 |---|---|---|---|---|
 | Thu 5 Nov, 15:51 | 7:51 AM | Games 2 (Block X) and 7 (Race) become applicable: `game-apply 2`, `game-apply 7`, then `PRIZES_FROM_WEEK = 3` | Owner | D-077 |
-| **Thu 5 Nov** | after the apply (by Sat 7, 9 AM PT at the latest) | **Announce vault v6.1** (starts the 48 h), signed by the current owner `1635QU…` | Owner | D-130 |
+| **Thu 5 Nov** | ✅ ~11:01 AM PT | **Vault v6.1 announced** ✅ (`11043e1f…`, tx `0x1220a4a9…66b0`, signed by `1635QU…`; replaced the 4 Nov `399171a2…` announcement); uploadable from Sat 7 19:01 UTC | Owner | D-130 |
 | Thu 5 Nov | after the apply | Tell players: Week 1 starts Mon 9 (three games paying, two Questions rounds a day, free prizes) | Owner | D-064 |
 | Thu 5 Nov | any time | Turn the VHP ruler's recorder on (`VHP_RULER_ENABLED = true`; data only) | Owner | D-128 |
 | Fri 6 Nov | ~noon | Latest safe `game-add` for any game to earn from Mon 9 (none planned) | Owner | `GO_LIVE_CHECKLIST` timing rule |
@@ -27,7 +27,9 @@
 | Tue 10 Nov, ~12:07 | ~4 AM | Questions Week 3 paid (v5 split; free 1 + 1 VHP) | Bot | D-069 |
 | Tue 10 Nov | 10 AM | First weekly review | Owner + library chat | `WEEKLY_REVIEW.md` |
 | Sun 15 Nov | — | Block X's first review day (no scoring); Race fun races | Recorders | #160, D-129 |
-| by Sun 15 Nov | — | Block X goes final at Mon 00:00 (R-BX-24 merged) | Block X chat | D-135 |
+| by Sun 15 Nov | — | ✅ Block X goes final at Mon 00:00 (#175 merged 5 Nov) | Block X chat | D-135 |
+| **by Sun 15 Nov** | — | **Daily Questions results recorder merged** (needed for Questions' rule-week payout; R-Q-4, I-101) | Questions chat → Repo Lens → library | D-116 |
+| Sun 15 Nov, 23:48 | 3:48 PM | First 4 + 4 round released (the 60 cap from Mon 16) | Bot | R-Q-3 |
 | **Mon 16 Nov, 00:00** | Sun 15, 4 PM | **v6.1 rule week:** the 60-question cap (4 + 4 rounds a day, 48 a week); Daily Questions paid like every game (results file, `claim_game`). #152 ✅ merged 5 Nov; #114 merged by now | Vault, owner | D-116, D-130 |
 | Mon 16 Nov, 12:00 | 4 AM | First vault close with Block X and the Race in it; check status, buckets, free prizes; `claim-fee-vhp all` | Owner | TODOS |
 | Mon 16 Nov | ~6–8 PM | First Block X / Race claims | Players | `WEEK_CYCLE.md` |

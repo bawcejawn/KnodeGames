@@ -7,6 +7,8 @@ the rewards that the stake earns by producing blocks.
 
 Play: <https://knodegames.com> (any browser; on a phone, "Add to Home Screen" installs it like an app).
 
+**Project status at a glance:** [`STATUS.md`](STATUS.md) (what's live, in progress, blocked and decided).
+
 ## How it works
 
 - **One vault holds every stake.** All staked VHP sits in one contract, the vault

@@ -58,11 +58,11 @@ test("seasons: a 2-week season pays only if the switch was on for both weeks", (
 });
 
 test("malformed files are refused; unknown games are refused", () => {
-  for (const bad of [null, {}, { v: 2, games: {} }, { v: 1, games: [] }, { v: 1, games: { "1": [] } }, { v: 1, games: { "2": [{ from: 3, on: "yes", set: "2026-11-03T00:00:00Z" }] } },
+  for (const bad of [null, {}, { v: 2, games: {} }, { v: 1, games: [] }, { v: 1, games: { "1x": [] } }, { v: 1, games: { "2": [{ from: 3, on: "yes", set: "2026-11-03T00:00:00Z" }] } },
     { v: 1, games: { "2": [{ from: 4, on: true, set: "2026-11-03T00:00:00Z" }, { from: 3, on: false, set: "2026-11-03T00:00:00Z" }] } }])
     assert.notEqual(checkSwitches(bad), "", JSON.stringify(bad));
   assert.throws(() => setSwitch(empty(), 5, true, at(3)), /isn't a vault game/);
-  assert.throws(() => setSwitch(empty(), 1, true, at(3)), /isn't a vault game/);
+  assert.doesNotThrow(() => setSwitch(empty(), 1, true, at(3)), "D-136: game 1 is on the switch");
 });
 
 // ── the vault bot obeys the switch (a stub chain: game 3, a free-prize game, week 3 just ended) ──
@@ -148,4 +148,16 @@ test("FP-3 / FP-4: no publishing within 30 minutes of Monday 00:00 UTC", () => {
   assert.equal(nearWeekEdge(at(4, 0.4)), true, "Monday 00:24");
   assert.equal(nearWeekEdge(at(4, 0.6)), false, "Monday 00:36");
   assert.equal(nearWeekEdge(at(4, 50)), false, "Wednesday");
+});
+
+test("D-136: Daily Questions (game 1) is on the switch: it can be set, and the bot reads it for its weeks", () => {
+  assert.equal(checkSwitches({ v: 1, games: { "1": [{ from: 4, on: true, set: "2026-11-10T17:00:00.000Z" }] } }), "");
+  const now = Date.UTC(2026, 10, 10, 17);                 // Tue 10 Nov: the week of Mon 9 is vault week 3
+  const { next, from } = setSwitch(empty(), 1, true, now);
+  assert.equal(from, 4, "set in the week of Mon 9, it counts from Mon 16 (the rule week)");
+  assert.equal(switchFor(next, 1, 4), true);
+  assert.equal(prizeOn(next, 1, 4), true);
+  const off = setSwitch(next, 1, false, Date.UTC(2026, 10, 17, 12)).next;
+  assert.equal(prizeOn(off, 1, 5), false, "switched off in week 4, no game-1 free winners from week 5");
+  assert.equal(prizeOn(off, 1, 4), true, "the week in progress keeps its value");
 });

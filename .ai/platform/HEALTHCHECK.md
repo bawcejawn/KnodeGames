@@ -1,68 +1,67 @@
 # Knode Games — Library Health Check
 
-> **Purpose:** a CTO / architect review of the whole `.ai/` library and what it says about the platform: strengths, weaknesses, missing information, three quality scores and the top 10 priorities. A **dated snapshot**; for live status read `LAUNCH_BOARD.md`, `CALENDAR.md` and `AUDITS.md`.
-> **Reviewed:** Thu 5 Nov 2026, ~05:45 UTC; architecture re-scored ~07:00 UTC after the target architecture was written (Wed 9:45 PM PT), after PRs #165, #166, #167 and #169. Every file in `.ai/` outside `archive/` (51 files, ~620 KB).
-> **Previous checks:** `../archive/2026-11-05/HEALTHCHECK-2026-11-04-evening.md` (7 / 7 / 5.5) and earlier copies in `../archive/`.
+> **Purpose:** a CTO / architect review of the whole `.ai/` library and what it says about the platform: strengths, weaknesses, missing information, three quality scores and the top 10 priorities. A **dated snapshot**; for the whole system at a glance read [`../../STATUS.md`](../../STATUS.md); for live status read `LAUNCH_BOARD.md`, `CALENDAR.md` and `AUDITS.md`.
+> **Reviewed:** Fri 6 Nov 2026, ~05:00 UTC (Thu 5 Nov 9 PM PT), on `main` after PR #236. Every file in `.ai/` outside `archive/`: 54 files, ~790 KB.
+> **Previous checks:** `../archive/2026-11-05/HEALTHCHECK-2026-11-05-afternoon.md` (8.5 / 8 / 8), `…-morning.md` (8.5 / 7.5 / 8), `…/HEALTHCHECK-2026-11-04-evening.md` (7 / 7 / 5.5).
 
-**Open load:** 57 open issues · 51 owner to-dos · 78 chat requests · 19 debt items · 14 documentation gaps · 141 decisions (D-001 – D-141, index and entries match) · 125 ❓ marks · 11 `{{TBD}}` placeholders · 2 open PRs (#114 after Monday's upload, #141 after v6.1 is live).
+**Open load:** 66 open issues · 51 owner to-dos · 78 chat requests (75 open) · 19 debt items · 14 documentation gaps · 170 decision numbers (D-001 – D-170; 168 entries: D-152 lands with #182, D-166 with #216) · 113 ❓ marks · 16 open PRs · 43 remote branches (222 old ones deleted 5 Nov).
 
 ## 1. Current strengths
-- **Funds design is sound and written down.** Only the vault holds stakes; every stake is withdrawable; a withdrawals-only build is ready (D-003, D-016, D-021). `REPO_MAP.md` now sorts every part of the repo by funds risk (tier 1 contracts, tier 2 payout code, tier 3 the rest).
-- **One home per fact, and it holds.** Timing → `standards/WEEK_CYCLE.md`; sponsor numbers → `SPONSOR.md`; dates → `CALENDAR.md`; reviews and merge order → `AUDITS.md`; stages → `LAUNCH_BOARD.md`. Other files point instead of copying.
-- **Decisions are complete and in order.** 141 entries, oldest first, every one indexed, superseded ones marked, no open contradictions. The owner's words are quoted in each new entry.
-- **The library is current.** Every working file was synced on 5 Nov from the chats' handoffs; finished items are in `../archive/DONE.md`, closed issues in `../archive/ISSUES_CLOSED.md`.
-- **Onboarding is a path, not a pile.** `START_HERE.md` opens with an "I want to…" map; a new game follows `standards/NEW_GAME.md` → `GO_LIVE_CHECKLIST.md`; every chat starts from `standards/AI_CHAT_STARTER.md` and ends with `SESSION_END_PROCESS.md`.
-- **Safety process is real.** Mainnet sends need `--send` and `CONFIRM_MAINNET`; contract upgrades are audited on the exact build, announced 48 h ahead, hash-checked; recorders publish pending results on the Sunday review day and hold on any mismatch.
-- **Operations are covered:** `RUNBOOK.md`, `ALERTS.md`, `RECOVERY.md`, `KEYS_AND_ROLES.md`, `FREE_PRIZE_SWITCH.md`.
-- **Standing rules for speed and quality:** push when ready (D-133), fix every review finding in one pass (D-140), one weekly standard for every game (D-134).
+- **Funds safety is designed, written and checked on chain.** Only the vault holds stakes; stakes are always withdrawable; a withdrawals-only build is pinned per vault version. v6.1 was announced on chain with the reviewed build (`11043e1f…`), replacing an older announcement that would not have matched. `CONTRACTS.md` registers every live contract, hash, timelock and owner.
+- **One map, kept current.** `STATUS.md` (top of the repo) is linked first from every entry point; the session-end process requires updating it; it was refreshed tonight (#228).
+- **A complete, consistent standards set.** Game, contract, new-game, week, recorder, kit, leaderboard, vault, token and go-live standards; onboarding docs now point every chat to the kit and D-157 – D-160 (#228).
+- **Payout rules unified and locked.** Who gets paid (D-152) and the one free-prize tie rule (D-159, with the owner's three answers) are written in every standard; games that differ are filed (I-103, I-104) and the Race already fixed its copy in #182.
+- **Owner-in-the-loop works in practice.** "Any rule ambiguity stops the build" (D-160) was used three times tonight (free-prize score time, the ruler's yardstick, the ruler's marks) and each answer became a decision the same hour (D-159, D-165, D-170).
+- **No double work by design.** Every new game launches on the Shared Game Kit (D-158, D-160); Golf is held for it (D-161); the kit's core is in review (#210).
+- **Repository hygiene.** 222 merged or abandoned branches deleted with a lease check (nothing lost; restore list in the Claude project); public files keep roles and addresses only, key details stay private.
 
 ## 2. Current weaknesses
-- **Status still lives in several lists.** `CHAT_REQUESTS` (78 rows, 41 KB), `TODOS` (51 items), `OPENISSUES` (57), `PRIORITIES`, `LAUNCH_BOARD` and `CALENDAR` overlap. Each has its job, but a busy day still needs 5–6 edits to stay true.
-- **Big files are hard to scan:** `DECISIONS.md` (113 KB), `ARCHITECTURE.md` (41 KB), `CHAT_REQUESTS.md` (41 KB), `VHP_RULER.md` (35 KB).
-- **Many unknowns:** 125 ❓ marks and 11 `{{TBD}}`, mostly in `ARCHITECTURE.md` (contract versions, workflows, the folder map), `KOINOS.md` and `FOUNDER_INTENT.md` (measurable targets).
-- **The repo layout looks crowded** (84 files at the root, because GitHub Pages publishes the root). Fixed by `REPO_MAP.md` §4, not yet done.
-- **Architecture risks still open** (they're recorded, not hidden):
-  - the owner key is hot until the cold-key handover (Tue 10 Nov);
-  - the bot pushes straight to `main` (TD-03);
-  - the site is served from the whole repo until the Pages allow-list (R-HUB-14);
-  - two copies of the game-1 claim rules (I-092);
-  - one PC runs all three nodes (TD-08, TD-10);
-  - the VHP ruler pays nothing until v2.1 passes all eleven simulations (R-RULER-2);
-  - the full platform audit hasn't run (I-002, D-102).
-- **Review loops have been slow:** findings fixed a few at a time over several fix-checks. D-140 now requires one pass.
-- **Two standards lag a day:** `VAULT_STANDARD.md` waits on #141; `SESSION_END_PROCESS.md` (3 Nov) doesn't yet name D-140's "fix it in one pass" step.
+- **Decision numbers collide between chats.** Twice tonight a chat used a number already taken on `main` (#216 "D-161", #222 "D-162"). The library renumbered (#225, #226), but #216 still carries "D-161" until the Race chat renames it.
+- **The library still trails the owner by hours on some actions.** The v6.1 announcement was only ticked in `TODOS.md`, `CALENDAR.md` and `CONTRACTS.md` with this check.
+- **The review queue is the bottleneck:** 16 open PRs; the three with deadlines (#203 Questions by Sun 15, #182 Race before Mon 16, #210 the kit) all wait on a Repo Lens send.
+- **Work continues on held items.** Golf has two more open PRs (#218 go-live, #234 fixes) while D-161 holds it; fixes are allowed, but a go-live PR open on a held game invites a wrong merge.
+- **Big files keep growing:** `DECISIONS.md` 140 KB (+10 KB today), `CHAT_REQUESTS.md` 51 KB, `ARCHITECTURE.md` 47 KB, `VHP_RULER.md` 39 KB.
+- **References to missing files remain** (10 mentions of `docs/VHP-STANDARD.md`, `vhp-standard.js`, `bot/vhp-chain.ts`) and the ❓ count hasn't moved (113).
+- **Architecture risks still open (recorded):**
+  - five hand-built recorders until the kit migrations;
+  - the owner key is hot until the handover (Tue 10);
+  - the bot pushes data to `main`, and no PR check is required (TD-03, A2, A3);
+  - the whole repo is served as the website (R-HUB-14; allow-list proposed 6 Nov);
+  - one PC runs all nodes (D-147);
+  - the ruler pays nothing until its re-judged sims and fix-check are GO (D-111, D-170);
+  - the full platform audit hasn't run (D-102).
+- **The weekly review hasn't run yet** (first: Tue 10 Nov).
 
 ## 3. Missing information
 | Missing | Where it should live | Why it matters |
 |---|---|---|
-| **A register of live contracts:** address, live build hash, upload date, last audit and its commit, upgrade timelock, owner | one table (suggested `platform/CONTRACTS.md`) | tier-1 safety and the full audit start here; today it's split over `ARCHITECTURE.md` (TBDs), `REPO_MAP.md` §3 and the deployment files |
-| **Data formats:** each game's results file, `board.json`, week files, `index.json`, `names.json`, `vhp-data` hours | `platform/DATA_FORMATS.md` (gap #15) | payouts depend on these files; every new game must match them |
-| **Swap Desk** rules, fee, treasury, liquidity, its node | `platform/SWAP_DESK.md` (gap #9) | the only live product holding funds without its own page |
-| **Announcement process:** where, who, the checklist | `GO_LIVE_CHECKLIST.md` (gap #29) | Week 1 is announced this week |
-| **Measurable targets** (players a week, VHP staked, daily transactions) | `FOUNDER_INTENT.md` | the north star (D-076) can't be tracked without them |
-| **Points per correct answer / pick** (Questions, Block X) | the game files (gap #11) | players and the profile page (D-137) need them |
-| **Desk node rebuild steps; `docs/MIGRATION.md` is stale** | `RECOVERY.md` (gaps #33, #34) | recovery after losing the PC |
-| **Contract version history** (all hashes and dates) | the contract register | audits and rollbacks |
+| **A decision-number rule** (only the library assigns D-numbers; chats propose "D-new") | `SESSION_END_PROCESS.md`, `AI_CHAT_STARTER.md` §1 | stops tonight's collisions |
+| **Data formats** (week files, `index.json`, `board.json`, pending / final, HOLD / RELEASE, vault file, prize files) | `standards/DATA_FORMATS.md` | the kit implements them now; payouts depend on them |
+| **The Pages allow-list** (patterns proposed 6 Nov) | `REPO_MAP.md` and the Hub chat's R-HUB-14 | internal files are downloadable from the site |
+| **Each game's "score time"** for the free-prize tie-break (D-159) | each game file (R-ALL-12) | written for Questions and the Race only |
+| **Swap Desk** page (rules, fee, treasury, liquidity, its node) | `platform/SWAP_DESK.md` | the only funds-holding product without one |
+| **Desk node rebuild; stale `docs/MIGRATION.md`** | `RECOVERY.md` | recovery after losing the PC |
+| **Measurable targets** (players a week, VHP staked) | `FOUNDER_INTENT.md` | the north star can't be tracked |
 
 ## 4. Scores (out of 10)
-| Area | Score | Was (4 Nov eve) | Why |
+| Area | Score | Was (5 Nov afternoon) | Why |
 |---|---|---|---|
-| **Documentation quality** | **8.5** | 7 | current, plain-language, one home per fact, onboarding path, glossary, calendar; held back by the ❓ / TBD count and the three missing references in §3 |
-| **Architecture quality** | **7.5** | 7 | funds isolation, audited timelocked contracts, two-node checks and holds are strong; now written as principles, a contract register (`CONTRACTS.md`) and a dated target architecture (ARCHITECTURE A1–A10); held back until those steps land: hot owner key until Tue, bot pushes to `main`, whole-repo site, one PC, ruler not yet paying and no full audit hold it back |
-| **Organization quality** | **8** | 5.5 | decisions ordered, overlap retired, archive clean, paused work set aside, funds-risk map; held back by the crowded root, the size of three files and the overlapping status lists |
+| **Documentation quality** | **8.5** | 8.5 | gained: onboarding on the kit, every owner ruling filed the same hour, v6.1 recorded; held back by number collisions, missing `DATA_FORMATS.md`, references to missing files, 113 ❓ |
+| **Architecture quality** | **8** | 8 | the kit's core is built and in review, the ruler's gaming hole is closed (E) with settled marks, the free-prize rule is one; held back until shipped: hand-built recorders, open payout mismatches (Block X, Bracket), hot owner key, bot pushes to `main`, whole-repo site, one PC, no full audit |
+| **Organization quality** | **8.5** | 8 | branches 265 → 43, onboarding and status current, held items labelled; held back by 16 open PRs, four very large files, decision-number collisions |
 
-**To reach 10:** documentation — write the three files in §3's top rows and clear the TBDs; architecture — ARCHITECTURE "Target architecture" A1–A10 (cold keys Tue 10, required CI on every PR, data off `main`, Pages allow-list, tagged releases, the shared game kit, ruler v2.1, a standby machine, observability, the full audit); organization — `REPO_MAP.md` §4 steps 1–4, then split `DECISIONS.md` by year or area once it passes ~150 entries.
+**To reach 10:** documentation — the decision-number rule, `DATA_FORMATS.md`, `SWAP_DESK.md`, clear the missing references and ❓; architecture — merge the kit and move every game onto it, fix I-103, then ARCHITECTURE A1 – A10 (cold keys, a required CI check, data off `main`, the Pages allow-list, tagged releases, a standby machine, the full audit); organization — clear the PR queue, retire `ROADMAP.md`, move done rows out of `CHAT_REQUESTS.md`, split `ARCHITECTURE.md`.
 
 ## 5. Top 10 priorities
 | # | Priority | Who | When |
 |---|---|---|---|
-| 1 | **Go live in order:** `game-apply 2` and `7` (Thu after 7:51 AM PT) → announce v6.1 → upload Mon 9 → pin + handover 4a → accepts Tue 10 → rule week Mon 16 (`TODOS.md`, `CALENDAR.md`) | Owner, Vault chat | Thu 5 – Mon 16 |
-| 2 | **Merge #114 after the upload and #141 after v6.1 is live**; Block X final at Mon 00:00 (R-BX-24) and Questions' free prize on the switch (R-VAULT-14) before Mon 16 | Library, Block X, Vault | by Mon 16 |
-| 3 | **VHP ruler v2.1: build and simulate** (R-RULER-2), recorder on, data only | Ruler chat, owner | now |
-| 4 | **Pages allow-list** (R-HUB-14), then the CODEOWNERS ruleset with the bot and the owner as bypass | Hub chat, owner | this week |
-| 5 | **Fix fast (D-140):** every review finding in one pass; `AUDITS.md` §5 tracks the open ones | every chat | standing |
-| 6 | **Write the contract register, the data formats and the Swap Desk page** (§3) | Library | next |
-| 7 | **Career profile from day 1** (R-HUB-15) | Hub chat | after the core |
-| 8 | **Repo structure:** move the website into `web/`, the Questions builder into `questions/`, the ruler into `ruler/` (`REPO_MAP.md` §4) | Hub, Questions, Ruler | after R-HUB-14 |
-| 9 | **The next games** in order: Last Node, Block Golf, Fantasy, Bracket (D-138, D-141), each by `NEW_GAME.md` | game chats | after the core |
-| 10 | **The full platform audit**, tier 1 first, against each contract's live hash (D-102, I-002) | Owner + Repo Lens | once the core is live |
+| 1 | **Vault v6.1 upload** Mon 9 from 9:00 AM PT → pin `04c27c1a…` → handover 4a; accepts Tue 10; merge #114, then #141 | Owner, Vault chat, Library | Mon 9 – Tue 10 |
+| 2 | **Repo Lens #203** (Questions recorder) → merge by Sun 15; hard limit Thu 26 Nov | Owner, Questions chat | now |
+| 3 | **Repo Lens #182** (Race payouts, I-104 fixed) → merge before Mon 16; then #216 (rename "D-161" → D-166, contract review) | Owner, Race chat | now |
+| 4 | **Repo Lens #210** (kit core, #B-12 fix-check) → merge; then the ports of Fantasy, Golf, Bracket and Questions' #203 | Owner, Architecture chat | this week |
+| 5 | **VHP ruler:** re-judge sims 1 and 8 on D-170's marks, Repo Lens E fix-check, then the PR | Ruler chat, owner | this week |
+| 6 | **Decision-number rule:** only the library assigns D-numbers; chats write "D-new" in PRs and handoffs | Library | next docs PR |
+| 7 | **Clear the rest of the queue:** #177 / #178 (Vault prompts first), #231 play-first home page, #232 Combo limits, #235 sponsor register-key; keep #218 / #234 / #187 unmerged under D-161 | Owner, chats | this week |
+| 8 | **Security architecture:** cold keys Tue 10; Pages allow-list (R-HUB-14); a required CI check (A2); data off `main` (A3) | Owner, Hub, Architecture | Nov |
+| 9 | **Write the missing references:** `DATA_FORMATS.md`, `SWAP_DESK.md`, each game's score time (R-ALL-12); fix the 10 references to missing files | Library, game chats | this week |
+| 10 | **Slim the library:** retire `ROADMAP.md`, move done rows out of `CHAT_REQUESTS.md`, split `ARCHITECTURE.md`; the first weekly review Tue 10; then the full platform audit (D-102) | Library, owner | Tue 10, then after the core |

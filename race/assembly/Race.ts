@@ -4,7 +4,13 @@ import { race } from "./proto/race";
 /**
  * Knode Producer Race picks. See assembly/proto/race.proto for the rules.
  * Free to play: it holds no funds, takes no fee and never pays Mana. It only keeps one pick per wallet per race and
- * lets the chain enforce the lock (no pick once a race has started), the 24-hour window and the daily limit.
+ * lets the chain enforce the lock (no pick once a race has started), the window picks open in, and the daily limit.
+ * v2 (owner 5 Nov 2026, D-161): race types, carried in the race number above bit 48, so the pick's arguments stay
+ * v1's three fields (the Mana sponsor reads them field for field) and type 0 is v1 exactly:
+ *   race = type * 2^48 + index (always below 2^51, so JavaScript numbers carry it exactly: Repo Lens #D-13 H-1); type 0 = the 6-hour race (index = start / 6 h), 1 = 1-hour (start / 1 h),
+ *   2 = 2-hour (start / 2 h), 3 = daily (start / 24 h), 4 = weekly (the Monday-based UTC week).
+ * Each type's picks sit under their own key prefix (the race number's second byte is the type). A daily limit of 0 means no per-game limit (the Mana sponsor's
+ * daily limit across the platform is the cap).
  * Uploaded with no authority overrides: upgrades need this contract's own key; settings need the owner's key.
  */
 
@@ -18,6 +24,16 @@ export const DAY_MS: u64 = 86400000;
 /** Picks are open for the next 4 races: the coming 24 hours. */
 export const LOOKAHEAD: u64 = 4;
 export const MAX_PICKS_LIMIT: u32 = 20;
+/** v2 race types (D-161): 0 = 6-hour (v1), 1 = 1-hour, 2 = 2-hour, 3 = daily, 4 = weekly (Monday to Sunday 00:00 UTC),
+ *  in the race number's bits 48 and up (anything from 5 * 2^48 up is refused). */
+export const TYPES: u64 = 5;
+export const TYPE_SHIFT: u64 = 48;
+export const INDEX_MASK: u64 = 0x0000ffffffffffff;
+export const HOUR_MS: u64 = 3600000;
+export const WEEK_MS: u64 = 604800000;
+/** 1970-01-05 00:00 UTC, the first Monday: weekly race w starts at WEEK_OFFSET + w * WEEK_MS. */
+export const WEEK_OFFSET: u64 = 345600000;
+export const BAD_TYPE = "RACE: unknown race type";
 export const MAX_LIST: u32 = 100;
 
 export const CLOSED = "RACE: picks are closed";
@@ -46,22 +62,28 @@ export class Race {
     const caller = System.getCaller().caller;
     System.require(caller == null || caller!.length == 0 || Arrays.equal(caller!, player), NOT_SIGNED);
 
+    const type = args.race >> TYPE_SHIFT, index = args.race & INDEX_MASK;
+    System.require(type < TYPES, BAD_TYPE);
     const now = System.getHeadInfo().head_block_time;
-    const current = now / RACE_MS;                  // the race running now; it started at current * RACE_MS <= now
-    // A race number above `current` starts after now. Equal or below: started (or over): locked.
-    System.require(args.race > current, LOCKED);
-    System.require(args.race <= current + LOOKAHEAD, TOO_EARLY);
+    const current = slotOf(type, now);              // the race of this type running now; it started at or before now
+    // A race index above `current` starts after now. Equal or below: started (or over): locked.
+    System.require(index > current, LOCKED);
+    System.require(index <= current + lookahead(type), TOO_EARLY);
 
+    // The key is the whole race number (the type in its second byte), so type 0 keeps v1's keys and each type has its own range.
     const key = pickKey(args.race, player);
     const old = this.picks.get(key);
     const had = old != null && old.horse != null && old.horse!.length > 0;
     System.require(!had || !Arrays.equal(old!.horse, args.horse), SAME);
 
-    const day = now / DAY_MS;
-    const dc = this.days.get(player)!;
-    const count: u32 = dc.day == day ? dc.count : 0;
-    System.require(count < cfg.max_picks_per_day, USED_UP);
-    this.days.put(player, new race.day_count(day, count + 1));
+    // 0 = no per-game limit (v2, D-161): nothing is counted or stored.
+    if (cfg.max_picks_per_day > 0) {
+      const day = now / DAY_MS;
+      const dc = this.days.get(player)!;
+      const count: u32 = dc.day == day ? dc.count : 0;
+      System.require(count < cfg.max_picks_per_day, USED_UP);
+      this.days.put(player, new race.day_count(day, count + 1));
+    }
 
     this.picks.put(key, new race.pick_object(args.horse, now, had ? old!.changes + 1 : 0));
     const ev = new race.pick_event(player, args.race, args.horse, now, had);
@@ -120,7 +142,7 @@ export class Race {
     const cfg = args.config!;
     System.require(isAddress(cfg.owner), "RACE: invalid owner");
     System.require(!Arrays.equal(cfg.owner, this.contractId), "RACE: the owner must be a wallet, not this contract");
-    System.require(cfg.max_picks_per_day >= 1 && cfg.max_picks_per_day <= MAX_PICKS_LIMIT, "RACE: picks per day must be 1 to 20");
+    System.require(cfg.max_picks_per_day <= MAX_PICKS_LIMIT, "RACE: picks per day must be 0 (no limit) to 20");
     this.config.put(cfg);
     System.event("race.config_event", Protobuf.encode(new race.config_event(cfg), race.config_event.encode), [this.contractId]);
     return new race.empty_object();
@@ -140,6 +162,23 @@ function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
 }
 export function pickKey(r: u64, player: Uint8Array): Uint8Array {
   return concat(raceBytes(r), player);
+}
+/** The race number for type t and index i (type 0: i itself, so v1's numbers are unchanged). */
+export function raceNumber(t: u64, i: u64): u64 { return (t << TYPE_SHIFT) | (i & INDEX_MASK); }
+/** The index of the race of type t running at time `now` (it started at or before now). */
+export function slotOf(t: u64, now: u64): u64 {
+  if (t == 0) return now / RACE_MS;
+  if (t == 1) return now / HOUR_MS;
+  if (t == 2) return now / (2 * HOUR_MS);
+  if (t == 3) return now / DAY_MS;
+  return now < WEEK_OFFSET ? 0 : (now - WEEK_OFFSET) / WEEK_MS;
+}
+/** How many races ahead picks are open: 24 hours for the 6-, 2- and 1-hour races; the next one for daily and weekly. */
+export function lookahead(t: u64): u64 {
+  if (t == 0) return LOOKAHEAD;
+  if (t == 1) return 24;
+  if (t == 2) return 12;
+  return 1;
 }
 
 /** A Koinos address: version 0, 20-byte hash, 4-byte double-sha256 checksum. */

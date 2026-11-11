@@ -32,9 +32,10 @@
 
 ## 3. Rewards (every game)
 - **Fee:** a flat **5%** of the week's vault rewards.
-- **Free play prizes:** **2 VHP for 1st, 1 VHP for 2nd** each week (D-062), only on games whose free-prize switch is ON (D-081, D-082; a change counts from the next week). Ties: a tie for 1st shares all 3 VHP and 2nd stays empty (D-034).
+- **Free play prizes:** **2 VHP for 1st, 1 VHP for 2nd** each week (D-062), only on games whose free-prize switch is ON (D-081, D-082; a change counts from the next week). Ties: a tie for 1st shares all 3 VHP and 2nd stays empty (D-034). **Each place pays up to 10 wallets; if more than 10 qualify, exactly 10 are paid, by earlier score time, then address; a place is never left empty because of the cap; wallets cut by the cap get nothing (D-159).**
 - **Season games:** 4 + 2 VHP for the season, when their free prize is on.
 - **Staked play:** the rest of the week's rewards is split across the staked games **by each game's share of the stake**, then inside a game by its results file (`VAULT_STANDARD.md` §6).
+- **Who gets paid in a staked game (D-152, every game):** exactly the **top 30%** of the game's earning stakers with at least 1 point (by headcount, rounded up). Tied wallets above the line share their level, which leaves less for the levels below. A tie that crosses the line lets in the wallets that **reached that score first** (the time of their last scoring pick or answer that week, then the address); the rest of the tie gets nothing that week. (Daily Questions keeps "the whole tie at the line" until a vault upgrade, R-VAULT-20.)
 - **Boards:** every game has a Staked board and a Free play board (`LEADERBOARD_STANDARD.md`). The results file always fills `first` / `second`; the switch decides whether they're paid.
 
 ## 4. Compliance table (one row per game)
@@ -46,10 +47,10 @@ A game's chat adds or updates its row **in its first PR** and whenever its timin
 | Who Signs Block X (2) | **yes** (from Week 1, #160, #175) | fun rounds (Today and All time only), first **Sun 15 Nov** | **Mon 00:00** + two runs an hour apart + the re-read (D-135, #175) | Mon evening PT | #159, #160, #175 | none |
 | Producer Race (7) | **yes** (#149) | fun races, unscored for the week (D-129, #155) | Mon 00:00 + checks (00:37 final run) | Mon 6–8 PM PT | #149, #155 | none |
 | Survivor (3) | ⏸ paused (D-113) | must rest on Sundays | built as 12 h after | — | branch `survivor` | adopt before launch (R-ALL-8) |
-| Fantasy (4, 5) | ▶ reactivated 5 Nov (D-142) | — | built as 12 h after | — | branch `fantasy` | adopt before launch |
-| Block Golf (6) | ▶ reactivated 5 Nov (D-142) | — | — | — | branch `golf` | adopt before launch |
+| Fantasy (4, 5) | **yes**, on branch `fantasy` (▶ reactivated 5 Nov, D-142; not launched) | fun round: the Saturday team plays on (D-150), Today and All time only | **Mon 00:00 + two runs ≥ 1 h apart agree + the week re-checked from the chain** | Mon evening PT | branch `fantasy`, PR #188 | none for the cycle |
+| Block Golf (6) | **yes**, on branch `golf-v2` (▶ reactivated 5 Nov, D-142; not launched) | no rounds of its own; each hole is a game's weekly board, which already leaves Sunday out | Mon 00:00 + every hole final + two matching runs ≥ 1 h apart; waits on its slowest hole (Questions: Tue ~12:00 until its rule week, Mon 16 Nov) | about 24 h after the seal (≈ Wed morning PT while it waits on Questions) | branch `golf-v2`, PR #187 (D-138, D-142) | owner merges; launch steps in `docs/GOLF.md` |
 | Combo Card (8) | ⏸ paused | — | built as 12 h after | — | branch `combo` | adopt before launch |
-| Producer Bracket (9) | ▶ reactivated 5 Nov (D-142); **on the cycle, built** (D-141; branch `kg-09-bracket`, not launched) | review day: every hour re-read in a later run, results pending; **Sunday 00:00 seeding opens next week's picks** (lock Mon 23:55); no Sunday rounds (a knockout: the final is Saturday) | **Mon 00:00 + checks** (results in, every hour re-read, end-of-week stakes read on both nodes); backstop Thu 00:00 → closed without a file | Mon evening PT | `kg-09-bracket` (Repo Lens #E-3 fixes + D-141) | fix-check; Sunday fun rounds: none (owner to confirm) |
+| Producer Bracket (9) | **yes**, on branch `kg-09-bracket` (▶ reactivated 5 Nov, D-142; built to D-141 / D-153; not launched) | review day: every hour re-read in a later run, results pending; **Sunday 00:00 seeding opens next week's picks** (lock Mon 23:55); no Sunday rounds (a knockout: the final is Saturday) | **Mon 00:00 + checks** (results in, every hour re-read, end-of-week stakes read on both nodes); backstop Thu 00:00 → closed without a file | Mon evening PT | branch `kg-09-bracket`, PR #186 (Repo Lens #E-3 fixes + D-141) | fix-check; Sunday fun rounds: none (owner to confirm) |
 | Last Node Standing (13) | ⏸ paused | — | built as 12 h after | — | branch `lastnode` | adopt before launch |
 
 ## 5. Checking a game against this page

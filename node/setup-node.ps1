@@ -3,7 +3,7 @@
 
   What it does (safe to run again; finished steps are skipped):
     1. checks Docker, git and free disk space
-    2. downloads the official Koinos node setup into C:\kpred-node\koinos (the pinned release, checked by its commit)
+    2. downloads the official Koinos node setup into C:\kpred-node\koinos (pinned to one checked commit)
     3. sets the block producer to produce for the GAME CONTRACT address
     4. downloads the newest chain snapshot from Armana, checks its fingerprint (SHA-256) against one you got from a
        SECOND source (-SnapshotSha256), and unpacks it (so the node doesn't have to replay the whole chain)
@@ -23,6 +23,13 @@
   The same script also sets up your PERSONAL node next to it, in its own folder, Docker project and ports:
       powershell -ExecutionPolicy Bypass -File node\setup-node.ps1 -Producer <your own address> -Root C:\koinos-personal -Project koinos-personal -PortOffset 10
   (RPC 8090, P2P 8898 for that one; the game node keeps 8080 / 8888.)
+
+  -RestoreKey <file> (R-VAULT-10): puts a backed-up block-producer key (node\backup-producer-keys.ps1, the USB stick)
+  in place before the node first starts, so a replacement node produces with the SAME key: no re-registering, and the
+  Desk avoids its 48-hour key wait. For example, the game node on a new PC:
+      powershell -ExecutionPolicy Bypass -File node\setup-node.ps1 -Producer 1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr -SnapshotSha256 <hash> -RestoreKey E:\knode-producer-keys-<date>\game\private.key
+  !! Never run two nodes with the same key at the same time: the old node must be off for good first. The script asks
+     you to confirm that, and refuses if this node already has a different key.
 #>
 param(
   [Parameter(Mandatory = $true)][string]$Producer,
@@ -30,7 +37,8 @@ param(
   [string]$Project = "kpred-node",
   [int]$PortOffset = 0,
   [string]$SnapshotSha256 = "",
-  [switch]$KeepArchive
+  [switch]$KeepArchive,
+  [string]$RestoreKey = ""
 )
 $ErrorActionPreference = "Stop"
 function Step($text) { Write-Host "`n== $text ==" -ForegroundColor Cyan }
@@ -40,10 +48,40 @@ function WriteNoBom($path, $text) { [IO.File]::WriteAllText($path, $text, (New-O
 
 if ($Producer -notmatch '^1[1-9A-HJ-NP-Za-km-z]{25,34}$') { throw "That doesn't look like a Koinos address: $Producer" }
 
-# The official node setup is pinned to a release, checked by its commit (https://github.com/koinos/koinos/releases).
-# To move to a newer release: read its notes, then change BOTH lines to the new tag and the commit GitHub shows for it.
-$KoinosTag = "v2.2.1"
-$KoinosCommit = "7c861cd13681f6fce735e345cc6f563cc6047574"
+# The official node setup is pinned to one checked commit of github.com/koinos/koinos. The last tagged release (v2.2.1,
+# March 2025) runs chain v1.4.1 with an old seed list; the newest code (18 Sep 2026) runs chain v1.5.2, the version the
+# owner's nodes and Armana's snapshots use. To move on: read the changes, then change BOTH lines.
+$KoinosTag = "master @ 18 Sep 2026"
+$KoinosCommit = "b05b8337d0a8d09748f9c2d1faef810ee2f5de28"
+
+# A backed-up key to restore (R-VAULT-10): checked before anything is downloaded, put in place before the first start.
+if ($RestoreKey) {
+  if (-not (Test-Path -LiteralPath $RestoreKey -PathType Leaf)) { throw "Not found: $RestoreKey (the backed-up private.key). Nothing was changed." }
+  Write-Host ""
+  Write-Host "!! You are restoring a block-producer key. Two nodes running the SAME key at the same time can be punished by" -ForegroundColor Yellow
+  Write-Host "!! the chain. The node that used this key before must be OFF for good (its PC dead, or its node stopped and" -ForegroundColor Yellow
+  Write-Host "!! its key folder deleted) before this one starts." -ForegroundColor Yellow
+  $answer = Read-Host "Type YES if the old node is off for good"
+  if ($answer -cne "YES") { throw "Not confirmed. Nothing was changed." }
+  # A node already moved to a Docker volume (node\move-node-to-volume.ps1) reads its key from the volume, not from
+  # basedir: a key put in basedir would never be used (Repo Lens #F-8 F8-8). A restore is for a fresh folder.
+  $override = Join-Path (Join-Path $Root "koinos") "docker-compose.override.yml"
+  if ((Test-Path $override) -and (Select-String -Path $override -Pattern "^#\s*knode-volume:" -Quiet)) {
+    throw "This node runs from a Docker volume (knode-volume in $override): -RestoreKey would put the key where the node doesn't read it. Restore into a fresh folder (a new -Root), or ask the Vault chat. Nothing was changed."
+  }
+  # The key must be the one registered on chain for -Producer (Repo Lens #F-8 F8-7): the game key restored into the desk
+  # node, or any wrong file, is refused here. Read-only; prints the PUBLIC key only.
+  Push-Location (Split-Path $PSScriptRoot -Parent)
+  try {
+    $ErrorActionPreference = "Continue"
+    if (-not $env:RPC) { $env:RPC = "https://koinos.armana.io" }
+    & npx tsx tools/producer-keys.ts --restore-check $RestoreKey $Producer
+    $rc = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+  } finally { Pop-Location }
+  if ($rc -eq 1) { throw "This key is not the one registered on chain for $Producer (see above). Check you picked the right node's file (game, desk or personal). Nothing was changed." }
+  if ($rc -ne 0) { throw "Couldn't check the key against the chain (it needs the internet, and npm ci done in the repository folder). Nothing was changed." }
+}
 
 # ------------- 1. checks -------------
 Step "1/5 Checking this PC"
@@ -66,12 +104,13 @@ Step "2/5 Official Koinos node setup"
 New-Item -ItemType Directory -Force $Root | Out-Null
 $repo = Join-Path $Root "koinos"
 if (-not (Test-Path $repo)) {
-  git -c advice.detachedHead=false clone --depth 1 --branch $KoinosTag https://github.com/koinos/koinos.git $repo; if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
-  if ((git -C $repo rev-parse HEAD).Trim() -ne $KoinosCommit) { Remove-Item $repo -Recurse -Force; throw "The downloaded node setup is not release $KoinosTag (commit $KoinosCommit). Nothing was installed." }
+  git clone https://github.com/koinos/koinos.git $repo; if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
+  git -C $repo -c advice.detachedHead=false checkout $KoinosCommit; if ($LASTEXITCODE -ne 0) { Remove-Item $repo -Recurse -Force; throw "Couldn't check out the pinned commit $KoinosCommit. Nothing was installed." }
+  if ((git -C $repo rev-parse HEAD).Trim() -ne $KoinosCommit) { Remove-Item $repo -Recurse -Force; throw "The downloaded node setup is not the pinned commit $KoinosCommit ($KoinosTag). Nothing was installed." }
   Ok "official node setup $KoinosTag (commit $($KoinosCommit.Substring(0, 12)))"
 } elseif ((git -C $repo rev-parse HEAD).Trim() -ne $KoinosCommit) {
-  Note "This folder's node setup is not the pinned release $KoinosTag (an older run used the newest code). It keeps working;"
-  Note "to move to the release, stop the node and run: git -C $repo fetch --depth 1 origin tag $KoinosTag; git -C $repo checkout $KoinosTag"
+  Note "This folder's node setup is not the pinned commit ($KoinosTag). It keeps working;"
+  Note "to move to it, stop the node and run: git -C $repo fetch origin $KoinosCommit; git -C $repo checkout $KoinosCommit (then copy the new env.example tags into .env)"
 }
 Set-Location $repo
 if (-not (Test-Path "config")) { Copy-Item "config-example" "config" -Recurse }
@@ -130,7 +169,7 @@ if ($haveData) {
     }
   }
   $snap = $candidates | Sort-Object { [int64]$_.height } -Descending | Select-Object -First 1
-  # A download already started keeps going, even if a newer snapshot appeared meanwhile (old ones stay up for a day).
+  # A download already started keeps going, even if a newer snapshot appeared meanwhile (Armana lists each snapshot for about two weeks, and keeps a retired one downloadable for a day).
   $partial = Get-ChildItem $Root -Filter "koinos-mainnet-*.tar.gz" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
   if ($partial) {
     $match = $listed | Where-Object { $_.name -eq $partial.Name } | Select-Object -First 1
@@ -186,9 +225,20 @@ if ($haveData) {
 
 # ------------- 5. start -------------
 Step "5/5 Starting the node"
+$keyFile = Join-Path $basedir "block_producer\private.key"
+if ($RestoreKey) {
+  if (Test-Path $keyFile) {
+    if ((Get-FileHash -Algorithm SHA256 $keyFile).Hash -eq (Get-FileHash -Algorithm SHA256 -LiteralPath $RestoreKey).Hash) { Ok "the restored key is already in place" }
+    else { throw "This node already has a DIFFERENT key at $keyFile. Restoring would replace it: stopped, nothing was changed. Ask the Vault chat." }
+  } else {
+    New-Item -ItemType Directory -Force -Path (Split-Path $keyFile) | Out-Null
+    Copy-Item -LiteralPath $RestoreKey -Destination $keyFile
+    if ((Get-FileHash -Algorithm SHA256 $keyFile).Hash -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $RestoreKey).Hash) { throw "The restored key isn't identical to the backup. Stopped before starting the node." }
+    Ok "the backed-up key is in place ($keyFile)"
+  }
+}
 docker compose up -d
 if ($LASTEXITCODE -ne 0) { throw "docker compose failed to start the node." }
-$keyFile = Join-Path $basedir "block_producer\private.key"
 for ($i = 0; $i -lt 60 -and -not (Test-Path $keyFile); $i++) { Start-Sleep -Seconds 2 }
 if (Test-Path $keyFile) { Ok "the block producer created its key ($keyFile) - keep this file private" }
 else { Note "The block producer key isn't there yet; check again in a minute." }

@@ -1,51 +1,58 @@
-# Knode Games — Adding a New Game (step by step)
+# Knode Games — Adding a New Game
 
-> **Purpose:** the one path from "I have a game idea" to "it pays every week", so adding a game is routine. Follow the steps in order; each names who does it and the page that holds the detail. Nothing here repeats a rule that has a home elsewhere — it points to it.
-> **Decisions behind it:** D-134 (one standard, effortless onboarding), D-125 / D-129 (the week), D-064 (nothing announced until ready), D-074 (multi-game staking), D-079 / D-081 / D-082 (boards and free prizes), D-113 (core first: new games wait for the core work).
-> **Last updated:** 2026-11-05 (first written)
-> **Worked example:** Who Signs Block X (game 2) went this way on `main`: `blockx.html` + `blockx.js` + `blockx-math.js` (page), `bot/games/blockx.ts` (recorder), `.github/workflows/games.yml`, `tests/audit/blockx-recorder.test.mjs`, `.ai/games/BlockX.md`.
+> **Purpose:** the one path from "I have a game idea" to "it pays every week": **copy → fill → check → review → go live**. Each step names who does it and the page that holds the detail; nothing here repeats a rule that has a home elsewhere.
+> **Decisions behind it:** D-157 (the Game Standard and Contract Standard), D-134 (one weekly standard), D-146 (the shared game kit), D-125 / D-129 (the week), D-064 (nothing announced until ready), D-079 / D-081 / D-082 (boards and free prizes).
+> **Last updated:** 2026-11-05 (rewritten for D-157: template, manifest, `game:new` and `game:check`)
+> **Today's games** still use their old file locations until each is moved into `games/<slug>/` (one PR per game, D-157 migration). New games start in the new layout.
 
-## Before you start (owner, 10 minutes)
-- [ ] The core work is done or the owner says to start (D-113).
-- [ ] One paragraph: what players pick, when a round locks, how a round scores. A game must be **fair, skill-based, not gambling** (D-075), and work on Koinos block-producer data.
-- [ ] **Pick the next free game id** from `../platform/PLATFORM.md` → games table (in use: 1–9 and 13).
-- [ ] Start a new chat with the **game starter** `AI_CHAT_STARTER.md` §3.2 (fill in the name, id and branch). Add the chat's section to `../platform/CHAT_REQUESTS.md` §3 (library chat).
+## The game folder (Game Standard, D-157)
+```
+games/<slug>/
+  game.json     the manifest: the ONE place a game's settings live (schema: tools/game-manifest.mjs)
+  README.md     a short pointer page; the rules live in .ai/games/<Game>.md
+  SECURITY.md   the filled security checklist
+  math.js       scoring shared by the page and the recorder (pure, tested)
+  recorder.ts   the game's GameModule (roundsFor, resultOf, scoreRound, picks source); the kit (GAME_KIT.md) does everything else
+  tests/        math, recorder and page tests
+```
+A game holds no tokens and no keys. It almost never needs its own contract: it registers on Picks (or uses the vault) and in the vault. A game that does need a contract also follows `CONTRACT_STANDARD.md`.
 
-## Step 1 — Write the game file (game chat, first session)
-- [ ] Create `.ai/games/<GameName>.md` from the template in `GAME_STANDARD.md` §9: Purpose · Gameplay · Scoring · Rewards · Dependencies · Current Status · Known Issues · Future Plans.
-- [ ] **Timing:** don't write your own week. Say "follows `WEEK_CYCLE.md`" and add your row to its **compliance table** (§4). Only game-specific locks (when one round closes) go in your file.
-- [ ] **Rewards:** say "follows `WEEK_CYCLE.md` §3" (5% fee, Staked share, free 2 + 1 VHP if the switch is on).
-- [ ] Owner reads it and answers the chat's questions; answers become D-xxx (library chat).
+## 1. Copy (game chat, first session; owner approves the idea first)
+```powershell
+cd C:\kprediction
+git branch --show-current
+git switch -c game-<slug> origin/main
+npm run game:new -- <slug> --id <vault game id> --name "<Display name>"
+```
+- Pick the next free vault game id from `../platform/PLATFORM.md` (in use: 1–9, 13; `game:new` refuses a used one).
+- Start the chat with `AI_CHAT_STARTER.md` §3.2; add its section to `../platform/CHAT_REQUESTS.md` (library chat).
 
-## Step 2 — Build on its own branch (game chat)
-Never on `main`. One branch per game (e.g. `game-10-<name>`).
-
-| Piece | What it must do | Standard |
+## 2. Fill (game chat)
+| Fill | Where | Rules from |
 |---|---|---|
-| **Page** `<game>.html` + `<game>.js` (+ `<game>-math.js` for scoring shared with the recorder) | Staked and Free play boards; nicknames via `names.js` (`KNames.of`); stake badge at the top of `<main>` and the stake panel lower down; the Sunday line "Sunday is review day: results are checked and paid from Monday" | `GAME_STANDARD.md` §7, `LEADERBOARD_STANDARD.md`, D-031, D-078 |
-| **Picks** | Picks go through the shared Picks contract (`1LmgqB…`) where the game has picks; locks enforced on chain | `GAME_STANDARD.md` §4–5 |
-| **Recorder** `bot/games/<game>.ts` (or its own file) + a workflow | Clock checks, two nodes, points recomputed at publish, per-file holds, write-once finals; pending on Sunday, final no earlier than Mon 00:00 | `RECORDER_STANDARD.md`, `WEEK_CYCLE.md` §2 |
-| **Vault results file** | Fail-closed; always fills `first` / `second` | `VAULT_STANDARD.md` §6 |
-| **`board.json`** | Next to the vault folder; `lastWeek`, wallet, `points`, place; Staked and Free rows | `LEADERBOARD_STANDARD.md` §1, R-ALL-3 |
-| **VHP / handicap** | Only through the shared VHP ruler | `VHP_RULER.md` |
-| **Mana** | Each player action fits a sponsor row (measure it; ask the Block X chat for a row) | `../platform/SPONSOR.md` |
-| **Tests** | `tests/audit/<game>*.test.mjs`; prove Sunday rounds stay out of weekly tallies | `GAME_STANDARD.md` §1 |
+| every `{{…}}` in `game.json` | `games/<slug>/game.json` | the schema prints what each field needs |
+| the rules (purpose, gameplay, scoring, rewards, status) | `.ai/games/<Game>.md` (template: `GAME_STANDARD.md` §9) | `GAME_STANDARD.md` |
+| scoring | `math.js` + `tests/` | the rules file |
+| the game's GameModule | `recorder.ts` | `GAME_KIT.md` §2 (`RECORDER_STANDARD.md` rules), D-159 free-prize places |
+| the page (Staked + Free boards, nicknames, stake badge and panel, the Sunday line) | page files | `GAME_STANDARD.md` §7, `LEADERBOARD_STANDARD.md` |
+| its row in the week-cycle table | `WEEK_CYCLE.md` §4 | `WEEK_CYCLE.md` |
+| a sponsor row for each player action (measured on testnet, ≤ 2.4 Mana) | Block X chat adds it on chain | `../platform/SPONSOR.md` |
+| the security checklist | `SECURITY.md` | this page's rules + `../platform/REPO_MAP.md` |
 
-- [ ] `npm run test:audit` and `node --test tests/audit/site.*.test.mjs` pass on the branch.
-- [ ] A testnet run (week or season) if the game has one.
+## 3. Check (game chat, before asking for review)
+```powershell
+npm run game:check -- <slug>
+npm run test:audit
+```
+`game:check` also runs the kit's conformance suite on your GameModule (`GAME_KIT.md` §5). It must end "All required checks passed": manifest valid and unique, required files present, rules doc present, the week-cycle row, tests present; from status `review` on, also listed in `games.json` with its page.
 
-## Step 3 — Audit (owner + Repo Lens)
-- [ ] The library chat writes the Repo Lens prompt (`../platform/AUDITS.md` → how). Owner sends it on the **exact commit**.
-- [ ] Reports stay **private** in the Claude project (`claude/<game>/`), never in the repo.
-- [ ] Every Critical and High fixed (or accepted as a D-xxx); fix-check **GO**.
+## 4. Review (owner + Repo Lens)
+The chat writes the Repo Lens prompt (`../platform/AUDITS.md`), the owner sends it on the exact commit, the chat fixes **every finding in one pass** (D-140), then a fix-check to GO. Reports stay private.
 
-## Step 4 — Go live
-Follow **`GO_LIVE_CHECKLIST.md` steps 3–6** exactly (merge, Picks register 48 h, free-prize switch, vault `game-add` → 48 h → `game-apply` before Sunday 4 PM PT, `games.json`, menus, announcement). Mind its **timing rule**: latest safe `game-add` is **Friday ~noon PT** to earn from the next Monday.
+## 5. Go live (owner + chats)
+Follow `GO_LIVE_CHECKLIST.md` steps 3–6: merge; Picks announce → apply (48 h); free-prize switch; `game-add <id> "<name>" --staked --free --season <n>` → 48 h → `game-apply` before Sunday 4 PM PT (latest safe `game-add`: Friday ~noon PT); the prize-start and `*_ENABLED` variables; `games.json` and menus; the announcement. Then set `"status": "live"` in `game.json`.
 
-## Step 5 — Keep it on the standard
-- [ ] Your row in `WEEK_CYCLE.md` §4 stays true.
-- [ ] `../platform/LAUNCH_BOARD.md` shows your stage; `../platform/CURRENT_STATE.md` lists you once live.
-- [ ] Every session ends with the session-end report (`../platform/SESSION_END_PROCESS.md`).
+**"Live" means all true:** `game:check` passes · Repo Lens GO on the merged commit · Picks applied (if it uses Picks) · `game-apply` done and the prize-start week set · sponsor rows live · recorder on and its first hourly run green · free-prize switch set · listed on the site · the first paid week sealed and claimed with no correction.
 
-## Files a new game adds (checklist for the PR)
-`.ai/games/<GameName>.md` · `<game>.html` · `<game>.js` · `<game>-math.js` (optional) · recorder in `bot/` · workflow in `.github/workflows/` (generated or reviewed by the CI guard) · `tests/audit/<game>*.test.mjs` · a `games.json` entry · its data folder (branch or `*-data/`) · sponsor row (Block X chat) · its `WEEK_CYCLE.md` row.
+## 6. Keep it on the standard
+`game.json` stays true (status, rows, variables); `WEEK_CYCLE.md` §4 row stays true; `../platform/LAUNCH_BOARD.md` shows the stage; every session ends with the session-end report.

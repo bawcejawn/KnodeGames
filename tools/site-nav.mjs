@@ -31,32 +31,40 @@ const I = {
   welcome: '<circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path>',
   install: '<path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M5 20h14"></path>',
   blockx: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path>',
+  golf: '<path d="M7 21V4l9 4-9 4"></path><path d="M4 21h8"></path>',
   trust: '<path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"></path>',
   stake: '<ellipse cx="12" cy="6" rx="7" ry="2.5"></ellipse><path d="M5 6v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"></path><path d="M5 10v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"></path><path d="M5 14v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"></path>',
   name: '<circle cx="12" cy="12" r="3.5"></circle><path d="M15.5 12v1.5a2.5 2.5 0 0 0 5 0V12a8.5 8.5 0 1 0-3.3 6.7"></path>',
   terms: '<path d="M7 3h7l4 4v14H7z"></path><path d="M10 12h5M10 16h5"></path>',
+  server: '<rect x="4" y="4" width="16" height="6.5" rx="1.5"></rect><rect x="4" y="13.5" width="16" height="6.5" rx="1.5"></rect><path d="M8 7.25h.01M8 16.75h.01"></path>',
 };
 
 // [label, link, icon]. A link starting with "#" is a question-game view on index.html.
 export const TABS = [["Games", "games.html", "games"], ["Leaders", "#leaderboard", "leaders"], ["Stake", "stake.html", "stake"], ["Results", "#results", "results"]];
 // The More sheet, in groups (each group a heading, then its links).
 export const MORE_GROUPS = [
-  ["Play", [["Daily Questions", "#play", "play"], ["Producer Race", "race.html", "race"], ["Who Signs Block X", "blockx.html", "blockx"], ["Rules", "#how", "rules"]]],
-  ["Tools", [["Get VHP", "get.html", "get"], ["Get an @name", "names.html", "name"], ["Swap VHP → KOIN", "swap.html", "swap"], ["Burn KOIN", "burn.html", "burn"], ["Mana levels", "mana.html", "mana"], ["Producer lookup", "node.html", "lookup"], ["Network pulse", "pulse.html", "pulse"]]],
+  ["Play", [["Daily Questions", "#play", "play"], ["Producer Race", "race.html", "race"], ["Who Signs Block X", "blockx.html", "blockx"], ["Block Golf", "golf.html", "golf"], ["Rules", "#how", "rules"]]],
+  ["Tools", [["Get VHP", "get.html", "get"], ["Get an @name", "names.html", "name"], ["Swap VHP → KOIN", "swap.html", "swap"], ["Burn KOIN", "burn.html", "burn"], ["Mana levels", "mana.html", "mana"], ["Producer lookup", "node.html", "lookup"], ["Run a node", "run-node.html", "server"], ["Network pulse", "pulse.html", "pulse"]]],
   ["Learn", [["New to Koinos?", "start.html", "welcome"], ["New here? Quick tour", "#welcome", "welcome"]]],
   ["About", [["Install app", "install.html", "install"], ["Trust", "trust.html", "trust"], ["Terms &amp; risks", "terms.html", "terms"]]],
 ];
 export const MORE = MORE_GROUPS.flatMap(([, links]) => links);
 // The top menu: a link, or a dropdown { label, items }. Add a new live game to the Games dropdown when it ships.
 export const TOP = [
-  { label: "Games", items: [["All games", "games.html"], ["Daily Questions", "#play"], ["Producer Race", "race.html"], ["Who Signs Block X", "blockx.html"]] },
+  { label: "Games", items: [["All games", "games.html"], ["Daily Questions", "#play"], ["Producer Race", "race.html"], ["Who Signs Block X", "blockx.html"], ["Block Golf", "golf.html"]] },
   { label: "Leaderboards", link: "#leaderboard" },
   { label: "Results", link: "#results" },
   { label: "Stake", link: "stake.html" },
-  { label: "Tools", items: [["Get VHP", "get.html"], ["Get an @name", "names.html"], ["Swap VHP → KOIN", "swap.html"], ["Burn KOIN", "burn.html"], ["Mana levels", "mana.html"], ["Producer lookup", "node.html"], ["Network pulse", "pulse.html"]] },
+  { label: "Tools", items: [["Get VHP", "get.html"], ["Get an @name", "names.html"], ["Swap VHP → KOIN", "swap.html"], ["Burn KOIN", "burn.html"], ["Mana levels", "mana.html"], ["Producer lookup", "node.html"], ["Run a node", "run-node.html"], ["Network pulse", "pulse.html"]] },
   { label: "Rules", link: "#how" },
   { label: "New to Koinos?", link: "start.html", cls: "tab-start" },
 ];
+// "Play free" beside the wallet button on every page (owner, 9 Nov: yes; "it should take them to the producer race game,
+// NOT THE QUESTIONS game"): straight to the Producer Race's pick list, where a guest plays free with no sign-up.
+export const PLAY_FREE = "race.html#pick-zone";
+export function playFree(file) {
+  return `<a class="btn btn-play-free" href="${file === "race.html" ? "#pick-zone" : PLAY_FREE}">Play free</a>`;
+}
 // Rules opens on the page's own game where there is one.
 const RULES_TAB = { "race.html": "race", "swap.html": "swap" };
 export const FOOT = [["New here? Quick tour", "#welcome"], ["Trust", "trust.html"], ["Terms &amp; risks", "terms.html"], ["Install app", "install.html"], ["Source code", "https://github.com/bawcejawn/KnodeGames"]];
@@ -97,7 +105,7 @@ export function topBlock(file) {
     return [`        <details class="dd${on ? " on" : ""}">`, `          <summary>${t.label}</summary>`, '          <div class="dd-menu">',
       ...t.items.map(([l, h]) => `            ${a(l, h)}`), "          </div>", "        </details>"].join("\n");
   });
-  return ['<nav class="tabs" aria-label="Sections">', ...rows, "      </nav>"].join("\n");
+  return ['<nav class="tabs" aria-label="Sections">', ...rows, "      </nav>", `      ${playFree(file)}`].join("\n");
 }
 
 /** The footer's links. */
@@ -113,7 +121,10 @@ export function withNav(file, html) {
   if (t >= 0) {
     // The top menu ends at its own closing </nav> (dropdowns use <details>, never a nested <nav>).
     const end = out.indexOf("</nav>", t);
-    out = out.slice(0, t) + topBlock(file) + out.slice(end + "</nav>".length);
+    let rest = out.slice(end + "</nav>".length);
+    const old = /^\n\s*<a class="btn btn-play-free"[^\n]*<\/a>/.exec(rest);   // the Play free button written last time
+    if (old) rest = rest.slice(old[0].length);
+    out = out.slice(0, t) + topBlock(file) + rest;
   }
   out = out.replace(/<span class="foot-links">[^\n]*?<\/span>/, footBlock(file));
   const i = out.indexOf('<nav class="tabbar"');

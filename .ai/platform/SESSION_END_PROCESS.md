@@ -2,7 +2,7 @@
 
 > **Purpose:** what every AI session does before it ends, so the next session (or another chat) can pick up without guessing.
 > **Applies to:** every chat — platform, game, audit, bug fixing, architecture, library.
-> **Last updated:** 2026-11-03 · Starter prompts and shared rules: `../standards/AI_CHAT_STARTER.md`.
+> **Last updated:** 2026-11-05 (STATUS.md and game.json / game:check steps) · Starter prompts and shared rules: `../standards/AI_CHAT_STARTER.md`.
 
 ## When
 - A piece of work is finished, or a PR is opened.
@@ -12,10 +12,12 @@
 ## Steps
 1. **Check the facts.** Use `git status`, the branch and commit, open PRs, and the last workflow runs. Report only what you checked. Mark the rest ❓.
 2. **Make sure nothing is half-done.** No unsent dry run is left looking "done". No PR is called merged unless it is. No secret was printed.
-3. **Write the session-end report** (below) as your last message.
-4. **The owner pastes it into the library chat.** That chat files it into `.ai/` in one docs PR: new facts go to their one home, and finished items move out of the work lists to `archive/DONE.md` (closed issues to `archive/ISSUES_CLOSED.md`). If the owner asks, save it to the Claude project as `claude/<area>/HANDOFF-<yyyy-mm-dd>.md` too.
+3. **Update `STATUS.md` (required) if anything material changed** — what's live, blockers, or decisions. In a game or platform chat that doesn't own STATUS.md, list the change under report item 3 for the library chat.
+4. **For any game work (required): confirm the game's `game.json` is accurate** (status, rows, variables) and note in the report whether `npm run game:check -- <slug>` passed, or "not migrated yet" for a game still on its old paths (D-157).
+5. **Write the session-end report** (below) as your last message.
+6. **The owner pastes it into the library chat.** That chat files it into `.ai/` in one docs PR: new facts go to their one home, and finished items move out of the work lists to `archive/DONE.md` (closed issues to `archive/ISSUES_CLOSED.md`). If the owner asks, save it to the Claude project as `claude/<area>/HANDOFF-<yyyy-mm-dd>.md` too.
    - **Two kinds of saved notes, two names:** a session-end report is `claude/<area>/HANDOFF-<yyyy-mm-dd>.md`. Instructions one chat leaves for another (the older style, e.g. `claude/handoff-sponsor-v6-day.md`) keep `claude/handoff-<topic>.md`.
-5. **The next session** starts with its starter prompt (`AI_CHAT_STARTER.md` §3) plus this report.
+7. **The next session** starts with its starter prompt (`AI_CHAT_STARTER.md` §3) plus this report.
 
 ## The session-end report
 Keep it short: one line per item, plain words, with D-/I-/PR numbers.
@@ -29,6 +31,7 @@ Area / branch / PR: <e.g. Survivor · survivor @ a8a1979 · PR #NN open, not mer
 2. What was completed
    - <finished and verified: tests passing, PR merged by the owner, send confirmed on chain>
    - Not finished: <what's left and where it stands>
+   - Game work: game.json accurate <yes / fixed / n/a> · game:check <passed / failed: why / not migrated yet>
 3. Documentation to update
    - <.ai/ file → what's now wrong or missing (e.g. CURRENT_STATE: Survivor PR open; OPENISSUES: I-050 partly done)>
    - Proposed decisions: <D-xxx with the owner's words and date, or "none">

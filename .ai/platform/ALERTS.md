@@ -3,7 +3,7 @@
 > **Purpose:** every alert the platform can send the owner: what triggers it, how it reaches you, how often, what it means, and **what you can do about it** (D-107: an alert must name the owner's actions, not only notify). Also the conditions that are **silent** today, so nobody assumes they're watched.
 > **One home:** this page is the home for **the list of alerts**. What to do in a real emergency stays in `RUNBOOK.md` (it points here); the emails expected during the wallet moves are in `../../docs/WALLETS.md` §6.
 > **Last updated:** Thu 5 Nov 2026 (status sync: Race held-week alerts merged in #133; sponsor numbers point to `SPONSOR.md`). Built 4 Nov from a read of every workflow (`.github/workflows/*.yml`), `bot/bot.ts`, `bot/vault.ts`, `bot/sponsor.ts`, `bot/watch.mjs`, `bot/heal.mjs`, `bot/release-kick.mjs`, `bot/games/*`, `bot/race.ts`, `bot/names.ts` and the node install scripts, on `main` @ `38702c4`. File:line references are to that commit.
-> **Update rule:** any PR that adds, removes or rewords an alert updates this page in the same PR (the game chats and the Vault chat). The Librarian checks it at each weekly review.
+> **Update rule:** any PR that adds, removes or rewords an alert updates this page in the same PR (the game chats and the Vault chat). The Librarian checks it at each weekly review. **The run-page summaries read this page** (`bot/alert-summary.mjs` matches each alert line to the quoted words in a table row's first cell): keep the alert's opening words in quotes, and the action in the "What you can do" column.
 
 ---
 
@@ -17,7 +17,7 @@
 - **Players' stakes are never at risk from an alert by itself.** The worst case of a held or late week is that it **rolls over** to the next week.
 - **If you just did an owner step** (a `game-apply`, a wallet move, a pause, an upgrade), the email is most likely the expected echo of it (§2 and `docs/WALLETS.md` §6).
 - **One email can hold several alerts**; the next hour's run may already be green.
-- A plain-language summary at the top of each failed run (what happened, does it matter, what to do) is on the way (R-VAULT-9).
+- **Each failed run now starts with a plain-language summary** (R-VAULT-9): open the run, and the top of the page lists every alert with **What happened · Does it matter · Expected? · What to do · Deadline** (UTC and PT), taken from this page. The bot and the watchdog explain each alert line; the heal alert explains its message; the game recorders and data jobs (§8) say which step failed and which chat to ask. An alert this page doesn't list says so: paste it to the Vault chat.
 
 ## 1. How alerts reach you
 > The bot workflow is named **"Knode Games bot"** since PR #131 (merged); older emails say "Kpred bot".
@@ -37,7 +37,7 @@
 | Subject | Workflow | Section |
 |---|---|---|
 | Run failed: **Knode Games bot** | `bot.yml` (hourly, 11:48 and 23:48 UTC) | §2 – §5 |
-| Run failed: **Node watchdog** | `watch.yml` (every 15 min on paper) | §6 |
+| Run failed: **Node watchdog** | `watch.yml` (scheduled every 15 min) | §6 |
 | Run failed: **Heal alert** | `heal-alert.yml`, started by your PC | §7 |
 | Run failed: **KnodeGames recorders** (Block X) | `games.yml` (hourly at :47) | §8 |
 | Run failed: **Producer race** | `race.yml` (hourly at :37) | §8 |
@@ -92,7 +92,9 @@ The bot compares the chain with the records on `main` (`game-data/deployment.jso
 | "Week N: … staked player(s) are still not settled" | settling incomplete | Vault chat |
 | "A transaction failed: …" / "<step> failed: …" | a bot send failed | usually a node hiccup; if it repeats, paste to the Vault chat (`RUNBOOK.md` §2) |
 | "the two nodes disagree … One node is wrong or lying" / RPC_CHECK unreadable | the two-node check failed | wait a run; if it repeats, Vault chat (TD-10) |
-| Question file / params hash / VHP list mismatch; result changed on chain; resolver failed; generator failed; no fair questions; day file not sealed by this bot; week slot full | question pipeline problems | Questions chat; don't post by hand |
+| "A result was changed on chain: …" / "A result was re-posted on chain with the same outcome: …" / "… on chain before its window's blocks were final …" | a question's result changed by a key other than the bot's own send | **if you did NOT do it, act at once**: `RUNBOOK.md` §7, then the Vault chat. If you voided it yourself (`void`, `void-test`): expected, fires once |
+| "… is in test week N (vaultTestWeeks), so it must be VOID, but it has outcome …" | a test-week question has a real result on chain (resolved before the test-week rule was on `main`) | run the line's own command, `npm run bot -- void-test <#> --send` (owner key), before the week closes; the next run takes it as done and stops |
+| Question file / params hash / VHP list mismatch; resolver failed; generator failed; no fair questions; day file not sealed by this bot; week slot full | question pipeline problems | Questions chat; don't post by hand |
 | "bot-state.json … was not written by this bot" | state file distrusted | fires once; tell the Vault chat |
 
 ---
@@ -118,6 +120,7 @@ The bot compares the chain with the records on `main` (`game-data/deployment.jso
 | "free-prize switches can't be read" | the `prize-settings` file broken | `npm run prizes -- list`; resend the setting. Under 6 h the bot seals without free winners |
 | prize winner already has a result / was staked / too many tied | free-prize list problem | game chat |
 | "didn't go through" | network or Mana; retried | wait; Vault chat if it repeats |
+| "… is a test week (vaultTestWeeks in deployment.json): it plays but pays nothing …" | `game-post` was asked for a test week (owner, 10 Nov: the week of Mon 9 Nov) | nothing: the week rolls over at its deadline, and its earnings go to Week 1 |
 
 Correcting after a seal (24 h window), `game-unprize`, `game-void`: `RUNBOOK.md` §3.
 
@@ -148,7 +151,7 @@ It watches **only the personal node**; the pool's silence is caught by the bot (
 
 ## 7. Heal alert — from your PC's scheduled tasks
 
-Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub emails you. The run title names the node (or "daily questions"). Needs `GITHUB_ALERT_TOKEN` in `.env`.
+Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub emails you. The run title names the node (or "daily questions"). Needs the PC's alert token (`GITHUB_ALERT_TOKEN`, RUNBOOK).
 
 **"Knode self-heal"** (every 20 min, `bot/heal.mjs`, log `node\heal.log`):
 | Alert | Trigger | How often | What you can do |
@@ -160,9 +163,10 @@ Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub email
 | "Repairing the X from the Y…" / "Repair finished" / "Repair FAILED" | auto-repair | once each | on FAILED: Vault chat with `node\repair-<node>-<time>.log` |
 | "This is a test of the Knode self-healing email." | `node bot\heal.mjs --test-alert` | manual | proves the email path works |
 
-**"Knode question release"** (every 5 min, 11:45 – 14:05 and 23:45 – 02:05 UTC, `bot/release-kick.mjs`, log `node\release-kick.log`):
+**"Knode question release"** (every 5 min, all day, `bot/release-kick.mjs`, log `node\release-kick.log`; re-run `node\install-release-kick.ps1` after the 10 Nov update):
 | Alert | Trigger | What you can do |
 |---|---|---|
+| "The Kpred bot hadn't run since …, so the PC started it…" | heartbeat: no bot run for 75 min (at most 6 starts a day; it backs off 15 min → 4 h after a GitHub error) | re-enable the schedules (`RECOVERY.md` §7); Questions chat |
 | "…today's questions are not out yet at …" | the round's file missing 20 min after release | `RUNBOOK.md` §6; Questions chat |
 | "…the bot skipped today's questions (…)" | the bot logged a skip | Questions chat |
 

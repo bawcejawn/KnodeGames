@@ -116,7 +116,8 @@ export function ruledResult(result: any, entry: RulerEntry | null | undefined): 
   const rows = new Map((JSON.parse(entry.card).producers || []).map((p: any) => [p.a, p]));
   const shows = pl.slice(1, 3).filter((a) => Number((rows.get(a) as any)?.signed) >= 1);
   const picks = (Array.isArray(result.picks) ? result.picks : []).map((x: any[]) => [x[0], x[1], x[2], x[1] === pl[0] ? 1 : 0, 0, x[1] !== pl[0] && shows.includes(x[1]) ? 1 : 0]);
-  return { final: true, winner: pl[0], placings: pl, picks };
+  // standings: the ruler's order, so the points per place (D-173, with the race types) read 2nd and 3rd from it
+  return { final: true, winner: pl[0], placings: pl, standings: pl.map((a) => ({ a })), picks };
 }
 
 export function emptyRuler(week: number, from: number | null): RulerFile {

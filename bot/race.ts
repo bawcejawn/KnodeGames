@@ -184,6 +184,15 @@ function readPrev(name: string): any {
   const f = path.join(PREV, name);
   try { if (fs.lstatSync(f).isSymbolicLink()) return null; return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return null; }
 }
+/** Repo Lens #D-13 L-6: like readPrev, but says whether the file is absent ("none") or there and unreadable ("bad"). */
+function readPrevState(name: string): { state: "none" | "bad" | "ok"; value: any } {
+  if (!PREV) return { state: "none", value: null };
+  const f = path.join(PREV, name);
+  let st: fs.Stats;
+  try { st = fs.lstatSync(f); } catch { return { state: "none", value: null }; }
+  if (st.isSymbolicLink() || !st.isFile()) return { state: "bad", value: null };
+  try { return { state: "ok", value: JSON.parse(fs.readFileSync(f, "utf8")) }; } catch { return { state: "bad", value: null }; }
+}
 function emptyWeek(w: number): WeekFile {
   const start = M.weekStart(w), races: Race[] = [];
   for (let t = start; t < start + M.WEEK; t += M.RACE) { const i = M.raceIndex(t); races.push({ id: M.raceId(i), start: M.raceStart(i), end: M.raceStart(i) + M.RACE, cards: new Array(M.LEGS).fill(null), result: null }); }
@@ -393,7 +402,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   rulerAll = new Map(); rulerLedgerCache = rulerLedger === undefined ? undefined : rulerLedger;
   rhythmFromWeek = rhythmFrom ?? M.RHYTHM_FROM_WEEK;
   typesFromWeek = typesFrom === undefined ? M.TYPES_ON_WEEK : typesFrom;
-  typesAll = new Map(); typesWeekFiles = new Map();
+  typesAll = new Map(); typesWeekFiles = new Map(); typesUnread = new Map();
   verifyDeadline = Date.now() + VERIFY_BUDGET_MS;
   vaultRefused = null;
   heldAlerts = [];
@@ -554,7 +563,8 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   // ── 2b. race types (D-166): the hour ledger, then the 1-hour, 2-hour, daily and weekly races scored from it ──
   for (const wf of weeks.values()) {
     if (!typesOn(wf.week)) continue;
-    const tf = loadTypes(wf.week);
+    let tf: TypesFile;
+    try { tf = loadTypes(wf.week); } catch (e) { typesUnread.set(wf.week, (e as Error).message); problems.push((e as Error).message); continue; }
     typesAll.set(wf.week, tf);
     await recordTypes(tf, raceById, problems, now);
   }
@@ -617,6 +627,8 @@ type Typed = { type: number; id: string; start: number; end: number; result: any
 type TypesFile = { v: 1; week: number; start: number; end: number; hours: Hour[]; races: Typed[] };
 let typesFromWeek: number | null = M.TYPES_ON_WEEK;   // #C-12 C12-1: off unless TYPES_READY
 let typesAll = new Map<number, TypesFile>();
+/** Repo Lens #D-13 L-6: weeks whose previous T file is there but unreadable (week → the reason). They are never final. */
+let typesUnread = new Map<number, string>();
 const typesOn = (w: number) => typesFromWeek !== null && w >= typesFromWeek;
 // ── the VHP ruler (owner, 11 Nov 2026): R<week>.json, see bot/race-ruler.ts ──
 let rulerFromWeek: number | null = null;
@@ -688,9 +700,14 @@ function hourOk(h: any, start: number, end: number): h is Hour {
     && h.l && typeof h.l === "object" && Object.keys(h.l).every((a) => a in h.n && Number.isSafeInteger(h.l[a]))
     && Array.isArray(h.c) && h.c.length === 4 && h.c.every((x: any) => Number.isFinite(x) && x >= 0);
 }
+/** Repo Lens #D-13 L-6: a previous T file that is there but unreadable (bad JSON, wrong version or week) is NOT read as
+ *  an empty week: loadTypes throws, the run skips that week's typed races and doesn't write its T file, so the
+ *  published one stays as it was (and the vault recount, which reads the published T, holds if the board differs). */
 function loadTypes(w: number): TypesFile {
-  const fresh = emptyTypes(w), old = readPrev(`T${String(w).padStart(3, "0")}.json`);
-  if (!old || old.v !== 1 || old.week !== w) return fresh;
+  const name = `T${String(w).padStart(3, "0")}.json`, fresh = emptyTypes(w), prev = readPrevState(name), old = prev.value;
+  if (prev.state === "none") return fresh;
+  if (prev.state === "bad" || !old || typeof old !== "object" || old.v !== 1 || old.week !== w)
+    throw new Error(`${name} from the last run can't be read; its typed races are not recorded this run and the file is left as published`);
   if (Array.isArray(old.hours)) {
     const seen = new Set<number>();
     for (const h of old.hours) if (hourOk(h, fresh.start, fresh.end) && !seen.has(h.t)) { seen.add(h.t); fresh.hours.push(h); }
@@ -779,8 +796,15 @@ async function recordTypes(tf: TypesFile, raceById: (id: string) => Race | null,
   for (const r of tf.races) {
     if (r.result?.final || r.end > c.libT) continue;
     // An hour with no 6-hour card at all can never be scored (cards are taken live): the race is missed.
-    let noCard = false;
-    for (let h = r.start; h < r.end; h += M.HOUR) if (!baseCard(raceById, h)) { noCard = true; break; }
+    // Repo Lens #D-13 L-5: only once the 6-hour race covering that hour is itself final (scored or missed), so its cards
+    // can't still arrive; before that the typed race just waits.
+    let noCard = false, wait = false;
+    for (let h = r.start; h < r.end; h += M.HOUR) if (!baseCard(raceById, h)) {
+      const six = raceById(M.raceAt(h).id);
+      if (six && !six.result?.final && six.end > c.libT) { wait = true; break; }
+      noCard = true;
+    }
+    if (wait) continue;
     if (noCard) { r.result = { final: true, missed: true, note: "an hour of this race has no handicap card" }; continue; }
     try {
       const res = await scoreTyped(r, led, typedCardAt(raceById, led, r.type), c);
@@ -972,7 +996,9 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
   const idx = readPrev("index.json");
   for (const w of Array.isArray(idx?.weeks) ? idx.weeks : []) if (Number.isInteger(w) && !all.has(w)) all.set(w, loadWeek(w));
   for (const w of all.keys()) if (rulerOn(w) && !rulerAll.has(w)) rulerAll.set(w, loadRuler(w));
-  for (const w of all.keys()) if (typesOn(w) && !typesAll.has(w)) typesAll.set(w, loadTypes(w));
+  for (const w of all.keys()) if (typesOn(w) && !typesAll.has(w) && !typesUnread.has(w)) {
+    try { typesAll.set(w, loadTypes(w)); } catch (e) { typesUnread.set(w, (e as Error).message); problems.push((e as Error).message); }
+  }
   const wNow = M.weekOf(now), day0 = Math.floor(now / M.DAY) * M.DAY;
   const failed = new Set<string>();              // "stake:who|week": stake reads that failed (not staked on the boards)
   const anyPicks = [...all.values()].some((wf) => wf.races.some((r) => Array.isArray(r.result?.picks))) || [...typesAll.values()].some((tf) => tf.races.some((r) => Array.isArray(r.result?.picks)));
@@ -1188,6 +1214,13 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   if (prizesUnset !== null) {
     const why = `the repository variable PRIZES_FROM_WEEK is not set to a plain week number (it reads ${prizesUnset}); set it (Settings → Secrets and variables → Actions → Variables, the same one Block X reads: 4 = first paid week Mon 16 Nov). The week stays pending, nothing is made final`;
     problems.push(`vault week ${w}: not final yet, ${why}`); heldAlert(w, wf.end, now, why, "set the variable PRIZES_FROM_WEEK; the week goes final by itself on the next run");
+    return file;
+  }
+  // Repo Lens #D-13 L-6: the week's typed results can't be read, so its board can't be trusted: held (never final, never
+  // skipped by the deadline), with an alert, until the T file is readable again.
+  if (typesOn(w) && typesUnread.has(w)) {
+    const why = `${typesUnread.get(w)}; the week stays pending and nothing is made final`;
+    problems.push(`vault week ${w}: not final yet, ${why}`); heldAlert(w, wf.end, now, why, "look at race-data T" + String(w).padStart(3, "0") + ".json (the Race chat)");
     return file;
   }
   if (otherOpen.length && !late) return wait(`${otherOpen.length} race(s) still being checked (${otherOpen.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);

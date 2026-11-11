@@ -2059,3 +2059,52 @@ test("G6-1: the publish job's recompute also reads 3rd place for the picked prod
   assert.match(line, /sts\[2\]\.get\("a"\) == x\[1\]/, "3rd place is the picked producer's: " + line.trim());
   assert.doesNotMatch(line, /== who\b/, "never the player's wallet");
 });
+
+// ── R-RACE-18: Repo Lens #D-13 L-5 and L-6 ──
+test("R-RACE-18 (#D-13 L-5): a typed race isn't marked missed while its 6-hour race could still get a card; a later card scores it", async () => {
+  // Normal runs 00:37 to 06:37. Then the 6-hour race 06-12 loses its cards, and the 07:37 run can't take one (the check
+  // node gives another signer for one block at 02:30, inside the card's 6-hour window; hour 02 is already in the
+  // ledger): every hour of that race has no card for now, though a later run's card would cover them (cardForLeg).
+  let a = "";
+  for (const t of ["00", "01", "02", "03", "04", "05", "06"]) a = await typesRun(U(`2026-11-02T${t}:37Z`), a);
+  const prev = tmp();
+  for (const f of fs.readdirSync(a)) if (fs.statSync(path.join(a, f)).isFile()) fs.copyFileSync(path.join(a, f), path.join(prev, f));
+  const w = week(a);
+  for (const r of w.races) if (r.id === "2026-11-02T06") r.cards = r.cards.map(() => null);
+  fs.writeFileSync(path.join(prev, "W002.json"), JSON.stringify(w) + "\n");
+  const at = U("2026-11-02T07:37Z"), b = tmp(), log = console.log; console.log = () => {};
+  const bad = 1000 + chain.ts.findIndex((t) => t >= U("2026-11-02T02:30Z"));
+  try { lastRun = await run({ p: node(at), check: node(at, { tamper: bad }), prev, out: b, vhpOf, raceContract: "x", picksOf: async () => [], prizesFrom: 0, vaultHold: false, typesFrom: 2, stakedOf: async () => false }); } finally { console.log = log; }
+  assert.ok(lastRun.problems.some((m) => /handicap card waits for the next run/.test(m)), "no card this run");
+  assert.ok(!week(b).races.find((r) => r.id === "2026-11-02T06").cards.some(Boolean), "no card for the 6-hour race 06-12 yet");
+  const r0 = tfile(b).races.find((r) => r.id === "H1-2026-11-02T06");
+  assert.equal(r0.result, null, "H1 06-07 has ended but isn't marked missed: its 6-hour race is still running");
+  // 08:37: a card is taken, and it covers hour 06 too, so the 1-hour race is scored.
+  const c = await typesRun(U("2026-11-02T08:37Z"), b);
+  const r1 = tfile(c).races.find((r) => r.id === "H1-2026-11-02T06");
+  assert.equal(r1.result?.final, true);
+  assert.ok(!r1.result.missed && Array.isArray(r1.result.standings) && r1.result.standings.length, "scored, not missed");
+});
+
+test("R-RACE-18 (#D-13 L-6): an unreadable previous T file is not read as an empty week, and is not written over", async () => {
+  const a = await typesRun(U("2026-11-02T00:37Z"), "");
+  const b = await typesRun(U("2026-11-02T01:37Z"), a);
+  for (const bad of ["{not json", JSON.stringify({ v: 2, week: 2 }), JSON.stringify({ v: 1, week: 3, hours: [], races: [] })]) {
+    const prev = tmp();
+    for (const f of fs.readdirSync(b)) if (fs.statSync(path.join(b, f)).isFile()) fs.copyFileSync(path.join(b, f), path.join(prev, f));
+    fs.writeFileSync(path.join(prev, "T002.json"), bad);
+    const c = await typesRun(U("2026-11-02T02:37Z"), prev);
+    assert.ok(!fs.existsSync(path.join(c, "T002.json")), "no T file written this run (the published one stays)");
+    assert.ok(lastRun.problems.some((m) => /T002\.json from the last run can't be read/.test(m)), "said so in the run's problems");
+    assert.ok(fs.existsSync(path.join(c, "W002.json")), "the 6-hour week file still writes");
+    // After the week: its vault file is held (never final), with the reason.
+    const v = await typesRun(U("2026-11-09T00:37Z"), prev);
+    assert.ok(lastRun.problems.some((m) => /^vault week 2: not final yet, T002\.json from the last run can't be read/.test(m)), "its vault week is held: " + lastRun.problems.join(" | "));
+    assert.ok(!fs.existsSync(path.join(v, "vault", "W2.json")) || JSON.parse(fs.readFileSync(path.join(v, "vault", "W2.json"), "utf8")).final === false, "never final");
+  }
+  // A missing previous T file is still a fresh week (the first run of the types).
+  const prev = tmp();
+  for (const f of fs.readdirSync(b)) if (f !== "T002.json" && fs.statSync(path.join(b, f)).isFile()) fs.copyFileSync(path.join(b, f), path.join(prev, f));
+  const d = await typesRun(U("2026-11-02T02:37Z"), prev);
+  assert.ok(fs.existsSync(path.join(d, "T002.json")), "absent: a fresh T file");
+});

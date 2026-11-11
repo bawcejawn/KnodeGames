@@ -53,6 +53,11 @@
         byPlace: b.free.byPlace === true,
       } : null,
       main: cols[0].key,
+      // `earns`: the recorder marks who earns on each row (1 / 2 the free prize's 1st / 2nd, 3 a share of the staked
+      // bucket; leaderboard standard §4), so the medals follow the game's own rules and tie-breaks exactly.
+      earns: b.earns === true,
+      // `hide`: period tabs the game doesn't have (e.g. the Bracket has no "Today").
+      hide: Array.isArray(b.hide) ? b.hide.filter((m) => m === "today" || m === "last" || m === "all") : [],
     };
   }
 
@@ -129,7 +134,9 @@
           me: (r, place) => `${place ? `You: #${place} with` : "Your score (only you see this):"} ${fmt(r[cfg.main] ?? 0, cfg.scale === 100 ? 2 : 0)} ${cfg.columns[0].label.toLowerCase()}.`,
           unranked: cfg.unranked,
           free: cfg.free ? { show: cfg.free.show, prize: cfg.free.prize } : null,
-          freeWinners: cfg.free ? freeWinnersFor(cfg) : undefined,
+          freeWinners: cfg.free ? (cfg.earns ? (part, free, weekly) => new Map(weekly ? free.filter((r) => r.earns === 1 || r.earns === 2).map((r) => [r.a, r.earns]) : []) : freeWinnersFor(cfg)) : undefined,
+          earned: cfg.earns ? (r, weekly) => weekly && r.earns === 3 : undefined,
+          hide: cfg.hide,
         }),
       };
       boards.set(id, b);

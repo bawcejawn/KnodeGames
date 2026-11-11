@@ -241,6 +241,22 @@ test("race.html offers guest play too: it loads guest.js before wallet.js, from 
   assert.ok(g > 0 && wlt > g);
 });
 
+test("guests make KnodeGames picks only on the pinned Picks contract (the mainnet one in picks-data/deployment.json)", () => {
+  const live = JSON.parse(fs.readFileSync(`${APP}/picks-data/deployment.json`, "utf8")).contract;
+  assert.match(walletSrc, new RegExp(`const PINNED_PICKS = "${live}";`), "pinned to the live mainnet Picks contract");
+  assert.match(walletSrc, /const guestPicks = \(\) => \(W\.chainId === MAINNET_CHAIN_ID \? \(PINNED_PICKS \|\| null\)/);
+  const start = walletSrc.indexOf("  function checkGuestTx("), end = walletSrc.indexOf("\n  }\n", start) + 4;
+  const ctx = { BigInt, Number, Error, ANSWER };
+  vm.createContext(ctx);
+  vm.runInContext(walletSrc.slice(start, end) + "\nthis.check = checkGuestTx;", ctx);
+  const PICKS = "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW", PICK = 0x8ce33c6c;
+  const want = { sponsor: SPONSOR, payee: "1Guest", chainId: MAINNET, game: GAME, rcLimit: "100000000" };
+  const tx = (contract, entry) => ({ header: { payer: SPONSOR, payee: "1Guest", chain_id: MAINNET, rc_limit: "100000000" }, operations: [{ call_contract: { contract_id: contract, entry_point: entry } }] });
+  assert.throws(() => ctx.check(tx(PICKS, PICK), want), /only game answers/, "no Picks contract pinned: no picks");
+  ctx.check(tx(PICKS, PICK), { ...want, picks: PICKS });
+  assert.throws(() => ctx.check(tx(PICKS, 0x94871b42), { ...want, picks: PICKS }), /only game answers/, "only pick, never apply_game");
+});
+
 test("every page with the wallet button offers guest play: guest.js before wallet.js, koilib allowed and loaded", () => {
   for (const p of fs.readdirSync(`${APP}`).filter((f) => f.endsWith(".html"))) {
     const h = fs.readFileSync(`${APP}/${p}`, "utf8");

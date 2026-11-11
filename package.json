@@ -25,6 +25,7 @@
     "picks": "tsx bot/picks.ts",
     "testnet-site": "node tools/testnet-site.mjs",
     "names": "tsx bot/names.ts",
+    "bracket": "tsx bot/games/bracket.ts",
     "stats": "tsx bot/stats.ts",
     "prizes": "tsx bot/free-prizes.ts",
     "game:new": "node tools/new-game.mjs",

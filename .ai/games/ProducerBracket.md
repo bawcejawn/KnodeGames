@@ -24,10 +24,10 @@ A weekly knockout tournament of Koinos block producers, like a March Madness bra
 
 ## Rewards
 - **Staked:** at least the vault minimum (1 VHP) staked in game 9; staked at the week's start stays staked that week. 💬
-- **Free play: 2 VHP for 1st, 1 VHP for 2nd** (D-019, D-062). Tied for 1st share all 3 VHP; a single 1st → tied 2nd share 1 VHP; at most 10 per place (more than 10 tied → that place and below stay empty). Minimum play: one bracket with ≥ 1 point. Guests eligible. 1-week seasons. 💬 **⚠ This is today's code, not the rule: D-159 pays exactly 10 by earlier score time, then address, never zero for the cap (I-103, fixed in code separately).**
+- **Free play: no VHP prize for now.** The free-prize switch for game 9 is **OFF** (owner 11 Nov; `prize-settings` has it off from vault week 4). If it is switched on (`npm run prizes -- on 9 --send`, from the next vault week), the rule below applies: **2 VHP for 1st, 1 VHP for 2nd** (D-019, D-062). Tied for 1st share all 3 VHP; a single 1st → tied 2nd share 1 VHP; at most 10 per place (more than 10 tied → that place and below stay empty). Minimum play: one bracket with ≥ 1 point. Guests eligible. 1-week seasons. 💬 **⚠ This is today's code, not the rule: D-159 pays exactly 10 by earlier score time, then address, never zero for the cap (I-103, fixed in code separately).**
 
 ## Dependencies
-- **Picks contract:** announce game 9 (48 h). **Vault:** `game-add 9 "Producer Bracket" --staked --free --season 1` (48 h; when its fix-check passes and the pause ends, D-088, D-113), free-prize switch ON (D-082); results `games-data:bracket/vault/W<week>.json` ✅ `vaultGames`.
+- **Picks contract:** announce game 9 (48 h). **Vault:** `game-add 9 "Producer Bracket" --staked --free --season 1` (48 h; `--free` keeps a free prize possible), free-prize switch **OFF** (owner 11 Nov; was ON under D-082); results `games-data:bracket/vault/W<week>.json` ✅ `vaultGames`.
 - A **sponsor allowlist row** for game 9 picks. 💬
 - The VHP standard (`vhp-standard.js`, `bot/vhp-chain.ts`) and the VHP contract's `effective_balance_of`. 💬
 - Recorder `bot/games/bracket.ts` in `games.yml`; data branch `bracket-history` (keep) ✅.

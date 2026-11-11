@@ -767,7 +767,11 @@
     try { req = await vaultApi("request", { body: { ...creds(), operations, mana: "auto" } }); }
     catch (e) {
       if (e.status === 404 || e.status === 410) { dropVault(); throw new Error("KOIN Vault connection expired. Connect again, then retry."); }
-      throw new Error(e.status === 409 ? `${e.message} (KOIN Vault)` : e.message);
+      // Bracket fix-check 2 W-1: no HTTP status = the answer was lost (KOIN Vault may still have made the request); pages
+      // that must not send twice read `openUntil: null` as "may be open, lifetime unknown". Repo Lens #E-26 E26-2: a 5xx
+      // too (a gateway can time out after KOIN Vault made the request)
+      const maybeOpen = !e.status || e.status >= 500;
+      throw Object.assign(new Error(e.status === 409 ? `${e.message} (KOIN Vault)` : e.message), e.status ? { status: e.status } : {}, maybeOpen ? { openUntil: null } : {});
     }
     const status = h("div", { class: "kw-status", role: "status" }, "Waiting for your approval in KOIN Vault…");
     open(h("h3", {}, `Approve in KOIN Vault`), h("p", {}, `“${label}”. Open KOIN Vault, check the details and approve with your fingerprint or face, then come back here.`),
@@ -781,7 +785,7 @@
         await sleep(2000);
         let r; try { r = await vaultApi("request-status", { query: { ...creds(), requestId: req.requestId } }); }
         catch (e) { if (e.status === 404 || e.status === 410) throw new Error("The request expired before it was approved."); continue; }
-        if (r.status === "pending") { if (stop) throw new Error("Still waiting in KOIN Vault. Approve or reject it there; don't send it again from here."); continue; }
+        if (r.status === "pending") { if (stop) throw Object.assign(new Error("Still waiting in KOIN Vault. Approve or reject it there; don't send it again from here."), { openUntil: req.expiresAt || null }); continue; }
         if (r.status === "submitting") { status.textContent = "Approved. Sending…"; continue; }
         if (r.status === "rejected") throw new Error("Cancelled in KOIN Vault.");
         if (r.status === "failed") throw new Error(r.error || "KOIN Vault couldn't send it.");
@@ -793,7 +797,8 @@
           return null;
         }
       }
-      throw new Error("No answer from KOIN Vault in time. Check the wallet before trying again.");
+      // (Bracket fix-check 2 W-1: the request may still be approved until KOIN Vault's own expiry)
+      throw Object.assign(new Error("No answer from KOIN Vault in time. Check the wallet before trying again."), { openUntil: req.expiresAt || null });
     } finally { close(); }
   }
 

@@ -105,7 +105,9 @@ test("AB-04 the 'Collect your prize' steps say that collecting needs a little Ma
   await connectAsGuest(w);
   await assert.rejects(w.KW.send("collect", [w.op(GAME, CLAIM)]));
   assert.ok(w.all.some((e) => e.tag === "h3" && /Collect your prize/.test(e.text)));
-  const steps = w.all.filter((e) => e.tag === "p" && /Import account/.test(e.text)).map((e) => e.text).join(" ");
+  const para = w.all.filter((e) => e.tag === "p" || e.tag === "li").map((e) => e.text);
+  assert.ok(para.some((t) => /Import account/.test(t)), "the steps still tell the guest to import the key in Kondor");
+  const steps = para.join(" ");
   assert.match(steps, /Mana|KOIN/, "the steps end at 'tap Collect' in Kondor, but a free player's claim must use its own Mana and the guest has none");
 });
 

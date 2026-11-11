@@ -72,8 +72,7 @@
     if (s.staked.total >= MIN.staked) out.push([`${vhpText(s.staked.total)} VHP`, "staked in the prize vault"]);
     if (s.players.week >= MIN.players) out.push([fmt(s.players.week), "players this week"]);
     if (s.plays.total >= MIN.plays) out.push([fmt(s.plays.total), "answers and picks this week"]);
-    if (s.today.closes && s.today.closes > now && s.today.open > 0) out.push([`${s.today.open} open`, `question${s.today.open === 1 ? "" : "s"}, answers close in ${left(s.today.closes - now)}`]);
-    out.push(["2 + 1 VHP", "free prizes every week"]);
+    out.push(["2 + 1 VHP", "weekly free prizes in games with prizes on"]);
     return out.slice(0, 3);
   }
   async function strip(box) {
@@ -110,7 +109,7 @@
       tile(fmt(s.players.week), `players ${weekWord(s, now)}`, `${fmt(s.players.lastWeek)} the week before · ${fmt(s.players.allTime)} wallets all time`),
       tile(fmt(s.plays.total), `answers and picks ${weekWord(s, now)}`, `${fmt(s.plays.answers)} answers · ${fmt(s.plays.racePicks)} race picks · ${fmt(s.plays.blockxPicks)} Block X picks`),
       tile(`${vhpText(s.staked.total)} VHP`, "staked in the prize vault", s.staked.games.length ? s.staked.games.map((g) => `${g.name} ${vhpText(g.vhp)}`).join(" · ") : null),
-      tile("2 + 1 VHP", "free prizes every week", "for the 2 best free players"),
+      tile("2 + 1 VHP", "weekly free prizes in games with prizes on", "for the 2 best free players"),
     );
     if (s.blocks.vault24h !== null) tiles.append(tile(fmt(s.blocks.vault24h), "blocks made by the prize vault", "in the last 24 hours: they fund the prizes"));
     if (s.today.closes && s.today.closes > now) tiles.append(tile(`${fmt(s.today.open)} open`, `question${s.today.open === 1 ? "" : "s"}, answers close in ${left(s.today.closes - now)}`, `${fmt(s.today.answers)} answers so far`));

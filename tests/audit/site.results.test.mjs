@@ -12,7 +12,7 @@ test("results.js only reads and draws: no sending, storage, eval or HTML from da
   assert.doesNotMatch(js, /innerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|localStorage|sessionStorage|indexedDB|sendTransaction|\.send\(|signTransaction/);
   assert.match(js, /RAW \+ "race-data\/index\.json"/);
   assert.match(js, /race-data\/W\$\{String\(w\)\.padStart\(3, "0"\)\}\.json/, "week files by number only");
-  assert.match(js, /const ADAPTERS = \{ race, blockx \};/, "a game needs a drawing here before it gets a tab");
+  assert.match(js, /const ADAPTERS = \{ race, blockx, bracket \};/, "a game needs a drawing here before it gets a tab");
 });
 
 test("the results view has a game switcher and keeps the question results whole", () => {

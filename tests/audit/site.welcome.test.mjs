@@ -28,15 +28,15 @@ test("All the games lists every game; only the open ones are links; no 'Coming s
   const g = welcome.slice(welcome.indexOf('id="welcome-games"'), welcome.indexOf('class="welcome-actions"'));
   for (const [name, href] of [["Producer Race", "race.html"], ["Daily Questions", "#play"], ["Who Signs Block X", "blockx.html"], ["Producer Bracket", "bracket.html"], ["Block Golf", "golf.html"]]) assert.match(g, new RegExp(`<a class="also-card gtile" href="${href.replace(".", "\\.")}"><span[^>]*>[^<]*</span><div><b>${name}</b>`), name);
   for (const name of ["Fantasy Producers", "Survivor"]) assert.match(g, new RegExp(`<div class="also-card gtile soon" aria-disabled="true"><span[^>]*>[^<]*</span><div><b>${name}</b>`), `${name} is not a link`);
-  assert.match(g, /<a class="also-card" href="swap\.html">[\s\S]*Knode Games Swap/);
-  assert.match(g, /<a class="also-card" href="run-node\.html">[\s\S]*Run a node/);
+  assert.match(g, /<a class="also-card gtile" href="swap\.html">[\s\S]*Knode Games Swap/);
+  assert.match(g, /<a class="also-card gtile" href="run-node\.html">[\s\S]*Run a node/);
   assert.match(g, /Block Golf[\s\S]*?Practice in Week 1 \(from Mon 16 Nov\)/);   // owner, 10 Nov: Golf is clickable, practice in Week 1
   assert.doesNotMatch(g, /Coming soon/);   // the games list has no label (the race card says what is coming)
   assert.doesNotMatch(welcome, /Never miss a day|welcome-remind/);
 });
 test("the Rules tab has a tab and a panel for every open game", () => {
-  for (const t of ["game", "race", "blockx", "swap"]) { assert.match(html, new RegExp(`data-rules="${t}"`)); assert.match(html, new RegExp(`data-rules-panel="${t}"`)); }
-  assert.match(fs.readFileSync(`${APP}/app.js`, "utf8"), /RULE_TABS = \["game", "race", "blockx", "swap"\]/);
+  for (const t of ["game", "race", "blockx", "bracket", "swap"]) { assert.match(html, new RegExp(`data-rules="${t}"`)); assert.match(html, new RegExp(`data-rules-panel="${t}"`)); }
+  assert.match(fs.readFileSync(`${APP}/app.js`, "utf8"), /RULE_TABS = \["game", "race", "blockx", "bracket", "swap"\]/);
 });
 test("wallet users get a Connect it link beside Play free, hidden once connected", () => {
   assert.match(welcome, /id="welcome-paths">Have a Koinos wallet\? <button class="linklike" type="button" id="welcome-connect">Connect it<\/button>/);

@@ -258,7 +258,15 @@
 
   // ───────────────── tabs ─────────────────
   // A drawing per game; a game shows here when games.json says `"results": true` and it has a drawing.
-  const ADAPTERS = { race, blockx };
+  // Producer Bracket: the week-by-week results live on the Bracket page until its first week is final.
+  const bracket = {
+    open(box) {
+      box.replaceChildren(el("div", { class: "empty" },
+        el("p", { text: "The Producer Bracket's weekly results (the champion, every round and your points) are on the Bracket page. They are listed here once its first week is final." }),
+        el("p", {}, el("a", { class: "btn btn-primary", href: "bracket.html", text: "Open the Bracket" }))));
+    },
+  };
+  const ADAPTERS = { race, blockx, bracket };
   let games = [{ id: "questions", name: "Daily Questions" }], current = "questions";
   const qPart = $("res-q"), gPart = $("res-g");
 

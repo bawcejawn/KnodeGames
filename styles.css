@@ -948,3 +948,12 @@ button.btn { min-height: 44px; }
 .brand-mark { width: 32px; height: 32px; border-radius: 9px; box-shadow: none; background: url("media/icon.svg") center / cover no-repeat; }
 .brand-mark i, .brand-mark i:first-child { display: none; }
 .welcome-how .also-card { margin-bottom: 10px; box-shadow: none; }
+
+/* Bigger top menu (owner, 11 Nov) and the Daily Questions view tabs. */
+.tabs > a, .tabs summary { font-size: 1.08rem; padding: 10px 14px; }
+.tabs .dd-menu a { font-size: 1.02rem; padding: 11px 14px; }
+.brand-name { font-size: 1.4rem; }
+.qtabs { display: flex; gap: 8px; margin: 6px 0 16px; flex-wrap: wrap; }
+.qtabs a { text-decoration: none; font: 700 1rem var(--display); color: var(--ink); background: var(--surface); box-shadow: var(--shadow); padding: 10px 18px; border-radius: 999px; min-height: 44px; display: inline-flex; align-items: center; }
+body[data-view="play"] .qtabs a[data-view="play"], body[data-view="leaderboard"] .qtabs a[data-view="leaderboard"], body[data-view="results"] .qtabs a[data-view="results"] { background: var(--navy); color: var(--navy-ink); }
+.note-sol { margin: 8px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--sun-soft); color: var(--ink); font-size: .95rem; }

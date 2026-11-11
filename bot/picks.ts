@@ -71,7 +71,14 @@ const TESTNET_CONFIG = path.join("testnet", "blockx.json");
 /** Mainnet games this tool may register: Who Signs Block X, exactly as in claude/builds/03-block-x-plan.md. */
 // R-BX-25: game 12 is hourly Block X (a target every 1,200 blocks) from Mon 16 Nov 2026; game 2 stops at that switch
 // (its round size can never change on the contract, sameShape). `npm run picks -- announce 12`, then `apply 12` 48 h later.
-const MAINNET_GAMES = [{ ...X.MAINNET_GAME, name: "Who Signs Block X" }, { ...X.MAINNET_HOURLY, name: "Who Signs Block X (hourly)" }];
+/** Producer Bracket, Picks game 9 (owner 11 Nov; the Bracket chat's settings, claude/bracket/TO-LIBRARY-AND-BLOCKX-BRACKET-2026-11-11.md):
+ *  a NUMBER game (the pick is a bit mask over up to 32 seeds, 0 … 2^31 − 1), locked by TIME (ms). One round a week whose target
+ *  is Tuesday 00:00 UTC; picks lock 5 minutes before it and open 46 hours before it (Sunday 02:00 UTC, after the seeding).
+ *  The SHAPE (id, kind, list_size, number range, lock_mode, round_size, round_offset) can never change once applied. */
+const DAY_MS = 86400000, WEEK_MS = 7 * DAY_MS;
+export const BRACKET_GAME = Object.freeze({ id: 9, name: "Producer Bracket", kind: 3, round: WEEK_MS, offset: (X.GENESIS + DAY_MS) % WEEK_MS,
+  lead: 5 * 60000, ahead: 46 * 3600000, numberMax: 2 ** 31 - 1, picksPerDay: 20, maxChanges: 20 });
+const MAINNET_GAMES: any[] = [{ ...X.MAINNET_GAME, name: "Who Signs Block X" }, { ...X.MAINNET_HOURLY, name: "Who Signs Block X (hourly)" }, BRACKET_GAME];
 /** The picks per wallet per day and changes per pick the Picks contract allows at most. */
 const MAX_PICKS_PER_DAY = 50, MAX_CHANGES = 50;
 
@@ -175,7 +182,9 @@ async function status() {
   if (cfg.upgrade_eta && cfg.upgrade_eta !== "0") log(`  Upgrade        announced: ${cfg.upgrade_hash}, from ${new Date(Number(cfg.upgrade_eta)).toISOString()}`);
   const games = (await read(p, net.picks, "list_games")).games ?? [];
   log(`  Games          ${games.length ? "" : "none yet (npm run picks -- announce 2)"}`);
-  for (const g of games) log(`    ${g.id} ${g.name}: ${g.enabled ? "ON" : "off"}, every ${g.round_size} blocks, locks ${g.lead} before, opens ${g.ahead} ahead, ${g.max_picks_per_day} picks a day, ${g.max_changes} changes`);
+  for (const g of games) log(Number(g.lock_mode) === 2
+    ? `    ${g.id} ${g.name}: ${g.enabled ? "ON" : "off"}, kind ${g.kind}, a round every ${Number(g.round_size) / 3600000} h (offset ${g.round_offset} ms), locks ${Number(g.lead) / 60000} min before, opens ${Number(g.ahead) / 3600000} h ahead, ${g.max_picks_per_day} picks a day, ${g.max_changes} changes`
+    : `    ${g.id} ${g.name}: ${g.enabled ? "ON" : "off"}, every ${g.round_size} blocks, locks ${g.lead} before, opens ${g.ahead} ahead, ${g.max_picks_per_day} picks a day, ${g.max_changes} changes`);
   const pend = (await read(p, net.picks, "list_pending", { limit: 50 })).pending ?? [];
   for (const x of pend) log(`  Announced      game ${x.game?.id} (${x.game?.name}): can be applied from ${new Date(Number(x.eta)).toISOString()}${Date.now() >= Number(x.eta) ? " — ready now: npm run picks -- apply " + x.game?.id : ""}`);
   log(`  Mana           contract wallet ${showKoin(await p.getAccountRc(net.picks))}`);
@@ -281,6 +290,7 @@ async function findVhp(p: Provider): Promise<string | null> {
 // ═══════════════════════════════ games ═══════════════════════════════
 /** The game_config the contract takes for a Block X game (one producer, locked by block height). Exported for the tests. */
 export function buildGameConfig(g: any, enabled = true) {
+  if (g.kind === 3) return bracketConfig(g, enabled);
   X.forGame(g);   // the contract's own limits for a height game (lead ≥ 100, ahead > lead, ...)
   if (typeof g.name !== "string" || !g.name || Buffer.byteLength(g.name) > 40) throw new Error("A game needs a name of 1 to 40 bytes.");
   if (!(g.id >= 1 && g.id < 128)) throw new Error("Game ids are 1 to 127.");
@@ -289,9 +299,49 @@ export function buildGameConfig(g: any, enabled = true) {
   return { id: g.id, name: g.name, kind: 1, list_size: 1, number_min: "0", number_max: "0", lock_mode: 1, round_size: String(g.round), round_offset: String(g.offset),
     lead: String(g.lead), ahead: String(g.ahead), max_picks_per_day: g.picksPerDay, max_changes: g.maxChanges, enabled };
 }
+/** The Bracket's number game (kind 3, time lock). Every limit the contract's checkGame applies, plus the Bracket's own pins. */
+function bracketConfig(g: any, enabled: boolean) {
+  const ok = (c: boolean, why: string) => { if (!c) throw new Error(`Bracket game: ${why}.`); };
+  if (typeof g.name !== "string" || !g.name || Buffer.byteLength(g.name) > 40) throw new Error("A game needs a name of 1 to 40 bytes.");
+  ok(g.id >= 1 && g.id < 128, "game ids are 1 to 127");
+  ok(Number.isSafeInteger(g.round) && Number.isSafeInteger(g.offset) && g.round >= 1 && g.offset >= 0 && g.offset < g.round, "round_size at least 1 and above round_offset");
+  ok(Number.isSafeInteger(g.lead) && g.lead >= 300000, "lead at least 5 minutes");
+  ok(Number.isSafeInteger(g.ahead) && g.ahead > g.lead && g.ahead <= 35 * DAY_MS, "ahead above lead and at most 35 days");
+  // The Bracket's own rule (bot/games/bracket.ts gameProblem): picks open no earlier than the seeding, Sunday 00:00 UTC.
+  ok(g.ahead <= 2 * DAY_MS, "ahead at most 48 hours (picks can't open before the seeding)");
+  ok(Number.isSafeInteger(g.numberMax) && g.numberMax >= 0 && g.numberMax <= 2 ** 31 - 1, "number_max 0 to 2^31 − 1 (32 seeds)");
+  if (!(g.picksPerDay >= 1 && g.picksPerDay <= MAX_PICKS_PER_DAY)) throw new Error("Picks per day must be 1 to 50.");
+  if (!(g.maxChanges >= 0 && g.maxChanges <= MAX_CHANGES)) throw new Error("Changes must be 0 to 50.");
+  return { id: g.id, name: g.name, kind: 3, list_size: 0, number_min: "0", number_max: String(g.numberMax), lock_mode: 2, round_size: String(g.round), round_offset: String(g.offset),
+    lead: String(g.lead), ahead: String(g.ahead), max_picks_per_day: g.picksPerDay, max_changes: g.maxChanges, enabled };
+}
+/** Repo Lens #G-7 (G7-1): the announced game must be exactly the game this tool would announce, field by field, before an
+ *  apply. A field the chain leaves out is its zero value ("", 0, "0", false). null = they match; otherwise why not. */
+export function pendingProblem(pend: any, g: any): string | null {
+  if (pend == null) return "nothing is announced for this game";
+  const want: any = buildGameConfig(g);
+  for (const k of Object.keys(want)) {
+    const w = want[k];
+    const zero = typeof w === "boolean" ? false : typeof w === "number" ? 0 : k === "name" ? "" : "0";
+    const h = pend[k] ?? zero;
+    const same = typeof w === "boolean" ? Boolean(h) === w : typeof w === "number" ? Number(h) === w : String(h) === w;
+    if (!same) return `the announced ${k} is ${h}, this tool's is ${w}`;
+  }
+  return null;
+}
+/** The next few rounds of a time-locked game, for the announce dry run: target, opens, locks (all UTC). */
+export function timeRounds(g: { round: number; offset: number; lead: number; ahead: number }, now: number, n = 3) {
+  const out: { round: number; target: string; opens: string; locks: string }[] = [];
+  for (let r = Math.floor((now - g.offset) / g.round); out.length < n; r++) {
+    const t = r * g.round + g.offset;
+    if (t - g.lead <= now) continue;
+    out.push({ round: r, target: new Date(t).toISOString(), opens: new Date(t - g.ahead).toISOString(), locks: new Date(t - g.lead).toISOString() });
+  }
+  return out;
+}
 function gameOf(net: Net, id: number) {
   const g = net.games.find((x) => x.id === id);
-  if (!g) throw new Error(`Game ${id} is not one this tool registers on ${net.testnet ? "the testnet (testnet/blockx.json)" : "mainnet (Who Signs Block X is game 2; hourly from Mon 16 Nov, game 12)"}.`);
+  if (!g) throw new Error(`Game ${id} is not one this tool registers on ${net.testnet ? "the testnet (testnet/blockx.json)" : "mainnet (Who Signs Block X is game 2, hourly game 12; Producer Bracket game 9)"}.`);
   return g;
 }
 async function sendCall(net: Net, p: Provider, chainId: string, signer: Signer, method: string, args: any, rcKoin = 2) {
@@ -368,7 +418,12 @@ async function announce(id: number, send: boolean) {
   await ownerViews(net, p);   // R-BX-3: the settings' owner is the owner on chain, on both nodes
   const wait = net.testnet ? (readJson(TESTNET_MANIFEST)?.timelockMs ?? 600000) / 60000 + " minutes" : "48 hours";
   log(`Announce game ${id} "${g.name}" on ${net.testnet ? "the testnet" : "MAINNET"} (owner ${s.getAddress()}):`);
-  log(`  one producer per target; a target every ${g.round} blocks; locks ${g.lead} blocks before; opens ${g.ahead} ahead (${X.forGame(g).openRounds(g.ahead * 10).length} targets open at a time)`);
+  if (g.kind === 3) {
+    log(`  SHAPE (never changes): kind 3 (number), list_size 0, numbers 0 … ${g.numberMax}, lock by TIME, round ${g.round} ms (${g.round / DAY_MS} days), offset ${g.offset} ms`);
+    log(`  lead ${g.lead} ms (${g.lead / 60000} min), ahead ${g.ahead} ms (${g.ahead / 3600000} h)`);
+    for (const x of timeRounds(g, Date.now())) log(`    round ${x.round}: opens ${x.opens}, locks ${x.locks}, target ${x.target}`);
+  } else log(`  one producer per target; a target every ${g.round} blocks; locks ${g.lead} blocks before; opens ${g.ahead} ahead (${X.forGame(g).openRounds(g.ahead * 10).length} targets open at a time)`);
+  log(`  exact config sent: ${JSON.stringify(cfg)}`);
   log(`  ${g.picksPerDay} picks a day per wallet, ${g.maxChanges} changes per pick. It can be applied ${wait} after it is announced (anyone may apply it).`);
   if (!send) { log("\nDry run only. Nothing was sent. Add --send to send it."); return; }
   const r = await sendCall(net, p, chainId, s, "announce_game", { game: cfg });
@@ -383,6 +438,8 @@ async function apply(id: number, send: boolean) {
   await assertAuditedContract(net, p);
   const pend = (await read(p, net.picks, "get_game", { game: id })).pending;
   if (!pend) throw new Error(`Nothing is announced for game ${id}.`);
+  const why = pendingProblem(pend.game, gameOf(net, id));
+  if (why) throw new Error(`Game ${id}: ${why}. Nothing was sent.`);
   const eta = Number(pend.eta);
   log(`Apply game ${id} "${pend.game?.name}": announced, can be applied from ${new Date(eta).toISOString()}${Date.now() < eta ? ` (in ${Math.ceil((eta - Date.now()) / 60000)} min)` : " ✔ now"}`);
   if (!send) { log("\nDry run only. Nothing was sent. Add --send to send it."); return; }

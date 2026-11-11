@@ -24,3 +24,6 @@ before-upgrade.txt
 
 # the Vault's testnet check (throwaway testnet keys and results)
 testnet-v6/
+
+# Python bytecode (Repo Lens #G-9)
+__pycache__/

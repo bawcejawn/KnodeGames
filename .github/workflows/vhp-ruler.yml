@@ -1359,7 +1359,8 @@ jobs:
           # ── the publish job (.github/workflows/vhp-ruler.yml runs this whole file, then publish_main) ──
           # canonical numbers only (Repo Lens #D-10 M-5): h/024010.json can't stand beside h/24010.json
           _HOUR_FILE, _DAY_FILE = re.compile(r"h/(0|[1-9][0-9]{0,8})\.json"), re.compile(r"d/(0|[1-9][0-9]{0,8})\.json")
-          MAX_HOUR_BYTES, MAX_DAY_BYTES, MIN_KEEP_DAYS = 4 << 20, 16 << 20, 22
+          # MIN_KEEP_DAYS: Repo Lens #G-9 G9-1, a 6-day race's card needs about 25.3 days of hours when the week closes
+          MAX_HOUR_BYTES, MAX_DAY_BYTES, MIN_KEEP_DAYS = 4 << 20, 16 << 20, 26
 
 
           def _read_tree(d):

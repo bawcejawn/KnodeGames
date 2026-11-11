@@ -112,7 +112,7 @@ test("lastnode-testnet.html: testnet only for signing, mainnet only read; no mai
   const order = ["testnet-wallet.js", "chain-blocks.js", "race-math.js", "lastnode-math.js", "board.js", "lastnode.js"].map((f) => h.indexOf(`<script src="${f}"></script>`));
   assert.ok(order.every((x, i) => x > 0 && (i === 0 || x > order[i - 1])), "script order");
   const csp = h.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)[1];
-  assert.match(csp, /connect-src 'self' https:\/\/testnet\.koinosfoundation\.org https:\/\/koinos\.armana\.io https:\/\/api\.koinos\.io https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/blocks-data\/ https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/race-data\/ https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/testnet-data\/;/);
+  assert.match(csp, /connect-src 'self' https:\/\/testnet\.koinosfoundation\.org https:\/\/koinos\.armana\.io https:\/\/api\.koinos\.io https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/blocks-data\/ https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/race-data\/ https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/testnet-data\/;/);
   assert.doesNotMatch(h, /<script>(?!<\/script>)|\son[a-z]+="/);
   // The page script signs only through the wallet chosen for the page; on the test page that is the testnet wallet,
   // which refuses mainnet and anything but the testnet Picks contract.

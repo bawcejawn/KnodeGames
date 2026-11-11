@@ -857,7 +857,7 @@ async function main() {
   // Fix-check LNF-4 on the testnet: the published file keeps 8 hours of VHP samples, so each run adds them to a local
   // cache (60 hours kept); form starts once it holds 48 hours.
   const samplesDir = inTestData(E.TESTNET_SAMPLES || "testnet-data/vhp-samples");
-  await cacheSamples(cfg.mainnet.samples || "https://raw.githubusercontent.com/bawcejawn/Knode/race-samples/vhp-samples.json", samplesDir, Date.now());
+  await cacheSamples(cfg.mainnet.samples || "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-samples/vhp-samples.json", samplesDir, Date.now());
   const koin = new Contract({ id: cfg.koin, abi: (await import("koilib")).utils.tokenAbi, provider: tp });
   // Ranked on the testnet: holds at least 1 test KOIN (test wallets have no VHP).
   const rankedOf = async (who: string[]) => {

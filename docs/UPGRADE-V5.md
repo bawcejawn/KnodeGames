@@ -1,5 +1,7 @@
 # Upgrade to game v5 and Desk v2: runbook
 
+> **📜 Historical (5 Nov 2026).** Game v5 and Desk v2 went live in October 2026; this runbook is kept for the record and because `LAUNCH.md` and `desk/SECURITY.md` link to it. Don't follow it for a new upgrade. Current contracts: `.ai/platform/CONTRACTS.md`. The Desk's live settings rules: `.ai/platform/KEYS_AND_ROLES.md` §3.
+
 Nothing in this file has been run. Every command that changes something is a dry run until you add `--send`
 (mainnet also needs `CONFIRM_MAINNET=yes` in `.env`). The same steps are buttons on the admin page (`npm run admin`).
 
@@ -11,7 +13,7 @@ Nothing in this file has been run. Every command that changes something is a dry
 | Timelock | 48 h after `schedule`, then 7 days to upload (the live v3 has no expiry) | 48 h after `schedule` (the live v1 has no expiry; v2 announcements expire 7 days after their timelock) |
 | Upload paid by | the owner wallet (~60 KOIN of Mana) | the owner wallet (~25 KOIN of Mana) |
 
-Game v5 = the audited v4 (`docs/history/UPGRADE-2026-10.md` lists its changes) plus the v5 items below. Desk v2 is new.
+Game v5 = the audited v4 (`UPGRADE-2026-10.md` (owner's private records) lists its changes) plus the v5 items below. Desk v2 is new.
 Both were checked by an independent review of the code changes (no Critical or High findings; its Medium and Low
 findings are fixed and tested), then by a full pre-upgrade audit on 2026-10-26 (commit 2ea29e8: 0 Critical, 0 High,
 5 Medium, 11 Low). Its findings are fixed in this build except M-3, which is accepted for now (see `docs/WALLETS.md`).

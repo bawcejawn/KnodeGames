@@ -43,7 +43,14 @@ jobs:
       # The upgraded code must read everything the live contract stored, exactly as it was written.
       - name: Upgrade compatibility with the live contract's data
         run: |
-          npm run build:sim
+          set -o pipefail
+          # The same EAGAIN retry as npm test above: the build tool's flake is not a test failure.
+          for attempt in 1 2 3 4 5; do
+            if npm run build:sim 2>&1 | tee build.log; then break; fi
+            if ! grep -q EAGAIN build.log || [ "$attempt" = 5 ]; then exit 1; fi
+            echo "Build tool hit EAGAIN (attempt $attempt); retrying."
+            sleep 5
+          done
           cd .. && npm ci --no-audit --no-fund --ignore-scripts
-          node --import tsx --test game/scripts/storage-compat.test.ts
+          node --import tsx --test game/scripts/storage-compat.test.ts game/scripts/storage-compat-v6.test.ts game/scripts/storage-compat-v61.test.ts
       - run: npm run check

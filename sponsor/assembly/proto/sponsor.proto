@@ -209,6 +209,13 @@ message game_get_game_player_args {
 }
 message game_get_game_player_result {
   uint64 week_stake = 4 [jstype = JS_STRING];
+  // Guest trap (4 Nov 2026): the vault always answers with field 1 first, and for a wallet it has never seen that
+  // record is EMPTY (0a 00). as-proto skips an unknown field of length 0 as a varint and reads past the buffer (trap),
+  // so every field the vault sends is declared here and read, not skipped. Declared after week_stake so the
+  // constructor keeps week_stake first. The sponsor doesn't use them.
+  bytes player = 1;
+  bytes entry = 2;
+  uint64 active_stake = 3 [jstype = JS_STRING];
 }
 message game_player {
   uint64 stake = 1 [jstype = JS_STRING];
@@ -217,6 +224,7 @@ message game_player {
 message game_get_player_result {
   game_player player = 1;
   uint64 active_stake = 3 [jstype = JS_STRING];   // audit SP-28: the stake that counts for the asked week
+  bytes entry = 2;   // guest trap (4 Nov 2026): read, never skipped (an empty entry is 12 00, a length-0 field)
 }
 
 // The KCS-4 approve arguments, read from a token operation.

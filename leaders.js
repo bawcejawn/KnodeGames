@@ -11,7 +11,7 @@
   const host = document.getElementById("lb-games");
   if (!host || !window.KBoard) return;
   const W = window.KWallet;
-  const RAW = "https://raw.githubusercontent.com/bawcejawn/Knode/";
+  const RAW = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/";
   const EXPLORER = "https://koinosscan.com/address/";
   const $ = (id) => document.getElementById(id);
   const fmt = (x, d = 0) => (typeof x === "number" && isFinite(x) ? x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }) : "–");
@@ -48,6 +48,9 @@
         prize: typeof b.free.prize === "string" && b.free.prize.length <= 160 ? b.free.prize : "",
         // `minDays`: a free medal this week needs picks on at least this many days (Block X: 3), as in the game's prize rule.
         minDays: Number.isInteger(b.free.minDays) && b.free.minDays >= 1 && b.free.minDays <= 7 ? b.free.minDays : 0,
+        // `byPlace`: medals by the row's own-board place (boardPlace, ties share it) as the game's prize rule ranks
+        // them, instead of points/correct/lastCorrect (Block Golf: points, lost balls, under par, best hole).
+        byPlace: b.free.byPlace === true,
       } : null,
       main: cols[0].key,
     };
@@ -66,6 +69,16 @@
       }
       // Days played: `days` (Block X), or `events` (Last Node Standing: one event a day).
       const ok = rows.filter((r) => (Number(r[cfg.main]) || 0) > 0 && (!cfg.free.minDays || (Number(r.days ?? r.events) || 0) >= cfg.free.minDays));
+      if (cfg.free.byPlace) {
+        // Golf's rule (golf-math.js freeMedals, the vault file's first/second): 1st = the first place's wallets; 2nd
+        // only when 1st is a single wallet; a place shared by more than 10 is left empty.
+        const groups = [];
+        for (const r of ok.filter((x) => Number.isInteger(x.boardPlace))) { const g = groups[groups.length - 1]; if (g && g[0].boardPlace === r.boardPlace) g.push(r); else groups.push([r]); }
+        const first = groups[0] || [], second = first.length === 1 ? groups[1] || [] : [];
+        if (first.length <= 10) for (const r of first) m.set(r.a, 1);
+        if (second.length <= 10) for (const r of second) m.set(r.a, 2);
+        return m;
+      }
       let place = 0;
       ok.forEach((r, i) => {
         const p = ok[i - 1];

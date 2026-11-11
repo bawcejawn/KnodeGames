@@ -48,14 +48,14 @@ function memStorage(broken = false) {
 }
 
 /** Loads guest.js and wallet.js in a fresh vm. The fake node records everything it is sent. */
-function world({ reason = "no", payer = "sponsor", brokenStorage = false, yes = true, nodeChain = MAINNET, guest = true, host = "knodegames.com", protocol = "https:" } = {}) {
+function world({ reason = "no", trap = false, payer = "sponsor", brokenStorage = false, yes = true, nodeChain = MAINNET, guest = true, host = "knodegames.com", protocol = "https:" } = {}) {
   const { document, all } = fakeDom();
   const net = [];   // every call that leaves the page: [method, payload]
   const provider = {
     getChainId: async () => { net.push(["getChainId", null]); return nodeChain; },
     getNextNonce: async (a) => { net.push(["getNextNonce", a]); return "KAE"; },
     getAccountRc: async (a) => { net.push(["getAccountRc", a]); return "100000000"; },
-    readContract: async (q) => { net.push(["readContract", q]); return { result: koilib.utils.encodeBase64url(new Uint8Array(yes ? [0x08, 0x01] : [0x12, reason.length, ...new TextEncoder().encode(reason)])) }; },
+    readContract: async (q) => { net.push(["readContract", q]); if (trap) throw new Error("module exited due to trap"); return { result: koilib.utils.encodeBase64url(new Uint8Array(yes ? [0x08, 0x01] : [0x12, reason.length, ...new TextEncoder().encode(reason)])) }; },
     sendTransaction: async (tx) => { net.push(["sendTransaction", JSON.parse(JSON.stringify(tx))]); return { transaction: { ...tx, wait: async () => ({}) }, receipt: {} }; },
     wait: async () => ({}),
   };
@@ -173,11 +173,20 @@ test("a guest never signs anything but answers: deposit and claim are refused wi
   assert.ok(w.all.some((e) => /Import account/.test(e.text)), "the claim explanation tells the player how to collect from Kondor");
 });
 
-test("would_pay says no: a friendly message, never the guest's own Mana", async () => {
-  const w = world({ yes: false });
+test("would_pay says no: the real reason, never the guest's own Mana (I-082)", async () => {
+  const w = world({ yes: false, reason: "SPONSOR: today's sponsored mana is used up" });
   await connectAsGuest(w);
-  await assert.rejects(w.KW.send("answer A", [w.op(GAME, ANSWER)]), /Free answers are used up for today/);
-  assert.equal(w.net.filter(([m]) => m === "sendTransaction").length, 0);
+  await assert.rejects(w.KW.send("answer A", [w.op(GAME, ANSWER)]), /Free answers are used up for today/, "only a real 'used up' says used up");
+  const u = world({ yes: false, reason: "SPONSOR: something new" });
+  await connectAsGuest(u);
+  await assert.rejects(u.KW.send("answer A", [u.op(GAME, ANSWER)]), /turned this down \(something new\)/, "an unknown reason is shown as it is");
+  const n = world({ yes: false, reason: "" });
+  await connectAsGuest(n);
+  await assert.rejects(n.KW.send("answer A", [n.op(GAME, ANSWER)]), /turned this one down without a reason/);
+  const t = world({ trap: true });
+  await connectAsGuest(t);
+  await assert.rejects(t.KW.send("answer A", [t.op(GAME, ANSWER)]), /free Mana check failed/, "a trap or a silent node is a failed check, not 'used up' (I-083)");
+  for (const x of [w, u, n, t]) assert.equal(x.net.filter(([m]) => m === "sendTransaction").length, 0);
 });
 
 test("a node on another chain: nothing is signed", async () => {
@@ -304,4 +313,45 @@ test("audit SP-34: the sponsor's own reason reaches the guest (the free pool reo
   await connectAsGuest(w);
   await assert.rejects(w.KW.send("answer A", [w.op(GAME, ANSWER)]), /more opens on the hour/);
   assert.equal(w.net.filter(([m]) => m === "sendTransaction").length, 0);
+});
+
+// ── Launch UI research item 8 (owner, 5 Nov): guest play first, no pop-up before the first answer ──
+const sheetWith = (w, title) => w.all.find((e) => e.kids.some((k) => k && k.tag === "h3" && k.text.includes(title)));
+const flat = (e) => [e.text, ...e.kids.flatMap((k) => (k && typeof k === "object" ? flat(k) : []))];
+test("UI-8: the wallet sheet offers free guest play first, with Kondor and KOIN Vault below it", () => {
+  const w = world();
+  w.KW.connect();
+  const sheet = sheetWith(w, "Start playing");
+  assert.ok(sheet, "the sheet is titled for playing, not for wallets");
+  const order = sheet.kids.filter((k) => k && typeof k === "object").map((k) => k.text);
+  const at = (re) => order.findIndex((t) => re.test(t));
+  assert.ok(at(/Play as a guest/) >= 0 && at(/Play as a guest/) < at(/Kondor/) && at(/Play as a guest/) < at(/KOIN Vault/), order.join(" | "));
+  assert.ok(order.some((t) => /never sees a key/.test(t)), "still says Knode Games never sees a key");
+});
+test("UI-8: with guest play off the sheet is the plain wallet picker", () => {
+  const w = world({ host: "evil.example" });
+  w.KW.connect();
+  assert.ok(sheetWith(w, "Connect a wallet")); assert.equal(sheetWith(w, "Start playing"), undefined);
+});
+test("UI-8: a new guest gets a short note (play-only, never send KOIN or VHP, the browser can delete it), not a pop-up", async () => {
+  const w = world();
+  await connectAsGuest(w);
+  assert.equal(sheetWith(w, "You're playing as a guest"), undefined, "no welcome pop-up to dismiss");
+  const note = w.toasts.find((t) => /playing free as a guest/.test(t));
+  assert.ok(note, w.toasts.join(" | "));
+  assert.match(note, /Never send KOIN or VHP/); assert.match(note, /delete it by itself/); assert.match(note, /back it up/);
+});
+test("UI-8: after the first answer the guest is asked to save their progress, once, with a Later button", async () => {
+  const w = world();
+  await connectAsGuest(w);
+  const ans = () => w.KW.send("answer Yes", [w.op(GAME, ANSWER, koilib.utils.encodeBase64url(new Uint8Array([0x10, 0x01, 0x18, 0x00])))]);
+  await ans(); await new Promise((r) => setTimeout(r, 5));
+  const s = sheetWith(w, "Save your progress");
+  assert.ok(s, "the save-your-progress prompt");
+  const text = flat(s).join(" ");
+  assert.match(text, /by itself/); assert.match(text, /Never send KOIN or VHP/);
+  assert.ok(w.find(/^\s*Later\s*$/).length && w.find(/Back up guest key/).length);
+  const n = w.all.filter((e) => e.tag === "h3" && e.text.includes("Save your progress")).length;
+  await ans(); await new Promise((r) => setTimeout(r, 5));
+  assert.equal(w.all.filter((e) => e.tag === "h3" && e.text.includes("Save your progress")).length, n, "asked only once");
 });

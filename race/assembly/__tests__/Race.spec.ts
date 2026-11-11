@@ -5,7 +5,7 @@
 // =====================================================================
 
 import { Arrays, Base58, MockVM, Protobuf, authority, chain } from "@koinos/sdk-as";
-import { Race, RACE_MS, DAY_MS, CLOSED, LOCKED, TOO_EARLY, USED_UP, SAME, NOT_SIGNED } from "../Race";
+import { Race, RACE_MS, DAY_MS, CLOSED, LOCKED, TOO_EARLY, USED_UP, SAME, NOT_SIGNED, BAD_TYPE } from "../Race";
 import { race } from "../proto/race";
 
 const SELF = Base58.decode("1EDaCKVmBjUxLxgWCmDbRA8gWKkSQ6ByzY");      // the race contract
@@ -93,12 +93,10 @@ describe("settings", () => {
     signedBy(SELF);
     CFG = new race.config(SELF, true, 5);
     expect(() => { setConfig(); }).toThrow(); errorIs("RACE: the owner must be a wallet, not this contract");
-    signedBy(SELF);
-    CFG = new race.config(OWNER, true, 0);
-    expect(() => { setConfig(); }).toThrow(); errorIs("RACE: picks per day must be 1 to 20");
+    // v2 (D-161): 0 = no per-game limit is allowed; above 20 is still refused.
     signedBy(SELF);
     CFG = new race.config(OWNER, true, 21);
-    expect(() => { setConfig(); }).toThrow(); errorIs("RACE: picks per day must be 1 to 20");
+    expect(() => { setConfig(); }).toThrow(); errorIs("RACE: picks per day must be 0 (no limit) to 20");
   });
 
   it("picks are closed before setup and when switched off", () => {
@@ -142,7 +140,9 @@ describe("picking", () => {
   it("picks open for the next 4 races only (the coming 24 hours)", () => {
     pick(P1, R + 4, H1);
     refused(P1, R + 5, H1, TOO_EARLY);
-    refused(P1, 0xffffffffffffffff, H1, TOO_EARLY);
+    refused(P1, 0xffffffffffffffff, H1, BAD_TYPE);        // v2 (D-161): type 65535 (bits 48 and up) = an unknown race type
+    refused(P1, 0x00ffffffffffffff, H1, BAD_TYPE);          // v2 (#D-13 H-1): the type sits from bit 48, so this is type 255
+    refused(P1, 0x0000ffffffffffff, H1, TOO_EARLY);          // the largest type-0 number: too far ahead
   });
 
   it("one pick per wallet per race: a change replaces it and is counted; the same horse again is refused", () => {

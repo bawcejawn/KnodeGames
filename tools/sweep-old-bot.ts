@@ -12,6 +12,7 @@
  *   NAME only, never a key.
  * - It checks it is talking to Koinos mainnet (pinned chain id) before reading or sending anything.
  * - KOIN transfers need Mana at least equal to the amount, so the amount is capped by the wallet's Mana.
+ * - The node: $env:RPC if set, else RPC= in .env, else https://koinos.armana.io.
  */
 import fs from "node:fs";
 import { Signer, Provider, Contract, utils } from "koilib";
@@ -59,7 +60,8 @@ async function main() {
   console.log(`Found the old bot wallet's key in ${envFile} under: ${keyName}`);
 
   // 2. Mainnet only, checked.
-  const rpc = env.RPC || "https://api.koinos.io";
+  // The node: $env:RPC in this PowerShell window, else RPC= in .env, else Armana (I-078; api.koinos.io was unreliable).
+  const rpc = process.env.RPC || env.RPC || "https://koinos.armana.io";
   const provider = new Provider([rpc]);
   const chainId = await provider.getChainId();
   if (chainId !== MAINNET_CHAIN_ID) throw new Error(`${rpc} is not Koinos mainnet (chain id ${chainId}). Stopping.`);

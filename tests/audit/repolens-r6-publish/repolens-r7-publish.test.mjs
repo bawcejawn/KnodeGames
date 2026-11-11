@@ -34,7 +34,9 @@ function publishScript() {
   const a = y.findIndex((l, i) => i > s && l.trim() === "set -euo pipefail"), e = y.findIndex((l, i) => i > a && l.includes('echo "Games files published."'));
   return y.slice(a, e + 1).map((l) => l.slice(10)).join("\n")
     .replace(/^remote=.*$/m, 'remote="$REMOTE"').replace(/^git init -q work && cd work$/m, 'cd "$(mktemp -d)" && git init -q work && cd work')
-    .replace("/usr/bin/python3 - ", "python3 -I - ");
+    .replace("/usr/bin/python3 - ", "python3 -I - ")
+    // (These tests record one game, 2, into weeks 3+; the hourly switch (R-BX-25) is tested in bx88-week-files.test.mjs.)
+    .replace(/ blockx 2400 0 \d+:\d+:\d+:\d+ <<'PY'/, " blockx 2400 0 <<'PY'");
 }
 function world() {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "hk-")), remote = path.join(d, "r.git");
@@ -127,7 +129,8 @@ test("review: the race check refuses v: true, a fractional week, swapped or repe
   const check = (inFile, pubFile) => { const pub = fs.mkdtempSync(path.join(os.tmpdir(), "rv-p-")), inn = fs.mkdtempSync(path.join(os.tmpdir(), "rv-i-"));
     if (pubFile) fs.writeFileSync(path.join(pub, "W003.json"), JSON.stringify(pubFile) + "\n");
     fs.writeFileSync(path.join(inn, "W003.json"), JSON.stringify(inFile) + "\n");
-    return spawnSync("python3", ["-I", chk, inn, pub], { encoding: "utf8" }).status; };
+    // (The check's clock after this test's week-3 cards: a card from the future is refused, I-042 BX-118.)
+    return spawnSync("python3", ["-I", chk, inn, pub], { encoding: "utf8", env: { ...process.env, RACE_CHECK_NOW: String(M.weekStart(4) / 1000) } }).status; };
   assert.equal(check(mk(), mk()), 0, "setup: an honest file passes");
   let f = mk(); f.v = true; assert.notEqual(check(f), 0, "v: true");
   f = mk(); f.week = 3.0000001; assert.notEqual(check(f), 0, "fractional week");

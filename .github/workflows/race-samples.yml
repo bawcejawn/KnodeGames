@@ -1,5 +1,5 @@
-# Handicap VHP samples (audit BX-3 b; docs/HANDICAP-VHP.md): about every 5 minutes, at a random
-# moment inside the run, reads every producer's effective VHP on two nodes and keeps the last 8 hours of samples on
+# Handicap VHP samples (audit BX-3 b; docs/HANDICAP-VHP.md): up to 12 a run (about every 5 minutes), each at a random
+# moment, reads every producer's effective VHP on two nodes and keeps the last 8 hours of samples on
 # the race-samples branch. The hourly race recorder (race.yml) uses the highest sample of the last 6 hours for each
 # producer's card VHP, so moving VHP away just before a card is taken no longer pays.
 #
@@ -25,7 +25,7 @@ jobs:
   record:
     if: ${{ vars.RACE_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 58
     permissions:
       contents: read
     steps:
@@ -49,8 +49,27 @@ jobs:
           if git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" race-data 2>/dev/null; then
             for f in $(git ls-tree --name-only FETCH_HEAD | grep -E '^W[0-9]{3}\.json$' | sort | tail -n 2); do git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; done
           else echo "::warning::couldn't read race-data: this sample covers only the last hour's producers (audit BX-78)"; fi
-      - name: Take a sample (at a random moment in the next 4 minutes)
-        run: npm run race -- --sample
+      # 2026-11-03: GitHub runs this */5 schedule only about once an hour, and a race card needs 12 samples in its
+      # 6 hours (MIN_SAMPLES; Block X never scores with fewer). So each run takes up to 12 samples, at least 4 minutes
+      # apart and each at a random moment in the next 4 minutes, for at most 48 minutes (about 8 a run). A failed sample
+      # is skipped (the ones before it are kept), and they are published together at the end.
+      - name: Take up to 12 samples (each at a random moment in the next 4 minutes)
+        run: |
+          set -uo pipefail
+          start=$(date +%s); ok=0
+          for i in $(seq 1 12); do
+            if [ $(( $(date +%s) - start )) -ge 2880 ]; then echo "48 minutes used: stopping after $ok sample(s)."; break; fi
+            # At least 4 minutes after the newest sample, so 8 hours never hold more than SAMPLE_MAX (120), however often
+            # GitHub starts this workflow (a dropped recent sample would hold the publish step).
+            age=$(node -e 'try{const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).samples;const t=s.length?s[s.length-1].at:0;console.log(Math.max(0,Math.floor((Date.now()-t)/1000)))}catch{console.log(999999)}' "$RACE_PREV/vhp-samples.json")
+            if [ "$age" -lt 240 ]; then sleep $(( 240 - age )); fi
+            if npm run --silent race -- --sample; then
+              ok=$((ok + 1))
+              cp "$RACE_OUT/vhp-samples.json" "$RACE_PREV/vhp-samples.json"
+            else echo "::warning::sample $i failed (the others are kept)"; fi
+          done
+          echo "$ok sample(s) taken."
+          [ "$ok" -gt 0 ]
         env:
           RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
           RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
@@ -149,3 +168,25 @@ jobs:
           commit=$(git commit-tree "$tree" ${parent:+-p "$parent"} -m "race: VHP sample")
           git push -q "$remote" "$commit:refs/heads/race-samples"
           echo "Sample published."
+
+  # R-VAULT-9: when this run fails, a plain-language summary at the top of the run page (what happened, does it
+  # matter, what to do), from .ai/platform/ALERTS.md §8. Reads two files from main; no secrets, read-only.
+  summary:
+    needs: [record, publish]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            bot/alert-summary.mjs
+            .ai/platform/ALERTS.md
+          sparse-checkout-cone-mode: false
+      - name: Plain-language summary (ALERTS.md §8)
+        env:
+          WORKFLOW_NAME: Race VHP samples
+        run: node bot/alert-summary.mjs --workflow "$WORKFLOW_NAME" --section 8

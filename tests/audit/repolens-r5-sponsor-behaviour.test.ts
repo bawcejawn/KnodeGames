@@ -54,7 +54,11 @@ test("SP-48 / SP-49: the code is read on both nodes for config; status warns whe
   const sc = s.slice(s.indexOf("async function setConfig("), s.indexOf("/** The caps as they are on chain"));
   assert.match(sc, /await codeOn\(rpc, provider, A, mainnet\)/);
   assert.match(s.slice(s.indexOf("async function codeOn("), s.indexOf("/** Audit SP-37: is the game")), /secondNode\(\)/);
-  assert.match(s.slice(s.indexOf("async function status()"), s.indexOf("export function usageAlerts")), /the game is Vault v6 now, but the sponsor still treats it as v5/);
+  // Guest trap (4 Nov 2026, review SG-1): the warning now says which step comes first: with the fixed build on chain,
+  // run config; with the trapping build, upload the fix first.
+  const st = s.slice(s.indexOf("async function status()"), s.indexOf("export function usageAlerts"));
+  assert.match(st, /the game is Vault v6 and the sponsor's vault switch is off: run config/);
+  assert.match(st, /the vault switch is off on purpose \(the 4 Nov guest trap\)/);
 });
 
 test("SP-44 (review #5): the fallback takes the lower of BOTH nodes' caps, so a primary reporting a higher cap can't keep it", () => {

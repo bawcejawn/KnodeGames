@@ -34,14 +34,25 @@
   // ── the network ──
   // NET: { rpc, data (this game's data folder), cards ("race" | "self"), game settings, picks contract, wallet, words }
   let NET = null, G = X, provider = null, W = null;
+  // R-BX-25: mainnet Block X is game 2 (every 2,400 blocks) until Mon 9 Nov 2026 00:00 UTC, then hourly game 12 (every
+  // 1,200). PERIOD is the shown game's weeks; VAULT_GAME is the vault game for stakes (2 throughout).
+  let PERIOD = { from: -Infinity, to: Infinity }, VAULT_GAME = X.VAULT_GAME;
   async function setupNet() {
     if (!TESTNET) {
       let picks = null;
       try { const d = await fetchJson(new URL("picks-data/deployment.json", ROOT)); if (isAddr(d.contract)) picks = d.contract; } catch { /* not live yet */ }
-      NET = { rpc: ["https://koinos.armana.io", "https://api.koinosblocks.com"], data: "https://raw.githubusercontent.com/bawcejawn/Knode/games-data/blockx/", raceData: "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/",
+      NET = { rpc: ["https://koinos.armana.io", "https://api.koinosblocks.com"], data: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/blockx/", raceData: "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/",
         cards: "race", picks, explorer: "https://koinosscan.com/address/", chainId: MAINNET_CHAIN_ID,
-        prize: "1st and 2nd at the end of the week win the free-play prize (2 and 1 VHP, paid once the Knode Games vault is live)." };
-      G = X;
+        prize: "1st and 2nd at the end of the week win the free-play prize (2 and 1 VHP, from Week 1, the week of Mon 16 Nov)." };
+      // The game whose weeks contain now, or the one the #game-N link asks for; both as tabs around the switch.
+      const now = Date.now(), want = /^#game-(\d+)$/.exec(location.hash);
+      const games = X.MAINNET_SCHEDULE.map((e) => ({ ...e.game, ...X.periodOf(e), name: e.game.id === X.MAINNET_HOURLY.id ? `Hourly (from ${new Date(X.periodOf(e).from).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })})` : "Every 2 hours" }));
+      const game = games.find((g) => want && g.id === Number(want[1])) || games.find((g) => now >= g.from && now < g.to) || games[0];
+      G = X.forGame(game);
+      PERIOD = { from: game.from, to: game.to };
+      const sw = X.periodOf(X.MAINNET_SCHEDULE[1]).from;
+      if (now >= sw - 2 * X.DAY && now < sw + 7 * X.DAY) { NET.games = games; renderGameTabs(); }
+      fillWords();
       provider = new lib.Provider(NET.rpc);
       W = window.KWallet || null;
       return;
@@ -51,6 +62,7 @@
     const want = /^#game-(\d+)$/.exec(location.hash), games = Array.isArray(cfg.games) ? cfg.games : [];
     const game = games.find((g) => want && g.id === Number(want[1])) || games[0];
     G = X.forGame(game);
+    VAULT_GAME = G.GAME_ID;
     // On the owner's own computer (npm run testnet-site), the recorder's files in testnet-data/ on that computer.
     const local = location.hostname === "localhost" || location.hostname === "127.0.0.1";
     const data = local ? new URL(`testnet-data/blockx-${game.id}/`, ROOT).href : `${cfg.data}blockx-${game.id}/`;
@@ -63,10 +75,17 @@
     W = window.KTestWallet || null;
     if (W) W.init({ provider, chainId: NET.chainId, picks: NET.picks, sponsor: isAddr(cfg.sponsor) ? cfg.sponsor : null });   // sponsor v3 trial
     // The page's fixed wording, for this game's own settings (the fast game has a target every 300 blocks).
-    const mins = Math.round(G.ROUND * X.BLOCK_MS / 60000), about = mins >= 90 ? `about every ${Math.round(mins / 60)} hours` : `about every ${mins} minutes`;
-    const words = { every: `Every ${G.ROUND.toLocaleString("en-US")} blocks (${about})`, round: G.ROUND.toLocaleString("en-US"), about, perday: String(G.PICKS_PER_DAY), changes: String(G.MAX_CHANGES) };
-    for (const e of document.querySelectorAll("[data-bx]")) { const w = words[e.getAttribute("data-bx")]; if (w) e.textContent = w; }
+    fillWords();
     renderGameTabs();
+  }
+  /** The page's fixed wording, for the shown game's own settings (Repo Lens #E-23 L-2: open targets, picks a day, the
+   *  multiplier's cap). The testnet's fast game has a target every 300 blocks. */
+  function fillWords() {
+    const mins = Math.round(G.ROUND * X.BLOCK_MS / 60000), about = mins >= 90 ? `about every ${Math.round(mins / 60)} hours` : `about every ${mins} minutes`;
+    const words = { every: `Every ${G.ROUND.toLocaleString("en-US")} blocks (${about})`, round: G.ROUND.toLocaleString("en-US"), about, perday: String(G.PICKS_PER_DAY),
+      changes: String(G.MAX_CHANGES), changesw: G.MAX_CHANGES === 1 ? "once" : `up to ${G.MAX_CHANGES} times`,
+      open: String(Math.floor((G.AHEAD - G.LEAD) / G.ROUND)), cap: String(X.capAt(Math.min(Math.max(Date.now(), PERIOD.from), PERIOD.to - 1))) };   // B14-5: a past game's own cap
+    for (const e of document.querySelectorAll("[data-bx]")) { const w = words[e.getAttribute("data-bx")]; if (w) e.textContent = w; }
   }
   /** Testnet: one button per game in the settings (the real settings, and the fast test game). */
   function renderGameTabs() {
@@ -113,6 +132,10 @@
     box.replaceChildren(...recent.map((b) => { const t = dot(b.signer, "bx-blk" + (prev && b.h > prev ? " new" : "")); t.title = `Block ${fmt(b.h)} · ${nameOf(b.signer)}`; return t; }));
   }
   const about = (h) => X.aboutTime(h, head.height, head.time);
+  /** R-BX-25: only rounds inside the shown game's weeks, 10 minutes clear of either edge (a block can land a little early
+   *  or late; one that lands in the other game's weeks isn't scored). */
+  const inPlay = (r) => { const t = about(G.target(r)); return t >= PERIOD.from + 10 * 60000 && t < PERIOD.to - 10 * 60000; };
+  const offer = () => G.offerRounds(head.height).filter(inPlay);
 
   // ── the producers and their multipliers ──
   async function loadCard() {
@@ -142,14 +165,23 @@
       return [...seen.entries()].sort((a, b) => b[1] - a[1]).map(([a, n]) => ({ a, share: n / tot, mult: null }));
     }
     const { m } = X.vhpOf(card), tot = [...m.values()].reduce((s, v) => s + v, 0);
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([a, v]) => ({ a, share: tot ? v / tot : 0, mult: X.multiplier(card, a) }));
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([a, v]) => ({ a, share: tot ? v / tot : 0, mult: X.multiplier(card, a, Date.now()) }));
   }
 
   // ── the Picks contract ──
   async function setupPicks() {
     if (!NET.picks) return;
     const abi = await fetchJson(new URL("picks/abi/picks.koilib.json", ROOT));
-    picksContract = new lib.Contract({ id: NET.picks, abi, provider });
+    const c = new lib.Contract({ id: NET.picks, abi, provider });
+    // R-BX-25: the hourly game (12) may not be on the contract yet (announced, then applied 48 h later): until it is,
+    // its tab shows the targets with "Picks open soon" instead of offering picks the contract would refuse.
+    if (!TESTNET) {
+      let on = false;
+      // (A failed read keeps picks on, as before: the contract refuses a pick for a game it doesn't have anyway.)
+      try { const g = (await c.functions.get_game({ game: G.GAME_ID })).result; on = !!(g && g.game && g.game.enabled); } catch { on = true; }
+      if (!on) return;
+    }
+    picksContract = c;
     if (!TESTNET && W) {
       let dep = null;
       try { dep = await fetchJson(new URL("game-data/deployment.json", ROOT)); } catch { /* the wallet keeps its defaults */ }
@@ -163,7 +195,7 @@
     const who = me();
     myPicks = new Map(); usage = null;
     if (who) {
-      const rounds = G.openRounds(head.height);
+      const rounds = G.openRounds(head.height).filter(inPlay);
       try {
         const got = await Promise.all(rounds.map((r) => picksContract.functions.get_pick({ game: G.GAME_ID, round: String(r), player: who })
           .then((x) => [r, x.result && x.result.pick && Array.isArray(x.result.pick.producers) ? x.result.pick : null])));
@@ -182,7 +214,7 @@
   const mmss = (t) => { const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), x = t % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}` : `${m}:${String(x).padStart(2, "0")}`; };
   function renderStage() {
     if (!head || !$("stage")) return;
-    const rounds = G.offerRounds(head.height), r = rounds[0];
+    const rounds = offer(), r = rounds[0];
     if (r == null) return;
     const x = G.target(r), lock = G.lockHeight(r), mine = myPicks.get(r), mineP = mine && mine.producers && mine.producers[0];
     $("head-num").textContent = fmt(head.height);
@@ -203,8 +235,13 @@
     if (!head) return;
     renderStage();
     const list = $("targets");
-    const who = me(), rounds = G.offerRounds(head.height), ps = producers();
-    const key = JSON.stringify([who, W && W.kind, rounds[0], sending, !!picksContract, cardAt, ps.map((p) => p.a).join(), usage && usage.picks_today, [...myPicks.entries()].map(([r, p]) => [r, p.producers && p.producers[0], p.changes]), [...drafts.entries()]]);
+    // D-129 (WEEK_CYCLE.md §2): Sunday (UTC) targets are fun rounds, offered and scored for Today and All time, never
+    // the week. (One due in Saturday's last 10 minutes may slip past midnight, so it says so too.)
+    const funAt = (r) => X.restDay(about(G.target(r)));
+    // Repo Lens #E-18 F-1: one due in Saturday's last 10 minutes may land either side of midnight.
+    const edgeAt = (r) => { const t = about(G.target(r)); return !X.restDay(t) && X.restDay(t + 10 * 60000); };
+    const who = me(), rounds = offer(), ps = producers(), funs = rounds.filter((r) => funAt(r) || edgeAt(r)).length;
+    const key = JSON.stringify([who, W && W.kind, rounds[0], funs, sending, !!picksContract, cardAt, ps.map((p) => p.a).join(), usage && usage.picks_today, [...myPicks.entries()].map(([r, p]) => [r, p.producers && p.producers[0], p.changes]), [...drafts.entries()]]);
     if (!force && key === targetsKey && list.childElementCount) { updateTimes(); return; }
     targetsKey = key;
     const max = usage ? Number(usage.max_picks_per_day) || G.PICKS_PER_DAY : G.PICKS_PER_DAY, used = usage ? Number(usage.picks_today) || 0 : 0;
@@ -214,24 +251,29 @@
     whoLine.replaceChildren();
     if (!card && ps.length) whoLine.append("Showing the producers signing right now. Multipliers appear with the first handicap card (the recorder takes one within the hour).");
     if (!card && !TESTNET && picksContract && rounds.length) whoLine.append("Picks open when the next handicap card is published (within the hour).");
-    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty", text: picksContract ? "No target is open right now." : "Picks open soon." })); return; }
+    if (funs) whoLine.append(el("span", { class: "bx-rest", text: " Sunday is review day: results are checked and paid from Monday. Sunday (UTC) targets are fun rounds: they count on Today and All time, not the week." }));
+    // R-BX-25: once the every-2-hours game's last target has passed, point to the hourly game.
+    const ended = PERIOD.to !== Infinity && about(head.height) >= PERIOD.to - 10 * 60000 - G.LEAD * X.BLOCK_MS;
+    if (!picksContract || !rounds.length) { list.replaceChildren(el("div", { class: "bx-empty" }, !picksContract ? "Picks open soon." : ended ? el("span", {}, `Block X is hourly from ${new Date(X.periodOf(X.MAINNET_SCHEDULE[1]).from).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}: `, el("a", { href: `#game-${X.MAINNET_HOURLY.id}`, text: "pick the hourly targets" }), ".") : "No target is open right now.")); return; }
     const cards = rounds.map((r, i) => {
       const h = G.target(r), mine = myPicks.get(r), mineP = mine && mine.producers && mine.producers[0];
       const choice = drafts.get(r) || mineP || null;
       const noChanges = mine && Number(mine.changes) >= G.MAX_CHANGES;
       const chips = el("div", { class: "bx-chips", role: "radiogroup", "aria-label": `Who signs block ${fmt(h)}` },
-        ...(ps.length ? ps : []).map((p) => el("button", { type: "button", class: "bx-chip" + (p.a === mineP ? " picked" : ""), role: "radio", "aria-checked": String(p.a === choice), disabled: sending || noChanges ? "" : null,
+        ...(ps.length ? ps : []).map((p) => el("button", { type: "button", class: "bx-chip" + (p.a === mineP ? " picked" : ""), role: "radio", "aria-checked": String(p.a === choice), "data-chip": `${r}:${p.a}`, disabled: sending || noChanges ? "" : null,
           onclick: () => choose(r, p.a) },
-          dot(p.a), el("span", { class: "bx-name", text: nameOf(p.a) }), el("span", { class: "bx-share", text: shareText(p.share) }), el("span", { class: "bx-mult", text: multText(p.mult) }))));
+          dot(p.a), el("span", { class: "bx-name", text: nameOf(p.a) }), el("span", { class: "bx-share", text: shareText(p.share) }), el("span", { class: "bx-mult", text: multText(card ? X.multiplier(card, p.a, about(h)) : p.mult) }))));
       if (!ps.length) chips.append(el("div", { class: "bx-empty", text: "Loading producers…" }));
       const changed = choice && choice !== mineP;
       const btn = el("button", { type: "button", class: "bx-lockin", onclick: () => (who ? sendPick(r, choice) : startPlaying()) },
         !who ? (TESTNET ? "Play free to pick" : "Connect to pick") : mineP && !changed ? "Picked" : mineP ? "Change pick" : "Lock in pick");
       if (who && (sending || !changed || used >= max || noChanges)) btn.disabled = true;
       const foot = el("div", { class: "bx-t-foot" },
-        mineP ? el("span", { class: "bx-yours", text: `Yours: ${nameOf(mineP)}${noChanges ? " (no changes left)" : ""}` }) : el("span", { text: who && used >= max ? "Today's picks are used up" : choice ? `${nameOf(choice)} · about ${multText(ps.find((p) => p.a === choice)?.mult)} if right` : "Choose a producer", title: "By the current handicap card. The card taken at or before the lock decides the score." }), btn);
+        mineP ? el("span", { class: "bx-yours", text: `Yours: ${nameOf(mineP)}${noChanges ? " (no changes left)" : ""}` }) : el("span", { text: who && used >= max ? "Today's picks are used up" : choice ? `${nameOf(choice)} · about ${multText(card ? X.multiplier(card, choice, about(h)) : ps.find((p) => p.a === choice)?.mult)} if right` : "Choose a producer", title: "By the current handicap card. The card taken at or before the lock decides the score." }), btn);
       return el("article", { class: "bx-t" + (i === 0 ? " first" : "") + (mineP ? " mine" : ""), id: `t-${r}` },
-        el("div", { class: "bx-t-top" }, el("b", { text: `Block ${fmt(h)}` }), el("span", { "data-h": String(h), class: "bx-eta", text: etaText(r) }), i === 0 ? el("em", { text: "Next up" }) : null),
+        el("div", { class: "bx-t-top" }, el("b", { text: `Block ${fmt(h)}` }), el("span", { "data-h": String(h), class: "bx-eta", text: etaText(r) }), i === 0 ? el("em", { text: "Next up" }) : null,
+          funAt(r) ? el("em", { class: "bx-fun", title: "Sunday (UTC): counts on Today and All time, not the week", text: "Fun round · not the week" })
+            : edgeAt(r) ? el("em", { class: "bx-fun", title: "Due just before Sunday 00:00 UTC: if its block lands on Sunday, it counts on Today and All time, not the week", text: "May fall on Sunday: then a fun round" }) : null),
         chips, foot);
     });
     // The soonest few, then the rest on request (6 on a wide screen, 3 on a phone).
@@ -244,9 +286,25 @@
   }
   let showAll = false;
   const etaText = (r) => `about ${clock(about(G.target(r)))} · locks in ${dur(secsTo(G.lockHeight(r)) * 1000)}`;
+  // Owner, 5 Nov: "after they select the producer it gives a pop up to pick them or x out and select another".
+  // Tapping a producer opens one small box: the pick, what it scores, and two buttons (Pick / Choose another).
   function choose(r, a) {
     if (!me()) { drafts.set(r, a); startPlaying(); return; }
     drafts.set(r, a); renderTargets(true);
+    const chip = document.querySelector(`[data-chip="${r}:${a}"]`); if (chip) chip.focus();   // the box returns focus here
+    const mine = myPicks.get(r), mineP = mine && mine.producers && mine.producers[0];
+    if (sending || a === mineP) return;
+    const h = G.target(r), mult = card ? X.multiplier(card, a, about(h)) : null;
+    const pick = el("button", { class: "btn", type: "button", onclick: () => { closeModal(); sendPick(r, a); } }, mineP ? "Change my pick" : "Pick");
+    const other = el("button", { class: "btn ghost", type: "button", onclick: () => { drafts.delete(r); renderTargets(true); closeModal(); } }, "Choose another");
+    pickModal("info", `${nameOf(a)} for block ${fmt(h)}?`, [
+      el("p", {}, "About ", el("b", { text: dayTime(about(h)) }), ` · scores ${multText(mult)} if right`),
+      ...(mineP ? [`Your pick now: ${nameOf(mineP)}. You can change it once.`] : []),
+    ], [pick, other]);
+    // The ✕ in the corner, as well as a tap outside, closes it to choose another.
+    const box = modal && modal.querySelector(".pk-box");
+    if (box) box.prepend(el("button", { type: "button", class: "pk-x", "aria-label": "Close and choose another", onclick: () => { drafts.delete(r); renderTargets(true); closeModal(); } }, "✕"));
+    pick.focus();
   }
   function updateTimes() {
     if (!head) return;
@@ -343,7 +401,9 @@
 
   // ── the pick pop-up: wallet → sent → confirmed on the chain ──
   let modal = null;
+  let modalBack = null;   // Repo Lens #E-23 I-4: focus goes back to what opened the box
   function pickModal(state, title, lines = [], actions = []) {
+    if (!modal || modal.hidden) modalBack = document.activeElement;
     if (!modal) {
       modal = el("div", { class: "pk-modal", role: "dialog", "aria-modal": "true", "aria-labelledby": "pk-m-title" });
       modal.addEventListener("click", (e) => { if (e.target === modal && !modal.querySelector(".pk-spin")) closeModal(); });
@@ -355,8 +415,29 @@
     modal.hidden = false;
     const b = modal.querySelector("button"); if (b) b.focus();
   }
-  function closeModal() { if (modal) modal.hidden = true; }
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && modal && !modal.hidden && !modal.querySelector(".pk-spin")) closeModal(); });
+  function closeModal() {
+    if (!modal || modal.hidden) return;
+    modal.hidden = true;
+    const back = modalBack; modalBack = null;
+    // A redrawn list replaces the chip: find it again by its round and producer.
+    const el2 = back && back.isConnected ? back : back && back.dataset && back.dataset.chip ? document.querySelector(`[data-chip="${back.dataset.chip}"]`) : null;
+    if (el2 && typeof el2.focus === "function") el2.focus();
+  }
+  document.addEventListener("keydown", (e) => {
+    if (!modal || modal.hidden) return;
+    if (e.key === "Escape" && !modal.querySelector(".pk-spin")) { closeModal(); return; }
+    // Tab stays inside the box while it is open (E-23 I-4).
+    if (e.key === "Tab") {
+      // Repo Lens #B-14 B14-2: only while this box is the top one. A wallet box (KOIN Vault's Approve, .kw-back) or
+      // another dialog on top keeps its own Tab order.
+      const act = document.activeElement, inOther = act && act.closest && act.closest('[aria-modal="true"]');
+      if (document.querySelector(".kw-back") || (inOther && inOther !== modal)) return;   // wallet.js removes it on close
+      const f = [...modal.querySelectorAll("button, a[href], input, select, textarea")].filter((x) => !x.disabled);
+      if (!f.length) { e.preventDefault(); return; }
+      const i = f.indexOf(document.activeElement), next = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : (i < 0 || i === f.length - 1 ? 0 : i + 1);
+      e.preventDefault(); f[next].focus();
+    }
+  });
   const okBtn = (text = "Done") => el("button", { class: "btn", type: "button", onclick: closeModal }, text);
 
   async function sendPick(r, producer) {
@@ -369,7 +450,7 @@
     try { await readHead(); } catch { /* use the last head */ }
     if (!(G.lockHeight(r) - head.height > 20)) return pickModal("bad", "Too close to the lock", [`Block ${fmt(h)} locks in a few minutes. Pick a later one.`], [okBtn("OK")]);
     sending = true; renderTargets(true);
-    const mult = X.multiplier(card, producer);
+    const mult = X.multiplier(card, producer, about(h));   // the cap of the target's own week (×3 before Mon 9 Nov, ×5 from then)
     const what = `${nameOf(producer)} signs block ${fmt(h)} (about ${dayTime(about(h))})`;
     const wallet = W.kind === "guest" ? "your guest wallet" : W.label ? W.label() : "your wallet";
     // Audit BX-12: say who really pays on this wallet.
@@ -394,12 +475,14 @@
       else pickModal("info", "Sent, not seen on the chain yet", ["Your wallet sent it. It usually shows within a minute; this list updates by itself."], [okBtn("OK")]);
     } catch (e) {
       const m = String((e && e.message) || e);
-      const why = /locked/i.test(m) ? `That block is locked: picks close ${G.LEAD} blocks before it.`
-        : /not open yet/i.test(m) ? "That block isn't open yet."
-        : /used up/i.test(m) ? "Today's picks are used up (changes count). More after 00:00 UTC."
-        : /changed again/i.test(m) ? `That pick has been changed ${G.MAX_CHANGES === 1 ? "once" : `${G.MAX_CHANGES} times`} already: it can't be changed again.`
-        : /already your pick/i.test(m) ? "That is already your pick."
-        : /closed/i.test(m) ? "This game is switched off right now."
+      // The Picks contract's own messages (picks/assembly/Picks.ts) only: the Mana sponsor and the wallet use some of the
+      // same words ("used up", "closed"), and their reason is shown as they give it.
+      const why = /PICKS: this round is locked/i.test(m) ? `That block is locked: picks close ${G.LEAD} blocks before it.`
+        : /PICKS: this round is not open yet/i.test(m) ? "That block isn't open yet."
+        : /PICKS: today's picks for this game are used up/i.test(m) ? `Today's ${G.PICKS_PER_DAY} picks are used up (changes count). More after 00:00 UTC.`
+        : /PICKS: this pick can't be changed again/i.test(m) ? `That pick has been changed ${G.MAX_CHANGES === 1 ? "once" : `${G.MAX_CHANGES} times`} already: it can't be changed again.`
+        : /PICKS: that is already your pick/i.test(m) ? "That is already your pick."
+        : /PICKS: this game is closed/i.test(m) ? "This game is switched off right now."
         : /pending account resources|insufficient.*(rc|mana|resources)/i.test(m) ? "Your Mana is still held by your last pick. It frees up within a few minutes of each pick; try again in a minute."
         : /no test Mana yet/i.test(m) ? m
         : /reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."
@@ -499,8 +582,8 @@
     // The site's shared stake panel (stake-panel.js, Hub chat): Stake / Withdraw / Move / Claim for game 2. It stays
     // hidden until the vault (v6) is live and Block X has a stake bucket.
     // The Hub's staked / free status bar at the top of the page (links to stake.html#g2); the full panel stays lower.
-    if (window.KStake && typeof window.KStake.badge === "function" && $("stake-badge")) window.KStake.badge($("stake-badge"), { game: G.GAME_ID });
-    if (window.KStake && typeof window.KStake.mount === "function" && $("blockx-stake")) window.KStake.mount($("blockx-stake"), { game: G.GAME_ID });
+    if (window.KStake && typeof window.KStake.badge === "function" && $("stake-badge")) window.KStake.badge($("stake-badge"), { game: VAULT_GAME });
+    if (window.KStake && typeof window.KStake.mount === "function" && $("blockx-stake")) window.KStake.mount($("blockx-stake"), { game: VAULT_GAME });
     try {
       const dep = await fetchJson(new URL("game-data/deployment.json", ROOT));
       if (!dep || !isAddr(dep.contract)) return;
@@ -519,7 +602,7 @@
     if (!vault || !who) { box.hidden = true; return; }
     try {
       const week = M.weekOf(Date.now());
-      const r = (await vault.functions.get_game_player({ player: who, game: G.GAME_ID, week: String(week) })).result || {};
+      const r = (await vault.functions.get_game_player({ player: who, game: VAULT_GAME, week: String(week) })).result || {};
       const now = Number(r.week_stake || 0) / 1e8, pend = Number(r.player?.pending || 0) / 1e8;
       // Audit BX-64: the recorder's rule (bot/games/blockx.ts vaultView/stakedSet): the most staked here this week (the
       // entry's peak_stake, else the active stake) at least the vault's minimum for the week.

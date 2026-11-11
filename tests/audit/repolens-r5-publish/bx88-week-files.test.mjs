@@ -38,13 +38,15 @@ function raceDir() {
 }
 const quiet = async (f) => { const log = console.log; console.log = () => {}; try { return await f(); } finally { console.log = log; } };
 
-function publishScript() {
+// (Most tests here record one game, 2, into weeks 3+. The hourly switch (R-BX-25) is kept only for its own test.)
+function publishScript(keepSwitch = false) {
   const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split("\n");
   const s = y.findIndex((l) => l.includes("Push games-data (and nothing else)"));
   const a = y.findIndex((l, i) => i > s && l.trim() === "set -euo pipefail"), e = y.findIndex((l, i) => i > a && l.includes('echo "Games files published."'));
   return y.slice(a, e + 1).map((l) => l.slice(10)).join("\n")
     .replace(/^remote=.*$/m, 'remote="$REMOTE"').replace(/^git init -q work && cd work$/m, 'cd "$(mktemp -d)" && git init -q work && cd work')
-    .replace("/usr/bin/python3 - ", "python3 -I - ");
+    .replace("/usr/bin/python3 - ", "python3 -I - ")
+    .replace(/ blockx 2400 0 \d+:\d+:\d+:\d+ <<'PY'/, keepSwitch ? (m) => m : " blockx 2400 0 <<'PY'");
 }
 
 test("BX-88: a rewritten published week file is refused whole, and the recorder then scores the honest targets", async () => {
@@ -171,9 +173,11 @@ test("BX-72 (review): a non-canonical transfer into the signer voids the target 
 test("the mainnet publish check is given Block X's own round size and offset (blockx-math.js MAINNET_GAME)", () => {
   const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8");
   const G = globalThis.KBlockX.forGame ? globalThis.KBlockX.forGame() : null;
-  const m = /python3 - "\$IN\/blockx" 2 "\$PUB\/blockx" "\$HELD" blockx (\d+) (\d+) <<'PY'/.exec(y);
-  assert.ok(m, "the round size and offset are passed");
+  const m = /python3 - "\$IN\/blockx" 2 "\$PUB\/blockx" "\$HELD" blockx (\d+) (\d+) (\d+):(\d+):(\d+):(\d+) <<'PY'/.exec(y);
+  assert.ok(m, "the round size and offset are passed, and the hourly game's switch (R-BX-25)");
   assert.equal(Number(m[1]), G ? G.ROUND : X.ROUND); assert.equal(Number(m[2]), G ? G.OFFSET : 0);
+  const H = X.MAINNET_HOURLY;
+  assert.deepEqual([m[3], m[4], m[5], m[6]].map(Number), [H.id, H.round, H.offset, X.HOURLY_FROM_WEEK], "game:round:offset:week as blockx-math.js");
 });
 
 // Audit BX-95 (round 6): a number above 2^53 - 1 (which the JavaScript recorder can't read back exactly) never gets
@@ -261,4 +265,146 @@ test("review #1: an inflated time on a new round doesn't hold the honest runs af
   fs.writeFileSync(f, JSON.stringify(j) + "\n");
   publish(r);
   for (const k of [8, 9, 10]) { r = await rec(H0 + k * X.ROUND + 50, prev()); const p = publish(r); assert.equal(p.status, 0, `honest run ${k}: ` + p.stdout); }
+});
+
+// R-BX-20 (I-093, the Race #E-11 H-1 class; RECORDER_STANDARD §3): a published FINAL target result can't change.
+//   (a) the recorder: a later run whose chain reads now answer differently keeps every recorded target exactly
+//       (it never re-reads a recorded round);
+//   (b) the publish step: a run that changes any part of one published result (signer, void, a pick's points, a pick
+//       dropped, the checked count, the whole round dropped) is refused whole and the branch keeps the published file;
+//   (c) a run that lost its copy of the published week (PREV without W003) re-records the week from a chain that now
+//       answers differently: refused too.
+test("R-BX-20: a published final target result is never rewritten, by the recorder or by a run that tries", async () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "rbx20-")), remote = path.join(d, "r.git");
+  spawnSync("git", ["init", "-q", "--bare", remote]);
+  const sh = path.join(d, "publish.sh"); fs.writeFileSync(sh, publishScript());
+  const race = raceDir();
+  let n = 0;
+  const record = async (lib, prev, chain = {}) => {
+    const inn = path.join(d, `in${n++}`), out = path.join(inn, "blockx");
+    const head = { height: lib + 60, time: T(lib + 60), lib };
+    await quiet(() => run({ p: "main", check: "check", out, prev, raceDir: race, picksContract: "1PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP", blockOf: chain.blockOf || blockOf, picksOf: chain.picksOf || picksOf, rankedOf, head }));
+    return { inn, out, now: head.time };
+  };
+  const publish = (inn, now) => spawnSync("bash", [sh], { env: { ...ENV, IN: inn, REMOTE: remote, CHECK_NOW_MS: String(now) }, encoding: "utf8" });
+  const show = (f) => spawnSync("git", ["--git-dir", remote, "show", `games-data:blockx/${f}`], { encoding: "utf8" });
+  const branchPrev = (skip = []) => {
+    const p = fs.mkdtempSync(path.join(d, "prev-"));
+    const ls = spawnSync("git", ["--git-dir", remote, "ls-tree", "--name-only", "games-data:blockx"], { encoding: "utf8" }).stdout.split("\n").filter(Boolean);
+    for (const f of ls) if (/^(index|board|W\d{3}|P\d{3})\.json$/.test(f) && !skip.includes(f)) fs.writeFileSync(path.join(p, f), show(f).stdout);
+    return p;
+  };
+
+  const r1 = await record(H0 + 6 * X.ROUND + 50);
+  let p = publish(r1.inn, r1.now);
+  assert.equal(p.status, 0, p.stdout + p.stderr);
+  const pub = JSON.parse(show("W003.json").stdout);
+  assert.ok(pub.targets.length >= 6 && pub.targets.every((t) => t.final === true));
+  const scored = pub.targets.find((t) => t.signer === MID && t.picks.some((x) => x[3] > 0));
+  assert.ok(scored, "a scored target to tamper with");
+
+  // (a) the chain now says every block was signed by SMALL and every pick was for SMALL: the recorded rounds don't move
+  const liar = { blockOf: async (_n, h) => ({ signer: SMALL, time: T(h) }), picksOf: async (_n, r) => [{ player: Z, producer: SMALL, time: T(r * X.ROUND) - 3600000 }] };
+  const r2 = await record(H0 + 8 * X.ROUND + 50, branchPrev(), liar);
+  const kept = JSON.parse(fs.readFileSync(path.join(r2.out, "W003.json"), "utf8"));
+  for (const t of pub.targets) assert.deepEqual(kept.targets.find((x) => x.round === t.round), t, `round ${t.round} kept exactly`);
+  p = publish(r2.inn, r2.now);
+  assert.equal(p.status, 0, "the honest run (new rounds only) still publishes: " + p.stdout + p.stderr);
+  const now2 = JSON.parse(show("W003.json").stdout);
+  for (const t of pub.targets) assert.deepEqual(now2.targets.find((x) => x.round === t.round), t);
+
+  // (b) each kind of change to one published result is refused whole
+  const tampers = {
+    "the signer": (t) => { t.signer = BIG; },
+    "a void added": (t) => { t.signer = null; t.void = "made up; no points"; t.picks = t.picks.map((x) => [x[0], x[1], x[2], 0, x[4]]); },
+    "a pick's points": (t) => { const i = t.picks.findIndex((x) => x[3] > 0); t.picks[i] = [t.picks[i][0], t.picks[i][1], t.picks[i][2], t.picks[i][3] + 1, t.picks[i][4]]; },
+    "the points as a string": (t) => { const i = t.picks.findIndex((x) => x[3] > 0); t.picks[i] = [t.picks[i][0], t.picks[i][1], t.picks[i][2], String(t.picks[i][3]), t.picks[i][4]]; },
+    "a pick dropped": (t) => { t.picks = t.picks.filter((x) => x[0] !== ALICE); },
+    "the checked count": (t) => { t.checked = 1; },
+    "the round dropped": null,
+  };
+  for (const [what, fn] of Object.entries(tampers)) {
+    const r = await record(H0 + 8 * X.ROUND + 50, branchPrev());
+    const f = path.join(r.out, "W003.json"), wf = JSON.parse(fs.readFileSync(f, "utf8"));
+    if (fn) fn(wf.targets.find((t) => t.round === scored.round)); else wf.targets = wf.targets.filter((t) => t.round !== scored.round);
+    fs.writeFileSync(f, JSON.stringify(wf) + "\n");
+    const before = { w: show("W003.json").stdout, b: show("board.json").stdout };
+    p = publish(r.inn, r.now);
+    assert.notEqual(p.status, 0, `${what}: the job fails`);
+    assert.match(p.stdout, /differ from the published targets[\s\S]*BX-88/, `${what}: named as a changed published target`);
+    assert.equal(show("W003.json").stdout, before.w, `${what}: the published W003 stays`);
+    assert.equal(show("board.json").stdout, before.b, `${what}: nothing built from it is published`);
+  }
+
+  // (c) the run lost its copy of W003 and re-records the week from a chain that now answers differently: refused
+  const r3 = await record(H0 + 8 * X.ROUND + 50, branchPrev(["W003.json"]), liar);
+  const before = show("W003.json").stdout;
+  p = publish(r3.inn, r3.now);
+  assert.notEqual(p.status, 0, "a run without the published week can't replace it");
+  assert.match(p.stdout, /differ from the published targets/);
+  assert.equal(show("W003.json").stdout, before);
+});
+
+// Repo Lens #E-18 K-1: a NEW round must say it was read on chain (checked 1 or 2), unless it is a 3-day-edge void with no
+// picks whose block is at least ~66 h old (the only kind the recorder writes unread).
+test("Repo Lens #E-18 K-1: the publish job refuses a new unread round, but lets in an old edge void", async () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "e18-")), remote = path.join(d, "r.git");
+  spawnSync("git", ["init", "-q", "--bare", remote]);
+  const sh = path.join(d, "publish.sh"); fs.writeFileSync(sh, publishScript());
+  const race = raceDir();
+  const lib = H0 + 6 * X.ROUND + 50, now = T(lib + 60);
+  const fresh = async () => {
+    const inn = fs.mkdtempSync(path.join(d, "in-")), out = path.join(inn, "blockx");
+    await quiet(() => run({ p: "main", check: "check", out, raceDir: race, picksContract: "1PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP", blockOf, picksOf, rankedOf, head: { height: lib + 60, time: now, lib } }));
+    return { inn, out };
+  };
+  const publish = (inn, at = now) => spawnSync("bash", [sh], { env: { ...ENV, IN: inn, REMOTE: remote, CHECK_NOW_MS: String(at) }, encoding: "utf8" });
+  const edit = (out, fn) => { const p = path.join(out, "W003.json"), j = JSON.parse(fs.readFileSync(p, "utf8")); fn(j); fs.writeFileSync(p, JSON.stringify(j) + "\n"); };
+  // a scored round that says it was never read
+  let r = await fresh();
+  edit(r.out, (j) => { j.targets[2].checked = 0; });
+  let p = publish(r.inn);
+  assert.notEqual(p.status, 0); assert.match(p.stdout, /aren't past target blocks/);
+  // a fresh void with no picks, but its block is only hours old (an honest recorder voids unread only at the 3-day edge)
+  r = await fresh();
+  edit(r.out, (j) => { Object.assign(j.targets[2], { checked: 0, signer: null, card: null, picks: [], void: "made up" }); });
+  p = publish(r.inn);
+  assert.notEqual(p.status, 0, "a recent unread void is refused");
+  // the same void published 3 days later is let in (as BX-16's edge voids are)
+  p = publish(r.inn, now + 3 * 86400000);
+  assert.equal(p.status, 0, "an old edge void is let in: " + p.stdout.slice(-600));
+});
+
+// R-BX-25: from week 4 a week file is hourly Picks game 12's (every 1,200 blocks); the publish job checks each week
+// against its own game.
+test("R-BX-25: the publish job takes week 3 on only as game 12's hourly rounds (owner 5 Nov: from Mon 9 Nov)", async () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "bx25-")), remote = path.join(d, "r.git");
+  spawnSync("git", ["init", "-q", "--bare", remote]);
+  const sh = path.join(d, "publish.sh"); fs.writeFileSync(sh, publishScript(true));
+  const race = fs.mkdtempSync(path.join(d, "race-"));
+  for (const w of [2, 3, 4, 5]) {
+    const races = [];
+    for (let t = M.weekStart(w); t < M.weekStart(w + 1); t += M.RACE) races.push({ id: M.raceId(M.raceIndex(t)), start: t, end: t + M.RACE, cards: Array.from({ length: 6 }, (_, l) => ({ at: t + l * 3600000 + 37 * 60000, c: 1, blocksPerRace: 7200, fairness: null, samples: 36, field: [{ a: BIG, vhp: 2000, k: 600, h: 1 }, { a: MID, vhp: 1000, k: 300, h: 2 }], paddock: [{ a: SMALL, vhp: 10, k: 3 }] })), result: null });
+    fs.writeFileSync(path.join(race, `W${String(w).padStart(3, "0")}.json`), JSON.stringify({ v: 1, week: w, start: M.weekStart(w), end: M.weekStart(w + 1), races }) + "\n");
+  }
+  const picksH = async (_n, r, g) => [{ player: ALICE, producer: MID, time: T(g === 12 ? r * 1200 : r * 2400) - 3600000 }];
+  const w4H = H0 - 1200 + 7 * 28800;   // Mon 16 Nov 00:00
+  const lib = w4H + 6 * 1200 + 50, now = T(lib + 60);
+  const inn = fs.mkdtempSync(path.join(d, "in-")), out = path.join(inn, "blockx");
+  await quiet(() => run({ p: "main", check: "check", out, raceDir: race, picksContract: "1PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP", blockOf, picksOf: picksH, rankedOf,
+    schedule: X.MAINNET_SCHEDULE, vaultGame: X.VAULT_GAME, head: { height: lib + 60, time: now, lib } }));
+  const w4 = JSON.parse(fs.readFileSync(path.join(out, "W004.json"), "utf8"));
+  assert.equal(w4.game, 12); assert.ok(w4.targets.length >= 5 && w4.targets.every((t) => t.height === t.round * 1200));
+  const copy = () => { const i2 = fs.mkdtempSync(path.join(d, "in-")); fs.cpSync(out, path.join(i2, "blockx"), { recursive: true }); return i2; };
+  const publish = (i) => spawnSync("bash", [sh], { env: { ...ENV, IN: i, REMOTE: remote, CHECK_NOW_MS: String(now) }, encoding: "utf8" });
+  // a week-4 file that says game 2 is refused (the files check fails the job)
+  let i = copy(); let f = path.join(i, "blockx", "W004.json"); let j = JSON.parse(fs.readFileSync(f, "utf8")); j.game = 2; fs.writeFileSync(f, JSON.stringify(j) + "\n");
+  assert.notEqual(publish(i).status, 0, "week 4 as game 2 is refused");
+  // a new week-4 round at a 2-hourly height for an hourly round number is refused
+  i = copy(); f = path.join(i, "blockx", "W004.json"); j = JSON.parse(fs.readFileSync(f, "utf8")); j.targets[0].height = j.targets[0].round * 2400; fs.writeFileSync(f, JSON.stringify(j) + "\n");
+  let p = publish(i);
+  assert.notEqual(p.status, 0); assert.match(p.stdout, /aren't past target blocks/);
+  // the honest run publishes
+  p = publish(copy());
+  assert.equal(p.status, 0, p.stdout + p.stderr);
 });

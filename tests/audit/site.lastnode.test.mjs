@@ -25,12 +25,12 @@ test("lastnode-math.js runs in a plain browser-like context with no network, sto
 test("lastnode.html: strict CSP (games-data, race-data and blocks-data only), scripts from the site, no inline code", () => {
   const h = read("lastnode.html");
   const csp = h.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)[1];
-  for (const b of ["games-data", "race-data", "blocks-data"]) assert.match(csp, new RegExp(`connect-src [^;]*https://raw\\.githubusercontent\\.com/bawcejawn/Knode/${b}/`));
+  for (const b of ["games-data", "race-data", "blocks-data"]) assert.match(csp, new RegExp(`connect-src [^;]*https://raw\\.githubusercontent\\.com/bawcejawn/KnodeGames/${b}/`));
   assert.doesNotMatch(csp, /script-src[^;]*'unsafe-inline'/);
   assert.match(csp, /frame-src 'none'/); assert.match(csp, /object-src 'none'/);
   // No origin beyond what the race page already allows (plus the games-data branch).
   const race = read("race.html").match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)[1];
-  assert.equal(csp.replace(" https://raw.githubusercontent.com/bawcejawn/Knode/games-data/", ""), race);
+  assert.equal(csp.replace(" https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/", ""), race);
   assert.doesNotMatch(h, /<script>(?!<\/script>)|\son[a-z]+="/, "no inline scripts or handlers");
   const order = ["guest.js", "wallet.js", "header-wallet.js", "nav.js", "chain-blocks.js", "race-math.js", "lastnode-math.js", "board.js", "lastnode.js"].map((f) => h.indexOf(`<script src="${f}"></script>`));
   assert.ok(order.every((x, i) => x > 0 && (i === 0 || x > order[i - 1])), "script order");

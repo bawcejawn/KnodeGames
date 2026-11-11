@@ -24,3 +24,6 @@ before-upgrade.txt
 
 # the Vault's testnet check (throwaway testnet keys and results)
 testnet-v6/
+testnet-v61/
+testnet-v61-d8/
+__pycache__/

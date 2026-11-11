@@ -21,7 +21,7 @@ The first time:
 
 ```powershell
 cd C:\
-git clone https://github.com/bawcejawn/Knode.git kprediction-lns
+git clone https://github.com/bawcejawn/KnodeGames.git kprediction-lns
 cd C:\kprediction-lns
 git checkout lastnode
 Copy-Item C:\kprediction\.env.testnet .

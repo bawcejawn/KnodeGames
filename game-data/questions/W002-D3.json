@@ -1,0 +1,1011 @@
+{
+  "date": "W002-D3",
+  "week": 2,
+  "day": 3,
+  "tier": "Medium",
+  "released": "2026-11-04T12:01:56.336Z",
+  "questions": [
+    {
+      "id": "W002-D3-1",
+      "date": "W002-D3",
+      "week": 2,
+      "day": 3,
+      "tier": "Medium",
+      "template": "M7",
+      "releaseHeight": 40788340,
+      "lockHeight": 40803845,
+      "lockTime": 1793836800000,
+      "title": "Transactions in the window",
+      "text": "How many transactions will be included in blocks between block 40,803,846 and block 40,808,845?",
+      "subjects": [],
+      "unit": "count",
+      "windowStart": 40803846,
+      "windowEnd": 40808845,
+      "thresholds": [
+        44,
+        46,
+        52
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "44 or fewer",
+          "min": null,
+          "max": 44
+        },
+        {
+          "index": 1,
+          "label": "45 to 46",
+          "min": 45,
+          "max": 46
+        },
+        {
+          "index": 2,
+          "label": "47 to 52",
+          "min": 47,
+          "max": 52
+        },
+        {
+          "index": 3,
+          "label": "53 or more",
+          "min": 53,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.25609756097560976,
+        0.18292682926829268,
+        0.3170731707317073,
+        0.24390243902439024
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {},
+        "window": 5000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "network": "2302088278567586"
+        },
+        "vhpHeight": 40788434,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "d8a8b13192798c50e988a726663f9c3f17520b8d2d3fd93ab5ad76359a33ad8d",
+      "chainId": 70,
+      "vhpReadings": [
+        {
+          "height": 40804810,
+          "readAt": "2026-11-05T02:04:49.421Z",
+          "values": {
+            "network": "2308488488539579"
+          },
+          "seal": "eb67b59c39ebfa4b6a724b1eaacd03d65040c89bde27e7d77ff123f8ab69ab23"
+        },
+        {
+          "height": 40805781,
+          "readAt": "2026-11-05T02:54:44.177Z",
+          "values": {
+            "network": "2308092142794719"
+          },
+          "seal": "a3bed9628d9bde40c515ac28a4996e2dd2d9e6ae66938fd128b6d33a0742c142"
+        },
+        {
+          "height": 40806907,
+          "readAt": "2026-11-05T03:52:13.645Z",
+          "values": {
+            "network": "2307953981299641"
+          },
+          "seal": "1a7c150332891821637496549f61be98c99fbb5224fd8bcb1ace657010186235"
+        },
+        {
+          "height": 40808090,
+          "readAt": "2026-11-05T04:54:57.447Z",
+          "values": {
+            "network": "2307520728895514"
+          },
+          "seal": "0894e6710b3fcb4ee730ec82bdd491be5825ee0128f11f409d07d2445f9924ac"
+        }
+      ],
+      "vhpSeal": "6b30c21d4da3f91b540de3802525ba2339e360d097bf82ba4316dea0ac3a55ed",
+      "result": {
+        "void": false,
+        "option": 0,
+        "value": "28",
+        "dataHash": "6589bf15a78923f96cab20b446879ec39a0efc7d16701e62b5ca62adbdc0677b",
+        "resolvedAt": "2026-11-05T05:32:44.040Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40788434,
+          "decidedHeight": 40808845,
+          "readings": [
+            40804810,
+            40805781,
+            40806907,
+            40808090
+          ],
+          "readingsInWindow": 4,
+          "values": {
+            "network": {
+              "release": "2302088278567586",
+              "end": "2308488488539579",
+              "change": "+0.28%",
+              "height": 40804810
+            }
+          }
+        }
+      },
+      "chainOutcome": 1,
+      "chainDataHash": "0x6589bf15a78923f96cab20b446879ec39a0efc7d16701e62b5ca62adbdc0677b"
+    },
+    {
+      "id": "W002-D3-2",
+      "date": "W002-D3",
+      "week": 2,
+      "day": 3,
+      "tier": "Medium",
+      "template": "M9",
+      "releaseHeight": 40788340,
+      "lockHeight": 40803845,
+      "lockTime": 1793836800000,
+      "title": "Smaller producer quartiles",
+      "text": "How many blocks will producer 1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr sign between block 40,803,846 and block 40,847,045 (about 36 hours)?",
+      "subjects": [
+        "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr"
+      ],
+      "unit": "count",
+      "windowStart": 40803846,
+      "windowEnd": 40847045,
+      "thresholds": [
+        48,
+        59,
+        67
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "48 or fewer",
+          "min": null,
+          "max": 48
+        },
+        {
+          "index": 1,
+          "label": "49 to 59",
+          "min": 49,
+          "max": 59
+        },
+        {
+          "index": 2,
+          "label": "60 to 67",
+          "min": 60,
+          "max": 67
+        },
+        {
+          "index": 3,
+          "label": "68 or more",
+          "min": 68,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.25,
+        0.25,
+        0.25833333333333336,
+        0.24166666666666667
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {
+          "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": 0.0017534722222222222
+        },
+        "forecast": {
+          "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": 0.0013541666666666667
+        },
+        "window": 43200,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2068494330372"
+        },
+        "vhpHeight": 40788434,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "23325ee1d9b41d7e7e87c84781faed1d2d9af6495c7e33d9fc5b0293d9565838",
+      "chainId": 71,
+      "vhpReadings": [
+        {
+          "height": 40804810,
+          "readAt": "2026-11-05T02:04:49.421Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2053376506218"
+          },
+          "seal": "9013845a1883253b7905053d21502e542ecd973d8ce1ab7c1c3e51ef5d22c6a3"
+        },
+        {
+          "height": 40805781,
+          "readAt": "2026-11-05T02:54:44.177Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2052967902457"
+          },
+          "seal": "e6dd0fa2f66d34afbd6087d98c0443be4fa42631a8bc094462b645e976c49680"
+        },
+        {
+          "height": 40806907,
+          "readAt": "2026-11-05T03:52:13.645Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2051333481766"
+          },
+          "seal": "70c2e2e3aa1c47008a6e6906530cd73a83dd45f9493e1a23f4bbaabf2a39594f"
+        },
+        {
+          "height": 40808090,
+          "readAt": "2026-11-05T04:54:57.447Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2076539408312"
+          },
+          "seal": "b0ea9deb28ac734c3fd21b4b316ea6cb548cf323d400fc7e78c242ada91eacc3"
+        },
+        {
+          "height": 40809312,
+          "readAt": "2026-11-05T05:56:45.114Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2075722189675"
+          },
+          "seal": "006844a1a2d8ccbb04146c8ff10ea64f9643653032c00b9a2643d863af95abe9"
+        },
+        {
+          "height": 40810716,
+          "readAt": "2026-11-05T07:08:33.356Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2074904967349"
+          },
+          "seal": "7e2c7ff444fbea5cfaaa7a35bc82d2927b0acd7f34f30fa1c039cf899102bd61"
+        },
+        {
+          "height": 40812771,
+          "readAt": "2026-11-05T08:55:01.726Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2074496353124"
+          },
+          "seal": "e4fa96496503d3dad83a1a93d89a9a3df1062725ee0c0a32e7b41a35308c69ed"
+        },
+        {
+          "height": 40814003,
+          "readAt": "2026-11-05T09:57:13.041Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2072453272700"
+          },
+          "seal": "25fec1d10de8262a67db0e5d23909436179367354e97435b05c831105317c369"
+        },
+        {
+          "height": 40815188,
+          "readAt": "2026-11-05T10:58:05.116Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2071636035531"
+          },
+          "seal": "10970b81dd7a2f195d089dba43957f2262f436d14e8d0134f2a958a599a14bff"
+        },
+        {
+          "height": 40816159,
+          "readAt": "2026-11-05T11:50:28.198Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2071227415807"
+          },
+          "seal": "149812ef68ecf91378dde45f38d978aa0697985279a3f08fce71463b87702d9f"
+        },
+        {
+          "height": 40816423,
+          "readAt": "2026-11-05T12:04:17.451Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2070818795319"
+          },
+          "seal": "72f115186b17257fa7cc5f92cb97c8d8777ab4890f757a414746d790c56795db"
+        },
+        {
+          "height": 40817126,
+          "readAt": "2026-11-05T12:40:22.224Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2070818795319"
+          },
+          "seal": "6228f77b08b06f7f533d0e5481f97a93bdcfd805aac4cf0065db13eef5baafbc"
+        },
+        {
+          "height": 40817530,
+          "readAt": "2026-11-05T12:59:59.719Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2070001550612"
+          },
+          "seal": "3884bd5dbb3dc136de31d1a8c397feb35831644a3248d2170c0ecc2d7b3e2b9c"
+        },
+        {
+          "height": 40819060,
+          "readAt": "2026-11-05T14:17:49.464Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2067958432370"
+          },
+          "seal": "8cdb0cd901629ecd9bad869b23df933b37f23ac24a48630c43a7bf5bee6d5571"
+        },
+        {
+          "height": 40820962,
+          "readAt": "2026-11-05T15:55:11.300Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2067549805614"
+          },
+          "seal": "dc5ba56b99bc319dca14ed651e8a487891a0351dc1529474656c1c956919c650"
+        },
+        {
+          "height": 40822285,
+          "readAt": "2026-11-05T17:05:12.807Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2066323919861"
+          },
+          "seal": "7ab234e4683e92ee97f312f2aae2d5191016cf6d447f681a32a51280fa741f2f"
+        },
+        {
+          "height": 40823288,
+          "readAt": "2026-11-05T17:55:24.108Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2066323919861"
+          },
+          "seal": "519161d9446d735f9acb5b3dcade855e2592c0ab577be09046fa8ae263c1a007"
+        },
+        {
+          "height": 40824350,
+          "readAt": "2026-11-05T18:49:53.158Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2065098022725"
+          },
+          "seal": "6701d65afbd23fd4d722e84a4b2f04d300cea4d8f6d36ac759753cc59fdcd800"
+        },
+        {
+          "height": 40825534,
+          "readAt": "2026-11-05T19:50:46.584Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2062646220053"
+          },
+          "seal": "1a715e4eb9034dc10d9642dceb9e3c4579b6408578aa439b14c07f7209e2935a"
+        },
+        {
+          "height": 40826630,
+          "readAt": "2026-11-05T20:45:59.460Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2061420313676"
+          },
+          "seal": "5ecad6f9d266f2d9b17d49f32e4ad267f74bc6e10a3803b01db5a30c199dc3a2"
+        },
+        {
+          "height": 40827722,
+          "readAt": "2026-11-05T21:43:23.161Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2061420313676"
+          },
+          "seal": "a6e490c51a112a51a7cf5a0e85deeb77142ce24c9be1ccf36d5738c758303dfc"
+        },
+        {
+          "height": 40828897,
+          "readAt": "2026-11-05T22:44:55.629Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2061011673933"
+          },
+          "seal": "35ae6a343e0f5f0d3914af8ee9c7e4c889595afe31a48edceaf920902b8ec08c"
+        },
+        {
+          "height": 40829985,
+          "readAt": "2026-11-05T23:41:38.090Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2061011673933"
+          },
+          "seal": "89280021e4df0b0286c9cb7bdf24f6bc08d706ff197c7f068f8a21e630d9f237"
+        },
+        {
+          "height": 40830846,
+          "readAt": "2026-11-06T00:25:56.545Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2060603031883"
+          },
+          "seal": "eee425f5d4fcda44e0eaff46e0af3c5d5f6afff4da03b18703dbb6962b07502a"
+        },
+        {
+          "height": 40831422,
+          "readAt": "2026-11-06T00:57:09.219Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2060603031883"
+          },
+          "seal": "d78f2144e0727dd6eb668339d40e52eb99325f4a550e6c5e4bb6ae659052504c"
+        },
+        {
+          "height": 40832769,
+          "readAt": "2026-11-06T02:05:38.905Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2058968456098"
+          },
+          "seal": "44aac1a6c4f16738d3b22472f027f806abd900d3bb2dc4e39a2e5500c21f4f14"
+        },
+        {
+          "height": 40833694,
+          "readAt": "2026-11-06T02:53:39.926Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2060151162919"
+          },
+          "seal": "ac840bdd9255f8fe3b70657b7a7ed6ee090fd9e78deeee2174fba66790dd351f"
+        },
+        {
+          "height": 40834765,
+          "readAt": "2026-11-06T03:50:00.815Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2060742515422"
+          },
+          "seal": "3f1b959572c84705f7d13ef412ac6794aed1c4345fadd1bb1ece2c8fc193ef4e"
+        },
+        {
+          "height": 40836016,
+          "readAt": "2026-11-06T04:54:02.287Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2060742515422"
+          },
+          "seal": "09a47189444df6de9514f2b7b43341171420b8a6b08c67ef8b963d2d8a604870"
+        },
+        {
+          "height": 40837193,
+          "readAt": "2026-11-06T05:55:05.595Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2081339377106"
+          },
+          "seal": "b1fea92a80864b5bfb4994be8bf2477e486df228f4e697b03cff9fabe91e5e58"
+        },
+        {
+          "height": 40838596,
+          "readAt": "2026-11-06T07:06:23.377Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2079704761715"
+          },
+          "seal": "0229aacf91317234b26924d87b4448030c25fe08a46ff2e880fd8d8f21a0d7e5"
+        },
+        {
+          "height": 40840042,
+          "readAt": "2026-11-06T08:19:01.186Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2078478794971"
+          },
+          "seal": "c4a4d3d14073a391d833550e0e0c527f8fca7e0f2b3b53b0a9dd7acbbcdc6b14"
+        },
+        {
+          "height": 40841962,
+          "readAt": "2026-11-06T09:57:45.684Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2077661478107"
+          },
+          "seal": "51be1d83b0917daa48117a9d561cf1d0c6f19b2e876d57ab97d3b0821b575dbb"
+        },
+        {
+          "height": 40843120,
+          "readAt": "2026-11-06T10:57:16.123Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2076844157669"
+          },
+          "seal": "990e93e9bfab2468e5c6e382c7beb4228ad5027e883862dab32073ff566c2842"
+        },
+        {
+          "height": 40844124,
+          "readAt": "2026-11-06T11:48:41.048Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2075618170819"
+          },
+          "seal": "e9445130547fd5f278458e42e43f6db88f8fff1f377677fdd58d665513d49c18"
+        },
+        {
+          "height": 40845084,
+          "readAt": "2026-11-06T12:37:35.364Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2075209506902"
+          },
+          "seal": "d15daa19618a6d0590d80bd3437c56e5d685d47960ef194868974246823f4f8b"
+        },
+        {
+          "height": 40845426,
+          "readAt": "2026-11-06T12:56:20.460Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2075209506902"
+          },
+          "seal": "1a4c7bbcde488b1c61f917ec39103bd9f9c8b8f8e98f8d067d8984dbc817e939"
+        },
+        {
+          "height": 40846879,
+          "readAt": "2026-11-06T14:09:28.221Z",
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "2073983506955"
+          },
+          "seal": "731896d719b41f0fc00f338b95bf303dab014cef8f191fec0c59d5c61e63065d"
+        }
+      ],
+      "vhpSeal": "30ea1e6f3e23c66fda92f57c035a1125066a953f338553d1019cffa663556547",
+      "result": {
+        "void": false,
+        "option": 3,
+        "value": "72",
+        "dataHash": "529c9bb6f0fef856e53b398aa90f1f7c4d0bf98b9c57901cf66e86d18623c0d7",
+        "resolvedAt": "2026-11-06T14:18:31.720Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40788434,
+          "decidedHeight": 40844687,
+          "readings": [
+            40804810,
+            40805781,
+            40806907,
+            40808090,
+            40809312,
+            40810716,
+            40812771,
+            40814003,
+            40815188,
+            40816159,
+            40816423,
+            40817126,
+            40817530,
+            40819060,
+            40820962,
+            40822285,
+            40823288,
+            40824350,
+            40825534,
+            40826630,
+            40827722,
+            40828897,
+            40829985,
+            40830846,
+            40831422,
+            40832769,
+            40833694,
+            40834765,
+            40836016,
+            40837193,
+            40838596,
+            40840042,
+            40841962,
+            40843120,
+            40844124
+          ],
+          "readingsInWindow": 38,
+          "values": {
+            "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": {
+              "release": "2068494330372",
+              "end": "2051333481766",
+              "change": "−0.83%",
+              "height": 40806907
+            }
+          }
+        }
+      },
+      "chainOutcome": 4,
+      "chainDataHash": "0x529c9bb6f0fef856e53b398aa90f1f7c4d0bf98b9c57901cf66e86d18623c0d7"
+    },
+    {
+      "id": "W002-D3-3",
+      "date": "W002-D3",
+      "week": 2,
+      "day": 3,
+      "tier": "Medium",
+      "template": "M1",
+      "releaseHeight": 40788340,
+      "lockHeight": 40803845,
+      "lockTime": 1793836800000,
+      "title": "Core producer quartiles",
+      "text": "How many blocks will producer 1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd sign between block 40,803,846 and block 40,813,845 (about 8 hours)?",
+      "subjects": [
+        "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd"
+      ],
+      "unit": "count",
+      "windowStart": 40803846,
+      "windowEnd": 40813845,
+      "thresholds": [
+        539,
+        566,
+        590
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "539 or fewer",
+          "min": null,
+          "max": 539
+        },
+        {
+          "index": 1,
+          "label": "540 to 566",
+          "min": 540,
+          "max": 566
+        },
+        {
+          "index": 2,
+          "label": "567 to 590",
+          "min": 567,
+          "max": 590
+        },
+        {
+          "index": 3,
+          "label": "591 or more",
+          "min": 591,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.2512266928361138,
+        0.24730127576054955,
+        0.25024533856722275,
+        0.2512266928361138
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {
+          "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": 0.05319444444444445
+        },
+        "forecast": {
+          "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": 0.05708333333333333
+        },
+        "window": 10000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": "70309504342259"
+        },
+        "vhpHeight": 40788434,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "520abbb8346a08efb1eef545400eafdbd9c15d9d2b1bb1a3bc26d5de2622ab3f",
+      "chainId": 72,
+      "vhpReadings": [
+        {
+          "height": 40804810,
+          "readAt": "2026-11-05T02:04:49.421Z",
+          "values": {
+            "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": "69906225248949"
+          },
+          "seal": "4613e80c76f2b9e4b70d6ef3af77cb3314698b76dab24b79f883e0f49762b099"
+        },
+        {
+          "height": 40805781,
+          "readAt": "2026-11-05T02:54:44.177Z",
+          "values": {
+            "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": "69878440186918"
+          },
+          "seal": "ed4470024625e9b376c2442ad1cc102e629b732d6fc21bf577d8be321753f1c9"
+        },
+        {
+          "height": 40806907,
+          "readAt": "2026-11-05T03:52:13.645Z",
+          "values": {
+            "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": "69852698044555"
+          },
+          "seal": "679526baa867343c3e8b32fccfbe6cf4fa1936cc74795a84c07fcb627d3d6fac"
+        },
+        {
+          "height": 40808090,
+          "readAt": "2026-11-05T04:54:57.447Z",
+          "values": {
+            "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": "69826138577914"
+          },
+          "seal": "6bbab0c2227f2d3d92d6f20f9235f4dee45baceb190c6c7cc7c938257f59b690"
+        },
+        {
+          "height": 40809312,
+          "readAt": "2026-11-05T05:56:45.114Z",
+          "values": {
+            "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": "69798353164241"
+          },
+          "seal": "8090c86cb5034062d52894c9afe3cf30f64d752da4893ae3e9fe47a6e91482df"
+        },
+        {
+          "height": 40810716,
+          "readAt": "2026-11-05T07:08:33.356Z",
+          "values": {
+            "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": "69760352337818"
+          },
+          "seal": "52288b6990da8c75ccc0d68b6593ad7f7b9a3ad56a742d1b17927a452d4312e6"
+        },
+        {
+          "height": 40812771,
+          "readAt": "2026-11-05T08:55:01.726Z",
+          "values": {
+            "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": "69717447900838"
+          },
+          "seal": "0fb9abe0ef830437c8297a7528e3e6dd3bc8cb77b80744cc067853323d31e160"
+        }
+      ],
+      "vhpSeal": "8e129f47058709a69c29b129d41f351cc6d2d45e0cfe0de8470789389c63f614",
+      "result": {
+        "void": false,
+        "option": 2,
+        "value": "589",
+        "dataHash": "d6c6c93d5e4140fcc6e976b83c0cab40d860bf2bece98767a158983f94d6d618",
+        "resolvedAt": "2026-11-05T09:49:47.660Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40788434,
+          "decidedHeight": 40813844,
+          "readings": [
+            40804810,
+            40805781,
+            40806907,
+            40808090,
+            40809312,
+            40810716,
+            40812771
+          ],
+          "readingsInWindow": 7,
+          "values": {
+            "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd": {
+              "release": "70309504342259",
+              "end": "69717447900838",
+              "change": "−0.84%",
+              "height": 40812771
+            }
+          }
+        }
+      },
+      "chainOutcome": 3,
+      "chainDataHash": "0xd6c6c93d5e4140fcc6e976b83c0cab40d860bf2bece98767a158983f94d6d618"
+    },
+    {
+      "id": "W002-D3-4",
+      "date": "W002-D3",
+      "week": 2,
+      "day": 3,
+      "tier": "Medium",
+      "template": "M5",
+      "releaseHeight": 40788340,
+      "lockHeight": 40803845,
+      "lockTime": 1793836800000,
+      "title": "Average block interval",
+      "text": "What will be the average time between blocks between block 40,803,846 and block 40,808,845?",
+      "subjects": [],
+      "unit": "ms",
+      "windowStart": 40803846,
+      "windowEnd": 40808845,
+      "thresholds": [
+        3067,
+        3082,
+        3101
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "3.067 s or less",
+          "min": null,
+          "max": 3067
+        },
+        {
+          "index": 1,
+          "label": "3.068 s to 3.082 s",
+          "min": 3068,
+          "max": 3082
+        },
+        {
+          "index": 2,
+          "label": "3.083 s to 3.101 s",
+          "min": 3083,
+          "max": 3101
+        },
+        {
+          "index": 3,
+          "label": "3.102 s or more",
+          "min": 3102,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.24390243902439024,
+        0.25609756097560976,
+        0.24390243902439024,
+        0.25609756097560976
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {},
+        "window": 5000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "network": "2302088278567586"
+        },
+        "vhpHeight": 40788434,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "42fadff3ddd63440997bdb1afb3c1f64a3a61d45d3d2f17033d71ba23dbb982e",
+      "chainId": 73,
+      "vhpReadings": [
+        {
+          "height": 40804810,
+          "readAt": "2026-11-05T02:04:49.421Z",
+          "values": {
+            "network": "2308488488539579"
+          },
+          "seal": "b82e47a16e29b2b841a1a5181fa7c05a9b6497a458455328f7a83addc23f4423"
+        },
+        {
+          "height": 40805781,
+          "readAt": "2026-11-05T02:54:44.177Z",
+          "values": {
+            "network": "2308092142794719"
+          },
+          "seal": "289fbee7d2bc499c0bd97a1937fb8e65677fef5106da3f032e59e76aa145fbf2"
+        },
+        {
+          "height": 40806907,
+          "readAt": "2026-11-05T03:52:13.645Z",
+          "values": {
+            "network": "2307953981299641"
+          },
+          "seal": "3dc70245cc10cb33e7fa6a56099f1a7361870ea6ff70b92c28efcd76dc9c0282"
+        },
+        {
+          "height": 40808090,
+          "readAt": "2026-11-05T04:54:57.447Z",
+          "values": {
+            "network": "2307520728895514"
+          },
+          "seal": "6320f2b8f469c535fb6f69c1cc28a4a914d04ec874e9f0fd5992dcd9b75fe948"
+        }
+      ],
+      "vhpSeal": "cdaf971c90505d56186e3a26c03308391dca7faef470eaedd60713df1f3b28f1",
+      "result": {
+        "void": false,
+        "option": 2,
+        "value": "3.083 s",
+        "dataHash": "6589bf15a78923f96cab20b446879ec39a0efc7d16701e62b5ca62adbdc0677b",
+        "resolvedAt": "2026-11-05T05:32:44.040Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40788434,
+          "decidedHeight": 40808845,
+          "readings": [
+            40804810,
+            40805781,
+            40806907,
+            40808090
+          ],
+          "readingsInWindow": 4,
+          "values": {
+            "network": {
+              "release": "2302088278567586",
+              "end": "2308488488539579",
+              "change": "+0.28%",
+              "height": 40804810
+            }
+          }
+        }
+      },
+      "chainOutcome": 3,
+      "chainDataHash": "0x6589bf15a78923f96cab20b446879ec39a0efc7d16701e62b5ca62adbdc0677b"
+    },
+    {
+      "id": "W002-D3-5",
+      "date": "W002-D3",
+      "week": 2,
+      "day": 3,
+      "tier": "Medium",
+      "template": "M4",
+      "releaseHeight": 40788340,
+      "lockHeight": 40803845,
+      "lockTime": 1793836800000,
+      "title": "Largest gap between blocks",
+      "text": "What will be the longest gap between two consecutive blocks between block 40,803,846 and block 40,808,845?",
+      "subjects": [],
+      "unit": "ms",
+      "windowStart": 40803846,
+      "windowEnd": 40808845,
+      "thresholds": [
+        26670,
+        30410
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "26.670 s or less",
+          "min": null,
+          "max": 26670
+        },
+        {
+          "index": 1,
+          "label": "26.671 s to 30.410 s",
+          "min": 26671,
+          "max": 30410
+        },
+        {
+          "index": 2,
+          "label": "30.411 s or more",
+          "min": 30411,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.3048780487804878,
+        0.36585365853658536,
+        0.32926829268292684
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {},
+        "window": 5000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "network": "2302088278567586"
+        },
+        "vhpHeight": 40788434,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "4033e36671896824d9455eb2b3fc621868e5fdceae072aa2e924dae621a5f58d",
+      "chainId": 74,
+      "vhpReadings": [
+        {
+          "height": 40804810,
+          "readAt": "2026-11-05T02:04:49.421Z",
+          "values": {
+            "network": "2308488488539579"
+          },
+          "seal": "bd523a7e2ab73578f2eb5dfc504f54ff25b3db913167824fe0aff07c68f90afd"
+        },
+        {
+          "height": 40805781,
+          "readAt": "2026-11-05T02:54:44.177Z",
+          "values": {
+            "network": "2308092142794719"
+          },
+          "seal": "a0c853165ae4dbb08e7d1bc15e311cc21c2a124bc049c79ce5f41e5ac21e1468"
+        },
+        {
+          "height": 40806907,
+          "readAt": "2026-11-05T03:52:13.645Z",
+          "values": {
+            "network": "2307953981299641"
+          },
+          "seal": "54145d4b7d90ceb8bf6cb1665024b198b2547f824e0c57ea46ed67951befdb1d"
+        },
+        {
+          "height": 40808090,
+          "readAt": "2026-11-05T04:54:57.447Z",
+          "values": {
+            "network": "2307520728895514"
+          },
+          "seal": "ca926b2d357ff911767dfb02535f0dc586276fbd600d70743d9fbe3921cd48e6"
+        }
+      ],
+      "vhpSeal": "7fc9c8af295f241a6d04f93d1ff942a4f141edd3462a98ff6c54044742f3a9e6",
+      "result": {
+        "void": false,
+        "option": 2,
+        "value": "30.560 s",
+        "dataHash": "6589bf15a78923f96cab20b446879ec39a0efc7d16701e62b5ca62adbdc0677b",
+        "resolvedAt": "2026-11-05T05:32:44.040Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40788434,
+          "decidedHeight": 40804245,
+          "readings": [],
+          "readingsInWindow": 4,
+          "values": {
+            "network": {
+              "release": "2302088278567586",
+              "end": "",
+              "change": "no reading during the window"
+            }
+          },
+          "skipped": "the window's blocks decided the answer at block 40804245, before the first VHP reading"
+        }
+      },
+      "chainOutcome": 3,
+      "chainDataHash": "0x6589bf15a78923f96cab20b446879ec39a0efc7d16701e62b5ca62adbdc0677b"
+    }
+  ],
+  "daySeal": "4e3a671ace5334c8e9a886a178ca795033358a642b1d52f04211998d9b161411"
+}

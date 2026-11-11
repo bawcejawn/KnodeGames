@@ -84,9 +84,18 @@ test("ABI: the panel's methods and field numbers match the vault's own ABI (v6)"
     assert.equal(real.methods[name].entry_point, m.entry_point, `${name} entry point`);
     assert.equal(real.methods[name].argument, m.argument); assert.equal(real.methods[name].return, m.return);
   }
+  // v6.1's one new field (PR #114: config field 23, read as 0 on v6). Until v6.1's ABI is on main it must be absent here
+  // and its number unused, so a v6 vault can never put anything else in it.
+  const V61 = { config_object: { q60_rule_week_plus_one: { id: 23, type: "uint64" } } };
   for (const [msg, def] of Object.entries(T.VAULT_ABI.koilib_types.nested.kpred.nested)) {
     for (const [field, f] of Object.entries(def.fields)) {
       const r = types[msg] && types[msg].fields[field];
+      const later = V61[msg] && V61[msg][field];
+      if (later && !r) {
+        assert.deepEqual([f.id, f.type], [later.id, later.type], `${msg}.${field} as in v6.1`);
+        assert.ok(!Object.values(types[msg].fields).some((x) => x.id === f.id), `${msg} field ${f.id} unused before v6.1`);
+        continue;
+      }
       assert.ok(r, `${msg}.${field} exists in the vault`);
       assert.equal(r.id, f.id, `${msg}.${field} number`);
       assert.equal(r.type, f.type, `${msg}.${field} type`);
@@ -258,8 +267,12 @@ test("a guest can't stake: the wallet's guest explanation shows instead", async 
 
 test("the panel sends only through the wallet, and only vault and token operations it builds itself", () => {
   const sends = [...src.matchAll(/\.send\(/g)];
-  assert.equal(sends.length, 2, "two sends: the game-page panel and the staking hub, both the wallet's own");
-  assert.equal([...src.matchAll(/const id = await W\.send\(label, ops\);/g)].length, 2);
+  assert.equal(sends.length, 3, "three sends: the game-page panel, the staking hub, and the hub's one-claim-per-transaction loop (R-BX-21), all the wallet's own");
+  assert.equal([...src.matchAll(/id = await W\.send\(`claim reward \$\{done \+ 1\} of \$\{ops\.length\}`, \[op\], opts\);/g)].length, 1, "the R-BX-21 loop: one operation, same opts");
+  assert.equal([...src.matchAll(/const id = await W\.send\(label, ops\);/g)].length, 1, "the game-page panel");
+  // The hub may only ask for the player's own Mana (question-game claims, as the home page does): never a payer or sponsor.
+  assert.equal([...src.matchAll(/const id = await W\.send\(label, ops, opts\);/g)].length, 1, "the hub");
+  assert.deepEqual([...src.matchAll(/(?:let ops, label, |\) )opts = ([^;]+);/g)].map((m) => m[1]), ["{}", "{ ownMana: true }"]);
   assert.doesNotMatch(src, /signTransaction|sendTransaction|privateKey|wif|innerHTML|outerHTML|insertAdjacentHTML|eval\(|new Function|localStorage|sessionStorage/i);
   assert.match(src, /new k\.lib\.Contract\(\{ id: k\.dep\.contract, abi: VAULT_ABI/, "the vault address comes from game-data/deployment.json");
 });
@@ -292,7 +305,7 @@ test("last week per 100 VHP: the game's bucket ÷ the stake counted for it, only
   assert.equal(T.per100(open, { week: "4", week_stake: String(100n * UNIT), next_stake: String(100n * UNIT), next_week: "6" }, 5n), UNIT, "pending stake from later is not");
 });
 
-test("Where to stake: every staked game side by side with links to its page; hidden until live", async () => {
+test("Where to stake: every staked game side by side; each opens its card on the Stake page (owner, 4 Nov); hidden until live", async () => {
   const games = [GAME({ id: 1, name: "Daily Questions", stake: String(900n * UNIT) }), GAME({ id: 7 }), GAME({ id: 2, name: "Who Signs Block X", stake: "0" }), GAME({ id: 4, name: "Fantasy Producers", staked: false })];
   const weeks = { 4: { gw: { closed: true, weight_set: true, weight: String(200n * UNIT), bucket: String(1n * UNIT) } } };
   let e = env({ state: LIVE({ v6_rule_week_plus_one: "0" }), games, weeks });
@@ -307,9 +320,13 @@ test("Where to stake: every staked game side by side with links to its page; hid
   assert.equal(items.length, 3, "only games that take stakes");
   assert.match(items[0], /Daily Questions.*Staked 900 VHP.*Yours 10 VHP.*Last week see its page/);
   assert.match(items[1], /Producer Race.*Staked 250 VHP.*Yours 3 VHP.*Last week 0\.5 VHP per 100/);
-  assert.match(items[2], /Who Signs Block X.*Page coming soon/);
-  const hrefs = e.root.all().filter((n) => n.tagName === "a" && /Stake/.test(n.textContent)).map((n) => n.attrs.href);
-  assert.deepEqual(J(hrefs), ["index.html#play", "race.html#stake"]);
+  assert.match(items[0], /Manage →/, "staked there: Manage");
+  assert.match(items[2], /Who Signs Block X(Stake|Manage) →/);
+  const btns = e.root.all().filter((n) => n.tagName === "a" && /→$/.test(n.textContent)).map((n) => n.attrs.href);
+  assert.deepEqual(J(btns), ["stake.html#g1", "stake.html#g7", "stake.html#g2"], "every row opens its card on the Stake page");
+  const names = e.root.all().filter((n) => n.tagName === "a" && n.className === "kstake-list-name").map((n) => n.attrs.href);
+  assert.deepEqual(J(names), ["index.html#play", "race.html#stake"], "the game's name opens its own page");
+  assert.ok(e.root.all().some((n) => n.tagName === "a" && n.attrs.href === "stake.html" && /Open the Stake page/.test(n.textContent)));
   assert.match(e.root.textContent, /week of 16 Nov/);
   assert.equal(e.sent.length, 0, "the list never sends anything");
   // A game with no closed week yet says so in words.
@@ -349,7 +366,7 @@ test("status bar text: staked, waiting for next week, free, guest, not connected
   assert.equal(t.head, "Playing free"); assert.equal(t.link, "Stake"); assert.match(t.sub, /Stake 1 VHP or more/);
   assert.equal(T.badgeText(S({}), true, true).head, "Playing free (guest)");
   assert.match(T.badgeText(S({}), false, false).sub, /Connect a wallet/);
-  assert.match(T.badgeText(S({ open: false }), true, false).sub, /opens when the Knode Games vault goes live/);
+  assert.match(T.badgeText(S({ open: false }), true, false).sub, /opens soon: it joins the Knode Games vault before it pays/);
 });
 
 test("status bar: drawn with the amount and a link to the staking page; guests never trigger a stake read", async () => {
@@ -414,10 +431,58 @@ test("hub send: one wallet transaction per action; up to 10 claims batched in on
   await assert.rejects(e.K.send("claim", { claims: [] }), /Nothing to claim/);
 });
 
-test("the Mana sponsor never pays for moving stake (owner, 2026-10-30); stake, withdraw and claim it may", () => {
+test("R-BX-21 (owner: 'choose a'): with the Mana sponsor on, each claim goes in its own transaction; own Mana keeps one batch", async () => {
+  const claims = Array.from({ length: 3 }, (_, i) => ({ game: 7, week: BigInt(i + 3) }));
+  const e = env({ state: LIVE(), game: GAME() });
+  e.ctx.KWallet.sponsorOn = true;
+  await e.K.send("claim", { claims });
+  assert.equal(e.sent.length, 3, "three transactions, one claim each");
+  assert.deepEqual(J(e.sent.map((s) => s.ops.map((o) => [o._m, o._a.week]))), [[["claim_game", "3"]], [["claim_game", "4"]], [["claim_game", "5"]]]);
+  assert.deepEqual(J(e.sent.map((s) => s.label)), ["claim reward 1 of 3", "claim reward 2 of 3", "claim reward 3 of 3"]);
+  await e.K.send("claim", { claims: claims.slice(0, 1) });
+  assert.equal(e.sent[3].ops.length, 1);
+  // Sponsor off, or KOIN Vault (it picks who pays itself): one batch, as before.
+  const off = env({ state: LIVE(), game: GAME() });
+  await off.K.send("claim", { claims });
+  assert.equal(off.sent.length, 1); assert.equal(off.sent[0].ops.length, 3);
+  const kv = env({ state: LIVE(), game: GAME(), kind: "vault" });
+  kv.ctx.KWallet.sponsorOn = true;
+  await kv.K.send("claim", { claims });
+  assert.equal(kv.sent.length, 1); assert.equal(kv.sent[0].ops.length, 3);
+  // Stake, withdraw and move are never split.
+  await e.K.send("stake", { game: 7, units: UNIT, koin: false });
+  assert.deepEqual(J(e.sent[4].ops.map((o) => o._m)), ["approve", "deposit_to"]);
+});
+
+test("R-BX-21: a claim that fails part-way says how many went through and asks to tap Claim again", async () => {
+  const e = env({ state: LIVE(), game: GAME() });
+  e.ctx.KWallet.sponsorOn = true;
+  let n = 0;
+  e.ctx.KWallet.send = async (label, o) => { if (++n === 2) throw new Error("Cancelled in Kondor"); e.sent.push({ label, ops: o }); return "0xtx"; };
+  await assert.rejects(e.K.send("claim", { claims: [{ game: 7, week: 3n }, { game: 7, week: 4n }, { game: 7, week: 5n }] }), /1 of 3 rewards claimed.*tap Claim again.*Cancelled in Kondor/);
+  assert.equal(e.sent.length, 1);
+  n = 0; e.ctx.KWallet.send = async () => { throw new Error("Cancelled in Kondor"); };
+  await assert.rejects(e.K.send("claim", { claims: [{ game: 7, week: 3n }, { game: 7, week: 4n }] }), /^Error: Cancelled in Kondor$/);
+});
+
+test("R-BX-21: Daily Questions (game 1) on the shared calls is split like any game; an old-rule own-Mana claim keeps the batch", async () => {
+  const e = env({ state: LIVE({ q60_rule_week_plus_one: "4" }), game: GAME() });
+  e.ctx.KWallet.sponsorOn = true;
+  await e.K.send("claim", { claims: [{ game: 1, week: 4n }, { game: 7, week: 4n }] });
+  assert.deepEqual(J(e.sent.map((s) => s.ops.map((o) => [o._m, o._a.game]))), [[["claim_game", 1]], [["claim_game", 7]]]);
+  await e.K.send("claim", { claims: [{ game: 1, week: 1n, ownMana: true }, { game: 7, week: 4n }] });
+  assert.deepEqual(J(e.sent[2].ops.map((o) => o._m)), ["claim", "claim_game"], "own Mana: one batch");
+});
+
+test("R-BX-21: KWallet tells the page when the Mana sponsor pays", () => {
   const w = fs.readFileSync(`${APP}/wallet.js`, "utf8");
-  assert.match(w, /MOVE_STAKE = 0x7c268e69/);
-  assert.match(w, /if \(c\.contract_id === sp\.covers\[0\] && Number\(c\.entry_point\) === MOVE_STAKE\) return null;/);
+  assert.match(w, /get sponsorOn\(\) \{ return W\.payer === "sponsor" && !!\(W\.sponsor && W\.sponsor\.address\); \}/);
+});
+
+test("owner 5 Nov: the Mana sponsor pays for moving stake too (within the daily Mana), as for stake, withdraw and claim", () => {
+  const w = fs.readFileSync(`${APP}/wallet.js`, "utf8");
+  assert.doesNotMatch(w, /=== MOVE_STAKE\) return null;/, "the page no longer refuses the sponsor for a move");
+  assert.match(w, /const VAULT_CALLS = \[0x7bb5c436, 0x5b0aaef8, 0x7c268e69, 0x4107e3ab\];/, "a move's game is read for would_pay");
 });
 
 test("plain-words errors: a busy-Mana refusal says to wait a minute", () => {
@@ -449,4 +514,24 @@ test("pages without their own wallet set-up still give it a network (owner's @na
   assert.match(sp, /w\.init\(\{ provider: new lib\.Provider\(\[dep\.rpc \|\| "https:\/\/koinos\.armana\.io"\]\), chainId: dep\.chainId, payer: dep\.payer, sponsor: dep\.sponsor \}\)/, "the staking hub asks the Mana sponsor like the game pages");
   const np = fs.readFileSync(`${APP}/names-page.js`, "utf8");
   assert.match(np, /w\.init\(\{ provider: new lib\.Provider\(\[dep\.rpc \|\| "https:\/\/koinos\.armana\.io"\]\), chainId: dep\.chainId \}\)/, "names: a network, own Mana");
+});
+
+test("I-028: withdrawing or moving below the minimum mid-week is explained before it's sent", () => {
+  assert.match(src, /as long as at least \$\{exact\(min\)\} VHP stays in: below that you get no share of this week's rewards and no free prize/);
+  const page = fs.readFileSync(`${APP}/stake-page.js`, "utf8");
+  assert.match(page, /g\.staked && g\.mine - u < d\.min/);
+  // The review box (owner, 2026-11-03: "clear exactly what I'm doing") says it in a sentence, then the warning.
+  assert.match(page, /straight back to your wallet, right now\.`/);
+  assert.match(page, /Heads up: this leaves less than \$\{F\.exact\(d\.min\)\} VHP in \$\{g\.name\}, so you get no share of its rewards this week and no free prize\./);
+  assert.equal([...page.matchAll(/, drop\]/g)].length, 2, "withdraw and move both show the warning");
+  assert.match(fs.readFileSync(`${APP}/stake.html`, "utf8"), /as long as at least the minimum \(1 VHP\) stays in/);
+});
+
+test("owner 5 Nov / Run a Node: the site lists Proof-of-Burn as sponsored (after the owner's config send, 6 Nov) and a registration asks for the 2.4 per-transaction cap", () => {
+  const sp = JSON.parse(fs.readFileSync(`${APP}/game-data/deployment.json`, "utf8")).sponsor;
+  assert.ok(sp.covers.includes("159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv")); assert.equal(sp.pob, "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv");
+  assert.equal(sp.rcLimitOther, "240000000", "not an answer or a pick: rcLimitOther");
+  assert.ok(!Object.keys(sp.rcLimits || {}).some((k) => k.startsWith("159myq")), "no measured row yet: the fallback (2.4) applies");
+  const w = fs.readFileSync(`${APP}/wallet.js`, "utf8");
+  assert.match(w, /rcFor\(sp, ops, String\(answerOnly \? \(sp\.rcLimit \|\| "100000000"\) : \(sp\.rcLimitOther \|\| "100000000"\)\)\)/);
 });

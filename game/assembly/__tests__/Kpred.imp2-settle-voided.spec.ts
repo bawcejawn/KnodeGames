@@ -171,7 +171,10 @@ describe("REDTEAM impersonator 2: sponsored settle and voided entries", () => {
     expect(k.entries.get(k.entryKey(A, 0))!.voided).toBe(false, "IMP2-SET-1: a withdrawal in week 1 voided A's finished week 0");
     at(2010);
     nobody();
-    settleTx(A, 0);                                   // week 0 is due but not closed: the settle closes it first
+    settleTx(A, 0);                                   // v6.1: week 0 is due but not closed: a settle would revert, so no Mana
+    expect(sponsor(k)).toBe(false, "v6.1: the pool paid for a settle sent before the week was closed (it would revert)");
+    k.close_week(new kpred.close_week_arguments(0)); // the bot closes it (a settle no longer does)
+    settleTx(A, 0);
     expect(sponsor(k)).toBe(true, "IMP2-SET-1: the free settle of a finished, valid week was refused because the player withdrew later");
     const r = k.settle(new kpred.settle_arguments(A, 0));
     expect(r.eligible).toBe(true, "IMP2-SET-1: A lost eligibility for week 0 by withdrawing in week 1");
@@ -196,6 +199,7 @@ describe("REDTEAM impersonator 2: sponsored settle and voided entries", () => {
     at(1500); resolve(k, q0, 1); resolve(k, q1, 1);
     at(2010);
     nobody();
+    k.close_week(new kpred.close_week_arguments(0)); // v6.1: the bot closes the week (a settle no longer does)
     settleTx(A, 0);
     expect(sponsor(k)).toBe(false, "IMP2-SET-2: voided entry sponsored through the 'due but not closed' branch");
     settleTx(B, 0);
@@ -212,6 +216,7 @@ describe("REDTEAM impersonator 2: sponsored settle and voided entries", () => {
     at(1500); resolve(k, q0, 1); resolve(k, q1, 1);
     at(2010);
     nobody();
+    k.close_week(new kpred.close_week_arguments(0)); // v6.1: the bot closes the week (a settle no longer does)
     settleTx(A, 0);
     expect(sponsor(k)).toBe(true);
     k.settle(new kpred.settle_arguments(A, 0));

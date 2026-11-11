@@ -1,40 +1,30 @@
 /**
- * Knode Games names: players and producers name their wallet; names.json (on the names-data branch) also carries the
- * wallets' on-chain Koinos nicknames (the Nicknames contract), shown with an @ when a wallet has no Knode Games name.
- * The rules are names.js (KNames.rules), the same code the claim page runs. See docs/NAMES.md.
- *
- * Who may take a name: a block producer (on a Producer Race card, or a signer in the recent-blocks snapshot, in the
- * last 30 days), or a wallet with at least 1 VHP in it or staked in Knode Games (read from the chain).
+ * Knode Games names: names.json (on the names-data branch) carries the wallets' on-chain Koinos @names (the Nicknames
+ * contract) and the producers' pool names. Players set their @name on names.html with their own wallet; nothing is
+ * claimed through GitHub any more (the issue-claim flow was removed on 4 Nov 2026, R-HUB-5, and the one name claimed
+ * that way was dropped, owner's call). The rules are names.js (KNames.rules). See docs/NAMES.md.
  *
  * Owner (on your PC, in the repo folder). Every command that changes names.json is a dry run unless you add --send;
  * with --send it pushes the new names.json to the names-data branch with your own git login (nothing else changes):
- *   npm run names -- list                                 every name and nickname, and the hidden addresses
- *   npm run names -- check "<claim>"                      check a claim without changing anything
- *   npm run names -- add "<claim>" [--send]               add a claim someone sent you (no GitHub needed for them)
- *   npm run names -- hide <address> "<reason>" [--send]   hide that address's name and nickname
- *   npm run names -- unhide <address> [--send]            show them again
- *   npm run names -- remove <address> [--send]            delete that address's name for good (it may claim again)
- *   npm run names -- nicknames [--send]                   refresh the on-chain nicknames now (the workflow does it hourly)
- * A claim is the two lines the claim page makes:
- *   Knode Games name: <name> | <address> | <YYYY-MM-DD>
- *   Signature: <…>
+ *   npm run names -- list                                 every @name and pool name, and the hidden addresses
+ *   npm run names -- hide <address> "<reason>" [--send]   hide that address's @name (pages show its short address)
+ *   npm run names -- unhide <address> [--send]            show it again
+ *   npm run names -- nicknames [--send]                   refresh the @names now (the workflow does it hourly)
  *
  * Workflow (.github/workflows/names.yml, job "check", read-only token, no secrets):
  *   npm run names -- run
- *   Env: ISSUES_FILE (open claim issues as [{ number, body }]: data only, never run; may be absent), NAMES_REFRESH
- *   ("true" = refresh the nicknames too), NAMES_PREV (current names.json), NAMES_BASE_FILE (its names-data commit),
- *   PRODUCERS_DIR (race-data W*.json + board.json, recent-blocks.json), RPC, RPC_CHECK, NAMES_OUT (gets names.json
- *   only if it changed), NAMES_RESULT (results.json).
+ *   Env: NAMES_PREV (current names.json), NAMES_BASE_FILE (its names-data commit), PRODUCERS_DIR (race-data W*.json +
+ *   board.json, recent-blocks.json), RPC, RPC_CHECK, NAMES_OUT (gets names.json only if it changed), NAMES_RESULT
+ *   (results.json).
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { Contract, Provider, Signer, utils } from "koilib";
+import { Contract, Provider, utils } from "koilib";
 await import("../names.js");
 const K: any = (globalThis as any).KNames;
 const R = K.rules;
-const LIB = { Signer, utils };
 const DAY = 86400000;
 const UNIT = 100000000n;
 const ADDR = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/;
@@ -157,7 +147,13 @@ export function chainAt(rpc: string): Chain {
       const t: any = (await call(() => nick.get_main_token({ value: a }))).result;
       if (!t || !t.token_id) return null;
       const n = new TextDecoder().decode(utils.toUint8Array(String(t.token_id).replace(/^0x/, "")));
-      return R.okNick(n) ? n : null;
+      if (!R.okNick(n)) return null;
+      // A main token that was burned (or points elsewhere) may still be returned: show it only if the name points to this
+      // wallet now (Repo Lens C5-9). A node that can't answer throws, so the old name is kept this run.
+      let r: any;
+      try { r = (await call(() => nick.get_address({ value: n }))).result; }
+      catch (e: any) { if (/does not exist|not exist|not found/i.test(String(e && e.message))) return null; throw e; }
+      return r && r.value === a ? n : null;
     },
     async poolName(a) {
       // A producer that runs a pool (Fogata) is the pool contract itself; its get_pool_params starts with the name.
@@ -170,20 +166,6 @@ export function chainAt(rpc: string): Chain {
       const r: any = (await call(() => nick.get_address({ value: n }))).result;
       return r && typeof r.value === "string" && ADDR.test(r.value) ? r.value : null;
     },
-  };
-}
-
-/** May this wallet take a name? A producer, or 1 VHP in the wallet or staked in Knode Games. Both nodes are asked at
- *  once; every node that answers must agree (one lying node can't make a wallet eligible, audit PN-12), and a node
- *  that errors or hangs is left out (audit PN-3). No answer at all: not eligible this run (the claim stays open). */
-export function eligibility(producers: Set<string>, chains: Chain[]) {
-  return async (a: string): Promise<boolean | null> => {
-    if (producers.has(a)) return true;
-    const one = async (c: Chain) => (await within(c.vhp(a))) >= UNIT || (await within(c.stake(a))) >= UNIT;
-    const got = await Promise.allSettled(chains.map(one));
-    const yes = got.filter((g) => g.status === "fulfilled").map((g) => (g as PromiseFulfilledResult<boolean>).value);
-    if (!yes.length) return null;            // no node answered: unknown, the claim stays open (Repo Lens C1-5)
-    return yes.every(Boolean);
   };
 }
 
@@ -246,71 +228,17 @@ export function withPools(dbIn: any, pools: Record<string, string>, now: number,
   return db;
 }
 
+/** names.json without the old claimed names (R-HUB-5, owner 4 Nov: drop them); null when there were none. */
+export function withoutClaims(dbIn: any, now: number) {
+  const db = R.cleanDb(dbIn);
+  if (!Object.keys(db.names).length) return null;
+  return { ...db, names: {}, updated: new Date(now).toISOString() };
+}
+
 /** names.json as published: stable key order, so a change is a small, readable diff. */
 export function serialize(db: any): string {
   const sortObj = (o: Record<string, unknown>) => Object.fromEntries(Object.keys(o || {}).sort().map((k) => [k, o[k]]));
   return JSON.stringify({ v: 1, updated: db.updated, names: sortObj(db.names), hidden: sortObj(db.hidden), nicknames: sortObj(db.nicknames), pools: sortObj(db.pools) }, null, 1) + "\n";
-}
-
-/** Check one claim text against names.json. */
-export async function check(dbIn: any, text: string, now: number, isEligible: (a: string) => Promise<boolean> | boolean) {
-  const claim = R.parseClaim(text);
-  const r = await R.applyClaim(dbIn, claim, { now, lib: LIB, isEligible });
-  return { ...r, claim };
-}
-
-/** Check every claim issue in order (oldest first), each against names.json as the earlier ones left it. Returns the
- *  new names.json (null if none passed) and one outcome per issue. Issue text is only ever data here. */
-export async function verifyIssues(prev: any, issues: Array<{ number: number; body: string }>, now: number, isEligible: (a: string) => Promise<boolean | null> | boolean | null,
-  nicknameOwner?: (n: string) => Promise<string | null>, deadline = Infinity) {
-  let db = R.cleanDb(prev);
-  let changed = false;
-  const results: Array<Record<string, unknown>> = [];
-  for (const it of issues.slice(0, 30)) {
-    if (!it || !Number.isInteger(it.number) || it.number <= 0) continue;
-    if (Date.now() > deadline) break;        // out of time: the rest stay open for the next run (Repo Lens C1-1)
-    const body = typeof it.body === "string" ? it.body : "";
-    // Already published exactly as claimed (the reply failed last time): answer it as accepted (audit PN-17).
-    const c = R.parseClaim(body), pub = c && db.names[c.address];
-    if (c && pub && !db.hidden[c.address] && pub.name === c.name && pub.date === c.date && pub.signature === c.signature) {
-      results.push({ issue: it.number, accepted: true, name: c.name, address: c.address }); continue;
-    }
-    const r = await check(db, body, now, isEligible);
-    // No node could say whether the wallet may take a name: leave the claim open for the next run (Repo Lens C1-5).
-    if (!r.ok && r.unknown) { log(`::warning::Claim #${it.number}: no node answered the eligibility check; it stays open for the next run.`); continue; }
-    // A name that is another wallet's live Koinos nickname, also one Knode Games never looked up (audit PN-4). Only
-    // after the signature and the rules passed, so junk claims cause no chain read (Repo Lens C1-1).
-    if (r.ok && nicknameOwner && await nickTaken(r.claim.name, r.claim.address, nicknameOwner)) {
-      results.push({ issue: it.number, accepted: false, reason: "That name is another wallet's Koinos nickname." }); continue;
-    }
-    if (r.ok && Buffer.byteLength(serialize(r.db)) > MAX_BYTES) {
-      results.push({ issue: it.number, accepted: false, reason: "The names list is full for now. Try again later." }); continue;
-    }
-    if (r.ok) { db = r.db; changed = true; results.push({ issue: it.number, accepted: true, name: r.claim.name, address: r.claim.address }); }
-    else results.push({ issue: it.number, accepted: false, reason: r.reason });
-  }
-  return { db: changed ? db : null, results };
-}
-
-/** Is this name (as a nickname would spell it: lower case, spaces as nothing, - or .) another wallet's nickname?
- *  A node that fails here doesn't block the claim (the hourly list still checks the wallets Knode Games shows). */
-async function nickTaken(name: string, address: string, owner: (n: string) => Promise<string | null>) {
-  const base = name.toLowerCase();
-  const tries = [...new Set([base.replace(/ /g, ""), base.replace(/ /g, "-"), base.replace(/ /g, ".")])].filter((n) => /^[a-z0-9][a-z0-9.-]{0,31}$/.test(n));
-  for (const n of tries) {
-    try { const o = await owner(n); if (o && o !== address) return true; } catch { /* unknown */ }
-  }
-  return false;
-}
-/** The live owner of a nickname, from the first node that answers (one lying node can only block a claim). */
-export function nicknameOwnerOf(chains: Chain[]) {
-  return async (n: string) => {
-    for (const c of chains) {
-      if (!c.nicknameOwner) continue;
-      try { return await within(c.nicknameOwner(n)); } catch { /* the next node */ }
-    }
-    return null;
-  };
 }
 
 /** Update the nicknames in names.json from a nicknames() read; returns the new db, or null if nothing changed.
@@ -352,27 +280,23 @@ async function runCmd() {
   const producers = producersFrom(files, now);
   const chains = chainsFromEnv();
   let changed = false;
-  if (E.NAMES_REFRESH === "true") {
-    const who = new Set<string>([...producers, ...boardPlayers(files), ...Object.keys(db.names)]);
-    try { for (const a of await chains[0].players(now + 90_000)) who.add(a); } catch (e: any) { log(`Couldn't list the question-game players: ${plain(e.message)}`); }
-    const nicks = await nicknames(who, chains, { first: new Set([...producers, ...Object.keys(db.names)]) });
-    const next = withNicknames(db, nicks, now, who);
-    if (next) { db = next; changed = true; }
-    log(`Nicknames: read ${Object.keys(nicks).length} of ${who.size} wallets${next ? " (changed)" : ""}.`);
-    const pools = await poolNames(producers, chains);
-    const nextP = withPools(db, pools, now, producers);
-    if (nextP) { db = nextP; changed = true; }
-    log(`Pool names: ${Object.values(pools).filter(Boolean).length} of ${producers.size} producers${nextP ? " (changed)" : ""}.`);
-  }
-  const issues = readJson(E.ISSUES_FILE || "");
-  // The whole run ends well inside the job's 10 minutes; claims not reached stay open (Repo Lens C1-1).
-  const r = await verifyIssues(db, Array.isArray(issues) ? issues : [], now, eligibility(producers, chains), nicknameOwnerOf(chains), now + 7 * 60_000);
-  if (r.db) { db = r.db; changed = true; }
+  const dropped = withoutClaims(db, now);
+  if (dropped) { db = dropped; changed = true; log("Dropped the old claimed names (the claim flow was removed, R-HUB-5)."); }
+  const who = new Set<string>([...producers, ...boardPlayers(files)]);
+  try { for (const a of await chains[0].players(now + 90_000)) who.add(a); } catch (e: any) { log(`Couldn't list the question-game players: ${plain(e.message)}`); }
+  const nicks = await nicknames(who, chains, { first: producers });
+  const next = withNicknames(db, nicks, now, who);
+  if (next) { db = next; changed = true; }
+  log(`Nicknames: read ${Object.keys(nicks).length} of ${who.size} wallets${next ? " (changed)" : ""}.`);
+  const pools = await poolNames(producers, chains);
+  const nextP = withPools(db, pools, now, producers);
+  if (nextP) { db = nextP; changed = true; }
+  log(`Pool names: ${Object.values(pools).filter(Boolean).length} of ${producers.size} producers${nextP ? " (changed)" : ""}.`);
   fs.mkdirSync(out, { recursive: true });
   fs.mkdirSync(path.dirname(resultFile), { recursive: true });
   if (changed) fs.writeFileSync(path.join(out, "names.json"), serialize(db));
-  fs.writeFileSync(resultFile, JSON.stringify({ base: /^[0-9a-f]{40}$/.test(base) ? base : "", changed, results: r.results }) + "\n");
-  for (const x of r.results) log(`#${x.issue}: ${x.accepted ? `accepted, ${plain(x.name)} for ${x.address}` : `not accepted: ${plain(x.reason)}`}`);
+  // results stays a list (the publish job checks its shape); there are no claims to report any more.
+  fs.writeFileSync(resultFile, JSON.stringify({ base: /^[0-9a-f]{40}$/.test(base) ? base : "", changed, results: [] }) + "\n");
 }
 
 // ═══════════════ the owner's commands (git on the owner's PC) ═══════════════
@@ -422,33 +346,22 @@ async function main(argv: string[]) {
   if (cmd === "list") {
     const { db } = current(), c = R.cleanDb(db);
     const rows = Object.entries(c.names) as Array<[string, any]>;
-    log(rows.length ? rows.map(([x, e]) => `${x}  ${e.name}  (claimed ${e.date})${c.hidden[x] ? "  HIDDEN" : ""}`).join("\n") : "No Knode Games names yet.");
+    if (rows.length) log(`Old claimed names (dropped at the next hourly run):\n${rows.map(([x, e]) => `${x}  ${e.name}`).join("\n")}`);
     const nicks = Object.entries(c.nicknames) as Array<[string, string]>;
     if (nicks.length) log(`\nOn-chain nicknames (${nicks.length}):\n${nicks.map(([x, n]) => `${x}  @${n}${c.hidden[x] ? "  HIDDEN" : ""}`).join("\n")}`);
     for (const [x, h] of Object.entries(c.hidden) as Array<[string, any]>) if (!c.names[x] && !c.nicknames[x]) log(`${x}  HIDDEN (${h.date}): ${h.reason}`);
     return;
   }
-  if (cmd === "check" || cmd === "add") {
-    if (!a[1]) throw new Error(`Usage: npm run names -- ${cmd} "<claim>"   (the two lines from the claim page, in quotes)`);
-    const { db, base } = current();
-    const chains = chainsFromEnv();
-    const r = await check(db, a[1], now, eligibility(producersFrom(filesFromGit(), now), chains));
-    if (!r.ok) { log(`Not accepted: ${r.reason}`); process.exitCode = 1; return; }
-    if (await nickTaken(r.claim.name, r.claim.address, nicknameOwnerOf(chains))) { log("Not accepted: that name is another wallet's Koinos nickname."); process.exitCode = 1; return; }
-    if (Buffer.byteLength(serialize(r.db)) > MAX_BYTES) { log("Not accepted: names.json would pass 900 kB. Remove unused names first (npm run names -- remove <address>)."); process.exitCode = 1; return; }
-    log(`OK: "${r.claim.name}" for ${r.claim.address} (signed ${r.claim.date}).`);
-    if (cmd === "check") return;
-    if (!send) { log("Dry run only. Run again with --send to publish it."); return; }
-    return publish(r.db, base, `${r.claim.address} = ${r.claim.name}`);
-  }
   if (cmd === "nicknames") {
-    const { db, base } = current();
+    const { db: prev, base } = current();
+    const db = withoutClaims(prev, now) || prev;
     const files = filesFromGit(), chains = chainsFromEnv();
-    const who = new Set<string>([...producersFrom(files, now), ...boardPlayers(files), ...Object.keys(R.cleanDb(db).names)]);
+    const who = new Set<string>([...producersFrom(files, now), ...boardPlayers(files)]);
     for (const x of await chains[0].players()) who.add(x);
-    const nicks = await nicknames(who, chains, { first: new Set([...producersFrom(files, now), ...Object.keys(R.cleanDb(db).names)]) });
+    const nicks = await nicknames(who, chains, { first: producersFrom(files, now) });
     for (const [x, n] of Object.entries(nicks)) if (n) log(`${x}  @${n}`);
     let next = withNicknames(db, nicks, now, who);
+    if (!next && db !== prev) next = db;
     log(`${Object.values(nicks).filter(Boolean).length} of ${who.size} wallets have a nickname (${Object.keys(nicks).length} read).`);
     const prods = producersFrom(files, now), pools = await poolNames(prods, chains);
     for (const [x, n] of Object.entries(pools)) if (n) log(`${x}  pool: ${n}`);
@@ -459,27 +372,18 @@ async function main(argv: string[]) {
     if (!send) { log("Dry run only. Run again with --send to publish it."); return; }
     return publish(next, base, "nicknames");
   }
-  if (cmd === "remove") {
-    const x = a[1] || "";
-    if (!ADDR.test(x)) throw new Error("Usage: npm run names -- remove <address>");
-    const { db, base } = current();
-    const next = R.remove(db, x, now);
-    log(`Remove "${R.cleanDb(db).names[x].name}" from ${x}. It may claim a name again later.`);
-    if (!send) { log("Dry run only. Run again with --send to publish it."); return; }
-    return publish(next, base, `remove ${x}`);
-  }
   if (cmd === "hide" || cmd === "unhide") {
     const x = a[1] || "";
     if (!ADDR.test(x)) throw new Error(`Usage: npm run names -- ${cmd} <address>${cmd === "hide" ? ' "<reason>"' : ""}`);
     const { db, base } = current();
     const next = cmd === "hide" ? R.hide(db, x, a[2] || "", now) : R.unhide(db, x, now);
     const c = R.cleanDb(db), shown = c.names[x] ? `"${c.names[x].name}"` : c.nicknames[x] ? `@${c.nicknames[x]}` : "";
-    log(cmd === "hide" ? `Hide ${x}${shown ? ` (${shown})` : ""}: pages show its short address; new claims from it are refused.`
+    log(cmd === "hide" ? `Hide ${x}${shown ? ` (${shown})` : ""}: pages show its short address.`
       : `Unhide ${x}${shown ? `: ${shown} shows again` : ""}.`);
     if (!send) { log("Dry run only. Run again with --send to publish it."); return; }
     return publish(next, base, `${cmd} ${x}`);
   }
-  log(`Commands: list · check "<claim>" · add "<claim>" [--send] · hide <address> "<reason>" [--send] · unhide <address> [--send] · remove <address> [--send] · nicknames [--send]`);
+  log(`Commands: list · hide <address> "<reason>" [--send] · unhide <address> [--send] · nicknames [--send]`);
   process.exitCode = 1;
 }
 

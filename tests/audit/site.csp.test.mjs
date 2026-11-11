@@ -104,7 +104,7 @@ test("(guard) every origin the pages fetch or load from is allowed (connect-src 
       // scripts on a short list (any spelling of a path is reduced to the file it names), never the mainnet wallets.
       const readsMainnet = readsMainnetBlocks(html);
       if (readsMainnet) for (const bad of mainnetPageScripts(html)) missing.push(`${p}: reads mainnet but loads ${bad}`);
-      for (const bad of [...(readsMainnet ? [] : ["https://api.koinos.io/", "https://koinos.armana.io/"]), "https://koinvault.app/api/dapp/status", "https://raw.githubusercontent.com/bawcejawn/Knode/games-data/x"])
+      for (const bad of [...(readsMainnet ? [] : ["https://api.koinos.io/", "https://koinos.armana.io/"]), "https://koinvault.app/api/dapp/status", "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/x"])
         if (allows(conn, bad)) missing.push(`${p}: the testnet page may reach ${bad}`);
       for (const m of html.matchAll(/<script\b[^>]*\bsrc="(https:[^"]+)"/g)) if (!allows(srcList(c, "script-src"), m[1])) missing.push(`${p}: script-src blocks ${m[1]}`);
       continue;

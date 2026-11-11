@@ -14,6 +14,7 @@
  * State between runs (which outage was already emailed) is kept in watch-state.json, carried by the workflow's cache.
  */
 import fs from "node:fs";
+import { writeSummary } from "./alert-summary.mjs";
 
 const RPC = process.env.RPC || "https://koinos.armana.io";
 const ADDR = (process.env.WATCH_PRODUCER || "").trim();
@@ -100,6 +101,8 @@ async function main() {
   }
   writeState({ outage, firstAlert: st.outage === outage ? st.firstAlert : now, lastAlert: now });
   log(`::error title=Node down?::${what} ${advice}`);
+  // R-VAULT-9: the plain-language summary at the top of the run page (ALERTS.md §6).
+  writeSummary({ workflow: "Node watchdog", lines: [`Node down? ${what} ${advice}`], section: 6 });
   process.exitCode = 1;   // a failed run makes GitHub email you
 }
 

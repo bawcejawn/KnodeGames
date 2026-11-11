@@ -19,7 +19,7 @@ test("games.json: known kinds and statuses, plain text, live games link to this 
     assert.doesNotMatch(g.name + g.line, /[<>]/, `${g.id}: plain text`);
     if (g.status === "live" && g.href.includes(".html")) assert.ok(fs.existsSync(`${APP}/${g.href.split("#")[0]}`), `${g.id}: page exists`);
   }
-  assert.deepEqual(games.filter((g) => g.status === "live").map((g) => g.id).sort(), ["blockx", "questions", "race"]);
+  assert.deepEqual(games.filter((g) => g.status === "live").map((g) => g.id).sort(), ["blockx", "golf", "questions", "race"]);
 });
 
 test("games.js only reads and draws: no sending, no storage, no HTML from data; it checks games.json itself", () => {
@@ -29,13 +29,13 @@ test("games.js only reads and draws: no sending, no storage, no HTML from data; 
   assert.match(js, /\^\[a-z0-9-\]\+\\\.html/, "links limited to this site's pages");
 });
 
-test("games.html: no inline script or handler, pinned CDN scripts, and it reads only the race-data branch besides the chain", () => {
+test("games.html: no inline script or handler, pinned CDN scripts, and it reads only the race-data, names-data and stats-data branches besides the chain", () => {
   const h = read("games.html");
   assert.doesNotMatch(h, /<script(?![^>]*\bsrc=)[^>]*>/, "no inline script");
   assert.doesNotMatch(h, /\son[a-z]+\s*=/i, "no inline handlers");
   for (const m of h.matchAll(/<script src="https:[^"]+"([^>]*)>/g)) assert.match(m[1], /integrity="sha384-/);
   const csp = h.match(/Content-Security-Policy" content="([^"]+)"/)[1];
-  assert.match(csp, /connect-src 'self' https:\/\/koinos\.armana\.io https:\/\/api\.koinos\.io https:\/\/raw\.githubusercontent\.com\/bawcejawn\/Knode\/race-data\/ https:\/\/koinvault\.app;/);
+  assert.match(csp, /connect-src 'self' https:\/\/koinos\.armana\.io https:\/\/api\.koinos\.io https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/race-data\/ https:\/\/koinvault\.app https:\/\/us\.i\.posthog\.com https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/names-data\/ https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/stats-data\/;/);
   assert.match(csp, /frame-src 'none'; object-src 'none'; base-uri 'self'/);
 });
 

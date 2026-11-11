@@ -45,6 +45,7 @@
   .kw-x{float:right;font:inherit;font-size:22px;line-height:1;border:0;background:none;color:var(--muted,#5d6283);cursor:pointer;padding:0 0 0 10px}
   .kw-link{font:inherit;background:none;border:0;color:var(--violet,#5a43e6);text-decoration:underline;cursor:pointer;padding:0;font-size:14px}
   .kw-opt[disabled]{opacity:.55;cursor:not-allowed}
+  .kw-opt.kw-main{border:2px solid var(--violet,#5a43e6);background:var(--surface,#fff)} .kw-box p.kw-or{margin:22px 0 0;padding-top:16px;border-top:1px solid var(--line,#e2e4ef)}
   .kw-warn{background:var(--sun-soft,#fff4dc);color:var(--ink,#181b34)!important;border-radius:10px;padding:10px 12px}
   .kw-key{font-family:ui-monospace,Consolas,monospace;font-size:13px;word-break:break-all;background:var(--paper,#f4f5fb);border:1px solid var(--line,#e2e4ef);border-radius:10px;padding:10px;margin:8px 0}
   .kw-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -266,7 +267,11 @@
       const vault = h("button", { class: "kw-opt", type: "button", onclick: pick(connectVault) }, h("span", { class: "kw-ic", "aria-hidden": "true" }, "📱"),
         h("div", {}, h("b", {}, "KOIN Vault", phone ? h("span", { class: "kw-tag" }, "for phones") : null), h("span", {}, "Fingerprint or face, no extension. Works on any phone")));
       const guest = guestOption(pick);
-      open(h("h3", {}, "Connect a wallet"), h("p", {}, "Your wallet signs everything. Knode Games never sees a key."), ...(phone ? [vault, kondor] : [kondor, vault]), guest);
+      // Launch UI research item 8 (owner, 5 Nov): free guest play comes first, the real wallets below it.
+      open(h("h3", {}, guest ? "Start playing" : "Connect a wallet"), guest,
+        guest ? h("p", { class: "kw-or" }, "Have a Koinos wallet? Connect it to stake and share the weekly pool. It signs everything; Knode Games never sees a key.")
+          : h("p", {}, "Your wallet signs everything. Knode Games never sees a key."),
+        ...(phone ? [vault, kondor] : [kondor, vault]));
       onClose = () => resolve(null);
     });
   }
@@ -279,6 +284,11 @@
   const RESTORE_WARN = "Only paste a key you backed up yourself. Anyone who gives you a key can take it back.";
   // Audit (guest) L-3: what a guest sees when the sponsor won't pay (never Kondor or KOIN Vault advice).
   const GUEST_NO_FREE = "Free answers are used up for today — try again after 00:00 UTC (5pm PT), or connect a wallet.";
+  // I-082: only a real "used up" says used up. A check that failed (a trap, a node that didn't answer) or a refusal with
+  // no or an unknown reason says so plainly, so players (and we) see the real cause.
+  const GUEST_CHECK_FAILED = "The free Mana check failed just now, so nothing was sent. Try again later, or use a wallet with its own Mana (Kondor or KOIN Vault).";
+  const GUEST_SPONSOR_NO = "The Mana sponsor turned this one down without a reason, so nothing was sent. Try again later, or connect a wallet with its own Mana.";
+  const plainReason = (m) => String(m || "").replace(/^SPONSOR:\s*/i, "").replace(/[^\x20-\x7e]/g, "").trim().slice(0, 120);
   // Audit SP-18: say which limit it was. The free pool is released by the hour (sponsor v3), so "this hour" first.
   const guestRefusal = (m) =>
     /switched off/i.test(m) ? "Free play is paused for now (the Mana sponsor is switched off). Try again later, or connect a wallet."   // audit SP-43
@@ -288,7 +298,8 @@
       : /today's sponsored mana is used up/i.test(m) ? GUEST_NO_FREE
       : /mana limit above|per-transaction cap|what these actions may ask/i.test(m) ? "The page asked for more Mana than the sponsor allows for this action (the site is being updated). Try again in a few minutes."
       : /insufficient|\brc\b|rc_limit|resource/i.test(m) ? "The network turned this down for lack of Mana. Nothing happened; try again in a few minutes."
-      : GUEST_NO_FREE;
+      : plainReason(m) ? `The Mana sponsor turned this down (${plainReason(m)}), so nothing was sent. Try again later, or connect a wallet with its own Mana.`
+      : GUEST_SPONSOR_NO;
   // Audit (guest) L-5: on Koinos mainnet a guest only ever names the live Knode Games sponsor as payer and only answers on the
   // Knode Games question game, whatever deployment.json says (pinned like the chain id).
   const PINNED_SPONSOR = "1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8", PINNED_GAME = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
@@ -332,10 +343,10 @@
   function guestOption(pick) {
     if (!window.KGuest || !guestOn()) return null;   // guest.js missing, or guest play switched off (every page loads it; a guest signs only answers and picks)
     const ready = guestReady();
-    const btn = h("button", { class: "kw-opt", type: "button", ...(ready ? {} : { disabled: "", "aria-disabled": "true" }), onclick: ready ? pick(connectGuest) : () => {} },
+    const btn = h("button", { class: "kw-opt kw-main", type: "button", ...(ready ? {} : { disabled: "", "aria-disabled": "true" }), onclick: ready ? pick(connectGuest) : () => {} },
       h("span", { class: "kw-ic", "aria-hidden": "true" }, "🎟️"),
       h("div", {}, h("b", {}, "Play as a guest", h("span", { class: "kw-tag" }, "free")),
-        h("span", {}, ready ? "No wallet, no KOIN. Answer the daily questions and pick race horses for free on this device." : "Guest play turns on when the Mana sponsor is live.")));
+        h("span", {}, ready ? "No wallet, no KOIN, no sign-up. Answer questions and pick race horses on this device." : "Guest play turns on when the Mana sponsor is live.")));
     if (!ready) return btn;
     return h("div", {}, btn, h("p", {}, "Moving from another phone? ", h("button", { class: "kw-link", type: "button", onclick: pick(restoreGuest) }, "Restore a guest key")));
   }
@@ -367,13 +378,13 @@
       onClose = () => resolve(null);
     });
   }
+  /** A new guest: a short note, no pop-up to dismiss before the first answer (launch UI research item 8, owner 5 Nov).
+   *  The warnings aren't dropped: the note says it's play-only and that the browser can delete it by itself (audit M-2),
+   *  and right after the first answer guestNudge asks the player to save their progress. */
   function guestWelcome(address) {
-    open(h("h3", {}, "You're playing as a guest"),
-      h("p", {}, "Your guest wallet is ", h("b", {}, address.slice(0, 6) + "…" + address.slice(-4)), ". Answering is free: the Knode Games Mana sponsor pays."),
-      h("p", { class: "kw-warn" }, GUEST_WARN),
-      h("p", {}, "It lives only in this browser. Back it up if you want to keep your points when you change phone or clear your browser."),
-      // Audit (guest) M-2: the browser can delete it by itself (Safari after 7 days without a visit).
-      h("p", { class: "kw-warn" }, GUEST_EVICT),
+    const note = `You're playing free as a guest (${address.slice(0, 6)}…${address.slice(-4)}). ${GUEST_WARN} Your browser can delete it by itself, so back it up from the wallet button.`;
+    if (W.toast) { W.toast(note, 12000); return; }
+    open(h("h3", {}, "You're playing as a guest"), h("p", {}, note), h("p", { class: "kw-warn" }, GUEST_EVICT),
       h("div", { class: "kw-row" }, h("button", { class: "kw-btn", type: "button", onclick: () => backupGuest() }, "Back up guest key"), h("button", { class: "kw-btn", type: "button", onclick: () => close() }, "Start playing")));
   }
   async function backupGuest() {
@@ -464,7 +475,7 @@
     const rcLimit = rcFor(sp, ops, String(sp.rcLimit || "100000000"));
     // Audit SP-34: the sponsor's own reason (e.g. "released on the hour"), worded for a guest.
     const yes = await sponsorAnswer(sp, rcLimit, gamesOfOps(sp, ops), true);
-    if (!yes.ok) throw new Error(yes.reason ? guestRefusal(yes.reason) : GUEST_NO_FREE);
+    if (!yes.ok) throw new Error(yes.failed ? GUEST_CHECK_FAILED : yes.reason ? guestRefusal(yes.reason) : GUEST_SPONSOR_NO);
     const signer = await guestLib().signer();
     if (signer.getAddress() !== W.address) throw new Error("The guest key on this device changed. Reconnect as a guest.");
     signer.provider = W.provider;
@@ -496,9 +507,11 @@
     if (store.get(localStorage, "kn-guest-nudged") === "1") return;
     store.set(localStorage, "kn-guest-nudged", "1");
     setTimeout(() => {
-      open(h("h3", {}, "Back up your guest"),
+      open(h("h3", {}, "Save your progress"),
         h("p", {}, "Nice, your first answer is in! " + GUEST_EVICT),
-        h("div", { class: "kw-row" }, h("button", { class: "kw-btn", type: "button", onclick: () => backupGuest() }, "Back up guest key"), h("button", { class: "kw-btn", type: "button", onclick: () => close() }, "Later")));
+        h("p", { class: "kw-warn" }, GUEST_WARN),
+        h("div", { class: "kw-row" }, h("button", { class: "kw-btn", type: "button", onclick: () => backupGuest() }, "Back up guest key"), h("button", { class: "kw-btn", type: "button", onclick: () => close() }, "Later")),
+        h("p", {}, "You can do it any time from the wallet button."));
     }, 0);
   }
   /** Throws unless the transaction is exactly: the sponsor pays, this guest is the payee, Koinos mainnet (or the pinned
@@ -653,7 +666,7 @@
   // each action's own limit) }. The sponsor contract decides on chain; the page
   // only picks it when every operation is one it pays for and its caps (would_pay) say yes, else the player's own Mana.
   // Answers are sponsored for any wallet (free play); everything else only for wallets with VHP or a stake.
-  const APPROVE = 0x74e21680, MOVE_STAKE = 0x7c268e69, WOULD_PAY = 0xda1fd8f5, ANSWER = 0x0db52f40, CLAIM = 0xdd1b3c31, PICK = 0x8ce33c6c;
+  const APPROVE = 0x74e21680, WOULD_PAY = 0xda1fd8f5, ANSWER = 0x0db52f40, CLAIM = 0xdd1b3c31, PICK = 0x8ce33c6c;
   /** The sponsor this transaction could use, or null. */
   function sponsorFor(ops) {
     const sp = W.sponsor;
@@ -663,8 +676,8 @@
       if (!c || !sp.covers.includes(c.contract_id)) return null;
       // Tokens: only approve (the contract checks spender and owner too).
       if (sp.tokens && sp.tokens.includes(c.contract_id) && Number(c.entry_point) !== APPROVE) return null;
-      // Owner, 2026-10-30: the sponsor pays for stake, withdraw and claim, never for moving stake between games.
-      if (c.contract_id === sp.covers[0] && Number(c.entry_point) === MOVE_STAKE) return null;
+      // Owner, 5 Nov 2026 (replaces 30 Oct): moving stake between games is sponsored too, within the player's daily Mana
+      // (.ai/platform/SPONSOR.md §1). The sponsor contract checks the move is the payer's own (vault shape, argument 1).
     }
     return sp;
   }
@@ -738,7 +751,7 @@
         if ((tag & 7) === 0) { while (i < out.length && (out[i++] & 0x80)); } else break;
       }
       return { ok, reason };
-    } catch { return { ok: false, reason: "" }; }
+    } catch { return { ok: false, reason: "", failed: true }; }   // the check itself failed (trap, timeout): not a "no"
   }
 
   async function sendVault(label, ops, opts = {}) {
@@ -830,6 +843,8 @@
     init, setGuestConfig, connect, disconnect, send, isPhone, manageGuest, guestInfo: () => { guestCant([]); }, switchTo, forget,
     accounts: () => remembered(), subscribe: (f) => { listeners.add(f); return () => listeners.delete(f); },
     get address() { return W.address; }, get kind() { return W.kind; },
+    /** R-BX-21: true when this page sends through the Mana sponsor (deployment.json "payer": "sponsor"). */
+    get sponsorOn() { return W.payer === "sponsor" && !!(W.sponsor && W.sponsor.address); },
     label: () => (W.kind === "vault" ? "KOIN Vault" : W.kind === "kondor" ? "Kondor" : W.kind === "guest" ? "your guest wallet" : "your wallet"),
   };
 })();

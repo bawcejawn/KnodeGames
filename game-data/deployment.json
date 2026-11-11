@@ -8,7 +8,7 @@
   "koin": "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK",
   "vhp": "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq",
   "pob": "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv",
-  "wasmSha256": "eed38f7ce130d9d2e0dfafa8ddd5c4a6f383e2c7ce12ab87b02c584f43920b3d",
+  "wasmSha256": "11043e1fde1d8d7dbac75e9e5e788d058a7116b0dab6149fc09ecdc7b1c4258b",
   "uploaded": true,
   "uploadTx": "0x1220b0341e1e8cec8fc5b0c6780862705d6aa45c49ff9d2d065fa972f1572fc6aa08",
   "genesisTime": 1792368000000,
@@ -18,9 +18,9 @@
   "settleLength": 86400000,
   "timelockLength": 172800000,
   "minStake": "100000000",
-  "maxSponsorRc": "200000000",
+  "maxSponsorRc": "0",
   "deployedAt": "2026-10-16T02:03:38.621Z",
-  "upgradedAt": "2026-11-02T02:29:33.874Z",
+  "upgradedAt": "2026-11-10T14:57:00.000Z",
   "producerKey": "Ak0vGklNyfkjroA5_nT04sfBy_IkloaNbXYiOClcjMm3",
   "chainId": "EiBZK_GGVP0H_fXVAM3j6EAuz3-B-l3ejxRSewi7qIBfSA==",
   "payer": "sponsor",
@@ -31,29 +31,44 @@
       "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq",
       "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK",
       "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K",
-      "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm"
+      "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm",
+      "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv"
     ],
     "race": "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K",
     "picks": "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm",
+    "pob": "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv",
     "tokens": [
       "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq",
       "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK"
     ],
-    "rcLimit": "100000000",
-    "rcLimitOther": "100000000",
+    "rcLimit": "130000000",
+    "rcLimitOther": "240000000",
     "rcLimits": {
-      "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm:8ce33c6c": "20000000"
+      "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm:8ce33c6c": "130000000",
+      "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K:8ce33c6c": "120000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:0db52f40": "120000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:4107e3ab": "200000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:dd1b3c31": "200000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:5b0aaef8": "155000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:c26f22db": "155000000",
+      "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr:6868e83d": "145000000"
     },
     "guest": true
   },
+  "vaultTestWeeks": [3],
   "vaultGames": {
+    "1": {
+      "name": "Daily Questions",
+      "results": "games-data:questions/vault"
+    },
     "2": {
       "name": "Who Signs Block X",
       "results": "games-data:blockx/vault"
     },
     "3": {
       "name": "Survivor",
-      "results": "games-data:survivor/vault"
+      "results": "games-data:survivor/vault",
+      "board": "none"
     },
     "4": {
       "name": "Fantasy Producers",
@@ -69,16 +84,20 @@
     },
     "8": {
       "name": "Combo Card",
-      "results": "games-data:combo/vault"
+      "results": "games-data:combo/vault",
+      "minPts": 100
     },
     "9": {
       "name": "Producer Bracket",
-      "results": "games-data:bracket/vault"
+      "results": "games-data:bracket/vault",
+      "boardCap": 1000,
+      "capScope": "staked"
     },
     "13": {
       "name": "Last Node Standing",
-      "results": "games-data:lastnode/vault"
+      "results": "games-data:lastnode/vault",
+      "boardCap": 2000
     }
   },
-  "safeWasmSha256": "e84fec492d47e08f583c352bb26e3d36dc0149926c0482d0820b0dbd97af9fe3"
+  "safeWasmSha256": "04c27c1acde570b97a430dea403d41aab47e083ae30115353ee5f89932dad0bb"
 }

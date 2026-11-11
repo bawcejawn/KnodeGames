@@ -20,8 +20,8 @@
   const lib = window.koilib || window.koinos || window;
   const MAINNET_RPC = ["https://koinos.armana.io", "https://api.koinos.io"];
   const MAINNET_CHAIN_ID = "EiBZK_GGVP0H_fXVAM3j6EAuz3-B-l3ejxRSewi7qIBfSA==";
-  const RACE_DATA = "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/";
-  let DATA = "https://raw.githubusercontent.com/bawcejawn/Knode/games-data/lastnode/";
+  const RACE_DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/";
+  let DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/lastnode/";
   const EXPLORER = "https://koinosscan.com/address/";
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "KnodeGames pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "KnodeGames Swap" };
   const ROOT = new URL("../", location.href);
@@ -583,8 +583,9 @@
     name: nameOf, link: (a) => EXPLORER + a,
     me: (r, place) => `${place ? `You: #${place} with` : "Your score (only you see this):"} ${fmt(r.pts)} points from ${fmt(r.events)} event${r.events === 1 ? "" : "s"} (${fmt(r.rides)} rides, ${fmt(r.jumps)} jumps).`,
     unranked: TESTNET ? "On the testnet, wallets holding at least 1 test KOIN are ranked. Nothing here is paid." : "The Staked board is for wallets with at least 1 VHP staked in Last Node Standing that week. Everyone else plays on Free play.",
-    // Free play (owner, 3 Nov; D-081): its own board, and the weekly 2 + 1 VHP prize from the start.
-    free: TESTNET ? null : { show: 6, prize: `1st and 2nd at the end of the week win 2 and 1 VHP (${L.FREE_MIN_EVENTS} or more events, at least 1 point, and a wallet holding 1 VHP or with 1 VHP staked in Knode Games).` },
+    // Free play (owner, 3 Nov; D-081): its own board. Its 2 + 1 VHP prize is switched OFF (prize-settings, game 13, from
+    // week 3; owner 10 Nov: a new game ships with the free prize off). The owner turns it on with `npm run prizes -- on 13`.
+    free: TESTNET ? null : { show: 6, prize: "The Free play board pays no VHP prize for now. Players staked in Last Node Standing share its weekly bucket." },
     // Medals: last week's free winners as the recorder settled them (board.json lastWeek.prizes; ties share).
     freeWinners: (part) => new Map((part && Array.isArray(part.prizes) ? part.prizes : []).filter((x) => x && isAddr(x.player) && (x.place === 1 || x.place === 2)).map((x) => [x.player, x.place])),
   }) : null;

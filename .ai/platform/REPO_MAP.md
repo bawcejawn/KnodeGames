@@ -41,6 +41,7 @@ No one can prove every line of 617 files is bug-free. What protects funds is **l
 **Tier 1** = holds or controls tokens: always audited, timelocked upgrades. **Tier 2** = decides who gets paid: audited when changed, guarded by holds and two-node checks. **Tier 3** = can confuse or inconvenience, never move tokens.
 
 ## 3. Audit coverage of the live contracts
+The full register (hashes, owners, how each can change): `CONTRACTS.md`.
 | Contract | Live build | Last review | Status |
 |---|---|---|---|
 | Vault v6 `1Mpmf2…` | v6 (2 Nov) | Vault v6 audit + fix-checks 1–4 (29 Oct) | ✅ live; **v6.1** (`11043e1f…`) Repo Lens #E-16 GO, upload Mon 9 |

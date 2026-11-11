@@ -26,8 +26,8 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 
 ## Rewards
 - **Staked** (staked in game 7 that week): share the game's bucket; medals go to the vault's top 30% by headcount, rounded up, tied groups whole. 💬
-- **Free play:** 2 VHP for 1st, 1 VHP for 2nd (D-062), from the vault's start. A tie for 1st shares all 3 VHP and 2nd stays empty; more than 10 tied → the 10 with the earliest first pick that week share. Any free player can win — no VHP or minimum play needed. Medals only on weekly boards. 💬
-- **Weeks 1 and 2 pay nothing:** the vault never reads them (D-063). The site shows prizes from vault week 3 only (`PRIZES_FROM_WEEK = 3`). 💬 Vault
+- **Free play:** 2 VHP for 1st, 1 VHP for 2nd (D-062), from the vault's start. A tie for 1st shares all 3 VHP and 2nd stays empty; more than 10 tied → the 10 with the earliest first pick that week share. Any free player can win — no VHP or minimum play needed. Medals only on weekly boards. 💬 **⚠ This is today's code, not the rule: D-159 pays exactly 10 by earlier score time, then address, never zero for the cap (I-104, fixed in code separately).**
+- **Weeks before the first paid week pay nothing** (owner, 10 Nov): the first paid week is vault week 4 (Mon 16 Nov = players' Week 1); week 3 (Mon 9 – Sun 15 Nov) is a practice week on the same schedule. The recorder and the publish job both read the repository variable `PRIZES_FROM_WEEK` (the one Block X reads; unset or not a plain week number = no prizes, fails closed), so the two games start together. The page's prize text names Mon 16 Nov: change it if the variable changes. 💬 Vault
 
 ## Dependencies
 - Race picks contract and the recorder `bot/race.ts`, run by `race.yml` hourly at :37 while `RACE_ENABLED=true` ✅; shared rules `race-math.js`. 💬 Race picks owner: the new cold owner `1LMV8EcR…` since 4 Nov ✅.
@@ -39,16 +39,20 @@ A fun, fast race between Koinos block producers: four races a day, each a mini "
 - The Mana sponsor's Race pick row (`../platform/SPONSOR.md`).
 
 ## Current status (5 Nov)
-- **Live as a game.** Vault `game-add 7` sent 3 Nov (tx `0x1220d394…`); `game-apply` from Thu 5 Nov after 7:51 AM PT, deadline Sun 8 Nov 4 PM PT; it earns from vault week 3 (Mon 9 Nov). Free-prize switch: ON (D-082). `PRIZES_FROM_WEEK = 3` is on `main` (PR #56) ✅. 👤 / 💬
+- **Live as a game.** Vault `game-add 7` sent 3 Nov (tx `0x1220d394…`); **`game-apply 7` done 5 Nov** ✅ (on chain `from_week` 3; the Race's week-3 file lists nothing to pay, see above). Free-prize switch: ON (D-082). First paid week 4 (Mon 16 Nov) by the `PRIZES_FROM_WEEK` variable. 👤 / 💬
+- **Race types (D-166, built on `race-types`, off until `TYPES_FROM_WEEK`):** 1-hour (24 a day), 2-hour (12 a day), 6-hour, daily and weekly (Mon–Sat) races; points 2/1, 2/1, 3/1, 6/2, 12/4 on the one board; a toggle per type on the page. Contract v2: race = type × 2^48 + index, always below 2^53 so browsers send it exactly (type 0 = the 6-hour race, v1's numbers unchanged; the pick is still three fields, so the Mana sponsor needs no change), daily limit 0 = none. Recorder: the hour ledger (each producer's blocks per UTC hour, both nodes) and `T<week>.json` with the week's 260 typed races; W files and Block X unchanged. Turning it on: upload v2 (Monday 01:40–06:30 UTC), set `TYPES_FROM_WEEK`, `npm run racepicks -- limit 0 --send`.
+- **Who gets paid (D-152, ties across the line)** and the paid set past 255 scores (I-086): PR #182, Repo Lens fix-check next.
 - **On the weekly rhythm** (#149, #155 merged) and **payout safety merged** (#133, test fix #153). ✅
-- **Pays from 9 Nov with its two known handicap gaps open** (the > 6-h hide and VHP added after a card) until the one VHP ruler lands (D-094, D-090, D-093).
+- **Pays from 16 Nov (week 4) with its two known handicap gaps open** (the > 6-h hide and VHP added after a card) until the one VHP ruler lands (D-094, D-090, D-093).
 - The v6-ABI stake fix `d7fad7c` (B1-1) and the RV-1 process exit are on `main` (PR #57, Repo Lens round 12 GO; the Race notes said 13, the owner and other files record 12 ❓) ✅. Nicknames on the page (PR #62) ✅.
 - **Guest picks work** ✅ (I-083 closed); the page's wrong "used up" message is still open (I-082, R-RACE-7).
 - Work list: `../platform/CHAT_REQUESTS.md` → Race.
 
 ## Known issues
 - **I-035:** owner chose option A (3 Nov): accept the risk for now, flag new-wallet free winners in the run notes, use the review day and the hold; revisit (option B: hold ≥ 1 VHP at a random moment) if farming shows up.
-- **I-037:** a bad vault file can stop the whole race run (B1-4; the slow-stake-reads part, B1-5, shipped with PR #57).
+- **I-037 B1-4 (fixed in PR #182):** a bad vault folder (an unexpected or nested file, over 2 MB, not in the recorder's own JSON form) is now held on its own with an alert; the race cards still publish. (B1-5 shipped with PR #57.)
+- **Who gets paid (D-152, PR #182):** exactly the top 30% of earning stakers; a tie across the line lets in who reached the score first (latest scoring pick), the rest take the next place. Free prize: each place up to 10 wallets (D-159), same tie-break.
+- **I-086 (fixed in PR #182):** past 255 different staked scores, the vault values keep the paid set (top 30%) apart: unpaid wallets get 1, paid groups never share it (`rowValues`; the publish job's recompute mirrors it using the board's `earns`).
 - **I-028:** "Staked board" is based on `peak_stake` — a mid-week withdrawal below the minimum forfeits the week; the panel should explain this.
 - **I-030:** with `RPC_CHECK` off, stakes are classified on one node without a warning. **I-029:** board reads grow with players.
 - **I-027 / I-069:** page text still says the vault isn't live; week labels to refresh.

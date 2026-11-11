@@ -12,7 +12,7 @@ test("results.js only reads and draws: no sending, storage, eval or HTML from da
   assert.doesNotMatch(js, /innerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|localStorage|sessionStorage|indexedDB|sendTransaction|\.send\(|signTransaction/);
   assert.match(js, /RAW \+ "race-data\/index\.json"/);
   assert.match(js, /race-data\/W\$\{String\(w\)\.padStart\(3, "0"\)\}\.json/, "week files by number only");
-  assert.match(js, /const ADAPTERS = \{ race, blockx \};/, "a game needs a drawing here before it gets a tab");
+  assert.match(js, /const ADAPTERS = \{ race, blockx, bracket \};/, "a game needs a drawing here before it gets a tab");
 });
 
 test("the results view has a game switcher and keeps the question results whole", () => {
@@ -39,6 +39,10 @@ test("Block X results: its own tab, read from games-data/blockx by week number o
   assert.match(js, /ADDR\.test\(p\[0\]\) && ADDR\.test\(p\[1\]\)/, "only well-formed picks are drawn");
   assert.match(js, /const bxPts = \(h\) => fmt\(\(Number\(h\) \|\| 0\) \/ 100, 2\);/, "points ×100, shown as on blockx.html");
   assert.match(js, /Void, no points: \$\{String\(t\.void\)\.slice\(0, 200\)\}/, "a void target says why, cut to 200 characters");
+  // R-BX-23 (D-129): Sunday targets are fun rounds: labelled, and left out of the week's total.
+  assert.match(js, /fun: M\.restRace\(t\.time\)/);
+  assert.match(js, /const mineAll = all\.filter\(\(x\) => x\.my && !x\.fun\);/, "pts this week skips Sunday");
+  assert.match(js, /x\.fun \? "Fun round · not the week"/);
   const g = JSON.parse(read("games.json")).games.find((x) => x.id === "blockx");
   assert.equal(g.results, true);
   assert.ok(read("index.html").includes("https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/"), "index.html may read games-data");

@@ -22,7 +22,7 @@ npm run bot -- chain-check
 - `git branch --show-current` should print `main` (since 3 Nov; was `picks`). If not, stop and ask.
 - The `RPC` line makes the tools use Armana. `api.koinos.io` has been unreliable. If Armana itself is down, use `https://api.koinosblocks.com`.
 - `status`, `games` and `chain-check` are read-only. Save their output; every section below asks for it.
-- **Owner key:** after the weekend wallet moves (D-083), the owner key is cold. Load it into `.env` only for the owner steps below, then take it out again (`docs/WALLETS.md`).
+- **Owner key:** after the weekend wallet moves (D-083), the owner key is cold. Use it only for the owner steps below (the owner's private runbook).
 
 ## 1. Alerts: what each one means
 The full list of every alert, its trigger and your actions is `ALERTS.md`. Note: every alert email is GitHub's "Run failed" email; the bot's problems, the chain watch and the sponsor alert all arrive in the **same** "Run failed: Knode Games bot" email (open the run to read the "Needs attention" lines). Sponsor alerts repeat every hour while true.
@@ -32,7 +32,7 @@ The full list of every alert, its trigger and your actions is `ALERTS.md`. Note:
 | GitHub email "Run failed: Knode Games bot" | the hourly bot (`bot.yml`) | one run failed. Usually a node hiccup: it catches up next hour | §2 if a second run in a row fails |
 | Bot email listing **problems** (e.g. "results not ready … due …", "can't be read", "refused") | the bot's problem list | a game's week is held or a send was refused. Each line names the game, week and deadline | §3 |
 | Bot email "…your admin key is compromised" / "Desk owner change … cancel it and withdraw the Desk" / "upgrade announced" | the bot's chain watch | an owner-level change is pending on chain. **Expected** during your own wallet moves or upgrades (`docs/WALLETS.md` lists them) | if you didn't do it: §7 |
-| GitHub email "Run failed: Node watchdog" | `watch.yml` (every 15 min on paper, about hourly in practice) | your personal producer hasn't signed for 30+ min: the PC, Docker or the internet is probably down. One email, then a reminder every 3 h | §5 |
+| GitHub email "Run failed: Node watchdog" | `watch.yml` (scheduled every 15 min, about hourly in practice) | your personal producer hasn't signed for 30+ min: the PC, Docker or the internet is probably down. One email, then a reminder every 3 h | §5 |
 | GitHub email "Run failed: Heal alert" | your PC's self-heal or question-release task | a node was restarted or repaired, Docker is down, a node can't be fixed, or a round's questions aren't out | `ALERTS.md` §7; §5 / §6 below |
 | A question wasn't released at 12:00 UTC | you see it on the site, or the release backup log | the release run and the PC's backup task both missed it | §6 |
 | `games-data` / `race-data` publish job failed | GitHub email for `games.yml` / `race.yml` | a recorder wrote a file the publish check refused; that game's files didn't publish this hour | §4 |
@@ -57,6 +57,8 @@ The vault bot holds a week instead of paying it whenever something is in doubt. 
 | "board missing / not on board / order" (after PR #74) | the results file doesn't match the game's published leaderboard | tell that game's chat (R-ALL-3). Don't post by hand unless the chat confirms the file is right |
 | "file changed after it was first read" (after PR #74) | a final file changed: something is wrong upstream | don't post. Tell that game's chat and the Vault chat. Post by hand (`game-post`) only after both confirm |
 | "refused: …" | the vault contract said no; the reason is in the alert | paste the alert to the Vault chat. Don't retry by hand |
+
+**Race types (D-166): turning them on, in this order (Repo Lens #D-13 L-4).** 0) Set `RACE_SHA256` in `bot/race-picks.ts` to the sha256 of the **audited** v2 build (CI's build of the audited commit, matching the contract audit's fix-check), in its own reviewed commit (#D-14 N-3). Use the full 64-character hash from CI's build of the audited commit; Repo Lens's rebuild at `aed61123` gave `9993581baf822cd070331008441c5ad974f5c0b134520dfb7422b9efd1873864`. **If CI's hash isn't the contract audit's, stop and ask the contract audit chat before uploading** (#C-12 C12-2). 1) Upload the Race picks contract v2 in the safe slot below. 2) **Set the per-game limit to 0 first** (`npm run racepicks -- limit 0`, then with `--send`): with a limit above 0 one day count covers every type, so typed picks would use up the 6-hour race's picks. Switch it at 00:00 UTC if you can (C10-5). 3) Then set `TYPES_FROM_WEEK` in `race-math.js` **and** `TYPES_FROM_WEEK` in the publish job (`race.yml`, now `TYPES_OFF`) to the same week (a test fails until both match), and merge. Not before R-RACE-18 is done (the T file's size and the Monday re-check's time); `TYPES_READY` in `race-math.js` enforces it (a test).
 
 **Race: no changes during a paid week's close (Repo Lens #C-7 C7-9).** From the paid week's **Monday 00:00 UTC** until that week's final Race file (about the next Monday 00:40 UTC), don't merge a `race-math.js` scoring change, upgrade the Race picks contract, or move `race-data/deployment.json` (Repo Lens #B-7 B7-1). The Sunday and Monday re-check scores every Monday–Saturday race of the week again with the **current** `race-math.js` and picks contract, so a change merged mid-week makes the earlier races mismatch and holds an honest week, with an alert that wrongly says a recorder run wrote a wrong result. **The safe slot is about Monday 01:40–06:30 UTC** (Sun 5:40–10:30 PM PST): after week w's final file, before week w+1's first race result is stored. A change to points only (`POINTS`) or to how cards are made is safe at any time.
 
@@ -100,7 +102,7 @@ npm run bot -- game-correct <game> <week> <player address> <right points> --send
 |---|---|---|
 | **Operator** (`OPERATOR_WIF`, GitHub only) | post wrong results for at most a week of one game, which you can correct in 24 h; it can't move funds | replace it: `npm run bot -- admin set_operator operator=<new address> --as owner` (dry run, then `--send`); update the GitHub secret `OPERATOR_WIF` (Settings → Environments → `bot`); correct any bad results (§3) |
 | **Owner** (cold after the moves, D-083) | **at once:** take the waiting 5% fee; change the operator; pause; stop games; correct or void sealed weeks (24 h window). **After a wait:** an upgrade (48 h), a new game (48 h), take over ownership (a day). It can **never** take stakes without an upgrade | see **§7a** below. Tell the Vault chat at once |
-| **Sponsor** (`SPONSOR_WIF`, 25,000 KOIN, no timelock, D-085) | move the sponsor's KOIN at once | see **§7b** below |
+| **Sponsor** (`SPONSOR_WIF`) | move the sponsor's KOIN at once | see **§7b** below |
 | **Seed owner** (`1K8VV…`) | start a seed withdrawal (48 h timelock) | Vault chat at once; the seed owner change takes two steps 28,800 blocks apart |
 | **Desk treasury / Desk owner** | the treasury only receives; owner changes take 48 h | Vault chat; `npm run desk -- owner cancel` / `treasury cancel` (dry run first) |
 
@@ -112,8 +114,8 @@ A pasted key is a leaked key: rotate it even if nothing happened (D-003, D-042).
 - **Cancel / replace:** `cancel_upgrade` clears a pending upgrade, and a new `propose_owner` replaces a pending one. But the thief can do the same, and each new announcement restarts its clock.
 - **Withdrawals never close:** every stake can be taken out at any time, whatever the owner does. That is the real defence.
 
-Do these in order. Each one: run it once without `--send`, read it, then again with `--send`. Load the owner key into `.env` only for this, then take it out (§0).
-1. **Take the fee before the thief does** (it has no timelock). Send it to a wallet you control that is **not** the owner:
+Do these in order. Each one: run it once without `--send`, read it, then again with `--send`. Use the owner key only for this (§0).
+1. **Take the fee before the thief does** (do this first). Send it to a wallet you control that is **not** the owner:
    ```powershell
    npm run bot -- claim-fee-vhp <safe wallet address> all
    npm run bot -- claim-fee <safe wallet address>
@@ -133,7 +135,7 @@ Do these in order. Each one: run it once without `--send`, read it, then again w
 - **The Desk** has `cancel_owner`: `npm run desk -- owner cancel`, then with `--send`. Then withdraw the Desk to the treasury (the Desk chat writes the exact command).
 
 ### 7b. The sponsor key is stolen
-The thief can move the sponsor's KOIN at once (no timelock; risk accepted, D-085). The only defence is speed:
+Act at once; speed is the defence:
 1. **Move what's left** to a safe wallet in Kondor, signed with the sponsor key (the sponsor is a normal wallet for KOIN transfers). A KOIN transfer needs as much Mana as the amount, so move the most Kondor allows now, and the rest as its Mana comes back (it refills in about 5 days).
 2. **Switch the sponsor off:** `npm run sponsor -- disable`, then with `--send` (this also uses the sponsor key).
 3. **Make the site stop asking the sponsor to pay:** `npm run sponsor -- payer self`. It edits `game-data` and `desk-data` `deployment.json` on the PC; commit and push them on a branch, and merge the PR. Until it is merged, sponsored sends fail and players see a Mana error.

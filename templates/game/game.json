@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "slug": "{{slug}}",
+  "name": "{{name}}",
+  "vaultGameId": "{{id}}",
+  "kinds": ["staked", "free"],
+  "seasonWeeks": 1,
+  "freePrizeDefault": "{{on-or-off}}",
+  "status": "building",
+  "picks": { "contract": "{{picks-racepicks-vault-or-none}}", "gameId": "{{picks-game-id-or-0}}" },
+  "sponsor": { "actions": [ { "name": "pick", "manaLimit": "{{measured-limit-at-most-2.4}}" } ] },
+  "week": { "standard": "WEEK_CYCLE", "sundayFunRound": true, "finalNotBefore": "Mon 00:00 UTC" },
+  "data": { "board": "games-data:{{slug}}/board.json", "vaultFolder": "games-data:{{slug}}/vault" },
+  "workflow": { "file": "games.yml", "enabledVar": "{{ENABLED_VARIABLE}}", "prizesFromVar": "{{PRIZES_FROM_VARIABLE}}" },
+  "page": "{{slug}}.html",
+  "rulesDoc": ".ai/games/{{Title}}.md",
+  "ownerChat": "{{owning chat}}",
+  "payoutRule": "{{legacy-tied-whole-or-d152}}",
+  "vaultValues": "dense255",
+  "minPts": 0,
+  "rowCap": "{{board-row-cap-or-0}}",
+  "entry": { "minRounds": 1, "minPoints": 1 }
+}

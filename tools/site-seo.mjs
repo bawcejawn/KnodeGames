@@ -10,7 +10,7 @@ const ROOT = new URL("../", import.meta.url).pathname;
 
 export const PAGES = [
   { file: "index.html", path: "", title: "Knode Games: the daily Koinos prediction game", short: "Knode Games: call the next blocks",
-    desc: "A free daily guessing game on the Koinos blockchain. Answer daily questions about block producers, climb the weekly leaderboard, and win VHP.", image: "og-knode.png", priority: "1.0" },
+    desc: "A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards.", image: "og-knode.png", priority: "1.0" },
   { file: "games.html", path: "games.html", title: "Games · Knode Games", short: "Knode Games: every game",
     desc: "Every Knode Games game in one place: free and staked prediction games about Koinos block producers, each with its own weekly leaderboard.", image: "og-knode.png", priority: "0.9" },
   { file: "get.html", path: "get.html", title: "Get KOIN and VHP · Knode Games", short: "Get KOIN and VHP",
@@ -23,8 +23,10 @@ export const PAGES = [
     desc: "From dollars in the bank to playing Knode Games: get a wallet, get KOIN, cross the Vortex bridge, and explore apps built on Koinos.", image: "og-knode.png", priority: "0.7" },
   { file: "node.html", path: "node.html", title: "Koinos producer lookup · Knode Games", short: "Koinos producer lookup",
     desc: "Look up any Koinos block producer: blocks signed over the last two days, share of the network, and recent activity.", image: "og-knode.png", priority: "0.6" },
+  { file: "run-node.html", path: "run-node.html", title: "Run a Koinos node · Knode Games", short: "Run your own Koinos node",
+    desc: "Start a Koinos mainnet node and block producer on your own computer, step by step: Docker, Armana's weekly chain snapshot, registering your key, VHP, and keeping it live.", image: "og-knode.png", priority: "0.6" },
   { file: "race.html", path: "race.html", title: "Producer Race · Four handicapped races a day between Koinos block producers", short: "Koinos Producer Race",
-    desc: "Every Koinos block producer is a horse. Four 6-hour races a day, handicapped by VHP so every horse has the same chance. Free, live from the chain.", image: "og-knode.png", priority: "0.7" },
+    desc: "Every Koinos block producer is a horse. Four 6-hour races a day, every day (Sunday's are for fun), handicapped by VHP so every horse has the same chance. Free, live from the chain.", image: "og-knode.png", priority: "0.7" },
   { file: "blockx.html", path: "blockx.html", title: "Who Signs Block X · Pick the Koinos producer of the next big blocks", short: "Who Signs Block X",
     desc: "Every 2,400 Koinos blocks is a target. Pick the producer you think signs it; smaller producers score more, up to 3×. Free, with weekly VHP prizes.", image: "og-knode.png", priority: "0.6" },
   { file: "pulse.html", path: "pulse.html", title: "Koinos network pulse · Blocks, transactions and producers, live", short: "Koinos network pulse",
@@ -94,6 +96,6 @@ if (process.argv[1] && process.argv[1].endsWith("site-seo.mjs")) {
   }
   const today = new Date().toISOString().slice(0, 10);
   fs.writeFileSync(ROOT + "sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${PAGES.map((p) => `  <url><loc>${SITE + p.path}</loc><lastmod>${today}</lastmod><priority>${p.priority}</priority></url>`).join("\n")}\n</urlset>\n`);
-  fs.writeFileSync(ROOT + "robots.txt", `# Knode Games, https://knodegames.com\nUser-agent: *\nAllow: /\nDisallow: /producer.html\nSitemap: ${SITE}sitemap.xml\n`);
+  fs.writeFileSync(ROOT + "robots.txt", `# Knode Games, https://knodegames.com\nUser-agent: *\nAllow: /\nDisallow: /producer.html\nDisallow: /admin/\nSitemap: ${SITE}sitemap.xml\n`);
   console.log(`Wrote tags for ${PAGES.length} pages, sitemap.xml and robots.txt (site: ${SITE}).`);
 }

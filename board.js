@@ -18,18 +18,19 @@
  *                                            // optional: a second board for wallets without VHP or a stake (rows with
  *                                            // ranked: false). Only its top `show` are listed; everyone else stays
  *                                            // hidden, and a free player sees their own place privately.
+ *     hide: ["today"],                       // optional: period tabs a game doesn't have ("today", "last", "all")
  *   });
  *   lb.set(boardJson); lb.setMe(address);
  */
 (function (root) {
   "use strict";
-  // What players call a week (weeks.js, D-063): the week of Mon 9 Nov (vault week 3) is "Week 1"; earlier weeks show
-  // their date. Pages that don't load weeks.js yet (race.html, blockx.html) get the same rule here; a test keeps the
+  // What players call a week (weeks.js, D-063): the week of Mon 16 Nov (vault week 4) is "Week 1", the week of Mon 9 Nov
+  // (vault week 3) the "Test week" (owner, 9 Nov); earlier weeks show their date. Pages that don't load weeks.js yet (race.html, blockx.html) get the same rule here; a test keeps the
   // two in step.
   const WL = (w) => {
     if (root.KWeeks) return root.KWeeks.label(w);
     const n = Math.trunc(Number(w));
-    return n >= 3 ? `Week ${n - 2}` : `Week of ${new Date(1792368000000 + n * 604800000).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`;
+    return n >= 4 ? `Week ${n - 3}` : n === 3 ? "Test week" : `Week of ${new Date(1792368000000 + n * 604800000).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`;
   };
   const MEDAL = ["🥇", "🥈", "🥉"], ORD = ["1st", "2nd", "3rd"];
   const LABELS = Object.freeze({ staked: "Staked", free: "Free play" });   // the same in every game
@@ -60,7 +61,8 @@
   function create(host, opt) {
     // Wallet names (names.js, when the page loads it): "Name · 1Abc12…wxyz", else the short address.
     const named = (a) => (window.KNames ? window.KNames.of(a) : short(a));
-    const id = "kb" + ++n, o = Object.assign({ columns: [], name: named, scored: () => true, summary: () => "", me: null, link: null, unranked: "" }, opt || {});
+    const id = "kb" + ++n, o = Object.assign({ columns: [], name: named, scored: () => true, summary: () => "", me: null, link: null, unranked: "", hide: [] }, opt || {});
+    const hidden = new Set(Array.isArray(o.hide) ? o.hide.filter((m) => m !== "week") : []);   // "week" is always shown
     let data = null, mode = "week", who = "", kind = "main";
     // The two boards have the same names in every game (owner, 2026-10-28): KBoard.LABELS, never set per game.
     const F = o.free ? { show: Number.isInteger(o.free.show) ? o.free.show : 6, prize: typeof o.free.prize === "string" ? o.free.prize : "", main: LABELS.staked, label: LABELS.free } : null;
@@ -93,7 +95,8 @@
     function render() {
       const part = partOf(data, mode), rows = (part && Array.isArray(part.rows)) ? part.rows : [];
       const weekly = mode === "week" || mode === "last";
-      btns[2].hidden = !(data && data.lastWeek);
+      btns.forEach((b, i) => { if (hidden.has(MODES[i][0])) b.hidden = true; });
+      btns[2].hidden = hidden.has("last") || !(data && data.lastWeek);
       if (mode === "last" && btns[2].hidden) { mode = "week"; btns.forEach((x, i) => x.setAttribute("aria-pressed", String(MODES[i][0] === mode))); return render(); }
       if (F && kind === "free") return renderFree(part, rows, weekly);
       const ranked = rows.filter((r) => r && r.ranked);

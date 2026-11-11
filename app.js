@@ -3,7 +3,7 @@
    With no deployment yet (or ?demo in the address), it runs a preview on sample data. */
 (() => {
   "use strict";
-  // What players call a week (weeks.js, D-063): the week of Mon 9 Nov is "Week 1"; earlier weeks show their date.
+  // What players call a week (weeks.js, D-063): the week of Mon 16 Nov is "Week 1", the week of Mon 9 Nov the "Test week"; earlier weeks show their date.
   const WL = (w) => (window.KWeeks ? window.KWeeks.label(w) : `Week ${Number(w) + 1}`);
   const WS = (w) => (window.KWeeks ? window.KWeeks.short(w) : String(Number(w) + 1));
 
@@ -53,6 +53,13 @@
     return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
   }
   // params-hash:end
+  /** The data_hash the bot posts a test-week question VOID with (bot.ts practiceHash, Repo Lens #F-6 F6-3): sha256 of the
+   *  blocks' data_hash, ":practice:" and the real option. It ties the practice answer to the option, not only the blocks. */
+  async function practiceHashOf(r) {
+    if (!r || typeof r !== "object" || r.void || !Number.isInteger(r.option)) return "";
+    const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${r.dataHash}:practice:${r.option}`));
+    return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
 
   // ═══════════════ small helpers ═══════════════
   const $ = (s) => document.querySelector(s);
@@ -115,27 +122,103 @@
     if (/quartiles|sextiles|eighths|^M1|^M9|^H1|^H3/.test(t)) return "range";
     return "network";
   }
-  const KIND_LABEL = { h2h: "Head-to-head", ou: "Over / under", range: "How many blocks", tail: "Smaller producers together", network: "Network", combo: "Double head-to-head" };
+  const KIND_LABEL = { h2h: "Head-to-head", ou: "Yes or no", range: "How many blocks", tail: "Smaller producers together", network: "Whole network", combo: "Double head-to-head" };
   const qSubjects = (q) => (q.subjects && q.subjects.length ? q.subjects : (String(q.text).match(ADDR_RE) || []));
   const qLine = (q) => (q.thresholds && q.thresholds.length ? q.thresholds[0] : Number((String(q.text).match(/more than ([\d,]+)/) || [])[1]?.replace(/,/g, "")));
+
+  // question-words:start  (pure: the plain wording players see; the on-chain wording, q.text, never changes and stays in
+  // the card's tooltip. Owner, 4 Nov: "simple for anyone to read and understand"; network questions "more inviting".)
+  /** A two-choice "No — … / Yes — …" question: shown as Yes / No, Yes first, never as letters. */
+  const isYesNo = (q) => !!q && Array.isArray(q.options) && q.options.length === 2 && /^No\b/.test(String(q.options[0].label)) && /^Yes\b/.test(String(q.options[1].label));
+  /** How a pick is named on cards, results and toasts: "Yes" / "No" on yes-or-no questions, else the letter. */
+  const optName = (q, i) => (isYesNo(q) ? (i === 1 ? "Yes" : "No") : String.fromCharCode(65 + i));
+  /** Head-to-head, "A's blocks minus B's > line": the question and both answers in words, whatever the sign of the line.
+   *  d = line + 1 is the smallest lead that makes it a Yes (a negative d means A may be behind by up to -d). */
+  function h2hWords(line) {
+    const d = line + 1, n = (x) => Number(x).toLocaleString();
+    if (d >= 2) return { ask: ["produce at least ", { b: n(d) }, " more blocks than "], yes: `${n(d)} or more ahead`, no: `less than ${n(d)} ahead, or behind` };
+    if (d === 1) return { ask: ["produce more blocks than "], yes: "ahead", no: "tied or behind" };
+    if (d === 0) return { ask: ["produce at least as many blocks as "], yes: "tied or ahead", no: "behind" };
+    return { ask: ["finish no more than ", { b: n(-d) }, " blocks behind "], yes: `behind by ${n(-d)} or less, or ahead`, no: `behind by ${n(-d + 1)} or more` };
+  }
+  /** Network questions (M4–M7), by what the on-chain wording asks. */
+  function networkWords(text) {
+    const t = String(text);
+    if (/longest gap/i.test(t)) return { hook: "Any hiccups?", ask: "What will the longest wait between two blocks be?", hint: "Blocks usually come about every 3 seconds; a slow moment can stretch the wait." };
+    if (/average time/i.test(t)) return { hook: "How fast will Koinos run?", ask: "Pick the average time between blocks.", hint: "Usually about 3 seconds, so the choices are close on purpose." };
+    if (/no transactions/i.test(t)) return { hook: "How quiet will it be?", ask: "What share of blocks will be empty (no transactions)?", hint: null };
+    if (/transactions/i.test(t)) return { hook: "How busy will Koinos be?", ask: "How many transactions will these blocks hold?", hint: null };
+    return null;
+  }
+  /** The headline as tokens: strings, { chip: address } and { b: bold text }. */
+  function headlineWords(q) {
+    const kind = qKind(q), [A, B] = qSubjects(q), line = qLine(q), n = (x) => Number(x).toLocaleString();
+    if (kind === "h2h" && A && B && Number.isFinite(line)) return ["Will ", { chip: A }, " ", ...h2hWords(line).ask, { chip: B }, "?"];
+    if (kind === "ou" && A && Number.isFinite(line)) return ["Will ", { chip: A }, " produce ", { b: `${n(line + 1)} or more` }, " blocks?"];
+    if (kind === "range" && A) return ["How many blocks will ", { chip: A }, " produce?"];
+    if (kind === "tail" && q.group && q.group.length) return [`How many blocks will these ${q.group.length} smaller producers produce together?`];
+    const w = kind === "network" ? networkWords(q.text) : null;
+    if (w) return [{ b: w.hook }, " ", w.ask];
+    return null;
+  }
+  /** Network questions with decimal choices (the longest wait, the average time between blocks, the share of empty
+   *  blocks): a plain name for the choice in front of its exact numbers (owner, 9 Nov: "plainer answer bands"). The
+   *  choices are cut around the model's expected value, so the middle choice of an odd number is "About as expected",
+   *  the two either side of the middle are "A little …", and the outer ones plain "Faster" / "Slower" (and so on). The
+   *  exact published label always follows, so nobody has to trust the words alone. Null: not such a question. */
+  function bandWords(q, o) {
+    if (qKind(q) !== "network" || !/^(ms|permille)$/.test(String(q.unit || "")) || !Array.isArray(q.options) || q.options.length < 2) return null;
+    const t = String(q.text || "");
+    const [lo, hi] = /average time/i.test(t) ? ["faster", "slower"] : /longest gap/i.test(t) ? ["shorter wait", "longer wait"]
+      : /no transactions/i.test(t) ? ["busier (fewer empty blocks)", "quieter (more empty blocks)"] : [null, null];
+    if (!lo) return null;
+    const n = q.options.length, mid = (n - 1) / 2, d = o.index - mid, side = d < 0 ? lo : hi;
+    if (d === 0) return "About as expected";
+    const word = Math.abs(d) <= 0.5 || (n % 2 === 1 && Math.abs(d) === 1 && n > 3) ? `A little ${side}` : side[0].toUpperCase() + side.slice(1);
+    return word;
+  }
+  /** Answer text shown on a choice: head-to-heads in words; network decimal bands get a plain name first; everything
+   *  else keeps its published label. */
+  function optionWords(q, o) {
+    if (qKind(q) === "h2h" && isYesNo(q) && Number.isFinite(qLine(q))) { const w = h2hWords(qLine(q)); return o.index === 1 ? `Yes — ${w.yes}` : `No — ${w.no}`; }
+    const band = bandWords(q, o);
+    if (band) return `${band}: ${o.label}`;
+    return String(o.label);
+  }
+  /** The counted blocks and when they should happen, in the viewer's time: counting starts when answers close
+   *  (lockTime) and runs about BLOCK_MS a block. Day names only when it isn't today. */
+  /** Owner, 5 Nov: a length of time ("about 8½ hours"), not clock times, and no long block numbers on the card: they
+   *  stay one hover / long-press away (`exact`). The block count stays, as a round number. */
+  function windowWords(q, open, blockMs) {
+    const nb = q.windowEnd - q.windowStart + 1;
+    return { text: open ? `The ${nb.toLocaleString()} blocks after answers close (${aboutHours(nb * blockMs)})` : `Counted over ${nb.toLocaleString()} blocks (${aboutHours(nb * blockMs)})`,
+      exact: `Blocks ${q.windowStart.toLocaleString()} to ${q.windowEnd.toLocaleString()}` };
+  }
+  /** "about 8½ hours", "about 1 hour", "under an hour": to the nearest half hour. */
+  function aboutHours(ms) {
+    const h = Math.round((ms / 3.6e6) * 2) / 2;
+    if (h < 1) return "under an hour";
+    const n = h % 1 ? `${Math.floor(h)}½` : String(h);
+    return `about ${n} hour${h === 1 ? "" : "s"}`;
+  }
+  // question-words:end
+
   /** The question as a short sentence, producers as chips. The full original wording stays in the tooltip. */
   function headline(q) {
-    const kind = qKind(q), [A, B] = qSubjects(q), line = qLine(q);
-    if (kind === "h2h" && A && B && Number.isFinite(line)) return ["Will ", pchip(A), " out-sign ", pchip(B), " by more than ", el("b", {}, fmtN(line)), " blocks?"];
-    if (kind === "ou" && A && Number.isFinite(line)) return ["Will ", pchip(A), " sign more than ", el("b", {}, fmtN(line)), " blocks?"];
-    if (kind === "range" && A) return ["How many blocks will ", pchip(A), " sign?"];
-    if (kind === "tail" && q.group && q.group.length) return [`How many blocks will these ${q.group.length} smaller producers sign together?`];
+    const w = headlineWords(q);
+    if (w) return w.map((x) => (typeof x === "string" ? x : x.chip ? pchip(x.chip) : el("b", {}, x.b)));
     const plain = String(q.text).replace(/,? between block [\d,]+ and block [\d,]+/, "").replace(/ \(about [^)]*\)/, "").replace(/ \(Full list[^)]*\)/, "");
     return chipify(plain);
   }
+  /** One short hint under some network questions (what "normal" looks like). */
+  const qHint = (q) => { const w = qKind(q) === "network" ? networkWords(q.text) : null; return w && w.hint ? el("p", { class: "q-hint" }, w.hint) : null; };
   /** For "these N producers together" questions: every producer in the group, as chips. */
   const groupView = (q) => (q.group && q.group.length ? el("div", { class: "q-group" },
     el("span", { class: "q-group-h" }, `The ${q.group.length} producers counted together:`), ...q.group.map(pchip)) : null);
-  /** "Counts blocks #a → #b · 10,000 blocks · about 8 h" */
-  function windowFacts(q) {
-    const n = q.windowEnd - q.windowStart + 1, hours = (n * BLOCK_MS) / 3.6e6;
-    return [el("span", { class: "fact" }, `Blocks ${fmtN(q.windowStart)} → ${fmtN(q.windowEnd)}`),
-      el("span", { class: "fact" }, `${fmtN(n)} blocks · about ${hours < 10 ? hours.toFixed(1) : Math.round(hours)} h`)];
+  /** "Blocks #a → #b (10,000) · about 12:00 PM – 8:35 PM your time" */
+  function windowFacts(q, mode) {
+    const w = windowWords(q, mode === "open", BLOCK_MS);
+    return [el("span", { class: "fact", title: w.exact }, w.text)];
   }
   /** What actually happened, in words. */
   function actualText(q) {
@@ -180,6 +263,22 @@
     const list = [d - 1, d, d + 1, d + 2].flatMap(roundsOfDay);
     return { current: list.filter((r) => r.releaseAt <= now && now < r.lockTime).pop() || null, next: list.find((r) => r.releaseAt > now) || null };
   }
+  /** This week's rounds that closed with none of their questions posted, with why (owner, 9 Nov: "better for people to
+   *  know what's going on"). A round with a skip file says its reason; one with no file at all was missed because the
+   *  bot was down. The current round is left to the "on their way / running late" line. */
+  function skippedRounds(now, week, files, questions) {
+    if (!S.genesis || !Number.isFinite(week)) return [];
+    const out = [];
+    for (let d = week * 7; d < week * 7 + 6; d++) for (const r of roundsOfDay(d)) {
+      if (r.lockTime > now) continue;
+      const file = (files || []).find((x) => x && x.d && x.d.date === r.label);
+      const posted = (file && (file.d.questions || []).some((q) => q.chainId !== undefined)) || (questions || []).some((q) => Number(q.lockTime) === r.lockTime);
+      if (posted) continue;
+      const why = file && file.d.skipped && /fair/i.test(file.d.skipped) ? "no fair questions could be made" : "the bot was down";
+      out.push({ ...r, why });
+    }
+    return out;
+  }
   /** A moment in the viewer's own time zone, short: "Mon 5:00 AM". */
   const dayTime = (ms) => new Date(ms).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
   const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -199,7 +298,7 @@
   const seenWelcome = () => { try { return localStorage.getItem(SEEN_KEY) === "1"; } catch { return true; } };
   const markWelcomed = () => { try { localStorage.setItem(SEEN_KEY, "1"); } catch { /* private window: shown again next time */ } };
   function route() {
-    // "#how/race" opens the Rules on the Race tab (also "#how/game", "#how/swap").
+    // "#how/race" opens the Rules on the Race tab (also "#how/game", "#how/blockx", "#how/swap").
     const [view, sub] = (location.hash || "").slice(1).split("/");
     const known = ["play", "leaderboard", "results", "how", "welcome"];
     // Opening the site (or the installed app) with no particular page asked for always starts on the short welcome
@@ -216,7 +315,7 @@
   }
 
   // ═══════════════ Rules: one tab per part of Knode Games (game, Producer Race, Swap) ═══════════════
-  const RULE_TABS = ["game", "race", "swap"];
+  const RULE_TABS = ["game", "race", "blockx", "bracket", "swap"];
   function showRulesTab(name) {
     const t = RULE_TABS.includes(name) ? name : "game";
     document.querySelectorAll("[data-rules]").forEach((b) => { const on = b.dataset.rules === t; b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; });
@@ -292,7 +391,7 @@
    *  q.hashOk: true (checked), false (does not match), null (could not be checked this time).
    *  q.chainSays: the outcome stored on chain (0 = not resolved, 1000 = void, n = option n − 1), after any owner
    *  correction; null when it could not be read. Results are shown from it, never from the file's own result. */
-  const chainHashes = new Map(), chainOutcomes = new Map(), chainFacts = new Map();
+  const chainHashes = new Map(), chainOutcomes = new Map(), chainFacts = new Map(), chainDataHashes = new Map();
   async function checkFiles(files) {
     const qs = files.flatMap(({ d }) => (d.questions || []).filter((q) => q.chainId !== undefined));
     // Nothing is added to a question before it is hashed (any extra key would change its hash).
@@ -310,6 +409,7 @@
           if (!h) { q.hashOk = null; return; }
           chainHashes.set(id, h);
           chainOutcomes.set(id, num(onChain.outcome));
+          chainDataHashes.set(id, String(onChain.data_hash || "").replace(/^0x/, "").toLowerCase());
           // What the contract enforces must be what the file shows: answers close at the chain's lock time, and the
           // chain's window and number of options decide the result (audit W1-04).
           chainFacts.set(id, { lock: num(onChain.lock_time), ws: num(onChain.window_start), we: num(onChain.window_end), k: num(onChain.k) });
@@ -319,6 +419,8 @@
         const ok = same && (await paramsHashOf(q)) === chainHashes.get(id);
         q.hashOk = ok;
         q.chainSays = chainOutcomes.get(id);
+        q.chainSaysHash = chainDataHashes.get(id) || "";
+        q.practiceHash = await practiceHashOf(q.result);
       } catch { q.hashOk = null; }
       if (q.chainSays === undefined) q.chainSays = null;
     }));
@@ -614,7 +716,9 @@
     const ids = new Set(rows.flatMap((r) => r.answers.map((a) => num(a.question_id))));
     const outcomes = new Map();
     await Promise.all([...ids].map(async (id) => outcomes.set(id, num(((await read("get_question", { id })).question || {}).outcome))));
+    if (isTestWeek(week)) for (const q of S.questions || []) { const p = practiceOf(q); if (p && outcomes.has(Number(q.chainId))) outcomes.set(Number(q.chainId), p); }
     const res = score(rows, outcomes, week);
+    if (isTestWeek(week)) { res.practice = true; return res; }   // practice standings: no pots, no rewards
     if (week < num(S.st.totals?.weeks_finalized)) {
       res.final = (await read("get_week", { week: String(week) })).week || {};
       applyPots(res, big(res.final.pot_a), big(res.final.pot_b), !!res.final.reward_rule);
@@ -633,6 +737,13 @@
     S.board = {};
     renderAll();
     renderBoard(S.week).then(renderPlay).catch(() => {});
+  }
+
+  /** The home page's hero shows the Producer Race (owner, 10 Nov: "Play free" goes to the race). Wallet users get their own
+   *  row beside it, hidden once a wallet (or guest) is connected. */
+  function renderWelcomeToday() {
+    const paths = $("#welcome-paths");
+    if (paths) paths.hidden = !!S.account;
   }
 
   async function connect() {
@@ -685,7 +796,7 @@
   // Every player action, answers included, asks the Mana sponsor first (site/wallet.js); when its caps are used up the
   // player's own Mana pays. The game contract no longer pays for anyone (owner, 2026-10-28): its Mana is kept for
   // burning block rewards back into VHP.
-  const answer = (q, option) => send(`answer ${String.fromCharCode(65 + option)}`, async () => [
+  const answer = (q, option) => send(`answer ${optName(q, option)}`, async () => [
     await opOf(writer(), "answer", { player: S.account, question_id: q.chainId, option }),
   ]);
 
@@ -779,7 +890,18 @@
     return a ? num(a.option) : null;
   }
   /** The outcome stored on chain (the demo has no chain: it uses its sample results). */
-  const outcomeOf = (q) => (S.demo ? (q.chainOutcome !== undefined ? q.chainOutcome : q.result ? (q.result.void ? 1000 : q.result.option + 1) : 0) : num(q.chainSays));
+  const outcomeOf = (q) => (S.demo ? (q.chainOutcome !== undefined ? q.chainOutcome : q.result ? (q.result.void ? 1000 : q.result.option + 1) : 0) : practiceOf(q) || num(q.chainSays));
+  /** Owner, 10 Nov: a test week (deployment.json "vaultTestWeeks", today [3] = the week of Mon 9 Nov) plays but pays
+   *  nothing. The bot posts its questions VOID on chain (so no entry can win: Repo Lens #F-4 F4-1) with the practice hash
+   *  of the real result (practiceHashOf: blocks and option); the page shows that result as a practice result only when the
+   *  file's result gives the same hash and the file matches the on-chain question, so an edited file can't choose it. */
+  const isTestWeek = (w) => !S.demo && Array.isArray(S.dep?.vaultTestWeeks) && S.dep.vaultTestWeeks.includes(num(w));
+  function practiceOf(q) {
+    if (!isTestWeek(weekOfQ(q)) || num(q.chainSays) !== 1000 || q.hashOk !== true) return 0;
+    const r = q.result;
+    if (!r || r.void || !Number.isInteger(r.option) || r.option < 0 || r.option >= (q.options || []).length) return 0;
+    return q.chainSaysHash && q.practiceHash === q.chainSaysHash ? r.option + 1 : 0;
+  }
   /** Questions released before their wording was hashed (hashRule 2): the page can't confirm their options. */
   const wordingHashedRule = (q) => Number(q.hashRule ?? 0) >= 2;
   /** Older questions (before hashRule 2): their thresholds, unit and template ARE in the on-chain hash, only the label
@@ -945,7 +1067,7 @@
     const head = el("div", { class: "race-head" },
       el("span", { class: "live-dot", "aria-hidden": "true" }), el("b", {}, L.frac >= 1 ? "All blocks counted" : "Live"),
       el("span", { class: "muted" }, `${fmtN(L.done)} of ${fmtN(L.total)} blocks · ${pct.toFixed(0)}%`),
-      L.pointsTo != null && L.frac < 1 ? el("span", { class: "race-points" }, `On pace for ${String.fromCharCode(65 + L.pointsTo)}`) : null);
+      L.pointsTo != null && L.frac < 1 ? el("span", { class: "race-points" }, `On pace for ${optName(q, L.pointsTo)}`) : null);
     const bar = el("div", { class: "race-track", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(pct)) }, el("i", { style: `width:${pct}%` }));
     if (compact) return el("div", { class: "race race-compact" }, head, bar);
     const lane = (who, v, proj, scale, marker, addr) => el("div", { class: "lane" },
@@ -978,7 +1100,7 @@
           at = w * i + w * Math.max(0.08, Math.min(0.92, (p - lo) / Math.max(1, hi - lo)));
         }
         body.push(el("div", { class: "lane lane-zones" }, el("div", { class: "lane-label muted" }, "Answers"),
-          el("div", { class: "zones" }, ...q.options.map((o) => el("span", { class: `zone${o.index === L.pointsTo ? " on" : ""}`, title: o.label }, String.fromCharCode(65 + o.index))),
+          el("div", { class: "zones" }, ...q.options.map((o) => el("span", { class: `zone${o.index === L.pointsTo ? " on" : ""}`, title: o.label }, optName(q, o.index))),
             at != null ? el("i", { class: "zone-dot", style: `left:${at}%`, title: `on pace for ${fmtN(Math.round(p))}` }) : null),
           el("div", {})));
       }
@@ -1001,7 +1123,9 @@
       el("div", { class: "q-tags" }, el("span", { class: `tier tier-${q.tier || "Medium"}` }, q.tier || "Question"), el("span", { class: "kind" }, KIND_LABEL[qKind(q)])),
       status);
     const pace = mode === "locked" && !oc ? liveOf(q)?.pointsTo : null;
-    const opts = el("div", { class: `opts n${q.options.length}` }, q.options.map((o) => {
+    const yn = isYesNo(q);
+    const shown = yn ? [q.options[1], q.options[0]] : q.options;   // Yes first; the chain's option numbers don't change
+    const opts = el("div", { class: `opts n${q.options.length}${yn ? " yn" : ""}` }, shown.map((o) => {
       let cls = "opt";
       if (pace === o.index && (q.windowEnd - q.windowStart) > 0) cls += " pace";
       if (mine === o.index) cls += " picked";
@@ -1010,24 +1134,24 @@
       const canAnswer = mode === "open" && mine === null && q.hashOk !== false && (S.demo || q.hashOk === true) && (S.demo || wordingHashed(q));
       return el("button", {
         class: cls, type: "button", disabled: !canAnswer,
-        "aria-label": `Option ${String.fromCharCode(65 + o.index)}: ${o.label}`,
+        "aria-label": yn ? optionWords(q, o) : `Option ${optName(q, o.index)}: ${optionWords(q, o)}`,
         onclick: () => answer(q, o.index),
-      }, el("span", { class: "letter" }, String.fromCharCode(65 + o.index)), el("span", { class: "opt-text" }, ...optLabel(o.label)));
+      }, yn ? null : el("span", { class: "letter" }, optName(q, o.index)), el("span", { class: "opt-text" }, ...optLabel(optionWords(q, o))));
     }));
     const act = oc && oc !== 1000 && (S.demo || q.result?.option + 1 === oc) ? actualText(q) : null;   // only once decided on chain
     const foot = el("div", { class: "q-foot" },
       el("span", { class: "q-where" }, qWhere(q, false)),
-      mine !== null ? el("span", { class: `q-done${oc && oc !== 1000 ? (mine + 1 === oc ? " ok" : " miss") : ""}` }, outcomeNote(mine, oc)) : mode === "open" ? el("span", { class: "q-cta" }, S.account ? "Tap an answer" : "Connect a wallet to answer") : null);
+      mine !== null ? el("span", { class: `q-done${oc && oc !== 1000 ? (mine + 1 === oc ? " ok" : " miss") : ""}` }, outcomeNote(q, mine, oc)) : mode === "open" ? el("span", { class: "q-cta" }, S.account ? "Tap an answer" : "Tap an answer to play: free, and a guest wallet works") : null);
     return el("article", { class: `q q-${(q.tier || "Medium")}${mine !== null ? " q-answered" : ""}` }, top,
-      el("h3", { title: q.text }, el("span", { class: "qno" }, qTag(q)), " ", ...headline(q)), groupView(q),
-      el("div", { class: "q-facts" }, ...windowFacts(q), mode === "open" ? el("span", { class: "fact" }, "Counting starts when answers close") : null),
+      el("h3", { title: q.text }, el("span", { class: "qno" }, qTag(q)), " ", ...headline(q)), qHint(q), groupView(q),
+      el("div", { class: "q-facts" }, ...windowFacts(q, mode)),
       mode === "locked" && !oc ? raceView(q) : null,
       opts, act ? el("p", { class: "q-actual" }, ...act) : null, hashNote(q), foot);
   }
 
   /** What an answered card says: the pick, and once the chain records the outcome, whether it was right. */
-  function outcomeNote(mine, oc) {
-    const L = (i) => String.fromCharCode(65 + i);
+  function outcomeNote(q, mine, oc) {
+    const L = (i) => optName(q, i);
     if (!oc) return `✓ Answered: ${L(mine)}`;
     if (oc === 1000) return "Void: nobody scores";
     return mine + 1 === oc ? `✓ Right (${L(mine)})` : `✗ Missed: answer was ${L(oc - 1)} (you: ${L(mine)})`;
@@ -1281,6 +1405,14 @@
         ? `New questions are on their way. They're posted on the Koinos chain at ${localTime(round.releaseAt)} your time and show up here within a few minutes. This page checks every minute, so there's no need to refresh.`
         : `No open questions right now. ${nextRound ? `The next ones come out ${dayTime(nextRound.releaseAt)}.` : `New questions arrive Monday to Saturday at ${localHour(12)} your time.`}`;
     oq.replaceChildren(...(open.length ? open.map((q) => questionCard(q, "open")) : [el("div", { class: "empty" }, emptyText)]));
+    renderWelcomeToday();
+    const sk = $("#skipped-rounds");
+    if (sk) {
+      const miss = skippedRounds(now, S.week, S.files, S.questions);
+      const why = [...new Set(miss.map((r) => r.why))];
+      sk.hidden = !miss.length;
+      sk.textContent = miss.length ? `Skipped this week: ${miss.map((r) => dayTime(r.releaseAt)).join(", ")}. ${why.map((x) => x[0].toUpperCase() + x.slice(1)).join("; ")}, so ${miss.length === 1 ? "that round wasn't" : "those rounds weren't"} posted. Nothing you answered is affected.` : "";
+    }
     const answeredToday = open.filter((q) => myAnswer(q) !== null).length;
     const tn = $("#today-note");
     if (tn) tn.textContent = !open.length ? "" : S.account ? `${answeredToday} of ${open.length} answered${open.length && open[0] ? ` · answers close in ${duration(open[0].lockTime - now)}` : ""}` : `${open.length} to answer · answers close in ${duration(open[0].lockTime - now)}`;
@@ -1317,7 +1449,7 @@
             el("dt", {}, "Live place"), el("dd", {}, pts.eligible ? `#${S.board[S.week].scored.filter((x) => x.eligible).indexOf(pts) + 1} of ${S.board[S.week].scored.filter((x) => x.eligible).length}` : "free play (no place)"),
             ...(sharedWeek(S.week) ? [] : [
               el("dt", { title: "An estimate from what the pool has earned so far this week; the final split is set when the week closes." }, "If the week ended now"),
-              el("dd", {}, prevOpen ? `counts after week ${P.week + 1} closes` : pts.winner && pts.reward !== undefined ? `~${amount(pts.reward)} VHP` : !pts.eligible ? "needs 1 VHP + 2 answers" : "not in the top 30% yet")])] : []),
+              el("dd", {}, isTestWeek(S.week) ? "nothing: a test week (practice points only)" : prevOpen ? `counts after week ${P.week + 1} closes` : pts.winner && pts.reward !== undefined ? `~${amount(pts.reward)} VHP` : !pts.eligible ? "needs 1 VHP + 2 answers" : "not in the top 30% yet")])] : []),
           el("dt", {}, "Answers given"), el("dd", {}, String((S.entry?.answers || []).length)),
           el("dt", {}, "Wallet"), el("dd", { class: "addr" }, short(S.account))),
         S.entry?.voided ? el("p", { class: "warn" }, "You withdrew this week, so this week's answers don't count.") : null,
@@ -1329,7 +1461,7 @@
     // the older weeks' rewards, claimable forever.
     const sharedEnded = S.week > 0 && sharedWeek(S.week - 1);
     cp.hidden = !S.claims.length && !sharedEnded;
-    $("#claim-body").replaceChildren(...(sharedEnded ? [el("p", { class: "muted" }, "Rewards from the newer weeks are collected on the ", el("a", { href: STAKE_HREF }, "Stake page"), ", with every game's. Earlier weeks' rewards stay here and never expire.")] : []), ...S.claims.map((c) => el("div", { class: "claim-row" },
+    $("#claim-body").replaceChildren(...(sharedEnded ? [el("p", { class: "muted" }, "Rewards from the newer weeks are collected on the ", el("a", { href: STAKE_HREF }, "Stake page"), ", with every game's. Earlier weeks' rewards stay here and never expire.")] : []), ...(S.claims.length ? [el("p", { class: "muted", id: "claim-waiting" }, "A reward is waiting for you. It never expires; collect it any time.")] : []), ...S.claims.map((c) => el("div", { class: "claim-row" },
       el("span", {}, el("b", {}, `${amount(c.reward)} VHP`), el("br"), el("span", { class: "muted" }, c.free ? `${WL(c.week)}: top free player prize. Stake it to share the full pool next week!` : `${WL(c.week)}`)),
       el("button", { class: "btn btn-sun", type: "button", onclick: () => claim(c.week) }, "Collect"))));
     // pool
@@ -1381,19 +1513,20 @@
     // Staked: places among eligible staked players. Free play: places in the free-play order.
     let place = 0;
     const placeOf = new Map(rows.map((s, i) => [s, kind === "free" ? i + 1 : s.eligible ? ++place : null]));
-    const freePrizeRow = (s) => kind === "free" && rows.indexOf(s) < 2;
-    if (kind === "free") lastWinnerIdx = -1;
+    const practice = !!b.practice;   // a test week: practice standings, nobody wins anything
+    const freePrizeRow = (s) => !practice && kind === "free" && rows.indexOf(s) < 2;
+    if (kind === "free" || practice) lastWinnerIdx = -1;
     tbody.replaceChildren(...rows.map((s, i) => el("tr", { class: [s.address === S.account ? "me" : "", i === lastWinnerIdx ? "cutline" : ""].join(" ").trim() },
       el("td", {}, el("span", { class: `rank${s.winner || freePrizeRow(s) ? " top" : ""}` }, placeOf.get(s) ? String(placeOf.get(s)) : "–")),
       el("td", {}, el("span", { class: "addr" }, s.address === S.account ? youLabel() : walletName(s.address)), i === lastWinnerIdx ? el("span", { class: "cut-label" }, "winners' line") : null),
       el("td", { class: "num" }, String(s.pts)),
       el("td", { class: "num" }, s.stake < UNIT ? el("span", { class: "badge badge-free" }, "Free play") : `${amount(s.stake, 0)} VHP`),
-      el("td", { class: "num" }, freePrizeRow(s) ? (rows.indexOf(s) === 0 ? "🥇 Prize" : "🥈 Prize") : s.winner && s.reward !== undefined && !(b.estimate && s.reward === 0n) ? `${b.estimate ? "~" : ""}${amount(s.reward)} VHP` : "–"))));
+      el("td", { class: "num" }, freePrizeRow(s) ? (rows.indexOf(s) === 0 ? "🥇 Prize" : "🥈 Prize") : !practice && s.winner && s.reward !== undefined && !(b.estimate && s.reward === 0n) ? `${b.estimate ? "~" : ""}${amount(s.reward)} VHP` : "–"))));
     // Phones: the same standings as cards, your own card pinned on top. Ties: players on the same points as a neighbour.
     if (cards && cards.replaceChildren) {
       const elig = rows.filter((s) => s.eligible);
       const tied = (s) => s.eligible && elig.some((o) => o !== s && o.pts === s.pts);
-      const rewardOf = (s) => (freePrizeRow(s) ? "weekly free-play prize" : s.winner && s.reward !== undefined && !(b.estimate && s.reward === 0n) ? `${b.estimate ? "~" : ""}${amount(s.reward)} VHP` : null);
+      const rewardOf = (s) => (freePrizeRow(s) ? "weekly free-play prize" : !practice && s.winner && s.reward !== undefined && !(b.estimate && s.reward === 0n) ? `${b.estimate ? "~" : ""}${amount(s.reward)} VHP` : null);
       const card = (s, i, pinned) => el("div", { class: ["lbc", s.address === S.account ? "me" : "", s.winner ? "win" : "", pinned ? "pinned" : ""].join(" ").trim() },
         el("span", { class: `lbc-place${s.winner ? " lbc-win" : ""}` }, placeOf.get(s) ? `#${placeOf.get(s)}` : "–"),
         el("div", { class: "lbc-who" },
@@ -1406,7 +1539,9 @@
       rows.forEach((s, i) => { list.push(card(s, i, false)); if (i === lastWinnerIdx && i < rows.length - 1) list.push(el("div", { class: "lbc-cut" }, "Winners' line: everyone above shares the pool")); });
       cards.replaceChildren(...list);
     }
-    $("#lb-note").textContent = kind === "free"
+    $("#lb-note").textContent = practice
+      ? "Test week: practice standings. Points count as usual, but there are no rewards or prizes this week; its earnings go to Week 1's pool (Week 1 starts Monday 16 November)."
+      : kind === "free"
       ? `Free play: wallets with no stake. 1st and 2nd at the end of the week collect the free-play prize. Only the top ${FREE_SHOW} are shown; everyone else stays private.`
       : week === S.week
       ? "Live standings: points count as soon as each question's blocks are final. The top 30% of staked players win (ties too). Rewards shown with ~ are estimates if the week ended now."
@@ -1484,10 +1619,11 @@
       }
       const answerLine = !done
         ? el("p", { class: "res-line" }, el("span", { class: "badge badge-wait" }, S.height > q.windowEnd ? "Result being posted" : `Result in ~${duration((q.windowEnd + 60 - S.height) * BLOCK_MS)}`),
-          mine !== null ? el("span", { class: "res-you" }, `You: ${String.fromCharCode(65 + mine)}`) : null)
+          mine !== null ? el("span", { class: "res-you" }, `You: ${optName(q, mine)}`) : null)
         : isVoid ? el("p", { class: "res-line" }, el("span", { class: "res-void-note" }, `Voided${agrees && r.reason ? `: ${r.reason}` : ""}. Nobody gains or loses a point.`))
           : el("p", { class: "res-line" }, el("span", { class: "res-k" }, "Answer"), el("span", { class: "res-letter" }, String.fromCharCode(64 + oc)), el("span", { class: "opt-text" }, ...(opt ? optLabel(opt.label) : [`Option ${String.fromCharCode(64 + oc)}`])),
-            mine !== null ? el("span", { class: `res-you${mine + 1 === oc ? " ok" : ""}` }, `You: ${String.fromCharCode(65 + mine)}`) : null);
+            mine !== null ? el("span", { class: `res-you${mine + 1 === oc ? " ok" : ""}` }, `You: ${optName(q, mine)}`) : null,
+            practiceOf(q) ? el("span", { class: "badge badge-practice", title: "A test week: the chain records this question as void, so no prize depends on it. This is the real answer, for practice points." }, "Practice (test week)") : null);
       const warns = [
         done && !agrees && !S.demo ? el("p", { class: "q-warn" }, fileOc === null
           ? "The question file has no result yet; the result shown is the one recorded on chain."
@@ -1499,7 +1635,7 @@
         agrees && actualText(q) ? el("p", { class: "q-actual" }, ...actualText(q)) : null,
         el("p", { class: "meta" }, `${qWhere(q)} · on-chain #${q.chainId}. Counted blocks ${fmtN(q.windowStart)} to ${fmtN(q.windowEnd)}${r && r.dataHash ? ` · fingerprint of those blocks ${String(r.dataHash).slice(0, 12)}…` : ""}. `,
           S.demo ? null : el("a", { href: DATA + f }, "See the data")),
-        el("p", { class: "meta" }, "All answers: ", (q.options || []).map((o) => `${String.fromCharCode(65 + o.index)} ${o.label}`).join(" · ")),
+        el("p", { class: "meta" }, "All answers: ", (isYesNo(q) ? [q.options[1], q.options[0]] : q.options || []).map((o) => (isYesNo(q) ? optionWords(q, o) : `${optName(q, o.index)} ${optionWords(q, o)}`)).join(" · ")),
         agrees && r.vhpCheck?.skipped ? el("p", { class: "meta" }, `The VHP-swing rule was not applied: ${r.vhpCheck.skipped}.`) : null,
         !S.demo && q.hashOk !== false && !wordingHashed(q) ? el("p", { class: "meta" }, "Released before the wording was covered by the on-chain fingerprint: the winning letter comes from the chain, but the option text shown can't be confirmed against it.") : null)
         : nowMs() >= q.lockTime ? raceView(q, true) : null;
@@ -1661,6 +1797,8 @@
     if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
     // The header's wallet button and its account menu are header-wallet.js (shared by every page). In the demo it
     // only explains itself.
+    const wc2 = $("#welcome-connect");
+    if (wc2) wc2.addEventListener("click", () => connect());
     if (/[?&]demo\b/.test(location.search) || !window.KWallet) $("#connect").addEventListener("click", () => { if (!S.account) return connect(); toast(`Connected with the demo wallet: ${S.account}.`, 5000); });
     const initWallet = () => window.KWallet && window.KWallet.init({
       provider: S.provider, toast, chainId: S.dep && S.dep.chainId, payer: S.dep && S.dep.payer, sponsor: S.dep && S.dep.sponsor, game: S.dep && S.dep.contract,

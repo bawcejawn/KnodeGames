@@ -479,10 +479,10 @@ test("R-BX-21: KWallet tells the page when the Mana sponsor pays", () => {
   assert.match(w, /get sponsorOn\(\) \{ return W\.payer === "sponsor" && !!\(W\.sponsor && W\.sponsor\.address\); \}/);
 });
 
-test("the Mana sponsor never pays for moving stake (owner, 2026-10-30); stake, withdraw and claim it may", () => {
+test("owner 5 Nov: the Mana sponsor pays for moving stake too (within the daily Mana), as for stake, withdraw and claim", () => {
   const w = fs.readFileSync(`${APP}/wallet.js`, "utf8");
-  assert.match(w, /MOVE_STAKE = 0x7c268e69/);
-  assert.match(w, /if \(c\.contract_id === sp\.covers\[0\] && Number\(c\.entry_point\) === MOVE_STAKE\) return null;/);
+  assert.doesNotMatch(w, /=== MOVE_STAKE\) return null;/, "the page no longer refuses the sponsor for a move");
+  assert.match(w, /const VAULT_CALLS = \[0x7bb5c436, 0x5b0aaef8, 0x7c268e69, 0x4107e3ab\];/, "a move's game is read for would_pay");
 });
 
 test("plain-words errors: a busy-Mana refusal says to wait a minute", () => {
@@ -525,4 +525,13 @@ test("I-028: withdrawing or moving below the minimum mid-week is explained befor
   assert.match(page, /Heads up: this leaves less than \$\{F\.exact\(d\.min\)\} VHP in \$\{g\.name\}, so you get no share of its rewards this week and no free prize\./);
   assert.equal([...page.matchAll(/, drop\]/g)].length, 2, "withdraw and move both show the warning");
   assert.match(fs.readFileSync(`${APP}/stake.html`, "utf8"), /as long as at least the minimum \(1 VHP\) stays in/);
+});
+
+test("owner 5 Nov / Run a Node: the site lists Proof-of-Burn as sponsored (after the owner's config send, 6 Nov) and a registration asks for the 2.4 per-transaction cap", () => {
+  const sp = JSON.parse(fs.readFileSync(`${APP}/game-data/deployment.json`, "utf8")).sponsor;
+  assert.ok(sp.covers.includes("159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv")); assert.equal(sp.pob, "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv");
+  assert.equal(sp.rcLimitOther, "240000000", "not an answer or a pick: rcLimitOther");
+  assert.ok(!Object.keys(sp.rcLimits || {}).some((k) => k.startsWith("159myq")), "no measured row yet: the fallback (2.4) applies");
+  const w = fs.readFileSync(`${APP}/wallet.js`, "utf8");
+  assert.match(w, /rcFor\(sp, ops, String\(answerOnly \? \(sp\.rcLimit \|\| "100000000"\) : \(sp\.rcLimitOther \|\| "100000000"\)\)\)/);
 });

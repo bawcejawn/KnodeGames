@@ -9,7 +9,7 @@
   <title>Register a producer key · Knode Games</title>
   <link rel="icon" href="media/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="media/icon-180.png">
-  <meta name="theme-color" content="#14213D">
+  <meta name="theme-color" content="#14161F">
   <meta name="robots" content="noindex">
   <link rel="stylesheet" href="styles.css">
   <style>
@@ -26,10 +26,10 @@
     <h1>Register your node's producer key</h1>
     <p>For your <strong>own</strong> block-producing node. This tells Koinos: "blocks signed by this node's key produce for
       my address, using my VHP." Your wallet signs it (Kondor or KOIN Vault); this page never sees a private key.</p>
-    <p>Paste only the <strong>public</strong> key (from <code>npm run bot -- node-key personal</code>). Never paste
+    <p>Paste only the <strong>public</strong> key: your node's <code>block_producer/public.key</code> (step 6 of <a href="run-node.html">Run a node</a> shows it). Never paste
       the contents of <code>private.key</code>.</p>
 
-    <p><a href="node.html">Producer lookup</a> · <a href="burn.html">Burn KOIN into VHP</a></p>
+    <p><a href="run-node.html">Run a node</a> · <a href="node.html">Producer lookup</a> · <a href="burn.html">Burn KOIN into VHP</a></p>
     <div class="row"><button class="btn" id="connect">Connect wallet</button></div>
     <label>Producer address (the connected wallet)</label>
     <input id="addr" readonly placeholder="connect a wallet first">

@@ -83,6 +83,7 @@
     if (first || Date.now() - (refresh.dataAt || 0) > 300000) {
       refresh.dataAt = Date.now();
       await loadWeeks([...new Set([M.weekOf(Date.now() - M.DAY), M.weekOf(Date.now())])]);
+      if (typesLive()) await loadTypeWeeks([...new Set([M.weekOf(Date.now() - M.DAY), M.weekOf(Date.now())])]);
     }
     if (!raceObj(cur.index).cards || raceObj(cur.index).provisional) { if (first) say("Reading each producer's VHP…"); await provisionalCard(); }
     render();
@@ -288,14 +289,18 @@
     if (!force && key === picksKey && list.childElementCount) return;
     picksKey = key;
     if (!who) {
-      $("picks-who").textContent = "Connect a wallet to pick (Kondor, KOIN Vault or a guest wallet).";
+      // Where the header's "Play free" lands (owner, 9 Nov): the free guest comes first, a wallet is the other choice.
+      $("picks-who").textContent = "Pick a horse for free as a guest: no sign-up, no wallet. Or connect Kondor or KOIN Vault.";
       $("picks-left").textContent = "";
-      list.replaceChildren(el("button", { class: "btn", type: "button", onclick: () => W && W.connect() }, "Connect wallet"));
+      list.replaceChildren(el("button", { class: "btn btn-primary", type: "button", onclick: () => W && W.connect() }, "Play free or connect a wallet"));
       return;
     }
     $("picks-who").textContent = `Picking as ${nameOf(who)}${W.kind === "guest" ? " (guest)" : ""}.`;
-    const max = usage ? Number(usage.max_picks_per_day) || 5 : 5, used = usage ? Number(usage.picks_today) || 0 : 0;
-    $("picks-left").textContent = usage ? `${Math.max(0, max - used)} of ${max} picks left today` : "";
+    // D-166 (contract v2): a limit of 0 (left out of the chain's answer) = no per-game limit; the Mana sponsor's daily
+    // limit across the platform is the cap.
+    const max = usage ? Number(usage.max_picks_per_day ?? 0) : 5, used = usage ? Number(usage.picks_today) || 0 : 0;
+    $("picks-left").textContent = !usage ? "" : max > 0 ? `${Math.max(0, max - used)} of ${max} picks left today` : "No per-game pick limit";
+    const ln = $("pk-limit-note"); if (ln && usage) ln.textContent = max > 0 ? `Up to ${max} picks a day (changes count).` : "No per-game limit: the Mana sponsor's daily limit across Knode Games applies, or use your own Mana.";
     const rows = [];
     // D-129: Sunday UTC races are fun races: pick as usual; they count on Today and All time, not the week's board.
     const funNote = (r) => (M.restRace(r.start) ? " · Sunday fun race: Today and All time, not the week" : "");
@@ -319,7 +324,7 @@
       if (!opts.length) sel.disabled = true;
       sel.addEventListener("change", () => { if (sel.value) drafts.set(cur + k, sel.value); else drafts.delete(cur + k); });
       const btn = el("button", { class: "btn", type: "button", onclick: () => sendPick(cur + k, sel.value) }, mine ? "Change" : "Pick");
-      if (sending || used >= max) btn.disabled = true;
+      if (sending || (max > 0 && used >= max)) btn.disabled = true;
       rows.push(el("div", { class: "pk-row" },
         el("div", { class: "pk-when" }, el("b", { text: `${dayTime(r.start)}${M.restRace(r.start) ? " · Sunday fun race (Today and All time, not the week)" : ""}` }), el("span", { "data-lock": String(r.start), text: `${r.id.slice(11)}:00 UTC · locks in ${dur(r.start - Date.now())}` })),
         el("div", {}, sel, mine ? el("div", { class: "pk-now ago", text: `Your pick: ${nameOf(mine)}` }) : null), btn));
@@ -354,31 +359,34 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && modal && !modal.hidden && !modal.querySelector(".pk-spin")) closeModal(); });
   const okBtn = (text = "Done") => el("button", { class: "btn", type: "button", onclick: closeModal }, text);
 
-  async function sendPick(index, horse) {
+  async function sendPick(index, horse, type = 0) {
     const who = me();
     if (!who || !raceContract || sending) return;
-    const when = `${dayTime(M.raceStart(index))} (${M.raceId(index).slice(11)}:00 UTC)`;
+    // D-166: the contract v2 takes the race type in the race number from bit 48 (below 2^53, so exact in the browser: #D-13 H-1); type 0 is sent exactly as before v2.
+    const tr = M.typedRace(type, index), mineNow = type ? rtPicks.get(`${type}:${index}`) : myPicks.get(index);
+    const when = type ? `the ${M.TYPES[type].name.toLowerCase()} race at ${dayTime(tr.start)}` : `${dayTime(M.raceStart(index))} (${M.raceId(index).slice(11)}:00 UTC)`;
+    const args = { player: who, race: M.contractRace(type, index) };
     if (!KBlocks.isAddr(horse)) return pickModal("info", "Choose a horse first", ["Pick a producer from the list, then press Pick."], [okBtn("OK")]);
-    if (myPicks.get(index) === horse) return pickModal("info", "That is already your pick", [`${nameOf(horse)} for the race at ${when}.`], [okBtn("OK")]);
-    if (Date.now() >= M.raceStart(index)) return pickModal("bad", "That race has started", ["Picks lock when a race starts."], [okBtn("OK")]);
+    if (mineNow === horse) return pickModal("info", "That is already your pick", [`${nameOf(horse)} for the race at ${when}.`], [okBtn("OK")]);
+    if (Date.now() >= tr.start) return pickModal("bad", "That race has started", ["Picks lock when a race starts."], [okBtn("OK")]);
     sending = true; renderPicks(true);
     const wallet = W.kind === "guest" ? "your guest wallet" : W.label ? W.label() : "your wallet";
     pickModal("busy", W.kind === "guest" ? "Sending your pick…" : `Confirm in ${wallet}`, [`${nameOf(horse)} for the race at ${when}.`, W.kind === "guest" ? "Free: the Knode Games Mana sponsor pays." : "Free: the Knode Games Mana sponsor pays the Mana. Approve it in your wallet."]);
     try {
-      const { operation } = await raceContract.functions.pick({ player: who, race: String(index), horse }, { onlyOperation: true });
-      const id = await W.send(`pick ${nameOf(horse)} for the race at ${dayTime(M.raceStart(index))}`, [operation]);
+      const { operation } = await raceContract.functions.pick({ ...args, horse }, { onlyOperation: true });
+      const id = await W.send(`pick ${nameOf(horse)} for the race at ${dayTime(tr.start)}`, [operation]);
       pickModal("busy", "Sent. Checking the chain…", [`${nameOf(horse)} for the race at ${when}.`]);
       // Read the pick back from the race contract: confirmed only when the chain has it.
       let onChain = false;
       for (let t = 0; t < 10 && !onChain; t++) {
-        try { const r = await raceContract.functions.get_pick({ player: who, race: String(index) }); onChain = !!(r.result && r.result.pick && r.result.pick.horse === horse); } catch { /* try again */ }
+        try { const r = await raceContract.functions.get_pick(args); onChain = !!(r.result && r.result.pick && r.result.pick.horse === horse); } catch { /* try again */ }
         if (!onChain) await new Promise((res) => setTimeout(res, 3000));
       }
-      drafts.delete(index);
+      if (type) rtDrafts.delete(`${type}:${index}`); else drafts.delete(index);
       if (onChain) {
         pickModal("ok", "Pick confirmed", [
           el("p", {}, "Your horse: ", el("b", { text: nameOf(horse) })),
-          `Race: ${when}. It locks when the race starts; until then you can change it (changes count toward today's 5).`,
+          `Race: ${when}. It locks when the race starts; until then you can change it${usage && Number(usage.max_picks_per_day ?? 0) > 0 ? ` (changes count toward today's ${usage.max_picks_per_day})` : ""}.`,
           id ? el("p", { class: "ago mono", text: `Transaction ${String(id).slice(0, 18)}…` }) : null,
           el("p", { class: "ago" }, el("a", { href: EXPLORER + who, target: "_blank", rel: "noopener noreferrer", text: "See your wallet on Koinosscan" })),
         ].filter(Boolean), [okBtn()]);
@@ -392,21 +400,24 @@
       // their reason is shown as they give it.
       const why = /RACE: this race has started; picks are locked/i.test(m) ? "That race has started: picks are locked."
         : /RACE: picks open 24 hours before a race/i.test(m) ? "That race isn't open yet: picks open 24 hours before it starts."
+        : /RACE: unknown race type/i.test(m) ? "The race contract doesn't take this race type yet (its upgrade isn't live)."
         : /RACE: today's picks are used up/i.test(m) ? "Today's picks are used up (changes count). More tomorrow, 00:00 UTC."
         : /RACE: that is already your pick/i.test(m) ? "That is already your pick."
         : /RACE: picks are closed/i.test(m) ? "Race picks are switched off right now."
         : /pending account resources|insufficient.*(rc|mana|resources)/i.test(m) ? "Your Mana is still held by your last pick. It frees up within a few minutes of each pick; try again in a minute."
         : /reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."
         : `Not sent: ${m.slice(0, 200)}`;
-      pickModal(/Cancelled/.test(why) ? "info" : "bad", /Cancelled/.test(why) ? "Cancelled" : "Pick not sent", [why], [okBtn("OK")]);
-    } finally { sending = false; await loadMine(); renderPicks(true); }
+      // D-166: the daily and weekly races open when the day or week before them starts.
+      const shown = type >= 3 && /isn't open yet/.test(why) ? `That race isn't open yet: picks open when the ${type === 3 ? "day" : "week"} before it starts.` : why;
+      pickModal(/Cancelled/.test(shown) ? "info" : "bad", /Cancelled/.test(shown) ? "Cancelled" : "Pick not sent", [shown], [okBtn("OK")]);
+    } finally { sending = false; await loadMine(); renderPicks(true); if (type) { await rtLoadMine(); rtRender(true); } }
   }
 
   // ── leaderboard (the recorder's board.json, shown by the shared Knode Games board in board.js) ──
   const lb = window.KBoard ? window.KBoard.create($("race-board"), {
     label: "Race leaderboard",
     // Medals only for wallets that earn (owner, 2026-10-29), as the recorder works them out by the vault's rules:
-    // earns 1 / 2 = the free prize's 1st / 2nd (ties, and the 10 earliest when more tie), 3 = a share of the staked bucket.
+    // earns 1 / 2 = the free prize's 1st / 2nd (up to 10 per place, by score time then address: D-152, D-159), 3 = a share of the staked bucket.
     freeWinners: (part, free, weekly) => new Map(weekly ? free.filter((r) => r.earns === 1 || r.earns === 2).map((r) => [r.a, r.earns]) : []),
     earned: (r, weekly) => weekly && r.earns === 3,
     columns: [{ key: "pts", label: "Points" }, { key: "correct", label: "Wins" }, { key: "shows", label: "Shows" }, { key: "picks", label: "Picks", wide: true }],
@@ -415,7 +426,7 @@
     name: nameOf, link: (a) => EXPLORER + a,
     me: (r, place) => `${place ? `You: #${place} with` : "Your score (only you see this):"} ${fmt(r.pts ?? 0)} points (${fmt(r.correct)} wins, ${fmt(r.shows ?? 0)} shows) from ${fmt(r.picks)} picks.`,
     unranked: "To play on the Staked board, stake at least 1 VHP in the Producer Race.",
-    free: { show: 6, prize: "1st and 2nd at the end of the week win 2 and 1 VHP (from Week 1, the week of Mon 9 Nov)." },
+    free: { show: 6, prize: "1st and 2nd at the end of the week win 2 and 1 VHP, from Week 1 (the week of Mon 16 Nov). Weeks before that are practice: no prizes." },
   }) : null;
   async function loadBoard() {
     try { const b = await fetchJson(DATA + "board.json"); if (b && b.v === 1 && lb) { board = b; $("board-box").hidden = false; renderBoard(); } } catch { /* none yet */ }
@@ -430,6 +441,135 @@
   $("h-today").onclick = () => setMode("today");
   $("h-week").onclick = () => setMode("week");
 
+  // ── race types (D-166): the toggle and the 1-hour, 2-hour, daily and weekly races ──
+  // Shown only from M.TYPES_FROM_WEEK (the week the Race contract v2 is live). The 6-hour race above is unchanged.
+  const typesLive = () => M.TYPES_ON_WEEK !== null && M.weekOf(Date.now()) >= M.TYPES_ON_WEEK;   // #C-12 C12-1: needs TYPES_READY
+  const ORDER = [1, 2, 0, 3, 4];
+  const POOL = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
+  let rtype = 0, tweeks = new Map(), rtPicks = new Map(), rtKey = "";
+  const rtDrafts = new Map(), tuned = new Map();
+  try { const v = Number(localStorage.getItem("pr-type")); if ([0, 1, 2, 3, 4].includes(v)) rtype = v; } catch { /* per-viewer convenience only */ }
+  async function loadTypeWeeks(ws) {
+    for (const w of ws) {
+      try { const j = await fetchJson(`${DATA}T${String(w).padStart(3, "0")}.json`); if (j && j.v === 1 && j.week === w && Array.isArray(j.races) && Array.isArray(j.hours)) tweeks.set(w, j); }
+      catch { /* no file yet */ }
+    }
+  }
+  const ledgerHour = (h) => { const tf = tweeks.get(M.weekOf(h)); return tf ? tf.hours.find((x) => x.t === h) || null : null; };
+  const typedRec = (type, id) => { for (const tf of tweeks.values()) { const r = tf.races.find((x) => x.type === type && x.id === id); if (r) return r; } return null; };
+  /** The 6-hour card in force in the hour at h (the recorder's), or the provisional one made here. */
+  const baseAt = (h) => { const r = recorded(M.raceAt(h).id); return (r && M.cardForLeg(r.cards, M.legOf(r.start, h, M.legsOf(r.cards)))) || prov; };
+  /** A type's card for the hour at h: with the recorder's stored c once the hour is in its ledger, else tuned here. */
+  function cardAt(type, h) {
+    const base = baseAt(h); if (!base) return null;
+    const led = ledgerHour(h);
+    if (led) return M.typeCard(base, type, led.c[type - 1]);
+    const k = `${type}:${h}:${base.at}`;
+    if (!tuned.has(k)) tuned.set(k, M.typeCard(base, type));
+    return tuned.get(k);
+  }
+  /** Live standings: the ledger's counts for finished hours, the page's blocks for the rest. */
+  function liveStandings(race) {
+    const hours = new Map(), until = Math.min(Date.now(), race.end);
+    for (let h = race.start; h < until; h += M.HOUR) {
+      const led = ledgerHour(h);
+      if (led) { hours.set(h, led); continue; }
+      if (!B || B.ts[0] > h) return null;                    // older than the blocks the page holds, and no ledger yet
+      const n = {}, l = {};
+      for (let i = M.lowerBound(B.ts, h); i < B.ts.length && B.ts[i] < h + M.HOUR; i++) { const a = B.signers[B.sig[i]]; n[a] = (n[a] || 0) + 1; l[a] = B.ts[i]; }
+      hours.set(h, { n, l });
+    }
+    const part = { ...race, end: Math.max(race.start + M.HOUR, Math.ceil(until / M.HOUR) * M.HOUR) };
+    return M.ledgerStandings(hours, part, (h) => cardAt(race.type, h));
+  }
+  function rtTabs() {
+    const nav = $("race-types");
+    if (!typesLive()) { nav.hidden = true; return; }
+    nav.hidden = false;
+    nav.replaceChildren(...ORDER.map((t) => el("button", { type: "button", "aria-pressed": String(t === rtype), onclick: () => rtSelect(t) },
+      M.TYPES[t].name, el("small", { text: `win ${M.TYPES[t].win} · show ${M.TYPES[t].show}` }))));
+  }
+  function rtSelect(t) {
+    rtype = t;
+    for (const id of ["rt-rows", "rt-picks"]) { const z = $(id); if (z) z.replaceChildren(); }   // L-9: no row of the old type stays on screen
+    try { localStorage.setItem("pr-type", String(t)); } catch { /* per-viewer convenience only */ }
+    for (const id of ["live", "pick-zone", "history"]) { const n = $(id); if (n) n.hidden = t !== 0; }
+    $("typed").hidden = t === 0;
+    rtTabs();
+    if (t) { rtLoadMine().then(() => rtRender(true)); }
+  }
+  const upcoming = (type) => {
+    const i = M.typedIndex(type, Date.now()), n = type === 1 ? 6 : type === 2 ? 6 : 1;
+    return Array.from({ length: n }, (_, k) => M.typedRace(type, i + 1 + k));
+  };
+  async function rtLoadMine() {
+    rtPicks = new Map();
+    const who = me();
+    if (!who || !raceContract || !rtype) return;
+    const list = [M.typedRace(rtype, M.typedIndex(rtype, Date.now())), ...upcoming(rtype)];
+    try {
+      const got = await Promise.all(list.map((r) => raceContract.functions.get_pick({ player: who, race: M.contractRace(rtype, r.index) }).then((x) => [r.index, x.result && x.result.pick && x.result.pick.horse])));
+      for (const [i, h] of got) if (h) rtPicks.set(`${rtype}:${i}`, h);
+    } catch { /* shown as no pick */ }
+  }
+  function rtRender(force = false) {
+    if (!rtype || $("typed").hidden) return;
+    const T = M.TYPES[rtype], cur = M.typedRace(rtype, M.typedIndex(rtype, Date.now())), who = me();
+    const fun = M.restRace(cur.start);
+    $("rt-title").textContent = `${T.name} race · ${dayTime(cur.start)} – ${rtype >= 3 ? dayTime(cur.end) : clock(cur.end)}${rtype === 3 ? " (the UTC day)" : rtype === 4 ? " (Monday to Saturday, UTC)" : ""}`;
+    $("rt-tag").textContent = `${dur(cur.end - Date.now())} left`;
+    const card = cardAt(rtype, Math.floor(Date.now() / M.HOUR) * M.HOUR);
+    const notes = [`A win scores ${T.win} points, a show (2nd or 3rd) ${T.show}, on the one Producer Race board.`];
+    if (fun) notes.push("Sunday fun race: it counts on Today and All time, not the week.");
+    if (card && !card.field.some((x) => x.a === POOL)) {
+      const tot = card.field.concat(card.paddock || []).reduce((t, x) => t + x.vhp, 0), need = card.blocksPerRace > 0 ? Math.ceil(M.MIN_K * tot / card.blocksPerRace) : 0;
+      notes.push(`The Knode Games pool sits out ${T.name.toLowerCase()} races for now: a producer needs about ${fmt(need)} VHP (10 expected blocks) to enter one this short.`);
+    }
+    $("rt-note").textContent = notes.join(" ");
+    const st = liveStandings(cur), hm = new Map((card ? card.field : []).map((x) => [x.a, x.h]));
+    $("rt-rows").replaceChildren(...(st || []).map((x, k) => el("tr", {}, el("td", { text: String(k + 1) }), el("td", { text: nameOf(x.a) }),
+      el("td", { class: "num", text: hm.has(x.a) ? `×${hm.get(x.a).toFixed(2)}` : "–" }), el("td", { class: "num", text: fmt(x.steps, 1) }), el("td", { class: "num hide-sm", text: fmt(x.blocks) }))));
+    if (!st) $("rt-rows").replaceChildren(el("tr", {}, el("td", { colspan: "5", text: "Loading the race…" })));
+    // Picks: the next races of this type.
+    const key = JSON.stringify([who, rtype, cur.index, [...rtPicks], sending, card && card.at]);
+    if (force || key !== rtKey) {
+      rtKey = key;
+      $("rt-who").textContent = who ? `Picking as ${nameOf(who)}. Picks lock when a race starts.` : "Connect a wallet to pick.";
+      const rows = [];
+      const mineCur = rtPicks.get(`${rtype}:${cur.index}`);
+      rows.push(el("div", { class: "pk-row live" }, el("div", { class: "pk-when" }, el("b", { text: "Live now" }), el("span", { text: `ends ${rtype >= 3 ? dayTime(cur.end) : clock(cur.end)}` })),
+        el("div", { class: "pk-now", text: mineCur ? `Your pick: ${nameOf(mineCur)} 🔒` : "No pick for this race (locked)" }), el("span")));
+      if (who && raceContract) for (const r of upcoming(rtype)) {
+        const k = `${rtype}:${r.index}`, mine = rtPicks.get(k), opts = card ? card.field : [];
+        const sel = el("select", { "aria-label": `Horse for the ${T.name.toLowerCase()} race at ${dayTime(r.start)}` },
+          el("option", { value: "", text: !opts.length ? "Loading the horses…" : mine ? "Change to…" : "Choose a horse…" }),
+          ...opts.map((x) => { const o = el("option", { value: x.a, text: `${nameOf(x.a)} · ×${x.h.toFixed(2)} per block` }); if (x.a === (rtDrafts.get(k) || mine)) o.selected = true; return o; }));
+        sel.addEventListener("change", () => { if (sel.value) rtDrafts.set(k, sel.value); else rtDrafts.delete(k); });
+        // Repo Lens #D-13 L-9: the row's own type, fixed when it is drawn (not read at the click, after a toggle).
+        const rowType = rtype;
+        const btn = el("button", { class: "btn", type: "button", onclick: () => sendPick(r.index, sel.value, rowType) }, mine ? "Change" : "Pick");
+        // L-10: a per-game daily limit above 0, once used up, holds the typed buttons too (the count covers every type).
+        const lim = usage ? Number(usage.max_picks_per_day ?? 0) : 0, used = usage ? Number(usage.picks_today) || 0 : 0;
+        if (sending || !opts.length || (lim > 0 && used >= lim)) btn.disabled = true;
+        rows.push(el("div", { class: "pk-row" }, el("div", { class: "pk-when" }, el("b", { text: `${dayTime(r.start)}${M.restRace(r.start) ? " · Sunday fun race" : ""}` }), el("span", { text: `locks in ${dur(r.start - Date.now())}` })),
+          el("div", {}, sel, mine ? el("div", { class: "pk-now ago", text: `Your pick: ${nameOf(mine)}` }) : null), btn));
+      }
+      $("rt-picks").replaceChildren(...rows);
+      // The latest results of this type, with your pick.
+      const done = [];
+      for (let i = cur.index - 1; i >= cur.index - 8; i--) {
+        const r = M.typedRace(rtype, i), rec = typedRec(rtype, r.id), res = rec && rec.result;
+        if (!(res && res.final) && i !== cur.index - 1) continue;      // only real results, and the race that just ended
+        const p = res && Array.isArray(res.picks) && who ? res.picks.find((x) => x[0] === who) : null;
+        done.push(el("div", { class: "pk-row done" }, el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: res && res.final ? (res.missed ? "not run" : "final") : "checking" })),
+          el("div", { class: "pk-now", text: res && res.final && !res.missed ? `${nameOf(res.winner || "")} won${p ? `; you picked ${nameOf(p[1])}` : ""}` : "Results come in once the race's last hour is final." }),
+          el("span", { class: p ? (p[3] || p[5] === 1 ? "pk-ok" : "pk-no") : "", text: p ? (p[3] ? `✓ Win +${T.win}` : p[5] === 1 ? `✓ Show +${T.show}` : "✗") : "" })));
+      }
+      $("rt-results").replaceChildren(...done);
+    }
+  }
+  setInterval(() => { if (!document.hidden && rtype) rtRender(); }, 6000);
+
   // ── start ──
   (async () => {
     // The wallet's settings (Mana sponsor, guest play) first, so Connect offers everything at once.
@@ -437,6 +577,7 @@
     try { await refresh(true); }
     catch (e) { say("Couldn't reach the Koinos network. Trying again in a moment…"); }
     await picksReady; renderPicks();
+    rtTabs(); if (typesLive() && rtype) rtSelect(rtype); else rtype = 0;
     loadBoard();
     setInterval(() => { if (!document.hidden) loadBoard(); }, 300000);
     setInterval(() => { if (!document.hidden && raceContract) loadMine(); }, 60000);

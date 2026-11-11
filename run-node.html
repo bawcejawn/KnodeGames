@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Only these sources may run scripts, load data or be framed. This page itself reads and sends nothing: it only loads the shared header wallet button, which signs only when you act on a game page. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.koinos.io https://koinos.armana.io https://koinvault.app https://us.i.posthog.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; worker-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Run a Koinos node · Knode Games</title>
+  <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
+  <meta name="description" content="Start a Koinos mainnet node and block producer on your own computer, step by step: Docker, Armana's weekly chain snapshot, registering your key, VHP, and keeping it live.">
+  <link rel="canonical" href="https://knodegames.com/run-node.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Knode Games">
+  <meta property="og:title" content="Run your own Koinos node">
+  <meta property="og:description" content="Start a Koinos mainnet node and block producer on your own computer, step by step: Docker, Armana's weekly chain snapshot, registering your key, VHP, and keeping it live.">
+  <meta property="og:url" content="https://knodegames.com/run-node.html">
+  <meta property="og:image" content="https://knodegames.com/media/og-knode.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Run your own Koinos node">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Run your own Koinos node">
+  <meta name="twitter:description" content="Start a Koinos mainnet node and block producer on your own computer, step by step: Docker, Armana's weekly chain snapshot, registering your key, VHP, and keeping it live.">
+  <meta name="twitter:image" content="https://knodegames.com/media/og-knode.png">
+  <!-- seo:end -->
+  <link rel="icon" href="media/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="media/icon-180.png">
+  <meta name="theme-color" content="#14161F">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Archivo:wdth,wght@62..125,600;62..125,800;62..125,900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="pages.css">
+  <link rel="stylesheet" href="run-node.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-row">
+      <a class="brand" href="./" aria-label="Knode Games home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand-name">Knode Games</span>
+      </a>
+      <nav class="tabs" aria-label="Sections">
+        <details class="dd">
+          <summary>Games</summary>
+          <div class="dd-menu">
+            <a href="games.html">All games</a>
+            <a href="index.html#play">Daily Questions</a>
+            <a href="race.html">Producer Race</a>
+            <a href="blockx.html">Who Signs Block X</a>
+            <a href="bracket.html">Producer Bracket</a>
+            <a href="golf.html">Block Golf</a>
+          </div>
+        </details>
+        <a href="index.html#leaderboard">Leaderboards</a>
+        <a href="stake.html">Stake</a>
+        <details class="dd on">
+          <summary>More</summary>
+          <div class="dd-menu">
+            <a href="index.html#results">Results</a>
+            <a href="index.html#how">Rules</a>
+            <a href="start.html">New to Koinos?</a>
+            <a href="get.html">Get VHP</a>
+            <a href="names.html">Get an @name</a>
+            <a href="swap.html">Swap VHP → KOIN</a>
+            <a href="burn.html">Burn KOIN</a>
+            <a href="mana.html">Mana levels</a>
+            <a href="node.html">Producer lookup</a>
+            <a href="run-node.html" aria-current="page">Run a node</a>
+            <a href="pulse.html">Network pulse</a>
+          </div>
+        </details>
+      </nav>
+      <a class="btn btn-play-free" href="race.html#pick-zone">Play free</a>
+      <a class="btn btn-wallet" href="./#play">Play Knode Games</a>
+    </div>
+  </header>
+  <main class="wrap pg rn" id="main">
+    <p class="week-pill">Tools · Run a node</p>
+    <h1>Run your own Koinos node</h1>
+    <p class="lede">Start a Koinos mainnet node and block producer on your own computer. Each step says what it does, gives you the exact command to paste, and shows what you should see.</p>
+
+    <ul class="rn-facts">
+      <li><b>~1 hour</b><span>of your time, plus waiting</span></li>
+      <li><b>150 GB</b><span>free disk space</span></li>
+      <li><b>24/7</b><span>a computer that stays on</span></li>
+      <li><b>$0</b><span>software; you bring the VHP</span></li>
+    </ul>
+
+    <section class="pg-card rn-safe">
+      <h2>Safe by design</h2>
+      <ul class="checks">
+        <li>This page never asks for a private key or recovery words. If anything does, stop.</li>
+        <li>It never sends your address or anything you type: your address only fills in the commands on your screen. (Page views are counted, without cookies.)</li>
+        <li>Your node makes its own key, which stays on your computer. Your KOIN and VHP stay in your wallet.</li>
+        <li>It runs the official Koinos node, at a version Knode Games has checked.</li>
+      </ul>
+    </section>
+
+    <section class="pg-card rn-notice" id="notice">
+      <h2>Please read first</h2>
+      <p>A free, independent guide, for information only. You run the node on your own computer, at your own risk; Knode Games can't see it and isn't responsible for it.</p>
+      <p>Not financial, investment, tax or legal advice. Rewards aren't guaranteed, KOIN and VHP can lose value, and burning KOIN into VHP can't be undone. Read the <a href="#disclaimer">full disclaimer</a> and our <a href="terms.html">Terms &amp; risks</a> first.</p>
+    </section>
+
+    <section class="pg-card rn-setup" id="setup">
+      <h2>Your setup</h2>
+      <p class="muted">Pick your computer and type your producer address once: every command below is filled in for you. Both are remembered only in this browser.</p>
+      <div class="rn-os" role="group" aria-label="Your computer">
+        <button type="button" class="rn-os-b" data-pick="win" aria-pressed="false">Windows</button>
+        <button type="button" class="rn-os-b" data-pick="mac" aria-pressed="false">Mac</button>
+        <button type="button" class="rn-os-b" data-pick="linux" aria-pressed="false">Linux</button>
+      </div>
+      <label class="rn-label" for="rn-addr">Producer address <span class="muted">(your wallet's address, starts with 1)</span></label>
+      <input id="rn-addr" class="rn-input" placeholder="1…" autocomplete="off" spellcheck="false" inputmode="text">
+      <p class="rn-addr-msg muted" id="rn-addr-msg" aria-live="polite">Your public address only. Never a private key.</p>
+      <div class="rn-progress" aria-live="polite"><div class="rn-bar"><i id="rn-bar"></i></div><span id="rn-count">0 of 10 steps done</span></div>
+    </section>
+
+    <nav class="rn-toc pg-card" aria-label="Steps">
+      <h2>The 10 steps</h2>
+      <ol>
+        <li><a href="#step-1">Check what you need</a></li>
+        <li><a href="#step-2">Install Docker (and Git)</a></li>
+        <li><a href="#step-3">Get the node files, switch on block production</a></li>
+        <li><a href="#step-4">Download, check and unpack the weekly snapshot</a></li>
+        <li><a href="#step-5">Start the node, wait until it's caught up</a></li>
+        <li><a href="#step-6">Register your node's key</a></li>
+        <li><a href="#step-7">Fill your producer wallet with VHP</a></li>
+        <li><a href="#step-8">Keep it live</a></li>
+        <li><a href="#step-9">Check you're producing blocks</a></li>
+        <li><a href="#step-10">Stop, restart, update, back up</a></li>
+      </ol>
+      <p class="muted">New to commands? Read <a href="#howto">How to run a command</a> first (one minute).</p>
+    </nav>
+
+    <section class="pg-card" id="howto">
+      <h2>How to run a command</h2>
+      <p>Every grey box is run the same way:</p>
+      <ol class="rn-list">
+        <li class="rn-only" data-os="win">Open <b>PowerShell</b>: click <b>Start</b>, type <b>PowerShell</b>, click <b>Windows PowerShell</b>.</li>
+        <li class="rn-only" data-os="mac">Open <b>Terminal</b>: press <b>⌘ Space</b>, type <b>Terminal</b>, press <b>Return</b>.</li>
+        <li class="rn-only" data-os="linux">Open <b>Terminal</b>: press <b>Ctrl+Alt+T</b>.</li>
+        <li>Click the yellow <b>Copy</b> button on the box.</li>
+        <li class="rn-only" data-os="win">Click in the PowerShell window and <b>right-click</b> to paste.</li>
+        <li class="rn-only" data-os="mac">Click in the Terminal window and press <b>⌘V</b>.</li>
+        <li class="rn-only" data-os="linux">Click in the Terminal window and press <b>Ctrl+Shift+V</b>.</li>
+        <li>Press <b>Enter</b>. If you then see <code>&gt;&gt;</code>, press <b>Enter</b> once more.</li>
+        <li>It's finished when the line you started with comes back (<span class="rn-only" data-os="win"><code>PS C:\…&gt;</code></span><span class="rn-only" data-os="mac linux">ending in <code>%</code> or <code>$</code></span>). Compare what it printed with <b>You should see</b>.</li>
+      </ol>
+      <p class="muted">Keep one window open or open a new one any time: each box goes to the right folder itself. Never paste commands from other websites or chats.</p>
+    </section>
+
+    <section class="rn-step pg-card" id="step-1">
+      <div class="rn-step-h">
+        <span class="rn-num" aria-hidden="true">1</span>
+        <div><h2>Check what you need</h2><p class="rn-time">About 10 minutes</p></div>
+        <label class="rn-done"><input type="checkbox" data-check="step-1"> Done</label>
+      </div>
+      <p class="rn-what"><span class="rn-tag">What this does</span>Makes sure your computer can run a node around the clock.</p>
+      <p>You need:</p>
+      <ul class="rn-list">
+        <li>A computer that stays on 24/7: Windows 10 or 11 (64-bit), a Mac, or Linux.</li>
+        <li>4+ processor cores and 16 GB of memory (8 GB at the very least).</li>
+        <li>About 150 GB free on a fast drive (SSD), on the drive Docker uses (usually C: on Windows).</li>
+        <li>Steady internet with no data cap, 25 Mbps down / 10 up or better. A cable beats Wi-Fi.</li>
+        <li>A Koinos wallet (Kondor on a computer, KOIN Vault on a phone) with some KOIN. Its address is your producer address. No wallet? <a href="get.html">Get one here</a>.</li>
+      </ul>
+      <p class="rn-do">Run this box (see <a href="#howto">How to run a command</a>), then read how much space is free on your main drive.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>Get-PSDrive C</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac">
+        <div class="rn-cmd-h"><span>Mac · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>df -h /</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="linux">
+        <div class="rn-cmd-h"><span>Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>df -h /</code></pre>
+      </div>
+      <p class="rn-do">Turn off sleep (a sleeping node misses its blocks):</p>
+      <ul class="rn-list">
+        <li class="rn-only" data-os="win">Windows: Settings → System → Power → Screen and sleep → "When plugged in, put my device to sleep after": Never. Then Settings → Accounts → Sign-in options → turn on "Use my sign-in info to automatically finish setting up after an update", so the node comes back after updates.</li>
+        <li class="rn-only" data-os="mac">Mac: System Settings → Energy (laptop: Battery → Options) → turn on "Prevent automatic sleeping when the display is off". Keep a laptop plugged in.</li>
+        <li class="rn-only" data-os="linux">Linux: run <code>sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target</code></li>
+      </ul>
+      <p class="rn-do">Set the clock automatically. If it's off by even a minute, the node stops producing ("gossip disabled… halting block production"):</p>
+      <ul class="rn-list">
+        <li class="rn-only" data-os="win">Windows: Settings → Time &amp; language → Date &amp; time → turn on Set time automatically, then press Sync now.</li>
+        <li class="rn-only" data-os="mac">Mac: System Settings → General → Date &amp; Time → turn on Set time and date automatically.</li>
+        <li class="rn-only" data-os="linux">Linux: run <code>sudo timedatectl set-ntp true</code>; <code>timedatectl</code> should then say "System clock synchronized: yes".</li>
+      </ul>
+      <details class="rn-more"><summary>Short on space? See what's using it (optional)</summary>
+      <p>These boxes only look; they delete nothing. The usual big leftovers are old snapshot downloads (<code>koinos-mainnet-….tar.gz</code>, about 60 GB) and old node folders.</p>
+      <p class="rn-do">Run this box to list your 15 biggest folders. On a full drive it can take 10–20 minutes.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>Get-PSDrive C
+Get-ChildItem C:\ -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object { $s = (Get-ChildItem $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum; [pscustomobject]@{ Folder = $_.FullName; GB = [math]::Round($s / 1GB, 1) } } | Sort-Object GB -Descending | Select-Object -First 15</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>df -h /
+du -xh -d 1 ~ 2&gt;/dev/null | sort -h | tail -15</code></pre>
+      </div>
+      <p class="rn-do">Then run this box to find big leftover files (old snapshots, old Docker or virtual-machine disks).</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>Get-ChildItem C:\ -Recurse -File -Force -ErrorAction SilentlyContinue -Include *.tar.gz, *.vhdx | Where-Object Length -gt 2GB | Select-Object FullName, @{ n = 'GB'; e = { [math]::Round($_.Length / 1GB, 1) } }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>find ~ -xdev -type f \( -name '*.tar.gz' -o -name '*.raw' -o -name '*.vhdx' \) -size +2G -exec ls -lh {} \; 2&gt;/dev/null</code></pre>
+      </div>
+      <p class="muted">Know what a file is before you delete it. An old <code>.tar.gz</code> snapshot is safe to delete once unpacked. Keep the folders of a running node, and any holding a <code>.env</code> file or a <code>block_producer</code> folder (keys), unless you're sure. Windows: Settings → System → Storage → Cleanup recommendations safely clears temporary files.</p>
+      </details>
+      <p class="rn-see"><span class="rn-tag">You should see</span>Your drives. Free (Windows) or Avail (Mac/Linux) should show 150 GB (150G) or more.</p>
+      <details class="rn-fix"><summary>If it doesn't work</summary>
+        <ul>
+          <li>Under 150 GB free? Use "Short on space?" above. Empty the Recycle Bin / Trash, uninstall unused programs, or move videos and photos to another drive. Windows can also keep Docker's data on another drive (step 2: Docker Desktop → Settings → Resources → Advanced → Disk image location).</li>
+          <li>Windows says the command isn't found? You opened Command Prompt; open Windows PowerShell instead.</li>
+          <li>A laptop works: keep it plugged in, lid open (or set the lid to "do nothing"), on a cable if you can.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="rn-step pg-card" id="step-2">
+      <div class="rn-step-h">
+        <span class="rn-num" aria-hidden="true">2</span>
+        <div><h2>Install Docker (and Git)</h2><p class="rn-time">About 30 minutes (plus restarts)</p></div>
+        <label class="rn-done"><input type="checkbox" data-check="step-2"> Done</label>
+      </div>
+      <p class="rn-what"><span class="rn-tag">What this does</span>Installs Docker, the free program that runs the node, and Git, which downloads the Koinos node files. On Windows it also turns on WSL 2, which Docker runs on.</p>
+      <h3 class="rn-sub rn-only" data-os="win">Windows</h3>
+      <ol class="rn-list rn-only" data-os="win">
+        <li>Click Start, type <b>PowerShell</b>, right-click <b>Windows PowerShell</b> → <b>Run as administrator</b> → Yes.</li>
+        <li>Paste the first box and press Enter. When it says so, <b>restart your computer</b>.</li>
+        <li>Download <b>Docker Desktop for Windows</b> from <a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener">docker.com</a> and install it, keeping <b>"Use WSL 2 instead of Hyper-V"</b> ticked. Restart if asked.</li>
+        <li>Open <b>Docker Desktop</b> and accept the terms (signing in is optional). Settings (gear) → General → tick <b>"Start Docker Desktop when you sign in to your computer"</b> → Apply.</li>
+        <li>In a normal (not administrator) <b>PowerShell</b> window, paste the second box to install Git. Then close and reopen PowerShell.</li>
+        <li>Paste the third box to check everything.</li>
+      </ol>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell (as administrator)</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>wsl --install --no-distribution
+wsl --update</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>winget install --id Git.Git -e --source winget</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>docker version
+docker compose version
+git --version
+docker run --rm hello-world</code></pre>
+      </div>
+      <h3 class="rn-sub rn-only" data-os="mac">Mac</h3>
+      <ol class="rn-list rn-only" data-os="mac">
+        <li>Download <b>Docker Desktop for Mac</b> (<b>Apple chip</b> or <b>Intel chip</b>: Apple menu → About This Mac) from <a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener">docker.com</a> and drag it to Applications.</li>
+        <li>Open <b>Docker</b> and accept the terms (signing in is optional).</li>
+        <li>Docker → Settings: General → tick <b>"Start Docker Desktop when you sign in"</b> (Apple chip: also <b>"Use Rosetta for x86_64/amd64 emulation on Apple Silicon"</b>). Resources → <b>Memory</b> at least <b>8 GB</b>, <b>disk limit</b> at least <b>200 GB</b>. Apply &amp; restart.</li>
+        <li>Open <b>Terminal</b> and paste the box below. If your Mac offers the <b>command line developer tools</b> (Git), click <b>Install</b>, then paste the box again.</li>
+      </ol>
+      <div class="rn-cmd" data-os="mac">
+        <div class="rn-cmd-h"><span>Mac · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>docker version
+docker compose version
+git --version
+docker run --rm hello-world</code></pre>
+      </div>
+      <h3 class="rn-sub rn-only" data-os="linux">Linux</h3>
+      <ol class="rn-list rn-only" data-os="linux">
+        <li>Install <b>Docker Engine</b>: <a href="https://docs.docker.com/engine/install/" target="_blank" rel="noopener">docs.docker.com/engine/install</a>.</li>
+        <li>Paste the first box (Git, Python and curl; Docker at start-up and without <code>sudo</code>), then <b>log out and back in</b>.</li>
+        <li>Paste the second box to check everything.</li>
+      </ol>
+      <div class="rn-cmd" data-os="linux">
+        <div class="rn-cmd-h"><span>Linux · Terminal (Ubuntu / Debian)</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>sudo apt-get update &amp;&amp; sudo apt-get install -y git python3 curl
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="linux">
+        <div class="rn-cmd-h"><span>Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>docker version
+docker compose version
+git --version
+docker run --rm hello-world</code></pre>
+      </div>
+      <p class="rn-see"><span class="rn-tag">You should see</span>Version numbers for Docker (with a Server part), Docker Compose and Git, then "Hello from Docker!".</p>
+      <details class="rn-fix"><summary>If it doesn't work</summary>
+        <ul>
+          <li>"docker: command not found" or "cannot connect to the Docker daemon": open Docker Desktop, wait until the whale icon stops moving, try again.</li>
+          <li>Windows asks for a "UNIX username": that's an unneeded Ubuntu. Close the window; to remove it, run <code>wsl --unregister Ubuntu</code>.</li>
+          <li>Windows: Docker says WSL needs updating: in an administrator PowerShell run <code>wsl --update</code>, then <code>wsl --shutdown</code>, and reopen Docker Desktop.</li>
+          <li>Windows: "virtualization is not enabled": if Task Manager → Performance → CPU shows Virtualization: Disabled, turn it on in your BIOS/UEFI (search your PC maker + "enable virtualization").</li>
+          <li>Windows: "winget is not recognized": install App Installer from the Microsoft Store, or Git from <a href="https://git-scm.com/download/win" target="_blank" rel="noopener">git-scm.com</a> with the defaults.</li>
+          <li>Linux: "permission denied" from Docker: log out and back in, then try again.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="rn-step pg-card" id="step-3">
+      <div class="rn-step-h">
+        <span class="rn-num" aria-hidden="true">3</span>
+        <div><h2>Get the Koinos node files and switch on block production</h2><p class="rn-time">About 5 minutes</p></div>
+        <label class="rn-done"><input type="checkbox" data-check="step-3"> Done</label>
+      </div>
+      <p class="rn-what"><span class="rn-tag">What this does</span>Downloads the official Koinos node setup at a version Knode Games has checked, sets it to produce for your address, and keeps its data in a Docker volume (faster and safer than an ordinary folder).</p>
+      <div class="rn-addr-hint" hidden>Type your producer address at the top of the page first. The commands below fill it in for you.</div>
+      <h3 class="rn-sub">3a. Download the node files</h3>
+      <p class="rn-do">Run this box. It takes about a minute.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>New-Item -ItemType Directory -Force C:\koinos-node | Out-Null
+cd C:\koinos-node
+git clone https://github.com/koinos/koinos.git koinos
+cd koinos
+git -c advice.detachedHead=false checkout b05b8337d0a8d09748f9c2d1faef810ee2f5de28
+git rev-parse HEAD</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>mkdir -p ~/koinos-node &amp;&amp; cd ~/koinos-node
+git clone https://github.com/koinos/koinos.git koinos
+cd koinos
+git -c advice.detachedHead=false checkout b05b8337d0a8d09748f9c2d1faef810ee2f5de28
+git rev-parse HEAD</code></pre>
+      </div>
+      <p>The last line must be exactly <code class="mono">b05b8337d0a8d09748f9c2d1faef810ee2f5de28</code>: the checked version.</p>
+      <h3 class="rn-sub">3b. Settings: block production for your address</h3>
+      <p class="rn-do">Check your address shows in yellow in the box (type it in <a href="#setup">Your setup</a>), then run this box.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+New-Item -ItemType Directory -Force config | Out-Null
+Copy-Item config-example\* config -Recurse -Force
+Copy-Item env.example .env -Force
+Add-Content .env "COMPOSE_PROFILES=block_producer,jsonrpc"
+(Get-Content config\config.yml -Raw) -replace '(?m)^  # producer:.*$', '  producer: <span class="rn-addr">YOUR_PRODUCER_ADDRESS</span>' | Set-Content config\config.yml -NoNewline -Encoding ascii
+Select-String -Path config\config.yml -Pattern '^  producer:'</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+mkdir -p config &amp;&amp; cp -R config-example/. config/
+cp env.example .env
+echo "COMPOSE_PROFILES=block_producer,jsonrpc" &gt;&gt; .env
+sed -i.bak 's|^  # producer:.*$|  producer: <span class="rn-addr">YOUR_PRODUCER_ADDRESS</span>|' config/config.yml
+grep "^  producer:" config/config.yml</code></pre>
+      </div>
+      <details class="rn-more"><summary>Only if this computer already runs another Koinos node</summary>
+      <p>Two nodes can't share network ports. Run this right after 3b (and after 3b on every update) to give this node its own ports. Then use <code>8110</code> wherever this page says <code>8080</code> (5b, the health check, and <code>-Rpc http://127.0.0.1:8110</code> / <code>--rpc=http://127.0.0.1:8110</code> for self-heal in step 8).</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+Add-Content .env "JSONRPC_PORT=8110"
+Add-Content .env "P2P_PORT=8918"
+Add-Content .env "AMQP_PORT=5702"
+Add-Content .env "AMQP_ADMIN_PORT=15702"
+Select-String -Path .env -Pattern '_PORT='</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+printf 'JSONRPC_PORT=8110\nP2P_PORT=8918\nAMQP_PORT=5702\nAMQP_ADMIN_PORT=15702\n' &gt;&gt; .env
+grep '_PORT=' .env</code></pre>
+      </div>
+      </details>
+      <h3 class="rn-sub">3c. Keep the node's data in a Docker volume</h3>
+      <p class="rn-do">Run this box (a few seconds).</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+@'
+services:
+  chain:
+    volumes: ["koinos-data:/koinos"]
+  mempool:
+    volumes: ["koinos-data:/koinos"]
+  block_store:
+    volumes: ["koinos-data:/koinos"]
+  p2p:
+    volumes: ["koinos-data:/koinos"]
+  block_producer:
+    volumes: ["koinos-data:/koinos"]
+  jsonrpc:
+    volumes: ["koinos-data:/koinos"]
+  grpc:
+    volumes: ["koinos-data:/koinos"]
+  transaction_store:
+    volumes: ["koinos-data:/koinos"]
+  contract_meta_store:
+    volumes: ["koinos-data:/koinos"]
+  account_history:
+    volumes: ["koinos-data:/koinos"]
+volumes:
+  koinos-data:
+    external: true
+    name: koinos-data
+'@ | Set-Content docker-compose.override.yml -Encoding ascii
+docker volume create koinos-data
+docker compose config | Select-String "koinos-data"</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+cat &gt; docker-compose.override.yml &lt;&lt;'EOF'
+services:
+  chain:
+    volumes: ["koinos-data:/koinos"]
+  mempool:
+    volumes: ["koinos-data:/koinos"]
+  block_store:
+    volumes: ["koinos-data:/koinos"]
+  p2p:
+    volumes: ["koinos-data:/koinos"]
+  block_producer:
+    volumes: ["koinos-data:/koinos"]
+  jsonrpc:
+    volumes: ["koinos-data:/koinos"]
+  grpc:
+    volumes: ["koinos-data:/koinos"]
+  transaction_store:
+    volumes: ["koinos-data:/koinos"]
+  contract_meta_store:
+    volumes: ["koinos-data:/koinos"]
+  account_history:
+    volumes: ["koinos-data:/koinos"]
+volumes:
+  koinos-data:
+    external: true
+    name: koinos-data
+EOF
+docker volume create koinos-data
+docker compose config | grep koinos-data</code></pre>
+      </div>
+      <p class="rn-see"><span class="rn-tag">You should see</span>3a: the long code ending <code>...f5de28</code>. 3b: <code>producer: 1…</code> with your address. 3c: <code>koinos-data</code>, then several lines mentioning it.</p>
+      <details class="rn-fix"><summary>If it doesn't work</summary>
+        <ul>
+          <li>3a: "destination path 'koinos' already exists": already done. Go on to 3b.</li>
+          <li>3b shows <code>producer: YOUR_PRODUCER_ADDRESS</code>: type your address at the top, copy 3b again and rerun it (safe to repeat).</li>
+          <li>3b shows nothing: run it again. Still nothing? Check you're in <code>C:\koinos-node\koinos</code> (Windows) or <code>~/koinos-node/koinos</code>.</li>
+          <li>3c: "yaml" or "mapping" error: the box was only partly pasted. Copy it with the Copy button and rerun it.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="rn-step pg-card" id="step-4">
+      <div class="rn-step-h">
+        <span class="rn-num" aria-hidden="true">4</span>
+        <div><h2>Download the weekly chain snapshot, check it, unpack it</h2><p class="rn-time">Hands-on 10 minutes · waiting 2–8 hours</p></div>
+        <label class="rn-done"><input type="checkbox" data-check="step-4"> Done</label>
+      </div>
+      <p class="rn-what"><span class="rn-tag">What this does</span>Saves days: instead of replaying the chain from block 1, your node starts from Armana's weekly snapshot (made Sundays around 04:00 UTC). The fingerprint (SHA-256) check proves the download is complete and exactly what Armana published.</p>
+      <h3 class="rn-sub">4a. Find the newest snapshot</h3>
+      <p class="rn-do">Run this box. It shows the newest snapshot, its size and fingerprint, and whether Armana's two fingerprints agree.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$i = Invoke-RestMethod https://snapshots.armana.io/index.json
+$s = $i.archives | Sort-Object { [int64]$_.height } -Descending | Select-Object -First 1
+$old = $null; try { $old = (Get-Content snapshot.json -Raw -ErrorAction Stop | ConvertFrom-Json).name } catch { }
+if ((Test-Path snapshot.tar.gz) -and ($old -ne $s.name)) { Remove-Item snapshot.tar.gz; "A newer snapshot is out: the half-finished older download was removed, so 4b starts fresh." }
+$s | ConvertTo-Json -Depth 5 | Set-Content snapshot.json
+$f = ((curl.exe -sL --ssl-no-revoke $s.sha256_url) -split '\s+')[0]
+"Newest snapshot: $($s.name)"
+"Size: {0:N1} GB" -f ($s.size_bytes / 1GB)
+"Fingerprint: $($s.sha256)"
+if ($f -eq $s.sha256) { "The list and its fingerprint file agree (both from Armana)" } else { "STOP: Armana's list and fingerprint file differ - do not use this snapshot" }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node
+python3 - &lt;&lt;'EOF'
+import json, os, urllib.request
+i = json.load(urllib.request.urlopen("https://snapshots.armana.io/index.json"))
+s = max(i["archives"], key=lambda a: int(a["height"]))
+try:
+    old = json.load(open("snapshot.json"))["name"]
+except Exception:
+    old = None
+if os.path.exists("snapshot.tar.gz") and old != s["name"]:
+    os.remove("snapshot.tar.gz")
+    print("A newer snapshot is out: the half-finished older download was removed, so 4b starts fresh.")
+json.dump(s, open("snapshot.json", "w"), indent=1)
+f = urllib.request.urlopen(s["sha256_url"]).read().decode().split()[0]
+print("Newest snapshot:", s["name"])
+print("Size: %.1f GB" % (s["size_bytes"] / 2**30))
+print("Fingerprint:", s["sha256"])
+print("The list and its fingerprint file agree (both from Armana)" if f.lower() == s["sha256"].lower() else "STOP: Armana's list and fingerprint file differ - do not use this snapshot")
+EOF</code></pre>
+      </div>
+      <p class="muted">Extra careful: to check against a second source, compare the Fingerprint line with the one Armana posts in the Koinos Discord or Telegram, or another node runner's. If they differ, don't use it.</p>
+      <h3 class="rn-sub">4b. Download it (the long part)</h3>
+      <p class="rn-do">Run this box and leave the window open: 2–8 hours, depending on your internet. If the connection drops, it carries on by itself. It's done at DOWNLOAD COMPLETE.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node
+$s = Get-Content snapshot.json -Raw | ConvertFrom-Json
+$size = [int64]$s.size_bytes
+for ($try = 1; $try -le 200; $try++) {
+  $have = 0; if (Test-Path snapshot.tar.gz) { $have = (Get-Item snapshot.tar.gz).Length }
+  if ($have -eq $size) { "DOWNLOAD COMPLETE - go on to 4c"; break }
+  if ($have -gt $size) { "STOP: the file is bigger than the snapshot. Delete snapshot.tar.gz, then do 4a and 4b again."; break }
+  curl.exe -L --fail --ssl-no-revoke --retry 5 -C - -o snapshot.tar.gz $s.url
+  if ($LASTEXITCODE -ne 0) { "The connection dropped (try $try of 200). Carrying on by itself in 30 seconds..."; Start-Sleep -Seconds 30 }
+}</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node
+URL=$(python3 -c 'import json;print(json.load(open("snapshot.json"))["url"])')
+SIZE=$(python3 -c 'import json;print(int(json.load(open("snapshot.json"))["size_bytes"]))')
+for TRY in $(seq 1 200); do
+  HAVE=$(python3 -c 'import os;print(os.path.getsize("snapshot.tar.gz") if os.path.exists("snapshot.tar.gz") else 0)')
+  if [ "$HAVE" -eq "$SIZE" ]; then echo "DOWNLOAD COMPLETE - go on to 4c"; break; fi
+  if [ "$HAVE" -gt "$SIZE" ]; then echo "STOP: the file is bigger than the snapshot. Delete snapshot.tar.gz, then do 4a and 4b again."; break; fi
+  curl -L --fail --retry 5 -C - -o snapshot.tar.gz "$URL" || { echo "The connection dropped (try $TRY of 200). Carrying on by itself in 30 seconds..."; sleep 30; }
+done</code></pre>
+      </div>
+      <h3 class="rn-sub">4c. Check the fingerprint</h3>
+      <p class="rn-do">After DOWNLOAD COMPLETE, run this box. It works quietly for several minutes, then prints MATCH or NO MATCH.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node
+$s = $null
+if (Test-Path snapshot.json) { $s = Get-Content snapshot.json -Raw | ConvertFrom-Json }
+if (-not $s -or $s.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
+  "STOP - no snapshot.json yet: do 4a first"
+} elseif (-not (Test-Path snapshot.tar.gz)) {
+  "STOP - no snapshot.tar.gz yet: do 4b first"
+} elseif ((Get-FileHash snapshot.tar.gz -Algorithm SHA256).Hash -eq $s.sha256) {
+  "MATCH - the download is complete and unchanged"
+} else {
+  "NO MATCH - delete snapshot.tar.gz and download again"
+}</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node
+EXP=$(python3 -c 'import json;print(json.load(open("snapshot.json"))["sha256"].lower())' 2&gt;/dev/null)
+if [ ${#EXP} -ne 64 ]; then echo "STOP - no snapshot.json yet: do 4a first"
+elif [ ! -f snapshot.tar.gz ]; then echo "STOP - no snapshot.tar.gz yet: do 4b first"
+else
+  GOT=$( (sha256sum snapshot.tar.gz 2&gt;/dev/null || shasum -a 256 snapshot.tar.gz) | cut -d' ' -f1)
+  if [ "$EXP" = "$GOT" ]; then echo "MATCH - the download is complete and unchanged"; else echo "NO MATCH - delete snapshot.tar.gz and download again"; fi
+fi</code></pre>
+      </div>
+      <h3 class="rn-sub">4d. Unpack it into the node's volume</h3>
+      <p class="rn-do">If 4c said MATCH, run this box and leave the window open (30–60 minutes). Every minute it prints the size unpacked so far, and at the end UNPACKED OK.</p>
+      <p>It unpacks only <code>chain</code> and <code>block_store</code>, and never touches your node's key.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>docker run --rm --network none -v koinos-data:/k -v C:/koinos-node:/dl:ro debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; echo Unpacking. This takes 30 to 60 minutes. Size so far, every minute:; ( while sleep 60; do du -sh /k/restore 2&gt;/dev/null; done ) &amp; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>docker run --rm --network none -v koinos-data:/k -v "$HOME/koinos-node:/dl:ro" debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc sh -c "set -e; if [ -e /k/chain ] || [ -e /k/block_store ]; then echo STOP: this volume already holds chain data. See If it does not work.; exit 1; fi; rm -rf /k/restore; mkdir /k/restore; echo Unpacking. This takes 30 to 60 minutes. Size so far, every minute:; ( while sleep 60; do du -sh /k/restore 2&gt;/dev/null; done ) &amp; tar -xzf /dl/snapshot.tar.gz -C /k/restore --wildcards '*.koinos/chain/*' '*.koinos/block_store/*'; if find /k/restore -type l -o -type b -o -type c -o -type p | grep -q .; then rm -rf /k/restore; echo STOP: the snapshot holds unexpected links. Do not use it.; exit 1; fi; mv /k/restore/.koinos/chain /k/chain; mv /k/restore/.koinos/block_store /k/block_store; rm -rf /k/restore; echo UNPACKED OK; ls /k"</code></pre>
+      </div>
+      <p class="rn-see"><span class="rn-tag">You should see</span>4a: a name like <code>koinos-mainnet-2026-11-01-h40694989.tar.gz</code>, about 58 GB, and "The list and its fingerprint file agree (both from Armana)". 4b: progress up to 100%, then DOWNLOAD COMPLETE. 4c: MATCH. 4d: a growing size each minute, then UNPACKED OK with <code>block_store</code> and <code>chain</code>.</p>
+      <details class="rn-fix"><summary>If it doesn't work</summary>
+        <ul>
+          <li>4a says STOP: don't use that snapshot; try again in an hour. (Older Windows 10, "Could not create SSL/TLS secure channel": install Windows updates.)</li>
+          <li>4b: "The connection dropped" now and then is normal. Window closed or PC restarted? Paste 4b again: it continues. If it stops with "404", that snapshot was retired: do 4a again (it clears the half-download), then 4b.</li>
+          <li>4c says NO MATCH: delete the file (<code>Remove-Item C:\koinos-node\snapshot.tar.gz</code> or <code>rm ~/koinos-node/snapshot.tar.gz</code>), then redo 4a–4c.</li>
+          <li>4d: "No space left on device": repairing (step 8)? Delete the old data first: <code>docker run --rm --network none -v koinos-data:/k alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc rm -rf /k/chain-old /k/block_store-old</code>. Otherwise free space (Mac: raise Docker's disk limit to 200 GB) and rerun 4d; it cleans up first.</li>
+          <li>4d: "STOP: this volume already holds chain data": if you saw UNPACKED OK before, go on to step 5. If you never saw it (say, you started the node before 4d), do the repair box in step 8, then 4d again.</li>
+          <li>Why trust Armana? Armana runs <code>koinos.armana.io</code>, the API Knode Games itself uses. The check proves the file is intact and theirs, and it can't hold a key: you only unpack chain data. Rather not use a snapshot? Skip 4b–4d; the node rebuilds the chain itself, which takes days.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="rn-step pg-card" id="step-5">
+      <div class="rn-step-h">
+        <span class="rn-num" aria-hidden="true">5</span>
+        <div><h2>Start the node and wait until it's caught up</h2><p class="rn-time">A few minutes · catching up: a few hours</p></div>
+        <label class="rn-done"><input type="checkbox" data-check="step-5"> Done</label>
+      </div>
+      <p class="rn-what"><span class="rn-tag">What this does</span>Starts your node. It loads the snapshot, then fetches newer blocks from other nodes until it's level with the network.</p>
+      <h3 class="rn-sub">5a. Start</h3>
+      <p class="rn-do">Run this box. The first time, it downloads the node's programs (a few minutes).</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+docker compose up -d
+Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+docker compose up -d
+rm -f ~/koinos-node/heal-paused</code></pre>
+      </div>
+      <h3 class="rn-sub">5b. Is it caught up?</h3>
+      <p class="rn-do">Run this box now and every 15 minutes or so. It's caught up when Behind by is under 10.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$me = $null; $net = $null
+$body = '{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
+try { $me = [int64](Invoke-RestMethod http://127.0.0.1:8080 -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
+try { $net = [int64](Invoke-RestMethod https://koinos.armana.io -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
+if (-not ($me -gt 0)) {
+  "Your node didn't answer yet - wait 2 minutes and try again"
+} elseif (-not ($net -gt 0)) {
+  "Couldn't read the network height - try again in a minute"
+} else {
+  "Your node: $me   Network: $net   Behind by: $($net - $me) blocks"
+}</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>B='{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
+H='import json,sys;h=int(json.load(sys.stdin)["result"]["head_topology"]["height"]);assert h>0;print(h)'
+ME=$(curl -s -X POST -H 'content-type: application/json' -d "$B" http://127.0.0.1:8080 | python3 -c "$H" 2&gt;/dev/null)
+NET=$(curl -s -X POST -H 'content-type: application/json' -d "$B" https://koinos.armana.io | python3 -c "$H" 2&gt;/dev/null)
+if [ -z "$ME" ]; then echo "Your node didn't answer yet - wait 2 minutes and try again"
+elif [ -z "$NET" ]; then echo "Couldn't read the network height - try again in a minute"
+elif [ "$NET" -lt "$ME" ]; then echo "Couldn't read the network height - try again in a minute"
+else echo "Your node: $ME   Network: $NET   Behind by: $((NET - ME)) blocks"; fi</code></pre>
+      </div>
+      <p>To watch it work: <code>docker compose logs --tail 20 chain</code> in the <code>koinos</code> folder.</p>
+      <p class="rn-see"><span class="rn-tag">You should see</span>5a: Started for <code>amqp</code>, <code>chain</code>, <code>mempool</code>, <code>block_store</code>, <code>p2p</code>, <code>block_producer</code> and <code>jsonrpc</code>. 5b: Behind by shrinking each time. A week-old snapshot (about 200,000 blocks) takes a few hours to catch up.</p>
+      <details class="rn-fix"><summary>If it doesn't work</summary>
+        <ul>
+          <li>5b: "Unable to connect" or "Connection refused": still starting. Try again in 2 minutes.</li>
+          <li>Behind by not shrinking across two checks 15 minutes apart: see "If it's stuck" in step 8.</li>
+          <li>5a: "port is already allocated" (8080, 8888, 5672 or 15672): another program or node uses that port. Do "Only if this computer already runs another Koinos node" in step 3, rerun 5a, and use <code>8110</code> instead of <code>8080</code>. Updates rewrite <code>.env</code>, so run that box again after updating.</li>
+          <li>5a: "external volume koinos-data not found": run <code>docker volume create koinos-data</code>, then step 4d again.</li>
+          <li>Mac: "platform (linux/amd64) does not match": turn on Rosetta (step 2), restart Docker, rerun 5a.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="rn-step pg-card" id="step-6">
+      <div class="rn-step-h">
+        <span class="rn-num" aria-hidden="true">6</span>
+        <div><h2>Register your node's key for your address</h2><p class="rn-time">About 5 minutes</p></div>
+        <label class="rn-done"><input type="checkbox" data-check="step-6"> Done</label>
+      </div>
+      <p class="rn-what"><span class="rn-tag">What this does</span>Tells Koinos that blocks signed by your node count for your address and VHP. Your node made its own key pair; you register only the public half, from your wallet. The private half never leaves the node.</p>
+      <h3 class="rn-sub">6a. Show your node's PUBLIC key</h3>
+      <p class="rn-do">Run this box. It prints one line starting with A: select it and <span class="rn-only" data-os="win">right-click (or press Ctrl+C)</span><span class="rn-only" data-os="mac linux">press ⌘C (Mac) or Ctrl+Shift+C (Linux)</span> to copy it.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>docker run --rm --network none -v koinos-data:/k:ro alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc cat /k/block_producer/public.key</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>docker run --rm --network none -v koinos-data:/k:ro alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc cat /k/block_producer/public.key</code></pre>
+      </div>
+      <h3 class="rn-sub">6b. Register it</h3>
+      <ol class="rn-list">
+        <li>Open <a href="producer.html">Register a producer key</a>.</li>
+        <li>Click <b>Connect wallet</b> with the wallet whose address you used in step 3.</li>
+        <li>Paste the public key from 6a into <b>Node PUBLIC key</b> and click <b>Register key</b>.</li>
+        <li>Confirm in your wallet. Registering is free: the Knode Games Mana sponsor pays, within its daily limit. If that's used up, your wallet pays a little Mana (<a href="mana.html">check your Mana</a>), so keep a little KOIN.</li>
+      </ol>
+      <p class="rn-see"><span class="rn-tag">You should see</span>6a: one line of about 44 characters starting with A: your public key (safe to share). 6b: "Done. The key becomes active in about a minute."</p>
+      <details class="rn-fix"><summary>If it doesn't work</summary>
+        <ul>
+          <li>6a: "No such file": the node hasn't made its key yet. Check 5a ran, wait 2 minutes, retry.</li>
+          <li>Anything asks for a private key or recovery words: stop. Registering needs only the public key and your wallet's confirmation.</li>
+          <li>The producer page shows a different address than step 3: switch accounts in your wallet. The same address must register the key and hold the VHP.</li>
+          <li>"Not enough Mana": wait (Mana refills over time) or add a little KOIN, then retry.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="rn-step pg-card" id="step-7">
+      <div class="rn-step-h">
+        <span class="rn-num" aria-hidden="true">7</span>
+        <div><h2>Fill your producer wallet with VHP</h2><p class="rn-time">About 10 minutes</p></div>
+        <label class="rn-done"><input type="checkbox" data-check="step-7"> Done</label>
+      </div>
+      <p class="rn-what"><span class="rn-tag">What this does</span>Gives your node its weight: the more VHP your producer address holds, the more blocks it produces. You make VHP by burning KOIN, 1 for 1.</p>
+      <ul class="rn-list">
+        <li>How much? Any amount produces some blocks. We suggest about 10,000 VHP to start; <a href="node.html">Producer lookup</a> shows what to expect.</li>
+        <li>Keep about 100 KOIN unburned: your wallet needs KOIN, and its Mana, to keep working (the Koinos docs warn against burning it all).</li>
+        <li>Get KOIN: <a href="get.html">Get KOIN and VHP</a> (vKOIN and the Vortex bridge).</li>
+        <li>Burn KOIN into VHP: <a href="burn.html">Burn KOIN</a>, from your producer wallet.</li>
+        <li>Want KOIN back later? <a href="swap.html">Swap VHP → KOIN</a> in one step.</li>
+        <li>New VHP counts for production about a minute (20 blocks) after it arrives.</li>
+      </ul>
+      <p class="rn-see"><span class="rn-tag">You should see</span>The VHP in your wallet. Your address appears on <a href="node.html">Producer lookup</a> after its first blocks (step 9).</p>
+      <details class="rn-fix"><summary>If it doesn't work</summary>
+        <ul>
+          <li>Burned with the wrong wallet? VHP counts for the address holding it: send it to the producer wallet.</li>
+          <li>Unsure how much? Start small; you can burn more later. Burning can only be reversed by swapping VHP back on the Swap page.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="rn-step pg-card" id="step-8">
+      <div class="rn-step-h">
+        <span class="rn-num" aria-hidden="true">8</span>
+        <div><h2>Keep it live</h2><p class="rn-time">1 minute a week</p></div>
+        <label class="rn-done"><input type="checkbox" data-check="step-8"> Done</label>
+      </div>
+      <p class="rn-what"><span class="rn-tag">What this does</span>Keeps your node producing, and fixes the two common problems: a stuck node and a damaged one. These are the fixes Knode Games uses on its own nodes.</p>
+      <h3 class="rn-sub">Already done for you</h3>
+      <ul class="rn-list">
+        <li>Crashed parts restart by themselves.</li>
+        <li>After a computer restart, Docker starts when you sign in (step 2) and starts the node.</li>
+        <li>The node's data sits in a Docker volume (step 3), not a shared folder, the most common cause of damaged data.</li>
+      </ul>
+      <h3 class="rn-sub">Turn on automatic self-heal (recommended)</h3>
+      <p>A small script checks your node every 20 minutes. If it has frozen (far behind and not moving, or not answering), it restarts it: at most once per 50 minutes and 3 times in 6 hours, then it tells you. If the node keeps crashing it doesn't restart it; it tells you to repair (below). It never deletes anything or touches your key; it notifies you and writes <code>heal.log</code> in your <code>koinos-node</code> folder.</p>
+      <p class="rn-do">Run this box: it downloads the self-heal script and checks its fingerprint.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node
+Invoke-WebRequest https://raw.githubusercontent.com/bawcejawn/KnodeGames/main/node/one/heal-one-node.ps1 -OutFile heal-one-node.ps1 -UseBasicParsing
+if ((Get-FileHash heal-one-node.ps1).Hash -eq "4d23650d458e86963f041f95aecc382fcb76ddb54c4711f491e0702d75d35995") { "MATCH - the file arrived intact" } else { "NO MATCH - don't run it; delete heal-one-node.ps1" }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node
+curl -fsSL -o heal-one-node.py https://raw.githubusercontent.com/bawcejawn/KnodeGames/main/node/one/heal-one-node.py
+GOT=$( (sha256sum heal-one-node.py 2&gt;/dev/null || shasum -a 256 heal-one-node.py) | cut -d' ' -f1)
+[ "$GOT" = "c0082c80e1dc9c5a69f1273411ff318af2752a7a5c696c91f0721ba9522f13dd" ] &amp;&amp; echo "MATCH - the file arrived intact" || echo "NO MATCH - don't run it; delete heal-one-node.py"</code></pre>
+      </div>
+      <p class="rn-do">If it says MATCH, run this box: the first line tries it once (changing nothing), the second switches it on.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>powershell -ExecutionPolicy Bypass -File C:\koinos-node\heal-one-node.ps1 -DryRun
+powershell -ExecutionPolicy Bypass -File C:\koinos-node\heal-one-node.ps1 -Install</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node
+python3 heal-one-node.py --dry-run
+python3 heal-one-node.py --install</code></pre>
+      </div>
+      <p class="muted">You should see <code>OK: height …, network …</code>, then "OK … is set up".</p>
+      <details class="rn-more"><summary>More about self-heal</summary>
+        <ul class="rn-list">
+          <li>It never starts a node you stopped with the stop box (step 10): it stays paused until you start it with 5a. The repair, stop and update boxes pause it while they work. Pressing Stop in Docker Desktop doesn't pause it: it starts the node again within about 40 minutes.</li>
+          <li>On a Mac or Linux a notification may not appear: look at <code>heal.log</code>.</li>
+          <li>Switch it off: run the same file with <code>-Uninstall</code> (Windows) or <code>--uninstall</code> (Mac/Linux). Update it: when this page shows a new fingerprint, do both boxes again.</li>
+          <li>Node on other ports (step 3)? Add <code>-Rpc http://127.0.0.1:8110</code> (Windows) or <code>--rpc=http://127.0.0.1:8110</code> (Mac/Linux) to both lines.</li>
+        </ul>
+      </details>
+      <h3 class="rn-sub">Once a week (1 minute)</h3>
+      <p class="rn-do">Run this health check. It only reads: parts running, how far behind, and whether the clock is right. (Second node? Use <code>8110</code>, not <code>8080</code>.)</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+"Parts running: $(@(docker compose ps --status running --services).Count) of 7"
+$me = $null; $net = $null; $nt = $null
+$body = '{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
+try { $me = [int64](Invoke-RestMethod http://127.0.0.1:8080 -Method Post -ContentType application/json -Body $body).result.head_topology.height } catch { }
+try { $r = (Invoke-RestMethod https://koinos.armana.io -Method Post -ContentType application/json -Body $body).result; $net = [int64]$r.head_topology.height; $nt = [int64]$r.head_block_time } catch { }
+$clock = $null; if ($nt -gt 0) { $clock = [math]::Round(([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - $nt) / 1000) }
+if (-not ($me -gt 0) -or -not ($net -gt 0) -or $null -eq $clock) { "Couldn't read a height - wait 2 minutes and try again" } elseif ($clock -lt -3 -or $clock -gt 30) { "CLOCK OFF by about $clock seconds - sync your clock (step 1), then restart the node (below)" } elseif (($net - $me) -lt 10) { "HEALTHY - behind by $($net - $me) blocks, clock OK" } else { "BEHIND by $($net - $me) blocks - run this again in 15 minutes. Not shrinking? Restart it (below)." }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+echo "Parts running: $(docker compose ps --status running --services | wc -l | tr -d ' ') of 7"
+B='{"jsonrpc":"2.0","id":1,"method":"chain.get_head_info","params":{}}'
+H='import json,sys;r=json.load(sys.stdin)["result"];h=int(r["head_topology"]["height"]);t=int(r["head_block_time"]);assert h&gt;0 and t&gt;0;print(h,t//1000)'
+read -r ME MT &lt;&lt;&lt; "$(curl -s -X POST -H 'content-type: application/json' -d "$B" http://127.0.0.1:8080 | python3 -c "$H" 2&gt;/dev/null)"
+read -r NET NT &lt;&lt;&lt; "$(curl -s -X POST -H 'content-type: application/json' -d "$B" https://koinos.armana.io | python3 -c "$H" 2&gt;/dev/null)"
+if [ -z "$ME" ] || [ -z "$NET" ] || [ "$NET" -lt "$ME" ]; then echo "Couldn't read a height - wait 2 minutes and try again"
+elif [ $(( $(date +%s) - NT )) -lt -3 ] || [ $(( $(date +%s) - NT )) -gt 30 ]; then echo "CLOCK OFF by about $(( $(date +%s) - NT )) seconds - sync your clock (step 1), then restart the node (below)"
+elif [ $((NET - ME)) -lt 10 ]; then echo "HEALTHY - behind by $((NET - ME)) blocks, clock OK"
+else echo "BEHIND by $((NET - ME)) blocks - run this again in 15 minutes. Not shrinking? Restart it (below)."; fi</code></pre>
+      </div>
+      <p class="muted">Parts running should say 7 of 7. Fewer? Restart it (below).</p>
+      <ul class="rn-list">
+        <li>Check your address on <a href="node.html">Producer lookup</a> (works on your phone): you should see recent blocks.</li>
+      </ul>
+      <h3 class="rn-sub">If it's stuck: restart it</h3>
+      <p>Stuck means Behind by is large and not shrinking across two checks 15 minutes apart. First make sure the clock is right (step 1).</p>
+      <p class="rn-do">Run this box, wait 15 minutes, then run the health check again.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+docker compose down
+docker compose up -d
+Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+docker compose down
+docker compose up -d
+rm -f ~/koinos-node/heal-paused</code></pre>
+      </div>
+      <h3 class="rn-sub">Still stuck after a restart: reset Docker</h3>
+      <p>If the clock is fine and Behind by still grows after a restart, Docker itself may have stopped passing blocks (it can happen after many hours or a network change). Your key and chain data stay as they are.</p>
+      <p class="rn-do">Run this box. It stops the node, restarts Docker, waits for it and starts the node. Check again in 15 minutes.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
+cd C:\koinos-node\koinos
+docker compose down
+Stop-Process -Name "Docker Desktop" -Force -ErrorAction SilentlyContinue
+wsl --shutdown
+Start-Sleep -Seconds 10
+Start-Process "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+"Waiting for Docker to start (up to 5 minutes)..."
+$ok = $false; for ($i = 0; $i -lt 60 -and -not $ok; $i++) { Start-Sleep -Seconds 5; docker info *&gt; $null; $ok = ($LASTEXITCODE -eq 0) }
+if ($ok) { docker compose up -d; Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue; "RESET DONE - check again in 15 minutes" } else { "Docker didn't start yet - open Docker Desktop from the Start menu, wait until it says running, then run step 5a" }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac">
+        <div class="rn-cmd-h"><span>Mac · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
+docker compose down
+osascript -e 'quit app "Docker"'
+sleep 15
+open -a Docker
+echo "Waiting for Docker to start (up to 5 minutes)..."
+OK=0; for i in $(seq 60); do sleep 5; if docker info &gt;/dev/null 2&gt;&amp;1; then OK=1; break; fi; done
+if [ "$OK" = 1 ]; then docker compose up -d &amp;&amp; rm -f ~/koinos-node/heal-paused &amp;&amp; echo "RESET DONE - check again in 15 minutes"; else echo "Docker didn't start yet - open Docker from Applications, wait until it says running, then run step 5a"; fi</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="linux">
+        <div class="rn-cmd-h"><span>Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
+docker compose down
+sudo systemctl restart docker
+sleep 10
+docker compose up -d &amp;&amp; rm -f ~/koinos-node/heal-paused &amp;&amp; echo "RESET DONE - check again in 15 minutes"</code></pre>
+      </div>
+      <h3 class="rn-sub">If it keeps crashing: repair from a fresh snapshot</h3>
+      <p>Damaged means it keeps restarting or freezing soon after every restart (<code>docker compose ps</code> shows Restarting, or <code>docker compose logs --tail 40 block_store</code> shows panic). Fresh chain data cures it. This keeps your key and sets the old data aside. It briefly needs room for the old data, a new download and a new unpack (about 180 GB); short of space, delete the old data right away with the last box below.</p>
+      <p class="rn-do">Run this box. It stops the node and sets the damaged data aside.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
+cd C:\koinos-node\koinos
+docker compose down
+docker run --rm --network none -v koinos-data:/k alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc sh -c "set -e; rm -rf /k/chain-old /k/block_store-old; mv /k/chain /k/chain-old; mv /k/block_store /k/block_store-old; echo MOVED ASIDE; ls /k"
+cd C:\koinos-node
+Remove-Item snapshot.tar.gz, snapshot.json -ErrorAction SilentlyContinue</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
+docker compose down
+docker run --rm --network none -v koinos-data:/k alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc sh -c "set -e; rm -rf /k/chain-old /k/block_store-old; mv /k/chain /k/chain-old; mv /k/block_store /k/block_store-old; echo MOVED ASIDE; ls /k"
+cd ~/koinos-node
+rm -f snapshot.tar.gz snapshot.json</code></pre>
+      </div>
+      <p>Then do <a href="#step-4">step 4</a> again (4a to 4d) and <a href="#step-5">step 5</a>. You don't need to register again.</p>
+      <p class="rn-do">Once it has run well for a day, run this box to delete the old data.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>docker run --rm --network none -v koinos-data:/k alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc rm -rf /k/chain-old /k/block_store-old</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>docker run --rm --network none -v koinos-data:/k alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc rm -rf /k/chain-old /k/block_store-old</code></pre>
+      </div>
+      <p class="rn-see"><span class="rn-tag">You should see</span>After a restart: all parts Started, Behind by shrinking within 15 minutes. After a repair: MOVED ASIDE, then steps 4 and 5 as before.</p>
+      <details class="rn-fix"><summary>If it doesn't work</summary>
+        <ul>
+          <li>Disk filling up? Once caught up, delete the download (<code>Remove-Item C:\koinos-node\snapshot.tar.gz</code> or <code>rm ~/koinos-node/snapshot.tar.gz</code>) and run <code>docker image prune</code>.</li>
+          <li>Never run <code>docker volume prune</code>, <code>docker system prune --volumes</code> or <code>docker volume rm koinos-data</code> unless you mean to delete the node and its key.</li>
+          <li>Repair box: "can't rename" or "No such file": there was nothing to move. Go to step 4.</li>
+          <li>Self-heal says NO MATCH: don't run it. Delete the file and download it again later.</li>
+          <li>Mac asks if Terminal may "administer your computer" when you switch on self-heal: click OK (it adds the 20-minute timer).</li>
+          <li>Still stuck after a repair: check your internet and that the clock is set automatically (step 1).</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="rn-step pg-card" id="step-9">
+      <div class="rn-step-h">
+        <span class="rn-num" aria-hidden="true">9</span>
+        <div><h2>Check you're producing blocks</h2><p class="rn-time">A few minutes, then a few hours of waiting</p></div>
+        <label class="rn-done"><input type="checkbox" data-check="step-9"> Done</label>
+      </div>
+      <p class="rn-what"><span class="rn-tag">What this does</span>Confirms everything is connected: synced node, registered key, VHP in the producer wallet.</p>
+      <ol class="rn-list">
+        <li>Open <a href="node.html">Producer lookup</a> and enter your producer address.</li>
+        <li>It shows your blocks and what to expect for your VHP. With less VHP, give it a few hours.</li>
+      </ol>
+      <p class="rn-do">For a closer look, run this box (the block producer's latest 30 lines).</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+docker compose logs --tail 30 block_producer</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+docker compose logs --tail 30 block_producer</code></pre>
+      </div>
+      <p class="rn-see"><span class="rn-tag">You should see</span>Recent blocks for your address on Producer lookup. Rewards arrive in your producer wallet as KOIN.</p>
+      <details class="rn-fix"><summary>If it doesn't work</summary>
+        <ul>
+          <li>No blocks after a day? Check: 5b says caught up; 3b shows your address; you registered the 6a key from that address (registering again is fine); the VHP is in that address.</li>
+          <li>Moved to a new computer? The new node has a new key: register it (step 6). Never run one key on two computers at once.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="rn-step pg-card" id="step-10">
+      <div class="rn-step-h">
+        <span class="rn-num" aria-hidden="true">10</span>
+        <div><h2>Stop, restart, update and back up</h2><p class="rn-time">As needed</p></div>
+        <label class="rn-done"><input type="checkbox" data-check="step-10"> Done</label>
+      </div>
+      <p class="rn-what"><span class="rn-tag">What this does</span>Stopping safely, updating Koinos, and an optional offline backup of your node's key.</p>
+      <h3 class="rn-sub">Stop the node</h3>
+      <p class="rn-do">Run this box. The node stops within a minute; self-heal pauses until you start it again.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+New-Item -Force C:\koinos-node\heal-paused | Out-Null
+docker compose down</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+touch ~/koinos-node/heal-paused
+docker compose down</code></pre>
+      </div>
+      <h3 class="rn-sub">Start it again</h3>
+      <p class="rn-do">Run this box. The node starts, and self-heal switches back on.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd C:\koinos-node\koinos
+docker compose up -d
+Remove-Item C:\koinos-node\heal-paused -ErrorAction SilentlyContinue</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>cd ~/koinos-node/koinos
+docker compose up -d
+rm -f ~/koinos-node/heal-paused</code></pre>
+      </div>
+      <p>Restarting the computer is fine: the node comes back when Docker starts.</p>
+      <h3 class="rn-sub">Update to a new Koinos version</h3>
+      <p>When Knode Games has checked a new Koinos version, it updates the version code in 3a.</p>
+      <p class="rn-do">Run this box: it stops the node and fetches the new version. Then do 3b again, then 5a.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>New-Item -Force C:\koinos-node\heal-paused | Out-Null
+cd C:\koinos-node\koinos
+docker compose down
+git fetch origin
+git -c advice.detachedHead=false checkout b05b8337d0a8d09748f9c2d1faef810ee2f5de28
+git rev-parse HEAD</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac linux">
+        <div class="rn-cmd-h"><span>Mac and Linux · Terminal</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>touch ~/koinos-node/heal-paused
+cd ~/koinos-node/koinos
+docker compose down
+git fetch origin
+git -c advice.detachedHead=false checkout b05b8337d0a8d09748f9c2d1faef810ee2f5de28
+git rev-parse HEAD</code></pre>
+      </div>
+      <p>Your data, key and volume setting stay as they are.</p>
+      <h3 class="rn-sub">Back up your node's key (optional)</h3>
+      <p>The key (<code>block_producer/private.key</code> in the volume) only signs blocks for your address; your KOIN and VHP stay in your wallet. You don't need a backup (a new node can register its own key), but if you want one, copy it straight to a USB stick and keep it offline.</p>
+      <p class="rn-do">Plug in the USB stick, then run this box. If its letter or name differs, change it in the box first.</p>
+      <div class="rn-cmd" data-os="win">
+        <div class="rn-cmd-h"><span>Windows · PowerShell (USB stick is E:)</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>if (Test-Path E:\) { docker run --rm --network none -v koinos-data:/k:ro -v E:/:/usb alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc cp /k/block_producer/private.key /usb/koinos-node-private.key; if (Test-Path E:\koinos-node-private.key) { "Saved on E:" } } else { "STOP - there is no drive E: Plug in the USB stick and use its letter" }</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="mac">
+        <div class="rn-cmd-h"><span>Mac · Terminal (USB stick named MYUSB)</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>if [ -d /Volumes/MYUSB ] &amp;&amp; diskutil info /Volumes/MYUSB &gt;/dev/null 2&gt;&amp;1; then docker run --rm --network none -v koinos-data:/k:ro -v /Volumes/MYUSB:/usb alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc cp /k/block_producer/private.key /usb/koinos-node-private.key &amp;&amp; ls /Volumes/MYUSB/koinos-node-private.key; else echo "STOP - no USB stick named MYUSB: plug it in and use its name"; fi</code></pre>
+      </div>
+      <div class="rn-cmd" data-os="linux">
+        <div class="rn-cmd-h"><span>Linux · Terminal (USB stick named MYUSB)</span><button class="rn-copy" type="button">Copy</button></div>
+        <pre><code>if mountpoint -q "/media/$USER/MYUSB" 2&gt;/dev/null; then docker run --rm --network none -v koinos-data:/k:ro -v "/media/$USER/MYUSB:/usb" alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc cp /k/block_producer/private.key /usb/koinos-node-private.key &amp;&amp; ls "/media/$USER/MYUSB/koinos-node-private.key"; else echo "STOP - no USB stick named MYUSB: plug it in and use its name"; fi</code></pre>
+      </div>
+      <ul class="rn-list rn-warn">
+        <li>Never open it, paste it, email it, upload it or type it into any website or chat, including this one.</li>
+        <li>Never run the same key on two computers at the same time.</li>
+      </ul>
+      <p class="rn-see"><span class="rn-tag">You should see</span>Stop or start done within a minute; after an update, the new version code; after a backup, <code>koinos-node-private.key</code> on your stick.</p>
+      <details class="rn-fix"><summary>If it doesn't work</summary>
+        <ul>
+          <li>Stick isn't E:? File Explorer → This PC shows its letter; change <code>E:/</code> in the box. Mac: its name in Finder replaces <code>MYUSB</code> (Linux: the name in your file manager). STOP means the stick wasn't found and nothing was copied.</li>
+          <li>Remove the node completely: switch self-heal off (<code>-Uninstall</code> / <code>--uninstall</code>), <code>docker compose down</code>, <code>docker volume rm koinos-data</code> (deletes data and key), then delete the <code>koinos-node</code> folder. Your VHP and KOIN stay in your wallet.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="pg-card" id="trouble">
+      <h2>What can go wrong (and the fix)</h2>
+      <div class="table-scroll rn-table">
+        <table class="addr-table">
+          <thead><tr><th>You notice</th><th>What it means</th><th>The fix</th></tr></thead>
+          <tbody>
+            <tr><td>Node behind: Behind by large and not shrinking</td><td>Stuck</td><td>Check the clock, restart, then reset Docker (<a href="#step-8">step 8</a>).</td></tr>
+            <tr><td>Logs say "gossip disabled" and "halting block production"</td><td>The node thinks it's out of date, usually because the clock is wrong</td><td>Sync the clock (<a href="#step-1">step 1</a>), then restart (<a href="#step-8">step 8</a>).</td></tr>
+            <tr><td>Logs say "Error connecting to seed … no good addresses" or "dial backoff"</td><td>Normal: some start-up addresses are offline</td><td>Nothing, while Behind by stays under 10.</td></tr>
+            <tr><td>Crash loop: parts keep "Restarting", or it freezes after every restart</td><td>Damaged chain data</td><td>Repair from a fresh snapshot (<a href="#step-8">step 8</a>). Your key stays.</td></tr>
+            <tr><td>Disk full</td><td>The download or Docker filled the drive</td><td>Delete the snapshot download once caught up; <code>docker image prune</code>. Never prune volumes.</td></tr>
+            <tr><td>Docker won't start</td><td>Docker or WSL needs a kick</td><td>Restart the computer. Windows: <code>wsl --update</code>, <code>wsl --shutdown</code>, reopen Docker Desktop.</td></tr>
+            <tr><td>PC asleep or restarted</td><td>The node was off</td><td>Turn sleep off (<a href="#step-1">step 1</a>). After a restart, sign in; the node starts itself.</td></tr>
+            <tr><td>No blocks after a day</td><td>Something isn't connected</td><td>Follow the checklist in <a href="#step-9">step 9</a>.</td></tr>
+            <tr><td>New computer</td><td>The new node has a new key</td><td>Do steps 1–6 there (register the new key), then switch the old node off.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="pg-card" id="checklist">
+      <h2>Your checklist</h2>
+      <p class="muted">Your ticks stay only in this browser.</p>
+      <ul class="rn-checklist">
+        <li><label><input type="checkbox" data-check="c-sleep"> Sleep is off, and Docker starts when I sign in</label></li>
+        <li><label><input type="checkbox" data-check="c-match"> The snapshot fingerprint said MATCH</label></li>
+        <li><label><input type="checkbox" data-check="c-sync"> My node is caught up (Behind by under 10)</label></li>
+        <li><label><input type="checkbox" data-check="c-addr"> The settings show my producer address</label></li>
+        <li><label><input type="checkbox" data-check="c-key"> I registered my node's public key from my producer wallet</label></li>
+        <li><label><input type="checkbox" data-check="c-vhp"> My producer wallet holds VHP, and I kept some KOIN</label></li>
+        <li><label><input type="checkbox" data-check="c-blocks"> Producer lookup shows my blocks</label></li>
+        <li><label><input type="checkbox" data-check="c-backup"> I backed up the key offline, or decided I don't need to</label></li>
+        <li><label><input type="checkbox" data-check="c-weekly"> I'll check my node once a week</label></li>
+      </ul>
+      <button type="button" class="btn btn-ghost btn-small" id="rn-reset">Clear my ticks</button>
+    </section>
+
+    <section class="pg-card rn-legal" id="disclaimer">
+      <h2>Disclaimer</h2>
+      <ul>
+        <li>Information only. A free guide, offered in good faith. It isn't financial, investment, tax or legal advice.</li>
+        <li>Your node, your responsibility. You run it on your own equipment, at your own risk and cost (power, internet, hardware wear), and you're responsible for your computer's security, your wallet and keys, backups, and local laws and taxes.</li>
+        <li>No guarantee. Blocks depend on your share of all VHP, uptime and the network, so rewards aren't guaranteed and can be zero. KOIN and VHP can fall in value. Burning KOIN is one-way; swapping back costs a fee.</li>
+        <li>Provided "as is". The guide, its commands and the self-heal scripts are provided as is, without any warranty. Commands change your computer: read each before running it. To the fullest extent the law allows, Knode Games and its contributors are not liable for any loss or damage (including lost KOIN, VHP or rewards, lost data, downtime or damaged equipment) from using this guide or the software it points to.</li>
+        <li>Third parties. Koinos, Docker, Git, Armana and the wallets named here are separate projects; Knode Games doesn't control or endorse them and isn't affiliated with them. If their official instructions differ from this guide, follow theirs.</li>
+        <li>May go out of date. We keep this guide current on a best-effort basis.</li>
+        <li>Separate from the games. Running a node gives no special treatment in Knode Games.</li>
+        <li>Knode Games will never ask for your private key or recovery words. Anyone who does is not us.</li>
+      </ul>
+      <p class="muted">By using this guide you accept this disclaimer and our <a href="terms.html">Terms &amp; risks</a>.</p>
+    </section>
+
+    <section class="rn-sources muted">
+      <h2>Sources</h2>
+      <ul>
+        <li>Koinos node files: <a href="https://github.com/koinos/koinos" target="_blank" rel="noopener">github.com/koinos/koinos</a> (version b05b833, 18 Sep 2026)</li>
+        <li>Koinos docs: <a href="https://docs.koinos.io/validators/node-requirements/" target="_blank" rel="noopener">node requirements</a>, <a href="https://docs.koinos.io/validators/guides/running-a-node/" target="_blank" rel="noopener">running a node</a>, <a href="https://docs.koinos.io/validators/guides/block-production/" target="_blank" rel="noopener">block production</a></li>
+        <li>Weekly chain snapshot by Armana: <a href="https://snapshots.armana.io/index.json" target="_blank" rel="noopener">snapshots.armana.io/index.json</a></li>
+        <li>Docker: <a href="https://docs.docker.com/desktop/setup/install/windows-install/" target="_blank" rel="noopener">Windows</a>, <a href="https://docs.docker.com/desktop/setup/install/mac-install/" target="_blank" rel="noopener">Mac</a>, <a href="https://docs.docker.com/engine/install/" target="_blank" rel="noopener">Linux</a></li>
+      </ul>
+    </section>
+  </main>
+  <nav class="tabbar" aria-label="Main">
+    <a href="games.html"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"></rect></svg>Games</a>
+    <a href="stake.html"><svg aria-hidden="true" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.5"></ellipse><path d="M5 6v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"></path><path d="M5 10v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"></path><path d="M5 14v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"></path></svg>Stake</a>
+    <a href="index.html#leaderboard"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 20V10M12 20V4M18 20v-7"></path></svg>Leaders</a>
+    <button type="button" class="tb-more" aria-expanded="false" aria-controls="more-sheet"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg>More</button>
+  </nav>
+  <div class="more-sheet" id="more-sheet" hidden>
+    <nav class="more-panel" aria-label="More pages">
+      <p class="ms-h">Play</p>
+      <a href="index.html#play"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.6 6.7 19.4l1.2-6L3.4 9.3l6-.7z"></path></svg><span>Daily Questions</span></a>
+      <a href="race.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 21V4"></path><path d="M5 4h12l-2.5 4L17 12H5"></path></svg><span>Producer Race</span></a>
+      <a href="blockx.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path></svg><span>Who Signs Block X</span></a>
+      <a href="bracket.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h5v4H4zM4 15h5v4H4zM15 10h5v4h-5z"></path><path d="M9 7h3v10H9M12 12h3"></path></svg><span>Producer Bracket</span></a>
+      <a href="golf.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 21V4l9 4-9 4"></path><path d="M4 21h8"></path></svg><span>Block Golf</span></a>
+      <a href="index.html#results"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"></path><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"></path></svg><span>Results</span></a>
+      <a href="index.html#how"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><path d="M9 9h6M9 13h6"></path></svg><span>Rules</span></a>
+      <p class="ms-h">Tools</p>
+      <a href="get.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 8v8M8 12h8"></path></svg><span>Get VHP</span></a>
+      <a href="names.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"></circle><path d="M15.5 12v1.5a2.5 2.5 0 0 0 5 0V12a8.5 8.5 0 1 0-3.3 6.7"></path></svg><span>Get an @name</span></a>
+      <a href="swap.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 4L3 8l4 4"></path><path d="M3 8h14"></path><path d="M17 20l4-4-4-4"></path><path d="M21 16H7"></path></svg><span>Swap VHP → KOIN</span></a>
+      <a href="burn.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 21c-4 0-6.5-2.6-6.5-6 0-3.5 3-5.5 3.5-9 2 1.5 3 3 3 5 1-1 1.5-2 1.5-3.5 2.5 2 4.5 4.6 4.5 7.5 0 3.4-2.5 6-6 6z"></path></svg><span>Burn KOIN</span></a>
+      <a href="mana.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7 8-11h-6z"></path></svg><span>Mana levels</span></a>
+      <a href="node.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4.5 4.5"></path></svg><span>Producer lookup</span></a>
+      <a href="run-node.html"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="6.5" rx="1.5"></rect><rect x="4" y="13.5" width="16" height="6.5" rx="1.5"></rect><path d="M8 7.25h.01M8 16.75h.01"></path></svg><span>Run a node</span></a>
+      <a href="pulse.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"></path></svg><span>Network pulse</span></a>
+      <p class="ms-h">Learn</p>
+      <a href="start.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New to Koinos?</span></a>
+      <a href="index.html#welcome"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New here? Quick tour</span></a>
+      <p class="ms-h">About</p>
+      <a href="install.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M5 20h14"></path></svg><span>Install app</span></a>
+      <a href="trust.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"></path></svg><span>Trust</span></a>
+      <a href="terms.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"></path><path d="M10 12h5M10 16h5"></path></svg><span>Terms &amp; risks</span></a>
+    </nav>
+  </div>
+
+  <footer class="foot">
+    <div class="wrap">
+      <div class="foot-row">
+        <span>Knode Games runs fully on Koinos. Source-available.</span>
+        <span class="foot-links"><a href="index.html#welcome">New here? Quick tour</a> · <a href="trust.html">Trust</a> · <a href="terms.html">Terms &amp; risks</a> · <a href="install.html">Install app</a> · <a href="https://github.com/bawcejawn/KnodeGames" target="_blank" rel="noopener">Source code</a></span>
+      </div>
+    </div>
+  </footer>
+  <script src="https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js" integrity="sha384-IAL9o3r4bQJvWhvszkorFINY2ct4LBA/LvyXE9NSOPCyYB25BsFV12JITA7Gxbk6" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js" integrity="sha384-WOeNFfSdOron0s4x9jdzLtA7Ic7RSqZCXZAaeQd6HRL6WezQp0KAtIF2XSa+11TL" crossorigin="anonymous"></script>
+  <script src="guest.js"></script>
+  <script src="wallet.js"></script>
+  <script src="header-wallet.js"></script>
+  <script src="nav.js"></script>
+  <script src="run-node.js"></script>
+  <script src="vendor/posthog-1.438.13.js"></script>
+  <script src="analytics.js"></script>
+</body>
+</html>

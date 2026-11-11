@@ -13,9 +13,16 @@ syntax = "proto3";
 //   - picks are open for the next 4 races (the coming 24 hours) and LOCK when
 //     the race starts: a pick is refused once the head block's time has
 //     reached the race's start;
+//   - v2 (D-161): race TYPES in the race number from bit 48, so the arguments
+//     stay these three fields: race = type * 2^48 + index. Type 0 is the
+//     6-hour race above (unchanged); 1 = 1-hour (index = start / 1 h, open
+//     24 h ahead); 2 = 2-hour (start / 2 h, 24 h ahead); 3 = daily (start /
+//     24 h, open from the day before); 4 = weekly (Monday-based UTC week,
+//     index = (start - 4 days) / 7 days, open from the week before);
 //   - one pick per wallet per race; it can be changed until the race starts;
 //   - at most max_picks_per_day picks (new picks and changes together) per
-//     wallet per UTC day (default 5), so nobody can spam it;
+//     wallet per UTC day, every type together; v2: 0 = no per-game limit (the
+//     Mana sponsor's daily limit across the platform is the cap);
 //   - the pick must be signed by the wallet it is for.
 // The horse is any valid address: the race's handicap card is set off the
 // chain, so a pick on a producer that is not in the race simply can't win.
@@ -33,7 +40,7 @@ message config {
   // The Knode owner: the only one who may change the settings.
   bytes owner = 1 [(koinos.btype) = ADDRESS];
   bool enabled = 2;
-  // Picks (new picks and changes) per wallet per UTC day. 1 to 20.
+  // Picks (new picks and changes) per wallet per UTC day. 1 to 20; v2: 0 = no limit.
   uint32 max_picks_per_day = 3;
 }
 
@@ -58,7 +65,7 @@ message empty_object {}
 // @result empty_object
 message pick_arguments {
   bytes player = 1 [(koinos.btype) = ADDRESS];
-  // Race number: the race's UTC start time in ms divided by 21600000.
+  // Race number: the race's UTC start time in ms divided by 21600000 (v2: plus type * 2^48 for the other race types).
   uint64 race = 2 [jstype = JS_STRING];
   bytes horse = 3 [(koinos.btype) = ADDRESS];
 }

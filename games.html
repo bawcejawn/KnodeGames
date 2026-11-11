@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <!-- Only these sources may run scripts, load data or be framed. 'unsafe-eval' is needed by koilib (its protobuf
        encoder builds functions at run time); CDN scripts are pinned by their integrity hash. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/ https://koinvault.app https://us.i.posthog.com https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/stats-data/; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/ https://koinvault.app https://us.i.posthog.com https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/stats-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/prize-settings/; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Games · Knode Games</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
@@ -62,6 +62,8 @@
     .pill { font-size: 13px; font-weight: 700; padding: 3px 9px; border-radius: 99px; }
     .pill.free { background: var(--mint-soft); color: color-mix(in srgb, var(--mint) 70%, var(--ink)); }
     .pill.staked { background: var(--sun-soft); color: var(--ink); }
+    .pill.prize-on { background: var(--mint); color: #0b2a1c; }
+    .pill.practice { background: var(--line); color: color-mix(in srgb, var(--muted) 45%, var(--ink)); }
     .pill.soon { background: var(--line); color: color-mix(in srgb, var(--muted) 45%, var(--ink)); }
     .gh .note { color: var(--muted); font-size: 15px; }
   </style>
@@ -110,7 +112,7 @@
 
   <main class="gh">
     <h1>Games</h1>
-    <p class="lead lede">Every game has its own weekly leaderboard. In Daily Questions, stakers share the pool's weekly rewards and the 2 best free players win 2 VHP and 1 VHP. Producer Race is free and just for fun for now.</p>
+    <p class="lead lede">Every game has its own weekly leaderboard. In Daily Questions, stakers share the pool's weekly rewards and the 2 best free players win 2 VHP and 1 VHP. Every game has a Free play board; a game's label says whether its free prizes are on this week or it is practice only.</p>
 
     <div class="wk">
       <div><small>This week ends in about</small><b id="wk-left">–</b></div>
@@ -185,6 +187,7 @@
   <script src="race-math.js"></script>
   <script src="stake-panel.js"></script>
   <script src="names.js"></script>
+  <script src="weeks.js"></script>
   <script src="games.js"></script>
   <script src="stats.js"></script>
   <script src="vendor/posthog-1.438.13.js"></script>

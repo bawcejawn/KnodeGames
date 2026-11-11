@@ -8,12 +8,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Knode Games: the daily Koinos prediction game</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
-  <meta name="description" content="A free daily guessing game on the Koinos blockchain. Answer daily questions about block producers, climb the weekly leaderboard, and win VHP.">
+  <meta name="description" content="A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards.">
   <link rel="canonical" href="https://knodegames.com/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Knode Games">
   <meta property="og:title" content="Knode Games: call the next blocks">
-  <meta property="og:description" content="A free daily guessing game on the Koinos blockchain. Answer daily questions about block producers, climb the weekly leaderboard, and win VHP.">
+  <meta property="og:description" content="A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards.">
   <meta property="og:url" content="https://knodegames.com/">
   <meta property="og:image" content="https://knodegames.com/media/og-knode.png">
   <meta property="og:image:width" content="1200">
@@ -21,9 +21,9 @@
   <meta property="og:image:alt" content="Knode Games: call the next blocks">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Knode Games: call the next blocks">
-  <meta name="twitter:description" content="A free daily guessing game on the Koinos blockchain. Answer daily questions about block producers, climb the weekly leaderboard, and win VHP.">
+  <meta name="twitter:description" content="A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards.">
   <meta name="twitter:image" content="https://knodegames.com/media/og-knode.png">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Knode Games","url":"https://knodegames.com/","description":"A free daily guessing game on the Koinos blockchain. Answer daily questions about block producers, climb the weekly leaderboard, and win VHP."},{"@type":["WebApplication","VideoGame"],"name":"Knode Games","url":"https://knodegames.com/","applicationCategory":"GameApplication","genre":"Prediction game","operatingSystem":"Any (web browser; installable)","description":"A free daily guessing game on the Koinos blockchain. Answer daily questions about block producers, climb the weekly leaderboard, and win VHP.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Knode Games","url":"https://knodegames.com/","description":"A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards."},{"@type":["WebApplication","VideoGame"],"name":"Knode Games","url":"https://knodegames.com/","applicationCategory":"GameApplication","genre":"Prediction game","operatingSystem":"Any (web browser; installable)","description":"A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}]}</script>
   <!-- seo:end -->
   <link rel="icon" href="media/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="media/icon-180.png">
@@ -37,7 +37,7 @@
 </head>
 <body>
   <a class="skip" href="#main">Skip to the game</a>
-  <noscript><p class="noscript">Knode Games is a free daily prediction game on the Koinos blockchain: daily questions about block producers, a weekly leaderboard, and VHP rewards for the top players. It needs JavaScript to read the chain and connect your wallet; please turn JavaScript on. <a href="get.html">How to get started</a> · <a href="terms.html">Terms</a></p></noscript>
+  <noscript><p class="noscript">Knode Games is a free daily prediction game on the Koinos blockchain: daily questions about block producers, a weekly leaderboard, VHP prizes for the top free players in games whose free prize is on, and shared rewards for stakers. It needs JavaScript to read the chain and connect your wallet; please turn JavaScript on. <a href="get.html">How to get started</a> · <a href="terms.html">Terms</a></p></noscript>
 
   <header class="top">
     <div class="wrap top-row">
@@ -98,7 +98,7 @@
           <div class="welcome-intro">
             <p class="welcome-kicker">Free · four races a day</p>
             <h1>Guess what the blockchain does next.</h1>
-            <p class="welcome-lede">Pick the block producer you think wins the race. A win scores points, and the best players win VHP every week.</p>
+            <p class="welcome-lede">Pick the block producer you think wins the race. A win scores points. From Mon 16 Nov, free boards pay 2 VHP and 1 VHP prizes in games whose free prize is on, and staked boards share the week's rewards after a flat 5% fee.</p>
             <div class="welcome-paths" id="welcome-paths">
               <div class="welcome-path welcome-path-new"><b>New here? Play free.</b><span>Pick a horse in the Producer Race as a guest: no sign-up, no wallet.</span><a class="btn btn-primary" href="race.html#pick-zone">Play free</a></div>
               <div class="welcome-path"><b>Have a Koinos wallet? Stake and play with it.</b><span>Connect KOIN Vault or Kondor to play with it and stake.</span><button class="btn btn-ghost" type="button" id="welcome-connect">Connect wallet</button></div>
@@ -136,13 +136,13 @@
         </ol>
         <div class="welcome-also" id="welcome-games">
           <h2>All the games</h2>
-          <a class="also-card" href="race.html"><span aria-hidden="true">🏇</span><div><b>Producer Race</b><p>Pick the winning block producer, four races a day (Sunday's are for fun): 3 points for a win, 1 for a 2nd or 3rd. Free, or stake VHP to share the weekly rewards.</p></div></a>
-          <a class="also-card" href="#play"><span aria-hidden="true">🎯</span><div><b>Daily Questions</b><p>Quick questions about block producers, Monday to Saturday. Free, or stake VHP to share the weekly rewards.</p></div></a>
-          <a class="also-card" href="blockx.html"><span aria-hidden="true">🧱</span><div><b>Who Signs Block X</b><p>Pick the producer for the next milestone blocks, about an hour apart.</p></div></a>
-          <a class="also-card" href="bracket.html"><span aria-hidden="true">🏆</span><div><b>Producer Bracket</b><p>Pick the winner of every matchup in a weekly knockout bracket of producers. Week 1 (Mon 16 Nov) is practice; staked rewards start Week 2 (Mon 23 Nov).</p></div></a>
-          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">⛳</span><div><b>Block Golf</b><p>Every game is a hole: your place on each game's weekly board sets your strokes. Nothing to pick; lowest score wins.</p></div></div>
-          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">📋</span><div><b>Fantasy Producers</b><p>Draft 5 producers under a salary cap, with a captain who scores double.</p></div></div>
-          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">🛡️</span><div><b>Survivor</b><p>One producer a day, two lives, four-week seasons.</p></div></div>
+          <a class="also-card" href="race.html"><span aria-hidden="true">🏇</span><div><b>Producer Race</b><p>Pick the winning block producer, four races a day (Sunday's are for fun): 3 points for a win, 1 for a 2nd or 3rd. Free play, or stake VHP to share the weekly rewards.</p></div></a>
+          <a class="also-card" href="#play"><span aria-hidden="true">🎯</span><div><b>Daily Questions</b><p>Quick questions about block producers, Monday to Saturday. Free play, or stake VHP to share the weekly rewards.</p></div></a>
+          <a class="also-card" href="blockx.html"><span aria-hidden="true">🧱</span><div><b>Who Signs Block X</b><p>Pick the producer for the next milestone blocks, about an hour apart. Free play, or stake VHP.</p></div></a>
+          <a class="also-card" href="bracket.html"><span aria-hidden="true">🏆</span><div><b>Producer Bracket</b><p>Pick the winner of every matchup in a weekly knockout bracket of producers. Free play, or stake VHP. Week 1 (Mon 16 Nov) is practice; staked rewards start Week 2 (Mon 23 Nov).</p></div></a>
+          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">⛳</span><div><b>Block Golf</b><p>Every game is a hole: your place on each game's weekly board sets your strokes. Nothing to pick; lowest score wins. Free play board included.</p></div></div>
+          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">📋</span><div><b>Fantasy Producers</b><p>Draft 5 producers under a salary cap, with a captain who scores double. Free play board included.</p></div></div>
+          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">🛡️</span><div><b>Survivor</b><p>One producer a day, two lives, four-week seasons. Free play board included.</p></div></div>
           <a class="also-more" href="games.html">See every game and your standing →</a>
           <h2>Also on Knode Games</h2>
           <a class="also-card" href="swap.html"><span aria-hidden="true">🔁</span><div><b>Knode Games Swap</b><p>Turn VHP back into KOIN in one step, for a 3% fee.</p></div></a>

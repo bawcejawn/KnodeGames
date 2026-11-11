@@ -74,9 +74,36 @@
             "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW": "216076578011758"
           },
           "seal": "c6e131b707617a7d037b5226c1394a220cf5bef2f04abe019cd6e82a33a62c00"
+        },
+        {
+          "height": 40974353,
+          "readAt": "2026-11-11T03:30:37.831Z",
+          "values": {
+            "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": "225011780420489",
+            "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW": "215964550245785"
+          },
+          "seal": "d4d4e83277919b5917ae1e97bb48b8f8c32a285f3b17c53b1d823bb19c09f2c5"
+        },
+        {
+          "height": 40974871,
+          "readAt": "2026-11-11T03:58:49.322Z",
+          "values": {
+            "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": "224971711937578",
+            "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW": "215933476727446"
+          },
+          "seal": "df4145382a75e291358e35a63b0ff545eca6bd5b0276b7d333eb45cdd63e0ed1"
+        },
+        {
+          "height": 40976115,
+          "readAt": "2026-11-11T05:02:32.456Z",
+          "values": {
+            "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": "224877673348731",
+            "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW": "215847206555511"
+          },
+          "seal": "695db17eef722e80e6850a706f9270c9cb304a751db180ed3699d6afdb7b8dbe"
         }
       ],
-      "vhpSeal": "11cad058a73aecf14cdc12abc5374411d751531865cbd0149a9b6ccac6aa1fdd"
+      "vhpSeal": "a0e377a2d835b7a243bb41cbd28864be3618689775cb879879d235ff1563db6a"
     },
     {
       "id": "W003-D2-2",
@@ -146,9 +173,33 @@
             "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1104024236881"
           },
           "seal": "35d64614da2ea8990f07bcf324aca1a79893f5cf18cec500b11f5f18b9fad100"
+        },
+        {
+          "height": 40974353,
+          "readAt": "2026-11-11T03:30:37.831Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1104024236881"
+          },
+          "seal": "893e4eb8a6344313d17df82b15206e4082f796e81dbda4b12f6626ccbb253bc8"
+        },
+        {
+          "height": 40974871,
+          "readAt": "2026-11-11T03:58:49.322Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1104024236881"
+          },
+          "seal": "ee43ce44eec9ff06126e0f8985374ac2886efcd9e7e74cebbcae90fc09b2a334"
+        },
+        {
+          "height": 40976115,
+          "readAt": "2026-11-11T05:02:32.456Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1104024236881"
+          },
+          "seal": "1d64300949d67ff1eee41b431a6a6c65548849a080b4db73b0a8f363fd2ce706"
         }
       ],
-      "vhpSeal": "d9a47ad966a07c0d839fdfe951b9ab35a3f4fbc0b4a6fa4e34267965654cc7a5"
+      "vhpSeal": "43800e9c9bcc29c4a87e467caae366318aed04192edaad3f61224b9cce83f0c7"
     },
     {
       "id": "W003-D2-3",
@@ -218,9 +269,33 @@
             "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": "172534070565631"
           },
           "seal": "005ef2c8e4ec5dcf22ca75ac9f0cdbeb1786a8f000e444dd8b7462707c35162a"
+        },
+        {
+          "height": 40974353,
+          "readAt": "2026-11-11T03:30:37.831Z",
+          "values": {
+            "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": "172440441525743"
+          },
+          "seal": "d1e05faf7c77f4d09279fb798fe0188a43c4e35ef7b5ffb6dc641eec759c2b6e"
+        },
+        {
+          "height": 40974871,
+          "readAt": "2026-11-11T03:58:49.322Z",
+          "values": {
+            "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": "172401599629721"
+          },
+          "seal": "796d61c5f5f907acccd16db07cdef99ca7c4905b512986cd0537ad14caccdb26"
+        },
+        {
+          "height": 40976115,
+          "readAt": "2026-11-11T05:02:32.456Z",
+          "values": {
+            "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": "172334546032523"
+          },
+          "seal": "0120e3f635feae23412d61fb75776eb080e00f9195dd591f446765813a019aab"
         }
       ],
-      "vhpSeal": "a7d6271db55af4586c593adb96d8aa6968ba929ac7669e56529bed4634bb6211"
+      "vhpSeal": "5dcb0d0b1f95970f514154fdd09f79b431bff156148bbc895cccf731c55c24c5"
     }
   ],
   "daySeal": "7e663e6e4721f6faa96ed3fe6a491c8a566f16f1584e33401a19a459b034763b"

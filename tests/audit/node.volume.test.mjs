@@ -71,7 +71,10 @@ test("nothing deletes a basedir folder or a Docker volume", () => {
 test("the move takes the self-heal's repair lock in heal.mjs's format and pins the helper image", () => {
   assert.match(move, /pid = \$PID; startedAt = \[DateTimeOffset\]::UtcNow\.ToUnixTimeMilliseconds\(\); broken = \$Node; from = \$Node/);
   assert.match(move, /repair\.lock/);
-  for (const src of [move, repair, fs.readFileSync(HEAL, "utf8")]) assert.match(src, /alpine:3\.20/);
+  for (const src of [move, repair, fs.readFileSync(HEAL, "utf8")]) assert.match(src, /"alpine:3\.20@sha256:[0-9a-f]{64}"/);
+  // Repo Lens #F-8 F8-9: the helper that mounts a node's data (and key) never gets a network.
+  for (const src of [move, repair]) assert.match(src, /\$a = @\("run", "--rm", "--network", "none"\)/);
+  assert.match(fs.readFileSync(HEAL, "utf8"), /docker\(\["run", "--rm", "--network", "none", "-v"/);
 });
 
 // ───────────── heal.mjs with nodes in Docker volumes ─────────────
@@ -136,7 +139,7 @@ test("heal reads a volume node's block-store log inside the volume and repairs a
   try {
     const out = await w.run();
     assert.match(out, /game node: its block store started 5 times/);
-    assert.match(w.calls(), /docker run --rm -v game-basedir:\/k:ro alpine:3\.20 sh -c tail -c 400000 \/k\/block_store\/logs\/block_store\.log/);
+    assert.match(w.calls(), /docker run --rm --network none -v game-basedir:\/k:ro alpine:3\.20@sha256:[0-9a-f]{64} sh -c tail -c 400000 \/k\/block_store\/logs\/block_store\.log/);
     assert.match(w.calls(), /find \/k\/block_store\/db \/k\/chain\/blockchain/);   // measured inside the source's volume
     assert.match(w.calls(), /powershell .*-Broken game -From desk/);
     assert.match(out, /desk node: OK/);
@@ -153,7 +156,7 @@ test("heal deletes only week-old repair backups inside a volume, by exact name",
     await w.run();
     const rm = w.calls().split("\n").filter((l) => l.includes("rm -rf"));
     assert.equal(rm.length, 1, rm.join("\n"));
-    assert.match(rm[0], new RegExp(`-v desk-basedir:/k alpine:3\\.20 sh -c rm -rf /k/block_store/db-broken-${old}$`));
+    assert.match(rm[0], new RegExp(`-v desk-basedir:/k alpine:3\\.20@sha256:[0-9a-f]{64} sh -c rm -rf /k/block_store/db-broken-${old}$`));
   } finally { await w.done(); }
 });
 
@@ -182,7 +185,7 @@ case "$1" in
     exit 0;;
   run)
     shift; script=""; declare -A map
-    while [ $# -gt 0 ]; do case "$1" in --rm) shift;; -v) spec="$2"; shift 2; dst=$(echo "$spec" | sed -E 's/:ro$//; s/.*:(\\/[a-z]+)$/\\1/'); src="\${spec%:$dst*}"; [ "\${src#/}" = "$src" ] && src="${vols}/$src"; map[$dst]="$src";; alpine*) shift; shift; shift; script="$1"; shift;; *) shift;; esac; done
+    while [ $# -gt 0 ]; do case "$1" in --rm) shift;; --network) shift 2;; -v) spec="$2"; shift 2; dst=$(echo "$spec" | sed -E 's/:ro$//; s/.*:(\\/[a-z]+)$/\\1/'); src="\${spec%:$dst*}"; [ "\${src#/}" = "$src" ] && src="${vols}/$src"; map[$dst]="$src";; alpine*) shift; shift; shift; script="$1"; shift;; *) shift;; esac; done
     for k in "\${!map[@]}"; do script=$(echo "$script" | sed "s#\${k}\\([/ ;]\\|$\\)#\${map[$k]}\\1#g"); done
     ${failCopy ? 'case "$script" in *"cp -a"*) echo "cp failed" >&2; exit 1;; esac' : ""}
     out=$(bash -c "$script"); rc=$?

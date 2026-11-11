@@ -35,7 +35,7 @@ if ($Broken -eq $From) { throw "-Broken and -From must be different nodes. Nothi
 $Desk = $Dirs[$Broken]   # the node being repaired
 $Game = $Dirs[$From]     # the healthy source
 $stamp = Get-Date -Format "yyyyMMdd-HHmm"
-$Alpine = "alpine:3.20"
+$Alpine = "alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"   # pinned by digest (Repo Lens #F-8 F8-9)
 
 function Say($m) { Write-Host $m }
 function Ok($m) { Write-Host "OK  $m" -ForegroundColor Green }
@@ -67,7 +67,7 @@ function VolumeOf($dir) {
 function MountOf($dir) { $v = VolumeOf $dir; if ($v) { return $v } else { return ("$dir\basedir" -replace "\\", "/") } }
 function Container([string[]]$mounts, [string]$script) {
   $ErrorActionPreference = "Continue"
-  $a = @("run", "--rm")
+  $a = @("run", "--rm", "--network", "none")   # Repo Lens #F-8 F8-9: the helper never gets a network
   foreach ($m in $mounts) { $a += @("-v", $m) }
   $a += @($Alpine, "sh", "-c", $script)
   $out = & docker @a 2>$null

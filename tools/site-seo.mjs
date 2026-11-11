@@ -10,7 +10,7 @@ const ROOT = new URL("../", import.meta.url).pathname;
 
 export const PAGES = [
   { file: "index.html", path: "", title: "Knode Games: the daily Koinos prediction game", short: "Knode Games: call the next blocks",
-    desc: "A free daily guessing game on the Koinos blockchain. Answer daily questions about block producers, climb the weekly leaderboard, and win VHP.", image: "og-knode.png", priority: "1.0" },
+    desc: "A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards.", image: "og-knode.png", priority: "1.0" },
   { file: "games.html", path: "games.html", title: "Games · Knode Games", short: "Knode Games: every game",
     desc: "Every Knode Games game in one place: free and staked prediction games about Koinos block producers, each with its own weekly leaderboard.", image: "og-knode.png", priority: "0.9" },
   { file: "get.html", path: "get.html", title: "Get KOIN and VHP · Knode Games", short: "Get KOIN and VHP",

@@ -1,4 +1,5 @@
-// Records after the v6.1 upload (owner, Tue 10 Nov 2026, ~14:57 UTC; cancel_upgrade tx 0x1220c0ab…). The hourly chain
+// Records after the v6.1 upload (owner, Tue 10 Nov 2026, ~14:57 UTC; the upload's own transaction id isn't printed by
+// `upgrade apply`; its step 2/2, the cancel_upgrade that cleared the notice, is tx 0x1220c0ab…). The hourly chain
 // watch compares the live code with wasmSha256, and the emergency tool refuses any withdrawals-only build but the pinned
 // one, so both must be v6.1's (docs/UPGRADE-V61.md §3, D8-3).
 import { test } from "node:test";

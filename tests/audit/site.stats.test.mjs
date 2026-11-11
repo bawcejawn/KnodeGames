@@ -41,7 +41,7 @@ test("the strip shows up to 3 strong facts, from one fetch of the stats-data fil
 test("small numbers stay off the strip (research item 18); free prizes always qualify", async () => {
   const { d } = await page(STRIP, sample({ players: { week: 14, lastWeek: 9, allTime: 30 }, plays: { answers: 30, racePicks: 5, blockxPicks: 1, total: 36 }, staked: { total: 300, games: [] } }));
   const facts = [...d.querySelectorAll(".stats-fact")].map((f) => f.textContent);
-  assert.equal(facts.length, 2); assert.match(facts[0], /^3 open questions, answers close in 3h 0m$/); assert.equal(facts[1], "2 + 1 VHP free prizes every week");
+  assert.deepEqual(facts, ["2 + 1 VHP weekly free prizes in games with prizes on"]);
   assert.ok(!facts.some((f) => /14|300 VHP|36/.test(f)));
 });
 test("the strip hides when the file is missing, malformed, stale or not the right shape", async () => {
@@ -58,7 +58,7 @@ test("the panel shows every number and last week's top 3 with @names, all as tex
   assert.equal(p.hidden, false);
   const t = p.textContent;
   for (const want of ["64players this week", "51 the week before · 230 wallets all time", "565answers and picks this week", "410 answers · 120 race picks · 35 Block X picks",
-    "48,250 VHPstaked in the prize vault", "Daily Questions 40,000 · Block Golf 8,250", "2 + 1 VHPfree prizes every week", "48blocks made by the prize vault", "3 openquestions, answers close in", "41 answers so far", "Updated 20 min ago"]) assert.ok(t.includes(want), `missing "${want}" in ${t}`);
+    "48,250 VHPstaked in the prize vault", "Daily Questions 40,000 · Block Golf 8,250", "2 + 1 VHPweekly free prizes in games with prizes on", "48blocks made by the prize vault", "3 openquestions, answers close in", "41 answers so far", "Updated 20 min ago"]) assert.ok(t.includes(want), `missing "${want}" in ${t}`);
   const qs = [...p.querySelectorAll(".stats-top")][0];
   assert.deepEqual([...qs.querySelectorAll("li")].map((l) => l.textContent), ["#1@alice · 1Nti1Z…zdxz22 points", "#2" + B.slice(0, 6) + "…19 points"]);
   assert.match([...p.querySelectorAll(".stats-top")][1].textContent, /No points scored last week/);

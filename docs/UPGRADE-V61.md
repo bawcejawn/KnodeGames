@@ -86,8 +86,8 @@ npm run bot -- status
   #F-4 F4-2). **If step 2/2 failed**, send `npm run bot -- upgrade cancel --send` (or let the bot run once) **before
   Mon 16 Nov 00:00 UTC**, then check `status` as below. After Mon 16 00:00 UTC, week 4 would run the old rules: stop and
   tell the Vault chat.
-- **Check (D8-6):** `status` shows `Questions a week  this week 30, next week 60; 60 from Week 5 (stored rule 5)`.
-  Week 5 in `status` is the week from Mon 16 Nov (an upload on Mon 9). If the rule says anything else, stop and tell the
+- **Check (D8-6):** `status` shows `Questions a week  this week 30, next week 60; 60 from vault week 4 (stored rule 5)`.
+  vault week 4 in `status` is the week from Mon 16 Nov (an upload on Mon 9). If the rule says anything else, stop and tell the
   Vault chat.
 - `status` shows the same stakes, seed and pots as `before-v61.txt` (apart from new rewards).
 - **Right away, the emergency pin (D8-3):** `notepad game-data\deployment.json`, set

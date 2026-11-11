@@ -48,6 +48,8 @@
   .kw-opt.kw-main{border:2px solid var(--violet,#5a43e6);background:var(--surface,#fff)} .kw-box p.kw-or{margin:22px 0 0;padding-top:16px;border-top:1px solid var(--line,#e2e4ef)}
   .kw-warn{background:var(--sun-soft,#fff4dc);color:var(--ink,#181b34)!important;border-radius:10px;padding:10px 12px}
   .kw-key{font-family:ui-monospace,Consolas,monospace;font-size:13px;word-break:break-all;background:var(--paper,#f4f5fb);border:1px solid var(--line,#e2e4ef);border-radius:10px;padding:10px;margin:8px 0}
+  .kw-steps{margin:6px 0 10px;padding-left:20px;display:grid;gap:6px;font-size:14px}
+  .kw-steps + h4, h4.kw-h{margin:12px 0 4px;font-size:15px}
   .kw-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
   .kw-btn{font:inherit;font-weight:700;font-size:14px;padding:10px 14px;min-height:44px;border-radius:99px;border:1px solid var(--line,#e2e4ef);background:var(--surface,#fff);color:var(--ink,#181b34);cursor:pointer}
   .kw-btn.kw-danger{color:var(--rose,#d93f4c)}
@@ -407,7 +409,8 @@
       h("p", {}, "Guest ", h("b", {}, keyAddress)),
       reveal, key, h("div", { class: "kw-row" }, copy),
       h("p", { class: "kw-warn" }, GUEST_EVICT),
-      h("p", {}, "To restore it on another phone: Connect wallet → Play as a guest → Restore a guest key."));
+      h("p", {}, "To restore it on another phone: Connect wallet → Play as a guest → Restore a guest key."),
+      h("h4", { class: "kw-h" }, "Turn your guest into a real wallet (to collect prizes)"), guestSteps());
   }
   async function restoreGuest() {
     const input = h("input", { class: "kw-in", type: "password", autocomplete: "off", autocapitalize: "off", spellcheck: "false", placeholder: "Paste your guest key (starts with K or L)" });
@@ -443,6 +446,13 @@
       h("p", {}, "Want to stake and share the weekly pool? ", h("a", { href: "get.html" }, "Get a wallet and VHP"), "."));
   }
   /** Explain why a guest can't do something, instead of failing silently. */
+  // Owner, 11 Nov: a guest's prize is claimed by turning the guest into a real wallet (same key, imported into Kondor).
+  const guestSteps = () => h("ol", { class: "kw-steps" },
+    h("li", {}, "Tap ", h("b", {}, "Back up guest key"), ", then ", h("b", {}, "Tap to reveal"), " and ", h("b", {}, "Copy"), ". Keep it private."),
+    h("li", {}, "On a computer, install the Kondor browser extension and set up your Kondor wallet."),
+    h("li", {}, "In Kondor choose ", h("b", {}, "Import account"), " (private key), paste the key, and name the account."),
+    h("li", {}, "Keep a little KOIN in that account: collecting a prize uses a little Mana."),
+    h("li", {}, "Back here tap ", h("b", {}, "Connect wallet → Kondor"), " and pick that account. Your points and prize are there: tap Collect."));
   function guestCant(ops) {
     const game = guestGame();
     const isClaim = ops.some((o) => o && o.call_contract && o.call_contract.contract_id === game && Number(o.call_contract.entry_point) === CLAIM);
@@ -450,7 +460,8 @@
       open(h("h3", {}, "Collect your prize"),
         // Audit (guest) L-2: a free player's claim must use its own Mana; the sponsor doesn't pay it yet.
         h("p", {}, "Congratulations! Your prize is safe in the game and never expires."),
-        h("p", {}, "Collecting it from a guest wallet comes with the next Mana sponsor update; or back up this key, import it into Kondor (Import account → private key) and hold a little KOIN there to claim now."),
+        h("p", {}, "A guest wallet can't collect yet, but you can turn it into a real wallet in a few steps and collect now:"),
+        guestSteps(),
         h("div", { class: "kw-row" }, h("button", { class: "kw-btn", type: "button", onclick: () => backupGuest() }, "Back up guest key")),
         h("p", { class: "kw-warn" }, GUEST_WARN));
       return new Error("A guest can't collect yet: your prize is safe and never expires.");

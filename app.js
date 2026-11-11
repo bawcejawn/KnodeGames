@@ -316,7 +316,7 @@
   }
 
   // ═══════════════ Rules: one tab per part of Knode Games (game, Producer Race, Swap) ═══════════════
-  const RULE_TABS = ["game", "race", "blockx", "swap"];
+  const RULE_TABS = ["game", "race", "blockx", "bracket", "swap"];
   function showRulesTab(name) {
     const t = RULE_TABS.includes(name) ? name : "game";
     document.querySelectorAll("[data-rules]").forEach((b) => { const on = b.dataset.rules === t; b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; });

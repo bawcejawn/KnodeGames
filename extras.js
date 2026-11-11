@@ -81,7 +81,7 @@
     g.strokeStyle = "#DAD3F5"; g.lineWidth = 2;
     for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(-20, 470 + i * 34); g.bezierCurveTo(300, 420 + i * 34, 700, 540 + i * 34, 1220, 470 + i * 34); g.stroke(); }
     const r = 40, x0 = 60, y0 = 60, w = W - 120, h = 400;
-    g.fillStyle = "#1B1440";
+    g.fillStyle = "#14161F";
     g.beginPath(); g.moveTo(x0 + r, y0); g.arcTo(x0 + w, y0, x0 + w, y0 + h, r); g.arcTo(x0 + w, y0 + h, x0, y0 + h, r); g.arcTo(x0, y0 + h, x0, y0, r); g.arcTo(x0, y0, x0 + w, y0, r); g.closePath(); g.fill();
     // logo ring
     g.strokeStyle = "#FF8A4C"; g.lineWidth = 8; g.beginPath(); g.arc(W - 160, 160, 46, 0, Math.PI * 2); g.stroke();

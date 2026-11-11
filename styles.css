@@ -9,22 +9,22 @@
   --muted: #4B4766;
   --line: #E2E4EA;
   --contour: #D5D8E0;
-  --violet: #5B2EE0;
+  --violet: #1F5AE6;
   --violet-ink: #FFFFFF;
-  --violet-soft: #ECE8FD;
+  --violet-soft: #E7EEFF;
   --sun: #F2B33D;
   --sun-soft: #FBE9C8;
   --mint: #12704F;
   --mint-soft: #DDF1E6;
   --rose: #A63A27;
   --rose-soft: #F8E2DA;
-  --navy: #1B1440;
-  --navy-2: #2A2260;
+  --navy: #14161F;
+  --navy-2: #262A3B;
   --navy-ink: #FFFFFF;
-  --navy-muted: #D4CFF5;
+  --navy-muted: #CDD2E0;
   --tang: #FF8A4C;
-  --tang-ink: #1B1440;
-  --shadow: 0 1px 0 rgba(21, 18, 43, 0.05), 0 10px 26px -16px rgba(21, 18, 43, 0.28);
+  --tang-ink: #14161F;
+  --shadow: 0 1px 0 rgba(20, 22, 31, 0.05), 0 10px 26px -16px rgba(20, 22, 31, 0.28);
   --r-lg: 20px;
   --r-md: 14px;
   --r-sm: 10px;
@@ -36,18 +36,18 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --paper: #111216; --surface: #1B1C22; --ink: #F4F5F8; --muted: #C6C9D2; --line: #2D2F38; --contour: #2D2F38;
-    --violet: #A48BFF; --violet-ink: #120F2B; --violet-soft: #2A2260; --sun: #F2B33D; --sun-soft: #3A2F14;
+    --violet: #86A8FF; --violet-ink: #0F1115; --violet-soft: #1E2A4D; --sun: #F2B33D; --sun-soft: #3A2F14;
     --mint: #5CCB9A; --mint-soft: #173528; --rose: #F08B74; --rose-soft: #3B201A;
-    --navy: #0C0A22; --navy-2: #1E1A5A;
+    --navy: #0A0B0F; --navy-2: #1E2130;
     --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 30px -14px rgba(0, 0, 0, 0.7);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --paper: #111216; --surface: #1B1C22; --ink: #F4F5F8; --muted: #C6C9D2; --line: #2D2F38; --contour: #2D2F38;
-  --violet: #A48BFF; --violet-ink: #120F2B; --violet-soft: #2A2260; --sun: #F2B33D; --sun-soft: #3A2F14;
+  --violet: #86A8FF; --violet-ink: #0F1115; --violet-soft: #1E2A4D; --sun: #F2B33D; --sun-soft: #3A2F14;
   --mint: #5CCB9A; --mint-soft: #173528; --rose: #F08B74; --rose-soft: #3B201A;
-  --navy: #0C0A22; --navy-2: #1E1A5A;
+  --navy: #0A0B0F; --navy-2: #1E2130;
   --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 30px -14px rgba(0, 0, 0, 0.7);
   color-scheme: dark;
 }
@@ -912,4 +912,39 @@ button.btn { min-height: 44px; }
 .home-cta .btn-big { min-width: 180px; justify-content: center; }
 .home-cta .linklike { background: none; border: 0; padding: 10px 0; font: inherit; font-weight: 600; color: var(--violet); text-decoration: underline; cursor: pointer; min-height: 44px; }
 .welcome-card { gap: 22px; }
-@media (min-width: 960px) { .welcome-card { max-width: 760px; margin-inline: auto; } .welcome-card > * { max-width: none; margin-inline: 0; } }
+@media (min-width: 960px) { .welcome-card { max-width: 900px; margin-inline: auto; } .welcome-card > :not(.welcome-hero) { max-width: none; margin-inline: 0; width: 100%; } }
+.welcome-also .also-more { grid-column: 1 / -1; font-weight: 700; min-height: 44px; }
+
+/* ── Game-lobby home (owner, 11 Nov): a dark stage with Blocky, colourful game tiles, a plain light page. ── */
+.stage { position: relative; overflow: hidden; border-radius: 28px; padding: 28px 24px; color: #fff; background:
+  radial-gradient(420px 300px at 85% 40%, rgba(122, 76, 255, .55), transparent 70%),
+  linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px) 0 0 / 28px 28px,
+  linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px) 0 0 / 28px 28px, #14161F;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; }
+.stage .tagline { color: #3DF2A5; }
+.stage h1 { color: #fff; font-size: clamp(1.9rem, 6.4vw, 3.1rem); }
+.stage .lede { color: #D9DDEA; }
+.stage .linklike, .stage .muted { color: #D9DDEA; }
+.stage .linklike { text-decoration: underline; }
+.stage .btn-primary { background: #3DF2A5; color: #0B1B14; border-color: #3DF2A5; }
+.stage .btn-primary:hover { background: #6FF7BE; }
+.stage-blocky { width: clamp(110px, 24vw, 260px); height: auto; filter: drop-shadow(0 14px 24px rgba(0, 0, 0, .45)); }
+@media (max-width: 640px) { .stage, .home-hero.stage { grid-template-columns: 1fr; padding: 22px 18px; } .stage-blocky { width: 112px; order: -1; } }
+.home-hero.stage { max-width: none; padding: 30px 26px; gap: 22px; }
+.stage-text { display: grid; gap: 14px; justify-items: start; }
+.game-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 800px) { .game-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.game-grid h2, .game-grid > .game-head { grid-column: 1 / -1; }
+.welcome-also .gtile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); text-decoration: none; color: var(--ink); border: 0; min-height: 132px; grid-template-columns: none; }
+.welcome-also .gtile:hover { transform: translateY(-2px); }
+.gtile > span { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 1.5rem; background: var(--violet-soft); }
+.gtile:nth-of-type(1) > span { background: #FFE3D3; } .gtile:nth-of-type(2) > span { background: #DDE8FF; } .gtile:nth-of-type(3) > span { background: #D7F7E8; }
+.gtile:nth-of-type(4) > span { background: #FFF0B8; } .gtile:nth-of-type(5) > span { background: #E2F4D2; }
+.gtile b { font: 700 1.05rem/1.2 var(--display); }
+.gtile p { margin: 0; color: var(--muted); font-size: .92rem; }
+.gtile.soon { background: transparent; box-shadow: none; border: 1.5px dashed var(--line); min-height: 0; }
+@media (max-width: 640px) { .test-week { font-size: .9rem; padding: 8px 12px; } }
+
+.brand-mark { width: 32px; height: 32px; border-radius: 9px; box-shadow: none; background: url("media/icon.svg") center / cover no-repeat; }
+.brand-mark i, .brand-mark i:first-child { display: none; }
+.welcome-how .also-card { margin-bottom: 10px; box-shadow: none; }

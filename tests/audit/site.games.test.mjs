@@ -41,7 +41,7 @@ test("games.html: no inline script or handler, pinned CDN scripts, and it reads 
 
 test("the welcome page lists every game in games.json and links to the hub", () => {
   const h = read("index.html");
-  const box = h.match(/<div class="welcome-also" id="welcome-games">([\s\S]*?)<\/div>\s*<div class="welcome-actions">/);
+  const box = h.match(/<div class="welcome-also game-grid" id="welcome-games">([\s\S]*?)<\/div>\s*<div class="welcome-actions">/);
   assert.ok(box, "welcome games list");
   for (const g of games) assert.ok(box[1].includes(`<b>${g.name}</b>`), `welcome lists ${g.name}`);
   assert.match(box[1], /href="games\.html"/);

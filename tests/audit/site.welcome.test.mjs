@@ -14,7 +14,7 @@ test("the home hero is short and calm: the tagline, the headline (no money in it
   assert.match(welcome, /<p class="tagline">Call the next block\.<\/p>/);
   assert.equal(welcome.split('href="race.html#pick-zone"').length - 1, 1, "exactly one Play free button on the home page");
   assert.match(welcome, /id="welcome-go">Play free<\/a>/);
-  const hero = welcome.slice(welcome.indexOf('class="home-hero"'), welcome.indexOf('class="welcome-why"'));
+  const hero = welcome.slice(welcome.indexOf('class="home-hero"'), welcome.indexOf('class="welcome-also'));
   assert.doesNotMatch(hero, /VHP|prize|fee|bet|odds|earn|guarantee/i, "no money wording in the first screen");
   assert.doesNotMatch(welcome, /welcome-question|href="#play">Play free/);
 });
@@ -26,8 +26,8 @@ test("the home page hero no longer loads a question; wallet users' row hides onc
 });
 test("All the games lists every game; only the open ones are links; no 'Coming soon' label, no 'Never miss a day' box (owner, 10 Nov)", () => {
   const g = welcome.slice(welcome.indexOf('id="welcome-games"'), welcome.indexOf('class="welcome-actions"'));
-  for (const [name, href] of [["Producer Race", "race.html"], ["Daily Questions", "#play"], ["Who Signs Block X", "blockx.html"], ["Producer Bracket", "bracket.html"], ["Block Golf", "golf.html"]]) assert.match(g, new RegExp(`<a class="also-card" href="${href.replace(".", "\\.")}"><span[^>]*>[^<]*</span><div><b>${name}</b>`), name);
-  for (const name of ["Fantasy Producers", "Survivor"]) assert.match(g, new RegExp(`<div class="also-card soon" aria-disabled="true"><span[^>]*>[^<]*</span><div><b>${name}</b>`), `${name} is not a link`);
+  for (const [name, href] of [["Producer Race", "race.html"], ["Daily Questions", "#play"], ["Who Signs Block X", "blockx.html"], ["Producer Bracket", "bracket.html"], ["Block Golf", "golf.html"]]) assert.match(g, new RegExp(`<a class="also-card gtile" href="${href.replace(".", "\\.")}"><span[^>]*>[^<]*</span><div><b>${name}</b>`), name);
+  for (const name of ["Fantasy Producers", "Survivor"]) assert.match(g, new RegExp(`<div class="also-card gtile soon" aria-disabled="true"><span[^>]*>[^<]*</span><div><b>${name}</b>`), `${name} is not a link`);
   assert.match(g, /<a class="also-card" href="swap\.html">[\s\S]*Knode Games Swap/);
   assert.match(g, /<a class="also-card" href="run-node\.html">[\s\S]*Run a node/);
   assert.match(g, /Block Golf[\s\S]*?Practice in Week 1 \(from Mon 16 Nov\)/);   // owner, 10 Nov: Golf is clickable, practice in Week 1
@@ -60,7 +60,7 @@ test("more race types are shown as coming soon only; today's live points stay 3 
 
 test("home tidy-up (owner, 11 Nov): a short 'What is Knode Games?' box, a 'Pick a game' list, and the long steps folded away", () => {
   assert.match(welcome, /<div class="welcome-why">\s*<h2>What is Knode Games\?<\/h2>/);
-  assert.match(welcome, /<h2>Pick a game<\/h2>/);
+  assert.match(welcome, /<h2 class="game-head">Pick a game<\/h2>/);
   assert.match(welcome, /<details class="welcome-how">\s*<summary>How the Producer Race works<\/summary>/);
   assert.doesNotMatch(welcome.match(/<div class="welcome-why">[\s\S]*?<\/div>/)[0], /earn|bet|odds|guarantee/i);
   for (const m of welcome.matchAll(/<div class="welcome-also"[\s\S]*?<div class="welcome-actions">/g)) assert.ok(m[0].length < 5200, "game cards stay short");

@@ -28,7 +28,7 @@
   <link rel="icon" href="media/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="media/icon-180.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#1B1440">
+  <meta name="theme-color" content="#14161F">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Archivo:wdth,wght@62..125,600;62..125,800;62..125,900&display=swap" rel="stylesheet">
@@ -94,16 +94,34 @@
       <div class="welcome-card">
         <!-- Play first (launch UI research item 7, mockup version 2, owner 5 Nov: "build the mock up version 2"):
              today's question with its answer buttons on the first screen, a clear path for wallet users beside it. -->
-        <div class="home-hero">
-          <p class="tagline">Call the next block.</p>
-          <h1>Guess what the blockchain does next.</h1>
-          <p class="lede">Free prediction games on the Koinos blockchain. Pick a block producer, watch it run, and climb the weekly leaderboard.</p>
-          <div class="home-cta">
-            <a class="btn btn-primary btn-big" href="race.html#pick-zone" id="welcome-go">Play free</a>
-            <span class="muted" id="welcome-paths">Have a Koinos wallet? <button class="linklike" type="button" id="welcome-connect">Connect it</button></span>
+        <div class="home-hero stage">
+          <div class="stage-text">
+            <p class="tagline">Call the next block.</p>
+            <h1>Guess what the blockchain does next.</h1>
+            <p class="lede">Free prediction games on the Koinos blockchain. Pick a block producer, watch it run, and climb the weekly leaderboard.</p>
+            <div class="home-cta">
+              <a class="btn btn-primary btn-big" href="race.html#pick-zone" id="welcome-go">Play free</a>
+              <span class="muted" id="welcome-paths">Have a Koinos wallet? <button class="linklike" type="button" id="welcome-connect">Connect it</button></span>
+            </div>
           </div>
+          <img class="stage-blocky" src="media/blocky-happy.svg" alt="" width="260" height="260">
         </div>
         <div id="welcome-race" hidden></div>
+        <div class="welcome-also game-grid" id="welcome-games">
+          <h2 class="game-head">Pick a game</h2>
+          <a class="also-card gtile" href="race.html"><span aria-hidden="true">🏇</span><div><b>Producer Race</b><p>Pick the winning producer. Four races a day.</p></div></a>
+          <a class="also-card gtile" href="#play"><span aria-hidden="true">🎯</span><div><b>Daily Questions</b><p>Quick questions, Monday to Saturday.</p></div></a>
+          <a class="also-card gtile" href="blockx.html"><span aria-hidden="true">🧱</span><div><b>Who Signs Block X</b><p>Pick who signs the next milestone block.</p></div></a>
+          <a class="also-card gtile" href="bracket.html"><span aria-hidden="true">🏆</span><div><b>Producer Bracket</b><p>Pick every matchup in a weekly knockout.</p></div></a>
+          <a class="also-card gtile" href="golf.html"><span aria-hidden="true">⛳</span><div><b>Block Golf</b><p>Your places in the other games set your score. Practice in Week 1 (from Mon 16 Nov).</p></div></a>
+          <div class="also-card gtile soon" aria-disabled="true"><span aria-hidden="true">📋</span><div><b>Fantasy Producers</b><p>Draft 5 producers under a salary cap.</p></div></div>
+          <div class="also-card gtile soon" aria-disabled="true"><span aria-hidden="true">🛡️</span><div><b>Survivor</b><p>One producer a day, two lives.</p></div></div>
+          <a class="also-more" href="games.html">See every game and your standing →</a>
+          <details class="welcome-how game-head"><summary>More from Knode Games</summary>
+          <a class="also-card" href="swap.html"><span aria-hidden="true">🔁</span><div><b>Knode Games Swap</b><p>Turn VHP back into KOIN in one step, for a 3% fee.</p></div></a>
+          <a class="also-card" href="run-node.html"><span aria-hidden="true">🖥️</span><div><b>Run a node</b><p>Run your own Koinos block-producer node, with step-by-step help.</p></details>
+        </div></a>
+        </div>
         <div class="welcome-why">
           <h2>What is Knode Games?</h2>
           <p>Free and staked prediction games on Koinos. Guess which block producer does what next, and correct calls climb a weekly leaderboard.</p>
@@ -118,20 +136,6 @@
           <li class="last"><span>4</span><div><b>Want more? Stake to share the pool</b><p>With a Koinos wallet (KOIN Vault on a phone, Kondor on a computer), stake 1 VHP or more in a game to share that game's part of the week's rewards. Your stake is never spent: take it back any time. <a href="get.html">No wallet or VHP yet?</a></p></div></li>
         </ol>
         </details>
-        <div class="welcome-also" id="welcome-games">
-          <h2>Pick a game</h2>
-          <a class="also-card" href="race.html"><span aria-hidden="true">🏇</span><div><b>Producer Race</b><p>Pick the winning producer, four races a day. Free play or stake.</p></div></a>
-          <a class="also-card" href="#play"><span aria-hidden="true">🎯</span><div><b>Daily Questions</b><p>Quick questions about producers, Monday to Saturday. Free play or stake.</p></div></a>
-          <a class="also-card" href="blockx.html"><span aria-hidden="true">🧱</span><div><b>Who Signs Block X</b><p>Pick who signs the next milestone block. Free play or stake.</p></div></a>
-          <a class="also-card" href="bracket.html"><span aria-hidden="true">🏆</span><div><b>Producer Bracket</b><p>Pick every matchup in a weekly knockout. Free play or stake.</p></div></a>
-          <a class="also-card" href="golf.html"><span aria-hidden="true">⛳</span><div><b>Block Golf</b><p>Nothing to pick: your places in the other games set your score. Practice in Week 1 (from Mon 16 Nov).</p></div></a>
-          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">📋</span><div><b>Fantasy Producers</b><p>Draft 5 producers under a salary cap. Free play board included.</p></div></div>
-          <div class="also-card soon" aria-disabled="true"><span aria-hidden="true">🛡️</span><div><b>Survivor</b><p>One producer a day, two lives. Free play board included.</p></div></div>
-          <a class="also-more" href="games.html">See every game and your standing →</a>
-          <h2>Also on Knode Games</h2>
-          <a class="also-card" href="swap.html"><span aria-hidden="true">🔁</span><div><b>Knode Games Swap</b><p>Turn VHP back into KOIN in one step, for a 3% fee.</p></div></a>
-          <a class="also-card" href="run-node.html"><span aria-hidden="true">🖥️</span><div><b>Run a node</b><p>Run your own Koinos block-producer node, with step-by-step help.</p></div></a>
-        </div>
         <div class="stats-strip" id="stats-strip" hidden></div>
         <div class="welcome-actions">
           <a class="btn btn-ghost btn-big" href="#how">The full rules</a>

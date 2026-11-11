@@ -48,6 +48,18 @@ export type RunOpts = {
 export type RunResult = { week: number | null; state: string; alerts: Alerts; written: string[] };
 
 const HOUR = 3600000, MIN = 60000;
+
+/** FC-26: the vault contract's rule for whether a game has results for week w (Kpred gameEarns, bot/vault.ts
+ *  earnedWeek): registered, from_week ≤ w, and (no last week, or w + 1 ≤ last_week_plus_one); or the vault already
+ *  closed week w with it earning. A missing game is no game. */
+export function gameEarnsWeek(r: any, w: number): boolean {
+  const g = r?.game;
+  if (!g) return false;
+  if (r?.week?.closed) return true;
+  const from = Number(g.from_week ?? NaN), last = Number(g.last_week_plus_one ?? 0);
+  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(last)) return false;
+  return from <= w && (last === 0 || w + 1 <= last);
+}
 export const MAX_HEAD_GAP_MS = 5 * MIN;        // the two nodes' chain times (KC-7)
 export { MAX_BEHIND_MS };                        // the chain time vs the runner's clock (KC-7; the check's FRESH_MS uses it, NK-11)
 export const WARN_BYTES = Math.floor(MAX_FILE_BYTES * 0.6);     // a warning from 60% of the 2 MB cap…
@@ -79,8 +91,17 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
   if (ka.clock.genesis !== cfg.genesis || ka.clock.weekMs !== cfg.weekMs) throw new Error(`the vault's clock (${ka.clock.genesis}, ${ka.clock.weekMs}) isn't game-data/deployment.json's (${cfg.genesis}, ${cfg.weekMs})`);
   if (Math.abs(ka.time - kb.time) > MAX_HEAD_GAP_MS) throw new Error(`the two nodes' chain times are ${Math.round(Math.abs(ka.time - kb.time) / MIN)} min apart (more than ${MAX_HEAD_GAP_MS / MIN}): one is behind or stalled`);
   const clock: VaultClock = ka.clock;
-  const now = Math.min(ka.time, kb.time);
-  if (o.wallNow && o.wallNow() - now > MAX_BEHIND_MS) throw new Error(`both nodes' chain time is ${Math.round((o.wallNow() - now) / MIN)} min behind this runner's clock: the nodes are stalled`);
+  let now = Math.min(ka.time, kb.time);
+  if (o.wallNow) {
+    const wall = o.wallNow();
+    if (wall - now > MAX_BEHIND_MS) throw new Error(`both nodes' chain time is ${Math.round((wall - now) / MIN)} min behind this runner's clock: the nodes are stalled`);
+    // FC-13: chain time ahead of the runner never moves the game forward. `now` is capped at the runner's clock, so a
+    // node (or two) reporting a future head can't open, lock, decide or finalize anything early.
+    if (now > wall) {
+      if (now - wall > MAX_HEAD_GAP_MS) alerts.warnings.push(`both nodes' chain time is ${Math.round((now - wall) / MIN)} min ahead of this runner's clock: using the runner's clock (FC-13)`);
+      now = wall;
+    }
+  }
   const cw = clock.weekOf(now);
   const out = new Out(o.out);
   const owner = holdWeeks(o.holdWeeks);
@@ -128,6 +149,15 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     // active on chain, checked first (#B-12 NK-10: no hourly false alarms before a game starts).
     alerts.errors.push(`week ${w}: not final by its results deadline (${new Date(due).toISOString()}): the vault pays nothing for it (the backstop)`);
     return pastDue();
+  }
+  // FC-26: a vault file only for a week the game earns, by the vault's own rule (Kpred gameEarns / earnedWeek):
+  // from its from_week, before its last week, or a week the vault already closed with it. Game 1 is gated by its own
+  // source (inputs.active, the v6.1 rule week). Read on both nodes; they must agree.
+  let earns = true;
+  if (cfg.game !== 1) {
+    const ga = await agree(`game ${cfg.game}'s vault registration`, () => va.read("get_game", { game: cfg.game, week: String(w) }), () => vb.read("get_game", { game: cfg.game, week: String(w) }));
+    earns = gameEarnsWeek(ga, w);
+    if (!earns) alerts.notes.push(`week ${w}: game ${cfg.game} doesn't earn this week in the vault (not registered, before its from_week, or stopped): no vault file (FC-26)`);
   }
   let inputs = ra.inputs;
   if (m.inputsFor) {
@@ -227,7 +257,7 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     writeBoard(boardFor(pw, cfg, now));
     const pv = prev.vault(w);
     if (pv) out.copy(`vault/W${w}.json`, pv);
-    else { const vf = vaultFileFor(pw, cfg, now, due); if (vf) out.write(`vault/W${w}.json`, vf); }
+    else if (earns) { const vf = vaultFileFor(pw, cfg, now, due); if (vf) out.write(`vault/W${w}.json`, vf); }
     log(`${cfg.slug} week ${w}: final (copied forward).`);
     return { week: w, state: "final", alerts, written: out.written };
   }
@@ -243,7 +273,7 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
   sizeAlert(`week ${w}'s file`, size);
   out.write(`W${pad3(w)}.json`, body);
   writeBoard(boardFor(body, cfg, now));
-  const vf = vaultFileFor(body, cfg, now, due);
+  const vf = earns ? vaultFileFor(body, cfg, now, due) : null;
   if (vf) out.write(`vault/W${w}.json`, vf);
   if (d.state !== "final" && due - now < DUE_WARN_HOURS * HOUR) alerts.warnings.push(`week ${w}: not final yet (${d.why}); its results are due ${new Date(due).toISOString()}`);
   if (held) alerts.notes.push(`week ${w} held: ${held}`);

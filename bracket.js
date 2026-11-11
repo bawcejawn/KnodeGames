@@ -448,7 +448,7 @@
   if (W && W.subscribe) W.subscribe(() => { loadMine(); renderBoard(); });
   // the shared stake badge and panel (R-ALL-7), game 9
   if (window.KStake && typeof window.KStake.badge === "function" && $("stake-badge")) window.KStake.badge($("stake-badge"), { game: BM.GAME_ID });
-  if (window.KStake && typeof window.KStake.mount === "function" && $("bracket-stake")) window.KStake.mount($("bracket-stake"), { game: BM.GAME_ID });
+  if (window.KStake && typeof window.KStake.mount === "function" && $("bracket-stake")) window.KStake.mount($("bracket-stake"), { game: BM.GAME_ID, freePrize: false });   // owner 11 Nov: free prize OFF (#G-4 G4-1)
   if (window.KNames && typeof window.KNames.onChange === "function") window.KNames.onChange(() => { render(); renderBoard(); });
   (async () => {
     say("Loading the bracket…");

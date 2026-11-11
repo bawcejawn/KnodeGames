@@ -896,3 +896,9 @@ button.btn { min-height: 44px; }
 @media (max-width: 600px) { .welcome-race-line, .welcome-race-facts span { display: none; } .welcome-race-facts li { padding: 6px 10px; } .welcome-race-facts li:nth-child(n+3) { display: none; } }
 .welcome-race-soon { margin: 0 0 12px; padding: 8px 12px; border-radius: var(--r-sm, 12px); background: var(--sun-soft); font-size: .95rem; }
 .rules-soon { border-left: 4px solid var(--violet); }
+
+/* Home tidy-up (owner, 11 Nov): the how-it-works steps fold away so the first screens stay short and calm. */
+.welcome-how { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); padding: 4px 16px; }
+.welcome-how > summary { cursor: pointer; font: 700 1.05rem var(--display); padding: 12px 0; min-height: 44px; display: flex; align-items: center; }
+.welcome-how[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+.welcome-how .welcome-steps { padding-bottom: 14px; }

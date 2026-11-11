@@ -23,6 +23,12 @@
  *   - nodes moved into a Docker volume (node\move-node-to-volume.ps1; their koinos folder has a docker-compose.override.yml
  *     naming the volume) are handled the same way: their block-store log and backups are read inside the volume with a
  *     small throwaway container, and repairs copy into or out of the volume. A move in progress holds the same lock.
+ *   - DOCKER RESET (Windows and Mac): if Docker Desktop is open but its engine doesn't answer at two checks in a row (the
+ *     10 Nov 2026 outage: a Windows Update replaced WSL), it quits Docker Desktop, runs wsl --shutdown (Windows), starts
+ *     Docker Desktop, waits up to 5 minutes, then starts each node with docker compose up -d. At most one reset every 2
+ *     hours and 3 per day; one email when it starts and one when the nodes are up; no crash-loop alarm for 30 minutes
+ *     after. It never touches data, keys or volumes. It does nothing if Docker Desktop was closed on purpose (not open),
+ *     if a heal-paused file exists, or with HEAL_DOCKER_RESET=off in .env. Linux: email only.
  * Every restart (and every problem it can't fix) emails you through GitHub: it starts the "Heal alert" workflow,
  * which fails on purpose, and GitHub emails you about the failed run. That needs GITHUB_ALERT_TOKEN in .env.
  *
@@ -32,7 +38,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -129,7 +135,7 @@ function docker(args, cwd) {
   return execFileSync(process.env.HEAL_DOCKER || "docker", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 180_000, windowsHide: true });
 }
 
-const ALPINE = "alpine:3.20";   // the small pinned image node\move-node-to-volume.ps1 and the repair script use
+const ALPINE = "alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc";   // pinned by digest (Repo Lens #F-8 F8-9); the same image node\move-node-to-volume.ps1 and the repair script use
 
 /** The node's Docker volume, when node\move-node-to-volume.ps1 moved its data there (it writes the volume's name into
  *  docker-compose.override.yml as "# knode-volume: <name>"), else null: the data is in the BASEDIR folder. */
@@ -139,7 +145,7 @@ function volumeOf(dir) {
 }
 /** Runs a shell command in a throwaway container with the node's volume at /k (read-only unless rw). */
 function inVolume(vol, script, rw = false) {
-  return docker(["run", "--rm", "-v", `${vol}:/k${rw ? "" : ":ro"}`, ALPINE, "sh", "-c", script]);
+  return docker(["run", "--rm", "--network", "none", "-v", `${vol}:/k${rw ? "" : ":ro"}`, ALPINE, "sh", "-c", script]);
 }
 
 /** The node's data folder (BASEDIR in its koinos\.env), or null. */
@@ -269,13 +275,24 @@ async function main() {
   catch (e) { log(`Can't reach the Koinos network (${e.message}). Is the internet down? Skipping this check.`); return; }
 
   try { docker(["info", "--format", "{{.ServerVersion}}"]); }
-  catch {
-    log("Docker isn't running, so the nodes can't be checked or restarted.");
-    if (!st.dockerAlert || now - st.dockerAlert > NAG_MS) { await alert("Docker", "Docker Desktop isn't running on the PC, so all nodes are stopped. Open Docker Desktop."); st.dockerAlert = now; }
-    writeState(st);
-    return;
+  catch (e) {
+    log("Docker isn't answering, so the nodes can't be checked or restarted.");
+    st.dockerDown = (Number(st.dockerDown) || 0) + 1;
+    const did = await handleDockerDown(st, now, String(e.stderr || e.message || ""));
+    let up = false;
+    if (did && !DRY) { try { docker(["info", "--format", "{{.ServerVersion}}"]); up = true; } catch {} }   // the reset worked within this run
+    if (!up) {
+      if (!did && (!st.dockerAlert || now - st.dockerAlert > NAG_MS)) { await alert("Docker", "Docker Desktop isn't running on the PC, so all nodes are stopped. Open Docker Desktop."); st.dockerAlert = now; }
+      writeState(st);
+      return;
+    }
   }
   st.dockerAlert = 0;
+  st.dockerDown = 0;
+  if (st.dockerReset?.awaitingUp) {
+    // Docker is back after a reset: bring each node up (it may have come up by itself; "up -d" is harmless then).
+    await bringNodesUp(st, now);
+  }
 
   const lock = readLock();
   const crashed = [];   // nodes in a block-store crash loop this run: repaired after every node has been checked
@@ -287,6 +304,11 @@ async function main() {
     if (lock && (lock.broken === keyOf(n) || lock.from === keyOf(n))) {
       log(`${n.name}: a repair (${lock.broken} from ${lock.from}) is running since ${new Date(Number(lock.startedAt)).toISOString().slice(11, 16)} UTC; not touching it.`);
       s.okRuns = 0;
+      continue;
+    }
+    if (st.dockerReset?.upAt && now - st.dockerReset.upAt < QUIET_MS) {
+      log(`${n.name}: settling after the Docker reset (${Math.round((now - st.dockerReset.upAt) / 60000)} min ago); not checking it yet.`);
+      s.okRuns = 0; s.height = null; s.silent = false;
       continue;
     }
     const starts = blockStoreStarts(n.dir, 20 * 60_000, Number(s.repairedAt) || 0);
@@ -342,6 +364,94 @@ async function main() {
   }
   for (const c of crashed) await handleCrashLoop(c, st, now, lock);
   writeState(st);
+}
+
+// ───────────── Docker Desktop reset (Windows and Mac) ─────────────
+// The 10 Nov 2026 outage: a Windows Update replaced WSL, Docker's engine died ("Docker Desktop is unable to start") and
+// no restart of a node could help. What cures it by hand is: quit Docker Desktop, wsl --shutdown, start Docker Desktop.
+// It never touches a node's data, keys or volumes, and never runs "docker compose down" (the engine is dead anyway).
+const RESET_GAP_MS = 2 * 3600_000;      // at most one reset every 2 hours
+const RESET_PER_DAY = 3;
+const RESET_WAIT_MS = 5 * 60_000;       // how long to wait for Docker to answer after starting it
+const QUIET_MS = 30 * 60_000;           // after a reset: no crash-loop alarm or repair for 30 minutes
+const platform = () => process.env.HEAL_PLATFORM || process.platform;
+const sysBin = (name) => (process.env.HEAL_SYS_DIR ? path.join(process.env.HEAL_SYS_DIR, name) : name);
+const sys = (name, args, ms = 60_000) => execFileSync(sysBin(name), args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: ms, windowsHide: true });
+const sleep = (ms) => new Promise((r) => setTimeout(r, process.env.HEAL_FAST ? 20 : ms));
+const resetOff = () => /^(off|0|false|no)$/i.test(String(process.env.HEAL_DOCKER_RESET || ""));
+const desktopExe = () => process.env.HEAL_DOCKER_DESKTOP || (platform() === "win32" ? path.join(process.env.ProgramFiles || "C:\\Program Files", "Docker", "Docker", "Docker Desktop.exe") : "Docker");
+
+/** Is the Docker Desktop program itself open? If the owner quit it on purpose, it isn't, and we leave it alone. */
+function desktopOpen() {
+  try {
+    if (platform() === "win32") return /Docker Desktop\.exe/i.test(sys("tasklist", ["/FI", "IMAGENAME eq Docker Desktop.exe", "/NH"]));
+    if (platform() === "darwin") return sys("pgrep", ["-x", "Docker Desktop"]).trim().length > 0;
+  } catch {}
+  return false;
+}
+const pausedByOwner = () => [DIR, ...NODES.map((n) => n.dir)].some((d) => fs.existsSync(path.join(d, "heal-paused")));
+
+/** Docker doesn't answer. Returns true when it handled the situation (reset, or an email explaining why not), false
+ *  when the caller should send the plain "Docker isn't running, open it" email. */
+async function handleDockerDown(st, now, why) {
+  const quiet = (r) => (st.dockerReset = { ...(st.dockerReset || {}), ...r });
+  if (!["win32", "darwin"].includes(platform())) { log("Docker reset: only on Windows and Mac; on Linux restart Docker yourself (systemctl restart docker)."); return false; }
+  if (resetOff()) { log("Docker reset: switched off (HEAL_DOCKER_RESET=off)."); return false; }
+  if (pausedByOwner()) { log("Docker reset: a heal-paused file exists, so you stopped things on purpose; not touching Docker."); return true; }
+  if (!desktopOpen()) { log("Docker Desktop isn't open (stopped on purpose, or nobody is signed in); not starting it."); return false; }
+  if (st.dockerDown < 2) { log("Docker Desktop is open but its engine doesn't answer; waiting one more check (it may still be starting)."); return true; }
+  const busy = readLock();   // Repo Lens F14-1: a repair or move holds this lock; a reset would kill its copy
+  if (busy) { log(`Docker reset: a repair or move is running (${busy.broken}, from ${busy.from}); not resetting Docker while it holds the lock. The next check looks again.`); return true; }
+  const r = st.dockerReset || {};
+  const recent = (r.times || []).filter((t) => now - t < 24 * 3600_000);
+  const nag = async (reason) => {
+    log(`Docker reset: not resetting: ${reason}`);
+    if (!st.dockerAlert || now - st.dockerAlert > NAG_MS) { await alert("Docker", `Docker Desktop's engine isn't answering and the self-heal did not reset it: ${reason}. Open Docker Desktop and check it, or restart the PC.`); st.dockerAlert = now; }
+    return true;
+  };
+  if (recent.length && now - Math.max(...recent) < RESET_GAP_MS) return nag("it already reset Docker in the last 2 hours");
+  if (recent.length >= RESET_PER_DAY) return nag(`it already reset Docker ${recent.length} times in 24 hours`);
+  const msg = `Docker's engine has not answered for two checks (${String(why).replace(/\s+/g, " ").slice(0, 120)}). Resetting Docker Desktop (quit, wsl --shutdown, start) at ${stamp()}. Nodes are not touched; they start again afterwards.`;
+  if (DRY) { log(`(dry run) would reset Docker Desktop: ${msg}`); return true; }
+  log(msg);
+  quiet({ times: [...recent, now], awaitingUp: true, startedAt: now, lastUpAlert: 0 });
+  await alert("Docker", msg);
+  try {
+    if (platform() === "win32") {
+      try { sys("taskkill", ["/IM", "Docker Desktop.exe", "/F"]); } catch {}
+      try { sys("wsl", ["--shutdown"]); } catch (e) { log(`wsl --shutdown: ${String(e.message).slice(0, 100)}`); }
+      spawn(desktopExe(), [], { detached: true, stdio: "ignore", windowsHide: false }).unref();
+    } else {
+      try { sys("osascript", ["-e", 'quit app "Docker"']); } catch {}
+      await sleep(10_000);
+      sys("open", ["-a", desktopExe()]);
+    }
+  } catch (e) { log(`Docker reset: couldn't start Docker Desktop (${String(e.message).slice(0, 120)}).`); }
+  const until = Date.now() + (process.env.HEAL_RESET_WAIT_MS != null ? Number(process.env.HEAL_RESET_WAIT_MS) : RESET_WAIT_MS);
+  while (Date.now() < until) {
+    await sleep(15_000);
+    try { docker(["info", "--format", "{{.ServerVersion}}"]); log("Docker answers again after the reset."); return true; } catch {}
+  }
+  log("Docker didn't answer within 5 minutes of the reset; the next check carries on (no second reset for 2 hours).");
+  return true;
+}
+
+/** After a reset, once Docker answers: start each node (docker compose up -d) and send one email. */
+async function bringNodesUp(st, now) {
+  const r = st.dockerReset;
+  const done = [], failed = [];
+  const lock = readLock(), skipped = [];
+  for (const n of NODES) {
+    if (!fs.existsSync(n.dir)) continue;
+    if (fs.existsSync(path.join(n.dir, "heal-paused"))) continue;   // you stopped it yourself
+    if (lock && [lock.broken, lock.from].includes(keyOf(n))) { skipped.push(n.name); continue; }   // Repo Lens F14-1: a repair or move is working on it
+    try { docker(["compose", "up", "-d"], n.dir); done.push(n.name); }
+    catch (e) { failed.push(`${n.name}: ${String(e.stderr || e.message).trim().slice(0, 80)}`); }
+  }
+  r.awaitingUp = false; r.upAt = now;
+  for (const n of NODES) { const s = (st.nodes[n.name] ??= { heals: [] }); s.height = null; s.silent = false; s.okRuns = 0; }
+  log(`Docker reset finished: started ${done.join(", ") || "no node"}${failed.length ? `; FAILED: ${failed.join("; ")}` : ""}${skipped.length ? `; left alone (a repair is running): ${skipped.join(", ")}` : ""}.`);
+  await alert("Docker", `Docker is back after the reset and the self-heal started your nodes (${done.join(", ") || "none"})${failed.length ? `; these failed: ${failed.join("; ")}` : ""}. They need up to 30 minutes to catch up; no alarms until then. Check: node bot\\heal.mjs --dry-run`);
 }
 
 const manualHint = (k) => `powershell -ExecutionPolicy Bypass -File node\\repair-node-data.ps1 -Broken ${k} -From ${k === "desk" ? "game" : "desk"}`;

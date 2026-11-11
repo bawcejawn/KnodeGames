@@ -526,3 +526,12 @@ test("I-028: withdrawing or moving below the minimum mid-week is explained befor
   assert.equal([...page.matchAll(/, drop\]/g)].length, 2, "withdraw and move both show the warning");
   assert.match(fs.readFileSync(`${APP}/stake.html`, "utf8"), /as long as at least the minimum \(1 VHP\) stays in/);
 });
+
+test("owner 5 Nov / Run a Node: the site lists Proof-of-Burn as sponsored (after the owner's config send, 6 Nov) and a registration asks for the 2.4 per-transaction cap", () => {
+  const sp = JSON.parse(fs.readFileSync(`${APP}/game-data/deployment.json`, "utf8")).sponsor;
+  assert.ok(sp.covers.includes("159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv")); assert.equal(sp.pob, "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv");
+  assert.equal(sp.rcLimitOther, "240000000", "not an answer or a pick: rcLimitOther");
+  assert.ok(!Object.keys(sp.rcLimits || {}).some((k) => k.startsWith("159myq")), "no measured row yet: the fallback (2.4) applies");
+  const w = fs.readFileSync(`${APP}/wallet.js`, "utf8");
+  assert.match(w, /rcFor\(sp, ops, String\(answerOnly \? \(sp\.rcLimit \|\| "100000000"\) : \(sp\.rcLimitOther \|\| "100000000"\)\)\)/);
+});

@@ -951,10 +951,11 @@ function tally(weeks: Map<number, WeekFile>, from: number, to: number, weekly = 
   for (const r of races) {
     if (r.start < from || r.start >= to || !r.result?.final || !Array.isArray(r.result.picks)) continue;
     if (weekly && !forWeek(r)) continue;
-    const P = M.pointsOf(r.type);
+    // D-173: points per place once the types are on (the old win / show before, and for weeks already paid under it).
+    const P = M.pointsOf(r.type, M.weekOf(r.start), prizesFromWeek === NO_PRIZES ? null : prizesFromWeek, typesFromWeek);
     for (const [who, , at, right, , show] of r.result.picks) {
       const x = t.get(who) || { pts: 0, correct: 0, shows: 0, picks: 0 };
-      x.picks++; x.correct += right ? 1 : 0; x.shows += !right && show ? 1 : 0; x.pts += right ? P.win : show ? P.show : 0;
+      x.picks++; x.correct += right ? 1 : 0; x.shows += !right && show ? 1 : 0; x.pts += right ? P.win : show ? M.showPoints(P, r.result.standings, who) : 0;
       // D-152: when the wallet reached its score = its latest scoring pick (a win or a show).
       if ((right || show) && (x.reached === undefined || Number(at) > x.reached)) x.reached = Number(at);
       t.set(who, x);

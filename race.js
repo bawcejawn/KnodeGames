@@ -337,7 +337,7 @@
       rows.push(el("div", { class: "pk-row done" },
         el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: "final" })),
         el("div", { class: "pk-now", text: `You picked ${nameOf(p[1])}; ${nameOf(r.result.winner || "")} won` }),
-        el("span", { class: p[3] || isShow(r.result, p) ? "pk-ok" : "pk-no", text: p[3] ? `✓ Win +${M.POINTS.win}` : isShow(r.result, p) ? `✓ Show +${M.POINTS.show}` : "✗" })));
+        el("span", { class: p[3] || isShow(r.result, p) ? "pk-ok" : "pk-no", text: (() => { const s = M.pagePick(r.type || 0, r.start, r.result.standings, p[1], !!p[3], !p[3] && isShow(r.result, p)); return s.label ? `✓ ${s.label} +${s.pts}` : "✗"; })() })));
     }
     list.replaceChildren(...rows);
   }
@@ -466,6 +466,8 @@
   // ── race types (D-166): the toggle and the 1-hour, 2-hour, daily and weekly races ──
   // Shown only from M.TYPES_FROM_WEEK (the week the Race contract v2 is live). The 6-hour race above is unchanged.
   const typesLive = () => M.TYPES_ON_WEEK !== null && M.weekOf(Date.now()) >= M.TYPES_ON_WEEK;   // #C-12 C12-1: needs TYPES_READY
+  // D-173: points per place come WITH the types (never before): the rules note is reworded then.
+  if (typesLive() && $("pts-note")) $("pts-note").textContent = "Points are per place, by race: 1st / 2nd / 3rd score 3 / 2 / 1 in a 1-hour or 2-hour race, 4 / 2 / 1 in a 6-hour race, 6 / 3 / 2 in a daily race and 12 / 6 / 4 in the weekly race. A 2nd or 3rd place scores only if that producer signed at least one block.";
   const ORDER = [1, 2, 0, 3, 4];
   const POOL = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
   let rtype = 0, tweeks = new Map(), rtPicks = new Map(), rtKey = "";
@@ -509,7 +511,7 @@
     if (!typesLive()) { nav.hidden = true; return; }
     nav.hidden = false;
     nav.replaceChildren(...ORDER.map((t) => el("button", { type: "button", "aria-pressed": String(t === rtype), onclick: () => rtSelect(t) },
-      M.TYPES[t].name, el("small", { text: `win ${M.TYPES[t].win} · show ${M.TYPES[t].show}` }))));
+      M.TYPES[t].name, el("small", { text: `1st ${M.TYPES[t].places[0]} · 2nd ${M.TYPES[t].places[1]} · 3rd ${M.TYPES[t].places[2]}` }))));
   }
   function rtSelect(t) {
     rtype = t;
@@ -541,7 +543,7 @@
     $("rt-title").textContent = `${T.name} race · ${dayTime(cur.start)} – ${rtype >= 3 ? dayTime(cur.end) : clock(cur.end)}${rtype === 3 ? " (the UTC day)" : rtype === 4 ? " (Monday to Saturday, UTC)" : ""}`;
     $("rt-tag").textContent = `${dur(cur.end - Date.now())} left`;
     const card = cardAt(rtype, Math.floor(Date.now() / M.HOUR) * M.HOUR);
-    const notes = [`A win scores ${T.win} points, a show (2nd or 3rd) ${T.show}, on the one Producer Race board.`];
+    const notes = [`1st scores ${T.places[0]} points, 2nd ${T.places[1]} and 3rd ${T.places[2]}, on the one Producer Race board.`];
     if (fun) notes.push("Sunday fun race: it counts on Today and All time, not the week.");
     if (card && !card.field.some((x) => x.a === POOL)) {
       const tot = card.field.concat(card.paddock || []).reduce((t, x) => t + x.vhp, 0), need = card.blocksPerRace > 0 ? Math.ceil(M.MIN_K * tot / card.blocksPerRace) : 0;
@@ -585,7 +587,7 @@
         const p = res && Array.isArray(res.picks) && who ? res.picks.find((x) => x[0] === who) : null;
         done.push(el("div", { class: "pk-row done" }, el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: res && res.final ? (res.missed ? "not run" : "final") : "checking" })),
           el("div", { class: "pk-now", text: res && res.final && !res.missed ? `${nameOf(res.winner || "")} won${p ? `; you picked ${nameOf(p[1])}` : ""}` : "Results come in once the race's last hour is final." }),
-          el("span", { class: p ? (p[3] || p[5] === 1 ? "pk-ok" : "pk-no") : "", text: p ? (p[3] ? `✓ Win +${T.win}` : p[5] === 1 ? `✓ Show +${T.show}` : "✗") : "" })));
+          el("span", { class: p ? (p[3] || p[5] === 1 ? "pk-ok" : "pk-no") : "", text: p ? (() => { const s = M.pagePick(r.type, r.start, res && res.standings, p[1], !!p[3], p[5] === 1); return s.label ? `✓ ${s.label} +${s.pts}` : "✗"; })() : "" })));
       }
       $("rt-results").replaceChildren(...done);
     }

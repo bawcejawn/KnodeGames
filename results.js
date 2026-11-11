@@ -72,7 +72,7 @@
       const wins = M.winners(st), show = M.shows(st);
       const isWin = (p) => p[3] === 1, isShow = (p) => !isWin(p) && (p.length > 5 ? p[5] === 1 : show.includes(p[1]));
       const my = me() ? picks.find((p) => p[0] === me()) : null;
-      return { r, status, st, picks, wins, show, isWin, isShow, my, myPts: my ? (isWin(my) ? M.POINTS.win : isShow(my) ? M.POINTS.show : 0) : 0 };
+      return { r, status, st, picks, wins, show, isWin, isShow, my, myPts: my ? M.pagePick(0, r.start, st, my[1], isWin(my), isShow(my)).pts : 0, myLabel: my ? M.pagePick(0, r.start, st, my[1], isWin(my), isShow(my)).label : "" };
     },
     draw() {
       const f = this.files.get(this.week), box = this.box;
@@ -140,7 +140,7 @@
         const nW = x.picks.filter(x.isWin).length, nS = x.picks.filter(x.isShow).length;
         body.push(el("p", { class: "res-line rr-picks" }, x.picks.length ? `${x.picks.length} pick${x.picks.length === 1 ? "" : "s"}: ${nW} won, ${nS} showed` : "No picks on this race."));
         if (x.my) {
-          const outcome = x.isWin(x.my) ? `won · +${M.POINTS.win} pts` : x.isShow(x.my) ? `showed · +${M.POINTS.show} pt` : "missed · 0 pts";
+          const outcome = x.myPts ? `${x.isWin(x.my) ? "won" : "showed"}${x.myLabel && x.myLabel !== "Win" && x.myLabel !== "Show" ? ` (${x.myLabel})` : ""} · +${x.myPts} pt${x.myPts === 1 ? "" : "s"}` : "missed · 0 pts";
           body.push(el("p", { class: `res-line rr-mine ${x.myPts ? "ok" : ""}` }, el("b", { text: "You: " }), link(x.my[1]), ` ${outcome}`));
         }
         body.push(el("details", { class: "res-how" }, el("summary", {}, "Full standings"),

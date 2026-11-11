@@ -1125,11 +1125,14 @@ async function recomputeRun(players, { mutate = null, mutateBoard = null, prizes
   const R = await import(path.resolve(APP, "bot/race.ts"));
   const start = M.weekStart(2), races = [];
   const t = new Map(), firstAt = new Map();
+  const tfw = typesFrom !== undefined ? Number(typesFrom) : typed ? 2 : null;   // D-173: per-place points once the types are on
+  const PP = (ty) => M.pointsOf(ty, 2, Number(prizesFrom), tfw);
   for (let i = 0; i < 28; i++) races.push({ id: M.raceId(M.raceIndex(start + i * 6 * H)), start: start + i * 6 * H, end: start + (i + 1) * 6 * H, cards: [], result: { final: true, picks: [] } });
   for (const p of players) for (const [ri, right, show, at] of p.picks) {
     races[ri].result.picks.push([p.a, P[0], at, right, 0, show]);
     if (skipSunday && ri >= 24) continue;   // races 24–27 are the week's Sunday (D-129: they count for no week)
     const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0;
+    c.pts = (c.pts || 0) + (right ? PP(0).win : show ? PP(0).second : 0);
     if ((right || show) && (c.reached === undefined || at > c.reached)) c.reached = at;   // D-152: when it reached its score
     t.set(p.a, c);
     if (!firstAt.has(p.a) || at < firstAt.get(p.a)) firstAt.set(p.a, at);
@@ -1143,11 +1146,11 @@ async function recomputeRun(players, { mutate = null, mutateBoard = null, prizes
     r.result.picks.push([p.a, P[0], at, right, 0, show]);
     if (M.restRace(r.start, rhythmFrom === undefined ? 3 : Number(rhythmFrom))) continue;
     const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0;
-    c.extra = (c.extra || 0) + (right ? M.pointsOf(ty).win - 3 : show ? M.pointsOf(ty).show - 1 : 0);
+    c.pts = (c.pts || 0) + (right ? PP(ty).win : show ? PP(ty).second : 0);
     if ((right || show) && (c.reached === undefined || at > c.reached)) c.reached = at;
     t.set(p.a, c);
   }
-  const rows = R.rank([...t].map(([a, { extra = 0, ...c }]) => ({ a, ...c, pts: 3 * c.correct + c.shows + extra, ranked: players.find((p) => p.a === a).staked, earning: true })));
+  const rows = R.rank([...t].map(([a, c]) => ({ a, ...c, ranked: players.find((p) => p.a === a).staked, earning: true })));
   void rhythmFrom;
   const placed = R.withEarns(R.withPlaces(R.cutLine(rows)), true).map(({ earning, reached, tb, ...r }) => r);
   const places = R.prizePlaces(rows), staked = R.stakedRows(R.cutLine(rows));
@@ -1838,8 +1841,8 @@ test("D-166: the hour ledger, and 1-hour and 2-hour races scored from it with th
   assert.deepEqual(p1.map((x) => [x[0], x[3], x[5]]), [[W1, 1, 0], [W2, 0, 1]]);
   const board = JSON.parse(fs.readFileSync(path.join(c, "board.json"), "utf8"));
   const row = (a) => board.week.rows.find((x) => x.a === a);
-  assert.deepEqual([row(W1).pts, row(W1).correct, row(W1).picks], [4, 2, 2], "W1: a 1-hour win (2) + a 2-hour win (2)");
-  assert.deepEqual([row(W2).pts, row(W2).shows], [1, 1], "W2: a 1-hour show (1)");
+  assert.deepEqual([row(W1).pts, row(W1).correct, row(W1).picks], [6, 2, 2], "W1: a 1-hour 1st (3) + a 2-hour 1st (3), points per place (D-173)");
+  assert.deepEqual([row(W2).pts, row(W2).shows], [2, 1], "W2: a 1-hour 2nd (2)");
   assert.deepEqual(Object.keys(week(c)), ["v", "week", "start", "end", "races"], "W002.json unchanged in shape");
 });
 
@@ -1988,4 +1991,39 @@ test("F11 fix-check probe: a week held for the unset variable goes final by itse
     assert.ok(f.final && f.rows.length > 0, "set: final with rows on the next run: " + JSON.stringify(f));
     assert.ok(!lastRun.held.some((m) => /PRIZES_FROM_WEEK/.test(m)), "set: the alert stops");
   } finally { if (saved === undefined) delete process.env.PRIZES_FROM_WEEK; else process.env.PRIZES_FROM_WEEK = saved; }
+});
+
+// ── D-173 (owner, 10 Nov): points per place (1st / 2nd / 3rd), arriving with the race types ──
+test("D-173: points per place: the table, the old win / show before the types, and the weeks already paid keep theirs", () => {
+  const table = { 0: [4, 2, 1], 1: [3, 2, 1], 2: [3, 2, 1], 3: [6, 3, 2], 4: [12, 6, 4] };
+  for (const [t, v] of Object.entries(table)) assert.deepEqual([...M.TYPES[t].places], v, `type ${t}`);
+  // The types off (typesFrom null): every race scores the old win / show, exactly as paid so far.
+  assert.deepEqual(M.pointsOf(0, 5, 4, null), { win: 3, second: 1, third: 1, show: 1 });
+  assert.deepEqual(M.pointsOf(3, 5, 4, null), { win: 6, second: 2, third: 2, show: 2 });
+  // The types on from week 7: a week paid under the old table (4 <= w < 7) keeps it; practice weeks and from week 7 use the new one.
+  assert.deepEqual(M.pointsOf(0, 5, 4, 7), { win: 3, second: 1, third: 1, show: 1 }, "paid week 5 keeps 3 / 1");
+  assert.deepEqual(M.pointsOf(0, 3, 4, 7), { win: 4, second: 2, third: 1, show: 2 }, "practice week 3 is re-scored");
+  assert.deepEqual(M.pointsOf(0, 7, 4, 7), { win: 4, second: 2, third: 1, show: 2 }, "from week 7");
+  assert.deepEqual(M.pointsOf(4, 9, 4, 7), { win: 12, second: 6, third: 4, show: 6 });
+  // A show pick's place comes from the race's own standings: 2nd or 3rd.
+  const st = [{ a: "W" }, { a: "S" }, { a: "T" }], P = M.pointsOf(0, 9, 4, 7);
+  assert.equal(M.showPoints(P, st, "S"), 2); assert.equal(M.showPoints(P, st, "T"), 1);
+  assert.equal(M.showPoints(M.pointsOf(0, 9, 4, null), st, "T"), 1, "old: a show is 1 either way");
+  // The publish job's tables are the same as race-math.js's.
+  const yml = fs.readFileSync(path.join(APP, ".github/workflows/race.yml"), "utf8");
+  const parse = (name) => JSON.parse(yml.match(new RegExp(`${name} = (\\{[^}]*\\})`))[1].replace(/\(/g, "[").replace(/\)/g, "]").replace(/(\d+):/g, '"$1":'));
+  const pn = parse("PTS_NEW"), po = parse("PTS_OLD");
+  for (const t of [0, 1, 2, 3, 4]) {
+    assert.deepEqual(pn[t], [...M.TYPES[t].places], `race.yml PTS_NEW ${t}`);
+    assert.deepEqual(po[t], [M.TYPES[t].win, M.TYPES[t].show, M.TYPES[t].show], `race.yml PTS_OLD ${t}`);
+  }
+});
+
+test("D-173: the new points stay off with the types: TYPES_ON_WEEK null means placesOn is false everywhere", () => {
+  assert.equal(M.placesOn(M.TYPES_ON_WEEK), M.TYPES_ON_WEEK !== null);
+  if (M.TYPES_ON_WEEK === null) {
+    assert.deepEqual(M.pointsOf(0, 9, 4, M.TYPES_ON_WEEK), { win: 3, second: 1, third: 1, show: 1 }, "main scores 3 / 1 until the upgrade");
+    assert.deepEqual(M.pagePick(0, Date.now(), [], "a", true, false), { label: "Win", pts: 3 });
+    assert.deepEqual(M.pagePick(0, Date.now(), [{ a: "w" }, { a: "s" }, { a: "t" }], "t", false, true), { label: "Show", pts: 1 });
+  }
 });

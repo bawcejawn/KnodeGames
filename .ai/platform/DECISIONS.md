@@ -183,6 +183,7 @@
 | D-170 | 2026-11-06 | VHP Ruler marks: sim 1 judged on 0.84 – 1.16 (the remaining big-producer edge accepted); sim 8's other producers judged on the low side only (no one more than 0.05 below honest); E's details recorded | active (`../standards/VHP_RULER.md` §18) |
 | D-171 | 2026-11-06 | VHP Ruler after Repo Lens #B-12: a 2-sd two-sided band on the yardstick (N-4) and the field median weighted by expected blocks, lower member on a tie | active (`../standards/VHP_RULER.md` §18.2) |
 | D-172 | 2026-11-06 | Track every producer void and every band set-aside (who moved the VHP), with a weekly summary to the owner, so the ruler can be adjusted | active (R-RULER-2) |
+| D-173 | 2026-11-10 | Producer Race points per place (1st / 2nd / 3rd): 1- and 2-hour 3/2/1, 6-hour 4/2/1, daily 6/3/2, weekly 12/6/4; they arrive with the race types, history is re-scored except weeks already paid under the old table | built on `race-places`, off until `TYPES_FROM_WEEK`; Repo Lens first |
 
 ---
 
@@ -914,6 +915,12 @@
   - each **producer void**: producer, race, VHP before and after, the sending address(es), and whether the producer moved it itself;
   - each **band set-aside**: producer, race, its count against its expected share, in sd.
   It's data only and pays nothing. A **weekly summary** (counts per producer, repeat senders, set-aside rates against the ~1 in 20 expected) goes into the weekly review and the owner's alert email, so the ruler's settings can be adjusted by a later decision.
+
+## D-173 — Producer Race: points per place
+- **Date:** 2026-11-10 (owner: "make points for first (3), second (2), and third (1) - hourly + 2 hour; make the 6 hour 4 points for first, second 2, and third 1; daily 6 is good, then 3 for second, and 2 for third; weekly, 12 for first, 6 for second, 4 for third"; then "yes update for the historicals to align with the new setup … you can wait on the 6 hour for now and just let it update when this upgrade pushes") · **Decision:** the five race types score 1st / 2nd / 3rd: 1-hour 3/2/1, 2-hour 3/2/1, 6-hour 4/2/1, daily 6/3/2, weekly 12/6/4 (a 2nd or 3rd scores only with at least one step). It replaces win / show. It is off, and the 6-hour race keeps 3 / 1, until the race types go live (`TYPES_ON_WEEK`); the points arrive with them, not separately.
+- **History:** once on, every past race is scored by the new table, so the Today, All time and week boards line up, EXCEPT the weeks already paid under the old one (`PRIZES_FROM_WEEK` <= week < the types' week): those keep the old points so a board never disagrees with what the vault paid (owner confirmed 10 Nov: weeks already paid keep their old points).
+- **Unchanged:** ranking (points, wins, picks, reached), D-152 and D-159 payouts, the vault file's shape.
+- **How:** `race-math.js` (`TYPES[].places`, `pointsOf(type, week, paidFrom, typesFrom)`, `showPoints`, `pagePick`), `bot/race.ts` (tally), `race.yml` (publish recompute: `PTS_OLD`, `PTS_NEW`, the row bound), `race.js` and `results.js` labels (1st / 2nd / 3rd once on). The pick record keeps its shape: 2nd or 3rd is read from the race's stored standings.
 
 ## Contradictions
 Repo wins over chats (D-002); the owner's answers win over both.

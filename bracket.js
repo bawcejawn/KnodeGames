@@ -39,6 +39,7 @@
   // ── state ──
   const weeks = new Map();          // week → recorder file
   let board = null, form = new Map(), view = null, round = 0;
+  let prizesFrom;                   // index.json prizesFromWeek: the first paid week; null = none yet; undefined = not read
   let picksContract = null, mine = null, sending = false;
   let draft = null, draftWeek = null; // winner seeds per round for the bracket being filled in
 
@@ -49,6 +50,7 @@
       try { const j = await fetchJson(`${DATA}W${String(x).padStart(3, "0")}.json`); if (valid(j, x)) weeks.set(x, j); } catch { /* not yet */ }
     }));
     try { const b = await fetchJson(DATA + "board.json"); if (b && b.v === 1) board = b; } catch { /* not yet */ }
+    try { const j = await fetchJson(DATA + "index.json"); if (j && j.v === 1) prizesFrom = Number.isInteger(j.prizesFromWeek) && j.prizesFromWeek >= 0 ? j.prizesFromWeek : null; } catch { /* not yet */ }
   }
   /** Only well-formed files are used (the publish job checks the same shape). The version is the one the recorder
    *  writes, from the shared math file (Repo Lens #E-3 H-1). */
@@ -164,6 +166,7 @@
   // ── drawing ──
   function render() {
     const w = wf(), s = seeding(), now = Date.now();
+    renderPractice();
     // the week line
     const lines = [];
     if (!w && view) lines.push(now < BM.seedTime(view) ? `The next bracket is seeded ${dayTime(BM.seedTime(view))} (in ${dur(BM.seedTime(view) - now)}).` : "Waiting for the recorder…");
@@ -400,7 +403,8 @@
   const lb = window.KBoard ? window.KBoard.create($("bk-board"), {
     label: "Bracket leaderboard", hide: ["today"],
     // Staked: wallets with 1 VHP or more staked in the Bracket that week (the Vault's player rule); Free play: the rest
-    free: { show: 6, prize: "Weekly free-play prize: tied for 1st share all 3 VHP; otherwise 2 VHP to 1st and 1 VHP shared by those tied 2nd (up to 10 a place)." },
+    // owner 11 Nov: the free prize is OFF for now (the recorder gives free-play medals only when game 9's switch is on)
+    free: { show: 6, prize: "The Free play board pays no VHP prize for now. Players staked in the Producer Bracket share its weekly bucket." },
     unranked: "To be on the Staked board, stake at least 1 VHP in the Producer Bracket before the week starts.",
     columns: [{ key: "pts", label: "Points" }, { key: "correct", label: "Right" }],
     scored: (r) => r.pts > 0,
@@ -411,7 +415,17 @@
     freeWinners: (part, free, weekly) => new Map(weekly ? free.filter((r) => r.earns === 1 || r.earns === 2).map((r) => [r.a, r.earns]) : []),
     earned: (r, weekly) => weekly && r.earns === 3,
   }) : null;
-  function renderBoard() { if (lb && board) { $("board-box").hidden = false; lb.setMe(me() || ""); lb.set(board); } }
+  /** Owner 11 Nov: the week on show (this week or next week's picks), if before the first paid week (index.json prizesFromWeek) is practice, and the page says so. */
+  const weekLabel = (w) => (w >= 4 ? `Week ${w - 3}` : w === 3 ? "Test week" : "This week");   // vault week 4 = Week 1 (weeks.js)
+  const weekDate = (w) => new Date(BM.weekStart(w)).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  function practiceText(w) {
+    if (prizesFrom === undefined) return "";
+    if (prizesFrom !== null && w >= prizesFrom) return "";
+    return `${weekLabel(w)} is a practice week: brackets, points and both leaderboards count for fun only, and no VHP is paid for it. `
+      + (prizesFrom === null ? "The first paid week will be announced here." : `Staked rewards start ${weekLabel(prizesFrom)}, the week of ${weekDate(prizesFrom)}.`);
+  }
+  function renderPractice() { const t = practiceText(Number.isInteger(view) ? view : BM.weekOf(Date.now())), p = $("bk-practice"); if (p) { p.textContent = t; p.hidden = !t; } }
+  function renderBoard() { renderPractice(); if (lb && board) { $("board-box").hidden = false; lb.setMe(me() || ""); lb.set(board); } }
 
   // ── start ──
   $("bk-submit").addEventListener("click", review);

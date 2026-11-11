@@ -464,13 +464,17 @@ test("the page says what the contract and recorder do (sizes, lock, scoring, tie
     "32 or more play Tuesday to Saturday, 16 to 31 Wednesday to Saturday, 8 to 15 Thursday to Saturday", "Under 8, there is no bracket that week", "an exact tie goes to the lower seed",
     "1 point in the first round, then 2, 4, 8 (and 16 in a 32-producer bracket), plus 2 for the right champion", "ties go to a right champion, then more right picks",
     "the lower of that average and its average at the last seeding (a producer that wasn't there counts zero)", "No rule can stop a producer from losing on purpose", "averaged over its round's day, is less than half its seeding VHP", "If both seeds are under half, the blocks decide",
-    "Brackets sent in the same block share a place", "tied for 1st share all 3 VHP; otherwise 2 VHP to 1st and 1 VHP shared by those tied 2nd",
+    "Brackets sent in the same block share a place", "The Free play board pays no VHP prize for now.",
     "it never forfeits, and it is judged on a rate that no deposit or withdrawal can move"]) assert.ok(page.includes(s), s);
   assert.match(page, /Disclosure: a Knode Games node is in this bracket/);
   const main = page.slice(page.indexOf("<main"), page.indexOf("</main>"));
   assert.doesNotMatch(main + page.match(/<meta name="description" content="[^"]*"/)[0], /Sixteen|same chance|\bbyes?\b|can't tie the original|a drop isn't its choice/i, "#E-3 M-10: no old or wrong claims");
   assert.match(read("terms.html"), /The Producer Bracket seeds whichever producers are in the field, by VHP/);
   assert.doesNotMatch(page + js, /\bodds\b|\bwager|\bbet\b|\bpays\s+\d/i);
+  // owner 11 Nov: free prize OFF, so no page, board or Leaders text promises one
+  const games = JSON.parse(read("games.json")).games.find((g) => g.id === "bracket");
+  for (const [where, t] of [["page", page], ["bracket.js", js], ["games.json", JSON.stringify(games)]]) assert.doesNotMatch(t, /2 VHP to 1st|all 3 VHP|weekly free-play prize/i, where);
+  assert.match(games.board.free.prize, /pays no VHP prize for now/);
 });
 
 // ── the page and the recorder score the same way ──

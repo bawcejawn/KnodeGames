@@ -35,7 +35,8 @@
  * refuses to write when the last run's files are incomplete (audit F-3): a failed read must never wipe the history.
  * Two nodes are required to seed, record hours and read stakes (audit A-3): with RPC_CHECK off, those steps wait.
  *
- *   RPC, RPC_CHECK, BRACKET_PREV (last run's files), BRACKET_OUT, BRACKET_PRIZES_FROM_WEEK.
+ *   RPC, RPC_CHECK, BRACKET_PREV (last run's files), BRACKET_OUT, BRACKET_PRIZES_FROM_WEEK, BRACKET_FREE_SWITCHES (the
+ *   owner's free-prize switches file from the prize-settings branch; missing or unreadable = no free-play medals).
  *   npm run bracket         (or: npx tsx bot/games/bracket.ts)
  */
 import { Provider, Contract } from "koilib";
@@ -43,6 +44,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
+import { checkSwitches, prizeOn, type Switches } from "../free-prizes.ts";
 import { withRetry } from "../../common.ts";
 import { chainNode, heightAt, bookFor } from "../vhp-chain.ts";
 import { vaultReader } from "./blockx.ts";
@@ -111,6 +113,7 @@ type Opts = {
                                                          // a plain list = staked, and held = the same)
   nodeOf?: (node: any) => Node;                                  // for the tests and the replay
   release?: Set<number>;                                         // BRACKET_RELEASE's weeks (tests; default from the env)
+  freeSwitches?: Switches | null;                                // the free-prize switches (tests; default BRACKET_FREE_SWITCHES)
   head?: Head;
 };
 
@@ -332,6 +335,13 @@ export function freeWinners(points: Points[], held: Set<string>, timeOf?: Map<st
 
 /** BRACKET_PRIZES_FROM_WEEK (a repository variable): the first week the Vault pays game 9 — a plain week number 0-9999,
  *  else none (fails closed: no medals or prize lists are shown, as Block X's PRIZES_FROM_WEEK). */
+/** The owner's free-prize switches (bot/free-prizes.ts) from the file BRACKET_FREE_SWITCHES names (the record job copies
+ *  it from the prize-settings branch). Missing, unreadable or malformed = null: no free-play medals or prize list (fails
+ *  closed, owner 11 Nov: never show a prize that isn't paid). */
+export function switchesFromFile(f: string | undefined): Switches | null {
+  if (!f) return null;
+  try { if (fs.lstatSync(f).isSymbolicLink()) return null; const s = JSON.parse(fs.readFileSync(f, "utf8")); return checkSwitches(s) ? null : s; } catch { return null; }
+}
 export const prizesFromEnv = (v: string | undefined) => (v && /^[0-9]{1,4}$/.test(v.trim()) ? Number(v.trim()) : null);
 /** The Staked board's earners: exactly the players the Vault would pay from the vault rows (#E-3 M-2). */
 export function stakedEarners(points: Points[], timeOf?: Map<string, number>) {
@@ -364,6 +374,10 @@ export async function run(o: Opts) {
   const OUT = o.out ?? E.BRACKET_OUT ?? "games-data/bracket";
   const PRIZES_FROM = o.prizesFromWeek !== undefined ? o.prizesFromWeek : prizesFromEnv(E.BRACKET_PRIZES_FROM_WEEK);
   const PREV = o.prev ?? E.BRACKET_PREV ?? "";
+  // Free-play medals and the free prize list follow the owner's switch for game 9, the same rule the vault bot uses to
+  // post free winners (prizeOn); no readable switches file = off (owner 11 Nov: free prize OFF for now)
+  const SWITCHES = o.freeSwitches !== undefined ? o.freeSwitches : switchesFromFile(E.BRACKET_FREE_SWITCHES);
+  const freeOn = (w: number) => SWITCHES !== null && prizeOn(SWITCHES, 9, w);   // 9: the Bracket's vault game id
   const problems: string[] = [];
   const contract = o.picksContract === undefined ? defaultPicksContract() : o.picksContract;
   const nodeP: Node = o.nodeOf ? o.nodeOf(o.p) : chainNode(o.p);
@@ -600,8 +614,7 @@ export async function run(o: Opts) {
   type BRow = { player: string; points: number; champion: boolean; correct: number; ranked: boolean; time?: number };
   const earnsOf = (wf: WeekFile) => {
     const earn = new Map<string, number>(), tm = timesOf(wf), heldSet = new Set([...(wf.staked!.held ?? []), ...wf.staked!.list]);
-    const fw = freeWinners(wf.points, heldSet, tm);
-    fw.first.forEach((a) => earn.set(a, 1)); fw.second.forEach((a) => earn.set(a, 2));
+    if (freeOn(wf.week)) { const fw = freeWinners(wf.points, heldSet, tm); fw.first.forEach((a) => earn.set(a, 1)); fw.second.forEach((a) => earn.set(a, 2)); }
     for (const a of vaultPays(vaultRows(wf.points, new Set(wf.staked!.list), tm))) earn.set(a, 3);
     return earn;
   };
@@ -622,7 +635,7 @@ export async function run(o: Opts) {
   const lastWeekView = (w: number) => {
     const v: any = wv(w), wf = allW.get(w);
     const prizes: { player: string; place: number; vhp: number }[] = [];
-    if (paysFor(wf)) {
+    if (paysFor(wf) && freeOn(wf!.week)) {
       const fw = freeWinners(wf!.points, new Set([...(wf!.staked!.held ?? []), ...wf!.staked!.list]), timesOf(wf));
       if (fw.first.length >= 2) for (const a of fw.first) prizes.push({ player: a, place: 1, vhp: 3 / fw.first.length });
       else { for (const a of fw.first) prizes.push({ player: a, place: 1, vhp: 2 }); for (const a of fw.second) prizes.push({ player: a, place: 2, vhp: 1 / fw.second.length }); }

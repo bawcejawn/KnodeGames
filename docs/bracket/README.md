@@ -51,7 +51,12 @@ Timing follows `.ai/standards/WEEK_CYCLE.md`; the recorder follows `.ai/standard
   - `rows`: staked players with ≥ 1 point. The groups the Vault must pay (its top 30% by headcount, ceil, ties whole,
     worked out first) get 255, 254, … in the order above; every other row gets 1, so the Vault's own cutoff pays exactly
     those groups whatever the number of places (#E-3 C-1). More than 254 paid groups: the lowest share 2.
-  - `first` / `second`: free players with ≥ 1 point. One player in 1st → those tied next are 2nd. Several tied for 1st →
+  - `first` / `second`: free players with ≥ 1 point (the vault bot posts them only when game 9's free-prize switch is
+    on: `npm run prizes`; it is **off** from vault week 4, owner 11 Nov).
+  - Free-play medals on the boards (`earns` 1 / 2) and `lastWeek.prizes` follow the same switch: the record job copies
+    `free-prizes.json` from the `prize-settings` branch (`BRACKET_FREE_SWITCHES`), and the recorder uses the vault bot's
+    rule (`prizeOn`, game 9). No readable file = no free medals (fails closed). The page and Leaders say no free prize
+    is paid; a week before `BRACKET_PRIZES_FROM_WEEK` shows a practice notice. One player in 1st → those tied next are 2nd. Several tied for 1st →
     they share all 3 VHP, no 2nd. More than 10 tied at a place → that place and below stay empty (back to the pool).
   - Written only when the week is final, from Monday 00:00 to Thursday 00:00 UTC after it.
 
@@ -137,9 +142,11 @@ Timing follows `.ai/standards/WEEK_CYCLE.md`; the recorder follows `.ai/standard
 
 ## Launch (owner, only after the Repo Lens audit passes — D-064)
 1. Announce game 9 in Picks (48 h): kind NUMBER, TIME lock, `round_size` 7 days, `round_offset` = Tuesday 00:00 UTC
-   (`ROUND_OFFSET` in bracket-math.js), `lead` 5 min, `ahead` 48 h, `number_max` 2^31 − 1.
-2. Vault: `game-add 9 "Producer Bracket" --staked --free --season 1` (48 h); the free-prize switch for game 9 stays ON (D-082).
-3. Set `BRACKET_PRIZES_FROM_WEEK` to game 9's first paying week.
+   (`ROUND_OFFSET` in bracket-math.js), `lead` 5 min, `ahead` 46 h (owner 11 Nov), `number_max` 2^31 − 1.
+2. Vault: `game-add 9 "Producer Bracket" --staked --free --season 1` (48 h). `--free` keeps a free prize possible; the
+   free-prize switch for game 9 is **OFF** (owner 11 Nov; `npm run prizes -- on 9 --send` turns it on from the next week,
+   and the free-prize texts in `games.json`, `bracket.js` and `bracket.html` change with it).
+3. Set `BRACKET_PRIZES_FROM_WEEK` to game 9's first paying week: **5** (owner 11 Nov: Week 1, Mon 16 Nov, is practice).
 4. Sponsor allowlist row for game 9 picks.
 5. `games.json`: Bracket `status` → `live`, `href` → `bracket.html` (its Leaders board then shows).
 

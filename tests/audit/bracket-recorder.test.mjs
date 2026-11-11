@@ -583,8 +583,9 @@ test("publish check: the Vault file is accepted in the run that makes its week f
 test("board rows follow the leaderboard standard: boardPlace and earns (medals only from the week the Vault pays)", async () => {
   const field = fieldOf(17), signer = signerFn(field);
   const rows = [{ player: P(1), number: 0, time: 1 }, { player: P(2), number: 5, time: 2 }, { player: P(3), number: 9, time: 3 }, { player: P(4), number: 0, time: 4 }];
-  const go = async (prizesFromWeek) => {
-    const o = { picksContract: addr(60), nodeOf: nodeOf(signer), picksOf: picksOf(rows), stakedOf: async (_n, ps) => ps.filter((p) => p === P(1) || p === P(3)), prizesFromWeek };
+  const ON = { v: 1, games: {} };   // no change for game 9: follows its registration (free prize allowed = on)
+  const go = async (prizesFromWeek, freeSwitches = ON) => {
+    const o = { picksContract: addr(60), nodeOf: nodeOf(signer), picksOf: picksOf(rows), stakedOf: async (_n, ps) => ps.filter((p) => p === P(1) || p === P(3)), prizesFromWeek, freeSwitches };
     const d = tmp();
     await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.seedTime(W) + H), ...o }));
     await quiet(() => rec.run({ p: "main", check: "check", prev: d, out: d, head: headAt(B.lockTime(W) + 60000), ...o }));
@@ -603,6 +604,29 @@ test("board rows follow the leaderboard standard: boardPlace and earns (medals o
   assert.deepEqual(staked.filter((r) => r.earns === 3).map((r) => r.a).sort(), plain(rec.vaultPays(vf.rows)).sort());
   assert.ok(shapeOk(on.d), "the publish check accepts the board");
   assert.equal(JSON.parse(fs.readFileSync(path.join(on.d, "index.json"), "utf8")).prizesFromWeek, W);
+  assert.ok(on.board.lastWeek.prizes.length > 0, "switch on: the free prize list is shown");
+  // Owner 11 Nov: free prize OFF. The switch is off for the week (set before it started), or no switches file could be
+  // read: no Free play medals and no prize list; the Staked medals and the vault file are unchanged.
+  const offSw = { v: 1, games: { "9": [{ from: W - 1, on: false, set: new Date(B.weekStart(W - 1) - 3600000).toISOString() }] } };
+  for (const [why, sw] of [["switch off", offSw], ["no switches file", null]]) {
+    const x = await go(W, sw), xr = x.board.lastWeek.rows;
+    assert.ok(xr.filter((r) => !r.ranked).every((r) => r.earns === 0), why + ": no Free play medal");
+    assert.deepEqual(x.board.lastWeek.prizes, [], why + ": no free prize list");
+    assert.deepEqual(xr.filter((r) => r.earns === 3).map((r) => r.a).sort(), staked.filter((r) => r.earns === 3).map((r) => r.a).sort(), why + ": Staked medals unchanged");
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(x.d, "vault", `W${W}.json`), "utf8")), vf, why + ": the vault file is unchanged (the vault bot's switch decides the free prize)");
+    assert.ok(shapeOk(x.d), why + ": the publish check accepts the board");
+  }
+});
+
+test("owner 11 Nov: the switches file is read fail-closed (missing, malformed or a link = none)", () => {
+  const d = tmp(), f = path.join(d, "free-prizes.json");
+  assert.equal(rec.switchesFromFile(undefined), null);
+  assert.equal(rec.switchesFromFile(f), null, "missing");
+  fs.writeFileSync(f, "{not json"); assert.equal(rec.switchesFromFile(f), null, "unreadable");
+  fs.writeFileSync(f, JSON.stringify({ v: 2, games: {} })); assert.equal(rec.switchesFromFile(f), null, "not a v1 file");
+  const good = { v: 1, games: { "9": [{ from: 4, on: false, set: "2026-11-11T04:00:00.000Z" }] } };
+  fs.writeFileSync(f, JSON.stringify(good)); assert.deepEqual(rec.switchesFromFile(f), good);
+  const l = path.join(d, "link.json"); fs.symlinkSync(f, l); assert.equal(rec.switchesFromFile(l), null, "a link");
 });
 
 test("final weeks are frozen: a later run keeps the stored results and points as they are", async () => {

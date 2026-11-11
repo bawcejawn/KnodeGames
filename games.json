@@ -30,7 +30,7 @@
       "line": "A weekly knockout of block producers, head to head: one round a day, the final on Saturday. Pick every winner by Monday night.",
       "board": { "data": "games-data/bracket/board.json", "earns": true, "hide": ["today"],
         "unranked": "The Staked board is for wallets with at least 1 VHP staked in the Producer Bracket that week.",
-        "free": { "show": 6, "prize": "Weekly prize with at least 1 point: tied for 1st share all 3 VHP; otherwise 2 VHP to 1st and 1 VHP shared by those tied 2nd." },
+        "free": { "show": 6, "prize": "The Free play board pays no VHP prize for now. Players staked in the Producer Bracket share its weekly bucket." },
         "columns": [{ "key": "pts", "label": "Points" }, { "key": "correct", "label": "Right" }] } }
   ]
 }

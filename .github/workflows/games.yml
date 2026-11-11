@@ -212,6 +212,11 @@ jobs:
             { git ls-tree --name-only FETCH_HEAD:bracket/vault 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then git show "FETCH_HEAD:bracket/vault/$f" > "$RUNNER_TEMP/prev/bracket/vault/$f"; fi
             done
+            # The owner's free-prize switches (owner 11 Nov): the recorder gives free-play medals only for a week whose switch
+            # for game 9 is on. A missing or unreadable file means none (the recorder fails closed).
+            if git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" prize-settings 2>/dev/null; then
+              git show FETCH_HEAD:free-prizes.json > "$RUNNER_TEMP/prev/free-prizes.json" 2>/dev/null || rm -f "$RUNNER_TEMP/prev/free-prizes.json"
+            fi
           else
             # Repo Lens E4-1 (a): only a branch that really isn't there means "nothing yet"; any other failed fetch stops the run.
             set +e; git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/games-data >/dev/null 2>&1; rc=$?; set -e
@@ -228,6 +233,8 @@ jobs:
           BRACKET_OUT: ${{ runner.temp }}/games-data/bracket
           # The first week the vault pays game 9 (its "from week" once game 9 is applied). Unset: no medals or prize lists.
           BRACKET_PRIZES_FROM_WEEK: ${{ vars.BRACKET_PRIZES_FROM_WEEK }}
+          # The free-prize switches file taken above (free-play medals only where game 9's switch is on).
+          BRACKET_FREE_SWITCHES: ${{ runner.temp }}/prev/free-prizes.json
           # Fix-check F4: the owner's one-off correction window ("3" or "3,4"); the publish job reads the same variable.
           BRACKET_RELEASE: ${{ vars.BRACKET_RELEASE }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

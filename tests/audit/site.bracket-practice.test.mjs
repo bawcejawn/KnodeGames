@@ -100,17 +100,28 @@ test("practice notice: hidden once the week on show is a paid week, and when ind
 // Before picks open (owner 11 Nov: merge Thursday, picks open Sat 14 Nov 9 PM ET = Sun 15 Nov 02:00 UTC, the Picks
 // game's ahead of 46 h): the page says when picks open, the bracket can't be filled in or sent, and nothing errors.
 const OPEN = BM.seedTime(4) + 2 * 3600000;
+// The page shows times in the visitor's own time zone; the expected text is built the same way, so the tests pass in any
+// time zone (CI runs in UTC, an ET visitor sees Sat, Nov 14, 9:00 PM EST)
+const full = (t) => new Date(t).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+test("an ET visitor sees picks open Sat, Nov 14, 9:00 PM EST", () => {
+  const et = (t) => new Date(t).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short", timeZone: "America/New_York" });
+  assert.equal(et(OPEN), "Sat, Nov 14, 9:00 PM EST");
+  assert.equal(et(BM.seedTime(4)), "Sat, Nov 14, 7:00 PM EST");
+  assert.equal(et(BM.lockTime(4)), "Mon, Nov 16, 6:55 PM EST");
+});
+
 test("before the seeding (Thursday): the line names the seeding and when picks open; no bracket to send", async () => {
   const p = await openPage({ now: BM.seedTime(4) - 2 * 86400000, noWeek: true, index: idx(5) });
   const line = p.$("week-line").textContent;
-  assert.match(line, /^Week 1: the bracket is seeded Sat, Nov 14, .*, and picks open Sat, Nov 14, .*\.$/);
+  assert.match(line, new RegExp(`^Week 1: the bracket is seeded ${esc(full(BM.seedTime(4)))} \\(in .*\\), and picks open ${esc(full(OPEN))}\\.$`));
   assert.equal(new Date(OPEN).toISOString(), "2026-11-15T02:00:00.000Z");
   assert.equal(p.$("bk-actions").hidden, true, "no Submit");
 });
 
 test("seeded but before picks open (Sat 7–9 PM ET): bracket shown read-only, 'Picks open' line, no Submit", async () => {
   const p = await openPage({ now: BM.seedTime(4) + 3600000, index: idx(5) });
-  assert.match(p.$("week-line").textContent, /^Week 1: 8-producer bracket, seeded\. Picks open Sat, Nov 14, .* \(in 1 h 00 min\) and lock Mon, Nov 16, /);
+  assert.ok(p.$("week-line").textContent.startsWith(`Week 1: 8-producer bracket, seeded. Picks open ${full(OPEN)} (in 1 h 00 min) and lock ${full(BM.lockTime(4))}`), p.$("week-line").textContent);
   assert.equal(p.$("bk-actions").hidden, true, "no Submit before picks open");
   assert.equal(p.w.document.querySelectorAll("#bk-list button").length, 0, "no pick buttons");
   assert.equal(p.modalText(), "", "no error pop-up");

@@ -1927,7 +1927,7 @@ jobs:
                   sts = res.get("standings") if type(res.get("standings")) is list else []
                   for x in res["picks"]:
                       who, right, show = x[0], x[3] == 1, len(x) > 5 and x[5] == 1
-                      third = len(sts) > 2 and sts[2].get("a") == who and not (len(sts) > 1 and sts[1].get("a") == who)
+                      third = len(sts) > 2 and type(sts[2]) is dict and sts[2].get("a") == x[1] and not (len(sts) > 1 and type(sts[1]) is dict and sts[1].get("a") == x[1])
                       c = t.setdefault(who, [0, 0, 0, 0])
                       c[2] += 1; c[0] += 1 if right else 0; c[1] += 1 if (not right and show) else 0; c[3] += pw if right else (p3 if third else p2) if show else 0
                       # D-152: when the wallet reached its score = its latest scoring pick (a win or a show).

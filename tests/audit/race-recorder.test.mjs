@@ -2027,3 +2027,35 @@ test("D-173: the new points stay off with the types: TYPES_ON_WEEK null means pl
     assert.deepEqual(M.pagePick(0, Date.now(), [{ a: "w" }, { a: "s" }, { a: "t" }], "t", false, true), { label: "Show", pts: 1 });
   }
 });
+
+// ── Repo Lens #G-6 (race-places f783fb7 on main 28aab8e): G6-1. Append to tests/audit/race-recorder.test.mjs (uses its helpers). ──
+// G6-1: a show pick's 2nd / 3rd place must be read for the PICKED PRODUCER (pick[1]), not the player's wallet (pick[0]).
+// bot/race.ts tally passes `who` (the wallet) to M.showPoints, and race.yml's recompute compares sts[2]["a"] with x[0] (the
+// wallet), so with the types on a pick on the 3rd-place horse scores 2nd-place points on the board, while the pages
+// (race.js / results.js pass p[1]) say "3rd +1". Fails today.
+test("G6-1 (High, latent): a pick on the 3rd-place horse scores 3rd-place points on the board, the same as the page says", async () => {
+  const a = await typesRun(U("2026-11-02T00:37Z"), "");
+  const b = await typesRun(U("2026-11-02T01:37Z"), a);
+  const c0 = await typesRun(U("2026-11-02T02:37Z"), b);
+  const h1 = M.typedIndex(1, U("2026-11-02T01:00Z"));
+  const r1 = tfile(c0).races.find((r) => r.id === "H1-2026-11-02T01");
+  const st = r1.result.standings;
+  assert.ok(st.length > 2 && st[1].steps > 0 && st[2].steps > 0, "the race has a 2nd and a 3rd with a step");
+  const second = st[1].a, third = st[2].a;
+  const picksOf = async (n, r, type = 0) => (type === 1 && r === h1 ? [[W1, second, 10], [W2, third, 11]] : []);
+  const c = await typesRun(U("2026-11-02T02:37Z"), b, { picksOf });
+  const res = tfile(c).races.find((r) => r.id === r1.id).result;
+  assert.deepEqual(res.picks.map((x) => [x[0], x[1], x[5]]), [[W1, second, 1], [W2, third, 1]], "both are show picks");
+  const board = JSON.parse(fs.readFileSync(path.join(c, "board.json"), "utf8"));
+  const row = (w) => board.week.rows.find((x) => x.a === w);
+  assert.equal(row(W1).pts, 2, "a 1-hour 2nd scores 2");
+  const page = M.pagePick(1, r1.start, st, third, false, true);
+  assert.equal(row(W2).pts, 1, `a 1-hour 3rd scores 1 (the board gave ${row(W2).pts}; the page would say ${page.label} +${page.pts})`);
+});
+
+test("G6-1: the publish job's recompute also reads 3rd place for the picked producer (pick[1]), so it agrees with the recorder", () => {
+  const yml = fs.readFileSync(path.join(APP, ".github/workflows/race.yml"), "utf8");
+  const line = yml.split("\n").find((l) => /^\s*third = /.test(l)) || "";
+  assert.match(line, /sts\[2\]\.get\("a"\) == x\[1\]/, "3rd place is the picked producer's: " + line.trim());
+  assert.doesNotMatch(line, /== who\b/, "never the player's wallet");
+});

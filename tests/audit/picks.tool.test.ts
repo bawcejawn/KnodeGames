@@ -316,3 +316,23 @@ test("G7-1 (Low): apply refuses a pending game that isn't exactly the pinned con
   const src = fs.readFileSync("bot/picks.ts", "utf8");
   assert.match(src, /async function apply[\s\S]{0,900}pendingProblem\(pend\.game, /, "apply checks it before sending");
 });
+
+test("tighten (capacity, owner 12 Nov): only stricter values, at once; the shape and the name never change", async () => {
+  const { tightenConfig, TIGHTEN_FLAGS } = await import("../../bot/picks.ts");
+  assert.deepEqual(TIGHTEN_FLAGS, { "--per-day": "max_picks_per_day", "--changes": "max_changes", "--lead": "lead", "--ahead": "ahead" });
+  const g = { id: 12, name: "Who Signs Block X (hourly)", kind: 1, list_size: 1, number_min: "0", number_max: "0", lock_mode: 1, round_size: "1200", round_offset: "0", lead: "100", ahead: "28900", max_picks_per_day: 48, max_changes: 1, enabled: true };
+  const t = tightenConfig(g, { max_picks_per_day: 24 });
+  assert.deepEqual(t.config, { ...g, max_picks_per_day: 24 }); assert.deepEqual(t.changed, ["max_picks_per_day 48 → 24"]);
+  assert.deepEqual(tightenConfig(g, { lead: 200, ahead: 14400 }).config, { ...g, lead: "200", ahead: "14400" }, "u64 fields stay strings");
+  assert.throws(() => tightenConfig(g, { max_picks_per_day: 60 }), /isn't stricter/);
+  assert.throws(() => tightenConfig(g, { lead: 50 }), /isn't stricter/);
+  assert.throws(() => tightenConfig(g, { ahead: 30000 }), /isn't stricter/);
+  assert.throws(() => tightenConfig(g, { max_picks_per_day: 0 }), /at least 1/);
+  assert.throws(() => tightenConfig(g, { lead: 28900 }), /ahead must stay above lead/);
+  assert.throws(() => tightenConfig(g, { round_size: 600 }), /can't change round_size/);
+  assert.throws(() => tightenConfig(g, { max_picks_per_day: 48 }), /Nothing to tighten/);
+  for (const k of ["id", "name", "kind", "list_size", "number_min", "number_max", "lock_mode", "round_size", "round_offset"]) assert.equal(t.config[k], g[k], k);
+  const src = fs.readFileSync("bot/picks.ts", "utf8");
+  assert.match(src, /mainnetGuard\(net, send\);\n  if \(!net\.picks\) throw new Error\("No Picks contract yet\."\);\n  const \{ p, chainId \} = await connect\(net\);\n  await assertAuditedContract\(net, p\);\n  const g = \(await read\(p, net\.picks, "get_game", \{ game: id \}\)\)\.game;\n  if \(!g\) throw new Error\(`Game \$\{id\} isn't registered\.`\);\n  const \{ config, changed \} = tightenConfig/, "tighten: the mainnet guard and the audited-contract check first");
+  assert.match(src, /the contract CANCELS it when the game is tightened/, "warns that a pending announcement is cancelled");
+});

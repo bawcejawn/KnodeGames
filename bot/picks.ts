@@ -463,6 +463,45 @@ async function pause(id: number, send: boolean) {
   if (!r.ok) process.exitCode = 1;
 }
 
+/** tighten (capacity, owner 12 Nov): the game made STRICTER at once, with no 48 h wait (the contract's tighten_game: fewer
+ *  picks a day, fewer changes, a longer lead, a shorter ahead). Anything not stricter is refused here, as the contract
+ *  would. The shape and the name never change. Returns the new config and what changed. */
+export const TIGHTEN_FLAGS: Record<string, string> = { "--per-day": "max_picks_per_day", "--changes": "max_changes", "--lead": "lead", "--ahead": "ahead" };
+export function tightenConfig(g: any, want: Record<string, number>) {
+  const n = { ...g }, changed: string[] = [];
+  for (const [k, v] of Object.entries(want)) {
+    if (!Object.values(TIGHTEN_FLAGS).includes(k)) throw new Error(`tighten can't change ${k}.`);
+    if (!Number.isSafeInteger(v) || v < 0) throw new Error(`${k} must be a whole number.`);
+    const cur = Number(g[k]);
+    const stricter = k === "lead" ? v >= cur : v <= cur;
+    if (!stricter) throw new Error(`${k} ${v} isn't stricter than ${cur}: loosening needs an announcement and the 48 h wait.`);
+    if (v !== cur) changed.push(`${k} ${cur} → ${v}`);
+    n[k] = typeof g[k] === "string" ? String(v) : v;
+  }
+  if (Number(n.max_picks_per_day) < 1) throw new Error("max_picks_per_day must stay at least 1 (use pause to stop a game).");
+  if (!(Number(n.ahead) > Number(n.lead))) throw new Error("ahead must stay above lead.");
+  if (!changed.length) throw new Error("Nothing to tighten: give at least one stricter value (--per-day, --changes, --lead, --ahead).");
+  return { config: n, changed };
+}
+async function tighten(id: number, want: Record<string, number>, send: boolean) {
+  const net = network();
+  mainnetGuard(net, send);
+  if (!net.picks) throw new Error("No Picks contract yet.");
+  const { p, chainId } = await connect(net);
+  await assertAuditedContract(net, p);
+  const g = (await read(p, net.picks, "get_game", { game: id })).game;
+  if (!g) throw new Error(`Game ${id} isn't registered.`);
+  const { config, changed } = tightenConfig(g, want);
+  log(`Tighten game ${id} "${g.name}" at once (no wait): ${changed.join(", ")}.`);
+  log("  Picks already made stay recorded. Loosening it again needs an announcement and the 48 h wait.");
+  const pend = (await read(p, net.picks, "list_pending", { limit: 50 })).pending?.find((x: any) => Number(x.game?.id) === id);
+  if (pend) log(`  ⚠ Game ${id} has an announcement pending: the contract CANCELS it when the game is tightened (audit P-2).`);
+  if (!send) { log("\nDry run only. Nothing was sent. Add --send to send it."); return; }
+  const r = await sendCall(net, p, chainId, ownerKey(net, p), "tighten_game", { game: config });
+  log(r.ok ? `✔ game ${id} tightened` : `✖ ${r.error}`);
+  if (!r.ok) process.exitCode = 1;
+}
+
 // ═══════════════════════════════ owner handover (R-BX-3, D-096; docs/blockx/OWNER-HANDOVER-PLAN.md) ═══════════════════════════════
 /** Addresses that can never become the Picks owner: Knode contracts and wallets with another job. */
 export const NOT_AN_OWNER: Record<string, string> = {
@@ -776,13 +815,23 @@ async function main() {
     case "announce": return announce(num(), send);
     case "apply": return apply(num(), send);
     case "pause": return pause(num(), send);
+    case "tighten": {
+      const id = Number(a[0]);
+      if (!/^\d+$/.test(a[0] ?? "")) throw new Error("tighten needs the game id first, e.g. npm run picks -- tighten 12 --per-day 24");
+      const want: Record<string, number> = {};
+      for (let i = 1; i < a.length; i++) if (TIGHTEN_FLAGS[a[i]]) {
+        if (!/^\d+$/.test(a[i + 1] ?? "")) throw new Error(`${a[i]} needs a whole number`);
+        want[TIGHTEN_FLAGS[a[i]]] = Number(a[++i]);
+      }
+      return tighten(id, want, send);
+    }
     case "lock-test": return lockTest(num(), send);
     case "mana-test": return manaTest(num(), send);
     case "owner-propose": return ownerPropose(a.find((x) => !x.startsWith("--")), send);
     case "owner-accept": return ownerAccept(send);
     case "owner-cancel": return ownerCancel(send);
     case "owner-sync": return ownerSync();
-    default: throw new Error(`Unknown command "${cmd}". Commands: keys, build-testnet, status, upload, announce <id>, apply <id>, pause <id>, lock-test <id>, mana-test <id>, owner-propose <address>, owner-accept, owner-cancel, owner-sync`);
+    default: throw new Error(`Unknown command "${cmd}". Commands: keys, build-testnet, status, upload, announce <id>, apply <id>, pause <id>, tighten <id> [--per-day N] [--changes N] [--lead N] [--ahead N], lock-test <id>, mana-test <id>, owner-propose <address>, owner-accept, owner-cancel, owner-sync`);
   }
 }
 if (process.argv[1] && /picks\.ts$/.test(process.argv[1])) {

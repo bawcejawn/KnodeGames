@@ -349,6 +349,8 @@ test("Repo Lens #G-27 G27-1: a race with more picks than the recorder reads aler
   assert.ok(m, "and an owner alert: " + lastRun.held.join(" | "));
   assert.match(m, /would be skipped at the week's end\. Tell the Race chat now/);
   assert.equal(read(out, "W002.json").races.find((r) => r.id === "2026-11-02T00").result, null, "not scored from a partial list");
+});
+
 test("race types on the ruler (owner, 12 Nov: option A): card windows per type, round per type, a typed race's blocks from the hour ledger", () => {
   assert.deepEqual({ ...RR.CARD_BY_TYPE }, { 0: 7200, 1: 1200, 2: 2400, 3: 7200, 4: 7200 }, "the Ruler chat's table");
   assert.deepEqual(RR.windowOf(1000000, 1001199, 1), { W0: 998800, W1: 999999, L: 999999, S0: 1000000, S1: 1001199 });

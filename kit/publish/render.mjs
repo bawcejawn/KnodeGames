@@ -40,6 +40,19 @@ export const PUBLISH_KIT_TIMEOUT_MIN = 10;
 const WEEK_SH = "W([0-9]{3}|[1-9][0-9]{3})";
 
 /** The fetch of last run's files for ONE game (a public branch, read without a token; allow-listed names only). */
+/** Phase 1b: the VHP ruler's published data (public branch vhp-data, read without a token), for a vhpData game. Read-only:
+ *  the recorder loads and checks it with the ruler's own checks (kit/recorder/sources/vhp-ruler.ts); a failed fetch
+ *  leaves the folder empty, so the game's ruler rounds stay pending this run (never a guess). */
+const VHP_FETCH = `      - name: Take the ruler's data (vhp-data, read-only)
+        run: |
+          set -euo pipefail
+          git init -q "$RUNNER_TEMP/vhp-data"
+          if git -C "$RUNNER_TEMP/vhp-data" fetch -q --depth 1 "https://github.com/\${GITHUB_REPOSITORY}.git" vhp-data 2>/dev/null; then
+            git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD
+          else
+            echo "::warning::vhp-data couldn't be fetched this run"
+          fi`;
+
 function fetchStep(branch, slug, dest = "prev", label = `Take ${slug}'s last files`) {
   return `      - name: ${label}
         run: |
@@ -95,7 +108,7 @@ export function renderJobs({ branch, games, script }) {
         with:
           node-version: 22
       - run: npm ci --no-audit --no-fund --ignore-scripts
-${fetchStep(branch, g.slug)}${(g.published ?? []).map((o) => "\n" + fetchStep(branch, o, `published-${o}`, `Take ${o}'s published files (read-only)`)).join("")}
+${fetchStep(branch, g.slug)}${(g.published ?? []).map((o) => "\n" + fetchStep(branch, o, `published-${o}`, `Take ${o}'s published files (read-only)`)).join("")}${g.cfg.vhpData ? "\n" + VHP_FETCH : ""}
       - name: Record
         id: rec
         # GitHub runs this as bash -e: the recorder's exit code is captured, never fatal, so the files it wrote (a HOLD
@@ -111,7 +124,7 @@ ${fetchStep(branch, g.slug)}${(g.published ?? []).map((o) => "\n" + fetchStep(br
           RPC_CHECK: \${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
           KIT_PREV: \${{ runner.temp }}/prev
           KIT_OUT: \${{ runner.temp }}/out
-${(g.published ?? []).map((o) => `          KIT_PUBLISHED_${up(o)}: \${{ runner.temp }}/published-${o}\n`).join("")}          # The owner's holds (GAME_KIT.md §3): weeks kept pending, and the one-off release of a held week ("<week>:<code>").
+${(g.published ?? []).map((o) => `          KIT_PUBLISHED_${up(o)}: \${{ runner.temp }}/published-${o}\n`).join("")}${g.cfg.vhpData ? "          KIT_VHP_DATA: \${{ runner.temp }}/vhp-data\n" : ""}          # The owner's holds (GAME_KIT.md §3): weeks kept pending, and the one-off release of a held week ("<week>:<code>").
           ${up(g.slug)}_HOLD_WEEKS: \${{ vars.${up(g.slug)}_HOLD_WEEKS }}
           ${up(g.slug)}_RELEASE: \${{ vars.${up(g.slug)}_RELEASE }}
           ${up(g.slug)}_RESET_FROM_WEEK: \${{ vars.${up(g.slug)}_RESET_FROM_WEEK }}

@@ -92,7 +92,31 @@ export const STATES = ["open", "pending", "final"];
  *  week's start and after its last round, [[wallet, state], …] sorted (carried state, FC-5); extras: records-only JSON
  *  (Weekly Rival). None of these is recomputed here (the publish job runs no game code): the recorder's two-node
  *  reads, the stability wait and the HOLD on a changed final guard them, and the hash covers them. */
-export const WEEK_OPT_KEYS = ["inputs", "carry", "next", "extras"];
+export const WEEK_OPT_KEYS = ["inputs", "carry", "next", "extras", "cards"];
+/** cards (Phase 1b, vhpData games): every VHP ruler card the file's results (or price list) used, as
+ *  [settings, sha256 of the scored card's cardJson], sorted by round then sha256. Rebuilt from vhp-data by the publish
+ *  job once the inline ruler copy lands (G3); until then shape only, covered by the hash. */
+export const MAX_CARDS = 1000;
+const CARD_SETTING_KEYS = "game,round,window,c,minK,poolRule,ownRule,paying,pooled";
+const CARD_WINDOW_KEYS = "W0,W1,L,S0,S1";
+export function isCardList(xs) {
+  if (!Array.isArray(xs) || xs.length > MAX_CARDS) return false;
+  let last = null;
+  for (const x of xs) {
+    if (!Array.isArray(x) || x.length !== 2 || typeof x[1] !== "string" || !/^[0-9a-f]{64}$/.test(x[1])) return false;
+    const s = x[0];
+    if (!s || typeof s !== "object" || Array.isArray(s) || Object.keys(s).join() !== CARD_SETTING_KEYS) return false;
+    if (!Number.isSafeInteger(s.game) || typeof s.round !== "string" || !/^[0-9]{1,20}$/.test(s.round) || typeof s.c !== "string" || !/^[0-9]{1,30}$/.test(s.c)) return false;
+    if (!Number.isSafeInteger(s.minK) || typeof s.poolRule !== "string" || typeof s.ownRule !== "string" || typeof s.paying !== "boolean") return false;
+    if (!Array.isArray(s.pooled) || s.pooled.length > 16 || !s.pooled.every(isAddr)) return false;
+    const w = s.window;
+    if (!w || typeof w !== "object" || Object.keys(w).join() !== CARD_WINDOW_KEYS || !Object.values(w).every((v) => Number.isSafeInteger(v) && v >= 0)) return false;
+    const key = [s.round, x[1]];
+    if (last !== null && (last[0] > key[0] || (last[0] === key[0] && last[1] >= key[1]))) return false;
+    last = key;
+  }
+  return true;
+}
 export const MAX_STATE_BYTES = 4096;                // one wallet's carried state
 export const MAX_EXTRAS_BYTES = 256 * 1024;
 /** A round with its rows by wallet address: [id, day, fun, status, [[wallet, points, at], …]], `at` the absolute score
@@ -133,6 +157,8 @@ export function weekShape(j, name, cfg) {
   if (!!cfg.inputsFile !== (j.inputs !== undefined)) return cfg.inputsFile ? "this game's week file must name its inputs file (FC-9)" : "inputs in a game without an inputs file";
   for (const k of ["carry", "next"]) if (j[k] !== undefined && !isStateList(j[k])) return `bad ${k} (sorted [wallet, state] pairs, each state at most ${MAX_STATE_BYTES} bytes)`;
   if ((j.carry === undefined) !== (j.next === undefined)) return "carry and next come together";
+  if (!!cfg.vhpData !== (j.cards !== undefined)) return cfg.vhpData ? "a ruler game's week file must list its cards" : "cards in a game without ruler data";
+  if (j.cards !== undefined && !isCardList(j.cards)) return "bad cards (sorted [settings, sha256] pairs)";
   if (j.extras !== undefined && (j.extras === null || typeof j.extras !== "object" || Buffer.byteLength(JSON.stringify(j.extras)) > MAX_EXTRAS_BYTES)) return `bad extras (an object or list, at most ${MAX_EXTRAS_BYTES} bytes)`;
   if (j.v !== KIT_FILE_VERSION || j.game !== cfg.game) return "wrong version or game";
   if (!nat(j.week) || j.week > 9999 || name !== weekName(j.week)) return "week and name don't match";
@@ -464,7 +490,7 @@ export function checkGame(cfg, inDir, pubDir, now, release = "") {
     if (old) { if (!same(raw, old)) hold(f, "it changes a published inputs file (write-once, FC-9)"); else inputsOk.set(w, sha256(raw)); continue; }
     const j = p.v;
     if (!cfg.inputsFile) { hold(f, "this game has no inputs file"); continue; }
-    if (!j || typeof j !== "object" || Array.isArray(j) || Object.keys(j).join() !== "game,week,data" || j.game !== cfg.game || j.week !== w || j.data === null || typeof j.data !== "object") { hold(f, "not an inputs file's shape ({game, week, data})"); continue; }
+    if (!j || typeof j !== "object" || Array.isArray(j) || Object.keys(j).join() !== (cfg.vhpData ? "game,week,data,cards" : "game,week,data") || j.game !== cfg.game || j.week !== w || j.data === null || typeof j.data !== "object" || (cfg.vhpData && !isCardList(j.cards))) { hold(f, `not an inputs file's shape ({game, week, data${cfg.vhpData ? ", cards" : ""}})`); continue; }
     if (!(now < k.start(w))) { hold(f, "an inputs file published after its week opened, by this job's clock (FC-9)"); continue; }
     if (now < k.start(w) - INPUTS_EARLIEST_MS) { hold(f, "an inputs file more than a week before its week"); continue; }
     inputsOk.set(w, sha256(raw)); publish.push(f);

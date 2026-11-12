@@ -74,7 +74,7 @@ export function validateManifest(m, opts = {}) {
   return p;
 }
 
-export const KIT_FIELDS = ["payoutRule", "vaultValues", "minPts", "rowCap", "entry", "budgets", "liveWeek", "roundsCorrectable", "maxRoundPoints", "inputsFile", "inputsLeadHours", "published"];
+export const KIT_FIELDS = ["payoutRule", "vaultValues", "minPts", "rowCap", "entry", "budgets", "liveWeek", "roundsCorrectable", "maxRoundPoints", "inputsFile", "inputsLeadHours", "published", "vhpData"];
 /** Budget ceilings: a game's whole run must fit its own record job (25 min, KC-4). */
 export const BUDGET_MAX = { reads: 200000, ms: 20 * 60000, atOnce: 16, tries: 6 };
 /** A game's name is rendered into its workflow: one plain line (KC-14). */
@@ -95,7 +95,7 @@ function checkKitFields(m, need) {
       `budgets: optional whole numbers above 0 for ${BUDGET_KEYS.join(", ")}, at most ${JSON.stringify(BUDGET_MAX)} (KC-4)`);
   }
   if (m.maxRoundPoints !== undefined) need(Number.isInteger(m.maxRoundPoints) && m.maxRoundPoints >= 1 && m.maxRoundPoints <= 1000000, "maxRoundPoints: a whole number from 1 to 1,000,000");
-  for (const f of ["liveWeek", "roundsCorrectable", "inputsFile"]) if (m[f] !== undefined) need(typeof m[f] === "boolean", `${f}: true or false`);
+  for (const f of ["liveWeek", "roundsCorrectable", "inputsFile", "vhpData"]) if (m[f] !== undefined) need(typeof m[f] === "boolean", `${f}: true or false`);
   // FC-9: the inputs file is made this many hours before the week opens (default 48 = Saturday 00:00 UTC), at most
   // 4 days (#G-13 G13-2: a longer lead could see weeks that still change before the recount).
   if (m.inputsLeadHours !== undefined) need(m.inputsFile === true && Number.isInteger(m.inputsLeadHours) && m.inputsLeadHours >= 1 && m.inputsLeadHours <= 96, "inputsLeadHours: 1–96, only with inputsFile: true");

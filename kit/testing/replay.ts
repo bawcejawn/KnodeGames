@@ -20,7 +20,7 @@ export class Replay {
     fs.mkdirSync(path.join(this.pub, "vault"), { recursive: true });
   }
   /** One hour: the recorder on these nodes, then the publish check at the job's clock `jobNow`. */
-  async hour(nodes: [KitNode, KitNode], jobNow: number, env: { holdWeeks?: string; release?: string } = {}): Promise<Hour> {
+  async hour(nodes: [KitNode, KitNode], jobNow: number, env: { holdWeeks?: string; release?: string; vhpLedger?: any } = {}): Promise<Hour> {
     const prev = fs.mkdtempSync(path.join(this.root, "prev-"));
     fs.cpSync(this.pub, prev, { recursive: true });
     fs.writeFileSync(path.join(prev, ".fetched"), "");

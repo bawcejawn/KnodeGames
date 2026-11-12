@@ -40,17 +40,20 @@ export const PUBLISH_KIT_TIMEOUT_MIN = 10;
 const WEEK_SH = "W([0-9]{3}|[1-9][0-9]{3})";
 
 /** The fetch of last run's files for ONE game (a public branch, read without a token; allow-listed names only). */
-function fetchStep(branch, slug) {
-  return `      - name: Take ${slug}'s last files
+function fetchStep(branch, slug, dest = "prev", label = `Take ${slug}'s last files`) {
+  return `      - name: ${label}
         run: |
           set -euo pipefail
-          P="$RUNNER_TEMP/prev"; mkdir -p "$P/vault"
+          P="$RUNNER_TEMP/${dest}"; mkdir -p "$P/vault" "$P/inputs"
           if git fetch -q --depth 1 "https://github.com/\${GITHUB_REPOSITORY}.git" ${branch} 2>/dev/null; then
             { git ls-tree --name-only FETCH_HEAD:${slug} 2>/dev/null || true; } | while IFS= read -r f; do
-              if [[ "$f" =~ ^(board|${WEEK_SH})\\.json$ ]]; then git show "FETCH_HEAD:${slug}/$f" > "$P/$f"; fi
+              if [[ "$f" =~ ^(board|alltime|${WEEK_SH})\\.json$ ]]; then git show "FETCH_HEAD:${slug}/$f" > "$P/$f"; fi
             done
             { git ls-tree --name-only FETCH_HEAD:${slug}/vault 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^((HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3}))\\.json$ ]]; then git show "FETCH_HEAD:${slug}/vault/$f" > "$P/vault/$f"; fi
+            done
+            { git ls-tree --name-only FETCH_HEAD:${slug}/inputs 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W(0|[1-9][0-9]{0,3})\\.json$ ]]; then git show "FETCH_HEAD:${slug}/inputs/$f" > "$P/inputs/$f"; fi
             done
           else
             set +e; git ls-remote --exit-code --heads "https://github.com/\${GITHUB_REPOSITORY}.git" refs/heads/${branch} >/dev/null 2>&1; rc=$?; set -e
@@ -92,7 +95,7 @@ export function renderJobs({ branch, games, script }) {
         with:
           node-version: 22
       - run: npm ci --no-audit --no-fund --ignore-scripts
-${fetchStep(branch, g.slug)}
+${fetchStep(branch, g.slug)}${(g.published ?? []).map((o) => "\n" + fetchStep(branch, o, `published-${o}`, `Take ${o}'s published files (read-only)`)).join("")}
       - name: Record
         id: rec
         # GitHub runs this as bash -e: the recorder's exit code is captured, never fatal, so the files it wrote (a HOLD
@@ -108,9 +111,10 @@ ${fetchStep(branch, g.slug)}
           RPC_CHECK: \${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
           KIT_PREV: \${{ runner.temp }}/prev
           KIT_OUT: \${{ runner.temp }}/out
-          # The owner's holds (GAME_KIT.md §3): weeks kept pending, and the one-off release of a held week ("<week>:<code>").
+${(g.published ?? []).map((o) => `          KIT_PUBLISHED_${up(o)}: \${{ runner.temp }}/published-${o}\n`).join("")}          # The owner's holds (GAME_KIT.md §3): weeks kept pending, and the one-off release of a held week ("<week>:<code>").
           ${up(g.slug)}_HOLD_WEEKS: \${{ vars.${up(g.slug)}_HOLD_WEEKS }}
           ${up(g.slug)}_RELEASE: \${{ vars.${up(g.slug)}_RELEASE }}
+          ${up(g.slug)}_RESET_FROM_WEEK: \${{ vars.${up(g.slug)}_RESET_FROM_WEEK }}
       - uses: ${UP}
         if: \${{ steps.rec.outputs.rc == '0' || steps.rec.outputs.rc == '1' }}
         with:
@@ -166,9 +170,12 @@ ${releaseEnv}
           if git fetch -q --depth 1 "$remote" ${branch} 2>/dev/null; then
             parent=$(git rev-parse FETCH_HEAD); git read-tree FETCH_HEAD
             for g in ${games.map((g) => g.slug).join(" ")}; do
-              mkdir -p "$PUB/$g/vault"
+              mkdir -p "$PUB/$g/vault" "$PUB/$g/inputs"
               { git ls-tree --name-only "$parent:$g" 2>/dev/null || true; } | while IFS= read -r f; do
-                if [[ "$f" =~ ^(board|${WEEK_SH})\\.json$ ]]; then git show "$parent:$g/$f" > "$PUB/$g/$f"; fi
+                if [[ "$f" =~ ^(board|alltime|${WEEK_SH})\\.json$ ]]; then git show "$parent:$g/$f" > "$PUB/$g/$f"; fi
+              done
+              { git ls-tree --name-only "$parent:$g/inputs" 2>/dev/null || true; } | while IFS= read -r f; do
+                if [[ "$f" =~ ^W(0|[1-9][0-9]{0,3})\\.json$ ]]; then git show "$parent:$g/inputs/$f" > "$PUB/$g/inputs/$f"; fi
               done
               { git ls-tree --name-only "$parent:$g/vault" 2>/dev/null || true; } | while IFS= read -r f; do
                 if [[ "$f" =~ ^((HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3}))\\.json$ ]]; then git show "$parent:$g/vault/$f" > "$PUB/$g/vault/$f"; fi
@@ -185,7 +192,7 @@ ${releaseEnv}
 ${ind(script, 10).replace(/\n$/, "")}
           ${HEREDOC}
           while IFS= read -r name; do
-            [[ "$name" =~ ^[a-z][a-z0-9-]{1,23}/((board|${WEEK_SH})|vault/(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3}))\\.json$ ]] || { echo "::error::bad name from the check: $name"; exit 1; }
+            [[ "$name" =~ ^[a-z][a-z0-9-]{1,23}/((board|alltime|${WEEK_SH})|vault/(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3})|inputs/W(0|[1-9][0-9]{0,3}))\\.json$ ]] || { echo "::error::bad name from the check: $name"; exit 1; }
             h=$(git hash-object -w "$IN/$name")
             git update-index --add --cacheinfo "100644,$h,$name"
           done < "$LIST"

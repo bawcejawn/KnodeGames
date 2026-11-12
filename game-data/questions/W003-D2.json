@@ -440,9 +440,65 @@
             "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1095445629785"
           },
           "seal": "99520df80902a6bc90f4139c46068c28bd70dd3bb978bab4a8bbb419d863d28d"
+        },
+        {
+          "height": 40998913,
+          "readAt": "2026-11-12T00:35:44.296Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1095445629785"
+          },
+          "seal": "f909079ee15a905580a48e215a7af7f870acd1c3d25d564d8cb417500fc00fa2"
+        },
+        {
+          "height": 40999696,
+          "readAt": "2026-11-12T01:14:22.012Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1095448414659"
+          },
+          "seal": "8791b98f34b219a0075a1cedfd80ef4bf5bc7ef20f012b0f2c9178c49d24087e"
+        },
+        {
+          "height": 41001156,
+          "readAt": "2026-11-12T02:30:33.989Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1094630611134"
+          },
+          "seal": "23d964e65707219f37151dd022404c7ad98a2d69a59fb2ea239707861856277d"
+        },
+        {
+          "height": 41001633,
+          "readAt": "2026-11-12T02:55:04.835Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1094630611134"
+          },
+          "seal": "52414fd585ba2db99347b2a40e9553fc88e3325845b94ed9efac7bf7409583a6"
+        },
+        {
+          "height": 41002856,
+          "readAt": "2026-11-12T03:58:11.486Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1093812802667"
+          },
+          "seal": "80d54d84a8e6c58687c1d0e51627625451e9b695cecbc32b60b0f7a670713033"
+        },
+        {
+          "height": 41004134,
+          "readAt": "2026-11-12T05:03:09.002Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1093403896055"
+          },
+          "seal": "ff88d42acccf3df4adc8d37986490d17b3320f9cc38de2dab78e2e6b295735da"
+        },
+        {
+          "height": 41005340,
+          "readAt": "2026-11-12T06:06:54.580Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1092994988326"
+          },
+          "seal": "ab7321151901e9f399514080ca69b3bedb63103376a400b4a0f6a6b649c21816"
         }
       ],
-      "vhpSeal": "76c177aa27822e9d8a77eb5514acd31d3eedcecdd886d6caf85f98999fbbd0a9"
+      "vhpSeal": "318805047591fbb78b5c6525609d1f90394db96fb15f37910a0306426ba58bab"
     },
     {
       "id": "W003-D2-3",

@@ -66,3 +66,9 @@ test("Get VHP: Wormhole (Solana to Ethereum) and Vortex (Ethereum to Koinos) eac
   assert.match(g, /Vortex<\/b> moves them between <b>Ethereum and Koinos/);
   assert.ok(g.indexOf("Open Wormhole") < g.lastIndexOf("Open Vortex bridge"), "Solana users see Wormhole first, then Vortex");
 });
+
+test("Get VHP tells Wormhole users to paste the vKOIN contract address for each network", () => {
+  const g = fs.readFileSync(`${APP}get.html`, "utf8");
+  assert.match(g, /paste its Solana address from step 2/);
+  assert.match(g, /Ethereum address in step 2: check they match/);
+});

@@ -3,15 +3,39 @@
   "slug": "fantasy",
   "name": "Fantasy Producers",
   "vaultGameId": 4,
-  "kinds": ["staked", "free"],
+  "kinds": [
+    "staked",
+    "free"
+  ],
   "seasonWeeks": 1,
   "freePrizeDefault": "off",
   "status": "building",
-  "picks": { "contract": "picks", "gameId": 4 },
-  "sponsor": { "actions": [ { "name": "pick", "manaLimit": 1.3 } ] },
-  "week": { "standard": "WEEK_CYCLE", "sundayFunRound": true, "finalNotBefore": "Mon 00:00 UTC" },
-  "data": { "board": "games-data:fantasy/board.json", "vaultFolder": "games-data:fantasy/vault" },
-  "workflow": { "file": "games.yml", "enabledVar": "FANTASY_ENABLED", "prizesFromVar": "FANTASY_PRIZES_FROM_WEEK" },
+  "picks": {
+    "contract": "picks",
+    "gameId": 4
+  },
+  "sponsor": {
+    "actions": [
+      {
+        "name": "pick",
+        "manaLimit": 1.3
+      }
+    ]
+  },
+  "week": {
+    "standard": "WEEK_CYCLE",
+    "sundayFunRound": true,
+    "finalNotBefore": "Mon 00:00 UTC"
+  },
+  "data": {
+    "board": "games-data:fantasy/board.json",
+    "vaultFolder": "games-data:fantasy/vault"
+  },
+  "workflow": {
+    "file": "games.yml",
+    "enabledVar": "FANTASY_ENABLED",
+    "prizesFromVar": "FANTASY_PRIZES_FROM_WEEK"
+  },
   "page": "fantasy.html",
   "rulesDoc": ".ai/games/FantasyProducers.md",
   "ownerChat": "Fantasy",
@@ -19,8 +43,12 @@
   "vaultValues": "dense255",
   "minPts": 0,
   "rowCap": 0,
-  "entry": { "minRounds": 1, "minPoints": 1 },
+  "entry": {
+    "minRounds": 1,
+    "minPoints": 1
+  },
   "maxRoundPoints": 90000,
   "inputsFile": true,
-  "inputsLeadHours": 48
+  "inputsLeadHours": 48,
+  "vhpData": true
 }

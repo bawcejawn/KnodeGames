@@ -34,13 +34,14 @@ Fantasy football for block producers: draft five producers under a salary cap, c
 - **Switches:** `FANTASY_ENABLED`; `FANTASY_RULER_FROM_WEEK` = the first live week (the practice week is the shadow week). 💬
 
 ## Current status (11 Nov)
-- **The kit port is built as `games/fantasy/`** (draft PR, stacked on #261): the rules (`math.js`), the kit module (`recorder.ts`) and their tests. Until kit Phase 1b passes the ruler source, it makes no price list and decides no day (nothing is guessed). 💬
-- **Still to do in the port PR:** the page (`fantasy.html`/`.js`/`.css`) on the kit's files, the conformance sample, the workflow render (with Phase 1b), and the #B-10 failing tests. 💬
+- **The kit port is built in PR #266** (12 Nov): the rules (`games/fantasy/math.js`), the kit module (`recorder.ts`, `ruler-view.ts`) on kit Phase 1b's ruler source (#267, merged) and the planned `ctx.blockAt` (G7), the page (`fantasy.html`/`.js`/`.css`) on the kit's files, the rendered workflow jobs, the `vaultGames.4.kit` pin, and tests (end to end on the real ruler). Until G7 merges it makes no price list and decides no day (nothing is guessed). 💬
+- **Still open:** the kit's conformance sample for a ruler game (needs G7 in the runtime), the #B-10 failing tests (the owner's zip), per-producer day scores on the page (kit G8). 💬
 - PR #188 (old recorder) is closed unmerged; branch `fantasy` @ `a60da0b` is kept as the reference. 💬
 
 ## Known issues
 - The "biggest producers only" edge (+28 points a day in the 14-day sim): several small producers sign below their share. Watch it in the practice week; if it stays, weight form more in the price.
-- Score time for D-152 ties is the day a round counted, so equal weeks tie on time; the kit's next tie-break decides. ❓ owner to confirm.
+- Score time for D-152 ties: when the team in force was picked (never before the week started), so between equal weeks the team picked earlier wins. Built as recommended; ❓ owner to confirm.
+- The page can't show each producer's day score yet: the kit publishes only each card's sha256 (kit G8 asked).
 
 ## Future plans
 Launch path: kit Phase 1b → G6 and #262 → this port PR (Repo Lens) → one practice (shadow) week → Picks registration of games 4 and 5 → vault `game-add 4` → `FANTASY_ENABLED`, `games.json`, menus. Open question for the owner: a Telegram reminder as well as the on-page one? Producer names are shared across games (Koinos @names, D-030).

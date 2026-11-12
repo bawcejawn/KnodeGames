@@ -66,14 +66,14 @@ test("price: 20 + 1.5 × (form − median), half up, clamped 8–40, whole numbe
 
 test("price list: pool = entry on the last form day (the 80% gate); median, budget, hashes; deterministic", () => {
   const days = F.formDays(MON);
-  const mk = (i, extra = {}) => ({ round: F.ymd(days[i]), sha256: `h${i}`.padEnd(64, "0"), rows: { [A]: row(100, 100), [B]: row(105, 100), [C]: row(95, 100), [D]: row(100, 50), [E]: row(80, 100), [G]: row(100, 100, { entry: i !== 6 }), ...extra } });
+  const mk = (i, extra = {}) => ({ round: F.ymd(days[i]), rows: { [A]: row(100, 100), [B]: row(105, 100), [C]: row(95, 100), [D]: row(100, 50), [E]: row(80, 100), [G]: row(100, 100, { entry: i !== 6 }), ...extra } });
   const cards = days.map((_, i) => mk(i));
   const pl = F.makePriceList(MON, { ownRule: "spot" }, cards);
   assert.deepEqual(pl.pool.map((p) => p.a), [A, B, C, D, E], "G has no entry on Thursday's card: not listed");
   assert.equal(pl.median, 10000);
   assert.deepEqual(pl.pool.map((p) => [p.form, p.days, p.price]), [[10000, 7, 20], [10500, 7, 28], [9500, 7, 13], [20000, 7, 40], [8000, 7, 8]]);
   assert.equal(pl.budget, 109, "the five cheapest cost 109 > 100: the budget rises");
-  assert.equal(pl.poolCard.round, "20261112");
+  assert.equal(pl.poolDay, "20261112");
   assert.equal(pl.formDays.length, 7);
   assert.deepEqual(F.makePriceList(MON, { ownRule: "spot" }, cards), pl, "the recount gives the same list");
   assert.throws(() => F.makePriceList(MON, {}, cards.slice(1)));

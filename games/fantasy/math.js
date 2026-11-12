@@ -93,8 +93,8 @@ export function priceOf(form, median) {
 }
 /** The week's price list (the `data` of inputs/W<week>.json).
  *  start: the week's Monday 00:00 UTC; card: the ruler card settings; formCards: the 7 form days' scored cards, oldest
- *  first, each { round, sha256, rows: { [address]: { credited, expected, void, entry } } }. The pool is the producers
- *  with `entry` on the last form day's card. */
+ *  first, each { round, rows: { [address]: { credited, expected, void, entry } } }. The pool is the producers with
+ *  `entry` on the last form day's card. (The kit lists every card's settings and sha256 in the inputs file itself.) */
 export function makePriceList(start, card, formCards) {
   if (!Array.isArray(formCards) || formCards.length !== FORM_DAYS) throw new Error(`the price list needs ${FORM_DAYS} form days`);
   const want = formDays(start).map(ymd);
@@ -107,8 +107,8 @@ export function makePriceList(start, card, formCards) {
   return {
     v: VERSION, ruleVersion: 4, start, card,
     rules: { team: TEAM, budget: BUDGET, cap: CAP, captain: CAPTAIN, price: { base: 20, per: "1.5", min: PRICE.min, max: PRICE.max, none: PRICE.none } },
-    poolCard: { round: last.round, sha256: last.sha256 },
-    formDays: formCards.map((c) => ({ round: c.round, sha256: c.sha256 })),
+    poolDay: last.round,
+    formDays: formCards.map((c) => c.round),
     median, budget: Math.max(BUDGET, cheapest), pool: rows,
   };
 }

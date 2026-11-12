@@ -1,30 +1,33 @@
 // Fantasy Producers (game 4) with Weekly Rival (game 5), on the Shared Game Kit (D-158 #4: Fantasy is the kit's first
 // game). The kit does the reading, stakes, clock, files, pending → final, holds, boards, all-time, the vault file and
 // alerts; this module supplies the week's rounds, the write-once price list, each day's result from the VHP Ruler, the
-// scoring, the carried team and the Rival records. Every rule is in math.js.
+// scoring, the carried team and the Rival records. Every rule is in math.js; how a UTC day becomes a ruler card is in
+// ruler-view.ts.
 //
 // Rounds: Monday to Saturday play days, then Sunday's fun round (the Saturday team plays on; counts on Today and All
-// time only, D-150). A round's Picks round is its day number (Picks game 4 locks each day 5 minutes before it starts).
-// Points are in hundredths of an index point (a producer's day is at most 15000 = 150.00).
+// time only, D-150). A round's Picks round is its day number (Picks game 4: time lock, round size one day, lead 5 min).
+// Points are in hundredths of an index point (a producer's day is at most 15000 = 150.00; a team's at most 90000).
+// Nothing is ever guessed: while the ruler data or the block clock doesn't reach a day, the kit's NotYet keeps the
+// round PENDING (or the price list waiting); a flagged card, or a listed producer missing from a card, stays PENDING
+// too, for the owner's hold/release.
 import { DAY } from "../../kit/recorder/clock.ts";
 import { PENDING, type GameModule, type Round, type States, type Score } from "../../kit/recorder/types.ts";
 import type { RawPick } from "../../kit/recorder/sources/picks-contract.ts";
 import * as F from "./math.js";
-import { rulerOf, type CardSettings } from "./ruler-view.ts";
+import { CARD, dayCard, flagged, rowsOf, sourcesOf } from "./ruler-view.ts";
 
 export const VAULT_GAME = 4;                 // FC-29: one constant
 export const RIVAL_GAME = 5;
-const VAULT = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
-export const CARD: CardSettings = { ownRule: "spot", minK: 10, poolRule: "min", c: "500000", paying: true, pooled: [VAULT] };
+export { CARD };
 
 export type PriceList = ReturnType<typeof F.makePriceList>;
-/** A day's result: the card's hash and each pool producer's [credited, expected, void]. */
-export type DayResult = { round: string; card: string; rows: Record<string, [string, string, boolean]> };
+/** A day's result: its ruler round and each listed producer's [credited, expected, void] (millionths of a block). */
+export type DayResult = { round: string; rows: Record<string, [string, string, boolean]> };
 /** A wallet's carried state: its team (captain first) and when it was picked (chain ms). */
 export type TeamState = { t: string[]; at: number };
 
 const dayNo = (t: number) => Math.floor(t / DAY);
-const rowsOf = (r: DayResult) => Object.fromEntries(Object.entries(r.rows).map(([a, [credited, expected, v]]) => [a, { credited, expected, void: v }]));
+const asRows = (r: DayResult) => Object.fromEntries(Object.entries(r.rows).map(([a, [credited, expected, v]]) => [a, { credited, expected, void: v }]));
 
 export const game: GameModule<RawPick, DayResult, PriceList> = {
   slug: "fantasy",
@@ -35,47 +38,43 @@ export const game: GameModule<RawPick, DayResult, PriceList> = {
     return F.weekDays(week.start).map((day) => ({ id: `d${F.ymd(day)}`, day, locksAt: day, resolvesAt: day + DAY, pickRound: dayNo(day) }));
   },
 
-  /** The write-once price list (FC-9), made Saturday 00:00 UTC before the week from 7 ruler day cards, and made again
-   *  at the week's end for the recount: the same cards give the same bytes. */
+  /** The write-once price list (FC-9), made Saturday 00:00 UTC before the week from 7 ruler day cards (Friday to
+   *  Thursday before), and made again at the week's end for the recount: the same cards give the same bytes. A card
+   *  that isn't ready throws the kit's NotYet (the list waits and the next run tries again); a flagged one stops it. */
   async inputsFor(week, ctx) {
-    const ruler = rulerOf(ctx);
-    if (!ruler) throw new Error("Fantasy's price list needs the kit's VHP Ruler source (ctx.vhp, kit Phase 1b)");
+    const src = sourcesOf(ctx);
     const cards = [];
     for (const day of F.formDays(week.start)) {
-      const c = await ruler.dayCard(day, CARD, []);
-      if (c.state !== "ready") throw new Error(`price list for week ${week.week}: the card for ${F.ymd(day)} is not ready (${c.why})`);
-      if (c.quality !== "ok") throw new Error(`price list for week ${week.week}: the card for ${F.ymd(day)} is flagged`);
-      if (c.ruleVersion !== 4) throw new Error(`price list for week ${week.week}: ruler version ${c.ruleVersion}, not 4`);
-      cards.push({ round: c.round, sha256: c.sha256, rows: c.rows });
+      const c = await dayCard(day, src);
+      if (flagged(c)) throw new Error(`price list for week ${week.week}: the ruler card for ${c.round} is flagged (a bad or rebuilt hour); the owner checks it`);
+      cards.push({ round: c.round, rows: rowsOf(c) });
     }
-    return F.makePriceList(week.start, CARD, cards);
+    return F.makePriceList(week.start, { ...CARD, pooled: [...CARD.pooled] }, cards);
   },
 
-  /** A day's result from its ruler card. PENDING (never a guess) until the card is ready, while it is flagged (the
-   *  owner's hold/release decides, FC-11), and if a pool producer has no row (Ruler chat G6: every listed producer
-   *  must have one; a missing row holds the day, never a silent 0). */
-  async resultOf(round, _read, inputs, ctx?: unknown) {
-    const ruler = rulerOf(ctx);
-    if (!ruler || !inputs) return PENDING;
-    const pool = inputs.pool.map((p) => p.a);
-    const c = await ruler.dayCard(round.day, inputs.card as CardSettings, pool);
-    if (c.state !== "ready" || c.quality !== "ok" || c.ruleVersion !== 4 || c.round !== F.ymd(round.day)) return PENDING;
-    const rows: DayResult["rows"] = {};
-    for (const a of pool) {
-      const r = c.rows[a];
+  /** A day's result from its ruler card: PENDING while it is flagged, and while a listed producer has no row (the
+   *  ruler's G6 `include` gives every listed producer one; until then such a day waits, never a silent 0). */
+  async resultOf(round, _read, inputs, ctx) {
+    if (!inputs) return PENDING;
+    const c = await dayCard(round.day, sourcesOf(ctx));
+    if (flagged(c)) return PENDING;
+    const by = rowsOf(c), rows: DayResult["rows"] = {};
+    for (const { a } of inputs.pool) {
+      const r = by[a];
       if (!r) return PENDING;
-      rows[a] = [r.credited, r.expected, r.void === true];
+      rows[a] = [String(r.credited), String(r.expected), r.void === true];
     }
-    return { round: c.round, card: c.sha256, rows };
+    return { round: c.round, rows };
   },
 
-  /** Every wallet with a team scores, picked that day or not. Score time (D-152/D-159 ties): the day it counted. */
-  scoreRound(round, _picks, result, _inputs, state): Score {
+  /** Every wallet with a team scores, picked that day or not. Score time (D-152/D-159 ties): when the team in force
+   *  was picked, never before the week starts (owner question: earlier team wins a tie). */
+  scoreRound(round, _picks, result, inputs, state): Score {
     const out: Score = new Map();
-    const rows = rowsOf(result);
+    const rows = asRows(result), start = inputs?.start ?? round.day;
     for (const [a, s] of (state ?? new Map()) as States<TeamState>) {
       const points = F.dayPoints(s.t, rows);
-      out.set(a, { points, at: points > 0 ? round.day : 0 });
+      out.set(a, { points, at: points > 0 ? Math.min(round.day, Math.max(start, s.at)) : 0 });
     }
     return out;
   },

@@ -1,31 +1,57 @@
-// Fantasy Producers: what the game needs from the kit's VHP Ruler source (kit Phase 1b, "ruler source", Architecture
-// chat; claude/architecture/TO-FANTASY-KIT-ANSWERS-2026-11-11.md). Types only: this file is the contract the kit's
-// `ctx.vhp` must meet. Until Phase 1b passes `ctx.vhp`, Fantasy makes no price list and every day stays PENDING (never
-// a guess).
+// Fantasy Producers: how a UTC day becomes a VHP Ruler card, on the kit's sources.
 //
-// A day card (Ruler chat, claude/ruler/TO-FANTASY-RULER-ANSWERS-2026-11-11.md): game 4, S0/S1 = the UTC day's first and
-// last blocks, window [L − 7199, L] with L the lock block, round = yyyymmdd, made and scored by the real ruler code
-// (vhp-ruler.js) from the published vhp-data branch.
+// - ctx.vhp.card(settings) (kit Phase 1b, PR #267, merged): the real ruler's scored card (vhp-ruler.js makeCard +
+//   scoreCard + cardJson) made from the published vhp-data branch; it throws NotYet while the data doesn't cover it.
+// - ctx.blockAt(ms) (kit G7, `kit-blockat`): the first irreversible block at or after a UTC time, the same on both
+//   nodes; NotYet until that block is irreversible. Until the kit passes it, Fantasy waits (NotYet), never guesses.
+//
+// A day card (Ruler chat 11 Nov; lock rule confirmed against picks/assembly/Picks.ts l.126–133, Block X chat 12 Nov):
+//   S0 = blockAt(dayStart), S1 = blockAt(dayStart + DAY) − 1, L = blockAt(dayStart − LEAD) − 1 (the last block that can
+//   still hold a pick), window { W0: L − 7199, W1: L, L, S0, S1 }, round = yyyymmdd, game 4, Fantasy's own settings.
+import { NotYet } from "../../kit/recorder/sources/vhp-ruler.ts";
+import { DAY } from "../../kit/recorder/clock.ts";
+import * as F from "./math.js";
 
-/** The ruler card settings Fantasy uses (Ruler chat, 11 Nov). */
-export type CardSettings = { ownRule: "spot"; minK: number; poolRule: "min"; c: string; paying: boolean; pooled: string[] };
+export const LEAD = 300000;                         // Picks game 4 locks each day 5 minutes before it starts
+export const LOOK_BACK = 7199;                      // the card's look-back: the 6 hours (7,200 blocks) up to the lock
+export const VAULT = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
+/** Fantasy's card settings (Ruler chat, 11 Nov; mode A = no mode field). Never read from a card. */
+export const CARD = Object.freeze({ game: 4, c: "500000", minK: 10, poolRule: "min", ownRule: "spot", paying: true, pooled: [VAULT] });
+export type CardBase = typeof CARD;
 
-/** One producer on a scored card: credited and expected in millionths of a block (decimal strings, as cardJson writes them). */
-export type RulerRow = { credited: string; expected: string; void: boolean; entry: boolean };
+/** One producer on a scored card, as cardJson writes it (millionths of a block, decimal strings). */
+export type RulerRow = { a: string; credited: string; expected: string; void: boolean; entry: boolean; quality: "ok" | "flagged" };
+export type RulerCard = { ruleVersion: number; game: number; round: string; producers: RulerRow[] };
 
-export type DayCard =
-  | { state: "ready"; round: string; sha256: string; quality: "ok" | "flagged"; ruleVersion: number; rows: Record<string, RulerRow> }
-  | { state: "not-yet"; why: string };
+type Vhp = { ruleVersion: number; card(settings: unknown): RulerCard };
+type BlockAt = (ms: number) => Promise<number>;
+export type Sources = { vhp: Vhp; blockAt: BlockAt };
 
-export interface RulerView {
-  /** The scored card for the UTC day starting at `day` (ms). `include`: producers that must have a row whatever their
-   *  activity before the day (the week's pool; Ruler chat G6). "not-yet" until vhp-data covers the day and its seed
-   *  block is irreversible. Deterministic: the same answer every time it is asked. */
-  dayCard(day: number, settings: CardSettings, include: string[]): Promise<DayCard>;
+/** The ruler source and the block clock from a kit context, or NotYet if this run doesn't have both yet. */
+export function sourcesOf(ctx: unknown): Sources {
+  const c = ctx as { vhp?: Vhp; blockAt?: BlockAt } | undefined;
+  if (!c?.vhp || typeof c.vhp.card !== "function") throw new NotYet("not yet: no ruler data this run (ctx.vhp)");
+  if (typeof c.blockAt !== "function") throw new NotYet("not yet: the kit's block clock (ctx.blockAt, G7) isn't available");
+  return { vhp: c.vhp, blockAt: c.blockAt };
 }
 
-/** The kit's ruler source, if this run has it (Phase 1b passes it as ctx.vhp). */
-export const rulerOf = (ctx: unknown): RulerView | null => {
-  const v = (ctx as { vhp?: RulerView } | undefined)?.vhp;
-  return v && typeof v.dayCard === "function" ? v : null;
-};
+/** The settings of the card for the UTC day starting at `day`. */
+export async function daySettings(day: number, blockAt: BlockAt, base: CardBase = CARD) {
+  const S0 = await blockAt(day), S1 = (await blockAt(day + DAY)) - 1, L = (await blockAt(day - LEAD)) - 1;
+  if (!(Number.isSafeInteger(S0) && Number.isSafeInteger(S1) && Number.isSafeInteger(L)) || !(L < S0 && S0 <= S1)) throw new Error(`day ${F.ymd(day)}: bad block window ${L}/${S0}/${S1}`);
+  return { ...base, pooled: [...base.pooled], round: F.ymd(day), window: { W0: L - LOOK_BACK, W1: L, L, S0, S1 } };
+}
+
+/** The scored card for a UTC day, checked: ruler version 4, the right round and game. Throws NotYet while the data
+ *  or the block clock doesn't reach it. */
+export async function dayCard(day: number, src: Sources, base: CardBase = CARD): Promise<RulerCard> {
+  const c = src.vhp.card(await daySettings(day, src.blockAt, base));
+  if (c?.ruleVersion !== 4) throw new Error(`day ${F.ymd(day)}: ruler version ${c?.ruleVersion}, not 4`);
+  if (c.round !== F.ymd(day) || c.game !== 4 || !Array.isArray(c.producers)) throw new Error(`day ${F.ymd(day)}: not Fantasy's card`);
+  return c;
+}
+
+/** Is any part of the card flagged (a bad or rebuilt hour in what it reads)? The ruler marks every row then. */
+export const flagged = (c: RulerCard) => c.producers.some((p) => p.quality !== "ok");
+/** The card's rows by address. */
+export const rowsOf = (c: RulerCard) => Object.fromEntries(c.producers.map((p) => [p.a, p]));

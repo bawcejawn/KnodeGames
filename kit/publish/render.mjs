@@ -114,6 +114,7 @@ ${fetchStep(branch, g.slug)}${(g.published ?? []).map((o) => "\n" + fetchStep(br
 ${(g.published ?? []).map((o) => `          KIT_PUBLISHED_${up(o)}: \${{ runner.temp }}/published-${o}\n`).join("")}          # The owner's holds (GAME_KIT.md §3): weeks kept pending, and the one-off release of a held week ("<week>:<code>").
           ${up(g.slug)}_HOLD_WEEKS: \${{ vars.${up(g.slug)}_HOLD_WEEKS }}
           ${up(g.slug)}_RELEASE: \${{ vars.${up(g.slug)}_RELEASE }}
+          ${up(g.slug)}_RESET_FROM_WEEK: \${{ vars.${up(g.slug)}_RESET_FROM_WEEK }}
       - uses: ${UP}
         if: \${{ steps.rec.outputs.rc == '0' || steps.rec.outputs.rc == '1' }}
         with:

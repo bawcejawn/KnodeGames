@@ -20,7 +20,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { execFileSync } = require("child_process");
 
-/** The audited Picks build (picks/README.md "Build", docs/history/AUDIT-2026-10-27-picks*.md). */
+/** The audited Picks build (picks/README.md "Build", AUDIT-2026-10-27-picks*.md (owner's private records)). */
 const AUDITED = "700c296a1064b904299c156061d6caf8fcabd0b1765968903f29d89d2426c594";
 const ROOT = path.join(__dirname, "..");
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");

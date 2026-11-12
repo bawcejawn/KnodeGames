@@ -8,7 +8,9 @@
   const W = window.KWallet;
   const BASE = "./";
   const GAME_DATA = BASE + "game-data/";
-  const RACE_DATA = "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/";
+  // The owner's free-prize switches (bot/free-prizes.ts), published on the prize-settings branch. Read-only.
+  const PRIZE_URL = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/prize-settings/free-prizes.json";
+  const RACE_DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/";
   const $ = (id) => document.getElementById(id);
   const SVG = "http://www.w3.org/2000/svg";
 
@@ -21,7 +23,7 @@
     fantasy: ["M12 5a3 3 0 1 1 0 6a3 3 0 1 1 0-6z", "M5 20c1-4 4-6 7-6s6 2 7 6"],
     golf: ["M7 21V4l9 4-9 4", "M4 21h8"],
   };
-  const KINDS = { free: "Free", staked: "Staked" };
+  const KINDS = { free: "Free play", staked: "Staked" };
 
   function el(tag, attrs, ...kids) {
     const e = document.createElement(tag);
@@ -51,6 +53,49 @@
       && (g.status === "live" || g.status === "soon") && typeof g.href === "string"
       && (g.status === "soon" ? g.href === "" : /^[a-z0-9-]+\.html(#[a-z/]+)?$/.test(g.href));
     return Array.isArray(list) ? list.filter(ok).slice(0, 40) : [];
+  }
+
+  // ── free-prize label: "Free prizes on" or "Practice", from the owner's switch (same rule as bot/free-prizes.ts) ──
+  let switches = null;   // the checked file, or null (unreachable or not the right shape: then no prize label is drawn)
+  function checkSwitches(s) {
+    if (!s || s.v !== 1 || !s.games || typeof s.games !== "object" || Array.isArray(s.games)) return null;
+    for (const list of Object.values(s.games)) if (!Array.isArray(list) || list.length > 200) return null;
+    return s;
+  }
+  /** Is game `id`'s free prize on for vault week `w`? true / false, or null = no change counts (follow its registration). */
+  function switchFor(id, w) {
+    const K = window.KWeeks, list = switches && switches.games[String(id)];
+    if (!K || !Array.isArray(list)) return null;
+    let on = null;
+    for (const c of list) {
+      if (c && Number.isInteger(c.from) && typeof c.on === "boolean" && typeof c.set === "string" && c.from <= w && Date.parse(c.set) < K.GENESIS_MS + c.from * K.WEEK_MS) on = c.on;
+    }
+    return on;
+  }
+  /** "on" | "practice" | null (unknown: draw nothing rather than promise a prize). Before Week 1 nothing pays. */
+  function prizeState(g, now) {
+    const K = window.KWeeks, id = VAULT_IDS[g.id];
+    if (!K || !id || g.status !== "live") return null;
+    const w = K.of(now);
+    if (w < K.FIRST) return "practice";
+    if (!switches) return null;
+    const on = switchFor(id, w);
+    return on === null ? (g.freeReg === true ? "on" : "practice") : on ? "on" : "practice";
+  }
+  let gameList = [];
+  function drawPrizeLabels() {
+    const now = Date.now();
+    for (const b of document.querySelectorAll("[data-prize]")) {
+      const g = gameList.find((x) => x.id === b.dataset.prize), st = g && prizeState(g, now);
+      if (!st) { b.hidden = true; continue; }
+      b.className = `pill ${st === "on" ? "prize-on" : "practice"}`;
+      b.textContent = st === "on" ? "Free prizes on · 2 + 1 VHP" : "Practice · no free prizes";
+      b.hidden = false;
+    }
+  }
+  async function loadPrizes() {
+    try { switches = checkSwitches(await fetchJson(PRIZE_URL)); } catch { switches = null; }
+    drawPrizeLabels();
   }
 
   // ── the week strip ──
@@ -108,19 +153,19 @@
   async function loadQuestions() {
     try {
       const idx = await fetchJson(GAME_DATA + "index.json");
-      const days = Array.isArray(idx && idx.days) ? idx.days.filter((d) => typeof d === "string" && /^questions\/W\d{3}-D[1-7]\.json$/.test(d)) : [];
+      const days = Array.isArray(idx && idx.days) ? idx.days.filter((d) => typeof d === "string" && /^questions\/W\d{3}-D[1-7](-\d{2})?\.json$/.test(d)) : [];
       if (!days.length) return;
       const day = await fetchJson(GAME_DATA + days[days.length - 1]);
       const now = Date.now(), qs = Array.isArray(day && day.questions) ? day.questions : [];
       questionsOpen = qs.filter((q) => q && Number(q.lockTime) > now).length;
-      if (!questionsOpen) nextQuestions = "New questions Mon–Sat, 12:00 UTC";
+      if (!questionsOpen) nextQuestions = Date.now() >= Date.UTC(2026, 10, 9) ? "New questions Mon–Sat, 00:00 and 12:00 UTC" : "New questions Mon–Sat, 12:00 UTC";
     } catch { /* no data: leave the card plain */ }
     refresh();
   }
 
   function card(g) {
     const live = g.status === "live";
-    const pills = [...g.kinds.map((k) => el("span", { class: `pill ${k}`, text: KINDS[k] })), live ? null : el("span", { class: "pill soon", text: "Soon" })];
+    const pills = [...g.kinds.map((k) => el("span", { class: `pill ${k}`, text: KINDS[k] })), live ? el("span", { class: "pill", "data-prize": g.id, hidden: "" }) : el("span", { class: "pill soon", text: "Soon" })];
     const body = el("span", { class: "g-bd" },
       el("span", { class: "g-t" }, el("span", { class: "g-name", text: g.name }), ...pills),
       el("span", { class: "g-line", text: g.line }),
@@ -137,6 +182,7 @@
     let games = [];
     try { games = clean((await fetchJson("games.json")).games); } catch { /* shown below */ }
     if (!games.length) { $("g-live").replaceChildren(el("p", { class: "note", text: "The games list couldn't load. Reload the page to try again." })); return; }
+    gameList = games;
     const free = games.filter((g) => g.status === "live" && g.kinds.includes("free"));
     const stakedOnly = games.filter((g) => g.status === "live" && !g.kinds.includes("free"));
     $("g-live").replaceChildren(...free.map(card), ...stakedOnly.map(card));
@@ -158,16 +204,16 @@
     }
     $("g-soon").replaceChildren(...games.filter((g) => g.status === "soon").map(card));
     // "Where to stake": every game's stake side by side (stake-panel.js; hidden until the Knode Games vault is live).
-    // Each live game links to its own page's stake panel (#stake); Daily Questions stakes on its play page.
+    // Each live game links to its own page's stake panel (#stake); Daily Questions to its card on the Stake page.
     const stakeBox = $("stake-list");
     if (stakeBox && window.KStake) {
       const links = {};
-      for (const g of games) if (g.status === "live" && VAULT_IDS[g.id]) links[VAULT_IDS[g.id]] = g.id === "questions" ? g.href : `${g.href.split("#")[0]}#stake`;
+      for (const g of games) if (g.status === "live" && VAULT_IDS[g.id]) links[VAULT_IDS[g.id]] = g.id === "questions" ? "stake.html#g1" : `${g.href.split("#")[0]}#stake`;
       window.KStake.mountList(stakeBox, { links });
     }
     $("soon-box").hidden = !games.some((g) => g.status === "soon");
     refresh();
-    loadRace(); loadQuestions();
+    loadRace(); loadQuestions(); drawPrizeLabels(); loadPrizes();
     setInterval(() => { week(); refresh(); }, 60000);
     if (W && W.subscribe) W.subscribe(() => { refresh(); stakeChips(); });
     stakeChips();

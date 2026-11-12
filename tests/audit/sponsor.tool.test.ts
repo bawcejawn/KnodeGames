@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildConfig, setPayer, syncSiteLimits, DEFAULT_CAPS, SPONSOR_SHA256, SPONSOR_V3_CANDIDATE, allowedBuilds } from "../../bot/sponsor.ts";
+import { buildConfig, setPayer, syncSiteLimits, POB_MAINNET, POB_REGISTER, POB_ARG_TYPES, pobFor, DEFAULT_CAPS, SPONSOR_SHA256, SPONSOR_V3_CANDIDATE, SPONSOR_V3_GUESTFIX, allowedBuilds, vaultOnProblem, uploadProblem, VAULT_SAFE_BUILDS } from "../../bot/sponsor.ts";
 import { summarize, suggest, merge, checkRows, siteMap, chainRows, key, transitionRows, siteFits } from "../../bot/mana-limits.ts";
 
 const GAME = { contract: "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr", vhp: "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq", koin: "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK" };
@@ -45,7 +45,9 @@ test("upload only accepts the audited build, and that is the build in the repo's
   const src = fs.readFileSync("bot/sponsor.ts", "utf8");
   // Mainnet takes the audited builds: v3 (Repo Lens round 6 "GO", 2026-10-30) and v2 as the rollback (SP-13).
   assert.match(src, /allowedBuilds\(mainnet\)/);
-  assert.deepEqual(allowedBuilds(true), [SPONSOR_V3_CANDIDATE, SPONSOR_SHA256]);
+  // Guest trap (4 Nov): the fixed v3 build first; v3 and v2 stay allowed as rollbacks.
+  assert.deepEqual(allowedBuilds(true), [SPONSOR_V3_GUESTFIX, SPONSOR_V3_CANDIDATE, SPONSOR_SHA256]);
+  assert.ok(allowedBuilds(false).includes(SPONSOR_V3_GUESTFIX));
   assert.ok(allowedBuilds(false).includes(SPONSOR_V3_CANDIDATE));
   assert.notEqual(SPONSOR_V3_CANDIDATE, SPONSOR_SHA256);
   assert.match(src, /call override is ON/);
@@ -304,4 +306,69 @@ test("mana-report: a block range a node won't answer (error page) is split down 
   // A block no node will answer even alone: the report stops with an error (it never skips blocks silently).
   const dead = { async call() { throw new Error("invalid json response body"); } };
   await assert.rejects(readBlocks(dead, "0xhead", 1000, 4, noWait));
+});
+
+// Guest trap (4 Nov 2026) stopgap: `config --vault off` builds the settings with the vault switch off (no
+// game_has_vault), whatever the vault reads as; config with no flag still turns it on once the vault is live.
+test("guest-trap stopgap: --vault off leaves game_has_vault out; only 'off' is accepted, and only with config", () => {
+  const off = buildConfig(GAME, DESK, DEFAULT_CAPS, true, undefined, undefined, [], false, false);
+  assert.equal("game_has_vault" in off, false);
+  const on = buildConfig(GAME, DESK, DEFAULT_CAPS, true, undefined, undefined, [], false, true);
+  assert.equal(on.game_has_vault, true);
+  const src = fs.readFileSync(new URL("../../bot/sponsor.ts", import.meta.url), "utf8");
+  assert.match(src, /const vaultLive = v3 && !vaultOff \? await vaultLiveOn\(/);
+  assert.match(src, /--vault takes one value: off/);
+  assert.match(src, /--vault off goes with config or enable/);
+});
+
+// Repo Lens SG-1 (4 Nov 2026): the vault switch goes on only over the fixed build, and the trapping build is never
+// uploaded while the switch is on.
+test("SG-1: config/enable refuse the vault switch over b61ac238; upload refuses b61ac238 while the switch is on", () => {
+  assert.deepEqual(VAULT_SAFE_BUILDS, [SPONSOR_V3_GUESTFIX]);
+  assert.match(vaultOnProblem(SPONSOR_V3_CANDIDATE, true) ?? "", /^Not sent: .* traps when the vault switch is on/);
+  assert.equal(vaultOnProblem(SPONSOR_V3_CANDIDATE, false), null, "--vault off over the old build is fine");
+  assert.equal(vaultOnProblem(SPONSOR_V3_GUESTFIX, true), null, "the fixed build may have it on");
+  assert.match(vaultOnProblem("", true) ?? "", /Not sent/, "no code or unknown code: refused");
+  assert.match(uploadProblem(SPONSOR_V3_CANDIDATE, true) ?? "", /^Not sent: the vault switch is ON/);
+  assert.equal(uploadProblem(SPONSOR_V3_CANDIDATE, false), null, "rollback with the switch off is fine");
+  assert.equal(uploadProblem(SPONSOR_V3_GUESTFIX, true), null);
+  assert.equal(uploadProblem(SPONSOR_SHA256, true), null, "v2 never reads the vault");
+  const src = fs.readFileSync(new URL("../../bot/sponsor.ts", import.meta.url), "utf8");
+  assert.match(src, /const vp = vaultOnProblem\(code, vaultLive\);\n  if \(vp\) throw new Error\(vp\);/);
+  assert.match(src, /const up = uploadProblem\(sha256hex\(wasm\), switchOn\);\n  if \(up\) throw new Error\(up\);/);
+  assert.match(src, /catch \{ switchOn = true; \}/, "an unreadable switch counts as on");
+});
+
+// Repo Lens #D-7 SR-1: over non-v3 code (v2 after a rollback) the vault switch counts as on, so b61ac238 is refused
+// and the fixed build is still allowed.
+test("SR-1: upload treats the switch as on over non-v3 code (a v2 rollback): b61ac238 refused, b84e1add allowed", () => {
+  const src = fs.readFileSync(new URL("../../bot/sponsor.ts", import.meta.url), "utf8");
+  const up = src.slice(src.indexOf("async function upload("), src.indexOf("const have = BigInt(await provider.getAccountRc(A));"));
+  assert.match(up, /if \(!V3_BUILDS\.includes\(onChain\)\) switchOn = true;/);
+  assert.match(up, /catch \{ switchOn = true; \}/);
+  // with the switch counted as on (over v2): the trapping build is refused, the fixed one and v2 are allowed
+  assert.match(uploadProblem(SPONSOR_V3_CANDIDATE, true) ?? "", /^Not sent: the vault switch is ON/);
+  assert.equal(uploadProblem(SPONSOR_V3_GUESTFIX, true), null);
+  assert.equal(uploadProblem(SPONSOR_SHA256, true), null);
+});
+
+test("owner 5 Nov: the sponsor pays a new node runner's Proof-of-Burn register_public_key (the producer's own, free play)", () => {
+  const PICKS = "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW", RACE = "15CM9Qr4GKREDgqnyXJ8tckPj2biERTM1T";
+  assert.equal(POB_MAINNET, "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv"); assert.equal(POB_REGISTER, 0x53192be1); assert.equal(pobFor(true), POB_MAINNET);
+  const c: any = buildConfig(GAME, DESK, DEFAULT_CAPS, true, RACE, PICKS, [], false, false, POB_MAINNET);
+  assert.deepEqual(c.allowed, [
+    { contract: PICKS, entry_point: 0x8ce33c6c, free_play: true, arg_types: "0x0301011301", game_arg: 2 },
+    { contract: POB_MAINNET, entry_point: 0x53192be1, free_play: true, arg_types: "0x0303", game_arg: 0 },
+  ], "the Picks row stays first; PoB: field 1 the producer (bytes), field 2 the key (bytes), nothing else, no game");
+  assert.deepEqual((buildConfig(GAME, DESK, DEFAULT_CAPS, true, RACE, undefined, [], false, false, POB_MAINNET) as any).allowed.map((x: any) => x.entry_point), [0x53192be1]);
+  for (const bad of [GAME.contract, DESK.contract, GAME.vhp, GAME.koin, RACE, PICKS]) assert.throws(() => buildConfig(GAME, DESK, DEFAULT_CAPS, true, RACE, PICKS, [], false, false, bad), /must differ/);
+  // The shape matches what producer.html sends (producer.js's ABI): producer bytes 1, public_key bytes 2, no nested messages.
+  const pj = fs.readFileSync("producer.js", "utf8");
+  assert.match(pj, /const POB = "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv"/);
+  assert.match(pj, /register_public_key: \{ entry_point: 0x53192be1,/);
+  const fields = pj.slice(pj.indexOf("register_public_key_arguments: {"), pj.indexOf("register_public_key_result: {"));
+  assert.match(fields, /producer: \{ type: "bytes", id: 1/); assert.match(fields, /public_key: \{ type: "bytes", id: 2/);
+  assert.equal((fields.match(/id: \d/g) || []).length, 2, "exactly two fields");
+  const src = fs.readFileSync("bot/sponsor.ts", "utf8");
+  assert.match(src, /vaultLive, v3 \? pobFor\(mainnet\) : undefined\);/, "config sends it on v3");
 });

@@ -51,7 +51,7 @@ To pause picks: `npm run racepicks -- disable --send` (owner's key, `OWNER_WIF`)
 
 ## Build
 
-Release build sha256 (audited 2026-10-27, docs/history/AUDIT-2026-10-27-race-picks.md): `61e8f21230e8b4bdb165bacfe7281517a5adf78f6c6b1b8a0d84ce41537afac5` (17,066 bytes).
+Release build sha256 (audited 2026-10-27, AUDIT-2026-10-27-race-picks.md (owner's private records)): `61e8f21230e8b4bdb165bacfe7281517a5adf78f6c6b1b8a0d84ce41537afac5` (17,066 bytes).
 Tests: 22 contract tests (`npm test`, in the Koinos mock VM), including the auditor's attack tests (`Race.audit.spec.ts`).
 
 ## Weekly results for the KnodeGames Vault (game 7)

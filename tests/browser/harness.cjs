@@ -71,7 +71,7 @@ async function open(opts = {}) {
       const ct = f.endsWith(".html") ? "text/html" : f.endsWith(".js") ? "text/javascript" : f.endsWith(".css") ? "text/css" : f.endsWith(".json") ? "application/json" : f.endsWith(".svg") ? "image/svg+xml" : "application/octet-stream";
       return route.fulfill({ body: fs.readFileSync(f), contentType: ct });
     }
-    if (/raw\.githubusercontent\.com\/bawcejawn\/Knode\/race-data\/W\d+\.json$/.test(u.href)) {
+    if (/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/race-data\/W\d+\.json$/.test(u.href)) {
       const field = (opts.field || PRODS.map((a, i) => ({ a, vhp: 1e6 * (4 - i), k: 600 * (4 - i), h: 1 + i * 0.3 })));
       return route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ v: 1, races: [{ cards: [{ at: now - 600000, samples: 12, field }] }] }) });
     }

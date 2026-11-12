@@ -483,9 +483,57 @@
             "14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb": "63515726328589"
           },
           "seal": "df9639197b2a7cab848444336e14de259fb3c561731dac855920b7b2ed76797e"
+        },
+        {
+          "height": 40767086,
+          "readAt": "2026-11-03T17:46:18.836Z",
+          "values": {
+            "14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb": "63499793081662"
+          },
+          "seal": "1e12e7906af5d2313e87ee48670236054a782bb47959d56149709a851425ca41"
         }
       ],
-      "vhpSeal": "545268ef21b7ad8c00cb3c39fa5579ba79b01049038e0a3c16815ddc2a38ec42"
+      "vhpSeal": "580181d4ced409c4bdb7c4d36fbcd456c25f300afe0746fcb40a88d80a92df19",
+      "result": {
+        "void": false,
+        "option": 0,
+        "value": "840",
+        "dataHash": "e2ef6eafccae9b5cef390746410ae3f18c5d96728c9ae41e22713c3a03d0e46b",
+        "resolvedAt": "2026-11-03T18:21:06.580Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40732379,
+          "decidedHeight": 40766482,
+          "readings": [
+            40748594,
+            40749624,
+            40750934,
+            40753221,
+            40754540,
+            40755895,
+            40757893,
+            40759039,
+            40760139,
+            40760198,
+            40761059,
+            40761460,
+            40762846,
+            40764784,
+            40766019
+          ],
+          "readingsInWindow": 16,
+          "values": {
+            "14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb": {
+              "release": "64074580366348",
+              "end": "63515726328589",
+              "change": "−0.87%",
+              "height": 40766019
+            }
+          }
+        }
+      },
+      "chainOutcome": 1,
+      "chainDataHash": "0xe2ef6eafccae9b5cef390746410ae3f18c5d96728c9ae41e22713c3a03d0e46b"
     },
     {
       "id": "W002-D1-4",

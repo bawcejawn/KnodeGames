@@ -4,7 +4,7 @@ One page on your PC that controls the whole platform. Start it:
 
 ```powershell
 cd C:\kprediction
-git checkout picks
+git branch --show-current   # must print main; if not, stop and ask
 git pull
 npm ci
 npm run admin
@@ -19,13 +19,14 @@ It opens a link with a one-time key (a new one every start). It works only on th
 | Heading | Areas |
 |---|---|
 | Start here | Health checks: read-only status of everything |
-| Platform | Mana sponsor; Knode Vault (v6): add games, weekly results, corrections, the VHP fee; Wallet names: claims sent to you, hide a name, refresh @nicknames |
+| Platform | Mana sponsor; Knode Vault (v6): add games, the free-prize switch, weekly results, corrections, the fees, the seed, pausing deposits, upgrades, the owner and bot wallets; Wallet names: claims sent to you, hide a name, refresh @nicknames |
 | Games | One area per game, by game id (Question game 1, Block X 2, Survivor 3, Fantasy 4, Block Golf 6, Race 7, Combo 8, Bracket 9, Last Node Standing 13) |
 | Knode Swap | The Desk |
 | Testnet | Trials with test KOIN only: Vault v6 trial (your local testnet node; the public test copy is run by the Vault chat), Sponsor v3 trial |
 
-Vault controls run `npm run bot -- games / game-add / …` and names controls run `npm run names -- …`. Until the
-vault-v6 and producer-names pull requests are merged into this copy, those cards say the command isn't here yet.
+Vault controls run `npm run bot -- games / game-add / …`, names controls run `npm run names -- …`, and the free-prize
+switch runs `npm run prizes -- …`. Everything lives on `main`; never `git checkout picks` (it's an old branch without
+the newer tools).
 
 A game's id is the same number in the Picks contract and in the vault (the game id registry). Never register a Picks
 game under an id the vault uses for a different game: the Mana sponsor treats a stake in vault game N as a stake in

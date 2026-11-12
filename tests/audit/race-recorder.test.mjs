@@ -122,7 +122,9 @@ test("results: races before the recorder's first card are not listed; a later ra
 const W1 = "1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv", W2 = "16ixK5DgvcojcZLvxyYWhHFcRXfhfrHbpL", W3 = "1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8", GUEST = "1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717";
 const RACE00 = M.raceIndex(U("2026-11-02T00:00Z"));
 /** Picks for race 00:00 on Nov 2: W1 and GUEST pick the real winner, W2 and W3 another horse. */
-async function picksRun(at, prev, { winnerFor = null, theirs = null, custom = null, failFor = null, staked = [], stakeFail = null, checkStaked = null, prizesFrom = 0 } = {}) {
+let lastProblems = [], lastRun = null;
+async function picksRun(at, prev, { winnerFor = null, theirs = null, custom = null, failFor = null, staked = [], stakeFail = null, checkStaked = null, prizesFrom = 0, vaultHold = false, holdWeeks = [], rhythmFrom = undefined } = {}) {
+  // vaultHold false: the older vault tests (null: the real hold, as in production) check the file's CONTENT; the I-034 hold has its own tests below.
   const out = tmp();
   const picks = (winner) => custom || [[W1, winner, 1], [W2, P[3], 2], [W3, P[3], 3], [GUEST, winner, 4]];
   const picksOf = async (node, r) => (r !== RACE00 ? [] : node === checkNode && theirs ? theirs : picks(winnerFor));
@@ -130,9 +132,9 @@ async function picksRun(at, prev, { winnerFor = null, theirs = null, custom = nu
   const vhp = async (who) => Object.fromEntries(who.map((a) => [a, a === GUEST ? "0" : a === W3 ? "50000000" : String(5e8)]));   // W3: 0.5 VHP
   const playerOf = async (n, who, week) => { if (who === failFor) throw new Error("node timeout"); return ({ stake: who === W3 ? 10n : 0n, answers: { [W1]: 3, [W2]: 9, [W3]: 1, [GUEST]: 5 }[who] ?? 0, points: { [W1]: 2, [W2]: 7, [W3]: 1, [GUEST]: 4 }[who] ?? 0 }); };
   const log = console.log; console.log = () => {};
-  try { await run({ p: pNode, check: checkNode, prev, out, vhpOf: async (w) => ({ ...(await vhpOf(w)), ...(await vhp(w)) }), raceContract: "x", picksOf, playerOf, prizesFrom,
+  try { lastRun = (await run({ p: pNode, check: checkNode, prev, out, vhpOf: async (w) => ({ ...(await vhpOf(w)), ...(await vhp(w)) }), raceContract: "x", picksOf, playerOf, prizesFrom, vaultHold: vaultHold === null ? undefined : vaultHold, holdWeeks: holdWeeks === null ? undefined : holdWeeks, rhythmFrom,
     // Staked in the Race (the vault's test), by wallet; the check node may say otherwise, or a read may fail.
-    stakedOf: async (n, who) => { if (who === stakeFail) throw new Error("node timeout"); return (n === checkNode && checkStaked ? checkStaked : staked).includes(who); } }); } finally { console.log = log; }
+    stakedOf: async (n, who) => { if (who === stakeFail) throw new Error("node timeout"); return (n === checkNode && checkStaked ? checkStaked : staked).includes(who); } })); lastProblems = lastRun.problems; } finally { console.log = log; }
   return out;
 }
 
@@ -358,11 +360,13 @@ test("audit BX-44: race cards have exact shapes, and a published card can never 
 const VW = "2026-11-02T00";                                   // the race with picks, in week 2
 /** Week 2 with picks on its first race (W1 the winner, W2 2nd, W3 3rd, GUEST the winner but not rankable), and every
  *  other race already recorded as missed, as the hourly runs would have done. Returns that folder. */
+let weekTwoPicks = null;   // the picks weekTwoDone recorded; later runs read the same ones from the "chain" (#E-11 H-1 b)
 async function weekTwoDone({ open = null } = {}) {
   const a = await hourly(U("2026-11-02T05:37Z"), "");
   const B = { ts: chain.ts, sig: chain.who.map((x) => P.indexOf(x)), signers: P };
   const st = M.standings(B, { start: U("2026-11-02T00:00Z"), end: U("2026-11-02T06:00Z") }, race(a, VW).cards);
-  const b = await picksRun(U("2026-11-02T06:37Z"), a, { custom: [[W1, st[0].a, 1], [W2, st[1].a, 2], [W3, st[2].a, 3], [GUEST, st[0].a, 4]] });
+  weekTwoPicks = [[W1, st[0].a, 1], [W2, st[1].a, 2], [W3, st[2].a, 3], [GUEST, st[0].a, 4]];
+  const b = await picksRun(U("2026-11-02T06:37Z"), a, { custom: weekTwoPicks });
   const w = week(b);
   for (const r of w.races) if (!r.result && r.id !== open) r.result = { final: true, missed: true, note: "no handicap card was recorded for this race" };
   fs.writeFileSync(path.join(b, "W002.json"), JSON.stringify(w));
@@ -383,14 +387,24 @@ test("vault: free-prize places from the free players' rows; ties on every measur
 
   assert.deepEqual(prizePlaces([r(A[0], 0)]), { first: [], second: [], notes: [] }, "nobody qualifies");
   assert.deepEqual(prizePlaces([]), { first: [], second: [], notes: [] });
-  // More than 10 tied (owner, 2026-10-28): the 10 with the earliest first pick take the place; the rest get nothing.
-  const eleven = A.slice(0, 11).map((a) => r(a, 6));
-  const when = new Map(A.map((a, i) => [a, 1000 - i]));               // A[10] picked first, A[0] last
-  const x = prizePlaces([...eleven, r(A[12], 3)], when);
+  // More than fit (owner, 5 Nov, D-159): each place up to 10 wallets; the wallets that reached their score first get in (D-152).
+  const eleven = A.slice(0, 11).map((a, i) => r(a, 6, { reached: 1000 - i }));   // A[10] reached 6 points first, A[0] last
+  const x = prizePlaces([...eleven, r(A[12], 3)]);
   assert.deepEqual([x.first, x.second], [A.slice(1, 11).reverse(), []], "11 tied for 1st: the 10 earliest share 1st; nobody is 2nd");
-  assert.match(x.notes[0], /11 wallets are tied for 1st/);
-  const y = prizePlaces([r(A[12], 9), ...eleven], when);
-  assert.deepEqual([y.first, y.second], [[A[12]], A.slice(1, 11).reverse()], "11 tied for 2nd: the 10 earliest share 2nd"); assert.match(y.notes[0], /tied for 2nd/);
+  assert.match(x.notes[0], /11 wallets are tied for 1st: the 10 that reached their score first/);
+  const y = prizePlaces([r(A[12], 9), ...eleven]);
+  assert.deepEqual([y.first, y.second], [[A[12]], A.slice(1, 11).reverse()], "11 tied for 2nd: the 10 earliest share 2nd (D-159: 10 per place)"); assert.match(y.notes[0], /tied for 2nd: the 10 that reached/);
+  const tenFor2nd = prizePlaces([r(A[12], 9), ...eleven.slice(0, 10)]);
+  assert.deepEqual([tenFor2nd.first.length, tenFor2nd.second.length], [1, 10], "a single 1st and 10 tied for 2nd: all 10 share 2nd (D-159)");
+  // Repo Lens #E-22 L-2: on the board, the tied wallets cut from a free place take the next place (no medal, no place 1).
+  const { cutLine, withPlaces, withEarns, rank } = await import(path.resolve(APP, "bot/race.ts"));
+  const bx = withEarns(withPlaces(cutLine(rank([...eleven, r(A[12], 3)]))), true);
+  const at = (a) => bx.find((q) => q.a === a);
+  assert.deepEqual(A.slice(1, 11).map((a) => [at(a).boardPlace, at(a).earns]), A.slice(1, 11).map(() => [1, 1]), "the 10 paid share 1st");
+  assert.deepEqual([at(A[0]).boardPlace, at(A[0]).earns], [11, 0], "the 11th (reached last) shows 11th, not 1st");
+  assert.deepEqual([at(A[12]).boardPlace, at(A[12]).earns], [12, 0]);
+  const by = withEarns(withPlaces(cutLine(rank([r(A[12], 9), ...eleven]))), true);
+  assert.deepEqual([by.find((q) => q.a === A[0]).boardPlace, by.find((q) => q.a === A[1]).boardPlace], [12, 2], "cut from 2nd: the next place");
   const same = prizePlaces(A.slice(0, 11).map((a) => r(a, 6)));       // no times: the address decides, so it's repeatable
   assert.deepEqual(same.first, A.slice(0, 10));
   const ten = prizePlaces(A.slice(0, 10).map((a) => r(a, 6)));
@@ -464,9 +478,11 @@ test("publish check: holds vault files that are wrong in any way, and a final fi
   const named = tmp(); fs.mkdirSync(path.join(named, "vault")); fs.writeFileSync(path.join(named, "vault", "W3.json"), JSON.stringify(good));
   assert.ok(held(named), "the file name must match its week");
   // Week 2 ends Mon 9 Nov 00:00 UTC: by the runner's clock just before then, a final file is refused; a waiting one is fine.
-  const early = tmp(); fs.cpSync(out, early, { recursive: true });
+  // (Only the vault file and the board here: the race week files hold cards taken after this early clock, which the
+  // check refuses as cards from the future, I-042 BX-118.)
+  const early = tmp(); fs.mkdirSync(path.join(early, "vault")); fs.copyFileSync(path.join(out, "vault", "W2.json"), path.join(early, "vault", "W2.json")); fs.copyFileSync(path.join(out, "board.json"), path.join(early, "board.json"));
   assert.ok(held(early, String(Date.parse("2026-11-08T23:59Z") / 1000)));
-  assert.ok(fs.readdirSync(early).some((f) => /^W[0-9]{3}\.json$/.test(f)), "the week files stay and publish");
+  assert.ok(fs.existsSync(path.join(early, "board.json")), "the other files stay and publish");
   const waiting = tmp(); fs.mkdirSync(path.join(waiting, "vault")); fs.writeFileSync(path.join(waiting, "vault", "W2.json"), JSON.stringify({ ...good, final: false, first: [], second: [] }));
   assert.ok(kept(waiting, String(Date.parse("2026-11-08T23:59Z") / 1000)));
   assert.doesNotMatch(yml.replace(/RACE_CHECK_NOW"\) or time\.time\(\)/, ""), /RACE_CHECK_NOW/, "the workflow never sets the check's clock");
@@ -477,17 +493,29 @@ const publishSh = (() => {
   const step = yml.split("- name: Push race-data (and nothing else)")[1];
   return step.split("\n        run: |\n")[1].split("\n").filter((l) => l.startsWith("          ") || l === "").map((l) => l.slice(10)).join("\n");
 })();
-function publish(incoming, bare) {
-  const env = { ...process.env, IN: incoming, GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r", RUNNER_TEMP: tmp(), RACE_CHECK_NOW: CHECK_NOW,
-    GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: `url.${bare}.insteadOf`, GIT_CONFIG_VALUE_0: "https://x-access-token:t@github.com/o/r.git" };
+function publish(incoming, bare, now = CHECK_NOW, extra = {}) {
+  // RACE_PRIZES_FROM 0: the made-up week 2 pays here (as picksRun's default prizesFrom); the workflow never sets it.
+  const env = { ...process.env, IN: incoming, GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r", RUNNER_TEMP: tmp(), RACE_CHECK_NOW: now, RACE_PRIZES_FROM: "0",
+    GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: `url.${bare}.insteadOf`, GIT_CONFIG_VALUE_0: "https://x-access-token:t@github.com/o/r.git", ...extra };
   try { return { ok: true, out: execFileSync("bash", ["-c", publishSh], { cwd: tmp(), env, stdio: "pipe" }).toString() }; }
   catch (e) { return { ok: false, out: String(e.stdout) + String(e.stderr) }; }
+}
+/** I-034: a final file publishes only after its pending file was published (12 h after the week, at least an hour
+ *  earlier). The older publish tests stage that first, as the hourly runs would (the hold's own tests: "hold:"). */
+function stagePending(out, bare, w = 2) {
+  const v = vaultOf(out, w), at = Date.parse("2026-11-09T00:00Z") + 12 * H + 37 * 60000;
+  const st = tmp(); fs.cpSync(out, st, { recursive: true });
+  fs.writeFileSync(path.join(st, "vault", `W${w}.json`), JSON.stringify({ game: 7, week: w, final: false, rows: [], first: [], second: [], skipped: [] }) + "\n");
+  fs.writeFileSync(path.join(st, "vault", `PENDING-W${w}.json`), JSON.stringify({ game: 7, week: w, at, file: v }) + "\n");
+  const r = publish(st, bare, String(at / 1000));
+  assert.ok(r.ok, r.out);
 }
 
 test("publish job: pushes vault/W<week>.json to race-data and refuses to change a file already published as final", async () => {
   const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
   const { dir } = await weekTwoDone();
   const out = await picksRun(U("2026-11-09T05:37Z"), dir);
+  stagePending(out, bare);
   const first = publish(out, bare);
   assert.ok(first.ok, first.out);
   const show = (f) => execFileSync("git", ["--git-dir", bare, "show", `race-data:${f}`]).toString();
@@ -497,12 +525,16 @@ test("publish job: pushes vault/W<week>.json to race-data and refuses to change 
   assert.ok(publish(out, bare).ok);
   const head = execFileSync("git", ["--git-dir", bare, "rev-parse", "race-data"]).toString();
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify({ ...vaultOf(out), first: [W3], second: [] }) + "\n");
-  const again = publish(out, bare);
-  assert.equal(again.ok, false); assert.match(again.out, /Refusing to change vault\/W2\.json/);
-  assert.equal(execFileSync("git", ["--git-dir", bare, "rev-parse", "race-data"]).toString(), head);
-  // Anything else in vault/ is refused.
-  const odd = tmp(); fs.mkdirSync(path.join(odd, "vault")); fs.writeFileSync(path.join(odd, "vault", "notes.json"), "{}");
-  assert.equal(publish(odd, bare).ok, false);
+  // Repo Lens #B-8 B8-B1: that file is held on its own (alert, held=true); the run goes on and the race files publish.
+  const go1 = path.join(tmp(), "github-output"), again = publish(out, bare, CHECK_NOW, { GITHUB_OUTPUT: go1 });
+  assert.ok(again.ok, again.out); assert.match(again.out, /Refusing to change vault\/W2\.json: it was already published as final \(vault file held; race cards still publish\)/);
+  assert.match(fs.readFileSync(go1, "utf8"), /held=true/);
+  assert.equal(execFileSync("git", ["--git-dir", bare, "rev-parse", "race-data"]).toString(), head, "nothing else changed, so the branch is untouched");
+  // Anything else in vault/ holds the vault folder (I-037 B1-4: not the whole run), and the alert job hears about it.
+  const odd = tmp(); fs.mkdirSync(path.join(odd, "vault")); fs.writeFileSync(path.join(odd, "vault", "notes.json"), "{}\n");
+  const go = path.join(tmp(), "github-output"), oddRun = publish(odd, bare, CHECK_NOW, { GITHUB_OUTPUT: go });
+  assert.ok(oddRun.ok, oddRun.out); assert.match(oddRun.out, /vault results held, not published this run: unexpected files in vault\/: .*notes\.json/);
+  assert.match(fs.readFileSync(go, "utf8"), /held=true/);
 });
 
 test("vault: more than 10 tied for 1st, end to end: the 10 that picked first share 1st, the rest get nothing", async () => {
@@ -586,10 +618,15 @@ test("publish job: a final file stays locked even when it was stored pretty-prin
   const v = vaultOf(out);
   // Round 8 (BX-122): the publish job itself never writes a pretty-printed file: it isn't the recorder's own form.
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify(v, null, 2));
-  const pretty = publish(out, bare);
-  assert.equal(pretty.ok, false); assert.match(pretty.out, /recorders own JSON form/);
+  // I-037 B1-4: it holds the vault folder only; the race files still publish.
+  const pc = tmp(); fs.cpSync(out, pc, { recursive: true });   // the publish step removes a held vault folder
+  const pretty = publish(pc, bare);
+  assert.ok(pretty.ok, pretty.out); assert.match(pretty.out, /vault results held, not published this run: not in the recorders own JSON form: W2\.json/);
+  const tree = execFileSync("git", ["--git-dir", bare, "ls-tree", "-r", "--name-only", "race-data"]).toString();
+  assert.match(tree, /^W002\.json$/m, "the race file published"); assert.doesNotMatch(tree, /^vault\//m, "no vault file published");
   // But one already on the branch (put there some other way) still locks: "final": true, with a space.
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify(v) + "\n");
+  stagePending(out, bare);
   assert.ok(publish(out, bare).ok);
   const wt = tmp(); execFileSync("git", ["clone", "-q", "-b", "race-data", bare, wt]);
   fs.writeFileSync(path.join(wt, "vault", "W2.json"), JSON.stringify(v, null, 2));
@@ -597,7 +634,8 @@ test("publish job: a final file stays locked even when it was stored pretty-prin
   g("commit", "-qam", "pretty"); g("push", "-q", "origin", "race-data");
   fs.writeFileSync(path.join(out, "vault", "W2.json"), JSON.stringify({ ...v, first: [W3], second: [] }) + "\n");
   const r = publish(out, bare);
-  assert.equal(r.ok, false); assert.match(r.out, /Refusing to change vault\/W2\.json/);
+  assert.ok(r.ok, r.out); assert.match(r.out, /Refusing to change vault\/W2\.json/);
+  assert.equal(execFileSync("git", ["--git-dir", bare, "show", "race-data:vault/W2.json"]).toString(), JSON.stringify(v, null, 2), "the published file stays byte for byte");
 });
 
 test("record job: last run's files are read; a missing branch starts fresh; any other failure stops the run", async () => {
@@ -618,6 +656,7 @@ test("record job: last run's files are read; a missing branch starts fresh; any 
   // A real branch: the published files, the vault folder included, come back.
   const { dir } = await weekTwoDone();
   const out = await picksRun(U("2026-11-09T05:37Z"), dir);
+  stagePending(out, empty);
   assert.ok(publish(out, empty).ok);
   const got = runStep(empty);
   assert.ok(got.ok);
@@ -645,7 +684,9 @@ test("vault (B1-1 / V4 / B1-5): on a chain without get_game_player (v5) the stak
   assert.ok(Date.now() - t0 < 20000, "fails fast (about 2 s of retry per node, not a minute per wallet)");
   assert.ok(reads > 0 && reads <= 4, `at most 2 tries on each of the 2 nodes, whatever the number of players (got ${reads})`);
   assert.equal(vaultOf(out).final, false, "never final while stakes can't be read");
-  assert.equal(lines.filter((l) => l.includes("stake reads failed on a node")).length, 1, "one warning a run, not one per wallet");
+  // RV-2: the node answered with an error (no such method): the vault refused it, for every wallet on every node.
+  assert.equal(lines.filter((l) => l.includes("the vault refused a stake read")).length, 1, "one warning a run, not one per wallet");
+  assert.ok(reads <= 2, `a refusal stops every stake read of the run (got ${reads})`);
   assert.ok(fs.existsSync(path.join(out, "W002.json")), "the race files are still written");
   const board = JSON.parse(fs.readFileSync(path.join(out, "board.json"), "utf8"));
   assert.ok(board.lastWeek.rows.every((r) => r.ranked === false), "the boards show everyone on Free play meanwhile");
@@ -687,14 +728,16 @@ test("earns: the staked bucket's winners by the vault's rule (top 30% by headcou
   const ten = Array.from({ length: 10 }, (_, i) => r("s" + i, 30 - i));
   assert.deepEqual([...stakedWinners(ten)], ["s0", "s1", "s2"], "10 players: 3 win");
   const tie = [r("a", 9), r("b", 9), r("c", 7), r("d", 7), r("e", 7), r("f", 4), r("g", 3), r("h", 2), r("i", 1), r("j", 1)];
-  assert.deepEqual([...stakedWinners(tie)], ["a", "b", "c", "d", "e"], "need 3: the 7-point group at the line is taken whole");
+  assert.deepEqual([...stakedWinners(tie)], ["a", "b", "c"], "need 3 (D-152): exactly 3; the 7-point tie at the line lets in the first by address when no times are known");
+  const timed = tie.map((x) => ({ ...x, reached: { c: 30, d: 10, e: 20 }[x.a] ?? 1 }));
+  assert.deepEqual([...stakedWinners(timed)], ["a", "b", "d"], "D-152: d reached 7 points first, so d gets the last spot");
   assert.deepEqual([...stakedWinners([r("x", 5), r("y", 4, { earning: false }), r("z", 0)])], ["x"], "withdrew below the minimum, or 0 points: not counted");
   assert.deepEqual([...stakedWinners([r("x", 5, { ranked: false })])], [], "free players aren't in the bucket");
   // Both boards together, and nothing earned outside the weekly boards.
   const mixed = [r("s1", 9), r("f1", 7, { ranked: false }), r("s2", 6), r("f2", 6, { ranked: false }), r("f3", 6, { ranked: false }), r("s3", 3)];
-  const out = Object.fromEntries(withEarns(mixed, new Map()).map((x) => [x.a, x.earns]));
+  const out = Object.fromEntries(withEarns(mixed, true).map((x) => [x.a, x.earns]));
   assert.deepEqual(out, { s1: 3, f1: 1, s2: 0, f2: 2, f3: 2, s3: 0 }, "staked: 1 of 3 wins; free: f1 1st, f2 and f3 tie for 2nd");
-  assert.ok(withEarns(mixed, null).every((x) => x.earns === 0), "Today and All time: no medals");
+  assert.ok(withEarns(mixed, false).every((x) => x.earns === 0), "Today and All time: no medals");
 });
 
 test("earns: in the recorder's board, weekly boards only; >10 free tied: the 10 earliest; the publish check holds it", async () => {
@@ -729,15 +772,20 @@ test("blind review V1 (round 10): the publish job holds a bad vault file and sti
   assert.ok(!files.some((f) => f.startsWith("vault/")), "the bad vault file isn't");
   // A good final file publishes; a later changed one is still refused outright (the lock holds).
   const again = await picksRun(U("2026-11-09T05:37Z"), dir);
+  stagePending(again, bare);
   assert.ok(publish(again, bare).ok);
   fs.writeFileSync(path.join(again, "vault", "W2.json"), JSON.stringify({ ...vaultOf(again), first: [W3], second: [] }) + "\n");
   const ch = publish(again, bare);
-  assert.equal(ch.ok, false); assert.match(ch.out, /Refusing to change vault\/W2\.json/);
+  assert.ok(ch.ok, ch.out); assert.match(ch.out, /Refusing to change vault\/W2\.json/);
 });
 
-test("prizes from week: the Race earns in the vault from week 3; earlier weeks pay nothing and show no medals", async () => {
-  const { PRIZES_FROM_WEEK } = await import(path.resolve(APP, "bot/race.ts"));
-  assert.equal(PRIZES_FROM_WEEK, 3, "owner, 2026-11-02: game 7 earns from vault week 3 (Mon 9 Nov 2026)");
+test("prizes from week: the Race earns in the vault from the variable's week; earlier weeks pay nothing and show no medals", async () => {
+  // Owner, 10 Nov: the Race reads the repository variable PRIZES_FROM_WEEK, as Block X does (first paid week 4 = Mon 16 Nov);
+  // unset or anything but a plain week number 0-9999 means no prizes at all (fails closed).
+  const { prizesFromEnv, NO_PRIZES } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(prizesFromEnv("4"), 4); assert.equal(prizesFromEnv(" 4 "), 4); assert.equal(prizesFromEnv("0"), 0); assert.equal(prizesFromEnv("9999"), 9999);
+  for (const bad of [undefined, "", "x", "-1", "4.5", "04x", "10000", "1e3", "4 5"]) assert.equal(prizesFromEnv(bad), null, JSON.stringify(bad));
+  assert.equal(NO_PRIZES, Infinity);
   // The made-up week 2 with prizes starting at week 3: final, but nothing in it, and no medals on the boards.
   const { dir } = await weekTwoDone();
   const out = await picksRun(U("2026-11-09T05:37Z"), dir, { staked: [W1], prizesFrom: 3 });
@@ -749,4 +797,1193 @@ test("prizes from week: the Race earns in the vault from week 3; earlier weeks p
   const { dir: d2 } = await weekTwoDone();
   const o2 = await picksRun(U("2026-11-09T05:37Z"), d2, { staked: [W1], prizesFrom: 2 });
   assert.deepEqual(vaultOf(o2).first, [GUEST]);
+});
+
+// ── I-034 (R-RACE-1): the hold before a vault file goes final (owner, 2026-11-03: 12 hours after the week, then the same
+// file on two runs at least an hour apart). These runs use the real hold (vaultHold left to its default). ──
+const pendingOf = (dir, w = 2) => { const f = path.join(dir, "vault", `PENDING-W${w}.json`); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : null; };
+const WAIT = { game: 7, week: 2, final: false, rows: [], first: [], second: [], skipped: [] };
+const FINAL = { game: 7, week: 2, final: true, rows: [], first: [W1, GUEST], second: [], skipped: [] };
+const holdRun = (at, prev, o = {}) => picksRun(U(at), prev, { vaultHold: null, custom: weekTwoPicks, ...o });   // null: the production default
+
+test("hold: pending first; final only 12 h after the week AND unchanged for an hour across runs", async () => {
+  const { VAULT_HOLD_MS, VAULT_STABLE_MS } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(VAULT_HOLD_MS, 12 * H); assert.equal(VAULT_STABLE_MS, H);
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);                          // every race final: before, this went final
+  assert.deepEqual(vaultOf(a), WAIT, "5 h 37 m after the week: not final");
+  assert.deepEqual(pendingOf(a), { game: 7, week: 2, at: U("2026-11-09T05:37Z"), file: FINAL }, "the file it would make final, and when it was first seen");
+  assert.ok(shapeOk(a), "the pending file passes the publish check");
+  assert.match(lastProblems.join("\n"), /vault week 2: pending \(I-034 hold\), final at the earliest 2026-11-09T12:00:00\.000Z/);
+  const b = await holdRun("2026-11-09T11:37Z", a);
+  assert.deepEqual(vaultOf(b), WAIT, "11 h 37 m: still held");
+  assert.equal(pendingOf(b).at, U("2026-11-09T05:37Z"), "the same content keeps its first-seen time");
+  const c = await holdRun("2026-11-09T12:37Z", b);
+  assert.deepEqual(vaultOf(c), FINAL, "12 h 37 m, unchanged since 05:37: final");
+  assert.match(lastProblems.join("\n"), /vault week 2: final after the hold/);
+  // Once final it's kept as it is, whatever later runs see.
+  assert.deepEqual(vaultOf(await holdRun("2026-11-09T13:37Z", c)), FINAL);
+});
+
+test("hold: a change starts the wait again; a first run late in the day still needs a second run an hour later", async () => {
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  // The last run's pending file said something else (e.g. a node read differently then): this run's file is new.
+  const p = pendingOf(a); p.file = { ...p.file, first: [W1], second: [GUEST] };
+  fs.writeFileSync(path.join(a, "vault", "PENDING-W2.json"), JSON.stringify(p));
+  const b = await holdRun("2026-11-09T12:37Z", a);
+  assert.deepEqual(vaultOf(b), WAIT, "changed since the last run: not final");
+  assert.equal(pendingOf(b).at, U("2026-11-09T12:37Z"), "first seen now");
+  assert.match(lastProblems.join("\n"), /it changed since the last run, so the wait starts again/);
+  assert.deepEqual(vaultOf(await holdRun("2026-11-09T13:37Z", b)), FINAL, "an hour later, unchanged: final");
+  // No earlier run at all (the recorder was down all morning).
+  const { dir: d2 } = await weekTwoDone();
+  const late = await holdRun("2026-11-09T14:37Z", d2);
+  assert.deepEqual(vaultOf(late), WAIT, "one run alone never decides it");
+  assert.deepEqual(vaultOf(await holdRun("2026-11-09T15:37Z", late)), FINAL);
+});
+
+test("hold: a pending file dated in the future or for another week is ignored (the wait starts now)", async () => {
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  for (const bad of [{ at: U("2026-11-10T00:00Z") }, { week: 3 }, { game: 2 }, { at: 1.5 }, { file: { ...FINAL, final: false } }]) {
+    const d = tmp(); fs.cpSync(a, d, { recursive: true });
+    fs.writeFileSync(path.join(d, "vault", "PENDING-W2.json"), JSON.stringify({ ...pendingOf(a), ...bad }));
+    const o = await holdRun("2026-11-09T13:37Z", d);
+    assert.deepEqual(vaultOf(o), WAIT, JSON.stringify(bad));
+    assert.equal(pendingOf(o).at, U("2026-11-09T13:37Z"), JSON.stringify(bad));
+  }
+});
+
+test("hold: the owner holds a week by hand (RACE_HOLD_WEEKS); removing it lets the week go final", async () => {
+  const { parseHoldWeeks } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.deepEqual(parseHoldWeeks("3").weeks, [3]); assert.deepEqual(parseHoldWeeks(" 3, 4 ").weeks, [3, 4]);
+  assert.deepEqual(parseHoldWeeks(""), { weeks: [], bad: false, raw: "" }); assert.deepEqual(parseHoldWeeks(undefined).weeks, []);
+  for (const v of ["x, 2.5, -1", "3 4", "W3", "3;4", "W3,4", "3,"]) assert.equal(parseHoldWeeks(v).bad, true, v);
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  const h = await holdRun("2026-11-09T13:37Z", a, { holdWeeks: [2] });
+  assert.deepEqual(vaultOf(h), WAIT, "held by the owner");
+  assert.ok(pendingOf(h), "the pending file still publishes, for the owner to read");
+  assert.match(lastProblems.join("\n"), /vault week 2: HELD by the owner \(RACE_HOLD_WEEKS\)/);
+  assert.deepEqual(vaultOf(await holdRun("2026-11-09T14:37Z", h, { holdWeeks: [3] })), FINAL, "another week held: this one goes final");
+});
+
+test("hold notes (I-035, option A): free winners whose first pick ever is in that week are named for the owner to check", async () => {
+  const { dir } = await weekTwoDone();
+  await holdRun("2026-11-09T05:37Z", dir);
+  const line = lastProblems.find((x) => x.startsWith("vault week 2: pending"));
+  assert.match(line, new RegExp(`1st ${W1}, ${GUEST}; 2nd nobody; 0 staked row\\(s\\); first picks ever this week \\(check them\\): ${W1}, ${GUEST}`));
+});
+
+// The publish job edits its incoming folder (a held file is removed), so these tests publish a copy.
+const pubCopy = (dir, bare, now) => { const d = tmp(); fs.cpSync(dir, d, { recursive: true }); return publish(d, bare, now); };
+
+test("hold, publish job: a final file publishes only 12 h after its week, after its pending file, at least an hour old", async () => {
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  const s = (t) => String(U(t) / 1000);
+  const files = (bare) => execFileSync("git", ["--git-dir", bare, "ls-tree", "-r", "--name-only", "race-data"]).toString().split("\n");
+  const show = (bare, f) => JSON.parse(execFileSync("git", ["--git-dir", bare, "show", `race-data:${f}`]).toString());
+  // A final file straight away (no pending file published): only it is held; everything else publishes.
+  const legacy = await picksRun(U("2026-11-09T05:37Z"), dir);                // vaultHold false: final at once
+  const b0 = tmp(); execFileSync("git", ["init", "-q", "--bare", b0]);
+  const r0 = pubCopy(legacy, b0, s("2026-11-09T13:00Z"));
+  assert.ok(r0.ok, r0.out); assert.match(r0.out, /vault\/W2\.json held \(I-034\): no published pending file/);
+  assert.ok(files(b0).includes("W002.json") && !files(b0).includes("vault/W2.json"));
+  // The real sequence: pending at 05:37 (published then), final at 12:37.
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  assert.ok(pubCopy(a, bare, s("2026-11-09T05:38Z")).ok);
+  assert.deepEqual(show(bare, "vault/PENDING-W2.json").file, FINAL);
+  assert.equal(show(bare, "vault/W2.json").final, false);
+  const c = await holdRun("2026-11-09T12:37Z", a);
+  assert.deepEqual(vaultOf(c), FINAL);
+  // By a clock before 12:00 the publish job still holds it, whatever the recorder says. Only the vault files go in: the
+  // 12:37 run's race cards would be "from the future" by an 11:59 clock and fail on their own (I-042 BX-118, #80).
+  const vaultOnly = tmp(); fs.cpSync(path.join(c, "vault"), path.join(vaultOnly, "vault"), { recursive: true });
+  const early = pubCopy(vaultOnly, bare, s("2026-11-09T11:59Z"));
+  assert.ok(early.ok, early.out); assert.match(early.out, /less than 12 hours after its week/);
+  assert.equal(show(bare, "vault/W2.json").final, false);
+  const ok = pubCopy(c, bare, s("2026-11-09T12:38Z"));
+  assert.ok(ok.ok, ok.out); assert.deepEqual(show(bare, "vault/W2.json"), FINAL);
+});
+
+test("hold, publish job: a pending file published under an hour ago, or with other content, doesn't let a final file through", async () => {
+  const { dir } = await weekTwoDone();
+  const s = (t) => String(U(t) / 1000);
+  const show = (bare, f) => JSON.parse(execFileSync("git", ["--git-dir", bare, "show", `race-data:${f}`]).toString());
+  // Pending first seen at 12:37, published then; a recorder that claims final at 13:00 (only 23 minutes later).
+  const a = await holdRun("2026-11-09T12:37Z", dir);
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  assert.ok(pubCopy(a, bare, s("2026-11-09T12:38Z")).ok);
+  const forced = tmp(); fs.cpSync(a, forced, { recursive: true });
+  fs.writeFileSync(path.join(forced, "vault", "W2.json"), JSON.stringify(FINAL) + "\n");
+  const r1 = pubCopy(forced, bare, s("2026-11-09T13:00Z"));
+  assert.ok(r1.ok, r1.out); assert.match(r1.out, /pending file is less than an hour old/);
+  assert.equal(show(bare, "vault/W2.json").final, false);
+  // A final file that isn't what the pending file says.
+  fs.writeFileSync(path.join(forced, "vault", "W2.json"), JSON.stringify({ ...FINAL, first: [W3] }) + "\n");
+  const r2 = pubCopy(forced, bare, s("2026-11-09T14:00Z"));
+  assert.ok(r2.ok, r2.out); assert.match(r2.out, /no published pending file with exactly this content/);
+  assert.equal(show(bare, "vault/W2.json").final, false);
+});
+
+test("hold, publish job: a pending file can't be backdated (new content is dated now; published content keeps its date)", async () => {
+  const { dir } = await weekTwoDone();
+  const s = (t) => String(U(t) / 1000);
+  const a = await holdRun("2026-11-09T12:37Z", dir);
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  // New content dated 5 hours before the publish job's clock: the vault folder is held this run.
+  const back = tmp(); fs.cpSync(a, back, { recursive: true });
+  fs.writeFileSync(path.join(back, "vault", "PENDING-W2.json"), JSON.stringify({ ...pendingOf(a), at: U("2026-11-09T07:37Z") }) + "\n");
+  const r1 = pubCopy(back, bare, s("2026-11-09T12:38Z"));
+  assert.ok(r1.ok, r1.out); assert.match(r1.out, /vault results held, not published this run: vault\/PENDING-W2\.json/);
+  // Published honestly at 12:37; the next run tries to move its date back an hour, with the same content: held.
+  assert.ok(pubCopy(a, bare, s("2026-11-09T12:38Z")).ok);
+  fs.writeFileSync(path.join(back, "vault", "PENDING-W2.json"), JSON.stringify({ ...pendingOf(a), at: U("2026-11-09T11:37Z") }) + "\n");
+  const r2 = pubCopy(back, bare, s("2026-11-09T12:50Z"));
+  assert.ok(r2.ok, r2.out); assert.match(r2.out, /vault results held/);
+  // Dated before its week ended: refused by shape.
+  const pre = tmp(); fs.cpSync(a, pre, { recursive: true });
+  fs.writeFileSync(path.join(pre, "vault", "PENDING-W2.json"), JSON.stringify({ ...pendingOf(a), at: U("2026-11-08T23:00Z") }) + "\n");
+  assert.ok(!fs.existsSync(path.join(pre, "x")) && (() => { const d = tmp(); fs.cpSync(pre, d, { recursive: true }); return shapeOk(d) && !fs.existsSync(path.join(d, "vault")); })());
+});
+
+test("hold, workflow: the owner's RACE_HOLD_WEEKS reaches the recorder; pending files go to the next run and to the hold check", () => {
+  assert.match(yml, /RACE_HOLD_WEEKS: \$\{\{ vars\.RACE_HOLD_WEEKS \|\| '' \}\}/);
+  assert.match(yml, /\^vault\/\(PENDING-\)\?W\[0-9\]\{1,4\}\\\.json\$ \]\]; then mkdir -p "\$RUNNER_TEMP\/prev\/vault"/, "the record job takes the pending file back");
+  assert.match(yml, /\^vault\/\(PENDING-\)\?W\[0-9\]\{1,4\}\\\.json\$ \]\]; then mkdir -p "\$RUNNER_TEMP\/published\/vault"/, "the publish job reads the published pending file");
+  assert.match(yml, /\/usr\/bin\/python3 - "\$IN" "\$RUNNER_TEMP\/published" <<'PY'/, "the check always gets the published folder (the hold needs it)");
+  const src = fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8");
+  assert.match(src, /hold = vaultHold === undefined \? \{ afterEnd: VAULT_HOLD_MS, stable: VAULT_STABLE_MS \} : vaultHold;/);
+  const cli = src.slice(src.lastIndexOf("if (process.argv[1] && import.meta.url"));
+  assert.match(cli, /run\(\{ \.\.\.nodes, clock: Date\.now \}\)/, "the command line passes no vaultHold: the hold is always on");
+});
+
+test("hold (Repo Lens #D-5 R85-1): a malformed RACE_HOLD_WEEKS holds every pending week and says why; the list is printed every run", async () => {
+  const { parseHoldWeeks, holdNote } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(holdNote(parseHoldWeeks("")), null, "unset: no note");
+  assert.equal(holdNote(parseHoldWeeks("3, 4")), "Owner hold: weeks 3, 4");
+  assert.equal(holdNote(parseHoldWeeks("3")), "Owner hold: week 3");
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  const old = process.env.RACE_HOLD_WEEKS;
+  try {
+    for (const v of ["3 4", "W3", "3;4", "W3,4"]) {
+      process.env.RACE_HOLD_WEEKS = v;
+      const o = await holdRun("2026-11-09T13:37Z", a, { holdWeeks: null });
+      assert.deepEqual(vaultOf(o), WAIT, `${v}: held`);
+      assert.ok(pendingOf(o), `${v}: the pending file still publishes`);
+      const notes = lastProblems.join("\n");
+      assert.match(notes, /RACE_HOLD_WEEKS \('.*'\) isn't a list like 3 or 3,4: every pending vault week is held/, v);
+      assert.match(notes, /vault week 2: HELD \(RACE_HOLD_WEEKS isn't a list/, v);
+    }
+    process.env.RACE_HOLD_WEEKS = "3, 4";
+    const ok = await holdRun("2026-11-09T13:37Z", a, { holdWeeks: null });
+    assert.deepEqual(vaultOf(ok), FINAL, "a good list that doesn't name week 2: final");
+    assert.match(lastProblems.join("\n"), /Owner hold: weeks 3, 4/);
+    process.env.RACE_HOLD_WEEKS = "";
+    assert.deepEqual(vaultOf(await holdRun("2026-11-09T13:37Z", a, { holdWeeks: null })), FINAL, "empty: nothing held");
+  } finally { if (old === undefined) delete process.env.RACE_HOLD_WEEKS; else process.env.RACE_HOLD_WEEKS = old; }
+});
+
+test("hold, publish job (Repo Lens #D-5 R85-2; owner, 4 Nov): new pending content dated over 35 minutes back is held", async () => {
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T12:37Z", dir);
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const back = tmp(); fs.cpSync(a, back, { recursive: true });
+  fs.writeFileSync(path.join(back, "vault", "PENDING-W2.json"), JSON.stringify({ ...pendingOf(a), at: U("2026-11-09T12:37Z") }) + "\n");
+  const at = (m) => String((U("2026-11-09T12:37Z") + m * 60000) / 1000);   // the publish job's clock, m minutes after "at"
+  const r = pubCopy(back, bare, at(36));
+  assert.ok(r.ok, r.out); assert.match(r.out, /vault results held, not published this run: vault\/PENDING-W2\.json/, "36 minutes back: held");
+  const ok = pubCopy(back, bare, at(34));
+  assert.ok(ok.ok, ok.out); assert.doesNotMatch(ok.out, /vault results held/, "34 minutes back: fine");
+});
+
+test("I-042 (BX-118): the publish check refuses a race card dated in the future", async () => {
+  const a = await hourly(U("2026-11-02T05:37Z"), "");
+  const w = week(a), r0 = w.races.find((x) => x.cards.some(Boolean)), i = r0.cards.findIndex(Boolean), at = r0.cards[i].at;
+  assert.ok(shapeOk(a, String(at / 1000 + 30)), "a card 30 s before the check's clock is fine");
+  assert.equal(shapeOk(a, String(at / 1000 - 120)), false, "the same card 2 minutes in the check's future is refused");
+});
+
+test("RV-2: a node that can't be reached is skipped on its own; a node that answers with an error stops every stake read", async () => {
+  const { isTransportError } = await import(path.resolve(APP, "bot/race.ts"));
+  for (const m of ["vault state: no answer within 30 s", "fetch failed", "connect ECONNREFUSED 1.2.3.4:443", "getaddrinfo ENOTFOUND koinos.armana.io",
+    "invalid json response body at https://api.koinos.io/ reason: Unexpected token '<'", "request failed with status code 502"]) assert.equal(isTransportError(m), true, m);
+  for (const m of ["unknown entry point", '{"code":-32603,"message":"reverted: bad args"}', "failed to decode the result"]) assert.equal(isTransportError(m), false, m);
+  // One node unreachable, the other fine: that node only is skipped (the vault file just isn't final this run).
+  const { dir } = await weekTwoDone();
+  let reads = 0;
+  const down = () => Object.assign(node(U("2026-11-09T05:37Z")), { async readContract() { reads++; throw new Error("fetch failed"); } });
+  const log = console.log; const lines = []; console.log = (x) => lines.push(String(x));
+  try { await run({ p: down(), check: down(), prev: dir, out: tmp(), vhpOf, raceContract: "x", picksOf: async () => [] }); } finally { console.log = log; }
+  assert.equal(lines.filter((l) => l.includes("stake reads failed on a node")).length, 1, "one warning a run");
+  assert.ok(reads > 0 && reads <= 4, `2 tries on each node at most (got ${reads})`);
+  assert.equal(lines.filter((l) => l.includes("the vault refused")).length, 0);
+});
+
+// ── D-107 (R-RACE-13, I-087): a held paid week fails the run and says what to do ──
+test("held alert: none during the normal 12-hour hold; a paid week still not final 15 h after its end alerts with the week, why, deadline and options", async () => {
+  const { VAULT_ALERT_AFTER, RESULTS_DUE_AFTER } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(VAULT_ALERT_AFTER, 15 * H); assert.equal(RESULTS_DUE_AFTER, 72 * H);
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  assert.deepEqual(lastRun.held, [], "pending inside the normal hold: no alert");
+  // A week that keeps changing between runs: still pending at 15:37.
+  const p = pendingOf(a); p.file = { ...p.file, first: [W1], second: [GUEST] };
+  fs.writeFileSync(path.join(a, "vault", "PENDING-W2.json"), JSON.stringify(p));
+  await holdRun("2026-11-09T14:37Z", a);
+  assert.deepEqual(lastRun.held, [], "14 h 37 m: not yet");
+  await holdRun("2026-11-09T15:37Z", a);
+  assert.equal(lastRun.held.length, 1);
+  const m = lastRun.held[0];
+  assert.match(m, /^Producer Race vault week 2 \(the week of 2026-11-02\) is HELD: still not final 16 h after the week ended: its results keep changing/);
+  assert.match(m, /Results are due 2026-11-12 00:00 UTC \(56 h left\); after that the week rolls over/);
+  assert.match(m, /\(1\) wait: it clears by itself/);
+  assert.match(m, /\(2\) hold it longer while you check: .*RACE_HOLD_WEEKS = 2/);
+  assert.match(m, /\(3\) give up on the week .*npm run bot -- game-void 7 2 \(dry run\), then the same with --send/);
+  assert.match(m, /RUNBOOK\.md §3/);
+  assert.doesNotMatch(m, /::|\n/, "one line, no workflow commands");
+});
+
+test("held alert: stakes that can't be read, the owner's hold, and a bad RACE_HOLD_WEEKS all alert; unpaid weeks and weeks past the deadline don't", async () => {
+  const { dir } = await weekTwoDone();
+  await holdRun("2026-11-09T16:37Z", dir, { staked: [W1], stakeFail: W3 });
+  assert.equal(lastRun.held.length, 1); assert.match(lastRun.held[0], /HELD: still not final 17 h after the week ended: 1 Race stake\(s\) could not be read/);
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  await holdRun("2026-11-09T06:37Z", a, { holdWeeks: [2] });
+  assert.deepEqual(lastRun.held, [], "L-4: the owner's own hold doesn't email every hour");
+  assert.match(lastProblems.join("\n"), /vault week 2: HELD by the owner/, "it's still in the run's notes every hour");
+  await holdRun("2026-11-09T16:37Z", a, { holdWeeks: [2] });
+  assert.equal(lastRun.held.length, 1, "L-4: the owner's hold reminds once a day, on the 16:37 UTC run (it must not be forgotten)");
+  assert.match(lastRun.held[0], /HELD: you are holding it \(RACE_HOLD_WEEKS; this reminder comes once a day\).*\(1\) remove 2 from RACE_HOLD_WEEKS when you're happy with it/);
+  const old = process.env.RACE_HOLD_WEEKS;
+  try {
+    process.env.RACE_HOLD_WEEKS = "W2";
+    await holdRun("2026-11-09T06:37Z", a, { holdWeeks: null });
+    assert.match(lastRun.held[0], /HELD: the repo variable RACE_HOLD_WEEKS \('W2'\) isn't a list like 3 or 3,4.*\(1\) fix RACE_HOLD_WEEKS/);
+  } finally { if (old === undefined) delete process.env.RACE_HOLD_WEEKS; else process.env.RACE_HOLD_WEEKS = old; }
+  await holdRun("2026-11-09T16:37Z", dir, { staked: [W1], stakeFail: W3, prizesFrom: 3 });
+  assert.deepEqual(lastRun.held, [], "week 2 is before the Race pays (PRIZES_FROM_WEEK 3): no alert");
+  // Past the 3-day deadline the week has rolled over: nothing left to do, no alert. (The made-up chain ends on 10 Nov,
+  // so this is checked on the rule itself.)
+  const { alertsFor } = await import(path.resolve(APP, "bot/race.ts"));
+  const end = U("2026-11-09T00:00Z");
+  assert.equal(alertsFor(2, end, U("2026-11-11T23:59Z"), 0), true);
+  assert.equal(alertsFor(2, end, U("2026-11-12T00:00Z"), 0), false, "at the deadline");
+  assert.equal(alertsFor(2, end, U("2026-11-09T16:00Z"), 3), false, "an unpaid week");
+});
+
+test("held alert: the recorder tells the workflow (GITHUB_OUTPUT held=true) and prints ::error:: lines; a clean run says nothing", async () => {
+  const { dir } = await weekTwoDone();
+  const outFile = path.join(tmp(), "gh-output"), old = process.env.GITHUB_OUTPUT;
+  const lines = [], log = console.log;
+  try {
+    process.env.GITHUB_OUTPUT = outFile;
+    console.log = (x) => lines.push(String(x));
+    await run({ p: node(U("2026-11-09T16:37Z")), check: node(U("2026-11-09T16:37Z")), prev: dir, out: tmp(), vhpOf, raceContract: "x", picksOf: async () => [], prizesFrom: 0,
+      stakedOf: async () => { throw new Error("node timeout"); } });
+  } finally { console.log = log; if (old === undefined) delete process.env.GITHUB_OUTPUT; else process.env.GITHUB_OUTPUT = old; }
+  assert.equal(fs.readFileSync(outFile, "utf8"), "held=true\nfiles=true\n");
+  assert.ok(lines.some((l) => /^::error::Producer Race vault week 2 .* is HELD/.test(l)));
+  const clean = path.join(tmp(), "gh-output2");
+  try { process.env.GITHUB_OUTPUT = clean; await holdRun("2026-11-09T05:37Z", dir); } finally { if (old === undefined) delete process.env.GITHUB_OUTPUT; else process.env.GITHUB_OUTPUT = old; }
+  assert.equal(fs.readFileSync(clean, "utf8"), "files=true\n", "nothing held: only the files flag (#E-11 L-2)");
+});
+
+test("held alert, workflow: the alert job fails the run after publishing; the publish job flags the vault files it holds", async () => {
+  assert.match(yml, /outputs:\n      held: \$\{\{ steps\.race\.outputs\.held \}\}/);
+  assert.match(yml, /- name: Record the race\n        id: race\n/);
+  assert.match(yml, /outputs:\n      held: \$\{\{ steps\.push\.outputs\.held \}\}/);
+  const job = yml.split("\n  alert:\n")[1];
+  assert.ok(job, "an alert job");
+  assert.match(job, /needs: \[record, publish\]/);
+  assert.match(job, /if: \$\{\{ always\(\) && \(needs\.record\.outputs\.held == 'true' \|\| needs\.publish\.outputs\.held == 'true'\) \}\}/);
+  assert.match(job, /permissions: \{\}/); assert.match(job, /exit 1/);
+  assert.doesNotMatch(job, /npm|checkout|tsx|node /, "runs no repository code");
+  // The publish check writes held=true when it holds a vault file.
+  const d = tmp(); fs.mkdirSync(path.join(d, "vault"));
+  fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify({ game: 2, week: 2, final: false, rows: [], first: [], second: [], skipped: [] }));
+  const outFile = path.join(tmp(), "gh-out");
+  execFileSync("python3", ["-c", checkPy, d], { stdio: "pipe", env: { ...process.env, RACE_CHECK_NOW: CHECK_NOW, GITHUB_OUTPUT: outFile } });
+  assert.equal(fs.readFileSync(outFile, "utf8"), "held=true\n");
+  const ok = tmp(); fs.mkdirSync(path.join(ok, "vault"));
+  fs.writeFileSync(path.join(ok, "vault", "W2.json"), JSON.stringify({ game: 7, week: 2, final: false, rows: [], first: [], second: [], skipped: [] }));
+  const out2 = path.join(tmp(), "gh-out2");
+  execFileSync("python3", ["-c", checkPy, ok], { stdio: "pipe", env: { ...process.env, RACE_CHECK_NOW: CHECK_NOW, GITHUB_OUTPUT: out2 } });
+  assert.equal(fs.existsSync(out2), false, "a good file: nothing held");
+});
+
+// ── I-085 (R-RACE-12, RECORDER_STANDARD §4.1): the publish job works the vault file out again from the week's picks ──
+/** One synthetic paid week (vault week 2), checked by the publish job exactly as a 12:37 Monday run would be: the week
+ *  file and the pending file are already published, this push carries the final file and the board. `mutate` changes
+ *  the final file (and its pending copy, so only the recompute can catch it). Returns the publish check's output. */
+async function recomputeRun(players, { mutate = null, mutateBoard = null, prizesFrom = "0", skipSunday = false, rhythmFrom = undefined, typed = null, typesFrom = undefined, mutateTypes = null } = {}) {
+  const R = await import(path.resolve(APP, "bot/race.ts"));
+  const start = M.weekStart(2), races = [];
+  const t = new Map(), firstAt = new Map();
+  for (let i = 0; i < 28; i++) races.push({ id: M.raceId(M.raceIndex(start + i * 6 * H)), start: start + i * 6 * H, end: start + (i + 1) * 6 * H, cards: [], result: { final: true, picks: [] } });
+  for (const p of players) for (const [ri, right, show, at] of p.picks) {
+    races[ri].result.picks.push([p.a, P[0], at, right, 0, show]);
+    if (skipSunday && ri >= 24) continue;   // races 24–27 are the week's Sunday (D-129: they count for no week)
+    const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0;
+    if ((right || show) && (c.reached === undefined || at > c.reached)) c.reached = at;   // D-152: when it reached its score
+    t.set(p.a, c);
+    if (!firstAt.has(p.a) || at < firstAt.get(p.a)) firstAt.set(p.a, at);
+  }
+  // D-166: typed picks, per player: [type, the race's place among that type's races, win, show, time] (their own points).
+  const tf = typed ? R.emptyTypes(2) : null;
+  // Repo Lens #D-13 L-3: a typed week goes final only with every typed race final (here: scored, nobody picked).
+  if (tf) for (const r of tf.races) r.result = { final: true, checked: 2, picks: [] };
+  for (const p of players) for (const [ty, k, right, show, at] of (typed && typed[p.a]) || []) {
+    const r = tf.races.filter((x) => x.type === ty)[k];
+    r.result.picks.push([p.a, P[0], at, right, 0, show]);
+    if (M.restRace(r.start, rhythmFrom === undefined ? 3 : Number(rhythmFrom))) continue;
+    const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0;
+    c.extra = (c.extra || 0) + (right ? M.pointsOf(ty).win - 3 : show ? M.pointsOf(ty).show - 1 : 0);
+    if ((right || show) && (c.reached === undefined || at > c.reached)) c.reached = at;
+    t.set(p.a, c);
+  }
+  const rows = R.rank([...t].map(([a, { extra = 0, ...c }]) => ({ a, ...c, pts: 3 * c.correct + c.shows + extra, ranked: players.find((p) => p.a === a).staked, earning: true })));
+  void rhythmFrom;
+  const placed = R.withEarns(R.withPlaces(R.cutLine(rows)), true).map(({ earning, reached, tb, ...r }) => r);
+  const places = R.prizePlaces(rows), staked = R.stakedRows(R.cutLine(rows));
+  let file = { game: 7, week: 2, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: [] };
+  if (mutate) file = mutate(JSON.parse(JSON.stringify(file)));
+  const board = { v: 1, updated: "2026-11-09T12:37:00.000Z", today: { day: 0, rows: [] }, week: { week: 3, start: M.weekStart(3), rows: [] },
+    lastWeek: { week: 2, start, rows: placed }, allTime: { rows: [] } };
+  if (mutateBoard) mutateBoard(board);
+  // The published branch: the week file and the pending file (an hour old).
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const wt = tmp(); execFileSync("git", ["init", "-q", "-b", "race-data", wt]);
+  fs.writeFileSync(path.join(wt, "W002.json"), JSON.stringify({ v: 1, week: 2, start, end: start + 7 * 24 * H, races }) + "\n");
+  if (tf && mutateTypes) mutateTypes(tf);
+  if (tf) fs.writeFileSync(path.join(wt, "T002.json"), JSON.stringify(tf) + "\n");
+  fs.mkdirSync(path.join(wt, "vault"));
+  fs.writeFileSync(path.join(wt, "vault", "PENDING-W2.json"), JSON.stringify({ game: 7, week: 2, at: U("2026-11-09T11:37Z"), file }) + "\n");
+  fs.writeFileSync(path.join(wt, "vault", "W2.json"), JSON.stringify({ game: 7, week: 2, final: false, rows: [], first: [], second: [], skipped: [] }) + "\n");
+  const g = (...a) => execFileSync("git", ["-C", wt, "-c", "user.name=t", "-c", "user.email=t@t", ...a]);
+  g("add", "-A"); g("commit", "-q", "-m", "x"); g("push", "-q", bare, "race-data");
+  const inc = tmp(); fs.mkdirSync(path.join(inc, "vault"));
+  fs.writeFileSync(path.join(inc, "vault", "W2.json"), JSON.stringify(file) + "\n");
+  fs.writeFileSync(path.join(inc, "board.json"), JSON.stringify(board) + "\n");
+  const env = { ...process.env, IN: inc, GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r", RUNNER_TEMP: tmp(), RACE_CHECK_NOW: String(U("2026-11-09T12:38Z") / 1000), RACE_PRIZES_FROM: prizesFrom, ...(rhythmFrom !== undefined ? { RACE_RHYTHM_FROM: rhythmFrom } : {}), ...(typesFrom !== undefined ? { RACE_TYPES_FROM: typesFrom } : typed ? { RACE_TYPES_FROM: "2" } : {}),
+    GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: `url.${bare}.insteadOf`, GIT_CONFIG_VALUE_0: "https://x-access-token:t@github.com/o/r.git" };
+  let out;
+  try { out = execFileSync("bash", ["-c", publishSh], { cwd: tmp(), env, stdio: "pipe" }).toString(); } catch (e) { out = "FAILED " + String(e.stdout) + String(e.stderr); }
+  const published = JSON.parse(execFileSync("git", ["--git-dir", bare, "show", "race-data:vault/W2.json"]).toString());
+  return { out, final: published.final === true, file };
+}
+const addrN = (i) => "1" + "AB"[i % 2].repeat(20) + String(100000000000 + i).replace(/0/g, "z");
+
+test("I-085: an honest final file publishes; the same file with other winners, other rows or a board that doesn't match the picks is held", async () => {
+  const pl = [
+    { a: addrN(1), staked: true, picks: [[0, 1, 0, 10], [1, 0, 1, 11]] },        // 4 pts
+    { a: addrN(2), staked: true, picks: [[0, 0, 1, 12]] },                        // 1 pt
+    { a: addrN(3), staked: false, picks: [[0, 1, 0, 13], [2, 1, 0, 14]] },        // 6 pts: 1st
+    { a: addrN(4), staked: false, picks: [[1, 1, 0, 15]] },                       // 3 pts: 2nd
+    { a: addrN(5), staked: false, picks: [[2, 0, 0, 16]] },                       // 0 pts
+  ];
+  const ok = await recomputeRun(pl);
+  assert.ok(ok.final, ok.out);
+  assert.deepEqual([ok.file.first, ok.file.second, ok.file.rows.map((r) => r.points)], [[addrN(3)], [addrN(4)], [255, 254]]);
+  for (const [name, mutate, why] of [
+    ["winners swapped", (f) => ({ ...f, first: f.second, second: f.first }), /free-prize winners aren't/],
+    ["a staked wallet paid as free", (f) => ({ ...f, second: [addrN(1)], rows: f.rows.slice(1).map((r) => ({ ...r, points: 255 })) }), /staked rows aren't|free-prize winners aren't/],
+    ["rows reordered", (f) => ({ ...f, rows: [{ ...f.rows[1], points: 255 }, { ...f.rows[0], points: 254 }] }), /staked rows aren't/],
+    ["a staked wallet left out", (f) => ({ ...f, rows: f.rows.slice(0, 1) }), /staked rows aren't/],
+  ]) {
+    const r = await recomputeRun(pl, { mutate });
+    assert.equal(r.final, false, name); assert.match(r.out, why, name);
+    assert.match(r.out, /vault\/W2\.json held \(I-034\)/, name);
+  }
+  // One more pick than the week's file shows: still a well-formed board row (correct + shows <= picks), so only the
+  // recompute can catch it. (A row that breaks the board's own shape fails the job first, in whatever order the
+  // runner lists the folder, so it can't test the recompute.)
+  const b = await recomputeRun(pl, { mutateBoard: (bd) => { bd.lastWeek.rows[0].picks += 1; } });
+  assert.equal(b.final, false); assert.match(b.out, /board's last week doesn't match the week's picks/);
+  const c = await recomputeRun(pl, { mutateBoard: (bd) => { bd.lastWeek.rows = bd.lastWeek.rows.slice(1); } });
+  assert.equal(c.final, false); assert.match(c.out, /leaves out a wallet/);
+  const u = await recomputeRun(pl, { prizesFrom: "3" });
+  assert.equal(u.final, false, "week 2 before the Race pays: a file with winners is held"); assert.match(u.out, /before the Race pays must list nobody/);
+});
+
+test("I-085: the publish job's recompute agrees with the recorder's rules on 120 random weeks (ties, >10 tied, staked and free)", async () => {
+  const rnd = M.rng(85);
+  const pick = (n) => Math.floor(rnd.next() * n);
+  for (let k = 0; k < 120; k++) {
+    const n = 1 + pick(k % 10 === 0 ? 30 : 12), pl = [];
+    for (let i = 0; i < n; i++) {
+      const picks = [], m = 1 + pick(3), shared = k % 10 === 0 && i < 14;   // every 10th week: 14 wallets with the same picks
+      for (let j = 0; j < m; j++) picks.push(shared ? [j, 1, 0, 1000 + pick(500)] : [pick(28), pick(3) === 0 ? 1 : 0, pick(2), 1000 + pick(5000)]);
+      pl.push({ a: addrN(k * 100 + i), staked: !shared && pick(3) === 0, picks });
+    }
+    const r = await recomputeRun(pl);
+    assert.ok(r.final, `week ${k}: ${r.out.split("\n").filter((l) => /held|error/i.test(l)).join(" | ")}`);
+  }
+});
+
+test("I-085: the workflow never sets the recompute's test-only RACE_PRIZES_FROM, and both jobs get the one PRIZES_FROM_WEEK variable (owner, 10 Nov)", async () => {
+  assert.match(yml, /_pf = \(os\.environ\.get\("RACE_PRIZES_FROM"\) or os\.environ\.get\("PRIZES_FROM_WEEK"\) or ""\)\.strip\(\)/);
+  assert.match(yml, /PRIZES_OK = re\.fullmatch\(r"\[0-9\]\{1,4\}", _pf\) is not None\n\s+PRIZES_FROM = int\(_pf\) if PRIZES_OK else 10 \*\* 9/, "the same rule as prizesFromEnv");
+  assert.match(yml, /if not PRIZES_OK: return "the variable PRIZES_FROM_WEEK is not set to a plain week number"/, "Repo Lens #F-11 F11-1: anything else holds every final vault file");
+  assert.equal((yml.match(/RACE_PRIZES_FROM/g) || []).length, 2, "only read (the line and its comment), never set");
+  assert.equal((yml.match(/^\s+PRIZES_FROM_WEEK: \$\{\{ vars\.PRIZES_FROM_WEEK \}\}$/gm) || []).length, 2, "the record job and the publish job");
+  assert.doesNotMatch(yml, /PRIZES_FROM_WEEK: *['"]?\d/, "never a fixed number in the workflow");
+});
+
+test("owner 10 Nov: with PRIZES_FROM_WEEK unset or bad the Race pays nothing (fails closed); set to 4, week 3 is practice and a week from 4 pays", async () => {
+  const { dir } = await weekTwoDone();
+  // week 2 (the made-up week) with the variable unset: no prizes, NO final file (held, Repo Lens #F-11 F11-1), no medals
+  const saved = process.env.PRIZES_FROM_WEEK; delete process.env.PRIZES_FROM_WEEK;
+  let none; try { none = await picksRun(U("2026-11-09T05:37Z"), dir, { staked: [W1], prizesFrom: null }); } finally { if (saved !== undefined) process.env.PRIZES_FROM_WEEK = saved; }
+  assert.deepEqual(vaultOf(none), { game: 7, week: 2, final: false, rows: [], first: [], second: [], skipped: [] });
+  const board = JSON.parse(fs.readFileSync(path.join(none, "board.json"), "utf8"));
+  for (const r of [...(board.lastWeek?.rows || []), ...(board.thisWeek?.rows || [])]) assert.ok(!r.earns && !r.prizes, "no medals");
+  // the variable "2" (week 2 is the first paid week): the same data now pays, read from the variable and not from the test option
+  process.env.PRIZES_FROM_WEEK = "2";
+  let paid; try { paid = await picksRun(U("2026-11-09T05:37Z"), (await weekTwoDone()).dir, { staked: [W1], prizesFrom: null }); } finally { if (saved === undefined) delete process.env.PRIZES_FROM_WEEK; else process.env.PRIZES_FROM_WEEK = saved; }
+  assert.ok(vaultOf(paid).rows.length > 0, "week 2 pays when the variable says so");
+});
+
+test("#85 merge check L-1: a new pending file is dated at the end of the run (head read again); a kept one keeps its date", async () => {
+  const { dir } = await weekTwoDone();
+  const out = tmp(), start = U("2026-11-09T05:37Z"), later = start + 20 * 60000;
+  let readsDone = false, heads = 0;
+  const base = node(start);
+  const p = { ...base, async getHeadInfo() { heads++; const h = await base.getHeadInfo(); return readsDone ? { ...h, head_block_time: String(later) } : h; } };
+  const log = console.log; console.log = () => {};
+  try {
+    await run({ p, check: node(start), prev: dir, out, vhpOf, raceContract: "x", picksOf: async () => [], prizesFrom: 0,
+      stakedOf: async () => { readsDone = true; return false; } });
+  } finally { console.log = log; }
+  assert.ok(heads >= 2, "the head is read again before writing");
+  assert.equal(pendingOf(out).at, later, "dated when the slow stake reads finished, not when the run began");
+  // The next run: same content, so it keeps that date.
+  const next = await holdRun("2026-11-09T06:37Z", out);
+  assert.equal(pendingOf(next).at, later);
+  // A head that can't be read at the end: the start time stays.
+  const out2 = tmp(); let done2 = false;
+  const p2 = { ...base, async getHeadInfo() { if (done2) throw new Error("down"); return base.getHeadInfo(); } };
+  console.log = () => {};
+  try { await run({ p: p2, check: node(start), prev: dir, out: out2, vhpOf, raceContract: "x", picksOf: async () => [], prizesFrom: 0, stakedOf: async () => { done2 = true; return false; } }); } finally { console.log = log; }
+  assert.equal(pendingOf(out2).at, start);
+});
+
+// ── Repo Lens #E-11 (PR #133) ──
+test("#E-11 H-1 (a): the publish job refuses to change a race's published final result (picks moved, a wallet added); the same result passes", async () => {
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const { dir: d0 } = await weekTwoDone();
+  const dir = await holdRun("2026-11-09T05:37Z", d0);           // the recorder's own files (its exact JSON form)
+  assert.ok(publish(dir, bare).ok, "the honest week publishes");
+  const show = () => JSON.parse(execFileSync("git", ["--git-dir", bare, "show", "race-data:W002.json"]).toString());
+  const before = show();
+  assert.ok(publish(dir, bare).ok, "the same result again: fine");
+  const tamper = (fn) => { const d = tmp(); fs.cpSync(dir, d, { recursive: true }); const w = week(d); fn(w.races.find((r) => r.id === VW).result); fs.writeFileSync(path.join(d, "W002.json"), JSON.stringify(w) + "\n"); return d; };
+  for (const [name, fn] of [
+    ["P1 moved to another horse", (r) => { const x = r.picks.find((y) => y[0] === W1); x[1] = P[4]; x[3] = 0; x[5] = 0; }],
+    ["a new free wallet added on the winner, earliest", (r) => { r.picks.unshift(["1" + "X".repeat(33), r.winner, 0, 1, 0, 0]); }],
+    ["a pick time moved", (r) => { r.picks[0][2] = 0; }],
+    ["the winner changed", (r) => { r.standings.reverse(); r.winner = r.standings[0].a; for (const x of r.picks) { x[3] = x[1] === r.winner ? 1 : 0; x[5] = 0; } }],
+  ]) {
+    const res = publish(tamper(fn), bare);
+    // (Reversed standings are refused even earlier, by the shape check: they must be in finishing order.)
+    assert.equal(res.ok, false, name); assert.match(res.out, name === "the winner changed" ? /a published final result would change|W002\.json 2026-11-02T00/ : /a published final result would change/, name);
+    assert.deepEqual(show(), before, `${name}: the branch is unchanged`);
+  }
+});
+
+test("#E-11 H-1 (a): picks published with 5 fields (before Show) still match when the recorder writes them with 6", async () => {
+  const { dir: d0 } = await weekTwoDone();
+  const dir = await holdRun("2026-11-09T05:37Z", d0);
+  const w = week(dir), r0 = w.races.find((r) => r.id === VW);
+  const five = JSON.parse(JSON.stringify(w)); five.races.find((r) => r.id === VW).result.picks = r0.result.picks.map((x) => x.slice(0, 5));
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const old = tmp(); fs.cpSync(dir, old, { recursive: true }); fs.writeFileSync(path.join(old, "W002.json"), JSON.stringify(five) + "\n");
+  assert.ok(publish(old, bare).ok, "the old 5-field file publishes");
+  assert.ok(publish(dir, bare).ok, "the recorder's 6-field version of the same picks is not a change");
+  const bad = JSON.parse(JSON.stringify(w)); bad.races.find((r) => r.id === VW).result.picks[0][2] += 1;
+  const d = tmp(); fs.cpSync(dir, d, { recursive: true }); fs.writeFileSync(path.join(d, "W002.json"), JSON.stringify(bad) + "\n");
+  assert.match(publish(d, bare).out, /a published final result would change/, "a real change in the first 5 fields is still refused");
+});
+
+test("#E-11 H-1 (b): before a paid week goes final, its races are scored again from the chain; stored picks that differ hold it and alert", async () => {
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  // The chain now says W1 picked another horse than the stored result (a bad first recording).
+  const other = weekTwoPicks.map((x) => (x[0] === W1 ? [W1, P[4], x[2]] : x));
+  const h = await holdRun("2026-11-09T12:37Z", a, { custom: other });
+  assert.deepEqual(vaultOf(h), WAIT, "not final");
+  assert.match(lastProblems.join("\n"), /vault week 2: HELD, 2026-11-02T00: its stored result isn't what the chain says now/);
+  assert.equal(lastRun.held.length, 1);
+  assert.match(lastRun.held[0], /HELD: a race's stored result doesn't match the chain .*\(1\) tell the Race chat with this alert/);
+  // The chain agrees: final.
+  assert.deepEqual(vaultOf(await holdRun("2026-11-09T12:37Z", a)), FINAL);
+  // The two nodes disagree on the picks when checking again: held too.
+  await holdRun("2026-11-09T12:37Z", a, { theirs: [[W1, P[4], 1]] });
+  assert.match(lastProblems.join("\n"), /vault week 2: HELD, 2026-11-02T00: the two nodes disagree about the race's picks when checking the week again/);
+  // An unpaid week isn't checked again (nothing is paid).
+  await holdRun("2026-11-09T12:37Z", a, { custom: other, prizesFrom: 3 });
+  assert.doesNotMatch(lastProblems.join("\n"), /when checking the week again|stored result isn't/);
+});
+
+test("L-4: under the owner's hold the chain re-check still runs (daily); a mismatch alerts on every run, a match stays held", async () => {
+  const { OWNER_HOLD_ALERT_HOUR, ownerAlertRun } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(OWNER_HOLD_ALERT_HOUR, 16);
+  assert.equal(ownerAlertRun(U("2026-11-09T16:37Z")), true); assert.equal(ownerAlertRun(U("2026-11-09T15:37Z")), false);
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  // The chain matches: still held (the owner's choice), and only the daily reminder alerts.
+  assert.deepEqual(vaultOf(await holdRun("2026-11-09T16:37Z", a, { holdWeeks: [2] })), WAIT);
+  assert.equal(lastRun.held.length, 1); assert.match(lastRun.held[0], /you are holding it/);
+  // The chain disagrees: on the daily run both alerts show, so the owner knows not to release it.
+  const other = weekTwoPicks.map((x) => (x[0] === W1 ? [W1, P[4], x[2]] : x));
+  assert.deepEqual(vaultOf(await holdRun("2026-11-09T16:37Z", a, { holdWeeks: [2], custom: other })), WAIT);
+  assert.equal(lastRun.held.length, 2);
+  assert.ok(lastRun.held.some((m) => /a race's stored result doesn't match the chain/.test(m)), "the mismatch alerts under the hold");
+  // Other hours skip the full re-check and say nothing (no hourly email), but a system wait still alerts as before.
+  await holdRun("2026-11-09T13:37Z", a, { holdWeeks: [2], custom: other });
+  assert.deepEqual(lastRun.held, []);
+  await holdRun("2026-11-09T17:37Z", dir, { holdWeeks: [2], staked: [W1], stakeFail: W3 });
+  assert.match(lastRun.held.join("\n"), /still not final 18 h after the week ended: 1 Race stake\(s\) could not be read/, "a system hold still alerts hourly");
+});
+
+test("#E-11 H-1 (b): a read failure while checking the week again waits (not final), and alerts once the week is late", async () => {
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  const lines = [], log = console.log, out = tmp();
+  let fail = false;
+  const base = node(U("2026-11-09T12:37Z"));
+  const p = { ...base, async call(m, x) { if (fail) throw new Error("fetch failed"); return base.call(m, x); } };
+  console.log = (l) => lines.push(String(l));
+  let r;
+  try {
+    r = await run({ p, check: node(U("2026-11-09T12:37Z")), prev: a, out, vhpOf, raceContract: "x", prizesFrom: 0, vaultHold: undefined, holdWeeks: [],
+      picksOf: async (n, ri) => (ri === RACE00 ? weekTwoPicks : []), stakedOf: async () => { fail = true; return false; } });
+  } finally { console.log = log; }
+  assert.equal(vaultOf(out).final, false);
+  assert.ok(r.problems.some((x) => /couldn't check the week's races again/.test(x)), r.problems.join("\n"));
+});
+
+test("#E-11 L-1: a paid week with nothing recorded at all alerts once it's late", async () => {
+  await holdRun("2026-11-09T16:37Z", tmp());
+  assert.equal(lastRun.held.length, 1);
+  assert.match(lastRun.held[0], /vault week 2 .* HELD: still not final 17 h after the week ended: nothing was recorded for that week/);
+});
+
+test("#E-11 L-2: the publish job fails when the recorder wrote files but none arrived; with no files written it's a quiet no-op", () => {
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const missing = path.join(tmp(), "nothing-here");
+  const run2 = (files) => { const env = { ...process.env, IN: missing, GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r", RUNNER_TEMP: tmp(), RECORD_FILES: files };
+    try { return { ok: true, out: execFileSync("bash", ["-c", publishSh], { cwd: tmp(), env, stdio: "pipe" }).toString() }; } catch (e) { return { ok: false, out: String(e.stdout) + String(e.stderr) }; } };
+  const lost = run2("true");
+  assert.equal(lost.ok, false); assert.match(lost.out, /didn't reach the publish job \(artifact hand-over failed\)/);
+  const quiet = run2("");
+  assert.ok(quiet.ok); assert.match(quiet.out, /Nothing to publish/);
+  assert.match(yml, /files: \$\{\{ steps\.race\.outputs\.files \}\}/);
+  assert.match(yml, /RECORD_FILES: \$\{\{ needs\.record\.outputs\.files \}\}/);
+});
+
+test("#E-11 L-3: text in ::warning:: / ::error:: lines is escaped (%, CR, LF), so node error text can't start a command", async () => {
+  const { cmdText } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(cmdText("a\n::stop-commands::x\r\n100%"), "a%0A::stop-commands::x%0D%0A100%25");
+  const src = fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8");
+  const prints = src.match(/console\.log\(`::(warning|error)::\$\{[^}]+\}`\)/g) || [];
+  assert.ok(prints.length >= 3);
+  for (const x of prints) assert.match(x, /\$\{cmdText\(/, x);
+});
+
+test("#E-11 I-2: the recorder says the publish job reads the same variable (its second copy)", () => {
+  assert.match(fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8"), /The publish job in race\.yml reads the same variable/);
+});
+
+// ── D-125 (owner, 4 Nov): the weekly rhythm — races Mon–Sat, Sunday UTC is the review day, final from Monday 00:00 UTC.
+// These tests put the made-up week 2 (Mon 2 – Mon 9 Nov; Sunday 8 Nov) on the rhythm with rhythmFrom 0. ──
+const ON = { rhythmFrom: 0 };
+test("D-125 rhythm: race-math says which races rest (Sunday UTC, from week 3) and when play ends", async () => {
+  assert.equal(M.RHYTHM_FROM_WEEK, 3);
+  assert.equal(M.restRace(U("2026-11-15T06:00Z")), true, "Sunday of week 3");
+  assert.equal(M.restRace(U("2026-11-14T18:00Z")), false, "Saturday's last race runs");
+  assert.equal(M.restRace(U("2026-11-16T00:00Z")), false, "Monday");
+  assert.equal(M.restRace(U("2026-11-08T06:00Z")), false, "week 2 isn't on the rhythm");
+  assert.equal(M.restRace(U("2026-11-08T06:00Z"), 0), true);
+  assert.equal(M.playEnd(3), U("2026-11-15T00:00Z"), "play ends Saturday 24:00 UTC");
+  // Owner, 10 Nov: prizes start from week 4 (the PRIZES_FROM_WEEK variable); the rhythm still starts with week 3, which is
+  // then the practice week: the same schedule, nothing paid.
+  assert.match(yml, /RHYTHM_FROM = int\(os\.environ\.get\("RACE_RHYTHM_FROM"\) or 3\)/);
+  assert.doesNotMatch(yml, /RACE_RHYTHM_FROM\s*[:=]/, "the workflow never sets the test-only value");
+});
+
+test("D-129: Sunday races on the rhythm keep their cards and are scored like any day (for fun)", async () => {
+  const satRun = await picksRun(U("2026-11-07T23:37Z"), "", ON);
+  assert.ok(race(satRun, "2026-11-08T00").cards[0], "Sunday's first card is taken 23 minutes ahead, as on any day");
+  const a = await picksRun(U("2026-11-08T06:37Z"), satRun, ON);
+  const r0 = race(a, "2026-11-08T00").result;
+  assert.equal(r0.final, true); assert.ok(r0.standings && r0.winner !== undefined, "scored as usual");
+  assert.equal(race(a, "2026-11-07T18").result.final, true, "Saturday's last race too");
+  assert.doesNotMatch(lastProblems.join("\n"), /still being checked/, "Sunday races never keep the week open");
+});
+
+test("D-125 rhythm: Sunday publishes the week as pending (never final); it goes final at the Monday 00:37 run, with no 12-hour wait", async () => {
+  const { dir } = await weekTwoDone();
+  const sun = await holdRun("2026-11-08T05:37Z", dir, ON);
+  assert.deepEqual(vaultOf(sun), WAIT, "Sunday: never final");
+  assert.deepEqual(pendingOf(sun), { game: 7, week: 2, at: U("2026-11-08T05:37Z"), file: FINAL });
+  assert.match(lastProblems.join("\n"), /vault week 2: pending .* final at the earliest 2026-11-09T00:00:00\.000Z/);
+  assert.deepEqual(lastRun.held, [], "the review day isn't an alert");
+  const late = await holdRun("2026-11-08T23:37Z", sun, ON);
+  assert.deepEqual(vaultOf(late), WAIT, "Sunday 23:37: still the review day");
+  const mon = await holdRun("2026-11-09T00:37Z", late, ON);
+  assert.deepEqual(vaultOf(mon), FINAL, "Monday 00:37: final (checked on chain again)");
+});
+
+test("D-125 rhythm: a stored result that doesn't match the chain alerts already on the review day", async () => {
+  const { dir } = await weekTwoDone();
+  const other = weekTwoPicks.map((x) => (x[0] === W1 ? [W1, P[4], x[2]] : x));
+  await holdRun("2026-11-08T05:37Z", dir, { ...ON, custom: other });
+  assert.match(lastProblems.join("\n"), /vault week 2: review day: HELD, 2026-11-02T00: its stored result isn't what the chain says now/);
+  assert.equal(lastRun.held.length, 1);
+  assert.match(lastRun.held[0], /HELD: a race's stored result doesn't match the chain/);
+});
+
+test("D-125 rhythm: a rhythm week still not final 3 h after the week ends alerts (not 15 h)", async () => {
+  const { RHYTHM_ALERT_AFTER } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(RHYTHM_ALERT_AFTER, 3 * H);
+  const { dir } = await weekTwoDone();
+  await holdRun("2026-11-09T02:37Z", dir, { ...ON, staked: [W1], stakeFail: W3 });
+  assert.deepEqual(lastRun.held, [], "02:37: not yet");
+  await holdRun("2026-11-09T03:37Z", dir, { ...ON, staked: [W1], stakeFail: W3 });
+  assert.equal(lastRun.held.length, 1); assert.match(lastRun.held[0], /still not final 4 h after the week ended: 1 Race stake\(s\) could not be read/);
+});
+
+test("D-125 rhythm, publish job: a Sunday pending file is accepted; the Monday final needs no 12-hour wait; Sunday cards publish", async () => {
+  const { dir } = await weekTwoDone();
+  const s = (t) => String(U(t) / 1000), RH = { RACE_RHYTHM_FROM: "0" };
+  const show = (bare, f) => JSON.parse(execFileSync("git", ["--git-dir", bare, "show", `race-data:${f}`]).toString());
+  const sun = await holdRun("2026-11-08T05:37Z", dir, ON);
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const r1 = pubCopy2(sun, bare, s("2026-11-08T05:38Z"), RH);
+  assert.ok(r1.ok, r1.out); assert.doesNotMatch(r1.out, /vault results held/);
+  assert.deepEqual(show(bare, "vault/PENDING-W2.json").file, FINAL, "the Sunday pending file is published");
+  // Off the rhythm, the same Sunday pending file is refused (before its week ends).
+  const b0 = tmp(); execFileSync("git", ["init", "-q", "--bare", b0]);
+  assert.match(pubCopy2(sun, b0, s("2026-11-08T05:38Z"), {}).out, /vault results held, not published this run: vault\/PENDING-W2\.json/);
+  // Monday 00:37: final, published at 00:38 (no 12-hour wait on the rhythm).
+  const late = await holdRun("2026-11-08T23:37Z", sun, ON);
+  const mon = await holdRun("2026-11-09T00:37Z", late, ON);
+  const r2 = pubCopy2(mon, bare, s("2026-11-09T00:38Z"), RH);
+  assert.ok(r2.ok, r2.out); assert.deepEqual(show(bare, "vault/W2.json"), FINAL);
+  // A final file before Monday 00:00 is held even on the rhythm.
+  const b2 = tmp(); execFileSync("git", ["init", "-q", "--bare", b2]);
+  pubCopy2(sun, b2, s("2026-11-08T05:38Z"), RH);
+  const early = tmp(); fs.mkdirSync(path.join(early, "vault"), { recursive: true });
+  fs.writeFileSync(path.join(early, "vault", "W2.json"), JSON.stringify(FINAL) + "\n");
+  const r3 = pubCopy2(early, b2, s("2026-11-08T23:59Z"), RH);
+  assert.ok(r3.ok, r3.out); assert.match(r3.out, /vault results held/);
+  // D-129: a Sunday race may have cards and a scored result (it counts for fun, not the week).
+  const w = week(sun), sr = w.races.find((r) => r.id === "2026-11-08T12");
+  const scored = JSON.parse(JSON.stringify(w)); const r12 = scored.races.find((r) => r.id === "2026-11-08T12");
+  r12.cards[0] = { ...w.races.find((r) => r.id === VW).cards.find(Boolean), at: sr.start - 60000 };
+  const d = tmp(); fs.cpSync(sun, d, { recursive: true }); fs.writeFileSync(path.join(d, "W002.json"), JSON.stringify(scored) + "\n");
+  assert.ok(pubCopy2(d, tmp(), s("2026-11-09T00:38Z"), RH).ok, "a Sunday card publishes");
+  const res = JSON.parse(JSON.stringify(scored)); res.races.find((r) => r.id === "2026-11-08T12").result = JSON.parse(JSON.stringify(w.races.find((r) => r.id === VW).result));
+  const d2 = tmp(); fs.cpSync(sun, d2, { recursive: true }); fs.writeFileSync(path.join(d2, "W002.json"), JSON.stringify(res) + "\n");
+  const r4 = pubCopy2(d2, tmp(), s("2026-11-09T00:38Z"), RH);
+  assert.ok(r4.ok, r4.out); assert.doesNotMatch(r4.out, /Sunday race/, "a scored Sunday result publishes too (D-129)");
+});
+function pubCopy2(dir, bare, now, extra) { const d = tmp(); fs.cpSync(dir, d, { recursive: true }); if (!fs.existsSync(path.join(bare, "HEAD"))) execFileSync("git", ["init", "-q", "--bare", bare]); return publish(d, bare, now, extra); }
+
+test("D-129, page: Sunday races are offered and sent as fun races (Today and All time only)", () => {
+  const js = fs.readFileSync(path.resolve(APP, "race.js"), "utf8"), html = fs.readFileSync(path.resolve(APP, "race.html"), "utf8");
+  assert.doesNotMatch(js, /restRow|M\.restRace\(M\.raceStart\(index\)\)\) return/, "no Sunday guard left: a Sunday pick is offered and sent");
+  assert.match(js, /Sunday fun race/, "a Sunday race is labelled as a fun race");
+  assert.match(js, /counts on All time, not the week/);
+  assert.match(html, /<b>Sunday is review day<\/b>/);
+  assert.match(html, /<b>fun races<\/b>: they score on the Today and All time boards, but never on a week's board, medals or prizes/);
+  assert.doesNotMatch(html, /Monday 5 PM PT|paid from Monday|\(no race\)/);
+  for (const f of ["index.html", "games.json"]) assert.doesNotMatch(fs.readFileSync(path.resolve(APP, f), "utf8"), /Sunday is review day: no race|\(Sunday is review day\)/, f);
+});
+
+test("D-125 rhythm: the review day starts at Sunday 00:37 — Sunday's unrecorded slots don't hold the pending file back", async () => {
+  const { dir } = await weekTwoDone();
+  const w = week(dir);
+  for (const r of w.races) if (r.id.startsWith("2026-11-08")) r.result = null;   // Sunday not recorded yet
+  fs.writeFileSync(path.join(dir, "W002.json"), JSON.stringify(w));
+  const a = await holdRun("2026-11-08T00:37Z", dir, ON);
+  assert.deepEqual(pendingOf(a), { game: 7, week: 2, at: U("2026-11-08T00:37Z"), file: FINAL }, "pending from the first Sunday run");
+  assert.deepEqual(vaultOf(a), WAIT);
+});
+
+// ── Repo Lens #C-7 ──
+test("#C-7 C7-2: on the rhythm a Race card is still taken every hour through Sunday (Block X scores with one up to 3 h after each block)", async () => {
+  let d = await picksRun(U("2026-11-07T21:37Z"), "", ON);
+  const at = [];
+  for (let t = U("2026-11-07T22:37Z"); t <= U("2026-11-09T00:37Z"); t += H) {
+    d = await picksRun(t, d, ON);
+    const w = week(d), cards = w.races.flatMap((r) => r.cards.filter(Boolean).map((c) => c.at));
+    at.push(Math.max(...cards));
+  }
+  // Every hour's newest card is taken by that hour's run: no gap anywhere near 3 hours.
+  for (let i = 1; i < at.length; i++) assert.ok(at[i] - at[i - 1] <= 2 * H, `a gap after ${new Date(at[i - 1]).toISOString()}`);
+  assert.ok(at.some((t) => new Date(t).getUTCDay() === 0), "cards are taken on Sunday");
+});
+
+test("#C-7 C7-1: the re-check confirms a stored race's heights with 4 block reads instead of searching", async () => {
+  const { verifyWeek } = await import(path.resolve(APP, "bot/race.ts"));
+  const { dir } = await weekTwoDone();
+  const a = await holdRun("2026-11-09T05:37Z", dir);
+  const wf = week(a);
+  let reads = 0;
+  const count = (n) => ({ ...n, async call(m, x) { if (x && x.num_blocks === 1) reads++; return n.call(m, x); } });
+  const base = node(U("2026-11-09T12:37Z")), head = await base.getHeadInfo();
+  const ctx = (n) => ({ p: count(n), check: node(U("2026-11-09T12:37Z")), headId: head.head_topology.id, libH: Number(head.last_irreversible_block), libT: U("2026-11-09T12:30Z"),
+    picksRead: async (_, ri) => (ri === RACE00 ? weekTwoPicks : []) });
+  assert.equal(await verifyWeek(wf, ctx(base)), "", "the honest week matches");
+  assert.equal(reads, 4, "one race with stored heights: 4 single-block reads");
+  // Wrong stored heights: the boundary check fails, the search runs, and the result (with the true heights) differs.
+  const bad = JSON.parse(JSON.stringify(wf)); bad.races.find((r) => r.id === VW).result.heights[0] += 5;
+  reads = 0;
+  assert.match(await verifyWeek(bad, ctx(base)), /its stored result isn't what the chain says now/);
+  assert.ok(reads > 4, "fell back to the search");
+});
+
+test("#C-7 C7-1: the re-check has a time budget; running out waits ('not checked yet'), never a mismatch", async () => {
+  const { verifyWeek, VERIFY_BUDGET_MS } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(VERIFY_BUDGET_MS, 10 * 60000);
+  const { dir } = await weekTwoDone();
+  const wf = week(await holdRun("2026-11-09T05:37Z", dir));
+  let t = 0;
+  await assert.rejects(verifyWeek(wf, { p: node(U("2026-11-09T12:37Z")), check: null, headId: "0xhead", libH: 1, libT: 0, picksRead: null }, 1000, () => (t += 2000)), /not checked yet: the re-check ran past its/);
+  // In settle, a budget run-out is a wait, not a hold: the week isn't final and no "doesn't match" alert is raised.
+  const src = fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8");
+  assert.match(src, /catch \(e\) \{\s*problems\.push\(`vault week \$\{w\}: couldn't check the week's races again/);
+});
+
+test("F-1: the re-check runs up to VERIFY_PARALLEL races at once, reports the first mismatch in race order, and shares one deadline per run", async () => {
+  const { verifyWeek, VERIFY_PARALLEL } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(VERIFY_PARALLEL, 4);
+  const { dir } = await weekTwoDone();
+  const wf = week(await holdRun("2026-11-09T05:37Z", dir));
+  // The fake chain holds a few scored races; repeat them (the re-check reads each copy on its own) to fill several batches.
+  const done = wf.races.filter((r) => r.result?.final && !r.result.missed);
+  assert.ok(done.length >= 1, "a scored race to re-check");
+  wf.races = Array.from({ length: 3 * VERIFY_PARALLEL }, (_, k) => ({ ...JSON.parse(JSON.stringify(done[k % done.length])), id: `${done[k % done.length].id}#${k}` }));
+  // A slow node, and a picks read (one per race) that counts how many races are being checked at once.
+  const base = node(U("2026-11-09T12:37Z"));
+  let inFlight = 0, most = 0;
+  const slow = { getHeadInfo: () => base.getHeadInfo(), async call(m, a) { await new Promise((r) => setTimeout(r, 2)); return base.call(m, a); } };
+  // The "chain's" picks: the ones each race was recorded with.
+  const onChain = new Map(done.map((r) => [M.raceIndex(r.start), (r.result.picks || []).map((x) => x.slice(0, 3))]));
+  const ctx = (n) => ({ p: n, check: null, headId: "0xhead", libH: 1000 + N, libT: chain.ts[N - 1], picksRead: async (_n, i) => { inFlight++; most = Math.max(most, inFlight); await new Promise((r) => setTimeout(r, 20)); inFlight--; return onChain.get(i) || []; } });
+  const log = console.log; console.log = () => {};
+  try {
+    assert.equal(await verifyWeek(wf, ctx(slow), 10 * 60000), "", "an honest week passes");
+    assert.ok(most > 1 && most <= VERIFY_PARALLEL, `races checked in parallel, at most ${VERIFY_PARALLEL} (saw ${most})`);
+    // Two stored results changed: the earlier race's mismatch is the one reported, whatever finishes first.
+    const bad = JSON.parse(JSON.stringify(wf)), ds = bad.races.filter((r) => r.result?.final && !r.result.missed);
+    for (const r of [ds[5], ds[7]]) r.result.winner = r.result.standings[1].a;
+    const why = await verifyWeek(bad, ctx(slow), 10 * 60000);
+    assert.ok(why.startsWith(`${ds[5].id}:`), why);
+  } finally { console.log = log; }
+  // One deadline for the whole run: set once in run(), used when no budget is passed (settle's calls).
+  const src = fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8");
+  assert.match(src, /verifyDeadline = Date\.now\(\) \+ VERIFY_BUDGET_MS;/);
+  assert.match(src, /const stop = budgetMs === undefined \? verifyDeadline : clock\(\) \+ budgetMs;/);
+  assert.doesNotMatch(src.slice(src.indexOf("async function settle")), /verifyWeek\([^)]*VERIFY_BUDGET_MS/, "settle doesn't start a fresh budget per call");
+});
+
+// ── D-129 (owner, 4 Nov): Sunday stays playable; its points count for the Today and All time boards only ──
+test("D-129: Sunday points show on Today and All time, never on the week's board, its medals, or the vault file", async () => {
+  const { dir } = await weekTwoDone();
+  // A Sunday race with picks: W2 wins it (3 points) — a free player who otherwise only showed once (1 point).
+  const a = await holdRun("2026-11-08T05:37Z", dir, ON);
+  const B = { ts: chain.ts, sig: chain.who.map((x) => P.indexOf(x)), signers: P };
+  const w = week(a), sun = w.races.find((r) => r.id === "2026-11-08T00");
+  const winner = M.standings(B, { start: sun.start, end: sun.end }, sun.cards.some(Boolean) ? sun.cards : w.races.find((r) => r.id === VW).cards)[0].a;
+  sun.result = null; if (!sun.cards.some(Boolean)) sun.cards = w.races.find((r) => r.id === VW).cards.map((c) => c && { ...c, at: sun.start - 60000 + 0 });
+  fs.writeFileSync(path.join(a, "W002.json"), JSON.stringify(w));
+  const SUNRACE = M.raceIndex(sun.start), out = tmp();
+  const log = console.log; console.log = () => {};
+  let r;
+  try {
+    r = await run({ p: node(U("2026-11-08T06:37Z")), check: node(U("2026-11-08T06:37Z")), prev: a, out, vhpOf, raceContract: "x", prizesFrom: 0, rhythmFrom: 0, holdWeeks: [],
+      picksOf: async (n, ri) => (ri === RACE00 ? weekTwoPicks : ri === SUNRACE ? [[W2, M.standings(B, { start: sun.start, end: sun.end }, sun.cards)[0].a, 5]] : []), stakedOf: async () => false });
+  } finally { console.log = log; }
+  const sunRes = race(out, "2026-11-08T00").result;
+  assert.equal(sunRes.final, true); assert.equal(sunRes.picks[0][3], 1, "W2 won the Sunday race");
+  const board = JSON.parse(fs.readFileSync(path.join(out, "board.json"), "utf8"));
+  const pts = (rows, who) => (rows.find((x) => x.a === who) || {}).pts;
+  assert.equal(pts(board.week.rows, W2), 1, "the week: W2 only has its weekday show");
+  assert.equal(pts(board.today.rows, W2), 3, "today (Sunday): the fun race counts");
+  assert.equal(pts(board.allTime.rows, W2), 4, "all time (career): both");
+  assert.deepEqual(pendingOf(out).file, FINAL, "the week's pending vault file is unchanged by Sunday play");
+  void winner; void r;
+});
+
+test("D-129, publish job: the recompute leaves Sunday races out of the week (a file counting Sunday wins is held)", async () => {
+  // Races 25 and 26 are Sunday. With the rhythm on, addrN(2)'s Sunday wins count for no week: addrN(1) is 1st alone.
+  const pl = [{ a: addrN(1), staked: false, picks: [[0, 1, 0, 10]] }, { a: addrN(2), staked: false, picks: [[25, 1, 0, 11], [26, 1, 0, 12], [3, 0, 1, 13]] }];
+  const honest = await recomputeRun(pl, { skipSunday: true, rhythmFrom: "0" });
+  assert.ok(honest.final, honest.out);
+  assert.deepEqual([honest.file.first, honest.file.second], [[addrN(1)], [addrN(2)]], "the week: addrN(1) 3 pts, addrN(2) only its weekday show");
+  const inflated = await recomputeRun(pl, { rhythmFrom: "0" });          // the file and board count Sunday too
+  assert.equal(inflated.final, false, "held");
+  assert.match(inflated.out, /board's last week doesn't match the week's picks|free-prize winners aren't/);
+  const offRhythm = await recomputeRun(pl, {});                          // week 2 off the rhythm: Sunday counts as before
+  assert.ok(offRhythm.final, offRhythm.out);
+});
+
+test("Repo Lens #B-7: the no-changes window starts the paid week's Monday; results.js leaves Sunday fun races out of the week total", () => {
+  const rb = fs.readFileSync(path.resolve(APP, ".ai/platform/RUNBOOK.md"), "utf8");
+  assert.match(rb, /From the paid week's \*\*Monday 00:00 UTC\*\* until that week's final Race file/);
+  assert.match(rb, /safe slot is about Monday 01:40–06:30 UTC/);
+  const rj = fs.readFileSync(path.resolve(APP, "results.js"), "utf8");
+  assert.match(rj, /const mineAll = all\.filter\(\(x\) => x\.my && !M\.restRace\(x\.r\.start\)\);/);
+  for (const f of [".ai/platform/RULES.md", ".ai/standards/GAME_STANDARD.md", ".ai/standards/VAULT_STANDARD.md", ".ai/platform/DECISIONS.md"])
+    assert.match(fs.readFileSync(path.resolve(APP, f), "utf8"), /Tue 12:00–15:00 UTC, Tue 4–7 AM PST/, f);
+});
+
+// ── I-086 (R-RACE-12 gap 2): more than 255 different scores among staked players ──
+// The vault's payout rule (Kpred finalizeGameStep): walk the points values from the top until the winners are at least
+// 30% of the players with a point (rounded up), everyone at the line included.
+const vaultPaid = (rows) => {
+  const need = Math.ceil((rows.length * 30) / 100), paid = new Set();
+  let cum = 0;
+  for (let p = 255; p >= 1 && cum < need; p--) { const at = rows.filter((r) => r.points === p); for (const r of at) paid.add(r.player); cum += at.length; }
+  return paid;
+};
+const addrI = (i) => "1" + String(i).padStart(33, "0").replace(/0/g, "A");
+test("I-086: past 255 different scores, the vault still pays exactly the top 30% (paid groups never share a value with unpaid ones)", async () => {
+  const R = await import(path.resolve(APP, "bot/race.ts"));
+  // 900 staked wallets, each with its own score: the paid line (270 wallets) lands past the 255th group.
+  const tuples = [];
+  for (let p = 1; tuples.length < 900; p++) for (let c = 0; c <= p; c++) for (let s = 0; c + s <= p; s++) if (c + s >= 1 && tuples.length < 900) tuples.push([c, s, p]);
+  const rows = R.rank(tuples.map(([c, s, p], i) => ({ a: addrI(i), correct: c, shows: s, picks: p, pts: 3 * c + s, ranked: true, earning: true })));
+  const want = R.stakedWinners(rows), { rows: vr, notes } = R.stakedRows(rows);
+  assert.equal(want.size, 270);
+  assert.deepEqual([...vaultPaid(vr)].sort(), [...want].sort(), "the vault pays exactly the wallets the recorder means to pay");
+  assert.ok(vr.every((r) => (want.has(r.player) ? r.points >= 2 : r.points === 1)), "paid wallets hold 255 … 2, unpaid ones 1");
+  assert.match(notes.join("\n"), /share 2 points, unpaid wallets get 1 \(I-086\)/);
+  // The old mapping (max(1, 255 − group)) put paid and unpaid wallets together at 1: the vault would pay all 900.
+  const old = vr.map((r, i) => ({ ...r, points: Math.max(1, 255 - i) }));
+  assert.equal(vaultPaid(old).size, 900, "the bug this fixes");
+  // Fewer than 255 groups, or a paid line inside the first 254: the values are exactly as before.
+  const small = rows.slice(0, 200), sv = R.stakedRows(small).rows;
+  assert.deepEqual(sv.map((r) => r.points), sv.map((_, i) => 255 - i));
+  assert.deepEqual([...vaultPaid(sv)].sort(), [...R.stakedWinners(small)].sort());
+});
+
+test("I-086, publish job: the recompute gives the same values past 255 groups and refuses the old mapping", async () => {
+  const tuples = [];
+  for (let p = 1; tuples.length < 900; p++) for (let c = 0; c <= p; c++) for (let s = 0; c + s <= p; s++) if (c + s >= 1 && tuples.length < 900) tuples.push([c, s, p]);
+  // One pick per race: the first c are wins, the next s are shows, the rest are misses (races 0–23, Monday to Saturday).
+  const pl = tuples.map(([c, s, p], i) => ({ a: addrI(i), staked: true, picks: Array.from({ length: p }, (_, k) => [k, k < c ? 1 : 0, k >= c && k < c + s ? 1 : 0, 1000 + i * 30 + k]) }));
+  const ok = await recomputeRun(pl);
+  assert.ok(ok.final, ok.out);
+  assert.equal(ok.file.rows.filter((r) => r.points === 1).length, 630, "the 630 unpaid wallets share 1");
+  const bad = await recomputeRun(pl, { mutate: (f) => ({ ...f, rows: f.rows.map((r, i) => ({ ...r, points: Math.max(1, 255 - i) })) }) });
+  assert.equal(bad.final, false); assert.match(bad.out, /staked rows aren't/);
+});
+
+test("I-037 B1-4: a nested folder, a file over 2 MB or a non-canonical file in vault/ holds the vault folder only; the race cards still publish", async () => {
+  const { dir } = await weekTwoDone();
+  const out = await picksRun(U("2026-11-09T05:37Z"), dir);
+  const cases = [
+    ["a nested folder", (d) => { fs.mkdirSync(path.join(d, "vault", "x")); fs.writeFileSync(path.join(d, "vault", "x", "W2.json"), "{}\n"); }, /unexpected files in vault\//],
+    ["a file over 2 MB", (d) => fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify({ ...vaultOf(out), pad: "x".repeat(2100 * 1024) }) + "\n"), /a file in vault\/ is over 2 MB/],
+    ["not canonical", (d) => fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify(vaultOf(out), null, 1) + "\n"), /not in the recorders own JSON form/],
+    ["a symlink", (d) => fs.symlinkSync("/etc/hostname", path.join(d, "vault", "W9.json")), /unexpected files in vault\//],
+  ];
+  for (const [name, spoil, why] of cases) {
+    const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+    const d = tmp(); fs.cpSync(out, d, { recursive: true }); spoil(d);
+    const go = path.join(tmp(), "github-output"), r = publish(d, bare, CHECK_NOW, { GITHUB_OUTPUT: go });
+    assert.ok(r.ok, name + ": " + r.out); assert.match(r.out, why, name);
+    assert.match(fs.readFileSync(go, "utf8"), /held=true/, name + ": the alert job fails the run");
+    const tree = execFileSync("git", ["--git-dir", bare, "ls-tree", "-r", "--name-only", "race-data"]).toString();
+    assert.match(tree, /^W002\.json$/m, name + ": the race cards published"); assert.doesNotMatch(tree, /^vault\//m, name);
+  }
+  // A bad file outside vault/ still stops the whole publish (nothing goes out).
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const d = tmp(); fs.cpSync(out, d, { recursive: true }); fs.writeFileSync(path.join(d, "W002.json"), JSON.stringify(week(out), null, 1));
+  const r = publish(d, bare);
+  assert.equal(r.ok, false); assert.match(r.out, /recorders own JSON form.*nothing published/);
+});
+
+test("Repo Lens #B-8: B8-B1 a changed final also publishes the race cards; B8-B2 a file Python can't read holds vault/ only; B8-B3 short paths", async () => {
+  const { dir } = await weekTwoDone();
+  const out = await picksRun(U("2026-11-09T05:37Z"), dir);
+  // B8-B1: a changed final file next to new race data: the race data publishes, the published vault file doesn't change.
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  stagePending(out, bare); assert.ok(publish(out, bare).ok);
+  const pub = execFileSync("git", ["--git-dir", bare, "show", "race-data:vault/W2.json"]).toString();
+  const d = tmp(); fs.cpSync(out, d, { recursive: true });
+  fs.writeFileSync(path.join(d, "vault", "W2.json"), JSON.stringify({ ...vaultOf(out), first: [W3], second: [] }) + "\n");
+  const b = JSON.parse(fs.readFileSync(path.join(d, "board.json"), "utf8")); b.updated = "2026-11-09T13:37:00.000Z"; fs.writeFileSync(path.join(d, "board.json"), JSON.stringify(b) + "\n");
+  const r = publish(d, bare);
+  assert.ok(r.ok, r.out); assert.match(r.out, /Race files published/);
+  assert.equal(execFileSync("git", ["--git-dir", bare, "show", "race-data:vault/W2.json"]).toString(), pub);
+  assert.match(execFileSync("git", ["--git-dir", bare, "show", "race-data:board.json"]).toString(), /2026-11-09T13:37:00\.000Z/, "the new board published");
+  // B8-B2: the Python check reads vault files inside a try.
+  const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/race.yml"), "utf8");
+  assert.match(yml, /def vgood\(g\):\n\s+try:\n\s+j = load\(g\)/);
+  // B8-B3: the hold message shows paths relative to the incoming folder.
+  const d2 = tmp(); fs.cpSync(out, d2, { recursive: true }); fs.writeFileSync(path.join(d2, "vault", "notes.json"), "{}\n");
+  const r2 = publish(d2, tmp());
+  assert.match(r2.out, /unexpected files in vault\/: vault\/notes\.json/); assert.doesNotMatch(r2.out, /recorder\?s/);
+});
+
+// ── D-152 (owner, 5 Nov): the staked line pays exactly the top 30%; a tie that crosses it lets in who reached the score first ──
+test("D-152: a staked tie across the 30% line: the vault pays exactly the top 30%, the earliest to reach the score get in, places split", async () => {
+  const R = await import(path.resolve(APP, "bot/race.ts"));
+  const { orderBreak } = await import(path.resolve(APP, "bot/vault.ts"));
+  // 10 staked wallets: need 3. A (9 pts) is clear; 4 wallets tie on 6 pts for the last 2 spots.
+  const r = (a, pts, reached, extra = {}) => ({ a, pts, correct: Math.floor(pts / 3), shows: pts % 3, picks: 5, ranked: true, earning: true, reached, ...extra });
+  const rows = R.rank([r(addrI(1), 9, 50), r(addrI(2), 6, 400), r(addrI(3), 6, 100), r(addrI(4), 6, 300), r(addrI(5), 6, 200),
+    r(addrI(6), 3, 10), r(addrI(7), 3, 20), r(addrI(8), 1, 30), r(addrI(9), 1, 40), r(addrI(10), 1, 60)]);
+  const paid = R.stakedWinners(rows);
+  assert.deepEqual([...paid], [addrI(1), addrI(3), addrI(5)], "exactly 3: A, then the two that reached 6 points first (times 100 and 200)");
+  const board = R.withEarns(R.withPlaces(R.cutLine(rows)), true);
+  const place = Object.fromEntries(board.map((x) => [x.a, x.boardPlace]));
+  assert.deepEqual([place[addrI(3)], place[addrI(5)], place[addrI(4)], place[addrI(2)]], [2, 2, 4, 4], "the two that got in share 2nd; the other two take 4th");
+  assert.deepEqual(board.filter((x) => x.earns === 3).map((x) => x.a), [...paid]);
+  const file = R.stakedRows(R.cutLine(rows)).rows;
+  assert.deepEqual([...vaultPaid(file)].sort(), [...paid].sort(), "the vault's own walk pays exactly them");
+  assert.equal(orderBreak(file, new Map(board.map((x) => [x.a, x.boardPlace]))), "", "the vault bot's place check passes");
+  // A tie above the line stays whole and shares its level: 2 tied at the top, need 3 → both in, plus the next.
+  const top = R.rank([r(addrI(1), 9, 5), r(addrI(2), 9, 1), r(addrI(3), 6, 9), r(addrI(4), 6, 2), ...[5, 6, 7, 8, 9, 10].map((i) => r(addrI(i), 1, i))]);
+  const tv = R.stakedRows(R.cutLine(top)).rows;
+  assert.equal(tv[0].points, tv[1].points, "tied above the line: same value, so they share their places' weights");
+  assert.deepEqual([...vaultPaid(tv)].sort(), [addrI(1), addrI(2), addrI(4)].sort());
+  // Non-earning wallets (below the minimum stake) don't count toward the 30% or take a spot.
+  const ne = R.rank([r(addrI(1), 9, 1), r(addrI(2), 6, 1, { earning: false }), r(addrI(3), 6, 2), r(addrI(4), 6, 3), ...[5, 6, 7, 8, 9, 10].map((i) => r(addrI(i), 1, i))]);
+  assert.deepEqual([...R.stakedWinners(ne)], [addrI(1), addrI(3), addrI(4)].slice(0, 3), "9 earning → need 3: A, then the earliest two earning wallets at 6");
+});
+
+test("D-152, publish job: the recompute follows the new line and D-159's 10 per free place, and refuses a paid list over 30%", async () => {
+  // Staked: S1 clear; S2..S5 tie, S3 and S5 reach the score first. Free: 11 tie for 2nd behind F0.
+  const pl = [{ a: addrI(1), staked: true, picks: [[0, 1, 0, 10], [1, 1, 0, 11], [2, 1, 0, 12]] }];
+  for (const [i, at] of [[2, 400], [3, 100], [4, 300], [5, 200]]) pl.push({ a: addrI(i), staked: true, picks: [[0, 1, 0, at], [1, 1, 0, at + 1]] });
+  for (let i = 6; i <= 10; i++) pl.push({ a: addrI(i), staked: true, picks: [[0, 0, 1, i]] });
+  pl.push({ a: addrI(20), staked: false, picks: [[0, 1, 0, 5], [1, 1, 0, 6]] });
+  for (let i = 21; i <= 31; i++) pl.push({ a: addrI(i), staked: false, picks: [[2, 1, 0, 1000 - i]] });
+  const ok = await recomputeRun(pl);
+  assert.ok(ok.final, ok.out);
+  assert.deepEqual([ok.file.first, ok.file.second.length], [[addrI(20)], 10], "one 1st, 11 tied for 2nd: 10 share it (D-159)");
+  assert.deepEqual(ok.file.second, Array.from({ length: 10 }, (_, k) => addrI(31 - k)), "the 10 that reached the score first");
+  assert.deepEqual(ok.file.rows.slice(0, 5).map((x) => [x.player, x.points]), [[addrI(1), 255], [addrI(3), 254], [addrI(5), 254], [addrI(4), 253], [addrI(2), 253]]);
+  // The old line (the whole tie paid) is refused.
+  const whole = await recomputeRun(pl, { mutate: (f) => ({ ...f, rows: f.rows.map((x) => ([addrI(2), addrI(4)].includes(x.player) ? { ...x, points: 254 } : x.points < 254 ? { ...x, points: x.points + 1 } : x)) }) });
+  assert.equal(whole.final, false); assert.match(whole.out, /staked rows aren't/);
+  // A board that marks too many as paid (earns 3) is refused (Repo Lens #B-8 B8-A1, the cheap guard).
+  const over = await recomputeRun(pl, { mutateBoard: (bd) => { for (const x of bd.lastWeek.rows) if (x.ranked) x.earns = 3; } });
+  assert.equal(over.final, false); assert.match(over.out, /isn't within the top 30%/);
+});
+
+// ── D-166 (owner, 5 Nov): race types beside the 6-hour race: the hour ledger, typed races, their points ──
+async function typesRun(at, prev, { typesFrom = 2, picksOf = async () => [], check = undefined } = {}) {
+  const out = tmp(), log = console.log; console.log = () => {};
+  try { lastRun = await run({ p: node(at), check: check === null ? null : node(at, check || {}), prev, out, vhpOf, raceContract: "x", picksOf, prizesFrom: 0, vaultHold: false, typesFrom, stakedOf: async () => false }); } finally { console.log = log; }
+  return out;
+}
+const tfile = (dir) => JSON.parse(fs.readFileSync(path.join(dir, "T002.json"), "utf8"));
+/** The expected standings of a typed race, straight from the made-up chain and the stored hour cards. */
+function expectTyped(dir, r) {
+  const tf = tfile(dir), wk = week(dir), steps = new Map(), last = new Map();
+  for (let h = r.start; h < r.end; h += H) {
+    const six = wk.races.find((x) => x.start <= h && h < x.end), base = M.cardForLeg(six.cards, M.legOf(six.start, h, M.legsOf(six.cards)));
+    const card = M.typeCard(base, r.type, tf.hours.find((x) => x.t === h).c[r.type - 1]);
+    const hm = new Map(card.field.map((x) => [x.a, x.h]));
+    for (const x of card.field) if (!steps.has(x.a)) steps.set(x.a, 0);
+    for (let i = 0; i < N; i++) if (chain.ts[i] >= h && chain.ts[i] < h + H && hm.has(chain.who[i])) { steps.set(chain.who[i], steps.get(chain.who[i]) + hm.get(chain.who[i])); last.set(chain.who[i], chain.ts[i]); }
+  }
+  return [...steps].map(([a, s]) => ({ a, s: Math.round(s * 1e4) / 1e4, l: last.get(a) || Infinity })).sort((x, y) => y.s - x.s || x.l - y.l || (x.a < y.a ? -1 : 1));
+}
+
+test("D-166: race types are off until TYPES_FROM_WEEK is set: no T file, the 6-hour files unchanged", async () => {
+  assert.equal(M.TYPES_FROM_WEEK, null, "off on main until the contract v2 is uploaded");
+  const a = await typesRun(U("2026-11-02T00:37Z"), "", { typesFrom: null });
+  assert.ok(!fs.existsSync(path.join(a, "T002.json")));
+  assert.deepEqual(Object.keys(week(a)), ["v", "week", "start", "end", "races"], "W002.json keeps its shape (Block X reads it)");
+});
+
+test("D-166: the hour ledger, and 1-hour and 2-hour races scored from it with their own cards, picks and points", async () => {
+  const { emptyTypes } = await import(path.resolve(APP, "bot/race.ts"));
+  const e = emptyTypes(2);
+  assert.deepEqual([1, 2, 3, 4].map((t) => e.races.filter((r) => r.type === t).length), [168, 84, 7, 1], "a week: 168 1-hour, 84 2-hour, 7 daily, 1 weekly");
+  assert.equal(e.races.find((r) => r.type === 4).id, "W-2026-11-02");
+  assert.equal(e.races.find((r) => r.type === 4).end, U("2026-11-08T00:00Z"), "the weekly race: Monday to Sunday 00:00 UTC");
+  // Monday 00:37, 01:37, 02:37: cards, then the ledger hours as they become irreversible.
+  const a = await typesRun(U("2026-11-02T00:37Z"), "");
+  const b = await typesRun(U("2026-11-02T01:37Z"), a);
+  const h1 = M.typedIndex(1, U("2026-11-02T01:00Z")), h2 = M.typedIndex(2, U("2026-11-02T00:00Z"));
+  const picksOf = async (n, r, type = 0) => (type === 1 && r === h1 ? [[W1, "WIN", 10], [W2, "SHOW", 11]] : type === 2 && r === h2 ? [[W1, "WIN2", 12]] : []);
+  // Picks name the winner the ledger will give: work it out first, then run with picks on it.
+  const c0 = await typesRun(U("2026-11-02T02:37Z"), b);
+  const tf = tfile(c0);
+  assert.deepEqual(tf.hours.map((h) => new Date(h.t).toISOString().slice(11, 13)), ["00", "01"], "hours 00 and 01 in the ledger; 02 still running");
+  assert.ok(tf.hours.every((h) => h.c.length === 4 && h.b >= h.a && Object.values(h.n).reduce((x, y) => x + y) === h.b - h.a + 1), "every block of the hour counted once");
+  const r1 = tf.races.find((r) => r.id === "H1-2026-11-02T01"), r2 = tf.races.find((r) => r.id === "H2-2026-11-02T00");
+  assert.ok(r1.result.final && r2.result.final);
+  assert.equal(tf.races.find((r) => r.id === "H1-2026-11-02T02").result, null, "the running hour isn't scored");
+  for (const r of [r1, r2]) assert.deepEqual(r.result.standings.map((x) => [x.a, x.steps]), expectTyped(c0, r).map((x) => [x.a, x.s]), `${r.id}: the ledger gives the chain's standings`);
+  // Score again with picks (a fresh run from b, so nothing is final yet): wins and shows by the type's own points.
+  const win1 = r1.result.winner, show1 = r1.result.standings[1].a, win2 = r2.result.winner;
+  const real = async (n, r, type = 0) => (await picksOf(n, r, type)).map(([w, h, t]) => [w, h === "WIN" ? win1 : h === "SHOW" ? show1 : win2, t]);
+  const c = await typesRun(U("2026-11-02T02:37Z"), b, { picksOf: real });
+  const t2 = tfile(c), p1 = t2.races.find((r) => r.id === r1.id).result.picks;
+  assert.deepEqual(p1.map((x) => [x[0], x[3], x[5]]), [[W1, 1, 0], [W2, 0, 1]]);
+  const board = JSON.parse(fs.readFileSync(path.join(c, "board.json"), "utf8"));
+  const row = (a) => board.week.rows.find((x) => x.a === a);
+  assert.deepEqual([row(W1).pts, row(W1).correct, row(W1).picks], [4, 2, 2], "W1: a 1-hour win (2) + a 2-hour win (2)");
+  assert.deepEqual([row(W2).pts, row(W2).shows], [1, 1], "W2: a 1-hour show (1)");
+  assert.deepEqual(Object.keys(week(c)), ["v", "week", "start", "end", "races"], "W002.json unchanged in shape");
+});
+
+test("D-166: the payout re-check reads the ledger hours again; a changed count or pick is caught", async () => {
+  const { verifyTypes } = await import(path.resolve(APP, "bot/race.ts"));
+  const a = await typesRun(U("2026-11-02T00:37Z"), "");
+  const b = await typesRun(U("2026-11-02T01:37Z"), a);
+  const c = await typesRun(U("2026-11-02T02:37Z"), b);
+  const tf = tfile(c), wk = week(c);
+  const ctx = (picks = async () => []) => ({ p: node(U("2026-11-02T03:00Z")), check: node(U("2026-11-02T03:00Z")), headId: "0xhead", libH: 1000 + N, libT: chain.ts[N - 1], picksRead: picks });
+  const byId = (id) => wk.races.find((r) => r.id === id) || null;
+  const log = console.log; console.log = () => {};
+  try {
+    assert.equal(await verifyTypes(tf, ctx(), Infinity, Date.now, byId), "", "an honest ledger and its races pass");
+    const bad = JSON.parse(JSON.stringify(tf)); const hr = bad.hours[1]; const who = Object.keys(hr.n)[0]; hr.n[who] += 1;
+    assert.match(await verifyTypes(bad, ctx(), Infinity, Date.now, byId), /hour 2026-11-02T01: its stored blocks aren't what the chain says now/);
+    const extra = await verifyTypes(tf, ctx(async (n, r, type) => (type === 1 ? [[W1, P[0], 5]] : [])), Infinity, Date.now, byId);
+    assert.match(extra, /H1-2026-11-02T0[01]: its stored result isn't what the chain says now/, "a pick the stored result doesn't have");
+    await assert.rejects(verifyTypes(tf, ctx(), 0, () => 1, byId), /not checked yet/, "the time budget applies");
+  } finally { console.log = log; }
+});
+
+test("D-166: the second node's different blocks keep an hour out of the ledger", async () => {
+  const a = await typesRun(U("2026-11-02T00:37Z"), "");
+  const b = await typesRun(U("2026-11-02T01:37Z"), a);
+  const c = await typesRun(U("2026-11-02T02:37Z"), b, { check: { tamper: 1000 + 25 * 1200 + 5 } });   // a block in Monday 01:00-02:00
+  const tf = tfile(c);
+  assert.deepEqual(tf.hours.map((h) => new Date(h.t).toISOString().slice(11, 13)), ["00"]);
+  assert.match(lastRun.problems.join("\n"), /hour 2026-11-02T01: the two nodes disagree about the hour's blocks/);
+});
+
+test("D-166, publish job: the recompute counts the race types' picks with their own points (and leaves Sunday's out)", async () => {
+  // A: a 6-hour win (3). B: a weekly win (12). C: a daily show (2) and a 1-hour win (2). D: a Sunday 1-hour win (fun, 0).
+  const pl = [{ a: addrN(1), staked: true, picks: [[0, 1, 0, 10]] }, { a: addrN(2), staked: true, picks: [[1, 0, 0, 11]] },
+    { a: addrN(3), staked: false, picks: [[2, 0, 0, 12]] }, { a: addrN(4), staked: false, picks: [[3, 0, 0, 13]] }];
+  const typed = { [addrN(2)]: [[4, 0, 1, 0, 20]], [addrN(3)]: [[3, 1, 0, 1, 21], [1, 5, 1, 0, 22]], [addrN(4)]: [[1, 150, 1, 0, 23]] };
+  const ok = await recomputeRun(pl, { typed, rhythmFrom: "0" });
+  assert.ok(ok.final, ok.out);
+  assert.deepEqual(ok.file.rows.map((r) => r.player), [addrN(2), addrN(1)], "B (12) above A (3)");
+  assert.deepEqual(ok.file.first, [addrN(3)], "C: 2 + 2 = 4; D's Sunday win counts for no week");
+  // The same file counting the typed picks as 6-hour ones (3 / 1) is held.
+  const flat = await recomputeRun(pl, { typed, rhythmFrom: "0", mutateBoard: (b) => { for (const x of b.lastWeek.rows) if (x.a === addrN(2)) x.pts = 3; } });
+  assert.equal(flat.final, false); assert.match(flat.out, /board's last week doesn't match the week's picks/);
+});
+
+test("D-166, publish job: a recorder's T file publishes; a changed ledger hour, a changed final typed result or a bad shape holds the T file alone (Repo Lens #D-13 M-3)", async () => {
+  const a = await typesRun(U("2026-11-02T00:37Z"), "");
+  const b = await typesRun(U("2026-11-02T01:37Z"), a);
+  const c = await typesRun(U("2026-11-02T02:37Z"), b);
+  const bare = tmp(); execFileSync("git", ["init", "-q", "--bare", bare]);
+  const TY = { RACE_TYPES_FROM: "2" };
+  const first = publish(c, bare, CHECK_NOW, TY);
+  assert.ok(first.ok, first.out);
+  const pubT = () => execFileSync("git", ["--git-dir", bare, "show", "race-data:T002.json"]).toString();
+  const t0 = pubT();
+  assert.equal(JSON.parse(t0).hours.length, 2);
+  // Each bad T file: the run still publishes (W, board, index), the T file stays as published, and the run says why
+  // and raises the alert (held=true).
+  const again = (f, extra = TY) => {
+    const d = tmp(); fs.cpSync(c, d, { recursive: true }); const tf = tfile(d); f(tf);
+    fs.writeFileSync(path.join(d, "T002.json"), JSON.stringify(tf) + "\n");
+    const w = JSON.parse(fs.readFileSync(path.join(d, "W002.json"), "utf8")); w.races[27].cards = w.races[27].cards;   // unchanged W
+    const out = path.join(tmp(), "gh-out"); const r = publish(d, bare, CHECK_NOW, { ...extra, GITHUB_OUTPUT: out });
+    return { ...r, held: fs.existsSync(out) && /held=true/.test(fs.readFileSync(out, "utf8")) };
+  };
+  const cases = [
+    ["a changed ledger hour", (tf) => { const k = Object.keys(tf.hours[0].n)[0]; tf.hours[0].n[k] -= 1; tf.hours[0].a += 1; }, /a published ledger hour would change or go|standings aren't the ledger's counts|heights don't run on/],
+    ["a dropped hour", (tf) => { tf.hours.shift(); }, /a published ledger hour would change or go|an hour of it isn't in the ledger/],
+    ["a changed final result", (tf) => { const r = tf.races.find((x) => x.result?.final); r.result.checked = 1; }, /a published final result would change/],
+    ["a missing race", (tf) => { tf.races.pop(); }, /T002\.json: races/],
+    ["counts that don't add up", (tf) => { tf.hours.push({ ...tf.hours[1], t: tf.hours[1].t + H, n: { [P[0]]: 999999 } }); }, /T002\.json/],
+    // L-8: the ledger's heights run on, and a scored race's standings are the ledger's counts.
+    ["heights that don't run on", (tf) => { tf.hours.push({ t: tf.hours[1].t + H, a: tf.hours[1].b + 5, b: tf.hours[1].b + 5, n: { [P[0]]: 1 }, l: { [P[0]]: tf.hours[1].t + H + 1 }, c: [1, 1, 1, 1] }); }, /heights don't run on/],
+    // Repo Lens #D-14 N-1: canonical JSON the recorder can't read back exactly is held alone too.
+    ["an integer of 2^53", (tf) => { tf.hours[0].a = 9007199254740992; }, /can't read back exactly/],
+    ["1e+21", (tf) => { tf.hours[0].c[0] = 1e21; }, /can't read back exactly/],
+    ["nesting 70 deep", (tf) => { let x = []; for (let i = 0; i < 70; i++) x = [x]; tf.races[0].result = { final: false, deep: x }; }, /can't read back exactly/],
+    ["standings that aren't the ledger's", (tf) => { const r = tf.races.find((x) => x.result?.final && x.type === 2); r.result.standings[0].blocks += 1; }, /standings aren't the ledger's counts|a published final result would change/],
+  ];
+  for (const [what, f, why] of cases) {
+    const r = again(f);
+    assert.ok(r.ok, `${what}: the run still publishes the rest\n${r.out}`);
+    assert.match(r.out, /T002\.json \(race types\) held, not published this run/, what);
+    assert.match(r.out, why, what);
+    assert.ok(r.held, `${what}: the alert fires`);
+    assert.equal(pubT(), t0, `${what}: the published T file is unchanged`);
+  }
+  // L-2: before TYPES_FROM (the workflow's default: off) a T file is held, the rest publishes.
+  const off = again(() => {}, {});
+  assert.ok(off.ok, off.out); assert.match(off.out, /race types aren't on for that week/);
+  // M-1: a T file over 2 MB is held alone too.
+  const big = again((tf) => { tf.pad = "x".repeat(2100 * 1024); });
+  assert.ok(big.ok, big.out); assert.match(big.out, /T002\.json \(race types\) held, not published this run: over 2 MB/);
+});
+
+test("Repo Lens #D-13 L-2 / L-3: a typed week's vault file goes final only with its T file and every typed race final", async () => {
+  const pl = [{ a: addrN(1), staked: true, picks: [[0, 1, 0, 10]] }, { a: addrN(2), staked: false, picks: [[1, 1, 0, 11]] }];
+  const typed = { [addrN(2)]: [[1, 5, 1, 0, 22]] };
+  const ok = await recomputeRun(pl, { typed, rhythmFrom: "0" });
+  assert.ok(ok.final, ok.out);
+  const open = await recomputeRun(pl, { typed, rhythmFrom: "0", mutateTypes: (tf) => { tf.races.find((r) => r.type === 2).result = null; } });
+  assert.equal(open.final, false); assert.match(open.out, /a typed race of the week isn't final yet/);
+  const none = await recomputeRun(pl, { typed: {}, rhythmFrom: "0", mutateTypes: (tf) => { tf.week = 9; } });
+  assert.equal(none.final, false); assert.match(none.out, /race-types file \(T\) can't be read/);
+  // Before TYPES_FROM the T file isn't read at all: a board that counted typed points is held.
+  const early = await recomputeRun(pl, { typed, rhythmFrom: "0", typesFrom: "3" });
+  assert.equal(early.final, false); assert.match(early.out, /board's last week doesn't match the week's picks/);
+});
+
+test("Repo Lens #D-14 N-2: the race types can't be switched on before R-RACE-18 (TYPES_READY)", () => {
+  assert.equal(typeof M.TYPES_READY, "boolean");
+  if (!M.TYPES_READY) assert.equal(M.TYPES_FROM_WEEK, null, "TYPES_FROM_WEEK stays null until the R-RACE-18 PR sets TYPES_READY");
+});
+
+test("Repo Lens #D-13 L-2: the publish job's race-types switch is off while TYPES_FROM_WEEK is null, and the workflow never sets the test value", () => {
+  const yml = fs.readFileSync(path.join(APP, ".github/workflows/race.yml"), "utf8");
+  assert.match(yml, /TYPES_FROM = int\(os\.environ\.get\("RACE_TYPES_FROM"\) or TYPES_FROM_WEEK\)/);
+  assert.doesNotMatch(yml, /RACE_TYPES_FROM\s*[:=]/, "tests only");
+  const ymlWeek = yml.match(/^\s*TYPES_FROM_WEEK = (\w+)/m)[1];
+  assert.equal(ymlWeek, M.TYPES_FROM_WEEK === null ? "TYPES_OFF" : String(M.TYPES_FROM_WEEK), "race.yml's TYPES_FROM_WEEK is race-math.js's (null = TYPES_OFF)");
+});
+
+// Repo Lens #F-11 (race-prizes-var @ 745f0860): F11-1. The variable unset (deleted, renamed, or a typo such as "week 4") must never be silent: today the week goes final with
+// nothing to pay (write-once once published) and no alert.
+test("F11-1 (High): with PRIZES_FROM_WEEK unset, a finished week is not made final in silence", async () => {
+  const saved = process.env.PRIZES_FROM_WEEK; delete process.env.PRIZES_FROM_WEEK;
+  let out; try { out = await picksRun(U("2026-11-09T05:37Z"), (await weekTwoDone()).dir, { staked: [W1], prizesFrom: null }); }
+  finally { if (saved !== undefined) process.env.PRIZES_FROM_WEEK = saved; }
+  const f = vaultOf(out);
+  const said = (lastProblems || []).some((p) => /PRIZES_FROM_WEEK/.test(p));
+  assert.ok(said && !(f && f.final), `unset: the week-2 vault file is ${JSON.stringify(f)}; problems: ${JSON.stringify(lastProblems)}. Fail closed by holding (no final file) AND alerting every run.`);
+});
+
+// Repo Lens #F-12 (optional): APPEND to tests/audit/race-recorder.test.mjs. Passes at 973c3d1d: a week held for the unset
+// variable goes final by itself on the next run once the variable is set, and the alert stops.
+test("F11 fix-check probe: a week held for the unset variable goes final by itself on the next run once it is set", async () => {
+  const saved = process.env.PRIZES_FROM_WEEK;
+  try {
+    delete process.env.PRIZES_FROM_WEEK;
+    let dir = await picksRun(U("2026-11-09T05:37Z"), (await weekTwoDone()).dir, { staked: [W1], prizesFrom: null });
+    assert.equal(vaultOf(dir).final, false, "unset: pending");
+    assert.ok(lastRun.held.some((m) => /PRIZES_FROM_WEEK/.test(m)), "unset: a held alert names the variable: " + JSON.stringify(lastRun.held));
+    process.env.PRIZES_FROM_WEEK = "2";
+    dir = await picksRun(U("2026-11-09T06:37Z"), dir, { staked: [W1], prizesFrom: null });
+    const f = vaultOf(dir);
+    assert.ok(f.final && f.rows.length > 0, "set: final with rows on the next run: " + JSON.stringify(f));
+    assert.ok(!lastRun.held.some((m) => /PRIZES_FROM_WEEK/.test(m)), "set: the alert stops");
+  } finally { if (saved === undefined) delete process.env.PRIZES_FROM_WEEK; else process.env.PRIZES_FROM_WEEK = saved; }
 });

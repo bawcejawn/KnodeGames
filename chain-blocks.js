@@ -8,7 +8,7 @@
  * where B.sig[i] is an index into B.signers for block height B.from + i. Read only: nothing here signs or sends. */
 (() => {
   "use strict";
-  const SNAPSHOT = "https://raw.githubusercontent.com/bawcejawn/Knode/blocks-data/recent-blocks.json";
+  const SNAPSHOT = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/blocks-data/recent-blocks.json";
   const STORE = "kb-blocks-v1", MAX_BLOCKS = 66000, REORG = 60, WORKERS = 4;
   const isAddr = (a) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -203,14 +203,18 @@ describe("v6 stakes per game", () => {
     expect(vhpOf(CONTRACT)).toBe(5 * VHP);
   });
 
-  it("refuses deposits to the question game's id, unknown games, free-only games and while paused", () => {
+  it("refuses deposits to unknown games, free-only games and while paused; game 1 takes deposit_to into its own records (v6.1, D-116)", () => {
     const k = setup();
     gK = k;
     addGames(k);
     at(200);
     gWho = A;
     as(A);
-    expect(() => { gK!.deposit_to(new kpred.deposit_to_arguments(gWho, 1, VHP, false)); }).toThrow();
+    k.deposit_to(new kpred.deposit_to_arguments(A, 1, VHP, false));          // v6.1: the question game, like every game
+    MockVM.commitTransaction();
+    expect(k.get_player(new kpred.get_player_arguments(A, 0)).player!.pending).toBe(VHP);
+    expect(k.get_game_player(new kpred.get_game_player_arguments(A, 1, 0)).player!.pending).toBe(VHP);
+    as(A);
     expect(() => { gK!.deposit_to(new kpred.deposit_to_arguments(gWho, 9, VHP, false)); }).toThrow();
     expect(() => { gK!.deposit_to(new kpred.deposit_to_arguments(gWho, G3, VHP, false)); }).toThrow();
     expect(() => { gK!.deposit_to(new kpred.deposit_to_arguments(gWho, G2, VHP / 2, false)); }).toThrow();

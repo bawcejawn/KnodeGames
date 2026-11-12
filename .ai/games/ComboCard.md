@@ -1,6 +1,6 @@
 # Combo Card (game 8)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Combo Card, Block X and Picks chats), `DECISIONS.md` (D-038, D-060), the repo (branch `combo`). **Last updated:** 2026-11-02.
+> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Combo Card, Block X and Picks chats), `DECISIONS.md` (D-038, D-060), the repo (branch `combo`). **Last updated:** 5 Nov 2026; previous version `../archive/2026-11-04b/games/ComboCard.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -19,26 +19,27 @@ A staked "parlay" game: combine several predictions from the Producer Race and B
 - **A week** = a player's best 10 cards; ties: more hits, the earlier last hit, address. Vault points by board rank. 💬
 
 ## Rewards
-- **Staked only for now** — no free prize (D-060, D-071); a free option may be added later. 👤 A player needs at least 1 full point in the week. Share of Combo's part of the vault's weekly reward. 💬
+- **Staked:** staked players share Combo's part of the vault's weekly reward (D-060). A player needs at least 1 full point in the week (the vault check uses `minPts: 100` hundredths, R-CO-3). 👤 / 💬
+- **Free play:** a Free play board for **standings only — no free VHP prize** until the owner switches it on (D-081, D-082; was staked-only, D-071). The page must say so. Today Combo's page lets only staked wallets send cards (I-074); it must accept free players for the board to fill. 👤
 
 ## Dependencies
 - **Picks v2** (CARD type, release `92d555d0…`, 37,689 bytes): schedule → 48 h → upload within 7 days → clear, after Block X launches (D-060). 💬
-- The Picks `pick` sponsor row rises from 0.2 to **0.25 Mana** at Combo launch (D-038); sponsor v3 takes 640 argument bytes. 💬
-- Race data with `samples` from the VHP sampler — until it runs, every card is void (FC-12, I-059). 💬
+- A sponsor row for card picks, sized by measurement before launch (rows: `../platform/SPONSOR.md`; D-038's 0.2 → 0.25 plan is out of date); sponsor v3 takes 640 argument bytes. 💬
+- Race data with `samples` from the VHP sampler: a card without samples is void (FC-12); the sampler runs since 3 Nov and takes up to 12 samples a run (PR #67). 💬
 - Block X results; `combo.yml` (record, **verify**, publish) hourly at :52; `"cards": true` in `picks-data/deployment.json` and `COMBO_ENABLED=true`. 💬
 - Vault v6 stake reads; results `games-data:combo/vault/W<week>.json` ✅ `vaultGames`.
 
-## Current status (2 Nov)
-Branch `combo` @ `c8c652e` ✅ — pushed, **not merged, nothing deployed**. Tests: 747 pass, contract 71. Testnet contract `1PQZWWHb…` (game 98); measured sponsored card costs 0.1313 (6 legs) and 0.1457 (10 legs) Mana. Repo Lens fix-check 4 pending. Last in the launch line, after Block X.
+## Current status (5 Nov)
+- **⏸ Paused (D-113): no new-game work until the core is done; branch kept.**
+- Branch `combo` @ `c8c652e` ✅ — pushed, **not merged, nothing deployed**; behind `main`. Tests: 747 pass, contract 71.
+- Testnet contract `1PQZWWHb…` (game 98); sponsored card costs were measured on testnet only — re-measure on mainnet before setting the row.
+- Repo Lens fix-check 4 pending. Last in the launch line; the Picks v2 upgrade waits with the pause (D-060, D-113).
+- Work list: `../platform/CHAT_REQUESTS.md` → Combo Card.
 
 ## Known issues
 - **I-063:** live run time (record + verify) unmeasured; nothing writes v2's `wasmSha256` automatically (runbook step 5); the verify job's design is unreviewed; a local `picks` merge (`b301bfa`) may not be pushed; `bot/picks.ts` changed on `combo` (Block X told).
-- **I-059:** void cards until the sampler runs.
+- **I-074:** only staked wallets can send cards today.
 - Accepted: FC3-9 (a lagging check node stops recording), FC2-19 (clock edges can hold a file one run).
 
 ## Future plans
-Fix-check 4 → re-merge `picks` → merge `combo` → Picks v2 upgrade (after Block X) → raise the pick row to 0.25 and check with `mana-report` → testnet upgrade rehearsal → announce game 8 (48 h) → `COMBO_ENABLED=true`. Block Golf adds a Combo hole once it launches.
-
-## Update 3 Nov — Free play (D-081)
-Every game now has a **Free play board**. This game gets one for **standings only — no free VHP prize** until the owner switches it on. The page must say so.
-Today Combo's page lets only staked wallets send cards (I-074); it must accept free players for the board to fill.
+Launch path: `../platform/ROADMAP.md` (fix-check 4 → re-merge `main` → merge `combo` → Picks v2 upgrade → set the card row per `../platform/SPONSOR.md` and check with `mana-report` → testnet upgrade rehearsal → announce game 8 (48 h) → `COMBO_ENABLED=true`). Block Golf adds a Combo hole once it launches. Race legs move to the one VHP ruler with the Race (D-090).

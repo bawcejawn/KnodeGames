@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
 <title>Knode Games Admin</title>
 <style>
   :root { --bg: #f5f6f8; --panel: #fff; --ink: #14181f; --muted: #5b6573; --line: #dde1e7; --soft: #eef1f5; --accent: #2457d6; --ok: #127a43; --warn: #9a5800; --bad: #b42318; --code: #0f1420; --codeink: #dfe6f2; }
@@ -50,6 +51,9 @@
   .facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 10px 0 0; font-size: 14px; }
   .facts dt { color: var(--muted); }
   .facts dd { margin: 0; }
+  .guide { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line, #ccd); border-radius: 8px; }
+  .guide h3 { margin: 0 0 6px; font-size: 1rem; } .guide ol { margin: 8px 0 12px; padding-left: 22px; } .guide li { margin: 6px 0; line-height: 1.45; }
+  .guide-link { display: inline-block; text-decoration: none; }
   .later { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--soft); color: var(--muted); }
   code { font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
@@ -125,6 +129,13 @@
 </div>
 <script>
 (() => {
+  // This page only works on the owner's PC (npm run admin serves it on 127.0.0.1). GitHub Pages also publishes it at
+  // knodegames.com/admin/: there it does nothing but say so (R-HUB-11, public-readiness).
+  if (!["127.0.0.1", "localhost"].includes(location.hostname)) {
+    document.title = "Knode Games";
+    document.body.replaceChildren(Object.assign(document.createElement("p"), { textContent: "This is the owner's private tool. It only runs on the owner's own computer. Go to knodegames.com to play." }));
+    return;
+  }
   // The one-time key comes in the link's #fragment (never sent to any server, never in history after this).
   const KEY = location.hash.slice(1);
   history.replaceState(null, "", location.pathname);
@@ -145,7 +156,7 @@
   const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 
   const STATUS = { live: "Live", launching: "Launching", planned: "Not live yet", testnet: "Testnet" };
-  const EFFECT = { none: ["Read-only", ""], files: ["Edits files on this PC", "files"], chain: ["Changes the blockchain", "chain"] };
+  const EFFECT = { none: ["Read-only", ""], files: ["Edits files (this PC or GitHub)", "files"], chain: ["Changes the blockchain", "chain"] };
   let CAT = null, running = false;
   const history_ = [];
 
@@ -217,6 +228,17 @@
     return out;
   }
 
+  // Steps the page can't run (GitHub settings): numbered text and a button. Only this repository's GitHub pages open.
+  const GUIDE_URL = /^https:\/\/github\.com\/bawcejawn\/KnodeGames\/[A-Za-z0-9\/_.-]*$/;
+  function guide(g) {
+    const ok = GUIDE_URL.test(g.link && g.link.url || "");
+    return el("section", { class: "guide" },
+      el("h3", {}, g.title),
+      g.intro ? el("p", {}, g.intro) : null,
+      el("ol", {}, ...g.steps.map((t) => el("li", {}, t))),
+      ok ? el("a", { class: "btn guide-link", href: g.link.url, target: "_blank", rel: "noopener noreferrer" }, g.link.label + " ↗") : null);
+  }
+
   function openArea(id) {
     const area = CAT.areas.find((x) => x.id === id) || CAT.areas[0];
     store.set("kg-admin-area", area.id);
@@ -233,6 +255,7 @@
         el("p", {}, area.what),
         facts.length ? el("dl", { class: "facts" }, ...facts) : null,
         area.later ? el("div", { class: "later" }, area.later) : null,
+        ...(area.guides || []).map(guide),
         !list.length && !area.later ? el("div", { class: "later" }, "No controls here yet.") : null),
       ...byKind(list));
     window.scrollTo({ top: 0 });

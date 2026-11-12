@@ -1,6 +1,6 @@
 # Fantasy Producers (game 4) and Weekly Rival (game 5)
 
-> **Sources:** `.ai/archive/CHAT_KNOWLEDGE.md` (Fantasy Producers chat), `DECISIONS.md` (D-059), the repo (branch `fantasy`). **Last updated:** 2026-11-02.
+> **Sources:** `claude/repo-history/CHAT_KNOWLEDGE.md` (Claude project, private) (Fantasy Producers chat), `DECISIONS.md` (D-059), the repo (branch `fantasy`). **Last updated:** 5 Nov 2026; previous version `../archive/2026-11-04b/games/FantasyProducers.md`.
 > **Legend:** ✅ verified · 💬 from a chat · 👤 owner · ❓ unknown
 
 ## Purpose
@@ -15,29 +15,32 @@ Fantasy football for block producers: draft five producers under a salary cap, c
 
 ## Scoring
 - Each day a producer scores **100 × blocks signed ÷ blocks expected, at most 130**; the captain counts double. A week's score is the sum of its 7 days. 💬
-- A week is final 12 h after it ends, once all 7 days, the rivals and stakes are read (FX-1); a day is final only when every hour with blocks has a race card (FX-5). 💬
+- **Timing:** `../standards/WEEK_CYCLE.md` (the one home for game timing); the branch now goes final from Mon 00:00 after two matching runs (D-125). A week is final only once all its days, the rivals and stakes are read (FX-1); a day is final only when every hour with blocks has a race card (FX-5). 💬
 - **Rival:** a match counts only if both players had a team all 7 days and both are staked; records keep challenges made and received apart. An all-time table (total, weeks played, best week). 💬
 
 ## Rewards
 - **Staked:** the top 30% of Fantasy stakers with ≥ 1 point share Fantasy's part of the vault's weekly reward. Vault points: 255 for the best week, one less per lower distinct score, never below 1, ranked among stakers only. 💬
-- **Free play:** **yes, standings only** — a Free play board, **no free VHP prize** until the owner switches it on (D-081, 3 Nov; was staked-only, D-071). The branch has no free board yet — the Fantasy chat must add one. 👤
+- **Free play:** **yes, standings only** — a Free play board, **no free VHP prize** until the owner switches it on (D-081, 3 Nov; was staked-only, D-071). The Free play board is built on the branch (#188). 💬
 - **Weekly Rival and the all-time table:** records only, no prize. 💬
 
 ## Dependencies
 - **Picks contract:** register games 4 (list of 5, daily rounds) and 5 (one address, weekly) — 48 h wait. 💬
-- Race cards with enough samples (the VHP sampler, I-059); Fantasy currently also uses flagged low-sample cards (I-062). 💬
+- Race cards with enough samples (the VHP sampler, up to 12 samples a run since PR #67); Fantasy currently also uses flagged low-sample cards (I-062, R-FA-3). 💬
 - Recorder `bot/games/fantasy.ts` + `fantasy-math.js`, published by `games.yml` behind `FANTASY_ENABLED` (it never blocks Block X); files up to 8 MB. 💬
 - Vault v6: game 4 staked; results `games-data:fantasy/vault/W<week>.json` ✅ (C-22 resolved).
 
-## Current status (2 Nov)
-Branch `fantasy` @ `2bee805` ✅ — pushed, **not merged, nothing deployed**; testnet practice deployed (Picks copy `1DZX8RV…`). The owner's practice run stopped mid-week on 29 Oct; no full test week yet. Repo Lens fix-check package ready, not yet run. Tests: 522 pass, 1 fail (a `picks` issue).
+## Current status (5 Nov)
+- **Branch `fantasy` @ `a60da0b`, PR #188 (5 Nov):** main merged; card gate and Free board built and tested; final from Mon 00:00 after two runs; Sunday fun round with the Saturday team (D-150). Next: RECORDER_STANDARD §4.1 / §4.2, then one fix-check, a full test week, a sponsor row for Picks games 4 and 5.
+- **▶ Reactivated 5 Nov (D-142): one of the next three games to launch. Its chat starts with `../platform/CHAT_REQUESTS.md` → R-ALL-9 (the catch-up on the 4–5 Nov standards), then its own section.**
+- **Not merged, nothing deployed.** Testnet practice deployed (Picks copy `1DZX8RV…`); the owner's practice run stopped mid-week on 29 Oct, no full test week yet. Repo Lens fix-check prompt: `claude/fantasy/REPOLENS-FANTASY-FIXCHECK-PROMPT.md` (Claude project).
+- Work list: `../platform/CHAT_REQUESTS.md` → Fantasy Producers.
 
 ## Known issues (I-062)
-- BX-38 race cards use the highest VHP over 6 h, so a producer whose VHP drops scores under 100 for up to 6 h; flagged low-sample cards still used — decide with the owner.
+- BX-38 race cards use the highest VHP over 6 h, so a producer whose VHP drops scores under 100 for up to 6 h; flagged low-sample cards still used — add the card quality gate (≥ 12 samples, no flags) like Block X and Combo (R-FA-3).
 - Small producers swing (e.g. Knode Swap priced at the 40 cap); the price formula needs a real-data simulation.
 - Live race cards sometimes arrive ~28 minutes late — check day finality copes.
-- `site.mobile-nav.test.mjs` fails on `picks` (Block X fix).
+- `site.mobile-nav.test.mjs` failed on `picks`; it passes on `main` ✅ (re-merge `main` to pick it up).
 - FX-1 to FX-10 and later work not yet independently checked.
 
 ## Future plans
-Fix-check → fixes → real-data simulation → a full test week and roll into week 2 → register games 4 and 5 (48 h) → merge, `FANTASY_ENABLED=true`, menus and SEO, remove `noindex`; first price list the Saturday before the launch Monday. Open question for the owner: a Telegram reminder as well as the on-page one? Producer names are shared across games (Koinos @names, D-030).
+Launch path: `../platform/ROADMAP.md` (fix-check → fixes → real-data simulation → a full test week and roll into week 2 → register games 4 and 5 (48 h) → merge, `FANTASY_ENABLED=true`, menus and SEO, remove `noindex`; first price list the Saturday before the launch Monday). Later: move to the one VHP ruler (D-090). Open question for the owner: a Telegram reminder as well as the on-page one? Producer names are shared across games (Koinos @names, D-030).

@@ -1,19 +1,110 @@
 {
   "v": 1,
-  "updated": "2026-10-30T20:44:03.939Z",
+  "updated": "2026-11-05T00:45:00.000Z",
   "margin": 2,
   "rows": [
     {
       "name": "KnodeGames Picks pick",
       "contract": "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm",
       "entry_point": 2363702380,
-      "max_mana": "20000000",
+      "max_mana": "130000000",
+      "observed": {
+        "count": 4,
+        "max": "97016364",
+        "typical": "92988178",
+        "source": "mainnet, vault switch on, blocks 40783100-40795033 (4 Nov), every block read",
+        "at": "2026-11-04T18:10:00.000Z"
+      }
+    },
+    {
+      "name": "Producer Race pick",
+      "contract": "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K",
+      "entry_point": 2363702380,
+      "max_mana": "120000000",
+      "observed": {
+        "count": 5,
+        "max": "89215426",
+        "typical": "89215426",
+        "source": "mainnet, vault switch on, blocks 40783100-40795033 (4 Nov), every block read",
+        "at": "2026-11-04T18:10:00.000Z"
+      }
+    },
+    {
+      "name": "Daily Questions answer",
+      "contract": "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr",
+      "entry_point": 229977920,
+      "max_mana": "120000000",
+      "observed": {
+        "count": 9,
+        "max": "94303409",
+        "typical": "81112029",
+        "source": "mainnet, vault switch on, blocks 40783100-40795033 (4 Nov), every block read",
+        "at": "2026-11-04T18:10:00.000Z"
+      }
+    },
+    {
+      "name": "Daily Questions claim_game",
+      "contract": "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr",
+      "entry_point": 1091036075,
+      "max_mana": "200000000",
       "observed": {
         "count": 1,
-        "max": "11600000",
-        "typical": "11600000",
-        "source": "testnet sponsored Block X pick 2026-10-30",
-        "at": "2026-10-30T20:44:03.939Z"
+        "max": "154921537",
+        "typical": "154921537",
+        "source": "testnet copy of sponsor b84e1add in front of the v6.1 test vault (npm run bot -- testnet-v61-sponsor, PR #114), priced at mainnet's 4 Nov prices; owner 4 Nov: \"Raise sponsor limit to 2.4\" (claude/blockx/FROM-VAULT-2026-11-04-sponsor-limits.md)",
+        "at": "2026-11-05T00:45:00.000Z"
+      }
+    },
+    {
+      "name": "Daily Questions claim",
+      "contract": "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr",
+      "entry_point": 3709549617,
+      "max_mana": "200000000",
+      "observed": {
+        "count": 1,
+        "max": "154921537",
+        "typical": "154921537",
+        "source": "testnet copy of sponsor b84e1add in front of the v6.1 test vault (npm run bot -- testnet-v61-sponsor, PR #114), priced at mainnet's 4 Nov prices; owner 4 Nov: \"Raise sponsor limit to 2.4\" (claude/blockx/FROM-VAULT-2026-11-04-sponsor-limits.md) (the old call: measured as claim_game)",
+        "at": "2026-11-05T00:45:00.000Z"
+      }
+    },
+    {
+      "name": "Daily Questions withdraw_from",
+      "contract": "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr",
+      "entry_point": 1527426808,
+      "max_mana": "155000000",
+      "observed": {
+        "count": 1,
+        "max": "123210661",
+        "typical": "123210661",
+        "source": "testnet copy of sponsor b84e1add in front of the v6.1 test vault (npm run bot -- testnet-v61-sponsor, PR #114), priced at mainnet's 4 Nov prices; owner 4 Nov: \"Raise sponsor limit to 2.4\" (claude/blockx/FROM-VAULT-2026-11-04-sponsor-limits.md)",
+        "at": "2026-11-05T00:45:00.000Z"
+      }
+    },
+    {
+      "name": "Daily Questions withdraw",
+      "contract": "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr",
+      "entry_point": 3262063323,
+      "max_mana": "155000000",
+      "observed": {
+        "count": 1,
+        "max": "123210661",
+        "typical": "123210661",
+        "source": "testnet copy of sponsor b84e1add in front of the v6.1 test vault (npm run bot -- testnet-v61-sponsor, PR #114), priced at mainnet's 4 Nov prices; owner 4 Nov: \"Raise sponsor limit to 2.4\" (claude/blockx/FROM-VAULT-2026-11-04-sponsor-limits.md) (the old call: measured as withdraw_from)",
+        "at": "2026-11-05T00:45:00.000Z"
+      }
+    },
+    {
+      "name": "Daily Questions settle",
+      "contract": "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr",
+      "entry_point": 1751705661,
+      "max_mana": "145000000",
+      "observed": {
+        "count": 1,
+        "max": "115000000",
+        "typical": "115000000",
+        "source": "testnet copy of sponsor b84e1add in front of the v6.1 test vault (npm run bot -- testnet-v61-sponsor, PR #114), priced at mainnet's 4 Nov prices; owner 4 Nov: \"Raise sponsor limit to 2.4\" (claude/blockx/FROM-VAULT-2026-11-04-sponsor-limits.md) (estimate: old-rules settle of 30 answers ~0.7 own + ~0.43 sponsor checks)",
+        "at": "2026-11-05T00:45:00.000Z"
       }
     }
   ]

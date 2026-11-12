@@ -2,7 +2,7 @@
 
 > **Purpose:** what must always be true about how Knode Games holds, accounts for and pays out staked VHP. **Funds safety comes first: when in doubt, don't move funds** (D-003, D-016).
 > **Applies to:** the vault contract, the bot's vault code, and every game that sends results to the vault.
-> **Last updated:** 2026-11-02 (consolidated)
+> **Last updated:** 2026-11-03 (games 2 and 7 announced; every results file fills free winners; D-081 / D-082)
 > **Built from:** `platform/DECISIONS.md` (D-xxx), the Vault, Race, Survivor, Bracket, Golf, Last Node and Combo chats, and the repo. How the contract works in detail: `platform/ARCHITECTURE.md` → Vault v6. Tokens and keys: `TOKEN_STANDARD.md`.
 
 **Words:** **must** = required · **should** = expected · ✅ verified in the repo · ❓ = not yet decided
@@ -12,7 +12,7 @@
 |------|-------|
 | Contract | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` — the game contract, upgraded in place to Vault v6 on 2 Nov ✅ |
 | Builds | live `eed38f7c…`; emergency withdrawals-only `e84fec49…` ✅ |
-| Games | game 1 (Daily Questions) built in; results sources for 2, 3, 4, 6, 7, 8, 9, 13 in `vaultGames` ✅; none registered yet beyond game 1 |
+| Games | game 1 (Daily Questions) built in; results sources for 2, 3, 4, 6, 7, 8, 9, 13 in `vaultGames` ✅; games **2 (Block X) and 7 (Race) announced 3 Nov**, applicable Thu 5 Nov 15:51 UTC; the rest not yet added |
 | Seed | 21,050 VHP, seed owner `1K8VV…` (D-022) |
 | Producer | the **Knode Games Pool** = the vault address, via the game node (D-073) |
 | First paying week | vault week 3 (Mon 9 Nov) for games applied Wed 4 – Sun 8 Nov (D-062, D-063) |
@@ -30,7 +30,7 @@
 1. **Deposit:** whole VHP only; KOIN may be burned 1:1 into VHP on deposit (`deposit_to`).
 2. **Earn:** the vault's VHP produces blocks as the **Knode Games Pool** — the vault address `1Mpmf2…` is the producer (D-073), run by the game node; block rewards accrue to the vault.
 3. **Fee:** a flat **5%** of gross rewards, collected with `claim-fee-vhp all`.
-4. **Free prizes:** 2 + 1 VHP per week on each free game (D-062); multi-week seasons pay once at season end (D-068); every game has a Free play board, but Combo, Golf, Survivor and Fantasy pay no free prize until the owner switches it on (D-081) — they are still added **with** `--free`, and the owner's **free-prize switch** (D-082) keeps the prize off.
+4. **Free prizes:** 2 + 1 VHP per week on each free game (D-062); multi-week seasons pay once at season end (D-068); every game has a Free play board, but Combo, Golf, Survivor and Fantasy pay no free prize until the owner switches it on (D-081) — they are still added **with** `--free`, and the owner's **free-prize switch** (D-082) keeps the prize off. An unwon or held prize rolls **fee-free into the next week's pot** (`rolled_over`), never leaving the vault ✅ (Vault chat, 3 Nov).
 5. **Split:** the rest goes to the staked games by each game's staked weight for the week (`weightFor`).
 6. **Within a game:** by the game's own rules from its results file (Race medals top 30%, Fantasy top 30%, Combo best 10 cards, Golf 7 × holes − strokes, Bracket / Last Node / Survivor by points).
 7. **Claim:** `claim_game` per game and week; the site batches up to 10 claims and looks back 52 weeks.
@@ -57,8 +57,9 @@
  "second": ["<address>", …],   // free winners, ≤ 10
  "skipped": [ … ]}             // optional: rounds left out
 ```
-- `rows`: staked players with ≥ 1 point, dense-ranked onto 255 … 1 (ties share; past 255 places the best 254 stay exact and the rest share 1). A week with no qualifying players may still get a file with empty rows.
-- Staked-only games leave `first` and `second` empty.
+- `rows`: staked players with ≥ 1 point, dense-ranked onto 255 … 1 (ties share). **The paid set comes first (D-152):** the top 30% exactly; a tie that crosses the line is split, its wallets that reached the score first keeping the line's value and the rest taking the next value down. Past 255 places the paid wallets keep values of their own above every unpaid one (I-086: the best 253 exact, the rest of the paid share 2, the unpaid share 1). A week with no qualifying players may still get a file with empty rows.
+- **Every game fills `first` and `second`** with its free winners, even when its free prize is off. The owner's free-prize switch (D-082, `platform/FREE_PRIZE_SWITCH.md`) decides whether the bot posts them.
+- **Free-prize places (D-159, the same for every game):** 1st and 2nd are each paid to **at most 10 wallets**. Wallets tied on a place share it. If more than 10 qualify for the same place, **exactly 10** are paid, chosen by a deterministic tie-break: **earlier score time, then address**. A place is **never left empty because of the cap**. A tie for 1st leaves 2nd empty (D-034); wallets cut by the cap get nothing. Each game's file says what its "score time" is; a game that can't say stops and asks the owner (D-160).
 
 **Every results file must:**
 - be published **only after the week ends**, and for staked rows only after the stakes are read once the week has ended;
@@ -67,16 +68,32 @@
 - **fail closed** — no final file if the ABI or contract is missing, `get_state` is empty, any stake read fails, or the two nodes disagree; a read failure is never "not staked" (V4);
 - pass the publish job's checks: right game id, ordered rows with points 1–255, ≤ 10 per free place, no wallet twice, canonical bytes, ≤ 2 MB, no nested folders; a failing vault file is held on its own while the game's other files still publish.
 
+**The Race's own hold:** the Race doesn't publish HOLD/RELEASE files. Its recorder keeps a final file pending for 12 hours after the week and until the same file was seen on two runs ≥ 1 hour apart, and the owner can hold weeks with `RACE_HOLD_WEEKS` (I-034, PR #85). The vault bot can't see that owner hold; it sees only that no final file exists yet.
+
 **Holds:** a game may publish `HOLD-W<week>.json` instead of paying (Last Node watch-and-hold, released by `LASTNODE_RELEASE_WEEKS`, D-055). Forged or unverified cards, or a stake disagreement, block that week's file (Combo).
 
 **Before any game pays from its file:**
 - the final file must not hinge on a single run with no hold (I-034);
 - the vault recomputes what it can from the chain, since `games-data` files can't prove their own days or stake lists (I-051);
 - the vault bot honours HOLD files, verifies that every staked board player is in the file, and alerts on a refused prize post (I-052, I-064).
+  - **Built in PR #74 (merged 4 Nov after Repo Lens #D-4 GO):**
+    - HOLD files (unreadable = held);
+    - the results file is cross-checked against the game's `board.json` (`lastWeek` = the vault week; every staked wallet with points must be in the file; every file wallet on the board, in board order; a missing, unreadable or wrong-week board holds the week);
+    - a refused post or seal is alerted, and that week stops without a seal and isn't retried blindly;
+    - a file is posted only after the identical file was read on an earlier run at least 30 minutes before. A file that changes is held for good, and the owner checks it and posts it by hand (`game-post`).
+  - A manual `game-post` applies every check except the two-run wait.
+  - **So every staked game must publish `board.json` next to its vault folder** (rows with `points` and a place), or set `vaultGames.<id>.board` (I-079).
+  - Points themselves aren't recomputed in the bot yet (I-080).
+  - **After the Repo Lens #D-3 fixes (PR #74 @ `ec61bb4`, 4 Nov):**
+    - a HOLD file holds the week unless a `RELEASE-W<week>.json` sits next to it;
+    - per-game settings in `game-data/deployment.json` → `vaultGames.<id>`: `board: "none"` (skip the board check; Survivor for now), `minPts` (the file's points floor; Combo 100), `boardCap` (rows the board keeps; Bracket 1,000, Last Node 2,000);
+    - only a chain **revert** counts as a refusal (network, Mana and "not seen in a block" are retried next run);
+    - a failed finalize stops the finalize loop.
 
 ## 7. Timing
 - A game applied in week W earns from W + 1; results are posted for registered games only, for weeks they earn (`from_week <= w`) ✅.
 - Results are due 3/7 of a week after the week ends; finalizing starts after `seal + 2 × close_delay` and `last_change + close_delay`; corrections and voids are allowed for 24 h after each seal and refused once finalizing starts.
+- **The weekly rhythm (D-125):** games play Mon 00:00 → Sat 24:00 UTC and review on Sunday; results files go final from Mon 00:00 UTC. The bot (hourly at :07, 30-min two-read check) posts and seals ~1–2 h later; finalizing is allowed 24 h after the seal, so claims open from about **Tue ~02:00–04:00 UTC (Mon 6–8 PM PST)**. No contract change: the vault week stays Monday to Monday. Game 1 (Daily Questions) keeps its own timing (claims from about Tue 12:00–15:00 UTC, Tue 4–7 AM PST, later if Saturday's questions resolve on Monday). Sunday fun rounds (D-129) never reach a vault results file.
 
 ## 8. Admin powers
 | Action | Who | Safeguards |

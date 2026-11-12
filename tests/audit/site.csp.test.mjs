@@ -95,7 +95,7 @@ test("(guard) every origin the pages fetch or load from is allowed (connect-src 
       const tn = json("testnet/blockx.json");
       if (!allows(conn, tn.rpc + "/")) missing.push(`${p}: connect-src lacks the testnet node ${tn.rpc}`);
       if (!allows(conn, tn.data + "blockx-2/board.json")) missing.push(`${p}: connect-src lacks the testnet data branch`);
-      for (const bad of ["https://api.koinos.io/", "https://koinos.armana.io/", "https://koinvault.app/api/dapp/status", "https://raw.githubusercontent.com/bawcejawn/Knode/games-data/x"])
+      for (const bad of ["https://api.koinos.io/", "https://koinos.armana.io/", "https://koinvault.app/api/dapp/status", "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/x"])
         if (allows(conn, bad)) missing.push(`${p}: the testnet page may reach ${bad}`);
       for (const m of html.matchAll(/<script\b[^>]*\bsrc="(https:[^"]+)"/g)) if (!allows(srcList(c, "script-src"), m[1])) missing.push(`${p}: script-src blocks ${m[1]}`);
       continue;

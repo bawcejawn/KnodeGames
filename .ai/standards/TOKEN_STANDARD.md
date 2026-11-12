@@ -2,7 +2,7 @@
 
 > **Purpose:** how Knode Games handles KOIN, VHP, Mana and keys — which contracts may hold tokens, how amounts are measured and shown, and how every send is kept safe.
 > **Applies to:** every contract, bot, tool and page in the project.
-> **Last updated:** 2026-11-02 (first written)
+> **Last updated:** 5 Nov 2026 (status sync; first written 2 Nov)
 > **Built from:** `platform/DECISIONS.md` (D-xxx), `platform/KOINOS.md`, the chats' standing rules and the repo. Related: `VAULT_STANDARD.md`.
 
 **Words:** **must** = required · **should** = expected · ✅ verified in the repo · ❓ = not yet decided
@@ -24,12 +24,12 @@ Knode Games has **no token of its own** (D-072). The possibility stays open for 
 | **Mana sponsor** (`1ByDDS…`) | its own KOIN, for Mana only | never holds player funds (D-061) |
 | **Picks, Race picks** | nothing | hold no tokens and never pay Mana ✅ |
 | **Guest wallets** | nothing | play-only keys; never hold funds |
-| Owner, treasury, seed owner, operator | their own funds | separate wallets for separate roles; moves follow `docs/WALLETS.md` |
+| Owner, treasury, seed owner, operator | their own funds | separate wallets for separate roles; moves follow `docs/WALLETS.md` (rewritten in #73, §7 updated in #162); who controls what: `../platform/KEYS_AND_ROLES.md` |
 
 New contracts **must not** hold player tokens unless the owner decides otherwise and the vault standard's invariants are kept.
 
 ## 3. Amounts
-- **Units:** VHP and KOIN use 8 decimals: 1 VHP = 100,000,000 base units (`minStake` = 100000000 = 1 VHP ✅). Mana limits use the same units (0.2 Mana = 20,000,000).
+- **Units:** VHP and KOIN use 8 decimals: 1 VHP = 100,000,000 base units (`minStake` = 100000000 = 1 VHP ✅). Mana limits use the same units (1.3 Mana = 130,000,000; live limits: `../platform/SPONSOR.md`).
 - **Deposits** are whole VHP (`deposit_to`); withdrawals and moves may be any amount.
 - **On chain and in code**, amounts are integers in base units; never floating point. In published JSON, numbers must be JS-safe (within ±2⁵³−1, finite, no integer-valued floats).
 - **On the page**, show VHP and KOIN in whole units with sensible decimals, and Mana as a small decimal; explain what each amount means (D-059).
@@ -47,9 +47,9 @@ New contracts **must not** hold player tokens unless the owner decides otherwise
 - **Mana payment:** the sponsor pays stake, withdraw, claim and game plays — never `move_stake` (D-027). KOIN Vault users pay their own Mana (it picks its own payer).
 
 ## 6. Keys and sends
-- **Keys** live only in `.env` on the owner's PC; never pasted into chat or GitHub; never printed, stored or asked for by an AI chat. A key that is pasted anywhere is rotated (D-003, D-042).
+- **Keys** live only in `.env` on the owner's PC — except, after the weekend moves, the **owner key**, which is kept cold and loaded into `.env` only on the day of an owner action (D-083), and the **operator key**, which lives only in GitHub (D-084); never pasted into chat or GitHub; never printed, stored or asked for by an AI chat. A key that is pasted anywhere is rotated (D-003, D-042).
 - GitHub holds **one** secret: `OPERATOR_WIF`, in the `bot` environment, usable only from `main` (D-012).
-- **Every mainnet send** is a dry run unless `--send`, needs `--mainnet` on the command line and `CONFIRM_MAINNET=yes` in `.env`, and runs one step at a time (D-004, D-042).
+- **Every mainnet send:** mainnet sends are dry runs unless `--send`; every chain tool also needs `CONFIRM_MAINNET=yes` in `.env`, and the Picks tool (`npm run picks`) alone also needs `--mainnet` on the command line ✅ (code checked 3 Nov). It runs one step at a time (D-004, D-042).
 - Testnet tools must refuse mainnet (by node name and chain id); test keys are play money only, and test wallets are emptied and retired after launch.
 - A retired key is removed only after its wallet's leftover funds are moved (I-045).
 

@@ -100,7 +100,7 @@
 
   /** The bot publishes the last two days of blocks every hour as one file (branch blocks-data). One download instead
    *  of ~144 requests to the public node. It is only used if a random sample of its blocks matches the chain. */
-  const SNAPSHOT = "https://raw.githubusercontent.com/bawcejawn/Knode/blocks-data/recent-blocks.json";
+  const SNAPSHOT = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/blocks-data/recent-blocks.json";
   async function loadSnapshot(needFrom, top, headId) {
     try {
       say("Loading recent blocks…");

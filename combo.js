@@ -10,8 +10,8 @@
 
   const lib = window.koilib || window.koinos || window;
   const RPC = "https://koinos.armana.io";
-  const RACE_DATA = "https://raw.githubusercontent.com/bawcejawn/Knode/race-data/";
-  const DATA = "https://raw.githubusercontent.com/bawcejawn/Knode/games-data/combo/";
+  const RACE_DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/";
+  const DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/combo/";
   const EXPLORER = "https://koinosscan.com/address/";
   const PAGE = "https://knodegames.com/combo.html";
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Swap" };

@@ -77,22 +77,23 @@
   // card records it; a card without a mode scores exactly as before (RULE_VERSION 4 bytes unchanged). The modes differ
   // only in each producer's TARGET (the blocks it must beat) and in the luck cap:
   //  A  VHP only: target = expected (today's rule).
-  //  B  form lift, raise only: a producer whose 14-day form is above the field's expected-weighted median form is
-  //     expected to keep it up: target = expected × form ÷ median. Nobody's target is ever lowered.
-  //  C  hot hand, raise only: as B, but measured on the producer's pace over the last C_DAYS days (signed ÷ expected
-  //     share, like form but short) against the field's expected-weighted median pace, so a node that is strong THIS
-  //     week must beat that. Raise only, like B: a target is never lowered. (Lowering a target for a weak node was
-  //     tested and dropped: any discount based on past signing can be steered, D-120. A 3% discount gave an 18%
-  //     producer that signed less for three days and then in full a doubled win chance in a 6-hour race.)
+  //  B  clear edge, raise only: the node's record over [T − 14 days, T − 3 days) is read day by day (11 one-day
+  //     stretches); each day's measure is (signed − 2√signed) ÷ expected share (two standard deviations of luck taken off),
+  //     against the field's expected-weighted median form that day; lift = the best day's ratio, never below 1, so
+  //     target = expected × lift. Only a clear edge raises a node; a node that keeps signing above the field must beat it.
+  //  C  best day, raise only: as B with one standard deviation taken off, so a smaller edge raises the target.
+  //  Why this shape (Repo Lens #G-19, D-120: any target based on past signing can be steered): the last 3 days are not
+  //  read at all, so signing less just before a race changes nothing; and a node escapes a raise only by signing less on
+  //  EVERY one of the 11 days, which costs it far more blocks than the raise is worth. Taking the luck off each day stops
+  //  a lucky day raising a node that signs its share. Nobody's target is ever lowered.
   //  D  even odds: as A, but the luck cap is 100 expected blocks, so every race is mostly luck.
   // The field's median form, the core (by 14-day form) and the entry bar are the same in every mode.
-  const MODES = ["A", "B", "C", "D"], MODE_CAP = { A: LUCK_CAP, B: LUCK_CAP, C: LUCK_CAP, D: 100n * 1000000n }, C_DAYS = 3;
-  function modeLift(mode, form, median) {
-    form = big(form); median = big(median);
-    if (mode === undefined || mode === "A" || mode === "D" || median <= 0n) return M;
-    if (mode !== "B" && mode !== "C") throw new Error("mode must be A, B, C or D");
-    const r = (form * M) / median;
-    return r > M ? r : M;   // raise only
+  const MODES = ["A", "B", "C", "D"], MODE_CAP = { A: LUCK_CAP, B: LUCK_CAP, C: LUCK_CAP, D: 100n * 1000000n };
+  const LIFT_SKIP = 86400, LIFT_SPAN = 316800, STRETCHES = { B: 11, C: 11 }, LIFT_SD = { B: 2n, C: 1n };   // skip the last 3 days; read the 11 before, day by day
+  /** A stretch's measure for the lift: (signed − sd·√signed) ÷ expected share, millionths (0 if nothing was expected). */
+  function liftForm(signed, expected, sd = 1n) {
+    const sM = BigInt(signed) * 1000000n, x = sM - big(sd) * isqrt(sM * 1000000n);
+    return expected > 0n && x > 0n ? (x * 1000000n) / expected : 0n;
   }
   function voidBand(blocks) {
     if (!Number.isSafeInteger(blocks) || blocks < 1) throw new Error("blocks must be a whole number from 1");
@@ -559,14 +560,22 @@
     // and fpct use the target; pct too
     const E = (p) => (mode === undefined ? p.expected : p.target);
     if (mode !== undefined) {
-      // B measures against the card's 14-day form; C against the 3-day pace, read here from the ledger. Each against its
-      // own expected-weighted median over the field (an exact tie takes the lower value), like the core's median
-      const measure = mode === "C" ? (p) => { const H0 = imax(L.validFrom, card.T - C_DAYS * AVG), e = L.shareSum(p.a, H0, card.T - 1); return e > 0n ? (BigInt(L.signedIn(p.a, H0, card.T - 1)) * M * M) / e : 0n; } : (p) => big(p.form);
-      for (const p of producers) p.pace = measure(p);
-      const byPace = [...fieldRows].sort((x, y) => (x.pace < y.pace ? -1 : x.pace > y.pace ? 1 : 0));
-      let medPace = 0n, cumP = 0n;
-      for (const p of byPace) { cumP += p.expected; if (2n * cumP >= eAll) { medPace = p.pace; break; } }
-      for (const p of producers) { p.lift = modeLift(mode, p.pace, medPace); p.target = (p.expected * p.lift) / M; p.pct = pct(p.target, p.credited); delete p.pace; }
+      // B and C: the best of the mode's stretches over [T − LIFT_SKIP − LIFT_SPAN, T − LIFT_SKIP), each stretch's measure
+      // against the field's expected-weighted median raw form for that stretch (an exact tie takes the lower value)
+      for (const p of producers) p.lift = M;
+      const k = STRETCHES[mode] || 0, span = LIFT_SPAN / (k || 1);
+      for (let i = 0; i < k; i++) {
+        const H0 = card.T - LIFT_SKIP - LIFT_SPAN + i * span, H1 = H0 + span - 1;
+        if (H0 < L.validFrom) continue;
+        const raw = new Map(), lf = new Map();
+        for (const p of producers) { const e = L.shareSum(p.a, H0, H1), sg = L.signedIn(p.a, H0, H1); raw.set(p.a, e > 0n ? (BigInt(sg) * M * M) / e : 0n); lf.set(p.a, liftForm(sg, e, LIFT_SD[mode])); }
+        const byRaw = [...fieldRows].sort((x, y) => (raw.get(x.a) < raw.get(y.a) ? -1 : raw.get(x.a) > raw.get(y.a) ? 1 : 0));
+        let med = 0n, c = 0n;
+        for (const p of byRaw) { c += p.expected; if (2n * c >= eAll) { med = raw.get(p.a); break; } }
+        if (med <= 0n) continue;
+        for (const p of producers) { const r = (lf.get(p.a) * M) / med; if (r > p.lift) p.lift = r; }
+      }
+      for (const p of producers) { p.target = (p.expected * p.lift) / M; p.pct = pct(p.target, p.credited); }
     }
     const line = (median * CORE_LINE) / M, inCore = (p) => inField(p) && big(p.form) >= line;
     // The yardstick counts CREDITED blocks (millionths), the same blocks each producer's expected blocks are for: counting
@@ -708,7 +717,7 @@
     try { checkSettings(game); } catch (e) { return { same: false, diff: `the game's settings: ${e.message}` }; }
     const pub = typeof published === "string" ? JSON.parse(published) : published;
     const want = { game: Number(dec(game.game, "game")), round: dec(game.round, "round"), ownRule: game.ownRule, paying: game.paying, c: big(game.c).toString(10), minK: game.minK, poolRule: game.poolRule,
-      ...("mode" in game ? { mode: game.mode } : {}), W0: game.window.W0, W1: game.window.W1, L: game.window.L, S0: game.window.S0, S1: game.window.S1 };
+      mode: game.mode, W0: game.window.W0, W1: game.window.W1, L: game.window.L, S0: game.window.S0, S1: game.window.S1 };
     const got = { game: pub.game, round: pub.round, ownRule: pub.ownRule, paying: pub.paying, c: String(pub.c), minK: pub.minK, poolRule: pub.poolRule, mode: pub.mode, ...(pub.window || {}) };
     for (const k of Object.keys(want)) if (got[k] !== want[k]) return { same: false, diff: `setting ${k}: the card says ${JSON.stringify(got[k])}, the game says ${JSON.stringify(want[k])}` };
     let mine;
@@ -722,6 +731,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, MODES, MODE_CAP, C_DAYS, modeLift, modeSchedule, modeAt, modeChange, isqrt, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, MODES, MODE_CAP, LIFT_SKIP, LIFT_SPAN, STRETCHES, LIFT_SD, liftForm, modeSchedule, modeAt, modeChange, isqrt, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
     sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -117,9 +117,10 @@ export function chances(c, races, seed, cfg, opts = {}) {
   const byForm = field.map((r, i) => i).sort((a, b) => field[a].form - field[b].form), eAll = field.reduce((s, r) => s + r.e, 0);
   let med = 0; { let cum = 0; for (const i of byForm) { cum += field[i].e; if (2 * cum >= eAll - 1e-9) { med = field[i].form; break; } } }
   const core = field.map((r) => r.form >= 0.97 * med);
-  // the scoring modes (cfg.mode: B form lift raise-only on the 14-day form; C the same on the 3-day pace, which the 14-day
-  // form stands for here; D the 100-block luck cap): the target each producer must beat
-  if (cfg.mode === "B" || cfg.mode === "C") for (const r of field) { const ratio = med > 0 ? r.form / med : 1; r.e *= Math.max(1, ratio); }   // raise only (C's 3-day pace is the 14-day form here)
+  // the scoring modes (cfg.mode: B and C raise-only, modelled here on the 14-day form, which their stretches equal when a
+  // node signs steadily; the steer, which they are built to resist, is modelled with the exact code in steer.mjs; D the
+  // 100-block luck cap): the target each producer must beat
+  if (cfg.mode === "B" || cfg.mode === "C") for (const r of field) { const ratio = med > 0 ? r.form / med : 1; r.e *= Math.max(1, ratio); }   // raise only
   const eC = field.reduce((s, r, i) => s + (core[i] ? r.e : 0), 0);
   let hs = null;
   if (cfg.rank === "B") {

@@ -2,7 +2,7 @@
 // (owner, 11 Nov 2026). Read-only: reads the clock and vhp-ruler.js, writes nothing, sends nothing.
 //   node tools/vhp-ruler-mode.mjs "<schedule>" [--prev "<what the game's last week file recorded>"] [--week <vault week now>]
 // A schedule is week:mode pairs with rising weeks, like "5:B,8:C": mode B from vault week 5, C from week 8; A before the
-// first pair, and A when the variable is unset. Modes: A VHP only, B form lift (raise only), C own pace (bounded),
+// first pair, and A when the variable is unset. Modes: A VHP only, B clear edge (raise only), C best day (raise only),
 // D even odds. Prints each week's mode now and after the change, with its calendar Monday, and OK or REFUSED: a week
 // that has started never changes mode.
 import fs from "node:fs";
@@ -12,7 +12,7 @@ const GENESIS = 1792368000, WEEK = 7 * 86400;   // vault week 0 = Mon 19 Oct 202
 const box = { window: {} };
 vm.runInNewContext(fs.readFileSync(new URL("../vhp-ruler.js", import.meta.url), "utf8"), box);
 const R = box.window.KRuler;
-const NAMES = { A: "A, VHP only", B: "B, form lift", C: "C, own pace", D: "D, even odds" };
+const NAMES = { A: "A, VHP only", B: "B, clear edge", C: "C, best day", D: "D, even odds" };
 
 const args = process.argv.slice(2), opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const nextText = args[0] !== undefined && !args[0].startsWith("--") ? args[0] : "";

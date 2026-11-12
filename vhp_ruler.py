@@ -21,19 +21,19 @@ PCT_SCALE = 1 << 256
 # the length classes reach a quarter past their nominal length (UTC-clock races hold about, not exactly, 1,200 blocks an hour)
 VOID_BANDS, VOID_LONG = ((3000, 50000, 250000), (9000, 100000, 250000), (36000, 120000, 500000)), (150000, 1000000)
 LUCK_CAP = 1000 * M
-# Scoring modes (owner, 11 Nov 2026), as in vhp-ruler.js: A VHP only; B form lift, raise only (14-day form); C hot hand,
-# raise only (C_DAYS-day pace); D even odds (luck cap 100). A card without a mode scores exactly as before.
-MODES, MODE_CAP, C_DAYS = ("A", "B", "C", "D"), {"A": LUCK_CAP, "B": LUCK_CAP, "C": LUCK_CAP, "D": 100 * M}, 3
+# Scoring modes (owner, 11 Nov 2026), as in vhp-ruler.js: A VHP only; B clear edge and C best day, raise only: the best
+# of 11 one-day stretches over [T - 14 days, T - 3 days), each (signed - sd*isqrt(signed)) / expected (sd 2 in B, 1 in C)
+# against the field's median raw form that day (Repo Lens #G-19); D even odds (luck cap 100). A card without a mode
+# scores exactly as before.
+MODES, MODE_CAP = ("A", "B", "C", "D"), {"A": LUCK_CAP, "B": LUCK_CAP, "C": LUCK_CAP, "D": 100 * M}
+LIFT_SKIP, LIFT_SPAN, STRETCHES, LIFT_SD = 86400, 316800, {"B": 11, "C": 11}, {"B": 2, "C": 1}
 
 
-def mode_lift(mode, form, median):
-    form, median = _int(form), _int(median)
-    if mode is None or mode == "A" or mode == "D" or median <= 0:
-        return M
-    if mode != "B" and mode != "C":
-        raise ValueError("mode must be A, B, C or D")
-    r = form * M // median
-    return r if r > M else M   # raise only
+def lift_form(signed, expected, sd=1):
+    """A stretch's measure for the lift: (signed - sd*sqrt(signed)) / expected share, millionths, as liftForm in vhp-ruler.js."""
+    sm = signed * M
+    x = sm - sd * isqrt(sm * M)
+    return x * M // expected if expected > 0 and x > 0 else 0
 
 
 def void_band(blocks):
@@ -796,23 +796,34 @@ def score_card(L, card):
     def E(r):
         return r["expected"] if mode is None else r["target"]
     if mode is not None:
-        # B measures against the 14-day form; C against the 3-day pace from the ledger; each against its own
-        # expected-weighted median over the field, as in vhp-ruler.js
-        def measure(r):
-            if mode != "C":
-                return _int(r["form"])
-            H0 = max(L.valid_from, card["T"] - C_DAYS * AVG)
-            e = L.share_sum(r["a"], H0, card["T"] - 1)
-            return L.signed_in(r["a"], H0, card["T"] - 1) * M * M // e if e > 0 else 0
-        pace = {r["a"]: measure(r) for r in rows}
-        med_pace, cum_p = 0, 0
-        for r in sorted(frows, key=lambda r: pace[r["a"]]):
-            cum_p += r["expected"]
-            if 2 * cum_p >= e_all:
-                med_pace = pace[r["a"]]
-                break
+        # B and C: the best of the mode's stretches over [T - LIFT_SKIP - LIFT_SPAN, T - LIFT_SKIP), as in vhp-ruler.js
         for r in rows:
-            r["lift"] = mode_lift(mode, pace[r["a"]], med_pace)
+            r["lift"] = M
+        k = STRETCHES.get(mode, 0)
+        span = LIFT_SPAN // (k or 1)
+        for i in range(k):
+            H0 = card["T"] - LIFT_SKIP - LIFT_SPAN + i * span
+            H1 = H0 + span - 1
+            if H0 < L.valid_from:
+                continue
+            raw, lf = {}, {}
+            for r in rows:
+                e, sg = L.share_sum(r["a"], H0, H1), L.signed_in(r["a"], H0, H1)
+                raw[r["a"]] = sg * M * M // e if e > 0 else 0
+                lf[r["a"]] = lift_form(sg, e, LIFT_SD[mode])
+            med, c = 0, 0
+            for r in sorted(frows, key=lambda r: raw[r["a"]]):
+                c += r["expected"]
+                if 2 * c >= e_all:
+                    med = raw[r["a"]]
+                    break
+            if med <= 0:
+                continue
+            for r in rows:
+                x = lf[r["a"]] * M // med
+                if x > r["lift"]:
+                    r["lift"] = x
+        for r in rows:
             r["target"] = r["expected"] * r["lift"] // M
             r["pct"] = pct(r["target"], r["credited"])
     line = median * CORE_LINE // M
@@ -890,8 +901,7 @@ def recompute(L, published, game):
     w = game["window"]
     want = {"game": int(_dec(game["game"], "game")), "round": _dec(game["round"], "round"), "ownRule": game["ownRule"],
             "paying": game["paying"], "c": str(int(game["c"])), "minK": game["minK"], "poolRule": game["poolRule"]}
-    if "mode" in game:
-        want["mode"] = game["mode"]
+    want["mode"] = game.get("mode")   # always compared (Repo Lens #G-19): no mode on one side is a clear refusal
     want.update({"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]})
     got = {"game": pub.get("game"), "round": pub.get("round"), "ownRule": pub.get("ownRule"), "paying": pub.get("paying"),
            "c": str(pub.get("c")), "minK": pub.get("minK"), "poolRule": pub.get("poolRule"), "mode": pub.get("mode")}

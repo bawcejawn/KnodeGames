@@ -177,14 +177,26 @@ unless they choose to use `target`.
 | Mode | Name | Target | Luck cap |
 |---|---|---|---|
 | **A** | VHP only | `expected` (RULE_VERSION 4 as merged) | 1,000 blocks |
-| **B** | form lift, raise only | `expected × form ÷ median form` when the producer's 14-day form is above the field's expected-weighted median form; otherwise `expected`. A node that usually signs above the field must beat its own record; nobody's target is ever lowered | 1,000 |
-| **C** | hot hand, raise only | as B, but on the producer's **pace**: signed ÷ expected share over the 3 days before the card (`C_DAYS`), against the field's expected-weighted median pace. A node that is strong this week must beat that; nobody's target is ever lowered | 1,000 |
+| **B** | clear edge, raise only | The node's record over the **11 days before the last 3** (`[T − 14 d, T − 3 d)`) is read **day by day**. Each day's measure is `(signed − 2√signed) ÷ expected share` (two standard deviations of luck taken off), against the field's expected-weighted median form that day. `lift` = the best day's ratio, never below 1; `target = expected × lift`. Only a clear edge raises a node; nobody's target is ever lowered | 1,000 |
+| **C** | best day, raise only | as B with **one** standard deviation taken off (`LIFT_SD`), so a smaller edge raises the target | 1,000 |
 | **D** | even odds | `expected` | **100 blocks**: every producer is scored on about 100 blocks' worth at most, so a race is mostly luck and node quality matters less |
 
 - **Why no mode lowers a target.** A discount for a node that signed below its share was built and tested ("own pace,
   bounded": a target no lower than 97% of the VHP share). Any discount based on past signing can be steered (D-120):
   an 18% producer that signed 20% less for three days and then in full in a 6-hour race doubled its win chance under
   that 3% discount. So every mode is raise-only; the way for a weak signer to win more is to sign its share.
+- **Why B and C read stretches, and not the last 3 days (Repo Lens #G-19).** A raise read on the recent past can be
+  escaped the same way: sign less before the race, then in full in it. The first B (14-day form) and C (3-day pace) let
+  an 18% node escape half its raise with three days of signing 6% less. Now:
+  - the last 3 days (`LIFT_SKIP` = 86,400 blocks) are not read at all, so a steer just before a race changes nothing;
+  - the raise is the **best** day, so a node escapes it only by signing less on **every** one of the 11 days
+    (`LIFT_SPAN` = 316,800 blocks), which costs it far more blocks than the raise is worth;
+  - two (B) or one (C) standard deviations of luck are taken off each day, so a lucky day doesn't raise a node that signs
+    its share (tested on a field where every node signs exactly its share: no mode moves anyone's win chance).
+  - Tried and dropped: three 3.7-day stretches for B (an 8-day steer escaped 40% of the raise); a raise from the node's
+    size class (others' form; unsteerable, but less fair than mode A).
+  Measured (`sims/ruler/steer.mjs`, the exact code; the lab study on real vhp-data is in the project doc
+  `claude/ruler/MODES-B-C-REWORK-G19-2026-11-12.md`).
 - **A card without a mode** is byte-identical to RULE_VERSION 4. A card with a mode records `mode` after `poolRule`
   and each scored row carries `lift` and `target` (millionths) after `moves`. `pct` and `fpct` use the target.
 - **Mode A with the key present** gives the same numbers as no mode (lift 1), only the extra keys.

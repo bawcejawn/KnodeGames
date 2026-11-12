@@ -2,7 +2,7 @@
 // exact code games will run) on live vhp-data, for every race length a game uses, and show who would have won.
 // Read-only: reads a vhp-data checkout, writes only --out, sends nothing. Data only: nothing pays from it.
 //   node tools/vhp-ruler-shadow.mjs <vhp-data folder> [--lengths 1200,2400,7200,28800] [--races 60] [--modes A,B,C,D] [--out <folder>]
-// --modes scores the same races under each scoring mode (A VHP only, B form lift, C own pace, D even odds) side by side,
+// --modes scores the same races under each scoring mode (A VHP only, B clear edge, C best day, D even odds) side by side,
 // so the admin can compare them before choosing a mode for a future week (<GAME>_RULER_MODE).
 // Windows are block-aligned races of each length (1 h = 1,200 blocks), the latest --races of each that the data covers
 // with 14 days of form before them: the same shape as a game's race, not its exact clock times.

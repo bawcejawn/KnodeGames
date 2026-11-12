@@ -17,6 +17,7 @@
  *   npx tsx tools/capacity-harness/harness.ts --dry                  (the harness's own dry run: 50 players, ~5 s)
  *   npx tsx tools/capacity-harness/harness.ts                        (50, 1,000, 10,000, 100,000 players, ~1-3 min)
  *   npx tsx tools/capacity-harness/harness.ts --sizes 50,500,5000
+ *   npx tsx tools/capacity-harness/harness.ts --latency 50   (section 4, recorder run time: ms per fake node read; 0 = off)
  */
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -41,6 +42,8 @@ const args = process.argv.slice(2);
 const dry = args.includes("--dry");
 const si = args.indexOf("--sizes");
 const SIZES = dry ? [50] : si >= 0 ? args[si + 1].split(",").map((x) => Number(x.replace(/_/g, ""))) : [50, 1_000, 10_000, 100_000];
+const li = args.indexOf("--latency");
+const LATENCY = li >= 0 ? Number(args[li + 1]) : dry ? 0 : 20;   // ms per fake node read in section 4 (T4)
 const PUBLISH_CAP = 2 * 1024 * 1024;           // the publish jobs refuse files over 2 MB (find -size +2048k)
 const kb = (n: number) => `${(n / 1024).toFixed(0)} KB`;
 const pct = (n: number, cap: number) => `${((100 * n) / cap).toFixed(0)}%`;
@@ -69,7 +72,7 @@ say(`Guards: network blocked, CONFIRM_MAINNET not set, nothing written inside th
 const Q: any = await import(pathToFileURL(path.join(ROOT, "games/questions/recorder.ts")).href);
 say(""); say("1. DAILY QUESTIONS (real recorder code, fake node)");
 say(`   recorder cap ${kb(Q.MAX_FILE)}, publish cap ${kb(PUBLISH_CAP)}, MAX_PLAYERS ${Q.MAX_PLAYERS}`);
-function fakeQuestionsNode(players: number, answersEach: number) {
+function fakeQuestionsNode(players: number, answersEach: number, latency = 0) {
   const WEEK = 604_800_000, GENESIS = 1_792_368_000_000, W = 4;      // a Monday 00:00 UTC; week 4 = Week 1
   const start = GENESIS + W * WEEK, QN = 60, first = 1000;
   const qs = Array.from({ length: QN }, (_, i) => ({ id: first + i, week: W, outcome: 1 + (i % 4), lock_time: start + Math.floor(i / 10) * 86_400_000 + 43_200_000 }));
@@ -78,6 +81,7 @@ function fakeQuestionsNode(players: number, answersEach: number) {
   const node = {
     read: async (m: string, a: any = {}) => {
       reads++;
+      if (latency) await new Promise((r) => setTimeout(r, latency));
       if (m === "get_state") return { time: String(start + WEEK + 3_600_000), config: { genesis_time: String(GENESIS), week_length: String(WEEK), min_stake: "100000000", q60_rule_week_plus_one: "1" }, totals: { next_question_id: String(first + QN) } };
       if (m === "get_question") { const q = qs.find((x) => x.id === Number(a.id)); return { question: q ? { week: String(q.week), outcome: String(q.outcome), lock_time: String(q.lock_time) } : { week: "0" } }; }
       if (m === "list_players") {
@@ -188,6 +192,22 @@ for (const p of profiles) {
     `KOIN for 1,000 such players: ${Math.round(1000 * counted * 5).toLocaleString()} (Mana refills 1/5 of the KOIN a day)`);
 }
 say(`   claim day: a claim counts ${cap(row("Daily Questions claim_game")).toFixed(2)} Mana -> at most ${Math.floor(CAPS.all / cap(row("Daily Questions claim_game")))} claims if nothing else is sponsored that day`);
+
+// ── 4. Recorder run time (T4) ─────────────────────────────────────────────────────────────────────────────────────
+// The real Questions recorder against a fake node that answers slowly, like a real one. A live node answers in about
+// 0.1-0.5 s; the run here uses LATENCY ms a read and scales the time to 300 ms. The publish jobs allow 30 minutes.
+if (LATENCY > 0) {
+  say(""); say(`4. RECORDER RUN TIME (real Questions recorder, fake node answering in ${LATENCY} ms; scaled to 300 ms; job limit 30 min)`);
+  for (const n of SIZES.filter((x) => x <= 20_000)) {
+    const f = fakeQuestionsNode(n, 60, LATENCY);
+    const t0 = Date.now();
+    try { await Q.readSnapshot(f.node, f.W); } catch (e: any) { say(`   ${n}: ${e.message}`); continue; }
+    const ms = Date.now() - t0, at300 = (ms / LATENCY) * 300 / 60_000;
+    say(`   ${String(n).padStart(7)} players: ${f.reads()} reads per node, ${(ms / 1000).toFixed(1)} s here -> ~${at300.toFixed(1)} min at 300 ms a read (${at300 > 30 ? "OVER the 30-minute job limit" : `${Math.round((100 * at300) / 30)}% of the job limit`})`);
+  }
+  const per = 50, perRun = (n: number) => Math.ceil(n / per) + 60 + 2;   // pages of players + questions + state
+  for (const n of SIZES.filter((x) => x > 20_000)) say(`   ${String(n).padStart(7)} players: ~${perRun(n)} reads per node (worked out) -> ~${((perRun(n) * 300) / 60_000).toFixed(1)} min at 300 ms (stops on purpose above 20,000 until split files)`);
+}
 
 fs.writeFileSync(path.join(OUT, "REPORT.txt"), lines.join("\n") + "\n");
 say(""); say(`Done. Report: ${path.join(OUT, "REPORT.txt")} (delete the folder whenever you like; nothing else was written).`);

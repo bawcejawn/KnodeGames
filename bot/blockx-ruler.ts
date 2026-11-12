@@ -118,3 +118,46 @@ export function loadLedger(dir: string): any {
   }
   return R.ledger(D.timelineFrom(hours, checks));
 }
+
+// ── stage 2: the recorder's ruler entries (one per target) and day files ──
+/** A target's ruler entry. card: the canonical card JSON text (never re-made once published) | null with a note.
+ *  points: what a right pick on the signer scores (hundredths); 0 when void or no entry. A wrong pick always scores 0. */
+export type RulerTarget = { round: number; height: number; lock: number; cardRound: string; window: Window; card: string | null; note: string | null;
+  signer: string | null; points: number; void: boolean; why: string | null };
+/** X<week>-<d>.json, d = 0 (Monday) … 6 (Sunday) by the target's UTC day: at most 24 cards, so no file nears 2 MB. */
+export type RulerDay = { v: 1; week: number; day: number; rulerFrom: number | null; mode: "off" | "shadow" | "on"; shadow: boolean; targets: RulerTarget[] };
+export const xName = (week: number, day: number) => `X${String(week).padStart(3, "0")}-${day}.json`;
+export const dayOf = (time: number, weekStart: number) => Math.floor((time - weekStart) / 86400000);
+export function emptyDay(week: number, day: number, from: number | null): RulerDay {
+  const mode = modeOf(week, from);
+  return { v: 1, week, day, rulerFrom: from, mode, shadow: mode === "shadow", targets: [] };
+}
+/** How long the recorder waits for the ruler's data to score a target before it counts no pick on it (3 days, the
+ *  recorder's own look-back: vhp-data is normally an hour or two behind). */
+export const RULER_WAIT_MS = 3 * 86400000;
+
+/** A final, recorded target's ruler entry. L: the ruler's ledger (null: unavailable this run). old: last run's entry
+ *  (kept as published once it has a card). now: the run's head time (for the wait). A target the recorder voided is
+ *  void here too (no points). */
+export function entryFor(L: any, t: { round: number; height: number; time: number; signer: string | null; void?: boolean }, lead: number, now: number, old?: RulerTarget | null): RulerTarget {
+  const lock = t.height - lead, cardRound = roundOf(t.time), window = windowOf(lock);
+  if (old && old.card && old.height === t.height && old.cardRound === cardRound && JSON.stringify(old.window) === JSON.stringify(window)) return old;
+  const base: RulerTarget = { round: t.round, height: t.height, lock, cardRound, window, card: null, note: null, signer: t.signer, points: 0, void: false, why: null };
+  if (t.void || !t.signer) return { ...base, void: true, why: "the target itself is void (no signer recorded)" };
+  const late = now - t.time >= RULER_WAIT_MS;
+  const wait = (note: string) => (late ? { ...base, void: true, note, why: "the ruler couldn't score this target within 3 days: no pick on it counts" } : { ...base, note });
+  if (!L) return wait("not yet: the ruler's data isn't available this run");
+  if (t.height + R.DELAY > L.to || lock + 20 > L.to) return wait(`not yet: the ruler's data reaches block ${L.to}, the target is block ${t.height}`);
+  try {
+    const card = cardFor(L, lock, t.time), text = R.cardJson(card), sc = scoreTarget(JSON.parse(text), L, t.height, t.signer);
+    return { ...base, card: text, points: sc.points, void: sc.void, why: sc.why };
+  } catch (e) {
+    const m = (e as Error).message;
+    return wait(/not yet/.test(m) ? m : `the ruler couldn't make this card: ${m}`);
+  }
+}
+/** A pick's points on the ruler: the entry's points if the pick named the signer, else 0. undefined: not scored yet. */
+export function ruledPoints(e: RulerTarget | null | undefined, producer: string): number | undefined {
+  if (!e || (!e.card && !e.void)) return undefined;
+  return !e.void && producer === e.signer ? e.points : 0;
+}

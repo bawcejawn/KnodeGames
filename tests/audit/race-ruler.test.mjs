@@ -278,3 +278,47 @@ test("messages: vault week 4 (Mon 16 Nov) is Week 1, week 5 is Week 2, week 3 is
   assert.equal(siteWeek(2), "the week of 2026-11-02");
   assert.match(heldMessage(4, M.weekStart(5), M.weekStart(5), "x"), /^Producer Race vault week 4 \(Week 1, the week of 2026-11-16\) is HELD: x\./);
 });
+
+// ── the ruler's data behind (owner, 12 Nov): nothing is lost while it catches up, and the owner is told what to do ──
+test("ruler data behind: a race waiting only for its ruler card keeps an ON week open up to 48 h after the week ends (not skipped at Monday 00:00), then is skipped", async () => {
+  // The ruler's data stops 1 hour into the race of Mon 2 Nov 00:00: that race's card can't be made.
+  const stop = FROM + 15 * 28800 + 28800 + 1200;
+  const short = R.ledger({ ...timeline(), to: stop, signers: chain.who.slice(0, stop - FROM + 1), ids: chain.ids.slice(0, stop - FROM + 1) });
+  const a = await go(U("2026-11-02T05:37Z"), "", { rulerFrom: 2, ledger: short });
+  const b = await go(U("2026-11-02T06:37Z"), a, { rulerFrom: 2, ledger: short, picks: [[W1, P[0], 10]] });
+  const w = read(b, "W002.json");
+  for (const r of w.races) if (!r.result) r.result = { final: true, missed: true, note: "no handicap card was recorded for this race" };
+  fs.writeFileSync(path.join(b, "W002.json"), JSON.stringify(w) + "\n");
+  // Monday 9 Nov 05:37 (the usual time a week's races are skipped): it waits for the ruler instead.
+  const c = await go(U("2026-11-09T05:37Z"), b, { rulerFrom: 2, ledger: short });
+  assert.equal(read(c, "vault/W2.json").final, false);
+  assert.ok(lastRun.problems.some((m) => /1 race\(s\) waiting for the VHP ruler's result \(2026-11-02T00\).*nothing is lost/.test(m)), lastRun.problems.join(" | "));
+  // Later that Monday (past the usual alert time): still waiting, and the held alert says what to do.
+  const c2 = await go(U("2026-11-09T16:37Z"), c, { rulerFrom: 2, ledger: short });
+  assert.equal(read(c2, "vault/W2.json").final, false);
+  assert.ok(lastRun.held.some((m) => /waiting for the VHP ruler's result/.test(m) && /Re-run all jobs/.test(m)), lastRun.held.join(" | "));
+  // Wednesday 11 Nov 01:37 (past the 48 h): the race is skipped and the rest of the week goes ahead.
+  const d = await go(U("2026-11-11T01:37Z"), c2, { rulerFrom: 2, ledger: short });
+  assert.ok(!lastRun.problems.some((m) => /waiting for the VHP ruler.s result/.test(m)), lastRun.problems.join(" | "));
+  const v = read(d, "vault/W2.json");
+  assert.ok(v.final === true || (v.final === false && lastRun.problems.some((m) => /pending|12 h|hold/i.test(m))), JSON.stringify(v) + lastRun.problems.join(" | "));
+});
+
+test("ruler data behind: a result still missing 3 h after its race ended alerts the owner once, with the fix; none in a week the ruler isn't on for", async () => {
+  const stop = FROM + 15 * 28800 + 28800 + 1200;
+  const short = R.ledger({ ...timeline(), to: stop, signers: chain.who.slice(0, stop - FROM + 1), ids: chain.ids.slice(0, stop - FROM + 1) });
+  let d = await go(U("2026-11-02T05:37Z"), "", { rulerFrom: 2, ledger: short });
+  d = await go(U("2026-11-02T06:37Z"), d, { rulerFrom: 2, ledger: short });
+  assert.ok(!lastRun.held.some((m) => /VHP ruler's result/.test(m)), "not yet 3 h late");
+  const e = await go(U("2026-11-02T09:37Z"), d, { rulerFrom: 2, ledger: short });
+  const m = lastRun.held.find((x) => /the VHP ruler's result for 1 race\(s\) \(2026-11-02T00\) is still missing \d+ h after the race ended/.test(x));
+  assert.ok(m, lastRun.held.join(" | "));
+  assert.match(m, /Actions → "VHP ruler data"/); assert.match(m, /Re-run all jobs/); assert.match(m, /send its error text to the VHP Ruler chat/); assert.match(m, /nothing is lost/);
+  await go(U("2026-11-02T10:37Z"), e, { rulerFrom: 2, ledger: short });
+  assert.ok(!lastRun.held.some((x) => /VHP ruler's result/.test(x)), "once, not every hour (then once a day)");
+  // shadow week: no alert (nothing counts from it)
+  let s = await go(U("2026-11-02T05:37Z"), "", { rulerFrom: 3, ledger: short });
+  s = await go(U("2026-11-02T06:37Z"), s, { rulerFrom: 3, ledger: short });
+  await go(U("2026-11-02T09:37Z"), s, { rulerFrom: 3, ledger: short });
+  assert.ok(!lastRun.held.some((x) => /VHP ruler's result/.test(x)));
+});

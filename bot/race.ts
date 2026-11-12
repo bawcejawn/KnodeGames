@@ -528,7 +528,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   }
 
   // ── 2a. the VHP ruler (owner, 11 Nov): the 6-hour race's ruler cards for the shadow and on weeks ──
-  for (const wf of weeks.values()) rulerAll.set(wf.week, rulerWeek(wf, problems));
+  for (const wf of weeks.values()) rulerAll.set(wf.week, rulerWeek(wf, problems, now));
 
   // ── 2b. race types (D-166): the hour ledger, then the 1-hour, 2-hour, daily and weekly races scored from it ──
   for (const wf of weeks.values()) {
@@ -624,7 +624,17 @@ function loadRuler(w: number): RR.RulerFile {
 }
 /** This run's ruler file for a week: off = no cards; shadow and on = a card for every recorded 6-hour race (Sunday's
  *  rest races too in a shadow week: shadow counts for nothing anyway). */
-function rulerWeek(wf: WeekFile, problems: string[]): RR.RulerFile {
+/** The owner hears of a ruler result that is RULER_LATE_ALERT late: once (the run in the hour after it turns late), then
+ *  once a day (the owner-alert hour), while the week is paid and before its deadline. */
+function rulerLate(w: number, races: { id: string; end: number }[], now: number) {
+  if (!rulerOn(w) || !races.length) return;
+  const oldest = Math.min(...races.map((r) => r.end)), age = now - oldest;
+  if (age < RULER_LATE_ALERT || !(age < RULER_LATE_ALERT + M.HOUR || ownerAlertRun(now))) return;
+  if (!alertsFor(w, M.weekStart(w + 1), now, prizesUnset !== null ? 0 : prizesFromWeek)) return;
+  const m = `Producer Race vault week ${w} (${siteWeek(w)}): the VHP ruler's result for ${races.length} race(s) (${races.slice(0, 5).map((r) => r.id).join(", ")}${races.length > 5 ? ", …" : ""}) is still missing ${(age / M.HOUR).toFixed(0)} h after the race ended. What to do: ${RULER_FIX}.`;
+  if (!heldAlerts.includes(m)) heldAlerts.push(m);
+}
+function rulerWeek(wf: WeekFile, problems: string[], now = Date.now()): RR.RulerFile {
   const rf = loadRuler(wf.week);
   if (rf.mode === "off") return rf;
   const out: RR.RulerEntry[] = [];
@@ -637,6 +647,7 @@ function rulerWeek(wf: WeekFile, problems: string[]): RR.RulerFile {
     out.push(e);
   }
   rf.races = out;
+  rulerLate(wf.week, wf.races.filter((r) => out.some((e) => e.id === r.id && !e.card)), now);
   return rf;
 }
 
@@ -1143,6 +1154,12 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   // D-166: a typed race of the week still being scored keeps it open too (never past the same deadline).
   const openTyped = (typesAll.get(w)?.races || []).filter((r) => !r.result?.final && forWeek(r));
   const late = now >= wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER);   // D-125: the review day comes first
+  // The VHP ruler (owner, 12 Nov): a race whose result is in and that waits ONLY for the ruler's card (its data behind)
+  // keeps the week open up to RULER_GRACE after the week ends, inside the vault's 3 days, instead of being skipped at
+  // the usual time: once the ruler's data catches up the week pays in full. Past the grace it is skipped as before.
+  const rulerWaiting = open.filter((r) => r.result?.final && !r.result.missed);
+  const otherOpen = open.filter((r) => !rulerWaiting.includes(r));
+  const lateRuler = now >= wf.end + RULER_GRACE;
   const unread = rows.filter((r) => failed.has(`stake:${r.a}|${w}`));
   const file: VaultFile = { game: VAULT_GAME, week: w, final: false, rows: [], first: [], second: [], skipped: [] };
   const wait = (why: string) => { problems.push(`vault week ${w}: not final yet, ${why}`); lateAlert(w, wf.end, now, why); return file; };
@@ -1151,7 +1168,13 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
     problems.push(`vault week ${w}: not final yet, ${why}`); heldAlert(w, wf.end, now, why, "set the variable PRIZES_FROM_WEEK; the week goes final by itself on the next run");
     return file;
   }
-  if (open.length && !late) return wait(`${open.length} race(s) still being checked (${open.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
+  if (otherOpen.length && !late) return wait(`${otherOpen.length} race(s) still being checked (${otherOpen.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
+  if (rulerWaiting.length && !lateRuler) {
+    const why = `${rulerWaiting.length} race(s) waiting for the VHP ruler's result (${rulerWaiting.slice(0, 5).map((r) => r.id).join(", ")}${rulerWaiting.length > 5 ? ", …" : ""}): the ruler's data (vhp-data) is behind. The week waits for it (nothing is lost) until ${new Date(wf.end + RULER_GRACE).toISOString().slice(0, 16)} UTC, then those races are skipped`;
+    problems.push(`vault week ${w}: not final yet, ${why}`);
+    if (now >= wf.end + (onRhythm(w) ? RHYTHM_ALERT_AFTER : VAULT_ALERT_AFTER)) heldAlert(w, wf.end, now, why, RULER_FIX);
+    return file;
+  }
   if (openTyped.length && !late) return wait(`${openTyped.length} race(s) of the other types still being scored (${openTyped.slice(0, 5).map((r) => r.id).join(", ")}${openTyped.length > 5 ? ", …" : ""}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
   if (unread.length) return wait(`${unread.length} Race stake(s) could not be read (tried again next run)`);
   if (stakedCheck) {
@@ -1308,6 +1331,13 @@ export const cmdText = (t: string) => String(t).replace(/%/g, "%25").replace(/\r
 // ── D-107 (R-RACE-13, I-087): a held paid week alerts, and says what to do ──
 /** The vault takes a week's results for 3 days after the week ends; after that the week rolls over. */
 export const RESULTS_DUE_AFTER = 3 * M.DAY;
+/** The VHP ruler (owner, 12 Nov): how long after its week ends a race may wait for the ruler's card before it is skipped
+ *  (well inside RESULTS_DUE_AFTER, so the rest of the week still pays in time). */
+export const RULER_GRACE = 48 * M.HOUR;
+/** A ruler result still missing this long after its race ended alerts the owner (once, then once a day). */
+export const RULER_LATE_ALERT = 3 * M.HOUR;
+/** What to do when the ruler's data is behind (in the alert). */
+export const RULER_FIX = "the VHP ruler's data (vhp-data) is behind. GitHub → Actions → \"VHP ruler data\": if the latest run is red, click \"Re-run all jobs\"; missed hours are read back from the chain by themselves, and if it is red again the next hour, send its error text to the VHP Ruler chat. The Race retries every hour by itself and nothing is lost while the week waits (up to 48 h after the week ends)";
 /** A paid week that still isn't final this long after its week ends is "held" and alerts. Normally it goes final at
  *  about 12:37 UTC on the Monday (the 12-hour hold, then the next run), so 15 h leaves two hourly runs of slack. */
 export const VAULT_ALERT_AFTER = 15 * M.HOUR;

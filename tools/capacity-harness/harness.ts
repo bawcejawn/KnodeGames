@@ -146,11 +146,16 @@ for (const [label, fn, profiles] of [
   [`Block X week (${BX_TARGETS} hourly targets)`, blockxFile, [[BX_TARGETS, "every target"], [20, "20 picks a week"]]],
 ] as const) {
   for (const [each, what] of profiles as any) {
-    const row = SIZES.map((n) => { const b = fn(n, each); return `${n}: ${kb(b)} ${b > PUBLISH_CAP ? "OVER" : pct(b, PUBLISH_CAP)}`; });
-    say(`   ${label}, ${what}: ${row.join(" | ")}`);
-    // the largest player count that still fits
-    // File size grows in a straight line with players: fit it from 100 and 1,000 players, then check the answer.
+    // File size grows in a straight line with players: fit it from 100 and 1,000 players first, so a size far over
+    // the cap is worked out instead of built (building a 2 GB file in memory crashed the owner's PC, 12 Nov).
     const b1 = fn(100, each), b2 = fn(1000, each), per = (b2 - b1) / 900, fixed = b1 - 100 * per;
+    const BUILD_LIMIT = 16 * PUBLISH_CAP;          // ~32 MB: anything bigger is worked out, not built
+    const row = SIZES.map((n) => {
+      const est = fixed + per * n;
+      if (est > BUILD_LIMIT) return `${n}: ~${kb(est)} OVER (worked out, not built)`;
+      const b = fn(n, each); return `${n}: ${kb(b)} ${b > PUBLISH_CAP ? "OVER" : pct(b, PUBLISH_CAP)}`;
+    });
+    say(`   ${label}, ${what}: ${row.join(" | ")}`);
     const fit = Math.floor((PUBLISH_CAP - fixed) / per);
     const check = fit > 0 && fit < 200_000 ? (fn(fit, each) <= PUBLISH_CAP && fn(Math.ceil(fit * 1.02), each) > PUBLISH_CAP ? "checked" : "check failed") : "not checked";
     say(`      largest that fits under 2 MB: about ${fit.toLocaleString()} players (${Math.round(per)} bytes a player, ${kb(fixed)} fixed; ${check})`);

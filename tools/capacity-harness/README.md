@@ -20,7 +20,7 @@ npx tsx tools/capacity-harness/harness.ts
 
 - `git fetch …` only downloads the published week files it uses as templates (read-only, once).
 - `--dry` is the harness's own dry run: 50 players, about 5 seconds. It must end with `Done. Report: …`.
-- The full run (50, 1,000, 10,000, 100,000 players) takes about 2 minutes. Other sizes: `--sizes 50,500,5000`.
+- The full run (50, 1,000, 10,000, 100,000 players) takes about 2 minutes. Files far over the cap (over ~32 MB) are worked out from a straight-line fit instead of built, so the run never runs out of memory. Other sizes: `--sizes 50,500,5000`.
 - The report is saved in a temporary folder (the last line shows where). Delete that folder whenever you like.
 
 ## Results on `main` @ 3d28446 (12 Nov 2026)

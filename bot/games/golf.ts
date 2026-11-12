@@ -42,8 +42,10 @@ import { pathToFileURL } from "node:url";
 import { withRetry } from "../../common.ts";
 await import("../../race-math.js");
 await import("../../golf-math.js");
+await import("../../weeks.js");
 const M: any = (globalThis as any).KRaceMath;
 const G: any = (globalThis as any).KGolf;
+const KW: any = (globalThis as any).KWeeks;
 
 const E = process.env;
 const HOUR = 3600000;
@@ -616,7 +618,7 @@ export const plain = (x: unknown): string => String(x ?? "").replace(/[\u0000-\u
 export function statusLines(idx: any, files: Map<number, any>, now: number): string[] {
   const out: string[] = [];
   if (!idx || idx.v !== 1) return ["Block Golf has published nothing yet. Turn it on: GitHub → Settings → Secrets and variables → Actions → Variables → GOLF_ENABLED = true, then Actions → \"Block Golf recorder\" → Run workflow."];
-  const label = (w: number) => (w >= 3 ? `Week ${w - 2}` : `the week of ${new Date(M.weekStart(w)).toUTCString().slice(5, 11)}`);
+  const label = (w: number) => String(KW.label(w)); // weeks.js (D-063): "Week 1" = vault week 4, "Test week" = 3, earlier "Week of 2 Nov"
   const course = idx.course && typeof idx.course === "object" ? Object.entries(idx.course).filter(([, w]) => Number.isInteger(w)) : [];
   out.push(`Last published: ${plain(idx.updated)}. Course: ${course.map(([g, w]) => `${plain(g)} (from ${label(w as number)})`).join(", ") || "none yet"}.`);
   out.push(idx.stakedFromWeek === null || idx.stakedFromWeek === undefined

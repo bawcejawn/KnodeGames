@@ -232,10 +232,16 @@ export function checkResults(r: any, game: number, week: number): string {
   if (!r || typeof r !== "object") return "not a JSON object";
   if (num(r.game) !== game || num(r.week) !== week) return `it is for game ${r.game} week ${r.week}, not game ${game} week ${week}`;
   if (r.final !== true) return "not final yet";
+  // VHP ruler (D-162 rollout, 11 Nov): a shadow week's ruler result counts for nothing and must never reach the vault.
+  // Each game's publish job already refuses it; this is the vault's own check. Fail closed: any "shadow" mark that is
+  // not exactly false is refused. Files without the mark (everything published before the ruler, and a shadow week's
+  // real result) pass as before.
+  if (r.shadow !== undefined && r.shadow !== false) return `it is marked "shadow" (${JSON.stringify(r.shadow)}): a shadow week's ruler result never pays`;
   const rows = r.rows ?? [], first = r.first ?? [], second = r.second ?? [];
   if (!Array.isArray(rows) || !Array.isArray(first) || !Array.isArray(second)) return "rows, first and second must be lists";
   const seen = new Set<string>();
   for (const x of rows) {
+    if (x && typeof x === "object" && x.shadow !== undefined && x.shadow !== false) return `a row is marked "shadow" (${JSON.stringify(x)}): a shadow week's ruler result never pays`;
     if (!x || !ADDRESS.test(String(x.player))) return `a row has no valid address (${JSON.stringify(x)})`;
     if (!Number.isInteger(x.points) || x.points < 1 || x.points > MAX_POINTS) return `${x.player} has ${x.points} points (must be a whole number 1-255)`;
     if (seen.has(x.player)) return `${x.player} appears twice`;

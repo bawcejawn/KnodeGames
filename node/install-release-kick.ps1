@@ -7,7 +7,7 @@
 
   What it runs: node bot\release-kick.mjs (see that file). Windows starts it every 5 minutes, all day (UTC, so daylight
   saving time doesn't shift it). Around each round's release it makes sure the questions come out; at any hour, every
-  15 minutes, the heartbeat starts the bot if it hasn't run for 75 minutes (at most 6 times a day, backing off after a
+  15 minutes, the heartbeat starts the bot if it hasn't run for 120 minutes (at most 6 times a day, backing off after a
   GitHub error). Most runs do nothing and write nothing.
   Already set up before? Run it again after 'git pull': it replaces the task (all day now, owner 9 Nov).
   Its log is node\release-kick.log. It uses GITHUB_ALERT_TOKEN from .env (the self-heal email token).
@@ -43,7 +43,7 @@ $t.Repetition = (New-ScheduledTaskTrigger -Once -At ([DateTime]::Today) -Repetit
 $t.StartBoundary = "${day}T00:00:00Z"
 $triggers = @($t)
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 4) -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName "Knode question release" -Action $action -Trigger $triggers -Settings $settings -Description "Every 5 minutes, all day: start the Knode bot on GitHub so each round's questions come out on time, start it if it hasn't run for 75 minutes (at most 6 a day), and email if they don't. See C:\kprediction\bot\release-kick.mjs" -Force | Out-Null
+Register-ScheduledTask -TaskName "Knode question release" -Action $action -Trigger $triggers -Settings $settings -Description "Every 5 minutes, all day: start the Knode bot on GitHub so each round's questions come out on time, start it if it hasn't run for 120 minutes (at most 6 a day), and email if they don't. See C:\kprediction\bot\release-kick.mjs" -Force | Out-Null
 
 Write-Host ""
 $info = ((Get-ScheduledTask -TaskName "Knode question release").Triggers | ForEach-Object { $_.StartBoundary }) -join ", "

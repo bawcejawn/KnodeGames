@@ -4,7 +4,7 @@
  *
  * The switch is the repository variable BRACKET_RULER_FROM_WEEK (vhp-ruler.js switchFrom / rulerMode, the same rule in
  * every game): unset = the Bracket's own day index, as before; N = vault week N − 1 is the shadow week and every week
- * from N is on. This file is phase 1: off and shadow. A shadow week's ruler result is published beside the real one,
+ * from N is on. This file is phase 1: off and shadow (an "on" week gets no cards here: Repo Lens #G-20 G20-3). A shadow week's ruler result is published beside the real one,
  * in its own file (ruler/W<week>.json, "shadow": true), and counts for nothing: the week file's results, points and the
  * vault file never use it. An "on" week isn't scored by this build (bracket.ts holds it with an alert).
  *
@@ -86,14 +86,9 @@ export function loadLedger(dir: string | undefined): any | null {
 export function dayCard(L: any, settings: any): { text: string } | { notYet: string } {
   // the day's last block (and the ruler's delay after it) must be in the data, as in the ruler's own shadow tool
   if (settings.window.S1 + R.DELAY > L.to) return { notYet: `vhp-data reaches block ${L.to}; the day ends at ${settings.window.S1}` };
-  try {
-    const card = R.scoreCard(L, R.makeCard(L, settings));
-    return { text: R.cardJson(card) };
-  } catch (e) {
-    const m = (e as Error).message;
-    if (/not yet|no id for the seed block|not enough history|needs .* blocks of data|outside the data|beyond the data/i.test(m)) return { notYet: m };
-    throw e;
-  }
+  // (Repo Lens #G-20 Info: "not yet" only from the data's coverage, never from an error's wording; any other error
+  // is thrown, and the recorder reports it and tries again next run)
+  return { text: R.cardJson(R.scoreCard(L, R.makeCard(L, settings))) };
 }
 
 /** A scored card's matchup summary: address → fpct (decimal millionths) or null (void, not in the field). */

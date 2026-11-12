@@ -44,7 +44,7 @@ test("a void seed (no fpct) loses; both void: the day index decides; a seed miss
   assert.equal(B.results(seeds, 8, ix, undefined, undefined, [bothVoid, null, null]).rounds[0][0], 1, "both void: the index (seed 1 better)");
   const missing = new Map([...rulerDay(() => "10")].filter(([a]) => a !== seeds[7]));
   assert.equal(B.results(seeds, 8, ix, undefined, undefined, [missing, null, null]).rounds[0][0], 1, "seed 8 not on the card: it loses");
-  for (const bad of ["-1", "1.5", "", "99999999", 7]) assert.equal(B.results(seeds, 8, ix, undefined, undefined, [rulerDay((i) => (i === 7 ? bad : "10")), null, null]).rounds[0][0], 1, `fpct ${JSON.stringify(bad)} isn't a percentile: void`);
+  for (const bad of ["-1", "1.5", "", "99999999", "1000001", 7]) assert.equal(B.results(seeds, 8, ix, undefined, undefined, [rulerDay((i) => (i === 7 ? bad : "10")), null, null]).rounds[0][0], 1, `fpct ${JSON.stringify(bad)} isn't a percentile: void`);
 });
 
 test("forfeits still come first, on the day's averages (D-086, D-087)", () => {

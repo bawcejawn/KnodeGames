@@ -275,7 +275,10 @@ const bracketPy = pys.find((p) => p.includes("bracket check done"));
 // The publish job's Bracket check: `pub` = the published branch's bracket folder (default: the same files, as if this
 // run's files were already published), `now` = the job's clock (default: Monday 02:00 after the test week, final).
 const NOW = B.weekStart(W + 1) + 2 * H;   // Monday 02:00 UTC after the week: final
-const checkRun = (dir, { pub = dir, now = NOW, held = "" } = {}) => execFileSync("python3", ["-c", bracketPy, dir, pub, held], { stdio: "pipe", env: { ...process.env, CHECK_NOW_MS: String(now) } }).toString();
+// ruler: the owner's BRACKET_RULER_FROM_WEEK as the publish step gets it (Repo Lens #G-20 G20-1); unset by default
+const checkRun = (dir, { pub = dir, now = NOW, held = "", ruler = "" } = {}) => execFileSync("python3", ["-c", bracketPy, dir, pub, held], { stdio: "pipe", env: { ...process.env, CHECK_NOW_MS: String(now), BRACKET_RULER_FROM_WEEK: ruler } }).toString();
+/** What the publish check holds (file names, and "!alert" for an email), with the held list written to a file. */
+const heldOf = (dir, opt = {}) => { const f = path.join(tmp(), "held"); fs.writeFileSync(f, ""); checkRun(dir, { ...opt, held: f }); return fs.readFileSync(f, "utf8").split("\n").filter(Boolean); };
 const shapeOk = (dir, opt) => { try { checkRun(dir, opt); return true; } catch (e) { if (process.env.BR_DEBUG) console.error(String(e.stdout || "") + String(e.stderr || "")); return false; } };
 
 test("workflow: records the bracket with the same prev/out/race folders and publishes only its own files", () => {
@@ -814,7 +817,8 @@ test("R-BR-7 shadow week: day cards and the ruler's result beside the real one; 
   assert.deepEqual(s.rounds, B.results(b.seeding.seeds, b.seeding.size, days, b.seeding.vhp, b.seeding.pooled, rulerDays).rounds);
   assert.notDeepEqual(s.rounds, s.real, "these made-up cards favour the lower seeds, so the shadow bracket differs");
   assert.ok(!fs.existsSync(rulerFile(off.dir, RU.summaryName(W))), "no ruler files with the switch unset");
-  assert.ok(shapeOk(sh.dir), "the publish job accepts the shadow week's files");
+  assert.deepEqual(heldOf(sh.dir, { ruler: String(W + 1) }), ["!alert"], "the publish job accepts every shadow-week file; it alerts because week W + 1 (on) has started and phase 1 can't score it (#G-20 G20-2)");
+  assert.equal(shapeOk(sh.dir), false, "with the owner's variable unset the same files are refused (#G-20 G20-1)");
   const idx = JSON.parse(fs.readFileSync(path.join(sh.dir, "index.json"), "utf8"));
   assert.equal(idx.rulerFrom, W + 1);
 });
@@ -826,18 +830,20 @@ test("R-BR-7: a published day card is written once; the publish job refuses a ch
   assert.equal(fs.readFileSync(rulerFile(dir, name), "utf8"), was, "the next run keeps the published card exactly");
   // judged as new (no published ruler folder): wrong settings are refused
   const fresh = (mut, f = name) => { const d = tmp(), pub = tmp(); fs.cpSync(dir, d, { recursive: true }); fs.cpSync(dir, pub, { recursive: true }); fs.rmSync(path.join(pub, "ruler"), { recursive: true });
-    const p = rulerFile(d, f), j = JSON.parse(fs.readFileSync(p, "utf8")); mut(j); fs.writeFileSync(p, JSON.stringify(j) + "\n"); return shapeOk(d, { pub }); };
+    const p = rulerFile(d, f), j = JSON.parse(fs.readFileSync(p, "utf8")); mut(j); fs.writeFileSync(p, JSON.stringify(j) + "\n");
+    return !heldOf(d, { pub, ruler: String(W + 1) }).includes("bracket/ruler/" + f); };   // true = that file passes
   assert.equal(fresh(() => {}), true, "the recorder's own card passes as new");
   assert.equal(fresh((j) => { j.window.S1 += 1; }), false, "a card over other blocks than the day's");
   assert.equal(fresh((j) => { j.ownRule = "avg24h"; }), false, "another own rule");
   assert.equal(fresh((j) => { j.round = "20990101"; }), false, "another round number");
   assert.equal(fresh((j) => { j.producers[0].fpct = 0.5; }), false, "an fpct that isn't the ruler's whole millionths");
+  assert.equal(fresh((j) => { j.producers[0].fpct = "1000001"; }), false, "an fpct above 1,000,000 (#G-20 Info)");
   assert.equal(fresh((j) => { j.shadow = false; }, RU.summaryName(W)), false, "a summary not marked shadow");
   assert.equal(fresh((j) => { j.real = []; }, RU.summaryName(W)), false, "a summary whose real result isn't the week file's");
   // a published card that changed
   const d2 = tmp(), pub2 = tmp(); fs.cpSync(dir, d2, { recursive: true }); fs.cpSync(dir, pub2, { recursive: true });
   fs.writeFileSync(rulerFile(d2, name), was.replace(/"fpct":"[0-9]+"/, '"fpct":"1"'));
-  assert.equal(shapeOk(d2, { pub: pub2 }), false, "a published card can't change");
+  assert.ok(heldOf(d2, { pub: pub2, ruler: String(W + 1) }).includes("bracket/ruler/" + name), "a published card can't change");
 });
 
 test("R-BR-7 phase 1: an \"on\" week is held (no results or points, never final), and the publish job agrees", async () => {
@@ -847,13 +853,13 @@ test("R-BR-7 phase 1: an \"on\" week is held (no results or points, never final)
   assert.notEqual(wf.status, "final");
   assert.ok(!fs.existsSync(path.join(dir, "vault", `W${W}.json`)), "no vault file");
   assert.ok(!fs.existsSync(rulerFile(dir, RU.summaryName(W))), "no shadow summary for an on week");
-  assert.ok(fs.existsSync(rulerFile(dir, RU.cardName(W, 0))), "its day cards are still made (for the ruler-on update)");
-  assert.ok(shapeOk(dir), "the held on week passes the publish job's checks");
+  assert.ok(!fs.existsSync(rulerFile(dir, RU.cardName(W, 0))), "no day cards for an on week in phase 1 (written once, and only phase 2 checks them: #G-20 G20-3)");
+  assert.deepEqual(heldOf(dir, { ruler: String(W) }), ["!alert"], "the held on week passes the publish job's checks, with an alert every run (#G-20 G20-2)");
   const bad = tmp(); fs.cpSync(dir, bad, { recursive: true });
   const f = path.join(bad, `W00${W}.json`), j = JSON.parse(fs.readFileSync(f, "utf8"));
   j.results = { rounds: [], done: false }; j.points = j.picks.rows.map((x) => [x[0], 0, 0, 0]);
   fs.writeFileSync(f, JSON.stringify(j) + "\n");
-  assert.equal(shapeOk(bad), false, "an on week scored by this build is refused");
+  assert.ok(heldOf(bad, { ruler: String(W) }).includes(`bracket/W00${W}.json`), "an on week scored by this build is refused");
 });
 
 test("R-BR-7: the publish job refuses a switch change that would change how a started week is scored (switch_change)", async () => {
@@ -863,9 +869,12 @@ test("R-BR-7: the publish job refuses a switch change that would change how a st
   await quiet(() => run({ p: "main", check: "check", prev: pub, out: pub, head: headAt(B.lockTime(W) + 60000), ...o }));
   const mid = B.lockTime(W) + 2 * H;
   const next = (from) => { const d = tmp(); fs.cpSync(pub, d, { recursive: true }); return quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(mid), ...o, rulerFrom: from, dayCardOf: underdogs })).then(() => d); };
-  assert.equal(shapeOk(await next(String(W)), { pub, now: mid }), false, "unset → W during week W: the started week would turn on");
-  assert.equal(shapeOk(await next(String(W + 1)), { pub, now: mid }), true, "unset → W + 1: this week becomes the shadow week, next week on");
+  assert.equal(shapeOk(await next(String(W)), { pub, now: mid, ruler: String(W) }), false, "unset → W during week W: the started week would turn on");
+  assert.equal(shapeOk(await next(String(W + 1)), { pub, now: mid, ruler: String(W + 1) }), true, "unset → W + 1: this week becomes the shadow week, next week on");
   assert.equal(shapeOk(await next(""), { pub, now: mid }), true, "unset stays unset");
+  assert.equal(shapeOk(await next(String(W + 1)), { pub, now: mid, ruler: "" }), false, "files that don't carry the owner's variable are refused (#G-20 G20-1)");
+  assert.equal(shapeOk(await next(String(W + 2)), { pub, now: mid, ruler: "x" }), false, "an unreadable variable holds the Bracket");
+  assert.deepEqual(heldOf(await next(String(W + 1)), { pub, now: B.weekStart(W + 1) - 2 * 86400000 + 60000, ruler: String(W + 1) }).filter((x) => x === "!alert"), ["!alert"], "from 2 days before the first on week, every run alerts (#G-20 G20-2)");
 });
 
 test("R-BR-7: a ruler card that isn't ready waits (\"not yet\"); a bad switch value stops the run loudly", async () => {
@@ -874,4 +883,24 @@ test("R-BR-7: a ruler card that isn't ready waits (\"not yet\"); a bad switch va
   assert.ok(s.cards.every((c) => c === null)); assert.deepEqual(s.rounds, []); assert.equal(s.done, false);
   assert.equal(readW(dir).status, "final", "the real week doesn't wait for the ruler in the shadow week");
   for (const v of ["07", "4 ", "x", "0"]) await assert.rejects(quiet(() => run({ p: "main", check: "check", prev: tmp(), out: tmp(), head: headAt(B.seedTime(W) + H), picksContract: addr(60), nodeOf: nodeOf(signerFn(fieldOf(17))), picksOf: picksOf([]), rulerFrom: v })), /ruler switch/, v);
+});
+
+// ── Repo Lens #G-20 (PR #263 @ f225f4d1): append to tests/audit/bracket-recorder.test.mjs (uses its helpers) ──
+// G20-1 (Medium): the publish job never reads BRACKET_RULER_FROM_WEEK; it takes each incoming week file's rulerFrom and
+// only checks switch_change against the published copy at this job's week (games.yml ruler_fields / switch_change). So a
+// bad record run, BEFORE week W starts, can write week W's file with rulerFrom = W ("on"): no started week changes, so it
+// is published. Once week W starts, the honest recorder (switch unset) writes rulerFrom null and every run is refused
+// (week W would turn off); setting the variable to W instead makes week W "on", which phase 1 holds and voids at the
+// backstop. Either way one bad run costs a paid week. Fix: pass vars.BRACKET_RULER_FROM_WEEK to the publish step and
+// require every incoming non-final week file's rulerFrom (and index.json's) to equal it, read strictly.
+test("G20-1: a week file whose ruler switch isn't the owner's variable is refused, also before its week starts", async () => {
+  const field = fieldOf(17), pub = tmp();
+  const o = { raceDir: raceDir(field), picksContract: addr(60), nodeOf: nodeOf(signerFn(field)), picksOf: picksOf([{ player: P(1), number: 5, time: 1 }]) };
+  const t0 = B.seedTime(W) + H;
+  assert.ok(t0 < B.weekStart(W), "precondition: the run is before week W starts");
+  await quiet(() => run({ p: "main", check: "check", prev: pub, out: pub, head: headAt(t0), ...o }));            // honest, switch unset
+  const bad = tmp(); fs.cpSync(pub, bad, { recursive: true });
+  await quiet(() => run({ p: "main", check: "check", prev: bad, out: bad, head: headAt(t0 + 60000), ...o, rulerFrom: String(W), dayCardOf: underdogs }));
+  assert.equal(readW(bad).rulerMode, "on", "the bad run's week W file says the ruler is on");
+  assert.equal(shapeOk(bad, { pub, now: t0 + 60000 }), false, "published although the owner's BRACKET_RULER_FROM_WEEK is unset: week W is then locked 'on'");
 });

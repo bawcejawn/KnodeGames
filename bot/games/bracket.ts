@@ -630,12 +630,13 @@ export async function run(o: Opts) {
     // R-BR-7 phase 1: an "on" week isn't scored by this build: no results or points, so it can't go final (held, and
     // void at the backstop) rather than pay on the old index; the ruler-on PR scores it from the day cards
     const on = wf.rulerMode === "on";
-    if (on) problems.push(`week ${w}: BRACKET_RULER_FROM_WEEK = ${RULER_FROM} makes this week "on" (the ruler decides the matchups), which this build can't score yet; the week is held until the ruler-on update is merged`);
+    if (on) { const m = `week ${w}: BRACKET_RULER_FROM_WEEK = ${RULER_FROM} makes this week "on" (the ruler decides the matchups), which this build can't score yet; the week is held until the ruler-on update is merged, and void at its backstop otherwise`; console.log(`::error::${m}`); problems.push(m); }
     const sc = on ? { results: null, points: [] as Points[] } : scoreWeek(wf);
     wf.results = sc.results; wf.points = sc.points;
     const done = !!(sc.results && sc.results.done);
     // ── 4b. the ruler's day cards and, in the shadow week, its result beside the real one (R-BR-7) ──
-    if (wf.rulerMode === "shadow" || on) {
+    // (Repo Lens #G-20 G20-3: phase 1 makes no cards for an "on" week: they're written once, and only phase 2 checks them)
+    if (wf.rulerMode === "shadow") {
       try { rulerFiles.push(...rulerWeek(w, wf, PREV, cardFor, o.vault === undefined ? defaultVault() : o.vault, problems)); }
       catch (e) { problems.push(`week ${w}: the ruler's cards: ${(e as Error).message} (tried again next run)`); }
     }

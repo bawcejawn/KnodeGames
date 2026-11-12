@@ -298,7 +298,8 @@
    *  BigInt, or null: void, not in the field, or not on the card. */
   function rulerPct(ruler, a) {
     const v = ruler.get(a);
-    return typeof v === "string" && /^[0-9]{1,7}$/.test(v) ? BigInt(v) : null;
+    // a percentile in millionths: 0 … 1,000,000 (Repo Lens #G-20 Info); anything else counts as no fpct
+    return typeof v === "string" && /^[0-9]{1,7}$/.test(v) && BigInt(v) <= 1000000n ? BigInt(v) : null;
   }
   /** Does a seed forfeit its day? Its effective VHP averaged over the day's blocks (satoshi; #E-3 H-5) is strictly
    *  under half (FORFEIT_SHARE) of its seeding VHP (VHP, whole hundredths). Fix-check B-1: compared in exact integers —

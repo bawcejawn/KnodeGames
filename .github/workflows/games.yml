@@ -294,6 +294,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           # fix-check F4: the owner's one-off correction window for named Bracket weeks (the recorder reads it too)
           BRACKET_RELEASE: ${{ vars.BRACKET_RELEASE }}
+          # Repo Lens #G-20 G20-1: the owner's ruler switch; every open Bracket week file and index.json must carry exactly it
+          BRACKET_RULER_FROM_WEEK: ${{ vars.BRACKET_RULER_FROM_WEEK }}
           IN: ${{ runner.temp }}/incoming
         run: |
           set -euo pipefail
@@ -876,6 +878,7 @@ jobs:
                               "started week is scored by the ruler never changes (a first switch-on: %d or later)"
                               % ("unset" if p is None else p, "unset" if n is None else n, x, a, b, w + 1))
               return None
+          RULER_VAR = None; RULER_ALERT = []
           def ruler_fields(j):
               # None when the week file's ruler fields are valid (both or neither; a valid switch and the mode it gives the week)
               has = ("rulerFrom" in j, "rulerMode" in j)
@@ -959,7 +962,7 @@ jobs:
                   want = {"ruleVersion": 4, "game": 9, "round": "%04d%02d%02d" % (t.tm_year, t.tm_mon, t.tm_mday), "ownRule": "spot", "paying": True,
                           "window": {"W0": L - 7199, "W1": L, "L": L, "S0": S0, "S1": S1}, "c": "500000", "minK": 10, "poolRule": "min"}
                   if type(j) is not dict or any(not same(j.get(k), v) for k, v in want.items()): return "not the Bracket's settings for that day (window, round, rule)"
-                  if type(j.get("producers")) is not list or not all(type(p) is dict and isa(p.get("a")) and (p.get("fpct") is None or (type(p["fpct"]) is str and re.fullmatch(r"[0-9]{1,7}", p["fpct"]))) for p in j["producers"]): return "producers"
+                  if type(j.get("producers")) is not list or not all(type(p) is dict and isa(p.get("a")) and (p.get("fpct") is None or (type(p["fpct"]) is str and re.fullmatch(r"[0-9]{1,7}", p["fpct"]) and int(p["fpct"]) <= 1000000)) for p in j["producers"]): return "producers"
                   return None
               # the shadow summary: shown beside the real result, never scored
               if not (type(j) is dict and set(j) == {"v", "game", "week", "shadow", "rulerFrom", "rulerMode", "settings", "cards", "rounds", "done", "real"} and one(j["v"]) and j["game"] == 9 and j["week"] == w and j["shadow"] is True):
@@ -1014,6 +1017,14 @@ jobs:
 
           def main():
               now = int(os.environ.get("CHECK_NOW_MS") or time.time() * 1000); cw = (now - GENESIS) // WEEK
+              # Repo Lens #G-20: the owner's ruler switch, read strictly (an unreadable value holds the Bracket)
+              global RULER_VAR
+              try: RULER_VAR = switch_from(os.environ.get("BRACKET_RULER_FROM_WEEK", ""))
+              except ValueError: return "the BRACKET_RULER_FROM_WEEK variable isn't empty or a vault week (1 to 999999)"
+              # G20-2: phase 1 can't score an "on" week. From 2 days before the first "on" week starts (and while one is
+              # open), every run alerts, so the ruler-on update is merged in time or the variable moved a week later
+              if RULER_VAR is not None and now >= week_start(RULER_VAR) - 2 * DAY:
+                  RULER_ALERT.append("BRACKET_RULER_FROM_WEEK = %d: vault week %d is scored by the VHP ruler, which this build can't do (the week is held and void at its backstop). Merge the ruler-on update before %s UTC, or set the variable to %d before then." % (RULER_VAR, RULER_VAR, time.strftime("%a %d %b %H:%M", time.gmtime(week_start(RULER_VAR) / 1000)), RULER_VAR + 1))
               def pubjson(name):
                   p = os.path.join(pub, name) if pub else ""
                   return load(p) if p and os.path.isfile(p) else None
@@ -1042,6 +1053,11 @@ jobs:
                   # a published copy without the field counts as unset)
                   sw = switch_change(old.get("rulerFrom") if old else None, j.get("rulerFrom"), cw)
                   if sw: problems.append(f + ": " + sw); continue
+                  # Repo Lens #G-20 G20-1: an open week carries the owner's variable exactly (also before it starts, when
+                  # switch_change can't see a difference yet); final, none and void weeks keep the value they closed with
+                  # (a file without the field counts as unset, as switch_change reads it)
+                  if j["status"] not in ("final", "none", "void") and j.get("rulerFrom") != RULER_VAR:
+                      problems.append(f + ": its ruler switch (%s) isn't the owner's BRACKET_RULER_FROM_WEEK (%s)" % (j.get("rulerFrom", "missing"), "unset" if RULER_VAR is None else RULER_VAR)); continue
                   s = j["seeding"]; olds = old.get("seeding") if old else None
                   if old is None:
                       if not (cw - 1 <= w <= cw + 1): problems.append(f + ": a new week file that isn't last, this or next week by this job's clock"); continue
@@ -1156,7 +1172,7 @@ jobs:
               pi = pubjson("index.json")
               if ni is not None:
                   if not (type(ni) is dict and set(ni) in ({"v", "updated", "weeks", "contract", "game", "prizesFromWeek"}, {"v", "updated", "weeks", "contract", "game", "prizesFromWeek", "rulerFrom"}) and one(ni["v"]) and iso.fullmatch(str(ni["updated"]))
-                          and (ni.get("rulerFrom") is None or (type(ni["rulerFrom"]) is int and 1 <= ni["rulerFrom"] <= SWITCH_MAX))): problems.append("index.json: shape")
+                          and ni.get("rulerFrom") == RULER_VAR): problems.append("index.json: shape")
                   elif not (type(ni["weeks"]) is list and len(ni["weeks"]) <= 10000 and all(type(w) is int and 0 <= w < 10000 for w in ni["weeks"]) and sorted_unique(ni["weeks"])): problems.append("index.json: weeks")
                   elif not ((type(ni["game"]) is int and ni["game"] == 9) and (ni["prizesFromWeek"] is None or nat(ni["prizesFromWeek"])) and (ni["contract"] is None or isa(ni["contract"]))): problems.append("index.json: fields")
                   else:
@@ -1212,6 +1228,9 @@ jobs:
               if why: hold_all(why)
           except Exception as e:
               hold_all("the check could not read this run's files (%s: %s, line %s)" % (type(e).__name__, str(e)[:200], deepest(e)))
+          for m in RULER_ALERT:   # Repo Lens #G-20 G20-2: loud (an email); the files themselves are judged as above
+              print("::error::Producer Bracket: " + m)
+              if "!alert" not in held: held.append("!alert")
           if heldf: open(heldf, "a").write("".join(x + "\n" for x in held))
           elif held: sys.exit("held: " + ", ".join(x for x in held if x != "!alert"))
           print("bracket check done:", d, "(held %d)" % len([x for x in held if x != "!alert"]))

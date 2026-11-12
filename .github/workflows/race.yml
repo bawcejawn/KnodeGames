@@ -1128,6 +1128,20 @@ jobs:
                   raise ValueError("pooled must be a list of addresses")
 
 
+          def card_digest(card):
+              """The compact card, as cardDigest in vhp-ruler.js: the sha256 of the card's canonical text, and whether it was scored."""
+              return {"sha256": hashlib.sha256(card_json(card).encode("utf-8")).hexdigest(),
+                      "scored": any("credited" in p for p in card.get("producers", []))}
+
+
+          _HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+          def _is_digest(x):
+              return (isinstance(x, dict) and sorted(x) == ["scored", "sha256"] and type(x["sha256"]) is str
+                      and _HEX64.fullmatch(x["sha256"]) is not None and type(x["scored"]) is bool)
+
+
           def recompute(L, published, game):
               """published: the card's JSON text; game: the game's OWN settings {game, round, window, c, minK, poolRule, ownRule, paying, pooled}
               (Repo Lens #E-12 M-1: never the card's own settings). Returns (same, diff)."""
@@ -1135,6 +1149,21 @@ jobs:
                   check_settings(game)
               except ValueError as e:
                   return False, "the game's settings: %s" % e
+              try:
+                  pub_d = json.loads(published)
+              except ValueError:
+                  pub_d = None
+              if _is_digest(pub_d):   # the compact card, as in vhp-ruler.js
+                  w = game["window"]
+                  try:
+                      mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"],
+                                       game["minK"], game["poolRule"], game.get("mode"), game.get("include"), game.get("version", RULE_VERSION))
+                      if pub_d["scored"]:
+                          mine = score_card(L, mine)
+                  except ValueError as e:
+                      return False, "the data can't make this card: %s" % e
+                  d = card_digest(mine)["sha256"]
+                  return (True, "") if d == pub_d["sha256"] else (False, "sha256 differs: published %s, recomputed %s" % (pub_d["sha256"], d))
               pub = json.loads(published)
               w = game["window"]
               want = {"game": int(_dec(game["game"], "game")), "round": _dec(game["round"], "round"), "ownRule": game["ownRule"],

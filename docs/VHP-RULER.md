@@ -259,3 +259,14 @@ cost of 5,100–14,700 blocks).
 - **A season game** (Survivor) pins one version and one mode at the season's first week, for the whole season.
 - **Plan:** shadow on Week 1 and Week 2's real races (`sims/ruler/steer.mjs <seeds> 5`, `tools/vhp-ruler-shadow.mjs`),
   the owner decides at the Tue 24 Nov review, and it is on from **Week 3 (vault week 6, Mon 30 Nov)** at the earliest.
+
+## The compact card (the Race, 12 Nov 2026: a week file's 2 MB limit)
+A game may store a card as its **digest** instead of its full text: `cardDigest(card)` / `card_digest(card)` gives
+`{ "sha256": <hex of sha256 of the card's canonical text>, "scored": true|false }`, about 100 bytes instead of 8 KB or
+more. `recompute(L, digest, settings)` accepts the digest (as an object or as its JSON text), rebuilds the card from the
+game's own settings (scored when `scored` is true), and compares the sha256 of the rebuilt card's exact bytes. So the
+check stays byte-exact.
+- **What the game keeps beside it:** the settings that differ per card (round, window) and the results it pays on. Its
+  publish job derives those results from the rebuilt card and refuses any difference.
+- **Keep the full texts somewhere** (for example a per-day cards file outside the week file): vhp-data keeps 30 days
+  (floor 26), so after that a card can be shown, but no longer rebuilt, only from its stored text.

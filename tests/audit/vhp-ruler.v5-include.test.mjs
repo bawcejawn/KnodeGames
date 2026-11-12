@@ -173,3 +173,22 @@ test("tools/vhp-ruler-mode.mjs --version: OK for a future week, REFUSED for the 
   const m = run("6:B", "--week", "5");
   assert.equal(m.code, 0); assert.match(m.out, /OK: no week that has started changes mode/);
 });
+
+// ── the compact card (the Race, 12 Nov: the week file's 2 MB limit) ──
+test("compact card: cardDigest = { sha256 of the canonical text, scored }; recompute checks it byte-exact from the game's own settings, both languages", () => {
+  const x = chain(), L = R.ledger(x.tl), g = { ...free, c: "400000", mode: "C" };
+  const made = R.makeCard(L, { ...g, c: 400000n }), scored = R.scoreCard(L, made);
+  const d = R.cardDigest(scored), du = R.cardDigest(made);
+  assert.equal(d.sha256, R.hex(R.sha256(R.cardJson(scored)))); assert.equal(d.scored, true); assert.equal(du.scored, false);
+  assert.equal(py(`L = V.Ledger(j["tl"]); print(json.dumps(V.card_digest(json.loads(j["card"]))))`, { tl: x.tl, card: R.cardJson(scored) }).trim(), JSON.stringify({ sha256: d.sha256, scored: true }).replace(/,/g, ", ").replace(/:/g, ": "));
+  for (const [dig, ok] of [[d, true], [du, true]]) {
+    assert.equal(R.recompute(L, JSON.stringify(dig), g).same, ok); assert.equal(R.recompute(L, dig, g).same, ok);
+    assert.equal(pyRecompute(x.tl, JSON.stringify(dig), g).trim(), "same");
+  }
+  const bad = { ...d, sha256: "0".repeat(64) };
+  assert.match(R.recompute(L, JSON.stringify(bad), g).diff, /sha256 differs/); assert.match(pyRecompute(x.tl, JSON.stringify(bad), g), /sha256 differs/);
+  assert.match(R.recompute(L, JSON.stringify(d), { ...g, mode: "B" }).diff, /sha256 differs/, "a different setting gives other bytes");
+  assert.match(pyRecompute(x.tl, JSON.stringify(d), { ...g, mode: "B" }), /sha256 differs/);
+  assert.match(R.recompute(L, JSON.stringify({ ...d, scored: false }), g).diff, /sha256 differs/, "scored is part of what is checked");
+  assert.ok(JSON.stringify(d).length < 100 && R.cardJson(scored).length > 2000, "about 1% of the full text");
+});

@@ -764,8 +764,25 @@
     if (typeof g.paying !== "boolean") throw new Error("paying must be true or false");
     if (!Array.isArray(g.pooled) || !g.pooled.every((a) => typeof a === "string")) throw new Error("pooled must be a list of addresses");
   }
+  /** The compact card (the Race, 12 Nov: a week's file holds one entry per card): the sha256 of the card's canonical
+   *  text, and whether it was scored. recompute accepts it in place of the text and checks it byte-exact, because the
+   *  sha256 of the rebuilt card's exact bytes must match. */
+  function cardDigest(card) {
+    return { sha256: hex(sha256(cardJson(card))), scored: (card.producers || []).some((p) => "credited" in p) };
+  }
+  const isDigest = (x) => x && typeof x === "object" && !Array.isArray(x) && Object.keys(x).sort().join() === "scored,sha256" && typeof x.sha256 === "string" && /^[0-9a-f]{64}$/.test(x.sha256) && typeof x.scored === "boolean";
   function recompute(L, published, game) {
     try { checkSettings(game); } catch (e) { return { same: false, diff: `the game's settings: ${e.message}` }; }
+    let pubD = typeof published === "string" ? (() => { try { return JSON.parse(published); } catch { return null; } })() : published;
+    if (isDigest(pubD)) {   // the compact card: rebuild from the game's own settings, compare the sha256 of the exact bytes
+      let mine;
+      try {
+        mine = makeCard(L, { game: game.game, round: game.round, window: game.window, c: big(game.c), minK: game.minK, poolRule: game.poolRule, ownRule: game.ownRule, paying: game.paying, pooled: game.pooled, ...("mode" in game ? { mode: game.mode } : {}), ...("version" in game ? { version: game.version } : {}), ...("include" in game ? { include: game.include } : {}) });
+        if (pubD.scored) mine = scoreCard(L, mine);
+      } catch (e) { return { same: false, diff: `the data can't make this card: ${e.message}` }; }
+      const d = cardDigest(mine).sha256;
+      return d === pubD.sha256 ? { same: true } : { same: false, diff: `sha256 differs: published ${pubD.sha256}, recomputed ${d}` };
+    }
     const pub = typeof published === "string" ? JSON.parse(published) : published;
     const want = { game: Number(dec(game.game, "game")), round: dec(game.round, "round"), ownRule: game.ownRule, paying: game.paying, c: big(game.c).toString(10), minK: game.minK, poolRule: game.poolRule,
       mode: game.mode, version: game.version ?? RULE_VERSION, include: JSON.stringify(game.include ?? null), W0: game.window.W0, W1: game.window.W1, L: game.window.L, S0: game.window.S0, S1: game.window.S1 };
@@ -783,5 +800,5 @@
   }
 
   root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, RULE_VERSIONS, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, MODES, MODE_CAP, LIFT_SKIP, LIFT_SPAN, STRETCHES, LIFT_SD, liftForm, checkInclude, versionSchedule, versionAt, versionChange, modeSchedule, modeAt, modeChange, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
-    sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
+    sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, cardDigest, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

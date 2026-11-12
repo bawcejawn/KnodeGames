@@ -9,7 +9,7 @@ import { daySettings, LEAD, LOOK_BACK } from "../ruler-view.ts";
 import { PENDING } from "../../../kit/recorder/types.ts";
 import { NotYet, vhpFor } from "../../../kit/recorder/sources/vhp-ruler.ts";
 import * as F from "../math.js";
-import { R, timeline, FROM, T_FIRST, P } from "../../../tests/audit/race-ruler.fixture.mjs";
+import { R, timeline, FROM, T_FIRST, P, N } from "../../../tests/audit/race-ruler.fixture.mjs";
 
 const DAY = 86400000, MON = Date.UTC(2026, 10, 16);
 const WEEK = { week: 4, start: MON, end: MON + 7 * DAY };
@@ -155,7 +155,10 @@ test("real ruler: a week of day results (Mon 2 – Sun 8 Nov on the made-up chai
 
 test("real ruler: past the chain's end the day is NotYet (pending), not a guess", async () => {
   const tl = timeline(), ctx = ctxOf(vhpFor(R.ledger(tl), new Map()), realBlockAt(tl));
-  const start = Date.UTC(2026, 10, 9), pl = { ...(await priceList()), start, pool: P.map((a: string) => ({ a, form: 10000, days: 7, price: 20 })) } as PriceList;
-  const [, tue] = game.roundsFor({ week: 3, start, end: start + 7 * DAY }, { now: start });
-  await assert.rejects(() => game.resultOf(tue, {} as any, pl, ctx), NotYet);
+  // The first whole UTC day after the made-up chain's last block (the fixture's length may grow; this follows it).
+  const after = Math.floor((T_FIRST + N * 3000) / DAY) * DAY + DAY, start = after - ((after / DAY + 3) % 7) * DAY;
+  const pl = { ...(await priceList()), start, pool: P.map((a: string) => ({ a, form: 10000, days: 7, price: 20 })) } as PriceList;
+  const round = game.roundsFor({ week: 3, start, end: start + 7 * DAY }, { now: start }).find((r) => r.day === after)!;
+  assert.ok(round, "that day is a round of its week");
+  await assert.rejects(() => game.resultOf(round, {} as any, pl, ctx), NotYet);
 });

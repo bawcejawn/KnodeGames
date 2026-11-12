@@ -23,7 +23,8 @@ const scoreOn = (extra, g = game, n) => { const { tl, ps } = chain({ extra, ...(
 const windowOf = (len, at = W0) => ({ W0: at, W1: at + 7199, L: at + 7200, S0: at + 7201, S1: at + 7200 + len });
 
 test("the void band by race length: down and up apart, longer races wider; JS = Python; bad lengths refused", () => {
-  const want = [[1, 50000, 250000], [1200, 50000, 250000], [1201, 50000, 250000], [2400, 50000, 250000], [2401, 100000, 250000], [7200, 100000, 250000], [7201, 120000, 500000], [28800, 120000, 500000], [28801, 150000, 1000000], [172800, 150000, 1000000], [10000000, 150000, 1000000]];
+  // classes reach a quarter past their nominal length, so a UTC-clock race a few blocks long or short stays in its class
+  const want = [[1, 50000, 250000], [1150, 50000, 250000], [1250, 50000, 250000], [2380, 50000, 250000], [2430, 50000, 250000], [3000, 50000, 250000], [3001, 100000, 250000], [7150, 100000, 250000], [7250, 100000, 250000], [9000, 100000, 250000], [9001, 120000, 500000], [28700, 120000, 500000], [28900, 120000, 500000], [36000, 120000, 500000], [36001, 150000, 1000000], [172800, 150000, 1000000], [10000000, 150000, 1000000]];
   for (const [b, d, u] of want) assert.equal(R.voidBand(b).map(Number).join(), `${d},${u}`, `${b} blocks`);
   assert.equal(PY(`print(json.dumps([list(V.void_band(b)) for b in ${JSON.stringify(want.map((x) => x[0]))}], separators=(",", ":")))`).trim(), JSON.stringify(want.map((x) => [x[1], x[2]])));
   let prev = [0, 0];

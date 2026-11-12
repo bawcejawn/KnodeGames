@@ -68,7 +68,9 @@
   //    natural burn of about 1% a day); up is wide (VHP added in the race is capped by card credit and gains nothing).
   //  - LUCK_CAP: no producer is scored on more than this many expected blocks (millionths). Above it, a share of the
   //    window's blocks, drawn from the card's seed, counts for that producer (sample < 1,000,000).
-  const VOID_BANDS = [[2400, 50000n, 250000n], [7200, 100000n, 250000n], [28800, 120000n, 500000n]], VOID_LONG = [150000n, 1000000n];
+  // The length classes have room: a race on UTC clock boundaries holds about, not exactly, 1,200 blocks an hour (owner's
+  // games: the Race, Fantasy), so each class reaches a quarter past its nominal length (2 h: 3,000; 6 h: 9,000; 1 day: 36,000).
+  const VOID_BANDS = [[3000, 50000n, 250000n], [9000, 100000n, 250000n], [36000, 120000n, 500000n]], VOID_LONG = [150000n, 1000000n];
   const LUCK_CAP = 1000n * 1000000n;
   function voidBand(blocks) {
     if (!Number.isSafeInteger(blocks) || blocks < 1) throw new Error("blocks must be a whole number from 1");

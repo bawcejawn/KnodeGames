@@ -82,9 +82,17 @@
             "network": "2293285498809137"
           },
           "seal": "ba7b32491c18b8237619dab9aa734d28adc0d9850f73121548859da6e1e15c20"
+        },
+        {
+          "height": 41001633,
+          "readAt": "2026-11-12T02:55:04.835Z",
+          "values": {
+            "network": "2293090861015775"
+          },
+          "seal": "b2e5d396681baa51e581728c60a3d57da56f701828b20269c28584b9f3f7084e"
         }
       ],
-      "vhpSeal": "6365f3c40db077a00b3fe8e14763b7d1eb4b6580723e4ecf02932e68f6bfe940"
+      "vhpSeal": "f1e43c20091e65f2cfc6e05103057622986c62ae3f3a4f71f98d7ab814736f64"
     },
     {
       "id": "W003-D3-2",
@@ -170,9 +178,17 @@
             "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "85419841467147"
           },
           "seal": "84c95b1f4dc9302a9fc869f45ca5d6b599a12dd1e7b9492489aade347836121d"
+        },
+        {
+          "height": 41001633,
+          "readAt": "2026-11-12T02:55:04.835Z",
+          "values": {
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "85404712060756"
+          },
+          "seal": "436b2f9bb2daaead7a2b09ef46b006cc7f8adf5931aacb6ae321975a7856ed61"
         }
       ],
-      "vhpSeal": "cfa47204930681e859747491eb2a6d7424a1f6051162f36474fd48be2fc5580c"
+      "vhpSeal": "c1fad199a5cdb57029249e3eb286af5ee723e70160c834336d2450f19a38a79f"
     },
     {
       "id": "W003-D3-3",
@@ -251,9 +267,17 @@
             "network": "2293285498809137"
           },
           "seal": "d48eb38a47cfa5d07b9eb6c6e00b6a11b71af0cfee011738cfead86e73a0c2f6"
+        },
+        {
+          "height": 41001633,
+          "readAt": "2026-11-12T02:55:04.835Z",
+          "values": {
+            "network": "2293090861015775"
+          },
+          "seal": "46b27b9aac71b289bcee3a0c69b5c6f58f04e2cd23365cb5febf7f294d2fc121"
         }
       ],
-      "vhpSeal": "15e86ebcb11379c64bb8db3a230f739ef03dc0b0331b2f56c6804a67b8e1df5c"
+      "vhpSeal": "6931c565f5e6d66172dad98421e37eac0ac82e6e647c863874f4b2ce978bd9f6"
     }
   ],
   "daySeal": "3ed34960d7e3a78c9d85a5c54535dea1c0e913ee6d3c788632880f753bda0f17"

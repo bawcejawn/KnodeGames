@@ -72,6 +72,28 @@
   // games: the Race, Fantasy), so each class reaches a quarter past its nominal length (2 h: 3,000; 6 h: 9,000; 1 day: 36,000).
   const VOID_BANDS = [[3000, 50000n, 250000n], [9000, 100000n, 250000n], [36000, 120000n, 500000n]], VOID_LONG = [150000n, 1000000n];
   const LUCK_CAP = 1000n * 1000000n;
+  // Scoring modes (owner, 11 Nov 2026: "build me 3 additional VHP ruler formulas which can run alongside the active
+  // ruler method and allow the admin the ability to shift future weeks"). A game names its mode in its settings; the
+  // card records it; a card without a mode scores exactly as before (RULE_VERSION 4 bytes unchanged). The modes differ
+  // only in each producer's TARGET (the blocks it must beat) and in the luck cap:
+  //  A  VHP only: target = expected (today's rule).
+  //  B  form lift, raise only: a producer whose 14-day form is above the field's expected-weighted median form is
+  //     expected to keep it up: target = expected × form ÷ median. Nobody's target is ever lowered.
+  //  C  hot hand, raise only: as B, but measured on the producer's pace over the last C_DAYS days (signed ÷ expected
+  //     share, like form but short) against the field's expected-weighted median pace, so a node that is strong THIS
+  //     week must beat that. Raise only, like B: a target is never lowered. (Lowering a target for a weak node was
+  //     tested and dropped: any discount based on past signing can be steered, D-120. A 3% discount gave an 18%
+  //     producer that signed less for three days and then in full a doubled win chance in a 6-hour race.)
+  //  D  even odds: as A, but the luck cap is 100 expected blocks, so every race is mostly luck.
+  // The field's median form, the core (by 14-day form) and the entry bar are the same in every mode.
+  const MODES = ["A", "B", "C", "D"], MODE_CAP = { A: LUCK_CAP, B: LUCK_CAP, C: LUCK_CAP, D: 100n * 1000000n }, C_DAYS = 3;
+  function modeLift(mode, form, median) {
+    form = big(form); median = big(median);
+    if (mode === undefined || mode === "A" || mode === "D" || median <= 0n) return M;
+    if (mode !== "B" && mode !== "C") throw new Error("mode must be A, B, C or D");
+    const r = (form * M) / median;
+    return r > M ? r : M;   // raise only
+  }
   function voidBand(blocks) {
     if (!Number.isSafeInteger(blocks) || blocks < 1) throw new Error("blocks must be a whole number from 1");
     for (const [upTo, down, up] of VOID_BANDS) if (blocks <= upTo) return [down, up];
@@ -428,8 +450,9 @@
     const pooled = new Set(opts.pooled || []), c = big(opts.c ?? 0n), paying = !!opts.paying;
     // the entry bar minK (whole expected blocks; 10 as approved) and the pool rule ("min": min(own, eff) per block, §3.2;
     // the only rule since Repo Lens #B-9 B9-1; the setting stays so every card says which rule it used)
-    const minKBlocks = opts.minK ?? 10, poolRule = opts.poolRule ?? "min";
+    const minKBlocks = opts.minK ?? 10, poolRule = opts.poolRule ?? "min", mode = opts.mode;
     if (!Number.isSafeInteger(minKBlocks) || minKBlocks < 1 || minKBlocks > 100000) throw new Error("minK must be a whole number of blocks from 1");
+    if (mode !== undefined && !MODES.includes(mode)) throw new Error("mode must be A, B, C or D");
     if (!POOL_RULES.includes(poolRule)) throw new Error("poolRule must be min");
     const minK = BigInt(minKBlocks) * M;
     // Repo Lens #E-12 L-1: a paying card reads the full 14-day form look-back, so its bytes never depend on where the
@@ -455,7 +478,7 @@
     return {
       ruleVersion: RULE_VERSION, game: Number(dec(opts.game, "game")), round: dec(opts.round, "round"), ownRule, paying,
       T, seedBlock, seedBlockId, seedProducer: L.signer(seedBlock),
-      window: { W0: w.W0, W1: w.W1, L: w.L, S0: w.S0, S1: w.S1 }, c, minK: minKBlocks, poolRule, total: tot, formFrom, producers,
+      window: { W0: w.W0, W1: w.W1, L: w.L, S0: w.S0, S1: w.S1 }, c, minK: minKBlocks, poolRule, ...(mode === undefined ? {} : { mode }), total: tot, formFrom, producers,
     };
   }
 
@@ -492,6 +515,9 @@
     const flagged = card.producers.some((p) => p.quality === "flagged" || badFor(L, p.a, S0 - EARLY, S1)) || (card.paying && rebuiltIn(L, S0 - EARLY, S1));
     // the luck cap's draw: block H counts for a producer whose sample is q when draw(H) < q (one draw a block, from the
     // card's seed, so the blocks that count for a bigger producer are among those that count for a smaller one)
+    const mode = card.mode;
+    if (mode !== undefined && !MODES.includes(mode)) throw new Error("mode must be A, B, C or D");
+    const cap = mode === undefined ? LUCK_CAP : MODE_CAP[mode];
     const blocks = S1 - S0 + 1, [bandDown, bandUp] = voidBand(blocks), draws = new Map();
     const draw = (H) => {
       let u = draws.get(H);
@@ -499,7 +525,7 @@
       return u;
     };
     const producers = card.producers.map((p) => {
-      const o = big(p.own), k = big(p.k), sample = k > LUCK_CAP ? (LUCK_CAP * M) / k : M, all = sample === M;
+      const o = big(p.own), k = big(p.k), sample = k > cap ? (cap * M) / k : M, all = sample === M;
       let credited = 0n;
       for (const b of L.signedBlocks(p.a, S0, S1)) if (all || draw(b) < sample) credited += creditOf(o, L.eff(p.a, b));
       // expected blocks follow the producer's VHP block by block, capped at the card's own size (§3.2's rule, now for
@@ -529,24 +555,37 @@
     const eAll = fieldRows.reduce((t, p) => t + p.expected, 0n);
     let median = 0n, cum = 0n;
     for (const p of fieldRows) { cum += p.expected; if (2n * cum >= eAll) { median = big(p.form); break; } }
+    // the mode's target (rows gain lift and target, in millionths, only on a card with a mode); the yardstick, the band
+    // and fpct use the target; pct too
+    const E = (p) => (mode === undefined ? p.expected : p.target);
+    if (mode !== undefined) {
+      // B measures against the card's 14-day form; C against the 3-day pace, read here from the ledger. Each against its
+      // own expected-weighted median over the field (an exact tie takes the lower value), like the core's median
+      const measure = mode === "C" ? (p) => { const H0 = imax(L.validFrom, card.T - C_DAYS * AVG), e = L.shareSum(p.a, H0, card.T - 1); return e > 0n ? (BigInt(L.signedIn(p.a, H0, card.T - 1)) * M * M) / e : 0n; } : (p) => big(p.form);
+      for (const p of producers) p.pace = measure(p);
+      const byPace = [...fieldRows].sort((x, y) => (x.pace < y.pace ? -1 : x.pace > y.pace ? 1 : 0));
+      let medPace = 0n, cumP = 0n;
+      for (const p of byPace) { cumP += p.expected; if (2n * cumP >= eAll) { medPace = p.pace; break; } }
+      for (const p of producers) { p.lift = modeLift(mode, p.pace, medPace); p.target = (p.expected * p.lift) / M; p.pct = pct(p.target, p.credited); delete p.pace; }
+    }
     const line = (median * CORE_LINE) / M, inCore = (p) => inField(p) && big(p.form) >= line;
     // The yardstick counts CREDITED blocks (millionths), the same blocks each producer's expected blocks are for: counting
     // raw signed blocks against capped expected blocks lifted every expectation a little whenever a member's VHP was
     // above its card size, which cost big producers most and grew with the race's length (found 11 Nov on daily races).
     let n = 0n, b = 0n;
-    for (const p of producers) if (inCore(p)) { n += p.credited; b += p.expected; }
+    for (const p of producers) if (inCore(p)) { n += p.credited; b += E(p); }
     let nY = n, bY = b;
     for (const p of producers) {
       p.core = inCore(p); p.z = null; p.setAside = false;
       if (!p.core) continue;
-      const dev = p.credited * b - n * p.expected, v = n * p.expected * (b - p.expected) * M;
+      const e = E(p), dev = p.credited * b - n * e, v = n * e * (b - e) * M;
       if (v > 0n) { const r = isqrt(v), q = ((dev < 0n ? -dev : dev) * M) / r; p.z = dev < 0n ? -q : q; }
-      if (dev * dev > BAND_SD * BAND_SD * v) { p.setAside = true; nY -= p.credited; bY -= p.expected; }
+      if (dev * dev > BAND_SD * BAND_SD * v) { p.setAside = true; nY -= p.credited; bY -= e; }
     }
     for (const p of producers) {
       if (!inField(p)) { p.fpct = null; continue; }
-      const self = inCore(p) && !p.setAside;   // already in the yardstick
-      p.fpct = self ? fpct(nY / M, p.expected, bY, p.credited) : fpct((nY + p.credited) / M, p.expected, bY + p.expected, p.credited);
+      const self = inCore(p) && !p.setAside, e = E(p);   // already in the yardstick
+      p.fpct = self ? fpct(nY / M, e, bY, p.credited) : fpct((nY + p.credited) / M, e, bY + e, p.credited);
     }
     return { ...card, producers };
   }
@@ -615,6 +654,34 @@
     return null;
   }
 
+  /** The admin's mode schedule for a game (owner, 11 Nov 2026): one repository variable, <GAME>_RULER_MODE, holding
+   *  week:mode pairs with rising weeks, like "5:B,8:C": mode B from vault week 5, C from week 8; before the first pair,
+   *  and when the variable is unset, the mode is A. modeChange refuses any change that would alter the mode of a week
+   *  that has started (the same rule as the switch), so the admin can only shift FUTURE weeks. */
+  function modeSchedule(v) {
+    if (v === undefined || v === null || v === "") return null;
+    if (typeof v !== "string" || !/^[1-9][0-9]{0,5}:[ABCD](,[1-9][0-9]{0,5}:[ABCD])*$/.test(v)) throw new Error("the ruler mode schedule must be empty or week:mode pairs like 5:B,8:C (modes A, B, C or D)");
+    const out = v.split(",").map((x) => { const [w, m] = x.split(":"); return [Number(w), m]; });
+    for (let i = 1; i < out.length; i++) if (out[i][0] <= out[i - 1][0]) throw new Error("the ruler mode schedule's weeks must rise");
+    if (out[out.length - 1][0] > SWITCH_MAX) throw new Error("the ruler mode schedule's weeks must be at most 999999");
+    return out;
+  }
+  function modeAt(week, schedule) {
+    const w = switchWeek(week), s = modeSchedule(schedule);
+    let m = "A";
+    if (s) for (const [x, mm] of s) if (x <= w) m = mm;
+    return m;
+  }
+  function modeChange(prev, next, week) {
+    const w = switchWeek(week), p = modeSchedule(prev), n = modeSchedule(next);
+    const at = [...new Set([0, ...(p || []).map((x) => x[0]), ...(n || []).map((x) => x[0])])].filter((x) => x <= w).sort((x, y) => x - y);
+    for (const x of at) {
+      const a = modeAt(x, prev), b = modeAt(x, next);
+      if (a !== b) return `the ruler mode schedule moved from ${JSON.stringify(prev ?? "")} to ${JSON.stringify(next ?? "")}: week ${x} has started and would change from ${a} to ${b}; a change may only touch weeks after ${w}`;
+    }
+    return null;
+  }
+
   /** recompute (§13): rebuild a published card FROM THE GAME'S OWN SETTINGS and compare byte for byte (Repo Lens #E-12
    *  M-1: never from the card's own settings, or a card made with the wrong window, c, own rule, paying flag or pooled
    *  list would pass). game = { game, round, window: { W0, W1, L, S0, S1 }, c, minK, poolRule, ownRule, paying, pooled }. */
@@ -625,7 +692,8 @@
   function checkSettings(g) {
     if (!g || typeof g !== "object" || Array.isArray(g)) throw new Error("recompute needs the game's own settings");
     const ks = Object.keys(g).sort();
-    if (ks.join() !== [...SETTINGS].sort().join()) throw new Error(`the game's settings must have exactly: ${SETTINGS.join(", ")}`);
+    if (ks.join() !== [...SETTINGS].sort().join() && ks.join() !== [...SETTINGS, "mode"].sort().join()) throw new Error(`the game's settings must have exactly: ${SETTINGS.join(", ")} (and, optionally, mode)`);
+    if ("mode" in g && !MODES.includes(g.mode)) throw new Error("mode must be A, B, C or D");
     dec(g.game, "game"); dec(g.round, "round");
     const w = g.window;
     if (!w || typeof w !== "object" || Array.isArray(w) || Object.keys(w).sort().join() !== [...WKEYS].sort().join()) throw new Error(`window must have exactly: ${WKEYS.join(", ")}`);
@@ -640,12 +708,12 @@
     try { checkSettings(game); } catch (e) { return { same: false, diff: `the game's settings: ${e.message}` }; }
     const pub = typeof published === "string" ? JSON.parse(published) : published;
     const want = { game: Number(dec(game.game, "game")), round: dec(game.round, "round"), ownRule: game.ownRule, paying: game.paying, c: big(game.c).toString(10), minK: game.minK, poolRule: game.poolRule,
-      W0: game.window.W0, W1: game.window.W1, L: game.window.L, S0: game.window.S0, S1: game.window.S1 };
-    const got = { game: pub.game, round: pub.round, ownRule: pub.ownRule, paying: pub.paying, c: String(pub.c), minK: pub.minK, poolRule: pub.poolRule, ...(pub.window || {}) };
+      ...("mode" in game ? { mode: game.mode } : {}), W0: game.window.W0, W1: game.window.W1, L: game.window.L, S0: game.window.S0, S1: game.window.S1 };
+    const got = { game: pub.game, round: pub.round, ownRule: pub.ownRule, paying: pub.paying, c: String(pub.c), minK: pub.minK, poolRule: pub.poolRule, mode: pub.mode, ...(pub.window || {}) };
     for (const k of Object.keys(want)) if (got[k] !== want[k]) return { same: false, diff: `setting ${k}: the card says ${JSON.stringify(got[k])}, the game says ${JSON.stringify(want[k])}` };
     let mine;
     try {
-      mine = makeCard(L, { game: game.game, round: game.round, window: game.window, c: big(game.c), minK: game.minK, poolRule: game.poolRule, ownRule: game.ownRule, paying: game.paying, pooled: game.pooled });
+      mine = makeCard(L, { game: game.game, round: game.round, window: game.window, c: big(game.c), minK: game.minK, poolRule: game.poolRule, ownRule: game.ownRule, paying: game.paying, pooled: game.pooled, ...("mode" in game ? { mode: game.mode } : {}) });
       if ((pub.producers || []).some((p) => "credited" in p)) mine = scoreCard(L, mine);
     } catch (e) { return { same: false, diff: `the data can't make this card: ${e.message}` }; }
     const a = cardJson(mine), b = typeof published === "string" ? published : cardJson(published);
@@ -654,6 +722,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, isqrt, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, MODES, MODE_CAP, C_DAYS, modeLift, modeSchedule, modeAt, modeChange, isqrt, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
     sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

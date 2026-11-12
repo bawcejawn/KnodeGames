@@ -161,3 +161,49 @@ for 1-hour, 2-hour, 6-hour, 1-day and 6-day races (results: project doc `claude/
 - Row order now ends `… quality, sample, expected, signed, credited, pct, void, moves, core, z, setAside, fpct`.
 - Design tools: `sims/ruler/lengths.mjs`, `midrace.mjs`, `moves.mjs`; `RULER_SIM_RACE=<blocks>` runs `v21.mjs` at any
   length with `--configs "v4 (as built)"`.
+
+## Scoring modes A–D and the admin's mode schedule (owner, 11 Nov 2026; a D-new, numbered by the Library)
+The owner wants fairness, the feeling that anyone can run a node and see it win, and enough variety that players can't
+settle into a pattern: "build 3 additional VHP ruler formulas which can run alongside the active ruler method and allow
+the admin the ability to shift future weeks". Live cards showed why: producers don't sign in line with their VHP. The
+biggest nodes sign about 4–6% above their share (faster, better connected), several small ones below. Size is neutral
+in the ruler, but in a race a few percent of signing decides the winner.
+
+**What a mode changes:** only each producer's **target**, the blocks it must beat (row field `target` = `expected` ×
+`lift` ÷ 1,000,000), and in D the luck cap. The entry bar, the card, the core (by 14-day form), the band and the voids
+are the same in every mode. `expected` stays the VHP-based number, so games that read it (Fantasy, Block X) are untouched
+unless they choose to use `target`.
+
+| Mode | Name | Target | Luck cap |
+|---|---|---|---|
+| **A** | VHP only | `expected` (RULE_VERSION 4 as merged) | 1,000 blocks |
+| **B** | form lift, raise only | `expected × form ÷ median form` when the producer's 14-day form is above the field's expected-weighted median form; otherwise `expected`. A node that usually signs above the field must beat its own record; nobody's target is ever lowered | 1,000 |
+| **C** | hot hand, raise only | as B, but on the producer's **pace**: signed ÷ expected share over the 3 days before the card (`C_DAYS`), against the field's expected-weighted median pace. A node that is strong this week must beat that; nobody's target is ever lowered | 1,000 |
+| **D** | even odds | `expected` | **100 blocks**: every producer is scored on about 100 blocks' worth at most, so a race is mostly luck and node quality matters less |
+
+- **Why no mode lowers a target.** A discount for a node that signed below its share was built and tested ("own pace,
+  bounded": a target no lower than 97% of the VHP share). Any discount based on past signing can be steered (D-120):
+  an 18% producer that signed 20% less for three days and then in full in a 6-hour race doubled its win chance under
+  that 3% discount. So every mode is raise-only; the way for a weak signer to win more is to sign its share.
+- **A card without a mode** is byte-identical to RULE_VERSION 4. A card with a mode records `mode` after `poolRule`
+  and each scored row carries `lift` and `target` (millionths) after `moves`. `pct` and `fpct` use the target.
+- **Mode A with the key present** gives the same numbers as no mode (lift 1), only the extra keys.
+- **The game's settings** may carry `mode` (optional, one of A–D); `recompute` requires the card's mode to match the
+  settings, and refuses any other value.
+- **Measured on live cards** (`tools/vhp-ruler-shadow.mjs … --modes A,B,C,D`, 60 recent races): see the project doc
+  `claude/ruler/MODES-A-D-2026-11-11.md`.
+
+**The admin's schedule, one repository variable per game, `<GAME>_RULER_MODE`:** week:mode pairs with rising weeks,
+like `5:B,8:C` (mode B from vault week 5, C from week 8). Before the first pair, or when the variable is unset, the mode
+is A.
+- `modeSchedule(v)` / `mode_schedule(v)`: strict parsing; anything odd stops the run.
+- `modeAt(week, schedule)` / `mode_at`: the mode of a vault week.
+- `modeChange(prev, next, week)` / `mode_change`: null, or why a change is refused. **A week that has started never
+  changes mode**, so the admin can only shift future weeks. A game's publish job compares the previous published week
+  file's recorded schedule with this run's, like the switch.
+- **Before setting it:** `node tools/vhp-ruler-mode.mjs "6:C"` prints each week's mode with its calendar Monday and OK or
+  REFUSED.
+- **What a game does with it:** read the variable, take `modeAt(week, schedule)` for the round's vault week, pass it as
+  `mode` in the card's settings, and record the schedule and the week's mode in the week file. The publish job's
+  `recompute_main` settings file must carry the same `mode`.
+- **Players aren't told which mode a week uses** (owner, 11 Nov). The card records it for audit.

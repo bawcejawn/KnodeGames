@@ -106,7 +106,7 @@ export function chances(c, races, seed, cfg, opts = {}) {
   // cfg.v4 (RULE_VERSION 4, 11 Nov): the void band by race length, down and up; expected blocks along the producer's own
   // path capped at own, for everyone; the luck cap (a producer above cfg.cap expected blocks is scored on a sample of the
   // blocks); the yardstick counts credited blocks
-  const band = cfg.v4 ? R.voidBand(c.blocks).map((x) => Number(x) / 1e6) : null, cap = cfg.v4 ? Number(R.LUCK_CAP) / 1e6 : Infinity;
+  const band = cfg.v4 ? R.voidBand(c.blocks).map((x) => Number(x) / 1e6) : null, cap = cfg.v4 ? Number(cfg.mode ? R.MODE_CAP[cfg.mode] : R.LUCK_CAP) / 1e6 : Infinity;
   const isVoid = (r) => (cfg.v4 ? r.devDown > band[0] || r.devUp > band[1] : cfg.void && r.dev > cfg.void);
   const field = c.rows.filter((r) => r.k >= cfg.minK && !r.gated && !isVoid(r) && !(opts.out || []).includes(r.p)).map((r) => { const q = Math.min(1, cap / r.k); return { ...r, q, e: (cfg.v4 ? r.pmin : exp(r)) * q }; }).sort((x, y) => y.e - x.e);
   if (field.length < 2) return null;
@@ -116,7 +116,11 @@ export function chances(c, races, seed, cfg, opts = {}) {
   // member more than 2 sd from its share of the core's blocks (the band, decided per race below), plus itself
   const byForm = field.map((r, i) => i).sort((a, b) => field[a].form - field[b].form), eAll = field.reduce((s, r) => s + r.e, 0);
   let med = 0; { let cum = 0; for (const i of byForm) { cum += field[i].e; if (2 * cum >= eAll - 1e-9) { med = field[i].form; break; } } }
-  const core = field.map((r) => r.form >= 0.97 * med), eC = field.reduce((s, r, i) => s + (core[i] ? r.e : 0), 0);
+  const core = field.map((r) => r.form >= 0.97 * med);
+  // the scoring modes (cfg.mode: B form lift raise-only on the 14-day form; C the same on the 3-day pace, which the 14-day
+  // form stands for here; D the 100-block luck cap): the target each producer must beat
+  if (cfg.mode === "B" || cfg.mode === "C") for (const r of field) { const ratio = med > 0 ? r.form / med : 1; r.e *= Math.max(1, ratio); }   // raise only (C's 3-day pace is the 14-day form here)
+  const eC = field.reduce((s, r, i) => s + (core[i] ? r.e : 0), 0);
   let hs = null;
   if (cfg.rank === "B") {
     const ks = field.map((r) => r.e), cal = RM.calibrate(ks, 1500);
@@ -159,7 +163,7 @@ export function chances(c, races, seed, cfg, opts = {}) {
   return Object.fromEntries(field.map((r, i) => [r.p, { chance: wins[i] / races, fair: 1 / F, ratio: wins[i] / races * F, index: r.lam * r.credFrac * (r.q ?? 1) / r.e, k: r.k, e: r.e, cantWin: cantWin[i], core: core[i] }]));
 }
 
-export const CONFIGS = { "v4 (as built)": { rank: "A2", minK: 10, poolRule: "min", v4: true }, "A′ + void": { rank: "A2", minK: 10, poolRule: "min", void: 0.1 }, "A + void": { rank: "A", minK: 10, poolRule: "min", void: 0.1 }, "A′ (fpct)": { rank: "A2", minK: 10, poolRule: "min" }, "A′ + thinned credit (proposal)": { rank: "A2", minK: 10, poolRule: "min", thin: true }, "A (pct)": { rank: "A", minK: 10, poolRule: "min" }, "A′ + void + min for all (proposal)": { rank: "A2", minK: 10, poolRule: "min", void: 0.1, minAll: true }, "A′ + void + per-block min for all (proposal)": { rank: "A2", minK: 10, poolRule: "min", void: 0.1, minAllN: true } };
+export const CONFIGS = { "v4 (as built)": { rank: "A2", minK: 10, poolRule: "min", v4: true }, "mode B": { rank: "A2", minK: 10, poolRule: "min", v4: true, mode: "B" }, "mode C": { rank: "A2", minK: 10, poolRule: "min", v4: true, mode: "C" }, "mode D": { rank: "A2", minK: 10, poolRule: "min", v4: true, mode: "D" }, "A′ + void": { rank: "A2", minK: 10, poolRule: "min", void: 0.1 }, "A + void": { rank: "A", minK: 10, poolRule: "min", void: 0.1 }, "A′ (fpct)": { rank: "A2", minK: 10, poolRule: "min" }, "A′ + thinned credit (proposal)": { rank: "A2", minK: 10, poolRule: "min", thin: true }, "A (pct)": { rank: "A", minK: 10, poolRule: "min" }, "A′ + void + min for all (proposal)": { rank: "A2", minK: 10, poolRule: "min", void: 0.1, minAll: true }, "A′ + void + per-block min for all (proposal)": { rank: "A2", minK: 10, poolRule: "min", void: 0.1, minAllN: true } };
 
 export function run(L, { cards = 40, races = 2500, only = null, log = console.log, moved = () => false, configs = CONFIGS } = {}) {
   const dry = days(L) < 29, res = [], want = (i) => !only || only.includes(i);
@@ -184,8 +188,15 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
   // (a big throttler's blocks go to the rest), so a synthetic form is scaled by the card's median real form, and a
   // synthetic producer without one signs in full at that median (D-165's core line is relative to the field)
   const medForm = (f) => { const xs = f.ps.map((p) => f.forms[p]).filter((x) => x > 0).sort((a, b) => a - b), h = xs.length; return h === 0 ? 1 : h % 2 ? xs[(h - 1) / 2] : (xs[h / 2 - 1] + xs[h / 2]) / 2; };
+  // real signing (11 Nov): on the real cards producers don't sign in line with their VHP; a producer's 14-day form relative
+  // to the field's median form says how far above or below. The mode configs (B, C, D) are judged with every real producer
+  // signing at that relative rate (clamped to 0.3–1.5), the same assumption the modes make about the world; A keeps the
+  // original model (everyone signs its share) so its marks stay comparable with the earlier reports
+  let realBase = false;
+  const realSigns = (f) => { const m = medForm(f), out = {}; for (const p of f.ps) { const r = m > 0 ? f.forms[p] / m : 1; out[p] = Math.min(1.5, Math.max(0.3, r)); } return out; };
   const field = (f, extra = {}) => {
     const m = extra.forms && extra.forms.__abs ? 1 : medForm(f), syn = {};
+    if (realBase && !(extra.forms && extra.forms.__abs)) extra = { ...extra, signs: { ...realSigns(f), ...(extra.signs || {}) } };   // (not when every form is set to 1: then everyone signs its share)
     for (const p of Object.keys(extra.add || {})) syn[p] = m * ((extra.forms && extra.forms[p]) ?? 1);
     const forms = { ...f.forms, ...(extra.forms && extra.forms.__abs ? extra.forms : {}), ...syn };
     if (extra.forms && !extra.forms.__abs) for (const [p, v] of Object.entries(extra.forms)) if (!(p in syn)) forms[p] = v * m;
@@ -201,6 +212,7 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
     return agg(per);
   };
   for (const [name, cfg] of Object.entries(configs)) {
+    realBase = !!cfg.mode;
     if (want(1)) {
       // (a) every producer honest and signing in full (rate 1, form 1: what a full producer's record shows)
       const adds = (f) => ({ "~shrinks 1%/day": synthetic(f.Nreal, 0.03, false), "~re-burns hourly": synthetic(f.Nreal, 0.03, true) });
@@ -213,7 +225,12 @@ export function run(L, { cards = 40, races = 2500, only = null, log = console.lo
       const rr = honest(cfg, (f) => ({ add: adds(f), signs: Object.fromEntries(f.ps.filter((p) => f.steady[p]).map((p) => [p, f.rates[p]])) }), true, 1000, { fairWin: true });
       const full = Object.fromEntries(Object.entries(rr).filter(([, v]) => v.n >= 5));
       const [x0, x1] = span(full, (x) => x.ratio);
-      say(1, "honest field", name, `all full: win chance ${w0.toFixed(2)} … ${w1.toFixed(2)} of fair (${Object.keys(enough).length} producers in 5+ races), index ${i0.toFixed(4)} … ${i1.toFixed(4)}; real rates (fair = 1 ÷ field less steady throttlers): ${x0.toFixed(2)} … ${x1.toFixed(2)} (${Object.keys(full).length})`, w0 >= 0.84 && w1 <= 1.16 && x0 >= 0.84 && x1 <= 1.16, "wins 0.84–1.16 of fair (D-170), all full and at real rates (index: see report)", { allFull: r, realRates: rr });
+      // (c) every real producer signs at its real relative form (the quality edge seen on live cards); fair = 1 ÷ field
+      const saved = realBase; realBase = true;
+      const rc = honest(cfg, (f) => ({ add: adds(f) }), false), realC = Object.fromEntries(Object.entries(rc).filter(([, v]) => v.n >= 5)), [c0, c1] = span(realC, (x) => x.ratio);
+      realBase = saved;
+      const pass1 = cfg.mode ? w0 >= 0.84 && w1 <= 1.16 && c0 >= 0.84 && c1 <= 1.16 : w0 >= 0.84 && w1 <= 1.16 && x0 >= 0.84 && x1 <= 1.16;
+      say(1, "honest field", name, `all full: win chance ${w0.toFixed(2)} … ${w1.toFixed(2)} of fair (${Object.keys(enough).length} producers in 5+ races), index ${i0.toFixed(4)} … ${i1.toFixed(4)}; real rates (fair = 1 ÷ field less steady throttlers): ${x0.toFixed(2)} … ${x1.toFixed(2)} (${Object.keys(full).length}); at real signing (every producer at its form ÷ the median): ${c0.toFixed(2)} … ${c1.toFixed(2)} (${Object.keys(realC).length})`, pass1, cfg.mode ? "wins 0.84–1.16 of fair, all full and at real signing (a mode is judged on the world as the cards show it)" : "wins 0.84–1.16 of fair (D-170), all full and at real rates (index: see report; 'at real signing' is reported)", { allFull: r, realRates: rr, realSigning: rc });
     }
     if (want(2)) {
       const r = honest(cfg, (f) => ({ add: Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`~small${String(i).padStart(3, "0")}`, synthetic(f.Nreal, 0.0005 + i * 0.0001, i % 2 === 0)])) }));

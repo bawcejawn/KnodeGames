@@ -538,6 +538,33 @@
     }
     try { const b = await fetchJson(NET.data + "board.json"); if (b && b.v === 1) board = withPoints(b); } catch { /* none yet */ }
     renderResults(); renderBoard();
+    loadRuler().catch(() => {});
+  }
+  // ── the VHP ruler (owner, 11 Nov 2026): X<week>-<d>.json, one entry per target ──
+  // Shown only when this week (or the one before) is in shadow or on: "from Monday …" (the switch's week), and the
+  // latest targets' ruler scores (marked "trial: counts for nothing" in the shadow week). In an ON week the cap reads ×120.
+  async function loadRuler() {
+    const now = Date.now(), wNow = M.weekOf(now), files = [];
+    for (const w of [wNow - 1, wNow]) {
+      if (w < 0) continue;
+      const days = w === wNow ? Math.floor((now - M.weekStart(w)) / 86400000) + 1 : 7;
+      for (let d = Math.max(0, days - 2); d < days; d++) {
+        try { const j = await fetchJson(`${NET.data}X${String(w).padStart(3, "0")}-${d}.json`); if (j && j.v === 1 && j.week === w && j.day === d && Array.isArray(j.targets)) files.push(j); } catch { /* none */ }
+      }
+    }
+    const cur = files.filter((j) => j.week === wNow).pop() || files[files.length - 1];
+    if (!cur || cur.mode === "off" || !Number.isInteger(cur.rulerFrom)) { $("ruler-box").hidden = true; return; }
+    $("ruler-box").hidden = false;
+    const mon = new Date(M.weekStart(cur.rulerFrom)).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+    $("ruler-when").textContent = cur.mode === "on"
+      ? `Who Signs Block X is scored by the VHP ruler from ${mon} (00:00 UTC). It replaces the ×5 cap.`
+      : `Who Signs Block X switches to the VHP ruler on ${mon} (00:00 UTC). This week the ruler runs beside the game as a trial: its scores below count for nothing.`;
+    if (cur.mode === "on") for (const e of document.querySelectorAll('[data-bx="capx"]')) e.textContent = "×120";
+    const rows = files.flatMap((j) => j.targets.map((e) => ({ ...e, shadow: j.shadow }))).sort((a, b) => b.height - a.height).slice(0, 8);
+    $("ruler-list").replaceChildren(...rows.map((e) => {
+      const what = e.void ? "void: no pick on it counts" : e.card ? `${nameOf(e.signer)} signed: a right pick scores ×${(e.points / 100).toFixed(2)}` : "the ruler's score comes in once the block's data is in";
+      return el("div", { class: "bx-row" }, el("b", { text: `Block ${fmt(e.height)}` }), el("span", { text: ` ${what}${e.shadow ? " (trial)" : ""}` }));
+    }));
   }
   function renderResults() {
     const all = [...weeks.values()].flatMap((w) => w.targets).filter((t) => t && Number.isInteger(t.height)).sort((a, b) => b.height - a.height).slice(0, 8);

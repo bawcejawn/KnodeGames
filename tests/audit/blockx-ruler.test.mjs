@@ -97,3 +97,19 @@ test("the switch is read strictly: empty = off; a plain week number; week N − 
   assert.deepEqual([4, 5, 6, 7].map((w) => BR.modeOf(w, 6)), ["off", "shadow", "on", "on"]);
   assert.equal(BR.modeOf(9, null), "off");
 });
+
+test("page: the ruler's box is hidden until a day file says shadow or on; it says ×120, the 1-hour void line, that a pick on a voided producer is a miss, and from which Monday", async () => {
+  const fs = await import("node:fs");
+  const html = fs.readFileSync(path.join(APP, "blockx.html"), "utf8"), js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
+  assert.match(html, /<section class="bx-sec bx-panel" id="ruler-box" hidden>/);
+  assert.match(html, /min\(120, the biggest full-signing producer's size ÷ your producer's size\)/);
+  assert.match(html, /<b>Capped at ×120\.<\/b>/);
+  assert.match(html, /more than 5% below, or more than 25% above, its size on the card is void for that target only/);
+  assert.deepEqual(R.voidBand(BR.VOID_BLOCKS).map(Number), [50000, 250000], "the page's 5% / 25% is the ruler's 1-hour band");
+  assert.match(html, /A pick on a voided producer counts as a miss\./);
+  assert.match(js, /\$\{NET\.data\}X\$\{String\(w\)\.padStart\(3, "0"\)\}-\$\{d\}\.json/, "reads the day files");
+  assert.match(js, /cur\.mode === "off" \|\| !Number\.isInteger\(cur\.rulerFrom\)\) \{ \$\("ruler-box"\)\.hidden = true/, "hidden while off");
+  assert.match(js, /M\.weekStart\(cur\.rulerFrom\)/, "the calendar Monday from the switch's week");
+  assert.match(js, /if \(cur\.mode === "on"\) for \(const e of document\.querySelectorAll\('\[data-bx="capx"\]'\)\) e\.textContent = "×120"/);
+  assert.doesNotMatch(html + js, /mode [ABCD]\b|modes A/, "players are never told about the ruler's modes");
+});

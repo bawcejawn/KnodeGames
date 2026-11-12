@@ -28,7 +28,7 @@ A `GameModule` (`kit/recorder/types.ts`):
 | `resultOf(round, read)` | must | chain reads only through `read`; returns `Pending` until decided, never a guess |
 | `same(a, b)` | may | default canonical-JSON equality |
 | `scoreRound(round, picks, result, inputs)` | must | pure; uses the game's `math.js` (the page's copy); returns points for **every** wallet that picked (0 included) and, when it has points, the score time (D-159's tie-break) |
-| `carryIn(last, week, inputs)` / `nextState(state, picks, round, inputs)` | may (together) | **carried state** (FC-5), e.g. a Fantasy team. `nextState` runs for every round in lock order; `scoreRound` then gets each wallet's state and must score every wallet with a state, picked that round or not. A week is recorded only once the week before it is **final** (else nothing is written and the owner is alerted). Each state is JSON, at most 4 KB |
+| `carryIn(last, week, inputs)` / `nextState(state, picks, round, inputs)` | may (together) | **carried state** (FC-5), e.g. a Fantasy team. `nextState` runs for every round in lock order; `scoreRound` then gets each wallet's state and must score every wallet with a state, picked that round or not. A week is recorded only once the week before it is **final** (else nothing is written and the owner is alerted). A missing week file is a fresh start only for the game's first week or after the owner sets `<SLUG>_RESET_FROM_WEEK` to that week (#G-13 G13-1); otherwise the week waits. Each state is JSON, at most 4 KB |
 | `weekExtras(week, ctx)` | may | records-only JSON in the week file (`extras`, at most 256 KB); never paid from |
 | `columns` | may | extra board columns |
 
@@ -69,7 +69,7 @@ A module **must not**: use the network, the clock, files, processes, randomness 
 | `rowCap` | most board rows (0 = none); over it board.json keeps every ranked row, every free prize winner and the best others. board.json also keeps to 1.5 MB the same way |
 | `budgets` | optional read budgets, at most 200,000 reads and 20 minutes (a game's record job has 30: the budget, a last read's retries and setup) |
 | `roundsCorrectable`, `liveWeek`, `maxRoundPoints` | optional |
-| `inputsFile`, `inputsLeadHours` | optional: the write-once inputs file (FC-9); lead 1–168 h, default 48 |
+| `inputsFile`, `inputsLeadHours` | optional: the write-once inputs file (FC-9); lead 1–96 h, default 48 (#G-13 G13-2) |
 | `published` | optional: up to 4 other kit games on the same data branch whose final weeks this game reads (`ctx.published`) |
 
 Once the vault pays a game (`vaultGames.<id>` exists in `game-data/deployment.json`), `vaultGames.<id>.kit` must pin `payoutRule`, `vaultValues`, `entry`, `week.sundayFunRound`, `roundsCorrectable` and `liveWeek` with the same values, so a payout change is a deployment change, never a one-line `game.json` edit. A manifest that repeats a key is refused. Schema: `tools/game-manifest.mjs`.

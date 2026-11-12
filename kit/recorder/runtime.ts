@@ -13,7 +13,7 @@
 //     forward byte for byte; a final week the chain now reads differently (after a FULL, healthy re-read) gets a HOLD
 //     file, and an unreleased HOLD alerts every run.
 // The module never sees the clock, files or the network except through what this passes it.
-import { dayOf, isSunday, pad3, tally, weekHash, resolveRound, roundsChange, canon, sha256, isAddr, allTimeOf, KIT_FILE_VERSION, MAX_ROUNDS, MAX_FILE_BYTES, MAX_BEHIND_MS, MAX_STATE_BYTES, MAX_EXTRAS_BYTES, INPUTS_EARLIEST_MS } from "../publish/check.inline.mjs";
+import { dayOf, isSunday, pad3, tally, weekHash, resolveRound, roundsChange, canon, sha256, isAddr, allTimeOf, KIT_FILE_VERSION, MAX_ROUNDS, MAX_FILE_BYTES, MAX_BEHIND_MS, MAX_STATE_BYTES, MAX_EXTRAS_BYTES } from "../publish/check.inline.mjs";
 import { clockFromState, type VaultClock } from "./clock.ts";
 import { agree, budgeted, Budget, DEFAULT_BUDGETS, Disagree, OutOfBudget, ReadFailed, sameJson, toJson, type Budgets, type KitNode } from "./nodes.ts";
 import { Prev, Out, MAX_WRITE_BYTES } from "./store.ts";
@@ -50,6 +50,8 @@ export type RunOpts = {
   wall?: () => number;
   /** The runner's clock, to catch two stalled nodes (KC-7). The CLI passes Date.now; tests leave it out. */
   wallNow?: () => number;
+  /** G13-1: the owner's explicit fresh start for carried state (<SLUG>_RESET_FROM_WEEK): this week starts empty. */
+  resetFromWeek?: number;
   /** Other kit games' last-run folders (manifest `published`), by slug, for ctx.published (read-only). */
   published?: Record<string, { dir: string; cfg: { game: number; genesis: number; weekMs?: number; sundayFunRound: boolean; inputsFile?: boolean } }>;
 };
@@ -79,6 +81,7 @@ export const varName = (slug: string, what: "RELEASE" | "HOLD_WEEKS") => `${slug
 export const sourcesOf = (m: GameModule<any, any, any>): PicksSource[] => (Array.isArray(m.picks) ? m.picks : [m.picks]);
 const DAY_MS = 86400000;
 export const DEFAULT_INPUTS_LEAD_MS = 2 * DAY_MS;
+export const MAX_INPUTS_LEAD_MS = 4 * DAY_MS;
 
 function sourceFor(m: GameModule<any, any, any>, o: RunOpts) {
   if (o.source) return o.source;
@@ -176,7 +179,9 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
   if (cfg.inputsFile) {
     if (!m.inputsFor) throw new Error(`${cfg.slug}: inputsFile is set but the module has no inputsFor`);
     const lead = cfg.inputsLeadMs ?? DEFAULT_INPUTS_LEAD_MS;
-    if (!(lead > 0 && lead <= INPUTS_EARLIEST_MS)) throw new Error(`${cfg.slug}: inputsLeadMs must be above 0 and at most 7 days`);
+    // G13-2: at most 4 days, so ctx.published (weeks ≤ u − 2, final by Thursday of week u − 1) can't change between
+    // the file and the recount.
+    if (!(lead > 0 && lead <= MAX_INPUTS_LEAD_MS)) throw new Error(`${cfg.slug}: inputsLeadMs must be above 0 and at most 4 days (#G-13 G13-2)`);
     const u = cw + 1, us = clock.span(u);
     if (now >= us.start - lead && now < us.start && !prev.inputs(u)) {
       try {
@@ -286,7 +291,17 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
       alerts.errors.push(`week ${w} waits on week ${w - 1}, which isn't final (held or still pending): its carried state isn't known, so nothing is recorded for week ${w} (FC-5)`);
       return { week: w, state: "waiting", alerts, written: out.written };
     }
-    const last: States<any> = new Map((pwk?.next ?? []) as [string, unknown][]);
+    // G13-1: no file for week w − 1 is a fresh start only for the game's first week, or when the owner resets it
+    // (<SLUG>_RESET_FROM_WEEK = w, e.g. a game switched back on after weeks off). Any earlier week file means a week
+    // went missing (an outage, a missed inputs file, a week that waited): record nothing rather than start everyone
+    // from empty.
+    const reset = o.resetFromWeek === w;
+    if (!pwk && !reset && prev.weeks().some((x) => x < w - 1)) {
+      alerts.errors.push(`week ${w} waits on week ${w - 1}, which has no week file although earlier weeks do: its carried state isn't known, so nothing is recorded for week ${w} (FC-5, #G-13 G13-1). Recover week ${w - 1}, or set ${cfg.slug.toUpperCase().replace(/-/g, "_")}_RESET_FROM_WEEK=${w} to start week ${w} from empty state`);
+      return { week: w, state: "waiting", alerts, written: out.written };
+    }
+    if (reset) alerts.warnings.push(`week ${w}: carried state reset by the owner (RESET_FROM_WEEK): every wallet starts empty`);
+    const last: States<any> = reset ? new Map() : new Map((pwk?.next ?? []) as [string, unknown][]);
     carry = checkedStates("carryIn", m.carryIn ? m.carryIn(last, span, inputs) : last);
   }
 

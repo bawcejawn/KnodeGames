@@ -206,3 +206,37 @@ test("Phase 1 item 6: ctx.published carries the game's own final weeks to inputs
   assert.deepEqual(Object.keys(lastPublished.own), ["4"]);
   assert.equal(lastPublished.own[4].state, "final");
 });
+
+
+// ── Repo Lens #G-13 (kit-phase1-fantasy @ 7572152): G13-1. Append to kit/tests/phase1-fantasy.test.ts (uses its helpers).
+// Fails today. ──
+// G13-1: a week with NO file (an outage through its 3 days, a missed inputs file, or a week that "waited" on a held
+// week before it) is treated as "the game's first week": the next week starts every wallet from EMPTY state
+// (runtime.ts: `const last = new Map((pwk?.next ?? []) ...)` when pwk is null), with no alert. Carried teams are lost
+// and that week is scored and paid as if nobody had one. Fix: when the game has any published final week before w − 1
+// but no file for w − 1, don't record week w (state "waiting", an error alert), as for a non-final w − 1; start from
+// empty only when no earlier week file exists at all.
+test("G13-1 (High, latent): a week with no file doesn't silently reset the carried state of the week after it", async () => {
+  const { wd, rp } = await toWeek4Final();
+  assert.deepEqual(rp.read("W004.json").next, [[A, "P1"], [B, "P1"]]);
+  wd.time = at(6) - 2 * DAY + H; await hour(rp, wd);    // week 6's inputs file, before week 6 opens
+  // Outage: no run while week 5 is "last week" (Mon–Wed of week 6), so week 5 never gets a file.
+  wd.time = at(7, 0, 2);
+  const h = await hour(rp, wd);
+  assert.equal(rp.read("W005.json"), null, "the outage left week 5 without a file");
+  const j = rp.read("W006.json");
+  assert.ok(!(j && Array.isArray(j.carry) && j.carry.length === 0),
+    `week 6 was recorded from empty state after a gap (carry ${JSON.stringify(j?.carry)}; state ${h.result?.state}); A and B carried teams into week 5`);
+  assert.ok(h.result!.alerts.errors.some((e) => /week 5/.test(e)), "an alert names the missing week");
+});
+
+// G13-2 (Low): inputsLeadMs may be up to 7 days (runtime.ts, game-manifest inputsLeadHours 1–168), but ctx.published
+// for week u's inputs is "final weeks ≤ u − 2", and week u − 2 can still turn final until its vault deadline,
+// start(u − 1) + 3 days. A lead over 4 days can make the inputs file before u − 2 is final and recount it after, with a
+// different ctx.published: the recount differs and week u is held for good. Fix: cap the lead at 4 days (96 hours), or
+// cut ctx.published at u − 3 when the lead is longer.
+test("G13-2 (Low): an inputs lead longer than 4 days is refused (ctx.published could change before the recount)", async () => {
+  const wd = fworld(), rp = new Replay(game, { ...cfg, inputsLeadMs: 5 * DAY });
+  const h = await hour(rp, wd);
+  assert.match(h.error ?? "", /inputsLeadMs/, `a 5-day lead was accepted (${h.result?.state})`);
+});

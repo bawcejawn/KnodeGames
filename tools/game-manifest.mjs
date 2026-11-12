@@ -96,8 +96,9 @@ function checkKitFields(m, need) {
   }
   if (m.maxRoundPoints !== undefined) need(Number.isInteger(m.maxRoundPoints) && m.maxRoundPoints >= 1 && m.maxRoundPoints <= 1000000, "maxRoundPoints: a whole number from 1 to 1,000,000");
   for (const f of ["liveWeek", "roundsCorrectable", "inputsFile"]) if (m[f] !== undefined) need(typeof m[f] === "boolean", `${f}: true or false`);
-  // FC-9: the inputs file is made this many hours before the week opens (default 48 = Saturday 00:00 UTC), at most a week.
-  if (m.inputsLeadHours !== undefined) need(m.inputsFile === true && Number.isInteger(m.inputsLeadHours) && m.inputsLeadHours >= 1 && m.inputsLeadHours <= 168, "inputsLeadHours: 1–168, only with inputsFile: true");
+  // FC-9: the inputs file is made this many hours before the week opens (default 48 = Saturday 00:00 UTC), at most
+  // 4 days (#G-13 G13-2: a longer lead could see weeks that still change before the recount).
+  if (m.inputsLeadHours !== undefined) need(m.inputsFile === true && Number.isInteger(m.inputsLeadHours) && m.inputsLeadHours >= 1 && m.inputsLeadHours <= 96, "inputsLeadHours: 1–96, only with inputsFile: true");
   // Phase 1 item 6: other kit games whose published final weeks this game reads (ctx.published.games).
   if (m.published !== undefined) need(Array.isArray(m.published) && m.published.length <= 4 && m.published.every((x) => typeof x === "string" && /^[a-z][a-z0-9-]{1,23}$/.test(x) && x !== m.slug) && new Set(m.published).size === m.published.length, "published: up to 4 other kit games' slugs");
 }

@@ -45,6 +45,10 @@ export class Prev {
   /** The week's published inputs file (FC-9), parsed. */
   inputs(w: number): any | null { return this.files.get(`inputs/W${w}.json`) ?? null; }
   alltime(): any | null { return this.files.get("alltime.json") ?? null; }
+  /** Every published week number (any state), ascending. */
+  weeks(): number[] {
+    return [...this.files.keys()].map((k) => /^W([0-9]{3,4})\.json$/.exec(k)).filter(Boolean).map((m) => Number(m![1])).sort((a, b) => a - b);
+  }
   /** Every published final week file, in week order. */
   finals(): any[] {
     return [...this.files.entries()].filter(([k, v]) => /^W[0-9]{3,4}\.json$/.test(k) && v.state === "final").map(([, v]) => v).sort((a, b) => a.week - b.week);

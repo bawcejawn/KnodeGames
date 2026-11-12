@@ -904,3 +904,25 @@ test("G20-1: a week file whose ruler switch isn't the owner's variable is refuse
   assert.equal(readW(bad).rulerMode, "on", "the bad run's week W file says the ruler is on");
   assert.equal(shapeOk(bad, { pub, now: t0 + 60000 }), false, "published although the owner's BRACKET_RULER_FROM_WEEK is unset: week W is then locked 'on'");
 });
+
+// Repo Lens #G-25 Info (written by the Bracket chat from the finding's description; the original file wasn't
+// attached): index.json carries the owner's variable, but one open week file carries another value. The publish job
+// must refuse that week file (G20-1 checks every open week file, not only index.json).
+test("Repo Lens #G-25 Info: index.json right but one open week file's rulerFrom wrong: that week file is refused", async () => {
+  const field = fieldOf(17), dir = tmp();
+  const o = { raceDir: raceDir(field), picksContract: addr(60), nodeOf: nodeOf(signerFn(field)), picksOf: picksOf([{ player: P(1), number: 5, time: 1 }]), rulerFrom: String(W + 1), dayCardOf: underdogs };
+  await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(B.seedTime(W) + H), ...o }));
+  const mid = B.lockTime(W) + 2 * H;
+  await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(mid), ...o }));
+  const idx = JSON.parse(fs.readFileSync(path.join(dir, "index.json"), "utf8"));
+  assert.equal(idx.rulerFrom, W + 1, "index.json carries the owner's value");
+  assert.deepEqual(heldOf(dir, { now: mid, ruler: String(W + 1) }), [], "the recorder's own files: nothing held");
+  // week W's file (open: locked, mid-week) is rewritten with another, self-consistent switch value, as a tampered run could
+  const bad = tmp(); fs.cpSync(dir, bad, { recursive: true });
+  const f = path.join(bad, `W00${W}.json`), j = JSON.parse(fs.readFileSync(f, "utf8"));
+  assert.ok(!["final", "none", "void"].includes(j.status), "an open week: " + j.status);
+  j.rulerFrom = W + 2; j.rulerMode = "off";   // week W is off under W + 2: consistent with itself, but not the owner's
+  fs.writeFileSync(f, JSON.stringify(j) + "\n");
+  const held = heldOf(bad, { now: mid, pub: dir, ruler: String(W + 1) });
+  assert.ok(held.includes(`bracket/W00${W}.json`), "the week file that doesn't carry the owner's variable is held: " + held.join(", "));
+});

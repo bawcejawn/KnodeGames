@@ -58,6 +58,10 @@ unless the owner decides to move one (GAME_KIT §6: replay, two shadow weeks wit
 | `cardPerRound` (Library, 12 Nov) | On by default for ruler games; no extra pin |
 | G7 (Block X + Fantasy, 12 Nov) | A time-locked round's last pick block is `blockAt(lock) − 1` (`lastPickBlock`) |
 
+## Capacity (CAPACITY_STANDARD)
+Rule 2 is built (every run warns past 60% of the 2 MB publish cap). Rule 3 holds (page loops and the 1.9 MB write cap
+throw; only display boards trim, and they say how much). Rule 4 (compact, split files) is the next kit PR. See GAME_KIT §5a.
+
 ## Known gaps (none block Fantasy's port)
 - The ruler's optional `include` (G6) and `mode` card settings aren't in the kit's strict card settings yet: they join with the Ruler PRs that bring them (until then such a card fails closed).
 - A ruler game can't decide a round without a card except by `cardPerRound: false` (GAME_KIT §3).

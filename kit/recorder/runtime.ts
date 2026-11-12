@@ -13,6 +13,8 @@
 //     forward byte for byte; a final week the chain now reads differently (after a FULL, healthy re-read) gets a HOLD
 //     file, and an unreleased HOLD alerts every run.
 // The module never sees the clock, files or the network except through what this passes it.
+import fs from "node:fs";
+import path from "node:path";
 import { dayOf, isSunday, pad3, tally, weekHash, resolveRound, roundsChange, canon, sha256, isAddr, allTimeOf, KIT_FILE_VERSION, MAX_ROUNDS, MAX_FILE_BYTES, MAX_BEHIND_MS, MAX_STATE_BYTES, MAX_EXTRAS_BYTES } from "../publish/check.inline.mjs";
 import { clockFromState, type VaultClock } from "./clock.ts";
 import { agree, budgeted, Budget, DEFAULT_BUDGETS, Disagree, OutOfBudget, ReadFailed, sameJson, toJson, type Budgets, type KitNode } from "./nodes.ts";
@@ -140,7 +142,20 @@ async function readPicksWeek(m: GameModule<any, any, any>, node: KitNode, vault:
 }
 
 /** One hourly run of one game. Throws (writing nothing) on a stop: missing last files, a node failure or disagreement. */
+/** CAPACITY_STANDARD rule 2 (Capacity chat, 12 Nov): every run warns when a file it wrote passes 60% of the publish
+ *  job's 2 MB cap, naming the file and its size, so a game hears about growth weeks before a file can't be published. */
+export const CAPACITY_WARN_BYTES = Math.floor(0.6 * MAX_FILE_BYTES);
 export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts): Promise<RunResult> {
+  const r = await runOnce(m, cfg, o);
+  for (const rel of r.written) {
+    let n = 0;
+    try { n = fs.statSync(path.join(o.out, rel)).size; } catch { continue; }
+    if (n > CAPACITY_WARN_BYTES) r.alerts.warnings.push(`${rel} is ${(n / 1048576).toFixed(2)} MB, over 60% of the 2 MB publish cap (CAPACITY_STANDARD rule 2): plan a split before it reaches the cap`);
+  }
+  return r;
+}
+
+async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts): Promise<RunResult> {
   const log = o.log ?? ((s: string) => console.log(s));
   const alerts = newAlerts();
   if (m.slug !== cfg.slug) throw new Error(`module slug "${m.slug}" isn't game.json's "${cfg.slug}"`);

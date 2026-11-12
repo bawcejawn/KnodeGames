@@ -91,6 +91,12 @@ Once the vault pays a game (`vaultGames.<id>` exists in `game-data/deployment.js
 - `npm run test:audit` runs the kit's own tests and the rendered-workflow check (the committed kit jobs equal the kit's render).
 - The rendered workflow gives **each game its own record job** (25-minute timeout, its own artifact, its own variable); the publish job takes each game's files only from that game's artifact and runs when any game recorded. One slow or broken game stops only itself.
 
+## 5a. Capacity (CAPACITY_STANDARD, Capacity chat and owner, 12 Nov)
+- **Rule 2 (built):** every kit run warns (an alert) when any file it wrote passes 60% of the publish job's 2 MB cap (`CAPACITY_WARN_BYTES`), naming the file and its size. The store already refuses to write over 1.9 MB, and the run stops.
+- **Rule 3 (holds):** the kit never drops data silently. The picks readers throw past 1,000 pages, the store throws over 1.9 MB, and the week file keeps every wallet's row. Only the display boards (`board.json`, `alltime.json`) are trimmed to their byte budget, and they say how many rows were left out (`cut`); every paid and prize row is kept.
+- **Rule 4 (next kit PR):** compact, split files (fixed reference data once, players listed once, one file per day or round, a top-100 board plus per-player shards, one hash over all parts, the publish job still recomputing every point). It changes the week-file format and the publish check, so it goes in its own PR with its own Repo Lens round, before the next kit game's first paid week.
+- Rule 1 (each game's measured bytes per player and its 2 MB player count) belongs to each game's README, measured with `tools/capacity-harness`.
+
 ## 6. New games, and moving a live game onto the kit (never changes payouts)
 **Every new game launches on the kit; no game gets its own recorder again (D-158, D-160).** Order: the kit's core only (R-ARCH-3); Fantasy, Block Golf and Bracket ported to GameModules before they launch; Daily Questions' recorder (PR #203, the Mon 16 delivery) ported onto the kit with a byte-compatible replay and its scoring unchanged; then Block X and the Race by the steps below; then the publish jobs and the site files. **Any rule ambiguity stops the build and goes to the owner (D-160).** Data stays on today's branches (`games-data`, `race-data`) until ARCHITECTURE A3.
 

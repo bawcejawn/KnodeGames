@@ -177,12 +177,7 @@
   // ── integer helpers ──
   const imin = (x, y) => (x < y ? x : y), imax = (x, y) => (x > y ? x : y);
   const big = (x) => (typeof x === "bigint" ? x : BigInt(x));
-  function isqrt(n) {   // floor(√n) for a BigInt n ≥ 0 (Newton)
-    if (n < 0n) throw new Error("isqrt of a negative number");
-    if (n < 2n) return n;
-    let x = BigInt(1) << BigInt((n.toString(2).length + 1) >> 1);
-    for (;;) { const y = (x + n / x) >> 1n; if (y >= x) return x; x = y; }
-  }
+  // isqrt (floor √v for a BigInt v ≥ 0) is defined once, below, next to its first use in scoring
   /** Luck trim c ÷ √k in millionths (c and k in millionths). */
   function trim(k, c) {
     k = big(k); c = big(c);
@@ -787,6 +782,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, RULE_VERSIONS, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, MODES, MODE_CAP, LIFT_SKIP, LIFT_SPAN, STRETCHES, LIFT_SD, liftForm, checkInclude, versionSchedule, versionAt, versionChange, modeSchedule, modeAt, modeChange, isqrt, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, RULE_VERSIONS, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, MODES, MODE_CAP, LIFT_SKIP, LIFT_SPAN, STRETCHES, LIFT_SD, liftForm, checkInclude, versionSchedule, versionAt, versionChange, modeSchedule, modeAt, modeChange, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
     sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

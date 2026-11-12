@@ -2,6 +2,7 @@
 // data rules D-112. Step (a): the pure math, integers only, the same in JavaScript and Python.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { expectedOf, creditedOf } from "./vhp-ruler.fixture.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -188,8 +189,8 @@ test("card credit: hiding VHP before the card, then bringing it back, gains noth
 test("makeCard: fields, order, entry bar, pooled, quality, D-112's rebuilt rule", () => {
   const { tl, ps } = randomTimeline(21, 32000, 6);
   let { card } = cardOn(tl, { pooled: [ps[2]] });
-  assert.deepEqual([...Object.keys(card)], ["ruleVersion", "game", "round", "ownRule", "paying", "T", "seedBlock", "seedBlockId", "seedProducer", "window", "c", "total", "formFrom", "producers"]);
-  assert.deepEqual([...Object.keys(card.producers[0])], ["a", "own", "avg", "k", "form", "entry", "pooled", "isNew", "quality"]);
+  assert.deepEqual([...Object.keys(card)], ["ruleVersion", "game", "round", "ownRule", "paying", "T", "seedBlock", "seedBlockId", "seedProducer", "window", "c", "minK", "poolRule", "total", "formFrom", "producers"]);
+  assert.deepEqual([...Object.keys(card.producers[0])], ["a", "own", "avg", "k", "form", "rate", "entry", "pooled", "isNew", "quality"]);
   assert.ok(card.T >= card.window.W0 && card.T <= card.window.W1);
   assert.equal(card.seedBlock, card.window.L + 20);
   for (let i = 1; i < card.producers.length; i++) assert.ok(card.producers[i - 1].own >= card.producers[i].own, "biggest first");
@@ -203,18 +204,18 @@ test("makeCard: fields, order, entry bar, pooled, quality, D-112's rebuilt rule"
   assert.throws(() => cardOn(tl, { paying: true }), /14 days/, "#E-12 L-1: a paying card needs 14 days + 6 h of data");
 });
 
-test("scoreCard: credited ≤ signed; the pooled rule uses min(own, eff) per block", () => {
+test("scoreCard: credited ≤ signed; EVERY producer's expected blocks are min(own, eff) per block over the blocks that count for it (RULE_VERSION 4)", () => {
   const { tl, ps } = randomTimeline(31, 32000, 5, { busy: true });
   const { L, card } = cardOn(tl, { pooled: [ps[1]] });
   const s = R.scoreCard(L, card);
   for (const p of s.producers) {
     assert.ok(p.credited <= BigInt(p.signed) * M);
-    if (!p.pooled) assert.equal(p.expected, p.k);
+    assert.equal(p.expected, expectedOf(L, s, p), `${p.a}: expected, pooled or not`);
+    assert.equal(p.credited, creditedOf(L, s, p), `${p.a}: credited`);
+    assert.ok(p.expected <= p.k, "never above its card size");
   }
-  const p = s.producers.find((x) => x.pooled), own = p.own;
-  let want = 0n; for (let H = card.window.S0; H <= card.window.S1; H++) { const e = L.eff(p.a, H); want += ((e < own ? e : own) * M) / card.total; }
-  assert.equal(p.expected, want);
-  const game = { game: 7, round: "2026111006", window: card.window, c: 500000n, ownRule: "spot", paying: false, pooled: [ps[1]] };
+  assert.ok(s.producers.some((x) => x.pooled) && s.producers.some((x) => !x.pooled));
+  const game = { game: 7, round: "2026111006", window: card.window, c: 500000n, minK: 10, poolRule: "min", ownRule: "spot", paying: false, pooled: [ps[1]] };
   assert.equal(R.recompute(L, R.cardJson(s), game).same, true);
   const tampered = R.cardJson(s).replace(/"credited":"(\d)/, (m, d) => `"credited":"${(+d + 1) % 10}`);
   assert.equal(R.recompute(L, tampered, game).same, false, "a changed number is refused");
@@ -235,7 +236,7 @@ j = json.load(open(${JSON.stringify(f)}))
 L = V.Ledger(j["tl"])
 c = V.make_card(L, j["game"], j["round"], j["window"], j["c"], j["ownRule"], j["paying"], j["pooled"])
 sys.stdout.write(V.card_json(c)); sys.stdout.write(V.card_json(V.score_card(L, c)))
-ok, d = V.recompute(L, V.card_json(V.score_card(L, c)), {"game": j["game"], "round": j["round"], "window": j["window"], "c": j["c"], "ownRule": j["ownRule"], "paying": j["paying"], "pooled": j["pooled"]}); assert ok, d`);
+ok, d = V.recompute(L, V.card_json(V.score_card(L, c)), {"game": j["game"], "round": j["round"], "window": j["window"], "c": j["c"], "minK": 10, "poolRule": "min", "ownRule": j["ownRule"], "paying": j["paying"], "pooled": j["pooled"]}); assert ok, d`);
     assert.equal(py, js[0] + js[1], `seed ${seed}`);
   }
 });
@@ -257,7 +258,7 @@ test("paying cards (14 days + 6 h of data): D-113's rebuilt rule, a bad range fl
   const { longTimeline } = await import("./vhp-ruler.fixture.mjs");
   const { tl, ps } = longTimeline({ n: 440000 });
   const W0 = tl.from + 415000, window = { W0, W1: W0 + 7199, L: W0 + 7200, S0: W0 + 7201, S1: W0 + 14400 };
-  const game = { game: 7, round: "5", window, c: 400000n, ownRule: "high1h", paying: true, pooled: [ps[1]] };
+  const game = { game: 7, round: "5", window, c: 400000n, minK: 10, poolRule: "min", ownRule: "high1h", paying: true, pooled: [ps[1]] };
   const mk = (extra) => R.makeCard(R.ledger({ ...tl, ...extra }), game);
   let card = mk({});
   assert.ok(card.producers.every((p) => p.quality === "ok"));

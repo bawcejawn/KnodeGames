@@ -26,4 +26,6 @@ before-upgrade.txt
 testnet-v6/
 testnet-v61/
 testnet-v61-d8/
+
+# Python bytecode (Repo Lens #G-9)
 __pycache__/

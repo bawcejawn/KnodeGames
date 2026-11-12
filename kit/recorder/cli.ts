@@ -31,7 +31,15 @@ export async function main(argv = process.argv.slice(2), env = process.env): Pro
     const up = slug.toUpperCase().replace(/-/g, "_");
     const prev = env.KIT_PREV || `${slug}-prev`;
     fs.mkdirSync(out, { recursive: true });
-    const r = await runGame(game, cfg, { nodes: [nodes[0], nodes[1]], prev, out, holdWeeks: env[`${up}_HOLD_WEEKS`], release: env[`${up}_RELEASE`], wallNow: Date.now });
+    // Other kit games this one reads (manifest `published`): their last-run folders, fetched by the workflow.
+    const published: Record<string, { dir: string; cfg: any }> = {};
+    for (const other of (m.published ?? []) as string[]) {
+      const oc = kitConfig(loadManifest(other), dep);
+      published[other] = { dir: env[`KIT_PUBLISHED_${other.toUpperCase().replace(/-/g, "_")}`] || `${other}-published`, cfg: { game: oc.game, genesis: oc.genesis, weekMs: oc.weekMs, sundayFunRound: oc.sundayFunRound, inputsFile: oc.inputsFile } };
+    }
+    const rv = (env[`${up}_RESET_FROM_WEEK`] ?? "").trim();
+    if (rv && !/^(0|[1-9][0-9]{0,3})$/.test(rv)) throw new Error(`${up}_RESET_FROM_WEEK must be a week number`);
+    const r = await runGame(game, cfg, { nodes: [nodes[0], nodes[1]], prev, out, holdWeeks: env[`${up}_HOLD_WEEKS`], release: env[`${up}_RELEASE`], wallNow: Date.now, published, resetFromWeek: rv ? Number(rv) : undefined });
     print(r.alerts, slug);
     console.log(`done: ${r.state}; wrote ${r.written.length} file(s)`);
     return r.alerts.errors.length ? 1 : 0;

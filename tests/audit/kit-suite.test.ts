@@ -15,6 +15,8 @@ import "../../kit/tests/repolens-e26.test.ts";
 import "../../kit/tests/repolens-f2.test.ts";
 import "../../kit/tests/repolens-f2-more.test.ts";
 import "../../kit/tests/lows.test.ts";
+import "../../kit/tests/phase1.test.ts";
+import "../../kit/tests/phase1-fantasy.test.ts";
 
 import test from "node:test";
 import assert from "node:assert/strict";

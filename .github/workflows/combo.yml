@@ -163,6 +163,13 @@ jobs:
           if grep -Evxq '(D[0-9]{5}(-[0-9]{1,3})?|vault/W[0-9]+)\.json [0-9a-f]{64}' "$RUNNER_TEMP/approved.txt"; then echo "::error::unexpected verifier output"; exit 1; fi
           eof="EOF_$(openssl rand -hex 16)"
           { echo "approved<<$eof"; cat "$RUNNER_TEMP/approved.txt"; echo "$eof"; } >> "$GITHUB_OUTPUT"
+      - name: Fail the run on an alert (after the confirmed files are handed on)
+        run: |
+          set -euo pipefail
+          if [ -s "$RUNNER_TEMP/approved.txt.alerts" ]; then
+            while IFS= read -r l; do echo "::error::alert: ${l//::/: }"; done < "$RUNNER_TEMP/approved.txt.alerts"
+            exit 1
+          fi
 
   publish:
     needs: [record, verify]

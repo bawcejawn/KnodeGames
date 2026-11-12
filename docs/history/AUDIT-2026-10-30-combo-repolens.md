@@ -247,3 +247,21 @@ FC3: fixed FC3-1, -2, -4 to -8, -10 to -13; FC3-3 partly (FC4-1); FC3-9 accepted
   switch change that would change a started week; the verify job and the publish job refuse a day whose `ruled` mark
   isn't the switch's. Tests: `tests/audit/combo-ruler.test.mjs` (modes, refused changes, the leg rule, JS = Python on 300
   random cards, the recorder, the verify job and the publish job end to end).
+
+## Finishing the PR (12 Nov 2026, after the delta prompt)
+- `main` merged again (`f3151b92`; one conflict, `sitemap.xml`: `main`'s, Combo joins it at launch).
+- **#G-16 Info:** `upgrade-clear` needs `--code` on mainnet, like `upgrade-schedule` and `upgrade-upload`; its dry run
+  names it. Test: "all three upgrade commands need --code".
+- **#G-16 Q1:** the verify job alerts when the published board is over 3 hours old (nothing got through). Alerts now
+  fail the verify job in a last step, after its approved list is handed to the publish job (which runs `always()`), so
+  an alert sends the failed-run email without holding confirmed files.
+- **Game 8 pinned** in `bot/picks.ts` (`COMBO_GAME`, kind 4): list_size 10, max_legs 6, 3 cards a day, 3 changes, 12
+  sends a day, and the four leg types the recorder requires (tested equal to `expectedLegTypes()` and `combo-math.js`).
+  `cardConfig` applies every `checkCardGame` limit; `pendingProblem` compares leg types field by field before an apply;
+  `announce 8` is refused on mainnet until `picks-data/deployment.json` records v2. The Block X game-count test now
+  expects 4 games.
+- **The capacity standard** (Capacity chat, 12 Nov): every file the recorder writes goes through `put()`, a warning past
+  60% of the 2 MB cap and an error past it; the size budget is in `.ai/games/ComboCard.md` (`board.json` is the first
+  file to fill: a warning from about 1,900 scoring players a week, the recorder's own stop at 6,000).
+- The runbook (`docs/blockx/MAINNET-LAUNCH.md`): step 0 (not during a handover), `--code` on the clear, the game 8
+  commands. Overview: `docs/combo/REPO-LENS-COMBO.md`.

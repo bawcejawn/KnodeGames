@@ -93,7 +93,21 @@ const TESTNET_CONFIG = path.join("testnet", "blockx.json");
 const DAY_MS = 86400000, WEEK_MS = 7 * DAY_MS;
 export const BRACKET_GAME = Object.freeze({ id: 9, name: "Producer Bracket", kind: 3, round: WEEK_MS, offset: (X.GENESIS + DAY_MS) % WEEK_MS,
   lead: 5 * 60000, ahead: 46 * 3600000, numberMax: 2 ** 31 - 1, picksPerDay: 20, maxChanges: 20 });
-const MAINNET_GAMES: any[] = [{ ...X.MAINNET_GAME, name: "Who Signs Block X" }, { ...X.MAINNET_HOURLY, name: "Who Signs Block X (hourly)" }, BRACKET_GAME];
+/** Combo Card, Picks game 8 (the Combo chat, 12 Nov; the build 8 rules): a CARD game (kind 4, Picks v2 only), locked by
+ *  TIME. Three slots a UTC day (round_size 3: one card per slot), each card changeable 3 times, so at most 12 card
+ *  transactions a wallet a day. Cards of 2 to 6 legs now (max_legs; the contract's room is 10, list_size, which can
+ *  never change). Four leg types, exactly as the recorder requires (bot/games/combo.ts expectedLegTypes, Repo Lens RL-25)
+ *  and the page prices them (combo-math.js): Win (1), Show (2), Top half (3) on the 6-hour Producer Race (lock 25 min
+ *  before the start, open 24 h ahead), and Block X (4) on blocks that are multiples of 2,400 (lock 500 blocks before,
+ *  open 28,800 ahead). The SHAPE (id, kind, list_size, lock_mode, round_size, round_offset, the leg types' codes and
+ *  clocks) can never change once applied; tighten_game can only make it stricter. Announced only once
+ *  picks-data/deployment.json records Picks v2 (runbook step 5). */
+const RACE_MS = 6 * 3600000;
+const comboLeg = (code: number, lock_mode: number, round_size: number, lead: number, ahead: number) =>
+  Object.freeze({ code, lock_mode, round_size: String(round_size), round_offset: "0", lead: String(lead), ahead: String(ahead), enabled: true });
+export const COMBO_GAME = Object.freeze({ id: 8, name: "Combo Card", kind: 4, listSize: 10, maxLegs: 6, slotsPerDay: 3, picksPerDay: 12, maxChanges: 3,
+  legTypes: Object.freeze([comboLeg(1, 2, RACE_MS, 25 * 60000, DAY_MS), comboLeg(2, 2, RACE_MS, 25 * 60000, DAY_MS), comboLeg(3, 2, RACE_MS, 25 * 60000, DAY_MS), comboLeg(4, 1, 2400, 500, 28800)]) });
+const MAINNET_GAMES: any[] = [{ ...X.MAINNET_GAME, name: "Who Signs Block X" }, { ...X.MAINNET_HOURLY, name: "Who Signs Block X (hourly)" }, BRACKET_GAME, COMBO_GAME];
 /** The picks per wallet per day and changes per pick the Picks contract allows at most. */
 const MAX_PICKS_PER_DAY = 50, MAX_CHANGES = 50;
 
@@ -197,7 +211,9 @@ async function status() {
   if (cfg.upgrade_eta && cfg.upgrade_eta !== "0") log(`  Upgrade        announced: ${cfg.upgrade_hash}, from ${new Date(Number(cfg.upgrade_eta)).toISOString()}`);
   const games = (await read(p, net.picks, "list_games")).games ?? [];
   log(`  Games          ${games.length ? "" : "none yet (npm run picks -- announce 2)"}`);
-  for (const g of games) log(Number(g.lock_mode) === 2
+  for (const g of games) log(Number(g.kind) === 4
+    ? `    ${g.id} ${g.name}: ${g.enabled ? "ON" : "off"}, kind 4 (card), ${g.round_size} cards a day, ${g.max_legs} legs (up to ${g.list_size}), ${g.leg_types?.length ?? 0} leg types, ${g.max_picks_per_day} sends a day, ${g.max_changes} changes`
+    : Number(g.lock_mode) === 2
     ? `    ${g.id} ${g.name}: ${g.enabled ? "ON" : "off"}, kind ${g.kind}, a round every ${Number(g.round_size) / 3600000} h (offset ${g.round_offset} ms), locks ${Number(g.lead) / 60000} min before, opens ${Number(g.ahead) / 3600000} h ahead, ${g.max_picks_per_day} picks a day, ${g.max_changes} changes`
     : `    ${g.id} ${g.name}: ${g.enabled ? "ON" : "off"}, every ${g.round_size} blocks, locks ${g.lead} before, opens ${g.ahead} ahead, ${g.max_picks_per_day} picks a day, ${g.max_changes} changes`);
   const pend = (await read(p, net.picks, "list_pending", { limit: 50 })).pending ?? [];
@@ -306,6 +322,7 @@ async function findVhp(p: Provider): Promise<string | null> {
 /** The game_config the contract takes for a Block X game (one producer, locked by block height). Exported for the tests. */
 export function buildGameConfig(g: any, enabled = true) {
   if (g.kind === 3) return bracketConfig(g, enabled);
+  if (g.kind === 4) return cardConfig(g, enabled);
   X.forGame(g);   // the contract's own limits for a height game (lead ≥ 100, ahead > lead, ...)
   if (typeof g.name !== "string" || !g.name || Buffer.byteLength(g.name) > 40) throw new Error("A game needs a name of 1 to 40 bytes.");
   if (!(g.id >= 1 && g.id < 128)) throw new Error("Game ids are 1 to 127.");
@@ -330,19 +347,54 @@ function bracketConfig(g: any, enabled: boolean) {
   return { id: g.id, name: g.name, kind: 3, list_size: 0, number_min: "0", number_max: String(g.numberMax), lock_mode: 2, round_size: String(g.round), round_offset: String(g.offset),
     lead: String(g.lead), ahead: String(g.ahead), max_picks_per_day: g.picksPerDay, max_changes: g.maxChanges, enabled };
 }
+/** A CARD game (kind 4, Picks v2): every limit the contract's checkGame / checkCardGame applies. */
+function cardConfig(g: any, enabled: boolean) {
+  const ok = (c: boolean, why: string) => { if (!c) throw new Error(`Card game: ${why}.`); };
+  if (typeof g.name !== "string" || !g.name || Buffer.byteLength(g.name) > 40) throw new Error("A game needs a name of 1 to 40 bytes.");
+  ok(g.id >= 1 && g.id < 128, "game ids are 1 to 127");
+  ok(Number.isSafeInteger(g.listSize) && g.listSize >= 2 && g.listSize <= 10, "list_size (the most legs ever) 2 to 10");
+  ok(Number.isSafeInteger(g.maxLegs) && g.maxLegs >= 2 && g.maxLegs <= g.listSize, "max_legs 2 to list_size");
+  ok(Number.isSafeInteger(g.slotsPerDay) && g.slotsPerDay >= 1 && g.slotsPerDay <= 10, "1 to 10 cards a day (round_size)");
+  if (!(g.picksPerDay >= 1 && g.picksPerDay <= MAX_PICKS_PER_DAY)) throw new Error("Picks per day must be 1 to 50.");
+  if (!(g.maxChanges >= 0 && g.maxChanges <= MAX_CHANGES)) throw new Error("Changes must be 0 to 50.");
+  const legs = Array.isArray(g.legTypes) ? g.legTypes : [];
+  ok(legs.length >= 1 && legs.length <= 16, "1 to 16 leg types");
+  legs.forEach((t: any, i: number) => {
+    ok(Number.isInteger(t.code) && t.code >= 1 && t.code <= 255 && !legs.slice(0, i).some((u: any) => u.code === t.code), "leg codes 1 to 255, distinct");
+    ok(t.lock_mode === 1 || t.lock_mode === 2, "a leg's lock_mode is 1 (blocks) or 2 (ms)");
+    const size = Number(t.round_size), off = Number(t.round_offset), lead = Number(t.lead), ahead = Number(t.ahead);
+    ok(Number.isSafeInteger(size) && size >= 1 && Number.isSafeInteger(off) && off >= 0 && off < size, "a leg's round_size at least 1 and above its offset");
+    ok(Number.isSafeInteger(lead) && Number.isSafeInteger(ahead) && lead >= (t.lock_mode === 1 ? 100 : 300000) && ahead > lead && ahead <= (t.lock_mode === 1 ? 28800 : DAY_MS),
+      "a leg locks at least 100 blocks (5 minutes) ahead and opens at most a day (28,800 blocks) ahead");
+    ok(t.enabled === true, "every leg type starts switched on");
+  });
+  return { id: g.id, name: g.name, kind: 4, list_size: g.listSize, number_min: "0", number_max: "0", lock_mode: 2, round_size: String(g.slotsPerDay), round_offset: "0",
+    lead: String(300000), ahead: String(DAY_MS), max_picks_per_day: g.picksPerDay, max_changes: g.maxChanges, enabled,
+    leg_types: legs.map((t: any) => ({ code: t.code, lock_mode: t.lock_mode, round_size: String(t.round_size), round_offset: String(t.round_offset), lead: String(t.lead), ahead: String(t.ahead), enabled: t.enabled })),
+    max_legs: g.maxLegs };
+}
 /** Repo Lens #G-7 (G7-1): the announced game must be exactly the game this tool would announce, field by field, before an
  *  apply. A field the chain leaves out is its zero value ("", 0, "0", false). null = they match; otherwise why not. */
 export function pendingProblem(pend: any, g: any): string | null {
   if (pend == null) return "nothing is announced for this game";
   const want: any = buildGameConfig(g);
-  for (const k of Object.keys(want)) {
-    const w = want[k];
-    const zero = typeof w === "boolean" ? false : typeof w === "number" ? 0 : k === "name" ? "" : "0";
-    const h = pend[k] ?? zero;
-    const same = typeof w === "boolean" ? Boolean(h) === w : typeof w === "number" ? Number(h) === w : String(h) === w;
-    if (!same) return `the announced ${k} is ${h}, this tool's is ${w}`;
-  }
-  return null;
+  const diff = (have: any, wantObj: any, where: string): string | null => {
+    for (const k of Object.keys(wantObj)) {
+      const w = wantObj[k];
+      if (Array.isArray(w)) {        // a card game's leg types, in order, each field by field
+        const h = Array.isArray(have?.[k]) ? have[k] : [];
+        if (h.length !== w.length) return `the announced ${where}${k} has ${h.length} entries, this tool's ${w.length}`;
+        for (let i = 0; i < w.length; i++) { const d = diff(h[i] ?? {}, w[i], `${where}${k}[${i}].`); if (d) return d; }
+        continue;
+      }
+      const zero = typeof w === "boolean" ? false : typeof w === "number" ? 0 : k === "name" ? "" : "0";
+      const h = have?.[k] ?? zero;
+      const same = typeof w === "boolean" ? Boolean(h) === w : typeof w === "number" ? Number(h) === w : String(h) === w;
+      if (!same) return `the announced ${where}${k} is ${h}, this tool's is ${w}`;
+    }
+    return null;
+  };
+  return diff(pend, want, "");
 }
 /** The next few rounds of a time-locked game, for the announce dry run: target, opens, locks (all UTC). */
 export function timeRounds(g: { round: number; offset: number; lead: number; ahead: number }, now: number, n = 3) {
@@ -356,7 +408,7 @@ export function timeRounds(g: { round: number; offset: number; lead: number; ahe
 }
 function gameOf(net: Net, id: number) {
   const g = net.games.find((x) => x.id === id);
-  if (!g) throw new Error(`Game ${id} is not one this tool registers on ${net.testnet ? "the testnet (testnet/blockx.json)" : "mainnet (Who Signs Block X is game 2, hourly game 12; Producer Bracket game 9)"}.`);
+  if (!g) throw new Error(`Game ${id} is not one this tool registers on ${net.testnet ? "the testnet (testnet/blockx.json)" : "mainnet (Who Signs Block X is game 2, hourly game 12; Producer Bracket game 9; Combo Card game 8)"}.`);
   return g;
 }
 async function sendCall(net: Net, p: Provider, chainId: string, signer: Signer, method: string, args: any, rcKoin = 2) {
@@ -433,17 +485,23 @@ async function announce(id: number, send: boolean) {
   const { p, chainId } = await connect(net);
   await assertAuditedContract(net, p);
   const g = gameOf(net, id), cfg = buildGameConfig(g);
+  // A card game exists only on Picks v2: v1 would refuse it (or, read with v1's ABI, lose its leg types).
+  if (g.kind === 4 && !net.testnet && readJson(MAINNET_STATE)?.wasmSha256 !== PICKS_V2_SHA256)
+    throw new Error(`Game ${id} is a card game: it can be announced only once picks-data/deployment.json records Picks v2 (runbook "Later: the Picks v2 upgrade", step 5). Nothing was sent.`);
   const s = ownerKey(net, p);
   await ownerViews(net, p);   // R-BX-3: the settings' owner is the owner on chain, on both nodes
   const wait = net.testnet ? (readJson(TESTNET_MANIFEST)?.timelockMs ?? 600000) / 60000 + " minutes" : "48 hours";
   log(`Announce game ${id} "${g.name}" on ${net.testnet ? "the testnet" : "MAINNET"} (owner ${s.getAddress()}):`);
-  if (g.kind === 3) {
+  if (g.kind === 4) {
+    log(`  SHAPE (never changes): kind 4 (card), up to ${g.listSize} legs ever (${g.maxLegs} now), lock by TIME, ${g.slotsPerDay} cards a UTC day (one per slot), offset 0`);
+    for (const t of g.legTypes) log(`    leg type ${t.code}: ${t.lock_mode === 1 ? `every ${t.round_size} blocks, locks ${t.lead} blocks before, opens ${t.ahead} blocks ahead` : `every ${Number(t.round_size) / 3600000} h, locks ${Number(t.lead) / 60000} min before, opens ${Number(t.ahead) / 3600000} h ahead`}`);
+  } else if (g.kind === 3) {
     log(`  SHAPE (never changes): kind 3 (number), list_size 0, numbers 0 … ${g.numberMax}, lock by TIME, round ${g.round} ms (${g.round / DAY_MS} days), offset ${g.offset} ms`);
     log(`  lead ${g.lead} ms (${g.lead / 60000} min), ahead ${g.ahead} ms (${g.ahead / 3600000} h)`);
     for (const x of timeRounds(g, Date.now())) log(`    round ${x.round}: opens ${x.opens}, locks ${x.locks}, target ${x.target}`);
   } else log(`  one producer per target; a target every ${g.round} blocks; locks ${g.lead} blocks before; opens ${g.ahead} ahead (${X.forGame(g).openRounds(g.ahead * 10).length} targets open at a time)`);
   log(`  exact config sent: ${JSON.stringify(cfg)}`);
-  log(`  ${g.picksPerDay} picks a day per wallet, ${g.maxChanges} changes per pick. It can be applied ${wait} after it is announced (anyone may apply it).`);
+  log(`  ${g.picksPerDay} ${g.kind === 4 ? "card sends and changes" : "picks"} a day per wallet, ${g.maxChanges} changes per ${g.kind === 4 ? "card" : "pick"}. It can be applied ${wait} after it is announced (anyone may apply it).`);
   if (!send) { log("\nDry run only. Nothing was sent. Add --send to send it."); return; }
   const r = await sendCall(net, p, chainId, s, "announce_game", { game: cfg });
   log(r.ok ? `✔ announced (Mana used ${showKoin(r.rcUsed)}, block ${r.block}). Then: npm run picks -- apply ${id}${net.testnet ? " --testnet" : ""} --send` : `✖ ${r.error}`);
@@ -650,6 +708,7 @@ async function upgradeClear(send: boolean) {
   if (!net.picks) throw new Error("No Picks contract yet.");
   const { p, chainId } = await connect(net);
   const b = upgradeBuilds(net.testnet, undefined, net.cfg);
+  codeGuard(net, send, b.to.sha256);                     // Repo Lens #G-16 Info: --code on mainnet, as schedule and upload
   await assertAuditedContract(net, p, contractMetadata, b.to.sha256);                // v2 must already run
   const s = ownerKey(net, p);
   const { cfg, now } = await readEverywhere(net, p);
@@ -657,7 +716,7 @@ async function upgradeClear(send: boolean) {
   if (w.state === "none") { log("✔ Nothing is announced: there is nothing to clear."); return; }
   log(`Clear the announced code ${w.hash} on the Picks contract ${net.picks} (${net.testnet ? "testnet" : "MAINNET"}), signed by the owner ${s.getAddress()} (about 0.1 Mana).`);
   log("  After this, no code can be uploaded until a new announcement and its 48-hour wait.");
-  if (!send) { log(`\nDry run only. Nothing was sent. To send: add --send${net.testnet ? "" : " --mainnet"}`); return; }
+  if (!send) { log(`\nDry run only. Nothing was sent. To send: add --send${net.testnet ? "" : ` --mainnet --code ${b.to.sha256.slice(0, 8)}`}`); return; }
   const r = await sendCall(net, p, chainId, s, "schedule_upgrade", { hash: "0x" });
   if (!r.ok) { log(`✖ ${r.error}`); process.exitCode = 1; return; }
   const after = await readEverywhere(net, p);

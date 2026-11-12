@@ -92,6 +92,14 @@ export const dName = (day: number, part = 0) => `D${String(day).padStart(5, "0")
 /** Fix-check 2 FC2-5: a day's cards are split into parts of at most 1,000 cards (D<day>.json, then D<day>-1.json, ...),
  *  so no file nears the publish job's 2 MB limit however busy the day. */
 export const PART_CARDS = 1000;
+/** The capacity standard (Capacity chat, 12 Nov; rule 2): the publish cap is 2 MB a file. A file past 60% of it is a
+ *  warning in every run; past the cap, an error (the publish would refuse it). Exported for the tests. */
+export const FILE_CAP = 2 * 1024 * 1024, FILE_WARN = Math.floor(FILE_CAP * 0.6);
+export function sizeNote(name: string, bytes: number): { level: "warning" | "error"; text: string } | null {
+  if (bytes > FILE_CAP) return { level: "error", text: `${name} is ${(bytes / 1048576).toFixed(2)} MB, over the 2 MB publish cap: it can't be published (tell Claude: the capacity standard)` };
+  if (bytes > FILE_WARN) return { level: "warning", text: `${name} is ${(bytes / 1048576).toFixed(2)} MB, past 60% of the 2 MB publish cap (the capacity standard: plan the split before it fills)` };
+  return null;
+}
 const legOk = (l: any) => Array.isArray(l) && l.length === 5 && C.CODES.includes(l[0]) && Number.isSafeInteger(l[1]) && isAddr(l[2]) && Number.isSafeInteger(l[3]) && typeof l[4] === "string";
 function cardOk(c: any): boolean {
   return !!c && isAddr(c.player) && Number.isSafeInteger(c.round) && Number.isSafeInteger(c.time) && Array.isArray(c.legs) && c.legs.length >= C.MIN_LEGS &&
@@ -456,6 +464,12 @@ export async function run(o: Opts) {
 
   // ── 7. write ──
   fs.mkdirSync(path.join(OUT, "vault"), { recursive: true });
+  // Every file goes through put(): its size is checked against the publish cap (the capacity standard, rule 2).
+  const put = (name: string, text: string) => {
+    const note = sizeNote(name, Buffer.byteLength(text));
+    if (note) (note.level === "error" ? errors : problems).push(note.text);
+    fs.writeFileSync(path.join(OUT, name), text);
+  };
   for (const [d, slots] of days) {
     if (!slots.some((s) => s.cards.length || s.fixed)) continue;
     knownDays.add(d);
@@ -477,7 +491,7 @@ export async function run(o: Opts) {
     parts[0].sort((a, b) => a.round - b.round);
     parts.forEach((ps, k) => {
       const f: any = k ? { v: 2, day: d, start: d * M.DAY, part: k, slots: ps } : { v: 2, day: d, start: d * M.DAY, parts: parts.length, ruled: ruledDay(d, RULER_FROM), slots: ps };
-      fs.writeFileSync(path.join(OUT, dName(d, k)), JSON.stringify(f) + "\n");
+      put(dName(d, k), JSON.stringify(f) + "\n");
     });
   }
   // The Vault file for the week just ended: once, when final, within the Vault's 3 days, with every stake known.
@@ -493,14 +507,14 @@ export async function run(o: Opts) {
     else {
       const rows = lastWeek.rows.map((r: any) => ({ player: r.a, pts: r.pts, place: r.place, hits: r.hits, lastHit: r.lastHit, days: r.days, staked: r.staked, free: r.free }));
       const vf = C.vaultFile(lw, true, rows);
-      fs.writeFileSync(path.join(OUT, "vault", `W${lw}.json`), JSON.stringify(vf) + "\n");
+      put(path.join("vault", `W${lw}.json`), JSON.stringify(vf) + "\n");
       vaultWritten.push(lw);
       console.log(`week ${lw} final: vault/W${lw}.json with ${vf.rows.length} staked player(s), free play 1st ${vf.first.length}, 2nd ${vf.second.length}`);
     }
   }
   if (lastWeek && lastWeek.final && !published && head.time > vaultEnd && head.time <= vaultEnd + 2 * 3600000) errors.push(`vault week ${lw}: no results file was published within the Vault's 3 days; none is written now`);
-  fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 2, updated: new Date(head.time).toISOString(), days: [...knownDays].sort((a, b) => a - b), contract: contract || null }) + "\n");
-  fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
+  put("index.json", JSON.stringify({ v: 2, updated: new Date(head.time).toISOString(), days: [...knownDays].sort((a, b) => a - b), contract: contract || null }) + "\n");
+  put("board.json", JSON.stringify(board) + "\n");
   // FC-4: last week's slots still not fixed a day after the week ended means its Vault file is at risk.
   if (lw >= 0 && head.time >= M.weekStart(nowW) + M.DAY) {
     const d0 = C.utcDay(M.weekStart(lw));

@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
-import { upgradeBuilds, codeGuard, upgradeWindow, upgradeTx, wasmHasAddress, handoverBlocksUpgrade } from "../../bot/picks.ts";
+import { upgradeBuilds, codeGuard, upgradeWindow, upgradeTx, wasmHasAddress, handoverBlocksUpgrade, COMBO_GAME, pendingProblem } from "../../bot/picks.ts";
 import { buildGameConfig, BRACKET_GAME, timeRounds, uploadBuild, encodeNonce, network, mainnetGuard, uploadTx, assertAuditedContract, PICKS_SHA256, PICKS_ABI_SHA256, PICKS_V2_SHA256, PICKS_V2_ABI_SHA256, MAINNET_CHAIN_ID } from "../../bot/picks.ts";
 
 const require = createRequire(import.meta.url);
@@ -72,7 +72,8 @@ test("the Block X game config: game 2 on mainnet is exactly the plan's settings;
   assert.throws(() => buildGameConfig({ ...base, id: 128 }), /1 to 127/);
   assert.throws(() => buildGameConfig({ ...base, name: "x".repeat(41) }), /1 to 40 bytes/);
   const mainnet = network(false);
-  assert.equal(mainnet.games.length, 3, "on mainnet the tool registers Who Signs Block X (game 2, hourly game 12) and Producer Bracket (game 9)");
+  // Combo chat, 12 Nov: Combo Card (game 8, a card game, announced only after Picks v2) joins the list; see its own test.
+  assert.equal(mainnet.games.length, 4, "on mainnet the tool registers Who Signs Block X (game 2, hourly game 12), Producer Bracket (game 9) and Combo Card (game 8)");
   assert.deepEqual(buildGameConfig(mainnet.games[0]), c);
   assert.deepEqual(buildGameConfig(mainnet.games[1]), { id: 12, name: "Who Signs Block X (hourly)", kind: 1, list_size: 1, number_min: "0", number_max: "0", lock_mode: 1,
     round_size: "1200", round_offset: "0", lead: "100", ahead: "28900", max_picks_per_day: 48, max_changes: 1, enabled: true }, "R-BX-25: every 1,200 blocks, 48 picks a day");
@@ -415,4 +416,53 @@ test("Repo Lens #G-16 (D-083): upgrade-schedule refuses while a Picks owner hand
   const body = src.slice(src.indexOf("async function upgradeSchedule"), src.indexOf("export async function upgradeTx"));
   assert.match(body, /handoverBlocksUpgrade\(cfg, net\.nextOwner\)[\s\S]*sendCall\(net, p, chainId, s, "schedule_upgrade"/, "checked before anything is sent");
   assert.match(src, /x\.cfg\.pending_owner \?\? ""/, "both nodes must agree about a pending owner");
+});
+
+test("Repo Lens #G-16 (Info): all three upgrade commands need --code before a mainnet send", () => {
+  const src = fs.readFileSync("bot/picks.ts", "utf8");
+  for (const fn of ["async function upgradeSchedule", "async function upgradeUpload", "async function upgradeClear"]) {
+    const i = src.indexOf(fn), body = src.slice(i, src.indexOf("\n}\n", i));
+    assert.ok(i >= 0, fn);
+    assert.match(body, /codeGuard\(net, send, b\.to\.sha256\)/, `${fn} checks --code`);
+    assert.ok(body.indexOf("codeGuard(") < body.indexOf("if (!send)"), `${fn}: before the dry-run line, so before anything is sent`);
+    assert.match(body, /--mainnet --code \$\{b\.to\.sha256\.slice\(0, 8\)\}/, `${fn}: the dry run names the --code to type`);
+  }
+});
+
+test("Combo Card, game 8: the pinned card game is the recorder's and the page's, and passes every contract limit", async () => {
+  const mainnet = network(false);
+  const g = mainnet.games.find((x: any) => x.id === 8);
+  assert.equal(g, COMBO_GAME);
+  const cfg: any = buildGameConfig(g);
+  assert.deepEqual(cfg, { id: 8, name: "Combo Card", kind: 4, list_size: 10, number_min: "0", number_max: "0", lock_mode: 2, round_size: "3", round_offset: "0",
+    lead: "300000", ahead: "86400000", max_picks_per_day: 12, max_changes: 3, enabled: true, max_legs: 6, leg_types: [
+      { code: 1, lock_mode: 2, round_size: "21600000", round_offset: "0", lead: "1500000", ahead: "86400000", enabled: true },
+      { code: 2, lock_mode: 2, round_size: "21600000", round_offset: "0", lead: "1500000", ahead: "86400000", enabled: true },
+      { code: 3, lock_mode: 2, round_size: "21600000", round_offset: "0", lead: "1500000", ahead: "86400000", enabled: true },
+      { code: 4, lock_mode: 1, round_size: "2400", round_offset: "0", lead: "500", ahead: "28800", enabled: true }] });
+  // The same leg types the Combo recorder refuses to record without (RL-25), and the page's limits (combo-math.js).
+  const R: any = await import("../../bot/games/combo.ts");
+  const C: any = (globalThis as any).KCombo;
+  assert.deepEqual(cfg.leg_types.map(({ enabled, ...t }: any) => t), R.expectedLegTypes());
+  assert.equal(R.settingsProblem(cfg), null);
+  assert.equal(cfg.max_legs, C.MAX_LEGS); assert.equal(cfg.list_size, C.HARD_MAX_LEGS); assert.equal(Number(cfg.round_size), C.CARDS_PER_DAY);
+  assert.equal(cfg.max_changes, C.MAX_CHANGES); assert.equal(cfg.max_picks_per_day, C.CARDS_PER_DAY * (1 + C.MAX_CHANGES), "every card and every change of a day fits");
+  // Every limit is checked before anything is sent.
+  for (const bad of [{ listSize: 11 }, { maxLegs: 1 }, { maxLegs: 11 }, { slotsPerDay: 0 }, { slotsPerDay: 11 }, { picksPerDay: 0 }, { maxChanges: 51 }, { legTypes: [] },
+    { legTypes: [g.legTypes[0], g.legTypes[0]] }, { legTypes: [{ ...g.legTypes[3], ahead: "28801" }] }, { legTypes: [{ ...g.legTypes[0], lead: "299999" }] },
+    { legTypes: [{ ...g.legTypes[0], enabled: false }] }, { name: "x".repeat(41) }])
+    assert.throws(() => buildGameConfig({ ...g, ...bad }), undefined, JSON.stringify(bad));
+  // An apply compares the announced card game field by field, leg types included.
+  assert.equal(pendingProblem(JSON.parse(JSON.stringify(cfg)), g), null);
+  const moved = JSON.parse(JSON.stringify(cfg)); moved.leg_types[3].lead = "400";
+  assert.match(String(pendingProblem(moved, g)), /leg_types\[3\]\.lead is 400/);
+  const fewer = JSON.parse(JSON.stringify(cfg)); fewer.leg_types.pop();
+  assert.match(String(pendingProblem(fewer, g)), /leg_types has 3 entries/);
+  assert.match(String(pendingProblem({ ...cfg, max_legs: 10 }, g)), /max_legs is 10/);
+  // Game 2, 12 and 9 configs are untouched by the card fields.
+  for (const id of [2, 12, 9]) assert.ok(!("leg_types" in (buildGameConfig(mainnet.games.find((x: any) => x.id === id)) as any)), `game ${id}`);
+  // On mainnet, game 8 is announced only once the deployment file records Picks v2.
+  const src = fs.readFileSync("bot/picks.ts", "utf8"), body = src.slice(src.indexOf("async function announce("), src.indexOf("async function apply("));
+  assert.match(body, /g\.kind === 4 && !net\.testnet && readJson\(MAINNET_STATE\)\?\.wasmSha256 !== PICKS_V2_SHA256/);
+  assert.ok(body.indexOf("g.kind === 4 && !net.testnet") < body.indexOf("sendCall("));
 });

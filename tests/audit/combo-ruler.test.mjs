@@ -233,3 +233,13 @@ test("publish job: an ON week's ruled day is published; a wrong mark is held; a 
   const d = publish(asIncoming(on.out), remoteWith(null, on.race), { COMBO_RULER_FROM_WEEK: "03" });
   assert.equal(d.ok, false);
 });
+
+test("capacity standard (rule 2): a file past 60% of the 2 MB publish cap is a warning, past the cap an error", async () => {
+  const R = await import(path.join(APP, "bot/games/combo.ts"));
+  assert.equal(R.FILE_CAP, 2 * 1024 * 1024); assert.equal(R.FILE_WARN, Math.floor(R.FILE_CAP * 0.6));
+  assert.equal(R.sizeNote("board.json", R.FILE_WARN), null);
+  assert.equal(R.sizeNote("board.json", R.FILE_WARN + 1).level, "warning");
+  assert.equal(R.sizeNote("board.json", R.FILE_CAP + 1).level, "error");
+  const src = fs.readFileSync(path.join(APP, "bot/games/combo.ts"), "utf8"), w = src.slice(src.indexOf("// ── 7. write ──"));
+  assert.equal((w.match(/fs\.writeFileSync\(/g) || []).length, 1, "every file the recorder writes goes through put()");
+});

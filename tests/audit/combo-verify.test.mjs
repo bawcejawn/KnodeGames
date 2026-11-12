@@ -216,3 +216,20 @@ test("verify (Repo Lens FC4-4): day results come first; the Vault reads have a t
   const p2 = (await go(lateNow)).problems.find((x) => x.file === "vault/W3.json");
   assert.ok(p2 && p2.alert === true && /12 hours/.test(p2.why), JSON.stringify(p2));
 });
+
+test("verify (Repo Lens #G-16 Q1): nothing published for over 3 hours is an alert; the workflow fails the run on alerts after handing on the confirmed files", async () => {
+  const t = M.weekStart(4) + 13 * 3600000, out = tmp(), race = raceDir(), bx = blockxDir();
+  await quiet(() => run({ p: node({ t, cards: twoCards }), check: node({ t, cards: twoCards }), out, raceDir: race, blockxDir: bx, picksContract: PICKS, knodeGame: VAULT, now: t, vhpMovesOf: async () => 0n }));
+  const go = (pub) => V.verify({ incoming: out, published: pub, race, blockx: bx, picks: PICKS, now: t,
+    p: vnode(node({ t, cards: twoCards })), check: vnode(node({ t, cards: twoCards })), vhpMovesOf: async () => 0n });
+  const board = (hoursOld) => { const d = tmp(); fs.writeFileSync(path.join(d, "board.json"), JSON.stringify({ v: 1, updated: new Date(t - hoursOld * 3600000).toISOString() })); return d; };
+  const stale = (r) => r.problems.find((x) => /nothing has been published for/.test(x.why));
+  assert.equal(stale(await go(board(2))), undefined, "2 hours: normal");
+  const s = stale(await go(board(5)));
+  assert.ok(s && s.alert === true && /5 hours/.test(s.why), JSON.stringify(s));
+  assert.equal(stale(await go(tmp())), undefined, "no published board yet (first run): nothing to compare");
+  const yml = fs.readFileSync(path.join(process.env.APP, ".github/workflows/combo.yml"), "utf8");
+  const i = yml.indexOf('>> "$GITHUB_OUTPUT"'), j = yml.indexOf("approved.txt.alerts", i);
+  assert.ok(i > 0 && j > i && /exit 1/.test(yml.slice(j, j + 300)), "the alert step comes after the outputs are written and fails the job");
+  assert.match(fs.readFileSync(path.join(process.env.APP, "tools/combo-verify.mjs"), "utf8"), /writeFileSync\(`\$\{outFile\}\.alerts`/);
+});

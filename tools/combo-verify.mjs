@@ -28,7 +28,7 @@ const HOUR = 3600000, BEHIND_MS = 30 * 60000;
 // Repo Lens FC4-4: the Vault reads get a time budget well inside the job's 20 minutes, a few at a time, so a big Free play
 // board can't stall the run (the day results are written first); a Vault file still unconfirmed in the last 12 hours of
 // its window is an alert, not a warning.
-const VAULT_BUDGET_MS = 8 * 60000, VAULT_READS_AT_ONCE = 8, VAULT_ALERT_MS = 12 * HOUR;
+const VAULT_BUDGET_MS = 8 * 60000, VAULT_READS_AT_ONCE = 8, VAULT_ALERT_MS = 12 * HOUR, STALE_MS = 3 * HOUR;
 const isAddr = (a) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 const load = (f) => { try { return fs.lstatSync(f).isFile() ? JSON.parse(fs.readFileSync(f, "utf8")) : null; } catch { return null; } };
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
@@ -214,6 +214,10 @@ export async function verify(o) {
     if (why) problems.push({ day, why, alert });
     else for (const f of files) approved.push({ name: f, sha256: sha(path.join(o.incoming, f)) });
   }
+  // Repo Lens #G-16 Q1: a node down or behind holds an honest run quietly (a warning). Held for hours, it is an alert:
+  // the published board is refreshed by every run that publishes, so an old one means nothing got through for that long.
+  const pb = load(path.join(o.published, "board.json")), age = pb && typeof pb.updated === "string" ? now - Date.parse(pb.updated) : NaN;
+  if (Number.isFinite(age) && age > STALE_MS) problems.push({ day: null, why: `nothing has been published for ${Math.floor(age / HOUR)} hours (the published board is from ${pb.updated}); check both nodes and the runs`, alert: true });
   if (o.onDays) o.onDays({ approved: [...approved], problems: [...problems] });     // FC4-4: the days are safe first
   const clock = o.clock ?? Date.now, stop = clock() + (o.vaultBudgetMs ?? VAULT_BUDGET_MS);
   // A new Vault file (D-081): the publish job judges it against the PUBLISHED board, whose stake flags (staked, and
@@ -291,6 +295,9 @@ async function main() {
   const r = await verify({ incoming, published, race, blockx, p, check, picks, vault, now: Number(process.env.CHECK_NOW_MS) || undefined, onDays: write });
   for (const x of r.problems) console.log(`${x.alert ? "::error::" : "::warning::"}${x.day === null ? "" : `day ${x.day}: `}${x.why}; held`);
   write(r);
+  // Alerts go in their own file: the workflow fails the job on them AFTER handing the confirmed files to the publish
+  // job, so an alert sends the failed-run email without holding what was confirmed (Repo Lens #G-16 Q1).
+  fs.writeFileSync(`${outFile}.alerts`, r.problems.filter((x) => x.alert).map((x) => `${x.day === null ? "" : `day ${x.day}: `}${x.why}\n`).join(""));
   console.log(`${r.approved.length} day file(s) confirmed, ${r.problems.length} day(s) held.`);
 }
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) main().catch((e) => { console.log(`::error::verify: ${e.message ?? e}`); process.exit(1); });

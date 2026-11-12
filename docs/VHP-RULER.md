@@ -126,10 +126,13 @@ for 1-hour, 2-hour, 6-hour, 1-day and 6-day races (results: project doc `claude/
 
    | Race | Down | Up |
    |---|---|---|
-   | up to 2 hours (2,400 blocks) | 5% | 25% |
-   | up to 6 hours (7,200) | 10% (as D-164) | 25% |
-   | up to 1 day (28,800) | 12% | 50% |
+   | 1–2 hours (up to 3,000 blocks) | 5% | 25% |
+   | 6 hours (up to 9,000) | 10% (as D-164) | 25% |
+   | 1 day (up to 36,000) | 12% | 50% |
    | longer (the 6-day race) | 15% | 100% |
+
+   Each class reaches a quarter past its nominal length, so a race on UTC clock boundaries (about, not exactly,
+   1,200 blocks an hour) stays in its class.
 
    Down is tight because shrinking once the luck is good ("stop when ahead") is the one mid-race move that gains: up to
    15% it gains nothing measurable, at 50% about +0.15 of fair, at 97% about +0.5 (`sims/ruler/midrace.mjs`); it must

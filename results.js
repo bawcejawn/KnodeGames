@@ -151,7 +151,7 @@
         if (V && V.has && (V.wholeVoid || V.voids.length)) {
           const trial = V.shadow ? el("span", { class: "void-chip", text: "Trial, counts for nothing" }) : null;
           body.push(el("p", { class: "res-line rr-void" }, trial, trial ? " " : null,
-            V.wholeVoid ? "Void race: every producer was void, so picks are given back." : el("span", {}, el("span", { class: "void-chip", title: "Its VHP moved too much during this race, so it didn't count. Picks on it count as a loss.", text: "Void" }), " ", ...V.voids.flatMap((a, i) => [i ? ", " : null, link(a)]), " (not counted in the ruler's result)")));
+            V.wholeVoid ? "Void race: every producer was void, so no pick scores." : el("span", {}, el("span", { class: "void-chip", title: "Its VHP moved too much during this race, so it didn't count. Picks on it count as a loss.", text: "Void" }), " ", ...V.voids.flatMap((a, i) => [i ? ", " : null, link(a)]), " (not counted in the ruler's result)")));
         }
         if (x.my) {
           const outcome = x.myPts ? `${x.isWin(x.my) ? "won" : "showed"}${x.myLabel && x.myLabel !== "Win" && x.myLabel !== "Show" ? ` (${x.myLabel})` : ""} · +${x.myPts} pt${x.myPts === 1 ? "" : "s"}` : "missed · 0 pts";

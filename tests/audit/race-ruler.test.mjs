@@ -262,10 +262,14 @@ test("vault: a shadow week's rows are the 6-hour race's, never the ruler's; an O
 test("page: the ruler's box is hidden until the R file says shadow or on; it says what the ruler measures, the 6-hour void line, that a pick on a voided producer is a loss, and from which Monday", () => {
   const html = fs.readFileSync(path.join(APP, "race.html"), "utf8"), js = fs.readFileSync(path.join(APP, "race.js"), "utf8");
   assert.match(html, /<section class="card" id="ruler-box" hidden>/);
-  assert.match(html, /luck against its own size/);
-  assert.match(html, /more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only/);
-  assert.match(html, /A pick on a voided producer counts as a loss\./);
-  assert.match(html, /The horses on the track are a live estimate; the final order comes from the ruler/);
+  // Owner, 12 Nov: the Ruler's rules live on the Ruler page, the game's rules on the Rules page; the Race page keeps a short line and the results.
+  const rulerPage = fs.readFileSync(path.join(APP, "ruler.html"), "utf8");
+  assert.match(html, /href="ruler\.html"/, "the Race page links to the Ruler page");
+  assert.doesNotMatch(html, /luck against its own size/, "the long explanation is not repeated on the Race page");
+  assert.match(js, /The horses are a live estimate; the final 1st, 2nd and 3rd come from the Ruler/);
+  assert.match(rulerPage, /luck against its own size/);
+  assert.match(rulerPage, /more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only/);
+  assert.match(rulerPage, /A pick on a voided producer counts as a loss\./);
   assert.match(js, /\[`R\$\{String\(x\)\.padStart\(3, "0"\)\}\.json`\]/, "reads R<week>.json");
   assert.match(js, /fetchJson\(`\$\{DATA\}\$\{n\}`\)/);
   assert.match(js, /cur\.mode === "off" \|\| !Number\.isInteger\(cur\.rulerFrom\)\) \{ \$\("ruler-box"\)\.hidden = true/, "hidden while off");
@@ -429,7 +433,10 @@ test("capacity: every published file warns past 60% of the 2 MB publish limit (1
 test("page (option A): the ruler box lists the race types' results and their void lines once the types are live (hidden before)", () => {
   const html = fs.readFileSync(path.join(APP, "race.html"), "utf8"), js = fs.readFileSync(path.join(APP, "race.js"), "utf8");
   assert.match(html, /<p class="note" id="ruler-types" hidden>/);
-  assert.match(html, /1-hour and 2-hour<\/b> races 5% below \/ 25% above the card size, <b>daily<\/b> 12% \/ 50%, <b>weekly<\/b> 15% \/ 100%/);
+  // Owner, 12 Nov: the limits by race length live on the Ruler page; the Race page links to them.
+  assert.match(html, /id="ruler-types" hidden>[^<]*<a href="ruler\.html">/);
+  const rp = fs.readFileSync(path.join(APP, "ruler.html"), "utf8");
+  for (const [len, lo, hi] of [["1 hour or 2 hours", 5, 25], ["6 hours", 10, 25], ["1 day", 12, 50], ["1 week", 15, 100]]) assert.match(rp, new RegExp(`<td>${len}</td><td>${lo}%</td><td>${hi}%</td>`), len);
   assert.deepEqual([1200, 2400, 28800, 172800].map((n) => R.voidBand(n).map(Number).join("/")), ["50000/250000", "50000/250000", "120000/500000", "150000/1000000"], "the page's lines are the ruler's bands");
   assert.match(js, /typesLive\(\) \? \[1, 2, 3, 4\]\.map\(\(t\) => `R\$\{String\(x\)\.padStart\(3, "0"\)\}-\$\{t\}\.json`\) : \[\]/);
   assert.match(js, /\$\("ruler-types"\)\.hidden = !typesLive\(\)/);

@@ -41,7 +41,7 @@
 
   // ───────────────── Producer Race ─────────────────
   const race = {
-    weeks: null, files: new Map(), week: null, day: null, mine: false, q: "",
+    weeks: null, files: new Map(), ruler: new Map(), rtried: new Set(), week: null, day: null, mine: false, q: "",
     async open(box) {
       this.box = box;
       if (!this.weeks) {
@@ -57,11 +57,17 @@
       this.draw();
     },
     async load(w) {
-      if (this.files.has(w)) return;
-      try {
+      if (this.files.has(w) && this.rtried.has(w)) return;
+      if (!this.files.has(w)) try {
         const f = await fetchJson(RAW + `race-data/W${String(w).padStart(3, "0")}.json`);
         if (f && f.v === 1 && f.week === w && Array.isArray(f.races)) this.files.set(w, f);
       } catch { /* drawn as "couldn't load" */ }
+      this.rtried.add(w);
+      // The VHP ruler's cards for this week (R<week>.json), for the Void marks. Missing or off = no marks, never an error.
+      try {
+        const j = await fetchJson(RAW + `race-data/R${String(w).padStart(3, "0")}.json`);
+        if (j && j.v === 1 && j.week === w && Array.isArray(j.races) && j.mode !== "off") this.ruler.set(w, j);
+      } catch { /* no ruler file this week */ }
     },
     /** One race's facts, from the recorder's file. */
     facts(r) {
@@ -72,7 +78,9 @@
       const wins = M.winners(st), show = M.shows(st);
       const isWin = (p) => p[3] === 1, isShow = (p) => !isWin(p) && (p.length > 5 ? p[5] === 1 : show.includes(p[1]));
       const my = me() ? picks.find((p) => p[0] === me()) : null;
-      return { r, status, st, picks, wins, show, isWin, isShow, my, myPts: my ? M.pagePick(0, r.start, st, my[1], isWin(my), isShow(my)).pts : 0, myLabel: my ? M.pagePick(0, r.start, st, my[1], isWin(my), isShow(my)).label : "" };
+      const rf = this.ruler.get(this.week), V = window.KRulerVoid ? window.KRulerVoid.rulerVoids(rf && rf.races.find((e) => e && e.id === r.id), rf) : { has: false, shadow: false, wholeVoid: false, voids: [] };
+      const mp = my ? M.pagePick(0, r.start, st, my[1], isWin(my), isShow(my)) : { label: "", pts: 0 };   // D-173: points per place once the types are on
+      return { r, status, st, picks, wins, show, isWin, isShow, my, V, myPts: mp.pts, myLabel: mp.label };
     },
     draw() {
       const f = this.files.get(this.week), box = this.box;
@@ -139,6 +147,12 @@
         body.push(el("ol", { class: "rr-podium" }, ...x.st.slice(0, 3).map((s, i) => el("li", {}, el("span", { class: "rr-med", text: MED[i] }), link(s.a), el("span", { class: "muted", text: ` ${fmt(s.steps, 1)} steps` })))));
         const nW = x.picks.filter(x.isWin).length, nS = x.picks.filter(x.isShow).length;
         body.push(el("p", { class: "res-line rr-picks" }, x.picks.length ? `${x.picks.length} pick${x.picks.length === 1 ? "" : "s"}: ${nW} won, ${nS} showed` : "No picks on this race."));
+        const V = x.V;
+        if (V && V.has && (V.wholeVoid || V.voids.length)) {
+          const trial = V.shadow ? el("span", { class: "void-chip", text: "Trial, counts for nothing" }) : null;
+          body.push(el("p", { class: "res-line rr-void" }, trial, trial ? " " : null,
+            V.wholeVoid ? "Void race: every producer was void, so picks are given back." : el("span", {}, el("span", { class: "void-chip", title: "Its VHP moved too much during this race, so it didn't count. Picks on it count as a loss.", text: "Void" }), " ", ...V.voids.flatMap((a, i) => [i ? ", " : null, link(a)]), " (not counted in the ruler's result)")));
+        }
         if (x.my) {
           const outcome = x.myPts ? `${x.isWin(x.my) ? "won" : "showed"}${x.myLabel && x.myLabel !== "Win" && x.myLabel !== "Show" ? ` (${x.myLabel})` : ""} · +${x.myPts} pt${x.myPts === 1 ? "" : "s"}` : "missed · 0 pts";
           body.push(el("p", { class: `res-line rr-mine ${x.myPts ? "ok" : ""}` }, el("b", { text: "You: " }), link(x.my[1]), ` ${outcome}`));
@@ -146,7 +160,7 @@
         body.push(el("details", { class: "res-how" }, el("summary", {}, "Full standings"),
           el("div", { class: "table-wrap" }, el("table", { class: "board rr-table" },
             el("thead", {}, el("tr", {}, el("th", { text: "#" }), el("th", { text: "Producer" }), el("th", { class: "num", text: "Steps" }), el("th", { class: "num", text: "Blocks" }))),
-            el("tbody", {}, ...x.st.map((s, i) => el("tr", { class: x.my && x.my[1] === s.a ? "me" : null }, el("td", { text: String(i + 1) }), el("td", {}, link(s.a)), el("td", { class: "num", text: fmt(s.steps, 1) }), el("td", { class: "num", text: fmt(s.blocks) }))))))));
+            el("tbody", {}, ...x.st.map((s, i) => el("tr", { class: x.my && x.my[1] === s.a ? "me" : null }, el("td", { text: String(i + 1) }), el("td", {}, link(s.a), x.V && x.V.voids.includes(s.a) ? el("span", { class: "void-chip", text: "Void" }) : null), el("td", { class: "num", text: fmt(s.steps, 1) }), el("td", { class: "num", text: fmt(s.blocks) }))))))));
       }
       return el("article", { class: `res rr res-st-${status === "final" ? (x.my ? (x.myPts ? "right" : "wrong") : "none") : "wait"}` }, head, ...body);
     },

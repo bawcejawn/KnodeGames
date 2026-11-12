@@ -21,6 +21,19 @@ PCT_SCALE = 1 << 256
 # the length classes reach a quarter past their nominal length (UTC-clock races hold about, not exactly, 1,200 blocks an hour)
 VOID_BANDS, VOID_LONG = ((3000, 50000, 250000), (9000, 100000, 250000), (36000, 120000, 500000)), (150000, 1000000)
 LUCK_CAP = 1000 * M
+# Scoring modes (owner, 11 Nov 2026), as in vhp-ruler.js: A VHP only; B clear edge and C best day, raise only: the best
+# of 11 one-day stretches over [T - 14 days, T - 3 days), each (signed - sd*isqrt(signed)) / expected (sd 2 in B, 1 in C)
+# against the field's median raw form that day (Repo Lens #G-19); D even odds (luck cap 100). A card without a mode
+# scores exactly as before.
+MODES, MODE_CAP = ("A", "B", "C", "D"), {"A": LUCK_CAP, "B": LUCK_CAP, "C": LUCK_CAP, "D": 100 * M}
+LIFT_SKIP, LIFT_SPAN, STRETCHES, LIFT_SD = 86400, 316800, {"B": 11, "C": 11}, {"B": 2, "C": 1}
+
+
+def lift_form(signed, expected, sd=1):
+    """A stretch's measure for the lift: (signed - sd*sqrt(signed)) / expected share, millionths, as liftForm in vhp-ruler.js."""
+    sm = signed * M
+    x = sm - sd * isqrt(sm * M)
+    return x * M // expected if expected > 0 and x > 0 else 0
 
 
 def void_band(blocks):
@@ -474,7 +487,7 @@ def _js(v):
 
 
 # the card's fields that are BigInt in JavaScript (written as decimal strings)
-_BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "credited", "pct", "z", "fpct")
+_BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "lift", "target", "credited", "pct", "z", "fpct")
 
 
 def week_summary(cards):
@@ -560,6 +573,48 @@ def switch_change(prev, nxt, week):
     return None
 
 
+_SCHED = re.compile(r"[1-9][0-9]{0,5}:[ABCD](,[1-9][0-9]{0,5}:[ABCD])*")
+
+
+def mode_schedule(v):
+    """The admin's mode schedule, as modeSchedule in vhp-ruler.js: None, or [(week, mode), ...] with rising weeks."""
+    if v is None or (type(v) is str and v == ""):
+        return None
+    if type(v) is not str or not _SCHED.fullmatch(v):
+        raise ValueError("the ruler mode schedule must be empty or week:mode pairs like 5:B,8:C (modes A, B, C or D)")
+    out = [(int(x.split(":")[0]), x.split(":")[1]) for x in v.split(",")]
+    for i in range(1, len(out)):
+        if out[i][0] <= out[i - 1][0]:
+            raise ValueError("the ruler mode schedule's weeks must rise")
+    if out[-1][0] > SWITCH_MAX:
+        raise ValueError("the ruler mode schedule's weeks must be at most 999999")
+    return out
+
+
+def mode_at(week, schedule):
+    """as modeAt: the mode of a vault week under the schedule ("A" before the first pair or with no schedule)."""
+    w, s = _switch_week(week), mode_schedule(schedule)
+    m = "A"
+    for x, mm in s or ():
+        if x <= w:
+            m = mm
+    return m
+
+
+def mode_change(prev, nxt, week):
+    """as modeChange: None, or why the change would alter the mode of a week that has started."""
+    w, p, n = _switch_week(week), mode_schedule(prev), mode_schedule(nxt)
+    at = sorted(set([0] + [x for x, _ in p or ()] + [x for x, _ in n or ()]))
+    for x in at:
+        if x > w:
+            continue
+        a, b = mode_at(x, prev), mode_at(x, nxt)
+        if a != b:
+            return ("the ruler mode schedule moved from %s to %s: week %d has started and would change from %s to %s; a change "
+                    "may only touch weeks after %d" % (json.dumps(prev if prev is not None else ""), json.dumps(nxt if nxt is not None else ""), x, a, b, w))
+    return None
+
+
 def card_json(card):
     c = dict(card)
     for k in _BIG_TOP:
@@ -583,7 +638,7 @@ def _check_window(w):
         raise ValueError("window order must be W0 <= W1 <= L <= S0 <= S1")
 
 
-def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, pool_rule="min"):
+def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, pool_rule="min", mode=None):
     w = window
     _check_window(w)
     if own_rule not in OWN_RULES:
@@ -602,6 +657,8 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, po
         raise ValueError("minK must be a whole number of blocks from 1")
     if pool_rule not in POOL_RULES:
         raise ValueError("poolRule must be min")
+    if mode is not None and mode not in MODES:
+        raise ValueError("mode must be A, B, C or D")
     if paying and T - L.frm < FORM + ACTIVE:
         raise ValueError("a paying card needs %d blocks of data before its moment (14 days + 6 h)" % (FORM + ACTIVE))
     if paying and _pending_in(L, T - AVG - EARLY, T):
@@ -623,10 +680,14 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, po
     if any(_bad_for(L, r["a"], look0 - EARLY, T) for r in rows) or (paying and _rebuilt_in(L, T - AVG - EARLY, T)):
         for r in rows:
             r["quality"] = "flagged"
-    return {"ruleVersion": RULE_VERSION, "game": int(_dec(game, "game")), "round": _dec(rnd, "round"), "ownRule": own_rule, "paying": paying,
-            "T": T, "seedBlock": seed_block, "seedBlockId": seed_id, "seedProducer": L.signer(seed_block),
-            "window": {"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]},
-            "c": c, "minK": min_k, "poolRule": pool_rule, "total": tot, "formFrom": form_from, "producers": rows}
+    out = {"ruleVersion": RULE_VERSION, "game": int(_dec(game, "game")), "round": _dec(rnd, "round"), "ownRule": own_rule, "paying": paying,
+           "T": T, "seedBlock": seed_block, "seedBlockId": seed_id, "seedProducer": L.signer(seed_block),
+           "window": {"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]},
+           "c": c, "minK": min_k, "poolRule": pool_rule}
+    if mode is not None:
+        out["mode"] = mode
+    out.update({"total": tot, "formFrom": form_from, "producers": rows})
+    return out
 
 
 def isqrt(v):
@@ -677,6 +738,10 @@ def score_card(L, card):
         raise ValueError(_not_yet(L, S0 - EARLY, S1))
     flagged = any(p["quality"] == "flagged" or _bad_for(L, p["a"], S0 - EARLY, S1) for p in card["producers"]) \
         or (card["paying"] and _rebuilt_in(L, S0 - EARLY, S1))
+    mode = card.get("mode")
+    if mode is not None and mode not in MODES:
+        raise ValueError("mode must be A, B, C or D")
+    cap = LUCK_CAP if mode is None else MODE_CAP[mode]
     blocks = S1 - S0 + 1
     band_down, band_up = void_band(blocks)
     draws = {}
@@ -691,7 +756,7 @@ def score_card(L, card):
     rows = []
     for p in card["producers"]:
         o, k = _int(p["own"]), _int(p["k"])
-        sample = LUCK_CAP * M // k if k > LUCK_CAP else M
+        sample = cap * M // k if k > cap else M
         every = sample == M
         credited = sum(credit_of(o, L.eff(p["a"], b)) for b in L.signed_blocks(p["a"], S0, S1) if every or draw(b) < sample)
         lo, hi = o * (M - band_down) // M, o * (M + band_up) // M
@@ -726,33 +791,69 @@ def score_card(L, card):
         if 2 * cum >= e_all:
             median = _int(r["form"])
             break
+    # the mode's target (lift and target on each row only on a card with a mode); the yardstick, the band, fpct and pct
+    # use the target, as in vhp-ruler.js
+    def E(r):
+        return r["expected"] if mode is None else r["target"]
+    if mode is not None:
+        # B and C: the best of the mode's stretches over [T - LIFT_SKIP - LIFT_SPAN, T - LIFT_SKIP), as in vhp-ruler.js
+        for r in rows:
+            r["lift"] = M
+        k = STRETCHES.get(mode, 0)
+        span = LIFT_SPAN // (k or 1)
+        for i in range(k):
+            H0 = card["T"] - LIFT_SKIP - LIFT_SPAN + i * span
+            H1 = H0 + span - 1
+            if H0 < L.valid_from:
+                continue
+            raw, lf = {}, {}
+            for r in rows:
+                e, sg = L.share_sum(r["a"], H0, H1), L.signed_in(r["a"], H0, H1)
+                raw[r["a"]] = sg * M * M // e if e > 0 else 0
+                lf[r["a"]] = lift_form(sg, e, LIFT_SD[mode])
+            med, c = 0, 0
+            for r in sorted(frows, key=lambda r: raw[r["a"]]):
+                c += r["expected"]
+                if 2 * c >= e_all:
+                    med = raw[r["a"]]
+                    break
+            if med <= 0:
+                continue
+            for r in rows:
+                x = lf[r["a"]] * M // med
+                if x > r["lift"]:
+                    r["lift"] = x
+        for r in rows:
+            r["target"] = r["expected"] * r["lift"] // M
+            r["pct"] = pct(r["target"], r["credited"])
     line = median * CORE_LINE // M
 
     def in_core(r):
         return in_field(r) and _int(r["form"]) >= line
     # the yardstick counts CREDITED blocks (millionths), as in vhp-ruler.js
     n = sum(r["credited"] for r in rows if in_core(r))
-    b = sum(r["expected"] for r in rows if in_core(r))
+    b = sum(E(r) for r in rows if in_core(r))
     nY, bY = n, b
     for r in rows:
         r["core"], r["z"], r["setAside"] = in_core(r), None, False
         if not r["core"]:
             continue
-        dev, v = r["credited"] * b - n * r["expected"], n * r["expected"] * (b - r["expected"]) * M
+        e = E(r)
+        dev, v = r["credited"] * b - n * e, n * e * (b - e) * M
         if v > 0:
             q = abs(dev) * M // isqrt(v)
             r["z"] = -q if dev < 0 else q
         if dev * dev > BAND_SD * BAND_SD * v:
             r["setAside"] = True
             nY -= r["credited"]
-            bY -= r["expected"]
+            bY -= e
     for r in rows:
         if not in_field(r):
             r["fpct"] = None
         elif r["core"] and not r["setAside"]:
-            r["fpct"] = fpct(nY // M, r["expected"], bY, r["credited"])
+            r["fpct"] = fpct(nY // M, E(r), bY, r["credited"])
         else:
-            r["fpct"] = fpct((nY + r["credited"]) // M, r["expected"], bY + r["expected"], r["credited"])
+            r["fpct"] = fpct((nY + r["credited"]) // M, E(r), bY + E(r), r["credited"])
     out = dict(card)
     out["producers"] = rows
     return out
@@ -765,8 +866,10 @@ def check_settings(g):
     """The game's settings, strictly (Repo Lens #B-5 N-5), as checkSettings in vhp-ruler.js."""
     if not isinstance(g, dict):
         raise ValueError("recompute needs the game's own settings")
-    if sorted(g) != sorted(_SETTINGS):
-        raise ValueError("the game's settings must have exactly: " + ", ".join(_SETTINGS))
+    if sorted(g) != sorted(_SETTINGS) and sorted(g) != sorted(_SETTINGS + ("mode",)):
+        raise ValueError("the game's settings must have exactly: " + ", ".join(_SETTINGS) + " (and, optionally, mode)")
+    if "mode" in g and g["mode"] not in MODES:
+        raise ValueError("mode must be A, B, C or D")
     _dec(g["game"], "game")
     _dec(g["round"], "round")
     w = g["window"]
@@ -797,17 +900,18 @@ def recompute(L, published, game):
     pub = json.loads(published)
     w = game["window"]
     want = {"game": int(_dec(game["game"], "game")), "round": _dec(game["round"], "round"), "ownRule": game["ownRule"],
-            "paying": game["paying"], "c": str(int(game["c"])), "minK": game["minK"], "poolRule": game["poolRule"],
-            "W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]}
+            "paying": game["paying"], "c": str(int(game["c"])), "minK": game["minK"], "poolRule": game["poolRule"]}
+    want["mode"] = game.get("mode")   # always compared (Repo Lens #G-19): no mode on one side is a clear refusal
+    want.update({"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]})
     got = {"game": pub.get("game"), "round": pub.get("round"), "ownRule": pub.get("ownRule"), "paying": pub.get("paying"),
-           "c": str(pub.get("c")), "minK": pub.get("minK"), "poolRule": pub.get("poolRule")}
+           "c": str(pub.get("c")), "minK": pub.get("minK"), "poolRule": pub.get("poolRule"), "mode": pub.get("mode")}
     got.update(pub.get("window") or {})
     for k in want:
         if got.get(k) != want[k] or type(got.get(k)) is not type(want[k]):
             return False, "setting %s: the card says %s, the game says %s" % (k, json.dumps(got.get(k)), json.dumps(want[k]))
     try:
         mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"],
-                         game["minK"], game["poolRule"])
+                         game["minK"], game["poolRule"], game.get("mode"))
         if any("credited" in p for p in pub.get("producers", [])):
             mine = score_card(L, mine)
     except ValueError as e:

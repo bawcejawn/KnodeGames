@@ -141,3 +141,18 @@ test("weeks are named as players know them: vault week 4 is 'Week 1', never 'Wee
   assert.match(p.$("week-line").textContent, /^Week 1: /);
   assert.doesNotMatch(p.w.document.body.textContent, /Week 5/);
 });
+
+// R-BR-7 (owner 11 Nov): the VHP ruler line, from index.json rulerFrom (the switch the recorder read)
+test("ruler line: hidden with the switch unset; the shadow week names the Monday it turns on and the void rule", async () => {
+  const unset = await openPage({ now: SUNDAY, index: idx(5) });
+  assert.equal(unset.$("bk-ruler").hidden, true);
+  const sh = await openPage({ now: SUNDAY, index: { ...idx(5), rulerFrom: 5 } });   // week 4 on show = the shadow week
+  const t = sh.$("bk-ruler").textContent;
+  assert.equal(sh.$("bk-ruler").hidden, false);
+  assert.match(t, /^Shadow week: the VHP ruler runs beside the real results and counts for nothing; from Week 2 \(the week of Mon, Nov 23\) it decides the matchups\./);
+  assert.match(t, /void for that day only: it loses its matchup, so a pick on it counts as a loss; if both are void, the day index decides/);
+  const later = await openPage({ now: SUNDAY, index: { ...idx(5), rulerFrom: 6 } });
+  assert.match(later.$("bk-ruler").textContent, /^From Week 3 \(the week of Mon, Nov 30\) the VHP ruler decides the matchups\./);
+  const on = await openPage({ now: SUNDAY, index: { ...idx(5), rulerFrom: 4 } });
+  assert.match(on.$("bk-ruler").textContent, /^The VHP ruler decides the matchups \(since Week 1, the week of Mon, Nov 16\)\./);
+});

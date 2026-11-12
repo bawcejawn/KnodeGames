@@ -36,7 +36,9 @@
  * Two nodes are required to seed, record hours and read stakes (audit A-3): with RPC_CHECK off, those steps wait.
  *
  *   RPC, RPC_CHECK, BRACKET_PREV (last run's files), BRACKET_OUT, BRACKET_PRIZES_FROM_WEEK, BRACKET_FREE_SWITCHES (the
- *   owner's free-prize switches file from the prize-settings branch; missing or unreadable = no free-play medals).
+ *   owner's free-prize switches file from the prize-settings branch; missing or unreadable = no free-play medals),
+ *   BRACKET_RULER_FROM_WEEK (the VHP ruler switch, R-BR-7: see bracket-ruler.ts) and BRACKET_VHP_DATA (a checkout of
+ *   the vhp-data branch, for the ruler's day cards).
  *   npm run bracket         (or: npx tsx bot/games/bracket.ts)
  */
 import { Provider, Contract } from "koilib";
@@ -48,6 +50,7 @@ import { checkSwitches, prizeOn, type Switches } from "../free-prizes.ts";
 import { withRetry } from "../../common.ts";
 import { chainNode, heightAt, bookFor } from "../vhp-chain.ts";
 import { vaultReader } from "./blockx.ts";
+import * as RU from "./bracket-ruler.ts";
 await import("../../race-math.js");
 await import("../../bracket-math.js");
 const M: any = (globalThis as any).KRaceMath;
@@ -96,6 +99,8 @@ export type WeekFile = {
                                                          // ended (the one the vault file uses): held = players the Vault
                                                          // won't pay a free prize (≥ 1 VHP in game 9 at any time that week)
   vault?: "missed";                                      // closed at the backstop without a vault file
+  rulerFrom?: number | null;                             // R-BR-7: BRACKET_RULER_FROM_WEEK as this week was last
+  rulerMode?: "off" | "shadow" | "on";                   // recorded, and the week's mode (vhp-ruler rulerMode); always last
 };
 import type { Chain, Node } from "../vhp-chain.ts";
 export type { Chain, Node };
@@ -114,6 +119,9 @@ type Opts = {
   nodeOf?: (node: any) => Node;                                  // for the tests and the replay
   release?: Set<number>;                                         // BRACKET_RELEASE's weeks (tests; default from the env)
   freeSwitches?: Switches | null;                                // the free-prize switches (tests; default BRACKET_FREE_SWITCHES)
+  rulerFrom?: string | null;                                     // the ruler switch (tests; default BRACKET_RULER_FROM_WEEK)
+  ledger?: any | null;                                           // the ruler's ledger (tests; default from BRACKET_VHP_DATA)
+  dayCardOf?: (settings: any) => { text: string } | { notYet: string };   // a day's scored card (tests; default the ruler)
   head?: Head;
 };
 
@@ -160,6 +168,7 @@ function loadWeek(dir: string | undefined, w: number): WeekFile {
     if (Array.isArray(old.staked.held) && old.staked.held.every(isAddr)) f.staked.held = [...old.staked.held].sort();
   }
   if (old.vault === "missed") f.vault = "missed";
+  if (rulerFieldsOk(old)) { f.rulerFrom = old.rulerFrom; f.rulerMode = old.rulerMode; }
   f.days = emptyDays(f.seeding ? f.seeding.size : 0);
   if (Array.isArray(old.days)) old.days.forEach((d: any, r: number) => { if (r < f.days.length && Array.isArray(d)) d.forEach((h: any, i: number) => { if (i < 24 && hourOk(h, f.seeding!.seeds)) f.days[r][i] = h; }); });
   // A final week stays final and FROZEN (leaderboard standard: a published final board never changes): its stored
@@ -174,6 +183,11 @@ function loadWeek(dir: string | undefined, w: number): WeekFile {
   return f;
 }
 const sortedUnique = (l: string[]) => l.every((x, i) => i === 0 || l[i - 1] < x);
+/** A stored week's ruler fields (R-BR-7): both or neither, a valid switch value and the mode it gives that week. */
+export function rulerFieldsOk(old: any): boolean {
+  if (!old || !("rulerFrom" in old) || !("rulerMode" in old)) return false;
+  try { const f = old.rulerFrom === null ? null : RU.switchFrom(String(old.rulerFrom)); return f === old.rulerFrom && RU.rulerMode(old.week, f) === old.rulerMode; } catch { return false; }
+}
 /** A seeding as the recorder writes it (#E-3 M-9 / L-10: size, seeds, VHP, pooled and the hash agree). */
 export function seedingOk(w: number, s: any): s is Seeding {
   if (!s || typeof s !== "object" || !Number.isInteger(s.size) || ![0, 8, 16, 32].includes(s.size)) return false;
@@ -367,7 +381,40 @@ const hoursOf = (w: number, wf: WeekFile) => { const out: [number, number, numbe
 /** Every hour of every round recorded and re-read in a later run (the two-run rule). */
 const allReRead = (wf: WeekFile) => wf.days.length > 0 && wf.days.every((d) => d.every((h) => !!h && h.re === 1)) && wf.picks?.re === 1;
 /** A week's file as written (never the `bad` note). */
-const fileOf = (wf: WeekFile) => { const { bad: _bad, ...rest } = wf; return rest; };
+const fileOf = (wf: WeekFile) => {
+  const { bad: _bad, rulerFrom, rulerMode, ...rest } = wf;
+  return rulerMode === undefined ? rest : { ...rest, rulerFrom: rulerFrom ?? null, rulerMode };   // the ruler fields always last
+};
+
+const MAX_CARDS_PER_RUN = 5;               // R-BR-7: day cards made per run (about 2 s each, after a 10-s data load)
+/** R-BR-7: a week's ruler files. Each round's day card once all 24 of its hours are recorded and re-read (write-once:
+ *  a card the last run published is kept exactly as it was); in the shadow week also the ruler's result beside the
+ *  real one (ruler/W<week>.json, "shadow": true). Nothing here changes the week file's results, points or vault file. */
+export function rulerWeek(w: number, wf: WeekFile, prevDir: string | undefined, cardFor: (settings: any) => { text: string } | { notYet: string }, vault: string | null, problems: string[]): [string, string][] {
+  if (!wf.seeding || !wf.seeding.size) return [];
+  const out: [string, string][] = [], size = wf.seeding.size, texts: (string | null)[] = [];
+  const pooled = vault && isAddr(vault) ? [vault] : [];
+  let made = 0;
+  for (let r = 0; r < wf.days.length; r++) {
+    const name = RU.cardName(w, r), was = prevDir && fs.existsSync(path.join(prevDir, "ruler", name)) ? fs.readFileSync(path.join(prevDir, "ruler", name), "utf8") : null;
+    if (was !== null) { texts.push(was); out.push([name, was]); continue; }
+    const d = wf.days[r];
+    if (!d.every((h) => !!h && h.re === 1) || made >= MAX_CARDS_PER_RUN) { texts.push(null); continue; }
+    const got = cardFor(RU.settingsFor(B.roundDay(w, r, size), d[0]!.from, d[23]!.to, pooled));
+    if ("notYet" in got) { problems.push(`week ${w}: round ${r + 1}'s ruler card: not yet (${got.notYet}); tried again next run`); texts.push(null); continue; }
+    made++; texts.push(got.text); out.push([name, got.text]);
+  }
+  if (wf.rulerMode === "shadow") {
+    const days = wf.days.map((d) => (d.every(Boolean) ? B.indexFromHours(d) : null));
+    const rulerDays = texts.map((t) => (t === null ? null : new Map(Object.entries(RU.rowsOf(t)))));
+    const res = B.results(wf.seeding.seeds, size, days, wf.seeding.vhp, wf.seeding.pooled, rulerDays);
+    const summary = { v: RU.SUMMARY_V, game: B.GAME_ID, week: w, shadow: true, rulerFrom: wf.rulerFrom ?? null, rulerMode: wf.rulerMode,
+      settings: { ownRule: RU.OWN_RULE, minK: RU.MIN_K, poolRule: RU.POOL_RULE, c: String(RU.C) },
+      cards: texts.map((t, r) => (t === null ? null : RU.cardName(w, r))), rounds: res.rounds, done: res.done, real: wf.results ? wf.results.rounds : [] };
+    out.push([RU.summaryName(w), JSON.stringify(summary) + "\n"]);
+  }
+  return out;
+}
 
 /** One run. Exported for the tests, which pass fake nodes. */
 export async function run(o: Opts) {
@@ -379,6 +426,12 @@ export async function run(o: Opts) {
   const SWITCHES = o.freeSwitches !== undefined ? o.freeSwitches : switchesFromFile(E.BRACKET_FREE_SWITCHES);
   const freeOn = (w: number) => SWITCHES !== null && prizeOn(SWITCHES, 9, w);   // 9: the Bracket's vault game id
   const problems: string[] = [];
+  // R-BR-7: the VHP ruler switch, read strictly (a bad value stops the run loudly: never guess)
+  const RULER_FROM = RU.switchFrom(o.rulerFrom !== undefined ? o.rulerFrom : E.BRACKET_RULER_FROM_WEEK);
+  let ledger: any = o.ledger;   // loaded once, the first time a card is needed (about 10 s for 14 days of vhp-data)
+  const ledgerOf = () => { if (ledger === undefined) ledger = RU.loadLedger(E.BRACKET_VHP_DATA); return ledger; };
+  const cardFor = o.dayCardOf ?? ((st: any) => { const L = ledgerOf(); return L ? RU.dayCard(L, st) : { notYet: "no vhp-data (BRACKET_VHP_DATA)" }; });
+  const rulerFiles: [string, string][] = [];
   const contract = o.picksContract === undefined ? defaultPicksContract() : o.picksContract;
   const nodeP: Node = o.nodeOf ? o.nodeOf(o.p) : chainNode(o.p);
   const nodeC: Node | null = o.check ? (o.nodeOf ? o.nodeOf(o.check) : chainNode(o.check)) : null;
@@ -417,6 +470,8 @@ export async function run(o: Opts) {
     return s1;
   };
 
+  // R-BR-7: every week still being recorded carries the switch as this run read it and the week's mode
+  for (const [w, wf] of weeks) if (wf.status !== "final" && wf.status !== "none" && wf.status !== "void") { wf.rulerFrom = RULER_FROM; wf.rulerMode = RU.rulerMode(w, RULER_FROM); }
   for (const [w, wf] of weeks) {
     if (wf.status === "final" || wf.status === "none" || wf.status === "void") continue;
     const backstop = B.weekStart(w + 1) + VAULT_DAYS;
@@ -572,9 +627,19 @@ export async function run(o: Opts) {
       } catch (e) { problems.push(`week ${w}: re-reading hours: ${(e as Error).message} (tried again next run)`); }
     }
     // ── 4. results and points ──
-    const sc = scoreWeek(wf);
+    // R-BR-7 phase 1: an "on" week isn't scored by this build: no results or points, so it can't go final (held, and
+    // void at the backstop) rather than pay on the old index; the ruler-on PR scores it from the day cards
+    const on = wf.rulerMode === "on";
+    if (on) { const m = `week ${w}: BRACKET_RULER_FROM_WEEK = ${RULER_FROM} makes this week "on" (the ruler decides the matchups), which this build can't score yet; the week is held until the ruler-on update is merged, and void at its backstop otherwise`; console.log(`::error::${m}`); problems.push(m); }
+    const sc = on ? { results: null, points: [] as Points[] } : scoreWeek(wf);
     wf.results = sc.results; wf.points = sc.points;
     const done = !!(sc.results && sc.results.done);
+    // ── 4b. the ruler's day cards and, in the shadow week, its result beside the real one (R-BR-7) ──
+    // (Repo Lens #G-20 G20-3: phase 1 makes no cards for an "on" week: they're written once, and only phase 2 checks them)
+    if (wf.rulerMode === "shadow") {
+      try { rulerFiles.push(...rulerWeek(w, wf, PREV, cardFor, o.vault === undefined ? defaultVault() : o.vault, problems)); }
+      catch (e) { problems.push(`week ${w}: the ruler's cards: ${(e as Error).message} (tried again next run)`); }
+    }
     // ── 5. stakes: for the boards during the week; the vault file's own read once the week has ended ──
     const players = wf.picks!.rows.map((r) => r[0]);
     // fix-check F1: the end-of-week stakes count only once a LATER run has read them again on both nodes and found the
@@ -664,11 +729,13 @@ export async function run(o: Opts) {
     const file = { game: B.GAME_ID, week: w, final: true, rows: vaultRows(wf.points, new Set(wf.staked.list), tm), first: prize.first, second: prize.second };
     files.push([path.join("vault", `W${w}.json`), JSON.stringify(file) + "\n"]);
   }
-  files.push(["index.json", JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: B.GAME_ID, prizesFromWeek: PRIZES_FROM }) + "\n"]);
+  files.push(...rulerFiles.map(([f, t]) => [path.join("ruler", f), t] as [string, string]));
+  files.push(["index.json", JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: B.GAME_ID, prizesFromWeek: PRIZES_FROM, rulerFrom: RULER_FROM }) + "\n"]);
   files.push(["board.json", JSON.stringify(board) + "\n"]);
   const big = files.filter(([, t]) => Buffer.byteLength(t) > MAX_FILE_BYTES).map(([f]) => f);
   if (big.length) throw new Error(`refusing to write files over ${MAX_FILE_BYTES} bytes (the publish job's limit): ${big.join(", ")}`);
   fs.mkdirSync(path.join(OUT, "vault"), { recursive: true });
+  if (rulerFiles.length) fs.mkdirSync(path.join(OUT, "ruler"), { recursive: true });
   for (const [f, t] of files) fs.writeFileSync(path.join(OUT, f), t);
   if (!fs.readdirSync(path.join(OUT, "vault")).length) fs.rmdirSync(path.join(OUT, "vault"));
   for (const pr of problems) console.log(`::warning::${pr}`);

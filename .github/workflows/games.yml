@@ -212,6 +212,11 @@ jobs:
             { git ls-tree --name-only FETCH_HEAD:bracket/vault 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then git show "FETCH_HEAD:bracket/vault/$f" > "$RUNNER_TEMP/prev/bracket/vault/$f"; fi
             done
+            # R-BR-7: the ruler's day cards and shadow summaries already published (day cards are written once)
+            mkdir -p "$RUNNER_TEMP/prev/bracket/ruler"
+            { git ls-tree --name-only FETCH_HEAD:bracket/ruler 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]{3}(-R[0-4])?\.json$ ]]; then git show "FETCH_HEAD:bracket/ruler/$f" > "$RUNNER_TEMP/prev/bracket/ruler/$f"; fi
+            done
             # The owner's free-prize switches (owner 11 Nov): the recorder gives free-play medals only for a week whose switch
             # for game 9 is on. A missing or unreadable file means none (the recorder fails closed).
             if git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" prize-settings 2>/dev/null; then
@@ -221,6 +226,18 @@ jobs:
             # Repo Lens E4-1 (a): only a branch that really isn't there means "nothing yet"; any other failed fetch stops the run.
             set +e; git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/games-data >/dev/null 2>&1; rc=$?; set -e
             if [ "$rc" -eq 2 ]; then echo "No games-data branch yet."; else echo "::error::The games-data branch could not be fetched (git ls-remote exit $rc). Nothing recorded this run; the next run tries again."; exit 1; fi
+          fi
+      # R-BR-7: the VHP ruler's data (the vhp-data branch, about 80 MB for 14 days), only while BRACKET_RULER_FROM_WEEK is
+      # set. Without it the ruler's cards wait ("not yet"); the Bracket's own results never depend on it in phase 1.
+      - name: Take the VHP ruler's data (only with the ruler switch set)
+        if: ${{ vars.BRACKET_RULER_FROM_WEEK != '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/vhp-data"
+          if git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" vhp-data 2>/dev/null; then
+            git archive FETCH_HEAD d h | tar -x -C "$RUNNER_TEMP/vhp-data"
+          else
+            echo "::warning::the vhp-data branch could not be fetched; the ruler's cards wait for the next run"
           fi
       # It writes its files only at the end of a good run.
       - name: Record the Producer Bracket
@@ -237,6 +254,9 @@ jobs:
           BRACKET_FREE_SWITCHES: ${{ runner.temp }}/prev/free-prizes.json
           # Fix-check F4: the owner's one-off correction window ("3" or "3,4"); the publish job reads the same variable.
           BRACKET_RELEASE: ${{ vars.BRACKET_RELEASE }}
+          # R-BR-7: the VHP ruler switch (unset: the Bracket's own index; N: week N − 1 shadow, on from week N) and its data
+          BRACKET_RULER_FROM_WEEK: ${{ vars.BRACKET_RULER_FROM_WEEK }}
+          BRACKET_VHP_DATA: ${{ runner.temp }}/vhp-data
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: games-data-bracket
@@ -274,6 +294,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           # fix-check F4: the owner's one-off correction window for named Bracket weeks (the recorder reads it too)
           BRACKET_RELEASE: ${{ vars.BRACKET_RELEASE }}
+          # Repo Lens #G-20 G20-1: the owner's ruler switch; every open Bracket week file and index.json must carry exactly it
+          BRACKET_RULER_FROM_WEEK: ${{ vars.BRACKET_RULER_FROM_WEEK }}
           IN: ${{ runner.temp }}/incoming
         run: |
           set -euo pipefail
@@ -296,17 +318,18 @@ jobs:
             fi
           fi
           if [ -d "$IN/bracket" ]; then
-            brbad=$(find "$IN/bracket" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/bracket/vault" \) -o \( -type f ! -regex "$IN/bracket/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/bracket/vault/W[0-9][0-9]*\.json" \) -o \( -type f -size +2048k \) \) -print)
+            brbad=$(find "$IN/bracket" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/bracket/vault" ! -path "$IN/bracket/ruler" \) -o \( -type f ! -regex "$IN/bracket/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/bracket/vault/W[0-9][0-9]*\.json" ! -regex "$IN/bracket/ruler/W[0-9][0-9][0-9]\(-R[0-4]\)\?\.json" \) -o \( -type f -size +2048k \) \) -print)
             if [ -z "$brbad" ] && ! node -e 'const fs=require("fs"),p=require("path");let bad=0;(function w(d){for(const f of fs.readdirSync(d)){const q=p.join(d,f),s=fs.lstatSync(q);if(s.isDirectory()){w(q);continue}const raw=fs.readFileSync(q);let ok=false;try{ok=Buffer.compare(Buffer.from(JSON.stringify(JSON.parse(raw.toString("utf8")))+"\n","utf8"),raw)===0}catch(e){}if(!ok)bad++}})(process.argv[1]);process.exit(bad?1:0)' -- "$IN/bracket"; then brbad="a file not in the recorder's own JSON form"; fi
-            # fix-check F7: the recorder writes at most 3 week files, index, board and a vault file or two; anything near
-            # this many files is not its output (and a flood of them could run the job out of time)
-            if [ -z "$brbad" ] && [ "$(find "$IN/bracket" -type f | wc -l)" -gt 12 ]; then brbad="more than 12 files"; fi
+            # fix-check F7: the recorder writes at most 3 week files, index, board and a vault file or two, plus (R-BR-7) up to
+            # 5 ruler day cards and a shadow summary for each of its 3 weeks; anything near this many files is not its output
+            # (and a flood of them could run the job out of time)
+            if [ -z "$brbad" ] && [ "$(find "$IN/bracket" -type f | wc -l)" -gt 30 ]; then brbad="more than 30 files"; fi
             if [ -n "$brbad" ]; then
               echo "::error::Producer Bracket files held this run (nothing of the Bracket is published; Block X still is): $brbad"
               mv "$IN/bracket" "$RUNNER_TEMP/bracket-held"; BRACKET_ALERT=1
             fi
           fi
-          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/blockx" ! -path "$IN/blockx/vault" ! -path "$IN/bracket" ! -path "$IN/bracket/vault" ! -path "$IN/questions" ! -path "$IN/questions/vault" \) -o \( -type f ! -regex "$IN/blockx/\(index\|board\|W[0-9][0-9][0-9]\|P[0-9][0-9][0-9]\)\.json" ! -regex "$IN/blockx/vault/W[0-9][0-9]*\.json" ! -regex "$IN/bracket/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/bracket/vault/W[0-9][0-9]*\.json" ! -regex "$IN/questions/\(board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/questions/vault/\(HOLD-\|RELEASE-\)\?W[0-9][0-9]*\.json" \) \) -print)
+          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/blockx" ! -path "$IN/blockx/vault" ! -path "$IN/bracket" ! -path "$IN/bracket/vault" ! -path "$IN/bracket/ruler" ! -path "$IN/questions" ! -path "$IN/questions/vault" \) -o \( -type f ! -regex "$IN/blockx/\(index\|board\|W[0-9][0-9][0-9]\|P[0-9][0-9][0-9]\)\.json" ! -regex "$IN/blockx/vault/W[0-9][0-9]*\.json" ! -regex "$IN/bracket/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/bracket/vault/W[0-9][0-9]*\.json" ! -regex "$IN/bracket/ruler/W[0-9][0-9][0-9]\(-R[0-4]\)\?\.json" ! -regex "$IN/questions/\(board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/questions/vault/\(HOLD-\|RELEASE-\)\?W[0-9][0-9]*\.json" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           big=$(find "$IN" -type f -size +2048k -print)
           if [ -n "$big" ]; then echo "::error::Refusing to publish files over 2 MB: $big"; exit 1; fi
@@ -335,6 +358,11 @@ jobs:
             mkdir -p "$PUB/bracket/vault"
             { git ls-tree --name-only "$parent:bracket/vault" 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then git show "$parent:bracket/vault/$f" > "$PUB/bracket/vault/$f"; fi
+            done
+            # R-BR-7: the ruler's published day cards and shadow summaries
+            mkdir -p "$PUB/bracket/ruler"
+            { git ls-tree --name-only "$parent:bracket/ruler" 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]{3}(-R[0-4])?\.json$ ]]; then git show "$parent:bracket/ruler/$f" > "$PUB/bracket/ruler/$f"; fi
             done
           else git read-tree --empty; fi
           # The content must be the recorder's own shape, not only parse as JSON.
@@ -818,13 +846,59 @@ jobs:
               picked.sort(key=lambda x: (-x[1], x[0]))
               size = size_for(len(picked)); n = min(len(picked), size)
               return {"size": size, "seeds": [a for a, _ in picked[:n]], "vhp": [v for _, v in picked[:n]], "out": [a for a, _ in picked[n:]], "outVhp": [v for _, v in picked[n:]]}
+          # ── R-BR-7: the VHP ruler switch, copied unchanged from vhp_ruler.py (switch_from, ruler_mode, switch_change); a test
+          # (tests/audit/bracket-ruler.test.mjs) checks this copy against the file and against vhp-ruler.js ──
+          SWITCH_MAX = 999999
+          def switch_from(v):
+              if v is None or (type(v) is str and v == ""):
+                  return None
+              if type(v) is str and re.fullmatch(r"[1-9][0-9]{0,5}", v):
+                  return int(v)
+              if type(v) is int and 1 <= v <= SWITCH_MAX:
+                  return v
+              raise ValueError("the ruler switch must be empty or a vault week from 1 to 999999")
+          def _switch_week(w):
+              if type(w) is int and 0 <= w <= SWITCH_MAX:
+                  return w
+              raise ValueError("week must be a vault week from 0 to 999999")
+          def _mode_of(w, f):
+              return "off" if f is None or w < f - 1 else "shadow" if w < f else "on"
+          def ruler_mode(week, frm):
+              return _mode_of(_switch_week(week), switch_from(frm))
+          def switch_change(prev, nxt, week):
+              w, p, n = _switch_week(week), switch_from(prev), switch_from(nxt)
+              if p == n:
+                  return None
+              at = sorted(x for x in (0, w, -1 if p is None else p - 1, -1 if p is None else p, -1 if n is None else n - 1,
+                                      -1 if n is None else n) if 0 <= x <= w)
+              for x in at:
+                  a, b = _mode_of(x, p), _mode_of(x, n)
+                  if (a == "on") != (b == "on"):
+                      return ("the ruler switch moved from %s to %s: week %d has started and would change from %s to %s; whether a "
+                              "started week is scored by the ruler never changes (a first switch-on: %d or later)"
+                              % ("unset" if p is None else p, "unset" if n is None else n, x, a, b, w + 1))
+              return None
+          RULER_VAR = None; RULER_ALERT = []
+          def ruler_fields(j):
+              # None when the week file's ruler fields are valid (both or neither; a valid switch and the mode it gives the week)
+              has = ("rulerFrom" in j, "rulerMode" in j)
+              if has == (False, False): return None
+              if has != (True, True): return "one ruler field without the other"
+              f = j["rulerFrom"]
+              if not (f is None or (type(f) is int and 1 <= f <= SWITCH_MAX)): return "ruler switch value"
+              if j["rulerMode"] not in ("off", "shadow", "on") or ruler_mode(j["week"], f) != j["rulerMode"]: return "ruler mode doesn't follow from the switch"
+              return None
           STATUS = ("waiting", "none", "void", "open", "locked", "final")
           def week_ok(j, f):
               # returns None when the file is what the recorder writes, else why not
-              if type(j) is not dict or not set(j) <= {"v", "week", "start", "end", "status", "seeding", "picks", "days", "results", "points", "void", "staked", "vault"}: return "unexpected fields"
+              if type(j) is not dict or not set(j) <= {"v", "week", "start", "end", "status", "seeding", "picks", "days", "results", "points", "void", "staked", "vault", "rulerFrom", "rulerMode"}: return "unexpected fields"
               if not ({"v", "week", "start", "end", "status", "seeding", "picks", "days", "results", "points", "staked"} <= set(j)): return "missing fields"
               if not (type(j["v"]) is int and j["v"] == FILE_V and nat(j["week"]) and f == "W%03d.json" % j["week"] and j["start"] == week_start(j["week"]) and j["end"] == j["start"] + WEEK): return "version, week or times"
               w = j["week"]
+              rf = ruler_fields(j)
+              if rf: return rf
+              # R-BR-7 phase 1: an "on" week isn't scored by this build (the recorder holds it): no results, no points, never final
+              on = j.get("rulerMode") == "on"
               if j["status"] not in STATUS: return "status"
               if "void" in j and (type(j["void"]) is not str or len(j["void"]) > 200): return "void reason"
               if "vault" in j and (j["vault"] != "missed" or j["status"] != "final"): return "vault mark"
@@ -851,8 +925,9 @@ jobs:
                   if "held" in st and not (alist(st["held"]) and sorted_unique(st["held"])): return "held"
               r = j["results"]; pts = j["points"]
               if type(pts) is not list or len(pts) > 100000: return "points"
-              if pk is None:
-                  if r is not None or pts != []: return "results or points before the lock"
+              if pk is None or on:
+                  if r is not None or pts != []: return "results or points before the lock" if pk is None else "results or points in a week the ruler is on for (not scored by this build)"
+                  if on and j["status"] == "final": return "final in a week the ruler is on for (not scored by this build)"
               else:
                   if type(r) is not dict or set(r) != {"rounds", "done"} or type(r["done"]) is not bool or type(r["rounds"]) is not list or len(r["rounds"]) > R: return "results"
                   if not all(type(x) is list and len(x) == s["size"] // 2 ** (i + 1) and all(type(v) is int and 1 <= v <= len(seeds) for v in x) for i, x in enumerate(r["rounds"])): return "results rounds"
@@ -866,6 +941,38 @@ jobs:
                   if pk.get("re") != 1: return "final on picks no later run read again (fix-check 2 PK-1)"
                   if not all(h is not None and h.get("re") == 1 for day in ds for h in day): return "final before every hour was re-read in a later run"
                   if j.get("vault") != "missed" and (st is None or "held" not in st): return "final without the end-of-week stakes"
+              return None
+          def ruler_file_problem(f, path_, pub_, week_file):
+              m = re.fullmatch(r"W([0-9]{3})(?:-R([0-4]))?\.json", f)
+              if not m: return "not a ruler file name"
+              w = int(m.group(1)); raw = open(path_, encoding="utf-8").read()
+              if m.group(2) is not None and os.path.isfile(pub_):
+                  return None if open(pub_, encoding="utf-8").read() == raw else "a published ruler card changed (cards are written once)"
+              wf = week_file(w)
+              if type(wf) is not dict or wf.get("rulerMode") not in ("shadow", "on") or type(wf.get("seeding")) is not dict or not wf["seeding"].get("size"):
+                  return "its week isn't a ruler week (shadow or on) with a bracket"
+              j = json.loads(raw); size = wf["seeding"]["size"]
+              if m.group(2) is not None:
+                  r = int(m.group(2))
+                  if r >= rounds_of(size): return "a round the bracket doesn't have"
+                  day = wf["days"][r] if type(wf.get("days")) is list and r < len(wf["days"]) else None
+                  if not (type(day) is list and len(day) == 24 and all(type(h) is dict and h.get("re") == 1 for h in day)): return "a card before all 24 of its day's hours were recorded and re-read"
+                  S0, S1 = day[0]["from"], day[23]["to"]; L = S0 - 1
+                  t = time.gmtime(round_day(w, r, size) // 1000)
+                  want = {"ruleVersion": 4, "game": 9, "round": "%04d%02d%02d" % (t.tm_year, t.tm_mon, t.tm_mday), "ownRule": "spot", "paying": True,
+                          "window": {"W0": L - 7199, "W1": L, "L": L, "S0": S0, "S1": S1}, "c": "500000", "minK": 10, "poolRule": "min"}
+                  if type(j) is not dict or any(not same(j.get(k), v) for k, v in want.items()): return "not the Bracket's settings for that day (window, round, rule)"
+                  if type(j.get("producers")) is not list or not all(type(p) is dict and isa(p.get("a")) and (p.get("fpct") is None or (type(p["fpct"]) is str and re.fullmatch(r"[0-9]{1,7}", p["fpct"]) and int(p["fpct"]) <= 1000000)) for p in j["producers"]): return "producers"
+                  return None
+              # the shadow summary: shown beside the real result, never scored
+              if not (type(j) is dict and set(j) == {"v", "game", "week", "shadow", "rulerFrom", "rulerMode", "settings", "cards", "rounds", "done", "real"} and one(j["v"]) and j["game"] == 9 and j["week"] == w and j["shadow"] is True):
+                  return "not a shadow summary"
+              if j["rulerMode"] != "shadow" or wf.get("rulerMode") != "shadow" or j["rulerFrom"] != wf.get("rulerFrom"): return "a summary for a week that isn't the shadow week"
+              if not same(j["settings"], {"ownRule": "spot", "minK": 10, "poolRule": "min", "c": "500000"}): return "settings"
+              R = rounds_of(size)
+              if not (type(j["cards"]) is list and len(j["cards"]) == R and all(c is None or c == "W%03d-R%d.json" % (w, i) for i, c in enumerate(j["cards"]))): return "cards"
+              if not (type(j["done"]) is bool and type(j["rounds"]) is list and len(j["rounds"]) <= R and all(type(x) is list and len(x) == size // 2 ** (i + 1) and all(type(v) is int and 1 <= v <= size for v in x) for i, x in enumerate(j["rounds"]))): return "rounds"
+              if not same(j["real"], (wf.get("results") or {}).get("rounds", [])): return "the real result beside it isn't the week file's"
               return None
           def rows_ok(rows):
               return type(rows) is list and len(rows) <= 4000 and all(type(x) is dict and set(x) == {"a", "place", "boardPlace", "pts", "champion", "correct", "ranked", "earns"} and isa(x["a"])
@@ -910,6 +1017,14 @@ jobs:
 
           def main():
               now = int(os.environ.get("CHECK_NOW_MS") or time.time() * 1000); cw = (now - GENESIS) // WEEK
+              # Repo Lens #G-20: the owner's ruler switch, read strictly (an unreadable value holds the Bracket)
+              global RULER_VAR
+              try: RULER_VAR = switch_from(os.environ.get("BRACKET_RULER_FROM_WEEK", ""))
+              except ValueError: return "the BRACKET_RULER_FROM_WEEK variable isn't empty or a vault week (1 to 999999)"
+              # G20-2: phase 1 can't score an "on" week. From 2 days before the first "on" week starts (and while one is
+              # open), every run alerts, so the ruler-on update is merged in time or the variable moved a week later
+              if RULER_VAR is not None and now >= week_start(RULER_VAR) - 2 * DAY:
+                  RULER_ALERT.append("BRACKET_RULER_FROM_WEEK = %d: vault week %d is scored by the VHP ruler, which this build can't do (the week is held and void at its backstop). Merge the ruler-on update before %s UTC, or set the variable to %d before then." % (RULER_VAR, RULER_VAR, time.strftime("%a %d %b %H:%M", time.gmtime(week_start(RULER_VAR) / 1000)), RULER_VAR + 1))
               def pubjson(name):
                   p = os.path.join(pub, name) if pub else ""
                   return load(p) if p and os.path.isfile(p) else None
@@ -934,6 +1049,15 @@ jobs:
                   w = j["week"]; weeks_in[w] = j; rel = w in RELEASE
                   old = pubjson(f)
                   if old is not None and type(old) is not dict: problems.append(f + ": the published copy is unreadable"); continue
+                  # R-BR-7: a week that has started never changes whether the ruler scores it (switch_change, this job's clock;
+                  # a published copy without the field counts as unset)
+                  sw = switch_change(old.get("rulerFrom") if old else None, j.get("rulerFrom"), cw)
+                  if sw: problems.append(f + ": " + sw); continue
+                  # Repo Lens #G-20 G20-1: an open week carries the owner's variable exactly (also before it starts, when
+                  # switch_change can't see a difference yet); final, none and void weeks keep the value they closed with
+                  # (a file without the field counts as unset, as switch_change reads it)
+                  if j["status"] not in ("final", "none", "void") and j.get("rulerFrom") != RULER_VAR:
+                      problems.append(f + ": its ruler switch (%s) isn't the owner's BRACKET_RULER_FROM_WEEK (%s)" % (j.get("rulerFrom", "missing"), "unset" if RULER_VAR is None else RULER_VAR)); continue
                   s = j["seeding"]; olds = old.get("seeding") if old else None
                   if old is None:
                       if not (cw - 1 <= w <= cw + 1): problems.append(f + ": a new week file that isn't last, this or next week by this job's clock"); continue
@@ -1047,7 +1171,8 @@ jobs:
               ni = load(os.path.join(d, "index.json")) if os.path.isfile(os.path.join(d, "index.json")) else None
               pi = pubjson("index.json")
               if ni is not None:
-                  if not (type(ni) is dict and set(ni) == {"v", "updated", "weeks", "contract", "game", "prizesFromWeek"} and one(ni["v"]) and iso.fullmatch(str(ni["updated"]))): problems.append("index.json: shape")
+                  if not (type(ni) is dict and set(ni) in ({"v", "updated", "weeks", "contract", "game", "prizesFromWeek"}, {"v", "updated", "weeks", "contract", "game", "prizesFromWeek", "rulerFrom"}) and one(ni["v"]) and iso.fullmatch(str(ni["updated"]))
+                          and ni.get("rulerFrom") == RULER_VAR): problems.append("index.json: shape")
                   elif not (type(ni["weeks"]) is list and len(ni["weeks"]) <= 10000 and all(type(w) is int and 0 <= w < 10000 for w in ni["weeks"]) and sorted_unique(ni["weeks"])): problems.append("index.json: weeks")
                   elif not ((type(ni["game"]) is int and ni["game"] == 9) and (ni["prizesFromWeek"] is None or nat(ni["prizesFromWeek"])) and (ni["contract"] is None or isa(ni["contract"]))): problems.append("index.json: fields")
                   else:
@@ -1066,9 +1191,16 @@ jobs:
                           and view_ok(j["next"]) and view_ok(j["week"]) and (j["lastWeek"] is None or view_ok(j["lastWeek"], True))
                           and type(j["allTime"]) is dict and set(j["allTime"]) == {"rows"} and rows_ok(j["allTime"]["rows"])): problems.append("board.json: shape")
               for f in os.listdir(d):
-                  if f not in ("vault", "board.json", "index.json") and not re.fullmatch(r"W[0-9]{3}\.json", f): problems.append(f + ": an unexpected file")
+                  if f not in ("vault", "ruler", "board.json", "index.json") and not re.fullmatch(r"W[0-9]{3}\.json", f): problems.append(f + ": an unexpected file")
               if problems: return "; ".join((problems + list(bad_weeks.values()))[:5])
               for f_, why_ in bad_weeks.items(): hold("bracket/" + f_, why_, True)
+              # ── R-BR-7: the ruler's day cards and shadow summaries (phase 1: shown only, never scored or paid). A file that
+              # fails is held on its own; the week, its vault file and the board are judged without it. ──
+              rdir = os.path.join(d, "ruler")
+              for f in (sorted(os.listdir(rdir)) if os.path.isdir(rdir) else []):
+                  # the week file a ruler file belongs to: this run's when it passed, else the published copy
+                  why = ruler_file_problem(f, os.path.join(rdir, f), os.path.join(pub, "ruler", f), lambda w: weeks_in[w] if w in weeks_in else pubjson("W%03d.json" % w))
+                  if why: hold("bracket/ruler/" + f, why, True)
               if bad_weeks and os.path.isfile(bp): hold("bracket/board.json", "a week file was held this run (" + ", ".join(sorted(bad_weeks)) + ")", True)
               # ── the Vault files (every week file they could come from passed) ──
               vdir = os.path.join(d, "vault")
@@ -1096,6 +1228,9 @@ jobs:
               if why: hold_all(why)
           except Exception as e:
               hold_all("the check could not read this run's files (%s: %s, line %s)" % (type(e).__name__, str(e)[:200], deepest(e)))
+          for m in RULER_ALERT:   # Repo Lens #G-20 G20-2: loud (an email); the files themselves are judged as above
+              print("::error::Producer Bracket: " + m)
+              if "!alert" not in held: held.append("!alert")
           if heldf: open(heldf, "a").write("".join(x + "\n" for x in held))
           elif held: sys.exit("held: " + ", ".join(x for x in held if x != "!alert"))
           print("bracket check done:", d, "(held %d)" % len([x for x in held if x != "!alert"]))
@@ -1274,7 +1409,7 @@ jobs:
           print("questions files checked:", d, "held:", len([x for x in held if x != "!alert"]))
           PY
           shopt -s nullglob
-          for f in "$IN"/blockx/*.json "$IN"/blockx/vault/*.json "$IN"/bracket/*.json "$IN"/bracket/vault/*.json "$IN"/questions/*.json "$IN"/questions/vault/*.json; do
+          for f in "$IN"/blockx/*.json "$IN"/blockx/vault/*.json "$IN"/bracket/*.json "$IN"/bracket/vault/*.json "$IN"/bracket/ruler/*.json "$IN"/questions/*.json "$IN"/questions/vault/*.json; do
             name="${f#"$IN"/}"
             # Audit BX-5: a final week's prize file (P###.json), and the Vault's results file (vault/W<week>.json), are
             # written once and never replaced.
@@ -1282,6 +1417,12 @@ jobs:
             # Daily Questions: its HOLD and RELEASE files are only ever added (its vault files match the line below, and its
             # final week files are checked above).
             if [[ "$name" =~ ^questions/vault/(HOLD|RELEASE)-W[0-9]+\.json$ ]] && git cat-file -e ":$name" 2>/dev/null; then continue; fi
+            # R-BR-7: the Bracket's ruler day cards (bracket/ruler/W<week>-R<round>.json) are written once too: one that differs
+            # from the published card is held with an error, never replaced
+            if [[ "$name" =~ ^bracket/ruler/W[0-9]{3}-R[0-4]\.json$ ]] && git cat-file -e ":$name" 2>/dev/null; then
+              if [ "$(git hash-object "$f")" != "$(git rev-parse ":$name")" ]; then echo "::error::$name differs from the published ruler card: not replaced."; echo '!alert' >> "$HELD"; fi
+              continue
+            fi
             if [[ "$name" =~ (/P[0-9]{3}|/vault/W[0-9]+)\.json$ ]] && git cat-file -e ":$name" 2>/dev/null; then
               # Audit BX-81: a write-once file that differs from the published one is held (with an error, failing the job
               # at the end), never replaced; everything else is still published.

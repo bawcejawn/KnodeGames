@@ -18,13 +18,17 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { makeScorer, blockTargets, clearFiles } from "../bot/games/combo-score.mjs";
+import { makeScorer, blockTargets, clearFiles, VAULT_WINDOW_MS } from "../bot/games/combo-score.mjs";
 import { scoringVhpMoves, NonCanonicalTransfer, MOVE_MARGIN, decodeBase58, encodeBase58 } from "../bot/games/vhp-inflows.mjs";
 const M = globalThis.KRaceMath, C = globalThis.KCombo;
 
 const MAINNET_VHP = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq";   // common.ts MAINNET_VHP (a test checks they match)
 const LIST_PICKS = 2118033200;
 const HOUR = 3600000, BEHIND_MS = 30 * 60000;
+// Repo Lens FC4-4: the Vault reads get a time budget well inside the job's 20 minutes, a few at a time, so a big Free play
+// board can't stall the run (the day results are written first); a Vault file still unconfirmed in the last 12 hours of
+// its window is an alert, not a warning.
+const VAULT_BUDGET_MS = 8 * 60000, VAULT_READS_AT_ONCE = 8, VAULT_ALERT_MS = 12 * HOUR;
 const isAddr = (a) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 const load = (f) => { try { return fs.lstatSync(f).isFile() ? JSON.parse(fs.readFileSync(f, "utf8")) : null; } catch { return null; } };
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
@@ -129,7 +133,8 @@ function dayOf(dir, day) {
 }
 const chainKey = (c) => JSON.stringify([c.player, c.legs.map((l) => (Array.isArray(l) ? [l[0], l[1], l[2]] : [l.code, l.round, l.producer])), c.time, c.changes]);
 
-/** Confirm the incoming day files. o: { incoming, published, race, blockx, p, check, picks, now, vhp, vhpMovesOf }.
+/** Confirm the incoming day files. o: { incoming, published, race, blockx, p, check, picks, now, vhp, vhpMovesOf, vault,
+ *  onDays (called with the day results before any Vault read), vaultBudgetMs, clock (the budget's clock; tests) }.
  *  Returns { approved: [{ name, sha256 }], problems: [{ day, why, alert }] }. Exported for the tests. */
 export async function verify(o) {
   clearFiles();
@@ -204,6 +209,8 @@ export async function verify(o) {
     if (why) problems.push({ day, why, alert });
     else for (const f of files) approved.push({ name: f, sha256: sha(path.join(o.incoming, f)) });
   }
+  if (o.onDays) o.onDays({ approved: [...approved], problems: [...problems] });     // FC4-4: the days are safe first
+  const clock = o.clock ?? Date.now, stop = clock() + (o.vaultBudgetMs ?? VAULT_BUDGET_MS);
   // A new Vault file (D-081): the publish job judges it against the PUBLISHED board, whose stake flags (staked, and
   // free = never staked that week) only the recorder set. Here they are read again from the Vault on both nodes, for
   // every row of that week with a point; the file is confirmed only if every flag is the chain's.
@@ -212,18 +219,17 @@ export async function verify(o) {
     if (fs.existsSync(path.join(o.published, "vault", f))) continue;            // write-once: the publish job skips it
     const name = `vault/${f}`, week = Number(f.slice(1, -5)), board = load(path.join(o.published, "board.json"));
     const rows = board?.lastWeek?.week === week && Array.isArray(board.lastWeek.rows) ? board.lastWeek.rows.filter((r) => r && Number(r.pts) >= C.MIN_WEEK_PTS) : null;
-    if (!rows) { problems.push({ day: null, file: name, why: `${name}: the published board doesn't show week ${week} yet`, alert: false }); continue; }
+    const late = now >= M.weekStart(week + 1) + VAULT_WINDOW_MS - VAULT_ALERT_MS;    // FC4-4: under 12 h left in its window
+    if (!rows) { problems.push({ day: null, file: name, why: `${name}: the published board doesn't show week ${week} yet`, alert: late }); continue; }
     try {
       if (!o.p || !o.check || !o.vault) throw new Error("two nodes and the Vault's address are needed");
-      const views = [];
-      for (const n of [o.p, o.check]) views.push(await vaultView(n, o.vault, rows.map((r) => r.a), week));
-      const [a, b] = views;
+      const [a, b] = await Promise.all([o.p, o.check].map((n) => vaultView(n, o.vault, rows.map((r) => r.a), week, { stop, clock })));
       if (!a.live || !b.live || a.min !== b.min) throw new Error("the Vault v6 isn't live on both nodes, or they disagree about its minimum");
       const flags = (v, x) => { const p = v.players.get(x); return p ? { staked: p.week > 0n && p.week >= v.min, free: !(p.peak >= v.min) } : null; };
       const bad = rows.find((r) => { const x = flags(a, r.a), y = flags(b, r.a); return !x || !y || x.staked !== y.staked || x.free !== y.free || r.staked !== x.staked || (r.free !== x.free && !(r.staked === true && r.free === false)); });
       if (bad) { problems.push({ day: null, file: name, why: `${name}: the published board's stake flags for ${bad.a} aren't the Vault's (two nodes)`, alert: true }); continue; }
       approved.push({ name, sha256: sha(path.join(vdir, f)) });
-    } catch (e) { problems.push({ day: null, file: name, why: `${name} can't be confirmed this run (${String(e.message ?? e).slice(0, 160)})`, alert: false }); }
+    } catch (e) { problems.push({ day: null, file: name, why: `${name} can't be confirmed this run (${String(e.message ?? e).slice(0, 160)})${late ? "; under 12 hours left in its Vault window" : ""}`, alert: late }); }
   }
   return { approved, problems };
 }
@@ -231,8 +237,11 @@ export async function verify(o) {
 // ── the Vault v6 (game/abi/kpred-v6.koilib.json), just what the stake flags need ──
 const GET_STATE = 1023583049, GET_GAME_PLAYER = 267077419;
 const u64 = (fs_, f) => { const x = fs_.find(([g]) => g === f); return x ? BigInt(x[1]) : 0n; };
-/** As blockx.ts vaultView: live (v6_rule_week_plus_one), the week's minimum, and each wallet's week_stake and peak. */
-export async function vaultView(node, vault, who, week) {
+/** As blockx.ts vaultView: live (v6_rule_week_plus_one), the week's minimum, and each wallet's week_stake and peak.
+ *  lim: { stop, clock } (FC4-4): no read starts after the clock passes stop; wallets are read VAULT_READS_AT_ONCE at a time. */
+export async function vaultView(node, vault, who, week, lim = {}) {
+  const clock = lim.clock ?? Date.now, inTime = () => { if (lim.stop != null && clock() > lim.stop) throw new Error("the Vault reads ran out of time this run"); };
+  inTime();
   const st = await node.call("chain.read_contract", { contract_id: vault, entry_point: GET_STATE, args: "" });
   const cfgB = fields(Buffer.from(st?.result ?? "", "base64")).find(([f]) => f === 1)?.[1];
   if (!cfgB) throw new Error("no answer reading the Vault's state");
@@ -244,7 +253,8 @@ export async function vaultView(node, vault, who, week) {
   if (min <= 0n) min = 100000000n;
   const players = new Map();
   if (!live) return { live, min, players };
-  for (const x of new Set(who)) {
+  const one = async (x) => {
+    inTime();
     const a = decodeBase58(x);
     const args = Buffer.from([0x0a, ...varint(a.length), ...a, 0x10, ...varint(C.GAME_ID), 0x18, ...varint(week)]).toString("base64url");
     const r = await node.call("chain.read_contract", { contract_id: vault, entry_point: GET_GAME_PLAYER, args });
@@ -255,7 +265,11 @@ export async function vaultView(node, vault, who, week) {
     let peak = act;
     if (entry) { const e = fields(entry); const ps = u64(e, 7), sk = u64(e, 1); peak = ps > sk ? ps : sk; }
     players.set(x, { week: wk, peak });
-  }
+  };
+  const list = [...new Set(who)];
+  let next_ = 0;
+  const worker = async () => { while (next_ < list.length) await one(list[next_++]); };
+  await Promise.all(Array.from({ length: Math.min(VAULT_READS_AT_ONCE, list.length) }, worker));
   return { live, min, players };
 }
 
@@ -268,9 +282,10 @@ async function main() {
   const vault = isAddr(gdep?.contract) ? gdep.contract : null;
   const p = process.env.RPC ? rpcNode(process.env.RPC) : null, check = process.env.RPC_CHECK ? rpcNode(process.env.RPC_CHECK) : null;
   if (p && check && p.url.replace(/\/+$/, "").toLowerCase() === check.url.replace(/\/+$/, "").toLowerCase()) throw new Error("RPC and RPC_CHECK are the same node");
-  const r = await verify({ incoming, published, race, blockx, p, check, picks, vault, now: Number(process.env.CHECK_NOW_MS) || undefined });
+  const write = (r) => fs.writeFileSync(outFile, r.approved.map((x) => `${x.name} ${x.sha256}\n`).join(""));
+  const r = await verify({ incoming, published, race, blockx, p, check, picks, vault, now: Number(process.env.CHECK_NOW_MS) || undefined, onDays: write });
   for (const x of r.problems) console.log(`${x.alert ? "::error::" : "::warning::"}${x.day === null ? "" : `day ${x.day}: `}${x.why}; held`);
-  fs.writeFileSync(outFile, r.approved.map((x) => `${x.name} ${x.sha256}\n`).join(""));
+  write(r);
   console.log(`${r.approved.length} day file(s) confirmed, ${r.problems.length} day(s) held.`);
 }
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) main().catch((e) => { console.log(`::error::verify: ${e.message ?? e}`); process.exit(1); });

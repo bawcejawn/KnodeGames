@@ -219,9 +219,9 @@ test("free play winners (D-081): the Free play board's top 2, players not staked
   assert.deepEqual(plain(C.freeWinners([r(1, 500, { lastHit: 7 }), r(2, 500, { lastHit: 7 }), r(3, 400)])), { first: [P(1), P(2)], second: [] });
   // Tied for second share it.
   assert.deepEqual(plain(C.freeWinners([r(1, 500), r(2, 400, { lastHit: 7 }), r(3, 400, { lastHit: 7 })])), { first: [P(1)], second: [P(2), P(3)] });
-  // More than 10 in a place: that place stays empty (the Vault takes at most 10).
+  // More than 10 in a place: exactly 10 are paid, by address (D-159 / I-103, Repo Lens FC4-3; was: the place stays empty).
   const many = Array.from({ length: 11 }, (_, i) => r(i + 2, 400, { lastHit: 7 }));
-  assert.deepEqual(plain(C.freeWinners([r(1, 500), ...many])), { first: [P(1)], second: [] });
+  assert.deepEqual(plain(C.freeWinners([r(1, 500), ...many])), { first: [P(1)], second: many.map((x) => x.player).sort().slice(0, 10) });
   assert.equal(C.MIN_PRIZE_DAYS, 3); assert.equal(C.VAULT_MAX_PER_PLACE, 10);
   // In the Vault file: a wallet is staked (rows) or free (first / second), never both.
   const f = plain(C.vaultFile(2, true, [{ ...r(1, 900, { staked: true }), place: 1 }, { ...r(2, 500), place: 2 }]));

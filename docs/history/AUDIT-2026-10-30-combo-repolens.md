@@ -204,3 +204,26 @@ Every game has a Free play board. For the Combo Card:
 
 **Tests (with Free play and the main merge, a2bf8b4):** contract 71 (source unchanged, 92d555d0…); site and audit suite
 852 passing (5 todo, 6 skipped, 0 failing); browser 8; workflow guard 8.
+
+## Fix-check 4 (Repo Lens #G-16 at ba2d9b30, 11 Nov 2026: "fix first", 1 High, 1 Medium, 2 Low)
+
+FC3: fixed FC3-1, -2, -4 to -8, -10 to -13; FC3-3 partly (FC4-1); FC3-9 accepted. No regressions found.
+- **FC4-1 (High), a forged void past the verify job.** The verify job called `recheck(c, day, true)`, but `recheck`
+  took no third argument, so an "unresolved" Block X leg the files show as a hit was never checked on the chain. Fix
+  (the reviewer's diff): `recheck(c, day, chain)`; with `chain` the leg is re-scored with both nodes' moved-VHP reads,
+  and "unresolved" stands only if that re-score is unresolved too (a read still holding: try again next run). The
+  publish job (no chain) still accepts it only because the verify job has confirmed the day. Test: `repolens-fc4-verify`.
+- **FC4-2 (Medium), hourly Block X targets.** Since vault week 3 Block X publishes a target every 1,200 blocks (Picks
+  game 12), so its files number rounds by 1,200. Combo looked targets up by its own 2,400-block round and found none:
+  every Block X leg would end unresolved. Fix: targets are keyed by block height (`blockTargets`, the publish job's
+  `BX_TARGETS`), a leg is looked up by `X.target(round)`, and the deadline "past" check compares heights. The leg type
+  keeps its 2,400-block round (every 2,400th block is also an hourly target). Test: `repolens-fc4-verify`.
+- **FC4-3 (Low), ties.** D-159 / I-103: more than 10 tied for a free-prize place pays exactly 10 (the earlier score
+  time, which tied wallets share, then address), never zero. Both `freeWinners` and the publish job's copy. Test:
+  `repolens-fc4-ties`; the D-081 site test now expects 10, not an empty place.
+- **FC4-4 (Low), a big Free play board.** The verify job gives the day results to its caller (and writes them) before
+  any Vault read, reads stakes 8 at a time on both nodes in parallel, stops the Vault reads after an 8-minute budget
+  (the file waits for the next run), and alerts while a Vault file is unconfirmed in the last 12 hours of its 3-day
+  window. Test: `combo-verify` "FC4-4".
+- **Info, handover:** `upgrade-schedule` must refuse while a Picks owner handover is planned or proposed (accepting it
+  clears the announcement). Done with the `main` merge, which brings the handover code (#D-12).

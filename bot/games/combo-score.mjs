@@ -6,7 +6,7 @@
  *
  * makeScorer(ctx) returns score() (price and score one card, as the recorder does) and recheck() (does a published
  * final card match its sources?). ctx: { race, targets, head, agreed, movedInto, problems, errors, moveMargin }:
- *   race      the race-data folder;  targets  Block X targets by round (blockTargets);
+ *   race      the race-data folder;  targets  Block X targets by block height (blockTargets);
  *   head      { height, time, lib, libTime } (both nodes: the slower);  agreed  the time came from both nodes;
  *   movedInto (who, from, to) => Promise<{ moved } | { nonCanonical } | { hold }>  (both nodes, Block X BX-100);
  *   problems, errors  arrays the live run reports into;  moveMargin  Block X's MOVE_MARGIN.
@@ -75,9 +75,12 @@ export function raceSourcePast(raceDir, round) {
   }
   return false;
 }
+/** Block X targets by block HEIGHT (Repo Lens FC4-2). Block X's files number their rounds by their own round size: 2,400
+ *  blocks before vault week 3, 1,200 (hourly, Picks game 12) since. A Combo Block X leg keeps its 2,400-block round and
+ *  is looked up by its block, X.target(round); every 2,400th block is also an hourly target. */
 export function blockTargets(blockxDir, weeks) {
   const m = new Map();
-  for (const w of weeks) { const wf = readJson(blockxDir, wName(w)); if (wf && Array.isArray(wf.targets)) for (const t of wf.targets) if (t && Number.isInteger(t.round)) m.set(t.round, t); }
+  for (const w of weeks) { const wf = readJson(blockxDir, wName(w)); if (wf && Array.isArray(wf.targets)) for (const t of wf.targets) if (t && Number.isSafeInteger(t.height) && t.height > 0) m.set(t.height, t); }
   return m;
 }
 
@@ -126,14 +129,14 @@ export function makeScorer({ race: RACE, targets, head, agreed, movedInto, probl
     // FC-2: never drop one leg because its check failed, which could turn a losing card into a hit).
     const unresolved = (l, why, alert = false) => { l[4] = "unresolved"; (alert ? errors : problems).push(`slot ${c.round}: ${c.player}'s card: ${why}; the card is void unless another leg missed`); };
     for (let i = 0; i < c.legs.length; i++) {
-      const l = c.legs[i], leg = legs[i], isRace = C.FAMILY[l[0]] === "race", t = isRace ? null : targets.get(l[1]) ?? null;
+      const l = c.legs[i], leg = legs[i], isRace = C.FAMILY[l[0]] === "race", t = isRace ? null : targets.get(X.target(l[1])) ?? null;
       let r = isRace ? C.legResult(leg, raceRecord(RACE, l[1]), null) : C.legResult(leg, null, t);
       l[4] = r;
       if (r === "unresolved") { unresolved(l, isRace ? `race ${M.raceId(l[1])} was never decided (no card, or not checked on two nodes)` : `Block X never decided who signed block ${X.target(l[1])}`); continue; }
       if (r === "pending" && late) {
         // At the deadline: unresolved if the leg's source has published past it (it gave up on it), else its recorder
         // stopped and the card waits (RL-9). Both are errors: someone should look.
-        const past = isRace ? raceSourcePast(RACE, l[1]) : [...targets.values()].some((x) => x.round > l[1] && x.final === true);
+        const past = isRace ? raceSourcePast(RACE, l[1]) : [...targets.values()].some((x) => x.height > X.target(l[1]) && x.final === true);
         if (past) { unresolved(l, `its ${isRace ? "race" : "block"} (round ${l[1]}) was never decided by the deadline`, true); continue; }
         errors.push(`slot ${c.round}: the ${isRace ? "race" : "Block X"} recorder hasn't published past a leg of ${c.player}'s card (round ${l[1]}); it waits`);
       }
@@ -193,7 +196,7 @@ export function makeScorer({ race: RACE, targets, head, agreed, movedInto, probl
   // sources don't show a result yet, e.g. a race-data outage, or the moved-VHP read failed): an error and no Vault file
   // for its week this run; it stays on the boards and is checked again next run.
   const isMiss = (l) => l[4] === "miss" || (l[4] === "hit" && !(l[3] > 0));
-  async function recheck(c, day) {
+  async function recheck(c, day, chain = false) {
     const again = async (mode) => {
       const f = JSON.parse(JSON.stringify(c));
       f.priceAt = null; f.state = "pending"; f.outcome = null; f.pts = 0; f.settled = 0;
@@ -211,11 +214,19 @@ export function makeScorer({ race: RACE, targets, head, agreed, movedInto, probl
       if (ks.some((k) => f0.legs[k][4] === "pending")) return { unchecked: "the leg it shows as a miss isn't decided in its sources yet" };
       return { forged: "no leg it shows as a miss misses by its sources" };
     }
-    let open = false;
+    let open = false, fm0 = null;
     for (let k = 0; k < c.legs.length; k++) {
       const l = c.legs[k], f = f0.legs[k];
       if (l[4] === f[4]) continue;
-      if (l[4] === "unresolved" && C.FAMILY[l[0]] === "block" && f[4] === "hit") continue;
+      if (l[4] === "unresolved" && C.FAMILY[l[0]] === "block" && f[4] === "hit") {
+        // Repo Lens FC4-1: only the chain can leave such a leg unresolved (a non-standard transfer on both nodes, or a
+        // read held past its edge). The verify job (chain = true) asks it; the recorder's own re-check trusts its run.
+        if (!chain) continue;
+        fm0 ??= await again("moved");
+        if (fm0.legs[k][4] === "unresolved") continue;
+        if (fm0.state !== "final") { open = true; continue; }            // a read still holding: try again next run
+        return { forged: `leg ${k + 1} is unresolved, but both nodes read the VHP moved into ${l[2]} normally` };
+      }
       if (f[4] === "pending") { open = true; continue; }
       return { forged: `leg ${k + 1} is ${l[4]} but its source shows ${f[4]}` };
     }

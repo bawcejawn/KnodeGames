@@ -409,9 +409,10 @@ jobs:
           for f in (sorted(os.listdir(bxd)) if bxd and os.path.isdir(bxd) else []):
               j = load(os.path.join(bxd, f))
               for t in (j.get("targets") or [] if type(j) is dict else []):
-                  if type(t) is dict and type(t.get("round")) is int and t.get("height") == t["round"] * 2400: BX_TARGETS[t["round"]] = t
+                  # Repo Lens FC4-2: by block height (Block X's own rounds are 2,400 or, since vault week 3, 1,200 blocks).
+                  if type(t) is dict and type(t.get("height")) is int and t["height"] > 0: BX_TARGETS[t["height"]] = t
           RACE_FILES = {}
-          def target_of(rnd): return BX_TARGETS.get(rnd)
+          def target_of(rnd): return BX_TARGETS.get(rnd * 2400) if type(rnd) is int else None
           def expected(l):
               # As combo-math.js legResult; False when the source can't be read.
               if l[0] != 4:
@@ -471,7 +472,7 @@ jobs:
                       race = l[0] != 4
                       why = e == "unresolved" or sc is None or (e == "pending" and now >= deadline)
                       if race and e == "hit" and price_card(l[1] * 6 * HOUR - 25 * 60000, l[2]) is None: why = True
-                      if not race and e == "hit": why = True                    # the chain's reasons (moved-VHP reads)
+                      if not race and e == "hit": why = True                    # the chain's reasons (moved-VHP reads): the verify job asks both nodes (FC4-1)
                       if not why: return "leg %s (round %s) is unresolved, but its sources give it a result (%s)" % (l[2], l[1], e)
                       continue
                   if l[4] != e: return "leg %s (round %s) is %s but its source shows %s" % (l[2], l[1], l[4], e)
@@ -571,7 +572,7 @@ jobs:
               # D-081: first / second, the Free play board's winners (combo-math.js freeWinners): players the published
               # board shows as not staked (False) and never staked that week (free True), with 1+ point and cards on 3+
               # days, ranked as the board; ties share a place; 2nd only when one wallet holds 1st; a place over 10 wallets
-              # stays empty. (The stake flags themselves are confirmed by the verify job against the Vault, two nodes.)
+              # pays the first 10 by address (D-159). (The stake flags themselves are confirmed by the verify job against the Vault, two nodes.)
               free = [t for t in truth if rows.get(t["a"], {}).get("staked") is False and rows.get(t["a"], {}).get("free") is True and t["pts"] >= MIN_WEEK_PTS and t["days"] >= 3]
               groups = []
               for t in free:
@@ -580,8 +581,7 @@ jobs:
                   else: break
               w1 = sorted(t["a"] for t in groups[0]) if groups else []
               w2 = sorted(t["a"] for t in groups[1]) if len(groups) > 1 and len(w1) == 1 else []
-              if len(w1) > 10: w1 = []
-              if len(w2) > 10: w2 = []
+              w1 = w1[:10]; w2 = w2[:10]                                        # D-159 (FC4-3): more than 10 tied pays exactly 10, by address
               if not (same(j["first"], w1) and same(j["second"], w2)): hold(name, "its first / second aren't the published Free play board's top 2", True); continue
           open(heldf, "w").write("".join(x + "\n" for x in held))
           open(heldf + ".drop", "w").write("".join(x + "\n" for x in drops))

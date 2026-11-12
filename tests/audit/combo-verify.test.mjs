@@ -194,3 +194,25 @@ test("verify (D-081): a new Vault file is confirmed only if the published board'
   const r3 = await go(tmp());
   assert.ok(!r3.approved.some((x) => x.name === "vault/W3.json") && r3.problems.every((x) => !x.alert));
 });
+
+test("verify (Repo Lens FC4-4): day results come first; the Vault reads have a time budget; an unconfirmed Vault file is an alert in its window's last 12 hours", async () => {
+  const t = M.weekStart(4) + 13 * 3600000, out = tmp(), race = raceDir(), bx = blockxDir();
+  const stake = (p) => (p === ALICE ? 200000000n : 0n);
+  await quiet(() => run({ p: node({ t, cards: twoCards, stake }), check: node({ t, cards: twoCards, stake }), out, raceDir: race, blockxDir: bx, picksContract: PICKS, knodeGame: VAULT, now: t, vhpMovesOf: async () => 0n }));
+  const pub = tmp(); fs.copyFileSync(path.join(out, "board.json"), path.join(pub, "board.json"));
+  // A clock that jumps past the budget once the Vault reads start: they stop, the file waits, the days stand.
+  let calls = 0, early = null;
+  const clock = () => (calls++ < 1 ? 0 : 10 ** 9);
+  const go = (now) => V.verify({ incoming: out, published: pub, race, blockx: bx, picks: PICKS, vault: VAULT, now, clock, vaultBudgetMs: 1000,
+    onDays: (r) => { early = r; }, p: vnode(node({ t, cards: twoCards, stake })), check: vnode(node({ t, cards: twoCards, stake })), vhpMovesOf: async () => 0n });
+  const r = await go(t);
+  assert.ok(early && early.approved.some((x) => /^D\d{5}/.test(x.name)) && !early.approved.some((x) => x.name.startsWith("vault/")), "onDays gets the day results before the Vault stage");
+  assert.deepEqual(r.approved.filter((x) => /^D\d{5}/.test(x.name)), early.approved, "the day results are the same at the end");
+  const p1 = r.problems.find((x) => x.file === "vault/W3.json");
+  assert.ok(p1 && /ran out of time/.test(p1.why) && p1.alert === false, JSON.stringify(r.problems));
+  // The same with under 12 hours left in week 3's Vault window (it ends 3 days after week 4 starts): an alert.
+  calls = 0;
+  const lateNow = M.weekStart(4) + 3 * M.DAY - 6 * 3600000;
+  const p2 = (await go(lateNow)).problems.find((x) => x.file === "vault/W3.json");
+  assert.ok(p2 && p2.alert === true && /12 hours/.test(p2.why), JSON.stringify(p2));
+});

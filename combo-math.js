@@ -320,8 +320,8 @@
    *  on at least MIN_PRIZE_DAYS days. Ranked like the board (points, then cards that hit,
    *  then the earlier last hit; equal on all three: a shared place). first: everyone at the top place; second: the
    *  next place, only when one wallet holds the first (2 or more tied for first share both prizes, as Block X). A place
-   *  with more than VAULT_MAX_PER_PLACE wallets is left empty (the Vault takes at most 10; its prize returns to the
-   *  pool). The Vault posts them only while the owner's free-prize switch for game 8 is on (D-082); off for now.
+   *  with more than VAULT_MAX_PER_PLACE wallets pays exactly 10, by address (D-159; the Vault takes at most 10 a
+   *  place). The Vault posts them only while the owner's free-prize switch for game 8 is on (D-082); off for now.
    *  rows: [{ player, pts, hits, lastHit, days, staked, free }]. */
   const MIN_PRIZE_DAYS = 3, VAULT_MAX_PER_PLACE = 10;
   function freeWinners(rows) {
@@ -336,8 +336,9 @@
       i = j + 1;
     }
     let first = at[0] || [], second = first.length === 1 ? at[1] || [] : [];
-    if (first.length > VAULT_MAX_PER_PLACE) first = [];
-    if (second.length > VAULT_MAX_PER_PLACE) second = [];
+    // D-159 / I-103 (Repo Lens FC4-3): more than VAULT_MAX_PER_PLACE tied pays exactly that many, never zero: the earlier
+    // score time (lastHit, which tied wallets share), then address. Each list is already in address order.
+    first = first.slice(0, VAULT_MAX_PER_PLACE); second = second.slice(0, VAULT_MAX_PER_PLACE);
     return { first, second };
   }
   /** Combo Card's file for the Vault. boardRows: the week's board in order, each { player, pts (hundredths), place,

@@ -26,8 +26,13 @@ const R: any = (globalThis as any).KRuler, D: any = (globalThis as any).KVhpData
 /** The Race's ruler settings (the Ruler chat, 11 Nov): never read from a card. race.yml has the same values (tested). */
 export const VAULT_ADDR = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
 export const RULER = Object.freeze({ game: 7, c: "500000", minK: 10, poolRule: "min", ownRule: "spot", paying: true, pooled: Object.freeze([VAULT_ADDR]) });
-/** The race types on the ruler (per-type flag, cleared one by one after a shadow week): only the 6-hour race for now. */
-export const RULER_TYPES = Object.freeze([0]);
+/** The race types on the ruler. The 6-hour race (type 0) follows the switch (off / shadow / on). The four new types
+ *  (owner, 12 Nov: option A; shadow cleared from history, claude/race/SHADOW-FROM-HISTORY-RACE-TYPES-2026-11-12.md) are
+ *  scored by the ruler from their first race and ONLY in a week the ruler is "on": they never fall back to the handicap
+ *  race. A types week the ruler isn't on for scores none of their picks (a problem every run). Never flips mid-week:
+ *  it follows the switch's week. */
+export const RULER_TYPES = Object.freeze([0, 1, 2, 3, 4]);
+export const NEW_TYPES = Object.freeze([1, 2, 3, 4]);
 /** The card window's length (the Ruler chat, 11 Nov): the 6 hours before the lock for the 6-hour, daily and weekly
  *  races; the race's own length before the lock for the 1-hour (1,200) and 2-hour (2,400) races. By type number. */
 export const CARD_BLOCKS = 7200;
@@ -100,7 +105,13 @@ export function loadLedger(dir: string): any {
 export function entryFor(L: any, race: { id: string; start: number; result: any }, old?: RulerEntry | null): RulerEntry | null {
   const h = race.result?.heights;
   if (!race.result?.final || race.result.missed || !Array.isArray(h) || !Number.isSafeInteger(h[0]) || !Number.isSafeInteger(h[1]) || h[1] < h[0]) return null;
-  const round = roundOf(race.start, 0), window = windowOf(h[0], h[1]);
+  return entryForBlocks(L, race.id, race.start, 0, [h[0], h[1]], old);
+}
+/** A race's ruler entry from its blocks [S0, S1] and type (the 6-hour race: its recorded heights; a typed race: the hour
+ *  ledger, typedBlocks). */
+export function entryForBlocks(L: any, id: string, start: number, type: number, blocks: [number, number], old?: RulerEntry | null): RulerEntry {
+  const race = { id };
+  const round = roundOf(start, type), window = windowOf(blocks[0], blocks[1], type);
   if (old && old.card && old.round === round && JSON.stringify(old.window) === JSON.stringify(window)) return old;
   const base: RulerEntry = { id: race.id, round, window, card: null, note: null, placings: [] };
   if (!L) return { ...base, note: "not yet: the ruler's data isn't available this run" };
@@ -132,6 +143,8 @@ export function ruledResult(result: any, entry: RulerEntry | null | undefined): 
   return { final: true, winner: pl[0], placings: pl, standings: pl.map((a) => ({ a })), picks };
 }
 
+/** The file name of a week's ruler file: R<week>.json for the 6-hour race, R<week>-<type>.json for the other types. */
+export const rulerName = (week: number, type = 0) => `R${String(week).padStart(3, "0")}${type ? `-${type}` : ""}.json`;
 export function emptyRuler(week: number, from: number | null): RulerFile {
   const mode = modeOf(week, from);
   return { v: 1, week, rulerFrom: from, mode, shadow: mode === "shadow", races: [] };

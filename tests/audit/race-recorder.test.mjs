@@ -1144,11 +1144,9 @@ async function recomputeRun(players, { mutate = null, mutateBoard = null, prizes
   for (const p of players) for (const [ty, k, right, show, at] of (typed && typed[p.a]) || []) {
     const r = tf.races.filter((x) => x.type === ty)[k];
     r.result.picks.push([p.a, P[0], at, right, 0, show]);
-    if (M.restRace(r.start, rhythmFrom === undefined ? 3 : Number(rhythmFrom))) continue;
-    const c = t.get(p.a) || { correct: 0, shows: 0, picks: 0 }; c.picks++; c.correct += right; c.shows += !right && show ? 1 : 0;
-    c.pts = (c.pts || 0) + (right ? PP(ty).win : show ? PP(ty).second : 0);
-    if ((right || show) && (c.reached === undefined || at > c.reached)) c.reached = at;
-    t.set(p.a, c);
+    // Option A (owner, 12 Nov): the race types count only with the VHP ruler on (tests/audit/race-ruler.test.mjs). Here it
+    // is off, so the recorder and the publish job count none of their picks.
+    void PP; void rhythmFrom;
   }
   const rows = R.rank([...t].map(([a, c]) => ({ a, ...c, ranked: players.find((p) => p.a === a).staked, earning: true })));
   void rhythmFrom;
@@ -1839,10 +1837,11 @@ test("D-166: the hour ledger, and 1-hour and 2-hour races scored from it with th
   const c = await typesRun(U("2026-11-02T02:37Z"), b, { picksOf: real });
   const t2 = tfile(c), p1 = t2.races.find((r) => r.id === r1.id).result.picks;
   assert.deepEqual(p1.map((x) => [x[0], x[3], x[5]]), [[W1, 1, 0], [W2, 0, 1]]);
+  // Option A (owner, 12 Nov): the race types count only on the VHP ruler (scored from its cards with the points per place:
+  // tests/audit/race-ruler.test.mjs). With the ruler off here, their picks are recorded but count nothing, and the run says so.
   const board = JSON.parse(fs.readFileSync(path.join(c, "board.json"), "utf8"));
-  const row = (a) => board.week.rows.find((x) => x.a === a);
-  assert.deepEqual([row(W1).pts, row(W1).correct, row(W1).picks], [6, 2, 2], "W1: a 1-hour 1st (3) + a 2-hour 1st (3), points per place (D-173)");
-  assert.deepEqual([row(W2).pts, row(W2).shows], [2, 1], "W2: a 1-hour 2nd (2)");
+  assert.deepEqual(board.week.rows, [], "no typed pick counts with the ruler off");
+  assert.ok(lastRun.problems.some((m) => /the race types count only on the VHP ruler, which is off for this week/.test(m)), "said every run");
   assert.deepEqual(Object.keys(week(c)), ["v", "week", "start", "end", "races"], "W002.json unchanged in shape");
 });
 
@@ -1879,12 +1878,12 @@ test("D-166, publish job: the recompute counts the race types' picks with their 
   const pl = [{ a: addrN(1), staked: true, picks: [[0, 1, 0, 10]] }, { a: addrN(2), staked: true, picks: [[1, 0, 0, 11]] },
     { a: addrN(3), staked: false, picks: [[2, 0, 0, 12]] }, { a: addrN(4), staked: false, picks: [[3, 0, 0, 13]] }];
   const typed = { [addrN(2)]: [[4, 0, 1, 0, 20]], [addrN(3)]: [[3, 1, 0, 1, 21], [1, 5, 1, 0, 22]], [addrN(4)]: [[1, 150, 1, 0, 23]] };
+  // Option A (owner, 12 Nov): with the VHP ruler off, the typed picks count nothing: only A's 6-hour win (3) pays.
   const ok = await recomputeRun(pl, { typed, rhythmFrom: "0" });
   assert.ok(ok.final, ok.out);
-  assert.deepEqual(ok.file.rows.map((r) => r.player), [addrN(2), addrN(1)], "B (12) above A (3)");
-  assert.deepEqual(ok.file.first, [addrN(3)], "C: 2 + 2 = 4; D's Sunday win counts for no week");
-  // The same file counting the typed picks as 6-hour ones (3 / 1) is held.
-  const flat = await recomputeRun(pl, { typed, rhythmFrom: "0", mutateBoard: (b) => { for (const x of b.lastWeek.rows) if (x.a === addrN(2)) x.pts = 3; } });
+  assert.deepEqual(ok.file.rows.map((r) => r.player), [addrN(1)], "A (3); B's weekly win doesn't count with the ruler off");
+  // A board that counted more than the 6-hour race (A at 6) is held.
+  const flat = await recomputeRun(pl, { typed, rhythmFrom: "0", mutateBoard: (b) => { for (const x of b.lastWeek.rows) if (x.a === addrN(1)) x.pts = 6; } });
   assert.equal(flat.final, false); assert.match(flat.out, /board's last week doesn't match the week's picks/);
 });
 
@@ -1947,9 +1946,9 @@ test("Repo Lens #D-13 L-2 / L-3: a typed week's vault file goes final only with 
   assert.equal(open.final, false); assert.match(open.out, /a typed race of the week isn't final yet/);
   const none = await recomputeRun(pl, { typed: {}, rhythmFrom: "0", mutateTypes: (tf) => { tf.week = 9; } });
   assert.equal(none.final, false); assert.match(none.out, /race-types file \(T\) can't be read/);
-  // Before TYPES_FROM the T file isn't read at all: a board that counted typed points is held.
+  // Before TYPES_FROM the T file isn't read at all (and with the ruler off no typed pick counts anyway: option A).
   const early = await recomputeRun(pl, { typed, rhythmFrom: "0", typesFrom: "3" });
-  assert.equal(early.final, false); assert.match(early.out, /board's last week doesn't match the week's picks/);
+  assert.ok(early.final, early.out);
 });
 
 test("Repo Lens #D-14 N-2: the race types can't be switched on before R-RACE-18 (TYPES_READY)", () => {
@@ -2046,11 +2045,12 @@ test("G6-1 (High, latent): a pick on the 3rd-place horse scores 3rd-place points
   const c = await typesRun(U("2026-11-02T02:37Z"), b, { picksOf });
   const res = tfile(c).races.find((r) => r.id === r1.id).result;
   assert.deepEqual(res.picks.map((x) => [x[0], x[1], x[5]]), [[W1, second, 1], [W2, third, 1]], "both are show picks");
-  const board = JSON.parse(fs.readFileSync(path.join(c, "board.json"), "utf8"));
-  const row = (w) => board.week.rows.find((x) => x.a === w);
-  assert.equal(row(W1).pts, 2, "a 1-hour 2nd scores 2");
+  // Option A (owner, 12 Nov): the board counts typed races only on the VHP ruler, from its placings (the board side of
+  // G6-1 is in tests/audit/race-ruler.test.mjs, ruler on). The place is still read for the PICKED producer (pick[1]):
+  const P = M.pointsOf(1, M.weekOf(r1.start), 0, M.weekOf(r1.start));
+  assert.equal(M.showPoints(P, st, second), 2, "a 1-hour 2nd scores 2"); assert.equal(M.showPoints(P, st, third), 1, "a 1-hour 3rd scores 1");
   const page = M.pagePick(1, r1.start, st, third, false, true);
-  assert.equal(row(W2).pts, 1, `a 1-hour 3rd scores 1 (the board gave ${row(W2).pts}; the page would say ${page.label} +${page.pts})`);
+  assert.equal(page.pts, M.TYPES_ON_WEEK === null ? 1 : 1, "the page agrees");
 });
 
 test("G6-1: the publish job's recompute also reads 3rd place for the picked producer (pick[1]), so it agrees with the recorder", () => {

@@ -148,8 +148,10 @@ Order: practice running → free-prize switch OFF → register game 6 → 48 h �
 - The question game hole keeps Block Golf's simple rule (owner, 2026-10-28).
 - A hole in a staked week becomes final only after the stakes are read once the week has ended; if they still can't be
   read 66 hours after the week, the hole is skipped rather than scored on older reads.
-- The vault takes only scorecards with at least 1 point (a player who played a single hole has it dropped by the
-  mulligan and scores 0).
+- The vault takes only scorecards with at least 1 point.
+- **The mulligan** (owner, 6 Nov; Repo Lens C13-L1): each week the worst hole of any kind is dropped, a missed game
+  included. Playing a game never scores worse than skipping it; a play that scores nothing (6 strokes) is worth at
+  most 1 point, so it can't shield a good hole from the mulligan.
 
 ## Running it on your PC (optional)
 

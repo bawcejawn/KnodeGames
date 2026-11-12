@@ -135,5 +135,5 @@ test("B13-B3: status prints published text without control or bidi characters, a
   const idx = { v: 1, updated: "2026-11-09T01:00:00Z\u001b[2J", course: { race: 3 }, weeks: [3], stakedFromWeek: null };
   const lines = statusLines(idx, new Map([[3, { holes: "x" }]]), END).join("\n");
   assert.doesNotMatch(lines, /\u001b/);
-  assert.match(lines, /Week 1 \(vault week 3\): its file couldn't be read/);
+  assert.match(lines, /Test week \(vault week 3\): its file couldn't be read/);
 });

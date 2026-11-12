@@ -14,7 +14,7 @@ const here = new URL("../../", import.meta.url).pathname;
 const box = { window: {} };
 vm.runInNewContext(fs.readFileSync(here + "vhp-ruler.js", "utf8") + fs.readFileSync(here + "race-math.js", "utf8"), box);
 const R = box.window.KRuler, RM = box.window.KRaceMath;
-export const BLOCKS_PER_DAY = 28800, RACE = 7200, VAULT = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr", BURN = 4.08e8;
+export const BLOCKS_PER_DAY = 28800, RACE = Number(process.env.RULER_SIM_RACE || 7200), VAULT = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr", BURN = 4.08e8;
 
 // ── the field at one card: every active producer's effective VHP, block by block, as plain numbers ──
 /** eff of a over [H0, H1] as a Float64Array (exact: balances are below 2^53) */
@@ -73,8 +73,10 @@ export function raceChances(card, races, seed, opts = {}) {
 // ── the cards to test: every 6-hour race the data can hold (24 h of history before the card window) ──
 export function raceSlots(L, max = Infinity) {
   const out = [];
-  const first = Math.ceil((L.from + BLOCKS_PER_DAY + RACE + 1300) / RACE) * RACE;
-  for (let Lk = first; Lk + RACE <= L.to && out.length < max; Lk += RACE) out.push({ W0: Lk - RACE + 1, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + RACE });
+  // races longer than 6 hours: a 6-hour card window, and a race starting every 6 hours (they overlap), so 30 days of data
+  // give enough daily and weekly races
+  const step = Math.min(RACE, 7200), first = Math.ceil((L.from + BLOCKS_PER_DAY + step + 1300) / step) * step;
+  for (let Lk = first; Lk + RACE <= L.to && out.length < max; Lk += step) out.push({ W0: Lk - step + 1, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + RACE });
   return out;
 }
 const pick = (rng, a, b) => a + Math.floor(rng.next() * (b - a + 1));

@@ -61,7 +61,7 @@ for (let i = 0; i < Math.min(40, slots.length); i++) {
   cards.push(R.cardJson(R.scoreCard(L, R.makeCard(L, { game: 7, round: String(w.L), window: w, c: 500000n, ownRule: ["spot", "high1h", "avg24h"][i % 3], paying: false, pooled: [VAULT] }))));
 }
 fs.writeFileSync(path.join(OUT, "cards.jsonl"), cards.join(""));
-const games = cards.map((t, i) => { const c = JSON.parse(t); return { game: 7, round: c.round, window: c.window, c: "500000", ownRule: c.ownRule, paying: false, pooled: [VAULT] }; });
+const games = cards.map((t, i) => { const c = JSON.parse(t); return { game: 7, round: c.round, window: c.window, c: "500000", minK: 10, poolRule: "min", ownRule: c.ownRule, paying: false, pooled: [VAULT] }; });
 fs.writeFileSync(path.join(OUT, "games.json"), JSON.stringify(games));
 const py = execFileSync("python3", ["-I", "-B", "-c", `import sys, json; sys.path.insert(0, ${JSON.stringify(path.resolve("."))}); import vhp_ruler as V
 L, _ = V.load_ledger(sys.argv[1]); bad = 0

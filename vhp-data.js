@@ -116,11 +116,11 @@
   function deltasOf(h, withTail = true) {
     const out = [];
     const take = (b, start) => {
-      b.burns.forEach((v, i) => out.push({ h: start + i, a: h.addrs[b.sig[i]], d: -BigInt(v), inc: 0n }));
-      for (const [eh, k, f, t, v] of b.events) {
+      b.burns.forEach((v, i) => out.push({ h: start + i, a: h.addrs[b.sig[i]], d: -BigInt(v), inc: 0n, kind: "burn", c: null }));
+      for (const [eh, k, f, t, v] of b.events) {   // kind and c (the other address): D-172's void record only
         const x = BigInt(v);
-        if (k !== "m") out.push({ h: eh, a: f, d: -x, inc: 0n });
-        if (k !== "b") out.push({ h: eh, a: t, d: x, inc: x });
+        if (k !== "m") out.push({ h: eh, a: f, d: -x, inc: 0n, kind: k === "b" ? "burn" : "out", c: k === "b" ? null : t });
+        if (k !== "b") out.push({ h: eh, a: t, d: x, inc: x, kind: k === "m" ? "mint" : "in", c: k === "m" ? null : f });
       }
     };
     take(h, h.from); if (withTail) take(h.tail, h.to + 1);

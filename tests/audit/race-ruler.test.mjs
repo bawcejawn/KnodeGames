@@ -266,7 +266,8 @@ test("page: the ruler's box is hidden until the R file says shadow or on; it say
   assert.match(html, /more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only/);
   assert.match(html, /A pick on a voided producer counts as a loss\./);
   assert.match(html, /The horses on the track are a live estimate; the final order comes from the ruler/);
-  assert.match(js, /\$\{DATA\}R\$\{String\(x\)\.padStart\(3, "0"\)\}\.json/, "reads R<week>.json");
+  assert.match(js, /\[`R\$\{String\(x\)\.padStart\(3, "0"\)\}\.json`\]/, "reads R<week>.json");
+  assert.match(js, /fetchJson\(`\$\{DATA\}\$\{n\}`\)/);
   assert.match(js, /cur\.mode === "off" \|\| !Number\.isInteger\(cur\.rulerFrom\)\) \{ \$\("ruler-box"\)\.hidden = true/, "hidden while off");
   assert.match(js, /M\.weekStart\(cur\.rulerFrom\)/, "the calendar Monday from the switch's week");
   assert.equal(R.voidBand(7200).map(Number).join(), "100000,250000", "the page's 10% / 25% is the ruler's 6-hour band");
@@ -413,4 +414,23 @@ test("publish: the race types' ruler files pass (rebuilt from the Race's setting
   const r = publish(bad, b2, at, env);
   assert.ok(r.ok, r.out); assert.match(r.out, /R002-1\.json \(VHP ruler\) held.*placings aren't the card's/);
   assert.equal(published(b2, "R002-1.json"), null); assert.ok(published(b2, "T002.json"), "the T file still publishes");
+});
+
+test("capacity: every published file warns past 60% of the 2 MB publish limit (1.2 MB), so the owner hears of it weeks ahead", async () => {
+  const { sizeNote, T_WARN_BYTES } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(T_WARN_BYTES, 1.2 * 1048576);
+  assert.equal(sizeNote("T005.json", 1.2 * 1048576, "x"), null);
+  assert.match(sizeNote("R005-1.json", 1.3 * 1048576, "the ruler's cards would be held"), /^R005-1\.json is 1\.30 MB, over 60% of the 2 MB publish limit \(the ruler's cards would be held\): tell the Race chat$/);
+  // the recorder uses it for the W, T and R files
+  const src = fs.readFileSync(path.join(APP, "bot/race.ts"), "utf8");
+  for (const f of ["`W${String(w).padStart(3, \"0\")}.json`", "`T${String(w).padStart(3, \"0\")}.json`", "RR.rulerName(w)", "RR.rulerName(w, t)"]) assert.ok(src.includes(`writeWarned(${f}`), f);
+});
+
+test("page (option A): the ruler box lists the race types' results and their void lines once the types are live (hidden before)", () => {
+  const html = fs.readFileSync(path.join(APP, "race.html"), "utf8"), js = fs.readFileSync(path.join(APP, "race.js"), "utf8");
+  assert.match(html, /<p class="note" id="ruler-types" hidden>/);
+  assert.match(html, /1-hour and 2-hour<\/b> races 5% below \/ 25% above the card size, <b>daily<\/b> 12% \/ 50%, <b>weekly<\/b> 15% \/ 100%/);
+  assert.deepEqual([1200, 2400, 28800, 172800].map((n) => R.voidBand(n).map(Number).join("/")), ["50000/250000", "50000/250000", "120000/500000", "150000/1000000"], "the page's lines are the ruler's bands");
+  assert.match(js, /typesLive\(\) \? \[1, 2, 3, 4\]\.map\(\(t\) => `R\$\{String\(x\)\.padStart\(3, "0"\)\}-\$\{t\}\.json`\) : \[\]/);
+  assert.match(js, /\$\("ruler-types"\)\.hidden = !typesLive\(\)/);
 });

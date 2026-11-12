@@ -183,7 +183,7 @@
 | D-170 | 2026-11-06 | VHP Ruler marks: sim 1 judged on 0.84 – 1.16 (the remaining big-producer edge accepted); sim 8's other producers judged on the low side only (no one more than 0.05 below honest); E's details recorded | active (`../standards/VHP_RULER.md` §18) |
 | D-171 | 2026-11-06 | VHP Ruler after Repo Lens #B-12: a 2-sd two-sided band on the yardstick (N-4) and the field median weighted by expected blocks, lower member on a tie | active (`../standards/VHP_RULER.md` §18.2) |
 | D-172 | 2026-11-06 | Track every producer void and every band set-aside (who moved the VHP), with a weekly summary to the owner, so the ruler can be adjusted | active (R-RULER-2) |
-| D-173 | 2026-11-10 | Producer Race points per place (1st / 2nd / 3rd): 1- and 2-hour 3/2/1, 6-hour 4/2/1, daily 6/3/2, weekly 12/6/4; they arrive with the race types, history is re-scored except weeks already paid under the old table | built on `race-places`, off until `TYPES_FROM_WEEK`; Repo Lens first |
+| D-173 | 2026-11-10 | Producer Race points per place (1st / 2nd / 3rd): 1- and 2-hour 3/2/1, 6-hour 4/2/1, daily 6/3/2, weekly 12/6/4; they arrive with the race types, history is re-scored except weeks already paid under the old table (owner confirmed) | on main, off until `TYPES_FROM_WEEK` (Repo Lens #G-8 GO; G6-1 fixed) |
 
 ---
 

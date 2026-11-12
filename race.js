@@ -437,7 +437,10 @@
   // ruler 1st / 2nd / 3rd (marked "shadow: counts for nothing" in the shadow week).
   async function loadRuler() {
     const w = M.weekOf(Date.now()), files = [];
-    for (const x of [w - 1, w]) { try { const j = await fetchJson(`${DATA}R${String(x).padStart(3, "0")}.json`); if (j && j.v === 1 && j.week === x && Array.isArray(j.races)) files.push(j); } catch { /* none */ } }
+    // The race types (option A): their ruler files too, once the types are live (R<week>-<type>.json).
+    const names = (x) => [`R${String(x).padStart(3, "0")}.json`].concat(typesLive() ? [1, 2, 3, 4].map((t) => `R${String(x).padStart(3, "0")}-${t}.json`) : []);
+    for (const x of [w - 1, w]) for (const n of names(x)) { try { const j = await fetchJson(`${DATA}${n}`); if (j && j.v === 1 && j.week === x && Array.isArray(j.races)) files.push(j); } catch { /* none */ } }
+    if ($("ruler-types")) $("ruler-types").hidden = !typesLive();
     const cur = files.find((j) => j.week === w) || files[files.length - 1];
     if (!cur || cur.mode === "off" || !Number.isInteger(cur.rulerFrom)) { $("ruler-box").hidden = true; return; }
     $("ruler-box").hidden = false;
@@ -446,9 +449,9 @@
       ? `The 6-hour race is scored by the VHP ruler from ${mon} (00:00 UTC).`
       : `The 6-hour race switches to the VHP ruler on ${mon} (00:00 UTC). This week the ruler runs beside the race as a trial: its results below count for nothing.`;
     const rows = [];
-    for (const j of files) for (const e of j.races.slice().reverse()) {
+    for (const j of files.slice().sort((a, b) => b.week - a.week)) for (const e of j.races.slice().reverse()) {
       if (rows.length >= 8) break;
-      const r = (weeks.get(j.week)?.races || []).find((x) => x.id === e.id);
+      const r = (weeks.get(j.week)?.races || []).find((x) => x.id === e.id) || ((p) => (p && p.type ? { start: M.typedStart(p.type, p.index) } : null))(M.parseTypedId(e.id));
       const what = e.card ? (e.placings.length ? e.placings.map((a, i) => `${["1st", "2nd", "3rd"][i]} ${nameOf(a)}`).join(" · ") : "every producer void: picks given back") : "the ruler's result comes in once the race's blocks are in";
       rows.push(el("div", { class: "pk-row done" }, el("div", { class: "pk-when" }, el("b", { text: r ? dayTime(r.start) : e.id }), el("span", { text: j.shadow ? "trial" : e.card ? "final" : "checking" })), el("div", { class: "pk-now", text: what })));
     }

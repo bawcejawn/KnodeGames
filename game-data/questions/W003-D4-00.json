@@ -1,0 +1,149 @@
+{
+  "date": "W003-D4-00",
+  "week": 3,
+  "day": 4,
+  "tier": "Medium",
+  "released": "2026-11-12T00:01:58.937Z",
+  "questions": [
+    {
+      "id": "W003-D4-00-1",
+      "date": "W003-D4-00",
+      "week": 3,
+      "day": 4,
+      "tier": "Medium",
+      "template": "M9",
+      "releaseHeight": 40998198,
+      "lockHeight": 41013705,
+      "lockTime": 1794484800000,
+      "title": "Smaller producer quartiles",
+      "text": "How many blocks will producer 1Lk4D5bYDzMeh4CFXLWTpLEeJFqKmqbkEt sign between block 41,013,706 and block 41,033,705 (about 17 hours)?",
+      "subjects": [
+        "1Lk4D5bYDzMeh4CFXLWTpLEeJFqKmqbkEt"
+      ],
+      "unit": "count",
+      "windowStart": 41013706,
+      "windowEnd": 41033705,
+      "thresholds": [
+        775,
+        800,
+        826
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "775 or fewer",
+          "min": null,
+          "max": 775
+        },
+        {
+          "index": 1,
+          "label": "776 to 800",
+          "min": 776,
+          "max": 800
+        },
+        {
+          "index": 2,
+          "label": "801 to 826",
+          "min": 801,
+          "max": 826
+        },
+        {
+          "index": 3,
+          "label": "827 or more",
+          "min": 827,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.2530612244897959,
+        0.24285714285714285,
+        0.2530612244897959,
+        0.2510204081632653
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {
+          "1Lk4D5bYDzMeh4CFXLWTpLEeJFqKmqbkEt": 0.03982638888888889
+        },
+        "forecast": {
+          "1Lk4D5bYDzMeh4CFXLWTpLEeJFqKmqbkEt": 0.04034722222222222
+        },
+        "window": 20000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "1Lk4D5bYDzMeh4CFXLWTpLEeJFqKmqbkEt": "61330276758109"
+        },
+        "vhpHeight": 40998287,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "744c6ad5d33c0713643ad689510f410995b8e346f996384f6af64f11c373f4d0",
+      "chainId": 95
+    },
+    {
+      "id": "W003-D4-00-2",
+      "date": "W003-D4-00",
+      "week": 3,
+      "day": 4,
+      "tier": "Medium",
+      "template": "M4",
+      "releaseHeight": 40998198,
+      "lockHeight": 41013705,
+      "lockTime": 1794484800000,
+      "title": "Largest gap between blocks",
+      "text": "What will be the longest gap between two consecutive blocks between block 41,013,706 and block 41,018,705?",
+      "subjects": [],
+      "unit": "ms",
+      "windowStart": 41013706,
+      "windowEnd": 41018705,
+      "thresholds": [
+        26020,
+        28110
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "26.020 s or less",
+          "min": null,
+          "max": 26020
+        },
+        {
+          "index": 1,
+          "label": "26.021 s to 28.110 s",
+          "min": 26021,
+          "max": 28110
+        },
+        {
+          "index": 2,
+          "label": "28.111 s or more",
+          "min": 28111,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.32926829268292684,
+        0.36585365853658536,
+        0.3048780487804878
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {},
+        "window": 5000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "network": "2294442495733514"
+        },
+        "vhpHeight": 40998287,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "3a3b506d5da37895b15d6d607467ccc755921f408d349f035770fd9814f4df08",
+      "chainId": 96
+    }
+  ],
+  "daySeal": "6204c06eebbe6a1efa84d2029b2d7090bf7eb16d4d93c671942a543fe522368b"
+}

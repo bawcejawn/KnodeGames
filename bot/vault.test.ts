@@ -262,6 +262,22 @@ test("checks: a results file is posted only once it is unchanged on a later run 
   assert.deepEqual(s3, [...fantasySends, `Block X week 1: prize place 1 → ${addr(D)}`, `Block X week 1: prize place 2 → ${addr(E)}`, "Block X week 1: seal the results (the owner can correct them for 24 h)"]);
 });
 
+test("Repo Lens #G-17 G-SH-1: a shadow-marked results file is refused and reported at once, once per game-week", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { sim, at } = await weekOneClosed();
+  const memo: VaultMemo = {}, files: Record<string, any> = allFiles();
+  files["mem:blockx/vault/W1.json"] = { ...blockxW1(), shadow: true };
+  const v1 = fctx(sim, files, memo), s1: string[] = [];
+  await vaultResultsPass(v1, sendAs(sim, operator, s1));
+  const shadow = v1.problems.filter((p) => /VHP-ruler shadow mark/.test(p));
+  assert.equal(shadow.length, 1, v1.problems.join(" | "));
+  assert.match(shadow[0], /Block X week 1: .*won't post it.*rolls over/);
+  at(sim.time + STABLE_MS + 60_000);
+  const v2 = fctx(sim, files, memo), s2: string[] = [];
+  await vaultResultsPass(v2, sendAs(sim, operator, s2));
+  assert.deepEqual(v2.problems.filter((p) => /shadow/.test(p)), [], "reported once, not every run");
+  assert.ok(!s2.some((x) => x.startsWith("Block X")), `nothing sent for Block X: ${s2.join(" | ")}`);
+});
+
 test("checks: a results file that changes after the first read is held, reported once, and never posted automatically", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
   const { sim, at } = await weekOneClosed();
   const memo: VaultMemo = {}, files: any = allFiles();

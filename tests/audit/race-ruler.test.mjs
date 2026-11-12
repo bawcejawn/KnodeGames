@@ -322,3 +322,15 @@ test("ruler data behind: a result still missing 3 h after its race ended alerts 
   await go(U("2026-11-02T09:37Z"), s, { rulerFrom: 3, ledger: short });
   assert.ok(!lastRun.held.some((x) => /VHP ruler's result/.test(x)));
 });
+
+test("capacity: reading a race's picks stops loudly past its page limit, never with a partial list in silence", async () => {
+  const { pagePicks, READ_PICKS_PAGES } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(READ_PICKS_PAGES, 1000, "100,000 picks a race");
+  // 3 pages of 100, then an empty page: 300 picks, read in full
+  let calls = 0;
+  const three = async () => (calls++ < 3 ? Array.from({ length: 100 }, (_, i) => ({ player: P[i % 5], pick: { horse: P[(i + 1) % 5], at: String(i) } })) : []);
+  assert.equal((await pagePicks("race x", three, 5)).length, 300);
+  // never an empty page within the limit: it throws instead of returning what it has
+  const endless = async () => Array.from({ length: 100 }, (_, i) => ({ player: P[i % 5], pick: { horse: P[0], at: "1" } }));
+  await assert.rejects(pagePicks("race 42", endless, 5), /race 42 has more than 500 picks: the recorder won't score it from a partial list/);
+});

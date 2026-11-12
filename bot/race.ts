@@ -285,18 +285,28 @@ function defaultRaceContract(): string | null {
 /** Every pick for a race, page by page (100 at a time). */
 async function readPicks(node: any, contract: string, raceNo: number, type = 0): Promise<Pick[]> {
   const c = new Contract({ id: contract, abi: RACE_ABI(), provider: node });
+  // D-166: the contract v2 takes the race type in the race number from bit 48 (type 0: v1's number, unchanged).
+  return pagePicks(`race ${raceNo}${type ? ` (type ${type})` : ""}`, async (after) => {
+    const r: any = await withRetry(`picks for race ${raceNo}${type ? ` (type ${type})` : ""}`, () => (c.functions as any).list_picks({ race: M.contractRace(type, raceNo), ...(after ? { start_after: after } : {}), limit: 100 }));
+    return r?.result?.rows ?? [];
+  });
+}
+/** Every pick of a race, page by page (100 a page) until an empty page (audit BX-18). Capacity (12 Nov): past
+ *  READ_PICKS_PAGES pages the race's picks would be cut short in silence, so it stops loudly instead: the run fails,
+ *  nothing is scored or paid from a partial list, and the owner gets the failed-run email. Exported for the tests. */
+export async function pagePicks(what: string, page: (after: string | undefined) => Promise<any[]>, pages = READ_PICKS_PAGES): Promise<Pick[]> {
   const out: Pick[] = [];
   let after: string | undefined;
-  for (let page = 0; page < 1000; page++) {
-    // D-166: the contract v2 takes the race type in the race number from bit 48 (type 0: v1's number, unchanged).
-    const r: any = await withRetry(`picks for race ${raceNo}${type ? ` (type ${type})` : ""}`, () => (c.functions as any).list_picks({ race: M.contractRace(type, raceNo), ...(after ? { start_after: after } : {}), limit: 100 }));
-    const rows = r?.result?.rows ?? [];
+  for (let n = 0; n < pages; n++) {
+    const rows = await page(after);
+    if (!rows.length) return out;
     for (const x of rows) if (isAddr(x.player) && isAddr(x.pick?.horse)) out.push([x.player, x.pick.horse, Number(x.pick.at || 0)]);
-    if (!rows.length) break;                                    // audit BX-18: page until an empty page
     after = rows[rows.length - 1].player;
   }
-  return out;
+  throw new Error(`${what} has more than ${pages * 100} picks: the recorder won't score it from a partial list (tell the Race chat)`);
 }
+/** The most pages (of 100 picks) read for one race: 100,000 picks. */
+export const READ_PICKS_PAGES = 1000;
 /** Staked in the Race (game 7) in the KnodeGames Vault for week w (owner, 2026-10-28), by the vault's own test, the one
  *  its bot applies to free-prize winners: the week's peak stake in the game (entry.peak_stake, or active_stake when the
  *  player has no entry that week) at least that week's minimum stake. A wallet staked at the start of a week stays

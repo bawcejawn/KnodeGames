@@ -87,6 +87,42 @@ export const isSunday = (day) => (((Math.floor(day / DAY) + 4) % 7) + 7) % 7 ===
 // ───────────────────────── the week file ─────────────────────────
 export const WEEK_KEYS = ["v", "game", "week", "start", "end", "min", "state", "seen", "rounds", "players"];
 export const STATES = ["open", "pending", "final"];
+/** Optional keys after `players`, in this order (Fantasy Phase 1). A week file without them is unchanged (and so is
+ *  its hash). inputs: sha256 of the week's write-once inputs file (FC-9); carry / next: each wallet's game state at the
+ *  week's start and after its last round, [[wallet, state], …] sorted (carried state, FC-5); extras: records-only JSON
+ *  (Weekly Rival). None of these is recomputed here (the publish job runs no game code): the recorder's two-node
+ *  reads, the stability wait and the HOLD on a changed final guard them, and the hash covers them. */
+export const WEEK_OPT_KEYS = ["inputs", "carry", "next", "extras", "cards"];
+/** cards (Phase 1b, vhpData games): every VHP ruler card the file's results (or price list) used, as
+ *  [settings, sha256 of the scored card's cardJson], sorted by round then sha256. Rebuilt from vhp-data by the publish
+ *  job once the inline ruler copy lands (G3); until then shape only, covered by the hash. */
+export const MAX_CARDS = 1000;
+const CARD_SETTING_KEYS = "game,round,window,c,minK,poolRule,ownRule,paying,pooled";
+const CARD_WINDOW_KEYS = "W0,W1,L,S0,S1";
+/** The key of one card entry: its settings AND its sha256 (#G-24 G24-1), the same in the check and the rebuild list. */
+export const cardKey = (s, h) => JSON.stringify(sortKeys([s, h]));
+const sortKeys = (v) => (Array.isArray(v) ? v.map(sortKeys) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v);
+export function isCardList(xs) {
+  if (!Array.isArray(xs) || xs.length > MAX_CARDS) return false;
+  if (new Set(xs.map((x) => (Array.isArray(x) ? x[1] : null))).size !== xs.length) return false;   // G24-1: no sha256 twice
+  let last = null;
+  for (const x of xs) {
+    if (!Array.isArray(x) || x.length !== 2 || typeof x[1] !== "string" || !/^[0-9a-f]{64}$/.test(x[1])) return false;
+    const s = x[0];
+    if (!s || typeof s !== "object" || Array.isArray(s) || Object.keys(s).join() !== CARD_SETTING_KEYS) return false;
+    if (!Number.isSafeInteger(s.game) || typeof s.round !== "string" || !/^[0-9]{1,20}$/.test(s.round) || typeof s.c !== "string" || !/^[0-9]{1,30}$/.test(s.c)) return false;
+    if (!Number.isSafeInteger(s.minK) || typeof s.poolRule !== "string" || typeof s.ownRule !== "string" || typeof s.paying !== "boolean") return false;
+    if (!Array.isArray(s.pooled) || s.pooled.length > 16 || !s.pooled.every(isAddr)) return false;
+    const w = s.window;
+    if (!w || typeof w !== "object" || Object.keys(w).join() !== CARD_WINDOW_KEYS || !Object.values(w).every((v) => Number.isSafeInteger(v) && v >= 0)) return false;
+    const key = [s.round, x[1]];
+    if (last !== null && (last[0] > key[0] || (last[0] === key[0] && last[1] >= key[1]))) return false;
+    last = key;
+  }
+  return true;
+}
+export const MAX_STATE_BYTES = 4096;                // one wallet's carried state
+export const MAX_EXTRAS_BYTES = 256 * 1024;
 /** A round with its rows by wallet address: [id, day, fun, status, [[wallet, points, at], …]], `at` the absolute score
  *  time in ms (0 when no points). */
 export const resolveRound = (j, r) => [r[0], r[1], r[2], r[3], r[4].map((x) => [j.players[x[0]][0], x[1], x.length === 3 ? j.start + x[2] : 0])];
@@ -97,15 +133,43 @@ export const atLimit = (j) => j.end - j.start + RESULTS_DAYS * DAY;
 export function weekHash(j) {
   const rounds = j.rounds.filter((r) => !r[2]).map((r) => resolveRound(j, r));
   const used = new Set(rounds.flatMap((r) => r[4].map((x) => x[0])));
-  return sha256(JSON.stringify([j.game, j.week, j.min, rounds, j.players.filter((p) => used.has(p[0]))]));
+  const base = [j.game, j.week, j.min, rounds, j.players.filter((p) => used.has(p[0]))];
+  const opt = WEEK_OPT_KEYS.filter((k) => j[k] !== undefined).map((k) => [k, j[k]]);
+  return sha256(JSON.stringify(opt.length ? [...base, opt] : base));
 }
+const isStateList = (xs) => {
+  if (!Array.isArray(xs) || xs.length > MAX_PLAYERS) return false;
+  let last = null;
+  for (const x of xs) {
+    if (!Array.isArray(x) || x.length !== 2 || !isAddr(x[0]) || x[1] === null || x[1] === undefined) return false;
+    if (last !== null && cmp(last, x[0]) >= 0) return false;
+    if (Buffer.byteLength(JSON.stringify(x[1])) > MAX_STATE_BYTES) return false;
+    last = x[0];
+  }
+  return true;
+};
 
 /** "" when the week file is in the kit's shape for this game and name, else why not. */
 export function weekShape(j, name, cfg) {
   const k = weekClock(cfg);
   if (!j || typeof j !== "object" || Array.isArray(j)) return "not an object";
   const keys = Object.keys(j);
-  if (keys.length !== WEEK_KEYS.length || !WEEK_KEYS.every((x, i) => keys[i] === x)) return "not the week file's keys in order";
+  const opt = keys.slice(WEEK_KEYS.length);
+  if (keys.length < WEEK_KEYS.length || !WEEK_KEYS.every((x, i) => keys[i] === x)
+    || !opt.every((k, i) => WEEK_OPT_KEYS.includes(k) && (i === 0 || WEEK_OPT_KEYS.indexOf(opt[i - 1]) < WEEK_OPT_KEYS.indexOf(k)))) return "not the week file's keys in order";
+  if (j.inputs !== undefined && !(typeof j.inputs === "string" && /^[0-9a-f]{64}$/.test(j.inputs))) return "inputs must be a sha256";
+  if (!!cfg.inputsFile !== (j.inputs !== undefined)) return cfg.inputsFile ? "this game's week file must name its inputs file (FC-9)" : "inputs in a game without an inputs file";
+  for (const k of ["carry", "next"]) if (j[k] !== undefined && !isStateList(j[k])) return `bad ${k} (sorted [wallet, state] pairs, each state at most ${MAX_STATE_BYTES} bytes)`;
+  if ((j.carry === undefined) !== (j.next === undefined)) return "carry and next come together";
+  if (!!cfg.vhpData !== (j.cards !== undefined)) return cfg.vhpData ? "a ruler game's week file must list its cards" : "cards in a game without ruler data";
+  if (j.cards !== undefined && !isCardList(j.cards)) return "bad cards (sorted [settings, sha256] pairs, no sha256 twice)";
+  // #G-24 Info: a ruler game's decided rounds each come from a card (cardPerRound, on by default): at least as many
+  // distinct cards as decided rounds.
+  if (cfg.cardPerRound && j.cards !== undefined) {
+    const decided = j.rounds.filter((r) => r[3] === "s" || r[3] === "v").length;
+    if (j.cards.length < decided) return `${decided} decided rounds but only ${j.cards.length} ruler cards (cardPerRound)`;
+  }
+  if (j.extras !== undefined && (j.extras === null || typeof j.extras !== "object" || Buffer.byteLength(JSON.stringify(j.extras)) > MAX_EXTRAS_BYTES)) return `bad extras (an object or list, at most ${MAX_EXTRAS_BYTES} bytes)`;
   if (j.v !== KIT_FILE_VERSION || j.game !== cfg.game) return "wrong version or game";
   if (!nat(j.week) || j.week > 9999 || name !== weekName(j.week)) return "week and name don't match";
   if (j.start !== k.start(j.week) || j.end !== k.end(j.week)) return "wrong start or end for that week";
@@ -300,6 +364,54 @@ export function boardOf(j, t, updated, rowCap = 0) {
   });
   return shell(keep.map(row), t.rows.length - keep.length);
 }
+/** alltime.json (LEADERBOARD §2 "All time", D-137, FC-16/FC-18): every published FINAL week of the game, in week
+ *  order. pts = every scored round's points, Sunday fun rounds included (D-129); weeks = weeks with a row; medals only
+ *  for weeks the vault was given a results file (D-034: only earners get one): gold / silver = the free 1st / 2nd
+ *  paid places, earned = in the staked paid set; best = the best weekly place on either board. Rows by points, then
+ *  address; trimmed to the board's byte budget (lowest first), with how many were left out. `medalWeeks`: the weeks
+ *  whose vault file is published. Rebuilt the same way here and in the recorder, so it is recomputed, never trusted. */
+export const ALLTIME_KEYS = ["v", "updated", "weeks", "rows"];
+export function allTimeOf(finals, cfg, medalWeeks, updated) {
+  const acc = new Map();
+  const get = (a) => { let x = acc.get(a); if (!x) acc.set(a, x = { a, pts: 0, weeks: 0, gold: 0, silver: 0, earned: 0, best: 0 }); return x; };
+  const weeks = [];
+  for (const j of [...finals].sort((u, v) => u.week - v.week)) {
+    if (j.state !== "final") continue;
+    weeks.push(j.week);
+    const t = tally(j, cfg), pts = new Map();
+    for (const [, , , st, rows] of j.rounds) for (const [i, p] of rows) {
+      const a = j.players[i][0];
+      pts.set(a, (pts.get(a) ?? 0) + (st === "s" ? p : 0));
+    }
+    const medals = medalWeeks.has(j.week);
+    for (const r of t.rows) {
+      const x = get(r.a);
+      x.weeks++; x.pts += pts.get(r.a) ?? 0;
+      if (r.place > 0 && (x.best === 0 || r.place < x.best)) x.best = r.place;
+    }
+    if (medals) {
+      for (const a of t.vault.first) get(a).gold++;
+      for (const a of t.vault.second) get(a).silver++;
+      for (const a of t.paid) get(a).earned++;
+    }
+  }
+  const all = [...acc.values()].sort((u, v) => v.pts - u.pts || cmp(u.a, v.a));
+  const out = { v: 1, updated, weeks, rows: [] };
+  let bytes = Buffer.byteLength(canon(out)) + 32, cut = 0;
+  for (const x of all) {
+    const n = Buffer.byteLength(JSON.stringify(x)) + 1;
+    if (bytes + n > BOARD_MAX_BYTES) { cut = all.length - out.rows.length; break; }
+    bytes += n; out.rows.push(x);
+  }
+  if (cut) out.cut = cut;
+  return out;
+}
+
+/** The week's write-once inputs file (FC-9): inputs/W<week>.json = { game, week, data }. Published before the week
+ *  opens and never changed; the week file carries the sha256 of its exact bytes. */
+export const inputsName = (w) => `inputs/W${w}.json`;
+export const INPUTS_EARLIEST_MS = 7 * DAY;           // at most a week before the week opens
+
 /** The vault's results file for a final week (VAULT §6): rows (staked), first and second always filled. */
 export function vaultFileOf(j, t) {
   if (t.vaultError) throw new Error(`week ${j.week}: no vault file: ${t.vaultError}`);
@@ -309,7 +421,7 @@ export function vaultFileOf(j, t) {
 // ───────────────────────── the checks ─────────────────────────
 // No leading zeros in vault names (KC-17): W4, HOLD-W4, RELEASE-W4 — never W04 or W004.
 const VNUM = "(0|[1-9][0-9]{0,3})";
-const NAMES = new RegExp(`^(board\\.json|W([0-9]{3}|[1-9][0-9]{3})\\.json|vault/(HOLD-|RELEASE-)?W${VNUM}\\.json)$`);
+const NAMES = new RegExp(`^(board\\.json|alltime\\.json|W([0-9]{3}|[1-9][0-9]{3})\\.json|vault/(HOLD-|RELEASE-)?W${VNUM}\\.json|inputs/W${VNUM}\\.json)$`);
 const ISO = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$/;
 const same = (a, b) => a !== null && b !== null && Buffer.compare(a, b) === 0;
 const isHold = (h, cfg, w) => !!h && typeof h === "object" && Object.keys(h).join() === "game,week,reason" && h.game === cfg.game && h.week === w && typeof h.reason === "string" && h.reason.length > 0 && h.reason.length <= 300;
@@ -321,7 +433,7 @@ function listFiles(dir) {
     for (const f of fs.readdirSync(d).sort()) {
       const p = path.join(d, f), r = rel ? `${rel}/${f}` : f, s = fs.lstatSync(p);
       if (s.isSymbolicLink()) bad.push(r);
-      else if (s.isDirectory()) { if (r === "vault") walk(p, r); else bad.push(r + "/"); }
+      else if (s.isDirectory()) { if (r === "vault" || r === "inputs") walk(p, r); else bad.push(r + "/"); }
       else if (s.isFile()) out.push(r); else bad.push(r);
     }
   };
@@ -365,16 +477,43 @@ export function roundsChange(prev, j, cfg) {
  * cfg: { slug, game, genesis, weekMs, sundayFunRound, payoutRule, vaultValues, entry, minPts, rowCap, maxRoundPoints,
  *        liveWeek, roundsCorrectable }; release: the owner's <SLUG>_RELEASE value from the job's own variables (KC-3).
  */
-export function checkGame(cfg, inDir, pubDir, now, release = "") {
+export function checkGame(cfg, inDir, pubDir, now, release = "", cardsOk = null) {
   const k = weekClock(cfg), cw = k.weekOf(now);
   const held = [], publish = [];
   const hold = (name, why, alert = true) => held.push({ name, why, alert });
+  // G3: a ruler game's new or changed file must list only cards this job rebuilt from the published vhp-data with the
+  // embedded vhp_ruler.py (cardsOk: their sha256 values; null = the rebuild didn't run). Unchanged copies aren't rebuilt.
+  const cardsWhy = (raw, old, j) => {
+    if (!cfg.vhpData || (old && same(raw, old)) || !Array.isArray(j?.cards) || !j.cards.length) return null;
+    if (!cardsOk) return "its ruler cards couldn't be rebuilt in this job (G3)";
+    const n = j.cards.filter((x) => !cardsOk.has(cardKey(x[0], x[1]))).length;
+    return n ? `${n} of its ${j.cards.length} ruler cards aren't what the published ruler data gives (G3)` : null;
+  };
   const { out: files, bad } = listFiles(inDir);
   for (const b of bad) hold(b, "not a plain file in an allowed folder");
   const okWeeks = new Map();     // week -> the week file that will be published after this job (incoming or published)
   const heldWeeks = new Set();
   const pubWeek = (w) => { const r = parseCanon(readRaw(pubDir, weekName(w))); return r.ok && !weekShape(r.v, weekName(w), cfg) ? r.v : null; };
   const tallyOf = (j) => tally(j, cfg);
+
+  // Inputs files first (FC-9): write-once, only before their week opens (by this job's clock), at most a week ahead.
+  const inputsOk = new Map();    // week -> sha256 of the inputs file that will be published after this job
+  const pubInputs = (w) => { const raw = readRaw(pubDir, inputsName(w)); return raw && parseCanon(raw).ok ? sha256(raw) : null; };
+  for (const f of files.filter((x) => x.startsWith("inputs/"))) {
+    if (!NAMES.test(f)) continue;
+    const w = Number(/^inputs\/W([0-9]+)\.json$/.exec(f)[1]);
+    const raw = readRaw(inDir, f), old = readRaw(pubDir, f);
+    const p = parseCanon(raw);
+    if (!p.ok) { hold(f, p.why); continue; }
+    if (old) { if (!same(raw, old)) hold(f, "it changes a published inputs file (write-once, FC-9)"); else inputsOk.set(w, sha256(raw)); continue; }
+    const j = p.v;
+    if (!cfg.inputsFile) { hold(f, "this game has no inputs file"); continue; }
+    if (!j || typeof j !== "object" || Array.isArray(j) || Object.keys(j).join() !== (cfg.vhpData ? "game,week,data,cards" : "game,week,data") || j.game !== cfg.game || j.week !== w || j.data === null || typeof j.data !== "object" || (cfg.vhpData && !isCardList(j.cards))) { hold(f, `not an inputs file's shape ({game, week, data${cfg.vhpData ? ", cards" : ""}})`); continue; }
+    if (!(now < k.start(w))) { hold(f, "an inputs file published after its week opened, by this job's clock (FC-9)"); continue; }
+    if (now < k.start(w) - INPUTS_EARLIEST_MS) { hold(f, "an inputs file more than a week before its week"); continue; }
+    { const cw2 = cardsWhy(raw, old, j); if (cw2) { hold(f, cw2); continue; } }
+    inputsOk.set(w, sha256(raw)); publish.push(f);
+  }
 
   for (const f of files) {
     if (!NAMES.test(f)) { hold(f, "a name the game may not publish"); continue; }
@@ -386,6 +525,8 @@ export function checkGame(cfg, inDir, pubDir, now, release = "") {
     if (why) { hold(f, why); continue; }
     const w = j.week;
     heldWeeks.add(w);
+    if (cfg.inputsFile && (inputsOk.get(w) ?? pubInputs(w)) !== j.inputs) { hold(f, "its inputs hash isn't the published inputs file's (FC-9)"); continue; }
+    { const cw2 = cardsWhy(raw, old, j); if (cw2) { hold(f, cw2); continue; } }
     const pv = old ? parseCanon(old) : null;
     const prev = pv?.ok && !weekShape(pv.v, f, cfg) ? pv.v : null;
     if (old && !prev) { hold(f, "the published copy can't be read: nothing replaces it"); continue; }
@@ -480,6 +621,30 @@ export function checkGame(cfg, inDir, pubDir, now, release = "") {
     if (want === null || want !== canon(j)) { hold(f, "its rows or winners aren't the ones recomputed from the final week file"); continue; }
     publish.push(f);
   }
+
+  // alltime.json: rebuilt from every final week (published, or this run's) and the vault files published by then.
+  if (files.includes("alltime.json")) {
+    const p = parseCanon(readRaw(inDir, "alltime.json"));
+    const b = p.ok ? p.v : null;
+    if (!p.ok) hold("alltime.json", p.why);
+    else if (!b || typeof b !== "object" || !ALLTIME_KEYS.every((x, i) => Object.keys(b)[i] === x) || b.v !== 1 || typeof b.updated !== "string" || !ISO.test(b.updated)) hold("alltime.json", "not the all-time board's shape");
+    else if (heldWeeks.size) hold("alltime.json", "a week file is held this run", false);
+    else {
+      const finals = new Map();
+      for (const f of fs.existsSync(pubDir) ? fs.readdirSync(pubDir) : []) {
+        const m = WEEK_FILE.exec(f);
+        if (m) { const w = Number(m[1]), v = pubWeek(w); if (v?.state === "final") finals.set(w, v); }
+      }
+      for (const [w, v] of okWeeks) if (v.state === "final") finals.set(w, v);
+      const medal = new Set();
+      for (const w of finals.keys()) if (readRaw(pubDir, `vault/W${w}.json`) || publish.includes(`vault/W${w}.json`)) medal.add(w);
+      let want = null;
+      try { want = canon(allTimeOf([...finals.values()], cfg, medal, b.updated)); } catch { want = null; }
+      if (want === null || want !== canon(b)) hold("alltime.json", "its rows aren't the ones rebuilt from the final week files");
+      else if (Date.parse(b.updated) > now + FUTURE_SLACK_MS) hold("alltime.json", "updated in the future by this job's clock");
+      else publish.push("alltime.json");
+    }
+  }
   return { publish, held };
 }
 
@@ -507,7 +672,13 @@ export function main(argv = process.argv.slice(2), env = process.env) {
     try {
       const dir = path.join(inRoot, g.slug);
       if (fs.existsSync(dir) && !fs.lstatSync(dir).isDirectory()) { console.log(`::error::held, not published: ${g.slug}: not a plain folder`); alert = true; continue; }
-      const r = checkGame(g, dir, path.join(pubRoot, g.slug), now, env[releaseEnv(g.slug)] ?? "");
+      // G3: the cards the publish job's embedded vhp_ruler.py rebuilt for this game (absent = it didn't run or failed).
+      let cardsOk = null;
+      if (g.vhpData && env.KIT_CARDS_DIR) {
+        const cf = path.join(env.KIT_CARDS_DIR, `${g.slug}.json`);
+        if (fs.existsSync(cf)) { const v = JSON.parse(fs.readFileSync(cf, "utf8")); if (Array.isArray(v.ok)) cardsOk = new Set(v.ok.filter((x) => Array.isArray(x) && x.length === 2).map((x) => cardKey(x[0], x[1]))); }
+      }
+      const r = checkGame(g, dir, path.join(pubRoot, g.slug), now, env[releaseEnv(g.slug)] ?? "", cardsOk);
       for (const h of r.held) {
         console.log(`${h.alert ? "::error::" : "::notice::"}held, not published: ${g.slug}/${h.name}: ${h.why}`);
         if (h.alert) alert = true;

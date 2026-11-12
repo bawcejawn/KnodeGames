@@ -11,6 +11,12 @@ export type World = {
   questions: Record<number, { week: string; outcome: number; lock_time: string }>;
   players: { address: string; entry: { stake: string; peak_stake: string; voided: boolean; answers: { question_id: number; option: number }[] } }[];
   lib?: number;
+  /** Picks contract rows by "<game>:<round>" (list_picks), for picks-contract games. */
+  picks?: Record<string, { player: string; pick: Record<string, unknown> }[]>;
+  /** The vault's get_game_player answers by wallet (picks-contract games' stakes). Missing wallet: no stake. */
+  gamePlayers?: Record<string, { week_stake: string; peak_stake: string; voided?: boolean }>;
+  /** The vault's game registrations (FC-26). Missing: every game is registered and earns from week 0. */
+  games?: Record<number, { from_week: number; last_week_plus_one?: number; closed?: number[] } | null>;
 };
 
 export type Faults = {
@@ -48,13 +54,33 @@ export function fakeNode(label: string, w: () => World, f: Faults = {}): KitNode
         const xs = [...wd.players].sort((u, v) => (u.address < v.address ? -1 : 1));
         const i = args.start ? xs.findIndex((x) => x.address === args.start) + 1 : 0;
         r = { rows: structuredClone(xs.slice(i, i + (args.limit ?? 50))) };
+      } else if (method === "get_game_player") {
+        const g = wd.gamePlayers?.[args.player];
+        r = g ? { week_stake: g.week_stake, entry: { peak_stake: g.peak_stake, stake: g.week_stake, voided: !!g.voided } } : { week_stake: "0" };
+      } else if (method === "get_game") {
+        const g = wd.games ? wd.games[args.game] : { from_week: 0 };
+        r = g ? { game: { id: args.game, from_week: g.from_week, last_week_plus_one: g.last_week_plus_one ?? 0 }, week: { closed: (g.closed ?? []).includes(Number(args.week)) } } : {};
       } else throw new Error(`fake node: unexpected read ${method}`);
       return f.tweak ? f.tweak(method, args, structuredClone(r)) : r;
     },
   };
   return {
     label, vault,
-    contract: () => { throw new Error("fake node: no other contracts"); },
+    contract: (name: string) => {
+      if (name !== "picks") throw new Error("fake node: no other contracts");
+      return {
+        label: `${label}/picks`,
+        async read(method: string, args: any = {}) {
+          f.calls?.push(`${label}:picks.${method}`);
+          if (fails.has(`picks.${method}`)) throw new Error(`${label}: node down (picks.${method})`);
+          if (method !== "list_picks") throw new Error(`fake node: unexpected picks read ${method}`);
+          const xs = [...(w().picks?.[`${args.game}:${args.round}`] ?? [])].sort((u, v) => (u.player < v.player ? -1 : 1));
+          const i = args.start_after ? xs.findIndex((x) => x.player === args.start_after) + 1 : 0;
+          const r = { rows: structuredClone(xs.slice(i, i + (args.limit ?? 100))) };
+          return f.tweak ? f.tweak(`picks.${method}`, args, structuredClone(r)) : r;
+        },
+      };
+    },
     async head() { const wd = w(); return { height: wd.lib ?? 1000, lib: wd.lib ?? 1000, time: wd.time - (f.lagMs ?? 0) }; },
   };
 }

@@ -7,7 +7,7 @@ import { canon, pad3, weekShape } from "../../publish/check.inline.mjs";
 
 export type PublishedWeek = { state: "final"; file: any } | { state: "not-yet"; why: string };
 
-export function readPublishedFinal(dir: string, cfg: { game: number; genesis: number; weekMs?: number; sundayFunRound: boolean }, week: number): PublishedWeek {
+export function readPublishedFinal(dir: string, cfg: { game: number; genesis: number; weekMs?: number; sundayFunRound: boolean; inputsFile?: boolean }, week: number): PublishedWeek {
   const name = `W${pad3(week)}.json`, p = path.join(dir, name);
   if (!fs.existsSync(p)) return { state: "not-yet", why: `${name} is not published` };
   const raw = fs.readFileSync(p, "utf8");
@@ -18,4 +18,18 @@ export function readPublishedFinal(dir: string, cfg: { game: number; genesis: nu
   if (why) return { state: "not-yet", why: `${name}: ${why}` };
   if (j.state !== "final") return { state: "not-yet", why: `${name} is not final` };
   return { state: "final", file: j };
+}
+
+/** Every FINAL week file in another game's last-run folder, by week (ctx.published.games; Phase 1 item 6). A file that
+ *  isn't a final kit week file is left out (never a guess). */
+export function readPublishedFinals(dir: string, cfg: { game: number; genesis: number; weekMs?: number; sundayFunRound: boolean; inputsFile?: boolean }): Record<number, any> {
+  const out: Record<number, any> = {};
+  if (!fs.existsSync(dir)) return out;
+  for (const f of fs.readdirSync(dir).sort()) {
+    const m = /^W([0-9]{3}|[1-9][0-9]{3})\.json$/.exec(f);
+    if (!m) continue;
+    const r = readPublishedFinal(dir, cfg, Number(m[1]));
+    if (r.state === "final") out[Number(m[1])] = r.file;
+  }
+  return out;
 }

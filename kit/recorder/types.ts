@@ -10,7 +10,11 @@ export type WeekSpan = { week: number; start: number; end: number };
 /** One round of a game. `day` is the UTC day it counts for (00:00 of that day); the kit marks Sunday rounds as fun
  *  rounds (D-129). Use dayOf(locksAt) from the kit unless the game's rules say otherwise. `resolvesAt`: the earliest
  *  time its result can be decided (the kit doesn't read it before). */
-export type Round = { id: string; day: number; locksAt: number; resolvesAt: number };
+export type Round = {
+  id: string; day: number; locksAt: number; resolvesAt: number;
+  /** picks-contract games: the Picks contract round whose picks belong to this round (Fantasy: the day number). */
+  pickRound?: number;
+};
 
 /** resultOf's answers when there is no result: not decided yet (never a guess), or void (nothing scores). */
 export const PENDING = Symbol.for("kit.pending");
@@ -33,10 +37,23 @@ export interface NodeReader {
 /** A wallet's stake for the week, as the vault counts it (RECORDER §2.4). Decimal strings (satoshi-like units). */
 export type StakeView = { stake: string; peak: string; voided: boolean };
 
-export type RoundCtx<I = unknown> = { now: number; inputs?: I };
+/** This game's own published FINAL week files, and other kit games' (manifest `published`), by week; read-only,
+ *  loaded by the kit before the module runs (Fantasy Phase 1 item 6). */
+export type Published = { own: Record<number, any>; games: Record<string, Record<number, any>> };
+/** ctx.vhp (manifest vhpData): the VHP ruler's published data (kit/recorder/sources/vhp-ruler.ts). card(settings)
+ *  returns a scored ruler card, or throws NotYet while the data doesn't cover it (the kit then keeps the round PENDING,
+ *  or the inputs file waits). Never null for a vhpData game: when the data can't be loaded this run, card() throws NotYet. */
+export type VhpCtx = { to: number; ruleVersion: number; card(settings: any): any };
+export type RoundCtx<I = unknown> = { now: number; inputs?: I; published?: Published; vhp?: VhpCtx };
+/** resultOf's fourth argument. */
+export type ResultCtx = { vhp?: VhpCtx };
 export type ReadCtx<I = unknown> = RoundCtx<I> & { read: NodeReader };
 
 export type PicksSource = { source: "picks-contract" | "race-picks" | "vault-answers" | "none"; gameId?: number };
+/** A wallet's carried game state (Fantasy: its team). JSON only; at most 4 KB each (MAX_STATE_BYTES). */
+export type States<S = unknown> = Map<Wallet, S>;
+/** What weekExtras sees: the week's counted points per wallet, every source's picks by round, and the inputs. */
+export type ExtrasCtx<I = unknown> = { points: Map<Wallet, number>; picks: Map<number, Map<number, Pick[]>>; staked: Set<Wallet>; inputs?: I };
 export type BoardColumn = { key: string; label: string };
 
 export interface GameModule<P = unknown, R = unknown, I = unknown> {
@@ -45,16 +62,30 @@ export interface GameModule<P = unknown, R = unknown, I = unknown> {
   /** Every round counting for the week. Pure: from the week, ctx.now and ctx.inputs only. */
   roundsFor(week: WeekSpan, ctx: RoundCtx<I>): Round[];
   /** Inputs published before picks open (cards, seeding, prices), or a game's own chain snapshot. Read through
-   *  ctx.read only; the kit reads it on both nodes and requires them to agree. */
+   *  ctx.read only; the kit reads it on both nodes and requires them to agree. With inputsFile (FC-9) it is called
+   *  when the file is made and again at the week's end (the recount): it must give the same answer both times, so
+   *  read fixed heights or times, never "the latest", and don't use ctx.now. */
   inputsFor?(week: WeekSpan, ctx: ReadCtx<I>): Promise<I>;
-  /** Where picks come from (declared, not coded). */
-  picks: PicksSource;
+  /** Where picks come from (declared, not coded). A list: the first source is scored; the others (other Picks games,
+   *  e.g. Fantasy's Weekly Rival, game 5) reach only weekExtras. */
+  picks: PicksSource | PicksSource[];
+  /** The Picks contract rounds an extra source is read at for the week (pure). Default: none. */
+  extraPickRounds?(week: WeekSpan, source: PicksSource): number[];
   /** A round's result from chain data (called once per node). PENDING until decided; VOID if nothing scores. */
-  resultOf(round: Round, read: NodeReader, inputs?: I): Promise<R | Pending | Void>;
+  resultOf(round: Round, read: NodeReader, inputs?: I, ctx?: ResultCtx): Promise<R | Pending | Void>;
   /** Default: canonical-JSON equality. */
   same?(a: R, b: R): boolean;
-  /** Points for every wallet that picked in the round. Pure and deterministic (use the game's math.js). */
-  scoreRound(round: Round, picks: Pick<P>[], result: R, inputs?: I): Score;
+  /** Points for every wallet that picked in the round (and, with carried state, every wallet with a state). Pure and
+   *  deterministic (use the game's math.js). `state`: each wallet's state for this round, after nextState. */
+  scoreRound(round: Round, picks: Pick<P>[], result: R, inputs?: I, state?: States<any>): Score;
+  /** Carried state (FC-5). carryIn: each wallet's state at the week's start, from the last week's `next` (pure; e.g. drop
+   *  a team that doesn't fit this week's price list). nextState: the states after one round's picks (pure; called for
+   *  every round in lock order, picks known, results not needed). A week is recorded only once the week before it is
+   *  final: the kit never carries from an unfinished week. */
+  carryIn?(last: States<any>, week: WeekSpan, inputs?: I): States<any>;
+  nextState?(state: States<any>, picks: Pick<P>[], round: Round, inputs?: I): States<any>;
+  /** Records-only JSON for the week file (Weekly Rival). Pure; never paid from; at most 256 KB. */
+  weekExtras?(week: WeekSpan, ctx: ExtrasCtx<I>): unknown;
   /** Extra board columns the page shows. */
   columns?: BoardColumn[];
 }
@@ -72,7 +103,11 @@ export type VaultFile = {
 
 /** A source's answer for one week, on one node: picks per round, stakes per wallet, and the source's own inputs. */
 export type SourceRead<P = unknown, I = unknown> = {
+  /** false: the week isn't paid from a results file (not live on chain): nothing is recorded. */
+  active?: boolean;
   picks: Map<string, Pick<P>[]>;
+  /** Extra sources' picks: gameId → Picks round → picks. */
+  extra?: Map<number, Map<number, Pick<P>[]>>;
   stakes: Map<Wallet, StakeView>;
   min: string;
   inputs?: I;

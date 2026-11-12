@@ -74,7 +74,7 @@ export function validateManifest(m, opts = {}) {
   return p;
 }
 
-export const KIT_FIELDS = ["payoutRule", "vaultValues", "minPts", "rowCap", "entry", "budgets", "liveWeek", "roundsCorrectable", "maxRoundPoints"];
+export const KIT_FIELDS = ["payoutRule", "vaultValues", "minPts", "rowCap", "entry", "budgets", "liveWeek", "roundsCorrectable", "maxRoundPoints", "inputsFile", "inputsLeadHours", "published", "vhpData", "cardPerRound"];
 /** Budget ceilings: a game's whole run must fit its own record job (25 min, KC-4). */
 export const BUDGET_MAX = { reads: 200000, ms: 20 * 60000, atOnce: 16, tries: 6 };
 /** A game's name is rendered into its workflow: one plain line (KC-14). */
@@ -95,7 +95,12 @@ function checkKitFields(m, need) {
       `budgets: optional whole numbers above 0 for ${BUDGET_KEYS.join(", ")}, at most ${JSON.stringify(BUDGET_MAX)} (KC-4)`);
   }
   if (m.maxRoundPoints !== undefined) need(Number.isInteger(m.maxRoundPoints) && m.maxRoundPoints >= 1 && m.maxRoundPoints <= 1000000, "maxRoundPoints: a whole number from 1 to 1,000,000");
-  for (const f of ["liveWeek", "roundsCorrectable"]) if (m[f] !== undefined) need(typeof m[f] === "boolean", `${f}: true or false`);
+  for (const f of ["liveWeek", "roundsCorrectable", "inputsFile", "vhpData", "cardPerRound"]) if (m[f] !== undefined) need(typeof m[f] === "boolean", `${f}: true or false`);
+  // FC-9: the inputs file is made this many hours before the week opens (default 48 = Saturday 00:00 UTC), at most
+  // 4 days (#G-13 G13-2: a longer lead could see weeks that still change before the recount).
+  if (m.inputsLeadHours !== undefined) need(m.inputsFile === true && Number.isInteger(m.inputsLeadHours) && m.inputsLeadHours >= 1 && m.inputsLeadHours <= 96, "inputsLeadHours: 1–96, only with inputsFile: true");
+  // Phase 1 item 6: other kit games whose published final weeks this game reads (ctx.published.games).
+  if (m.published !== undefined) need(Array.isArray(m.published) && m.published.length <= 4 && m.published.every((x) => typeof x === "string" && /^[a-z][a-z0-9-]{1,23}$/.test(x) && x !== m.slug) && new Set(m.published).size === m.published.length, "published: up to 4 other kit games' slugs");
 }
 
 /** Every games/<slug>/game.json in the repo. */

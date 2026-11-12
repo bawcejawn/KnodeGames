@@ -76,7 +76,7 @@ test("standards every game page meets: nicknames (D-078), stake badge and panel 
   assert.doesNotMatch(html + js, /bawcejawn\.github\.io\/Knode|\/Knode\/|final 12 hours/, "no old repo address or 12-hour final");
 });
 
-test("week labels: Golf names weeks as players see them (D-063: vault week 3 is Week 1)", () => {
+test("week labels: Golf names weeks as players see them (D-063: vault week 4 is Week 1)", () => {
   assert.doesNotMatch(js, /wf\.week \+ 1/, "never vault week + 1");
   assert.match(js, /window\.KWeeks\.label\(w\)/);
   assert.match(js, /G\.shareText\(card, weekLabel\(wf\.week\)\)/);

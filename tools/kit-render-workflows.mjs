@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ROOT, listManifests, readManifest, validateManifest, duplicateKeys } from "./game-manifest.mjs";
-import { renderJobs, inlineScript, BEGIN, END, LEGACY_WAIT_MAX_MIN } from "../kit/publish/render.mjs";
+import { renderJobs, inlineScript, rulerPy, BEGIN, END, LEGACY_WAIT_MAX_MIN } from "../kit/publish/render.mjs";
 import { publishConfig, dataFolder, readDeployment } from "../kit/recorder/manifest.ts";
 
 /** The kit games, by workflow file: [{ file, branch, games }]. */
@@ -26,9 +26,13 @@ export function kitGames(root = ROOT) {
     const { branch } = dataFolder(m);
     const key = `${m.workflow.file}|${branch}`;
     if (!by.has(key)) by.set(key, { file: m.workflow.file, branch, games: [] });
-    by.get(key).games.push({ slug: m.slug, name: m.name, enabledVar: m.workflow.enabledVar, cfg: publishConfig(m, dep) });
+    by.get(key).games.push({ slug: m.slug, name: m.name, enabledVar: m.workflow.enabledVar, cfg: publishConfig(m, dep), published: m.published ?? [] });
   }
-  for (const v of by.values()) v.games.sort((a, b) => (a.slug < b.slug ? -1 : 1));
+  for (const v of by.values()) {
+    v.games.sort((a, b) => (a.slug < b.slug ? -1 : 1));
+    // ctx.published reads other kit games on the same data branch only (one fetch per branch, read-only).
+    for (const g of v.games) for (const o of g.published) if (!v.games.some((x) => x.slug === o)) throw new Error(`${g.slug}: published lists "${o}", which isn't a kit game on ${v.branch}`);
+  }
   // One kit block per workflow file: two data branches in one file would render two blocks, the second replacing the
   // first (#B-12 NK-16).
   const files = new Map();
@@ -70,7 +74,7 @@ export function renderAll(root = ROOT) {
     const p = path.join(root, ".github/workflows", file);
     const now = fs.readFileSync(p, "utf8");
     checkHost(now, file);
-    return { file: p, now, want: renderWorkflow(now, renderJobs({ branch, games, script })) };
+    return { file: p, now, want: renderWorkflow(now, renderJobs({ branch, games, script, ruler: games.some((g) => g.cfg.vhpData) ? rulerPy(pathToFileURL(root.endsWith("/") ? root : root + "/")) : null })) };
   });
 }
 

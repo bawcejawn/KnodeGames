@@ -1,0 +1,234 @@
+{
+  "date": "W003-D4",
+  "week": 3,
+  "day": 4,
+  "tier": "Medium",
+  "released": "2026-11-12T12:01:39.817Z",
+  "questions": [
+    {
+      "id": "W003-D4-1",
+      "date": "W003-D4",
+      "week": 3,
+      "day": 4,
+      "tier": "Medium",
+      "template": "M6",
+      "releaseHeight": 41012141,
+      "lockHeight": 41027644,
+      "lockTime": 1794528000000,
+      "title": "Share of empty blocks",
+      "text": "What share of blocks will contain no transactions between block 41,027,645 and block 41,032,644?",
+      "subjects": [],
+      "unit": "permille",
+      "windowStart": 41027645,
+      "windowEnd": 41032644,
+      "thresholds": [
+        991,
+        993,
+        994
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "99.1% or less",
+          "min": null,
+          "max": 991
+        },
+        {
+          "index": 1,
+          "label": "99.2% to 99.3%",
+          "min": 992,
+          "max": 993
+        },
+        {
+          "index": 2,
+          "label": "99.4%",
+          "min": 994,
+          "max": 994
+        },
+        {
+          "index": 3,
+          "label": "99.5% or more",
+          "min": 995,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.25609756097560976,
+        0.1951219512195122,
+        0.21951219512195122,
+        0.32926829268292684
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {},
+        "window": 5000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "network": "2290763568981075"
+        },
+        "vhpHeight": 41012224,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "6f73afdbd81ff46972164bb05a4b1e98053201461e3e8d9b001e6357b4f185fc",
+      "chainId": 97
+    },
+    {
+      "id": "W003-D4-2",
+      "date": "W003-D4",
+      "week": 3,
+      "day": 4,
+      "tier": "Medium",
+      "template": "M9",
+      "releaseHeight": 41012141,
+      "lockHeight": 41027644,
+      "lockTime": 1794528000000,
+      "title": "Smaller producer quartiles",
+      "text": "How many blocks will producer 14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb sign between block 41,027,645 and block 41,047,644 (about 17 hours)?",
+      "subjects": [
+        "14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb"
+      ],
+      "unit": "count",
+      "windowStart": 41027645,
+      "windowEnd": 41047644,
+      "thresholds": [
+        768,
+        791,
+        818
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "768 or fewer",
+          "min": null,
+          "max": 768
+        },
+        {
+          "index": 1,
+          "label": "769 to 791",
+          "min": 769,
+          "max": 791
+        },
+        {
+          "index": 2,
+          "label": "792 to 818",
+          "min": 792,
+          "max": 818
+        },
+        {
+          "index": 3,
+          "label": "819 or more",
+          "min": 819,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.2495049504950495,
+        0.2495049504950495,
+        0.2514851485148515,
+        0.2495049504950495
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {
+          "14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb": 0.03890625
+        },
+        "forecast": {
+          "14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb": 0.04020833333333333
+        },
+        "window": 20000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb": "59521202613932"
+        },
+        "vhpHeight": 41012224,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "60fe159e205f17f951853181a4f82fb0b411c9003adcb144df4deffed2e657be",
+      "chainId": 98
+    },
+    {
+      "id": "W003-D4-3",
+      "date": "W003-D4",
+      "week": 3,
+      "day": 4,
+      "tier": "Medium",
+      "template": "M1",
+      "releaseHeight": 41012141,
+      "lockHeight": 41027644,
+      "lockTime": 1794528000000,
+      "title": "Core producer quartiles",
+      "text": "How many blocks will producer 14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu sign between block 41,027,645 and block 41,037,644 (about 8 hours)?",
+      "subjects": [
+        "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu"
+      ],
+      "unit": "count",
+      "windowStart": 41027645,
+      "windowEnd": 41037644,
+      "thresholds": [
+        912,
+        947,
+        986
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "912 or fewer",
+          "min": null,
+          "max": 912
+        },
+        {
+          "index": 1,
+          "label": "913 to 947",
+          "min": 913,
+          "max": 947
+        },
+        {
+          "index": 2,
+          "label": "948 to 986",
+          "min": 948,
+          "max": 986
+        },
+        {
+          "index": 3,
+          "label": "987 or more",
+          "min": 987,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.24613899613899615,
+        0.25386100386100385,
+        0.24613899613899615,
+        0.25386100386100385
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {
+          "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": 0.09484375
+        },
+        "forecast": {
+          "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": 0.09472222222222222
+        },
+        "window": 10000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": "113695696571108"
+        },
+        "vhpHeight": 41012224,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "2163bf6acf408a132100d50f1d5aa8105a7d3b30afe5f6fed77f86231f630fb1",
+      "chainId": 99
+    }
+  ],
+  "daySeal": "066fb078da22ccac314d6a085ff738e0d5ec4d7e58d4a61d0386ecef4390fd3d"
+}

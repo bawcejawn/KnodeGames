@@ -37,6 +37,7 @@ import { randomInt } from "node:crypto";
 import { Contract } from "koilib";
 import { readVhp, MAINNET_VHP, withRetry, sleep } from "../common.ts";
 await import("../race-math.js");
+import * as RR from "./race-ruler.ts";
 const M: any = (globalThis as any).KRaceMath;
 
 const E = process.env;
@@ -268,6 +269,8 @@ type Opts = {
   /** D-125: the first vault week on the weekly rhythm (no Sunday races; Sunday review; final from Monday 00:00 UTC).
    *  Default M.RHYTHM_FROM_WEEK (3); the tests pass their own. */
   rhythmFrom?: number; typesFrom?: number | null;
+  /** The ruler switch (RACE_RULER_FROM_WEEK) and the ruler's ledger, for the tests (the workflow uses the variable and RACE_VHP_DATA). */
+  rulerFrom?: number | null; rulerLedger?: any;
 };
 
 // ── the picks contract and the game (read only) ──
@@ -363,7 +366,10 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
   return min > 0n && peak >= min;
 }
 /** One run. Exported for the tests, which pass fake nodes. */
-export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks, rhythmFrom, typesFrom }: Opts) {
+export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks, rhythmFrom, typesFrom, rulerFrom, rulerLedger }: Opts) {
+  // The ruler switch, strictly: empty = off; anything that isn't a plain week number stops the run here (KRuler.switchFrom).
+  rulerFromWeek = rulerFrom !== undefined ? rulerFrom : RR.switchFrom(E.RACE_RULER_FROM_WEEK ?? "");
+  rulerAll = new Map(); rulerLedgerCache = rulerLedger === undefined ? undefined : rulerLedger;
   rhythmFromWeek = rhythmFrom ?? M.RHYTHM_FROM_WEEK;
   typesFromWeek = typesFrom === undefined ? M.TYPES_ON_WEEK : typesFrom;
   typesAll = new Map(); typesWeekFiles = new Map();
@@ -521,6 +527,9 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
     await sleep(200);
   }
 
+  // ── 2a. the VHP ruler (owner, 11 Nov): the 6-hour race's ruler cards for the shadow and on weeks ──
+  for (const wf of weeks.values()) rulerAll.set(wf.week, rulerWeek(wf, problems));
+
   // ── 2b. race types (D-166): the hour ledger, then the 1-hour, 2-hour, daily and weekly races scored from it ──
   for (const wf of weeks.values()) {
     if (!typesOn(wf.week)) continue;
@@ -549,6 +558,8 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
     if (text.length > T_WARN_BYTES) problems.push(`T${String(w).padStart(3, "0")}.json is ${(text.length / 1048576).toFixed(2)} MB: near the 2 MB publish limit (the race types' file would be held)`);
     fs.writeFileSync(path.join(OUT, `T${String(w).padStart(3, "0")}.json`), text);
   }
+  // The ruler file of every week this run handles, in every mode (it records the switch value the run used).
+  for (const [w, rf] of rulerAll) if (weeks.has(w)) fs.writeFileSync(path.join(OUT, `R${String(w).padStart(3, "0")}.json`), JSON.stringify(rf) + "\n");
   fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((x, y) => x - y) }) + "\n");
   if (board) fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
   // #85 merge check L-1: a NEW pending file is dated at the end of the run (the head block's time now), not its start,
@@ -586,6 +597,49 @@ type TypesFile = { v: 1; week: number; start: number; end: number; hours: Hour[]
 let typesFromWeek: number | null = M.TYPES_ON_WEEK;   // #C-12 C12-1: off unless TYPES_READY
 let typesAll = new Map<number, TypesFile>();
 const typesOn = (w: number) => typesFromWeek !== null && w >= typesFromWeek;
+// ── the VHP ruler (owner, 11 Nov 2026): R<week>.json, see bot/race-ruler.ts ──
+let rulerFromWeek: number | null = null;
+let rulerAll = new Map<number, RR.RulerFile>();
+/** The ruler's ledger: loaded once a run, only when a week needs a card (undefined = not loaded yet; null = unavailable). */
+let rulerLedgerCache: any = undefined;
+const rulerOn = (w: number) => RR.modeOf(w, rulerFromWeek) === "on";
+const rulerEntry = (w: number, id: string) => rulerAll.get(w)?.races.find((x) => x.id === id) || null;
+function rulerLedger(problems: string[]) {
+  if (rulerLedgerCache !== undefined) return rulerLedgerCache;
+  const dir = E.RACE_VHP_DATA || "";
+  if (!dir) { rulerLedgerCache = null; problems.push("the VHP ruler's data (RACE_VHP_DATA) isn't available this run: the ruler's cards wait"); return null; }
+  try { rulerLedgerCache = RR.loadLedger(dir); }
+  catch (e) { rulerLedgerCache = null; problems.push(`the VHP ruler's data can't be read (${(e as Error).message}): the ruler's cards wait`); }
+  return rulerLedgerCache;
+}
+/** The previous run's R file for week w, if it is the recorder's own form for that week (else a fresh one: every card is
+ *  made again from the data, which gives the same bytes, so nothing is lost). */
+function loadRuler(w: number): RR.RulerFile {
+  const fresh = RR.emptyRuler(w, rulerFromWeek), old = readPrev(`R${String(w).padStart(3, "0")}.json`);
+  if (!old || old.v !== 1 || old.week !== w || !Array.isArray(old.races) || fresh.mode === "off") return fresh;
+  const isWin = (x: any) => x && typeof x === "object" && ["W0", "W1", "L", "S0", "S1"].every((k) => Number.isSafeInteger(x[k]));
+  for (const e of old.races) if (e && typeof e.id === "string" && typeof e.round === "string" && isWin(e.window) && (e.card === null || typeof e.card === "string")
+    && Array.isArray(e.placings) && e.placings.every(isAddr)) fresh.races.push({ id: e.id, round: e.round, window: e.window, card: e.card, note: typeof e.note === "string" ? e.note : null, placings: e.placings });
+  return fresh;
+}
+/** This run's ruler file for a week: off = no cards; shadow and on = a card for every recorded 6-hour race (Sunday's
+ *  rest races too in a shadow week: shadow counts for nothing anyway). */
+function rulerWeek(wf: WeekFile, problems: string[]): RR.RulerFile {
+  const rf = loadRuler(wf.week);
+  if (rf.mode === "off") return rf;
+  const out: RR.RulerEntry[] = [];
+  for (const race of wf.races) {
+    const old = rf.races.find((x) => x.id === race.id) || null;
+    const needs = race.result?.final && !race.result.missed && !(old && old.card);
+    const e = RR.entryFor(needs ? rulerLedger(problems) : null, race, old);
+    if (!e) continue;
+    if (!e.card && e.note && !/^not yet/.test(e.note)) problems.push(`${race.id}: ${e.note}`);
+    out.push(e);
+  }
+  rf.races = out;
+  return rf;
+}
+
 /** Ledger hours read per run at most (a catch-up after an outage spreads over a few runs). Exported for the tests. */
 export const HOURS_PER_RUN = 24;
 /** Repo Lens #D-13 M-1: a T file past this size warns in every run (the publish limit is 2 MB). */
@@ -859,7 +913,8 @@ function tally(weeks: Map<number, WeekFile>, from: number, to: number, weekly = 
   const t = new Map<string, { pts: number; correct: number; shows: number; picks: number; reached?: number }>();
   // D-166: the 6-hour races, then the race types (their own points), all on the one board.
   const races: { start: number; result: any; type: number }[] = [];
-  for (const wf of weeks.values()) for (const r of wf.races) races.push({ start: r.start, result: r.result, type: 0 });
+  // The VHP ruler: in an ON week, a 6-hour race's 1st, 2nd and 3rd are the ruler's (null = not scored yet: not counted).
+  for (const wf of weeks.values()) for (const r of wf.races) races.push({ start: r.start, result: rulerOn(wf.week) ? RR.ruledResult(r.result, rulerEntry(wf.week, r.id)) : r.result, type: 0 });
   for (const tf of typesAll.values()) for (const r of tf.races) races.push({ start: r.start, result: r.result, type: r.type });
   for (const r of races) {
     if (r.start < from || r.start >= to || !r.result?.final || !Array.isArray(r.result.picks)) continue;
@@ -883,6 +938,7 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
   const all = new Map(weeks);
   const idx = readPrev("index.json");
   for (const w of Array.isArray(idx?.weeks) ? idx.weeks : []) if (Number.isInteger(w) && !all.has(w)) all.set(w, loadWeek(w));
+  for (const w of all.keys()) if (rulerOn(w) && !rulerAll.has(w)) rulerAll.set(w, loadRuler(w));
   for (const w of all.keys()) if (typesOn(w) && !typesAll.has(w)) typesAll.set(w, loadTypes(w));
   const wNow = M.weekOf(now), day0 = Math.floor(now / M.DAY) * M.DAY;
   const failed = new Set<string>();              // "stake:who|week": stake reads that failed (not staked on the boards)
@@ -1082,7 +1138,8 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   for (const x of all.values()) for (const r of x.races) if (r.cards.some(Boolean)) firstCard = Math.min(firstCard, r.start);
   // D-125: a Sunday race on the rhythm scores nothing, so it never keeps the week open (the review day can start at
   // Sunday 00:00 UTC, before those races' times have passed).
-  const open = wf.races.filter((r) => !r.result?.final && !M.restRace(r.start, rhythmFromWeek) && !(r.start < firstCard && !r.cards.some(Boolean)));
+  // The VHP ruler: in an ON week a race is open until the ruler has scored it too.
+  const open = wf.races.filter((r) => (!r.result?.final || (rulerOn(w) && RR.ruledResult(r.result, rulerEntry(w, r.id)) === null)) && !M.restRace(r.start, rhythmFromWeek) && !(r.start < firstCard && !r.cards.some(Boolean)));
   // D-166: a typed race of the week still being scored keeps it open too (never past the same deadline).
   const openTyped = (typesAll.get(w)?.races || []).filter((r) => !r.result?.final && forWeek(r));
   const late = now >= wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER);   // D-125: the review day comes first

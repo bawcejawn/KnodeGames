@@ -334,3 +334,17 @@ test("capacity: reading a race's picks stops loudly past its page limit, never w
   const endless = async () => Array.from({ length: 100 }, (_, i) => ({ player: P[i % 5], pick: { horse: P[0], at: "1" } }));
   await assert.rejects(pagePicks("race 42", endless, 5), /race 42 has more than 500 picks: the recorder won't score it from a partial list/);
 });
+
+test("Repo Lens #G-27 G27-1: a race with more picks than the recorder reads alerts the owner (the run's alert job fails and GitHub emails), every run, not only a warning", async () => {
+  const at = U("2026-11-02T06:37Z"), a = await go(U("2026-11-02T05:37Z"), ""), out = tmp(), log = console.log;
+  console.log = () => {};
+  try {
+    lastRun = await run({ p: node(at), check: node(at), prev: a, out, vhpOf, raceContract: "x", prizesFrom: 0, vaultHold: false, holdWeeks: [], typesFrom: null, stakedOf: async () => false, rulerFrom: null, rulerLedger: LEDGER,
+      picksOf: async (n, r) => { if (r === RACE00) throw new Error("race " + r + " has more than 100000 picks: the recorder won't score it from a partial list (tell the Race chat)"); return []; } });
+  } finally { console.log = log; }
+  assert.ok(lastRun.problems.some((m) => /2026-11-02T00: race \d+ has more than 100000 picks/.test(m)), "a warning, as before");
+  const m = lastRun.held.find((x) => /Producer Race 2026-11-02T00: race \d+ has more than 100000 picks/.test(x));
+  assert.ok(m, "and an owner alert: " + lastRun.held.join(" | "));
+  assert.match(m, /would be skipped at the week's end\. Tell the Race chat now/);
+  assert.equal(read(out, "W002.json").races.find((r) => r.id === "2026-11-02T00").result, null, "not scored from a partial list");
+});

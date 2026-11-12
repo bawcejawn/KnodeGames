@@ -307,6 +307,17 @@ export async function pagePicks(what: string, page: (after: string | undefined) 
 }
 /** The most pages (of 100 picks) read for one race: 100,000 picks. */
 export const READ_PICKS_PAGES = 1000;
+/** Repo Lens #G-27 G27-1: a race that can't be scored this run is tried again next run (a warning); one with more picks
+ *  than the recorder reads is never scored, so it also alerts the owner (the alert job fails the run and GitHub emails),
+ *  every run until it is fixed: it is never skipped at the week's end without an email. */
+function raceError(id: string, e: unknown, problems: string[]) {
+  const m = (e as Error)?.message || String(e);
+  problems.push(`${id}: ${m} (tried again next run)`);
+  if (/has more than \d+ picks/.test(m)) {
+    const a = `Producer Race ${id}: ${m}. Its picks can't all be read, so it isn't scored and would be skipped at the week's end. Tell the Race chat now (it raises the limit in bot/race.ts, READ_PICKS_PAGES).`;
+    if (!heldAlerts.includes(a)) heldAlerts.push(a);
+  }
+}
 /** Staked in the Race (game 7) in the KnodeGames Vault for week w (owner, 2026-10-28), by the vault's own test, the one
  *  its bot applies to free-prize winners: the week's peak stake in the game (entry.peak_stake, or active_stake when the
  *  player has no entry that week) at least that week's minimum stake. A wallet staked at the start of a week stays
@@ -533,7 +544,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
       if (!r.ok) { problems.push(`${race.id}: ${r.why}; not final this run`); continue; }
       race.result = r.result;
       console.log(`${race.id}: final, winner ${race.result.winner} (${race.result.standings[0]?.steps} steps), blocks ${race.result.heights[0]}-${race.result.heights[1]}, checked on ${race.result.checked} node(s)`);
-    } catch (e) { problems.push(`${race.id}: ${(e as Error).message} (tried again next run)`); }
+    } catch (e) { raceError(race.id, e, problems); }
     await sleep(200);
   }
 
@@ -776,7 +787,7 @@ async function recordTypes(tf: TypesFile, raceById: (id: string) => Race | null,
       if (!res) continue;                                   // an hour isn't in the ledger yet
       if (!res.ok) { problems.push(`${r.id}: ${res.why}; not final this run`); continue; }
       r.result = res.result;
-    } catch (e) { problems.push(`${r.id}: ${(e as Error).message} (tried again next run)`); }
+    } catch (e) { raceError(r.id, e, problems); }
   }
 }
 /** Repo Lens #E-11 H-1 (b) for the race types: every ledger hour is read again on both nodes and must match, and every

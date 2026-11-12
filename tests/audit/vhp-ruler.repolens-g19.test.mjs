@@ -32,7 +32,7 @@ test("G19-1 (Medium): in mode C a producer can't lower its own target by signing
   let n = 0;
   for (let k = 0; k < steered.tl.signers.length; k++) {
     const hh = steered.tl.from + k;
-    if (hh >= T - R.C_DAYS * R.AVG && hh < T - 7200 && steered.tl.signers[k] === hot && (n++ % 2 === 0)) {
+    if (hh >= T - R.LIFT_SKIP && hh < T - 7200 && steered.tl.signers[k] === hot && (n++ % 2 === 0)) {
       steered.tl.signers[k] = steered.ps[2]; const d = steered.tl.deltas[k]; if (d.h === hh && d.a === hot) steered.tl.deltas[k] = { ...d, a: steered.ps[2] };
     }
   }

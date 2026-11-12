@@ -23,7 +23,6 @@
   <meta name="twitter:title" content="Knode Games: call the next blocks">
   <meta name="twitter:description" content="A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards.">
   <meta name="twitter:image" content="https://knodegames.com/media/og-knode.png">
-  <script src="early-view.js"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Knode Games","url":"https://knodegames.com/","description":"A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards."},{"@type":["WebApplication","VideoGame"],"name":"Knode Games","url":"https://knodegames.com/","applicationCategory":"GameApplication","genre":"Prediction game","operatingSystem":"Any (web browser; installable)","description":"A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}]}</script>
   <!-- seo:end -->
   <link rel="icon" href="media/icon.svg?v=2" type="image/svg+xml">
@@ -36,6 +35,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Archivo:wdth,wght@62..125,600;62..125,800;62..125,900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="vault-card.css">
   <link rel="stylesheet" href="board.css">
 </head>
 <body class="play-wait">
@@ -67,6 +67,7 @@
           <div class="dd-menu">
             <a href="#results" data-view="results">Results</a>
             <a href="#how" data-view="how">Rules</a>
+            <a href="ruler.html">Ruler</a>
             <a href="start.html">New to Koinos?</a>
             <a href="get.html">Get VHP</a>
             <a href="names.html">Get an @name</a>
@@ -140,6 +141,7 @@
           <li class="last"><span>4</span><div><b>Want more? Stake to share the pool</b><p>With a Koinos wallet (KOIN Vault on a phone, Kondor on a computer), stake 1 VHP or more in a game to share that game's part of the week's rewards. Your stake is never spent: take it back any time. <a href="get.html">No wallet or VHP yet?</a></p></div></li>
         </ol>
         </details>
+        <section class="vc" id="vault-card" aria-label="The Knode vault" hidden></section>
         <div class="stats-strip" id="stats-strip" hidden></div>
         <div class="welcome-actions">
           <a class="btn btn-ghost btn-big" href="#how">The full rules</a>
@@ -429,6 +431,7 @@
       <p class="ms-h">Learn</p>
       <a href="start.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New to Koinos?</span></a>
       <a href="#welcome" data-view="welcome"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New here? Quick tour</span></a>
+      <a href="ruler.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 15.5l12.5-12.5 5.5 5.5L8.5 21z"></path><path d="M7.5 11l2.5 2.5M10.5 8l2 2M13.5 5l2.5 2.5"></path></svg><span>Ruler</span></a>
       <p class="ms-h">About</p>
       <a href="install.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M5 20h14"></path></svg><span>Install app</span></a>
       <a href="trust.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"></path></svg><span>Trust</span></a>
@@ -482,9 +485,11 @@
   <script src="app.js"></script>
   <script src="board.js"></script>
   <script src="leaders.js"></script>
+  <script src="ruler-void.js"></script>
   <script src="race-math.js"></script>
   <script src="results.js"></script>
   <script src="stats.js"></script>
+  <script src="vault-card.js"></script>
   <script src="vendor/posthog-1.438.13.js"></script>
   <script src="analytics.js"></script>
 </body>

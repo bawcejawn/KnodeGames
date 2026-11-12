@@ -41,6 +41,8 @@ export const PAGES = [
     desc: "Stake VHP in any Knode Games game: see your stake in every game, move it between games, claim rewards, and withdraw any time.", image: "og-knode.png", priority: "0.6" },
   { file: "trust.html", path: "trust.html", title: "Trust and safety · Knode Games", short: "Trust and safety",
     desc: "Live checks on Knode Games' contracts: who controls what, the code fingerprints, the timelocks, and whether every stake is covered.", image: "og-knode.png", priority: "0.5" },
+  { file: "ruler.html", path: "ruler.html", title: "How we measure producers fairly · Knode Games", short: "How we measure producers fairly",
+    desc: "How every Knode Games race measures block producers the same way, so big and small nodes get an equal shot, and what a Void means.", image: "og-knode.png", priority: "0.5" },
   { file: "terms.html", path: "terms.html", title: "Terms and risks · Knode Games", short: "Terms and risks",
     desc: "The terms and the risks of playing Knode Games and using Knode Games Swap.", image: "og-knode.png", priority: "0.3" },
 ];

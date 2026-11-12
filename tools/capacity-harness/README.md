@@ -57,3 +57,10 @@ node tools/capacity-harness/mirror-load.mjs
 - **T3 (node calls a minute per open Questions tab):** before 11 Nov (`3d28446`): 54.5 visible, 54.5 hidden. Now: 14.8 visible, 0 hidden. With the live file on: 6.5 visible, 0 hidden.
 - **T4:** 10,000 players ~1.4 min, 20,000 ~2.4 min, 100,000 ~10 min (worked out) at 300 ms a read: well inside the 30-minute limit. File size, not run time, is the limit.
 - **T5:** 100,000 page loads in an hour across 30 locations, 6 files each: 600,000 served, 2,160 reached GitHub (278x less). Worker requests count toward Cloudflare's free 100,000 a day (about 3,000 daily visitors); past that the pages fall back to GitHub until the $5 Workers plan is on.
+
+## File sizer for any format (before / after of a format change)
+`node tools/capacity-harness/filesize.mjs --file <sample.json> --rows <path> [--each N] [--table <path>]` (or
+`--git origin/race-data:W003.json`): fixed part, bytes a player, size at 1k / 10k / 100k, players that fit under 2 MB
+and the 60% warning. Examples (12 Nov): Race week `--rows "races[*].result.picks" --each 28` -> ~695 players; Block X
+hourly `--rows "targets[*].picks" --each 144` -> ~153. For a new compact format, point it at a sample file of the new
+format and its row list; `--table` adds one address per player to an address table. Reads one file, writes nothing.

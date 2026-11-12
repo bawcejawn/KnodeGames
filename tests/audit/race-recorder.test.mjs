@@ -280,7 +280,9 @@ test("publish: a pick marked both win and show, or a board row with more wins an
 
 test("workflow: the recorder holds no secret and no write token; only the publish job pushes, only to race-data, running no repository code", () => {
   const job = (name) => yml.split(/\n  (?=[a-z-]+:\n)/).find((j) => j.startsWith(`${name}:`)) || "";
-  const rec = job("record"), pub = job("publish");
+  // The VHP ruler: vhp_ruler.py is embedded in the publish job as data (tests/audit/race-ruler.test.mjs keeps it the
+  // repository's file byte for byte); its own text is left out of the checks here.
+  const rec = job("record"), pub = job("publish").replace(/# BEGIN vhp_ruler\.py\n[\s\S]*?# END vhp_ruler\.py\n/, "");
   assert.doesNotMatch(yml, /secrets\./);
   assert.doesNotMatch(yml, /\n\s*(pull_request|push):/);
   assert.match(rec, /permissions:\s*\n\s*contents:\s*read/); assert.match(rec, /persist-credentials:\s*false/); assert.match(rec, /npm ci\b[^\n]*--ignore-scripts/);

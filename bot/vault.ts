@@ -232,10 +232,16 @@ export function checkResults(r: any, game: number, week: number): string {
   if (!r || typeof r !== "object") return "not a JSON object";
   if (num(r.game) !== game || num(r.week) !== week) return `it is for game ${r.game} week ${r.week}, not game ${game} week ${week}`;
   if (r.final !== true) return "not final yet";
+  // VHP ruler (D-162 rollout, 11 Nov): a shadow week's ruler result counts for nothing and must never reach the vault.
+  // Each game's publish job already refuses it; this is the vault's own check. Fail closed: any "shadow" mark that is
+  // not exactly false is refused. Files without the mark (everything published before the ruler, and a shadow week's
+  // real result) pass as before.
+  if (r.shadow !== undefined && r.shadow !== false) return `it is marked "shadow" (${JSON.stringify(r.shadow)}): a shadow week's ruler result never pays`;
   const rows = r.rows ?? [], first = r.first ?? [], second = r.second ?? [];
   if (!Array.isArray(rows) || !Array.isArray(first) || !Array.isArray(second)) return "rows, first and second must be lists";
   const seen = new Set<string>();
   for (const x of rows) {
+    if (x && typeof x === "object" && x.shadow !== undefined && x.shadow !== false) return `a row is marked "shadow" (${JSON.stringify(x)}): a shadow week's ruler result never pays`;
     if (!x || !ADDRESS.test(String(x.player))) return `a row has no valid address (${JSON.stringify(x)})`;
     if (!Number.isInteger(x.points) || x.points < 1 || x.points > MAX_POINTS) return `${x.player} has ${x.points} points (must be a whole number 1-255)`;
     if (seen.has(x.player)) return `${x.player} appears twice`;
@@ -352,6 +358,8 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
     if (why) {
       if (only) throw new Error(`Results for ${name} week ${w} can't be used: ${why}.`);
       log(ctx, `  ${name} week ${w}: results not ready (${why}); due ${utc(due)}`);
+      // Repo Lens #G-17 G-SH-1: a shadow mark never clears by itself, so say so at once (once per game-week), not 12 h out.
+      if (/marked "shadow"/.test(why)) alert(`${key}:shadow`, `${name} week ${w}: its results file carries a VHP-ruler shadow mark (${why}), so the vault won't post it. Ask the game chat to fix its recorder and publish the real week's file. ${rollover}`);
       if (hoursLeft < 12) ctx.problems.push(`${name}: week ${w}'s results are not ready (${why}) and are due ${utc(due)} (${hoursLeft.toFixed(1)} h). Without them the week rolls over: its bucket stays in the game and its prize goes back to the pool.`);
       continue;
     }

@@ -119,6 +119,7 @@ The bot compares the chain with the records on `main` (`game-data/deployment.jso
 | Alert | When | What you can do |
 |---|---|---|
 | "results are not ready (…) and are due …" | **only in the last 12 h** before the deadline (before that: silent, §10) | game chat; under 12 h it's urgent |
+| "… its results file carries a VHP-ruler shadow mark (…), so the vault won't post it" | **at once**, once per game-week (a shadow mark never clears by itself; Repo Lens #G-17 G-SH-1) | game chat: the recorder published the ruler's shadow result as the vault file; it must publish the real week's file before the deadline, or the week rolls over |
 | "… already has N points on chain; the results file says …" (with its `game-correct …` line) | posted points differ | `game-correct` (owner) if the chat confirms |
 | "free-prize switches can't be read" | the `prize-settings` file broken | `npm run prizes -- list`; resend the setting. Under 6 h the bot seals without free winners |
 | prize winner already has a result / was staked / too many tied | free-prize list problem | game chat |

@@ -432,6 +432,28 @@
     try { const b = await fetchJson(DATA + "board.json"); if (b && b.v === 1 && lb) { board = b; $("board-box").hidden = false; renderBoard(); } } catch { /* none yet */ }
   }
   function renderBoard() { if (lb && board) { lb.setMe(me() || ""); lb.set(board); } }
+  // ── the VHP ruler (owner, 11 Nov 2026): R<week>.json, the ruler's cards for the 6-hour race ──
+  // Shown only when the ruler is in shadow or on for this week: "from Monday …" (the switch's week), and each race's
+  // ruler 1st / 2nd / 3rd (marked "shadow: counts for nothing" in the shadow week).
+  async function loadRuler() {
+    const w = M.weekOf(Date.now()), files = [];
+    for (const x of [w - 1, w]) { try { const j = await fetchJson(`${DATA}R${String(x).padStart(3, "0")}.json`); if (j && j.v === 1 && j.week === x && Array.isArray(j.races)) files.push(j); } catch { /* none */ } }
+    const cur = files.find((j) => j.week === w) || files[files.length - 1];
+    if (!cur || cur.mode === "off" || !Number.isInteger(cur.rulerFrom)) { $("ruler-box").hidden = true; return; }
+    $("ruler-box").hidden = false;
+    const mon = new Date(M.weekStart(cur.rulerFrom)).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+    $("ruler-when").textContent = cur.mode === "on"
+      ? `The 6-hour race is scored by the VHP ruler from ${mon} (00:00 UTC).`
+      : `The 6-hour race switches to the VHP ruler on ${mon} (00:00 UTC). This week the ruler runs beside the race as a trial: its results below count for nothing.`;
+    const rows = [];
+    for (const j of files) for (const e of j.races.slice().reverse()) {
+      if (rows.length >= 8) break;
+      const r = (weeks.get(j.week)?.races || []).find((x) => x.id === e.id);
+      const what = e.card ? (e.placings.length ? e.placings.map((a, i) => `${["1st", "2nd", "3rd"][i]} ${nameOf(a)}`).join(" · ") : "every producer void: picks given back") : "the ruler's result comes in once the race's blocks are in";
+      rows.push(el("div", { class: "pk-row done" }, el("div", { class: "pk-when" }, el("b", { text: r ? dayTime(r.start) : e.id }), el("span", { text: j.shadow ? "trial" : e.card ? "final" : "checking" })), el("div", { class: "pk-now", text: what })));
+    }
+    $("ruler-list").replaceChildren(...rows);
+  }
   if (W && W.subscribe) W.subscribe(() => { loadMine(); renderBoard(); });
   // When the names list arrives or changes, redraw everything that shows a producer or player: the horses, card,
   // feed and results (render), the pick lists and the leaderboard.
@@ -578,8 +600,8 @@
     catch (e) { say("Couldn't reach the Koinos network. Trying again in a moment…"); }
     await picksReady; renderPicks();
     rtTabs(); if (typesLive() && rtype) rtSelect(rtype); else rtype = 0;
-    loadBoard();
-    setInterval(() => { if (!document.hidden) loadBoard(); }, 300000);
+    loadBoard(); loadRuler();
+    setInterval(() => { if (!document.hidden) { loadBoard(); loadRuler(); } }, 300000);
     setInterval(() => { if (!document.hidden && raceContract) loadMine(); }, 60000);
     let shown = M.raceIndex(Date.now());
     setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 6000);   // new blocks every ~3 s: a light top-up

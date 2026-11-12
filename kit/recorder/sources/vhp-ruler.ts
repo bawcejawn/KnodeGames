@@ -96,3 +96,6 @@ export function vhpFor(L: any, used: Map<string, CardRef>): Vhp {
 /** Every card used, in a stable order (round, then sha256): the `cards` list of a week or inputs file. */
 export const cardList = (used: Map<string, CardRef>): CardRef[] =>
   [...used.values()].sort((x, y) => (x[0].round < y[0].round ? -1 : x[0].round > y[0].round ? 1 : x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0));
+
+/** The loaded ruler library (KRuler), for the kit's test fixtures only; games use ctx.vhp. */
+export const rulerLib = (): any => R;

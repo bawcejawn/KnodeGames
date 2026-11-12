@@ -113,9 +113,17 @@
             "1Lk4D5bYDzMeh4CFXLWTpLEeJFqKmqbkEt": "60996603740590"
           },
           "seal": "8c317ed33618367a8839b90902382929fafd38295ae3f6d0e64fb88bdc45d0c0"
+        },
+        {
+          "height": 41019825,
+          "readAt": "2026-11-12T18:30:30.663Z",
+          "values": {
+            "1Lk4D5bYDzMeh4CFXLWTpLEeJFqKmqbkEt": "60976157247546"
+          },
+          "seal": "10be49b01ae55f3676efd0e379e6012af3fa4d5297f369c9915f04c737044383"
         }
       ],
-      "vhpSeal": "1ebf85e03c8b26578fed57fa15f59c66872f56edccf468362a336658d0695fd4"
+      "vhpSeal": "70fcc2431af2283c9d3dd6f7b9eb3e7dc41d075d3cf6b2cb1ba2a96d8121c41a"
     },
     {
       "id": "W003-D4-00-2",
@@ -212,7 +220,34 @@
           "seal": "a8d80c9b27667e887de44f066bb4f972f43246ba0d1b27e234a4f6ea6b244861"
         }
       ],
-      "vhpSeal": "e07d77d90bef46f8493e77b7852267e4edb268b673a93ce0fedbed3242057f07"
+      "vhpSeal": "e07d77d90bef46f8493e77b7852267e4edb268b673a93ce0fedbed3242057f07",
+      "result": {
+        "void": false,
+        "option": 0,
+        "value": "23.140 s",
+        "dataHash": "86c57f5a7b1a8757ac75954f18bfab7be1ee790668789b59811482a9db1f1c35",
+        "resolvedAt": "2026-11-12T17:32:09.310Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40998287,
+          "decidedHeight": 41018705,
+          "readings": [
+            41015112,
+            41015656,
+            41016973,
+            41018233
+          ],
+          "readingsInWindow": 4,
+          "values": {
+            "network": {
+              "release": "2294442495733514",
+              "end": "2288539663844691",
+              "change": "−0.26%",
+              "height": 41018233
+            }
+          }
+        }
+      }
     }
   ],
   "daySeal": "6204c06eebbe6a1efa84d2029b2d7090bf7eb16d4d93c671942a543fe522368b"

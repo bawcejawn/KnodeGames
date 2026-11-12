@@ -135,3 +135,25 @@ test("#G-24 Info, cardPerRound: a ruler round decided without a card stops the r
   fs.writeFileSync(path.join(inn, "W004.json"), wf.raw("W004.json")!);
   assert.ok(checkGame(cfg, inn, pub, wd.time + 5 * 60000, "", new Set()).held.some((x: any) => /decided rounds but only 0 ruler cards/.test(x.why)));
 });
+
+// ── Repo Lens #G-24 (kit-phase1b-ruler @ 3c12312): append to kit/tests/phase1b-g3.test.ts (uses its fixture() and glue()) ──
+// G24-1 (Low): the glue keys the listed cards by sha256 alone (render.mjs KIT_CARDS_PY: refs[x[1]] = x[0], the last listing
+// wins), and the check only asks "is this entry's sha256 in the rebuilt set" (check.inline.mjs cardsWhy). So an entry
+// [settings A, sha256 of B's card] passes whenever another entry, in the same file or in another file of the run, lists
+// B's real settings with that sha256 later in the glue's order: a card the data doesn't give is published as rebuilt.
+// (The JS twin, replay.ts rebuiltCards, returns bare sha256 values too, so checkGame accepts it the same way; the
+// blind verifier published such a W file end to end, and a junk W file the check holds can supply the honest entry.) Fix: the glue rebuilds every entry
+// and writes the [canonical settings, sha256] pairs that match (or per file and index), and cardsWhy requires each
+// entry's own pair; a sha256 listed twice in a file is refused (one card, one settings).
+test("G24-1 (Low): an entry whose settings don't give its sha256 is never in the rebuilt list, whatever else the run lists", { skip: !PYTHON && "needs python3" }, () => {
+  const { dir, L, s } = fixture(), used = new Map();
+  vhpFor(L, used).card(s);
+  const [[set, h]] = cardList(used);
+  const forged = { ...set, round: "2026111500" };          // another round (sorts first): its own card isn't h
+  // one file: [forged, h] then [set, h] (sorted by round, as isCardList wants)
+  const one = glue(dir, { "W006.json": { cards: [[forged, h], [set, h]] } });
+  assert.ok(!one.ok.includes(h) || false, "a file citing B's card for A's settings passed the rebuild");
+  // two files of one run: the forged week file, then an honest inputs file with the real settings
+  const two = glue(dir, { "W006.json": { cards: [[forged, h]] }, "inputs/W7.json": { cards: [[set, h]] } });
+  assert.ok(!two.ok.includes(h), "the forged week file's entry passes because the inputs file lists the real settings with the same sha256");
+});

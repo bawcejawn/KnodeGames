@@ -1317,7 +1317,12 @@ let heldAlerts: string[] = [];
 export const OWNER_HOLD_ALERT_HOUR = 16;
 export const ownerAlertRun = (now: number) => new Date(now).getUTCHours() === OWNER_HOLD_ALERT_HOUR;
 /** "Week 1" for the site's numbering (weeks.js, D-063: vault week 3 = Week 1). */
-const siteWeek = (w: number) => (w >= 3 ? `Week ${w - 2}` : `the week of ${new Date(M.weekStart(w)).toISOString().slice(0, 10)}`);
+/** The week as players see it (owner, 10 Nov): vault week 4 (Mon 16 Nov 2026) is Week 1, the first paid week; vault week 3
+ *  (Mon 9 Nov) is the practice week. Always with the calendar date. */
+export const siteWeek = (w: number) => {
+  const d = new Date(M.weekStart(w)).toISOString().slice(0, 10);
+  return w >= 4 ? `Week ${w - 3}, the week of ${d}` : w === 3 ? `the practice week of ${d}` : `the week of ${d}`;
+};
 /** One alert line: the game and week, why, the deadline, and what the owner can do, with the exact commands. */
 export function heldMessage(w: number, weekEnd: number, now: number, why: string, first?: string): string {
   const due = weekEnd + RESULTS_DUE_AFTER, left = Math.max(0, (due - now) / M.HOUR);

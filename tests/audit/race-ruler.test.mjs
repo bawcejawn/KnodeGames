@@ -269,3 +269,12 @@ test("page: the ruler's box is hidden until the R file says shadow or on; it say
   assert.match(js, /M\.weekStart\(cur\.rulerFrom\)/, "the calendar Monday from the switch's week");
   assert.equal(R.voidBand(7200).map(Number).join(), "100000,250000", "the page's 10% / 25% is the ruler's 6-hour band");
 });
+
+test("messages: vault week 4 (Mon 16 Nov) is Week 1, week 5 is Week 2, week 3 is the practice week, always with the date", async () => {
+  const { siteWeek, heldMessage } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(siteWeek(4), "Week 1, the week of 2026-11-16");
+  assert.equal(siteWeek(5), "Week 2, the week of 2026-11-23");
+  assert.equal(siteWeek(3), "the practice week of 2026-11-09");
+  assert.equal(siteWeek(2), "the week of 2026-11-02");
+  assert.match(heldMessage(4, M.weekStart(5), M.weekStart(5), "x"), /^Producer Race vault week 4 \(Week 1, the week of 2026-11-16\) is HELD: x\./);
+});

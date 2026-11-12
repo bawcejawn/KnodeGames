@@ -48,6 +48,8 @@
   const weeks = new Map();          // week → recorder file
   let board = null, form = new Map(), view = null, round = 0;
   let prizesFrom;                   // index.json prizesFromWeek: the first paid week; null = none yet; undefined = not read
+  let rulerFrom;                    // index.json rulerFrom (R-BR-7): the ruler's first "on" week; null = not set; undefined = not read
+  const shadows = new Map();        // week → its shadow summary (ruler/W<week>.json), when there is one
   let picksContract = null, mine = null, sending = false;
   let gameLive = null;              // Picks game 9 on chain: true live, false not (yet) there or paused, null unknown
   let draft = null, draftWeek = null; // winner seeds per round for the bracket being filled in
@@ -59,7 +61,9 @@
       try { const j = await fetchJson(`${DATA}W${String(x).padStart(3, "0")}.json`); if (valid(j, x)) weeks.set(x, j); } catch { /* not yet */ }
     }));
     try { const b = await fetchJson(DATA + "board.json"); if (b && b.v === 1) board = b; } catch { /* not yet */ }
-    try { const j = await fetchJson(DATA + "index.json"); if (j && j.v === 1) prizesFrom = Number.isInteger(j.prizesFromWeek) && j.prizesFromWeek >= 0 ? j.prizesFromWeek : null; } catch { /* not yet */ }
+    try { const j = await fetchJson(DATA + "index.json"); if (j && j.v === 1) { prizesFrom = Number.isInteger(j.prizesFromWeek) && j.prizesFromWeek >= 0 ? j.prizesFromWeek : null; rulerFrom = Number.isInteger(j.rulerFrom) && j.rulerFrom >= 1 ? j.rulerFrom : null; } } catch { /* not yet */ }
+    // R-BR-7: the shadow week's ruler result, shown beside the real one (it counts for nothing)
+    if (rulerFrom) { const sw = rulerFrom - 1; try { const s = await fetchJson(DATA + `ruler/W${String(sw).padStart(3, "0")}.json`); if (s && s.v === 1 && s.week === sw && s.shadow === true) shadows.set(sw, s); } catch { /* none yet */ } }
   }
   /** Only well-formed files are used (the publish job checks the same shape). The version is the one the recorder
    *  writes, from the shared math file (Repo Lens #E-3 H-1). */
@@ -436,7 +440,24 @@
     return `${weekLabel(w)} is a practice week: brackets, points and both leaderboards count for fun only, and no VHP is paid for it. `
       + (prizesFrom === null ? "The first paid week will be announced here." : `Staked rewards start ${weekLabel(prizesFrom)}, the week of ${weekDate(prizesFrom)}.`);
   }
-  function renderPractice() { const t = practiceText(Number.isInteger(view) ? view : BM.weekOf(Date.now())), p = $("bk-practice"); if (p) { p.textContent = t; p.hidden = !t; } }
+  /** R-BR-7 (owner 11 Nov): what the VHP ruler does for the week on show, from which Monday, and in the shadow week how
+   *  often it would have picked another winner so far. Empty while the switch isn't set. */
+  function rulerText(w) {
+    if (!rulerFrom) return "";
+    const rule = "Each matchup day, every producer gets one VHP ruler card, measured from the chain's own VHP history; the producer luckier against the whole day's field (its blocks against its own expected share, whatever its size) wins. A producer whose VHP moves outside −12% / +50% of its card size during the day is void for that day only: it loses its matchup, so a pick on it counts as a loss; if both are void, the day index decides. Forfeits still come first.";
+    if (w < rulerFrom - 1) return `From ${weekLabel(rulerFrom)} (the week of ${weekDate(rulerFrom)}) the VHP ruler decides the matchups. ${rule}`;
+    if (w >= rulerFrom) return `The VHP ruler decides the matchups (since ${weekLabel(rulerFrom)}, the week of ${weekDate(rulerFrom)}). ${rule}`;
+    const s = shadows.get(w), cur = weeks.get(w), real = cur && cur.results ? cur.results.rounds : [];
+    let cmp = "";
+    if (s && Array.isArray(s.rounds) && s.rounds.length) {
+      let n = 0, diff = 0;
+      s.rounds.forEach((ro, r) => ro.forEach((x, m) => { if (real[r] && real[r][m] !== undefined) { n++; if (real[r][m] !== x) diff++; } }));
+      if (n) cmp = ` So far it would have picked a different winner in ${diff} of ${n} matchups.`;
+    }
+    return `Shadow week: the VHP ruler runs beside the real results and counts for nothing; from ${weekLabel(rulerFrom)} (the week of ${weekDate(rulerFrom)}) it decides the matchups.${cmp} ${rule}`;
+  }
+  function renderRuler() { const t = rulerText(Number.isInteger(view) ? view : BM.weekOf(Date.now())), p = $("bk-ruler"); if (p) { p.textContent = t; p.hidden = !t; } }
+  function renderPractice() { renderRuler(); const t = practiceText(Number.isInteger(view) ? view : BM.weekOf(Date.now())), p = $("bk-practice"); if (p) { p.textContent = t; p.hidden = !t; } }
   function renderBoard() { renderPractice(); if (lb && board) { $("board-box").hidden = false; lb.setMe(me() || ""); lb.set(board); } }
 
   // ── start ──

@@ -269,12 +269,21 @@
   const indexOf = (x, isPooled) => { const [c, e] = scoreOf(x, isPooled); return e > 0 ? c / e : 0; };
   /** Does `other` beat `better` on a day? Higher index wins; an exact tie (compared without division) goes to `other`,
    *  the lower seed. A producer missing from the day's index counts as 0 blocks. */
-  function otherWins(idx, better, other, seedVhp, pooled) {
+  function otherWins(idx, better, other, seedVhp, pooled, ruler) {
     const pa = !!(pooled && pooled.has(better)), pb = !!(pooled && pooled.has(other));
     const A = idx.get(better) || null, B = idx.get(other) || null;
     if (seedVhp) {
       const fa = !pa && forfeits(A, seedVhp.get(better)), fb = !pb && forfeits(B, seedVhp.get(other));
       if (fa !== fb) return fa;   // only one forfeits: it loses
+    }
+    // R-BR-7 (the VHP ruler, owner 11 Nov): with the day's ruler card, the higher field percentile (fpct) wins; a seed
+    // with no fpct (void that day, or not in the card's field) loses; both without one: the day index below decides,
+    // as when both forfeit. An exact fpct tie goes to `other`, the lower seed, like an index tie.
+    if (ruler) {
+      const ra = rulerPct(ruler, better), rb = rulerPct(ruler, other);
+      if (ra !== null && rb !== null) return rb >= ra;
+      if (ra !== null) return false;
+      if (rb !== null) return true;
     }
     const [ca, ea] = scoreOf(A, pa), [cb, eb] = scoreOf(B, pb);
     if (ea <= 0 && eb <= 0) return true;
@@ -285,6 +294,13 @@
     return sb > sa - tol;   // other's index ≥ better's index → other (tie → underdog)
   }
 
+  /** A seed's fpct on a day's ruler card summary (address → fpct as a decimal string of millionths, or null), as a
+   *  BigInt, or null: void, not in the field, or not on the card. */
+  function rulerPct(ruler, a) {
+    const v = ruler.get(a);
+    // a percentile in millionths: 0 … 1,000,000 (Repo Lens #G-20 Info); anything else counts as no fpct
+    return typeof v === "string" && /^[0-9]{1,7}$/.test(v) && BigInt(v) <= 1000000n ? BigInt(v) : null;
+  }
   /** Does a seed forfeit its day? Its effective VHP averaged over the day's blocks (satoshi; #E-3 H-5) is strictly
    *  under half (FORFEIT_SHARE) of its seeding VHP (VHP, whole hundredths). Fix-check B-1: compared in exact integers —
    *  2 × Σ(av × n) < seeding satoshi × Σ n — so the page, the recorder and the publish job's port always agree, even
@@ -301,12 +317,15 @@
    *  seedVhp: each seed's seeding VHP in seed order (the forfeit rule; left out: no forfeits); pooled: addresses that
    *  never forfeit.
    *  Returns { rounds: [[winner seed]] for each round played so far, done: true when every round is known }. */
-  function results(seeds, size, days, seedVhp, pooled) {
+  function results(seeds, size, days, seedVhp, pooled, rulerDays) {
     const nSeeds = seeds.length, R = roundsOf(size), rounds = [];
     const sv = Array.isArray(seedVhp) ? new Map(seeds.map((a, i) => [a, Number(seedVhp[i]) || 0])) : null;
     const pl = new Set(Array.isArray(pooled) ? pooled : []);
-    let known = 0; while (known < R && days[known]) known++;
-    const full = play(size, nSeeds, (r, m, a, b) => (r < known ? otherWins(days[r], seeds[a - 1], seeds[b - 1], sv, pl) : false));
+    // rulerDays (R-BR-7): [Map address → fpct | null for each round, or null if its card isn't made yet]; a round is
+    // known only once both its day and its card are. Left out: the day index alone, as before.
+    const ru = Array.isArray(rulerDays) ? rulerDays : null;
+    let known = 0; while (known < R && days[known] && (!ru || ru[known])) known++;
+    const full = play(size, nSeeds, (r, m, a, b) => (r < known ? otherWins(days[r], seeds[a - 1], seeds[b - 1], sv, pl, ru ? ru[r] : null) : false));
     for (let r = 0; r < known; r++) rounds.push(full.rounds[r]);
     return { rounds, done: known === R };
   }

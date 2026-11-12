@@ -40,7 +40,13 @@ export type StakeView = { stake: string; peak: string; voided: boolean };
 /** This game's own published FINAL week files, and other kit games' (manifest `published`), by week; read-only,
  *  loaded by the kit before the module runs (Fantasy Phase 1 item 6). */
 export type Published = { own: Record<number, any>; games: Record<string, Record<number, any>> };
-export type RoundCtx<I = unknown> = { now: number; inputs?: I; published?: Published };
+/** ctx.vhp (manifest vhpData): the VHP ruler's published data (kit/recorder/sources/vhp-ruler.ts). card(settings)
+ *  returns a scored ruler card, or throws NotYet while the data doesn't cover it (the kit then keeps the round PENDING,
+ *  or the inputs file waits). Never null for a vhpData game: when the data can't be loaded this run, card() throws NotYet. */
+export type VhpCtx = { to: number; ruleVersion: number; card(settings: any): any };
+export type RoundCtx<I = unknown> = { now: number; inputs?: I; published?: Published; vhp?: VhpCtx };
+/** resultOf's fourth argument. */
+export type ResultCtx = { vhp?: VhpCtx };
 export type ReadCtx<I = unknown> = RoundCtx<I> & { read: NodeReader };
 
 export type PicksSource = { source: "picks-contract" | "race-picks" | "vault-answers" | "none"; gameId?: number };
@@ -66,7 +72,7 @@ export interface GameModule<P = unknown, R = unknown, I = unknown> {
   /** The Picks contract rounds an extra source is read at for the week (pure). Default: none. */
   extraPickRounds?(week: WeekSpan, source: PicksSource): number[];
   /** A round's result from chain data (called once per node). PENDING until decided; VOID if nothing scores. */
-  resultOf(round: Round, read: NodeReader, inputs?: I): Promise<R | Pending | Void>;
+  resultOf(round: Round, read: NodeReader, inputs?: I, ctx?: ResultCtx): Promise<R | Pending | Void>;
   /** Default: canonical-JSON equality. */
   same?(a: R, b: R): boolean;
   /** Points for every wallet that picked in the round (and, with carried state, every wallet with a state). Pure and

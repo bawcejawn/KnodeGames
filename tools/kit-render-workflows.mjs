@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ROOT, listManifests, readManifest, validateManifest, duplicateKeys } from "./game-manifest.mjs";
-import { renderJobs, inlineScript, BEGIN, END, LEGACY_WAIT_MAX_MIN } from "../kit/publish/render.mjs";
+import { renderJobs, inlineScript, rulerPy, BEGIN, END, LEGACY_WAIT_MAX_MIN } from "../kit/publish/render.mjs";
 import { publishConfig, dataFolder, readDeployment } from "../kit/recorder/manifest.ts";
 
 /** The kit games, by workflow file: [{ file, branch, games }]. */
@@ -74,7 +74,7 @@ export function renderAll(root = ROOT) {
     const p = path.join(root, ".github/workflows", file);
     const now = fs.readFileSync(p, "utf8");
     checkHost(now, file);
-    return { file: p, now, want: renderWorkflow(now, renderJobs({ branch, games, script })) };
+    return { file: p, now, want: renderWorkflow(now, renderJobs({ branch, games, script, ruler: games.some((g) => g.cfg.vhpData) ? rulerPy(pathToFileURL(root.endsWith("/") ? root : root + "/")) : null })) };
   });
 }
 

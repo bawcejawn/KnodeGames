@@ -32,6 +32,10 @@ export type KitGameCfg = {
   sundayFunRound: boolean; payoutRule: "legacy-tied-whole" | "d152"; vaultValues: "dense255" | "points";
   entry: { minRounds: number; minPoints: number }; minPts: number; rowCap: number;
   liveWeek: boolean; roundsCorrectable: boolean; maxRoundPoints?: number; budgets?: Partial<Budgets>;
+  /** Phase 1b: the game scores from the VHP ruler's published data (manifest vhpData): ctx.vhp. */
+  vhpData?: boolean;
+  /** #G-24 Info: every decided round of a ruler game uses at least one ruler card (default on with vhpData). */
+  cardPerRound?: boolean;
   /** FC-9: the game publishes a write-once inputs file before each week opens (manifest inputsFile). */
   inputsFile?: boolean;
   /** How long before the week opens the inputs file is made (default 2 days: Saturday 00:00 UTC). */
@@ -50,6 +54,10 @@ export type RunOpts = {
   wall?: () => number;
   /** The runner's clock, to catch two stalled nodes (KC-7). The CLI passes Date.now; tests leave it out. */
   wallNow?: () => number;
+  /** Phase 1b: the vhp-data folder the workflow fetched (read-only), for a vhpData game. */
+  vhpDir?: string;
+  /** Tests only: a ruler ledger instead of a folder. */
+  vhpLedger?: any;
   /** G13-1: the owner's explicit fresh start for carried state (<SLUG>_RESET_FROM_WEEK): this week starts empty. */
   resetFromWeek?: number;
   /** Other kit games' last-run folders (manifest `published`), by slug, for ctx.published (read-only). */
@@ -174,6 +182,24 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     return { own: cut(published.own), games: Object.fromEntries(Object.entries(published.games).map(([k, v]) => [k, cut(v)])) };
   };
 
+  // Phase 1b (G1/G2): the ruler's data, loaded once into one checked ledger. Data that can't be loaded gives the game a
+  // ctx.vhp whose card() throws NotYet: rounds stay pending and the inputs file waits; nothing is guessed.
+  const usedInputCards = new Map<string, any>(), usedWeekCards = new Map<string, any>();
+  let vhpIn: any, vhpWk: any, NotYetE: any = null, cardList: any = null, vhpRound: ((m: Map<string, any>) => any) | null = null;
+  if (cfg.vhpData) {
+    const V = await import("./sources/vhp-ruler.ts");
+    NotYetE = V.NotYet; cardList = V.cardList;
+    let L: any = null;
+    try { if (o.vhpLedger) L = o.vhpLedger; else { if (!o.vhpDir) throw new Error("no vhp-data folder was given"); L = V.loadLedger(o.vhpDir); } }
+    catch (e) { alerts.warnings.push(`the ruler's data couldn't be loaded this run (${(e as Error).message}): rounds that need it stay pending`); }
+    const stub = (why: string) => ({ to: -1, ruleVersion: V.RULE_VERSION, card() { throw new V.NotYet(`not yet: ${why}`); } });
+    vhpIn = L ? V.vhpFor(L, usedInputCards) : stub("the ruler's data isn't loaded this run");
+    vhpWk = L ? V.vhpFor(L, usedWeekCards) : stub("the ruler's data isn't loaded this run");
+    // One round's own ctx.vhp (cardPerRound): its cards go to that round's map, then to the week's.
+    vhpRound = (mine) => (L ? V.vhpFor(L, mine) : stub("the ruler's data isn't loaded this run"));
+  }
+  const isNotYet = (e: unknown) => !!NotYetE && e instanceof NotYetE;
+
   // FC-9: next week's inputs file (price list, seeding), made once inside its window before the week opens, on both
   // nodes (they must agree). Write-once: the publish check refuses a changed copy and any copy after the week opens.
   if (cfg.inputsFile) {
@@ -185,13 +211,18 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     const u = cw + 1, us = clock.span(u);
     if (now >= us.start - lead && now < us.start && !prev.inputs(u)) {
       try {
-        const data = toJson(await agree(`week ${u}'s inputs`, () => m.inputsFor!(us, { now, read: va, published: before(u) }), () => m.inputsFor!(us, { now, read: vb, published: before(u) })));
+        usedInputCards.clear();
+        const data = toJson(await agree(`week ${u}'s inputs`, () => m.inputsFor!(us, { now, read: va, published: before(u), vhp: vhpIn }), () => m.inputsFor!(us, { now, read: vb, published: before(u), vhp: vhpIn })));
         if (data === null || typeof data !== "object") throw new Error(`week ${u}: inputsFor must return an object or a list`);
-        out.write(`inputs/W${u}.json`, { game: cfg.game, week: u, data });
+        out.write(`inputs/W${u}.json`, cfg.vhpData ? { game: cfg.game, week: u, data, cards: cardList(usedInputCards) } : { game: cfg.game, week: u, data });
         alerts.notes.push(`week ${u}: its inputs file was made (FC-9)`);
       } catch (e) {
+        if (isNotYet(e)) {
+          (now >= us.start - 6 * 3600000 ? alerts.errors : alerts.warnings).push(`week ${u}'s inputs file waits for the ruler's data (${(e as Error).message}); it must be published before ${new Date(us.start).toISOString()}`);
+        } else {
         if (!(e instanceof Disagree || e instanceof OutOfBudget || e instanceof ReadFailed)) throw e;
         alerts.errors.push(`week ${u}'s inputs file couldn't be made this run (${(e as Error).message}); it must be published before ${new Date(us.start).toISOString()} or that week can't be scored`);
+        }
       }
     }
   }
@@ -268,19 +299,19 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     }
     inputs = f.data; inputsHash = sha256(canon(f));
     try {
-      const again = await agree(`week ${w}'s inputs (recount)`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w) }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w) }));
+      const again = await agree(`week ${w}'s inputs (recount)`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w), vhp: vhpIn }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w), vhp: vhpIn }));
       if (!sameJson(again, f.data)) {
         inputsHeld = `the inputs recount differs from the published inputs file (FC-9)`;
         alerts.errors.push(`week ${w}: ${inputsHeld}: the week is held pending; check inputs/W${w}.json`);
       }
     } catch (e) {
-      if (!(e instanceof Disagree || e instanceof OutOfBudget || e instanceof ReadFailed)) throw e;
+      if (!(isNotYet(e) || e instanceof Disagree || e instanceof OutOfBudget || e instanceof ReadFailed)) throw e;
       inputsHeld = `the inputs recount couldn't run (${(e as Error).message})`;
       alerts.warnings.push(`week ${w}: ${inputsHeld}; it stays pending this run`);
     }
   } else if (m.inputsFor) {
     // Inputs the game reads itself (cards, seeding, prices), on both nodes; they must agree (KC-30).
-    inputs = await agree(`week ${w}'s inputs`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w) }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w) }));
+    inputs = await agree(`week ${w}'s inputs`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w), vhp: vhpIn }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w), vhp: vhpIn }));
   }
 
   // Carried state (FC-5): the week before must be final; its `next` is this week's start (through carryIn).
@@ -321,6 +352,19 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
   }
   for (const id of ra.picks.keys()) if (!ids.has(id)) throw new Error(`picks for round ${id}, which roundsFor doesn't list`);
 
+  // resultOf with ctx.vhp; a card the data doesn't cover yet is PENDING (never a guess).
+  const resultOf = async (r: Round, rd: NodeReader) => {
+    if (!cfg.vhpData) return m.resultOf(r, rd, inputs, {});
+    const mine = new Map<string, any>();
+    let res: any;
+    try { res = await m.resultOf(r, rd, inputs, { vhp: vhpRound!(mine) }); }
+    catch (e) { if (isNotYet(e)) return PENDING; throw e; }
+    for (const [k, v] of mine) usedWeekCards.set(k, v);
+    // #G-24 Info: a decided ruler round must come from at least one ruler card (cardPerRound, on by default).
+    if (cfg.cardPerRound && res !== PENDING && mine.size === 0) throw new Error(`round ${r.id}: decided without a ruler card (cardPerRound; a ruler game's results come from ctx.vhp.card)`);
+    return res;
+  };
+
   // The fold: each round's state after its picks, in lock order (picks are known; results aren't needed).
   const stateFor = new Map<string, States<any>>();
   let next: States<any> | null = carry;
@@ -355,7 +399,7 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     if (now >= r.resolvesAt) {
       try {
         const same = m.same ?? sameJson;
-        const res = await agree(`round ${r.id}'s result`, () => m.resultOf(r, va as NodeReader, inputs), () => m.resultOf(r, vb as NodeReader, inputs),
+        const res = await agree(`round ${r.id}'s result`, () => resultOf(r, va as NodeReader), () => resultOf(r, vb as NodeReader),
           (x: any, y: any) => (x === PENDING || x === VOID || y === PENDING || y === VOID ? x === y : same(x, y)));
         if (res === VOID) status = "v";
         else if (res !== PENDING) {
@@ -399,6 +443,7 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     if (ex === null || typeof ex !== "object" || Buffer.byteLength(JSON.stringify(ex)) > MAX_EXTRAS_BYTES) throw new Error(`${cfg.slug}: weekExtras must return an object or list of at most ${MAX_EXTRAS_BYTES} bytes`);
     body.extras = ex;
   }
+  if (cfg.vhpData) body.cards = cardList(usedWeekCards);
   const hash = weekHash(body);
   if (cfg.rowCap > 0 && t.rows.length > cfg.rowCap) alerts.warnings.push(`week ${w}: ${t.rows.length} board rows, over the game's cap of ${cfg.rowCap}: board.json keeps the ranked rows and the best others`);
 

@@ -33,6 +33,42 @@ Timing follows `.ai/standards/WEEK_CYCLE.md`; the recorder follows `.ai/standard
   moves them to the ruler's luck percentile).
 - D-141: matchups move to the VHP ruler's luck percentile once ruler v2.1 passes its simulations (R-RULER-2).
 
+## The VHP ruler (R-BR-7, owner 11 Nov 2026; `bot/games/bracket-ruler.ts`)
+The shared VHP ruler (`vhp-ruler.js` / `vhp_ruler.py`, `docs/VHP-RULER.md`) can decide the matchups instead of the day
+index. The switch is the repository variable **`BRACKET_RULER_FROM_WEEK`**, read strictly with `switchFrom`:
+- **Unset:** the day index, as above. No ruler files.
+- **N:** vault week N − 1 is the **shadow week**, every week from N is **on**. A week that has started never changes
+  whether the ruler scores it: the publish job runs `switch_change` (the publish copy is tested line by line against
+  `vhp_ruler.py`) against each week file's published `rulerFrom`, and holds the week if a change is refused.
+  `node tools/vhp-ruler-switch.mjs <N>` shows each week's mode before you set it.
+- Every week file the recorder still writes carries `rulerFrom` and `rulerMode` (last); `index.json` carries
+  `rulerFrom` (the page's ruler line).
+
+**The day card (one per matchup day, all producers on it):** `S0` / `S1` = the day's first and last block as the
+Bracket recorded them; `L = S0 − 1`; the card moment in the 6 hours before the day (`W0 = L − 7,199`, `W1 = L`);
+`round` = the day as `yyyymmdd`; `ownRule: "spot"` (the only rule the fairness runs measured at RULE_VERSION 4);
+`minK` 10; `poolRule` "min"; `c` 500000; `pooled`: the Knode Games Pool (the Vault races like everyone, D-162);
+`paying: true` (the same waits as a paying card, also in the shadow week). Made once all 24 of the day's hours are
+recorded and re-read and `vhp-data` covers the day ("not yet" otherwise; retried each run); written once,
+`ruler/W<week>-R<round>.json`.
+
+**The matchup:** forfeits first (day averages, D-086 / D-087); then the higher `fpct` wins; a seed with no `fpct`
+(void that day, i.e. its VHP left −12% / +50% of its card size, or not in the card's field) loses, so a pick on it
+counts as a loss (D-164); both without one: the day index decides; an exact `fpct` tie goes to the lower seed
+(`bracket-math` `otherWins` / `results(…, rulerDays)`).
+
+**Phase 1 (this build): off and shadow.** In the shadow week the recorder publishes `ruler/W<week>.json`
+(`"shadow": true`): the ruler's bracket beside the real one (`real`). It is never in the week file's results or points,
+the boards or the vault file. An **on** week is **held** by this build (no results or points, never final; the
+publish job refuses an on week with results): the ruler-on update (phase 2) scores it from the day cards and rebuilds
+every card in the publish job with `recompute_main` from these settings. So: set `BRACKET_RULER_FROM_WEEK` = N during
+week N − 1 (that week becomes the shadow week at once; its finished days get their cards), and merge phase 2 before
+week N starts. If phase 2 isn't merged by then, change the variable to N + 1 **before Monday 00:00 UTC of week N**
+(`switch_change` allows it while week N hasn't started; once it has, it can't go back).
+
+**Data:** the record job takes the `vhp-data` branch (about 80 MB, 14 days) only while the switch is set
+(`BRACKET_VHP_DATA`); about 10 s to load and 2 s a card.
+
 ## Scoring and ranking
 - 1 / 2 / 4 / 8 / 16 points by round, +2 for the right champion.
 - The number: bit n = "the lower seed wins matchup n"; any number ≥ 2^(size − 1) scores nothing.

@@ -105,3 +105,14 @@ test("G7 runtime: a time past the last irreversible block keeps the round pendin
   assert.ok(j.rounds.every((r: any) => r[3] === "p"), JSON.stringify(j.rounds.map((r: any) => r[3])));
   void PENDING;
 });
+
+test("lastPickBlock: the last block strictly before the lock time (Picks.ts: accepted only while time < target − lead)", async () => {
+  const { lastPickBlock } = await import("../recorder/sources/block-at.ts");
+  const ts = chain(20_000), lib = 19_000, n = nodeOn(ts, lib), f = blockAtFor(n, lib);
+  for (const h of [500, 7_777, 18_000]) {
+    assert.equal(await lastPickBlock(f, ts[h]), h - 1, "a block stamped exactly at the lock holds no pick");
+    assert.equal(await lastPickBlock(f, ts[h] + 1), h, "a block before the lock time does");
+    const L = await lastPickBlock(f, ts[h] + 1);
+    assert.ok(ts[L] < ts[h] + 1 && ts[L + 1] >= ts[h] + 1);
+  }
+});

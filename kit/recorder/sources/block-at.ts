@@ -46,3 +46,10 @@ export function blockAtFor(node: KitNode, lib: number) {
     return p;
   };
 }
+
+/** The last block that can hold a pick for a TIME-locked Picks round (Block X chat, 12 Nov; picks/assembly/Picks.ts
+ *  126–133: a pick is accepted only while its block's time < target − lead): the block just before the first block at or
+ *  after the lock time. `lockMs` = target − lead, in ms. */
+export async function lastPickBlock(blockAt: (ms: number) => Promise<number>, lockMs: number): Promise<number> {
+  return (await blockAt(lockMs)) - 1;
+}

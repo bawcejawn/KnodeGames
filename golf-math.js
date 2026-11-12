@@ -114,9 +114,11 @@
     });
     const played = row.filter((x) => x.played);
     if (!played.length) return null;
-    // The mulligan: the worst played hole (on a tie, the first in course order).
-    let drop = played[0];
-    for (const x of played) if (x.strokes > drop.strokes) drop = x;
+    // The mulligan (owner, 6 Nov; Repo Lens C13-L1, option c): your worst hole of any kind is dropped, a missed game
+    // (lost ball) included; on a tie, the first in course order. Playing a game then never scores worse than skipping
+    // it, and a play that scores nothing (6) is worth at most 1 point: it can't shield a good hole from the mulligan.
+    let drop = row[0];
+    for (const x of row) if (x.strokes > drop.strokes) drop = x;
     const counted = row.filter((x) => x !== drop);
     const strokes = counted.reduce((s, x) => s + x.strokes, 0), par = PAR * counted.length;
     return {
@@ -157,7 +159,7 @@
   }
 
   /** The share line: "⛳ Knode Games · Block Golf · Week 1: −1 (27 on par 28) 🐦⚪🦅⚪⬛🟧🐦⚪". weekLabel: what players call
-   *  the week (weeks.js KWeeks.label, D-063: vault week 3 is "Week 1"). */
+   *  the week (weeks.js KWeeks.label, D-063: vault week 4 is "Week 1"). */
   function shareText(c, weekLabel) {
     if (!c) return "";
     const icons = c.holes.map((x) => ICON[x.strokes] || "⚪").join("");

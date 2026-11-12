@@ -44,13 +44,13 @@ test("results.js reads race-data R<week>.json by week number, draws with textCon
   assert.match(js, /race-data\/R\$\{String\(w\)\.padStart\(3, "0"\)\}\.json/);
   assert.match(js, /KRulerVoid\.rulerVoids/);
   assert.match(js, /Trial, counts for nothing/);
-  assert.match(js, /picks are given back/);
+  assert.match(js, /no pick scores/); assert.doesNotMatch(js, /given back/);
   assert.doesNotMatch(js, /innerHTML|insertAdjacentHTML|eval\(/);
   assert.ok(home.indexOf("ruler-void.js") > 0 && home.indexOf("ruler-void.js") < home.indexOf("results.js") && home.includes('ruler-void.js"></script>\n  <script src="race-math.js"'), "the helper loads before results.js");
 });
 test("the Ruler page: from Week 1, the limits, picks, and the whole-void line; no banned words", () => {
   assert.match(page, /from Week 1 \(Monday 16 November\)/);
-  assert.match(page, /a whole void race gives picks back/);
+  assert.match(page, /no pick in it scores\. Picks are never returned/); assert.doesNotMatch(page, /given back|gives picks back/);
   for (const t of ["5%", "25%", "10%", "12%", "50%", "15%", "100%"]) assert.ok(page.includes(t), t);
   const text = page.replace(/<[^>]+>/g, " ");
   assert.doesNotMatch(text, /\b(bet|bets|betting|odds|gambl\w*|earn\w*|returns?|guarantee\w*)\b/i);

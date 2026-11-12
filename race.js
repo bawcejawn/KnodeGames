@@ -452,7 +452,7 @@
       const r = (weeks.get(j.week)?.races || []).find((x) => x.id === e.id), v = V ? V.rulerVoids(e, j) : { has: false, voids: [], wholeVoid: false };
       const place = (i) => el("td", {}, e.card && e.placings && e.placings[i] ? nameOf(e.placings[i]) : "–");
       const note = !e.card ? el("td", { colspan: "3", class: "muted", text: "Result comes in once the race's blocks are in." })
-        : v.wholeVoid ? el("td", { colspan: "3" }, "Every producer was void: picks given back.") : null;
+        : v.wholeVoid ? el("td", { colspan: "3" }, "Every producer was void: no pick scores.") : null;
       const voided = v.has && v.voids.length && !v.wholeVoid ? el("span", { class: "void-chip", title: "Void: its VHP moved too much during this race, so it didn't count", text: `${v.voids.length} void` }) : null;
       const when = el("td", { class: "rl-when" }, el("b", { text: r ? dayTime(r.start) : e.id }), el("span", { text: j.shadow ? "trial" : e.card ? "final" : "checking" }), voided);
       body.push(el("tr", {}, when, ...(note ? [note] : [place(0), place(1), place(2)])));

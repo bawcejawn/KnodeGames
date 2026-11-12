@@ -20,6 +20,10 @@
   var LIVE = "https://live.knodegames.com/live.json";
   var BRANCHES = { "games-data": 1, "race-data": 1, "blocks-data": 1, "names-data": 1, "stats-data": 1, "prize-settings": 1 };
   var FRESH_MS = 20000, SKIP_MS = 600000, LIVE_REUSE_MS = 3000;
+  // Repo Lens #G-31 (G31-1): "fresh" also needs a recent block. If the owner's node gets stuck, the uploader's clock
+  // keeps moving but the head block's own time doesn't, so a file whose head block is more than 30 s older than its
+  // upload time is treated as stale (blocks come about every 3 s), and the page reads the chain as before.
+  var STUCK_MS = 30000;
   var mirrorDownUntil = 0, liveDownUntil = 0, liveAt = 0, liveP = null, liveVal = null;
   var realFetch = typeof window.fetch === "function" ? window.fetch.bind(window) : null;
 
@@ -52,6 +56,7 @@
   function goodLive(o, now) {
     if (!o || o.v !== 1 || !o.head || !Array.isArray(o.blocks) || !o.blocks.length) return false;
     if (!(now - o.at < FRESH_MS && o.at - now < FRESH_MS)) return false;
+    if (!Number.isSafeInteger(o.head.time) || o.at - o.head.time > STUCK_MS || o.head.time - o.at > STUCK_MS) return false;
     var last = o.blocks[o.blocks.length - 1];
     if (!last || last.h !== o.head.height) return false;
     for (var i = 0; i < o.blocks.length; i++) if (!isAddr(o.blocks[i].signer) || !Number.isSafeInteger(o.blocks[i].h)) return false;

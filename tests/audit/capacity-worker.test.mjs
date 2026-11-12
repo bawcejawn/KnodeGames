@@ -76,3 +76,12 @@ test("CW-5 live file not set up: 503, nothing stored", async () => {
   delete env.LIVE_TOKEN;
   assert.equal((await go("/_live/live.json", { method: "PUT", headers: { Authorization: "Bearer x" }, body: JSON.stringify(live()) })).status, 503);
 });
+
+test("CW-6 (G31-1) the Worker refuses a file whose head block is more than 30 s older than the upload", async () => {
+  const { go, r2 } = world();
+  const stuck = live(); stuck.head.time = stuck.at - 45_000; stuck.blocks[23].time = stuck.head.time;
+  const r = await go("/_live/live.json", { method: "PUT", headers: { Authorization: "Bearer s3cret-token-0123456789" }, body: JSON.stringify(stuck) });
+  assert.equal(r.status, 400);
+  assert.match(await r.text(), /node stuck/);
+  assert.equal(r2.size, 0);
+});

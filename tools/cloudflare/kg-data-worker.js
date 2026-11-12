@@ -37,6 +37,8 @@ function validLive(o, now = Date.now()) {
   if (!Number.isSafeInteger(o.at) || Math.abs(now - o.at) > 120_000) return "the file's time is more than 2 minutes off";
   const h = o.head;
   if (!h || !Number.isSafeInteger(h.height) || h.height < 1 || typeof h.id !== "string" || !/^0x[0-9a-f]{8,}$/i.test(h.id) || !Number.isSafeInteger(h.time)) return "bad head";
+  // Repo Lens #G-31 (G31-1): a head block more than 30 s older than the upload means the node is stuck.
+  if (o.at - h.time > 30_000 || h.time - o.at > 30_000) return "the head block is more than 30 s from the upload time (node stuck?)";
   if (!Array.isArray(o.blocks) || o.blocks.length < 1 || o.blocks.length > 50) return "blocks must be 1 to 50";
   let prev = 0;
   for (const b of o.blocks) {

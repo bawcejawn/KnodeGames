@@ -88,3 +88,16 @@ test("LU-6 the uploader source never prints or logs the token", () => {
   assert.doesNotMatch(src, /log\([^)]*LIVE_TOKEN/);
   assert.doesNotMatch(src, /console\.(log|error)\([^)]*(LIVE_TOKEN|token)/);
 });
+
+test("LU-7 (G31-1) the uploader sends nothing when its node's newest block is more than 30 s old", async () => {
+  const { node, r2 } = chain(9000);
+  const stale = async (u, i) => {
+    const r = await node.fetch(u, i);
+    if (u.startsWith("https://data")) return r;
+    const j = await r.json();
+    if (j.result && j.result.head_block_time) j.result.head_block_time = String(Date.now() - 60_000);
+    return Response.json(j);
+  };
+  await assert.rejects(U.run({ args: ["--once"], settings: { LIVE_RPC: "http://127.0.0.1:8080", LIVE_TOKEN: TOKEN }, fetchImpl: stale }), /looks stuck/);
+  assert.equal(r2.size, 0);
+});

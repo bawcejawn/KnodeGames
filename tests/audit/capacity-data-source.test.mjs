@@ -94,3 +94,12 @@ test("DS-7 the Questions strip and Block X use the live file first and fall back
   assert.match(bx, /const lv = !TESTNET && window\.KGData \? await window\.KGData\.live\(\) : null;/);
   assert.match(bx, /const h = await provider\.getHeadInfo\(\);/);
 });
+
+test("DS-8 (G31-1) a stuck node's file looks stale even though it was uploaded just now", async () => {
+  const now = Date.now();
+  const stuck = { v: 1, at: now, head: { height: 101, id: "0xab", time: now - 45_000 }, blocks: [{ h: 101, signer: "1KoinosNodeA9xQ2sPp3rX7mW1vD4k8Lz", time: now - 45_000 }] };
+  const { window } = load({ live: true, answer: () => resp(200, JSON.stringify(stuck)) });
+  assert.equal(await window.KGData.live(), null);
+  const ok = load({ live: true, answer: () => resp(200, JSON.stringify({ ...stuck, head: { ...stuck.head, time: now - 5_000 } })) });
+  assert.equal((await ok.window.KGData.live()).head.height, 101);
+});

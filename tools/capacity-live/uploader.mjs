@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 export const DEFAULT_PUT = "https://data.knodegames.com/_live/live.json";
-export const N_BLOCKS = 24, EVERY_MS = 5000, RUN_MS = 55_000, CALL_MS = 4000, LOG_MAX = 200 * 1024;
+export const N_BLOCKS = 24, EVERY_MS = 5000, RUN_MS = 55_000, CALL_MS = 4000, LOG_MAX = 200 * 1024, STUCK_MS = 30_000;
 const ADDR = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/;
 
 // Only LIVE_* settings are taken from .env; nothing else in that file is read into this program.
@@ -70,6 +70,9 @@ export async function buildLive(fetchImpl, node, now = Date.now()) {
   const blocks = (res?.block_items || []).map((it) => ({ h: Number(it.block_height), signer: String(it.block?.header?.signer || ""), time: Number(it.block?.header?.timestamp) }))
     .filter((b) => Number.isSafeInteger(b.h) && ADDR.test(b.signer) && Number.isSafeInteger(b.time)).sort((a, b) => a.h - b.h);
   if (!blocks.length || blocks[blocks.length - 1].h !== height) throw new Error("the node didn't return the head block");
+  // Repo Lens #G-31 (G31-1): a node whose newest block is more than 30 s old is stuck: send nothing, so pages go back
+  // to the public node by themselves when the last good file ages out.
+  if (Math.abs(now - time) > STUCK_MS) throw new Error(`the node looks stuck: its newest block is ${Math.round((now - time) / 1000)} s old`);
   for (let i = 1; i < blocks.length; i++) if (blocks[i].h <= blocks[i - 1].h) throw new Error("blocks out of order");
   return { v: 1, at: now, head: { height, id, time }, blocks };
 }

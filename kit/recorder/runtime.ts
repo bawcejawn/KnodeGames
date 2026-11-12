@@ -13,7 +13,7 @@
 //     forward byte for byte; a final week the chain now reads differently (after a FULL, healthy re-read) gets a HOLD
 //     file, and an unreleased HOLD alerts every run.
 // The module never sees the clock, files or the network except through what this passes it.
-import { dayOf, isSunday, pad3, tally, weekHash, resolveRound, roundsChange, KIT_FILE_VERSION, MAX_ROUNDS, MAX_FILE_BYTES, MAX_BEHIND_MS } from "../publish/check.inline.mjs";
+import { dayOf, isSunday, pad3, tally, weekHash, resolveRound, roundsChange, canon, sha256, isAddr, allTimeOf, KIT_FILE_VERSION, MAX_ROUNDS, MAX_FILE_BYTES, MAX_BEHIND_MS, MAX_STATE_BYTES, MAX_EXTRAS_BYTES, INPUTS_EARLIEST_MS } from "../publish/check.inline.mjs";
 import { clockFromState, type VaultClock } from "./clock.ts";
 import { agree, budgeted, Budget, DEFAULT_BUDGETS, Disagree, OutOfBudget, ReadFailed, sameJson, toJson, type Budgets, type KitNode } from "./nodes.ts";
 import { Prev, Out, MAX_WRITE_BYTES } from "./store.ts";
@@ -22,13 +22,20 @@ import { boardFor } from "./boards.ts";
 import { vaultFileFor } from "./vaultfile.ts";
 import { newAlerts, DUE_WARN_HOURS, type Alerts } from "./alerts.ts";
 import { readVaultAnswers } from "./sources/vault-answers.ts";
-import { PENDING, VOID, type GameModule, type NodeReader, type Round, type SourceRead } from "./types.ts";
+import { readVaultStakes } from "./sources/vault-stakes.ts";
+import { readPicksContract } from "./sources/picks-contract.ts";
+import { readPublishedFinals } from "./sources/published.ts";
+import { PENDING, VOID, type GameModule, type NodeReader, type Pick, type PicksSource, type Published, type Round, type SourceRead, type States } from "./types.ts";
 
 export type KitGameCfg = {
   slug: string; game: number; genesis: number; weekMs: number;
   sundayFunRound: boolean; payoutRule: "legacy-tied-whole" | "d152"; vaultValues: "dense255" | "points";
   entry: { minRounds: number; minPoints: number }; minPts: number; rowCap: number;
   liveWeek: boolean; roundsCorrectable: boolean; maxRoundPoints?: number; budgets?: Partial<Budgets>;
+  /** FC-9: the game publishes a write-once inputs file before each week opens (manifest inputsFile). */
+  inputsFile?: boolean;
+  /** How long before the week opens the inputs file is made (default 2 days: Saturday 00:00 UTC). */
+  inputsLeadMs?: number;
 };
 
 export type RunOpts = {
@@ -43,6 +50,8 @@ export type RunOpts = {
   wall?: () => number;
   /** The runner's clock, to catch two stalled nodes (KC-7). The CLI passes Date.now; tests leave it out. */
   wallNow?: () => number;
+  /** Other kit games' last-run folders (manifest `published`), by slug, for ctx.published (read-only). */
+  published?: Record<string, { dir: string; cfg: { game: number; genesis: number; weekMs?: number; sundayFunRound: boolean; inputsFile?: boolean } }>;
 };
 
 export type RunResult = { week: number | null; state: string; alerts: Alerts; written: string[] };
@@ -67,10 +76,55 @@ export const ALERT_BYTES = Math.floor(MAX_FILE_BYTES * 0.85);   // …and an own
 /** The variable names the owner sets for a game (hyphens → _, KC-19). */
 export const varName = (slug: string, what: "RELEASE" | "HOLD_WEEKS") => `${slug.toUpperCase().replace(/-/g, "_")}_${what}`;
 
+export const sourcesOf = (m: GameModule<any, any, any>): PicksSource[] => (Array.isArray(m.picks) ? m.picks : [m.picks]);
+const DAY_MS = 86400000;
+export const DEFAULT_INPUTS_LEAD_MS = 2 * DAY_MS;
+
 function sourceFor(m: GameModule<any, any, any>, o: RunOpts) {
   if (o.source) return o.source;
-  if (m.picks.source === "vault-answers") return (_node: KitNode, w: number, read: NodeReader) => readVaultAnswers(read, w);
-  throw new Error(`picks.source "${m.picks.source}" isn't wired into the kit runtime yet (only vault-answers in kit-core)`);
+  const p = sourcesOf(m)[0];
+  if (p.source === "vault-answers") return (_node: KitNode, w: number, read: NodeReader) => readVaultAnswers(read, w);
+  if (p.source === "picks-contract") return null;     // read after the rounds are known (readPicksWeek)
+  throw new Error(`picks.source "${p.source}" isn't wired into the kit runtime yet (vault-answers and picks-contract are)`);
+}
+
+/** A carried-state map from a module, checked: wallet addresses, JSON states of at most MAX_STATE_BYTES. */
+function checkedStates(what: string, x: unknown): States<any> {
+  if (!(x instanceof Map)) throw new Error(`${what} must return a Map of wallet → state`);
+  for (const [a, v] of x) {
+    if (!isAddr(a)) throw new Error(`${what}: ${String(a).slice(0, 40)} is not a wallet address`);
+    const j = toJson(v);
+    if (j === null || j === undefined || Buffer.byteLength(JSON.stringify(j)) > MAX_STATE_BYTES) throw new Error(`${what}: ${a}'s state must be JSON of at most ${MAX_STATE_BYTES} bytes`);
+  }
+  return x;
+}
+const stateList = (m: States<any>) => [...m.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1)).map(([a, v]) => [a, toJson(v)]);
+
+/** One node's picks for the week from the Picks contract (every round's pickRound, and each extra source's rounds) and
+ *  the vault stakes of every wallet that picked or carries a state. */
+async function readPicksWeek(m: GameModule<any, any, any>, node: KitNode, vault: NodeReader, budget: Budget, game: number, w: number, now: number, span: any, rounds: Round[], carried: string[]): Promise<SourceRead<any, any>> {
+  const [main, ...extras] = sourcesOf(m);
+  if (!Number.isSafeInteger(main.gameId)) throw new Error("picks-contract needs a gameId");
+  const pr = budgeted(node.contract("picks"), budget);
+  const picks = new Map<string, Pick<any>[]>();
+  for (const r of rounds) {
+    if (!Number.isSafeInteger(r.pickRound) || (r.pickRound as number) < 0) throw new Error(`round ${r.id}: a picks-contract game's round needs its pickRound (the Picks contract round)`);
+    picks.set(r.id, (await readPicksContract(pr, main.gameId as number, r.pickRound as number)).map((p) => ({ ...p, round: r.id })));
+  }
+  const extra = new Map<number, Map<number, Pick<any>[]>>();
+  for (const s of extras) {
+    if (s.source !== "picks-contract" || !Number.isSafeInteger(s.gameId)) throw new Error("an extra picks source must be picks-contract with a gameId");
+    const rm = new Map<number, Pick<any>[]>();
+    for (const x of [...new Set(m.extraPickRounds?.(span, s) ?? [])].sort((a, b) => a - b)) {
+      if (!Number.isSafeInteger(x) || x < 0) throw new Error(`extraPickRounds gave a bad round for game ${s.gameId}`);
+      rm.set(x, await readPicksContract(pr, s.gameId as number, x));
+    }
+    extra.set(s.gameId as number, rm);
+  }
+  const wallets = new Set<string>(carried);
+  for (const xs of picks.values()) for (const p of xs) wallets.add(p.wallet);
+  const st = await readVaultStakes(vault, game, [...wallets], w, now);
+  return { active: st.live, picks, extra, stakes: st.stakes, min: st.min };
 }
 
 /** One hourly run of one game. Throws (writing nothing) on a stop: missing last files, a node failure or disagreement. */
@@ -106,6 +160,37 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
   const out = new Out(o.out);
   const owner = holdWeeks(o.holdWeeks);
 
+  // ctx.published: this game's published finals and other kit games' (Phase 1 item 6), loaded once, read-only.
+  const published: Published = { own: Object.fromEntries(prev.finals().map((j) => [j.week, j])), games: {} };
+  for (const [slug, g] of Object.entries(o.published ?? {})) published.games[slug] = readPublishedFinals(g.dir, g.cfg);
+  // What inputsFor sees for week u: only weeks final before u's inputs file is made (weeks ≤ u − 2; week u − 1 is still
+  // being played then). The same view when the file is made and when it's recounted, so the recount can't differ
+  // just because a later week went final (FC-9).
+  const before = (u: number): Published => {
+    const cut = (r: Record<number, any>) => Object.fromEntries(Object.entries(r).filter(([k]) => Number(k) <= u - 2));
+    return { own: cut(published.own), games: Object.fromEntries(Object.entries(published.games).map(([k, v]) => [k, cut(v)])) };
+  };
+
+  // FC-9: next week's inputs file (price list, seeding), made once inside its window before the week opens, on both
+  // nodes (they must agree). Write-once: the publish check refuses a changed copy and any copy after the week opens.
+  if (cfg.inputsFile) {
+    if (!m.inputsFor) throw new Error(`${cfg.slug}: inputsFile is set but the module has no inputsFor`);
+    const lead = cfg.inputsLeadMs ?? DEFAULT_INPUTS_LEAD_MS;
+    if (!(lead > 0 && lead <= INPUTS_EARLIEST_MS)) throw new Error(`${cfg.slug}: inputsLeadMs must be above 0 and at most 7 days`);
+    const u = cw + 1, us = clock.span(u);
+    if (now >= us.start - lead && now < us.start && !prev.inputs(u)) {
+      try {
+        const data = toJson(await agree(`week ${u}'s inputs`, () => m.inputsFor!(us, { now, read: va, published: before(u) }), () => m.inputsFor!(us, { now, read: vb, published: before(u) })));
+        if (data === null || typeof data !== "object") throw new Error(`week ${u}: inputsFor must return an object or a list`);
+        out.write(`inputs/W${u}.json`, { game: cfg.game, week: u, data });
+        alerts.notes.push(`week ${u}: its inputs file was made (FC-9)`);
+      } catch (e) {
+        if (!(e instanceof Disagree || e instanceof OutOfBudget || e instanceof ReadFailed)) throw e;
+        alerts.errors.push(`week ${u}'s inputs file couldn't be made this run (${(e as Error).message}); it must be published before ${new Date(us.start).toISOString()} or that week can't be scored`);
+      }
+    }
+  }
+
   const w = cw - 1;
   if (w < 0) { log(`${cfg.slug}: no week has ended yet.`); return { week: null, state: "none", alerts, written: out.written }; }
   const span = clock.span(w), due = clock.due(w);
@@ -136,13 +221,18 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
   };
   if (now >= due && pw?.state === "final") return pastDue();
 
-  // 4. The source, on both nodes; it must be identical.
+  // 4. The source, on both nodes; it must be identical. vault-answers comes first (it carries the game's own inputs);
+  // picks-contract after the inputs, carried state and rounds (its reads follow the rounds).
   const src = sourceFor(m, o);
-  const [ra, rb] = await Promise.all([src(A, w, va), src(B, w, vb)]);
-  if (!sameJson(ra, rb)) throw new Disagree(`week ${w}'s picks, stakes or inputs`, toJson(ra), toJson(rb));
-  if ((ra.inputs as any)?.active === false) {
-    log(`${cfg.slug}: week ${w} is not paid from a results file (not active on chain): nothing to record.`);
-    return { week: null, state: "not-active", alerts, written: out.written };
+  let ra: SourceRead<any, any> | null = null;
+  if (src) {
+    const [x, y] = await Promise.all([src(A, w, va), src(B, w, vb)]);
+    if (!sameJson(x, y)) throw new Disagree(`week ${w}'s picks, stakes or inputs`, toJson(x), toJson(y));
+    ra = x;
+    if (ra.active === false || (ra.inputs as any)?.active === false) {
+      log(`${cfg.slug}: week ${w} is not paid from a results file (not active on chain): nothing to record.`);
+      return { week: null, state: "not-active", alerts, written: out.written };
+    }
   }
   if (now >= due) {
     // Every run until the week rolls over, so a skipped hour can't hide it (KC-21) — but only for a game that is
@@ -159,16 +249,73 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     earns = gameEarnsWeek(ga, w);
     if (!earns) alerts.notes.push(`week ${w}: game ${cfg.game} doesn't earn this week in the vault (not registered, before its from_week, or stopped): no vault file (FC-26)`);
   }
-  let inputs = ra.inputs;
-  if (m.inputsFor) {
+
+  // The week's inputs. FC-9 games score on their published inputs file (what players saw), recounted here on both
+  // nodes; a recount that differs holds the week. Other games read theirs now, on both nodes (KC-30).
+  let inputs = ra?.inputs;
+  let inputsHash: string | undefined;
+  let inputsHeld: string | null = null;
+  if (cfg.inputsFile) {
+    const f = prev.inputs(w);
+    if (!f) {
+      alerts.errors.push(`week ${w}: no inputs file was published before the week opened (inputs/W${w}.json, FC-9): it can't be scored; nothing recorded`);
+      return { week: w, state: "no-inputs", alerts, written: out.written };
+    }
+    inputs = f.data; inputsHash = sha256(canon(f));
+    try {
+      const again = await agree(`week ${w}'s inputs (recount)`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w) }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w) }));
+      if (!sameJson(again, f.data)) {
+        inputsHeld = `the inputs recount differs from the published inputs file (FC-9)`;
+        alerts.errors.push(`week ${w}: ${inputsHeld}: the week is held pending; check inputs/W${w}.json`);
+      }
+    } catch (e) {
+      if (!(e instanceof Disagree || e instanceof OutOfBudget || e instanceof ReadFailed)) throw e;
+      inputsHeld = `the inputs recount couldn't run (${(e as Error).message})`;
+      alerts.warnings.push(`week ${w}: ${inputsHeld}; it stays pending this run`);
+    }
+  } else if (m.inputsFor) {
     // Inputs the game reads itself (cards, seeding, prices), on both nodes; they must agree (KC-30).
-    inputs = await agree(`week ${w}'s inputs`, () => m.inputsFor!(span, { now, inputs: ra.inputs, read: va }), () => m.inputsFor!(span, { now, inputs: ra.inputs, read: vb }));
+    inputs = await agree(`week ${w}'s inputs`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w) }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w) }));
   }
-  const rounds: Round[] = m.roundsFor(span, { now, inputs }).slice().sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
+
+  // Carried state (FC-5): the week before must be final; its `next` is this week's start (through carryIn).
+  let carry: States<any> | null = null;
+  if (m.nextState) {
+    const pwk = prev.week(w - 1);
+    if (pwk && pwk.state !== "final") {
+      alerts.errors.push(`week ${w} waits on week ${w - 1}, which isn't final (held or still pending): its carried state isn't known, so nothing is recorded for week ${w} (FC-5)`);
+      return { week: w, state: "waiting", alerts, written: out.written };
+    }
+    const last: States<any> = new Map((pwk?.next ?? []) as [string, unknown][]);
+    carry = checkedStates("carryIn", m.carryIn ? m.carryIn(last, span, inputs) : last);
+  }
+
+  const rounds: Round[] = m.roundsFor(span, { now, inputs, published }).slice().sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
   if (rounds.length > MAX_ROUNDS) throw new Error(`${cfg.slug}: ${rounds.length} rounds in week ${w}, more than the kit's ${MAX_ROUNDS} (KC-11)`);
   const ids = new Set(rounds.map((r) => r.id));
   if (ids.size !== rounds.length) throw new Error(`${cfg.slug}: roundsFor gave a round id twice`);
+  if (!ra) {
+    const carried = carry ? [...carry.keys()] : [];
+    const [x, y] = await Promise.all([readPicksWeek(m, A, va, budget, cfg.game, w, now, span, rounds, carried), readPicksWeek(m, B, vb, budget, cfg.game, w, now, span, rounds, carried)]);
+    if (!sameJson(x, y)) throw new Disagree(`week ${w}'s picks or stakes`, toJson(x), toJson(y));
+    ra = x;
+    if (ra.active === false) {
+      log(`${cfg.slug}: week ${w} is not paid from a results file (the vault's v6 rule isn't live for it): nothing to record.`);
+      return { week: null, state: "not-active", alerts, written: out.written };
+    }
+  }
   for (const id of ra.picks.keys()) if (!ids.has(id)) throw new Error(`picks for round ${id}, which roundsFor doesn't list`);
+
+  // The fold: each round's state after its picks, in lock order (picks are known; results aren't needed).
+  const stateFor = new Map<string, States<any>>();
+  let next: States<any> | null = carry;
+  if (carry) {
+    for (const r of rounds.slice().sort((x, y) => x.locksAt - y.locksAt || (x.id < y.id ? -1 : 1))) {
+      const ps = (ra.picks.get(r.id) ?? []).slice().sort((x, y) => (x.wallet < y.wallet ? -1 : 1));
+      next = checkedStates(`nextState (round ${r.id})`, m.nextState!(next as States<any>, ps, r, inputs));
+      stateFor.set(r.id, next);
+    }
+  }
 
   // The published (pending) copy's rounds by id, by wallet address: a round that can't be re-read keeps them.
   const pubRounds = new Map<string, any[]>();
@@ -184,8 +331,12 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     const fun = cfg.sundayFunRound && isSunday(day) ? 1 : 0;
     const picks = (ra.picks.get(r.id) ?? []).slice().sort((x, y) => (x.wallet < y.wallet ? -1 : 1));
     for (const p of picks) if (!idx.has(p.wallet)) throw new Error(`round ${r.id}: ${p.wallet} picked but has no stake read`);
+    // Who plays the round: every wallet that picked, and (carried state) every wallet with a state.
+    const st = stateFor.get(r.id);
+    const who = [...new Set([...picks.map((p) => p.wallet), ...(st ? st.keys() : [])])].sort();
+    for (const a of who) if (!idx.has(a)) throw new Error(`round ${r.id}: ${a} has a state but no stake read`);
     let status: "s" | "v" | "p" = "p";
-    let rows: [string, number, number][] = picks.map((p) => [p.wallet, 0, 0]);
+    let rows: [string, number, number][] = who.map((a) => [a, 0, 0]);
     if (now >= r.resolvesAt) {
       try {
         const same = m.same ?? sameJson;
@@ -194,9 +345,10 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
         if (res === VOID) status = "v";
         else if (res !== PENDING) {
           status = "s";
-          const sc = m.scoreRound(r, picks, res, inputs);
-          if (sc.size !== picks.length) throw new Error(`round ${r.id}: scoreRound scored wallets that didn't pick`);
-          rows = picks.map((p) => {
+          const sc = m.scoreRound(r, picks, res, inputs, st);
+          if (sc.size !== who.length || who.some((a) => !sc.has(a))) throw new Error(`round ${r.id}: scoreRound must score exactly the wallets that picked${st ? " or carry a state" : ""}`);
+          rows = who.map((wa) => {
+            const p = { wallet: wa };
             const s = sc.get(p.wallet);
             if (!s || !Number.isSafeInteger(s.points) || s.points < 0 || !Number.isSafeInteger(s.at) || s.at < 0) throw new Error(`round ${r.id}: scoreRound gave no whole points and score time for ${p.wallet}`);
             if (s.points > 0 && !(s.at >= span.start && s.at < due)) throw new Error(`round ${r.id}: scoreRound gave ${p.wallet} a score time outside week ${w}'s start to its results deadline (NK-19)`);
@@ -222,8 +374,17 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     roundsOut.push([r.id, day, fun, status, rows.map(([a, p, at]) => (p > 0 ? [idx.get(a), p, at - span.start] : [idx.get(a), p]))]);
   }
   const body: any = { v: KIT_FILE_VERSION, game: cfg.game, week: w, start: span.start, end: span.end, min: ra.min, state: "pending", seen: { hash: "", at: 0 }, rounds: roundsOut, players };
-  const hash = weekHash(body);
+  if (inputsHash) body.inputs = inputsHash;
+  if (carry) { body.carry = stateList(carry); body.next = stateList(next as States<any>); }
   const t = tally(body, cfg);
+  if (m.weekExtras) {
+    const points = new Map<string, number>(t.rows.map((x: any) => [x.a, x.pts]));
+    const staked = new Set<string>(t.rows.filter((x: any) => x.board === "staked").map((x: any) => x.a));
+    const ex = toJson(m.weekExtras(span, { points, picks: ra.extra ?? new Map(), staked, inputs }));
+    if (ex === null || typeof ex !== "object" || Buffer.byteLength(JSON.stringify(ex)) > MAX_EXTRAS_BYTES) throw new Error(`${cfg.slug}: weekExtras must return an object or list of at most ${MAX_EXTRAS_BYTES} bytes`);
+    body.extras = ex;
+  }
+  const hash = weekHash(body);
   if (cfg.rowCap > 0 && t.rows.length > cfg.rowCap) alerts.warnings.push(`week ${w}: ${t.rows.length} board rows, over the game's cap of ${cfg.rowCap}: board.json keeps the ranked rows and the best others`);
 
   const sizeAlert = (what: string, n: number) => {
@@ -237,6 +398,19 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     if (n > MAX_WRITE_BYTES) { alerts.errors.push(`week ${w}: board.json would be ${Math.round(n / 1024)} KB even with only its ranked and prize rows: not written this run (the week file and vault file still are). This needs a board cap agreed with the vault bot (NK-4)`); return; }
     sizeAlert("board.json", n);
     out.write("board.json", b);
+  };
+
+  // alltime.json (FC-16, FC-18): rebuilt each run from every published final week (and this run's), medals only for
+  // weeks with a vault file — the publish check rebuilds it the same way.
+  const writeAllTime = (thisFinal: any | null, vaultWeek: number | null) => {
+    const finals = new Map<number, any>(prev.finals().map((j) => [j.week, j]));
+    if (thisFinal) finals.set(thisFinal.week, thisFinal);
+    if (!finals.size) return;
+    const medal = new Set<number>([...finals.keys()].filter((x) => !!prev.vault(x) || x === vaultWeek));
+    const at = allTimeOf([...finals.values()], cfg, medal, new Date(now).toISOString());
+    const n = Buffer.byteLength(canon(at));
+    if (n > MAX_WRITE_BYTES) { alerts.errors.push(`alltime.json would be ${Math.round(n / 1024)} KB: not written`); return; }
+    out.write("alltime.json", at);
   };
 
   // A published final never changes (RECORDER §3.3, §4.7).
@@ -256,8 +430,10 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     }
     writeBoard(boardFor(pw, cfg, now));
     const pv = prev.vault(w);
+    let vw = !!pv;
     if (pv) out.copy(`vault/W${w}.json`, pv);
-    else if (earns) { const vf = vaultFileFor(pw, cfg, now, due); if (vf) out.write(`vault/W${w}.json`, vf); }
+    else if (earns) { const vf = vaultFileFor(pw, cfg, now, due); if (vf) { out.write(`vault/W${w}.json`, vf); vw = true; } }
+    writeAllTime(null, vw ? w : null);
     log(`${cfg.slug} week ${w}: final (copied forward).`);
     return { week: w, state: "final", alerts, written: out.written };
   }
@@ -266,7 +442,7 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
   const change = pw ? roundsChange(pw, body, cfg) : "";
   if (change) alerts.errors.push(`week ${w}: the publish check will hold this week file (${change}); check the round on chain`);
   if (t.vaultError) alerts.errors.push(`week ${w}: no vault file can be made (${t.vaultError}); it stays pending`);
-  const d = decide({ now, end: span.end, due, complete: t.complete, hash, prev: pw ? { state: pw.state, seen: pw.seen } : null, rereadOk, held: held ?? (t.vaultError ? `no vault file: ${t.vaultError}` : null) });
+  const d = decide({ now, end: span.end, due, complete: t.complete, hash, prev: pw ? { state: pw.state, seen: pw.seen } : null, rereadOk, held: held ?? inputsHeld ?? (t.vaultError ? `no vault file: ${t.vaultError}` : null) });
   body.state = d.state; body.seen = d.seen;
   const size = Buffer.byteLength(JSON.stringify(body));
   if (size > MAX_WRITE_BYTES) throw new Error(`week ${w}'s file would be ${Math.round(size / 1024)} KB, over the ${Math.round(MAX_WRITE_BYTES / 1024)} KB the kit writes: this game has outgrown one week file (GAME_KIT.md §6: split it before this happens)`);
@@ -275,6 +451,7 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
   writeBoard(boardFor(body, cfg, now));
   const vf = earns ? vaultFileFor(body, cfg, now, due) : null;
   if (vf) out.write(`vault/W${w}.json`, vf);
+  writeAllTime(body.state === "final" ? body : null, vf ? w : null);
   if (d.state !== "final" && due - now < DUE_WARN_HOURS * HOUR) alerts.warnings.push(`week ${w}: not final yet (${d.why}); its results are due ${new Date(due).toISOString()}`);
   if (held) alerts.notes.push(`week ${w} held: ${held}`);
   log(`${cfg.slug} week ${w}: ${d.state.toUpperCase()} (${d.why}); ${rounds.length} rounds, ${t.rows.length} players, ${t.vault.rows.length} staked rows, first ${t.vault.first.length}, second ${t.vault.second.length}.`);

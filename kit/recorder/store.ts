@@ -9,7 +9,7 @@ import { canon, pad3, weekShape } from "../publish/check.inline.mjs";
 export const MAX_WRITE_BYTES = 1_900_000;   // under the publish job's 2 MB cap
 export const FETCHED_MARK = ".fetched";
 
-export type GameCfg = { game: number; genesis: number; weekMs?: number; sundayFunRound: boolean; maxRoundPoints?: number };
+export type GameCfg = { game: number; genesis: number; weekMs?: number; sundayFunRound: boolean; maxRoundPoints?: number; inputsFile?: boolean };
 
 export class Prev {
   private constructor(readonly dir: string, private readonly files: Map<string, any>) {}
@@ -29,9 +29,11 @@ export class Prev {
       }
       files.set(rel, v);
     };
-    for (const f of fs.readdirSync(dir).sort()) if (/^(board|W([0-9]{3}|[1-9][0-9]{3}))\.json$/.test(f)) take(f);
+    for (const f of fs.readdirSync(dir).sort()) if (/^(board|alltime|W([0-9]{3}|[1-9][0-9]{3}))\.json$/.test(f)) take(f);
     const vd = path.join(dir, "vault");
     if (fs.existsSync(vd)) for (const f of fs.readdirSync(vd).sort()) if (/^(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3})\.json$/.test(f)) take(`vault/${f}`);
+    const id = path.join(dir, "inputs");
+    if (fs.existsSync(id)) for (const f of fs.readdirSync(id).sort()) if (/^W(0|[1-9][0-9]{0,3})\.json$/.test(f)) take(`inputs/${f}`);
     return new Prev(dir, files);
   }
 
@@ -40,6 +42,13 @@ export class Prev {
   holdFile(w: number): any | null { return this.files.get(`vault/HOLD-W${w}.json`) ?? null; }
   releaseFile(w: number): any | null { return this.files.get(`vault/RELEASE-W${w}.json`) ?? null; }
   board(): any | null { return this.files.get("board.json") ?? null; }
+  /** The week's published inputs file (FC-9), parsed. */
+  inputs(w: number): any | null { return this.files.get(`inputs/W${w}.json`) ?? null; }
+  alltime(): any | null { return this.files.get("alltime.json") ?? null; }
+  /** Every published final week file, in week order. */
+  finals(): any[] {
+    return [...this.files.entries()].filter(([k, v]) => /^W[0-9]{3,4}\.json$/.test(k) && v.state === "final").map(([, v]) => v).sort((a, b) => a.week - b.week);
+  }
   names(): string[] { return [...this.files.keys()]; }
 }
 
@@ -48,7 +57,8 @@ export class Out {
   readonly written: string[] = [];
   constructor(readonly dir: string) { fs.mkdirSync(path.join(dir, "vault"), { recursive: true }); }
   write(rel: string, v: unknown) {
-    if (!/^(board\.json|W([0-9]{3}|[1-9][0-9]{3})\.json|vault\/(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3})\.json)$/.test(rel)) throw new Error(`the kit never writes ${rel}`);
+    if (!/^(board\.json|alltime\.json|W([0-9]{3}|[1-9][0-9]{3})\.json|vault\/(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3})\.json|inputs\/W(0|[1-9][0-9]{0,3})\.json)$/.test(rel)) throw new Error(`the kit never writes ${rel}`);
+    if (rel.startsWith("inputs/")) fs.mkdirSync(path.join(this.dir, "inputs"), { recursive: true });
     const s = canon(v);
     if (Buffer.byteLength(s) > MAX_WRITE_BYTES) throw new Error(`${rel} would be over ${MAX_WRITE_BYTES} bytes: stopping (RECORDER §6.7)`);
     fs.writeFileSync(path.join(this.dir, rel), s);

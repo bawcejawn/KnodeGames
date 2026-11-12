@@ -102,6 +102,8 @@ export type WeekFile = {
   rulerFrom?: number | null;                             // R-BR-7: BRACKET_RULER_FROM_WEEK as this week was last
   rulerMode?: "off" | "shadow" | "on";                   // recorded, and the week's mode (vhp-ruler rulerMode); always last
   rulerSchedule?: string | null;                         // phase 2: BRACKET_RULER_MODE as this week was last recorded
+  rulerBackup?: number[];                                // phase 2, an on week: the rounds (0-based) the seed rule decided
+                                                         // because no ruler card came within the grace (owner, 12 Nov)
 };
 import type { Chain, Node } from "../vhp-chain.ts";
 export type { Chain, Node };
@@ -170,7 +172,10 @@ function loadWeek(dir: string | undefined, w: number): WeekFile {
     if (Array.isArray(old.staked.held) && old.staked.held.every(isAddr)) f.staked.held = [...old.staked.held].sort();
   }
   if (old.vault === "missed") f.vault = "missed";
-  if (rulerFieldsOk(old)) { f.rulerFrom = old.rulerFrom; f.rulerMode = old.rulerMode; if ("rulerSchedule" in old) f.rulerSchedule = old.rulerSchedule; }
+  if (rulerFieldsOk(old)) {
+    f.rulerFrom = old.rulerFrom; f.rulerMode = old.rulerMode; if ("rulerSchedule" in old) f.rulerSchedule = old.rulerSchedule;
+    if (old.rulerMode === "on" && backupOk(old.rulerBackup, f.seeding ? B.roundsOf(f.seeding.size) : 0)) f.rulerBackup = [...old.rulerBackup];
+  }
   f.days = emptyDays(f.seeding ? f.seeding.size : 0);
   if (Array.isArray(old.days)) old.days.forEach((d: any, r: number) => { if (r < f.days.length && Array.isArray(d)) d.forEach((h: any, i: number) => { if (i < 24 && hourOk(h, f.seeding!.seeds)) f.days[r][i] = h; }); });
   // A final week stays final and FROZEN (leaderboard standard: a published final board never changes): its stored
@@ -185,6 +190,8 @@ function loadWeek(dir: string | undefined, w: number): WeekFile {
   return f;
 }
 const sortedUnique = (l: string[]) => l.every((x, i) => i === 0 || l[i - 1] < x);
+/** A recorded rulerBackup: a non-empty, rising list of round indices of the week's bracket. */
+const backupOk = (v: any, rounds: number): v is number[] => Array.isArray(v) && v.length > 0 && v.every((r, i) => Number.isInteger(r) && r >= 0 && r < rounds && (i === 0 || v[i - 1] < r));
 /** A stored week's ruler fields (R-BR-7): both or neither, a valid switch value and the mode it gives that week. */
 export function rulerFieldsOk(old: any): boolean {
   if (!old || !("rulerFrom" in old) || !("rulerMode" in old)) return false;
@@ -391,15 +398,22 @@ const hoursOf = (w: number, wf: WeekFile) => { const out: [number, number, numbe
 const allReRead = (wf: WeekFile) => wf.days.length > 0 && wf.days.every((d) => d.every((h) => !!h && h.re === 1)) && wf.picks?.re === 1;
 /** A week's file as written (never the `bad` note). */
 const fileOf = (wf: WeekFile) => {
-  const { bad: _bad, rulerFrom, rulerMode, rulerSchedule, ...rest } = wf;
+  const { bad: _bad, rulerFrom, rulerMode, rulerSchedule, rulerBackup, ...rest } = wf;
   if (rulerMode === undefined) return rest;
-  // the ruler fields always last; rulerSchedule (phase 2) only when it was recorded (a phase 1 final file keeps its form)
-  return rulerSchedule === undefined ? { ...rest, rulerFrom: rulerFrom ?? null, rulerMode } : { ...rest, rulerFrom: rulerFrom ?? null, rulerMode, rulerSchedule };
+  // the ruler fields always last; rulerSchedule (phase 2) only when it was recorded (a phase 1 final file keeps its form);
+  // rulerBackup only when the seed rule decided a round
+  return { ...rest, rulerFrom: rulerFrom ?? null, rulerMode, ...(rulerSchedule === undefined ? {} : { rulerSchedule }), ...(rulerBackup && rulerBackup.length ? { rulerBackup } : {}) };
 };
 
 const MAX_CARDS_PER_RUN = 5;               // R-BR-7: day cards made per run (about 2 s each, after a 10-s data load)
 /** R-BR-7 phase 2: a day card still missing this long after its day ended alerts (the Race's RULER_LATE_ALERT). */
 export const RULER_LATE = 3 * 3600000;
+/** The grace after the week's end (the Race's): past it, a round still without a card is decided by the seed rule. */
+export const RULER_GRACE = 48 * 3600000;
+/** The backup day (owner, 12 Nov: "your existing seed rule decides the open matchups"): the seeding decides, so in
+ *  each open matchup the better seed (the one seeded higher, by VHP) goes through, after the forfeit rule as on any day.
+ *  As a card: seed i gets fpct 1,000,000 − i (seeds[0] = seed 1 highest), so the higher fpct is always the better seed. */
+export const seedRuleDay = (seeds: string[]) => new Map<string, string | null>(seeds.map((a, i) => [a, String(1000000 - i)]));
 /** What to do when the ruler's data is behind (the Race's RULER_FIX, the Ruler chat's line). */
 export const RULER_FIX = "GitHub → Actions → \"VHP ruler data\": if the latest run is red, click \"Re-run all jobs\"; missed hours are read back from the chain by themselves, and if it is red again the next hour, send its error text to the VHP Ruler chat. The Bracket retries every hour by itself; the week waits (nothing is decided on the old index)";
 /** R-BR-7: a week's ruler files and its day cards' texts. Each round's day card once all 24 of its hours are recorded
@@ -414,6 +428,7 @@ export function rulerWeek(w: number, wf: WeekFile, prevDir: string | undefined, 
   for (let r = 0; r < wf.days.length; r++) {
     const name = RU.cardName(w, r), was = prevDir && fs.existsSync(path.join(prevDir, "ruler", name)) ? fs.readFileSync(path.join(prevDir, "ruler", name), "utf8") : null;
     if (was !== null) { texts.push(was); out.push([name, was]); continue; }
+    if (wf.rulerBackup && wf.rulerBackup.includes(r)) { texts.push(null); continue; }   // decided by the seed rule: no card
     const d = wf.days[r];
     if (!d.every((h) => !!h && h.re === 1) || made >= MAX_CARDS_PER_RUN) { texts.push(null); continue; }
     const got = cardFor(RU.settingsFor(B.roundDay(w, r, size), d[0]!.from, d[23]!.to, mode));
@@ -660,7 +675,22 @@ export async function run(o: Opts) {
       try { ruled = rulerWeek(w, wf, PREV, cardFor, RULER_SCHED, now, problems); }
       catch (e) { problems.push(`week ${w}: the ruler's cards: ${(e as Error).message} (tried again next run)`); }
     }
-    const sc = on ? scoreWeek(wf, ruled ? rulerDaysOf(ruled.texts) : wf.days.map(() => null)) : scoreWeek(wf);
+    let sc;
+    if (on) {
+      const texts = ruled ? ruled.texts : wf.days.map(() => null);
+      // after the grace (owner, 12 Nov): a round whose day is fully recorded and re-read but still has no card is decided
+      // by the seed rule; the week file records which rounds (rulerBackup), and the owner is alerted. Never silent
+      if (now >= B.weekStart(w + 1) + RULER_GRACE && wf.seeding && wf.seeding.size) {
+        const add = texts.flatMap((t, r) => (t === null && !(wf.rulerBackup ?? []).includes(r) && wf.days[r]!.every((h) => !!h && h.re === 1) ? [r] : []));
+        if (add.length) {
+          wf.rulerBackup = [...(wf.rulerBackup ?? []), ...add].sort((a, b) => a - b);
+          const m = `week ${w}: no VHP ruler card for round${add.length > 1 ? "s" : ""} ${add.map((r) => r + 1).join(", ")} 48 hours after the week ended, so the seed rule decides ${add.length > 1 ? "them" : "it"} (the better seed goes through each open matchup, after forfeits; owner, 12 Nov)`;
+          console.log(`::error::${m}`); problems.push(m);
+        }
+      }
+      const days = rulerDaysOf(texts).map((d, r) => ((wf.rulerBackup ?? []).includes(r) ? seedRuleDay(wf.seeding!.seeds) : d));
+      sc = scoreWeek(wf, days);
+    } else sc = scoreWeek(wf);
     wf.results = sc.results; wf.points = sc.points;
     const done = !!(sc.results && sc.results.done);
     if (ruled) {

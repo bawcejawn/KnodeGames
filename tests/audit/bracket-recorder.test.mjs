@@ -926,8 +926,40 @@ test("R-BR-7 phase 2: a day card that can't be made yet waits (never the day ind
     assert.ok(r2.held.includes("!alert") && /week 3 round 3: the VHP ruler.s day card is still missing 3 hours/.test(r2.out), "3 hours after: the owner is alerted");
     assert.ok(!r2.held.some((x) => x.startsWith("bracket/")), "the waiting week itself is published");
     const r3 = say(B.weekStart(W + 1) + 48 * H + 60000);
-    assert.match(r3.out, /48 hours after the week ended/);
+    assert.match(r3.out, /still waiting for the VHP ruler 48 hours after the week ended: once each missing day is recorded and re-read, the seed rule decides/);
   }
+});
+
+test("R-BR-7 phase 2 backup (owner, 12 Nov): after the 48-hour grace the seed rule decides the rounds still without a card; recorded, alerted, checked", async () => {
+  const lateFrom = RU.roundOf(B.roundDay(W, 2, 16));
+  const late = (st) => (st.round >= lateFrom ? { notYet: "vhp-data reaches block 1" } : realCards(st));
+  const { dir, o } = await rulerWeekDir({ rulerFrom: String(W), dayCardOf: late });
+  const before = readW(dir);
+  assert.ok(!("rulerBackup" in before), "before the grace: no backup, the week waits");
+  const pub = tmp(); fs.cpSync(dir, pub, { recursive: true });
+  const GRACE = B.weekStart(W + 1) + 48 * H;
+  await runUntil(GRACE + H, o, dir, 3);
+  const wf = readW(dir), seeds = wf.seeding.seeds, size = wf.seeding.size;
+  assert.deepEqual(wf.rulerBackup, [2, 3], "rounds 3 and 4 (no card) decided by the seed rule");
+  assert.deepEqual(Object.keys(wf).slice(-4), ["rulerFrom", "rulerMode", "rulerSchedule", "rulerBackup"], "recorded last");
+  assert.equal(wf.results.done, true); assert.equal(wf.status, "final");
+  assert.ok(fs.existsSync(path.join(dir, "vault", `W${W}.json`)), "the week is paid");
+  assert.ok(!fs.existsSync(rulerFile(dir, RU.cardName(W, 2))) && !fs.existsSync(rulerFile(dir, RU.cardName(W, 3))), "no card is made later for a decided round");
+  const cards = [0, 1].map((r) => new Map(Object.entries(RU.rowsOf(fs.readFileSync(rulerFile(dir, RU.cardName(W, r)), "utf8")))));
+  const days = wf.days.map((d) => B.indexFromHours(d)), tie = new Map(seeds.map((a, i) => [a, String(1000000 - i)]));
+  assert.deepEqual(wf.results.rounds, B.results(seeds, size, days, wf.seeding.vhp, wf.seeding.pooled, [...cards, tie, tie]).rounds, "rounds 1–2 by their cards, rounds 3–4 by the seed rule");
+  assert.deepEqual(tie, rec.seedRuleDay(seeds), "the recorder's backup day");
+  const say = (d, opt) => { const hf = path.join(tmp(), "held"); fs.writeFileSync(hf, ""); const out = checkRun(d, { ruler: String(W), held: hf, ...opt }); return { out, held: fs.readFileSync(hf, "utf8").split("\n").filter(Boolean) }; };
+  const ok = say(dir, { pub, now: GRACE + 2 * H });
+  assert.deepEqual(ok.held, ["!alert"], "the publish job accepts the week, and alerts the owner");
+  assert.match(ok.out, /week 3: the seed rule decided round\(s\) 3, 4: no VHP ruler card 48 hours after the week ended/);
+  assert.deepEqual(say(dir, { now: GRACE + 3 * H }).held, [], "once published, no new alert");
+  const edit = (mut) => { const d = tmp(); fs.cpSync(dir, d, { recursive: true }); const f = path.join(d, `W00${W}.json`), j = JSON.parse(fs.readFileSync(f, "utf8")); mut(j, d); fs.writeFileSync(f, JSON.stringify(j) + "\n"); return d; };
+  assert.ok(say(dir, { pub, now: GRACE - 60000 }).held.includes(`bracket/W00${W}.json`), "the seed rule before the grace ends is refused");
+  assert.ok(say(edit((j) => { j.rulerBackup = [1, 2, 3]; }), { pub, now: GRACE + 2 * H }).held.includes(`bracket/W00${W}.json`), "a round that has a card can't be decided by the seed rule");
+  const withCard = edit((j, d) => { fs.writeFileSync(rulerFile(d, RU.cardName(W, 2)), fs.readFileSync(rulerFile(d, RU.cardName(W, 1)), "utf8")); });
+  assert.ok(say(withCard, { pub, now: GRACE + 2 * H }).held.includes("bracket/ruler/" + RU.cardName(W, 2)), "nor can a card appear for a round the seed rule decided");
+  assert.ok(say(edit((j) => { j.results.rounds[3] = [j.results.rounds[2].find((x) => x !== j.results.rounds[3][0])]; }), { pub, now: GRACE + 2 * H }).held.includes(`bracket/W00${W}.json`), "a result other than the seed rule's is refused");
 });
 
 test("R-BR-7 phase 2: the mode schedule (BRACKET_RULER_MODE) is on every card and checked like the switch", async () => {

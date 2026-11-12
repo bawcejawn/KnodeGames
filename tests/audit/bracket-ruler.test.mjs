@@ -35,6 +35,14 @@ test("with a ruler card: the higher fpct wins; equal fpct goes to the lower seed
   assert.deepEqual(B.results(seeds, 8, days(), undefined, undefined, [flat, flat, flat]).rounds, B.results(seeds, 8, days()).rounds, "a tie: the lower seed, as an index tie");
 });
 
+test("the backup after the 48-hour grace (owner, 12 Nov): the seed rule, so the better seed goes through, after forfeits", async () => {
+  const BR = await import(path.resolve(APP, "bot/games/bracket.ts"));
+  const day = BR.seedRuleDay(seeds);
+  assert.deepEqual(B.results(seeds, 8, days(), undefined, undefined, [day, day, day]).rounds, [[1, 4, 3, 2], [1, 2], [1]], "every favourite wins");
+  const ix = days(); ix[0].set(seeds[0], { credited: 100, expected: 100, avg: 1, rate: 0, q: 0 });   // seed 1 under half its seeding VHP
+  assert.equal(B.results(seeds, 8, ix, seeds.map(() => 1000), undefined, [day, null, null]).rounds[0][0], 8, "a forfeit still comes first");
+});
+
 test("a void seed (no fpct) loses; both void: the day index decides; a seed missing from the card counts as void", () => {
   const ix = days();
   ix[0].set(seeds[0], { credited: 200, expected: 100, avg: 1e14, rate: 0, q: 0 });   // seed 1 has the better index
@@ -97,7 +105,7 @@ def ok(f):
 print(json.dumps({"from": [ok(lambda: switch_from(v)) for v in vals],
   "mode": [ok(lambda: ruler_mode(w, v)) for v in vals for w in weeks],
   "change": [ok(lambda: None if switch_change(p, n, w) is None else "REFUSED") for p in vals for n in vals for w in weeks]}))`;
-  for (const [what, prelude] of [["the workflow's copy", "import re\n" + copy], ["vhp_ruler.py", `import sys; sys.path.insert(0, ${JSON.stringify(path.resolve(APP))})\nfrom vhp_ruler import switch_from, ruler_mode, switch_change`]]) {
+  for (const [what, prelude] of [["the workflow's copy", "import os, re, time\n" + copy], ["vhp_ruler.py", `import sys; sys.path.insert(0, ${JSON.stringify(path.resolve(APP))})\nfrom vhp_ruler import switch_from, ruler_mode, switch_change`]]) {
     const out = JSON.parse(execFileSync("python3", ["-c", harness(prelude), JSON.stringify(vals), JSON.stringify(weeks)]).toString());
     assert.deepEqual(out, want, what);
   }

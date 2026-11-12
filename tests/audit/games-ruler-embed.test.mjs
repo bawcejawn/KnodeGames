@@ -14,6 +14,6 @@ test("games.yml embeds vhp_ruler.py byte for byte (tools/games-ruler-embed.mjs)"
   const copy = yml.slice(i + B.length, j).split("\n").map((l) => (l.startsWith(ind) ? l.slice(ind.length) : l)).join("\n");
   assert.equal(copy, py.replace(/\n$/, "") + "\n", "the embedded copy differs from vhp_ruler.py: run node tools/games-ruler-embed.mjs");
   // the here-doc it sits in, written to the path the Bracket check loads it from
-  assert.match(yml.slice(0, i), /cat > "\$RUNNER_TEMP\/bracket-ruler-code\/vhp_ruler\.py" <<'RULERPY'\n$/);
+  assert.match(yml.slice(0, i), /cat > "\$RUNNER_TEMP\/ruler-code\/vhp_ruler\.py" <<'RULERPY'\n$/);
   assert.match(yml.slice(j), /^ {10}# END vhp_ruler\.py\n {10}RULERPY\n/);
 });

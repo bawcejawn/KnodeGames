@@ -64,7 +64,8 @@ the boards or the vault file.
 **Phase 2 (this build): on.** In an on week every matchup is decided by that day's card (the rule above); the results,
 points, boards and vault file follow. Set `BRACKET_RULER_FROM_WEEK` = N during week N − 1 (that week becomes the
 shadow week at once).
-- **The publish job rebuilds every new card** (shadow or on) with the embedded copy of `vhp_ruler.py` (between
+- **The publish job rebuilds every new card** (shadow or on) with the one embedded copy of `vhp_ruler.py` in the
+  publish job (the step "The VHP ruler's code and data", shared by every game's check there; between
   `# BEGIN vhp_ruler.py` / `# END vhp_ruler.py` in `games.yml`, written by `node tools/games-ruler-embed.mjs`, tested
   byte for byte by `tests/audit/games-ruler-embed.test.mjs`) from the `vhp-data` branch, with the game's own settings
   from the week file (never the card's), and holds any card that differs. It rescores an on week from the cards it
@@ -73,7 +74,13 @@ shadow week at once).
 - **A card that can't be made waits.** While the ruler's data doesn't reach the day's end + 20 blocks, or its card is
   `flagged` (an hour in dispute), the card isn't written and the day's matchups wait; the week never falls back to
   the day index. The publish job alerts the owner 3 hours after the day ended, and again once the week is 48 hours
-  past its end. What happens after the grace is the owner's decision (until then: the week waits for its backstop).
+  past its end.
+- **After the 48-hour grace (owner, 12 Nov): the seed rule.** A round whose day is fully recorded and re-read but still
+  has no card is decided by the seeding: in each open matchup the better seed goes through, after the forfeit rule as
+  on any day (`seedRuleDay`: seed i as fpct 1,000,000 − i). The week file records the rounds as `rulerBackup` (0-based,
+  last), no card is made for them afterwards, and the publish job alerts the owner once (a new `rulerBackup`). It refuses
+  a backup before the grace, a backup round that has a card, a card for a backup round, and a result that isn't the
+  seed rule's. A week whose days themselves can't be recorded is still void at its backstop.
 - **A void producer is a different case:** the card exists and says that producer has no `fpct` (its VHP moved out of
   its band); that seed loses its matchup, as above.
 - **Mode schedule** (`BRACKET_RULER_MODE`, e.g. `5:B`; unset = mode A, no `mode` on the card): read strictly with

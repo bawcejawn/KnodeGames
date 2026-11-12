@@ -3,7 +3,7 @@
 Owner's goal: six-digit daily visitors, free for players, nothing breaking without weeks of warning, funds always
 safe. This folder is the source of truth for the capacity work. Plan and numbers: `claude/capacity/` in the KnodeGames
 project; steps for the owner: [OWNER-STEPS.md](OWNER-STEPS.md); the proposed standard for every game:
-[STANDARD-PROPOSAL.md](STANDARD-PROPOSAL.md); the review pack: [REPOLENS.md](REPOLENS.md).
+[STANDARD-PROPOSAL.md](STANDARD-PROPOSAL.md); the shared file format: [PARTS-SPEC.md](PARTS-SPEC.md); the review pack: [REPOLENS.md](REPOLENS.md).
 
 ## Three kinds of "users" and where each one lands
 | Kind | What it costs today | Where it goes after Phase A |

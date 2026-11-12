@@ -21,7 +21,8 @@ writes), (c) claims, stakes and withdrawals (sponsored transactions). Plan, mode
 | 7 | Cloudflare Worker `kg-data`: data mirror + authorized live-file PUT | `tools/cloudflare/kg-data-worker.js`, `capacity-worker.test.mjs` | none until the owner deploys it (A3) | this PR |
 | 8 | Live-file uploader + Windows task installer | `tools/capacity-live/uploader.mjs`, `node/install-live-uploader.ps1`, `capacity-live-uploader.test.mjs`, `.gitignore` | none until A4 | this PR |
 | 9 | T3 page call counter, T5 mirror under load | `tools/capacity-harness/pages.mjs`, `mirror-load.mjs` | tools only | this PR |
-| 10 | Docs: overview, owner steps, standard proposal, this pack | `docs/capacity/*` | none | this PR |
+| 10 | Docs: overview, owner steps, standard proposal, the file-format spec (KG parts v1), this pack | `docs/capacity/*` | none | this PR |
+| 12 | File sizer for any format (before/after) | `tools/capacity-harness/filesize.mjs`, `capacity-filesize.test.mjs` | tool only | this PR |
 | 11 | Cloudflare in front of the site (A2) + cache rule (A2b) | Cloudflare dashboard (owner) | live since 12 Nov | done |
 
 ## 3. Architecture after Phase A
@@ -83,6 +84,7 @@ Key decisions:
 | Last Node 60% warning + loud `readPicks` | Last Node chat | its launch PR |
 | Golf, Bracket, Fantasy, Combo, Survivor file sizes measured | each game chat | before first paid week |
 | Capacity standard adopted; rules 2-4 in the kit | Library + Architecture | proposal in `STANDARD-PROPOSAL.md` |
+| Shared file format `kit/parts` (spec `PARTS-SPEC.md`): encoder, writer, inline publish check, 60% warning | Capacity builds, Architecture reviews, Repo Lens | PR by Fri 20 Nov, merge Wed 25 Nov; Race moves first (merged before Mon 7 Dec) |
 | Sponsor v4 (higher ceiling, withdraw + claim reserves) and KOIN plan | Capacity proposal Mon 23 Nov; contract by the sponsor chat with Repo Lens + testnet | Stage 1 |
 | Workers paid plan ($5/month) before ~2,500-3,000 daily visitors | owner | Stage 1 cost proposal |
 | Block X page still polls the node every 6 s for its countdown when the live file is off | Capacity (switch-on brings it to the live file) | with A4b |

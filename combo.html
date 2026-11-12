@@ -345,7 +345,8 @@
       <p>A leg that hits half the time is worth ×1. An easy leg, like a big producer finishing in the top half, is worth less than ×1; a hard one up to ×3. Race chances come from 4,000 simulated races on the card; Block X from each producer's share of VHP.</p>
       <p><b>The card.</b> Points = the base for its number of legs × every leg's worth. There's no cap: if you can build it, you can win it.</p>
       <table class="base" id="base-table"></table>
-      <p><b>Fair rules.</b> A race takes up to 3 legs, one of each type, on different horses; a block takes one. Each producer can be on your card only once, since one good day would carry all its legs together. If a race or block is void, that leg is dropped and the card scores on the rest (with at least 2 legs). A card is final when every leg is final; results come from irreversible blocks that match on two independent nodes.</p>
+      <p><b>Fair rules.</b> A race takes up to 3 legs, one of each type, on different horses; a block takes one. Each producer can be on your card only once, since one good day would carry all its legs together. If a race or block is void, that leg is dropped and the card scores on the rest (with at least 2 legs). On the VHP ruler (below), a leg on a producer the ruler voids for that race counts as a loss, as it does in the Producer Race. A card is final when every leg is final; results come from irreversible blocks that match on two independent nodes.</p>
+      <p id="ruler-rules"><b>The VHP ruler.</b> Race legs are decided the way the Producer Race decides its 6-hour races. On the ruler, a race's places come from the shared VHP ruler: each producer's blocks measured against what its own VHP should give, so big and small producers are judged on the same yardstick. A producer whose VHP jumps or falls too far during the race is void for that race, and a leg on it counts as a loss. Block X legs don't change: who signed a block is a fact. Worths are still priced from the handicap card. <span id="ruler-from">The date the ruler starts is shown here once it is set.</span></p>
       <p><b>The week.</b> Your best 10 cards count. The page and the recorder run the same scoring file, so the points shown are the points paid.</p>
     </details>
   </main>
@@ -400,6 +401,7 @@
   <script src="wallet.js"></script>
   <script src="header-wallet.js"></script>
   <script src="nav.js"></script>
+  <script src="weeks.js"></script>
   <script src="weeks.js"></script>
   <script src="board.js"></script>
   <script src="race-math.js"></script>

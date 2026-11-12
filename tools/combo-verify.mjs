@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { makeScorer, blockTargets, clearFiles, VAULT_WINDOW_MS } from "../bot/games/combo-score.mjs";
+import { makeScorer, blockTargets, clearFiles, VAULT_WINDOW_MS, rulerFrom, ruledDay } from "../bot/games/combo-score.mjs";
 import { scoringVhpMoves, NonCanonicalTransfer, MOVE_MARGIN, decodeBase58, encodeBase58 } from "../bot/games/vhp-inflows.mjs";
 const M = globalThis.KRaceMath, C = globalThis.KCombo;
 
@@ -134,11 +134,13 @@ function dayOf(dir, day) {
 const chainKey = (c) => JSON.stringify([c.player, c.legs.map((l) => (Array.isArray(l) ? [l[0], l[1], l[2]] : [l.code, l.round, l.producer])), c.time, c.changes]);
 
 /** Confirm the incoming day files. o: { incoming, published, race, blockx, p, check, picks, now, vhp, vhpMovesOf, vault,
- *  onDays (called with the day results before any Vault read), vaultBudgetMs, clock (the budget's clock; tests) }.
+ *  onDays (called with the day results before any Vault read), vaultBudgetMs, clock (the budget's clock; tests),
+ *  rulerFrom (COMBO_RULER_FROM_WEEK; default: the environment) }.
  *  Returns { approved: [{ name, sha256 }], problems: [{ day, why, alert }] }. Exported for the tests. */
 export async function verify(o) {
   clearFiles();
   const now = o.now ?? Date.now();
+  const RULER_FROM = rulerFrom(o.rulerFrom !== undefined ? o.rulerFrom : (process.env.COMBO_RULER_FROM_WEEK ?? ""));
   const names = fs.existsSync(o.incoming) ? fs.readdirSync(o.incoming).filter((f) => partOf(f)) : [];
   const days = [...new Set(names.map((f) => partOf(f)[0]))].sort((a, b) => a - b);
   const approved = [], problems = [];
@@ -169,7 +171,7 @@ export async function verify(o) {
       };
       const w = M.weekOf(head.time);
       const targets = blockTargets(o.blockx, [w - 2, w - 1, w, w + 1].filter((x) => x >= 0));
-      const scorer = makeScorer({ race: o.race, targets, head, agreed: true, movedInto, problems: [], errors: [], moveMargin: MOVE_MARGIN });
+      const scorer = makeScorer({ race: o.race, targets, head, agreed: true, movedInto, problems: [], errors: [], moveMargin: MOVE_MARGIN, rulerFrom: RULER_FROM });
       ctx = { head, scorer };
     } catch (e) { chainWhy = String(e.message ?? e); }
     return ctx;
@@ -178,8 +180,11 @@ export async function verify(o) {
     const files = names.filter((f) => partOf(f)[0] === day);
     const mine = dayOf(o.incoming, day), pub = dayOf(o.published, day);
     let why = "", alert = true;
+    // D-new A: part 0 says whether the ruler scored the day (one rule per week, from the switch as this job reads it).
+    const p0 = load(path.join(o.incoming, `D${String(day).padStart(5, "0")}.json`));
     if (!mine) why = "its parts can't be read";
     else if (!pub) why = "the published day can't be read";
+    else if (!p0 || p0.ruled !== ruledDay(day, RULER_FROM)) why = `its "ruled" mark isn't the switch's (COMBO_RULER_FROM_WEEK ${RULER_FROM ?? "unset"})`;
     else {
       const old = new Map(pub.map((s) => [s.round, s]));
       for (const s of mine) {

@@ -585,8 +585,19 @@
     free: { show: 6, prize: "The Free play board pays no VHP for now." },
     freeWinners: () => new Map(),
   }) : null;
+  // D-new A: from which calendar Monday race legs are on the VHP ruler (the recorder writes the switch into board.json).
+  function rulerLine(from) {
+    const el = $("ruler-from"), K = window.KWeeks;
+    if (!el || !Number.isSafeInteger(from) || from < 1 || !K) return;
+    const monday = new Date(K.GENESIS_MS + from * K.WEEK_MS).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+    el.textContent = `On the ruler from ${K.label(from)}, which starts ${monday} (00:00 UTC).`;
+  }
   async function loadBoard() {
-    try { const b = await fetchJson(DATA + "board.json"); if (b && b.v === 1 && lb) { board = b; $("board-box").hidden = false; lb.setMe(me() || ""); lb.set(board); } } catch { /* not running yet */ }
+    try {
+      const b = await fetchJson(DATA + "board.json");
+      if (b && b.v === 1) rulerLine(b.rulerFrom);
+      if (b && b.v === 1 && lb) { board = b; $("board-box").hidden = false; lb.setMe(me() || ""); lb.set(board); }
+    } catch { /* not running yet */ }
   }
   if (W && W.subscribe) W.subscribe(() => { if (lb && board) { lb.setMe(me() || ""); lb.set(board); } loadMine(); });
 

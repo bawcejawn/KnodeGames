@@ -9,18 +9,34 @@
  *   race      the race-data folder;  targets  Block X targets by block height (blockTargets);
  *   head      { height, time, lib, libTime } (both nodes: the slower);  agreed  the time came from both nodes;
  *   movedInto (who, from, to) => Promise<{ moved } | { nonCanonical } | { hold }>  (both nodes, Block X BX-100);
- *   problems, errors  arrays the live run reports into;  moveMargin  Block X's MOVE_MARGIN.
+ *   problems, errors  arrays the live run reports into;  moveMargin  Block X's MOVE_MARGIN;
+ *   rulerFrom COMBO_RULER_FROM_WEEK as read by rulerFrom() (null = unset). One week rule (D-new A; Repo Lens #G-16 Q6):
+ *     every race leg of a card in an ON week (the card's own day's vault week) is decided by the Race's ruler card
+ *     (R<week>.json in race-data), never by the handicap standings; off and shadow weeks keep the standings. Block X legs
+ *     are unchanged (who signed a block is a fact). The worths stay the handicap card's in every week.
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
 await import("../../race-math.js");
 await import("../../blockx-math.js");
 await import("../../combo-math.js");
-const M = globalThis.KRaceMath, X = globalThis.KBlockX, C = globalThis.KCombo;
+await import("../../vhp-ruler.js");
+const M = globalThis.KRaceMath, X = globalThis.KBlockX, C = globalThis.KCombo, R = globalThis.KRuler;
 const isAddr = (a) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 export const DEADLINE_MS = 2 * M.DAY;               // after the card's week ends: unknown results are void then
 export const VAULT_WINDOW_MS = 3 * M.DAY;           // the Vault takes a week's file within 3 days of its end
 export const wName = (w) => `W${String(w).padStart(3, "0")}.json`;
+export const rName = (w) => `R${String(w).padStart(3, "0")}.json`;
+
+// ── the VHP ruler switch (docs/VHP-RULER.md "Switching a game onto the ruler") ──
+/** COMBO_RULER_FROM_WEEK, strictly (KRuler.switchFrom): empty/unset → null; 1 … 999999 → the week; anything else throws. */
+export const rulerFrom = (v) => R.switchFrom(v === undefined || v === null ? "" : v);
+/** A vault week's mode: "off", "shadow" or "on" (KRuler.rulerMode). */
+export const rulerModeOf = (week, from) => R.rulerMode(week, from === null ? "" : from);
+/** Is a card of this UTC day scored by the ruler? One rule for the whole card: its own day's vault week. */
+export const ruledDay = (day, from) => rulerModeOf(M.weekOf(day * M.DAY), from) === "on";
+/** Why a switch change can't be made this week (KRuler.switchChange), or null. */
+export const rulerChange = (prev, next, week) => R.switchChange(prev === null || prev === undefined ? "" : prev, next === null ? "" : next, week);
 
 // ── files ──
 const memo = new Map();         // each input file is read once per run (audit CC-B8); cleared by clearFiles()
@@ -50,6 +66,13 @@ export function raceWeek(raceDir, w) {
 }
 export function raceRecord(raceDir, round) {
   return raceWeek(raceDir, M.weekOf(M.raceStart(round))).find((r) => r && r.id === M.raceId(round)) ?? null;
+}
+/** The Race's ruler entry for a race (its R<week>.json, the week of the race's start), or null. Only a file the Race
+ *  published in an ON or SHADOW week with the same shape as bot/race-ruler.ts writes. */
+export function rulerRecord(raceDir, round) {
+  const w = M.weekOf(M.raceStart(round)), rf = readJson(raceDir, rName(w));
+  if (!rf || rf.v !== 1 || rf.week !== w || !Array.isArray(rf.races) || (rf.mode !== "on" && rf.mode !== "shadow")) return null;
+  return rf.races.find((e) => e && e.id === M.raceId(round)) ?? null;
 }
 /** Races of the weeks around t (the week before, of and after), for the cards in force near t. */
 export const racesNear = (raceDir, t) => [-1, 0, 1].flatMap((k) => raceWeek(raceDir, M.weekOf(t) + k));
@@ -97,7 +120,7 @@ export function recount(legs) {
 
 
 // ── scoring ──
-export function makeScorer({ race: RACE, targets, head, agreed, movedInto, problems: problemsAll, errors: errorsAll, moveMargin: MOVE_MARGIN }) {
+export function makeScorer({ race: RACE, targets, head, agreed, movedInto, problems: problemsAll, errors: errorsAll, moveMargin: MOVE_MARGIN, rulerFrom: RULER_FROM = null }) {
   const EDGE_MS = 3 * M.DAY;                                          // Block X's own 3-day window
   /** Prices and scores one card in place. mode "live": a normal run. "verify": a dry re-check of a kept card, nothing
    *  logged, VHP moved counted as 0 (no chain reads), so its Block X worths are an upper bound. "moved": the same, with
@@ -109,6 +132,7 @@ export function makeScorer({ race: RACE, targets, head, agreed, movedInto, probl
     const deadline = M.weekStart(M.weekOf(day * M.DAY) + 1) + DEADLINE_MS;
     const late = (agreed || verify) && head.time >= deadline;
     const legs = c.legs.map((l) => ({ code: l[0], round: l[1], producer: l[2] }));
+    const ruled = ruledDay(day, RULER_FROM);
     // The price: the usable race card in force when the card was sent, once race-data is complete past that moment.
     if (!raceWeekKnown(RACE, c.time) || !raceDataPast(RACE, c.time)) {
       // An outage (no race-data, or none after the send time) never voids: wait, and alert at the deadline (FC-1, RL-9).
@@ -130,9 +154,11 @@ export function makeScorer({ race: RACE, targets, head, agreed, movedInto, probl
     const unresolved = (l, why, alert = false) => { l[4] = "unresolved"; (alert ? errors : problems).push(`slot ${c.round}: ${c.player}'s card: ${why}; the card is void unless another leg missed`); };
     for (let i = 0; i < c.legs.length; i++) {
       const l = c.legs[i], leg = legs[i], isRace = C.FAMILY[l[0]] === "race", t = isRace ? null : targets.get(X.target(l[1])) ?? null;
-      let r = isRace ? C.legResult(leg, raceRecord(RACE, l[1]), null) : C.legResult(leg, null, t);
+      let r = isRace ? C.legResult(leg, raceRecord(RACE, l[1]), null, ruled ? { entry: rulerRecord(RACE, l[1]) } : undefined) : C.legResult(leg, null, t);
       l[4] = r;
       if (r === "unresolved") { unresolved(l, isRace ? `race ${M.raceId(l[1])} was never decided (no card, or not checked on two nodes)` : `Block X never decided who signed block ${X.target(l[1])}`); continue; }
+      if (r === "pending" && ruled && isRace && raceRecord(RACE, l[1])?.result?.final === true && late)
+        errors.push(`slot ${c.round}: race ${M.raceId(l[1])} is final but the Race's ruler card for it isn't published (R file); ${c.player}'s card waits`);
       if (r === "pending" && late) {
         // At the deadline: unresolved if the leg's source has published past it (it gave up on it), else its recorder
         // stopped and the card waits (RL-9). Both are errors: someone should look.

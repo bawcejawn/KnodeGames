@@ -227,3 +227,23 @@ FC3: fixed FC3-1, -2, -4 to -8, -10 to -13; FC3-3 partly (FC4-1); FC3-9 accepted
   window. Test: `combo-verify` "FC4-4".
 - **Info, handover:** `upgrade-schedule` must refuse while a Picks owner handover is planned or proposed (accepting it
   clears the announcement). Done with the `main` merge, which brings the handover code (#D-12).
+
+## The `main` merges and the VHP ruler (12 Nov 2026; for the delta round after #G-16)
+- **Merges.** `main` at `e0d29f5f` (15 conflicts, resolved by #G-16's table), then `99de3402` (no conflicts: the Race
+  ruler #264, Vault shadow rows #265). `bot/picks.ts` keeps `main`'s handover, owner check and Bracket game 9 whole, plus
+  Combo's upgrade commands; new `handoverBlocksUpgrade`: `upgrade-schedule` refuses while the deployment file has a
+  `nextOwner` or the chain a `pending_owner` (#G-16 Info). `combo.yml publish` added to the CI guard's write list
+  (`site.ci-deps.test.mjs`, as `golf.yml`). The page on `main`'s tab bar, footer, icons and PostHog counter, and on
+  `bawcejawn/KnodeGames` (its data URLs and CSP still named `bawcejawn/Knode`).
+- **The ruler (D-new A; the Library 12 Nov: on the ruler from Combo's first week; #G-16 Q6).** One week rule:
+  `COMBO_RULER_FROM_WEEK` read with `KRuler.switchFrom` in the recorder and the verify job and with an identical copy of
+  `vhp_ruler.py`'s `switch_from` / `ruler_mode` / `switch_change` in the publish job (a test compares them line for line).
+  A card whose UTC day is in an ON week has every race leg decided by the Race's ruler card (`race-data` `R<week>.json`,
+  recomputed by the Race's own publish job): the field (entry, not void) by fpct, then address; Win = 1st, Show = top 3,
+  Top half = top half of the field; a voided producer = a miss (D-164); not on the card = void (RL-16); an empty field =
+  void; signed nothing = a miss; no card yet = pending (unresolved at the deadline once race-data is past it). Worths stay
+  the handicap card's. Shadow weeks score as off: Combo has no played week before launch, so its shadow evidence is the
+  Race's own R files. Day part 0 carries `ruled`, `board.json` `rulerFrom`; the recorder and the publish job refuse a
+  switch change that would change a started week; the verify job and the publish job refuse a day whose `ruled` mark
+  isn't the switch's. Tests: `tests/audit/combo-ruler.test.mjs` (modes, refused changes, the leg rule, JS = Python on 300
+  random cards, the recorder, the verify job and the publish job end to end).

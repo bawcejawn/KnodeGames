@@ -48,7 +48,7 @@ import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { withRetry, MAINNET_VHP } from "../../common.ts";
 import { vaultReader, scoringVhpMoves, NonCanonicalTransfer, MOVE_MARGIN } from "./blockx.ts";
-import { readJson, clearFiles, wName, raceWeek, raceRecord, racesNear, raceDataPast, raceWeekKnown, raceSourcePast, blockTargets, recount, makeScorer, DEADLINE_MS, VAULT_WINDOW_MS } from "./combo-score.mjs";
+import { readJson, clearFiles, wName, raceWeek, raceRecord, racesNear, raceDataPast, raceWeekKnown, raceSourcePast, blockTargets, recount, makeScorer, DEADLINE_MS, VAULT_WINDOW_MS, rulerFrom, ruledDay, rulerChange } from "./combo-score.mjs";
 export { recount };
 await import("../../race-math.js");
 await import("../../blockx-math.js");
@@ -76,7 +76,7 @@ type WeekView = { week: number; start: number; end: number; slots: Slot[] };
 type DayFile = { v: 2; day: number; start: number; slots: Slot[] };
 type Head = { height: number; time: number; lib: number; libTime: number };
 type Opts = {
-  p: any; check: any | null; prev?: string; out?: string; raceDir?: string; blockxDir?: string;
+  p: any; check: any | null; prev?: string; rulerFrom?: number | string | null; out?: string; raceDir?: string; blockxDir?: string;
   picksContract?: string | null;                                              // default: picks-data/deployment.json
   knodeGame?: string | null;                                                  // the Vault (v6); default: game-data/deployment.json
   cardsOf?: (node: any, round: number) => Promise<RawCard[]>;                 // tests
@@ -186,6 +186,8 @@ export async function run(o: Opts) {
   const PREV = o.prev ?? E.COMBO_PREV ?? "";
   const RACE = o.raceDir ?? E.RACE_DATA ?? "";
   const BX = o.blockxDir ?? E.BLOCKX_DATA ?? "";
+  // The VHP ruler switch (D-new A): COMBO_RULER_FROM_WEEK, strictly (anything odd stops the run before anything is read).
+  const RULER_FROM: number | null = rulerFrom(o.rulerFrom !== undefined ? o.rulerFrom : (E.COMBO_RULER_FROM_WEEK ?? ""));
   const KNODE = o.knodeGame === undefined ? MAINNET_KNODE_GAME || null : o.knodeGame;
   const problems: string[] = [], errors: string[] = [];
   const problemsAll = problems, errorsAll = errors;
@@ -323,7 +325,7 @@ export async function run(o: Opts) {
     return p;
   };
   // Scoring (bot/games/combo-score.mjs, shared with the verify job: fix-check 3 FC3-3).
-  const { score, recheck } = makeScorer({ race: RACE, targets, head, agreed, movedInto, problems: problemsAll, errors: errorsAll, moveMargin: MOVE_MARGIN });
+  const { score, recheck } = makeScorer({ race: RACE, targets, head, agreed, movedInto, problems: problemsAll, errors: errorsAll, moveMargin: MOVE_MARGIN, rulerFrom: RULER_FROM });
   const forged = new Set<Card>(), badWeeks = new Set<number>(), uncheckedWeeks = new Set<number>();
   for (const [day, slots] of days) for (const sl of slots) for (const c of sl.cards) {
     if (!kept.has(c)) { await score(c, sl.fixed, day); continue; }
@@ -439,8 +441,13 @@ export async function run(o: Opts) {
     if (lwRows.filter((x: any) => x.pts >= C.MIN_WEEK_PTS).length > LAST_WEEK_ROWS) tooMany = true;
     lastWeek = { week: lw, start: M.weekStart(lw), final, rows: lwRows.slice(0, LAST_WEEK_ROWS) };
   }
+  // A started week never changes whether the ruler scores it (KRuler.switchChange): this run's switch against the one
+  // the published board recorded. Refused: nothing is written (the publish job makes the same check).
+  const prevBoard = readJson(PREV, "board.json");
+  const why = prevBoard && "rulerFrom" in prevBoard ? rulerChange(prevBoard.rulerFrom, RULER_FROM, nowW) : null;
+  if (why) throw new Error(`The ruler switch change is refused, nothing was written: ${why}. Set COMBO_RULER_FROM_WEEK back, or to a later week.`);
   const board = {
-    v: 1, updated: new Date(head.time).toISOString(),
+    v: 1, updated: new Date(head.time).toISOString(), rulerFrom: RULER_FROM,
     today: { day: M.dayOf(head.time), rows: await view(cardRows(day0, day0 + M.DAY, "settled"), nowW) },
     week: { week: nowW, start: M.weekStart(nowW), rows: await view(cardRows(M.weekStart(nowW), M.weekStart(nowW + 1)), nowW) },
     lastWeek,
@@ -469,7 +476,7 @@ export async function run(o: Opts) {
     if (!sorted.every((sl) => parts[0].some((x) => x.round === sl.round))) for (const sl of sorted) if (!parts[0].some((x) => x.round === sl.round)) parts[0].push({ round: sl.round, fixed: sl.fixed, cards: [] });
     parts[0].sort((a, b) => a.round - b.round);
     parts.forEach((ps, k) => {
-      const f: any = k ? { v: 2, day: d, start: d * M.DAY, part: k, slots: ps } : { v: 2, day: d, start: d * M.DAY, parts: parts.length, slots: ps };
+      const f: any = k ? { v: 2, day: d, start: d * M.DAY, part: k, slots: ps } : { v: 2, day: d, start: d * M.DAY, parts: parts.length, ruled: ruledDay(d, RULER_FROM), slots: ps };
       fs.writeFileSync(path.join(OUT, dName(d, k)), JSON.stringify(f) + "\n");
     });
   }

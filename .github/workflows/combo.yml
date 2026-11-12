@@ -74,7 +74,7 @@ jobs:
           else echo "No games-data branch yet."; fi
           if fetch_branch race-data; then
             { git ls-tree --name-only FETCH_HEAD 2>/dev/null || true; } | while IFS= read -r f; do
-              if [[ "$f" =~ ^W[0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/race/$f"; fi
+              if [[ "$f" =~ ^[WR][0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/race/$f"; fi   # W: results; R: the Race's ruler cards (D-new A)
             done
           else echo "No race-data branch yet: cards wait for race cards."; fi
       # The recorder exits 1 after writing its files when it raised an error (Repo Lens RL-5): the job turns red (you
@@ -88,6 +88,9 @@ jobs:
           COMBO_OUT: ${{ runner.temp }}/games-data/combo
           RACE_DATA: ${{ runner.temp }}/race
           BLOCKX_DATA: ${{ runner.temp }}/blockx
+          # The VHP ruler switch (D-new A): empty = the Race's handicap standings; vault week N = race legs on the Race's
+          # ruler cards from week N (week N - 1 is the shadow week). Read strictly by all three jobs.
+          COMBO_RULER_FROM_WEEK: ${{ vars.COMBO_RULER_FROM_WEEK }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ always() }}
         with:
@@ -144,7 +147,7 @@ jobs:
           fi
           if fetch_branch race-data; then
             { git ls-tree --name-only FETCH_HEAD 2>/dev/null || true; } | while IFS= read -r f; do
-              if [[ "$f" =~ ^W[0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/race/$f"; fi
+              if [[ "$f" =~ ^[WR][0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/race/$f"; fi   # W: results; R: the Race's ruler cards (D-new A)
             done
           fi
       - name: Confirm the day files
@@ -152,6 +155,7 @@ jobs:
         env:
           RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
           RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
+          COMBO_RULER_FROM_WEEK: ${{ vars.COMBO_RULER_FROM_WEEK }}
         run: |
           set -euo pipefail
           node tools/combo-verify.mjs "$RUNNER_TEMP/incoming/combo" "$RUNNER_TEMP/pub/combo" "$RUNNER_TEMP/race" "$RUNNER_TEMP/blockx" "$RUNNER_TEMP/approved.txt"
@@ -184,6 +188,7 @@ jobs:
           # Fix-check 3 FC3-3: only day files the verify job confirmed (its job output) are published.
           COMBO_VERIFY: required
           VERIFIED: ${{ needs.verify.outputs.approved }}
+          COMBO_RULER_FROM_WEEK: ${{ vars.COMBO_RULER_FROM_WEEK }}
         run: |
           set -euo pipefail
           if [ ! -d "$IN/combo" ]; then echo "Nothing to publish."; exit 0; fi
@@ -218,7 +223,7 @@ jobs:
           # final cards are held (they can't be checked), everything else is published.
           if git fetch -q --depth 1 "$remote" race-data 2>/dev/null; then
             { git ls-tree --name-only FETCH_HEAD 2>/dev/null || true; } | while IFS= read -r f; do
-              if [[ "$f" =~ ^W[0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$PUB/race/$f"; fi
+              if [[ "$f" =~ ^[WR][0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$PUB/race/$f"; fi
             done
           fi
           # The content must be the recorder's own shape, consistent with itself and with what is published.
@@ -238,6 +243,54 @@ jobs:
           now = int(os.environ.get("CHECK_NOW_MS") or time.time() * 1000)
           cw = (now - GENESIS) // WEEK; today = now // DAY
           first_day = (GENESIS + max(0, cw - 1) * WEEK) // DAY        # Monday of last week
+          # ── The VHP ruler switch (D-new A; docs/VHP-RULER.md "Switching a game onto the ruler"). A copy of vhp_ruler.py's
+          # switch_from / ruler_mode / switch_change (this job runs no repository code); tests/audit/combo-ruler.test.mjs
+          # keeps it equal to vhp_ruler.py, line for line.
+          SWITCH_MAX = 999999
+          def switch_from(v):
+              """The ruler switch (owner, 11 Nov 2026), as switchFrom in vhp-ruler.js: None, or the vault week N."""
+              if v is None or (type(v) is str and v == ""):
+                  return None
+              if type(v) is str and re.fullmatch(r"[1-9][0-9]{0,5}", v):
+                  return int(v)
+              if type(v) is int and 1 <= v <= SWITCH_MAX:
+                  return v
+              raise ValueError("the ruler switch must be empty or a vault week from 1 to 999999")
+          def _switch_week(w):
+              if type(w) is int and 0 <= w <= SWITCH_MAX:
+                  return w
+              raise ValueError("week must be a vault week from 0 to 999999")
+          def _mode_of(w, f):
+              return "off" if f is None or w < f - 1 else "shadow" if w < f else "on"
+          def ruler_mode(week, frm):
+              """as rulerMode: "off", "shadow" (week N − 1) or "on" (from week N)."""
+              return _mode_of(_switch_week(week), switch_from(frm))
+          def switch_change(prev, nxt, week):
+              """as switchChange: None, or why the change would change whether a started week is scored by the ruler."""
+              w, p, n = _switch_week(week), switch_from(prev), switch_from(nxt)
+              if p == n:
+                  return None
+              at = sorted(x for x in (0, w, -1 if p is None else p - 1, -1 if p is None else p, -1 if n is None else n - 1,
+                                      -1 if n is None else n) if 0 <= x <= w)
+              for x in at:
+                  a, b = _mode_of(x, p), _mode_of(x, n)
+                  if (a == "on") != (b == "on"):
+                      return ("the ruler switch moved from %s to %s: week %d has started and would change from %s to %s; whether a "
+                              "started week is scored by the ruler never changes (a first switch-on: %d or later)"
+                              % ("unset" if p is None else p, "unset" if n is None else n, x, a, b, w + 1))
+              return None
+          # (End of the copy.) The switch as the owner set it, strictly: anything odd stops the run, nothing is published.
+          RULER_FROM = switch_from(os.environ.get("COMBO_RULER_FROM_WEEK", ""))
+          def ruled_day(day): return ruler_mode((day * DAY - GENESIS) // WEEK, "" if RULER_FROM is None else RULER_FROM) == "on"
+          # A started week never changes whether the ruler scores it: this run's switch against the published board's.
+          _pb = None
+          try: _pb = json.load(open(os.path.join(pub, "board.json"), encoding="utf-8")) if os.path.isfile(os.path.join(pub, "board.json")) else None
+          except Exception: _pb = None
+          if type(_pb) is dict and "rulerFrom" in _pb:
+              _why = switch_change("" if _pb["rulerFrom"] is None else _pb["rulerFrom"], "" if RULER_FROM is None else RULER_FROM, cw)
+              if _why:
+                  print("::error::The ruler switch change is refused, nothing was published this run: " + re.sub(r"[^A-Za-z0-9 ./:,_()'-]", "?", _why)[:300] + ". Set COMBO_RULER_FROM_WEEK back, or to a later week (the owner's check: node tools/vhp-ruler-switch.mjs).")
+                  sys.exit(1)
           held = []
           def hold(name, why, alert):
               if name not in held: held.append(name)
@@ -296,7 +349,9 @@ jobs:
               pf = part_of(f)
               if pf is None or type(j) is not dict or not same(j.get("v"), 2) or not nat(j.get("day")) or j["day"] != pf[0]: return False
               # (Fix-check 3 FC3-5: part 0 says how many parts the day has; every other part names its number.)
-              if set(j) != ({"v", "day", "start", "parts", "slots"} if pf[1] == 0 else {"v", "day", "start", "part", "slots"}) or (pf[1] and not same(j["part"], pf[1])): return False
+              if set(j) != ({"v", "day", "start", "parts", "ruled", "slots"} if pf[1] == 0 else {"v", "day", "start", "part", "slots"}) or (pf[1] and not same(j["part"], pf[1])): return False
+              # D-new A: part 0 says whether the ruler scored the day, as the switch says for the day's vault week.
+              if pf[1] == 0 and j["ruled"] is not ruled_day(j["day"]): return False
               if pf[1] == 0 and not (type(j["parts"]) is int and 1 <= j["parts"] <= 1000): return False
               # (Fix-check 3 FC3-8: every type checked before it is measured.)
               if type(j["slots"]) is not list or not all(type(x) is dict and type(x.get("cards")) is list for x in j["slots"]): return False
@@ -321,7 +376,8 @@ jobs:
                   and x["place"] >= 1 and x["boardPlace"] >= 1 and x["staked"] in (None, True, False) and type(x["staked"]) in (type(None), bool) and x["ranked"] is (x["staked"] is True)
                   and type(x["free"]) in (type(None), bool) and not (x["staked"] is True and x["free"] is not False) for x in rows) and len({x["a"] for x in rows}) == len(rows)
           def board_ok(j):
-              if type(j) is not dict or set(j) != {"v", "updated", "today", "week", "lastWeek", "allTime"} or not same(j["v"], 1) or not iso.fullmatch(str(j["updated"])): return False
+              if type(j) is not dict or set(j) != {"v", "updated", "rulerFrom", "today", "week", "lastWeek", "allTime"} or not same(j["v"], 1) or not iso.fullmatch(str(j["updated"])): return False
+              if j["rulerFrom"] != RULER_FROM or type(j["rulerFrom"]) is not type(RULER_FROM): return False      # D-new A: the switch as set
               t, w, lw, at = j["today"], j["week"], j["lastWeek"], j["allTime"]
               if not (type(t) is dict and set(t) == {"day", "rows"} and type(t["day"]) is str and ymd.fullmatch(t["day"]) and rows_ok(t["rows"])): return False
               if not (type(w) is dict and set(w) == {"week", "start", "rows"} and nat(w["week"]) and same(w["start"], GENESIS + w["week"] * WEEK) and rows_ok(w["rows"])): return False
@@ -413,13 +469,44 @@ jobs:
                   if type(t) is dict and type(t.get("height")) is int and t["height"] > 0: BX_TARGETS[t["height"]] = t
           RACE_FILES = {}
           def target_of(rnd): return BX_TARGETS.get(rnd * 2400) if type(rnd) is int else None
-          def expected(l):
-              # As combo-math.js legResult; False when the source can't be read.
+          RULER_FILES = {}
+          def ruler_record(rnd):
+              # The Race's ruler entry for a race (R<week>.json, as combo-score.mjs rulerRecord), or None.
+              start = rnd * 6 * HOUR; w = (start - GENESIS) // WEEK
+              if w not in RULER_FILES: RULER_FILES[w] = load(os.path.join(raced, "R%03d.json" % w)) if raced and os.path.isfile(os.path.join(raced, "R%03d.json" % w)) else None
+              j = RULER_FILES[w]
+              if type(j) is not dict or not same(j.get("v"), 1) or j.get("week") != w or type(j.get("races")) is not list or j.get("mode") not in ("on", "shadow"): return None
+              rid = time.strftime("%Y-%m-%dT%H", time.gmtime(start // 1000))
+              return next((e for e in j["races"] if type(e) is dict and e.get("id") == rid), None)
+          def ruled_field(e):
+              # As combo-math.js ruledField: the field of the Race's ruler card by fpct (highest first, then address).
+              if type(e) is not dict or type(e.get("card")) is not str: return None
+              try: card = json.loads(e["card"])
+              except Exception: return None
+              rows = [p for p in (card.get("producers") if type(card) is dict and type(card.get("producers")) is list else []) if type(p) is dict and isaddr(p.get("a"))]
+              field = [p for p in rows if p.get("entry") is True and p.get("void") is not True and p.get("fpct") is not None and re.fullmatch(r"-?[0-9]+", str(p.get("fpct")))]
+              field.sort(key=lambda p: (-int(str(p["fpct"])), p["a"]))
+              sg = lambda v: v if type(v) in (int, float) and type(v) is not bool else 0
+              return [p["a"] for p in field], {p["a"]: sg(p.get("signed")) for p in field}, set(p["a"] for p in rows if p.get("void") is True)
+          def expected(l, ruled=False):
+              # As combo-math.js legResult; False when the source can't be read. ruled: the card's day is in an ON week of
+              # COMBO_RULER_FROM_WEEK (D-new A): race legs by the Race's ruler card.
               if l[0] != 4:
                   r = race_record(l[1])
                   if r is False: return False
                   res = r.get("result") if type(r) is dict else None
                   if type(res) is not dict or res.get("final") is not True: return "pending"
+                  if ruled:
+                      if res.get("missed") or res.get("checked") != 2: return "unresolved"
+                      f = ruled_field(ruler_record(l[1]))
+                      if f is None: return "pending"
+                      order, signed, voided = f
+                      if l[2] in voided: return "miss"                           # D-164
+                      if not order: return "void"
+                      if l[2] not in order: return "void"
+                      if not (signed.get(l[2], 0) >= 1): return "miss"
+                      need = 1 if l[0] == 1 else 3 if l[0] == 2 else len(order) // 2
+                      return "hit" if order.index(l[2]) < need else "miss"
                   if res.get("missed") or res.get("void") or type(res.get("standings")) is not list or res.get("checked") != 2: return "unresolved"
                   st = res["standings"]; i = next((k for k, x in enumerate(st) if type(x) is dict and x.get("a") == l[2]), -1)
                   if i < 0: return "void"
@@ -462,7 +549,7 @@ jobs:
               deadline = GENESIS + ((day * DAY - GENESIS) // WEEK + 1) * WEEK + 2 * DAY
               ends = []
               for l in c["legs"]:
-                  e = expected(l)
+                  e = expected(l, ruled_day(day))
                   if e is False: return "its sources (race-data, Block X) can't be read here"
                   sc = price_card(c["time"], l[2])
                   if l[4] == "pending":

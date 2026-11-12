@@ -261,10 +261,37 @@
    *  target: the Block X target record ({ final, checked, signer, void? }) or null. A Block X leg is decided by the
    *  target's signer whenever the two nodes agreed on it (checked 2), even if Block X voided the target for its own
    *  scoring (Repo Lens RL-3: a flagged or missing handicap card is Block X's business, not who signed). */
-  function legResult(leg, race, target) {
+  /** A race leg on the VHP ruler (D-new A, the Library 12 Nov: Combo is on the ruler from its first week): the field of
+   *  the Race's own ruler card for that race (its R<week>.json entry, published and recomputed by the Race), in the
+   *  Race's order: producers with entry that aren't void, by fpct, highest first; equal fpct by address. Exported for
+   *  the tests and the publish job's copy. null: no card yet. */
+  function ruledField(entry) {
+    if (!entry || typeof entry.card !== "string") return null;
+    let card;
+    try { card = JSON.parse(entry.card); } catch { return null; }
+    const rows = (Array.isArray(card && card.producers) ? card.producers : []).filter((p) => p && isAddr(p.a));
+    const field = rows.filter((p) => p.entry === true && p.void !== true && p.fpct !== null && p.fpct !== undefined && /^-?[0-9]+$/.test(String(p.fpct)));
+    field.sort((x, y) => { const a = BigInt(String(x.fpct)), b = BigInt(String(y.fpct)); return a > b ? -1 : a < b ? 1 : x.a < y.a ? -1 : x.a > y.a ? 1 : 0; });
+    return { order: field.map((p) => p.a), signed: new Map(field.map((p) => [p.a, Number(p.signed) || 0])), voided: new Set(rows.filter((p) => p.void === true).map((p) => p.a)) };
+  }
+  /** ruler: undefined = the race's own handicap standings (weeks before Combo's switch); { entry } = the ruler's card. */
+  function legResult(leg, race, target, ruler) {
     if (isRace(leg.code)) {
       const res = race && race.result;
       if (!res || !res.final) return "pending";
+      if (ruler !== undefined) {
+        // On the ruler: a race that never ran (missed), or results not read on two nodes, stays unresolved as before.
+        if (res.missed || res.checked !== 2) return "unresolved";
+        const f = ruledField(ruler && ruler.entry);
+        if (!f) return "pending";                       // the Race hasn't published this race's ruler card yet
+        if (f.voided.has(leg.producer)) return "miss";  // D-164: a pick on a voided producer counts as a loss
+        if (!f.order.length) return "void";             // nobody left in the field: the Race gives every pick back
+        const i = f.order.indexOf(leg.producer);
+        if (i < 0) return "void";                       // not in the race at all: no fault of the player (RL-16)
+        if (!(f.signed.get(leg.producer) >= 1)) return "miss";   // as before: a producer that signed nothing never places
+        const need = leg.code === WIN ? 1 : leg.code === SHOW ? 3 : Math.floor(f.order.length / 2);
+        return i < need ? "hit" : "miss";
+      }
       // A race nobody decided (no handicap card, so "missed"; or results not checked on two nodes) is unresolved, as a
       // Block X target without an agreed signer (fix-check 2 FC2-2, FC2-9): the card is void unless another leg missed.
       if (res.missed || res.void || !Array.isArray(res.standings) || res.checked !== 2) return "unresolved";
@@ -365,7 +392,7 @@
     CARDS_PER_DAY, MAX_CHANGES, BEST, RACE_LEAD_MS, RACE_AHEAD_MS, BLOCK_LEAD, BLOCK_AHEAD,
     isWindow, slotKey, slotRound, dayOfRound, utcDay, lockOf, legOpen, cardLockTime, cardProblem,
     CARD_MAX_AGE_MS, MIN_CARD_SAMPLES, TRIALS, MISSING_F100, usableCard, flagsFor, priceCard, cardAfter, withMoved, sortLegs,
-    raceChances, factorOf, priceLeg, finalWorth, legLockTime, pointsFor, potential, legResult, board, places, shareText,
+    raceChances, factorOf, priceLeg, finalWorth, legLockTime, pointsFor, potential, legResult, ruledField, board, places, shareText,
     vaultWeek, toVaultPoints, vaultFile, freeWinners, MIN_WEEK_PTS, MIN_PRIZE_DAYS, VAULT_MAX_PER_PLACE,
   };
 })(typeof window !== "undefined" ? window : globalThis);

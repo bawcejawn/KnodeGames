@@ -1137,9 +1137,9 @@ test("VHP ruler on: a week isn't final until the ruler has scored every target (
   assert.equal(RR.ruledPoints(RR.entryFor(null, t, 100, t.time + 3600000, null), BIG), undefined);
 });
 
-test("capacity: a Block X file over 1.5 MB warns in every run (the publish limit is 2 MB)", async () => {
+test("capacity: a Block X file over 60% of the 2 MB publish limit (1.2 MB) warns in every run", async () => {
   const { SIZE_WARN_BYTES } = await import(path.resolve(APP, "bot/games/blockx.ts"));
-  assert.equal(SIZE_WARN_BYTES, 1.5 * 1048576);
+  assert.equal(SIZE_WARN_BYTES, 1258291, "60% of 2,048 KB");
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /st\.size > SIZE_WARN_BYTES\) problems\.push\(`\$\{f\} is .* MB: near the 2 MB publish limit/);
 });

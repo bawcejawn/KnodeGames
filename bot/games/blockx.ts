@@ -49,8 +49,9 @@ const VAULT_WINDOW_MS = 3 * 86400000;       // the vault takes a week's results 
 const CARD_BLOCKS = 7200;                   // a self-made card looks at the last ~6 hours of blocks
 const CARD_KEEP_MS = 8 * 86400000;          // and cards.json keeps 8 days of them
 const ONE_VHP = 100000000n;
-/** Capacity (owner, 12 Nov): a Block X file past this size warns in every run (the publish limit is 2 MB). */
-export const SIZE_WARN_BYTES = 1.5 * 1048576;
+/** Capacity (owner, 12 Nov): a Block X file past 60% of the 2 MB publish limit warns in every run (the same line as
+ *  every game, claude/capacity/TO-GAMES-2MB-WEEKLY-FILE-LIMIT-2026-11-12.md). */
+export const SIZE_WARN_BYTES = Math.floor(0.6 * 2048 * 1024);
 const isAddr = (a: unknown) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 
 /** A recorded pick: [player, producer, pick time (ms), points (hundredths), Staked (1) or Free play (0)]. */

@@ -347,4 +347,17 @@ test("Repo Lens #G-27 G27-1: a race with more picks than the recorder reads aler
   assert.ok(m, "and an owner alert: " + lastRun.held.join(" | "));
   assert.match(m, /would be skipped at the week's end\. Tell the Race chat now/);
   assert.equal(read(out, "W002.json").races.find((r) => r.id === "2026-11-02T00").result, null, "not scored from a partial list");
+test("race types on the ruler (owner, 12 Nov: option A): card windows per type, round per type, a typed race's blocks from the hour ledger", () => {
+  assert.deepEqual({ ...RR.CARD_BY_TYPE }, { 0: 7200, 1: 1200, 2: 2400, 3: 7200, 4: 7200 }, "the Ruler chat's table");
+  assert.deepEqual(RR.windowOf(1000000, 1001199, 1), { W0: 998800, W1: 999999, L: 999999, S0: 1000000, S1: 1001199 });
+  assert.deepEqual(RR.windowOf(1000000, 1002399, 2), { W0: 997600, W1: 999999, L: 999999, S0: 1000000, S1: 1002399 });
+  assert.deepEqual(RR.windowOf(1000000, 1028799, 3).W0, 992800, "daily: 6 hours before the lock");
+  assert.throws(() => RR.windowOf(1, 2, 9), /race type 9/);
+  // the Ruler chat's examples: H1 at 06 → …061, the daily → …003, the weekly → …004
+  assert.equal(RR.roundOf(U("2026-11-23T06:00Z"), 1), "20261123061");
+  assert.equal(RR.roundOf(U("2026-11-23T00:00Z"), 3), "20261123003");
+  assert.equal(RR.roundOf(U("2026-11-23T00:00Z"), 4), "20261123004");
+  const t0 = U("2026-11-23T04:00Z"), hours = [0, 1].map((i) => ({ t: t0 + i * H, a: 100 + i * 1200, b: 1299 + i * 1200 }));
+  assert.deepEqual(RR.typedBlocks(hours, t0, t0 + 2 * H), [100, 2499], "2-hour race 04-06: first hour's a, last hour's b");
+  assert.equal(RR.typedBlocks(hours.slice(0, 1), t0, t0 + 2 * H), null, "an hour not in the ledger yet");
 });

@@ -28,8 +28,10 @@ export const VAULT_ADDR = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
 export const RULER = Object.freeze({ game: 7, c: "500000", minK: 10, poolRule: "min", ownRule: "spot", paying: true, pooled: Object.freeze([VAULT_ADDR]) });
 /** The race types on the ruler (per-type flag, cleared one by one after a shadow week): only the 6-hour race for now. */
 export const RULER_TYPES = Object.freeze([0]);
-/** The card window's length (the 6 hours before the lock, for every type; the Ruler chat, 11 Nov). */
+/** The card window's length (the Ruler chat, 11 Nov): the 6 hours before the lock for the 6-hour, daily and weekly
+ *  races; the race's own length before the lock for the 1-hour (1,200) and 2-hour (2,400) races. By type number. */
 export const CARD_BLOCKS = 7200;
+export const CARD_BY_TYPE: Readonly<Record<number, number>> = Object.freeze({ 0: 7200, 1: 1200, 2: 2400, 3: 7200, 4: 7200 });
 
 export type RulerEntry = { id: string; round: string; window: { W0: number; W1: number; L: number; S0: number; S1: number }; card: string | null; note: string | null; placings: string[] };
 export type RulerFile = { v: 1; week: number; rulerFrom: number | null; mode: "off" | "shadow" | "on"; shadow: boolean; races: RulerEntry[] };
@@ -47,10 +49,20 @@ export function roundOf(start: number, type = 0): string {
  *  its UTC window, about 7,200; the Ruler chat, 11 Nov): L = S0 − 1, the last block a pick can be in (the Race contract
  *  locks at the race's start: the shape the fairness runs used, W1 = L = S0 − 1); W1 = L, W0 = L − 7,199 (the card
  *  window, the 6 hours before the lock). The seed block L + 20 is inside the race, after the lock. */
-export function windowOf(S0: number, S1: number) {
+export function windowOf(S0: number, S1: number, type = 0) {
   if (!Number.isSafeInteger(S0) || !Number.isSafeInteger(S1) || S1 < S0) throw new Error("a race's blocks [S0, S1] are needed");
+  const card = CARD_BY_TYPE[type];
+  if (!card) throw new Error(`no ruler card window for race type ${type}`);
   const L = S0 - 1;
-  return { W0: L - CARD_BLOCKS + 1, W1: L, L, S0, S1 };
+  return { W0: L - card + 1, W1: L, L, S0, S1 };
+}
+/** A typed race's blocks [S0, S1] from the hour ledger (each UTC hour's first and last block, read on both nodes):
+ *  its first hour's a and its last hour's b. null until every hour of the race is in the ledger. */
+export function typedBlocks(hours: { t: number; a: number; b: number }[], start: number, end: number): [number, number] | null {
+  const byT = new Map(hours.map((h) => [h.t, h]));
+  const first = byT.get(start), last = byT.get(end - 3600000);
+  for (let t = start; t < end; t += 3600000) if (!byT.has(t)) return null;
+  return first && last && last.b >= first.a ? [first.a, last.b] : null;
 }
 /** The Race's own settings for one race (what recompute needs: every key). */
 export const settingsFor = (round: string, window: RulerEntry["window"]) => ({ game: RULER.game, round, window, c: RULER.c, minK: RULER.minK, poolRule: RULER.poolRule, ownRule: RULER.ownRule, paying: RULER.paying, pooled: [...RULER.pooled] });

@@ -111,7 +111,7 @@
     <p class="lede">To share in the weekly rewards you need at least 1 VHP staked in Knode Games. Here is the whole way there, from nothing. You can also play free without any of this.</p>
     <section class="tokens" id="tokens" aria-labelledby="tokens-title">
         <h2 id="tokens-title">Official token addresses</h2>
-        <p>Copy these, never from a message or a search result. KOIN and VHP live on Koinos; vKOIN is KOIN on Ethereum or Solana, which the Vortex bridge turns into KOIN on Koinos.</p>
+        <p>Copy these, never from a message or a search result. KOIN and VHP live on Koinos; vKOIN is KOIN on Ethereum or Solana, which the Vortex bridge turns into KOIN on Koinos (from Solana, go through Wormhole to Ethereum first).</p>
         <ul class="tok-list">
           <li><span class="tok-name"><b>KOIN</b> on Koinos</span><span class="addr"><code id="tok-koin">19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK</code><button class="copy" type="button" data-copy="tok-koin">Copy</button></span><a href="https://koinosscan.com/address/19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK" target="_blank" rel="noopener noreferrer">Check on Koinosscan</a></li>
           <li><span class="tok-name"><b>VHP</b> on Koinos</span><span class="addr"><code id="tok-vhp">12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq</code><button class="copy" type="button" data-copy="tok-vhp">Copy</button></span><a href="https://koinosscan.com/address/12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq" target="_blank" rel="noopener noreferrer">Check on Koinosscan</a></li>
@@ -142,7 +142,7 @@
             <b>On Solana</b>
             <div class="addr"><code id="sol">8AUxdPqYU4FBy5rZDhMJxTniPs7gtEfdHjP3UKM71m6G</code><button class="copy" type="button" data-copy="sol">Copy</button></div>
             <a href="https://jup.ag/swap/SOL-8AUxdPqYU4FBy5rZDhMJxTniPs7gtEfdHjP3UKM71m6G" target="_blank" rel="noopener">Buy on Jupiter</a>
-            <p class="note-sol"><b>Heads up:</b> vKOIN on Solana can't go straight to Koinos through Vortex right now. Move it to Ethereum first with the Wormhole bridge, then use Vortex.</p>
+            <p class="note-sol"><b>Heads up:</b> vKOIN on Solana can't go straight to Koinos through Vortex right now. Move it from Solana to Ethereum with Wormhole first, then from Ethereum to Koinos with Vortex (step 3).</p>
           </div>
         </div>
       </li>
@@ -150,8 +150,22 @@
       <li class="gk-step">
         <span class="gk-num" aria-hidden="true">3</span>
         <h2>Bridge it to Koinos</h2>
-        <p>Vortex moves your vKOIN to Koinos, where it arrives as KOIN in your Koinos wallet. Right now only Ethereum connects to Koinos: if your vKOIN is on Solana, bridge it to Ethereum with Wormhole first, then come back here.</p>
-        <div class="links"><a href="https://vortexbridge.io/bridge" target="_blank" rel="noopener">Open Vortex bridge</a></div>
+        <p>Two bridges, two jobs. <b>Wormhole</b> moves tokens between <b>Solana and Ethereum</b>. <b>Vortex</b> moves them between <b>Ethereum and Koinos</b>, in either direction (Ethereum to Koinos, or Koinos back to Ethereum). Right now only Ethereum connects to Koinos.</p>
+        <div class="gk-routes">
+          <div class="gk-route">
+            <b>vKOIN is on Ethereum</b>
+            <p>Go straight to Vortex. It arrives as KOIN in your Koinos wallet.</p>
+            <div class="links"><a href="https://vortexbridge.io/bridge" target="_blank" rel="noopener">Open Vortex bridge (Ethereum to Koinos)</a></div>
+          </div>
+          <div class="gk-route">
+            <b>vKOIN is on Solana: two hops</b>
+            <p><strong>First,</strong> Wormhole: send it from Solana to Ethereum.</p>
+            <div class="links"><a href="https://portalbridge.com" target="_blank" rel="noopener">Open Wormhole (Solana to Ethereum)</a></div>
+            <p><strong>Then,</strong> Vortex: send it from Ethereum to Koinos.</p>
+            <div class="links"><a href="https://vortexbridge.io/bridge" target="_blank" rel="noopener">Open Vortex bridge (Ethereum to Koinos)</a></div>
+          </div>
+        </div>
+        <p class="muted">Before you connect a wallet, check the address bar says exactly <code>portalbridge.com</code> or <code>vortexbridge.io</code>. Never use a link from a message or a search ad.</p>
       </li>
 
       <li class="gk-step">

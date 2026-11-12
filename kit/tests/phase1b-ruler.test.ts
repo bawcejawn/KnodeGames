@@ -113,3 +113,16 @@ test("Phase 1b publish check: a ruler game's week file without cards, or another
   assert.ok(checkGame(exampleCfg(), inn, pub, wd.time).held.some((x: any) => /cards in a game without ruler data/.test(x.why)));
   void cards;
 });
+
+test("G3 publish check: a ruler game's new week file is held unless every card was rebuilt in the publish job", async () => {
+  const L = ledger();
+  const none = new Replay(vgame, vcfg), wd = qworld();
+  const h1 = await none.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L, cardsOk: null });
+  assert.ok(h1.held.some((x: any) => x.name === "W004.json" && /couldn't be rebuilt/.test(x.why)), JSON.stringify(h1.held));
+  const wrong = new Replay(vgame, vcfg), w2 = qworld();
+  const h2 = await wrong.hour(nodes(w2), w2.time + 5 * 60000, { vhpLedger: L, cardsOk: new Set(["0".repeat(64)]) });
+  assert.ok(h2.held.some((x: any) => x.name === "W004.json" && /4 of its 4 ruler cards/.test(x.why)), JSON.stringify(h2.held));
+  const right = new Replay(vgame, vcfg), w3 = qworld();
+  const h3 = await right.hour(nodes(w3), w3.time + 5 * 60000, { vhpLedger: L });
+  assert.ok(h3.published.includes("W004.json"), JSON.stringify(h3.held));
+});

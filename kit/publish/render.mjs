@@ -13,6 +13,87 @@ const NODE = "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4
 const UP = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2";
 const DOWN = "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0";
 
+/** Phase 1b (G3, the Ruler chat 11–12 Nov): a ruler game's cards are rebuilt in the publish job by the WHOLE vhp_ruler.py,
+ *  embedded byte for byte (as vhp-ruler.yml and race.yml embed it; a test keeps the copy equal), plus this small glue
+ *  (also embedded, never read from the checkout). For each file the run would publish that isn't already published
+ *  byte for byte (a W<week>.json or inputs/W<week>.json), it rebuilds every listed card from the published vhp-data
+ *  (make_card + score_card + card_json, the game's settings as listed) and writes the sha256 values that match to
+ *  $KIT_CARDS_DIR/<slug>.json; the check then holds any file whose cards aren't all there. Already-published files
+ *  aren't rebuilt again, so data pruned later (VHP_KEEP_DAYS) never holds an old final. */
+export const RULER_HEREDOC = "KIT_RULER_PY", GLUE_HEREDOC = "KIT_CARDS_PY";
+export const KIT_CARDS_PY = `import sys, os, json, hashlib, re
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import vhp_ruler as V
+data, ind, pubd, outp = sys.argv[1:5]
+def names(d):
+    out = []
+    if os.path.isdir(d):
+        out += [f for f in sorted(os.listdir(d)) if re.fullmatch(r"W([0-9]{3}|[1-9][0-9]{3})[.]json", f)]
+    i = os.path.join(d, "inputs")
+    if os.path.isdir(i):
+        out += ["inputs/" + f for f in sorted(os.listdir(i)) if re.fullmatch(r"W(0|[1-9][0-9]{0,3})[.]json", f)]
+    return out
+refs = {}
+for rel in names(ind):
+    p, q = os.path.join(ind, rel), os.path.join(pubd, rel)
+    if os.path.islink(p) or not os.path.isfile(p):
+        continue
+    raw = open(p, "rb").read()
+    if os.path.isfile(q) and open(q, "rb").read() == raw:
+        continue
+    try:
+        j = json.loads(raw)
+    except ValueError:
+        continue
+    for x in (j.get("cards") or []) if isinstance(j, dict) else []:
+        if isinstance(x, list) and len(x) == 2 and isinstance(x[1], str) and isinstance(x[0], dict):
+            refs[x[1]] = x[0]
+ok, bad = [], {}
+if refs:
+    L, _ = V.load_ledger(data)
+    for h, s in sorted(refs.items()):
+        try:
+            V.check_settings(s)
+            card = V.make_card(L, s["game"], s["round"], s["window"], int(s["c"]), s["ownRule"], s["paying"], s["pooled"], s["minK"], s["poolRule"])
+            got = hashlib.sha256(V.card_json(V.score_card(L, card)).encode("utf-8")).hexdigest()
+            if got == h:
+                ok.append(h)
+            else:
+                bad[h] = "the ruler's data gives " + got
+        except Exception as e:
+            bad[h] = str(e)[:200]
+os.makedirs(os.path.dirname(outp), exist_ok=True)
+with open(outp, "w") as fh:
+    json.dump({"ok": ok, "bad": bad}, fh, sort_keys=True)
+print("%d card(s) rebuilt, %d differ or failed" % (len(ok), len(bad)))
+`;
+/** The publish job's ruler step: vhp-data read-only, then vhp_ruler.py and the glue written from the workflow itself. */
+const RULER_STEP = (ruler) => `      - name: Take the ruler's data and code (vhp-data read-only; vhp_ruler.py embedded, no repository code)
+        run: |
+          set -euo pipefail
+          git init -q "$RUNNER_TEMP/vhp-data"
+          if git -C "$RUNNER_TEMP/vhp-data" fetch -q --depth 1 "https://github.com/\${GITHUB_REPOSITORY}.git" vhp-data 2>/dev/null; then
+            git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD
+          else
+            echo "::error::vhp-data couldn't be fetched: ruler games' new files are held this run"
+          fi
+          mkdir -p "$RUNNER_TEMP/ruler-code" "$RUNNER_TEMP/kit-cards"
+          cat > "$RUNNER_TEMP/ruler-code/vhp_ruler.py" <<'${RULER_HEREDOC}'
+${ind("# BEGIN vhp_ruler.py\n" + ruler.replace(/\n$/, "") + "\n# END vhp_ruler.py", 10)}
+          ${RULER_HEREDOC}
+          cat > "$RUNNER_TEMP/ruler-code/kit_cards.py" <<'${GLUE_HEREDOC}'
+${ind(KIT_CARDS_PY.replace(/\n$/, ""), 10)}
+          ${GLUE_HEREDOC}
+`;
+
+/** vhp_ruler.py as the publish job embeds it, checked like the kit's own script. */
+export function rulerPy(root) {
+  const src = fs.readFileSync(new URL("vhp_ruler.py", root), "utf8");
+  if (src.includes("${{")) throw new Error("vhp_ruler.py may not contain an Actions expression");
+  for (const m of [RULER_HEREDOC, GLUE_HEREDOC]) if (src.split("\n").some((l) => l.trim() === m)) throw new Error(`vhp_ruler.py may not contain a line "${m}"`);
+  return src;
+}
+
 /** The check script exactly as the publish job runs it: the kit's file, then one line that runs it. */
 export const TRAILER = "\nmain();\n";
 export function inlineScript(root) {
@@ -81,8 +162,10 @@ function fetchStep(branch, slug, dest = "prev", label = `Take ${slug}'s last fil
  * ONE record job per game, with its own timeout and its own artifact (KC-4, KC-13): a slow or broken game stops only
  * itself, and can't write another game's files. The publish job takes each game's files only from that game's artifact.
  */
-export function renderJobs({ branch, games, script }) {
+export function renderJobs({ branch, games, script, ruler = null }) {
   if (!games.length) return `${BEGIN}\n${END}\n`;
+  const vhpGames = games.filter((g) => g.cfg?.vhpData);
+  if (vhpGames.length && typeof ruler !== "string") throw new Error("a ruler game (vhpData) needs vhp_ruler.py embedded in the publish job (G3)");
   if (!DATA_BRANCHES.includes(branch)) throw new Error(`not a data branch: ${branch} (KC-23)`);
   for (const g of games) {
     if (!/^[a-z][a-z0-9-]{1,23}$/.test(g.slug)) throw new Error(`bad slug ${g.slug}`);
@@ -163,8 +246,9 @@ ${downloads}
       - uses: ${NODE}
         with:
           node-version: 22
-      - name: Check and push the kit games' files (no repository code)
+${vhpGames.length ? RULER_STEP(ruler) : ""}      - name: Check and push the kit games' files (no repository code)
         env:
+          KIT_CARDS_DIR: \${{ runner.temp }}/kit-cards
           GH_TOKEN: \${{ github.token }}
           IN: \${{ runner.temp }}/incoming
           LIST: \${{ runner.temp }}/kit-publish.txt
@@ -199,7 +283,11 @@ ${releaseEnv}
             if [ "$rc" -ne 2 ]; then echo "::error::The ${branch} branch could not be fetched (git ls-remote exit $rc): nothing published."; exit 1; fi
             git read-tree --empty
           fi
-          # The kit's publish check, inline (kit/publish/check.inline.mjs byte for byte): it judges every file against the
+${vhpGames.length ? `          # G3: rebuild every new ruler card with the embedded vhp_ruler.py (no repository code); the check holds the rest.
+          for g in ${vhpGames.map((g) => g.slug).join(" ")}; do
+            python3 -I -B "$RUNNER_TEMP/ruler-code/kit_cards.py" "$RUNNER_TEMP/vhp-data" "$IN/$g" "$PUB/$g" "$RUNNER_TEMP/kit-cards/$g.json" || echo "::error::$g: its ruler cards couldn't be rebuilt this run; its new files are held"
+          done
+` : ""}          # The kit's publish check, inline (kit/publish/check.inline.mjs byte for byte): it judges every file against the
           # published copy and this job's own clock, and lists only what may be published.
           node --input-type=module - "$IN" "$PUB" "$LIST" <<'${HEREDOC}'
 ${ind(script, 10).replace(/\n$/, "")}

@@ -467,10 +467,18 @@ export function roundsChange(prev, j, cfg) {
  * cfg: { slug, game, genesis, weekMs, sundayFunRound, payoutRule, vaultValues, entry, minPts, rowCap, maxRoundPoints,
  *        liveWeek, roundsCorrectable }; release: the owner's <SLUG>_RELEASE value from the job's own variables (KC-3).
  */
-export function checkGame(cfg, inDir, pubDir, now, release = "") {
+export function checkGame(cfg, inDir, pubDir, now, release = "", cardsOk = null) {
   const k = weekClock(cfg), cw = k.weekOf(now);
   const held = [], publish = [];
   const hold = (name, why, alert = true) => held.push({ name, why, alert });
+  // G3: a ruler game's new or changed file must list only cards this job rebuilt from the published vhp-data with the
+  // embedded vhp_ruler.py (cardsOk: their sha256 values; null = the rebuild didn't run). Unchanged copies aren't rebuilt.
+  const cardsWhy = (raw, old, j) => {
+    if (!cfg.vhpData || (old && same(raw, old)) || !Array.isArray(j?.cards) || !j.cards.length) return null;
+    if (!cardsOk) return "its ruler cards couldn't be rebuilt in this job (G3)";
+    const n = j.cards.filter((x) => !cardsOk.has(x[1])).length;
+    return n ? `${n} of its ${j.cards.length} ruler cards aren't what the published ruler data gives (G3)` : null;
+  };
   const { out: files, bad } = listFiles(inDir);
   for (const b of bad) hold(b, "not a plain file in an allowed folder");
   const okWeeks = new Map();     // week -> the week file that will be published after this job (incoming or published)
@@ -493,6 +501,7 @@ export function checkGame(cfg, inDir, pubDir, now, release = "") {
     if (!j || typeof j !== "object" || Array.isArray(j) || Object.keys(j).join() !== (cfg.vhpData ? "game,week,data,cards" : "game,week,data") || j.game !== cfg.game || j.week !== w || j.data === null || typeof j.data !== "object" || (cfg.vhpData && !isCardList(j.cards))) { hold(f, `not an inputs file's shape ({game, week, data${cfg.vhpData ? ", cards" : ""}})`); continue; }
     if (!(now < k.start(w))) { hold(f, "an inputs file published after its week opened, by this job's clock (FC-9)"); continue; }
     if (now < k.start(w) - INPUTS_EARLIEST_MS) { hold(f, "an inputs file more than a week before its week"); continue; }
+    { const cw2 = cardsWhy(raw, old, j); if (cw2) { hold(f, cw2); continue; } }
     inputsOk.set(w, sha256(raw)); publish.push(f);
   }
 
@@ -507,6 +516,7 @@ export function checkGame(cfg, inDir, pubDir, now, release = "") {
     const w = j.week;
     heldWeeks.add(w);
     if (cfg.inputsFile && (inputsOk.get(w) ?? pubInputs(w)) !== j.inputs) { hold(f, "its inputs hash isn't the published inputs file's (FC-9)"); continue; }
+    { const cw2 = cardsWhy(raw, old, j); if (cw2) { hold(f, cw2); continue; } }
     const pv = old ? parseCanon(old) : null;
     const prev = pv?.ok && !weekShape(pv.v, f, cfg) ? pv.v : null;
     if (old && !prev) { hold(f, "the published copy can't be read: nothing replaces it"); continue; }
@@ -652,7 +662,13 @@ export function main(argv = process.argv.slice(2), env = process.env) {
     try {
       const dir = path.join(inRoot, g.slug);
       if (fs.existsSync(dir) && !fs.lstatSync(dir).isDirectory()) { console.log(`::error::held, not published: ${g.slug}: not a plain folder`); alert = true; continue; }
-      const r = checkGame(g, dir, path.join(pubRoot, g.slug), now, env[releaseEnv(g.slug)] ?? "");
+      // G3: the cards the publish job's embedded vhp_ruler.py rebuilt for this game (absent = it didn't run or failed).
+      let cardsOk = null;
+      if (g.vhpData && env.KIT_CARDS_DIR) {
+        const cf = path.join(env.KIT_CARDS_DIR, `${g.slug}.json`);
+        if (fs.existsSync(cf)) { const v = JSON.parse(fs.readFileSync(cf, "utf8")); if (Array.isArray(v.ok)) cardsOk = new Set(v.ok.filter((x) => typeof x === "string")); }
+      }
+      const r = checkGame(g, dir, path.join(pubRoot, g.slug), now, env[releaseEnv(g.slug)] ?? "", cardsOk);
       for (const h of r.held) {
         console.log(`${h.alert ? "::error::" : "::notice::"}held, not published: ${g.slug}/${h.name}: ${h.why}`);
         if (h.alert) alert = true;

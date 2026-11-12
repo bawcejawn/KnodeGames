@@ -77,11 +77,11 @@
     if (!g) return;
     const L = shareLines(stats, opts), by = (r) => L.find((x) => x.role === r);
     // background: stone, with a navy card
-    g.fillStyle = "#F3F1EA"; g.fillRect(0, 0, W, H);
-    g.strokeStyle = "#D9D3C2"; g.lineWidth = 2;
+    g.fillStyle = "#F6F4FF"; g.fillRect(0, 0, W, H);
+    g.strokeStyle = "#DAD3F5"; g.lineWidth = 2;
     for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(-20, 470 + i * 34); g.bezierCurveTo(300, 420 + i * 34, 700, 540 + i * 34, 1220, 470 + i * 34); g.stroke(); }
     const r = 40, x0 = 60, y0 = 60, w = W - 120, h = 400;
-    g.fillStyle = "#14213D";
+    g.fillStyle = "#14161F";
     g.beginPath(); g.moveTo(x0 + r, y0); g.arcTo(x0 + w, y0, x0 + w, y0 + h, r); g.arcTo(x0 + w, y0 + h, x0, y0 + h, r); g.arcTo(x0, y0 + h, x0, y0, r); g.arcTo(x0, y0, x0 + w, y0, r); g.closePath(); g.fill();
     // logo ring
     g.strokeStyle = "#FF8A4C"; g.lineWidth = 8; g.beginPath(); g.arc(W - 160, 160, 46, 0, Math.PI * 2); g.stroke();
@@ -93,8 +93,8 @@
     const parts = [by("place").text, by("right")?.text].filter(Boolean).join("   ·   ");
     g.fillText(parts, 110, 350);
     if (by("address")) { g.fillStyle = "#C9D2E3"; g.font = "400 24px 'Atkinson Hyperlegible', sans-serif"; g.fillText(by("address").text, 110, 410); }
-    g.fillStyle = "#22302B"; g.font = "800 44px 'Bricolage Grotesque', sans-serif"; g.fillText("knode", 60, 560);
-    g.fillStyle = "#4A564F"; g.font = "400 30px 'Atkinson Hyperlegible', sans-serif"; g.fillText(by("foot").text, 210, 558);
+    g.fillStyle = "#15122B"; g.font = "800 44px 'Bricolage Grotesque', sans-serif"; g.fillText("knode", 60, 560);
+    g.fillStyle = "#4B4766"; g.font = "400 30px 'Atkinson Hyperlegible', sans-serif"; g.fillText(by("foot").text, 210, 558);
   }
 
   const api = { buildIcs, nextRelease, shareLines, drawShare };

@@ -108,7 +108,7 @@ except ValueError as e:
 };
 
 const W0 = 2000000, win = { W0, W1: W0 + 7199, L: W0 + 7200, S0: W0 + 7201, S1: W0 + 14400 };
-const game = { game: 7, round: "2026111006", window: win, c: 400000n, ownRule: "high1h", paying: true, pooled: [] };
+const game = { game: 7, round: "2026111006", window: win, c: 400000n, minK: 10, poolRule: "min", ownRule: "high1h", paying: true, pooled: [] };
 // producer 4 signs early on, is away from W0 − 411,000 to W0 − 396,000, then signs again
 const G0 = W0 - 411000, G1 = W0 - 396000;
 const long = custom({ from: W0 - 445000, n: 445000 + 15000, signerAt: (h, k) => { const s = (k * 7 + (k >> 5)) % 5; return s === 4 && h >= G0 && h < G1 ? 3 : s; } });

@@ -117,6 +117,24 @@ test("no prizes are listed until PRIZES_FROM_WEEK (prizes start with the vault, 
   assert.deepEqual(later.board.lastWeek.prizes, [], "week 3 is before the first prize week 4");
 });
 
+test("PRIZES_FROM_WEEK unset on mainnet: the week is held and the run fails (owner 10 Nov), never final with no prizes", async () => {
+  // Mainnet passes prizesUnset (the raw variable) when it is unset or bad: the week that could go final is held instead.
+  const r = await weekThenLook(picksGuest, 1.5, { prizesFromWeek: null, prizesUnset: '""' });
+  assert.equal(r.board.lastWeek.week, 3);
+  assert.equal(r.board.lastWeek.final, false, "held, not final");
+  assert.deepEqual(r.board.lastWeek.prizes, []);
+  assert.equal(r.held.length, 1, "a hold makes the workflow fail (the owner is emailed)");
+  assert.match(r.held[0], /PRIZES_FROM_WEEK is not set to a plain week number \(it reads ""\)/);
+  // Once the variable is set the same week goes final by itself (the tests' default, prizesUnset unset, is unchanged).
+  const ok = await weekThenLook(picksGuest, 1.5, { prizesFromWeek: 3 });
+  assert.equal(ok.board.lastWeek.final, true);
+  assert.equal(ok.held.length, 0);
+  // main() wires it: the raw value goes in only when prizesFromEnv rejects it.
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /const prizesUnset = prizesFromWeek === null \? JSON\.stringify\(E\.PRIZES_FROM_WEEK \?\? null\) : null;/);
+  assert.match(src, /prizesFromWeek, prizesUnset, schedule: X\.MAINNET_SCHEDULE/);
+});
+
 test("prizes, from the first prize week: final from Monday 00:00 once two runs an hour apart agree (D-135), only the Free play board's top 2", async () => {
   const early = await weekThenLook(picksGuest, -1, { prizesFromWeek: 3 });
   assert.equal(early.board.lastWeek.week, 2, "Sunday 23:00: week 3 isn't last week yet, so it can't be final");
@@ -631,7 +649,8 @@ test("E4-1 (a) / E4-7 in the workflow: a failed fetch of a branch that exists st
   for (const b of ["games-data", "race-data"]) assert.match(yml, new RegExp(`git ls-remote --exit-code --heads "https://github.com/\\$\\{GITHUB_REPOSITORY\\}.git" refs/heads/${b} `), b);   // Repo Lens B3-6: the exact ref
   assert.match(yml, /if \[ "\$rc" -eq 2 \]; then echo "No race-data branch yet: targets wait for cards."; else echo "::error::The race-data branch could not be fetched/);
   assert.match(yml, /held: \$\{\{ steps\.blockx\.outputs\.held \}\}/);
-  assert.match(yml, /alert:\n    needs: \[record, publish\]\n    if: \$\{\{ always\(\) && needs\.record\.outputs\.held == 'true' \}\}/);
+  // (the Bracket's failed-step alert shares this job: #E-3 M-4)
+  assert.match(yml, /alert:\n    needs: \[record, record_bracket, publish\]\n    if: \$\{\{ always\(\) && \(needs\.record\.outputs\.held == 'true' \|\| needs\.record_bracket\.result == 'failure'\) \}\}/);
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /fs\.appendFileSync\(E\.GITHUB_OUTPUT, "held=true\\n"\)/);
 });

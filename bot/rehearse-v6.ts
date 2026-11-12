@@ -25,7 +25,9 @@ import { SimChain, loadAbi, showKoin, pagePlayers, type Chain } from "./chain.ts
 import { vaultResultsPass, vaultFinalizePass, vaultView, type VaultCtx } from "./vault.ts";
 
 export const V5_BUILD = "game/test-fixtures/kpred-v5-test-build.wasm";
-export const V6_BUILD = "game/build/sim/contract.wasm";
+// The exact live v6 code (test build of eed38f7c…): this tool rehearses the past v5 → v6 upgrade. v6 → v6.1 has its own
+// test (game/scripts/storage-compat-v61.test.ts).
+export const V6_BUILD = "game/test-fixtures/kpred-v6-test-build.wasm";
 const VHP = 100_000_000n;
 const HOUR = 3_600_000;
 
@@ -98,6 +100,10 @@ export async function transplant(sim: SimChain, snap: Snapshot) {
   sim.setHeight(snap.height, snap.time);
 }
 
+/** v6.1: values get_state works out on every read (never stored), so a newer build shows them where an older one didn't:
+ *  right after the upgrade they must read 30 (this week) and 60 (next week). */
+const COMPUTED_READS: Record<string, number> = { questions_cap: 30, questions_cap_next: 60 };   // Repo Lens V61-B2: checked, not waived
+
 /** Differences between two snapshots (the time each was taken aside). */
 export function compareSnapshots(a: Snapshot, b: Snapshot, newFieldsOk = false): string[] {
   const out: string[] = [];
@@ -106,7 +112,7 @@ export function compareSnapshots(a: Snapshot, b: Snapshot, newFieldsOk = false):
     if (x === null || typeof x !== "object") { if (JSON.stringify(x) !== JSON.stringify(y)) out.push(`${where}: ${JSON.stringify(x)} → ${JSON.stringify(y)}`); return; }
     if (y === null || typeof y !== "object") { out.push(`${where}: missing`); return; }
     for (const k of Object.keys(x)) walk(x[k], y[k], `${where}.${k}`);
-    for (const k of Object.keys(y)) if (!(k in x) && !(newFieldsOk && isEmpty({ v: y[k] }))) out.push(`${where}.${k}: new value ${JSON.stringify(y[k])}`);
+    for (const k of Object.keys(y)) if (!(k in x) && !(newFieldsOk && (isEmpty({ v: y[k] }) || (k in COMPUTED_READS && y[k] === COMPUTED_READS[k])))) out.push(`${where}.${k}: new value ${JSON.stringify(y[k])}`);
   };
   for (const part of ["state", "weeks", "questions", "players"] as const) walk((a as any)[part], (b as any)[part], part);
   return out;
@@ -255,6 +261,7 @@ export async function rehearseV6(snap: Snapshot, opts: { weeks?: number; reward?
     chain: sim, operator: Signer.fromSeed("unused"), dryRun: false, problems: [], quiet: true,
     deployment: { vaultGames: { "2": { results: "mem:2" }, "3": { results: "mem:3" }, "13": { results: "mem:13" } } },
     readResults: (src, w) => files[`${src}/W${w}`] ?? null,
+    readPrizeSwitches: () => null,   // a rehearsal never reads the live prize-settings branch (Repo Lens #F-4 F4-5)
   };
   const opSend = async (what: string, calls: any[]) => {
     const r = await sim.sendAs(calls, [operator]);

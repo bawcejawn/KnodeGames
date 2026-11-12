@@ -525,6 +525,13 @@
               "game_count": {
                 "type": "uint32",
                 "id": 22
+              },
+              "q60_rule_week_plus_one": {
+                "type": "uint64",
+                "id": 23,
+                "options": {
+                  "jstype": "JS_STRING"
+                }
               }
             }
           },
@@ -1259,6 +1266,14 @@
               "safe_mode": {
                 "type": "bool",
                 "id": 12
+              },
+              "questions_cap": {
+                "type": "uint32",
+                "id": 13
+              },
+              "questions_cap_next": {
+                "type": "uint32",
+                "id": 14
               }
             }
           },

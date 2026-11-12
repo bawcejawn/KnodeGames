@@ -24,15 +24,15 @@ const h2h = (t) => ({ template: "E2s", title: "Head-to-head with spread", subjec
 const net = (stat) => ({ template: "M5", title: "x", text: `${stat} between block 40,803,846 and block 40,808,845?`, options: [0, 1, 2, 3].map((i) => ({ index: i, label: `${i}` })) });
 
 test("over/under reads as one plain yes-or-no question with the Yes number in it", () => {
-  assert.equal(text(W.headlineWords(ou)), "Will @1Mbs make [546 or more] blocks?");
+  assert.equal(text(W.headlineWords(ou)), "Will @1Mbs produce [546 or more] blocks?");
   assert.equal(W.optName(ou, 1), "Yes"); assert.equal(W.optName(ou, 0), "No");
   assert.equal(W.optionWords(ou, ou.options[1]), "Yes — 546 or more", "published label kept");
 });
 
 test("head-to-head: every line, including below zero, reads as a plain question that matches the chain's options", () => {
-  assert.equal(text(W.headlineWords(h2h(297))), "Will @1Mbs make at least [298] more blocks than @15NZ?");
-  assert.equal(text(W.headlineWords(h2h(0))), "Will @1Mbs make more blocks than @15NZ?");
-  assert.equal(text(W.headlineWords(h2h(-1))), "Will @1Mbs make at least as many blocks as @15NZ?");
+  assert.equal(text(W.headlineWords(h2h(297))), "Will @1Mbs produce at least [298] more blocks than @15NZ?");
+  assert.equal(text(W.headlineWords(h2h(0))), "Will @1Mbs produce more blocks than @15NZ?");
+  assert.equal(text(W.headlineWords(h2h(-1))), "Will @1Mbs produce at least as many blocks as @15NZ?");
   assert.equal(text(W.headlineWords(h2h(-13))), "Will @1Mbs finish no more than [12] blocks behind @15NZ?");
   assert.equal(W.optionWords(h2h(-13), { index: 1 }), "Yes — behind by 12 or less, or ahead");
   assert.equal(W.optionWords(h2h(-13), { index: 0 }), "No — behind by 13 or more");
@@ -61,12 +61,15 @@ test("network questions: an inviting hook plus a plain ask, for each kind", () =
   assert.equal(W.isYesNo(net("x")), false); assert.equal(W.optName(net("x"), 2), "C", "multi-choice keeps letters");
 });
 
-test("the window keeps the block numbers and adds an estimated time in the viewer's zone", () => {
-  const now = Date.UTC(2026, 10, 5, 12, 0), q = { ...ou, lockTime: now };
-  const w = W.windowWords(q, now, 3080);
-  assert.equal(w.blocks, `Blocks ${(40747781).toLocaleString()} → ${(40757780).toLocaleString()} (${(10000).toLocaleString()})`);
-  assert.match(w.when, /^about .+ – .+ your time$/);
-  assert.match(W.windowWords({ ...ou }, now, 3080).when, /^about 8\.6 hours$/, "no close time known: just the length");
+test("the window is a length of time, not clock times, and no long block numbers on the card (owner, 5 Nov)", () => {
+  const n = (x) => x.toLocaleString();
+  const open = W.windowWords(ou, true, 3080), done = W.windowWords(ou, false, 3080);
+  assert.equal(open.text, `The ${n(10000)} blocks after answers close (about 8½ hours)`);
+  assert.equal(done.text, `Counted over ${n(10000)} blocks (about 8½ hours)`);
+  assert.equal(open.exact, `Blocks ${n(40747781)} to ${n(40757780)}`, "the exact blocks stay one hover away");
+  for (const t of [open.text, done.text]) { assert.doesNotMatch(t, /AM|PM|your time|40,7/); }
+  const len = (blocks) => W.windowWords({ ...ou, windowStart: 1, windowEnd: blocks }, true, 3000).text.match(/\((.*)\)/)[1];
+  assert.equal(len(4800), "about 4 hours"); assert.equal(len(1200), "about 1 hour"); assert.equal(len(600), "under an hour"); assert.equal(len(5400), "about 4½ hours");
 });
 
 test("the card uses the plain wording: Yes first, no letters on yes-or-no, a friendly prompt, the 'New here?' line", () => {

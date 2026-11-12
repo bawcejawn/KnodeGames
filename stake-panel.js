@@ -253,12 +253,13 @@
     }
     return out.sort((x, y) => Number(x.week - y.week));
   }
-  /** One line for the page: who plays for what in this game. */
-  function explain(game, min) {
+  /** One line for the page: who plays for what in this game. `opts.freePrize: false` = the owner's free-prize switch is
+   *  off for this game, so no free prize is promised (Repo Lens #G-4 G4-1). */
+  function explain(game, min, opts = {}) {
     const m = exact(min || UNIT);
     if (!game || !game.staked) return "";
     const prize = Number(game.season_weeks || 0) > 1 ? "the 4 + 2 VHP season prize" : "the 2 + 1 VHP prize";
-    return game.free_prize
+    return game.free_prize && opts.freePrize !== false
       ? `Staked players (at least ${m} VHP in this game) share this game's weekly bucket; free players play for ${prize}.`
       : `Staked players (at least ${m} VHP in this game) share this game's weekly bucket.`;
   }
@@ -581,7 +582,7 @@
         who ? el("p", { class: "kstake-status" }, staked
           ? `You're a staked player in this game this week, with ${amount(counted)} VHP counted.${pendingNote}`
           : `You're a free player in this game this week.${pendingNote}`) : null,
-        el("p", { class: "muted kstake-explain" }, explain(g, min)),
+        el("p", { class: "muted kstake-explain" }, explain(g, min, opts)),
         !g.active ? el("p", { class: "warn" }, "This game has stopped taking stakes. You can withdraw any time.") : null,
         g.active && cfg.paused ? el("p", { class: "warn" }, "New stakes are paused. Withdrawals always work.") : null,
         el("div", { class: "kstake-actions" },

@@ -1,5 +1,5 @@
 # KnodeGames recorders: every hour, records each game's results from the chain (irreversible blocks only, two nodes
-# must agree). Today: Who Signs Block X (bot/games/blockx.ts). Each game has its own folder on the games-data branch.
+# must agree). Today: Who Signs Block X (bot/games/blockx.ts) and the Producer Bracket (bot/games/bracket.ts). Each game has its own folder on the games-data branch.
 #
 # Two jobs, like the race and the main bot, so repository code never runs next to a write token:
 #   record   runs the recorders with a read-only token and no secrets (they only read the chain), and hands the files on.
@@ -22,6 +22,28 @@ permissions:
   contents: read
 
 jobs:
+  # R-VAULT-9: when this run fails, a plain-language summary at the top of the run page (what happened, does it
+  # matter, what to do), from .ai/platform/ALERTS.md §8. Reads two files from main; no secrets, read-only.
+  summary:
+    needs: [record, publish, alert]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            bot/alert-summary.mjs
+            .ai/platform/ALERTS.md
+          sparse-checkout-cone-mode: false
+      - name: Plain-language summary (ALERTS.md §8)
+        env:
+          WORKFLOW_NAME: KnodeGames recorders
+        run: node bot/alert-summary.mjs --workflow "$WORKFLOW_NAME" --section 8
+
   record:
     if: ${{ vars.GAMES_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
@@ -31,11 +53,17 @@ jobs:
     # Repo Lens E4-7: "true" when the recorder held a week before its prize list (read by the alert job below).
     outputs:
       held: ${{ steps.blockx.outputs.held }}
+      # Daily Questions (game 1): "failure" when its recorder failed (read by the questions-alert job below).
+      questions: ${{ steps.questions-prev.outcome == 'failure' && 'failure' || steps.questions.outcome }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: main
           persist-credentials: false
+      # When this job started: the Daily Questions recorder below runs only for the time left of the job's 30 minutes
+      # (Repo Lens F3-1), so a slow Block X plus a slow Questions run can't cancel the job before the upload.
+      - name: Note the job's start
+        run: date +%s > "$RUNNER_TEMP/job-start"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -86,6 +114,67 @@ jobs:
           PRIZES_FROM_WEEK: ${{ vars.PRIZES_FROM_WEEK }}
           # Fix-check L-2: the owner's one-off release of a held week ("<week>:<code>", the code the hold prints). Unset: none.
           BLOCKX_RELEASE: ${{ vars.BLOCKX_RELEASE }}
+      # Daily Questions (game 1), from Vault v6.1's rule week (D-116): games/questions/recorder.ts. Independent of Block X
+      # (RECORDER_STANDARD §6.5): its steps may fail without stopping the others; the questions-alert job then fails
+      # the run after publishing, so the owner is emailed. Its files go out only if the recorder finished (exit 0) or wrote
+      # them and raised the late alert (exit 3); the owner's HOLD and RELEASE files go out whatever the exit.
+      # Each step has its own time limit, so a node that never answers can't use up the job's 30 minutes and cost Block X
+      # its hour (Repo Lens QF-1); a step that times out fails alone and the upload still runs.
+      - name: Take Daily Questions' last files
+        id: questions-prev
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/prev/questions"; mkdir -p "$P/vault"
+          if git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" games-data 2>/dev/null; then
+            { git ls-tree --name-only FETCH_HEAD:questions 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^(board|W[0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:questions/$f" > "$P/$f"; fi
+            done
+            { git ls-tree --name-only FETCH_HEAD:questions/vault 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^((HOLD-|RELEASE-)?W[0-9]+)\.json$ ]]; then git show "FETCH_HEAD:questions/vault/$f" > "$P/vault/$f"; fi
+            done
+          else
+            set +e; git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/games-data >/dev/null 2>&1; rc=$?; set -e
+            if [ "$rc" -ne 2 ]; then echo "::error::The games-data branch could not be fetched (git ls-remote exit $rc): Daily Questions records nothing this run."; exit 1; fi
+          fi
+          # The recorder refuses to write without this mark (a run that couldn't see the published weeks must not write).
+          touch "$P/.fetched"
+      - name: Record Daily Questions
+        id: questions
+        if: ${{ steps.questions-prev.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          O="$RUNNER_TEMP/questions-out"; rm -rf "$O"; mkdir -p "$O"
+          # Time left of the job's 30 minutes, keeping 2.5 minutes for the upload; at most 7.5 minutes (Repo Lens F3-1).
+          # coreutils timeout exits 124, which takes the "failed" path below (holds still go out, and an alert).
+          start=$(cat "$RUNNER_TEMP/job-start" 2>/dev/null || date +%s)
+          left=$(( 30 * 60 - 150 - $(date +%s) + start )); [ "$left" -gt 450 ] && left=450
+          rc=0
+          if [ "$left" -lt 60 ]; then echo "::warning::Daily Questions skipped this run: only ${left} s of the job left."; rc=124
+          else timeout --kill-after=15s "${left}s" npm run questions || rc=$?; fi
+          D="$RUNNER_TEMP/games-data/questions"; mkdir -p "$RUNNER_TEMP/games-data"; rm -rf "$D"
+          if [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]; then cp -r "$O" "$D"
+          else
+            mkdir -p "$D/vault"
+            for f in "$O"/vault/HOLD-W*.json "$O"/vault/RELEASE-W*.json; do [ -f "$f" ] && cp "$f" "$D/vault/"; done
+          fi
+          exit "$rc"
+        env:
+          RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
+          RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
+          QUESTIONS_PREV: ${{ runner.temp }}/prev/questions
+          QUESTIONS_OUT: ${{ runner.temp }}/questions-out
+          # The owner's holds: QUESTIONS_HOLD = "<week>[,<week>]" (reason in QUESTIONS_HOLD_REASON), later
+          # QUESTIONS_RELEASE = "<week>". Unset: none.
+          QUESTIONS_HOLD: ${{ vars.QUESTIONS_HOLD }}
+          QUESTIONS_HOLD_REASON: ${{ vars.QUESTIONS_HOLD_REASON }}
+          QUESTIONS_RELEASE: ${{ vars.QUESTIONS_RELEASE }}
+          # QUESTIONS_FROM_WEEK = the first vault week paid from a results file (4, Mon 16 Nov): from then a week read as
+          # "not shared" fails the run (an email) instead of rolling over quietly (Repo Lens C11-1).
+          QUESTIONS_FROM_WEEK: ${{ vars.QUESTIONS_FROM_WEEK }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: games-data
@@ -93,9 +182,72 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-  publish:
-    needs: record
+  # Fix-check F9 (Repo Lens #E-3 M-3, M-4): the Producer Bracket records in its OWN job, so its code never runs next to
+  # Block X's output, and its artifact is separate. If it fails, Block X is still published and the alert job emails.
+  record_bracket:
     if: ${{ vars.GAMES_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      # The Bracket's files the last run published (a public branch; read without a token). Only plain JSON files with
+      # the expected names are taken, names read line by line.
+      - name: Take the Bracket's last published files
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/prev/bracket/vault"
+          if git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" games-data 2>/dev/null; then
+            { git ls-tree --name-only FETCH_HEAD:bracket 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^(index|board|W[0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:bracket/$f" > "$RUNNER_TEMP/prev/bracket/$f"; fi
+            done
+            { git ls-tree --name-only FETCH_HEAD:bracket/vault 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then git show "FETCH_HEAD:bracket/vault/$f" > "$RUNNER_TEMP/prev/bracket/vault/$f"; fi
+            done
+            # The owner's free-prize switches (owner 11 Nov): the recorder gives free-play medals only for a week whose switch
+            # for game 9 is on. A missing or unreadable file means none (the recorder fails closed).
+            if git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" prize-settings 2>/dev/null; then
+              git show FETCH_HEAD:free-prizes.json > "$RUNNER_TEMP/prev/free-prizes.json" 2>/dev/null || rm -f "$RUNNER_TEMP/prev/free-prizes.json"
+            fi
+          else
+            # Repo Lens E4-1 (a): only a branch that really isn't there means "nothing yet"; any other failed fetch stops the run.
+            set +e; git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/games-data >/dev/null 2>&1; rc=$?; set -e
+            if [ "$rc" -eq 2 ]; then echo "No games-data branch yet."; else echo "::error::The games-data branch could not be fetched (git ls-remote exit $rc). Nothing recorded this run; the next run tries again."; exit 1; fi
+          fi
+      # It writes its files only at the end of a good run.
+      - name: Record the Producer Bracket
+        id: bracket
+        run: npm run bracket
+        env:
+          RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
+          RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
+          BRACKET_PREV: ${{ runner.temp }}/prev/bracket
+          BRACKET_OUT: ${{ runner.temp }}/games-data/bracket
+          # The first week the vault pays game 9 (its "from week" once game 9 is applied). Unset: no medals or prize lists.
+          BRACKET_PRIZES_FROM_WEEK: ${{ vars.BRACKET_PRIZES_FROM_WEEK }}
+          # The free-prize switches file taken above (free-play medals only where game 9's switch is on).
+          BRACKET_FREE_SWITCHES: ${{ runner.temp }}/prev/free-prizes.json
+          # Fix-check F4: the owner's one-off correction window ("3" or "3,4"); the publish job reads the same variable.
+          BRACKET_RELEASE: ${{ vars.BRACKET_RELEASE }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: games-data-bracket
+          path: ${{ runner.temp }}/games-data/
+          retention-days: 1
+          if-no-files-found: ignore
+
+  publish:
+    needs: [record, record_bracket]
+    # Block X's recorder must have succeeded; the Bracket's may have failed (its files then stay as they were).
+    if: ${{ always() && vars.GAMES_ENABLED == 'true' && github.ref == 'refs/heads/main' && needs.record.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -106,6 +258,13 @@ jobs:
         with:
           name: games-data
           path: ${{ runner.temp }}/incoming
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: ${{ needs.record_bracket.result == 'success' }}
+        continue-on-error: true
+        with:
+          name: games-data-bracket
+          # fix-check 2 F9-1: its own folder; only its bracket/ folder is ever taken (below)
+          path: ${{ runner.temp }}/incoming-bracket
       # Audit BX-131 (round 9): the same Node as the recorders (22), for the recorders'-own-JSON check below.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -113,11 +272,41 @@ jobs:
       - name: Push games-data (and nothing else)
         env:
           GH_TOKEN: ${{ github.token }}
+          # fix-check F4: the owner's one-off correction window for named Bracket weeks (the recorder reads it too)
+          BRACKET_RELEASE: ${{ vars.BRACKET_RELEASE }}
           IN: ${{ runner.temp }}/incoming
         run: |
           set -euo pipefail
           if [ ! -d "$IN" ]; then echo "Nothing to publish."; exit 0; fi
-          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/blockx" ! -path "$IN/blockx/vault" \) -o \( -type f ! -regex "$IN/blockx/\(index\|board\|W[0-9][0-9][0-9]\|P[0-9][0-9][0-9]\)\.json" ! -regex "$IN/blockx/vault/W[0-9][0-9]*\.json" \) \) -print)
+          # Repo Lens #E-3 M-3: the Producer Bracket's names, sizes and JSON form are checked on their own first. A bad Bracket
+          # file holds the Bracket only (its folder is set aside, with an alert); it never stops Block X being published.
+          BRACKET_ALERT=""
+          # fix-check 2 F9-1: the Bracket's files come only from its own artifact (its own folder), and only its bracket/
+          # folder: Block X's artifact never carries Bracket files, and anything else in the Bracket's artifact (a stray
+          # file, blockx/ files) holds the Bracket this run and never reaches Block X's files.
+          rm -rf "$IN/bracket"
+          BRIN="${RUNNER_TEMP:-$(dirname "$IN")}/incoming-bracket"   # (= $RUNNER_TEMP on GitHub: IN is $RUNNER_TEMP/incoming)
+          if [ -e "$BRIN" ] || [ -L "$BRIN" ]; then
+            brstray=$(find "$BRIN" -mindepth 1 -maxdepth 1 ! \( -name bracket -type d \) -print)
+            if [ -L "$BRIN" ] || [ -n "$brstray" ]; then
+              echo "::error::Producer Bracket artifact held this run (files outside bracket/; nothing of the Bracket is published; Block X still is): $brstray"
+              BRACKET_ALERT=1
+            elif [ -d "$BRIN/bracket" ]; then
+              mv "$BRIN/bracket" "$IN/bracket"
+            fi
+          fi
+          if [ -d "$IN/bracket" ]; then
+            brbad=$(find "$IN/bracket" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/bracket/vault" \) -o \( -type f ! -regex "$IN/bracket/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/bracket/vault/W[0-9][0-9]*\.json" \) -o \( -type f -size +2048k \) \) -print)
+            if [ -z "$brbad" ] && ! node -e 'const fs=require("fs"),p=require("path");let bad=0;(function w(d){for(const f of fs.readdirSync(d)){const q=p.join(d,f),s=fs.lstatSync(q);if(s.isDirectory()){w(q);continue}const raw=fs.readFileSync(q);let ok=false;try{ok=Buffer.compare(Buffer.from(JSON.stringify(JSON.parse(raw.toString("utf8")))+"\n","utf8"),raw)===0}catch(e){}if(!ok)bad++}})(process.argv[1]);process.exit(bad?1:0)' -- "$IN/bracket"; then brbad="a file not in the recorder's own JSON form"; fi
+            # fix-check F7: the recorder writes at most 3 week files, index, board and a vault file or two; anything near
+            # this many files is not its output (and a flood of them could run the job out of time)
+            if [ -z "$brbad" ] && [ "$(find "$IN/bracket" -type f | wc -l)" -gt 12 ]; then brbad="more than 12 files"; fi
+            if [ -n "$brbad" ]; then
+              echo "::error::Producer Bracket files held this run (nothing of the Bracket is published; Block X still is): $brbad"
+              mv "$IN/bracket" "$RUNNER_TEMP/bracket-held"; BRACKET_ALERT=1
+            fi
+          fi
+          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/blockx" ! -path "$IN/blockx/vault" ! -path "$IN/bracket" ! -path "$IN/bracket/vault" ! -path "$IN/questions" ! -path "$IN/questions/vault" \) -o \( -type f ! -regex "$IN/blockx/\(index\|board\|W[0-9][0-9][0-9]\|P[0-9][0-9][0-9]\)\.json" ! -regex "$IN/blockx/vault/W[0-9][0-9]*\.json" ! -regex "$IN/bracket/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/bracket/vault/W[0-9][0-9]*\.json" ! -regex "$IN/questions/\(board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/questions/vault/\(HOLD-\|RELEASE-\)\?W[0-9][0-9]*\.json" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           big=$(find "$IN" -type f -size +2048k -print)
           if [ -n "$big" ]; then echo "::error::Refusing to publish files over 2 MB: $big"; exit 1; fi
@@ -130,7 +319,8 @@ jobs:
           # Audit BX-79 / BX-80: the published branch first (read only here): the vault and prize files are judged against
           # what is ALREADY published and the job's own clock, never against this run's own board.
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          PUB=$(mktemp -d); HELD="$PUB/held"; : > "$HELD"; mkdir -p "$PUB/blockx"
+          PUB=$(mktemp -d); HELD="$PUB/held"; : > "$HELD"; mkdir -p "$PUB/blockx" "$PUB/bracket"
+          if [ -n "$BRACKET_ALERT" ]; then echo '!alert' >> "$HELD"; fi
           git init -q work && cd work
           parent=""
           if git fetch -q --depth 1 "$remote" games-data 2>/dev/null; then
@@ -138,6 +328,13 @@ jobs:
             git read-tree FETCH_HEAD
             { git ls-tree --name-only "$parent:blockx" 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^(board|index|P[0-9]{3}|W[0-9]{3})\.json$ ]]; then git show "$parent:blockx/$f" > "$PUB/blockx/$f"; fi
+            done
+            { git ls-tree --name-only "$parent:bracket" 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^(board|index|W[0-9]{3})\.json$ ]]; then git show "$parent:bracket/$f" > "$PUB/bracket/$f"; fi
+            done
+            mkdir -p "$PUB/bracket/vault"
+            { git ls-tree --name-only "$parent:bracket/vault" 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then git show "$parent:bracket/vault/$f" > "$PUB/bracket/vault/$f"; fi
             done
           else git read-tree --empty; fi
           # The content must be the recorder's own shape, not only parse as JSON.
@@ -382,12 +579,709 @@ jobs:
               assert type(j["targets"]) is list and len(j["targets"]) <= 1000 and all(target_ok(t) for t in j["targets"]), f
           print("games files ok:", d)
           PY
+          # The Producer Bracket (game 9): its own shape check, history, clock, recompute and Vault-file rules. It never stops the
+          # job: anything wrong holds the Bracket's files (added to $HELD, with an alert), and Block X is still published.
+          if [ -d "$IN/bracket" ]; then
+          /usr/bin/python3 - "$IN/bracket" "$PUB/bracket" "$HELD" <<'PY'
+          import hashlib, json, math, os, re, sys, time
+          # The Producer Bracket's files (game 9). Runs no repository code: everything below is this job's own.
+          # RECORDER_STANDARD.md §3, §4, §6 and Repo Lens #E-3:
+          #  - the recorder's own shape and load rules (M-9), checked per file; one bad Bracket file holds only the Bracket, never
+          #    the job or Block X (M-3: the whole check is wrapped, and any surprise holds every Bracket file with an alert);
+          #  - new history is bounded by this job's clock (H-3) and never goes backwards;
+          #  - results and points are recomputed here from the published seeding, hours and checked picks, with a port of
+          #    bracket-math.js (differential-tested against it, tests/audit/bracket-publish-port.test.mjs), and any difference
+          #    holds the Bracket (H-2);
+          #  - the Vault file must be exactly what the final week gives (C-1's paid-set values; M-5: in the same run that makes
+          #    the week final, once its recompute agrees).
+          d = sys.argv[1]; pub = sys.argv[2] if len(sys.argv) > 2 else ""; heldf = sys.argv[3] if len(sys.argv) > 3 else ""
+          held = []
+          def hold(name, why, alert):
+              held.append(name); print(("::error::" if alert else "::notice::") + "held, not published: " + name + ": " + why)
+              if alert: held.append("!alert")
+          def every_file():
+              out = []
+              for root, _dirs, files in os.walk(d):
+                  for f in files: out.append(os.path.relpath(os.path.join(root, f), os.path.dirname(d)))
+              return sorted(out)
+          def hold_all(why):
+              print("::error::the Producer Bracket's files are held this run: " + why)
+              for name in every_file(): hold("bracket/" + name.split("/", 1)[1], why, True)
+              if "!alert" not in held: held.append("!alert")
+
+          FILE_V = 5
+          WEEK = 7 * 86400000; DAY = 86400000; HOUR = 3600000; GENESIS = 1792368000000
+          SEED_BEFORE = DAY; LOCK_DAY = 1; LOCK_BEFORE = 5 * 60000; LAST_DAY = 5; VAULT_DAYS = 3 * DAY; SEED_GRACE = DAY
+          Q_SCALE = 1e15; CHAMP = 2; FORFEIT_SHARE = 0.5
+          PICKS_GRACE = 3 * HOUR; LAST_SEEDING_WEEKS = 4; RACE_BLOCKS = 7200; MIN_K = 10; MIN_FIELD = 8
+          POOL = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr"   # the Knode Games Pool (the vault): the only producer that may be pooled
+          # BRACKET_RELEASE (the owner's repository variable, the same one the recorder reads; fix-check F4): weeks whose seeding
+          # (before picks), recorded hours or end-of-week stakes may be replaced by a new two-node reading, and whose picks may be
+          # recorded late (F3). Anything that isn't a plain list of week numbers releases nothing.
+          _rel = os.environ.get("BRACKET_RELEASE") or ""
+          # fix-check 2 I-1: plain spaces only (Python's \s takes \x1c-\x1f), the same pattern as the recorder's; never crashes
+          RELEASE = set(int(x.strip(" ")) for x in _rel.split(",")) if re.fullmatch(r" *[0-9]{1,4}( *, *[0-9]{1,4})* *", _rel) else set()
+          SAFE = 2**53 - 1
+          addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}"); iso = re.compile(r"[0-9]{4}-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9](\.[0-9]{3})?Z")
+          isa = lambda v: type(v) is str and addr.fullmatch(v) is not None
+          num = lambda x: type(x) in (int, float) and x == x and abs(x) <= SAFE
+          nat = lambda x: type(x) is int and 0 <= x <= SAFE
+          one = lambda x: type(x) is int and x == 1
+          def same(a, b):
+              if type(a) is not type(b): return False
+              if type(a) is dict: return a.keys() == b.keys() and all(same(a[k], b[k]) for k in a)
+              if type(a) is list: return len(a) == len(b) and all(same(x, y) for x, y in zip(a, b))
+              return a == b
+          def js_safe(o, depth=0):
+              if depth > 64: return False
+              if o is None or type(o) in (bool, str): return True
+              if type(o) is int: return abs(o) <= SAFE
+              if type(o) is float: return o == o and abs(o) <= SAFE and not o.is_integer()
+              if type(o) is list: return all(js_safe(x, depth + 1) for x in o)
+              if type(o) is dict: return all(type(k) is str and js_safe(v, depth + 1) for k, v in o.items())
+              return False
+          def load(p): return json.load(open(p, encoding="utf-8"))
+          def jsnum(x):
+              # JSON.stringify's number form for the values the recorder hashes (VHP rounded to 0.01, whole numbers)
+              if type(x) is int: return str(x)
+              r = repr(x)
+              if "e" in r or "E" in r:
+                  from decimal import Decimal
+                  r = format(Decimal(r), "f")
+                  if "." in r: r = r.rstrip("0").rstrip(".")
+              return r
+          def jsdump(o):
+              if o is None: return "null"
+              if o is True: return "true"
+              if o is False: return "false"
+              if type(o) in (int, float): return jsnum(o)
+              if type(o) is str: return json.dumps(o, ensure_ascii=False)
+              if type(o) is list: return "[" + ",".join(jsdump(x) for x in o) + "]"
+              return "{" + ",".join(json.dumps(k, ensure_ascii=False) + ":" + jsdump(v) for k, v in o.items()) + "}"
+
+          # ── time (bracket-math.js) ──
+          week_start = lambda w: GENESIS + w * WEEK
+          seed_time = lambda w: week_start(w) - SEED_BEFORE
+          lock_time = lambda w: week_start(w) + LOCK_DAY * DAY - LOCK_BEFORE
+          def rounds_of(size): return {8: 3, 16: 4, 32: 5}[size]
+          def round_day(w, r, size): return week_start(w) + (LAST_DAY - (rounds_of(size) - 1) + r) * DAY
+
+          # ── the bracket (bracket-math.js lineOrder / firstRound / play / decode / score) ──
+          def line_order(size):
+              o = [1, 2]
+              while len(o) < size:
+                  n = len(o) * 2; o = [x for s in o for x in ((s, n + 1 - s) if s % 2 else (n + 1 - s, s))]
+              return o if len(o) == size else []
+          def first_round(size, n_seeds):
+              o = line_order(size); out = []
+              for i in range(0, size, 2):
+                  a, b = min(o[i], o[i + 1]), max(o[i], o[i + 1]); out.append([a, b if b <= n_seeds else 0])
+              return out
+          round_offset = lambda size, r: size - size // 2 ** r
+          def play(size, n_seeds, choose):
+              pairs = first_round(size, n_seeds); rounds = []; byes = []
+              for r in range(rounds_of(size)):
+                  winners = []
+                  for m, (a, b) in enumerate(pairs):
+                      if not b: byes.append(round_offset(size, r) + m); winners.append(a); continue
+                      winners.append(b if choose(r, m, a, b) else a)
+                  rounds.append(winners)
+                  pairs = [[min(winners[i], winners[i + 1]), max(winners[i], winners[i + 1])] for i in range(0, len(winners) - 1, 2)]
+              return rounds, byes
+          def decode(number, size, n_seeds):
+              if not size or type(number) is not int or number < 0 or number >= 2 ** (size - 1): return None
+              bit = lambda n: (number >> n) & 1 == 1
+              for b in play(size, n_seeds, lambda *a: False)[1]:
+                  if bit(b): return None
+              return play(size, n_seeds, lambda r, m, a, b: bit(round_offset(size, r) + m))[0]
+          def score(pick, res_rounds, done, size, n_seeds):
+              pts = 0; correct = 0; champ = False
+              if pick is None: return 0, 0, False
+              byes = set(play(size, n_seeds, lambda *a: False)[1])
+              for r in range(len(res_rounds)):
+                  for m in range(len(res_rounds[r])):
+                      if round_offset(size, r) + m in byes: continue
+                      if pick[r][m] == res_rounds[r][m]: pts += 2 ** r; correct += 1
+              R = rounds_of(size)
+              if done and pick[R - 1][0] == res_rounds[R - 1][0]: champ = True; pts += CHAMP
+              return pts, correct, champ
+
+          # ── a day (bracket-math.js sumHours / otherWins / forfeits) ──
+          def sum_hours(hours):
+              out = {}
+              def get(a):
+                  if a not in out: out[a] = {"blocks": 0, "credited": 0, "baseline": 0, "expected": 0, "rate": 0, "q": 0, "avgSum": 0, "n": 0, "avg": 0, "exact": 0}
+                  return out[a]
+              ok = lambda x: type(x) in (int, float) and x == x and x >= 0 and x != float("inf")
+              q = 0
+              for hr in hours:
+                  q += hr["q"]
+                  for a, b in hr["by"].items():
+                      if ok(b): get(a)["blocks"] += b
+                  for a, c in hr["cr"].items():
+                      if ok(c): get(a)["credited"] += c
+                  for a, c in hr["r"].items():
+                      if ok(c): get(a)["rate"] += c
+                  for a, v in hr["av"].items():
+                      if ok(v): x = get(a); x["avgSum"] += v * hr["n"]; x["n"] += hr["n"]; x["exact"] += int(v) * hr["n"]   # av is a whole number (hour_ok)
+              for a, v in hours[0]["w"].items():
+                  if ok(v): get(a)["baseline"] = v
+              for x in out.values():
+                  x["q"] = q; x["expected"] = x["baseline"] * q / Q_SCALE
+                  x["avg"] = x["avgSum"] / x["n"] if x["n"] > 0 else x["baseline"]
+              return out
+          def forfeits(x, vhp):
+              # fix-check B-1: exact integers, as bracket-math.js: 2 x sum(av x n) < seeding satoshi x sum(n); no blocks: the baseline
+              if not (vhp > 0) or x is None: return False
+              seed_sat = int(round(vhp * 100)) * 10**6
+              if x["n"] > 0: return 2 * x["exact"] < seed_sat * x["n"]
+              return 2 * int(x["baseline"]) < seed_sat
+          def score_of(x, pooled):
+              if x is None: return 0, 0
+              return (x["rate"], x["q"]) if pooled else (x["credited"], x["expected"] or 0)
+          def other_wins(idx, better, other, seed_vhp, pooled):
+              pa, pb = better in pooled, other in pooled
+              A, B = idx.get(better), idx.get(other)
+              fa = (not pa) and forfeits(A, seed_vhp.get(better, 0)); fb = (not pb) and forfeits(B, seed_vhp.get(other, 0))
+              if fa != fb: return fa
+              ca, ea = score_of(A, pa); cb, eb = score_of(B, pb)
+              if ea <= 0 and eb <= 0: return True
+              if eb <= 0: return False
+              if ea <= 0: return True
+              sa = ca * eb; sb = cb * ea
+              tol = 1e-9 * max(1, abs(sa), abs(sb))
+              return sb > sa - tol
+          def results(seeds, size, days, seed_vhp, pooled):
+              R = rounds_of(size); known = 0
+              while known < R and days[known] is not None: known += 1
+              sv = {a: (seed_vhp[i] or 0) for i, a in enumerate(seeds)}; pl = set(pooled)
+              full = play(size, len(seeds), lambda r, m, a, b: other_wins(days[r], seeds[a - 1], seeds[b - 1], sv, pl) if r < known else False)[0]
+              return full[:known], known == R
+          def rescore(j):
+              s = j["seeding"]; size = s["size"]; seeds = s["seeds"]
+              days = [sum_hours(day) if all(h is not None for h in day) else None for day in j["days"]]
+              rounds, done = results(seeds, size, days, s["vhp"], s["pooled"])
+              pts = []
+              for player, number, _t, _v in j["picks"]["rows"]:
+                  p, c, ch = score(decode(number, size, len(seeds)), rounds, done, size, len(seeds))
+                  pts.append([player, p, 1 if ch else 0, c])
+              return {"rounds": rounds, "done": done}, pts
+
+          # ── the recorder's shape and load rules (bot/games/bracket.ts hourOk / seedingOk / loadWeek / finalOk) ──
+          HOUR_KEYS = ({"from", "to", "n", "by", "cr", "w", "q", "r", "av", "checked"}, {"from", "to", "n", "by", "cr", "w", "q", "r", "av", "checked", "re"})
+          def rec(o, seeds):
+              return type(o) is dict and len(o) <= 32 and all(a in seeds and num(v) and v >= 0 for a, v in o.items())
+          def hour_ok(h, seeds):
+              if h is None: return True
+              if type(h) is not dict or set(h) not in HOUR_KEYS or ("re" in h and not one(h["re"])): return False
+              if not (nat(h["from"]) and nat(h["to"]) and nat(h["n"]) and h["n"] <= 100000 and h["to"] == h["from"] + h["n"] - 1 and type(h["checked"]) is int and h["checked"] == 2 and num(h["q"]) and h["q"] >= 0): return False
+              if not all(rec(h[k], seeds) for k in ("by", "cr", "w", "r", "av")): return False
+              if not all(type(v) is int for k in ("w", "av") for v in h[k].values()): return False   # whole satoshi (B-1, B-3)
+              return all(type(v) is int and v <= h["n"] for v in h["by"].values())
+          def seed_hash(w, s):
+              keys = ["at", "cardAt", "size", "seeds", "vhp", "totalVhp", "out", "outVhp", "raw", "pooled"]
+              o = {"week": w}; o.update({k: s[k] for k in keys})
+              return hashlib.sha256(jsdump(o).encode("utf-8")).hexdigest()
+          def alist(x, cap=100000): return type(x) is list and len(x) <= cap and all(isa(a) for a in x)
+          def sorted_unique(l): return all(l[i - 1] < l[i] for i in range(1, len(l)))
+          def vhp2(v):
+              # a VHP value as the recorder writes it: whole hundredths, 0.01 ... 1e9 (fix-check F5: then this job's number text and
+              # JavaScript's agree, so a seeding hash the job accepts is one the recorder accepts too)
+              # fix-check 2 P-2: judged on the number's shortest text (what JSON.stringify wrote), not v * 100, whose float
+              # step passes 1e-6 above ~86M VHP
+              return num(v) and 0.01 <= v <= 1e9 and re.fullmatch(r"[0-9]{1,10}(\.[0-9]{1,2})?", repr(v)) is not None
+          def seeding_ok(w, s):
+              if type(s) is not dict or set(s) not in ({"at", "cardAt", "size", "seeds", "vhp", "totalVhp", "out", "outVhp", "raw", "pooled", "hash"}, {"at", "cardAt", "size", "seeds", "vhp", "totalVhp", "out", "outVhp", "raw", "pooled", "hash", "re"}): return False
+              if "re" in s and not one(s["re"]): return False
+              if type(s["size"]) is not int or s["size"] not in (0, 8, 16, 32) or s["at"] != seed_time(w) or not nat(s["cardAt"]) or not num(s["totalVhp"]): return False
+              if not (alist(s["seeds"], 32) and len(s["seeds"]) == s["size"] and len(set(s["seeds"])) == len(s["seeds"])): return False
+              if not (type(s["vhp"]) is list and len(s["vhp"]) == len(s["seeds"]) and all(num(v) and v > 0 for v in s["vhp"]) and all(s["vhp"][i - 1] >= s["vhp"][i] for i in range(1, len(s["vhp"])))): return False
+              if not (alist(s["out"], 1000) and type(s["outVhp"]) is list and len(s["outVhp"]) == len(s["out"]) and all(num(v) and v > 0 for v in s["outVhp"]) and not set(s["out"]) & set(s["seeds"])): return False
+              if not (type(s["raw"]) is dict and len(s["raw"]) <= 2000 and all(isa(a) and vhp2(v) for a, v in s["raw"].items()) and sorted_unique(list(s["raw"]))): return False
+              if not all(vhp2(v) for v in s["vhp"] + s["outVhp"]) or not (num(s["totalVhp"]) and 0 <= s["totalVhp"] <= 1e10): return False
+              if not (alist(s["pooled"], 1) and all(a in s["seeds"] and a == POOL for a in s["pooled"]) and (POOL not in s["seeds"] or s["pooled"] == [POOL])): return False
+              return type(s["hash"]) is str and s["hash"] == seed_hash(w, s)
+          def size_for(n): return 32 if n >= 32 else 16 if n >= 16 else 8 if n >= MIN_FIELD else 0
+          def derive_seeding(raw, last):
+              # fix-check F2: the seeds, their seeding VHP and the size, worked out here from the recorded raw averages and the
+              # last seeding's (bracket-math.js seeding over vhp-standard.js fieldOf), never taken on trust
+              # fix-check 2 FL-1: field membership in whole cents (RACE_BLOCKS x cents >= MIN_K x total cents), as bracket-math.js
+              rows = sorted(raw.items(), key=lambda x: (-x[1], x[0]))
+              tot_c = 0
+              for _a, v in rows: tot_c += int(round(v * 100))
+              def in_field(v): return tot_c > 0 and RACE_BLOCKS * int(round(v * 100)) >= MIN_K * tot_c
+              picked = []
+              for a, v in rows:
+                  if not in_field(v): continue
+                  if last: p = last.get(a); v = min(v, p if (type(p) in (int, float) and p > 0) else 0)
+                  if in_field(v): picked.append((a, v))
+              picked.sort(key=lambda x: (-x[1], x[0]))
+              size = size_for(len(picked)); n = min(len(picked), size)
+              return {"size": size, "seeds": [a for a, _ in picked[:n]], "vhp": [v for _, v in picked[:n]], "out": [a for a, _ in picked[n:]], "outVhp": [v for _, v in picked[n:]]}
+          STATUS = ("waiting", "none", "void", "open", "locked", "final")
+          def week_ok(j, f):
+              # returns None when the file is what the recorder writes, else why not
+              if type(j) is not dict or not set(j) <= {"v", "week", "start", "end", "status", "seeding", "picks", "days", "results", "points", "void", "staked", "vault"}: return "unexpected fields"
+              if not ({"v", "week", "start", "end", "status", "seeding", "picks", "days", "results", "points", "staked"} <= set(j)): return "missing fields"
+              if not (type(j["v"]) is int and j["v"] == FILE_V and nat(j["week"]) and f == "W%03d.json" % j["week"] and j["start"] == week_start(j["week"]) and j["end"] == j["start"] + WEEK): return "version, week or times"
+              w = j["week"]
+              if j["status"] not in STATUS: return "status"
+              if "void" in j and (type(j["void"]) is not str or len(j["void"]) > 200): return "void reason"
+              if "vault" in j and (j["vault"] != "missed" or j["status"] != "final"): return "vault mark"
+              s = j["seeding"]
+              if s is not None and not seeding_ok(w, s): return "seeding (shape, order or hash)"
+              if j["status"] in ("open", "locked", "final") and (s is None or not s["size"]): return "a played week without a bracket"
+              if j["status"] == "none" and (s is None or s["size"] or s.get("re") != 1): return "no-bracket week with a bracket, or not read again (fix-check F2)"
+              seeds = s["seeds"] if s else []
+              ds = j["days"]; R = rounds_of(s["size"]) if s and s["size"] else 0
+              if type(ds) is not list or len(ds) != (R if s else 0) or not all(type(x) is list and len(x) == 24 and all(hour_ok(h, seeds) for h in x) for x in ds): return "days"
+              pk = j["picks"]
+              if pk is not None:
+                  if s is None or not s["size"]: return "picks without a bracket"
+                  if type(pk) is not dict or set(pk) not in ({"checked", "rows"}, {"checked", "rows", "re"}) or ("re" in pk and not one(pk["re"])) or type(pk["checked"]) is not int or pk["checked"] != 2 or type(pk["rows"]) is not list or len(pk["rows"]) > 100000: return "picks (two nodes only, fix-check F3)"
+                  if s.get("re") != 1: return "picks before the seeding was read again (fix-check F2)"
+                  if not all(type(x) is list and len(x) == 4 and isa(x[0]) and nat(x[1]) and x[1] < 2**31 and nat(x[2]) and type(x[3]) is int and x[3] == (1 if decode(x[1], s["size"], len(seeds)) is not None else 0) for x in pk["rows"]): return "pick rows"
+                  if not sorted_unique([x[0] for x in pk["rows"]]): return "picks not sorted or repeated"
+              st = j["staked"]
+              if st is not None:
+                  if pk is None: return "stakes without picks"
+                  # fix-check 2 PK-1: stakes are read only for the players in picks a later run confirmed
+                  if pk.get("re") != 1: return "stakes before the picks were read again (fix-check 2 PK-1)"
+                  if type(st) is not dict or set(st) not in ({"checked", "list"}, {"checked", "list", "held"}) or not (type(st["checked"]) is int and st["checked"] == 2) or not alist(st["list"]) or not sorted_unique(st["list"]): return "staked"
+                  if "held" in st and not (alist(st["held"]) and sorted_unique(st["held"])): return "held"
+              r = j["results"]; pts = j["points"]
+              if type(pts) is not list or len(pts) > 100000: return "points"
+              if pk is None:
+                  if r is not None or pts != []: return "results or points before the lock"
+              else:
+                  if type(r) is not dict or set(r) != {"rounds", "done"} or type(r["done"]) is not bool or type(r["rounds"]) is not list or len(r["rounds"]) > R: return "results"
+                  if not all(type(x) is list and len(x) == s["size"] // 2 ** (i + 1) and all(type(v) is int and 1 <= v <= len(seeds) for v in x) for i, x in enumerate(r["rounds"])): return "results rounds"
+                  if not (type(pts) is list and len(pts) == len(pk["rows"]) and all(type(x) is list and len(x) == 4 and x[0] == pk["rows"][i][0] and nat(x[1]) and x[1] <= 82 and type(x[2]) is int and x[2] in (0, 1) and nat(x[3]) and x[3] <= 31 for i, x in enumerate(pts))): return "points rows"
+                  # H-2: results and points follow from the seeding, the hours and the checked picks
+                  rr, pp = rescore(j)
+                  if not same(r, rr): return "its results don't follow from its hours (recomputed here)"
+                  if not same(pts, pp): return "its points don't follow from its results and picks (recomputed here)"
+              if j["status"] == "final":
+                  if pk is None or not r["done"]: return "final without every result"
+                  if pk.get("re") != 1: return "final on picks no later run read again (fix-check 2 PK-1)"
+                  if not all(h is not None and h.get("re") == 1 for day in ds for h in day): return "final before every hour was re-read in a later run"
+                  if j.get("vault") != "missed" and (st is None or "held" not in st): return "final without the end-of-week stakes"
+              return None
+          def rows_ok(rows):
+              return type(rows) is list and len(rows) <= 4000 and all(type(x) is dict and set(x) == {"a", "place", "boardPlace", "pts", "champion", "correct", "ranked", "earns"} and isa(x["a"])
+                  and nat(x["place"]) and nat(x["boardPlace"]) and nat(x["pts"]) and type(x["champion"]) is bool and nat(x["correct"]) and type(x["ranked"]) is bool
+                  and type(x["earns"]) is int and x["earns"] in (0, 1, 2, 3) for x in rows)
+          def view_ok(v, last=False):
+              keys = {"week", "start", "status", "final", "rows"} | ({"prizes"} if last else set())
+              if type(v) is not dict or set(v) != keys or not nat(v["week"]) or v["start"] != week_start(v["week"]) or type(v["status"]) is not str or len(v["status"]) > 10 or type(v["final"]) is not bool or not rows_ok(v["rows"]): return False
+              return not last or (type(v["prizes"]) is list and len(v["prizes"]) <= 20 and all(type(p) is dict and set(p) == {"player", "place", "vhp"} and isa(p["player"]) and type(p["place"]) is int and p["place"] in (1, 2) and num(p["vhp"]) and 0 < p["vhp"] <= 2 for p in v["prizes"]))
+          def vault_shape(j, f):
+              if type(j) is not dict or set(j) != {"game", "week", "final", "rows", "first", "second"} or not (type(j["game"]) is int and j["game"] == 9) or j["final"] is not True: return False
+              if not nat(j["week"]) or f != "W%d.json" % j["week"]: return False
+              if type(j["rows"]) is not list or len(j["rows"]) > 100000 or not all(type(x) is dict and set(x) == {"player", "points"} and isa(x["player"]) and type(x["points"]) is int and 1 <= x["points"] <= 255 for x in j["rows"]): return False
+              if not (alist(j["first"], 10) and alist(j["second"], 10)) or (j["second"] and len(j["first"]) != 1): return False
+              allw = j["first"] + j["second"] + [x["player"] for x in j["rows"]]
+              return len(set(allw)) == len(allw)
+
+          # ── the Vault file from a final week (bot/games/bracket.ts vaultRows / freeWinners; #E-3 C-1) ──
+          def groups(rows, tm):
+              key = lambda r: (-r[1], -r[2], -r[3], tm.get(r[0], 0))
+              s = sorted(rows, key=lambda r: (key(r), r[0])); out = []
+              for i, r in enumerate(s):
+                  if i and key(s[i - 1]) == key(r): out[-1].append(r[0])
+                  else: out.append([r[0]])
+              return out
+          def expected_vault(wf):
+              tm = {x[0]: x[2] for x in wf["picks"]["rows"]}; st = wf["staked"]; staked = set(st["list"]); heldset = staked | set(st.get("held", []))
+              g = groups([x for x in wf["points"] if x[0] in staked and x[1] >= 1], tm)
+              n = sum(len(x) for x in g); need = (n * 30 + 99) // 100; got = 0; paid = 0   # the Vault's own formula
+              while paid < len(g) and got < need: got += len(g[paid]); paid += 1
+              rows = []
+              for i, grp in enumerate(g):
+                  v = max(2, 255 - i) if i < paid else 1
+                  rows += [{"player": a, "points": v} for a in grp]
+              rows.sort(key=lambda x: (-x["points"], x["player"]))
+              fg = groups([x for x in wf["points"] if x[0] not in heldset and x[1] >= 1], tm)
+              first = sorted(fg[0]) if fg else []
+              if len(first) > 10: first, second = [], []
+              elif len(first) != 1: second = []
+              else: second = sorted(fg[1]) if len(fg) > 1 and len(fg[1]) <= 10 else []
+              return {"game": 9, "week": wf["week"], "final": True, "rows": rows, "first": first, "second": second}
+
+          def main():
+              now = int(os.environ.get("CHECK_NOW_MS") or time.time() * 1000); cw = (now - GENESIS) // WEEK
+              def pubjson(name):
+                  p = os.path.join(pub, name) if pub else ""
+                  return load(p) if p and os.path.isfile(p) else None
+              for root, _dirs, files in os.walk(d):
+                  for f in files:
+                      if f.endswith(".json") and not js_safe(load(os.path.join(root, f))): return "a value the recorder (JavaScript) can't read back exactly: " + f
+              problems = []
+              weeks_in = {}
+              # ── week files: shape, load rules, recompute (M-9, H-2) and the clock (H-3) ──
+              def week_of(wk):
+                  f = "W%03d.json" % wk
+                  # #B-15 B15-3: an incoming copy that failed this run (weeks are judged in order, so an earlier week's
+                  # verdict is known) is never the last seeding: the published copy is
+                  if os.path.isfile(os.path.join(d, f)) and not any(p_.startswith(f + ": ") for p_ in problems):
+                      try: return load(os.path.join(d, f))
+                      except Exception: return None
+                  return pubjson(f)
+              for f in sorted(os.listdir(d)):
+                  if not re.fullmatch(r"W[0-9]{3}\.json", f): continue
+                  j = load(os.path.join(d, f)); why = week_ok(j, f)
+                  if why: problems.append(f + ": " + why); continue
+                  w = j["week"]; weeks_in[w] = j; rel = w in RELEASE
+                  old = pubjson(f)
+                  if old is not None and type(old) is not dict: problems.append(f + ": the published copy is unreadable"); continue
+                  s = j["seeding"]; olds = old.get("seeding") if old else None
+                  if old is None:
+                      if not (cw - 1 <= w <= cw + 1): problems.append(f + ": a new week file that isn't last, this or next week by this job's clock"); continue
+                      if j["status"] == "final": problems.append(f + ": a new week file can't start out final"); continue
+                  else:
+                      os_, ns = old.get("status"), j["status"]
+                      if os_ == "final" and not same(j, old): problems.append(f + ": a final week changed"); continue
+                      if os_ in ("none", "void") and not same(j, old): problems.append(f + ": a closed week changed"); continue
+                      order = {"waiting": 0, "open": 1, "locked": 2, "final": 3}
+                      if ns in order and os_ in order and order[ns] < order[os_]: problems.append(f + ": status went backwards (" + str(os_) + " -> " + ns + ")"); continue
+                      if ns == "void" and os_ in ("open", "locked") and now < week_start(w + 1) + VAULT_DAYS: problems.append(f + ": turned void before its backstop"); continue
+                      op, np_ = old.get("picks"), j["picks"]
+                      # fix-check 2 PK-1: picks, like hours, need two runs. Picks a later run confirmed (re) never change; picks
+                      # without it may only gain it, or (under release, before round 1's first hour is over) be replaced
+                      if op is not None:
+                          plain = lambda x: {k: v for k, v in x.items() if k != "re"} if type(x) is dict else x
+                          if np_ is None: problems.append(f + ": its picks went missing"); continue
+                          if op.get("re") == 1 and not same(np_, op): problems.append(f + ": its picks changed after a later run confirmed them"); continue
+                          if op.get("re") != 1 and not same(plain(np_), plain(op)) and not (rel and "re" not in np_): problems.append(f + ": its picks changed (BRACKET_RELEASE not set for it)"); continue
+                      ost, nst = old.get("staked"), j["staked"]
+                      if ost is not None and nst is None: problems.append(f + ": its stakes went missing"); continue
+                      if type(ost) is dict and "held" in ost and not same(nst, ost) and not (rel and ns != "final"): problems.append(f + ": its end-of-week stakes changed (BRACKET_RELEASE not set for it)"); continue
+                      if type(ost) is dict and "held" not in ost and "held" not in nst and not same(nst, ost): problems.append(f + ": its stakes changed during the week"); continue
+                      if olds is not None:
+                          # a seeding may only gain its re-read mark, or (under release, before picks) be replaced by a new reading
+                          plain_old = {k: v for k, v in olds.items() if k != "re"}; plain_new = {k: v for k, v in (s or {}).items() if k != "re"}
+                          if s is None: problems.append(f + ": its seeding went missing"); continue
+                          if same(plain_old, plain_new):
+                              if olds.get("re") == 1 and s.get("re") != 1: problems.append(f + ": its seeding lost its re-read mark"); continue
+                          elif not (rel and op is None and olds.get("re") != 1 and s.get("re") != 1): problems.append(f + ": its seeding changed"); continue
+                      od = old.get("days")
+                      if type(od) is list and len(od) and same({k: v for k, v in (olds or {}).items() if k != "re"}, {k: v for k, v in (s or {}).items() if k != "re"}):
+                          if len(j["days"]) != len(od): problems.append(f + ": its days changed"); continue
+                          bad = None
+                          for r, day in enumerate(od):
+                              for i, h in enumerate(day if type(day) is list else []):
+                                  if h is None: continue
+                                  nh = j["days"][r][i]
+                                  if nh is not None and (same(nh, h) or ("re" not in h and same({k: v for k, v in nh.items() if k != "re"}, h))): continue
+                                  # fix-check F4: under release, a recorded hour may be replaced (or cleared, when its day's hour 0
+                                  # is) by a new reading, which carries no re-read mark until a later run checks it
+                                  if rel and ns != "final" and (nh is None or "re" not in nh): continue
+                                  bad = (r, i); break
+                              if bad: break
+                          if bad: problems.append(f + ": a recorded hour changed (round %d hour %d)" % (bad[0] + 1, bad[1])); continue
+                  # what's new in this run, against this job's clock
+                  if s is not None and (olds is None or not same({k: v for k, v in olds.items() if k != "re"}, {k: v for k, v in s.items() if k != "re"})):
+                      if now < seed_time(w): problems.append(f + ": seeded before its time"); continue
+                      # fix-check F2: no seeding first written after its 24 hours (the recorder voids the week then; a margin for the run)
+                      if now > seed_time(w) + SEED_GRACE + 2 * HOUR: problems.append(f + ": a seeding first written more than 24 hours after its time"); continue
+                      if s.get("re") == 1: problems.append(f + ": a seeding marked re-read in the run that wrote it (the two-run rule)"); continue
+                  if s is not None:
+                      # fix-check F2: the seeds, their VHP and the size follow from the recorded raw averages and the last seeding's
+                      last = {}
+                      for k in range(1, LAST_SEEDING_WEEKS + 1):
+                          pw = week_of(w - k)
+                          ps = pw.get("seeding") if type(pw) is dict else None
+                          if type(ps) is dict and type(ps.get("raw")) is dict and len(ps["raw"]): last = ps["raw"]; break
+                      dv = derive_seeding(s["raw"], last)
+                      if not all(same(dv[k], s[k]) for k in ("size", "seeds", "vhp", "out", "outVhp")): problems.append(f + ": its seeding doesn't follow from its raw averages and the last seeding's (fix-check F2)"); continue
+                  if j["status"] == "void" and (old is None or old.get("status") in (None, "waiting")) and s is None and now < seed_time(w) + SEED_GRACE: problems.append(f + ": void before the seeding's 24 hours were over"); continue
+                  oldpk = old.get("picks") if old else None
+                  newpk = j["picks"] is not None and (oldpk is None or not same({k: v for k, v in j["picks"].items() if k != "re"}, {k: v for k, v in oldpk.items() if k != "re"}))
+                  if newpk:
+                      if now < lock_time(w): problems.append(f + ": picks recorded before the lock"); continue
+                      if "re" in j["picks"]: problems.append(f + ": picks marked read again in the run that recorded them (the two-run rule, fix-check 2 PK-1)"); continue
+                      # fix-check F3: picks are taken within PICKS_GRACE of the lock (plus an hour for the run). Fix-check 2 PK-2:
+                      # under release too, never once round 1's first hour is over (no picks written with hindsight)
+                      if now > lock_time(w) + PICKS_GRACE + HOUR and not rel: problems.append(f + ": picks first recorded more than %d h after the lock (BRACKET_RELEASE not set for it)" % (PICKS_GRACE // HOUR)); continue
+                      # (#B-15 B15-1: only under release, as the recorder: without one, the window is lock + PICKS_GRACE above,
+                      #  which for 32 seeds runs past round 1's start)
+                      if rel and now > round_day(w, 0, s["size"]) + HOUR: problems.append(f + ": picks recorded under release after round 1's first hour (fix-check 2 PK-2)"); continue
+                  if j["picks"] is not None and any(x[2] >= lock_time(w) for x in j["picks"]["rows"]): problems.append(f + ": a pick timed at or after the lock"); continue
+                  if s is not None and s["size"]:
+                      od = (old.get("days") if old else None) or []
+                      early = None
+                      for r, day in enumerate(j["days"]):
+                          for i, h in enumerate(day):
+                              if h is None: continue
+                              was = od[r][i] if r < len(od) and type(od[r]) is list and i < len(od[r]) else None
+                              if was is None or not same({k: v for k, v in h.items() if k != "re"}, {k: v for k, v in was.items() if k != "re"}):
+                                  if now < round_day(w, r, s["size"]) + (i + 1) * HOUR: early = "an hour recorded before it ended (round %d hour %d)" % (r + 1, i); break
+                                  if "re" in h: early = "an hour marked re-read in the run that recorded it (round %d hour %d)" % (r + 1, i); break
+                          if early: break
+                      if early: problems.append(f + ": " + early); continue
+                  st = j["staked"]
+                  if st is not None and (old is None or old.get("staked") is None) and now < week_start(w): problems.append(f + ": stakes read before the week started"); continue
+                  if st is not None and "held" in st and not (old and type(old.get("staked")) is dict and "held" in old["staked"]) and now < week_start(w + 1): problems.append(f + ": end-of-week stakes read before the week ended"); continue
+                  if j["status"] == "final" and not (old and old.get("status") == "final"):
+                      if now < week_start(w + 1): problems.append(f + ": final before Monday 00:00 UTC after the week (the review day)"); continue
+                      # fix-check 2 R-1: a week the owner has opened for correction never goes final (nor gets a vault file) until
+                      # the release is cleared, so every replaced item is read again by a run outside the release first
+                      if rel: problems.append(f + ": final while BRACKET_RELEASE names it (fix-check 2 R-1)"); continue
+                      if j.get("vault") == "missed":
+                          if now < week_start(w + 1) + VAULT_DAYS: problems.append(f + ": closed as missed before its backstop"); continue
+                      # fix-check F1: the end-of-week stakes a final week pays from were published by an EARLIER run, unchanged
+                      elif not (old and same(old.get("staked"), j["staked"])): problems.append(f + ": final with end-of-week stakes no earlier run published (the two-run rule, fix-check F1)"); continue
+                      # #B-15 B15-2: likewise every hour's and the picks' re-read mark must already be in the PUBLISHED copy:
+                      # the run that confirms an item (e.g. one replaced under a release just cleared) never also closes the week
+                      elif not (all(type(h) is dict and h.get("re") == 1 for dd in (old.get("days") or [[None]]) for h in dd) and type(old.get("picks")) is dict and old["picks"].get("re") == 1):
+                          problems.append(f + ": final in the run that re-reads its hours or picks (the published copy must already carry every re mark; #B-15 B15-2)"); continue
+              # fix-check 2 S-1: a week file that fails is held on its own (with its vault file and the board), never every
+              # Bracket file: another week's final and vault file are still judged and published
+              bad_weeks = {}
+              for p_ in problems:
+                  m_ = re.match(r"(W([0-9]{3})\.json): ", p_)
+                  if m_ and m_.group(1) not in bad_weeks: bad_weeks[m_.group(1)] = p_
+              problems = [p_ for p_ in problems if not re.match(r"W[0-9]{3}\.json: ", p_)]
+              for f_ in bad_weeks: weeks_in.pop(int(f_[1:4]), None)
+              # ── index: only weeks with their file, only last, this or next week when new; none lost (H-3) ──
+              ni = load(os.path.join(d, "index.json")) if os.path.isfile(os.path.join(d, "index.json")) else None
+              pi = pubjson("index.json")
+              if ni is not None:
+                  if not (type(ni) is dict and set(ni) == {"v", "updated", "weeks", "contract", "game", "prizesFromWeek"} and one(ni["v"]) and iso.fullmatch(str(ni["updated"]))): problems.append("index.json: shape")
+                  elif not (type(ni["weeks"]) is list and len(ni["weeks"]) <= 10000 and all(type(w) is int and 0 <= w < 10000 for w in ni["weeks"]) and sorted_unique(ni["weeks"])): problems.append("index.json: weeks")
+                  elif not ((type(ni["game"]) is int and ni["game"] == 9) and (ni["prizesFromWeek"] is None or nat(ni["prizesFromWeek"])) and (ni["contract"] is None or isa(ni["contract"]))): problems.append("index.json: fields")
+                  else:
+                      pw = set(pi["weeks"]) if type(pi) is dict and type(pi.get("weeks")) is list else set()
+                      lost = [w for w in pw if w not in ni["weeks"]]
+                      if lost: problems.append("index.json: published weeks " + ", ".join(str(w) for w in sorted(lost)[:10]) + " are missing")
+                      for w in ni["weeks"]:
+                          if w in pw: continue
+                          if not (cw - 1 <= w <= cw + 1): problems.append("index.json: a new week %d that isn't last, this or next week" % w); break
+                          if w not in weeks_in: problems.append("index.json: a new week %d without its file" % w); break
+              # ── board ──
+              bp = os.path.join(d, "board.json")
+              if os.path.isfile(bp):
+                  j = load(bp)
+                  if not (type(j) is dict and set(j) == {"v", "updated", "next", "week", "lastWeek", "allTime"} and one(j["v"]) and iso.fullmatch(str(j["updated"]))
+                          and view_ok(j["next"]) and view_ok(j["week"]) and (j["lastWeek"] is None or view_ok(j["lastWeek"], True))
+                          and type(j["allTime"]) is dict and set(j["allTime"]) == {"rows"} and rows_ok(j["allTime"]["rows"])): problems.append("board.json: shape")
+              for f in os.listdir(d):
+                  if f not in ("vault", "board.json", "index.json") and not re.fullmatch(r"W[0-9]{3}\.json", f): problems.append(f + ": an unexpected file")
+              if problems: return "; ".join((problems + list(bad_weeks.values()))[:5])
+              for f_, why_ in bad_weeks.items(): hold("bracket/" + f_, why_, True)
+              if bad_weeks and os.path.isfile(bp): hold("bracket/board.json", "a week file was held this run (" + ", ".join(sorted(bad_weeks)) + ")", True)
+              # ── the Vault files (every week file they could come from passed) ──
+              vdir = os.path.join(d, "vault")
+              for f in (sorted(os.listdir(vdir)) if os.path.isdir(vdir) else []):
+                  name = "bracket/vault/" + f; j = load(os.path.join(vdir, f))
+                  pv = pubjson("vault/" + f)
+                  if pv is not None and same(j, pv): continue            # #E-3 L-6: already published, unchanged: nothing to judge
+                  if not vault_shape(j, f): hold(name, "not the vault file's shape", True); continue
+                  w = j["week"]; end = week_start(w + 1)
+                  if "W%03d.json" % w in bad_weeks: hold(name, "its week file was held this run", True); continue
+                  if now < end or now > end + VAULT_DAYS: hold(name, "outside its window (after the week ends, until Thursday 00:00 UTC), by this job's clock", True); continue
+                  src = weeks_in.get(w)
+                  if not (src and src["status"] == "final"): src = pubjson("W%03d.json" % w)
+                  if type(src) is not dict or src.get("status") != "final" or week_ok(src, "W%03d.json" % w) is not None or src["staked"] is None or "held" not in src["staked"]: hold(name, "its week isn't final yet", False); continue
+                  if src.get("vault") == "missed": hold(name, "the week closed without the Vault's stakes", True); continue
+                  if not same(j, expected_vault(src)): hold(name, "it isn't what the final week gives (rows, first or second)", True); continue
+              return None
+
+          def deepest(e):
+              t = e.__traceback__
+              while t and t.tb_next: t = t.tb_next
+              return t.tb_lineno if t else "?"
+          try:
+              why = main()
+              if why: hold_all(why)
+          except Exception as e:
+              hold_all("the check could not read this run's files (%s: %s, line %s)" % (type(e).__name__, str(e)[:200], deepest(e)))
+          if heldf: open(heldf, "a").write("".join(x + "\n" for x in held))
+          elif held: sys.exit("held: " + ", ".join(x for x in held if x != "!alert"))
+          print("bracket check done:", d, "(held %d)" % len([x for x in held if x != "!alert"]))
+          PY
+          fi
+          # Daily Questions (game 1): the published files, then its own checks (they append to the same held list).
+          mkdir -p "$PUB/questions/vault"
+          if [ -n "$parent" ]; then
+            { git ls-tree --name-only "$parent:questions" 2>/dev/null || true; } | while IFS= read -r f; do
+              # A file that can't be read is left out (|| rm), so only Daily Questions is affected, never Block X (C11-6).
+              if [[ "$f" =~ ^(board|W[0-9]{3})\.json$ ]]; then git show "$parent:questions/$f" > "$PUB/questions/$f" || rm -f "$PUB/questions/$f"; fi
+            done
+            { git ls-tree --name-only "$parent:questions/vault" 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^((HOLD-|RELEASE-)?W[0-9]+)\.json$ ]]; then git show "$parent:questions/vault/$f" > "$PUB/questions/vault/$f" || rm -f "$PUB/questions/vault/$f"; fi
+            done
+          fi
+          /usr/bin/python3 - "$IN/questions" "$PUB/questions" "$HELD" <<'PY'
+          # Daily Questions (game 1) publish checks (RECORDER_STANDARD §3, §4, §6): judged against the PUBLISHED branch and this
+          # job's own clock, never against this run's own files. A file that fails is HELD (not published) and the rest of the
+          # run, Block X included, still publishes. Any failure that isn't just "not yet" fails the job at the end (an email).
+          # The points are recomputed here from the published inputs with this job's own copy of games/questions/math.js
+          # (games/questions/tests/math.test.mjs and tests/audit/questions-publish.test.ts run both over thousands of random weeks).
+          import hashlib, json, os, re, sys, time
+          d, pub, heldf = sys.argv[1], sys.argv[2], sys.argv[3]
+          GENESIS = 1792368000000; WEEK = 7 * 86400000; DAY = 86400000; HOUR = 3600000; VOID = 1000; MAXP = 10
+          now = int(os.environ.get("CHECK_NOW_MS") or time.time() * 1000); cw = (now - GENESIS) // WEEK
+          addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}"); digits = re.compile(r"0|[1-9][0-9]{0,30}")
+          isaddr = lambda v: type(v) is str and addr.fullmatch(v) is not None
+          nat = lambda x: type(x) is int and 0 <= x <= 2**53 - 1
+          held = []
+          def hold(name, why, alert):
+              held.append(name); print(("::error::" if alert else "::notice::") + "held, not published: questions/" + name + ": " + why)
+              if alert: held.append("!alert")
+          def load(path):
+              return json.load(open(path, encoding="utf-8")) if os.path.isfile(path) else None
+          def pubjson(name): return load(os.path.join(pub, name))
+          def injson(name): return load(os.path.join(d, name))
+
+          def week_ok(j, f):
+              if type(j) is not dict or set(j) != {"v", "game", "week", "start", "end", "min", "final", "seen", "questions", "players"}: return False
+              if not (type(j["v"]) is int and j["v"] == 1 and type(j["game"]) is int and j["game"] == 1 and nat(j["week"]) and f == "W%03d.json" % j["week"]): return False
+              if j["start"] != GENESIS + j["week"] * WEEK or j["end"] != j["start"] + WEEK or type(j["final"]) is not bool: return False
+              if type(j["min"]) is not str or not digits.fullmatch(j["min"]): return False
+              s = j["seen"]
+              if type(s) is not dict or set(s) != {"hash", "at"} or type(s["hash"]) is not str or not re.fullmatch(r"[0-9a-f]{64}", s["hash"]) or not nat(s["at"]): return False
+              q = j["questions"]
+              if type(q) is not list or len(q) > 400 or not all(type(x) is list and len(x) == 3 and all(nat(v) for v in x) for x in q): return False
+              ids = [x[0] for x in q]
+              if ids != sorted(set(ids)): return False
+              p = j["players"]
+              if type(p) is not list or len(p) > 20000: return False
+              for x in p:
+                  if not (type(x) is list and len(x) == 5 and isaddr(x[0]) and type(x[1]) is str and digits.fullmatch(x[1]) and type(x[2]) is str and digits.fullmatch(x[2])
+                          and type(x[3]) is int and x[3] in (0, 1) and type(x[4]) is list and 0 < len(x[4]) <= 400
+                          and all(type(a) is list and len(a) == 2 and nat(a[0]) and nat(a[1]) for a in x[4])): return False
+              names = [x[0] for x in p]
+              return names == sorted(set(names))
+
+          def shash(j):
+              return hashlib.sha256(json.dumps([j["week"], j["min"], j["questions"], j["players"]], separators=(",", ":")).encode()).hexdigest()
+
+          def score(j):
+              """games/questions/math.js scoreWeek, ported."""
+              sunday = j["start"] + 6 * DAY
+              out = {}; complete = True
+              for qid, outcome, lock in j["questions"]:
+                  counts = lock <= sunday
+                  if counts and outcome == 0: complete = False
+                  out[qid] = (outcome, counts, lock)
+              mn = int(j["min"]); rows = []; missing = set()
+              for a, st, pk, vd, ans in j["players"]:
+                  pts = cnt = score_at = 0
+                  for qid, opt in ans:
+                      q = out.get(qid)
+                      if q is None: missing.add(qid); continue
+                      if vd or not q[1] or q[0] == VOID or q[0] == 0: continue
+                      cnt += 1
+                      if q[0] == opt + 1:
+                          pts += 1
+                          if q[2] > score_at: score_at = q[2]
+                  stake = 0 if vd else int(st); peak = max(int(pk), stake)
+                  ok = not vd and cnt >= 2 and pts >= 1
+                  staked = ok and stake > 0 and stake >= mn
+                  free = ok and peak < mn
+                  rows.append({"a": a, "pts": pts, "counted": cnt, "answers": len(ans), "scoreAt": score_at, "staked": staked, "free": free, "ranked": staked, "board": "staked" if peak >= mn and not vd else "free", "place": 0})
+              for b in ("staked", "free"):
+                  xs = [r for r in rows if r["board"] == b]
+                  for r in xs: r["place"] = 1 + sum(1 for o in xs if o["pts"] > r["pts"])
+              rows.sort(key=lambda r: (0 if r["board"] == "staked" else 1, -r["pts"], r["a"]))
+              vrows = [{"player": r["a"], "points": r["pts"]} for r in rows if r["staked"]]
+              fr = [r for r in rows if r["free"]]
+              best = max([r["pts"] for r in fr], default=0)
+              # Up to 10 per place; past 10, the 10 with the earlier score time, then address (owner, 5 Nov). Never zero for the cap.
+              pick = lambda xs: sorted(r["a"] for r in sorted(xs, key=lambda r: (r["scoreAt"], r["a"]))[:MAXP])
+              tied_first = [r for r in fr if r["pts"] == best and best > 0]
+              first = pick(tied_first)
+              rest = [r for r in fr if r["pts"] < best]
+              nxt = max([r["pts"] for r in rest], default=0)
+              second = pick([r for r in rest if r["pts"] == nxt and nxt > 0]) if len(tied_first) == 1 else []
+              prizes = [{"player": p, "place": 1} for p in first] + [{"player": p, "place": 2} for p in second]
+              return {"complete": complete, "missing": sorted(missing), "rows": rows, "vault": {"rows": vrows, "first": first, "second": second}, "prizes": prizes}
+
+          def board_of(j, r, updated):
+              return {"v": 1, "updated": updated, "lastWeek": {"week": j["week"], "start": j["start"], "final": j["final"], "complete": r["complete"],
+                  "rows": [{"a": x["a"], "board": x["board"], "place": x["place"], "pts": x["pts"], "points": x["pts"], "counted": x["counted"], "answers": x["answers"], "ranked": x["ranked"]} for x in r["rows"]],
+                  "prizes": r["prizes"]}}
+
+          files = sorted(os.listdir(d)) if os.path.isdir(d) else []
+          vfiles = sorted(os.listdir(os.path.join(d, "vault"))) if os.path.isdir(os.path.join(d, "vault")) else []
+          try:
+              weeks = {}   # week -> (file name, the week file this run would leave published)
+              heldweeks = set()   # weeks whose incoming week file is held this run
+              for f in files:
+                  if not re.fullmatch(r"W[0-9]{3}\.json", f): continue
+                  j = injson(f); old = pubjson(f)
+                  if not week_ok(j, f): hold(f, "not the week file's shape", True); continue
+                  if j["seen"]["hash"] != shash(j): hold(f, "its hash isn't its content's", True); continue
+                  w = j["week"]; heldweeks.add(w)
+                  if old is not None and type(old) is dict and old.get("final") is True:
+                      if json.dumps(old, sort_keys=True) != json.dumps(j, sort_keys=True): hold(f, "it changes a published final week", True)
+                      if json.dumps(old, sort_keys=True) == json.dumps(j, sort_keys=True): heldweeks.discard(w)
+                      weeks[w] = (f, old); continue
+                  if w != cw - 1 or now < j["end"]: hold(f, "not the week that just ended, by this job's clock", True); continue
+                  if now > j["end"] + 3 * DAY: hold(f, "past the vault's 3 days for that week", True); continue
+                  r = score(j)
+                  if r["missing"]: hold(f, "answers to questions it doesn't list: " + ", ".join(str(x) for x in r["missing"][:10]), True); continue
+                  if j["seen"]["at"] > now + 10 * 60000: hold(f, "seen in the future by this job's clock", True); continue
+                  if j["final"]:
+                      # Final only after an earlier PUBLISHED run saw the same snapshot at least an hour before, by this job's clock.
+                      if not r["complete"]: hold(f, "final while questions are still unresolved", True); continue
+                      if not (type(old) is dict and type(old.get("seen")) is dict and old["seen"].get("hash") == j["seen"]["hash"] and old["seen"].get("at") == j["seen"]["at"]):
+                          hold(f, "final without an earlier published run of the same snapshot", True); continue
+                      if now - j["seen"]["at"] < HOUR: hold(f, "final less than an hour after its snapshot was first seen", False); continue
+                  weeks[w] = (f, j); heldweeks.discard(w)
+              b = injson("board.json") if "board.json" in files else None
+              if b is not None:
+                  lw = b.get("lastWeek") if type(b) is dict else None
+                  w = lw.get("week") if type(lw) is dict else None
+                  src = weeks.get(w, (None, None))[1] if type(w) is int else None
+                  if src is None and type(w) is int: src = pubjson("W%03d.json" % w)
+                  if type(b) is not dict or set(b) != {"v", "updated", "lastWeek"} or type(b["updated"]) is not str or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z", b["updated"]):
+                      hold("board.json", "not the board's shape", True)
+                  elif type(w) is int and w in heldweeks:
+                      hold("board.json", "its week file is held this run", False)
+                  elif src is None or not week_ok(src, "W%03d.json" % w):
+                      hold("board.json", "its week has no week file (published or in this run)", True)
+                  elif json.dumps(board_of(src, score(src), b["updated"]), sort_keys=True) != json.dumps(b, sort_keys=True):
+                      hold("board.json", "its rows aren't the ones recomputed from the week file", True)
+              for f in vfiles:
+                  name = "vault/" + f; j = injson(name)
+                  m = re.fullmatch(r"(HOLD-|RELEASE-)?W([0-9]+)\.json", f)
+                  if not m or type(j) is not dict: hold(name, "not a vault file", True); continue
+                  w = int(m.group(2))
+                  if m.group(1) == "HOLD-":
+                      if set(j) != {"game", "week", "reason"} or j["game"] != 1 or type(j["game"]) is not int or j["week"] != w or type(j["week"]) is not int or type(j["reason"]) is not str or len(j["reason"]) > 200: hold(name, "not a HOLD file's shape", True)
+                      continue
+                  if m.group(1) == "RELEASE-":
+                      if set(j) != {"game", "week"} or j["game"] != 1 or type(j["game"]) is not int or j["week"] != w or type(j["week"]) is not int: hold(name, "not a RELEASE file's shape", True)
+                      elif pubjson("vault/HOLD-W%d.json" % w) is None and ("HOLD-W%d.json" % w) not in vfiles: hold(name, "releases a week that has no HOLD file", True)
+                      continue
+                  src = weeks.get(w, (None, None))[1]
+                  if src is None:
+                      pw = pubjson("W%03d.json" % w)
+                      src = pw if type(pw) is dict and pw.get("final") is True and week_ok(pw, "W%03d.json" % w) else None
+                  end = GENESIS + (w + 1) * WEEK
+                  if not (end <= now <= end + 3 * DAY): hold(name, "not inside the vault's 3 days for that week, by this job's clock", True); continue
+                  if src is None or src.get("final") is not True: hold(name, "its week isn't final (published or in this run)", False); continue
+                  r = score(src)
+                  want = {"game": 1, "week": w, "final": True, "rows": r["vault"]["rows"], "first": r["vault"]["first"], "second": r["vault"]["second"]}
+                  if json.dumps(want, sort_keys=True) != json.dumps(j, sort_keys=True): hold(name, "its rows or winners aren't the ones recomputed from the final week file", True)
+          except Exception as e:
+              # Never let one game's bad file stop the job: hold all of Daily Questions' files this run, with an alert.
+              print("::error::Daily Questions' files couldn't be checked (" + type(e).__name__ + ": " + str(e)[:200] + "): none published this run")
+              held += [f for f in files if f.endswith(".json")] + ["vault/" + f for f in vfiles] + ["!alert"]
+          open(heldf, "a").write("".join(("questions/" + x if x != "!alert" else x) + "\n" for x in held))
+          print("questions files checked:", d, "held:", len([x for x in held if x != "!alert"]))
+          PY
           shopt -s nullglob
-          for f in "$IN"/blockx/*.json "$IN"/blockx/vault/*.json; do
+          for f in "$IN"/blockx/*.json "$IN"/blockx/vault/*.json "$IN"/bracket/*.json "$IN"/bracket/vault/*.json "$IN"/questions/*.json "$IN"/questions/vault/*.json; do
             name="${f#"$IN"/}"
             # Audit BX-5: a final week's prize file (P###.json), and the Vault's results file (vault/W<week>.json), are
             # written once and never replaced.
             if grep -qxF "$name" "$HELD"; then continue; fi
+            # Daily Questions: its HOLD and RELEASE files are only ever added (its vault files match the line below, and its
+            # final week files are checked above).
+            if [[ "$name" =~ ^questions/vault/(HOLD|RELEASE)-W[0-9]+\.json$ ]] && git cat-file -e ":$name" 2>/dev/null; then continue; fi
             if [[ "$name" =~ (/P[0-9]{3}|/vault/W[0-9]+)\.json$ ]] && git cat-file -e ":$name" 2>/dev/null; then
               # Audit BX-81: a write-once file that differs from the published one is held (with an error, failing the job
               # at the end), never replaced; everything else is still published.
@@ -410,13 +1304,31 @@ jobs:
   # Repo Lens E4-7: a held week fails the run (so GitHub emails the owner), but only after publishing, so the hour's
   # files still go out. Runs no repository code and needs no permissions.
   alert:
-    needs: [record, publish]
-    if: ${{ always() && needs.record.outputs.held == 'true' }}
+    needs: [record, record_bracket, publish]
+    if: ${{ always() && (needs.record.outputs.held == 'true' || needs.record_bracket.result == 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {}
     steps:
-      - name: A week is held before its prize list
+      - name: A week is held, or a recorder failed
+        env:
+          BLOCKX_HELD: ${{ needs.record.outputs.held }}
+          BRACKET_FAILED: ${{ needs.record_bracket.result == 'failure' }}
         run: |
-          echo "::error::Block X held a week before its prize list (see the record job's errors). Nothing is paid for it until a run reads the whole week the same."
+          if [ "$BLOCKX_HELD" = "true" ]; then echo "::error::Block X held a week before its prize list (see the record job's errors). Nothing is paid for it until a run reads the whole week the same."; fi
+          if [ "$BRACKET_FAILED" = "true" ]; then echo "::error::The Producer Bracket recorder failed this run (see the record_bracket job). Its files stay as they were; the next run tries again. Block X was still published."; fi
+          exit 1
+
+  # Daily Questions (game 1): its recorder failed this run (RECORDER_STANDARD §6.5). Fails the run after publishing, so
+  # the owner is emailed and Block X's files still went out. Runs no repository code and needs no permissions.
+  questions-alert:
+    needs: [record, publish]
+    if: ${{ always() && needs.record.outputs.questions == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: The Daily Questions recorder failed
+        run: |
+          echo "::error::The Daily Questions recorder failed this run (see the record job's 'Record Daily Questions' step). Nothing of it was published; the next run tries again."
           exit 1

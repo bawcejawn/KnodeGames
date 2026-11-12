@@ -25,7 +25,7 @@
   const say = (t) => { $("status").textContent = t; $("status").hidden = !t; };
   async function fetchJson(url) { const r = await fetch(url, { cache: "no-cache" }); if (!r.ok) throw new Error(String(r.status)); return r.json(); }
   const wName = (w) => `W${String(w).padStart(3, "0")}.json`;
-  // What players call a week (D-063): weeks.js, "Week 1" = the week of Mon 9 Nov (vault week 3).
+  // What players call a week (D-063): weeks.js, "Week 1" = the week of Mon 16 Nov (vault week 4); Mon 9 Nov is the "Test week".
   const weekLabel = (w) => (window.KWeeks && typeof window.KWeeks.label === "function" ? window.KWeeks.label(w) : `Week ${w}`);
 
   let games = new Map();          // id → { name, href }

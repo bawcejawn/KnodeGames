@@ -234,7 +234,25 @@ jobs:
           DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER = 20, 7200, 1200, 28800, 403200, 28800, 20
           M = 1000000
           MIN_K, FORM_GATE = 10 * M, 800000
-          RULE_VERSION, OWN_RULES = 2, ("spot", "high1h", "avg24h")
+          RULE_VERSION, OWN_RULES, POOL_RULES = 4, ("spot", "high1h", "avg24h"), ("min",)
+          STEADY_BAND = 150000   # D-120 as the owner ruled (5 Nov), millionths: steady = every daily rate within this of the 14-day rate
+          CORE_LINE = 970000     # D-165: A′'s core is the field members with form ≥ this × the field's median form (millionths)
+          BAND_SD = 2            # D-171: an other core member more than this many sd from its share is left out of a yardstick
+          SET_ASIDE_EXPECTED = 45500  # D-172: millionths of core member-races a 2-sd band leaves aside by chance
+          PCT_SCALE = 1 << 256
+          # Rules for every race length (owner, 11 Nov 2026; RULE_VERSION 4), as in vhp-ruler.js: the void band [down, up] by the
+          # scoring window's length, and the luck cap (no producer is scored on more than LUCK_CAP expected blocks)
+          VOID_BANDS, VOID_LONG = ((2400, 50000, 250000), (7200, 100000, 250000), (28800, 120000, 500000)), (150000, 1000000)
+          LUCK_CAP = 1000 * M
+
+
+          def void_band(blocks):
+              if type(blocks) is not int or blocks < 1:
+                  raise ValueError("blocks must be a whole number from 1")
+              for up_to, down, up in VOID_BANDS:
+                  if blocks <= up_to:
+                      return (down, up)
+              return VOID_LONG
 
 
           def _int(x):
@@ -291,6 +309,69 @@ jobs:
               return M if eff_b <= own else own * M // eff_b
 
 
+          def pct(lam, x):
+              """Fix A: the mid-p Poisson percentile in millionths, the same arithmetic as pct in vhp-ruler.js."""
+              lam, x = _int(lam), _int(x)
+              if lam < 0 or x < 0:
+                  raise ValueError("pct needs λ ≥ 0 and x ≥ 0")
+              n, f = divmod(x, M)
+              q, i, total, below, qn, qn1 = PCT_SCALE, 0, 0, 0, 0, 0
+              while True:
+                  if i < n:
+                      below += q
+                  elif i == n:
+                      qn = q
+                  elif i == n + 1:
+                      qn1 = q
+                  total += q
+                  nx = q * lam // (M * (i + 1))
+                  i += 1
+                  if nx == 0 and i * M > lam and i > n + 1:
+                      break
+                  q = nx
+              mid0, mid1 = 2 * below + qn, 2 * below + 2 * qn + qn1
+              r = (mid0 * (M - f) + mid1 * f) * M // (2 * total * M)
+              return M - 1 if lam > 0 and r >= M else r
+
+
+          def fpct(n, a, b, x):
+              """A′: the field percentile, the same arithmetic as fpct in vhp-ruler.js."""
+              n, a, b, x = _int(n), _int(a), _int(b), _int(x)
+              if n < 0 or a < 0 or b < a or x < 0:
+                  raise ValueError("fpct needs n ≥ 0 and 0 ≤ a ≤ b, x ≥ 0")
+              k, f = divmod(x, M)
+              if k > n:
+                  return M  # x above every possible count: certain (Repo Lens #B-10 P1)
+
+              def mid_at(j):
+                  if a == 0:
+                      return (2, 1) if j > 0 else (1, 1)
+                  if a == b or b == 0:
+                      return (0, 1) if j < n else (1, 1) if j == n else (2, 1)
+                  return None
+              if mid_at(k):
+                  m0, t = mid_at(k)
+                  m1, _ = mid_at(k + 1)
+                  return (m0 * (M - f) + m1 * f) * M // (2 * t * M)
+              q, total, below, qk, qk1 = PCT_SCALE, 0, 0, 0, 0
+              i = 0
+              while i <= n:
+                  if i < k:
+                      below += q
+                  elif i == k:
+                      qk = q
+                  elif i == k + 1:
+                      qk1 = q
+                  total += q
+                  q = q * (n - i) * a // ((i + 1) * (b - a))
+                  if q == 0 and i > k:
+                      break
+                  i += 1
+              mid0, mid1 = 2 * below + qk, 2 * below + 2 * qk + qk1
+              r = (mid0 * (M - f) + mid1 * f) * M // (2 * total * M)
+              return M - 1 if r >= M else r
+
+
           def k_of(blocks, own, total):
               return blocks * own * M // total if total > 0 else 0
 
@@ -306,13 +387,14 @@ jobs:
                   if not re.fullmatch(r"[0-9]+", str(e.get("value"))):
                       raise ValueError("bad VHP event value at block %d" % e["h"])
                   v = int(e["value"])
+                  # kind and c (the other address) are recorded for D-172's void record only; no number uses them
                   if n.endswith("transfer_event"):
-                      out.append({"h": e["h"], "a": e["from"], "d": -v, "inc": 0})
-                      out.append({"h": e["h"], "a": e["to"], "d": v, "inc": v})
+                      out.append({"h": e["h"], "a": e["from"], "d": -v, "inc": 0, "kind": "out", "c": str(e["to"])})
+                      out.append({"h": e["h"], "a": e["to"], "d": v, "inc": v, "kind": "in", "c": str(e["from"])})
                   elif n.endswith("mint_event"):
-                      out.append({"h": e["h"], "a": e["to"], "d": v, "inc": v})
+                      out.append({"h": e["h"], "a": e["to"], "d": v, "inc": v, "kind": "mint", "c": None})
                   else:
-                      out.append({"h": e["h"], "a": e["from"], "d": -v, "inc": 0})
+                      out.append({"h": e["h"], "a": e["from"], "d": -v, "inc": 0, "kind": "burn", "c": None})
               return out
 
 
@@ -358,6 +440,7 @@ jobs:
                       g[0] += _int(x["d"])
                       g[1] += _int(x.get("inc", 0))
                   self.addrs, self.ix, self.sig = addrs, ix, sig
+                  self.allx = allx
                   lo, hi = frm + DELAY, to + 1
                   self.cp, self.ev, self.ps, self.bal = [], [], [], []
                   for i, a in enumerate(addrs):
@@ -495,6 +578,15 @@ jobs:
                   l = self.signed_at[self._need(a)]
                   return l[bisect.bisect_left(l, H0):bisect.bisect_right(l, H1)]
 
+              def moves(self, a, H0, H1):
+                  """D-172: a producer's VHP moves in [H0, H1], in data order."""
+                  out = []
+                  for x in self.allx[self._need(a)]:
+                      if H0 <= x["h"] <= H1:
+                          d = _int(x["d"])
+                          out.append({"h": x["h"], "d": d, "kind": x.get("kind") or ("burn" if d < 0 else "in"), "c": x.get("c")})
+                  return out
+
               def first_signed(self, a):
                   l = self.signed_at[self._need(a)]
                   return l[0] if l else None
@@ -539,6 +631,20 @@ jobs:
 
           def total(L, T):
               return sum(avg(L, q, T) for q in L.active(T))
+
+
+          def rate_of(L, a, T, f=None):
+              """D-120: (rate, steady), as rateOf in vhp-ruler.js."""
+              f = f or form_of(L, a, T)
+              if T - FORM < L.valid_from or f["expected"] <= 0:
+                  return M, False
+              for d in range(FORM // AVG):
+                  H0 = T - FORM + d * AVG
+                  e, s = L.share_sum(a, H0, H0 + AVG - 1), L.signed_in(a, H0, H0 + AVG - 1)
+                  dr = s * M * M // e if e > 0 else 0
+                  if abs(dr - f["form"]) > STEADY_BAND:
+                      return M, False
+              return (f["form"] if f["form"] < M else M), True
 
 
           def form_of(L, a, T):
@@ -591,7 +697,90 @@ jobs:
 
 
           # the card's fields that are BigInt in JavaScript (written as decimal strings)
-          _BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "expected", "credited")
+          _BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "credited", "pct", "z", "fpct")
+
+
+          def week_summary(cards):
+              """D-172's weekly summary, as weekSummary in vhp-ruler.js. Data only."""
+              voids, sets, senders = {}, {}, {}
+              races = field_races = core_races = set_asides = void_count = own_moves = 0
+              for c in cards:
+                  c = json.loads(c) if isinstance(c, str) else c
+                  if not any("credited" in p for p in c.get("producers") or []):
+                      continue
+                  races += 1
+                  race = "%s:%s" % (c["game"], c["round"])
+                  for p in c["producers"]:
+                      if p["entry"] and not p["void"]:
+                          field_races += 1
+                      if p.get("core"):
+                          core_races += 1
+                      if p.get("setAside"):
+                          set_asides += 1
+                          sets[p["a"]] = sets.get(p["a"], 0) + 1
+                      if p["void"] and p.get("moves"):
+                          void_count += 1
+                          voids[p["a"]] = voids.get(p["a"], 0) + 1
+                          if p["moves"]["ownMove"]:
+                              own_moves += 1
+                          for r in p["moves"].get("received") or []:
+                              x = senders.setdefault(r["a"], (set(), set()))
+                              x[0].add(race)
+                              x[1].add(p["a"])
+
+              def counts(m):
+                  return [{"a": a, "races": k} for a, k in sorted(m.items(), key=lambda t: (-t[1], t[0]))]
+              repeat = sorted(({"a": a, "races": len(x[0]), "producers": sorted(x[1])} for a, x in senders.items() if len(x[0]) >= 2),
+                              key=lambda t: (-t["races"], t["a"]))
+              return {"races": races, "fieldRaces": field_races, "coreRaces": core_races, "voids": void_count, "ownMoves": own_moves,
+                      "setAsides": set_asides, "setAsideRate": set_asides * 1000000 // core_races if core_races else 0,
+                      "setAsideExpected": SET_ASIDE_EXPECTED, "voidsByProducer": counts(voids), "setAsidesByProducer": counts(sets),
+                      "repeatSenders": repeat}
+
+
+          SWITCH_MAX = 999999
+
+
+          def switch_from(v):
+              """The ruler switch (owner, 11 Nov 2026), as switchFrom in vhp-ruler.js: None, or the vault week N."""
+              if v is None or (type(v) is str and v == ""):
+                  return None
+              if type(v) is str and re.fullmatch(r"[1-9][0-9]{0,5}", v):
+                  return int(v)
+              if type(v) is int and 1 <= v <= SWITCH_MAX:
+                  return v
+              raise ValueError("the ruler switch must be empty or a vault week from 1 to 999999")
+
+
+          def _switch_week(w):
+              if type(w) is int and 0 <= w <= SWITCH_MAX:
+                  return w
+              raise ValueError("week must be a vault week from 0 to 999999")
+
+
+          def _mode_of(w, f):
+              return "off" if f is None or w < f - 1 else "shadow" if w < f else "on"
+
+
+          def ruler_mode(week, frm):
+              """as rulerMode: "off", "shadow" (week N − 1) or "on" (from week N)."""
+              return _mode_of(_switch_week(week), switch_from(frm))
+
+
+          def switch_change(prev, nxt, week):
+              """as switchChange: None, or why the change would change whether a started week is scored by the ruler."""
+              w, p, n = _switch_week(week), switch_from(prev), switch_from(nxt)
+              if p == n:
+                  return None
+              at = sorted(x for x in (0, w, -1 if p is None else p - 1, -1 if p is None else p, -1 if n is None else n - 1,
+                                      -1 if n is None else n) if 0 <= x <= w)
+              for x in at:
+                  a, b = _mode_of(x, p), _mode_of(x, n)
+                  if (a == "on") != (b == "on"):
+                      return ("the ruler switch moved from %s to %s: week %d has started and would change from %s to %s; whether a "
+                              "started week is scored by the ruler never changes (a first switch-on: %d or later)"
+                              % ("unset" if p is None else p, "unset" if n is None else n, x, a, b, w + 1))
+              return None
 
 
           def card_json(card):
@@ -602,7 +791,7 @@ jobs:
               for p in c["producers"]:
                   p = dict(p)
                   for k in _BIG_ROW:
-                      if k in p:
+                      if k in p and p[k] is not None:
                           p[k] = str(_int(p[k]))
                   rows.append(p)
               c["producers"] = rows
@@ -617,7 +806,7 @@ jobs:
                   raise ValueError("window order must be W0 <= W1 <= L <= S0 <= S1")
 
 
-          def make_card(L, game, rnd, window, c, own_rule, paying, pooled=()):
+          def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, pool_rule="min"):
               w = window
               _check_window(w)
               if own_rule not in OWN_RULES:
@@ -632,6 +821,10 @@ jobs:
               if T - AVG < L.frm + DELAY:
                   raise ValueError("not enough history before the card time (24 h of data are needed)")
               pooled, c, paying = set(pooled), _int(c), bool(paying)
+              if type(min_k) is not int or not 1 <= min_k <= 100000:
+                  raise ValueError("minK must be a whole number of blocks from 1")
+              if pool_rule not in POOL_RULES:
+                  raise ValueError("poolRule must be min")
               if paying and T - L.frm < FORM + ACTIVE:
                   raise ValueError("a paying card needs %d blocks of data before its moment (14 days + 6 h)" % (FORM + ACTIVE))
               if paying and _pending_in(L, T - AVG - EARLY, T):
@@ -644,8 +837,9 @@ jobs:
                   o, av, f = own(L, a, T, own_rule), avg(L, a, T), form_of(L, a, T)
                   k = k_of(blocks, o, tot)
                   is_new, history = newcomer(L, a, T)
-                  rows.append({"a": a, "own": o, "avg": av, "k": k, "form": f["form"],
-                               "entry": k >= MIN_K and f["form"] >= FORM_GATE and history, "pooled": a in pooled,
+                  rate, steady = rate_of(L, a, T, f)   # owner, 5 Nov: steady producers play at full size; rate is shown only
+                  rows.append({"a": a, "own": o, "avg": av, "k": k, "form": f["form"], "rate": rate,
+                               "entry": k >= min_k * M and (steady or f["form"] >= FORM_GATE) and history, "pooled": a in pooled,
                                "isNew": is_new, "quality": "ok"})
               rows.sort(key=lambda r: (-r["own"], r["a"]))
               # D-113: on a paying card only the 24-h size window must be free of rebuilt hours; form's older days may read them
@@ -655,7 +849,48 @@ jobs:
               return {"ruleVersion": RULE_VERSION, "game": int(_dec(game, "game")), "round": _dec(rnd, "round"), "ownRule": own_rule, "paying": paying,
                       "T": T, "seedBlock": seed_block, "seedBlockId": seed_id, "seedProducer": L.signer(seed_block),
                       "window": {"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]},
-                      "c": c, "total": tot, "formFrom": form_from, "producers": rows}
+                      "c": c, "minK": min_k, "poolRule": pool_rule, "total": tot, "formFrom": form_from, "producers": rows}
+
+
+          def isqrt(v):
+              """floor(sqrt(v)) for a whole number v ≥ 0, as isqrt in vhp-ruler.js."""
+              if v < 2:
+                  return v
+              x = 1 << ((v.bit_length() + 1) // 2)
+              y = (x + v // x) >> 1
+              while y < x:
+                  x = y
+                  y = (x + v // x) >> 1
+              return x
+
+
+          def void_record(L, a, o, T, S0, S1):
+              """D-172, as voidRecord in vhp-ruler.js. Data only."""
+              lo = hi = None
+              H = S0
+              while H <= S1:
+                  e = L.eff(a, H)
+                  H2 = H
+                  while H2 + 1 <= S1 and L.eff(a, H2 + 1) == e:
+                      H2 += 1
+                  lo = e if lo is None or e < lo else lo
+                  hi = e if hi is None or e > hi else hi
+                  H = H2 + 1
+              inn, out, minted, burned = {}, {}, 0, 0
+              for x in L.moves(a, T + 1, S1):
+                  if x["kind"] == "mint":
+                      minted += x["d"]
+                  elif x["kind"] == "burn":
+                      burned -= x["d"]
+                  else:
+                      m = inn if x["kind"] == "in" else out
+                      k = "?" if x["c"] is None else x["c"]
+                      m[k] = m.get(k, 0) + abs(x["d"])
+
+              def lst(m):
+                  return [{"a": k, "v": str(m[k])} for k in sorted(m)]
+              return {"own": str(o), "effS0": str(L.eff(a, S0)), "effS1": str(L.eff(a, S1)), "lo": str(lo), "hi": str(hi),
+                      "received": lst(inn), "sent": lst(out), "minted": str(minted), "burned": str(burned), "ownMove": len(out) > 0}
 
 
           def score_card(L, card):
@@ -665,32 +900,88 @@ jobs:
                   raise ValueError(_not_yet(L, S0 - EARLY, S1))
               flagged = any(p["quality"] == "flagged" or _bad_for(L, p["a"], S0 - EARLY, S1) for p in card["producers"]) \
                   or (card["paying"] and _rebuilt_in(L, S0 - EARLY, S1))
+              blocks = S1 - S0 + 1
+              band_down, band_up = void_band(blocks)
+              draws = {}
+
+              def draw(H):
+                  u = draws.get(H)
+                  if u is None:
+                      d = hashlib.sha256(("sample|%s|%d" % (card["seedBlockId"], H)).encode("utf-8")).digest()
+                      u = int.from_bytes(d[:8], "big") % M
+                      draws[H] = u
+                  return u
               rows = []
               for p in card["producers"]:
-                  o = _int(p["own"])
-                  credited = sum(credit_of(o, L.eff(p["a"], b)) for b in L.signed_blocks(p["a"], S0, S1))
-                  expected = _int(p["k"])
-                  if p["pooled"]:
-                      expected = 0
-                      H = S0
-                      while H <= S1:
-                          e = L.eff(p["a"], H)
-                          H2 = H
-                          while H2 + 1 <= S1 and L.eff(p["a"], H2 + 1) == e:
-                              H2 += 1
-                          m = e if e < o else o
-                          expected += (H2 - H + 1) * (m * M // tot if tot > 0 else 0)
-                          H = H2 + 1
+                  o, k = _int(p["own"]), _int(p["k"])
+                  sample = LUCK_CAP * M // k if k > LUCK_CAP else M
+                  every = sample == M
+                  credited = sum(credit_of(o, L.eff(p["a"], b)) for b in L.signed_blocks(p["a"], S0, S1) if every or draw(b) < sample)
+                  lo, hi = o * (M - band_down) // M, o * (M + band_up) // M
+                  is_void, expected = False, 0
+                  H = S0
+                  while H <= S1:
+                      e = L.eff(p["a"], H)
+                      H2 = H
+                      while H2 + 1 <= S1 and L.eff(p["a"], H2 + 1) == e:
+                          H2 += 1
+                      if e < lo or e > hi:
+                          is_void = True
+                      cnt = H2 - H + 1 if every else sum(1 for b in range(H, H2 + 1) if draw(b) < sample)
+                      m = e if e < o else o
+                      expected += cnt * (m * M // tot if tot > 0 else 0)
+                      H = H2 + 1
                   q = dict(p)
-                  q.update({"quality": "flagged" if flagged else "ok", "expected": expected,
-                            "signed": L.signed_in(p["a"], S0, S1), "credited": credited})
+                  q.update({"quality": "flagged" if flagged else "ok", "sample": sample, "expected": expected,
+                            "signed": L.signed_in(p["a"], S0, S1), "credited": credited, "pct": pct(expected, credited),
+                            "void": is_void, "moves": void_record(L, p["a"], o, card["T"], S0, S1) if is_void else None})
                   rows.append(q)
+              # A′ (D-165, D-171), as scoreCard in vhp-ruler.js: the core is the field members with form ≥ CORE_LINE × the field's
+              # median form weighted by expected blocks (exact tie: the lower member's form), at full size; a producer's yardstick
+              # is the core less any other core member more than BAND_SD sd from its share of the core's blocks, plus itself
+              def in_field(r):
+                  return r["entry"] and not r["void"]
+              frows = sorted((r for r in rows if in_field(r)), key=lambda r: _int(r["form"]))
+              e_all = sum(r["expected"] for r in frows)
+              median, cum = 0, 0
+              for r in frows:
+                  cum += r["expected"]
+                  if 2 * cum >= e_all:
+                      median = _int(r["form"])
+                      break
+              line = median * CORE_LINE // M
+
+              def in_core(r):
+                  return in_field(r) and _int(r["form"]) >= line
+              # the yardstick counts CREDITED blocks (millionths), as in vhp-ruler.js
+              n = sum(r["credited"] for r in rows if in_core(r))
+              b = sum(r["expected"] for r in rows if in_core(r))
+              nY, bY = n, b
+              for r in rows:
+                  r["core"], r["z"], r["setAside"] = in_core(r), None, False
+                  if not r["core"]:
+                      continue
+                  dev, v = r["credited"] * b - n * r["expected"], n * r["expected"] * (b - r["expected"]) * M
+                  if v > 0:
+                      q = abs(dev) * M // isqrt(v)
+                      r["z"] = -q if dev < 0 else q
+                  if dev * dev > BAND_SD * BAND_SD * v:
+                      r["setAside"] = True
+                      nY -= r["credited"]
+                      bY -= r["expected"]
+              for r in rows:
+                  if not in_field(r):
+                      r["fpct"] = None
+                  elif r["core"] and not r["setAside"]:
+                      r["fpct"] = fpct(nY // M, r["expected"], bY, r["credited"])
+                  else:
+                      r["fpct"] = fpct((nY + r["credited"]) // M, r["expected"], bY + r["expected"], r["credited"])
               out = dict(card)
               out["producers"] = rows
               return out
 
 
-          _SETTINGS, _WKEYS = ("game", "round", "window", "c", "ownRule", "paying", "pooled"), ("W0", "W1", "L", "S0", "S1")
+          _SETTINGS, _WKEYS = ("game", "round", "window", "c", "minK", "poolRule", "ownRule", "paying", "pooled"), ("W0", "W1", "L", "S0", "S1")
 
 
           def check_settings(g):
@@ -707,6 +998,10 @@ jobs:
               c = g["c"]
               if not ((type(c) is int and 0 <= c <= 2 ** 53 - 1) or (type(c) is str and re.fullmatch(r"[0-9]{1,30}", c))):
                   raise ValueError("c must be a whole number of millionths")
+              if type(g["minK"]) is not int or not 1 <= g["minK"] <= 100000:
+                  raise ValueError("minK must be a whole number of blocks from 1")
+              if g["poolRule"] not in POOL_RULES:
+                  raise ValueError("poolRule must be min")
               if g["ownRule"] not in OWN_RULES:
                   raise ValueError("ownRule must be spot, high1h or avg24h")
               if type(g["paying"]) is not bool:
@@ -716,7 +1011,7 @@ jobs:
 
 
           def recompute(L, published, game):
-              """published: the card's JSON text; game: the game's OWN settings {game, round, window, c, ownRule, paying, pooled}
+              """published: the card's JSON text; game: the game's OWN settings {game, round, window, c, minK, poolRule, ownRule, paying, pooled}
               (Repo Lens #E-12 M-1: never the card's own settings). Returns (same, diff)."""
               try:
                   check_settings(game)
@@ -725,16 +1020,17 @@ jobs:
               pub = json.loads(published)
               w = game["window"]
               want = {"game": int(_dec(game["game"], "game")), "round": _dec(game["round"], "round"), "ownRule": game["ownRule"],
-                      "paying": game["paying"], "c": str(int(game["c"])),
+                      "paying": game["paying"], "c": str(int(game["c"])), "minK": game["minK"], "poolRule": game["poolRule"],
                       "W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]}
               got = {"game": pub.get("game"), "round": pub.get("round"), "ownRule": pub.get("ownRule"), "paying": pub.get("paying"),
-                     "c": str(pub.get("c"))}
+                     "c": str(pub.get("c")), "minK": pub.get("minK"), "poolRule": pub.get("poolRule")}
               got.update(pub.get("window") or {})
               for k in want:
                   if got.get(k) != want[k] or type(got.get(k)) is not type(want[k]):
                       return False, "setting %s: the card says %s, the game says %s" % (k, json.dumps(got.get(k)), json.dumps(want[k]))
               try:
-                  mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"])
+                  mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"],
+                                   game["minK"], game["poolRule"])
                   if any("credited" in p for p in pub.get("producers", [])):
                       mine = score_card(L, mine)
               except ValueError as e:
@@ -869,13 +1165,13 @@ jobs:
 
               def take(b, start):
                   for i, v in enumerate(b["burns"]):
-                      out.append({"h": start + i, "a": h["addrs"][b["sig"][i]], "d": -int(v), "inc": 0})
-                  for eh, k, f, t, v in b["events"]:
+                      out.append({"h": start + i, "a": h["addrs"][b["sig"][i]], "d": -int(v), "inc": 0, "kind": "burn", "c": None})
+                  for eh, k, f, t, v in b["events"]:  # kind and c (the other address): D-172's void record only
                       x = int(v)
                       if k != "m":
-                          out.append({"h": eh, "a": f, "d": -x, "inc": 0})
+                          out.append({"h": eh, "a": f, "d": -x, "inc": 0, "kind": "burn" if k == "b" else "out", "c": None if k == "b" else t})
                       if k != "b":
-                          out.append({"h": eh, "a": t, "d": x, "inc": x})
+                          out.append({"h": eh, "a": t, "d": x, "inc": x, "kind": "mint" if k == "m" else "in", "c": None if k == "m" else f})
               take(h, h["from"])
               if with_tail:
                   take(h["tail"], h["to"] + 1)
@@ -1063,7 +1359,8 @@ jobs:
           # ── the publish job (.github/workflows/vhp-ruler.yml runs this whole file, then publish_main) ──
           # canonical numbers only (Repo Lens #D-10 M-5): h/024010.json can't stand beside h/24010.json
           _HOUR_FILE, _DAY_FILE = re.compile(r"h/(0|[1-9][0-9]{0,8})\.json"), re.compile(r"d/(0|[1-9][0-9]{0,8})\.json")
-          MAX_HOUR_BYTES, MAX_DAY_BYTES, MIN_KEEP_DAYS = 4 << 20, 16 << 20, 22
+          # MIN_KEEP_DAYS: Repo Lens #G-9 G9-1, a 6-day race's card needs about 25.3 days of hours when the week closes
+          MAX_HOUR_BYTES, MAX_DAY_BYTES, MIN_KEEP_DAYS = 4 << 20, 16 << 20, 26
 
 
           def _read_tree(d):
@@ -1376,8 +1673,8 @@ jobs:
 
 
           def recompute_main(argv):
-              """argv: vhp-data dir, card file, the game's settings (a JSON file: {game, round, window, c, ownRule, paying,
-              pooled}, from the game's own code, never from the card). Exit 0 = the card is exactly what the data gives."""
+              """argv: vhp-data dir, card file, the game's settings (a JSON file: {game, round, window, c, minK, poolRule, ownRule,
+              paying, pooled}, from the game's own code, never from the card). Exit 0 = the card is exactly what the data gives."""
               L, _ = load_ledger(argv[0])
               with open(argv[1], encoding="utf-8") as fh:
                   card = fh.read()

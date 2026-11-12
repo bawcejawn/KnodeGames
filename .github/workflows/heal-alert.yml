@@ -30,4 +30,14 @@ jobs:
           echo "::error title=Self-healing: $NODE_NAME::$DETAIL"
           echo "Node: $NODE_NAME"
           echo "What happened: $DETAIL"
+          # R-VAULT-9: a plain-language summary at the top of the run page (ALERTS.md §7). Runs no repository code.
+          {
+            echo "## Heal alert: what needs your attention"
+            echo ""
+            echo "- **What happened:** your PC's self-healing task reports on **$NODE_NAME**: $DETAIL"
+            echo "- **Does it matter:** players' stakes are safe. A node (or today's question release) needs a look; the pool earns nothing while its node is down."
+            echo "- **Expected?** A restart message is expected now and then (nothing to do). \"Docker Desktop isn't running\", \"stopped trying\", \"keeps crashing\", \"Repair FAILED\" or \"questions are not out yet\" are not."
+            echo "- **What to do:** find the first words of the message in \`.ai/platform/ALERTS.md\` §7. Usually: start Docker Desktop, or check \`npm run bot -- node-status\` in about 30 minutes. Before running any repair script, ask the Vault chat."
+            echo "- **Deadline:** none, but a node that stays down earns nothing."
+          } >> "$GITHUB_STEP_SUMMARY"
           exit 1

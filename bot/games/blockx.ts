@@ -76,6 +76,10 @@ export type Opts = {
   vhpContract?: string;                                                    // default: mainnet VHP
   knodeGame?: string | null;                                               // the Knode vault (v6): who is staked in THIS game
   prizesFromWeek?: number | null;                                          // default: none (no prizes listed)
+  /** Mainnet only (owner 10 Nov, as the Race does): the raw PRIZES_FROM_WEEK when it is unset or not a plain week number.
+   *  Set: every week that could go final is HELD (no prize list, no vault file, the run fails and emails) instead of going
+   *  final with no prizes. Default null (tests and testnet: no hold). */
+  prizesUnset?: string | null;
   /** Repo Lens E4-3 / L-1: how long into the run the week-end re-read may still start a target (default REVERIFY_BUDGET_MS). */
   reverifyBudgetMs?: number;
   /** Fix-check L-2: BLOCKX_RELEASE, "<week>:<release code>" (default: the environment's). */
@@ -514,6 +518,7 @@ export async function run(o: Opts) {
   const VHP = o.vhpContract ?? MAINNET_VHP;
   const KNODE = o.knodeGame === undefined ? MAINNET_KNODE_GAME || null : o.knodeGame;
   const PRIZES_FROM = o.prizesFromWeek ?? null;
+  const PRIZES_UNSET = o.prizesUnset ?? null;
   const problems: string[] = [];
   const holds: string[] = [];   // Repo Lens E4-7: a held week is an error (the workflow fails the run after publishing)
   const runStart = Date.now();   // fix-check L-1: the re-read's budget counts from here
@@ -969,6 +974,13 @@ export async function run(o: Opts) {
     if (ready && !agreed && !frozen) console.log(`week ${lw}: pending; it goes final once a run at least an hour after this one reads the same week`);
     if (frozen && frozen.v === 1 && frozen.week === lw && frozen.game === VG && Array.isArray(frozen.prizes)) {
       lastWeek.final = true; lastWeek.prizes = frozen.prizes; lastWeek.frozenAt = frozen.at;
+    } else if (ready && PRIZES_UNSET !== null) {
+      // Owner 10 Nov (as the Race, bot/race.ts): a missing or bad PRIZES_FROM_WEEK never makes a week final with no
+      // prizes. It holds the week (the workflow fails after publishing, so the owner is emailed); it goes final by itself
+      // on the next run once the variable is set.
+      const note = `week ${lw}: held before its prize list: the repository variable PRIZES_FROM_WEEK is not set to a plain week number (it reads ${PRIZES_UNSET}). Set it (Settings → Secrets and variables → Actions → Variables, the same one the Race reads: 4 = first paid week Mon 16 Nov); the week goes final by itself on the next run. Nothing is made final until then`;
+      problems.push(note); holds.push(note);
+      lastWeek.final = false; lastWeek.prizes = [];
     } else if (ready) {
       // (D-135: read again from the first run that can go final, so a difference holds at once; it freezes only once
       // two runs an hour apart agree.)
@@ -1100,7 +1112,8 @@ export function vaultFile(game: number, week: number, prizes: { player: string; 
   return { file: { game, week, final: true, rows, first, second }, problems };
 }
 
-/** PRIZES_FROM_WEEK (a repository variable): a plain week number 0-9999, else no prizes at all (fails closed). */
+/** PRIZES_FROM_WEEK (a repository variable): a plain week number 0-9999, else null. On mainnet null holds every week that
+ *  could go final (prizesUnset), so nothing is made final with no prizes by mistake (fails closed AND loudly). */
 export const prizesFromEnv = (v: string | undefined) => (v && /^[0-9]{1,4}$/.test(v.trim()) ? Number(v.trim()) : null);
 export type NetConfig = { v: 1; network: "koinos-foundation-testnet"; chainId: string | null; rpc: string; koin: string; picks: string | null; vhp: string | null; prizesFromWeek: number | null;
   data: string; games: { id: number; name: string; round: number; offset: number; lead: number; ahead: number; picksPerDay: number; maxChanges: number }[] };
@@ -1122,7 +1135,10 @@ async function main() {
     if (!RPC_CHECK && E.ALLOW_ONE_NODE !== "yes") throw new Error("no second node (RPC_CHECK is off, missing or the same as RPC): Block X needs two on mainnet. Set RPC_CHECK, or ALLOW_ONE_NODE=yes to run on one node.");
     if (!RPC_CHECK) console.log("::warning::running on ONE node (ALLOW_ONE_NODE=yes): blocks, picks and stakes are not cross-checked");
     // R-BX-25: mainnet runs the schedule (game 2, then hourly game 12 from Mon 16 Nov), vault game 2 throughout.
-    const r = await run({ p: new Provider([RPC]), check: RPC_CHECK ? new Provider([RPC_CHECK]) : null, prizesFromWeek: prizesFromEnv(E.PRIZES_FROM_WEEK), schedule: X.MAINNET_SCHEDULE as any, vaultGame: X.VAULT_GAME });
+    const prizesFromWeek = prizesFromEnv(E.PRIZES_FROM_WEEK);
+    const prizesUnset = prizesFromWeek === null ? JSON.stringify(E.PRIZES_FROM_WEEK ?? null) : null;   // owner 10 Nov: fail loudly
+    if (prizesUnset !== null) console.log(`::warning::PRIZES_FROM_WEEK is not a plain week number (it reads ${prizesUnset}): any week that could go final is held`);
+    const r = await run({ p: new Provider([RPC]), check: RPC_CHECK ? new Provider([RPC_CHECK]) : null, prizesFromWeek, prizesUnset, schedule: X.MAINNET_SCHEDULE as any, vaultGame: X.VAULT_GAME });
     // Repo Lens E4-7: tell the workflow a week is held; its last job fails the run (an email) after publishing.
     if (r.held.length && E.GITHUB_OUTPUT) fs.appendFileSync(E.GITHUB_OUTPUT, "held=true\n");
     return r;

@@ -289,9 +289,10 @@
     if (!force && key === picksKey && list.childElementCount) return;
     picksKey = key;
     if (!who) {
-      $("picks-who").textContent = "Connect a wallet to pick (Kondor, KOIN Vault or a guest wallet).";
+      // Where the header's "Play free" lands (owner, 9 Nov): the free guest comes first, a wallet is the other choice.
+      $("picks-who").textContent = "Pick a horse for free as a guest: no sign-up, no wallet. Or connect Kondor or KOIN Vault.";
       $("picks-left").textContent = "";
-      list.replaceChildren(el("button", { class: "btn", type: "button", onclick: () => W && W.connect() }, "Connect wallet"));
+      list.replaceChildren(el("button", { class: "btn btn-primary", type: "button", onclick: () => W && W.connect() }, "Play free or connect a wallet"));
       return;
     }
     $("picks-who").textContent = `Picking as ${nameOf(who)}${W.kind === "guest" ? " (guest)" : ""}.`;
@@ -425,7 +426,7 @@
     name: nameOf, link: (a) => EXPLORER + a,
     me: (r, place) => `${place ? `You: #${place} with` : "Your score (only you see this):"} ${fmt(r.pts ?? 0)} points (${fmt(r.correct)} wins, ${fmt(r.shows ?? 0)} shows) from ${fmt(r.picks)} picks.`,
     unranked: "To play on the Staked board, stake at least 1 VHP in the Producer Race.",
-    free: { show: 6, prize: "1st and 2nd at the end of the week win 2 and 1 VHP (from Week 1, the week of Mon 9 Nov)." },
+    free: { show: 6, prize: "1st and 2nd at the end of the week win 2 and 1 VHP, from Week 1 (the week of Mon 16 Nov). Weeks before that are practice: no prizes." },
   }) : null;
   async function loadBoard() {
     try { const b = await fetchJson(DATA + "board.json"); if (b && b.v === 1 && lb) { board = b; $("board-box").hidden = false; renderBoard(); } } catch { /* none yet */ }

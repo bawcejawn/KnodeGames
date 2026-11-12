@@ -10,7 +10,7 @@
    Read-only: no transaction, no storage, everything built with textContent. */
 (() => {
   "use strict";
-  // What players call a week (weeks.js, D-063): the week of Mon 9 Nov is "Week 1"; earlier weeks show their date.
+  // What players call a week (weeks.js, D-063): the week of Mon 16 Nov is "Week 1", the week of Mon 9 Nov the "Test week"; earlier weeks show their date.
   const WL = (w) => (window.KWeeks ? window.KWeeks.label(w) : `Week ${Number(w) + 1}`);
   const WS = (w) => (window.KWeeks ? window.KWeeks.short(w) : String(Number(w) + 1));
   const host = document.getElementById("res-games");
@@ -258,7 +258,15 @@
 
   // ───────────────── tabs ─────────────────
   // A drawing per game; a game shows here when games.json says `"results": true` and it has a drawing.
-  const ADAPTERS = { race, blockx };
+  // Producer Bracket: the week-by-week results live on the Bracket page until its first week is final.
+  const bracket = {
+    open(box) {
+      box.replaceChildren(el("div", { class: "empty" },
+        el("p", { text: "The Producer Bracket's weekly results (the champion, every round and your points) are on the Bracket page. They are listed here once its first week is final." }),
+        el("p", {}, el("a", { class: "btn btn-primary", href: "bracket.html", text: "Open the Bracket" }))));
+    },
+  };
+  const ADAPTERS = { race, blockx, bracket };
   let games = [{ id: "questions", name: "Daily Questions" }], current = "questions";
   const qPart = $("res-q"), gPart = $("res-g");
 

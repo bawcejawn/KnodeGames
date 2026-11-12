@@ -20,7 +20,7 @@ const R = box.window.KRuler;
 // A chain long enough for a paying card (14 days + 6 h of data before T, #E-12 L-1): the same shape the reviewer used.
 const { tl, ps } = longTimeline({ n: 440000 });
 const W0 = tl.from + 415000, window = { W0, W1: W0 + 7199, L: W0 + 7200, S0: W0 + 7201, S1: W0 + 14400 };
-const game = { game: 7, round: "2026111006", window, c: 400000n, ownRule: "high1h", paying: true, pooled: [ps[2]] };
+const game = { game: 7, round: "2026111006", window, c: 400000n, minK: 10, poolRule: "min", ownRule: "high1h", paying: true, pooled: [ps[2]] };
 const L = R.ledger({ ...tl, rebuilt: [{ h0: W0 - 2000, h1: W0 - 1000 }] });
 
 test("E12-M1 (fixture check): the game's own card recomputes as the same", () => {

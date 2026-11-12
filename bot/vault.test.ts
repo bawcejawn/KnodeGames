@@ -47,6 +47,7 @@ function vctx(sim: SimChain, results: Record<string, any>): VaultCtx & { problem
     chain: sim, operator, dryRun: false, problems: [], quiet: true,
     deployment: { vaultGames: { "2": { results: "mem:fantasy" }, "3": { results: "mem:blockx" } } },
     readResults: (source, week) => results[`${source}/W${week}`] ?? null,
+    readPrizeSwitches: () => null,   // no git remote needed (Repo Lens #F-4 F4-5): null = follow registrations
   };
 }
 const sendAs = (sim: SimChain, signer: Signer, sent: string[]) => async (what: string, calls: any[]) => {
@@ -237,7 +238,7 @@ function fctx(sim: SimChain, files: Record<string, any>, memo?: VaultMemo): Vaul
     const v = files[spec];
     return v === undefined ? { state: "missing" } : v === "ERR" ? { state: "error", error: "test: unreadable" } : { state: "ok", data: JSON.parse(JSON.stringify(v)) };
   };
-  return { chain: sim, operator, dryRun: false, problems: [], quiet: true, readFile, memo,
+  return { chain: sim, operator, dryRun: false, problems: [], quiet: true, readFile, memo, readPrizeSwitches: () => null,
     deployment: { vaultGames: { "2": { results: "mem:fantasy/vault" }, "3": { results: "mem:blockx/vault" } } } };
 }
 const allFiles = () => ({ "mem:fantasy/vault/W1.json": fantasyW1(), "mem:fantasy/board.json": fantasyBoard(), "mem:blockx/vault/W1.json": blockxW1() });
@@ -523,6 +524,54 @@ test("VB-11: a results file's fingerprint ignores the order of rows and winners"
   assert.notEqual(fileHash(a), fileHash({ ...a, rows: [{ player: P(0), points: 8 }, a.rows[1]] }));
 });
 
+test("v6.1 (D-116): the vault bot handles the question game only from its shared-rules week; other games always", async () => {
+  const { sharedRulesWeek, vaultHandles } = await import("./vault.ts");
+  assert.equal(sharedRulesWeek({}, 5), false, "rule not set (v6): never");
+  assert.equal(sharedRulesWeek({ q60_rule_week_plus_one: "0" }, 5), false);
+  const c = { q60_rule_week_plus_one: "4" };                  // first shared-rules week: 3
+  assert.equal(sharedRulesWeek(c, 2), false, "the week the upload lands in keeps the old rules");
+  assert.equal(sharedRulesWeek(c, 3), true);
+  assert.equal(sharedRulesWeek(c, 9), true);
+  assert.equal(vaultHandles(1, c, 2), false, "an old-rule week of game 1: settle and claim, not a results file");
+  assert.equal(vaultHandles(1, c, 3), true);
+  assert.equal(vaultHandles(2, {}, 0), true, "every other game, always");
+});
+
+test("owner 4 Nov (Mana): a week's points and prize places go out six wallets per transaction", { skip: !fs.existsSync(NEW) && `${NEW} missing: run npm run build:sim in game/` }, async () => {
+  const { sim, at, ok } = await world();
+  await ok([["propose_game", { game: 2, name: "Fantasy", staked: true, free_prize: false, season_weeks: 1 }], ["propose_game", { game: 3, name: "Block X", staked: false, free_prize: true, season_weeks: 1 }]], [owner]);
+  at(T0 + 2 * DAY + HOUR);
+  await ok([["apply_game", { game: 2 }], ["apply_game", { game: 3 }]], [owner]);
+  await ok([["seed_deposit_vhp", { amount: String(2000n * VHP) }]], [seedOwner]);
+  const many = Array.from({ length: 14 }, (_, i) => key(`many ${i}`));
+  for (const p of many) {
+    await sim.ledgerSet(2, addr(p), 100n * VHP); await sim.ledgerSet(3, addr(p), 100n * VHP);
+    await ok([["deposit_to", { from: addr(p), game: 2, amount: String(VHP), koin: false }]], [p]);
+  }
+  at(GENESIS + WEEK + 12 * HOUR + 1);
+  await ok([["close_week", { week: "0" }]], []);
+  await sim.ledgerAdd(2, addr(contract), 100n * VHP);
+  at(GENESIS + 2 * WEEK + 12 * HOUR + 1);
+  await ok([["close_week", { week: "1" }]], []);
+  const free = [A, B, C, D, E, key("free 6"), key("free 7")].map(addr);
+  const results = {
+    "mem:fantasy/W1": { game: 2, week: 1, final: true, rows: many.map((p, i) => ({ player: addr(p), points: 1 + i })) },
+    "mem:blockx/W1": { game: 3, week: 1, final: true, rows: [], first: free, second: [] },
+  };
+  const v = vctx(sim, results), sent: string[] = [];
+  await vaultResultsPass(v, sendAs(sim, operator, sent));
+  assert.deepEqual(v.problems, []);
+  assert.deepEqual(sent.filter((s) => s.startsWith("Fantasy")), [
+    "Fantasy week 1: points for 6 player(s)", "Fantasy week 1: points for 6 player(s)", "Fantasy week 1: points for 2 player(s)",
+    "Fantasy week 1: seal the results (the owner can correct them for 24 h)",
+  ]);
+  assert.deepEqual(sent.filter((s) => s.startsWith("Block X")), [
+    `Block X week 1: prize place 1 → ${free.slice(0, 6).join(", ")}`, `Block X week 1: prize place 1 → ${free[6]}`,
+    "Block X week 1: seal the results (the owner can correct them for 24 h)",
+  ]);
+  assert.equal(Number((await sim.read("get_game", { game: 3, week: "1" })).week.first_n), 7, "all seven tied winners are on chain");
+});
+
 test("N-2: capScope \"staked\" compares the row cap with the Staked board only, so a short Staked board still holds", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
   const { sim } = await weekOneClosed();
   // The Staked board has 1 row (B) and the Free board 1 (E): 2 rows in all. C is in the file but on no board.
@@ -578,4 +627,60 @@ test("N-3: a transaction that ran out of Mana is retried next run, not remembere
   // Submit-time refusals and other failures are unchanged.
   assert.equal(isRevert('{"error":"x","logs":["transaction reverted: results for that week are past their deadline"]}'), true);
   assert.equal(isRevert("sent, but not seen in a block within 3 minutes (will be re-checked next run)"), false);
+});
+
+test("Repo Lens #E-16 N-1: questionWeekShared follows the contract's qShared rule (rule week, or game 1's game-week closed)", async () => {
+  const { questionWeekShared } = await import("./vault.ts");
+  const chainWith = (closed: boolean | "throws") => ({ read: async (m: string, a: any) => {
+    assert.equal(m, "get_game"); assert.equal(a.game, 1);
+    if (closed === "throws") throw new Error("v6: no game-1 game-week");
+    return { week: { closed } };
+  } }) as any;
+  const c = { q60_rule_week_plus_one: "4" };                      // rule week 3
+  assert.equal(await questionWeekShared(chainWith(false), c, 3), true, "a shared-rules week, without reading");
+  assert.equal(await questionWeekShared(chainWith(false), c, 2), false, "an old-rules week whose game-week isn't closed");
+  assert.equal(await questionWeekShared(chainWith(true), {}, 2), true, "closed the new way: shared even after a rollback moved the rule week");
+  assert.equal(await questionWeekShared(chainWith("throws"), {}, 2), false, "v6 (no game-1 game-week): not shared");
+});
+
+test("owner 10 Nov (Week 1 = Mon 16): a test week (vaultTestWeeks) posts nothing and rolls over at its deadline", { skip: !fs.existsSync(NEW) && `${NEW} missing: run npm run build:sim in game/` }, async () => {
+  const { testWeeks, isTestWeek } = await import("./vault.ts");
+  assert.deepEqual(testWeeks({ vaultTestWeeks: [3] }), [3]);
+  assert.deepEqual(testWeeks({}), []);
+  assert.equal(isTestWeek({ vaultTestWeeks: [3] }, 3), true);
+  assert.equal(isTestWeek({ vaultTestWeeks: [3] }, 2), false, "only the listed week: the week before still pays");
+  assert.equal(isTestWeek({ vaultTestWeeks: [3] }, 4), false);
+  for (const bad of [3, "3", true, ["3"], [3.5], [-1], {}]) assert.throws(() => testWeeks({ vaultTestWeeks: bad }), /not a list of week numbers/, JSON.stringify(bad));
+  const { sim, at, ok } = await world();
+  await ok([["propose_game", { game: 2, name: "Fantasy", staked: true, free_prize: false, season_weeks: 1 }], ["propose_game", { game: 3, name: "Block X", staked: false, free_prize: true, season_weeks: 1 }]], [owner]);
+  at(T0 + 2 * DAY + HOUR);
+  await ok([["apply_game", { game: 2 }], ["apply_game", { game: 3 }]], [owner]);
+  await ok([["seed_deposit_vhp", { amount: String(2000n * VHP) }]], [seedOwner]);
+  for (const p of [A, B]) {
+    await sim.ledgerSet(2, addr(p), 100n * VHP); await sim.ledgerSet(3, addr(p), 100n * VHP);
+    await ok([["deposit_to", { from: addr(p), game: 2, amount: String(VHP), koin: false }]], [p]);
+  }
+  at(GENESIS + WEEK + 12 * HOUR + 1);
+  await ok([["close_week", { week: "0" }]], []);
+  await sim.ledgerAdd(2, addr(contract), 100n * VHP);
+  at(GENESIS + 2 * WEEK + 12 * HOUR + 1);
+  await ok([["close_week", { week: "1" }]], []);
+  const results = {
+    "mem:fantasy/W1": { game: 2, week: 1, final: true, rows: [{ player: addr(A), points: 5 }, { player: addr(B), points: 3 }] },
+    "mem:blockx/W1": { game: 3, week: 1, final: true, rows: [], first: [addr(C)], second: [] },
+  };
+  const v = vctx(sim, results);
+  v.deployment.vaultTestWeeks = [1];                       // week 1 is the test week
+  const sent: string[] = [];
+  await vaultResultsPass(v, sendAs(sim, operator, sent));
+  assert.deepEqual(sent, [], "nothing is posted for a test week");
+  assert.deepEqual(v.problems, []);
+  const before = (await sim.read("get_game", { game: 2, week: "1" })).week;
+  assert.ok(BigInt(before.bucket ?? 0) > 0n, "the test week has a bucket to roll");
+  at(GENESIS + 2 * WEEK + 3 * DAY + 13 * HOUR);           // past week 1's results deadline
+  await vaultFinalizePass(v, sendAs(sim, operator, sent));
+  assert.deepEqual(sent.filter((x) => !x.startsWith("Questions")).sort(), ["Block X week 1: finalize (no results: roll the week over)", "Fantasy week 1: finalize (no results: roll the week over)"]);
+  const after = (await sim.read("get_game", { game: 2, week: "1" })).week;
+  assert.equal(after.rolled_over, true, "the bucket stays in the game for its next week");
+  assert.equal(BigInt((await sim.read("get_game", { game: 2 })).game.rolled ?? 0), BigInt(before.bucket), "added to the game's next week");
 });

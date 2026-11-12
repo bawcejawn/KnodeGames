@@ -34,6 +34,8 @@ export type KitGameCfg = {
   liveWeek: boolean; roundsCorrectable: boolean; maxRoundPoints?: number; budgets?: Partial<Budgets>;
   /** Phase 1b: the game scores from the VHP ruler's published data (manifest vhpData): ctx.vhp. */
   vhpData?: boolean;
+  /** #G-24 Info: every decided round of a ruler game uses at least one ruler card (default on with vhpData). */
+  cardPerRound?: boolean;
   /** FC-9: the game publishes a write-once inputs file before each week opens (manifest inputsFile). */
   inputsFile?: boolean;
   /** How long before the week opens the inputs file is made (default 2 days: Saturday 00:00 UTC). */
@@ -183,7 +185,7 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
   // Phase 1b (G1/G2): the ruler's data, loaded once into one checked ledger. Data that can't be loaded gives the game a
   // ctx.vhp whose card() throws NotYet: rounds stay pending and the inputs file waits; nothing is guessed.
   const usedInputCards = new Map<string, any>(), usedWeekCards = new Map<string, any>();
-  let vhpIn: any, vhpWk: any, NotYetE: any = null, cardList: any = null;
+  let vhpIn: any, vhpWk: any, NotYetE: any = null, cardList: any = null, vhpRound: ((m: Map<string, any>) => any) | null = null;
   if (cfg.vhpData) {
     const V = await import("./sources/vhp-ruler.ts");
     NotYetE = V.NotYet; cardList = V.cardList;
@@ -193,6 +195,8 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
     const stub = (why: string) => ({ to: -1, ruleVersion: V.RULE_VERSION, card() { throw new V.NotYet(`not yet: ${why}`); } });
     vhpIn = L ? V.vhpFor(L, usedInputCards) : stub("the ruler's data isn't loaded this run");
     vhpWk = L ? V.vhpFor(L, usedWeekCards) : stub("the ruler's data isn't loaded this run");
+    // One round's own ctx.vhp (cardPerRound): its cards go to that round's map, then to the week's.
+    vhpRound = (mine) => (L ? V.vhpFor(L, mine) : stub("the ruler's data isn't loaded this run"));
   }
   const isNotYet = (e: unknown) => !!NotYetE && e instanceof NotYetE;
 
@@ -350,8 +354,15 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
 
   // resultOf with ctx.vhp; a card the data doesn't cover yet is PENDING (never a guess).
   const resultOf = async (r: Round, rd: NodeReader) => {
-    try { return await m.resultOf(r, rd, inputs, cfg.vhpData ? { vhp: vhpWk } : {}); }
+    if (!cfg.vhpData) return m.resultOf(r, rd, inputs, {});
+    const mine = new Map<string, any>();
+    let res: any;
+    try { res = await m.resultOf(r, rd, inputs, { vhp: vhpRound!(mine) }); }
     catch (e) { if (isNotYet(e)) return PENDING; throw e; }
+    for (const [k, v] of mine) usedWeekCards.set(k, v);
+    // #G-24 Info: a decided ruler round must come from at least one ruler card (cardPerRound, on by default).
+    if (cfg.cardPerRound && res !== PENDING && mine.size === 0) throw new Error(`round ${r.id}: decided without a ruler card (cardPerRound; a ruler game's results come from ctx.vhp.card)`);
+    return res;
   };
 
   // The fold: each round's state after its picks, in lock order (picks are known; results aren't needed).

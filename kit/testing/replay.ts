@@ -15,6 +15,7 @@ export type Hour = { result?: RunResult; error?: string; published: string[]; he
  *  rebuilt from the ledger; the sha256 values that match. */
 export async function rebuiltCards(out: string, pub: string, L: any): Promise<Set<string>> {
   const { vhpFor } = await import("../recorder/sources/vhp-ruler.ts");
+  const { cardKey } = await import("../publish/check.inline.mjs");
   const ok = new Set<string>();
   const rels = [...(fs.existsSync(out) ? fs.readdirSync(out) : []).filter((f) => /^W[0-9]{3,4}\.json$/.test(f)),
     ...(fs.existsSync(path.join(out, "inputs")) ? fs.readdirSync(path.join(out, "inputs")).map((f) => `inputs/${f}`) : [])];
@@ -24,7 +25,7 @@ export async function rebuiltCards(out: string, pub: string, L: any): Promise<Se
     for (const [s, h] of JSON.parse(raw).cards ?? []) {
       const used = new Map();
       try { vhpFor(L, used).card(s); } catch { continue; }
-      if (used.has(h)) ok.add(h);
+      if (used.has(h)) ok.add(cardKey(s, h));      // #G-24 G24-1: the pair, never the sha256 alone
     }
   }
   return ok;

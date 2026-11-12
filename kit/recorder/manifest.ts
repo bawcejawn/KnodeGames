@@ -64,12 +64,12 @@ export function kitConfig(m: any, dep = readDeployment()): KitGameCfg {
     liveWeek: m.liveWeek === true, roundsCorrectable: m.roundsCorrectable === true, budgets: m.budgets,
     maxRoundPoints: m.maxRoundPoints ?? 1000000,
     ...(m.inputsFile === true ? { inputsFile: true, inputsLeadMs: (m.inputsLeadHours ?? 48) * 3600000 } : {}),
-    ...(m.vhpData === true ? { vhpData: true } : {}),
+    ...(m.vhpData === true ? { vhpData: true, cardPerRound: m.cardPerRound !== false } : {}),
   };
 }
 
 /** The publish job's per-game config (what check.inline.mjs reads from KIT_GAMES). */
 export function publishConfig(m: any, dep = readDeployment()) {
   const c = kitConfig(m, dep);
-  return { slug: c.slug, game: c.game, genesis: c.genesis, weekMs: c.weekMs, sundayFunRound: c.sundayFunRound, payoutRule: c.payoutRule, vaultValues: c.vaultValues, entry: c.entry, minPts: c.minPts, rowCap: c.rowCap, maxRoundPoints: c.maxRoundPoints, liveWeek: c.liveWeek, roundsCorrectable: c.roundsCorrectable, ...(c.inputsFile ? { inputsFile: true } : {}), ...(c.vhpData ? { vhpData: true } : {}) };
+  return { slug: c.slug, game: c.game, genesis: c.genesis, weekMs: c.weekMs, sundayFunRound: c.sundayFunRound, payoutRule: c.payoutRule, vaultValues: c.vaultValues, entry: c.entry, minPts: c.minPts, rowCap: c.rowCap, maxRoundPoints: c.maxRoundPoints, liveWeek: c.liveWeek, roundsCorrectable: c.roundsCorrectable, ...(c.inputsFile ? { inputsFile: true } : {}), ...(c.vhpData ? { vhpData: true, cardPerRound: !!c.cardPerRound } : {}) };
 }

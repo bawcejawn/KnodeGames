@@ -44,7 +44,7 @@ test("G3: a card the kit made in JS is rebuilt byte for byte by the embedded vhp
   vhpFor(L, used).card(s);
   const cards = cardList(used);
   const r = glue(dir, { "W006.json": { cards }, "inputs/W7.json": { cards } });
-  assert.deepEqual(r.ok, [cards[0][1]]);
+  assert.deepEqual(r.ok, [cards[0]], "the [settings, sha256] pair (#G-24 G24-1)");
   assert.deepEqual(r.bad, {});
 });
 
@@ -55,7 +55,7 @@ test("G3: a card whose sha256 or settings aren't what the data gives is not in t
   const fake = "0".repeat(64), moved = { ...set, minK: 11 };
   const r = glue(dir, { "W006.json": { cards: [[set, fake], [moved, h]] } });
   assert.deepEqual(r.ok, []);
-  assert.ok(r.bad[fake] && r.bad[h], JSON.stringify(r.bad));
+  assert.equal(Object.keys(r.bad).length, 2, JSON.stringify(r.bad));
 });
 
 test("G3: an already-published file isn't rebuilt again (pruned data never holds an old final)", { skip: !PYTHON && "needs python3" }, () => {
@@ -83,4 +83,55 @@ test("G3 render: a ruler game's publish job embeds vhp_ruler.py and the glue byt
   // a game without ruler data renders no ruler step
   const plain = renderJobs({ branch: "games-data", script: "", games: [{ ...g, cfg: exampleCfg() }] });
   assert.ok(!plain.includes("vhp_ruler.py"));
+});
+
+// ── #G-24 G24-1 fix (Architecture's own tests; Repo Lens's are appended below when received) ──
+test("G24-1: a real card's sha256 listed with OTHER settings is not rebuilt as fine (the pair counts, in Python too)", { skip: !PYTHON && "needs python3" }, () => {
+  const { dir, L, s } = fixture(), used = new Map();
+  vhpFor(L, used).card(s);
+  const [[set, h]] = cardList(used);
+  const other = { ...set, round: "2026111601" };            // same sha256, settings that give another card
+  const r = glue(dir, { "W006.json": { cards: [[set, h]] }, "W007.json": { cards: [[other, h]] } });
+  assert.deepEqual(r.ok, [[set, h]], "only the true pair");
+  assert.equal(Object.keys(r.bad).length, 1);
+});
+
+test("G24-1: the check requires each entry's own pair; a sha256 twice in one file is refused; malformed files aren't rebuilt", { skip: !PYTHON && "needs python3" }, async () => {
+  const { cardKey, isCardList } = await import("../publish/check.inline.mjs");
+  const { dir, L, s } = fixture(), used = new Map();
+  vhpFor(L, used).card(s);
+  const [[set, h]] = cardList(used);
+  const ok = new Set([cardKey(set, h)]);
+  assert.ok(ok.has(cardKey(JSON.parse(JSON.stringify(set)), h)), "key order and copies don't matter");
+  assert.ok(!ok.has(cardKey({ ...set, round: "2026111601" }, h)), "other settings with the same sha256 don't match");
+  assert.ok(!isCardList([[set, h], [{ ...set, round: "2026111601" }, h]]), "a sha256 listed twice");
+  const r = glue(dir, { "W006.json": { cards: [[set, h], "junk"] }, "W007.json": { cards: [[set, h], [set, h]] } });
+  assert.deepEqual(r, { bad: {}, ok: [] }, "nothing from a malformed file is rebuilt");
+});
+
+test("#G-24 Info, cardPerRound: a ruler round decided without a card stops the run; the check counts cards against decided rounds", async () => {
+  const { exampleGame } = await import("../testing/example/index.ts");
+  const { Replay } = await import("../testing/replay.ts");
+  const { fakeNode, world } = await import("../testing/fake-nodes.ts");
+  const { at, DAY } = await import("../testing/fake-clock.ts");
+  const { checkGame } = await import("../publish/check.inline.mjs");
+  const wd: any = world(at(5, 0, 2));
+  wd.questions[200] = { week: "3", outcome: 1, lock_time: String(at(4) - DAY) };
+  for (let i = 0; i < 2; i++) wd.questions[201 + i] = { week: "4", outcome: 1, lock_time: String(at(4) + (i + 1) * DAY) };
+  wd.next = 203;
+  wd.players = [{ address: "1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", entry: { stake: "0", peak_stake: "0", voided: false, answers: [{ question_id: 201, option: 0 }] } }];
+  const cfg = { ...exampleCfg(), vhpData: true, cardPerRound: true };
+  const nodes = (): [any, any] => [fakeNode("a", () => wd), fakeNode("b", () => wd)];
+  const { L } = fixture();
+  const h = await new Replay(exampleGame, cfg).hour(nodes(), wd.time + 5 * 60000, { vhpLedger: L });   // makes no card
+  assert.match(h.error ?? "", /decided without a ruler card \(cardPerRound;/);
+  const off = await new Replay(exampleGame, { ...cfg, cardPerRound: false }).hour(nodes(), wd.time + 5 * 60000, { vhpLedger: L });
+  assert.equal(off.result?.state, "pending", "cardPerRound: false lets such a game run");
+  // the check side: a week file with decided rounds and too few cards is held
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "kit-cpr-")), inn = path.join(d, "in"), pub = path.join(d, "pub");
+  fs.mkdirSync(inn); fs.mkdirSync(pub);
+  const wf = new Replay(exampleGame, { ...cfg, cardPerRound: false });
+  await wf.hour(nodes(), wd.time + 5 * 60000, { vhpLedger: L });
+  fs.writeFileSync(path.join(inn, "W004.json"), wf.raw("W004.json")!);
+  assert.ok(checkGame(cfg, inn, pub, wd.time + 5 * 60000, "", new Set()).held.some((x: any) => /decided rounds but only 0 ruler cards/.test(x.why)));
 });

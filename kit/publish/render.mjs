@@ -33,6 +33,20 @@ def names(d):
     if os.path.isdir(i):
         out += ["inputs/" + f for f in sorted(os.listdir(i)) if re.fullmatch(r"W(0|[1-9][0-9]{0,3})[.]json", f)]
     return out
+HEX = re.compile(r"[0-9a-f]{64}")
+def entries(j):
+    """A file's cards, only if the file is well formed: a dict whose cards is a list of [settings dict, sha256] with no
+    sha256 twice (the check holds anything else; nothing from a malformed file is rebuilt)."""
+    if not isinstance(j, dict) or not isinstance(j.get("cards"), list):
+        return None
+    seen, out = set(), []
+    for x in j["cards"]:
+        if not (isinstance(x, list) and len(x) == 2 and isinstance(x[0], dict) and isinstance(x[1], str) and HEX.fullmatch(x[1])):
+            return None
+        if x[1] in seen:
+            return None
+        seen.add(x[1]); out.append((x[0], x[1]))
+    return out
 refs = {}
 for rel in names(ind):
     p, q = os.path.join(ind, rel), os.path.join(pubd, rel)
@@ -45,23 +59,23 @@ for rel in names(ind):
         j = json.loads(raw)
     except ValueError:
         continue
-    for x in (j.get("cards") or []) if isinstance(j, dict) else []:
-        if isinstance(x, list) and len(x) == 2 and isinstance(x[1], str) and isinstance(x[0], dict):
-            refs[x[1]] = x[0]
+    for s, h in entries(j) or []:
+        # #G-24 G24-1: every entry is rebuilt against ITS OWN settings: the key is the pair, never the sha256 alone.
+        refs[json.dumps([s, h], sort_keys=True, separators=(",", ":"))] = (s, h)
 ok, bad = [], {}
 if refs:
     L, _ = V.load_ledger(data)
-    for h, s in sorted(refs.items()):
+    for key, (s, h) in sorted(refs.items()):
         try:
             V.check_settings(s)
             card = V.make_card(L, s["game"], s["round"], s["window"], int(s["c"]), s["ownRule"], s["paying"], s["pooled"], s["minK"], s["poolRule"])
             got = hashlib.sha256(V.card_json(V.score_card(L, card)).encode("utf-8")).hexdigest()
             if got == h:
-                ok.append(h)
+                ok.append([s, h])
             else:
-                bad[h] = "the ruler's data gives " + got
+                bad[key] = "the ruler's data gives " + got
         except Exception as e:
-            bad[h] = str(e)[:200]
+            bad[key] = str(e)[:200]
 os.makedirs(os.path.dirname(outp), exist_ok=True)
 with open(outp, "w") as fh:
     json.dump({"ok": ok, "bad": bad}, fh, sort_keys=True)

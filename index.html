@@ -35,6 +35,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Archivo:wdth,wght@62..125,600;62..125,800;62..125,900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="vault-card.css">
   <link rel="stylesheet" href="board.css">
 </head>
 <body class="play-wait">
@@ -140,6 +141,7 @@
           <li class="last"><span>4</span><div><b>Want more? Stake to share the pool</b><p>With a Koinos wallet (KOIN Vault on a phone, Kondor on a computer), stake 1 VHP or more in a game to share that game's part of the week's rewards. Your stake is never spent: take it back any time. <a href="get.html">No wallet or VHP yet?</a></p></div></li>
         </ol>
         </details>
+        <section class="vc" id="vault-card" aria-label="The Knode vault" hidden></section>
         <div class="stats-strip" id="stats-strip" hidden></div>
         <div class="welcome-actions">
           <a class="btn btn-ghost btn-big" href="#how">The full rules</a>
@@ -487,6 +489,7 @@
   <script src="race-math.js"></script>
   <script src="results.js"></script>
   <script src="stats.js"></script>
+  <script src="vault-card.js"></script>
   <script src="vendor/posthog-1.438.13.js"></script>
   <script src="analytics.js"></script>
 </body>

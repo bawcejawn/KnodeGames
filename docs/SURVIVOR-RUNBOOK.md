@@ -1,5 +1,7 @@
 # Survivor runbook (owner)
 
+> **Out of date (12 Nov 2026).** This page describes the old Survivor recorder (`bot/games/survivor.ts`, `survivor-math.js`: 14-day seasons, the blocks handicap), which `games/survivor/` on the Shared Game Kit replaces. The current rules and design are in `docs/SURVIVOR.md`. This page is rewritten for the kit module before the testnet season and launch.
+
 Survivor runs itself: the hourly KnodeGames workflow (`.github/workflows/games.yml`) records each UTC day, publishes
 the handicaps and plays the season with `survivor-math.js`. This page covers launch and the few things that need
 you.

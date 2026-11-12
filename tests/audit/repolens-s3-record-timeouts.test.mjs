@@ -6,6 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+const OLD_STEP = "the old games.yml Survivor step is gone: Survivor moved to the Shared Game Kit (games/survivor/, D-158). This test goes with the old recorder once the owner confirms it can be removed";
 
 const APP = process.env.APP || ".";
 const yml = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8");
@@ -13,7 +14,7 @@ const record = yml.slice(yml.indexOf("\n  record:"), yml.indexOf("\n  publish:")
 const stepOf = (name) => { const i = record.indexOf(`- name: ${name}`); const j = record.indexOf("\n      - ", i + 1); return record.slice(i, j < 0 ? undefined : j); };
 const mins = (s) => { const m = /timeout-minutes:\s*(\d+)/.exec(s); return m ? Number(m[1]) : null; };
 
-test("V-M-2: a slow Survivor step can't lose Block X's finished files", () => {
+test("V-M-2: a slow Survivor step can't lose Block X's finished files", { skip: OLD_STEP }, () => {
   const job = mins(record.slice(0, record.indexOf("steps:")));
   const bx = mins(stepOf("Record Who Signs Block X")), sv = mins(stepOf("Record Survivor"));
   const bxUploadedFirst = /upload-artifact[\s\S]*?name:\s*games-data-blockx[\s\S]*- name: Record Survivor/.test(record);

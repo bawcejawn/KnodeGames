@@ -1,236 +1,111 @@
-# Survivor
+# Survivor (game 3)
 
-A free, season-long game in Knode Games. Each day you pick one Koinos block producer that you think will stay out of
-the bottom of the day's handicapped block count, the **out-zone**. You have two lives and can use each producer once a
-season. The last players standing win the season's prize.
+An elimination game in Knode Games. Each play day you pick one Koinos block producer that you think will stay out of the bottom of the day's ruler scores, the **out-zone**. You have two lives and can use each producer once a season. The last players standing win.
 
 | | |
 |---|---|
-| Kind | Free (the Knode Mana sponsor pays the Mana; no entry fee, no wager) |
-| Season | 14 UTC days, Monday 00:00 to Monday 00:00 |
-| Picks | One a day, on the KnodeGames Picks contract (game 3). Each day locks at 23:55 UTC the night before and opens 7 days ahead |
-| Prizes | Free play board: **no VHP for now** (owner, 3 Nov, D-081); the owner can switch on 4 VHP for 1st and 2 VHP for 2nd each season (D-082). Staked board: Survivor's weekly vault bucket |
-| Page | `survivor.html` |
-| Status | Built and audited on branch `survivor`. Not launched: waits for the Picks contract (Build 3) and the vault (Build 1) |
+| Kind | A Staked board (weekly points from the vault's Survivor bucket) and a Free play board. The Knode Mana sponsor pays the Mana; no entry fee, no wager |
+| Season | Two vault weeks: Monday to Saturday each, **12 play days**. Sundays rest (WEEK_CYCLE) |
+| Scoring | The shared VHP ruler (RULE_VERSION 4): one ruler card per UTC day |
+| Picks | One a day on the KnodeGames Picks contract (game 3). Each day locks at 23:55 UTC the night before and opens 7 days ahead |
+| Seasons | Season 1 is unpaid practice and Season 2 is the first paid season (owner, 12 Nov, option C). Dates are decided by Mon 7 Dec |
+| Free prize | **OFF** (D-081, D-082). The Free play board shows standings only |
+| Code | `games/survivor/` (a Shared Game Kit module) and `survivor.html` / `survivor.js` (the page) |
+| Status | **Building, not launched.** It waits on the kit needs below, Repo Lens pass 4 (not before Tue 24 Nov), a testnet season, Picks registration and the vault steps |
 
-Contents: [How to play](#how-to-play) · [The rules in full](#the-rules-in-full) · [How it works](#how-it-works) ·
-[Files](#files) · [Testing](#testing) · [Launch](#launch) · [Design notes](#design-notes)
-
-The code explained line by line, in plain English: [SURVIVOR-CODE-WALKTHROUGH.md](SURVIVOR-CODE-WALKTHROUGH.md).
-Trying it on the testnet: [SURVIVOR-TESTNET.md](SURVIVOR-TESTNET.md). Running it after launch:
-[SURVIVOR-RUNBOOK.md](SURVIVOR-RUNBOOK.md).
+Rules in plain language: `.ai/games/Survivor.md`. The rules in code: `games/survivor/math.js` (every number below comes from it).
 
 ## How to play
+1. **Join a season by picking for its day 1** (its first Monday). Nobody joins later.
+2. **Pick a producer for every play day**, Monday to Saturday. You can pick up to 7 days ahead and change a pick up to 5 times until it locks at 23:55 UTC the night before. There is nothing to pick on Sundays.
+3. **Stay out of the out-zone.** After each day the day's ruler card says how lucky each producer was against its own expected blocks. The unluckiest ones are in the out-zone.
+4. **Use each producer once a season.** There are about 18 producers and 12 play days, so plan ahead.
 
-1. **Open the Survivor page** and connect a wallet: Kondor, KOIN Vault or a guest wallet.
-2. **Join a season by picking for its day 1.** Each upcoming day has a row on the page with a menu of producers. Choose
-   one and press **Pick**, then confirm in your wallet. You can change a pick up to 5 times until it locks.
-3. **Pick a producer every day.** Choose one you think will sign enough blocks, for its handicap, to stay out of the
-   out-zone. You can pick up to 7 days ahead, so a busy week can be filled in one sitting.
-4. **Watch "Today".** The page shows every producer's blocks and score so far today, live from the chain, with the
-   out-zone shaded red. Your producer is marked.
-5. **Stay in.** Each producer can be used once a season, so save the strong ones for when you need them.
+## The rules
+- **The day's score.** Each producer's day score is its **fpct** on the day's ruler card: how its credited blocks compare with its own expected blocks, as a percentile of the field (0 = unluckiest, 1,000,000 = luckiest). Survivor keeps it to thousandths (0–999). Big and small producers have the same chance; the ruler's daily fairness runs measured 0.94–1.07 of fair.
+- **The field.** The card's producers with entry (expected blocks of at least 10, form of at least 0.80 or steady, a history) that aren't void.
+- **The out-zone** grows from a quarter of the field on day 1 to half on day 12: `floor(field × (10 + n) ÷ 44)`. With 18 producers that is 4, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9. A producer is out when its score is below the score at the out-zone line; a tie at the line is safe.
+- **Lives: 2.** You lose one for:
+  - an out-zone pick;
+  - no pick;
+  - a producer not in the day's field;
+  - a producer you already used this season.
+- **A void producer** (its VHP moved more than −12% / +50% during the day, the ruler's daily band) is out of that day's field only. **A pick on it costs no life, and the producer still counts as used** (owner, 12 Nov).
+- **Two boards** (owner, 30 Oct). Wallets staked in Survivor in either week of the season play the Staked board; everyone else plays Free play. Each board has its own **safety net** and its own **end**:
+  - Safety net: if nobody on a board is safe that day, nobody on that board loses a life for the out-zone. A pick that couldn't count (none, not in the field, reused) still costs its life. A void pick counts as safe for the net: it isn't a loss.
+  - End: after the day that leaves 2 or fewer of the board's players in (if it started with more than 2), when none is left, or after day 12.
+- **Ranking** (per board): lasted longest, then more lives, then the higher total of your counted picks' scores. Equal on all three share a place.
+- **Staked weekly points** come from the Staked board's standings at each week's end. The vault's weekly Survivor bucket pays the top 30% (D-152, the kit's paid set).
+- **Free prize (OFF):** 4 + 2 VHP a season, paid only in the season's last vault week (`--season 2`). Before it can be switched on, the kit must also apply four conditions (kit needs K3, K5):
+  - held 1 VHP at every daily check;
+  - free in both weeks;
+  - not knocked out by a pick that couldn't count;
+  - at least 3 such players with 2+ valid picks.
 
-What each producer's **×** number means: it is the handicap. A producer that signs a quarter as many blocks as the
-biggest one has ×4, so every producer has the same expected score and any of them can be a safe pick.
+## How it works: Survivor on the Shared Game Kit
+The kit does every chain read on two nodes, the stakes, the clock, the files, pending → final, holds, boards, the vault file and alerts (`.ai/standards/GAME_KIT.md`). Survivor supplies `games/survivor/recorder.ts`:
 
-## The rules in full
+| Part | What Survivor does |
+|---|---|
+| Rounds | One per play day, id `d<yyyymmdd>`, Picks round = the UTC day number. `locksAt` is the kit's day key (the end of its own day); the 5-minute lock is the Picks contract's, on chain |
+| Result | The day's ruler card from `ctx.vhp.card`, with Survivor's settings (`math.js` `CARD`: game 3, c 500000, minK 10, pool rule min, own rule spot, paying, the Knode Games Pool pooled). Window from block heights: `S0` = the first block at or after 00:00 UTC, `S1` = the last before the next 00:00, `L` = the last block before the 23:55 lock, size window `W0 … W1` = the 7,200 blocks ending at `L` |
+| Inputs | Every play day of the season so far, from the same cards: a day's points depend on the season's earlier days |
+| State | Each wallet's picks for the season (`[[n, producer], …]`), carried from the season's first week to its second; a new season starts empty |
+| Points | The day's change in the wallet's **season standing** = (days × 3 + lives) × 2^14 + total. The week's first play day carries the whole standing. A week's points therefore add up to the standing at the week's end, which orders players exactly as the ranking does (tested on 5,000 random seasons). The kit's tally, D-152 paid set, vault file and boards then work unchanged. Points are never negative and at most 638,975 (`maxRoundPoints`) |
 
-**The day's score.** For each producer in the field:
+The publish job runs no game code: it rebuilds every ruler card a week file lists (G3) and re-checks the week's tally from the per-round points.
 
-```
-score = blocks it signs that UTC day × its handicap
-handicap = blocks of the busiest producer ÷ its own blocks   (over the 7 days d−8 … d−2)
-```
+## Kit needs (before Survivor can run)
+| Id | Need | Owner | Why |
+|---|---|---|---|
+| **K1** | `scoreRound` gets the wallets on the season's staked board: `{ seasonStaked }` (staked in Survivor in either week of the season so far, by the vault's rule) | Architecture | Each board has its own safety net and end, so a day's lives depend on who is staked. The kit already reads the stakes before scoring; it doesn't pass them on. Without it `scoreRound` refuses to guess and stops the run |
+| **G7** | `ctx.blockAt(ms)` in `inputsFor` and `resultOf` | Architecture (branch `kit-blockat`, built, not merged) | A UTC day's ruler window needs block heights. Without it every day stays PENDING |
+| **Pin** | `game-data/deployment.json` `vaultGames.3.kit` = `{ payoutRule: "d152", vaultValues: "dense255", entry: { minRounds: 1, minPoints: 1 }, sundayFunRound: false, roundsCorrectable: false, liveWeek: false }` | Vault chat | The kit refuses to load a vault game without its payout pin (KC-26) |
+| **K4** | An open copy of the current week (`liveWeek`), written every run during the week | Architecture | The kit records a week only after it ends, but a Survivor player must see each day's result (lives, the out-zone) the next morning, not a week later |
+| **K3** | For a game with `seasonWeeks` > 1: fill `first` / `second` only in the season's last vault week (the vault refuses winners in other weeks), and rank the free board from wallets free in every week of the season | Architecture | Only for the free prize, which is OFF |
+| **K5** | A per-day "held 1 VHP" check of every free-board wallet, on two nodes | Architecture | Only for the free prize, which is OFF |
+| **K6** | The ruler's `mode` in the kit's card settings (`SURVIVOR_RULER_MODE`) | Architecture with the Ruler chat | So the owner can pick a scoring mode for Survivor (see the finding below) |
 
-The handicap uses the 7 days ending two days before, so it is known a full day before the lock. It is built from
-blocks the producers actually signed, not their VHP: some producers sign fewer blocks than their VHP suggests (seen in
-October 2026), and a VHP handicap would put them in the out-zone almost every day.
+The end-to-end test (`games/survivor/tests/recorder.test.ts`) supplies K1 and G7 the way the kit will, around the unchanged module. It proves a whole week goes final through the kit's real recorder and publish check, with each wallet's week points equal to its season standing.
 
-**The field.** Producers with at least 280 blocks in those 7 days (about 40 a day).
+## Simulations (real ruler data)
+`sims/survivor/make-cards.mjs` makes real RULE_VERSION 4 cards from the published `vhp-data` branch (20 days of 28,800 blocks, 12 Nov 2026). `sims/survivor/season-sim.mjs` plays 400 seasons per row from those days:
 
-**The out-zone** grows through the season, from a quarter of the field on day 1 to half on day 14:
+| Ruler mode | Players | Board ends (median) | Left after day 12 (median) | Wins by "informed" players (half the field) |
+|---|---|---|---|---|
+| A (today) | 10 | day 11 | 2 | 90% |
+| A | 50 | day 12 | 7 | 96% |
+| A | 200 | day 12 | 26 | 98% |
+| D (even odds) | 10 | day 10 | 2 | 80% |
+| D | 50 | day 12 | 4 | 85% |
+| D | 200 | day 12 | 16 | 83% |
 
-```
-out-zone size on season day n = floor(field size × (12 + n) ÷ 52)
-```
+An "informed" player avoids producers that landed in the out-zone on earlier days. Seasons run their full 12 days from about 50 players up, and the ranking decides.
 
-With 17 producers that is 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8. A producer is out when its score is below the
-score at the out-zone line. A tie at the line is safe.
+**Finding (owner and Ruler chat to decide).** Under mode A, producers at the 1,000-block luck cap are scored almost without luck. Over the 20 days:
+- two producers were in the out-zone **every day** and six **never**;
+- under mode D the same two were out about 90% of days.
 
-**Lives.** You start with 2. You lose one when:
-- your producer lands in the out-zone;
-- you have no pick that day;
-- your producer isn't in that day's field;
-- you already used that producer this season.
-
-At 0 lives you are out of the season.
-
-**Two boards play side by side (owner, 30 October).** Staked players (staked in Survivor in either week of the season)
-and free players pick the same days, but each board has its own safety net and its own end, so free players never change
-a staked player's lives or season, and the other way round. On the free board, wallets without 1 VHP play along but
-don't count for the net or the end.
-
-**The safety net (per board).** If nobody counted on a board has a safe pick on a day (each pick landed in the out-zone,
-or there was no valid pick), nobody on that board loses a life for the out-zone that day. That producer still counts as used. A missing pick,
-a producer not in the field and a producer used before always cost a life, even on such a day.
-
-**Picking ahead.** You can pick up to 7 days ahead, but a day's field (who has enough recent blocks) is set the day
-before. If your producer isn't in that day's field, the pick costs a life, and the safety net doesn't cover it. The page
-reminds you to check early picks once the field is out.
-
-**The end (per board).** A board ends after the day on which 2 or fewer of its counted players are left (if more than
-2 started), when none is left, or after day 14; its players then stop. The season ends when both boards have. Results
-are final 12 hours later, once both of the season's weeks are over.
-
-**The ranking.**
-1. Who lasted longest (still in beats out; out later beats out earlier).
-2. More lives left.
-3. Higher total score of your picks.
-
-Equal on all three: the same place.
-
-**Two boards (owner, 28 October).** Survivor also takes stakes in the Knode Games vault (game 3).
-- **Staked players:** wallets with at least the vault's minimum (1 VHP today) staked in Survivor in either week of a
-  season. They play the same game and share Survivor's weekly bucket in the vault: each vault week the recorder sends
-  the vault their points (the season standings when the week ends, 255 for 1st, one less per place, never below 1;
-  only players still in when the week began). The vault pays the top 30%. A stake in another game doesn't count here,
-  and a wallet that withdraws mid-week stays staked that week. Staked players can't win the free prize.
-- **Free players:** everyone else. The Free play board ranks them; it pays no VHP for now (below).
-- Stake, withdraw or move a stake with the shared stake panel (built by the site chat; it appears on the page when the
-  vault v6 is live).
-
-**Free prize: off for now (owner, 3 Nov 2026, D-081).** The Free play board stays and ranks free players, but pays no
-VHP until the owner switches the free prize on with the free-prize switch (D-082: `npm run prizes -- on 3 --send`, or
-the admin panel). A switch takes effect from the next vault week, and a season pays only if it was on for both of its
-weeks. The recorder still lists each season's 1st and 2nd in its vault files; the bot holds them back while the switch
-is off (the vault returns that prize to the pool), so switching on needs no code change. The page reads the same
-switches file (`prize-settings:free-prizes.json`) and shows the prize only for a season it pays; if it can't read the
-file it says no VHP.
-
-**Prizes (free players, once switched on).** 4 VHP for 1st and 2 VHP for 2nd. Tied players split the prizes of the places they cover. You can win only
-if all of these hold:
-- you held at least 1 VHP (or a Knode Games stake) at every daily check while you were in the season;
-- you weren't knocked out by a pick that couldn't count (a missed pick, a producer not in the field, or one already
-  used): only an out-zone knockout keeps you eligible (owner, 30 October);
-- the season had at least 3 players who could win (the two rules above) and who each made at least 2 valid picks.
-
-A stake counts only from 1 VHP, the same as a wallet balance.
-
-If more than 10 wallets tie for a place, that place's prize isn't paid (the vault pays at most 10 wallets per place)
-and returns to the pool.
-
-These rules stop people from farming the prize with empty or idle wallets. The 1 VHP rule also decides who counts for
-the free board's safety net and end, prize or not.
-
-**Knode's own producers.** Knode Games runs two of the producers (the Knode pool and Knode Swap nodes). They are in the
-field like any other producer and can be picked. The page says so.
-
-## How it works
-
-```
- The chain (Koinos)                      GitHub Actions, every hour                    The website
- ─────────────────────────────           ─────────────────────────────────────       ──────────────────────
- blocks (who signed each one)  ───────▶  recorder bot/games/survivor.ts      ───▶   games-data/survivor/
- Picks contract, game 3 (picks)  ─────▶    counts each finished UTC day,              days.json  fields.json
-                                           two nodes must agree,                       S001.json  index.json
-                                           plays the season with                              │
-                                           survivor-math.js                              ▼
-                                                                              survivor.html + survivor.js
- your wallet ◀──── a pick you confirm ─────────────────────────────────────── (same survivor-math.js; live
-                                                                               standings from recent blocks)
-```
-
-1. **Picking.** The page asks your wallet to sign one call to the Picks contract: "player X picks producer Y for round
-   d of game 3". The contract stores it and refuses it after the lock (23:55 UTC the night before) or more than 7 days
-   early. Nobody, including Knode Games, can add, change or backdate a pick: the chain enforces it.
-2. **Recording.** Every hour a GitHub Actions job runs the recorder. It holds no keys and only reads the chain.
-   - It counts the blocks each producer signed in each finished UTC day. A day counts only once its blocks are
-     irreversible and two independent nodes agree on every block.
-   - It publishes today's and tomorrow's field and handicaps.
-   - It reads each season day's picks from the contract, on both nodes, and checks who holds 1 VHP.
-   - It plays the season with `survivor-math.js` and publishes the standings.
-3. **Publishing.** A second job, which runs none of the repository's code, checks every file's shape. It pushes the
-   files to the public `games-data` branch, which the website reads.
-4. **The page.** The page and the recorder use the same file, `survivor-math.js`, so they always agree. The page
-   also counts today's blocks itself, so "Today" is live; the recorded result is the one that counts.
+They look like the steady under-signers the ruler keeps at full size on purpose (D-163). In Survivor that makes them a known trap and the reliable producers a known list, the pattern recognition the owner wanted to avoid. The options are a mode for Survivor (D is the most even here; needs K6), an out-zone measure other than fpct, or accepting it.
 
 ## Files
-
-| File | What it is |
+| File | What |
 |---|---|
-| `survivor-math.js` | The rules: the clock, the field and handicaps, the out-zone, a day's score, a whole season, ranking and prizes. Shared by the page and the recorder. No network, no wallet |
-| `bot/games/survivor.ts` | The recorder (`npm run survivor`). Reads two nodes; writes `days.json`, `fields.json`, `S<season>.json`, `index.json` |
-| `.github/workflows/games.yml` | The hourly job: records Block X and Survivor, then checks and publishes their files |
-| `survivor.html`, `survivor.js` | The page |
-| `chain-blocks.js` | Shared: loads recent blocks for live standings (also used by the Race and Pulse pages) |
-| `bot/survivor-test.ts` | The testnet tool (`npm run survivor-test`) |
-| `tools/survivor-testnet/` | The test page's wallet and banner, a fake testnet and a full rehearsal |
-| `tests/audit/site.survivor.test.mjs` | Tests of the rules and the page |
-| `tests/audit/survivor-recorder.test.mjs` | Tests of the recorder against fake nodes (outages, disagreeing nodes, file size, prizes) |
-| `tests/audit/survivor-testnet.test.mjs` | Tests of the testnet tool and its local server |
-| `docs/SURVIVOR-RUNBOOK.md` | Launch settings and what to do when the recorder warns |
+| `games/survivor/math.js` | The rules (pure). The page and the recorder share it |
+| `games/survivor/recorder.ts` | The kit module |
+| `games/survivor/game.json` | The manifest (`npm run game:check -- survivor`) |
+| `games/survivor/tests/` | 16 rule and property tests; 7 module and end-to-end tests |
+| `sims/survivor/` | The season simulation on real ruler cards |
+| `survivor.html`, `survivor.js` | The page. Its rules text is current. Its data loading still reads the old recorder's files and is rewired to the kit's files once K4 exists |
+| `bot/games/survivor.ts`, `survivor-math.js` and their tests | **The old recorder and rules (14-day seasons, blocks handicap)**, replaced by `games/survivor/`. No workflow runs them; they are kept until the owner confirms they can be removed |
+| `bot/survivor-test.ts`, `tools/survivor-testnet/` | The testnet kit, built around the old recorder. To be moved to the kit module for the testnet season |
 
-**The data files** (`games-data/survivor/` on the public branch):
+## Launch steps (after the kit needs; nothing before a Repo Lens GO)
+1. Repo Lens pass 4 on the one Survivor PR (not before Tue 24 Nov), fixes, fix-check.
+2. A testnet season (`docs/SURVIVOR-TESTNET.md`, refreshed for the kit module).
+3. Register game 3 on Picks: kind 1, list_size 1, lock_mode 2, round_size 86,400,000, round_offset 0, lead 300,000, ahead 604,800,000, max_changes 5, 20 picks a day, enabled (48 h timelock). Add the sponsor allowlist row for game 3 picks.
+4. Free-prize switch OFF for game 3 before Season 1's first vault week (`npm run prizes -- off 3`, then `--send`).
+5. Vault: `game-add 3 "Survivor" --staked --free --season 2`, with `from_week` = Season 2's first vault week (Season 1 is practice and earns nothing). Then `game-apply` 48 h later, within 7 days; a game applied in week W earns from W + 1.
+6. Set `math.js` `FIRST_WEEK` to Season 1's first vault week, render the kit workflow, set `SURVIVOR_ENABLED` and `SURVIVOR_PRIZES_FROM_WEEK` = Season 2's first week, then `games.json` live.
 
-| File | Holds |
-|---|---|
-| `days.json` | For each of the last 60 UTC days: its block heights and each producer's block count |
-| `fields.json` | Today's and tomorrow's field: each producer's 7-day blocks (k) and handicap (h), and the out-zone size |
-| `S001.json`, … | A season: each day's field, block counts and picks (for players still in), and the result: every player's lives, log (one letter a day: s safe, o out-zone, n no pick, f not in the field, u already used, v saved), total, place, and the prizes once final |
-| `index.json` | Season 1's start, the Picks contract, and the list of seasons |
-
-## Testing
-
-All of these run offline. Run them from `C:\kprediction` in PowerShell:
-
-```powershell
-node --test tests/audit/site.survivor.test.mjs
-node --import tsx --test tests/audit/survivor-recorder.test.mjs
-node --import tsx --test tests/audit/survivor-testnet.test.mjs
-```
-
-The full suites, which CLAUDE.md asks for before any merge:
-
-```powershell
-node --test tests/audit/site.*.test.mjs
-npm run test:audit:serial
-```
-
-The whole testnet flow against a fake testnet takes 5–10 minutes. It runs a full season and makes a pick on the test
-page in a real browser:
-
-```powershell
-node --import tsx tools/survivor-testnet/rehearse.mjs
-```
-
-Then on the real testnet: [SURVIVOR-TESTNET.md](SURVIVOR-TESTNET.md).
-
-## Launch
-
-Steps in [SURVIVOR-RUNBOOK.md](SURVIVOR-RUNBOOK.md):
-1. Register game 3 on the Picks contract with the exact settings listed there.
-2. Set `FIRST_DAY` to the launch Monday.
-3. Merge the branch.
-4. Add the game to `site/games.json` and the menus.
-
-The recorder refuses to record a season if game 3's settings on the chain differ from what the rules expect.
-
-## Design notes
-
-- **Why recent blocks for the handicap.** On 25–27 October 2026, three producers steadily signed 75–80% of what their
-  VHP predicts. With a VHP handicap they landed in the out-zone about 90% of days, nobody else ever lost a life, and
-  seasons always ran to the last day. With a handicap built from recent blocks, every producer lands in the out-zone
-  16–40% of days. Simulation: `claude/builds/04-survivor-sim.mjs` in the Knode Games project.
-- **Why two weeks and a growing out-zone.** Four-week seasons lock newcomers out for too long (owner, 27 Oct). Over
-  two weeks, a fixed quarter out-zone left most players standing at the end, so the out-zone grows to half.
-- **Simulated season length** on the live 17-producer field: ends about day 11 with 10 players and day 13 with 50; with
-  200 players about 4 are left on day 14 and the ranking decides.
-- **Audits.** An independent audit found 1 High, 4 Medium, 4 Low and 3 Info issues, all fixed or accepted. The worst:
-  idle wallets could farm the prize through the safety net. A fix-check and a re-check followed; the re-check's verdict
-  was "ready". Then the owner's Repo Lense audit (28 October 2026) found 1 Critical (testnet kit only), 2 High and 5
-  Medium issues among 26. Most are fixed; a fix-check then tightened the publish check so it plays each season again
-  from its days. What remains: the owner's open decisions (SV-A2's residual, SV-A10, SV-A19); the season's recorded days
-  themselves are trusted once published (the vault must recompute from the chain before paying: SV-A4); a season with
-  about 10,000 one-day wallets outgrows the 2 MB publish limit (SV-A5); VHP balances are read at each node's head
-  (SV-A12); a UTC day with no blocks can't be recorded (SV-A26). See `claude/builds/04-survivor-plan.md` in the project.
+**No `SURVIVOR_RULER_FROM_WEEK`.** Survivor scores on the ruler from Season 1, its first season ever, so there is no old method to switch from. The unpaid practice Season 1 does the job of D-new A's shadow week: the ruler's results are published and nothing is paid from them. This is a D-new for the Library to file.

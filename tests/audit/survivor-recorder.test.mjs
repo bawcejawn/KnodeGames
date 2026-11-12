@@ -8,6 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+const OLD_STEP = "the old games.yml Survivor step is gone: Survivor moved to the Shared Game Kit (games/survivor/, D-158). This test goes with the old recorder once the owner confirms it can be removed";
 
 const APP = process.env.APP || ".";
 // The publish check judges files by the job's clock (Repo Lense S3-1): the fixtures' seasons are in Nov-Dec 2026.
@@ -156,7 +157,7 @@ test("no season before the Picks contract is live or FIRST_DAY is set; FIRST_DAY
   await assert.rejects(() => run({ p: "main", check: null, out: tmp(), firstDay: FIRST + 1, picksContract: null, blocksOf: blocksOf(), timeOf, head: headAt(t) }), /Monday/);
 });
 
-test("the files pass the publish job's shape check", async (t) => {
+test("the files pass the publish job's shape check", { skip: OLD_STEP }, async (t) => {
   const yml = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8");
   const m = /if \[ -d "\$IN\/survivor" \]; then \/usr\/bin\/python3 -I - "\$IN\/survivor" "\$PUB\/survivor" <<'PY' \|\| rc=\$\?\n([\s\S]*?)\n\s*PY\n/.exec(yml);
   assert.ok(m, "the survivor check is in the workflow");
@@ -240,7 +241,7 @@ test("fix-check FC-2: a season that can't progress never stops new days and hand
   assert.ok(r.r.problems.some((p) => /season 1 is stuck/.test(p)), "the stuck season is reported for the owner");
 });
 
-test("audit SV-2 and SV-3: a 1,000-player season fits under 2 MB, and a 1,000-way tie for the prize passes the check (never over 6 VHP)", async (t) => {
+test("audit SV-2 and SV-3: a 1,000-player season fits under 2 MB, and a 1,000-way tie for the prize passes the check (never over 6 VHP)", { skip: OLD_STEP }, async (t) => {
   const yml = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8");
   const m = /if \[ -d "\$IN\/survivor" \]; then \/usr\/bin\/python3 -I - "\$IN\/survivor" "\$PUB\/survivor" <<'PY' \|\| rc=\$\?\n([\s\S]*?)\n\s*PY\n/.exec(yml);
   const indent = /^(\s*)/.exec(m[1])[1].length;
@@ -291,7 +292,7 @@ function copyOut(from, edit) {
   return dir;
 }
 
-test("Repo Lense SV-A4 / SV-A13: the publish check tests meaning, not only shape", async (t) => {
+test("Repo Lense SV-A4 / SV-A13: the publish check tests meaning, not only shape", { skip: OLD_STEP }, async (t) => {
   try { execFileSync("python3", ["--version"]); } catch { t.skip("python3 not installed"); return; }
   const ok = publishCheck();
   const r = await runs(seasonTimes());
@@ -413,7 +414,7 @@ test("Repo Lense SV-A16: one node only is reported, and its days are checked aga
 const W1 = () => vaultWeekOf(FIRST);
 const vfile = (out, w) => { const f = path.join(out, "vault", `W${w}.json`); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : null; };
 
-test("vault files, nobody staked (vault not v6 yet): no rows; the season's winners only in its last week, once both weeks are over", async (t) => {
+test("vault files, nobody staked (vault not v6 yet): no rows; the season's winners only in its last week, once both weeks are over", { skip: OLD_STEP }, async (t) => {
   assert.equal(vaultWeekOf(S.dayIndex(Date.parse("2026-10-19T00:00:00Z"))), 0, "week 0 began Monday 19 Oct 2026");
   assert.equal(W1(), 4); assert.equal(vaultWeekOf(FIRST + 13), 5, "a season is two vault weeks");
   const r = await runs(seasonTimes().slice(0, -1));
@@ -428,7 +429,7 @@ test("vault files, nobody staked (vault not v6 yet): no rows; the season's winne
   assert.equal(publishCheck()(end.out), true);
 });
 
-test("two boards: a staked player plays for the stake bucket (rows each week) and can't win the free prize", async (t) => {
+test("two boards: a staked player plays for the stake bucket (rows each week) and can't win the free prize", { skip: OLD_STEP }, async (t) => {
   // Carol is staked in Survivor in week 1 only; nobody else is staked.
   const stakedOf = async (node, who, w) => new Set(w === W1() ? who.filter((a) => a === CAROL) : []);
   const end = await runs([...seasonTimes().slice(0, -1), S.dayStart(FIRST + 7) + 3600000, S.dayStart(FIRST + 14) + 3600000], { stakedOf });
@@ -590,7 +591,7 @@ test("S2-7, S2-21: no vault file while the vault counts weeks or Survivor's seas
   assert.ok(r.r.problems.some((p) => /out of step/.test(p)));
 });
 
-test("S2-4, S2-13, S2-18: a bad season file is left out on its own; seasons sit on the calendar; no early final reading", async (t) => {
+test("S2-4, S2-13, S2-18: a bad season file is left out on its own; seasons sit on the calendar; no early final reading", { skip: OLD_STEP }, async (t) => {
   try { execFileSync("python3", ["--version"]); } catch { t.skip("python3 not installed"); return; }
   const yml = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8");
   const m = /if \[ -d "\$IN\/survivor" \]; then \/usr\/bin\/python3 -I - "\$IN\/survivor" "\$PUB\/survivor" <<'PY' \|\| rc=\$\?\n([\s\S]*?)\n\s*PY\n/.exec(yml);

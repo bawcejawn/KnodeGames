@@ -213,10 +213,10 @@ const html = read("survivor.html");
 test("the page: same CSP and integrity-pinned scripts as the other game pages, no inline scripts or handlers", () => {
   const csp = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)[1];
   // Block X's policy plus one exact file: the owner's free-prize switches (D-082), read-only.
-  const SWITCHES = " https://raw.githubusercontent.com/bawcejawn/Knode/prize-settings/free-prizes.json";
+  const SWITCHES = " https://raw.githubusercontent.com/bawcejawn/KnodeGames/prize-settings/free-prizes.json";
   assert.equal(csp.split(SWITCHES).length, 2, "the switches file is allowed exactly once");
   assert.equal(csp.replace(SWITCHES, ""), /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(read("blockx.html"))[1]);
-  assert.ok(csp.includes("https://raw.githubusercontent.com/bawcejawn/Knode/games-data/") && csp.includes("https://raw.githubusercontent.com/bawcejawn/Knode/blocks-data/"));
+  assert.ok(csp.includes("https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/") && csp.includes("https://raw.githubusercontent.com/bawcejawn/KnodeGames/blocks-data/"));
   assert.ok(!/<script>(?!\s*<\/script>)|<script(?![^>]*\bsrc=)[^>]*>/.test(html), "no inline scripts");
   assert.ok(!/\son[a-z]+=/i.test(html), "no inline handlers");
   for (const m of html.matchAll(/<script src="(https:[^"]+)"([^>]*)>/g)) assert.match(m[2], /integrity="sha384-[A-Za-z0-9+/=]+" crossorigin="anonymous"/, m[1]);
@@ -229,12 +229,13 @@ test("the page sends only Picks contract picks for game 3, and shows chain text 
   const sends = [...js.matchAll(/W\.send\(/g)];
   assert.equal(sends.length, 1);
   assert.match(js, /picksContract\.functions\.pick\(\{ player: who, game: S\.GAME_ID, round: String\(d\), producers: \[producer\], number: "0" \}, \{ onlyOperation: true \}\)/);
-  assert.ok(js.includes('"https://raw.githubusercontent.com/bawcejawn/Knode/games-data/survivor/"'));
+  assert.ok(js.includes('"https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/survivor/"'));
   assert.ok(/Knode's own producers/.test(html) && /1 VHP/.test(html), "disclosures: own producers and the 1 VHP rule");
 });
-test("the page is listed for search and in the sitemap", () => {
-  assert.ok(fs.readFileSync(`${APP}/sitemap.xml`, "utf8").includes("https://knodegames.com/survivor.html"));
+test("the page has its canonical address, and stays out of the sitemap until Survivor launches (games.json \"soon\")", () => {
   assert.ok(html.includes('<link rel="canonical" href="https://knodegames.com/survivor.html">'));
+  const live = JSON.parse(fs.readFileSync(`${APP}/games.json`, "utf8")).games.find((g) => g.id === "survivor")?.status === "live";
+  assert.equal(fs.readFileSync(`${APP}/sitemap.xml`, "utf8").includes("https://knodegames.com/survivor.html"), live, "listed only once live");
 });
 
 test("fix-check SV-1: wallets that pick on day 1 and never again win nothing, whatever real players there are", () => {

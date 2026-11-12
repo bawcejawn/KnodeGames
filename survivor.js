@@ -12,10 +12,10 @@
 
   const lib = window.koilib || window.koinos || window;
   const RPC = NET ? new URL(NET.rpc, location.href).href : "https://koinos.armana.io";
-  const DATA = NET ? NET.data : "https://raw.githubusercontent.com/bawcejawn/Knode/games-data/survivor/";
+  const DATA = NET ? NET.data : "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/survivor/";
   const EXPLORER = NET ? null : "https://koinosscan.com/address/";
   // The owner's free-prize switches (D-082): the page reads them to say whether this season's Free play board pays VHP.
-  const PRIZES_URL = NET ? null : "https://raw.githubusercontent.com/bawcejawn/Knode/prize-settings/free-prizes.json";
+  const PRIZES_URL = NET ? null : "https://raw.githubusercontent.com/bawcejawn/KnodeGames/prize-settings/free-prizes.json";
   // Knode's own two producers are in the field like any other (owner's decision 2026-10-27; disclosed on the page).
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Swap" };
   const ROOT = new URL("./", location.href);            // the pages sit at the site root

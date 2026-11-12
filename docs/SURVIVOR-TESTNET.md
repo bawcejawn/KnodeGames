@@ -1,5 +1,7 @@
 # Survivor on the testnet: how to
 
+> **Out of date (12 Nov 2026).** This page describes the old Survivor recorder (`bot/games/survivor.ts`, `survivor-math.js`: 14-day seasons, the blocks handicap), which `games/survivor/` on the Shared Game Kit replaces. The current rules and design are in `docs/SURVIVOR.md`. This page is rewritten for the kit module before the testnet season and launch.
+
 This runs a complete copy of Survivor on the **Koinos Foundation testnet**. That is the same testnet SwarmTales uses,
 and everything on it is play money. It gives you:
 - your own test wallets;

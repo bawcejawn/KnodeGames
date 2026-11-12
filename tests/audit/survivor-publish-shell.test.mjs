@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
+const OLD_STEP = "the old games.yml Survivor step is gone: Survivor moved to the Shared Game Kit (games/survivor/, D-158). This test goes with the old recorder once the owner confirms it can be removed";
 
 const APP = process.env.APP || ".";
 // The publish check judges files by the job's clock (Repo Lense S3-1): the fixtures' seasons are in Nov-Dec 2026.
@@ -66,7 +67,7 @@ function publish(survivorDir, edit = () => {}, remote = null) {
   return { code: r.status, out: r.stdout + r.stderr, failed: /FAILED=1/.test(r.stdout), files: files(path.join(IN, "survivor")), pushed, REMOTE };
 }
 
-test("the publish shell: good files pass; bad ones are left out one by one, and the run fails", async (t) => {
+test("the publish shell: good files pass; bad ones are left out one by one, and the run fails", { skip: OLD_STEP }, async (t) => {
   try { execFileSync("python3", ["--version"]); execFileSync("bash", ["--version"]); } catch { t.skip("python3 or bash missing"); return; }
   const out = await recorded();
   assert.ok(fs.existsSync(path.join(out, "vault", "W4.json")), "week 1's vault file");
@@ -93,7 +94,7 @@ test("the publish shell: good files pass; bad ones are left out one by one, and 
   assert.notEqual(neg.code, 0, "a negative week's file is refused by name");
 });
 
-test("the publish shell on an existing branch: a changed vault file is held, the season list only grows (Repo Lense S3-25, S3-8)", async (t) => {
+test("the publish shell on an existing branch: a changed vault file is held, the season list only grows (Repo Lense S3-25, S3-8)", { skip: OLD_STEP }, async (t) => {
   try { execFileSync("python3", ["--version"]); execFileSync("bash", ["--version"]); } catch { t.skip("python3 or bash missing"); return; }
   const out = await recorded();
   const first = publish(out);
@@ -109,7 +110,7 @@ test("the publish shell on an existing branch: a changed vault file is held, the
   assert.notEqual(dropped.code, 0); assert.match(dropped.out, /drops a published season/);
 });
 
-test("fix-check N1, N2, N5, N6: Survivor runs only after a good fetch; published vault files aren't checked again; the index's seasons are on the calendar; a launch can still move", async (t) => {
+test("fix-check N1, N2, N5, N6: Survivor runs only after a good fetch; published vault files aren't checked again; the index's seasons are on the calendar; a launch can still move", { skip: OLD_STEP }, async (t) => {
   const yml = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8");
   assert.match(yml, /- name: Take the last run's files and the race cards\n\s+id: prev/);
   assert.match(yml, /- name: Record Survivor\n\s+id: survivor\n(?:\s+#.*\n)*\s+if: \$\{\{ !cancelled\(\) && steps\.prev\.outcome == 'success' \}\}/);

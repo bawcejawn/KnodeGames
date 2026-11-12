@@ -1,5 +1,7 @@
 # Survivor, line by line
 
+> **Out of date (12 Nov 2026).** This page describes the old Survivor recorder (`bot/games/survivor.ts`, `survivor-math.js`: 14-day seasons, the blocks handicap), which `games/survivor/` on the Shared Game Kit replaces. The current rules and design are in `docs/SURVIVOR.md`. This page is rewritten for the kit module before the testnet season and launch.
+
 This explains what every part of Survivor's code does, in plain English, in the order the code runs. Line numbers are
 from branch `survivor` on 28 October 2026; they move a little when code changes, but the section names stay.
 

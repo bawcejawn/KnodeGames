@@ -1903,7 +1903,10 @@ jobs:
                           if x.get("id") not in j["skipped"] and not (w >= RHYTHM_FROM and type(x.get("start")) is int and _dt.datetime.fromtimestamp(x["start"] / 1000, _dt.timezone.utc).weekday() == 6): return "a race the ruler hasn't scored isn't in skipped (" + str(x.get("id")) + ")"
                           continue
                       pl = e.get("placings") if type(e.get("placings")) is list else []
-                      pk = [] if not pl else [[p[0], p[1], p[2], 1 if p[1] == pl[0] else 0, 0, 1 if p[1] != pl[0] and p[1] in pl[1:3] else 0] for p in res0.get("picks", []) if type(p) is list and len(p) >= 3]
+                      # D-033: a 2nd or 3rd scores a show only if that producer signed at least one block in the race.
+                      sg = {q.get("a"): q.get("signed") for q in json.loads(e["card"]).get("producers", []) if type(q) is dict}
+                      sh = [a for a in pl[1:3] if type(sg.get(a)) is int and sg.get(a) >= 1]
+                      pk = [] if not pl else [[p[0], p[1], p[2], 1 if p[1] == pl[0] else 0, 0, 1 if p[1] != pl[0] and p[1] in sh else 0] for p in res0.get("picks", []) if type(p) is list and len(p) >= 3]
                       x = dict(x, result={"final": True, "picks": pk})
                   six.append(x)
               for r in six + typed:

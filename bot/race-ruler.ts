@@ -112,7 +112,10 @@ export function ruledResult(result: any, entry: RulerEntry | null | undefined): 
   if (!entry || !entry.card) return null;
   const pl = entry.placings;
   if (!pl.length) return { final: true, void: true, picks: [] };
-  const picks = (Array.isArray(result.picks) ? result.picks : []).map((x: any[]) => [x[0], x[1], x[2], x[1] === pl[0] ? 1 : 0, 0, x[1] !== pl[0] && pl.slice(1, 3).includes(x[1]) ? 1 : 0]);
+  // D-033: a 2nd or 3rd scores a show only if that producer signed at least one block in the race.
+  const rows = new Map((JSON.parse(entry.card).producers || []).map((p: any) => [p.a, p]));
+  const shows = pl.slice(1, 3).filter((a) => Number((rows.get(a) as any)?.signed) >= 1);
+  const picks = (Array.isArray(result.picks) ? result.picks : []).map((x: any[]) => [x[0], x[1], x[2], x[1] === pl[0] ? 1 : 0, 0, x[1] !== pl[0] && shows.includes(x[1]) ? 1 : 0]);
   return { final: true, winner: pl[0], placings: pl, picks };
 }
 

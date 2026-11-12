@@ -4,9 +4,13 @@
  *
  * The switch is the repository variable BRACKET_RULER_FROM_WEEK (vhp-ruler.js switchFrom / rulerMode, the same rule in
  * every game): unset = the Bracket's own day index, as before; N = vault week N − 1 is the shadow week and every week
- * from N is on. This file is phase 1: off and shadow (an "on" week gets no cards here: Repo Lens #G-20 G20-3). A shadow week's ruler result is published beside the real one,
- * in its own file (ruler/W<week>.json, "shadow": true), and counts for nothing: the week file's results, points and the
- * vault file never use it. An "on" week isn't scored by this build (bracket.ts holds it with an alert).
+ * from N is on. A shadow week's ruler result is published beside the real one, in its own file (ruler/W<week>.json,
+ * "shadow": true), and counts for nothing. Phase 2 (owner, 12 Nov): an "on" week IS scored from its day cards (the
+ * week file's results, points, board and vault file), and the publish job rebuilds every card from vhp-data with the
+ * embedded vhp_ruler.py (recompute, these settings). A day whose card isn't made yet ("not yet", or a flagged card)
+ * waits: never the day index (the Ruler chat, 12 Nov); alerts from 3 h after the day, the week waits to its backstop.
+ * The scoring mode (A–D): BRACKET_RULER_MODE, a schedule (vhp-ruler.js modeSchedule / modeAt / modeChange); unset =
+ * no mode on the cards (RULE_VERSION 4 cards, byte for byte as without modes).
  *
  * One card per matchup day (round r): all producers on one card, scored over the day's own blocks.
  *   S0 / S1: the first and last block of the day, as the Bracket recorded them (days[r][0].from, days[r][23].to).
@@ -31,6 +35,8 @@ export const R: any = box.window.KRuler;
 const D: any = box.window.KVhpData;
 
 export const GAME = 9;
+/** The Knode Games Pool, the vault's block producer: the only pooled producer (= POOL in the publish job's check). */
+export const POOL = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
 export const C = 500000n;
 export const OWN_RULE = "spot";
 export const MIN_K = 10;
@@ -43,6 +49,15 @@ export const switchFrom = (v: string | undefined | null): number | null => R.swi
 export const rulerMode = (week: number, from: number | null): "off" | "shadow" | "on" => R.rulerMode(week, from === null ? "" : from);
 export const switchChange = (prev: number | null, next: number | null, week: number): string | null =>
   R.switchChange(prev === null ? "" : prev, next === null ? "" : next, week);
+/** The scoring-mode schedule, strictly (unset or "" → null; a bad value stops the run loudly); the value is recorded
+ *  as given (a string), and the publish job checks it against BRACKET_RULER_MODE and modeChange. */
+export function modeScheduleOf(v: string | undefined | null): string | null {
+  const s = v ?? "";
+  R.modeSchedule(s);   // throws on a bad schedule
+  return s === "" ? null : s;
+}
+export const modeAt = (week: number, schedule: string | null): string => R.modeAt(week, schedule ?? "");
+export const modeChange = (prev: string | null, next: string | null, week: number): string | null => R.modeChange(prev ?? "", next ?? "", week);
 
 /** A card's round number: the matchup day as yyyymmdd (UTC), unique per day for game 9 (it seeds the card moment). */
 export function roundOf(dayStart: number): string {
@@ -53,10 +68,14 @@ export function roundOf(dayStart: number): string {
 export const cardName = (w: number, r: number) => `W${String(w).padStart(3, "0")}-R${r}.json`;
 export const summaryName = (w: number) => `W${String(w).padStart(3, "0")}.json`;
 
-/** The game's OWN settings for a day's card (never read from a card: the publish job rebuilds from these). */
-export function settingsFor(dayStart: number, S0: number, S1: number, pooled: string[]) {
+/** The game's OWN settings for a day's card (never read from a card: the publish job rebuilds from these). The
+ *  pooled producer is always the Knode Games Pool, pinned here (phase 1 took it from the vault variable: the same address, but unset meant none); `mode`
+ *  only while a mode schedule is set. */
+export function settingsFor(dayStart: number, S0: number, S1: number, mode: string | null = null) {
   const L = S0 - 1;
-  return { game: GAME, round: roundOf(dayStart), window: { W0: L - (CARD_WINDOW - 1), W1: L, L, S0, S1 }, c: C, minK: MIN_K, poolRule: POOL_RULE, ownRule: OWN_RULE, paying: true, pooled: [...pooled].sort() };
+  const st: any = { game: GAME, round: roundOf(dayStart), window: { W0: L - (CARD_WINDOW - 1), W1: L, L, S0, S1 }, c: C, minK: MIN_K, poolRule: POOL_RULE, ownRule: OWN_RULE, paying: true, pooled: [POOL] };
+  if (mode !== null) st.mode = mode;
+  return st;
 }
 
 /** vhp-data (a checkout of the vhp-data branch: d/<day>.json and h/<hour>.json), checked hour by hour as the ruler's
@@ -88,7 +107,11 @@ export function dayCard(L: any, settings: any): { text: string } | { notYet: str
   if (settings.window.S1 + R.DELAY > L.to) return { notYet: `vhp-data reaches block ${L.to}; the day ends at ${settings.window.S1}` };
   // (Repo Lens #G-20 Info: "not yet" only from the data's coverage, never from an error's wording; any other error
   // is thrown, and the recorder reports it and tries again next run)
-  return { text: R.cardJson(R.scoreCard(L, R.makeCard(L, settings))) };
+  const card = R.scoreCard(L, R.makeCard(L, settings));
+  // a flagged card (an hour it reads disagreed between the ruler's nodes) is never used or published: the day waits,
+  // as for "not yet" (the Bracket's flagged-card rule, phase 2)
+  if (card.producers.some((p: any) => p.quality === "flagged")) return { notYet: "the ruler's card is flagged (an hour it reads is in dispute); waiting for the ruler's data to settle" };
+  return { text: R.cardJson(card) };
 }
 
 /** A scored card's matchup summary: address → fpct (decimal millionths) or null (void, not in the field). */

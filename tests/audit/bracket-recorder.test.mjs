@@ -260,10 +260,10 @@ test("files: only the expected names, sizes and fields", async () => {
   assert.ok(names.includes("W003.json") && names.includes("board.json") && names.includes("index.json"));
   assert.ok(names.every((f) => /^(index|board|W\d{3})\.json$/.test(f)), names.join());
   const idx = JSON.parse(fs.readFileSync(path.join(dir, "index.json"), "utf8"));
-  assert.deepEqual(Object.keys(idx).sort(), ["contract", "game", "prizesFromWeek", "rulerFrom", "updated", "v", "weeks"]); assert.equal(idx.rulerFrom, null, "R-BR-7: no ruler switch set"); assert.equal(idx.game, B.GAME_ID);
+  assert.deepEqual(Object.keys(idx).sort(), ["contract", "game", "prizesFromWeek", "rulerFrom", "rulerSchedule", "updated", "v", "weeks"]); assert.equal(idx.rulerFrom, null, "R-BR-7: no ruler switch set"); assert.equal(idx.rulerSchedule, null); assert.equal(idx.game, B.GAME_ID);
   const wf = readW(dir);
-  assert.deepEqual(Object.keys(wf).sort(), ["days", "end", "picks", "points", "results", "rulerFrom", "rulerMode", "seeding", "staked", "start", "status", "v", "week"]);
-  assert.deepEqual(Object.keys(wf).slice(-2), ["rulerFrom", "rulerMode"], "R-BR-7: the ruler fields come last"); assert.equal(wf.rulerMode, "off");
+  assert.deepEqual(Object.keys(wf).sort(), ["days", "end", "picks", "points", "results", "rulerFrom", "rulerMode", "rulerSchedule", "seeding", "staked", "start", "status", "v", "week"]);
+  assert.deepEqual(Object.keys(wf).slice(-3), ["rulerFrom", "rulerMode", "rulerSchedule"], "R-BR-7: the ruler fields come last"); assert.equal(wf.rulerMode, "off");
   assert.ok(fs.statSync(path.join(dir, "W003.json")).size < 200000);
 });
 
@@ -276,7 +276,9 @@ const bracketPy = pys.find((p) => p.includes("bracket check done"));
 // run's files were already published), `now` = the job's clock (default: Monday 02:00 after the test week, final).
 const NOW = B.weekStart(W + 1) + 2 * H;   // Monday 02:00 UTC after the week: final
 // ruler: the owner's BRACKET_RULER_FROM_WEEK as the publish step gets it (Repo Lens #G-20 G20-1); unset by default
-const checkRun = (dir, { pub = dir, now = NOW, held = "", ruler = "" } = {}) => execFileSync("python3", ["-c", bracketPy, dir, pub, held], { stdio: "pipe", env: { ...process.env, CHECK_NOW_MS: String(now), BRACKET_RULER_FROM_WEEK: ruler } }).toString();
+// (phase 2) mode: BRACKET_RULER_MODE; tl: a ruler timeline file (the tests' chain) for the card rebuild; the ruler's code is
+// the repository's vhp_ruler.py (the workflow loads the embedded copy, tested byte for byte in games-ruler-embed.test)
+const checkRun = (dir, { pub = dir, now = NOW, held = "", ruler = "", mode = "", tl = "" } = {}) => execFileSync("python3", ["-c", bracketPy, dir, pub, held], { stdio: "pipe", env: { ...process.env, CHECK_NOW_MS: String(now), BRACKET_RULER_FROM_WEEK: ruler, BRACKET_RULER_MODE: mode, BRACKET_RULER_PY: path.resolve(APP, "vhp_ruler.py"), BRACKET_RULER_TL: tl, BRACKET_RULER_VHP_DATA: "" } }).toString();
 /** What the publish check holds (file names, and "!alert" for an email), with the held list written to a file. */
 const heldOf = (dir, opt = {}) => { const f = path.join(tmp(), "held"); fs.writeFileSync(f, ""); checkRun(dir, { ...opt, held: f }); return fs.readFileSync(f, "utf8").split("\n").filter(Boolean); };
 const shapeOk = (dir, opt) => { try { checkRun(dir, opt); return true; } catch (e) { if (process.env.BR_DEBUG) console.error(String(e.stdout || "") + String(e.stderr || "")); return false; } };
@@ -287,7 +289,9 @@ test("workflow: records the bracket with the same prev/out/race folders and publ
   assert.match(yml, /"\$IN"\/bracket\/\*\.json "\$IN"\/bracket\/vault\/\*\.json/, "the push loop takes the Bracket's files (vault files write-once)");
   assert.match(yml, /git show "FETCH_HEAD:bracket\/vault\/\$f" > "\$RUNNER_TEMP\/prev\/bracket\/vault\/\$f"/);
   assert.match(yml, /\/usr\/bin\/python3 - "\$IN\/bracket" "\$PUB\/bracket" "\$HELD" <<'PY'/);
-  assert.doesNotMatch(yml.split("publish:")[1], /npm |npx |tsx /, "the publish job runs no repository code");
+  // (phase 2: the embedded vhp_ruler.py is text in the workflow, tested byte for byte; its comments are left out here)
+  const noEmbed = yml.split("publish:")[1].replace(/# BEGIN vhp_ruler\.py\n[\s\S]*?# END vhp_ruler\.py\n/, "");
+  assert.doesNotMatch(noEmbed, /npm |npx |tsx /, "the publish job runs no repository code");
 });
 
 test("workflow shape check: accepts a whole recorded week, refuses tampered files", async () => {
@@ -788,9 +792,34 @@ async function rulerWeekDir(extra) {
 }
 const rulerFile = (dir, f) => path.join(dir, "ruler", f);
 
+// Phase 2: the ruler's own timeline of the same fake chain (the same heights and signers; the ruler's block ids are
+// 0x-hex, its own), from 10 days before H0 (the 14-day form look-back of the week's first card) to past NOW. Balances:
+// START at the first block, less BURN for each block signed from H0 (as nodeOf). Real cards: RU.dayCard on it (JS), and
+// the publish job rebuilds each one with vhp_ruler.py from the same timeline (BRACKET_RULER_TL).
+const TL_FROM = H0 - 10 * 28800, TL_TO = hAt(NOW) + 1000;
+function rulerTimeline(field = fieldOf(17)) {
+  const sign = signerFn(field), n = TL_TO - TL_FROM + 1, signers = new Array(n), ids = new Array(n), deltas = [];
+  const bal = new Map(field.map((r) => [r.a, BigInt(START(r))]));
+  for (let i = 0; i < n; i++) {
+    const h = TL_FROM + i, a = sign(h); signers[i] = a; ids[i] = "0x" + h.toString(16).padStart(16, "0");
+    if (h >= H0) { deltas.push({ h, a, d: -BigInt(BURN), inc: 0n }); bal.set(a, bal.get(a) - BigInt(BURN)); }
+  }
+  return { from: TL_FROM, to: TL_TO, signers, ids, deltas, anchors: Object.fromEntries([...bal].map(([a, v]) => [a, { h: TL_TO, v }])), bad: [], rebuilt: [], pending: [] };
+}
+let _tl = null;
+/** The JS ledger and the timeline's JSON file for the publish job (built once). */
+function rulerTL() {
+  if (_tl) return _tl;
+  const tl = rulerTimeline(), file = path.join(tmp(), "tl.json");
+  fs.writeFileSync(file, JSON.stringify(tl, (k, v) => (typeof v === "bigint" ? v.toString() : v)));
+  return (_tl = { L: RU.R.ledger(tl), file });
+}
+/** The real day cards (the recorder's default, on the fake chain's ruler data). */
+const realCards = (st) => RU.dayCard(rulerTL().L, st);
+
 test("R-BR-7 shadow week: day cards and the ruler's result beside the real one; the real week, board and vault file unchanged", async () => {
   const off = await rulerWeekDir({});
-  const sh = await rulerWeekDir({ rulerFrom: String(W + 1), dayCardOf: underdogs });   // N = W + 1: week W is the shadow week
+  const sh = await rulerWeekDir({ rulerFrom: String(W + 1), dayCardOf: realCards });   // N = W + 1: week W is the shadow week
   const a = readW(off.dir), b = readW(sh.dir);
   assert.equal(a.rulerMode, "off"); assert.equal(a.rulerFrom, null);
   assert.equal(b.rulerMode, "shadow"); assert.equal(b.rulerFrom, W + 1);
@@ -808,6 +837,8 @@ test("R-BR-7 shadow week: day cards and the ruler's result beside the real one; 
     assert.deepEqual(c.window, { W0: d[0].from - 7200, W1: d[0].from - 1, L: d[0].from - 1, S0: d[0].from, S1: d[23].to }, "the day's own blocks, the card moment in the 6 hours before");
     assert.equal(c.round, RU.roundOf(B.roundDay(W, r, b.seeding.size)));
     assert.equal(c.ownRule, "spot"); assert.equal(c.minK, 10); assert.equal(c.poolRule, "min"); assert.equal(c.paying, true);
+    assert.equal(c.ruleVersion, 4); assert.ok(!("mode" in c), "no mode schedule set: no mode on the card");
+    assert.ok(c.producers.every((p) => p.quality === "ok" && p.pooled === (p.a === RU.POOL)), "only the Knode Games Pool (the vault) is pooled, pinned in the code as in the publish job");
   }
   const s = JSON.parse(fs.readFileSync(rulerFile(sh.dir, RU.summaryName(W)), "utf8"));
   assert.equal(s.shadow, true); assert.equal(s.rulerMode, "shadow"); assert.equal(s.done, true);
@@ -815,51 +846,101 @@ test("R-BR-7 shadow week: day cards and the ruler's result beside the real one; 
   const rulerDays = s.cards.map((n) => new Map(Object.entries(RU.rowsOf(fs.readFileSync(rulerFile(sh.dir, n), "utf8")))));
   const days = b.days.map((d) => B.indexFromHours(d));
   assert.deepEqual(s.rounds, B.results(b.seeding.seeds, b.seeding.size, days, b.seeding.vhp, b.seeding.pooled, rulerDays).rounds);
-  assert.notDeepEqual(s.rounds, s.real, "these made-up cards favour the lower seeds, so the shadow bracket differs");
+  assert.notDeepEqual(s.rounds, s.real, "on this chain the ruler's cards pick other winners than the day index");
   assert.ok(!fs.existsSync(rulerFile(off.dir, RU.summaryName(W))), "no ruler files with the switch unset");
-  assert.deepEqual(heldOf(sh.dir, { ruler: String(W + 1) }), ["!alert"], "the publish job accepts every shadow-week file; it alerts because week W + 1 (on) has started and phase 1 can't score it (#G-20 G20-2)");
+  assert.deepEqual(heldOf(sh.dir, { ruler: String(W + 1) }), [], "the publish job accepts every shadow-week file; week W + 1 (on) has started but none of its days has ended, so no alert");
   assert.equal(shapeOk(sh.dir), false, "with the owner's variable unset the same files are refused (#G-20 G20-1)");
   const idx = JSON.parse(fs.readFileSync(path.join(sh.dir, "index.json"), "utf8"));
   assert.equal(idx.rulerFrom, W + 1);
 });
 
-test("R-BR-7: a published day card is written once; the publish job refuses a changed or mis-set card and a summary outside the shadow week", async () => {
-  const { dir, o } = await rulerWeekDir({ rulerFrom: String(W + 1), dayCardOf: underdogs });
+/** Copy dir as new files over a published copy without its ruler folder; mut: { file: (json) => void }; the held files. */
+function freshHeld(dir, ruler, muts, opt = {}) {
+  const d = tmp(), pub = tmp(); fs.cpSync(dir, d, { recursive: true }); fs.cpSync(dir, pub, { recursive: true }); fs.rmSync(path.join(pub, "ruler"), { recursive: true });
+  for (const [f, mut] of Object.entries(muts)) { const p = rulerFile(d, f), j = JSON.parse(fs.readFileSync(p, "utf8")); mut(j); fs.writeFileSync(p, JSON.stringify(j) + "\n"); }
+  return heldOf(d, { pub, ruler, ...opt });
+}
+
+test("R-BR-7 phase 2: every new day card is rebuilt from the ruler's data (vhp_ruler.py); a changed or mis-set card is refused; a published card is written once", async () => {
+  const { dir, o } = await rulerWeekDir({ rulerFrom: String(W + 1), dayCardOf: realCards });
   const name = RU.cardName(W, 0), was = fs.readFileSync(rulerFile(dir, name), "utf8");
   await quiet(() => run({ p: "main", check: "check", prev: dir, out: dir, head: headAt(NOW + H), ...o, dayCardOf: fakeCard(() => "1") }));
   assert.equal(fs.readFileSync(rulerFile(dir, name), "utf8"), was, "the next run keeps the published card exactly");
-  // judged as new (no published ruler folder): wrong settings are refused
-  const fresh = (mut, f = name) => { const d = tmp(), pub = tmp(); fs.cpSync(dir, d, { recursive: true }); fs.cpSync(dir, pub, { recursive: true }); fs.rmSync(path.join(pub, "ruler"), { recursive: true });
-    const p = rulerFile(d, f), j = JSON.parse(fs.readFileSync(p, "utf8")); mut(j); fs.writeFileSync(p, JSON.stringify(j) + "\n");
-    return !heldOf(d, { pub, ruler: String(W + 1) }).includes("bracket/ruler/" + f); };   // true = that file passes
-  assert.equal(fresh(() => {}), true, "the recorder's own card passes as new");
-  assert.equal(fresh((j) => { j.window.S1 += 1; }), false, "a card over other blocks than the day's");
-  assert.equal(fresh((j) => { j.ownRule = "avg24h"; }), false, "another own rule");
-  assert.equal(fresh((j) => { j.round = "20990101"; }), false, "another round number");
-  assert.equal(fresh((j) => { j.producers[0].fpct = 0.5; }), false, "an fpct that isn't the ruler's whole millionths");
-  assert.equal(fresh((j) => { j.producers[0].fpct = "1000001"; }), false, "an fpct above 1,000,000 (#G-20 Info)");
+  const tl = rulerTL().file, c = (r) => RU.cardName(W, r), card = (r) => "bracket/ruler/" + c(r);
+  assert.deepEqual(freshHeld(dir, String(W + 1), {}, { tl }), [], "the recorder's own cards pass as new: the publish job's Python rebuilt each one");
+  assert.ok(freshHeld(dir, String(W + 1), {}).includes(card(0)), "without the ruler's data the job can't check a new card, so it holds it");
+  const h1 = freshHeld(dir, String(W + 1), {
+    [c(1)]: (j) => { j.window.S1 += 1; }, [c(2)]: (j) => { j.ownRule = "avg24h"; }, [c(3)]: (j) => { j.round = "20990101"; },
+  }, { tl });
+  assert.deepEqual([card(1), card(2), card(3)].filter((f) => h1.includes(f)), [card(1), card(2), card(3)], "other blocks, another own rule, another round number");
+  assert.ok(!h1.includes(card(0)), "each card is held on its own");
+  const h2 = freshHeld(dir, String(W + 1), {
+    [c(0)]: (j) => { j.producers[0].fpct = 0.5; }, [c(1)]: (j) => { j.producers[0].fpct = "1000001"; },
+    [c(2)]: (j) => { const p = j.producers.find((x) => x.fpct !== null); p.fpct = String((Number(p.fpct) + 1) % 1000000); },
+    [c(3)]: (j) => { j.producers[0].quality = "flagged"; },
+  }, { tl });
+  assert.deepEqual([0, 1, 2, 3].map(card).filter((f) => h2.includes(f)), [0, 1, 2, 3].map(card), "an fpct that isn't whole millionths, above 1,000,000, a percentile the ruler's data doesn't give, a flagged card");
+  const fresh = (mut, f) => !freshHeld(dir, String(W + 1), { [f]: mut }).includes("bracket/ruler/" + f);
   assert.equal(fresh((j) => { j.shadow = false; }, RU.summaryName(W)), false, "a summary not marked shadow");
   assert.equal(fresh((j) => { j.real = []; }, RU.summaryName(W)), false, "a summary whose real result isn't the week file's");
-  // a published card that changed
   const d2 = tmp(), pub2 = tmp(); fs.cpSync(dir, d2, { recursive: true }); fs.cpSync(dir, pub2, { recursive: true });
   fs.writeFileSync(rulerFile(d2, name), was.replace(/"fpct":"[0-9]+"/, '"fpct":"1"'));
   assert.ok(heldOf(d2, { pub: pub2, ruler: String(W + 1) }).includes("bracket/ruler/" + name), "a published card can't change");
 });
 
-test("R-BR-7 phase 1: an \"on\" week is held (no results or points, never final), and the publish job agrees", async () => {
-  const { dir } = await rulerWeekDir({ rulerFrom: String(W), dayCardOf: underdogs });   // N = W: week W is on
-  const wf = readW(dir);
-  assert.equal(wf.rulerMode, "on"); assert.equal(wf.results, null); assert.deepEqual(wf.points, []);
-  assert.notEqual(wf.status, "final");
-  assert.ok(!fs.existsSync(path.join(dir, "vault", `W${W}.json`)), "no vault file");
+test("R-BR-7 phase 2: an \"on\" week's matchups are the ruler's; its results, points and vault file follow the cards, and the publish job rebuilds them", async () => {
+  const { dir } = await rulerWeekDir({ rulerFrom: String(W), dayCardOf: realCards });   // N = W: week W is on
+  const off = await rulerWeekDir({});
+  const wf = readW(dir), R = B.roundsOf(wf.seeding.size);
+  assert.equal(wf.rulerMode, "on"); assert.equal(wf.status, "final"); assert.equal(wf.results.done, true);
+  const texts = Array.from({ length: R }, (_, r) => fs.readFileSync(rulerFile(dir, RU.cardName(W, r)), "utf8"));
+  const rulerDays = texts.map((t) => new Map(Object.entries(RU.rowsOf(t))));
+  const days = wf.days.map((d) => B.indexFromHours(d));
+  assert.deepEqual(wf.results.rounds, B.results(wf.seeding.seeds, wf.seeding.size, days, wf.seeding.vhp, wf.seeding.pooled, rulerDays).rounds, "every matchup from the day's card");
+  assert.notDeepEqual(wf.results.rounds, readW(off.dir).results.rounds, "not the day index's result");
+  assert.ok(fs.existsSync(path.join(dir, "vault", `W${W}.json`)), "the vault file is written from the ruler's result");
   assert.ok(!fs.existsSync(rulerFile(dir, RU.summaryName(W))), "no shadow summary for an on week");
-  assert.ok(!fs.existsSync(rulerFile(dir, RU.cardName(W, 0))), "no day cards for an on week in phase 1 (written once, and only phase 2 checks them: #G-20 G20-3)");
-  assert.deepEqual(heldOf(dir, { ruler: String(W) }), ["!alert"], "the held on week passes the publish job's checks, with an alert every run (#G-20 G20-2)");
+  const tl = rulerTL().file;
+  assert.deepEqual(freshHeld(dir, String(W), {}, { tl }), [], "the publish job rebuilds the four cards and the week's results from them");
+  const h = freshHeld(dir, String(W), { [RU.cardName(W, 0)]: (j) => { for (const p of j.producers) if (p.fpct !== null) p.fpct = String(1000000 - Number(p.fpct)); } }, { tl });
+  assert.ok(h.includes("bracket/ruler/" + RU.cardName(W, 0)) && h.includes(`bracket/W00${W}.json`), "a card the ruler's data doesn't give is refused, and so is the week scored from it");
   const bad = tmp(); fs.cpSync(dir, bad, { recursive: true });
-  const f = path.join(bad, `W00${W}.json`), j = JSON.parse(fs.readFileSync(f, "utf8"));
-  j.results = { rounds: [], done: false }; j.points = j.picks.rows.map((x) => [x[0], 0, 0, 0]);
+  const f = path.join(bad, `W00${W}.json`), j = JSON.parse(fs.readFileSync(f, "utf8")); j.results = readW(off.dir).results; j.points = readW(off.dir).points;
   fs.writeFileSync(f, JSON.stringify(j) + "\n");
-  assert.ok(heldOf(bad, { ruler: String(W) }).includes(`bracket/W00${W}.json`), "an on week scored by this build is refused");
+  assert.ok(heldOf(bad, { pub: dir, ruler: String(W) }).includes(`bracket/W00${W}.json`), "an on week scored by the day index is refused");
+});
+
+test("R-BR-7 phase 2: a day card that can't be made yet waits (never the day index); alerts 3 hours after its day and at the 48-hour grace", async () => {
+  const late = (st) => (st.round >= RU.roundOf(B.roundDay(W, 2, 16)) ? { notYet: "vhp-data reaches block 1" } : realCards(st));
+  const flagged = (st) => (st.round >= RU.roundOf(B.roundDay(W, 2, 16)) ? { notYet: "the ruler's card is flagged" } : realCards(st));
+  for (const cardOf of [late, flagged]) {
+    const { dir } = await rulerWeekDir({ rulerFrom: String(W), dayCardOf: cardOf });
+    const wf = readW(dir);
+    assert.equal(wf.results.done, false); assert.equal(wf.results.rounds.length, 2, "rounds 1 and 2 from their cards; round 3 waits (the owner's round 3 = index 2)");
+    assert.notEqual(wf.status, "final");
+    assert.ok(!fs.existsSync(rulerFile(dir, RU.cardName(W, 2))) && !fs.existsSync(path.join(dir, "vault", `W${W}.json`)));
+    const say = (now) => { const hf = path.join(tmp(), "held"); fs.writeFileSync(hf, ""); const out = checkRun(dir, { now, ruler: String(W), held: hf }); return { out, held: fs.readFileSync(hf, "utf8").split("\n").filter(Boolean) }; };
+    const r1 = say(B.roundDay(W, 2, 16) + DAY + 2 * H);
+    assert.ok(!r1.held.includes("!alert"), "2 hours after the day: no alert yet");
+    const r2 = say(B.roundDay(W, 2, 16) + DAY + 3 * H + 60000);
+    assert.ok(r2.held.includes("!alert") && /week 3 round 3: the VHP ruler.s day card is still missing 3 hours/.test(r2.out), "3 hours after: the owner is alerted");
+    assert.ok(!r2.held.some((x) => x.startsWith("bracket/")), "the waiting week itself is published");
+    const r3 = say(B.weekStart(W + 1) + 48 * H + 60000);
+    assert.match(r3.out, /48 hours after the week ended/);
+  }
+});
+
+test("R-BR-7 phase 2: the mode schedule (BRACKET_RULER_MODE) is on every card and checked like the switch", async () => {
+  const { dir } = await rulerWeekDir({ rulerFrom: String(W), dayCardOf: realCards, rulerSchedule: `${W}:B` });
+  const wf = readW(dir); assert.equal(wf.rulerSchedule, `${W}:B`);
+  for (let r = 0; r < 4; r++) assert.equal(JSON.parse(fs.readFileSync(rulerFile(dir, RU.cardName(W, r)), "utf8")).mode, "B");
+  const tl = rulerTL().file;
+  assert.deepEqual(freshHeld(dir, String(W), {}, { tl, mode: `${W}:B` }), [], "cards made in mode B pass when the job rebuilds them in mode B");
+  assert.equal(shapeOk(dir, { ruler: String(W), mode: "" }), false, "files that don't carry the owner's mode schedule are refused");
+  assert.equal(shapeOk(dir, { ruler: String(W), mode: "x" }), false, "an unreadable schedule holds the Bracket");
+  const pub = tmp(); fs.cpSync(dir, pub, { recursive: true });
+  const f = path.join(pub, `W00${W}.json`), j = JSON.parse(fs.readFileSync(f, "utf8")); j.rulerSchedule = null; fs.writeFileSync(f, JSON.stringify(j) + "\n");
+  assert.equal(shapeOk(dir, { pub, now: B.lockTime(W) + 2 * H, ruler: String(W), mode: `${W}:B` }), false, "a schedule change that would rescore a started week is refused (mode_change)");
 });
 
 test("R-BR-7: the publish job refuses a switch change that would change how a started week is scored (switch_change)", async () => {
@@ -868,13 +949,13 @@ test("R-BR-7: the publish job refuses a switch change that would change how a st
   await quiet(() => run({ p: "main", check: "check", prev: pub, out: pub, head: headAt(B.seedTime(W) + H), ...o }));
   await quiet(() => run({ p: "main", check: "check", prev: pub, out: pub, head: headAt(B.lockTime(W) + 60000), ...o }));
   const mid = B.lockTime(W) + 2 * H;
-  const next = (from) => { const d = tmp(); fs.cpSync(pub, d, { recursive: true }); return quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(mid), ...o, rulerFrom: from, dayCardOf: underdogs })).then(() => d); };
+  const next = (from) => { const d = tmp(); fs.cpSync(pub, d, { recursive: true }); return quiet(() => run({ p: "main", check: "check", prev: d, out: d, head: headAt(mid), ...o, rulerFrom: from, dayCardOf: realCards })).then(() => d); };
   assert.equal(shapeOk(await next(String(W)), { pub, now: mid, ruler: String(W) }), false, "unset → W during week W: the started week would turn on");
   assert.equal(shapeOk(await next(String(W + 1)), { pub, now: mid, ruler: String(W + 1) }), true, "unset → W + 1: this week becomes the shadow week, next week on");
   assert.equal(shapeOk(await next(""), { pub, now: mid }), true, "unset stays unset");
   assert.equal(shapeOk(await next(String(W + 1)), { pub, now: mid, ruler: "" }), false, "files that don't carry the owner's variable are refused (#G-20 G20-1)");
   assert.equal(shapeOk(await next(String(W + 2)), { pub, now: mid, ruler: "x" }), false, "an unreadable variable holds the Bracket");
-  assert.deepEqual(heldOf(await next(String(W + 1)), { pub, now: B.weekStart(W + 1) - 2 * 86400000 + 60000, ruler: String(W + 1) }).filter((x) => x === "!alert"), ["!alert"], "from 2 days before the first on week, every run alerts (#G-20 G20-2)");
+  assert.deepEqual(heldOf(await next(String(W + 1)), { pub, now: B.weekStart(W + 1) - 2 * 86400000 + 60000, ruler: String(W + 1) }), [], "phase 2 scores an on week, so the switch alone never alerts (#G-20 G20-2's phase-1 alert is gone)");
 });
 
 test("R-BR-7: a ruler card that isn't ready waits (\"not yet\"); a bad switch value stops the run loudly", async () => {
@@ -926,3 +1007,4 @@ test("Repo Lens #G-25 Info: index.json right but one open week file's rulerFrom 
   const held = heldOf(bad, { now: mid, pub: dir, ruler: String(W + 1) });
   assert.ok(held.includes(`bracket/W00${W}.json`), "the week file that doesn't carry the owner's variable is held: " + held.join(", "));
 });
+

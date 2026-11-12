@@ -61,7 +61,8 @@ test("a round is known only once both its day and its card are", () => {
 });
 
 // ── the publish job's copy of the switch ──
-const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8");
+// (the embedded vhp_ruler.py, phase 2, is left out: it is tested byte for byte in games-ruler-embed.test.mjs)
+const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8").replace(/# BEGIN vhp_ruler\.py\n[\s\S]*?# END vhp_ruler\.py\n/, "");
 const copy = (() => {
   const i = yml.indexOf("          SWITCH_MAX = 999999\n"), j = yml.indexOf("          def ruler_fields(j):", i);
   assert.ok(i > 0 && j > i, "the switch copy in the Bracket's publish check");

@@ -41,8 +41,8 @@ index. The switch is the repository variable **`BRACKET_RULER_FROM_WEEK`**, read
   whether the ruler scores it: the publish job runs `switch_change` (the publish copy is tested line by line against
   `vhp_ruler.py`) against each week file's published `rulerFrom`, and holds the week if a change is refused.
   `node tools/vhp-ruler-switch.mjs <N>` shows each week's mode before you set it.
-- Every week file the recorder still writes carries `rulerFrom` and `rulerMode` (last); `index.json` carries
-  `rulerFrom` (the page's ruler line).
+- Every week file the recorder still writes carries `rulerFrom`, `rulerMode` and `rulerSchedule` (last); `index.json`
+  carries `rulerFrom` (the page's ruler line) and `rulerSchedule`.
 
 **The day card (one per matchup day, all producers on it):** `S0` / `S1` = the day's first and last block as the
 Bracket recorded them; `L = S0 − 1`; the card moment in the 6 hours before the day (`W0 = L − 7,199`, `W1 = L`);
@@ -57,14 +57,29 @@ recorded and re-read and `vhp-data` covers the day ("not yet" otherwise; retried
 counts as a loss (D-164); both without one: the day index decides; an exact `fpct` tie goes to the lower seed
 (`bracket-math` `otherWins` / `results(…, rulerDays)`).
 
-**Phase 1 (this build): off and shadow.** In the shadow week the recorder publishes `ruler/W<week>.json`
+**Phase 1 (#263): off and shadow.** In the shadow week the recorder publishes `ruler/W<week>.json`
 (`"shadow": true`): the ruler's bracket beside the real one (`real`). It is never in the week file's results or points,
-the boards or the vault file. An **on** week is **held** by this build (no results or points, never final; the
-publish job refuses an on week with results): the ruler-on update (phase 2) scores it from the day cards and rebuilds
-every card in the publish job with `recompute_main` from these settings. So: set `BRACKET_RULER_FROM_WEEK` = N during
-week N − 1 (that week becomes the shadow week at once; its finished days get their cards), and merge phase 2 before
-week N starts. If phase 2 isn't merged by then, change the variable to N + 1 **before Monday 00:00 UTC of week N**
-(`switch_change` allows it while week N hasn't started; once it has, it can't go back).
+the boards or the vault file.
+
+**Phase 2 (this build): on.** In an on week every matchup is decided by that day's card (the rule above); the results,
+points, boards and vault file follow. Set `BRACKET_RULER_FROM_WEEK` = N during week N − 1 (that week becomes the
+shadow week at once).
+- **The publish job rebuilds every new card** (shadow or on) with the embedded copy of `vhp_ruler.py` (between
+  `# BEGIN vhp_ruler.py` / `# END vhp_ruler.py` in `games.yml`, written by `node tools/games-ruler-embed.mjs`, tested
+  byte for byte by `tests/audit/games-ruler-embed.test.mjs`) from the `vhp-data` branch, with the game's own settings
+  from the week file (never the card's), and holds any card that differs. It rescores an on week from the cards it
+  accepted and holds a week file whose results don't match. The publish job runs no repository code. Every change to
+  `vhp_ruler.py` must be re-embedded (the Ruler chat runs the tool in every ruler PR).
+- **A card that can't be made waits.** While the ruler's data doesn't reach the day's end + 20 blocks, or its card is
+  `flagged` (an hour in dispute), the card isn't written and the day's matchups wait; the week never falls back to
+  the day index. The publish job alerts the owner 3 hours after the day ended, and again once the week is 48 hours
+  past its end. What happens after the grace is the owner's decision (until then: the week waits for its backstop).
+- **A void producer is a different case:** the card exists and says that producer has no `fpct` (its VHP moved out of
+  its band); that seed loses its matchup, as above.
+- **Mode schedule** (`BRACKET_RULER_MODE`, e.g. `5:B`; unset = mode A, no `mode` on the card): read strictly with
+  `modeSchedule` each run, recorded as `rulerSchedule` in every open week file and `index.json`, passed to each card as
+  `mode: modeAt(week, schedule)`, and checked like the switch (`mode_change` against the published copy). Players are
+  never shown the mode.
 
 **Data:** the record job takes the `vhp-data` branch (about 80 MB, 14 days) only while the switch is set
 (`BRACKET_VHP_DATA`); about 10 s to load and 2 s a card.

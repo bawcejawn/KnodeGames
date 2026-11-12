@@ -443,16 +443,26 @@
     $("ruler-box").hidden = false;
     const mon = new Date(M.weekStart(cur.rulerFrom)).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
     $("ruler-when").textContent = cur.mode === "on"
-      ? `The 6-hour race is scored by the VHP ruler from ${mon} (00:00 UTC).`
-      : `The 6-hour race switches to the VHP ruler on ${mon} (00:00 UTC). This week the ruler runs beside the race as a trial: its results below count for nothing.`;
-    const rows = [];
+      ? `The 6-hour race is scored by the VHP Ruler from ${mon} (00:00 UTC). The horses are a live estimate; the final 1st, 2nd and 3rd come from the Ruler once the race's blocks are in (usually 1 to 2 hours).`
+      : `The 6-hour race switches to the VHP Ruler on ${mon} (00:00 UTC). Until then the Ruler runs beside the race as a trial: its results count for nothing.`;
+    // One compact table: the race, then its 1st, 2nd and 3rd; "Void" names how many producers did not count.
+    const V = window.KRulerVoid, body = [];
     for (const j of files) for (const e of j.races.slice().reverse()) {
-      if (rows.length >= 8) break;
-      const r = (weeks.get(j.week)?.races || []).find((x) => x.id === e.id);
-      const what = e.card ? (e.placings.length ? e.placings.map((a, i) => `${["1st", "2nd", "3rd"][i]} ${nameOf(a)}`).join(" · ") : "every producer void: picks given back") : "the ruler's result comes in once the race's blocks are in";
-      rows.push(el("div", { class: "pk-row done" }, el("div", { class: "pk-when" }, el("b", { text: r ? dayTime(r.start) : e.id }), el("span", { text: j.shadow ? "trial" : e.card ? "final" : "checking" })), el("div", { class: "pk-now", text: what })));
+      if (body.length >= 6) break;
+      const r = (weeks.get(j.week)?.races || []).find((x) => x.id === e.id), v = V ? V.rulerVoids(e, j) : { has: false, voids: [], wholeVoid: false };
+      const place = (i) => el("td", {}, e.card && e.placings && e.placings[i] ? nameOf(e.placings[i]) : "–");
+      const note = !e.card ? el("td", { colspan: "3", class: "muted", text: "Result comes in once the race's blocks are in." })
+        : v.wholeVoid ? el("td", { colspan: "3" }, "Every producer was void: picks given back.") : null;
+      const voided = v.has && v.voids.length && !v.wholeVoid ? el("span", { class: "void-chip", title: "Void: its VHP moved too much during this race, so it didn't count", text: `${v.voids.length} void` }) : null;
+      const when = el("td", { class: "rl-when" }, el("b", { text: r ? dayTime(r.start) : e.id }), el("span", { text: j.shadow ? "trial" : e.card ? "final" : "checking" }), voided);
+      body.push(el("tr", {}, when, ...(note ? [note] : [place(0), place(1), place(2)])));
     }
-    $("ruler-list").replaceChildren(...rows);
+    const table = el("table", { class: "rl" }, el("thead", {}, el("tr", {}, el("th", { text: "Race (your time)" }), el("th", { text: "1st" }), el("th", { text: "2nd" }), el("th", { text: "3rd" }))), el("tbody", {}, ...body));
+    const trial = cur.mode !== "on";
+    $("ruler-list").replaceChildren(!body.length ? el("p", { class: "note", text: "No Ruler results yet." }) : trial ? el("details", { class: "rl-trial" }, el("summary", { text: "Trial results (count for nothing)" }), table) : table);
+    // Once the Ruler scores the race, its table is the results: the older Results table below would repeat them.
+    const hist = document.getElementById("history");
+    if (hist) hist.hidden = cur.mode === "on" && body.length > 0;
   }
   if (W && W.subscribe) W.subscribe(() => { loadMine(); renderBoard(); });
   // When the names list arrives or changes, redraw everything that shows a producer or player: the horses, card,

@@ -72,3 +72,21 @@ test("Get VHP tells Wormhole users to paste the vKOIN contract address for each 
   assert.match(g, /paste its Solana address from step 2/);
   assert.match(g, /Ethereum address in step 2: check they match/);
 });
+
+test("the Ruler page says which games use it (Race live from Week 1; the others planned, no promised date) and carries the Race rules; no mode is named", () => {
+  const p = fs.readFileSync(`${APP}ruler.html`, "utf8"), text = p.replace(/<[^>]+>/g, " ");
+  assert.match(p, /Which games use the Ruler/);
+  for (const g of ["Producer Race", "Who Signs Block X", "Producer Bracket", "Fantasy Producers", "Last Node Standing", "Combo Card"]) assert.ok(text.includes(g), g);
+  assert.match(text, /Live from Week 1 \(Mon 16 Nov\)/);
+  assert.match(text, /Planned: Week 2 \(Mon 23 Nov\), or Week 3 \(Mon 30 Nov\)/);
+  assert.match(text, /luck against its own size/);
+  assert.doesNotMatch(text, /\bmode [A-D]\b|clear edge|best day|even odds/i, "players are never told about the modes");
+});
+test("the Race page keeps a short Ruler line and one results table; its Rules tab carries the Ruler line", () => {
+  const h = fs.readFileSync(`${APP}race.html`, "utf8"), js = fs.readFileSync(`${APP}race.js`, "utf8"), idx = fs.readFileSync(`${APP}index.html`, "utf8");
+  assert.match(h, /<h2>Ruler results<\/h2>/); assert.match(h, /href="ruler\.html">How the Ruler works/);
+  assert.ok((h.match(/id="ruler-box"[\s\S]*?<\/section>/)[0].length) < 700, "a short box");
+  assert.match(js, /hist\.hidden = cur\.mode === "on" && body\.length > 0/, "the older Results table is hidden once the Ruler scores the race");
+  assert.match(js, /class: "rl"/);
+  assert.match(idx, /Scored by the VHP Ruler<\/b> from Week 1/);
+});

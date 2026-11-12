@@ -129,7 +129,7 @@ jobs:
     needs: record
     if: ${{ vars.RACE_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20       # the VHP ruler: its data loads in about 10 s, each new card rebuilds in a few seconds
+    timeout-minutes: 10
     permissions:
       contents: write         # push the race-data branch (never main)
     # D-107 (R-RACE-13): "true" when this job held a vault file (read by the alert job below).
@@ -174,7 +174,8 @@ jobs:
           PCT_SCALE = 1 << 256
           # Rules for every race length (owner, 11 Nov 2026; RULE_VERSION 4), as in vhp-ruler.js: the void band [down, up] by the
           # scoring window's length, and the luck cap (no producer is scored on more than LUCK_CAP expected blocks)
-          VOID_BANDS, VOID_LONG = ((2400, 50000, 250000), (7200, 100000, 250000), (28800, 120000, 500000)), (150000, 1000000)
+          # the length classes reach a quarter past their nominal length (UTC-clock races hold about, not exactly, 1,200 blocks an hour)
+          VOID_BANDS, VOID_LONG = ((3000, 50000, 250000), (9000, 100000, 250000), (36000, 120000, 500000)), (150000, 1000000)
           LUCK_CAP = 1000 * M
 
 

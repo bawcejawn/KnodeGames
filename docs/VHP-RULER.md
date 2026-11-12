@@ -161,3 +161,61 @@ for 1-hour, 2-hour, 6-hour, 1-day and 6-day races (results: project doc `claude/
 - Row order now ends `… quality, sample, expected, signed, credited, pct, void, moves, core, z, setAside, fpct`.
 - Design tools: `sims/ruler/lengths.mjs`, `midrace.mjs`, `moves.mjs`; `RULER_SIM_RACE=<blocks>` runs `v21.mjs` at any
   length with `--configs "v4 (as built)"`.
+
+## Scoring modes A–D and the admin's mode schedule (owner, 11 Nov 2026; a D-new, numbered by the Library)
+The owner wants fairness, the feeling that anyone can run a node and see it win, and enough variety that players can't
+settle into a pattern: "build 3 additional VHP ruler formulas which can run alongside the active ruler method and allow
+the admin the ability to shift future weeks". Live cards showed why: producers don't sign in line with their VHP. The
+biggest nodes sign about 4–6% above their share (faster, better connected), several small ones below. Size is neutral
+in the ruler, but in a race a few percent of signing decides the winner.
+
+**What a mode changes:** only each producer's **target**, the blocks it must beat (row field `target` = `expected` ×
+`lift` ÷ 1,000,000), and in D the luck cap. The entry bar, the card, the core (by 14-day form), the band and the voids
+are the same in every mode. `expected` stays the VHP-based number, so games that read it (Fantasy, Block X) are untouched
+unless they choose to use `target`.
+
+| Mode | Name | Target | Luck cap |
+|---|---|---|---|
+| **A** | VHP only | `expected` (RULE_VERSION 4 as merged) | 1,000 blocks |
+| **B** | clear edge, raise only | The node's record over the **11 days before the last 3** (`[T − 14 d, T − 3 d)`) is read **day by day**. Each day's measure is `(signed − 2√signed) ÷ expected share` (two standard deviations of luck taken off), against the field's expected-weighted median form that day. `lift` = the best day's ratio, never below 1; `target = expected × lift`. Only a clear edge raises a node; nobody's target is ever lowered | 1,000 |
+| **C** | best day, raise only | as B with **one** standard deviation taken off (`LIFT_SD`), so a smaller edge raises the target | 1,000 |
+| **D** | even odds | `expected` | **100 blocks**: every producer is scored on about 100 blocks' worth at most, so a race is mostly luck and node quality matters less |
+
+- **Why no mode lowers a target.** A discount for a node that signed below its share was built and tested ("own pace,
+  bounded": a target no lower than 97% of the VHP share). Any discount based on past signing can be steered (D-120):
+  an 18% producer that signed 20% less for three days and then in full in a 6-hour race doubled its win chance under
+  that 3% discount. So every mode is raise-only; the way for a weak signer to win more is to sign its share.
+- **Why B and C read stretches, and not the last 3 days (Repo Lens #G-19).** A raise read on the recent past can be
+  escaped the same way: sign less before the race, then in full in it. The first B (14-day form) and C (3-day pace) let
+  an 18% node escape half its raise with three days of signing 6% less. Now:
+  - the last 3 days (`LIFT_SKIP` = 86,400 blocks) are not read at all, so a steer just before a race changes nothing;
+  - the raise is the **best** day, so a node escapes it only by signing less on **every** one of the 11 days
+    (`LIFT_SPAN` = 316,800 blocks), which costs it far more blocks than the raise is worth;
+  - two (B) or one (C) standard deviations of luck are taken off each day, so a lucky day doesn't raise a node that signs
+    its share (tested on a field where every node signs exactly its share: no mode moves anyone's win chance).
+  - Tried and dropped: three 3.7-day stretches for B (an 8-day steer escaped 40% of the raise); a raise from the node's
+    size class (others' form; unsteerable, but less fair than mode A).
+  Measured (`sims/ruler/steer.mjs`, the exact code; the lab study on real vhp-data is in the project doc
+  `claude/ruler/MODES-B-C-REWORK-G19-2026-11-12.md`).
+- **A card without a mode** is byte-identical to RULE_VERSION 4. A card with a mode records `mode` after `poolRule`
+  and each scored row carries `lift` and `target` (millionths) after `moves`. `pct` and `fpct` use the target.
+- **Mode A with the key present** gives the same numbers as no mode (lift 1), only the extra keys.
+- **The game's settings** may carry `mode` (optional, one of A–D); `recompute` requires the card's mode to match the
+  settings, and refuses any other value.
+- **Measured on live cards** (`tools/vhp-ruler-shadow.mjs … --modes A,B,C,D`, 60 recent races): see the project doc
+  `claude/ruler/MODES-A-D-2026-11-11.md`.
+
+**The admin's schedule, one repository variable per game, `<GAME>_RULER_MODE`:** week:mode pairs with rising weeks,
+like `5:B,8:C` (mode B from vault week 5, C from week 8). Before the first pair, or when the variable is unset, the mode
+is A.
+- `modeSchedule(v)` / `mode_schedule(v)`: strict parsing; anything odd stops the run.
+- `modeAt(week, schedule)` / `mode_at`: the mode of a vault week.
+- `modeChange(prev, next, week)` / `mode_change`: null, or why a change is refused. **A week that has started never
+  changes mode**, so the admin can only shift future weeks. A game's publish job compares the previous published week
+  file's recorded schedule with this run's, like the switch.
+- **Before setting it:** `node tools/vhp-ruler-mode.mjs "6:C"` prints each week's mode with its calendar Monday and OK or
+  REFUSED.
+- **What a game does with it:** read the variable, take `modeAt(week, schedule)` for the round's vault week, pass it as
+  `mode` in the card's settings, and record the schedule and the week's mode in the week file. The publish job's
+  `recompute_main` settings file must carry the same `mode`.
+- **Players aren't told which mode a week uses** (owner, 11 Nov). The card records it for audit.

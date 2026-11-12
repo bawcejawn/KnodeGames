@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "slug": "questions",
+  "name": "Daily Questions",
+  "vaultGameId": 1,
+  "kinds": ["staked", "free"],
+  "seasonWeeks": 1,
+  "freePrizeDefault": "on",
+  "status": "live",
+  "picks": { "contract": "vault", "gameId": 1 },
+  "sponsor": { "actions": [ { "name": "answer", "manaLimit": 1.2 } ] },
+  "week": { "standard": "WEEK_CYCLE", "sundayFunRound": false, "finalNotBefore": "Mon 00:00 UTC" },
+  "data": { "board": "games-data:questions/board.json", "vaultFolder": "games-data:questions/vault" },
+  "workflow": { "file": "games.yml", "enabledVar": "GAMES_ENABLED", "prizesFromVar": "QUESTIONS_PRIZES_FROM_WEEK" },
+  "page": "index.html",
+  "rulesDoc": ".ai/games/Questions.md",
+  "ownerChat": "Questions"
+}

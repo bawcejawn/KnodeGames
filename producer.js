@@ -1,5 +1,5 @@
 /* producer.html: the page script (moved out of the HTML so the Content-Security-Policy can refuse inline scripts). */
-(() => {
+(async () => {
   "use strict";
   const lib = window.koilib || window.koinos || window;
   const RPC = "https://koinos.armana.io";
@@ -28,7 +28,12 @@
   }
 
   const W = window.KWallet;
-  W.init({ provider, toast: (t) => say(t), onChange: (addr) => {
+  // The Mana sponsor pays for registering a node key (owner, 5 Nov 2026), through the site's shared payer flow: the
+  // sponsor pays only when game-data/deployment.json lists PoB in sponsor.covers and the sponsor says it would pay;
+  // otherwise the wallet pays its own Mana, as before. Same settings as the game pages (chain id pinned).
+  let dep = null;
+  try { const r = await fetch("game-data/deployment.json", { cache: "no-cache" }); if (r.ok) dep = await r.json(); } catch { /* the wallet pays its own Mana */ }
+  W.init({ provider, chainId: dep && dep.chainId, payer: dep && dep.payer, sponsor: dep && dep.sponsor, toast: (t) => say(t), onChange: (addr) => {
     account = addr;
     $("addr").value = addr || "";
     $("connect").textContent = addr ? "Disconnect" : "Connect wallet";
@@ -43,7 +48,8 @@
   $("send").onclick = async () => {
     const key = $("key").value.trim();
     if (!account) return say("Connect a wallet first.");
-    if (!keyBytesOk(key)) return say("That isn't a node PUBLIC key (33 bytes, base64url, starts with A). Copy it again from node-key.");
+    if (W.kind === "guest") return say("A guest account can't run a node. Connect the Kondor or KOIN Vault wallet that holds your VHP.");
+    if (!keyBytesOk(key)) return say("That isn't a node PUBLIC key (33 bytes, base64url, starts with A). Copy it again from your node's public.key (Run a node, step 6).");
     try {
       const pob = new lib.Contract({ id: POB, abi: ABI, provider });
       const { operation } = await pob.functions.register_public_key({ producer: account, public_key: key }, { onlyOperation: true });

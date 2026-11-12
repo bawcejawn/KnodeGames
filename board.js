@@ -18,11 +18,20 @@
  *                                            // optional: a second board for wallets without VHP or a stake (rows with
  *                                            // ranked: false). Only its top `show` are listed; everyone else stays
  *                                            // hidden, and a free player sees their own place privately.
+ *     hide: ["today"],                       // optional: period tabs a game doesn't have ("today", "last", "all")
  *   });
  *   lb.set(boardJson); lb.setMe(address);
  */
 (function (root) {
   "use strict";
+  // What players call a week (weeks.js, D-063): the week of Mon 16 Nov (vault week 4) is "Week 1", the week of Mon 9 Nov
+  // (vault week 3) the "Test week" (owner, 9 Nov); earlier weeks show their date. Pages that don't load weeks.js yet (race.html, blockx.html) get the same rule here; a test keeps the
+  // two in step.
+  const WL = (w) => {
+    if (root.KWeeks) return root.KWeeks.label(w);
+    const n = Math.trunc(Number(w));
+    return n >= 4 ? `Week ${n - 3}` : n === 3 ? "Test week" : `Week of ${new Date(1792368000000 + n * 604800000).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`;
+  };
   const MEDAL = ["🥇", "🥈", "🥉"], ORD = ["1st", "2nd", "3rd"];
   const LABELS = Object.freeze({ staked: "Staked", free: "Free play" });   // the same in every game
   // "Last week" appears only when the data has it, so the week that just ended stays visible on Monday.
@@ -38,7 +47,8 @@
     for (const c of kids) if (c) e.append(c);
     return e;
   }
-  const fmt = (x) => (typeof x === "number" && isFinite(x) ? x.toLocaleString("en-US") : "–");
+  // A column may set `d` (0 to 2): show exactly that many decimals (Block X points in hundredths: 1.79, 2.00).
+  const fmt = (x, d) => (typeof x === "number" && isFinite(x) ? (Number.isInteger(d) && d >= 0 && d <= 2 ? x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }) : x.toLocaleString("en-US")) : "–");
   const short = (a) => (typeof a === "string" && a.length > 12 ? a.slice(0, 4) + "…" + a.slice(-4) : String(a || ""));
   const day = (t) => new Date(t).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
@@ -49,7 +59,10 @@
   }
 
   function create(host, opt) {
-    const id = "kb" + ++n, o = Object.assign({ columns: [], name: short, scored: () => true, summary: () => "", me: null, link: null, unranked: "" }, opt || {});
+    // Wallet names (names.js, when the page loads it): "Name · 1Abc12…wxyz", else the short address.
+    const named = (a) => (window.KNames ? window.KNames.of(a) : short(a));
+    const id = "kb" + ++n, o = Object.assign({ columns: [], name: named, scored: () => true, summary: () => "", me: null, link: null, unranked: "", hide: [] }, opt || {});
+    const hidden = new Set(Array.isArray(o.hide) ? o.hide.filter((m) => m !== "week") : []);   // "week" is always shown
     let data = null, mode = "week", who = "", kind = "main";
     // The two boards have the same names in every game (owner, 2026-10-28): KBoard.LABELS, never set per game.
     const F = o.free ? { show: Number.isInteger(o.free.show) ? o.free.show : 6, prize: typeof o.free.prize === "string" ? o.free.prize : "", main: LABELS.staked, label: LABELS.free } : null;
@@ -77,24 +90,31 @@
       el("div", { class: "table-scroll" }, el("table", { class: "hist kb-table" }, el("thead", {}, head), body)),
       mine);
 
+    // Redraw once the wallet names arrive (names.js), if this page loads it.
+    if (window.KNames && window.KNames.onChange) window.KNames.onChange(() => { if (data) render(); });
     function render() {
       const part = partOf(data, mode), rows = (part && Array.isArray(part.rows)) ? part.rows : [];
       const weekly = mode === "week" || mode === "last";
-      btns[2].hidden = !(data && data.lastWeek);
+      btns.forEach((b, i) => { if (hidden.has(MODES[i][0])) b.hidden = true; });
+      btns[2].hidden = hidden.has("last") || !(data && data.lastWeek);
       if (mode === "last" && btns[2].hidden) { mode = "week"; btns.forEach((x, i) => x.setAttribute("aria-pressed", String(MODES[i][0] === mode))); return render(); }
       if (F && kind === "free") return renderFree(part, rows, weekly);
       const ranked = rows.filter((r) => r && r.ranked);
-      sub.textContent = weekly && part && part.start ? `Week ${part.week + 1}, from ${day(part.start)} (UTC)` : mode === "today" && part && part.day ? `${part.day} (UTC)` : mode === "all" ? "Every week so far" : "";
+      sub.textContent = weekly && part && part.start ? `${WL(part.week)}, from ${day(part.start)} (UTC)` : mode === "today" && part && part.day ? `${part.day} (UTC)` : mode === "all" ? "Every week so far" : "";
       // Audit BX-41: the row's own-board place (boardPlace, ties share it) when the game publishes one.
       const placeOf = (r, i) => (Number.isInteger(r.boardPlace) && r.boardPlace > 0 ? r.boardPlace : i + 1);
-      podium.replaceChildren(...(weekly ? ranked.map((r, i) => [r, placeOf(r, i)]).filter(([r, p]) => p <= 3 && o.scored(r)).slice(0, 10).map(([r, p]) =>
+      // o.earned(row, weekly) → whether the row earns a reward: only those get a medal (places 1–3) and the highlight.
+      // Without it: places 1–3 with a score.
+      const medalOk = (r, p) => (o.earned ? !!o.earned(r, weekly) && p <= 3 : p <= 3 && o.scored(r));
+      const topOk = (r, p) => (o.earned ? !!o.earned(r, weekly) : weekly && p <= 3 && o.scored(r));
+      podium.replaceChildren(...(weekly ? ranked.map((r, i) => [r, placeOf(r, i)]).filter(([r, p]) => medalOk(r, p)).slice(0, 10).map(([r, p]) =>
         el("div", { class: "champ" + (r.a === who ? " me" : "") }, el("b", { text: `${MEDAL[p - 1]} ${ORD[p - 1]}` }), el("span", { class: "mono", text: o.name(r.a) }), el("div", { class: "ago", text: o.summary(r) }))) : []));
       body.replaceChildren(...ranked.slice(0, 50).map((r, i) => {
         const href = o.link ? o.link(r.a) : null, pl = placeOf(r, i);
-        return el("tr", { class: [pl <= 3 && weekly && o.scored(r) ? "top" : "", r.a === who ? "me" : ""].join(" ").trim() || null },
-          el("td", { text: pl <= 3 && o.scored(r) ? MEDAL[pl - 1] : String(pl) }),
+        return el("tr", { class: [topOk(r, pl) ? "top" : "", r.a === who ? "me" : ""].join(" ").trim() || null },
+          el("td", { text: medalOk(r, pl) ? MEDAL[pl - 1] : String(pl) }),
           el("td", { class: "mono" }, href ? el("a", { href, target: "_blank", rel: "noopener noreferrer", text: o.name(r.a) }) : el("span", { text: o.name(r.a) })),
-          ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key]) })));
+          ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key], c.d) })));
       }));
       if (!ranked.length) body.replaceChildren(el("tr", {}, el("td", { colspan: String(2 + o.columns.length), class: "ago", text: "No ranked players yet." })));
       const row = who && rows.find((r) => r && r.a === who);
@@ -117,7 +137,7 @@
       body.replaceChildren(...shown.map((r, i) => el("tr", { class: [medal(r, i) ? "top" : "", r.a === who ? "me" : ""].join(" ").trim() || null },
         el("td", { text: medal(r, i) ? MEDAL[medal(r, i) - 1] : String(r.boardPlace || i + 1) }),
         el("td", { class: "mono" }, el("span", { text: o.name(r.a) })),
-        ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key]) })))));
+        ...o.columns.map((c) => el("td", { class: "num" + (c.wide ? " hide-sm" : ""), text: fmt(r[c.key], c.d) })))));
       if (!shown.length) body.replaceChildren(el("tr", {}, el("td", { colspan: String(2 + o.columns.length), class: "ago", text: "No free-play scores yet." })));
       const row = who && rows.find((r) => r && r.a === who);
       const place = row && !row.ranked && free.includes(row) ? (Number.isInteger(row.boardPlace) && row.boardPlace > 0 ? row.boardPlace : free.indexOf(row) + 1) : 0;   // audit BX-41: ties share

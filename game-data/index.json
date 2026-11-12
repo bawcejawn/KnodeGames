@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-29T12:03:30.432Z",
+  "updated": "2026-11-12T19:58:35.102Z",
   "days": [
     "questions/W000-D1.json",
     "questions/W000-D2.json",
@@ -10,6 +10,20 @@
     "questions/W001-D1.json",
     "questions/W001-D2.json",
     "questions/W001-D3.json",
-    "questions/W001-D4.json"
+    "questions/W001-D4.json",
+    "questions/W001-D5.json",
+    "questions/W001-D6.json",
+    "questions/W002-D1.json",
+    "questions/W002-D2.json",
+    "questions/W002-D3.json",
+    "questions/W002-D4.json",
+    "questions/W002-D5.json",
+    "questions/W003-D1.json",
+    "questions/W003-D2-00.json",
+    "questions/W003-D2.json",
+    "questions/W003-D3-00.json",
+    "questions/W003-D3.json",
+    "questions/W003-D4-00.json",
+    "questions/W003-D4.json"
   ]
 }

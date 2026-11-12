@@ -22,6 +22,13 @@ node/release-kick-state.json
 node/diag*.txt
 before-upgrade.txt
 
+# the Vault's testnet check (throwaway testnet keys and results)
+testnet-v6/
+testnet-v61/
+testnet-v61-d8/
+
+# Python bytecode (Repo Lens #G-9)
+__pycache__/
 # Survivor recorder side folders (bot/games/survivor.ts), if a local run is stopped mid-write
 .survivor-stage-*
 .survivor-old-*

@@ -2,13 +2,13 @@
 
 This file is for you and for outside auditors. It lists what could go wrong, what stops it, and which test proves it.
 All tests run on GitHub on every push ("Contract tests"). The longer pre-deploy review, with the fixes it made, is in
-[`docs/history/security-audit.md`](../docs/history/security-audit.md).
+[`security-audit.md` (owner's private records)](../security-audit.md (owner's private records)).
 
 Contract: `game/assembly/Kpred.ts` (logic) and `Tokens.ts` (every token movement). Mainnet address
 `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr`. Tests: `game/assembly/__tests__/` (87 tests: `Kpred.spec.ts`, the v4 rules in
 `Kpred.v4.spec.ts`, and the audit's proof, red-team and fuzz tests), plus `game/scripts/storage-compat.test.ts`
 (the upgraded code reads everything the live contract stored). The v4 upgrade plan is in
-[`docs/history/UPGRADE-2026-10.md`](../docs/history/UPGRADE-2026-10.md).
+[`UPGRADE-2026-10.md` (owner's private records)](../UPGRADE-2026-10.md (owner's private records)).
 
 ## Whose money is at risk, and how it's protected
 

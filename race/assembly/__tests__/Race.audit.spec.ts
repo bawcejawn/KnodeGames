@@ -1,10 +1,10 @@
 // =====================================================================
 // Independent audit 2026-10-27: attack tests for the Producer Race picks contract, kept as regression tests after the
-// fixes (R-1: a bad list cursor is refused; R-3: a pick can't come from another contract). Report: docs/history/.
+// fixes (R-1: a bad list cursor is refused; R-3: a pick can't come from another contract). Report: the owner's private records.
 // =====================================================================
 
 import { Arrays, Base58, MockVM, Protobuf, authority, chain } from "@koinos/sdk-as";
-import { Race, RACE_MS, DAY_MS, LOCKED, TOO_EARLY, USED_UP, NOT_SIGNED, pickKey } from "../Race";
+import { Race, RACE_MS, DAY_MS, LOCKED, TOO_EARLY, USED_UP, NOT_SIGNED, pickKey, BAD_TYPE } from "../Race";
 import { race } from "../proto/race";
 
 const SELF = Base58.decode("1EDaCKVmBjUxLxgWCmDbRA8gWKkSQ6ByzY");
@@ -69,8 +69,11 @@ describe("AUDIT race: lock and window boundaries", () => {
   });
   it("u64 edges: race 2^64-1, 2^64-2, and the far past are refused without overflow", () => {
     start(T);
-    refused(P1, 0xffffffffffffffff, H1, TOO_EARLY);
-    refused(P1, 0xfffffffffffffffe, H1, TOO_EARLY);
+    // v2 (D-161): the race type sits from bit 48, so these are an unknown type (65535): still refused, no overflow.
+    refused(P1, 0xffffffffffffffff, H1, BAD_TYPE);
+    refused(P1, 0xfffffffffffffffe, H1, BAD_TYPE);
+    refused(P1, 0x00ffffffffffffff, H1, BAD_TYPE);          // v2 (#D-13 H-1): the type sits from bit 48, so this is type 255
+    refused(P1, 0x0000ffffffffffff, H1, TOO_EARLY);          // the largest type-0 number: too far ahead
     refused(P1, 0, H1, LOCKED);
   });
 });

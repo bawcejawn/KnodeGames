@@ -161,6 +161,7 @@ describe("AUDIT AB-003: the pool must not pay Mana for a claim that will revert"
     k.settle(new kpred.settle_arguments(A, 0));
     k.settle(new kpred.settle_arguments(B, 0));
     at(2200);
+    k.finalize_week(new kpred.finalize_week_arguments(0));   // v6.1: the bot finalizes (a claim no longer does)
     as(B);
     gK = k;
     MockVM.commitTransaction();

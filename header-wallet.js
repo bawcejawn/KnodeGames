@@ -8,7 +8,8 @@
   "use strict";
   const W = window.KWallet;
   if (!W || typeof document === "undefined") return;
-  const lib = window.koilib || window.koinos || null;
+  // The koilib browser bundle puts Provider, Signer and utils on window itself (not on window.koinos).
+  const lib = window.koilib || window.koinos || (window.Provider ? window : null);
   const short = (a) => (a ? a.slice(0, 5) + "…" + a.slice(-4) : "");
   const KIND = { kondor: "Kondor", vault: "KOIN Vault", guest: "Guest" };
 
@@ -61,6 +62,15 @@
     document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(e.target)) toggle(false); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hidden) { toggle(false); btn.focus(); } });
     paint();
+    // "Play free" (top right) opens the same chooser as "Connect wallet" when nobody is connected yet, then goes on to the race (owner, 11 Nov).
+    for (const pf of row.querySelectorAll("a.btn-play-free")) pf.addEventListener("click", async (e) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+      if (W.address || W.accounts().length) return;       // already someone: follow the link to the race
+      e.preventDefault();
+      const dest = pf.getAttribute("href");
+      await connect();
+      if (W.address) { if (dest.startsWith("#")) { location.hash = dest; } else location.href = dest; }
+    });
   }
   async function connect() {
     toggle(false);
@@ -72,7 +82,9 @@
   }
   function paint() {
     if (!btn) return;
-    btn.textContent = W.address ? (W.kind === "guest" ? `Guest ${short(W.address)}` : short(W.address)) : "Connect wallet";
+    // Your own wallet: its Knode Games name or @nickname if it has one (names.js; the full address is in the title).
+    const mine = W.address && window.KNames ? window.KNames.name(W.address) : "";
+    btn.textContent = W.address ? (W.kind === "guest" ? `Guest ${short(W.address)}` : mine || short(W.address)) : "Connect wallet";
     btn.classList.toggle("connected", !!W.address);
     btn.title = W.address ? `${KIND[W.kind] || "Wallet"}: ${W.address}` : "Connect a Koinos wallet";
     if (!menu.hidden) renderMenu();
@@ -100,6 +112,7 @@
   }
 
   W.subscribe(() => paint());
+  if (window.KNames && window.KNames.onChange) window.KNames.onChange(() => paint());
   // Pages that set the wallet up themselves (game, swap, burn, Mana) call init with their own settings; init may run
   // more than once, so set it up here too for every other page.
   W.init({ provider: lib && lib.Provider ? new lib.Provider(["https://koinos.armana.io"]) : null, toast });

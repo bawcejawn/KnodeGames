@@ -45,8 +45,11 @@
   .kw-x{float:right;font:inherit;font-size:22px;line-height:1;border:0;background:none;color:var(--muted,#5d6283);cursor:pointer;padding:0 0 0 10px}
   .kw-link{font:inherit;background:none;border:0;color:var(--violet,#5a43e6);text-decoration:underline;cursor:pointer;padding:0;font-size:14px}
   .kw-opt[disabled]{opacity:.55;cursor:not-allowed}
+  .kw-opt.kw-main{border:2px solid var(--violet,#5a43e6);background:var(--surface,#fff)} .kw-box p.kw-or{margin:22px 0 0;padding-top:16px;border-top:1px solid var(--line,#e2e4ef)}
   .kw-warn{background:var(--sun-soft,#fff4dc);color:var(--ink,#181b34)!important;border-radius:10px;padding:10px 12px}
   .kw-key{font-family:ui-monospace,Consolas,monospace;font-size:13px;word-break:break-all;background:var(--paper,#f4f5fb);border:1px solid var(--line,#e2e4ef);border-radius:10px;padding:10px;margin:8px 0}
+  .kw-steps{margin:6px 0 10px;padding-left:20px;display:grid;gap:6px;font-size:14px}
+  .kw-steps + h4, h4.kw-h{margin:12px 0 4px;font-size:15px}
   .kw-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
   .kw-btn{font:inherit;font-weight:700;font-size:14px;padding:10px 14px;min-height:44px;border-radius:99px;border:1px solid var(--line,#e2e4ef);background:var(--surface,#fff);color:var(--ink,#181b34);cursor:pointer}
   .kw-btn.kw-danger{color:var(--rose,#d93f4c)}
@@ -201,15 +204,58 @@
     }
   }
 
+  /** Is the Kondor extension really there? This page always loads the kondor-js library (so window.kondor exists even
+   *  without the extension); only the extension answers. A cheap read (chain id) opens no Kondor window. */
+  async function kondorAnswers() {
+    const p = window.kondor && window.kondor.provider;
+    if (!p || typeof p.getChainId !== "function") return !!window.kondor;   // can't tell: ask anyway
+    try { await withTimeout(p.getChainId(), 4000, "no-kondor"); return true; }
+    catch (e) { return String(e && e.message) !== "no-kondor"; }            // an error from Kondor still means it's there
+  }
+
+  /** Connect Kondor, or add more Kondor accounts. Kondor opens its own window where the player taps the account(s) to
+   *  share and Accept. That can take a while (unlocking, choosing), so this waits up to 5 minutes and keeps a dialog open
+   *  saying what to do, instead of closing silently. When nothing new comes back, it says how to add another account. */
   async function connectKondor() {
-    close();
-    if (!window.kondor) { W.toast && W.toast("Kondor isn't installed in this browser. On a phone, use KOIN Vault.", 7000); return null; }
-    const accounts = await withTimeout(window.kondor.getAccounts(), 15000, "No answer from Kondor. Is the extension installed and unlocked?");
-    if (!accounts || !accounts.length) { W.toast && W.toast("Kondor shared no account. Open Kondor and allow this site.", 7000); return null; }
-    const addrs = accounts.map((a) => a && a.address).filter((a) => typeof a === "string" && a.length > 0);   // only real addresses are remembered
-    if (!addrs.length) { W.toast && W.toast("Kondor shared no account. Open Kondor and allow this site.", 7000); return null; }
+    const before = new Set(remembered().filter((x) => x.kind === "kondor").map((x) => x.address));
+    const status = h("p", { class: "kw-status", role: "status" }, "Looking for Kondor…");
+    const box = open(h("h3", {}, "Connect Kondor"), status);
+    let cancelled = false; onClose = () => { cancelled = true; };
+    const say = (t) => { if (box.isConnected) status.textContent = t; };
+    if (!window.kondor || !(await kondorAnswers())) {
+      if (!cancelled) say(isPhone() ? "Kondor is a computer browser extension. On a phone, use KOIN Vault or play as a guest." : "Kondor isn't answering. Install or turn on the Kondor extension in this browser (or use KOIN Vault), then try again.");
+      return null;
+    }
+    if (cancelled) return null;
+    say(before.size
+      ? "A Kondor window opened. Unlock it if asked, tap every account you want here (the new one too; you can pick several), then Accept."
+      : "A Kondor window opened. Unlock it if asked, tap the account(s) you want to use here, then Accept.");
+    let accounts;
+    try { accounts = await withTimeout(window.kondor.getAccounts(), 5 * 60000, "No answer from Kondor after 5 minutes. Try again."); }
+    catch (e) {
+      if (cancelled) return null;
+      const m = String((e && e.message) || e);
+      say(/cancel/i.test(m) ? "Cancelled in Kondor. Nothing changed."
+        : /connection lost/i.test(m) ? "The Kondor window closed before Accept was tapped. Nothing changed. Try again."
+        : m);
+      return null;
+    }
+    if (cancelled) return null;
+    const addrs = (Array.isArray(accounts) ? accounts : []).map((a) => a && a.address).filter((a) => typeof a === "string" && a.length > 0);   // only real addresses are remembered
+    if (!addrs.length) { say("Kondor shared no account. Try again and tap an account in the Kondor window before Accept."); return null; }
     for (const a of addrs) remember("kondor", a);
-    setAddress("kondor", addrs.includes(W.address) ? W.address : addrs[0]);
+    const fresh = addrs.filter((a) => !before.has(a));
+    if (before.size && !fresh.length) {
+      say(`Kondor shared only ${addrs.length === 1 ? "an account that is" : "accounts that are"} already here, so nothing new was added. ` +
+        "To add another: open Kondor and create or import the other account there first (Kondor's account menu), " +
+        "then tap ＋ Add another account again and tap that account in the Kondor window.");
+      onClose = null;
+      return W.address;
+    }
+    close();
+    const keep = W.kind === "kondor" && addrs.includes(W.address);
+    setAddress("kondor", fresh.length ? fresh[0] : keep ? W.address : addrs[0]);
+    if (before.size && fresh.length && W.toast) W.toast(`Added ${fresh.length === 1 ? "1 Kondor account" : fresh.length + " Kondor accounts"}. Now using ${W.address.slice(0, 5)}…${W.address.slice(-4)}. Switch any time from the wallet menu.`, 7000);
     return W.address;
   }
 
@@ -219,11 +265,15 @@
       const phone = isPhone();
       const pick = (fn) => async () => { onClose = null; try { resolve(await fn()); } catch (e) { W.toast && W.toast(String(e.message || e), 7000); resolve(null); } };
       const kondor = h("button", { class: "kw-opt", type: "button", onclick: pick(connectKondor) }, h("span", { class: "kw-ic", "aria-hidden": "true" }, "🧩"),
-        h("div", {}, h("b", {}, "Kondor", !phone && window.kondor ? h("span", { class: "kw-tag" }, "found") : null), h("span", {}, "Browser extension, on a computer")));
+        h("div", {}, h("b", {}, "Kondor"), h("span", {}, "Browser extension, on a computer")));
       const vault = h("button", { class: "kw-opt", type: "button", onclick: pick(connectVault) }, h("span", { class: "kw-ic", "aria-hidden": "true" }, "📱"),
         h("div", {}, h("b", {}, "KOIN Vault", phone ? h("span", { class: "kw-tag" }, "for phones") : null), h("span", {}, "Fingerprint or face, no extension. Works on any phone")));
       const guest = guestOption(pick);
-      open(h("h3", {}, "Connect a wallet"), h("p", {}, "Your wallet signs everything. Knode Games never sees a key."), ...(phone ? [vault, kondor] : [kondor, vault]), guest);
+      // Launch UI research item 8 (owner, 5 Nov): free guest play comes first, the real wallets below it.
+      open(h("h3", {}, guest ? "Start playing" : "Connect a wallet"), guest,
+        guest ? h("p", { class: "kw-or" }, "Have a Koinos wallet? Connect it to stake and share the weekly pool. It signs everything; Knode Games never sees a key.")
+          : h("p", {}, "Your wallet signs everything. Knode Games never sees a key."),
+        ...(phone ? [vault, kondor] : [kondor, vault]));
       onClose = () => resolve(null);
     });
   }
@@ -236,6 +286,11 @@
   const RESTORE_WARN = "Only paste a key you backed up yourself. Anyone who gives you a key can take it back.";
   // Audit (guest) L-3: what a guest sees when the sponsor won't pay (never Kondor or KOIN Vault advice).
   const GUEST_NO_FREE = "Free answers are used up for today — try again after 00:00 UTC (5pm PT), or connect a wallet.";
+  // I-082: only a real "used up" says used up. A check that failed (a trap, a node that didn't answer) or a refusal with
+  // no or an unknown reason says so plainly, so players (and we) see the real cause.
+  const GUEST_CHECK_FAILED = "The free Mana check failed just now, so nothing was sent. Try again later, or use a wallet with its own Mana (Kondor or KOIN Vault).";
+  const GUEST_SPONSOR_NO = "The Mana sponsor turned this one down without a reason, so nothing was sent. Try again later, or connect a wallet with its own Mana.";
+  const plainReason = (m) => String(m || "").replace(/^SPONSOR:\s*/i, "").replace(/[^\x20-\x7e]/g, "").trim().slice(0, 120);
   // Audit SP-18: say which limit it was. The free pool is released by the hour (sponsor v3), so "this hour" first.
   const guestRefusal = (m) =>
     /switched off/i.test(m) ? "Free play is paused for now (the Mana sponsor is switched off). Try again later, or connect a wallet."   // audit SP-43
@@ -245,7 +300,8 @@
       : /today's sponsored mana is used up/i.test(m) ? GUEST_NO_FREE
       : /mana limit above|per-transaction cap|what these actions may ask/i.test(m) ? "The page asked for more Mana than the sponsor allows for this action (the site is being updated). Try again in a few minutes."
       : /insufficient|\brc\b|rc_limit|resource/i.test(m) ? "The network turned this down for lack of Mana. Nothing happened; try again in a few minutes."
-      : GUEST_NO_FREE;
+      : plainReason(m) ? `The Mana sponsor turned this down (${plainReason(m)}), so nothing was sent. Try again later, or connect a wallet with its own Mana.`
+      : GUEST_SPONSOR_NO;
   // Audit (guest) L-5: on Koinos mainnet a guest only ever names the live Knode Games sponsor as payer and only answers on the
   // Knode Games question game, whatever deployment.json says (pinned like the chain id).
   const PINNED_SPONSOR = "1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8", PINNED_GAME = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
@@ -254,9 +310,8 @@
   const PINNED_RACE = "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K";
   const guestGame = () => (W.chainId === MAINNET_CHAIN_ID ? PINNED_GAME : (W.gameContract || null));
   const guestRace = () => (W.chainId === MAINNET_CHAIN_ID ? (PINNED_RACE || null) : ((W.sponsor && W.sponsor.race) || null));
-  // The KnodeGames Picks contract (picks-data/deployment.json), pinned the same way once it is on mainnet. Until then
-  // guests can't make KnodeGames picks (empty = none).
-  const PINNED_PICKS = "";
+  // The KnodeGames Picks contract (picks-data/deployment.json), pinned the same way (live on mainnet since 2026-10-30).
+  const PINNED_PICKS = "1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm";   // the mainnet Picks contract (picks-data/deployment.json)
   const guestPicks = () => (W.chainId === MAINNET_CHAIN_ID ? (PINNED_PICKS || null) : ((W.sponsor && W.sponsor.picks) || null));
   /** A guest may sign only free play: game answers, picks on the race contract, and KnodeGames picks. */
   const guestOp = (o, game, race, picks) => !!(o && o.call_contract && ((game && o.call_contract.contract_id === game && Number(o.call_contract.entry_point) === ANSWER)
@@ -290,10 +345,10 @@
   function guestOption(pick) {
     if (!window.KGuest || !guestOn()) return null;   // guest.js missing, or guest play switched off (every page loads it; a guest signs only answers and picks)
     const ready = guestReady();
-    const btn = h("button", { class: "kw-opt", type: "button", ...(ready ? {} : { disabled: "", "aria-disabled": "true" }), onclick: ready ? pick(connectGuest) : () => {} },
+    const btn = h("button", { class: "kw-opt kw-main", type: "button", ...(ready ? {} : { disabled: "", "aria-disabled": "true" }), onclick: ready ? pick(connectGuest) : () => {} },
       h("span", { class: "kw-ic", "aria-hidden": "true" }, "🎟️"),
       h("div", {}, h("b", {}, "Play as a guest", h("span", { class: "kw-tag" }, "free")),
-        h("span", {}, ready ? "No wallet, no KOIN. Answer the daily questions and pick race horses for free on this device." : "Guest play turns on when the Mana sponsor is live.")));
+        h("span", {}, ready ? "No wallet, no KOIN, no sign-up. Answer questions and pick race horses on this device." : "Guest play turns on when the Mana sponsor is live.")));
     if (!ready) return btn;
     return h("div", {}, btn, h("p", {}, "Moving from another phone? ", h("button", { class: "kw-link", type: "button", onclick: pick(restoreGuest) }, "Restore a guest key")));
   }
@@ -325,13 +380,13 @@
       onClose = () => resolve(null);
     });
   }
+  /** A new guest: a short note, no pop-up to dismiss before the first answer (launch UI research item 8, owner 5 Nov).
+   *  The warnings aren't dropped: the note says it's play-only and that the browser can delete it by itself (audit M-2),
+   *  and right after the first answer guestNudge asks the player to save their progress. */
   function guestWelcome(address) {
-    open(h("h3", {}, "You're playing as a guest"),
-      h("p", {}, "Your guest wallet is ", h("b", {}, address.slice(0, 6) + "…" + address.slice(-4)), ". Answering is free: the Knode Games Mana sponsor pays."),
-      h("p", { class: "kw-warn" }, GUEST_WARN),
-      h("p", {}, "It lives only in this browser. Back it up if you want to keep your points when you change phone or clear your browser."),
-      // Audit (guest) M-2: the browser can delete it by itself (Safari after 7 days without a visit).
-      h("p", { class: "kw-warn" }, GUEST_EVICT),
+    const note = `You're playing free as a guest (${address.slice(0, 6)}…${address.slice(-4)}). ${GUEST_WARN} Your browser can delete it by itself, so back it up from the wallet button.`;
+    if (W.toast) { W.toast(note, 12000); return; }
+    open(h("h3", {}, "You're playing as a guest"), h("p", {}, note), h("p", { class: "kw-warn" }, GUEST_EVICT),
       h("div", { class: "kw-row" }, h("button", { class: "kw-btn", type: "button", onclick: () => backupGuest() }, "Back up guest key"), h("button", { class: "kw-btn", type: "button", onclick: () => close() }, "Start playing")));
   }
   async function backupGuest() {
@@ -354,7 +409,8 @@
       h("p", {}, "Guest ", h("b", {}, keyAddress)),
       reveal, key, h("div", { class: "kw-row" }, copy),
       h("p", { class: "kw-warn" }, GUEST_EVICT),
-      h("p", {}, "To restore it on another phone: Connect wallet → Play as a guest → Restore a guest key."));
+      h("p", {}, "To restore it on another phone: Connect wallet → Play as a guest → Restore a guest key."),
+      h("h4", { class: "kw-h" }, "Turn your guest into a real wallet (to collect prizes)"), guestSteps());
   }
   async function restoreGuest() {
     const input = h("input", { class: "kw-in", type: "password", autocomplete: "off", autocapitalize: "off", spellcheck: "false", placeholder: "Paste your guest key (starts with K or L)" });
@@ -390,6 +446,13 @@
       h("p", {}, "Want to stake and share the weekly pool? ", h("a", { href: "get.html" }, "Get a wallet and VHP"), "."));
   }
   /** Explain why a guest can't do something, instead of failing silently. */
+  // Owner, 11 Nov: a guest's prize is claimed by turning the guest into a real wallet (same key, imported into Kondor).
+  const guestSteps = () => h("ol", { class: "kw-steps" },
+    h("li", {}, "Tap ", h("b", {}, "Back up guest key"), ", then ", h("b", {}, "Tap to reveal"), " and ", h("b", {}, "Copy"), ". Keep it private."),
+    h("li", {}, "On a computer, install the Kondor browser extension and set up your Kondor wallet."),
+    h("li", {}, "In Kondor choose ", h("b", {}, "Import account"), " (private key), paste the key, and name the account."),
+    h("li", {}, "Keep a little KOIN in that account: collecting a prize uses a little Mana."),
+    h("li", {}, "Back here tap ", h("b", {}, "Connect wallet → Kondor"), " and pick that account. Your points and prize are there: tap Collect."));
   function guestCant(ops) {
     const game = guestGame();
     const isClaim = ops.some((o) => o && o.call_contract && o.call_contract.contract_id === game && Number(o.call_contract.entry_point) === CLAIM);
@@ -397,7 +460,8 @@
       open(h("h3", {}, "Collect your prize"),
         // Audit (guest) L-2: a free player's claim must use its own Mana; the sponsor doesn't pay it yet.
         h("p", {}, "Congratulations! Your prize is safe in the game and never expires."),
-        h("p", {}, "Collecting it from a guest wallet comes with the next Mana sponsor update; or back up this key, import it into Kondor (Import account → private key) and hold a little KOIN there to claim now."),
+        h("p", {}, "A guest wallet can't collect yet, but you can turn it into a real wallet in a few steps and collect now:"),
+        guestSteps(),
         h("div", { class: "kw-row" }, h("button", { class: "kw-btn", type: "button", onclick: () => backupGuest() }, "Back up guest key")),
         h("p", { class: "kw-warn" }, GUEST_WARN));
       return new Error("A guest can't collect yet: your prize is safe and never expires.");
@@ -422,7 +486,7 @@
     const rcLimit = rcFor(sp, ops, String(sp.rcLimit || "100000000"));
     // Audit SP-34: the sponsor's own reason (e.g. "released on the hour"), worded for a guest.
     const yes = await sponsorAnswer(sp, rcLimit, gamesOfOps(sp, ops), true);
-    if (!yes.ok) throw new Error(yes.reason ? guestRefusal(yes.reason) : GUEST_NO_FREE);
+    if (!yes.ok) throw new Error(yes.failed ? GUEST_CHECK_FAILED : yes.reason ? guestRefusal(yes.reason) : GUEST_SPONSOR_NO);
     const signer = await guestLib().signer();
     if (signer.getAddress() !== W.address) throw new Error("The guest key on this device changed. Reconnect as a guest.");
     signer.provider = W.provider;
@@ -454,9 +518,11 @@
     if (store.get(localStorage, "kn-guest-nudged") === "1") return;
     store.set(localStorage, "kn-guest-nudged", "1");
     setTimeout(() => {
-      open(h("h3", {}, "Back up your guest"),
+      open(h("h3", {}, "Save your progress"),
         h("p", {}, "Nice, your first answer is in! " + GUEST_EVICT),
-        h("div", { class: "kw-row" }, h("button", { class: "kw-btn", type: "button", onclick: () => backupGuest() }, "Back up guest key"), h("button", { class: "kw-btn", type: "button", onclick: () => close() }, "Later")));
+        h("p", { class: "kw-warn" }, GUEST_WARN),
+        h("div", { class: "kw-row" }, h("button", { class: "kw-btn", type: "button", onclick: () => backupGuest() }, "Back up guest key"), h("button", { class: "kw-btn", type: "button", onclick: () => close() }, "Later")),
+        h("p", {}, "You can do it any time from the wallet button."));
     }, 0);
   }
   /** Throws unless the transaction is exactly: the sponsor pays, this guest is the payee, Koinos mainnet (or the pinned
@@ -621,6 +687,8 @@
       if (!c || !sp.covers.includes(c.contract_id)) return null;
       // Tokens: only approve (the contract checks spender and owner too).
       if (sp.tokens && sp.tokens.includes(c.contract_id) && Number(c.entry_point) !== APPROVE) return null;
+      // Owner, 5 Nov 2026 (replaces 30 Oct): moving stake between games is sponsored too, within the player's daily Mana
+      // (.ai/platform/SPONSOR.md §1). The sponsor contract checks the move is the payer's own (vault shape, argument 1).
     }
     return sp;
   }
@@ -694,7 +762,7 @@
         if ((tag & 7) === 0) { while (i < out.length && (out[i++] & 0x80)); } else break;
       }
       return { ok, reason };
-    } catch { return { ok: false, reason: "" }; }
+    } catch { return { ok: false, reason: "", failed: true }; }   // the check itself failed (trap, timeout): not a "no"
   }
 
   async function sendVault(label, ops, opts = {}) {
@@ -710,7 +778,11 @@
     try { req = await vaultApi("request", { body: { ...creds(), operations, mana: "auto" } }); }
     catch (e) {
       if (e.status === 404 || e.status === 410) { dropVault(); throw new Error("KOIN Vault connection expired. Connect again, then retry."); }
-      throw new Error(e.status === 409 ? `${e.message} (KOIN Vault)` : e.message);
+      // Bracket fix-check 2 W-1: no HTTP status = the answer was lost (KOIN Vault may still have made the request); pages
+      // that must not send twice read `openUntil: null` as "may be open, lifetime unknown". Repo Lens #E-26 E26-2: a 5xx
+      // too (a gateway can time out after KOIN Vault made the request)
+      const maybeOpen = !e.status || e.status >= 500;
+      throw Object.assign(new Error(e.status === 409 ? `${e.message} (KOIN Vault)` : e.message), e.status ? { status: e.status } : {}, maybeOpen ? { openUntil: null } : {});
     }
     const status = h("div", { class: "kw-status", role: "status" }, "Waiting for your approval in KOIN Vault…");
     open(h("h3", {}, `Approve in KOIN Vault`), h("p", {}, `“${label}”. Open KOIN Vault, check the details and approve with your fingerprint or face, then come back here.`),
@@ -724,7 +796,7 @@
         await sleep(2000);
         let r; try { r = await vaultApi("request-status", { query: { ...creds(), requestId: req.requestId } }); }
         catch (e) { if (e.status === 404 || e.status === 410) throw new Error("The request expired before it was approved."); continue; }
-        if (r.status === "pending") { if (stop) throw new Error("Still waiting in KOIN Vault. Approve or reject it there; don't send it again from here."); continue; }
+        if (r.status === "pending") { if (stop) throw Object.assign(new Error("Still waiting in KOIN Vault. Approve or reject it there; don't send it again from here."), { openUntil: req.expiresAt || null }); continue; }
         if (r.status === "submitting") { status.textContent = "Approved. Sending…"; continue; }
         if (r.status === "rejected") throw new Error("Cancelled in KOIN Vault.");
         if (r.status === "failed") throw new Error(r.error || "KOIN Vault couldn't send it.");
@@ -736,7 +808,8 @@
           return null;
         }
       }
-      throw new Error("No answer from KOIN Vault in time. Check the wallet before trying again.");
+      // (Bracket fix-check 2 W-1: the request may still be approved until KOIN Vault's own expiry)
+      throw Object.assign(new Error("No answer from KOIN Vault in time. Check the wallet before trying again."), { openUntil: req.expiresAt || null });
     } finally { close(); }
   }
 
@@ -786,6 +859,8 @@
     init, setGuestConfig, connect, disconnect, send, isPhone, manageGuest, guestInfo: () => { guestCant([]); }, switchTo, forget,
     accounts: () => remembered(), subscribe: (f) => { listeners.add(f); return () => listeners.delete(f); },
     get address() { return W.address; }, get kind() { return W.kind; },
+    /** R-BX-21: true when this page sends through the Mana sponsor (deployment.json "payer": "sponsor"). */
+    get sponsorOn() { return W.payer === "sponsor" && !!(W.sponsor && W.sponsor.address); },
     label: () => (W.kind === "vault" ? "KOIN Vault" : W.kind === "kondor" ? "Kondor" : W.kind === "guest" ? "your guest wallet" : "your wallet"),
   };
 })();

@@ -1,8 +1,8 @@
 # Who Signs Block X
 
-**A free prediction game on Koinos.** Every 2,400th block (about every 2 hours) is a *target*. Before it is made, you
+**A free prediction game on Koinos.** Every 1,200th block (about every hour, from Mon 9 Nov 2026; every 2,400th before) is a *target*. Before it is made, you
 pick the block producer you think will sign it. Get it right and you score points. The less likely your producer was
-to sign, the more points, up to ×3. The week's top 2 players win 2 VHP and 1 VHP (paid by the Knode
+to sign, the more points, up to ×5 (×3 before Week 1, the week of Mon 9 Nov 2026). The week's top 2 players win 2 VHP and 1 VHP (paid by the Knode
 Games vault once it is live).
 
 It is the first game on the **Picks** contract, a small contract that **holds no tokens and has no way to move any**.
@@ -22,10 +22,11 @@ It only keeps everyone's picks and makes the chain enforce the rules.
 
 1. **Open the page** and connect a wallet (mainnet: your Knode wallet; testnet: *Make a Test wallet*, then get free
    test KOIN for it from the Telegram faucet bot `@KoinosTestnetFaucetBot` with `/faucet <your address>`).
-2. **Pick.** The next 12 targets are always open. For each, choose a producer from the list. The list shows each
-   producer's share of the VHP and what a right pick on them would score.
-3. **Change your mind** up to 5 times per target, until the lock. Each change counts toward the daily limit of 30
-   picks (50 on the fast test game).
+2. **Pick.** About a day of targets is always open: 12 at a time on the every-2-hours game (until Sun 8 Nov 2026), 24
+   on the hourly game (from Mon 9 Nov 2026, Picks game 12). For each, choose a producer from the list. The list shows
+   each producer's share of the VHP and what a right pick on them would score.
+3. **Change your mind** once per target (mainnet), until the lock. Each change counts toward the daily limit: 30 picks
+   on the every-2-hours game, 48 on the hourly game (50 on the fast test game).
 4. **The lock.** A target stops taking picks 100 blocks (about 5 minutes) before it is made. The chain enforces this,
    so nobody, the owner included, can pick after the lock.
 5. **The result.** Once the target block is irreversible, the recorder reads who signed it, scores every pick and
@@ -42,7 +43,7 @@ min(3, top producer's VHP ÷ your producer's VHP)
 using the VHP on the hourly handicap card at the moment of the lock. A wrong pick scores 0.
 
 - Koinos chooses each block's signer in proportion to VHP, so a big producer signs often and scores ×1, while a
-  producer with a quarter of the top's VHP signs less often and scores ×3 (capped).
+  producer with a quarter of the top's VHP signs less often and scores ×4; ×5 is the cap (×3 before Week 1).
 - **The cap of 3** keeps a lucky long shot from winning a week. Every producer with at least a third of the top's VHP is
   an equally good pick on average. In simulation, players who think win about 96% of weeks (without the cap, lucky
   players would win about 88%).
@@ -111,4 +112,3 @@ More detail:
 
 - [CODE-WALKTHROUGH.md](CODE-WALKTHROUGH.md): what each part of the code does, step by step.
 - [TESTNET.md](TESTNET.md): the PowerShell runbook to put it on the testnet.
-- [TEST-PLAN.md](TEST-PLAN.md): the checklist for testing.

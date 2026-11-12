@@ -85,3 +85,42 @@ test("the server: this computer only, the session key, the page's own origin, pr
     assert.equal(bad.status, 400);
   } finally { child.kill(); }
 });
+
+// ── Block Golf (the Golf chat's spec, claude/golf/TO-HUB-ADMIN-GOLF.md) ──
+import fs from "node:fs";
+test("Block Golf: live, its controls in order with game 6 fixed, status read-only, the GitHub switches as a guided card", () => {
+  const area = AREAS.find((x) => x.id === "golf")!;
+  assert.equal(area.status, "live"); assert.equal(area.gameId, 6); assert.equal(area.docs, "docs/GOLF.md");
+  assert.match(area.contract!, /No contract.*golf\.yml.*games-data\/golf/);
+  const golf = ACTIONS.filter((a) => a.area === "golf").map((a) => a.id);
+  assert.deepEqual(golf, ["golf-status", "golf-games", "golf-prize-off", "golf-game-add", "golf-game-apply", "golf-game-stop", "golf-game-correct", "golf-game-void"]);
+  const st = A("golf-status");
+  assert.equal(st.sends, false); assert.equal(st.effect, "none"); assert.equal(st.tool, "golf"); assert.deepEqual(st.args, ["status"]);
+  assert.deepEqual(A("golf-prize-off").args, ["off", "6"]); assert.equal(A("golf-prize-off").step, 1);
+  assert.deepEqual(A("golf-game-add").args, ["game-add", "6", "Block Golf", "--staked", "--free", "--season", "1"]); assert.equal(A("golf-game-add").step, 2);
+  assert.deepEqual(A("golf-game-apply").args, ["game-apply", "6"]); assert.equal(A("golf-game-apply").step, 3);
+  assert.deepEqual(A("golf-games").args, ["games"]); assert.equal(A("golf-games").sends, false);
+  for (const id of golf) {
+    const a = A(id);
+    assert.ok(!(a.params ?? []).some((p) => p.name === "game"), `${id}: game 6 is fixed, not a box`);
+    const r = commandFor(a, { week: "3", player: "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr", points: "0" });
+    assert.ok("argv" in r, `${id}: ${JSON.stringify(r)}`);
+    if (a.args.some((x) => /^game-|^off$/.test(x))) assert.equal((r as any).argv[1], "6", `${id} acts on game 6`);
+  }
+  assert.match(A("golf-prize-off").when!, /same week as step 2, or earlier/);
+  // The switches can't be set from the page: a guided card with a button to GitHub's variables page.
+  const g = area.guides!;
+  assert.equal(g.length, 1); assert.equal(g[0].steps.length, 4);
+  assert.equal(g[0].link.url, "https://github.com/bawcejawn/KnodeGames/settings/variables/actions");
+  for (const [i, v] of [[0, /GOLF_ENABLED = true/], [1, /GOLF_STAKED_FROM_WEEK.*Monday 00:57 UTC.*Never change it/], [2, /GOLF_HOLD_WEEKS.*Thursday 00:00 UTC/], [3, /GOLF_ENABLED to false/]] as const) assert.match(g[0].steps[i], v);
+  const server = fs.readFileSync("admin/server.ts", "utf8");
+  assert.match(server, /tool === "golf" \? "bot\/games\/golf\.ts"/);
+});
+test("guided cards: text only, and the button opens only this repository's GitHub pages", () => {
+  const page = fs.readFileSync("admin/index.html", "utf8");
+  const re = new RegExp(page.match(/const GUIDE_URL = \/(.+)\/;/)![1]);
+  assert.ok(re.test("https://github.com/bawcejawn/KnodeGames/settings/variables/actions"));
+  for (const bad of ["https://evil.example/", "https://github.com/someone/else", "javascript:alert(1)", "https://github.com/bawcejawn/KnodeGames.evil.com/x", "https://github.com/bawcejawn/KnodeGames/x?y=\"z"]) assert.ok(!re.test(bad), bad);
+  assert.match(page, /ok \? el\("a", \{ class: "btn guide-link", href: g\.link\.url, target: "_blank", rel: "noopener noreferrer" \}/);
+  for (const a of AREAS) for (const gd of a.guides ?? []) assert.ok(re.test(gd.link.url), `${a.id}: ${gd.link.url}`);
+});

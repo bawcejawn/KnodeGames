@@ -29,3 +29,9 @@
 .share-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .share-row code { font-size: .85rem; word-break: break-all; }
 .share-row .btn { min-height: 38px; padding: 0 16px; }
+
+/* Ruler page (How we measure producers fairly) */
+table.plain { width: 100%; border-collapse: collapse; margin: 4px 0 10px; font-size: 15px; }
+table.plain th, table.plain td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line, rgba(128,128,128,.3)); }
+table.plain th { font-weight: 700; }
+.void-chip { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--chip-bg, rgba(128,128,128,.18)); color: inherit; border: 1px solid rgba(128,128,128,.45); }

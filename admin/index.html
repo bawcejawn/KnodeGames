@@ -82,6 +82,24 @@
   .cmdline { margin-top: 8px; font-size: 12.5px; color: var(--muted); word-break: break-all; }
   .empty { color: var(--muted); padding: 20px 4px; }
 
+  /* games at a glance and all switches */
+  .tbl { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 14px; }
+  .tbl th, .tbl td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  .tbl th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: var(--soft); }
+  .tbl tr:last-child td { border-bottom: 0; }
+  .tbl .names code { display: block; }
+  .tbl .live-val { color: var(--ink); }
+  .tbl .dim { color: var(--muted); }
+  .gbox { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin: 10px 0; padding: 4px 14px 12px; }
+  .gbox > summary { cursor: pointer; padding: 10px 0; font-weight: 600; }
+  .gbox h4 { margin: 14px 0 4px; font-size: 14px; }
+  .steps { margin: 6px 0 6px; padding-left: 22px; } .steps li { margin: 4px 0; }
+  .note { margin: 6px 0; padding: 8px 10px; border-radius: 8px; background: var(--soft); color: var(--muted); font-size: 13.5px; }
+  .perm { color: var(--bad); font-weight: 600; }
+  .copy { font: 12px inherit; padding: 2px 9px; margin-left: 8px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--accent); cursor: pointer; }
+  .raw { margin: 8px 0; } .raw pre { max-height: 260px; overflow: auto; border-radius: 8px; }
+  .swtable td:first-child { white-space: nowrap; }
+
   /* output */
   .out { position: sticky; top: 12px; align-self: start; }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 14px; }
@@ -168,10 +186,19 @@
       el("span", { class: "t" }, h.time + "  "), `${h.areaName} · ${h.label} — `, el("b", { class: h.cls }, h.kindOf)))));
   }
 
-  function card(a, withWhere) {
+  // Copies text to the clipboard; if the browser refuses, the text is selected in an alert-free fallback (never throws).
+  const copyBtn = (getText) => el("button", { type: "button", class: "copy", title: "Copy this command", onclick: async (ev) => {
+    const b = ev.currentTarget, t = getText();
+    try { await navigator.clipboard.writeText(t); b.textContent = "Copied"; } catch { show("Copy: select the command below and press Ctrl+C.", "status-bad", t, ""); b.textContent = "Select it above"; }
+    setTimeout(() => { b.textContent = "Copy"; }, 1600);
+  } }, "Copy");
+
+  // `preset` fixes some values (the game's id, name and season on a game's own cards): those boxes are read-only, so a
+  // card opened for one game cannot act on another by mistake. The server checks every value again.
+  function card(a, withWhere, preset = {}) {
     const area = CAT.areas.find((x) => x.id === a.area);
     const inputs = (a.params || []).map((p) => {
-      const input = p.choices ? el("select", { name: p.name }, ...p.choices.map((c) => el("option", { value: c }, c))) : el("input", { name: p.name, placeholder: p.hint, autocomplete: "off", spellcheck: "false", value: p.value ?? null });
+      const input = p.choices ? el("select", { name: p.name }, ...p.choices.map((c) => el("option", { value: c }, c))) : el("input", { name: p.name, placeholder: p.hint, autocomplete: "off", spellcheck: "false", value: preset[p.name] ?? p.value ?? null, readonly: p.name in preset });
       return el("label", {}, p.label, input, el("small", {}, p.hint));
     });
     const values = () => Object.fromEntries(inputs.map((l) => { const i = l.querySelector("input,select"); return [i.name, i.value.trim()]; }));
@@ -215,8 +242,29 @@
         a.effect === "chain" ? el("dt", {}, "Takes effect") : null, a.effect === "chain" ? el("dd", {}, a.timing || "At once") : null),
       inputs.length ? el("div", { class: "row" }, ...inputs) : null,
       el("div", { class: "btns" }, runBtn, sendBtn),
-      el("div", { class: "cmdline" }, "Runs: ", el("code", {}, a.command)));
+      el("div", { class: "cmdline" }, "Runs: ", el("code", {}, a.command), copyBtn(() => a.command.replace(/\{(\w+)\}/g, (_m, n) => (values()[n] ?? "")))));
   }
+
+  // One game's staking and prize controls: the vault's own cards with that game's id, name and season filled in and fixed.
+  function stakeCards(g) {
+    const get = (id) => CAT.actions.find((x) => x.id === id);
+    const out = [];
+    if (g.addable) {
+      for (const id of ["vault-game-add", "vault-game-apply", "vault-game-stop"]) out.push(card(get(id), false, { game: String(g.id), name: g.name, season: String(g.season) }));
+    } else out.push(el("div", { class: "note" }, `${g.name} is already in the vault: it is never added or applied. Its stakes use the same stake, withdraw and move calls as every game.`));
+    for (const id of ["prizes-off", "prizes-on"]) out.push(card(get(id), false, { game: String(g.id) }));
+    return out;
+  }
+  const gameVars = (g) => CAT.variables.filter((v) => v.games.includes(g.id));
+  function varTable(list) {
+    return el("table", { class: "tbl swtable" }, el("thead", {}, el("tr", {}, ...["Switch", "What to type", "What it does", "When", "Take care"].map((h) => el("th", {}, h)))),
+      el("tbody", {}, ...list.map((v) => el("tr", {},
+        el("td", {}, el("code", {}, v.name), copyBtn(() => v.name)),
+        el("td", {}, v.format), el("td", {}, v.what), el("td", {}, v.when),
+        el("td", {}, v.note ? el("span", { class: /PERMANENT|never change/i.test(v.note) ? "perm" : "" }, v.note) : "")))));
+  }
+  const GUIDE_STEPS = ["Open GitHub's repository variables page with the button below.", "Press New repository variable (or the pencil to edit an existing one).", "Type the switch's name exactly as shown, and the value in the format shown. Press Add variable.", "Come back here and press the matching status check to see the platform pick it up (the next hourly run)."];
+  const switchGuide = () => guide({ title: "How to set a switch on GitHub (this page never holds a GitHub token)", steps: GUIDE_STEPS, link: { label: "Open GitHub repository variables", url: CAT.variablesUrl } });
 
   function byKind(list) {
     const out = [];
@@ -239,6 +287,66 @@
       ok ? el("a", { class: "btn guide-link", href: g.link.url, target: "_blank", rel: "noopener noreferrer" }, g.link.label + " ↗") : null);
   }
 
+  const CHECKS = ["glance-vault", "glance-prizes", "glance-questions", "glance-picks", "glance-race", "glance-golf"];
+  // "Games at a glance": a row per game, filled in by "Check everything" (read-only), then each game's own controls.
+  function glanceView() {
+    const raw = el("div", {}), cells = {};
+    const rows = CAT.games.map((g) => {
+      const area = CAT.areas.find((x) => x.id === g.area), names = gameVars(g).map((v) => v.name);
+      const v = el("td", { class: "live-val dim" }, "Press Check everything"), pz = el("td", { class: "live-val dim" }, "Press Check everything");
+      cells[g.id] = { v, pz };
+      return el("tr", {}, el("td", {}, el("b", {}, g.name), el("br"), el("span", { class: "dim" }, `game ${g.id}`)),
+        el("td", {}, el("span", { class: "pill " + area.status }, STATUS[area.status])), v,
+        el("td", {}, el("span", { class: "dim" }, `planned ${g.freePrize.toUpperCase()}`), el("br"), pz),
+        el("td", { class: "names" }, ...(names.length ? names.map((n) => el("code", {}, n)) : [el("span", { class: "dim" }, "none")])));
+    });
+    const line = (out, re) => { const m = {}; for (const l of out.split(/\r?\n/)) { const x = re.exec(l); if (x && !(x[1] in m)) m[x[1]] = x[2].trim(); } return m; };
+    const checkBtn = el("button", { type: "button", class: "btn primary" }, "Check everything (read-only)");
+    checkBtn.addEventListener("click", async () => {
+      if (running) return banner("Another control is still running: wait for it to finish.", true);
+      running = true; banner(""); checkBtn.disabled = true; raw.replaceChildren();
+      try {
+        for (const id of CHECKS) {
+          show(`Checking: ${CAT.actions.find((x) => x.id === id).label}…`, "status-run", "", "");
+          let r; try { r = await api("/api/run", { action: id, values: {}, send: false }); } catch (e) { r = { code: 1, command: id, output: String(e.message || e) }; }
+          raw.append(el("details", { class: "raw" }, el("summary", {}, `${CAT.actions.find((x) => x.id === id).label} — ${r.code === 0 ? "done" : "error"}`), el("pre", {}, r.output || "(no output)")));
+          if (id === "glance-vault") { const m = line(r.output || "", /^\s*game\s+(\d+)\b\s*(.*)$/i); for (const g of CAT.games) { const c = cells[g.id].v; c.textContent = m[g.id] || (r.code === 0 ? "Not in the vault (or not shown): see the raw result" : "Could not read: see the raw result"); c.className = "live-val"; } }
+          if (id === "glance-prizes") { const m = line(r.output || "", /^\s*(\d+)\s+(.*)$/); for (const g of CAT.games) { const c = cells[g.id].pz; c.textContent = m[g.id] || (r.code === 0 ? "See the raw result" : "Could not read: see the raw result"); c.className = "live-val"; } }
+        }
+        show("Checked everything. Nothing was changed.", "status-ok", "Read-only checks", "");
+      } finally { running = false; checkBtn.disabled = false; }
+    });
+    const launch = (g) => (CAT.launch.find((l) => l.game === g.id) || { steps: [] });
+    const boxes = CAT.games.map((g) => {
+      const L = launch(g);
+      return el("details", { class: "gbox" }, el("summary", {}, `${g.name} (game ${g.id}): staking, prize and launch`),
+        el("h4", {}, "Where it stands"), L.dates ? el("div", { class: "note" }, L.dates + " (taken from the project docs on 12 Nov: the status checks above are the truth.)") : null,
+        el("ol", { class: "steps" }, ...L.steps.map((t) => el("li", {}, t.text))),
+        el("h4", {}, "Staking and free prize (preview first, then send)"), ...stakeCards(g),
+        gameVars(g).length ? el("h4", {}, "Its switches on GitHub") : null, gameVars(g).length ? varTable(gameVars(g)) : null);
+    });
+    return [
+      el("div", { class: "btns" }, checkBtn),
+      el("table", { class: "tbl" }, el("thead", {}, el("tr", {}, ...["Game", "Page", "In the vault", "Free prize (2 + 1 VHP)", "Its GitHub switches"].map((h) => el("th", {}, h)))), el("tbody", {}, ...rows)),
+      raw,
+      el("div", { class: "kind" }, el("h3", {}, "Every game: staking, prize and launch steps"), el("p", {}, "Open a game to see its steps in order and its own cards. The cards are the Knode Vault's, with the game's id fixed so one cannot act on another.")),
+      ...boxes,
+      el("div", { class: "kind" }, el("h3", {}, "Every staked game follows the same order")),
+      el("ol", { class: "steps" }, ...CAT.standardSteps.map((t) => el("li", {}, t.text))),
+    ];
+  }
+  // "All switches": every GitHub variable the workflows read, grouped by game.
+  function switchesView() {
+    const platform = CAT.variables.filter((v) => !v.games.length);
+    return [
+      switchGuide(),
+      el("div", { class: "kind" }, el("h3", {}, "The whole platform")), varTable(platform),
+      ...CAT.games.filter((g) => gameVars(g).length).flatMap((g) => [el("div", { class: "kind" }, el("h3", {}, `${g.name} (game ${g.id})`)), varTable(gameVars(g))]),
+      el("div", { class: "kind" }, el("h3", {}, "Free-prize switches (stored in the repository, not on GitHub)")),
+      el("p", {}, "Each game's free 2 + 1 VHP prize switch lives in free-prizes.json on the prize-settings branch. They are the only switches the page sets itself: preview, then write the file, in Games at a glance or Knode Vault. A change takes effect from the next Monday 00:00 UTC, never this week."),
+    ];
+  }
+
   function openArea(id) {
     const area = CAT.areas.find((x) => x.id === id) || CAT.areas[0];
     store.set("kg-admin-area", area.id);
@@ -257,7 +365,11 @@
         area.later ? el("div", { class: "later" }, area.later) : null,
         ...(area.guides || []).map(guide),
         !list.length && !area.later ? el("div", { class: "later" }, "No controls here yet.") : null),
-      ...byKind(list));
+      ...(area.id === "glance" ? glanceView() : []),
+      ...(area.id === "switches" ? switchesView() : []),
+      ...(area.gameId && CAT.games.some((g) => g.id === area.gameId) && gameVars(CAT.games.find((g) => g.id === area.gameId)).length
+        ? [el("div", { class: "kind" }, el("h3", {}, "Switches on GitHub for this game"), el("p", {}, "Set on GitHub, not on this page. See All switches for how.")), varTable(gameVars(CAT.games.find((g) => g.id === area.gameId)))] : []),
+      ...byKind(area.id === "glance" ? [] : list));
     window.scrollTo({ top: 0 });
   }
 
@@ -285,8 +397,10 @@
       const area = CAT.areas.find((x) => x.id === a.area);
       return [a.label, a.what, a.when, a.signer, area.name, CAT.kinds[a.kind].title, a.command].join(" ").toLowerCase().includes(q);
     });
-    $("#main").replaceChildren(el("div", { class: "area-head" }, el("h2", {}, `Search: “${$("#search").value.trim()}”`), el("p", {}, `${hits.length} control${hits.length === 1 ? "" : "s"} across the platform.`)),
-      ...(hits.length ? hits.map((a) => card(a, true)) : [el("p", { class: "empty" }, "Nothing matches. Try another word.")]));
+    const vhits = CAT.variables.filter((v) => [v.name, v.what, v.when, v.note || "", v.format].join(" ").toLowerCase().includes(q));
+    $("#main").replaceChildren(el("div", { class: "area-head" }, el("h2", {}, `Search: “${$("#search").value.trim()}”`), el("p", {}, `${hits.length} control${hits.length === 1 ? "" : "s"} and ${vhits.length} GitHub switch${vhits.length === 1 ? "" : "es"} across the platform.`)),
+      ...(vhits.length ? [el("div", { class: "kind" }, el("h3", {}, "Switches on GitHub")), varTable(vhits)] : []),
+      ...(hits.length ? hits.map((a) => card(a, true)) : vhits.length ? [] : [el("p", { class: "empty" }, "Nothing matches. Try another word.")]));
   });
 
   (async () => {

@@ -358,6 +358,8 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
     if (why) {
       if (only) throw new Error(`Results for ${name} week ${w} can't be used: ${why}.`);
       log(ctx, `  ${name} week ${w}: results not ready (${why}); due ${utc(due)}`);
+      // Repo Lens #G-17 G-SH-1: a shadow mark never clears by itself, so say so at once (once per game-week), not 12 h out.
+      if (/marked "shadow"/.test(why)) alert(`${key}:shadow`, `${name} week ${w}: its results file carries a VHP-ruler shadow mark (${why}), so the vault won't post it. Ask the game chat to fix its recorder and publish the real week's file. ${rollover}`);
       if (hoursLeft < 12) ctx.problems.push(`${name}: week ${w}'s results are not ready (${why}) and are due ${utc(due)} (${hoursLeft.toFixed(1)} h). Without them the week rolls over: its bucket stays in the game and its prize goes back to the pool.`);
       continue;
     }

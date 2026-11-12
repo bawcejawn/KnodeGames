@@ -76,10 +76,15 @@
       const st = status === "final" && Array.isArray(res.standings) ? res.standings : [];
       const picks = status === "final" && Array.isArray(res.picks) ? res.picks : [];
       const wins = M.winners(st), show = M.shows(st);
-      const isWin = (p) => p[3] === 1, isShow = (p) => !isWin(p) && (p.length > 5 ? p[5] === 1 : show.includes(p[1]));
+      const rf = this.ruler.get(this.week), re = rf && rf.races.find((e) => e && e.id === r.id), K = window.KRulerVoid;
+      const V = K ? K.rulerVoids(re, rf) : { has: false, shadow: false, wholeVoid: false, voids: [] };
+      // G28-1: in a week the Ruler scores (mode "on") a pick's outcome is the Ruler's, not the handicap flags in W<week>.json.
+      const ruled = (p) => (K && K.ruledPick ? K.ruledPick(re, rf, p) : null);
+      const isWin = (p) => { const o = ruled(p); return o ? o.outcome === "win" : p[3] === 1; };
+      const isShow = (p) => { const o = ruled(p); return o ? o.outcome === "show" : !isWin(p) && (p.length > 5 ? p[5] === 1 : show.includes(p[1])); };
       const my = me() ? picks.find((p) => p[0] === me()) : null;
-      const rf = this.ruler.get(this.week), V = window.KRulerVoid ? window.KRulerVoid.rulerVoids(rf && rf.races.find((e) => e && e.id === r.id), rf) : { has: false, shadow: false, wholeVoid: false, voids: [] };
-      return { r, status, st, picks, wins, show, isWin, isShow, my, V, myPts: my ? (isWin(my) ? M.POINTS.win : isShow(my) ? M.POINTS.show : 0) : 0 };
+      const mine = my ? ruled(my) : null;     // null unless the Ruler scores this week
+      return { r, status, st, picks, wins, show, isWin, isShow, my, V, mine, myPts: my ? (isWin(my) ? M.POINTS.win : isShow(my) ? M.POINTS.show : 0) : 0 };
     },
     draw() {
       const f = this.files.get(this.week), box = this.box;
@@ -150,10 +155,11 @@
         if (V && V.has && (V.wholeVoid || V.voids.length)) {
           const trial = V.shadow ? el("span", { class: "void-chip", text: "Trial, counts for nothing" }) : null;
           body.push(el("p", { class: "res-line rr-void" }, trial, trial ? " " : null,
-            V.wholeVoid ? "Void race: every producer was void, so no pick scores." : el("span", {}, el("span", { class: "void-chip", title: "Its VHP moved too much during this race, so it didn't count. Picks on it count as a loss.", text: "Void" }), " ", ...V.voids.flatMap((a, i) => [i ? ", " : null, link(a)]), " (not counted in the ruler's result)")));
+            V.wholeVoid ? "Void race: no producer counted, so no pick scores." : el("span", {}, el("span", { class: "void-chip", title: "Its VHP moved too much during this race, so it didn't count. Picks on it count as a loss.", text: "Void" }), " ", ...V.voids.flatMap((a, i) => [i ? ", " : null, link(a)]), " (not counted in the ruler's result)")));
         }
         if (x.my) {
-          const outcome = x.isWin(x.my) ? `won · +${M.POINTS.win} pts` : x.isShow(x.my) ? `showed · +${M.POINTS.show} pt` : "missed · 0 pts";
+          const outcome = x.mine && x.mine.outcome === "waiting" ? "waiting for the Ruler's result" : x.mine && x.mine.outcome === "void" ? "void race: no pick scores · 0 pts"
+            : x.isWin(x.my) ? `won · +${M.POINTS.win} pts` : x.isShow(x.my) ? `showed · +${M.POINTS.show} pt` : "missed · 0 pts";
           body.push(el("p", { class: `res-line rr-mine ${x.myPts ? "ok" : ""}` }, el("b", { text: "You: " }), link(x.my[1]), ` ${outcome}`));
         }
         body.push(el("details", { class: "res-how" }, el("summary", {}, "Full standings"),
@@ -161,7 +167,7 @@
             el("thead", {}, el("tr", {}, el("th", { text: "#" }), el("th", { text: "Producer" }), el("th", { class: "num", text: "Steps" }), el("th", { class: "num", text: "Blocks" }))),
             el("tbody", {}, ...x.st.map((s, i) => el("tr", { class: x.my && x.my[1] === s.a ? "me" : null }, el("td", { text: String(i + 1) }), el("td", {}, link(s.a), x.V && x.V.voids.includes(s.a) ? el("span", { class: "void-chip", text: "Void" }) : null), el("td", { class: "num", text: fmt(s.steps, 1) }), el("td", { class: "num", text: fmt(s.blocks) }))))))));
       }
-      return el("article", { class: `res rr res-st-${status === "final" ? (x.my ? (x.myPts ? "right" : "wrong") : "none") : "wait"}` }, head, ...body);
+      return el("article", { class: `res rr res-st-${status === "final" && !(x.mine && x.mine.outcome === "waiting") ? (x.my ? (x.myPts ? "right" : "wrong") : "none") : "wait"}` }, head, ...body);
     },
   };
 

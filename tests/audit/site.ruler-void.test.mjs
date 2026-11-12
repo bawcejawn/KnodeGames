@@ -42,7 +42,7 @@ test("only real addresses are listed (no markup or junk from the data)", () => {
 const js = fs.readFileSync(`${APP}results.js`, "utf8"), home = fs.readFileSync(`${APP}index.html`, "utf8"), page = fs.readFileSync(`${APP}ruler.html`, "utf8");
 test("results.js reads race-data R<week>.json by week number, draws with textContent, and never errors when it is missing", () => {
   assert.match(js, /race-data\/R\$\{String\(w\)\.padStart\(3, "0"\)\}\.json/);
-  assert.match(js, /KRulerVoid\.rulerVoids/);
+  assert.match(js, /K\.rulerVoids\(re, rf\)/); assert.match(js, /K\.ruledPick\(re, rf, p\)/, "G28-1: a pick's outcome is the Ruler's in an ON week");
   assert.match(js, /Trial, counts for nothing/);
   assert.match(js, /no pick scores/); assert.doesNotMatch(js, /given back/);
   assert.doesNotMatch(js, /innerHTML|insertAdjacentHTML|eval\(/);
@@ -86,7 +86,10 @@ test("the Race page keeps a short Ruler line and one results table; its Rules ta
   const h = fs.readFileSync(`${APP}race.html`, "utf8"), js = fs.readFileSync(`${APP}race.js`, "utf8"), idx = fs.readFileSync(`${APP}index.html`, "utf8");
   assert.match(h, /<h2>Ruler results<\/h2>/); assert.match(h, /href="ruler\.html">How the Ruler works/);
   assert.ok((h.match(/id="ruler-box"[\s\S]*?<\/section>/)[0].length) < 700, "a short box");
-  assert.match(js, /hist\.hidden = cur\.mode === "on" && body\.length > 0/, "the older Results table is hidden once the Ruler scores the race");
+  assert.match(js, /histHidden = cur\.mode === "on" && body\.length > 0/, "the older Results table is hidden once the Ruler scores the race");
+  assert.match(js, /n\.hidden = t !== 0 \|\| \(id === "history" && histHidden\)/, "G28-2: switching race types and back keeps it hidden");
+  assert.match(js, /No producer counted: no pick scores/); assert.doesNotMatch(js, /Every producer was void/);
+  assert.match(js, /ruledPick\(re, rf, p\)/, "G28-1: the picks-today rows read the Ruler's outcome");
   assert.match(js, /class: "rl"/);
   assert.match(idx, /Scored by the VHP Ruler<\/b> from Week 1/);
 });

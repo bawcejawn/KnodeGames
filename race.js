@@ -334,10 +334,16 @@
     for (let i = cur - 1; i >= d0 - 4 && i >= 0; i--) {
       const r = raceObj(i), p = r.result && Array.isArray(r.result.picks) ? r.result.picks.find((x) => x[0] === who) : null;
       if (!p) continue;
+      // G28-1: in a week the Ruler scores, the Ruler's outcome decides, not the handicap flags in the W file.
+      const rf = rulerFiles.get(M.weekOf(r.start)), re = rf && rf.races.find((x) => x && x.id === r.id), K = window.KRulerVoid;
+      const ro = K && K.ruledPick ? K.ruledPick(re, rf, p) : null;
+      const win = ro ? ro.outcome === "win" : !!p[3], show = ro ? ro.outcome === "show" : isShow(r.result, p);
+      const winner = ro ? (re && re.placings && re.placings[0] ? nameOf(re.placings[0]) : "") : nameOf(r.result.winner || "");
+      const said = ro && ro.outcome === "waiting" ? `You picked ${nameOf(p[1])}; waiting for the Ruler's result` : ro && ro.outcome === "void" ? `You picked ${nameOf(p[1])}; no producer counted, so no pick scores` : `You picked ${nameOf(p[1])}; ${winner} won`;
       rows.push(el("div", { class: "pk-row done" },
-        el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: "final" })),
-        el("div", { class: "pk-now", text: `You picked ${nameOf(p[1])}; ${nameOf(r.result.winner || "")} won` }),
-        el("span", { class: p[3] || isShow(r.result, p) ? "pk-ok" : "pk-no", text: p[3] ? `✓ Win +${M.POINTS.win}` : isShow(r.result, p) ? `✓ Show +${M.POINTS.show}` : "✗" })));
+        el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: ro && ro.outcome === "waiting" ? "waiting" : "final" })),
+        el("div", { class: "pk-now", text: said }),
+        el("span", { class: win || show ? "pk-ok" : "pk-no", text: win ? `✓ Win +${M.POINTS.win}` : show ? `✓ Show +${M.POINTS.show}` : ro && ro.outcome === "waiting" ? "…" : "✗" })));
     }
     list.replaceChildren(...rows);
   }
@@ -435,9 +441,13 @@
   // ── the VHP ruler (owner, 11 Nov 2026): R<week>.json, the ruler's cards for the 6-hour race ──
   // Shown only when the ruler is in shadow or on for this week: "from Monday …" (the switch's week), and each race's
   // ruler 1st / 2nd / 3rd (marked "shadow: counts for nothing" in the shadow week).
+  // The Ruler's files by week, and whether the older Results table is hidden (kept for the race-type tabs too: G28-2).
+  const rulerFiles = new Map();
+  let histHidden = false;
   async function loadRuler() {
     const w = M.weekOf(Date.now()), files = [];
     for (const x of [w - 1, w]) { try { const j = await fetchJson(`${DATA}R${String(x).padStart(3, "0")}.json`); if (j && j.v === 1 && j.week === x && Array.isArray(j.races)) files.push(j); } catch { /* none */ } }
+    for (const j of files) rulerFiles.set(j.week, j);
     const cur = files.find((j) => j.week === w) || files[files.length - 1];
     if (!cur || cur.mode === "off" || !Number.isInteger(cur.rulerFrom)) { $("ruler-box").hidden = true; return; }
     $("ruler-box").hidden = false;
@@ -450,9 +460,11 @@
     for (const j of files) for (const e of j.races.slice().reverse()) {
       if (body.length >= 6) break;
       const r = (weeks.get(j.week)?.races || []).find((x) => x.id === e.id), v = V ? V.rulerVoids(e, j) : { has: false, voids: [], wholeVoid: false };
-      const place = (i) => el("td", {}, e.card && e.placings && e.placings[i] ? nameOf(e.placings[i]) : "–");
+      // A 2nd or 3rd that signed no block scores no show (D-033): say so beside the name.
+      let signed = {}; try { for (const p of (e.card ? JSON.parse(e.card).producers || [] : [])) signed[p.a] = Number(p.signed); } catch { signed = {}; }
+      const place = (i) => el("td", {}, e.card && e.placings && e.placings[i] ? [nameOf(e.placings[i]), i > 0 && !(signed[e.placings[i]] >= 1) ? el("small", { class: "muted", text: " (signed 0: no show)" }) : ""] : "–");
       const note = !e.card ? el("td", { colspan: "3", class: "muted", text: "Result comes in once the race's blocks are in." })
-        : v.wholeVoid ? el("td", { colspan: "3" }, "Every producer was void: no pick scores.") : null;
+        : v.wholeVoid ? el("td", { colspan: "3" }, "No producer counted: no pick scores.") : null;
       const voided = v.has && v.voids.length && !v.wholeVoid ? el("span", { class: "void-chip", title: "Void: its VHP moved too much during this race, so it didn't count", text: `${v.voids.length} void` }) : null;
       const when = el("td", { class: "rl-when" }, el("b", { text: r ? dayTime(r.start) : e.id }), el("span", { text: j.shadow ? "trial" : e.card ? "final" : "checking" }), voided);
       body.push(el("tr", {}, when, ...(note ? [note] : [place(0), place(1), place(2)])));
@@ -462,7 +474,9 @@
     $("ruler-list").replaceChildren(!body.length ? el("p", { class: "note", text: "No Ruler results yet." }) : trial ? el("details", { class: "rl-trial" }, el("summary", { text: "Trial results (count for nothing)" }), table) : table);
     // Once the Ruler scores the race, its table is the results: the older Results table below would repeat them.
     const hist = document.getElementById("history");
-    if (hist) hist.hidden = cur.mode === "on" && body.length > 0;
+    histHidden = cur.mode === "on" && body.length > 0;
+    if (hist && rtype === 0) hist.hidden = histHidden;
+    renderPicks(true);            // G28-1: "your picks today" reads the Ruler's outcome, so redraw when its file arrives
   }
   if (W && W.subscribe) W.subscribe(() => { loadMine(); renderBoard(); });
   // When the names list arrives or changes, redraw everything that shows a producer or player: the horses, card,
@@ -525,7 +539,7 @@
     rtype = t;
     for (const id of ["rt-rows", "rt-picks"]) { const z = $(id); if (z) z.replaceChildren(); }   // L-9: no row of the old type stays on screen
     try { localStorage.setItem("pr-type", String(t)); } catch { /* per-viewer convenience only */ }
-    for (const id of ["live", "pick-zone", "history"]) { const n = $(id); if (n) n.hidden = t !== 0; }
+    for (const id of ["live", "pick-zone", "history"]) { const n = $(id); if (n) n.hidden = t !== 0 || (id === "history" && histHidden); }   // G28-2: a week the Ruler scores never shows the handicap table
     $("typed").hidden = t === 0;
     rtTabs();
     if (t) { rtLoadMine().then(() => rtRender(true)); }

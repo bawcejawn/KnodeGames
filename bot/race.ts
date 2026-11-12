@@ -1243,7 +1243,12 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   const open = wf.races.filter((r) => (!r.result?.final || (rulerOn(w) && RR.ruledResult(r.result, rulerEntry(w, r.id)) === null)) && !M.restRace(r.start, rhythmFromWeek) && !(r.start < firstCard && !r.cards.some(Boolean)));
   // D-166: a typed race of the week still being scored keeps it open too (never past the same deadline).
   // Option A: also open until the ruler has scored it.
-  const openTyped = (typesAll.get(w)?.races || []).filter((r) => (!r.result?.final || (!r.result.missed && typedRuled(w, r) === null)) && forWeek(r));
+  const openTyped = (typesAll.get(w)?.races || []).filter((r) => (!r.result?.final || (rulerOn(w) && !r.result.missed && typedRuled(w, r) === null)) && forWeek(r));   // G29-1: waits for the ruler only in an ON week, as `open` does
+  // G29-1 (Repo Lens #G-29): a typed race whose result is in and that waits ONLY for the ruler's card gets the same
+  // RULER_GRACE and alert as a 6-hour race; the others keep the usual deadline. Every typed race skipped is listed.
+  const typedWaiting = openTyped.filter((r) => r.result?.final && !r.result.missed);
+  const typedOther = openTyped.filter((r) => !typedWaiting.includes(r));
+  const idOf = (r: { id: string }) => r.id;
   const late = now >= wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER);   // D-125: the review day comes first
   // The VHP ruler (owner, 12 Nov): a race whose result is in and that waits ONLY for the ruler's card (its data behind)
   // keeps the week open up to RULER_GRACE after the week ends, inside the vault's 3 days, instead of being skipped at
@@ -1267,13 +1272,14 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
     return file;
   }
   if (otherOpen.length && !late) return wait(`${otherOpen.length} race(s) still being checked (${otherOpen.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
-  if (rulerWaiting.length && !lateRuler) {
-    const why = `${rulerWaiting.length} race(s) waiting for the VHP ruler's result (${rulerWaiting.slice(0, 5).map((r) => r.id).join(", ")}${rulerWaiting.length > 5 ? ", …" : ""}): the ruler's data (vhp-data) is behind. The week waits for it (nothing is lost) until ${new Date(wf.end + RULER_GRACE).toISOString().slice(0, 16)} UTC, then those races are skipped`;
+  const ruleWait = [...rulerWaiting, ...typedWaiting];
+  if (ruleWait.length && !lateRuler) {
+    const why = `${ruleWait.length} race(s) waiting for the VHP ruler's result (${ruleWait.slice(0, 5).map(idOf).join(", ")}${ruleWait.length > 5 ? ", …" : ""}): the ruler's data (vhp-data) is behind. The week waits for it (nothing is lost) until ${new Date(wf.end + RULER_GRACE).toISOString().slice(0, 16)} UTC, then those races are skipped`;
     problems.push(`vault week ${w}: not final yet, ${why}`);
     if (now >= wf.end + (onRhythm(w) ? RHYTHM_ALERT_AFTER : VAULT_ALERT_AFTER)) heldAlert(w, wf.end, now, why, RULER_FIX);
     return file;
   }
-  if (openTyped.length && !late) return wait(`${openTyped.length} race(s) of the other types still being scored (${openTyped.slice(0, 5).map((r) => r.id).join(", ")}${openTyped.length > 5 ? ", …" : ""}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
+  if (typedOther.length && !late) return wait(`${typedOther.length} race(s) of the other types still being scored (${typedOther.slice(0, 5).map(idOf).join(", ")}${typedOther.length > 5 ? ", …" : ""}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
   if (unread.length) return wait(`${unread.length} Race stake(s) could not be read (tried again next run)`);
   if (stakedCheck) {
     for (const r of rows) {
@@ -1285,10 +1291,10 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   if (open.length) problems.push(`vault week ${w}: ${open.length} race(s) never became final and are skipped: ${open.map((r) => r.id).join(", ")}`);
   if (openTyped.length) problems.push(`vault week ${w}: ${openTyped.length} race(s) of the other types never became final and are skipped: ${openTyped.slice(0, 10).map((r) => r.id).join(", ")}`);
   // Before the Race earns in the vault: a final file with nothing to pay (the vault skips those weeks anyway).
-  if (w < prizesFromWeek) return await settle({ ...file, final: true, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
+  if (w < prizesFromWeek) return await settle({ ...file, final: true, skipped: [...open.map(idOf), ...openTyped.map(idOf)] }, wf.end, now, problems, all);
   const places = prizePlaces(rows), staked = stakedRows(cutLine(rank(rows)));
   for (const n of [...places.notes, ...staked.notes]) problems.push(`vault week ${w}: ${n}`);
-  return await settle({ ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
+  return await settle({ ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: [...open.map(idOf), ...openTyped.map(idOf)] }, wf.end, now, problems, all);
 }
 
 // ── the hold before a vault file goes final (I-034, R-RACE-1; owner 2026-11-03: 12 hours, then two matching runs) ──

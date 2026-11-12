@@ -434,3 +434,63 @@ test("page (option A): the ruler box lists the race types' results and their voi
   assert.match(js, /typesLive\(\) \? \[1, 2, 3, 4\]\.map\(\(t\) => `R\$\{String\(x\)\.padStart\(3, "0"\)\}-\$\{t\}\.json`\) : \[\]/);
   assert.match(js, /\$\("ruler-types"\)\.hidden = !typesLive\(\)/);
 });
+
+// Repo Lens #G-29 probes (append to tests/audit/race-ruler.test.mjs; uses its go / publish / read / copy / bareRepo / tmp / published).
+test("Repo Lens #G-29: a typed ruler file with a wrong window, or another type's cards, is held alone; R002-5.json is refused", async () => {
+  let d = "";
+  for (const t of ["00", "01", "02"]) d = await go(U(`2026-11-02T${t}:37Z`), d, { rulerFrom: 2, typesFrom: 2 });
+  const env = { RACE_RULER_FROM_WEEK: "2", RACE_TYPES_FROM: "2" }, at = U("2026-11-02T02:45Z");
+  const base = () => { const b = bareRepo(), w1 = tmp(); fs.writeFileSync(path.join(w1, "R001.json"), JSON.stringify({ v: 1, week: 1, rulerFrom: 2, mode: "shadow", shadow: true, races: [] }) + "\n"); assert.ok(publish(w1, b, U("2026-10-31T12:00Z"), env).ok); return b; };
+  // 1. a window one block off
+  const w = copy(d), rf = read(w, "R002-1.json"), x = rf.races.find((q) => q.card);
+  x.window = { ...x.window, W0: x.window.W0 + 1 };
+  fs.writeFileSync(path.join(w, "R002-1.json"), JSON.stringify(rf) + "\n");
+  const b1 = base(), r1 = publish(w, b1, at, env);
+  assert.ok(r1.ok, r1.out); assert.match(r1.out, /R002-1\.json \(VHP ruler\) held.*window or round/);
+  assert.equal(published(b1, "R002-1.json"), null); assert.ok(published(b1, "R002-2.json"));
+  // 2. the 1-hour cards under the daily race's name
+  const t3 = copy(d); fs.copyFileSync(path.join(t3, "R002-1.json"), path.join(t3, "R002-3.json"));
+  const b2 = base(), r2 = publish(t3, b2, at, env);
+  assert.ok(r2.ok, r2.out); assert.match(r2.out, /R002-3\.json \(VHP ruler\) held/);
+  assert.equal(published(b2, "R002-3.json"), null); assert.ok(published(b2, "R002-1.json"));
+  // 3. a type that doesn't exist
+  const t5 = copy(d); fs.copyFileSync(path.join(t5, "R002-1.json"), path.join(t5, "R002-5.json"));
+  const r3 = publish(t5, base(), at, env);
+  assert.match(r3.out, /Refusing to publish unexpected files.*R002-5\.json/);
+});
+
+// ── Repo Lens #G-29 G29-1 (Low): a typed race the ruler never scored is waited for like a 6-hour race, then listed in skipped ──
+test("G29-1: an ON week with typed races waiting only for the ruler waits the 48 h grace (with the owner's alert), then lists them in skipped", async () => {
+  const stop = FROM + 15 * 28800 + 28800 + 1200;   // the ruler's data stops 1 hour into Mon 2 Nov
+  const short = R.ledger({ ...timeline(), to: stop, signers: chain.who.slice(0, stop - FROM + 1), ids: chain.ids.slice(0, stop - FROM + 1) });
+  const o = { rulerFrom: 2, typesFrom: 2, ledger: short };
+  const a = await go(U("2026-11-02T05:37Z"), "", o);
+  const b = await go(U("2026-11-02T06:37Z"), a, { ...o, picks: [[W1, P[0], 10]] });
+  const w = read(b, "W002.json");
+  for (const r of w.races) if (!r.result) r.result = { final: true, missed: true, note: "no handicap card was recorded for this race" };
+  fs.writeFileSync(path.join(b, "W002.json"), JSON.stringify(w) + "\n");
+  const t = read(b, "T002.json");
+  for (const r of t.races) if (!r.result) r.result = { final: true, missed: false, picks: [], standings: [] };
+  fs.writeFileSync(path.join(b, "T002.json"), JSON.stringify(t) + "\n");
+  const c = await go(U("2026-11-09T16:37Z"), b, o);
+  assert.equal(read(c, "vault/W2.json").final, false, "within the grace: waits");
+  assert.ok(lastRun.held.some((m) => /waiting for the VHP ruler's result/.test(m) && /Re-run all jobs/.test(m)), lastRun.held.join(" | "));
+  const d = await go(U("2026-11-11T01:37Z"), c, o);
+  const files = fs.readdirSync(path.join(d, "vault"));
+  const pend = files.find((f) => /W2/.test(f) && /PENDING/.test(f));
+  const v = read(d, "vault/" + (read(d, "vault/W2.json").final ? "W2.json" : pend || "W2.json"));
+  if (v.skipped.length) assert.ok(v.skipped.some((id) => /^(H1|H2|D|W)-/.test(id)), "typed races skipped are listed: " + JSON.stringify(v.skipped));
+  else assert.fail("past the grace the would-be file should list skipped races: " + files.join(",") + " " + JSON.stringify(v) + " | " + lastRun.problems.join(" | "));
+  // The publish job accepts a vault file that names typed races in skipped.
+  const env = { RACE_RULER_FROM_WEEK: "2", RACE_TYPES_FROM: "2", PRIZES_FROM_WEEK: "2" }, bare = bareRepo(), w1 = tmp();
+  fs.writeFileSync(path.join(w1, "R001.json"), JSON.stringify({ v: 1, week: 1, rulerFrom: 2, mode: "shadow", shadow: true, races: [] }) + "\n");
+  assert.ok(publish(w1, bare, U("2026-10-31T12:00Z"), env).ok);
+  const pr = publish(d, bare, U("2026-11-11T01:45Z"), env);
+  assert.ok(pr.ok, pr.out); assert.doesNotMatch(pr.out, /isn't in skipped/, pr.out);
+});
+
+test("G29-1: in a week the ruler isn't on for, a typed race never waits for (or is skipped for want of) a ruler card", async () => {
+  let f = "";
+  for (const t of ["00", "01", "02"]) f = await go(U(`2026-11-02T${t}:37Z`), f, { rulerFrom: 3, typesFrom: 2 });
+  assert.ok(!lastRun.problems.some((m) => /waiting for the VHP ruler's result/.test(m)), lastRun.problems.join(" | "));
+});

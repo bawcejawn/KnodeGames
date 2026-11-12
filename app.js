@@ -1199,21 +1199,18 @@
       return;
     }
     const p = S.player || {};
-    const active = S.activeStake ?? big(p.stake), total = big(p.stake) + big(p.pending);
-    const joining = total > active ? total - active : 0n;
     const B = S.board[S.week], me = B?.scored.find((x) => x.address === S.account);
     const elig = B ? B.scored.filter((x) => x.eligible) : [];
-    const place = me && me.eligible && me.counted > 0 ? [`#${elig.indexOf(me) + 1}`, el("small", {}, ` of ${elig.length}`)] : [active >= UNIT ? "–" : "Free"];
+    const place = me && me.eligible && me.counted > 0 ? [`#${elig.indexOf(me) + 1}`, el("small", {}, ` of ${elig.length}`)] : ["–"];
     const owed = S.claims.reduce((a, c) => a + big(c.reward), 0n);
     band.replaceChildren(
       el("div", { class: "band-main" }, kicker,
         el("div", { class: "band-stats" },
           stat("Your place", place, me && !me.eligible && me.counted > 0 ? "free play" : me?.winner ? "in the top 30%" : null),
-          stat("Points", String(me ? me.pts : 0), "this week"),
-          stat("Staked", [amount(active), el("small", {}, " VHP")], joining > 0n ? `+${amount(joining)} next week` : active < UNIT ? "stake 1+ to win" : null))),
+          stat("Points", String(me ? me.pts : 0), "this week"))),
       el("div", { class: "band-actions" },
         // Staking is on the shared Stake page, like every game (D-116): stake, withdraw, move and collect there.
-        el("a", { class: "btn btn-tang", href: STAKE_HREF }, "Stake or withdraw"),
+        el("a", { class: "btn btn-tang", href: STAKE_HREF }, "Stakes and rewards"),
         owed > 0n ? el("button", { class: "btn btn-sun band-collect", type: "button", onclick: () => { const c = $("#panel-claim"); if (c && c.scrollIntoView) c.scrollIntoView({ behavior: "smooth", block: "center" }); } }, `${amount(owed)} VHP to collect`) : null,
         el("button", { class: "btn btn-onnavy band-share", type: "button", onclick: () => openShare(S.week) }, "Share my week")));
   }
@@ -1366,35 +1363,8 @@
     $("#stat-ends").textContent = duration((now < S.genesis ? S.genesis : S.weekEnd) - now);
     $("#stat-ends").nextElementSibling.textContent = now < S.genesis ? "until the first week starts" : "until the week ends";
     // Last week and this week, kept apart. Until last week closes, everything earned still belongs to it.
-    const P = S.prev, lastBox = $("#pot-last");
+    const P = S.prev;
     const prevOpen = !!(P && !P.closed);
-    const DAYM = 86400000;
-    if (P && P.G) {
-      // Shared rules (v6.1): closed by the bot, then the results file is posted (due 3 days after the week ends), sealed,
-      // open to correction for 24 hours, finalized; rewards are collected on the Stake page.
-      const b = sharedLastWeek(P, now, S.closeDelay);
-      lastBox.hidden = b.hidden;
-      $("#pot-last-k").textContent = b.k;
-      $("#pot-last-v").textContent = b.v;
-      $("#pot-last-note").textContent = b.note;
-    } else {
-      lastBox.hidden = !P || (P.finalized && !S.claims.some((c) => c.week === P.week) && now > num(P.W.settle_end) + DAYM);
-      if (P) {
-        const settle = num(P.W.settle_end), closeAt = S.genesis + S.week * (num(st.config?.week_length) || 604800000) + (S.closeDelay || 43200000);
-        $("#pot-last-k").textContent = `${WL(P.week)} · ${!P.closed ? "closing" : !P.finalized ? "closed" : "final"}`;
-        $("#pot-last-v").textContent = `${amount(P.closed ? P.W.pot : forAll)} VHP`;
-        // Since the v6.1 Mana fix no player action closes a week: the bot does, about an hour after the close time.
-        $("#pot-last-note").textContent = !P.closed
-          ? `waiting for the weekly close, ${now < closeAt ? `about ${dayTime(closeAt)}` : "within about an hour"}`
-          : !P.finalized ? `winners final ${settle ? dayTime(settle) : "Tuesday"}` : "ready to collect";
-      }
-    }
-    $("#stat-pot-k").textContent = now < S.genesis ? "Pool so far" : sharedWeek(S.week) ? `The vault, ${WL(S.week)} so far` : `${WL(S.week)} so far`;
-    const shared = sharedWeek(S.week);
-    $("#stat-pot").textContent = `${amount(prevOpen ? 0n : shared ? forAll : forWinners)} VHP`;
-    $("#stat-pot-note").textContent = prevOpen ? `starts counting when week ${P.week + 1} closes`
-      : shared ? "earned by the whole vault, after the 5% fee; every game gets its share by stake when the week closes"
-        : rewardRule(S.week) ? "for the staked winners, after the 5% fee and up to 2 VHP for the top free players" : "for the winners, after the 5% fee";
     $("#stat-players").textContent = S.boardWeek === S.week && S.board[S.week] ? String(S.board[S.week].scored.length) : "…";
     renderBand(now);
 
@@ -1444,7 +1414,7 @@
     // you
     const you = $("#you-body");
     if (!S.account) {
-      you.replaceChildren(el("p", { class: "muted" }, "Connect a wallet to stake and answer: Kondor on a computer, or KOIN Vault on your phone (fingerprint or face, no extension)."),
+      you.replaceChildren(el("p", { class: "muted" }, "Connect a wallet to answer: Kondor on a computer, or KOIN Vault on your phone (fingerprint or face, no extension), or play as a guest."),
         el("div", { class: "row-btns" }, el("button", { class: "btn btn-primary", type: "button", onclick: connect }, "Connect wallet")));
     } else {
       const p = S.player || {};
@@ -1452,10 +1422,6 @@
       const joining = total > active ? total - active : 0n;
       const pts = S.board[S.week]?.scored.find((s) => s.address === S.account);
       you.replaceChildren(...[
-        el("div", { class: "you-big" }, el("b", {}, amount(S.activeStake ?? p.stake)), el("span", { class: "muted" }, nowMs() < S.genesis ? "VHP playing in week 1 (starts Monday)" : "VHP playing this week")),
-        (S.activeStake ?? 0n) < UNIT ? el("p", { class: "free-note" }, "You're playing free: your points count on the leaderboard. Stake at least 1 VHP to share in the rewards (a stake counts from the next week).") : null,
-        // Only the part that doesn't count yet. (Deposits made before the game starts already count for week 1.)
-        joining > 0n ? el("p", { class: "muted" }, `+ ${amount(joining)} VHP joining next week`) : null,
         el("dl", { class: "facts", style: "margin-top:14px" },
           el("dt", {}, "Points this week"), el("dd", {}, pts ? String(pts.pts) : "0"),
           ...(nowMs() >= S.genesis && pts && pts.counted > 0 ? [
@@ -1466,7 +1432,7 @@
           el("dt", {}, "Answers given"), el("dd", {}, String((S.entry?.answers || []).length)),
           el("dt", {}, "Wallet"), el("dd", { class: "addr" }, short(S.account))),
         S.entry?.voided ? el("p", { class: "warn" }, "You withdrew this week, so this week's answers don't count.") : null,
-        el("div", { class: "row-btns" }, el("a", { class: "btn btn-primary", href: STAKE_HREF }, "Stake, withdraw or move on the Stake page"))].filter(Boolean));
+        el("div", { class: "row-btns" }, el("a", { class: "btn btn-primary", href: STAKE_HREF }, "Your stakes and rewards: Stake page"))].filter(Boolean));
     }
     // claims
     const cp = $("#panel-claim");
@@ -1477,13 +1443,6 @@
     $("#claim-body").replaceChildren(...(sharedEnded ? [el("p", { class: "muted" }, "Rewards from the newer weeks are collected on the ", el("a", { href: STAKE_HREF }, "Stake page"), ", with every game's. Earlier weeks' rewards stay here and never expire.")] : []), ...(S.claims.length ? [el("p", { class: "muted", id: "claim-waiting" }, "A reward is waiting for you. It never expires; collect it any time.")] : []), ...S.claims.map((c) => el("div", { class: "claim-row" },
       el("span", {}, el("b", {}, `${amount(c.reward)} VHP`), el("br"), el("span", { class: "muted" }, c.free ? `${WL(c.week)}: top free player prize. Stake it to share the full pool next week!` : `${WL(c.week)}`)),
       el("button", { class: "btn btn-sun", type: "button", onclick: () => claim(c.week) }, "Collect"))));
-    // pool
-    $("#pool-facts").replaceChildren(
-      el("dt", {}, "Players' stake"), el("dd", {}, `${amount(t.total_stake, 0)} VHP`),
-      el("dt", {}, "Seed VHP (never plays)"), el("dd", {}, `${amount(t.seed_vhp, 0)} VHP`),
-      el("dt", {}, prevOpen ? `Earned (week ${P.week + 1}, closing)` : "Earned this week"), el("dd", {}, `${amount(earned)} VHP`),
-      el("dt", {}, "Winners get"), el("dd", {}, sharedWeek(S.week) ? "Daily Questions' share of the vault's 95%, by its stake" : rewardRule(S.week) ? "95%, minus up to 2 VHP for the top free players" : "95%"),
-      el("dt", {}, "Waiting to be collected"), el("dd", {}, `${amount(t.pots_outstanding)} VHP`));
     if (S.demo) { const btn = $("#connect"); btn.textContent = S.account ? short(S.account) : "Connect wallet"; btn.classList.toggle("connected", !!S.account); }
     $("#foot-contract").textContent = S.dep?.contract ? `Contract ${S.dep.contract}` : "";
   }
@@ -1790,8 +1749,6 @@
   async function start() {
     // Producer names (names.js): redraw once names.json arrives.
     if (window.KNames) window.KNames.onChange(() => { try { renderAll(); renderBoard().catch(() => {}); } catch { /* not ready yet */ } });
-    // Staked or free in Daily Questions, how much, and a link to the staking page (stake-panel.js).
-    if (window.KStake && !/[?&]demo\b/.test(location.search)) window.KStake.badge($("#stake-badge"), { game: 1, href: "stake.html" });
     const rs = $("#res-search");
     if (rs) rs.addEventListener("input", () => { RV.q = rs.value || ""; renderResults(); });
     const rm = $("#res-mine");

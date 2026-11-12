@@ -141,10 +141,14 @@ test("publish: names, folders and symlinks the game may not publish are held (#E
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "kit-pub-")), inn = path.join(d, "in"), pub = path.join(d, "pub");
   fs.mkdirSync(path.join(inn, "vault"), { recursive: true }); fs.mkdirSync(pub);
   put(inn, "index.json", {}); put(inn, "W4.json", {}); put(inn, "nested/W004.json", {}); put(inn, "vault/W4.json.bak", {});
-  fs.symlinkSync("/etc/passwd", path.join(inn, "board.json"));
+  // Windows lets only an administrator (or Developer Mode) make a symlink: there the symlink part is skipped, the
+  // rest still runs. The CI runner is Linux, where it always runs.
+  let linked = true;
+  try { fs.symlinkSync("/etc/passwd", path.join(inn, "board.json")); }
+  catch (e) { if (process.platform === "win32" && (e as any).code === "EPERM") linked = false; else throw e; }
   const r = checkGame(Q, inn, pub, NOW);
   assert.deepEqual(r.publish, []);
-  for (const n of ["index.json", "W4.json", "nested/", "vault/W4.json.bak", "board.json"]) assert.ok(r.held.some((h: any) => h.name === n), n);
+  for (const n of ["index.json", "W4.json", "nested/", "vault/W4.json.bak", ...(linked ? ["board.json"] : [])]) assert.ok(r.held.some((h: any) => h.name === n), n);
 });
 
 test("publish: Sunday rounds must be tagged fun, and a decided round can't change in a game whose rounds aren't correctable", () => {

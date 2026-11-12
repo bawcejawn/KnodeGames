@@ -25,8 +25,10 @@
   <meta name="twitter:image" content="https://knodegames.com/media/og-knode.png">
   <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Knode Games","url":"https://knodegames.com/","description":"A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards."},{"@type":["WebApplication","VideoGame"],"name":"Knode Games","url":"https://knodegames.com/","applicationCategory":"GameApplication","genre":"Prediction game","operatingSystem":"Any (web browser; installable)","description":"A free game on the Koinos blockchain: pick block producers and climb the weekly leaderboards. Top free players can win VHP prizes; stakers share the week's rewards.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}]}</script>
   <!-- seo:end -->
-  <link rel="icon" href="media/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="media/icon-180.png">
+  <link rel="icon" href="media/icon.svg?v=2" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico?v=2" sizes="48x48">
+  <link rel="icon" href="media/icon-192.png?v=2" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="media/icon-180.png?v=2">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#14161F">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -35,7 +37,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="board.css">
 </head>
-<body>
+<body class="play-wait">
   <a class="skip" href="#main">Skip to the game</a>
   <noscript><p class="noscript">Knode Games is a free daily prediction game on the Koinos blockchain: daily questions about block producers, a weekly leaderboard, VHP prizes for the top free players in games whose free prize is on, and shared rewards for stakers. It needs JavaScript to read the chain and connect your wallet; please turn JavaScript on. <a href="get.html">How to get started</a> · <a href="terms.html">Terms</a></p></noscript>
 
@@ -64,6 +66,7 @@
           <div class="dd-menu">
             <a href="#results" data-view="results">Results</a>
             <a href="#how" data-view="how">Rules</a>
+            <a href="ruler.html">Ruler</a>
             <a href="start.html">New to Koinos?</a>
             <a href="get.html">Get VHP</a>
             <a href="names.html">Get an @name</a>
@@ -91,7 +94,7 @@
   <main id="main" class="wrap">
 
     <!-- ───────────── WELCOME (first visit, and "New here?") ───────────── -->
-    <section class="view welcome" id="view-welcome" data-view="welcome" hidden>
+    <section class="view welcome" id="view-welcome" data-view="welcome">
       <div class="welcome-card">
         <!-- Play first (launch UI research item 7, mockup version 2, owner 5 Nov: "build the mock up version 2"):
              today's question with its answer buttons on the first screen, a clear path for wallet users beside it. -->
@@ -148,6 +151,7 @@
     <!-- ───────────── PLAY ───────────── -->
     <section class="view" id="view-play" data-view="play">
       <nav class="qtabs" aria-label="Daily Questions"><a href="#play" data-view="play">Questions</a><a href="#leaderboard" data-view="leaderboard">Leaderboard</a><a href="#results" data-view="results">Results</a></nav>
+      <p class="play-loading" id="play-loading" role="status">Loading today's questions…</p>
       <div id="stake-badge" hidden></div>
       <section class="band" id="band" aria-label="Your week"></section>
 
@@ -274,7 +278,7 @@
       </div>
 
       <div class="rules-panel" id="rp-game" data-rules-panel="game" role="tabpanel" aria-labelledby="rt-game">
-        <div class="rules-short"><h2>In short</h2><p>Answer quick questions every day about Koinos block producers. Every right answer is a point, and each week the best players share what the pool earned.</p></div>
+        <div class="rules-short"><h2>In short</h2><p>Answer quick questions every day about Koinos block producers. Every right answer is a point, and each week the best players share that week's pool.</p></div>
         <ol class="rules-steps">
           <li><span class="ri" aria-hidden="true">👛</span><div><b>Connect</b><p>Kondor on a computer, KOIN Vault on a phone, or play as a guest: free, no wallet needed.</p></div></li>
           <li><span class="ri" aria-hidden="true">🔒</span><div><b>Stake 1 VHP or more, or play free</b><p>Staking lets you share the weekly pool. Your stake is never spent: take it back any time.</p></div></li>
@@ -293,8 +297,8 @@
       <ol class="steps">
         <li><h3>Play free, or stake VHP</h3><p>Anyone can answer and climb the leaderboard for free, and each week the 2 best free players win 2 VHP for 1st and 1 VHP for 2nd (from Week 1, the week of 16 November; ties share; from 16 November, up to 10 wallets share a place, and if more tie, the 10 whose last point came earliest, then by wallet address, so ties at the same time go to the lower address; a free player is one who never held the minimum stake that week; from the October 2026 contract update). To share in the rewards, stake at least 1 VHP (whole numbers only), or KOIN, which is burned into VHP. A stake counts from the next week. You can withdraw any amount at any time, down to the last decimal. Withdraw part during a week and you keep playing with the lower stake; withdraw everything and you're out for that week.</p></li>
         <li><h3>Answer daily questions</h3><p>30 questions a week for now (48 once the upgraded contract allows it): new ones every Monday to Saturday at 12:00 UTC, and answers close at 00:00 UTC, 12 hours later, before the blocks they ask about are produced. From Monday 9 November they come in two rounds a day: at 00:00 UTC (answers close at 12:00) and at 12:00 UTC (answers close at 00:00). Every correct answer is one point. Sunday is results day.</p></li>
-        <li><h3>The week closes</h3><p><strong>The vault's block rewards go to the players</strong> after a flat 5% fee: first the free players' prizes, then the rest is split across the staked games by each game's stake. Daily Questions' part goes to the top 30% of its staked players who scored at least one point, ties included. Higher places earn more: 40% is shared by place × stake counted up to 10 VHP per wallet, so a small stake still earns a real share, and 60% by place × full stake, so staking more pays more. Winners are final Tuesday 12:00 UTC; once the vault upgrade applies, Daily Questions works like every vault game: the bot closes the week, its results are posted by Thursday 00:00 UTC and are final 24 hours later. No staked winners? The free players' prize is still paid, and the rest carries into next week.</p></li>
-        <li><h3>Collect your reward</h3><p>Your reward is paid in VHP. From Daily Questions' part of the week's rewards, the top 30% of staked players who scored at least one point win, counted by headcount, and ties at the line win too. Each place weighs 1/√rank, so first place weighs the most. The pot is two baskets: 40% shared by place weight times your stake counted up to 10 VHP per wallet (so a small stake still earns a real share), and 60% shared by place weight times your full stake. Every correct answer is one point, so the week's top score is the number of questions that week (30 for now, 48 once the upgraded contract allows it). (These rules apply from the first full week after the October 2026 contract update; before it, the first basket was shared by place alone.) Unclaimed rewards wait for you, and keep producing for the pool meanwhile. Rewards from before the vault upgrade are collected on this page; later ones on the Stake page, with every game's.</p></li>
+        <li><h3>The week closes</h3><p><strong>The vault's block rewards go to the players</strong> after a flat 5% fee: first the free players' prizes, then the rest is split across the staked games by each game's stake. Daily Questions' part goes to the top 30% of its staked players who scored at least one point, ties included. Higher places win a bigger share: 40% is shared by place × stake counted up to 10 VHP per wallet, so a small stake still wins a real share, and 60% by place × full stake, so staking more pays more. Winners are final Tuesday 12:00 UTC; once the vault upgrade applies, Daily Questions works like every vault game: the bot closes the week, its results are posted by Thursday 00:00 UTC and are final 24 hours later. No staked winners? The free players' prize is still paid, and the rest carries into next week.</p></li>
+        <li><h3>Collect your reward</h3><p>Your reward is paid in VHP. From Daily Questions' part of the week's rewards, the top 30% of staked players who scored at least one point win, counted by headcount, and ties at the line win too. Each place weighs 1/√rank, so first place weighs the most. The pot is two baskets: 40% shared by place weight times your stake counted up to 10 VHP per wallet (so a small stake still wins a real share), and 60% shared by place weight times your full stake. Every correct answer is one point, so the week's top score is the number of questions that week (30 for now, 48 once the upgraded contract allows it). (These rules apply from the first full week after the October 2026 contract update; before it, the first basket was shared by place alone.) Unclaimed rewards wait for you, and keep producing for the pool meanwhile. Rewards from before the vault upgrade are collected on this page; later ones on the Stake page, with every game's.</p></li>
       </ol>
         </details>
         <details class="rules-d"><summary>Anyone can move the results: voids and the VHP rule</summary>
@@ -425,6 +429,7 @@
       <p class="ms-h">Learn</p>
       <a href="start.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New to Koinos?</span></a>
       <a href="#welcome" data-view="welcome"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New here? Quick tour</span></a>
+      <a href="ruler.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 15.5l12.5-12.5 5.5 5.5L8.5 21z"></path><path d="M7.5 11l2.5 2.5M10.5 8l2 2M13.5 5l2.5 2.5"></path></svg><span>Ruler</span></a>
       <p class="ms-h">About</p>
       <a href="install.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M5 20h14"></path></svg><span>Install app</span></a>
       <a href="trust.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"></path></svg><span>Trust</span></a>
@@ -478,6 +483,7 @@
   <script src="app.js"></script>
   <script src="board.js"></script>
   <script src="leaders.js"></script>
+  <script src="ruler-void.js"></script>
   <script src="race-math.js"></script>
   <script src="results.js"></script>
   <script src="stats.js"></script>

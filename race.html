@@ -24,8 +24,10 @@
   <meta name="twitter:description" content="Every Koinos block producer is a horse. Four 6-hour races a day, every day (Sunday's are for fun), handicapped by VHP so every horse has the same chance. Free, live from the chain.">
   <meta name="twitter:image" content="https://knodegames.com/media/og-knode.png">
   <!-- seo:end -->
-  <link rel="icon" href="media/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="media/icon-180.png">
+  <link rel="icon" href="media/icon.svg?v=2" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico?v=2" sizes="48x48">
+  <link rel="icon" href="media/icon-192.png?v=2" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="media/icon-180.png?v=2">
   <meta name="theme-color" content="#14161F">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -191,6 +193,7 @@
           <div class="dd-menu">
             <a href="index.html#results">Results</a>
             <a href="index.html#how/race">Rules</a>
+            <a href="ruler.html">Ruler</a>
             <a href="start.html">New to Koinos?</a>
             <a href="get.html">Get VHP</a>
             <a href="names.html">Get an @name</a>
@@ -262,6 +265,15 @@
       <p class="note">A pick on the winner is a win (3 points). A pick on the horse that finishes 2nd or 3rd is a show (1 point). Ranked by points; ties go to more wins, then more picks placed. Wallets still tied share the place. <b>Who gets paid:</b> on the Staked board, exactly the top 30% of staked players with a point share the Race's bucket, and tied wallets share their level. If a tie crosses that line, the wallets that reached the score first (their last scoring pick was earlier) get the spots. On the Free play board, 1st and 2nd each go to at most 10 wallets, with ties broken the same way. Weeks are Knode Games weeks (Monday 00:00 UTC). Races run every day. Monday to Saturday count for the week. <b>Sunday is review day</b>: the week's results are checked on chain while you keep playing. Sunday's races are <b>fun races</b>: they score on the Today and All time boards, but never on a week's board, medals or prizes. The week's results go final from Monday 00:00 UTC, and rewards can be claimed from Monday evening (Americas) / Tuesday UTC. The <b>Staked</b> board is for wallets with VHP staked in the Producer Race that week; they share the Race's weekly reward bucket. Everyone else plays on the <b>Free play</b> board, where 1st and 2nd win the weekly free-play prize (2 VHP and 1 VHP). Prizes and bucket shares are paid from Week 1 (the week of Mon 16 Nov); winners claim them from the vault. If your Race stake drops below 1 VHP during a week, you sit out that week's share (your VHP stays yours and can always be withdrawn).</p>
     </section>
 
+    <!-- The VHP ruler (owner, 11 Nov 2026): shown only once the ruler is switched on for the Race (its R<week>.json says so). -->
+    <section class="card" id="ruler-box" hidden>
+      <div class="head"><h2>Measured by the VHP ruler</h2></div>
+      <p class="note" style="margin-top:0" id="ruler-when"></p>
+      <p class="note">The ruler measures each producer's luck against its own size: how many blocks it signed against how many its VHP should give, block by block, so a big producer and a small one have the same chance to win. Each 6-hour race's 1st, 2nd and 3rd are the producers whose luck in that race was best, among the producers in the race. The horses on the track are a live estimate; the final order comes from the ruler once the race's blocks are in (usually within 1 to 2 hours). The points per place don't change.</p>
+      <p class="note"><b>Void:</b> a producer whose VHP falls more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only (it is in the next race as usual). <b>A pick on a voided producer counts as a loss.</b> If every producer in a race is void, the race's picks are given back.</p>
+      <div id="ruler-list"></div>
+    </section>
+
     <section class="card" id="stake" hidden></section>
 
     <div class="cols">
@@ -326,6 +338,7 @@
       <p class="ms-h">Learn</p>
       <a href="start.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New to Koinos?</span></a>
       <a href="index.html#welcome"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New here? Quick tour</span></a>
+      <a href="ruler.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 15.5l12.5-12.5 5.5 5.5L8.5 21z"></path><path d="M7.5 11l2.5 2.5M10.5 8l2 2M13.5 5l2.5 2.5"></path></svg><span>Ruler</span></a>
       <p class="ms-h">About</p>
       <a href="install.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M5 20h14"></path></svg><span>Install app</span></a>
       <a href="trust.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"></path></svg><span>Trust</span></a>

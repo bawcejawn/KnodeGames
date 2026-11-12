@@ -13,7 +13,7 @@
  *  4. Writes the new hour files (vhp-data.js makeHour) to VHP_OUT/h/, each checked with checkHour before it's kept,
  *     and rolls up old days (VHP_OUT/d/, VHP_OUT/remove.txt) — the publish job re-checks everything.
  *
- *   RPC, RPC_CHECK, VHP_PREV, VHP_OUT, VHP_MAX_HOURS (default 6), VHP_KEEP_DAYS (default 30; at least 22)
+ *   RPC, RPC_CHECK, VHP_PREV, VHP_OUT, VHP_MAX_HOURS (default 6), VHP_KEEP_DAYS (default 30; at least 26: a 6-day race's card, Repo Lens #G-9)
  *   npx tsx bot/vhp-ruler.ts
  */
 import { Contract, Provider, Serializer, utils } from "koilib";
@@ -308,7 +308,7 @@ async function main() {
   const ra = E.RPC || "https://koinos.armana.io", rb = E.RPC_CHECK || "https://api.koinosblocks.com";
   if (ra.replace(/\/+$/, "") === rb.replace(/\/+$/, "")) throw new Error("RPC and RPC_CHECK are the same node: two different nodes are needed");   // #D-10 L-5
   const A = chainNode(ra, "A"), B = chainNode(rb, "B");
-  const prevDir = E.VHP_PREV || "", out = E.VHP_OUT || "vhp-out", keep = Math.max(22, Number(E.VHP_KEEP_DAYS || 30));
+  const prevDir = E.VHP_PREV || "", out = E.VHP_OUT || "vhp-out", keep = Math.max(26, Number(E.VHP_KEEP_DAYS || 30));
   const hourTexts = new Map<number, string>(), dayNs = new Set<number>();
   for (const f of fs.existsSync(path.join(prevDir, "h")) ? fs.readdirSync(path.join(prevDir, "h")) : []) { const m = /^(\d+)\.json$/.exec(f); if (m) hourTexts.set(Number(m[1]), fs.readFileSync(path.join(prevDir, "h", f), "utf8")); }
   for (const f of fs.existsSync(path.join(prevDir, "d")) ? fs.readdirSync(path.join(prevDir, "d")) : []) { const m = /^(\d+)\.json$/.exec(f); if (m) dayNs.add(Number(m[1])); }

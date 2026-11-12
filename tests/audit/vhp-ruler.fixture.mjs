@@ -117,3 +117,43 @@ export function longTimeline({ n = 470000, from = 1000000, np = 6, mints = 40 } 
   for (let m = 0; m < mints; m++) { const h = from + 1000 + m * Math.floor(n / mints), a = ps[m % np], v = 5n * 10n ** 12n; deltas.push({ h, a, d: v, inc: v }); bal[ps.indexOf(a)] += v; }
   return { tl: { from, to, signers, ids, deltas, anchors: Object.fromEntries(ps.map((a, i) => [a, { h: to, v: bal[i] }])) }, ps };
 }
+/** A′ as built (D-165, D-171): the core is the field members with form ≥ 970,000 millionths of the field's median form,
+ *  the median weighted by expected blocks (exact tie: the lower member's form); a producer's yardstick is the core less
+ *  any other core member more than 2 sd from its share of the core's blocks, plus itself at full size. Written apart
+ *  from the library, from the rule as decided. Returns each field member's expected fpct, by address. */
+// RULE_VERSION 4, written from the rule (not from the library): the luck cap's sample and draw (node's own sha256),
+// expected blocks along the producer's VHP capped at the card's own size, and credited blocks, over the blocks that count
+export const sampleOf = (p) => { const k = BigInt(p.k), cap = 1000n * 1000000n; return k > cap ? (cap * 1000000n) / k : 1000000n; };
+export const drawOf = (card, H) => BigInt("0x" + crypto.createHash("sha256").update(`sample|${card.seedBlockId}|${H}`).digest("hex").slice(0, 16)) % 1000000n;
+export const countsFor = (card, p, H) => sampleOf(p) === 1000000n || drawOf(card, H) < sampleOf(p);
+export function expectedOf(L, card, p) {
+  const own = BigInt(p.own), tot = BigInt(card.total); let want = 0n;
+  for (let H = card.window.S0; H <= card.window.S1; H++) if (countsFor(card, p, H)) { const e = L.eff(p.a, H); want += ((e < own ? e : own) * 1000000n) / tot; }
+  return want;
+}
+export function creditedOf(L, card, p) {
+  const own = BigInt(p.own); let c = 0n;
+  for (const b of L.signedBlocks(p.a, card.window.S0, card.window.S1)) if (countsFor(card, p, b)) { const e = L.eff(p.a, b); c += e <= own ? 1000000n : (own * 1000000n) / e; }
+  return c;
+}
+export function coreOf(producers) {
+  const field = producers.filter((p) => p.entry && !p.void), byForm = [...field].sort((x, y) => (BigInt(x.form) < BigInt(y.form) ? -1 : BigInt(x.form) > BigInt(y.form) ? 1 : 0));
+  const all = byForm.reduce((t, p) => t + BigInt(p.expected), 0n);
+  let median = 0n, cum = 0n;
+  for (const p of byForm) { cum += BigInt(p.expected); if (cum * 2n >= all) { median = BigInt(p.form); break; } }
+  const line = (median * R.CORE_LINE) / R.M, core = field.filter((p) => BigInt(p.form) >= line);
+  // RULE_VERSION 4: the yardstick counts credited blocks (n in millionths of a block)
+  const n = core.reduce((t, p) => t + BigInt(p.credited), 0n), b = core.reduce((t, p) => t + BigInt(p.expected), 0n);
+  // the band: |credited − n·e/b| > 2·sqrt(n·(e/b)·(1 − e/b)) in blocks, squared and multiplied out (n and credited in millionths)
+  const aside = core.filter((p) => { const e = BigInt(p.expected), d = BigInt(p.credited) * b - n * e; return d * d > 4n * n * e * (b - e) * R.M; });
+  return { field, core, line, median, aside, n, b };
+}
+export function fieldFpct(producers) {
+  const { field, core, aside } = coreOf(producers), out = {};
+  for (const p of field) {
+    const y = core.filter((q) => q === p || !aside.includes(q)), withSelf = y.includes(p) ? y : [...y, p];
+    const n = withSelf.reduce((t, q) => t + BigInt(q.credited), 0n), b = withSelf.reduce((t, q) => t + BigInt(q.expected), 0n);
+    out[p.a] = R.fpct(n / R.M, BigInt(p.expected), b, BigInt(p.credited));
+  }
+  return out;
+}

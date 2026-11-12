@@ -308,6 +308,7 @@
     document.querySelectorAll(".view").forEach((s) => (s.hidden = s.dataset.view !== v));
     document.querySelectorAll(".tabs a, .tabbar a").forEach((a) => { if (a.dataset.view === v) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     document.body && document.body.setAttribute && document.body.setAttribute("data-view", v);
+    document.documentElement.setAttribute("data-v", v);   // keeps early-view.js's first guess in step
     if (v === "leaderboard") renderBoard();
     if (v === "results") renderResults();
     if (v === "how") showRulesTab(sub);
@@ -352,8 +353,20 @@
   function gentle(provider) {
     const call = provider.call.bind(provider);
     let running = 0; const waiting = [];
+    // Capacity (owner, 11 Nov): the ticker, loadLive and updateLive all ask for the head. Reuse one reply for 3 s
+    // (about one block) and share a request already on its way, so the public node is asked once instead of 2-3 times.
+    const HEAD_MS = 3000; let head = null, headAt = 0, headP = null;
     const next = () => { if (running < 4 && waiting.length) { running++; waiting.shift()(); } };
     provider.call = async (method, params) => {
+      if (method === "chain.get_head_info") {
+        if (head && Date.now() - headAt < HEAD_MS) return head;
+        if (headP) return headP;
+        headP = sendCall(method, params).then((r) => { head = r; headAt = Date.now(); return r; }).finally(() => { headP = null; });
+        return headP;
+      }
+      return sendCall(method, params);
+    };
+    const sendCall = async (method, params) => {
       await new Promise((go) => { waiting.push(go); next(); });
       try {
         for (let attempt = 0; ; attempt++) {
@@ -1667,6 +1680,7 @@
   }
 
   // ═══════════════ live block ticker ═══════════════
+  const TICKER_MS = 12000;
   let tickerTop = 0;
   async function ticker() {
     let blocks = [];
@@ -1808,6 +1822,7 @@
       },
     });
     route();
+    setTimeout(() => document.body.classList.remove("play-wait"), 9000);   // never leave the page hidden if the network is slow
     const wantDemo = /[?&]demo\b/.test(location.search);
     let dep = null;
     if (!wantDemo) dep = await fetchJson(DATA + "deployment.json").catch(() => null);
@@ -1820,9 +1835,14 @@
       initWallet();
       S.game = new lib.Contract({ id: dep.contract, abi: S.abi, provider: S.provider });
       try { await loadLive(); } catch (e) { toast(`Couldn't reach the Koinos network: ${e.message}`, 8000); }
-      setInterval(async () => { try { await loadLive(); S.board[S.week] = undefined; renderPlay(); } catch {} await updateLive(); renderPlay(); if (!$("#view-results").hidden) renderResults(); }, 60000);
+      // Capacity (owner, 11 Nov): a hidden tab asks the public node nothing; it catches up once when it is shown again.
+      let liveAt = Date.now();
+      const liveTick = async () => { liveAt = Date.now(); try { await loadLive(); S.board[S.week] = undefined; renderPlay(); } catch {} await updateLive(); renderPlay(); if (!$("#view-results").hidden) renderResults(); };
+      setInterval(() => { if (!document.hidden) liveTick(); }, 60000);
+      document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - liveAt > 15000) liveTick(); });
       updateLive().then(() => { renderPlay(); if (!$("#view-results").hidden) renderResults(); });
     }
+    document.body.classList.remove("play-wait");   // the real data (or the demo) is in: show the Questions page
     $("#producers-link").href = EXPLORER_PRODUCERS;
     $("#schedule").textContent = (() => {
       const t = nowMs(), all = roundStarts(), now = all.filter((r) => r.from <= t), later = all.filter((r) => r.from > t);
@@ -1836,7 +1856,9 @@
     loadAds();
     renderBoard(S.week).then(() => renderPlay()).catch(() => {});
     ticker();
-    setInterval(ticker, S.demo ? 3000 : 6000);
+    // Capacity (owner, 11 Nov): every 12 s (was 6 s; a block is ~3 s, the strip shows the last 7), never in a hidden tab.
+    setInterval(() => { if (!document.hidden) ticker(); }, S.demo ? 3000 : TICKER_MS);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) ticker(); });
     setInterval(() => renderPlay(), 30000);
   }
   start();

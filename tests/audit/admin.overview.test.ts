@@ -46,9 +46,14 @@ test("every game can be staked on, stopped and have its free prize switched, fro
     const a = A(id); assert.ok(a.sends && a.signer && a.what, id);
     assert.ok((a.params ?? []).some((p) => p.name === "game"), `${id} takes the game id (the page fixes it per game)`);
   }
-  // The planned free-prize switch matches the Vault chat's list (3 Nov, D-081): ON for Questions, Block X, Race, Bracket, Last Node.
-  assert.deepEqual(GAMES.filter((g) => g.freePrize === "on").map((g) => g.id), [1, 2, 7, 9, 13]);
-  assert.deepEqual(GAMES.filter((g) => g.freePrize === "off").map((g) => g.id), [3, 4, 6, 8]);
+  // The planned free-prize switch follows the owner's current decisions: the Vault chat's list of 3 Nov (D-081), with the
+  // Bracket changed to OFF on 11 Nov (Repo Lens G30-1). Game 13 (Last Node) is ON in every doc; the stored switch is the
+  // thing to check (the glance table flags any difference).
+  assert.deepEqual(GAMES.filter((g) => g.freePrize === "on").map((g) => g.id), [1, 2, 7, 13]);
+  assert.deepEqual(GAMES.filter((g) => g.freePrize === "off").map((g) => g.id), [3, 4, 6, 8, 9]);
+  const bracket = LAUNCH.find((l) => l.game === 9)!.steps.map((x) => x.text).join(" ");
+  assert.match(bracket, /free prize OFF first/); assert.doesNotMatch(bracket, /free prize ON/i);
+  assert.match(bracket, /vault week 4.*Mon 16 to Sun 22 Nov/);
 });
 
 test("every GitHub variable a workflow reads has a card, and every card is real", () => {
@@ -66,6 +71,12 @@ test("every GitHub variable a workflow reads has a card, and every card is real"
     for (const f of ["format", "what", "when"] as const) assert.ok(v[f].trim().length >= 5, `${v.name}: ${f}`);
     for (const g of v.games) assert.ok(GAMES.some((x) => x.id === g), `${v.name}: game ${g} exists`);
   }
+});
+
+test("PRIZES_FROM_WEEK says what really happens when it is unset (Repo Lens G30-2)", () => {
+  const v = VARIABLES.find((x) => x.name === "PRIZES_FROM_WEEK")!;
+  assert.match(v.note!, /NEVER leave it unset or mistyped/); assert.match(v.note!, /held.*staked results.*3 days.*rolls over/);
+  assert.match(v.when, /never unset it/); assert.doesNotMatch(v.note! + v.what, /prize text stays off/);
 });
 
 test("switches that cannot be undone say so, and the Ruler and hold switches are on the page for their games", () => {
@@ -154,7 +165,7 @@ test("Games at a glance and All switches draw every game and every switch, and C
         w.fetch = async (p: string, init: any = {}) => {
           if (p === "/api/actions") return { ok: true, status: 200, json: async () => cat };
           const body = JSON.parse(init.body); ran.push(`${body.action}:${body.send}`);
-          const output = body.action === "glance-vault" ? "game 6 Block Golf: staked + free prize, from week 5\ngame 7 Producer Race: staked + free prize, from week 3\n" : body.action === "glance-prizes" ? "6 Block Golf  this week: off  next week: off\n7 Producer Race  this week: on  next week: on\n" : "ok\n";
+          const output = body.action === "glance-vault" ? "game 6 Block Golf: staked + free prize, from week 5\ngame 7 Producer Race: staked + free prize, from week 3\n" : body.action === "glance-prizes" ? "6 Block Golf  this week: off  next week: off\n7 Producer Race  this week: on  next week: on\n9 Producer Bracket  this week: on  next week: on\n" : "ok\n";
           return { ok: true, status: 200, json: async () => ({ command: "npm run x", code: 0, output, previewed: false }) };
         };
       },
@@ -181,6 +192,10 @@ test("Games at a glance and All switches draw every game and every switch, and C
     assert.deepEqual(ran, ["glance-vault:false", "glance-prizes:false", "glance-questions:false", "glance-picks:false", "glance-race:false", "glance-golf:false"]);
     assert.match(main.querySelector("table.tbl").textContent, /staked \+ free prize, from week 5/);
     assert.match(main.querySelector("table.tbl").textContent, /this week: on\s+next week: on/);
+    const row = (name: string) => ([...main.querySelectorAll("table.tbl tbody tr")].find((r: any) => r.textContent.startsWith(name)) as any).textContent;
+    assert.doesNotMatch(row("Producer Race"), /DIFFERS/, "live ON matches the plan: no flag");
+    assert.doesNotMatch(row("Block Golf"), /DIFFERS/, "live OFF matches the plan: no flag");
+    assert.match(row("Producer Bracket"), /planned OFF[\s\S]*DIFFERS from the plan \(OFF\)/, "live ON against a plan of OFF is flagged (Repo Lens G30-1)");
     // All switches lists every variable, and the link is GitHub's variables page only
     click(/All switches/);
     for (const v of VARIABLES) assert.ok(doc.querySelector("#main").textContent.includes(v.name), `switches list ${v.name}`);

@@ -311,7 +311,15 @@
           let r; try { r = await api("/api/run", { action: id, values: {}, send: false }); } catch (e) { r = { code: 1, command: id, output: String(e.message || e) }; }
           raw.append(el("details", { class: "raw" }, el("summary", {}, `${CAT.actions.find((x) => x.id === id).label} — ${r.code === 0 ? "done" : "error"}`), el("pre", {}, r.output || "(no output)")));
           if (id === "glance-vault") { const m = line(r.output || "", /^\s*game\s+(\d+)\b\s*(.*)$/i); for (const g of CAT.games) { const c = cells[g.id].v; c.textContent = m[g.id] || (r.code === 0 ? "Not in the vault (or not shown): see the raw result" : "Could not read: see the raw result"); c.className = "live-val"; } }
-          if (id === "glance-prizes") { const m = line(r.output || "", /^\s*(\d+)\s+(.*)$/); for (const g of CAT.games) { const c = cells[g.id].pz; c.textContent = m[g.id] || (r.code === 0 ? "See the raw result" : "Could not read: see the raw result"); c.className = "live-val"; } }
+          if (id === "glance-prizes") {
+            const m = line(r.output || "", /^\s*(\d+)\s+(.*)$/);
+            for (const g of CAT.games) {
+              const c = cells[g.id].pz; c.textContent = m[g.id] || (r.code === 0 ? "See the raw result" : "Could not read: see the raw result"); c.className = "live-val";
+              // Flag any game whose live switch (next week's, when it is shown) is not what the plan says. Best effort: when the line can't be read nothing is claimed.
+              const nx = m[g.id] && (/next\s*week\W*(on|off)\b/i.exec(m[g.id]) || /\b(on|off)\b/i.exec(m[g.id]));
+              if (nx && nx[1].toLowerCase() !== g.freePrize) { c.className = "live-val perm"; c.append(el("br"), `DIFFERS from the plan (${g.freePrize.toUpperCase()}): check before you add or apply this game.`); }
+            }
+          }
         }
         show("Checked everything. Nothing was changed.", "status-ok", "Read-only checks", "");
       } finally { running = false; checkBtn.disabled = false; }

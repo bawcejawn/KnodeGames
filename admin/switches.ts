@@ -29,7 +29,8 @@ export type Game = {
   addable: boolean;
 };
 
-/** Source: game-data/deployment.json (vaultGames) and the Vault chat's free-prize list (3 Nov, D-081). */
+/** Source: game-data/deployment.json (vaultGames) and the owner's free-prize decisions: the Vault chat's list of 3 Nov (D-081),
+ *  changed for the Bracket to OFF on 11 Nov. The page flags any game whose live switch differs from this plan. */
 export const GAMES: Game[] = [
   { id: 1, name: "Daily Questions", area: "question", season: 1, freePrize: "on", addable: false },
   { id: 2, name: "Who Signs Block X", area: "blockx", season: 1, freePrize: "on", addable: true },
@@ -38,7 +39,7 @@ export const GAMES: Game[] = [
   { id: 6, name: "Block Golf", area: "golf", season: 1, freePrize: "off", addable: true },
   { id: 7, name: "Producer Race", area: "race", season: 1, freePrize: "on", addable: true },
   { id: 8, name: "Combo Card", area: "combo", season: 1, freePrize: "off", addable: true },
-  { id: 9, name: "Producer Bracket", area: "bracket", season: 1, freePrize: "on", addable: true },
+  { id: 9, name: "Producer Bracket", area: "bracket", season: 1, freePrize: "off", addable: true },
   { id: 13, name: "Last Node Standing", area: "lastnode", season: 1, freePrize: "on", addable: true },
 ];
 
@@ -65,7 +66,7 @@ export const VARIABLES: Variable[] = [
   { name: "GAMES_ENABLED", games: [], format: TF, what: "Runs the hourly recorders for Who Signs Block X and the Producer Bracket (the workflow called KnodeGames recorders); each publishes to its own folder on the games-data branch.", when: "Set false to pause both recorders at once.", note: "Takes effect on the next run. The site keeps the last published files." },
   { name: "STATS_ENABLED", games: [], format: TF, what: "Publishes the hourly public summary (stats.json) that the home page's pool card and stats strip read.", when: "Set false to stop updating it; the site hides figures older than six hours.", note: "Takes effect on the next run." },
   { name: "NAMES_ENABLED", games: [], format: TF, what: "Runs the hourly job that reads Koinos @names and pool names from the chain.", when: "Set false to stop refreshing names.", note: "Takes effect on the next run." },
-  { name: "PRIZES_FROM_WEEK", games: [2, 7], format: WEEK, what: "The first vault week the free prizes are shown and posted for Block X and the Producer Race.", when: "Set once, after the games are applied in the vault.", note: "Leave unset and the prize text stays off (it fails closed)." },
+  { name: "PRIZES_FROM_WEEK", games: [2, 7], format: WEEK, what: "The first vault week Block X and the Producer Race are paid. It must be a plain week number.", when: "Set once, after the games are applied in the vault, and never unset it.", note: "NEVER leave it unset or mistyped: every Block X and Race paid week is then held, staked results included, and if it is not fixed within 3 days that week rolls over." },
   { name: "RPC", games: [], format: "a node address (URL)", what: "The Koinos node the workflows read from. When unset they use the default public node.", when: "Only if that node is down or slow." },
   { name: "RPC_CHECK", games: [], format: "a node address (URL)", what: "A second, independent node. Results are posted only when both nodes agree.", when: "Only if that node is down. Keep it a different operator from RPC, or the two-node check proves nothing." },
   { name: "RPC_VERIFY", games: [], format: "a node address (URL)", what: "An optional third node that the Race publish job uses to re-check each block's signer. When unset it uses RPC_CHECK.", when: "Only if that node is down." },
@@ -120,6 +121,6 @@ export const LAUNCH: Launch[] = [
   { game: 6, steps: [{ text: "Game 6 is added (12 Nov, about 3:16 PM ET). Apply it in vault week 4 (Sun 15 Nov 7:00 PM ET to Sat 21 Nov before 3:16 PM ET; aim for Mon 16 Nov), then set GOLF_STAKED_FROM_WEEK to the week the status shows (5) before Sun 22 Nov 7:57 PM ET.", check: "glance-golf" }], dates: "Applying before Sun 15 Nov 7:00 PM ET is wrong: Golf would earn from Week 1 while it is practice-only. After Sat 21 Nov 3:16 PM ET the announcement has expired." },
   { game: 7, steps: [{ text: "Live and staked. Scored by the Ruler from Week 1: RACE_RULER_FROM_WEEK = 4 (Mon 16 Nov).", check: "glance-race" }], dates: "Ruler live from Week 1 (Mon 16 Nov)." },
   { game: 8, steps: [{ text: "Needs fix-check 4 and the Picks v2 (CARD) upgrade and its audit first. Then: free prize OFF, Add a game, apply.", check: "glance-vault" }], dates: "Launches on the Ruler (owner, 11 Nov)." },
-  { game: 9, steps: [{ text: "Needs its fix-check, then: Add a game (free prize ON), apply, BRACKET_PRIZES_FROM_WEEK, and its Ruler switch with its own Repo Lens GO.", check: "glance-vault" }], dates: "Ruler switch: PR by Fri 20 Nov 12:00 ET to be live from Week 2 (Mon 23 Nov), otherwise Week 3 (Mon 30 Nov)." },
+  { game: 9, steps: [{ text: "Needs its fix-check, then: free prize OFF first (owner, 11 Nov: the Bracket's pages say no free prize is paid), then Add a game, then apply it during vault week 4 (Week 1: Mon 16 to Sun 22 Nov) so its practice week and first paid week match its page, then BRACKET_PRIZES_FROM_WEEK, and its Ruler switch with its own Repo Lens GO.", check: "glance-vault" }], dates: "Ruler switch: PR by Fri 20 Nov 12:00 ET to be live from Week 2 (Mon 23 Nov), otherwise Week 3 (Mon 30 Nov)." },
   { game: 13, steps: [{ text: "Needs its round-3 review and 48 hours of sampler readings. Then: Add a game (free prize ON), apply.", check: "glance-vault" }], dates: "Launches on the Ruler (owner, 11 Nov)." },
 ];

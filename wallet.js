@@ -584,7 +584,10 @@
    *  payer and is signed first. It is broadcast only as signed: if the wallet switched the payer (Kondor's free Mana
    *  option), or did not hand back a signed transaction (so the page can't see who pays), it is not sent. */
   async function sendKondor(label, ops, opts = {}) {
-    const sp = !opts.gamePays ? sponsorFor(ops) : null;
+    let sp = !opts.gamePays ? sponsorFor(ops) : null;
+    // Sponsor v4 (owner, 13 Nov): a wallet with its own Mana (selfPayMin in deployment.json "sponsor", 25 by the spec) pays for
+    // itself, with no sponsor. Off until that setting is present, so v3 behaves exactly as before.
+    if (sp && await hasOwnMana(sp)) { sp = null; W.status && W.status(OWN_MANA_NOTE); }
     // A transaction made only of game answers is sponsored for any wallet (free play), within the sponsor's caps.
     // Free play (game answers, race picks, KnodeGames picks with sponsor v3) is sponsored for any wallet, within the sponsor's caps.
     const answerOnly = !!sp && ops.every((o) => o.call_contract && ((o.call_contract.contract_id === sp.covers[0] && Number(o.call_contract.entry_point) === ANSWER)
@@ -593,7 +596,9 @@
     // Answers are light (rcLimit, 1 Mana); staking, withdrawing, swapping and claiming do much more in one transaction
     // (approve, transfer, burn, stake), so they ask for rcLimitOther (audit SP-17: the sponsor's per-transaction cap, 1 Mana).
     const rcLimit = sp ? rcFor(sp, ops, String(answerOnly ? (sp.rcLimit || "100000000") : (sp.rcLimitOther || "100000000"))) : null;
-    if (sp && (await sponsorAnswer(sp, rcLimit, gamesOfOps(sp, ops), answerOnly)).ok) {
+    const said = sp ? await sponsorAnswer(sp, rcLimit, gamesOfOps(sp, ops), answerOnly) : null;
+    if (said && !said.ok && isLowManaReason(said.reason)) W.status && W.status(LOW_MANA_NOTE);
+    if (said && said.ok) {
       try { return await sendKondorWith(label, ops, { ...opts, sponsor: sp.address, rcLimit }); }
       catch (e) {
         // The network turned the sponsored transaction down before it was included (nothing happened, nothing was
@@ -697,6 +702,7 @@
    *  0.05-Mana pick counts about 0.1 against the caps instead of 1. Otherwise the old limit, as before. */
   function rcFor(sp, ops, fallback) {
     const m = sp && sp.rcLimits;
+    const capped = (v) => { const b = batchRc(sp, ops); return b !== null && b < BigInt(v) ? String(b) : String(v); };
     if (!m || typeof m !== "object") return fallback;
     let sum = 0n;
     for (const o of ops) {
@@ -706,7 +712,47 @@
       if (typeof v !== "string" || !/^[1-9][0-9]{0,15}$/.test(v)) return fallback;
       sum += BigInt(v);
     }
-    return String(sum < BigInt(fallback) ? sum : BigInt(fallback));
+    return capped(sum < BigInt(fallback) ? sum : BigInt(fallback));
+  }
+  /** Batched picks (Capacity, 13 Nov; docs/capacity/BATCHED-PICKS-SPEC.md): for 2 to 10 operations, ask for the measured
+   *  burn plus a margin, never the full sum, because sponsor v3 counts the asked rc_limit against every cap. The measured
+   *  numbers come from the testnet run (T7), in Mana, as the sponsor settings' "batch" row (mana-limits.json, written by the
+   *  Block X chat): { "fixed": Mana, "perOp": { "<same key as rcLimits>": Mana }, "margin": Mana }. Without that row, or
+   *  when any operation has no perOp number, nothing changes: the sum of the per-action limits, as before. */
+  function batchRc(sp, ops) {
+    const b = sp && sp.batch, n = ops.length;
+    if (!b || typeof b !== "object" || n < 2 || n > 10 || !b.perOp || typeof b.perOp !== "object") return null;
+    const raw = (v) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1000 ? BigInt(Math.round(v * 1e8)) : null);
+    let sum = raw(b.fixed), margin = raw(b.margin);
+    if (sum === null || margin === null) return null;
+    for (const o of ops) {
+      const c = o && o.call_contract;
+      const k = c && `${c.contract_id}:${(Number(c.entry_point) >>> 0).toString(16).padStart(8, "0")}`;
+      const v = k && raw(b.perOp[k]);
+      if (v === null || v === undefined) return null;
+      sum += v;
+    }
+    return sum + margin;
+  }
+  const OWN_MANA_NOTE = "You have your own Mana, so this one is paid from it.";
+  const LOW_MANA_NOTE = "Free Mana is low right now. If a pick fails, try again later, or use your own Mana or Kondor's free Mana.";
+  const isLowManaReason = (r) => /\blow\b|reserve|pace|busy/i.test(String(r || ""));
+  /** True when the wallet's own Mana is at least the sponsor's selfPayMin (Mana; absent or 0 = off). */
+  async function hasOwnMana(sp) {
+    const min = Number(sp && sp.selfPayMin);
+    if (!Number.isFinite(min) || min <= 0 || min > 1000) return false;
+    try { return BigInt(await W.provider.getAccountRc(W.address)) >= BigInt(Math.round(min * 1e8)); } catch { return false; }
+  }
+  /** "Send my picks": up to 10 pending picks or answers in one transaction (one signature). `stillOpen(op)` is asked right
+   *  before signing and drops any whose round has locked, so a locked pick cannot make the whole transaction fail. */
+  async function sendBatch(label, ops, opts = {}) {
+    if (!Array.isArray(ops) || !ops.length) throw new Error("There is nothing to send.");
+    const live = typeof opts.stillOpen === "function" ? ops.filter((o) => opts.stillOpen(o)) : ops.slice();
+    if (!live.length) throw new Error("Those picks have all locked, so nothing was sent.");
+    if (live.length > 10) throw new Error("Send at most 10 picks at a time.");
+    const { stillOpen, ...rest } = opts;
+    const id = await send(label, live, rest);
+    return { id, sent: live.length, dropped: ops.length - live.length };
   }
   /** The calls' games for would_pay (audit SP-22, SP-38: as the sponsor's authorize reads them): race picks are game
    *  7; a KnodeGames pick and the vault's own calls (deposit_to, withdraw_from, move_stake, claim_game) name it in
@@ -856,7 +902,7 @@
   }
 
   window.KWallet = {
-    init, setGuestConfig, connect, disconnect, send, isPhone, manageGuest, guestInfo: () => { guestCant([]); }, switchTo, forget,
+    init, setGuestConfig, connect, disconnect, send, sendBatch, isPhone, manageGuest, guestInfo: () => { guestCant([]); }, switchTo, forget,
     accounts: () => remembered(), subscribe: (f) => { listeners.add(f); return () => listeners.delete(f); },
     get address() { return W.address; }, get kind() { return W.kind; },
     /** R-BX-21: true when this page sends through the Mana sponsor (deployment.json "payer": "sponsor"). */

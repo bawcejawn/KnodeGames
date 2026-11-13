@@ -328,9 +328,9 @@ export const APPLY_EDGE_MS = 15 * 60_000;
 export function applyCheck(now: number, genesis: number, weekLen: number, tests: number[], allowTest = false): { week: number; earnsFrom: number; text: string; refuse?: string } {
   if (!(weekLen > 0) || !(now >= genesis)) throw new Error("can't read the vault's week from get_state");
   const w = Math.floor((now - genesis) / weekLen), next = genesis + (w + 1) * weekLen;
-  const text = `Applied now (chain time ${etTime(now)}, ${vaultWeek(w, { vaultTestWeeks: tests })}), the game earns from vault week ${w + 1}, which starts ${etTime(next)}.`;
-  if (next - now < APPLY_EDGE_MS) return { week: w, earnsFrom: w + 1, text, refuse: `Too close to the week change at ${etTime(next)}: the block could land in either week. Wait until after ${etTime(next + APPLY_EDGE_MS)}.` };
-  if (tests.includes(w) && !allowTest) return { week: w, earnsFrom: w + 1, text, refuse: `Vault week ${w} is a test week. An apply now makes the game earn from vault week ${w + 1}, the first paid week. A game that should start later applies from ${etTime(next + APPLY_EDGE_MS)}. If you really want it to earn from vault week ${w + 1}, add --allow-test-week.` };
+  const text = `Applied now (chain time ${etTime(now)}, ${vaultWeek(w, { vaultTestWeeks: tests })}), a new game earns from vault week ${w + 1}, which starts ${etTime(next)}. (A game restarted while it is still earning keeps its weeks: Kpred.ts apply_game, audit V6-6.)`;
+  if (next - now < APPLY_EDGE_MS) return { week: w, earnsFrom: w + 1, text, refuse: `Too close to the week change at ${etTime(next)}: the block could land in either week. Wait until after ${etTime(next)}.` };
+  if (tests.includes(w) && !allowTest) return { week: w, earnsFrom: w + 1, text, refuse: `Vault week ${w} is a test week. An apply now makes the game earn from vault week ${w + 1}, the first paid week. A game that should start later applies from ${etTime(next)} (when vault week ${w + 1} begins). If you really want it to earn from vault week ${w + 1}, add --allow-test-week.` };
   return { week: w, earnsFrom: w + 1, text };
 }
 /** Earliest time (ms) week w can close: close_delay after the week ends and after its latest resolution (v4). */
@@ -1954,6 +1954,7 @@ async function friendly(cmd: string, a: string[], send: boolean): Promise<boolea
       const chk = applyCheck(num(s.time), num(s.config?.genesis_time), num(s.config?.week_length), testWeeks(dep), a.includes("--allow-test-week"));
       log(chk.text);
       if (chk.refuse) throw new Error(chk.refuse);
+      if (Math.abs(num(s.time) - Date.now()) > 5 * 60_000) throw new Error(`The node's head time (${etTime(num(s.time))}) is more than 5 minutes from this computer's clock: the node may be behind. Try again, or use another RPC.`);
       await act("owner", "apply_game", { game: id }, send); return true;
     }
     case "game-stop": {
@@ -2298,6 +2299,7 @@ async function main() {
     // admin <method> key=value key=value … --as owner|seed|operator|player [--send]
     const args: any = {};
     for (const kv of rest.slice(1)) { const m = kv.match(/^([a-z_]+)=(.*)$/); if (m) args[m[1]] = m[2]; }
+    if (rest[0] === "apply_game") throw new Error("use game-apply <id> (it checks the week the game would earn from)");
     return act(opt("--as", "owner")!, rest[0], args, flag("--send"));
   }
   if (cmd === "upgrade") return upgrade(rest[0] && !rest[0].startsWith("--") ? rest[0] : undefined, flag("--send"), flag("--bot-pays"), flag("--safe"));

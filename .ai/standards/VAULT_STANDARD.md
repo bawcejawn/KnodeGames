@@ -157,13 +157,14 @@
 - A failed finalize stops the finalize loop.
 
 ## 7. Timing
-- **A game applied in vault week W earns from W + 1** (`apply_game`: `from = weekOf(apply time) + 1`) ✅.
+- **A game applied in vault week W earns from W + 1** (`apply_game`: `from = weekOf(apply time) + 1`) ✅. A game restarted while it is still earning keeps its weeks instead (audit V6-6).
   - The apply is allowed from 48 h after the add (`timelockLength`) until 7 days after that (`ANNOUNCEMENT_EXPIRY`).
   - Results are posted for registered games only, for weeks they earn (`from_week <= w`) ✅.
 - **`game-apply` guard (owner, 12 Nov):**
   - The dry run and the send both say which vault week the game would earn from, using the chain's time.
   - The bot refuses an apply inside a test week (an apply there earns from the first paid week) unless `--allow-test-week` is given.
-  - It also refuses within 15 minutes before a week change.
+  - It also refuses within 15 minutes before a week change, and when the node's head time is more than 5 minutes from the PC's clock (a node that is behind; Repo Lens #G-38 G38-1).
+  - `admin apply_game` refuses and points to `game-apply`, so the guard can't be skipped (G38-2).
 - Results are due 3/7 of a week after the week ends.
   - Finalizing starts after `seal + 2 × close_delay` and `last_change + close_delay`.
   - Corrections and voids are allowed for 24 h after each seal and refused once finalizing starts.

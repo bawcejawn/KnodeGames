@@ -18,8 +18,8 @@ test("etTime prints New York time with the weekday", () => {
 test("an apply in the test week is refused, and says what it would do", () => {
   const r = applyCheck(at("2026-11-14T20:30:00Z"), G, W, [3]);   // Sat 14 Nov 3:30 PM ET, vault week 3
   assert.equal(r.week, 3); assert.equal(r.earnsFrom, 4);
-  assert.match(r.text, /vault week 3 \(test week\).*earns from vault week 4, which starts Sun 15 Nov 7:00 PM ET/);
-  assert.match(r.refuse ?? "", /test week.*applies from Sun 15 Nov 7:15 PM ET.*--allow-test-week/);
+  assert.match(r.text, /vault week 3 \(test week\).*a new game earns from vault week 4, which starts Sun 15 Nov 7:00 PM ET.*restarted/);
+  assert.match(r.refuse ?? "", /test week.*applies from Sun 15 Nov 7:00 PM ET \(when vault week 4 begins\).*--allow-test-week/);
 });
 
 test("--allow-test-week lets it through (a game that should earn from the first paid week)", () => {
@@ -34,7 +34,7 @@ test("in Week 1 (vault week 4) an apply goes through and earns from vault week 5
 
 test("within 15 minutes before a week change it is refused, whatever the week", () => {
   const edge = at("2026-11-23T00:00:00Z");
-  assert.match(applyCheck(edge - 60_000, G, W, [3]).refuse ?? "", /Too close to the week change at Sun 22 Nov 7:00 PM ET.*after Sun 22 Nov 7:15 PM ET/);
+  assert.match(applyCheck(edge - 60_000, G, W, [3]).refuse ?? "", /Too close to the week change at Sun 22 Nov 7:00 PM ET.*Wait until after Sun 22 Nov 7:00 PM ET/);
   assert.equal(applyCheck(edge - APPLY_EDGE_MS - 1, G, W, [3]).refuse, undefined);
   // the minutes right after a change are in the new week: Sun 15 Nov 7:01 PM ET is vault week 4, fine
   assert.equal(applyCheck(at("2026-11-16T00:01:00Z"), G, W, [3]).refuse, undefined);
@@ -52,4 +52,6 @@ test("game-apply runs the guard before it sends (dry run included)", () => {
   assert.ok(body.indexOf("applyCheck(") > 0 && body.indexOf("applyCheck(") < body.indexOf('act("owner", "apply_game"'));
   assert.match(body, /if \(chk\.refuse\) throw/);
   assert.match(body, /num\(s\.time\)/, "uses the chain's time, not the PC clock");
+  // Repo Lens #G-38 G38-1: a node whose head time is far from this computer's clock is refused, before the send
+  assert.ok(body.indexOf("Date.now()") > 0 && body.indexOf("Date.now()") < body.indexOf('act("owner", "apply_game"'));
 });

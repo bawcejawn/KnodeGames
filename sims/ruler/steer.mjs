@@ -4,7 +4,7 @@
 // daily wobble (sd 2%). The biggest node steers: it gives x of its blocks in [T − d days, T − 6 h) to the others, then
 // signs as usual in a 6-hour race (7,200 blocks). Reported per mode: its lift and its race score (fpct) honest vs steered,
 // the share of its raise it escapes, and its win chance in the race (top fpct) honest vs steered. Data only.
-//   node --max-old-space-size=3000 sims/ruler/steer.mjs [seeds = 6]
+//   node --max-old-space-size=3000 sims/ruler/steer.mjs [seeds = 6] [ruleVersion = 4]   (5: the core judged on [T − 14 d, T − 3 d))
 import fs from "node:fs";
 import vm from "node:vm";
 const root = new URL("../..", import.meta.url).pathname, box = { window: {} };
@@ -30,12 +30,12 @@ function timeline({ signers, bal }) {
   for (let k = 0; k < N; k++) { const i = signers[k]; sg[k] = ps[i]; ids[k] = "0x1220" + (FROM + k).toString(16).padStart(64, "0"); deltas[k] = { h: FROM + k, a: ps[i], d: -BURN, inc: 0n }; b[i] -= BURN; }
   return { from: FROM, to, signers: sg, ids, deltas, anchors: Object.fromEntries(ps.map((a, i) => [a, { h: to, v: b[i] }])) };
 }
-const seeds = Number(process.argv[2] || 6), MODES = ["A", "B", "C", "D"], len = 7200;
+const seeds = Number(process.argv[2] || 6), version = Number(process.argv[3] || 4), MODES = ["A", "B", "C", "D"], len = 7200;
 const steers = [{ d: 3, x: 0.06 }, { d: 3, x: 0.5 }, { d: 5, x: 0.06 }, { d: 5, x: 0.2 }, { d: 8, x: 0.06 }, { d: 8, x: 0.2 }, { d: 11, x: 0.06 }, { d: 14, x: 0.06 }, { d: 14, x: 0.2 }];
 const agg = {};
 for (let s = 1; s <= seeds; s++) {
   const h = honest(100 + s), Lk = FROM + N - len - 400, w = { W0: Lk - len + 1, W1: Lk, L: Lk, S0: Lk + 1, S1: Lk + len };
-  const score = (sig, mode) => { const L = R.ledger(timeline({ signers: sig, bal: h.bal })); return R.scoreCard(L, R.makeCard(L, { game: 7, round: String(Lk), window: w, c: 500000n, minK: 10, poolRule: "min", ownRule: "spot", paying: false, pooled: [], mode })); };
+  const score = (sig, mode) => { const L = R.ledger(timeline({ signers: sig, bal: h.bal })); return R.scoreCard(L, R.makeCard(L, { game: 7, round: String(Lk), window: w, c: 500000n, minK: 10, poolRule: "min", ownRule: "spot", paying: false, pooled: [], mode, version })); };
   const T = score(h.signers, "A").T;
   const row = (c) => { const p = c.producers.find((q) => q.a === ps[0]), f = c.producers.filter((q) => q.fpct !== null), top = f.reduce((m, q) => (q.fpct > m ? q.fpct : m), -1n); return { core: p.core, aside: p.setAside, form: Number(p.form) / 1e6, lift: Number(p.lift) / 1e6, fpct: Number(p.fpct) / 1e6, win: p.fpct === top ? 1 / f.filter((q) => q.fpct === top).length : 0 }; };
   const base = Object.fromEntries(MODES.map((m) => [m, row(score(h.signers, m))]));
@@ -47,7 +47,7 @@ for (let s = 1; s <= seeds; s++) {
       a.n++; a.lift0 += b.lift; a.lift1 += x.lift; a.f0 += b.fpct; a.f1 += x.fpct; a.w0 += b.win; a.w1 += x.win; a.gave += gave; }
   }
 }
-console.log(`the biggest node (18%, signs +5%) steers before a 6-hour race; ${seeds} chains; exact ruler code\n`);
+console.log(`the biggest node (18%, signs +5%) steers before a 6-hour race; ${seeds} chains; RULE_VERSION ${version}; exact ruler code\n`);
 console.log("steer".padEnd(22), "mode", "  lift honest → steered", "  escaped", "  race score honest → steered", "  wins honest → steered", "  blocks given up");
 for (const st of steers) for (const m of MODES) {
   const a = agg[`${st.d}|${st.x}|${m}`], l0 = a.lift0 / a.n, l1 = a.lift1 / a.n, esc = l0 > 1 ? (l0 - Math.min(l0, l1)) / (l0 - 1) : 0;

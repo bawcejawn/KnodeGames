@@ -89,6 +89,12 @@
   //  D  even odds: as A, but the luck cap is 100 expected blocks, so every race is mostly luck.
   // The field's median form, the core (by 14-day form) and the entry bar are the same in every mode.
   const MODES = ["A", "B", "C", "D"], MODE_CAP = { A: LUCK_CAP, B: LUCK_CAP, C: LUCK_CAP, D: 100n * 1000000n };
+  const RULE_VERSIONS = [4, 5];
+  /** The kit's include list: a non-empty list of distinct producer addresses in rising order (one way to write it). */
+  function checkInclude(x) {
+    if (!Array.isArray(x) || !x.length || !x.every((a) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a))) throw new Error("include must be a non-empty list of addresses");
+    for (let i = 1; i < x.length; i++) if (!(x[i - 1] < x[i])) throw new Error("include must be in rising order with no repeats");
+  }
   const LIFT_SKIP = 86400, LIFT_SPAN = 316800, STRETCHES = { B: 11, C: 11 }, LIFT_SD = { B: 2n, C: 1n };   // skip the last 3 days; read the 11 before, day by day
   /** A stretch's measure for the lift: (signed − sd·√signed) ÷ expected share, millionths (0 if nothing was expected). */
   function liftForm(signed, expected, sd = 1n) {
@@ -171,12 +177,7 @@
   // ── integer helpers ──
   const imin = (x, y) => (x < y ? x : y), imax = (x, y) => (x > y ? x : y);
   const big = (x) => (typeof x === "bigint" ? x : BigInt(x));
-  function isqrt(n) {   // floor(√n) for a BigInt n ≥ 0 (Newton)
-    if (n < 0n) throw new Error("isqrt of a negative number");
-    if (n < 2n) return n;
-    let x = BigInt(1) << BigInt((n.toString(2).length + 1) >> 1);
-    for (;;) { const y = (x + n / x) >> 1n; if (y >= x) return x; x = y; }
-  }
+  // isqrt (floor √v for a BigInt v ≥ 0) is defined once, below, next to its first use in scoring
   /** Luck trim c ÷ √k in millionths (c and k in millionths). */
   function trim(k, c) {
     k = big(k); c = big(c);
@@ -452,6 +453,9 @@
     // the entry bar minK (whole expected blocks; 10 as approved) and the pool rule ("min": min(own, eff) per block, §3.2;
     // the only rule since Repo Lens #B-9 B9-1; the setting stays so every card says which rule it used)
     const minKBlocks = opts.minK ?? 10, poolRule = opts.poolRule ?? "min", mode = opts.mode;
+    const version = opts.version ?? RULE_VERSION, include = opts.include;
+    if (!RULE_VERSIONS.includes(version)) throw new Error("version must be 4 or 5");
+    if (include !== undefined) checkInclude(include);
     if (!Number.isSafeInteger(minKBlocks) || minKBlocks < 1 || minKBlocks > 100000) throw new Error("minK must be a whole number of blocks from 1");
     if (mode !== undefined && !MODES.includes(mode)) throw new Error("mode must be A, B, C or D");
     if (!POOL_RULES.includes(poolRule)) throw new Error("poolRule must be min");
@@ -462,13 +466,18 @@
     if (paying && pendingIn(L, T - AVG - EARLY, T)) throw new Error(notYet(L, T - AVG - EARLY, T));
     const formFrom = imax(L.validFrom, T - FORM), look0 = imin(T - AVG, formFrom);
     const blocks = w.S1 - w.S0 + 1, tot = total(L, T);
-    const producers = L.active(T).map((a) => {
+    // the kit's include (Repo Lens #G-13 G6, owner 11 Nov): a listed producer gets a row even with no block in the 6 hours
+    // before T, scored by the same code; it isn't in the network total (that stays Σ avg over active(T)), and its entry
+    // also needs a block somewhere in its form window. Without include the card is exactly as before
+    const act = L.active(T), actSet = new Set(act), extra = (include || []).filter((a) => !actSet.has(a));
+    const producers = [...act, ...extra].map((a) => {
       const o = own(L, a, T, ownRule), av = avg(L, a, T), f = formOf(L, a, T), k = kOf(blocks, o, tot);
       const { isNew, history } = newcomer(L, a, T), { rate, steady } = rateOf(L, a, T, f);
       // D-120 as the owner ruled (5 Nov): a steady producer (every daily rate within ±0.15 of its 14-day rate) plays at its
       // full size whatever its level; anyone else needs form ≥ 0.80. Out is never for good: it re-enters once steady or
       // back above 0.80. rate is shown on the card (its steady 14-day rate, or 1) and changes no number
-      return { a, own: o, avg: av, k, form: f.form, rate, entry: k >= minK && (steady || f.form >= FORM_GATE) && history, pooled: pooled.has(a), isNew, quality: "ok" };
+      const seen = actSet.has(a) || f.signed > 0;
+      return { a, own: o, avg: av, k, form: f.form, rate, entry: k >= minK && (steady || f.form >= FORM_GATE) && history && seen, pooled: pooled.has(a), isNew, quality: "ok" };
     }).sort((x, y) => (x.own > y.own ? -1 : x.own < y.own ? 1 : x.a < y.a ? -1 : 1));
     // quality, for the whole card: every producer's numbers feed everyone's total and form (Repo Lens #E-12 L-2), so a bad
     // range for any active producer in the look-back flags every producer. On a paying card, a rebuilt or unverified
@@ -477,9 +486,9 @@
     const flagged = producers.some((p) => badFor(L, p.a, look0 - EARLY, T)) || (paying && rebuiltIn(L, T - AVG - EARLY, T));
     if (flagged) for (const p of producers) p.quality = "flagged";
     return {
-      ruleVersion: RULE_VERSION, game: Number(dec(opts.game, "game")), round: dec(opts.round, "round"), ownRule, paying,
+      ruleVersion: version, game: Number(dec(opts.game, "game")), round: dec(opts.round, "round"), ownRule, paying,
       T, seedBlock, seedBlockId, seedProducer: L.signer(seedBlock),
-      window: { W0: w.W0, W1: w.W1, L: w.L, S0: w.S0, S1: w.S1 }, c, minK: minKBlocks, poolRule, ...(mode === undefined ? {} : { mode }), total: tot, formFrom, producers,
+      window: { W0: w.W0, W1: w.W1, L: w.L, S0: w.S0, S1: w.S1 }, c, minK: minKBlocks, poolRule, ...(mode === undefined ? {} : { mode }), ...(include === undefined ? {} : { include: [...include] }), total: tot, formFrom, producers,
     };
   }
 
@@ -577,7 +586,20 @@
       }
       for (const p of producers) { p.target = (p.expected * p.lift) / M; p.pct = pct(p.target, p.credited); }
     }
-    const line = (median * CORE_LINE) / M, inCore = (p) => inField(p) && big(p.form) >= line;
+    // RULE_VERSION 5 (Repo Lens #G-21 Info, owner 12 Nov): the core is judged on the form over [T − 14 d, T − 3 d), the
+    // window modes B and C read, so signing less just before a race can't take a node out of the core. Version 4: the
+    // 14-day form, as before
+    if (!RULE_VERSIONS.includes(card.ruleVersion)) throw new Error("the card's ruleVersion must be 4 or 5");
+    const v5 = card.ruleVersion === 5, coreForm = new Map();
+    let cMedian = median;
+    if (v5) {
+      const H0 = imax(L.validFrom, card.T - FORM), H1 = card.T - LIFT_SKIP - 1;
+      for (const p of producers) { const e = L.shareSum(p.a, H0, H1); coreForm.set(p.a, H1 < H0 ? big(p.form) : e > 0n ? (BigInt(L.signedIn(p.a, H0, H1)) * M * M) / e : 0n); }
+      const byCore = [...fieldRows].sort((x, y) => (coreForm.get(x.a) < coreForm.get(y.a) ? -1 : coreForm.get(x.a) > coreForm.get(y.a) ? 1 : 0));
+      cMedian = 0n; let c5 = 0n;
+      for (const p of byCore) { c5 += p.expected; if (2n * c5 >= eAll) { cMedian = coreForm.get(p.a); break; } }
+    }
+    const line = (cMedian * CORE_LINE) / M, inCore = (p) => inField(p) && (v5 ? coreForm.get(p.a) : big(p.form)) >= line;
     // The yardstick counts CREDITED blocks (millionths), the same blocks each producer's expected blocks are for: counting
     // raw signed blocks against capped expected blocks lifted every expectation a little whenever a member's VHP was
     // above its card size, which cost big producers most and grew with the race's length (found 11 Nov on daily races).
@@ -585,6 +607,7 @@
     for (const p of producers) if (inCore(p)) { n += p.credited; b += E(p); }
     let nY = n, bY = b;
     for (const p of producers) {
+      if (v5) p.coreForm = coreForm.get(p.a);
       p.core = inCore(p); p.z = null; p.setAside = false;
       if (!p.core) continue;
       const e = E(p), dev = p.credited * b - n * e, v = n * e * (b - e) * M;
@@ -667,6 +690,32 @@
    *  week:mode pairs with rising weeks, like "5:B,8:C": mode B from vault week 5, C from week 8; before the first pair,
    *  and when the variable is unset, the mode is A. modeChange refuses any change that would alter the mode of a week
    *  that has started (the same rule as the switch), so the admin can only shift FUTURE weeks. */
+  /** A game's RULE_VERSION schedule, <GAME>_RULER_VERSION: empty, or week:version pairs like 6:5 (versions 4 or 5), weeks
+   *  rising. versionAt: the version for a week (4 before the first pair); versionChange: null, or why a started week
+   *  would change (as modeChange). */
+  function versionSchedule(v) {
+    if (v === undefined || v === null || v === "") return null;
+    if (typeof v !== "string" || !/^[1-9][0-9]{0,5}:[45](,[1-9][0-9]{0,5}:[45])*$/.test(v)) throw new Error("the ruler version schedule must be empty or week:version pairs like 6:5 (versions 4 or 5)");
+    const out = v.split(",").map((x) => { const [w, n] = x.split(":"); return [Number(w), Number(n)]; });
+    for (let i = 1; i < out.length; i++) if (out[i][0] <= out[i - 1][0]) throw new Error("the ruler version schedule's weeks must rise");
+    if (out[out.length - 1][0] > SWITCH_MAX) throw new Error("the ruler version schedule's weeks must be at most 999999");
+    return out;
+  }
+  function versionAt(week, schedule) {
+    const w = switchWeek(week), s = versionSchedule(schedule);
+    let n = RULE_VERSION;
+    if (s) for (const [x, v] of s) if (x <= w) n = v;
+    return n;
+  }
+  function versionChange(prev, next, week) {
+    const w = switchWeek(week), p = versionSchedule(prev), n = versionSchedule(next);
+    const at = [...new Set([0, ...(p || []).map((x) => x[0]), ...(n || []).map((x) => x[0])])].filter((x) => x <= w).sort((x, y) => x - y);
+    for (const x of at) {
+      const a = versionAt(x, prev), b = versionAt(x, next);
+      if (a !== b) return `the ruler version schedule moved from ${JSON.stringify(prev ?? "")} to ${JSON.stringify(next ?? "")}: week ${x} has started and would change from ${a} to ${b}; a change may only touch weeks after ${w}`;
+    }
+    return null;
+  }
   function modeSchedule(v) {
     if (v === undefined || v === null || v === "") return null;
     if (typeof v !== "string" || !/^[1-9][0-9]{0,5}:[ABCD](,[1-9][0-9]{0,5}:[ABCD])*$/.test(v)) throw new Error("the ruler mode schedule must be empty or week:mode pairs like 5:B,8:C (modes A, B, C or D)");
@@ -694,15 +743,17 @@
   /** recompute (§13): rebuild a published card FROM THE GAME'S OWN SETTINGS and compare byte for byte (Repo Lens #E-12
    *  M-1: never from the card's own settings, or a card made with the wrong window, c, own rule, paying flag or pooled
    *  list would pass). game = { game, round, window: { W0, W1, L, S0, S1 }, c, minK, poolRule, ownRule, paying, pooled }. */
-  const SETTINGS = ["game", "round", "window", "c", "minK", "poolRule", "ownRule", "paying", "pooled"], WKEYS = ["W0", "W1", "L", "S0", "S1"];
+  const SETTINGS = ["game", "round", "window", "c", "minK", "poolRule", "ownRule", "paying", "pooled"], OPTIONAL = ["mode", "include", "version"], WKEYS = ["W0", "W1", "L", "S0", "S1"];
   /** The game's settings, strictly (Repo Lens #B-5 N-5): every key, no other key, each of its own type. Same in Python,
    *  with one difference JavaScript can't see: JSON.parse reads 1.0 and 0e0 as plain numbers, which Python refuses
    *  (#B-6 B6-2). The game's publish job runs the Python twin (recompute_main), so Python decides. */
   function checkSettings(g) {
     if (!g || typeof g !== "object" || Array.isArray(g)) throw new Error("recompute needs the game's own settings");
-    const ks = Object.keys(g).sort();
-    if (ks.join() !== [...SETTINGS].sort().join() && ks.join() !== [...SETTINGS, "mode"].sort().join()) throw new Error(`the game's settings must have exactly: ${SETTINGS.join(", ")} (and, optionally, mode)`);
+    const ks = Object.keys(g), need = SETTINGS.filter((k) => !ks.includes(k)), odd = ks.filter((k) => !SETTINGS.includes(k) && !OPTIONAL.includes(k));
+    if (need.length || odd.length) throw new Error(`the game's settings must have exactly: ${SETTINGS.join(", ")} (and, optionally, ${OPTIONAL.join(", ")})`);
     if ("mode" in g && !MODES.includes(g.mode)) throw new Error("mode must be A, B, C or D");
+    if ("version" in g && !RULE_VERSIONS.includes(g.version)) throw new Error("version must be 4 or 5");
+    if ("include" in g) checkInclude(g.include);
     dec(g.game, "game"); dec(g.round, "round");
     const w = g.window;
     if (!w || typeof w !== "object" || Array.isArray(w) || Object.keys(w).sort().join() !== [...WKEYS].sort().join()) throw new Error(`window must have exactly: ${WKEYS.join(", ")}`);
@@ -713,16 +764,33 @@
     if (typeof g.paying !== "boolean") throw new Error("paying must be true or false");
     if (!Array.isArray(g.pooled) || !g.pooled.every((a) => typeof a === "string")) throw new Error("pooled must be a list of addresses");
   }
+  /** The compact card (the Race, 12 Nov: a week's file holds one entry per card): the sha256 of the card's canonical
+   *  text, and whether it was scored. recompute accepts it in place of the text and checks it byte-exact, because the
+   *  sha256 of the rebuilt card's exact bytes must match. */
+  function cardDigest(card) {
+    return { sha256: hex(sha256(cardJson(card))), scored: (card.producers || []).some((p) => "credited" in p) };
+  }
+  const isDigest = (x) => x && typeof x === "object" && !Array.isArray(x) && Object.keys(x).sort().join() === "scored,sha256" && typeof x.sha256 === "string" && /^[0-9a-f]{64}$/.test(x.sha256) && typeof x.scored === "boolean";
   function recompute(L, published, game) {
     try { checkSettings(game); } catch (e) { return { same: false, diff: `the game's settings: ${e.message}` }; }
+    let pubD = typeof published === "string" ? (() => { try { return JSON.parse(published); } catch { return null; } })() : published;
+    if (isDigest(pubD)) {   // the compact card: rebuild from the game's own settings, compare the sha256 of the exact bytes
+      let mine;
+      try {
+        mine = makeCard(L, { game: game.game, round: game.round, window: game.window, c: big(game.c), minK: game.minK, poolRule: game.poolRule, ownRule: game.ownRule, paying: game.paying, pooled: game.pooled, ...("mode" in game ? { mode: game.mode } : {}), ...("version" in game ? { version: game.version } : {}), ...("include" in game ? { include: game.include } : {}) });
+        if (pubD.scored) mine = scoreCard(L, mine);
+      } catch (e) { return { same: false, diff: `the data can't make this card: ${e.message}` }; }
+      const d = cardDigest(mine).sha256;
+      return d === pubD.sha256 ? { same: true } : { same: false, diff: `sha256 differs: published ${pubD.sha256}, recomputed ${d}` };
+    }
     const pub = typeof published === "string" ? JSON.parse(published) : published;
     const want = { game: Number(dec(game.game, "game")), round: dec(game.round, "round"), ownRule: game.ownRule, paying: game.paying, c: big(game.c).toString(10), minK: game.minK, poolRule: game.poolRule,
-      mode: game.mode, W0: game.window.W0, W1: game.window.W1, L: game.window.L, S0: game.window.S0, S1: game.window.S1 };
-    const got = { game: pub.game, round: pub.round, ownRule: pub.ownRule, paying: pub.paying, c: String(pub.c), minK: pub.minK, poolRule: pub.poolRule, mode: pub.mode, ...(pub.window || {}) };
+      mode: game.mode, version: game.version ?? RULE_VERSION, include: JSON.stringify(game.include ?? null), W0: game.window.W0, W1: game.window.W1, L: game.window.L, S0: game.window.S0, S1: game.window.S1 };
+    const got = { game: pub.game, round: pub.round, ownRule: pub.ownRule, paying: pub.paying, c: String(pub.c), minK: pub.minK, poolRule: pub.poolRule, mode: pub.mode, version: pub.ruleVersion, include: JSON.stringify(pub.include ?? null), ...(pub.window || {}) };
     for (const k of Object.keys(want)) if (got[k] !== want[k]) return { same: false, diff: `setting ${k}: the card says ${JSON.stringify(got[k])}, the game says ${JSON.stringify(want[k])}` };
     let mine;
     try {
-      mine = makeCard(L, { game: game.game, round: game.round, window: game.window, c: big(game.c), minK: game.minK, poolRule: game.poolRule, ownRule: game.ownRule, paying: game.paying, pooled: game.pooled, ...("mode" in game ? { mode: game.mode } : {}) });
+      mine = makeCard(L, { game: game.game, round: game.round, window: game.window, c: big(game.c), minK: game.minK, poolRule: game.poolRule, ownRule: game.ownRule, paying: game.paying, pooled: game.pooled, ...("mode" in game ? { mode: game.mode } : {}), ...("version" in game ? { version: game.version } : {}), ...("include" in game ? { include: game.include } : {}) });
       if ((pub.producers || []).some((p) => "credited" in p)) mine = scoreCard(L, mine);
     } catch (e) { return { same: false, diff: `the data can't make this card: ${e.message}` }; }
     const a = cardJson(mine), b = typeof published === "string" ? published : cardJson(published);
@@ -731,6 +799,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, MODES, MODE_CAP, LIFT_SKIP, LIFT_SPAN, STRETCHES, LIFT_SD, liftForm, modeSchedule, modeAt, modeChange, isqrt, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
-    sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, checkSettings, recompute };
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, RULE_VERSIONS, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, MODES, MODE_CAP, LIFT_SKIP, LIFT_SPAN, STRETCHES, LIFT_SD, liftForm, checkInclude, versionSchedule, versionAt, versionChange, modeSchedule, modeAt, modeChange, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
+    sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, cardDigest, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

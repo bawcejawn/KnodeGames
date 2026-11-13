@@ -5,6 +5,24 @@
 > **Times:** UTC first, Pacific (PST, UTC − 8) after. Daylight time returns 14 Mar 2027.
 > **Rule:** when a date moves, change it **here** and in the decision that moved it; remove past rows to `../archive/DONE.md` at the weekly review.
 
+## Vault dates from 12 Nov (Vault chat; ET = UTC − 5)
+The rows below replace any older vault row in this file. The Library's catch-up moves the rest.
+
+| When (ET) | UTC | What | Who |
+|---|---|---|---|
+| Thu 12 Nov ~3:16 PM | 20:16 | ✅ `game-add 6` (Block Golf) and `game-add 9` (Producer Bracket) sent | Owner |
+| Sat 14 Nov 3:16 PM → Sun 15 Nov 6:59 PM | Sat 20:16 → Sun 23:59 | **Don't apply 6 or 9:** an apply in the test week (vault week 3) earns from Week 1. `game-apply` refuses it (owner, 12 Nov) | — |
+| **Sun 15 Nov 7:00 PM** | Mon 16 00:00 | Week 1 = vault week 4 starts. 4 + 4 Questions. The test week ends | Bot |
+| Mon 16 Nov ~7 AM | 12:00 | Vault week 3 (test week) closes; nothing pays | Bot |
+| Mon 16 – Fri 20 Nov | — | `game-apply 6` (Golf ready: #243 merged) and `game-apply 9` once the Bracket is merged. Dry run first; it must say "earns from vault week 5" | Owner + Vault chat |
+| Tue 17 Nov ~7 AM | 12:00 | Daily Questions' vault week 3 rolls over | Bot |
+| Wed 18 Nov 7:00 PM | Thu 19 00:00 | Block X and Race vault week 3 roll over (Vault chat checks Thu 19) | Bot |
+| **Sat 21 Nov 3:00 PM** | 20:00 | **Last safe apply for 6 and 9** (their notices expire Sat 21 Nov 3:16 / 3:17 PM ET) | Owner |
+| Sun 22 Nov 7:00 PM | Mon 23 00:00 | Week 2 = vault week 5 starts: Golf and Bracket earn from here | — |
+| Mon 23 Nov ~7 AM | 12:00 | First paid close (vault week 4) | Bot |
+| Tue 24 Nov | — | First full review. Then: producer-key backup and handover 4a/4b (owner to pick dates) | Owner + chats |
+| Wed 25 Nov 7:00 PM | Thu 26 00:00 | Vault week 4 results due from every game; a week with no file rolls over | Games, bot |
+
 ## This week and next
 
 | When (UTC) | Pacific | What | Who | Source |

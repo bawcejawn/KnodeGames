@@ -29,6 +29,8 @@
     set("rt-free-pts", "Points are per place: 1st, 2nd and 3rd score (12 / 6 / 4 in the weekly race, 6 / 3 / 2 daily, 4 / 2 / 1 in the 6-hour race, 3 / 2 / 1 in a 1-hour or 2-hour race).");
     set("rt-open", "Races of five lengths run side by side: 1-hour, 2-hour, 6-hour (00:00, 06:00, 12:00 and 18:00 UTC), daily and weekly (Sunday's races are for fun: they count on All time, not the week)");
     set("rt-watch-pts", PTS_TEXT);
+    set("rt-short-pts", "Pick the producer you think finishes 1st, 2nd or 3rd: each place scores, and the points depend on the race length.");
+    set("rt-step2", "A race lasts 1 hour, 2 hours, 6 hours, a day or a week; the Ruler places the producers 1st, 2nd and 3rd.");
     set("rt-soon-h", "More races: live now");
     const p = document.getElementById("rt-soon-2"); if (p) p.textContent = PTS_TEXT;
     const one = document.getElementById("rt-soon-1"); if (one) one.textContent = "Five race lengths, one board. 1-hour, 2-hour, 6-hour, daily and weekly races run side by side, and points from every length add up on the same Producer Race board. Pick any length within your daily Mana.";
@@ -95,17 +97,20 @@
       if (!typesOnFor(w) || this.ttried.has(w)) return;
       this.ttried.add(w);
       const p3 = String(w).padStart(3, "0");
-      try {
-        const f = await fetchJson(RAW + `race-data/T${p3}.json`);
-        if (f && f.v === 1 && f.week === w && Array.isArray(f.races)) this.tfiles.set(w, f);
-      } catch (e) { if (String(e && e.message) !== "404") this.ttried.delete(w); /* 404: no typed races recorded yet */ }
-      for (const t of [1, 2, 3, 4]) {
+      // All five files at once (the T and R-1 files can be 1 to 2 MB each).
+      const tp = (async () => {
+        try {
+          const f = await fetchJson(RAW + `race-data/T${p3}.json`);
+          if (f && f.v === 1 && f.week === w && Array.isArray(f.races)) this.tfiles.set(w, f);
+        } catch (e) { if (String(e && e.message) !== "404") this.ttried.delete(w); /* 404: no typed races recorded yet */ }
+      })();
+      await Promise.all([tp, ...[1, 2, 3, 4].map(async (t) => {
         const key = `${w}:${t}`;
         try {
           const j = await fetchJson(RAW + `race-data/R${p3}-${t}.json`);
-          if (j && j.v === 1 && j.week === w && Array.isArray(j.races)) { this.tfailed.delete(key); if (j.mode !== "off") this.truler.set(key, j); }
+          if (j && j.v === 1 && j.week === w && Array.isArray(j.races)) { this.tfailed.delete(key); if (j.mode === "on" && j.shadow !== true) this.truler.set(key, j); }
         } catch (e) { if (String(e && e.message) !== "404") { this.tfailed.add(key); this.ttried.delete(w); } }
-      }
+      })]);
     },
     /** Every race of the week the page can show: the 6-hour races, then the typed ones (each with its type, start and end). */
     racesOf(w) {
@@ -152,7 +157,7 @@
       const all = this.type == null ? everything : everything.filter((x) => x.type === this.type);
       const dayOf = (x) => Math.floor((x.r.start - weekStart) / M.DAY);
       const ended = all.filter((x) => x.status !== "live");
-      if (this.day == null || !all.some((x) => dayOf(x) === this.day)) this.day = ended.length ? dayOf(ended[ended.length - 1]) : 0;
+      if (this.day == null || !all.some((x) => dayOf(x) === this.day)) this.day = ended.length ? dayOf(ended.reduce((m, x) => (x.r.start > m.r.start ? x : m))) : 0;
 
       // Band: title, the player's week, weeks and days.
       // D-129 (Repo Lens #B-7 B7-4): Sunday fun races count for no week, so they are left out of "pts this week".
@@ -192,7 +197,7 @@
       this.all = all; this.dayOf = dayOf;
       box.replaceChildren(band, tools, f ? this.list : el("div", { class: "empty", text: "Couldn't load this week's races. Try again in a moment." }),
         typesOnFor(this.week) ? el("p", { class: "muted res-foot", text: PTS_TEXT }) : null,
-        el("p", { class: "muted res-foot" }, "Results become final once their blocks are irreversible and two nodes agree. ", el("a", { href: "race.html", text: "Watch the live race" }), " · ", el("a", { href: "index.html#leaderboard/race", text: "Race leaderboard" }), " · ", el("a", { href: "ruler.html", text: "How the Ruler works" })));
+        el("p", { class: "muted res-foot" }, "Results become final once their blocks are irreversible and two nodes agree. ", el("a", { href: "race.html", text: "Watch the live race" }), " · ", el("a", { href: "index.html#leaderboard/race", text: "Race leaderboard" }), ...(typesOnFor(this.week) ? [" · ", el("a", { href: "ruler.html", text: "How the Ruler works" })] : [])));
       if (f) this.drawList();
     },
     drawList() {

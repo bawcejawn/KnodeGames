@@ -14,10 +14,10 @@
   "in-feed": null,
   "results-inline": null,
   "featured": {
-    "name": "KoinosKit",
-    "tagline": "Run your own Koinos node in a few clicks. Free desktop app.",
-    "link": "https://koinoskit.site/",
-    "cta": "Start a node"
+    "name": "Koinos AI",
+    "tagline": "Meet KAI, a local-first AI companion for Koinos. Our first pick to start your own node.",
+    "link": "https://www.koinosai.com/",
+    "cta": "Meet KAI"
   },
   "ecosystem": [
     {
@@ -63,10 +63,28 @@
       "cta": "Bridge"
     },
     {
-      "name": "Koinos AI",
-      "tagline": "KAI, a local-first AI companion for chat and agents.",
-      "link": "https://www.koinosai.com/",
-      "cta": "Meet KAI"
+      "name": "Koinos",
+      "tagline": "The official Koinos site: what it is and where to start.",
+      "link": "https://koinos.io/",
+      "cta": "Visit"
+    },
+    {
+      "name": "Koinos docs",
+      "tagline": "The official documentation for builders and node runners.",
+      "link": "https://docs.koinos.io/",
+      "cta": "Read"
+    },
+    {
+      "name": "Koinosblocks",
+      "tagline": "Another block explorer for Koinos blocks and transactions.",
+      "link": "https://koinosblocks.com/",
+      "cta": "Explore"
+    },
+    {
+      "name": "Kondor",
+      "tagline": "The Koinos wallet for your browser (Chrome Web Store).",
+      "link": "https://chromewebstore.google.com/detail/kondor/ghipkefkpgkladckmlmdnadmcchefhjl",
+      "cta": "Get Kondor"
     }
   ]
 }

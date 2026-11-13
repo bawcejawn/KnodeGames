@@ -965,3 +965,8 @@ body[data-view="play"] .qtabs a[data-view="play"], body[data-view="leaderboard"]
 .play-loading { display: none; margin: 40px 0; text-align: center; color: var(--muted); font-size: 1.05rem; }
 body.play-wait #view-play > :not(.qtabs):not(.play-loading) { display: none; }
 body.play-wait #view-play > .play-loading { display: block; }
+
+/* The quiet "Run your own node" line above the footer links (owner, 13 Nov). */
+.foot-node { margin: 18px 0 0; color: var(--muted); font-size: .88rem; line-height: 1.8; }
+.foot-node b { color: var(--ink, inherit); font-weight: 700; }
+.foot-node a { display: inline-block; padding: 2px 2px; }

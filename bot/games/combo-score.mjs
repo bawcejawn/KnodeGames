@@ -194,7 +194,10 @@ export function makeScorer({ race: RACE, targets, head, agreed, movedInto, probl
       if (r === "pending" && late) {
         // At the deadline: unresolved if the leg's source has published past it (it gave up on it), else its recorder
         // stopped and the card waits (RL-9). Both are errors: someone should look.
-        const past = isRace ? (ruled ? rulerSourcePast(RACE, l[1]) : raceSourcePast(RACE, l[1])) : [...targets.values()].some((x) => x.height > X.target(l[1]) && x.final === true);
+        // Repo Lens G51-1: a ruled race whose W result is final but whose ruler card still hasn't come is given up at the
+        // FC2-3 edge (6 h before the week's Vault window closes), as the Race itself skips it, so the week keeps its Vault file.
+        const edge = M.weekStart(M.weekOf(day * M.DAY) + 1) + VAULT_WINDOW_MS - 6 * 3600000;
+        const past = isRace ? (ruled ? rulerSourcePast(RACE, l[1]) || (head.time > edge && raceRecord(RACE, l[1])?.result?.final === true) : raceSourcePast(RACE, l[1])) : [...targets.values()].some((x) => x.height > X.target(l[1]) && x.final === true);
         if (past) { unresolved(l, `its ${isRace ? "race" : "block"} (round ${l[1]}) was never decided by the deadline`, true); continue; }
         errors.push(`slot ${c.round}: the ${isRace ? "race" : "Block X"} recorder hasn't published past a leg of ${c.player}'s card (round ${l[1]}); it waits`);
       }

@@ -22,6 +22,8 @@ game 8's free prize on (it ships OFF).
 - The contract (Picks v2) is rated ready in every review.
 - Repo Lens #G-37 (the delta round on `f41f5bec`): **GO with conditions**. Its conditions (G37-1, G37-2, the switch tied
   to the Race's) are built and tested.
+- Repo Lens #G-51 (the #G-37 conditions, at `74d36ed4`): **GO with conditions**. Every #G-37 condition is met; G51-1
+  (Low) is fixed.
 - Realistic launch: **Mon 7 Dec 2026 (vault week 7)**, after the Picks owner handover (accepted Wed 25 Nov) and the
   Picks v2 upgrade.
 
@@ -162,7 +164,9 @@ This round (Thu 12 Nov), on top of `ba2d9b30`:
   the publish job each refuse `COMBO_RULER_FROM_WEEK` < `RACE_RULER_FROM_WEEK`, or a Combo switch with the Race's unset.
 - **A ruler card that never comes is an outage, not a void (G37-1).** In a ruled week, a race leg is given up
   ("unresolved") only once the Race's ruler has published a card for a later race. Until then the card waits, with an
-  error, as for any other source outage (RL-9).
+  error, as for any other source outage (RL-9). If the ruler card still hasn't come 6 h before the week's Vault window
+  closes and the race is final in the W file, the leg is given up then, so the week keeps its Vault file (Repo Lens
+  #G-51, G51-1).
 - **At launch:** N = 7 (vault week 7, Mon 7 Dec), set by Sun 6 Dec 23:59 UTC (6:59 PM ET), with or before
   `COMBO_ENABLED`. `RACE_RULER_FROM_WEEK` must be 7 or lower. Check first with `node tools/vhp-ruler-switch.mjs 7`.
 

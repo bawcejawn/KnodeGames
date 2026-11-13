@@ -314,3 +314,20 @@ The Capacity chat's sizer (on samples from Combo's own recorder, `claude/combo/s
   the board, commented, so the same checks (FC-6, the stake flags) still catch the forgery.
 - **Sizes:** `board.json` at most 5,100 rows, about 0.93 MB at any player count. An `L` part is at most about 0.37 MB
   (183 B a row): 3 parts at 4,500 weekly, 5 at 9,000.
+
+## Repo Lens #G-51 (the #G-37 conditions, at `74d36ed4`, 13 Nov 2026): GO with conditions
+Every #G-37 condition is met.
+- **G51-1 (Low), fixed** (`bot/games/combo-score.mjs`, Repo Lens's diff as given). In a ruled week, a race leg whose
+  race is final in the W file but whose ruler card never comes is now given up ("unresolved", with an alert) at the
+  FC2-3 edge, 6 h before the week's Vault window closes, as the Race itself skips such a race. Before this, a ruler feed
+  down past the window left the card pending and the week with no Vault file, so fully decided winning cards went
+  unpaid. The verify job scores with the same code; the publish job already accepts an unresolved leg after the
+  deadline.
+- **Tests (Repo Lens's, unchanged, in `tests/audit/`):** `repolens-g51-ruler-outage-window.test.mjs` (fails before the
+  fix, passes after) and `repolens-g51-d033-winner.test.mjs` (D-033 the same in JS and Python, every leg type, fields of
+  1 to 6).
+- **Info, left:** a switch-pair refusal stops every Combo file, including a past week's Vault file (intended and loud;
+  only after an illegal change to the Race's switch). The publish job accepts any unresolved race leg after the
+  deadline; only the verify job checks that the source published past it. A Python copy of that rule is worth adding
+  later.
+

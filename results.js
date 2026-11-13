@@ -17,6 +17,27 @@
   const M = window.KRaceMath;
   if (!host || !M) return;
   const W = window.KWallet;
+  // The Producer Race's other lengths (1-hour, 2-hour, daily, weekly) and points per place are live from M.TYPES_ON_WEEK (vault week 5):
+  // never hard-coded to a date, and never before it.
+  const typesOnFor = (w) => M.TYPES_ON_WEEK !== null && w >= M.TYPES_ON_WEEK;
+  const typesLive = () => typesOnFor(M.weekOf(Date.now()));
+  const PTS_TEXT = "Points are per place, by race: 1st / 2nd / 3rd score 3 / 2 / 1 in a 1-hour or 2-hour race, 4 / 2 / 1 in a 6-hour race, 6 / 3 / 2 in a daily race and 12 / 6 / 4 in the weekly race. A 2nd or 3rd place scores only if that producer signed at least one block.";
+  /** The how-to-play text on the home page: the old words until week 5, the new ones from it. */
+  function rulesText() {
+    if (!typesLive()) return;
+    const set = (id, t) => { const n = document.getElementById(id); if (n) n.textContent = t; };
+    set("rt-free-pts", "Points are per place: 1st, 2nd and 3rd score (12 / 6 / 4 in the weekly race, 6 / 3 / 2 daily, 4 / 2 / 1 in the 6-hour race, 3 / 2 / 1 in a 1-hour or 2-hour race).");
+    set("rt-open", "Races of five lengths run side by side: 1-hour, 2-hour, 6-hour (00:00, 06:00, 12:00 and 18:00 UTC), daily and weekly (Sunday's races are for fun: they count on All time, not the week)");
+    set("rt-watch-pts", PTS_TEXT);
+    set("rt-short-pts", "Pick the producer you think finishes 1st, 2nd or 3rd: each place scores, and the points depend on the race length.");
+    set("rt-step2", "A race lasts 1 hour, 2 hours, 6 hours, a day or a week; the Ruler places the producers 1st, 2nd and 3rd.");
+    set("rt-soon-h", "More races: live now");
+    const p = document.getElementById("rt-soon-2"); if (p) p.textContent = PTS_TEXT;
+    const one = document.getElementById("rt-soon-1"); if (one) one.textContent = "Five race lengths, one board. 1-hour, 2-hour, 6-hour, daily and weekly races run side by side, and points from every length add up on the same Producer Race board. Pick any length within your daily Mana.";
+    const three = document.getElementById("rt-soon-3"); if (three) three.hidden = true;
+    document.querySelectorAll("#race-types-soon").forEach((n) => n.classList.remove("rules-soon"));
+  }
+  rulesText();
   const RAW = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/";
   const EXPLORER = "https://koinosscan.com/address/";
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode Games pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Games Swap" };
@@ -42,6 +63,7 @@
   // ───────────────── Producer Race ─────────────────
   const race = {
     weeks: null, files: new Map(), ruler: new Map(), rulerFrom: null, rulerFailed: new Set(), rtried: new Set(), week: null, day: null, mine: false, q: "",
+    tfiles: new Map(), truler: new Map(), tfailed: new Set(), ttried: new Set(), type: null,
     async open(box) {
       this.box = box;
       if (!this.weeks) {
@@ -57,7 +79,7 @@
       this.draw();
     },
     async load(w) {
-      if (this.files.has(w) && this.rtried.has(w)) return;
+      if (this.files.has(w) && this.rtried.has(w)) { await this.loadTyped(w); return; }
       if (!this.files.has(w)) try {
         const f = await fetchJson(RAW + `race-data/W${String(w).padStart(3, "0")}.json`);
         if (f && f.v === 1 && f.week === w && Array.isArray(f.races)) this.files.set(w, f);
@@ -68,15 +90,51 @@
         const j = await fetchJson(RAW + `race-data/R${String(w).padStart(3, "0")}.json`);
         if (j && j.v === 1 && j.week === w && Array.isArray(j.races)) { this.rulerFailed.delete(w); if (Number.isInteger(j.rulerFrom)) this.rulerFrom = j.rulerFrom; if (j.mode !== "off") this.ruler.set(w, j); }
       } catch (e) { if (String(e && e.message) !== "404") { this.rulerFailed.add(w); this.rtried.delete(w); } /* 404: no ruler file this week */ }
+      await this.loadTyped(w);
+    },
+    /** The typed races of an ON week: T<www>.json (the races and picks) and R<www>-<t>.json (the Ruler's places, t = 1 to 4). Nothing before the types' week. */
+    async loadTyped(w) {
+      if (!typesOnFor(w) || this.ttried.has(w)) return;
+      this.ttried.add(w);
+      const p3 = String(w).padStart(3, "0");
+      // All five files at once (the T and R-1 files can be 1 to 2 MB each).
+      const tp = (async () => {
+        try {
+          const f = await fetchJson(RAW + `race-data/T${p3}.json`);
+          if (f && f.v === 1 && f.week === w && Array.isArray(f.races)) this.tfiles.set(w, f);
+        } catch (e) { if (String(e && e.message) !== "404") this.ttried.delete(w); /* 404: no typed races recorded yet */ }
+      })();
+      await Promise.all([tp, ...[1, 2, 3, 4].map(async (t) => {
+        const key = `${w}:${t}`;
+        try {
+          const j = await fetchJson(RAW + `race-data/R${p3}-${t}.json`);
+          if (j && j.v === 1 && j.week === w && Array.isArray(j.races)) { this.tfailed.delete(key); if (j.mode === "on" && j.shadow !== true) this.truler.set(key, j); }
+        } catch (e) { if (String(e && e.message) !== "404") { this.tfailed.add(key); this.ttried.delete(w); } }
+      })]);
+    },
+    /** Every race of the week the page can show: the 6-hour races, then the typed ones (each with its type, start and end). */
+    racesOf(w) {
+      const f = this.files.get(w), out = f ? f.races.map((r) => ({ ...r, type: 0 })) : [];
+      const tf = this.tfiles.get(w);
+      if (tf) for (const r of tf.races) {
+        const p = r && Number.isInteger(r.type) && r.type >= 1 && r.type <= 4 ? M.parseTypedId(r.id) : null;
+        if (!p || p.type !== r.type) continue;                                 // not a race of that type: skipped, never guessed
+        const start = M.typedStart(p.type, p.index);
+        if (M.weekOf(start) !== w) continue;
+        out.push({ ...r, start, end: start + M.TYPES[p.type].len });
+      }
+      return out;
     },
     /** One race's facts, from the recorder's file. */
     facts(r) {
       const now = Date.now(), res = r.result;
-      const KV = window.KRulerVoid, rf = this.ruler.get(this.week), re = rf && rf.races.find((e) => e && e.id === r.id);
+      const type = r.type || 0, typed = type > 0;
+      const KV = window.KRulerVoid, rf = typed ? this.truler.get(`${this.week}:${type}`) : this.ruler.get(this.week), re = rf && rf.races.find((e) => e && e.id === r.id);
       // Repo Lens #G-28 G28-1: in a week the ruler is ON for, the board pays the ruler's 1st / 2nd / 3rd, so this page does too.
       // Repo Lens #G-45 G45-1: a week whose ruler file failed to load, or that a ruler file says is ON but whose own file
       // isn't in: "Checking", never the handicap result.
-      const RO = KV && KV.ruledOutcome ? (rf ? KV.ruledOutcome(re, rf) : this.rulerFailed.has(this.week) || (Number.isInteger(this.rulerFrom) && this.week >= this.rulerFrom) ? { pending: true } : null) : null;
+      // The typed races (option A) are scored by the Ruler only: no Ruler file for the type yet means "Checking", never a handicap result.
+      const RO = KV && KV.ruledOutcome ? (rf ? KV.ruledOutcome(re, rf) : typed ? { pending: true } : this.rulerFailed.has(this.week) || (Number.isInteger(this.rulerFrom) && this.week >= this.rulerFrom) ? { pending: true } : null) : null;
       let status = now < r.start ? "up" : now < r.end ? "live" : !res ? "checking" : res.missed ? "missed" : res.final ? "final" : "checking";
       if (status === "final" && RO && RO.pending) status = "ruler";
       const ruled = status === "final" && !!RO && !RO.pending;
@@ -87,16 +145,19 @@
       const isShow = ruled ? (p) => KV.ruledPick(RO, p[1]).show : (p) => !isWin(p) && (p.length > 5 ? p[5] === 1 : show.includes(p[1]));
       const my = me() ? picks.find((p) => p[0] === me()) : null;
       const V = KV ? window.KRulerVoid.rulerVoids(re, rf) : { has: false, shadow: false, wholeVoid: false, voids: [] };
-      const mp = my ? M.pagePick(0, r.start, st, my[1], isWin(my), isShow(my)) : { label: "", pts: 0 };   // D-173: points per place once the types are on
-      return { r, status, st, picks, wins, show, isWin, isShow, my, V, ruled, myPts: mp.pts, myLabel: mp.label };
+      const mp = my ? M.pagePick(type, r.start, st, my[1], isWin(my), isShow(my)) : { label: "", pts: 0 };   // D-173: points per place once the types are on
+      return { r, type, status, st, picks, wins, show, isWin, isShow, my, V, ruled, myPts: mp.pts, myLabel: mp.label };
     },
     draw() {
-      const f = this.files.get(this.week), box = this.box;
+      const f = this.files.get(this.week), box = this.box, tf = this.tfiles.get(this.week);
       const weekStart = M.weekStart(this.week), now = Date.now();
-      const all = f ? f.races.map((r) => this.facts(r)).filter((x) => x.status !== "up") : [];
+      const everything = (f ? this.racesOf(this.week) : []).map((r) => this.facts(r)).filter((x) => x.status !== "up");
+      const hasTyped = everything.some((x) => x.type > 0);
+      if (this.type != null && !everything.some((x) => x.type === this.type)) this.type = null;
+      const all = this.type == null ? everything : everything.filter((x) => x.type === this.type);
       const dayOf = (x) => Math.floor((x.r.start - weekStart) / M.DAY);
       const ended = all.filter((x) => x.status !== "live");
-      if (this.day == null || !all.some((x) => dayOf(x) === this.day)) this.day = ended.length ? dayOf(ended[ended.length - 1]) : 0;
+      if (this.day == null || !all.some((x) => dayOf(x) === this.day)) this.day = ended.length ? dayOf(ended.reduce((m, x) => (x.r.start > m.r.start ? x : m))) : 0;
 
       // Band: title, the player's week, weeks and days.
       // D-129 (Repo Lens #B-7 B7-4): Sunday fun races count for no week, so they are left out of "pts this week".
@@ -115,7 +176,13 @@
         b.addEventListener("click", () => { this.day = i; this.mine = false; this.q = ""; this.draw(); });
         return b;
       }));
-      const band = el("div", { class: "rband" }, el("div", { class: "rband-top" }, el("h1", { text: "Race results" }), score), weeks, days);
+      // The race lengths (only in a week that has typed races): all of them, or one length.
+      const lengths = hasTyped ? el("div", { class: "rdays rtypes", role: "group", "aria-label": "Race length" }, ...[[null, "All"], ...[1, 2, 0, 3, 4].map((t) => [t, M.TYPES[t].name])].map(([t, label]) => {
+        const b = el("button", { type: "button", "aria-pressed": String(this.type === t), text: label });
+        b.addEventListener("click", () => { this.type = t; this.day = null; this.draw(); });
+        return b;
+      })) : null;
+      const band = el("div", { class: "rband" }, el("div", { class: "rband-top" }, el("h1", { text: "Race results" }), score), weeks, lengths, days);
 
       // Tools: search the week, only mine.
       const search = el("input", { type: "search", "aria-label": "Find a producer or wallet", placeholder: "Find a producer or wallet", autocomplete: "off" });
@@ -129,7 +196,8 @@
       this.list = el("div", { class: "results rr-list" });
       this.all = all; this.dayOf = dayOf;
       box.replaceChildren(band, tools, f ? this.list : el("div", { class: "empty", text: "Couldn't load this week's races. Try again in a moment." }),
-        el("p", { class: "muted res-foot" }, "Results become final once their blocks are irreversible and two nodes agree. ", el("a", { href: "race.html", text: "Watch the live race" }), " · ", el("a", { href: "index.html#leaderboard/race", text: "Race leaderboard" })));
+        typesOnFor(this.week) ? el("p", { class: "muted res-foot", text: PTS_TEXT }) : null,
+        el("p", { class: "muted res-foot" }, "Results become final once their blocks are irreversible and two nodes agree. ", el("a", { href: "race.html", text: "Watch the live race" }), " · ", el("a", { href: "index.html#leaderboard/race", text: "Race leaderboard" }), ...(typesOnFor(this.week) ? [" · ", el("a", { href: "ruler.html", text: "How the Ruler works" })] : [])));
       if (f) this.drawList();
     },
     drawList() {
@@ -144,9 +212,10 @@
       const { r, status } = x;
       const PILL = { live: "Live now", final: "Final", checking: "Checking", missed: "Not recorded", ruler: "Checking" };
       const head = el("div", { class: "rr-head" },
-        el("h3", {}, `Race ${Math.floor((r.start % M.DAY) / M.RACE) + 1} · ${utcDay(r.start)}, ${utcTime(r.start)}`),
+        el("h3", {}, x.type > 0 ? `${M.TYPES[x.type].name} race · ${utcDay(r.start)}${x.type >= 3 ? "" : `, ${utcTime(r.start)}`}` : `Race ${Math.floor((r.start % M.DAY) / M.RACE) + 1} · ${utcDay(r.start)}, ${utcTime(r.start)}`),
         el("span", { class: `rr-pill ${status}`, text: PILL[status] || status }));
       const body = [];
+      if (x.type > 0 && M.restRace(r.start)) body.push(el("p", { class: "res-line muted", text: "Fun race: Sunday's races count for no week." }));
       if (status === "live") body.push(el("p", { class: "res-line" }, "This race is running now. ", el("a", { href: "race.html", text: "Watch it live" })));
       else if (status === "missed") body.push(el("p", { class: "res-line muted", text: "This race wasn't recorded, so it scores nobody." }));
       else if (status === "ruler") body.push(el("p", { class: "res-line muted", text: "Finished: waiting for the Ruler's 1st, 2nd and 3rd (usually 1 to 2 hours after the race). Picks score on them." }));

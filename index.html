@@ -137,8 +137,8 @@
         <summary>How the Producer Race works</summary>
         <ol class="welcome-steps">
           <li><span>1</span><div><b>Pick a horse (free, no sign-up)</b><p>Open the Race and tap a producer. You're playing as a guest on this device. Nothing to install.</p></div></li>
-          <li><span>2</span><div><b>Watch it run</b><p>Each block a producer signs moves its horse forward. After 6 hours, the horse furthest ahead wins.</p></div></li>
-          <li><span>3</span><div><b>The best free players win VHP</b><p>A win is 3 points and a 2nd or 3rd is 1. Each week the 2 best free players win 2 VHP and 1 VHP, starting with Week 1 (Mon 16 Nov).</p></div></li>
+          <li><span>2</span><div><b>Watch it run</b><p>Each block a producer signs moves its horse forward. <span id="rt-step2">After 6 hours, the horse furthest ahead wins.</span></p></div></li>
+          <li><span>3</span><div><b>The best free players win VHP</b><p><span id="rt-free-pts">A win is 3 points and a 2nd or 3rd is 1.</span> Each week the 2 best free players win 2 VHP and 1 VHP, starting with Week 1 (Mon 16 Nov).</p></div></li>
           <li class="last"><span>4</span><div><b>Want more? Stake to share the pool</b><p>With a Koinos wallet (KOIN Vault on a phone, Kondor on a computer), stake 1 VHP or more in a game to share that game's part of the week's rewards. Your stake is never spent: take it back any time. <a href="get.html">No wallet or VHP yet?</a></p></div></li>
         </ol>
         </details>
@@ -317,12 +317,12 @@
       </div>
 
       <div class="rules-panel" id="rp-race" data-rules-panel="race" role="tabpanel" aria-labelledby="rt-race" hidden>
-        <div class="rules-short"><h2>In short</h2><p>Every Koinos block producer is a horse, and every block it signs moves it forward. A handicap gives every horse the same chance. Pick the winner for 3 points, or score 1 point (a show) if your horse finishes 2nd or 3rd. It's free and just for fun.</p></div>
+        <div class="rules-short"><h2>In short</h2><p>Every Koinos block producer is a horse, and every block it signs moves it forward. A handicap gives every horse the same chance. <span id="rt-short-pts">Pick the winner for 3 points, or score 1 point (a show) if your horse finishes 2nd or 3rd.</span> It's free and just for fun.</p></div>
         <ol class="rules-steps">
-          <li><span class="ri" aria-hidden="true">🏇</span><div><b>Open the Race</b><p>Four 6-hour races a day, every day, starting at 00:00, 06:00, 12:00 and 18:00 UTC (Sunday's races are for fun: they count on All time, not the week)<span class="lt-list" data-utc-hours="0,6,12,18"></span>.</p></div></li>
+          <li><span class="ri" aria-hidden="true">🏇</span><div><b>Open the Race</b><p><span id="rt-open">Four 6-hour races a day, every day, starting at 00:00, 06:00, 12:00 and 18:00 UTC</span> (Sunday's races are for fun: they count on All time, not the week)<span class="lt-list" data-utc-hours="0,6,12,18"></span>.</p></div></li>
           <li><span class="ri" aria-hidden="true">👆</span><div><b>Pick one horse per race</b><p>For any of the next 4 races, so up to 24 hours ahead. Guests can pick too.</p></div></li>
           <li><span class="ri" aria-hidden="true">🔒</span><div><b>Change your mind until it starts</b><p>When the race starts, the chain locks your pick.</p></div></li>
-          <li><span class="ri" aria-hidden="true">📺</span><div><b>Watch it live, then check the board</b><p>A win is 3 points, a show (2nd or 3rd) is 1. Leaderboards for today, this week and all time.</p></div></li>
+          <li><span class="ri" aria-hidden="true">📺</span><div><b>Watch it live, then check the board</b><p><span id="rt-watch-pts">A win is 3 points, a show (2nd or 3rd) is 1.</span> Leaderboards for today, this week and all time.</p></div></li>
         </ol>
         <div class="rules-good"><h3>Good to know</h3><ul>
           <li><b>Free.</b> No entry fee, no wager, no prize pool. Knode Games pays the Mana for picks.</li>
@@ -331,10 +331,10 @@
           <li><b>Scored by the VHP Ruler</b> from Week 1 (Mon 16 Nov): each producer is measured against its own size, so a big and a small producer have the same chance to win. The horses are a live estimate; the final 1st, 2nd and 3rd come from the Ruler once the race's blocks are in (usually 1 to 2 hours). <a href="ruler.html">How the Ruler works</a>.</li>
           <li><b>Results are final</b> once the race's blocks are irreversible and match on two independent Koinos nodes.</li>
         </ul></div>
-        <div class="rules-good rules-soon" id="race-types-soon"><h3>Coming soon: more races</h3><ul>
-          <li><b>Five race lengths, one board.</b> 1-hour, 2-hour, 6-hour (today's race), daily and weekly races will run side by side. Points from every length add up on the same Producer Race board. Pick any length, as often as you like, within your daily Mana.</li>
-          <li><b>Points for 1st, 2nd and 3rd</b> (planned, not live yet): 1-hour and 2-hour 3 / 2 / 1, 6-hour 4 / 2 / 1, daily 6 / 3 / 2, weekly 12 / 6 / 4. A 2nd or 3rd place scores only if that producer signed a block in the race.</li>
-          <li><b>Until this is announced as live, the points above stay as they are today:</b> 3 for a win and 1 for a show in the 6-hour race.</li>
+        <div class="rules-good rules-soon" id="race-types-soon"><h3 id="rt-soon-h">Coming soon: more races</h3><ul>
+          <li id="rt-soon-1"><b>Five race lengths, one board.</b> 1-hour, 2-hour, 6-hour (today's race), daily and weekly races will run side by side. Points from every length add up on the same Producer Race board. Pick any length, as often as you like, within your daily Mana.</li>
+          <li id="rt-soon-2"><b>Points for 1st, 2nd and 3rd</b> (planned, not live yet): 1-hour and 2-hour 3 / 2 / 1, 6-hour 4 / 2 / 1, daily 6 / 3 / 2, weekly 12 / 6 / 4. A 2nd or 3rd place scores only if that producer signed a block in the race.</li>
+          <li id="rt-soon-3"><b>Until this is announced as live, the points above stay as they are today:</b> 3 for a win and 1 for a show in the 6-hour race.</li>
         </ul></div>
         <h3 class="rules-more">The details</h3>
         <details class="rules-d"><summary>How the handicap works</summary>

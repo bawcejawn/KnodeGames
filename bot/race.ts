@@ -220,14 +220,26 @@ function withShows(result: any): any {
 
 // ── chain reads ──
 type Blocks = { hs: number[]; ts: number[]; sig: number[]; signers: string[] };
+/** R-RACE-18 (2): one block cache per node per recorder run (reset at the start of run()). The 6-hour races, the typed
+ *  races' hour ledger and both payout re-checks read the same irreversible blocks; each is read from a node once a run.
+ *  Per node object, so the main and the check node never share an answer. Not kept across runs: every run still reads
+ *  the chain itself (Repo Lens #C-7 F-1: no earlier run's "already checked" is trusted). */
+let blockCache = new WeakMap<object, Map<number, [string, number]>>();
+export function resetBlockCache() { blockCache = new WeakMap(); }
+function cacheOf(p: any): Map<number, [string, number]> {
+  let m = blockCache.get(p);
+  if (!m) { m = new Map(); blockCache.set(p, m); }
+  return m;
+}
 async function readBlocks(p: any, headId: string, from: number, to: number): Promise<Blocks> {
   const n = to - from + 1, signer: string[] = new Array(n), ts: number[] = new Array(n);
-  const queue: [number, number][] = [];
+  const queue: [number, number][] = [], cache = cacheOf(p);
   for (let s = from; s <= to; s += 200) queue.push([s, Math.min(to, s + 199)]);
   const worker = async () => {
     while (queue.length) {
       const [s, e] = queue.shift()!;
       let k = s;
+      for (let x = cache.get(k); k <= e && x; x = cache.get(++k)) { signer[k - from] = x[0]; ts[k - from] = x[1]; }
       while (k <= e) {
         const res: any = await withRetry(`blocks at ${k}`, () => p.call("block_store.get_blocks_by_height", { head_block_id: headId, ancestor_start_height: String(k), num_blocks: e - k + 1, return_block: true, return_receipt: false }));
         const items = res?.block_items ?? [];
@@ -235,7 +247,7 @@ async function readBlocks(p: any, headId: string, from: number, to: number): Pro
         for (const it of items) {
           const h = Number(it.block_height);
           if (h !== k || h > e) throw new Error(`blocks out of order at ${k}`);
-          signer[h - from] = it.block.header.signer; ts[h - from] = Number(it.block.header.timestamp); k++;
+          signer[h - from] = it.block.header.signer; ts[h - from] = Number(it.block.header.timestamp); cache.set(h, [signer[h - from], ts[h - from]]); k++;
         }
       }
     }
@@ -246,9 +258,12 @@ async function readBlocks(p: any, headId: string, from: number, to: number): Pro
   return { hs: Array.from({ length: n }, (_, i) => from + i), ts, sig, signers };
 }
 async function blockTime(p: any, headId: string, h: number): Promise<number> {
+  const hit = cacheOf(p).get(h);
+  if (hit) return hit[1];
   const res: any = await withRetry(`block ${h}`, () => p.call("block_store.get_blocks_by_height", { head_block_id: headId, ancestor_start_height: String(h), num_blocks: 1, return_block: true, return_receipt: false }));
   const it = res?.block_items?.[0];
   if (!it || Number(it.block_height) !== h) throw new Error(`block ${h} not returned`);
+  cacheOf(p).set(h, [it.block.header.signer, Number(it.block.header.timestamp)]);
   return Number(it.block.header.timestamp);
 }
 /** The first height whose block time is at or after t (binary search between lo and hi). */
@@ -404,6 +419,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   typesFromWeek = typesFrom === undefined ? M.TYPES_ON_WEEK : typesFrom;
   typesAll = new Map(); typesWeekFiles = new Map(); typesUnread = new Map();
   verifyDeadline = Date.now() + VERIFY_BUDGET_MS;
+  resetBlockCache();   // R-RACE-18 (2): this run's reads only
   vaultRefused = null;
   heldAlerts = [];
   prizesFromWeek = prizesFrom ?? prizesFromEnv(E.PRIZES_FROM_WEEK) ?? NO_PRIZES;
@@ -779,14 +795,18 @@ async function readHour(c: ChainCtx, t: number, hint?: [number, number]): Promis
   let a = -1, b = -1;
   if (hint && hint[0] > 1 && hint[1] >= hint[0] - 1 && hint[1] + 1 <= c.libH) {
     const [ha, hb] = hint;
-    if ((await blockTime(c.p, c.headId, ha - 1)) < t && (await blockTime(c.p, c.headId, ha)) >= t
-      && (hb < ha || (await blockTime(c.p, c.headId, hb)) < t + M.HOUR) && (await blockTime(c.p, c.headId, hb + 1)) >= t + M.HOUR) { a = ha; b = hb; }
+    // R-RACE-18 (3): the hint's four boundary blocks are read at once (same checks as one after the other).
+    const [t0, t1, t2, t3] = await Promise.all([blockTime(c.p, c.headId, ha - 1), blockTime(c.p, c.headId, ha), hb < ha ? Promise.resolve(0) : blockTime(c.p, c.headId, hb), blockTime(c.p, c.headId, hb + 1)]);
+    if (t0 < t && t1 >= t && (hb < ha || t2 < t + M.HOUR) && t3 >= t + M.HOUR) { a = ha; b = hb; }
   }
   if (a < 0) [a, b] = await heightsOf(c, t, t + M.HOUR);
-  const B = b >= a ? await readBlocks(c.p, c.headId, a, b) : { hs: [], ts: [], sig: [], signers: [] };
-  if (c.check && b >= a) {
-    const ch: any = await withRetry("check head", () => c.check.getHeadInfo());
-    const C = await readBlocks(c.check, ch.head_topology.id, a, b);
+  // R-RACE-18 (3): the two nodes are read at the same time; the comparison is unchanged.
+  const empty: Blocks = { hs: [], ts: [], sig: [], signers: [] };
+  const [B, C] = await Promise.all([
+    b >= a ? readBlocks(c.p, c.headId, a, b) : Promise.resolve(empty),
+    c.check && b >= a ? withRetry("check head", () => c.check.getHeadInfo()).then((ch: any) => readBlocks(c.check, ch.head_topology.id, a, b)) : Promise.resolve(null),
+  ]);
+  if (C) {
     const same = C.ts.length === B.ts.length && C.ts.every((x, i) => x === B.ts[i] && C.signers[C.sig[i]] === B.signers[B.sig[i]]);
     if (!same) return { ok: false, why: "the two nodes disagree about the hour's blocks" };
   }
@@ -794,6 +814,8 @@ async function readHour(c: ChainCtx, t: number, hint?: [number, number]): Promis
   for (let i = 0; i < B.ts.length; i++) { const who = B.signers[B.sig[i]]; n[who] = (n[who] || 0) + 1; l[who] = Math.max(l[who] || 0, B.ts[i]); }
   return { ok: true, hour: { t, a, b, n, l } };
 }
+/** R-RACE-18 (3): for the timed slow-node test only (tests/audit/race-verify-timing.test.mjs). */
+export const readHourForTimingTest = (c: ChainCtx, t: number, hint?: [number, number]) => readHour(c, t, hint);
 /** A typed race's card for the hour starting at h (null without that hour's ledger entry or 6-hour card). */
 function typedCardAt(raceById: (id: string) => Race | null, led: Map<number, Hour>, type: number) {
   return (h: number) => { const x = led.get(h), base = baseCard(raceById, h); return x && base ? M.typeCard(base, type, x.c[type - 1]) : null; };
@@ -1243,7 +1265,12 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   const open = wf.races.filter((r) => (!r.result?.final || (rulerOn(w) && RR.ruledResult(r.result, rulerEntry(w, r.id)) === null)) && !M.restRace(r.start, rhythmFromWeek) && !(r.start < firstCard && !r.cards.some(Boolean)));
   // D-166: a typed race of the week still being scored keeps it open too (never past the same deadline).
   // Option A: also open until the ruler has scored it.
-  const openTyped = (typesAll.get(w)?.races || []).filter((r) => (!r.result?.final || (!r.result.missed && typedRuled(w, r) === null)) && forWeek(r));
+  const openTyped = (typesAll.get(w)?.races || []).filter((r) => (!r.result?.final || (rulerOn(w) && !r.result.missed && typedRuled(w, r) === null)) && forWeek(r));   // G29-1: waits for the ruler only in an ON week, as `open` does
+  // G29-1 (Repo Lens #G-29): a typed race whose result is in and that waits ONLY for the ruler's card gets the same
+  // RULER_GRACE and alert as a 6-hour race; the others keep the usual deadline. Every typed race skipped is listed.
+  const typedWaiting = openTyped.filter((r) => r.result?.final && !r.result.missed);
+  const typedOther = openTyped.filter((r) => !typedWaiting.includes(r));
+  const idOf = (r: { id: string }) => r.id;
   const late = now >= wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER);   // D-125: the review day comes first
   // The VHP ruler (owner, 12 Nov): a race whose result is in and that waits ONLY for the ruler's card (its data behind)
   // keeps the week open up to RULER_GRACE after the week ends, inside the vault's 3 days, instead of being skipped at
@@ -1267,13 +1294,14 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
     return file;
   }
   if (otherOpen.length && !late) return wait(`${otherOpen.length} race(s) still being checked (${otherOpen.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
-  if (rulerWaiting.length && !lateRuler) {
-    const why = `${rulerWaiting.length} race(s) waiting for the VHP ruler's result (${rulerWaiting.slice(0, 5).map((r) => r.id).join(", ")}${rulerWaiting.length > 5 ? ", …" : ""}): the ruler's data (vhp-data) is behind. The week waits for it (nothing is lost) until ${new Date(wf.end + RULER_GRACE).toISOString().slice(0, 16)} UTC, then those races are skipped`;
+  const ruleWait = [...rulerWaiting, ...typedWaiting];
+  if (ruleWait.length && !lateRuler) {
+    const why = `${ruleWait.length} race(s) waiting for the VHP ruler's result (${ruleWait.slice(0, 5).map(idOf).join(", ")}${ruleWait.length > 5 ? ", …" : ""}): the ruler's data (vhp-data) is behind. The week waits for it (nothing is lost) until ${new Date(wf.end + RULER_GRACE).toISOString().slice(0, 16)} UTC, then those races are skipped`;
     problems.push(`vault week ${w}: not final yet, ${why}`);
     if (now >= wf.end + (onRhythm(w) ? RHYTHM_ALERT_AFTER : VAULT_ALERT_AFTER)) heldAlert(w, wf.end, now, why, RULER_FIX);
     return file;
   }
-  if (openTyped.length && !late) return wait(`${openTyped.length} race(s) of the other types still being scored (${openTyped.slice(0, 5).map((r) => r.id).join(", ")}${openTyped.length > 5 ? ", …" : ""}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
+  if (typedOther.length && !late) return wait(`${typedOther.length} race(s) of the other types still being scored (${typedOther.slice(0, 5).map(idOf).join(", ")}${typedOther.length > 5 ? ", …" : ""}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
   if (unread.length) return wait(`${unread.length} Race stake(s) could not be read (tried again next run)`);
   if (stakedCheck) {
     for (const r of rows) {
@@ -1285,10 +1313,10 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   if (open.length) problems.push(`vault week ${w}: ${open.length} race(s) never became final and are skipped: ${open.map((r) => r.id).join(", ")}`);
   if (openTyped.length) problems.push(`vault week ${w}: ${openTyped.length} race(s) of the other types never became final and are skipped: ${openTyped.slice(0, 10).map((r) => r.id).join(", ")}`);
   // Before the Race earns in the vault: a final file with nothing to pay (the vault skips those weeks anyway).
-  if (w < prizesFromWeek) return await settle({ ...file, final: true, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
+  if (w < prizesFromWeek) return await settle({ ...file, final: true, skipped: [...open.map(idOf), ...openTyped.map(idOf)] }, wf.end, now, problems, all);
   const places = prizePlaces(rows), staked = stakedRows(cutLine(rank(rows)));
   for (const n of [...places.notes, ...staked.notes]) problems.push(`vault week ${w}: ${n}`);
-  return await settle({ ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: open.map((r) => r.id) }, wf.end, now, problems, all);
+  return await settle({ ...file, final: true, rows: staked.rows, first: places.first, second: places.second, skipped: [...open.map(idOf), ...openTyped.map(idOf)] }, wf.end, now, problems, all);
 }
 
 // ── the hold before a vault file goes final (I-034, R-RACE-1; owner 2026-11-03: 12 hours, then two matching runs) ──

@@ -142,9 +142,13 @@
    *  The owner sets it with the upload (D-166); until then the recorder, the publish job and the page show only the
    *  6-hour race. */
   const TYPES_FROM_WEEK = null;
-  /** Repo Lens #D-14 N-2: false until R-RACE-18 is done (the T file split; verified hours and races kept across runs;
-   *  a timed slow-node re-check test). Only that PR may set it to true; a test refuses TYPES_FROM_WEEK until then. */
-  const TYPES_READY = false;
+  /** Repo Lens #D-14 N-2: false until R-RACE-18 is done. Done in PR #287 (owner, 13 Nov: the types start as soon as
+   *  they are ready): one block cache per node per run (the 6-hour re-check reuses the typed one's reads), both nodes
+   *  read at once, and a timed slow-node test (tests/audit/race-verify-timing.test.mjs: about 6.5 minutes at 1 s per
+   *  call, inside the 10-minute budget). The T file split is the Capacity chat's shared standard (due before Mon 7 Dec);
+   *  until then every file warns at 60% of 2 MB and a file over 2 MB is held, never published wrong. The types stay off
+   *  while TYPES_FROM_WEEK is null (TYPES_ON_WEEK below). */
+  const TYPES_READY = true;
   /** Repo Lens #C-12 C12-1: the week the types really start for the recorder and the page: TYPES_FROM_WEEK, but only
    *  once TYPES_READY (null otherwise). The publish job mirrors it with its own TYPES_FROM_WEEK line. */
   const TYPES_ON_WEEK = TYPES_READY ? TYPES_FROM_WEEK : null;

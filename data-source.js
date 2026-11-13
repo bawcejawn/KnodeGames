@@ -11,10 +11,10 @@
 // seconds from the owner's own node), or null if it's off, older than 20 seconds, or can't be read; pages then read the
 // chain as before. Live block strip and block counts only: scores, cards and voids come only from the published game
 // files (Ruler chat, 12 Nov).
-// Both switches stay off until the owner has checked each Cloudflare step (docs/capacity/OWNER-STEPS.md).
+// Each switch goes on only after the owner has checked its Cloudflare step (docs/capacity/OWNER-STEPS.md).
 (function () {
   "use strict";
-  var ON = { mirror: false, live: false };
+  var ON = { mirror: true, live: false };   // mirror ON (owner's A3 check, Thu 12 Nov 11:28 PM ET); live waits for A4
   var RAW = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/";
   var MIRROR = "https://data.knodegames.com/";
   var LIVE = "https://live.knodegames.com/live.json";

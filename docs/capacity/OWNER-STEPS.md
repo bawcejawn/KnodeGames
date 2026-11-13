@@ -8,7 +8,7 @@ paste each **Check** to the Capacity chat. Each step's code is in this repositor
 | A1 | Thu 12 Nov | Was Cloudflare in front of the site? | no | Done (it wasn't) |
 | A2 | Thu 12 Nov | Cloudflare in front: SSL/TLS "Full", the 4 A + 4 AAAA + `www` rows Proxied (the `_github-pages-challenge` TXT row left alone) | no | Done |
 | A2b | Thu 12 Nov | Cache rule "Cache site files": all requests, eligible for cache, edge TTL from the origin's `Cache-Control` (GitHub sends 10 minutes) | no | Done (MISS then HIT) |
-| A3 | Tue 17 Nov | The data mirror: Worker `kg-data` at `data.knodegames.com` | no | below |
+| A3 | Thu 12 Nov | The data mirror: Worker `kg-data` at `data.knodegames.com` | no | **Done** (200, kg-data, 404); mirror switched on |
 | A4a | Wed 18 Nov | Card + billing alert, storage bucket `kg-live` at `live.knodegames.com`, Worker binding + secret, `.env` lines | yes (verification) | below |
 | A4b | Thu 19 Nov | The uploader task on your PC | no | below |
 | ON | after each check | Switch the mirror (after A3) and the live file (after A4b) on in `data-source.js` | no | Capacity's switch-on PR |

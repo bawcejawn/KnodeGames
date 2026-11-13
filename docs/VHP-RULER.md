@@ -31,8 +31,12 @@ what and how to run it. Built by the VHP Ruler chat (R-RULER-1) on branch `vhp-r
 5. From then on it records every hour by itself. No key, no Mana, no secret.
 
 ## If it falls behind (a node down, the ruler switched off, a GitHub outage)
-Usually nothing to do by hand. More than 12 hours behind, each run shows a red `::error::` "the VHP ruler is N hours
-behind". More than about 5 hours behind, it writes **chained** hours (balances carried forward from the hour before,
+Usually nothing to do by hand. More than 3 hours behind (`BEHIND_ALERT` = 3,600 blocks; a normal run is 1 to 2 hours
+behind), each run shows a red `::error::` "the VHP ruler is N hours behind", and the same words in plain language at the
+top of the run page (GitHub's job summary). A failed run puts its error there too. Both end with the owner's one-line
+step (`OWNER_STEP` in `bot/vhp-ruler.ts`; the Race's alert quotes it word for word): "GitHub → Actions → VHP ruler data:
+if the latest run is red, click Re-run all jobs; missed hours are read back from the chain by themselves, and if it is
+red again the next hour, send its error text to the VHP Ruler chat." More than about 5 hours behind, it writes **chained** hours (balances carried forward from the hour before,
 blocks checked on both nodes, no reads), up to 48 a run, until it is about 2 hours behind; the next run then reads live
 again. A live run reads once, for its newest hour; the older hours of that run are chained and checked by it in the same
 publish. So every hour file holds its own blocks plus at most about an hour more, and a day file stays near 3–5 MB, far
@@ -111,7 +115,7 @@ daily-length fix passes; Last Node and Combo at launch; Survivor from Season 2 (
   week with its existing hold. Turning a game off for future weeks would need a later decision (an end week); there is
   none today.
 
-## Rules for every race length (RULE_VERSION 4; owner, 11 Nov 2026; a D-new, numbered by the Library; not on main)
+## Rules for every race length (RULE_VERSION 4; owner, 11 Nov 2026; a D-new, numbered by the Library; on main since #260 and #262)
 Until 11 Nov the eleven simulations had only been run on 6-hour races. Run at every length, v2.1 was fair from 1 to 6
 hours and not at a day (win chances 0.65–1.45 of fair). Four changes, both languages byte for byte, make one rule set
 for 1-hour, 2-hour, 6-hour, 1-day and 6-day races (results: project doc `claude/ruler/FAIR-RULES-EVERY-LENGTH-2026-11-11.md`):
@@ -171,7 +175,7 @@ in the ruler, but in a race a few percent of signing decides the winner.
 
 **What a mode changes:** only each producer's **target**, the blocks it must beat (row field `target` = `expected` ×
 `lift` ÷ 1,000,000), and in D the luck cap. The entry bar, the card, the core (by 14-day form), the band and the voids
-are the same in every mode. `expected` stays the VHP-based number, so games that read it (Fantasy, Block X) are untouched
+are the same in every mode (the core by 14-day form in RULE_VERSION 4; see RULE_VERSION 5 below). `expected` stays the VHP-based number, so games that read it (Fantasy, Block X) are untouched
 unless they choose to use `target`.
 
 | Mode | Name | Target | Luck cap |
@@ -219,3 +223,50 @@ is A.
   `mode` in the card's settings, and record the schedule and the week's mode in the week file. The publish job's
   `recompute_main` settings file must carry the same `mode`.
 - **Players aren't told which mode a week uses** (owner, 11 Nov). The card records it for audit.
+
+## The kit's `include` option (Repo Lens #G-13 G6; owner, 11 Nov 2026)
+A game whose players pick from a fixed list (Fantasy's price list) needs a row for every listed producer every day,
+even one with no block in the 6 hours before T. The owner's rule: only a VHP move outside the band is a void; a quiet or
+offline day scores what it earned and counts in form.
+- **The setting:** `include`, a non-empty list of addresses in rising order with no repeats (`checkInclude` /
+  `check_include`). The card records it (top-level `include`, after `mode`), and `recompute` requires the settings to
+  carry the same list. Without `include` the card is byte for byte as before.
+- **A listed producer that isn't active at T** gets a row from the same code: own, avg, k, form, expected, credited, void,
+  fpct. Its `entry` also needs at least one block in its form window, plus the usual form gate (or steady) and minK. An
+  offline day: expected > 0, credited 0. In the core, the band sets it aside, so it moves no one else.
+- **The network total is unchanged** (Σ avg over active(T)), so every other producer's row is unchanged.
+- **An address the data doesn't know** (no VHP, no block) is refused ("unknown address"), and the game holds the day.
+- Not a RULE_VERSION change.
+
+## RULE_VERSION 5: the core judged on the window that skips the last 3 days (owner, 12 Nov 2026; a D-new)
+In RULE_VERSION 4, a node joins the core when its **14-day** form is at least `CORE_LINE` (0.97) of the field's median. A
+node that signs far less for a few days before a race (for example half as much for 3 days) falls below the line, leaves
+the core, and its race score rises in every mode (measured in `sims/ruler/steer.mjs`: about 0.58 → 0.65 in mode A, at a
+cost of 5,100–14,700 blocks).
+- **Version 5** judges the core on the form over `[T − 14 d, T − 3 d)`, the window modes B and C read: the median of that
+  form over the field (weighted by expected blocks, an exact tie taking the lower value) and the 0.97 line. Each row of a
+  version 5 card shows it as `coreForm`. The entry gate, expected blocks, the band, the voids and fpct's method are
+  unchanged. A dip inside the last 3 days no longer moves anyone in or out of the core.
+- **How a game takes it, per game, from a future week:** the settings carry `version` (4 or 5; 4 when absent). The card's
+  `ruleVersion` records it, and `recompute` requires the two to match, so a version 4 card recomputes byte for byte forever.
+- **The schedule, one repository variable per game, `<GAME>_RULER_VERSION`:** week:version pairs with rising weeks, like
+  `6:5` (version 5 from vault week 6). Version 4 before the first pair and when unset. `versionSchedule` /
+  `version_schedule` (strict), `versionAt` / `version_at`, `versionChange` / `version_change` (a started week never
+  changes version), exactly like the mode schedule. Before setting it: `node tools/vhp-ruler-mode.mjs --version "6:5"`.
+- **A game reads the variable every run,** records the schedule and the week's version in its week file, checks every
+  change with `versionChange` against the last published value, and passes `version: versionAt(week, schedule)` in the
+  card settings (and the same in the publish job's settings).
+- **A season game** (Survivor) pins one version and one mode at the season's first week, for the whole season.
+- **Plan:** shadow on Week 1 and Week 2's real races (`sims/ruler/steer.mjs <seeds> 5`, `tools/vhp-ruler-shadow.mjs`),
+  the owner decides at the Tue 24 Nov review, and it is on from **Week 3 (vault week 6, Mon 30 Nov)** at the earliest.
+
+## The compact card (the Race, 12 Nov 2026: a week file's 2 MB limit)
+A game may store a card as its **digest** instead of its full text: `cardDigest(card)` / `card_digest(card)` gives
+`{ "sha256": <hex of sha256 of the card's canonical text>, "scored": true|false }`, about 100 bytes instead of 8 KB or
+more. `recompute(L, digest, settings)` accepts the digest (as an object or as its JSON text), rebuilds the card from the
+game's own settings (scored when `scored` is true), and compares the sha256 of the rebuilt card's exact bytes. So the
+check stays byte-exact.
+- **What the game keeps beside it:** the settings that differ per card (round, window) and the results it pays on. Its
+  publish job derives those results from the rebuilt card and refuses any difference.
+- **Keep the full texts somewhere** (for example a per-day cards file outside the week file): vhp-data keeps 30 days
+  (floor 26), so after that a card can be shown, but no longer rebuilt, only from its stored text.

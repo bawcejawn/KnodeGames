@@ -294,6 +294,7 @@
       cards.push(el("button", { type: "button", class: "btn ghost bx-more", onclick: () => { showAll = true; renderTargets(true); } }, `Show all ${rounds.length} open targets`));
     }
     list.replaceChildren(...cards);
+    renderQueue();
   }
   let showAll = false;
   const etaText = (r) => `about ${clock(about(G.target(r)))} · locks in ${dur(secsTo(G.lockHeight(r)) * 1000)}`;
@@ -308,10 +309,11 @@
     const h = G.target(r), mult = card ? X.multiplier(card, a, about(h)) : null;
     const pick = el("button", { class: "btn", type: "button", onclick: () => { closeModal(); sendPick(r, a); } }, mineP ? "Change my pick" : "Pick");
     const other = el("button", { class: "btn ghost", type: "button", onclick: () => { drafts.delete(r); renderTargets(true); closeModal(); } }, "Choose another");
+    const add = batchOn() ? el("button", { class: "btn ghost", type: "button", onclick: () => { queue.set(r, a); closeModal(); renderQueue(); } }, "Add to my picks") : null;
     pickModal("info", `${nameOf(a)} for block ${fmt(h)}?`, [
       el("p", {}, "About ", el("b", { text: dayTime(about(h)) }), ` · scores ${multText(mult)} if right`),
       ...(mineP ? [`Your pick now: ${nameOf(mineP)}. You can change it once.`] : []),
-    ], [pick, other]);
+    ], add ? [pick, add, other] : [pick, other]);
     // The ✕ in the corner, as well as a tap outside, closes it to choose another.
     const box = modal && modal.querySelector(".pk-box");
     if (box) box.prepend(el("button", { type: "button", class: "pk-x", "aria-label": "Close and choose another", onclick: () => { drafts.delete(r); renderTargets(true); closeModal(); } }, "✕"));
@@ -450,6 +452,50 @@
     }
   });
   const okBtn = (text = "Done") => el("button", { class: "btn", type: "button", onclick: closeModal }, text);
+
+  // "Send my picks" (Capacity, 13 Nov): only while the wallet reports batch settings (sponsor "batch" row, from the testnet
+  // numbers). Until then nothing here shows and every pick goes one by one, as before.
+  const queue = new Map();   // round -> producer, waiting to be sent together
+  const batchOn = () => !!(W && typeof W.batchReady === "function" && W.batchReady() && typeof W.sendBatch === "function");
+  function renderQueue() {
+    let bar = $("bx-queue");
+    if (!bar) { const list = $("targets"); if (!list || !list.parentNode) return; bar = el("div", { id: "bx-queue", class: "bx-queue", role: "status" }); list.parentNode.insertBefore(bar, list); }
+    for (const r of [...queue.keys()]) if (!offer().includes(r)) queue.delete(r);
+    if (!batchOn() || !queue.size) { bar.hidden = true; bar.replaceChildren(); return; }
+    bar.hidden = false;
+    bar.replaceChildren(el("span", { text: `${queue.size} pick${queue.size === 1 ? "" : "s"} ready to send together.` }),
+      el("button", { class: "btn", type: "button", disabled: sending || undefined, onclick: sendQueue }, `Send my ${queue.size} pick${queue.size === 1 ? "" : "s"}`),
+      el("button", { class: "btn ghost", type: "button", disabled: sending || undefined, onclick: () => { queue.clear(); renderQueue(); renderTargets(true); } }, "Clear"));
+  }
+  async function sendQueue() {
+    const who = me();
+    if (!who || !picksContract || sending || !queue.size || !batchOn()) return;
+    try { await readHead(); } catch { /* use the last head */ }
+    const used = usage ? Number(usage.picks_today) || 0 : 0, max = usage ? Number(usage.max_picks_per_day) || G.PICKS_PER_DAY : G.PICKS_PER_DAY;
+    const open = (r) => G.lockHeight(r) - head.height > 20;
+    const mineSame = (r) => { const m = myPicks.get(r); return !!(m && m.producers && m.producers[0] === queue.get(r)); };
+    const rounds = [...queue.keys()].filter((r) => open(r) && !mineSame(r)).slice(0, 10);
+    if (!rounds.length) { queue.clear(); renderQueue(); return pickModal("info", "Nothing to send", ["Those picks have locked or are already yours."], [okBtn("OK")]); }
+    if (used + rounds.length > max) return pickModal("info", "Not enough picks left today", [`You have ${Math.max(0, max - used)} left today and ${rounds.length} waiting. Clear some, or send fewer.`], [okBtn("OK")]);
+    sending = true; renderTargets(true); renderQueue();
+    const wallet = W.kind === "guest" ? "your guest wallet" : W.label ? W.label() : "your wallet";
+    pickModal("busy", W.kind === "guest" || W.kind === "test" ? "Sending your picks…" : `Confirm in ${wallet}`, [`${rounds.length} pick${rounds.length === 1 ? "" : "s"} in one go.`, "Free when the Knode Mana sponsor can pay; if it can't, your wallet asks to use your own Mana."]);
+    try {
+      const ops = [];
+      for (const r of rounds) { const { operation } = await picksContract.functions.pick({ player: who, game: G.GAME_ID, round: String(r), producers: [queue.get(r)], number: "0" }, { onlyOperation: true }); operation.__round = r; ops.push(operation); }
+      // Dropped right before signing: any round that locked while the box was open.
+      try { await readHead(); } catch { /* use the last head */ }
+      const res = await W.sendBatch(`${rounds.length} Block X picks`, ops.map((o) => { const { __round, ...op } = o; return Object.defineProperty(op, "__round", { value: __round, enumerable: false }); }), { stillOpen: (o) => open(o.__round) });
+      for (const r of rounds) { queue.delete(r); drafts.delete(r); }
+      pickModal("ok", "Picks sent", [`${res.sent} pick${res.sent === 1 ? "" : "s"} sent${res.dropped ? `; ${res.dropped} locked while you were choosing, so they were left out` : ""}. This list updates by itself.`], [okBtn()]);
+    } catch (e) {
+      const m = String((e && e.message) || e);
+      const msg = /PICKS: this round is locked|locked/i.test(m) ? "Nothing was saved; a round had locked. Try again."
+        : /reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."
+        : `Not sent: ${m.slice(0, 200)}`;
+      pickModal(/Cancelled/.test(msg) ? "info" : "bad", /Cancelled/.test(msg) ? "Cancelled" : "Picks not sent", [msg], [okBtn("OK")]);
+    } finally { sending = false; await loadMine(); renderQueue(); }
+  }
 
   async function sendPick(r, producer) {
     const who = me();

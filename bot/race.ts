@@ -220,14 +220,26 @@ function withShows(result: any): any {
 
 // ── chain reads ──
 type Blocks = { hs: number[]; ts: number[]; sig: number[]; signers: string[] };
+/** R-RACE-18 (2): one block cache per node per recorder run (reset at the start of run()). The 6-hour races, the typed
+ *  races' hour ledger and both payout re-checks read the same irreversible blocks; each is read from a node once a run.
+ *  Per node object, so the main and the check node never share an answer. Not kept across runs: every run still reads
+ *  the chain itself (Repo Lens #C-7 F-1: no earlier run's "already checked" is trusted). */
+let blockCache = new WeakMap<object, Map<number, [string, number]>>();
+export function resetBlockCache() { blockCache = new WeakMap(); }
+function cacheOf(p: any): Map<number, [string, number]> {
+  let m = blockCache.get(p);
+  if (!m) { m = new Map(); blockCache.set(p, m); }
+  return m;
+}
 async function readBlocks(p: any, headId: string, from: number, to: number): Promise<Blocks> {
   const n = to - from + 1, signer: string[] = new Array(n), ts: number[] = new Array(n);
-  const queue: [number, number][] = [];
+  const queue: [number, number][] = [], cache = cacheOf(p);
   for (let s = from; s <= to; s += 200) queue.push([s, Math.min(to, s + 199)]);
   const worker = async () => {
     while (queue.length) {
       const [s, e] = queue.shift()!;
       let k = s;
+      for (let x = cache.get(k); k <= e && x; x = cache.get(++k)) { signer[k - from] = x[0]; ts[k - from] = x[1]; }
       while (k <= e) {
         const res: any = await withRetry(`blocks at ${k}`, () => p.call("block_store.get_blocks_by_height", { head_block_id: headId, ancestor_start_height: String(k), num_blocks: e - k + 1, return_block: true, return_receipt: false }));
         const items = res?.block_items ?? [];
@@ -235,7 +247,7 @@ async function readBlocks(p: any, headId: string, from: number, to: number): Pro
         for (const it of items) {
           const h = Number(it.block_height);
           if (h !== k || h > e) throw new Error(`blocks out of order at ${k}`);
-          signer[h - from] = it.block.header.signer; ts[h - from] = Number(it.block.header.timestamp); k++;
+          signer[h - from] = it.block.header.signer; ts[h - from] = Number(it.block.header.timestamp); cache.set(h, [signer[h - from], ts[h - from]]); k++;
         }
       }
     }
@@ -246,9 +258,12 @@ async function readBlocks(p: any, headId: string, from: number, to: number): Pro
   return { hs: Array.from({ length: n }, (_, i) => from + i), ts, sig, signers };
 }
 async function blockTime(p: any, headId: string, h: number): Promise<number> {
+  const hit = cacheOf(p).get(h);
+  if (hit) return hit[1];
   const res: any = await withRetry(`block ${h}`, () => p.call("block_store.get_blocks_by_height", { head_block_id: headId, ancestor_start_height: String(h), num_blocks: 1, return_block: true, return_receipt: false }));
   const it = res?.block_items?.[0];
   if (!it || Number(it.block_height) !== h) throw new Error(`block ${h} not returned`);
+  cacheOf(p).set(h, [it.block.header.signer, Number(it.block.header.timestamp)]);
   return Number(it.block.header.timestamp);
 }
 /** The first height whose block time is at or after t (binary search between lo and hi). */
@@ -404,6 +419,7 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   typesFromWeek = typesFrom === undefined ? M.TYPES_ON_WEEK : typesFrom;
   typesAll = new Map(); typesWeekFiles = new Map(); typesUnread = new Map();
   verifyDeadline = Date.now() + VERIFY_BUDGET_MS;
+  resetBlockCache();   // R-RACE-18 (2): this run's reads only
   vaultRefused = null;
   heldAlerts = [];
   prizesFromWeek = prizesFrom ?? prizesFromEnv(E.PRIZES_FROM_WEEK) ?? NO_PRIZES;
@@ -779,14 +795,18 @@ async function readHour(c: ChainCtx, t: number, hint?: [number, number]): Promis
   let a = -1, b = -1;
   if (hint && hint[0] > 1 && hint[1] >= hint[0] - 1 && hint[1] + 1 <= c.libH) {
     const [ha, hb] = hint;
-    if ((await blockTime(c.p, c.headId, ha - 1)) < t && (await blockTime(c.p, c.headId, ha)) >= t
-      && (hb < ha || (await blockTime(c.p, c.headId, hb)) < t + M.HOUR) && (await blockTime(c.p, c.headId, hb + 1)) >= t + M.HOUR) { a = ha; b = hb; }
+    // R-RACE-18 (3): the hint's four boundary blocks are read at once (same checks as one after the other).
+    const [t0, t1, t2, t3] = await Promise.all([blockTime(c.p, c.headId, ha - 1), blockTime(c.p, c.headId, ha), hb < ha ? Promise.resolve(0) : blockTime(c.p, c.headId, hb), blockTime(c.p, c.headId, hb + 1)]);
+    if (t0 < t && t1 >= t && (hb < ha || t2 < t + M.HOUR) && t3 >= t + M.HOUR) { a = ha; b = hb; }
   }
   if (a < 0) [a, b] = await heightsOf(c, t, t + M.HOUR);
-  const B = b >= a ? await readBlocks(c.p, c.headId, a, b) : { hs: [], ts: [], sig: [], signers: [] };
-  if (c.check && b >= a) {
-    const ch: any = await withRetry("check head", () => c.check.getHeadInfo());
-    const C = await readBlocks(c.check, ch.head_topology.id, a, b);
+  // R-RACE-18 (3): the two nodes are read at the same time; the comparison is unchanged.
+  const empty: Blocks = { hs: [], ts: [], sig: [], signers: [] };
+  const [B, C] = await Promise.all([
+    b >= a ? readBlocks(c.p, c.headId, a, b) : Promise.resolve(empty),
+    c.check && b >= a ? withRetry("check head", () => c.check.getHeadInfo()).then((ch: any) => readBlocks(c.check, ch.head_topology.id, a, b)) : Promise.resolve(null),
+  ]);
+  if (C) {
     const same = C.ts.length === B.ts.length && C.ts.every((x, i) => x === B.ts[i] && C.signers[C.sig[i]] === B.signers[B.sig[i]]);
     if (!same) return { ok: false, why: "the two nodes disagree about the hour's blocks" };
   }
@@ -794,6 +814,8 @@ async function readHour(c: ChainCtx, t: number, hint?: [number, number]): Promis
   for (let i = 0; i < B.ts.length; i++) { const who = B.signers[B.sig[i]]; n[who] = (n[who] || 0) + 1; l[who] = Math.max(l[who] || 0, B.ts[i]); }
   return { ok: true, hour: { t, a, b, n, l } };
 }
+/** R-RACE-18 (3): for the timed slow-node test only (tests/audit/race-verify-timing.test.mjs). */
+export const readHourForTimingTest = (c: ChainCtx, t: number, hint?: [number, number]) => readHour(c, t, hint);
 /** A typed race's card for the hour starting at h (null without that hour's ledger entry or 6-hour card). */
 function typedCardAt(raceById: (id: string) => Race | null, led: Map<number, Hour>, type: number) {
   return (h: number) => { const x = led.get(h), base = baseCard(raceById, h); return x && base ? M.typeCard(base, type, x.c[type - 1]) : null; };

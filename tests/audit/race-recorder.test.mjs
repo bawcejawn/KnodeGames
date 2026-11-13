@@ -1959,6 +1959,8 @@ test("Repo Lens #D-13 L-2 / L-3: a typed week's vault file goes final only with 
 test("Repo Lens #D-14 N-2: the race types can't be switched on before R-RACE-18 (TYPES_READY)", () => {
   assert.equal(typeof M.TYPES_READY, "boolean");
   if (!M.TYPES_READY) assert.equal(M.TYPES_FROM_WEEK, null, "TYPES_FROM_WEEK stays null until the R-RACE-18 PR sets TYPES_READY");
+  // R-RACE-18 is done (PR #287): ready, but still off until the owner's upload sets TYPES_FROM_WEEK.
+  assert.equal(M.TYPES_READY, true); assert.equal(M.TYPES_ON_WEEK, M.TYPES_FROM_WEEK);
 });
 
 test("Repo Lens #D-13 L-2: the publish job's race-types switch is off while TYPES_FROM_WEEK is null, and the workflow never sets the test value", () => {

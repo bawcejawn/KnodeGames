@@ -150,7 +150,7 @@ test("ruler line: hidden with the switch unset; the shadow week names the Monday
   const t = sh.$("bk-ruler").textContent;
   assert.equal(sh.$("bk-ruler").hidden, false);
   assert.match(t, /^Shadow week: the VHP ruler runs beside the real results and counts for nothing; from Week 2 \(the week of Mon, Nov 23\) it decides the matchups\./);
-  assert.match(t, /void for that day only: it loses its matchup, so a pick on it counts as a loss; if both are void, the day index decides/);
+  assert.match(t, /void for that day only, and so is one that signs no block all day: it loses its matchup, so a pick on it counts as a loss; if both are void, the day index decides/);
   const later = await openPage({ now: SUNDAY, index: { ...idx(5), rulerFrom: 6 } });
   assert.match(later.$("bk-ruler").textContent, /^From Week 3 \(the week of Mon, Nov 30\) the VHP ruler decides the matchups\./);
   const on = await openPage({ now: SUNDAY, index: { ...idx(5), rulerFrom: 4 } });

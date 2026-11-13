@@ -2365,7 +2365,9 @@ jobs:
               if fa != fb: return fa
               # R-BR-7 phase 2 (= bracket-math otherWins): the day's ruler card decides; no fpct loses; both none: the index
               if ruler is not None:
-                  ra, rb = ruler_pct(ruler, better), ruler_pct(ruler, other)
+                  # a seed that signed no block on the day has no fpct that day (Repo Lens #G-36, as the Race's D-033)
+                  ra = ruler_pct(ruler, better) if A and A.get("blocks", 0) > 0 else None
+                  rb = ruler_pct(ruler, other) if B and B.get("blocks", 0) > 0 else None
                   if ra is not None and rb is not None: return rb >= ra
                   if ra is not None: return False
                   if rb is not None: return True

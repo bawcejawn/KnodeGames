@@ -444,7 +444,7 @@
    *  often it would have picked another winner so far. Empty while the switch isn't set. */
   function rulerText(w) {
     if (!rulerFrom) return "";
-    const rule = "Each matchup day, every producer gets one VHP ruler card, measured from the chain's own VHP history; the producer luckier against the whole day's field (its blocks against its own expected share, whatever its size) wins. A producer whose VHP moves outside −12% / +50% of its card size during the day is void for that day only: it loses its matchup, so a pick on it counts as a loss; if both are void, the day index decides. Forfeits still come first.";
+    const rule = "Each matchup day, every producer gets one VHP ruler card, measured from the chain's own VHP history; the producer luckier against the whole day's field (its blocks against its own expected share, whatever its size) wins. A producer whose VHP moves outside −12% / +50% of its card size during the day is void for that day only, and so is one that signs no block all day: it loses its matchup, so a pick on it counts as a loss; if both are void, the day index decides. Forfeits still come first.";
     if (w < rulerFrom - 1) return `From ${weekLabel(rulerFrom)} (the week of ${weekDate(rulerFrom)}) the VHP ruler decides the matchups. ${rule}`;
     if (w >= rulerFrom) return `The VHP ruler decides the matchups (since ${weekLabel(rulerFrom)}, the week of ${weekDate(rulerFrom)}). ${rule}`;
     const s = shadows.get(w), cur = weeks.get(w), real = cur && cur.results ? cur.results.rounds : [];

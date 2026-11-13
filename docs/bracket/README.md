@@ -83,6 +83,8 @@ shadow week at once).
   seed rule's. A week whose days themselves can't be recorded is still void at its backstop.
 - **A void producer is a different case:** the card exists and says that producer has no `fpct` (its VHP moved out of
   its band); that seed loses its matchup, as above.
+- **No signed block, no fpct** (Repo Lens #G-36, as the Race's D-033 "a show needs a signed block"): a seed that signed
+  no block on its day counts as void that day, whatever its card says. One block is enough.
 - **Mode schedule** (`BRACKET_RULER_MODE`, e.g. `5:B`; unset = mode A, no `mode` on the card): read strictly with
   `modeSchedule` each run, recorded as `rulerSchedule` in every open week file and `index.json`, passed to each card as
   `mode: modeAt(week, schedule)`, and checked like the switch (`mode_change` against the published copy). Players are

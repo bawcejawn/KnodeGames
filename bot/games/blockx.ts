@@ -52,6 +52,8 @@ const ONE_VHP = 100000000n;
 /** Capacity (owner, 12 Nov): a Block X file past 60% of the 2 MB publish limit warns in every run (the same line as
  *  every game, claude/capacity/TO-GAMES-2MB-WEEKLY-FILE-LIMIT-2026-11-12.md). */
 export const SIZE_WARN_BYTES = Math.floor(0.6 * 2048 * 1024);
+/** Repo Lens #G-49 G49-1: an ON-week target still without its ruler card this long after its block alerts the owner. */
+export const RULER_LATE_MS = 6 * 3600000;
 const isAddr = (a: unknown) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 
 /** A recorded pick: [player, producer, pick time (ms), points (hundredths), Staked (1) or Free play (0)]. */
@@ -938,6 +940,7 @@ export async function run(o: Opts) {
     try { rulerL = RR.loadLedger(dir); } catch (e) { rulerL = null; problems.push(`the VHP ruler's data can't be read (${(e as Error).message}): the ruler's cards wait`); }
     return rulerL;
   };
+  let rulerLate = 0;   // Repo Lens #G-49 G49-1: ON-week targets still waiting for their card after RULER_LATE_MS
   for (const wf of all.values()) {
     const mode = rulerMode(wf.week);
     if (mode === "off") continue;
@@ -951,12 +954,19 @@ export async function run(o: Opts) {
         const prevE = olds.get(t.height) || null;
         const needs = !(prevE && (prevE.card || prevE.void));
         const e = o.rulerEntryOf ? o.rulerEntryOf(t, lead, head.time, prevE) : RR.entryFor(needs && !t.void ? ledger() : null, t, lead, head.time, prevE);
-        if (!e.card && e.note && !/^not yet/.test(e.note)) problems.push(`block ${t.height}: ${e.note}`);
+        if (e !== prevE) {   // (a published entry is reported once, when it is made)
+          if (!e.card && e.note && !/^not yet/.test(e.note)) problems.push(`block ${t.height}: ${e.note}`);
+          // Repo Lens #G-49 G49-1: in an ON week a 3-day void costs right picks their points for good: alert (held).
+          if (mode === "on" && e.void && !e.card && !t.void && !(prevE && prevE.void)) holds.push(`block ${t.height}: the VHP ruler couldn't score this ON-week target within 3 days (its data was missing or behind), so no pick on it counts. Check the VHP ruler workflow (vhp-data)`);
+        }
+        if (mode === "on" && !e.card && !e.void && head.time - t.time > RULER_LATE_MS) rulerLate++;
         fresh.targets.push(e); rulerAt.set(`${wf.week}:${t.height}`, e);
       }
       rulerDays.set(RR.xName(wf.week, d), fresh);
     }
   }
+  if (rulerLate) holds.push(`the VHP ruler's data is missing or behind: ${rulerLate} ON-week target(s) have waited more than ${RULER_LATE_MS / 3600000} hours for their card; after 3 days a target counts no pick. Check the VHP ruler workflow (vhp-data)`);
+  for (const h of holds) if (!problems.includes(h)) problems.push(h);
   /** In an ON week, a pick's points are the ruler's (undefined: the target isn't scored by the ruler yet). */
   const ruled = (w: number, t: any, producer: string, pts: number): number | undefined => (rulerMode(w) === "on" ? RR.ruledPoints(rulerAt.get(`${w}:${t.height}`), producer) : pts);
   const rulerScored = (w: number, from: number, to: number) => rulerMode(w) !== "on" || (all.get(w)?.targets || []).every((t: any) => t.time < from || t.time >= to || t.void || ruled(w, t, "", 0) !== undefined);

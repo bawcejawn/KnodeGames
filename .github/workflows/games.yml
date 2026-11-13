@@ -2299,6 +2299,13 @@ jobs:
                   assert ok, tag + ": the ruler's data doesn't give this card: " + str(diff)[:200]
                   pts, vd = ruler_score(json.loads(e["card"]), ruler_ledger(), h, t["signer"])
                   assert e["points"] == pts and e["void"] is vd, tag + ": its points aren't the card's (" + str(pts) + (", void" if vd else "") + ")"
+          # Repo Lens #G-49 G49-2: an index.json made with another switch value (the variable changed while the record job
+          # ran) is held with an alert, never a stop: the Bracket and Questions publish in this same step.
+          _nif = os.path.join(d, "index.json")
+          if os.path.isfile(_nif):
+              try: _ni = json.load(open(_nif, encoding="utf-8"))
+              except Exception: _ni = None
+              if type(_ni) is dict and "rulerFrom" in _ni and _ni["rulerFrom"] != RULER_FROM: hold(pre + "/index.json", "it wasn't made with the ruler switch as set (BLOCKX_RULER_FROM_WEEK); the next run makes it again", True)
           for f in xin:
               try: check_x(f, json.load(open(os.path.join(d, f), encoding="utf-8")))
               except Exception as e: hold(pre + "/" + f, "VHP ruler: " + re.sub(r"[^A-Za-z0-9 ./:,_()'-]", "?", str(e))[:300], True)
@@ -2355,7 +2362,6 @@ jobs:
               if f == "index.json":
                   # (Repo Lens #G-35 G35-2: rulerFrom, the ruler switch the recorder used, null = unset; older files have none)
                   assert set(j) in ({"v", "updated", "weeks", "contract", "game", "prizesFromWeek"}, {"v", "updated", "weeks", "contract", "game", "prizesFromWeek", "rulerFrom"}) and one(j["v"]) and iso.fullmatch(str(j["updated"])), f
-                  assert "rulerFrom" not in j or j["rulerFrom"] == RULER_FROM, f + ": it wasn't made with the ruler switch as set (BLOCKX_RULER_FROM_WEEK)"
                   assert type(j["weeks"]) is list and len(j["weeks"]) <= 10000 and all(type(w) is int and 0 <= w < 10000 for w in j["weeks"]), f
                   assert (type(j["game"]) is int and j["game"] == gid) and (j["prizesFromWeek"] is None or nat(j["prizesFromWeek"])), f
                   assert j["contract"] is None or isaddr(j["contract"]), f

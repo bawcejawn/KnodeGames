@@ -108,8 +108,9 @@ test("page: the ruler's box is hidden until a day file says shadow or on; it say
   assert.deepEqual(R.voidBand(BR.VOID_BLOCKS).map(Number), [50000, 250000], "the page's 5% / 25% is the ruler's 1-hour band");
   assert.match(html, /A pick on a voided producer counts as a miss\./);
   assert.match(js, /\$\{NET\.data\}X\$\{String\(w\)\.padStart\(3, "0"\)\}-\$\{d\}\.json/, "reads the day files");
-  assert.match(js, /cur\.mode === "off" \|\| !Number\.isInteger\(cur\.rulerFrom\)\) \{ \$\("ruler-box"\)\.hidden = true/, "hidden while off");
-  assert.match(js, /M\.weekStart\(cur\.rulerFrom\)/, "the calendar Monday from the switch's week");
-  assert.match(js, /if \(cur\.mode === "on"\) for \(const e of document\.querySelectorAll\('\[data-bx="capx"\]'\)\) e\.textContent = "×120"/);
+  assert.match(js, /if \(curMode === "off" \|\| !Number\.isInteger\(from\)\) \{ \$\("ruler-box"\)\.hidden = true/, "hidden while off (G49-3: by the recorded switch)");
+  assert.match(js, /rulerFromIdx = ix\.rulerFrom/, "the switch as the recorder last used it, from index.json");
+  assert.match(js, /M\.weekStart\(from\)/, "the calendar Monday from the switch's week");
+  assert.match(js, /if \(curMode === "on"\) for \(const e of document\.querySelectorAll\('\[data-bx="capx"\]'\)\) e\.textContent = "×120"/);
   assert.doesNotMatch(html + js, /mode [ABCD]\b|modes A/, "players are never told about the ruler's modes");
 });

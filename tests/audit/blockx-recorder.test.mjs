@@ -1143,3 +1143,15 @@ test("capacity: a Block X file over 60% of the 2 MB publish limit (1.2 MB) warns
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /st\.size > SIZE_WARN_BYTES\) problems\.push\(`\$\{f\} is .* MB: near the 2 MB publish limit/);
 });
+
+test("Repo Lens #G-49 G49-1: in an ON week, targets waiting over 6 hours for the ruler alert (held), and so does each 3-day void when it is made; never in a shadow week", async () => {
+  const { RULER_LATE_MS } = await import(path.resolve(APP, "bot/games/blockx.ts"));
+  assert.equal(RULER_LATE_MS, 6 * 3600000);
+  const wait = await weekThenLookOut(picksGuest, 13, { rulerFrom: 3, rulerEntryOf: stubEntry(1234, { card: null, note: "not yet: the ruler's data reaches block 1" }) });
+  assert.ok(wait.r.held.some((h) => /the VHP ruler's data is missing or behind: \d+ ON-week target\(s\) have waited more than 6 hours/.test(h)), JSON.stringify(wait.r.held).slice(0, 300));
+  const v = await weekThenLookOut(picksGuest, 13, { rulerFrom: 3, rulerEntryOf: stubEntry(0, { card: null, isVoid: true, note: "the ruler couldn't score this target within 3 days (x)" }) });
+  assert.ok(v.r.held.some((h) => /couldn't score this ON-week target within 3 days/.test(h)), "a 3-day void alerts when made");
+  // (switch 5: week 4, the running week, is the shadow week and week 3 is off)
+  const sh = await weekThenLookOut(picksGuest, 13, { rulerFrom: 5, rulerEntryOf: stubEntry(1234, { card: null, note: "not yet: x" }) });
+  assert.ok(!sh.r.held.some((h) => /VHP ruler/.test(h)), "shadow: no alert (it counts for nothing)");
+});

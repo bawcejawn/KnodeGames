@@ -146,7 +146,8 @@ export function entryFor(L: any, t: { round: number; height: number; time: numbe
   const base: RulerTarget = { round: t.round, height: t.height, lock, cardRound, window, card: null, note: null, signer: t.signer, points: 0, void: false, why: null };
   if (t.void || !t.signer) return { ...base, void: true, why: "the target itself is void (no signer recorded)" };
   const late = now - t.time >= RULER_WAIT_MS;
-  const wait = (note: string) => (late ? { ...base, void: true, note, why: "the ruler couldn't score this target within 3 days: no pick on it counts" } : { ...base, note });
+  // Repo Lens #G-49 G49-1: the 3-day void's note doesn't start "not yet", so the recorder reports it (and alerts in an ON week).
+  const wait = (note: string) => (late ? { ...base, void: true, note: `the ruler couldn't score this target within 3 days (${note})`, why: "the ruler couldn't score this target within 3 days: no pick on it counts" } : { ...base, note });
   if (!L) return wait("not yet: the ruler's data isn't available this run");
   if (t.height + R.DELAY > L.to || lock + 20 > L.to) return wait(`not yet: the ruler's data reaches block ${L.to}, the target is block ${t.height}`);
   try {

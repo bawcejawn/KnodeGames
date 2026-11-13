@@ -181,10 +181,10 @@ test("G35-2: the ruler's code is written on every run; with the switch unset aft
   const pub4 = pubWith({ "index.json": idx(4) });
   const r4 = check(tmp(), pub4, { now: NOW, env: { BLOCKX_RULER_FROM_WEEK: "" } });
   assert.notEqual(r4.code, 0); assert.match(r4.out, /ruler switch change is refused/);
-  // an index.json made with another switch value than the variable's stops the run (nothing published)
+  // an index.json made with another switch value than the variable's is held alone, with an alert (Repo Lens #G-49 G49-2)
   const bad = tmp(); write(bad, "index.json", idx(6));
   const rb = check(bad, pubWith({ "index.json": idx(5) }), { now: NOW, env: { BLOCKX_RULER_FROM_WEEK: "5" } });
-  assert.notEqual(rb.code, 0); assert.match(rb.out, /ruler switch as set/);
+  assert.equal(rb.code, 0, rb.out); assert.ok(rb.held.includes("blockx/index.json") && rb.held.includes("!alert"), rb.out); assert.match(rb.out, /ruler switch as set/);
 });
 
 test("G35-5: a failed vhp-data fetch never stops the recorder or the publish (the ruler waits)", () => {
@@ -198,9 +198,10 @@ test("G35-5: a failed vhp-data fetch never stops the recorder or the publish (th
 
 test("G35-4: in an ON week the page shows the ruler's points, not the week file's", () => {
   const js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
-  assert.match(js, /const shownPts = \(t, p\) => \{\n    const e = rulerOn\.get\(t\.height\);\n    if \(!e\) return p\[3\];\n    if \(!e\.card && !e\.void\) return undefined;\n    return !e\.void && p\[1\] === e\.signer \? e\.points : 0;/);
+  assert.match(js, /const shownPts = \(t, p\) => \{\n    const e = rulerOn\.get\(t\.height\);\n    if \(!e\) return weekOn\(t\) \? undefined : p\[3\];[^\n]*\n    if \(!e\.card && !e\.void\) return undefined;\n    return !e\.void && p\[1\] === e\.signer \? e\.points : 0;/);
   assert.match(js, /const pp = p \? shownPts\(t, p\) : 0, right = p && pp > 0;/);
-  assert.match(js, /filter\(\(x\) => shownPts\(t, x\) > 0\)/);
-  assert.match(js, /for \(const j of files\) if \(j\.mode === "on"\) for \(const e of j\.targets\) rulerOn\.set\(e\.height, e\);/, "only ON files, never shadow");
+  assert.match(js, /const sp = \(t\.picks \|\| \[\]\)\.map\(\(x\) => shownPts\(t, x\)\);/);
+  assert.match(js, /sp\.some\(\(x\) => x === undefined\) \? "being scored by the ruler"/, "G49-3: no \"0 of N right\" while waiting");
+  assert.match(js, /for \(const j of files\) if \(modeAt\(j\.week, j\.mode\) === "on" && j\.mode === "on"\) for \(const e of j\.targets\) rulerOn\.set\(e\.height, e\);/, "only ON files, never shadow");
   assert.match(js, /\$\("mult-sub"\)\.textContent = rulerOn\.size\n/, "the old multiplier table is marked reference-only in an ON week");
 });

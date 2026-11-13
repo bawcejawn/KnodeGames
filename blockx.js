@@ -545,6 +545,8 @@
   // latest targets' ruler scores (marked "trial: counts for nothing" in the shadow week). In an ON week the cap reads ×120.
   async function loadRuler() {
     const now = Date.now(), wNow = M.weekOf(now), files = [];
+    try { const ix = await fetchJson(NET.data + "index.json"); if (ix && typeof ix === "object" && "rulerFrom" in ix) rulerFromIdx = ix.rulerFrom; } catch { /* keep */ }
+    const modeAt = (w, fileMode) => (rulerFromIdx === undefined ? fileMode : rulerFromIdx === null || w < rulerFromIdx - 1 ? "off" : w < rulerFromIdx ? "shadow" : "on");
     for (const w of [wNow - 1, wNow]) {
       if (w < 0) continue;
       const days = w === wNow ? Math.floor((now - M.weekStart(w)) / 86400000) + 1 : 7;
@@ -553,16 +555,18 @@
       }
     }
     const cur = files.filter((j) => j.week === wNow).pop() || files[files.length - 1];
-    if (!cur || cur.mode === "off" || !Number.isInteger(cur.rulerFrom)) { $("ruler-box").hidden = true; return; }
+    // G49-3: the banner follows the switch as the recorder last used it (an allowed unset or move takes it down at once)
+    const curMode = modeAt(wNow, cur ? cur.mode : "off"), from = rulerFromIdx === undefined ? cur && cur.rulerFrom : rulerFromIdx;
+    if (curMode === "off" || !Number.isInteger(from)) { $("ruler-box").hidden = true; rulerOn = new Map(); renderResults(); renderMults(); return; }
     $("ruler-box").hidden = false;
-    const mon = new Date(M.weekStart(cur.rulerFrom)).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
-    $("ruler-when").textContent = cur.mode === "on"
+    const mon = new Date(M.weekStart(from)).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+    $("ruler-when").textContent = curMode === "on"
       ? `Who Signs Block X is scored by the VHP ruler from ${mon} (00:00 UTC). It replaces the ×5 cap.`
       : `Who Signs Block X switches to the VHP ruler on ${mon} (00:00 UTC). This week the ruler runs beside the game as a trial: its scores below count for nothing.`;
-    if (cur.mode === "on") for (const e of document.querySelectorAll('[data-bx="capx"]')) e.textContent = "×120";
+    if (curMode === "on") for (const e of document.querySelectorAll('[data-bx="capx"]')) e.textContent = "×120";
     // Repo Lens #G-35 G35-4: in an ON week a pick's points are the ruler's (the W file keeps the old-rule points).
     rulerOn = new Map();
-    for (const j of files) if (j.mode === "on") for (const e of j.targets) rulerOn.set(e.height, e);
+    for (const j of files) if (modeAt(j.week, j.mode) === "on" && j.mode === "on") for (const e of j.targets) rulerOn.set(e.height, e);
     renderResults(); renderMults();
     const rows = files.flatMap((j) => j.targets.map((e) => ({ ...e, shadow: j.shadow }))).sort((a, b) => b.height - a.height).slice(0, 8);
     $("ruler-list").replaceChildren(...rows.map((e) => {
@@ -573,9 +577,13 @@
   /** Repo Lens #G-35 G35-4: a pick's points as the page shows them: the ruler entry's in an ON week (undefined: not
    *  scored by the ruler yet), else the week file's. */
   let rulerOn = new Map();
+  // Repo Lens #G-49 G49-3: the ruler switch as the recorder last used it (index.json rulerFrom): undefined = not known
+  // (an older index.json; then a week is ON when the page has any ON entry), null = unset, N = on from vault week N.
+  let rulerFromIdx;
+  const weekOn = (t) => (rulerFromIdx === undefined ? rulerOn.size > 0 : rulerFromIdx !== null && Number.isFinite(t.time) && M.weekOf(t.time) >= rulerFromIdx);
   const shownPts = (t, p) => {
     const e = rulerOn.get(t.height);
-    if (!e) return p[3];
+    if (!e) return weekOn(t) ? undefined : p[3];   // an ON-week target the page has no ruler entry for: "…", never old-rule points
     if (!e.card && !e.void) return undefined;
     return !e.void && p[1] === e.signer ? e.points : 0;
   };
@@ -587,7 +595,8 @@
       const p = who && Array.isArray(t.picks) ? t.picks.find((x) => x[0] === who) : null;
       const pp = p ? shownPts(t, p) : 0, right = p && pp > 0;
       const signer = t.signer ? (NET.explorer ? el("a", { href: NET.explorer + t.signer, target: "_blank", rel: "noopener noreferrer", text: nameOf(t.signer) }) : el("span", { text: nameOf(t.signer) })) : el("span", { text: "–" });
-      const crowd = t.void ? "void" : `${(t.picks || []).filter((x) => shownPts(t, x) > 0).length} of ${(t.picks || []).length} right`;
+      const sp = (t.picks || []).map((x) => shownPts(t, x));
+      const crowd = t.void ? "void" : sp.some((x) => x === undefined) ? "being scored by the ruler" : `${sp.filter((x) => x > 0).length} of ${sp.length} right`;
       return el("div", { class: "bx-res-row" },
         el("span", { class: "h", text: fmt(t.height) }),
         el("span", { class: "who" }, t.signer ? dot(t.signer) : null, signer, el("span", { class: "note", text: crowd })),

@@ -1,4 +1,4 @@
-# Knode Games live stats: once an hour (minute 17) this builds stats.json, the public summary the home page strip and
+# Knode Games live stats: every 2 hours (minute 17; Capacity, 13 Nov) this builds stats.json, the public summary the home page strip and
 # the games page panel show (stats.js), and publishes it, alone, to the stats-data branch. See bot/stats.ts.
 #
 # Two jobs, like names.yml:
@@ -6,8 +6,8 @@
 #            (race-data, games-data, blocks-data), reads the vault (read-only calls), runs bot/stats.ts and hands on
 #            stats.json.
 #   publish  runs no repository code: checks stats.json's shape and pushes it as the only file of a one-commit
-#            stats-data branch (history isn't kept: each hour replaces the last). Refused if stats-data moved since the
-#            check started; it simply runs again next hour.
+#            stats-data branch (history isn't kept: each run replaces the last). Refused if stats-data moved since the
+#            check started; it simply runs again next time.
 # It never touches main, holds no key, signs nothing and does not run on pull requests.
 #
 # Turn it on: Settings → Secrets and variables → Actions → Variables: STATS_ENABLED = true
@@ -15,7 +15,7 @@ name: Knode Games stats
 
 on:
   schedule:
-    - cron: "17 * * * *"         # hourly
+    - cron: "17 */2 * * *"       # every 2 hours
   workflow_dispatch: {}
 
 concurrency:

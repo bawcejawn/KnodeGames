@@ -597,7 +597,7 @@
     // (approve, transfer, burn, stake), so they ask for rcLimitOther (audit SP-17: the sponsor's per-transaction cap, 1 Mana).
     const rcLimit = sp ? rcFor(sp, ops, String(answerOnly ? (sp.rcLimit || "100000000") : (sp.rcLimitOther || "100000000"))) : null;
     const said = sp ? await sponsorAnswer(sp, rcLimit, gamesOfOps(sp, ops), answerOnly) : null;
-    if (said && !said.ok && isLowManaReason(said.reason)) W.status && W.status(LOW_MANA_NOTE);
+    if (said && !said.ok && said.low === true) W.status && W.status(LOW_MANA_NOTE);
     if (said && said.ok) {
       try { return await sendKondorWith(label, ops, { ...opts, sponsor: sp.address, rcLimit }); }
       catch (e) {
@@ -714,34 +714,38 @@
     }
     return capped(sum < BigInt(fallback) ? sum : BigInt(fallback));
   }
-  /** Batched picks (Capacity, 13 Nov; docs/capacity/BATCHED-PICKS-SPEC.md): for 2 to 10 operations, ask for the measured
-   *  burn plus a margin, never the full sum, because sponsor v3 counts the asked rc_limit against every cap. The measured
-   *  numbers come from the testnet run (T7), in Mana, as the sponsor settings' "batch" row (mana-limits.json, written by the
-   *  Block X chat): { "fixed": Mana, "perOp": { "<same key as rcLimits>": Mana }, "margin": Mana }. Without that row, or
-   *  when any operation has no perOp number, nothing changes: the sum of the per-action limits, as before. */
+  /** Batched picks (Capacity and Block X chat, 13 Nov; docs/capacity/BATCHED-PICKS-SPEC.md): for 2 to 10 operations, ask
+   *  for the measured burn plus a margin, never the full sum, because sponsor v3 counts the asked rc_limit against every cap.
+   *  The sponsor settings carry the T7 numbers as decimal strings in base units (1 Mana = "100000000"), like rcLimits:
+   *  "batch": { "fixed", "perOp": { "<contract>:<entry hex 8>": ... }, "margin" } (margin is one number for the whole
+   *  transaction). rc_limit = fixed + the sum of perOp + margin, capped at rcLimitOther. An operation with no perOp row is
+   *  not batched (null here; sendBatch sends it alone): the page never guesses. */
   function batchRc(sp, ops) {
     const b = sp && sp.batch, n = ops.length;
     if (!b || typeof b !== "object" || n < 2 || n > 10 || !b.perOp || typeof b.perOp !== "object") return null;
-    const raw = (v) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1000 ? BigInt(Math.round(v * 1e8)) : null);
-    let sum = raw(b.fixed), margin = raw(b.margin);
+    const raw = (v) => (typeof v === "string" && /^[0-9]{1,16}$/.test(v) ? BigInt(v) : null);
+    let sum = raw(b.fixed); const margin = raw(b.margin);
     if (sum === null || margin === null) return null;
     for (const o of ops) {
-      const c = o && o.call_contract;
-      const k = c && `${c.contract_id}:${(Number(c.entry_point) >>> 0).toString(16).padStart(8, "0")}`;
-      const v = k && raw(b.perOp[k]);
-      if (v === null || v === undefined) return null;
+      const v = raw(b.perOp[opKey(o)]);
+      if (v === null) return null;
       sum += v;
     }
-    return sum + margin;
+    sum += margin;
+    const cap = raw(sp.rcLimitOther);
+    return cap !== null && cap < sum ? cap : sum;
+  }
+  function opKey(o) {
+    const c = o && o.call_contract;
+    return c ? `${c.contract_id}:${(Number(c.entry_point) >>> 0).toString(16).padStart(8, "0")}` : "";
   }
   const OWN_MANA_NOTE = "You have your own Mana, so this one is paid from it.";
   const LOW_MANA_NOTE = "Free Mana is low right now. If a pick fails, try again later, or use your own Mana or Kondor's free Mana.";
-  const isLowManaReason = (r) => /\blow\b|reserve|pace|busy/i.test(String(r || ""));
-  /** True when the wallet's own Mana is at least the sponsor's selfPayMin (Mana; absent or 0 = off). */
+  /** True when the wallet's own Mana is at least the sponsor's selfPayMin (a base-unit string, 0 to 1000 Mana; absent or "0" = off). */
   async function hasOwnMana(sp) {
-    const min = Number(sp && sp.selfPayMin);
-    if (!Number.isFinite(min) || min <= 0 || min > 1000) return false;
-    try { return BigInt(await W.provider.getAccountRc(W.address)) >= BigInt(Math.round(min * 1e8)); } catch { return false; }
+    const v = sp && sp.selfPayMin;
+    if (typeof v !== "string" || !/^[0-9]{1,12}$/.test(v) || BigInt(v) <= 0n || BigInt(v) > 100000000000n) return false;
+    try { return BigInt(await W.provider.getAccountRc(W.address)) >= BigInt(v); } catch { return false; }
   }
   /** "Send my picks": up to 10 pending picks or answers in one transaction (one signature). `stillOpen(op)` is asked right
    *  before signing and drops any whose round has locked, so a locked pick cannot make the whole transaction fail. */
@@ -751,7 +755,13 @@
     if (!live.length) throw new Error("Those picks have all locked, so nothing was sent.");
     if (live.length > 10) throw new Error("Send at most 10 picks at a time.");
     const { stillOpen, ...rest } = opts;
-    const id = await send(label, live, rest);
+    const bt = W.sponsor && W.sponsor.batch && W.sponsor.batch.perOp;
+    // An operation with no measured row is sent alone, as today; the rest go together.
+    const together = bt ? live.filter((o) => typeof bt[opKey(o)] === "string") : live.slice(0, 1);
+    const alone = live.filter((o) => !together.includes(o));
+    let id = null;
+    if (together.length) id = await send(label, together, rest);
+    for (const o of alone) id = await send(label, [o], rest);
     return { id, sent: live.length, dropped: ops.length - live.length };
   }
   /** The calls' games for would_pay (audit SP-22, SP-38: as the sponsor's authorize reads them): race picks are game
@@ -801,13 +811,14 @@
       const r = await withTimeout(W.provider.readContract({ contract_id: sp.address, entry_point: WOULD_PAY, args: lib.utils.encodeBase64url(new Uint8Array(bytes)) }), 6000, "timeout");
       const out = r && r.result ? lib.utils.decodeBase64url(r.result) : new Uint8Array(0);
       const ok = out.length >= 2 && out[0] === 0x08 && out[1] === 0x01;   // field 1 (ok) = true
-      let reason = "";
-      for (let i = 0; i < out.length;) {   // field 2 (reason), a string
+      let reason = "", low = false;
+      for (let i = 0; i < out.length;) {   // field 2 (reason) a string; field 7 (low_mana, sponsor v4) a bool, unset in v3
         const tag = out[i++];
-        if (tag === 0x12) { const n = out[i++]; reason = String.fromCharCode(...out.subarray(i, i + n)); break; }   // the sponsor's reasons are plain ASCII
+        if (tag === 0x12) { const n = out[i++]; reason = String.fromCharCode(...out.subarray(i, i + n)); i += n; continue; }   // the sponsor's reasons are plain ASCII
+        if (tag === 0x38) { low = out[i++] === 1; continue; }
         if ((tag & 7) === 0) { while (i < out.length && (out[i++] & 0x80)); } else break;
       }
-      return { ok, reason };
+      return { ok, reason, low };
     } catch { return { ok: false, reason: "", failed: true }; }   // the check itself failed (trap, timeout): not a "no"
   }
 
@@ -902,7 +913,7 @@
   }
 
   window.KWallet = {
-    init, setGuestConfig, connect, disconnect, send, sendBatch, isPhone, manageGuest, guestInfo: () => { guestCant([]); }, switchTo, forget,
+    init, setGuestConfig, connect, disconnect, send, sendBatch, batchReady: () => !!(W.sponsor && W.sponsor.batch && typeof W.sponsor.batch === "object" && W.payer === "sponsor"), isPhone, manageGuest, guestInfo: () => { guestCant([]); }, switchTo, forget,
     accounts: () => remembered(), subscribe: (f) => { listeners.add(f); return () => listeners.delete(f); },
     get address() { return W.address; }, get kind() { return W.kind; },
     /** R-BX-21: true when this page sends through the Mana sponsor (deployment.json "payer": "sponsor"). */

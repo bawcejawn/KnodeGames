@@ -70,7 +70,7 @@ test("the Block X game config: game 2 on mainnet is exactly the plan's settings;
   assert.throws(() => buildGameConfig({ ...base, id: 128 }), /1 to 127/);
   assert.throws(() => buildGameConfig({ ...base, name: "x".repeat(41) }), /1 to 40 bytes/);
   const mainnet = network(false);
-  assert.equal(mainnet.games.length, 3, "on mainnet the tool registers Who Signs Block X (game 2, hourly game 12) and Producer Bracket (game 9)");
+  assert.equal(mainnet.games.length, 5, "on mainnet the tool registers Who Signs Block X (game 2, hourly game 12), Producer Bracket (game 9) and Fantasy (games 4 and 5)");
   assert.deepEqual(buildGameConfig(mainnet.games[0]), c);
   assert.deepEqual(buildGameConfig(mainnet.games[1]), { id: 12, name: "Who Signs Block X (hourly)", kind: 1, list_size: 1, number_min: "0", number_max: "0", lock_mode: 1,
     round_size: "1200", round_offset: "0", lead: "100", ahead: "28900", max_picks_per_day: 48, max_changes: 1, enabled: true }, "R-BX-25: every 1,200 blocks, 48 picks a day");
@@ -315,4 +315,54 @@ test("G7-1 (Low): apply refuses a pending game that isn't exactly the pinned con
   assert.match(m.pendingProblem(null, g), /nothing/i);
   const src = fs.readFileSync("bot/picks.ts", "utf8");
   assert.match(src, /async function apply[\s\S]{0,900}pendingProblem\(pend\.game, /, "apply checks it before sending");
+});
+
+test("tighten (capacity, owner 12 Nov): only stricter values, at once; the shape and the name never change", async () => {
+  const { tightenConfig, TIGHTEN_FLAGS } = await import("../../bot/picks.ts");
+  assert.deepEqual(TIGHTEN_FLAGS, { "--per-day": "max_picks_per_day", "--changes": "max_changes", "--lead": "lead", "--ahead": "ahead" });
+  const g = { id: 12, name: "Who Signs Block X (hourly)", kind: 1, list_size: 1, number_min: "0", number_max: "0", lock_mode: 1, round_size: "1200", round_offset: "0", lead: "100", ahead: "28900", max_picks_per_day: 48, max_changes: 1, enabled: true };
+  const t = tightenConfig(g, { max_picks_per_day: 24 });
+  assert.deepEqual(t.config, { ...g, max_picks_per_day: 24 }); assert.deepEqual(t.changed, ["max_picks_per_day 48 → 24"]);
+  assert.deepEqual(tightenConfig(g, { lead: 200, ahead: 14400 }).config, { ...g, lead: "200", ahead: "14400" }, "u64 fields stay strings");
+  assert.throws(() => tightenConfig(g, { max_picks_per_day: 60 }), /isn't stricter/);
+  assert.throws(() => tightenConfig(g, { lead: 50 }), /isn't stricter/);
+  assert.throws(() => tightenConfig(g, { ahead: 30000 }), /isn't stricter/);
+  assert.throws(() => tightenConfig(g, { max_picks_per_day: 0 }), /at least 1/);
+  assert.throws(() => tightenConfig(g, { lead: 28900 }), /ahead must stay above lead/);
+  assert.throws(() => tightenConfig(g, { round_size: 600 }), /can't change round_size/);
+  assert.throws(() => tightenConfig(g, { max_picks_per_day: 48 }), /Nothing to tighten/);
+  for (const k of ["id", "name", "kind", "list_size", "number_min", "number_max", "lock_mode", "round_size", "round_offset"]) assert.equal(t.config[k], g[k], k);
+  const src = fs.readFileSync("bot/picks.ts", "utf8");
+  assert.match(src, /mainnetGuard\(net, send\);\n  if \(!net\.picks\) throw new Error\("No Picks contract yet\."\);\n  const \{ p, chainId \} = await connect\(net\);\n  await assertAuditedContract\(net, p\);\n  const g = \(await read\(p, net\.picks, "get_game", \{ game: id \}\)\)\.game;\n  if \(!g\) throw new Error\(`Game \$\{id\} isn't registered\.`\);\n  const \{ config, changed \} = tightenConfig/, "tighten: the mainnet guard and the audited-contract check first");
+  assert.match(src, /the contract CANCELS it when the game is tightened/, "warns that a pending announcement is cancelled");
+});
+
+test("Fantasy, games 4 and 5 (the Fantasy chat's values, 12 Nov): the exact configs announced, pinned value by value (the shape can never change)", async () => {
+  const { FANTASY_TEAM_GAME, FANTASY_RIVAL_GAME } = await import("../../bot/picks.ts");
+  const mainnet = network(false), g4 = mainnet.games.find((x: any) => x.id === 4), g5 = mainnet.games.find((x: any) => x.id === 5);
+  const T4 = { id: 4, name: "Fantasy Producers", kind: 2, list_size: 5, number_min: "0", number_max: "0", lock_mode: 2, round_size: "86400000", round_offset: "0", lead: "300000", ahead: "604800000", max_picks_per_day: 20, max_changes: 20, enabled: true };
+  const T5 = { id: 5, name: "Weekly Rival", kind: 1, list_size: 1, number_min: "0", number_max: "0", lock_mode: 2, round_size: "86400000", round_offset: "0", lead: "300000", ahead: "604800000", max_picks_per_day: 10, max_changes: 5, enabled: true };
+  assert.deepEqual(buildGameConfig(g4), T4); assert.deepEqual(buildGameConfig(g5), T5);
+  // the first rounds (practice, vault week 5): round 20780 = Mon 23 Nov 00:00 UTC, locks Sun 22 Nov 23:55 UTC, opens Mon 16 Nov 00:00 UTC
+  const rs = timeRounds(FANTASY_TEAM_GAME, Date.parse("2026-11-22T12:00:00Z"));
+  assert.deepEqual(rs[0], { round: 20780, target: "2026-11-23T00:00:00.000Z", opens: "2026-11-16T00:00:00.000Z", locks: "2026-11-22T23:55:00.000Z" });
+  assert.equal(timeRounds(FANTASY_RIVAL_GAME, Date.parse("2026-11-29T12:00:00Z"))[0].round, 20787, "Weekly Rival's first live round: Mon 30 Nov");
+  // the contract's limits, each refused
+  assert.throws(() => buildGameConfig({ ...g4, listSize: 11 }), /list game 2 to 10/);
+  assert.throws(() => buildGameConfig({ ...g5, listSize: 2 }), /one-pick game has list_size 1/);
+  assert.throws(() => buildGameConfig({ ...g4, lead: 299999 }), /lead at least 5 minutes/);
+  assert.throws(() => buildGameConfig({ ...g4, ahead: 36 * 86400000 }), /at most 35 days/);
+  assert.throws(() => buildGameConfig({ ...g5, picksPerDay: 51 }), /1 to 50/);
+  // Block X's own games are untouched (height-locked, X.forGame)
+  assert.equal(buildGameConfig(mainnet.games.find((x: any) => x.id === 12)).lock_mode, 1);
+  // Fantasy's own math agrees, once it is on main (fantasy-math.js games(), as its testnet registration)
+  const fm = path.resolve("fantasy-math.js");
+  if (fs.existsSync(fm)) {
+    await import(path.resolve("race-math.js"));   // fantasy-math.js needs it first
+    await import(fm);
+    const F = (globalThis as any).KFantasyMath || (globalThis as any).KFantasy;
+    assert.ok(F && typeof F.games === "function", "fantasy-math.js exposes games()");
+    const gs = F.games();
+    assert.deepEqual(gs.team, T4); assert.deepEqual(gs.rival, T5);
+  }
 });

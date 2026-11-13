@@ -64,3 +64,11 @@ test("sampler: never two samples within 4 minutes, so 8 hours hold at most SAMPL
   assert.ok(age(null) >= 240, "no samples yet: no wait");
   fs.rmSync(d, { recursive: true, force: true });
 });
+
+test("Capacity GATE-1500 #12: the sampler starts every 15 minutes (each run still takes up to 12 samples over up to 48 minutes)", () => {
+  assert.match(yml, /- cron: "\*\/15 \* \* \* \*"/);
+  assert.doesNotMatch(yml, /cron: "\*\/5 /);
+  assert.match(yml, /for i in \$\(seq 1 12\)/, "12 samples a run");
+  assert.match(yml, /-ge 2880 \]/, "for at most 48 minutes");
+  assert.match(yml, /cancel-in-progress: false/, "a running sampler is never cut short by the next start");
+});

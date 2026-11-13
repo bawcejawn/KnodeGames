@@ -23,7 +23,11 @@ prize switch), D-125 / D-129 (weekly rhythm), D-138 (launch order). Game file: `
 1. The game is marked `"status": "live"` in `games.json`.
 2. `bot/games/golf.ts` has a reader for it (today: `questions`, `race`, `blockx`). Last Node, Fantasy, Bracket, Survivor
    and the other games add theirs when they launch, with a test (Survivor's should recompute the standings at the
-   week's last season day with `survivor-math.js`, not keep a snapshot: audit H4).
+   week's last season day with `survivor-math.js`, not keep a snapshot: audit H4). **Or the standard reader:** a game
+   that publishes the shared board at `games-data/<id>/board.json` (Block X's shape, with `lastWeek.final`) adds
+   `"golf": "standard"` to its `games.json` entry and needs no reader of its own. It is opt-in on purpose: a game's
+   board is trusted as a hole only after its own chat and Repo Lens say so. Its id must be a plain lower-case name
+   (the workflow and the recorder both refuse anything else), and it must be in `COURSE_ORDER` in `golf-math.js`.
 3. It plays from the **Monday after** it went live, so nobody loses strokes on a game that didn't exist all week.
 
 What each hole waits for (a hole is final only when its game's own week is final):
@@ -34,7 +38,9 @@ What each hole waits for (a hole is final only when its game's own week is final
 | Producer Race | `race-data/board.json` and `race-data/vault/W<w>.json` | every race is final **and** the Race's own vault file for the week is final (its two-run check, chain re-check and `RACE_HOLD_WEEKS`; Repo Lens G-3). A Race week you hold past 60 hours makes Golf skip the Race hole for everyone that week (Repo Lens I-2). |
 | Who Signs Block X | `games-data/blockx/board.json` | its `lastWeek.final` (set after Block X's own two-run check and week-end re-read). |
 
-No contract, vault or sponsor change is needed to add a hole. A new game's own build adds its reader and a test.
+No contract, vault or sponsor change is needed to add a hole. A game with the shared board adds one line to `games.json`; any other game's build adds its reader and a test.
+
+The Clubhouse hole (a hole scored by how many different platform features a wallet used) is planned in `claude/golf/CLUBHOUSE-PLAN-2026-11-06.md` and is **not built yet**: each feature chat must first say how its action shows up as a public wallet record.
 
 ## The week (D-125, D-129; the one home for timing is `.ai/standards/WEEK_CYCLE.md`)
 

@@ -69,6 +69,12 @@ jobs:
           if has_branch games-data; then
             git fetch -q --depth 1 "$url" games-data
             if git cat-file -e "FETCH_HEAD:blockx/board.json" 2>/dev/null; then git show "FETCH_HEAD:blockx/board.json" > "$RUNNER_TEMP/games/blockx/board.json"; fi
+            # The standard reader: every game that says "golf": "standard" in games.json (checked out from main above) has
+            # its shared board taken the same way. Only plain lower-case ids are used; anything else is ignored.
+            for id in $(node -e 'const g=JSON.parse(require("fs").readFileSync("games.json","utf8")).games||[];for(const x of g)if(x&&x.golf==="standard"&&/^[a-z][a-z0-9-]{1,30}$/.test(x.id))console.log(x.id)'); do
+              mkdir -p "$RUNNER_TEMP/games/$id"
+              if git cat-file -e "FETCH_HEAD:$id/board.json" 2>/dev/null; then git show "FETCH_HEAD:$id/board.json" > "$RUNNER_TEMP/games/$id/board.json"; fi
+            done
             for f in $(git ls-tree --name-only FETCH_HEAD:golf 2>/dev/null); do
               if [[ "$f" =~ ^(index|board|W[0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:golf/$f" > "$RUNNER_TEMP/prev/$f"; fi
             done

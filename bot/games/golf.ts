@@ -132,9 +132,15 @@ const GAME_ABI = () => JSON.parse(fs.readFileSync(new URL("../../game/abi/kpred.
 export function sourcesFromGames(file: URL | string = new URL("../../games.json", import.meta.url)): Source[] {
   let list: any[] = [];
   try { list = JSON.parse(fs.readFileSync(file, "utf8")).games; } catch { return []; }
-  return (Array.isArray(list) ? list : []).filter((g) => g && typeof g.id === "string" && g.id !== "golf" && READERS[g.id])
-    .map((g) => ({ id: g.id, name: cleanName(g.name, g.id), reader: g.id, live: g.status === "live" }));
+  const readerOf = (g: any): string => Object.hasOwn(READERS, g.id) && g.id !== STANDARD ? g.id : (g.golf === STANDARD && STANDARD_ID.test(g.id) ? STANDARD : "");
+  return (Array.isArray(list) ? list : []).filter((g) => g && typeof g.id === "string" && g.id !== "golf" && readerOf(g))
+    .map((g) => ({ id: g.id, name: cleanName(g.name, g.id), reader: readerOf(g), live: g.status === "live" }));
 }
+/** The standard reader (Clubhouse plan §4): a game that publishes the shared board (games-data/<id>/board.json, the shape
+ *  Block X uses) joins the course by saying so in games.json (`"golf": "standard"`), with no reader of its own. It is an
+ *  opt-in on purpose: a game's board is only trusted as a hole once its own chat and Repo Lens have said so. */
+export const STANDARD = "standard";
+export const STANDARD_ID = /^[a-z][a-z0-9-]{1,30}$/;
 
 // ── readers: one per game, each turning that game's own published results into hole rows ──
 /** A shared-shape board.json's view of week w: its "week" or "lastWeek". */
@@ -197,6 +203,18 @@ const READERS: Record<string, (src: Source, w: number, c: Ctx) => Promise<Read>>
     if (!b) return { state: "live", rows: [], why: "couldn't read the Block X results this run", failed: true, problem: `games-data ${unreadable(path.join(c.gamesDir || "", "blockx"), "board.json")}` };
     const v = boardView(b, w);
     if (!v) return movedOn(b, w) ? { ...KEPT } : { state: "live", rows: [], why: "waiting for the Block X results" };
+    return { state: v.last && v.view.final === true ? "final" : "live", rows: ptsRows(v.view.rows) };
+  },
+
+  // Any game that opted in with "golf": "standard" (see sourcesFromGames). Its folder is games-data/<id>/, named by its id
+  // (a plain lower-case name, never a path), and it must be final exactly as Block X's is: its board's lastWeek says so.
+  async standard(s, w, c) {
+    if (!STANDARD_ID.test(s.id)) return { state: "live", rows: [], why: "its game id isn't a plain name", failed: true, problem: `games-data folder name ${plain(s.id)} not read` };
+    const dir = path.join(c.gamesDir || "", s.id);
+    const b = readJson(dir, "board.json");
+    if (!b) return { state: "live", rows: [], why: `couldn't read the ${s.name} results this run`, failed: true, problem: `games-data ${unreadable(dir, "board.json")}` };
+    const v = boardView(b, w);
+    if (!v) return movedOn(b, w) ? { ...KEPT } : { state: "live", rows: [], why: `waiting for the ${s.name} results` };
     return { state: v.last && v.view.final === true ? "final" : "live", rows: ptsRows(v.view.rows) };
   },
 };

@@ -40,7 +40,7 @@ const priceList = async () => (await game.inputsFor!(WEEK, ctxOf(fakeVhp(base)))
 test("rounds: Monday to Sunday, one a UTC day, id d<yyyymmdd>, Picks round = the day number, day = dayOf(locksAt)", () => {
   const rs = game.roundsFor(WEEK, { now: MON });
   assert.deepEqual(rs.map((x) => x.id), ["d20261116", "d20261117", "d20261118", "d20261119", "d20261120", "d20261121", "d20261122"]);
-  for (const x of rs) { assert.equal(x.locksAt, x.day); assert.equal(x.pickRound, x.day / DAY); assert.equal(x.resolvesAt, x.day + DAY); }
+  for (const x of rs) { assert.equal(x.locksAt, x.day + 1); assert.equal(x.pickRound, x.day / DAY); assert.equal(x.resolvesAt, x.day + DAY); }
 });
 
 test("day window: S0 = the day's first block, S1 = the last, L = the last block before the 5-minute lock (Picks.ts)", async () => {
@@ -71,14 +71,25 @@ test("inputsFor: 7 cards Fri–Thu, pool from Thursday's entry list, Fantasy's o
   assert.deepEqual(await game.inputsFor!(WEEK, ctxOf(fakeVhp(base))), pl);
 });
 
-test("inputsFor: a flagged form card stops the list (the owner checks it)", async () => {
-  const last = F.ymd(F.formDays(MON)[6]);
-  await assert.rejects(() => game.inputsFor!(WEEK, ctxOf(fakeVhp((r) => (r === last ? { ...base(), [A]: { credited: 1, expected: 1, quality: "flagged" } } : base())))), /flagged/);
+test("inputsFor: a flagged form card counts for nobody: its day is left out of every producer's form", async () => {
+  const days = F.formDays(MON).map(F.ymd), wed = days[5];
+  const pl = (await game.inputsFor!(WEEK, ctxOf(fakeVhp((r) => (r === wed ? { ...base(), [A]: { credited: 1, expected: 100, quality: "flagged" } } : base()))))) as PriceList;
+  assert.deepEqual(pl.flaggedDays, [wed]);
+  assert.deepEqual(pl.pool.find((p) => p.a === A), { a: A, form: 10000, days: 6, price: 20 }, "A's bad flagged day doesn't count");
+  const last = days[6];
+  const pl2 = (await game.inputsFor!(WEEK, ctxOf(fakeVhp((r) => (r === last ? { [A]: { credited: 1, expected: 1, quality: "flagged" } } : base()))))) as PriceList;
+  assert.equal(pl2.poolDay, days[5], "the pool comes from the last unflagged card");
+  assert.equal(pl2.pool.length, 6);
 });
 
-test("resultOf: PENDING while flagged, or when a listed producer has no row (G6); otherwise the listed rows", async () => {
+test("resultOf: flagged waits for the cutoff then counts 0; PENDING when a listed producer has no row (G6); otherwise the listed rows", async () => {
   const pl = await priceList(), [mon] = game.roundsFor(WEEK, { now: MON });
-  assert.equal(await game.resultOf(mon, {} as any, pl, ctxOf(fakeVhp(() => ({ ...base(), [B]: { credited: 1, expected: 1, quality: "flagged" } })))), PENDING);
+  const flaggedDay = () => ({ ...base(), [B]: { credited: 1, expected: 1, quality: "flagged" as const } });
+  const cutoff = F.flaggedCutoff(MON);
+  await assert.rejects(() => game.resultOf(mon, {} as any, pl, ctxOf(fakeVhp(flaggedDay), clock(cutoff - 1))), NotYet, "flagged: waits for Tuesday 00:00 UTC after the week");
+  const z = await game.resultOf(mon, {} as any, pl, ctxOf(fakeVhp(flaggedDay), clock(cutoff))) as any;
+  assert.equal(z.flagged, true, "still flagged at the cutoff: the day counts 0 for everyone (owner, 12 Nov)");
+  assert.equal(game.scoreRound(mon, [], z, pl, new Map([["1WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW1", { t: [A, B, C, D, E], at: MON }]])).get("1WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW1")!.points, 0);
   const noG = () => { const x = base(); delete x[G]; return x; };
   assert.equal(await game.resultOf(mon, {} as any, pl, ctxOf(fakeVhp(noG))), PENDING, "a listed producer with no row holds the day");
   const extra = "1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";

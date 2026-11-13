@@ -21,8 +21,9 @@ export const RIVAL_GAME = 5;
 export { CARD };
 
 export type PriceList = ReturnType<typeof F.makePriceList>;
-/** A day's result: its ruler round and each listed producer's [credited, expected, void] (millionths of a block). */
-export type DayResult = { round: string; rows: Record<string, [string, string, boolean]> };
+/** A day's result: its ruler round and each listed producer's [credited, expected, void] (millionths of a block).
+ *  `flagged`: the card stayed flagged past the cutoff, so the day counts 0 for everyone (expected 0 scores 0). */
+export type DayResult = { round: string; rows: Record<string, [string, string, boolean]>; flagged?: true };
 /** A wallet's carried state: its team (captain first) and when it was picked (chain ms). */
 export type TeamState = { t: string[]; at: number };
 
@@ -35,29 +36,39 @@ export const game: GameModule<RawPick, DayResult, PriceList> = {
   extraPickRounds: (week, s) => (s.gameId === RIVAL_GAME ? [dayNo(week.start)] : []),
 
   roundsFor(week): Round[] {
-    return F.weekDays(week.start).map((day) => ({ id: `d${F.ymd(day)}`, day, locksAt: day, resolvesAt: day + DAY, pickRound: dayNo(day) }));
+    // locksAt = 1 ms into the day: the kit's dayOf(t) is floor((t − 1) / DAY) × DAY (an instant exactly at 00:00 belongs
+    // to the day before), so this is the one value with dayOf(locksAt) = day (KC-30; #G-42 G42-1). Picks themselves
+    // lock 5 minutes before the day in the Picks contract; the kit reads each round's picks by pickRound.
+    return F.weekDays(week.start).map((day) => ({ id: `d${F.ymd(day)}`, day, locksAt: day + 1, resolvesAt: day + DAY, pickRound: dayNo(day) }));
   },
 
   /** The write-once price list (FC-9), made Saturday 00:00 UTC before the week from 7 ruler day cards (Friday to
    *  Thursday before), and made again at the week's end for the recount: the same cards give the same bytes. A card
-   *  that isn't ready throws the kit's NotYet (the list waits and the next run tries again); a flagged one stops it. */
+   *  that isn't ready throws the kit's NotYet (the list waits and the next run tries again). A flagged card's day is
+   *  left out of everyone's form (math.js); if a card's flag changes after the list is published, the recount differs
+   *  and the kit holds the week for the owner (FC-9). */
   async inputsFor(week, ctx) {
     const src = sourcesOf(ctx);
     const cards = [];
     for (const day of F.formDays(week.start)) {
       const c = await dayCard(day, src);
-      if (flagged(c)) throw new Error(`price list for week ${week.week}: the ruler card for ${c.round} is flagged (a bad or rebuilt hour); the owner checks it`);
-      cards.push({ round: c.round, rows: rowsOf(c) });
+      cards.push({ round: c.round, rows: rowsOf(c), flagged: flagged(c) });
     }
     return F.makePriceList(week.start, { ...CARD, pooled: [...CARD.pooled] }, cards);
   },
 
-  /** A day's result from its ruler card: PENDING while it is flagged, and while a listed producer has no row (the
-   *  ruler's G6 `include` gives every listed producer one; until then such a day waits, never a silent 0). */
+  /** A day's result from its ruler card. PENDING while a listed producer has no row (the ruler's G6 `include` gives
+   *  every listed producer one; until then such a day waits, never a silent 0). A FLAGGED card (a bad or rebuilt hour)
+   *  waits until Tuesday 00:00 UTC after the week; if it is still flagged then, the day counts as 0 for every team
+   *  (owner, 12 Nov; #G-42 G42-5). The cutoff is read from the chain (blockAt throws NotYet until it is irreversible),
+   *  so both nodes decide it the same way and the week still goes final before the vault's Thursday backstop. */
   async resultOf(round, _read, inputs, ctx) {
     if (!inputs) return PENDING;
-    const c = await dayCard(round.day, sourcesOf(ctx));
-    if (flagged(c)) return PENDING;
+    const src = sourcesOf(ctx), c = await dayCard(round.day, src);
+    if (flagged(c)) {
+      await src.blockAt(F.flaggedCutoff(inputs.start));
+      return { round: c.round, flagged: true, rows: Object.fromEntries(inputs.pool.map(({ a }) => [a, ["0", "0", false]])) };
+    }
     const by = rowsOf(c), rows: DayResult["rows"] = {};
     for (const { a } of inputs.pool) {
       const r = by[a];
@@ -67,15 +78,17 @@ export const game: GameModule<RawPick, DayResult, PriceList> = {
     return { round: c.round, rows };
   },
 
-  /** Every wallet with a team scores, picked that day or not. Score time (D-152/D-159 ties): when the team in force
-   *  was picked, never before the week starts (owner question: earlier team wins a tie). */
-  scoreRound(round, _picks, result, inputs, state): Score {
+  /** Every wallet with a team scores, picked that day or not; a wallet that picked but has no valid team scores 0
+   *  (the kit's contract: every wallet that picked or carries a state; #G-42 G42-2). Score time (D-152/D-159 ties):
+   *  when the team in force was picked, never before the week starts (earlier team wins a tie). */
+  scoreRound(round, picks, result, inputs, state): Score {
     const out: Score = new Map();
     const rows = asRows(result), start = inputs?.start ?? round.day;
     for (const [a, s] of (state ?? new Map()) as States<TeamState>) {
       const points = F.dayPoints(s.t, rows);
       out.set(a, { points, at: points > 0 ? Math.min(round.day, Math.max(start, s.at)) : 0 });
     }
+    for (const p of picks) if (!out.has(p.wallet)) out.set(p.wallet, { points: 0, at: 0 });
     return out;
   },
 

@@ -11,7 +11,8 @@ the dated plan).
 | `recorder.ts` | The kit `GameModule`: 7 rounds a week (Monday to Saturday play, plus the Sunday fun round), the write-once price list (`inputsFile`), each day's result from its ruler card, the carried team, and the Rival records (`weekExtras`). |
 | `game.json` | The manifest: `vhpData`, `inputsFile`, `inputsLeadHours: 48`, payout rule `d152`/`dense255`. It is pinned in `game-data/deployment.json` → `vaultGames.4.kit` (KC-26). |
 | `tests/math.test.mjs` | The rules: 12 tests. |
-| `tests/recorder.test.ts` | The module with a fake ruler and block clock (10 tests), and end to end on the real ruler over the Race's made-up 24-day chain (2 tests). |
+| `tests/recorder.test.ts` | The module with a fake ruler and block clock (10 tests), and end to end on the real ruler over the Race's made-up chain (2 tests). |
+| `tests/g42-*.test.ts` | Repo Lens #G-42's tests, run through the kit's own Replay (locksAt, pickers without a team, Rival size, flagged cards). |
 | `tests/page.test.mjs` | The page: it loads `math.js`, every element the script uses exists, no HTML strings, only the kit's files, the Picks rounds, and the 11 Nov rule text. |
 | `../../fantasy.html`, `.js`, `.css` | The game page (hidden: `noindex`, not in the menus until launch). |
 
@@ -24,8 +25,20 @@ the dated plan).
 4. A team's day is the sum of its producers', with the captain counted twice.
 5. The day stays PENDING when:
    - the kit's `NotYet` says the data or the block isn't there yet;
-   - the card is flagged;
    - a listed producer has no row (the ruler's G6 `include` will give every listed producer one).
+6. A **flagged** card (a bad or rebuilt hour in the ruler's data) waits until Tuesday 00:00 UTC after the week. If it is
+   still flagged then, the day counts as 0 for every team (owner, 12 Nov). The cutoff is read from the chain
+   (`blockAt`), so both nodes decide alike, and the week still goes final before the vault's Thursday backstop.
+   In the price list, a flagged form day is left out of every producer's form.
+
+## Repo Lens #G-42 (FIX FIRST on `81a0343`): fixed
+- **G42-1:** `locksAt = day + 1`, so the kit's `dayOf(locksAt)` is the day (KC-30).
+- **G42-2:** a wallet that picked without a valid team scores 0.
+- **G42-3:** Weekly Rival is capped at 2,500 matches (under the 256 KB extras cap).
+- **G42-4:** a flagged form card no longer stops the run.
+- **G42-5:** the owner's flagged-day rule above.
+- **Info:** `big()` refuses negatives; the page carries your Saturday team into next Monday.
+- The Repo Lens tests are kept in `tests/g42-*.test.ts`.
 
 ## Points
 Points are kept in hundredths: a producer's day is at most 15,000 (= 150.00), and a team's day at most 90,000.

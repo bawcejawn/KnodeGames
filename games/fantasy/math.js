@@ -31,7 +31,7 @@ export const GAMES = Object.freeze({ team: 4, rival: 5 });
 export const VERSION = 1;                     // the price list's format
 
 export const isAddr = (a) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
-const big = (x) => { if (typeof x === "bigint") return x; if (typeof x === "number" && Number.isSafeInteger(x)) return BigInt(x); if (typeof x === "string" && /^[0-9]+$/.test(x)) return BigInt(x); throw new Error(`not a whole number: ${x}`); };
+const big = (x) => { if (typeof x === "bigint" && x >= 0n) return x; if (typeof x === "number" && Number.isSafeInteger(x) && x >= 0) return BigInt(x); if (typeof x === "string" && /^[0-9]+$/.test(x)) return BigInt(x); throw new Error(`not a whole number ≥ 0: ${x}`); };
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 // ── days ──
@@ -49,6 +49,12 @@ export function ymd(dayMs) {
 export const formDays = (start) => Array.from({ length: FORM_DAYS }, (_, i) => start - (10 - i) * DAY);
 /** The week's 7 rounds: Monday to Saturday play, then Sunday's fun round (the Saturday team plays on). */
 export const weekDays = (start) => Array.from({ length: 7 }, (_, i) => start + i * DAY);
+/** When a still-flagged day of the week starting at `start` is decided anyway (as 0 for every team): Tuesday 00:00 UTC
+ *  after the week, a day after it ends and well before the vault's Thursday backstop (owner, 12 Nov; #G-42 G42-5). */
+export const flaggedCutoff = (start) => start + 8 * DAY;
+/** The most Weekly Rival matches a week records (records only): far more than players, and under the kit's 256 KB
+ *  extras cap (#G-42 G42-3). */
+export const MAX_RIVAL = 2500;
 
 // ── one producer's day ──
 /** A producer's points for a day from its ruler row { credited, expected, void } (millionths): hundredths, at most CAP.
@@ -93,15 +99,18 @@ export function priceOf(form, median) {
 }
 /** The week's price list (the `data` of inputs/W<week>.json).
  *  start: the week's Monday 00:00 UTC; card: the ruler card settings; formCards: the 7 form days' scored cards, oldest
- *  first, each { round, rows: { [address]: { credited, expected, void, entry } } }. The pool is the producers with
- *  `entry` on the last form day's card. (The kit lists every card's settings and sha256 in the inputs file itself.) */
+ *  first, each { round, rows: { [address]: { credited, expected, void, entry } }, flagged? }. A FLAGGED card (a bad or
+ *  rebuilt hour in what it reads) counts for nobody: its day is left out of every producer's form (owner, 12 Nov: a
+ *  flagged day is the same for everyone). The pool is the producers with `entry` on the last unflagged form day's card.
+ *  (The kit lists every card's settings and sha256 in the inputs file itself.) */
 export function makePriceList(start, card, formCards) {
   if (!Array.isArray(formCards) || formCards.length !== FORM_DAYS) throw new Error(`the price list needs ${FORM_DAYS} form days`);
   const want = formDays(start).map(ymd);
   formCards.forEach((c, i) => { if (c?.round !== want[i]) throw new Error(`form day ${i + 1} must be ${want[i]}, not ${c?.round}`); });
-  const last = formCards[FORM_DAYS - 1];
+  const used = formCards.filter((c) => c.flagged !== true), last = used[used.length - 1];
+  if (!last) throw new Error("every form day's card is flagged: no price list");
   const pool = Object.keys(last.rows).filter((a) => isAddr(a) && last.rows[a].entry === true).sort(cmp);
-  const forms = pool.map((a) => formOf(a, formCards)), median = medianOf(forms.map((f) => f.form));
+  const forms = pool.map((a) => formOf(a, used)), median = medianOf(forms.map((f) => f.form));
   const rows = pool.map((a, i) => ({ a, form: forms[i].form, days: forms[i].days, price: priceOf(forms[i].form, median) }));
   const cheapest = rows.map((r) => r.price).sort((x, y) => x - y).slice(0, TEAM).reduce((s, x) => s + x, 0);
   return {
@@ -109,6 +118,7 @@ export function makePriceList(start, card, formCards) {
     rules: { team: TEAM, budget: BUDGET, cap: CAP, captain: CAPTAIN, price: { base: 20, per: "1.5", min: PRICE.min, max: PRICE.max, none: PRICE.none } },
     poolDay: last.round,
     formDays: formCards.map((c) => c.round),
+    flaggedDays: formCards.filter((c) => c.flagged === true).map((c) => c.round),
     median, budget: Math.max(BUDGET, cheapest), pool: rows,
   };
 }
@@ -156,5 +166,5 @@ export function matches(challenges, points, staked) {
     if (seen.has(key)) { seen.get(key)[2] = 1; continue; }
     seen.set(key, [a, b, 0, pa > pb ? "a" : pb > pa ? "b" : "d"]);
   }
-  return [...seen.values()].sort((x, y) => cmp(x[0], y[0]) || cmp(x[1], y[1]));
+  return [...seen.values()].sort((x, y) => cmp(x[0], y[0]) || cmp(x[1], y[1])).slice(0, MAX_RIVAL);
 }

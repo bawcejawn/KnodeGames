@@ -121,11 +121,13 @@ function start() {
     }
     return out;
   }
-  /** The team a wallet carries into week w: the previous week file's `next` (when it fits w's list). */
-  function carriedInto(w, who) {
+  /** The team a wallet carries into week w (when it fits w's list): the previous week's final `next`; while that week
+   *  isn't final yet, its Saturday team as the page works it out (`saturday`, from your picks), else its pending `next`. */
+  function carriedInto(w, who, saturday = null) {
     const prev = files.weeks.get(w - 1), list = listOf(w);
-    const s = prev && Array.isArray(prev.next) ? (prev.next.find((x) => x[0] === who) || [])[1] : null;
-    return s && Array.isArray(s.t) && list && F.checkTeam(s.t, list).ok ? s.t : null;
+    const fromFile = prev && Array.isArray(prev.next) ? (prev.next.find((x) => x[0] === who) || [])[1] : null;
+    const t = prev && prev.final ? fromFile && fromFile.t : saturday || (fromFile && fromFile.t);
+    return Array.isArray(t) && list && F.checkTeam(t, list).ok ? t : null;
   }
 
   // ── your picks (Picks contract) ──
@@ -144,10 +146,10 @@ function start() {
   let mine = { td: null, sd: null, tw: null, open: [], saved: null, inForce: null, monday: false, carried: null, teams: new Map(), later: [], rivalNow: null, rivalNext: null, rw: null };
   let draft = [], draftFor = null, selDay = null;
   /** Your teams day by day for week w: picks applied with the game's own rules (math.js nextTeam). */
-  async function teamsOf(w) {
+  async function teamsOf(w, saturday = null) {
     const list = listOf(w), out = new Map(), notes = new Map(), picked = new Map();
     if (!list || !me()) return { out, notes, picked };
-    let cur = carriedInto(w, me());
+    let cur = carriedInto(w, me(), saturday);
     const ds = playDays(w), got = await Promise.all(ds.map((d) => getPick(GAME, d)));
     ds.forEach((d, i) => {
       if (got[i]) picked.set(d, got[i]);
@@ -164,15 +166,17 @@ function start() {
     const next = { td, sd, tw, open, saved: null, inForce: null, monday: false, carried: null, teams: new Map(), notes: new Map(), planned: new Set(), later: [], rivalNow: null, rivalNext: null, rw: rivalWeek(now) };
     if (me() && picks) {
       try {
-        const t = await teamsOf(tw), ds = playDays(tw), i = ds.indexOf(sd);
+        const wNow = weekOf(now), cw = await teamsOf(wNow);
+        // Planning next week: this week's Saturday team carries into its Monday if it fits the new list.
+        const sat = tw > wNow ? cw.out.get(playDays(wNow)[F.PLAY_DAYS - 1]) || null : null;
+        const t = tw === wNow ? cw : await teamsOf(tw, sat), ds = playDays(tw), i = ds.indexOf(sd);
         next.saved = t.picked.get(sd) || null;
         for (const d of t.picked.keys()) next.planned.add(d);
-        next.carried = carriedInto(tw, me());
+        next.carried = carriedInto(tw, me(), sat);
         next.monday = i === 0;
         next.inForce = i > 0 ? t.out.get(ds[i - 1]) || null : next.carried;
         next.later = [...t.notes].filter(([d]) => d > sd).map(([day, note]) => ({ day, note }));
-        const wNow = weekOf(now);
-        if (tw === wNow) { next.teams = t.out; next.notes = t.notes; } else { const n = await teamsOf(wNow); next.teams = n.out; next.notes = n.notes; }
+        next.teams = cw.out; next.notes = cw.notes;
         const rv = async (w) => { const l = await getPick(RIVAL, dayNo(weekStart(w))); return l && isAddr(l[0]) ? l[0] : null; };
         [next.rivalNow, next.rivalNext] = await Promise.all([rv(wNow), rv(next.rw)]);
       } catch (e) { say(`Couldn't read your picks: ${String((e && e.message) || e).slice(0, 120)}`); }
@@ -310,7 +314,7 @@ function start() {
   function renderWeek() {
     const now = Date.now(), wNow = weekOf(now), today = dayNo(now), who = me(), wf = files.weeks.get(wNow);
     const scores = daysOf(wf, who), days = F.weekDays(weekStart(wNow)).map(dayNo);
-    $("week-sub").textContent = `${WL(wNow)}, UTC days: ${when(weekStart(wNow))} to ${when(weekStart(wNow + 1))}`;
+    $("week-sub").textContent = `${WL(wNow)}: ${dayLabel(dayNo(weekStart(wNow)))} to ${dayLabel(dayNo(weekStart(wNow)) + 6)} (UTC days; Sunday is the fun round)`;
     let total = 0;
     $("fx-days").replaceChildren(...days.map((d, i) => {
       const fun = i === F.PLAY_DAYS, team = mine.teams.get(fun ? days[F.PLAY_DAYS - 1] : d) || null, s = scores.get(d), note = mine.notes && mine.notes.get(d);

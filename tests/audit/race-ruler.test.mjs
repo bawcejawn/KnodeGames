@@ -501,3 +501,26 @@ test("G29-1: in a week the ruler isn't on for, a typed race never waits for (or 
   for (const t of ["00", "01", "02"]) f = await go(U(`2026-11-02T${t}:37Z`), f, { rulerFrom: 3, typesFrom: 2 });
   assert.ok(!lastRun.problems.some((m) => /waiting for the VHP ruler's result/.test(m)), lastRun.problems.join(" | "));
 });
+
+// ── Repo Lens #G-35R (High): the ruler's code and data load every run, whatever RACE_RULER_FROM_WEEK says ──
+test("G-35R: the workflow loads the ruler's code and data every run (an unset switch still meets the check that refuses it), and logs the switch", () => {
+  const yml = fs.readFileSync(path.join(APP, ".github/workflows/race.yml"), "utf8");
+  assert.doesNotMatch(yml, /vars\.RACE_RULER_FROM_WEEK != ''/, "no step or path depends on the switch being set");
+  assert.match(yml, /RULER_PY: \$\{\{ runner\.temp \}\}\/ruler-code\/vhp_ruler\.py/);
+  assert.match(yml, /RULER_VHP_DATA: \$\{\{ runner\.temp \}\}\/vhp-data/);
+  assert.match(yml, /RACE_VHP_DATA: \$\{\{ runner\.temp \}\}\/vhp-data/);
+  assert.match(yml, /print\("The ruler switch this run: RACE_RULER_FROM_WEEK = "/);
+});
+
+test("G-35R: the owner's fallback (the switch moved one week later, before the switch week starts) is allowed; unset after it is too, while the week is still shadow", async () => {
+  const bare = bareRepo();
+  // switch 3: week 2 shadow (the practice week), on from week 3
+  assert.ok(publish(await mondayRace(3, []), bare, NOW, { RACE_RULER_FROM_WEEK: "3" }).ok);
+  // the fallback, 3 → 4, during week 2: week 2 stays not ON, week 3 becomes shadow: allowed, and the log says so
+  const p = publish(await mondayRace(4, []), bare, NOW + H, { RACE_RULER_FROM_WEEK: "4" });
+  assert.ok(p.ok, p.out); assert.match(p.out, /The ruler switch this run: RACE_RULER_FROM_WEEK = 4; the last published ruler file \(R002\.json\) says 3\./);
+  assert.equal(JSON.parse(published(bare, "R002.json")).rulerFrom, 4, "the new switch is recorded");
+  // 4 → 2 during week 2 (on, in a started week): refused
+  const r = publish(await mondayRace(2, []), bare, NOW + 2 * H, { RACE_RULER_FROM_WEEK: "2" });
+  assert.equal(r.ok, false); assert.match(r.out, /ruler switch change is refused/);
+});

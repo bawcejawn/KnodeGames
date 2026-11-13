@@ -72,15 +72,21 @@
     /** One race's facts, from the recorder's file. */
     facts(r) {
       const now = Date.now(), res = r.result;
-      const status = now < r.start ? "up" : now < r.end ? "live" : !res ? "checking" : res.missed ? "missed" : res.final ? "final" : "checking";
-      const st = status === "final" && Array.isArray(res.standings) ? res.standings : [];
+      const KV = window.KRulerVoid, rf = this.ruler.get(this.week), re = rf && rf.races.find((e) => e && e.id === r.id);
+      // Repo Lens #G-28 G28-1: in a week the ruler is ON for, the board pays the ruler's 1st / 2nd / 3rd, so this page does too.
+      const RO = KV && KV.ruledOutcome ? KV.ruledOutcome(re, rf) : null;
+      let status = now < r.start ? "up" : now < r.end ? "live" : !res ? "checking" : res.missed ? "missed" : res.final ? "final" : "checking";
+      if (status === "final" && RO && RO.pending) status = "ruler";
+      const ruled = status === "final" && !!RO && !RO.pending;
+      const st = status !== "final" ? [] : ruled ? RO.standings : Array.isArray(res.standings) ? res.standings : [];
       const picks = status === "final" && Array.isArray(res.picks) ? res.picks : [];
-      const wins = M.winners(st), show = M.shows(st);
-      const isWin = (p) => p[3] === 1, isShow = (p) => !isWin(p) && (p.length > 5 ? p[5] === 1 : show.includes(p[1]));
+      const wins = ruled ? (RO.first ? [RO.first] : []) : M.winners(st), show = ruled ? RO.shows : M.shows(st);
+      const isWin = ruled ? (p) => KV.ruledPick(RO, p[1]).win : (p) => p[3] === 1;
+      const isShow = ruled ? (p) => KV.ruledPick(RO, p[1]).show : (p) => !isWin(p) && (p.length > 5 ? p[5] === 1 : show.includes(p[1]));
       const my = me() ? picks.find((p) => p[0] === me()) : null;
-      const rf = this.ruler.get(this.week), V = window.KRulerVoid ? window.KRulerVoid.rulerVoids(rf && rf.races.find((e) => e && e.id === r.id), rf) : { has: false, shadow: false, wholeVoid: false, voids: [] };
+      const V = KV ? window.KRulerVoid.rulerVoids(re, rf) : { has: false, shadow: false, wholeVoid: false, voids: [] };
       const mp = my ? M.pagePick(0, r.start, st, my[1], isWin(my), isShow(my)) : { label: "", pts: 0 };   // D-173: points per place once the types are on
-      return { r, status, st, picks, wins, show, isWin, isShow, my, V, myPts: mp.pts, myLabel: mp.label };
+      return { r, status, st, picks, wins, show, isWin, isShow, my, V, ruled, myPts: mp.pts, myLabel: mp.label };
     },
     draw() {
       const f = this.files.get(this.week), box = this.box;
@@ -134,17 +140,19 @@
     },
     card(x) {
       const { r, status } = x;
-      const PILL = { live: "Live now", final: "Final", checking: "Checking", missed: "Not recorded" };
+      const PILL = { live: "Live now", final: "Final", checking: "Checking", missed: "Not recorded", ruler: "Checking" };
       const head = el("div", { class: "rr-head" },
         el("h3", {}, `Race ${Math.floor((r.start % M.DAY) / M.RACE) + 1} · ${utcDay(r.start)}, ${utcTime(r.start)}`),
         el("span", { class: `rr-pill ${status}`, text: PILL[status] || status }));
       const body = [];
       if (status === "live") body.push(el("p", { class: "res-line" }, "This race is running now. ", el("a", { href: "race.html", text: "Watch it live" })));
       else if (status === "missed") body.push(el("p", { class: "res-line muted", text: "This race wasn't recorded, so it scores nobody." }));
+      else if (status === "ruler") body.push(el("p", { class: "res-line muted", text: "Finished: waiting for the Ruler's 1st, 2nd and 3rd (usually 1 to 2 hours after the race). Picks score on them." }));
       else if (status === "checking") body.push(el("p", { class: "res-line muted", text: "Finished: the result is being checked against two nodes. It's final within a few hours." }));
       else {
         const MED = ["🥇", "🥈", "🥉"];
-        body.push(el("ol", { class: "rr-podium" }, ...x.st.slice(0, 3).map((s, i) => el("li", {}, el("span", { class: "rr-med", text: MED[i] }), link(s.a), el("span", { class: "muted", text: ` ${fmt(s.steps, 1)} steps` })))));
+        body.push(el("ol", { class: "rr-podium" }, ...x.st.slice(0, 3).map((s, i) => el("li", {}, el("span", { class: "rr-med", text: MED[i] }), link(s.a), el("span", { class: "muted", text: x.ruled ? " (Ruler)" : ` ${fmt(s.steps, 1)} steps` })))));
+        if (x.ruled && !x.st.length) body.push(el("p", { class: "res-line muted", text: "Every producer was void, so no pick in this race scores." }));
         const nW = x.picks.filter(x.isWin).length, nS = x.picks.filter(x.isShow).length;
         body.push(el("p", { class: "res-line rr-picks" }, x.picks.length ? `${x.picks.length} pick${x.picks.length === 1 ? "" : "s"}: ${nW} won, ${nS} showed` : "No picks on this race."));
         const V = x.V;
@@ -160,7 +168,7 @@
         body.push(el("details", { class: "res-how" }, el("summary", {}, "Full standings"),
           el("div", { class: "table-wrap" }, el("table", { class: "board rr-table" },
             el("thead", {}, el("tr", {}, el("th", { text: "#" }), el("th", { text: "Producer" }), el("th", { class: "num", text: "Steps" }), el("th", { class: "num", text: "Blocks" }))),
-            el("tbody", {}, ...x.st.map((s, i) => el("tr", { class: x.my && x.my[1] === s.a ? "me" : null }, el("td", { text: String(i + 1) }), el("td", {}, link(s.a), x.V && x.V.voids.includes(s.a) ? el("span", { class: "void-chip", text: "Void" }) : null), el("td", { class: "num", text: fmt(s.steps, 1) }), el("td", { class: "num", text: fmt(s.blocks) }))))))));
+            el("tbody", {}, ...x.st.map((s, i) => el("tr", { class: x.my && x.my[1] === s.a ? "me" : null }, el("td", { text: String(i + 1) }), el("td", {}, link(s.a), x.V && x.V.voids.includes(s.a) ? el("span", { class: "void-chip", text: "Void" }) : null), el("td", { class: "num", text: x.ruled ? "–" : fmt(s.steps, 1) }), el("td", { class: "num", text: x.ruled ? "–" : fmt(s.blocks) }))))))));
       }
       return el("article", { class: `res rr res-st-${status === "final" ? (x.my ? (x.myPts ? "right" : "wrong") : "none") : "wait"}` }, head, ...body);
     },

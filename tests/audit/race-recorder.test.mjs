@@ -1944,6 +1944,11 @@ test("Repo Lens #D-13 L-2 / L-3: a typed week's vault file goes final only with 
   assert.ok(ok.final, ok.out);
   const open = await recomputeRun(pl, { typed, rhythmFrom: "0", mutateTypes: (tf) => { tf.races.find((r) => r.type === 2).result = null; } });
   assert.equal(open.final, false); assert.match(open.out, /a typed race of the week isn't final yet/);
+  // Repo Lens #G-29 (Info): the same race listed in skipped (the recorder skipped it at the deadline) is accepted.
+  let stuck = null;
+  const listed = await recomputeRun(pl, { typed, rhythmFrom: "0", mutateTypes: (tf) => { const r = tf.races.find((x) => x.type === 2); stuck = r.id; r.result = null; }, mutate: (f) => (f.skipped = [...f.skipped, "H2-2026-11-02T00"], f) });
+  assert.match(String(stuck), /^H2-2026-11-02T00$/, "the stuck race is the one listed (fixture's first 2-hour race)");
+  assert.ok(listed.final, listed.out); assert.doesNotMatch(listed.out, /isn't final yet/);
   const none = await recomputeRun(pl, { typed: {}, rhythmFrom: "0", mutateTypes: (tf) => { tf.week = 9; } });
   assert.equal(none.final, false); assert.match(none.out, /race-types file \(T\) can't be read/);
   // Before TYPES_FROM the T file isn't read at all (and with the ruler off no typed pick counts anyway: option A).

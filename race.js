@@ -225,17 +225,23 @@
       const r = raceObj(i), ended = now >= r.end, live = i === cur;
       let status = live ? "live" : !ended ? "up" : r.result && r.result.missed ? "missed" : r.result && r.result.final ? "final" : "checking";
       let st = null;
-      if (status === "final") st = r.result.standings;
+      // Owner, 12 Nov / Repo Lens #G-28: one result per race. In a week the ruler is ON for, a finished race's winner is
+      // the ruler's 1st (and "Checking" until its card is in), never the handicap race's.
+      const RO = status === "final" ? ruledFor(r, 0) : null;
+      if (RO && RO.pending) status = "checking";
+      const ruled = !!RO && !RO.pending, rp = (x) => window.KRulerVoid.ruledPick(RO, x[1]);
+      if (ruled) st = RO.first ? [{ a: RO.first }] : [];
+      else if (status === "final") st = r.result.standings;
       else if ((status === "checking" || live) && r.cards && !r.provisional && B && B.ts[0] <= r.start) st = M.standings(B, r, r.cards, Math.min(headT + 1, r.end));
       else if (status === "checking" && r.provisional) status = "missed";
-      const w = st && st.length ? st[0] : null, margin = st && st.length > 1 ? st[0].steps - st[1].steps : null;
+      const w = st && st.length ? st[0] : null, margin = !ruled && st && st.length > 1 ? st[0].steps - st[1].steps : null;
       rows.push(el("tr", { class: view === i || (view == null && live) ? "sel" : "" },
         el("td", { text: dayTime(r.start) }),
         el("td", {}, el("span", { class: `st ${status}`, text: { live: "Live", up: "Upcoming", missed: "Not recorded", final: "Final", checking: "Checking" }[status] })),
         el("td", { class: "mono" }, w ? el("a", { href: EXPLORER + w.a, target: "_blank", rel: "noopener noreferrer", text: `${live ? "leading: " : ""}${nameOf(w.a)}` }) : "–"),
-        el("td", { class: "num hide-sm", text: w ? fmt(w.steps, 1) : "–" }),
+        el("td", { class: "num hide-sm", text: w && !ruled ? fmt(w.steps, 1) : "–" }),
         el("td", { class: "num hide-sm", text: margin != null ? fmt(margin, 1) : "–" }),
-        el("td", { class: "num hide-sm", text: status === "final" && Array.isArray(r.result.picks) ? `${r.result.picks.filter((x) => x[3]).length} · ${r.result.picks.filter((x) => isShow(r.result, x)).length} of ${r.result.picks.length}` : "–" }),
+        el("td", { class: "num hide-sm", text: status === "final" && Array.isArray(r.result.picks) ? (ruled ? `${r.result.picks.filter((x) => rp(x).win).length} · ${r.result.picks.filter((x) => rp(x).show).length} of ${r.result.picks.length}` : `${r.result.picks.filter((x) => x[3]).length} · ${r.result.picks.filter((x) => isShow(r.result, x)).length} of ${r.result.picks.length}`) : "–" }),
         el("td", {}, (ended || live) && status !== "missed" ? el("button", { type: "button", onclick: () => { view = live ? null : i; render(); window.scrollTo({ top: 0, behavior: "smooth" }); } }, live ? "Watch" : "View") : null)));
     }
     $("hist-rows").replaceChildren(...rows);
@@ -285,7 +291,7 @@
     // Leave the panel alone while a list is open or focused, or when nothing in it changed.
     if (!force && list.contains(document.activeElement) && document.activeElement.tagName === "SELECT") return;
     const fieldSig = [1, 2, 3, 4].map((k) => { const r = raceObj(cur + k), c = (r.cards && !r.provisional && M.cardForLeg(r.cards, 0)) || prov; return c ? `${c.at}:${c.field.length}` : "-"; }).join(",");
-    const key = JSON.stringify([who, W && W.kind, cur, sending, usage && usage.picks_today, usage && usage.max_picks_per_day, [...myPicks], fieldSig, [...weeks.keys()]]);
+    const key = JSON.stringify([who, W && W.kind, cur, sending, usage && usage.picks_today, usage && usage.max_picks_per_day, [...myPicks], fieldSig, [...weeks.keys()], (rulerFiles || []).map((f) => `${f.week}:${f._type}:${f.races.filter((e) => e && e.card).length}`).join()]);   // G28-1: redraw when a ruler result comes in
     if (!force && key === picksKey && list.childElementCount) return;
     picksKey = key;
     if (!who) {
@@ -334,10 +340,11 @@
     for (let i = cur - 1; i >= d0 - 4 && i >= 0; i--) {
       const r = raceObj(i), p = r.result && Array.isArray(r.result.picks) ? r.result.picks.find((x) => x[0] === who) : null;
       if (!p) continue;
+      const o = pickOutcome(r, 0, r.result, p);
       rows.push(el("div", { class: "pk-row done" },
-        el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: "final" })),
-        el("div", { class: "pk-now", text: `You picked ${nameOf(p[1])}; ${nameOf(r.result.winner || "")} won` }),
-        el("span", { class: p[3] || isShow(r.result, p) ? "pk-ok" : "pk-no", text: (() => { const s = M.pagePick(r.type || 0, r.start, r.result.standings, p[1], !!p[3], !p[3] && isShow(r.result, p)); return s.label ? `✓ ${s.label} +${s.pts}` : "✗"; })() })));
+        el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: o.wait ? "checking" : "final" })),
+        el("div", { class: "pk-now", text: o.text }),
+        el("span", { class: o.wait ? "" : o.ok ? "pk-ok" : "pk-no", text: o.mark })));
     }
     list.replaceChildren(...rows);
   }
@@ -435,11 +442,31 @@
   // ── the VHP ruler (owner, 11 Nov 2026): R<week>.json, the ruler's cards for the 6-hour race ──
   // Shown only when the ruler is in shadow or on for this week: "from Monday …" (the switch's week), and each race's
   // ruler 1st / 2nd / 3rd (marked "shadow: counts for nothing" in the shadow week).
+  // Repo Lens #G-28 G28-1: the loaded ruler files by week and type, so the pick rows show what the board pays: in a week
+  // the ruler is ON for, the ruler's 1st / 2nd / 3rd (ruler-void.js ruledOutcome), not the handicap race's.
+  var rulerFiles = [], rulerHidesHistory = false;   // var: read by renderPicks / rtSelect whenever they run
+  function ruledFor(r, type) {
+    const KV = window.KRulerVoid;
+    if (!KV || !KV.ruledOutcome || !r) return null;
+    const j = rulerFiles.find((f) => f.week === M.weekOf(r.start) && f._type === type);
+    return j ? KV.ruledOutcome(j.races.find((e) => e && e.id === r.id), j) : null;
+  }
+  // One finished pick row's result, the same way for the 6-hour race and the types.
+  function pickOutcome(r, type, res, p) {
+    const RO = ruledFor(r, type);
+    if (RO && RO.pending) return { wait: true, text: "Waiting for the Ruler's 1st, 2nd and 3rd (usually 1 to 2 hours).", mark: "…", ok: false };
+    const won = RO ? (RO.first ? `${nameOf(RO.first)} won (Ruler)` : "Every producer was void: no pick scores") : `${nameOf(res.winner || "")} won`;
+    if (!p) return { text: won, mark: "", ok: false };
+    const o = RO ? window.KRulerVoid.ruledPick(RO, p[1]) : { win: !!p[3], show: !p[3] && isShow(res, p) };
+    const s = M.pagePick(type, r.start, RO ? RO.standings : res.standings, p[1], o.win, o.show);
+    return { text: `${won}; you picked ${nameOf(p[1])}`, mark: s.label ? `✓ ${s.label} +${s.pts}` : "✗", ok: o.win || o.show };
+  }
   async function loadRuler() {
     const w = M.weekOf(Date.now()), files = [];
     // The race types (option A): their ruler files too, once the types are live (R<week>-<type>.json).
     const names = (x) => [`R${String(x).padStart(3, "0")}.json`].concat(typesLive() ? [1, 2, 3, 4].map((t) => `R${String(x).padStart(3, "0")}-${t}.json`) : []);
-    for (const x of [w - 1, w]) for (const n of names(x)) { try { const j = await fetchJson(`${DATA}${n}`); if (j && j.v === 1 && j.week === x && Array.isArray(j.races)) files.push(j); } catch { /* none */ } }
+    for (const x of [w - 1, w]) for (const n of names(x)) { try { const j = await fetchJson(`${DATA}${n}`); if (j && j.v === 1 && j.week === x && Array.isArray(j.races)) files.push(Object.assign(j, { _type: /-([1-4])\.json$/.test(n) ? Number(n.slice(-6, -5)) : 0 })); } catch { /* none */ } }
+    rulerFiles = files;
     if ($("ruler-types")) $("ruler-types").hidden = !typesLive();
     const cur = files.find((j) => j.week === w) || files[files.length - 1];
     if (!cur || cur.mode === "off" || !Number.isInteger(cur.rulerFrom)) { $("ruler-box").hidden = true; return; }
@@ -465,7 +492,9 @@
     $("ruler-list").replaceChildren(!body.length ? el("p", { class: "note", text: "No Ruler results yet." }) : trial ? el("details", { class: "rl-trial" }, el("summary", { text: "Trial results (count for nothing)" }), table) : table);
     // Once the Ruler scores the race, its table is the results: the older Results table below would repeat them.
     const hist = document.getElementById("history");
-    if (hist) hist.hidden = cur.mode === "on" && body.length > 0;
+    rulerHidesHistory = cur.mode === "on" && body.length > 0;
+    if (hist) hist.hidden = cur.mode === "on" && body.length > 0 || rtype !== 0;   // G28-2: and stays hidden on the 6-hour tab (rtSelect)
+    renderPicks(); renderHistory(); if (rtype) rtRender();   // G28-1: the pick rows and the Results table now know the ruler's results
   }
   if (W && W.subscribe) W.subscribe(() => { loadMine(); renderBoard(); });
   // When the names list arrives or changes, redraw everything that shows a producer or player: the horses, card,
@@ -530,7 +559,8 @@
     rtype = t;
     for (const id of ["rt-rows", "rt-picks"]) { const z = $(id); if (z) z.replaceChildren(); }   // L-9: no row of the old type stays on screen
     try { localStorage.setItem("pr-type", String(t)); } catch { /* per-viewer convenience only */ }
-    for (const id of ["live", "pick-zone", "history"]) { const n = $(id); if (n) n.hidden = t !== 0; }
+    for (const id of ["live", "pick-zone"]) { const n = $(id); if (n) n.hidden = t !== 0; }
+    { const h = $("history"); if (h) h.hidden = t !== 0 || rulerHidesHistory; }   // Repo Lens #G-28 G28-2: the Ruler's table replaces it in an ON week
     $("typed").hidden = t === 0;
     rtTabs();
     if (t) { rtLoadMine().then(() => rtRender(true)); }
@@ -599,8 +629,11 @@
         if (!(res && res.final) && i !== cur.index - 1) continue;      // only real results, and the race that just ended
         const p = res && Array.isArray(res.picks) && who ? res.picks.find((x) => x[0] === who) : null;
         done.push(el("div", { class: "pk-row done" }, el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: res && res.final ? (res.missed ? "not run" : "final") : "checking" })),
-          el("div", { class: "pk-now", text: res && res.final && !res.missed ? `${nameOf(res.winner || "")} won${p ? `; you picked ${nameOf(p[1])}` : ""}` : "Results come in once the race's last hour is final." }),
-          el("span", { class: p ? (p[3] || p[5] === 1 ? "pk-ok" : "pk-no") : "", text: p ? (() => { const s = M.pagePick(r.type, r.start, res && res.standings, p[1], !!p[3], p[5] === 1); return s.label ? `✓ ${s.label} +${s.pts}` : "✗"; })() : "" })));
+          ...(() => {
+            if (!(res && res.final && !res.missed)) return [el("div", { class: "pk-now", text: "Results come in once the race's last hour is final." }), el("span", { text: "" })];
+            const o = pickOutcome(r, rtype, res, p);   // G28-1: the ruler's places in an ON week (option A: the only ones that count)
+            return [el("div", { class: "pk-now", text: o.text }), el("span", { class: !p || o.wait ? "" : o.ok ? "pk-ok" : "pk-no", text: o.mark })];
+          })()));
       }
       $("rt-results").replaceChildren(...done);
     }

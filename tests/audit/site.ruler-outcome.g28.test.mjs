@@ -61,3 +61,11 @@ test("owner, 12 Nov: one result per race: in an ON week the Results table's winn
   assert.match(h, /if \(ruled\) st = RO\.first \? \[\{ a: RO\.first \}\] : \[\];/);
   assert.match(js, /renderPicks\(\); renderHistory\(\);/, "redrawn once the ruler's files are in");
 });
+test("Repo Lens #G-45 G45-1: no handicap result while the ruler's file is missing for a week it may score (before load, failed fetch, or not in yet)", () => {
+  const js = fs.readFileSync(`${APP}race.js`, "utf8"), rs = fs.readFileSync(`${APP}results.js`, "utf8");
+  assert.match(js, /if \(!rulerReady\) return \{ pending: true \};/, "before the first ruler load");
+  assert.match(js, /return rulerFailed\.has\(w\) \|\| \(Number\.isInteger\(from\) && w >= from\) \? \{ pending: true \} : null;/);
+  assert.match(js, /if \(String\(e && e\.message\) !== "404"\) failed\.add\(x\)/, "a failed fetch (not a 404) counts as unknown");
+  assert.match(rs, /this\.rulerFailed\.has\(this\.week\) \|\| \(Number\.isInteger\(this\.rulerFrom\) && this\.week >= this\.rulerFrom\) \? \{ pending: true \} : null/);
+  assert.match(rs, /this\.rulerFailed\.add\(w\); this\.rtried\.delete\(w\);/, "tried again next time");
+});

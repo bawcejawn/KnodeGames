@@ -444,12 +444,18 @@
   // ruler 1st / 2nd / 3rd (marked "shadow: counts for nothing" in the shadow week).
   // Repo Lens #G-28 G28-1: the loaded ruler files by week and type, so the pick rows show what the board pays: in a week
   // the ruler is ON for, the ruler's 1st / 2nd / 3rd (ruler-void.js ruledOutcome), not the handicap race's.
-  var rulerFiles = [], rulerHidesHistory = false;   // var: read by renderPicks / rtSelect whenever they run
+  var rulerFiles = [], rulerHidesHistory = false, rulerReady = false, rulerFailed = new Set();   // var: read by renderPicks / rtSelect whenever they run
   function ruledFor(r, type) {
     const KV = window.KRulerVoid;
     if (!KV || !KV.ruledOutcome || !r) return null;
-    const j = rulerFiles.find((f) => f.week === M.weekOf(r.start) && f._type === type);
-    return j ? KV.ruledOutcome(j.races.find((e) => e && e.id === r.id), j) : null;
+    // Repo Lens #G-45 G45-1: never the handicap result for a week the ruler may score. Before the ruler's files have
+    // loaded, when the week's file failed to load, or when a loaded file says the ruler is on from this week but this
+    // week's file isn't in yet: "Checking".
+    if (!rulerReady) return { pending: true };
+    const w = M.weekOf(r.start), j = rulerFiles.find((f) => f.week === w && f._type === type);
+    if (j) return KV.ruledOutcome(j.races.find((e) => e && e.id === r.id), j);
+    const from = rulerFiles.map((f) => f.rulerFrom).find(Number.isInteger);
+    return rulerFailed.has(w) || (Number.isInteger(from) && w >= from) ? { pending: true } : null;
   }
   // One finished pick row's result, the same way for the 6-hour race and the types.
   function pickOutcome(r, type, res, p) {
@@ -465,8 +471,9 @@
     const w = M.weekOf(Date.now()), files = [];
     // The race types (option A): their ruler files too, once the types are live (R<week>-<type>.json).
     const names = (x) => [`R${String(x).padStart(3, "0")}.json`].concat(typesLive() ? [1, 2, 3, 4].map((t) => `R${String(x).padStart(3, "0")}-${t}.json`) : []);
-    for (const x of [w - 1, w]) for (const n of names(x)) { try { const j = await fetchJson(`${DATA}${n}`); if (j && j.v === 1 && j.week === x && Array.isArray(j.races)) files.push(Object.assign(j, { _type: /-([1-4])\.json$/.test(n) ? Number(n.slice(-6, -5)) : 0 })); } catch { /* none */ } }
-    rulerFiles = files;
+    const failed = new Set();
+    for (const x of [w - 1, w]) for (const n of names(x)) { try { const j = await fetchJson(`${DATA}${n}`); if (j && j.v === 1 && j.week === x && Array.isArray(j.races)) files.push(Object.assign(j, { _type: /-([1-4])\.json$/.test(n) ? Number(n.slice(-6, -5)) : 0 })); } catch (e) { if (String(e && e.message) !== "404") failed.add(x); /* 404: none yet */ } }
+    rulerFiles = files; rulerFailed = failed; rulerReady = true;
     if ($("ruler-types")) $("ruler-types").hidden = !typesLive();
     const cur = files.find((j) => j.week === w) || files[files.length - 1];
     if (!cur || cur.mode === "off" || !Number.isInteger(cur.rulerFrom)) { $("ruler-box").hidden = true; return; }

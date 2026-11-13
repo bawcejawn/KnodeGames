@@ -41,7 +41,7 @@
 
   // ───────────────── Producer Race ─────────────────
   const race = {
-    weeks: null, files: new Map(), ruler: new Map(), rtried: new Set(), week: null, day: null, mine: false, q: "",
+    weeks: null, files: new Map(), ruler: new Map(), rulerFrom: null, rulerFailed: new Set(), rtried: new Set(), week: null, day: null, mine: false, q: "",
     async open(box) {
       this.box = box;
       if (!this.weeks) {
@@ -66,15 +66,17 @@
       // The VHP ruler's cards for this week (R<week>.json), for the Void marks. Missing or off = no marks, never an error.
       try {
         const j = await fetchJson(RAW + `race-data/R${String(w).padStart(3, "0")}.json`);
-        if (j && j.v === 1 && j.week === w && Array.isArray(j.races) && j.mode !== "off") this.ruler.set(w, j);
-      } catch { /* no ruler file this week */ }
+        if (j && j.v === 1 && j.week === w && Array.isArray(j.races)) { this.rulerFailed.delete(w); if (Number.isInteger(j.rulerFrom)) this.rulerFrom = j.rulerFrom; if (j.mode !== "off") this.ruler.set(w, j); }
+      } catch (e) { if (String(e && e.message) !== "404") { this.rulerFailed.add(w); this.rtried.delete(w); } /* 404: no ruler file this week */ }
     },
     /** One race's facts, from the recorder's file. */
     facts(r) {
       const now = Date.now(), res = r.result;
       const KV = window.KRulerVoid, rf = this.ruler.get(this.week), re = rf && rf.races.find((e) => e && e.id === r.id);
       // Repo Lens #G-28 G28-1: in a week the ruler is ON for, the board pays the ruler's 1st / 2nd / 3rd, so this page does too.
-      const RO = KV && KV.ruledOutcome ? KV.ruledOutcome(re, rf) : null;
+      // Repo Lens #G-45 G45-1: a week whose ruler file failed to load, or that a ruler file says is ON but whose own file
+      // isn't in: "Checking", never the handicap result.
+      const RO = KV && KV.ruledOutcome ? (rf ? KV.ruledOutcome(re, rf) : this.rulerFailed.has(this.week) || (Number.isInteger(this.rulerFrom) && this.week >= this.rulerFrom) ? { pending: true } : null) : null;
       let status = now < r.start ? "up" : now < r.end ? "live" : !res ? "checking" : res.missed ? "missed" : res.final ? "final" : "checking";
       if (status === "final" && RO && RO.pending) status = "ruler";
       const ruled = status === "final" && !!RO && !RO.pending;

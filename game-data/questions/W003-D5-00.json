@@ -161,9 +161,17 @@
             "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": "168106723104805"
           },
           "seal": "6f4a267ab5da98512a59c28f91ebcd6caf26a09559694932b41052af5db62d51"
+        },
+        {
+          "height": 41050636,
+          "readAt": "2026-11-13T20:56:09.205Z",
+          "values": {
+            "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": "168037605966516"
+          },
+          "seal": "82420ce47c0f76d29c669fe8498b38d4812fdc8e30bfb36b0375f3b5be302296"
         }
       ],
-      "vhpSeal": "94cbcd0bca484b8edc22f269f7a9e1e9718c2387c49eff24b961d8c51ea7aecd"
+      "vhpSeal": "83b9c0eca39e4e979b60f7238cf5540768a1357071176af9bf9928cd91365057"
     },
     {
       "id": "W003-D5-00-2",

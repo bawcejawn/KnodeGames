@@ -192,3 +192,49 @@ test("compact card: cardDigest = { sha256 of the canonical text, scored }; recom
   assert.match(R.recompute(L, JSON.stringify({ ...d, scored: false }), g).diff, /sha256 differs/, "scored is part of what is checked");
   assert.ok(JSON.stringify(d).length < 100 && R.cardJson(scored).length > 2000, "about 1% of the full text");
 });
+
+// ── Repo Lens #G-40 follow-ups ──
+test("G40-2: include moves no one else: every other producer's row (core, z, setAside, lift, target, pct, fpct) is unchanged; the listed-only row is marked listed and is never in the core; JS = Python", () => {
+  const x = quiet(), L = R.ledger(x.tl), silent = x.ps[4];
+  for (const mode of [undefined, "C"]) for (const version of [4, 5]) {
+    const g = { ...free, version, ...(mode ? { mode } : {}) };
+    const plain = R.scoreCard(L, R.makeCard(L, g)), withInc = R.scoreCard(L, R.makeCard(L, { ...g, include: [silent] }));
+    const listed = withInc.producers.find((p) => p.a === silent);
+    assert.equal(listed.entry, true, "precondition: the listed offline producer has entry");
+    assert.equal(listed.listed, true); assert.equal(listed.core, false); assert.ok(listed.fpct !== null, "it is still scored");
+    for (const p of plain.producers) {
+      const q = withInc.producers.find((r) => r.a === p.a);
+      assert.equal("listed" in q, false);
+      for (const k of ["core", "z", "setAside", "lift", "target", "pct", "fpct", "coreForm"]) assert.equal(String(q[k]), String(p[k]), `${mode} v${version} ${p.a} ${k}`);
+    }
+    assert.equal(pyCard(x.tl, { ...g, include: [silent] }), R.cardJson(withInc), `JS = Python (${mode} v${version})`);
+  }
+});
+
+test("G40-1: judged by score: a 2-day half-signing dip, just before T or in [T − 5 d, T − 3 d), never raises the node's race score in version 4 or 5 (version 5 keeps the late dip in the core; an earlier dip can still leave it, as in version 4)", () => {
+  const even = () => chain({ units: [1, 1, 1, 1, 1] });
+  const h4 = score(even().tl).s, T = h4.T, who = [...h4.producers].sort((u, v) => (u.form < v.form ? -1 : 1))[0].a, to = even().ps.find((a) => a !== who);
+  const row = (c) => c.producers.find((p) => p.a === who);
+  const seen = {};
+  for (const version of [4, 5]) {
+    const g = { ...free, version }, h = row(score(even().tl, g).s);
+    for (const [name, h0, h1] of [["late", T - 2 * 28800, T - 7200], ["early", T - R.LIFT_SKIP - 2 * 28800, T - R.LIFT_SKIP]]) {
+      const s = row(score(steer(even(), who, to, h0, h1, 2).tl, g).s);
+      assert.ok(s.fpct <= h.fpct, `v${version} ${name}: fpct ${h.fpct} -> ${s.fpct}`);
+      seen[`${version}${name}`] = s.core;
+    }
+  }
+  assert.equal(seen["4late"], false); assert.equal(seen["5late"], true, "version 5 ignores the last 3 days");
+  assert.equal(seen["4early"], false); assert.equal(seen["5early"], false, "documented: an earlier dip can still leave the core in version 5 (G40-1, Low)");
+});
+
+test("recompute returns the rebuilt card when same (JS: .card; Python: recompute_card), text and digest paths", () => {
+  const x = chain(), L = R.ledger(x.tl), g = { ...free, c: "400000" }, card = R.scoreCard(L, R.makeCard(L, { ...free, c: 400000n })), t = R.cardJson(card);
+  assert.equal(R.cardJson(R.recompute(L, t, g).card), t);
+  assert.equal(R.cardJson(R.recompute(L, R.cardDigest(card), g).card), t);
+  assert.equal(R.recompute(L, t, { ...g, c: "500000" }).card, undefined);
+  const out = py(`L = V.Ledger(j["tl"])
+ok, d, c = V.recompute_card(L, j["t"], j["g"]); ok2, d2, c2 = V.recompute_card(L, json.dumps(j["d"]), j["g"]); ok3, d3, c3 = V.recompute_card(L, j["t"], dict(j["g"], c="500000"))
+print(json.dumps([ok, V.card_json(c) == j["t"], ok2, V.card_json(c2) == j["t"], ok3, c3 is None, list(V.recompute(L, j["t"], j["g"]))]))`, { tl: x.tl, t, g, d: JSON.parse(JSON.stringify(R.cardDigest(card))) });
+  assert.equal(JSON.stringify(JSON.parse(out)), JSON.stringify([true, true, true, true, false, true, [true, ""]]));
+});

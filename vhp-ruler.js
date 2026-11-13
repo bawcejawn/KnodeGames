@@ -477,7 +477,7 @@
       // full size whatever its level; anyone else needs form ≥ 0.80. Out is never for good: it re-enters once steady or
       // back above 0.80. rate is shown on the card (its steady 14-day rate, or 1) and changes no number
       const seen = actSet.has(a) || f.signed > 0;
-      return { a, own: o, avg: av, k, form: f.form, rate, entry: k >= minK && (steady || f.form >= FORM_GATE) && history && seen, pooled: pooled.has(a), isNew, quality: "ok" };
+      return { a, own: o, avg: av, k, form: f.form, rate, entry: k >= minK && (steady || f.form >= FORM_GATE) && history && seen, pooled: pooled.has(a), isNew, quality: "ok", ...(actSet.has(a) ? {} : { listed: true }) };
     }).sort((x, y) => (x.own > y.own ? -1 : x.own < y.own ? 1 : x.a < y.a ? -1 : 1));
     // quality, for the whole card: every producer's numbers feed everyone's total and form (Repo Lens #E-12 L-2), so a bad
     // range for any active producer in the look-back flags every producer. On a paying card, a rebuilt or unverified
@@ -561,7 +561,9 @@
     // A producer's yardstick is the core less any OTHER core member whose race count is more than 2 sd from its expected
     // share of the core's blocks, either way (the band, D-171: it voids no one and removes no one from the race), plus
     // the producer itself at full size. A member outside the core plays at full size (D-163) and moves no one.
-    const inField = (p) => p.entry && !p.void, fieldRows = producers.filter(inField).sort((x, y) => { const fx = big(x.form), fy = big(y.form); return fx < fy ? -1 : fx > fy ? 1 : 0; });
+    // the reference field (Repo Lens #G-40 G40-2): a row the card has only because of include (listed: true, not active
+    // at T) is scored against the field like anyone, but never sets the medians or joins the core, so it moves no one else
+    const inField = (p) => p.entry && !p.void, inRef = (p) => inField(p) && !p.listed, fieldRows = producers.filter(inRef).sort((x, y) => { const fx = big(x.form), fy = big(y.form); return fx < fy ? -1 : fx > fy ? 1 : 0; });
     const eAll = fieldRows.reduce((t, p) => t + p.expected, 0n);
     let median = 0n, cum = 0n;
     for (const p of fieldRows) { cum += p.expected; if (2n * cum >= eAll) { median = big(p.form); break; } }
@@ -599,7 +601,7 @@
       cMedian = 0n; let c5 = 0n;
       for (const p of byCore) { c5 += p.expected; if (2n * c5 >= eAll) { cMedian = coreForm.get(p.a); break; } }
     }
-    const line = (cMedian * CORE_LINE) / M, inCore = (p) => inField(p) && (v5 ? coreForm.get(p.a) : big(p.form)) >= line;
+    const line = (cMedian * CORE_LINE) / M, inCore = (p) => inRef(p) && (v5 ? coreForm.get(p.a) : big(p.form)) >= line;
     // The yardstick counts CREDITED blocks (millionths), the same blocks each producer's expected blocks are for: counting
     // raw signed blocks against capped expected blocks lifted every expectation a little whenever a member's VHP was
     // above its card size, which cost big producers most and grew with the race's length (found 11 Nov on daily races).
@@ -781,7 +783,7 @@
         if (pubD.scored) mine = scoreCard(L, mine);
       } catch (e) { return { same: false, diff: `the data can't make this card: ${e.message}` }; }
       const d = cardDigest(mine).sha256;
-      return d === pubD.sha256 ? { same: true } : { same: false, diff: `sha256 differs: published ${pubD.sha256}, recomputed ${d}` };
+      return d === pubD.sha256 ? { same: true, card: mine } : { same: false, diff: `sha256 differs: published ${pubD.sha256}, recomputed ${d}` };
     }
     const pub = typeof published === "string" ? JSON.parse(published) : published;
     const want = { game: Number(dec(game.game, "game")), round: dec(game.round, "round"), ownRule: game.ownRule, paying: game.paying, c: big(game.c).toString(10), minK: game.minK, poolRule: game.poolRule,
@@ -794,7 +796,7 @@
       if ((pub.producers || []).some((p) => "credited" in p)) mine = scoreCard(L, mine);
     } catch (e) { return { same: false, diff: `the data can't make this card: ${e.message}` }; }
     const a = cardJson(mine), b = typeof published === "string" ? published : cardJson(published);
-    if (a === b) return { same: true };
+    if (a === b) return { same: true, card: mine };   // the rebuilt card, for a game that stores only digests
     let i = 0; while (i < a.length && a[i] === b[i]) i++;
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }

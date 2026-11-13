@@ -733,6 +733,8 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, po
         rows.append({"a": a, "own": o, "avg": av, "k": k, "form": f["form"], "rate": rate,
                      "entry": k >= min_k * M and (steady or f["form"] >= FORM_GATE) and history and (a in act_set or f["signed"] > 0), "pooled": a in pooled,
                      "isNew": is_new, "quality": "ok"})
+        if a not in act_set:
+            rows[-1]["listed"] = True   # here only because of include (Repo Lens #G-40 G40-2), as in vhp-ruler.js
     rows.sort(key=lambda r: (-r["own"], r["a"]))
     # D-113: on a paying card only the 24-h size window must be free of rebuilt hours; form's older days may read them
     if any(_bad_for(L, r["a"], look0 - EARLY, T) for r in rows) or (paying and _rebuilt_in(L, T - AVG - EARLY, T)):
@@ -843,7 +845,9 @@ def score_card(L, card):
     # is the core less any other core member more than BAND_SD sd from its share of the core's blocks, plus itself
     def in_field(r):
         return r["entry"] and not r["void"]
-    frows = sorted((r for r in rows if in_field(r)), key=lambda r: _int(r["form"]))
+    def in_ref(r):   # the reference field: a listed-only row (include) never sets the medians or joins the core (G40-2)
+        return in_field(r) and not r.get("listed")
+    frows = sorted((r for r in rows if in_ref(r)), key=lambda r: _int(r["form"]))
     e_all = sum(r["expected"] for r in frows)
     median, cum = 0, 0
     for r in frows:
@@ -904,7 +908,7 @@ def score_card(L, card):
     line = c_median * CORE_LINE // M
 
     def in_core(r):
-        return in_field(r) and (core_form[r["a"]] if v5 else _int(r["form"])) >= line
+        return in_ref(r) and (core_form[r["a"]] if v5 else _int(r["form"])) >= line
     # the yardstick counts CREDITED blocks (millionths), as in vhp-ruler.js
     n = sum(r["credited"] for r in rows if in_core(r))
     b = sum(E(r) for r in rows if in_core(r))
@@ -986,13 +990,13 @@ def _is_digest(x):
             and _HEX64.fullmatch(x["sha256"]) is not None and type(x["scored"]) is bool)
 
 
-def recompute(L, published, game):
+def recompute_card(L, published, game):
     """published: the card's JSON text; game: the game's OWN settings {game, round, window, c, minK, poolRule, ownRule, paying, pooled}
     (Repo Lens #E-12 M-1: never the card's own settings). Returns (same, diff)."""
     try:
         check_settings(game)
     except ValueError as e:
-        return False, "the game's settings: %s" % e
+        return False, "the game's settings: %s" % e, None
     try:
         pub_d = json.loads(published)
     except ValueError:
@@ -1005,9 +1009,9 @@ def recompute(L, published, game):
             if pub_d["scored"]:
                 mine = score_card(L, mine)
         except ValueError as e:
-            return False, "the data can't make this card: %s" % e
+            return False, "the data can't make this card: %s" % e, None
         d = card_digest(mine)["sha256"]
-        return (True, "") if d == pub_d["sha256"] else (False, "sha256 differs: published %s, recomputed %s" % (pub_d["sha256"], d))
+        return (True, "", mine) if d == pub_d["sha256"] else (False, "sha256 differs: published %s, recomputed %s" % (pub_d["sha256"], d), None)
     pub = json.loads(published)
     w = game["window"]
     want = {"game": int(_dec(game["game"], "game")), "round": _dec(game["round"], "round"), "ownRule": game["ownRule"],
@@ -1022,21 +1026,21 @@ def recompute(L, published, game):
     got.update(pub.get("window") or {})
     for k in want:
         if got.get(k) != want[k] or type(got.get(k)) is not type(want[k]):
-            return False, "setting %s: the card says %s, the game says %s" % (k, json.dumps(got.get(k)), json.dumps(want[k]))
+            return False, "setting %s: the card says %s, the game says %s" % (k, json.dumps(got.get(k)), json.dumps(want[k])), None
     try:
         mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"],
                          game["minK"], game["poolRule"], game.get("mode"), game.get("include"), game.get("version", RULE_VERSION))
         if any("credited" in p for p in pub.get("producers", [])):
             mine = score_card(L, mine)
     except ValueError as e:
-        return False, "the data can't make this card: %s" % e
+        return False, "the data can't make this card: %s" % e, None
     a = card_json(mine)
     if a == published:
-        return True, ""
+        return True, "", mine
     i = 0
     while i < min(len(a), len(published)) and a[i] == published[i]:
         i += 1
-    return False, "differs at byte %d" % i
+    return False, "differs at byte %d" % i, None
 
 
 # ── the vhp-data format and its checks: the twin of vhp-data.js (read it for the format in words) ──
@@ -1045,6 +1049,13 @@ _ADDR = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
 _ID = re.compile(r"0x1220[0-9a-f]{64}")
 _SAT = re.compile(r"(0|[1-9][0-9]{0,24})")
 
+
+
+def recompute(L, published, game):
+    """(same, diff): as recompute in vhp-ruler.js. recompute_card also returns the rebuilt card when same (for a game that
+    stores only digests: the Race, Repo Lens #G-40 Info)."""
+    ok, diff, _ = recompute_card(L, published, game)
+    return ok, diff
 
 def canon(o):
     return json.dumps(o, separators=(",", ":"), ensure_ascii=False) + "\n"

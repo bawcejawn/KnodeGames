@@ -736,9 +736,17 @@
             "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1082784209570"
           },
           "seal": "e59e79f82367a59443e87aab1ef4b5c8841fe0088a54cd0769227c90073087cb"
+        },
+        {
+          "height": 41039091,
+          "readAt": "2026-11-13T11:03:06.784Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1081966290241"
+          },
+          "seal": "236f38fe1b79ecfd77f5ddbd35489425735094107435b6d2b9177673b20e39a2"
         }
       ],
-      "vhpSeal": "3d9e9b2f981c0f2c558d52086f8bedcd54f29c8d723547fa6c132fab20bf8e1c"
+      "vhpSeal": "a476775de3a85a6e10f63f114dd56c47b5456cf7878f7d0753bcfbdadd57e220"
     },
     {
       "id": "W003-D2-3",

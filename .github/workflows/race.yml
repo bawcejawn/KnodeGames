@@ -2012,7 +2012,7 @@ jobs:
           # while it is null; tests only set RACE_TYPES_FROM). Before it a T file is refused; from it a final vault week
           # needs its T file with every typed race final.
           TYPES_OFF = 1000000
-          TYPES_FROM_WEEK = TYPES_OFF   # = M.TYPES_FROM_WEEK when the owner turns the types on (a test checks they match)
+          TYPES_FROM_WEEK = 5   # = M.TYPES_FROM_WEEK (owner, 13 Nov: vault week 5, Mon 23 Nov 2026; a test checks they match)
           TYPES_FROM = int(os.environ.get("RACE_TYPES_FROM") or TYPES_FROM_WEEK)
           DAY_S = 86400
           def vault_ok(f, j, early=False):

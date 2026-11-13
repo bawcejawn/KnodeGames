@@ -184,6 +184,15 @@ function readPrev(name: string): any {
   const f = path.join(PREV, name);
   try { if (fs.lstatSync(f).isSymbolicLink()) return null; return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return null; }
 }
+/** Repo Lens #D-13 L-6: like readPrev, but says whether the file is absent ("none") or there and unreadable ("bad"). */
+function readPrevState(name: string): { state: "none" | "bad" | "ok"; value: any } {
+  if (!PREV) return { state: "none", value: null };
+  const f = path.join(PREV, name);
+  let st: fs.Stats;
+  try { st = fs.lstatSync(f); } catch { return { state: "none", value: null }; }
+  if (st.isSymbolicLink() || !st.isFile()) return { state: "bad", value: null };
+  try { return { state: "ok", value: JSON.parse(fs.readFileSync(f, "utf8")) }; } catch { return { state: "bad", value: null }; }
+}
 function emptyWeek(w: number): WeekFile {
   const start = M.weekStart(w), races: Race[] = [];
   for (let t = start; t < start + M.WEEK; t += M.RACE) { const i = M.raceIndex(t); races.push({ id: M.raceId(i), start: M.raceStart(i), end: M.raceStart(i) + M.RACE, cards: new Array(M.LEGS).fill(null), result: null }); }
@@ -285,17 +294,38 @@ function defaultRaceContract(): string | null {
 /** Every pick for a race, page by page (100 at a time). */
 async function readPicks(node: any, contract: string, raceNo: number, type = 0): Promise<Pick[]> {
   const c = new Contract({ id: contract, abi: RACE_ABI(), provider: node });
+  // D-166: the contract v2 takes the race type in the race number from bit 48 (type 0: v1's number, unchanged).
+  return pagePicks(`race ${raceNo}${type ? ` (type ${type})` : ""}`, async (after) => {
+    const r: any = await withRetry(`picks for race ${raceNo}${type ? ` (type ${type})` : ""}`, () => (c.functions as any).list_picks({ race: M.contractRace(type, raceNo), ...(after ? { start_after: after } : {}), limit: 100 }));
+    return r?.result?.rows ?? [];
+  });
+}
+/** Every pick of a race, page by page (100 a page) until an empty page (audit BX-18). Capacity (12 Nov): past
+ *  READ_PICKS_PAGES pages the race's picks would be cut short in silence, so it stops loudly instead: the run fails,
+ *  nothing is scored or paid from a partial list, and the owner gets the failed-run email. Exported for the tests. */
+export async function pagePicks(what: string, page: (after: string | undefined) => Promise<any[]>, pages = READ_PICKS_PAGES): Promise<Pick[]> {
   const out: Pick[] = [];
   let after: string | undefined;
-  for (let page = 0; page < 1000; page++) {
-    // D-166: the contract v2 takes the race type in the race number from bit 48 (type 0: v1's number, unchanged).
-    const r: any = await withRetry(`picks for race ${raceNo}${type ? ` (type ${type})` : ""}`, () => (c.functions as any).list_picks({ race: M.contractRace(type, raceNo), ...(after ? { start_after: after } : {}), limit: 100 }));
-    const rows = r?.result?.rows ?? [];
+  for (let n = 0; n < pages; n++) {
+    const rows = await page(after);
+    if (!rows.length) return out;
     for (const x of rows) if (isAddr(x.player) && isAddr(x.pick?.horse)) out.push([x.player, x.pick.horse, Number(x.pick.at || 0)]);
-    if (!rows.length) break;                                    // audit BX-18: page until an empty page
     after = rows[rows.length - 1].player;
   }
-  return out;
+  throw new Error(`${what} has more than ${pages * 100} picks: the recorder won't score it from a partial list (tell the Race chat)`);
+}
+/** The most pages (of 100 picks) read for one race: 100,000 picks. */
+export const READ_PICKS_PAGES = 1000;
+/** Repo Lens #G-27 G27-1: a race that can't be scored this run is tried again next run (a warning); one with more picks
+ *  than the recorder reads is never scored, so it also alerts the owner (the alert job fails the run and GitHub emails),
+ *  every run until it is fixed: it is never skipped at the week's end without an email. */
+function raceError(id: string, e: unknown, problems: string[]) {
+  const m = (e as Error)?.message || String(e);
+  problems.push(`${id}: ${m} (tried again next run)`);
+  if (/has more than \d+ picks/.test(m)) {
+    const a = `Producer Race ${id}: ${m}. Its picks can't all be read, so it isn't scored and would be skipped at the week's end. Tell the Race chat now (it raises the limit in bot/race.ts, READ_PICKS_PAGES).`;
+    if (!heldAlerts.includes(a)) heldAlerts.push(a);
+  }
 }
 /** Staked in the Race (game 7) in the KnodeGames Vault for week w (owner, 2026-10-28), by the vault's own test, the one
  *  its bot applies to free-prize winners: the week's peak stake in the game (entry.peak_stake, or active_stake when the
@@ -369,10 +399,10 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
 export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks, rhythmFrom, typesFrom, rulerFrom, rulerLedger }: Opts) {
   // The ruler switch, strictly: empty = off; anything that isn't a plain week number stops the run here (KRuler.switchFrom).
   rulerFromWeek = rulerFrom !== undefined ? rulerFrom : RR.switchFrom(E.RACE_RULER_FROM_WEEK ?? "");
-  rulerAll = new Map(); rulerLedgerCache = rulerLedger === undefined ? undefined : rulerLedger;
+  rulerAll = new Map(); rulerTyped = new Map(); rulerLedgerCache = rulerLedger === undefined ? undefined : rulerLedger;
   rhythmFromWeek = rhythmFrom ?? M.RHYTHM_FROM_WEEK;
   typesFromWeek = typesFrom === undefined ? M.TYPES_ON_WEEK : typesFrom;
-  typesAll = new Map(); typesWeekFiles = new Map();
+  typesAll = new Map(); typesWeekFiles = new Map(); typesUnread = new Map();
   verifyDeadline = Date.now() + VERIFY_BUDGET_MS;
   vaultRefused = null;
   heldAlerts = [];
@@ -523,19 +553,21 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
       if (!r.ok) { problems.push(`${race.id}: ${r.why}; not final this run`); continue; }
       race.result = r.result;
       console.log(`${race.id}: final, winner ${race.result.winner} (${race.result.standings[0]?.steps} steps), blocks ${race.result.heights[0]}-${race.result.heights[1]}, checked on ${race.result.checked} node(s)`);
-    } catch (e) { problems.push(`${race.id}: ${(e as Error).message} (tried again next run)`); }
+    } catch (e) { raceError(race.id, e, problems); }
     await sleep(200);
   }
 
   // ── 2a. the VHP ruler (owner, 11 Nov): the 6-hour race's ruler cards for the shadow and on weeks ──
-  for (const wf of weeks.values()) rulerAll.set(wf.week, rulerWeek(wf, problems));
+  for (const wf of weeks.values()) rulerAll.set(wf.week, rulerWeek(wf, problems, now));
 
   // ── 2b. race types (D-166): the hour ledger, then the 1-hour, 2-hour, daily and weekly races scored from it ──
   for (const wf of weeks.values()) {
     if (!typesOn(wf.week)) continue;
-    const tf = loadTypes(wf.week);
+    let tf: TypesFile;
+    try { tf = loadTypes(wf.week); } catch (e) { typesUnread.set(wf.week, (e as Error).message); problems.push((e as Error).message); continue; }
     typesAll.set(wf.week, tf);
     await recordTypes(tf, raceById, problems, now);
+    rulerTypesWeek(tf, problems);
   }
 
   // ── 3. leaderboards ──
@@ -549,17 +581,17 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   for (const [w, wf] of weeks) {
     if (!wf.races.some((r) => r.cards.some(Boolean) || r.result)) continue;
     known.add(w);
-    fs.writeFileSync(path.join(OUT, `W${String(w).padStart(3, "0")}.json`), JSON.stringify(wf) + "\n");
+    writeWarned(`W${String(w).padStart(3, "0")}.json`, JSON.stringify(wf) + "\n", problems, "the week's 6-hour races; Block X, Combo and Golf read it");
   }
   for (const [w, tf] of typesAll) if (weeks.has(w) && (tf.hours.length || tf.races.some((r) => r.result))) {
     const text = JSON.stringify(tf) + "\n";
     // Repo Lens #D-13 M-1: the publish job holds a T file over 2 MB on its own (the 6-hour files still publish); warn
     // well before that.
-    if (text.length > T_WARN_BYTES) problems.push(`T${String(w).padStart(3, "0")}.json is ${(text.length / 1048576).toFixed(2)} MB: near the 2 MB publish limit (the race types' file would be held)`);
-    fs.writeFileSync(path.join(OUT, `T${String(w).padStart(3, "0")}.json`), text);
+    writeWarned(`T${String(w).padStart(3, "0")}.json`, text, problems, "the race types' file would be held");
   }
   // The ruler file of every week this run handles, in every mode (it records the switch value the run used).
-  for (const [w, rf] of rulerAll) if (weeks.has(w)) fs.writeFileSync(path.join(OUT, `R${String(w).padStart(3, "0")}.json`), JSON.stringify(rf) + "\n");
+  for (const [w, rf] of rulerAll) if (weeks.has(w)) writeWarned(RR.rulerName(w), JSON.stringify(rf) + "\n", problems, "the ruler's cards would be held");
+  for (const [k, rf] of rulerTyped) { const [w, t] = k.split("-").map(Number); if (weeks.has(w)) writeWarned(RR.rulerName(w, t), JSON.stringify(rf) + "\n", problems, "the ruler's cards would be held"); }
   fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((x, y) => x - y) }) + "\n");
   if (board) fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
   // #85 merge check L-1: a NEW pending file is dated at the end of the run (the head block's time now), not its start,
@@ -596,10 +628,17 @@ type Typed = { type: number; id: string; start: number; end: number; result: any
 type TypesFile = { v: 1; week: number; start: number; end: number; hours: Hour[]; races: Typed[] };
 let typesFromWeek: number | null = M.TYPES_ON_WEEK;   // #C-12 C12-1: off unless TYPES_READY
 let typesAll = new Map<number, TypesFile>();
+/** Repo Lens #D-13 L-6: weeks whose previous T file is there but unreadable (week → the reason). They are never final. */
+let typesUnread = new Map<number, string>();
 const typesOn = (w: number) => typesFromWeek !== null && w >= typesFromWeek;
 // ── the VHP ruler (owner, 11 Nov 2026): R<week>.json, see bot/race-ruler.ts ──
 let rulerFromWeek: number | null = null;
 let rulerAll = new Map<number, RR.RulerFile>();
+/** The new race types' ruler files (option A): "week-type" → R<week>-<type>.json. */
+let rulerTyped = new Map<string, RR.RulerFile>();
+const typedEntry = (w: number, type: number, id: string) => rulerTyped.get(`${w}-${type}`)?.races.find((x) => x.id === id) || null;
+/** A typed race's result as the board and the vault count it (option A): the ruler's, and only in an ON week. */
+const typedRuled = (w: number, r: { type: number; id: string; result: any }) => (rulerOn(w) ? RR.ruledResult(r.result, typedEntry(w, r.type, r.id)) : null);
 /** The ruler's ledger: loaded once a run, only when a week needs a card (undefined = not loaded yet; null = unavailable). */
 let rulerLedgerCache: any = undefined;
 const rulerOn = (w: number) => RR.modeOf(w, rulerFromWeek) === "on";
@@ -614,8 +653,8 @@ function rulerLedger(problems: string[]) {
 }
 /** The previous run's R file for week w, if it is the recorder's own form for that week (else a fresh one: every card is
  *  made again from the data, which gives the same bytes, so nothing is lost). */
-function loadRuler(w: number): RR.RulerFile {
-  const fresh = RR.emptyRuler(w, rulerFromWeek), old = readPrev(`R${String(w).padStart(3, "0")}.json`);
+function loadRuler(w: number, type = 0): RR.RulerFile {
+  const fresh = RR.emptyRuler(w, rulerFromWeek), old = readPrev(RR.rulerName(w, type));
   if (!old || old.v !== 1 || old.week !== w || !Array.isArray(old.races) || fresh.mode === "off") return fresh;
   const isWin = (x: any) => x && typeof x === "object" && ["W0", "W1", "L", "S0", "S1"].every((k) => Number.isSafeInteger(x[k]));
   for (const e of old.races) if (e && typeof e.id === "string" && typeof e.round === "string" && isWin(e.window) && (e.card === null || typeof e.card === "string")
@@ -624,7 +663,17 @@ function loadRuler(w: number): RR.RulerFile {
 }
 /** This run's ruler file for a week: off = no cards; shadow and on = a card for every recorded 6-hour race (Sunday's
  *  rest races too in a shadow week: shadow counts for nothing anyway). */
-function rulerWeek(wf: WeekFile, problems: string[]): RR.RulerFile {
+/** The owner hears of a ruler result that is RULER_LATE_ALERT late: once (the run in the hour after it turns late), then
+ *  once a day (the owner-alert hour), while the week is paid and before its deadline. */
+function rulerLate(w: number, races: { id: string; end: number }[], now: number) {
+  if (!rulerOn(w) || !races.length) return;
+  const oldest = Math.min(...races.map((r) => r.end)), age = now - oldest;
+  if (age < RULER_LATE_ALERT || !(age < RULER_LATE_ALERT + M.HOUR || ownerAlertRun(now))) return;
+  if (!alertsFor(w, M.weekStart(w + 1), now, prizesUnset !== null ? 0 : prizesFromWeek)) return;
+  const m = `Producer Race vault week ${w} (${siteWeek(w)}): the VHP ruler's result for ${races.length} race(s) (${races.slice(0, 5).map((r) => r.id).join(", ")}${races.length > 5 ? ", …" : ""}) is still missing ${(age / M.HOUR).toFixed(0)} h after the race ended. What to do: ${RULER_FIX}.`;
+  if (!heldAlerts.includes(m)) heldAlerts.push(m);
+}
+function rulerWeek(wf: WeekFile, problems: string[], now = Date.now()): RR.RulerFile {
   const rf = loadRuler(wf.week);
   if (rf.mode === "off") return rf;
   const out: RR.RulerEntry[] = [];
@@ -637,13 +686,48 @@ function rulerWeek(wf: WeekFile, problems: string[]): RR.RulerFile {
     out.push(e);
   }
   rf.races = out;
+  rulerLate(wf.week, wf.races.filter((r) => out.some((e) => e.id === r.id && !e.card)), now);
   return rf;
+}
+/** This run's ruler files for a week's new race types (R<week>-<type>.json), in an ON week only: a card for every typed
+ *  race recorded final (its blocks from the hour ledger). In any other mode the types count nothing: said every run. */
+function rulerTypesWeek(tf: TypesFile, problems: string[]) {
+  const mode = RR.modeOf(tf.week, rulerFromWeek);
+  if (mode !== "on" && tf.races.some((r) => r.result?.final && Array.isArray(r.result.picks) && r.result.picks.length))
+    problems.push(`week ${tf.week}: the race types count only on the VHP ruler, which is ${mode} for this week; their picks score nothing (set RACE_RULER_FROM_WEEK, or TYPES_FROM_WEEK to a week the ruler is on for)`);
+  for (const type of RR.NEW_TYPES) {
+    const rf = loadRuler(tf.week, type);
+    if (mode === "on") {
+      const out: RR.RulerEntry[] = [];
+      for (const r of tf.races) {
+        if (r.type !== type || !r.result?.final || r.result.missed) continue;
+        const blocks = RR.typedBlocks(tf.hours, r.start, r.end);
+        if (!blocks) continue;
+        const old = rf.races.find((x) => x.id === r.id) || null;
+        const e = RR.entryForBlocks(old && old.card ? null : rulerLedger(problems), r.id, r.start, type, blocks, old);
+        if (!e.card && e.note && !/^not yet/.test(e.note)) problems.push(`${r.id}: ${e.note}`);
+        out.push(e);
+      }
+      rf.races = out;
+    }
+    rulerTyped.set(`${tf.week}-${type}`, rf);
+  }
 }
 
 /** Ledger hours read per run at most (a catch-up after an outage spreads over a few runs). Exported for the tests. */
 export const HOURS_PER_RUN = 24;
 /** Repo Lens #D-13 M-1: a T file past this size warns in every run (the publish limit is 2 MB). */
-export const T_WARN_BYTES = 1.5 * 1048576;
+export const T_WARN_BYTES = 1.2 * 1048576;
+/** Capacity (12 Nov, claude/capacity/TO-GAMES-2MB-WEEKLY-FILE-LIMIT-2026-11-12.md): every file this recorder publishes
+ *  warns in each run once it passes 60% of the publish job's 2 MB limit, weeks before it bites (the fix: the file
+ *  standard, before Week 4, Mon 7 Dec). Over 2 MB the publish job refuses it and the week's payout waits: never wrong. */
+export const sizeNote = (name: string, bytes: number, what: string) =>
+  bytes > T_WARN_BYTES ? `${name} is ${(bytes / 1048576).toFixed(2)} MB, over 60% of the 2 MB publish limit (${what}): tell the Race chat` : null;
+function writeWarned(name: string, text: string, problems: string[], what: string) {
+  const n = sizeNote(name, Buffer.byteLength(text), what);
+  if (n) problems.push(n);
+  fs.writeFileSync(path.join(OUT, name), text);
+}
 export function emptyTypes(w: number): TypesFile {
   const start = M.weekStart(w), end = start + M.WEEK, races: Typed[] = [];
   for (const type of [1, 2, 3, 4]) for (const r of M.typedRacesIn(type, start, end)) races.push({ type, id: r.id, start: r.start, end: r.end, result: null });
@@ -656,9 +740,14 @@ function hourOk(h: any, start: number, end: number): h is Hour {
     && h.l && typeof h.l === "object" && Object.keys(h.l).every((a) => a in h.n && Number.isSafeInteger(h.l[a]))
     && Array.isArray(h.c) && h.c.length === 4 && h.c.every((x: any) => Number.isFinite(x) && x >= 0);
 }
+/** Repo Lens #D-13 L-6: a previous T file that is there but unreadable (bad JSON, wrong version or week) is NOT read as
+ *  an empty week: loadTypes throws, the run skips that week's typed races and doesn't write its T file, so the
+ *  published one stays as it was (and the vault recount, which reads the published T, holds if the board differs). */
 function loadTypes(w: number): TypesFile {
-  const fresh = emptyTypes(w), old = readPrev(`T${String(w).padStart(3, "0")}.json`);
-  if (!old || old.v !== 1 || old.week !== w) return fresh;
+  const name = `T${String(w).padStart(3, "0")}.json`, fresh = emptyTypes(w), prev = readPrevState(name), old = prev.value;
+  if (prev.state === "none") return fresh;
+  if (prev.state === "bad" || !old || typeof old !== "object" || old.v !== 1 || old.week !== w)
+    throw new Error(`${name} from the last run can't be read; its typed races are not recorded this run and the file is left as published`);
   if (Array.isArray(old.hours)) {
     const seen = new Set<number>();
     for (const h of old.hours) if (hourOk(h, fresh.start, fresh.end) && !seen.has(h.t)) { seen.add(h.t); fresh.hours.push(h); }
@@ -747,15 +836,22 @@ async function recordTypes(tf: TypesFile, raceById: (id: string) => Race | null,
   for (const r of tf.races) {
     if (r.result?.final || r.end > c.libT) continue;
     // An hour with no 6-hour card at all can never be scored (cards are taken live): the race is missed.
-    let noCard = false;
-    for (let h = r.start; h < r.end; h += M.HOUR) if (!baseCard(raceById, h)) { noCard = true; break; }
+    // Repo Lens #D-13 L-5: only once the 6-hour race covering that hour is itself final (scored or missed), so its cards
+    // can't still arrive; before that the typed race just waits.
+    let noCard = false, wait = false;
+    for (let h = r.start; h < r.end; h += M.HOUR) if (!baseCard(raceById, h)) {
+      const six = raceById(M.raceAt(h).id);
+      if (six && !six.result?.final && six.end > c.libT) { wait = true; break; }
+      noCard = true;
+    }
+    if (wait) continue;
     if (noCard) { r.result = { final: true, missed: true, note: "an hour of this race has no handicap card" }; continue; }
     try {
       const res = await scoreTyped(r, led, typedCardAt(raceById, led, r.type), c);
       if (!res) continue;                                   // an hour isn't in the ledger yet
       if (!res.ok) { problems.push(`${r.id}: ${res.why}; not final this run`); continue; }
       r.result = res.result;
-    } catch (e) { problems.push(`${r.id}: ${(e as Error).message} (tried again next run)`); }
+    } catch (e) { raceError(r.id, e, problems); }
   }
 }
 /** Repo Lens #E-11 H-1 (b) for the race types: every ledger hour is read again on both nodes and must match, and every
@@ -915,14 +1011,16 @@ function tally(weeks: Map<number, WeekFile>, from: number, to: number, weekly = 
   const races: { start: number; result: any; type: number }[] = [];
   // The VHP ruler: in an ON week, a 6-hour race's 1st, 2nd and 3rd are the ruler's (null = not scored yet: not counted).
   for (const wf of weeks.values()) for (const r of wf.races) races.push({ start: r.start, result: rulerOn(wf.week) ? RR.ruledResult(r.result, rulerEntry(wf.week, r.id)) : r.result, type: 0 });
-  for (const tf of typesAll.values()) for (const r of tf.races) races.push({ start: r.start, result: r.result, type: r.type });
+  // Option A: a typed race counts with the ruler's 1st / 2nd / 3rd, in an ON week only (null: not counted).
+  for (const tf of typesAll.values()) for (const r of tf.races) races.push({ start: r.start, result: typedRuled(tf.week, r), type: r.type });
   for (const r of races) {
     if (r.start < from || r.start >= to || !r.result?.final || !Array.isArray(r.result.picks)) continue;
     if (weekly && !forWeek(r)) continue;
-    const P = M.pointsOf(r.type);
-    for (const [who, , at, right, , show] of r.result.picks) {
+    // D-173: points per place once the types are on (the old win / show before, and for weeks already paid under it).
+    const P = M.pointsOf(r.type, M.weekOf(r.start), prizesFromWeek === NO_PRIZES ? null : prizesFromWeek, typesFromWeek);
+    for (const [who, horse, at, right, , show] of r.result.picks) {
       const x = t.get(who) || { pts: 0, correct: 0, shows: 0, picks: 0 };
-      x.picks++; x.correct += right ? 1 : 0; x.shows += !right && show ? 1 : 0; x.pts += right ? P.win : show ? P.show : 0;
+      x.picks++; x.correct += right ? 1 : 0; x.shows += !right && show ? 1 : 0; x.pts += right ? P.win : show ? M.showPoints(P, r.result.standings, horse) : 0;
       // D-152: when the wallet reached its score = its latest scoring pick (a win or a show).
       if ((right || show) && (x.reached === undefined || Number(at) > x.reached)) x.reached = Number(at);
       t.set(who, x);
@@ -939,7 +1037,10 @@ async function leaderboards(weeks: Map<number, WeekFile>, now: number, problems:
   const idx = readPrev("index.json");
   for (const w of Array.isArray(idx?.weeks) ? idx.weeks : []) if (Number.isInteger(w) && !all.has(w)) all.set(w, loadWeek(w));
   for (const w of all.keys()) if (rulerOn(w) && !rulerAll.has(w)) rulerAll.set(w, loadRuler(w));
-  for (const w of all.keys()) if (typesOn(w) && !typesAll.has(w)) typesAll.set(w, loadTypes(w));
+  for (const w of all.keys()) if (typesOn(w) && !typesAll.has(w) && !typesUnread.has(w)) {
+    try { typesAll.set(w, loadTypes(w)); } catch (e) { typesUnread.set(w, (e as Error).message); problems.push((e as Error).message); }
+  }
+  for (const w of typesAll.keys()) for (const t of RR.NEW_TYPES) if (!rulerTyped.has(`${w}-${t}`)) rulerTyped.set(`${w}-${t}`, loadRuler(w, t));
   const wNow = M.weekOf(now), day0 = Math.floor(now / M.DAY) * M.DAY;
   const failed = new Set<string>();              // "stake:who|week": stake reads that failed (not staked on the boards)
   const anyPicks = [...all.values()].some((wf) => wf.races.some((r) => Array.isArray(r.result?.picks))) || [...typesAll.values()].some((tf) => tf.races.some((r) => Array.isArray(r.result?.picks)));
@@ -1141,8 +1242,15 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
   // The VHP ruler: in an ON week a race is open until the ruler has scored it too.
   const open = wf.races.filter((r) => (!r.result?.final || (rulerOn(w) && RR.ruledResult(r.result, rulerEntry(w, r.id)) === null)) && !M.restRace(r.start, rhythmFromWeek) && !(r.start < firstCard && !r.cards.some(Boolean)));
   // D-166: a typed race of the week still being scored keeps it open too (never past the same deadline).
-  const openTyped = (typesAll.get(w)?.races || []).filter((r) => !r.result?.final && forWeek(r));
+  // Option A: also open until the ruler has scored it.
+  const openTyped = (typesAll.get(w)?.races || []).filter((r) => (!r.result?.final || (!r.result.missed && typedRuled(w, r) === null)) && forWeek(r));
   const late = now >= wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER);   // D-125: the review day comes first
+  // The VHP ruler (owner, 12 Nov): a race whose result is in and that waits ONLY for the ruler's card (its data behind)
+  // keeps the week open up to RULER_GRACE after the week ends, inside the vault's 3 days, instead of being skipped at
+  // the usual time: once the ruler's data catches up the week pays in full. Past the grace it is skipped as before.
+  const rulerWaiting = open.filter((r) => r.result?.final && !r.result.missed);
+  const otherOpen = open.filter((r) => !rulerWaiting.includes(r));
+  const lateRuler = now >= wf.end + RULER_GRACE;
   const unread = rows.filter((r) => failed.has(`stake:${r.a}|${w}`));
   const file: VaultFile = { game: VAULT_GAME, week: w, final: false, rows: [], first: [], second: [], skipped: [] };
   const wait = (why: string) => { problems.push(`vault week ${w}: not final yet, ${why}`); lateAlert(w, wf.end, now, why); return file; };
@@ -1151,7 +1259,20 @@ async function vaultResults(all: Map<number, WeekFile>, w: number, now: number, 
     problems.push(`vault week ${w}: not final yet, ${why}`); heldAlert(w, wf.end, now, why, "set the variable PRIZES_FROM_WEEK; the week goes final by itself on the next run");
     return file;
   }
-  if (open.length && !late) return wait(`${open.length} race(s) still being checked (${open.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
+  // Repo Lens #D-13 L-6: the week's typed results can't be read, so its board can't be trusted: held (never final, never
+  // skipped by the deadline), with an alert, until the T file is readable again.
+  if (typesOn(w) && typesUnread.has(w)) {
+    const why = `${typesUnread.get(w)}; the week stays pending and nothing is made final`;
+    problems.push(`vault week ${w}: not final yet, ${why}`); heldAlert(w, wf.end, now, why, "look at race-data T" + String(w).padStart(3, "0") + ".json (the Race chat)");
+    return file;
+  }
+  if (otherOpen.length && !late) return wait(`${otherOpen.length} race(s) still being checked (${otherOpen.map((r) => r.id).join(", ")}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
+  if (rulerWaiting.length && !lateRuler) {
+    const why = `${rulerWaiting.length} race(s) waiting for the VHP ruler's result (${rulerWaiting.slice(0, 5).map((r) => r.id).join(", ")}${rulerWaiting.length > 5 ? ", …" : ""}): the ruler's data (vhp-data) is behind. The week waits for it (nothing is lost) until ${new Date(wf.end + RULER_GRACE).toISOString().slice(0, 16)} UTC, then those races are skipped`;
+    problems.push(`vault week ${w}: not final yet, ${why}`);
+    if (now >= wf.end + (onRhythm(w) ? RHYTHM_ALERT_AFTER : VAULT_ALERT_AFTER)) heldAlert(w, wf.end, now, why, RULER_FIX);
+    return file;
+  }
   if (openTyped.length && !late) return wait(`${openTyped.length} race(s) of the other types still being scored (${openTyped.slice(0, 5).map((r) => r.id).join(", ")}${openTyped.length > 5 ? ", …" : ""}); skipped if still open at ${new Date(wf.end + (onRhythm(w) ? 0 : VAULT_SKIP_AFTER)).toISOString()}`);
   if (unread.length) return wait(`${unread.length} Race stake(s) could not be read (tried again next run)`);
   if (stakedCheck) {
@@ -1308,6 +1429,13 @@ export const cmdText = (t: string) => String(t).replace(/%/g, "%25").replace(/\r
 // ── D-107 (R-RACE-13, I-087): a held paid week alerts, and says what to do ──
 /** The vault takes a week's results for 3 days after the week ends; after that the week rolls over. */
 export const RESULTS_DUE_AFTER = 3 * M.DAY;
+/** The VHP ruler (owner, 12 Nov): how long after its week ends a race may wait for the ruler's card before it is skipped
+ *  (well inside RESULTS_DUE_AFTER, so the rest of the week still pays in time). */
+export const RULER_GRACE = 48 * M.HOUR;
+/** A ruler result still missing this long after its race ended alerts the owner (once, then once a day). */
+export const RULER_LATE_ALERT = 3 * M.HOUR;
+/** What to do when the ruler's data is behind (in the alert). */
+export const RULER_FIX = "the VHP ruler's data (vhp-data) is behind. GitHub → Actions → \"VHP ruler data\": if the latest run is red, click \"Re-run all jobs\"; missed hours are read back from the chain by themselves, and if it is red again the next hour, send its error text to the VHP Ruler chat. The Race retries every hour by itself and nothing is lost while the week waits (up to 48 h after the week ends)";
 /** A paid week that still isn't final this long after its week ends is "held" and alerts. Normally it goes final at
  *  about 12:37 UTC on the Monday (the 12-hour hold, then the next run), so 15 h leaves two hourly runs of slack. */
 export const VAULT_ALERT_AFTER = 15 * M.HOUR;

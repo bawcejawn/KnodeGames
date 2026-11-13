@@ -385,12 +385,12 @@ test("status bar: drawn with the amount and a link to the staking page; guests n
   assert.equal(e.sent.length, 0, "the status bar never sends anything");
 });
 
-test("pages: Daily Questions shows the status bar; the staking page loads the panel; the hub shows each game's chip", () => {
+test("pages: Daily Questions shows no staking or pool info (owner, 12 Nov: staking is across all games, on the Stake page); the staking page loads the panel; the hub shows each game's chip", () => {
   const read = (f) => fs.readFileSync(`${APP}/${f}`, "utf8");
   const idx = read("index.html");
-  assert.match(idx, /<div id="stake-badge" hidden><\/div>/);
+  assert.doesNotMatch(idx, /id="stake-badge"|id="pool-facts"|id="stat-pot"|id="pot-last"/);
   assert.ok(idx.indexOf('src="stake-panel.js"') < idx.indexOf('src="app.js"'));
-  assert.match(read("app.js"), /window\.KStake\.badge\(\$\("#stake-badge"\), \{ game: 1, href: "stake\.html" \}\)/);
+  assert.doesNotMatch(read("app.js"), /KStake\.badge/);
   const sk = read("stake.html");
   assert.ok(sk.indexOf('src="wallet.js"') < sk.indexOf('src="stake-panel.js"') && sk.indexOf('src="stake-panel.js"') < sk.indexOf('src="stake-page.js"'));
   const page = read("stake-page.js");

@@ -135,7 +135,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1000,
+      "chainDataHash": "0x034dd21175c037fcd2b1e6b005f4735d34ba2af765e1f7c25fda7d6d4b694eb1"
     },
     {
       "id": "W003-D3-2",
@@ -253,9 +255,66 @@
             "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "85288173805331"
           },
           "seal": "5274dc0eba0b5f86dd0669379ab04b93e031f8df4c4d9ad12aab1567df34e2d8"
+        },
+        {
+          "height": 41006988,
+          "readAt": "2026-11-12T07:29:42.847Z",
+          "values": {
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "85244829306866"
+          },
+          "seal": "258f8561eda3ad1b629d779eac79c701ca922470e79c4c54266ebcd88c6a0525"
+        },
+        {
+          "height": 41008434,
+          "readAt": "2026-11-12T08:45:38.721Z",
+          "values": {
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "85201893487102"
+          },
+          "seal": "9e4001a4183407876418ff192d73c1f20d0e57580ec637cece2eac814bc8f8b7"
+        },
+        {
+          "height": 41008782,
+          "readAt": "2026-11-12T09:03:59.195Z",
+          "values": {
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "85191670639178"
+          },
+          "seal": "172f8e6d2d98f25facb94368f87a348626dbb9a76980cc8fa12c18b95af498e2"
         }
       ],
-      "vhpSeal": "7ad53178ca2bc74aede6a95533d843ef4d89418f0f4fa5e3ae582978822f3f21"
+      "vhpSeal": "f820f86a228299c927e43de8985136275a31f7c6e6164ca330323921639f8afe",
+      "result": {
+        "void": false,
+        "option": 3,
+        "value": "741",
+        "dataHash": "5954a7e37d2060917efde1d9ecc98d3dede56192b97ba5b846a2e44ce7d3d326",
+        "resolvedAt": "2026-11-12T09:52:00.500Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 40984302,
+          "decidedHeight": 41009491,
+          "readings": [
+            41001156,
+            41001633,
+            41002856,
+            41004134,
+            41005340,
+            41006988,
+            41008434,
+            41008782
+          ],
+          "readingsInWindow": 8,
+          "values": {
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": {
+              "release": "85915825040037",
+              "end": "85191670639178",
+              "change": "−0.84%",
+              "height": 41008782
+            }
+          }
+        }
+      },
+      "chainOutcome": 1000,
+      "chainDataHash": "0x98378aca5d835ba075ef58b0e629fbb9fcc012501325da7bb513ecf267df3d73"
     },
     {
       "id": "W003-D3-3",
@@ -387,7 +446,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1000,
+      "chainDataHash": "0x3f67df14cd159d7be77dabfeca53933333d06091e314fef4329bc9cf64845572"
     }
   ],
   "daySeal": "3ed34960d7e3a78c9d85a5c54535dea1c0e913ee6d3c788632880f753bda0f17"

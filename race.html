@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <!-- Only these sources may run scripts, load data or be framed. 'unsafe-eval' is needed by koilib (its protobuf
        encoder builds functions at run time); CDN scripts are pinned by their integrity hash. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://raw.githubusercontent.com/bawcejawn/KnodeGames/blocks-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/ https://koinvault.app https://us.i.posthog.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://raw.githubusercontent.com/bawcejawn/KnodeGames/blocks-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/ https://koinvault.app https://us.i.posthog.com https://data.knodegames.com/ https://live.knodegames.com/live.json; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Producer Race · Four handicapped races a day between Koinos block producers</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
@@ -34,6 +34,16 @@
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Archivo:wdth,wght@62..125,600;62..125,800;62..125,900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="board.css">
+  <style>
+    .rl { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .rl th, .rl td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .rl th { font-weight: 700; font-size: 13px; color: var(--muted); }
+    .rl td.rl-when b { display: block; }
+    .rl td.rl-when span { font-size: 13px; color: var(--muted); }
+    .rl td.rl-when .void-chip { margin-top: 4px; color: var(--ink); }
+    .rl .void-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 13px; font-weight: 700; border: 1px solid rgba(128,128,128,.45); }
+    details.rl-trial > summary { cursor: pointer; font-weight: 700; }
+  </style>
   <style>
     .pr { max-width: 1000px; margin: 0 auto; padding: 28px 16px 60px; }
     .pr h1 { font-family: var(--display); font-size: clamp(28px, 4vw, 40px); margin: 0 0 6px; }
@@ -193,6 +203,7 @@
           <div class="dd-menu">
             <a href="index.html#results">Results</a>
             <a href="index.html#how/race">Rules</a>
+            <a href="ruler.html">Ruler</a>
             <a href="start.html">New to Koinos?</a>
             <a href="get.html">Get VHP</a>
             <a href="names.html">Get an @name</a>
@@ -261,15 +272,14 @@
     <section class="card" id="board-box" hidden>
       <div class="head"><h2>Leaderboard</h2></div>
       <div id="race-board"></div>
-      <p class="note">A pick on the winner is a win (3 points). A pick on the horse that finishes 2nd or 3rd is a show (1 point). Ranked by points; ties go to more wins, then more picks placed. Wallets still tied share the place. <b>Who gets paid:</b> on the Staked board, exactly the top 30% of staked players with a point share the Race's bucket, and tied wallets share their level. If a tie crosses that line, the wallets that reached the score first (their last scoring pick was earlier) get the spots. On the Free play board, 1st and 2nd each go to at most 10 wallets, with ties broken the same way. Weeks are Knode Games weeks (Monday 00:00 UTC). Races run every day. Monday to Saturday count for the week. <b>Sunday is review day</b>: the week's results are checked on chain while you keep playing. Sunday's races are <b>fun races</b>: they score on the Today and All time boards, but never on a week's board, medals or prizes. The week's results go final from Monday 00:00 UTC, and rewards can be claimed from Monday evening (Americas) / Tuesday UTC. The <b>Staked</b> board is for wallets with VHP staked in the Producer Race that week; they share the Race's weekly reward bucket. Everyone else plays on the <b>Free play</b> board, where 1st and 2nd win the weekly free-play prize (2 VHP and 1 VHP). Prizes and bucket shares are paid from Week 1 (the week of Mon 16 Nov); winners claim them from the vault. If your Race stake drops below 1 VHP during a week, you sit out that week's share (your VHP stays yours and can always be withdrawn).</p>
+      <p class="note"><span id="pts-note">A pick on the winner is a win (3 points). A pick on the horse that finishes 2nd or 3rd is a show (1 point).</span> Ranked by points; ties go to more wins, then more picks placed. Wallets still tied share the place. <b>Who gets paid:</b> on the Staked board, exactly the top 30% of staked players with a point share the Race's bucket, and tied wallets share their level. If a tie crosses that line, the wallets that reached the score first (their last scoring pick was earlier) get the spots. On the Free play board, 1st and 2nd each go to at most 10 wallets, with ties broken the same way. Weeks are Knode Games weeks (Monday 00:00 UTC). Races run every day. Monday to Saturday count for the week. <b>Sunday is review day</b>: the week's results are checked on chain while you keep playing. Sunday's races are <b>fun races</b>: they score on the Today and All time boards, but never on a week's board, medals or prizes. The week's results go final from Monday 00:00 UTC, and rewards can be claimed from Monday evening (Americas) / Tuesday UTC. The <b>Staked</b> board is for wallets with VHP staked in the Producer Race that week; they share the Race's weekly reward bucket. Everyone else plays on the <b>Free play</b> board, where 1st and 2nd win the weekly free-play prize (2 VHP and 1 VHP). Prizes and bucket shares are paid from Week 1 (the week of Mon 16 Nov); winners claim them from the vault. If your Race stake drops below 1 VHP during a week, you sit out that week's share (your VHP stays yours and can always be withdrawn).</p>
     </section>
 
     <!-- The VHP ruler (owner, 11 Nov 2026): shown only once the ruler is switched on for the Race (its R<week>.json says so). -->
     <section class="card" id="ruler-box" hidden>
-      <div class="head"><h2>Measured by the VHP ruler</h2></div>
+      <div class="head"><h2>Ruler results</h2><a class="tag" href="ruler.html">How the Ruler works</a></div>
       <p class="note" style="margin-top:0" id="ruler-when"></p>
-      <p class="note">The ruler measures each producer's luck against its own size: how many blocks it signed against how many its VHP should give, block by block, so a big producer and a small one have the same chance to win. Each 6-hour race's 1st, 2nd and 3rd are the producers whose luck in that race was best, among the producers in the race. The horses on the track are a live estimate; the final order comes from the ruler once the race's blocks are in (usually within 1 to 2 hours). The points per place don't change.</p>
-      <p class="note"><b>Void:</b> a producer whose VHP falls more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only (it is in the next race as usual). <b>A pick on a voided producer counts as a loss.</b> If every producer in a race is void, the race's picks are given back.</p>
+      <p class="note" id="ruler-types" hidden>The 1-hour, 2-hour, daily and weekly races are scored by the Ruler too, each with its own void limit (<a href="ruler.html">see the limits by race length</a>).</p>
       <div id="ruler-list"></div>
     </section>
 
@@ -337,6 +347,7 @@
       <p class="ms-h">Learn</p>
       <a href="start.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New to Koinos?</span></a>
       <a href="index.html#welcome"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New here? Quick tour</span></a>
+      <a href="ruler.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 15.5l12.5-12.5 5.5 5.5L8.5 21z"></path><path d="M7.5 11l2.5 2.5M10.5 8l2 2M13.5 5l2.5 2.5"></path></svg><span>Ruler</span></a>
       <p class="ms-h">About</p>
       <a href="install.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M5 20h14"></path></svg><span>Install app</span></a>
       <a href="trust.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"></path></svg><span>Trust</span></a>
@@ -353,6 +364,8 @@
     </div>
   </footer>
 
+  <script src="data-source.js"></script>
+
   <script src="https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js" integrity="sha384-IAL9o3r4bQJvWhvszkorFINY2ct4LBA/LvyXE9NSOPCyYB25BsFV12JITA7Gxbk6" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js" integrity="sha384-WOeNFfSdOron0s4x9jdzLtA7Ic7RSqZCXZAaeQd6HRL6WezQp0KAtIF2XSa+11TL" crossorigin="anonymous"></script>
   <script src="guest.js"></script>
@@ -361,6 +374,7 @@
   <script src="nav.js"></script>
   <script src="chain-blocks.js"></script>
   <script src="names.js"></script>
+  <script src="ruler-void.js"></script>
   <script src="race-math.js"></script>
   <script src="board.js"></script>
   <script src="stake-panel.js"></script>

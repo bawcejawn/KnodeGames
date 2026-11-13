@@ -13,8 +13,9 @@ const addr = (i) => { const h = crypto.createHash("sha256").update(`p${i}`).dige
 const COLS = [["player", "a"], ["race", "i"], ["pick", "a"], ["t", "i"]];
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "kgparts-"));
 const rowsFor = (n, race = 1) => Array.from({ length: n }, (_, i) => [addr(i), race, addr(1000 + (i % 25)), 60 * i]);
-// checkParts with every required option (G61-1): game, file (= the folder name), week, published
-const ck = (dir, o = {}) => P.checkParts(dir, { game: "race", file: path.basename(dir), week: 4, published: null, ...o });
+// checkParts with every required option (G61-1, G62-2): game, file (= the folder name), week, publishedRoot, rel
+const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kgpub-"));
+const ck = (dir, o = {}) => P.checkParts(dir, { game: "race", file: path.basename(dir), week: 4, publishedRoot: emptyRoot, rel: path.basename(dir), ...o });
 const meta = (over = {}) => ({ game: "race", file: "T004", week: 4, state: "pending", unit: "d", expect: ["d1", "d2"], writtenAt: 1795737600000, ...over });
 
 test("KP-1 round trip: rows come back as written, addresses resolved", () => {
@@ -229,7 +230,7 @@ test("G61-1 fail closed: a final needs full; game, file (= folder name), week an
   assert.match(ck(dir, { full: ["d1", "d2"] }).errors.join(" "), /doesn't expect d2/);
   assert.match(ck(dir, { full: ["d1"], file: "T005" }).errors.join(" "), /doesn't match the folder name/);
   const noPub = P.checkParts(dir, { game: "race", file: "T004", week: 4, full: ["d1"] });
-  assert.match(noPub.errors.join(" "), /published is required/);
+  assert.match(noPub.errors.join(" "), /publishedRoot is required/);
   assert.equal(ck(dir, { full: ["d1"] }).ok, true);
 });
 
@@ -248,23 +249,24 @@ test("G61-2 writer: an unreadable manifest or parts with no manifest stop the ru
   assert.equal(ck(fresh).ok, true);
 });
 
-test("G61-2 publish side (step 6): a published final must come back byte-identical, nothing removed", () => {
-  const pub = finalDir();
+test("G61-2 publish side (step 5b): a published final must come back byte-identical, nothing removed", () => {
+  const pubRoot = tmp(); const pub = path.join(pubRoot, "race", "T004");
+  P.writeParts(pub, meta({ expect: ["d1"], state: "final" }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(5) })]);
+  const at = (dir, o = {}) => ck(dir, { full: ["d1"], publishedRoot: pubRoot, rel: "race/T004", ...o });
   const same = path.join(tmp(), "T004"); fs.cpSync(pub, same, { recursive: true });
-  assert.equal(ck(same, { full: ["d1"], published: pub }).ok, true);
+  assert.deepEqual(at(same).errors, []);
   const other = path.join(tmp(), "T004");                                      // a self-consistent rewrite
   P.writeParts(other, meta({ expect: ["d1"], state: "final" }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(7) })]);
-  assert.equal(ck(other, { full: ["d1"] }).ok, true);                          // passes on its own...
-  assert.match(ck(other, { full: ["d1"], published: pub }).errors.join(" "), /published copy is final with set hash/);   // ...not against the published final
+  assert.equal(ck(other, { full: ["d1"] }).ok, true);                          // passes against an empty branch...
+  assert.match(at(other).errors.join(" "), /published copy is final with set hash/);   // ...not against the published final
   const pend = path.join(tmp(), "T004");
   P.writeParts(pend, meta({ expect: ["d1"] }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(5) })]);
-  assert.match(ck(pend, { published: pub }).errors.join(" "), /published copy is final; this one is not/);
+  assert.match(at(pend, { full: undefined }).errors.join(" "), /published copy is final; this one is not/);
   const missing = path.join(tmp(), "T004"); fs.cpSync(pub, missing, { recursive: true });
-  fs.writeFileSync(path.join(pub, "manifest.json"), fs.readFileSync(path.join(pub, "manifest.json")));   // unchanged
   fs.rmSync(path.join(missing, fs.readdirSync(missing).find((f) => f.startsWith("d1."))));
-  assert.match(ck(missing, { full: ["d1"], published: pub }).errors.join(" "), /missing here|missing/);
-  const broken = path.join(tmp(), "T004"); fs.mkdirSync(broken); fs.writeFileSync(path.join(broken, "manifest.json"), "{oops");
-  assert.match(ck(same, { full: ["d1"], published: broken }).errors.join(" "), /published manifest.json can't be read/);
+  assert.match(at(missing).errors.join(" "), /missing/);
+  const brokenRoot = tmp(); fs.mkdirSync(path.join(brokenRoot, "race", "T004"), { recursive: true }); fs.writeFileSync(path.join(brokenRoot, "race", "T004", "manifest.json"), "{oops");
+  assert.match(at(same, { publishedRoot: brokenRoot }).errors.join(" "), /isn't a kgparts manifest: holding/);
 });
 
 test("G61-3 the hash is over the bytes on disk; invalid UTF-8 is refused", () => {
@@ -321,4 +323,72 @@ test("G61-7 the writer stops in a folder that isn't a parts folder (nothing remo
 test("G61 info: the 60% warning is exact", () => {
   assert.equal(P.sizeWarnings([{ name: "a", bytes: Math.ceil(0.6 * P.MAX_PART_BYTES) - 1 }]).length, 0);
   assert.equal(P.sizeWarnings([{ name: "a", bytes: Math.ceil(0.6 * P.MAX_PART_BYTES) }]).length, 1);
+});
+
+// ---- Repo Lens #G-62 (Fri 13 Nov 2026) ----
+test("G62-1 game and file must be real names: missing, null or non-string values fail", () => {
+  const dir = finalDir();
+  for (const game of [undefined, null, 0, ["race"], "undefined-but-not-this-game"]) {
+    const r = ck(dir, { full: ["d1"], game });
+    assert.equal(r.ok, false, `game ${JSON.stringify(game)}`);
+  }
+  assert.match(ck(dir, { full: ["d1"], game: undefined }).errors.join(" "), /game is required/);
+  assert.match(ck(dir, { full: ["d1"], game: "blockx" }).errors.join(" "), /manifest game race, expected blockx/);
+  assert.match(ck(dir, { full: ["d1"], file: undefined }).errors.join(" "), /file is required/);
+});
+
+test("G62-2 the published copy is found from the branch root; a missing root, a self path or a wrong rel hold", () => {
+  const dir = finalDir();
+  assert.match(ck(dir, { full: ["d1"], publishedRoot: path.join(tmp(), "nope") }).errors.join(" "), /doesn't exist: holding/);
+  assert.match(ck(dir, { full: ["d1"], publishedRoot: path.dirname(dir), rel: "T004" }).errors.join(" "), /is the folder being checked/);
+  assert.match(ck(dir, { full: ["d1"], rel: "race/T005" }).errors.join(" "), /doesn't end in T004/);
+  for (const rel of [undefined, "", "/abs/T004", "../T004", "race/../T004", "race//T004"]) assert.match(ck(dir, { full: ["d1"], rel }).errors.join(" "), /rel/);
+  const pubRoot = tmp(); const pub = path.join(pubRoot, "T004");               // another week's folder under the same name
+  P.writeParts(pub, meta({ week: 3, expect: ["d1"] }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(2) })]);
+  assert.match(ck(dir, { full: ["d1"], publishedRoot: pubRoot }).errors.join(" "), /week 3, not race T004 week 4: holding/);
+  const fileRoot = tmp(); fs.writeFileSync(path.join(fileRoot, "T004"), "x");
+  assert.match(ck(dir, { full: ["d1"], publishedRoot: fileRoot }).errors.join(" "), /not a folder: holding/);
+});
+
+test("G62-3 a published manifest that isn't a kgparts manifest holds the run", () => {
+  const dir = finalDir();
+  for (const text of ["{}", "null", "[]", '{"kgparts":1,"state":"FINAL"}', "\uFEFF{}"]) {
+    const root = tmp(); fs.mkdirSync(path.join(root, "T004")); fs.writeFileSync(path.join(root, "T004", "manifest.json"), text);
+    assert.match(ck(dir, { full: ["d1"], publishedRoot: root }).errors.join(" "), /isn't a kgparts manifest: holding/, text);
+  }
+});
+
+test("G62-4 the writer stops in another week's (or game's) folder; nothing is removed", () => {
+  const dir = path.join(tmp(), "T004");
+  P.writeParts(dir, meta({ week: 3, expect: ["d1"] }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(2) })]);
+  const before = fs.readdirSync(dir).sort();
+  const p4 = [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(3) })];
+  assert.throws(() => P.writeParts(dir, meta({ week: 4, expect: ["d1"] }), p4), /holds race T004 week 3, not race T004 week 4/);
+  assert.throws(() => P.writeParts(dir, meta({ game: "golf", week: 3, expect: ["d1"] }), [P.encodePart({ game: "golf", file: "T004", part: "d1", cols: COLS, rows: rowsFor(3) })]), /holds race/);
+  assert.deepEqual(fs.readdirSync(dir).sort(), before);
+});
+
+test("G62-5 a parts folder that is a link is refused by the writer and the check", () => {
+  const real = finalDir();
+  const link = path.join(tmp(), "T004"); fs.symlinkSync(real, link, "dir");
+  assert.match(ck(link, { full: ["d1"] }).errors.join(" "), /is a link/);
+  assert.throws(() => P.writeParts(link, meta({ expect: ["d1"], state: "final" }), []), /is a link/);
+});
+
+test("G62 Q2 sweepFinals: every published final must still be in the new copy, byte-identical", () => {
+  const pubRoot = tmp(), local = tmp();
+  const put = (root, rel, over, rows) => P.writeParts(path.join(root, rel), meta({ file: path.basename(rel), expect: ["d1"], ...over }), [P.encodePart({ game: "race", file: path.basename(rel), part: "d1", cols: COLS, rows: rowsFor(rows) })]);
+  put(pubRoot, "race/T003", { week: 3, state: "final" }, 3);
+  put(pubRoot, "race/T004", { week: 4 }, 4);                                     // pending: may change
+  fs.cpSync(pubRoot, local, { recursive: true });
+  assert.deepEqual(P.sweepFinals(pubRoot, local), { ok: true, errors: [], finals: 1 });
+  fs.rmSync(path.join(local, "race", "T004"), { recursive: true });             // a pending folder dropped: fine
+  assert.equal(P.sweepFinals(pubRoot, local).ok, true);
+  fs.rmSync(path.join(local, "race", "T003"), { recursive: true });             // a final dropped: refused
+  assert.match(P.sweepFinals(pubRoot, local).errors.join(" "), /race\/T003\/manifest.json: a published final file is missing/);
+  fs.cpSync(path.join(pubRoot, "race", "T003"), path.join(local, "race", "T003"), { recursive: true });
+  const f = fs.readdirSync(path.join(local, "race", "T003")).find((x) => x.startsWith("d1."));
+  fs.appendFileSync(path.join(local, "race", "T003", f), " ");
+  assert.match(P.sweepFinals(pubRoot, local).errors.join(" "), /differs from the published final/);
+  assert.equal(P.sweepFinals(path.join(tmp(), "none"), local).ok, false);
 });

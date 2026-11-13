@@ -25,7 +25,7 @@ const PART = /^(ref|top|wk|d[1-7]|r\d{3,5}|h(0[1-9]|1\d|20)|p\/[0-9a-f]{1,2})$/;
 const PART_FILE = /^(?:(?:ref|top|wk|d[1-7]|r\d{3,5}|h(?:0[1-9]|1\d|20))|p\/[0-9a-f]{1,2})\.[0-9a-f]{12}\.json$/;   // what a parts folder may hold (G61-7)
 const MANIFEST_KEYS = "kgparts,game,file,week,state,writtenAt,unit,expect,shards,parts,rows,hash";
 const TYPES = new Set(["a", "i", "s", "n", "b", "j"]);
-const STATES = new Set(["pending", "open", "final"]);   // open: a kit liveWeek copy (Architecture C1); never final
+const STATES = new Set(["pending", "open", "final"]);   // open: a kit liveWeek copy (Architecture C1); may later be written as final, never back
 export const MAX_J_BYTES = 512;                           // a "j" value (Architecture C3)
 export const MAX_META_BYTES = 4096;                       // manifest.meta, outside the hash (Architecture C2)
 /** Canonical JSON for a "j" value: arrays, objects (keys sorted), strings, safe integers, booleans, null; depth <= 8. */
@@ -66,6 +66,26 @@ const sha256 = (buf) => crypto.createHash("sha256").update(buf).digest("hex");
 const fail = (msg) => { throw new Error(`kit/parts: ${msg}`); };
 const isObj = (o) => o !== null && typeof o === "object" && !Array.isArray(o);
 const isPlain = (o) => isObj(o) && (Object.getPrototypeOf(o) === Object.prototype || Object.getPrototypeOf(o) === null);
+const isName = (re, v) => typeof v === "string" && re.test(v);   // never String(v): "undefined" would pass (G62-1)
+/** The writer's test for "this is a kgparts manifest" (used by the writer, step 5b and the sweep: G62-3). */
+const isManifest = (m) => isPlain(m) && m.kgparts === PARTS_VERSION && STATES.has(m.state) && HEX64.test(String(m.hash)) && Array.isArray(m.parts) && isName(GAME, m.game) && isName(FILE, m.file) && Number.isSafeInteger(m.week) && m.week >= 0;
+/** A parts folder must be a real folder, not a link (G62-5). Returns "absent", "dir", or throws. */
+function folderState(dir, who) {
+  let st;
+  try { st = fs.lstatSync(dir); } catch { return "absent"; }
+  if (st.isSymbolicLink()) fail(`${who}: ${dir} is a link, not a folder: stopping`);
+  if (!st.isDirectory()) fail(`${who}: ${dir} is not a folder: stopping`);
+  return "dir";
+}
+/** Reads a folder's manifest.json: null when absent; throws when present but not a kgparts manifest. */
+function readManifestAt(dir, who) {
+  const mp = path.join(dir, "manifest.json");
+  if (!fs.existsSync(mp)) return null;
+  let m = null;
+  try { m = JSON.parse(readStrict(mp).text); } catch { m = null; }
+  if (!isManifest(m)) fail(`${who}: ${mp} exists but isn't a kgparts manifest: holding`);
+  return m;
+}
 function checkMeta(meta, bad) {
   if (!isObj(meta)) return bad("meta must be a plain object");
   let t; try { t = JSON.stringify(meta); } catch { return bad("meta is not JSON"); }
@@ -225,6 +245,7 @@ export function planParts(meta, encoded, prev = null) {
  */
 export function writeParts(baseDir, meta, encoded) {
   const mPath = path.join(baseDir, "manifest.json");
+  folderState(baseDir, "writeParts");                                         // G62-5
   // G61-7: a parts folder holds only manifest.json, part-shaped files and p/. Anything else means a wrong folder: stop
   // before deleting anything.
   const present = listFiles(baseDir);
@@ -237,7 +258,8 @@ export function writeParts(baseDir, meta, encoded) {
   let prev = null;
   if (fs.existsSync(mPath)) {
     try { prev = JSON.parse(readStrict(mPath).text); } catch { prev = null; }
-    if (!isPlain(prev) || prev.kgparts !== PARTS_VERSION || !STATES.has(prev.state) || !HEX64.test(String(prev.hash)) || !Array.isArray(prev.parts)) fail(`${baseDir}: manifest.json exists but can't be read as a kgparts manifest: stopping (nothing written or removed; restore it from the published branch)`);
+    if (!isManifest(prev)) fail(`${baseDir}: manifest.json exists but can't be read as a kgparts manifest: stopping (nothing written or removed; restore it from the published branch)`);
+    if (prev.game !== meta.game || prev.file !== meta.file || prev.week !== meta.week) fail(`${baseDir}: this folder holds ${prev.game} ${prev.file} week ${prev.week}, not ${meta.game} ${meta.file} week ${meta.week}: stopping (wrong folder?)`);   // G62-4
   } else if (present.some((f) => !f.dir)) fail(`${baseDir}: part files but no manifest.json: stopping (copy the folder back from the published branch)`);
   let plan;
   try { plan = planParts(meta, encoded, prev); } catch (e) { fail(`${baseDir}: ${String(e.message).replace(/^kit\/parts: /, "")}`); }
@@ -264,23 +286,38 @@ export function sizeWarnings(files) {
 }
 
 /**
- * The publish-side check (PARTS-SPEC §4, steps 1-6): proves baseDir holds exactly the manifest's parts, unchanged,
- * complete for its state, and (step 6) that a week already published as final is byte-identical. Returns
- * { ok, errors, manifest, parts: [{ part, header, rows }] }; parts are decoded only when everything else passed.
- * Required (G61-1, fail closed): game, file (must equal the folder's name), week, and `published` (the published copy
- * of this folder, or null only when the caller has checked there is none). `full` (the game's full unit list, a
- * non-empty list of part names) is required when the manifest is final.
+ * The publish-side check (PARTS-SPEC §4, steps 1-5 and 5b): proves baseDir holds exactly the manifest's parts,
+ * unchanged, complete for its state, and (step 5b) that a folder already published as final is byte-identical.
+ * Returns { ok, errors, manifest, parts: [{ part, header, rows }] }; parts are decoded only when everything else passed.
+ * Required (fail closed, G61-1 / G62-1 / G62-2): game, file (must equal the folder's name), week, publishedRoot (the
+ * published branch's checkout; it must exist) and rel (this folder's path inside the branch, ending in file). The
+ * check finds the published copy itself at publishedRoot/rel. `full` (the game's full unit list, a non-empty list of
+ * part names) is required when the manifest is final. Run sweepFinals() too, once per publish (§4 step 8).
  */
 export function checkParts(baseDir, opts) {
   const errors = [];
   const err = (m) => { errors.push(m); };
   const o = isObj(opts) ? opts : {};
-  const { game, file, week, full, published } = o;
-  if (!GAME.test(String(game))) err("checkParts: game is required");
-  if (!FILE.test(String(file))) err("checkParts: file is required");
+  const { game, file, week, full, publishedRoot, rel } = o;
+  if (!isName(GAME, game)) err("checkParts: game is required");
+  if (!isName(FILE, file)) err("checkParts: file is required");
   else if (path.basename(path.resolve(baseDir)) !== file) err(`checkParts: file ${file} doesn't match the folder name ${path.basename(path.resolve(baseDir))}`);
   if (!Number.isSafeInteger(week) || week < 0) err("checkParts: week is required");
-  if (!("published" in o) || !(published === null || (typeof published === "string" && published.length))) err("checkParts: published is required (the published copy's folder, or null when there is none)");
+  try { folderState(baseDir, "checkParts"); } catch (e) { err(String(e.message).replace(/^kit\/parts: /, "")); }   // G62-5
+  // G62-2: the published copy is found here, from the branch root, never taken from the caller as a bare path
+  let pubDir = null;
+  if (typeof publishedRoot !== "string" || !publishedRoot.length) err("checkParts: publishedRoot is required (the published branch's checkout)");
+  else {
+    let st = null; try { st = fs.statSync(publishedRoot); } catch { st = null; }
+    if (!st || !st.isDirectory()) err(`checkParts: publishedRoot ${publishedRoot} doesn't exist: holding (branch not fetched?)`);
+  }
+  if (typeof rel !== "string" || !rel.length || path.isAbsolute(rel) || rel.split(/[\\/]/).some((x) => !x || x === "." || x === "..")) err("checkParts: rel is required (this folder's path inside the branch, e.g. race/W004)");
+  else if (isName(FILE, file) && rel.split(/[\\/]/).pop() !== file) err(`checkParts: rel ${rel} doesn't end in ${file}`);
+  if (!errors.length) {
+    pubDir = path.join(publishedRoot, rel);
+    const a = path.resolve(pubDir), b = path.resolve(baseDir);
+    if (a === b || b.startsWith(a + path.sep) || a.startsWith(b + path.sep)) err("checkParts: the published copy is the folder being checked: holding");
+  }
   if (full !== undefined && full !== null && (!Array.isArray(full) || !full.length || full.some((u) => !PART.test(String(u))))) err("checkParts: full must be a non-empty list of part names");
   const mPath = path.join(baseDir, "manifest.json");
   let m = null, mText = null;
@@ -338,21 +375,23 @@ export function checkParts(baseDir, opts) {
   }
   if (Number.isSafeInteger(m.week) && typeof m.game === "string" && typeof m.file === "string" && m.hash !== partSetHash(m, m.parts)) err("part-set hash doesn't match");
   if (m.rows !== m.parts.reduce((s, p) => s + ((p && p.rows) || 0), 0)) err("row total doesn't match");
-  // Step 6 (G61-2): a folder already published as final must come back byte-identical, with nothing removed.
-  if (typeof published === "string") {
-    const pm = path.join(published, "manifest.json");
-    if (fs.existsSync(published) || fs.existsSync(pm)) {
+  // Step 5b (G61-2, G62-2, G62-3): a folder already published as final must come back byte-identical, nothing removed.
+  if (pubDir) {
+    let pst = null; try { pst = fs.lstatSync(pubDir); } catch { pst = null; }
+    if (pst && !pst.isDirectory() && !pst.isSymbolicLink()) err(`the published copy ${rel} is not a folder: holding`);
+    else if (pst) {
       let pub = null;
-      if (fs.existsSync(pm)) { try { pub = JSON.parse(readStrict(pm).text); } catch { err("the published manifest.json can't be read: holding"); } }
-      else if (listFiles(published).some((f) => !f.dir)) err("the published copy has files but no manifest.json: holding");
-      if (isPlain(pub) && pub.state === "final") {
+      try { pub = readManifestAt(pubDir, "published copy"); } catch (e) { err(String(e.message).replace(/^kit\/parts: /, "")); pub = undefined; }
+      if (pub === null && listFiles(pubDir).some((f) => !f.dir)) err("the published copy has files but no manifest.json: holding");
+      if (pub && (pub.game !== m.game || pub.file !== m.file || pub.week !== m.week)) err(`the published copy at ${rel} is ${pub.game} ${pub.file} week ${pub.week}, not ${m.game} ${m.file} week ${m.week}: holding`);
+      if (pub && pub.state === "final") {
         if (m.state !== "final") err("the published copy is final; this one is not");
         if (m.hash !== pub.hash) err(`the published copy is final with set hash ${String(pub.hash).slice(0, 12)}; this one is ${String(m.hash).slice(0, 12)}`);
-        for (const f of listFiles(published)) {
+        for (const f of listFiles(pubDir)) {
           if (f.dir) continue;
           const mine = path.join(baseDir, f.rel);
           if (f.link || !fs.existsSync(mine)) { err(`${f.rel}: in the published final, missing here`); continue; }
-          if (!fs.readFileSync(path.join(published, f.rel)).equals(fs.readFileSync(mine))) err(`${f.rel}: differs from the published final`);
+          if (!fs.readFileSync(path.join(pubDir, f.rel)).equals(fs.readFileSync(mine))) err(`${f.rel}: differs from the published final`);
         }
       }
     }
@@ -368,4 +407,38 @@ export function checkParts(baseDir, opts) {
     } catch (e) { err(`${p.name}: ${e.message}`); }
   }
   return { ok: errors.length === 0, errors, manifest: m, parts: errors.length ? [] : parts };
+}
+
+/**
+ * The branch-wide sweep (PARTS-SPEC §4 step 8, Repo Lens #G-62 Q2): every final parts folder on the published branch
+ * must still be in the new copy, byte-identical. Step 5b only sees folders being published; this catches a final that
+ * went missing. Returns { ok, errors, finals }. Both roots must exist. Walks at most 6 levels; links are not followed.
+ */
+export function sweepFinals(publishedRoot, localRoot) {
+  const errors = [];
+  let finals = 0;
+  for (const [r, who] of [[publishedRoot, "publishedRoot"], [localRoot, "localRoot"]]) {
+    let st = null; try { st = typeof r === "string" && r.length ? fs.statSync(r) : null; } catch { st = null; }
+    if (!st || !st.isDirectory()) return { ok: false, errors: [`sweepFinals: ${who} ${r} doesn't exist: holding`], finals };
+  }
+  const walk = (rel, depth) => {
+    const dir = path.join(publishedRoot, rel);
+    if (fs.existsSync(path.join(dir, "manifest.json"))) {
+      let m = null;
+      try { m = readManifestAt(dir, "sweep"); } catch (e) { errors.push(String(e.message).replace(/^kit\/parts: /, "")); return; }
+      if (m.state !== "final") return;
+      finals++;
+      for (const f of listFiles(dir)) {
+        if (f.dir || f.link) continue;
+        const mine = path.join(localRoot, rel, f.rel);
+        if (!fs.existsSync(mine)) errors.push(`${rel}/${f.rel}: a published final file is missing from the new copy`);
+        else if (!fs.readFileSync(path.join(dir, f.rel)).equals(fs.readFileSync(mine))) errors.push(`${rel}/${f.rel}: differs from the published final`);
+      }
+      return;
+    }
+    if (depth >= 6) return;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) if (e.isDirectory() && !e.name.startsWith(".")) walk(rel ? `${rel}/${e.name}` : e.name, depth + 1);
+  };
+  walk("", 0);
+  return { ok: errors.length === 0, errors, finals };
 }

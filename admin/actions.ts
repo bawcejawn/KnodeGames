@@ -42,6 +42,10 @@ export type Area = {
 export const AREAS: Area[] = [
   { id: "overview", name: "Health checks", section: "Start here", status: "live",
     what: "Quick read-only checks across the whole platform. A good first stop: nothing here can change anything." },
+  { id: "glance", name: "Games at a glance", section: "Start here", status: "live",
+    what: "Every game on one screen: where it stands, its staking steps (add, apply, stop), its free-prize switch and its GitHub switches, with the exact command each one runs. Press Check everything to read the vault, the free-prize switches and each game's status in one go. Nothing here can change anything until you preview and send a card yourself." },
+  { id: "switches", name: "All switches", section: "Start here", status: "live",
+    what: "Every switch that is set on GitHub, for the whole platform and each game: what to type, what it does, when it takes effect and what cannot be undone. The page never holds a GitHub token, so each one opens GitHub's variables page for you to set." },
 
   { id: "sponsor", name: "Mana sponsor", section: "Platform", status: "live",
     what: "The wallet that pays players' Mana (transaction fees) for every Knode game, within daily caps. Free players share a pool released by the hour; players with a stake in a game get more.",
@@ -174,6 +178,15 @@ export const ACTIONS: Action[] = [
   { id: "picks-status", area: "overview", kind: "check", label: "Picks contract status (Block X)", what: "The Picks contract's code and safety switches, checked on two nodes; its owner; its games and anything announced.", signer: RO, effect: "none", tool: "picks", args: ["status", "--mainnet"], sends: false },
   { id: "race-status", area: "overview", kind: "check", label: "Race picks status", what: "The race contract's code, its settings and today's picks.", signer: RO, effect: "none", tool: "racepicks", args: ["status"], sends: false },
   { id: "desk-status", area: "overview", kind: "check", label: "Knode Swap status", what: "The Desk right now: KOIN available, VHP producing, swaps and settings.", signer: RO, effect: "none", tool: "desk", args: ["status"], sends: false },
+
+  // ════════ Games at a glance and All switches (read-only; the cards for each game's staking are the Knode Vault ones, pre-filled) ════════
+  { id: "glance-vault", area: "glance", kind: "check", label: "Vault: every game's stake and state", what: "Every game in the vault: announced or applied, which week it earns from, its stake, prizes waiting and the 5% fee owed.", signer: RO, effect: "none", tool: "bot", args: ["games"], sends: false },
+  { id: "glance-prizes", area: "glance", kind: "check", label: "Free prizes: which games pay them", what: "Each game's free 2 + 1 VHP prize switch, this week and next week.", signer: RO, effect: "none", tool: "prizes", args: ["list"], sends: false },
+  { id: "glance-questions", area: "glance", kind: "check", label: "Daily Questions status", what: "Week, questions, players, pots, the v6.1 rule week and the bot's health.", signer: RO, effect: "none", tool: "bot", args: ["status"], sends: false },
+  { id: "glance-picks", area: "glance", kind: "check", label: "Picks contract status (Block X and the Picks games)", what: "The Picks contract's code and safety switches, its games and anything announced.", signer: RO, effect: "none", tool: "picks", args: ["status", "--mainnet"], sends: false },
+  { id: "glance-race", area: "glance", kind: "check", label: "Race status", what: "The race contract's code, its settings and today's picks.", signer: RO, effect: "none", tool: "racepicks", args: ["status"], sends: false },
+  { id: "glance-golf", area: "glance", kind: "check", label: "Block Golf status", what: "Block Golf's course, each week's state, each hole and the switches the recorder sees.", signer: RO, effect: "none", tool: "golf", args: ["status"], sends: false },
+  { id: "switches-prizes", area: "switches", kind: "check", label: "Free prizes: which games pay them", what: "The free-prize switches that are stored in the repository (the prize-settings branch), this week and next week. These two are the only switches the page can set by itself; every other one is a GitHub variable.", signer: RO, effect: "none", tool: "prizes", args: ["list"], sends: false },
 
   // ════════ Mana sponsor ════════
   { id: "sponsor-status-2", area: "sponsor", kind: "check", label: "Sponsor status", what: "On or off, its caps, its KOIN and Mana, today's use, and who the website asks to pay.", signer: RO, effect: "none", tool: "sponsor", args: ["status"], sends: false },

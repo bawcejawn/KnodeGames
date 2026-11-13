@@ -86,7 +86,7 @@ jobs:
             while IFS= read -r -d '' f; do
               # D-166: T<week>.json, the race types' ledger and results, comes back to the recorder too.
               # The VHP ruler: R<week>.json, the ruler's cards and the switch value they were made with, comes back too.
-              if [[ "$f" =~ ^(index|board|[RWT][0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
+              if [[ "$f" =~ ^(index|board|[RWT][0-9]{3}|R[0-9]{3}-[1-4])\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
               if [[ "$f" =~ ^vault/(PENDING-)?W[0-9]{1,4}\.json$ ]]; then mkdir -p "$RUNNER_TEMP/prev/vault"; git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; fi
             done < "$RUNNER_TEMP/prev-files"
           fi
@@ -1776,7 +1776,7 @@ jobs:
               rm -f "$tf"
             fi
           done
-          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( -type f ! -regex "$IN/\(index\|board\|[RWT][0-9][0-9][0-9]\)\.json" ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
+          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/vault" \) -o \( -type f ! -regex "$IN/\(index\|board\|[RWT][0-9][0-9][0-9]\|R[0-9][0-9][0-9]-[1-4]\)\.json" ! -regex "$IN/vault/\(PENDING-\)?W[0-9][0-9]?[0-9]?[0-9]?\.json" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           big=$(find "$IN" -type f -size +2048k -print)
           if [ -n "$big" ]; then echo "::error::Refusing to publish files over 2 MB: $big"; exit 1; fi
@@ -1794,7 +1794,7 @@ jobs:
           if git -C work fetch -q --depth 1 "$remote" race-data 2>/dev/null; then
             parent=$(git -C work rev-parse FETCH_HEAD)
             git -C work ls-tree --name-only FETCH_HEAD | while IFS= read -r f; do
-              if [[ "$f" =~ ^([RWT][0-9]{3}|index)\.json$ ]]; then git -C work show "FETCH_HEAD:$f" > "$RUNNER_TEMP/published/$f"; fi
+              if [[ "$f" =~ ^([RWT][0-9]{3}|R[0-9]{3}-[1-4]|index)\.json$ ]]; then git -C work show "FETCH_HEAD:$f" > "$RUNNER_TEMP/published/$f"; fi
             done
             # I-034: the published vault files, to check the hold (a final file needs its pending file, published earlier).
             git -C work ls-tree --name-only FETCH_HEAD vault/ | while IFS= read -r f; do
@@ -1874,7 +1874,8 @@ jobs:
                   and isaddr(x["a"]) and all(type(x[k]) is int and 0 <= x[k] < 10**9 for k in ("pts", "correct", "shows", "picks")) and type(x["boardPlace"]) is int and 1 <= x["boardPlace"] <= len(rows)
                   # D-166: the race types score their own points (a win 2, 3, 6 or 12; a show 1, 2 or 4), so pts lies between
                   # those bounds; the recompute below checks the last week's exactly.
-                  and x["correct"] + x["shows"] <= x["picks"] and (x["pts"] == 3 * x["correct"] + x["shows"] if TYPES_FROM >= TYPES_OFF else 2 * x["correct"] + x["shows"] <= x["pts"] <= 12 * x["correct"] + 4 * x["shows"]) and type(x["ranked"]) is bool for x in rows)
+                  # D-173: with the types on, a win scores 2 to 12 (2 only in a week paid under the old table) and a show 1 to 6, so pts lies between those bounds.
+                  and x["correct"] + x["shows"] <= x["picks"] and (x["pts"] == 3 * x["correct"] + x["shows"] if TYPES_FROM >= TYPES_OFF else 2 * x["correct"] + x["shows"] <= x["pts"] <= 12 * x["correct"] + 6 * x["shows"]) and type(x["ranked"]) is bool for x in rows)
           import time
           GENESIS, WEEK = 1792368000, 7 * 86400   # the vault's week 0 (Mon 19 Oct 2026 00:00 UTC), in seconds
           NOW = float(os.environ.get("RACE_CHECK_NOW") or time.time())   # the tests set a clock; the workflow never does
@@ -1980,6 +1981,27 @@ jobs:
               # with its own points: [win, show] by type.
               tw = week_json(w, "T%03d.json") if w >= TYPES_FROM else None
               typed = tw.get("races") if type(tw) is dict and tw.get("week") == w and type(tw.get("races")) is list else []
+              # Option A (owner, 12 Nov): a typed race counts with the ruler card's 1st / 2nd / 3rd, and only in a week the
+              # ruler is ON (else none counts, as the recorder does); a typed race the ruler hasn't scored counts nothing.
+              def typed_ruled(rs):
+                  if ruler_mode(w) != "on": return []
+                  out = []
+                  for ty in (1, 2, 3, 4):
+                      rf = week_json(w, "R%03d-" + str(ty) + ".json")
+                      if type(rf) is not dict or rf.get("week") != w or rf.get("mode") != "on" or type(rf.get("races")) is not list: rf = {"races": []}
+                      rule = {e.get("id"): e for e in rf["races"] if type(e) is dict}
+                      for r in rs:
+                          if type(r) is not dict or r.get("type") != ty: continue
+                          res0 = r.get("result")
+                          e = rule.get(r.get("id"))
+                          if type(res0) is not dict or res0.get("final") is not True or res0.get("missed") or type(e) is not dict or type(e.get("card")) is not str: continue
+                          pl = e.get("placings") if type(e.get("placings")) is list else []
+                          if not pl: continue   # every producer void: the picks are given back
+                          sg = {q.get("a"): q.get("signed") for q in json.loads(e["card"]).get("producers", []) if type(q) is dict}
+                          sh = [a for a in pl[1:3] if type(sg.get(a)) is int and sg.get(a) >= 1]
+                          pk = [[p[0], p[1], p[2], 1 if p[1] == pl[0] else 0, 0, 1 if p[1] != pl[0] and p[1] in sh else 0] for p in res0.get("picks", []) if type(p) is list and len(p) >= 3]
+                          out.append(dict(r, result={"final": True, "picks": pk, "standings": [{"a": a} for a in pl]}))
+                  return out
               if w >= TYPES_FROM:
                   # Repo Lens #D-13 L-2 / L-3: a week with race types goes final only with its T file, and with every typed
                   # race that counts for it (not Sunday's) final (scored, or missed for want of a card).
@@ -1987,7 +2009,11 @@ jobs:
                   if any(type(r) is not dict or type(r.get("result")) is not dict or r["result"].get("final") is not True for r in typed
                          if not (w >= RHYTHM_FROM and type(r) is dict and type(r.get("start")) is int and _dt.datetime.fromtimestamp(r["start"] / 1000, _dt.timezone.utc).weekday() == 6)):
                       return "a typed race of the week isn't final yet"
-              PTS = {0: (3, 1), 1: (2, 1), 2: (2, 1), 3: (6, 2), 4: (12, 4)}
+              # D-173: points per place (1st, 2nd, 3rd) once the race types are on; before that, and for a week already paid
+              # under the old table (PRIZES_FROM <= week < TYPES_FROM), the old win / show (a 2nd or 3rd = a show).
+              PTS_OLD = {0: (3, 1, 1), 1: (2, 1, 1), 2: (2, 1, 1), 3: (6, 2, 2), 4: (12, 4, 4)}
+              PTS_NEW = {0: (4, 2, 1), 1: (3, 2, 1), 2: (3, 2, 1), 3: (6, 3, 2), 4: (12, 6, 4)}
+              places_on = TYPES_FROM < TYPES_OFF
               # The VHP ruler: in an ON week a 6-hour race's 1st, 2nd and 3rd are the ruler card's (R file, this push's else
               # the published one); a race it hasn't scored must be in skipped; a race whose field is empty counts no pick.
               # A SHADOW week's ruler file is never read here: its rows come from the 6-hour race as always.
@@ -2012,18 +2038,23 @@ jobs:
                       sg = {q.get("a"): q.get("signed") for q in json.loads(e["card"]).get("producers", []) if type(q) is dict}
                       sh = [a for a in pl[1:3] if type(sg.get(a)) is int and sg.get(a) >= 1]
                       pk = [] if not pl else [[p[0], p[1], p[2], 1 if p[1] == pl[0] else 0, 0, 1 if p[1] != pl[0] and p[1] in sh else 0] for p in res0.get("picks", []) if type(p) is list and len(p) >= 3]
-                      x = dict(x, result={"final": True, "picks": pk})
+                      # the ruler's order as the race's standings, so D-173 reads 2nd and 3rd from it
+                      x = dict(x, result={"final": True, "picks": pk, "standings": [{"a": a} for a in pl]})
                   six.append(x)
-              for r in six + typed:
+              for r in six + typed_ruled(typed):
                   # D-129: a Sunday race in a rhythm week counts on no week's board or prize.
                   if w >= RHYTHM_FROM and type(r) is dict and type(r.get("start")) is int and _dt.datetime.fromtimestamp(r["start"] / 1000, _dt.timezone.utc).weekday() == 6: continue
                   res = r.get("result") if type(r) is dict else None
                   if type(res) is not dict or res.get("final") is not True or type(res.get("picks")) is not list: continue
-                  pw, ps = PTS.get(r.get("type"), (0, 0))
+                  rw = (r["start"] // 1000 - GENESIS) // WEEK if type(r.get("start")) is int else w
+                  legacy = (not places_on) or (PRIZES_FROM <= rw < TYPES_FROM)
+                  pw, p2, p3 = (PTS_OLD if legacy else PTS_NEW).get(r.get("type"), (0, 0, 0))
+                  sts = res.get("standings") if type(res.get("standings")) is list else []
                   for x in res["picks"]:
                       who, right, show = x[0], x[3] == 1, len(x) > 5 and x[5] == 1
+                      third = len(sts) > 2 and type(sts[2]) is dict and sts[2].get("a") == x[1] and not (len(sts) > 1 and type(sts[1]) is dict and sts[1].get("a") == x[1])
                       c = t.setdefault(who, [0, 0, 0, 0])
-                      c[2] += 1; c[0] += 1 if right else 0; c[1] += 1 if (not right and show) else 0; c[3] += pw if right else ps if show else 0
+                      c[2] += 1; c[0] += 1 if right else 0; c[1] += 1 if (not right and show) else 0; c[3] += pw if right else (p3 if third else p2) if show else 0
                       # D-152: when the wallet reached its score = its latest scoring pick (a win or a show).
                       if (right or show) and (who not in reached or x[2] > reached[who]): reached[who] = x[2]
               bp = os.path.join(d, "board.json")
@@ -2159,24 +2190,42 @@ jobs:
           def round_of(start_ms, ty=0):
               import datetime
               return datetime.datetime.fromtimestamp(start_ms / 1000, datetime.timezone.utc).strftime("%Y%m%d%H") + str(ty)
-          def window_of(S0, S1):
+          RULER_CARD_BY_TYPE = {0: 7200, 1: 1200, 2: 2400, 3: 7200, 4: 7200}   # = CARD_BY_TYPE in bot/race-ruler.ts (tested)
+          def window_of(S0, S1, ty=0):
               L = S0 - 1
-              return {"W0": L - RULER_CARD + 1, "W1": L, "L": L, "S0": S0, "S1": S1}
+              return {"W0": L - RULER_CARD_BY_TYPE[ty] + 1, "W1": L, "L": L, "S0": S0, "S1": S1}
+          def typed_blocks(hours, start, end):
+              # a typed race's [S0, S1]: its first hour's a and its last hour's b, every hour in the ledger (= typedBlocks)
+              by = {h.get("t"): h for h in hours if type(h) is dict}
+              t = start
+              while t < end:
+                  if t not in by: return None
+                  t += 3600000
+              a, b = by[start].get("a"), by[end - 3600000].get("b")
+              return [a, b] if type(a) is int and type(b) is int and b >= a else None
           def placings_of(card):
               field = [p for p in card.get("producers", []) if type(p) is dict and p.get("entry") is True and p.get("void") is not True and p.get("fpct") is not None]
               field.sort(key=lambda p: (-int(p["fpct"]), p["a"]))
               return [p["a"] for p in field[:3]]
           def check_ruler(f, j):
               assert js_safe(j), f + ": a value the recorder (JavaScript) can't read back exactly"
-              assert type(j) is dict and set(j) == {"v", "week", "rulerFrom", "mode", "shadow", "races"} and one(j["v"]) and type(j["week"]) is int and 0 <= j["week"] < 10000 and f == "R%03d.json" % j["week"], f
+              assert type(j) is dict and set(j) == {"v", "week", "rulerFrom", "mode", "shadow", "races"} and one(j["v"]) and type(j["week"]) is int and 0 <= j["week"] < 10000, f
               w = j["week"]
+              ty = 0 if f == "R%03d.json" % w else next((t for t in (1, 2, 3, 4) if f == "R%03d-%d.json" % (w, t)), None)
+              assert ty is not None, f + ": its name isn't its week's"
               assert (j["rulerFrom"] is None and RULER_FROM is None) or (type(j["rulerFrom"]) is int and j["rulerFrom"] == RULER_FROM), f + ": it wasn't made with the switch as set (RACE_RULER_FROM_WEEK)"
               assert j["mode"] == ruler_mode(w) and j["shadow"] is (j["mode"] == "shadow"), f + ": its mode isn't the switch's"
               rs = j["races"]
-              assert type(rs) is list and len(rs) <= 28, f + ": races"
-              if j["mode"] == "off": assert rs == [], f + ": a week the ruler is off for has no cards"
-              wf = week_json(w)
-              byid = {r.get("id"): r for r in (wf.get("races", []) if type(wf) is dict and wf.get("week") == w else []) if type(r) is dict}
+              assert type(rs) is list and len(rs) <= {0: 28, 1: 168, 2: 84, 3: 7, 4: 1}[ty], f + ": races"
+              if j["mode"] == "off" or (ty and j["mode"] != "on"): assert rs == [], f + ": a week the ruler isn't on for has no cards of this type"
+              if ty:
+                  # option A: the race types' cards, checked against the T file's own races and hour ledger
+                  tf = week_json(w, "T%03d.json")
+                  hours = tf.get("hours", []) if type(tf) is dict and tf.get("week") == w and type(tf.get("hours")) is list else []
+                  byid = {r.get("id"): r for r in (tf.get("races", []) if type(tf) is dict and tf.get("week") == w else []) if type(r) is dict and r.get("type") == ty}
+              else:
+                  wf = week_json(w)
+                  byid = {r.get("id"): r for r in (wf.get("races", []) if type(wf) is dict and wf.get("week") == w else []) if type(r) is dict}
               old = {}
               if pub and os.path.isfile(os.path.join(pub, f)):
                   try: old = {e.get("id"): e for e in json.load(open(os.path.join(pub, f), encoding="utf-8")).get("races", []) if type(e) is dict}
@@ -2186,11 +2235,12 @@ jobs:
                   assert type(e) is dict and set(e) == {"id", "round", "window", "card", "note", "placings"} and type(e["id"]) is str and e["id"] not in seen, f + ": an entry"
                   seen.add(e["id"])
                   r = byid.get(e["id"]); res = r.get("result") if r else None
-                  # the window comes from the 6-hour race's own first block (its recorded heights), never from the entry
-                  hh = res.get("heights") if type(res) is dict else None
+                  # the window comes from the race's own blocks (the 6-hour race's recorded heights; a typed race's hour
+                  # ledger), never from the entry
+                  hh = (typed_blocks(hours, r.get("start"), r.get("end")) if r and type(r.get("start")) is int and type(r.get("end")) is int else None) if ty else (res.get("heights") if type(res) is dict else None)
                   assert type(res) is dict and res.get("final") is True and not res.get("missed") and type(hh) is list and len(hh) == 2 and all(type(x) is int for x in hh) and hh[0] <= hh[1], f + " " + e["id"] + ": no recorded 6-hour race for it"
                   # the window comes from the race's own recorded blocks [S0, S1], never from the entry
-                  assert same(e["window"], window_of(hh[0], hh[1])) and e["round"] == round_of(r["start"]), f + " " + e["id"] + ": its window or round isn't the race's"
+                  assert same(e["window"], window_of(hh[0], hh[1], ty)) and e["round"] == round_of(r["start"], ty), f + " " + e["id"] + ": its window or round isn't the race's"
                   assert e["note"] is None or (type(e["note"]) is str and len(e["note"]) < 400), f + " " + e["id"] + ": note"
                   assert type(e["placings"]) is list and len(e["placings"]) <= 3 and all(isaddr(a) for a in e["placings"]) and len(set(e["placings"])) == len(e["placings"]), f + " " + e["id"] + ": placings"
                   o = old.get(e["id"])
@@ -2201,7 +2251,7 @@ jobs:
                   assert type(e["card"]) is str and len(e["card"]) < 500000, f + " " + e["id"] + ": card"
                   assert e["placings"] == placings_of(json.loads(e["card"])), f + " " + e["id"] + ": its placings aren't the card's (fpct order)"
                   if o and o.get("card") == e["card"]: continue   # checked byte for byte when it was published
-                  game = dict(RULER_GAME, round=e["round"], window=window_of(hh[0], hh[1]))
+                  game = dict(RULER_GAME, round=e["round"], window=window_of(hh[0], hh[1], ty))
                   ok, diff = VR().recompute(ruler_ledger(), e["card"], game)
                   assert ok, f + " " + e["id"] + ": the ruler's data doesn't give this card: " + str(diff)[:200]
           # A started week never changes whether the ruler scores it: this run's switch against the one the last published ruler
@@ -2244,7 +2294,7 @@ jobs:
                           held_out()
                           os.remove(os.path.join(d, f, g))
                   continue
-              if re.fullmatch(r"R[0-9]{3}\.json", f):
+              if re.fullmatch(r"R[0-9]{3}(-[1-4])?\.json", f):
                   # The VHP ruler's week file: one that fails any check is held on its own (removed from this push, with an
                   # alert); the vault recount then reads the published one, so a board that used it won't match: held.
                   try:

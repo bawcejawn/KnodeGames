@@ -141,7 +141,7 @@
           <li class="last"><span>4</span><div><b>Want more? Stake to share the pool</b><p>With a Koinos wallet (KOIN Vault on a phone, Kondor on a computer), stake 1 VHP or more in a game to share that game's part of the week's rewards. Your stake is never spent: take it back any time. <a href="get.html">No wallet or VHP yet?</a></p></div></li>
         </ol>
         </details>
-        <section class="vc" id="vault-card" aria-label="The Knode vault" hidden></section>
+        <section class="vc" id="vault-card" aria-label="The Knode pool" hidden></section>
         <div class="stats-strip" id="stats-strip" hidden></div>
         <div class="welcome-actions">
           <a class="btn btn-ghost btn-big" href="#how">The full rules</a>
@@ -154,12 +154,9 @@
     <section class="view" id="view-play" data-view="play">
       <nav class="qtabs" aria-label="Daily Questions"><a href="#play" data-view="play">Questions</a><a href="#leaderboard" data-view="leaderboard">Leaderboard</a><a href="#results" data-view="results">Results</a></nav>
       <p class="play-loading" id="play-loading" role="status">Loading today's questions…</p>
-      <div id="stake-badge" hidden></div>
       <section class="band" id="band" aria-label="Your week"></section>
 
-      <div class="pots" aria-label="The prize pool">
-        <div class="pot pot-last" id="pot-last" hidden><span class="pot-k" id="pot-last-k">Last week</span><b id="pot-last-v">…</b><span id="pot-last-note"></span></div>
-        <div class="pot"><span class="pot-k" id="stat-pot-k">This week so far</span><b id="stat-pot">…</b><span id="stat-pot-note">for the winners, after the 5% fee</span></div>
+      <div class="pots" aria-label="This week">
         <div class="pot"><span class="pot-k">Time left</span><b id="stat-ends">…</b><span>until the week ends</span></div>
         <div class="pot"><span class="pot-k">Players</span><b id="stat-players">…</b><span>this week</span></div>
       </div>
@@ -202,10 +199,6 @@
             <ol class="ticker-list" id="ticker"></ol>
             <p class="ticker-foot" id="ticker-foot">Blocks signed by the game's pool are highlighted. <a id="producers-link" target="_blank" rel="noopener">See all producers</a></p>
           </div>
-          <section class="panel">
-            <h2>The pool</h2>
-            <dl class="facts" id="pool-facts"></dl>
-          </section>
           <div class="ad ad-box ad-desktop" data-ad-slot="sidebar" aria-label="Advertisement"></div>
           <a class="panel kit-card" id="kit-card" target="_blank" rel="noopener" hidden></a>
         </aside>
@@ -334,6 +327,7 @@
           <li><b>Free.</b> No entry fee, no wager, no prize pool. Knode Games pays the Mana for picks.</li>
           <li><b>Picks are limited by your Mana, not by a count.</b> Knode Games gives every wallet a daily Mana allowance (a rolling 24 hours) for picks and everything else on the platform.</li>
           <li><b>Two boards:</b> Staked (at least 1 VHP staked in the Race, sharing its weekly rewards) and Free play (everyone else; from Week 1, the week of Mon 16 Nov, 1st and 2nd win 2 VHP and 1 VHP).</li>
+          <li><b>Scored by the VHP Ruler</b> from Week 1 (Mon 16 Nov): each producer is measured against its own size, so a big and a small producer have the same chance to win. The horses are a live estimate; the final 1st, 2nd and 3rd come from the Ruler once the race's blocks are in (usually 1 to 2 hours). <a href="ruler.html">How the Ruler works</a>.</li>
           <li><b>Results are final</b> once the race's blocks are irreversible and match on two independent Koinos nodes.</li>
         </ul></div>
         <div class="rules-good rules-soon" id="race-types-soon"><h3>Coming soon: more races</h3><ul>

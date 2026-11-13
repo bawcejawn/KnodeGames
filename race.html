@@ -35,6 +35,16 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="board.css">
   <style>
+    .rl { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .rl th, .rl td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .rl th { font-weight: 700; font-size: 13px; color: var(--muted); }
+    .rl td.rl-when b { display: block; }
+    .rl td.rl-when span { font-size: 13px; color: var(--muted); }
+    .rl td.rl-when .void-chip { margin-top: 4px; color: var(--ink); }
+    .rl .void-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 13px; font-weight: 700; border: 1px solid rgba(128,128,128,.45); }
+    details.rl-trial > summary { cursor: pointer; font-weight: 700; }
+  </style>
+  <style>
     .pr { max-width: 1000px; margin: 0 auto; padding: 28px 16px 60px; }
     .pr h1 { font-family: var(--display); font-size: clamp(28px, 4vw, 40px); margin: 0 0 6px; }
     .pr h2 { font-family: var(--display); font-size: 20px; margin: 0 0 8px; }
@@ -262,15 +272,14 @@
     <section class="card" id="board-box" hidden>
       <div class="head"><h2>Leaderboard</h2></div>
       <div id="race-board"></div>
-      <p class="note">A pick on the winner is a win (3 points). A pick on the horse that finishes 2nd or 3rd is a show (1 point). Ranked by points; ties go to more wins, then more picks placed. Wallets still tied share the place. <b>Who gets paid:</b> on the Staked board, exactly the top 30% of staked players with a point share the Race's bucket, and tied wallets share their level. If a tie crosses that line, the wallets that reached the score first (their last scoring pick was earlier) get the spots. On the Free play board, 1st and 2nd each go to at most 10 wallets, with ties broken the same way. Weeks are Knode Games weeks (Monday 00:00 UTC). Races run every day. Monday to Saturday count for the week. <b>Sunday is review day</b>: the week's results are checked on chain while you keep playing. Sunday's races are <b>fun races</b>: they score on the Today and All time boards, but never on a week's board, medals or prizes. The week's results go final from Monday 00:00 UTC, and rewards can be claimed from Monday evening (Americas) / Tuesday UTC. The <b>Staked</b> board is for wallets with VHP staked in the Producer Race that week; they share the Race's weekly reward bucket. Everyone else plays on the <b>Free play</b> board, where 1st and 2nd win the weekly free-play prize (2 VHP and 1 VHP). Prizes and bucket shares are paid from Week 1 (the week of Mon 16 Nov); winners claim them from the vault. If your Race stake drops below 1 VHP during a week, you sit out that week's share (your VHP stays yours and can always be withdrawn).</p>
+      <p class="note"><span id="pts-note">A pick on the winner is a win (3 points). A pick on the horse that finishes 2nd or 3rd is a show (1 point).</span> Ranked by points; ties go to more wins, then more picks placed. Wallets still tied share the place. <b>Who gets paid:</b> on the Staked board, exactly the top 30% of staked players with a point share the Race's bucket, and tied wallets share their level. If a tie crosses that line, the wallets that reached the score first (their last scoring pick was earlier) get the spots. On the Free play board, 1st and 2nd each go to at most 10 wallets, with ties broken the same way. Weeks are Knode Games weeks (Monday 00:00 UTC). Races run every day. Monday to Saturday count for the week. <b>Sunday is review day</b>: the week's results are checked on chain while you keep playing. Sunday's races are <b>fun races</b>: they score on the Today and All time boards, but never on a week's board, medals or prizes. The week's results go final from Monday 00:00 UTC, and rewards can be claimed from Monday evening (Americas) / Tuesday UTC. The <b>Staked</b> board is for wallets with VHP staked in the Producer Race that week; they share the Race's weekly reward bucket. Everyone else plays on the <b>Free play</b> board, where 1st and 2nd win the weekly free-play prize (2 VHP and 1 VHP). Prizes and bucket shares are paid from Week 1 (the week of Mon 16 Nov); winners claim them from the vault. If your Race stake drops below 1 VHP during a week, you sit out that week's share (your VHP stays yours and can always be withdrawn).</p>
     </section>
 
     <!-- The VHP ruler (owner, 11 Nov 2026): shown only once the ruler is switched on for the Race (its R<week>.json says so). -->
     <section class="card" id="ruler-box" hidden>
-      <div class="head"><h2>Measured by the VHP ruler</h2></div>
+      <div class="head"><h2>Ruler results</h2><a class="tag" href="ruler.html">How the Ruler works</a></div>
       <p class="note" style="margin-top:0" id="ruler-when"></p>
-      <p class="note">The ruler measures each producer's luck against its own size: how many blocks it signed against how many its VHP should give, block by block, so a big producer and a small one have the same chance to win. Each 6-hour race's 1st, 2nd and 3rd are the producers whose luck in that race was best, among the producers in the race. The horses on the track are a live estimate; the final order comes from the ruler once the race's blocks are in (usually within 1 to 2 hours). The points per place don't change.</p>
-      <p class="note"><b>Void:</b> a producer whose VHP falls more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only (it is in the next race as usual). <b>A pick on a voided producer counts as a loss.</b> If every producer in a race is void, the race's picks are given back.</p>
+      <p class="note" id="ruler-types" hidden>The 1-hour, 2-hour, daily and weekly races are scored by the Ruler too, each with its own void limit (<a href="ruler.html">see the limits by race length</a>).</p>
       <div id="ruler-list"></div>
     </section>
 
@@ -363,6 +372,7 @@
   <script src="nav.js"></script>
   <script src="chain-blocks.js"></script>
   <script src="names.js"></script>
+  <script src="ruler-void.js"></script>
   <script src="race-math.js"></script>
   <script src="board.js"></script>
   <script src="stake-panel.js"></script>

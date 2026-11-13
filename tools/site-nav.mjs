@@ -38,6 +38,7 @@ const I = {
   stake: '<ellipse cx="12" cy="6" rx="7" ry="2.5"></ellipse><path d="M5 6v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"></path><path d="M5 10v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"></path><path d="M5 14v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"></path>',
   name: '<circle cx="12" cy="12" r="3.5"></circle><path d="M15.5 12v1.5a2.5 2.5 0 0 0 5 0V12a8.5 8.5 0 1 0-3.3 6.7"></path>',
   terms: '<path d="M7 3h7l4 4v14H7z"></path><path d="M10 12h5M10 16h5"></path>',
+  eco: '<circle cx="12" cy="12" r="3"></circle><circle cx="5" cy="6" r="2"></circle><circle cx="19" cy="6" r="2"></circle><circle cx="5" cy="18" r="2"></circle><circle cx="19" cy="18" r="2"></circle><path d="M9.8 10.4L6.5 7.4M14.2 10.4l3.3-3M9.8 13.6l-3.3 3M14.2 13.6l3.3 3"></path>',
   server: '<rect x="4" y="4" width="16" height="6.5" rx="1.5"></rect><rect x="4" y="13.5" width="16" height="6.5" rx="1.5"></rect><path d="M8 7.25h.01M8 16.75h.01"></path>',
 };
 
@@ -47,7 +48,7 @@ export const TABS = [["Games", "games.html", "games"], ["Stake", "stake.html", "
 export const MORE_GROUPS = [
   ["Play", [["Daily Questions", "#play", "play"], ["Producer Race", "race.html", "race"], ["Who Signs Block X", "blockx.html", "blockx"], ["Producer Bracket", "bracket.html", "bracket"], ["Block Golf", "golf.html", "golf"], ["Results", "#results", "results"], ["Rules", "#how", "rules"]]],
   ["Tools", [["Get VHP", "get.html", "get"], ["Get an @name", "names.html", "name"], ["Swap VHP → KOIN", "swap.html", "swap"], ["Burn KOIN", "burn.html", "burn"], ["Mana levels", "mana.html", "mana"], ["Producer lookup", "node.html", "lookup"], ["Run a node", "run-node.html", "server"], ["Network pulse", "pulse.html", "pulse"]]],
-  ["Learn", [["New to Koinos?", "start.html", "welcome"], ["New here? Quick tour", "#welcome", "welcome"], ["Ruler", "ruler.html", "ruler"]]],
+  ["Learn", [["New to Koinos?", "start.html", "welcome"], ["Ecosystem", "ecosystem.html", "eco"], ["New here? Quick tour", "#welcome", "welcome"], ["Ruler", "ruler.html", "ruler"]]],
   ["About", [["Install app", "install.html", "install"], ["Trust", "trust.html", "trust"], ["Terms &amp; risks", "terms.html", "terms"]]],
 ];
 export const MORE = MORE_GROUPS.flatMap(([, links]) => links);
@@ -57,7 +58,7 @@ export const TOP = [
   { label: "Games", items: [["All games", "games.html"], ["Daily Questions", "#play"], ["Producer Race", "race.html"], ["Who Signs Block X", "blockx.html"], ["Producer Bracket", "bracket.html"], ["Block Golf", "golf.html"]] },
   { label: "Leaderboards", link: "#leaderboard" },
   { label: "Stake", link: "stake.html" },
-  { label: "More", items: [["Results", "#results"], ["Rules", "#how"], ["Ruler", "ruler.html"], ["New to Koinos?", "start.html"], ...TOOLS_ITEMS] },
+  { label: "More", items: [["Results", "#results"], ["Rules", "#how"], ["Ruler", "ruler.html"], ["New to Koinos?", "start.html"], ["Ecosystem", "ecosystem.html"], ...TOOLS_ITEMS] },
 ];
 // "Play free" beside the wallet button on every page (owner, 9 Nov: yes; "it should take them to the producer race game,
 // NOT THE QUESTIONS game"): straight to the Producer Race's pick list, where a guest plays free with no sign-up.
@@ -108,6 +109,13 @@ export function topBlock(file) {
   return ['<nav class="tabs" aria-label="Sections">', ...rows, "      </nav>", `      ${playFree(file)}`].join("\n");
 }
 
+/** The quiet "Run your own node" line above the footer links on every page: the two ways to run one (owner, 13 Nov).
+ *  KoinosKit's address is the one in ads.json "featured" (a test keeps the two the same). */
+export const NODE_KIT = "https://koinoskit.site/";
+export function nodeBlock(file = "index.html") {
+  return `<p class="foot-node"><b>Run your own node:</b> <a href="${NODE_KIT}" target="_blank" rel="noopener">KoinosKit, a few clicks</a> · <a href="run-node.html">Step by step with PowerShell and Docker</a></p>`;
+}
+
 /** The footer's links. */
 export function footBlock(file = "index.html") {
   const links = FOOT.map(([l, h]) => (h.startsWith("http") ? `<a href="${h}" target="_blank" rel="noopener">${l}</a>` : `<a ${href(file, h)}>${l}</a>`));
@@ -127,6 +135,9 @@ export function withNav(file, html) {
     out = out.slice(0, t) + topBlock(file) + rest;
   }
   out = out.replace(/<span class="foot-links">[^\n]*?<\/span>/, footBlock(file));
+  // The node line sits in the footer, just above its row; written once, then replaced in place.
+  if (/<p class="foot-node">/.test(out)) out = out.replace(/<p class="foot-node">[^\n]*?<\/p>/, nodeBlock(file));
+  else out = out.replace(/(\n(\s*))<div class="foot-row">/, (m, nl, ind) => `${nl}${nodeBlock(file)}${nl}<div class="foot-row">`);
   const i = out.indexOf('<nav class="tabbar"');
   if (i < 0) return out;
   const sheet = out.indexOf('<div class="more-sheet"', i);

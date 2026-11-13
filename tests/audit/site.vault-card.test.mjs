@@ -45,7 +45,7 @@ test("block rewards: no tile (and never 'Counting…') until stats.json carries 
 });
 test("seed VHP: added to the pool total and named once stats.json carries it; absent or invalid means players' stake only", () => {
   const a = page(stats({ seed: { vhp: 170000 } })).text;
-  assert.match(a, /171,500 VHP/); assert.match(a, /1,500 VHP players' stake \+ 170,000 VHP seed/); assert.match(a, /seed VHP helps the pool make blocks and never plays/);
+  assert.match(a, /171,500 VHP/); assert.match(a, /players' stake and seed/); assert.match(a, /170,000 VHP of the pool is the seed: it helps the pool make blocks and never plays/);
   const b = page(stats()).text;
   assert.match(b, /1,500 VHP/); assert.match(b, /players' stake, all games/); assert.doesNotMatch(b, /seed/i);
   assert.doesNotMatch(page(stats({ seed: { vhp: -5 } })).text, /seed/i);

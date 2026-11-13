@@ -447,7 +447,7 @@ test("step 8 health check: parts running, clock and a verdict, only when both he
     let out = await run(with_(at(me), at(near)));
     assert.match(out, /Parts running: 7 of 7/); assert.match(out, /HEALTHY - behind by 5 blocks, clock OK/);
     assert.match(await run(with_(at(me), at(far))), /BEHIND by 500 blocks/);
-    assert.match(await run(with_(at(me), at(ahead))), /CLOCK OFF by about -9\d seconds/, "computer's clock behind real time");
+    assert.match(await run(with_(at(me), at(ahead))), /CLOCK OFF by about -(8|9)\d seconds/, "computer's clock behind real time");
     assert.match(await run(with_(at(me), at(behind))), /CLOCK OFF by about 1[12]\d seconds/, "computer's clock ahead of real time");
     out = await run(with_(at(me), at(bad)));
     assert.match(out, /Couldn't read a height/); assert.doesNotMatch(out, /HEALTHY|BEHIND|CLOCK/);

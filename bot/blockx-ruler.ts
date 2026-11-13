@@ -141,7 +141,8 @@ export const RULER_WAIT_MS = 3 * 86400000;
  *  void here too (no points). */
 export function entryFor(L: any, t: { round: number; height: number; time: number; signer: string | null; void?: boolean }, lead: number, now: number, old?: RulerTarget | null): RulerTarget {
   const lock = t.height - lead, cardRound = roundOf(t.time), window = windowOf(lock);
-  if (old && old.card && old.height === t.height && old.cardRound === cardRound && JSON.stringify(old.window) === JSON.stringify(window)) return old;
+  // Repo Lens #G-35 G35-1: an entry that has a card, or is void, is final as published: never made again.
+  if (old && (old.card || old.void === true) && old.height === t.height && old.cardRound === cardRound && JSON.stringify(old.window) === JSON.stringify(window)) return old;
   const base: RulerTarget = { round: t.round, height: t.height, lock, cardRound, window, card: null, note: null, signer: t.signer, points: 0, void: false, why: null };
   if (t.void || !t.signer) return { ...base, void: true, why: "the target itself is void (no signer recorded)" };
   const late = now - t.time >= RULER_WAIT_MS;

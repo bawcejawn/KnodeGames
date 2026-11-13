@@ -1087,7 +1087,10 @@ export async function run(o: Opts) {
     known.add(w);
     fs.writeFileSync(path.join(OUT, wName(w)), JSON.stringify(wf) + "\n");
   }
-  fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(head.time).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: VG, prizesFromWeek: PRIZES_FROM }) + "\n");
+  fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(head.time).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: VG, prizesFromWeek: PRIZES_FROM,
+    // Repo Lens #G-35 G35-2: the ruler switch this run used (null = unset), recorded every run, so the publish job always
+    // knows the last published value (a switch change that would rescore a started week is refused against it).
+    rulerFrom: RULER_FROM }) + "\n");
   fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
   // The VHP ruler's day files, for every shadow / on week this run handled (they record the switch value used).
   for (const [name, day] of rulerDays) if (weeks.has(day.week)) fs.writeFileSync(path.join(OUT, name), JSON.stringify(day) + "\n");

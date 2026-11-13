@@ -360,7 +360,8 @@ jobs:
                   assert type(j["cards"]) is list and len(j["cards"]) <= 500 and all(card_ok(c) for c in j["cards"]), f
                   continue
               if f == "index.json":
-                  assert set(j) == {"v", "updated", "weeks", "contract", "game", "prizesFromWeek"} and one(j["v"]) and iso.fullmatch(str(j["updated"])), f
+                  # (Repo Lens #G-35 G35-2: the recorder records its ruler switch; the testnet never runs the ruler, so it is null)
+                  assert set(j) in ({"v", "updated", "weeks", "contract", "game", "prizesFromWeek"}, {"v", "updated", "weeks", "contract", "game", "prizesFromWeek", "rulerFrom"}) and j.get("rulerFrom") is None and one(j["v"]) and iso.fullmatch(str(j["updated"])), f
                   assert type(j["weeks"]) is list and len(j["weeks"]) <= 10000 and all(type(w) is int and 0 <= w < 10000 for w in j["weeks"]), f
                   assert (type(j["game"]) is int and j["game"] == gid) and (j["prizesFromWeek"] is None or nat(j["prizesFromWeek"])), f
                   assert j["contract"] is None or isaddr(j["contract"]), f

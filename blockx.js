@@ -560,25 +560,38 @@
       ? `Who Signs Block X is scored by the VHP ruler from ${mon} (00:00 UTC). It replaces the ×5 cap.`
       : `Who Signs Block X switches to the VHP ruler on ${mon} (00:00 UTC). This week the ruler runs beside the game as a trial: its scores below count for nothing.`;
     if (cur.mode === "on") for (const e of document.querySelectorAll('[data-bx="capx"]')) e.textContent = "×120";
+    // Repo Lens #G-35 G35-4: in an ON week a pick's points are the ruler's (the W file keeps the old-rule points).
+    rulerOn = new Map();
+    for (const j of files) if (j.mode === "on") for (const e of j.targets) rulerOn.set(e.height, e);
+    renderResults(); renderMults();
     const rows = files.flatMap((j) => j.targets.map((e) => ({ ...e, shadow: j.shadow }))).sort((a, b) => b.height - a.height).slice(0, 8);
     $("ruler-list").replaceChildren(...rows.map((e) => {
       const what = e.void ? "void: no pick on it counts" : e.card ? `${nameOf(e.signer)} signed: a right pick scores ×${(e.points / 100).toFixed(2)}` : "the ruler's score comes in once the block's data is in";
       return el("div", { class: "bx-row" }, el("b", { text: `Block ${fmt(e.height)}` }), el("span", { text: ` ${what}${e.shadow ? " (trial)" : ""}` }));
     }));
   }
+  /** Repo Lens #G-35 G35-4: a pick's points as the page shows them: the ruler entry's in an ON week (undefined: not
+   *  scored by the ruler yet), else the week file's. */
+  let rulerOn = new Map();
+  const shownPts = (t, p) => {
+    const e = rulerOn.get(t.height);
+    if (!e) return p[3];
+    if (!e.card && !e.void) return undefined;
+    return !e.void && p[1] === e.signer ? e.points : 0;
+  };
   function renderResults() {
     const all = [...weeks.values()].flatMap((w) => w.targets).filter((t) => t && Number.isInteger(t.height)).sort((a, b) => b.height - a.height).slice(0, 8);
     $("results-box").hidden = !all.length;
     const who = me();
     $("res-rows").replaceChildren(...all.map((t) => {
       const p = who && Array.isArray(t.picks) ? t.picks.find((x) => x[0] === who) : null;
-      const right = p && p[3] > 0;
+      const pp = p ? shownPts(t, p) : 0, right = p && pp > 0;
       const signer = t.signer ? (NET.explorer ? el("a", { href: NET.explorer + t.signer, target: "_blank", rel: "noopener noreferrer", text: nameOf(t.signer) }) : el("span", { text: nameOf(t.signer) })) : el("span", { text: "–" });
-      const crowd = t.void ? "void" : `${(t.picks || []).filter((x) => x[3] > 0).length} of ${(t.picks || []).length} right`;
+      const crowd = t.void ? "void" : `${(t.picks || []).filter((x) => shownPts(t, x) > 0).length} of ${(t.picks || []).length} right`;
       return el("div", { class: "bx-res-row" },
         el("span", { class: "h", text: fmt(t.height) }),
         el("span", { class: "who" }, t.signer ? dot(t.signer) : null, signer, el("span", { class: "note", text: crowd })),
-        el("span", { class: "you" + (p ? (right ? " ok" : " no") : ""), text: !p ? "" : right ? `+${pts(p[3])}` : "✗" }));
+        el("span", { class: "you" + (p ? (right ? " ok" : " no") : ""), text: !p ? "" : pp === undefined ? "…" : right ? `+${pts(pp)}` : "✗" }));
     }));
   }
   function renderBoard() {
@@ -654,7 +667,9 @@
 
   function renderMults() {
     const ps = producers();
-    $("mult-sub").textContent = card
+    $("mult-sub").textContent = rulerOn.size
+      ? "This week the VHP ruler scores every target: each target's multiplier is in \"Measured by the VHP ruler\" below (capped at ×120). The table shows the old handicap card, for reference only."
+      : card
       ? `Share of blocks each producer should sign, from the handicap card of ${dayTime(card.at || cardAt)}, and what a right pick on it scores now. Each target is scored with the card taken at or before its lock.`
       : `Waiting for the ${NET.cards === "self" ? "recorder's first handicap card (it takes one within the hour)" : "race recorder's card"}.`;
     const top = Math.max(0.0001, ...ps.map((p) => p.share));

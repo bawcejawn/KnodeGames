@@ -51,7 +51,8 @@ test("the publish job embeds vhp_ruler.py byte for byte (tools/blockx-ruler-embe
   assert.ok(a > 0 && b > a);
   const body = yml.slice(a + ind.length + "# BEGIN vhp_ruler.py\n".length, b).split("\n").map((l) => (l.startsWith(ind) ? l.slice(ind.length) : l)).join("\n");
   assert.equal(body, fs.readFileSync(path.join(APP, "vhp_ruler.py"), "utf8"), "run: node tools/blockx-ruler-embed.mjs");
-  assert.match(yml, /if: \$\{\{ vars\.BLOCKX_RULER_FROM_WEEK != '' \}\}\n\s+run: \|\n\s+set -euo pipefail\n\s+mkdir -p "\$RUNNER_TEMP\/ruler-code"/, "only while the switch is set");
+  // (Repo Lens #G-35 G35-2: the code is written on every run; only the data waits for the switch, tested below)
+  assert.match(yml, /- name: The VHP ruler's code \(Block X\)\n(?:\s+#[^\n]*\n)+\s+run: \|\n\s+set -euo pipefail\n\s+mkdir -p "\$RUNNER_TEMP\/ruler-code"/);
 });
 
 test("settings: the publish job's are the recorder's (game 2, c 500000, minK 10, spot, min, paying, the Vault; lead 100, 7,200-block windows, ×120, base 100, the 1-hour band)", () => {
@@ -155,4 +156,51 @@ test("the publish job lets the day files through and reads the published ones ba
   assert.match(yml, /\\\|X\[0-9\]\[0-9\]\[0-9\]-\[0-6\]\\\)\\\.json"/, "the file allow-list");
   assert.match(yml, /\^\(board\|index\|P\[0-9\]\{3\}\|W\[0-9\]\{3\}\|X\[0-9\]\{3\}-\[0-6\]\)\\\.json\$/, "the published files read back");
   void VHP; void LOCK;
+});
+
+// ── Repo Lens #G-35 ──
+test("G35-1: the recorder gets the day files back, and an entry with a card or a void is kept as published (never made again)", () => {
+  assert.match(yml, /\^\(index\|board\|W\[0-9\]\{3\}\|P\[0-9\]\{3\}\|X\[0-9\]\{3\}-\[0-6\]\)\\\.json\$ \]\]; then git show "FETCH_HEAD:blockx\/\$f" > "\$RUNNER_TEMP\/prev\/blockx\/\$f"/, "the record job fetches X files");
+  const old = { ...entry(), card: null, points: 0, void: true, why: "the ruler couldn't score this target within 3 days: no pick on it counts", note: "not yet: x" };
+  // a run whose data could now make the card still keeps the published void entry
+  assert.deepEqual(BR.entryFor(L0, target, 100, T_X + 9 * DAY, old), old);
+  const withCard = entry();
+  assert.deepEqual(BR.entryFor(null, target, 100, T_X + 9 * DAY, withCard), withCard, "and one with a card, even with no data this run");
+});
+
+test("G35-2: the ruler's code is written on every run; with the switch unset after a ruler file was published, the publish still runs", () => {
+  assert.match(yml, /- name: The VHP ruler's code \(Block X\)\n(?:\s+#[^\n]*\n)+\s+run: \|/, "no `if:` on the code step");
+  assert.match(yml, /RULER_PY: \$\{\{ format\('\{0\}\/ruler-code\/vhp_ruler\.py', runner\.temp\) \}\}/, "RULER_PY always set");
+  // published: a shadow day file and index.json with rulerFrom 5; this run: the switch unset, no new day file
+  const idx = (rulerFrom) => ({ v: 1, updated: new Date(NOW).toISOString(), weeks: [4], contract: null, game: 2, prizesFromWeek: 4, rulerFrom });
+  const pub = pubWith({ "X004-1.json": dayFile(5, "shadow"), "index.json": idx(5) });
+  const inc = tmp(); write(inc, "index.json", idx(null));
+  const r = check(inc, pub, { now: NOW, env: { BLOCKX_RULER_FROM_WEEK: "" } });
+  assert.equal(r.code, 0, r.out); assert.deepEqual(r.held, [], r.out);
+  // the previous value comes from index.json: 4 published (week 4 ON), now unset during week 4: refused
+  const pub4 = pubWith({ "index.json": idx(4) });
+  const r4 = check(tmp(), pub4, { now: NOW, env: { BLOCKX_RULER_FROM_WEEK: "" } });
+  assert.notEqual(r4.code, 0); assert.match(r4.out, /ruler switch change is refused/);
+  // an index.json made with another switch value than the variable's stops the run (nothing published)
+  const bad = tmp(); write(bad, "index.json", idx(6));
+  const rb = check(bad, pubWith({ "index.json": idx(5) }), { now: NOW, env: { BLOCKX_RULER_FROM_WEEK: "5" } });
+  assert.notEqual(rb.code, 0); assert.match(rb.out, /ruler switch as set/);
+});
+
+test("G35-5: a failed vhp-data fetch never stops the recorder or the publish (the ruler waits)", () => {
+  assert.match(yml, /- name: Take the VHP ruler's data\n(?:\s+#[^\n]*\n)+\s+if: \$\{\{ vars\.BLOCKX_RULER_FROM_WEEK != '' \}\}\n\s+continue-on-error: true/);
+  assert.match(yml, /- name: The VHP ruler's data \(Block X\)\n(?:\s+#[^\n]*\n)+\s+if: \$\{\{ vars\.BLOCKX_RULER_FROM_WEEK != '' \}\}\n\s+continue-on-error: true/);
+  // no data: a day file with a new card is held alone, the rest publishes
+  const inc = tmp(); write(inc, "X004-1.json", dayFile(5, "shadow"));
+  const r = check(inc, pubWith(), { now: NOW, env: { BLOCKX_RULER_FROM_WEEK: "5", BLOCKX_RULER_TL: "", RULER_VHP_DATA: path.join(tmp(), "missing") } });
+  assert.equal(r.code, 0, r.out); assert.deepEqual(r.held.sort(), ["!alert", "blockx/X004-1.json"], r.out);
+});
+
+test("G35-4: in an ON week the page shows the ruler's points, not the week file's", () => {
+  const js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
+  assert.match(js, /const shownPts = \(t, p\) => \{\n    const e = rulerOn\.get\(t\.height\);\n    if \(!e\) return p\[3\];\n    if \(!e\.card && !e\.void\) return undefined;\n    return !e\.void && p\[1\] === e\.signer \? e\.points : 0;/);
+  assert.match(js, /const pp = p \? shownPts\(t, p\) : 0, right = p && pp > 0;/);
+  assert.match(js, /filter\(\(x\) => shownPts\(t, x\) > 0\)/);
+  assert.match(js, /for \(const j of files\) if \(j\.mode === "on"\) for \(const e of j\.targets\) rulerOn\.set\(e\.height, e\);/, "only ON files, never shadow");
+  assert.match(js, /\$\("mult-sub"\)\.textContent = rulerOn\.size\n/, "the old multiplier table is marked reference-only in an ON week");
 });

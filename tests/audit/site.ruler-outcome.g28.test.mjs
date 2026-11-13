@@ -39,7 +39,7 @@ test("G28-1: results.js scores a ruled race with the ruler's places (and waits w
   assert.match(js, /isWin = ruled \? \(p\) => KV\.ruledPick\(RO, p\[1\]\)\.win/);
   assert.match(js, /isShow = ruled \? \(p\) => KV\.ruledPick\(RO, p\[1\]\)\.show/);
   assert.match(js, /if \(status === "final" && RO && RO\.pending\) status = "ruler"/);
-  assert.match(js, /M\.pagePick\(0, r\.start, st, my\[1\], isWin\(my\), isShow\(my\)\)/, "points from the ruled standings");
+  assert.match(js, /M\.pagePick\(type, r\.start, st, my\[1\], isWin\(my\), isShow\(my\)\)/, "points from the ruled standings");
 });
 test("G28-1: race.js's finished pick rows (6-hour and typed) use the ruler's places in an ON week", () => {
   const js = fs.readFileSync(`${APP}race.js`, "utf8");

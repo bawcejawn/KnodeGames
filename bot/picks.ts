@@ -491,8 +491,11 @@ async function pause(id: number, send: boolean) {
  *  picks a day, fewer changes, a longer lead, a shorter ahead). Anything not stricter is refused here, as the contract
  *  would. The shape and the name never change. Returns the new config and what changed. */
 export const TIGHTEN_FLAGS: Record<string, string> = { "--per-day": "max_picks_per_day", "--changes": "max_changes", "--lead": "lead", "--ahead": "ahead" };
-export function tightenConfig(g: any, want: Record<string, number>) {
+export function tightenConfig(g: any, want: Record<string, number>, pinned?: { lead: number } | null) {
   const n = { ...g }, changed: string[] = [];
+  // Repo Lens #G-35 G35-3: a recorder scores a game with its pinned lead and stops recording one whose lead differs
+  // (Block X: BX-33/BX-46), so a lead other than the pinned one is refused here.
+  if (pinned && want.lead !== undefined && want.lead !== pinned.lead) throw new Error(`lead ${want.lead}: this game's recorder scores lead ${pinned.lead} and stops recording a game whose lead differs; change the recorder first.`);
   for (const [k, v] of Object.entries(want)) {
     if (!Object.values(TIGHTEN_FLAGS).includes(k)) throw new Error(`tighten can't change ${k}.`);
     if (!Number.isSafeInteger(v) || v < 0) throw new Error(`${k} must be a whole number.`);
@@ -515,7 +518,7 @@ async function tighten(id: number, want: Record<string, number>, send: boolean) 
   await assertAuditedContract(net, p);
   const g = (await read(p, net.picks, "get_game", { game: id })).game;
   if (!g) throw new Error(`Game ${id} isn't registered.`);
-  const { config, changed } = tightenConfig(g, want);
+  const { config, changed } = tightenConfig(g, want, net.games.find((x: any) => x.id === id) ?? null);
   log(`Tighten game ${id} "${g.name}" at once (no wait): ${changed.join(", ")}.`);
   log("  Picks already made stay recorded. Loosening it again needs an announcement and the 48 h wait.");
   const pend = (await read(p, net.picks, "list_pending", { limit: 50 })).pending?.find((x: any) => Number(x.game?.id) === id);

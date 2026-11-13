@@ -69,6 +69,12 @@ const isPlain = (o) => isObj(o) && (Object.getPrototypeOf(o) === Object.prototyp
 const isName = (re, v) => typeof v === "string" && re.test(v);   // never String(v): "undefined" would pass (G62-1)
 /** The writer's test for "this is a kgparts manifest" (used by the writer, step 5b and the sweep: G62-3). */
 const isManifest = (m) => isPlain(m) && m.kgparts === PARTS_VERSION && STATES.has(m.state) && HEX64.test(String(m.hash)) && Array.isArray(m.parts) && isName(GAME, m.game) && isName(FILE, m.file) && Number.isSafeInteger(m.week) && m.week >= 0;
+/** Real path of p, resolving links on the longest existing prefix (p itself may not exist yet) (G63-2). */
+function realish(p) {
+  let a = path.resolve(p), rest = [];
+  for (;;) { try { return path.join(fs.realpathSync(a), ...rest); } catch { const up = path.dirname(a); if (up === a) return path.resolve(p); rest.unshift(path.basename(a)); a = up; } }
+}
+const nested = (a, b) => a === b || b.startsWith(a + path.sep) || a.startsWith(b + path.sep);
 /** A parts folder must be a real folder, not a link (G62-5). Returns "absent", "dir", or throws. */
 function folderState(dir, who) {
   let st;
@@ -298,7 +304,7 @@ export function checkParts(baseDir, opts) {
   const errors = [];
   const err = (m) => { errors.push(m); };
   const o = isObj(opts) ? opts : {};
-  const { game, file, week, full, publishedRoot, rel } = o;
+  const { game, file, week, full, publishedRoot, rel, localRoot } = o;
   if (!isName(GAME, game)) err("checkParts: game is required");
   if (!isName(FILE, file)) err("checkParts: file is required");
   else if (path.basename(path.resolve(baseDir)) !== file) err(`checkParts: file ${file} doesn't match the folder name ${path.basename(path.resolve(baseDir))}`);
@@ -311,12 +317,12 @@ export function checkParts(baseDir, opts) {
     let st = null; try { st = fs.statSync(publishedRoot); } catch { st = null; }
     if (!st || !st.isDirectory()) err(`checkParts: publishedRoot ${publishedRoot} doesn't exist: holding (branch not fetched?)`);
   }
-  if (typeof rel !== "string" || !rel.length || path.isAbsolute(rel) || rel.split(/[\\/]/).some((x) => !x || x === "." || x === "..")) err("checkParts: rel is required (this folder's path inside the branch, e.g. race/W004)");
-  else if (isName(FILE, file) && rel.split(/[\\/]/).pop() !== file) err(`checkParts: rel ${rel} doesn't end in ${file}`);
+  if (typeof rel !== "string" || !rel.length || path.isAbsolute(rel) || rel.includes("\\") || rel.split("/").length > 6 || rel.split("/").some((x) => !x || x.startsWith("."))) err("checkParts: rel is required (this folder's path inside the branch, e.g. race/W004)");
+  else if (isName(FILE, file) && rel.split("/").pop() !== file) err(`checkParts: rel ${rel} doesn't end in ${file}`);
+  else if (localRoot !== undefined && path.relative(realish(localRoot), realish(baseDir)).split(path.sep).join("/") !== rel) err(`checkParts: rel ${rel} isn't this folder's path inside localRoot`);
   if (!errors.length) {
     pubDir = path.join(publishedRoot, rel);
-    const a = path.resolve(pubDir), b = path.resolve(baseDir);
-    if (a === b || b.startsWith(a + path.sep) || a.startsWith(b + path.sep)) err("checkParts: the published copy is the folder being checked: holding");
+    if (nested(realish(pubDir), realish(baseDir))) err("checkParts: the published copy is the folder being checked: holding");
   }
   if (full !== undefined && full !== null && (!Array.isArray(full) || !full.length || full.some((u) => !PART.test(String(u))))) err("checkParts: full must be a non-empty list of part names");
   const mPath = path.join(baseDir, "manifest.json");
@@ -378,7 +384,7 @@ export function checkParts(baseDir, opts) {
   // Step 5b (G61-2, G62-2, G62-3): a folder already published as final must come back byte-identical, nothing removed.
   if (pubDir) {
     let pst = null; try { pst = fs.lstatSync(pubDir); } catch { pst = null; }
-    if (pst && !pst.isDirectory() && !pst.isSymbolicLink()) err(`the published copy ${rel} is not a folder: holding`);
+    if (pst && !pst.isDirectory()) err(`the published copy ${rel} is not a folder${pst.isSymbolicLink() ? " (a link)" : ""}: holding`);
     else if (pst) {
       let pub = null;
       try { pub = readManifestAt(pubDir, "published copy"); } catch (e) { err(String(e.message).replace(/^kit\/parts: /, "")); pub = undefined; }
@@ -421,6 +427,7 @@ export function sweepFinals(publishedRoot, localRoot) {
     let st = null; try { st = typeof r === "string" && r.length ? fs.statSync(r) : null; } catch { st = null; }
     if (!st || !st.isDirectory()) return { ok: false, errors: [`sweepFinals: ${who} ${r} doesn't exist: holding`], finals };
   }
+  if (nested(realish(publishedRoot), realish(localRoot))) return { ok: false, errors: ["sweepFinals: publishedRoot and localRoot are the same tree: holding"], finals };
   const walk = (rel, depth) => {
     const dir = path.join(publishedRoot, rel);
     if (fs.existsSync(path.join(dir, "manifest.json"))) {
@@ -428,14 +435,19 @@ export function sweepFinals(publishedRoot, localRoot) {
       try { m = readManifestAt(dir, "sweep"); } catch (e) { errors.push(String(e.message).replace(/^kit\/parts: /, "")); return; }
       if (m.state !== "final") return;
       finals++;
+      const pubFiles = new Set();
       for (const f of listFiles(dir)) {
         if (f.dir || f.link) continue;
+        pubFiles.add(f.rel);
         const mine = path.join(localRoot, rel, f.rel);
         if (!fs.existsSync(mine)) errors.push(`${rel}/${f.rel}: a published final file is missing from the new copy`);
+        else if (fs.lstatSync(mine).isSymbolicLink()) errors.push(`${rel}/${f.rel}: a link in the new copy of a published final`);
         else if (!fs.readFileSync(path.join(dir, f.rel)).equals(fs.readFileSync(mine))) errors.push(`${rel}/${f.rel}: differs from the published final`);
       }
+      for (const f of listFiles(path.join(localRoot, rel))) if (!f.dir && !pubFiles.has(f.rel)) errors.push(`${rel}/${f.rel}: not in the published final`);
       return;
     }
+    if (fs.readdirSync(dir).some((n) => n === "p" || PART_FILE.test(n))) { errors.push(`${rel}: part files but no manifest.json on the published branch: holding`); return; }
     if (depth >= 6) return;
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) if (e.isDirectory() && !e.name.startsWith(".")) walk(rel ? `${rel}/${e.name}` : e.name, depth + 1);
   };

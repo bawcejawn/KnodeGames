@@ -35,7 +35,7 @@ race-data/W004/p/<xx>.<h12>.json        optional: per-player shards (§5)
   "extra": {}
 }
 ```
-- `cols`: column name and type. Types: `"a"` = index into this part's `a` (address table), `"i"` = integer, `"s"` = short string, `"n"` = decimal string for big numbers (satoshi-style VHP), `"b"` = 0/1.
+- `cols`: column name and type. Types: `"a"` = index into this part's `a` (address table), `"i"` = integer, `"s"` = short string, `"n"` = decimal string for big numbers (satoshi-style VHP), `"b"` = 0/1. `"j"` = a game-shaped value (arrays, objects, strings, safe integers, booleans, null), stored as its canonical JSON text (keys sorted, at most 512 bytes); a fallback only, typed columns first (Architecture C3).
 - `a`: every address used in this part, **once**, sorted ascending (so the same rows always give the same bytes). Players and producers share one table.
 - `rows`: arrays in `cols` order, sorted by the game's natural key (e.g. race, then player). Times are integers relative to `t0` in the unit the game declares in `extra.tUnit` (`"s"` or `"ms"`; default `"s"`).
 - `extra`: anything else the unit needs (a race's settings, its result, its standings), small. Big per-player data never goes in `extra`.
@@ -64,8 +64,10 @@ race-data/W004/p/<xx>.<h12>.json        optional: per-player shards (§5)
 ```
 - `parts` sorted by `part`. Every part listed exactly once. `rows` = that part's row count; top-level `rows` = the sum.
 - **The part-set hash:** `hash = SHA-256( "kgparts1\n" + game + "\n" + file + "\n" + week + "\n" + for each listed part in order: part + " " + sha256 + " " + bytes + "\n" )`. It covers every part's bytes (through their SHA-256), the set of parts, their order and the week. **This replaces today's single-file snapshot hash everywhere it's used**: the two-node match, `seen` (final after two runs an hour apart), the vault bot's double read, and the publish job's check.
+- `unit`: `d` (day), `r` (race/round/target), `h` (Golf hole) or `p` (player shards only, e.g. Block X's board). Readers must not depend on it.
+- `meta` (optional): a plain object of at most 4 KB **outside the part-set hash**, for lifecycle notes only (the kit's `seen: {hash, at}`, a short `why`). An unchanged final keeps its first `meta`. Never put game data in it (Architecture C2).
 - `expect`: the units that must exist for this `state`. For `pending`, the units up to now (e.g. days so far); for `final`, all of them. A game declares its rule in its README (Race 6-hour W: `r001`…`r028`; T: `d1`…`d6`; R: `d1`…`d7`).
-- `state`: `pending` or `final`. A final manifest and all its parts are **written once**: later runs copy them forward unchanged, and a run whose part-set hash differs from a published final **stops** (same as today's rule for finals).
+- `state`: `pending`, `open` (a kit `liveWeek` copy; changes freely, never final; Architecture C1) or `final`. A final manifest and all its parts are **written once**: later runs copy them forward unchanged, and a run whose part-set hash differs from a published final **stops** (same as today's rule for finals).
 
 ## 4. How a publish job proves the set is complete (the check, in the inline file; no repository code runs)
 For every `<base>/manifest.json` it publishes, the job:

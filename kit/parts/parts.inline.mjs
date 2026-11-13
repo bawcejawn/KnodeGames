@@ -22,12 +22,31 @@ const ADDR = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/;
 const GAME = /^[a-z][a-z0-9-]{0,31}$/;
 const FILE = /^[A-Za-z0-9][A-Za-z0-9-]{0,31}$/;
 const PART = /^(ref|top|wk|d[1-7]|r\d{3,5}|h(0[1-9]|1\d|20)|p\/[0-9a-f]{1,2})$/;   // wk: week-level keys (Architecture A1); h01-h20: Golf holes
-const TYPES = new Set(["a", "i", "s", "n", "b"]);
+const TYPES = new Set(["a", "i", "s", "n", "b", "j"]);
+const STATES = new Set(["pending", "open", "final"]);   // open: a kit liveWeek copy (Architecture C1); never final
+export const MAX_J_BYTES = 512;                           // a "j" value (Architecture C3)
+export const MAX_META_BYTES = 4096;                       // manifest.meta, outside the hash (Architecture C2)
+/** Canonical JSON for a "j" value: arrays, objects (keys sorted), strings, safe integers, booleans, null; depth <= 8. */
+function canonJ(v, d = 0) {
+  if (d > 8) fail("j value nested too deep");
+  if (v === null || typeof v === "boolean") return JSON.stringify(v);
+  if (typeof v === "string") return JSON.stringify(v);
+  if (typeof v === "number") { if (!Number.isSafeInteger(v)) fail("j value: numbers must be safe integers"); return JSON.stringify(v); }
+  if (Array.isArray(v)) return "[" + v.map((x) => canonJ(x, d + 1)).join(",") + "]";
+  if (isObj(v) && Object.getPrototypeOf(v) === Object.prototype) return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canonJ(v[k], d + 1)).join(",") + "}";
+  fail("j value: not a JSON value");
+}
+function jText(v, where) { let t; try { t = canonJ(v); } catch (e) { fail(`${where}: ${String(e.message).replace(/^kit\/parts: /, "")}`); } if (Buffer.byteLength(t) > MAX_J_BYTES) fail(`${where}: j value over ${MAX_J_BYTES} bytes`); return t; }
 const HEX64 = /^[0-9a-f]{64}$/;
 
 const sha256 = (buf) => crypto.createHash("sha256").update(buf).digest("hex");
 const fail = (msg) => { throw new Error(`kit/parts: ${msg}`); };
 const isObj = (o) => o !== null && typeof o === "object" && !Array.isArray(o);
+function checkMeta(meta, bad) {
+  if (!isObj(meta)) return bad("meta must be a plain object");
+  let t; try { t = JSON.stringify(meta); } catch { return bad("meta is not JSON"); }
+  if (Buffer.byteLength(t) > MAX_META_BYTES) bad(`meta over ${MAX_META_BYTES} bytes`);
+}
 
 function checkCols(cols) {
   if (!Array.isArray(cols) || cols.length < 1 || cols.length > 32) fail("cols must list 1 to 32 columns");
@@ -44,6 +63,7 @@ function checkValue(type, v, where) {
   if (type === "s") { if (typeof v !== "string" || v.length > 64) fail(`${where}: not a short string (64 max)`); return; }
   if (type === "n") { if (typeof v !== "string" || !/^(0|[1-9]\d{0,39})$/.test(v)) fail(`${where}: not a decimal string`); return; }
   if (type === "b") { if (v !== 0 && v !== 1) fail(`${where}: not 0 or 1`); return; }
+  if (type === "j") { jText(v, where); return; }
 }
 const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
 function cmpRows(a, b) { for (let i = 0; i < a.length; i++) { const c = typeof a[i] === "number" && typeof b[i] === "number" ? a[i] - b[i] : cmp(String(a[i]), String(b[i])); if (c) return c; } return 0; }
@@ -68,7 +88,7 @@ export function encodePart({ game, file, part, t0 = 0, cols, rows, extra = {} })
   });
   const a = [...addrs].sort();
   const ix = new Map(a.map((x, i) => [x, i]));
-  const enc = rows.map((r) => cols.map(([, t], ci) => (t === "a" ? ix.get(r[ci]) : r[ci]))).sort(cmpRows);
+  const enc = rows.map((r) => cols.map(([, t], ci) => (t === "a" ? ix.get(r[ci]) : t === "j" ? jText(r[ci], "j") : r[ci]))).sort(cmpRows);
   const text = JSON.stringify({ kgparts: PARTS_VERSION, game, file, part, t0, cols, a, rows: enc, extra }) + "\n";
   const bytes = Buffer.byteLength(text);
   if (bytes > MAX_PART_BYTES) fail(`part ${part} is ${bytes} bytes, over the ${MAX_PART_BYTES}-byte cap: split it by a smaller unit`);
@@ -93,6 +113,12 @@ export function decodePart(text) {
     const out = {};
     o.cols.forEach(([n, t], ci) => {
       if (t === "a") { if (!Number.isSafeInteger(r[ci]) || r[ci] < 0 || r[ci] >= o.a.length) fail(`row ${ri} ${n}: bad address index`); out[n] = o.a[r[ci]]; }
+      else if (t === "j") {
+        if (typeof r[ci] !== "string") fail(`row ${ri} ${n}: j value not stored as text`);
+        let v; try { v = JSON.parse(r[ci]); } catch { fail(`row ${ri} ${n}: j value not JSON`); }
+        if (jText(v, `row ${ri} ${n}`) !== r[ci]) fail(`row ${ri} ${n}: j value not canonical`);
+        out[n] = v;
+      }
       else { checkValue(t, r[ci], `row ${ri} ${n}`); out[n] = r[ci]; }
     });
     return out;
@@ -118,11 +144,12 @@ export function partSetHash({ game, file, week }, parts) {
   return sha256(s);
 }
 
-export function buildManifest({ game, file, week, state, unit, expect, shards = 0, writtenAt }, encoded) {
+export function buildManifest({ game, file, week, state, unit, expect, shards = 0, writtenAt, meta }, encoded) {
   if (!GAME.test(String(game)) || !FILE.test(String(file))) fail("bad game or file");
   if (!Number.isSafeInteger(week) || week < 0) fail("bad week");
-  if (state !== "pending" && state !== "final") fail("state must be pending or final");
-  if (!/^[drh]$/.test(String(unit))) fail("unit must be d, r or h");
+  if (!STATES.has(state)) fail("state must be pending, open or final");
+  if (meta !== undefined) checkMeta(meta, fail);
+  if (!/^[drhp]$/.test(String(unit))) fail("unit must be d, r, h or p");
   if (!Array.isArray(expect) || expect.some((e) => !PART.test(e))) fail("bad expect list");
   if (shards !== 0 && shards !== 16 && shards !== 256) fail("shards must be 0, 16 or 256");
   if (!Number.isSafeInteger(writtenAt)) fail("bad writtenAt");
@@ -130,7 +157,9 @@ export function buildManifest({ game, file, week, state, unit, expect, shards = 
   const parts = [...encoded].sort((x, y) => cmp(x.part, y.part)).map(({ part, name, bytes, sha256: h, rows }) => ({ part, name, bytes, sha256: h, rows }));
   for (let i = 1; i < parts.length; i++) if (parts[i].part === parts[i - 1].part) fail(`part ${parts[i].part} twice`);
   const rows = parts.reduce((s, p) => s + p.rows, 0);
-  return { kgparts: PARTS_VERSION, game, file, week, state, writtenAt, unit, expect: [...expect], shards, parts, rows, hash: partSetHash({ game, file, week }, parts) };
+  const m = { kgparts: PARTS_VERSION, game, file, week, state, writtenAt, unit, expect: [...expect], shards, parts, rows, hash: partSetHash({ game, file, week }, parts) };
+  if (meta !== undefined) m.meta = meta;   // outside the hash: lifecycle notes only (seen, why)
+  return m;
 }
 
 function listFiles(dir, rel = "") {
@@ -150,7 +179,7 @@ function listFiles(dir, rel = "") {
  * what to write: { manifest, manifestText, hash, files: [{ name, text }] (parts first, "manifest.json" last),
  * unchanged: true when the folder is final and this set is the same (write nothing), warnings }. Throws when the
  * folder is final and the set differs. The caller (the kit's Out, a game's recorder) writes `files` and removes
- * every other file in the folder for a pending week.
+ * every other file in the folder for a pending or open week.
  */
 export function planParts(meta, encoded, prev = null) {
   const manifest = buildManifest(meta, encoded);
@@ -166,7 +195,7 @@ export function planParts(meta, encoded, prev = null) {
 /**
  * Writes a logical file as parts + manifest into baseDir (created if needed). parts: encodePart() results. A final
  * folder is never changed: if baseDir holds a final manifest, the run must produce the same part-set hash (then
- * nothing is written) or it throws. For a pending folder, parts no longer listed are removed (same commit). The
+ * nothing is written) or it throws. For a pending or open folder, parts no longer listed are removed (same commit). The
  * manifest is written last. Returns { manifest, warnings, written }.
  */
 export function writeParts(baseDir, meta, encoded) {
@@ -218,7 +247,8 @@ export function checkParts(baseDir, { game, file, week, full = null } = {}) {
   if (file !== undefined && m.file !== file) err(`manifest file ${m.file}, expected ${file}`);
   if (week !== undefined && m.week !== week) err(`manifest week ${m.week}, expected ${week}`);
   if (!Array.isArray(m.parts) || !Array.isArray(m.expect)) { err("manifest parts/expect missing"); return { ok: false, errors, manifest: m, parts: [] }; }
-  if (m.state !== "pending" && m.state !== "final") err("bad state");
+  if (!STATES.has(m.state)) err("bad state");
+  if (m.meta !== undefined) checkMeta(m.meta, err);
   const names = new Set();
   let prev = "";
   for (const p of m.parts) {

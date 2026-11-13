@@ -169,3 +169,43 @@ test("KP-13 Golf holes: h01-h20 are parts, unit h; h00 / h21 refused", () => {
   assert.equal(P.checkParts(dir, { full: ["h01", "h09", "h18"] }).ok, true);
   for (const bad of ["h00", "h21", "h1", "hole1", "questions"]) assert.throws(() => P.encodePart({ game: "golf", file: "W006", part: bad, cols: COLS, rows: [] }), /bad part/);
 });
+
+test("KP-14 state open (Architecture C1): accepted like pending, never final, stale parts removed", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kp14-"));
+  const a = [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(3) })];
+  P.writeParts(dir, meta({ state: "open", expect: ["d1"] }), a);
+  assert.equal(P.checkParts(dir).ok, true);
+  const b = [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(4) })];
+  P.writeParts(dir, meta({ state: "open", expect: ["d1"] }), b);            // an open week may change
+  assert.equal(P.checkParts(dir).ok, true);
+  assert.throws(() => P.buildManifest(meta({ state: "closed" }), a), /state must be/);
+});
+
+test("KP-15 manifest meta (Architecture C2): outside the hash, max 4 KB, kept on an unchanged final", () => {
+  const parts = [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(3) })];
+  const m1 = P.buildManifest(meta({ expect: ["d1"], meta: { seen: { hash: "x", at: 1 }, why: "open" } }), parts);
+  const m2 = P.buildManifest(meta({ expect: ["d1"], meta: { seen: { hash: "x", at: 2 } } }), parts);
+  const m0 = P.buildManifest(meta({ expect: ["d1"] }), parts);
+  assert.equal(m1.hash, m2.hash); assert.equal(m1.hash, m0.hash); assert.equal("meta" in m0, false);
+  assert.throws(() => P.buildManifest(meta({ expect: ["d1"], meta: { big: "x".repeat(5000) } }), parts), /meta over/);
+  assert.throws(() => P.buildManifest(meta({ expect: ["d1"], meta: [1] }), parts), /plain object/);
+  const fin = P.planParts(meta({ expect: ["d1"], state: "final", meta: { seen: { at: 1 } } }), parts, null).manifest;
+  const again = P.planParts(meta({ expect: ["d1"], state: "final", meta: { seen: { at: 9 } } }), parts, fin);
+  assert.equal(again.unchanged, true); assert.deepEqual(again.manifest.meta, { seen: { at: 1 } });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kp15-"));
+  P.writeParts(dir, meta({ expect: ["d1"], meta: { why: "pending" } }), parts);
+  assert.equal(P.checkParts(dir).ok, true);
+});
+
+test("KP-16 column type j (Architecture C3): canonical, max 512 B, round-trips; unit p (Block X board)", () => {
+  const cols = [["player", "a"], ["team", "j"]];
+  const team = { z: 1, a: ["1PohKjqT17jHKXsF5MbBbZbmsZ9ws7hHMM", null, true] };
+  const e = P.encodePart({ game: "fantasy", file: "W006", part: "d1", cols, rows: [[rowsFor(1)[0][0], team]] });
+  assert.ok(e.text.includes('"{\\"a\\":[')); // stored as canonical text, keys sorted
+  assert.deepEqual(P.decodePart(e.text).rows[0].team, team);
+  for (const bad of [1.5, { x: undefined }, "y".repeat(600), new Date(0)]) assert.throws(() => P.encodePart({ game: "fantasy", file: "W006", part: "d1", cols, rows: [[rowsFor(1)[0][0], bad]] }));
+  const nonCanon = e.text.replace('{\\"a\\":[\\"1PohKjqT17jHKXsF5MbBbZbmsZ9ws7hHMM\\",null,true],\\"z\\":1}', '{\\"z\\":1,\\"a\\":[\\"1PohKjqT17jHKXsF5MbBbZbmsZ9ws7hHMM\\",null,true]}');
+  assert.notEqual(nonCanon, e.text);
+  assert.throws(() => P.decodePart(nonCanon), /not canonical/);
+  assert.equal(P.buildManifest(meta({ unit: "p", expect: [] }), []).unit, "p");
+});

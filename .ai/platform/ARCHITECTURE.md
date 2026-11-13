@@ -89,7 +89,7 @@ Addresses, live hashes, owners and reviews: **`CONTRACTS.md`** (the one register
 | Game / Vault | v6.1 (upgraded in place from v6 on 10 Nov, PR #114) | yes — 48 h notice for any vault upgrade (D-024) | 48 h (`timelockLength 172800000`) | ✅ |
 | Desk | v2 `309506cc…` (28 Oct) | yes — owner announces, 48 h, then uploads | 48 h | ✅ |
 | Sponsor | v3 guest fix `b84e1add…` (since 4 Nov; history in `SPONSOR.md`) | yes, by its own key | none | ✅ |
-| Race picks | v1 `61e8f212…` (27 Oct) | yes — by its own key `RACE_WIF` (no overrides); settings by its owner `1LMV8E…` | none on code (see A1) | ✅ |
+| Race picks | v2 `9993581b…` (13 Nov; v1 `61e8f212…` 27 Oct) | yes — by its own key `RACE_WIF` (no overrides); settings by its owner `1LMV8E…` | none on code (see A1) | ✅ |
 | Picks | v1 `700c296a…` (30 Oct) | yes — `upgrade-schedule`, 48 h, `upgrade-upload` | 48 h | ✅ |
 
 Game timing (✅ `game-data/deployment.json`): genesis 2026-10-19 00:00 UTC (`GENESIS` 1792368000000), weeks Monday to Monday UTC, week = floor((t − genesis) / 7 days), so vault week 0 = Mon 19 Oct and week 2 = Mon 2 Nov (💬 Hub, Race; week labels: `KOINOS.md` → Time and D-063), close delay 12 h, settle 24 h, min stake 1 VHP (`100000000`); the vault's own Mana limit for others is now 0 (D-099; the record's `maxSponsorRc` was 2). How each game's week runs: `../standards/WEEK_CYCLE.md`.

@@ -832,9 +832,25 @@
             "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1077473691708"
           },
           "seal": "b4a5970de8fe51672ad18cf1e390caf2d88741874ce6638710500855705b4a93"
+        },
+        {
+          "height": 41051734,
+          "readAt": "2026-11-13T21:52:00.563Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1077473691708"
+          },
+          "seal": "4cf504d417188a9f291163ee7c022414aaca80e2427d40910befcd9916bd4c01"
+        },
+        {
+          "height": 41052846,
+          "readAt": "2026-11-13T22:48:24.080Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1077473691708"
+          },
+          "seal": "68fa4eca5450715d89c8edbe3a954e60537f1a17891904918bf86a05f48c66ca"
         }
       ],
-      "vhpSeal": "3439330f5ee7281f1cb5b5392ed005b2566a35b49f005e3b036fa059032e07c7"
+      "vhpSeal": "69970c0045a8d0438e3287e942faf2087f408b3c4dffb672bd764af87de6daa9"
     },
     {
       "id": "W003-D2-3",

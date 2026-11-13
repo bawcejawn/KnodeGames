@@ -1,5 +1,5 @@
-# Who Signs Block X on the Koinos TESTNET (Koinos Foundation testnet): records every game in testnet/blockx.json every
-# 20 minutes and publishes to the testnet-data branch, for blockx-testnet.html. Mainnet is never touched: it reads
+# Who Signs Block X on the Koinos TESTNET (Koinos Foundation testnet): records every game in testnet/blockx.json when
+# run by hand and publishes to the testnet-data branch, for blockx-testnet.html. Mainnet is never touched: it reads
 # only the testnet node in testnet/blockx.json (and checks its chain id is not mainnet's), and writes only testnet-data.
 #
 # Two jobs, like the mainnet recorders, so repository code never runs next to a write token:
@@ -10,9 +10,10 @@
 # Run it now: Actions → "Block X testnet recorder" → Run workflow (works from main or from the picks branch).
 name: Block X testnet recorder
 
+# Runs by hand only (Capacity, 13 Nov: no idle timer; Block X OK). To put the timer back, add under `on:`
+#   schedule:
+#     - cron: "7,27,47 * * * *"   # every 20 minutes (the fast test game has a target every ~15 minutes)
 on:
-  schedule:
-    - cron: "7,27,47 * * * *"     # every 20 minutes (the fast test game has a target every ~15 minutes)
   workflow_dispatch: {}
 
 concurrency:

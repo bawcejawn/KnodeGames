@@ -170,7 +170,7 @@ Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub email
 **"Knode question release"** (every 5 min, all day, `bot/release-kick.mjs`, log `node\release-kick.log`; re-run `node\install-release-kick.ps1` after the 10 Nov update):
 | Alert | Trigger | What you can do |
 |---|---|---|
-| "The Kpred bot hadn't run since …, so the PC started it…" | heartbeat: no bot run for 75 min (at most 6 starts a day; it backs off 15 min → 4 h after a GitHub error) | re-enable the schedules (`RECOVERY.md` §7); Questions chat |
+| "The Kpred bot hadn't run since …, so the PC started it…" | heartbeat: no bot run for 120 min (at most 6 starts a day; it backs off 15 min → 4 h after a GitHub error) | re-enable the schedules (`RECOVERY.md` §7); Questions chat |
 | "…today's questions are not out yet at …" | the round's file missing 20 min after release | `RUNBOOK.md` §6; Questions chat |
 | "…the bot skipped today's questions (…)" | the bot logged a skip | Questions chat |
 
@@ -218,6 +218,7 @@ Your PC starts the "Heal alert" workflow, which fails on purpose so GitHub email
 | 7 | **Sampler:** single failed samples, race-data unreadable. **Names:** eligibility unknown | warning only | low risk |
 | 8 | **A workflow switched off:** a `*_ENABLED` variable not `true` (`BOT_ENABLED`, `GAMES_ENABLED`, `RACE_ENABLED`, `NAMES_ENABLED`, …), or **GitHub auto-disabling schedules after 60 days with no repo activity**, or emails going to the wrong account | nothing runs, nothing alerts | owner: check notifications (§1); keep the repo active |
 | 9 | **Safe mode:** overdue week closes | logged, not alerted | by design |
+| 10 | **Daily Questions week file over 60% of its size cap** (`WARN_FILE`, 1.14 MB, about 1,950 players at 60 answers; `games/questions/recorder.ts`) | a `::warning::` line in the "KnodeGames recorders" run's log only (a warning never emails). At 1.9 MB the week's files are not written and the payout waits | Questions chat: change the answer format (`games/questions/README.md`, TODO: size); look at the Actions run annotations weekly until then |
 
 ---
 

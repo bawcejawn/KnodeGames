@@ -1,4 +1,4 @@
-/* The Knode vault card (vault-card.js): a dark card with Blocky, big numbers and a share bar. Light text on dark: every pair is 4.5:1 or better. */
+/* The Knode pool card (vault-card.js): a dark card with Blocky, big numbers and a share bar. Light text on dark: every pair is 4.5:1 or better. */
 .vc { margin: 16px 0 22px; padding: 22px; border-radius: 24px; color: #fff; background: linear-gradient(135deg, #14161F 0%, #1B2033 60%, #1F2A4F 100%); box-shadow: 0 10px 30px rgba(20,22,31,.25); }
 .vc[hidden] { display: none; }
 .vc-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }

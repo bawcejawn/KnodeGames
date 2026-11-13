@@ -35,12 +35,12 @@
     head.append(img, t, el("span", "vc-week", m.week));
     const stats = el("div", "vc-stats");
     stats.append(stat(`${vhp(m.staked + (m.seed || 0))} VHP`, "in the pool", m.seed === null ? "players' stake, all games" : `${vhp(m.staked)} VHP players' stake + ${vhp(m.seed)} VHP seed`));
-    stats.append(m.rewards === null ? stat("Counting…", "block rewards this week", "shown here once the hourly update carries it")
-      : stat(`${vhp(m.rewards)} VHP`, "block rewards this week so far", "after the flat 5% fee, shared by stake"));
+    // No placeholder: the tile appears only when the hourly update carries the figure, so nothing ever sits on "Counting…".
+    if (m.rewards !== null) stats.append(stat(`${vhp(m.rewards)} VHP`, "block rewards this week so far", "after the flat 5% fee, shared by stake"));
     if (m.endsAt) stats.append(stat(left(m.endsAt - now), "left in the week", "rewards are shared when it closes"));
     if (m.blocks !== null) stats.append(stat(fmt(m.blocks), "blocks made, last 24 h", "they fund the rewards"));
     const split = el("div", "vc-split");
-    split.append(el("h3", null, "How it is shared: each game's part of the players' stake"));
+    split.append(el("h3", null, "How the rewards are shared"), el("p", "vc-sub", "Each game's part of the rewards matches its part of the players' stake."));
     const bar = el("div", "vc-bar"); bar.setAttribute("role", "img");
     const total = m.games.reduce((t2, g) => t2 + g.vhp, 0) || 1, legend = el("ul", "vc-legend");
     m.games.forEach((g, i) => {

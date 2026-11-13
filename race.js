@@ -343,7 +343,7 @@
       rows.push(el("div", { class: "pk-row done" },
         el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: ro && ro.outcome === "waiting" ? "waiting" : "final" })),
         el("div", { class: "pk-now", text: said }),
-        el("span", { class: win || show ? "pk-ok" : "pk-no", text: win ? `✓ Win +${M.POINTS.win}` : show ? `✓ Show +${M.POINTS.show}` : ro && ro.outcome === "waiting" ? "…" : "✗" })));
+        el("span", { class: win || show ? "pk-ok" : "pk-no", text: win || show ? (() => { const s = M.pagePick(r.type || 0, r.start, r.result.standings, p[1], win, show); return s.label ? `✓ ${s.label} +${s.pts}` : "✗"; })() : ro && ro.outcome === "waiting" ? "…" : "✗" })));
     }
     list.replaceChildren(...rows);
   }
@@ -446,8 +446,11 @@
   let histHidden = false;
   async function loadRuler() {
     const w = M.weekOf(Date.now()), files = [];
-    for (const x of [w - 1, w]) { try { const j = await fetchJson(`${DATA}R${String(x).padStart(3, "0")}.json`); if (j && j.v === 1 && j.week === x && Array.isArray(j.races)) files.push(j); } catch { /* none */ } }
+    // The race types (option A): their ruler files too, once the types are live (R<week>-<type>.json).
+    const names = (x) => [`R${String(x).padStart(3, "0")}.json`].concat(typesLive() ? [1, 2, 3, 4].map((t) => `R${String(x).padStart(3, "0")}-${t}.json`) : []);
+    for (const x of [w - 1, w]) for (const n of names(x)) { try { const j = await fetchJson(`${DATA}${n}`); if (j && j.v === 1 && j.week === x && Array.isArray(j.races)) files.push(j); } catch { /* none */ } }
     for (const j of files) rulerFiles.set(j.week, j);
+    if ($("ruler-types")) $("ruler-types").hidden = !typesLive();
     const cur = files.find((j) => j.week === w) || files[files.length - 1];
     if (!cur || cur.mode === "off" || !Number.isInteger(cur.rulerFrom)) { $("ruler-box").hidden = true; return; }
     $("ruler-box").hidden = false;
@@ -457,9 +460,9 @@
       : `The 6-hour race switches to the VHP Ruler on ${mon} (00:00 UTC). Until then the Ruler runs beside the race as a trial: its results count for nothing.`;
     // One compact table: the race, then its 1st, 2nd and 3rd; "Void" names how many producers did not count.
     const V = window.KRulerVoid, body = [];
-    for (const j of files) for (const e of j.races.slice().reverse()) {
+    for (const j of files.slice().sort((a, b) => b.week - a.week)) for (const e of j.races.slice().reverse()) {
       if (body.length >= 6) break;
-      const r = (weeks.get(j.week)?.races || []).find((x) => x.id === e.id), v = V ? V.rulerVoids(e, j) : { has: false, voids: [], wholeVoid: false };
+      const r = (weeks.get(j.week)?.races || []).find((x) => x.id === e.id) || ((p) => (p && p.type ? { start: M.typedStart(p.type, p.index) } : null))(M.parseTypedId(e.id)), v = V ? V.rulerVoids(e, j) : { has: false, voids: [], wholeVoid: false };
       // A 2nd or 3rd that signed no block scores no show (D-033): say so beside the name.
       let signed = {}; try { for (const p of (e.card ? JSON.parse(e.card).producers || [] : [])) signed[p.a] = Number(p.signed); } catch { signed = {}; }
       const place = (i) => el("td", {}, e.card && e.placings && e.placings[i] ? [nameOf(e.placings[i]), i > 0 && !(signed[e.placings[i]] >= 1) ? el("small", { class: "muted", text: " (signed 0: no show)" }) : ""] : "–");
@@ -490,6 +493,8 @@
   // ── race types (D-166): the toggle and the 1-hour, 2-hour, daily and weekly races ──
   // Shown only from M.TYPES_FROM_WEEK (the week the Race contract v2 is live). The 6-hour race above is unchanged.
   const typesLive = () => M.TYPES_ON_WEEK !== null && M.weekOf(Date.now()) >= M.TYPES_ON_WEEK;   // #C-12 C12-1: needs TYPES_READY
+  // D-173: points per place come WITH the types (never before): the rules note is reworded then.
+  if (typesLive() && $("pts-note")) $("pts-note").textContent = "Points are per place, by race: 1st / 2nd / 3rd score 3 / 2 / 1 in a 1-hour or 2-hour race, 4 / 2 / 1 in a 6-hour race, 6 / 3 / 2 in a daily race and 12 / 6 / 4 in the weekly race. A 2nd or 3rd place scores only if that producer signed at least one block.";
   const ORDER = [1, 2, 0, 3, 4];
   const POOL = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
   let rtype = 0, tweeks = new Map(), rtPicks = new Map(), rtKey = "";
@@ -533,7 +538,7 @@
     if (!typesLive()) { nav.hidden = true; return; }
     nav.hidden = false;
     nav.replaceChildren(...ORDER.map((t) => el("button", { type: "button", "aria-pressed": String(t === rtype), onclick: () => rtSelect(t) },
-      M.TYPES[t].name, el("small", { text: `win ${M.TYPES[t].win} · show ${M.TYPES[t].show}` }))));
+      M.TYPES[t].name, el("small", { text: `1st ${M.TYPES[t].places[0]} · 2nd ${M.TYPES[t].places[1]} · 3rd ${M.TYPES[t].places[2]}` }))));
   }
   function rtSelect(t) {
     rtype = t;
@@ -565,7 +570,7 @@
     $("rt-title").textContent = `${T.name} race · ${dayTime(cur.start)} – ${rtype >= 3 ? dayTime(cur.end) : clock(cur.end)}${rtype === 3 ? " (the UTC day)" : rtype === 4 ? " (Monday to Saturday, UTC)" : ""}`;
     $("rt-tag").textContent = `${dur(cur.end - Date.now())} left`;
     const card = cardAt(rtype, Math.floor(Date.now() / M.HOUR) * M.HOUR);
-    const notes = [`A win scores ${T.win} points, a show (2nd or 3rd) ${T.show}, on the one Producer Race board.`];
+    const notes = [`1st scores ${T.places[0]} points, 2nd ${T.places[1]} and 3rd ${T.places[2]}, on the one Producer Race board.`];
     if (fun) notes.push("Sunday fun race: it counts on Today and All time, not the week.");
     if (card && !card.field.some((x) => x.a === POOL)) {
       const tot = card.field.concat(card.paddock || []).reduce((t, x) => t + x.vhp, 0), need = card.blocksPerRace > 0 ? Math.ceil(M.MIN_K * tot / card.blocksPerRace) : 0;
@@ -609,7 +614,7 @@
         const p = res && Array.isArray(res.picks) && who ? res.picks.find((x) => x[0] === who) : null;
         done.push(el("div", { class: "pk-row done" }, el("div", { class: "pk-when" }, el("b", { text: dayTime(r.start) }), el("span", { text: res && res.final ? (res.missed ? "not run" : "final") : "checking" })),
           el("div", { class: "pk-now", text: res && res.final && !res.missed ? `${nameOf(res.winner || "")} won${p ? `; you picked ${nameOf(p[1])}` : ""}` : "Results come in once the race's last hour is final." }),
-          el("span", { class: p ? (p[3] || p[5] === 1 ? "pk-ok" : "pk-no") : "", text: p ? (p[3] ? `✓ Win +${T.win}` : p[5] === 1 ? `✓ Show +${T.show}` : "✗") : "" })));
+          el("span", { class: p ? (p[3] || p[5] === 1 ? "pk-ok" : "pk-no") : "", text: p ? (() => { const s = M.pagePick(r.type, r.start, res && res.standings, p[1], !!p[3], p[5] === 1); return s.label ? `✓ ${s.label} +${s.pts}` : "✗"; })() : "" })));
       }
       $("rt-results").replaceChildren(...done);
     }

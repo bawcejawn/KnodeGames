@@ -405,6 +405,12 @@
    *  q.chainSays: the outcome stored on chain (0 = not resolved, 1000 = void, n = option n − 1), after any owner
    *  correction; null when it could not be read. Results are shown from it, never from the file's own result. */
   const chainHashes = new Map(), chainOutcomes = new Map(), chainFacts = new Map(), chainDataHashes = new Map();
+  // Capacity (12 Nov): when each question was last read from the chain. A question waiting for its result (answers
+  // closed, no outcome yet) is re-read on every refresh (every minute), so results show as soon as they're posted;
+  // every other recent question (not closed yet, or already resolved and still open to an owner correction) at most
+  // every 10 minutes. Before this, every question of the last nine days was re-read every minute (~70-100 node reads a
+  // minute per open tab, measured with tools/capacity-harness/pages.mjs). The file-vs-chain hash check is unchanged.
+  const chainReadAt = new Map(), SLOW_REREAD_MS = 600000;
   async function checkFiles(files) {
     const qs = files.flatMap(({ d }) => (d.questions || []).filter((q) => q.chainId !== undefined));
     // Nothing is added to a question before it is hashed (any extra key would change its hash).
@@ -416,8 +422,11 @@
         // A question's outcome can still change until its week closes (owner corrections): re-read those of the last
         // nine days, and any not resolved yet.
         const recent = !S.height || num(q.windowEnd) > S.height - 9 * 28800;
-        if (!chainHashes.has(id) || recent || !chainOutcomes.get(id)) {
+        const known = chainFacts.get(id), waiting = !chainOutcomes.get(id) && !!known && nowMs() >= known.lock;
+        const due = !chainReadAt.has(id) || waiting || Date.now() - chainReadAt.get(id) >= SLOW_REREAD_MS;
+        if (!chainHashes.has(id) || ((recent || !chainOutcomes.get(id)) && due)) {
           const onChain = (await read("get_question", { id })).question || {};
+          chainReadAt.set(id, Date.now());
           const h = String(onChain.params_hash || "").replace(/^0x/, "").toLowerCase();
           if (!h) { q.hashOk = null; return; }
           chainHashes.set(id, h);
@@ -1642,10 +1651,16 @@
   const TICKER_MS = 12000;
   let tickerTop = 0;
   async function ticker() {
-    let blocks = [];
+    let blocks = [], lv = null;
     try {
       if (S.demo) blocks = demoBlocks();
-      else {
+      else if (window.KGData && (lv = await window.KGData.live())) {
+        // Capacity A4: the live file from our own node (fresh, checked by data-source.js), so this tab asks no node.
+        const h = lv.head.height;
+        if (h === tickerTop) return;
+        blocks = lv.blocks.slice(-7).map((b) => ({ h: b.h, signer: b.signer })).reverse();
+        S.height = h;
+      } else {
         const head = await S.provider.getHeadInfo();
         const h = num(head.head_topology.height);
         if (h === tickerTop) return;

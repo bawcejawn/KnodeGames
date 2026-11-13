@@ -106,7 +106,7 @@ jobs:
           addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
           def i(n): return type(n) is int and 0 <= n < 10**9
           def num(n): return type(n) in (int, float) and n == n and 0 <= n < 10**12
-          assert type(s) is dict and set(s) == {"v", "updated", "week", "players", "plays", "staked", "prizes", "blocks", "today", "top"}, "top level"
+          assert type(s) is dict and set(s) == {"v", "updated", "week", "players", "plays", "staked", "seed", "rewards", "prizes", "blocks", "today", "top"}, "top level"
           assert type(s["v"]) is int and s["v"] == 1 and type(s["updated"]) is str and len(s["updated"]) <= 40, "v / updated"
           m = re.fullmatch(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d{3}Z", s["updated"])
           assert m, "updated: format"
@@ -121,6 +121,8 @@ jobs:
               assert set(g) == {"id", "name", "vhp"} and i(g["id"]) and type(g["name"]) is str and len(g["name"]) <= 40 and num(g["vhp"]), "staked game"
               # the same rule as bot/stats.ts BAD_NAME and stats.js (Repo Lens C9-5); written as \u codes, no raw invisible characters
               assert g["name"] and not re.search(r"[<>\x00-\x1f\x7f-\x9f\u00a0\u00ad\u034f\u115f\u1160\u180e\u3000\ufff9-\ufffb\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\u3164]", g["name"]), "game name"
+          assert set(s["seed"]) == {"vhp"} and (s["seed"]["vhp"] is None or num(s["seed"]["vhp"])), "seed"
+          assert set(s["rewards"]) == {"soFar"} and (s["rewards"]["soFar"] is None or num(s["rewards"]["soFar"])), "rewards"
           assert s["prizes"] == {"free": [2, 1]}, "prizes"
           assert set(s["blocks"]) == {"vault24h"} and (s["blocks"]["vault24h"] is None or i(s["blocks"]["vault24h"])), "blocks"
           t = s["today"]

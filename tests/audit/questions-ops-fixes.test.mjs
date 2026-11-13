@@ -13,7 +13,7 @@ const app = fs.readFileSync(`${APP}/app.js`, "utf8");
 const MIN = 60_000, HOUR = 60 * MIN, NOW = Date.parse("2026-11-10T03:00:00Z");
 const run = (ago, status = "completed") => ({ created_at: new Date(NOW - ago).toISOString(), status });
 
-test("P1 heartbeat: starts the bot only when no run has started for 75 minutes and none is going", () => {
+test("P1 heartbeat: starts the bot only when no run has started for 120 minutes and none is going", () => {
   assert.equal(heartbeatDecision([run(30 * MIN)], NOW).start, false);
   assert.equal(heartbeatDecision([run(HEARTBEAT_STALE - MIN)], NOW).start, false);
   assert.equal(heartbeatDecision([run(HEARTBEAT_STALE + MIN)], NOW).start, true);

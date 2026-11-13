@@ -4,8 +4,8 @@ Block Golf is a golf course made of every other Knode Games game. Each live game
 that game's weekly leaderboard sets their strokes. There is nothing to pick, so Block Golf has **no contract, no picks and
 costs players no Mana**. It only reads the results the other games already publish.
 
-Rules: `golf-math.js` (the page and the recorder both run it). Week names on the page follow `weeks.js` (D-063: vault
-week 3, from Mon 9 Nov, is "Week 1"). Decisions: D-056 (rules), D-081 / D-082 (Free play board,
+Rules: `golf-math.js` (the page and the recorder both run it). Week names on the page and in `npm run golf -- status` follow `weeks.js`
+(D-063: vault week 4, from Mon 16 Nov, is "Week 1"; vault week 3, from Mon 9 Nov, is the "Test week" and pays nothing). Decisions: D-056 (rules), D-081 / D-082 (Free play board,
 prize switch), D-125 / D-129 (weekly rhythm), D-138 (launch order). Game file: `.ai/games/BlockGolf.md`.
 
 ## The pieces
@@ -109,7 +109,7 @@ The first run puts every game that is already live on the course straight away (
 | Variable | Value | What it does | When |
 |---|---|---|---|
 | `GOLF_ENABLED` | `true` | turns the hourly recorder on (`false` or deleted: off; the page keeps the last published files) | once, after the merge |
-| `GOLF_STAKED_FROM_WEEK` | a vault week, e.g. `3` | the first staked week; earlier weeks are practice | once, **after** `game-apply 6` succeeds and **before** that week's first run (Monday 00:57 UTC = Sunday 4:57 PM PST); never change it afterwards (the publish job refuses a change) |
+| `GOLF_STAKED_FROM_WEEK` | a vault week, e.g. `5` | the first staked week; earlier weeks are practice | once, **after** `game-apply 6` succeeds (`games` shows "from week N") and **before** that week's first run (Monday 00:57 UTC = Sunday 7:57 PM ET in winter, 8:57 PM ET in summer); never change it afterwards (the publish job refuses a change) |
 | `GOLF_HOLD_WEEKS` | `5` or `5,6` | holds those weeks from going final (no vault file) | any time you want to look at a week before it pays; delete it, or remove the week, to release it (the vault takes results until Thursday 00:00 UTC) |
 
 ## Staked Block Golf
@@ -120,8 +120,13 @@ Order: practice running → free-prize switch OFF → register game 6 → 48 h �
   Free play board pays nothing until the owner switches it on.
 - Register in the vault (48-hour notice, then apply within 7 days): `game-add 6 "Block Golf" --staked --free --season 1`.
   A game earns from the vault week after its `game-apply`.
+  **Timing (Week 2 launch):** `game-add 6` was sent Thu 12 Nov 2026 at about 3:16 PM ET. The apply opens 48 h later and
+  the announcement expires 7 days after that. To earn from vault week 5 (Week 2, Mon 23 Nov) the apply must land in
+  vault week 4: **after Sun 15 Nov 7:00 PM ET (Mon 16 Nov 00:00 UTC) and before Sat 21 Nov 3:16 PM ET**. An apply before
+  Sun 15 Nov 7:00 PM ET lands in vault week 3 and makes the game earn in Week 1, when Golf is practice-only. Check with
+  `npm run bot -- games`: it must show `game 6 Block Golf: staked + free prize, from week 5`.
 - Set `GOLF_STAKED_FROM_WEEK` (a GitHub variable) to that first earning week: the number in the W file names, e.g. `5`
-  for `W005.json` (site "Week 3"). It can't change once a week has been published with it.
+  for `W005.json` (vault week 5, site "Week 2", Mon 23 Nov 2026). It can't change once a week has been published with it.
 - Two boards (D-081): **Staked** = staked in Block Golf that week (`week_stake` at least the vault's minimum);
   **Free play** = everyone else, ranked the same way. A wallet whose Block Golf stake reached the minimum **at any
   point** that week (`peak_stake`, as Block X reads it) is never on the Free play prize list, even if it withdrew

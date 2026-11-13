@@ -28,14 +28,14 @@ So a game with its switch **OFF** still has free play and a Free play leaderboar
 - **Changing your mind in the same week:** the latest change wins. The earlier one for that same next week is replaced.
 - **A game you never set** follows its vault registration, which means **ON**. That's why every game gets an explicit setting (§4).
 
-## 4. Starting settings (owner, D-081)
+## 4. Settings (owner, D-081; updated 12 Nov from the `prize-settings` branch @ `1bf91ae`)
 | Game | Id | Free play | Free prize | Staked prize |
 |---|---|---|---|---|
-| Daily Questions | 1 | ✅ | ✅ on the switch from v6.1's rule week, Mon 16 Nov, starting **ON** (D-136; set it in the week of Mon 9, below). Weeks before that pay the old way | ✅ |
-| Who Signs Block X | 2 | ✅ | ✅ **ON** | ✅ |
-| Producer Race | 7 | ✅ | ✅ **ON** | ✅ |
-| Producer Bracket | 9 | ✅ | ✅ **ON** | ✅ |
-| Last Node Standing | 13 | ✅ | ✅ **ON** | ✅ |
+| Daily Questions | 1 | ✅ | ✅ **ON** from vault week 4 (Mon 16 Nov = Week 1), sent Tue 10 Nov 11:00 PM ET (D-136). Weeks before that pay the old way | ✅ |
+| Who Signs Block X | 2 | ✅ | ✅ **ON** (never set: follows its registration) | ✅ |
+| Producer Race | 7 | ✅ | ✅ **ON** (never set: follows its registration) | ✅ |
+| Producer Bracket | 9 | ✅ | ⛔ **OFF** from vault week 4 (sent Tue 10 Nov 11:00 PM ET; owner 10 Nov: new games ship OFF) | ✅ |
+| Last Node Standing | 13 | ✅ | ⛔ **OFF** from vault week 3 (sent 3 Nov; owner 10 Nov: stays OFF. D-081 / D-082's "ON" is superseded) | ✅ |
 | Survivor | 3 | ✅ | ⛔ **OFF** for now | ✅ |
 | Fantasy Producers | 4 | ✅ | ⛔ **OFF** for now | ✅ |
 | Block Golf | 6 | ✅ | ⛔ **OFF** for now | ✅ |
@@ -51,6 +51,8 @@ npm run prizes -- on 1 --send
 npm run prizes -- list
 ```
 The preview must say "Daily Questions (game 1) free prize on from week 4" (week 4 = Mon 16 Nov); `list` then shows game 1 ON for next week.
+
+**Budget (owner, 10–11 Nov):** the owner self-funds the seed; paid free prizes are budgeted at 12 VHP a week (four games ON). Today 3 games are ON = 9 VHP a week. **A new game ships with its switch OFF** unless the owner says otherwise; switching one ON past four games needs the budget raised first.
 
 **When to set them:** now, all eight, while no game but 2 and 7 is in the vault (Fantasy, Golf and Bracket are on their branches, D-142; Survivor, Last Node and Combo paused, D-113). Setting a game that isn't in the vault yet is harmless, and it means each game starts with the right value. Avoid the Sunday quiet window.
 

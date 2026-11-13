@@ -104,8 +104,19 @@
   const me = () => (W && W.address) || null;
 
   async function readHead() {
-    const h = await provider.getHeadInfo();
     const prev = head ? head.height : 0;
+    // Capacity A4: on mainnet, the live file from our own node (fresh, checked by data-source.js) gives the head and the
+    // chain strip without asking a node. Block counts and the strip only: cards and scores come from the game files.
+    const lv = !TESTNET && window.KGData ? await window.KGData.live() : null;
+    if (lv) {
+      head = { height: lv.head.height, time: lv.head.time, id: lv.head.id, seenAt: Date.now() };
+      if ($("chain") && head.height !== prev) {
+        const got = lv.blocks.slice(-24).filter((b) => isAddr(b.signer)).map((b) => ({ h: b.h, signer: b.signer }));
+        if (got.length) { recent = got; renderChain(prev); if (!card) renderTargets(true); }
+      }
+      return head;
+    }
+    const h = await provider.getHeadInfo();
     head = { height: Number(h.head_topology.height), time: Number(h.head_block_time), id: h.head_topology.id, seenAt: Date.now() };
     if ($("chain") && head.height !== prev) readRecent(prev).catch(() => {});
     return head;

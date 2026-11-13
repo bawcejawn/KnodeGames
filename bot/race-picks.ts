@@ -38,9 +38,11 @@ const WASM = "race/build/release/contract.wasm";
 const ABI_FILE = "race/abi/race.koilib.json";
 const STATE = path.join("race-data", "deployment.json");
 const GAME_DEP = path.join("game-data", "deployment.json");
-/** The audited race build (race/README.md "Build"; audit 2026-10-27, AUDIT-2026-10-27-race-picks.md (owner's private records)).
- *  upload refuses any other wasm. */
-export const RACE_SHA256 = "61e8f21230e8b4bdb165bacfe7281517a5adf78f6c6b1b8a0d84ce41537afac5";
+/** The audited race build (race/README.md "Build"); upload refuses any other wasm. v2 (race types, D-166): contract
+ *  audit #C-10 and #C-12 (GO 5 Nov at bit 48, PR #216), Repo Lens #D-14 at aed61123 and #G-47 (13 Nov: main's race/ is
+ *  the audited code and builds to this hash). v1 (27 Oct) was 61e8f212…; until v2 is uploaded `status` reports the
+ *  chain's code as not this build. Repo Lens #D-14 N-3: this line changes only in its own reviewed commit. */
+export const RACE_SHA256 = "9993581baf822cd070331008441c5ad974f5c0b134520dfb7422b9efd1873864";
 export const DEFAULT_PICKS_PER_DAY = 5;
 /** The race picks contract on mainnet (uploaded 27 Oct 2026). Like PINNED_MAINNET in bot/bot.ts: on mainnet the tool
  *  only signs for this address, whatever race-data/deployment.json says (RACE_CONTRACT_ADDRESS for a deliberate move). */

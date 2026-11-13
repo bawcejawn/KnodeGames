@@ -13,6 +13,7 @@
 .vc-stat span { display: block; margin-top: 2px; color: #fff; font-size: 15px; }
 .vc-stat small { display: block; margin-top: 4px; color: #C9CEE0; font-size: 13px; }
 .vc-split h3 { margin: 0 0 10px; color: #fff; font-size: 1rem; }
+.vc-sub { margin: -4px 0 10px; color: rgba(255,255,255,.72); font-size: .9rem; }
 .vc-bar { display: flex; height: 16px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,.12); gap: 2px; }
 .vc-seg { display: block; flex-basis: 0; min-width: 6px; }
 .c0 { background: #3DF2A5; } .c1 { background: #6EA8FF; } .c2 { background: #FFB454; } .c3 { background: #FF7A9C; }

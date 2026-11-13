@@ -1805,7 +1805,8 @@ function expectTyped(dir, r) {
 }
 
 test("D-166: race types are off until TYPES_FROM_WEEK is set: no T file, the 6-hour files unchanged", async () => {
-  assert.equal(M.TYPES_FROM_WEEK, null, "off on main until the contract v2 is uploaded");
+  // Owner, 13 Nov: on from vault week 5 (Mon 23 Nov), after the v2 upload. With the switch off (null), as before:
+  assert.equal(M.TYPES_FROM_WEEK, 5, "on from vault week 5 (Mon 23 Nov 2026)");
   const a = await typesRun(U("2026-11-02T00:37Z"), "", { typesFrom: null });
   assert.ok(!fs.existsSync(path.join(a, "T002.json")));
   assert.deepEqual(Object.keys(week(a)), ["v", "week", "start", "end", "races"], "W002.json keeps its shape (Block X reads it)");
@@ -1944,6 +1945,11 @@ test("Repo Lens #D-13 L-2 / L-3: a typed week's vault file goes final only with 
   assert.ok(ok.final, ok.out);
   const open = await recomputeRun(pl, { typed, rhythmFrom: "0", mutateTypes: (tf) => { tf.races.find((r) => r.type === 2).result = null; } });
   assert.equal(open.final, false); assert.match(open.out, /a typed race of the week isn't final yet/);
+  // Repo Lens #G-29 (Info): the same race listed in skipped (the recorder skipped it at the deadline) is accepted.
+  let stuck = null;
+  const listed = await recomputeRun(pl, { typed, rhythmFrom: "0", mutateTypes: (tf) => { const r = tf.races.find((x) => x.type === 2); stuck = r.id; r.result = null; }, mutate: (f) => (f.skipped = [...f.skipped, "H2-2026-11-02T00"], f) });
+  assert.match(String(stuck), /^H2-2026-11-02T00$/, "the stuck race is the one listed (fixture's first 2-hour race)");
+  assert.ok(listed.final, listed.out); assert.doesNotMatch(listed.out, /isn't final yet/);
   const none = await recomputeRun(pl, { typed: {}, rhythmFrom: "0", mutateTypes: (tf) => { tf.week = 9; } });
   assert.equal(none.final, false); assert.match(none.out, /race-types file \(T\) can't be read/);
   // Before TYPES_FROM the T file isn't read at all (and with the ruler off no typed pick counts anyway: option A).
@@ -1954,6 +1960,8 @@ test("Repo Lens #D-13 L-2 / L-3: a typed week's vault file goes final only with 
 test("Repo Lens #D-14 N-2: the race types can't be switched on before R-RACE-18 (TYPES_READY)", () => {
   assert.equal(typeof M.TYPES_READY, "boolean");
   if (!M.TYPES_READY) assert.equal(M.TYPES_FROM_WEEK, null, "TYPES_FROM_WEEK stays null until the R-RACE-18 PR sets TYPES_READY");
+  // R-RACE-18 is done (PR #287): ready, but still off until the owner's upload sets TYPES_FROM_WEEK.
+  assert.equal(M.TYPES_READY, true); assert.equal(M.TYPES_ON_WEEK, M.TYPES_FROM_WEEK);
 });
 
 test("Repo Lens #D-13 L-2: the publish job's race-types switch is off while TYPES_FROM_WEEK is null, and the workflow never sets the test value", () => {
@@ -2107,4 +2115,31 @@ test("R-RACE-18 (#D-13 L-6): an unreadable previous T file is not read as an emp
   for (const f of fs.readdirSync(b)) if (f !== "T002.json" && fs.statSync(path.join(b, f)).isFile()) fs.copyFileSync(path.join(b, f), path.join(prev, f));
   const d = await typesRun(U("2026-11-02T02:37Z"), prev);
   assert.ok(fs.existsSync(path.join(d, "T002.json")), "absent: a fresh T file");
+});
+
+// ── Repo Lens #G-53 (C7-9): turning the types on for the NEXT week changes nothing in the running paid week ──
+test("G-53: a paid week scores byte for byte the same with the types off and with the types on from the next week (recorder and publish job)", async () => {
+  // The fixture's paid week is vault week 2 (prizes from 0): "off" vs "on from week 3" is the live "null" vs "5" for week 4.
+  const picksOf = async (_n, r, type = 0) => (type === 0 && r === M.raceIndex(U("2026-11-02T00:00Z")) ? [[W1, P[0], U("2026-11-01T23:00Z")], [W2, P[1], U("2026-11-01T23:10Z")]] : []);
+  const runs = async (typesFrom) => { let d = ""; for (const t of ["2026-11-02T05:37Z", "2026-11-02T06:37Z", "2026-11-02T07:37Z"]) d = await typesRun(U(t), d, { typesFrom, picksOf }); return d; };
+  const off = await runs(null), on = await runs(3);
+  const same = (f) => assert.equal(fs.readFileSync(path.join(on, f), "utf8"), fs.readFileSync(path.join(off, f), "utf8"), `${f} is the same`);
+  same("W002.json");
+  const b = (d) => { const j = JSON.parse(fs.readFileSync(path.join(d, "board.json"), "utf8")); delete j.updated; return JSON.stringify(j); };
+  assert.equal(b(on), b(off), "board.json is the same (week, Today and All time)");
+  assert.ok(!fs.existsSync(path.join(on, "T002.json")), "no T file for the running week");
+  // The publish job's recount of a paid week: types off vs on from the next week.
+  const pl = [{ a: addrN(1), staked: true, picks: [[0, 1, 0, 10], [1, 0, 1, 12]] }, { a: addrN(2), staked: false, picks: [[2, 1, 0, 11]] }];
+  const r0 = await recomputeRun(pl, { typesFrom: "1000000" }), r1 = await recomputeRun(pl, { typesFrom: "3" });
+  assert.ok(r0.final, r0.out); assert.ok(r1.final, r1.out);
+  assert.equal(JSON.stringify(r1.file), JSON.stringify(r0.file), "the same vault file is accepted either way");
+});
+
+test("G53-1: a T file past 60% (and any Race file past 85%) also emails the owner once a day, so the 2 MB hold never comes as a surprise", async () => {
+  const { ALERT_BYTES, T_WARN_BYTES } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(T_WARN_BYTES, 1.2 * 1048576); assert.equal(ALERT_BYTES, 1.7 * 1048576);
+  const src = fs.readFileSync(path.resolve(APP, "bot/race.ts"), "utf8"), f = src.slice(src.indexOf("function writeWarned"), src.indexOf("export function emptyTypes"));
+  assert.match(f, /if \(n && \(bytes > ALERT_BYTES \|\| \/\^T\\d\{3\}\\\.json\$\/\.test\(name\)\) && ownerAlertRun\(now\)\)/);
+  assert.match(f, /heldAlerts\.push\(m\)/, "an owner alert: the alert job fails the run, so GitHub emails");
+  assert.equal((src.match(/problems, "the (?:week's 6-hour races; Block X, Combo and Golf read it|race types' file would be held|ruler's cards would be held)", now\)/g) || []).length, 4, "every file passes the run's time");
 });

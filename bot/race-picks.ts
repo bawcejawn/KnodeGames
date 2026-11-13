@@ -38,10 +38,14 @@ const WASM = "race/build/release/contract.wasm";
 const ABI_FILE = "race/abi/race.koilib.json";
 const STATE = path.join("race-data", "deployment.json");
 const GAME_DEP = path.join("game-data", "deployment.json");
-/** The audited race build (race/README.md "Build"; audit 2026-10-27, AUDIT-2026-10-27-race-picks.md (owner's private records)).
- *  upload refuses any other wasm. */
-export const RACE_SHA256 = "61e8f21230e8b4bdb165bacfe7281517a5adf78f6c6b1b8a0d84ce41537afac5";
+/** The audited race build (race/README.md "Build"); upload refuses any other wasm. v2 (race types, D-166): contract
+ *  audit #C-10 and #C-12 (GO 5 Nov at bit 48, PR #216), Repo Lens #D-14 at aed61123 and #G-47 (13 Nov: main's race/ is
+ *  the audited code and builds to this hash). v1 (27 Oct) was 61e8f212…; until v2 is uploaded `status` reports the
+ *  chain's code as not this build. Repo Lens #D-14 N-3: this line changes only in its own reviewed commit. */
+export const RACE_SHA256 = "9993581baf822cd070331008441c5ad974f5c0b134520dfb7422b9efd1873864";
 export const DEFAULT_PICKS_PER_DAY = 5;
+/** The least Mana a settings change is tried with (0.5; one used 0.28 on 13 Nov 2026). */
+export const SETTINGS_MANA_MIN = 50_000_000n;
 /** The race picks contract on mainnet (uploaded 27 Oct 2026). Like PINNED_MAINNET in bot/bot.ts: on mainnet the tool
  *  only signs for this address, whatever race-data/deployment.json says (RACE_CONTRACT_ADDRESS for a deliberate move). */
 export const RACE_PINNED_MAINNET = "1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K";
@@ -172,8 +176,13 @@ async function setConfig(send: boolean, change: (cur: any) => { enabled: boolean
   const signer = firstSetup ? raceKey(provider) : ownerKey(provider, cur.owner);
   log(`To the race contract ${A}, signed by ${firstSetup ? "the race wallet (first setup)" : `its owner ${cur.owner}`}:`);
   log(`  owner ${config.owner}; picks ${enabled ? "ON" : "off"}; ${perDay} per wallet per day`);
-  if (!send) { log("\nDry run only. Nothing was sent. Add --send to send it."); return; }
+  // 13 Nov 2026: a signer with no Mana got a bare node error ("missing expected field ... rc_limit"). Say it plainly,
+  // in the dry run too: a settings change uses well under 1 Mana, and a wallet's KOIN is its Mana.
   const chain = new KoinosChain(rpc, signer.getAddress());
+  const mana = await chain.mana(signer.getAddress()).catch(() => null);
+  if (mana !== null) log(`  Mana           ${signer.getAddress()} has ${showKoin(mana)} (a settings change uses well under 1)`);
+  if (mana !== null && mana < SETTINGS_MANA_MIN) throw new Error(`${signer.getAddress()} has ${showKoin(mana)} Mana: send it at least 1 KOIN first (its KOIN is its Mana). Nothing was sent.`);
+  if (!send) { log("\nDry run only. Nothing was sent. Add --send to send it."); return; }
   const r = await chain.send([{ contract: A, abi: loadAbi(), method: "set_config", args: { config } }], [signer], { payer: signer.getAddress(), rcLimitKoin: 2 });
   log(r.ok ? `✔ done (Mana used ${showKoin(r.rcUsed)})  transaction ${r.txId}` : `✖ ${r.error}`);
   if (!r.ok) process.exitCode = 1;

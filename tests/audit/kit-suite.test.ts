@@ -1,5 +1,6 @@
 // The Shared Game Kit's own tests (kit/tests/, design §F), run by npm run test:audit.
 import "../../kit/tests/payout.fuzz.test.ts";
+import "../../kit/tests/parts.test.mjs";
 import "../../kit/tests/sunday.property.test.ts";
 import "../../kit/tests/faults.test.ts";
 import "../../kit/tests/runtime.test.ts";

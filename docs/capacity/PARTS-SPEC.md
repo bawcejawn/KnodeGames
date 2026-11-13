@@ -1,7 +1,7 @@
 # KG parts v1: the shared file standard (split, compact, one hash over all parts)
 
 Status: spec from the Capacity chat, Thu 12 Nov 2026 (asked by the Race chat for every game: Race first, then Block X,
-Last Node and the kit games). Shared code: `kit/parts/` (Capacity builds, Architecture reviews, target merge Wed 25 Nov).
+Last Node and the kit games). Shared code: `kit/parts/parts.inline.mjs`, one self-contained file (node:fs, node:path, node:crypto) that recorders import and publish jobs embed verbatim, with tests in `kit/tests/parts.test.mjs` (Capacity builds, Architecture reviews; Repo Lens GO by Mon 16 Nov, merge Tue 17 Nov).
 Measure before and after with `tools/capacity-harness/filesize.mjs`. Rule 0: no file a payout already used is converted
 or renamed; `vault/W` and `HOLD-`/`RELEASE-` files are unchanged; every existing check stays.
 
@@ -84,13 +84,8 @@ Any failure: the publish is refused and the run fails with an alert, as today. N
 ## 6. The 60% warning (every recorder, every run)
 For every file it writes (parts, manifest, `board.json`, vault file): over 1.2 MB is a warning that fails the run's alert step (the owner is emailed) but still publishes; it names the file, its size and the cap. #277 already does this for Race; `kit/parts` does it for every kit game.
 
-## 7. What `kit/parts` will contain (Capacity builds, Architecture reviews)
-| File | What |
-|---|---|
-| `kit/parts/encode.ts` | `encodePart({ game, file, part, t0, cols, rows, extra })` -> canonical bytes; address table built and sorted; type checks |
-| `kit/parts/decode.ts` | `decodePart(bytes)` -> `{ header, rows: [{ col: value }] }`; refuses unknown `kgparts`, bad indexes, wrong types |
-| `kit/parts/write.ts` | `writeParts(dir, { game, file, week, state, unit, expect, shards }, parts)` -> content-addressed files + manifest; removes unlisted parts of a pending week; refuses > 2 MB; returns warnings at 60% |
-| `kit/parts/check.inline.mjs` | Self-contained (no imports) copy of §4 steps 1-5 and the decoder, for publish workflows to embed (like `kit/publish/check.inline.mjs`); a test keeps it identical in behaviour to `decode.ts` |
-| `kit/parts/tests/*` | Round trips, canonical bytes, hash vectors, every §4 refusal (missing unit, stale file, wrong size, renamed part, final changed), 100,000-row sizes |
-Hookup into the kit runtime (so kit games get it without game code) is Architecture's call: **OPEN, Architecture, by Wed 18 Nov**.
-
+## 7. What `kit/parts` contains
+One file, `kit/parts/parts.inline.mjs`: `encodePart`, `decodePart`, `partName`, `shardOf`, `partSetHash`,
+`buildManifest`, `writeParts` (content-addressed parts, unlisted pending parts removed, finals never changed, manifest
+last), `checkParts` (§4 steps 1-5; returns the decoded parts for the game's own recompute, step 6) and `sizeWarnings`
+(the 60% warning). Tests: `kit/tests/parts.test.mjs` (KP-1..11). How kit games call it: Architecture's decision.

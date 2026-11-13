@@ -90,9 +90,17 @@
             "network": "2302520518714832"
           },
           "seal": "9ed16ea25124fe8b0af5d59c8006ec3a403d68027d0d3faff19764082b1bced3"
+        },
+        {
+          "height": 41030876,
+          "readAt": "2026-11-13T03:56:49.734Z",
+          "values": {
+            "network": "2301994203209919"
+          },
+          "seal": "1bd8b9b08358459851c8c9b5084eeeda485788ae51bad4806597bb2f0dd7c0fe"
         }
       ],
-      "vhpSeal": "f3cfd43d5369784f038315ad893d4bac79282da8151c6e1fbb8650e78fa82d0e"
+      "vhpSeal": "cd70cfdb774653b27028a0b307a729989f4e04a76e57ee8afc6724d3bc59c5ad"
     },
     {
       "id": "W003-D4-2",
@@ -186,9 +194,17 @@
             "14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb": "59246399537781"
           },
           "seal": "e88c2707e92ea25f0e413f50db536be87bcae3b7b4420ccffbd479c610a59005"
+        },
+        {
+          "height": 41030876,
+          "readAt": "2026-11-13T03:56:49.734Z",
+          "values": {
+            "14MHW6TF8gw8EuMRLCJc2PQHLzZLKuwGqb": "59228405880133"
+          },
+          "seal": "99882c92d412e5d98337db463b6d4ff67d980e27ba79609c973c1e90dbb82dcf"
         }
       ],
-      "vhpSeal": "3e008679f733ad0e72a2d18b57c7bd584f039c837606e9b1f93ac63b2ad77627"
+      "vhpSeal": "a53a213eccb588fbf1e11dd1feb829cc8e93829fe1cbfae3199c808e82190428"
     },
     {
       "id": "W003-D4-3",
@@ -282,9 +298,17 @@
             "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": "118477414760075"
           },
           "seal": "e37466dfdd72119842ee14ef5c56b237ee18a7215a103e514300eaade495d356"
+        },
+        {
+          "height": 41030876,
+          "readAt": "2026-11-13T03:56:49.734Z",
+          "values": {
+            "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": "118419753259066"
+          },
+          "seal": "8fe3370a8fdc5c4b88e099d06add4ca1bb4fc19327e70cc78608a16967edfb27"
         }
       ],
-      "vhpSeal": "42c87294fdb050b7b8f792db02854fda8f011a8e3117ceede03bcafe613210dc"
+      "vhpSeal": "ef7208bd78fdcee53fb61803b7c224b3864767a798afd676b71379ef9ec5add4"
     }
   ],
   "daySeal": "066fb078da22ccac314d6a085ff738e0d5ec4d7e58d4a61d0386ecef4390fd3d"

@@ -81,3 +81,27 @@ test("FC-13: chain time ahead of the runner's clock is capped at the runner's cl
   assert.equal(ok.week, 4);
   assert.ok(!ok.alerts.warnings.some((x) => /FC-13/.test(x)));
 });
+
+test("CAPACITY_STANDARD rule 2: a run warns when a file it wrote passes 60% of the 2 MB publish cap", async () => {
+  const { CAPACITY_WARN_BYTES } = await import("../recorder/runtime.ts");
+  assert.equal(CAPACITY_WARN_BYTES, Math.floor(0.6 * 2 * 1024 * 1024));
+  const wd = qworld();
+  // 11,000 wallets answering every question: the week file passes 1.2 MB, stays under the 1.9 MB write cap
+  const many = Array.from({ length: 11000 }, (_, i) => {
+    const b58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    let x = i + 1, s = ""; while (x > 0) { s = b58[x % 58] + s; x = Math.floor(x / 58); }
+    return { address: "1" + s.padStart(33, "1"), entry: { stake: "0", peak_stake: "0", voided: false, answers: [201, 202, 203, 204].map((q, k) => ({ question_id: q, option: k % 2 })) } };
+  });
+  wd.players = [...wd.players, ...many];
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "p1cap-"));
+  fs.mkdirSync(path.join(d, "prev")); fs.writeFileSync(path.join(d, "prev", ".fetched"), "");
+  const r = await runGame(game, cfg, { nodes: nodes(wd), prev: path.join(d, "prev"), out: path.join(d, "out"), log: () => {} });
+  const size = fs.statSync(path.join(d, "out", "W004.json")).size;
+  if (size > CAPACITY_WARN_BYTES) assert.ok(r.alerts.warnings.some((x) => /W004\.json is .* MB, over 60%/.test(x)), JSON.stringify(r.alerts.warnings));
+  else assert.fail(`the test's week file is only ${size} bytes; raise the wallet count`);
+  // a small game gets no such warning
+  const small = qworld(), d2 = fs.mkdtempSync(path.join(os.tmpdir(), "p1cap-"));
+  fs.mkdirSync(path.join(d2, "prev")); fs.writeFileSync(path.join(d2, "prev", ".fetched"), "");
+  const r2 = await runGame(game, cfg, { nodes: nodes(small), prev: path.join(d2, "prev"), out: path.join(d2, "out"), log: () => {} });
+  assert.ok(!r2.alerts.warnings.some((x) => /over 60%/.test(x)));
+});

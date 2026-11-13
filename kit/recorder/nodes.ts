@@ -15,6 +15,9 @@ export interface KitNode {
   contract(name: "picks" | "racepicks"): NodeReader;
   /** Head height, last irreversible block, and the head block's time (ms). */
   head(): Promise<{ height: number; lib: number; time: number }>;
+  /** G7: the time (ms) of block `height` (block_store.get_blocks_by_height, one block). Optional: nodes without it can't
+   *  serve ctx.blockAt. */
+  blockTime?(height: number): Promise<number>;
 }
 
 export class ReadFailed extends Error {
@@ -148,6 +151,16 @@ export async function koinosNode(label: string, rpc: string, ids: { vault: strin
     async head() {
       const h: any = await withRetries(`${label} head`, () => provider.getHeadInfo(), tries);
       return { height: Number(h.head_topology?.height ?? 0), lib: Number(h.last_irreversible_block ?? 0), time: Number(h.head_block_time ?? 0) };
+    },
+    // G7: as the Race recorder's blockTime (bot/race.ts): one block by height, from the head's own id.
+    async blockTime(height: number) {
+      const h: any = await withRetries(`${label} head`, () => provider.getHeadInfo(), tries);
+      const r: any = await withRetries(`${label} block ${height}`, () => provider.call("block_store.get_blocks_by_height", { head_block_id: h.head_topology?.id, ancestor_start_height: String(height), num_blocks: 1, return_block: true, return_receipt: false }), tries);
+      const it = r?.block_items?.[0];
+      if (!it || Number(it.block_height) !== height) throw new Error(`block ${height} not returned`);
+      const t = Number(it.block?.header?.timestamp);
+      if (!Number.isSafeInteger(t) || t <= 0) throw new Error(`block ${height} has no time`);
+      return t;
     },
   };
 }

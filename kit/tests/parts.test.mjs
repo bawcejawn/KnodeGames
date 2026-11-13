@@ -161,3 +161,11 @@ test("KP-12 planParts (Architecture A2): the files to write, no file system; sam
   assert.equal(P.planParts({ ...m, state: "final" }, parts, fin.manifest).unchanged, true);
   assert.throws(() => P.planParts(m, [parts[0]], fin.manifest), /final/);
 });
+
+test("KP-13 Golf holes: h01-h20 are parts, unit h; h00 / h21 refused", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kp13-"));
+  const parts = ["h01", "h09", "h18"].map((h) => P.encodePart({ game: "golf", file: "W006", part: h, cols: COLS, rows: rowsFor(3), extra: { id: "blockx" } }));
+  P.writeParts(dir, meta({ game: "golf", week: 6, file: "W006", unit: "h", expect: ["h01", "h09", "h18"], state: "final" }), parts);
+  assert.equal(P.checkParts(dir, { full: ["h01", "h09", "h18"] }).ok, true);
+  for (const bad of ["h00", "h21", "h1", "hole1", "questions"]) assert.throws(() => P.encodePart({ game: "golf", file: "W006", part: bad, cols: COLS, rows: [] }), /bad part/);
+});

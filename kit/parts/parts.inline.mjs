@@ -6,7 +6,7 @@
 //
 // A logical file <base> (e.g. race-data/W004) becomes a folder:
 //   <base>/manifest.json           the only file that changes between runs (written last)
-//   <base>/<part>.<h12>.json       content-addressed parts: ref, top, wk, d1-d7, r001..., p/<xx> (per-player shards)
+//   <base>/<part>.<h12>.json       content-addressed parts: ref, top, wk, d1-d7, r001..., h01-h20, p/<xx> (per-player shards)
 // <h12> = the first 12 hex of the part's own SHA-256, so a part's name changes whenever its bytes change and a cached
 // old copy can never pass for the new one. The manifest lists every part with its bytes and SHA-256, and a part-set
 // hash covers them all; checkParts() proves a folder is complete (no part missing, changed, extra or stale).
@@ -21,7 +21,7 @@ export const MAX_PARTS = 600;                            // a runaway split stop
 const ADDR = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/;
 const GAME = /^[a-z][a-z0-9-]{0,31}$/;
 const FILE = /^[A-Za-z0-9][A-Za-z0-9-]{0,31}$/;
-const PART = /^(ref|top|wk|d[1-7]|r\d{3,5}|p\/[0-9a-f]{1,2})$/;   // wk: small week-level keys (Architecture A1)
+const PART = /^(ref|top|wk|d[1-7]|r\d{3,5}|h(0[1-9]|1\d|20)|p\/[0-9a-f]{1,2})$/;   // wk: week-level keys (Architecture A1); h01-h20: Golf holes
 const TYPES = new Set(["a", "i", "s", "n", "b"]);
 const HEX64 = /^[0-9a-f]{64}$/;
 
@@ -56,7 +56,7 @@ function cmpRows(a, b) { for (let i = 0; i < a.length; i++) { const c = typeof a
 export function encodePart({ game, file, part, t0 = 0, cols, rows, extra = {} }) {
   if (!GAME.test(String(game))) fail(`bad game "${game}"`);
   if (!FILE.test(String(file))) fail(`bad file "${file}"`);
-  if (!PART.test(String(part))) fail(`bad part "${part}" (ref, top, wk, d1-d7, r001..., p/<hex>)`);
+  if (!PART.test(String(part))) fail(`bad part "${part}" (ref, top, wk, d1-d7, r001..., h01-h20, p/<hex>)`);
   if (!Number.isSafeInteger(t0) || t0 < 0) fail("t0 must be a whole number of ms");
   checkCols(cols);
   if (!Array.isArray(rows)) fail("rows must be an array");
@@ -122,7 +122,7 @@ export function buildManifest({ game, file, week, state, unit, expect, shards = 
   if (!GAME.test(String(game)) || !FILE.test(String(file))) fail("bad game or file");
   if (!Number.isSafeInteger(week) || week < 0) fail("bad week");
   if (state !== "pending" && state !== "final") fail("state must be pending or final");
-  if (!/^[dr]$/.test(String(unit))) fail("unit must be d or r");
+  if (!/^[drh]$/.test(String(unit))) fail("unit must be d, r or h");
   if (!Array.isArray(expect) || expect.some((e) => !PART.test(e))) fail("bad expect list");
   if (shards !== 0 && shards !== 16 && shards !== 256) fail("shards must be 0, 16 or 256");
   if (!Number.isSafeInteger(writtenAt)) fail("bad writtenAt");

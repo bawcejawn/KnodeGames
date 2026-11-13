@@ -14,6 +14,7 @@ race-data/W004/d3.<h12>.json            one part per unit; the unit is the game'
 race-data/W004/r017.<h12>.json            or r<NNN> (race / round / target number, 3+ digits)
 race-data/W004/top.<h12>.json           optional: the top 100 rows of this file's board
 race-data/W004/wk.<h12>.json            optional: small week-level keys (carry, next, extras, cards, inputs) (Architecture A1)
+games-data/golf/W006/h01.<h12>.json     Golf: one part per hole, h01-h20 (unit h; the hole's game id goes in `extra.id`)
 race-data/W004/p/<xx>.<h12>.json        optional: per-player shards (§5)
 ```
 - `<h12>` = the first 12 hex characters of the part's own SHA-256 (of its exact bytes). **Parts are content-addressed: a part's name changes whenever its bytes change**, so a cached old copy (browser, Cloudflare mirror) can never be mistaken for the new one, and a part, once named, is never rewritten.

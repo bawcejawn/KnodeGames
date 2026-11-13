@@ -13,17 +13,25 @@ publish jobs and the vault bot see no difference.**
 
 What changes:
 1. **Site (wallet code; Hub chat with Capacity):** a "send my picks" step that puts up to 10 pending picks/answers of
-   one player into one transaction (one signature), with `rc_limit` = the sum of the measured per-action limits
-   (`sponsor-data/mana-limits.json`), capped at the sponsor's `max_mana_per_tx`. Single picks keep working as today.
+   one player into one transaction (one signature). **`rc_limit` = the measured burn for N operations plus a safety
+   margin** (from T7: fixed part + N x per-operation part + margin), never more than the sum of the per-action limits
+   (`sponsor-data/mana-limits.json`) and `max_mana_per_tx`. Sponsor v3 counts a transaction's `rc_limit` (not its
+   burn) against every cap, so asking for the full sum would count the same as N single picks and the saving would
+   never appear (Block X chat, 13 Nov). v3 already accepts any `rc_limit` up to the sum: no sponsor change. The
+   trade-off: too small a margin and the transaction runs out of Mana and fails whole, so T7 sets the margin from the
+   worst case it measures, not the average. Single picks keep working as today.
    Rules: one payee and one signer (the sponsor already requires it); never more than 10 operations; a pick whose
-   round has locked is left out before signing (otherwise the whole transaction fails and nothing is saved, which the
-   page must say plainly); Questions answers of one round go together; mixed games in one transaction are allowed
+   round has locked is left out **right before signing** (otherwise the whole transaction fails and nothing is saved,
+   which the page must say plainly; the Mana burned up to the failure is likely still the sponsor's, while v3's usage
+   counters roll back with the transaction, so a failed batch costs the sponsor without counting against any cap); Questions answers of one round go together; mixed games in one transaction are allowed
    (each operation is checked on its own).
 2. **Sponsor settings (owner, one `config` send, dry run first):** raise `max_mana_per_tx` from 2.4 to fit 10
    operations (about 10 x the largest row, ~13 Mana counted). The v3 rule "per transaction <= per player per day"
    holds with the per-wallet day at 40. No upload.
 3. **Testnet measurement first (T7 in the test plan):** the Mana really burned by a 1-, 4-, 8- and 10-operation
-   sponsored transaction for each game's call; this sets the real saving and the new `mana-limits.json` rows.
+   sponsored transaction for each game's call; this sets the real saving, the margin for `rc_limit`, and the new
+   `mana-limits.json` rows. Plus one case: **a 10-operation batch with one locked pick**, to measure what a failed
+   batch burns from the sponsor.
 
 Expected effect (E, to be replaced by the testnet numbers): today ~0.81-0.93 Mana burned per sponsored pick, about
 0.43 of it the sponsor's own checks and the transaction's fixed cost. Ten picks in one transaction: ~0.43 + 10 x ~0.45

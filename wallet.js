@@ -597,7 +597,7 @@
     // (approve, transfer, burn, stake), so they ask for rcLimitOther (audit SP-17: the sponsor's per-transaction cap, 1 Mana).
     const rcLimit = sp ? rcFor(sp, ops, String(answerOnly ? (sp.rcLimit || "100000000") : (sp.rcLimitOther || "100000000"))) : null;
     const said = sp ? await sponsorAnswer(sp, rcLimit, gamesOfOps(sp, ops), answerOnly) : null;
-    if (said && !said.ok && said.low === true) W.status && W.status(LOW_MANA_NOTE);
+    if (said && said.low === true) W.status && W.status(LOW_MANA_NOTE);
     if (said && said.ok) {
       try { return await sendKondorWith(label, ops, { ...opts, sponsor: sp.address, rcLimit }); }
       catch (e) {

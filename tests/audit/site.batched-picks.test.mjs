@@ -102,3 +102,11 @@ test("the low-Mana notice comes from the v4 flag (field 7) only, never from the 
   await v3.ctx.sendKondor("t", [v3.op(GAME, 2)], {});
   assert.ok(!v3.log.status.some((m) => /low right now/.test(m)));
 });
+
+test("low_mana true with ok true: the notice shows as a warning and the sponsored send still goes ahead", async () => {
+  const w = world({ low: true });
+  w.ctx.W.provider.readContract = async () => ({ result: utils.encodeBase64url(new Uint8Array([0x08, 0x01, 0x38, 0x01])) });
+  await w.ctx.sendKondor("t", [w.op(GAME, 2)], {});
+  assert.ok(w.log.status.some((m) => /low right now/.test(m)));
+  assert.equal(w.log.built.at(-1).payer, SPONSOR);
+});

@@ -37,6 +37,7 @@ import { pathToFileURL } from "node:url";
 import { readVhp, MAINNET_VHP, withRetry } from "../../common.ts";
 await import("../../race-math.js");
 await import("../../blockx-math.js");
+import * as RR from "../blockx-ruler.ts";
 const M: any = (globalThis as any).KRaceMath;
 const X: any = (globalThis as any).KBlockX;
 
@@ -48,6 +49,11 @@ const VAULT_WINDOW_MS = 3 * 86400000;       // the vault takes a week's results 
 const CARD_BLOCKS = 7200;                   // a self-made card looks at the last ~6 hours of blocks
 const CARD_KEEP_MS = 8 * 86400000;          // and cards.json keeps 8 days of them
 const ONE_VHP = 100000000n;
+/** Capacity (owner, 12 Nov): a Block X file past 60% of the 2 MB publish limit warns in every run (the same line as
+ *  every game, claude/capacity/TO-GAMES-2MB-WEEKLY-FILE-LIMIT-2026-11-12.md). */
+export const SIZE_WARN_BYTES = Math.floor(0.6 * 2048 * 1024);
+/** Repo Lens #G-49 G49-1: an ON-week target still without its ruler card this long after its block alerts the owner. */
+export const RULER_LATE_MS = 6 * 3600000;
 const isAddr = (a: unknown) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 
 /** A recorded pick: [player, producer, pick time (ms), points (hundredths), Staked (1) or Free play (0)]. */
@@ -98,6 +104,10 @@ export type Opts = {
   /** Tests: VHP moved into `who` in blocks from..to (audit BX-53). */
   vhpMovesOf?: (node: any, who: string, from: number, to: number) => Promise<bigint>;
   head?: { height: number; time: number; lib: number };
+  /** The VHP ruler switch (BLOCKX_RULER_FROM_WEEK) and its ledger, for the tests (the workflow uses the variable and
+   *  BLOCKX_VHP_DATA). rulerEntryOf: tests' own scoring of one target (default: RR.entryFor on the ledger). */
+  rulerFrom?: number | null; rulerLedger?: any;
+  rulerEntryOf?: (t: any, lead: number, now: number, old: RR.RulerTarget | null) => RR.RulerTarget;
 };
 
 // ── files ──
@@ -519,6 +529,11 @@ export async function run(o: Opts) {
   const KNODE = o.knodeGame === undefined ? MAINNET_KNODE_GAME || null : o.knodeGame;
   const PRIZES_FROM = o.prizesFromWeek ?? null;
   const PRIZES_UNSET = o.prizesUnset ?? null;
+  // The VHP ruler (owner, 11 Nov; bot/blockx-ruler.ts): the switch, strictly (anything that isn't a plain week number
+  // stops the run here), and the ruler's ledger, loaded once a run and only when a target needs a card.
+  const RULER_FROM = o.rulerFrom !== undefined ? o.rulerFrom : RR.switchFrom(E.BLOCKX_RULER_FROM_WEEK ?? "");
+  const rulerMode = (w: number) => RR.modeOf(w, RULER_FROM);
+  let rulerL: any = o.rulerLedger;
   const problems: string[] = [];
   const holds: string[] = [];   // Repo Lens E4-7: a held week is an error (the workflow fails the run after publishing)
   const runStart = Date.now();   // fix-check L-1: the re-read's budget counts from here
@@ -914,12 +929,58 @@ export async function run(o: Opts) {
   // ── 4. leaderboards ──
   const all = new Map(weeks);
   for (const w of known) if (!all.has(w)) all.set(w, loadWeek(PREV, w, GW(w)));
+  // ── 3b-ruler. the VHP ruler's entries for every shadow / on week: one per final target, in day files (X<week>-<d>.json).
+  // A card once made is kept as published; a target not scored yet waits (an ON week stays open), at most 3 days.
+  const rulerDays = new Map<string, RR.RulerDay>();
+  const rulerAt = new Map<string, RR.RulerTarget>();   // "week:height" → entry
+  const ledger = () => {
+    if (rulerL !== undefined) return rulerL;
+    const dir = E.BLOCKX_VHP_DATA || "";
+    if (!dir) { rulerL = null; problems.push("the VHP ruler's data (BLOCKX_VHP_DATA) isn't available this run: the ruler's cards wait"); return null; }
+    try { rulerL = RR.loadLedger(dir); } catch (e) { rulerL = null; problems.push(`the VHP ruler's data can't be read (${(e as Error).message}): the ruler's cards wait`); }
+    return rulerL;
+  };
+  let rulerLate = 0;   // Repo Lens #G-49 G49-1: ON-week targets still waiting for their card after RULER_LATE_MS
+  for (const wf of all.values()) {
+    const mode = rulerMode(wf.week);
+    if (mode === "off") continue;
+    const ws = M.weekStart(wf.week), lead = GW(wf.week).LEAD;
+    for (let d = 0; d < 7; d++) {
+      const fresh = RR.emptyDay(wf.week, d, RULER_FROM), old = readJson(PREV, RR.xName(wf.week, d));
+      const olds = new Map<number, RR.RulerTarget>();
+      if (old && old.v === 1 && old.week === wf.week && old.day === d && Array.isArray(old.targets)) for (const e of old.targets) if (e && Number.isSafeInteger(e.height)) olds.set(e.height, e);
+      for (const t of wf.targets) {
+        if (RR.dayOf(t.time, ws) !== d) continue;
+        const prevE = olds.get(t.height) || null;
+        const needs = !(prevE && (prevE.card || prevE.void));
+        const e = o.rulerEntryOf ? o.rulerEntryOf(t, lead, head.time, prevE) : RR.entryFor(needs && !t.void ? ledger() : null, t, lead, head.time, prevE);
+        if (e !== prevE) {   // (a published entry is reported once, when it is made)
+          if (!e.card && e.note && !/^not yet/.test(e.note)) problems.push(`block ${t.height}: ${e.note}`);
+          // Repo Lens #G-49 G49-1: in an ON week a 3-day void costs right picks their points for good: alert (held).
+          if (mode === "on" && e.void && !e.card && !t.void && !(prevE && prevE.void)) holds.push(`block ${t.height}: the VHP ruler couldn't score this ON-week target within 3 days (its data was missing or behind), so no pick on it counts. Check the VHP ruler workflow (vhp-data)`);
+        }
+        if (mode === "on" && !e.card && !e.void && head.time - t.time > RULER_LATE_MS) rulerLate++;
+        fresh.targets.push(e); rulerAt.set(`${wf.week}:${t.height}`, e);
+      }
+      rulerDays.set(RR.xName(wf.week, d), fresh);
+    }
+  }
+  if (rulerLate) holds.push(`the VHP ruler's data is missing or behind: ${rulerLate} ON-week target(s) have waited more than ${RULER_LATE_MS / 3600000} hours for their card; after 3 days a target counts no pick. Check the VHP ruler workflow (vhp-data)`);
+  for (const h of holds) if (!problems.includes(h)) problems.push(h);
+  /** In an ON week, a pick's points are the ruler's (undefined: the target isn't scored by the ruler yet). */
+  const ruled = (w: number, t: any, producer: string, pts: number): number | undefined => (rulerMode(w) === "on" ? RR.ruledPoints(rulerAt.get(`${w}:${t.height}`), producer) : pts);
+  const rulerScored = (w: number, from: number, to: number) => rulerMode(w) !== "on" || (all.get(w)?.targets || []).every((t: any) => t.time < from || t.time >= to || t.void || ruled(w, t, "", 0) !== undefined);
   const rowsOf = (from: number, to: number) => {
     const rows: any[] = [];
     for (const wf of all.values()) for (const t of wf.targets) {
       if (t.time < from || t.time >= to || t.void) continue;
       // Audit BX-33: only pick days inside the period count toward the 3-day prize rule.
-      for (const [player, producer, pickTime, pts, ranked] of t.picks) rows.push({ player, height: t.height, time: t.time, pickTime: pickTime >= from && pickTime < to ? pickTime : NaN, correct: pts > 0 && producer === t.signer, pts, ranked: !!ranked });
+      for (const [player, producer, pickTime, pts0, ranked] of t.picks) {
+        // The VHP ruler: in an ON week the points are the ruler card's (a target it hasn't scored yet counts nothing yet).
+        const pts = ruled(wf.week, t, producer, pts0);
+        if (pts === undefined) continue;
+        rows.push({ player, height: t.height, time: t.time, pickTime: pickTime >= from && pickTime < to ? pickTime : NaN, correct: pts > 0 && producer === t.signer, pts, ranked: !!ranked });
+      }
     }
     return rows;
   };
@@ -953,7 +1014,8 @@ export async function run(o: Opts) {
     const wf = all.get(lw);
     // (R-BX-25: rounds are a game's own, so only that game's weeks are searched for the neighbours.)
     const sameGame = new Map([...all].filter(([w]) => GW(w) === GW(lw)));
-    const complete = !!wf && wf.targets.length > 0 && targetsCover(wf, M.weekStart(lw), weekEnd(lw), sameGame, 1.5 * GW(lw).ROUND * X.BLOCK_MS);
+    const complete = !!wf && wf.targets.length > 0 && targetsCover(wf, M.weekStart(lw), weekEnd(lw), sameGame, 1.5 * GW(lw).ROUND * X.BLOCK_MS)
+      && rulerScored(lw, M.weekStart(lw), weekEnd(lw));   // the VHP ruler: an ON week is complete once it has scored every target
     // (The run before is the last one on Sunday, whose "this week" board is this week's Mon–Sat, or one on Monday.)
     const prevBoard = readJson(PREV, "board.json");
     const pw = prevBoard && [prevBoard.lastWeek, prevBoard.week].find((x: any) => x && x.week === lw && Array.isArray(x.rows));
@@ -1035,8 +1097,15 @@ export async function run(o: Opts) {
     known.add(w);
     fs.writeFileSync(path.join(OUT, wName(w)), JSON.stringify(wf) + "\n");
   }
-  fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(head.time).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: VG, prizesFromWeek: PRIZES_FROM }) + "\n");
+  fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(head.time).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: VG, prizesFromWeek: PRIZES_FROM,
+    // Repo Lens #G-35 G35-2: the ruler switch this run used (null = unset), recorded every run, so the publish job always
+    // knows the last published value (a switch change that would rescore a started week is refused against it).
+    rulerFrom: RULER_FROM }) + "\n");
   fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
+  // The VHP ruler's day files, for every shadow / on week this run handled (they record the switch value used).
+  for (const [name, day] of rulerDays) if (weeks.has(day.week)) fs.writeFileSync(path.join(OUT, name), JSON.stringify(day) + "\n");
+  // Capacity (owner, 12 Nov): warn in every run once any Block X file nears the 2 MB publish limit.
+  for (const f of fs.readdirSync(OUT)) { const st = fs.statSync(path.join(OUT, f)); if (st.isFile() && st.size > SIZE_WARN_BYTES) problems.push(`${f} is ${(st.size / 1048576).toFixed(2)} MB: near the 2 MB publish limit (it would be held). Tell the Block X chat`); }
   if (freeze) fs.writeFileSync(path.join(OUT, pName(freeze.week)), JSON.stringify(freeze) + "\n");
   // The Vault (v6) results file for the week just ended, once final (from the frozen prize list, so it never changes):
   // <OUT>/vault/W<week>.json, read by the hourly bot from games-data:blockx/vault (deployment.json vaultGames["2"]).

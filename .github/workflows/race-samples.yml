@@ -1,4 +1,4 @@
-# Handicap VHP samples (audit BX-3 b; docs/HANDICAP-VHP.md): up to 12 a run (about every 5 minutes), each at a random
+# Handicap VHP samples (audit BX-3 b; docs/HANDICAP-VHP.md): up to 12 a run (runs start every 15 minutes), each at a random
 # moment, reads every producer's effective VHP on two nodes and keeps the last 8 hours of samples on
 # the race-samples branch. The hourly race recorder (race.yml) uses the highest sample of the last 6 hours for each
 # producer's card VHP, so moving VHP away just before a card is taken no longer pays.
@@ -11,7 +11,10 @@ name: Race VHP samples
 
 on:
   schedule:
-    - cron: "*/5 * * * *"      # audit BX-42: more, shorter samples (a random wait of 0-4 minutes inside the run)
+    # Capacity (13 Nov, GATE-1500 #12): every 15 minutes, not 5. Each run already takes up to 12 samples over up to
+    # 48 minutes (below), so the samples per hour don't change; only the scheduled starts do (about 288 -> 96 a day,
+    # each queued start counting against GitHub's limits). Audit BX-42's short, random samples are kept inside the run.
+    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 concurrency:
@@ -49,7 +52,7 @@ jobs:
           if git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" race-data 2>/dev/null; then
             for f in $(git ls-tree --name-only FETCH_HEAD | grep -E '^W[0-9]{3}\.json$' | sort | tail -n 2); do git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/prev/$f"; done
           else echo "::warning::couldn't read race-data: this sample covers only the last hour's producers (audit BX-78)"; fi
-      # 2026-11-03: GitHub runs this */5 schedule only about once an hour, and a race card needs 12 samples in its
+      # 2026-11-03: GitHub ran the old */5 schedule only about once an hour, and a race card needs 12 samples in its
       # 6 hours (MIN_SAMPLES; Block X never scores with fewer). So each run takes up to 12 samples, at least 4 minutes
       # apart and each at a random moment in the next 4 minutes, for at most 48 minutes (about 8 a run). A failed sample
       # is skipped (the ones before it are kept), and they are published together at the end.

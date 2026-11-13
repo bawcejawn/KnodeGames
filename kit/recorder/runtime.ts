@@ -218,7 +218,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // G7: ctx.blockAt(ms), the first irreversible block at or after a UTC time, per node; both searches pinned to the
   // lower of the two nodes' last irreversible blocks (read once, only if a game asks), so the answers can be compared.
   let pinP: Promise<number> | null = null, bA: ((ms: number) => Promise<number>) | null = null, bB: typeof bA = null;
-  const pin = () => (pinP ??= Promise.all([A.head(), B.head()]).then(([x, y]) => Math.min(x.lib, y.lib)));
+  const pin = () => (pinP ??= Promise.all([charged(A).head(), charged(B).head()]).then(([x, y]) => Math.min(x.lib, y.lib)));   // #G-50 G50-1: a failed head is a ReadFailed
   // #G-41: block reads are reads: charged to the run's budget, failures are ReadFailed (the round stays pending).
   const charged = (n: KitNode): KitNode => ({ ...n, async blockTime(h: number) {
     budget.take(`${n.label} block ${h}`);

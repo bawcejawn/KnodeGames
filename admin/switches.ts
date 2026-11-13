@@ -98,6 +98,12 @@ export const VARIABLES: Variable[] = [
   { name: "BRACKET_RULER_FROM_WEEK", games: [9], format: WEEK, what: "The vault week the Bracket is scored by the VHP Ruler (the week before is a trial week).", when: "When the Bracket's own Ruler PR is merged (Repo Lens GO first).", note: "A week that has started never changes how it is scored, and a live week never goes back. Unset = the Bracket's own method." },
   { name: "BRACKET_PRIZES_FROM_WEEK", games: [9], format: WEEK, what: "The first vault week the Vault pays the Bracket.", when: "After the Bracket is applied in the vault.", note: "Leave unset and no medals or prize lists are shown (it fails closed)." },
   { name: "BRACKET_RELEASE", games: [9], format: WEEKS, what: "Lets the Bracket re-read a week's seeding and hours, and record late picks, for those weeks.", when: "Only when the Bracket chat asks for a one-off release.", note: "A plain list like 3 or 3,4; anything else releases nothing." },
+
+  // ── Games 4 and 5: Fantasy Producers and Weekly Rival (on the Shared Game Kit; the kit's rendered jobs in games.yml) ──
+  { name: "FANTASY_ENABLED", games: [4], format: TF, what: "Runs the Fantasy recorder (the kit's record job) and the kit's publish job for it: price lists, day results, the board and its vault files.", when: "Set true for the practice week, once PR #266 has merged and the Picks games 4 and 5 are live; false to stop. Stakes are untouched.", note: "Takes effect on the next hourly run." },
+  { name: "FANTASY_HOLD_WEEKS", games: [4], format: WEEKS, what: "Keeps those Fantasy weeks pending, so they cannot go final and nothing is paid for them yet.", when: "If a week's results look wrong.", note: "Remove the week to let it go final again." },
+  { name: "FANTASY_RELEASE", games: [4], format: "<week>:<release code>, e.g. 5:0123456789abcdef", what: "Lets one held Fantasy week through, once (a HOLD file: a final week the chain now reads differently). The code is printed with the hold.", when: "Only after the cause of that hold was checked.", note: "Anything but that exact week and code releases nothing." },
+  { name: "FANTASY_RESET_FROM_WEEK", games: [4], format: WEEK, what: "Starts that Fantasy week with no carried teams (a fresh start), instead of carrying last week's teams.", when: "Only if Fantasy was switched off for weeks and comes back; ask the Fantasy chat first.", note: "Unset: teams carry from the last final week, as usual." },
 ];
 
 /** One step of a game's launch. `check` names the read-only admin button that proves it (admin/actions.ts). */

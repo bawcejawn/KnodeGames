@@ -325,6 +325,7 @@ jobs:
           M = 1000000
           MIN_K, FORM_GATE = 10 * M, 800000
           RULE_VERSION, OWN_RULES, POOL_RULES = 4, ("spot", "high1h", "avg24h"), ("min",)
+          RULE_VERSIONS = (4, 5)   # 5: the core judged on [T - 14 d, T - 3 d) (as vhp-ruler.js); a card without version is 4
           STEADY_BAND = 150000   # D-120 as the owner ruled (5 Nov), millionths: steady = every daily rate within this of the 14-day rate
           CORE_LINE = 970000     # D-165: A′'s core is the field members with form ≥ this × the field's median form (millionths)
           BAND_SD = 2            # D-171: an other core member more than this many sd from its share is left out of a yardstick
@@ -801,7 +802,7 @@ jobs:
 
 
           # the card's fields that are BigInt in JavaScript (written as decimal strings)
-          _BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "lift", "target", "credited", "pct", "z", "fpct")
+          _BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "lift", "target", "credited", "pct", "coreForm", "z", "fpct")
 
 
           def week_summary(cards):
@@ -888,6 +889,56 @@ jobs:
 
 
           _SCHED = re.compile(r"[1-9][0-9]{0,5}:[ABCD](,[1-9][0-9]{0,5}:[ABCD])*")
+          _VSCHED = re.compile(r"[1-9][0-9]{0,5}:[45](,[1-9][0-9]{0,5}:[45])*")
+          _INC_ADDR = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
+
+
+          def check_include(x):
+              """The kit's include list, as checkInclude in vhp-ruler.js: a non-empty list of distinct addresses in rising order."""
+              if not isinstance(x, list) or not x or not all(type(a) is str and _INC_ADDR.fullmatch(a) for a in x):
+                  raise ValueError("include must be a non-empty list of addresses")
+              for i in range(1, len(x)):
+                  if not x[i - 1] < x[i]:
+                      raise ValueError("include must be in rising order with no repeats")
+
+
+          def version_schedule(v):
+              """A game's RULE_VERSION schedule, as versionSchedule in vhp-ruler.js: None, or [(week, version), ...] with rising weeks."""
+              if v is None or (type(v) is str and v == ""):
+                  return None
+              if type(v) is not str or not _VSCHED.fullmatch(v):
+                  raise ValueError("the ruler version schedule must be empty or week:version pairs like 6:5 (versions 4 or 5)")
+              out = [(int(x.split(":")[0]), int(x.split(":")[1])) for x in v.split(",")]
+              for i in range(1, len(out)):
+                  if out[i][0] <= out[i - 1][0]:
+                      raise ValueError("the ruler version schedule's weeks must rise")
+              if out[-1][0] > SWITCH_MAX:
+                  raise ValueError("the ruler version schedule's weeks must be at most 999999")
+              return out
+
+
+          def version_at(week, schedule):
+              """as versionAt: the RULE_VERSION of a vault week under the schedule (4 before the first pair or with no schedule)."""
+              w, s = _switch_week(week), version_schedule(schedule)
+              n = RULE_VERSION
+              for x, v in s or ():
+                  if x <= w:
+                      n = v
+              return n
+
+
+          def version_change(prev, nxt, week):
+              """as versionChange: None, or why the change would alter the version of a week that has started."""
+              w, p, n = _switch_week(week), version_schedule(prev), version_schedule(nxt)
+              at = sorted(set([0] + [x for x, _ in p or ()] + [x for x, _ in n or ()]))
+              for x in at:
+                  if x > w:
+                      continue
+                  a, b = version_at(x, prev), version_at(x, nxt)
+                  if a != b:
+                      return ("the ruler version schedule moved from %s to %s: week %d has started and would change from %d to %d; a change "
+                              "may only touch weeks after %d" % (json.dumps(prev if prev is not None else ""), json.dumps(nxt if nxt is not None else ""), x, a, b, w))
+              return None
 
 
           def mode_schedule(v):
@@ -952,7 +1003,7 @@ jobs:
                   raise ValueError("window order must be W0 <= W1 <= L <= S0 <= S1")
 
 
-          def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, pool_rule="min", mode=None):
+          def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, pool_rule="min", mode=None, include=None, version=RULE_VERSION):
               w = window
               _check_window(w)
               if own_rule not in OWN_RULES:
@@ -973,6 +1024,10 @@ jobs:
                   raise ValueError("poolRule must be min")
               if mode is not None and mode not in MODES:
                   raise ValueError("mode must be A, B, C or D")
+              if type(version) is not int or version not in RULE_VERSIONS:
+                  raise ValueError("version must be 4 or 5")
+              if include is not None:
+                  check_include(include)
               if paying and T - L.frm < FORM + ACTIVE:
                   raise ValueError("a paying card needs %d blocks of data before its moment (14 days + 6 h)" % (FORM + ACTIVE))
               if paying and _pending_in(L, T - AVG - EARLY, T):
@@ -981,25 +1036,30 @@ jobs:
               look0 = min(T - AVG, form_from)
               blocks, tot = w["S1"] - w["S0"] + 1, total(L, T)
               rows = []
-              for a in L.active(T):
+              # the kit's include, as in vhp-ruler.js: listed producers get a row even when not active(T); not in the total
+              act = L.active(T)
+              act_set = set(act)
+              for a in list(act) + [x for x in (include or []) if x not in act_set]:
                   o, av, f = own(L, a, T, own_rule), avg(L, a, T), form_of(L, a, T)
                   k = k_of(blocks, o, tot)
                   is_new, history = newcomer(L, a, T)
                   rate, steady = rate_of(L, a, T, f)   # owner, 5 Nov: steady producers play at full size; rate is shown only
                   rows.append({"a": a, "own": o, "avg": av, "k": k, "form": f["form"], "rate": rate,
-                               "entry": k >= min_k * M and (steady or f["form"] >= FORM_GATE) and history, "pooled": a in pooled,
+                               "entry": k >= min_k * M and (steady or f["form"] >= FORM_GATE) and history and (a in act_set or f["signed"] > 0), "pooled": a in pooled,
                                "isNew": is_new, "quality": "ok"})
               rows.sort(key=lambda r: (-r["own"], r["a"]))
               # D-113: on a paying card only the 24-h size window must be free of rebuilt hours; form's older days may read them
               if any(_bad_for(L, r["a"], look0 - EARLY, T) for r in rows) or (paying and _rebuilt_in(L, T - AVG - EARLY, T)):
                   for r in rows:
                       r["quality"] = "flagged"
-              out = {"ruleVersion": RULE_VERSION, "game": int(_dec(game, "game")), "round": _dec(rnd, "round"), "ownRule": own_rule, "paying": paying,
+              out = {"ruleVersion": version, "game": int(_dec(game, "game")), "round": _dec(rnd, "round"), "ownRule": own_rule, "paying": paying,
                      "T": T, "seedBlock": seed_block, "seedBlockId": seed_id, "seedProducer": L.signer(seed_block),
                      "window": {"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]},
                      "c": c, "minK": min_k, "poolRule": pool_rule}
               if mode is not None:
                   out["mode"] = mode
+              if include is not None:
+                  out["include"] = list(include)
               out.update({"total": tot, "formFrom": form_from, "producers": rows})
               return out
 
@@ -1140,15 +1200,32 @@ jobs:
                   for r in rows:
                       r["target"] = r["expected"] * r["lift"] // M
                       r["pct"] = pct(r["target"], r["credited"])
-              line = median * CORE_LINE // M
+              # RULE_VERSION 5, as in vhp-ruler.js: the core is judged on the form over [T - 14 d, T - 3 d)
+              if card.get("ruleVersion") not in RULE_VERSIONS or type(card.get("ruleVersion")) is not int:
+                  raise ValueError("the card's ruleVersion must be 4 or 5")
+              v5, core_form, c_median = card["ruleVersion"] == 5, {}, median
+              if v5:
+                  H0, H1 = max(L.valid_from, card["T"] - FORM), card["T"] - LIFT_SKIP - 1
+                  for r in rows:
+                      e = L.share_sum(r["a"], H0, H1)
+                      core_form[r["a"]] = _int(r["form"]) if H1 < H0 else (L.signed_in(r["a"], H0, H1) * M * M // e if e > 0 else 0)
+                  c_median, c5 = 0, 0
+                  for r in sorted(frows, key=lambda r: core_form[r["a"]]):
+                      c5 += r["expected"]
+                      if 2 * c5 >= e_all:
+                          c_median = core_form[r["a"]]
+                          break
+              line = c_median * CORE_LINE // M
 
               def in_core(r):
-                  return in_field(r) and _int(r["form"]) >= line
+                  return in_field(r) and (core_form[r["a"]] if v5 else _int(r["form"])) >= line
               # the yardstick counts CREDITED blocks (millionths), as in vhp-ruler.js
               n = sum(r["credited"] for r in rows if in_core(r))
               b = sum(E(r) for r in rows if in_core(r))
               nY, bY = n, b
               for r in rows:
+                  if v5:
+                      r["coreForm"] = core_form[r["a"]]
                   r["core"], r["z"], r["setAside"] = in_core(r), None, False
                   if not r["core"]:
                       continue
@@ -1174,16 +1251,21 @@ jobs:
 
 
           _SETTINGS, _WKEYS = ("game", "round", "window", "c", "minK", "poolRule", "ownRule", "paying", "pooled"), ("W0", "W1", "L", "S0", "S1")
+          _OPTIONAL = ("mode", "include", "version")
 
 
           def check_settings(g):
               """The game's settings, strictly (Repo Lens #B-5 N-5), as checkSettings in vhp-ruler.js."""
               if not isinstance(g, dict):
                   raise ValueError("recompute needs the game's own settings")
-              if sorted(g) != sorted(_SETTINGS) and sorted(g) != sorted(_SETTINGS + ("mode",)):
-                  raise ValueError("the game's settings must have exactly: " + ", ".join(_SETTINGS) + " (and, optionally, mode)")
+              if any(k not in g for k in _SETTINGS) or any(k not in _SETTINGS and k not in _OPTIONAL for k in g):
+                  raise ValueError("the game's settings must have exactly: " + ", ".join(_SETTINGS) + " (and, optionally, " + ", ".join(_OPTIONAL) + ")")
               if "mode" in g and g["mode"] not in MODES:
                   raise ValueError("mode must be A, B, C or D")
+              if "version" in g and (type(g["version"]) is not int or g["version"] not in RULE_VERSIONS):
+                  raise ValueError("version must be 4 or 5")
+              if "include" in g:
+                  check_include(g["include"])
               _dec(g["game"], "game")
               _dec(g["round"], "round")
               w = g["window"]
@@ -1204,6 +1286,20 @@ jobs:
                   raise ValueError("pooled must be a list of addresses")
 
 
+          def card_digest(card):
+              """The compact card, as cardDigest in vhp-ruler.js: the sha256 of the card's canonical text, and whether it was scored."""
+              return {"sha256": hashlib.sha256(card_json(card).encode("utf-8")).hexdigest(),
+                      "scored": any("credited" in p for p in card.get("producers", []))}
+
+
+          _HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+          def _is_digest(x):
+              return (isinstance(x, dict) and sorted(x) == ["scored", "sha256"] and type(x["sha256"]) is str
+                      and _HEX64.fullmatch(x["sha256"]) is not None and type(x["scored"]) is bool)
+
+
           def recompute(L, published, game):
               """published: the card's JSON text; game: the game's OWN settings {game, round, window, c, minK, poolRule, ownRule, paying, pooled}
               (Repo Lens #E-12 M-1: never the card's own settings). Returns (same, diff)."""
@@ -1211,21 +1307,39 @@ jobs:
                   check_settings(game)
               except ValueError as e:
                   return False, "the game's settings: %s" % e
+              try:
+                  pub_d = json.loads(published)
+              except ValueError:
+                  pub_d = None
+              if _is_digest(pub_d):   # the compact card, as in vhp-ruler.js
+                  w = game["window"]
+                  try:
+                      mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"],
+                                       game["minK"], game["poolRule"], game.get("mode"), game.get("include"), game.get("version", RULE_VERSION))
+                      if pub_d["scored"]:
+                          mine = score_card(L, mine)
+                  except ValueError as e:
+                      return False, "the data can't make this card: %s" % e
+                  d = card_digest(mine)["sha256"]
+                  return (True, "") if d == pub_d["sha256"] else (False, "sha256 differs: published %s, recomputed %s" % (pub_d["sha256"], d))
               pub = json.loads(published)
               w = game["window"]
               want = {"game": int(_dec(game["game"], "game")), "round": _dec(game["round"], "round"), "ownRule": game["ownRule"],
                       "paying": game["paying"], "c": str(int(game["c"])), "minK": game["minK"], "poolRule": game["poolRule"]}
               want["mode"] = game.get("mode")   # always compared (Repo Lens #G-19): no mode on one side is a clear refusal
+              want["version"] = game.get("version", RULE_VERSION)
+              want["include"] = json.dumps(game.get("include"), separators=(",", ":"))
               want.update({"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]})
               got = {"game": pub.get("game"), "round": pub.get("round"), "ownRule": pub.get("ownRule"), "paying": pub.get("paying"),
-                     "c": str(pub.get("c")), "minK": pub.get("minK"), "poolRule": pub.get("poolRule"), "mode": pub.get("mode")}
+                     "c": str(pub.get("c")), "minK": pub.get("minK"), "poolRule": pub.get("poolRule"), "mode": pub.get("mode"),
+                     "version": pub.get("ruleVersion"), "include": json.dumps(pub.get("include"), separators=(",", ":"))}
               got.update(pub.get("window") or {})
               for k in want:
                   if got.get(k) != want[k] or type(got.get(k)) is not type(want[k]):
                       return False, "setting %s: the card says %s, the game says %s" % (k, json.dumps(got.get(k)), json.dumps(want[k]))
               try:
                   mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"],
-                                   game["minK"], game["poolRule"], game.get("mode"))
+                                   game["minK"], game["poolRule"], game.get("mode"), game.get("include"), game.get("version", RULE_VERSION))
                   if any("credited" in p for p in pub.get("producers", [])):
                       mine = score_card(L, mine)
               except ValueError as e:

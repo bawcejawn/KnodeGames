@@ -267,14 +267,14 @@ test("Repo Lens #D-13 H-1: a typed pick goes out of the page's own koilib bundle
 
 test("D-166: the race-type toggle stays hidden until TYPES_FROM_WEEK is set; each type's points and the pool's sit-out are explained", () => {
   const js = read("race.js"), html = read("race.html"), math = read("race-math.js");
-  assert.match(math, /const TYPES_FROM_WEEK = null;/, "off on main until the contract v2 is uploaded");
+  assert.match(math, /const TYPES_FROM_WEEK = 5;/, "owner, 13 Nov: on from vault week 5 (Mon 23 Nov), after the v2 upload");
   // Repo Lens #C-12 C12-1: the page goes by TYPES_ON_WEEK, which stays null until TYPES_READY.
   assert.match(js, /const typesLive = \(\) => M\.TYPES_ON_WEEK !== null && M\.weekOf\(Date\.now\(\)\) >= M\.TYPES_ON_WEEK;/);
   assert.match(math, /const TYPES_ON_WEEK = TYPES_READY \? TYPES_FROM_WEEK : null;/);
   assert.match(html, /<nav class="rt-tabs" id="race-types" aria-label="Race type" hidden><\/nav>/);
   assert.match(html, /<section class="card" id="typed" hidden>/);
   assert.match(js, /const ORDER = \[1, 2, 0, 3, 4\];/, "1-hour, 2-hour, 6-hour, daily, weekly");
-  assert.match(js, /A win scores \$\{T\.win\} points, a show \(2nd or 3rd\) \$\{T\.show\}, on the one Producer Race board\./);
+  assert.match(js, /1st scores \$\{T\.places\[0\]\} points, 2nd \$\{T\.places\[1\]\} and 3rd \$\{T\.places\[2\]\}, on the one Producer Race board\./);
   assert.match(js, /sits out \$\{T\.name\.toLowerCase\(\)\} races for now/);
   // The pick limit: 0 (no per-game limit, contract v2) is shown as such, never as "5".
   assert.match(js, /const max = usage \? Number\(usage\.max_picks_per_day \?\? 0\) : 5/);

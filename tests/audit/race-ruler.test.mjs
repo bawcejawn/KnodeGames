@@ -25,12 +25,12 @@ const TL_FILE = (() => { const f = path.join(tmp(), "tl.json"); fs.writeFileSync
 const RACE00 = M.raceIndex(U("2026-11-02T00:00Z"));
 const read = (dir, f) => JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
 let lastRun = null;
-async function go(at, prev, { rulerFrom = null, picks = [], ledger = LEDGER, env = {} } = {}) {
+async function go(at, prev, { rulerFrom = null, picks = [], ledger = LEDGER, env = {}, typesFrom = null, typedPicks = null } = {}) {
   const out = tmp(), log = console.log, saved = {};
   for (const [k, v] of Object.entries(env)) { saved[k] = process.env[k]; process.env[k] = v; }
   console.log = () => {};
   try {
-    lastRun = await run({ p: node(at), check: node(at), prev, out, vhpOf, raceContract: "x", picksOf: async (n, r, type = 0) => (type === 0 && r === RACE00 ? picks : []), prizesFrom: 0, vaultHold: false, holdWeeks: [], typesFrom: null,
+    lastRun = await run({ p: node(at), check: node(at), prev, out, vhpOf, raceContract: "x", picksOf: async (n, r, type = 0) => (type === 0 ? (r === RACE00 ? picks : []) : typedPicks ? typedPicks(type, r) : []), prizesFrom: 0, vaultHold: false, holdWeeks: [], typesFrom,
       stakedOf: async () => false, ...(rulerFrom === "env" ? {} : { rulerFrom }), rulerLedger: ledger });
   } finally { console.log = log; for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   return out;
@@ -47,7 +47,9 @@ test("settings: the recorder's and the publish job's ruler settings are the same
   const py = JSON.parse(yml.match(/RULER_GAME = (\{[^\n]*\})   #/)[1].replace(/True/g, "true"));
   assert.deepEqual(py, { ...RR.RULER, pooled: [...RR.RULER.pooled] }, "race.yml RULER_GAME = bot/race-ruler.ts RULER");
   assert.match(yml, /RULER_CARD = 7200   #/); assert.equal(RR.CARD_BLOCKS, 7200);
-  assert.deepEqual([...RR.RULER_TYPES], [0], "only the 6-hour race is on the ruler for now (a per-type flag)");
+  assert.deepEqual([...RR.RULER_TYPES], [0, 1, 2, 3, 4], "option A (owner, 12 Nov): every type on the ruler");
+  const pyCards = JSON.parse(yml.match(/RULER_CARD_BY_TYPE = (\{[^}]*\})/)[1].replace(/(\d+):/g, '"$1":'));
+  assert.deepEqual(pyCards, { ...RR.CARD_BY_TYPE }, "race.yml's card windows by type = bot/race-ruler.ts");
   // round: yyyymmddhh × 10 + type (the Ruler chat's examples); window: the race's own [S0, S1], L = S0 − 1, W1 = L, W0 = L − 7,199
   assert.equal(RR.roundOf(U("2026-11-23T06:00Z"), 0), "20261123060"); assert.equal(RR.roundOf(U("2026-11-23T06:00Z"), 1), "20261123061");
   assert.deepEqual(RR.windowOf(5000000, 5007204), { W0: 4992800, W1: 4999999, L: 4999999, S0: 5000000, S1: 5007204 });
@@ -268,7 +270,8 @@ test("page: the ruler's box is hidden until the R file says shadow or on; it say
   assert.match(rulerPage, /luck against its own size/);
   assert.match(rulerPage, /more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only/);
   assert.match(rulerPage, /A pick on a voided producer counts as a loss\./);
-  assert.match(js, /\$\{DATA\}R\$\{String\(x\)\.padStart\(3, "0"\)\}\.json/, "reads R<week>.json");
+  assert.match(js, /\[`R\$\{String\(x\)\.padStart\(3, "0"\)\}\.json`\]/, "reads R<week>.json");
+  assert.match(js, /fetchJson\(`\$\{DATA\}\$\{n\}`\)/);
   assert.match(js, /cur\.mode === "off" \|\| !Number\.isInteger\(cur\.rulerFrom\)\) \{ \$\("ruler-box"\)\.hidden = true/, "hidden while off");
   assert.match(js, /M\.weekStart\(cur\.rulerFrom\)/, "the calendar Monday from the switch's week");
   assert.equal(R.voidBand(7200).map(Number).join(), "100000,250000", "the page's 10% / 25% is the ruler's 6-hour band");
@@ -351,4 +354,173 @@ test("Repo Lens #G-27 G27-1: a race with more picks than the recorder reads aler
   assert.ok(m, "and an owner alert: " + lastRun.held.join(" | "));
   assert.match(m, /would be skipped at the week's end\. Tell the Race chat now/);
   assert.equal(read(out, "W002.json").races.find((r) => r.id === "2026-11-02T00").result, null, "not scored from a partial list");
+});
+
+test("race types on the ruler (owner, 12 Nov: option A): card windows per type, round per type, a typed race's blocks from the hour ledger", () => {
+  assert.deepEqual({ ...RR.CARD_BY_TYPE }, { 0: 7200, 1: 1200, 2: 2400, 3: 7200, 4: 7200 }, "the Ruler chat's table");
+  assert.deepEqual(RR.windowOf(1000000, 1001199, 1), { W0: 998800, W1: 999999, L: 999999, S0: 1000000, S1: 1001199 });
+  assert.deepEqual(RR.windowOf(1000000, 1002399, 2), { W0: 997600, W1: 999999, L: 999999, S0: 1000000, S1: 1002399 });
+  assert.deepEqual(RR.windowOf(1000000, 1028799, 3).W0, 992800, "daily: 6 hours before the lock");
+  assert.throws(() => RR.windowOf(1, 2, 9), /race type 9/);
+  // the Ruler chat's examples: H1 at 06 → …061, the daily → …003, the weekly → …004
+  assert.equal(RR.roundOf(U("2026-11-23T06:00Z"), 1), "20261123061");
+  assert.equal(RR.roundOf(U("2026-11-23T00:00Z"), 3), "20261123003");
+  assert.equal(RR.roundOf(U("2026-11-23T00:00Z"), 4), "20261123004");
+  const t0 = U("2026-11-23T04:00Z"), hours = [0, 1].map((i) => ({ t: t0 + i * H, a: 100 + i * 1200, b: 1299 + i * 1200 }));
+  assert.deepEqual(RR.typedBlocks(hours, t0, t0 + 2 * H), [100, 2499], "2-hour race 04-06: first hour's a, last hour's b");
+  assert.equal(RR.typedBlocks(hours.slice(0, 1), t0, t0 + 2 * H), null, "an hour not in the ledger yet");
+});
+
+
+// ── option A (owner, 12 Nov): the race types scored by the ruler from their first race, only in an ON week ──
+test("race types on the ruler: the 1-hour races get ruler cards from the hour ledger; the board scores them with the ruler's 1st / 2nd / 3rd and the points per place (3 / 2 / 1)", async () => {
+  // Week 2 ON (switch 2), types on from week 2: Monday 00:37 to 02:37 (the 1-hour races 00-01 and 01-02 end).
+  let d = "";
+  for (const t of ["00", "01", "02"]) d = await go(U(`2026-11-02T${t}:37Z`), d, { rulerFrom: 2, typesFrom: 2 });
+  const tf = read(d, "T002.json"), r1 = read(d, "R002-1.json");
+  assert.equal(r1.mode, "on"); assert.deepEqual(r1.races.map((e) => e.id), ["H1-2026-11-02T00", "H1-2026-11-02T01"]);
+  const e1 = r1.races[1], race = tf.races.find((r) => r.id === e1.id);
+  assert.deepEqual([e1.window.S0, e1.window.S1], RR.typedBlocks(tf.hours, race.start, race.end), "blocks from the hour ledger");
+  assert.equal(e1.window.W0, e1.window.L - 1199, "the 1-hour card window"); assert.equal(e1.round, "20261102011");
+  const card = JSON.parse(e1.card);
+  assert.deepEqual(e1.placings, RR.placingsOf(card)); assert.equal(card.round, "20261102011");
+  // Picks on the ruler's 1st, 2nd and 3rd (each signed a block), and on the handicap winner if it differs.
+  const [p1, p2, p3] = e1.placings, signed = (a) => card.producers.find((p) => p.a === a).signed;
+  assert.ok([p1, p2, p3].every((a) => signed(a) >= 1));
+  const idx = M.typedIndex(1, U("2026-11-02T01:00Z"));
+  const typedPicks = (type, r) => (type === 1 && r === idx ? [[W1, p1, 10], [W2, p2, 11], [W3, p3, 12]] : []);
+  let e = "";
+  for (const t of ["00", "01", "02"]) e = await go(U(`2026-11-02T${t}:37Z`), e, { rulerFrom: 2, typesFrom: 2, typedPicks });
+  const rows = read(e, "board.json").week.rows, row = (w) => rows.find((x) => x.a === w);
+  assert.deepEqual([row(W1).pts, row(W2).pts, row(W3).pts], [3, 2, 1], "1st 3, 2nd 2, 3rd 1 (D-173, with the types)");
+  // The same picks in a week the ruler isn't on for: none counts.
+  let f = "";
+  for (const t of ["00", "01", "02"]) f = await go(U(`2026-11-02T${t}:37Z`), f, { rulerFrom: 3, typesFrom: 2, typedPicks });
+  assert.deepEqual(read(f, "board.json").week.rows, []);
+  assert.deepEqual(read(f, "R002-1.json").races, [], "no typed cards in a shadow week");
+  assert.ok(lastRun.problems.some((m) => /race types count only on the VHP ruler, which is shadow for this week/.test(m)));
+});
+
+test("publish: the race types' ruler files pass (rebuilt from the Race's settings and the T file's hour ledger); changed placings are held alone", async () => {
+  let d = "";
+  for (const t of ["00", "01", "02"]) d = await go(U(`2026-11-02T${t}:37Z`), d, { rulerFrom: 2, typesFrom: 2 });
+  const bare = bareRepo(), w1 = tmp();
+  fs.writeFileSync(path.join(w1, "R001.json"), JSON.stringify({ v: 1, week: 1, rulerFrom: 2, mode: "shadow", shadow: true, races: [] }) + "\n");
+  const env = { RACE_RULER_FROM_WEEK: "2", RACE_TYPES_FROM: "2" };
+  assert.ok(publish(w1, bare, U("2026-10-31T12:00Z"), env).ok);
+  const at = U("2026-11-02T02:45Z"), ok = publish(d, bare, at, env);
+  assert.ok(ok.ok, ok.out); assert.doesNotMatch(ok.out, /VHP ruler\) held/, ok.out);
+  for (const t of [1, 2, 3, 4]) assert.ok(published(bare, `R002-${t}.json`), `R002-${t}.json published`);
+  const bad = copy(d), rf = read(bad, "R002-1.json"), x = rf.races.find((q) => q.card);
+  x.placings = [x.placings[1], x.placings[0], x.placings[2]];
+  fs.writeFileSync(path.join(bad, "R002-1.json"), JSON.stringify(rf) + "\n");
+  const b2 = bareRepo(); assert.ok(publish(w1, b2, U("2026-10-31T12:00Z"), env).ok);
+  const r = publish(bad, b2, at, env);
+  assert.ok(r.ok, r.out); assert.match(r.out, /R002-1\.json \(VHP ruler\) held.*placings aren't the card's/);
+  assert.equal(published(b2, "R002-1.json"), null); assert.ok(published(b2, "T002.json"), "the T file still publishes");
+});
+
+test("capacity: every published file warns past 60% of the 2 MB publish limit (1.2 MB), so the owner hears of it weeks ahead", async () => {
+  const { sizeNote, T_WARN_BYTES } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(T_WARN_BYTES, 1.2 * 1048576);
+  assert.equal(sizeNote("T005.json", 1.2 * 1048576, "x"), null);
+  assert.match(sizeNote("R005-1.json", 1.3 * 1048576, "the ruler's cards would be held"), /^R005-1\.json is 1\.30 MB, over 60% of the 2 MB publish limit \(the ruler's cards would be held\): tell the Race chat$/);
+  // the recorder uses it for the W, T and R files
+  const src = fs.readFileSync(path.join(APP, "bot/race.ts"), "utf8");
+  for (const f of ["`W${String(w).padStart(3, \"0\")}.json`", "`T${String(w).padStart(3, \"0\")}.json`", "RR.rulerName(w)", "RR.rulerName(w, t)"]) assert.ok(src.includes(`writeWarned(${f}`), f);
+});
+
+test("page (option A): the ruler box lists the race types' results and their void lines once the types are live (hidden before)", () => {
+  const html = fs.readFileSync(path.join(APP, "race.html"), "utf8"), js = fs.readFileSync(path.join(APP, "race.js"), "utf8");
+  assert.match(html, /<p class="note" id="ruler-types" hidden>/);
+  // Owner, 12 Nov: the limits by race length live on the Ruler page; the Race page links to them.
+  assert.match(html, /id="ruler-types" hidden>[^<]*<a href="ruler\.html">/);
+  const rp = fs.readFileSync(path.join(APP, "ruler.html"), "utf8");
+  for (const [len, lo, hi] of [["1 hour or 2 hours", 5, 25], ["6 hours", 10, 25], ["1 day", 12, 50], ["1 week", 15, 100]]) assert.match(rp, new RegExp(`<td>${len}</td><td>${lo}%</td><td>${hi}%</td>`), len);
+  assert.deepEqual([1200, 2400, 28800, 172800].map((n) => R.voidBand(n).map(Number).join("/")), ["50000/250000", "50000/250000", "120000/500000", "150000/1000000"], "the page's lines are the ruler's bands");
+  assert.match(js, /typesLive\(\) \? \[1, 2, 3, 4\]\.map\(\(t\) => `R\$\{String\(x\)\.padStart\(3, "0"\)\}-\$\{t\}\.json`\) : \[\]/);
+  assert.match(js, /\$\("ruler-types"\)\.hidden = !typesLive\(\)/);
+});
+
+// Repo Lens #G-29 probes (append to tests/audit/race-ruler.test.mjs; uses its go / publish / read / copy / bareRepo / tmp / published).
+test("Repo Lens #G-29: a typed ruler file with a wrong window, or another type's cards, is held alone; R002-5.json is refused", async () => {
+  let d = "";
+  for (const t of ["00", "01", "02"]) d = await go(U(`2026-11-02T${t}:37Z`), d, { rulerFrom: 2, typesFrom: 2 });
+  const env = { RACE_RULER_FROM_WEEK: "2", RACE_TYPES_FROM: "2" }, at = U("2026-11-02T02:45Z");
+  const base = () => { const b = bareRepo(), w1 = tmp(); fs.writeFileSync(path.join(w1, "R001.json"), JSON.stringify({ v: 1, week: 1, rulerFrom: 2, mode: "shadow", shadow: true, races: [] }) + "\n"); assert.ok(publish(w1, b, U("2026-10-31T12:00Z"), env).ok); return b; };
+  // 1. a window one block off
+  const w = copy(d), rf = read(w, "R002-1.json"), x = rf.races.find((q) => q.card);
+  x.window = { ...x.window, W0: x.window.W0 + 1 };
+  fs.writeFileSync(path.join(w, "R002-1.json"), JSON.stringify(rf) + "\n");
+  const b1 = base(), r1 = publish(w, b1, at, env);
+  assert.ok(r1.ok, r1.out); assert.match(r1.out, /R002-1\.json \(VHP ruler\) held.*window or round/);
+  assert.equal(published(b1, "R002-1.json"), null); assert.ok(published(b1, "R002-2.json"));
+  // 2. the 1-hour cards under the daily race's name
+  const t3 = copy(d); fs.copyFileSync(path.join(t3, "R002-1.json"), path.join(t3, "R002-3.json"));
+  const b2 = base(), r2 = publish(t3, b2, at, env);
+  assert.ok(r2.ok, r2.out); assert.match(r2.out, /R002-3\.json \(VHP ruler\) held/);
+  assert.equal(published(b2, "R002-3.json"), null); assert.ok(published(b2, "R002-1.json"));
+  // 3. a type that doesn't exist
+  const t5 = copy(d); fs.copyFileSync(path.join(t5, "R002-1.json"), path.join(t5, "R002-5.json"));
+  const r3 = publish(t5, base(), at, env);
+  assert.match(r3.out, /Refusing to publish unexpected files.*R002-5\.json/);
+});
+
+// ── Repo Lens #G-29 G29-1 (Low): a typed race the ruler never scored is waited for like a 6-hour race, then listed in skipped ──
+test("G29-1: an ON week with typed races waiting only for the ruler waits the 48 h grace (with the owner's alert), then lists them in skipped", async () => {
+  const stop = FROM + 15 * 28800 + 28800 + 1200;   // the ruler's data stops 1 hour into Mon 2 Nov
+  const short = R.ledger({ ...timeline(), to: stop, signers: chain.who.slice(0, stop - FROM + 1), ids: chain.ids.slice(0, stop - FROM + 1) });
+  const o = { rulerFrom: 2, typesFrom: 2, ledger: short };
+  const a = await go(U("2026-11-02T05:37Z"), "", o);
+  const b = await go(U("2026-11-02T06:37Z"), a, { ...o, picks: [[W1, P[0], 10]] });
+  const w = read(b, "W002.json");
+  for (const r of w.races) if (!r.result) r.result = { final: true, missed: true, note: "no handicap card was recorded for this race" };
+  fs.writeFileSync(path.join(b, "W002.json"), JSON.stringify(w) + "\n");
+  const t = read(b, "T002.json");
+  for (const r of t.races) if (!r.result) r.result = { final: true, missed: false, picks: [], standings: [] };
+  fs.writeFileSync(path.join(b, "T002.json"), JSON.stringify(t) + "\n");
+  const c = await go(U("2026-11-09T16:37Z"), b, o);
+  assert.equal(read(c, "vault/W2.json").final, false, "within the grace: waits");
+  assert.ok(lastRun.held.some((m) => /waiting for the VHP ruler's result/.test(m) && /Re-run all jobs/.test(m)), lastRun.held.join(" | "));
+  const d = await go(U("2026-11-11T01:37Z"), c, o);
+  const files = fs.readdirSync(path.join(d, "vault"));
+  const pend = files.find((f) => /W2/.test(f) && /PENDING/.test(f));
+  const v = read(d, "vault/" + (read(d, "vault/W2.json").final ? "W2.json" : pend || "W2.json"));
+  if (v.skipped.length) assert.ok(v.skipped.some((id) => /^(H1|H2|D|W)-/.test(id)), "typed races skipped are listed: " + JSON.stringify(v.skipped));
+  else assert.fail("past the grace the would-be file should list skipped races: " + files.join(",") + " " + JSON.stringify(v) + " | " + lastRun.problems.join(" | "));
+  // The publish job accepts a vault file that names typed races in skipped.
+  const env = { RACE_RULER_FROM_WEEK: "2", RACE_TYPES_FROM: "2", PRIZES_FROM_WEEK: "2" }, bare = bareRepo(), w1 = tmp();
+  fs.writeFileSync(path.join(w1, "R001.json"), JSON.stringify({ v: 1, week: 1, rulerFrom: 2, mode: "shadow", shadow: true, races: [] }) + "\n");
+  assert.ok(publish(w1, bare, U("2026-10-31T12:00Z"), env).ok);
+  const pr = publish(d, bare, U("2026-11-11T01:45Z"), env);
+  assert.ok(pr.ok, pr.out); assert.doesNotMatch(pr.out, /isn't in skipped/, pr.out);
+});
+
+test("G29-1: in a week the ruler isn't on for, a typed race never waits for (or is skipped for want of) a ruler card", async () => {
+  let f = "";
+  for (const t of ["00", "01", "02"]) f = await go(U(`2026-11-02T${t}:37Z`), f, { rulerFrom: 3, typesFrom: 2 });
+  assert.ok(!lastRun.problems.some((m) => /waiting for the VHP ruler's result/.test(m)), lastRun.problems.join(" | "));
+});
+
+// ── Repo Lens #G-35R (High): the ruler's code and data load every run, whatever RACE_RULER_FROM_WEEK says ──
+test("G-35R: the workflow loads the ruler's code and data every run (an unset switch still meets the check that refuses it), and logs the switch", () => {
+  const yml = fs.readFileSync(path.join(APP, ".github/workflows/race.yml"), "utf8");
+  assert.doesNotMatch(yml, /vars\.RACE_RULER_FROM_WEEK != ''/, "no step or path depends on the switch being set");
+  assert.match(yml, /RULER_PY: \$\{\{ runner\.temp \}\}\/ruler-code\/vhp_ruler\.py/);
+  assert.match(yml, /RULER_VHP_DATA: \$\{\{ runner\.temp \}\}\/vhp-data/);
+  assert.match(yml, /RACE_VHP_DATA: \$\{\{ runner\.temp \}\}\/vhp-data/);
+  assert.match(yml, /print\("The ruler switch this run: RACE_RULER_FROM_WEEK = "/);
+});
+
+test("G-35R: the owner's fallback (the switch moved one week later, before the switch week starts) is allowed; unset after it is too, while the week is still shadow", async () => {
+  const bare = bareRepo();
+  // switch 3: week 2 shadow (the practice week), on from week 3
+  assert.ok(publish(await mondayRace(3, []), bare, NOW, { RACE_RULER_FROM_WEEK: "3" }).ok);
+  // the fallback, 3 → 4, during week 2: week 2 stays not ON, week 3 becomes shadow: allowed, and the log says so
+  const p = publish(await mondayRace(4, []), bare, NOW + H, { RACE_RULER_FROM_WEEK: "4" });
+  assert.ok(p.ok, p.out); assert.match(p.out, /The ruler switch this run: RACE_RULER_FROM_WEEK = 4; the last published ruler file \(R002\.json\) says 3\./);
+  assert.equal(JSON.parse(published(bare, "R002.json")).rulerFrom, 4, "the new switch is recorded");
+  // 4 → 2 during week 2 (on, in a started week): refused
+  const r = publish(await mondayRace(2, []), bare, NOW + 2 * H, { RACE_RULER_FROM_WEEK: "2" });
+  assert.equal(r.ok, false); assert.match(r.out, /ruler switch change is refused/);
 });

@@ -32,18 +32,20 @@ test("shows the pool's VHP, each game's share and the week's name", () => {
   assert.match(text, /5 days|4d|5d/, "time left in the week");
   assert.match(text, /96[\s\S]*blocks made, last 24 h/);
 });
-test("block rewards: 'Counting…' until stats.json carries them; then the figure; never an old or last week's figure", () => {
-  assert.match(page(stats()).text, /Counting…/);
+test("block rewards: no tile (and never 'Counting…') until stats.json carries them; then the figure; never an old or last week's figure", () => {
+  assert.doesNotMatch(page(stats()).text, /Counting|block rewards this week/);
+  assert.doesNotMatch(page(stats({ rewards: { soFar: null } })).text, /Counting|block rewards this week/, "null = unknown, not 0");
+  assert.match(page(stats()).text, /How the rewards are shared/); assert.match(page(stats()).text, /part of the rewards matches its part of the players' stake/);
   const r = page(stats({ rewards: { soFar: 12.5 } }));
   assert.match(r.text, /12\.5 VHP/); assert.match(r.text, /block rewards this week so far/); assert.doesNotMatch(r.text, /Counting/);
   assert.doesNotMatch(page(stats({ rewards: { soFar: 12.5 } }), NOW + 8 * 86400000).text, /12\.5 VHP/, "the week is over");
   assert.doesNotMatch(page(stats({ rewards: { soFar: 12.5 }, updated: new Date(NOW - 7 * 3600000).toISOString() })).text, /12\.5 VHP/, "older than 6 hours");
   assert.doesNotMatch(page(stats({ rewards: { soFar: -3 } })).text, /-3/);
-  assert.match(page(stats({ rewards: { soFar: "9" } })).text, /Counting…/);
+  assert.doesNotMatch(page(stats({ rewards: { soFar: "9" } })).text, /block rewards this week|Counting/);
 });
 test("seed VHP: added to the pool total and named once stats.json carries it; absent or invalid means players' stake only", () => {
   const a = page(stats({ seed: { vhp: 170000 } })).text;
-  assert.match(a, /171,500 VHP/); assert.match(a, /1,500 VHP players' stake \+ 170,000 VHP seed/); assert.match(a, /seed VHP helps the pool make blocks and never plays/);
+  assert.match(a, /171,500 VHP/); assert.match(a, /players' stake and seed/); assert.match(a, /170,000 VHP of the pool is the seed: it helps the pool make blocks and never plays/);
   const b = page(stats()).text;
   assert.match(b, /1,500 VHP/); assert.match(b, /players' stake, all games/); assert.doesNotMatch(b, /seed/i);
   assert.doesNotMatch(page(stats({ seed: { vhp: -5 } })).text, /seed/i);

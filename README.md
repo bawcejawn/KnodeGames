@@ -241,7 +241,7 @@ npm run bot -- chain-check
 | Vault (game contract, v6) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` | `eed38f7ce130d9d2e0dfafa8ddd5c4a6f383e2c7ce12ab87b02c584f43920b3d` |
 | Knode Swap (v2) | `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR` | `309506ccfaadd3427e937aa88cd34c9ea2a9e6088e49e51f014d546489dd5f35` |
 | Picks (Block X and later games) | `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` | `700c296a1064b904299c156061d6caf8fcabd0b1765968903f29d89d2426c594` |
-| Race picks | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` | `61e8f21230e8b4bdb165bacfe7281517a5adf78f6c6b1b8a0d84ce41537afac5` |
+| Race picks | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` | `9993581baf822cd070331008441c5ad974f5c0b134520dfb7422b9efd1873864` (v2, 13 Nov 2026) |
 | Mana sponsor (v3) | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | `b84e1add3ffa14a7d1933d5ce5a4ad33caa4bca887a489f87f710b3c121c83a6` |
 
 The site's **Trust** page shows the same numbers live. Upgrade runbooks are in [`docs/`](docs/).

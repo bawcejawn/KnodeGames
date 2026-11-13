@@ -4,8 +4,8 @@
  * THE GAME (owner, 2026-10-28)
  * - Block Golf is a golf course made of every other Knode Games game. Each live game is a hole (a par 4). There is
  *   nothing to pick: a player's place on that game's weekly leaderboard sets their strokes on that hole.
- * - The week's lowest score wins. The worst hole a player PLAYED is dropped (the mulligan); a game not played is a
- *   lost ball (7) and is never dropped.
+ * - The week's lowest score wins. The worst hole of any kind is dropped (the mulligan; owner 6 Nov, #243), a game not
+ *   played (lost ball, 7) included.
  *
  * STROKES ON A HOLE (from the player's place among that game's ranked players that week)
  *     1st place (scored something; ties share)   hole in one    1

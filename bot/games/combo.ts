@@ -92,6 +92,12 @@ export const dName = (day: number, part = 0) => `D${String(day).padStart(5, "0")
 /** Fix-check 2 FC2-5: a day's cards are split into parts of at most 1,000 cards (D<day>.json, then D<day>-1.json, ...),
  *  so no file nears the publish job's 2 MB limit however busy the day. */
 export const PART_CARDS = 1000;
+/** Last week's full board (the capacity standard; owner, 13 Nov: in the Combo PR). board.json keeps only the top
+ *  LAST_TOP rows of last week; every row (everyone with a point, and the top 2,000) goes in L<week>.json parts of at
+ *  most LAST_PART_ROWS rows, in board order: L<week>.json is part 0 (it names the part count), L<week>-<k>.json the rest.
+ *  The Vault file is made from, and judged against, these parts. Exported for the tests. */
+export const LAST_TOP = 100, LAST_PART_ROWS = 2000, LAST_MAX_PARTS = 1000;
+export const lName = (w: number, k = 0) => (k ? `L${w}-${k}.json` : `L${w}.json`);
 /** The capacity standard (Capacity chat, 12 Nov; rule 2): the publish cap is 2 MB a file. A file past 60% of it is a
  *  warning in every run; past the cap, an error (the publish would refuse it). Exported for the tests. */
 export const FILE_CAP = 2 * 1024 * 1024, FILE_WARN = Math.floor(FILE_CAP * 0.6);
@@ -443,15 +449,20 @@ export async function run(o: Opts) {
     }
     return true;
   };
-  let lastWeek: any = null, tooMany = false;
-  const LAST_WEEK_ROWS = 6000;
+  let lastWeek: any = null, lastAll: any[] = [], lastParts: any[] = [], tooMany = false;
   if (lw >= 0) {
     const final = head.time >= M.weekStart(nowW) + CORRECTION_MS && weekDone(lw);
-    // (FC2-5, fix-check 3 FC3-6: everyone with 1+ point, up to 6,000 rows, so board.json stays well under 2 MB. More
-    // players with a point than that: an error, and no Vault file, since the Vault file is judged against these rows.)
-    const lwRows = await view(cardRows(M.weekStart(lw), M.weekStart(nowW)), lw, 2000, (x) => x.pts >= C.MIN_WEEK_PTS);
-    if (lwRows.filter((x: any) => x.pts >= C.MIN_WEEK_PTS).length > LAST_WEEK_ROWS) tooMany = true;
-    lastWeek = { week: lw, start: M.weekStart(lw), final, rows: lwRows.slice(0, LAST_WEEK_ROWS) };
+    // Everyone with 1+ point (and the top 2,000), in L<week> parts; board.json shows the top LAST_TOP (capacity
+    // standard, 13 Nov; this replaces FC3-6's 6,000-row cap inside board.json). Past LAST_MAX_PARTS parts: an error and
+    // no Vault file (the Vault file is judged against these rows), never a silent cut.
+    lastAll = await view(cardRows(M.weekStart(lw), M.weekStart(nowW)), lw, 2000, (x) => x.pts >= C.MIN_WEEK_PTS);
+    const n = Math.max(1, Math.ceil(lastAll.length / LAST_PART_ROWS));
+    if (n > LAST_MAX_PARTS) tooMany = true;
+    for (let k = 0; k < Math.min(n, LAST_MAX_PARTS); k++) {
+      const rows = lastAll.slice(k * LAST_PART_ROWS, (k + 1) * LAST_PART_ROWS);
+      lastParts.push(k === 0 ? { v: 1, week: lw, start: M.weekStart(lw), final, parts: Math.min(n, LAST_MAX_PARTS), rows } : { v: 1, week: lw, part: k, rows });
+    }
+    lastWeek = { week: lw, start: M.weekStart(lw), final, parts: lastParts.length, rows: lastAll.slice(0, LAST_TOP) };
   }
   // A started week never changes whether the ruler scores it (KRuler.switchChange): this run's switch against the one
   // the published board recorded. Refused: nothing is written (the publish job makes the same check).
@@ -503,13 +514,13 @@ export async function run(o: Opts) {
   const vaultEnd = M.weekStart(nowW) + VAULT_WINDOW_MS;
   const published = !!PREV && fs.existsSync(path.join(PREV, "vault", `W${lw}.json`));
   if (lastWeek && lastWeek.final && !published && head.time <= vaultEnd) {
-    if (tooMany) errors.push(`vault week ${lw}: more than ${LAST_WEEK_ROWS} players have a point, more than board.json can hold; no Vault file (tell Claude)`);
+    if (tooMany) errors.push(`vault week ${lw}: more than ${LAST_MAX_PARTS * LAST_PART_ROWS} players have a point, more than the L${lw} parts hold; no Vault file (tell Claude)`);
     else if (badWeeks.has(lw)) errors.push(`vault week ${lw}: a published final card doesn't match its sources (see above); no Vault file`);
     else if (uncheckedWeeks.has(lw)) errors.push(`vault week ${lw}: a published final card can't be checked this run (see above); no Vault file this run`);
-    else if (lastWeek.rows.some((r: any) => r.staked === null || (r.pts >= C.MIN_WEEK_PTS && r.free === null))) errors.push(`vault week ${lw}: stakes in the Combo Card couldn't be read on both nodes, or they disagree; no Vault file this run (tried again next run)`);
+    else if (lastAll.some((r: any) => r.staked === null || (r.pts >= C.MIN_WEEK_PTS && r.free === null))) errors.push(`vault week ${lw}: stakes in the Combo Card couldn't be read on both nodes, or they disagree; no Vault file this run (tried again next run)`);
     else if (!vaultLive || !(await vaultLiveOnBoth(lw))) problems.push(`vault week ${lw}: the Vault v6 isn't live (or the nodes don't agree it is); no Vault file (fix-check FC-21, FC2-11)`);
     else {
-      const rows = lastWeek.rows.map((r: any) => ({ player: r.a, pts: r.pts, place: r.place, hits: r.hits, lastHit: r.lastHit, days: r.days, staked: r.staked, free: r.free }));
+      const rows = lastAll.map((r: any) => ({ player: r.a, pts: r.pts, place: r.place, hits: r.hits, lastHit: r.lastHit, days: r.days, staked: r.staked, free: r.free }));
       const vf = C.vaultFile(lw, true, rows);
       put(path.join("vault", `W${lw}.json`), JSON.stringify(vf) + "\n");
       vaultWritten.push(lw);
@@ -519,6 +530,7 @@ export async function run(o: Opts) {
   if (lastWeek && lastWeek.final && !published && head.time > vaultEnd && head.time <= vaultEnd + 2 * 3600000) errors.push(`vault week ${lw}: no results file was published within the Vault's 3 days; none is written now`);
   put("index.json", JSON.stringify({ v: 2, updated: new Date(head.time).toISOString(), days: [...knownDays].sort((a, b) => a - b), contract: contract || null }) + "\n");
   put("board.json", JSON.stringify(board) + "\n");
+  lastParts.forEach((f, k) => put(lName(lw, k), JSON.stringify(f) + "\n"));
   // FC-4: last week's slots still not fixed a day after the week ended means its Vault file is at risk.
   if (lw >= 0 && head.time >= M.weekStart(nowW) + M.DAY) {
     const d0 = C.utcDay(M.weekStart(lw));

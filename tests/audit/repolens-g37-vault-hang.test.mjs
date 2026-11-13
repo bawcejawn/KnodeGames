@@ -36,7 +36,7 @@ test("G37-2 (Low): a Vault read that never answers can't hold the verify job pas
   const stake = (p) => (p === ALICE ? 200000000n : 0n);
   await quiet(() => run({ p: node({ t, cards: twoCards, stake }), check: node({ t, cards: twoCards, stake }), out, raceDir: race, blockxDir: bx, picksContract: PICKS, knodeGame: VAULT, now: t, vhpMovesOf: async () => 0n }));
   assert.ok(fs.existsSync(path.join(out, "vault")) && fs.readdirSync(path.join(out, "vault")).length, "precondition: the run wrote a Vault file to confirm");
-  const pub = tmp(); fs.copyFileSync(path.join(out, "board.json"), path.join(pub, "board.json"));
+  const pub = tmp(); for (const f of fs.readdirSync(out).filter((x) => x === "board.json" || /^L\d+(-\d+)?\.json$/.test(x))) fs.copyFileSync(path.join(out, f), path.join(pub, f));   // the board and its L parts (capacity standard)
   const done = V.verify({ incoming: out, published: pub, race, blockx: bx, picks: PICKS, vault: VAULT, now: t, vaultBudgetMs: 200,
     p: vnode(node({ t, cards: twoCards, stake }), true), check: vnode(node({ t, cards: twoCards, stake })), vhpMovesOf: async () => 0n }).then(() => "returned");
   const late = new Promise((res) => { setTimeout(() => res("still running 3 s after a 0.2 s budget"), 3000); });

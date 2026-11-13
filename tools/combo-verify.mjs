@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { makeScorer, blockTargets, clearFiles, VAULT_WINDOW_MS, rulerFrom, ruledDay, rulerPairProblem } from "../bot/games/combo-score.mjs";
+import { makeScorer, blockTargets, clearFiles, VAULT_WINDOW_MS, rulerFrom, ruledDay, rulerPairProblem, lastRows } from "../bot/games/combo-score.mjs";
 import { scoringVhpMoves, NonCanonicalTransfer, MOVE_MARGIN, decodeBase58, encodeBase58 } from "../bot/games/vhp-inflows.mjs";
 const M = globalThis.KRaceMath, C = globalThis.KCombo;
 
@@ -230,7 +230,9 @@ export async function verify(o) {
   for (const f of fs.existsSync(vdir) ? fs.readdirSync(vdir).filter((x) => /^W[0-9]+\.json$/.test(x)) : []) {
     if (fs.existsSync(path.join(o.published, "vault", f))) continue;            // write-once: the publish job skips it
     const name = `vault/${f}`, week = Number(f.slice(1, -5)), board = load(path.join(o.published, "board.json"));
-    const rows = board?.lastWeek?.week === week && Array.isArray(board.lastWeek.rows) ? board.lastWeek.rows.filter((r) => r && Number(r.pts) >= C.MIN_WEEK_PTS) : null;
+    // Every row of that week: the published L<week> parts (board.json keeps only the top 100; capacity standard).
+    const lr = board?.lastWeek?.week === week ? lastRows(o.published, week) : null;
+    const rows = lr && lr.parts === board.lastWeek.parts ? lr.rows.filter((r) => r && Number(r.pts) >= C.MIN_WEEK_PTS) : null;
     const late = now >= M.weekStart(week + 1) + VAULT_WINDOW_MS - VAULT_ALERT_MS;    // FC4-4: under 12 h left in its window
     if (!rows) { problems.push({ day: null, file: name, why: `${name}: the published board doesn't show week ${week} yet`, alert: late }); continue; }
     try {

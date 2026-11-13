@@ -136,7 +136,8 @@ jobs:
           }
           if fetch_branch games-data; then
             { git ls-tree --name-only FETCH_HEAD:combo 2>/dev/null || true; } | while IFS= read -r f; do
-              if [[ "$f" =~ ^(board|D[0-9]{5}(-[0-9]{1,3})?)\.json$ ]]; then git show "FETCH_HEAD:combo/$f" > "$RUNNER_TEMP/pub/combo/$f"; fi
+              # (Capacity standard, 13 Nov: the L<week> parts too; the Vault stake-flag check reads every row from them.)
+              if [[ "$f" =~ ^(board|D[0-9]{5}(-[0-9]{1,3})?|L[0-9]{1,6}(-[1-9][0-9]{0,3})?)\.json$ ]]; then git show "FETCH_HEAD:combo/$f" > "$RUNNER_TEMP/pub/combo/$f"; fi
             done
             mkdir -p "$RUNNER_TEMP/pub/combo/vault"
             { git ls-tree --name-only FETCH_HEAD:combo/vault 2>/dev/null || true; } | while IFS= read -r f; do
@@ -202,7 +203,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -d "$IN/combo" ]; then echo "Nothing to publish."; exit 0; fi
-          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/combo" ! -path "$IN/combo/vault" \) -o \( -type f ! -regex "$IN/combo/\(index\|board\|D[0-9][0-9][0-9][0-9][0-9]\(-[0-9][0-9]*\)?\)\.json" ! -regex "$IN/combo/vault/W[0-9][0-9]*\.json" \) \) -print)
+          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/combo" ! -path "$IN/combo/vault" \) -o \( -type f ! -regex "$IN/combo/\(index\|board\|D[0-9][0-9][0-9][0-9][0-9]\(-[0-9][0-9]*\)?\|L[0-9][0-9]*\(-[1-9][0-9]*\)?\)\.json" ! -regex "$IN/combo/vault/W[0-9][0-9]*\.json" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           # Block X round 8 (BX-122), ported for Combo (fix-check 2 FC2-16): every incoming file must be EXACTLY what the
           # JavaScript recorder writes for its own content (JSON.stringify of its parse, plus a newline).
@@ -219,7 +220,8 @@ jobs:
             git read-tree FETCH_HEAD
             # (Fix-check 2 FC2-6: index.json too, or its append-only check never runs.)
             { git ls-tree --name-only "$parent:combo" 2>/dev/null || true; } | while IFS= read -r f; do
-              if [[ "$f" =~ ^(index|board|D[0-9]{5}(-[0-9]{1,3})?)\.json$ ]]; then git show "$parent:combo/$f" > "$PUB/combo/$f"; fi
+              # (Capacity standard, 13 Nov: last week's L<week> parts too, for the Vault check and the part clean-up.)
+              if [[ "$f" =~ ^(index|board|D[0-9]{5}(-[0-9]{1,3})?|L[0-9]{1,6}(-[1-9][0-9]{0,3})?)\.json$ ]]; then git show "$parent:combo/$f" > "$PUB/combo/$f"; fi
             done
             # The published Block X results, to re-check new final cards' Block X legs (fix-check 2 FC2-1).
             { git ls-tree --name-only "$parent:blockx" 2>/dev/null || true; } | while IFS= read -r f; do
@@ -359,6 +361,37 @@ jobs:
           def part_of(f):
               m = re.fullmatch(r"D([0-9]{5})(?:-([0-9]{1,3}))?\.json", f)
               return (int(m.group(1)), int(m.group(2) or 0)) if m else None
+          def l_of(f):
+              m = re.fullmatch(r"L([0-9]{1,6})(?:-([1-9][0-9]{0,3}))?\.json", f)
+              return (int(m.group(1)), int(m.group(2) or 0)) if m else None
+          def lpart_ok(j, f):
+              # Last week's full board (capacity standard, owner 13 Nov): L<week>.json (part 0, names the part count) and
+              # L<week>-<k>.json, each at most 2,000 rows of the board's shape.
+              lf = l_of(f)
+              if lf is None or type(j) is not dict or not same(j.get("v"), 1) or not nat(j.get("week")) or j["week"] != lf[0]: return False
+              if lf[1] == 0:
+                  if set(j) != {"v", "week", "start", "final", "parts", "rows"} or not same(j["start"], GENESIS + j["week"] * WEEK) or type(j["final"]) is not bool: return False
+                  if not (type(j["parts"]) is int and 1 <= j["parts"] <= 1000): return False
+              elif set(j) != {"v", "week", "part", "rows"} or not same(j["part"], lf[1]): return False
+              return type(j["rows"]) is list and len(j["rows"]) <= 2000 and rows_ok(j["rows"])
+          def l_merge(base, w, skip=()):
+              """Every row of week w from its L parts in `base`, in order, with part 0; None if a part is missing, held or
+              not the shape, or the rows aren't one board (each wallet once, places in order)."""
+              f0 = "L%d.json" % w
+              if not os.path.isfile(os.path.join(base, f0)) or ("combo/" + f0) in skip: return None
+              j0 = load(os.path.join(base, f0))
+              if not lpart_ok(j0, f0): return None
+              rows, sizes = list(j0["rows"]), [len(j0["rows"])]
+              for k in range(1, j0["parts"]):
+                  f = "L%d-%d.json" % (w, k)
+                  if ("combo/" + f) in skip or not os.path.isfile(os.path.join(base, f)): return None
+                  j = load(os.path.join(base, f))
+                  if not lpart_ok(j, f): return None
+                  rows += j["rows"]; sizes.append(len(j["rows"]))
+              # As the recorder cuts them: every part but the last holds exactly 2,000 rows, the last at least one.
+              if any(n != 2000 for n in sizes[:-1]) or (len(sizes) > 1 and sizes[-1] < 1): return None
+              if len({r["a"] for r in rows}) != len(rows) or any(rows[i]["place"] < rows[i - 1]["place"] for i in range(1, len(rows))): return None
+              return j0, rows
           def day_ok(j, f):
               # A day file or one of its parts (fix-check 2 FC2-5: at most 1,000 cards each; part 0 has no "part" key).
               pf = part_of(f)
@@ -397,7 +430,9 @@ jobs:
               if not (type(t) is dict and set(t) == {"day", "rows"} and type(t["day"]) is str and ymd.fullmatch(t["day"]) and rows_ok(t["rows"])): return False
               if not (type(w) is dict and set(w) == {"week", "start", "rows"} and nat(w["week"]) and same(w["start"], GENESIS + w["week"] * WEEK) and rows_ok(w["rows"])): return False
               if not (type(at) is dict and set(at) == {"rows"} and rows_ok(at["rows"])): return False
-              return lw is None or (type(lw) is dict and set(lw) == {"week", "start", "final", "rows"} and nat(lw["week"]) and same(lw["start"], GENESIS + lw["week"] * WEEK) and type(lw["final"]) is bool and rows_ok(lw["rows"]))
+              # Last week: the top 100 here; every row in its L<week> parts (checked with them below).
+              return lw is None or (type(lw) is dict and set(lw) == {"week", "start", "final", "parts", "rows"} and nat(lw["week"]) and same(lw["start"], GENESIS + lw["week"] * WEEK)
+                                    and type(lw["final"]) is bool and type(lw["parts"]) is int and 1 <= lw["parts"] <= 1000 and type(lw["rows"]) is list and len(lw["rows"]) <= 100 and rows_ok(lw["rows"]))
           def day_parts(base, day):
               """Every part of a day in `base`, merged by slot; None if a part isn't the recorder's shape."""
               # (Fix-check 3 FC3-5: exactly the parts part 0 names, 0 to parts - 1, every one present.)
@@ -450,6 +485,7 @@ jobs:
                   ok = type(j) is dict and set(j) == {"v", "updated", "days", "contract"} and same(j["v"], 2) and iso.fullmatch(str(j["updated"])) and type(j["days"]) is list \
                       and len(j["days"]) <= 100000 and all(nat(x) and x <= today for x in j["days"]) and j["days"] == sorted(set(j["days"])) and (j["contract"] is None or isaddr(j["contract"]))
               elif f == "board.json": ok = board_ok(j)
+              elif l_of(f): ok = lpart_ok(j, f)
               else: ok = day_ok(j, f)
               if not ok: hold("combo/" + f, "not the recorder's shape (or inconsistent: outcomes, points, days, slots)", True)
           # 1b. Fix-check 3 FC3-3: in the workflow (COMBO_VERIFY=required, set above) a day file is published only if the
@@ -633,6 +669,31 @@ jobs:
           if "combo/board.json" not in held and os.path.isfile(os.path.join(d, "board.json")):
               bw = load(os.path.join(d, "board.json"))["week"]["week"]
               if bw != cw and not (bw == cw - 1 and now - (GENESIS + cw * WEEK) < 2 * HOUR): hold("combo/board.json", "its week (%s) isn't this job's week (%s)" % (bw, cw), True)
+          # 2c. Last week's parts and the board agree (capacity standard, 13 Nov): every part the board's lastWeek names is
+          #     here and the recorder's shape, its week, start and final are the board's, and the board's top 100 are the
+          #     parts' first 100 rows. Anything else holds the board and the parts together, with an alert. Parts for any
+          #     other week are held. Published parts the week no longer has are removed with it.
+          incoming_l = [f for f in names if l_of(f)]
+          bj = load(os.path.join(d, "board.json")) if os.path.isfile(os.path.join(d, "board.json")) else None
+          blw = bj.get("lastWeek") if type(bj) is dict and "combo/board.json" not in held else None
+          lw_week = blw["week"] if type(blw) is dict else None
+          for f in incoming_l:
+              if l_of(f)[0] != lw_week: hold("combo/" + f, "not the board's last week (%s)" % lw_week, True)
+          if type(blw) is dict:
+              m = l_merge(d, lw_week, held)
+              why = None
+              if m is None: why = "its L%d parts are missing, held or not one board" % lw_week
+              else:
+                  j0, rows = m
+                  if not (same(j0["parts"], blw["parts"]) and j0["final"] is blw["final"] and same(j0["start"], blw["start"])): why = "its L%d parts don't match the board's last week" % lw_week
+                  elif not same(rows[:100], blw["rows"]): why = "the board's top 100 of last week aren't the L%d parts' first rows" % lw_week
+              if why:
+                  hold("combo/board.json", why, True)
+                  for f in incoming_l: hold("combo/" + f, why, True)
+              else:
+                  for f in sorted(os.listdir(pub)):
+                      lf = l_of(f)
+                      if lf and lf[0] == lw_week and lf[1] >= blw["parts"]: drops.append("combo/" + f)
           # Fix-check FC-23 (Block X BX-96): index.json's day list is append-only; new days only last week or this week.
           pi = load(os.path.join(pub, "index.json")) if os.path.isfile(os.path.join(pub, "index.json")) else None
           if type(pi) is dict and type(pi.get("days")) is list and os.path.isfile(os.path.join(d, "index.json")) and "combo/index.json" not in held:
@@ -664,7 +725,10 @@ jobs:
               if not (type(plw) is dict and board_ok(pb) and same(plw["week"], w) and plw["final"] is True and now >= end + 12 * HOUR): hold(name, "its week isn't final on the published board yet", False); continue
               truth = week_board(w)
               if truth is None: hold(name, "a published day file of its week isn't the recorder's shape", True); continue
-              rows = {r["a"]: r for r in plw["rows"]}
+              # Every row of the week (the published L<week> parts; the board keeps the top 100 only).
+              pl = l_merge(pub, w)
+              if pl is None or not same(pl[0]["parts"], plw["parts"]) or pl[0]["final"] is not True: hold(name, "its week's published L%d parts are missing or don't match the board" % w, False); continue
+              rows = {r["a"]: r for r in pl[1]}
               wrong = [t["a"] for t in truth if t["pts"] >= MIN_WEEK_PTS and not (t["a"] in rows and same(rows[t["a"]]["pts"], t["pts"]) and same(rows[t["a"]]["place"], t["place"]))]
               wrong += [a for a, r in rows.items() if r["pts"] >= MIN_WEEK_PTS and not any(t["a"] == a for t in truth)]
               if wrong: hold(name, "the published board's last week doesn't match the published final cards (e.g. %s)" % wrong[0], True); continue
@@ -693,7 +757,7 @@ jobs:
           shopt -s nullglob
           # Day parts a day no longer has (fix-check 3 FC3-5): removed in the same commit as the day's part 0.
           while IFS= read -r name; do
-            [[ "$name" =~ ^combo/D[0-9]{5}-[0-9]{1,3}\.json$ ]] && git update-index --force-remove "$name"
+            [[ "$name" =~ ^combo/(D[0-9]{5}-[0-9]{1,3}|L[0-9]{1,6}-[1-9][0-9]{0,3})\.json$ ]] && git update-index --force-remove "$name"
           done < "$HELD.drop"
           for f in "$IN"/combo/*.json "$IN"/combo/vault/*.json; do
             name="${f#"$IN"/}"

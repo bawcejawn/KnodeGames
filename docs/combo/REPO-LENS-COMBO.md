@@ -38,7 +38,7 @@ game 8's free prize on (it ships OFF).
 | Picks v2 upgrade commands in `bot/picks.ts` | Done; three mainnet gates (`--code` on all three); refuses during an owner handover |
 | Game 8 pinned in `bot/picks.ts` (`COMBO_GAME`) | Done; the exact card-game config (tested against the recorder's leg types and the page's limits); announced only once the deployment file records v2 |
 | The VHP ruler for race legs | Done (D-new A): on from Combo's first week |
-| Capacity standard checks | Done for rules 2, 3 and 5; rule 1's budget is in `.ai/games/ComboCard.md`; rule 4 split is debt (§7) |
+| Capacity standard checks | Done: every file size-checked (rule 2), no silent drops (rule 3), last week's rows split into `L<week>` parts (rule 4; `board.json` at most ~0.93 MB at any size), budget in `.ai/games/ComboCard.md` (rule 1), pages read only what they need (rule 5) |
 
 This round (Thu 12 Nov), on top of `ba2d9b30`:
 1. **#G-16 fixes:**
@@ -103,7 +103,12 @@ This round (Thu 12 Nov), on top of `ba2d9b30`:
   worth, result]]`, `state`, `outcome`, `pts` and `settled`.
 - **`D<day>-<k>.json`:** parts 1+, at most 1,000 cards each. Part 0 lists every slot.
 - **`board.json`:** `v`, `updated`, `rulerFrom`, `today`, `week`, `lastWeek`, `allTime`. A row has `a`, `place`,
-  `boardPlace`, `pts`, `hits`, `cards`, `best`, `days`, `lastHit`, `staked`, `free` and `ranked`.
+  `boardPlace`, `pts`, `hits`, `cards`, `best`, `days`, `lastHit`, `staked`, `free` and `ranked`. `lastWeek` holds the top
+  100 and `parts` (the count of its `L<week>` parts).
+- **`L<week>.json`, `L<week>-<k>.json`:** last week's full board (everyone with a point, and the top 2,000), in board
+  order, at most 2,000 rows a part. Part 0: `v`, `week`, `start`, `final`, `parts`, `rows`; other parts: `v`, `week`,
+  `part`, `rows`. The Vault file is made from, and judged against, these parts; the publish job holds the board and the
+  parts together unless they agree, and removes parts a week no longer has.
 - **`vault/W<week>.json`:** `{game: 8, week, final, rows: [{player, points}], first, second}`. Written once, in the
   Vault's 3-day window.
 - **`index.json`:** the known days.
@@ -201,7 +206,6 @@ This round (Thu 12 Nov), on top of `ba2d9b30`:
 | FC-11: live run time of record + verify unmeasured | A slow run holds files for an hour | Time the first live runs; FC4-4's budget keeps the verify job inside its 20 minutes |
 | FC2-14: Golf's and Combo's publish jobs can push to `games-data` together | The second push fails and retries next run | A shared concurrency group is a platform change (Library / Capacity) |
 | FC2-13: `wasmSha256` written by hand (runbook step 5) | Forgetting it leaves the tool accepting v1 | Its own PR in the runbook |
-| Capacity rule 4: `board.json` last-week rows | Past about 6,000 scoring players a week the recorder stops (an error; no Vault file); warning from about 1,900 | Split last-week rows into their own files; it touches the Vault path, so its own Repo Lens round, before that size |
 | Pages read GitHub raw directly | Rate limits at scale | Move to `data.knodegames.com` once the Capacity chat ships it |
 | Worths on the ruler | Prices still come from the handicap card | A re-pricing from the ruler's cards can follow, by its own PR |
 | Sponsor Mana measured on testnet only | The row may be off | `mana-report` after launch |

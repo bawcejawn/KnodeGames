@@ -41,10 +41,11 @@ A staked "parlay" game: combine several predictions from the Producer Race and B
 | File | Fixed part | Per item | Reaches 1.2 MB (warning) / 2 MB (cap) |
 |---|---|---|---|
 | `D<day>[-<k>].json` (a day part) | about 0.2 KB | 306 B (2 legs) to 532 B (6 legs) a card; at most 1,000 cards a part | never: a part holds at most about 0.53 MB; more cards make more parts (3 cards × players a day ÷ 1,000) |
-| `board.json` | about 0.3 KB | 181 B a row: Today and This week top 2,000 each, all-time top 1,000, last week every player with a point (to 6,000) | about 1,900 scoring players last week (warning; the 5,000 display rows take about 0.9 MB) / 6,000 (the recorder stops: an error and no Vault file, before the 2 MB cap) |
-| `vault/W<week>.json` | about 60 B | about 60 B a staked row | about 20,000 staked scorers (warning); board.json's 6,000 comes first |
+| `board.json` | about 1 KB | 183 B a row: Today and This week top 2,000 each, all-time top 1,000, last week top 100 | never: at most 5,100 rows, about 0.93 MB at any player count |
+| `L<week>.json`, `L<week>-<k>.json` (last week, every row) | about 0.1 KB | 183 B a row; at most 2,000 rows a part | never: a part holds at most about 0.37 MB; more players make more parts (4,500 weekly: 3 parts; 9,000: 5) |
+| `vault/W<week>.json` | about 60 B | about 60 B a staked row | about 20,000 staked scorers (warning); 34,000 (cap) |
 | `index.json` | small | 6 B a day | never |
-Every file the recorder writes is checked: past 60% a warning in every run, past 2 MB an error. **Debt:** past about 6,000 scoring players a week, `board.json`'s last-week rows need their own split files (capacity rule 4). That touches the Vault path, so it gets its own Repo Lens round; it isn't needed at launch size.
+Every file the recorder writes is checked: past 60% a warning in every run, past 2 MB an error. Last week's full board moved out of `board.json` into the `L<week>` parts (capacity standard; owner, 13 Nov: in the Combo PR); the Vault file is made from and judged against the parts, and the page fetches a player's own row from them when it isn't in the top 100. Measured with `tools/capacity-harness/filesize.mjs` on samples in `claude/combo/samples/`.
 
 ## Known issues
 - **I-063:** live run time (record + verify) unmeasured (FC-11); nothing writes v2's `wasmSha256` automatically (runbook step 5, FC2-13); Golf's and Combo's publish jobs can push to `games-data` at the same time (the second push fails and retries next run; FC2-14: a shared concurrency group is a platform change). `bot/picks.ts` is shared with Block X (they were told).

@@ -27,6 +27,19 @@ export const DEADLINE_MS = 2 * M.DAY;               // after the card's week end
 export const VAULT_WINDOW_MS = 3 * M.DAY;           // the Vault takes a week's file within 3 days of its end
 export const wName = (w) => `W${String(w).padStart(3, "0")}.json`;
 export const rName = (w) => `R${String(w).padStart(3, "0")}.json`;
+/** Last week's full board: every row of week w from its L<w> parts in `dir` (part 0 names the count), in board order;
+ *  null if a part is missing or not the recorder's shape. `{ final, parts, rows }`. (Capacity standard, 13 Nov.) */
+export function lastRows(dir, w) {
+  const p0 = readJson(dir, `L${w}.json`);
+  if (!p0 || p0.v !== 1 || p0.week !== w || !Number.isInteger(p0.parts) || p0.parts < 1 || p0.parts > 1000 || !Array.isArray(p0.rows)) return null;
+  const rows = [...p0.rows];
+  for (let k = 1; k < p0.parts; k++) {
+    const p = readJson(dir, `L${w}-${k}.json`);
+    if (!p || p.v !== 1 || p.week !== w || p.part !== k || !Array.isArray(p.rows)) return null;
+    rows.push(...p.rows);
+  }
+  return { final: p0.final === true, parts: p0.parts, rows };
+}
 
 // ── the VHP ruler switch (docs/VHP-RULER.md "Switching a game onto the ruler") ──
 /** COMBO_RULER_FROM_WEEK, strictly (KRuler.switchFrom): empty/unset → null; 1 … 999999 → the week; anything else throws. */

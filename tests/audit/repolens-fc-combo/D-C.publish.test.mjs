@@ -93,6 +93,8 @@ test("D-C-1: a Vault file is judged against a published board whose lastWeek agr
   // (Combo, D-081: board rows carry boardPlace, the place on the player's own board.)
   b.lastWeek.rows = [{ a: MAL, place: 1, boardPlace: 1, pts: 99999, hits: 1, cards: 1, best: 99999, days: 1, lastHit: 0, staked: true, free: false, ranked: true }];
   fs.writeFileSync(path.join(out, "board.json"), JSON.stringify(b));
+  // Combo chat, 13 Nov (capacity standard): the full rows are in the L<week> parts now; the bad run forges them too.
+  { const l3 = read(out, "L3.json"); l3.rows = b.lastWeek.rows; fs.writeFileSync(path.join(out, "L3.json"), JSON.stringify(l3)); }
   const remote = remoteWith(out);                                    // the bad run's board is published (no Vault file in it)
   const IN = asIncoming(out); fs.mkdirSync(path.join(IN, "combo/vault"), { recursive: true });
   fs.writeFileSync(path.join(IN, "combo/vault/W3.json"), JSON.stringify(C.vaultFile(3, true, [{ player: MAL, pts: 99999, staked: true }])));

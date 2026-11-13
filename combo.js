@@ -592,14 +592,33 @@
     const monday = new Date(K.GENESIS_MS + from * K.WEEK_MS).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
     el.textContent = `On the ruler from ${K.label(from)}, which starts ${monday} (00:00 UTC).`;
   }
+  // Last week: board.json holds the top 100; every row is in the L<week> parts (capacity standard, 13 Nov). A player
+  // outside the top 100 gets their own row from the parts (read one at a time, only until it is found, once a wallet).
+  const lastMine = new Map();
+  async function addMyLastWeek(b) {
+    const lw = b && b.lastWeek, a = me();
+    if (!lw || !a || !Array.isArray(lw.rows) || lw.rows.some((r) => r.a === a) || !(lw.parts >= 1)) return;
+    const key = `${lw.week}:${a}`;
+    if (!lastMine.has(key)) {
+      lastMine.set(key, null);
+      for (let k = 0; k < Math.min(lw.parts, 1000); k++) {
+        const part = await fetchJson(DATA + (k ? `L${lw.week}-${k}.json` : `L${lw.week}.json`)).catch(() => null);
+        if (!part || part.week !== lw.week || !Array.isArray(part.rows)) break;
+        const row = part.rows.find((r) => r && r.a === a);
+        if (row) { lastMine.set(key, row); break; }
+      }
+    }
+    const row = lastMine.get(key);
+    if (row && board === b && !lw.rows.some((r) => r.a === a)) { lw.rows = [...lw.rows, row]; lb.set(board); }
+  }
   async function loadBoard() {
     try {
       const b = await fetchJson(DATA + "board.json");
       if (b && b.v === 1) rulerLine(b.rulerFrom);
-      if (b && b.v === 1 && lb) { board = b; $("board-box").hidden = false; lb.setMe(me() || ""); lb.set(board); }
+      if (b && b.v === 1 && lb) { board = b; $("board-box").hidden = false; lb.setMe(me() || ""); lb.set(board); addMyLastWeek(b).catch(() => {}); }
     } catch { /* not running yet */ }
   }
-  if (W && W.subscribe) W.subscribe(() => { if (lb && board) { lb.setMe(me() || ""); lb.set(board); } loadMine(); });
+  if (W && W.subscribe) W.subscribe(() => { if (lb && board) { lb.setMe(me() || ""); lb.set(board); addMyLastWeek(board).catch(() => {}); } loadMine(); });
 
   // ── start ──
   (async () => {

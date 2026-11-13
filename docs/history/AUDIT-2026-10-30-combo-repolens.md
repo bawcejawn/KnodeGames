@@ -286,3 +286,31 @@ FC4-1 to FC4-4 and the handover refusal: fixed.
 - **Info, left:** a false "forged" alert can follow an edge hold and clears on the next run (accepted, as FC2-19).
 - **Owner:** set `COMBO_RULER_FROM_WEEK` = 7 by Sun 6 Dec 23:59 UTC, with or before `COMBO_ENABLED`, and keep
   `RACE_RULER_FROM_WEEK` at 7 or lower.
+
+## Last week's board in parts (the capacity standard; owner, 13 Nov: in the Combo PR)
+The Capacity chat's sizer (on samples from Combo's own recorder, `claude/combo/samples/`) found `board.json` AMBER at
+1,500 daily players and RED at 3,000 (last week held every scoring player, to 6,000).
+- **Recorder:** `board.json`'s `lastWeek` keeps the top 100 and `parts`. Every row (everyone with a point, and the top
+  2,000) goes in `L<week>.json` (part 0: `v`, `week`, `start`, `final`, `parts`, `rows`) and `L<week>-<k>.json`, at most
+  2,000 rows each. FC3-6's 6,000-row cap inside `board.json` is replaced: past 1,000 parts (2,000,000 rows), an error and
+  no Vault file. The Vault file is made from every row.
+- **Publish job:**
+  - Each part's exact shape.
+  - Every part the board names must be there and the recorder's cut: every part but the last exactly 2,000 rows; each
+    wallet once; places in order.
+  - Part 0's week, start, final and count must be the board's, and the board's top 100 must be the parts' first rows.
+    Otherwise the board and the parts are held together, with an alert.
+  - Parts for any other week are held.
+  - Published parts the week no longer has are removed (as day parts, FC3-5).
+  - The Vault check reads every row from the published parts.
+  - The file filter and the published-file copy admit `L` files.
+- **Verify job:** the Vault stake-flag check reads every row from the published parts (`lastRows`); the published-file
+  copy admits `L` files.
+- **Page:** a connected player outside the top 100 gets their own last-week row from the parts (read one at a time until
+  found).
+- **Tests:** `tests/audit/combo-lastweek.test.mjs` (the recorder; a hand-made 2,001-row week in two parts published; a
+  missing part, a wrong top 100, a short part 0, a wallet twice, a part of another week; a part past the count removed;
+  the jobs' file copies). Repo Lens's D-C-1 tests (both copies) and the D-081 verify test now forge the `L` parts with
+  the board, commented, so the same checks (FC-6, the stake flags) still catch the forgery.
+- **Sizes:** `board.json` at most 5,100 rows, about 0.93 MB at any player count. An `L` part is at most about 0.37 MB
+  (183 B a row): 3 parts at 4,500 weekly, 5 at 9,000.

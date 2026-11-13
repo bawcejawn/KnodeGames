@@ -176,19 +176,23 @@ test("verify (D-081): a new Vault file is confirmed only if the published board'
   assert.ok(fs.existsSync(path.join(out, "vault", "W3.json")));
   const lw = read(out, "board.json").lastWeek.rows;
   assert.deepEqual([lw.find((r) => r.a === ALICE).staked, lw.find((r) => r.a === BOB).staked, lw.find((r) => r.a === BOB).free], [true, false, true]);
-  const pub = tmp(); fs.copyFileSync(path.join(out, "board.json"), path.join(pub, "board.json"));   // the board was published first
+  const pub = tmp(); for (const f of fs.readdirSync(out).filter((x) => x === "board.json" || /^L\d+(-\d+)?\.json$/.test(x))) fs.copyFileSync(path.join(out, f), path.join(pub, f));   // the board and its L parts, published first (capacity standard)
   const go = (pubDir, s = stake) => V.verify({ incoming: out, published: pubDir, race, blockx: bx, picks: PICKS, vault: VAULT, now: t,
     p: vnode(node({ t, cards: twoCards, stake: s })), check: vnode(node({ t, cards: twoCards, stake: s })), vhpMovesOf: async () => 0n });
   const ok = await go(pub);
   assert.ok(ok.approved.some((x) => x.name === "vault/W3.json"), JSON.stringify(ok.problems));
   // The published board marks Bob staked (a bad run moving a free player onto the Staked board): not confirmed.
-  const bad = tmp(); fs.copyFileSync(path.join(out, "board.json"), path.join(bad, "board.json"));
-  edit(bad, "board.json", (j) => { const r = j.lastWeek.rows.find((x) => x.a === BOB); r.staked = true; r.ranked = true; r.free = false; });
+  // (Capacity standard, 13 Nov: the full rows are in the published L<week> parts, which the verify job reads; the forgery
+  // goes there, and into the board's top rows alike.)
+  const copyPub = () => { const d = tmp(); for (const f of fs.readdirSync(pub)) fs.copyFileSync(path.join(pub, f), path.join(d, f)); return d; };
+  const forge = (d, who, f) => { for (const n of ["board.json", "L3.json"]) edit(d, n, (j) => { const rows = n === "board.json" ? j.lastWeek.rows : j.rows; f(rows.find((x) => x.a === who)); }); };
+  const bad = copyPub();
+  forge(bad, BOB, (r) => { r.staked = true; r.ranked = true; r.free = false; });
   const r1 = await go(bad);
   assert.ok(!r1.approved.some((x) => x.name === "vault/W3.json") && r1.problems.some((x) => x.alert && /stake flags/.test(x.why)));
   // Or marks staked Alice free (to drop her from rows and put her on the Free play board): not confirmed.
-  const bad2 = tmp(); fs.copyFileSync(path.join(out, "board.json"), path.join(bad2, "board.json"));
-  edit(bad2, "board.json", (j) => { const r = j.lastWeek.rows.find((x) => x.a === ALICE); r.staked = false; r.ranked = false; r.free = true; });
+  const bad2 = copyPub();
+  forge(bad2, ALICE, (r) => { r.staked = false; r.ranked = false; r.free = true; });
   assert.ok(!(await go(bad2)).approved.some((x) => x.name === "vault/W3.json"));
   // The board isn't published yet: held without blame.
   const r3 = await go(tmp());
@@ -199,7 +203,7 @@ test("verify (Repo Lens FC4-4): day results come first; the Vault reads have a t
   const t = M.weekStart(4) + 13 * 3600000, out = tmp(), race = raceDir(), bx = blockxDir();
   const stake = (p) => (p === ALICE ? 200000000n : 0n);
   await quiet(() => run({ p: node({ t, cards: twoCards, stake }), check: node({ t, cards: twoCards, stake }), out, raceDir: race, blockxDir: bx, picksContract: PICKS, knodeGame: VAULT, now: t, vhpMovesOf: async () => 0n }));
-  const pub = tmp(); fs.copyFileSync(path.join(out, "board.json"), path.join(pub, "board.json"));
+  const pub = tmp(); for (const f of fs.readdirSync(out).filter((x) => x === "board.json" || /^L\d+(-\d+)?\.json$/.test(x))) fs.copyFileSync(path.join(out, f), path.join(pub, f));   // the board and its L parts (capacity standard)
   // A clock that jumps past the budget once the Vault reads start: they stop, the file waits, the days stand.
   let calls = 0, early = null;
   const clock = () => (calls++ < 1 ? 0 : 10 ** 9);

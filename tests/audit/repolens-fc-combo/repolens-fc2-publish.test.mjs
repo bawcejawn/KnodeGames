@@ -156,6 +156,9 @@ test("D-C-1 (corrected): the Vault file that matches a made-up published board i
   // (Combo, D-081: board rows carry boardPlace, the place on the player's own board.)
   b.lastWeek.rows = [{ a: MAL, place: 1, boardPlace: 1, pts: 99999, hits: 1, cards: 1, best: 99999, days: 1, lastHit: 0, staked: true, free: false, ranked: true }];
   fs.writeFileSync(path.join(out, "board.json"), JSON.stringify(b) + "\n");
+  // Combo chat, 13 Nov (capacity standard): last week's full rows now live in L<week> parts, and the Vault check reads
+  // them; the bad run forges those too (the same rows), so it is still the FC-6 recount that must catch it.
+  const l3 = read(out, "L3.json"); l3.rows = b.lastWeek.rows; fs.writeFileSync(path.join(out, "L3.json"), JSON.stringify(l3) + "\n");
   const remote = remoteWith(out);
   const IN = asIncoming(out); fs.mkdirSync(path.join(IN, "combo/vault"), { recursive: true });
   const vf = C.vaultFile(3, true, [{ player: MAL, pts: 99999, place: 1, staked: true }]);

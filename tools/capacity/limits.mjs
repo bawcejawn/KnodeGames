@@ -12,7 +12,7 @@
  *
  * Colours: green under 60%, amber 60% to under 85%, red 85% and up. Limits: every published file 2 MB (the publish
  * jobs' cap), the Daily Questions week file 1.9 MB (its recorder's cap), VHP ruler day files 16 MiB (its own cap),
- * scheduled workflow runs 400 a day (Capacity target ~300; the free plan allows 20 jobs at once).
+ * scheduled workflow runs 600 a day (our ceiling; target ~300-370 after the planned cuts; the free plan allows 20 jobs at once).
  * Not covered here (read them with their own commands): the sponsor's daily Mana (`npm run sponsor -- status`) and the
  * Cloudflare Worker's requests (Cloudflare dashboard -> Workers -> kg-data -> Metrics; free limit 100,000 a day).
  */
@@ -27,7 +27,7 @@ const CI = args.includes("--ci"), JSON_OUT = args.includes("--json");
 const MB = 1024 * 1024;
 const BRANCHES = ["games-data", "race-data", "blocks-data", "names-data", "stats-data", "vhp-data"];
 const AMBER = 60, RED = 85;
-export const SCHED_LIMIT = 400;
+export const SCHED_LIMIT = 600;   // our own ceiling for scheduled runs a day (target ~300-370; amber from 360)
 // The schedule count is shown every day but doesn't fail the daily run (email) until the planned cut to ~300 a day
 // lands (Race samples every 15 min, testnet job off when idle; Race and Architecture chats, by Mon 23 Nov). Then set
 // this to true so schedules alert at 60% like every other limit.

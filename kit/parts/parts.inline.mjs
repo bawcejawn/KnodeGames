@@ -6,7 +6,7 @@
 //
 // A logical file <base> (e.g. race-data/W004) becomes a folder:
 //   <base>/manifest.json           the only file that changes between runs (written last)
-//   <base>/<part>.<h12>.json       content-addressed parts: ref, top, d1-d7, r001..., p/<xx> (per-player shards)
+//   <base>/<part>.<h12>.json       content-addressed parts: ref, top, wk, d1-d7, r001..., p/<xx> (per-player shards)
 // <h12> = the first 12 hex of the part's own SHA-256, so a part's name changes whenever its bytes change and a cached
 // old copy can never pass for the new one. The manifest lists every part with its bytes and SHA-256, and a part-set
 // hash covers them all; checkParts() proves a folder is complete (no part missing, changed, extra or stale).
@@ -21,7 +21,7 @@ export const MAX_PARTS = 600;                            // a runaway split stop
 const ADDR = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/;
 const GAME = /^[a-z][a-z0-9-]{0,31}$/;
 const FILE = /^[A-Za-z0-9][A-Za-z0-9-]{0,31}$/;
-const PART = /^(ref|top|d[1-7]|r\d{3,5}|p\/[0-9a-f]{1,2})$/;
+const PART = /^(ref|top|wk|d[1-7]|r\d{3,5}|p\/[0-9a-f]{1,2})$/;   // wk: small week-level keys (Architecture A1)
 const TYPES = new Set(["a", "i", "s", "n", "b"]);
 const HEX64 = /^[0-9a-f]{64}$/;
 
@@ -56,7 +56,7 @@ function cmpRows(a, b) { for (let i = 0; i < a.length; i++) { const c = typeof a
 export function encodePart({ game, file, part, t0 = 0, cols, rows, extra = {} }) {
   if (!GAME.test(String(game))) fail(`bad game "${game}"`);
   if (!FILE.test(String(file))) fail(`bad file "${file}"`);
-  if (!PART.test(String(part))) fail(`bad part "${part}" (ref, top, d1-d7, r001..., p/<hex>)`);
+  if (!PART.test(String(part))) fail(`bad part "${part}" (ref, top, wk, d1-d7, r001..., p/<hex>)`);
   if (!Number.isSafeInteger(t0) || t0 < 0) fail("t0 must be a whole number of ms");
   checkCols(cols);
   if (!Array.isArray(rows)) fail("rows must be an array");
@@ -146,35 +146,49 @@ function listFiles(dir, rel = "") {
 }
 
 /**
+ * The writer without the file system (Architecture A2): given the parts and the previous manifest (or null), returns
+ * what to write: { manifest, manifestText, hash, files: [{ name, text }] (parts first, "manifest.json" last),
+ * unchanged: true when the folder is final and this set is the same (write nothing), warnings }. Throws when the
+ * folder is final and the set differs. The caller (the kit's Out, a game's recorder) writes `files` and removes
+ * every other file in the folder for a pending week.
+ */
+export function planParts(meta, encoded, prev = null) {
+  const manifest = buildManifest(meta, encoded);
+  if (prev && prev.state === "final") {
+    if (prev.hash !== manifest.hash) fail(`the folder is final and this run's part set differs (hash ${String(prev.hash).slice(0, 12)} vs ${manifest.hash.slice(0, 12)}): stopping`);
+    return { manifest: prev, manifestText: JSON.stringify(prev) + "\n", hash: prev.hash, files: [], unchanged: true, warnings: sizeWarnings(prev.parts.map((p) => ({ name: p.name, bytes: p.bytes }))) };
+  }
+  const manifestText = JSON.stringify(manifest) + "\n";
+  const files = [...encoded.map((p) => ({ name: p.name, text: p.text })), { name: "manifest.json", text: manifestText }];
+  return { manifest, manifestText, hash: manifest.hash, files, unchanged: false, warnings: sizeWarnings(files.map((f) => ({ name: f.name, bytes: Buffer.byteLength(f.text) }))) };
+}
+
+/**
  * Writes a logical file as parts + manifest into baseDir (created if needed). parts: encodePart() results. A final
  * folder is never changed: if baseDir holds a final manifest, the run must produce the same part-set hash (then
  * nothing is written) or it throws. For a pending folder, parts no longer listed are removed (same commit). The
  * manifest is written last. Returns { manifest, warnings, written }.
  */
 export function writeParts(baseDir, meta, encoded) {
-  const manifest = buildManifest(meta, encoded);
   const mPath = path.join(baseDir, "manifest.json");
-  if (fs.existsSync(mPath)) {
-    let prev = null;
-    try { prev = JSON.parse(fs.readFileSync(mPath, "utf8")); } catch { prev = null; }
-    if (prev && prev.state === "final") {
-      if (prev.hash !== manifest.hash) fail(`${baseDir} is final and this run's part set differs (hash ${prev.hash.slice(0, 12)} vs ${manifest.hash.slice(0, 12)}): stopping`);
-      return { manifest: prev, warnings: sizeWarnings(prev.parts.map((p) => ({ name: `${baseDir}/${p.name}`, bytes: p.bytes }))), written: 0 };
-    }
-  }
+  let prev = null;
+  if (fs.existsSync(mPath)) { try { prev = JSON.parse(fs.readFileSync(mPath, "utf8")); } catch { prev = null; } }
+  let plan;
+  try { plan = planParts(meta, encoded, prev); } catch (e) { fail(`${baseDir}: ${String(e.message).replace(/^kit\/parts: /, "")}`); }
+  const warnings = plan.warnings.map((w) => ({ ...w, name: `${baseDir}/${w.name}`, message: `${baseDir}/${w.message}` }));
+  if (plan.unchanged) return { manifest: plan.manifest, warnings, written: 0 };
   fs.mkdirSync(baseDir, { recursive: true });
   let written = 0;
-  for (const p of encoded) {
-    const f = path.join(baseDir, p.name);
-    fs.mkdirSync(path.dirname(f), { recursive: true });
-    if (!fs.existsSync(f) || fs.readFileSync(f, "utf8") !== p.text) { fs.writeFileSync(f, p.text); written++; }
+  for (const f of plan.files.filter((x) => x.name !== "manifest.json")) {
+    const full = path.join(baseDir, f.name);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    if (!fs.existsSync(full) || fs.readFileSync(full, "utf8") !== f.text) { fs.writeFileSync(full, f.text); written++; }
   }
-  const keep = new Set(["manifest.json", ...manifest.parts.map((p) => p.name)]);
+  const keep = new Set(plan.files.map((f) => f.name));
   for (const f of listFiles(baseDir)) if (!f.dir && !keep.has(f.rel)) { fs.rmSync(path.join(baseDir, f.rel), { force: true }); }
   for (const f of listFiles(baseDir).filter((x) => x.dir).reverse()) { const d = path.join(baseDir, f.rel); if (!fs.readdirSync(d).length) fs.rmdirSync(d); }
-  const mText = JSON.stringify(manifest) + "\n";
-  fs.writeFileSync(mPath, mText);
-  return { manifest, warnings: sizeWarnings([...manifest.parts.map((p) => ({ name: `${baseDir}/${p.name}`, bytes: p.bytes })), { name: mPath, bytes: Buffer.byteLength(mText) }]), written: written + 1 };
+  fs.writeFileSync(mPath, plan.manifestText);
+  return { manifest: plan.manifest, warnings, written: written + 1 };
 }
 
 /** Files at or over 60% of the cap: [{ name, bytes, pct, message }]. Every recorder alerts on these (rule 2). */

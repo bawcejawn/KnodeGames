@@ -13,6 +13,7 @@ race-data/W004/ref.<h12>.json           optional, write-once reference data (e.g
 race-data/W004/d3.<h12>.json            one part per unit; the unit is the game's choice: d<1-7> (UTC day of the vault week)
 race-data/W004/r017.<h12>.json            or r<NNN> (race / round / target number, 3+ digits)
 race-data/W004/top.<h12>.json           optional: the top 100 rows of this file's board
+race-data/W004/wk.<h12>.json            optional: small week-level keys (carry, next, extras, cards, inputs) (Architecture A1)
 race-data/W004/p/<xx>.<h12>.json        optional: per-player shards (§5)
 ```
 - `<h12>` = the first 12 hex characters of the part's own SHA-256 (of its exact bytes). **Parts are content-addressed: a part's name changes whenever its bytes change**, so a cached old copy (browser, Cloudflare mirror) can never be mistaken for the new one, and a part, once named, is never rewritten.
@@ -86,6 +87,6 @@ For every file it writes (parts, manifest, `board.json`, vault file): over 1.2 M
 
 ## 7. What `kit/parts` contains
 One file, `kit/parts/parts.inline.mjs`: `encodePart`, `decodePart`, `partName`, `shardOf`, `partSetHash`,
-`buildManifest`, `writeParts` (content-addressed parts, unlisted pending parts removed, finals never changed, manifest
+`buildManifest`, `planParts` (the writer with no file system: returns the files to write; Architecture A2), `writeParts` (content-addressed parts, unlisted pending parts removed, finals never changed, manifest
 last), `checkParts` (§4 steps 1-5; returns the decoded parts for the game's own recompute, step 6) and `sizeWarnings`
 (the 60% warning). Tests: `kit/tests/parts.test.mjs` (KP-1..11). How kit games call it: Architecture's decision.

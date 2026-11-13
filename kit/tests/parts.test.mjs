@@ -146,3 +146,18 @@ test("KP-11 self-contained: imports only node:fs, node:path, node:crypto", () =>
   const imports = [...src.matchAll(/^import .* from "([^"]+)";$/gm)].map((m) => m[1]);
   assert.deepEqual(imports.sort(), ["node:crypto", "node:fs", "node:path"]);
 });
+
+test("KP-12 planParts (Architecture A2): the files to write, no file system; same hash as writeParts", () => {
+  const parts = [P.encodePart({ game: "fantasy", file: "W006", part: "d1", cols: COLS, rows: rowsFor(4) }), P.encodePart({ game: "fantasy", file: "W006", part: "wk", cols: [["k", "s"]], rows: [["carry"]], extra: { carry: 0 } })];
+  const m = { game: "fantasy", file: "W006", week: 6, state: "pending", unit: "d", expect: ["d1"], writtenAt: 1 };
+  const plan = P.planParts(m, parts, null);
+  assert.equal(plan.files.at(-1).name, "manifest.json");
+  assert.equal(plan.files.length, 3);
+  assert.ok(plan.files.some((f) => f.name.startsWith("wk.")));
+  const dir = path.join(tmp(), "W006");
+  const w = P.writeParts(dir, m, parts);
+  assert.equal(w.manifest.hash, plan.hash);
+  const fin = P.planParts({ ...m, state: "final" }, parts, null);
+  assert.equal(P.planParts({ ...m, state: "final" }, parts, fin.manifest).unchanged, true);
+  assert.throws(() => P.planParts(m, [parts[0]], fin.manifest), /final/);
+});

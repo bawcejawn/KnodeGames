@@ -7,7 +7,7 @@
  *   npm run racepicks -- setup [--send]          the first settings, signed by the race wallet's own key: owner = the
  *                                                Knode owner, picks ON, 5 picks per wallet per day
  *   npm run racepicks -- enable|disable [--send] switch picks on or off (owner's key: OWNER_WIF)
- *   npm run racepicks -- limit <1-20> [--send]   picks per wallet per day (owner's key)
+ *   npm run racepicks -- limit <0-20> [--send]   picks per wallet per day, 0 = no per-game limit (v2; owner's key)
  *   npm run racepicks -- owner <new> [--confirm <new>] [--send]
  *                                                hand the contract's settings to a new owner wallet (I-077, D-096).
  *                                                One step and immediate on chain, so the tool asks for the address
@@ -44,6 +44,8 @@ const GAME_DEP = path.join("game-data", "deployment.json");
  *  chain's code as not this build. Repo Lens #D-14 N-3: this line changes only in its own reviewed commit. */
 export const RACE_SHA256 = "9993581baf822cd070331008441c5ad974f5c0b134520dfb7422b9efd1873864";
 export const DEFAULT_PICKS_PER_DAY = 5;
+/** Repo Lens #G-64 G64-5: one wording for the per-day limit everywhere (0 = no per-game limit on v2). */
+export const perDayText = (n: number) => (n === 0 ? "no per-game limit (v2)" : `${n} per wallet per day`);
 /** The least Mana a settings change is tried with (0.5; one used 0.28 on 13 Nov 2026). */
 export const SETTINGS_MANA_MIN = 50_000_000n;
 /** The race picks contract on mainnet (uploaded 27 Oct 2026). Like PINNED_MAINNET in bot/bot.ts: on mainnet the tool
@@ -122,7 +124,7 @@ async function status() {
   log(`  Overrides      ${m.tx || m.call || m.upload ? "SOME ON (must all be off!)" : "none (as it should be)"}`);
   const cfg = await read(provider, A, "get_config");
   log(`  Owner          ${cfg.owner ?? "not set (npm run racepicks -- setup)"}${cfg.owner && cfg.owner !== g.owner ? "  (not the vault owner in game-data/deployment.json)" : ""}`);
-  log(`  Picks          ${cfg.enabled ? "ON" : "off"}, ${Number(cfg.max_picks_per_day ?? 0) === 0 ? "no per-game limit (v2)" : `${cfg.max_picks_per_day} per wallet per day`}`);
+  log(`  Picks          ${cfg.enabled ? "ON" : "off"}, ${perDayText(Number(cfg.max_picks_per_day ?? 0))}`);
 }
 
 async function upload(send: boolean) {
@@ -175,7 +177,7 @@ async function setConfig(send: boolean, change: (cur: any) => { enabled: boolean
   const config = buildRaceConfig(firstSetup ? g.owner : cur.owner, enabled, perDay);
   const signer = firstSetup ? raceKey(provider) : ownerKey(provider, cur.owner);
   log(`To the race contract ${A}, signed by ${firstSetup ? "the race wallet (first setup)" : `its owner ${cur.owner}`}:`);
-  log(`  owner ${config.owner}; picks ${enabled ? "ON" : "off"}; ${perDay} per wallet per day`);
+  log(`  owner ${config.owner}; picks ${enabled ? "ON" : "off"}; ${perDayText(perDay)}`);
   // 13 Nov 2026: a signer with no Mana got a bare node error ("missing expected field ... rc_limit"). Say it plainly,
   // in the dry run too: a settings change uses well under 1 Mana, and a wallet's KOIN is its Mana.
   const chain = new KoinosChain(rpc, signer.getAddress());
@@ -285,7 +287,7 @@ export async function changeOwner(next: string, confirm: string | undefined, sen
   d.log(`Race picks contract ${d.race}${d.mainnet ? "   ⚠ MAINNET" : ""}`);
   d.log(`  Owner now      ${cur.owner}`);
   d.log(`  New owner      ${config.owner}`);
-  d.log(`  Kept as is     picks ${config.enabled ? "ON" : "off"}, ${config.max_picks_per_day} per wallet per day`);
+  d.log(`  Kept as is     picks ${config.enabled ? "ON" : "off"}, ${perDayText(Number(config.max_picks_per_day ?? 0))}`);
   d.log(`  Typed twice    ${confirm === undefined ? "not yet (add --confirm <the same address>)" : "✔ both match"}`);
   d.log(`  New key held   ${proof === undefined ? "not checked (put NEW_OWNER_WIF in .env for the send)" : "✔ NEW_OWNER_WIF is this address"}`);
   for (const n of notes) d.log(`  ${n}`);

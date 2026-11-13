@@ -20,3 +20,11 @@ test("13 Nov: race-data/deployment.json records the v2 upload; a settings change
   assert.match(src, /if \(mana !== null && mana < SETTINGS_MANA_MIN\) throw new Error\(`\$\{signer\.getAddress\(\)\} has \$\{showKoin\(mana\)\} Mana: send it at least 1 KOIN first/);
   assert.ok(src.indexOf("mana < SETTINGS_MANA_MIN") < src.indexOf('if (!send) { log("\\nDry run only. Nothing was sent. Add --send to send it."); return; }'), "checked in the dry run too");
 });
+
+test("Repo Lens #G-64 G64-5: the picks tool says 'no per-game limit (v2)' for 0 everywhere, and its help allows 0", async () => {
+  const src = fs.readFileSync(APP + "bot/race-picks.ts", "utf8");
+  assert.match(src, /limit <0-20> \[--send\]   picks per wallet per day, 0 = no per-game limit/);
+  assert.doesNotMatch(src, /\$\{perDay\} per wallet per day/, "the dry run never says '0 per wallet per day'");
+  const { perDayText } = await import(APP + "bot/race-picks.ts");
+  assert.equal(perDayText(0), "no per-game limit (v2)"); assert.equal(perDayText(20), "20 per wallet per day");
+});

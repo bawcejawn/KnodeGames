@@ -66,7 +66,6 @@ throw; only display boards trim, and they say how much). Rule 4 (compact, split 
 - The ruler's optional `include` (G6) and `mode` card settings aren't in the kit's strict card settings yet: they join with the Ruler PRs that bring them (until then such a card fails closed).
 - A ruler game can't decide a round without a card except by `cardPerRound: false` (GAME_KIT §3).
 - The publish job's card rebuild hasn't been timed on the real `vhp-data` (about 30 days); 15 days of made-up data took about 4 s. Watch the first Fantasy publish runs (10-minute job limit).
-- `ctx.blockAt` reads aren't counted in the run's read budget; each search is capped at 80 reads and memoized.
 - On Windows (Node 24) a few bash-only tests skip, and the symlink part of one publish test skips when Windows refuses symlinks. CI is Linux.
 
 ## Changing the kit

@@ -116,3 +116,16 @@ test("lastPickBlock: the last block strictly before the lock time (Picks.ts: acc
     assert.ok(ts[L] < ts[h] + 1 && ts[L + 1] >= ts[h] + 1);
   }
 });
+
+test("#G-41 G41-4: the kit compares the two nodes' heights itself, so a game that drops the height can't hide a lying node", async () => {
+  const wd = qworld();
+  // node b's times run 6 s late: its heights differ by 2, so a parity-based result would still match
+  const b = fakeNode("b", () => wd, { tweak: (m, _a, r) => (m === "blockTime" ? r + 6000 : r) });
+  const drops: GameModule<any, any, any> = { ...exampleGame, async resultOf(round, read, inputs, ctx) { await ctx!.blockAt!(round.locksAt); return exampleGame.resultOf(round, read, inputs); } };
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "g41-4-"));
+  fs.mkdirSync(path.join(d, "prev")); fs.writeFileSync(path.join(d, "prev", ".fetched"), "");
+  const r = await runGame(drops, exampleCfg(), { nodes: [fakeNode("a", () => wd), b], prev: path.join(d, "prev"), out: path.join(d, "out"), log: () => {} });
+  const j = JSON.parse(fs.readFileSync(path.join(d, "out", "W004.json"), "utf8"));
+  assert.ok(j.rounds.filter((x: any) => x[0] !== "q00000200").every((x: any) => x[3] === "p"), "no round decided on disagreeing blocks");
+  assert.ok([...r.alerts.errors, ...r.alerts.warnings].some((x) => /disagree on the first block at/.test(x)), JSON.stringify(r.alerts));
+});

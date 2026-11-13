@@ -219,9 +219,21 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // lower of the two nodes' last irreversible blocks (read once, only if a game asks), so the answers can be compared.
   let pinP: Promise<number> | null = null, bA: ((ms: number) => Promise<number>) | null = null, bB: typeof bA = null;
   const pin = () => (pinP ??= Promise.all([A.head(), B.head()]).then(([x, y]) => Math.min(x.lib, y.lib)));
-  const blockAtA = async (ms: number) => (bA ??= blockAtFor(A, await pin()))(ms);
-  const blockAtB = async (ms: number) => (bB ??= blockAtFor(B, await pin()))(ms);
-  const chainOf = (rd: unknown) => (rd === va ? blockAtA : blockAtB);
+  // #G-41: block reads are reads: charged to the run's budget, failures are ReadFailed (the round stays pending).
+  const charged = (n: KitNode): KitNode => ({ ...n, async blockTime(h: number) {
+    budget.take(`${n.label} block ${h}`);
+    try { return await n.blockTime!(h); } catch (e) { if (e instanceof OutOfBudget || e instanceof ReadFailed) throw e; throw new ReadFailed(n.label, `block ${h}`, e); }
+  }, async head() { try { return await n.head(); } catch (e) { throw new ReadFailed(n.label, "head", e); } } });
+  // #G-41 G41-4: every ctx.blockAt asks BOTH nodes and requires the same height (a Disagree: the round stays pending
+  // with an alert, or the run stops for inputs), so a game that drops the height can't hide a lying node.
+  const blockAtBoth = async (ms: number) => {
+    const fa = (bA ??= blockAtFor(charged(A), await pin())), fb = (bB ??= blockAtFor(charged(B), await pin()));
+    const [x, y] = await Promise.all([fa(ms), fb(ms)]);
+    if (x !== y) throw new Disagree(`the first block at ${new Date(ms).toISOString()}`, x, y);
+    return x;
+  };
+  const blockAtA = blockAtBoth, blockAtB = blockAtBoth;
+  const chainOf = (_rd: unknown) => blockAtBoth;
 
   // FC-9: next week's inputs file (price list, seeding), made once inside its window before the week opens, on both
   // nodes (they must agree). Write-once: the publish check refuses a changed copy and any copy after the week opens.
@@ -334,7 +346,13 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     }
   } else if (m.inputsFor) {
     // Inputs the game reads itself (cards, seeding, prices), on both nodes; they must agree (KC-30).
-    inputs = await agree(`week ${w}'s inputs`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w), vhp: vhpIn, blockAt: blockAtA }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w), vhp: vhpIn, blockAt: blockAtB }));
+    try {
+      inputs = await agree(`week ${w}'s inputs`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w), vhp: vhpIn, blockAt: blockAtA }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w), vhp: vhpIn, blockAt: blockAtB }));
+    } catch (e) {
+      if (!isNotYet(e)) throw e;
+      alerts.warnings.push(`week ${w}: its inputs aren't readable yet (${(e as Error).message}); nothing recorded this run`);
+      return { week: w, state: "waiting", alerts, written: out.written };
+    }
   }
 
   // Carried state (FC-5): the week before must be final; its `next` is this week's start (through carryIn).

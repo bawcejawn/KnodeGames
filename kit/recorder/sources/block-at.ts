@@ -1,7 +1,9 @@
 // Shared Game Kit source (G7, Fantasy's UTC days): the first block whose time is at or after a UTC time (ms), on
 // IRREVERSIBLE blocks only, so the answer never changes. The same binary search as the Race recorder's heightAt
-// (bot/race.ts), with a downward doubling search for its lower bound. The kit runs it on each node and requires the two
-// answers to agree (like every other read); a game gets it as ctx.blockAt(ms) in inputsFor / roundsFor / resultOf.
+// (bot/race.ts), with a downward doubling search for its lower bound. The kit runs it on both nodes, pinned to the lower
+// of their last irreversible blocks, and requires the same height from both (#G-41 G41-4); every block read is charged
+// to the run's budget and a failed read is a ReadFailed (G41-1, G41-2). A game gets it as ctx.blockAt(ms) in inputsFor
+// and as part of resultOf's fourth argument (not in roundsFor, which is synchronous).
 import { NotYet } from "../types.ts";
 import type { KitNode } from "../nodes.ts";
 

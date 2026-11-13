@@ -34,7 +34,8 @@ what and how to run it. Built by the VHP Ruler chat (R-RULER-1) on branch `vhp-r
 Usually nothing to do by hand. More than 3 hours behind (`BEHIND_ALERT` = 3,600 blocks; a normal run is 1 to 2 hours
 behind), each run shows a red `::error::` "the VHP ruler is N hours behind", and the same words in plain language at the
 top of the run page (GitHub's job summary). A failed run puts its error there too. Both end with the owner's one-line
-step (`OWNER_STEP` in `bot/vhp-ruler.ts`; the Race's alert quotes it word for word): "GitHub → Actions → VHP ruler data:
+step (`OWNER_STEP` in `bot/vhp-ruler.ts`; the Race's alert quotes it word for word). Being behind leaves the run green
+on purpose: the hours it did record are good, and it catches up by itself. A run that fails is red: "GitHub → Actions → VHP ruler data:
 if the latest run is red, click Re-run all jobs; missed hours are read back from the chain by themselves, and if it is
 red again the next hour, send its error text to the VHP Ruler chat." More than about 5 hours behind, it writes **chained** hours (balances carried forward from the hour before,
 blocks checked on both nodes, no reads), up to 48 a run, until it is about 2 hours behind; the next run then reads live
@@ -232,9 +233,11 @@ offline day scores what it earned and counts in form.
   `check_include`). The card records it (top-level `include`, after `mode`), and `recompute` requires the settings to
   carry the same list. Without `include` the card is byte for byte as before.
 - **A listed producer that isn't active at T** gets a row from the same code: own, avg, k, form, expected, credited, void,
-  fpct. Its `entry` also needs at least one block in its form window, plus the usual form gate (or steady) and minK. An
-  offline day: expected > 0, credited 0. In the core, the band sets it aside, so it moves no one else.
-- **The network total is unchanged** (Σ avg over active(T)), so every other producer's row is unchanged.
+  fpct, marked `"listed": true`. Its `entry` also needs at least one block in its form window, plus the usual form gate
+  (or steady) and minK. An offline day: expected > 0, credited 0.
+- **It moves no one else** (Repo Lens #G-40 G40-2): a listed-only row is scored against the field like anyone, but it
+  never sets the field's medians (the core line, modes B and C, RULE_VERSION 5) and never joins the core. The network total
+  stays Σ avg over active(T). So every other producer's row is exactly as on the card without `include`.
 - **An address the data doesn't know** (no VHP, no block) is refused ("unknown address"), and the game holds the day.
 - Not a RULE_VERSION change.
 
@@ -257,6 +260,13 @@ cost of 5,100–14,700 blocks).
   change with `versionChange` against the last published value, and passes `version: versionAt(week, schedule)` in the
   card settings (and the same in the publish job's settings).
 - **A season game** (Survivor) pins one version and one mode at the season's first week, for the whole season.
+- **Each game's publish job reads its own `<GAME>_RULER_VERSION`** (and `<GAME>_RULER_MODE`) and passes the same settings
+  to `recompute`. Nothing in the ruler reads the variables.
+- **Known limit (Repo Lens #G-40 G40-1, Low):** version 5 narrows the core steer rather than closing it. A dip inside the
+  last 3 days no longer moves anyone, but a dip in `[T − 14 d, T − 3 d)` can still take a node out of the core, as it
+  could in version 4, at a similar cost (about 5,000 blocks for a 2-day half-signing dip). Judged by score, it gains
+  nothing in the tests (`vhp-ruler.v5-include.test.mjs`, G40-1) and gave no extra wins over 4 seeds in the review. To be
+  weighed (with leave-one-out bands as an option) before the Tue 24 Nov decision.
 - **Plan:** shadow on Week 1 and Week 2's real races (`sims/ruler/steer.mjs <seeds> 5`, `tools/vhp-ruler-shadow.mjs`),
   the owner decides at the Tue 24 Nov review, and it is on from **Week 3 (vault week 6, Mon 30 Nov)** at the earliest.
 
@@ -265,7 +275,9 @@ A game may store a card as its **digest** instead of its full text: `cardDigest(
 `{ "sha256": <hex of sha256 of the card's canonical text>, "scored": true|false }`, about 100 bytes instead of 8 KB or
 more. `recompute(L, digest, settings)` accepts the digest (as an object or as its JSON text), rebuilds the card from the
 game's own settings (scored when `scored` is true), and compares the sha256 of the rebuilt card's exact bytes. So the
-check stays byte-exact.
+check stays byte-exact. When the card matches, JS `recompute` returns the rebuilt card as `.card`, and Python
+`recompute_card(L, published, settings)` returns `(same, diff, card)`, so a game that stores only digests can derive its
+results from the rebuilt card. (`recompute` in Python still returns `(same, diff)`.)
 - **What the game keeps beside it:** the settings that differ per card (round, window) and the results it pays on. Its
   publish job derives those results from the rebuilt card and refuses any difference.
 - **Keep the full texts somewhere** (for example a per-day cards file outside the week file): vhp-data keeps 30 days

@@ -260,10 +260,14 @@ test("vault: a shadow week's rows are the 6-hour race's, never the ruler's; an O
 test("page: the ruler's box is hidden until the R file says shadow or on; it says what the ruler measures, the 6-hour void line, that a pick on a voided producer is a loss, and from which Monday", () => {
   const html = fs.readFileSync(path.join(APP, "race.html"), "utf8"), js = fs.readFileSync(path.join(APP, "race.js"), "utf8");
   assert.match(html, /<section class="card" id="ruler-box" hidden>/);
-  assert.match(html, /luck against its own size/);
-  assert.match(html, /more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only/);
-  assert.match(html, /A pick on a voided producer counts as a loss\./);
-  assert.match(html, /The horses on the track are a live estimate; the final order comes from the ruler/);
+  // Owner, 12 Nov: the Ruler's rules live on the Ruler page, the game's rules on the Rules page; the Race page keeps a short line and the results.
+  const rulerPage = fs.readFileSync(path.join(APP, "ruler.html"), "utf8");
+  assert.match(html, /href="ruler\.html"/, "the Race page links to the Ruler page");
+  assert.doesNotMatch(html, /luck against its own size/, "the long explanation is not repeated on the Race page");
+  assert.match(js, /The horses are a live estimate; the final 1st, 2nd and 3rd come from the Ruler/);
+  assert.match(rulerPage, /luck against its own size/);
+  assert.match(rulerPage, /more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only/);
+  assert.match(rulerPage, /A pick on a voided producer counts as a loss\./);
   assert.match(js, /\$\{DATA\}R\$\{String\(x\)\.padStart\(3, "0"\)\}\.json/, "reads R<week>.json");
   assert.match(js, /cur\.mode === "off" \|\| !Number\.isInteger\(cur\.rulerFrom\)\) \{ \$\("ruler-box"\)\.hidden = true/, "hidden while off");
   assert.match(js, /M\.weekStart\(cur\.rulerFrom\)/, "the calendar Monday from the switch's week");
@@ -277,4 +281,74 @@ test("messages: vault week 4 (Mon 16 Nov) is Week 1, week 5 is Week 2, week 3 is
   assert.equal(siteWeek(3), "the practice week of 2026-11-09");
   assert.equal(siteWeek(2), "the week of 2026-11-02");
   assert.match(heldMessage(4, M.weekStart(5), M.weekStart(5), "x"), /^Producer Race vault week 4 \(Week 1, the week of 2026-11-16\) is HELD: x\./);
+});
+
+// ── the ruler's data behind (owner, 12 Nov): nothing is lost while it catches up, and the owner is told what to do ──
+test("ruler data behind: a race waiting only for its ruler card keeps an ON week open up to 48 h after the week ends (not skipped at Monday 00:00), then is skipped", async () => {
+  // The ruler's data stops 1 hour into the race of Mon 2 Nov 00:00: that race's card can't be made.
+  const stop = FROM + 15 * 28800 + 28800 + 1200;
+  const short = R.ledger({ ...timeline(), to: stop, signers: chain.who.slice(0, stop - FROM + 1), ids: chain.ids.slice(0, stop - FROM + 1) });
+  const a = await go(U("2026-11-02T05:37Z"), "", { rulerFrom: 2, ledger: short });
+  const b = await go(U("2026-11-02T06:37Z"), a, { rulerFrom: 2, ledger: short, picks: [[W1, P[0], 10]] });
+  const w = read(b, "W002.json");
+  for (const r of w.races) if (!r.result) r.result = { final: true, missed: true, note: "no handicap card was recorded for this race" };
+  fs.writeFileSync(path.join(b, "W002.json"), JSON.stringify(w) + "\n");
+  // Monday 9 Nov 05:37 (the usual time a week's races are skipped): it waits for the ruler instead.
+  const c = await go(U("2026-11-09T05:37Z"), b, { rulerFrom: 2, ledger: short });
+  assert.equal(read(c, "vault/W2.json").final, false);
+  assert.ok(lastRun.problems.some((m) => /1 race\(s\) waiting for the VHP ruler's result \(2026-11-02T00\).*nothing is lost/.test(m)), lastRun.problems.join(" | "));
+  // Later that Monday (past the usual alert time): still waiting, and the held alert says what to do.
+  const c2 = await go(U("2026-11-09T16:37Z"), c, { rulerFrom: 2, ledger: short });
+  assert.equal(read(c2, "vault/W2.json").final, false);
+  assert.ok(lastRun.held.some((m) => /waiting for the VHP ruler's result/.test(m) && /Re-run all jobs/.test(m)), lastRun.held.join(" | "));
+  // Wednesday 11 Nov 01:37 (past the 48 h): the race is skipped and the rest of the week goes ahead.
+  const d = await go(U("2026-11-11T01:37Z"), c2, { rulerFrom: 2, ledger: short });
+  assert.ok(!lastRun.problems.some((m) => /waiting for the VHP ruler.s result/.test(m)), lastRun.problems.join(" | "));
+  const v = read(d, "vault/W2.json");
+  assert.ok(v.final === true || (v.final === false && lastRun.problems.some((m) => /pending|12 h|hold/i.test(m))), JSON.stringify(v) + lastRun.problems.join(" | "));
+});
+
+test("ruler data behind: a result still missing 3 h after its race ended alerts the owner once, with the fix; none in a week the ruler isn't on for", async () => {
+  const stop = FROM + 15 * 28800 + 28800 + 1200;
+  const short = R.ledger({ ...timeline(), to: stop, signers: chain.who.slice(0, stop - FROM + 1), ids: chain.ids.slice(0, stop - FROM + 1) });
+  let d = await go(U("2026-11-02T05:37Z"), "", { rulerFrom: 2, ledger: short });
+  d = await go(U("2026-11-02T06:37Z"), d, { rulerFrom: 2, ledger: short });
+  assert.ok(!lastRun.held.some((m) => /VHP ruler's result/.test(m)), "not yet 3 h late");
+  const e = await go(U("2026-11-02T09:37Z"), d, { rulerFrom: 2, ledger: short });
+  const m = lastRun.held.find((x) => /the VHP ruler's result for 1 race\(s\) \(2026-11-02T00\) is still missing \d+ h after the race ended/.test(x));
+  assert.ok(m, lastRun.held.join(" | "));
+  assert.match(m, /Actions → "VHP ruler data"/); assert.match(m, /Re-run all jobs/); assert.match(m, /send its error text to the VHP Ruler chat/); assert.match(m, /nothing is lost/);
+  await go(U("2026-11-02T10:37Z"), e, { rulerFrom: 2, ledger: short });
+  assert.ok(!lastRun.held.some((x) => /VHP ruler's result/.test(x)), "once, not every hour (then once a day)");
+  // shadow week: no alert (nothing counts from it)
+  let s = await go(U("2026-11-02T05:37Z"), "", { rulerFrom: 3, ledger: short });
+  s = await go(U("2026-11-02T06:37Z"), s, { rulerFrom: 3, ledger: short });
+  await go(U("2026-11-02T09:37Z"), s, { rulerFrom: 3, ledger: short });
+  assert.ok(!lastRun.held.some((x) => /VHP ruler's result/.test(x)));
+});
+
+test("capacity: reading a race's picks stops loudly past its page limit, never with a partial list in silence", async () => {
+  const { pagePicks, READ_PICKS_PAGES } = await import(path.resolve(APP, "bot/race.ts"));
+  assert.equal(READ_PICKS_PAGES, 1000, "100,000 picks a race");
+  // 3 pages of 100, then an empty page: 300 picks, read in full
+  let calls = 0;
+  const three = async () => (calls++ < 3 ? Array.from({ length: 100 }, (_, i) => ({ player: P[i % 5], pick: { horse: P[(i + 1) % 5], at: String(i) } })) : []);
+  assert.equal((await pagePicks("race x", three, 5)).length, 300);
+  // never an empty page within the limit: it throws instead of returning what it has
+  const endless = async () => Array.from({ length: 100 }, (_, i) => ({ player: P[i % 5], pick: { horse: P[0], at: "1" } }));
+  await assert.rejects(pagePicks("race 42", endless, 5), /race 42 has more than 500 picks: the recorder won't score it from a partial list/);
+});
+
+test("Repo Lens #G-27 G27-1: a race with more picks than the recorder reads alerts the owner (the run's alert job fails and GitHub emails), every run, not only a warning", async () => {
+  const at = U("2026-11-02T06:37Z"), a = await go(U("2026-11-02T05:37Z"), ""), out = tmp(), log = console.log;
+  console.log = () => {};
+  try {
+    lastRun = await run({ p: node(at), check: node(at), prev: a, out, vhpOf, raceContract: "x", prizesFrom: 0, vaultHold: false, holdWeeks: [], typesFrom: null, stakedOf: async () => false, rulerFrom: null, rulerLedger: LEDGER,
+      picksOf: async (n, r) => { if (r === RACE00) throw new Error("race " + r + " has more than 100000 picks: the recorder won't score it from a partial list (tell the Race chat)"); return []; } });
+  } finally { console.log = log; }
+  assert.ok(lastRun.problems.some((m) => /2026-11-02T00: race \d+ has more than 100000 picks/.test(m)), "a warning, as before");
+  const m = lastRun.held.find((x) => /Producer Race 2026-11-02T00: race \d+ has more than 100000 picks/.test(x));
+  assert.ok(m, "and an owner alert: " + lastRun.held.join(" | "));
+  assert.match(m, /would be skipped at the week's end\. Tell the Race chat now/);
+  assert.equal(read(out, "W002.json").races.find((r) => r.id === "2026-11-02T00").result, null, "not scored from a partial list");
 });

@@ -35,6 +35,16 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="board.css">
   <style>
+    .rl { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .rl th, .rl td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .rl th { font-weight: 700; font-size: 13px; color: var(--muted); }
+    .rl td.rl-when b { display: block; }
+    .rl td.rl-when span { font-size: 13px; color: var(--muted); }
+    .rl td.rl-when .void-chip { margin-top: 4px; color: var(--ink); }
+    .rl .void-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 13px; font-weight: 700; border: 1px solid rgba(128,128,128,.45); }
+    details.rl-trial > summary { cursor: pointer; font-weight: 700; }
+  </style>
+  <style>
     .pr { max-width: 1000px; margin: 0 auto; padding: 28px 16px 60px; }
     .pr h1 { font-family: var(--display); font-size: clamp(28px, 4vw, 40px); margin: 0 0 6px; }
     .pr h2 { font-family: var(--display); font-size: 20px; margin: 0 0 8px; }
@@ -267,10 +277,8 @@
 
     <!-- The VHP ruler (owner, 11 Nov 2026): shown only once the ruler is switched on for the Race (its R<week>.json says so). -->
     <section class="card" id="ruler-box" hidden>
-      <div class="head"><h2>Measured by the VHP ruler</h2></div>
+      <div class="head"><h2>Ruler results</h2><a class="tag" href="ruler.html">How the Ruler works</a></div>
       <p class="note" style="margin-top:0" id="ruler-when"></p>
-      <p class="note">The ruler measures each producer's luck against its own size: how many blocks it signed against how many its VHP should give, block by block, so a big producer and a small one have the same chance to win. Each 6-hour race's 1st, 2nd and 3rd are the producers whose luck in that race was best, among the producers in the race. The horses on the track are a live estimate; the final order comes from the ruler once the race's blocks are in (usually within 1 to 2 hours). The points per place don't change.</p>
-      <p class="note"><b>Void:</b> a producer whose VHP falls more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only (it is in the next race as usual). <b>A pick on a voided producer counts as a loss.</b> If every producer in a race is void, the race's picks are given back.</p>
       <div id="ruler-list"></div>
     </section>
 
@@ -363,6 +371,7 @@
   <script src="nav.js"></script>
   <script src="chain-blocks.js"></script>
   <script src="names.js"></script>
+  <script src="ruler-void.js"></script>
   <script src="race-math.js"></script>
   <script src="board.js"></script>
   <script src="stake-panel.js"></script>

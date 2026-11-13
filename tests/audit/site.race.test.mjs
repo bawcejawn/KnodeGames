@@ -274,7 +274,7 @@ test("D-166: the race-type toggle stays hidden until TYPES_FROM_WEEK is set; eac
   assert.match(html, /<nav class="rt-tabs" id="race-types" aria-label="Race type" hidden><\/nav>/);
   assert.match(html, /<section class="card" id="typed" hidden>/);
   assert.match(js, /const ORDER = \[1, 2, 0, 3, 4\];/, "1-hour, 2-hour, 6-hour, daily, weekly");
-  assert.match(js, /A win scores \$\{T\.win\} points, a show \(2nd or 3rd\) \$\{T\.show\}, on the one Producer Race board\./);
+  assert.match(js, /1st scores \$\{T\.places\[0\]\} points, 2nd \$\{T\.places\[1\]\} and 3rd \$\{T\.places\[2\]\}, on the one Producer Race board\./);
   assert.match(js, /sits out \$\{T\.name\.toLowerCase\(\)\} races for now/);
   // The pick limit: 0 (no per-game limit, contract v2) is shown as such, never as "5".
   assert.match(js, /const max = usage \? Number\(usage\.max_picks_per_day \?\? 0\) : 5/);

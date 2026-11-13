@@ -11,6 +11,7 @@ DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER = 20, 7200, 1200, 28800, 403
 M = 1000000
 MIN_K, FORM_GATE = 10 * M, 800000
 RULE_VERSION, OWN_RULES, POOL_RULES = 4, ("spot", "high1h", "avg24h"), ("min",)
+RULE_VERSIONS = (4, 5)   # 5: the core judged on [T - 14 d, T - 3 d) (as vhp-ruler.js); a card without version is 4
 STEADY_BAND = 150000   # D-120 as the owner ruled (5 Nov), millionths: steady = every daily rate within this of the 14-day rate
 CORE_LINE = 970000     # D-165: A′'s core is the field members with form ≥ this × the field's median form (millionths)
 BAND_SD = 2            # D-171: an other core member more than this many sd from its share is left out of a yardstick
@@ -21,6 +22,19 @@ PCT_SCALE = 1 << 256
 # the length classes reach a quarter past their nominal length (UTC-clock races hold about, not exactly, 1,200 blocks an hour)
 VOID_BANDS, VOID_LONG = ((3000, 50000, 250000), (9000, 100000, 250000), (36000, 120000, 500000)), (150000, 1000000)
 LUCK_CAP = 1000 * M
+# Scoring modes (owner, 11 Nov 2026), as in vhp-ruler.js: A VHP only; B clear edge and C best day, raise only: the best
+# of 11 one-day stretches over [T - 14 days, T - 3 days), each (signed - sd*isqrt(signed)) / expected (sd 2 in B, 1 in C)
+# against the field's median raw form that day (Repo Lens #G-19); D even odds (luck cap 100). A card without a mode
+# scores exactly as before.
+MODES, MODE_CAP = ("A", "B", "C", "D"), {"A": LUCK_CAP, "B": LUCK_CAP, "C": LUCK_CAP, "D": 100 * M}
+LIFT_SKIP, LIFT_SPAN, STRETCHES, LIFT_SD = 86400, 316800, {"B": 11, "C": 11}, {"B": 2, "C": 1}
+
+
+def lift_form(signed, expected, sd=1):
+    """A stretch's measure for the lift: (signed - sd*sqrt(signed)) / expected share, millionths, as liftForm in vhp-ruler.js."""
+    sm = signed * M
+    x = sm - sd * isqrt(sm * M)
+    return x * M // expected if expected > 0 and x > 0 else 0
 
 
 def void_band(blocks):
@@ -474,7 +488,7 @@ def _js(v):
 
 
 # the card's fields that are BigInt in JavaScript (written as decimal strings)
-_BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "credited", "pct", "z", "fpct")
+_BIG_TOP, _BIG_ROW = ("c", "total"), ("own", "avg", "k", "form", "rate", "expected", "lift", "target", "credited", "pct", "coreForm", "z", "fpct")
 
 
 def week_summary(cards):
@@ -560,6 +574,98 @@ def switch_change(prev, nxt, week):
     return None
 
 
+_SCHED = re.compile(r"[1-9][0-9]{0,5}:[ABCD](,[1-9][0-9]{0,5}:[ABCD])*")
+_VSCHED = re.compile(r"[1-9][0-9]{0,5}:[45](,[1-9][0-9]{0,5}:[45])*")
+_INC_ADDR = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
+
+
+def check_include(x):
+    """The kit's include list, as checkInclude in vhp-ruler.js: a non-empty list of distinct addresses in rising order."""
+    if not isinstance(x, list) or not x or not all(type(a) is str and _INC_ADDR.fullmatch(a) for a in x):
+        raise ValueError("include must be a non-empty list of addresses")
+    for i in range(1, len(x)):
+        if not x[i - 1] < x[i]:
+            raise ValueError("include must be in rising order with no repeats")
+
+
+def version_schedule(v):
+    """A game's RULE_VERSION schedule, as versionSchedule in vhp-ruler.js: None, or [(week, version), ...] with rising weeks."""
+    if v is None or (type(v) is str and v == ""):
+        return None
+    if type(v) is not str or not _VSCHED.fullmatch(v):
+        raise ValueError("the ruler version schedule must be empty or week:version pairs like 6:5 (versions 4 or 5)")
+    out = [(int(x.split(":")[0]), int(x.split(":")[1])) for x in v.split(",")]
+    for i in range(1, len(out)):
+        if out[i][0] <= out[i - 1][0]:
+            raise ValueError("the ruler version schedule's weeks must rise")
+    if out[-1][0] > SWITCH_MAX:
+        raise ValueError("the ruler version schedule's weeks must be at most 999999")
+    return out
+
+
+def version_at(week, schedule):
+    """as versionAt: the RULE_VERSION of a vault week under the schedule (4 before the first pair or with no schedule)."""
+    w, s = _switch_week(week), version_schedule(schedule)
+    n = RULE_VERSION
+    for x, v in s or ():
+        if x <= w:
+            n = v
+    return n
+
+
+def version_change(prev, nxt, week):
+    """as versionChange: None, or why the change would alter the version of a week that has started."""
+    w, p, n = _switch_week(week), version_schedule(prev), version_schedule(nxt)
+    at = sorted(set([0] + [x for x, _ in p or ()] + [x for x, _ in n or ()]))
+    for x in at:
+        if x > w:
+            continue
+        a, b = version_at(x, prev), version_at(x, nxt)
+        if a != b:
+            return ("the ruler version schedule moved from %s to %s: week %d has started and would change from %d to %d; a change "
+                    "may only touch weeks after %d" % (json.dumps(prev if prev is not None else ""), json.dumps(nxt if nxt is not None else ""), x, a, b, w))
+    return None
+
+
+def mode_schedule(v):
+    """The admin's mode schedule, as modeSchedule in vhp-ruler.js: None, or [(week, mode), ...] with rising weeks."""
+    if v is None or (type(v) is str and v == ""):
+        return None
+    if type(v) is not str or not _SCHED.fullmatch(v):
+        raise ValueError("the ruler mode schedule must be empty or week:mode pairs like 5:B,8:C (modes A, B, C or D)")
+    out = [(int(x.split(":")[0]), x.split(":")[1]) for x in v.split(",")]
+    for i in range(1, len(out)):
+        if out[i][0] <= out[i - 1][0]:
+            raise ValueError("the ruler mode schedule's weeks must rise")
+    if out[-1][0] > SWITCH_MAX:
+        raise ValueError("the ruler mode schedule's weeks must be at most 999999")
+    return out
+
+
+def mode_at(week, schedule):
+    """as modeAt: the mode of a vault week under the schedule ("A" before the first pair or with no schedule)."""
+    w, s = _switch_week(week), mode_schedule(schedule)
+    m = "A"
+    for x, mm in s or ():
+        if x <= w:
+            m = mm
+    return m
+
+
+def mode_change(prev, nxt, week):
+    """as modeChange: None, or why the change would alter the mode of a week that has started."""
+    w, p, n = _switch_week(week), mode_schedule(prev), mode_schedule(nxt)
+    at = sorted(set([0] + [x for x, _ in p or ()] + [x for x, _ in n or ()]))
+    for x in at:
+        if x > w:
+            continue
+        a, b = mode_at(x, prev), mode_at(x, nxt)
+        if a != b:
+            return ("the ruler mode schedule moved from %s to %s: week %d has started and would change from %s to %s; a change "
+                    "may only touch weeks after %d" % (json.dumps(prev if prev is not None else ""), json.dumps(nxt if nxt is not None else ""), x, a, b, w))
+    return None
+
+
 def card_json(card):
     c = dict(card)
     for k in _BIG_TOP:
@@ -583,7 +689,7 @@ def _check_window(w):
         raise ValueError("window order must be W0 <= W1 <= L <= S0 <= S1")
 
 
-def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, pool_rule="min"):
+def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, pool_rule="min", mode=None, include=None, version=RULE_VERSION):
     w = window
     _check_window(w)
     if own_rule not in OWN_RULES:
@@ -602,6 +708,12 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, po
         raise ValueError("minK must be a whole number of blocks from 1")
     if pool_rule not in POOL_RULES:
         raise ValueError("poolRule must be min")
+    if mode is not None and mode not in MODES:
+        raise ValueError("mode must be A, B, C or D")
+    if type(version) is not int or version not in RULE_VERSIONS:
+        raise ValueError("version must be 4 or 5")
+    if include is not None:
+        check_include(include)
     if paying and T - L.frm < FORM + ACTIVE:
         raise ValueError("a paying card needs %d blocks of data before its moment (14 days + 6 h)" % (FORM + ACTIVE))
     if paying and _pending_in(L, T - AVG - EARLY, T):
@@ -610,23 +722,34 @@ def make_card(L, game, rnd, window, c, own_rule, paying, pooled=(), min_k=10, po
     look0 = min(T - AVG, form_from)
     blocks, tot = w["S1"] - w["S0"] + 1, total(L, T)
     rows = []
-    for a in L.active(T):
+    # the kit's include, as in vhp-ruler.js: listed producers get a row even when not active(T); not in the total
+    act = L.active(T)
+    act_set = set(act)
+    for a in list(act) + [x for x in (include or []) if x not in act_set]:
         o, av, f = own(L, a, T, own_rule), avg(L, a, T), form_of(L, a, T)
         k = k_of(blocks, o, tot)
         is_new, history = newcomer(L, a, T)
         rate, steady = rate_of(L, a, T, f)   # owner, 5 Nov: steady producers play at full size; rate is shown only
         rows.append({"a": a, "own": o, "avg": av, "k": k, "form": f["form"], "rate": rate,
-                     "entry": k >= min_k * M and (steady or f["form"] >= FORM_GATE) and history, "pooled": a in pooled,
+                     "entry": k >= min_k * M and (steady or f["form"] >= FORM_GATE) and history and (a in act_set or f["signed"] > 0), "pooled": a in pooled,
                      "isNew": is_new, "quality": "ok"})
+        if a not in act_set:
+            rows[-1]["listed"] = True   # here only because of include (Repo Lens #G-40 G40-2), as in vhp-ruler.js
     rows.sort(key=lambda r: (-r["own"], r["a"]))
     # D-113: on a paying card only the 24-h size window must be free of rebuilt hours; form's older days may read them
     if any(_bad_for(L, r["a"], look0 - EARLY, T) for r in rows) or (paying and _rebuilt_in(L, T - AVG - EARLY, T)):
         for r in rows:
             r["quality"] = "flagged"
-    return {"ruleVersion": RULE_VERSION, "game": int(_dec(game, "game")), "round": _dec(rnd, "round"), "ownRule": own_rule, "paying": paying,
-            "T": T, "seedBlock": seed_block, "seedBlockId": seed_id, "seedProducer": L.signer(seed_block),
-            "window": {"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]},
-            "c": c, "minK": min_k, "poolRule": pool_rule, "total": tot, "formFrom": form_from, "producers": rows}
+    out = {"ruleVersion": version, "game": int(_dec(game, "game")), "round": _dec(rnd, "round"), "ownRule": own_rule, "paying": paying,
+           "T": T, "seedBlock": seed_block, "seedBlockId": seed_id, "seedProducer": L.signer(seed_block),
+           "window": {"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]},
+           "c": c, "minK": min_k, "poolRule": pool_rule}
+    if mode is not None:
+        out["mode"] = mode
+    if include is not None:
+        out["include"] = list(include)
+    out.update({"total": tot, "formFrom": form_from, "producers": rows})
+    return out
 
 
 def isqrt(v):
@@ -677,6 +800,10 @@ def score_card(L, card):
         raise ValueError(_not_yet(L, S0 - EARLY, S1))
     flagged = any(p["quality"] == "flagged" or _bad_for(L, p["a"], S0 - EARLY, S1) for p in card["producers"]) \
         or (card["paying"] and _rebuilt_in(L, S0 - EARLY, S1))
+    mode = card.get("mode")
+    if mode is not None and mode not in MODES:
+        raise ValueError("mode must be A, B, C or D")
+    cap = LUCK_CAP if mode is None else MODE_CAP[mode]
     blocks = S1 - S0 + 1
     band_down, band_up = void_band(blocks)
     draws = {}
@@ -691,7 +818,7 @@ def score_card(L, card):
     rows = []
     for p in card["producers"]:
         o, k = _int(p["own"]), _int(p["k"])
-        sample = LUCK_CAP * M // k if k > LUCK_CAP else M
+        sample = cap * M // k if k > cap else M
         every = sample == M
         credited = sum(credit_of(o, L.eff(p["a"], b)) for b in L.signed_blocks(p["a"], S0, S1) if every or draw(b) < sample)
         lo, hi = o * (M - band_down) // M, o * (M + band_up) // M
@@ -718,7 +845,9 @@ def score_card(L, card):
     # is the core less any other core member more than BAND_SD sd from its share of the core's blocks, plus itself
     def in_field(r):
         return r["entry"] and not r["void"]
-    frows = sorted((r for r in rows if in_field(r)), key=lambda r: _int(r["form"]))
+    def in_ref(r):   # the reference field: a listed-only row (include) never sets the medians or joins the core (G40-2)
+        return in_field(r) and not r.get("listed")
+    frows = sorted((r for r in rows if in_ref(r)), key=lambda r: _int(r["form"]))
     e_all = sum(r["expected"] for r in frows)
     median, cum = 0, 0
     for r in frows:
@@ -726,47 +855,107 @@ def score_card(L, card):
         if 2 * cum >= e_all:
             median = _int(r["form"])
             break
-    line = median * CORE_LINE // M
+    # the mode's target (lift and target on each row only on a card with a mode); the yardstick, the band, fpct and pct
+    # use the target, as in vhp-ruler.js
+    def E(r):
+        return r["expected"] if mode is None else r["target"]
+    if mode is not None:
+        # B and C: the best of the mode's stretches over [T - LIFT_SKIP - LIFT_SPAN, T - LIFT_SKIP), as in vhp-ruler.js
+        for r in rows:
+            r["lift"] = M
+        k = STRETCHES.get(mode, 0)
+        span = LIFT_SPAN // (k or 1)
+        for i in range(k):
+            H0 = card["T"] - LIFT_SKIP - LIFT_SPAN + i * span
+            H1 = H0 + span - 1
+            if H0 < L.valid_from:
+                continue
+            raw, lf = {}, {}
+            for r in rows:
+                e, sg = L.share_sum(r["a"], H0, H1), L.signed_in(r["a"], H0, H1)
+                raw[r["a"]] = sg * M * M // e if e > 0 else 0
+                lf[r["a"]] = lift_form(sg, e, LIFT_SD[mode])
+            med, c = 0, 0
+            for r in sorted(frows, key=lambda r: raw[r["a"]]):
+                c += r["expected"]
+                if 2 * c >= e_all:
+                    med = raw[r["a"]]
+                    break
+            if med <= 0:
+                continue
+            for r in rows:
+                x = lf[r["a"]] * M // med
+                if x > r["lift"]:
+                    r["lift"] = x
+        for r in rows:
+            r["target"] = r["expected"] * r["lift"] // M
+            r["pct"] = pct(r["target"], r["credited"])
+    # RULE_VERSION 5, as in vhp-ruler.js: the core is judged on the form over [T - 14 d, T - 3 d)
+    if card.get("ruleVersion") not in RULE_VERSIONS or type(card.get("ruleVersion")) is not int:
+        raise ValueError("the card's ruleVersion must be 4 or 5")
+    v5, core_form, c_median = card["ruleVersion"] == 5, {}, median
+    if v5:
+        H0, H1 = max(L.valid_from, card["T"] - FORM), card["T"] - LIFT_SKIP - 1
+        for r in rows:
+            e = L.share_sum(r["a"], H0, H1)
+            core_form[r["a"]] = _int(r["form"]) if H1 < H0 else (L.signed_in(r["a"], H0, H1) * M * M // e if e > 0 else 0)
+        c_median, c5 = 0, 0
+        for r in sorted(frows, key=lambda r: core_form[r["a"]]):
+            c5 += r["expected"]
+            if 2 * c5 >= e_all:
+                c_median = core_form[r["a"]]
+                break
+    line = c_median * CORE_LINE // M
 
     def in_core(r):
-        return in_field(r) and _int(r["form"]) >= line
+        return in_ref(r) and (core_form[r["a"]] if v5 else _int(r["form"])) >= line
     # the yardstick counts CREDITED blocks (millionths), as in vhp-ruler.js
     n = sum(r["credited"] for r in rows if in_core(r))
-    b = sum(r["expected"] for r in rows if in_core(r))
+    b = sum(E(r) for r in rows if in_core(r))
     nY, bY = n, b
     for r in rows:
+        if v5:
+            r["coreForm"] = core_form[r["a"]]
         r["core"], r["z"], r["setAside"] = in_core(r), None, False
         if not r["core"]:
             continue
-        dev, v = r["credited"] * b - n * r["expected"], n * r["expected"] * (b - r["expected"]) * M
+        e = E(r)
+        dev, v = r["credited"] * b - n * e, n * e * (b - e) * M
         if v > 0:
             q = abs(dev) * M // isqrt(v)
             r["z"] = -q if dev < 0 else q
         if dev * dev > BAND_SD * BAND_SD * v:
             r["setAside"] = True
             nY -= r["credited"]
-            bY -= r["expected"]
+            bY -= e
     for r in rows:
         if not in_field(r):
             r["fpct"] = None
         elif r["core"] and not r["setAside"]:
-            r["fpct"] = fpct(nY // M, r["expected"], bY, r["credited"])
+            r["fpct"] = fpct(nY // M, E(r), bY, r["credited"])
         else:
-            r["fpct"] = fpct((nY + r["credited"]) // M, r["expected"], bY + r["expected"], r["credited"])
+            r["fpct"] = fpct((nY + r["credited"]) // M, E(r), bY + E(r), r["credited"])
     out = dict(card)
     out["producers"] = rows
     return out
 
 
 _SETTINGS, _WKEYS = ("game", "round", "window", "c", "minK", "poolRule", "ownRule", "paying", "pooled"), ("W0", "W1", "L", "S0", "S1")
+_OPTIONAL = ("mode", "include", "version")
 
 
 def check_settings(g):
     """The game's settings, strictly (Repo Lens #B-5 N-5), as checkSettings in vhp-ruler.js."""
     if not isinstance(g, dict):
         raise ValueError("recompute needs the game's own settings")
-    if sorted(g) != sorted(_SETTINGS):
-        raise ValueError("the game's settings must have exactly: " + ", ".join(_SETTINGS))
+    if any(k not in g for k in _SETTINGS) or any(k not in _SETTINGS and k not in _OPTIONAL for k in g):
+        raise ValueError("the game's settings must have exactly: " + ", ".join(_SETTINGS) + " (and, optionally, " + ", ".join(_OPTIONAL) + ")")
+    if "mode" in g and g["mode"] not in MODES:
+        raise ValueError("mode must be A, B, C or D")
+    if "version" in g and (type(g["version"]) is not int or g["version"] not in RULE_VERSIONS):
+        raise ValueError("version must be 4 or 5")
+    if "include" in g:
+        check_include(g["include"])
     _dec(g["game"], "game")
     _dec(g["round"], "round")
     w = g["window"]
@@ -787,38 +976,71 @@ def check_settings(g):
         raise ValueError("pooled must be a list of addresses")
 
 
-def recompute(L, published, game):
+def card_digest(card):
+    """The compact card, as cardDigest in vhp-ruler.js: the sha256 of the card's canonical text, and whether it was scored."""
+    return {"sha256": hashlib.sha256(card_json(card).encode("utf-8")).hexdigest(),
+            "scored": any("credited" in p for p in card.get("producers", []))}
+
+
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+def _is_digest(x):
+    return (isinstance(x, dict) and sorted(x) == ["scored", "sha256"] and type(x["sha256"]) is str
+            and _HEX64.fullmatch(x["sha256"]) is not None and type(x["scored"]) is bool)
+
+
+def recompute_card(L, published, game):
     """published: the card's JSON text; game: the game's OWN settings {game, round, window, c, minK, poolRule, ownRule, paying, pooled}
     (Repo Lens #E-12 M-1: never the card's own settings). Returns (same, diff)."""
     try:
         check_settings(game)
     except ValueError as e:
-        return False, "the game's settings: %s" % e
+        return False, "the game's settings: %s" % e, None
+    try:
+        pub_d = json.loads(published)
+    except ValueError:
+        pub_d = None
+    if _is_digest(pub_d):   # the compact card, as in vhp-ruler.js
+        w = game["window"]
+        try:
+            mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"],
+                             game["minK"], game["poolRule"], game.get("mode"), game.get("include"), game.get("version", RULE_VERSION))
+            if pub_d["scored"]:
+                mine = score_card(L, mine)
+        except ValueError as e:
+            return False, "the data can't make this card: %s" % e, None
+        d = card_digest(mine)["sha256"]
+        return (True, "", mine) if d == pub_d["sha256"] else (False, "sha256 differs: published %s, recomputed %s" % (pub_d["sha256"], d), None)
     pub = json.loads(published)
     w = game["window"]
     want = {"game": int(_dec(game["game"], "game")), "round": _dec(game["round"], "round"), "ownRule": game["ownRule"],
-            "paying": game["paying"], "c": str(int(game["c"])), "minK": game["minK"], "poolRule": game["poolRule"],
-            "W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]}
+            "paying": game["paying"], "c": str(int(game["c"])), "minK": game["minK"], "poolRule": game["poolRule"]}
+    want["mode"] = game.get("mode")   # always compared (Repo Lens #G-19): no mode on one side is a clear refusal
+    want["version"] = game.get("version", RULE_VERSION)
+    want["include"] = json.dumps(game.get("include"), separators=(",", ":"))
+    want.update({"W0": w["W0"], "W1": w["W1"], "L": w["L"], "S0": w["S0"], "S1": w["S1"]})
     got = {"game": pub.get("game"), "round": pub.get("round"), "ownRule": pub.get("ownRule"), "paying": pub.get("paying"),
-           "c": str(pub.get("c")), "minK": pub.get("minK"), "poolRule": pub.get("poolRule")}
+           "c": str(pub.get("c")), "minK": pub.get("minK"), "poolRule": pub.get("poolRule"), "mode": pub.get("mode"),
+           "version": pub.get("ruleVersion"), "include": json.dumps(pub.get("include"), separators=(",", ":"))}
     got.update(pub.get("window") or {})
     for k in want:
         if got.get(k) != want[k] or type(got.get(k)) is not type(want[k]):
-            return False, "setting %s: the card says %s, the game says %s" % (k, json.dumps(got.get(k)), json.dumps(want[k]))
+            return False, "setting %s: the card says %s, the game says %s" % (k, json.dumps(got.get(k)), json.dumps(want[k])), None
     try:
         mine = make_card(L, game["game"], game["round"], w, int(game["c"]), game["ownRule"], game["paying"], game["pooled"],
-                         game["minK"], game["poolRule"])
+                         game["minK"], game["poolRule"], game.get("mode"), game.get("include"), game.get("version", RULE_VERSION))
         if any("credited" in p for p in pub.get("producers", [])):
             mine = score_card(L, mine)
     except ValueError as e:
-        return False, "the data can't make this card: %s" % e
+        return False, "the data can't make this card: %s" % e, None
     a = card_json(mine)
     if a == published:
-        return True, ""
+        return True, "", mine
     i = 0
     while i < min(len(a), len(published)) and a[i] == published[i]:
         i += 1
-    return False, "differs at byte %d" % i
+    return False, "differs at byte %d" % i, None
 
 
 # ── the vhp-data format and its checks: the twin of vhp-data.js (read it for the format in words) ──
@@ -827,6 +1049,13 @@ _ADDR = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}")
 _ID = re.compile(r"0x1220[0-9a-f]{64}")
 _SAT = re.compile(r"(0|[1-9][0-9]{0,24})")
 
+
+
+def recompute(L, published, game):
+    """(same, diff): as recompute in vhp-ruler.js. recompute_card also returns the rebuilt card when same (for a game that
+    stores only digests: the Race, Repo Lens #G-40 Info)."""
+    ok, diff, _ = recompute_card(L, published, game)
+    return ok, diff
 
 def canon(o):
     return json.dumps(o, separators=(",", ":"), ensure_ascii=False) + "\n"

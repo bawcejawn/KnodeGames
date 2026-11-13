@@ -1,5 +1,5 @@
 // The Producer Race on the VHP ruler: a made-up chain the race recorder AND the ruler read (the same heights, signers
-// and ids). 15 days of history before Sunday 1 Nov 00:00 UTC (the ruler's 14-day form look-back), then 9 days of race
+// and ids). 15 days of history before Sunday 1 Nov 00:00 UTC (the ruler's 14-day form look-back), then 11 days of race
 // blocks, one every 3 s, signers drawn by VHP. Heights start at FROM; the race nodes serve them, the ruler's ledger holds
 // them. Shared by tests/audit/race-ruler.test.mjs.
 import crypto from "node:crypto";
@@ -10,7 +10,7 @@ await import(path.resolve(APP, "vhp-ruler.js"));
 export const M = globalThis.KRaceMath, R = globalThis.KRuler;
 export const P = ["1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "1BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", "1CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC", "1DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "1EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"];
 export const VHP = [400, 250, 200, 140, 1];
-export const T_RACE = Date.parse("2026-11-01T00:00:00Z"), PRE = 15 * 28800, RACE_N = 9 * 28800, FROM = 100000;
+export const T_RACE = Date.parse("2026-11-01T00:00:00Z"), PRE = 15 * 28800, RACE_N = 11 * 28800, FROM = 100000;
 export const N = PRE + RACE_N, T_FIRST = T_RACE - PRE * 3000;
 /** Block FROM + i: time, signer, id. */
 export const chain = (() => {

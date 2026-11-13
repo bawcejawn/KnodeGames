@@ -22,6 +22,7 @@ import crypto from "node:crypto";
 import { spawn, exec, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ACTIONS, AREAS, KINDS, commandFor } from "./actions.ts";
+import { GAMES, VARIABLES, VARIABLES_URL, STANDARD_STEPS, LAUNCH } from "./switches.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.ADMIN_PORT ?? 8787);
@@ -41,6 +42,8 @@ const VERSION = (() => {
 })();
 const catalog = JSON.stringify({
   version: VERSION, areas: AREAS, kinds: KINDS,
+  // Every game and every GitHub switch, for the "Games at a glance" and "All switches" screens (plain data, no keys).
+  games: GAMES, variables: VARIABLES, variablesUrl: VARIABLES_URL, standardSteps: STANDARD_STEPS, launch: LAUNCH,
   actions: ACTIONS.map(({ id, area, kind, label, what, when, signer, effect, timing, step, tool, params, sends, args }) => ({
     id, area, kind, label, what, when, signer, effect, timing, step, sends,
     testnet: args.includes("--testnet"), command: `npm run ${tool} -- ${args.join(" ")}`,

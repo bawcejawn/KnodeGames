@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <!-- Only these sources may run scripts, load data or be framed. 'unsafe-eval' is needed by koilib (its protobuf
        encoder builds functions at run time); CDN scripts are pinned by their integrity hash. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://koinvault.app https://us.i.posthog.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://koinvault.app https://us.i.posthog.com https://data.knodegames.com/ https://live.knodegames.com/live.json; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>How we measure producers fairly · Knode Games</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
@@ -89,6 +89,22 @@
     </section>
 
     <section class="start-sec">
+      <h2 class="sec-title">Which games use the Ruler</h2>
+      <article class="panel">
+        <table class="plain">
+          <thead><tr><th scope="col">Game</th><th scope="col">What the Ruler does there</th><th scope="col">When</th></tr></thead>
+          <tbody>
+            <tr><td><a href="race.html">Producer Race</a></td><td>Decides each 6-hour race's 1st, 2nd and 3rd.</td><td>Live from Week 1 (Mon 16 Nov)</td></tr>
+            <tr><td><a href="blockx.html">Who Signs Block X</a></td><td>Sets how much a right pick is worth.</td><td>Planned: Week 2 (Mon 23 Nov), or Week 3 (Mon 30 Nov)</td></tr>
+            <tr><td><a href="bracket.html">Producer Bracket</a></td><td>Decides each matchup by how each producer did against its own size.</td><td>Planned: Week 2 (Mon 23 Nov), or Week 3 (Mon 30 Nov)</td></tr>
+            <tr><td>Fantasy Producers, Last Node Standing, Combo Card</td><td>Measure producers the same way from their first week.</td><td>When each game opens</td></tr>
+          </tbody>
+        </table>
+        <p class="muted">The rules below are the same in every game. A game's own page and its Rules tab say how its points and prizes work. A date shows here as live only once the game has switched.</p>
+      </article>
+    </section>
+
+    <section class="start-sec">
       <h2 class="sec-title">The four rules</h2>
       <article class="panel">
         <h3>Big and small nodes get an equal shot</h3>
@@ -109,7 +125,7 @@
     </section>
 
     <section class="start-sec">
-      <h2 class="sec-title">The limits</h2>
+      <h2 class="sec-title">The limits, by race length</h2>
       <article class="panel">
         <table class="plain">
           <thead><tr><th scope="col">Race length</th><th scope="col">VHP goes down by more than</th><th scope="col">VHP goes up by more than</th></tr></thead>
@@ -125,10 +141,19 @@
     </section>
 
     <section class="start-sec">
+      <h2 class="sec-title">In the Producer Race</h2>
+      <article class="panel">
+        <p>The Ruler measures each producer's luck against its own size: how many blocks it signed against how many its VHP should give, block by block. Each 6-hour race's 1st, 2nd and 3rd are the producers whose luck in that race was best, among the producers in the race. The points per place don't change.</p>
+        <p>The horses on the track are a live estimate. The final order comes from the Ruler once the race's blocks are in, usually within 1 to 2 hours.</p>
+        <p>A producer whose VHP falls more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only. It is in the next race as usual. A pick on a voided producer counts as a loss. If every producer in a race is void, no pick in that race scores. Picks are never returned.</p>
+      </article>
+    </section>
+
+    <section class="start-sec">
       <h2 class="sec-title">What a Void means for picks</h2>
       <article class="panel">
         <p>A pick on a producer that is void for that race counts as a loss. The <span class="void-chip">Void</span> mark on the results page shows which producers were voided.</p>
-        <p>If every producer in a race is void, the whole race is void and a whole void race gives picks back. The Mana spent on a pick is not given back.</p>
+        <p>If every producer in a race is void, the whole race is void and no pick in it scores. Picks are never returned, and neither is the Mana spent on them.</p>
         <p class="muted">Before a game switches on, you may see results marked <span class="void-chip">Trial, counts for nothing</span>: the ruler runs beside the race, but its result pays no one.</p>
         <p class="muted">Why bother? So the winner is the producer that did best for its size, and so nobody can improve their chances by moving VHP around mid-race.</p>
       </article>
@@ -179,6 +204,7 @@
       </div>
     </div>
   </footer>
+  <script src="data-source.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js" integrity="sha384-IAL9o3r4bQJvWhvszkorFINY2ct4LBA/LvyXE9NSOPCyYB25BsFV12JITA7Gxbk6" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js" integrity="sha384-WOeNFfSdOron0s4x9jdzLtA7Ic7RSqZCXZAaeQd6HRL6WezQp0KAtIF2XSa+11TL" crossorigin="anonymous"></script>
   <script src="guest.js"></script>

@@ -7,7 +7,7 @@
 ## 1. Live contracts
 | Contract | Address | Live build (sha256) | Uploaded | How it can change | Controlled by | Last review |
 |---|---|---|---|---|---|---|
-| **Vault v6** (stakes, rewards, Daily Questions; the Knode Games Pool producer) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` | `eed38f7ce130d9d2e0dfafa8ddd5c4a6f383e2c7ce12ab87b02c584f43920b3d` | 2 Nov 2026 (v5 → v6 in place) | announce → **48 h** → upload (`timelockLength` 172,800,000 ms) | owner `1635QU…` → cold `1LMV8E…` from Tue 10 Nov (D-096) | Vault v6 audit + fix-checks 1–4 (29 Oct) |
+| **Vault v6.1** (stakes, rewards, Daily Questions; the Knode Games Pool producer) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` | `11043e1fde1d8d7dbac75e9e5e788d058a7116b0dab6149fc09ecdc7b1c4258b` | 10 Nov 2026 (v6 → v6.1 in place) | announce → **48 h** → upload (`timelockLength` 172,800,000 ms) | owner `1635QU…` → cold `1LMV8E…` after Week 1 (D-096; postponed, owner 10 Nov) | Vault v6 audit + fix-checks 1–4 (29 Oct); v6.1: Repo Lens #E-16, #F-4, #F-6, #F-7 |
 | **Swap Desk v2** (VHP → KOIN, 3% fee) | `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR` | `309506ccfaadd3427e937aa88cd34c9ea2a9e6088e49e51f014d546489dd5f35` | 28 Oct 2026 | announce → **48 h** → upload; treasury changes 48 h | owner and treasury `1635QU…` (cold owner from the handover; cold treasury planned) | the v5 / Desk v2 audit (Oct); re-check in the full audit |
 | **Mana sponsor v3** (pays players' Mana within caps) | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | `b84e1add3ffa14a7d1933d5ce5a4ad33caa4bca887a489f87f710b3c121c83a6` | 4 Nov 2026 07:27 UTC | its own key (settings and code) | itself (its own key; D-085, D-148) | sponsor v3 audit (27 Oct) + guest-fix #C-3 GO |
 | **Picks** (Block X; later the other picks games) | `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` | `700c296a1064b904299c156061d6caf8fcabd0b1765968903f29d89d2426c594` | 30 Oct 2026 | `upgrade-schedule` → **48 h** → `upgrade-upload` | owner `1635QU…` (handover later, D-106) | Picks audit + fix-check (27 Oct) |
@@ -16,14 +16,14 @@
 ## 2. Builds ready but not live
 | Contract | Build | Purpose | Status |
 |---|---|---|---|
-| Vault v6 withdrawals-only | `e84fec492d47e08f583c352bb26e3d36dc0149926c0482d0820b0dbd97af9fe3` | emergency: players can only withdraw (D-021) | pinned today as `safeWasmSha256` |
-| **Vault v6.1** release | `11043e1fde1d8d7dbac75e9e5e788d058a7116b0dab6149fc09ecdc7b1c4258b` | 60-question cap, Questions on the shared rules, the bot closes weeks | Repo Lens #E-16 GO; **announced 5 Nov** (tx `0x1220a4a9…66b0`, uploadable from Sat 7 19:01 UTC); upload Mon 9 (D-130) |
-| **Vault v6.1** withdrawals-only | `04c27c1acde570b97a430dea403d41aab47e083ae30115353ee5f89932dad0bb` | the emergency build for v6.1 | pinned right after Monday's upload; **the only rollback once the rule week starts** |
+| Vault v6 withdrawals-only | `e84fec492d47e08f583c352bb26e3d36dc0149926c0482d0820b0dbd97af9fe3` | emergency: players can only withdraw (D-021) | retired 10 Nov (v6.1's `04c27c1a…` is pinned) |
+| **Vault v6.1** release | `11043e1fde1d8d7dbac75e9e5e788d058a7116b0dab6149fc09ecdc7b1c4258b` | 60-question cap, Questions on the shared rules, the bot closes weeks | Repo Lens #E-16 GO; announced 5 Nov (tx `0x1220a4a9…66b0`); **uploaded Tue 10 Nov ~14:57 UTC** (notice cleared, tx `0x1220c0ab…`) |
+| **Vault v6.1** withdrawals-only | `04c27c1acde570b97a430dea403d41aab47e083ae30115353ee5f89932dad0bb` | the emergency build for v6.1 | **pinned** as `safeWasmSha256` (10 Nov); **the only rollback once the rule week starts** |
 
 ## 3. History (the builds that were live)
 | Contract | Build | Live | Note |
 |---|---|---|---|
-| Vault | v3 → v5 → **v6** `eed38f7c…` | v6 since 2 Nov | v6.1 next |
+| Vault | v3 → v5 → v6 → **v6.1** `11043e1f…` | v6.1 since 10 Nov | — |
 | Swap Desk | v1 `05039d74…` → **v2** `309506cc…` | v2 since 28 Oct | — |
 | Mana sponsor | v2 `fa4659e6…` → v3 `b61ac238…` → **v3 guest fix** `b84e1add…` | since 4 Nov | never re-upload `b61ac238…` while the vault switch is on (it trapped guests) |
 | Picks | **v1** `700c296a…` | since 30 Oct | Picks v2 (CARD type) for Combo, later |

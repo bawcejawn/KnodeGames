@@ -142,19 +142,47 @@ try {
   const t0 = sample.hours.chain(0);
   const span = { week: sample.week, start: cfg.genesis + sample.week * cfg.weekMs, end: cfg.genesis + (sample.week + 1) * cfg.weekMs };
   const [na, nb] = sample.nodes(t0);
-  const read = sample.source ? await sample.source(na, sample.week, na.vault) : mod.picks.source === "vault-answers" ? await readVaultAnswers(na.vault, sample.week) : null;
-  const inputs = read?.inputs;
+  // The first picks source is scored (a list since Phase 1); vault-answers or picks-contract, or the sample's override.
+  const { sourcesOf } = await import("../recorder/runtime.ts");
+  const { readPicksContract } = await import("../recorder/sources/picks-contract.ts");
+  const { blockAtFor } = await import("../recorder/sources/block-at.ts");
+  const { NotYet } = await import("../recorder/types.ts");
+  const src0 = sourcesOf(mod)[0];
+  // ctx as the runtime gives it: ctx.blockAt per node (pinned to the lower last irreversible block), and ctx.vhp for a
+  // ruler game when the sample hands over a ledger.
+  const lib = Math.min((await na.head()).lib, (await nb.head()).lib);
+  const V = cfg.vhpData && sample.vhpLedger ? await import("../recorder/sources/vhp-ruler.ts") : null;
+  const ctxFor = (n: any) => ({ blockAt: blockAtFor(n, lib), ...(V ? { vhp: V.vhpFor(sample.vhpLedger, new Map()) } : {}) });
+  const ctxA = ctxFor(na), ctxB = ctxFor(nb);
+  const result = async (r: any, n: any, c: any) => { try { return await mod.resultOf(r, n.vault, inputs, c); } catch (e) { if (e instanceof NotYet) return PENDING; throw e; } };
+  let read: any = sample.source ? await sample.source(na, sample.week, na.vault) : src0.source === "vault-answers" ? await readVaultAnswers(na.vault, sample.week) : null;
+  let inputs = read?.inputs;
+  if (mod.inputsFor) inputs = await mod.inputsFor(span, { now: t0, inputs, read: na.vault, ...ctxA });
   const rounds = mod.roundsFor(span, { now: t0, inputs });
   ok(canon(rounds) === canon(mod.roundsFor(span, { now: t0, inputs })), "roundsFor is deterministic");
+  if (!read && src0.source === "picks-contract") {
+    const picks = new Map();
+    for (const r of rounds) picks.set(r.id, (await readPicksContract(na.contract("picks"), src0.gameId, r.pickRound)).map((p: any) => ({ ...p, round: r.id })));
+    read = { picks };
+  }
+  // Carried state: each round's state after its picks, folded from empty in lock order (the sample's first week).
+  const stateFor = new Map();
+  if (mod.nextState) {
+    let st = mod.carryIn ? mod.carryIn(new Map(), span, inputs) : new Map();
+    for (const r of rounds.slice().sort((x: any, y: any) => x.locksAt - y.locksAt || (x.id < y.id ? -1 : 1))) {
+      st = mod.nextState(st, (read?.picks.get(r.id) ?? []).slice().sort((x: any, y: any) => (x.wallet < y.wallet ? -1 : 1)), r, inputs);
+      stateFor.set(r.id, st);
+    }
+  }
   let decided = 0;
   for (const r of rounds) {
-    const a = await mod.resultOf(r, na.vault, inputs), a2 = await mod.resultOf(r, na.vault, inputs), b = await mod.resultOf(r, nb.vault, inputs);
+    const a = await result(r, na, ctxA), a2 = await result(r, na, ctxA), b = await result(r, nb, ctxB);
     if (canon(a) !== canon(a2) || canon(a) !== canon(b)) ok(false, `resultOf(${r.id}) gives the same answer twice and on both nodes`);
     if (sample.undecided.includes(r.id)) ok(a === PENDING, `resultOf(${r.id}) is PENDING while undecided (never a guess)`);
     if (typeof a !== "symbol" && read) {
       decided++;
       const picks = read.picks.get(r.id) ?? [];
-      const s1 = mod.scoreRound(r, picks, a, inputs), s2 = mod.scoreRound(r, picks, a, inputs);
+      const s1 = mod.scoreRound(r, picks, a, inputs, stateFor.get(r.id)), s2 = mod.scoreRound(r, picks, a, inputs, stateFor.get(r.id));
       if (canon(s1) !== canon(s2)) ok(false, `scoreRound(${r.id}) is deterministic`);
     }
   }
@@ -163,14 +191,14 @@ try {
   const m = loadManifest(slug, root);
   ok(!!mod && mod.slug === m.slug, `recorder.ts exports game with slug "${m.slug}"`);
   const want: Record<string, string> = { vault: "vault-answers", picks: "picks-contract", racepicks: "race-picks", none: "none" };
-  ok(mod.picks?.source === want[m.picks.contract], `picks.source matches game.json picks.contract (${m.picks.contract} → ${want[m.picks.contract]})`);
+  ok(src0?.source === want[m.picks.contract], `picks.source (the first, scored source) matches game.json picks.contract (${m.picks.contract} → ${want[m.picks.contract]})`);
 
   // End to end on fake nodes, hour by hour, through the real publish check (in this sandbox's own temp folder).
   const rp = new Replay(mod, cfg);
   let finalAt = -1, vaultAt = -1, funOk = true, sawSunday = false;
   for (let i = 0; i < sample.hours.count; i++) {
     if (i === sample.hours.decideAfter) sample.hours.decide();
-    const h = await rp.hour(sample.nodes(sample.hours.chain(i)), sample.hours.job(i));
+    const h = await rp.hour(sample.nodes(sample.hours.chain(i)), sample.hours.job(i), sample.vhpLedger ? { vhpLedger: sample.vhpLedger } : {});
     if (h.error) { ok(false, `hour ${i}: the recorder stopped (${h.error})`); break; }
     if (h.held.some((x: any) => x.alert)) { ok(false, `hour ${i}: the publish check held ${h.held.filter((x: any) => x.alert).map((x: any) => `${x.name} (${x.why})`).join(", ")}`); break; }
     const wf = rp.read(`W${String(sample.week).padStart(3, "0")}.json`);

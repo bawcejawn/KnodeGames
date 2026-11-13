@@ -123,9 +123,9 @@ export function longTimeline({ n = 470000, from = 1000000, np = 6, mints = 40 } 
  *  from the library, from the rule as decided. Returns each field member's expected fpct, by address. */
 // RULE_VERSION 4, written from the rule (not from the library): the luck cap's sample and draw (node's own sha256),
 // expected blocks along the producer's VHP capped at the card's own size, and credited blocks, over the blocks that count
-export const sampleOf = (p) => { const k = BigInt(p.k), cap = 1000n * 1000000n; return k > cap ? (cap * 1000000n) / k : 1000000n; };
+export const sampleOf = (card, p) => { const k = BigInt(p.k), cap = card.mode === "D" ? 100n * 1000000n : 1000n * 1000000n; return k > cap ? (cap * 1000000n) / k : 1000000n; };   // the luck cap: 1,000 blocks, 100 in mode D
 export const drawOf = (card, H) => BigInt("0x" + crypto.createHash("sha256").update(`sample|${card.seedBlockId}|${H}`).digest("hex").slice(0, 16)) % 1000000n;
-export const countsFor = (card, p, H) => sampleOf(p) === 1000000n || drawOf(card, H) < sampleOf(p);
+export const countsFor = (card, p, H) => sampleOf(card, p) === 1000000n || drawOf(card, H) < sampleOf(card, p);
 export function expectedOf(L, card, p) {
   const own = BigInt(p.own), tot = BigInt(card.total); let want = 0n;
   for (let H = card.window.S0; H <= card.window.S1; H++) if (countsFor(card, p, H)) { const e = L.eff(p.a, H); want += ((e < own ? e : own) * 1000000n) / tot; }

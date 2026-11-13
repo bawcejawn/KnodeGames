@@ -201,8 +201,17 @@ const toHourEvents = (bs: Blk[]) => bs.flatMap((b) => b.events);
 //    (Repo Lens #E-14 N-2: the gap between CHAIN_TO and CHAIN_AFTER is larger than an hour, so it can't chain for ever);
 //  - a live run reads once, for its NEWEST hour only; the hours before it in the same run are chained, anchored at their
 //    own end with balances walked back from those reads, and that live hour checks them in the same publish.
-// ~12 h behind → a red alert every run.
-export const CHAIN_AFTER = 6000, CHAIN_TO = 2400, BEHIND_ALERT = 14400, MAX_DAY_BYTES = 16 << 20;
+// more than 3 h behind → a red alert every run, and the same words in plain language at the top of the run page (owner,
+// 12 Nov: the Race's 3-hour alert quotes the step; a normal run is 1 to 2 hours behind, so 3 means about two missed runs).
+export const CHAIN_AFTER = 6000, CHAIN_TO = 2400, BEHIND_ALERT = 3600, MAX_DAY_BYTES = 16 << 20;
+/** What the owner does when the recorder is behind or fails, in one line (the Race's alert quotes it word for word). */
+export const OWNER_STEP = "GitHub → Actions → VHP ruler data: if the latest run is red, click Re-run all jobs; missed hours are read back from the chain by themselves, and if it is red again the next hour, send its error text to the VHP Ruler chat.";
+/** Adds plain-language lines at the top of the run page (GitHub's job summary), when the run has one. Never throws. */
+export function runSummary(lines: string[]) {
+  const f = process.env.GITHUB_STEP_SUMMARY;
+  if (!f) return;
+  try { fs.appendFileSync(f, lines.join("\n") + "\n"); } catch { /* the summary is a convenience: the log line still stands */ }
+}
 /** Catch-up after an outage (#D-10 M-2): hours with no reads, balances carried forward from the previous hour plus the
  *  blocks both nodes agreed on; an address seen for the first time is read live and walked back. A chained hour's
  *  anchor is its own last block, or the previous anchor when that one is later (a live read can land past the next
@@ -234,7 +243,11 @@ export async function recordHours(A: RulerNode, B: RulerNode, prevText: string, 
   const log = opts.log || console.log, prev = JSON.parse(prevText);
   const [ha, hb] = await Promise.all([A.head(), B.head()]), lib = Math.min(ha.lib, hb.lib);
   const first = prev.n + 1;
-  if (lib - prev.to > BEHIND_ALERT) log(`::error::the VHP ruler is ${((lib - prev.to) / 1200).toFixed(1)} hours behind (newest hour ${prev.n}); it catches up by itself, see docs/VHP-RULER.md`);
+  if (lib - prev.to > BEHIND_ALERT) {
+    const h = ((lib - prev.to) / 1200).toFixed(1);
+    log(`::error::the VHP ruler is ${h} hours behind (newest hour ${prev.n}); it catches up by itself, see docs/VHP-RULER.md`);
+    runSummary([`## VHP ruler data is ${h} hours behind`, "", "Paying cards wait (\"not yet\") until it catches up; nothing is scored wrong. This run catches up by itself.", "", `If it is still behind next hour: ${OWNER_STEP}`]);
+  }
   if (lib - prev.to > CHAIN_AFTER) {   // too far behind for live reads (an anchor must be within a day of its hour)
     let last = first - 1;
     while (last + 1 - first < (opts.maxChained ?? 48) && (last + 2) * D.HOUR - 1 <= lib - CHAIN_TO) last++;
@@ -322,4 +335,4 @@ async function main() {
   if (remove.length) fs.writeFileSync(path.join(out, "remove.txt"), remove.join("\n") + "\n");
   console.log(`wrote ${texts.length} hour(s), ${Object.keys(days).length} day file(s), ${remove.length} removal(s)`);
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch((e) => { console.error(`::error::${(e as Error).message}`); process.exit(1); });
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch((e) => { console.error(`::error::${(e as Error).message}`); runSummary(["## VHP ruler data: this run failed", "", `Error: ${(e as Error).message}`, "", OWNER_STEP]); process.exit(1); });

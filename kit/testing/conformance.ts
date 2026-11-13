@@ -16,6 +16,10 @@ export type Sample = {
   nodes(t: number): [KitNode, KitNode];
   /** Optional: a source override for games whose source isn't wired yet. */
   source?: Parameters<typeof import("../recorder/runtime.ts").runGame>[2]["source"];
+  /** Ruler games (manifest vhpData): a VHP ruler ledger for the sample week (e.g. KRuler.ledger over a made-up timeline,
+   *  as tests/audit/race-ruler.fixture.mjs builds one). The conformance run hands it to resultOf / inputsFor as ctx.vhp
+   *  and the publish check's card rebuild uses it too. */
+  vhpLedger?: unknown;
   /** Round ids that are undecided at the sample's first hour (must come back PENDING, never a guess). */
   undecided: string[];
   /** Chain times for the hourly runs (first one before every round is decided, then until final). */

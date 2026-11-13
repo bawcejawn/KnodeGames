@@ -19,7 +19,7 @@ test("the same Content-Security-Policy as the other game pages; no inline script
 
 test("scripts load in order: wallet first, names and the stake panel, the shared rules, the board, the page, analytics", () => {
   const srcs = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]).filter((s) => !s.startsWith("https:"));
-  assert.deepEqual(srcs, ["guest.js", "wallet.js", "header-wallet.js", "nav.js", "names.js", "stake-panel.js", "weeks.js", "golf-math.js", "board.js", "golf.js", "vendor/posthog-1.438.13.js", "analytics.js"]);
+  assert.deepEqual(srcs, ["data-source.js", "guest.js", "wallet.js", "header-wallet.js", "nav.js", "names.js", "stake-panel.js", "weeks.js", "golf-math.js", "board.js", "golf.js", "vendor/posthog-1.438.13.js", "analytics.js"]);
   assert.match(html, /<link rel="stylesheet" href="board\.css">\s*<link rel="stylesheet" href="golf\.css">/);
 });
 

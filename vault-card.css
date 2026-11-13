@@ -1,0 +1,27 @@
+/* The Knode pool card (vault-card.js): a dark card with Blocky, big numbers and a share bar. Light text on dark: every pair is 4.5:1 or better. */
+.vc { margin: 16px 0 22px; padding: 22px; border-radius: 24px; color: #fff; background: linear-gradient(135deg, #14161F 0%, #1B2033 60%, #1F2A4F 100%); box-shadow: 0 10px 30px rgba(20,22,31,.25); }
+.vc[hidden] { display: none; }
+.vc-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.vc-blocky { flex: none; }
+.vc-title { flex: 1 1 220px; min-width: 0; }
+.vc-title h2 { margin: 0; color: #fff; font-size: clamp(1.25rem, 4vw, 1.6rem); }
+.vc-title p { margin: 2px 0 0; color: #D9DDEA; font-size: 15px; }
+.vc-week { padding: 5px 12px; border-radius: 999px; background: #3DF2A5; color: #0B1A14; font-weight: 700; font-size: 14px; }
+.vc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 18px 0; }
+.vc-stat { padding: 14px; border-radius: 16px; background: rgba(255,255,255,.08); }
+.vc-stat b { display: block; font-size: clamp(1.35rem, 5vw, 1.9rem); line-height: 1.15; color: #fff; }
+.vc-stat span { display: block; margin-top: 2px; color: #fff; font-size: 15px; }
+.vc-stat small { display: block; margin-top: 4px; color: #C9CEE0; font-size: 13px; }
+.vc-split h3 { margin: 0 0 10px; color: #fff; font-size: 1rem; }
+.vc-sub { margin: -4px 0 10px; color: rgba(255,255,255,.72); font-size: .9rem; }
+.vc-bar { display: flex; height: 16px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,.12); gap: 2px; }
+.vc-seg { display: block; flex-basis: 0; min-width: 6px; }
+.c0 { background: #3DF2A5; } .c1 { background: #6EA8FF; } .c2 { background: #FFB454; } .c3 { background: #FF7A9C; }
+.c4 { background: #B79BFF; } .c5 { background: #5FE0E8; } .c6 { background: #F5E06B; } .c7 { background: #FFFFFF; }
+.vc-legend { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px 16px; }
+.vc-legend li { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: #fff; font-size: 15px; }
+.vc-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; align-self: center; }
+.vc-legend b { color: #fff; }
+.vc-legend small { color: #C9CEE0; font-size: 13px; }
+.vc-foot { margin: 16px 0 0; color: #D9DDEA; font-size: 14px; }
+@media (max-width: 520px) { .vc { padding: 16px; border-radius: 20px; } }

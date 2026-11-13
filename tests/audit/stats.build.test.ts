@@ -1,7 +1,7 @@
 // bot/stats.ts: the hourly public summary behind the live stats panel (owner, 5 Nov). Pure parts only: no chain.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildStats, checkStats, top3, questionPoints, blocksBy, VAULT, type Inputs } from "../../bot/stats.ts";
+import { buildStats, checkStats, top3, questionPoints, blocksBy, poolFigures, VAULT, type Inputs } from "../../bot/stats.ts";
 
 const W = 7 * 86400000, START = 1793577600000;                          // Mon 2 Nov 2026 00:00 UTC
 const A = "1Nti1ZmdisnJ8J9FJsmTSt1nMKPyzWZxdz", B = "1LRshrZHPmft4SuaniExEsyzFecCPctMBV", C = "1Fdg4H1bGyooDhUZgHNw8WUNxvyP1sGdvF";
@@ -13,7 +13,7 @@ function inputs(over: Partial<Inputs> = {}): Inputs {
   const now = NOW;
   return {
     now, week: { start: START, end: START + W },
-    totalStake: 48250n * UNIT + 12345678n,
+    totalStake: 48250n * UNIT + 12345678n, seedVhp: 170000n * UNIT, rewardsSoFar: 1234n * UNIT + 56000000n,
     games: [{ id: 1, name: "Daily Questions", staked: true, stake: 40000n * UNIT }, { id: 2, name: "Producer Race", staked: false, stake: 0n }, { id: 3, name: "Block Golf", staked: true, stake: 8250n * UNIT }],
     qWeek: [{ address: A, answers: [{ question_id: 40, option: 1 }, { question_id: 41, option: 0 }] }, { address: B, answers: [] }, { address: C, answers: [{ question_id: 41, option: 1 }] }],
     qLastWeek: [{ address: A, answers: [{ question_id: 30, option: 1 }, { question_id: 31, option: 0 }] }, { address: D, answers: [{ question_id: 30, option: 1 }, { question_id: 31, option: 2 }] }, { address: E, answers: [{ question_id: 32, option: 0 }] }],
@@ -224,4 +224,30 @@ test("fix-check finding 2: BAD_NAME also refuses the soft hyphen, combining and 
     assert.ok(pub.includes(BS + "u" + c), "publish job " + c);
     assert.ok(fs.readFileSync("stats.js", "utf8").includes(BS + "u" + c), "stats.js " + c);
   }
+});
+
+// Pool card (Hub, 12 Nov): the seed VHP and this week's block rewards so far, after the 5% fee. null means unknown, never 0.
+test("seed and rewards: published as numbers, null when unknown, and checked", () => {
+  const s = buildStats(inputs());
+  assert.deepEqual(s.seed, { vhp: 170000 }); assert.deepEqual(s.rewards, { soFar: 1234.56 });
+  assert.equal(checkStats(s), null);
+  const u = buildStats(inputs({ seedVhp: null, rewardsSoFar: null }));
+  assert.deepEqual(u.seed, { vhp: null }); assert.deepEqual(u.rewards, { soFar: null }); assert.equal(checkStats(u), null);
+  for (const bad of [{ seed: { vhp: "9" } }, { seed: { vhp: -1 } }, { seed: { vhp: 1, x: 2 } }, { rewards: { soFar: 1e13 } }, { rewards: { soFar: "1" } }, { rewards: { soFar: 1, y: 1 } }, { seed: undefined }, { rewards: undefined }])
+    assert.notEqual(checkStats({ ...s, ...bad }), null, JSON.stringify(bad));
+});
+test("poolFigures: the same sums as `bot status`; the 5% fee comes off; carried weeks and a short balance never go negative", () => {
+  const V = 100000000n, t = (o: any = {}) => ({ total_stake: String(39n * V), seed_vhp: String(170000n * V), seed_koin: "0", owner_share: "0", creator_fee: "0", pots_outstanding: "0", fee_vhp: "0", games_rolled: "0", rolled_over: "0", ...o });
+  const owed = 39n * V + 170000n * V;
+  assert.deepEqual(poolFigures({ totals: t(), vhp_balance: String(owed + 100n * V), koin_balance: "0" }), { seedVhp: 170000n * V, rewardsSoFar: 95n * V }, "100 earned, 5% fee off");
+  assert.equal(poolFigures({ totals: t({ rolled_over: String(40n * V) }), vhp_balance: String(owed + 100n * V), koin_balance: "0" }).rewardsSoFar, 57n * V, "40 carried over aren't this week's: 60 less 5%");
+  assert.equal(poolFigures({ totals: t({ fee_vhp: String(10n * V) }), vhp_balance: String(owed + 100n * V), koin_balance: "0" }).rewardsSoFar, 855n * V / 10n, "the fee already owed is not earnings");
+  assert.equal(poolFigures({ totals: t(), vhp_balance: String(owed - 5n * V), koin_balance: "0" }).rewardsSoFar, 0n, "holdings below what is owed: 0, not negative");
+  assert.deepEqual(poolFigures({ totals: t() }), { seedVhp: 170000n * V, rewardsSoFar: null }, "balances unreadable: unknown");
+  assert.deepEqual(poolFigures({}), { seedVhp: null, rewardsSoFar: null });
+});
+test("stats.yml: the publish check knows seed and rewards", () => {
+  const y = fs.readFileSync(".github/workflows/stats.yml", "utf8");
+  assert.match(y, /"staked", "seed", "rewards", "prizes"/);
+  assert.match(y, /set\(s\["seed"\]\) == \{"vhp"\}/); assert.match(y, /set\(s\["rewards"\]\) == \{"soFar"\}/);
 });

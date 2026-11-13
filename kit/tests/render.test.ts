@@ -25,10 +25,16 @@ test("render: every committed kit workflow is exactly what the kit renders (run 
   for (const r of renderAll(ROOT)) assert.equal(r.now, r.want, `${r.file} differs from the kit's render`);
 });
 
-test("render: kit-core ships no kit game, so games.yml is main's, unchanged (D-160)", () => {
-  assert.deepEqual(kitGames(ROOT), []);
-  const main = spawnSync("git", ["show", "origin/main:.github/workflows/games.yml"], { cwd: ROOT, encoding: "utf8" });
-  if (main.status === 0) assert.equal(fs.readFileSync(path.join(ROOT, ".github/workflows/games.yml"), "utf8"), main.stdout);
+// Was "kit-core ships no kit game, so games.yml is main's" (D-160, for #210). Retired in kit Phase 1b: the first real kit
+// game (Fantasy) renders a job, and comparing with origin/main broke every push run once main moved. What stays true:
+// with no kit game in games/, games.yml has no kit job; with one, the committed file is exactly what the kit renders
+// (the test above).
+test("render: with no kit game in games/, games.yml has no kit job (no stray jobs)", () => {
+  const yml = fs.readFileSync(path.join(ROOT, ".github/workflows/games.yml"), "utf8");
+  const a = yml.indexOf(BEGIN), b = yml.indexOf(END);
+  if (kitGames(ROOT).length) return;              // covered by "every committed kit workflow is exactly what the kit renders"
+  // no markers yet (never rendered), or an empty block between them
+  assert.ok(a < 0 ? b < 0 : b > a && yml.slice(a + BEGIN.length, b).trim() === "", "no kit game, no kit job");
 });
 
 /** A repo-shaped temp root: today's games.yml and deployment.json, with the kit-example fixture as its one kit game. */
@@ -85,11 +91,14 @@ test("render: the embedded copy runs and publishes an honest pending week (as th
 });
 
 test("render: the hand-written Block X jobs are untouched, and the kit jobs sit between the markers", () => {
-  const main = spawnSync("git", ["show", "origin/main:.github/workflows/games.yml"], { cwd: ROOT, encoding: "utf8" });
-  if (main.status === 0) {
-    const before = main.stdout.replace(/\n*$/, "\n");
-    assert.ok(yml.startsWith(before), "everything before the kit block is main's games.yml unchanged");
-  }
+  // Compared with this checkout's own games.yml (not origin/main, which moves under every open PR): rendering a kit game
+  // changes only what sits between the markers.
+  const mine = fs.readFileSync(path.join(ROOT, ".github/workflows/games.yml"), "utf8");
+  if (mine.includes(BEGIN)) {
+    const head = mine.slice(0, mine.indexOf(BEGIN)), tail = mine.slice(mine.indexOf(END) + END.length);
+    assert.ok(yml.startsWith(head), "everything before the kit block is the checkout's games.yml unchanged");
+    assert.ok(yml.endsWith(tail), "everything after the kit block is unchanged");
+  } else assert.ok(yml.startsWith(mine.replace(/\n*$/, "\n")), "the checkout's games.yml is unchanged, the kit block added after it");
   assert.ok(yml.indexOf(BEGIN) > 0 && yml.indexOf(END) > yml.indexOf(BEGIN));
 });
 

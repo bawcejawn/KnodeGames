@@ -44,6 +44,8 @@ export type Inputs = {
   now: number;
   week: { start: number; end: number };                    // the current week (Monday 00:00 UTC to the next)
   totalStake: bigint;                                      // vault totals.total_stake (8 decimals)
+  seedVhp: bigint | null;                                  // vault totals.seed_vhp (the seed VHP that never plays); null when unreadable
+  rewardsSoFar: bigint | null;                             // block rewards earned since the last close, after the 5% fee, not yet split; null when the balances are unreadable
   games: { id: number; name: string; staked: boolean; stake: bigint }[];
   qWeek: QRow[];                                           // Daily Questions players this week, with their answers
   qLastWeek: QRow[];
@@ -140,6 +142,9 @@ export function buildStats(x: Inputs) {
     players: { week: thisWeek.size, lastWeek: lastWeek.size, allTime: all.size, today: todayPlayers.size },
     plays: { answers, racePicks, blockxPicks, total: answers + racePicks + blockxPicks },
     staked: { total: round2(vhp(x.totalStake)), games: x.games.filter((g) => g.staked).map((g) => ({ id: g.id, name: BAD_NAME.test(String(g.name)) ? `Game ${g.id}` : String(g.name).slice(0, 40), vhp: round2(vhp(g.stake)) })) },
+    // The pool card (Hub): the seed VHP, and this week's block rewards so far after the flat 5% fee. null = unknown, never 0.
+    seed: { vhp: x.seedVhp === null ? null : round2(vhp(x.seedVhp)) },
+    rewards: { soFar: x.rewardsSoFar === null ? null : round2(vhp(x.rewardsSoFar)) },
     prizes: { free: FREE_PRIZES },
     blocks: { vault24h: blocksBy(fresh(x.recentBlocks, now), VAULT, 24) },
     today: { open: openIds.size, closes, answers: todayAnswers },
@@ -158,6 +163,8 @@ export function checkStats(s: any): string | null {
   for (const g of s.staked.games) if (!int(g.id) || typeof g.name !== "string" || !g.name || g.name.length > 40 || BAD_NAME.test(g.name) || !num(g.vhp)) return "staked game";
   if (!(s.week && Number.isInteger(s.week.start) && Number.isInteger(s.week.end) && s.week.end > s.week.start)) return "week";
   if (!(s.blocks && (s.blocks.vault24h === null || int(s.blocks.vault24h)))) return "blocks";
+  if (!(s.seed && Object.keys(s.seed).join() === "vhp" && (s.seed.vhp === null || num(s.seed.vhp)))) return "seed";
+  if (!(s.rewards && Object.keys(s.rewards).join() === "soFar" && (s.rewards.soFar === null || num(s.rewards.soFar)))) return "rewards";
   if (!(s.today && int(s.today.open) && int(s.today.answers) && (s.today.closes === null || (Number.isInteger(s.today.closes) && s.today.closes > 1.6e12 && s.today.closes < 4e12)))) return "today";
   for (const k of ["questions", "race", "blockx"]) {
     const l = s.top?.[k];
@@ -234,6 +241,19 @@ function openQuestions(now: number): { id: number; lockTime: number }[] {
 }
 
 export type Reader = Pick<ReturnType<typeof vaultReader>, "state" | "games" | "question" | "players">;
+/** The seed VHP and this week's block rewards so far, from get_state, the same sums as `bot status` (bot/bot.ts):
+ *  holdings (VHP + KOIN) minus everything owed is what was earned since the last close; the weeks carried over from a week
+ *  with no winner aren't this week's; the flat 5% fee comes off the rest. null when a figure can't be read: never 0. */
+export function poolFigures(st: any): { seedVhp: bigint | null; rewardsSoFar: bigint | null } {
+  const t = st?.totals, big = (v: any) => BigInt(v || 0);
+  const seedVhp = t && t.seed_vhp !== undefined ? big(t.seed_vhp) : null;
+  if (!t || st.vhp_balance === undefined || st.koin_balance === undefined) return { seedVhp, rewardsSoFar: null };
+  const holdings = big(st.vhp_balance) + big(st.koin_balance);
+  const owed = ["total_stake", "seed_vhp", "seed_koin", "owner_share", "creator_fee", "pots_outstanding", "fee_vhp", "games_rolled"].reduce((a, k) => a + big(t[k]), 0n);
+  const gain = holdings > owed ? holdings - owed : 0n, carried = big(t.rolled_over) < gain ? big(t.rolled_over) : gain;
+  const fresh = gain - carried;
+  return { seedVhp, rewardsSoFar: fresh - (fresh * 500n) / 10000n };
+}
 export async function gather(now: number, v: Reader, dataDir: string, openQs = openQuestions(now)): Promise<Inputs> {
   const st = await v.state();
   // The week the same way the Daily Questions page works it out (app.js loadLive): from the contract's genesis_time
@@ -252,7 +272,7 @@ export async function gather(now: number, v: Reader, dataDir: string, openQs = o
   const outcomes = new Map<number, number>();
   for (const id of ids) outcomes.set(id, Number(((await v.question(id)).question || {}).outcome || 0));
   return {
-    now, week, totalStake: BigInt(st.totals?.total_stake || 0), games, qWeek, qLastWeek, qAll, outcomes, open: openQs,
+    now, week, totalStake: BigInt(st.totals?.total_stake || 0), ...poolFigures(st), games, qWeek, qLastWeek, qAll, outcomes, open: openQs,
     raceBoard: readJson(path.join(dataDir, "board.json")), blockxBoard: readJson(path.join(dataDir, "blockx-board.json")), recentBlocks: readJson(path.join(dataDir, "recent-blocks.json")),
   };
 }

@@ -26,10 +26,17 @@ const R: any = (globalThis as any).KRuler, D: any = (globalThis as any).KVhpData
 /** The Race's ruler settings (the Ruler chat, 11 Nov): never read from a card. race.yml has the same values (tested). */
 export const VAULT_ADDR = "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr";
 export const RULER = Object.freeze({ game: 7, c: "500000", minK: 10, poolRule: "min", ownRule: "spot", paying: true, pooled: Object.freeze([VAULT_ADDR]) });
-/** The race types on the ruler (per-type flag, cleared one by one after a shadow week): only the 6-hour race for now. */
-export const RULER_TYPES = Object.freeze([0]);
-/** The card window's length (the 6 hours before the lock, for every type; the Ruler chat, 11 Nov). */
+/** The race types on the ruler. The 6-hour race (type 0) follows the switch (off / shadow / on). The four new types
+ *  (owner, 12 Nov: option A; shadow cleared from history, claude/race/SHADOW-FROM-HISTORY-RACE-TYPES-2026-11-12.md) are
+ *  scored by the ruler from their first race and ONLY in a week the ruler is "on": they never fall back to the handicap
+ *  race. A types week the ruler isn't on for scores none of their picks (a problem every run). Never flips mid-week:
+ *  it follows the switch's week. */
+export const RULER_TYPES = Object.freeze([0, 1, 2, 3, 4]);
+export const NEW_TYPES = Object.freeze([1, 2, 3, 4]);
+/** The card window's length (the Ruler chat, 11 Nov): the 6 hours before the lock for the 6-hour, daily and weekly
+ *  races; the race's own length before the lock for the 1-hour (1,200) and 2-hour (2,400) races. By type number. */
 export const CARD_BLOCKS = 7200;
+export const CARD_BY_TYPE: Readonly<Record<number, number>> = Object.freeze({ 0: 7200, 1: 1200, 2: 2400, 3: 7200, 4: 7200 });
 
 export type RulerEntry = { id: string; round: string; window: { W0: number; W1: number; L: number; S0: number; S1: number }; card: string | null; note: string | null; placings: string[] };
 export type RulerFile = { v: 1; week: number; rulerFrom: number | null; mode: "off" | "shadow" | "on"; shadow: boolean; races: RulerEntry[] };
@@ -47,10 +54,20 @@ export function roundOf(start: number, type = 0): string {
  *  its UTC window, about 7,200; the Ruler chat, 11 Nov): L = S0 − 1, the last block a pick can be in (the Race contract
  *  locks at the race's start: the shape the fairness runs used, W1 = L = S0 − 1); W1 = L, W0 = L − 7,199 (the card
  *  window, the 6 hours before the lock). The seed block L + 20 is inside the race, after the lock. */
-export function windowOf(S0: number, S1: number) {
+export function windowOf(S0: number, S1: number, type = 0) {
   if (!Number.isSafeInteger(S0) || !Number.isSafeInteger(S1) || S1 < S0) throw new Error("a race's blocks [S0, S1] are needed");
+  const card = CARD_BY_TYPE[type];
+  if (!card) throw new Error(`no ruler card window for race type ${type}`);
   const L = S0 - 1;
-  return { W0: L - CARD_BLOCKS + 1, W1: L, L, S0, S1 };
+  return { W0: L - card + 1, W1: L, L, S0, S1 };
+}
+/** A typed race's blocks [S0, S1] from the hour ledger (each UTC hour's first and last block, read on both nodes):
+ *  its first hour's a and its last hour's b. null until every hour of the race is in the ledger. */
+export function typedBlocks(hours: { t: number; a: number; b: number }[], start: number, end: number): [number, number] | null {
+  const byT = new Map(hours.map((h) => [h.t, h]));
+  const first = byT.get(start), last = byT.get(end - 3600000);
+  for (let t = start; t < end; t += 3600000) if (!byT.has(t)) return null;
+  return first && last && last.b >= first.a ? [first.a, last.b] : null;
 }
 /** The Race's own settings for one race (what recompute needs: every key). */
 export const settingsFor = (round: string, window: RulerEntry["window"]) => ({ game: RULER.game, round, window, c: RULER.c, minK: RULER.minK, poolRule: RULER.poolRule, ownRule: RULER.ownRule, paying: RULER.paying, pooled: [...RULER.pooled] });
@@ -88,7 +105,13 @@ export function loadLedger(dir: string): any {
 export function entryFor(L: any, race: { id: string; start: number; result: any }, old?: RulerEntry | null): RulerEntry | null {
   const h = race.result?.heights;
   if (!race.result?.final || race.result.missed || !Array.isArray(h) || !Number.isSafeInteger(h[0]) || !Number.isSafeInteger(h[1]) || h[1] < h[0]) return null;
-  const round = roundOf(race.start, 0), window = windowOf(h[0], h[1]);
+  return entryForBlocks(L, race.id, race.start, 0, [h[0], h[1]], old);
+}
+/** A race's ruler entry from its blocks [S0, S1] and type (the 6-hour race: its recorded heights; a typed race: the hour
+ *  ledger, typedBlocks). */
+export function entryForBlocks(L: any, id: string, start: number, type: number, blocks: [number, number], old?: RulerEntry | null): RulerEntry {
+  const race = { id };
+  const round = roundOf(start, type), window = windowOf(blocks[0], blocks[1], type);
   if (old && old.card && old.round === round && JSON.stringify(old.window) === JSON.stringify(window)) return old;
   const base: RulerEntry = { id: race.id, round, window, card: null, note: null, placings: [] };
   if (!L) return { ...base, note: "not yet: the ruler's data isn't available this run" };
@@ -116,9 +139,12 @@ export function ruledResult(result: any, entry: RulerEntry | null | undefined): 
   const rows = new Map((JSON.parse(entry.card).producers || []).map((p: any) => [p.a, p]));
   const shows = pl.slice(1, 3).filter((a) => Number((rows.get(a) as any)?.signed) >= 1);
   const picks = (Array.isArray(result.picks) ? result.picks : []).map((x: any[]) => [x[0], x[1], x[2], x[1] === pl[0] ? 1 : 0, 0, x[1] !== pl[0] && shows.includes(x[1]) ? 1 : 0]);
-  return { final: true, winner: pl[0], placings: pl, picks };
+  // standings: the ruler's order, so the points per place (D-173, with the race types) read 2nd and 3rd from it
+  return { final: true, winner: pl[0], placings: pl, standings: pl.map((a) => ({ a })), picks };
 }
 
+/** The file name of a week's ruler file: R<week>.json for the 6-hour race, R<week>-<type>.json for the other types. */
+export const rulerName = (week: number, type = 0) => `R${String(week).padStart(3, "0")}${type ? `-${type}` : ""}.json`;
 export function emptyRuler(week: number, from: number | null): RulerFile {
   const mode = modeOf(week, from);
   return { v: 1, week, rulerFrom: from, mode, shadow: mode === "shadow", races: [] };

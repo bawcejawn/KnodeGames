@@ -85,7 +85,7 @@ test("expected and credited, written from the rule, on every producer of a 1-day
   assert.equal(s.ruleVersion, 4);
   for (const p of s.producers) {
     assert.equal(p.void, false);
-    assert.equal(BigInt(p.sample), sampleOf(p));
+    assert.equal(BigInt(p.sample), sampleOf(s, p));
     assert.equal(p.expected, expectedOf(r.L, s, p), `${p.a}: expected`);
     assert.equal(p.credited, creditedOf(r.L, s, p), `${p.a}: credited`);
   }

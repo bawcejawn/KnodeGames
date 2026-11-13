@@ -16,6 +16,10 @@ export type Round = {
   pickRound?: number;
 };
 
+/** Not available YET (ruler data, a block at a time not yet irreversible): the round stays PENDING / the inputs file
+ *  waits; the next run tries again. Never a guess. */
+export class NotYet extends Error {}
+
 /** resultOf's answers when there is no result: not decided yet (never a guess), or void (nothing scores). */
 export const PENDING = Symbol.for("kit.pending");
 export const VOID = Symbol.for("kit.void");
@@ -44,9 +48,13 @@ export type Published = { own: Record<number, any>; games: Record<string, Record
  *  returns a scored ruler card, or throws NotYet while the data doesn't cover it (the kit then keeps the round PENDING,
  *  or the inputs file waits). Never null for a vhpData game: when the data can't be loaded this run, card() throws NotYet. */
 export type VhpCtx = { to: number; ruleVersion: number; card(settings: any): any };
-export type RoundCtx<I = unknown> = { now: number; inputs?: I; published?: Published; vhp?: VhpCtx };
+/** G7: the first IRREVERSIBLE block whose time is at or after a UTC time (ms), on the node this call reads; the kit
+ *  pins both nodes to the same last irreversible block and compares the answers like any read. Throws NotYet while
+ *  that block isn't irreversible yet (the round stays PENDING / the inputs file waits). */
+export type BlockAt = (ms: number) => Promise<number>;
+export type RoundCtx<I = unknown> = { now: number; inputs?: I; published?: Published; vhp?: VhpCtx; blockAt?: BlockAt };
 /** resultOf's fourth argument. */
-export type ResultCtx = { vhp?: VhpCtx };
+export type ResultCtx = { vhp?: VhpCtx; blockAt?: BlockAt };
 export type ReadCtx<I = unknown> = RoundCtx<I> & { read: NodeReader };
 
 export type PicksSource = { source: "picks-contract" | "race-picks" | "vault-answers" | "none"; gameId?: number };

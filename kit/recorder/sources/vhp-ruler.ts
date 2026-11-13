@@ -17,8 +17,9 @@ await import("../../../vhp-data.js");
 const R: any = (globalThis as any).KRuler, D: any = (globalThis as any).KVhpData;
 
 /** A card that can't be made YET (the data doesn't reach the window plus the ruler's delay, or a chained hour no live
- *  hour has checked yet): the round stays PENDING / the inputs file waits; the next run tries again. Never a guess. */
-export class NotYet extends Error {}
+ *  hour has checked yet): the kit's NotYet (types.ts). */
+import { NotYet } from "../types.ts";
+export { NotYet };
 
 /** One card's settings (what KRuler.recompute needs; the game's own constants, never read from a card). */
 export type CardSettings = {
@@ -95,3 +96,6 @@ export function vhpFor(L: any, used: Map<string, CardRef>): Vhp {
 /** Every card used, in a stable order (round, then sha256): the `cards` list of a week or inputs file. */
 export const cardList = (used: Map<string, CardRef>): CardRef[] =>
   [...used.values()].sort((x, y) => (x[0].round < y[0].round ? -1 : x[0].round > y[0].round ? 1 : x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0));
+
+/** The loaded ruler library (KRuler), for the kit's test fixtures only; games use ctx.vhp. */
+export const rulerLib = (): any => R;

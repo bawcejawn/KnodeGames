@@ -21,6 +21,8 @@ export const PAGES = [
     desc: "Swap VHP back into KOIN in one step on Koinos. A small 3% fee, paid out from Knode Games' own node.", image: "og-swap.png", priority: "0.7" },
   { file: "start.html", path: "start.html", title: "New to Koinos? Start here · Knode Games", short: "New to Koinos? Start here",
     desc: "From dollars in the bank to playing Knode Games: get a wallet, get KOIN, cross the Vortex bridge, and explore apps built on Koinos.", image: "og-knode.png", priority: "0.7" },
+  { file: "ecosystem.html", path: "ecosystem.html", title: "Koinos ecosystem · Knode Games", short: "Koinos ecosystem",
+    desc: "Apps and sites built on Koinos, and two ways to run your own Koinos node: KoinosKit, or our step-by-step guide with PowerShell and Docker.", image: "og-knode.png", priority: "0.6" },
   { file: "node.html", path: "node.html", title: "Koinos producer lookup · Knode Games", short: "Koinos producer lookup",
     desc: "Look up any Koinos block producer: blocks signed over the last two days, share of the network, and recent activity.", image: "og-knode.png", priority: "0.6" },
   { file: "run-node.html", path: "run-node.html", title: "Run a Koinos node · Knode Games", short: "Run your own Koinos node",

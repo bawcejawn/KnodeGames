@@ -898,12 +898,6 @@
       kit.replaceChildren(el("span", { class: "kit-kicker" }, "Run your own node"), el("b", {}, f.name), el("span", { class: "muted" }, f.tagline), el("span", { class: "kit-cta" }, `${f.cta || "Visit"} →`));
       kit.hidden = false;
     }
-    // footer: every project
-    const eco = (ADS.ecosystem || []).filter((h) => h && h.name && httpsUrl(h.link));
-    if (eco.length) {
-      $("#eco-grid").replaceChildren(...eco.map((h) => el("a", { href: httpsUrl(h.link), target: "_blank", rel: "noopener", class: "eco-item" }, el("b", {}, h.name), el("span", {}, h.tagline))));
-      document.querySelector(".eco").hidden = false;
-    }
   }
 
   // ═══════════════ rendering ═══════════════

@@ -808,9 +808,25 @@
             "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1079105851438"
           },
           "seal": "4d5b6573ca8cc32819c647dfe2ae1e8bd36713c4f95b227436dbf498adce8638"
+        },
+        {
+          "height": 41048326,
+          "readAt": "2026-11-13T18:56:17.746Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1078700617803"
+          },
+          "seal": "ef0b1f472aa5067579e0d07afa30d9aee412e1f3279e422d8f7bf03819a69c87"
+        },
+        {
+          "height": 41049465,
+          "readAt": "2026-11-13T19:58:13.181Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1077473691708"
+          },
+          "seal": "5dec5b9d1affa3438f7c7c6f8e1f33bdd9ec4f6ec369aba24b1f340119a71321"
         }
       ],
-      "vhpSeal": "e60b14fee1bea0468508dcf656efa7893694c6e1a736c707e6be55ac326ee74f"
+      "vhpSeal": "2f05193f9f534bcf91254dd23ed2c7f9c26591cf858226ae9f484538924e913e"
     },
     {
       "id": "W003-D2-3",

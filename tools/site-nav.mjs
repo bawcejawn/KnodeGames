@@ -113,7 +113,7 @@ export function topBlock(file) {
  *  Koinos AI's address is the one in ads.json "featured" (a test keeps the two the same). */
 export const NODE_KIT = "https://www.koinosai.com/";
 export function nodeBlock(file = "index.html") {
-  return `<p class="foot-node"><b>Run your own node:</b> <a href="${NODE_KIT}" target="_blank" rel="noopener">Koinos AI, a guided start</a> · <a href="run-node.html">Step by step with PowerShell and Docker</a></p>`;
+  return `<p class="foot-node"><b>Run your own node:</b> <a href="${NODE_KIT}" target="_blank" rel="noopener">Koinos AI, your own AI and node</a> · <a href="run-node.html">Step by step with PowerShell and Docker</a></p>`;
 }
 
 /** The footer's links. */

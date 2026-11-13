@@ -1,7 +1,7 @@
 # KG parts v1: the shared file standard (split, compact, one hash over all parts)
 
 Status: spec from the Capacity chat, Thu 12 Nov 2026 (asked by the Race chat for every game: Race first, then Block X,
-Last Node and the kit games). Shared code: `kit/parts/` (Capacity builds, Architecture reviews, target merge Wed 25 Nov).
+Last Node and the kit games). Shared code: `kit/parts/parts.inline.mjs`, one self-contained file (node:fs, node:path, node:crypto) that recorders import and publish jobs embed verbatim, with tests in `kit/tests/parts.test.mjs` (Capacity builds, Architecture reviews; Repo Lens GO by Mon 16 Nov, merge Tue 17 Nov).
 Measure before and after with `tools/capacity-harness/filesize.mjs`. Rule 0: no file a payout already used is converted
 or renamed; `vault/W` and `HOLD-`/`RELEASE-` files are unchanged; every existing check stays.
 
@@ -13,6 +13,8 @@ race-data/W004/ref.<h12>.json           optional, write-once reference data (e.g
 race-data/W004/d3.<h12>.json            one part per unit; the unit is the game's choice: d<1-7> (UTC day of the vault week)
 race-data/W004/r017.<h12>.json            or r<NNN> (race / round / target number, 3+ digits)
 race-data/W004/top.<h12>.json           optional: the top 100 rows of this file's board
+race-data/W004/wk.<h12>.json            optional: small week-level keys (carry, next, extras, cards, inputs) (Architecture A1)
+games-data/golf/W006/h01.<h12>.json     Golf: one part per hole, h01-h20 (unit h; the hole's game id goes in `extra.id`)
 race-data/W004/p/<xx>.<h12>.json        optional: per-player shards (§5)
 ```
 - `<h12>` = the first 12 hex characters of the part's own SHA-256 (of its exact bytes). **Parts are content-addressed: a part's name changes whenever its bytes change**, so a cached old copy (browser, Cloudflare mirror) can never be mistaken for the new one, and a part, once named, is never rewritten.
@@ -33,7 +35,7 @@ race-data/W004/p/<xx>.<h12>.json        optional: per-player shards (§5)
   "extra": {}
 }
 ```
-- `cols`: column name and type. Types: `"a"` = index into this part's `a` (address table), `"i"` = integer, `"s"` = short string, `"n"` = decimal string for big numbers (satoshi-style VHP), `"b"` = 0/1.
+- `cols`: column name and type. Types: `"a"` = index into this part's `a` (address table), `"i"` = integer, `"s"` = short string, `"n"` = decimal string for big numbers (satoshi-style VHP), `"b"` = 0/1. `"j"` = a game-shaped value (arrays, objects, strings, safe integers, booleans, null), stored as its canonical JSON text (keys sorted, at most 512 bytes); a fallback only, typed columns first (Architecture C3).
 - `a`: every address used in this part, **once**, sorted ascending (so the same rows always give the same bytes). Players and producers share one table.
 - `rows`: arrays in `cols` order, sorted by the game's natural key (e.g. race, then player). Times are integers relative to `t0` in the unit the game declares in `extra.tUnit` (`"s"` or `"ms"`; default `"s"`).
 - `extra`: anything else the unit needs (a race's settings, its result, its standings), small. Big per-player data never goes in `extra`.
@@ -62,19 +64,27 @@ race-data/W004/p/<xx>.<h12>.json        optional: per-player shards (§5)
 ```
 - `parts` sorted by `part`. Every part listed exactly once. `rows` = that part's row count; top-level `rows` = the sum.
 - **The part-set hash:** `hash = SHA-256( "kgparts1\n" + game + "\n" + file + "\n" + week + "\n" + for each listed part in order: part + " " + sha256 + " " + bytes + "\n" )`. It covers every part's bytes (through their SHA-256), the set of parts, their order and the week. **This replaces today's single-file snapshot hash everywhere it's used**: the two-node match, `seen` (final after two runs an hour apart), the vault bot's double read, and the publish job's check.
+- `unit`: `d` (day), `r` (race/round/target), `h` (Golf hole) or `p` (player shards only, e.g. Block X's board). Readers must not depend on it.
+- `meta` (optional): a plain object of at most 4 KB **outside the part-set hash**, for lifecycle notes only (the kit's `seen: {hash, at}`, a short `why`). An unchanged final keeps its first `meta`. Never put game data in it (Architecture C2).
 - `expect`: the units that must exist for this `state`. For `pending`, the units up to now (e.g. days so far); for `final`, all of them. A game declares its rule in its README (Race 6-hour W: `r001`…`r028`; T: `d1`…`d6`; R: `d1`…`d7`).
-- `state`: `pending` or `final`. A final manifest and all its parts are **written once**: later runs copy them forward unchanged, and a run whose part-set hash differs from a published final **stops** (same as today's rule for finals).
+- `state`: `pending`, `open` (a kit `liveWeek` copy; changes freely; Architecture C1) or `final`. An open or pending folder may later be written as final; a final never changes back. A final manifest and all its parts are **written once**: later runs copy them forward unchanged, and a run whose part-set hash differs from a published final **stops** (same as today's rule for finals).
 
 ## 4. How a publish job proves the set is complete (the check, in the inline file; no repository code runs)
 For every `<base>/manifest.json` it publishes, the job:
-1. Parses the manifest; `kgparts` is 1; `game`, `file`, `week` match the folder and the run.
-2. For each listed part: the file `<base>/<name>` exists; its byte length equals `bytes`; its SHA-256 equals `sha256`; `name` equals `<part>.<first 12 hex of sha256>.json`; the part's own `game`/`file`/`part` fields match; its `rows` count matches.
+1. Parses the manifest (strict UTF-8, canonical text, exactly the keys `buildManifest` writes); `kgparts` is 1; `game`, `file`, `week` match the run, and `file` equals the folder's name. **The caller must pass `game`, `file`, `week`, `publishedRoot` (the published branch's checkout, which must exist) and `rel` (this folder's path inside the branch, ending in `file`); a final also needs `full`.** A missing or wrong-typed option fails the check (Repo Lens #G-61-1, #G-62-1/2: fail closed). The folder must be a real folder, not a link (#G-62-5). `rel` uses `/` only (no `\`), has at most 6 segments, and no segment starting with `.` (#G-63-1/3), so every final the check accepts is one the sweep sees. **Pass `localRoot` too** (the full tree about to be committed, the same root given to the sweep): `rel` must then equal the folder's real path inside it (#G-63-1). The published copy and the folder being checked are compared by real path, never text (#G-63-2), and a link at `publishedRoot/rel` holds (#G-63-4).
+2. For each listed part: the file `<base>/<name>` exists; its byte length equals `bytes`; its SHA-256, taken over the bytes on disk, equals `sha256`; `name` equals `<part>.<first 12 hex of sha256>.json`; the part's own `game`/`file`/`part` fields match; its `rows` count matches.
 3. **No missing unit:** every unit in `expect` is in `parts` (and for `final`, `expect` is the game's full list).
 4. **No stale or extra file:** the folder holds exactly the listed part files plus `manifest.json` (`find <base> -type f`); anything else, or a symlink or a sub-folder other than `p/`, refuses the publish. (Old content-addressed parts of a pending week are removed by the writer in the same commit; a final's never change.)
 5. Recomputes the part-set `hash` and compares it with the manifest's.
+5b. **A published final comes back byte-identical (#G-61-2, #G-62-2/3).** `checkParts` finds the published copy itself at `publishedRoot/rel`. If it's final, this one must be final with the same part-set hash and every published file byte-identical, nothing removed. It holds when: the root doesn't exist; the published copy is the folder being checked; its manifest isn't a kgparts manifest (e.g. `{}`, `null`, a BOM) or is another game, file or week; or it has files but no manifest. No published folder under an existing root means nothing is published yet.
 6. Decodes all parts back into the game's logical rows (the inline decoder) and runs the game's existing recompute (every point, place and winner) on them, exactly as today on the single file.
 7. Size: every file ≤ 2 MB (today's `find -size +2048k` rule, unchanged); the warning at 60% is the recorder's job.
+8. **Branch-wide sweep (#G-62 Q2), once per publish:** `sweepFinals(publishedRoot, localRoot)`. The two roots must be different trees by real path (#G-63-2). A local final must hold exactly the published files, with no extras and no links (#G-63-5), and a published folder with part files but no manifest holds (#G-63-6). Every final parts folder on the published branch must still be in the new copy, byte-identical. Step 5b only sees the folders being published; this catches a final that went missing. Pending and open folders may change or go.
 Any failure: the publish is refused and the run fails with an alert, as today. Nothing is half-published: parts and manifest go in one commit.
+
+**Adoption checklist (every game, #G-63 Q2):** `publishedRoot` is a clean checkout of the published branch (the `git init` / `fetch --depth 1` / `checkout` steps `race.yml` runs for vhp-data); on the very first run, with no branch yet, an empty folder. `localRoot` is the full tree about to be committed, not the incoming artifact folder. On a shared branch, `rel` must start with the game's own folder (the job checks this before calling).
+
+**Record side (every game that adopts parts, #G-61-2):** the record job copies each part folder (manifest, parts, `p/`) back from the published branch before the recorder runs, and **fails** if it can't. A copy step that takes only top-level `*.json` files (the `race.yml` pattern today) must be widened in the same PR. The writer refuses to run in a folder holding an unreadable manifest, part files with no manifest, anything that isn't a part, another game's, file's or week's manifest, or a link (#G-61-2, #G-61-7, #G-62-4/5), so a missed copy or a wrong path stops the run instead of rewriting a final.
 
 ## 5. Board files and per-player shards
 - **`top.<h12>.json`**: a part with this file's top 100 rows (same columns as the board's rows). Pages show the top 100 from it.
@@ -84,13 +94,8 @@ Any failure: the publish is refused and the run fails with an alert, as today. N
 ## 6. The 60% warning (every recorder, every run)
 For every file it writes (parts, manifest, `board.json`, vault file): over 1.2 MB is a warning that fails the run's alert step (the owner is emailed) but still publishes; it names the file, its size and the cap. #277 already does this for Race; `kit/parts` does it for every kit game.
 
-## 7. What `kit/parts` will contain (Capacity builds, Architecture reviews)
-| File | What |
-|---|---|
-| `kit/parts/encode.ts` | `encodePart({ game, file, part, t0, cols, rows, extra })` -> canonical bytes; address table built and sorted; type checks |
-| `kit/parts/decode.ts` | `decodePart(bytes)` -> `{ header, rows: [{ col: value }] }`; refuses unknown `kgparts`, bad indexes, wrong types |
-| `kit/parts/write.ts` | `writeParts(dir, { game, file, week, state, unit, expect, shards }, parts)` -> content-addressed files + manifest; removes unlisted parts of a pending week; refuses > 2 MB; returns warnings at 60% |
-| `kit/parts/check.inline.mjs` | Self-contained (no imports) copy of §4 steps 1-5 and the decoder, for publish workflows to embed (like `kit/publish/check.inline.mjs`); a test keeps it identical in behaviour to `decode.ts` |
-| `kit/parts/tests/*` | Round trips, canonical bytes, hash vectors, every §4 refusal (missing unit, stale file, wrong size, renamed part, final changed), 100,000-row sizes |
-Hookup into the kit runtime (so kit games get it without game code) is Architecture's call: **OPEN, Architecture, by Wed 18 Nov**.
-
+## 7. What `kit/parts` contains
+One file, `kit/parts/parts.inline.mjs`: `encodePart`, `decodePart`, `partName`, `shardOf`, `partSetHash`,
+`buildManifest`, `planParts` (the writer with no file system: returns the files to write; Architecture A2), `writeParts` (content-addressed parts, unlisted pending parts removed, finals never changed, manifest
+last), `checkParts` (§4 steps 1-5b; returns the decoded parts for the game's own recompute, step 6) and `sizeWarnings`
+(the 60% warning), and `sweepFinals` (§4 step 8). Tests: `kit/tests/parts.test.mjs` (KP-1..16, G61-1..7, G62-1..5, the sweep). How kit games call it: Architecture's decision.

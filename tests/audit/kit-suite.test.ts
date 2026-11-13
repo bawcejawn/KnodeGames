@@ -1,5 +1,11 @@
 // The Shared Game Kit's own tests (kit/tests/, design §F), run by npm run test:audit.
 import "../../kit/tests/payout.fuzz.test.ts";
+import "../../kit/tests/parts.test.mjs";
+import "../../kit/tests/parts.repolens-g61.test.mjs";
+import "../../kit/tests/parts.repolens-g61-fuzz.test.mjs";
+import "../../kit/tests/parts.repolens-g62.test.mjs";
+import "../../kit/tests/parts.repolens-g62-verify.test.mjs";
+import "../../kit/tests/parts.repolens-g63.test.mjs";
 import "../../kit/tests/sunday.property.test.ts";
 import "../../kit/tests/faults.test.ts";
 import "../../kit/tests/runtime.test.ts";

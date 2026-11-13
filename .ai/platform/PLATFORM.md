@@ -80,7 +80,7 @@ Full per-game documentation: `.ai/games/` (Questions, ProducerRace, BlockX, Surv
 | Vault emergency build | — | `04c27c1a…` (withdrawals only, v6.1; was v6's `e84fec49…`) | standby, not deployed (D-021) | ✅ |
 | Mana sponsor v3 guest fix | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | `b84e1add…` (since 4 Nov) | live; switch and vault switch ON (live values: `SPONSOR.md`) | ✅ |
 | Picks | `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` | `700c296a…` (v2 `92d555d0…` planned for Combo) | uploaded 2026-10-30; only an owner-approved upgrade is accepted | ✅ |
-| Race picks | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` | `61e8f212…` | uploaded 2026-10-27 | ✅ |
+| Race picks | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` | `9993581b…` (v2) | uploaded 2026-11-13 (v1 2026-10-27) | ✅ |
 | Swap Desk v2 | `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR` | `309506cc…` | live since 2026-10-28 | ✅ |
 
 ## Money

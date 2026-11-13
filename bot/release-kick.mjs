@@ -12,7 +12,7 @@
  *                     one (at most every 12 minutes). If they are still not out at 12:20, it emails you, once a round.
  *
  * HEARTBEAT (owner, 9 Nov; after GitHub stopped firing every schedule for three days): at any hour, every 15 minutes it
- * checks when the bot last ran. If no "Kpred bot" run has started for 75 minutes and none is going, it starts one.
+ * checks when the bot last ran. If no "Kpred bot" run has started for 120 minutes and none is going, it starts one.
  * Limits, so it can never hammer GitHub:
  *   - at most HEARTBEAT_PER_DAY (6) heartbeat starts, and MAX_DISPATCH_PER_DAY (12) starts in all, per UTC day;
  *   - after a GitHub error (refused, 403 suspended, 5xx, network) it backs off: 15, 30, 60, 120 minutes, then every 4
@@ -67,7 +67,7 @@ export function roundNear(g, now) {
 }
 const REKICK_MS = 12 * MIN;
 // Heartbeat and limits (see the top of this file).
-export const HEARTBEAT_EVERY = 15 * MIN, HEARTBEAT_STALE = 75 * MIN, HEARTBEAT_PER_DAY = 6, MAX_DISPATCH_PER_DAY = 12;
+export const HEARTBEAT_EVERY = 15 * MIN, HEARTBEAT_STALE = 120 * MIN, HEARTBEAT_PER_DAY = 6, MAX_DISPATCH_PER_DAY = 12;
 export const BACKOFF = [15 * MIN, 30 * MIN, HOUR, 2 * HOUR, 4 * HOUR];
 const utcDay = (t) => new Date(t).toISOString().slice(0, 10);
 /** Counts a start in the day's tally; false when today's cap (all starts, or heartbeat starts) is used up. */

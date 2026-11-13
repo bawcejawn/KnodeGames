@@ -205,7 +205,9 @@
     $("bk-rounds").replaceChildren(...BM.ROUND_NAMES[s.size].map((n, r) => el("button", { type: "button", "aria-pressed": String(r === round), onclick: () => { round = r; render(); } },
       el("span", { text: n }), el("small", { text: dayName(BM.roundDay(view, r, s.size)).slice(0, 3) }))));
     const open = isOpen(), res = w.results, di = dayIdx(round), byes = new Set(BM.byesOf(s.size, s.seeds.length));
-    $("bk-day").textContent = `${BM.ROUND_NAMES[s.size][round]} · played ${dayName(BM.roundDay(view, round, s.size))} (UTC)${di && di.hours && !di.done ? ` · ${di.hours} of 24 hours in` : ""} · ${2 ** round} point${round ? "s" : ""} a right pick${round === R - 1 ? ", +2 for the champion" : ""}`;
+    // Repo Lens #G-48 G48-4: in a week the VHP ruler scores, the day index isn't what decides, so its percentages aren't shown
+    const onWeek = w.rulerMode === "on", decided = onWeek ? (Array.isArray(w.rulerBackup) && w.rulerBackup.includes(round) ? " · decided by the seeding (no ruler card in time)" : " · decided by the VHP ruler's card") : "";
+    $("bk-day").textContent = `${BM.ROUND_NAMES[s.size][round]} · played ${dayName(BM.roundDay(view, round, s.size))} (UTC)${di && di.hours && !di.done ? ` · ${di.hours} of 24 hours in` : ""} · ${2 ** round} point${round ? "s" : ""} a right pick${round === R - 1 ? ", +2 for the champion" : ""}${res && res.rounds[round] ? decided : ""}`;
     const list = [];
     const nM = s.size / 2 ** (round + 1);
     for (let m = 0; m < nM; m++) {
@@ -221,7 +223,7 @@
         const kids = [el("span", { class: "bk-seed", text: String(seed) }),
           el("span", { class: "bk-name" }, el("b", { text: nameOf(p.a) }), el("small", { text: meta })),
           ix && !pooled && BM.forfeits(ix, p.vhp) ? el("span", { class: "bk-ix", text: "under half", title: `Averaged ${fmt(ix.avg / 1e8)} VHP over the day, under half its seeding ${fmt(p.vhp)} VHP: it loses this matchup, unless its opponent is under half too (then the blocks decide)` })
-            : ix && BM.scoreOf(ix, pooled)[1] > 0 ? el("span", { class: "bk-ix", text: `${fmt(BM.indexOf(ix, pooled) * 100, 1)}%`, title: pooled ? `${fmt(ix.blocks)} blocks; judged on its rate (the Knode Games Pool)` : `${fmt(ix.blocks)} blocks of ${fmt(ix.expected, 1)} expected` }) : null,
+            : ix && !onWeek && BM.scoreOf(ix, pooled)[1] > 0 ? el("span", { class: "bk-ix", text: `${fmt(BM.indexOf(ix, pooled) * 100, 1)}%`, title: pooled ? `${fmt(ix.blocks)} blocks; judged on its rate (the Knode Games Pool)` : `${fmt(ix.blocks)} blocks of ${fmt(ix.expected, 1)} expected` }) : null,
           myPick === seed && !bye && (open || mine !== null) ? el("span", { class: "bk-mark", text: winner ? (winner === seed ? "✓" : "✗") : "★" }) : null];
         if (open && !bye && seed) return el("button", { type: "button", class: cls, "aria-pressed": String(myPick === seed), onclick: () => choose(round, m, seed) }, ...kids);
         return el("div", { class: cls }, ...kids);
@@ -446,7 +448,11 @@
     if (!rulerFrom) return "";
     const rule = "Each matchup day, every producer gets one VHP ruler card, measured from the chain's own VHP history; the producer luckier against the whole day's field (its blocks against its own expected share, whatever its size) wins. A producer whose VHP moves outside −12% / +50% of its card size during the day is void for that day only, and so is one that signs no block all day: it loses its matchup, so a pick on it counts as a loss; if both are void, the day index decides. Forfeits still come first.";
     if (w < rulerFrom - 1) return `From ${weekLabel(rulerFrom)} (the week of ${weekDate(rulerFrom)}) the VHP ruler decides the matchups. ${rule}`;
-    if (w >= rulerFrom) return `The VHP ruler decides the matchups (since ${weekLabel(rulerFrom)}, the week of ${weekDate(rulerFrom)}). ${rule}`;
+    // Repo Lens #G-48 G48-4: the backup (owner, 12 Nov), and which rounds of this week it decided
+    const backupRule = "If a day's ruler card still can't be made 48 hours after the week ends, the better seed goes through each of that day's open matchups (forfeits first; a seed that signed no block that day still loses), and the page says so.";
+    const bk = (weeks.get(w) || {}).rulerBackup, S = (weeks.get(w) || {}).seeding;
+    const bkText = Array.isArray(bk) && bk.length && S ? ` This week the seeding decided ${bk.map((r) => BM.ROUND_NAMES[S.size][r]).join(" and ")}: no ruler card came in time.` : "";
+    if (w >= rulerFrom) return `The VHP ruler decides the matchups (since ${weekLabel(rulerFrom)}, the week of ${weekDate(rulerFrom)}). ${rule} ${backupRule}${bkText}`;
     const s = shadows.get(w), cur = weeks.get(w), real = cur && cur.results ? cur.results.rounds : [];
     let cmp = "";
     if (s && Array.isArray(s.rounds) && s.rounds.length) {

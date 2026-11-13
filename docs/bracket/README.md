@@ -81,8 +81,18 @@ shadow week at once).
   last), no card is made for them afterwards, and the publish job alerts the owner once (a new `rulerBackup`). It refuses
   a backup before the grace, a backup round that has a card, a card for a backup round, and a result that isn't the
   seed rule's. A week whose days themselves can't be recorded is still void at its backstop.
+  - **Only a genuine wait** (Repo Lens #G-48 G48-1): the recorder uses the backup only for a round it tried this run with
+    the ruler's data loaded and found not there yet (the data ends before the day, or the card is flagged). Never after
+    a failed vhp-data fetch, nor when making the cards failed. And the publish job makes and scores each new backup
+    day's card from its own vhp-data: if it can, the backup is refused (held, with an alert); if it can't check (no
+    data), it holds too.
+  - **The no-block rule still applies on a backup day** (Repo Lens #G-48 G48-5): a better seed that signed no block that
+    day loses to an underdog that signed one; if neither signed one, the day index decides (an exact tie goes to the
+    underdog). A producer with no block can't go through on its seeding alone.
 - **A void producer is a different case:** the card exists and says that producer has no `fpct` (its VHP moved out of
   its band); that seed loses its matchup, as above.
+- **Scored cards only** (Repo Lens #G-48 G48-3): the publish job refuses a card unless every producer has `fpct` and
+  `credited` (an unscored card would leave every matchup to the day index).
 - **No signed block, no fpct** (Repo Lens #G-36, as the Race's D-033 "a show needs a signed block"): a seed that signed
   no block on its day counts as void that day, whatever its card says. One block is enough.
 - **Mode schedule** (`BRACKET_RULER_MODE`, e.g. `5:B`; unset = mode A, no `mode` on the card): read strictly with

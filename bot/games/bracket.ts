@@ -420,13 +420,16 @@ export const RULER_FIX = "GitHub → Actions → \"VHP ruler data\": if the late
  *  and re-read (write-once: a card the last run published is kept exactly as it was). In the shadow week also the
  *  ruler's result beside the real one (ruler/W<week>.json, "shadow": true, never scored). In an "on" week the texts
  *  score the week (bracket.ts step 4); a missing card makes its day wait. */
-export function rulerWeek(w: number, wf: WeekFile, prevDir: string | undefined, cardFor: (settings: any) => { text: string } | { notYet: string }, schedule: string | null, now: number, problems: string[]): { files: [string, string][]; texts: (string | null)[] } {
-  if (!wf.seeding || !wf.seeding.size) return { files: [], texts: [] };
-  const out: [string, string][] = [], size = wf.seeding.size, texts: (string | null)[] = [];
+/** waits[r]: round r's card was tried with the ruler's data loaded and is genuinely not there yet (the data ends before the
+ *  day, or the card is flagged). Only such a round may go to the seed rule after the grace (Repo Lens #G-48 G48-1). */
+export function rulerWeek(w: number, wf: WeekFile, prevDir: string | undefined, cardFor: (settings: any) => { text: string } | { notYet: string; noData?: boolean }, schedule: string | null, now: number, problems: string[]): { files: [string, string][]; texts: (string | null)[]; waits: boolean[] } {
+  if (!wf.seeding || !wf.seeding.size) return { files: [], texts: [], waits: [] };
+  const out: [string, string][] = [], size = wf.seeding.size, texts: (string | null)[] = [], waits: boolean[] = [];
   const mode = schedule === null ? null : RU.modeAt(w, schedule);
   let made = 0;
   for (let r = 0; r < wf.days.length; r++) {
     const name = RU.cardName(w, r), was = prevDir && fs.existsSync(path.join(prevDir, "ruler", name)) ? fs.readFileSync(path.join(prevDir, "ruler", name), "utf8") : null;
+    waits.push(false);
     if (was !== null) { texts.push(was); out.push([name, was]); continue; }
     if (wf.rulerBackup && wf.rulerBackup.includes(r)) { texts.push(null); continue; }   // decided by the seed rule: no card
     const d = wf.days[r];
@@ -436,11 +439,11 @@ export function rulerWeek(w: number, wf: WeekFile, prevDir: string | undefined, 
       const late = now >= B.roundDay(w, r, size) + 86400000 + RULER_LATE;
       const m = `week ${w}: round ${r + 1}'s ruler card: not yet (${got.notYet}); tried again next run${late && wf.rulerMode === "on" ? ` (late: the day ended over 3 h ago and the week waits for it; ${RULER_FIX})` : ""}`;
       if (late && wf.rulerMode === "on") console.log(`::error::${m}`);
-      problems.push(m); texts.push(null); continue;
+      problems.push(m); texts.push(null); waits[r] = !got.noData; continue;
     }
     made++; texts.push(got.text); out.push([name, got.text]);
   }
-  return { files: out, texts };
+  return { files: out, texts, waits };
 }
 /** The shadow week's summary (ruler/W<week>.json): the ruler's bracket from the day cards beside the real result. */
 export function shadowSummary(w: number, wf: WeekFile, texts: (string | null)[]): [string, string] {
@@ -470,7 +473,8 @@ export async function run(o: Opts) {
   const RULER_SCHED = RU.modeScheduleOf(o.rulerSchedule !== undefined ? o.rulerSchedule : E.BRACKET_RULER_MODE);
   let ledger: any = o.ledger;   // loaded once, the first time a card is needed (about 10 s for 14 days of vhp-data)
   const ledgerOf = () => { if (ledger === undefined) ledger = RU.loadLedger(E.BRACKET_VHP_DATA); return ledger; };
-  const cardFor = o.dayCardOf ?? ((st: any) => { const L = ledgerOf(); return L ? RU.dayCard(L, st) : { notYet: "no vhp-data (BRACKET_VHP_DATA)" }; });
+  // noData: the ruler's data didn't load this run (a failed fetch): that "not yet" never lets the seed rule decide (#G-48 G48-1)
+  const cardFor = o.dayCardOf ?? ((st: any) => { const L = ledgerOf(); return L ? RU.dayCard(L, st) : { notYet: "no vhp-data (BRACKET_VHP_DATA)", noData: true }; });
   const rulerFiles: [string, string][] = [];
   const contract = o.picksContract === undefined ? defaultPicksContract() : o.picksContract;
   const nodeP: Node = o.nodeOf ? o.nodeOf(o.p) : chainNode(o.p);
@@ -670,7 +674,7 @@ export async function run(o: Opts) {
     // R-BR-7: the ruler's day cards (shadow and on weeks). In an "on" week they decide the matchups (phase 2): a round
     // whose card isn't made yet isn't known, so the week waits for it, and never falls back to the day index
     const on = wf.rulerMode === "on";
-    let ruled: { files: [string, string][]; texts: (string | null)[] } | null = null;
+    let ruled: ReturnType<typeof rulerWeek> | null = null;
     if (wf.rulerMode === "shadow" || on) {
       try { ruled = rulerWeek(w, wf, PREV, cardFor, RULER_SCHED, now, problems); }
       catch (e) { problems.push(`week ${w}: the ruler's cards: ${(e as Error).message} (tried again next run)`); }
@@ -681,7 +685,10 @@ export async function run(o: Opts) {
       // after the grace (owner, 12 Nov): a round whose day is fully recorded and re-read but still has no card is decided
       // by the seed rule; the week file records which rounds (rulerBackup), and the owner is alerted. Never silent
       if (now >= B.weekStart(w + 1) + RULER_GRACE && wf.seeding && wf.seeding.size) {
-        const add = texts.flatMap((t, r) => (t === null && !(wf.rulerBackup ?? []).includes(r) && wf.days[r]!.every((h) => !!h && h.re === 1) ? [r] : []));
+        // only rounds this run genuinely couldn't card with the ruler's data loaded: never after a failed vhp-data fetch,
+        // nor when rulerWeek threw (then ruled is null) (Repo Lens #G-48 G48-1, High)
+        const waits = ruled ? ruled.waits : [];
+        const add = texts.flatMap((t, r) => (t === null && waits[r] && !(wf.rulerBackup ?? []).includes(r) && wf.days[r]!.every((h) => !!h && h.re === 1) ? [r] : []));
         if (add.length) {
           wf.rulerBackup = [...(wf.rulerBackup ?? []), ...add].sort((a, b) => a - b);
           const m = `week ${w}: no VHP ruler card for round${add.length > 1 ? "s" : ""} ${add.map((r) => r + 1).join(", ")} 48 hours after the week ended, so the seed rule decides ${add.length > 1 ? "them" : "it"} (the better seed goes through each open matchup, after forfeits; owner, 12 Nov)`;

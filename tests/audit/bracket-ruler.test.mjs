@@ -43,6 +43,15 @@ test("the backup after the 48-hour grace (owner, 12 Nov): the seed rule, so the 
   assert.equal(B.results(seeds, 8, ix, seeds.map(() => 1000), undefined, [day, null, null]).rounds[0][0], 8, "a forfeit still comes first");
 });
 
+test("Repo Lens #G-48 G48-5: on a backup day the no-block rule still applies (owner: the better seed goes through, but not with no block)", async () => {
+  const BR = await import(path.resolve(APP, "bot/games/bracket.ts"));
+  const day = BR.seedRuleDay(seeds), ix = days();
+  ix[0].set(seeds[0], { blocks: 0, credited: 0, expected: 100, avg: 1e14, rate: 0, q: 0 });   // seed 1 signed no block
+  assert.equal(B.results(seeds, 8, ix, undefined, undefined, [day, day, day]).rounds[0][0], 8, "seed 1 had no block: seed 8 goes through");
+  ix[0].set(seeds[7], { blocks: 0, credited: 0, expected: 100, avg: 1e14, rate: 0, q: 0 });
+  assert.equal(B.results(seeds, 8, ix, undefined, undefined, [day, day, day]).rounds[0][0], B.results(seeds, 8, ix).rounds[0][0], "neither signed one: the day index");
+});
+
 test("a seed that signed no block on its day can't win on fpct (Repo Lens #G-36, as the Race's D-033): it counts as void", () => {
   const ix = days();
   ix[0].set(seeds[0], { blocks: 0, credited: 0, expected: 100, avg: 1e14, rate: 0, q: 0 });   // seed 1: no block all day

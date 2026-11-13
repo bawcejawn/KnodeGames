@@ -96,6 +96,7 @@ export const VARIABLES: Variable[] = [
 
   // ── Game 9: Producer Bracket ──
   { name: "BRACKET_RULER_FROM_WEEK", games: [9], format: WEEK, what: "The vault week the Bracket is scored by the VHP Ruler (the week before is a trial week).", when: "When the Bracket's own Ruler PR is merged (Repo Lens GO first).", note: "A week that has started never changes how it is scored, and a live week never goes back. Unset = the Bracket's own method." },
+  { name: "BRACKET_RULER_MODE", games: [9], format: "empty, or week:mode pairs like 6:B (modes A to D, weeks rising)", what: "Which VHP Ruler mode (A to D) the Bracket's day cards use from which vault week. Empty = mode A.", when: "Only when the Ruler chat and the owner choose a mode for a future week.", note: "A week that has started never changes mode (the publish job holds the Bracket if it would). Players are never told the mode." },
   { name: "BRACKET_PRIZES_FROM_WEEK", games: [9], format: WEEK, what: "The first vault week the Vault pays the Bracket.", when: "After the Bracket is applied in the vault.", note: "Leave unset and no medals or prize lists are shown (it fails closed)." },
   { name: "BRACKET_RELEASE", games: [9], format: WEEKS, what: "Lets the Bracket re-read a week's seeding and hours, and record late picks, for those weeks.", when: "Only when the Bracket chat asks for a one-off release.", note: "A plain list like 3 or 3,4; anything else releases nothing." },
 ];

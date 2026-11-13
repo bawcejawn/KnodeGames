@@ -797,14 +797,14 @@ const rulerFile = (dir, f) => path.join(dir, "ruler", f);
 // START at the first block, less BURN for each block signed from H0 (as nodeOf). Real cards: RU.dayCard on it (JS), and
 // the publish job rebuilds each one with vhp_ruler.py from the same timeline (BRACKET_RULER_TL).
 const TL_FROM = H0 - 10 * 28800, TL_TO = hAt(NOW) + 1000;
-function rulerTimeline(field = fieldOf(17)) {
-  const sign = signerFn(field), n = TL_TO - TL_FROM + 1, signers = new Array(n), ids = new Array(n), deltas = [];
+function rulerTimeline(field = fieldOf(17), to = TL_TO) {
+  const sign = signerFn(field), n = to - TL_FROM + 1, signers = new Array(n), ids = new Array(n), deltas = [];
   const bal = new Map(field.map((r) => [r.a, BigInt(START(r))]));
   for (let i = 0; i < n; i++) {
     const h = TL_FROM + i, a = sign(h); signers[i] = a; ids[i] = "0x" + h.toString(16).padStart(16, "0");
     if (h >= H0) { deltas.push({ h, a, d: -BigInt(BURN), inc: 0n }); bal.set(a, bal.get(a) - BigInt(BURN)); }
   }
-  return { from: TL_FROM, to: TL_TO, signers, ids, deltas, anchors: Object.fromEntries([...bal].map(([a, v]) => [a, { h: TL_TO, v }])), bad: [], rebuilt: [], pending: [] };
+  return { from: TL_FROM, to, signers, ids, deltas, anchors: Object.fromEntries([...bal].map(([a, v]) => [a, { h: to, v }])), bad: [], rebuilt: [], pending: [] };
 }
 let _tl = null;
 /** The JS ledger and the timeline's JSON file for the publish job (built once). */
@@ -813,6 +813,12 @@ function rulerTL() {
   const tl = rulerTimeline(), file = path.join(tmp(), "tl.json");
   fs.writeFileSync(file, JSON.stringify(tl, (k, v) => (typeof v === "bigint" ? v.toString() : v)));
   return (_tl = { L: RU.R.ledger(tl), file });
+}
+/** A ruler timeline file that ends at block `to` (data that really stops there), for the publish job. */
+function rulerTLTo(to) {
+  const file = path.join(tmp(), "tl-short.json");
+  fs.writeFileSync(file, JSON.stringify(rulerTimeline(fieldOf(17), to), (k, v) => (typeof v === "bigint" ? v.toString() : v)));
+  return file;
 }
 /** The real day cards (the recorder's default, on the fake chain's ruler data). */
 const realCards = (st) => RU.dayCard(rulerTL().L, st);
@@ -949,7 +955,9 @@ test("R-BR-7 phase 2 backup (owner, 12 Nov): after the 48-hour grace the seed ru
   const days = wf.days.map((d) => B.indexFromHours(d)), tie = new Map(seeds.map((a, i) => [a, String(1000000 - i)]));
   assert.deepEqual(wf.results.rounds, B.results(seeds, size, days, wf.seeding.vhp, wf.seeding.pooled, [...cards, tie, tie]).rounds, "rounds 1–2 by their cards, rounds 3–4 by the seed rule");
   assert.deepEqual(tie, rec.seedRuleDay(seeds), "the recorder's backup day");
-  const say = (d, opt) => { const hf = path.join(tmp(), "held"); fs.writeFileSync(hf, ""); const out = checkRun(d, { ruler: String(W), held: hf, ...opt }); return { out, held: fs.readFileSync(hf, "utf8").split("\n").filter(Boolean) }; };
+  // the publish job's own ruler data really stops before round 3's day ends (Repo Lens #G-48 G48-1: it checks the backup)
+  const short = rulerTLTo(wf.days[2][23].to - 100);
+  const say = (d, opt) => { const hf = path.join(tmp(), "held"); fs.writeFileSync(hf, ""); const out = checkRun(d, { ruler: String(W), held: hf, tl: short, ...opt }); return { out, held: fs.readFileSync(hf, "utf8").split("\n").filter(Boolean) }; };
   const ok = say(dir, { pub, now: GRACE + 2 * H });
   assert.deepEqual(ok.held, ["!alert"], "the publish job accepts the week, and alerts the owner");
   assert.match(ok.out, /week 3: the seed rule decided round\(s\) 3, 4: no VHP ruler card 48 hours after the week ended/);
@@ -973,6 +981,30 @@ test("R-BR-7 phase 2: the mode schedule (BRACKET_RULER_MODE) is on every card an
   const pub = tmp(); fs.cpSync(dir, pub, { recursive: true });
   const f = path.join(pub, `W00${W}.json`), j = JSON.parse(fs.readFileSync(f, "utf8")); j.rulerSchedule = null; fs.writeFileSync(f, JSON.stringify(j) + "\n");
   assert.equal(shapeOk(dir, { pub, now: B.lockTime(W) + 2 * H, ruler: String(W), mode: `${W}:B` }), false, "a schedule change that would rescore a started week is refused (mode_change)");
+});
+
+test("Repo Lens #G-48 G48-1 (High): a failed vhp-data fetch or a throwing rulerWeek never lets the seed rule decide; the publish job refuses a backup its own data could card, or can't check", async () => {
+  // the record job's vhp-data fetch failed: no ledger (BRACKET_VHP_DATA empty), and 49 hours have passed
+  const { dir, o } = await rulerWeekDir({ rulerFrom: String(W), ledger: null });
+  await runUntil(B.weekStart(W + 1) + 49 * H, o, dir, 3);
+  const wf = readW(dir);
+  assert.ok(!("rulerBackup" in wf), "no backup after a failed fetch: the week waits for the data");
+  assert.equal(wf.results.rounds.length, 0); assert.notEqual(wf.status, "final");
+  // rulerWeek throws (a broken card maker): no backup either
+  const boom = await rulerWeekDir({ rulerFrom: String(W), dayCardOf: () => { throw new Error("boom"); } });
+  await runUntil(B.weekStart(W + 1) + 49 * H, boom.o, boom.dir, 3);
+  assert.ok(!("rulerBackup" in readW(boom.dir)), "no backup when the card maker throws");
+  // the publish side: a backup it can't check (no ruler data) is held, with an alert
+  const lateFrom = RU.roundOf(B.roundDay(W, 2, 16));
+  const late = await rulerWeekDir({ rulerFrom: String(W), dayCardOf: (st) => (st.round >= lateFrom ? { notYet: "vhp-data reaches block 1" } : realCards(st)) });
+  const pub = tmp(); fs.cpSync(late.dir, pub, { recursive: true });
+  await runUntil(B.weekStart(W + 1) + 49 * H, late.o, late.dir, 3);
+  assert.deepEqual(readW(late.dir).rulerBackup, [2, 3]);
+  const hf = path.join(tmp(), "held"); fs.writeFileSync(hf, "");
+  const out = checkRun(late.dir, { pub, now: B.weekStart(W + 1) + 50 * H, ruler: String(W), held: hf });
+  const held = fs.readFileSync(hf, "utf8").split("\n").filter(Boolean);
+  assert.ok(held.includes(`bracket/W00${W}.json`) && held.includes("!alert"), "no ruler data to check the backup: held, with an alert");
+  assert.match(out, /the seed rule for round 3 can't be checked against the ruler's data/);
 });
 
 test("R-BR-7: the publish job refuses a switch change that would change how a started week is scored (switch_change)", async () => {

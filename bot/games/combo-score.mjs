@@ -35,6 +35,14 @@ export const rulerFrom = (v) => R.switchFrom(v === undefined || v === null ? "" 
 export const rulerModeOf = (week, from) => R.rulerMode(week, from === null ? "" : from);
 /** Is a card of this UTC day scored by the ruler? One rule for the whole card: its own day's vault week. */
 export const ruledDay = (day, from) => rulerModeOf(M.weekOf(day * M.DAY), from) === "on";
+/** Repo Lens #G-37: Combo's race legs read the Race's ruler cards, so Combo can't be on the ruler before the Race is.
+ *  Both switches as read by rulerFrom(); null = fine. */
+export function rulerPairProblem(comboFrom, raceFrom) {
+  if (comboFrom === null) return null;
+  if (raceFrom === null) return `COMBO_RULER_FROM_WEEK is ${comboFrom} but RACE_RULER_FROM_WEEK is unset: the Race publishes no ruler cards for Combo's race legs`;
+  if (comboFrom < raceFrom) return `COMBO_RULER_FROM_WEEK (${comboFrom}) is before RACE_RULER_FROM_WEEK (${raceFrom}): Combo's race legs need the Race's ruler cards from Combo's first ruled week`;
+  return null;
+}
 /** Why a switch change can't be made this week (KRuler.switchChange), or null. */
 export const rulerChange = (prev, next, week) => R.switchChange(prev === null || prev === undefined ? "" : prev, next === null ? "" : next, week);
 
@@ -95,6 +103,17 @@ export function raceSourcePast(raceDir, round) {
   for (const k of [0, 1]) for (const r of raceWeek(raceDir, M.weekOf(M.raceStart(round)) + k)) {
     const i = r && typeof r.id === "string" ? M.parseRaceId(r.id) : null;
     if (i !== null && i > round && r.result && r.result.final === true) return true;
+  }
+  return false;
+}
+/** Repo Lens G37-1: the Race's ruler has published past race `round` (a ruler card for a later race, its week or the
+ *  next), so a missing ruler card is the ruler giving up, not an outage. */
+export function rulerSourcePast(raceDir, round) {
+  const w = M.weekOf(M.raceStart(round));
+  for (const k of [0, 1]) {
+    const rf = readJson(raceDir, rName(w + k));
+    if (!rf || rf.v !== 1 || rf.week !== w + k || !Array.isArray(rf.races) || (rf.mode !== "on" && rf.mode !== "shadow")) continue;
+    for (const e of rf.races) { const i = e && typeof e.id === "string" ? M.parseRaceId(e.id) : null; if (i !== null && i > round && typeof e.card === "string") return true; }
   }
   return false;
 }
@@ -162,7 +181,7 @@ export function makeScorer({ race: RACE, targets, head, agreed, movedInto, probl
       if (r === "pending" && late) {
         // At the deadline: unresolved if the leg's source has published past it (it gave up on it), else its recorder
         // stopped and the card waits (RL-9). Both are errors: someone should look.
-        const past = isRace ? raceSourcePast(RACE, l[1]) : [...targets.values()].some((x) => x.height > X.target(l[1]) && x.final === true);
+        const past = isRace ? (ruled ? rulerSourcePast(RACE, l[1]) : raceSourcePast(RACE, l[1])) : [...targets.values()].some((x) => x.height > X.target(l[1]) && x.final === true);
         if (past) { unresolved(l, `its ${isRace ? "race" : "block"} (round ${l[1]}) was never decided by the deadline`, true); continue; }
         errors.push(`slot ${c.round}: the ${isRace ? "race" : "Block X"} recorder hasn't published past a leg of ${c.player}'s card (round ${l[1]}); it waits`);
       }

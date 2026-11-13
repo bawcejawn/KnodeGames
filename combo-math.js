@@ -288,7 +288,8 @@
         if (!f.order.length) return "void";             // nobody left in the field: the Race gives every pick back
         const i = f.order.indexOf(leg.producer);
         if (i < 0) return "void";                       // not in the race at all: no fault of the player (RL-16)
-        if (!(f.signed.get(leg.producer) >= 1)) return "miss";   // as before: a producer that signed nothing never places
+        // As the Race (D-033; Repo Lens #G-37 Info): the ruler's winner always counts; any other place needs a signed block.
+        if (i > 0 && !(f.signed.get(leg.producer) >= 1)) return "miss";
         const need = leg.code === WIN ? 1 : leg.code === SHOW ? 3 : Math.floor(f.order.length / 2);
         return i < need ? "hit" : "miss";
       }

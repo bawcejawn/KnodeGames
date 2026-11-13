@@ -265,3 +265,24 @@ FC3: fixed FC3-1, -2, -4 to -8, -10 to -13; FC3-3 partly (FC4-1); FC3-9 accepted
   file to fill: a warning from about 1,900 scoring players a week, the recorder's own stop at 6,000).
 - The runbook (`docs/blockx/MAINNET-LAUNCH.md`): step 0 (not during a handover), `--code` on the clear, the game 8
   commands. Overview: `docs/combo/REPO-LENS-COMBO.md`.
+
+## Repo Lens #G-37 (the delta round on `f41f5bec`, 12 Nov 2026): GO with conditions
+FC4-1 to FC4-4 and the handover refusal: fixed.
+- **G37-1 (Medium, confirmed by a second reviewer).** In a ruled week, a race leg whose ruler card never came was given
+  up at the deadline by `raceSourcePast` (the handicap W file keeps publishing), so every card became a write-once
+  final void; a late R file then made the re-check call it "forged" and held the week's Vault file. Fix (the reviewer's
+  diff): in a ruled week "past" means the Race's ruler has published a card for a later race (`rulerSourcePast`);
+  until then the card waits with an error (RL-9). Test `tests/audit/repolens-g37-ruler-outage.test.mjs`, adapted by
+  one argument (`raceRulerFrom: 3`) because #G-37's own condition below now refuses Combo on the ruler without the Race.
+- **Condition: the switch tied to the Race's.** `rulerPairProblem`: the recorder (throws, nothing read or written), the
+  verify job (nothing confirmed, an alert) and the publish job (exit 1) refuse `COMBO_RULER_FROM_WEEK` set while
+  `RACE_RULER_FROM_WEEK` is unset or later. All three jobs get `RACE_RULER_FROM_WEEK` from `vars`. Test in
+  `combo-ruler.test.mjs`.
+- **G37-2 (Low).** `rpcNode`'s fetch now has a 30-second timeout, and the Vault budget cuts off a read already running
+  (the reviewer's diff). Test `tests/audit/repolens-g37-vault-hang.test.mjs`.
+- **Info, done:** `weeks.js` was loaded twice on the page (now once). The Win leg now follows the Race exactly (D-033):
+  the ruler's winner counts without a signed block; 2nd and lower need one (Show, Top half). JS and the publish job's
+  Python both changed; the JS = Python test covers it.
+- **Info, left:** a false "forged" alert can follow an edge hold and clears on the next run (accepted, as FC2-19).
+- **Owner:** set `COMBO_RULER_FROM_WEEK` = 7 by Sun 6 Dec 23:59 UTC, with or before `COMBO_ENABLED`, and keep
+  `RACE_RULER_FROM_WEEK` at 7 or lower.

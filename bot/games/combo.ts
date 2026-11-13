@@ -48,7 +48,7 @@ import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { withRetry, MAINNET_VHP } from "../../common.ts";
 import { vaultReader, scoringVhpMoves, NonCanonicalTransfer, MOVE_MARGIN } from "./blockx.ts";
-import { readJson, clearFiles, wName, raceWeek, raceRecord, racesNear, raceDataPast, raceWeekKnown, raceSourcePast, blockTargets, recount, makeScorer, DEADLINE_MS, VAULT_WINDOW_MS, rulerFrom, ruledDay, rulerChange } from "./combo-score.mjs";
+import { readJson, clearFiles, wName, raceWeek, raceRecord, racesNear, raceDataPast, raceWeekKnown, raceSourcePast, blockTargets, recount, makeScorer, DEADLINE_MS, VAULT_WINDOW_MS, rulerFrom, ruledDay, rulerChange, rulerPairProblem } from "./combo-score.mjs";
 export { recount };
 await import("../../race-math.js");
 await import("../../blockx-math.js");
@@ -76,7 +76,7 @@ type WeekView = { week: number; start: number; end: number; slots: Slot[] };
 type DayFile = { v: 2; day: number; start: number; slots: Slot[] };
 type Head = { height: number; time: number; lib: number; libTime: number };
 type Opts = {
-  p: any; check: any | null; prev?: string; rulerFrom?: number | string | null; out?: string; raceDir?: string; blockxDir?: string;
+  p: any; check: any | null; prev?: string; rulerFrom?: number | string | null; raceRulerFrom?: number | string | null; out?: string; raceDir?: string; blockxDir?: string;
   picksContract?: string | null;                                              // default: picks-data/deployment.json
   knodeGame?: string | null;                                                  // the Vault (v6); default: game-data/deployment.json
   cardsOf?: (node: any, round: number) => Promise<RawCard[]>;                 // tests
@@ -196,6 +196,10 @@ export async function run(o: Opts) {
   const BX = o.blockxDir ?? E.BLOCKX_DATA ?? "";
   // The VHP ruler switch (D-new A): COMBO_RULER_FROM_WEEK, strictly (anything odd stops the run before anything is read).
   const RULER_FROM: number | null = rulerFrom(o.rulerFrom !== undefined ? o.rulerFrom : (E.COMBO_RULER_FROM_WEEK ?? ""));
+  // Repo Lens #G-37: never on the ruler before the Race (whose ruler cards Combo's race legs read).
+  const RACE_RULER_FROM: number | null = rulerFrom(o.raceRulerFrom !== undefined ? o.raceRulerFrom : (E.RACE_RULER_FROM_WEEK ?? ""));
+  const pair = rulerPairProblem(RULER_FROM, RACE_RULER_FROM);
+  if (pair) throw new Error(`${pair}. Nothing was read or written: set RACE_RULER_FROM_WEEK to Combo's week or earlier, or COMBO_RULER_FROM_WEEK later.`);
   const KNODE = o.knodeGame === undefined ? MAINNET_KNODE_GAME || null : o.knodeGame;
   const problems: string[] = [], errors: string[] = [];
   const problemsAll = problems, errorsAll = errors;

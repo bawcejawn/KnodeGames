@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { makeScorer, blockTargets, clearFiles, VAULT_WINDOW_MS, rulerFrom, ruledDay } from "../bot/games/combo-score.mjs";
+import { makeScorer, blockTargets, clearFiles, VAULT_WINDOW_MS, rulerFrom, ruledDay, rulerPairProblem } from "../bot/games/combo-score.mjs";
 import { scoringVhpMoves, NonCanonicalTransfer, MOVE_MARGIN, decodeBase58, encodeBase58 } from "../bot/games/vhp-inflows.mjs";
 const M = globalThis.KRaceMath, C = globalThis.KCombo;
 
@@ -41,7 +41,7 @@ export function rpcNode(url) {
     async call(method, params) {
       for (let tries = 1; ; tries++) {
         try {
-          const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }) });
+          const r = await fetch(url, { signal: AbortSignal.timeout(30000), method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }) });
           const j = await r.json();
           if (j.error) throw new Error(`${method}: ${JSON.stringify(j.error).slice(0, 200)}`);
           return j.result;
@@ -135,12 +135,15 @@ const chainKey = (c) => JSON.stringify([c.player, c.legs.map((l) => (Array.isArr
 
 /** Confirm the incoming day files. o: { incoming, published, race, blockx, p, check, picks, now, vhp, vhpMovesOf, vault,
  *  onDays (called with the day results before any Vault read), vaultBudgetMs, clock (the budget's clock; tests),
- *  rulerFrom (COMBO_RULER_FROM_WEEK; default: the environment) }.
+ *  rulerFrom (COMBO_RULER_FROM_WEEK; default: the environment), raceRulerFrom (RACE_RULER_FROM_WEEK; the same) }.
  *  Returns { approved: [{ name, sha256 }], problems: [{ day, why, alert }] }. Exported for the tests. */
 export async function verify(o) {
   clearFiles();
   const now = o.now ?? Date.now();
   const RULER_FROM = rulerFrom(o.rulerFrom !== undefined ? o.rulerFrom : (process.env.COMBO_RULER_FROM_WEEK ?? ""));
+  // Repo Lens #G-37: never on the ruler before the Race. Refused: nothing is confirmed this run, as an alert.
+  const pair = rulerPairProblem(RULER_FROM, rulerFrom(o.raceRulerFrom !== undefined ? o.raceRulerFrom : (process.env.RACE_RULER_FROM_WEEK ?? "")));
+  if (pair) return { approved: [], problems: [{ day: null, why: pair, alert: true }] };
   const names = fs.existsSync(o.incoming) ? fs.readdirSync(o.incoming).filter((f) => partOf(f)) : [];
   const days = [...new Set(names.map((f) => partOf(f)[0]))].sort((a, b) => a - b);
   const approved = [], problems = [];
@@ -250,8 +253,10 @@ const u64 = (fs_, f) => { const x = fs_.find(([g]) => g === f); return x ? BigIn
  *  lim: { stop, clock } (FC4-4): no read starts after the clock passes stop; wallets are read VAULT_READS_AT_ONCE at a time. */
 export async function vaultView(node, vault, who, week, lim = {}) {
   const clock = lim.clock ?? Date.now, inTime = () => { if (lim.stop != null && clock() > lim.stop) throw new Error("the Vault reads ran out of time this run"); };
+  // Repo Lens G37-2: a read already running is cut off at the budget too (a stalled node can't hold the job).
+  const timed = (pr) => { if (lim.stop == null) return pr; let h; const cut = new Promise((_, rej) => { h = setTimeout(() => rej(new Error("the Vault reads ran out of time this run")), Math.max(0, lim.stop - clock())); }); return Promise.race([pr, cut]).finally(() => clearTimeout(h)); };
   inTime();
-  const st = await node.call("chain.read_contract", { contract_id: vault, entry_point: GET_STATE, args: "" });
+  const st = await timed(node.call("chain.read_contract", { contract_id: vault, entry_point: GET_STATE, args: "" }));
   const cfgB = fields(Buffer.from(st?.result ?? "", "base64")).find(([f]) => f === 1)?.[1];
   if (!cfgB) throw new Error("no answer reading the Vault's state");
   const cfg = fields(cfgB);
@@ -266,7 +271,7 @@ export async function vaultView(node, vault, who, week, lim = {}) {
     inTime();
     const a = decodeBase58(x);
     const args = Buffer.from([0x0a, ...varint(a.length), ...a, 0x10, ...varint(C.GAME_ID), 0x18, ...varint(week)]).toString("base64url");
-    const r = await node.call("chain.read_contract", { contract_id: vault, entry_point: GET_GAME_PLAYER, args });
+    const r = await timed(node.call("chain.read_contract", { contract_id: vault, entry_point: GET_GAME_PLAYER, args }));
     if (!r || !("result" in r)) throw new Error(`no answer reading ${x}'s stake`);
     const g = fields(Buffer.from(r.result ?? "", "base64"));
     const entry = g.find(([f]) => f === 2)?.[1];

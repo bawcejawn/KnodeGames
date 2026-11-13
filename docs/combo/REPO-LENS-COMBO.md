@@ -20,7 +20,8 @@ game 8's free prize on (it ships OFF).
 **Status (12 Nov):**
 - Nothing is on mainnet or on the live site.
 - The contract (Picks v2) is rated ready in every review.
-- The game code has its fixes for Repo Lens #G-16 and waits for the delta round.
+- Repo Lens #G-37 (the delta round on `f41f5bec`): **GO with conditions**. Its conditions (G37-1, G37-2, the switch tied
+  to the Race's) are built and tested.
 - Realistic launch: **Mon 7 Dec 2026 (vault week 7)**, after the Picks owner handover (accepted Wed 25 Nov) and the
   Picks v2 upgrade.
 
@@ -32,7 +33,7 @@ game 8's free prize on (it ships OFF).
 | Page `combo.html` / `combo.js` | Done; on `main`'s menu, footer, CSP and PostHog counter; Staked and Free play boards; ruler text |
 | Recorder `bot/games/combo.ts` | Done; hourly at :52 |
 | Shared scoring `combo-math.js` (page + all jobs) and `bot/games/combo-score.mjs` (no packages) | Done |
-| Verify job `tools/combo-verify.mjs` (+ `bot/games/vhp-inflows.mjs`) | Done; #G-16 FC4-1 and FC4-4 fixed; stale-publish alert |
+| Verify job `tools/combo-verify.mjs` (+ `bot/games/vhp-inflows.mjs`) | Done; #G-16 FC4-1 and FC4-4 fixed; stale-publish alert; every node read has a 30 s timeout and the Vault budget cuts off a running read (G37-2) |
 | Publish job (`.github/workflows/combo.yml`, Python) | Done; recomputes every leg, card, board and winner |
 | Picks v2 upgrade commands in `bot/picks.ts` | Done; three mainnet gates (`--code` on all three); refuses during an owner handover |
 | Game 8 pinned in `bot/picks.ts` (`COMBO_GAME`) | Done; the exact card-game config (tested against the recorder's leg types and the page's limits); announced only once the deployment file records v2 |
@@ -143,7 +144,8 @@ This round (Thu 12 Nov), on top of `ba2d9b30`:
   ruler card:
   - **The field:** entry, not void, sorted by fpct, highest first, then address.
   - **Results:** Win = 1st; Show = top 3; Top half = top ⌊n/2⌋ of the field. A voided producer = a loss (D-164). Not
-    in the field = void (RL-16). An empty field = void. Signed 0 blocks = a miss.
+    in the field = void (RL-16). An empty field = void. As the Race (D-033): the ruler's winner always counts; any other
+    place needs at least 1 signed block.
 - **Shadow weeks** (N − 1) score as off. Combo has no played week before launch; its shadow evidence is the Race's own
   R files.
 - **Unchanged:** worths stay the handicap card's; Block X legs are unaffected.
@@ -151,7 +153,13 @@ This round (Thu 12 Nov), on top of `ba2d9b30`:
 - **Guards:**
   - The recorder and the publish job refuse a change that would change a started week (`switchChange`).
   - The verify job and the publish job refuse a day whose `ruled` mark isn't the switch's.
-- **At launch:** set N = the first Combo week, checked first with `node tools/vhp-ruler-switch.mjs N`.
+- **Tied to the Race (Repo Lens #G-37):** Combo is never on the ruler before the Race. The recorder, the verify job and
+  the publish job each refuse `COMBO_RULER_FROM_WEEK` < `RACE_RULER_FROM_WEEK`, or a Combo switch with the Race's unset.
+- **A ruler card that never comes is an outage, not a void (G37-1).** In a ruled week, a race leg is given up
+  ("unresolved") only once the Race's ruler has published a card for a later race. Until then the card waits, with an
+  error, as for any other source outage (RL-9).
+- **At launch:** N = 7 (vault week 7, Mon 7 Dec), set by Sun 6 Dec 23:59 UTC (6:59 PM ET), with or before
+  `COMBO_ENABLED`. `RACE_RULER_FROM_WEEK` must be 7 or lower. Check first with `node tools/vhp-ruler-switch.mjs 7`.
 
 ## 5. Dependencies and integration points
 | With | What Combo needs | Where |
@@ -182,7 +190,8 @@ This round (Thu 12 Nov), on top of `ba2d9b30`:
    merged.
 8. Vault: `npm run prizes -- off 8 --send`; `game-add 8 "Combo Card" --staked --free --season 1`; 48 h;
    `game-apply 8` within 7 days.
-9. `node tools/vhp-ruler-switch.mjs <first week>`, then set `COMBO_RULER_FROM_WEEK`; set `COMBO_ENABLED = true` and
+9. By Sun 6 Dec 23:59 UTC: `node tools/vhp-ruler-switch.mjs 7`, then set `COMBO_RULER_FROM_WEEK` = 7 (with
+   `RACE_RULER_FROM_WEEK` at 7 or lower); set `COMBO_ENABLED = true` and
    `"cards": true` in `picks-data/deployment.json`; add Combo to the sitemap; `games.json` status live.
 10. Watch the first runs; time record + verify (FC-11); `npm run sponsor -- mana-report` a day after launch.
 

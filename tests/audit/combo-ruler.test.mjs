@@ -79,8 +79,11 @@ test("a race leg on the ruler: the ruler's order decides; a void producer is a m
   assert.equal(C.legResult(leg(C.WIN, H4), race, null, R([[H4, 900, { entry: false }], [H1, 600]])), "void");
   assert.equal(C.legResult(leg(C.WIN, H1), race, null, R([[H1, null, { void: true }], [H2, null, { void: true }]])), "miss");
   assert.equal(C.legResult(leg(C.WIN, H3), race, null, R([[H1, null, { void: true }], [H2, null, { void: true }]])), "void");
-  // Signed nothing: never places (as with the standings' steps).
-  assert.equal(C.legResult(leg(C.WIN, H4), race, null, R([[H4, 900, { signed: 0 }], [H1, 600]])), "miss");
+  // Signed nothing (as the Race, D-033; Repo Lens #G-37 Info): the ruler's winner still wins; 2nd and lower don't place.
+  assert.equal(C.legResult(leg(C.WIN, H4), race, null, R([[H4, 900, { signed: 0 }], [H1, 600]])), "hit");
+  assert.equal(C.legResult(leg(C.SHOW, H4), race, null, R([[H4, 900, { signed: 0 }], [H1, 600]])), "hit");
+  assert.equal(C.legResult(leg(C.SHOW, H1), race, null, R([[H4, 900], [H1, 600, { signed: 0 }]])), "miss");
+  assert.equal(C.legResult(leg(C.HALF, H1), race, null, R([[H4, 900], [H1, 600, { signed: 0 }], [H2, 500], [H3, 400]])), "miss");
   // No ruler card yet: pending; a race that never ran, or not checked on two nodes: unresolved, as before.
   assert.equal(C.legResult(leg(C.WIN, H4), race, null, { entry: null }), "pending");
   assert.equal(C.legResult(leg(C.WIN, H4), race, null, { entry: { ...entryOf(rf, REVERSED), card: null } }), "pending");
@@ -127,7 +130,8 @@ const sent = D3 * M.DAY + 13 * 3600000, t = M.weekStart(4) + 13 * 3600000;
 const cards = (r) => (r === S0 ? [{ player: ALICE, legs, time: sent, height: heightAt(sent), changes: 0 }] : []);
 async function record({ rulerFrom, race = withRuler(raceDir(), 3, REVERSED, NEXT), prev } = {}) {
   const out = tmp(), bx = blockxDir();
-  await quiet(() => run({ p: node({ t, cards }), check: node({ t, cards }), out, prev, raceDir: race, blockxDir: bx, picksContract: PICKS, knodeGame: VAULT, now: t, vhpMovesOf: async () => 0n, rulerFrom }));
+  // The Race on the ruler from week 3 in every test (Repo Lens #G-37: Combo never before the Race).
+  await quiet(() => run({ p: node({ t, cards }), check: node({ t, cards }), out, prev, raceDir: race, blockxDir: bx, picksContract: PICKS, knodeGame: VAULT, now: t, vhpMovesOf: async () => 0n, rulerFrom, raceRulerFrom: 3 }));
   return { out, race, bx, card: read(out, dn(D3)).slots.find((s) => s.round === S0).cards[0] };
 }
 
@@ -176,7 +180,7 @@ function vnode(n) {
 }
 test("verify job: confirms an ON week's ruled card, refuses a day whose \"ruled\" mark or result isn't the switch's", async () => {
   const on = await record({ rulerFrom: 3 });
-  const go = (incoming, rulerFrom) => V.verify({ incoming, published: tmp(), race: on.race, blockx: on.bx, picks: PICKS, now: t, rulerFrom,
+  const go = (incoming, rulerFrom) => V.verify({ incoming, published: tmp(), race: on.race, blockx: on.bx, picks: PICKS, now: t, rulerFrom, raceRulerFrom: 3,
     p: vnode(node({ t, cards })), check: vnode(node({ t, cards })), vhpMovesOf: async () => 0n });
   assert.ok((await go(on.out, 3)).approved.some((x) => x.name === dn(D3)), "the honest ruled day is confirmed");
   const r1 = await go(on.out, null);
@@ -199,7 +203,7 @@ function publish(IN, remote, env = {}) {
   const i = y.findIndex((l) => l.includes("Push games-data/combo (and nothing else)")), j = y.findIndex((l, k) => k > i && l.trim() === "run: |");
   const body = y.slice(j + 1).map((l) => (l.startsWith("          ") ? l.slice(10) : l)).join("\n").replace(/remote="https:[^\n]*"/, 'remote="$REMOTE"');
   const sh = path.join(tmp(), "p.sh"); fs.writeFileSync(sh, "set -euo pipefail\n" + body);
-  try { return { ok: true, out: execFileSync("bash", [sh], { env: { ...process.env, IN, REMOTE: remote, RUNNER_TEMP: tmp(), CHECK_NOW_MS: String(t), ...env }, cwd: tmp(), stdio: "pipe" }).toString() }; }
+  try { return { ok: true, out: execFileSync("bash", [sh], { env: { ...process.env, IN, REMOTE: remote, RUNNER_TEMP: tmp(), CHECK_NOW_MS: String(t), RACE_RULER_FROM_WEEK: "3", ...env }, cwd: tmp(), stdio: "pipe" }).toString() }; }
   catch (e) { return { ok: false, out: String(e.stdout) + String(e.stderr) }; }
 }
 function remoteWith(dir, race) {
@@ -242,4 +246,20 @@ test("capacity standard (rule 2): a file past 60% of the 2 MB publish cap is a w
   assert.equal(R.sizeNote("board.json", R.FILE_CAP + 1).level, "error");
   const src = fs.readFileSync(path.join(APP, "bot/games/combo.ts"), "utf8"), w = src.slice(src.indexOf("// ── 7. write ──"));
   assert.equal((w.match(/fs\.writeFileSync\(/g) || []).length, 1, "every file the recorder writes goes through put()");
+});
+
+test("Repo Lens #G-37: Combo is never on the ruler before the Race (recorder, verify job and publish job refuse)", async () => {
+  assert.equal(S.rulerPairProblem(null, null), null, "Combo off: anything goes");
+  assert.equal(S.rulerPairProblem(7, 7), null); assert.equal(S.rulerPairProblem(7, 5), null);
+  assert.match(String(S.rulerPairProblem(7, null)), /RACE_RULER_FROM_WEEK is unset/);
+  assert.match(String(S.rulerPairProblem(5, 7)), /before RACE_RULER_FROM_WEEK/);
+  const out = tmp();
+  await assert.rejects(() => quiet(() => run({ p: node({ t, cards }), check: node({ t, cards }), out, raceDir: withRuler(raceDir(), 3, REVERSED, NEXT), blockxDir: blockxDir(), picksContract: PICKS, knodeGame: VAULT, now: t, vhpMovesOf: async () => 0n, rulerFrom: 3, raceRulerFrom: 4 })), /before RACE_RULER_FROM_WEEK/);
+  assert.equal(fs.readdirSync(out).length, 0, "nothing written");
+  const on = await record({ rulerFrom: 3 });
+  const r = await V.verify({ incoming: on.out, published: tmp(), race: on.race, blockx: on.bx, picks: PICKS, now: t, rulerFrom: 3, raceRulerFrom: "",
+    p: vnode(node({ t, cards })), check: vnode(node({ t, cards })), vhpMovesOf: async () => 0n });
+  assert.deepEqual(r.approved, []); assert.ok(r.problems.some((x) => x.alert && /unset/.test(x.why)));
+  const b = publish(asIncoming(on.out), remoteWith(null, on.race), { COMBO_RULER_FROM_WEEK: "3", RACE_RULER_FROM_WEEK: "5" });
+  assert.equal(b.ok, false); assert.match(b.out, /needs RACE_RULER_FROM_WEEK/);
 });

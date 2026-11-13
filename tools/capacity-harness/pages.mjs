@@ -87,7 +87,7 @@ for (const m of html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g))
   const src = m[1];
   if (/^https?:/.test(src) || /posthog|analytics/.test(src)) continue;
   let code = read(src);
-  if (src === "data-source.js" && LIVE) code = code.replace("var ON = { mirror: false, live: false };", "var ON = { mirror: false, live: true };");
+  if (src === "data-source.js" && LIVE) code = code.replace(/var ON = \{ mirror: (true|false), live: (true|false) \};/, "var ON = { mirror: false, live: true };");
   try { w.eval(code); } catch (e) { errs.push(`${src}: ${e.message}`); }
 }
 w.document.dispatchEvent(new w.Event("DOMContentLoaded"));

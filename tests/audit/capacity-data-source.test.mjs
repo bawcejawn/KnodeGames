@@ -10,19 +10,20 @@ const RAW = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/";
 function load({ mirror = false, live = false, answer } = {}) {
   const seen = [];
   const window = { fetch: async (u, init) => { seen.push(String(u)); return answer(String(u), init); } };
-  const code = SRC.replace("var ON = { mirror: false, live: false };", `var ON = { mirror: ${mirror}, live: ${live} };`);
-  assert.notEqual(code === SRC, mirror || live);
+  const code = SRC.replace(/var ON = \{ mirror: (true|false), live: (true|false) \};/, `var ON = { mirror: ${mirror}, live: ${live} };`);
   vm.runInNewContext(code, { window, Date, Promise, Number, JSON });
   return { window, seen };
 }
 const resp = (status, body = "{}") => ({ ok: status >= 200 && status < 300, status, json: async () => JSON.parse(body) });
 
-test("DS-1 both switches are off in the shipped file: fetch is not wrapped, live() gives null", async () => {
-  assert.match(SRC, /var ON = \{ mirror: false, live: false \};/);
+test("DS-1 shipped switches: mirror on (A3 checked 12 Nov), live off until A4; live() gives null", async () => {
+  assert.match(SRC, /var ON = \{ mirror: true, live: false \};/);
   const orig = async () => resp(200);
   const window = { fetch: orig };
   vm.runInNewContext(SRC, { window, Date, Promise, Number, JSON });
-  assert.equal(window.fetch, orig);
+  assert.notEqual(window.fetch, orig, "fetch is wrapped for the mirror");
+  assert.equal(window.KGData.on.mirror, true);
+  assert.equal(window.KGData.on.live, false);
   assert.equal(await window.KGData.live(), null);
 });
 

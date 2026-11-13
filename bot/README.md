@@ -108,7 +108,7 @@ These commands work once v6 is live; on v5 they say so and stop. Each one is a d
 ```
 npm run bot -- games                                  every game: stake, this week's count, last week's bucket and prize
 npm run bot -- game-add <id> "<name>" --staked|--free [--season <weeks>] [--send]   announce a game (48 h notice)
-npm run bot -- game-apply <id> [--send]               after the 48 h, within 7 days: the game starts next Monday
+npm run bot -- game-apply <id> [--allow-test-week] [--send]             after the 48 h, within 7 days: the game starts next Monday
 npm run bot -- game-stop <id> [--send]                no new stakes; it earns through this week (withdrawals stay open)
 npm run bot -- game-post <id> <week> [<folder or branch:folder>] [--send]   operator: post a week's results, then seal
 npm run bot -- game-seal <id> <week> / game-finalize <id> <week> [--send]  operator (the hourly bot does both itself)

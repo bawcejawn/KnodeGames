@@ -29,7 +29,7 @@
 
 | Contract | Address | Live build | Owner (who can change it) |
 |---|---|---|---|
-| **Vault v6** (the game contract; the **Knode Games Pool** producer, D-073) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` ✅ | `eed38f7c…` (withdrawals-only `e84fec49…` ready); v6.1 next (`CONTRACTS.md`) | Owner `1635QU…` ✅ → cold owner from Tue 10 |
+| **Vault v6.1** (the game contract; the **Knode Games Pool** producer, D-073) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` ✅ | `11043e1f…` (withdrawals-only `04c27c1a…` ready) | Owner `1635QU…` ✅ → cold owner `1LMV8E…` after Week 1 (handover 4a/4b postponed, owner 10 Nov) |
 | **Swap Desk v2** (Knode Swap) | `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR` ✅ | `309506cc…` | Owner and treasury `1635QU…` ✅ → cold owner and cold treasury |
 | **Picks** (Block X; later the other picks games) | `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` ✅ | `700c296a…` | `1635QU…` ✅. Handover tool built (#180); date: owner |
 | **Race picks** | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` ✅ | `61e8f212…` | `1LMV8EcR…` ✅ (4 Nov) |
@@ -54,10 +54,10 @@ Chain id (mainnet): `EiBZK_GGVP0H_fXVAM3j6EAuz3-B-l3ejxRSewi7qIBfSA==` ✅.
 
 What only the owner can do, how long it waits, and how to undo it. These rules are in the contracts' code, so anyone can check them.
 
-### Vault v6 (`1Mpmf2…`)
+### Vault v6.1 (`1Mpmf2…`)
 | Power | Wait | Undo / note |
 |---|---|---|
-| `propose_game` → `apply_game` (add or re-activate a game) | 48 h, then apply within 7 days | a game applied in week W earns from W+1 |
+| `propose_game` → `apply_game` (add or re-activate a game) | 48 h, then apply within 7 days | a game applied in week W earns from W+1; `game-apply` says which week and refuses inside a test week or 15 minutes before a week change (owner, 12 Nov) |
 | `deactivate_game` (`game-stop`) | immediate | earns through this week; stakes stay withdrawable; restart needs a new `game-add` |
 | Correct points, remove a free winner, void a week (`game-correct`, `game-unprize`, `game-void`) | from the week's end until 24 h after the seal; never once finalizing starts | — |
 | Pause new deposits (`pause on`) | immediate | `pause off`. **Never** `admin set_paused paused=false` (text "false" counts as on) |

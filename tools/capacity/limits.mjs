@@ -47,7 +47,10 @@ export function capOf(branch, file) {
 /** Scheduled runs a day for one workflow, from its cron lines ("m h dom mon dow"; steps, lists, ranges). */
 export function runsPerDay(yaml) {
   let total = 0;
-  for (const m of yaml.matchAll(/-\s*cron:\s*["']([^"']+)["']/g)) {
+  for (const line of yaml.split("\n")) {
+    if (/^\s*#/.test(line)) continue;                       // a commented-out schedule doesn't run (G61-8)
+    const m = line.match(/^\s*-\s*cron:\s*["']([^"']+)["']/);
+    if (!m) continue;
     const [mi, h] = m[1].trim().split(/\s+/);
     total += count(mi, 60) * count(h, 24);
   }

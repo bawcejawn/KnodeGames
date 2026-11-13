@@ -8,6 +8,7 @@ test("CL-1 runs a day from cron lines", () => {
   assert.equal(L.runsPerDay(`on:\n  schedule:\n    - cron: "*/5 * * * *"\n`), 288);
   assert.equal(L.runsPerDay(`    - cron: "7 * * * *"\n    - cron: '7 0,12 * * *'\n`), 26);
   assert.equal(L.runsPerDay(`    - cron: "*/20 * * * *"`), 72);
+  assert.equal(L.runsPerDay(`    - cron: "*/20 * * * *"\n    # - cron: "*/5 * * * *"\n  #  - cron: "0 * * * *"\n`), 72);   // G61-8: commented lines do not run
   assert.equal(L.runsPerDay(`    - cron: "0 9-17/2 * * *"`), 5);
   assert.equal(L.runsPerDay(`name: x\non: push`), 0);
 });

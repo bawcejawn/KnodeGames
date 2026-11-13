@@ -13,6 +13,8 @@ const addr = (i) => { const h = crypto.createHash("sha256").update(`p${i}`).dige
 const COLS = [["player", "a"], ["race", "i"], ["pick", "a"], ["t", "i"]];
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "kgparts-"));
 const rowsFor = (n, race = 1) => Array.from({ length: n }, (_, i) => [addr(i), race, addr(1000 + (i % 25)), 60 * i]);
+// checkParts with every required option (G61-1): game, file (= the folder name), week, published
+const ck = (dir, o = {}) => P.checkParts(dir, { game: "race", file: path.basename(dir), week: 4, published: null, ...o });
 const meta = (over = {}) => ({ game: "race", file: "T004", week: 4, state: "pending", unit: "d", expect: ["d1", "d2"], writtenAt: 1795737600000, ...over });
 
 test("KP-1 round trip: rows come back as written, addresses resolved", () => {
@@ -64,7 +66,7 @@ test("KP-5 write + check: a good folder passes and decodes", () => {
   const parts = [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(10, 1) }), P.encodePart({ game: "race", file: "T004", part: "d2", cols: COLS, rows: rowsFor(12, 2) })];
   const { manifest } = P.writeParts(dir, meta(), parts);
   assert.equal(manifest.rows, 22);
-  const c = P.checkParts(dir, { game: "race", file: "T004", week: 4 });
+  const c = ck(dir, { game: "race", file: "T004", week: 4 });
   assert.deepEqual(c.errors, []);
   assert.equal(c.ok, true);
   assert.equal(c.parts.length, 2);
@@ -76,32 +78,32 @@ test("KP-6 the check refuses: missing unit, changed part, extra file, renamed pa
   const mk = (name, extraMeta = {}) => { const dir = path.join(base, name); P.writeParts(dir, meta(extraMeta), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(5) })]); return dir; };
   // expect d1 and d2, only d1 written
   let d = mk("a");
-  assert.match(P.checkParts(d).errors.join(" "), /missing part d2/);
+  assert.match(ck(d).errors.join(" "), /missing part d2/);
   // a part's bytes changed
   d = mk("b", { expect: ["d1"] });
   const f = fs.readdirSync(d).find((x) => x.startsWith("d1."));
   fs.writeFileSync(path.join(d, f), fs.readFileSync(path.join(d, f), "utf8").replace('"t0":0', '"t0":1'));
-  assert.match(P.checkParts(d).errors.join(" "), /SHA-256 doesn't match/);
+  assert.match(ck(d).errors.join(" "), /SHA-256 doesn't match/);
   // an extra (stale) file
   d = mk("c", { expect: ["d1"] });
   fs.writeFileSync(path.join(d, "d2.aaaaaaaaaaaa.json"), "{}\n");
-  assert.match(P.checkParts(d).errors.join(" "), /not listed in the manifest/);
+  assert.match(ck(d).errors.join(" "), /not listed in the manifest/);
   // a renamed part
   d = mk("d", { expect: ["d1"] });
   const g = fs.readdirSync(d).find((x) => x.startsWith("d1."));
   fs.renameSync(path.join(d, g), path.join(d, "d1.000000000000.json"));
-  assert.match(P.checkParts(d).errors.join(" "), /missing/);
+  assert.match(ck(d).errors.join(" "), /missing/);
   // a folder other than p/
   d = mk("e", { expect: ["d1"] });
   fs.mkdirSync(path.join(d, "x")); fs.writeFileSync(path.join(d, "x", "y.json"), "{}");
-  assert.match(P.checkParts(d).errors.join(" "), /no folders except p\//);
+  assert.match(ck(d).errors.join(" "), /no folders except p\//);
   // wrong week asked
   d = mk("f", { expect: ["d1"] });
-  assert.match(P.checkParts(d, { week: 5 }).errors.join(" "), /manifest week 4, expected 5/);
+  assert.match(ck(d, { week: 5 }).errors.join(" "), /manifest week 4, expected 5/);
   // a tampered manifest (hash)
   d = mk("g", { expect: ["d1"] });
   const m = JSON.parse(fs.readFileSync(path.join(d, "manifest.json"), "utf8")); m.week = 9; fs.writeFileSync(path.join(d, "manifest.json"), JSON.stringify(m) + "\n");
-  assert.match(P.checkParts(d).errors.join(" "), /part-set hash doesn't match/);
+  assert.match(ck(d).errors.join(" "), /part-set hash doesn't match/);
 });
 
 test("KP-7 a final folder never changes: same set is a no-op, a different set stops", () => {
@@ -112,8 +114,8 @@ test("KP-7 a final folder never changes: same set is a no-op, a different set st
   assert.equal(again.written, 0);
   const p2 = [P.encodePart({ game: "race", file: "W004", part: "r001", cols: COLS, rows: rowsFor(6) })];
   assert.throws(() => P.writeParts(dir, meta({ file: "W004", unit: "r", expect: ["r001"], state: "pending" }), p2), /is final/);
-  assert.equal(P.checkParts(dir, { full: ["r001"] }).ok, true);
-  assert.match(P.checkParts(dir, { full: ["r001", "r002"] }).errors.join(" "), /doesn't expect r002/);
+  assert.equal(ck(dir, { full: ["r001"] }).ok, true);
+  assert.match(ck(dir, { full: ["r001", "r002"] }).errors.join(" "), /doesn't expect r002/);
 });
 
 test("KP-8 a pending folder drops parts that are no longer listed (in the same write)", () => {
@@ -121,7 +123,7 @@ test("KP-8 a pending folder drops parts that are no longer listed (in the same w
   P.writeParts(dir, meta({ expect: ["d1"] }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(3) })]);
   P.writeParts(dir, meta({ expect: ["d1"] }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(4) })]);
   assert.equal(fs.readdirSync(dir).filter((x) => x.startsWith("d1.")).length, 1);
-  assert.equal(P.checkParts(dir).ok, true);
+  assert.equal(ck(dir).ok, true);
 });
 
 test("KP-9 shards and size warnings", () => {
@@ -163,21 +165,21 @@ test("KP-12 planParts (Architecture A2): the files to write, no file system; sam
 });
 
 test("KP-13 Golf holes: h01-h20 are parts, unit h; h00 / h21 refused", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kp13-"));
+  const dir = path.join(tmp(), "W006");
   const parts = ["h01", "h09", "h18"].map((h) => P.encodePart({ game: "golf", file: "W006", part: h, cols: COLS, rows: rowsFor(3), extra: { id: "blockx" } }));
   P.writeParts(dir, meta({ game: "golf", week: 6, file: "W006", unit: "h", expect: ["h01", "h09", "h18"], state: "final" }), parts);
-  assert.equal(P.checkParts(dir, { full: ["h01", "h09", "h18"] }).ok, true);
+  assert.equal(ck(dir, { game: "golf", week: 6, full: ["h01", "h09", "h18"] }).ok, true);
   for (const bad of ["h00", "h21", "h1", "hole1", "questions"]) assert.throws(() => P.encodePart({ game: "golf", file: "W006", part: bad, cols: COLS, rows: [] }), /bad part/);
 });
 
 test("KP-14 state open (Architecture C1): accepted like pending, never final, stale parts removed", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kp14-"));
+  const dir = path.join(tmp(), "T004");
   const a = [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(3) })];
   P.writeParts(dir, meta({ state: "open", expect: ["d1"] }), a);
-  assert.equal(P.checkParts(dir).ok, true);
+  assert.equal(ck(dir).ok, true);
   const b = [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(4) })];
   P.writeParts(dir, meta({ state: "open", expect: ["d1"] }), b);            // an open week may change
-  assert.equal(P.checkParts(dir).ok, true);
+  assert.equal(ck(dir).ok, true);
   assert.throws(() => P.buildManifest(meta({ state: "closed" }), a), /state must be/);
 });
 
@@ -192,9 +194,9 @@ test("KP-15 manifest meta (Architecture C2): outside the hash, max 4 KB, kept on
   const fin = P.planParts(meta({ expect: ["d1"], state: "final", meta: { seen: { at: 1 } } }), parts, null).manifest;
   const again = P.planParts(meta({ expect: ["d1"], state: "final", meta: { seen: { at: 9 } } }), parts, fin);
   assert.equal(again.unchanged, true); assert.deepEqual(again.manifest.meta, { seen: { at: 1 } });
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kp15-"));
+  const dir = path.join(tmp(), "T004");
   P.writeParts(dir, meta({ expect: ["d1"], meta: { why: "pending" } }), parts);
-  assert.equal(P.checkParts(dir).ok, true);
+  assert.equal(ck(dir).ok, true);
 });
 
 test("KP-16 column type j (Architecture C3): canonical, max 512 B, round-trips; unit p (Block X board)", () => {
@@ -208,4 +210,115 @@ test("KP-16 column type j (Architecture C3): canonical, max 512 B, round-trips; 
   assert.notEqual(nonCanon, e.text);
   assert.throws(() => P.decodePart(nonCanon), /not canonical/);
   assert.equal(P.buildManifest(meta({ unit: "p", expect: [] }), []).unit, "p");
+});
+
+// ---- Repo Lens #G-61 (Fri 13 Nov 2026): fixes, one test per finding ----
+const finalDir = (name = "T004", rows = 5) => {
+  const dir = path.join(tmp(), name);
+  P.writeParts(dir, meta({ file: name, expect: ["d1"], state: "final" }), [P.encodePart({ game: "race", file: name, part: "d1", cols: COLS, rows: rowsFor(rows) })]);
+  return dir;
+};
+
+test("G61-1 fail closed: a final needs full; game, file (= folder name), week and published are required", () => {
+  const dir = finalDir();
+  assert.equal(P.checkParts(dir).ok, false);                                   // no options at all
+  assert.equal(P.checkParts(dir, {}).ok, false);
+  assert.match(ck(dir).errors.join(" "), /needs the game's full unit list/);   // a d1-only final with no full
+  assert.match(ck(dir, { full: "d1,d2" }).errors.join(" "), /full must be a non-empty list/);
+  assert.match(ck(dir, { full: [] }).errors.join(" "), /full must be a non-empty list/);
+  assert.match(ck(dir, { full: ["d1", "d2"] }).errors.join(" "), /doesn't expect d2/);
+  assert.match(ck(dir, { full: ["d1"], file: "T005" }).errors.join(" "), /doesn't match the folder name/);
+  const noPub = P.checkParts(dir, { game: "race", file: "T004", week: 4, full: ["d1"] });
+  assert.match(noPub.errors.join(" "), /published is required/);
+  assert.equal(ck(dir, { full: ["d1"] }).ok, true);
+});
+
+test("G61-2 writer: an unreadable manifest or parts with no manifest stop the run; nothing is removed", () => {
+  const dir = finalDir();
+  const before = fs.readdirSync(dir).sort();
+  fs.writeFileSync(path.join(dir, "manifest.json"), "<<<<<<< HEAD\n{}\n=======\n");
+  const p2 = [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(6) })];
+  assert.throws(() => P.writeParts(dir, meta({ expect: ["d1"] }), p2), /can't be read as a kgparts manifest/);
+  assert.deepEqual(fs.readdirSync(dir).sort(), before);
+  fs.rmSync(path.join(dir, "manifest.json"));
+  assert.throws(() => P.writeParts(dir, meta({ expect: ["d1"] }), p2), /part files but no manifest/);
+  assert.equal(fs.readdirSync(dir).filter((f) => f.startsWith("d1.")).length, 1);
+  const fresh = path.join(tmp(), "T004");                                      // an empty or absent folder is fine
+  P.writeParts(fresh, meta({ expect: ["d1"] }), p2);
+  assert.equal(ck(fresh).ok, true);
+});
+
+test("G61-2 publish side (step 6): a published final must come back byte-identical, nothing removed", () => {
+  const pub = finalDir();
+  const same = path.join(tmp(), "T004"); fs.cpSync(pub, same, { recursive: true });
+  assert.equal(ck(same, { full: ["d1"], published: pub }).ok, true);
+  const other = path.join(tmp(), "T004");                                      // a self-consistent rewrite
+  P.writeParts(other, meta({ expect: ["d1"], state: "final" }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(7) })]);
+  assert.equal(ck(other, { full: ["d1"] }).ok, true);                          // passes on its own...
+  assert.match(ck(other, { full: ["d1"], published: pub }).errors.join(" "), /published copy is final with set hash/);   // ...not against the published final
+  const pend = path.join(tmp(), "T004");
+  P.writeParts(pend, meta({ expect: ["d1"] }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(5) })]);
+  assert.match(ck(pend, { published: pub }).errors.join(" "), /published copy is final; this one is not/);
+  const missing = path.join(tmp(), "T004"); fs.cpSync(pub, missing, { recursive: true });
+  fs.writeFileSync(path.join(pub, "manifest.json"), fs.readFileSync(path.join(pub, "manifest.json")));   // unchanged
+  fs.rmSync(path.join(missing, fs.readdirSync(missing).find((f) => f.startsWith("d1."))));
+  assert.match(ck(missing, { full: ["d1"], published: pub }).errors.join(" "), /missing here|missing/);
+  const broken = path.join(tmp(), "T004"); fs.mkdirSync(broken); fs.writeFileSync(path.join(broken, "manifest.json"), "{oops");
+  assert.match(ck(same, { full: ["d1"], published: broken }).errors.join(" "), /published manifest.json can't be read/);
+});
+
+test("G61-3 the hash is over the bytes on disk; invalid UTF-8 is refused", () => {
+  const dir = path.join(tmp(), "T004");
+  P.writeParts(dir, meta({ expect: ["d1"] }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: [["note", "s"]], rows: [["a�b"]] })]);
+  const f = path.join(dir, fs.readdirSync(dir).find((x) => x.startsWith("d1.")));
+  const buf = fs.readFileSync(f), i = buf.indexOf(Buffer.from([0xef, 0xbf, 0xbd]));
+  assert.ok(i > 0);
+  Buffer.from([0xf0, 0x9f, 0x98]).copy(buf, i);                                 // same length, invalid UTF-8
+  fs.writeFileSync(f, buf);
+  assert.match(ck(dir).errors.join(" "), /SHA-256 doesn't match/);
+});
+
+test("G61-4 the check accepts only what buildManifest writes", () => {
+  const tamper = (fn) => { const dir = finalDir(); const mp = path.join(dir, "manifest.json"); const m = JSON.parse(fs.readFileSync(mp, "utf8")); fn(m); fs.writeFileSync(mp, JSON.stringify(m) + "\n"); return ck(dir, { full: ["d1"] }).errors.join(" "); };
+  assert.match(tamper((m) => { m.scores = [1]; }), /manifest keys unexpected/);
+  assert.match(tamper((m) => { m.unit = "x"; }), /bad unit/);
+  assert.match(tamper((m) => { m.shards = 3; }), /bad shards/);
+  assert.match(tamper((m) => { m.parts = Array.from({ length: 601 }, () => m.parts[0]); }), /more than 600 parts/);
+  assert.match(tamper((m) => { m.parts[0].extra = 1; }), /bad manifest entry/);
+  const dir = finalDir(); const mp = path.join(dir, "manifest.json");
+  fs.writeFileSync(mp, JSON.stringify(JSON.parse(fs.readFileSync(mp, "utf8")), null, 1) + "\n");
+  assert.match(ck(dir, { full: ["d1"] }).errors.join(" "), /not in canonical form/);
+});
+
+test("G61-5 extra is canonical: keys sorted at every level (number-like keys too); unsorted text is refused", () => {
+  const base = { game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(2) };
+  const a = P.encodePart({ ...base, extra: { b: 1, a: { y: 2, x: [1, { d: 0, c: 0 }] }, 10: 1, 9: 2 } });
+  const b = P.encodePart({ ...base, extra: { a: { x: [1, { c: 0, d: 0 }], y: 2 }, 9: 2, b: 1, 10: 1 } });
+  assert.equal(a.text, b.text);
+  assert.ok(a.text.includes('"extra":{"10":1,"9":2,"a":{"x":[1,{"c":0,"d":0}],"y":2},"b":1}'));
+  assert.deepEqual(P.decodePart(a.text).header.extra.a.x, [1, { c: 0, d: 0 }]);
+  assert.throws(() => P.decodePart(a.text.replace('"a":{"x":[1,{"c":0,"d":0}],"y":2},"b":1', '"b":1,"a":{"x":[1,{"c":0,"d":0}],"y":2}')), /canonical/);
+  for (const bad of [{ x: undefined }, { x: NaN }, { x: new Date(0) }, { x: [1, , 2] }]) assert.throws(() => P.encodePart({ ...base, extra: bad }), /extra/);
+});
+
+test("G61-6 a j value with an array hole is refused when written", () => {
+  const cols = [["player", "a"], ["team", "j"]];
+  // eslint-disable-next-line no-sparse-arrays
+  assert.throws(() => P.encodePart({ game: "fantasy", file: "W006", part: "d1", cols, rows: [[rowsFor(1)[0][0], [, 1]]] }), /hole/);
+});
+
+test("G61-7 the writer stops in a folder that isn't a parts folder (nothing removed)", () => {
+  for (const stray of ["notes.txt", "W003.json", "manifest.json.bak"]) {
+    const dir = path.join(tmp(), "T004"); fs.mkdirSync(dir); fs.writeFileSync(path.join(dir, stray), "x");
+    assert.throws(() => P.writeParts(dir, meta({ expect: ["d1"] }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(2) })]), /not a part: stopping/);
+    assert.ok(fs.existsSync(path.join(dir, stray)));
+  }
+  const parent = tmp(); const wk = path.join(parent, "W003"); fs.mkdirSync(wk); fs.writeFileSync(path.join(wk, "manifest.json"), "{}");
+  assert.throws(() => P.writeParts(parent, meta({ expect: ["d1"] }), [P.encodePart({ game: "race", file: "T004", part: "d1", cols: COLS, rows: rowsFor(2) })]), /stopping/);
+  assert.ok(fs.existsSync(path.join(wk, "manifest.json")));
+});
+
+test("G61 info: the 60% warning is exact", () => {
+  assert.equal(P.sizeWarnings([{ name: "a", bytes: Math.ceil(0.6 * P.MAX_PART_BYTES) - 1 }]).length, 0);
+  assert.equal(P.sizeWarnings([{ name: "a", bytes: Math.ceil(0.6 * P.MAX_PART_BYTES) }]).length, 1);
 });

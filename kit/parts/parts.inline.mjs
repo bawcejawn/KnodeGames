@@ -16,12 +16,14 @@ import crypto from "node:crypto";
 
 export const PARTS_VERSION = 1;
 export const MAX_PART_BYTES = 2 * 1024 * 1024;          // the publish jobs' cap (RECORDER_STANDARD §6.3)
-export const WARN_BYTES = Math.round(0.6 * MAX_PART_BYTES); // the 60% warning (CAPACITY standard rule 2)
+export const WARN_BYTES = Math.ceil(0.6 * MAX_PART_BYTES);  // the 60% warning (CAPACITY standard rule 2); exact at 60% (G61 info)
 export const MAX_PARTS = 600;                            // a runaway split stops the run
 const ADDR = /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/;
 const GAME = /^[a-z][a-z0-9-]{0,31}$/;
 const FILE = /^[A-Za-z0-9][A-Za-z0-9-]{0,31}$/;
 const PART = /^(ref|top|wk|d[1-7]|r\d{3,5}|h(0[1-9]|1\d|20)|p\/[0-9a-f]{1,2})$/;   // wk: week-level keys (Architecture A1); h01-h20: Golf holes
+const PART_FILE = /^(?:(?:ref|top|wk|d[1-7]|r\d{3,5}|h(?:0[1-9]|1\d|20))|p\/[0-9a-f]{1,2})\.[0-9a-f]{12}\.json$/;   // what a parts folder may hold (G61-7)
+const MANIFEST_KEYS = "kgparts,game,file,week,state,writtenAt,unit,expect,shards,parts,rows,hash";
 const TYPES = new Set(["a", "i", "s", "n", "b", "j"]);
 const STATES = new Set(["pending", "open", "final"]);   // open: a kit liveWeek copy (Architecture C1); never final
 export const MAX_J_BYTES = 512;                           // a "j" value (Architecture C3)
@@ -32,9 +34,30 @@ function canonJ(v, d = 0) {
   if (v === null || typeof v === "boolean") return JSON.stringify(v);
   if (typeof v === "string") return JSON.stringify(v);
   if (typeof v === "number") { if (!Number.isSafeInteger(v)) fail("j value: numbers must be safe integers"); return JSON.stringify(v); }
-  if (Array.isArray(v)) return "[" + v.map((x) => canonJ(x, d + 1)).join(",") + "]";
-  if (isObj(v) && Object.getPrototypeOf(v) === Object.prototype) return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canonJ(v[k], d + 1)).join(",") + "}";
+  if (Array.isArray(v)) { for (let i = 0; i < v.length; i++) if (!(i in v)) fail("j value: an array has a hole"); return "[" + v.map((x) => canonJ(x, d + 1)).join(",") + "]"; }
+  if (isPlain(v)) return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canonJ(v[k], d + 1)).join(",") + "}";
   fail("j value: not a JSON value");
+}
+/** Canonical JSON for a part's `extra` (G61-5): like canonJ, keys sorted at every level, but any finite number; depth <= 16. */
+function canonX(v, d = 0) {
+  if (d > 16) fail("extra nested too deep");
+  if (v === null || typeof v === "boolean" || typeof v === "string") return JSON.stringify(v);
+  if (typeof v === "number") { if (!Number.isFinite(v)) fail("extra: numbers must be finite"); return JSON.stringify(v); }
+  if (Array.isArray(v)) { for (let i = 0; i < v.length; i++) if (!(i in v)) fail("extra: an array has a hole"); return "[" + v.map((x) => canonX(x, d + 1)).join(",") + "]"; }
+  if (isPlain(v)) return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canonX(v[k], d + 1)).join(",") + "}";
+  fail("extra: not a JSON value");
+}
+/** A part's canonical text (one line + "\n"): fixed header key order, then `extra` with sorted keys. */
+function partText({ game, file, part, t0, cols, a, rows, extra }) {
+  const head = JSON.stringify({ kgparts: PARTS_VERSION, game, file, part, t0, cols, a, rows });
+  return head.slice(0, -1) + ',"extra":' + canonX(extra) + "}\n";
+}
+/** Reads a file as bytes and as strict UTF-8 (G61-3): invalid UTF-8 is refused, never replaced. */
+function readStrict(f) {
+  const buf = fs.readFileSync(f);
+  let text;
+  try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(buf); } catch { fail(`${path.basename(f)}: not valid UTF-8`); }
+  return { buf, text };
 }
 function jText(v, where) { let t; try { t = canonJ(v); } catch (e) { fail(`${where}: ${String(e.message).replace(/^kit\/parts: /, "")}`); } if (Buffer.byteLength(t) > MAX_J_BYTES) fail(`${where}: j value over ${MAX_J_BYTES} bytes`); return t; }
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -42,6 +65,7 @@ const HEX64 = /^[0-9a-f]{64}$/;
 const sha256 = (buf) => crypto.createHash("sha256").update(buf).digest("hex");
 const fail = (msg) => { throw new Error(`kit/parts: ${msg}`); };
 const isObj = (o) => o !== null && typeof o === "object" && !Array.isArray(o);
+const isPlain = (o) => isObj(o) && (Object.getPrototypeOf(o) === Object.prototype || Object.getPrototypeOf(o) === null);
 function checkMeta(meta, bad) {
   if (!isObj(meta)) return bad("meta must be a plain object");
   let t; try { t = JSON.stringify(meta); } catch { return bad("meta is not JSON"); }
@@ -89,7 +113,7 @@ export function encodePart({ game, file, part, t0 = 0, cols, rows, extra = {} })
   const a = [...addrs].sort();
   const ix = new Map(a.map((x, i) => [x, i]));
   const enc = rows.map((r) => cols.map(([, t], ci) => (t === "a" ? ix.get(r[ci]) : t === "j" ? jText(r[ci], "j") : r[ci]))).sort(cmpRows);
-  const text = JSON.stringify({ kgparts: PARTS_VERSION, game, file, part, t0, cols, a, rows: enc, extra }) + "\n";
+  const text = partText({ game, file, part, t0, cols, a, rows: enc, extra });
   const bytes = Buffer.byteLength(text);
   if (bytes > MAX_PART_BYTES) fail(`part ${part} is ${bytes} bytes, over the ${MAX_PART_BYTES}-byte cap: split it by a smaller unit`);
   const h = sha256(text);
@@ -107,7 +131,8 @@ export function decodePart(text) {
   checkCols(o.cols);
   if (!Array.isArray(o.a) || !Array.isArray(o.rows) || !isObj(o.extra)) fail("bad part body");
   for (let i = 0; i < o.a.length; i++) { if (!ADDR.test(o.a[i])) fail(`address table ${i}: not an address`); if (i && !(o.a[i - 1] < o.a[i])) fail("address table not sorted or has repeats"); }
-  if (JSON.stringify(o) + "\n" !== text) fail("part is not in canonical form");
+  let canon; try { canon = partText(o); } catch (e) { fail(`part: ${String(e.message).replace(/^kit\/parts: /, "")}`); }
+  if (canon !== text) fail("part is not in canonical form");
   const rows = o.rows.map((r, ri) => {
     if (!Array.isArray(r) || r.length !== o.cols.length) fail(`row ${ri}: wrong length`);
     const out = {};
@@ -200,8 +225,20 @@ export function planParts(meta, encoded, prev = null) {
  */
 export function writeParts(baseDir, meta, encoded) {
   const mPath = path.join(baseDir, "manifest.json");
+  // G61-7: a parts folder holds only manifest.json, part-shaped files and p/. Anything else means a wrong folder: stop
+  // before deleting anything.
+  const present = listFiles(baseDir);
+  for (const f of present) {
+    if (f.link) fail(`${baseDir}: ${f.rel} is a link: stopping (nothing written or removed)`);
+    if (f.dir) { if (f.rel !== "p") fail(`${baseDir}: ${f.rel}/ is not a parts folder: stopping (wrong folder?)`); continue; }
+    if (f.rel !== "manifest.json" && !PART_FILE.test(f.rel)) fail(`${baseDir}: ${f.rel} is not a part: stopping (wrong folder?)`);
+  }
+  // G61-2: never treat an unreadable manifest, or parts with no manifest, as an empty folder.
   let prev = null;
-  if (fs.existsSync(mPath)) { try { prev = JSON.parse(fs.readFileSync(mPath, "utf8")); } catch { prev = null; } }
+  if (fs.existsSync(mPath)) {
+    try { prev = JSON.parse(readStrict(mPath).text); } catch { prev = null; }
+    if (!isPlain(prev) || prev.kgparts !== PARTS_VERSION || !STATES.has(prev.state) || !HEX64.test(String(prev.hash)) || !Array.isArray(prev.parts)) fail(`${baseDir}: manifest.json exists but can't be read as a kgparts manifest: stopping (nothing written or removed; restore it from the published branch)`);
+  } else if (present.some((f) => !f.dir)) fail(`${baseDir}: part files but no manifest.json: stopping (copy the folder back from the published branch)`);
   let plan;
   try { plan = planParts(meta, encoded, prev); } catch (e) { fail(`${baseDir}: ${String(e.message).replace(/^kit\/parts: /, "")}`); }
   const warnings = plan.warnings.map((w) => ({ ...w, name: `${baseDir}/${w.name}`, message: `${baseDir}/${w.message}` }));
@@ -211,7 +248,8 @@ export function writeParts(baseDir, meta, encoded) {
   for (const f of plan.files.filter((x) => x.name !== "manifest.json")) {
     const full = path.join(baseDir, f.name);
     fs.mkdirSync(path.dirname(full), { recursive: true });
-    if (!fs.existsSync(full) || fs.readFileSync(full, "utf8") !== f.text) { fs.writeFileSync(full, f.text); written++; }
+    const want = Buffer.from(f.text, "utf8");
+    if (!fs.existsSync(full) || !fs.readFileSync(full).equals(want)) { fs.writeFileSync(full, want); written++; }
   }
   const keep = new Set(plan.files.map((f) => f.name));
   for (const f of listFiles(baseDir)) if (!f.dir && !keep.has(f.rel)) { fs.rmSync(path.join(baseDir, f.rel), { force: true }); }
@@ -226,33 +264,55 @@ export function sizeWarnings(files) {
 }
 
 /**
- * The publish-side check (PARTS-SPEC §4, steps 1-5): proves baseDir holds exactly the manifest's parts, unchanged,
- * complete for its state. Returns { ok, errors, manifest, parts: [{ part, header, rows }] }; parts are decoded only
- * when everything else passed. `full` = the game's full unit list, required when the manifest is final.
+ * The publish-side check (PARTS-SPEC §4, steps 1-6): proves baseDir holds exactly the manifest's parts, unchanged,
+ * complete for its state, and (step 6) that a week already published as final is byte-identical. Returns
+ * { ok, errors, manifest, parts: [{ part, header, rows }] }; parts are decoded only when everything else passed.
+ * Required (G61-1, fail closed): game, file (must equal the folder's name), week, and `published` (the published copy
+ * of this folder, or null only when the caller has checked there is none). `full` (the game's full unit list, a
+ * non-empty list of part names) is required when the manifest is final.
  */
-export function checkParts(baseDir, { game, file, week, full = null } = {}) {
+export function checkParts(baseDir, opts) {
   const errors = [];
   const err = (m) => { errors.push(m); };
+  const o = isObj(opts) ? opts : {};
+  const { game, file, week, full, published } = o;
+  if (!GAME.test(String(game))) err("checkParts: game is required");
+  if (!FILE.test(String(file))) err("checkParts: file is required");
+  else if (path.basename(path.resolve(baseDir)) !== file) err(`checkParts: file ${file} doesn't match the folder name ${path.basename(path.resolve(baseDir))}`);
+  if (!Number.isSafeInteger(week) || week < 0) err("checkParts: week is required");
+  if (!("published" in o) || !(published === null || (typeof published === "string" && published.length))) err("checkParts: published is required (the published copy's folder, or null when there is none)");
+  if (full !== undefined && full !== null && (!Array.isArray(full) || !full.length || full.some((u) => !PART.test(String(u))))) err("checkParts: full must be a non-empty list of part names");
   const mPath = path.join(baseDir, "manifest.json");
-  let m = null;
+  let m = null, mText = null;
   try {
     const st = fs.lstatSync(mPath);
     if (!st.isFile()) err("manifest.json is not a plain file");
     else if (st.size > MAX_PART_BYTES) err("manifest.json is over the cap");
-    else m = JSON.parse(fs.readFileSync(mPath, "utf8"));
-  } catch { err("manifest.json missing or not JSON"); }
-  if (!m) return { ok: false, errors, manifest: null, parts: [] };
+    else { mText = readStrict(mPath).text; m = JSON.parse(mText); }
+  } catch { err("manifest.json missing, not UTF-8 or not JSON"); }
+  if (!isPlain(m)) return { ok: false, errors: errors.length ? errors : ["manifest.json is not an object"], manifest: null, parts: [] };
+  // G61-4: the manifest must be exactly what buildManifest writes (keys, order, fields, bytes)
+  const keys = Object.keys(m).join(",");
+  if (keys !== MANIFEST_KEYS && keys !== MANIFEST_KEYS + ",meta") err(`manifest keys unexpected or out of order: ${keys}`);
   if (m.kgparts !== PARTS_VERSION) err("not a kgparts v1 manifest");
+  if (!GAME.test(String(m.game)) || !FILE.test(String(m.file))) err("manifest: bad game or file");
+  if (!Number.isSafeInteger(m.week) || m.week < 0) err("manifest: bad week");
+  if (!STATES.has(m.state)) err("bad state");
+  if (!Number.isSafeInteger(m.writtenAt)) err("manifest: bad writtenAt");
+  if (!/^[drhp]$/.test(String(m.unit))) err("manifest: bad unit");
+  if (m.shards !== 0 && m.shards !== 16 && m.shards !== 256) err("manifest: bad shards");
+  if (m.meta !== undefined) checkMeta(m.meta, err);
   if (game !== undefined && m.game !== game) err(`manifest game ${m.game}, expected ${game}`);
   if (file !== undefined && m.file !== file) err(`manifest file ${m.file}, expected ${file}`);
   if (week !== undefined && m.week !== week) err(`manifest week ${m.week}, expected ${week}`);
   if (!Array.isArray(m.parts) || !Array.isArray(m.expect)) { err("manifest parts/expect missing"); return { ok: false, errors, manifest: m, parts: [] }; }
-  if (!STATES.has(m.state)) err("bad state");
-  if (m.meta !== undefined) checkMeta(m.meta, err);
+  if (m.parts.length > MAX_PARTS) err(`manifest lists more than ${MAX_PARTS} parts`);
+  if (m.expect.some((e) => !PART.test(String(e)))) err("manifest: bad expect list");
+  if (mText !== null && mText !== JSON.stringify(m) + "\n") err("manifest.json is not in canonical form");
   const names = new Set();
   let prev = "";
   for (const p of m.parts) {
-    if (!p || !PART.test(String(p.part)) || !HEX64.test(String(p.sha256)) || !Number.isSafeInteger(p.bytes) || !Number.isSafeInteger(p.rows)) { err(`bad manifest entry ${JSON.stringify(p)}`); continue; }
+    if (!isPlain(p) || Object.keys(p).join(",") !== "part,name,bytes,sha256,rows" || !PART.test(String(p.part)) || !HEX64.test(String(p.sha256)) || !Number.isSafeInteger(p.bytes) || p.bytes < 0 || !Number.isSafeInteger(p.rows) || p.rows < 0) { err(`bad manifest entry ${JSON.stringify(p)}`); continue; }
     if (p.part <= prev) err(`parts not sorted or repeated at ${p.part}`);
     prev = p.part;
     if (p.name !== partName(p.part, p.sha256)) err(`${p.part}: name ${p.name} doesn't match its hash`);
@@ -263,24 +323,45 @@ export function checkParts(baseDir, { game, file, week, full = null } = {}) {
     if (!st.isFile()) { err(`${p.name}: not a plain file`); continue; }
     if (st.size !== p.bytes) { err(`${p.name}: ${st.size} bytes, manifest says ${p.bytes}`); continue; }
     if (st.size > MAX_PART_BYTES) { err(`${p.name}: over the 2 MB cap`); continue; }
-    const text = fs.readFileSync(f, "utf8");
-    if (sha256(text) !== p.sha256) err(`${p.name}: SHA-256 doesn't match the manifest`);
+    if (sha256(fs.readFileSync(f)) !== p.sha256) err(`${p.name}: SHA-256 doesn't match the manifest`);   // over the bytes on disk (G61-3)
   }
-  const have = new Set(m.parts.map((p) => p.part));
+  const have = new Set(m.parts.map((p) => p && p.part));
   for (const u of m.expect) if (!have.has(u)) err(`missing part ${u}`);
-  if (m.state === "final" && Array.isArray(full)) for (const u of full) if (!m.expect.includes(u)) err(`final manifest doesn't expect ${u}`);
+  if (m.state === "final") {
+    if (!Array.isArray(full) || !full.length) err("a final manifest needs the game's full unit list (full)");
+    else for (const u of full) if (!m.expect.includes(u)) err(`final manifest doesn't expect ${u}`);
+  }
   for (const f of listFiles(baseDir)) {
     if (f.link) err(`${f.rel}: a link is not allowed`);
     else if (f.dir) { if (f.rel !== "p") err(`${f.rel}: no folders except p/`); }
     else if (f.rel !== "manifest.json" && !names.has(f.rel)) err(`${f.rel}: not listed in the manifest (stale or extra)`);
   }
-  if (Number.isSafeInteger(m.week) && typeof m.game === "string" && typeof m.file === "string" && Array.isArray(m.parts) && m.hash !== partSetHash(m, m.parts)) err("part-set hash doesn't match");
-  if (m.rows !== m.parts.reduce((s, p) => s + (p.rows || 0), 0)) err("row total doesn't match");
+  if (Number.isSafeInteger(m.week) && typeof m.game === "string" && typeof m.file === "string" && m.hash !== partSetHash(m, m.parts)) err("part-set hash doesn't match");
+  if (m.rows !== m.parts.reduce((s, p) => s + ((p && p.rows) || 0), 0)) err("row total doesn't match");
+  // Step 6 (G61-2): a folder already published as final must come back byte-identical, with nothing removed.
+  if (typeof published === "string") {
+    const pm = path.join(published, "manifest.json");
+    if (fs.existsSync(published) || fs.existsSync(pm)) {
+      let pub = null;
+      if (fs.existsSync(pm)) { try { pub = JSON.parse(readStrict(pm).text); } catch { err("the published manifest.json can't be read: holding"); } }
+      else if (listFiles(published).some((f) => !f.dir)) err("the published copy has files but no manifest.json: holding");
+      if (isPlain(pub) && pub.state === "final") {
+        if (m.state !== "final") err("the published copy is final; this one is not");
+        if (m.hash !== pub.hash) err(`the published copy is final with set hash ${String(pub.hash).slice(0, 12)}; this one is ${String(m.hash).slice(0, 12)}`);
+        for (const f of listFiles(published)) {
+          if (f.dir) continue;
+          const mine = path.join(baseDir, f.rel);
+          if (f.link || !fs.existsSync(mine)) { err(`${f.rel}: in the published final, missing here`); continue; }
+          if (!fs.readFileSync(path.join(published, f.rel)).equals(fs.readFileSync(mine))) err(`${f.rel}: differs from the published final`);
+        }
+      }
+    }
+  }
   if (errors.length) return { ok: false, errors, manifest: m, parts: [] };
   const parts = [];
   for (const p of m.parts) {
     try {
-      const d = decodePart(fs.readFileSync(path.join(baseDir, p.name), "utf8"));
+      const d = decodePart(readStrict(path.join(baseDir, p.name)).text);
       if (d.header.game !== m.game || d.header.file !== m.file || d.header.part !== p.part) err(`${p.name}: its header doesn't match the manifest`);
       if (d.rows.length !== p.rows) err(`${p.name}: ${d.rows.length} rows, manifest says ${p.rows}`);
       parts.push({ part: p.part, header: d.header, rows: d.rows });

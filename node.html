@@ -8,12 +8,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Koinos producer lookup · Knode Games</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
-  <meta name="description" content="Look up any Koinos block producer: blocks signed over the last two days, share of the network, and recent activity.">
+  <meta name="description" content="The public story of any Koinos block producer: is it producing, how lucky, what each block paid, forecasts, and the producers next to it by VHP.">
   <link rel="canonical" href="https://knodegames.com/node.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Knode Games">
   <meta property="og:title" content="Koinos producer lookup">
-  <meta property="og:description" content="Look up any Koinos block producer: blocks signed over the last two days, share of the network, and recent activity.">
+  <meta property="og:description" content="The public story of any Koinos block producer: is it producing, how lucky, what each block paid, forecasts, and the producers next to it by VHP.">
   <meta property="og:url" content="https://knodegames.com/node.html">
   <meta property="og:image" content="https://knodegames.com/media/og-knode.png">
   <meta property="og:image:width" content="1200">
@@ -21,7 +21,7 @@
   <meta property="og:image:alt" content="Koinos producer lookup">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Koinos producer lookup">
-  <meta name="twitter:description" content="Look up any Koinos block producer: blocks signed over the last two days, share of the network, and recent activity.">
+  <meta name="twitter:description" content="The public story of any Koinos block producer: is it producing, how lucky, what each block paid, forecasts, and the producers next to it by VHP.">
   <meta name="twitter:image" content="https://knodegames.com/media/og-knode.png">
   <!-- seo:end -->
   <link rel="icon" href="media/icon.svg?v=2" type="image/svg+xml">
@@ -78,6 +78,15 @@
     .legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 6px; }
     .legend i { display: inline-block; width: 12px; height: 10px; border-radius: 2px; background: var(--violet); margin-right: 5px; vertical-align: -1px; }
     .legend i.exp { background: none; border-top: 2px dashed var(--sun); height: 0; width: 14px; vertical-align: 3px; }
+    .pd-hero { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; box-shadow: var(--shadow); margin: 22px 0 14px; }
+    .pd-hero .nm { font-family: var(--display); font-size: clamp(22px, 3.4vw, 30px); font-weight: 800; }
+    .pd-hero .ad { font-size: 13px; color: var(--muted); }
+    .pd-pill { margin-left: auto; font-weight: 700; padding: 6px 14px; border-radius: 99px; background: var(--paper); border: 1px solid var(--line); }
+    .pd-pill.good { color: var(--mint); } .pd-pill.bad { color: var(--rose); }
+    #story p { margin: 0 0 8px; font-size: 16px; } #story p:last-child { margin: 0; }
+    .pd-luck { position: relative; height: 10px; border-radius: 99px; background: linear-gradient(90deg, var(--rose), var(--sun) 50%, var(--mint)); margin: 12px 0 4px; }
+    .pd-luck b { position: absolute; top: -4px; width: 4px; height: 18px; border-radius: 2px; background: var(--ink); transform: translateX(-2px); }
+    .pd-luck-l { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -127,7 +136,7 @@
 
   <main class="nd">
     <h1>Producer lookup</h1>
-    <p class="lede" style="margin-bottom:8px">How many blocks should a producer make, and is it on track? Use it to check your own node, and to size up producers before answering Knode Games questions. Read live from the Koinos chain.</p>
+    <p class="lede" style="margin-bottom:8px">Paste any Koinos producer address to see its public story: is it producing, how lucky has it been, what each block paid, what to expect next, and who sits next to it. Use it to check your own node, and to size up producers before answering Knode Games questions. Read live from the Koinos chain; nothing to connect.</p>
     <p style="margin:0 0 20px;font-size:14px"><a href="./#play">Play Knode Games</a> · <a href="burn.html">Burn KOIN into VHP</a> · <a href="producer.html">Register a producer key</a></p>
 
     <form class="nd-form" id="form">
@@ -145,13 +154,9 @@
     <div class="nd-bar" id="bar" hidden><i></i></div>
 
     <section id="out" hidden>
+      <div class="pd-hero" id="hero"></div>
+      <div class="card" id="story"></div>
       <div class="nd-tiles" id="tiles"></div>
-
-      <div class="card">
-        <h2>What to expect</h2>
-        <p class="sub" id="fc-sub"></p>
-        <table class="periods"><thead><tr><th></th><th class="r">Expected blocks</th><th class="r">Likely range</th><th class="r">KOIN earned</th></tr></thead><tbody id="forecast"></tbody></table>
-      </div>
 
       <div class="card chart">
         <h2>Blocks over time</h2>
@@ -159,6 +164,25 @@
         <div id="chart"></div>
         <div class="axis"><span id="ax-l"></span><span>now</span></div>
         <div class="legend"><span><i></i>produced</span><span><i class="exp"></i>expected</span></div>
+      </div>
+
+      <div class="cols">
+        <div class="card">
+          <h2>Latest blocks it signed</h2>
+          <p class="sub">What each one paid: KOIN minted, minus the VHP burned to make it.</p>
+          <div class="scroll"><table><thead><tr><th>Block</th><th>When</th><th class="r">KOIN</th><th class="r">VHP used</th><th class="r">Profit</th></tr></thead><tbody id="recent"></tbody></table></div>
+        </div>
+        <div class="card">
+          <h2>Next to it by VHP</h2>
+          <p class="sub">Tap a producer to look it up.</p>
+          <table><thead><tr><th>#</th><th>Producer</th><th class="r">VHP</th><th class="r">Blocks</th></tr></thead><tbody id="peers"></tbody></table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>What to expect</h2>
+        <p class="sub" id="fc-sub"></p>
+        <table class="periods"><thead><tr><th></th><th class="r">Expected blocks</th><th class="r">Likely range</th><th class="r">KOIN earned</th></tr></thead><tbody id="forecast"></tbody></table>
       </div>
 
       <div class="card">
@@ -173,7 +197,7 @@
         <dl class="stats" id="net"></dl>
       </div>
 
-      <p class="note">Each block goes to a running producer at random, in proportion to its VHP, so counts swing: the likely range covers 8 times out of 10. Shares use the VHP each producer holds now. KOIN per block is the network's recent average reward after the VHP a block uses. Blocks already read are kept in this browser, so later visits only read new ones.</p>
+      <p class="note"><button type="button" class="link" id="share">Copy a link to this producer</button> <span id="shared"></span><br>Each block goes to a running producer at random, in proportion to its VHP, so counts swing: the likely range covers 8 times out of 10. Shares use the VHP each producer holds now. KOIN per block is the network's recent average reward after the VHP a block uses. Blocks already read are kept in this browser, so later visits only read new ones.</p>
     </section>
   </main>
 

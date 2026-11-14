@@ -182,6 +182,22 @@
   }
 
   // ── render ──
+  const poissonCdf = (k, mean) => { if (!(mean > 0)) return 1; let p = Math.exp(-mean), c = p; for (let i = 1; i <= k; i++) { p *= mean / i; c += p; } return Math.min(1, c); };
+  const ago = (ms) => (ms < 90000 ? "just now" : `${dur(ms)} ago`);
+  /** What one block paid its signer: KOIN minted to it, and the VHP burned from it (read from the block's receipt). */
+  async function blockPay(height, headId, signer) {
+    const res = await provider.call("block_store.get_blocks_by_height", { head_block_id: headId, ancestor_start_height: String(height), num_blocks: 1, return_block: true, return_receipt: true });
+    const it = (res.block_items || [])[0]; let mint = 0, burn = 0;
+    if (!it || Number(it.block_height) !== height) return null;
+    for (const ev of (it.receipt && it.receipt.events) || []) {
+      try {
+        if (ev.source === KOIN && /mint/i.test(ev.name || "")) { const d = await ser.deserialize(ev.data, "t.mint_event"); if (d.to === signer) mint += Number(d.value) / UNIT; }
+        else if (ev.source === VHP && /burn/i.test(ev.name || "")) { const d = await ser.deserialize(ev.data, "t.burn_event"); if (d.from === signer) burn += Number(d.value) / UNIT; }
+      } catch { /* not an event we know */ }
+    }
+    return { mint, burn };
+  }
+
   const tile = (k, v, s, cls = "") => el("div", { class: "tile" }, el("div", { class: "k" }, k), el("div", { class: `v ${cls}` }, v), s ? el("div", { class: "s" }, s) : null);
 
   function chart(first, last, mineTs, expPerHour, spanH) {
@@ -228,11 +244,11 @@
       if (total < 10) throw new Error("not enough blocks in this window yet");
       const t0 = B.ts[i0], t1 = B.ts[B.sig.length - 1], spanH = Math.max(0.1, (t1 - t0) / 3.6e6);
       const me = sIdx.get(addr);
-      const counts = new Map(), mineTs = [];
+      const counts = new Map(), mineTs = [], mineIdx = [];
       let maxGap = 0, empty = 0, txs = 0;
       for (let i = i0; i < B.sig.length; i++) {
         const s = B.sig[i]; counts.set(s, (counts.get(s) || 0) + 1);
-        if (s === me) mineTs.push(B.ts[i]);
+        if (s === me) { mineTs.push(B.ts[i]); mineIdx.push(i); }
         if (i > i0) maxGap = Math.max(maxGap, B.ts[i] - B.ts[i - 1]);
         if (B.ntx[i] === 0) empty++; txs += B.ntx[i] || 0;
       }
@@ -252,11 +268,45 @@
       const winName = $("win").selectedOptions[0].textContent.replace(/^Last /, "");
       const name = window.KNames ? window.KNames.of(addr) : NAMES[addr] ? `${NAMES[addr]} (${addr.slice(0, 6)}…${addr.slice(-4)})` : short(addr);
 
+      const ranked = list.slice().sort((x, y) => (vhp.get(y) || 0) - (vhp.get(x) || 0) || (x < y ? -1 : 1)), rank = ranked.indexOf(addr) + 1;
+      const overdue = share > 0 && late, producing = share > 0 && !late;
+      const lw = winName.toLowerCase(), wlabel = mode === "week" ? "this Knode Games week" : lw;
+      const pct = expWin >= 1 ? poissonCdf(mine - 1, expWin) + (poissonCdf(mine, expWin) - poissonCdf(mine - 1, expWin)) / 2 : NaN;
+      const apr0 = myVhp > 0 ? share * perDay * reward * 365 / myVhp * 100 : NaN;
+      const hero = [el("div", {}, el("div", { class: "nm" }, name), el("div", { class: "ad mono" }, addr, " · ", el("a", { href: EXPLORER + addr, target: "_blank", rel: "noopener" }, "explorer")))];
+      hero.push(el("div", { class: `pd-pill ${producing ? "good" : "bad"}` }, share <= 0 ? "No VHP: not producing" : producing ? "● Producing" : "● Quiet: check the node"));
+      $("hero").replaceChildren(...hero);
+      const story = [el("p", {}, share > 0
+        ? `${name} holds ${fmt(myVhp, 0)} VHP: ${fmt(share * 100, share < 0.01 ? 3 : 2)}% of the ${fmt(activeVhp / 1e6, 1)}M VHP producing, number ${fmt(rank)} of ${fmt(ranked.length)} producers in this window. That's about ${sig(share * 10000)} blocks in every 10,000.`
+        : `${name} has no VHP counted as producing, so the chain should not pick it to sign blocks.`)];
+      if (share > 0) story.push(el("p", {}, `In ${wlabel === lw ? "the last " + lw : wlabel} it signed ${fmt(mine)} block${mine === 1 ? "" : "s"}; its VHP predicts ${sig(expWin)}. ${lastTs ? `The latest was ${ago(since)}, and it usually makes one every ${dur(every)}.` : "It has not signed a block in this window."}${overdue ? " That is longer than usual: if this is your node, check that it is running and in sync." : ""}`));
+      if (Number.isFinite(pct)) {
+        story.push(el("p", {}, `Luck: ${pct >= 0.8 ? "running hot" : pct <= 0.2 ? "running cold" : "right about where its VHP says"}. This count beats ${fmt(pct * 100, 0)}% of the outcomes that VHP would give.`));
+        story.push(el("div", { class: "pd-luck", role: "img", "aria-label": `Luck meter at ${fmt(pct * 100, 0)} out of 100` }, el("b", { style: `left:${Math.min(98, Math.max(2, pct * 100))}%` })));
+        story.push(el("div", { class: "pd-luck-l" }, el("span", {}, "Unlucky"), el("span", {}, "As expected"), el("span", {}, "Lucky")));
+      }
+      $("story").replaceChildren(...story);
       $("tiles").replaceChildren(
-        tile("Share of active VHP", share > 0 ? `${fmt(share * 100, share < 0.01 ? 3 : 2)}%` : "0%", `${fmt(myVhp, 0)} VHP of ${fmt(activeVhp / 1e6, 1)}M producing`),
-        tile(`Blocks, ${mode === "week" ? "this Knode Games week" : winName.toLowerCase()}`, `${fmt(mine)}`, expWin > 0 ? `expected ${sig(expWin)} · ${fmt(luck * 100, 0)}% of expected` : "no VHP, so no blocks expected", !Number.isFinite(luck) || expWin < 3 ? "" : luck >= 0.8 ? "good" : luck < 0.5 ? "bad" : ""),
-        tile("Last block", lastTs ? `${dur(since)} ago` : "none in window", Number.isFinite(every) ? `usually one every ${dur(every)}${late ? " · overdue, check the node" : ""}` : "", late && share > 0 ? "bad" : ""),
+        tile("VHP producing", fmt(myVhp, 0), share > 0 ? `${fmt(share * 100, share < 0.01 ? 3 : 2)}% of the network` : "none counted"),
+        tile("Rank by VHP", share > 0 ? `#${fmt(rank)}` : "–", `of ${fmt(ranked.length)} producers`),
+        tile(`Blocks, ${wlabel}`, fmt(mine), expWin > 0 ? `expected ${sig(expWin)} · ${fmt(luck * 100, 0)}% of expected` : "no VHP, so no blocks expected"),
+        tile("Last block", lastTs ? ago(since) : "none in window", Number.isFinite(every) ? `usually every ${dur(every)}${late ? " · overdue, check the node" : ""}` : "", late && share > 0 ? "bad" : ""),
+        tile("Earns about", Number.isFinite(apr0) ? `${fmt(apr0, 1)}% a year` : "–", Number.isFinite(reward) ? `${fmt(reward, 3)} KOIN a block, if VHP stays as is` : ""),
       );
+      const at = Math.max(0, rank - 1), from0 = Math.max(0, Math.min(at - 3, ranked.length - 7)), near = ranked.slice(from0, from0 + 7);
+      $("peers").replaceChildren(...near.map((a) => {
+        const pick = el("button", { type: "button", class: "link mono", title: a }, short(a));
+        pick.onclick = () => { $("addr").value = a; go(); window.scrollTo({ top: 0, behavior: "smooth" }); };
+        return el("tr", { class: a === addr ? "me" : "" }, el("td", {}, String(ranked.indexOf(a) + 1)), el("td", {}, pick), el("td", { class: "r" }, fmt(vhp.get(a) || 0, 0)), el("td", { class: "r" }, fmt(counts.get(sIdx.get(a)) || 0)));
+      }));
+      const lastIdx = mineIdx.slice(-6).reverse();
+      $("recent").replaceChildren(...(lastIdx.length ? [] : [el("tr", {}, el("td", { colspan: "5", class: "note" }, "No blocks in this window."))]));
+      const pays = await Promise.all(lastIdx.map((i) => blockPay(B.from + i, head.head_topology.id, addr).catch(() => null)));
+      $("recent").replaceChildren(...lastIdx.map((i, k) => {
+        const p = pays[k], profit = p ? p.mint - p.burn : NaN;
+        return el("tr", {}, el("td", { class: "mono" }, `#${fmt(B.from + i)}`), el("td", {}, ago(now - B.ts[i])),
+          el("td", { class: "r" }, p ? fmt(p.mint, 3) : "—"), el("td", { class: "r" }, p ? fmt(p.burn, 3) : "—"), el("td", { class: `r ${profit > 0 ? "good" : profit < 0 ? "bad" : ""}` }, Number.isFinite(profit) ? fmt(profit, 3) : "—"));
+      }));
 
       const rows = [["Next 1,000 blocks", 1000], ["Next 5,000 blocks", 5000], ["Next 10,000 blocks", 10000], ["Next 20,000 blocks", 20000],
         ["A day", perDay], ["A week", perDay * 7], ["A month", perDay * 30], ["A year", perDay * 365]];
@@ -314,6 +364,7 @@
   }
   $("form").addEventListener("submit", (e) => { e.preventDefault(); go(); });
   $("win").addEventListener("change", () => { if (isAddr($("addr").value.trim())) go(); });
+  $("share").addEventListener("click", async () => { try { await navigator.clipboard.writeText(location.href); $("shared").textContent = "Link copied."; } catch { $("shared").textContent = "Copy it from the address bar."; } });
   $("quick").replaceChildren(el("span", {}, "Try:"), ...QUICK.map(([label, a]) => { const b = el("button", { type: "button" }, label); b.onclick = () => { $("addr").value = a; go(); }; return b; }));
   setInterval(() => { if (current && !document.hidden) show(current.addr, current.mode, true); }, 300000);
   const q = new URLSearchParams(location.search);

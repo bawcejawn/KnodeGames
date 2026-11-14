@@ -52,7 +52,7 @@ export class Replay {
     catch (e) { error = (e as Error).message; fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out); }
     // G3: the publish job rebuilds every new ruler card (its embedded vhp_ruler.py); here its JS twin on the same ledger.
     // KG parts v1: the publish job's view (each W<NNN>/ checked by kit/parts and rebuilt into its week file).
-    const v = this.cfg.parts ? partsViews(this.cfg, out, this.pub) : { inDir: out, pubDir: this.pub, folders: new Map<string, string[]>(), held: [] as any[] };
+    const v = this.cfg.parts ? partsViews(this.cfg, out, this.pub, this.root) : { inDir: out, pubDir: this.pub, folders: new Map<string, string[]>(), held: [] as any[] };
     const cardsOk = "cardsOk" in env ? env.cardsOk ?? null : this.cfg.vhpData && env.vhpLedger ? await rebuiltCards(v.inDir, v.pubDir, env.vhpLedger) : null;
     // The publish job reads the owner's release variable itself (KC-3): the same value the recorder got.
     const r = checkGame(this.cfg, v.inDir, v.pubDir, jobNow, env.release ?? "", cardsOk);

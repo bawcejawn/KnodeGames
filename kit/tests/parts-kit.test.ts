@@ -68,15 +68,15 @@ test("parts: a tampered, stale or extra part file is held by the publish job's k
   const m = JSON.parse(fs.readFileSync(path.join(out, "W004", "manifest.json"), "utf8"));
   const part = path.join(out, "W004", m.parts.find((p: any) => p.part === "wk").name);
   fs.writeFileSync(part, fs.readFileSync(part, "utf8").replace('"pending"', '"final"'));
-  let v = partsViews({ ...exampleCfg(), parts: "r" }, out, pub);
+  let v = partsViews({ ...exampleCfg(), parts: "r" }, out, pub, (rp as any).root);
   assert.ok(v.held.some((x: any) => x.name === "W004/" && /SHA-256|bytes/.test(x.why)), JSON.stringify(v.held));
   fs.rmSync(path.join(out, "W004"), { recursive: true });
   fs.cpSync(path.join(pub, "W004"), path.join(out, "W004"), { recursive: true });
   fs.writeFileSync(path.join(out, "W004", "d1.000000000000.json"), "{}");
-  v = partsViews({ ...exampleCfg(), parts: "r" }, out, pub);
+  v = partsViews({ ...exampleCfg(), parts: "r" }, out, pub, (rp as any).root);
   assert.ok(v.held.some((x: any) => /not listed|stale/.test(x.why)), JSON.stringify(v.held));
   fs.writeFileSync(path.join(out, "W004.json"), "{}");
-  v = partsViews({ ...exampleCfg(), parts: "r" }, out, pub);
+  v = partsViews({ ...exampleCfg(), parts: "r" }, out, pub, (rp as any).root);
   assert.ok(v.held.some((x: any) => /both as a file and as a parts folder/.test(x.why)), JSON.stringify(v.held));
 });
 
@@ -116,4 +116,33 @@ test("parts sizes: a Fantasy-shaped week at 9,000 weekly players fits, every par
   const back = partsToWeek(dec, { ...exampleCfg(), parts: "d" });
   for (const k of Object.keys(j)) assert.equal(JSON.stringify(back[k]), JSON.stringify(j[k]), `key ${k}`);
   assert.equal(canon(back), canon(j), "lossless at size");
+});
+
+test("parts: a parts game passes game:check (the publish check's temp folder is the caller's, never read from the environment)", async () => {
+  const { conformance } = await import("../testing/conformance.ts");
+  const os = await import("node:os");
+  const { fileURLToPath } = await import("node:url");
+  const EX = fileURLToPath(new URL("../testing/example/", import.meta.url)), KITDIR = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "kit-conf-parts-"));
+  fs.cpSync(path.join(EX, "games"), path.join(d, "games"), { recursive: true });
+  const dir = path.join(d, "games/kit-example");
+  const rec = path.join(dir, "recorder.ts");
+  fs.writeFileSync(rec, fs.readFileSync(rec, "utf8").replace(/"\.\.\/\.\.\/\.\.\/\.\.\//g, `"${KITDIR.split(path.sep).join("/")}/`));
+  const sample = path.join(dir, "tests/sample.ts");
+  fs.writeFileSync(sample, fs.readFileSync(sample, "utf8").replace(/"(\.\.\/)+/g, (m) => `"${path.resolve(EX, "games/kit-example/tests", m.slice(1)).split(path.sep).join("/")}/`));
+  const gj = path.join(dir, "game.json"), j = JSON.parse(fs.readFileSync(gj, "utf8"));
+  fs.writeFileSync(gj, JSON.stringify({ ...j, parts: "d" }, null, 2) + "\n");
+  const failed = (await conformance("kit-example", d)).filter((c) => !c.pass).map((c) => c.msg);
+  assert.deepEqual(failed, []);
+});
+
+test("G73-1: ctx.vhp says loaded: true with the ruler's data, false for the kit's no-data stand-in", async () => {
+  const { R, timeline } = await import("../../tests/audit/race-ruler.fixture.mjs");
+  const { vhpFor } = await import("../recorder/sources/vhp-ruler.ts");
+  assert.equal(vhpFor(R.ledger(timeline()), new Map()).loaded, true);
+  const seen: boolean[] = [];
+  const g: GameModule<any, any, any> = { ...exampleGame, async resultOf(r, read, inputs, ctx) { seen.push(ctx!.vhp!.loaded); return exampleGame.resultOf(r, read, inputs); } };
+  const rp = new Replay(g, { ...exampleCfg(), vhpData: true, cardPerRound: false }), wd = qworld();
+  await rp.hour(nodes(wd), wd.time + 5 * 60000);
+  assert.ok(seen.length && seen.every((x) => x === false), JSON.stringify(seen));
 });

@@ -6120,9 +6120,12 @@ jobs:
           /** KG parts v1: temporary copies of a parts game's incoming and published folders, each W<NNN>/ replaced by its
            *  rebuilt W<NNN>.json (the incoming one only when kit/parts' checkParts passes). folders: "W004.json" -> the
            *  folder's files to publish. A week both as a file and as a folder is held. */
-          export function partsViews(g, inDir, pubDir) {
+          export function partsViews(g, inDir, pubDir, tmpRoot) {
             const held = [], folders = new Map();
-            const tmp = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || process.env.TMPDIR || "/tmp", `kit-parts-${g.slug}-`));
+            // The caller names the temp folder (the publish job: RUNNER_TEMP; the replay and conformance: their own), so this
+            // never reads the environment itself (Fantasy, 14 Nov: the conformance sandbox would blame the game for it).
+            if (typeof tmpRoot !== "string" || !tmpRoot.length) throw new Error("partsViews needs a temp folder");
+            const tmp = fs.mkdtempSync(path.join(tmpRoot, `kit-parts-${g.slug}-`));
             const view = (src, dst, incoming) => {
               fs.mkdirSync(dst, { recursive: true });
               if (!fs.existsSync(src)) return;
@@ -6172,7 +6175,7 @@ jobs:
                 const pub = path.join(pubRoot, g.slug);
                 // KG parts v1: a parts game's W<NNN>/ folders are checked by kit/parts, rebuilt into week files, and judged
                 // like any other week file; publishing a rebuilt week publishes its folder's files.
-                const v = g.parts ? partsViews(g, dir, pub) : { inDir: dir, pubDir: pub, folders: new Map(), held: [] };
+                const v = g.parts ? partsViews(g, dir, pub, env.RUNNER_TEMP || path.dirname(listFile)) : { inDir: dir, pubDir: pub, folders: new Map(), held: [] };
                 for (const h of v.held) { console.log(`::error::held, not published: ${g.slug}/${h.name}: ${h.why}`); alert = true; }
                 const r = checkGame(g, v.inDir, v.pubDir, now, env[releaseEnv(g.slug)] ?? "", cardsOk);
                 for (const h of r.held) {

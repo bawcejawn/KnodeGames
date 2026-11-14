@@ -47,7 +47,8 @@ export type Published = { own: Record<number, any>; games: Record<string, Record
 /** ctx.vhp (manifest vhpData): the VHP ruler's published data (kit/recorder/sources/vhp-ruler.ts). card(settings)
  *  returns a scored ruler card, or throws NotYet while the data doesn't cover it (the kit then keeps the round PENDING,
  *  or the inputs file waits). Never null for a vhpData game: when the data can't be loaded this run, card() throws NotYet. */
-export type VhpCtx = { to: number; ruleVersion: number; card(settings: any): any };
+/** loaded: false only for the kit's stand-in when the ruler's data didn't load this run (#G-73 G73-1). */
+export type VhpCtx = { to: number; loaded: boolean; ruleVersion: number; card(settings: any): any };
 /** G7: the first IRREVERSIBLE block whose time is at or after a UTC time (ms), on the node this call reads; the kit
  *  pins both nodes to the same last irreversible block and compares the answers like any read. Throws NotYet while
  *  that block isn't irreversible yet (the round stays PENDING / the inputs file waits). */

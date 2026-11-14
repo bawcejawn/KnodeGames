@@ -34,6 +34,7 @@ export type CardSettings = {
 };
 export type CardRef = [CardSettings, string];          // [settings, sha256 of the scored card's cardJson text]
 export type Vhp = {
+  loaded: boolean;
   /** The last block the data reaches. */
   to: number;
   ruleVersion: number;
@@ -88,6 +89,7 @@ export const cardIdentity = (s: CardSettings): string => {
 export function vhpFor(L: any, used: Map<string, CardRef>, pinned?: Map<string, CardSettings>): Vhp {
   return {
     to: L.to,
+    loaded: true,             // #G-73 G73-1: the real ruler data (the kit's no-data stand-in says loaded: false)
     ruleVersion: RULE_VERSION,
     card(s0: CardSettings) {
       // #G-69 G69-3: a card this game already published is re-made from the settings stored with it (mode, include),

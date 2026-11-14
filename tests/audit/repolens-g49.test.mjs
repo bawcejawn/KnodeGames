@@ -59,10 +59,12 @@ test("confirm G35-2: the real sequence (unset in the shadow week publishes index
   const r5 = check(tmp(), pub5, { now: W4 + WEEK + 2 * DAY, env: { BLOCKX_RULER_FROM_WEEK: "" } });
   assert.equal(r5.code, 0, r5.out);
   // the code step has no if:, the data step keeps its if: and continue-on-error (G35-5)
-  const code = yml.slice(yml.indexOf("- name: The VHP ruler's code (Block X)"), yml.indexOf("cat > \"$RUNNER_TEMP/ruler-code/vhp_ruler.py\""));
+  // (Bracket #285 merged second: one shared step "The VHP ruler's code and data (Block X and the Producer Bracket)", its
+  // fetch tolerant in the step itself, as Repo Lens #G-48 G48-2 asked, instead of a separate step with continue-on-error)
+  const code = yml.slice(yml.indexOf("- name: The VHP ruler's code and data (Block X and the Producer Bracket)"), yml.indexOf("cat > \"$RUNNER_TEMP/ruler-code/vhp_ruler.py\""));
   assert.doesNotMatch(code, /\n\s+if:/);
-  const data = yml.slice(yml.indexOf("- name: The VHP ruler's data (Block X)"), yml.indexOf("- name: Push games-data (and nothing else)"));
-  assert.match(data, /continue-on-error: true/);
+  const data = yml.slice(yml.indexOf("# END vhp_ruler.py"), yml.indexOf("- name: Push games-data (and nothing else)"));
+  assert.match(data, /else\n\s+rm -rf "\$RUNNER_TEMP\/ruler-vhp-data"\n\s+echo "::warning::/);
   const rec = yml.slice(yml.indexOf("- name: Take the VHP ruler's data"), yml.indexOf("- name: Record Who Signs Block X"));
   assert.match(rec, /continue-on-error: true/);
 });

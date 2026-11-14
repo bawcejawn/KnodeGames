@@ -101,6 +101,9 @@ export type WeekFile = {
   vault?: "missed";                                      // closed at the backstop without a vault file
   rulerFrom?: number | null;                             // R-BR-7: BRACKET_RULER_FROM_WEEK as this week was last
   rulerMode?: "off" | "shadow" | "on";                   // recorded, and the week's mode (vhp-ruler rulerMode); always last
+  rulerSchedule?: string | null;                         // phase 2: BRACKET_RULER_MODE as this week was last recorded
+  rulerBackup?: number[];                                // phase 2, an on week: the rounds (0-based) the seed rule decided
+                                                         // because no ruler card came within the grace (owner, 12 Nov)
 };
 import type { Chain, Node } from "../vhp-chain.ts";
 export type { Chain, Node };
@@ -120,6 +123,7 @@ type Opts = {
   release?: Set<number>;                                         // BRACKET_RELEASE's weeks (tests; default from the env)
   freeSwitches?: Switches | null;                                // the free-prize switches (tests; default BRACKET_FREE_SWITCHES)
   rulerFrom?: string | null;                                     // the ruler switch (tests; default BRACKET_RULER_FROM_WEEK)
+  rulerSchedule?: string | null;                                 // the scoring-mode schedule (tests; default BRACKET_RULER_MODE)
   ledger?: any | null;                                           // the ruler's ledger (tests; default from BRACKET_VHP_DATA)
   dayCardOf?: (settings: any) => { text: string } | { notYet: string };   // a day's scored card (tests; default the ruler)
   head?: Head;
@@ -168,7 +172,10 @@ function loadWeek(dir: string | undefined, w: number): WeekFile {
     if (Array.isArray(old.staked.held) && old.staked.held.every(isAddr)) f.staked.held = [...old.staked.held].sort();
   }
   if (old.vault === "missed") f.vault = "missed";
-  if (rulerFieldsOk(old)) { f.rulerFrom = old.rulerFrom; f.rulerMode = old.rulerMode; }
+  if (rulerFieldsOk(old)) {
+    f.rulerFrom = old.rulerFrom; f.rulerMode = old.rulerMode; if ("rulerSchedule" in old) f.rulerSchedule = old.rulerSchedule;
+    if (old.rulerMode === "on" && backupOk(old.rulerBackup, f.seeding ? B.roundsOf(f.seeding.size) : 0)) f.rulerBackup = [...old.rulerBackup];
+  }
   f.days = emptyDays(f.seeding ? f.seeding.size : 0);
   if (Array.isArray(old.days)) old.days.forEach((d: any, r: number) => { if (r < f.days.length && Array.isArray(d)) d.forEach((h: any, i: number) => { if (i < 24 && hourOk(h, f.seeding!.seeds)) f.days[r][i] = h; }); });
   // A final week stays final and FROZEN (leaderboard standard: a published final board never changes): its stored
@@ -183,10 +190,17 @@ function loadWeek(dir: string | undefined, w: number): WeekFile {
   return f;
 }
 const sortedUnique = (l: string[]) => l.every((x, i) => i === 0 || l[i - 1] < x);
+/** A recorded rulerBackup: a non-empty, rising list of round indices of the week's bracket. */
+const backupOk = (v: any, rounds: number): v is number[] => Array.isArray(v) && v.length > 0 && v.every((r, i) => Number.isInteger(r) && r >= 0 && r < rounds && (i === 0 || v[i - 1] < r));
 /** A stored week's ruler fields (R-BR-7): both or neither, a valid switch value and the mode it gives that week. */
 export function rulerFieldsOk(old: any): boolean {
   if (!old || !("rulerFrom" in old) || !("rulerMode" in old)) return false;
-  try { const f = old.rulerFrom === null ? null : RU.switchFrom(String(old.rulerFrom)); return f === old.rulerFrom && RU.rulerMode(old.week, f) === old.rulerMode; } catch { return false; }
+  try {
+    const f = old.rulerFrom === null ? null : RU.switchFrom(String(old.rulerFrom));
+    if (!(f === old.rulerFrom && RU.rulerMode(old.week, f) === old.rulerMode)) return false;
+    // phase 2: the mode schedule as recorded (null, or a valid schedule string); files from phase 1 have none
+    return !("rulerSchedule" in old) || old.rulerSchedule === null || (typeof old.rulerSchedule === "string" && RU.modeScheduleOf(old.rulerSchedule) === old.rulerSchedule);
+  } catch { return false; }
 }
 /** A seeding as the recorder writes it (#E-3 M-9 / L-10: size, seeds, VHP, pooled and the hash agree). */
 export function seedingOk(w: number, s: any): s is Seeding {
@@ -364,11 +378,13 @@ export function stakedEarners(points: Points[], timeOf?: Map<string, number>) {
 /** Each player's pick time (the last change, ms) from a week's recorded picks. */
 const timesOf = (wf: WeekFile | undefined) => new Map<string, number>((wf?.picks?.rows ?? []).map((r) => [r[0], r[2]]));
 /** Score a week from what is recorded (live during the week, final after). */
-export function scoreWeek(wf: WeekFile) {
+export function scoreWeek(wf: WeekFile, rulerDays?: (Map<string, string | null> | null)[]) {
   if (!wf.seeding || !wf.seeding.size || !wf.picks) return { results: null, points: [] as Points[] };
   const { size, seeds } = wf.seeding;
   const days = wf.days.map((d) => (d.every(Boolean) ? B.indexFromHours(d) : null));
-  const res = B.results(seeds, size, days, wf.seeding.vhp, wf.seeding.pooled);   // with the forfeit rule (H-5) and pooled (H-4)
+  // with the forfeit rule (H-5) and pooled (H-4); in an "on" week (R-BR-7 phase 2) the day cards decide, and a round
+  // whose card isn't made yet isn't known (it waits: never the day index)
+  const res = B.results(seeds, size, days, wf.seeding.vhp, wf.seeding.pooled, rulerDays);
   // During a round's day: the winners so far are not known, so only finished rounds score.
   const points: Points[] = wf.picks.rows.map(([player, number]) => {
     const s = B.score(B.decode(number, size, seeds.length), res, size, seeds.length);
@@ -382,39 +398,67 @@ const hoursOf = (w: number, wf: WeekFile) => { const out: [number, number, numbe
 const allReRead = (wf: WeekFile) => wf.days.length > 0 && wf.days.every((d) => d.every((h) => !!h && h.re === 1)) && wf.picks?.re === 1;
 /** A week's file as written (never the `bad` note). */
 const fileOf = (wf: WeekFile) => {
-  const { bad: _bad, rulerFrom, rulerMode, ...rest } = wf;
-  return rulerMode === undefined ? rest : { ...rest, rulerFrom: rulerFrom ?? null, rulerMode };   // the ruler fields always last
+  const { bad: _bad, rulerFrom, rulerMode, rulerSchedule, rulerBackup, ...rest } = wf;
+  if (rulerMode === undefined) return rest;
+  // the ruler fields always last; rulerSchedule (phase 2) only when it was recorded (a phase 1 final file keeps its form);
+  // rulerBackup only when the seed rule decided a round
+  return { ...rest, rulerFrom: rulerFrom ?? null, rulerMode, ...(rulerSchedule === undefined ? {} : { rulerSchedule }), ...(rulerBackup && rulerBackup.length ? { rulerBackup } : {}) };
 };
 
 const MAX_CARDS_PER_RUN = 5;               // R-BR-7: day cards made per run (about 2 s each, after a 10-s data load)
-/** R-BR-7: a week's ruler files. Each round's day card once all 24 of its hours are recorded and re-read (write-once:
- *  a card the last run published is kept exactly as it was); in the shadow week also the ruler's result beside the
- *  real one (ruler/W<week>.json, "shadow": true). Nothing here changes the week file's results, points or vault file. */
-export function rulerWeek(w: number, wf: WeekFile, prevDir: string | undefined, cardFor: (settings: any) => { text: string } | { notYet: string }, vault: string | null, problems: string[]): [string, string][] {
-  if (!wf.seeding || !wf.seeding.size) return [];
-  const out: [string, string][] = [], size = wf.seeding.size, texts: (string | null)[] = [];
-  const pooled = vault && isAddr(vault) ? [vault] : [];
+/** R-BR-7 phase 2: a day card still missing this long after its day ended alerts (the Race's RULER_LATE_ALERT). */
+export const RULER_LATE = 3 * 3600000;
+/** The grace after the week's end (the Race's): past it, a round still without a card is decided by the seed rule. */
+export const RULER_GRACE = 48 * 3600000;
+/** The backup day (owner, 12 Nov: "your existing seed rule decides the open matchups"): the seeding decides, so in
+ *  each open matchup the better seed (the one seeded higher, by VHP) goes through, after the forfeit rule as on any day.
+ *  As a card: seed i gets fpct 1,000,000 − i (seeds[0] = seed 1 highest), so the higher fpct is always the better seed. */
+export const seedRuleDay = (seeds: string[]) => new Map<string, string | null>(seeds.map((a, i) => [a, String(1000000 - i)]));
+/** What to do when the ruler's data is behind (the Race's RULER_FIX, the Ruler chat's line). */
+export const RULER_FIX = "GitHub → Actions → \"VHP ruler data\": if the latest run is red, click \"Re-run all jobs\"; missed hours are read back from the chain by themselves, and if it is red again the next hour, send its error text to the VHP Ruler chat. The Bracket retries every hour by itself; the week waits (nothing is decided on the old index)";
+/** R-BR-7: a week's ruler files and its day cards' texts. Each round's day card once all 24 of its hours are recorded
+ *  and re-read (write-once: a card the last run published is kept exactly as it was). In the shadow week also the
+ *  ruler's result beside the real one (ruler/W<week>.json, "shadow": true, never scored). In an "on" week the texts
+ *  score the week (bracket.ts step 4); a missing card makes its day wait. */
+/** waits[r]: round r's card was tried with the ruler's data loaded and is genuinely not there yet (the data ends before the
+ *  day, or the card is flagged). Only such a round may go to the seed rule after the grace (Repo Lens #G-48 G48-1). */
+export function rulerWeek(w: number, wf: WeekFile, prevDir: string | undefined, cardFor: (settings: any) => { text: string } | { notYet: string; noData?: boolean }, schedule: string | null, now: number, problems: string[]): { files: [string, string][]; texts: (string | null)[]; waits: boolean[] } {
+  if (!wf.seeding || !wf.seeding.size) return { files: [], texts: [], waits: [] };
+  const out: [string, string][] = [], size = wf.seeding.size, texts: (string | null)[] = [], waits: boolean[] = [];
+  const mode = schedule === null ? null : RU.modeAt(w, schedule);
   let made = 0;
   for (let r = 0; r < wf.days.length; r++) {
     const name = RU.cardName(w, r), was = prevDir && fs.existsSync(path.join(prevDir, "ruler", name)) ? fs.readFileSync(path.join(prevDir, "ruler", name), "utf8") : null;
+    waits.push(false);
     if (was !== null) { texts.push(was); out.push([name, was]); continue; }
+    if (wf.rulerBackup && wf.rulerBackup.includes(r)) { texts.push(null); continue; }   // decided by the seed rule: no card
     const d = wf.days[r];
     if (!d.every((h) => !!h && h.re === 1) || made >= MAX_CARDS_PER_RUN) { texts.push(null); continue; }
-    const got = cardFor(RU.settingsFor(B.roundDay(w, r, size), d[0]!.from, d[23]!.to, pooled));
-    if ("notYet" in got) { problems.push(`week ${w}: round ${r + 1}'s ruler card: not yet (${got.notYet}); tried again next run`); texts.push(null); continue; }
+    let got: ReturnType<typeof cardFor>;
+    // one round's broken card never blanks the week's other cards (Repo Lens #G-68 G68-1); it waits, and never goes to the backup
+    try { got = cardFor(RU.settingsFor(B.roundDay(w, r, size), d[0]!.from, d[23]!.to, mode)); }
+    catch (e) { problems.push(`week ${w}: round ${r + 1}'s ruler card: ${(e as Error).message} (tried again next run)`); texts.push(null); continue; }
+    if ("notYet" in got) {
+      const late = now >= B.roundDay(w, r, size) + 86400000 + RULER_LATE;
+      const m = `week ${w}: round ${r + 1}'s ruler card: not yet (${got.notYet}); tried again next run${late && wf.rulerMode === "on" ? ` (late: the day ended over 3 h ago and the week waits for it; ${RULER_FIX})` : ""}`;
+      if (late && wf.rulerMode === "on") console.log(`::error::${m}`);
+      problems.push(m); texts.push(null); waits[r] = !got.noData; continue;
+    }
     made++; texts.push(got.text); out.push([name, got.text]);
   }
-  if (wf.rulerMode === "shadow") {
-    const days = wf.days.map((d) => (d.every(Boolean) ? B.indexFromHours(d) : null));
-    const rulerDays = texts.map((t) => (t === null ? null : new Map(Object.entries(RU.rowsOf(t)))));
-    const res = B.results(wf.seeding.seeds, size, days, wf.seeding.vhp, wf.seeding.pooled, rulerDays);
-    const summary = { v: RU.SUMMARY_V, game: B.GAME_ID, week: w, shadow: true, rulerFrom: wf.rulerFrom ?? null, rulerMode: wf.rulerMode,
-      settings: { ownRule: RU.OWN_RULE, minK: RU.MIN_K, poolRule: RU.POOL_RULE, c: String(RU.C) },
-      cards: texts.map((t, r) => (t === null ? null : RU.cardName(w, r))), rounds: res.rounds, done: res.done, real: wf.results ? wf.results.rounds : [] };
-    out.push([RU.summaryName(w), JSON.stringify(summary) + "\n"]);
-  }
-  return out;
+  return { files: out, texts, waits };
 }
+/** The shadow week's summary (ruler/W<week>.json): the ruler's bracket from the day cards beside the real result. */
+export function shadowSummary(w: number, wf: WeekFile, texts: (string | null)[]): [string, string] {
+  const s = wf.seeding!, days = wf.days.map((d) => (d.every(Boolean) ? B.indexFromHours(d) : null));
+  const res = B.results(s.seeds, s.size, days, s.vhp, s.pooled, rulerDaysOf(texts));
+  const summary = { v: RU.SUMMARY_V, game: B.GAME_ID, week: w, shadow: true, rulerFrom: wf.rulerFrom ?? null, rulerMode: wf.rulerMode,
+    settings: { ownRule: RU.OWN_RULE, minK: RU.MIN_K, poolRule: RU.POOL_RULE, c: String(RU.C) },
+    cards: texts.map((t, r) => (t === null ? null : RU.cardName(w, r))), rounds: res.rounds, done: res.done, real: wf.results ? wf.results.rounds : [] };
+  return [RU.summaryName(w), JSON.stringify(summary) + "\n"];
+}
+/** The day cards as bracket-math's rulerDays (address → fpct, or null for a day with no card yet). */
+export const rulerDaysOf = (texts: (string | null)[]) => texts.map((t) => (t === null ? null : new Map(Object.entries(RU.rowsOf(t)))));
 
 /** One run. Exported for the tests, which pass fake nodes. */
 export async function run(o: Opts) {
@@ -428,9 +472,12 @@ export async function run(o: Opts) {
   const problems: string[] = [];
   // R-BR-7: the VHP ruler switch, read strictly (a bad value stops the run loudly: never guess)
   const RULER_FROM = RU.switchFrom(o.rulerFrom !== undefined ? o.rulerFrom : E.BRACKET_RULER_FROM_WEEK);
+  // phase 2: the scoring-mode schedule (BRACKET_RULER_MODE), strictly; recorded with the weeks, checked by the publish job
+  const RULER_SCHED = RU.modeScheduleOf(o.rulerSchedule !== undefined ? o.rulerSchedule : E.BRACKET_RULER_MODE);
   let ledger: any = o.ledger;   // loaded once, the first time a card is needed (about 10 s for 14 days of vhp-data)
   const ledgerOf = () => { if (ledger === undefined) ledger = RU.loadLedger(E.BRACKET_VHP_DATA); return ledger; };
-  const cardFor = o.dayCardOf ?? ((st: any) => { const L = ledgerOf(); return L ? RU.dayCard(L, st) : { notYet: "no vhp-data (BRACKET_VHP_DATA)" }; });
+  // noData: the ruler's data didn't load this run (a failed fetch): that "not yet" never lets the seed rule decide (#G-48 G48-1)
+  const cardFor = o.dayCardOf ?? ((st: any) => { const L = ledgerOf(); return L ? RU.dayCard(L, st) : { notYet: "no vhp-data (BRACKET_VHP_DATA)", noData: true }; });
   const rulerFiles: [string, string][] = [];
   const contract = o.picksContract === undefined ? defaultPicksContract() : o.picksContract;
   const nodeP: Node = o.nodeOf ? o.nodeOf(o.p) : chainNode(o.p);
@@ -471,7 +518,7 @@ export async function run(o: Opts) {
   };
 
   // R-BR-7: every week still being recorded carries the switch as this run read it and the week's mode
-  for (const [w, wf] of weeks) if (wf.status !== "final" && wf.status !== "none" && wf.status !== "void") { wf.rulerFrom = RULER_FROM; wf.rulerMode = RU.rulerMode(w, RULER_FROM); }
+  for (const [w, wf] of weeks) if (wf.status !== "final" && wf.status !== "none" && wf.status !== "void") { wf.rulerFrom = RULER_FROM; wf.rulerMode = RU.rulerMode(w, RULER_FROM); wf.rulerSchedule = RULER_SCHED; }
   for (const [w, wf] of weeks) {
     if (wf.status === "final" || wf.status === "none" || wf.status === "void") continue;
     const backstop = B.weekStart(w + 1) + VAULT_DAYS;
@@ -627,18 +674,39 @@ export async function run(o: Opts) {
       } catch (e) { problems.push(`week ${w}: re-reading hours: ${(e as Error).message} (tried again next run)`); }
     }
     // ── 4. results and points ──
-    // R-BR-7 phase 1: an "on" week isn't scored by this build: no results or points, so it can't go final (held, and
-    // void at the backstop) rather than pay on the old index; the ruler-on PR scores it from the day cards
+    // R-BR-7: the ruler's day cards (shadow and on weeks). In an "on" week they decide the matchups (phase 2): a round
+    // whose card isn't made yet isn't known, so the week waits for it, and never falls back to the day index
     const on = wf.rulerMode === "on";
-    if (on) { const m = `week ${w}: BRACKET_RULER_FROM_WEEK = ${RULER_FROM} makes this week "on" (the ruler decides the matchups), which this build can't score yet; the week is held until the ruler-on update is merged, and void at its backstop otherwise`; console.log(`::error::${m}`); problems.push(m); }
-    const sc = on ? { results: null, points: [] as Points[] } : scoreWeek(wf);
+    let ruled: ReturnType<typeof rulerWeek> | null = null;
+    if (wf.rulerMode === "shadow" || on) {
+      try { ruled = rulerWeek(w, wf, PREV, cardFor, RULER_SCHED, now, problems); }
+      catch (e) { problems.push(`week ${w}: the ruler's cards: ${(e as Error).message} (tried again next run)`); }
+    }
+    let sc;
+    if (on) {
+      const texts = ruled ? ruled.texts : wf.days.map(() => null);
+      // after the grace (owner, 12 Nov): a round whose day is fully recorded and re-read but still has no card is decided
+      // by the seed rule; the week file records which rounds (rulerBackup), and the owner is alerted. Never silent
+      if (now >= B.weekStart(w + 1) + RULER_GRACE && wf.seeding && wf.seeding.size) {
+        // only rounds this run genuinely couldn't card with the ruler's data loaded: never after a failed vhp-data fetch,
+        // nor when rulerWeek threw (then ruled is null) (Repo Lens #G-48 G48-1, High)
+        const waits = ruled ? ruled.waits : [];
+        const add = texts.flatMap((t, r) => (t === null && waits[r] && !(wf.rulerBackup ?? []).includes(r) && wf.days[r]!.every((h) => !!h && h.re === 1) ? [r] : []));
+        if (add.length) {
+          wf.rulerBackup = [...(wf.rulerBackup ?? []), ...add].sort((a, b) => a - b);
+          const m = `week ${w}: no VHP ruler card for round${add.length > 1 ? "s" : ""} ${add.map((r) => r + 1).join(", ")} 48 hours after the week ended, so the seed rule decides ${add.length > 1 ? "them" : "it"} (the better seed goes through each open matchup, after forfeits; owner, 12 Nov)`;
+          console.log(`::error::${m}`); problems.push(m);
+        }
+      }
+      const days = rulerDaysOf(texts).map((d, r) => ((wf.rulerBackup ?? []).includes(r) ? seedRuleDay(wf.seeding!.seeds) : d));
+      sc = scoreWeek(wf, days);
+    } else sc = scoreWeek(wf);
     wf.results = sc.results; wf.points = sc.points;
     const done = !!(sc.results && sc.results.done);
-    // ── 4b. the ruler's day cards and, in the shadow week, its result beside the real one (R-BR-7) ──
-    // (Repo Lens #G-20 G20-3: phase 1 makes no cards for an "on" week: they're written once, and only phase 2 checks them)
-    if (wf.rulerMode === "shadow") {
-      try { rulerFiles.push(...rulerWeek(w, wf, PREV, cardFor, o.vault === undefined ? defaultVault() : o.vault, problems)); }
-      catch (e) { problems.push(`week ${w}: the ruler's cards: ${(e as Error).message} (tried again next run)`); }
+    if (ruled) {
+      rulerFiles.push(...ruled.files);
+      // the shadow summary compares with the real result, so it is built after scoring
+      if (wf.rulerMode === "shadow" && ruled.texts.length) rulerFiles.push(shadowSummary(w, wf, ruled.texts));
     }
     // ── 5. stakes: for the boards during the week; the vault file's own read once the week has ended ──
     const players = wf.picks!.rows.map((r) => r[0]);
@@ -730,7 +798,7 @@ export async function run(o: Opts) {
     files.push([path.join("vault", `W${w}.json`), JSON.stringify(file) + "\n"]);
   }
   files.push(...rulerFiles.map(([f, t]) => [path.join("ruler", f), t] as [string, string]));
-  files.push(["index.json", JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: B.GAME_ID, prizesFromWeek: PRIZES_FROM, rulerFrom: RULER_FROM }) + "\n"]);
+  files.push(["index.json", JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((a, b) => a - b), contract: contract || null, game: B.GAME_ID, prizesFromWeek: PRIZES_FROM, rulerFrom: RULER_FROM, rulerSchedule: RULER_SCHED }) + "\n"]);
   files.push(["board.json", JSON.stringify(board) + "\n"]);
   const big = files.filter(([, t]) => Buffer.byteLength(t) > MAX_FILE_BYTES).map(([f]) => f);
   if (big.length) throw new Error(`refusing to write files over ${MAX_FILE_BYTES} bytes (the publish job's limit): ${big.join(", ")}`);

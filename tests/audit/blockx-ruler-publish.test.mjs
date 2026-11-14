@@ -52,7 +52,8 @@ test("the publish job embeds vhp_ruler.py byte for byte (tools/blockx-ruler-embe
   const body = yml.slice(a + ind.length + "# BEGIN vhp_ruler.py\n".length, b).split("\n").map((l) => (l.startsWith(ind) ? l.slice(ind.length) : l)).join("\n");
   assert.equal(body, fs.readFileSync(path.join(APP, "vhp_ruler.py"), "utf8"), "run: node tools/blockx-ruler-embed.mjs");
   // (Repo Lens #G-35 G35-2: the code is written on every run; only the data waits for the switch, tested below)
-  assert.match(yml, /- name: The VHP ruler's code \(Block X\)\n(?:\s+#[^\n]*\n)+\s+run: \|\n\s+set -euo pipefail\n\s+mkdir -p "\$RUNNER_TEMP\/ruler-code"/);
+  // (Bracket #285 merged second: the one shared step is "The VHP ruler's code and data (Block X and the Producer Bracket)")
+  assert.match(yml, /- name: The VHP ruler's code and data \(Block X and the Producer Bracket\)\n(?:\s+#[^\n]*\n)+\s+run: \|\n\s+set -euo pipefail\n\s+mkdir -p "\$RUNNER_TEMP\/ruler-code"/);
 });
 
 test("settings: the publish job's are the recorder's (game 2, c 500000, minK 10, spot, min, paying, the Vault; lead 100, 7,200-block windows, ×120, base 100, the 1-hour band)", () => {
@@ -169,7 +170,7 @@ test("G35-1: the recorder gets the day files back, and an entry with a card or a
 });
 
 test("G35-2: the ruler's code is written on every run; with the switch unset after a ruler file was published, the publish still runs", () => {
-  assert.match(yml, /- name: The VHP ruler's code \(Block X\)\n(?:\s+#[^\n]*\n)+\s+run: \|/, "no `if:` on the code step");
+  assert.match(yml, /- name: The VHP ruler's code and data \(Block X and the Producer Bracket\)\n(?:\s+#[^\n]*\n)+\s+run: \|/, "no `if:` on the code step");
   assert.match(yml, /RULER_PY: \$\{\{ format\('\{0\}\/ruler-code\/vhp_ruler\.py', runner\.temp\) \}\}/, "RULER_PY always set");
   // published: a shadow day file and index.json with rulerFrom 5; this run: the switch unset, no new day file
   const idx = (rulerFrom) => ({ v: 1, updated: new Date(NOW).toISOString(), weeks: [4], contract: null, game: 2, prizesFromWeek: 4, rulerFrom });
@@ -189,7 +190,8 @@ test("G35-2: the ruler's code is written on every run; with the switch unset aft
 
 test("G35-5: a failed vhp-data fetch never stops the recorder or the publish (the ruler waits)", () => {
   assert.match(yml, /- name: Take the VHP ruler's data\n(?:\s+#[^\n]*\n)+\s+if: \$\{\{ vars\.BLOCKX_RULER_FROM_WEEK != '' \}\}\n\s+continue-on-error: true/);
-  assert.match(yml, /- name: The VHP ruler's data \(Block X\)\n(?:\s+#[^\n]*\n)+\s+if: \$\{\{ vars\.BLOCKX_RULER_FROM_WEEK != '' \}\}\n\s+continue-on-error: true/);
+  // the publish job's fetch is in the shared step (Bracket #285, Repo Lens #G-48 G48-2): tolerant, a warning on failure
+  assert.match(yml, /else\n\s+rm -rf "\$RUNNER_TEMP\/ruler-vhp-data"\n\s+echo "::warning::Couldn't fetch the vhp-data branch this run/);
   // no data: a day file with a new card is held alone, the rest publishes
   const inc = tmp(); write(inc, "X004-1.json", dayFile(5, "shadow"));
   const r = check(inc, pubWith(), { now: NOW, env: { BLOCKX_RULER_FROM_WEEK: "5", BLOCKX_RULER_TL: "", RULER_VHP_DATA: path.join(tmp(), "missing") } });

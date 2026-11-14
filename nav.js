@@ -20,6 +20,27 @@
   main.prepend(p);
 })();
 
+/* Fantasy's free test week (owner, 14 Nov 2026: "week 4 is a free test week; week 5, from Sun 22 Nov 7 PM ET, is the
+   first real week"). The banner shows on Home, All games and the Fantasy page only during week 4 (Mon 16 Nov 00:00 UTC
+   to Mon 23 Nov 00:00 UTC = Sun 15 Nov 7 PM ET to Sun 22 Nov 7 PM ET). Never stored or sent anywhere. */
+(function () {
+  "use strict";
+  const FX_FROM = Date.UTC(2026, 10, 16), FX_UNTIL = Date.UTC(2026, 10, 23);
+  const FX_PAGES = ["index.html", "games.html", "fantasy.html"];
+  const page = location.pathname.split("/").pop() || "index.html";
+  const now = Date.now();
+  if (!FX_PAGES.includes(page) || now < FX_FROM || now >= FX_UNTIL) return;
+  const main = document.querySelector("main");
+  if (!main || main.querySelector(".fx-test-week")) return;
+  const p = document.createElement("p");
+  p.className = "test-week fx-test-week";
+  p.setAttribute("role", "note");
+  const b = document.createElement("b");
+  b.textContent = "Fantasy Producers: free test week.";
+  p.append(b, " Teams and points are practice, with no rewards or prizes. The first real week starts Sunday 22 November, 7 PM ET.");
+  main.prepend(p);
+})();
+
 (function () {
   "use strict";
   const bar = document.querySelector(".tabbar");

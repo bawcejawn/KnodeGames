@@ -112,7 +112,11 @@ test("G52-e: clean Wednesday decided, then flagged before the cutoff: the run st
   assert.equal(wedOf(s.rp.read("W004.json"))[3], "s");
   flaggedRounds.add(ymd(at(4, 2)));
   h = await run(s, at(5, 0, 3));
-  assert.match(String(h.error), /was decided and now reads differently/);
+  assert.equal(h.error, undefined, h.error);
+  assert.equal(h.result?.state, "pending");
+  assert.equal(wedOf(s.rp.read("W004.json"))[3], "s");
+  assert.ok(h.result!.alerts.errors.some((x: string) => /G69-1/.test(x)), JSON.stringify(h.result!.alerts.errors));
+  assert.ok(!s.rp.read("vault/HOLD-W4.json"));
 });
 
 test("G52-f (Info): a form card flagged after the price list was published: loud error every run, the WHOLE week held to the backstop, no release", async () => {

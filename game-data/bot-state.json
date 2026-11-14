@@ -1,11 +1,10 @@
 {
-  "checkedUpTo": 107,
+  "checkedUpTo": 110,
   "orphans": [],
   "lastCompound": 41060344,
   "warnings": [],
-  "lastProduced": 41058316,
+  "lastProduced": 41070708,
   "producedByDay": {
-    "1417": 47,
     "1418": 43,
     "1419": 40,
     "1420": 55,
@@ -13,16 +12,17 @@
     "1422": 53,
     "1423": 47,
     "1424": 45,
-    "1425": 31
+    "1425": 40,
+    "1426": 7
   },
-  "producerScannedTo": 41060279,
+  "producerScannedTo": 41070904,
   "settings": "{\"min_stake\":\"100000000\",\"min_stake_next\":\"0\",\"min_stake_next_week\":\"0\",\"max_sponsor_rc\":\"0\",\"min_sponsor_rc\":\"0\",\"paused\":false}",
-  "sealedAt": 41060208,
+  "sealedAt": 41070901,
   "desk": {
     "settings": "{\"fee_bps\":300,\"min_swap\":\"100000000\",\"max_swap\":\"0\",\"paused\":false,\"timelock\":\"172800000\"}",
-    "koin": "339944359970",
+    "koin": "349719597105",
     "koinOut": "291097000000",
-    "at": 1794633246210
+    "at": 1794666064210
   },
   "deskProducerKey": "AzCYCDLDa49PPVHKk60xQbOErS6XY1TcEA8bkSo8Sk6E",
   "notified": [
@@ -30,21 +30,13 @@
     "game-proposal:9:1794687423990"
   ],
   "vhpLists": {
-    "069b0e3c16ead32b2ed4639376e76c2d7d58d4747a873bc22ab30be42c31393e": {
-      "n": 82,
-      "last": 41057712
+    "56b572c746074af8ba4361fa5a31592b7d45ed3e4b4586214cb75855ff6c1f8a": {
+      "n": 1,
+      "last": 41070962
     },
-    "b5546a37e594a8f73ae72c8dd698674a297d07b31a9221e039dc43b1dec3759c": {
-      "n": 3,
-      "last": 41060268
-    },
-    "0410ef0b676fbbb8c6c34809487f279551d5e64d73c65128c5009a0e918ac82a": {
-      "n": 3,
-      "last": 41060268
-    },
-    "5e83b8397c090e1faf1be2ccc0c0c0b55265ac07685b0091f31b62f1b6adcf99": {
-      "n": 3,
-      "last": 41060268
+    "44391e3ebb3905e1a1e26bf34d9eef98372b8bbd64f666804de492315b8e06d1": {
+      "n": 1,
+      "last": 41070962
     }
   },
   "manaByDay": {
@@ -63,7 +55,7 @@
     "2026-11-11": "540298106",
     "2026-11-12": "496885007",
     "2026-11-13": "576976044",
-    "2026-11-14": "243840754"
+    "2026-11-14": "496948455"
   },
   "games": "[[1,true,true,true,0,0,0],[2,true,true,true,1,3,0],[7,true,true,true,1,3,0]]",
   "vault": {},
@@ -84,7 +76,10 @@
     1794592505127,
     1794596244401,
     1794610138746,
-    1794633226156
+    1794633226156,
+    1794640946240,
+    1794651313999,
+    1794651339763
   ],
-  "seal": "44f75a7f558c6aa20e0276309ade9090775afebcbf5a948a4179b77afd68a1a3"
+  "seal": "d68f2f45cbf5381185c44607e59ec8caa76fe1437f3aa3b52c3587c9d24ff7f1"
 }

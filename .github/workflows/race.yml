@@ -97,11 +97,16 @@ jobs:
       - name: Take the VHP ruler's data
         # vhp-data (public, read without a token). Repo Lens #G-35R: every run, whatever the switch says, so an unset or
         # changed switch still meets the checks that refuse it (a published ruler file may still need the ruler).
+        # Capacity (14 Nov): a download hiccup must not stop the run's recording. Without the data the recorder records
+        # every race as usual and the ruler's cards wait (RULER_GRACE 48 h, with the owner's alert after 3 h).
         run: |
-          set -euo pipefail
+          set -uo pipefail
           git init -q "$RUNNER_TEMP/vhp-data"
-          git -C "$RUNNER_TEMP/vhp-data" fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" vhp-data
-          git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD
+          if git -C "$RUNNER_TEMP/vhp-data" fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" vhp-data; then
+            git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD
+          else
+            echo "::warning::The VHP ruler's data (vhp-data) didn't download this run: races are recorded, the ruler's cards wait for the next run."
+          fi
       - name: Record the race
         id: race
         run: npm run race
@@ -1848,8 +1853,12 @@ jobs:
           # END vhp_ruler.py
           RULERPY
           git init -q "$RUNNER_TEMP/vhp-data"
-          git -C "$RUNNER_TEMP/vhp-data" fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" vhp-data
-          git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD
+          # Capacity (14 Nov): a download hiccup holds only the ruler's files (each fails its check alone), not the run.
+          if git -C "$RUNNER_TEMP/vhp-data" fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" vhp-data; then
+            git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD
+          else
+            echo "::warning::The VHP ruler's data (vhp-data) didn't download this run: the ruler's files are held until the next run."
+          fi
       - name: Push race-data (and nothing else)
         id: push
         env:

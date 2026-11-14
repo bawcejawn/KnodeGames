@@ -894,13 +894,6 @@
   async function loadAds() {
     try { const r = await fetch("ads.json", { cache: "no-cache" }); if (r.ok) ADS = await r.json(); } catch { ADS = {}; }
     document.querySelectorAll("[data-ad-slot]").forEach(fillSlot);
-    // fixed spot: run your own node
-    const f = ADS.featured, kit = $("#kit-card"), fl = f && httpsUrl(f.link);
-    if (fl) {
-      kit.href = fl;
-      kit.replaceChildren(el("span", { class: "kit-kicker" }, "Run your own node"), el("b", {}, f.name), el("span", { class: "muted" }, f.tagline), el("span", { class: "kit-cta" }, `${f.cta || "Visit"} →`));
-      kit.hidden = false;
-    }
   }
 
   // ═══════════════ rendering ═══════════════

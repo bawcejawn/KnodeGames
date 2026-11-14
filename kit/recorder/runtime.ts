@@ -35,6 +35,8 @@ export type KitGameCfg = {
   sundayFunRound: boolean; payoutRule: "legacy-tied-whole" | "d152"; vaultValues: "dense255" | "points";
   entry: { minRounds: number; minPoints: number }; minPts: number; rowCap: number;
   liveWeek: boolean; roundsCorrectable: boolean; maxRoundPoints?: number; budgets?: Partial<Budgets>;
+  /** K1: weeks in a season (scoreRound's seasonStaked). */ seasonWeeks?: number;
+  /** KG parts v1: write the week file as parts, one per UTC day or per round. */ parts?: "d" | "r";
   /** Phase 1b: the game scores from the VHP ruler's published data (manifest vhpData): ctx.vhp. */
   vhpData?: boolean;
   /** #G-24 Info: every decided round of a ruler game uses at least one ruler card (default on with vhpData). */
@@ -403,6 +405,35 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     carry = checkedStates("carryIn", m.carryIn ? m.carryIn(last, span, inputs) : last);
   }
 
+  // K1 (Survivor): a season game's season start (recorded in each week file: `season`) and seasonStaked, the wallets
+  // with a counted stake (peak >= the week's min, not voided) in any week of the season so far. The first week, a
+  // reset week, or the week after a season's last starts a new season; earlier season weeks must be final (nothing
+  // guessed), except for the current week's open copy (display only).
+  let seasonCtx: { seasonStaked: Set<string>; seasonStart: number; seasonWeek: number } | undefined;
+  if (cfg.seasonWeeks) {
+    const sw = cfg.seasonWeeks, pwk = prev.week(w - 1);
+    const reset = o.resetFromWeek === w;
+    if (!pwk && !reset && prev.weeks().some((x) => x < w - 1)) {
+      alerts.errors.push(`week ${w} waits on week ${w - 1}, which has no week file although earlier weeks do: its season isn't known, so nothing is recorded for week ${w} (K1). Recover week ${w - 1}, or set ${cfg.slug.toUpperCase().replace(/-/g, "_")}_RESET_FROM_WEEK=${w}`);
+      return { week: w, state: "waiting", alerts, written: out.written };
+    }
+    const ps = pwk && Number.isSafeInteger(pwk.season) ? (pwk.season as number) : null;
+    const start = !reset && ps !== null && w - ps < sw ? ps : w;
+    const staked = new Set<string>();
+    const minNow = BigInt(ra.min);
+    for (const [a, st] of ra.stakes) if (!st.voided && BigInt(st.peak) >= minNow) staked.add(a);
+    for (let u = start; u < w; u++) {
+      const f = prev.week(u);
+      if (!f || (f.state !== "final" && !o.live)) {
+        alerts.errors.push(`week ${w} waits on week ${u}, an earlier week of its season, which ${f ? "isn't final" : "has no week file"}: who staked this season isn't known yet (K1)`);
+        return { week: w, state: "waiting", alerts, written: out.written };
+      }
+      const fm = BigInt(f.min);
+      for (const p of f.players as [string, string, string, number][]) if (!p[3] && BigInt(p[2]) >= fm) staked.add(p[0]);
+    }
+    seasonCtx = { seasonStaked: staked, seasonStart: start, seasonWeek: w - start + 1 };
+  }
+
   const rounds: Round[] = m.roundsFor(span, { now, inputs, published }).slice().sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
   if (rounds.length > MAX_ROUNDS) throw new Error(`${cfg.slug}: ${rounds.length} rounds in week ${w}, more than the kit's ${MAX_ROUNDS} (KC-11)`);
   const ids = new Set(rounds.map((r) => r.id));
@@ -501,7 +532,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
         if (res === VOID) status = "v";
         else if (res !== PENDING) {
           status = "s";
-          const sc = m.scoreRound(r, picks, res, inputs, st);
+          const sc = seasonCtx ? m.scoreRound(r, picks, res, inputs, st, seasonCtx) : m.scoreRound(r, picks, res, inputs, st);
           if (sc.size !== who.length || who.some((a) => !sc.has(a))) throw new Error(`round ${r.id}: scoreRound must score exactly the wallets that picked${st ? " or carry a state" : ""}`);
           rows = who.map((wa) => {
             const p = { wallet: wa };
@@ -567,6 +598,9 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     const fbs = roundsOut.filter((x: any) => x[3] !== "p" && fallbackOf.has(x[0])).map((x: any) => fallbackOf.get(x[0])!).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
     if (fbs.length) body.fallbacks = fbs;
     for (const f of fbs) if (!pubFallbacks.has(f[0])) alerts.errors.push(`round ${f[0]}: no ruler card 48 h after it ended, so it was decided by the game's fallback rule (${f[2]}); recorded in the week file`);
+  }
+  if (seasonCtx) body.season = seasonCtx.seasonStart;
+  if (cfg.vhpData) {
     // Never backwards: the larger of this run's and the published copy's (a run without data keeps the published one).
     const to = Math.max(vhpTo ?? -1, pubTo ?? -1);
     if (to >= 0) body.vhpTo = to;

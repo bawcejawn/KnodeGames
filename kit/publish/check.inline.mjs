@@ -92,7 +92,7 @@ export const STATES = ["open", "pending", "final"];
  *  week's start and after its last round, [[wallet, state], …] sorted (carried state, FC-5); extras: records-only JSON
  *  (Weekly Rival). None of these is recomputed here (the publish job runs no game code): the recorder's two-node
  *  reads, the stability wait and the HOLD on a changed final guard them, and the hash covers them. */
-export const WEEK_OPT_KEYS = ["inputs", "carry", "next", "extras", "cards", "fallbacks"];
+export const WEEK_OPT_KEYS = ["inputs", "carry", "next", "extras", "cards", "fallbacks", "season"];
 const FALLBACK_GRACE_MS = 48 * 3_600_000;
 /** Optional keys after those, NOT in the week hash: vhpTo, the last block of the ruler data the run used (#G-69 G69-1). */
 export const WEEK_META_KEYS = ["vhpTo"];
@@ -172,6 +172,9 @@ export function weekShape(j, name, cfg) {
   for (const k of ["carry", "next"]) if (j[k] !== undefined && !isStateList(j[k])) return `bad ${k} (sorted [wallet, state] pairs, each state at most ${MAX_STATE_BYTES} bytes)`;
   if ((j.carry === undefined) !== (j.next === undefined)) return "carry and next come together";
   if (!!cfg.vhpData !== (j.cards !== undefined)) return cfg.vhpData ? "a ruler game's week file must list its cards" : "cards in a game without ruler data";
+  // K1: a season game's week file names its season's first week (at most seasonWeeks − 1 weeks back).
+  if (!!cfg.seasonWeeks !== (j.season !== undefined)) return cfg.seasonWeeks ? "a season game's week file must name its season" : "season in a game without seasons";
+  if (j.season !== undefined && !(Number.isSafeInteger(j.season) && j.season >= 0 && j.season <= j.week && j.week - j.season < cfg.seasonWeeks)) return "bad season (its first week, at most seasonWeeks − 1 weeks back)";
   if (j.vhpTo !== undefined && !(cfg.vhpData && Number.isSafeInteger(j.vhpTo) && j.vhpTo >= 0)) return cfg.vhpData ? "vhpTo must be a block number" : "vhpTo in a game without ruler data";
   if (j.cards !== undefined && !isCardList(j.cards)) return "bad cards (sorted [settings, sha256] pairs, no sha256 twice)";
   // #G-24 Info: a ruler game's decided rounds each come from a card (cardPerRound, on by default): at least as many

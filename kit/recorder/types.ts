@@ -61,6 +61,10 @@ export type RoundCtx<I = unknown> = { now: number; inputs?: I; published?: Publi
  *  alerted, and is never re-decided once published. */
 export type Fallback = (why: string) => Promise<void>;
 export const FALLBACK_GRACE_MS = 48 * 3_600_000;
+/** K1 (Survivor): a season game's (game.json seasonWeeks) scoring context. seasonStaked: the wallets with a counted
+ *  stake in this game (peak stake at least the week's minimum, not voided: the vault's rule) in ANY week of the season
+ *  so far, this week included. Earlier weeks come only from their final week files, so nothing is guessed. */
+export type SeasonCtx = { seasonStaked: Set<string>; seasonStart: number; seasonWeek: number };
 export type ResultCtx = { vhp?: VhpCtx; blockAt?: BlockAt; fallback?: Fallback };
 export type ReadCtx<I = unknown> = RoundCtx<I> & { read: NodeReader };
 
@@ -92,7 +96,7 @@ export interface GameModule<P = unknown, R = unknown, I = unknown> {
   same?(a: R, b: R): boolean;
   /** Points for every wallet that picked in the round (and, with carried state, every wallet with a state). Pure and
    *  deterministic (use the game's math.js). `state`: each wallet's state for this round, after nextState. */
-  scoreRound(round: Round, picks: Pick<P>[], result: R, inputs?: I, state?: States<any>): Score;
+  scoreRound(round: Round, picks: Pick<P>[], result: R, inputs?: I, state?: States<any>, season?: SeasonCtx): Score;
   /** Carried state (FC-5). carryIn: each wallet's state at the week's start, from the last week's `next` (pure; e.g. drop
    *  a team that doesn't fit this week's price list). nextState: the states after one round's picks (pure; called for
    *  every round in lock order, picks known, results not needed). A week is recorded only once the week before it is

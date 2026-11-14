@@ -155,7 +155,35 @@
           "seal": "712eb5ffc2e481a6352666639890bab21d97b783e3a0261d5c6db61a584f7a9a"
         }
       ],
-      "vhpSeal": "b4d580e7ef11fdebc1672d37db5e5b4016858ff5a314979d4f6a8668015700f4"
+      "vhpSeal": "b4d580e7ef11fdebc1672d37db5e5b4016858ff5a314979d4f6a8668015700f4",
+      "result": {
+        "void": false,
+        "option": 0,
+        "value": "1,749",
+        "dataHash": "4ed1aaa42ef87d2cdf597b9a059207f5b3853f626edc800e310d0020cbbe7374",
+        "resolvedAt": "2026-11-14T09:48:24.430Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41040255,
+          "decidedHeight": 41065564,
+          "readings": [
+            41056732,
+            41057712,
+            41060268,
+            41062813,
+            41065302
+          ],
+          "readingsInWindow": 5,
+          "values": {
+            "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": {
+              "release": "228831047381968",
+              "end": "226977136263174",
+              "change": "−0.81%",
+              "height": 41065302
+            }
+          }
+        }
+      }
     },
     {
       "id": "W003-D5-2",
@@ -455,7 +483,35 @@
           "seal": "778d9caa4005d25c6c4f3597a89efe8ff40d055f3d7979b26e86604621bcfea9"
         }
       ],
-      "vhpSeal": "ef938992be1fd910d10197feee65984e3d21438afa6212d31a8733f54653e60d"
+      "vhpSeal": "ef938992be1fd910d10197feee65984e3d21438afa6212d31a8733f54653e60d",
+      "result": {
+        "void": false,
+        "option": 7,
+        "value": "750",
+        "dataHash": "4ed1aaa42ef87d2cdf597b9a059207f5b3853f626edc800e310d0020cbbe7374",
+        "resolvedAt": "2026-11-14T09:48:24.430Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41040255,
+          "decidedHeight": 41065510,
+          "readings": [
+            41056732,
+            41057712,
+            41060268,
+            41062813,
+            41065302
+          ],
+          "readingsInWindow": 5,
+          "values": {
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": {
+              "release": "88333223061949",
+              "end": "87618322776914",
+              "change": "−0.81%",
+              "height": 41065302
+            }
+          }
+        }
+      }
     }
   ],
   "daySeal": "1350a4bade6f4afe61974d586134af764b141a70f4f1eb205f274bcbaa86e57c"

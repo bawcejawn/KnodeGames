@@ -28,7 +28,7 @@
         "free": { "show": 6, "byPlace": true, "prize": "The Free play board pays no VHP prize for now. Players staked in Block Golf share its weekly bucket." },
         "columns": [{ "key": "pts", "label": "Points" }, { "key": "topar", "label": "To par" }, { "key": "holes", "label": "Holes played", "wide": true }, { "key": "lost", "label": "Lost balls", "wide": true }] } },
     { "id": "bracket", "name": "Producer Bracket", "kinds": ["free", "staked"], "status": "live", "href": "bracket.html", "results": true,
-      "line": "A weekly knockout of block producers, head to head: one round a day, the final on Saturday. Pick every winner by Monday night. Week 1 (Mon 16 Nov) is practice; staked rewards start Week 2 (Mon 23 Nov).",
+      "line": "A weekly knockout of block producers, head to head: one round a day, the final on Saturday. Pick every winner by Monday night. Week 1 (Mon 16 Nov) is practice; staked rewards start Week 2.",
       "board": { "data": "games-data/bracket/board.json", "earns": true, "hide": ["today"],
         "unranked": "The Staked board is for wallets with at least 1 VHP staked in the Producer Bracket that week.",
         "free": { "show": 6, "prize": "The Free play board pays no VHP prize for now. Players staked in the Producer Bracket share its weekly bucket." },

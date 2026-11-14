@@ -8,12 +8,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Koinos producer lookup · Knode Games</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
-  <meta name="description" content="The public story of any Koinos block producer: is it producing, how lucky, what each block paid, forecasts, and the producers next to it by VHP.">
+  <meta name="description" content="The public story of any Koinos block producer: is it producing, what each block paid, forecasts, and the producers next to it by VHP.">
   <link rel="canonical" href="https://knodegames.com/node.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Knode Games">
   <meta property="og:title" content="Koinos producer lookup">
-  <meta property="og:description" content="The public story of any Koinos block producer: is it producing, how lucky, what each block paid, forecasts, and the producers next to it by VHP.">
+  <meta property="og:description" content="The public story of any Koinos block producer: is it producing, what each block paid, forecasts, and the producers next to it by VHP.">
   <meta property="og:url" content="https://knodegames.com/node.html">
   <meta property="og:image" content="https://knodegames.com/media/og-knode.png">
   <meta property="og:image:width" content="1200">
@@ -21,7 +21,7 @@
   <meta property="og:image:alt" content="Koinos producer lookup">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Koinos producer lookup">
-  <meta name="twitter:description" content="The public story of any Koinos block producer: is it producing, how lucky, what each block paid, forecasts, and the producers next to it by VHP.">
+  <meta name="twitter:description" content="The public story of any Koinos block producer: is it producing, what each block paid, forecasts, and the producers next to it by VHP.">
   <meta name="twitter:image" content="https://knodegames.com/media/og-knode.png">
   <!-- seo:end -->
   <link rel="icon" href="media/icon.svg?v=2" type="image/svg+xml">
@@ -84,9 +84,6 @@
     .pd-pill { margin-left: auto; font-weight: 700; padding: 6px 14px; border-radius: 99px; background: var(--paper); border: 1px solid var(--line); }
     .pd-pill.good { color: var(--mint); } .pd-pill.bad { color: var(--rose); }
     #story p { margin: 0 0 8px; font-size: 16px; } #story p:last-child { margin: 0; }
-    .pd-luck { position: relative; height: 10px; border-radius: 99px; background: linear-gradient(90deg, var(--rose), var(--sun) 50%, var(--mint)); margin: 12px 0 4px; }
-    .pd-luck b { position: absolute; top: -4px; width: 4px; height: 18px; border-radius: 2px; background: var(--ink); transform: translateX(-2px); }
-    .pd-luck-l { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -136,7 +133,7 @@
 
   <main class="nd">
     <h1>Producer lookup</h1>
-    <p class="lede" style="margin-bottom:8px">Paste any Koinos producer address to see its public story: is it producing, how lucky has it been, what each block paid, what to expect next, and who sits next to it. Use it to check your own node, and to size up producers before answering Knode Games questions. Read live from the Koinos chain; nothing to connect.</p>
+    <p class="lede" style="margin-bottom:8px">Paste any Koinos producer address to see its public story: is it producing, what each block paid, what to expect next, and who sits next to it. Use it to check your own node, and to size up producers before answering Knode Games questions. Read live from the Koinos chain; nothing to connect.</p>
     <p style="margin:0 0 20px;font-size:14px"><a href="./#play">Play Knode Games</a> · <a href="burn.html">Burn KOIN into VHP</a> · <a href="producer.html">Register a producer key</a></p>
 
     <form class="nd-form" id="form">
@@ -187,8 +184,8 @@
 
       <div class="card">
         <h2>All active producers</h2>
-        <p class="sub">Click one to look it up. "Per 10,000" is how many of the next 10,000 blocks it should sign. "Luck" compares its blocks with its VHP share (100% = exactly as expected). Run one of these? <a href="names.html">Give it a name</a>.</p>
-        <div class="scroll"><table><thead><tr><th>#</th><th>Producer</th><th class="r">Blocks</th><th class="r">VHP share</th><th class="r">Per 10,000</th><th class="r">Luck</th></tr></thead><tbody id="top"></tbody></table></div>
+        <p class="sub">Click one to look it up. "Per 10,000" is how many of the next 10,000 blocks it should sign. Run one of these? <a href="names.html">Give it a name</a>.</p>
+        <div class="scroll"><table><thead><tr><th>#</th><th>Producer</th><th class="r">Blocks</th><th class="r">VHP share</th><th class="r">Per 10,000</th></tr></thead><tbody id="top"></tbody></table></div>
       </div>
 
       <div class="card">

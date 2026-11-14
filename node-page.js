@@ -182,7 +182,6 @@
   }
 
   // ── render ──
-  const poissonCdf = (k, mean) => { if (!(mean > 0)) return 1; let p = Math.exp(-mean), c = p; for (let i = 1; i <= k; i++) { p *= mean / i; c += p; } return Math.min(1, c); };
   const ago = (ms) => (ms < 90000 ? "just now" : `${dur(ms)} ago`);
   /** What one block paid its signer: KOIN minted to it, and the VHP burned from it (read from the block's receipt). */
   async function blockPay(height, headId, signer) {
@@ -262,7 +261,7 @@
       const activeVhp = producers.reduce((s, [a]) => s + (vhp.get(a) || 0), 0) + (counts.has(me) ? 0 : myVhp);
       const share = activeVhp ? myVhp / activeVhp : 0;
       const perDay = total / spanH * 24; // network blocks a day
-      const mine = mineTs.length, expWin = share * total, luck = expWin > 0 ? mine / expWin : NaN;
+      const mine = mineTs.length, expWin = share * total, ofExp = expWin > 0 ? mine / expWin : NaN;
       const lastTs = mineTs[mine - 1], since = lastTs ? now - lastTs : NaN, every = share > 0 ? 8.64e7 / (share * perDay) : NaN;
       const late = lastTs ? since > every * 3 : expWin >= 3;
       const winName = $("win").selectedOptions[0].textContent.replace(/^Last /, "");
@@ -271,26 +270,23 @@
       const ranked = list.slice().sort((x, y) => (vhp.get(y) || 0) - (vhp.get(x) || 0) || (x < y ? -1 : 1)), rank = ranked.indexOf(addr) + 1;
       const overdue = share > 0 && late, producing = share > 0 && !late;
       const lw = winName.toLowerCase(), wlabel = mode === "week" ? "this Knode Games week" : lw;
-      const pct = expWin >= 1 ? poissonCdf(mine - 1, expWin) + (poissonCdf(mine, expWin) - poissonCdf(mine - 1, expWin)) / 2 : NaN;
       const apr0 = myVhp > 0 ? share * perDay * reward * 365 / myVhp * 100 : NaN;
       const hero = [el("div", {}, el("div", { class: "nm" }, name), el("div", { class: "ad mono" }, addr, " · ", el("a", { href: EXPLORER + addr, target: "_blank", rel: "noopener" }, "explorer")))];
       hero.push(el("div", { class: `pd-pill ${producing ? "good" : "bad"}` }, share <= 0 ? "No VHP: not producing" : producing ? "● Producing" : "● Quiet: check the node"));
       $("hero").replaceChildren(...hero);
-      const story = [el("p", {}, share > 0
-        ? `${name} holds ${fmt(myVhp, 0)} VHP: ${fmt(share * 100, share < 0.01 ? 3 : 2)}% of the ${fmt(activeVhp / 1e6, 1)}M VHP producing, number ${fmt(rank)} of ${fmt(ranked.length)} producers in this window. That's about ${sig(share * 10000)} blocks in every 10,000.`
-        : `${name} has no VHP counted as producing, so the chain should not pick it to sign blocks.`)];
-      if (share > 0) story.push(el("p", {}, `In ${wlabel === lw ? "the last " + lw : wlabel} it signed ${fmt(mine)} block${mine === 1 ? "" : "s"}; its VHP predicts ${sig(expWin)}. ${lastTs ? `The latest was ${ago(since)}, and it usually makes one every ${dur(every)}.` : "It has not signed a block in this window."}${overdue ? " That is longer than usual: if this is your node, check that it is running and in sync." : ""}`));
-      if (Number.isFinite(pct)) {
-        story.push(el("p", {}, `Luck: ${pct >= 0.8 ? "running hot" : pct <= 0.2 ? "running cold" : "right about where its VHP says"}. This count beats ${fmt(pct * 100, 0)}% of the outcomes that VHP would give.`));
-        story.push(el("div", { class: "pd-luck", role: "img", "aria-label": `Luck meter at ${fmt(pct * 100, 0)} out of 100` }, el("b", { style: `left:${Math.min(98, Math.max(2, pct * 100))}%` })));
-        story.push(el("div", { class: "pd-luck-l" }, el("span", {}, "Unlucky"), el("span", {}, "As expected"), el("span", {}, "Lucky")));
-      }
+      // One place per fact (owner, 14 Nov): the tiles hold the numbers; this card only speaks when something needs doing.
+      const story = share <= 0
+        ? [el("p", {}, `${name} has no VHP counted as producing, so the chain should not pick it to sign blocks. To produce, burn KOIN into VHP and register a producer key.`)]
+        : overdue
+          ? [el("p", {}, `${lastTs ? `No block for ${dur(since)}` : `No block in ${wlabel === lw ? "the last " + lw : wlabel}`}, while its VHP says about one every ${dur(every)}. If this is your node, check that it is running, in sync and using its registered producer key.`)]
+          : [];
+      $("story").hidden = story.length === 0;
       $("story").replaceChildren(...story);
       $("tiles").replaceChildren(
         tile("VHP producing", fmt(myVhp, 0), share > 0 ? `${fmt(share * 100, share < 0.01 ? 3 : 2)}% of the network` : "none counted"),
         tile("Rank by VHP", share > 0 ? `#${fmt(rank)}` : "–", `of ${fmt(ranked.length)} producers`),
-        tile(`Blocks, ${wlabel}`, fmt(mine), expWin > 0 ? `expected ${sig(expWin)} · ${fmt(luck * 100, 0)}% of expected` : "no VHP, so no blocks expected"),
-        tile("Last block", lastTs ? ago(since) : "none in window", Number.isFinite(every) ? `usually every ${dur(every)}${late ? " · overdue, check the node" : ""}` : "", late && share > 0 ? "bad" : ""),
+        tile(`Blocks, ${wlabel}`, fmt(mine), expWin > 0 ? `expected ${sig(expWin)} · ${fmt(ofExp * 100, 0)}% of expected` : "no VHP, so no blocks expected"),
+        tile("Last block", lastTs ? ago(since) : "none in window", Number.isFinite(every) ? `usually every ${dur(every)}` : "", late && share > 0 ? "bad" : ""),
         tile("Earns about", Number.isFinite(apr0) ? `${fmt(apr0, 1)}% a year` : "–", Number.isFinite(reward) ? `${fmt(reward, 3)} KOIN a block, if VHP stays as is` : ""),
       );
       const at = Math.max(0, rank - 1), from0 = Math.max(0, Math.min(at - 3, ranked.length - 7)), near = ranked.slice(from0, from0 + 7);
@@ -316,22 +312,20 @@
         return el("tr", {}, el("td", {}, label, el("span", { class: "range" }, hint)), el("td", { class: "r" }, sig(m)),
           el("td", { class: "r" }, m > 0 ? (lo === hi ? fmt(lo) : `${fmt(lo)} – ${fmt(hi)}`) : "—"), el("td", { class: "r" }, sig(m * reward)));
       }));
-      const apr = myVhp > 0 ? share * perDay * reward * 365 / myVhp * 100 : NaN;
-      $("fc-sub").textContent = `${name}, if VHP stays as it is now. Knode Games' block questions use windows of 5,000–20,000 blocks.${Number.isFinite(apr) ? ` Earnings ≈ ${fmt(apr, 1)}% a year on its VHP (${fmt(reward, 3)} KOIN a block).` : ""}`;
+      $("fc-sub").textContent = `${name}, if VHP stays as it is now. Knode Games' block questions use windows of 5,000–20,000 blocks.`;
 
       chart(t0, t1, mineTs, share * perDay / 24, spanH);
 
       const shown = producers.slice(0, 60); if (!shown.some(([a]) => a === addr)) shown.push([addr, 0]);
       $("top").replaceChildren(...shown.map(([a, c]) => {
-        const v = vhp.get(a), vs = v != null && activeVhp ? v / activeVhp : NaN, l = vs > 0 ? (c / total) / vs : NaN;
+        const v = vhp.get(a), vs = v != null && activeVhp ? v / activeVhp : NaN;
         const rank = producers.findIndex(([x]) => x === a);
         const pick = el("button", { type: "button", class: "link mono", title: a }, short(a));
         pick.onclick = () => { $("addr").value = a; go(); window.scrollTo({ top: 0, behavior: "smooth" }); };
         return el("tr", { class: a === addr ? "me" : "" },
           el("td", {}, rank >= 0 ? String(rank + 1) : "–"), el("td", {}, pick),
           el("td", { class: "r" }, fmt(c)), el("td", { class: "r" }, Number.isFinite(vs) ? `${fmt(vs * 100, 2)}%` : "—"),
-          el("td", { class: "r" }, Number.isFinite(vs) ? sig(vs * 10000) : "—"),
-          el("td", { class: "r" }, Number.isFinite(l) && c + vs * total >= 3 ? `${fmt(l * 100, 0)}%` : "—"));
+          el("td", { class: "r" }, Number.isFinite(vs) ? sig(vs * 10000) : "—"));
       }));
 
       const stat = (k, v) => el("div", {}, el("dt", {}, k), el("dd", {}, v));

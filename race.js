@@ -95,6 +95,8 @@
   }
 
   // ── the race on the track ──
+  let r6Win = 0;   // 6-hour board: index into R6_WINDOWS; -1 = since start
+  const R6_WINDOWS = [3600000, 3 * 3600000];
   function render() {
     if (!B) return;                                     // the blocks aren't loaded yet (the picks panel can be first)
     const cur = M.raceAt(Date.now());
@@ -143,6 +145,24 @@
       if (live && !fresh) for (const r of rows) { const d = r.steps - (seen.steps.get(r.a) || 0); if (d > 1e-9) gained.set(r.a, { steps: d, blocks: r.blocks - (seen.blocks.get(r.a) || 0) }); }
       seen = { race: race.id, steps: new Map(rows.map((r) => [r.a, r.steps])), blocks: new Map(rows.map((r) => [r.a, r.blocks])) };
       const keep = [];
+      // Places gained / lost over the chosen window, and the Pick columns for the next 3 races (same look as the other race lengths).
+      const nowT = Date.now(), hasWin = live && !!race.cards;
+      let winBar = $("r6-win");
+      if (!winBar) { winBar = el("div", { id: "r6-win", class: "rt-win" }); track.parentNode.insertBefore(winBar, track); }
+      winBar.hidden = !hasWin;
+      if (hasWin) winBar.replaceChildren(el("span", { class: "rt-wl", text: "Places gained / lost over:" }),
+        ...R6_WINDOWS.map((ms, i) => el("button", { type: "button", "aria-pressed": String(r6Win === i), onclick: () => { r6Win = i; render(); } }, `${ms / 3600000} h`)),
+        el("button", { type: "button", "aria-pressed": String(r6Win === -1), onclick: () => { r6Win = -1; render(); } }, "Since start"));
+      let before6 = null;
+      if (hasWin && race.cards && B.ts[0] <= race.start) {
+        const t0 = r6Win === -1 ? race.start + 1000 : Math.max(race.start + 1000, nowT - R6_WINDOWS[r6Win] || nowT);
+        if (t0 < nowT - 5000) { const old = M.standings(B, race, race.cards, t0); if (old && old.length) before6 = new Map(old.map((x, j) => [x.a, j + 1])); }
+      }
+      const latest6 = () => { const lr = raceObj(cur.index); return (lr.cards && M.cardForLeg(lr.cards, M.legOf(lr.start, nowT, M.legsOf(lr.cards)))) || prov; };
+      const ups = live && me() && raceContract ? [1, 2, 3].map((k) => { const ur = raceObj(cur.index + k); return { k, r: ur, c: (ur.cards && !ur.provisional && M.cardForLeg(ur.cards, 0)) || latest6() }; }) : [];
+      const grid6 = ups.length ? `grid-template-columns:minmax(0,230px) minmax(120px,1fr) 104px repeat(${ups.length},62px)` : "";
+      if (ups.length) keep.push(el("div", { class: "pr-headrow rt-head", style: grid6 }, el("div", { text: "Producer" }), el("div", { text: "Race so far" }), el("div", { class: "pr-gap", text: "Standing" }),
+        ...ups.map((u) => el("div", { class: "rt-pc" }, el("b", { text: clock(u.r.start) }), el("span", { text: `locks ${dur(u.r.start - nowT)}` })))));
       ordered.forEach((r, i) => {
         let lane = existing.get(r.a);
         if (!lane) {
@@ -170,6 +190,27 @@
         if (ended) gap.replaceChildren(i === 0 ? el("b", { text: "Winner" }) : `${fmt(r.behind, 1)} behind`, el("br"), el("span", { class: "ago", text: `${fmt(r.steps, 1)} steps` }));
         else if (i === 0) gap.replaceChildren(el("b", { text: "Leading" }), el("br"), el("span", { class: "ago", text: `${fmt(r.steps, 1)} steps` }));
         else gap.replaceChildren(`${fmt(r.behind, 1)} behind`, el("br"), el("span", { class: "ago", text: `${fmt(r.steps, 1)} steps` }));
+        // Time passed (shaded) and the Now line, on the same scale as the runners.
+        const run = lane.querySelector(".pr-run");
+        let shade = run.querySelector(".pr-shade");
+        if (!shade) { shade = el("div", { class: "pr-shade" }); run.insertBefore(shade, run.firstChild); run.appendChild(el("div", { class: "pr-nowline" })); }
+        shade.style.width = `${frac * 100}%`; run.querySelector(".pr-nowline").style.left = `${frac * 100}%`; run.classList.toggle("over", !live);
+        // Gained / lost pill
+        let pill = lane.querySelector(".rt-pill");
+        if (!pill) { pill = el("span", { class: "rt-pill" }); lane.querySelector(".pr-who").insertBefore(pill, lane.querySelector(".pr-meta")); }
+        const bp = before6 && before6.get(r.a), dd = bp ? bp - (i + 1) : null;
+        pill.hidden = dd == null; if (dd != null) { pill.className = `rt-pill ${dd > 0 ? "up" : dd < 0 ? "down" : ""}`; pill.textContent = dd > 0 ? `▲ ${dd}` : dd < 0 ? `▼ ${-dd}` : "–"; }
+        // Pick columns
+        lane.querySelectorAll(".rt-pk").forEach((n) => n.remove());
+        lane.style.cssText = grid6;
+        lane.classList.toggle("rt-lane", !!ups.length);
+        for (const u of ups) {
+          const mineP = myPicks.get(cur.index + u.k), dr = drafts.get(cur.index + u.k), chosen = (dr || mineP) === r.a, inField = !!(u.c && u.c.field.some((x) => x.a === r.a));
+          const b = el("button", { type: "button", class: `rt-pk${chosen ? " on" : ""}`, "aria-pressed": String(chosen), "aria-label": `${chosen ? "Picked" : "Pick"} ${nameOf(r.a)} for the race at ${dayTime(u.r.start)}` }, chosen ? (dr && dr !== mineP ? "Picked" : "Locked in") : "Pick");
+          if (sending || !inField) b.disabled = true;
+          b.addEventListener("click", () => { if (batchOn()) { if (drafts.get(cur.index + u.k) === r.a) drafts.delete(cur.index + u.k); else drafts.set(cur.index + u.k, r.a); renderBar(); render(); return; } sendPick(cur.index + u.k, r.a); });
+          lane.appendChild(b);
+        }
         lane.classList.toggle("lead", !ended && i === 0);
         lane.classList.toggle("win", ended && i === 0);
         lane.classList.toggle("mine", myPicks.get(race.index) === r.a);

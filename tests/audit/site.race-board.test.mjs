@@ -25,3 +25,8 @@ test("race board: images come from the site itself (CSP img-src 'self')", () => 
   assert.ok(/img-src 'self' data:/.test(html));
   assert.ok(!/https?:\/\/[^"']*\.png/.test(js));
 });
+
+test("race board: the 6-hour board has the same look (time shade, Now line, gained/lost pill, Pick columns)", () => {
+  for (const t of ["pr-shade", "pr-nowline", "R6_WINDOWS", "rt-pk", "drafts.set(cur.index + u.k"]) assert.ok(js.includes(t), t);
+  assert.ok(html.includes(".pr-shade") && html.includes(".pr-nowline"));
+});

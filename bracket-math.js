@@ -279,8 +279,10 @@
     // R-BR-7 (the VHP ruler, owner 11 Nov): with the day's ruler card, the higher field percentile (fpct) wins; a seed
     // with no fpct (void that day, or not in the card's field) loses; both without one: the day index below decides,
     // as when both forfeit. An exact fpct tie goes to `other`, the lower seed, like an index tie.
+    // Phase 2 (Repo Lens #G-36, the Race's D-033 "a show needs a signed block"): a seed that signed no block on the day
+    // has no fpct that day, whatever its card says, so it can't win on fpct (it counts as void).
     if (ruler) {
-      const ra = rulerPct(ruler, better), rb = rulerPct(ruler, other);
+      const ra = A && A.blocks > 0 ? rulerPct(ruler, better) : null, rb = B && B.blocks > 0 ? rulerPct(ruler, other) : null;
       if (ra !== null && rb !== null) return rb >= ra;
       if (ra !== null) return false;
       if (rb !== null) return true;

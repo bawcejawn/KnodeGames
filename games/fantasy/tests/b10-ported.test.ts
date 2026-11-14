@@ -150,7 +150,7 @@ test("FC-2 / FC-3 (High): Fantasy runs in its own job with its own timeout, and 
   assert.doesNotMatch(pubx, /games\/fantasy|record-fantasy/, "the hand-written publish job doesn't depend on Fantasy");
 });
 
-test("FC-7 (Medium): a decided day can't change silently: see g52-flagged-cutoff-blockat.test.mts G52-c and G52-e (the run stops loudly, KC-8)", () => {
+test("FC-7 (Medium): a decided day can't change silently: see g52-flagged-cutoff-blockat.test.mts G52-c and G52-e (G52-c stops loudly, KC-8; G52-e keeps the published day with an error alert every run, #G-69 G69-1)", () => {
   assert.ok(fs.existsSync(path.join(REPO, "games/fantasy/tests/g52-flagged-cutoff-blockat.test.mts")));
 });
 

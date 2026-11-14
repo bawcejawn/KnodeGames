@@ -74,9 +74,16 @@ for rel in names(ind):
     for s, h in entries(j) or []:
         # #G-24 G24-1: every entry is rebuilt against ITS OWN settings: the key is the pair, never the sha256 alone.
         refs[json.dumps([s, h], sort_keys=True, separators=(",", ":"))] = (s, h)
-ok, bad = [], {}
-if refs:
+ok, bad, to = [], {}, None
+# #G-78 G78-4: the last block of the ruler data this job read, so the check can refuse a week file's vhpTo past it
+try:
     L, _ = V.load_ledger(data)
+    to = int(L.to)
+except Exception:
+    L = None
+if refs and L is None:
+    L, _ = V.load_ledger(data)
+if refs:
     for key, (s, h) in sorted(refs.items()):
         try:
             V.check_settings(s)
@@ -91,6 +98,9 @@ if refs:
 os.makedirs(os.path.dirname(outp), exist_ok=True)
 with open(outp, "w") as fh:
     json.dump({"ok": ok, "bad": bad}, fh, sort_keys=True)
+# #G-78 G78-4: the data's last block, beside it (the check refuses a week file's vhpTo past it)
+with open(outp[:-5] + ".to.json" if outp.endswith(".json") else outp + ".to.json", "w") as fh:
+    json.dump({"to": to}, fh)
 print("%d card(s) rebuilt, %d differ or failed" % (len(ok), len(bad)))
 `;
 /** The publish job's ruler step: vhp-data read-only, then vhp_ruler.py and the glue written from the workflow itself. */

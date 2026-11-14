@@ -89,7 +89,7 @@ export const cardIdentity = (s: CardSettings): string => {
 export function vhpFor(L: any, used: Map<string, CardRef>, pinned?: Map<string, CardSettings>): Vhp {
   return {
     to: L.to,
-    loaded: true,             // #G-73 G73-1: the real ruler data (the kit's no-data stand-in says loaded: false)
+    loaded: true,             // #G-78 G78-5 (#G-73 G73-1): the real data; the kit's no-data stand-in says loaded: false
     ruleVersion: RULE_VERSION,
     card(s0: CardSettings) {
       // #G-69 G69-3: a card this game already published is re-made from the settings stored with it (mode, include),

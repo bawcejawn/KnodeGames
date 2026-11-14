@@ -149,6 +149,11 @@ async function readPicksWeek(m: GameModule<any, any, any>, node: KitNode, vault:
 /** CAPACITY_STANDARD rule 2 (Capacity chat, 12 Nov): every run warns when a file it wrote passes 60% of the publish
  *  job's 2 MB cap, naming the file and its size, so a game hears about growth weeks before a file can't be published. */
 export const CAPACITY_WARN_BYTES = Math.floor(0.6 * MAX_FILE_BYTES);
+/** #G-78 G78-1: from this long after a week ends, published rounds kept without a full re-read are an emailed error. */
+export const KEPT_ALERT_AFTER_MS = 12 * 3_600_000;
+/** #G-78 G78-4: a day of blocks (3 s each). */
+export const STALE_ERROR_BLOCKS = 28_800;
+
 export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts): Promise<RunResult> {
   const r = await runOnce(m, cfg, { ...o, live: false });
   // K4 (Survivor): a liveWeek game also writes an open copy of the current week every run, with the rounds decided so
@@ -242,7 +247,8 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // G7: ctx.blockAt(ms), the first irreversible block at or after a UTC time, per node; both searches pinned to the
   // lower of the two nodes' last irreversible blocks (read once, only if a game asks), so the answers can be compared.
   let pinP: Promise<number> | null = null, bA: ((ms: number) => Promise<number>) | null = null, bB: typeof bA = null;
-  const pin = () => (pinP ??= Promise.all([charged(A).head(), charged(B).head()]).then(([x, y]) => Math.min(x.lib, y.lib)));   // #G-50 G50-1: a failed head is a ReadFailed
+  let libsDiffer = false;
+  const pin = () => (pinP ??= Promise.all([charged(A).head(), charged(B).head()]).then(([x, y]) => { libsDiffer = x.lib !== y.lib; return Math.min(x.lib, y.lib); }));   // #G-50 G50-1: a failed head is a ReadFailed
   // #G-41: block reads are reads: charged to the run's budget, failures are ReadFailed (the round stays pending).
   const charged = (n: KitNode): KitNode => ({ ...n, async blockTime(h: number) {
     budget.take(`${n.label} block ${h}`);
@@ -252,7 +258,13 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // with an alert, or the run stops for inputs), so a game that drops the height can't hide a lying node.
   const blockAtBoth = async (ms: number) => {
     const fa = (bA ??= blockAtFor(charged(A), await pin())), fb = (bB ??= blockAtFor(charged(B), await pin()));
-    const [x, y] = await Promise.all([fa(ms), fb(ms)]);
+    let x: number, y: number;
+    try { [x, y] = await Promise.all([fa(ms), fb(ms)]); }
+    catch (e) {
+      // #G-78 G78-3: "not yet" while the two nodes' last irreversible blocks differ is one node lagging, not the data
+      if (isNotYet(e) && libsDiffer) (e as any).lagging = true;
+      throw e;
+    }
     if (x !== y) throw new Disagree(`the first block at ${new Date(ms).toISOString()}`, x, y);
     return x;
   };
@@ -455,14 +467,14 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // the chain itself still shows as undecided.
   const MAX_FALLBACK_WHY = 200;
   const dispRows = new Map<string, Map<string, unknown[]>>();
-  const notYet = new Set<string>();
+  const notYet = new Set<string>(), lagging = new Set<string>();
   // K8: rounds decided this run by the game's fallback rule, [round, at, why]; and the published copy's (fixed).
   const fallbackOf = new Map<string, [string, number, string]>();
   const pubFallbacks = new Map<string, [string, number, string]>((Array.isArray(pw?.fallbacks) ? pw.fallbacks : []).map((f: any) => [f[0], f]));
   const resultOf = async (r: Round, rd: NodeReader) => {
     if (!cfg.vhpData) {
       try { return await m.resultOf(r, rd, inputs, { blockAt: chainOf(rd) }); }
-      catch (e) { if (isNotYet(e)) { notYet.add(r.id); return PENDING; } throw e; }
+      catch (e) { if (isNotYet(e)) { notYet.add(r.id); if ((e as any).lagging) lagging.add(r.id); return PENDING; } throw e; }
     }
     const mine = new Map<string, any>();
     let res: any, fb: [string, number, string] | null = null;
@@ -478,7 +490,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
       fb = [r.id, at, text];
     };
     try { res = await m.resultOf(r, rd, inputs, { vhp: vhpRound!(mine), blockAt: chainOf(rd), fallback }); }
-    catch (e) { if (isNotYet(e)) { notYet.add(r.id); return PENDING; } throw e; }
+    catch (e) { if (isNotYet(e)) { notYet.add(r.id); if ((e as any).lagging) lagging.add(r.id); return PENDING; } throw e; }
     for (const [k, v] of mine) usedWeekCards.set(k, v);
     if (fb && res !== PENDING) fallbackOf.set(r.id, fb);
     // #G-24 Info: a decided ruler round must come from at least one ruler card (cardPerRound, on by default), unless
@@ -507,6 +519,10 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // stale or short download: the whole week couldn't be re-read, and every round the published copy decided keeps it.
   const pubTo = pw && Number.isSafeInteger(pw.vhpTo) ? (pw.vhpTo as number) : undefined;
   const staleData = vhpTo !== undefined && pubTo !== undefined && vhpTo < pubTo;
+  // #G-78 G78-4: vhp-data only grows, and a stale download is hours behind at most. A published vhpTo more than a day of
+  // blocks past this run's data came from a bad run (or the download is badly stuck): either way the week can't be
+  // re-read until it's fixed, so it is an error every run, not a warning.
+  if (staleData && pubTo! - vhpTo! > STALE_ERROR_BLOCKS) alerts.errors.push(`week ${w}: the published copy's vhpTo (${pubTo}) is more than a day of blocks past this run's ruler data (${vhpTo}): a bad run wrote it, or vhp-data is stuck; the week can't be re-read until it's fixed (#G-78 G78-4)`);
   if (staleData) alerts.warnings.push(`week ${w}: this run's ruler data ends at block ${vhpTo}, before the published copy's ${pubTo} (a stale or short download): the week isn't re-read this run (#G-69 G69-1)`);
 
   const players = [...ra.stakes.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1)).map(([a, s]) => [a, s.stake, s.peak, s.voided ? 1 : 0]);
@@ -561,13 +577,17 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     // finish, never a change: it keeps its published result and cards, and the week doesn't compare (no HOLD on a
     // final week; a pending week stays pending). In a game whose decided rounds can't change, that holds whatever the
     // cause; in a correctable game a round the chain itself shows undecided again is a correction, as before.
-    if (pr && pr[3] !== "p" && (staleData || (status === "p" && (notYet.has(r.id) || !cfg.roundsCorrectable)))) {
+    const fullData = !cfg.vhpData || (vhpTo !== undefined && !staleData);
+    // #G-78 G78-2: on a FINAL week, a plain pending read (not NotYet) with all the data is a real change: it is compared
+    // and HOLDs as before. Only NotYet, missing or stale data keep a final week's published round.
+    const plainOnFinal = pw?.state === "final" && fullData && !notYet.has(r.id);
+    if (pr && pr[3] !== "p" && (staleData || (status === "p" && (notYet.has(r.id) || (!cfg.roundsCorrectable && !plainOnFinal))))) {
       rereadOk = false; keptPublished = true;
       // An error every run when this run had all its data (the ruler's loaded and not behind the published copy's): a
       // decided round that now reads differently is a real data event the owner must see (Fantasy, 14 Nov). A run that
-      // just lacked data (a failed or stale download) says so once above, and each such round is a warning.
-      const fullData = !cfg.vhpData || (vhpTo !== undefined && !staleData);
-      (fullData ? alerts.errors : alerts.warnings).push(`round ${r.id}: decided in the published copy but not decidable this run${fullData ? " with all its data: check it" : ""}; it keeps its published result (#G-69 G69-1)`);
+      // just lacked data (a failed or stale download), or one node lagging (#G-78 G78-3), is a warning.
+      const loud = fullData && !lagging.has(r.id);
+      (loud ? alerts.errors : alerts.warnings).push(`round ${r.id}: decided in the published copy but not decidable this run${loud ? " with all its data: check it" : lagging.has(r.id) ? " (a node is behind)" : ""}; it keeps its published result (#G-69 G69-1)`);
       status = pr[3]; rows = pr[4];
     }
     // A decided round changing is only an owner correction on chain (roundsCorrectable); otherwise stop (KC-8).
@@ -692,6 +712,10 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   const vf = earns ? vaultFileFor(body, cfg, now, due) : null;
   if (vf) out.write(`vault/W${w}.json`, vf);
   writeAllTime(body.state === "final" ? body : null, vf ? w : null);
+  // #G-78 G78-1: published rounds kept because this run couldn't re-read them (missing, stale or not-yet data) are a
+  // warning at first, but an ERROR (emailed) every run from 12 h after the week ends, so a lasting vhp-data outage can't
+  // run silently into the backstop. Still no stop.
+  if (d.state !== "final" && keptPublished && !rereadOk && now >= span.end + KEPT_ALERT_AFTER_MS) alerts.errors.push(`week ${w}: decided rounds are still kept from the published copy because this run couldn't re-read them (${d.why}); the week pays nothing at ${new Date(due).toISOString()} unless the data is back: check vhp-data and the nodes (#G-78 G78-1)`);
   if (d.state !== "final" && due - now < DUE_WARN_HOURS * HOUR) alerts.warnings.push(`week ${w}: not final yet (${d.why}); its results are due ${new Date(due).toISOString()}`);
   if (held) alerts.notes.push(`week ${w} held: ${held}`);
   log(`${cfg.slug} week ${w}: ${d.state.toUpperCase()} (${d.why}); ${rounds.length} rounds, ${t.rows.length} players, ${t.vault.rows.length} staked rows, first ${t.vault.first.length}, second ${t.vault.second.length}.`);

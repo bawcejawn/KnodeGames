@@ -106,7 +106,7 @@ test("G52-d: card flips flagged → clean after the week is final: HOLD file, th
   assert.ok(s.rp.read("vault/HOLD-W4.json"), "a HOLD file is written for the owner");
 });
 
-test("G52-e: clean Wednesday decided, then flagged before the cutoff: the run stops loudly (KC-8)", async () => {
+test("G52-e: clean Wednesday decided, then flagged before the cutoff: kept as published, an error alert every run, no stop (#G-69 G69-1; #G-78 Q3)", async () => {
   const s = await setup();
   let h = await run(s, at(5, 0, 2)); assert.equal(h.error, undefined, h.error);
   assert.equal(wedOf(s.rp.read("W004.json"))[3], "s");

@@ -95,7 +95,7 @@
   }
 
   // ── the race on the track ──
-  const POS = (f) => `calc(20px + (100% - 40px) * ${Math.min(1, Math.max(0, f)).toFixed(4)})`;   // the animal's centre (and the Now line) on one shared scale
+  const POS = (f) => `calc(20px + (100% - 40px) * ${(Number.isFinite(f) ? Math.min(1, Math.max(0, f)) : 0).toFixed(4)})`;   // the animal's centre (and the Now line) on one shared scale
   const ord = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"}`;
   /** Time marks along the top of the bar column: where the race will be after each step. */
   function rulerEl(len, step) {
@@ -104,6 +104,7 @@
     out.push(el("span", { class: "rt-tick fin", style: `left:${POS(1)}`, text: "finish" }));
     return el("div", { class: "rt-ruler" }, ...out);
   }
+  const r6Fixed = new Map();   // race id -> the producers in a fixed order (Repo Lens #G-72 G72-4)
   let r6Win = 0;   // 6-hour board: index into R6_WINDOWS; -1 = since start
   const R6_WINDOWS = [3600000, 3 * 3600000];
   function render() {
@@ -149,7 +150,11 @@
       const rows = M.track(st, line, ended);
       // Fixed order, biggest producer (most VHP) first, so the line-up never shuffles and the leader is not always on top.
       const c0 = (race.cards && M.cardForLeg(race.cards, 0)) || card, vhpOf = new Map(c0 ? c0.field.map((x) => [x.a, x.vhp]) : []);
-      const ordered = [...rows].sort((p, q) => (vhpOf.get(q.a) || 0) - (vhpOf.get(p.a) || 0) || (p.a < q.a ? -1 : 1));
+      let fixed = r6Fixed.get(race.id);
+      if (!fixed) { fixed = [...rows].sort((p, q) => (vhpOf.get(q.a) || 0) - (vhpOf.get(p.a) || 0) || (p.a < q.a ? -1 : 1)).map((r) => r.a); if (c0) r6Fixed.set(race.id, fixed); }
+      const extra = rows.filter((r) => !fixed.includes(r.a)).map((r) => r.a).sort();
+      if (extra.length) { fixed = fixed.concat(extra); if (c0) r6Fixed.set(race.id, fixed); }
+      const at = new Map(fixed.map((a, k) => [a, k])), ordered = [...rows].sort((p, q) => at.get(p.a) - at.get(q.a));
       const RO6 = ended ? ruledFor(race, 0) : null;   // a ruler week: the ruler's places, not the steps, decide
       const existing = new Map([...track.querySelectorAll(".pr-lane")].map((c) => [c.dataset.addr, c]));
       // Who moved since the last refresh (only while watching the live race; a new race or view starts clean).
@@ -188,7 +193,8 @@
           lane.querySelector(".pr-trail").style.background = colour(r.a);
         }
         const h = card && card.field.find((x) => x.a === r.a), share = card ? h ? h.vhp / card.field.concat(card.paddock).reduce((s, x) => s + x.vhp, 0) : 0 : 0;
-        lane.querySelector(".pr-rank").textContent = ord(i + 1);
+        const rp = ended && RO6 ? (RO6.pending ? -1 : RO6.placings.indexOf(r.a)) : i;   // G72-1: a ruler week: the Ruler's place, "–" until it is in
+        lane.querySelector(".pr-rank").textContent = rp >= 0 ? ord(rp + 1) : "–";
         lane.querySelector(".pr-name").textContent = nameOf(r.a);
         const plus = lane.querySelector(".pr-plus"), g = gained.get(r.a);
         if (g) {
@@ -229,7 +235,7 @@
         lane.classList.toggle("lead", !ended && i === 0);
         lane.classList.toggle("win", !!(EL && EL.win));
         lane.classList.toggle("mine", myPicks.get(race.index) === r.a);
-        lane.setAttribute("aria-label", `${nameOf(r.a)}: ${ended ? "place" : "running"} ${i + 1}, ${fmt(r.steps, 1)} steps`);
+        lane.setAttribute("aria-label", `${nameOf(r.a)}: ${ended ? (rp >= 0 ? `place ${rp + 1}` : "no place") : `running ${i + 1}`}, ${fmt(r.steps, 1)} steps`);
         keep.push(lane);
       });
       track.replaceChildren(...keep);
@@ -704,7 +710,8 @@
     const ROt = ended ? ruledFor(cur, rtype) : null;   // a ruler week: the ruler's places, not the steps, decide
     const fkey = `${rtype}:${cur.index}`;
     let order = rtFixed.get(fkey);
-    if (!order || (st || []).some((x) => !order.includes(x.a))) { const vv = new Map((card ? card.field : []).map((x) => [x.a, x.vhp]));
+    if (order && (st || []).some((x) => !order.includes(x.a))) { order = order.concat([...new Set((st || []).map((x) => x.a))].filter((a) => !order.includes(a)).sort()); rtFixed.set(fkey, order); }   // G72-3
+    if (!order) { const vv = new Map((card ? card.field : []).map((x) => [x.a, x.vhp]));
       order = [...new Set([...(card ? card.field.map((x) => x.a) : []), ...(st || []).map((x) => x.a)])].sort((p, q) => (vv.get(q) || 0) - (vv.get(p) || 0) || (p < q ? -1 : 1));   // biggest producer first, fixed for the race
       if (card) rtFixed.set(fkey, order); }
     const by = new Map((st || []).map((x) => [x.a, x]));
@@ -749,7 +756,7 @@
         return b;
       });
       const lane = el("div", { class: `pr-lane rt-lane${rk === 1 && !ended ? " lead" : ""}${ended && rk && endLabel(ROt, a, rk - 1).win ? " win" : ""}`, style: grid, "data-addr": a },
-        el("div", { class: "pr-who" }, el("span", { class: "pr-rank", text: rk ? ord(rk) : "–" }), el("span", { class: "pr-dot", style: `background:${colour(a)}` }),
+        el("div", { class: "pr-who" }, el("span", { class: "pr-rank", text: ((q) => q > 0 ? ord(q) : "–")(ended && ROt ? (ROt.pending ? 0 : ROt.placings.indexOf(a) + 1) : rk || 0) }), el("span", { class: "pr-dot", style: `background:${colour(a)}` }),
           el("a", { class: "pr-name", href: EXPLORER + a, target: "_blank", rel: "noopener noreferrer", text: nameOf(a) }), pill || "",
           el("span", { class: "pr-meta", text: `${h ? `×${h.toFixed(2)} per block` : "no handicap this hour"} · ${fmt(r ? r.blocks : 0)} blocks${sh ? ` · ${fmt(sh * 100, sh < 0.01 ? 2 : 1)}% VHP` : ""}` })),
         el("div", { class: `pr-run${ended ? " over" : ""}` }, el("div", { class: "pr-shade", style: `width:${frac > 0 ? POS(frac) : "0"}` }), el("div", { class: "pr-trail", style: `width:${POS(x / 100)};background:${colour(a)}` }),

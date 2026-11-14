@@ -37,6 +37,8 @@ export type Vhp = {
   loaded: boolean;
   /** The last block the data reaches. */
   to: number;
+  /** The ruler's default rule version (vhp-ruler.js RULE_VERSION), not a card's: a card made with settings.version
+   *  records its own ruleVersion, and that is the one to trust (the Ruler chat, 14 Nov). */
   ruleVersion: number;
   /** The scored card for these settings, parsed (cardJson). Throws NotYet while the data doesn't cover it. */
   card(s: CardSettings): any;

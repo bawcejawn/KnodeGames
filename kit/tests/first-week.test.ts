@@ -127,5 +127,23 @@ test("firstWeek in game.json: a whole number 0–9999, passed into the kit's con
   assert.deepEqual(validateManifest({ ...m, firstWeek: 5 }, { kit: true }), []);
   const dep = { genesisTime: String(GENESIS), weekLength: String(WEEK) };
   assert.equal(kitConfig({ ...m, firstWeek: 5 }, dep).firstWeek, 5);
-  assert.equal("firstWeek" in kitConfig(m, dep), false, "unset stays unset");
+  const { firstWeek: _fw, ...m0 } = m;   // Fantasy's game.json sets firstWeek: test the unset case on a copy without it
+  assert.equal("firstWeek" in kitConfig(m0, dep), false, "unset stays unset");
+});
+
+test("firstWeek 4, then parts from week 5: week 4 stays one file, week 5 is a parts folder carrying week 4's teams (G13-1 fine)", async () => {
+  const wd = fworld(at(4) - 2 * DAY + H), rp = new Replay(game, { ...cfg, firstWeek: 4 });
+  await hour(rp, wd, at(4) - 2 * DAY + H);                       // week 4's inputs file
+  await hour(rp, wd, at(5) - 2 * DAY + H);                       // week 5's
+  for (let t = at(5, 0, 2); t < at(5, 0, 6); t += H) await hour(rp, wd, t);
+  assert.equal(rp.read("W004.json").state, "final");
+  const w4 = rp.raw("W004.json");
+  const parts = new Replay(game, { ...cfg, firstWeek: 4, parts: "d" }, rp.root);   // the parts PR lands mid-season
+  const hs = [];
+  for (let t = at(6, 0, 2); t < at(6, 0, 6); t += H) hs.push(await hour(parts, wd, t));
+  for (const x of hs) assert.ok(!x.result!.alerts.errors.some((e) => /FC-5|G13-1/.test(e)), String(x.result!.alerts.errors));
+  assert.ok(fs.existsSync(path.join(rp.pub, "W005", "manifest.json")), "week 5 is a parts folder");
+  assert.equal(fs.readFileSync(path.join(rp.pub, "W004.json"), "utf8"), w4, "week 4 stays one file, unchanged");
+  assert.deepEqual(parts.read("W005.json").carry, rp.read("W004.json").next, "week 5 starts from week 4's teams");
+  assert.equal(parts.read("W005.json").state, "final");
 });

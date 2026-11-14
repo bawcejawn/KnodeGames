@@ -199,7 +199,10 @@ const EVENT_DATA = /(^|[^.\w])github(\.event\.(pull_request|issue|comment|review
 const TRIGGERS_OK = ["push", "pull_request", "schedule", "workflow_dispatch", "workflow_call"];
 /** Where a write token is allowed (C5-14): file → job → scopes. Everything else is read or none. */
 const WRITES = {
-  "bot.yml": { publish: ["contents"] }, "games.yml": { publish: ["contents"] }, "games-testnet.yml": { publish: ["contents"] },
+  "bot.yml": { publish: ["contents"] },
+  // games.yml publish-kit: the Shared Game Kit's publish job (kit/publish/render.mjs), rendered once a kit game exists
+  // (Fantasy, #266). It pushes only kit games' folders on games-data and runs no repository code (GAME_KIT.md).
+  "games.yml": { publish: ["contents"], "publish-kit": ["contents"] }, "games-testnet.yml": { publish: ["contents"] },
   "race.yml": { publish: ["contents"] }, "race-samples.yml": { publish: ["contents"] }, "names.yml": { publish: ["contents"] }, "stats.yml": { publish: ["contents"] },
   "vhp-ruler.yml": { publish: ["contents"] },   // the VHP ruler pushes only its vhp-data branch (R-RULER-1)
   "golf.yml": { publish: ["contents"] },        // Block Golf pushes only games-data/golf, like games.yml (R-GO-3)

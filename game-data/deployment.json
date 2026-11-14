@@ -72,7 +72,8 @@
     },
     "4": {
       "name": "Fantasy Producers",
-      "results": "games-data:fantasy/vault"
+      "results": "games-data:fantasy/vault",
+      "kit": { "payoutRule": "d152", "vaultValues": "dense255", "entry": { "minRounds": 1, "minPoints": 1 }, "sundayFunRound": true, "roundsCorrectable": false, "liveWeek": false }
     },
     "6": {
       "name": "Block Golf",

@@ -154,6 +154,10 @@ async function readPicksWeek(m: GameModule<any, any, any>, node: KitNode, vault:
 export const CAPACITY_WARN_BYTES = Math.floor(0.6 * MAX_FILE_BYTES);
 /** #G-78 G78-1: from this long after a week ends, published rounds kept without a full re-read are an emailed error. */
 export const KEPT_ALERT_AFTER_MS = 12 * 3_600_000;
+/** #G-82 G82-3 (owner, 14 Nov: every other hour is fine): the kept-rounds alert above is emailed (an error) on even UTC
+ *  hours and every hour in the last 12 h before the deadline; on other hours it is a warning, so a long outage sends
+ *  about half the emails (about 30 for a Fantasy week, not 60) and the run log still shows it every hour. */
+export const keptAlertEmails = (now: number, due: number) => Math.floor(now / 3_600_000) % 2 === 0 || due - now <= KEPT_ALERT_AFTER_MS;
 /** #G-78 G78-4: a day of blocks (3 s each). */
 export const STALE_ERROR_BLOCKS = 28_800;
 
@@ -728,9 +732,9 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   if (vf) out.write(`vault/W${w}.json`, vf);
   writeAllTime(body.state === "final" ? body : null, vf ? w : null);
   // #G-78 G78-1: published rounds kept because this run couldn't re-read them (missing, stale or not-yet data) are a
-  // warning at first, but an ERROR (emailed) every run from 12 h after the week ends, so a lasting vhp-data outage can't
+  // warning at first, but an ERROR (emailed) from 12 h after the week ends (every other hour, then every hour in the last 12 h: G82-3), so a lasting vhp-data outage can't
   // run silently into the backstop. Still no stop.
-  if (d.state !== "final" && keptPublished && !rereadOk && now >= span.end + KEPT_ALERT_AFTER_MS) alerts.errors.push(`week ${w}: decided rounds are still kept from the published copy because this run couldn't re-read them (${d.why}); the week pays nothing at ${new Date(due).toISOString()} unless the data is back: check vhp-data and the nodes (#G-78 G78-1)`);
+  if (d.state !== "final" && keptPublished && !rereadOk && now >= span.end + KEPT_ALERT_AFTER_MS) (keptAlertEmails(now, due) ? alerts.errors : alerts.warnings).push(`week ${w}: decided rounds are still kept from the published copy because this run couldn't re-read them (${d.why}); the week pays nothing at ${new Date(due).toISOString()} unless the data is back: check vhp-data and the nodes (#G-78 G78-1)`);
   if (d.state !== "final" && due - now < DUE_WARN_HOURS * HOUR) alerts.warnings.push(`week ${w}: not final yet (${d.why}); its results are due ${new Date(due).toISOString()}`);
   if (held) alerts.notes.push(`week ${w} held: ${held}`);
   log(`${cfg.slug} week ${w}: ${d.state.toUpperCase()} (${d.why}); ${rounds.length} rounds, ${t.rows.length} players, ${t.vault.rows.length} staked rows, first ${t.vault.first.length}, second ${t.vault.second.length}.`);

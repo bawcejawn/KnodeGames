@@ -74,12 +74,12 @@
     .pr-track { display: flex; flex-direction: column; gap: 6px; }
     .pr-lane { display: grid; grid-template-columns: 230px 1fr 118px; gap: 10px; align-items: center; padding: 3px 4px; border-radius: 10px; }
     .pr-who { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 14px; flex-wrap: wrap; }
-    .pr-rank { font-family: var(--num); font-weight: 800; width: 22px; text-align: right; color: var(--muted); }
+    .pr-rank { font-family: var(--num); font-weight: 800; width: 34px; text-align: right; color: var(--muted); }
     .pr-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; display: inline-block; }
     .pr-name { font-weight: 700; color: var(--ink); text-decoration: none; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
     .pr-name:hover { text-decoration: underline; }
-    .pr-meta { width: 100%; padding-left: 39px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .pr-run { position: relative; height: 34px; border-radius: 8px; background: repeating-linear-gradient(90deg, var(--mint-soft) 0 38px, color-mix(in srgb, var(--mint-soft) 70%, var(--surface)) 38px 76px); border: 1px solid var(--line); overflow: hidden; }
+    .pr-meta { width: 100%; padding-left: 41px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .pr-run { position: relative; height: 46px; border-radius: 8px; background: repeating-linear-gradient(90deg, var(--mint-soft) 0 38px, color-mix(in srgb, var(--mint-soft) 70%, var(--surface)) 38px 76px); border: 1px solid var(--line); overflow: hidden; }
     .pr-run::after { content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 10px; background: repeating-linear-gradient(0deg, var(--ink) 0 5px, var(--surface) 5px 10px); opacity: .85; }
     .pr-trail { position: absolute; left: 0; top: 50%; height: 4px; margin-top: -2px; opacity: .55; border-radius: 4px; transition: width 1.2s ease; }
     .pr-horse { position: absolute; top: 2px; font-size: 25px; line-height: 30px; transform: scaleX(-1); transition: left 1.2s ease; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
@@ -135,11 +135,11 @@
     .rt-head { font-size: 12px; color: var(--muted); font-weight: 700; align-items: end; }
     .rt-pc { display: flex; flex-direction: column; text-align: center; line-height: 1.15; }
     .rt-pc span { font-weight: 400; font-size: 11px; }
-    img.pr-horse { width: 30px; height: 30px; object-fit: contain; transform: none; font-size: 0; }
+    img.pr-horse { width: 40px; height: 40px; object-fit: contain; transform: none; font-size: 0; }
     .pr-step img.pr-horse { animation: hop2 .5s ease; }
     @keyframes hop2 { 40% { transform: translateY(-6px); } }
     @media (prefers-reduced-motion: reduce) { .pr-step img.pr-horse { animation: none; } }
-    .pr-run .rt-animal { top: 1px; }
+    .pr-run .rt-animal { top: 3px; }
     .rt-pill { font-family: var(--num); font-weight: 800; font-size: 12px; border-radius: 99px; padding: 1px 8px; background: var(--line); color: var(--ink); }
     .rt-pill.up { background: #d7f3e1; color: #0d6b34; }
     .rt-pill.down { background: #fbdcdc; color: #9b1c1c; }
@@ -150,6 +150,10 @@
     .pr-shade { position: absolute; inset: 0 auto 0 0; background: rgba(13,27,42,.12); pointer-events: none; transition: width 1s linear; }
     .pr-nowline { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ink); opacity: .55; pointer-events: none; }
     .pr-run.over .pr-nowline { display: none; }
+    .rt-ruler { position: relative; height: 26px; font-weight: 600; }
+    .rt-tick { position: absolute; bottom: 0; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .rt-tick::after { content: ""; position: absolute; left: 50%; top: 100%; height: 5px; border-left: 1px solid var(--line); }
+    .rt-tick.fin { transform: translateX(-100%); }
     .pr-headrow { display: grid; gap: 10px; padding: 0 4px; min-width: 640px; }
     #track { overflow-x: auto; }
     #track .pr-lane.rt-lane { min-width: 640px; }

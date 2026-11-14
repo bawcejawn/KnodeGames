@@ -4,9 +4,11 @@
 // them. Shared by tests/audit/race-ruler.test.mjs.
 import crypto from "node:crypto";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 const APP = process.env.APP || ".";
-await import(path.resolve(APP, "race-math.js"));
-await import(path.resolve(APP, "vhp-ruler.js"));
+// file:// URLs, so a Windows path (C:\...) imports too (the owner's PC, 14 Nov).
+await import(pathToFileURL(path.resolve(APP, "race-math.js")).href);
+await import(pathToFileURL(path.resolve(APP, "vhp-ruler.js")).href);
 export const M = globalThis.KRaceMath, R = globalThis.KRuler;
 export const P = ["1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "1BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", "1CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC", "1DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "1EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"];
 export const VHP = [400, 250, 200, 140, 1];

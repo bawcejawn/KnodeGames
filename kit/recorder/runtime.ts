@@ -46,6 +46,8 @@ export type KitGameCfg = {
 };
 
 export type RunOpts = {
+  /** K4 (internal): this pass writes the open copy of the current week (liveWeek), not last week. */
+  live?: boolean;
   nodes: [KitNode, KitNode];
   prev: string; out: string;
   /** <SLUG>_HOLD_WEEKS and <SLUG>_RELEASE. */
@@ -146,7 +148,17 @@ async function readPicksWeek(m: GameModule<any, any, any>, node: KitNode, vault:
  *  job's 2 MB cap, naming the file and its size, so a game hears about growth weeks before a file can't be published. */
 export const CAPACITY_WARN_BYTES = Math.floor(0.6 * MAX_FILE_BYTES);
 export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts): Promise<RunResult> {
-  const r = await runOnce(m, cfg, o);
+  const r = await runOnce(m, cfg, { ...o, live: false });
+  // K4 (Survivor): a liveWeek game also writes an open copy of the current week every run, with the rounds decided so
+  // far, so players see each day's result the next morning. It has no vault file and adds nothing to the all-time
+  // board; it never stops last week's run (a failure is a warning).
+  if (cfg.liveWeek) {
+    try {
+      const lv = await runOnce(m, cfg, { ...o, live: true });
+      r.written.push(...lv.written.filter((x) => !r.written.includes(x)));
+      for (const k of ["errors", "warnings", "notes"] as const) for (const x of lv.alerts[k]) r.alerts[k].push(`live week ${lv.week ?? "?"}: ${x}`);
+    } catch (e) { r.alerts.warnings.push(`the current week's open copy couldn't be written this run (${(e as Error).message})`); }
+  }
   for (const rel of r.written) {
     let n = 0;
     try { n = fs.statSync(path.join(o.out, rel)).size; } catch { continue; }
@@ -247,7 +259,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
 
   // FC-9: next week's inputs file (price list, seeding), made once inside its window before the week opens, on both
   // nodes (they must agree). Write-once: the publish check refuses a changed copy and any copy after the week opens.
-  if (cfg.inputsFile) {
+  if (cfg.inputsFile && !o.live) {
     if (!m.inputsFor) throw new Error(`${cfg.slug}: inputsFile is set but the module has no inputsFor`);
     const lead = cfg.inputsLeadMs ?? DEFAULT_INPUTS_LEAD_MS;
     // G13-2: at most 4 days, so ctx.published (weeks ≤ u − 2, final by Thursday of week u − 1) can't change between
@@ -272,7 +284,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     }
   }
 
-  const w = cw - 1;
+  const w = o.live ? cw : cw - 1;
   if (w < 0) { log(`${cfg.slug}: no week has ended yet.`); return { week: null, state: "none", alerts, written: out.written }; }
   const span = clock.span(w), due = clock.due(w);
   const pw = prev.week(w);
@@ -280,7 +292,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
 
   // Holds: the owner's release of a HOLD file must name its week and code exactly (Block X's rule). The publish job
   // checks the same variable itself, so a run can't release its own hold (KC-3).
-  const hf = prev.holdFile(w), released = !!prev.releaseFile(w);
+  const hf = o.live ? null : prev.holdFile(w), released = !!prev.releaseFile(w);
   let held: string | null = null;
   if (hf && !released) {
     if (releaseMatches(o.release, w, hf.reason)) {
@@ -292,7 +304,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
       alerts.errors.push(`week ${w} is held: ${hf.reason}. Check it; to release it set ${REL} = "${w}:${releaseCode(hf.reason)}"`);
     }
   }
-  if (owner.has(w)) {
+  if (owner.has(w) && !o.live) {
     if (pw?.state === "final") alerts.warnings.push(`${HW} lists week ${w}, but it is already final: the hold does nothing (KC-20)`);
     else held = `the owner's hold (${HW})`;
   }
@@ -371,7 +383,9 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   let carry: States<any> | null = null;
   if (m.nextState) {
     const pwk = prev.week(w - 1);
-    if (pwk && pwk.state !== "final") {
+    // K4: the open copy of the current week may start from last week's pending copy (display only; no vault file).
+    if (pwk && pwk.state !== "final" && o.live) alerts.notes.push(`its carried state comes from week ${w - 1}'s pending copy until that week is final`);
+    else if (pwk && pwk.state !== "final") {
       alerts.errors.push(`week ${w} waits on week ${w - 1}, which isn't final (held or still pending): its carried state isn't known, so nothing is recorded for week ${w} (FC-5)`);
       return { week: w, state: "waiting", alerts, written: out.written };
     }
@@ -621,6 +635,12 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   const size = Buffer.byteLength(JSON.stringify(body));
   if (size > MAX_WRITE_BYTES) throw new Error(`week ${w}'s file would be ${Math.round(size / 1024)} KB, over the ${Math.round(MAX_WRITE_BYTES / 1024)} KB the kit writes: this game has outgrown one week file (GAME_KIT.md §6: split it before this happens)`);
   sizeAlert(`week ${w}'s file`, size);
+  if (o.live) {
+    if (d.state !== "open") throw new Error(`week ${w} isn't open by the chain's clock`);
+    out.write(`W${pad3(w)}.json`, body);
+    log(`${cfg.slug} week ${w}: OPEN (live copy); ${rounds.length} rounds.`);
+    return { week: w, state: d.state, alerts, written: out.written };
+  }
   out.write(`W${pad3(w)}.json`, body);
   writeBoard(boardFor(body, cfg, now));
   const vf = earns ? vaultFileFor(body, cfg, now, due) : null;

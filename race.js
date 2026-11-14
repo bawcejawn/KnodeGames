@@ -138,6 +138,7 @@
     } else {
       // The live order, all the way to the finish: nobody waits at the line (see KRaceMath.track).
       const rows = M.track(st, line, ended), ordered = rows;
+      const RO6 = ended ? ruledFor(race, 0) : null;   // a ruler week: the ruler's places, not the steps, decide
       const existing = new Map([...track.querySelectorAll(".pr-lane")].map((c) => [c.dataset.addr, c]));
       // Who moved since the last refresh (only while watching the live race; a new race or view starts clean).
       const fresh = seen.race !== race.id;
@@ -187,7 +188,8 @@
         lane.querySelector(".pr-horse").style.left = `calc(${x}% - ${x > 4 ? 30 : 0}px)`;   // never past the line; only the winner reaches it, at the end
         lane.querySelector(".pr-trail").style.width = `${x}%`;
         const gap = lane.querySelector(".pr-gap");
-        if (ended) gap.replaceChildren(i === 0 ? el("b", { text: "Winner" }) : `${fmt(r.behind, 1)} behind`, el("br"), el("span", { class: "ago", text: `${fmt(r.steps, 1)} steps` }));
+        const EL = ended ? endLabel(RO6, r.a, i) : null;
+        if (ended) gap.replaceChildren(EL.text ? el("b", { text: EL.text }) : `${fmt(r.behind, 1)} behind`, el("br"), el("span", { class: "ago", text: `${fmt(r.steps, 1)} steps` }));
         else if (i === 0) gap.replaceChildren(el("b", { text: "Leading" }), el("br"), el("span", { class: "ago", text: `${fmt(r.steps, 1)} steps` }));
         else gap.replaceChildren(`${fmt(r.behind, 1)} behind`, el("br"), el("span", { class: "ago", text: `${fmt(r.steps, 1)} steps` }));
         // Time passed (shaded) and the Now line, on the same scale as the runners.
@@ -212,7 +214,7 @@
           lane.appendChild(b);
         }
         lane.classList.toggle("lead", !ended && i === 0);
-        lane.classList.toggle("win", ended && i === 0);
+        lane.classList.toggle("win", !!(EL && EL.win));
         lane.classList.toggle("mine", myPicks.get(race.index) === r.a);
         lane.setAttribute("aria-label", `${nameOf(r.a)}: ${ended ? "place" : "running"} ${i + 1}, ${fmt(r.steps, 1)} steps`);
         keep.push(lane);
@@ -225,7 +227,7 @@
     const lineNote = ended ? "" : `${stretch ? "Final stretch: the order shown is live. " : ""}The flag is the 6-hour finish; the order shown is the real live order, and the winner crosses the line when time runs out.`;
     $("track-note").textContent = [
       race.provisional && !ended ? "Provisional handicap: made in your browser from VHP right now, until the race recorder publishes the official card." : "",
-      lineNote, ended ? "" : "Steps behind are counted with the handicap.",
+      lineNote, ended ? endNote(ruledFor(race, 0)) : "Steps behind are counted with the handicap.",
     ].filter(Boolean).join(" ");
 
     renderCard(race, card, legNow, nLegs);
@@ -550,6 +552,20 @@
   // Repo Lens #G-28 G28-1: the loaded ruler files by week and type, so the pick rows show what the board pays: in a week
   // the ruler is ON for, the ruler's 1st / 2nd / 3rd (ruler-void.js ruledOutcome), not the handicap race's.
   var rulerFiles = [], rulerHidesHistory = false, rulerReady = false, rulerFailed = new Set();   // var: read by renderPicks / rtSelect whenever they run
+  /** Owner, 12 Nov ("one result per race") / Repo Lens #G-28: on a finished race's lane board, in a week the ruler
+   *  decides, "Winner" is the ruler's 1st, never the steps leader. Returns the label for the lane in place i (0 = most
+   *  steps) and whether it is the winner's lane; ro = ruledFor(race, type) (null = not a ruler week). */
+  function endLabel(ro, a, i) {
+    if (!ro) return { text: i === 0 ? "Winner" : null, win: i === 0 };
+    if (ro.pending) return { text: i === 0 ? "Most steps" : null, win: false };
+    return a === ro.first ? { text: "Winner (Ruler)", win: true } : { text: i === 0 ? "Most steps" : null, win: false };
+  }
+  function endNote(ro) {
+    if (!ro) return "";
+    if (ro.pending) return "Finished. The Ruler decides this race: its 1st, 2nd and 3rd come in about 1 to 2 hours after the end (Checking).";
+    if (!ro.first) return "Every producer was void, so no pick in this race scores (Ruler).";
+    return `Result (Ruler): 1st ${nameOf(ro.first)}${ro.placings[1] ? `, 2nd ${nameOf(ro.placings[1])}` : ""}${ro.placings[2] ? `, 3rd ${nameOf(ro.placings[2])}` : ""}. The lanes show the steps; the Ruler's places decide the points.`;
+  }
   function ruledFor(r, type) {
     const KV = window.KRulerVoid;
     if (!KV || !KV.ruledOutcome || !r) return null;
@@ -672,7 +688,7 @@
   function rtBoard(cur, card, st) {
     const T = M.TYPES[rtype], now = Date.now(), who = me();
     const ended = now >= cur.end;
-    // Fixed order: by address, decided once per race.
+    const ROt = ended ? ruledFor(cur, rtype) : null;   // a ruler week: the ruler's places, not the steps, decide
     const fkey = `${rtype}:${cur.index}`;
     let order = rtFixed.get(fkey);
     if (!order || (st || []).some((x) => !order.includes(x.a))) { order = [...new Set([...(card ? card.field.map((x) => x.a) : []), ...(st || []).map((x) => x.a)])].sort(); rtFixed.set(fkey, order); }
@@ -686,7 +702,7 @@
     // Time bar: how much of the race has passed.
     const frac = Math.min(1, Math.max(0, (now - cur.start) / (cur.end - cur.start)));
     const tm = $("rt-time");
-    tm.replaceChildren(el("div", { class: "rt-tfill", style: `width:${frac * 100}%` }), el("span", { class: "rt-tl", text: `${fmt(frac * 100, 0)}% of the ${T.name.toLowerCase()} race gone · ${dur(Math.max(0, cur.end - now))} left` }));
+    tm.replaceChildren(el("div", { class: "rt-tfill", style: `width:${frac * 100}%` }), el("span", { class: "rt-tl", text: ended && ROt ? endNote(ROt) : `${fmt(frac * 100, 0)}% of the ${T.name.toLowerCase()} race gone · ${dur(Math.max(0, cur.end - now))} left` }));
     // Places gained or lost over the chosen window.
     const wins = WINDOWS[rtype] || [];
     const wsel = $("rt-win");
@@ -717,13 +733,13 @@
         });
         return b;
       });
-      const lane = el("div", { class: `pr-lane rt-lane${rk === 1 && !ended ? " lead" : ""}${rk === 1 && ended ? " win" : ""}`, style: grid, "data-addr": a },
+      const lane = el("div", { class: `pr-lane rt-lane${rk === 1 && !ended ? " lead" : ""}${ended && rk && endLabel(ROt, a, rk - 1).win ? " win" : ""}`, style: grid, "data-addr": a },
         el("div", { class: "pr-who" }, el("span", { class: "pr-rank", text: rk ? String(rk) : "–" }), el("span", { class: "pr-dot", style: `background:${colour(a)}` }),
           el("a", { class: "pr-name", href: EXPLORER + a, target: "_blank", rel: "noopener noreferrer", text: nameOf(a) }), pill || "",
           el("span", { class: "pr-meta", text: `${h ? `×${h.toFixed(2)} per block` : "no handicap this hour"} · ${fmt(r ? r.blocks : 0)} blocks${sh ? ` · ${fmt(sh * 100, sh < 0.01 ? 2 : 1)}% VHP` : ""}` })),
         el("div", { class: "pr-run" }, el("div", { class: "pr-trail", style: `width:${x}%;background:${colour(a)}` }),
           el("img", { class: "pr-horse rt-animal", alt: "", "aria-hidden": "true", src: `media/animals/${ANIMAL[rtype]}.png`, width: "30", height: "30", style: `left:calc(${x}% - ${x > 4 ? 30 : 0}px)` })),
-        el("div", { class: "pr-gap" }, r ? (rk === 1 ? el("b", { text: ended ? "Winner" : "Leading" }) : `${fmt(r.behind, 1)} behind`) : "–", el("br"), el("span", { class: "ago", text: `${fmt(r ? r.steps : 0, 1)} steps` })),
+        el("div", { class: "pr-gap" }, r ? ((() => { const L = ended ? endLabel(ROt, a, rk - 1) : { text: rk === 1 ? "Leading" : null }; return L.text ? el("b", { text: L.text }) : `${fmt(r.behind, 1)} behind`; })()) : "–", el("br"), el("span", { class: "ago", text: `${fmt(r ? r.steps : 0, 1)} steps` })),
         ...cells);
       return lane;
     });

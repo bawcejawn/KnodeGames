@@ -326,7 +326,7 @@ test("R-BX-22 / D-129: the page offers Sunday (UTC) targets as fun rounds, label
   const js = fs.readFileSync(path.join(APP, "blockx.js"), "utf8");
   assert.match(js, /const funAt = \(r\) => X\.restDay\(about\(G\.target\(r\)\)\);/);
   assert.match(js, /May fall on Sunday: then a fun round/, "Repo Lens #E-18 F-1: Saturday's last 10 minutes say so");
-  assert.match(js, /const offer = \(\) => G\.offerRounds\(head\.height\)\.filter\(inPlay\);/, "every open target in the game's weeks is offered, Sunday's too");
+  assert.match(js, /const offer = \(\) => G\.offerRounds\(head\.height\)\.filter\(inPlay\)\.slice\(0, MAX_OPEN\);/, "the open targets in the game's weeks are offered, Sunday's too, up to 12 at a time (owner, 14 Nov)");
   assert.match(js, /rounds = offer\(\)/);
   assert.match(js, /Fun round · not the week/);
   assert.match(js, /Sunday is review day: results are checked and paid from Monday\./, "WEEK_CYCLE.md §2's required page line");

@@ -137,9 +137,17 @@
             "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": "227341143242266"
           },
           "seal": "45ab9950cdc211350cdf471b129d505b9431bd4ca7f034483d4fc57907fc5729"
+        },
+        {
+          "height": 41062813,
+          "readAt": "2026-11-14T07:20:38.602Z",
+          "values": {
+            "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": "227159549628011"
+          },
+          "seal": "a38e2af680078ba5674fc35fbf7129da12a091157d7c0cf104a0f172818a0dba"
         }
       ],
-      "vhpSeal": "970d569749d4396bdd6b05db8134ecc7ec5985feebe7faa9d262245adaf137bd"
+      "vhpSeal": "4bc5463d8f5e84fbd37b02385c4aff2c6bd66616c68c6798c0d74a770f629843"
     },
     {
       "id": "W003-D5-2",
@@ -259,7 +267,33 @@
           "seal": "3d30eca08c3e67eea7380499015237f3e4c16c75c3b0e92975049f224d71c509"
         }
       ],
-      "vhpSeal": "be2640f466294142a7ac8f09a850d88711bf183425164f680c86606f2b0f0145"
+      "vhpSeal": "be2640f466294142a7ac8f09a850d88711bf183425164f680c86606f2b0f0145",
+      "result": {
+        "void": false,
+        "option": 0,
+        "value": "466",
+        "dataHash": "b62c79ac0aaaa770116e40bb466bd3a72ad511b26ed0d4b2945fad3ce0629ada",
+        "resolvedAt": "2026-11-14T05:32:10.190Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41040255,
+          "decidedHeight": 41060672,
+          "readings": [
+            41056732,
+            41057712,
+            41060268
+          ],
+          "readingsInWindow": 3,
+          "values": {
+            "1GGxRhLN7Ek54xycG5XaZBE4bCgwV2xtvk": {
+              "release": "121815685383228",
+              "end": "121030858057477",
+              "change": "−0.64%",
+              "height": 41060268
+            }
+          }
+        }
+      }
     },
     {
       "id": "W003-D5-3",
@@ -393,9 +427,17 @@
             "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "87768424512614"
           },
           "seal": "cdaf83e24105b54173be64d7b4d8c6d2c6092d92646610fb7efdf8c329a362c2"
+        },
+        {
+          "height": 41062813,
+          "readAt": "2026-11-14T07:20:38.602Z",
+          "values": {
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "87691942499922"
+          },
+          "seal": "c46bbf31275b44598c1501694fd30560113d281908f70fe8a952471b2e5b1278"
         }
       ],
-      "vhpSeal": "4aeacab394e07adbf215188ef49973dc7cc28079ab1b4734235e7307cb86c8c9"
+      "vhpSeal": "34e69c9d439fc35480f9e83bc8019c31a1fd3ddaf7776a8e75f8068989d6fefd"
     }
   ],
   "daySeal": "1350a4bade6f4afe61974d586134af764b141a70f4f1eb205f274bcbaa86e57c"

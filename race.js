@@ -148,7 +148,7 @@
         if (!lane) {
           lane = el("div", { class: "pr-lane", "data-addr": r.a },
             el("div", { class: "pr-who" }, el("span", { class: "pr-rank" }), el("span", { class: "pr-dot" }), el("a", { class: "pr-name", href: EXPLORER + r.a, target: "_blank", rel: "noopener noreferrer" }), el("span", { class: "pr-plus", "aria-hidden": "true" }), el("span", { class: "pr-meta" })),
-            el("div", { class: "pr-run" }, el("div", { class: "pr-trail" }), el("div", { class: "pr-horse", "aria-hidden": "true", text: "🏇" })),
+            el("div", { class: "pr-run" }, el("div", { class: "pr-trail" }), el("img", { class: "pr-horse", alt: "", "aria-hidden": "true", src: "media/animals/bird.png", width: "30", height: "30" })),
             el("div", { class: "pr-gap" }));
           lane.querySelector(".pr-dot").style.background = colour(r.a);
           lane.querySelector(".pr-trail").style.background = colour(r.a);
@@ -390,9 +390,12 @@
     return out.sort((a, b) => a.start - b.start);
   }
   function renderBar() {
-    const sec = $("picks"); if (!sec) return;
+    const typedView = !!rtype && !!$("rt-card");
+    const sec = $("picks"); if (!sec && !typedView) return;
     let bar = $("pk-bar");
-    if (!bar) { const list = $("pk-list"); if (!list || !list.parentNode) return; bar = el("div", { id: "pk-bar", class: "pk-bar", role: "status" }); list.parentNode.insertBefore(bar, list); }
+    const home = typedView ? $("rt-card") : $("pk-list");
+    if (bar && home && bar.parentNode !== (typedView ? home : home.parentNode)) bar.remove(), bar = null;
+    if (!bar) { if (!home) return; bar = el("div", { id: "pk-bar", class: "pk-bar", role: "status" }); if (typedView) home.appendChild(bar); else if (home.parentNode) home.parentNode.insertBefore(bar, home); else return; }
     const n = pendingDrafts().length;
     if (!batchOn() || !me() || !n) { bar.hidden = true; bar.replaceChildren(); return; }
     bar.hidden = false;
@@ -603,18 +606,87 @@
     return tuned.get(k);
   }
   /** Live standings: the ledger's counts for finished hours, the page's blocks for the rest. */
-  function liveStandings(race) {
-    const hours = new Map(), until = Math.min(Date.now(), race.end);
+  function liveStandings(race, asOf = Date.now()) {
+    const hours = new Map(), until = Math.min(asOf, race.end);
     for (let h = race.start; h < until; h += M.HOUR) {
       const led = ledgerHour(h);
       if (led) { hours.set(h, led); continue; }
       if (!B || B.ts[0] > h) return null;                    // older than the blocks the page holds, and no ledger yet
       const n = {}, l = {};
-      for (let i = M.lowerBound(B.ts, h); i < B.ts.length && B.ts[i] < h + M.HOUR; i++) { const a = B.signers[B.sig[i]]; n[a] = (n[a] || 0) + 1; l[a] = B.ts[i]; }
+      for (let i = M.lowerBound(B.ts, h); i < B.ts.length && B.ts[i] < Math.min(h + M.HOUR, until); i++) { const a = B.signers[B.sig[i]]; n[a] = (n[a] || 0) + 1; l[a] = B.ts[i]; }
       hours.set(h, { n, l });
     }
     const part = { ...race, end: Math.max(race.start + M.HOUR, Math.ceil(until / M.HOUR) * M.HOUR) };
     return M.ledgerStandings(hours, part, (h) => cardAt(race.type, h));
+  }
+
+  // ── The animal board for the 1-hour, 2-hour, daily and weekly races (owner-approved design, 14 Nov) ──
+  const ANIMAL = { 0: "bird", 1: "rabbit", 2: "horse", 3: "snake", 4: "turtle" };
+  const HOURMS = 3600000, DAYMS = 86400000;
+  /** "Places gained / lost" windows, growing with the race length. */
+  const WINDOWS = { 1: [15 * 60000, 30 * 60000], 2: [30 * 60000, HOURMS], 3: [6 * HOURMS, 12 * HOURMS], 4: [DAYMS, 3 * DAYMS] };
+  const winLabel = (ms) => ms >= DAYMS ? `${ms / DAYMS} day${ms / DAYMS === 1 ? "" : "s"}` : ms >= HOURMS ? `${ms / HOURMS} h` : `${ms / 60000} min`;
+  let rtWin = 0;   // index into the type's windows; -1 = since the start
+  const rtFixed = new Map();   // type:index -> the producers in a fixed order (the order never changes during a race)
+  function rtBoard(cur, card, st) {
+    const T = M.TYPES[rtype], now = Date.now(), who = me();
+    const ended = now >= cur.end;
+    // Fixed order: by address, decided once per race.
+    const fkey = `${rtype}:${cur.index}`;
+    let order = rtFixed.get(fkey);
+    if (!order || (st || []).some((x) => !order.includes(x.a))) { order = [...new Set([...(card ? card.field.map((x) => x.a) : []), ...(st || []).map((x) => x.a)])].sort(); rtFixed.set(fkey, order); }
+    const by = new Map((st || []).map((x) => [x.a, x]));
+    const hm = new Map((card ? card.field : []).map((x) => [x.a, x.h]));
+    const total = card ? card.field.concat(card.paddock || []).reduce((s, x) => s + x.vhp, 0) : 0;
+    const vhp = new Map((card ? card.field : []).map((x) => [x.a, x.vhp]));
+    const rows = M.track(st || [], card ? (M.ledgerLine(cur, (h) => cardAt(rtype, h)) || 0) : 0, ended);
+    const trk = new Map(rows.map((r) => [r.a, r]));
+    const rank = new Map((st || []).map((x, i) => [x.a, i + 1]));
+    // Time bar: how much of the race has passed.
+    const frac = Math.min(1, Math.max(0, (now - cur.start) / (cur.end - cur.start)));
+    const tm = $("rt-time");
+    tm.replaceChildren(el("div", { class: "rt-tfill", style: `width:${frac * 100}%` }), el("span", { class: "rt-tl", text: `${fmt(frac * 100, 0)}% of the ${T.name.toLowerCase()} race gone · ${dur(Math.max(0, cur.end - now))} left` }));
+    // Places gained or lost over the chosen window.
+    const wins = WINDOWS[rtype] || [];
+    const wsel = $("rt-win");
+    wsel.replaceChildren(el("span", { class: "rt-wl", text: "Places gained / lost over:" }),
+      ...wins.map((ms, i) => el("button", { type: "button", "aria-pressed": String(rtWin === i), onclick: () => { rtWin = i; rtRender(true); } }, winLabel(ms))),
+      el("button", { type: "button", "aria-pressed": String(rtWin === -1), onclick: () => { rtWin = -1; rtRender(true); } }, "Since start"));
+    const wms = rtWin === -1 ? null : wins[rtWin] || wins[0];
+    let before = null;
+    if (st && st.length) {
+      const t0 = wms == null ? cur.start + 1000 : Math.max(cur.start + 1000, now - wms);
+      if (t0 < now - 5000) { const old = liveStandings(cur, t0); if (old && old.length) before = new Map(old.map((x, i) => [x.a, i + 1])); }
+    }
+    const upc = upcoming(rtype).slice(0, 3);
+    const grid = `grid-template-columns:minmax(0,230px) minmax(120px,1fr) 104px repeat(${upc.length},62px)`;
+    const head = el("div", { class: "pr-lane rt-lane rt-head", style: grid }, el("div", { text: "Producer" }), el("div", { text: "Race so far" }), el("div", { class: "pr-gap", text: "Standing" }),
+      ...upc.map((r) => el("div", { class: "rt-pc", title: `Race starting ${dayTime(r.start)}` }, el("b", { text: rtype >= 3 ? dayTime(r.start).replace(/ UTC$/, "") : clock(r.start) }), el("span", { text: `locks ${dur(r.start - now)}` }))));
+    const lanes = order.map((a) => {
+      const r = trk.get(a), x = r ? r.x * 100 : 0, h = hm.get(a), sh = vhp.get(a) && total ? vhp.get(a) / total : 0, rk = rank.get(a);
+      let pill = null;
+      if (rk && before && before.has(a)) { const d = before.get(a) - rk; pill = el("span", { class: `rt-pill ${d > 0 ? "up" : d < 0 ? "down" : ""}`, text: d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : "–", title: d === 0 ? "Same place" : `${d > 0 ? "Gained" : "Lost"} ${Math.abs(d)} place${Math.abs(d) === 1 ? "" : "s"}` }); }
+      const cells = upc.map((u) => {
+        const k = `${rtype}:${u.index}`, mine = rtPicks.get(k), draft = rtDrafts.get(k), chosen = (draft || mine) === a;
+        const b = el("button", { type: "button", class: `rt-pk${chosen ? " on" : ""}`, "aria-pressed": String(chosen), "aria-label": `${chosen ? "Picked" : "Pick"} ${nameOf(a)} for the race at ${dayTime(u.start)}` }, chosen ? (draft && draft !== mine ? "Picked" : "Locked in") : "Pick");
+        if (!who || !raceContract || sending) b.disabled = true;
+        b.addEventListener("click", () => {
+          if (batchOn()) { if (rtDrafts.get(k) === a) rtDrafts.delete(k); else rtDrafts.set(k, a); rtRender(true); return; }
+          sendPick(u.index, a, rtype);
+        });
+        return b;
+      });
+      const lane = el("div", { class: `pr-lane rt-lane${rk === 1 && !ended ? " lead" : ""}${rk === 1 && ended ? " win" : ""}`, style: grid, "data-addr": a },
+        el("div", { class: "pr-who" }, el("span", { class: "pr-rank", text: rk ? String(rk) : "–" }), el("span", { class: "pr-dot", style: `background:${colour(a)}` }),
+          el("a", { class: "pr-name", href: EXPLORER + a, target: "_blank", rel: "noopener noreferrer", text: nameOf(a) }), pill || "",
+          el("span", { class: "pr-meta", text: `${h ? `×${h.toFixed(2)} per block` : "no handicap this hour"} · ${fmt(r ? r.blocks : 0)} blocks${sh ? ` · ${fmt(sh * 100, sh < 0.01 ? 2 : 1)}% VHP` : ""}` })),
+        el("div", { class: "pr-run" }, el("div", { class: "pr-trail", style: `width:${x}%;background:${colour(a)}` }),
+          el("img", { class: "pr-horse rt-animal", alt: "", "aria-hidden": "true", src: `media/animals/${ANIMAL[rtype]}.png`, width: "30", height: "30", style: `left:calc(${x}% - ${x > 4 ? 30 : 0}px)` })),
+        el("div", { class: "pr-gap" }, r ? (rk === 1 ? el("b", { text: ended ? "Winner" : "Leading" }) : `${fmt(r.behind, 1)} behind`) : "–", el("br"), el("span", { class: "ago", text: `${fmt(r ? r.steps : 0, 1)} steps` })),
+        ...cells);
+      return lane;
+    });
+    $("rt-track").replaceChildren(head, ...lanes);
   }
   function rtTabs() {
     const nav = $("race-types");
@@ -625,7 +697,7 @@
   }
   function rtSelect(t) {
     rtype = t;
-    for (const id of ["rt-rows", "rt-picks"]) { const z = $(id); if (z) z.replaceChildren(); }   // L-9: no row of the old type stays on screen
+    for (const id of ["rt-track", "rt-picks"]) { const z = $(id); if (z) z.replaceChildren(); }   // L-9: no row of the old type stays on screen
     try { localStorage.setItem("pr-type", String(t)); } catch { /* per-viewer convenience only */ }
     for (const id of ["live", "pick-zone"]) { const n = $(id); if (n) n.hidden = t !== 0; }
     { const h = $("history"); if (h) h.hidden = t !== 0 || rulerHidesHistory; }   // Repo Lens #G-28 G28-2: the Ruler's table replaces it in an ON week
@@ -661,34 +733,17 @@
       notes.push(`The Knode Games pool sits out ${T.name.toLowerCase()} races for now: a producer needs about ${fmt(need)} VHP (10 expected blocks) to enter one this short.`);
     }
     $("rt-note").textContent = notes.join(" ");
-    const st = liveStandings(cur), hm = new Map((card ? card.field : []).map((x) => [x.a, x.h]));
-    $("rt-rows").replaceChildren(...(st || []).map((x, k) => el("tr", {}, el("td", { text: String(k + 1) }), el("td", { text: nameOf(x.a) }),
-      el("td", { class: "num", text: hm.has(x.a) ? `×${hm.get(x.a).toFixed(2)}` : "–" }), el("td", { class: "num", text: fmt(x.steps, 1) }), el("td", { class: "num hide-sm", text: fmt(x.blocks) }))));
-    if (!st) $("rt-rows").replaceChildren(el("tr", {}, el("td", { colspan: "5", text: "Loading the race…" })));
+    const st = liveStandings(cur);
+    rtBoard(cur, card, st);
     // Picks: the next races of this type.
     const key = JSON.stringify([who, rtype, cur.index, [...rtPicks], sending, card && card.at]);
     if (force || key !== rtKey) {
       rtKey = key;
-      $("rt-who").textContent = who ? `Picking as ${nameOf(who)}. Picks lock when a race starts.` : "Connect a wallet to pick.";
+      $("rt-who").textContent = who ? `Picking as ${nameOf(who)}. Tap Pick next to a producer, in the column of the race you want. Picks lock when a race starts.` : "Connect a wallet to pick.";
       const rows = [];
       const mineCur = rtPicks.get(`${rtype}:${cur.index}`);
       rows.push(el("div", { class: "pk-row live" }, el("div", { class: "pk-when" }, el("b", { text: "Live now" }), el("span", { text: `ends ${rtype >= 3 ? dayTime(cur.end) : clock(cur.end)}` })),
         el("div", { class: "pk-now", text: mineCur ? `Your pick: ${nameOf(mineCur)} 🔒` : "No pick for this race (locked)" }), el("span")));
-      if (who && raceContract) for (const r of upcoming(rtype)) {
-        const k = `${rtype}:${r.index}`, mine = rtPicks.get(k), opts = card ? card.field : [];
-        const sel = el("select", { "aria-label": `Horse for the ${T.name.toLowerCase()} race at ${dayTime(r.start)}` },
-          el("option", { value: "", text: !opts.length ? "Loading the horses…" : mine ? "Change to…" : "Choose a horse…" }),
-          ...opts.map((x) => { const o = el("option", { value: x.a, text: `${nameOf(x.a)} · ×${x.h.toFixed(2)} per block` }); if (x.a === (rtDrafts.get(k) || mine)) o.selected = true; return o; }));
-        sel.addEventListener("change", () => { if (sel.value) rtDrafts.set(k, sel.value); else rtDrafts.delete(k); renderBar(); });
-        // Repo Lens #D-13 L-9: the row's own type, fixed when it is drawn (not read at the click, after a toggle).
-        const rowType = rtype;
-        const btn = el("button", { class: "btn", type: "button", onclick: () => sendPick(r.index, sel.value, rowType) }, mine ? "Change" : "Pick");
-        // L-10: a per-game daily limit above 0, once used up, holds the typed buttons too (the count covers every type).
-        const lim = usage ? Number(usage.max_picks_per_day ?? 0) : 0, used = usage ? Number(usage.picks_today) || 0 : 0;
-        if (sending || !opts.length || (lim > 0 && used >= lim)) btn.disabled = true;
-        rows.push(el("div", { class: "pk-row" }, el("div", { class: "pk-when" }, el("b", { text: `${dayTime(r.start)}${M.restRace(r.start) ? " · Sunday fun race" : ""}` }), el("span", { text: `locks in ${dur(r.start - Date.now())}` })),
-          el("div", {}, sel, mine ? el("div", { class: "pk-now ago", text: `Your pick: ${nameOf(mine)}` }) : null), btn));
-      }
       $("rt-picks").replaceChildren(...rows);
       renderBar();
       // The latest results of this type, with your pick.

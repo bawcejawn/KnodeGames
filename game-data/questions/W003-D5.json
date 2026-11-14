@@ -129,9 +129,17 @@
             "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": "227523962113427"
           },
           "seal": "8ac3e8e554b306a95127bd6b04b7e5e0323fb8cb5f3cc85b8307e7583bf7d15a"
+        },
+        {
+          "height": 41060268,
+          "readAt": "2026-11-14T05:10:28.137Z",
+          "values": {
+            "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": "227341143242266"
+          },
+          "seal": "45ab9950cdc211350cdf471b129d505b9431bd4ca7f034483d4fc57907fc5729"
         }
       ],
-      "vhpSeal": "91d5ac37846d78916455b756af79daa4bfec75ef100867f4d0269a2d8381d187"
+      "vhpSeal": "970d569749d4396bdd6b05db8134ecc7ec5985feebe7faa9d262245adaf137bd"
     },
     {
       "id": "W003-D5-2",
@@ -241,9 +249,17 @@
             "1GGxRhLN7Ek54xycG5XaZBE4bCgwV2xtvk": "121123698956244"
           },
           "seal": "0e9db032916780229079ca156c1e9660ec731b058c674bf746b8e4cded25e4e4"
+        },
+        {
+          "height": 41060268,
+          "readAt": "2026-11-14T05:10:28.137Z",
+          "values": {
+            "1GGxRhLN7Ek54xycG5XaZBE4bCgwV2xtvk": "121030858057477"
+          },
+          "seal": "3d30eca08c3e67eea7380499015237f3e4c16c75c3b0e92975049f224d71c509"
         }
       ],
-      "vhpSeal": "e10316fee2c174e1d9ff902990088080f0a6db3086a31f2f6ebbdf79725f752e"
+      "vhpSeal": "be2640f466294142a7ac8f09a850d88711bf183425164f680c86606f2b0f0145"
     },
     {
       "id": "W003-D5-3",
@@ -369,9 +385,17 @@
             "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "87846132785784"
           },
           "seal": "0eb20b6f2df3392bcd75657c2e825271b8d87d7e1868dbfbef115243ab3ebbe9"
+        },
+        {
+          "height": 41060268,
+          "readAt": "2026-11-14T05:10:28.137Z",
+          "values": {
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "87768424512614"
+          },
+          "seal": "cdaf83e24105b54173be64d7b4d8c6d2c6092d92646610fb7efdf8c329a362c2"
         }
       ],
-      "vhpSeal": "d4e2ebba90213cd133c35674e70d69a82f48069e874ca20664e2b7ed3982d544"
+      "vhpSeal": "4aeacab394e07adbf215188ef49973dc7cc28079ab1b4734235e7307cb86c8c9"
     }
   ],
   "daySeal": "1350a4bade6f4afe61974d586134af764b141a70f4f1eb205f274bcbaa86e57c"

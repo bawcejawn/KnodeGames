@@ -28,7 +28,7 @@ import { readVaultStakes } from "./sources/vault-stakes.ts";
 import { readPicksContract } from "./sources/picks-contract.ts";
 import { readPublishedFinals } from "./sources/published.ts";
 import { blockAtFor } from "./sources/block-at.ts";
-import { NotYet, PENDING, VOID, type GameModule, type NodeReader, type Pick, type PicksSource, type Published, type Round, type SourceRead, type States } from "./types.ts";
+import { FALLBACK_GRACE_MS, NotYet, PENDING, VOID, type GameModule, type NodeReader, type Pick, type PicksSource, type Published, type Round, type SourceRead, type States } from "./types.ts";
 
 export type KitGameCfg = {
   slug: string; game: number; genesis: number; weekMs: number;
@@ -408,19 +408,36 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // resultOf with ctx.vhp; a card the data doesn't cover yet is PENDING (never a guess).
   // #G-69 G69-1: rounds a run couldn't decide because something wasn't readable yet (NotYet), as opposed to a result
   // the chain itself still shows as undecided.
+  const MAX_FALLBACK_WHY = 200;
   const notYet = new Set<string>();
+  // K8: rounds decided this run by the game's fallback rule, [round, at, why]; and the published copy's (fixed).
+  const fallbackOf = new Map<string, [string, number, string]>();
+  const pubFallbacks = new Map<string, [string, number, string]>((Array.isArray(pw?.fallbacks) ? pw.fallbacks : []).map((f: any) => [f[0], f]));
   const resultOf = async (r: Round, rd: NodeReader) => {
     if (!cfg.vhpData) {
       try { return await m.resultOf(r, rd, inputs, { blockAt: chainOf(rd) }); }
       catch (e) { if (isNotYet(e)) { notYet.add(r.id); return PENDING; } throw e; }
     }
     const mine = new Map<string, any>();
-    let res: any;
-    try { res = await m.resultOf(r, rd, inputs, { vhp: vhpRound!(mine), blockAt: chainOf(rd) }); }
+    let res: any, fb: [string, number, string] | null = null;
+    // K8, ctx.fallback (#G-69 G69-2): only with the ruler's data loaded this run; never for a round the published copy
+    // decided without one; resolves at the first irreversible block on or after resolvesAt + 48 h.
+    const fallback = async (why: string) => {
+      if (!vhpLoaded) throw new NotYet("not yet: no fallback without the ruler's data this run (#G-69 G69-2)");
+      const pr = pubRounds.get(r.id);
+      if (pr && pr[3] !== "p" && !pubFallbacks.has(r.id)) throw new NotYet(`not yet: round ${r.id} was decided with its card; never re-decided by the fallback (#G-69 G69-2)`);
+      const at = r.resolvesAt + FALLBACK_GRACE_MS;
+      await chainOf(rd)(at);
+      const text = String(why ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_FALLBACK_WHY) || "no ruler card";
+      fb = [r.id, at, text];
+    };
+    try { res = await m.resultOf(r, rd, inputs, { vhp: vhpRound!(mine), blockAt: chainOf(rd), fallback }); }
     catch (e) { if (isNotYet(e)) { notYet.add(r.id); return PENDING; } throw e; }
     for (const [k, v] of mine) usedWeekCards.set(k, v);
-    // #G-24 Info: a decided ruler round must come from at least one ruler card (cardPerRound, on by default).
-    if (cfg.cardPerRound && res !== PENDING && mine.size === 0) throw new Error(`round ${r.id}: decided without a ruler card (cardPerRound; a ruler game's results come from ctx.vhp.card)`);
+    if (fb && res !== PENDING) fallbackOf.set(r.id, fb);
+    // #G-24 Info: a decided ruler round must come from at least one ruler card (cardPerRound, on by default), unless
+    // the game decided it by its fallback rule (K8).
+    if (cfg.cardPerRound && res !== PENDING && mine.size === 0 && !(fb && res !== PENDING)) throw new Error(`round ${r.id}: decided without a ruler card (cardPerRound; a ruler game's results come from ctx.vhp.card, or ctx.fallback after the 48 h grace)`);
     return res;
   };
 
@@ -491,6 +508,8 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
       }
     }
     const pr = pubRounds.get(r.id);
+    // K8 / #G-69 G69-2: a round the published copy decided by its fallback rule stays exactly as published.
+    if (pr && pr[3] !== "p" && pubFallbacks.has(r.id)) { status = pr[3]; rows = pr[4]; fallbackOf.set(r.id, pubFallbacks.get(r.id)!); }
     // #G-69 G69-1: a round the published copy decided but this run can't decide (a failed or missing ruler-data
     // fetch, a card() or blockAt "not yet" while one node lags, a rebuilt vhp-data branch) is a read this run couldn't
     // finish, never a change: it keeps its published result and cards, and the week doesn't compare (no HOLD on a
@@ -530,6 +549,10 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
       for (const c of pw.cards) if (!have.has(c[1])) { usedWeekCards.set(`published:${c[1]}`, c); have.add(c[1]); }
     }
     body.cards = cardList(usedWeekCards);
+    // K8: the rounds decided by the game's fallback rule, sorted, each alerted until it's published.
+    const fbs = roundsOut.filter((x: any) => x[3] !== "p" && fallbackOf.has(x[0])).map((x: any) => fallbackOf.get(x[0])!).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    if (fbs.length) body.fallbacks = fbs;
+    for (const f of fbs) if (!pubFallbacks.has(f[0])) alerts.errors.push(`round ${f[0]}: no ruler card 48 h after it ended, so it was decided by the game's fallback rule (${f[2]}); recorded in the week file`);
     // Never backwards: the larger of this run's and the published copy's (a run without data keeps the published one).
     const to = Math.max(vhpTo ?? -1, pubTo ?? -1);
     if (to >= 0) body.vhpTo = to;

@@ -92,7 +92,8 @@ export const STATES = ["open", "pending", "final"];
  *  week's start and after its last round, [[wallet, state], …] sorted (carried state, FC-5); extras: records-only JSON
  *  (Weekly Rival). None of these is recomputed here (the publish job runs no game code): the recorder's two-node
  *  reads, the stability wait and the HOLD on a changed final guard them, and the hash covers them. */
-export const WEEK_OPT_KEYS = ["inputs", "carry", "next", "extras", "cards"];
+export const WEEK_OPT_KEYS = ["inputs", "carry", "next", "extras", "cards", "fallbacks"];
+const FALLBACK_GRACE_MS = 48 * 3_600_000;
 /** Optional keys after those, NOT in the week hash: vhpTo, the last block of the ruler data the run used (#G-69 G69-1). */
 export const WEEK_META_KEYS = ["vhpTo"];
 /** cards (Phase 1b, vhpData games): every VHP ruler card the file's results (or price list) used, as
@@ -175,8 +176,18 @@ export function weekShape(j, name, cfg) {
   if (j.cards !== undefined && !isCardList(j.cards)) return "bad cards (sorted [settings, sha256] pairs, no sha256 twice)";
   // #G-24 Info: a ruler game's decided rounds each come from a card (cardPerRound, on by default): at least as many
   // distinct cards as decided rounds.
+  // K8: rounds decided by the game's fallback rule: [round, at, why], sorted, each a decided round of this file, at a
+  // time at least 48 h after the week's start (the round's own end is the recorder's; the job's clock checks `at`).
+  if (j.fallbacks !== undefined) {
+    if (!cfg.vhpData) return "fallbacks in a game without ruler data";
+    const dec = new Set(j.rounds.filter((r) => r[3] === "s" || r[3] === "v").map((r) => r[0]));
+    if (!Array.isArray(j.fallbacks) || !j.fallbacks.length || j.fallbacks.length > j.rounds.length
+      || !j.fallbacks.every((f, i) => Array.isArray(f) && f.length === 3 && typeof f[0] === "string" && dec.has(f[0])
+        && Number.isSafeInteger(f[1]) && f[1] >= j.start + FALLBACK_GRACE_MS && typeof f[2] === "string" && f[2].length >= 1 && f[2].length <= 200
+        && (i === 0 || j.fallbacks[i - 1][0] < f[0]))) return "bad fallbacks (sorted [decided round, at, why], at least 48 h after the week's start)";
+  }
   if (cfg.cardPerRound && j.cards !== undefined) {
-    const decided = j.rounds.filter((r) => r[3] === "s" || r[3] === "v").length;
+    const decided = j.rounds.filter((r) => r[3] === "s" || r[3] === "v").length - (j.fallbacks?.length ?? 0);
     if (j.cards.length < decided) return `${decided} decided rounds but only ${j.cards.length} ruler cards (cardPerRound)`;
   }
   if (j.extras !== undefined && (j.extras === null || typeof j.extras !== "object" || Buffer.byteLength(JSON.stringify(j.extras)) > MAX_EXTRAS_BYTES)) return `bad extras (an object or list, at most ${MAX_EXTRAS_BYTES} bytes)`;
@@ -545,6 +556,9 @@ export function checkGame(cfg, inDir, pubDir, now, release = "", cardsOk = null)
       okWeeks.set(w, prev); heldWeeks.delete(w); continue;     // copied forward unchanged: nothing to publish
     }
     if (prev) { const ch = roundsChange(prev, j, cfg); if (ch) { hold(f, ch); continue; } }
+    // K8: a fallback, once published, stays exactly as published; and no fallback before its time by this job's clock.
+    if (prev && (prev.fallbacks ?? []).some((f) => JSON.stringify((j.fallbacks ?? []).find((g) => g[0] === f[0])) !== JSON.stringify(f))) { hold(f, "it changes or drops a published fallback round"); continue; }
+    if ((j.fallbacks ?? []).some((x) => x[1] > now)) { hold(f, "a fallback round decided before its 48 h grace, by this job's clock"); continue; }
     // #G-69 G69-1: the ruler data a week was read with never goes backwards (a stale or short download).
     if (prev && prev.vhpTo !== undefined && !(j.vhpTo !== undefined && j.vhpTo >= prev.vhpTo)) { hold(f, "it was read with older ruler data than the published copy (vhpTo goes backwards)"); continue; }
     // KC-1: seen.at is the recorder's claim. Kept only while the hash is the published one, and exactly; a new hash must

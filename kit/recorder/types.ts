@@ -54,7 +54,14 @@ export type VhpCtx = { to: number; ruleVersion: number; card(settings: any): any
 export type BlockAt = (ms: number) => Promise<number>;
 export type RoundCtx<I = unknown> = { now: number; inputs?: I; published?: Published; vhp?: VhpCtx; blockAt?: BlockAt };
 /** resultOf's fourth argument. */
-export type ResultCtx = { vhp?: VhpCtx; blockAt?: BlockAt };
+/** K8 (the owner's 48 h rule, 13 Nov): decide a round with no ruler card. Resolves only when the first irreversible
+ *  block at or after the round's resolvesAt + 48 h exists on both nodes, and only when the ruler's data loaded this run
+ *  (#G-69 G69-2); otherwise it throws NotYet (the round stays pending). After it resolves, the game returns its own
+ *  simplest fixed result. The round is recorded with `why` in the week file's `fallbacks`, needs no ruler card, is
+ *  alerted, and is never re-decided once published. */
+export type Fallback = (why: string) => Promise<void>;
+export const FALLBACK_GRACE_MS = 48 * 3_600_000;
+export type ResultCtx = { vhp?: VhpCtx; blockAt?: BlockAt; fallback?: Fallback };
 export type ReadCtx<I = unknown> = RoundCtx<I> & { read: NodeReader };
 
 export type PicksSource = { source: "picks-contract" | "race-picks" | "vault-answers" | "none"; gameId?: number };

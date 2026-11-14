@@ -480,7 +480,7 @@ export function roundsChange(prev, j, cfg) {
  * cfg: { slug, game, genesis, weekMs, sundayFunRound, payoutRule, vaultValues, entry, minPts, rowCap, maxRoundPoints,
  *        liveWeek, roundsCorrectable }; release: the owner's <SLUG>_RELEASE value from the job's own variables (KC-3).
  */
-export function checkGame(cfg, inDir, pubDir, now, release = "", cardsOk = null) {
+export function checkGame(cfg, inDir, pubDir, now, release = "", cardsOk = null, vhpMax = null) {
   const k = weekClock(cfg), cw = k.weekOf(now);
   const held = [], publish = [];
   const hold = (name, why, alert = true) => held.push({ name, why, alert });
@@ -540,6 +540,8 @@ export function checkGame(cfg, inDir, pubDir, now, release = "", cardsOk = null)
     if (prev) { const ch = roundsChange(prev, j, cfg); if (ch) { hold(f, ch); continue; } }
     // #G-69 G69-1: the ruler data a week was read with never goes backwards (a stale or short download).
     if (prev && prev.vhpTo !== undefined && !(j.vhpTo !== undefined && j.vhpTo >= prev.vhpTo)) { hold(f, "it was read with older ruler data than the published copy (vhpTo goes backwards)"); continue; }
+    // #G-78 G78-4: never past the ruler data this job read itself (vhp-data only grows; the recorder read it earlier).
+    if (j.vhpTo !== undefined && Number.isSafeInteger(vhpMax) && j.vhpTo > vhpMax) { hold(f, `it claims ruler data to block ${j.vhpTo}, past the published vhp-data's last block ${vhpMax}`); continue; }
     // KC-1: seen.at is the recorder's claim. Kept only while the hash is the published one, and exactly; a new hash must
     // be stamped by this hour's run (by this job's clock), and for an ended week after its end.
     // An unchanged hash first read before the week ended (an open copy under liveWeek) may be stamped again once the
@@ -679,11 +681,17 @@ export function main(argv = process.argv.slice(2), env = process.env) {
       if (fs.existsSync(dir) && !fs.lstatSync(dir).isDirectory()) { console.log(`::error::held, not published: ${g.slug}: not a plain folder`); alert = true; continue; }
       // G3: the cards the publish job's embedded vhp_ruler.py rebuilt for this game (absent = it didn't run or failed).
       let cardsOk = null;
+      let vhpMax = null;
       if (g.vhpData && env.KIT_CARDS_DIR) {
         const cf = path.join(env.KIT_CARDS_DIR, `${g.slug}.json`);
-        if (fs.existsSync(cf)) { const v = JSON.parse(fs.readFileSync(cf, "utf8")); if (Array.isArray(v.ok)) cardsOk = new Set(v.ok.filter((x) => Array.isArray(x) && x.length === 2).map((x) => cardKey(x[0], x[1]))); }
+        if (fs.existsSync(cf)) {
+          const v = JSON.parse(fs.readFileSync(cf, "utf8"));
+          if (Array.isArray(v.ok)) cardsOk = new Set(v.ok.filter((x) => Array.isArray(x) && x.length === 2).map((x) => cardKey(x[0], x[1])));
+        }
+        const tf = path.join(env.KIT_CARDS_DIR, `${g.slug}.to.json`);
+        if (fs.existsSync(tf)) { const t = JSON.parse(fs.readFileSync(tf, "utf8")); if (Number.isSafeInteger(t?.to)) vhpMax = t.to; }
       }
-      const r = checkGame(g, dir, path.join(pubRoot, g.slug), now, env[releaseEnv(g.slug)] ?? "", cardsOk);
+      const r = checkGame(g, dir, path.join(pubRoot, g.slug), now, env[releaseEnv(g.slug)] ?? "", cardsOk, vhpMax);
       for (const h of r.held) {
         console.log(`${h.alert ? "::error::" : "::notice::"}held, not published: ${g.slug}/${h.name}: ${h.why}`);
         if (h.alert) alert = true;

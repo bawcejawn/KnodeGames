@@ -144,7 +144,7 @@ test("G69-1: a pending week whose published copy decided a round keeps it (no KC
   assert.ok(["pending", "final"].includes(h.result!.state!));
 });
 
-test("G69-1: in a game whose decided rounds can't change, a round read as pending for any reason keeps its published result", async () => {
+test("G69-1 / #G-78 G78-2: in a game whose decided rounds can't change, a FINAL week with all its data that reads a decided round plainly pending HOLDs, as before", async () => {
   const { PENDING } = await import("../recorder/types.ts");
   let undecided = false;
   const pend: GameModule<any, any, any> = { ...g, async resultOf(r, read, inputs, ctx) { if (undecided) return PENDING; return g.resultOf(r, read, inputs, ctx); } };
@@ -157,7 +157,8 @@ test("G69-1: in a game whose decided rounds can't change, a round read as pendin
   const before = rp.raw("W004.json");
   undecided = true;
   h = await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L });
-  noHold(rp, h, before);
+  void before;
+  assert.ok(rp.read("vault/HOLD-W4.json"), `a real change on a final week HOLDs: ${JSON.stringify(h.result?.alerts)}`);
 });
 
 // The Ruler chat's added rule (14 Nov): the ruler data a week was read with never goes backwards.
@@ -207,4 +208,20 @@ test("G69-1 (vhpTo) publish check: a week file read with older ruler data than t
   fs.writeFileSync(path.join(inn, "W004.json"), canon({ ...plain, vhpTo: 5 }));
   const r2 = checkGame(exampleCfg(), inn, path.join(d, "none"), wd.time + 5 * 60000);
   assert.ok(r2.held.some((x: any) => /vhpTo in a game without ruler data/.test(x.why)), JSON.stringify(r2.held));
+});
+
+test("#G-78 G78-4 publish check: a vhpTo past the ruler data the publish job read itself is held", async () => {
+  const { checkGame, canon, cardKey } = await import("../publish/check.inline.mjs");
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const L = R.ledger(timeline());
+  const wd = qworld(), rp = new Replay(g, cfg);
+  await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L });
+  const pub = rp.read("W004.json");
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "g78-4-")), inn = path.join(d, "in"), out = path.join(d, "pub");
+  fs.mkdirSync(inn); fs.mkdirSync(out);
+  fs.writeFileSync(path.join(inn, "W004.json"), canon(pub));
+  const ok = new Set(pub.cards.map(([s, h]: any) => cardKey(s, h)));
+  assert.ok(!checkGame(cfg, inn, out, wd.time + 5 * 60000, "", ok, pub.vhpTo).held.length, "equal to the job's data: fine");
+  const r = checkGame(cfg, inn, out, wd.time + 5 * 60000, "", ok, pub.vhpTo - 1);
+  assert.ok(r.held.some((x: any) => /past the published vhp-data's last block/.test(x.why)), JSON.stringify(r.held));
 });

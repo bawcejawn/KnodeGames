@@ -28,6 +28,7 @@ export type CardSettings = {
 };
 export type CardRef = [CardSettings, string];          // [settings, sha256 of the scored card's cardJson text]
 export type Vhp = {
+  loaded: boolean;
   /** The last block the data reaches. */
   to: number;
   ruleVersion: number;
@@ -72,6 +73,7 @@ const canonSettings = (s: CardSettings): CardSettings => ({
 export function vhpFor(L: any, used: Map<string, CardRef>): Vhp {
   return {
     to: L.to,
+    loaded: true,             // #G-78 G78-5 (#G-73 G73-1): the real data; the kit's no-data stand-in says loaded: false
     ruleVersion: RULE_VERSION,
     card(s0: CardSettings) {
       const s = canonSettings(s0);

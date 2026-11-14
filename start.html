@@ -131,7 +131,7 @@
     <!-- bridge walkthrough -->
     <section class="tokens start-sec" id="tokens" aria-labelledby="tokens-title">
         <h2 id="tokens-title" class="sec-title">Official token addresses</h2>
-        <p>Copy these, never from a message or a search result. KOIN and VHP live on Koinos; vKOIN is KOIN on Ethereum or Solana, which the Vortex bridge turns into KOIN on Koinos.</p>
+        <p>Copy these, never from a message or a search result. KOIN and VHP live on Koinos; vKOIN is KOIN on Ethereum or Solana. The Vortex bridge turns vKOIN on Ethereum into KOIN on Koinos. If your vKOIN is on Solana, move it to Ethereum first (see below).</p>
         <ul class="tok-list">
           <li><span class="tok-name"><b>KOIN</b> on Koinos</span><span class="addr"><code id="tok-koin">19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK</code><button class="copy" type="button" data-copy="tok-koin">Copy</button></span><a href="https://koinosscan.com/address/19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK" target="_blank" rel="noopener noreferrer">Check on Koinosscan</a></li>
           <li><span class="tok-name"><b>VHP</b> on Koinos</span><span class="addr"><code id="tok-vhp">12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq</code><button class="copy" type="button" data-copy="tok-vhp">Copy</button></span><a href="https://koinosscan.com/address/12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq" target="_blank" rel="noopener noreferrer">Check on Koinosscan</a></li>
@@ -139,6 +139,25 @@
           <li><span class="tok-name"><b>vKOIN</b> on Solana</span><span class="addr"><code id="tok-vsol">8AUxdPqYU4FBy5rZDhMJxTniPs7gtEfdHjP3UKM71m6G</code><button class="copy" type="button" data-copy="tok-vsol">Copy</button></span><a href="https://solscan.io/token/8AUxdPqYU4FBy5rZDhMJxTniPs7gtEfdHjP3UKM71m6G" target="_blank" rel="noopener noreferrer">Check on Solscan</a></li>
         </ul>
       </section>
+
+    <section id="from-solana" class="start-sec" aria-labelledby="from-solana-title">
+      <h2 id="from-solana-title" class="sec-title">Have vKOIN on Solana? Go through Ethereum first</h2>
+      <div class="bridge">
+        <ol class="bridge-steps">
+          <li><b>Move it to Ethereum with Wormhole.</b> Open <a href="https://portalbridge.com/" target="_blank" rel="noopener noreferrer">Portal, Wormhole's bridge</a>, connect your Solana wallet and MetaMask, choose Solana as the source and Ethereum as the destination, and pick the vKOIN token from the list above.</li>
+          <li><b>Keep a little ETH in MetaMask.</b> Receiving on Ethereum costs a gas fee, paid in ETH.</li>
+          <li><b>Check what arrived.</b> In MetaMask the token should be vKOIN with the Ethereum address in the list above. Check it on Etherscan.</li>
+          <li><b>Then cross the Vortex Bridge</b> from Ethereum to Koinos, as in the steps below. Vortex connects Ethereum and Koinos, so it can't take Solana directly.</li>
+        </ol>
+        <aside class="bridge-note panel">
+          <h3>Good to know</h3>
+          <ul>
+            <li>Send a small test amount first, and only use the official bridge sites.</li>
+            <li>Each hop takes a few minutes: wait until the tokens show in your wallet before the next step.</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
 
     <section id="bridge" class="start-sec" aria-labelledby="bridge-title">
       <h2 id="bridge-title" class="sec-title">Crossing the Vortex Bridge</h2>

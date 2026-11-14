@@ -287,7 +287,8 @@ test("workflow: records the bracket with the same prev/out/race folders and publ
   assert.match(yml, /"\$IN"\/bracket\/\*\.json "\$IN"\/bracket\/vault\/\*\.json/, "the push loop takes the Bracket's files (vault files write-once)");
   assert.match(yml, /git show "FETCH_HEAD:bracket\/vault\/\$f" > "\$RUNNER_TEMP\/prev\/bracket\/vault\/\$f"/);
   assert.match(yml, /\/usr\/bin\/python3 - "\$IN\/bracket" "\$PUB\/bracket" "\$HELD" <<'PY'/);
-  assert.doesNotMatch(yml.split("publish:")[1].split("# ── BEGIN kit-rendered jobs")[0], /npm |npx |tsx /, "the publish job runs no repository code (the kit's own jobs follow its marker)");
+  // (Block X's embedded copy of vhp_ruler.py is data, kept byte for byte the repository's file by its own test.)
+  assert.doesNotMatch(yml.split("publish:")[1].split("# ── BEGIN kit-rendered jobs")[0].replace(/# BEGIN vhp_ruler\.py\n[\s\S]*?# END vhp_ruler\.py\n/, ""), /npm |npx |tsx /, "the publish job runs no repository code (the kit's own jobs follow its marker)");
 });
 
 test("workflow shape check: accepts a whole recorded week, refuses tampered files", async () => {

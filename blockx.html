@@ -168,7 +168,7 @@
     <div class="bx-intro">
       <div>
         <h1>Who Signs Block X</h1>
-        <p>A target about every hour (every 1,200 blocks, from Mon 9 Nov). Guess which producer signs it. Smaller producers score more, up to ×5. Free to play.</p>
+        <p>A target about every hour (every 1,200 blocks, from Mon 9 Nov). Guess which producer signs it. Smaller producers score more, up to <span data-bx="capx">×5</span>. Free to play.</p>
       </div>
     </div>
     <p class="status" id="status" role="status">Reading the chain…</p>
@@ -229,6 +229,15 @@
       <h2>Who signs most often</h2>
       <p class="note" id="mult-sub"></p>
       <div id="mult-rows"></div>
+    </section>
+
+    <!-- The VHP ruler (owner, 11 Nov 2026; bot/blockx-ruler.ts): shown only once a ruler day file (X<week>-<d>.json) says shadow or on. -->
+    <section class="bx-sec bx-panel" id="ruler-box" hidden>
+      <h2>Measured by the VHP ruler</h2>
+      <p class="note" style="margin-top:0" id="ruler-when"></p>
+      <p class="note">The ruler sizes every producer by its own VHP, from a moment before the lock that nobody can time. A right pick scores <span class="formula">min(120, the biggest full-signing producer's size ÷ your producer's size)</span>: every producer in the field has the same expected payout per pick, so picking a small one is never a worse bet than picking a big one. <b>Capped at ×120.</b> A producer with too little VHP to sign about 10 blocks in 6 hours isn't in the field (a pick on it is a miss).</p>
+      <p class="note"><b>Void:</b> a producer whose VHP at the target block is more than 5% below, or more than 25% above, its size on the card is void for that target only. <b>A pick on a voided producer counts as a miss.</b> VHP added after the card earns nothing extra.</p>
+      <div id="ruler-list"></div>
     </section>
 
     <details class="bx-how" id="how">

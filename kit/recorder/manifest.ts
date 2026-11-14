@@ -39,6 +39,7 @@ export function loadManifest(slug: string, root = ROOT): any {
 export const payoutPin = (m: any) => ({
   payoutRule: m.payoutRule, vaultValues: m.vaultValues, entry: { minRounds: m.entry.minRounds, minPoints: m.entry.minPoints },
   sundayFunRound: m.week.sundayFunRound, roundsCorrectable: m.roundsCorrectable === true, liveWeek: m.liveWeek === true,
+  ...(m.seasonWeeks > 1 ? { seasonWeeks: m.seasonWeeks } : {}),
 });
 
 /** The kit's config for one game. */
@@ -65,11 +66,14 @@ export function kitConfig(m: any, dep = readDeployment()): KitGameCfg {
     maxRoundPoints: m.maxRoundPoints ?? 1000000,
     ...(m.inputsFile === true ? { inputsFile: true, inputsLeadMs: (m.inputsLeadHours ?? 48) * 3600000 } : {}),
     ...(m.vhpData === true ? { vhpData: true, cardPerRound: m.cardPerRound !== false } : {}),
+    // K1: the Game Standard's seasonWeeks (1–4); a season game is one with more than 1.
+    ...(m.seasonWeeks > 1 ? { seasonWeeks: m.seasonWeeks } : {}),
+    ...(m.parts !== undefined ? { parts: m.parts } : {}),
   };
 }
 
 /** The publish job's per-game config (what check.inline.mjs reads from KIT_GAMES). */
 export function publishConfig(m: any, dep = readDeployment()) {
   const c = kitConfig(m, dep);
-  return { slug: c.slug, game: c.game, genesis: c.genesis, weekMs: c.weekMs, sundayFunRound: c.sundayFunRound, payoutRule: c.payoutRule, vaultValues: c.vaultValues, entry: c.entry, minPts: c.minPts, rowCap: c.rowCap, maxRoundPoints: c.maxRoundPoints, liveWeek: c.liveWeek, roundsCorrectable: c.roundsCorrectable, ...(c.inputsFile ? { inputsFile: true } : {}), ...(c.vhpData ? { vhpData: true, cardPerRound: !!c.cardPerRound } : {}) };
+  return { slug: c.slug, game: c.game, genesis: c.genesis, weekMs: c.weekMs, sundayFunRound: c.sundayFunRound, payoutRule: c.payoutRule, vaultValues: c.vaultValues, entry: c.entry, minPts: c.minPts, rowCap: c.rowCap, maxRoundPoints: c.maxRoundPoints, liveWeek: c.liveWeek, roundsCorrectable: c.roundsCorrectable, ...(c.inputsFile ? { inputsFile: true } : {}), ...(c.vhpData ? { vhpData: true, cardPerRound: !!c.cardPerRound } : {}), ...(c.seasonWeeks ? { seasonWeeks: c.seasonWeeks } : {}), ...(c.parts ? { parts: c.parts } : {}) };
 }

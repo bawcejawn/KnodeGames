@@ -92,12 +92,18 @@ export const STATES = ["open", "pending", "final"];
  *  week's start and after its last round, [[wallet, state], …] sorted (carried state, FC-5); extras: records-only JSON
  *  (Weekly Rival). None of these is recomputed here (the publish job runs no game code): the recorder's two-node
  *  reads, the stability wait and the HOLD on a changed final guard them, and the hash covers them. */
-export const WEEK_OPT_KEYS = ["inputs", "carry", "next", "extras", "cards"];
+export const WEEK_OPT_KEYS = ["inputs", "carry", "next", "extras", "cards", "fallbacks", "season"];
+const FALLBACK_GRACE_MS = 48 * 3_600_000;
+/** Optional keys after those, NOT in the week hash: vhpTo, the last block of the ruler data the run used (#G-69 G69-1). */
+export const WEEK_META_KEYS = ["vhpTo"];
 /** cards (Phase 1b, vhpData games): every VHP ruler card the file's results (or price list) used, as
  *  [settings, sha256 of the scored card's cardJson], sorted by round then sha256. Rebuilt from vhp-data by the publish
  *  job once the inline ruler copy lands (G3); until then shape only, covered by the hash. */
 export const MAX_CARDS = 1000;
 const CARD_SETTING_KEYS = "game,round,window,c,minK,poolRule,ownRule,paying,pooled";
+// The optional mode, include and version follow, each only when set, in that order (2^3 key lists).
+const CARD_SETTING_KEY_SETS = [[], ["mode"], ["include"], ["mode", "include"], ["version"], ["mode", "version"], ["include", "version"], ["mode", "include", "version"]].map((o) => [CARD_SETTING_KEYS, ...o].join());
+const MAX_INCLUDE = 64;
 const CARD_WINDOW_KEYS = "W0,W1,L,S0,S1";
 /** The key of one card entry: its settings AND its sha256 (#G-24 G24-1), the same in the check and the rebuild list. */
 export const cardKey = (s, h) => JSON.stringify(sortKeys([s, h]));
@@ -109,7 +115,11 @@ export function isCardList(xs) {
   for (const x of xs) {
     if (!Array.isArray(x) || x.length !== 2 || typeof x[1] !== "string" || !/^[0-9a-f]{64}$/.test(x[1])) return false;
     const s = x[0];
-    if (!s || typeof s !== "object" || Array.isArray(s) || Object.keys(s).join() !== CARD_SETTING_KEYS) return false;
+    if (!s || typeof s !== "object" || Array.isArray(s) || !CARD_SETTING_KEY_SETS.includes(Object.keys(s).join())) return false;
+    // Optional: the ruler's scoring mode and the kit's include list (G6), as the ruler itself checks them.
+    if (s.mode !== undefined && !["A", "B", "C", "D"].includes(s.mode)) return false;
+    if (s.version !== undefined && s.version !== 4 && s.version !== 5) return false;
+    if (s.include !== undefined && !(Array.isArray(s.include) && s.include.length >= 1 && s.include.length <= MAX_INCLUDE && s.include.every(isAddr) && s.include.every((a, i) => i === 0 || s.include[i - 1] < a))) return false;
     if (!Number.isSafeInteger(s.game) || typeof s.round !== "string" || !/^[0-9]{1,20}$/.test(s.round) || typeof s.c !== "string" || !/^[0-9]{1,30}$/.test(s.c)) return false;
     if (!Number.isSafeInteger(s.minK) || typeof s.poolRule !== "string" || typeof s.ownRule !== "string" || typeof s.paying !== "boolean") return false;
     if (!Array.isArray(s.pooled) || s.pooled.length > 16 || !s.pooled.every(isAddr)) return false;
@@ -154,19 +164,33 @@ export function weekShape(j, name, cfg) {
   const k = weekClock(cfg);
   if (!j || typeof j !== "object" || Array.isArray(j)) return "not an object";
   const keys = Object.keys(j);
-  const opt = keys.slice(WEEK_KEYS.length);
+  const opt = keys.slice(WEEK_KEYS.length), ALL_OPT = [...WEEK_OPT_KEYS, ...WEEK_META_KEYS];
   if (keys.length < WEEK_KEYS.length || !WEEK_KEYS.every((x, i) => keys[i] === x)
-    || !opt.every((k, i) => WEEK_OPT_KEYS.includes(k) && (i === 0 || WEEK_OPT_KEYS.indexOf(opt[i - 1]) < WEEK_OPT_KEYS.indexOf(k)))) return "not the week file's keys in order";
+    || !opt.every((k, i) => ALL_OPT.includes(k) && (i === 0 || ALL_OPT.indexOf(opt[i - 1]) < ALL_OPT.indexOf(k)))) return "not the week file's keys in order";
   if (j.inputs !== undefined && !(typeof j.inputs === "string" && /^[0-9a-f]{64}$/.test(j.inputs))) return "inputs must be a sha256";
   if (!!cfg.inputsFile !== (j.inputs !== undefined)) return cfg.inputsFile ? "this game's week file must name its inputs file (FC-9)" : "inputs in a game without an inputs file";
   for (const k of ["carry", "next"]) if (j[k] !== undefined && !isStateList(j[k])) return `bad ${k} (sorted [wallet, state] pairs, each state at most ${MAX_STATE_BYTES} bytes)`;
   if ((j.carry === undefined) !== (j.next === undefined)) return "carry and next come together";
   if (!!cfg.vhpData !== (j.cards !== undefined)) return cfg.vhpData ? "a ruler game's week file must list its cards" : "cards in a game without ruler data";
+  // K1: a season game's week file names its season's first week (at most seasonWeeks − 1 weeks back).
+  if (!!cfg.seasonWeeks !== (j.season !== undefined)) return cfg.seasonWeeks ? "a season game's week file must name its season" : "season in a game without seasons";
+  if (j.season !== undefined && !(Number.isSafeInteger(j.season) && j.season >= 0 && j.season <= j.week && j.week - j.season < cfg.seasonWeeks)) return "bad season (its first week, at most seasonWeeks − 1 weeks back)";
+  if (j.vhpTo !== undefined && !(cfg.vhpData && Number.isSafeInteger(j.vhpTo) && j.vhpTo >= 0)) return cfg.vhpData ? "vhpTo must be a block number" : "vhpTo in a game without ruler data";
   if (j.cards !== undefined && !isCardList(j.cards)) return "bad cards (sorted [settings, sha256] pairs, no sha256 twice)";
   // #G-24 Info: a ruler game's decided rounds each come from a card (cardPerRound, on by default): at least as many
   // distinct cards as decided rounds.
+  // K8: rounds decided by the game's fallback rule: [round, at, why], sorted, each a decided round of this file, at a
+  // time at least 48 h after the week's start (the round's own end is the recorder's; the job's clock checks `at`).
+  if (j.fallbacks !== undefined) {
+    if (!cfg.vhpData) return "fallbacks in a game without ruler data";
+    const dec = new Set(j.rounds.filter((r) => r[3] === "s" || r[3] === "v").map((r) => r[0]));
+    if (!Array.isArray(j.fallbacks) || !j.fallbacks.length || j.fallbacks.length > j.rounds.length
+      || !j.fallbacks.every((f, i) => Array.isArray(f) && f.length === 3 && typeof f[0] === "string" && dec.has(f[0])
+        && Number.isSafeInteger(f[1]) && f[1] >= j.start + FALLBACK_GRACE_MS && typeof f[2] === "string" && f[2].length >= 1 && f[2].length <= 200
+        && (i === 0 || j.fallbacks[i - 1][0] < f[0]))) return "bad fallbacks (sorted [decided round, at, why], at least 48 h after the week's start)";
+  }
   if (cfg.cardPerRound && j.cards !== undefined) {
-    const decided = j.rounds.filter((r) => r[3] === "s" || r[3] === "v").length;
+    const decided = j.rounds.filter((r) => r[3] === "s" || r[3] === "v").length - (j.fallbacks?.length ?? 0);
     if (j.cards.length < decided) return `${decided} decided rounds but only ${j.cards.length} ruler cards (cardPerRound)`;
   }
   if (j.extras !== undefined && (j.extras === null || typeof j.extras !== "object" || Buffer.byteLength(JSON.stringify(j.extras)) > MAX_EXTRAS_BYTES)) return `bad extras (an object or list, at most ${MAX_EXTRAS_BYTES} bytes)`;
@@ -421,6 +445,136 @@ export function vaultFileOf(j, t) {
 // ───────────────────────── the checks ─────────────────────────
 // No leading zeros in vault names (KC-17): W4, HOLD-W4, RELEASE-W4 — never W04 or W004.
 const VNUM = "(0|[1-9][0-9]{0,3})";
+// ─── KG parts v1 for kit games with game.json "parts" (Capacity's kit/parts; Architecture, 14 Nov 2026) ───────────
+// The week file stays the kit's one logical format (weekHash, every check below unchanged). A parts game stores it as
+// the folder W<NNN>/ (manifest + content-addressed parts): one part per UTC day ("d", d1–d7) or per round ("r",
+// r001…) with the rounds' rows; wk with the week-level keys; p/<x> (16 shards by SHA-256 of the address) with the
+// players and their carried states. partsToWeek rebuilds the exact week file; the publish job checks the folder with
+// kit/parts' checkParts, rebuilds it, then judges the rebuilt file like any other. A game's display columns (partCols)
+// ride along in the day parts and are not part of the week file. The parts library is embedded byte for byte by the
+// publish job (globalThis.__KITPARTS); the recorder and tests load the repository's copy.
+let kitParts = null;
+/** The recorder and tests hand in the repository's kit/parts (no top-level await: the kit is also loaded as CJS). */
+export const useKitParts = (lib) => { kitParts = lib; };
+const KP = new Proxy({}, { get: (_, k) => { const l = kitParts ?? globalThis.__KITPARTS; if (!l) throw new Error("kit/parts isn't loaded (the publish job embeds it; the recorder calls useKitParts)"); return l[k]; } });
+export const PARTS_SHARDS = 16;
+const ROW_COLS = [["player", "a"], ["round", "i"], ["pts", "i"], ["at", "i"]];
+const PLAYER_COLS = [["player", "a"], ["stake", "n"], ["peak", "n"], ["voided", "b"]];
+const OPT_KEYS_ALL = () => [...WEEK_OPT_KEYS.filter((k) => k !== "carry" && k !== "next"), ...WEEK_META_KEYS];
+const partOfRound = (cfg, j, r, ri) => (cfg.parts === "d" ? `d${Math.floor((r[1] - j.start) / DAY) + 1}` : `r${String(ri + 1).padStart(3, "0")}`);
+export const weekFolder = (w) => weekName(w).replace(/\.json$/, "");
+
+/** The kit week file j as encoded parts (kit/parts encodePart results) and the manifest's meta (state, unit, expect).
+ *  disp (optional, partCols): { cols: [[name, type]], rows: Map<roundId, Map<wallet, values[]>> } for display. */
+export function weekToParts(j, cfg, disp = null, writtenAt = 0) {
+  const game = cfg.slug, file = weekFolder(j.week), dcols = disp?.cols ?? [];
+  const byPart = new Map(), get = (p) => { let x = byPart.get(p); if (!x) byPart.set(p, (x = { rounds: [], rows: [] })); return x; };
+  j.rounds.forEach((r, ri) => {
+    const b = get(partOfRound(cfg, j, r, ri));
+    b.rounds.push([ri, r[0], r[1], r[2], r[3], r[4].length]);
+    const dr = disp?.rows?.get(r[0]);
+    for (const x of r[4]) {
+      const a = j.players[x[0]][0], dv = dcols.length ? (dr?.get(a) ?? dcols.map(() => null)) : [];
+      if (dv.length !== dcols.length) throw new Error(`partCols gave ${dv.length} values for ${a} in round ${r[0]}, not ${dcols.length}`);
+      b.rows.push([a, ri, x[1], x.length === 3 ? x[2] : 0, ...dv]);
+    }
+  });
+  const encoded = [];
+  for (const [part, b] of [...byPart].sort((x, y) => (x[0] < y[0] ? -1 : 1))) {
+    encoded.push(KP.encodePart({ game, file, part, t0: j.start, cols: [...ROW_COLS, ...dcols], rows: b.rows, extra: { rounds: b.rounds } }));
+  }
+  const shards = new Map(), sh = (a) => { const k = `p/${KP.shardOf(a, PARTS_SHARDS)}`; let x = shards.get(k); if (!x) shards.set(k, (x = { rows: [], carry: [], next: [] })); return x; };
+  for (const p of j.players) sh(p[0]).rows.push([p[0], p[1], p[2], p[3]]);
+  // States and the week-level values are kept as JSON text: kit/parts sorts an extra's keys, and a state's (or a card's
+  // settings') own key order is part of the week file.
+  if (j.carry !== undefined) { for (const c of j.carry) sh(c[0]).carry.push([c[0], JSON.stringify(c[1])]); for (const c of j.next) sh(c[0]).next.push([c[0], JSON.stringify(c[1])]); }
+  for (const [part, x] of [...shards].sort((u, v) => (u[0] < v[0] ? -1 : 1))) {
+    encoded.push(KP.encodePart({ game, file, part, t0: 0, cols: PLAYER_COLS, rows: x.rows, extra: j.carry !== undefined ? { carry: x.carry, next: x.next } : {} }));
+  }
+  const opt = {};
+  for (const k of OPT_KEYS_ALL()) if (j[k] !== undefined) opt[k] = j[k];
+  encoded.push(KP.encodePart({ game, file, part: "wk", t0: 0, cols: [["n", "i"]], rows: [], extra: { head: [j.v, j.game, j.week, j.start, j.end, j.min, j.state, j.seen.hash, j.seen.at], opt: JSON.stringify(opt), rounds: j.rounds.length, players: j.players.length, carry: j.carry !== undefined ? 1 : 0, display: dcols } }));
+  const expect = encoded.map((e) => e.part).sort();
+  return { meta: { game, file, week: j.week, state: j.state, unit: cfg.parts, expect, shards: PARTS_SHARDS, writtenAt }, encoded };
+}
+
+/** The kit week file rebuilt from a parts folder's decoded parts ([{ part, header, rows }]); throws when they don't
+ *  add up (a round or player missing or twice, a row in the wrong part). */
+export function partsToWeek(parts, cfg) {
+  const bad = (m) => { throw new Error(`parts: ${m}`); };
+  const wk = parts.find((p) => p.part === "wk");
+  if (!wk) bad("no wk part");
+  const x = wk.header.extra;
+  if (!x || !Array.isArray(x.head) || x.head.length !== 9 || typeof x.opt !== "string") bad("wk part: bad head");
+  let opt;
+  try { opt = JSON.parse(x.opt); } catch { bad("wk part: bad opt"); }
+  if (!opt || typeof opt !== "object" || Array.isArray(opt)) bad("wk part: bad opt");
+  const [v, game, week, start, end, min, state, sh, sa] = x.head;
+  const dcols = Array.isArray(x.display) ? x.display : [];
+  const players = [];
+  const carry = [], next = [];
+  for (const p of parts.filter((q) => q.part.startsWith("p/"))) {
+    if (JSON.stringify(p.header.cols) !== JSON.stringify(PLAYER_COLS)) bad(`${p.part}: bad columns`);
+    for (const r of p.rows) { if (`p/${KP.shardOf(r.player, PARTS_SHARDS)}` !== p.part) bad(`${r.player} in the wrong shard`); players.push([r.player, r.stake, r.peak, r.voided]); }
+    const e = p.header.extra ?? {};
+    const st = (xs) => xs.map((c) => { if (!Array.isArray(c) || c.length !== 2 || typeof c[1] !== "string") bad(`${p.part}: bad state`); if (`p/${KP.shardOf(c[0], PARTS_SHARDS)}` !== p.part) bad(`${c[0]}'s state in the wrong shard`); return [c[0], JSON.parse(c[1])]; });
+    if (x.carry) { if (!Array.isArray(e.carry) || !Array.isArray(e.next)) bad(`${p.part}: no carried states`); carry.push(...st(e.carry)); next.push(...st(e.next)); }
+    else if (e.carry !== undefined || e.next !== undefined) bad(`${p.part}: carried states in a game without them`);
+  }
+  players.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  for (let i = 1; i < players.length; i++) if (players[i][0] === players[i - 1][0]) bad(`player ${players[i][0]} twice`);
+  if (players.length !== x.players) bad(`${players.length} players, wk says ${x.players}`);
+  const idx = new Map(players.map((p, i) => [p[0], i]));
+  const rounds = new Array(x.rounds);
+  for (const p of parts.filter((q) => /^(d[1-7]|r\d{3,5})$/.test(q.part))) {
+    if (JSON.stringify(p.header.cols) !== JSON.stringify([...ROW_COLS, ...dcols])) bad(`${p.part}: bad columns`);
+    const meta = p.header.extra?.rounds;
+    if (!Array.isArray(meta)) bad(`${p.part}: no rounds`);
+    const mine = new Map();
+    for (const m of meta) {
+      const [ri, id, day, fun, status, n] = m;
+      if (!Number.isSafeInteger(ri) || ri < 0 || ri >= x.rounds || rounds[ri]) bad(`${p.part}: round index ${ri}`);
+      rounds[ri] = [id, day, fun, status, []]; mine.set(ri, n);
+    }
+    for (const r of p.rows) {
+      const rr = rounds[r.round];
+      if (!mine.has(r.round)) bad(`${p.part}: a row for round ${r.round}, which isn't in this part`);
+      if (!idx.has(r.player)) bad(`${p.part}: ${r.player} isn't a player`);
+      rr[4].push(r.pts > 0 ? [r.player, r.pts, r.at] : [r.player, r.pts]);
+    }
+    for (const [ri, n] of mine) {
+      const rr = rounds[ri];
+      if (rr[4].length !== n) bad(`round ${rr[0]}: ${rr[4].length} rows, the part says ${n}`);
+      if (p.part !== partOfRound(cfg, { start }, rr, ri)) bad(`round ${rr[0]} in the wrong part`);
+      rr[4].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+      rr[4] = rr[4].map((y) => (y.length === 3 ? [idx.get(y[0]), y[1], y[2]] : [idx.get(y[0]), y[1]]));
+    }
+  }
+  for (let i = 0; i < x.rounds; i++) if (!rounds[i]) bad(`round ${i} missing`);
+  const j = { v, game, week, start, end, min, state, seen: { hash: sh, at: sa }, rounds, players };
+  for (const k of WEEK_OPT_KEYS) {
+    if (k === "carry" || k === "next") { if (x.carry) j[k] = (k === "carry" ? carry : next).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)); continue; }
+    if (opt[k] !== undefined) j[k] = opt[k];
+  }
+  for (const k of WEEK_META_KEYS) if (opt[k] !== undefined) j[k] = opt[k];
+  const known = new Set([...WEEK_OPT_KEYS, ...WEEK_META_KEYS]);
+  for (const k of Object.keys(opt)) if (!known.has(k) || k === "carry" || k === "next") bad(`wk part: unexpected key ${k}`);
+  return j;
+}
+
+/** Reads a parts folder's manifest and parts (each part's SHA-256 checked against the manifest). */
+export function readWeekFolder(dir, cfg) {
+  const mt = fs.readFileSync(path.join(dir, "manifest.json"), "utf8"), m = JSON.parse(mt);
+  if (mt !== JSON.stringify(m) + "\n" || !Array.isArray(m.parts)) throw new Error("parts: manifest not in canonical form");
+  const parts = m.parts.map((e) => {
+    const t = fs.readFileSync(path.join(dir, e.name));
+    if (sha256(t) !== e.sha256) throw new Error(`parts: ${e.name}: SHA-256 doesn't match the manifest`);
+    const d = KP.decodePart(t.toString("utf8"));
+    return { part: e.part, header: d.header, rows: d.rows };
+  });
+  return { manifest: m, week: partsToWeek(parts, cfg) };
+}
+
 const NAMES = new RegExp(`^(board\\.json|alltime\\.json|W([0-9]{3}|[1-9][0-9]{3})\\.json|vault/(HOLD-|RELEASE-)?W${VNUM}\\.json|inputs/W${VNUM}\\.json)$`);
 const ISO = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$/;
 const same = (a, b) => a !== null && b !== null && Buffer.compare(a, b) === 0;
@@ -535,6 +689,11 @@ export function checkGame(cfg, inDir, pubDir, now, release = "", cardsOk = null)
       okWeeks.set(w, prev); heldWeeks.delete(w); continue;     // copied forward unchanged: nothing to publish
     }
     if (prev) { const ch = roundsChange(prev, j, cfg); if (ch) { hold(f, ch); continue; } }
+    // K8: a fallback, once published, stays exactly as published; and no fallback before its time by this job's clock.
+    if (prev && (prev.fallbacks ?? []).some((f) => JSON.stringify((j.fallbacks ?? []).find((g) => g[0] === f[0])) !== JSON.stringify(f))) { hold(f, "it changes or drops a published fallback round"); continue; }
+    if ((j.fallbacks ?? []).some((x) => x[1] > now)) { hold(f, "a fallback round decided before its 48 h grace, by this job's clock"); continue; }
+    // #G-69 G69-1: the ruler data a week was read with never goes backwards (a stale or short download).
+    if (prev && prev.vhpTo !== undefined && !(j.vhpTo !== undefined && j.vhpTo >= prev.vhpTo)) { hold(f, "it was read with older ruler data than the published copy (vhpTo goes backwards)"); continue; }
     // KC-1: seen.at is the recorder's claim. Kept only while the hash is the published one, and exactly; a new hash must
     // be stamped by this hour's run (by this job's clock), and for an ended week after its end.
     // An unchanged hash first read before the week ended (an open copy under liveWeek) may be stamped again once the
@@ -660,6 +819,43 @@ export const releaseEnv = (slug) => `KIT_RELEASE_${String(slug).toUpperCase().re
 
 /** The publish job's entry point: node - <in> <pub> <out-list> (games from KIT_GAMES, clock from CHECK_NOW_MS or now,
  *  each game's owner release from KIT_RELEASE_<SLUG>). <in>/<slug> is that game's own artifact (KC-13). */
+/** KG parts v1: temporary copies of a parts game's incoming and published folders, each W<NNN>/ replaced by its
+ *  rebuilt W<NNN>.json (the incoming one only when kit/parts' checkParts passes). folders: "W004.json" -> the
+ *  folder's files to publish. A week both as a file and as a folder is held. */
+export function partsViews(g, inDir, pubDir, tmpRoot) {
+  const held = [], folders = new Map();
+  // The caller names the temp folder (the publish job: RUNNER_TEMP; the replay and conformance: their own), so this
+  // never reads the environment itself (Fantasy, 14 Nov: the conformance sandbox would blame the game for it).
+  if (typeof tmpRoot !== "string" || !tmpRoot.length) throw new Error("partsViews needs a temp folder");
+  const tmp = fs.mkdtempSync(path.join(tmpRoot, `kit-parts-${g.slug}-`));
+  const view = (src, dst, incoming) => {
+    fs.mkdirSync(dst, { recursive: true });
+    if (!fs.existsSync(src)) return;
+    for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+      const from = path.join(src, e.name), to = path.join(dst, e.name);
+      const m = /^W([0-9]{3}|[1-9][0-9]{3})$/.exec(e.name);
+      if (m && e.isDirectory() && !e.isSymbolicLink()) {
+        const rel = `${e.name}.json`, week = Number(m[1]);
+        if (fs.existsSync(path.join(src, rel))) { if (incoming) held.push({ name: e.name + "/", why: "a week both as a file and as a parts folder" }); continue; }
+        try {
+          if (incoming) {
+            const c = KP.checkParts(from, { game: g.slug, file: e.name, week, full: ["wk"], publishedRoot: pubDir, rel: e.name });
+            if (!c.ok) { held.push({ name: e.name + "/", why: `its parts don't check (${c.errors.slice(0, 3).join("; ")})` }); continue; }
+            const j = partsToWeek(c.parts, g);
+            fs.writeFileSync(path.join(dst, rel), canon(j));
+            folders.set(rel, ["manifest.json", ...c.manifest.parts.map((p) => p.name)].map((n) => `${e.name}/${n}`));
+          } else fs.writeFileSync(path.join(dst, rel), canon(readWeekFolder(from, g).week));
+        } catch (err) { if (incoming) held.push({ name: e.name + "/", why: String(err?.message ?? err).slice(0, 200) }); else throw err; }
+      } else if (e.isDirectory() && !e.isSymbolicLink()) fs.cpSync(from, to, { recursive: true, verbatimSymlinks: true });
+      else if (e.isFile()) fs.copyFileSync(from, to);
+      else if (incoming) held.push({ name: e.name, why: "not a plain file" });
+    }
+  };
+  view(inDir, path.join(tmp, "in"), true);
+  view(pubDir, path.join(tmp, "pub"), false);
+  return { inDir: path.join(tmp, "in"), pubDir: path.join(tmp, "pub"), folders, held };
+}
+
 export function main(argv = process.argv.slice(2), env = process.env) {
   const [inRoot, pubRoot, listFile] = argv;
   const games = JSON.parse(env.KIT_GAMES || "[]");
@@ -678,12 +874,17 @@ export function main(argv = process.argv.slice(2), env = process.env) {
         const cf = path.join(env.KIT_CARDS_DIR, `${g.slug}.json`);
         if (fs.existsSync(cf)) { const v = JSON.parse(fs.readFileSync(cf, "utf8")); if (Array.isArray(v.ok)) cardsOk = new Set(v.ok.filter((x) => Array.isArray(x) && x.length === 2).map((x) => cardKey(x[0], x[1]))); }
       }
-      const r = checkGame(g, dir, path.join(pubRoot, g.slug), now, env[releaseEnv(g.slug)] ?? "", cardsOk);
+      const pub = path.join(pubRoot, g.slug);
+      // KG parts v1: a parts game's W<NNN>/ folders are checked by kit/parts, rebuilt into week files, and judged
+      // like any other week file; publishing a rebuilt week publishes its folder's files.
+      const v = g.parts ? partsViews(g, dir, pub, env.RUNNER_TEMP || path.dirname(listFile)) : { inDir: dir, pubDir: pub, folders: new Map(), held: [] };
+      for (const h of v.held) { console.log(`::error::held, not published: ${g.slug}/${h.name}: ${h.why}`); alert = true; }
+      const r = checkGame(g, v.inDir, v.pubDir, now, env[releaseEnv(g.slug)] ?? "", cardsOk);
       for (const h of r.held) {
         console.log(`${h.alert ? "::error::" : "::notice::"}held, not published: ${g.slug}/${h.name}: ${h.why}`);
         if (h.alert) alert = true;
       }
-      for (const f of r.publish) lines.push(`${g.slug}/${f}`);
+      for (const f of r.publish) for (const x of v.folders.get(f) ?? [f]) lines.push(`${g.slug}/${x}`);
       console.log(`${g.slug}: ${r.publish.length} to publish, ${r.held.length} held`);
     } catch (e) {
       // One game's broken files never stop another's (RECORDER §6.4).

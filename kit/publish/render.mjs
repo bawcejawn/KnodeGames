@@ -32,11 +32,23 @@ def names(d):
     i = os.path.join(d, "inputs")
     if os.path.isdir(i):
         out += ["inputs/" + f for f in sorted(os.listdir(i)) if re.fullmatch(r"W(0|[1-9][0-9]{0,3})[.]json", f)]
+    # KG parts v1: a parts week's cards are in its wk part (extra.opt.cards)
+    if os.path.isdir(d):
+        for w in sorted(os.listdir(d)):
+            wd = os.path.join(d, w)
+            if re.fullmatch(r"W([0-9]{3}|[1-9][0-9]{3})", w) and os.path.isdir(wd) and not os.path.islink(wd):
+                out += [w + "/" + f for f in sorted(os.listdir(wd)) if re.fullmatch(r"wk[.][0-9a-f]{12}[.]json", f)]
     return out
 HEX = re.compile(r"[0-9a-f]{64}")
 def entries(j):
     """A file's cards, only if the file is well formed: a dict whose cards is a list of [settings dict, sha256] with no
     sha256 twice (the check holds anything else; nothing from a malformed file is rebuilt)."""
+    if isinstance(j, dict) and j.get("kgparts") == 1:
+        o = j.get("extra", {}).get("opt") if isinstance(j.get("extra"), dict) else None
+        try:
+            j = json.loads(o) if isinstance(o, str) else None
+        except ValueError:
+            j = None
     if not isinstance(j, dict) or not isinstance(j.get("cards"), list):
         return None
     seen, out = set(), []
@@ -68,7 +80,7 @@ if refs:
     for key, (s, h) in sorted(refs.items()):
         try:
             V.check_settings(s)
-            card = V.make_card(L, s["game"], s["round"], s["window"], int(s["c"]), s["ownRule"], s["paying"], s["pooled"], s["minK"], s["poolRule"])
+            card = V.make_card(L, s["game"], s["round"], s["window"], int(s["c"]), s["ownRule"], s["paying"], s["pooled"], s["minK"], s["poolRule"], mode=s.get("mode"), include=s.get("include"), version=s.get("version", V.RULE_VERSION))
             got = hashlib.sha256(V.card_json(V.score_card(L, card)).encode("utf-8")).hexdigest()
             if got == h:
                 ok.append([s, h])
@@ -112,11 +124,16 @@ export function rulerPy(root) {
 export const TRAILER = "\nmain();\n";
 export function inlineScript(root) {
   const src = fs.readFileSync(new URL("kit/publish/check.inline.mjs", root), "utf8");
+  // KG parts v1: kit/parts byte for byte, as a data: module (it too imports only node:fs, node:path and node:crypto).
+  const parts = fs.readFileSync(new URL("kit/parts/parts.inline.mjs", root), "utf8");
+  if (/^\s*import\s.+from\s+["'](?!node:(fs|path|crypto)["'])/m.test(parts) || /\bimport\s*\(/.test(parts)) throw new Error("parts.inline.mjs may import only node:fs, node:path and node:crypto");
   if (/^\s*import\s.+from\s+["'](?!node:(fs|path|crypto)["'])/m.test(src)) throw new Error("check.inline.mjs may import only node:fs, node:path and node:crypto");
   if (src.includes("${{")) throw new Error("check.inline.mjs may not contain an Actions expression");
   if (src.split("\n").some((l) => l.trim() === HEREDOC)) throw new Error(`check.inline.mjs may not contain a line "${HEREDOC}"`);
-  return src + TRAILER;
+  return PARTS_PREFIX(parts) + src + TRAILER;
 }
+/** The line before the check that loads the embedded kit/parts (base64, so its bytes pass through unchanged). */
+export const PARTS_PREFIX = (parts) => `globalThis.__KITPARTS = await import("data:text/javascript;base64,${Buffer.from(parts, "utf8").toString("base64")}");\n`;
 
 const ind = (s, n) => s.split("\n").map((l) => (l ? " ".repeat(n) + l : l)).join("\n");
 
@@ -156,6 +173,14 @@ function fetchStep(branch, slug, dest = "prev", label = `Take ${slug}'s last fil
           if git fetch -q --depth 1 "https://github.com/\${GITHUB_REPOSITORY}.git" ${branch} 2>/dev/null; then
             { git ls-tree --name-only FETCH_HEAD:${slug} 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^(board|alltime|${WEEK_SH})\\.json$ ]]; then git show "FETCH_HEAD:${slug}/$f" > "$P/$f"; fi
+              # KG parts v1: a parts week's folder (manifest, parts, p/ shards)
+              if [[ "$f" =~ ^${WEEK_SH}$ ]]; then
+                mkdir -p "$P/$f/p"
+                { git ls-tree -r --name-only "FETCH_HEAD:${slug}/$f" 2>/dev/null || true; } | while IFS= read -r x; do
+                  if [[ "$x" =~ ^(manifest|(wk|d[1-7]|r[0-9]{3,5})[.][0-9a-f]{12}|p/[0-9a-f]{1,2}[.][0-9a-f]{12})\\.json$ ]]; then git show "FETCH_HEAD:${slug}/$f/$x" > "$P/$f/$x"; fi
+                done
+                rmdir "$P/$f/p" 2>/dev/null || true
+              fi
             done
             { git ls-tree --name-only FETCH_HEAD:${slug}/vault 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^((HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3}))\\.json$ ]]; then git show "FETCH_HEAD:${slug}/vault/$f" > "$P/vault/$f"; fi
@@ -284,6 +309,13 @@ ${releaseEnv}
               mkdir -p "$PUB/$g/vault" "$PUB/$g/inputs"
               { git ls-tree --name-only "$parent:$g" 2>/dev/null || true; } | while IFS= read -r f; do
                 if [[ "$f" =~ ^(board|alltime|${WEEK_SH})\\.json$ ]]; then git show "$parent:$g/$f" > "$PUB/$g/$f"; fi
+                if [[ "$f" =~ ^${WEEK_SH}$ ]]; then
+                  mkdir -p "$PUB/$g/$f/p"
+                  { git ls-tree -r --name-only "$parent:$g/$f" 2>/dev/null || true; } | while IFS= read -r x; do
+                    if [[ "$x" =~ ^(manifest|(wk|d[1-7]|r[0-9]{3,5})[.][0-9a-f]{12}|p/[0-9a-f]{1,2}[.][0-9a-f]{12})\\.json$ ]]; then git show "$parent:$g/$f/$x" > "$PUB/$g/$f/$x"; fi
+                  done
+                  rmdir "$PUB/$g/$f/p" 2>/dev/null || true
+                fi
               done
               { git ls-tree --name-only "$parent:$g/inputs" 2>/dev/null || true; } | while IFS= read -r f; do
                 if [[ "$f" =~ ^W(0|[1-9][0-9]{0,3})\\.json$ ]]; then git show "$parent:$g/inputs/$f" > "$PUB/$g/inputs/$f"; fi
@@ -306,8 +338,12 @@ ${vhpGames.length ? `          # G3: rebuild every new ruler card with the embed
           node --input-type=module - "$IN" "$PUB" "$LIST" <<'${HEREDOC}'
 ${ind(script, 10).replace(/\n$/, "")}
           ${HEREDOC}
+          # KG parts v1: a parts week published again (pending or open) replaces its whole folder, so no stale part stays.
+          grep -oE '^[a-z][a-z0-9-]{1,23}/W([0-9]{3}|[1-9][0-9]{3})/' "$LIST" | sort -u | while IFS= read -r dir; do
+            git ls-files -z -- "$dir" | xargs -0 -r git update-index --force-remove --
+          done
           while IFS= read -r name; do
-            [[ "$name" =~ ^[a-z][a-z0-9-]{1,23}/((board|alltime|${WEEK_SH})|vault/(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3})|inputs/W(0|[1-9][0-9]{0,3}))\\.json$ ]] || { echo "::error::bad name from the check: $name"; exit 1; }
+            [[ "$name" =~ ^[a-z][a-z0-9-]{1,23}/((board|alltime|${WEEK_SH})|vault/(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3})|inputs/W(0|[1-9][0-9]{0,3})|${WEEK_SH}/(manifest|(wk|d[1-7]|r[0-9]{3,5})[.][0-9a-f]{12}|p/[0-9a-f]{1,2}[.][0-9a-f]{12}))\\.json$ ]] || { echo "::error::bad name from the check: $name"; exit 1; }
             h=$(git hash-object -w "$IN/$name")
             git update-index --add --cacheinfo "100644,$h,$name"
           done < "$LIST"

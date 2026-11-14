@@ -25,6 +25,10 @@ export { NotYet };
 export type CardSettings = {
   game: number; round: string; window: { W0: number; W1: number; L: number; S0: number; S1: number };
   c: string; minK: number; poolRule: string; ownRule: string; paying: boolean; pooled: string[];
+  /** Optional (the ruler's scoring modes, #284): A, B, C or D. Without it the card scores exactly as before. */
+  mode?: "A" | "B" | "C" | "D";
+  /** Optional (the ruler's G6): producers that get a row even with no block in the 6 hours before the card. */
+  include?: string[];
 };
 export type CardRef = [CardSettings, string];          // [settings, sha256 of the scored card's cardJson text]
 export type Vhp = {
@@ -62,23 +66,35 @@ export function loadLedger(dir: string): any {
 }
 
 const sha = (t: string) => createHash("sha256").update(t).digest("hex");
+// Key order is the publish check's (game … pooled, then mode, then include, each only when set).
 const canonSettings = (s: CardSettings): CardSettings => ({
   game: s.game, round: String(s.round), window: { W0: s.window.W0, W1: s.window.W1, L: s.window.L, S0: s.window.S0, S1: s.window.S1 },
   c: String(s.c), minK: s.minK, poolRule: s.poolRule, ownRule: s.ownRule, paying: !!s.paying, pooled: [...s.pooled].sort(),
+  ...(s.mode === undefined ? {} : { mode: s.mode }),
+  ...(s.include === undefined ? {} : { include: [...s.include].sort() }),
 });
+/** A card's identity without its optional scoring settings: the same game, round, window and terms (#G-69 G69-3). */
+export const cardIdentity = (s: CardSettings): string => {
+  const { mode, include, ...core } = canonSettings(s);
+  void mode; void include;
+  return JSON.stringify(core);
+};
 
 /** ctx.vhp for one run over a loaded ledger, recording every card made into `used` (keyed by sha256, so a card made
  *  twice, e.g. once per "node", is listed once). */
-export function vhpFor(L: any, used: Map<string, CardRef>): Vhp {
+export function vhpFor(L: any, used: Map<string, CardRef>, pinned?: Map<string, CardSettings>): Vhp {
   return {
     to: L.to,
     ruleVersion: RULE_VERSION,
     card(s0: CardSettings) {
-      const s = canonSettings(s0);
+      // #G-69 G69-3: a card this game already published is re-made from the settings stored with it (mode, include),
+      // never from today's, so switching include or a mode on doesn't make a published week look changed.
+      const pin = pinned?.get(cardIdentity(s0));
+      const s = canonSettings(pin ?? s0);
       if (!Number.isSafeInteger(s.window.S1) || s.window.S1 + DELAY > L.to) throw new NotYet(`not yet: the ruler's data reaches block ${L.to}, the card needs ${s.window.S1} + ${DELAY}`);
       let text: string;
       try {
-        text = R.cardJson(R.scoreCard(L, R.makeCard(L, { ...s, c: BigInt(s.c), pooled: [...s.pooled] })));
+        text = R.cardJson(R.scoreCard(L, R.makeCard(L, { ...s, c: BigInt(s.c), pooled: [...s.pooled], ...(s.include ? { include: [...s.include] } : {}) })));
       } catch (e) {
         const m = (e as Error).message;
         if (/not yet/i.test(m)) throw new NotYet(m);
@@ -94,6 +110,13 @@ export function vhpFor(L: any, used: Map<string, CardRef>): Vhp {
 }
 
 /** Every card used, in a stable order (round, then sha256): the `cards` list of a week or inputs file. */
+/** The settings of a published card list, by card identity (#G-69 G69-3). */
+export const pinsOf = (cards: unknown): Map<string, CardSettings> => {
+  const m = new Map<string, CardSettings>();
+  if (Array.isArray(cards)) for (const c of cards) if (Array.isArray(c) && c[0] && typeof c[0] === "object") m.set(cardIdentity(c[0] as CardSettings), c[0] as CardSettings);
+  return m;
+};
+
 export const cardList = (used: Map<string, CardRef>): CardRef[] =>
   [...used.values()].sort((x, y) => (x[0].round < y[0].round ? -1 : x[0].round > y[0].round ? 1 : x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0));
 

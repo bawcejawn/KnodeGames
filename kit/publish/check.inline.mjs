@@ -98,6 +98,8 @@ export const WEEK_OPT_KEYS = ["inputs", "carry", "next", "extras", "cards"];
  *  job once the inline ruler copy lands (G3); until then shape only, covered by the hash. */
 export const MAX_CARDS = 1000;
 const CARD_SETTING_KEYS = "game,round,window,c,minK,poolRule,ownRule,paying,pooled";
+const CARD_SETTING_KEY_SETS = [CARD_SETTING_KEYS, CARD_SETTING_KEYS + ",mode", CARD_SETTING_KEYS + ",include", CARD_SETTING_KEYS + ",mode,include"];
+const MAX_INCLUDE = 64;
 const CARD_WINDOW_KEYS = "W0,W1,L,S0,S1";
 /** The key of one card entry: its settings AND its sha256 (#G-24 G24-1), the same in the check and the rebuild list. */
 export const cardKey = (s, h) => JSON.stringify(sortKeys([s, h]));
@@ -109,7 +111,10 @@ export function isCardList(xs) {
   for (const x of xs) {
     if (!Array.isArray(x) || x.length !== 2 || typeof x[1] !== "string" || !/^[0-9a-f]{64}$/.test(x[1])) return false;
     const s = x[0];
-    if (!s || typeof s !== "object" || Array.isArray(s) || Object.keys(s).join() !== CARD_SETTING_KEYS) return false;
+    if (!s || typeof s !== "object" || Array.isArray(s) || !CARD_SETTING_KEY_SETS.includes(Object.keys(s).join())) return false;
+    // Optional: the ruler's scoring mode and the kit's include list (G6), as the ruler itself checks them.
+    if (s.mode !== undefined && !["A", "B", "C", "D"].includes(s.mode)) return false;
+    if (s.include !== undefined && !(Array.isArray(s.include) && s.include.length >= 1 && s.include.length <= MAX_INCLUDE && s.include.every(isAddr) && s.include.every((a, i) => i === 0 || s.include[i - 1] < a))) return false;
     if (!Number.isSafeInteger(s.game) || typeof s.round !== "string" || !/^[0-9]{1,20}$/.test(s.round) || typeof s.c !== "string" || !/^[0-9]{1,30}$/.test(s.c)) return false;
     if (!Number.isSafeInteger(s.minK) || typeof s.poolRule !== "string" || typeof s.ownRule !== "string" || typeof s.paying !== "boolean") return false;
     if (!Array.isArray(s.pooled) || s.pooled.length > 16 || !s.pooled.every(isAddr)) return false;

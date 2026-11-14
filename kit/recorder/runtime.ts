@@ -202,6 +202,10 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // ctx.vhp whose card() throws NotYet: rounds stay pending and the inputs file waits; nothing is guessed.
   const usedInputCards = new Map<string, any>(), usedWeekCards = new Map<string, any>();
   let vhpIn: any, vhpWk: any, cardList: any = null, vhpRound: ((m: Map<string, any>) => any) | null = null;
+  // #G-69 G69-3: cards already published are re-made from their own stored settings (set once the week is known).
+  let weekPins: Map<string, any> | undefined, vhpInFor: (pins?: Map<string, any>) => any = () => vhpIn, pinsOf: (c: unknown) => Map<string, any> = () => new Map();
+  // #G-69 G69-2: ctx.fallback is offered only when the ruler's data loaded this run.
+  let vhpLoaded = false;
   if (cfg.vhpData) {
     const V = await import("./sources/vhp-ruler.ts");
     cardList = V.cardList;
@@ -209,10 +213,13 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     try { if (o.vhpLedger) L = o.vhpLedger; else { if (!o.vhpDir) throw new Error("no vhp-data folder was given"); L = V.loadLedger(o.vhpDir); } }
     catch (e) { alerts.warnings.push(`the ruler's data couldn't be loaded this run (${(e as Error).message}): rounds that need it stay pending`); }
     const stub = (why: string) => ({ to: -1, ruleVersion: V.RULE_VERSION, card() { throw new V.NotYet(`not yet: ${why}`); } });
+    vhpLoaded = !!L;
+    pinsOf = V.pinsOf;
     vhpIn = L ? V.vhpFor(L, usedInputCards) : stub("the ruler's data isn't loaded this run");
+    vhpInFor = (pins) => (L ? V.vhpFor(L, usedInputCards, pins) : vhpIn);
     vhpWk = L ? V.vhpFor(L, usedWeekCards) : stub("the ruler's data isn't loaded this run");
     // One round's own ctx.vhp (cardPerRound): its cards go to that round's map, then to the week's.
-    vhpRound = (mine) => (L ? V.vhpFor(L, mine) : stub("the ruler's data isn't loaded this run"));
+    vhpRound = (mine) => (L ? V.vhpFor(L, mine, weekPins) : stub("the ruler's data isn't loaded this run"));
   }
   const isNotYet = (e: unknown) => e instanceof NotYet;
   // G7: ctx.blockAt(ms), the first irreversible block at or after a UTC time, per node; both searches pinned to the
@@ -266,6 +273,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   if (w < 0) { log(`${cfg.slug}: no week has ended yet.`); return { week: null, state: "none", alerts, written: out.written }; }
   const span = clock.span(w), due = clock.due(w);
   const pw = prev.week(w);
+  weekPins = pw ? pinsOf(pw.cards) : undefined;
 
   // Holds: the owner's release of a HOLD file must name its week and code exactly (Block X's rule). The publish job
   // checks the same variable itself, so a run can't release its own hold (KC-3).
@@ -334,7 +342,8 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     }
     inputs = f.data; inputsHash = sha256(canon(f));
     try {
-      const again = await agree(`week ${w}'s inputs (recount)`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w), vhp: vhpIn, blockAt: blockAtA }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w), vhp: vhpIn, blockAt: blockAtB }));
+      const vin = vhpInFor(pinsOf(f.cards));   // #G-69 G69-3: the inputs file's own card settings
+      const again = await agree(`week ${w}'s inputs (recount)`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w), vhp: vin, blockAt: blockAtA }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w), vhp: vin, blockAt: blockAtB }));
       if (!sameJson(again, f.data)) {
         inputsHeld = `the inputs recount differs from the published inputs file (FC-9)`;
         alerts.errors.push(`week ${w}: ${inputsHeld}: the week is held pending; check inputs/W${w}.json`);

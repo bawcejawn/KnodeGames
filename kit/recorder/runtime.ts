@@ -36,6 +36,9 @@ export type KitGameCfg = {
   entry: { minRounds: number; minPoints: number }; minPts: number; rowCap: number;
   liveWeek: boolean; roundsCorrectable: boolean; maxRoundPoints?: number; budgets?: Partial<Budgets>;
   /** K1: weeks in a season (scoreRound's seasonStaked). */ seasonWeeks?: number;
+  /** The first week the game records (game.json firstWeek; Fantasy, 14 Nov). Weeks before it are never read, recorded or
+   *  alerted on, and no inputs file is made for them. Unset: every week, as before. */
+  firstWeek?: number;
   /** KG parts v1: write the week file as parts, one per UTC day or per round. */ parts?: "d" | "r";
   /** Phase 1b: the game scores from the VHP ruler's published data (manifest vhpData): ctx.vhp. */
   vhpData?: boolean;
@@ -280,7 +283,8 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     // the file and the recount.
     if (!(lead > 0 && lead <= MAX_INPUTS_LEAD_MS)) throw new Error(`${cfg.slug}: inputsLeadMs must be above 0 and at most 4 days (#G-13 G13-2)`);
     const u = cw + 1, us = clock.span(u);
-    if (now >= us.start - lead && now < us.start && !prev.inputs(u)) {
+    // firstWeek: no inputs file for a week before the game's first week.
+    if (now >= us.start - lead && now < us.start && !prev.inputs(u) && !(cfg.firstWeek !== undefined && u < cfg.firstWeek)) {
       try {
         usedInputCards.clear();
         const data = toJson(await agree(`week ${u}'s inputs`, () => m.inputsFor!(us, { now, read: va, published: before(u), vhp: vhpIn, blockAt: blockAtA }), () => m.inputsFor!(us, { now, read: vb, published: before(u), vhp: vhpIn, blockAt: blockAtB })));
@@ -300,6 +304,17 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
 
   const w = o.live ? cw : cw - 1;
   if (w < 0) { log(`${cfg.slug}: no week has ended yet.`); return { week: null, state: "none", alerts, written: out.written }; }
+  // firstWeek (Fantasy, 14 Nov): a week before the game's first week is never read, recorded or alerted on, so a game
+  // switched on mid-season doesn't raise the backstop or "no inputs file" every hour for weeks it never played. It can't
+  // skip a week already final (firstWeek moved past a paid week): that is an error and the week is recorded as usual.
+  if (cfg.firstWeek !== undefined && w < cfg.firstWeek) {
+    const fin = prev.finals().map((j) => j.week).filter((x) => x >= w);
+    if (!fin.length) {
+      log(`${cfg.slug}: week ${w} is before the game's first week (${cfg.firstWeek}): nothing to read or record.`);
+      return { week: null, state: "before-first-week", alerts, written: out.written };
+    }
+    alerts.errors.push(`firstWeek is ${cfg.firstWeek}, but week ${Math.min(...fin)} is already final: firstWeek can't move past a recorded week, so week ${w} is recorded as usual. Set firstWeek back in games/${cfg.slug}/game.json`);
+  }
   const span = clock.span(w), due = clock.due(w);
   const pw = prev.week(w);
   weekPins = pw ? pinsOf(pw.cards) : undefined;
@@ -408,7 +423,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     // went missing (an outage, a missed inputs file, a week that waited): record nothing rather than start everyone
     // from empty.
     const reset = o.resetFromWeek === w;
-    if (!pwk && !reset && prev.weeks().some((x) => x < w - 1)) {
+    if (!pwk && !reset && prev.weeks().some((x) => x < w - 1 && !(cfg.firstWeek !== undefined && x < cfg.firstWeek))) {
       alerts.errors.push(`week ${w} waits on week ${w - 1}, which has no week file although earlier weeks do: its carried state isn't known, so nothing is recorded for week ${w} (FC-5, #G-13 G13-1). Recover week ${w - 1}, or set ${cfg.slug.toUpperCase().replace(/-/g, "_")}_RESET_FROM_WEEK=${w} to start week ${w} from empty state`);
       return { week: w, state: "waiting", alerts, written: out.written };
     }
@@ -425,7 +440,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   if (cfg.seasonWeeks) {
     const sw = cfg.seasonWeeks, pwk = prev.week(w - 1);
     const reset = o.resetFromWeek === w;
-    if (!pwk && !reset && prev.weeks().some((x) => x < w - 1)) {
+    if (!pwk && !reset && prev.weeks().some((x) => x < w - 1 && !(cfg.firstWeek !== undefined && x < cfg.firstWeek))) {
       alerts.errors.push(`week ${w} waits on week ${w - 1}, which has no week file although earlier weeks do: its season isn't known, so nothing is recorded for week ${w} (K1). Recover week ${w - 1}, or set ${cfg.slug.toUpperCase().replace(/-/g, "_")}_RESET_FROM_WEEK=${w}`);
       return { week: w, state: "waiting", alerts, written: out.written };
     }

@@ -69,6 +69,7 @@ export function kitConfig(m: any, dep = readDeployment()): KitGameCfg {
     // K1: the Game Standard's seasonWeeks (1–4); a season game is one with more than 1.
     ...(m.seasonWeeks > 1 ? { seasonWeeks: m.seasonWeeks } : {}),
     ...(m.parts !== undefined ? { parts: m.parts } : {}),
+    ...(m.firstWeek !== undefined ? { firstWeek: m.firstWeek } : {}),
   };
 }
 

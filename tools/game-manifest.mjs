@@ -74,7 +74,7 @@ export function validateManifest(m, opts = {}) {
   return p;
 }
 
-export const KIT_FIELDS = ["payoutRule", "vaultValues", "minPts", "rowCap", "entry", "budgets", "liveWeek", "roundsCorrectable", "maxRoundPoints", "inputsFile", "inputsLeadHours", "published", "vhpData", "cardPerRound", "parts"];
+export const KIT_FIELDS = ["payoutRule", "vaultValues", "minPts", "rowCap", "entry", "budgets", "liveWeek", "roundsCorrectable", "maxRoundPoints", "inputsFile", "inputsLeadHours", "published", "vhpData", "cardPerRound", "parts", "firstWeek"];
 /** Budget ceilings: a game's whole run must fit its own record job (25 min, KC-4). */
 export const BUDGET_MAX = { reads: 200000, ms: 20 * 60000, atOnce: 16, tries: 6 };
 /** A game's name is rendered into its workflow: one plain line (KC-14). */
@@ -101,6 +101,8 @@ function checkKitFields(m, need) {
   if (m.inputsLeadHours !== undefined) need(m.inputsFile === true && Number.isInteger(m.inputsLeadHours) && m.inputsLeadHours >= 1 && m.inputsLeadHours <= 96, "inputsLeadHours: 1–96, only with inputsFile: true");
   // KG parts v1 (Capacity): the week file is written as a folder of parts, one per UTC day ("d") or per round ("r").
   if (m.parts !== undefined) need(m.parts === "d" || m.parts === "r", 'parts: "d" (one part per UTC day) or "r" (one part per round)');
+  // The first vault week the kit records (Fantasy, 14 Nov): earlier weeks are never read, recorded or alerted on.
+  if (m.firstWeek !== undefined) need(Number.isInteger(m.firstWeek) && m.firstWeek >= 0 && m.firstWeek <= 9999, "firstWeek: the first vault week the kit records, a whole number 0–9999");
   // Phase 1 item 6: other kit games whose published final weeks this game reads (ctx.published.games).
   if (m.published !== undefined) need(Array.isArray(m.published) && m.published.length <= 4 && m.published.every((x) => typeof x === "string" && /^[a-z][a-z0-9-]{1,23}$/.test(x) && x !== m.slug) && new Set(m.published).size === m.published.length, "published: up to 4 other kit games' slugs");
 }

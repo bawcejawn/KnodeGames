@@ -73,6 +73,7 @@ A module **must not**: use the network, the clock, files, processes, randomness 
 | `rowCap` | most board rows (0 = none); over it board.json keeps every ranked row, every free prize winner and the best others. board.json also keeps to 1.5 MB the same way |
 | `budgets` | optional read budgets, at most 200,000 reads and 20 minutes (a game's record job has 30: the budget, a last read's retries and setup) |
 | `roundsCorrectable`, `liveWeek`, `maxRoundPoints` | optional |
+| `firstWeek` | optional: the first vault week the kit records (0–9999) |
 | `inputsFile`, `inputsLeadHours` | optional: the write-once inputs file (FC-9); lead 1–96 h, default 48 (#G-13 G13-2) |
 | `published` | optional: up to 4 other kit games on the same data branch whose final weeks this game reads (`ctx.published`) |
 | `vhpData` | optional: the game scores from the VHP ruler's published data (`ctx.vhp`; week and inputs files list their `cards`) |
@@ -117,6 +118,7 @@ Once the vault pays a game (`vaultGames.<id>` exists in `game-data/deployment.js
   - The alert is an error when the run had all its data, and a warning when it just lacked data.
   - A ruler game's week file records `vhpTo`, the last block of the ruler data used. It is outside the week hash and never lowered. A run with older or shorter data re-reads nothing, and the publish check refuses a `vhpTo` that goes backwards.
 - **`liveWeek` (K4):** the current week's open copy is written every run, with the rounds decided so far. It has no vault file and no all-time entry, and a failure is a warning.
+- **`firstWeek` (Fantasy, 14 Nov):** weeks before it are never read, recorded or alerted on (the run logs "before the game's first week" and returns), and no inputs file is made for them; the first week's own inputs file is made in its window as usual. Weeks before it don't count as "earlier weeks" for carried state or seasons, so the first week starts empty. It can't skip a week already final: a `firstWeek` moved past a final week is an error every run and the week is recorded as usual. Move it only before its week is recorded. Recorder only; not in the vault pin (the vault's own `from_week` still decides what is paid).
 - **Seasons (K1):** with the Game Standard's `seasonWeeks` above 1, `scoreRound` gets a 6th argument `{ seasonStaked, seasonStart, seasonWeek }`. `seasonStaked` holds the wallets with a counted stake (peak at or above the week's minimum, not voided) in any week of the season so far, with earlier weeks taken only from their final files. Each week file records its season's first week (`season`). A season starts at the game's first week, at `<SLUG>_RESET_FROM_WEEK`, then every `seasonWeeks` weeks. `seasonWeeks` goes into the vault pin.
 - **`Sample.checkAt`:** the conformance checks' time when hour 0 can't decide a round (an inputs-file game).
 

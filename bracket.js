@@ -10,6 +10,7 @@
 
   const lib = window.koilib || window.koinos || window;
   const RPC = ["https://koinos.armana.io", "https://api.koinosblocks.com"];
+  if (Math.random() < 0.5) RPC.reverse();   // split reads: start on either node, the other is the failover
   const DATA = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/bracket/";
   const BLOCKS = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/blocks-data/recent-blocks.json";
   const EXPLORER = "https://koinosscan.com/address/";

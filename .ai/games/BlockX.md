@@ -18,10 +18,23 @@ Guess which block producer will sign a future target block. Simple to play, root
 - Sponsored picks, guests included, within the caps (rows: `../platform/SPONSOR.md`). ✅
 
 ## Scoring
-- A producer's chance is its VHP share; the handicap rewards picking smaller producers. Under the VHP standard the multiplier becomes min(cap, topAvg ÷ your cardVhp) (D-058; cap 5 from Week 1). 💬
+- A producer's chance is its VHP share; the handicap rewards picking smaller producers. Under the VHP standard the multiplier becomes min(cap, topAvg ÷ your cardVhp) (D-058; cap 5 from vault week 3; ×120 on the VHP ruler from the switch week, below). 💬
 - Exact points per correct pick: ❓ (not in the chat exports — see `docs/blockx/MAINNET-LAUNCH.md` on `main`).
 - The recorder (`bot/games/blockx.ts`) voids a target at once only if both nodes report a non-canonical transfer; otherwise it holds and voids at the 3-day edge. Published cards never change (BX-44). 💬
 - **Published final results can't be rewritten** (PR #159 ✅, R-BX-20).
+- **On the VHP ruler (owner, 11 Nov 2026; `bot/blockx-ruler.ts`; docs/VHP-RULER.md "Switching a game onto the ruler"; card settings from the Ruler chat, `claude/ruler/TO-BLOCKX-CARD-SETTINGS-2026-11-11.md`):**
+  - **Switch:** `BLOCKX_RULER_FROM_WEEK` (empty = off; N = shadow in vault week N − 1, on from N; read strictly; a started week never changes).
+  - **One card per hourly target** (makeCard only): game 2, round = the target's UTC hour `yyyymmddhh`, L = the pick lock (X − 100), card window [L − 7,199, L], nominal scoring window [L + 1, L + 7,200], minK 10, c 500000, spot, min, paying, pooled = the Vault.
+  - **A right pick scores** 100 × min(120, kTop ÷ k) × credit at X (hundredths). k = the producer's expected blocks from its VHP; kTop = the largest k in the card's core (form ≥ 0.97 × the k-weighted median form); credit = own ÷ eff when VHP was added after the card. **×120 replaces the ×5 cap** from the switch week.
+  - **Void:** eff at X outside own × [−5%, +25%] (`KRuler.voidBand(1200)`) → a pick on it is a miss. No entry → a miss.
+  - **Files:** `X<week>-<d>.json` (d = 0 Monday … 6 Sunday, UTC), one entry per target: `{round, height, lock, cardRound, window, card (canonical text) | null, note, signer, points, void, why}`. A card once published never changes. The W files are unchanged (old-rule points; Combo reads them).
+  - **ON weeks:** the board and the vault take each pick's points from the entries. A target not scored yet keeps the week open; after 3 days without the ruler's data it counts no pick (void).
+  - **Publish job (`games.yml`):**
+    - `vhp_ruler.py` is embedded (`node tools/blockx-ruler-embed.mjs` after any change; a test keeps it byte for byte).
+    - Every new card is rebuilt from Block X's own settings (`recompute`), and every entry's points are recounted in Python.
+    - A switch change that would change a started week stops the publish.
+    - An ON week's board is recounted from the W file and the entries; a mismatch holds the board, prize and vault files.
+  - **Capacity:** every run warns once a Block X file passes 60% of the 2 MB publish limit (1.2 MB).
 - **Timing:** `../standards/WEEK_CYCLE.md` (the one home for game timing). Block X follows it fully: final **from Mon 00:00 UTC** once two runs at least an hour apart read the same week and the re-read passes (D-135, PR #175; the 12-h final is gone). In practice the last Sunday run and the first Monday run agree, so the week is final around Mon 00:10–01:10 UTC.
 
 ## Rewards

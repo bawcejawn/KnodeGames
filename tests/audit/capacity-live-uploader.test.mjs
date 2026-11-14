@@ -52,7 +52,7 @@ test("LU-3 the file the uploader builds is accepted by the Worker and used by th
   assert.equal(stored.blocks.length, 24);
   assert.equal(stored.blocks[23].h, 5000);
   // The page side (data-source.js, live switch on) accepts exactly this file.
-  const code = fs.readFileSync("data-source.js", "utf8").replace("var ON = { mirror: false, live: false };", "var ON = { mirror: false, live: true };");
+  const code = fs.readFileSync("data-source.js", "utf8").replace(/var ON = \{ mirror: (true|false), live: (true|false) \};/, "var ON = { mirror: false, live: true };");
   const window = { fetch: async () => ({ ok: true, status: 200, json: async () => stored }) };
   vm.runInNewContext(code, { window, Date, Promise, Number, JSON });
   assert.equal((await window.KGData.live()).head.height, 5000);

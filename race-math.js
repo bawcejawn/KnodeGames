@@ -141,7 +141,7 @@
   /** The first Knode Games week the race types (1-4) run in: null = not yet (the Race contract v2 isn't uploaded).
    *  The owner sets it with the upload (D-166); until then the recorder, the publish job and the page show only the
    *  6-hour race. */
-  const TYPES_FROM_WEEK = null;
+  const TYPES_FROM_WEEK = 5;   // owner, 13 Nov: all four types from vault week 5 (Mon 23 Nov 2026, Week 2), Ruler mode A
   /** Repo Lens #D-14 N-2: false until R-RACE-18 is done. Done in PR #287 (owner, 13 Nov: the types start as soon as
    *  they are ready): one block cache per node per run (the 6-hour re-check reuses the typed one's reads), both nodes
    *  read at once, and a timed slow-node test (tests/audit/race-verify-timing.test.mjs: about 6.5 minutes at 1 s per

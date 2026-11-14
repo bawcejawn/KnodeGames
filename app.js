@@ -11,6 +11,9 @@
   const UNIT = 100000000n;        // 1 KOIN / 1 VHP = 10^8 units
   const FREE_PRIZE = 2n * UNIT;   // v5: the 2 best free players' prize, taken from each pot first (Kpred FREE_PRIZE)
   const RPC = "https://koinos.armana.io";
+  // Free read split (Capacity): each page load starts on Armana or koinosblocks at random; the other is the failover.
+  const RPCS = ["https://koinos.armana.io", "https://api.koinosblocks.com"];
+  if (Math.random() < 0.5) RPCS.reverse();
   // Block explorer links (change here if the explorer's address format differs).
   const EXPLORER_ADDRESS = "https://koinosscan.com/address/";
   const EXPLORER_PRODUCERS = "https://koinosscan.com/producers";
@@ -897,12 +900,6 @@
       kit.href = fl;
       kit.replaceChildren(el("span", { class: "kit-kicker" }, "Run your own node"), el("b", {}, f.name), el("span", { class: "muted" }, f.tagline), el("span", { class: "kit-cta" }, `${f.cta || "Visit"} →`));
       kit.hidden = false;
-    }
-    // footer: every project
-    const eco = (ADS.ecosystem || []).filter((h) => h && h.name && httpsUrl(h.link));
-    if (eco.length) {
-      $("#eco-grid").replaceChildren(...eco.map((h) => el("a", { href: httpsUrl(h.link), target: "_blank", rel: "noopener", class: "eco-item" }, el("b", {}, h.name), el("span", {}, h.tagline))));
-      document.querySelector(".eco").hidden = false;
     }
   }
 
@@ -1803,7 +1800,7 @@
     } else {
       S.dep = dep;
       S.abi = await fetchJson(ABI_URL);
-      S.provider = gentle(new lib.Provider([dep.rpc || RPC]));
+      S.provider = gentle(new lib.Provider(dep.rpc && dep.rpc !== RPC ? [dep.rpc] : RPCS));
       initWallet();
       S.game = new lib.Contract({ id: dep.contract, abi: S.abi, provider: S.provider });
       try { await loadLive(); } catch (e) { toast(`Couldn't reach the Koinos network: ${e.message}`, 8000); }

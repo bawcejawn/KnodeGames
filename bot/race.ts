@@ -597,17 +597,17 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   for (const [w, wf] of weeks) {
     if (!wf.races.some((r) => r.cards.some(Boolean) || r.result)) continue;
     known.add(w);
-    writeWarned(`W${String(w).padStart(3, "0")}.json`, JSON.stringify(wf) + "\n", problems, "the week's 6-hour races; Block X, Combo and Golf read it");
+    writeWarned(`W${String(w).padStart(3, "0")}.json`, JSON.stringify(wf) + "\n", problems, "the week's 6-hour races; Block X, Combo and Golf read it", now);
   }
   for (const [w, tf] of typesAll) if (weeks.has(w) && (tf.hours.length || tf.races.some((r) => r.result))) {
     const text = JSON.stringify(tf) + "\n";
     // Repo Lens #D-13 M-1: the publish job holds a T file over 2 MB on its own (the 6-hour files still publish); warn
     // well before that.
-    writeWarned(`T${String(w).padStart(3, "0")}.json`, text, problems, "the race types' file would be held");
+    writeWarned(`T${String(w).padStart(3, "0")}.json`, text, problems, "the race types' file would be held", now);
   }
   // The ruler file of every week this run handles, in every mode (it records the switch value the run used).
-  for (const [w, rf] of rulerAll) if (weeks.has(w)) writeWarned(RR.rulerName(w), JSON.stringify(rf) + "\n", problems, "the ruler's cards would be held");
-  for (const [k, rf] of rulerTyped) { const [w, t] = k.split("-").map(Number); if (weeks.has(w)) writeWarned(RR.rulerName(w, t), JSON.stringify(rf) + "\n", problems, "the ruler's cards would be held"); }
+  for (const [w, rf] of rulerAll) if (weeks.has(w)) writeWarned(RR.rulerName(w), JSON.stringify(rf) + "\n", problems, "the ruler's cards would be held", now);
+  for (const [k, rf] of rulerTyped) { const [w, t] = k.split("-").map(Number); if (weeks.has(w)) writeWarned(RR.rulerName(w, t), JSON.stringify(rf) + "\n", problems, "the ruler's cards would be held", now); }
   fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: [...known].sort((x, y) => x - y) }) + "\n");
   if (board) fs.writeFileSync(path.join(OUT, "board.json"), JSON.stringify(board) + "\n");
   // #85 merge check L-1: a NEW pending file is dated at the end of the run (the head block's time now), not its start,
@@ -739,9 +739,17 @@ export const T_WARN_BYTES = 1.2 * 1048576;
  *  standard, before Week 4, Mon 7 Dec). Over 2 MB the publish job refuses it and the week's payout waits: never wrong. */
 export const sizeNote = (name: string, bytes: number, what: string) =>
   bytes > T_WARN_BYTES ? `${name} is ${(bytes / 1048576).toFixed(2)} MB, over 60% of the 2 MB publish limit (${what}): tell the Race chat` : null;
-function writeWarned(name: string, text: string, problems: string[], what: string) {
-  const n = sizeNote(name, Buffer.byteLength(text), what);
+/** Repo Lens #G-53 G53-1: past this size a file also emails the owner (once a day, the owner-alert hour), since a held
+ *  file over 2 MB holds the week. The T file alerts from 60% already (it grows with players); the others (the 1-hour
+ *  ruler file sits near 70% by design until KG parts v1) from 85%. */
+export const ALERT_BYTES = 1.7 * 1048576;
+function writeWarned(name: string, text: string, problems: string[], what: string, now = Date.now()) {
+  const bytes = Buffer.byteLength(text), n = sizeNote(name, bytes, what);
   if (n) problems.push(n);
+  if (n && (bytes > ALERT_BYTES || /^T\d{3}\.json$/.test(name)) && ownerAlertRun(now)) {
+    const m = `Producer Race: ${n}. Over 2 MB the publish job holds it and the Race's paid week waits. What to do: send this to the Race chat (the fix is the file standard, KG parts v1).`;
+    if (!heldAlerts.includes(m)) heldAlerts.push(m);
+  }
   fs.writeFileSync(path.join(OUT, name), text);
 }
 export function emptyTypes(w: number): TypesFile {

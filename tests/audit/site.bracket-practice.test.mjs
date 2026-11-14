@@ -20,11 +20,11 @@ const windows = [];
 after(() => { for (const w of windows) w.close(); });   // the page's refresh timers would keep the test alive
 const flush = async (w, n = 8) => { for (let i = 0; i < n; i++) await new Promise((r) => w.setTimeout(r, 0)); };
 
-async function openPage({ now, chainNow = now, picksDeployment = PINNED, index, game, noWeek = false } = {}) {
+async function openPage({ now, chainNow = now, picksDeployment = PINNED, index, game, noWeek = false, weekExtra = {} } = {}) {
   const W = 4;   // shown week: seeded Sunday, picks until Monday 23:55
   const weekFile = { v: BM.FILE_V, week: W, start: BM.weekStart(W), end: BM.weekStart(W + 1), status: "open",
     seeding: { at: BM.seedTime(W), cardAt: 1, size: 8, seeds, vhp: seeds.map((_, i) => 8 - i), totalVhp: 36, out: [], outVhp: [], raw: {}, pooled: [], hash: "x" },
-    picks: null, days: [[], [], []].map(() => new Array(24).fill(null)), results: null, points: [], staked: null };
+    picks: null, days: [[], [], []].map(() => new Array(24).fill(null)), results: null, points: [], staked: null, ...weekExtra };
   const dom = new JSDOM(read("bracket.html"), { runScripts: "outside-only", url: "https://knodegames.com/bracket.html" });
   const w = dom.window; windows.push(w);
   w.Date.now = () => now;
@@ -150,9 +150,31 @@ test("ruler line: hidden with the switch unset; the shadow week names the Monday
   const t = sh.$("bk-ruler").textContent;
   assert.equal(sh.$("bk-ruler").hidden, false);
   assert.match(t, /^Shadow week: the VHP ruler runs beside the real results and counts for nothing; from Week 2 \(the week of Mon, Nov 23\) it decides the matchups\./);
-  assert.match(t, /void for that day only: it loses its matchup, so a pick on it counts as a loss; if both are void, the day index decides/);
+  assert.match(t, /void for that day only, and so is one that signs no block all day: it loses its matchup, so a pick on it counts as a loss; if both are void, the day index decides/);
   const later = await openPage({ now: SUNDAY, index: { ...idx(5), rulerFrom: 6 } });
   assert.match(later.$("bk-ruler").textContent, /^From Week 3 \(the week of Mon, Nov 30\) the VHP ruler decides the matchups\./);
   const on = await openPage({ now: SUNDAY, index: { ...idx(5), rulerFrom: 4 } });
   assert.match(on.$("bk-ruler").textContent, /^The VHP ruler decides the matchups \(since Week 1, the week of Mon, Nov 16\)\./);
+});
+
+// Repo Lens #G-48 G48-4: in a week the VHP ruler scores, the page says what decided each played round and doesn't show the
+// day index's percentages (the forfeit badge stays: forfeits come first in every week); the ruler line names the backup
+test("on week: a played round says the ruler's card (or the seeding, for a backup round) decided it; no day-index percentages", async () => {
+  const hour = (i) => ({ from: i * 100, to: i * 100 + 99, n: 100, q: 100, checked: 1, re: 1,
+    by: Object.fromEntries(seeds.map((a, k) => [a, 12 - k])), cr: Object.fromEntries(seeds.map((a, k) => [a, 12 - k])), r: {},
+    av: Object.fromEntries(seeds.map((a, k) => [a, (8 - k) * 1e8])), w: Object.fromEntries(seeds.map((a, k) => [a, 8 - k])) });
+  const played = { status: "locked", days: [Array.from({ length: 24 }, (_, i) => hour(i)), new Array(24).fill(null), new Array(24).fill(null)],
+    results: { rounds: [[1, 2, 3, 4]], done: false } };
+  const LATER = BM.roundDay(4, 0, 8) + 30 * 3600000;
+  const r0 = async (pg) => { pg.$("bk-rounds").querySelector("button").click(); await flush(pg.w); return pg; };   // round 1 on show
+  const off = await r0(await openPage({ now: LATER, index: idx(5), weekExtra: played }));
+  assert.match(off.$("bk-list").textContent, /[0-9.]+%(?! VHP)/, "setup: an index-scored week shows the day index's percentages");
+  assert.doesNotMatch(off.$("bk-day").textContent, /decided by/);
+  const on = await r0(await openPage({ now: LATER, index: { ...idx(5), rulerFrom: 4 }, weekExtra: { ...played, rulerFrom: 4, rulerMode: "on" } }));
+  assert.match(on.$("bk-day").textContent, / · decided by the VHP ruler's card$/);
+  assert.doesNotMatch(on.$("bk-list").textContent.replace(/[0-9.]+% VHP/g, ""), /[0-9.]+%/, "no day-index percentage in an on week");
+  assert.match(on.$("bk-ruler").textContent, /If a day's ruler card still can't be made 48 hours after the week ends, the better seed goes through each of that day's open matchups \(forfeits first; a seed that signed no block that day still loses\)/);
+  const bk = await r0(await openPage({ now: LATER, index: { ...idx(5), rulerFrom: 4 }, weekExtra: { ...played, rulerFrom: 4, rulerMode: "on", rulerBackup: [0] } }));
+  assert.match(bk.$("bk-day").textContent, / · decided by the seeding \(no ruler card in time\)$/);
+  assert.match(bk.$("bk-ruler").textContent, /This week the seeding decided [A-Za-z -]+: no ruler card came in time\./);
 });

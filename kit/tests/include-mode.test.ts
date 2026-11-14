@@ -62,6 +62,9 @@ test("publish check: mode must be A-D; include a rising list of addresses; keys 
   const A = "1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", B = "1BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
   assert.ok(isCardList([[{ ...base, mode: "D", include: [A, B] }, h]]));
   assert.ok(!isCardList([[{ ...base, mode: "E" }, h]]), "unknown mode");
+  assert.ok(isCardList([[{ ...base, mode: "A", version: 5 }, h]]));
+  assert.ok(!isCardList([[{ ...base, version: 6 }, h]]), "unknown version");
+  assert.ok(!isCardList([[{ ...base, version: 4, mode: "A" }, h]]), "version before mode: out of order");
   assert.ok(!isCardList([[{ ...base, include: [B, A] }, h]]), "include not rising");
   assert.ok(!isCardList([[{ ...base, include: [A, A] }, h]]), "include repeats");
   assert.ok(!isCardList([[{ ...base, include: [] }, h]]), "empty include");
@@ -73,7 +76,7 @@ test("publish check: mode must be A-D; include a rising list of addresses; keys 
 test("include and mode: the publish job's embedded vhp_ruler.py rebuilds the same sha256 as the kit's JS", { skip: !PYTHON && "needs python3 (the CI runner has it)" }, () => {
   const { dir, L, s } = fixture(), u0 = new Map();
   const inc = producersOf(vhpFor(L, u0).card(s)).slice(0, 2);
-  for (const extra of [{ include: inc }, { mode: "B" as const }, { mode: "C" as const, include: inc }]) {
+  for (const extra of [{ include: inc }, { mode: "B" as const }, { mode: "C" as const, include: inc }, { version: 4 as const }]) {
     const u = new Map();
     vhpFor(L, u).card({ ...s, ...extra });
     const cards = cardList(u);

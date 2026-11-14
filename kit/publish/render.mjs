@@ -68,7 +68,7 @@ if refs:
     for key, (s, h) in sorted(refs.items()):
         try:
             V.check_settings(s)
-            card = V.make_card(L, s["game"], s["round"], s["window"], int(s["c"]), s["ownRule"], s["paying"], s["pooled"], s["minK"], s["poolRule"], mode=s.get("mode"), include=s.get("include"))
+            card = V.make_card(L, s["game"], s["round"], s["window"], int(s["c"]), s["ownRule"], s["paying"], s["pooled"], s["minK"], s["poolRule"], mode=s.get("mode"), include=s.get("include"), version=s.get("version", V.RULE_VERSION))
             got = hashlib.sha256(V.card_json(V.score_card(L, card)).encode("utf-8")).hexdigest()
             if got == h:
                 ok.append([s, h])

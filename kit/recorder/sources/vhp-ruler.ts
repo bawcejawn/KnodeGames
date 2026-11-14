@@ -29,6 +29,8 @@ export type CardSettings = {
   mode?: "A" | "B" | "C" | "D";
   /** Optional (the ruler's G6): producers that get a row even with no block in the 6 hours before the card. */
   include?: string[];
+  /** Optional (the Ruler chat, 14 Nov): the rule version the card is made under, 4 or 5; passed through unchanged. */
+  version?: 4 | 5;
 };
 export type CardRef = [CardSettings, string];          // [settings, sha256 of the scored card's cardJson text]
 export type Vhp = {
@@ -72,11 +74,12 @@ const canonSettings = (s: CardSettings): CardSettings => ({
   c: String(s.c), minK: s.minK, poolRule: s.poolRule, ownRule: s.ownRule, paying: !!s.paying, pooled: [...s.pooled].sort(),
   ...(s.mode === undefined ? {} : { mode: s.mode }),
   ...(s.include === undefined ? {} : { include: [...s.include].sort() }),
+  ...(s.version === undefined ? {} : { version: s.version }),
 });
 /** A card's identity without its optional scoring settings: the same game, round, window and terms (#G-69 G69-3). */
 export const cardIdentity = (s: CardSettings): string => {
-  const { mode, include, ...core } = canonSettings(s);
-  void mode; void include;
+  const { mode, include, version, ...core } = canonSettings(s);
+  void mode; void include; void version;
   return JSON.stringify(core);
 };
 

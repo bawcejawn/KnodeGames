@@ -30,3 +30,11 @@ test("race board: the 6-hour board has the same look (time shade, Now line, gain
   for (const t of ["pr-shade", "pr-nowline", "R6_WINDOWS", "rt-pk", "drafts.set(cur.index + u.k"]) assert.ok(js.includes(t), t);
   assert.ok(html.includes(".pr-shade") && html.includes(".pr-nowline"));
 });
+
+test("race board: producers are in a fixed order by VHP (not by live place); the animal sits fully inside the bar on the same scale as the Now line", () => {
+  assert.match(js, /vhpOf\.get\(q\.a\)/);
+  assert.match(js, /vv\.get\(q\)/);
+  assert.match(js, /const POS = /);
+  assert.ok(!/x > 4 \? 30 : 0/.test(js));
+  assert.match(js, /function rulerEl/);
+});

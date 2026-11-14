@@ -489,7 +489,11 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     // cause; in a correctable game a round the chain itself shows undecided again is a correction, as before.
     if (pr && pr[3] !== "p" && (staleData || (status === "p" && (notYet.has(r.id) || !cfg.roundsCorrectable)))) {
       rereadOk = false; keptPublished = true;
-      alerts.warnings.push(`round ${r.id}: decided in the published copy but not decidable this run; it keeps its published result (#G-69 G69-1)`);
+      // An error every run when this run had all its data (the ruler's loaded and not behind the published copy's): a
+      // decided round that now reads differently is a real data event the owner must see (Fantasy, 14 Nov). A run that
+      // just lacked data (a failed or stale download) says so once above, and each such round is a warning.
+      const fullData = !cfg.vhpData || (vhpTo !== undefined && !staleData);
+      (fullData ? alerts.errors : alerts.warnings).push(`round ${r.id}: decided in the published copy but not decidable this run${fullData ? " with all its data: check it" : ""}; it keeps its published result (#G-69 G69-1)`);
       status = pr[3]; rows = pr[4];
     }
     // A decided round changing is only an owner correction on chain (roundsCorrectable); otherwise stop (KC-8).

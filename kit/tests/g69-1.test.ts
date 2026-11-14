@@ -65,7 +65,7 @@ async function finalThen(run: { vhpLedger?: any }) {
 const noHold = (rp: Replay, h: any, before: string | null) => {
   assert.equal(rp.read("vault/HOLD-W4.json"), null, `no HOLD on a correct final week: ${JSON.stringify(h.result?.alerts)}`);
   assert.ok(!h.result!.alerts.errors.some((x: string) => /changed on chain/.test(x)), JSON.stringify(h.result!.alerts.errors));
-  assert.ok(h.result!.alerts.warnings.some((x: string) => /G69-1/.test(x)), JSON.stringify(h.result!.alerts.warnings));
+  assert.ok([...h.result!.alerts.warnings, ...h.result!.alerts.errors].some((x: string) => /G69-1/.test(x)), JSON.stringify(h.result!.alerts));
   assert.equal(rp.raw("W004.json"), before, "the final copy is unchanged");
   assert.equal(h.result?.state, "final");
 };
@@ -73,6 +73,9 @@ const noHold = (rp: Replay, h: any, before: string | null) => {
 test("G69-1: a final week whose re-read has no ruler data this run (a failed fetch) is not held", async () => {
   const { rp, h, before } = await finalThen({});
   noHold(rp, h, before);
+  // a run that only lacked data: warnings, no G69-1 error
+  assert.ok(!h.result!.alerts.errors.some((x: string) => /G69-1/.test(x)), JSON.stringify(h.result!.alerts.errors));
+  assert.ok(h.result!.alerts.warnings.some((x: string) => /G69-1/.test(x)));
 });
 
 test("G69-1: a final week whose re-read gets a card 'not yet' (a rebuilt or truncated vhp-data branch) is not held", async () => {
@@ -88,6 +91,8 @@ test("G69-1: a final week whose re-read gets a card 'not yet' (a rebuilt or trun
   h = await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L });
   cause.cardNotYet = false;
   noHold(rp, h, before);
+  // Fantasy (14 Nov): with all its data loaded, a decided round that now reads differently is an ERROR every run
+  assert.ok(h.result!.alerts.errors.some((x: string) => /G69-1/.test(x) && /check it/.test(x)), JSON.stringify(h.result!.alerts.errors));
 });
 
 test("G69-1: a final week whose re-read gets blockAt 'not yet' (a node's last irreversible block behind) is not held", async () => {

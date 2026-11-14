@@ -570,6 +570,9 @@
   // ruler 1st / 2nd / 3rd (marked "shadow: counts for nothing" in the shadow week).
   // Repo Lens #G-28 G28-1: the loaded ruler files by week and type, so the pick rows show what the board pays: in a week
   // the ruler is ON for, the ruler's 1st / 2nd / 3rd (ruler-void.js ruledOutcome), not the handicap race's.
+  // Repo Lens #G-72 G72-2: the Race ruler's first ON week (RACE_RULER_FROM_WEEK = 4, vault week 4 = Mon 16 Nov 2026;
+  // R003.json rulerFrom 4). Used only when no loaded R file says it. Change it only if the owner moves the switch.
+  const RULER_FROM_FALLBACK = 4;
   var rulerFiles = [], rulerHidesHistory = false, rulerReady = false, rulerFailed = new Set();   // var: read by renderPicks / rtSelect whenever they run
   /** Owner, 12 Nov ("one result per race") / Repo Lens #G-28: on a finished race's lane board, in a week the ruler
    *  decides, "Winner" is the ruler's 1st, never the steps leader. Returns the label for the lane in place i (0 = most
@@ -594,7 +597,10 @@
     if (!rulerReady) return { pending: true };
     const w = M.weekOf(r.start), j = rulerFiles.find((f) => f.week === w && f._type === type);
     if (j) return KV.ruledOutcome(j.races.find((e) => e && e.id === r.id), j);
-    const from = rulerFiles.map((f) => f.rulerFrom).find(Number.isInteger);
+    // Repo Lens #G-72 G72-2 (owner, 14 Nov: include the fallback): when no R file says when the ruler starts (both
+    // 404), use RULER_FROM_FALLBACK, the week RACE_RULER_FROM_WEEK was set to (switch variables are never unset), so an
+    // ON-week race says "Checking", never the steps leader as "Winner".
+    const from = rulerFiles.map((f) => f.rulerFrom).find(Number.isInteger) ?? RULER_FROM_FALLBACK;
     return rulerFailed.has(w) || (Number.isInteger(from) && w >= from) ? { pending: true } : null;
   }
   // One finished pick row's result, the same way for the 6-hour race and the types.

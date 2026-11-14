@@ -154,3 +154,52 @@ test("G69-1: in a game whose decided rounds can't change, a round read as pendin
   h = await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L });
   noHold(rp, h, before);
 });
+
+// The Ruler chat's added rule (14 Nov): the ruler data a week was read with never goes backwards.
+const shorter = (L: any, by: number) => ({ ...L, to: L.to - by });
+
+test("G69-1 (vhpTo): the week file records the ruler data's last block; a final week re-read with a shorter download isn't held", async () => {
+  const L = R.ledger(timeline());
+  const wd = qworld(), rp = new Replay(g, cfg);
+  let h;
+  for (let i = 0; i < 4; i++) { h = await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L }); wd.time += H; }
+  assert.equal(h!.result?.state, "final");
+  assert.equal(rp.read("W004.json").vhpTo, L.to, "vhpTo = the data's last block");
+  const before = rp.raw("W004.json");
+  h = await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: shorter(L, 1) });
+  noHold(rp, h, before);
+  assert.ok(h.result!.alerts.warnings.some((x: string) => /stale or short download/.test(x)), JSON.stringify(h.result!.alerts.warnings));
+});
+
+test("G69-1 (vhpTo): a pending week read with an older download keeps every decided round and never lowers vhpTo", async () => {
+  const L = R.ledger(timeline());
+  const wd = qworld(), rp = new Replay(g, cfg);
+  await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L });
+  const pub = rp.read("W004.json");
+  wd.time += H;
+  const h = await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: shorter(L, 5) });
+  assert.equal(h.result?.state, "pending");
+  const j = rp.read("W004.json");
+  for (const r of pub.rounds.filter((x: any) => x[3] !== "p")) assert.deepEqual(j.rounds.find((x: any) => x[0] === r[0]), r);
+  assert.equal(j.vhpTo, pub.vhpTo, "vhpTo kept, not lowered");
+});
+
+test("G69-1 (vhpTo) publish check: a week file read with older ruler data than the published copy is held; vhpTo only in ruler games", async () => {
+  const { checkGame, canon, cardKey } = await import("../publish/check.inline.mjs");
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const L = R.ledger(timeline());
+  const wd = qworld(), rp = new Replay(g, cfg);
+  await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L });
+  const pub = rp.read("W004.json");
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "g69-to-")), inn = path.join(d, "in"), out = path.join(d, "pub");
+  fs.mkdirSync(inn); fs.mkdirSync(out);
+  fs.writeFileSync(path.join(out, "W004.json"), canon(pub));
+  fs.writeFileSync(path.join(inn, "W004.json"), canon({ ...pub, vhpTo: pub.vhpTo - 1 }));
+  const r = checkGame(cfg, inn, out, wd.time + 5 * 60000, "", new Set(pub.cards.map(([st, h]: any) => cardKey(st, h))));
+  assert.ok(r.held.some((x: any) => /older ruler data/.test(x.why)), JSON.stringify(r.held));
+  const { vhpTo, cards, ...plain } = pub;
+  void vhpTo; void cards;
+  fs.writeFileSync(path.join(inn, "W004.json"), canon({ ...plain, vhpTo: 5 }));
+  const r2 = checkGame(exampleCfg(), inn, path.join(d, "none"), wd.time + 5 * 60000);
+  assert.ok(r2.held.some((x: any) => /vhpTo in a game without ruler data/.test(x.why)), JSON.stringify(r2.held));
+});

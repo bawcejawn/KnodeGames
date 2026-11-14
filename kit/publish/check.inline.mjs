@@ -93,6 +93,8 @@ export const STATES = ["open", "pending", "final"];
  *  (Weekly Rival). None of these is recomputed here (the publish job runs no game code): the recorder's two-node
  *  reads, the stability wait and the HOLD on a changed final guard them, and the hash covers them. */
 export const WEEK_OPT_KEYS = ["inputs", "carry", "next", "extras", "cards"];
+/** Optional keys after those, NOT in the week hash: vhpTo, the last block of the ruler data the run used (#G-69 G69-1). */
+export const WEEK_META_KEYS = ["vhpTo"];
 /** cards (Phase 1b, vhpData games): every VHP ruler card the file's results (or price list) used, as
  *  [settings, sha256 of the scored card's cardJson], sorted by round then sha256. Rebuilt from vhp-data by the publish
  *  job once the inline ruler copy lands (G3); until then shape only, covered by the hash. */
@@ -159,14 +161,15 @@ export function weekShape(j, name, cfg) {
   const k = weekClock(cfg);
   if (!j || typeof j !== "object" || Array.isArray(j)) return "not an object";
   const keys = Object.keys(j);
-  const opt = keys.slice(WEEK_KEYS.length);
+  const opt = keys.slice(WEEK_KEYS.length), ALL_OPT = [...WEEK_OPT_KEYS, ...WEEK_META_KEYS];
   if (keys.length < WEEK_KEYS.length || !WEEK_KEYS.every((x, i) => keys[i] === x)
-    || !opt.every((k, i) => WEEK_OPT_KEYS.includes(k) && (i === 0 || WEEK_OPT_KEYS.indexOf(opt[i - 1]) < WEEK_OPT_KEYS.indexOf(k)))) return "not the week file's keys in order";
+    || !opt.every((k, i) => ALL_OPT.includes(k) && (i === 0 || ALL_OPT.indexOf(opt[i - 1]) < ALL_OPT.indexOf(k)))) return "not the week file's keys in order";
   if (j.inputs !== undefined && !(typeof j.inputs === "string" && /^[0-9a-f]{64}$/.test(j.inputs))) return "inputs must be a sha256";
   if (!!cfg.inputsFile !== (j.inputs !== undefined)) return cfg.inputsFile ? "this game's week file must name its inputs file (FC-9)" : "inputs in a game without an inputs file";
   for (const k of ["carry", "next"]) if (j[k] !== undefined && !isStateList(j[k])) return `bad ${k} (sorted [wallet, state] pairs, each state at most ${MAX_STATE_BYTES} bytes)`;
   if ((j.carry === undefined) !== (j.next === undefined)) return "carry and next come together";
   if (!!cfg.vhpData !== (j.cards !== undefined)) return cfg.vhpData ? "a ruler game's week file must list its cards" : "cards in a game without ruler data";
+  if (j.vhpTo !== undefined && !(cfg.vhpData && Number.isSafeInteger(j.vhpTo) && j.vhpTo >= 0)) return cfg.vhpData ? "vhpTo must be a block number" : "vhpTo in a game without ruler data";
   if (j.cards !== undefined && !isCardList(j.cards)) return "bad cards (sorted [settings, sha256] pairs, no sha256 twice)";
   // #G-24 Info: a ruler game's decided rounds each come from a card (cardPerRound, on by default): at least as many
   // distinct cards as decided rounds.
@@ -540,6 +543,8 @@ export function checkGame(cfg, inDir, pubDir, now, release = "", cardsOk = null)
       okWeeks.set(w, prev); heldWeeks.delete(w); continue;     // copied forward unchanged: nothing to publish
     }
     if (prev) { const ch = roundsChange(prev, j, cfg); if (ch) { hold(f, ch); continue; } }
+    // #G-69 G69-1: the ruler data a week was read with never goes backwards (a stale or short download).
+    if (prev && prev.vhpTo !== undefined && !(j.vhpTo !== undefined && j.vhpTo >= prev.vhpTo)) { hold(f, "it was read with older ruler data than the published copy (vhpTo goes backwards)"); continue; }
     // KC-1: seen.at is the recorder's claim. Kept only while the hash is the published one, and exactly; a new hash must
     // be stamped by this hour's run (by this job's clock), and for an ended week after its end.
     // An unchanged hash first read before the week ended (an open copy under liveWeek) may be stamped again once the

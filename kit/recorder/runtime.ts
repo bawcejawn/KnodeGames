@@ -206,12 +206,15 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   let weekPins: Map<string, any> | undefined, vhpInFor: (pins?: Map<string, any>) => any = () => vhpIn, pinsOf: (c: unknown) => Map<string, any> = () => new Map();
   // #G-69 G69-2: ctx.fallback is offered only when the ruler's data loaded this run.
   let vhpLoaded = false;
+  // #G-69 G69-1 (the Ruler chat): the last block this run's ruler data reaches, recorded in the week file (vhpTo).
+  let vhpTo: number | undefined;
   if (cfg.vhpData) {
     const V = await import("./sources/vhp-ruler.ts");
     cardList = V.cardList;
     let L: any = null;
     try { if (o.vhpLedger) L = o.vhpLedger; else { if (!o.vhpDir) throw new Error("no vhp-data folder was given"); L = V.loadLedger(o.vhpDir); } }
     catch (e) { alerts.warnings.push(`the ruler's data couldn't be loaded this run (${(e as Error).message}): rounds that need it stay pending`); }
+    if (L && Number.isSafeInteger(L.to)) vhpTo = L.to;
     const stub = (why: string) => ({ to: -1, ruleVersion: V.RULE_VERSION, card() { throw new V.NotYet(`not yet: ${why}`); } });
     vhpLoaded = !!L;
     pinsOf = V.pinsOf;
@@ -437,10 +440,15 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   const pubRounds = new Map<string, any[]>();
   if (pw) for (const r of pw.rounds) pubRounds.set(r[0], resolveRound(pw, r));
   let keptPublished = false;
+  // #G-69 G69-1 (the Ruler chat): vhp-data only grows at its end, so data that ends before the published copy's is a
+  // stale or short download: the whole week couldn't be re-read, and every round the published copy decided keeps it.
+  const pubTo = pw && Number.isSafeInteger(pw.vhpTo) ? (pw.vhpTo as number) : undefined;
+  const staleData = vhpTo !== undefined && pubTo !== undefined && vhpTo < pubTo;
+  if (staleData) alerts.warnings.push(`week ${w}: this run's ruler data ends at block ${vhpTo}, before the published copy's ${pubTo} (a stale or short download): the week isn't re-read this run (#G-69 G69-1)`);
 
   const players = [...ra.stakes.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1)).map(([a, s]) => [a, s.stake, s.peak, s.voided ? 1 : 0]);
   const idx = new Map(players.map((p, i) => [p[0] as string, i]));
-  let rereadOk = true, disagreed = false;
+  let rereadOk = !staleData, disagreed = false;
   const roundsOut: any[] = [];
   for (const r of rounds) {
     const day = r.day;
@@ -488,7 +496,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     // finish, never a change: it keeps its published result and cards, and the week doesn't compare (no HOLD on a
     // final week; a pending week stays pending). In a game whose decided rounds can't change, that holds whatever the
     // cause; in a correctable game a round the chain itself shows undecided again is a correction, as before.
-    if (pr && pr[3] !== "p" && status === "p" && (notYet.has(r.id) || !cfg.roundsCorrectable)) {
+    if (pr && pr[3] !== "p" && (staleData || (status === "p" && (notYet.has(r.id) || !cfg.roundsCorrectable)))) {
       rereadOk = false; keptPublished = true;
       alerts.warnings.push(`round ${r.id}: decided in the published copy but not decidable this run; it keeps its published result (#G-69 G69-1)`);
       status = pr[3]; rows = pr[4];
@@ -518,6 +526,9 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
       for (const c of pw.cards) if (!have.has(c[1])) { usedWeekCards.set(`published:${c[1]}`, c); have.add(c[1]); }
     }
     body.cards = cardList(usedWeekCards);
+    // Never backwards: the larger of this run's and the published copy's (a run without data keeps the published one).
+    const to = Math.max(vhpTo ?? -1, pubTo ?? -1);
+    if (to >= 0) body.vhpTo = to;
   }
   const hash = weekHash(body);
   if (cfg.rowCap > 0 && t.rows.length > cfg.rowCap) alerts.warnings.push(`week ${w}: ${t.rows.length} board rows, over the game's cap of ${cfg.rowCap}: board.json keeps the ranked rows and the best others`);

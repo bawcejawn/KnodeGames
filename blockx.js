@@ -146,7 +146,8 @@
   /** R-BX-25: only rounds inside the shown game's weeks, 10 minutes clear of either edge (a block can land a little early
    *  or late; one that lands in the other game's weeks isn't scored). */
   const inPlay = (r) => { const t = about(G.target(r)); return t >= PERIOD.from + 10 * 60000 && t < PERIOD.to - 10 * 60000; };
-  const offer = () => G.offerRounds(head.height).filter(inPlay);
+  const MAX_OPEN = 12;   // owner, 14 Nov: show at most 12 open targets; when one locks, the next hour joins (the contract still opens about 24)
+  const offer = () => G.offerRounds(head.height).filter(inPlay).slice(0, MAX_OPEN);
 
   // ── the producers and their multipliers ──
   async function loadCard() {

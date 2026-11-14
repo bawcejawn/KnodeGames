@@ -9,7 +9,7 @@ test("the bar and the Add button exist only behind W.batchReady (the sponsor's b
   assert.match(js, /const batchOn = \(\) => !!\(W && typeof W\.batchReady === "function" && W\.batchReady\(\)/);
   assert.match(js, /const add = batchOn\(\) \? /);
   assert.match(js, /if \(!batchOn\(\) \|\| !queue\.size\) \{ bar\.hidden = true/);
-  assert.match(w, /batchReady: \(\) => !!\(W\.sponsor && W\.sponsor\.batch/);
+  assert.match(w, /batchReady: batchReady,/);
 });
 test("at most 10 per transaction, locked rounds dropped right before signing, the daily picks counted", () => {
   assert.match(js, /\.slice\(0, 10\)/);
@@ -19,4 +19,19 @@ test("at most 10 per transaction, locked rounds dropped right before signing, th
 });
 test("a single pick still goes through sendPick exactly as before", () => {
   assert.match(js, /W\.send\(`pick \$\{nameOf\(producer\)\} for block/);
+});
+
+test("batchReady is off for a missing batch, batch {}, an empty perOp or missing fixed/margin; on only with measured numbers (Block X chat, 14 Nov)", () => {
+  const m = w.match(/function batchReady\(\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(m, "batchReady is a named function");
+  const make = (W) => new Function("W", `${m[0]}; return batchReady();`)(W);
+  const ok = { fixed: "100", margin: "50", perOp: { "abc:0000000a": "10" } };
+  const sp = (batch, payer = "sponsor") => ({ payer, sponsor: batch === undefined ? {} : { batch } });
+  assert.equal(make(sp(undefined)), false);
+  assert.equal(make(sp({})), false);
+  assert.equal(make(sp({ ...ok, perOp: {} })), false);
+  assert.equal(make(sp({ perOp: ok.perOp })), false);
+  assert.equal(make(sp({ ...ok, fixed: 100 })), false);
+  assert.equal(make(sp(ok, "kondor")), false);
+  assert.equal(make(sp(ok)), true);
 });

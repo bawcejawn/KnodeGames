@@ -739,6 +739,14 @@
     const c = o && o.call_contract;
     return c ? `${c.contract_id}:${(Number(c.entry_point) >>> 0).toString(16).padStart(8, "0")}` : "";
   }
+  /** The batch card shows only with measured numbers: a batch block with "fixed", "margin" and at least one "perOp" row.
+   *  A missing batch, "batch": {} or an empty perOp means no batching (Block X chat, 14 Nov), and the card stays off. */
+  function batchReady() {
+    const b = W.sponsor && W.sponsor.batch;
+    if (W.payer !== "sponsor" || !b || typeof b !== "object" || !b.perOp || typeof b.perOp !== "object") return false;
+    const num = (v) => typeof v === "string" && /^[0-9]{1,16}$/.test(v);
+    return num(b.fixed) && num(b.margin) && Object.keys(b.perOp).length > 0;
+  }
   const OWN_MANA_NOTE = "You have your own Mana, so this one is paid from it.";
   const LOW_MANA_NOTE = "Free Mana is low right now. If a pick fails, try again later, or use your own Mana or Kondor's free Mana.";
   /** True when the wallet's own Mana is at least the sponsor's selfPayMin (a base-unit string, 0 to 1000 Mana; absent or "0" = off). */
@@ -913,7 +921,7 @@
   }
 
   window.KWallet = {
-    init, setGuestConfig, connect, disconnect, send, sendBatch, batchReady: () => !!(W.sponsor && W.sponsor.batch && typeof W.sponsor.batch === "object" && W.payer === "sponsor"), isPhone, manageGuest, guestInfo: () => { guestCant([]); }, switchTo, forget,
+    init, setGuestConfig, connect, disconnect, send, sendBatch, batchReady: batchReady, isPhone, manageGuest, guestInfo: () => { guestCant([]); }, switchTo, forget,
     accounts: () => remembered(), subscribe: (f) => { listeners.add(f); return () => listeners.delete(f); },
     get address() { return W.address; }, get kind() { return W.kind; },
     /** R-BX-21: true when this page sends through the Mana sponsor (deployment.json "payer": "sponsor"). */

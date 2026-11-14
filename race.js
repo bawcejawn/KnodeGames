@@ -95,6 +95,15 @@
   }
 
   // ── the race on the track ──
+  const POS = (f) => `calc(20px + (100% - 40px) * ${Math.min(1, Math.max(0, f)).toFixed(4)})`;   // the animal's centre (and the Now line) on one shared scale
+  const ord = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"}`;
+  /** Time marks along the top of the bar column: where the race will be after each step. */
+  function rulerEl(len, step) {
+    const out = [];
+    for (let t = step; t < len - 1; t += step) out.push(el("span", { class: "rt-tick", style: `left:${POS(t / len)}`, text: step >= 86400000 ? `${t / 86400000}d` : step >= 3600000 ? `${t / 3600000}h` : `${t / 60000}m` }));
+    out.push(el("span", { class: "rt-tick fin", style: `left:${POS(1)}`, text: "finish" }));
+    return el("div", { class: "rt-ruler" }, ...out);
+  }
   let r6Win = 0;   // 6-hour board: index into R6_WINDOWS; -1 = since start
   const R6_WINDOWS = [3600000, 3 * 3600000];
   function render() {
@@ -137,7 +146,10 @@
       track.replaceChildren(el("p", { class: "note", text: race.result && race.result.missed ? "This race wasn't recorded." : !ended && !live ? "The horses are in the stalls. The race starts on time, from 0." : "Loading the race…" }));
     } else {
       // The live order, all the way to the finish: nobody waits at the line (see KRaceMath.track).
-      const rows = M.track(st, line, ended), ordered = rows;
+      const rows = M.track(st, line, ended);
+      // Fixed order, biggest producer (most VHP) first, so the line-up never shuffles and the leader is not always on top.
+      const c0 = (race.cards && M.cardForLeg(race.cards, 0)) || card, vhpOf = new Map(c0 ? c0.field.map((x) => [x.a, x.vhp]) : []);
+      const ordered = [...rows].sort((p, q) => (vhpOf.get(q.a) || 0) - (vhpOf.get(p.a) || 0) || (p.a < q.a ? -1 : 1));
       const existing = new Map([...track.querySelectorAll(".pr-lane")].map((c) => [c.dataset.addr, c]));
       // Who moved since the last refresh (only while watching the live race; a new race or view starts clean).
       const fresh = seen.race !== race.id;
@@ -161,9 +173,10 @@
       const latest6 = () => { const lr = raceObj(cur.index); return (lr.cards && M.cardForLeg(lr.cards, M.legOf(lr.start, nowT, M.legsOf(lr.cards)))) || prov; };
       const ups = live && me() && raceContract ? [1, 2, 3].map((k) => { const ur = raceObj(cur.index + k); return { k, r: ur, c: (ur.cards && !ur.provisional && M.cardForLeg(ur.cards, 0)) || latest6() }; }) : [];
       const grid6 = ups.length ? `grid-template-columns:minmax(0,230px) minmax(120px,1fr) 104px repeat(${ups.length},62px)` : "";
-      if (ups.length) keep.push(el("div", { class: "pr-headrow rt-head", style: grid6 }, el("div", { text: "Producer" }), el("div", { text: "Race so far" }), el("div", { class: "pr-gap", text: "Standing" }),
+      if (ups.length) keep.push(el("div", { class: "pr-headrow rt-head", style: grid6 }, el("div", { text: "Producer" }), rulerEl(M.RACE, 3600000), el("div", { class: "pr-gap", text: "Standing" }),
         ...ups.map((u) => el("div", { class: "rt-pc" }, el("b", { text: clock(u.r.start) }), el("span", { text: `locks ${dur(u.r.start - nowT)}` })))));
-      ordered.forEach((r, i) => {
+      ordered.forEach((r) => {
+        const i = rows.indexOf(r);   // i = the live place (0 = leading)
         let lane = existing.get(r.a);
         if (!lane) {
           lane = el("div", { class: "pr-lane", "data-addr": r.a },
@@ -174,7 +187,7 @@
           lane.querySelector(".pr-trail").style.background = colour(r.a);
         }
         const h = card && card.field.find((x) => x.a === r.a), share = card ? h ? h.vhp / card.field.concat(card.paddock).reduce((s, x) => s + x.vhp, 0) : 0 : 0;
-        lane.querySelector(".pr-rank").textContent = String(i + 1);
+        lane.querySelector(".pr-rank").textContent = ord(i + 1);
         lane.querySelector(".pr-name").textContent = nameOf(r.a);
         const plus = lane.querySelector(".pr-plus"), g = gained.get(r.a);
         if (g) {
@@ -183,9 +196,9 @@
           plus.classList.add("on"); lane.classList.add("moved");
         } else { plus.classList.remove("on"); lane.classList.remove("moved"); if (!live) plus.textContent = ""; }
         lane.querySelector(".pr-meta").textContent = `${h ? `×${h.h.toFixed(2)} per block` : "no handicap this leg"} · ${fmt(r.blocks)} blocks${share ? ` · ${fmt(share * 100, share < 0.01 ? 2 : 1)}% VHP` : ""}`;
-        const x = r.x * 100;
-        lane.querySelector(".pr-horse").style.left = `calc(${x}% - ${x > 4 ? 30 : 0}px)`;   // never past the line; only the winner reaches it, at the end
-        lane.querySelector(".pr-trail").style.width = `${x}%`;
+        const xf = r.x;
+        lane.querySelector(".pr-horse").style.left = `calc(${POS(xf)} - 20px)`;   // the animal always sits fully inside the bar; its middle is the progress point
+        lane.querySelector(".pr-trail").style.width = POS(xf);
         const gap = lane.querySelector(".pr-gap");
         if (ended) gap.replaceChildren(i === 0 ? el("b", { text: "Winner" }) : `${fmt(r.behind, 1)} behind`, el("br"), el("span", { class: "ago", text: `${fmt(r.steps, 1)} steps` }));
         else if (i === 0) gap.replaceChildren(el("b", { text: "Leading" }), el("br"), el("span", { class: "ago", text: `${fmt(r.steps, 1)} steps` }));
@@ -194,12 +207,12 @@
         const run = lane.querySelector(".pr-run");
         let shade = run.querySelector(".pr-shade");
         if (!shade) { shade = el("div", { class: "pr-shade" }); run.insertBefore(shade, run.firstChild); run.appendChild(el("div", { class: "pr-nowline" })); }
-        shade.style.width = `${frac * 100}%`; run.querySelector(".pr-nowline").style.left = `${frac * 100}%`; run.classList.toggle("over", !live);
+        shade.style.width = frac > 0 ? POS(frac) : "0"; run.querySelector(".pr-nowline").style.left = POS(frac); run.classList.toggle("over", !live);
         // Gained / lost pill
         let pill = lane.querySelector(".rt-pill");
         if (!pill) { pill = el("span", { class: "rt-pill" }); lane.querySelector(".pr-who").insertBefore(pill, lane.querySelector(".pr-meta")); }
         const bp = before6 && before6.get(r.a), dd = bp ? bp - (i + 1) : null;
-        pill.hidden = dd == null; if (dd != null) { pill.className = `rt-pill ${dd > 0 ? "up" : dd < 0 ? "down" : ""}`; pill.textContent = dd > 0 ? `▲ ${dd}` : dd < 0 ? `▼ ${-dd}` : "–"; }
+        pill.hidden = dd == null || dd === 0; if (dd != null) { pill.className = `rt-pill ${dd > 0 ? "up" : dd < 0 ? "down" : ""}`; pill.textContent = dd > 0 ? `▲ ${dd}` : dd < 0 ? `▼ ${-dd}` : "–"; }
         // Pick columns
         lane.querySelectorAll(".rt-pk").forEach((n) => n.remove());
         lane.style.cssText = grid6;
@@ -675,7 +688,9 @@
     // Fixed order: by address, decided once per race.
     const fkey = `${rtype}:${cur.index}`;
     let order = rtFixed.get(fkey);
-    if (!order || (st || []).some((x) => !order.includes(x.a))) { order = [...new Set([...(card ? card.field.map((x) => x.a) : []), ...(st || []).map((x) => x.a)])].sort(); rtFixed.set(fkey, order); }
+    if (!order || (st || []).some((x) => !order.includes(x.a))) { const vv = new Map((card ? card.field : []).map((x) => [x.a, x.vhp]));
+      order = [...new Set([...(card ? card.field.map((x) => x.a) : []), ...(st || []).map((x) => x.a)])].sort((p, q) => (vv.get(q) || 0) - (vv.get(p) || 0) || (p < q ? -1 : 1));   // biggest producer first, fixed for the race
+      if (card) rtFixed.set(fkey, order); }
     const by = new Map((st || []).map((x) => [x.a, x]));
     const hm = new Map((card ? card.field : []).map((x) => [x.a, x.h]));
     const total = card ? card.field.concat(card.paddock || []).reduce((s, x) => s + x.vhp, 0) : 0;
@@ -701,12 +716,12 @@
     }
     const upc = upcoming(rtype).slice(0, 3);
     const grid = `grid-template-columns:minmax(0,230px) minmax(120px,1fr) 104px repeat(${upc.length},62px)`;
-    const head = el("div", { class: "pr-lane rt-lane rt-head", style: grid }, el("div", { text: "Producer" }), el("div", { text: "Race so far" }), el("div", { class: "pr-gap", text: "Standing" }),
+    const head = el("div", { class: "pr-lane rt-lane rt-head", style: grid }, el("div", { text: "Producer" }), rulerEl(cur.end - cur.start, { 1: 15 * 60000, 2: 30 * 60000, 3: 6 * HOURMS, 4: DAYMS }[rtype] || HOURMS), el("div", { class: "pr-gap", text: "Standing" }),
       ...upc.map((r) => el("div", { class: "rt-pc", title: `Race starting ${dayTime(r.start)}` }, el("b", { text: rtype >= 3 ? dayTime(r.start).replace(/ UTC$/, "") : clock(r.start) }), el("span", { text: `locks ${dur(r.start - now)}` }))));
     const lanes = order.map((a) => {
       const r = trk.get(a), x = r ? r.x * 100 : 0, h = hm.get(a), sh = vhp.get(a) && total ? vhp.get(a) / total : 0, rk = rank.get(a);
       let pill = null;
-      if (rk && before && before.has(a)) { const d = before.get(a) - rk; pill = el("span", { class: `rt-pill ${d > 0 ? "up" : d < 0 ? "down" : ""}`, text: d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : "–", title: d === 0 ? "Same place" : `${d > 0 ? "Gained" : "Lost"} ${Math.abs(d)} place${Math.abs(d) === 1 ? "" : "s"}` }); }
+      if (rk && before && before.has(a) && before.get(a) !== rk) { const d = before.get(a) - rk; pill = el("span", { class: `rt-pill ${d > 0 ? "up" : d < 0 ? "down" : ""}`, text: d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : "–", title: d === 0 ? "Same place" : `${d > 0 ? "Gained" : "Lost"} ${Math.abs(d)} place${Math.abs(d) === 1 ? "" : "s"}` }); }
       const cells = upc.map((u) => {
         const k = `${rtype}:${u.index}`, mine = rtPicks.get(k), draft = rtDrafts.get(k), chosen = (draft || mine) === a;
         const b = el("button", { type: "button", class: `rt-pk${chosen ? " on" : ""}`, "aria-pressed": String(chosen), "aria-label": `${chosen ? "Picked" : "Pick"} ${nameOf(a)} for the race at ${dayTime(u.start)}` }, chosen ? (draft && draft !== mine ? "Picked" : "Locked in") : "Pick");
@@ -718,11 +733,11 @@
         return b;
       });
       const lane = el("div", { class: `pr-lane rt-lane${rk === 1 && !ended ? " lead" : ""}${rk === 1 && ended ? " win" : ""}`, style: grid, "data-addr": a },
-        el("div", { class: "pr-who" }, el("span", { class: "pr-rank", text: rk ? String(rk) : "–" }), el("span", { class: "pr-dot", style: `background:${colour(a)}` }),
+        el("div", { class: "pr-who" }, el("span", { class: "pr-rank", text: rk ? ord(rk) : "–" }), el("span", { class: "pr-dot", style: `background:${colour(a)}` }),
           el("a", { class: "pr-name", href: EXPLORER + a, target: "_blank", rel: "noopener noreferrer", text: nameOf(a) }), pill || "",
           el("span", { class: "pr-meta", text: `${h ? `×${h.toFixed(2)} per block` : "no handicap this hour"} · ${fmt(r ? r.blocks : 0)} blocks${sh ? ` · ${fmt(sh * 100, sh < 0.01 ? 2 : 1)}% VHP` : ""}` })),
-        el("div", { class: "pr-run" }, el("div", { class: "pr-trail", style: `width:${x}%;background:${colour(a)}` }),
-          el("img", { class: "pr-horse rt-animal", alt: "", "aria-hidden": "true", src: `media/animals/${ANIMAL[rtype]}.png`, width: "30", height: "30", style: `left:calc(${x}% - ${x > 4 ? 30 : 0}px)` })),
+        el("div", { class: `pr-run${ended ? " over" : ""}` }, el("div", { class: "pr-shade", style: `width:${frac > 0 ? POS(frac) : "0"}` }), el("div", { class: "pr-trail", style: `width:${POS(x / 100)};background:${colour(a)}` }),
+          el("img", { class: "pr-horse rt-animal", alt: "", "aria-hidden": "true", src: `media/animals/${ANIMAL[rtype]}.png`, width: "40", height: "40", style: `left:calc(${POS(x / 100)} - 20px)` }), el("div", { class: "pr-nowline", style: `left:${POS(frac)}` })),
         el("div", { class: "pr-gap" }, r ? (rk === 1 ? el("b", { text: ended ? "Winner" : "Leading" }) : `${fmt(r.behind, 1)} behind`) : "–", el("br"), el("span", { class: "ago", text: `${fmt(r ? r.steps : 0, 1)} steps` })),
         ...cells);
       return lane;

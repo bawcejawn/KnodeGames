@@ -26,6 +26,8 @@ import "../../kit/tests/phase1-fantasy.test.ts";
 import "../../kit/tests/phase1b-ruler.test.ts";
 import "../../kit/tests/phase1b-g3.test.ts";
 import "../../kit/tests/blockat.test.ts";
+import "../../kit/tests/g69-1.test.ts";
+import "../../kit/tests/g78-kit.test.mts";
 import "./kit-repolens-g41.test.ts";
 
 import test from "node:test";

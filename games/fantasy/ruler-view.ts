@@ -25,27 +25,36 @@ export type RulerCard = { ruleVersion: number; game: number; round: string; prod
 
 type Vhp = { ruleVersion: number; card(settings: unknown): RulerCard };
 type BlockAt = (ms: number) => Promise<number>;
-export type Sources = { vhp: Vhp; blockAt: BlockAt };
+/** The kit's way to decide a round without a ruler card (Architecture, 13 Nov: `kit-next`, opening Fri 20 Nov). The kit
+ *  itself waits for the round's end + 48 h on both nodes (NotYet before), records `fallback: { why, at }` in the week
+ *  file, exempts the round from cardPerRound and alerts. Until the kit passes it, Fantasy's no-card day waits (pending). */
+type Fallback = (why: string) => Promise<void>;
+export type Sources = { vhp: Vhp; blockAt: BlockAt; fallback?: Fallback };
 
 /** The ruler source and the block clock from a kit context, or NotYet if this run doesn't have both yet. */
 export function sourcesOf(ctx: unknown): Sources {
   const c = ctx as { vhp?: Vhp; blockAt?: BlockAt } | undefined;
   if (!c?.vhp || typeof c.vhp.card !== "function") throw new NotYet("not yet: no ruler data this run (ctx.vhp)");
   if (typeof c.blockAt !== "function") throw new NotYet("not yet: the kit's block clock (ctx.blockAt, G7) isn't available");
-  return { vhp: c.vhp, blockAt: c.blockAt };
+  const fb = (ctx as { fallback?: Fallback }).fallback;
+  return { vhp: c.vhp, blockAt: c.blockAt, ...(typeof fb === "function" ? { fallback: fb } : {}) };
 }
 
-/** The settings of the card for the UTC day starting at `day`. */
-export async function daySettings(day: number, blockAt: BlockAt, base: CardBase = CARD) {
+/** The settings of the card for the UTC day starting at `day`. `include`: the week's listed producers, so each has a
+ *  row even with no block in the 6 hours before the day (the ruler's G6, on main since 14a257b; the kit's card
+ *  settings carry it from Architecture's next kit PR; until then the kit leaves it out and a missing row keeps the day
+ *  pending). Sorted, distinct, never empty (the ruler's rule). */
+export async function daySettings(day: number, blockAt: BlockAt, base: CardBase = CARD, include: string[] = []) {
   const S0 = await blockAt(day), S1 = (await blockAt(day + DAY)) - 1, L = (await blockAt(day - LEAD)) - 1;
   if (!(Number.isSafeInteger(S0) && Number.isSafeInteger(S1) && Number.isSafeInteger(L)) || !(L < S0 && S0 <= S1)) throw new Error(`day ${F.ymd(day)}: bad block window ${L}/${S0}/${S1}`);
-  return { ...base, pooled: [...base.pooled], round: F.ymd(day), window: { W0: L - LOOK_BACK, W1: L, L, S0, S1 } };
+  const inc = [...new Set(include)].sort();
+  return { ...base, pooled: [...base.pooled], round: F.ymd(day), window: { W0: L - LOOK_BACK, W1: L, L, S0, S1 }, ...(inc.length ? { include: inc } : {}) };
 }
 
 /** The scored card for a UTC day, checked: ruler version 4, the right round and game. Throws NotYet while the data
  *  or the block clock doesn't reach it. */
-export async function dayCard(day: number, src: Sources, base: CardBase = CARD): Promise<RulerCard> {
-  const c = src.vhp.card(await daySettings(day, src.blockAt, base));
+export async function dayCard(day: number, src: Sources, base: CardBase = CARD, include: string[] = []): Promise<RulerCard> {
+  const c = src.vhp.card(await daySettings(day, src.blockAt, base, include));
   if (c?.ruleVersion !== 4) throw new Error(`day ${F.ymd(day)}: ruler version ${c?.ruleVersion}, not 4`);
   if (c.round !== F.ymd(day) || c.game !== 4 || !Array.isArray(c.producers)) throw new Error(`day ${F.ymd(day)}: not Fantasy's card`);
   return c;

@@ -52,6 +52,9 @@ export const weekDays = (start) => Array.from({ length: 7 }, (_, i) => start + i
 /** When a still-flagged day of the week starting at `start` is decided anyway (as 0 for every team): Tuesday 00:00 UTC
  *  after the week, a day after it ends and well before the vault's Thursday backstop (owner, 12 Nov; #G-42 G42-5). */
 export const flaggedCutoff = (start) => start + 8 * DAY;
+/** How long a day with no ruler card at all (the ruler's data never reached it) waits before it counts as 0 for every
+ *  team: 48 hours after the day ends (owner, 13 Nov: "after the 48-hour grace, the game's own simplest fixed rule"). */
+export const NO_CARD_GRACE = 2 * DAY;
 /** The most Weekly Rival matches a week records (records only): far more than players, and under the kit's 256 KB
  *  extras cap (#G-42 G42-3). */
 export const MAX_RIVAL = 2500;
@@ -152,6 +155,15 @@ export function nextTeam(cur, pick, pl, first) {
 }
 
 // ── Weekly Rival (records only) ──
+/** At most MAX_RIVAL of the week's matches (records only), and how many were left out (#G-52 G52-4: never silently):
+ *  the matches with the most points between the two players are kept, ties by address; the kept ones stay sorted by
+ *  address. points: Map address → week points. */
+export function capMatches(all, points) {
+  if (all.length <= MAX_RIVAL) return { rival: all, dropped: 0 };
+  const sum = (m) => (points?.get(m[0]) ?? 0) + (points?.get(m[1]) ?? 0);
+  const kept = [...all].sort((x, y) => sum(y) - sum(x) || cmp(x[0], y[0]) || cmp(x[1], y[1])).slice(0, MAX_RIVAL);
+  return { rival: kept.sort((x, y) => cmp(x[0], y[0]) || cmp(x[1], y[1])), dropped: all.length - MAX_RIVAL };
+}
 /** The week's matches. challenges: [[challenger, target]]; points: Map address → week points; staked: Set of staked
  *  wallets. A match counts when both differ, both are staked and both scored. Mutual challenges are one match.
  *  Returns [[a, b, mutual (0/1), result ("a" | "b" | "d")]] sorted, a = the challenger. */
@@ -166,5 +178,5 @@ export function matches(challenges, points, staked) {
     if (seen.has(key)) { seen.get(key)[2] = 1; continue; }
     seen.set(key, [a, b, 0, pa > pb ? "a" : pb > pa ? "b" : "d"]);
   }
-  return [...seen.values()].sort((x, y) => cmp(x[0], y[0]) || cmp(x[1], y[1])).slice(0, MAX_RIVAL);
+  return [...seen.values()].sort((x, y) => cmp(x[0], y[0]) || cmp(x[1], y[1]));
 }

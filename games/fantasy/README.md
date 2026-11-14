@@ -13,6 +13,8 @@ the dated plan).
 | `tests/math.test.mjs` | The rules: 12 tests. |
 | `tests/recorder.test.ts` | The module with a fake ruler and block clock (10 tests), and end to end on the real ruler over the Race's made-up chain (2 tests). |
 | `tests/g42-*.test.ts` | Repo Lens #G-42's tests, run through the kit's own Replay (locksAt, pickers without a team, Rival size, flagged cards). |
+| `tests/g52-fixes.test.ts` | #G-52 G52-3 and G52-4, the week's list as `include`, and the 48-hour no-card rule. |
+| `tests/sample.ts` | The sample week for the kit's conformance suite (`npm run game:check -- fantasy`). |
 | `tests/page.test.mjs` | The page: it loads `math.js`, every element the script uses exists, no HTML strings, only the kit's files, the Picks rounds, and the 11 Nov rule text. |
 | `../../fantasy.html`, `.js`, `.css` | The game page (hidden: `noindex`, not in the menus until launch). |
 
@@ -25,11 +27,16 @@ the dated plan).
 4. A team's day is the sum of its producers', with the captain counted twice.
 5. The day stays PENDING when:
    - the kit's `NotYet` says the data or the block isn't there yet;
-   - a listed producer has no row (the ruler's G6 `include` will give every listed producer one).
+   - a listed producer has no row. Fantasy passes the week's list as the card's `include` (the ruler's G6), so every
+     listed producer gets a row once the kit carries `include` into the card (Architecture's next kit PR).
 6. A **flagged** card (a bad or rebuilt hour in the ruler's data) waits until Tuesday 00:00 UTC after the week. If it is
    still flagged then, the day counts as 0 for every team (owner, 12 Nov). The cutoff is read from the chain
    (`blockAt`), so both nodes decide alike, and the week still goes final before the vault's Thursday backstop.
-   In the price list, a flagged form day is left out of every producer's form.
+   In the price list, a flagged form day is left out of every producer's form. If all 7 form days are flagged, the
+   price list waits (pending, retried each hour) and alerts from 6 hours before the week (#G-52 G52-3).
+7. **No ruler card at all** for a day (the ruler's data never reached it): the day waits 48 hours after it ends. Then
+   it counts 0 for every team, recorded and alerted (owner, 13 Nov). This uses the kit's `ctx.fallback` (Architecture's
+   `kit-next` PR, opening Fri 20 Nov); until it is merged, such a day stays pending and the kit's Thursday backstop applies.
 
 ## Repo Lens #G-42 (FIX FIRST on `81a0343`): fixed
 - **G42-1:** `locksAt = day + 1`, so the kit's `dayOf(locksAt)` is the day (KC-30).
@@ -40,12 +47,25 @@ the dated plan).
 - **Info:** `big()` refuses negatives; the page carries your Saturday team into next Monday.
 - The Repo Lens tests are kept in `tests/g42-*.test.ts`.
 
+## Repo Lens #G-52 (GO with conditions on `1f8110c`)
+- **G52-1:** `main` merged in; the kit job re-rendered.
+- **G52-3:** all 7 form cards flagged → the price list waits (NotYet), never a plain error.
+- **G52-4:** above 2,500 Rival matches, the ones with the most points between the two players are kept (ties by
+  address) and the week file says how many were left out (`rivalDropped`).
+- **Sample week:** `tests/sample.ts` for `npm run game:check -- fantasy`.
+
 ## Points
 Points are kept in hundredths: a producer's day is at most 15,000 (= 150.00), and a team's day at most 90,000.
 
 ## Status
-- **Waits on two pieces from other chats:**
-  - kit **G7** (`ctx.blockAt`, branch `kit-blockat`). Until it's merged, the price list waits and every day is pending.
-  - the ruler's **G6** (`include`). Until it's merged, a day with a listed producer missing from its card stays pending.
+- Kit **G7** (`ctx.blockAt`, #280) is merged.
+- **Waits on kit pieces from Architecture:**
+  - the kit carrying the ruler's **G6** `include` into card settings (Fantasy already passes it). Until then, a day
+    with a listed producer missing from its card stays pending.
+  - a kit `ctx.fallback` for the 48-hour no-card rule, and a `checkAt` for the conformance sample (an inputs-file game
+    can't have a decided day at hour 0, which is before the week).
+  - All three are in Architecture's `kit-next` PR (opens Fri 20 Nov, merge by Fri 27 Nov).
+- **Before live (vault week 7):** a small Fantasy PR adds `"parts": "d"` to `game.json` and the `partCols` declaration
+  (a 9,000-player day is about 0.7 MB on parts, under the 1.2 MB warning).
 - **The workflow job is rendered:** `record-fantasy` and `publish-kit` in `games.yml`. Both run only when
   `FANTASY_ENABLED` is `true`.

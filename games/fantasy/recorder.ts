@@ -15,6 +15,7 @@ import { PENDING, type GameModule, type Round, type States, type Score } from ".
 import type { RawPick } from "../../kit/recorder/sources/picks-contract.ts";
 import * as F from "./math.js";
 import { CARD, dayCard, flagged, rowsOf, sourcesOf } from "./ruler-view.ts";
+import { NotYet } from "../../kit/recorder/types.ts";
 
 export const VAULT_GAME = 4;                 // FC-29: one constant
 export const RIVAL_GAME = 5;
@@ -23,7 +24,7 @@ export { CARD };
 export type PriceList = ReturnType<typeof F.makePriceList>;
 /** A day's result: its ruler round and each listed producer's [credited, expected, void] (millionths of a block).
  *  `flagged`: the card stayed flagged past the cutoff, so the day counts 0 for everyone (expected 0 scores 0). */
-export type DayResult = { round: string; rows: Record<string, [string, string, boolean]>; flagged?: true };
+export type DayResult = { round: string; rows: Record<string, [string, string, boolean]>; flagged?: true; fallback?: true };
 /** A wallet's carried state: its team (captain first) and when it was picked (chain ms). */
 export type TeamState = { t: string[]; at: number };
 
@@ -54,6 +55,8 @@ export const game: GameModule<RawPick, DayResult, PriceList> = {
       const c = await dayCard(day, src);
       cards.push({ round: c.round, rows: rowsOf(c), flagged: flagged(c) });
     }
+    // #G-52 G52-3: every form card flagged: wait (the kit retries each hour), never a plain error that stops the run.
+    if (cards.every((c) => c.flagged)) throw new NotYet(`not yet: price list for week ${week.week}: all ${cards.length} form days' ruler cards are flagged`);
     return F.makePriceList(week.start, { ...CARD, pooled: [...CARD.pooled] }, cards);
   },
 
@@ -64,13 +67,26 @@ export const game: GameModule<RawPick, DayResult, PriceList> = {
    *  so both nodes decide it the same way and the week still goes final before the vault's Thursday backstop. */
   async resultOf(round, _read, inputs, ctx) {
     if (!inputs) return PENDING;
-    const src = sourcesOf(ctx), c = await dayCard(round.day, src);
+    const src = sourcesOf(ctx), pool = inputs.pool.map((p) => p.a);
+    const zeros = () => Object.fromEntries(pool.map((a) => [a, ["0", "0", false] as [string, string, boolean]]));
+    let c;
+    try { c = await dayCard(round.day, src, CARD, pool); }
+    catch (e) {
+      // No ruler card at all (the ruler's data never reached this day). Owner, 13 Nov: after a 48-hour grace the day
+      // counts as 0 for every team, recorded and alerted by the kit (ctx.fallback, which also waits out the 48 hours on
+      // both nodes; the blockAt here is the same wait, kept so the module never decides early on its own). Within the
+      // grace, or while the kit has no fallback, the day waits (NotYet → pending).
+      if (!(e instanceof NotYet) || !src.fallback) throw e;
+      await src.blockAt(round.day + DAY + F.NO_CARD_GRACE);
+      await src.fallback(`Fantasy ${F.ymd(round.day)}: no VHP Ruler card 48 hours after the day; it counts 0 for every team`);
+      return { round: F.ymd(round.day), fallback: true, rows: zeros() };
+    }
     if (flagged(c)) {
       await src.blockAt(F.flaggedCutoff(inputs.start));
-      return { round: c.round, flagged: true, rows: Object.fromEntries(inputs.pool.map(({ a }) => [a, ["0", "0", false]])) };
+      return { round: c.round, flagged: true, rows: zeros() };
     }
     const by = rowsOf(c), rows: DayResult["rows"] = {};
-    for (const { a } of inputs.pool) {
+    for (const a of pool) {
       const r = by[a];
       if (!r) return PENDING;
       rows[a] = [String(r.credited), String(r.expected), r.void === true];
@@ -119,6 +135,7 @@ export const game: GameModule<RawPick, DayResult, PriceList> = {
   weekExtras(week, ctx) {
     const picks = ctx.picks.get(RIVAL_GAME)?.get(dayNo(week.start)) ?? [];
     const challenges = picks.map((p) => [p.wallet, (p.pick as RawPick)?.producers?.[0]] as [string, string]);
-    return { rival: F.matches(challenges, ctx.points, ctx.staked) };
+    const { rival, dropped } = F.capMatches(F.matches(challenges, ctx.points, ctx.staked), ctx.points);
+    return dropped ? { rival, rivalDropped: dropped } : { rival };
   },
 };

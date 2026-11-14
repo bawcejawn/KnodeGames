@@ -16,7 +16,9 @@ Fantasy football for block producers: draft five producers under a salary cap, c
 ## Scoring
 - **Measured by the VHP Ruler** (RULE_VERSION 4), one daily card per UTC day: each producer's `credited` and `expected` blocks. A producer's day = **100 × credited ÷ expected, at most 150** (👤 11 Nov; was 130); the captain counts double. Kept in hundredths on the kit (15000 = 150.00). 💬
 - **Void only for a VHP move:** a producer whose VHP leaves the ruler's daily band (−12% / +50%) is void **that day only**: it scores 0 and that day is left out of its form. 👤 11 Nov
-- **A flagged day** (the ruler's data for it had a bad or rebuilt hour) waits until Tuesday 00:00 UTC after the week; if still flagged, it counts 0 for every team, so the week still finishes and pays (👤 12 Nov). In the price list a flagged form day is left out of everyone's form. 👤
+- **A flagged day** (the ruler's data for it had a bad or rebuilt hour) waits until Tuesday 00:00 UTC after the week; if still flagged, it counts 0 for every team, so the week still finishes and pays (👤 12 Nov). In the price list a flagged form day is left out of everyone's form; if all 7 are flagged the price list waits. 👤
+- **No ruler card for a day** (the ruler's data never reached it): after 48 hours the day counts 0 for every team, recorded and alerted (👤 13 Nov; needs the kit's fallback hook, until then pending).
+- **Ties:** the earlier final team wins (👤 13 Nov).
 - **A quiet or offline day is not a void:** it scores what it earned (possibly 0) and counts in its form, so the price reflects downtime. A listed producer is never out of the game for any other reason. 👤 11 Nov
 - A week's score is the sum of its 6 play days (Monday–Saturday). **Sunday fun round:** the Saturday team plays on; it counts on Today and All time only (D-150). 💬
 - **Timing:** `../standards/WEEK_CYCLE.md`; on the kit, final from Mon 00:00 UTC after the week-end re-read on both nodes (`GAME_KIT.md`). 💬

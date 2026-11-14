@@ -331,7 +331,7 @@
         el("option", { value: "", text: !opts.length ? "Loading the horses…" : mine ? "Change to…" : "Choose a horse…" }),
         ...opts.map((x) => { const o = el("option", { value: x.a, text: label(c, x) }); if (x.a === (drafts.get(cur + k) || mine)) o.selected = true; return o; }));
       if (!opts.length) sel.disabled = true;
-      sel.addEventListener("change", () => { if (sel.value) drafts.set(cur + k, sel.value); else drafts.delete(cur + k); });
+      sel.addEventListener("change", () => { if (sel.value) drafts.set(cur + k, sel.value); else drafts.delete(cur + k); renderBar(); });
       const btn = el("button", { class: "btn", type: "button", onclick: () => sendPick(cur + k, sel.value) }, mine ? "Change" : "Pick");
       if (sending || (max > 0 && used >= max)) btn.disabled = true;
       rows.push(el("div", { class: "pk-row" },
@@ -350,6 +350,7 @@
         el("span", { class: o.wait ? "" : o.ok ? "pk-ok" : "pk-no", text: o.mark })));
     }
     list.replaceChildren(...rows);
+    renderBar();
   }
   // ── the pick pop-up: wallet → sent → confirmed on the chain ──
   let modal = null;
@@ -368,6 +369,63 @@
   function closeModal() { if (modal) modal.hidden = true; }
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && modal && !modal.hidden && !modal.querySelector(".pk-spin")) closeModal(); });
   const okBtn = (text = "Done") => el("button", { class: "btn", type: "button", onclick: closeModal }, text);
+
+  // "Send my picks" (Capacity ask 13 Nov): up to 10 chosen picks, any race length, in one transaction. Nothing shows until the wallet
+  // reports the sponsor's batch row (W.batchReady); a single pick still goes through sendPick exactly as before.
+  function batchOn() { return !!(W && typeof W.batchReady === "function" && W.batchReady()); }
+  const LOCK_MARGIN = 20000;   // a race that starts within 20 s is left out: it would lock before the chain sees the transaction
+  /** The picks chosen in the lists but not sent yet: still open, and different from the player's current pick. */
+  function pendingDrafts() {
+    const out = [];
+    for (const [index, horse] of drafts) {
+      const start = M.raceStart(index);
+      if (KBlocks.isAddr(horse) && horse !== myPicks.get(index) && start - Date.now() > LOCK_MARGIN) out.push({ type: 0, index, horse, start });
+    }
+    for (const [k, horse] of rtDrafts) {
+      const [type, index] = k.split(":").map(Number);
+      if (!(type >= 1 && type <= 4) || !Number.isInteger(index)) continue;
+      const start = M.typedStart(type, index);
+      if (KBlocks.isAddr(horse) && horse !== rtPicks.get(k) && start - Date.now() > LOCK_MARGIN) out.push({ type, index, horse, start });
+    }
+    return out.sort((a, b) => a.start - b.start);
+  }
+  function renderBar() {
+    const sec = $("picks"); if (!sec) return;
+    let bar = $("pk-bar");
+    if (!bar) { const list = $("pk-list"); if (!list || !list.parentNode) return; bar = el("div", { id: "pk-bar", class: "pk-bar", role: "status" }); list.parentNode.insertBefore(bar, list); }
+    const n = pendingDrafts().length;
+    if (!batchOn() || !me() || !n) { bar.hidden = true; bar.replaceChildren(); return; }
+    bar.hidden = false;
+    bar.replaceChildren(el("span", { text: `${n} pick${n === 1 ? "" : "s"} chosen, ready to send together (up to 10 at a time, any race length).` }),
+      el("button", { class: "btn", type: "button", disabled: sending || undefined, onclick: sendDrafts }, `Send my ${Math.min(n, 10)} pick${Math.min(n, 10) === 1 ? "" : "s"}`));
+  }
+  async function sendDrafts() {
+    const who = me();
+    if (!who || !raceContract || sending || !batchOn()) return;
+    const list = pendingDrafts().slice(0, 10);
+    if (!list.length) { renderBar(); return pickModal("info", "Nothing to send", ["Those races have started, or the picks are already yours."], [okBtn("OK")]); }
+    const max = usage ? Number(usage.max_picks_per_day ?? 0) : 0, used = usage ? Number(usage.picks_today) || 0 : 0;
+    if (max > 0 && used + list.length > max) return pickModal("info", "Not enough picks left today", [`You have ${Math.max(0, max - used)} left today and ${list.length} waiting. Choose fewer, then send.`], [okBtn("OK")]);
+    sending = true; renderPicks(true); if (rtype) rtRender(true);
+    const wallet = W.kind === "guest" ? "your guest wallet" : W.label ? W.label() : "your wallet";
+    pickModal("busy", W.kind === "guest" ? "Sending your picks…" : `Confirm in ${wallet}`, [`${list.length} pick${list.length === 1 ? "" : "s"} in one go.`, "Free when the Knode Games Mana sponsor can pay; if it can't, your wallet asks to use your own Mana."]);
+    try {
+      const ops = [];
+      for (const d of list) { const { operation } = await raceContract.functions.pick({ player: who, race: M.contractRace(d.type, d.index), horse: d.horse }, { onlyOperation: true }); ops.push(Object.defineProperty(operation, "__start", { value: d.start, enumerable: false })); }
+      // Dropped right before signing: any race that started while the box was open.
+      const res = await W.sendBatch(`${list.length} race picks`, ops, { stillOpen: (o) => o.__start - Date.now() > LOCK_MARGIN });
+      for (const d of list) { if (d.type) rtDrafts.delete(`${d.type}:${d.index}`); else drafts.delete(d.index); }
+      pickModal("ok", "Picks sent", [`${res.sent} pick${res.sent === 1 ? "" : "s"} sent${res.dropped ? `; ${res.dropped} started while you were choosing, so they were left out` : ""}. This list updates by itself.`], [okBtn()]);
+    } catch (e) {
+      const m = String((e && e.message) || e);
+      const msg = /RACE: this race has started|locked/i.test(m) ? "Nothing was saved; a race had started. Try again."
+        : /RACE: today's picks are used up/i.test(m) ? "Today's picks are used up (changes count). More tomorrow, 00:00 UTC."
+        : /RACE: picks are closed/i.test(m) ? "Race picks are switched off right now."
+        : /reject|denied|cancel/i.test(m) ? "Cancelled in your wallet. Nothing was sent."
+        : `Not sent: ${m.slice(0, 200)}`;
+      pickModal(/Cancelled/.test(msg) ? "info" : "bad", /Cancelled/.test(msg) ? "Cancelled" : "Picks not sent", [msg], [okBtn("OK")]);
+    } finally { sending = false; await loadMine(); renderPicks(true); if (rtype) { await rtLoadMine(); rtRender(true); } renderBar(); }
+  }
 
   async function sendPick(index, horse, type = 0) {
     const who = me();
@@ -621,7 +679,7 @@
         const sel = el("select", { "aria-label": `Horse for the ${T.name.toLowerCase()} race at ${dayTime(r.start)}` },
           el("option", { value: "", text: !opts.length ? "Loading the horses…" : mine ? "Change to…" : "Choose a horse…" }),
           ...opts.map((x) => { const o = el("option", { value: x.a, text: `${nameOf(x.a)} · ×${x.h.toFixed(2)} per block` }); if (x.a === (rtDrafts.get(k) || mine)) o.selected = true; return o; }));
-        sel.addEventListener("change", () => { if (sel.value) rtDrafts.set(k, sel.value); else rtDrafts.delete(k); });
+        sel.addEventListener("change", () => { if (sel.value) rtDrafts.set(k, sel.value); else rtDrafts.delete(k); renderBar(); });
         // Repo Lens #D-13 L-9: the row's own type, fixed when it is drawn (not read at the click, after a toggle).
         const rowType = rtype;
         const btn = el("button", { class: "btn", type: "button", onclick: () => sendPick(r.index, sel.value, rowType) }, mine ? "Change" : "Pick");
@@ -632,6 +690,7 @@
           el("div", {}, sel, mine ? el("div", { class: "pk-now ago", text: `Your pick: ${nameOf(mine)}` }) : null), btn));
       }
       $("rt-picks").replaceChildren(...rows);
+      renderBar();
       // The latest results of this type, with your pick.
       const done = [];
       for (let i = cur.index - 1; i >= cur.index - 8; i--) {

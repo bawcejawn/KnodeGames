@@ -14,6 +14,8 @@ the dated plan).
 | `tests/recorder.test.ts` | The module with a fake ruler and block clock (10 tests), and end to end on the real ruler over the Race's made-up chain (2 tests). |
 | `tests/g42-*.test.ts` | Repo Lens #G-42's tests, run through the kit's own Replay (locksAt, pickers without a team, Rival size, flagged cards). |
 | `tests/g52-fixes.test.ts` | #G-52 G52-3 and G52-4, the week's list as `include`, and the 48-hour no-card rule. |
+| `tests/g52-flagged-cutoff-blockat.test.mts` | Repo Lens #G-52's test, added unchanged (the flagged-day rule with the kit's own blockAt). |
+| `tests/b10-ported.test.ts` | Repo Lens #B-10's findings (written for the old #188) re-asked of Fantasy on the kit. |
 | `tests/sample.ts` | The sample week for the kit's conformance suite (`npm run game:check -- fantasy`). |
 | `tests/page.test.mjs` | The page: it loads `math.js`, every element the script uses exists, no HTML strings, only the kit's files, the Picks rounds, and the 11 Nov rule text. |
 | `../../fantasy.html`, `.js`, `.css` | The game page (hidden: `noindex`, not in the menus until launch). |

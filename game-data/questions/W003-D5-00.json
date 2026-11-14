@@ -171,7 +171,39 @@
           "seal": "82420ce47c0f76d29c669fe8498b38d4812fdc8e30bfb36b0375f3b5be302296"
         }
       ],
-      "vhpSeal": "83b9c0eca39e4e979b60f7238cf5540768a1357071176af9bf9928cd91365057"
+      "vhpSeal": "83b9c0eca39e4e979b60f7238cf5540768a1357071176af9bf9928cd91365057",
+      "result": {
+        "void": false,
+        "option": 3,
+        "value": "1,400",
+        "dataHash": "9187d291da471b67694c5fc73913b628f6ef85d5480ae1327e74670a39a115be",
+        "resolvedAt": "2026-11-13T21:49:22.070Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41026269,
+          "decidedHeight": 41051669,
+          "readings": [
+            41043664,
+            41044791,
+            41046047,
+            41047187,
+            41048326,
+            41049465,
+            41050636
+          ],
+          "readingsInWindow": 7,
+          "values": {
+            "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": {
+              "release": "169421525337831",
+              "end": "168037605966516",
+              "change": "−0.82%",
+              "height": 41050636
+            }
+          }
+        }
+      },
+      "chainOutcome": 1000,
+      "chainDataHash": "0xd70d8fe416de03003351a53b2fb8fff3136b9bbe67e8b7637da672ab2cb57040"
     },
     {
       "id": "W003-D5-00-2",

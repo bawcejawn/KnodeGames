@@ -6,6 +6,8 @@
   "use strict";
   const M = window.KRaceMath;
   const W = window.KWallet;
+  /** The Producer Race's new race lengths are live from M.TYPES_ON_WEEK (vault week 5): the card says so then, never before. */
+  const typesLive = () => !!M && M.TYPES_ON_WEEK !== null && M.weekOf(Date.now()) >= M.TYPES_ON_WEEK;
   const BASE = "./";
   const GAME_DATA = BASE + "game-data/";
   // The owner's free-prize switches (bot/free-prizes.ts), published on the prize-settings branch. Read-only.
@@ -168,7 +170,7 @@
     const pills = [...g.kinds.map((k) => el("span", { class: `pill ${k}`, text: KINDS[k] })), live ? el("span", { class: "pill", "data-prize": g.id, hidden: "" }) : el("span", { class: "pill soon", text: "Soon" })];
     const body = el("span", { class: "g-bd" },
       el("span", { class: "g-t" }, el("span", { class: "g-name", text: g.name }), ...pills),
-      el("span", { class: "g-line", text: g.line }),
+      el("span", { class: "g-line", text: typesLive() && typeof g.lineTypes === "string" && g.lineTypes.length <= 200 ? g.lineTypes : g.line }),
       live && status[g.id] ? el("span", { class: "g-st", "data-status": g.id }) : null,
       live && VAULT_IDS[g.id] ? el("span", { class: "g-stake", "data-stake": String(VAULT_IDS[g.id]), hidden: "" }) : null);
     const ic = el("span", { class: "g-ic" }); ic.append(icon(g.id));

@@ -94,7 +94,8 @@ test("a round is known only once both its day and its card are", () => {
 // (the embedded vhp_ruler.py, phase 2, is left out: it is tested byte for byte in games-ruler-embed.test.mjs)
 const yml = fs.readFileSync(path.resolve(APP, ".github/workflows/games.yml"), "utf8").replace(/# BEGIN vhp_ruler\.py\n[\s\S]*?# END vhp_ruler\.py\n/, "");
 const copy = (() => {
-  const i = yml.indexOf("          SWITCH_MAX = 999999\n"), j = yml.indexOf("          def ruler_fields(j):", i);
+  // (Anchored on the Bracket's own check: Block X's publish step embeds vhp_ruler.py earlier in the same job.)
+  const i = yml.indexOf("          SWITCH_MAX = 999999\n", yml.indexOf('"$IN/bracket" "$PUB/bracket"')), j = yml.indexOf("          def ruler_fields(j):", i);
   assert.ok(i > 0 && j > i, "the switch copy in the Bracket's publish check");
   return yml.slice(i, j).split("\n").map((l) => l.replace(/^ {10}/, "")).join("\n");
 })();

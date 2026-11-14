@@ -1073,3 +1073,85 @@ test("Repo Lens #E-23 L-1: only when every node says game 12 is missing are its 
   assert.match(src, /if \(missingGames\.has\(G\) && \(raw\.length \|\| other\.length\)\) \{ problems\.push/, "B14-1: picks found for a 'missing' game: the round waits");
   assert.match(src, /est >= e\.from - 6 \* 3600000 && est < e\.to \+ 6 \* 3600000/, "E-23 I-1: ±6 h");
 });
+
+// ── the VHP ruler switch (owner, 11 Nov 2026; bot/blockx-ruler.ts): off / shadow / on through the recorder ──
+// The ruler's own scoring is tested in tests/audit/blockx-ruler.test.mjs on a chain it can read; here a stub stands in
+// for it (rulerEntryOf), so these tests check only how the recorder uses the entries.
+const RR = await import(path.resolve(APP, "bot/blockx-ruler.ts"));
+const stubEntry = (points, { card = "stub-card\n", note = null, isVoid = false } = {}) => (t, lead, now, old) => old && (old.card || old.void) ? old
+  : { round: t.round, height: t.height, lock: t.height - lead, cardRound: RR.roundOf(t.time), window: RR.windowOf(t.height - lead), card: t.void ? null : card, note, signer: t.signer, points: isVoid ? 0 : points, void: !!t.void || isVoid, why: null };
+async function weekThenLookOut(picks, hoursAfter, extra = {}) {
+  const rd = raceDir();
+  let prev;
+  const startH = H0 - Math.floor(3600000 / 3000), endH = startH + 7 * 28800;
+  for (let lib = startH + 12 * X.ROUND; lib < endH; lib += 12 * X.ROUND) {
+    const o = tmp();
+    await quiet(() => run({ p: "main", check: null, prev, out: o, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picks, rankedOf, head: { height: lib, time: T(lib), lib }, ...extra }));
+    prev = o;
+  }
+  const at = endH + hoursAfter * 1200, out = tmp();
+  const r = await quiet(() => run({ p: "main", check: null, prev, out, raceDir: rd, picksContract: "1P", blockOf: blockOf(), picksOf: picks, rankedOf, head: { height: at, time: T(at), lib: at - 60 }, ...extra }));
+  return { r, out };
+}
+const xFiles = (out) => fs.readdirSync(out).filter((f) => /^X\d{3}-\d\.json$/.test(f)).sort();
+
+test("VHP ruler off: no ruler files; the board is as before", async () => {
+  const { r, out } = await weekThenLookOut(picksGuest, 13, { rulerFrom: null, rulerEntryOf: stubEntry(1234) });
+  assert.deepEqual(xFiles(out), []);
+  assert.equal(r.board.lastWeek.final, true);
+});
+
+test("VHP ruler shadow (week N − 1): day files marked shadow carry every target's entry; the board and prizes are the ruler-off ones", async () => {
+  const off = await weekThenLookOut(picksGuest, 13, { rulerFrom: null, prizesFromWeek: 3 });
+  const sh = await weekThenLookOut(picksGuest, 13, { rulerFrom: 4, prizesFromWeek: 3, rulerEntryOf: stubEntry(1234) });
+  assert.deepEqual(sh.r.board.lastWeek.rows, off.r.board.lastWeek.rows, "shadow counts for nothing");
+  assert.deepEqual(sh.r.board.lastWeek.prizes, off.r.board.lastWeek.prizes);
+  const days = xFiles(sh.out).filter((f) => f.startsWith("X003-"));
+  assert.ok(days.length >= 6, "a file per day of week 3: " + days);
+  const d0 = JSON.parse(fs.readFileSync(path.join(sh.out, days[0]), "utf8"));
+  assert.deepEqual([d0.v, d0.week, d0.mode, d0.shadow, d0.rulerFrom], [1, 3, "shadow", true, 4]);
+  assert.ok(d0.targets.length > 0 && d0.targets.every((e) => e.card === "stub-card\n" || e.void));
+  for (const f of days) assert.ok(fs.statSync(path.join(sh.out, f)).size < 500000, "a day file stays small");
+});
+
+test("VHP ruler on (from week N): a right pick scores the ruler entry's points, a wrong pick 0; a void target or void producer counts nothing", async () => {
+  const on = await weekThenLookOut(picksGuest, 13, { rulerFrom: 3, rulerEntryOf: stubEntry(1234) });
+  const lw = on.r.board.lastWeek, g = lw.rows.find((x) => x.a === GUEST);
+  assert.equal(lw.final, true);
+  assert.ok(g.correct > 0); assert.equal(g.pts, 1234 * g.correct, "every right pick scores the ruler's points");
+  const b = lw.rows.find((x) => x.a === BOB);
+  if (b) assert.equal(b.pts, 1234 * b.correct, "Bob's picks on BIG score only when BIG signed");
+  const v = await weekThenLookOut(picksGuest, 13, { rulerFrom: 3, rulerEntryOf: stubEntry(1234, { isVoid: true }) });
+  assert.ok(v.r.board.lastWeek.rows.every((x) => x.pts === 0), "a void producer: a miss, never a refund of points");
+});
+
+test("VHP ruler on: a week isn't final until the ruler has scored every target (not yet: it waits, then counts no pick after 3 days)", async () => {
+  const wait = await weekThenLookOut(picksGuest, 13, { rulerFrom: 3, rulerEntryOf: stubEntry(1234, { card: null, note: "not yet: the ruler's data reaches block 1" }) });
+  assert.equal(wait.r.board.lastWeek.final, false, "not final while targets wait for the ruler");
+  assert.deepEqual(wait.r.board.lastWeek.rows, [], "nothing counts until scored");
+  // the real entryFor: past the 3-day wait with no data, the target counts no pick (void), so the week can close
+  const t = { round: 1, height: 5000000, time: Date.parse("2026-11-16T00:00Z"), signer: BIG };
+  const e = RR.entryFor(null, t, 100, t.time + RR.RULER_WAIT_MS, null);
+  assert.equal(e.void, true); assert.match(e.why, /within 3 days/);
+  assert.equal(RR.entryFor(null, t, 100, t.time + 3600000, null).void, false, "before that it just waits");
+  assert.equal(RR.ruledPoints(RR.entryFor(null, t, 100, t.time + 3600000, null), BIG), undefined);
+});
+
+test("capacity: a Block X file over 60% of the 2 MB publish limit (1.2 MB) warns in every run", async () => {
+  const { SIZE_WARN_BYTES } = await import(path.resolve(APP, "bot/games/blockx.ts"));
+  assert.equal(SIZE_WARN_BYTES, 1258291, "60% of 2,048 KB");
+  const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
+  assert.match(src, /st\.size > SIZE_WARN_BYTES\) problems\.push\(`\$\{f\} is .* MB: near the 2 MB publish limit/);
+});
+
+test("Repo Lens #G-49 G49-1: in an ON week, targets waiting over 6 hours for the ruler alert (held), and so does each 3-day void when it is made; never in a shadow week", async () => {
+  const { RULER_LATE_MS } = await import(path.resolve(APP, "bot/games/blockx.ts"));
+  assert.equal(RULER_LATE_MS, 6 * 3600000);
+  const wait = await weekThenLookOut(picksGuest, 13, { rulerFrom: 3, rulerEntryOf: stubEntry(1234, { card: null, note: "not yet: the ruler's data reaches block 1" }) });
+  assert.ok(wait.r.held.some((h) => /the VHP ruler's data is missing or behind: \d+ ON-week target\(s\) have waited more than 6 hours/.test(h)), JSON.stringify(wait.r.held).slice(0, 300));
+  const v = await weekThenLookOut(picksGuest, 13, { rulerFrom: 3, rulerEntryOf: stubEntry(0, { card: null, isVoid: true, note: "the ruler couldn't score this target within 3 days (x)" }) });
+  assert.ok(v.r.held.some((h) => /couldn't score this ON-week target within 3 days/.test(h)), "a 3-day void alerts when made");
+  // (switch 5: week 4, the running week, is the shadow week and week 3 is off)
+  const sh = await weekThenLookOut(picksGuest, 13, { rulerFrom: 5, rulerEntryOf: stubEntry(1234, { card: null, note: "not yet: x" }) });
+  assert.ok(!sh.r.held.some((h) => /VHP ruler/.test(h)), "shadow: no alert (it counts for nothing)");
+});

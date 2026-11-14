@@ -3,6 +3,7 @@
   "games": [
     { "id": "race", "name": "Producer Race", "kinds": ["free", "staked"], "freeReg": true, "status": "live", "href": "race.html",
       "line": "Pick the producer that wins each 6-hour race, four a day (Sunday's races are for fun: All time only). A 2nd or 3rd place finish scores a Show.",
+      "lineTypes": "Pick the producer that wins each race: 1-hour, 2-hour, 6-hour, daily or weekly (Sunday's races are for fun: All time only). 1st, 2nd and 3rd score points.",
       "results": true,
       "board": { "data": "race-data/board.json", "unranked": "To play on the Staked board, stake at least 1 VHP in the Producer Race.",
         "free": { "show": 6, "prize": "1st and 2nd at the end of the week win 2 and 1 VHP (from Week 1, the week of Mon 16 Nov)." },

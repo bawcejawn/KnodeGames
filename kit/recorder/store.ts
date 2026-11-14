@@ -4,15 +4,19 @@
 // can't be read stops the run; it's never treated as "nothing yet".
 import fs from "node:fs";
 import path from "node:path";
-import { canon, pad3, weekShape } from "../publish/check.inline.mjs";
+import { canon, pad3, weekShape, readWeekFolder, weekToParts, useKitParts } from "../publish/check.inline.mjs";
+import * as KP from "../parts/parts.inline.mjs";
+useKitParts(KP);
 
 export const MAX_WRITE_BYTES = 1_900_000;   // under the publish job's 2 MB cap
 export const FETCHED_MARK = ".fetched";
 
-export type GameCfg = { game: number; genesis: number; weekMs?: number; sundayFunRound: boolean; maxRoundPoints?: number; inputsFile?: boolean };
+export type GameCfg = { game: number; genesis: number; weekMs?: number; sundayFunRound: boolean; maxRoundPoints?: number; inputsFile?: boolean; slug?: string; parts?: "d" | "r" };
 
 export class Prev {
-  private constructor(readonly dir: string, private readonly files: Map<string, any>) {}
+  private constructor(readonly dir: string, private readonly files: Map<string, any>, private readonly manifests = new Map<string, any>()) {}
+  /** A parts week's published manifest (null for a one-file week or none). */
+  manifest(w: number): any | null { return this.manifests.get(`W${pad3(w)}.json`) ?? null; }
 
   /** The last run's files for one game. Throws if the fetch mark is missing or a present file can't be read. */
   static load(dir: string, cfg: GameCfg): Prev {
@@ -30,11 +34,23 @@ export class Prev {
       files.set(rel, v);
     };
     for (const f of fs.readdirSync(dir).sort()) if (/^(board|alltime|W([0-9]{3}|[1-9][0-9]{3}))\.json$/.test(f)) take(f);
+    // KG parts v1: a week stored as the folder W<NNN>/ is rebuilt into its week file (each part's SHA-256 checked).
+    const manifests = new Map<string, any>();
+    for (const f of fs.readdirSync(dir).sort()) {
+      if (!/^W([0-9]{3}|[1-9][0-9]{3})$/.test(f) || !fs.existsSync(path.join(dir, f, "manifest.json"))) continue;
+      const rel = `${f}.json`;
+      if (files.has(rel)) throw new Error(`last run's week ${f} is both a file and a parts folder: refusing to write`);
+      let r: any;
+      try { r = readWeekFolder(path.join(dir, f), cfg); } catch (e) { throw new Error(`last run's ${f}/ can't be read (${(e as Error).message}): refusing to write`); }
+      const why = weekShape(r.week, rel, cfg);
+      if (why) throw new Error(`last run's ${f}/ isn't a kit week (${why}): refusing to write`);
+      files.set(rel, r.week); manifests.set(rel, r.manifest);
+    }
     const vd = path.join(dir, "vault");
     if (fs.existsSync(vd)) for (const f of fs.readdirSync(vd).sort()) if (/^(HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3})\.json$/.test(f)) take(`vault/${f}`);
     const id = path.join(dir, "inputs");
     if (fs.existsSync(id)) for (const f of fs.readdirSync(id).sort()) if (/^W(0|[1-9][0-9]{0,3})\.json$/.test(f)) take(`inputs/${f}`);
-    return new Prev(dir, files);
+    return new Prev(dir, files, manifests);
   }
 
   week(w: number): any | null { return this.files.get(`W${pad3(w)}.json`) ?? null; }
@@ -67,6 +83,20 @@ export class Out {
     if (Buffer.byteLength(s) > MAX_WRITE_BYTES) throw new Error(`${rel} would be over ${MAX_WRITE_BYTES} bytes: stopping (RECORDER §6.7)`);
     fs.writeFileSync(path.join(this.dir, rel), s);
     this.written.push(rel);
+  }
+  /** KG parts v1: write week j as the folder W<NNN>/ (parts first, manifest last), from the published manifest. A
+   *  final folder that is unchanged writes nothing; a final folder that would change stops the run (kit/parts). */
+  writeWeekParts(j: any, cfg: any, prevManifest: any | null, disp: any = null, writtenAt = 0): { warnings: string[] } {
+    const base = `W${pad3(j.week)}`;
+    const { meta, encoded } = weekToParts(j, cfg, disp, writtenAt);
+    const plan = KP.planParts(meta, encoded, prevManifest);
+    for (const f of plan.files) {
+      const full = path.join(this.dir, base, f.name);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, f.text);
+      this.written.push(`${base}/${f.name}`);
+    }
+    return { warnings: plan.warnings.map((x: any) => `${base}/${x.message}`) };
   }
   /** Copy a write-once file forward byte for byte. */
   copy(rel: string, v: unknown) { this.write(rel, v); }

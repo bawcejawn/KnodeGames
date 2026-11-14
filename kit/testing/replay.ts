@@ -4,7 +4,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { checkGame } from "../publish/check.inline.mjs";
+import { checkGame, partsViews, readWeekFolder, canon, useKitParts } from "../publish/check.inline.mjs";
+import * as KP from "../parts/parts.inline.mjs";
+useKitParts(KP);
 import { runGame, type KitGameCfg, type RunResult } from "../recorder/runtime.ts";
 import type { KitNode } from "../recorder/nodes.ts";
 import type { GameModule } from "../recorder/types.ts";
@@ -49,16 +51,37 @@ export class Replay {
     try { const { cardsOk: _c, ...run } = env; result = await runGame(this.m, this.cfg, { nodes, prev, out, ...run, log: () => {} }); }
     catch (e) { error = (e as Error).message; fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out); }
     // G3: the publish job rebuilds every new ruler card (its embedded vhp_ruler.py); here its JS twin on the same ledger.
-    const cardsOk = "cardsOk" in env ? env.cardsOk ?? null : this.cfg.vhpData && env.vhpLedger ? await rebuiltCards(out, this.pub, env.vhpLedger) : null;
+    // KG parts v1: the publish job's view (each W<NNN>/ checked by kit/parts and rebuilt into its week file).
+    const v = this.cfg.parts ? partsViews(this.cfg, out, this.pub) : { inDir: out, pubDir: this.pub, folders: new Map<string, string[]>(), held: [] as any[] };
+    const cardsOk = "cardsOk" in env ? env.cardsOk ?? null : this.cfg.vhpData && env.vhpLedger ? await rebuiltCards(v.inDir, v.pubDir, env.vhpLedger) : null;
     // The publish job reads the owner's release variable itself (KC-3): the same value the recorder got.
-    const r = checkGame(this.cfg, out, this.pub, jobNow, env.release ?? "", cardsOk);
+    const r = checkGame(this.cfg, v.inDir, v.pubDir, jobNow, env.release ?? "", cardsOk);
+    const published: string[] = [];
     for (const f of r.publish) {
+      const fs2 = v.folders.get(f);
+      if (fs2) {
+        // a parts week published again replaces its whole folder (the publish job's force-remove)
+        fs.rmSync(path.join(this.pub, f.replace(/\.json$/, "")), { recursive: true, force: true });
+        for (const x of fs2) { const to = path.join(this.pub, x); fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(path.join(out, x), to); published.push(x); }
+        continue;
+      }
       const to = path.join(this.pub, f);
       fs.mkdirSync(path.dirname(to), { recursive: true });
       fs.copyFileSync(path.join(out, f), to);
+      published.push(f);
     }
-    return { result, error, published: r.publish, held: r.held };
+    return { result, error, published, held: [...v.held, ...r.held] };
   }
-  read(rel: string): any { const p = path.join(this.pub, rel); return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : null; }
-  raw(rel: string): string | null { const p = path.join(this.pub, rel); return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : null; }
+  read(rel: string): any {
+    const p = path.join(this.pub, rel);
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, "utf8"));
+    const d = path.join(this.pub, rel.replace(/\.json$/, ""));
+    return /^W[0-9]{3,4}\.json$/.test(rel) && fs.existsSync(path.join(d, "manifest.json")) ? readWeekFolder(d, this.cfg).week : null;
+  }
+  raw(rel: string): string | null {
+    const p = path.join(this.pub, rel);
+    if (fs.existsSync(p)) return fs.readFileSync(p, "utf8");
+    const w = this.read(rel);
+    return w && this.cfg.parts ? canon(w) : null;
+  }
 }

@@ -31,6 +31,7 @@ import "../../kit/tests/include-mode.test.ts";
 import "../../kit/tests/fallback.test.ts";
 import "../../kit/tests/live-week.test.ts";
 import "../../kit/tests/season.test.ts";
+import "../../kit/tests/parts-kit.test.ts";
 import "./kit-repolens-g41.test.ts";
 
 import test from "node:test";

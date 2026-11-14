@@ -108,7 +108,8 @@ function checkCols(cols) {
   }
 }
 function checkValue(type, v, where) {
-  if (type === "a") { if (typeof v !== "string" || !ADDR.test(v)) fail(`${where}: not an address`); return; }
+  // An "a" value may be null (Architecture, 14 Nov: Fantasy's wallet with no team); it is stored as index -1.
+  if (type === "a") { if (v !== null && (typeof v !== "string" || !ADDR.test(v))) fail(`${where}: not an address or null`); return; }
   if (type === "i") { if (!Number.isSafeInteger(v)) fail(`${where}: not a whole number`); return; }
   if (type === "s") { if (typeof v !== "string" || v.length > 64) fail(`${where}: not a short string (64 max)`); return; }
   if (type === "n") { if (typeof v !== "string" || !/^(0|[1-9]\d{0,39})$/.test(v)) fail(`${where}: not a decimal string`); return; }
@@ -134,11 +135,11 @@ export function encodePart({ game, file, part, t0 = 0, cols, rows, extra = {} })
   const addrs = new Set();
   rows.forEach((r, ri) => {
     if (!Array.isArray(r) || r.length !== cols.length) fail(`row ${ri}: needs ${cols.length} values`);
-    cols.forEach(([n, t], ci) => { checkValue(t, r[ci], `row ${ri} ${n}`); if (t === "a") addrs.add(r[ci]); });
+    cols.forEach(([n, t], ci) => { checkValue(t, r[ci], `row ${ri} ${n}`); if (t === "a" && r[ci] !== null) addrs.add(r[ci]); });
   });
   const a = [...addrs].sort();
   const ix = new Map(a.map((x, i) => [x, i]));
-  const enc = rows.map((r) => cols.map(([, t], ci) => (t === "a" ? ix.get(r[ci]) : t === "j" ? jText(r[ci], "j") : r[ci]))).sort(cmpRows);
+  const enc = rows.map((r) => cols.map(([, t], ci) => (t === "a" ? (r[ci] === null ? -1 : ix.get(r[ci])) : t === "j" ? jText(r[ci], "j") : r[ci]))).sort(cmpRows);
   const text = partText({ game, file, part, t0, cols, a, rows: enc, extra });
   const bytes = Buffer.byteLength(text);
   if (bytes > MAX_PART_BYTES) fail(`part ${part} is ${bytes} bytes, over the ${MAX_PART_BYTES}-byte cap: split it by a smaller unit`);
@@ -163,7 +164,7 @@ export function decodePart(text) {
     if (!Array.isArray(r) || r.length !== o.cols.length) fail(`row ${ri}: wrong length`);
     const out = {};
     o.cols.forEach(([n, t], ci) => {
-      if (t === "a") { if (!Number.isSafeInteger(r[ci]) || r[ci] < 0 || r[ci] >= o.a.length) fail(`row ${ri} ${n}: bad address index`); out[n] = o.a[r[ci]]; }
+      if (t === "a") { if (!Number.isSafeInteger(r[ci]) || r[ci] < -1 || r[ci] >= o.a.length) fail(`row ${ri} ${n}: bad address index`); out[n] = r[ci] === -1 ? null : o.a[r[ci]]; }
       else if (t === "j") {
         if (typeof r[ci] !== "string") fail(`row ${ri} ${n}: j value not stored as text`);
         let v; try { v = JSON.parse(r[ci]); } catch { fail(`row ${ri} ${n}: j value not JSON`); }

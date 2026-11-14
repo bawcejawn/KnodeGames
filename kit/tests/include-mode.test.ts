@@ -100,3 +100,23 @@ test("G69-3: a card already published is re-made from its own stored settings, w
   assert.deepEqual(cardList(other)[0][0].include, inc);
   assert.equal(cardIdentity({ ...s, include: inc, mode: "A" }), cardIdentity(s));
 });
+
+test("KG parts v1: the publish job's Python rebuild finds a parts week's cards in its wk part", { skip: !PYTHON && "needs python3 (the CI runner has it)" }, async () => {
+  const { weekToParts, useKitParts } = await import("../publish/check.inline.mjs");
+  const KP = await import("../parts/parts.inline.mjs");
+  useKitParts(KP);
+  const { dir, L, s } = fixture(), u = new Map();
+  vhpFor(L, u).card({ ...s, mode: "A" });
+  const cards = cardList(u);
+  const j: any = { v: 2, game: 4, week: 6, start: 0, end: 7 * 86400000, min: "1", state: "pending", seen: { hash: "0".repeat(64), at: 1 }, rounds: [], players: [], cards };
+  const { encoded } = weekToParts(j, { slug: "fantasy", parts: "d" } as any);
+  const wk = encoded.find((e: any) => e.part === "wk")!;
+  const w = fs.mkdtempSync(path.join(os.tmpdir(), "kit-parts-py-"));
+  for (const d of ["code", "in/W006", "pub"]) fs.mkdirSync(path.join(w, d), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, "vhp_ruler.py"), path.join(w, "code", "vhp_ruler.py"));
+  fs.writeFileSync(path.join(w, "code", "kit_cards.py"), KIT_CARDS_PY);
+  fs.writeFileSync(path.join(w, "in", "W006", wk.name), wk.text);
+  execFileSync("python3", ["-I", "-B", path.join(w, "code", "kit_cards.py"), dir, path.join(w, "in"), path.join(w, "pub"), path.join(w, "out.json")], { encoding: "utf8" });
+  const r = JSON.parse(fs.readFileSync(path.join(w, "out.json"), "utf8"));
+  assert.deepEqual(r.ok, [cards[0]]);
+});

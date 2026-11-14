@@ -97,6 +97,11 @@ export interface GameModule<P = unknown, R = unknown, I = unknown> {
   /** Points for every wallet that picked in the round (and, with carried state, every wallet with a state). Pure and
    *  deterministic (use the game's math.js). `state`: each wallet's state for this round, after nextState. */
   scoreRound(round: Round, picks: Pick<P>[], result: R, inputs?: I, state?: States<any>, season?: SeasonCtx): Score;
+  /** Optional, parts games (game.json "parts"): display columns for each wallet's row in a round's part, from its pick
+   *  this round (or null) and its carried state after the round (or null). Not part of the week file: shown, not
+   *  scored. Types are kit/parts': "a" (an address, or null), "i", "s", "n", "b", "j". Names may not be player,
+   *  round, pts or at. */
+  partCols?: { cols: [string, "a" | "i" | "s" | "n" | "b" | "j"][]; row(pick: P | null, state: any): unknown[] };
   /** Carried state (FC-5). carryIn: each wallet's state at the week's start, from the last week's `next` (pure; e.g. drop
    *  a team that doesn't fit this week's price list). nextState: the states after one round's picks (pure; called for
    *  every round in lock order, picks known, results not needed). A week is recorded only once the week before it is

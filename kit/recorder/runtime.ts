@@ -454,6 +454,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // #G-69 G69-1: rounds a run couldn't decide because something wasn't readable yet (NotYet), as opposed to a result
   // the chain itself still shows as undecided.
   const MAX_FALLBACK_WHY = 200;
+  const dispRows = new Map<string, Map<string, unknown[]>>();
   const notYet = new Set<string>();
   // K8: rounds decided this run by the game's fallback rule, [round, at, why]; and the published copy's (fixed).
   const fallbackOf = new Map<string, [string, number, string]>();
@@ -575,6 +576,11 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
       throw new Error(`round ${r.id} was decided and now reads differently on both nodes (an on-chain correction?). This game's decided rounds can't change: nothing recorded; check the round`);
     }
     roundsOut.push([r.id, day, fun, status, rows.map(([a, p, at]) => (p > 0 ? [idx.get(a), p, at - span.start] : [idx.get(a), p]))]);
+    // partCols (display only, parts games): each wallet's columns for this round, from its pick and its state.
+    if (cfg.parts && m.partCols) {
+      const pm = new Map(picks.map((x) => [x.wallet, x.pick]));
+      dispRows.set(r.id, new Map(rows.map(([a]) => [a, m.partCols!.row(pm.get(a) ?? null, st?.get(a) ?? null)])));
+    }
   }
   const body: any = { v: KIT_FILE_VERSION, game: cfg.game, week: w, start: span.start, end: span.end, min: ra.min, state: "pending", seen: { hash: "", at: 0 }, rounds: roundsOut, players };
   if (inputsHash) body.inputs = inputsHash;
@@ -636,7 +642,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
 
   // A published final never changes (RECORDER §3.3, §4.7).
   if (pw?.state === "final") {
-    out.copy(`W${pad3(w)}.json`, pw);
+    if (!cfg.parts) out.copy(`W${pad3(w)}.json`, pw);      // a parts folder that's final stays as published
     // A read that failed or ran out of budget is a warning; the two nodes disagreeing on a final week's round is an
     // error every run, so change detection can't go quiet behind a node that keeps disagreeing (#B-12 NK-12). Both are
     // said whether or not the kept published rounds make the hash match (#G-69 G69-1).
@@ -669,13 +675,19 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   const size = Buffer.byteLength(JSON.stringify(body));
   if (size > MAX_WRITE_BYTES) throw new Error(`week ${w}'s file would be ${Math.round(size / 1024)} KB, over the ${Math.round(MAX_WRITE_BYTES / 1024)} KB the kit writes: this game has outgrown one week file (GAME_KIT.md §6: split it before this happens)`);
   sizeAlert(`week ${w}'s file`, size);
+  // KG parts v1: a parts game writes the week as its folder W<NNN>/ (display columns from partCols ride along).
+  const writeWeek = (j: any) => {
+    if (!cfg.parts) { out.write(`W${pad3(w)}.json`, j); return; }
+    const r = out.writeWeekParts(j, cfg, prev.manifest(w), m.partCols ? { cols: m.partCols.cols, rows: dispRows } : null, now);
+    alerts.warnings.push(...r.warnings.map((x) => `${x} (CAPACITY_STANDARD rule 2)`));
+  };
   if (o.live) {
     if (d.state !== "open") throw new Error(`week ${w} isn't open by the chain's clock`);
-    out.write(`W${pad3(w)}.json`, body);
+    writeWeek(body);
     log(`${cfg.slug} week ${w}: OPEN (live copy); ${rounds.length} rounds.`);
     return { week: w, state: d.state, alerts, written: out.written };
   }
-  out.write(`W${pad3(w)}.json`, body);
+  writeWeek(body);
   writeBoard(boardFor(body, cfg, now));
   const vf = earns ? vaultFileFor(body, cfg, now, due) : null;
   if (vf) out.write(`vault/W${w}.json`, vf);

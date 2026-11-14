@@ -394,15 +394,18 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   for (const id of ra.picks.keys()) if (!ids.has(id)) throw new Error(`picks for round ${id}, which roundsFor doesn't list`);
 
   // resultOf with ctx.vhp; a card the data doesn't cover yet is PENDING (never a guess).
+  // #G-69 G69-1: rounds a run couldn't decide because something wasn't readable yet (NotYet), as opposed to a result
+  // the chain itself still shows as undecided.
+  const notYet = new Set<string>();
   const resultOf = async (r: Round, rd: NodeReader) => {
     if (!cfg.vhpData) {
       try { return await m.resultOf(r, rd, inputs, { blockAt: chainOf(rd) }); }
-      catch (e) { if (isNotYet(e)) return PENDING; throw e; }
+      catch (e) { if (isNotYet(e)) { notYet.add(r.id); return PENDING; } throw e; }
     }
     const mine = new Map<string, any>();
     let res: any;
     try { res = await m.resultOf(r, rd, inputs, { vhp: vhpRound!(mine), blockAt: chainOf(rd) }); }
-    catch (e) { if (isNotYet(e)) return PENDING; throw e; }
+    catch (e) { if (isNotYet(e)) { notYet.add(r.id); return PENDING; } throw e; }
     for (const [k, v] of mine) usedWeekCards.set(k, v);
     // #G-24 Info: a decided ruler round must come from at least one ruler card (cardPerRound, on by default).
     if (cfg.cardPerRound && res !== PENDING && mine.size === 0) throw new Error(`round ${r.id}: decided without a ruler card (cardPerRound; a ruler game's results come from ctx.vhp.card)`);
@@ -421,8 +424,10 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   }
 
   // The published (pending) copy's rounds by id, by wallet address: a round that can't be re-read keeps them.
+  // #G-69 G69-1: the final copy's too, so a round this run can't decide keeps its published result (below).
   const pubRounds = new Map<string, any[]>();
-  if (pw && pw.state !== "final") for (const r of pw.rounds) pubRounds.set(r[0], resolveRound(pw, r));
+  if (pw) for (const r of pw.rounds) pubRounds.set(r[0], resolveRound(pw, r));
+  let keptPublished = false;
 
   const players = [...ra.stakes.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1)).map(([a, s]) => [a, s.stake, s.peak, s.voided ? 1 : 0]);
   const idx = new Map(players.map((p, i) => [p[0] as string, i]));
@@ -465,13 +470,23 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
         if (e instanceof Disagree) disagreed = true;
         alerts.warnings.push(`round ${r.id}: ${(e as Error).message}; it keeps its published result this run`);
         const pr = pubRounds.get(r.id);
-        if (pr) { status = pr[3]; rows = pr[4]; }
+        if (pr) { status = pr[3]; rows = pr[4]; if (pr[3] !== "p") keptPublished = true; }
       }
     }
-    // A decided round changing is only an owner correction on chain (roundsCorrectable); otherwise stop (KC-8).
     const pr = pubRounds.get(r.id);
+    // #G-69 G69-1: a round the published copy decided but this run can't decide (a failed or missing ruler-data
+    // fetch, a card() or blockAt "not yet" while one node lags, a rebuilt vhp-data branch) is a read this run couldn't
+    // finish, never a change: it keeps its published result and cards, and the week doesn't compare (no HOLD on a
+    // final week; a pending week stays pending). In a game whose decided rounds can't change, that holds whatever the
+    // cause; in a correctable game a round the chain itself shows undecided again is a correction, as before.
+    if (pr && pr[3] !== "p" && status === "p" && (notYet.has(r.id) || !cfg.roundsCorrectable)) {
+      rereadOk = false; keptPublished = true;
+      alerts.warnings.push(`round ${r.id}: decided in the published copy but not decidable this run; it keeps its published result (#G-69 G69-1)`);
+      status = pr[3]; rows = pr[4];
+    }
+    // A decided round changing is only an owner correction on chain (roundsCorrectable); otherwise stop (KC-8).
     // A Sunday fun round never counts, so it may be corrected in any game (NK-13), as the publish check allows.
-    if (pr && pr[3] !== "p" && JSON.stringify([status, rows]) !== JSON.stringify([pr[3], pr[4]]) && !cfg.roundsCorrectable && !fun) {
+    if (pr && pw!.state !== "final" && pr[3] !== "p" && JSON.stringify([status, rows]) !== JSON.stringify([pr[3], pr[4]]) && !cfg.roundsCorrectable && !fun) {
       throw new Error(`round ${r.id} was decided and now reads differently on both nodes (an on-chain correction?). This game's decided rounds can't change: nothing recorded; check the round`);
     }
     roundsOut.push([r.id, day, fun, status, rows.map(([a, p, at]) => (p > 0 ? [idx.get(a), p, at - span.start] : [idx.get(a), p]))]);
@@ -487,7 +502,14 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     if (ex === null || typeof ex !== "object" || Buffer.byteLength(JSON.stringify(ex)) > MAX_EXTRAS_BYTES) throw new Error(`${cfg.slug}: weekExtras must return an object or list of at most ${MAX_EXTRAS_BYTES} bytes`);
     body.extras = ex;
   }
-  if (cfg.vhpData) body.cards = cardList(usedWeekCards);
+  if (cfg.vhpData) {
+    // A round kept from the published copy keeps its cards too (the publish check's cardPerRound count).
+    if (keptPublished && Array.isArray(pw?.cards)) {
+      const have = new Set([...usedWeekCards.values()].map((c: any) => c[1]));
+      for (const c of pw.cards) if (!have.has(c[1])) { usedWeekCards.set(`published:${c[1]}`, c); have.add(c[1]); }
+    }
+    body.cards = cardList(usedWeekCards);
+  }
   const hash = weekHash(body);
   if (cfg.rowCap > 0 && t.rows.length > cfg.rowCap) alerts.warnings.push(`week ${w}: ${t.rows.length} board rows, over the game's cap of ${cfg.rowCap}: board.json keeps the ranked rows and the best others`);
 
@@ -520,12 +542,13 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // A published final never changes (RECORDER §3.3, §4.7).
   if (pw?.state === "final") {
     out.copy(`W${pad3(w)}.json`, pw);
-    if (pw.seen.hash !== hash) {
-      // A read that failed or ran out of budget is a warning; the two nodes disagreeing on a final week's round is an
-      // error every run, so change detection can't go quiet behind a node that keeps disagreeing (#B-12 NK-12).
-      if (!rereadOk && disagreed) alerts.errors.push(`week ${w} is final, but the two nodes disagree on its rounds, so this run can't tell whether it changed on chain (no HOLD written): check the nodes`);
-      else if (!rereadOk) alerts.warnings.push(`week ${w} is final; this run couldn't re-read every round, so it doesn't compare (no HOLD)`);
-      else if (released) alerts.errors.push(`week ${w} changed on chain again after its hold was released (${pw.seen.hash.slice(0, 12)} → ${hash.slice(0, 12)}): check it (KC-20)`);
+    // A read that failed or ran out of budget is a warning; the two nodes disagreeing on a final week's round is an
+    // error every run, so change detection can't go quiet behind a node that keeps disagreeing (#B-12 NK-12). Both are
+    // said whether or not the kept published rounds make the hash match (#G-69 G69-1).
+    if (!rereadOk && disagreed) alerts.errors.push(`week ${w} is final, but the two nodes disagree on its rounds, so this run can't tell whether it changed on chain (no HOLD written): check the nodes`);
+    else if (!rereadOk) alerts.warnings.push(`week ${w} is final; this run couldn't re-read every round, so it doesn't compare (no HOLD)`);
+    else if (pw.seen.hash !== hash) {
+      if (released) alerts.errors.push(`week ${w} changed on chain again after its hold was released (${pw.seen.hash.slice(0, 12)} → ${hash.slice(0, 12)}): check it (KC-20)`);
       else if (!hf) {
         const reason = `week ${w} changed on chain after it went final (${pw.seen.hash.slice(0, 12)} → ${hash.slice(0, 12)})`;
         out.write(`vault/HOLD-W${w}.json`, { game: cfg.game, week: w, reason });

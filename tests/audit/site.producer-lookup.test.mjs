@@ -29,7 +29,7 @@ function chain(n, meLastAgoBlocks, { key = "AiBcDeFgHiJkLmNoPq", koin = 500 } = 
     now,
     lib: {
       Provider: class { async getHeadInfo() { return { head_topology: { height: String(top), id: "0xhead" }, head_block_time: String(now) }; }
-        async call(_m, a) { const s = Number(a.ancestor_start_height), k = Math.min(a.num_blocks, top - s + 1); return { block_items: Array.from({ length: Math.max(0, k) }, (_, i) => block(s + i)) }; } },
+        async call(m, a) { if (m === "contract_meta_store.get_contract_meta") return a.contract_id === OTHERS[0] ? { meta: { hash: "0xabc", abi: '{"methods":{"get_beneficiaries":{}}}' } } : {}; const s = Number(a.ancestor_start_height), k = Math.min(a.num_blocks, top - s + 1); return { block_items: Array.from({ length: Math.max(0, k) }, (_, i) => block(s + i)) }; } },
       Serializer: class { async deserialize(d) { return JSON.parse(d); } },
       Contract: class { constructor({ id }) { this.functions = {
         balance_of: async ({ owner }) => ({ result: { value: String((id === KOIN ? (owner === ME ? koin : 0) : VHPS[owner] || 0) * 1e8) } }),
@@ -46,9 +46,9 @@ const FILES = {
   "race-data/R004.json": { v: 1, week: 4, mode: "on", races: [{ id: "2026-11-16T00", placings: [ME, OTHERS[0], OTHERS[1]] }, { id: "2026-11-16T06", placings: [OTHERS[0], OTHERS[1], OTHERS[2], ME] }, { id: "2026-11-16T12" }] },
   "games-data/fantasy/inputs/W4.json": { week: 4, data: { budget: 100, pool: [{ a: ME, price: 26, form: 10341 }, { a: OTHERS[0], price: 40, form: 9900 }] } },
 };
-async function open(meLastAgoBlocks, opts) {
+async function open(meLastAgoBlocks, opts, { win = "28800", a = ME } = {}) {
   const c = chain(28800, meLastAgoBlocks, opts);
-  const dom = new JSDOM(HTML.replace(/<script[\s\S]*?<\/script>/g, ""), { url: `https://knodegames.com/node.html?a=${ME}&w=28800`, runScripts: "outside-only", pretendToBeVisual: true });
+  const dom = new JSDOM(HTML.replace(/<script[\s\S]*?<\/script>/g, ""), { url: `https://knodegames.com/node.html?a=${a}&w=${win}`, runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window; opened.push(w);
   w.koilib = c.lib;
   w.fetch = async (url) => { const k = Object.keys(FILES).find((f) => String(url).endsWith(f)); return k ? { ok: true, json: async () => FILES[k] } : { ok: false, json: async () => null }; };
@@ -58,6 +58,7 @@ async function open(meLastAgoBlocks, opts) {
   assert.equal(w.document.getElementById("out").hidden, false, `page rendered: ${w.document.getElementById("status").textContent}`);
   return w.document;
 }
+const wait = async (f) => { for (let i = 0; i < 300 && !f(); i++) await new Promise((r) => setTimeout(r, 10)); };
 const text = (d) => d.getElementById("out").textContent;
 const count = (s, re) => (s.match(re) || []).length;
 
@@ -121,4 +122,42 @@ test("profit in the window and the yearly rate are shown once each, and no banne
   assert.match(tiles, /KOIN after VHP used, 24 hours≈ [0-9.,]+/);
   assert.equal(count(all, /% a year/g), 1);
   assert.doesNotMatch(all, /\b(bet|odds|gambl\w*|earn\w*|returns|guaranteed|beta)\b/i);
+});
+
+test("next rank: the VHP that would move it up one place and the VHP for 1 more block a day", async () => {
+  const d = await open(5), t = d.getElementById("check").textContent;
+  assert.match(t, /About [0-9,]+ more VHP would move it up to #2 by VHP, past 1MidPr…BBBB\. About [0-9,]+ more VHP would add 1 block a day\./);
+});
+
+test("pool check: the Knode Games vault is named; a contract address is called a pool, Fogata-looking ones say so", async () => {
+  const d = await open(5);
+  assert.match(d.getElementById("check").textContent, /This is the Knode Games vault's contract: the VHP players stake produces blocks here/);
+  const d2 = await open(5, {}, { a: OTHERS[0] });
+  assert.match(d2.getElementById("check").textContent, /This address is a smart contract, not a personal wallet, so it is most likely a mining pool, and it looks like a Fogata pool\./);
+  assert.ok(d2.querySelector('#check a[href="https://www.koinscan.io/fogata"]'));
+});
+
+test("daily pattern: asks for 3 or 7 days in a 24-hour window; with 3 days, 24 bars and the quiet hours named", async () => {
+  const d = await open(5);
+  assert.equal(d.getElementById("hours-card").hidden, false);
+  assert.match(d.getElementById("hours-sub").textContent, /Pick the last 3 or 7 days/);
+  assert.equal(d.querySelectorAll("#hours rect").length, 0);
+  const d3 = await open(5, {}, { win: "86400" });
+  assert.equal(d3.querySelectorAll("#hours rect").length, 24);
+  assert.match(d3.getElementById("hours-sub").textContent, /Each bar is one hour of the day on your clock/);
+});
+
+test("compare: a second address side by side in the same window, and it stays in the link", async () => {
+  const d = await open(5), w = d.defaultView;
+  d.getElementById("cmp-addr").value = OTHERS[0];
+  d.getElementById("cmp-form").dispatchEvent(new w.Event("submit", { cancelable: true }));
+  await wait(() => d.querySelectorAll("#cmp tbody tr").length === 8);
+  const t = d.getElementById("cmp").textContent;
+  assert.equal(d.querySelectorAll("#cmp tbody tr").length, 8);
+  assert.match(t, /Rank by VHP#3#1/);
+  assert.match(t, /Kind of addresscontract \(pool or vault\)contract \(pool or vault\)/);
+  assert.match(w.location.search, new RegExp(`b=${OTHERS[0]}`));
+  d.getElementById("cmp-addr").value = ME;
+  d.getElementById("cmp-form").dispatchEvent(new w.Event("submit", { cancelable: true }));
+  assert.match(d.getElementById("cmp-note").textContent, /That is the producer shown above/);
 });

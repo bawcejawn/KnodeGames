@@ -183,7 +183,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1000,
+      "chainDataHash": "0xb41f55047cc79af439f22a9fad9b3e5bbc3a2cb44e0160ccfb692763006fa4c1"
     },
     {
       "id": "W003-D5-2",
@@ -511,7 +513,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1000,
+      "chainDataHash": "0xdbc9f9ab1f123a41bb1a0100834b0134bca75c3f1a7fce67ccb3e11ae19c87a8"
     }
   ],
   "daySeal": "1350a4bade6f4afe61974d586134af764b141a70f4f1eb205f274bcbaa86e57c"

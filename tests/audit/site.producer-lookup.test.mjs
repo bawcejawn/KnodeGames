@@ -14,7 +14,8 @@ const OTHERS = ["1BigProducerAAAAAAAAAAAAAAAAAAAAA", "1MidProducerBBBBBBBBBBBBBB
 const VHPS = { [ME]: 2e6, [OTHERS[0]]: 20e6, [OTHERS[1]]: 6e6, [OTHERS[2]]: 2e6 };
 
 /** A fake chain of `n` blocks, 3 s apart, ending now; `meLastAgoBlocks` = how many blocks since ME last signed. */
-function chain(n, meLastAgoBlocks) {
+const KOIN = "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK";
+function chain(n, meLastAgoBlocks, { key = "AiBcDeFgHiJkLmNoPq", koin = 500 } = {}) {
   const now = Date.parse("2026-11-18T12:00:00Z"), top = 40000000;
   const signerAt = (h) => {
     const k = top - h;
@@ -30,19 +31,27 @@ function chain(n, meLastAgoBlocks) {
       Provider: class { async getHeadInfo() { return { head_topology: { height: String(top), id: "0xhead" }, head_block_time: String(now) }; }
         async call(_m, a) { const s = Number(a.ancestor_start_height), k = Math.min(a.num_blocks, top - s + 1); return { block_items: Array.from({ length: Math.max(0, k) }, (_, i) => block(s + i)) }; } },
       Serializer: class { async deserialize(d) { return JSON.parse(d); } },
-      Contract: class { constructor() { this.functions = { balance_of: async ({ owner }) => ({ result: { value: String((VHPS[owner] || 0) * 1e8) } }) }; } },
+      Contract: class { constructor({ id }) { this.functions = {
+        balance_of: async ({ owner }) => ({ result: { value: String((id === KOIN ? (owner === ME ? koin : 0) : VHPS[owner] || 0) * 1e8) } }),
+        get_public_key: async () => ({ result: key ? { value: key } : {} }) }; } },
     },
   };
 }
 
 const opened = [];
 after(() => { for (const w of opened) w.close(); });
-async function open(meLastAgoBlocks) {
-  const c = chain(28800, meLastAgoBlocks);
+// This week's published files (vault week 4 = Mon 16 Nov): two Ruler-placed races, and Fantasy's price list.
+const FILES = {
+  "race-data/W004.json": { v: 1, week: 4, races: [{ id: "2026-11-16T00" }, { id: "2026-11-16T06" }, { id: "2026-11-16T12" }] },
+  "race-data/R004.json": { v: 1, week: 4, mode: "on", races: [{ id: "2026-11-16T00", placings: [ME, OTHERS[0], OTHERS[1]] }, { id: "2026-11-16T06", placings: [OTHERS[0], OTHERS[1], OTHERS[2], ME] }, { id: "2026-11-16T12" }] },
+  "games-data/fantasy/inputs/W4.json": { week: 4, data: { budget: 100, pool: [{ a: ME, price: 26, form: 10341 }, { a: OTHERS[0], price: 40, form: 9900 }] } },
+};
+async function open(meLastAgoBlocks, opts) {
+  const c = chain(28800, meLastAgoBlocks, opts);
   const dom = new JSDOM(HTML.replace(/<script[\s\S]*?<\/script>/g, ""), { url: `https://knodegames.com/node.html?a=${ME}&w=28800`, runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window; opened.push(w);
   w.koilib = c.lib;
-  w.fetch = async () => { throw new Error("offline"); };
+  w.fetch = async (url) => { const k = Object.keys(FILES).find((f) => String(url).endsWith(f)); return k ? { ok: true, json: async () => FILES[k] } : { ok: false, json: async () => null }; };
   w.Date.now = () => c.now;
   w.eval(JS);
   for (let i = 0; i < 400 && w.document.getElementById("out").hidden; i++) await new Promise((r) => setTimeout(r, 10));
@@ -80,4 +89,36 @@ test("a quiet node: one warning in the story card, the badge says Quiet, the til
   assert.match(d.getElementById("hero").textContent, /Quiet: check the node/);
   assert.equal(count(d.getElementById("tiles").textContent, /check|overdue/g), 0, "the tile doesn't repeat the warning");
   assert.ok(d.querySelector("#tiles .v.bad"), "Last block tile marked red");
+});
+
+test("node checklist: key registered, KOIN for Mana, what a burn adds, the longest quiet spell", async () => {
+  const d = await open(5), t = d.getElementById("check").textContent;
+  assert.match(t, /Producer key registered: AiBcDeFgHi…/);
+  assert.match(t, /500 KOIN in the address\. Its Mana pays for signing blocks, so keep some KOIN here\./);
+  assert.match(t, /Burning 500 KOIN into VHP would add about [0-9.,]+ blocks a day \(now about [0-9.,]+\)\./);
+  assert.match(t, /Longest quiet spell in the last 24 hours: .+\. For its size, about .+ is usual\./);
+  assert.equal(d.querySelectorAll("#check li.bad").length, 0, "a healthy node: nothing red");
+  assert.ok(d.querySelector('#check a[href="burn.html"]'));
+});
+
+test("node checklist: no key, no KOIN and a long quiet spell are red, with a link to register", async () => {
+  const d = await open(4000, { key: "", koin: 0 }), t = d.getElementById("check").textContent;
+  assert.match(t, /No producer key is registered for this address, so no node can sign blocks for it\./);
+  assert.ok(d.querySelector('#check a[href="producer.html"]'));
+  assert.match(t, /No KOIN in this address\. A producer needs some KOIN, for its Mana, to sign blocks\./);
+  assert.doesNotMatch(t, /Burning/, "nothing to burn");
+  assert.equal(d.querySelectorAll("#check li.bad").length, 3);
+});
+
+test("this week in Knode Games: Race places from the Ruler file, Fantasy price and form", async () => {
+  const d = await open(5), t = d.getElementById("kg").textContent;
+  assert.match(t, /Producer Race: in 2 of 2 finished races this week; 1st in 1, top 3 in 1 \(the Ruler's places\)\./);
+  assert.match(t, /Fantasy Producers: price 26 \(a team's budget is 100\), form 103\.4 \(100 = as expected for its size\)\./);
+});
+
+test("profit in the window and the yearly rate are shown once each, and no banned words", async () => {
+  const d = await open(5), tiles = d.getElementById("tiles").textContent, all = d.getElementById("out").textContent;
+  assert.match(tiles, /KOIN after VHP used, 24 hours≈ [0-9.,]+/);
+  assert.equal(count(all, /% a year/g), 1);
+  assert.doesNotMatch(all, /\b(bet|odds|gambl\w*|earn\w*|returns|guaranteed|beta)\b/i);
 });

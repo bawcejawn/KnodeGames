@@ -6,6 +6,8 @@
   const KOIN = "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK";
   const VHP = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq";
   const EXPLORER = "https://koinosscan.com/address/";
+  const POB = "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv"; // Koinos Proof-of-Burn system contract (mainnet)
+  const RAW = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/";   // data-source.js sends these to the mirror
   const UNIT = 1e8, MAX_BLOCKS = 201600, WORKERS = 6, REORG = 60, STORE = "nd-blocks-v2";
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode Games pool" };
   const QUICK = [["Knode Games pool", "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr"]];
@@ -16,9 +18,14 @@
     balance_of_arguments: { fields: { owner: { type: "bytes", id: 1, options: { "(koinos.btype)": "ADDRESS" } } } },
     balance_of_result: { fields: { value: { type: "uint64", id: 1, options: { jstype: "JS_STRING" } } } },
     mint_event: { fields: { to: { type: "bytes", id: 1, options: { "(koinos.btype)": "ADDRESS" } }, value: { type: "uint64", id: 2, options: { jstype: "JS_STRING" } } } },
+    get_public_key_arguments: { fields: { producer: { type: "bytes", id: 1, options: { "(koinos.btype)": "ADDRESS" } } } },
+    get_public_key_result: { fields: { value: { type: "bytes", id: 1 } } },
     burn_event: { fields: { from: { type: "bytes", id: 1, options: { "(koinos.btype)": "ADDRESS" } }, value: { type: "uint64", id: 2, options: { jstype: "JS_STRING" } } } },
   } } } };
   const ser = new lib.Serializer(types);
+  const balanceAbi = { methods: { balance_of: { entry_point: 0x5c721497, argument: "t.balance_of_arguments", return: "t.balance_of_result", read_only: true } }, koilib_types: types };
+  const koinToken = new lib.Contract({ id: KOIN, provider, abi: balanceAbi });
+  const pob = new lib.Contract({ id: POB, provider, abi: { methods: { get_public_key: { entry_point: 0x96634f68, argument: "t.get_public_key_arguments", return: "t.get_public_key_result", read_only: true } }, koilib_types: types } });
   const vhpToken = new lib.Contract({ id: VHP, provider, abi: { methods: { balance_of: { entry_point: 0x5c721497, argument: "t.balance_of_arguments", return: "t.balance_of_result", read_only: true } }, koilib_types: types } });
 
   // ── helpers ──
@@ -181,6 +188,38 @@
     bal.set(a, { v, at: Date.now() }); return v;
   }
 
+  // ── the node checklist and the games (owner, 14 Nov 2026) ──
+  /** The producer key registered for the address in the PoB contract: "" = none, null = couldn't read. */
+  async function keyOf(a) {
+    try { const r = await pob.functions.get_public_key({ producer: a }); const v = r && r.result && r.result.value; return v ? String(v) : ""; } catch { return null; }
+  }
+  /** KOIN held by the address (its Mana pays for signing blocks); null = couldn't read. */
+  async function koinOf(a) {
+    try { const r = await koinToken.functions.balance_of({ owner: a }); return Number((r.result && r.result.value) || 0) / UNIT; } catch { return null; }
+  }
+  const WEEK_MS = 6048e5, WEEK3 = Date.UTC(2026, 10, 9);   // vault week 3 = Mon 9 Nov 2026 00:00 UTC
+  const vaultWeek = (t) => 3 + Math.floor((t - WEEK3) / WEEK_MS);
+  async function getJson(url) { try { const r = await fetch(url, { cache: "no-cache" }); return r.ok ? await r.json() : null; } catch { return null; } }
+  /** This producer in this week's Race results (the Ruler's places in a Ruler week, else steps) and Fantasy price list. */
+  async function gamesOf(a, now) {
+    const w = vaultWeek(now), pad = String(w).padStart(3, "0");
+    const [wf, rf, fx] = await Promise.all([getJson(`${RAW}race-data/W${pad}.json`), getJson(`${RAW}race-data/R${pad}.json`), getJson(`${RAW}games-data/fantasy/inputs/W${w}.json`)]);
+    let race = null;
+    if (wf && wf.v === 1 && wf.week === w && Array.isArray(wf.races)) {
+      const ruled = !!(rf && rf.v === 1 && rf.week === w && rf.mode === "on" && Array.isArray(rf.races));
+      const order = [];
+      if (ruled) { for (const e of rf.races) if (e && Array.isArray(e.placings) && e.placings.length) order.push(e.placings); }
+      else for (const r of wf.races) if (r && r.result && r.result.final && Array.isArray(r.result.standings) && r.result.standings.length) order.push(r.result.standings.map((x) => x && x.a));
+      const places = order.map((o) => o.indexOf(a)).filter((i) => i >= 0);
+      race = { ruled, races: order.length, in: places.length, wins: places.filter((i) => i === 0).length, top3: places.filter((i) => i < 3).length };
+    }
+    let fantasy = null;
+    if (fx && fx.week === w && fx.data && Array.isArray(fx.data.pool)) { const e = fx.data.pool.find((x) => x && x.a === a); fantasy = { listed: !!e, price: e ? e.price : null, form: e ? e.form : null, budget: fx.data.budget }; }
+    return { w, race, fantasy };
+  }
+  const item = (cls, mark, ...kids) => el("li", { class: cls }, el("span", { class: "i", "aria-hidden": "true" }, mark), el("span", {}, ...kids));
+  const link = (href, t) => el("a", { href }, t);
+
   // ── render ──
   const ago = (ms) => (ms < 90000 ? "just now" : `${dur(ms)} ago`);
   /** What one block paid its signer: KOIN minted to it, and the VHP burned from it (read from the block's receipt). */
@@ -256,6 +295,7 @@
       const vals = []; for (let i = 0; i < list.length; i += 8) { vals.push(...(await Promise.all(list.slice(i, i + 8).map(vhpOf)))); }
       const vhp = new Map(list.map((a, i) => [a, vals[i]]));
       let reward = NaN; try { reward = await networkReward(head); } catch { /* shown as — */ }
+      const [key, koin, kg] = await Promise.all([keyOf(addr), koinOf(addr), gamesOf(addr, now)]);
 
       const myVhp = vhp.get(addr) || 0;
       const activeVhp = producers.reduce((s, [a]) => s + (vhp.get(a) || 0), 0) + (counts.has(me) ? 0 : myVhp);
@@ -287,8 +327,35 @@
         tile("Rank by VHP", share > 0 ? `#${fmt(rank)}` : "–", `of ${fmt(ranked.length)} producers`),
         tile(`Blocks, ${wlabel}`, fmt(mine), expWin > 0 ? `expected ${sig(expWin)} · ${fmt(ofExp * 100, 0)}% of expected` : "no VHP, so no blocks expected"),
         tile("Last block", lastTs ? ago(since) : "none in window", Number.isFinite(every) ? `usually every ${dur(every)}` : "", late && share > 0 ? "bad" : ""),
-        tile("Earns about", Number.isFinite(apr0) ? `${fmt(apr0, 1)}% a year` : "–", Number.isFinite(reward) ? `${fmt(reward, 3)} KOIN a block, if VHP stays as is` : ""),
+        tile(`KOIN after VHP used, ${wlabel}`, mine && Number.isFinite(reward) ? `≈ ${fmt(mine * reward, 1)}` : mine ? "–" : "0", mine && Number.isFinite(reward) ? `${fmt(mine)} blocks × the network's typical ${fmt(reward, 3)} KOIN` : ""),
+        tile("Yearly rate", Number.isFinite(apr0) ? `${fmt(apr0, 1)}% a year` : "–", Number.isFinite(apr0) ? "of its VHP, as KOIN, if VHP stays as is" : ""),
       );
+      // Node checklist: producer key, KOIN for Mana, what a burn would add, the longest quiet spell.
+      const chk = [];
+      if (key === null) chk.push(item("info", "?", "Couldn't read the producer key right now. Try again in a minute."));
+      else if (!key) chk.push(item("bad", "✗", "No producer key is registered for this address, so no node can sign blocks for it. ", link("producer.html", "Register a producer key")));
+      else chk.push(item("ok", "✓", `Producer key registered: ${key.slice(0, 10)}…. Check that your node's key is this one.`));
+      if (koin === 0) chk.push(item("bad", "✗", "No KOIN in this address. A producer needs some KOIN, for its Mana, to sign blocks."));
+      else if (koin > 0) chk.push(item("ok", "✓", `${fmt(koin, koin < 10 ? 2 : 0)} KOIN in the address. Its Mana pays for signing blocks, so keep some KOIN here.`));
+      if (koin > 0 && share > 0 && Number.isFinite(perDay)) {
+        const amt = Math.min(1000, Math.floor(koin)), more = ((myVhp + amt) / (activeVhp + amt) - share) * perDay;
+        if (amt >= 1) chk.push(item("info", "i", `Burning ${fmt(amt)} KOIN into VHP would add about ${sig(more)} blocks a day (now about ${sig(share * perDay)}). `, link("burn.html", "Burn KOIN into VHP")));
+      }
+      let longest = 0; { let prev = t0; for (const t of mineTs) { longest = Math.max(longest, t - prev); prev = t; } longest = Math.max(longest, now - prev); }
+      const usual = expWin >= 3 ? ((now - t0) / expWin) * (Math.log(expWin) + 0.5772) : NaN;
+      if (Number.isFinite(usual)) chk.push(item(longest > usual * 2 ? "bad" : "ok", longest > usual * 2 ? "✗" : "✓", `Longest quiet spell in ${wlabel === lw ? "the last " + lw : wlabel}: ${dur(longest)}. For its size, about ${dur(usual)} is usual.`));
+      else if (share > 0) chk.push(item("info", "i", "Too few blocks expected in this window to judge quiet spells. Pick a longer window."));
+      $("check").replaceChildren(...chk);
+      const g = [];
+      if (!kg.race) g.push(item("info", "?", "Producer Race: this week's results can't be read yet. ", link("race.html", "Race page")));
+      else if (!kg.race.races) g.push(item("info", "i", "Producer Race: no finished race this week yet. ", link("race.html", "Race page")));
+      else g.push(item(kg.race.in ? "ok" : "info", kg.race.in ? "✓" : "i", kg.race.in
+        ? `Producer Race: in ${fmt(kg.race.in)} of ${fmt(kg.race.races)} finished races this week; 1st in ${fmt(kg.race.wins)}, top 3 in ${fmt(kg.race.top3)} (${kg.race.ruled ? "the Ruler's places" : "by steps"}). `
+        : `Producer Race: not placed in this week's ${fmt(kg.race.races)} finished races. `, link("race.html", "Race page")));
+      if (!kg.fantasy) g.push(item("info", "i", "Fantasy Producers: this week's price list isn't out yet. ", link("fantasy.html", "Fantasy page")));
+      else if (!kg.fantasy.listed) g.push(item("info", "i", "Fantasy Producers: not on this week's price list. ", link("fantasy.html", "Fantasy page")));
+      else g.push(item("ok", "✓", `Fantasy Producers: price ${fmt(kg.fantasy.price)}${kg.fantasy.budget ? ` (a team's budget is ${fmt(kg.fantasy.budget)})` : ""}${Number.isFinite(kg.fantasy.form) ? `, form ${fmt(kg.fantasy.form / 100, 1)} (100 = as expected for its size)` : ""}. `, link("fantasy.html", "Fantasy page")));
+      $("kg").replaceChildren(...g);
       const at = Math.max(0, rank - 1), from0 = Math.max(0, Math.min(at - 3, ranked.length - 7)), near = ranked.slice(from0, from0 + 7);
       $("peers").replaceChildren(...near.map((a) => {
         const pick = el("button", { type: "button", class: "link mono", title: a }, short(a));

@@ -64,7 +64,7 @@ test("confirm G35-2: the real sequence (unset in the shadow week publishes index
   const code = yml.slice(yml.indexOf("- name: The VHP ruler's code and data (Block X and the Producer Bracket)"), yml.indexOf("cat > \"$RUNNER_TEMP/ruler-code/vhp_ruler.py\""));
   assert.doesNotMatch(code, /\n\s+if:/);
   const data = yml.slice(yml.indexOf("# END vhp_ruler.py"), yml.indexOf("- name: Push games-data (and nothing else)"));
-  assert.match(data, /else\n\s+rm -rf "\$RUNNER_TEMP\/vhp-data"\n\s+echo "::warning::/);
+  assert.match(data, /else\n\s+rm -rf "\$RUNNER_TEMP\/ruler-vhp-data"\n\s+echo "::warning::/);
   const rec = yml.slice(yml.indexOf("- name: Take the VHP ruler's data"), yml.indexOf("- name: Record Who Signs Block X"));
   assert.match(rec, /continue-on-error: true/);
 });

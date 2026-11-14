@@ -191,7 +191,7 @@ test("G35-2: the ruler's code is written on every run; with the switch unset aft
 test("G35-5: a failed vhp-data fetch never stops the recorder or the publish (the ruler waits)", () => {
   assert.match(yml, /- name: Take the VHP ruler's data\n(?:\s+#[^\n]*\n)+\s+if: \$\{\{ vars\.BLOCKX_RULER_FROM_WEEK != '' \}\}\n\s+continue-on-error: true/);
   // the publish job's fetch is in the shared step (Bracket #285, Repo Lens #G-48 G48-2): tolerant, a warning on failure
-  assert.match(yml, /else\n\s+rm -rf "\$RUNNER_TEMP\/vhp-data"\n\s+echo "::warning::Couldn't fetch the vhp-data branch this run/);
+  assert.match(yml, /else\n\s+rm -rf "\$RUNNER_TEMP\/ruler-vhp-data"\n\s+echo "::warning::Couldn't fetch the vhp-data branch this run/);
   // no data: a day file with a new card is held alone, the rest publishes
   const inc = tmp(); write(inc, "X004-1.json", dayFile(5, "shadow"));
   const r = check(inc, pubWith(), { now: NOW, env: { BLOCKX_RULER_FROM_WEEK: "5", BLOCKX_RULER_TL: "", RULER_VHP_DATA: path.join(tmp(), "missing") } });

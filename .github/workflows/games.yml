@@ -2010,12 +2010,12 @@ jobs:
               return 0 if same else 1
           # END vhp_ruler.py
           RULERPY
-          if git init -q "$RUNNER_TEMP/vhp-data" \
-             && git -C "$RUNNER_TEMP/vhp-data" fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" vhp-data \
-             && git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD; then
+          if git init -q "$RUNNER_TEMP/ruler-vhp-data" \
+             && git -C "$RUNNER_TEMP/ruler-vhp-data" fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" vhp-data \
+             && git -C "$RUNNER_TEMP/ruler-vhp-data" checkout -q FETCH_HEAD; then
             echo "vhp-data ready for the ruler checks."
           else
-            rm -rf "$RUNNER_TEMP/vhp-data"
+            rm -rf "$RUNNER_TEMP/ruler-vhp-data"
             echo "::warning::Couldn't fetch the vhp-data branch this run: games on the VHP ruler hold their new cards until the next run (the other games publish as usual)."
           fi
       - name: Push games-data (and nothing else)
@@ -2026,7 +2026,7 @@ jobs:
           # The VHP ruler (Block X): the switch, the embedded ruler code and its data (empty while the switch is unset).
           BLOCKX_RULER_FROM_WEEK: ${{ vars.BLOCKX_RULER_FROM_WEEK }}
           RULER_PY: ${{ format('{0}/ruler-code/vhp_ruler.py', runner.temp) }}
-          RULER_VHP_DATA: ${{ vars.BLOCKX_RULER_FROM_WEEK != '' && format('{0}/vhp-data', runner.temp) || '' }}
+          RULER_VHP_DATA: ${{ vars.BLOCKX_RULER_FROM_WEEK != '' && format('{0}/ruler-vhp-data', runner.temp) || '' }}
           # fix-check F4: the owner's one-off correction window for named Bracket weeks (the recorder reads it too)
           BRACKET_RELEASE: ${{ vars.BRACKET_RELEASE }}
           # Repo Lens #G-20 G20-1: the owner's ruler switch; every open Bracket week file and index.json must carry exactly it
@@ -2034,7 +2034,7 @@ jobs:
           # R-BR-7 phase 2: the scoring-mode schedule (likewise), and the embedded ruler and its data written by the step above
           BRACKET_RULER_MODE: ${{ vars.BRACKET_RULER_MODE }}
           BRACKET_RULER_PY: ${{ runner.temp }}/ruler-code/vhp_ruler.py
-          BRACKET_RULER_VHP_DATA: ${{ runner.temp }}/vhp-data
+          BRACKET_RULER_VHP_DATA: ${{ runner.temp }}/ruler-vhp-data
           IN: ${{ runner.temp }}/incoming
         run: |
           set -euo pipefail

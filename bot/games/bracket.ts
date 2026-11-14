@@ -434,7 +434,10 @@ export function rulerWeek(w: number, wf: WeekFile, prevDir: string | undefined, 
     if (wf.rulerBackup && wf.rulerBackup.includes(r)) { texts.push(null); continue; }   // decided by the seed rule: no card
     const d = wf.days[r];
     if (!d.every((h) => !!h && h.re === 1) || made >= MAX_CARDS_PER_RUN) { texts.push(null); continue; }
-    const got = cardFor(RU.settingsFor(B.roundDay(w, r, size), d[0]!.from, d[23]!.to, mode));
+    let got: ReturnType<typeof cardFor>;
+    // one round's broken card never blanks the week's other cards (Repo Lens #G-68 G68-1); it waits, and never goes to the backup
+    try { got = cardFor(RU.settingsFor(B.roundDay(w, r, size), d[0]!.from, d[23]!.to, mode)); }
+    catch (e) { problems.push(`week ${w}: round ${r + 1}'s ruler card: ${(e as Error).message} (tried again next run)`); texts.push(null); continue; }
     if ("notYet" in got) {
       const late = now >= B.roundDay(w, r, size) + 86400000 + RULER_LATE;
       const m = `week ${w}: round ${r + 1}'s ruler card: not yet (${got.notYet}); tried again next run${late && wf.rulerMode === "on" ? ` (late: the day ended over 3 h ago and the week waits for it; ${RULER_FIX})` : ""}`;

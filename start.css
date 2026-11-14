@@ -39,3 +39,8 @@
 .tokens .addr { display: flex; gap: 6px; align-items: center; margin: 2px 0; }
 .tokens .addr code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; flex: 1; }
 .tokens .copy { font: inherit; font-size: 12px; font-weight: 700; padding: 6px 10px; min-height: 32px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+
+/* ruler.html: "How each game uses the Ruler" */
+.rg-list { display: grid; grid-template-columns: minmax(150px, 28%) 1fr; gap: 8px 16px; margin: 8px 0; }
+.rg-list dt { font-weight: 700; } .rg-list dd { margin: 0; }
+@media (max-width: 640px) { .rg-list { grid-template-columns: 1fr; gap: 2px; } .rg-list dd { margin-bottom: 10px; } }

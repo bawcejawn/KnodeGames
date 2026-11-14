@@ -141,6 +141,48 @@
       </article>
     </section>
 
+    <section class="start-sec" id="each-game">
+      <h2 class="sec-title">How each game uses the Ruler</h2>
+      <article class="panel">
+        <p><b>Every Knode game that judges block producers uses this same Ruler. No game has its own.</b></p>
+        <p>Every game below is measured by the same Ruler. Before each round it fixes a card with every producer's size and recent form; after the round it checks how each producer did against what its size said it should do. Big and small producers are measured against their own size, so a small node that does its job can beat a big one.</p>
+      </article>
+      <article class="panel" id="race">
+        <h3>Producer Race</h3>
+        <dl class="rg-list">
+          <dt>What the game asks you</dt><dd>pick the producers you think will finish 1st, 2nd and 3rd in a race.</dd>
+          <dt>What it reads from the Ruler</dt><dd>the race's card, fixed in the 6 hours before picks lock (for the 1-hour and 2-hour races, in the race's own length before the lock). After the race, each producer's luck-adjusted score for that race.</dd>
+          <dt>How that becomes your score</dt><dd>the Ruler's top three producers are the race's 1st, 2nd and 3rd, and your picks score the Race's usual points for those places. The live board during a race is an estimate; the Ruler's placings decide.</dd>
+          <dt>Why it's fair</dt><dd>same Ruler as every game; size-neutral; the card is fixed before the race; every card is rebuilt and checked again before results are published.</dd>
+          <dt>If the Ruler can't measure a race</dt><dd>the week waits up to 48 hours after it ends. If the Ruler catches up, the race is scored in full; if not, that race is skipped for everyone. Nobody's result is guessed.</dd>
+        </dl>
+        <p class="muted"><a href="index.html#how/race">Producer Race rules</a></p>
+      </article>
+      <article class="panel" id="blockx">
+        <h3>Who Signs Block X</h3>
+        <dl class="rg-list">
+          <dt>What the game asks you</dt><dd>pick the producer that will sign a target block.</dd>
+          <dt>What it reads from the Ruler</dt><dd>the target's card, fixed in the 6 hours before picks lock: each producer's share of blocks for its size, whether it is in the field, and its recent form.</dd>
+          <dt>How that becomes your score</dt><dd>a right pick scores more for a producer that was less likely to sign the block for its size, up to 120 times the base points. A producer whose size moved too far from its card at the target block counts as a miss for that target.</dd>
+          <dt>Why it's fair</dt><dd>same Ruler as every game; size-neutral; the card is fixed before the lock; checked again before results are published.</dd>
+          <dt>If the Ruler can't measure a target</dt><dd>the target waits. If it still has no card after 3 days, it is void and no pick on it scores.</dd>
+        </dl>
+        <p class="muted"><a href="index.html#how/blockx">Who Signs Block X rules</a></p>
+      </article>
+      <article class="panel" id="fantasy">
+        <h3>Fantasy Producers <span class="week-pill">Test weeks</span></h3>
+        <dl class="rg-list">
+          <dt>What the game asks you</dt><dd>pick a team of 5 block producers within a budget, with your first pick as captain, who counts double.</dd>
+          <dt>What it reads from the Ruler</dt><dd>each day's card for the UTC day (7:00 PM to 7:00 PM ET), fixed before the day starts. For every producer on the week's list, how many blocks it was expected to make for its size, and how many it was credited with.</dd>
+          <dt>How that becomes your score</dt><dd>a producer's day = 100 × credited ÷ expected, at most 150. The captain counts double. A producer whose size moved too far from its card that day scores 0 for that day. Prices come from the same two numbers over the 7 days before the week.</dd>
+          <dt>Why it's fair</dt><dd>big and small producers are measured against their own size; the card is fixed before the day by the same Ruler every game uses; every card is rebuilt and checked again before results are published.</dd>
+          <dt>If the Ruler can't measure a day</dt><dd>a day the Ruler marks as unreliable scores 0 for every team. A day the Ruler never reaches waits 48 hours, then scores 0 for every team (that rule comes with the next kit version; until then the day waits). Nobody's score is ever guessed.</dd>
+        </dl>
+        <p class="muted"><a href="index.html#how/fantasy">Fantasy Producers rules</a></p>
+      </article>
+      <p class="muted">Producer Bracket joins this list when it goes live on the Ruler. Last Node Standing, Combo Card and Survivor will be added when they are built.</p>
+    </section>
+
     <section class="start-sec">
       <h2 class="sec-title">In the Producer Race</h2>
       <article class="panel">

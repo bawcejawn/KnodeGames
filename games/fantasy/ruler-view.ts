@@ -23,13 +23,14 @@ export type CardBase = typeof CARD;
 export type RulerRow = { a: string; credited: string; expected: string; void: boolean; entry: boolean; quality: "ok" | "flagged" };
 export type RulerCard = { ruleVersion: number; game: number; round: string; producers: RulerRow[] };
 
-type Vhp = { ruleVersion: number; card(settings: unknown): RulerCard };
+type Vhp = { ruleVersion: number; to?: number; card(settings: unknown): RulerCard };
 type BlockAt = (ms: number) => Promise<number>;
 /** The kit's way to decide a round without a ruler card (Architecture, 13 Nov: `kit-next`, opening Fri 20 Nov). The kit
  *  itself waits for the round's end + 48 h on both nodes (NotYet before), records `fallback: { why, at }` in the week
  *  file, exempts the round from cardPerRound and alerts. Until the kit passes it, Fantasy's no-card day waits (pending). */
 type Fallback = (why: string) => Promise<void>;
-export type Sources = { vhp: Vhp; blockAt: BlockAt; fallback?: Fallback };
+/** loaded: this run has the ruler's data (the kit's stand-in when it couldn't be loaded has `to` −1). */
+export type Sources = { vhp: Vhp; blockAt: BlockAt; fallback?: Fallback; loaded: boolean };
 
 /** The ruler source and the block clock from a kit context, or NotYet if this run doesn't have both yet. */
 export function sourcesOf(ctx: unknown): Sources {
@@ -37,7 +38,7 @@ export function sourcesOf(ctx: unknown): Sources {
   if (!c?.vhp || typeof c.vhp.card !== "function") throw new NotYet("not yet: no ruler data this run (ctx.vhp)");
   if (typeof c.blockAt !== "function") throw new NotYet("not yet: the kit's block clock (ctx.blockAt, G7) isn't available");
   const fb = (ctx as { fallback?: Fallback }).fallback;
-  return { vhp: c.vhp, blockAt: c.blockAt, ...(typeof fb === "function" ? { fallback: fb } : {}) };
+  return { vhp: c.vhp, blockAt: c.blockAt, loaded: !(typeof c.vhp.to === "number" && c.vhp.to < 0), ...(typeof fb === "function" ? { fallback: fb } : {}) };
 }
 
 /** The settings of the card for the UTC day starting at `day`. `include`: the week's listed producers, so each has a

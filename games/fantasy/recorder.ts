@@ -76,7 +76,9 @@ export const game: GameModule<RawPick, DayResult, PriceList> = {
       // counts as 0 for every team, recorded and alerted by the kit (ctx.fallback, which also waits out the 48 hours on
       // both nodes; the blockAt here is the same wait, kept so the module never decides early on its own). Within the
       // grace, or while the kit has no fallback, the day waits (NotYet → pending).
-      if (!(e instanceof NotYet) || !src.fallback) throw e;
+      // #G-69 G69-2: never when this run has no ruler data at all (the kit's stand-in, `to` −1): "no data this run" is not
+      // "no card". (kit-next also keeps a fallback decision fixed once made.)
+      if (!(e instanceof NotYet) || !src.fallback || !src.loaded) throw e;
       await src.blockAt(round.day + DAY + F.NO_CARD_GRACE);
       await src.fallback(`Fantasy ${F.ymd(round.day)}: no VHP Ruler card 48 hours after the day; it counts 0 for every team`);
       return { round: F.ymd(round.day), fallback: true, rows: zeros() };

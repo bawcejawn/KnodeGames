@@ -90,11 +90,14 @@ test("render: the embedded copy runs and publishes an honest pending week (as th
 });
 
 test("render: the hand-written Block X jobs are untouched, and the kit jobs sit between the markers", () => {
-  const main = spawnSync("git", ["show", "origin/main:.github/workflows/games.yml"], { cwd: ROOT, encoding: "utf8" });
-  if (main.status === 0) {
-    const before = main.stdout.replace(/\n*$/, "\n");
-    assert.ok(yml.startsWith(before), "everything before the kit block is main's games.yml unchanged");
-  }
+  // Compared with this checkout's own games.yml (not origin/main, which moves under every open PR): rendering a kit game
+  // changes only what sits between the markers.
+  const mine = fs.readFileSync(path.join(ROOT, ".github/workflows/games.yml"), "utf8");
+  if (mine.includes(BEGIN)) {
+    const head = mine.slice(0, mine.indexOf(BEGIN)), tail = mine.slice(mine.indexOf(END) + END.length);
+    assert.ok(yml.startsWith(head), "everything before the kit block is the checkout's games.yml unchanged");
+    assert.ok(yml.endsWith(tail), "everything after the kit block is unchanged");
+  } else assert.ok(yml.startsWith(mine.replace(/\n*$/, "\n")), "the checkout's games.yml is unchanged, the kit block added after it");
   assert.ok(yml.indexOf(BEGIN) > 0 && yml.indexOf(END) > yml.indexOf(BEGIN));
 });
 

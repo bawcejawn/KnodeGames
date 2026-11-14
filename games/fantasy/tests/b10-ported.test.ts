@@ -3,7 +3,8 @@
 // hand-written Fantasy publish step in games.yml; neither exists any more: the kit's runtime and publish check
 // (kit/publish/check.inline.mjs) replaced them, built to close these findings. Each finding is re-asked here of the real
 // Fantasy module through the kit's own Replay and publish check, by the same FC number; the few that are the kit's alone
-// point at the kit test that covers them.
+// point at the kit test that covers them. Repo Lens #G-69 G69-5: each reason is asserted; g69-b10-reasons.test.mts (Repo
+// Lens's, unchanged) builds FC-4, FC-8 and FC-15 so only the named rule can catch them.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -68,29 +69,29 @@ test("FC-4 (High): a final week and vault file are refused on Tuesday of the wee
   const out = copyOf(honest.rp.pub, ["W004.json", "vault/W4.json"]);
   const r = checkGame(cfg, out, withList(), at(4, 1, 1), "", null);
   assert.ok(!r.publish.includes("W004.json") && !r.publish.includes("vault/W4.json"), `published early: ${r.publish}`);
-  console.log(`# FC-4: ${whyHeld(r, "W004.json")}`);
+  assert.equal(whyHeld(r, "W004.json"), "seen in the future by this job's clock");
 });
 
 test("FC-4: start/end moved a week back are refused (they must follow the week number)", () => {
   const out = copyOf(honest.rp.pub, ["W004.json"], (_f, j) => ({ ...j, start: j.start - 7 * DAY, end: j.end - 7 * DAY }));
   const r = checkGame(cfg, out, withList(), at(5, 1), "", null);
   assert.ok(!r.publish.includes("W004.json"), `published: ${r.publish}`);
-  console.log(`# FC-4b: ${whyHeld(r, "W004.json")}`);
+  assert.equal(whyHeld(r, "W004.json"), "wrong start or end for that week");
 });
 
 test("FC-8 (Medium): no one-run final: a final week with no published pending copy is not published", () => {
   const out = copyOf(honest.rp.pub, ["W004.json"]);
   const r = checkGame(cfg, out, withList(), at(5, 1, 6), "", null);
   assert.ok(!r.publish.includes("W004.json"), `published: ${r.publish}`);
-  console.log(`# FC-8: ${whyHeld(r, "W004.json")}`);
+  assert.match(whyHeld(r, "W004.json"), /new content first read long before this run|final without an earlier published run/);
 });
 
 test("FC-15 (Low): a published final week re-sent with \"v\": true is refused (no silent change of a final)", () => {
-  const pub = copyOf(honest.rp.pub, ["W004.json"]);
+  const pub = copyOf(honest.rp.pub, ["W004.json", "inputs/W4.json"]);
   const out = copyOf(honest.rp.pub, ["W004.json"], (_f, j) => ({ ...j, v: true }));
   const r = checkGame(cfg, out, pub, at(5, 2), "", null);
   assert.ok(!r.publish.includes("W004.json"), `published: ${r.publish}`);
-  console.log(`# FC-15: ${whyHeld(r, "W004.json")}`);
+  assert.equal(whyHeld(r, "W004.json"), "wrong version or game");
 });
 
 test("FC-9 (Medium): a price list long before its window (8 days ahead) is held", () => {
@@ -98,7 +99,7 @@ test("FC-9 (Medium): a price list long before its window (8 days ahead) is held"
   fs.renameSync(path.join(out, "inputs/W4.json"), path.join(out, "inputs/W6.json"));
   const r = checkGame(cfg, out, empty(), at(6) - 8 * DAY, "", null);
   assert.ok(!r.publish.includes("inputs/W6.json"), `published: ${r.publish}`);
-  console.log(`# FC-9: ${whyHeld(r, "inputs/W6.json")}`);
+  assert.match(whyHeld(r, "inputs/W6.json"), /more than a week before its week/);
 });
 
 test("FC-9 (Medium): a tampered price list (a producer twice, budget 1000) is caught by the recount: the week stays pending, alerted", async () => {

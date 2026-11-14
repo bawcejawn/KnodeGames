@@ -24,7 +24,7 @@ export const PAGES = [
   { file: "ecosystem.html", path: "ecosystem.html", title: "Koinos ecosystem · Knode Games", short: "Koinos ecosystem",
     desc: "Apps and sites built on Koinos, and two ways to run your own Koinos node: Koinos AI, or our step-by-step guide with PowerShell and Docker.", image: "og-knode.png", priority: "0.6" },
   { file: "node.html", path: "node.html", title: "Koinos producer lookup · Knode Games", short: "Koinos producer lookup",
-    desc: "Look up any Koinos block producer: blocks signed over the last two days, share of the network, and recent activity.", image: "og-knode.png", priority: "0.6" },
+    desc: "The public story of any Koinos block producer: is it producing, how lucky, what each block paid, forecasts, and the producers next to it by VHP.", image: "og-knode.png", priority: "0.6" },
   { file: "run-node.html", path: "run-node.html", title: "Run a Koinos node · Knode Games", short: "Run your own Koinos node",
     desc: "Start a Koinos mainnet node and block producer on your own computer, step by step: Docker, Armana's weekly chain snapshot, registering your key, VHP, and keeping it live.", image: "og-knode.png", priority: "0.6" },
   { file: "race.html", path: "race.html", title: "Producer Race · Four handicapped races a day between Koinos block producers", short: "Koinos Producer Race",

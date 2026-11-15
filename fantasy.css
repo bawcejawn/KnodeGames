@@ -6,7 +6,7 @@
 .fx {
   --pitch: #2F6B4F; --pitch-2: #2A6147; --chalk: rgba(255, 248, 241, .34);
   --stadium: #101B33; --gold: var(--sun); --kick: var(--tang);
-  --wide: "Archivo", "Bricolage Grotesque", system-ui, sans-serif;
+  --wide: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   max-width: 1180px; margin: 0 auto; padding: 18px 16px 72px;
 }
 .fx h2 { font-family: var(--wide); font-weight: 800; font-stretch: 112%; font-size: 21px; letter-spacing: -.01em; margin: 0; }

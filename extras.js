@@ -70,7 +70,7 @@
 
   /** Draws the share picture (1200 × 630, the size link previews use) on `canvas`. */
   async function drawShare(canvas, stats, opts = {}) {
-    try { if (document.fonts) { await Promise.all(["800 120px Archivo", "700 40px Archivo", "800 40px 'Bricolage Grotesque'", "400 30px 'Atkinson Hyperlegible'"].map((f) => document.fonts.load(f).catch(() => {}))); await document.fonts.ready; } } catch { /* fonts are optional */ }
+    try { if (document.fonts) { await Promise.all(["800 120px Inter", "700 40px Inter", "800 40px Inter", "400 30px Inter"].map((f) => document.fonts.load(f).catch(() => {}))); await document.fonts.ready; } } catch { /* fonts are optional */ }
     const W = 1200, H = 630;
     canvas.width = W; canvas.height = H;
     const g = canvas.getContext("2d");
@@ -87,14 +87,14 @@
     g.strokeStyle = "#FF8A4C"; g.lineWidth = 8; g.beginPath(); g.arc(W - 160, 160, 46, 0, Math.PI * 2); g.stroke();
     g.fillStyle = "#F2B33D"; g.beginPath(); g.arc(W - 160, 160, 17, 0, Math.PI * 2); g.fill();
     g.textBaseline = "alphabetic";
-    g.fillStyle = "#FFB38A"; g.font = "800 30px Archivo, sans-serif"; g.fillText(by("kicker").text, 110, 140);
-    g.fillStyle = "#FFF8F1"; g.font = "800 128px Archivo, sans-serif"; g.fillText(by("big").text, 104, 270);
-    g.fillStyle = "#C9D2E3"; g.font = "700 46px Archivo, sans-serif";
+    g.fillStyle = "#FFB38A"; g.font = "800 30px Inter, sans-serif"; g.fillText(by("kicker").text, 110, 140);
+    g.fillStyle = "#FFF8F1"; g.font = "800 128px Inter, sans-serif"; g.fillText(by("big").text, 104, 270);
+    g.fillStyle = "#C9D2E3"; g.font = "700 46px Inter, sans-serif";
     const parts = [by("place").text, by("right")?.text].filter(Boolean).join("   ·   ");
     g.fillText(parts, 110, 350);
-    if (by("address")) { g.fillStyle = "#C9D2E3"; g.font = "400 24px 'Atkinson Hyperlegible', sans-serif"; g.fillText(by("address").text, 110, 410); }
-    g.fillStyle = "#15122B"; g.font = "800 44px 'Bricolage Grotesque', sans-serif"; g.fillText("knode", 60, 560);
-    g.fillStyle = "#4B4766"; g.font = "400 30px 'Atkinson Hyperlegible', sans-serif"; g.fillText(by("foot").text, 210, 558);
+    if (by("address")) { g.fillStyle = "#C9D2E3"; g.font = "400 24px Inter, sans-serif"; g.fillText(by("address").text, 110, 410); }
+    g.fillStyle = "#15122B"; g.font = "800 44px Inter, sans-serif"; g.fillText("knode", 60, 560);
+    g.fillStyle = "#4B4766"; g.font = "400 30px Inter, sans-serif"; g.fillText(by("foot").text, 210, 558);
   }
 
   const api = { buildIcs, nextRelease, shareLines, drawShare };

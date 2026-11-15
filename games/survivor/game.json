@@ -21,5 +21,8 @@
   "rowCap": 0,
   "entry": { "minRounds": 1, "minPoints": 1 },
   "maxRoundPoints": 638975,
+  "liveWeek": true,
+  "firstWeek": 7,
+  "parts": "d",
   "vhpData": true
 }

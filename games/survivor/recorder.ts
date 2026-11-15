@@ -16,9 +16,16 @@
 //   season day 1 (nobody joins later); carried from the season's first week to its second; empty at a season's start.
 // SCORE: math.js roundPoints: a round's points are the day's change in the wallet's season standing (the week's first
 //   play day carries the whole standing), so the week's tally ranks the season as it stands at the week's end.
-//   The two boards (staked in Survivor in either week of the season, or free) need the season's stakes: kit need K1.
+//   The two boards (staked in Survivor in either week of the season, or free) come from the kit's season context (K1),
+//   whose season start must be math.js's (checked every round: a drifted season stops the run).
+// NO CARD (owner 14 Nov, the platform's 48 h rule): a day with no ruler card 48 h after it ends doesn't count
+//   (math.js skipDay). The round is decided through the kit's ctx.fallback (K8), so it is recorded in the week file's
+//   `fallbacks`, alerted, and never re-decided. The season's later days need the same answer in the inputs, and it must
+//   never flip once published (a card that turns up later, or a decided card that can't be re-read), so the skip is
+//   only ever taken with the kit's record of how each of the season's rounds was decided (ctx.decided, kit need K9).
+//   Without it a day with no card stays PENDING, as before: never a guess.
 import { DAY } from "../../kit/recorder/clock.ts";
-import { PENDING, type GameModule, type Round, type Score, type States } from "../../kit/recorder/types.ts";
+import { NotYet, PENDING, type GameModule, type Round, type Score, type States } from "../../kit/recorder/types.ts";
 import type { RawPick } from "../../kit/recorder/sources/picks-contract.ts";
 import * as S from "./math.js";
 
@@ -29,10 +36,21 @@ export type SeasonInputs = { season: number; days: DayResult[]; waiting: string 
 /** A wallet's carried state: its picks for the season. */
 export type PicksState = { p: [number, string][] };
 
-/** The kit's ruler and block-height readers, as this module uses them (kit Phase 1b ctx.vhp; kit G7 ctx.blockAt). */
-type RulerCtx = { vhp?: { card(s: any): any }; blockAt?: (ms: number) => Promise<number> };
-/** What scoreRound needs from the kit beyond today's arguments (kit need K1): who is on the staked board this season. */
-type BoardCtx = { seasonStaked?: Set<string> };
+/** The kit's ruler and block-height readers, as this module uses them (kit Phase 1b ctx.vhp; kit G7 ctx.blockAt; kit K8
+ *  ctx.fallback; kit K9 ctx.decided: each of the season's published rounds, by id, decided with its "card" or by the
+ *  game's "fallback"). */
+type RulerCtx = {
+  vhp?: { loaded?: boolean; card(s: any): any };
+  blockAt?: (ms: number) => Promise<number>;
+  fallback?: (why: string) => Promise<void>;
+  decided?: Map<string, "card" | "fallback">;
+};
+/** The kit's season context (K1). */
+type SeasonCtx = { seasonStaked?: Set<string>; seasonStart?: number; seasonWeek?: number };
+
+/** A play day's round id (the kit's round, the Picks round is its UTC day number). */
+export const roundId = (day: number) => `d${S.ymd(day)}`;
+const isNotYet = (e: unknown) => e instanceof NotYet;
 
 const isAddr = (a: unknown): a is string => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 
@@ -50,12 +68,30 @@ export async function settingsFor(day: number, blockAt: (ms: number) => Promise<
     c: S.CARD.c, minK: S.CARD.minK, poolRule: S.CARD.poolRule, ownRule: S.CARD.ownRule, paying: S.CARD.paying, pooled: [...S.CARD.pooled] };
 }
 
-/** One play day's result from its ruler card. Throws the kit's NotYet (the kit keeps the round PENDING) while the
- *  heights or the ruler's data aren't there yet. */
-export async function dayResult(day: number, n: number, ctx: RulerCtx | undefined): Promise<DayResult | typeof PENDING> {
+/** One play day's result: its ruler card, or (only with the kit's ctx.decided, K9) a day that doesn't count. Throws the
+ *  kit's NotYet (the round stays PENDING / the inputs stop) while the heights, the ruler's data or the 48 h grace aren't
+ *  there yet. `decide`: resultOf passes the kit's ctx.fallback, which records the skip (K8); inputsFor passes none. */
+export async function dayResult(day: number, n: number, ctx: RulerCtx | undefined, decide?: (why: string) => Promise<void>): Promise<DayResult | typeof PENDING> {
   if (!ctx?.vhp || typeof ctx.blockAt !== "function") return PENDING;      // no ruler data, or no ctx.blockAt (kit G7) yet
-  const card = ctx.vhp.card(await settingsFor(day, ctx.blockAt));
-  return S.dayFromCard(card, n);
+  const id = roundId(day), was = ctx.decided?.get(id);
+  // Published as skipped: stays skipped, whatever the data shows now (K8: never re-decided).
+  if (was === "fallback") {
+    if (decide) await decide(S.SKIP_WHY);
+    return S.skipDay(S.ymd(day), n);
+  }
+  try {
+    const card = ctx.vhp.card(await settingsFor(day, ctx.blockAt));
+    return S.dayFromCard(card, n);
+  } catch (e) {
+    if (!isNotYet(e)) throw e;
+    // A day decided with its card is never skipped later (a re-read that can't finish keeps it, #G-69 G69-1). Without
+    // the kit's record (K9), or without this run's ruler data, no skip: the day waits.
+    if (was === "card" || !(ctx.decided instanceof Map) || ctx.vhp.loaded !== true) throw e;
+    // The 48 h grace: the first irreversible block at or after the day's end + 48 h (NotYet until it exists).
+    await ctx.blockAt(day + S.DAY + S.NO_CARD_GRACE_MS);
+    if (decide) await decide(S.SKIP_WHY);
+    return S.skipDay(S.ymd(day), n);
+  }
 }
 
 /** The module for a launch week (math.js FIRST_WEEK on mainnet; tests pass their own). */
@@ -93,10 +129,16 @@ export function makeGame(first: number | null = S.FIRST_WEEK): GameModule<RawPic
     return { season: s.season, days, waiting };
   },
 
-  async resultOf(round, _read, _inputs, ctx?: unknown) {
+  async resultOf(round, _read, inputs, ctx?: unknown) {
     const sd = dayOf(round.day);
     if (!sd) return PENDING;
-    return dayResult(round.day, sd.n, ctx as RulerCtx);
+    // A day's points need the season's earlier days: until this run's inputs have them all, the day waits (never a
+    // guess, and never a stopped run).
+    const earlier = (inputs?.days ?? []).filter((d) => d.n < sd.n);
+    if (earlier.length !== sd.n - 1 || earlier.some((d, i) => d.n !== i + 1)) throw new NotYet(`not yet: day ${sd.n} waits for the season's earlier days (${inputs?.waiting ?? "the inputs stop before it"})`);
+    const c = ctx as RulerCtx | undefined;
+    if (typeof c?.fallback !== "function") return dayResult(round.day, sd.n, c);
+    return dayResult(round.day, sd.n, c, c.fallback);
   },
 
   /** A new season starts empty; the season's second week carries the first week's picks (FC-5). */
@@ -126,11 +168,23 @@ export function makeGame(first: number | null = S.FIRST_WEEK): GameModule<RawPic
     return next;
   },
 
+  /** KG parts v1 (game.json "parts": "d", CAPACITY_STANDARD rule 4): each wallet's row in a day's part shows the producer
+   *  it picked that day (null: no pick), so the page can show every player's day without reading the carried states.
+   *  Display only: not in the week file, not scored. */
+  partCols: {
+    cols: [["pk", "a"]],
+    row(pick: RawPick | null) { const a = Array.isArray((pick as any)?.producers) ? (pick as any).producers[0] : null; return [isAddr(a) ? a : null]; },
+  },
+
   scoreRound(round, picks, result, inputs, state, ctx?: unknown): Score {
     const sd = dayOf(round.day);
     if (!sd || sd.n !== result.n) throw new Error(`Survivor: round ${round.id} isn't season day ${result.n}`);
-    const staked = (ctx as BoardCtx | undefined)?.seasonStaked;
+    const season = ctx as SeasonCtx | undefined, staked = season?.seasonStaked;
     if (!(staked instanceof Set)) throw new Error("Survivor needs the season's staked wallets in scoreRound (kit need K1: docs/SURVIVOR.md \"Kit needs\")");
+    // The kit counts seasons from the game's first recorded week (or a reset week); math.js from FIRST_WEEK. They must be
+    // the same week, or the boards and the season's days would be a week apart: stop rather than mis-score.
+    const want = S.seasonOfWeek(S.weekOf(round.day), first);
+    if (!want || season!.seasonStart !== want.startWeek || season!.seasonWeek !== want.k + 1) throw new Error(`Survivor: the kit's season (starts week ${season!.seasonStart}, week ${season!.seasonWeek} of it) isn't math.js's (starts week ${want?.startWeek ?? "?"}, week ${want ? want.k + 1 : "?"}): set game.json firstWeek = math.js FIRST_WEEK, or SURVIVOR_RESET_FROM_WEEK to a season's first week`);
     const earlier = (inputs?.days ?? []).filter((d) => d.n < sd.n);
     if (earlier.length !== sd.n - 1 || earlier.some((d, i) => d.n !== i + 1)) throw new Error(`Survivor: day ${sd.n} is decided but the season's earlier days aren't all ready this run (${inputs?.waiting ?? "?"}); the next run tries again`);
     const mine = (inputs?.days ?? []).find((d) => d.n === sd.n);

@@ -110,7 +110,7 @@
       .tools a { flex: none; padding: 7px 14px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 700; font-size: 14px; }
       .card { padding: 14px; border-radius: 18px; }
     }
-    /* Survivor: today's live table marks the out-zone; standings show lives as hearts. */
+    /* Survivor: a lost life is marked; standings show lives as hearts. */
     .hist tr.oz td { background: var(--rose-soft); }
     .hist tr.gone td { color: var(--muted); }
     .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
@@ -120,8 +120,8 @@
     td.lives { color: var(--rose); letter-spacing: .1em; white-space: nowrap; }
     .bx-now.warn { color: var(--rose); }
     .season-line { font-weight: 700; margin: 0 0 10px; }
-    #pick-box, #today-box, #standings-box, #field-box, #how { scroll-margin-top: 80px; }
-    @media (max-width: 760px) { #pick-box, #today-box, #standings-box, #field-box, #how { scroll-margin-top: 124px; } }
+    #pick-box, #mine-box, #standings-box, #how { scroll-margin-top: 80px; }
+    @media (max-width: 760px) { #pick-box, #mine-box, #standings-box, #how { scroll-margin-top: 124px; } }
   </style>
 </head>
 <body>
@@ -171,23 +171,22 @@
     <main class="pr">
     <h1>Survivor</h1>
     <p class="lede">Each play day, pick one Koinos producer you think stays out of the day's out-zone: the producers that were unluckiest against their own expected blocks. Two lives, each producer once a season. Outlast everyone.<span class="lede-more"> Seasons are two weeks, Monday to Saturday (12 play days; Sundays rest), free to play.<span id="lede-prize"> The Free play board pays no VHP for now; staked players share Survivor's weekly vault bucket.</span></span></p>
-    <nav class="tools" aria-label="On this page"><a href="#pick-box">Pick</a><a href="#today-box">Today</a><a href="#standings-box">Standings</a><a href="#field-box">Handicaps</a><a href="#how">How it works</a><a href="blockx.html" class="hide-sm">Block X</a><a href="race.html" class="hide-sm">Producer Race</a></nav>
+    <nav class="tools" aria-label="On this page"><a href="#pick-box">Pick</a><a href="#mine-box">Your season</a><a href="#standings-box">Standings</a><a href="#how">How it works</a><a href="ruler.html" class="hide-sm">Ruler</a><a href="blockx.html" class="hide-sm">Block X</a><a href="race.html" class="hide-sm">Producer Race</a></nav>
 
     <section class="card" id="pick-box">
       <p class="status" id="status" role="status">Reading the chain…</p>
       <div class="head"><h2>Your picks</h2><span class="note" id="picks-left" style="margin:0"></span></div>
       <p class="season-line" id="season-line"></p>
-      <p class="note" id="picks-soon" style="margin-top:0">Picks open when the KnodeGames Picks contract is live and Season 1 is set. Season 1 is practice (nothing is paid); Season 2 is the first paid season.</p>
+      <p class="note" id="picks-soon" style="margin-top:0">Picks open when Survivor is live on the Knode Games Picks contract. Season 1 starts Mon 7 Dec 2026 and is practice (nothing is paid); Season 2, from Mon 21 Dec, is the first paid season.</p>
       <p class="note" style="margin-top:0" id="picks-who"></p>
       <div class="bx-list" id="days"></div>
       <p class="note">One pick per day, open 7 days ahead. A day locks at 23:55 UTC the night before, so every pick is in before any of its blocks. Change a pick until then, up to 5 times. Up to 20 picks a day (changes count). The Mana is paid by Knode's Mana sponsor.</p>
     </section>
 
-    <section class="card" id="today-box">
-      <div class="head"><h2 id="today-title">Today</h2></div>
-      <p class="note" style="margin-top:0" id="today-sub">Reading today's blocks…</p>
-      <table class="hist"><thead><tr><th class="num">#</th><th>Producer</th><th class="num">Blocks</th><th class="num hide-sm">Handicap</th><th class="num">Score</th><th></th></tr></thead><tbody id="today-rows"></tbody></table>
-      <p class="note">A day's score is its producer's luck on the day's VHP ruler card: credited blocks against its own expected blocks, as a percentile of the field. The recorded result comes from the ruler's published data and irreversible blocks that match on two independent nodes.</p>
+    <section class="card" id="mine-box" hidden>
+      <div class="head"><h2>Your season</h2></div>
+      <table class="hist"><thead><tr><th class="num">Day</th><th>Date</th><th>Your pick</th><th>Result</th></tr></thead><tbody id="mine-rows"></tbody></table>
+      <p class="note">Each day's result is published the morning after (UTC), once the day's VHP ruler card is made from irreversible blocks that match on two independent nodes. The week's results are final from Monday.</p>
     </section>
 
     <section class="card" id="standings-box" hidden>
@@ -196,16 +195,9 @@
       <p class="note" id="board-note" style="margin-top:0"></p>
       <div id="prizes" class="champs"></div>
       <div id="stake-panel" hidden></div>
-      <table class="hist"><thead><tr><th class="num">#</th><th>Wallet</th><th>Lives</th><th class="num">Score</th><th class="num hide-sm">Used</th></tr></thead><tbody id="standings-rows"></tbody></table>
+      <table class="hist"><thead><tr><th class="num">#</th><th>Wallet</th><th>Lives</th><th class="num">Score</th><th class="num hide-sm">Days</th></tr></thead><tbody id="standings-rows"></tbody></table>
       <p class="note" id="me-line"></p>
-      <p class="note">Ranked by how long you last, then lives left, then the total score of your picks. Two boards: wallets staked in Survivor in the Knode Games vault (at least the vault's minimum, 1 VHP today) in either week of a season are on the Staked board; everyone else plays free. The Free play board pays no VHP for now: it ranks free players only (see Prizes below). Staked players share Survivor's weekly bucket in the vault instead: each week the vault ranks that week's staked players (those still in when the week began, by the season standings when it ends) and pays the top 30%. A wallet that withdraws below the minimum mid-week stays on the Staked board but gets no share that week. Each week's results are final from Monday, after Sunday's review.</p>
-    </section>
-
-    <section class="card" id="field-box">
-      <h2 id="field-title">Handicaps</h2>
-      <p class="note" style="margin-top:0" id="field-sub">Waiting for the recorder…</p>
-      <table class="hist"><thead><tr><th>Producer</th><th class="num">Blocks (7 days)</th><th class="num hide-sm">A day</th><th class="num">Handicap</th></tr></thead><tbody id="field-rows"></tbody></table>
-      <p class="note">The VHP ruler gives every producer its own expected blocks for the day from its VHP, so a big and a small producer have the same chance to be lucky or unlucky. Producers whose VHP moves more than −12% / +50% during the day are void for that day.</p>
+      <p class="note">Ranked by how long you last, then lives left, then the total score of your picks. Two boards: wallets staked in Survivor in the Knode Games vault (at least the vault's minimum, 1 VHP today) in either week of a season are on the Staked board; everyone else plays free. The Free play board pays no VHP for now: it ranks free players only (see Prizes below). Staked players share Survivor's weekly bucket in the vault instead, from Season 2: each week the vault ranks that week's staked players by the season standings at the week's end and pays the top 30%. A wallet that withdraws below the minimum mid-week stays on the Staked board but gets no share that week. Each week's results are final from Monday, after Sunday's review.</p>
     </section>
 
     <section class="card explain" id="how">
@@ -214,9 +206,10 @@
       <p><b>Your daily pick.</b> One producer a play day. Its score is how lucky it was that day on the VHP ruler's card:</p>
       <p><span class="formula">score = where its credited blocks rank against its own expected blocks (0 = unluckiest, 999 = luckiest)</span></p>
       <p><b>The out-zone.</b> The lowest scores of the day. It starts at a quarter of the field on day 1 and grows to half by day 12 (with 18 producers: 4 on day 1, 9 on day 12). A tie at the line is safe. A void producer is out of that day's field: a pick on it costs no life, but it still counts as used.</p>
-      <p><b>Lives.</b> You have 2. You lose one if your producer lands in the out-zone, or if you have no valid pick that day (no pick, a producer not in the field, or one you already used). Each producer once a season. The safety net works per board: if nobody still in on your board (staked or free) has a safe pick that day, nobody on that board loses a life for the out-zone, but the producer still counts as used. Free players never switch the staked board's net off, and the other way round; on the free board, wallets without 1 VHP don't count either. A missing pick, a producer not in the field, or one used before always costs a life. You can pick up to 7 days ahead, but each day's field is set the day before: check early picks once it's out.</p>
-      <p><b>The end.</b> Each board ends on its own: when 2 or fewer of its players are left (on the free board, counting only wallets that can still win), or after day 12. Its players then stop. Ranking: who lasted longest, then lives left, then the total score of your picks.</p>
-      <p id="prize-off"><b>Prizes.</b> <b>The Free play board pays no VHP for now.</b> Free players play for the standings only. The owner may switch the free prize on later (4 VHP for 1st and 2 VHP for 2nd each season); it then starts with a season that begins after the switch, and this page will say so. Staked players share Survivor's weekly bucket in the Knode Games vault. On the free board, only wallets that hold at least 1 VHP (or at least 1 VHP staked in Knode) at every daily check count for the safety net and the board's end, so empty wallets can't cut a season short.</p>
+      <p><b>A day with no ruler card.</b> If a day's VHP ruler card still can't be made 48 hours after the day ends (the ruler's data stopped), that day doesn't count: nobody loses a life, no pick is used, and the next day is still the next season day.</p>
+      <p><b>Lives.</b> You have 2. You lose one if your producer lands in the out-zone, or if you have no valid pick that day (no pick, a producer not in the field, or one you already used). Each producer once a season. The safety net works per board: if nobody still in on your board (staked or free) has a safe pick that day, nobody on that board loses a life for the out-zone, but the producer still counts as used. Free players never switch the staked board's net off, and the other way round. A missing pick, a producer not in the field, or one used before always costs a life. You can pick up to 7 days ahead. A day's field is the producers with enough blocks on the day for the ruler (its minimum): pick one that signs steadily.</p>
+      <p><b>The end.</b> Each board ends on its own: when 2 or fewer of its players are left (if it started with more than 2), when none is left, or after day 12. Its players then stop. Ranking: who lasted longest, then lives left, then the total score of your picks.</p>
+      <p id="prize-off"><b>Prizes.</b> <b>The Free play board pays no VHP for now.</b> Free players play for the standings only. The owner may switch the free prize on later (4 VHP for 1st and 2 VHP for 2nd each season); it then starts with a season that begins after the switch, and this page will say so. Staked players share Survivor's weekly bucket in the Knode Games vault, from Season 2.</p>
       <p id="prize-on" hidden><b>Prizes.</b> Free players: up to 4 VHP for 1st and 2 VHP for 2nd each season, paid by the Knode Games vault from its prize money (every game's prizes shrink by the same share in a week it runs short), in a season with at least 3 free players who could win and made 2 or more valid picks. A player knocked out by a pick that couldn't count (a missed pick, a producer not in the field, or one already used) can't win a prize; only an out-zone knockout keeps you eligible. You need at least 1 VHP in your wallet (or at least 1 VHP staked in Knode) at every daily check while you're in, so empty wallets can't farm the prize.</p>
       <p><b>Knode's own producers.</b> Knode runs two producers (the Knode pool and Knode Swap nodes). They're in the field like any other, so you can pick them. If one of them has a bad day, it lands in the out-zone like anyone else's would.</p>
       <p><b>Fair checks.</b> Results come from irreversible blocks that match on two independent nodes, and the scoring code is public: the page and the recorder run the same file.</p>
@@ -275,8 +268,7 @@
   <script src="header-wallet.js"></script>
   <script src="nav.js"></script>
   <script src="chain-blocks.js"></script>
-  <script src="survivor-math.js"></script>
-  <script src="survivor.js"></script>
+  <script type="module" src="survivor.js"></script>
   <script src="vendor/posthog-1.438.13.js"></script>
   <script src="analytics.js"></script>
 </body>

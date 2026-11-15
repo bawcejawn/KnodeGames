@@ -26,11 +26,16 @@ const day = (n, scores, voids = []) => {
   return { round: String(n), n, field, out: S.outOf(field, n), void: voids };
 };
 
-test("calendar: no launch set, no season and no play days", () => {
-  assert.equal(S.FIRST_WEEK, null, "mainnet has no launch week until the owner sets it");
-  assert.equal(S.seasonOfWeek(10), null);
-  assert.deepEqual(S.playDaysOf(10), []);
-  assert.equal(S.seasonDayOf(S.weekStart(10)), null);
+test("calendar: Season 1 starts Mon 7 Dec 2026 (vault week 7, owner 14 Nov); nothing before it, and no launch means no season", () => {
+  assert.equal(S.FIRST_WEEK, 7);
+  assert.equal(new Date(S.weekStart(S.FIRST_WEEK)).toISOString(), "2026-12-07T00:00:00.000Z");
+  assert.equal(S.seasonOfWeek(6), null, "before Season 1");
+  assert.deepEqual(S.playDaysOf(6), []);
+  assert.deepEqual(S.seasonOfWeek(9), { season: 2, k: 0, startWeek: 9 }, "Season 2, the first paid one, starts Mon 21 Dec");
+  assert.equal(new Date(S.weekStart(9)).toISOString(), "2026-12-21T00:00:00.000Z");
+  assert.equal(S.seasonOfWeek(10, null), null, "no launch set: no season");
+  assert.deepEqual(S.playDaysOf(10, null), []);
+  assert.equal(S.seasonDayOf(S.weekStart(10), null), null);
 });
 
 test("calendar: a season is two vault weeks, Monday to Saturday each, 12 play days; Sundays rest", () => {

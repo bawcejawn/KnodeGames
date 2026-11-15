@@ -2,10 +2,9 @@
 // kit's real recorder (runGame) and publish check, on fake nodes and the ruler's made-up test chain
 // (tests/audit/race-ruler.fixture.mjs: 15 days of history from Sat 17 Oct, then blocks to Tue 10 Nov 2026).
 //
-// Two kit pieces aren't on main yet, so the end-to-end test supplies them the way the kit will (kit needs, docs/SURVIVOR.md):
-//  - K1: scoreRound's sixth argument { seasonStaked }: the wallets on the staked board this season;
-//  - G7: ctx.blockAt(ms), the first block at or after a time (Architecture's branch kit-blockat).
-// The module itself is unchanged: the test only adds those two arguments around it.
+// Every kit piece Survivor needs is the kit's own here (kit-next, #319): K1 seasonStaked and the season start (scoreRound's
+// sixth argument), G7 ctx.blockAt from the fake nodes' block times, K4 the live week, K8 ctx.fallback. K9 (ctx.decided,
+// the season's published rounds by how each was decided) isn't in the kit yet: its tests call the module directly.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -16,39 +15,23 @@ import { kitConfig, loadManifest } from "../../../kit/recorder/manifest.ts";
 import { Replay } from "../../../kit/testing/replay.ts";
 import { fakeNode, world, type World } from "../../../kit/testing/fake-nodes.ts";
 import { at, HOUR } from "../../../kit/testing/fake-clock.ts";
-import { PENDING } from "../../../kit/recorder/types.ts";
-import { game, makeGame, settingsFor } from "../recorder.ts";
+import { NotYet, PENDING } from "../../../kit/recorder/types.ts";
+import { dayResult, game, makeGame, settingsFor } from "../recorder.ts";
 import * as S from "../math.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const WEEK = 2;                                       // Mon 2 – Sat 7 Nov 2026: inside the test chain
 const W = ["a", "b", "c", "d", "e"].map((c) => "1" + c.repeat(33));
 const [PA, PB, PC, PD, PE] = ["A", "B", "C", "D", "E"].map((c) => "1" + c.repeat(33));
-const PIN = { payoutRule: "d152", vaultValues: "dense255", entry: { minRounds: 1, minPoints: 1 }, sundayFunRound: false, roundsCorrectable: false, liveWeek: false };
-const dep = () => {
-  const d = JSON.parse(fs.readFileSync(path.join(ROOT, "game-data/deployment.json"), "utf8"));
-  d.vaultGames["3"] = { ...d.vaultGames["3"], kit: PIN };           // the pin the Vault chat adds (needs list)
-  return d;
-};
-const cfg = () => kitConfig(loadManifest("survivor", ROOT), dep());
-
+const cfg = () => kitConfig(loadManifest("survivor", ROOT));
+/** The kit config on the test chain's week (game.json firstWeek is mainnet's week 7). */
+const cfgAt = (w = WEEK) => ({ ...cfg(), firstWeek: w });
 /** The first block at or after `ms` on the test chain (what the kit's ctx.blockAt answers). */
 async function blockAt(ms: number) {
   const i = Math.ceil((ms - T_FIRST) / 3000);
   if (i < 0 || i >= N) throw new Error("not yet: that time isn't on the test chain");
   return FROM + i;
 }
-/** The module with the two kit pieces a test adds (K1, G7); everything else is the module as it ships. */
-function wired(staked: Set<string>, first = WEEK) {
-  const base = makeGame(first);
-  return {
-    ...base,
-    inputsFor: (w: any, ctx: any) => base.inputsFor!(w, { ...ctx, blockAt }),
-    resultOf: (r: any, rd: any, i: any, ctx: any) => base.resultOf(r, rd, i, { ...ctx, blockAt }),
-    scoreRound: (r: any, p: any, res: any, i: any, st: any) => (base.scoreRound as any)(r, p, res, i, st, { seasonStaked: staked }),
-  };
-}
-
 test("manifest: game.json passes the kit's schema, ships building with the free prize off, 12-day seasons", () => {
   const m = loadManifest("survivor", ROOT);
   assert.equal(m.status, "building");
@@ -58,11 +41,17 @@ test("manifest: game.json passes the kit's schema, ships building with the free 
   assert.equal(m.vhpData, true);
   assert.equal(m.maxRoundPoints, S.MAX_ROUND_POINTS);
   assert.equal(cfg().cardPerRound, true, "every decided day comes from its own ruler card");
+  assert.equal(cfg().liveWeek, true, "K4: players see each day's result the next morning");
+  assert.equal(m.firstWeek ?? null, S.FIRST_WEEK, "game.json firstWeek must be math.js FIRST_WEEK: the kit counts seasons from the first recorded week");
+  const pin = JSON.parse(fs.readFileSync(path.join(ROOT, "game-data/deployment.json"), "utf8")).vaultGames["3"].kit;
+  assert.deepEqual(pin, { payoutRule: "d152", vaultValues: "dense255", entry: { minRounds: 1, minPoints: 1 }, sundayFunRound: false, roundsCorrectable: false, liveWeek: true, seasonWeeks: 2 }, "the vault pin (KC-26)");
 });
 
-test("rounds: none before the launch is set; then Monday to Saturday, Picks round = the UTC day number", () => {
+test("rounds: none before Season 1 or with no launch set; then Monday to Saturday, Picks round = the UTC day number", () => {
   const span = (w: number) => ({ week: w, start: S.weekStart(w), end: S.weekStart(w + 1) });
-  assert.deepEqual(game.roundsFor(span(WEEK), { now: 0 }), [], "mainnet: FIRST_WEEK is null");
+  assert.deepEqual(game.roundsFor(span(6), { now: 0 }), [], "mainnet: nothing before Season 1 (week 7)");
+  assert.equal(game.roundsFor(span(7), { now: 0 })[0].id, "d20261207", "mainnet: Season 1 day 1 is Mon 7 Dec");
+  assert.deepEqual(makeGame(null).roundsFor(span(WEEK), { now: 0 }), [], "no launch set: no rounds");
   const rs = makeGame(WEEK).roundsFor(span(WEEK), { now: 0 });
   assert.equal(rs.length, 6);
   assert.equal(rs[0].id, "d20261102");
@@ -100,10 +89,62 @@ test("result: PENDING without the ruler or ctx.blockAt (never a guess); the card
   assert.equal(s.round, "20261102");
 });
 
-test("scoreRound refuses to guess the boards: it needs the season's staked wallets from the kit (K1)", () => {
+test("scoreRound refuses to guess the boards (K1) and stops when the kit's season isn't math.js's", () => {
   const g = makeGame(WEEK), r = { id: "d", day: S.weekStart(WEEK), locksAt: 0, resolvesAt: 0 };
   const res = { round: "x", n: 1, field: [], out: [], void: [] };
-  assert.throws(() => g.scoreRound(r, [], res, { season: 1, days: [], waiting: null }, new Map()), /kit need K1/);
+  const inp = { season: 1, days: [], waiting: null };
+  assert.throws(() => g.scoreRound(r, [], res, inp, new Map()), /kit need K1/);
+  assert.throws(() => (g.scoreRound as any)(r, [], res, inp, new Map(), { seasonStaked: new Set() }), /isn't math.js's/, "no season start");
+  assert.throws(() => (g.scoreRound as any)(r, [], res, inp, new Map(), { seasonStaked: new Set(), seasonStart: WEEK - 1, seasonWeek: 2 }), /isn't math.js's/, "a week apart");
+  assert.equal((g.scoreRound as any)(r, [], res, inp, new Map(), { seasonStaked: new Set(), seasonStart: WEEK, seasonWeek: 1 }).size, 0);
+  const r2 = { ...r, day: S.weekStart(WEEK + 1) };
+  assert.throws(() => (g.scoreRound as any)(r2, [], { ...res, n: 7 }, inp, new Map(), { seasonStaked: new Set(), seasonStart: WEEK + 1, seasonWeek: 1 }), /isn't math.js's/, "the kit started a new season on the season's second week");
+});
+
+// ── a day with no ruler card (owner 14 Nov: the day doesn't count) ──
+const noCard = { loaded: true, card() { throw new NotYet("not yet: no data for that day"); } };
+const D0 = S.weekStart(WEEK), ID0 = "d20261102";
+test("no card: without the kit's record of the season's rounds (K9) the day waits, never a skip", async () => {
+  await assert.rejects(dayResult(D0, 1, { vhp: noCard, blockAt }), NotYet);
+  await assert.rejects(dayResult(D0, 1, { vhp: noCard, blockAt, fallback: async () => {} }), NotYet, "ctx.fallback alone isn't enough");
+});
+test("no card: with K9 the day doesn't count once the first block 48 h after its end exists, recorded through ctx.fallback", async () => {
+  const why: string[] = [];
+  const fb = async (w: string) => { why.push(w); };
+  const late = async (ms: number) => { if (ms >= D0 + S.DAY + S.NO_CARD_GRACE_MS) throw new NotYet("not yet: that block isn't irreversible"); return blockAt(ms); };
+  await assert.rejects(dayResult(D0, 1, { vhp: noCard, blockAt: late, decided: new Map() }, fb), NotYet, "inside the 48 h: waits");
+  assert.deepEqual(why, []);
+  const d = await dayResult(D0, 1, { vhp: noCard, blockAt, decided: new Map() }, fb);
+  assert.deepEqual(d, S.skipDay("20261102", 1));
+  assert.deepEqual(why, [S.SKIP_WHY]);
+  await assert.rejects(dayResult(D0, 1, { vhp: { ...noCard, loaded: false }, blockAt, decided: new Map() }, fb), NotYet, "no skip without this run's ruler data (#G-69 G69-2)");
+  await assert.rejects(dayResult(D0, 1, { vhp: noCard, blockAt, decided: new Map([[ID0, "card"]]) }, fb), NotYet, "a day decided with its card is never skipped later");
+});
+test("no card: a day published as skipped stays skipped even when its card turns up later", async () => {
+  const card = { loaded: true, card() { throw new Error("must not be read"); } };
+  const why: string[] = [];
+  const d = await dayResult(D0, 1, { vhp: card, blockAt, decided: new Map([[ID0, "fallback"]]) }, async (w) => { why.push(w); });
+  assert.equal(d !== PENDING && (d as any).skip, true);
+  assert.deepEqual(why, [S.SKIP_WHY], "re-recorded through ctx.fallback so the round needs no card");
+});
+test("no card: a skipped day costs nobody a life and uses no pick; the next day is still day 2", () => {
+  const field: [string, number][] = [[PA, 900], [PB, 700], [PC, 500], [PD, 300], [PE, 100]];
+  const day = (n: number) => ({ round: String(n), n, field, out: S.outOf(field, n), void: [] });
+  const picks = new Map([[W[0], [[1, PE], [2, PE]] as [number, string][]], [W[1], [[2, PA]] as [number, string][]], [W[2], [[1, PA], [2, PA]] as [number, string][]]]);
+  const r = S.playSeason([S.skipDay("1", 1), day(2)], picks, new Set());
+  const a = r.players.get(W[0])!;
+  assert.equal(a.lives, 1, "day 1 skipped (no life for PE), day 2 PE out: one life lost");
+  assert.equal(a.log, "-o");
+  assert.deepEqual(a.used, [PE], "the skipped day's pick isn't used, so PE can be picked on day 2");
+  assert.ok(!r.players.has(W[1]), "still no join after day 1: you join with a pick for day 1, even a skipped one");
+  assert.equal(r.players.get(W[2])!.log, "-s");
+  assert.equal(r.players.get(W[2])!.days, 1, "a skipped day isn't a day played");
+  const pts = S.roundPoints([S.skipDay("1", 1)], picks, new Set(), 1, true);
+  assert.ok([...pts.values()].every((p) => p === S.standingOf({ days: 0, lives: 2, total: 0 })), "a skipped day 1 scores only the starting lives");
+});
+test("resultOf waits (NotYet, never a stopped run) until the inputs have every earlier day of the season", async () => {
+  const g = makeGame(WEEK), r = { id: "d20261103", day: D0 + S.DAY, locksAt: 0, resolvesAt: 0 };
+  await assert.rejects(g.resultOf(r, null as any, { season: 1, days: [], waiting: "x" }, { vhp: noCard, blockAt } as any), NotYet);
 });
 
 // ── a whole week through the kit ──
@@ -111,6 +152,8 @@ const stake = (vhp: number) => ({ week_stake: String(vhp * 1e8), peak_stake: Str
 function seasonWorld(picks: Record<string, string[]>, staked: string[]): World {
   const wd = world(at(WEEK + 1, 0, 3), { gamePlayers: Object.fromEntries(staked.map((a) => [a, stake(2)])) });
   wd.config.v6_rule_week_plus_one = "1";
+  wd.lib = FROM + N - 1;                              // G7: the kit's blockAt reads the test chain's block times
+  wd.blockT0 = T_FIRST - FROM * 3000;
   wd.picks = {};
   for (const [a, xs] of Object.entries(picks)) xs.forEach((p, i) => {
     if (!p) return;
@@ -125,13 +168,14 @@ test("end to end: a season's first week through the kit's recorder and publish c
   const picks = { [W[0]]: [PA, PB, PC, PD, PE, PA], [W[1]]: [PE, PD, PC, PB, PA, PE], [W[2]]: [PB, PB, PC, PD, PE, PA], [W[3]]: [PC, null, PA, PB, PD, PE], [W[4]]: [null, PA, PB, PC, PD, PE] };
   const staked = [W[0], W[1]];
   const wd = seasonWorld(picks, staked), L = R.ledger(timeline());
-  const m = wired(new Set(staked)), rp = new Replay(m as any, cfg());
+  const m = makeGame(WEEK), rp = new Replay(m as any, cfgAt());
   let h: any;
   for (let i = 0; i < 4; i++) { h = await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L }); wd.time += HOUR; }
   assert.equal(h.error, undefined, h.error);
   assert.equal(h.result?.state, "final", JSON.stringify(h.result?.alerts));
   assert.deepEqual(h.held, [], JSON.stringify(h.held));
   const wk = rp.read("W002.json");
+  assert.ok(fs.existsSync(path.join(rp.pub, "W002", "manifest.json")), "published as a KG parts v1 folder");
   assert.equal(wk.rounds.length, 6, "six play days, no Sunday round");
   assert.ok(wk.rounds.every((r: any) => r[3] === "s"), "every day decided from its ruler card");
   assert.equal(wk.cards.length, 6, "one ruler card per day, listed for the publish job's rebuild");
@@ -158,7 +202,7 @@ test("end to end: a season's first week through the kit's recorder and publish c
 
 test("end to end: with no ruler data the days stay pending and nothing is guessed", async () => {
   const wd = seasonWorld({ [W[0]]: [PA, PB, PC, PD, PE, PA] }, []);
-  const rp = new Replay(wired(new Set()) as any, cfg());
+  const rp = new Replay(makeGame(WEEK) as any, cfgAt());
   const h = await rp.hour(nodes(wd), wd.time + 5 * 60000);
   assert.equal(h.error, undefined, h.error);
   assert.equal(h.result?.state, "pending");

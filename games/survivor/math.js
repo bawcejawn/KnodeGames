@@ -4,7 +4,7 @@
 // RULES (owner decisions 27 Oct – 12 Nov 2026; .ai/games/Survivor.md is the plain-language copy)
 // - A season is two vault weeks. It plays Monday to Saturday of each week: 12 play days. Sundays rest (WEEK_CYCLE:
 //   multi-week seasons rest on their Sundays; owner 12 Nov): no pick is due and no life is lost on a Sunday.
-//   Season 1 starts on vault week FIRST_WEEK (null until the owner sets the launch). Season 1 is unpaid practice and
+//   Season 1 starts on vault week FIRST_WEEK (7: Mon 7 Dec 2026, owner 14 Nov). Season 1 is unpaid practice and
 //   Season 2 is the first paid season (owner 12 Nov, option C); what pays is decided by the vault registration and
 //   SURVIVOR_PRIZES_FROM_WEEK, never by this file.
 // - One pick a day: the producer you think will NOT land in the day's out-zone. Season day n is Picks contract game 3,
@@ -20,6 +20,9 @@
 //   not in the day's field, or a producer you already used this season (each producer once a season).
 // - A void producer (its VHP moved more than −12% / +50% during the day, the ruler's daily band) is out of that day's
 //   field only. A pick on it costs NO life, and the producer still counts as used (owner 12 Nov).
+// - A day with no ruler card 48 hours after it ends doesn't count (owner 14 Nov; the platform's 48 h rule): nobody loses a
+//   life, no pick is used, and the season's day numbers don't move (the next day is still day n + 1). Recorded by the kit
+//   as a fallback round (K8), alerted, and never re-decided once published.
 // - Two boards (owner 30 Oct): wallets staked in Survivor in either week of the season play the staked board; everyone
 //   else the free board. Each board has its own safety net and its own end, so one board never changes the other.
 //   Safety net: if nobody on a board is safe that day (every pick landed in the out-zone or couldn't count), nobody on
@@ -47,8 +50,10 @@ export const DAY = 86400000;
 export const WEEK = 7 * DAY;
 /** The vault's week 0 starts Mon 19 Oct 2026 00:00 UTC (UTC day 20745); week 4 = Mon 16 Nov 2026 = "Week 1". */
 export const GENESIS = 20745 * DAY;
-/** Season 1's first vault week. null until the owner sets the launch: no rounds, no picks offered. */
-export const FIRST_WEEK = null;
+/** Season 1's first vault week: week 7 = Mon 7 Dec 2026 (owner, 14 Nov). Season 1 (weeks 7–8) is unpaid practice;
+ *  Season 2 (weeks 9–10, from Mon 21 Dec) is the first paid season (the vault's from_week = 9). Must equal game.json
+ *  firstWeek (a test checks): the kit counts seasons from the first week it records. */
+export const FIRST_WEEK = 7;
 export const SEASON_WEEKS = 2;
 export const PLAY_DAYS_PER_WEEK = 6;                       // Monday to Saturday
 export const SEASON_DAYS = SEASON_WEEKS * PLAY_DAYS_PER_WEEK;   // 12
@@ -60,7 +65,11 @@ export const SCALE = 16384;                                // 2^14: standing = (
 export const MAX_ROUND_POINTS = (SEASON_DAYS * 3 + LIVES) * SCALE + SCALE - 1;   // 638,975
 /** One letter a day in a player's log: s safe, o out-zone (life lost), v saved by the net, x void producer (no life
  *  lost, producer used), n no pick, f not in the field, u producer already used. */
-export const CODE = Object.freeze({ safe: "s", out: "o", saved: "v", void: "x", none: "n", field: "f", used: "u" });
+export const CODE = Object.freeze({ safe: "s", out: "o", saved: "v", void: "x", none: "n", field: "f", used: "u", skip: "-" });
+/** A day's ruler card must exist by 48 hours after the day ends, or the day doesn't count (owner 14 Nov). */
+export const NO_CARD_GRACE_MS = 48 * 3600000;
+/** Why a day was decided without its ruler card (recorded with the round in the week file's fallbacks). */
+export const SKIP_WHY = "no ruler card 48 h after the day ended: the day doesn't count (no life lost, no pick used)";
 
 /** The ruler card settings Survivor uses for a day (the Race's and Fantasy's values; confirmed per game with the
  *  Ruler chat). The window is filled per day by the recorder from block heights. */
@@ -131,6 +140,8 @@ export function scoreOf(fpct) {
 /** One day's outcome from its scored ruler card (cardJson parsed): the field (entry, not void) with each producer's
  *  score, the void producers, and the out-zone. { round, n, field: [[a, score]] best first (ties: address), out: [a],
  *  void: [a] }. */
+/** The result of a day that doesn't count (no ruler card after the 48 h grace): nothing is scored. */
+export const skipDay = (round, n) => ({ round: String(round), n, field: [], out: [], void: [], skip: true });
 export function dayFromCard(card, n) {
   if (!card || !Array.isArray(card.producers)) throw new Error("a ruler card with producers is needed");
   const field = [], voids = [];
@@ -157,7 +168,7 @@ export function outOf(field, n) {
  *  ignored. */
 const pickOn = (picks, n) => { for (const [m, a] of picks) if (m === n) return a; return null; };
 
-/** Play a season from its days in order (days: [{ n, field, out, void }] for n = 1, 2, … without gaps; it stops at the
+/** Play a season from its days in order (days: [{ n, field, out, void, skip? }] for n = 1, 2, … without gaps; it stops at the
  *  first missing day) and each wallet's picks (Map wallet → [[n, producer]]; a wallet is in the season if it has a pick
  *  for day 1). staked: a Set of wallets on the staked board (staked in Survivor in either week of the season).
  * Returns { players: Map wallet → { board, lives, outN, total, days, used, log, standing }, endN, ends: { staked,
@@ -175,6 +186,13 @@ export function playSeason(days, picks, staked) {
     const d = days[i];
     if (!d || d.n !== i + 1) break;
     if (B.staked.end !== null && B.free.end !== null) break;
+    if (d.skip === true) {
+      // A day that doesn't count: no life, no pick used, no day played; only the season's last day still ends the boards.
+      for (const x of ps.values()) if (x.outN === null && B[x.board].end === null) x.log += CODE.skip;
+      endN = d.n;
+      for (const g of ["staked", "free"]) if (B[g].end === null && d.n >= SEASON_DAYS) B[g].end = d.n;
+      continue;
+    }
     const score = new Map(d.field), out = new Set(d.out), voids = new Set(d.void);
     const fate = [];
     for (const [a, x] of ps) {

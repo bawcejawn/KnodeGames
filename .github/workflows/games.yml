@@ -2057,7 +2057,9 @@ jobs:
             fi
           fi
           if [ -d "$IN/bracket" ]; then
-            brbad=$(find "$IN/bracket" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/bracket/vault" ! -path "$IN/bracket/ruler" \) -o \( -type f ! -regex "$IN/bracket/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/bracket/vault/W[0-9][0-9]*\.json" ! -regex "$IN/bracket/ruler/W[0-9][0-9][0-9]\(-R[0-4]\)\?\.json" \) -o \( -type f -size +2048k \) \) -print)
+            # GNU find's default (emacs) regex has no "\?" (it matches a literal "?") and no "\{n\}": an optional part is
+            # written as two -regex tests (tests/audit/publish-allowlist.test.mjs runs these lines on real names).
+            brbad=$(find "$IN/bracket" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/bracket/vault" ! -path "$IN/bracket/ruler" \) -o \( -type f ! -regex "$IN/bracket/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/bracket/vault/W[0-9][0-9]*\.json" ! -regex "$IN/bracket/ruler/W[0-9][0-9][0-9]\.json" ! -regex "$IN/bracket/ruler/W[0-9][0-9][0-9]-R[0-4]\.json" \) -o \( -type f -size +2048k \) \) -print)
             if [ -z "$brbad" ] && ! node -e 'const fs=require("fs"),p=require("path");let bad=0;(function w(d){for(const f of fs.readdirSync(d)){const q=p.join(d,f),s=fs.lstatSync(q);if(s.isDirectory()){w(q);continue}const raw=fs.readFileSync(q);let ok=false;try{ok=Buffer.compare(Buffer.from(JSON.stringify(JSON.parse(raw.toString("utf8")))+"\n","utf8"),raw)===0}catch(e){}if(!ok)bad++}})(process.argv[1]);process.exit(bad?1:0)' -- "$IN/bracket"; then brbad="a file not in the recorder's own JSON form"; fi
             # fix-check F7: the recorder writes at most 3 week files, index, board and a vault file or two, plus (R-BR-7) up to
             # 5 ruler day cards and a shadow summary for each of its 3 weeks; anything near this many files is not its output
@@ -2068,7 +2070,7 @@ jobs:
               mv "$IN/bracket" "$RUNNER_TEMP/bracket-held"; BRACKET_ALERT=1
             fi
           fi
-          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/blockx" ! -path "$IN/blockx/vault" ! -path "$IN/bracket" ! -path "$IN/bracket/vault" ! -path "$IN/bracket/ruler" ! -path "$IN/questions" ! -path "$IN/questions/vault" \) -o \( -type f ! -regex "$IN/blockx/\(index\|board\|W[0-9][0-9][0-9]\|P[0-9][0-9][0-9]\|X[0-9][0-9][0-9]-[0-6]\)\.json" ! -regex "$IN/blockx/vault/W[0-9][0-9]*\.json" ! -regex "$IN/bracket/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/bracket/vault/W[0-9][0-9]*\.json" ! -regex "$IN/bracket/ruler/W[0-9][0-9][0-9]\(-R[0-4]\)\?\.json" ! -regex "$IN/questions/\(board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/questions/vault/\(HOLD-\|RELEASE-\)\?W[0-9][0-9]*\.json" \) \) -print)
+          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/blockx" ! -path "$IN/blockx/vault" ! -path "$IN/bracket" ! -path "$IN/bracket/vault" ! -path "$IN/bracket/ruler" ! -path "$IN/questions" ! -path "$IN/questions/vault" \) -o \( -type f ! -regex "$IN/blockx/\(index\|board\|W[0-9][0-9][0-9]\|P[0-9][0-9][0-9]\|X[0-9][0-9][0-9]-[0-6]\)\.json" ! -regex "$IN/blockx/vault/W[0-9][0-9]*\.json" ! -regex "$IN/bracket/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/bracket/vault/W[0-9][0-9]*\.json" ! -regex "$IN/bracket/ruler/W[0-9][0-9][0-9]\.json" ! -regex "$IN/bracket/ruler/W[0-9][0-9][0-9]-R[0-4]\.json" ! -regex "$IN/questions/\(board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/questions/vault/W[0-9][0-9]*\.json" ! -regex "$IN/questions/vault/\(HOLD\|RELEASE\)-W[0-9][0-9]*\.json" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           big=$(find "$IN" -type f -size +2048k -print)
           if [ -n "$big" ]; then echo "::error::Refusing to publish files over 2 MB: $big"; exit 1; fi

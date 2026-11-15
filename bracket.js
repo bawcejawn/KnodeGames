@@ -100,6 +100,10 @@
     const s = wf() && wf().seeding; if (!s || !s.size) return 0;
     return Math.max(0, Math.min(BM.roundsOf(s.size) - 1, Math.floor((Date.now() - BM.roundDay(view, 0, s.size)) / BM.DAY)));
   }
+  /** Wide screens show the whole bracket as columns; phones one round at a time. */
+  const wide = () => typeof window.matchMedia === "function" && window.matchMedia("(min-width: 1000px)").matches;
+  let wasWide = null;
+  if (typeof window.matchMedia === "function") window.addEventListener("resize", () => { const now = wide(); if (wasWide !== null && now !== wasWide) render(); wasWide = now; });
   const seeding = () => (wf() && wf().seeding && wf().seeding.size ? wf().seeding : null);
   const isOpen = () => !!seeding() && Date.now() >= picksOpenAt(view) && gameLive !== false && Date.now() < BM.lockTime(view) && !(wf().picks);
 
@@ -139,7 +143,11 @@
     draft[r][m] = seed;
     // a later pick that relied on the seed that just lost is cleared
     if (old && old !== seed) for (let k = r + 1, mm = m >> 1; k < draft.length; k++, mm >>= 1) if (draft[k][mm] === old) draft[k][mm] = 0;
+    // phones: once every matchup of the round on show is picked, move on to the next round
+    const advance = !wide() && r === round && r < draft.length - 1 && !old && draft[r].every(Boolean);
+    if (advance) round = r + 1;
     render();
+    if (advance) { const b = $("bracket-box"); if (b && b.scrollIntoView) b.scrollIntoView({ behavior: "smooth", block: "start" }); }
   }
   const filled = () => draft && draft.every((r) => r.every((x) => x > 0));
   const draftNumber = () => { const s = seeding(); try { return filled() ? BM.encode(draft, s.size, s.seeds.length) : null; } catch { return null; } };
@@ -203,34 +211,73 @@
     startDraft();
     const R = BM.roundsOf(s.size);
     if (round >= R) round = 0;
-    $("bk-rounds").replaceChildren(...BM.ROUND_NAMES[s.size].map((n, r) => el("button", { type: "button", "aria-pressed": String(r === round), onclick: () => { round = r; render(); } },
-      el("span", { text: n }), el("small", { text: dayName(BM.roundDay(view, r, s.size)).slice(0, 3) }))));
-    const open = isOpen(), res = w.results, di = dayIdx(round), byes = new Set(BM.byesOf(s.size, s.seeds.length));
+    const open = isOpen(), res = w.results, byes = new Set(BM.byesOf(s.size, s.seeds.length));
     // Repo Lens #G-48 G48-4: in a week the VHP ruler scores, the day index isn't what decides, so its percentages aren't shown
-    const onWeek = w.rulerMode === "on", decided = onWeek ? (Array.isArray(w.rulerBackup) && w.rulerBackup.includes(round) ? " · decided by the seeding (no ruler card in time)" : " · decided by the VHP ruler's card") : "";
-    $("bk-day").textContent = `${BM.ROUND_NAMES[s.size][round]} · played ${dayName(BM.roundDay(view, round, s.size))} (UTC)${di && di.hours && !di.done ? ` · ${di.hours} of 24 hours in` : ""} · ${2 ** round} point${round ? "s" : ""} a right pick${round === R - 1 ? ", +2 for the champion" : ""}${res && res.rounds[round] ? decided : ""}`;
-    const list = [];
-    const nM = s.size / 2 ** (round + 1);
-    for (let m = 0; m < nM; m++) {
-      const [a, b] = open || !res ? pairOf(round, m) : realPair(round, m);
-      const bye = round === 0 && byes.has(m);
-      const winner = res && res.rounds[round] ? res.rounds[round][m] : 0;
-      const myPick = draft ? draft[round][m] : 0;
-      const side = (seed) => {
-        if (!seed) return el("div", { class: "bk-side tbd" }, el("span", { class: "bk-seed", text: "" }), el("span", { text: bye ? "Bye" : "Winner of the match before" }));
+    const onWeek = w.rulerMode === "on";
+    const decidedOf = (r) => (res && res.rounds[r] ? (onWeek ? (Array.isArray(w.rulerBackup) && w.rulerBackup.includes(r) ? " · decided by the seeding (no ruler card in time)" : " · decided by the VHP ruler's card") : "") : "");
+    const ptsOf = (r) => `${2 ** r} point${r ? "s" : ""} a right pick${r === R - 1 ? ", +2 for the champion" : ""}`;
+    const roundDone = (r) => (draft ? draft[r].filter(Boolean).length : 0);
+    const tree = wide();
+    // the round stepper (phones): name, day, and how many of the round you've picked
+    $("bk-rounds").replaceChildren(...BM.ROUND_NAMES[s.size].map((n, r) => el("button", { type: "button", "aria-pressed": String(r === round), class: open && draft && roundDone(r) === draft[r].length ? "full" : "", onclick: () => { round = r; render(); } },
+      el("span", { text: n }), el("small", { text: open && draft ? `${dayName(BM.roundDay(view, r, s.size)).slice(0, 3)} · ${roundDone(r)}/${draft[r].length}` : dayName(BM.roundDay(view, r, s.size)).slice(0, 3) }))));
+    $("bk-rounds").hidden = tree;
+    const di0 = dayIdx(round);
+    $("bk-day").textContent = `${BM.ROUND_NAMES[s.size][round]} · played ${dayName(BM.roundDay(view, round, s.size))} (UTC)${di0 && di0.hours && !di0.done ? ` · ${di0.hours} of 24 hours in` : ""} · ${ptsOf(round)}${decidedOf(round)}`;
+    $("bk-day").hidden = tree;
+    $("bk-quick").hidden = !open;
+    /** One matchup card: "Game n", two producer rows (tap to pick), region colour, upset tags. */
+    const matchEl = (r, m) => {
+      const [a, b] = open || !res ? pairOf(r, m) : realPair(r, m);
+      const bye = r === 0 && byes.has(m);
+      const winner = res && res.rounds[r] ? res.rounds[r][m] : 0;
+      const myPick = draft ? draft[r][m] : 0;
+      const di = dayIdx(r), nM = s.size / 2 ** (r + 1), region = nM >= 4 ? Math.floor((m * 4) / nM) : r === R - 1 ? 4 : Math.floor((m * 2) / nM) * 2;
+      const side = (seed, other, k) => {
+        if (!seed) return el("div", { class: "bk-side tbd" }, el("span", { class: "bk-seed", text: "" }), el("span", { text: bye ? "Bye" : r > 0 ? `Winner of ${BM.ROUND_NAMES[s.size][r - 1].replace(/^Round of /, "R")} game ${2 * m + k + 1}` : "Winner of the match before" }));
         const p = info(seed), ix = di && di.idx ? di.idx.get(p.a) : null, pooled = (s.pooled || []).includes(p.a);
         const cls = ["bk-side", myPick === seed ? "picked" : "", winner === seed ? "won" : "", winner && winner !== seed ? "lost" : ""].join(" ").trim();
         const meta = [`${fmt(p.share * 100, p.share < 0.01 ? 2 : 1)}% VHP`, `~${fmt(p.perDay)} blocks/day`, p.form !== null ? `recent form ${fmt(p.form * 100)}%` : null].filter(Boolean).join(" · ");
-        const kids = [el("span", { class: "bk-seed", text: String(seed) }),
+        const upset = other && seed > other && (winner ? winner === seed : myPick === seed);
+        const kids = [el("span", { class: `bk-seed t${seed <= 4 ? 1 : seed <= 8 ? 2 : seed <= 16 ? 3 : 4}`, text: String(seed) }),
           el("span", { class: "bk-name" }, el("b", { text: nameOf(p.a) }), el("small", { text: meta })),
           ix && !pooled && BM.forfeits(ix, p.vhp) ? el("span", { class: "bk-ix", text: "under half", title: `Averaged ${fmt(ix.avg / 1e8)} VHP over the day, under half its seeding ${fmt(p.vhp)} VHP: it loses this matchup, unless its opponent is under half too (then the blocks decide)` })
             : ix && !onWeek && BM.scoreOf(ix, pooled)[1] > 0 ? el("span", { class: "bk-ix", text: `${fmt(BM.indexOf(ix, pooled) * 100, 1)}%`, title: pooled ? `${fmt(ix.blocks)} blocks; judged on its rate (the Knode Games Pool)` : `${fmt(ix.blocks)} blocks of ${fmt(ix.expected, 1)} expected` }) : null,
+          upset ? el("span", { class: "bk-upset", text: winner ? "Upset!" : "Upset pick" }) : null,
           myPick === seed && !bye && (open || mine !== null) ? el("span", { class: "bk-mark", text: winner ? (winner === seed ? "✓" : "✗") : "★" }) : null];
-        if (open && !bye && seed) return el("button", { type: "button", class: cls, "aria-pressed": String(myPick === seed), onclick: () => choose(round, m, seed) }, ...kids);
+        if (open && !bye && seed) return el("button", { type: "button", class: cls, "aria-pressed": String(myPick === seed), "aria-label": `Pick ${nameOf(p.a)}, seed ${seed}`, onclick: () => choose(r, m, seed) }, ...kids);
         return el("div", { class: cls }, ...kids);
       };
-      list.push(el("div", { class: "bk-match" + (bye ? " bye" : "") }, side(a), el("div", { class: "bk-vs", text: bye ? "bye" : "v" }), side(b)));
+      return el("div", { class: `bk-match g${region}` + (bye ? " bye" : "") + (myPick && !bye ? " has-pick" : "") },
+        el("div", { class: "bk-game" }, el("span", { text: bye ? `Game ${m + 1} · bye` : `Game ${m + 1}` }), winner ? el("span", { class: "bk-final", text: "Final" }) : di && di.hours && !di.done && r === currentRound() ? el("span", { class: "bk-live", text: "Live" }) : null),
+        side(a, b, 0), el("div", { class: "bk-vs", text: bye ? "" : "vs" }), side(b, a, 1));
+    };
+    const champ = () => {
+      const real = res && res.done ? res.rounds[R - 1][0] : 0, mineC = draft ? draft[R - 1][0] : 0, seed = real || mineC, p = seed ? info(seed) : null;
+      return el("div", { class: "bk-champ" + (real ? " real" : "") },
+        el("div", { class: "bk-trophy", "aria-hidden": "true", text: "🏆" }),
+        el("small", { text: real ? "Champion" : "Your champion" }),
+        el("b", { text: p ? nameOf(p.a) : open ? "Pick the Final" : "–" }),
+        p ? el("span", { class: "bk-champ-seed", text: `Seed ${seed}` }) : null,
+        real && mineC ? el("span", { class: real === mineC ? "bk-champ-ok" : "bk-champ-no", text: real === mineC ? "You called it: +2" : "Not your pick" }) : null);
+    };
+    const list = [];
+    if (tree) {
+      for (let r = 0; r < R; r++) {
+        const nM = s.size / 2 ** (r + 1), di = dayIdx(r);
+        list.push(el("div", { class: "bk-col" },
+          el("div", { class: "bk-col-h" }, el("b", { text: BM.ROUND_NAMES[s.size][r] }), el("small", { text: `${dayName(BM.roundDay(view, r, s.size)).slice(0, 3)} · ${2 ** r} pt${r ? "s" : ""}${di && di.hours && !di.done ? ` · ${di.hours}/24 h` : ""}${decidedOf(r)}` })),
+          el("div", { class: "bk-col-m" }, ...Array.from({ length: nM }, (_, m) => el("div", { class: "bk-slot" }, matchEl(r, m))))));
+      }
+      list.push(el("div", { class: "bk-col bk-col-champ" }, el("div", { class: "bk-col-h" }, el("b", { text: "Champion" }), el("small", { text: "+2 if right" })), el("div", { class: "bk-col-m" }, el("div", { class: "bk-slot" }, champ()))));
+    } else {
+      const nM = s.size / 2 ** (round + 1);
+      for (let m = 0; m < nM; m++) list.push(matchEl(round, m));
+      if (round === R - 1) list.push(champ());
+      if (open && draft && round < R - 1 && roundDone(round) === draft[round].length)
+        list.push(el("button", { type: "button", class: "btn bk-next", onclick: () => { round += 1; render(); $("bracket-box").scrollIntoView({ behavior: "smooth", block: "start" }); } }, `Next: ${BM.ROUND_NAMES[s.size][round + 1]} →`));
     }
+    $("bk-list").className = "bk-list" + (tree ? " tree" : "");
     $("bk-list").replaceChildren(...list);
     // actions
     const who = me();
@@ -238,6 +285,7 @@
     if (open) {
       const total = draft.flat().length, done = draft.flat().filter(Boolean).length;
       $("bk-progress").textContent = `${done} of ${total} picked${filled() ? " · ready" : ""}${mine !== null ? " · you have a bracket on chain" : ""}`;
+      $("bk-bar").style.width = `${total ? Math.round((done / total) * 100) : 0}%`;
       $("bk-submit").disabled = !filled() || sending || !picksContract || !who || draftNumber() === mine;
       $("bk-submit").textContent = mine !== null ? "Change my bracket" : "Submit my bracket";
       $("bk-who").textContent = !picksContract ? "" : who ? `Picking as ${nameOf(who)}${W.kind === "guest" ? " (guest: you play on the Free play board)" : ""}.` : "Connect a wallet to submit (Kondor, KOIN Vault or a guest wallet).";

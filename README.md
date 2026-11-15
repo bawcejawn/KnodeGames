@@ -71,14 +71,12 @@ All times are UTC. A week runs Monday 00:00 to Sunday 24:00.
 
 | When | What happens |
 |---|---|
-| Monday to Saturday, 12:00 | New questions: 5 a day (30 a week) until Mon 9 Nov, then the two rounds below. They are numbered Q1, Q2, … within the week. Monday and Tuesday are easy, Wednesday and Thursday medium, Friday and Saturday hard. |
-| From Mon 9 Nov: Monday to Saturday, 00:00 and 12:00 | Two rounds a day: 2 at 00:00 (answers close at 12:00) and 3 at 12:00 (answers close at 00:00), 30 a week. From the first week the upgraded contract allows it: 4 + 4, 48 a week. |
-| The next day, 00:00 | Answers close (12 hours after release), before the blocks the question is about are made. |
+| Monday to Saturday, 00:00 and 12:00 | Two rounds a day, 4 questions each: 8 a day, 48 a week (from Week 1, the week of 16 Nov; the contract's cap is 60). They are numbered Q1, Q2, … within the week. Monday and Tuesday are easy, Wednesday and Thursday medium, Friday and Saturday hard. |
+| 12 hours after each round opens | Answers close (00:00 round at 12:00, 12:00 round at 00:00), before the blocks the question is about are made. |
 | After each question's blocks are final | The bot posts the result. Your points update right away. |
 | Sunday | No new questions: results day. |
 | Monday, 12:00 | The week closes (12 hours after it ends, so a wrong result can still be corrected). The bot closes it: a player's action never does. |
-| Tuesday, 12:00 | Winners are final (24 hours to settle). Rewards can be collected from then on, with no deadline. |
-| Once the vault upgrade applies | Daily Questions is paid like every vault game: no settle step; its weekly results file is posted by **Thursday 00:00**, open to correction for 24 hours, then final; rewards are collected on the Stake page. |
+| By Thursday, 00:00 | From Week 1, Daily Questions is paid like every vault game: its weekly results file is posted by **Thursday 00:00**, open to correction for 24 hours, then final; rewards are collected on the Stake page, with no deadline. |
 
 ### Playing
 
@@ -89,7 +87,7 @@ All times are UTC. A week runs Monday 00:00 to Sunday 24:00.
   burns it into VHP for you. A stake counts from the next week. Your stake is never spent: you can withdraw any
   amount at any time, down to the last decimal. Withdraw part during a week and you keep playing with the lower
   stake; withdraw everything and you are out of that week's rewards.
-- **Scoring.** One point per right answer. A voided question counts for nobody. The week's top possible score is that week's number of questions (30 for now, 48 once the upgraded contract allows it).
+- **Scoring.** One point per right answer. A voided question counts for nobody. The week's top possible score is that week's number of questions (48 in a normal week).
 
 ### Rewards (Daily Questions' share)
 
@@ -106,8 +104,8 @@ Daily Questions' pot each week is its share of what the vault earned producing b
      earns a real share.
    - **Basket B, 60%:** shared by place weight × full stake, so staking more pays more.
 5. **No staked winners?** The free-player prize is still paid; the rest carries into next week.
-6. **Collect** from Tuesday 12:00 on the Play page; once the vault upgrade applies, on the Stake page with every game's
-   rewards (earlier weeks stay collectable on the Play page). Unclaimed rewards wait for you and keep producing for the pool.
+6. **Collect** on the Stake page with every game's rewards, from Friday 00:00 (results final) after each week from
+   Week 1 (16 Nov); rewards from earlier weeks stay collectable on the Play page. Unclaimed rewards wait for you and keep producing for the pool.
 
 Before v5 (Weeks 1 and 2) the rules were: 65% of what the seed and unclaimed pots earned was shared by place alone,
 the rest by place × stake; up to 64 questions a week; no free-player prize.

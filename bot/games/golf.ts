@@ -132,9 +132,19 @@ const GAME_ABI = () => JSON.parse(fs.readFileSync(new URL("../../game/abi/kpred.
 export function sourcesFromGames(file: URL | string = new URL("../../games.json", import.meta.url)): Source[] {
   let list: any[] = [];
   try { list = JSON.parse(fs.readFileSync(file, "utf8")).games; } catch { return []; }
-  return (Array.isArray(list) ? list : []).filter((g) => g && typeof g.id === "string" && g.id !== "golf" && READERS[g.id])
-    .map((g) => ({ id: g.id, name: cleanName(g.name, g.id), reader: g.id, live: g.status === "live" }));
+  const readerOf = (g: any): string => Object.hasOwn(READERS, g.id) && g.id !== STANDARD ? g.id : (g.golf === STANDARD && STANDARD_ID.test(g.id) ? STANDARD : "");
+  return (Array.isArray(list) ? list : []).filter((g) => g && typeof g.id === "string" && g.id !== "golf" && readerOf(g))
+    .map((g) => ({ id: g.id, name: cleanName(g.name, g.id), reader: readerOf(g), live: g.status === "live" }));
 }
+/** The standard reader (Clubhouse plan §4): a game that publishes the shared board (games-data/<id>/board.json, the shape
+ *  Block X uses) joins the course by saying so in games.json (`"golf": "standard"`), with no reader of its own. It is an
+ *  opt-in on purpose: a game's board is only trusted as a hole once its own chat and Repo Lens have said so. */
+/** The earliest vault week a game may join the course, whatever the Monday-after-live rule says. Bracket: its first
+ *  scorable week is week 4 (final about Mon 23 Nov) and it joins from Mon 30 Nov = vault week 6 (the Bracket chat, 14 Nov;
+ *  owner to confirm). Applied once, when the game is first seen; the join week is then fixed in the index. */
+export const JOIN_FROM: Record<string, number> = { bracket: 6 };
+export const STANDARD = "standard";
+export const STANDARD_ID = /^[a-z][a-z0-9-]{1,30}$/;
 
 // ── readers: one per game, each turning that game's own published results into hole rows ──
 /** A shared-shape board.json's view of week w: its "week" or "lastWeek". */
@@ -198,6 +208,47 @@ const READERS: Record<string, (src: Source, w: number, c: Ctx) => Promise<Read>>
     const v = boardView(b, w);
     if (!v) return movedOn(b, w) ? { ...KEPT } : { state: "live", rows: [], why: "waiting for the Block X results" };
     return { state: v.last && v.view.final === true ? "final" : "live", rows: ptsRows(v.view.rows) };
+  },
+
+  // Producer Bracket (the Bracket chat's note, Sat 14 Nov): read its WEEK FILE, never board.json (the board keeps at most
+  // 1,000 rows a side and says nothing when it cuts). Scorable only when status is "final"; "void" and "none" skip the
+  // hole for everyone; "waiting", "open", "locked" and anything unknown are not ready. `points` is [a, pts, champion, correct].
+  async bracket(s, w, c) {
+    const dir = path.join(c.gamesDir || "", "bracket"), file = `W${String(w).padStart(3, "0")}.json`;
+    const j = readJson(dir, file);
+    const fail = (why: string) => ({ state: "live" as const, rows: [], why: `couldn't use the ${s.name} results this run`, failed: true, problem: `games-data bracket ${why}` });
+    if (!j) return fail(unreadable(dir, file));
+    if (j.week !== w) return fail(`${file} is for another week`);
+    if (j.status === "void" || j.status === "none") return { state: "none", rows: [], why: j.status === "void" ? `the ${s.name} results couldn't be completed` : `there was no ${s.name} this week` };
+    if (j.status !== "final") return { state: "live", rows: [], why: `waiting for the ${s.name} results` };
+    if (!Array.isArray(j.points)) return fail(`${file} has no points list`);
+    const seen = new Set<string>(), rows: Row[] = [];
+    for (const r of j.points.slice(0, MAX_ROWS)) {
+      if (!Array.isArray(r) || !isAddr(r[0]) || !Number.isInteger(r[1]) || r[1] < 0 || r[1] > 1e6) return fail(`${file} has a points row that isn't a wallet and a whole score`);
+      if (seen.has(r[0])) return fail(`${file} lists a wallet twice`);
+      seen.add(r[0]); rows.push({ a: r[0], score: r[1], scored: r[1] > 0, ranked: false });
+    }
+    return { state: "final", rows };
+  },
+
+  // Any game that opted in with "golf": "standard" (see sourcesFromGames). Its folder is games-data/<id>/, named by its id
+  // (a plain lower-case name, never a path), and it must be final exactly as Block X's is: its board's lastWeek says so.
+  async standard(s, w, c) {
+    if (!STANDARD_ID.test(s.id)) return { state: "live", rows: [], why: "its game id isn't a plain name", failed: true, problem: `games-data folder name ${plain(s.id)} not read` };
+    const dir = path.join(c.gamesDir || "", s.id);
+    const b = readJson(dir, "board.json");
+    if (!b) return { state: "live", rows: [], why: `couldn't read the ${s.name} results this run`, failed: true, problem: `games-data ${unreadable(dir, "board.json")}` };
+    const v = boardView(b, w);
+    if (!v) return movedOn(b, w) ? { ...KEPT } : { state: "live", rows: [], why: `waiting for the ${s.name} results` };
+    // Kit games (Fantasy, Bracket; kit/recorder/boards.ts) may keep only part of a very large board (`cut` = rows left
+    // out) or say it is not complete: a hole is never scored on a part of its field, so either is a failed read.
+    const fail = (why: string) => ({ state: "live" as const, rows: [], why: `couldn't use the ${s.name} results this run`, failed: true, problem: `games-data ${s.id} board ${why}` });
+    if (v.view.cut !== undefined && !(Number.isInteger(v.view.cut) && v.view.cut === 0)) return fail("leaves out some players (cut), so it can't set a hole");
+    if (v.view.complete !== undefined && typeof v.view.complete !== "boolean") return fail("has a complete flag that isn't true or false");
+    const seen = new Set<string>();
+    for (const r of v.view.rows) { const a = r && r.a; if (typeof a !== "string") continue; if (seen.has(a)) return fail("lists a wallet twice"); seen.add(a); }
+    const final = v.last && v.view.final === true && v.view.complete !== false;
+    return { state: final ? "final" : "live", rows: ptsRows(v.view.rows), why: v.last && v.view.final === true && !final ? `${s.name}'s board isn't complete yet` : undefined };
   },
 };
 export const READABLE = Object.keys(READERS);
@@ -352,7 +403,7 @@ export async function run(o: Opts) {
   // 1. the course: the week each game joined (remembered for good), new games from next week
   const course: Record<string, number> = {};
   if (hadIndex) for (const [id, w] of Object.entries(prevIdx.course)) if (/^[a-z0-9-]{1,24}$/.test(id) && Number.isInteger(w) && (w as number) >= 0) course[id] = w as number;
-  for (const s of sources) if (s.live && course[s.id] === undefined) course[s.id] = hadIndex ? nowW + 1 : nowW;
+  for (const s of sources) if (s.live && course[s.id] === undefined) course[s.id] = Math.max(hadIndex ? nowW + 1 : nowW, JOIN_FROM[s.id] ?? 0);
   const known = new Set<number>(hadIndex ? prevIdx.weeks.filter((w: any) => Number.isInteger(w) && w >= 0 && w < 10000) : []);
   const byId = new Map(sources.map((s) => [s.id, s]));
   const liveIds = sources.filter((s) => s.live).map((s) => s.id);

@@ -379,8 +379,8 @@
         tile("Rank by VHP", share > 0 ? `#${fmt(rank)}` : "–", `of ${fmt(ranked.length)} producers`),
         tile(`Blocks, ${wlabel}`, fmt(mine), expWin > 0 ? `expected ${sig(expWin)} · ${fmt(ofExp * 100, 0)}% of expected` : "no VHP, so no blocks expected"),
         tile("Last block", lastTs ? ago(since) : "none in window", Number.isFinite(every) ? `usually every ${dur(every)}` : "", late && share > 0 ? "bad" : ""),
-        tile(`KOIN after VHP used, ${wlabel}`, mine && Number.isFinite(reward) ? `≈ ${fmt(mine * reward, 1)}` : mine ? "–" : "0", mine && Number.isFinite(reward) ? `${fmt(mine)} blocks × the network's typical ${fmt(reward, 3)} KOIN` : ""),
-        tile("Yearly rate", Number.isFinite(apr0) ? `${fmt(apr0, 1)}% a year` : "–", Number.isFinite(apr0) ? "of its VHP, as KOIN, if VHP stays as is" : ""),
+        tile(`KOIN gained, ${wlabel}`, mine && Number.isFinite(reward) ? `≈ ${fmt(mine * reward, 1)}` : mine ? "–" : "0", mine && Number.isFinite(reward) ? `New KOIN minted to it, minus the VHP its blocks used up: ${fmt(mine)} blocks × about ${fmt(reward, 3)} each` : ""),
+        tile("Yearly rate", Number.isFinite(apr0) ? `${fmt(apr0, 1)}% a year` : "–", Number.isFinite(apr0) ? "a year of KOIN gained, as a share of its VHP, if VHP stays as is" : ""),
       );
       // Node checklist: producer key, KOIN for Mana, what a burn would add, the longest quiet spell.
       const chk = [];
@@ -413,7 +413,7 @@
       if (!kg.fantasy) g.push(item("info", "i", "Fantasy Producers: this week's price list isn't out yet. ", link("fantasy.html", "Fantasy page")));
       else if (!kg.fantasy.listed) g.push(item("info", "i", "Fantasy Producers: not on this week's price list. ", link("fantasy.html", "Fantasy page")));
       else g.push(item("ok", "✓", `Fantasy Producers: price ${fmt(kg.fantasy.price)}${kg.fantasy.budget ? ` (a team's budget is ${fmt(kg.fantasy.budget)})` : ""}${Number.isFinite(kg.fantasy.form) ? `, form ${fmt(kg.fantasy.form / 100, 1)} (100 = as expected for its size)` : ""}. `, link("fantasy.html", "Fantasy page")));
-      if (kg.bracket) g.push(item(kg.bracket.out ? "info" : "ok", kg.bracket.champ ? "🏆" : kg.bracket.out ? "i" : "✓", kg.bracket.text + " ", link("bracket.html", "Bracket page")));
+      if (kg.bracket) g.push(item(kg.bracket.out ? "info" : "ok", kg.bracket.champ ? "🏆" : kg.bracket.out ? "i" : "✓", kg.bracket.text + " ", link(`bracket.html?follow=${encodeURIComponent(addr)}`, "Follow it on the Bracket")));
       $("kg").replaceChildren(...g);
       const at = Math.max(0, rank - 1), from0 = Math.max(0, Math.min(at - 3, ranked.length - 7)), near = ranked.slice(from0, from0 + 7);
       $("peers").replaceChildren(...near.map((a) => {

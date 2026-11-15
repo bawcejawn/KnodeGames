@@ -121,7 +121,8 @@ test("this week in Knode Games: Race places from the Ruler file, Fantasy price a
 
 test("profit in the window and the yearly rate are shown once each, and no banned words", async () => {
   const d = await open(5), tiles = d.getElementById("tiles").textContent, all = d.getElementById("out").textContent;
-  assert.match(tiles, /KOIN after VHP used, 24 hours≈ [0-9.,]+/);
+  assert.match(tiles, /KOIN gained, 24 hours≈ [0-9.,]+New KOIN minted to it, minus the VHP its blocks used up: [0-9,]+ blocks × about [0-9.]+ each/);
+  assert.match(tiles, /Yearly rate[0-9.]+% a yeara year of KOIN gained, as a share of its VHP, if VHP stays as is/);
   assert.equal(count(all, /% a year/g), 1);
   assert.doesNotMatch(all, /\b(bet|odds|gambl\w*|earn\w*|returns|guaranteed|beta)\b/i);
 });
@@ -177,7 +178,9 @@ test("Bracket line: before any result: seeded #k, still in (Round of 16)", async
 });
 test("Bracket line: the note's example: seed 1 knocked out in the Quarterfinals, seed 9 still in (Semifinals), seed 16 out in the Round of 16", async () => {
   assert.match(kgText(await open(5, {}, { extraFiles: bk(S16, EX) })), /seed #1, knocked out in the Quarterfinals\./);
-  assert.match(kgText(await open(5, {}, { extraFiles: bk(at(9), EX) })), /seed #9, still in \(Semifinals\)\./);
+  const d9 = await open(5, {}, { extraFiles: bk(at(9), EX) });
+  assert.match(kgText(d9), /seed #9, still in \(Semifinals\)\. Follow it on the Bracket/);
+  assert.equal(d9.querySelector('#kg a[href^="bracket.html"]').getAttribute("href"), `bracket.html?follow=${ME}`, "opens the Bracket already following it");
   assert.match(kgText(await open(5, {}, { extraFiles: bk(at(16), EX) })), /seed #16, knocked out in the Round of 16\./);
 });
 test("Bracket line: champion when done; not seeded but in the field; a void week; not in it at all shows nothing", async () => {

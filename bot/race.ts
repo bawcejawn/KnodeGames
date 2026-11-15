@@ -295,6 +295,8 @@ type Opts = {
   rhythmFrom?: number; typesFrom?: number | null;
   /** The ruler switch (RACE_RULER_FROM_WEEK) and the ruler's ledger, for the tests (the workflow uses the variable and RACE_VHP_DATA). */
   rulerFrom?: number | null; rulerLedger?: any;
+  /** Fix 1 (Ruler races without handicap cards): the first vault week it applies to, for the tests (default NOCARD_FROM_WEEK). */
+  noCardFrom?: number | null;
 };
 
 // ── the picks contract and the game (read only) ──
@@ -411,12 +413,13 @@ export function stakedFrom(cfg: any, r: any, week: number): boolean {
   return min > 0n && peak >= min;
 }
 /** One run. Exported for the tests, which pass fake nodes. */
-export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks, rhythmFrom, typesFrom, rulerFrom, rulerLedger }: Opts) {
+export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract, picksOf, stakedOf, clock, prizesFrom, vaultHold, holdWeeks, rhythmFrom, typesFrom, rulerFrom, rulerLedger, noCardFrom }: Opts) {
   // The ruler switch, strictly: empty = off; anything that isn't a plain week number stops the run here (KRuler.switchFrom).
   rulerFromWeek = rulerFrom !== undefined ? rulerFrom : RR.switchFrom(E.RACE_RULER_FROM_WEEK ?? "");
   rulerAll = new Map(); rulerTyped = new Map(); rulerLedgerCache = rulerLedger === undefined ? undefined : rulerLedger;
   rhythmFromWeek = rhythmFrom ?? M.RHYTHM_FROM_WEEK;
   typesFromWeek = typesFrom === undefined ? M.TYPES_ON_WEEK : typesFrom;
+  noCardFromWeek = noCardFrom === undefined ? NOCARD_FROM_WEEK : noCardFrom;
   typesAll = new Map(); typesWeekFiles = new Map(); typesUnread = new Map();
   verifyDeadline = Date.now() + VERIFY_BUDGET_MS;
   resetBlockCache();   // R-RACE-18 (2): this run's reads only
@@ -563,7 +566,10 @@ export async function run({ p, check, prev, out, vhpOf, vhpCheckOf, raceContract
   for (const wf of weeks.values()) for (const r of wf.races) if (r.cards.some(Boolean)) firstCard = Math.min(firstCard, r.start);
   for (const wf of weeks.values()) for (const race of wf.races) {
     if (race.result?.final || race.end > libT || race.end < now - LOOKBACK) continue;
-    if (!race.cards.some(Boolean)) { if (race.start > firstCard) race.result = { final: true, missed: true, note: "no handicap card was recorded for this race" }; continue; }
+    // Fix 1 (from NOCARD_FROM_WEEK, ruler ON weeks only): a race with no handicap card at all (GitHub skipped the recorder
+    // for the whole race) is still recorded: its blocks [S0, S1] and its picks, read on both nodes, with no handicap
+    // standings. The VHP ruler scores it from those (rulerWeek below); before that week, or off the ruler, it is missed.
+    if (!race.cards.some(Boolean) && !(race.start > firstCard && noCardOn(wf.week))) { if (race.start > firstCard) race.result = { final: true, missed: true, note: "no handicap card was recorded for this race" }; continue; }
     try {
       const r = await scoreRace(race, chainCtx);
       if (!r.ok) { problems.push(`${race.id}: ${r.why}; not final this run`); continue; }
@@ -658,6 +664,13 @@ const typedRuled = (w: number, r: { type: number; id: string; result: any }) => 
 /** The ruler's ledger: loaded once a run, only when a week needs a card (undefined = not loaded yet; null = unavailable). */
 let rulerLedgerCache: any = undefined;
 const rulerOn = (w: number) => RR.modeOf(w, rulerFromWeek) === "on";
+/** Fix 1 (owner, 14 Nov: from Week 2, so Week 1's rules never change mid-week): the first vault week in which a race
+ *  with no handicap card is recorded from its blocks and picks and scored by the VHP ruler, instead of being missed.
+ *  race.yml has the same number (NOCARD_FROM, a test keeps them equal); the publish job refuses such a race before it. */
+export const NOCARD_FROM_WEEK = 5;
+let noCardFromWeek: number | null = NOCARD_FROM_WEEK;
+/** Fix 1 applies to week w: from NOCARD_FROM_WEEK, and only in a week the ruler is ON (the ruler's card is its result). */
+const noCardOn = (w: number) => noCardFromWeek !== null && w >= noCardFromWeek && rulerOn(w);
 const rulerEntry = (w: number, id: string) => rulerAll.get(w)?.races.find((x) => x.id === id) || null;
 function rulerLedger(problems: string[]) {
   if (rulerLedgerCache !== undefined) return rulerLedgerCache;
@@ -789,6 +802,15 @@ function baseCard(raceById: (id: string) => Race | null, t: number): Card | null
   if (!race) return null;
   return M.cardForLeg(race.cards, M.legOf(race.start, t, M.legsOf(race.cards)));
 }
+/** Fix 1: the 6-hour race covering hour t, final with no handicap card at all, in a week Fix 1 applies to. Its hours
+ *  go in the ledger with no luck trims (c = [0, 0, 0, 0]: there is no card to tune them from), and the typed races
+ *  over them are scored by the ruler alone (no handicap standings). Its cards can't arrive any more (taken live). */
+function noCardHour(raceById: (id: string) => Race | null, t: number, week: number): boolean {
+  if (!noCardOn(week)) return false;
+  const six = raceById(M.raceAt(t).id);
+  return !!six && !six.cards.some(Boolean) && !!six.result?.final && !six.result.missed;
+}
+export const NO_TRIMS = [0, 0, 0, 0];
 /** The heights of the blocks in [start, end): the same search as a 6-hour race's (scoreRace). */
 async function heightsOf(c: ChainCtx, start: number, end: number): Promise<[number, number]> {
   const { p, headId, libH, libT } = c;
@@ -829,8 +851,11 @@ function typedCardAt(raceById: (id: string) => Race | null, led: Map<number, Hou
   return (h: number) => { const x = led.get(h), base = baseCard(raceById, h); return x && base ? M.typeCard(base, type, x.c[type - 1]) : null; };
 }
 /** A typed race scored from the ledger, with its picks read on both nodes. null: not every hour is in yet. */
-async function scoreTyped(r: Typed, led: Map<number, Hour>, cardAt: (h: number) => any, c: ChainCtx): Promise<{ ok: true; result: any } | { ok: false; why: string } | null> {
-  const st = M.ledgerStandings(led, r, cardAt);
+async function scoreTyped(r: Typed, led: Map<number, Hour>, cardAt: (h: number) => any, c: ChainCtx, noCard = false): Promise<{ ok: true; result: any } | { ok: false; why: string } | null> {
+  // Fix 1: a typed race over an hour with no handicap card: every hour in the ledger, no handicap standings (the
+  // ruler's card, made from the ledger's blocks, decides it).
+  if (noCard) for (let h = r.start; h < r.end; h += M.HOUR) if (!led.has(h)) return null;
+  const st = noCard ? [] : M.ledgerStandings(led, r, cardAt);
   if (!st) return null;
   const winner = M.winners(st)[0] || null, showSet = new Set<string>(M.shows(st));
   let picks: any[] | undefined;
@@ -843,7 +868,7 @@ async function scoreTyped(r: Typed, led: Map<number, Hour>, cardAt: (h: number) 
     }
     picks = mine.map(([who, horse, at]) => [who, horse, at, horse === winner ? 1 : 0, 0, horse !== winner && showSet.has(horse) ? 1 : 0]);
   }
-  return { ok: true, result: { final: true, checked: c.check ? 2 : 1, line: M.ledgerLine(r, cardAt), winner, standings: st.map((x: any) => ({ a: x.a, steps: x.steps, blocks: x.blocks })), ...(picks ? { picks } : {}) } };
+  return { ok: true, result: { final: true, checked: c.check ? 2 : 1, line: noCard ? null : M.ledgerLine(r, cardAt), winner, standings: st.map((x: any) => ({ a: x.a, steps: x.steps, blocks: x.blocks })), ...(picks ? { picks } : {}) } };
 }
 async function recordTypes(tf: TypesFile, raceById: (id: string) => Race | null, problems: string[], now: number) {
   const c = chainCtx!;
@@ -851,14 +876,14 @@ async function recordTypes(tf: TypesFile, raceById: (id: string) => Race | null,
   let budget = HOURS_PER_RUN;
   for (let t = tf.start; t + M.HOUR <= Math.min(tf.end, c.libT) && budget > 0; t += M.HOUR) {
     if (led.has(t)) continue;
-    const base = baseCard(raceById, t);
-    if (!base) continue;                                    // no 6-hour card: that hour's typed races are missed (below)
+    const base = baseCard(raceById, t), bare = !base && noCardHour(raceById, t, tf.week);
+    if (!base && !bare) continue;                           // no 6-hour card: that hour's typed races are missed (below)
     try {
       const r = await readHour(c, t);
       // Repo Lens #D-13 L-11: a disagreement counts against the run's hours too, so a bad check node can't make every
       // run re-read the whole week.
       if (!r.ok) { budget--; problems.push(`hour ${new Date(t).toISOString().slice(0, 13)}: ${r.why}; not in the ledger this run`); continue; }
-      led.set(t, { ...r.hour, c: [1, 2, 3, 4].map((type) => M.typeCard(base, type).c) });
+      led.set(t, { ...r.hour, c: base ? [1, 2, 3, 4].map((type) => M.typeCard(base, type).c) : [...NO_TRIMS] });
       budget--;
     } catch (e) { problems.push(`hour ${new Date(t).toISOString().slice(0, 13)}: ${(e as Error).message} (tried again next run)`); break; }
   }
@@ -868,16 +893,18 @@ async function recordTypes(tf: TypesFile, raceById: (id: string) => Race | null,
     // An hour with no 6-hour card at all can never be scored (cards are taken live): the race is missed.
     // Repo Lens #D-13 L-5: only once the 6-hour race covering that hour is itself final (scored or missed), so its cards
     // can't still arrive; before that the typed race just waits.
-    let noCard = false, wait = false;
+    let noCard = false, wait = false, bare = false;
     for (let h = r.start; h < r.end; h += M.HOUR) if (!baseCard(raceById, h)) {
       const six = raceById(M.raceAt(h).id);
       if (six && !six.result?.final && six.end > c.libT) { wait = true; break; }
       noCard = true;
+      if (noCardHour(raceById, h, tf.week)) bare = true; else { bare = false; break; }
     }
     if (wait) continue;
-    if (noCard) { r.result = { final: true, missed: true, note: "an hour of this race has no handicap card" }; continue; }
+    // Fix 1: every hour without a card is a no-card hour of a recorded 6-hour race: scored by the ruler (below).
+    if (noCard && !bare) { r.result = { final: true, missed: true, note: "an hour of this race has no handicap card" }; continue; }
     try {
-      const res = await scoreTyped(r, led, typedCardAt(raceById, led, r.type), c);
+      const res = await scoreTyped(r, led, typedCardAt(raceById, led, r.type), c, noCard);
       if (!res) continue;                                   // an hour isn't in the ledger yet
       if (!res.ok) { problems.push(`${r.id}: ${res.why}; not final this run`); continue; }
       r.result = res.result;
@@ -902,8 +929,9 @@ export async function verifyTypes(tf: TypesFile, c: ChainCtx, stop: number, cloc
       // Repo Lens #D-13 L-1: each type's luck trim c decides the winner, so it is tuned again from that hour's 6-hour
       // card and must be the stored one.
       const base = baseCard(find, h.t);
-      if (!base) return `hour ${at}: its 6-hour card is missing when checking the week again`;
-      const cs = [1, 2, 3, 4].map((type) => M.typeCard(base, type).c);
+      // Fix 1: a no-card hour keeps no luck trims (and must still have no card).
+      if (!base && !noCardHour(find, h.t, tf.week)) return `hour ${at}: its 6-hour card is missing when checking the week again`;
+      const cs = base ? [1, 2, 3, 4].map((type) => M.typeCard(base, type).c) : NO_TRIMS;
       if (JSON.stringify(cs) !== JSON.stringify(h.c)) return `hour ${at}: its stored luck trims aren't what its 6-hour card gives`;
       fresh.set(h.t, { ...g.hour, c: h.c });
     }
@@ -913,7 +941,9 @@ export async function verifyTypes(tf: TypesFile, c: ChainCtx, stop: number, cloc
   for (let i = 0; i < races.length; i += VERIFY_PARALLEL) {
     if (clock() > stop) throw new Error(`not checked yet: the re-check ran past its time budget (tried again next run)`);
     const why = await Promise.all(races.slice(i, i + VERIFY_PARALLEL).map(async (r) => {
-      const res = await scoreTyped(r, fresh, typedCardAt(find, fresh, r.type), c);
+      let bare = false;
+      for (let h = r.start; h < r.end; h += M.HOUR) if (!baseCard(find, h)) bare = true;
+      const res = await scoreTyped(r, fresh, typedCardAt(find, fresh, r.type), c, bare);
       if (!res) return `${r.id}: an hour of it is missing when checking the week again`;
       if (!res.ok) return `${r.id}: ${res.why} when checking the week again`;
       return resultKey(res.result) !== resultKey(r.result) ? `${r.id}: its stored result isn't what the chain says now (picks or standings differ)` : "";
@@ -957,8 +987,10 @@ async function scoreRace(race: Race, c: ChainCtx, hint?: [number, number]): Prom
     if (!same) return { ok: false, why: "the two nodes disagree about the race's blocks" };
     checked = 2;
   }
-  const st = M.standings(B, race, race.cards);
-  const winner = M.winners(st)[0] || null, showSet = new Set<string>(M.shows(st));
+  // Fix 1: a race with no handicap card has no handicap standings (no winner, no show): the ruler's card decides it.
+  const noCard = !race.cards.some(Boolean);
+  const st = noCard ? [] : M.standings(B, race, race.cards);
+  const winner = noCard ? null : M.winners(st)[0] || null, showSet = new Set<string>(noCard ? [] : M.shows(st));
   // The picks (locked by the chain since the race started), read on both nodes like the blocks.
   let picks: any[] | undefined;
   if (picksRead) {
@@ -975,7 +1007,7 @@ async function scoreRace(race: Race, c: ChainCtx, hint?: [number, number]): Prom
     picks = mine.map(([who, horse, at]) => [who, horse, at, horse === winner ? 1 : 0, 0, horse !== winner && showSet.has(horse) ? 1 : 0]);
   }
   return { ok: true, result: {
-    final: true, checked, heights: [a, b], blocks: B.ts.length, line: M.finishLine(race.cards),
+    final: true, checked, heights: [a, b], blocks: B.ts.length, line: noCard ? null : M.finishLine(race.cards),
     winner, standings: st.map((x: any) => ({ a: x.a, steps: x.steps, blocks: x.blocks })),
     ...(picks ? { picks } : {}),
   } };

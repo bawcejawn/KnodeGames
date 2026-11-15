@@ -27,5 +27,5 @@ test("G4-1 (Low): the stake panel can be told the free prize is off, and the Bra
   assert.match(src, /explain\(g, min, opts\)/, "mount passes its options to explain");
   // Adjusted by the Bracket chat: owner 14 Nov, the Bracket's free prize is ON (from Week 2), so the page now mounts with
   // freePrize: true; the panel's off path above stays tested for any game that switches its prize off.
-  assert.match(read("bracket.js"), /KStake\.mount\(\$\("bracket-stake"\), \{ game: BM\.GAME_ID, freePrize: true \}\)/, "the Bracket page says its free prize is on");
+  assert.match(read("bracket.js"), /KStake\.mount\(\$\("bracket-stake"\), \{ game: BM\.GAME_ID, freePrize: Number\.isInteger\(prizesFrom\) && view >= prizesFrom \}\)/, "the Bracket page names its free prize from the first paid week (Repo Lens #H-1 H1-1)");
 });

@@ -551,12 +551,14 @@
   if (W && W.subscribe) W.subscribe(() => { loadMine(); renderBoard(); });
   // the shared stake badge and panel (R-ALL-7), game 9
   if (window.KStake && typeof window.KStake.badge === "function" && $("stake-badge")) window.KStake.badge($("stake-badge"), { game: BM.GAME_ID });
-  if (window.KStake && typeof window.KStake.mount === "function" && $("bracket-stake")) window.KStake.mount($("bracket-stake"), { game: BM.GAME_ID, freePrize: true });   // owner 14 Nov: free prize ON (was OFF, #G-4 G4-1)
   if (window.KNames && typeof window.KNames.onChange === "function") window.KNames.onChange(() => { render(); renderBoard(); });
   (async () => {
     say("Loading the bracket…");
     await Promise.all([loadWeeks(), loadForm(), setupPicks().catch(() => {})]);
     view = pickView(); round = currentRound(); say("");
+    // owner 14 Nov: free prize ON from Week 2 (was OFF, #G-4 G4-1). The panel names it only for a week on show from the first
+    // paid week on (index.json prizesFromWeek), never in a practice week or before index.json is read (Repo Lens #H-1 H1-1)
+    if (window.KStake && typeof window.KStake.mount === "function" && $("bracket-stake")) window.KStake.mount($("bracket-stake"), { game: BM.GAME_ID, freePrize: Number.isInteger(prizesFrom) && view >= prizesFrom });
     await loadMine(); renderBoard();
     setInterval(() => { if (!document.hidden) loadWeeks().then(() => { render(); renderBoard(); }); }, 300000);
     setInterval(() => { if (!document.hidden) render(); }, 60000);

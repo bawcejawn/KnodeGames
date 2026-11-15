@@ -166,7 +166,7 @@ test("Games at a glance and All switches draw every game and every switch, and C
         w.fetch = async (p: string, init: any = {}) => {
           if (p === "/api/actions") return { ok: true, status: 200, json: async () => cat };
           const body = JSON.parse(init.body); ran.push(`${body.action}:${body.send}`);
-          const output = body.action === "glance-vault" ? "game 6 Block Golf: staked + free prize, from week 5\ngame 7 Producer Race: staked + free prize, from week 3\n" : body.action === "glance-prizes" ? "6 Block Golf  this week: off  next week: off\n7 Producer Race  this week: on  next week: on\n9 Producer Bracket  this week: off  next week: off\n" : "ok\n";
+          const output = body.action === "glance-vault" ? "game 6 Block Golf: staked + free prize, from week 5\ngame 7 Producer Race: staked + free prize, from week 3\n" : body.action === "glance-prizes" ? "6 Block Golf  this week: off  next week: off\n7 Producer Race  this week: on  next week: on\n9 Producer Bracket  this week: off  next week: off\n4 Fantasy Producers  this week: on  next week: on\n" : "ok\n";
           return { ok: true, status: 200, json: async () => ({ command: "npm run x", code: 0, output, previewed: false }) };
         };
       },
@@ -198,6 +198,8 @@ test("Games at a glance and All switches draw every game and every switch, and C
     assert.doesNotMatch(row("Block Golf"), /DIFFERS/, "live OFF matches the plan: no flag");
     // owner 14 Nov: the Bracket is planned ON; until the owner sends `prizes on 9`, the live switch is OFF and is flagged
     assert.match(row("Producer Bracket"), /planned ON[\s\S]*DIFFERS from the plan \(ON\)/, "live OFF against a plan of ON is flagged (Repo Lens G30-1)");
+    // Repo Lens #H-1 H1-2: the other direction too (G30-1's original case, a free prize live while the plan says OFF)
+    assert.match(row("Fantasy Producers"), /planned OFF[\s\S]*DIFFERS from the plan \(OFF\)/, "live ON against a plan of OFF is flagged (Repo Lens G30-1, #H-1 H1-2)");
     // All switches lists every variable, and the link is GitHub's variables page only
     click(/All switches/);
     for (const v of VARIABLES) assert.ok(doc.querySelector("#main").textContent.includes(v.name), `switches list ${v.name}`);

@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { renderAll, kitGames } from "../../tools/kit-render-workflows.mjs";
 import YAML from "yaml";
-import { inlineScript, renderJobs, BEGIN, END, HEREDOC, TRAILER, RECORD_TIMEOUT_MIN, SETUP_MIN, LEGACY_WAIT_MAX_MIN } from "../publish/render.mjs";
+import { PARTS_PREFIX, inlineScript, renderJobs, BEGIN, END, HEREDOC, TRAILER, RECORD_TIMEOUT_MIN, SETUP_MIN, LEGACY_WAIT_MAX_MIN } from "../publish/render.mjs";
 import { canon, boardOf, tally, FRESH_MS, MAX_BEHIND_MS } from "../publish/check.inline.mjs";
 import { validateManifest, BUDGET_MAX } from "../../tools/game-manifest.mjs";
 import { dataFolder } from "../recorder/manifest.ts";
@@ -65,10 +65,17 @@ function embedded(): string {
 
 test("render: the publish job runs check.inline.mjs byte for byte, which imports only node:fs/path/crypto", () => {
   const src = fs.readFileSync(path.join(ROOT, "kit/publish/check.inline.mjs"), "utf8");
-  assert.equal(embedded(), src + TRAILER);
-  assert.equal(inlineScript(pathToFileURL(ROOT + "/")), src + TRAILER);
-  const imports = [...src.matchAll(/^\s*import\s.*from\s+["']([^"']+)["']/gm)].map((m) => m[1]).sort();
-  assert.deepEqual(imports, ["node:crypto", "node:fs", "node:path"]);
+  // KG parts v1: kit/parts byte for byte first (a base64 data: module), then the check.
+  const parts = fs.readFileSync(path.join(ROOT, "kit/parts/parts.inline.mjs"), "utf8");
+  assert.equal(embedded(), PARTS_PREFIX(parts) + src + TRAILER);
+  assert.equal(inlineScript(pathToFileURL(ROOT + "/")), PARTS_PREFIX(parts) + src + TRAILER);
+  const b64 = /data:text\/javascript;base64,([A-Za-z0-9+/=]+)"/.exec(embedded())![1];
+  assert.equal(Buffer.from(b64, "base64").toString("utf8"), parts, "the embedded kit/parts is the repository's, byte for byte");
+  for (const f of [src, parts]) {
+    const imports = [...f.matchAll(/^\s*import\s.*from\s+["']([^"']+)["']/gm)].map((m) => m[1]).sort();
+    assert.deepEqual(imports, ["node:crypto", "node:fs", "node:path"]);
+  }
+  assert.ok(!/\bimport\s*\(/.test(src) && !/\bimport\s*\(/.test(parts), "no dynamic import in either");
   assert.ok(!src.includes("${{"), "no Actions expression inside the script");
 });
 

@@ -20,6 +20,9 @@ export type Sample = {
    *  as tests/audit/race-ruler.fixture.mjs builds one). The conformance run hands it to resultOf / inputsFor as ctx.vhp
    *  and the publish check's card rebuild uses it too. */
   vhpLedger?: unknown;
+  /** Optional: the chain time of the "decided rounds to score" checks, when hour 0 can't be it (an inputs-file game's
+   *  hour 0 is before the week, when the inputs file is made, so no round is decided yet). Default: hours.chain(0). */
+  checkAt?: number;
   /** Round ids that are undecided at the sample's first hour (must come back PENDING, never a guess). */
   undecided: string[];
   /** Chain times for the hourly runs (first one before every round is decided, then until final). */

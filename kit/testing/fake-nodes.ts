@@ -10,6 +10,8 @@ export type World = {
   next: number;
   questions: Record<number, { week: string; outcome: number; lock_time: string }>;
   players: { address: string; entry: { stake: string; peak_stake: string; voided: boolean; answers: { question_id: number; option: number }[] } }[];
+  /** Optional: a week's own player entries (list_players with that week); other weeks use `players`. */
+  playersByWeek?: Record<number, World["players"]>;
   lib?: number;
   /** Picks contract rows by "<game>:<round>" (list_picks), for picks-contract games. */
   picks?: Record<string, { player: string; pick: Record<string, unknown> }[]>;
@@ -54,7 +56,7 @@ export function fakeNode(label: string, w: () => World, f: Faults = {}): KitNode
       if (method === "get_state") r = { time: String(wd.time - (f.lagMs ?? 0)), config: { ...wd.config }, totals: { next_question_id: wd.next } };
       else if (method === "get_question") r = wd.questions[args.id] ? { question: { ...wd.questions[args.id] } } : {};
       else if (method === "list_players") {
-        const xs = [...wd.players].sort((u, v) => (u.address < v.address ? -1 : 1));
+        const xs = [...(wd.playersByWeek?.[Number(args.week)] ?? wd.players)].sort((u, v) => (u.address < v.address ? -1 : 1));
         const i = args.start ? xs.findIndex((x) => x.address === args.start) + 1 : 0;
         r = { rows: structuredClone(xs.slice(i, i + (args.limit ?? 50))) };
       } else if (method === "get_game_player") {

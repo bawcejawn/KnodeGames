@@ -139,7 +139,7 @@ try {
   gameLoading = true;
   const mod = (await import(pathToFileURL(path.join(gameDir, "recorder.ts")).href)).game;   // top-level code runs trapped
   const sample = (await import(pathToFileURL(path.join(gameDir, "tests", "sample.ts")).href)).sample();
-  const t0 = sample.hours.chain(0);
+  const t0 = sample.checkAt ?? sample.hours.chain(0);   // Fantasy: an inputs-file game's hour 0 is before the week
   const span = { week: sample.week, start: cfg.genesis + sample.week * cfg.weekMs, end: cfg.genesis + (sample.week + 1) * cfg.weekMs };
   const [na, nb] = sample.nodes(t0);
   // The first picks source is scored (a list since Phase 1); vault-answers or picks-contract, or the sample's override.
@@ -182,7 +182,9 @@ try {
     if (typeof a !== "symbol" && read) {
       decided++;
       const picks = read.picks.get(r.id) ?? [];
-      const s1 = mod.scoreRound(r, picks, a, inputs, stateFor.get(r.id)), s2 = mod.scoreRound(r, picks, a, inputs, stateFor.get(r.id));
+      // K1 (Survivor, 14 Nov): a season game's scoreRound gets its season context (the sample's week as its season's first week).
+      const season = cfg.seasonWeeks ? [{ seasonStaked: new Set<string>(), seasonStart: sample.week, seasonWeek: 1 }] : [];
+      const s1 = mod.scoreRound(r, picks, a, inputs, stateFor.get(r.id), ...season), s2 = mod.scoreRound(r, picks, a, inputs, stateFor.get(r.id), ...season);
       if (canon(s1) !== canon(s2)) ok(false, `scoreRound(${r.id}) is deterministic`);
     }
   }

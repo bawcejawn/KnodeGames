@@ -73,6 +73,7 @@ A module **must not**: use the network, the clock, files, processes, randomness 
 | `rowCap` | most board rows (0 = none); over it board.json keeps every ranked row, every free prize winner and the best others. board.json also keeps to 1.5 MB the same way |
 | `budgets` | optional read budgets, at most 200,000 reads and 20 minutes (a game's record job has 30: the budget, a last read's retries and setup) |
 | `roundsCorrectable`, `liveWeek`, `maxRoundPoints` | optional |
+| `firstWeek` | optional: the first vault week the kit records (0–9999) |
 | `inputsFile`, `inputsLeadHours` | optional: the write-once inputs file (FC-9); lead 1–96 h, default 48 (#G-13 G13-2) |
 | `published` | optional: up to 4 other kit games on the same data branch whose final weeks this game reads (`ctx.published`) |
 | `vhpData` | optional: the game scores from the VHP ruler's published data (`ctx.vhp`; week and inputs files list their `cards`) |
@@ -94,8 +95,34 @@ Once the vault pays a game (`vaultGames.<id>` exists in `game-data/deployment.js
 ## 5a. Capacity (CAPACITY_STANDARD, Capacity chat and owner, 12 Nov)
 - **Rule 2 (built):** every kit run warns (an alert) when any file it wrote passes 60% of the publish job's 2 MB cap (`CAPACITY_WARN_BYTES`), naming the file and its size. The store already refuses to write over 1.9 MB, and the run stops.
 - **Rule 3 (holds):** the kit never drops data silently. The picks readers throw past 1,000 pages, the store throws over 1.9 MB, and the week file keeps every wallet's row. Only the display boards (`board.json`, `alltime.json`) are trimmed to their byte budget, and they say how many rows were left out (`cut`); every paid and prize row is kept.
-- **Rule 4 (next kit PR):** compact, split files (fixed reference data once, players listed once, one file per day or round, a top-100 board plus per-player shards, one hash over all parts, the publish job still recomputing every point). It changes the week-file format and the publish check, so it goes in its own PR with its own Repo Lens round, before the next kit game's first paid week.
+- **Rule 4 (built, `kit-next`): KG parts v1.** With `game.json` `"parts": "d"` (one part per UTC day) or `"r"` (per round), the week file is stored as the folder `W<NNN>/` through `kit/parts`. The folder holds:
+  - `d1`–`d7` or `r001`…, the rounds' rows;
+  - `wk`, the week-level keys, kept as JSON text so key order survives;
+  - `p/<x>`, 16 shards of players and carried states;
+  - a manifest with one hash over all parts.
+
+  The week file itself is unchanged: `partsToWeek` rebuilds it exactly, the week hash and every check stay the same, and the publish job checks each folder with `checkParts` before judging the rebuilt week. `vault/`, HOLD and RELEASE files, `inputs/`, `board.json` and `alltime.json` stay single files. A week already written as one file stays one file. A Fantasy-shaped week at 9,000 weekly players: largest part 0.73 MB, under the 60% warning.
+- **Display columns (`partCols`, optional):** `{ cols, row(pick, state) }`, the module's columns for each wallet's row in a day part, from its pick that round and its state after it. They are shown on the page but are not in the week file and are not scored. An `"a"` column may be `null`.
 - Rule 1 (each game's measured bytes per player and its 2 MB player count) belongs to each game's README, measured with `tools/capacity-harness`.
+
+## 5b. `kit-next` (14 Nov 2026): what else the kit does
+- **`ctx.fallback(why)` (K8; the owner's 48 h rule, with #G-69 G69-2):** in `resultOf`.
+  - **When it resolves:** only once the first irreversible block on or after `resolvesAt + 48 h` exists on both nodes, and only when the ruler's data loaded this run. Otherwise it throws `NotYet` and the round stays pending.
+  - **Never for a published card-decided round:** a round the published copy decided with its card is never re-decided this way.
+  - **What the game does then:** returns its own simplest fixed result.
+  - **How it's recorded:** in the week file's `fallbacks` (`[round, at, why]`), with one alert. The round needs no ruler card, and once published it stays exactly as published.
+  - **Publish check:** each `at` is at least 48 h after its round's own day and not after the job's clock (#G-79 G79-3); a published fallback can't change or drop.
+- **Card settings:** `include` (G6), `mode` (A–D) and `version` (4 or 5) are passed through unchanged, into the card's sha256, the publish job's Python rebuild and the publish check.
+- **Re-reading a published card (#G-69 G69-3):** it is re-made from the settings stored with it in the week or inputs file, never from today's.
+- **A published decision is never undone by a run that sees less (#G-69 G69-1):**
+  - A round the published copy decided but a run can't decide keeps its published result and cards: a final week isn't held, and a pending week stays pending.
+  - The alert is an error when the run had all its data, and a warning when it just lacked data.
+  - Kept rounds a run couldn't re-read become an emailed error from 12 h after the week ends (#G-78 G78-1): on even UTC hours, and every hour in the last 12 h before the deadline; a warning on the other hours (#G-82 G82-3).
+  - A ruler game's week file records `vhpTo`, the last block of the ruler data used. It is outside the week hash and never lowered. A run with older or shorter data re-reads nothing, and the publish check refuses a `vhpTo` that goes backwards.
+- **`liveWeek` (K4):** the current week's open copy is written every run, with the rounds decided so far. It has no vault file and no all-time entry, and a failure is a warning. It is display only: its rounds may still change (a season game's `seasonStaked` grows as stakes arrive), so only a **pending** copy's decided rounds are fixed (#G-79 G79-1). Both passes share one read budget (G79-5).
+- **`firstWeek` (Fantasy, 14 Nov):** weeks before it are never read, recorded or alerted on (the run logs "before the game's first week" and returns), and no inputs file is made for them; the first week's own inputs file is made in its window as usual. Weeks before it don't count as "earlier weeks" for carried state or seasons, so the first week starts empty. It can't skip a week already final: a `firstWeek` moved past a final week is an error every run and the week is recorded as usual. Move it only before its week is recorded. Recorder only; not in the vault pin (the vault's own `from_week` still decides what is paid).
+- **Seasons (K1):** with the Game Standard's `seasonWeeks` above 1, `scoreRound` gets a 6th argument `{ seasonStaked, seasonStart, seasonWeek }`. `seasonStaked` holds the wallets with a counted stake (peak at or above the week's minimum, not voided) in any week of the season so far, with earlier weeks taken only from their final files. Each week file records its season's first week (`season`). A season starts at the game's first week, at `<SLUG>_RESET_FROM_WEEK`, then every `seasonWeeks` weeks. `seasonWeeks` goes into the vault pin.
+- **`Sample.checkAt`:** the conformance checks' time when hour 0 can't decide a round (an inputs-file game).
 
 ## 6. New games, and moving a live game onto the kit (never changes payouts)
 **Every new game launches on the kit; no game gets its own recorder again (D-158, D-160).** Order: the kit's core only (R-ARCH-3); Fantasy, Block Golf and Bracket ported to GameModules before they launch; Daily Questions' recorder (PR #203, the Mon 16 delivery) ported onto the kit with a byte-compatible replay and its scoring unchanged; then Block X and the Race by the steps below; then the publish jobs and the site files. **Any rule ambiguity stops the build and goes to the owner (D-160).** Data stays on today's branches (`games-data`, `race-data`) until ARCHITECTURE A3.

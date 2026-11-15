@@ -26,12 +26,14 @@ const n = (id: string) => Number(id.replace(/\D/g, "")) % 4;
 
 /** Which rounds have no ruler card (the game then asks the kit's fallback), and whether a card exists again later. */
 const noCard = new Set<number>();
+/** G79-7: a mode the game adds to its card settings (today's ask); undefined = none. */
+let modeNow: "A" | "B" | undefined;
 const g: GameModule<any, any, any> = {
   ...exampleGame,
   slug: "kit-example",
   async resultOf(round, read, inputs, ctx) {
     if (noCard.has(n(round.id))) { await ctx!.fallback!("no ruler card for this round"); return exampleGame.resultOf(round, read, inputs); }
-    ctx!.vhp!.card(settings(S0 + n(round.id) * 1200, String(2026110100 + n(round.id))));
+    ctx!.vhp!.card({ ...settings(S0 + n(round.id) * 1200, String(2026110100 + n(round.id))), ...(modeNow ? { mode: modeNow } : {}) });
     return exampleGame.resultOf(round, read, inputs);
   },
 };
@@ -51,7 +53,7 @@ function qworld(): World {
   return wd;
 }
 const nodes = (wd: World): [any, any] => [fakeNode("a", () => wd), fakeNode("b", () => wd)];
-const fresh = () => { noCard.clear(); return { wd: qworld(), rp: new Replay(g, cfg), L: R.ledger(timeline()) }; };
+const fresh = () => { noCard.clear(); modeNow = undefined; return { wd: qworld(), rp: new Replay(g, cfg), L: R.ledger(timeline()) }; };
 const roundOf = (j: any, k: number) => j.rounds.find((r: any) => n(r[0]) === k);
 
 test("K8: with the ruler's data loaded, a round with no card is decided by the game's fallback, recorded, alerted, and needs no card", async () => {
@@ -159,4 +161,25 @@ test("K8 publish check: a fallback before its grace, a changed or dropped publis
   assert.ok(!run({ ...pub, fallbacks: [[r3[0], r3[1] + FALLBACK_GRACE_MS, "x"]] }, null, Math.max(now, r3[1] + FALLBACK_GRACE_MS)).includes("bad fallbacks"), "48 h after its own day is fine");
   const { cards, vhpTo, ...plain } = pub; void cards; void vhpTo;
   assert.match(run(plain, null, now, exampleCfg()), /fallbacks in a game without ruler data/);
+});
+
+test("G79-7 / G69-3: a final week's cards are re-checked from the settings stored with them (weekPins): a game that now asks differently gets no HOLD", async () => {
+  const { wd, rp, L } = fresh();
+  modeNow = "B";                                                       // the week is scored with mode B cards
+  let h: any;
+  for (let i = 0; i < 4 && rp.read("W004.json")?.state !== "final"; i++) {
+    h = await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L });
+    assert.equal(h.error, undefined, h.error); wd.time += H;
+  }
+  const fin = rp.read("W004.json");
+  assert.equal(fin.state, "final");
+  assert.ok(fin.cards.every(([c]: any) => c.mode === "B"), "the published cards carry mode B");
+  const raw = rp.raw("W004.json");
+  modeNow = undefined;                                                 // today the game asks with no mode
+  h = await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L });
+  assert.equal(h.error, undefined, h.error);
+  assert.equal(rp.read("vault/HOLD-W4.json"), null, `a HOLD: ${JSON.stringify(h.result?.alerts.errors)}`);
+  assert.ok(!h.result!.alerts.errors.length, JSON.stringify(h.result!.alerts.errors));
+  assert.equal(rp.raw("W004.json"), raw, "the final week is unchanged");
+  modeNow = undefined;
 });

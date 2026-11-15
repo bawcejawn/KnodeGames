@@ -182,7 +182,9 @@ try {
     if (typeof a !== "symbol" && read) {
       decided++;
       const picks = read.picks.get(r.id) ?? [];
-      const s1 = mod.scoreRound(r, picks, a, inputs, stateFor.get(r.id)), s2 = mod.scoreRound(r, picks, a, inputs, stateFor.get(r.id));
+      // K1 (Survivor, 14 Nov): a season game's scoreRound gets its season context (the sample's week as its season's first week).
+      const season = cfg.seasonWeeks ? [{ seasonStaked: new Set<string>(), seasonStart: sample.week, seasonWeek: 1 }] : [];
+      const s1 = mod.scoreRound(r, picks, a, inputs, stateFor.get(r.id), ...season), s2 = mod.scoreRound(r, picks, a, inputs, stateFor.get(r.id), ...season);
       if (canon(s1) !== canon(s2)) ok(false, `scoreRound(${r.id}) is deterministic`);
     }
   }

@@ -440,6 +440,22 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     carry = checkedStates("carryIn", m.carryIn ? m.carryIn(last, span, inputs) : last);
   }
 
+  const rounds: Round[] = m.roundsFor(span, { now, inputs, published }).slice().sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
+  if (rounds.length > MAX_ROUNDS) throw new Error(`${cfg.slug}: ${rounds.length} rounds in week ${w}, more than the kit's ${MAX_ROUNDS} (KC-11)`);
+  const ids = new Set(rounds.map((r) => r.id));
+  if (ids.size !== rounds.length) throw new Error(`${cfg.slug}: roundsFor gave a round id twice`);
+  if (!ra) {
+    const carried = carry ? [...carry.keys()] : [];
+    const [x, y] = await Promise.all([readPicksWeek(m, A, va, budget, cfg.game, w, now, span, rounds, carried), readPicksWeek(m, B, vb, budget, cfg.game, w, now, span, rounds, carried)]);
+    if (!sameJson(x, y)) throw new Disagree(`week ${w}'s picks or stakes`, toJson(x), toJson(y));
+    ra = x;
+    if (ra.active === false) {
+      log(`${cfg.slug}: week ${w} is not paid from a results file (the vault's v6 rule isn't live for it): nothing to record.`);
+      return { week: null, state: "not-active", alerts, written: out.written };
+    }
+  }
+  for (const id of ra.picks.keys()) if (!ids.has(id)) throw new Error(`picks for round ${id}, which roundsFor doesn't list`);
+
   // K1 (Survivor): a season game's season start (recorded in each week file: `season`) and seasonStaked, the wallets
   // with a counted stake (peak >= the week's min, not voided) in any week of the season so far. The first week, a
   // reset week, or the week after a season's last starts a new season; earlier season weeks must be final (nothing
@@ -469,21 +485,6 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     seasonCtx = { seasonStaked: staked, seasonStart: start, seasonWeek: w - start + 1 };
   }
 
-  const rounds: Round[] = m.roundsFor(span, { now, inputs, published }).slice().sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
-  if (rounds.length > MAX_ROUNDS) throw new Error(`${cfg.slug}: ${rounds.length} rounds in week ${w}, more than the kit's ${MAX_ROUNDS} (KC-11)`);
-  const ids = new Set(rounds.map((r) => r.id));
-  if (ids.size !== rounds.length) throw new Error(`${cfg.slug}: roundsFor gave a round id twice`);
-  if (!ra) {
-    const carried = carry ? [...carry.keys()] : [];
-    const [x, y] = await Promise.all([readPicksWeek(m, A, va, budget, cfg.game, w, now, span, rounds, carried), readPicksWeek(m, B, vb, budget, cfg.game, w, now, span, rounds, carried)]);
-    if (!sameJson(x, y)) throw new Disagree(`week ${w}'s picks or stakes`, toJson(x), toJson(y));
-    ra = x;
-    if (ra.active === false) {
-      log(`${cfg.slug}: week ${w} is not paid from a results file (the vault's v6 rule isn't live for it): nothing to record.`);
-      return { week: null, state: "not-active", alerts, written: out.written };
-    }
-  }
-  for (const id of ra.picks.keys()) if (!ids.has(id)) throw new Error(`picks for round ${id}, which roundsFor doesn't list`);
 
   // resultOf with ctx.vhp; a card the data doesn't cover yet is PENDING (never a guess).
   // #G-69 G69-1: rounds a run couldn't decide because something wasn't readable yet (NotYet), as opposed to a result

@@ -160,3 +160,16 @@ test("G79-2: firstWeek moved past a week published PENDING (not yet final): an e
   for (let t = at(5, 0, 4); t < at(5, 0, 8); t += H) await hour(moved, wd, t);
   assert.equal(moved.read("W004.json").state, "final", "never dropped silently");
 });
+
+test("K1 on the Picks contract (Survivor's ASK 1, 14 Nov): a season game with picks-contract picks and no source override records through runGame", async () => {
+  const seen: any[] = [];
+  const sg = { ...game, scoreRound(round: Round, picks: any, winner: any, inputs: any, state: any, season: any) { seen.push(season); return game.scoreRound(round, picks, winner, inputs, state); } } as typeof game;
+  const wd = fworld(at(4) - 2 * DAY + H), rp = new Replay(sg, { ...cfg, firstWeek: 4, seasonWeeks: 2 });
+  let h = await hour(rp, wd, at(4) - 2 * DAY + H);
+  assert.equal(h.error, undefined, h.error);
+  for (let t = at(5, 0, 2); t < at(5, 0, 6); t += H) { h = await hour(rp, wd, t); assert.equal(h.error, undefined, h.error); }
+  const j = rp.read("W004.json");
+  assert.equal(j.state, "final");
+  assert.equal(j.season, 4, "the game's first week starts its season");
+  assert.ok(seen.length && seen.every((s) => s && s.seasonStart === 4 && s.seasonWeek === 1 && s.seasonStaked.has(A) && !s.seasonStaked.has(B)), "seasonStaked from the Picks-contract game's own stakes");
+});

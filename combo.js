@@ -510,7 +510,7 @@
     const g = cv.getContext("2d");
     if (!g) return null;
     const navy = "#14213D", navy2 = "#1E2E52", ink = "#FFF8F1", muted = "#C9D2E3", sun = "#F2B33D", tang = "#FF8A4C";
-    const disp = "'Bricolage Grotesque', system-ui, sans-serif", body = "'Atkinson Hyperlegible', system-ui, sans-serif", num = "'Archivo', system-ui, sans-serif";
+    const disp = "Inter, system-ui, sans-serif", body = "Inter, system-ui, sans-serif", num = "Inter, system-ui, sans-serif";   // owner, 14 Nov: Inter everywhere
     g.fillStyle = "#F3F1EA"; g.fillRect(0, 0, 1200, 630);
     const rr = (x, y, w, h, r) => { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); };
     g.fillStyle = navy; rr(30, 30, 1140, 570, 28); g.fill();

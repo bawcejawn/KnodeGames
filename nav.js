@@ -16,7 +16,7 @@
   p.setAttribute("role", "note");
   const b = document.createElement("b");
   b.textContent = "Test week:";
-  p.append(b, " no rewards; this week's earnings go to Week 1's pool. Week 1 starts Monday 16 November.");
+  p.append(b, " no rewards this week; they roll into Week 1's pool. Week 1 starts Monday 16 November.");
   main.prepend(p);
 })();
 

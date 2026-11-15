@@ -215,7 +215,28 @@
     }
     let fantasy = null;
     if (fx && fx.week === w && fx.data && Array.isArray(fx.data.pool)) { const e = fx.data.pool.find((x) => x && x.a === a); fantasy = { listed: !!e, price: e ? e.price : null, form: e ? e.form : null, budget: fx.data.budget }; }
-    return { w, race, fantasy };
+    return { w, race, fantasy, bracket: await bracketOf(a, w) };
+  }
+  /** This producer in the Producer Bracket (Bracket chat's rule, claude/bracket/TO-HUB-BRACKET-FILE-SHAPE-2026-11-14.md §3):
+      only W<week>.json's seeding and results; the ruler/ files are never read (a shadow week's trial isn't a result).
+      The next week's bracket is seeded on Sunday, so it wins once it has a seeding. null = nothing to show. */
+  async function bracketOf(a, w) {
+    const BM = window.KBracketMath; if (!BM || !BM.ROUND_NAMES) return null;
+    const file = (x) => getJson(`${RAW}games-data/bracket/W${String(x).padStart(3, "0")}.json`);
+    const [cur, next] = await Promise.all([file(w), file(w + 1)]);
+    const ok = (j, x) => j && j.week === x && typeof j.status === "string";
+    const j = ok(next, w + 1) && next.seeding && next.seeding.size ? next : ok(cur, w) ? cur : null;
+    if (!j) return null;
+    const when = j === next ? "next week" : "this week";
+    if (j.status === "void" || j.status === "none") return { text: `Producer Bracket: no Bracket ${when}.` };
+    const sd = j.seeding;
+    if (!sd || !sd.size || !Array.isArray(sd.seeds)) return { text: `Producer Bracket: ${when}'s seeding isn't out yet.` };
+    const k = sd.seeds.indexOf(a) + 1;
+    if (!k) return Array.isArray(sd.out) && sd.out.includes(a) ? { text: `Producer Bracket ${when}: in the field, not seeded.` } : null;
+    const names = BM.ROUND_NAMES[sd.size] || [], res = j.results, rounds = res && Array.isArray(res.rounds) ? res.rounds : [];
+    for (let r = 0; r < rounds.length; r++) if (!rounds[r].includes(k)) return { seed: k, out: true, text: `Producer Bracket ${when}: seed #${k}, knocked out in the ${names[r] || `round ${r + 1}`}.` };
+    if (res && res.done && rounds.length) return { seed: k, champ: true, text: `Producer Bracket ${when}: seed #${k}, champion!` };
+    return { seed: k, text: `Producer Bracket ${when}: seed #${k}, still in (${names[rounds.length] || "next round"}).` };
   }
   /** Is the address a smart contract (a pool, a vault) rather than a personal wallet? { contract, abi } or null. */
   async function metaOf(a) {
@@ -392,6 +413,7 @@
       if (!kg.fantasy) g.push(item("info", "i", "Fantasy Producers: this week's price list isn't out yet. ", link("fantasy.html", "Fantasy page")));
       else if (!kg.fantasy.listed) g.push(item("info", "i", "Fantasy Producers: not on this week's price list. ", link("fantasy.html", "Fantasy page")));
       else g.push(item("ok", "✓", `Fantasy Producers: price ${fmt(kg.fantasy.price)}${kg.fantasy.budget ? ` (a team's budget is ${fmt(kg.fantasy.budget)})` : ""}${Number.isFinite(kg.fantasy.form) ? `, form ${fmt(kg.fantasy.form / 100, 1)} (100 = as expected for its size)` : ""}. `, link("fantasy.html", "Fantasy page")));
+      if (kg.bracket) g.push(item(kg.bracket.out ? "info" : "ok", kg.bracket.champ ? "🏆" : kg.bracket.out ? "i" : "✓", kg.bracket.text + " ", link("bracket.html", "Bracket page")));
       $("kg").replaceChildren(...g);
       const at = Math.max(0, rank - 1), from0 = Math.max(0, Math.min(at - 3, ranked.length - 7)), near = ranked.slice(from0, from0 + 7);
       $("peers").replaceChildren(...near.map((a) => {

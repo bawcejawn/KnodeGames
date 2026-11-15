@@ -107,8 +107,8 @@
   const r6Fixed = new Map();   // race id -> the producers in a fixed order (Repo Lens #G-72 G72-4)
   let r6Win = 0;   // 6-hour board: index into R6_WINDOWS; -1 = against the last race's final places (owner, 14 Nov)
   // Owner 14 Nov: "space the horses out so it's easier to see who is ahead". Pack view (default) zooms each lane onto the
-  // pack, last place at the left and the leader at the right, like a TV camera following the race; a thin strip under
-  // the lane keeps the real progress. "Whole race" is the old 0-to-finish scale.
+  // pack, last place at the left and the leader at the right, like a TV camera following the race (owner, 14 Nov:
+  // no extra strip under the lane). "Whole race" is the old 0-to-finish scale with the hour marks.
   let packView = true;
   try { packView = localStorage.getItem("pr-view") !== "whole"; } catch { /* default */ }
   const R6_WINDOWS = [3600000, 3 * 3600000];
@@ -196,7 +196,7 @@
       const latest6 = () => { const lr = raceObj(cur.index); return (lr.cards && M.cardForLeg(lr.cards, M.legOf(lr.start, nowT, M.legsOf(lr.cards)))) || prov; };
       const ups = live && me() && raceContract ? [1, 2, 3].map((k) => { const ur = raceObj(cur.index + k); return { k, r: ur, c: (ur.cards && !ur.provisional && M.cardForLeg(ur.cards, 0)) || latest6() }; }) : [];
       const grid6 = ups.length ? `grid-template-columns:minmax(0,230px) minmax(120px,1fr) 104px repeat(${ups.length},62px)` : "";
-      if (ups.length) keep.push(el("div", { class: "pr-headrow rt-head", style: grid6 }, el("div", { text: "Producer" }), rulerEl(M.RACE, 3600000), el("div", { class: "pr-gap", text: "Standing" }),
+      if (ups.length) keep.push(el("div", { class: "pr-headrow rt-head", style: grid6 }, el("div", { text: "Producer" }), packView ? el("div", { class: "pr-packlbl", text: "← further back · leading →" }) : rulerEl(M.RACE, 3600000), el("div", { class: "pr-gap", text: "Standing" }),
         ...ups.map((u) => el("div", { class: "rt-pc" }, el("b", { text: clock(u.r.start) }), el("span", { text: `locks ${dur(u.r.start - nowT)}` })))));
       ordered.forEach((r) => {
         const i = rows.indexOf(r);   // i = the live place (0 = leading)
@@ -204,7 +204,7 @@
         if (!lane) {
           lane = el("div", { class: "pr-lane", "data-addr": r.a },
             el("div", { class: "pr-who" }, el("span", { class: "pr-rank" }), el("span", { class: "pr-dot" }), el("a", { class: "pr-name", href: EXPLORER + r.a, target: "_blank", rel: "noopener noreferrer" }), el("span", { class: "pr-plus", "aria-hidden": "true" }), el("span", { class: "pr-meta" })),
-            el("div", { class: "pr-run" }, el("div", { class: "pr-trail" }), el("img", { class: "pr-horse", alt: "", "aria-hidden": "true", src: "media/animals/horse.png", width: "30", height: "30" }), el("div", { class: "pr-true", title: "Real progress to the 6-hour finish" })),
+            el("div", { class: "pr-run" }, el("div", { class: "pr-trail" }), el("img", { class: "pr-horse", alt: "", "aria-hidden": "true", src: "media/animals/horse.png", width: "30", height: "30" })),
             el("div", { class: "pr-gap" }));
           lane.querySelector(".pr-dot").style.background = colour(r.a);
           lane.querySelector(".pr-trail").style.background = colour(r.a);
@@ -223,7 +223,6 @@
         const xf = packView ? PACK(r.x) : r.x;
         lane.querySelector(".pr-horse").style.left = `calc(${POS(xf)} - 20px)`;   // the animal always sits fully inside the bar; its middle is the progress point
         lane.querySelector(".pr-trail").style.width = POS(xf);
-        lane.querySelector(".pr-true").style.width = `${(Math.min(1, Math.max(0, r.x)) * 100).toFixed(2)}%`;
         const gap = lane.querySelector(".pr-gap");
         const EL = ended ? endLabel(RO6, r.a, i) : null;
         if (ended) gap.replaceChildren(EL.text ? el("b", { text: EL.text }) : `${fmt(r.behind, 1)} behind`, el("br"), el("span", { class: "ago", text: `${fmt(r.steps, 1)} steps` }));

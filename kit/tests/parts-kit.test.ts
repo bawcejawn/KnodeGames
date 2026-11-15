@@ -146,3 +146,25 @@ test("G73-1: ctx.vhp says loaded: true with the ruler's data, false for the kit'
   await rp.hour(nodes(wd), wd.time + 5 * 60000);
   assert.ok(seen.length && seen.every((x) => x === false), JSON.stringify(seen));
 });
+
+test("G79-8 / G79-6: a folder whose manifest disagrees with its rebuilt week is held; a week folder without its manifest stops the recorder", async () => {
+  const rp = new Replay(exampleGame, { ...exampleCfg(), parts: "r" }), wd = qworld();
+  await rp.hour(nodes(wd), wd.time + 5 * 60000);
+  const { partsViews } = await import("../publish/check.inline.mjs");
+  const pub = (rp as any).pub;
+  const out = fs.mkdtempSync(path.join((rp as any).root, "t-"));
+  fs.cpSync(path.join(pub, "W004"), path.join(out, "W004"), { recursive: true });
+  const mf = path.join(out, "W004", "manifest.json"), m = JSON.parse(fs.readFileSync(mf, "utf8"));
+  assert.equal(m.state, "pending");
+  fs.writeFileSync(mf, canon({ ...m, state: "open" }));                   // outside the part-set hash
+  const v = partsViews({ ...exampleCfg(), parts: "r" }, out, pub, (rp as any).root);
+  assert.ok(v.held.some((x: any) => x.name === "W004/" && /manifest says week 4 open, but its parts rebuild week 4 pending/.test(x.why)), JSON.stringify(v.held));
+  // G79-6: last run's copy-back lost only the manifest: the recorder stops with that cause (not "week 4 absent")
+  const { Prev } = await import("../recorder/store.ts");
+  const prev = fs.mkdtempSync(path.join((rp as any).root, "p-"));
+  fs.cpSync(pub, prev, { recursive: true });
+  fs.writeFileSync(path.join(prev, ".fetched"), "");
+  assert.doesNotThrow(() => Prev.load(prev, { ...exampleCfg(), parts: "r" }));
+  fs.rmSync(path.join(prev, "W004", "manifest.json"));
+  assert.throws(() => Prev.load(prev, { ...exampleCfg(), parts: "r" }), /W004\/ has no manifest\.json/);
+});

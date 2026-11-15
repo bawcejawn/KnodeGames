@@ -180,14 +180,16 @@ export function weekShape(j, name, cfg) {
   // #G-24 Info: a ruler game's decided rounds each come from a card (cardPerRound, on by default): at least as many
   // distinct cards as decided rounds.
   // K8: rounds decided by the game's fallback rule: [round, at, why], sorted, each a decided round of this file, at a
-  // time at least 48 h after the week's start (the round's own end is the recorder's; the job's clock checks `at`).
+  // time at least 48 h after that round's own day (Repo Lens #G-79 G79-3; the round's exact end is the recorder's, through
+  // blockAt; the job's clock checks `at`).
   if (j.fallbacks !== undefined) {
     if (!cfg.vhpData) return "fallbacks in a game without ruler data";
     const dec = new Set(j.rounds.filter((r) => r[3] === "s" || r[3] === "v").map((r) => r[0]));
+    const dayOfRound = new Map(j.rounds.map((r) => [r[0], r[1]]));
     if (!Array.isArray(j.fallbacks) || !j.fallbacks.length || j.fallbacks.length > j.rounds.length
       || !j.fallbacks.every((f, i) => Array.isArray(f) && f.length === 3 && typeof f[0] === "string" && dec.has(f[0])
-        && Number.isSafeInteger(f[1]) && f[1] >= j.start + FALLBACK_GRACE_MS && typeof f[2] === "string" && f[2].length >= 1 && f[2].length <= 200
-        && (i === 0 || j.fallbacks[i - 1][0] < f[0]))) return "bad fallbacks (sorted [decided round, at, why], at least 48 h after the week's start)";
+        && Number.isSafeInteger(f[1]) && f[1] >= dayOfRound.get(f[0]) + FALLBACK_GRACE_MS && typeof f[2] === "string" && f[2].length >= 1 && f[2].length <= 200
+        && (i === 0 || j.fallbacks[i - 1][0] < f[0]))) return "bad fallbacks (sorted [decided round, at, why], at least 48 h after the round's own day)";
   }
   if (cfg.cardPerRound && j.cards !== undefined) {
     const decided = j.rounds.filter((r) => r[3] === "s" || r[3] === "v").length - (j.fallbacks?.length ?? 0);
@@ -688,7 +690,8 @@ export function checkGame(cfg, inDir, pubDir, now, release = "", cardsOk = null,
       if (!same(raw, old)) { hold(f, "it changes a published final week"); continue; }
       okWeeks.set(w, prev); heldWeeks.delete(w); continue;     // copied forward unchanged: nothing to publish
     }
-    if (prev) { const ch = roundsChange(prev, j, cfg); if (ch) { hold(f, ch); continue; } }
+    // Repo Lens #G-79 G79-1: an open copy (K4 liveWeek) is display only: its rounds may still change.
+    if (prev && prev.state !== "open") { const ch = roundsChange(prev, j, cfg); if (ch) { hold(f, ch); continue; } }
     // K8: a fallback, once published, stays exactly as published; and no fallback before its time by this job's clock.
     if (prev && (prev.fallbacks ?? []).some((f) => JSON.stringify((j.fallbacks ?? []).find((g) => g[0] === f[0])) !== JSON.stringify(f))) { hold(f, "it changes or drops a published fallback round"); continue; }
     if ((j.fallbacks ?? []).some((x) => x[1] > now)) { hold(f, "a fallback round decided before its 48 h grace, by this job's clock"); continue; }
@@ -844,6 +847,9 @@ export function partsViews(g, inDir, pubDir, tmpRoot) {
             const c = KP.checkParts(from, { game: g.slug, file: e.name, week, full: ["wk"], publishedRoot: pubDir, rel: e.name });
             if (!c.ok) { held.push({ name: e.name + "/", why: `its parts don't check (${c.errors.slice(0, 3).join("; ")})` }); continue; }
             const j = partsToWeek(c.parts, g);
+            // Repo Lens #G-79 G79-8: the manifest (which checkParts judges finality from) and the rebuilt week (which
+            // checkGame judges) must agree on the week and its state.
+            if (c.manifest.week !== j.week || c.manifest.state !== j.state) { held.push({ name: e.name + "/", why: `its manifest says week ${c.manifest.week} ${c.manifest.state}, but its parts rebuild week ${j.week} ${j.state}` }); continue; }
             fs.writeFileSync(path.join(dst, rel), canon(j));
             folders.set(rel, ["manifest.json", ...c.manifest.parts.map((p) => p.name)].map((n) => `${e.name}/${n}`));
           } else fs.writeFileSync(path.join(dst, rel), canon(readWeekFolder(from, g).week));

@@ -105,7 +105,12 @@
     return el("div", { class: "rt-ruler" }, ...out);
   }
   const r6Fixed = new Map();   // race id -> the producers in a fixed order (Repo Lens #G-72 G72-4)
-  let r6Win = 0;   // 6-hour board: index into R6_WINDOWS; -1 = since start
+  let r6Win = 0;   // 6-hour board: index into R6_WINDOWS; -1 = against the last race's final places (owner, 14 Nov)
+  // Owner 14 Nov: "space the horses out so it's easier to see who is ahead". Pack view (default) zooms each lane onto the
+  // pack, last place at the left and the leader at the right, like a TV camera following the race; a thin strip under
+  // the lane keeps the real progress. "Whole race" is the old 0-to-finish scale.
+  let packView = true;
+  try { packView = localStorage.getItem("pr-view") !== "whole"; } catch { /* default */ }
   const R6_WINDOWS = [3600000, 3 * 3600000];
   function render() {
     if (!B) return;                                     // the blocks aren't loaded yet (the picks panel can be first)
@@ -168,12 +173,24 @@
       let winBar = $("r6-win");
       if (!winBar) { winBar = el("div", { id: "r6-win", class: "rt-win" }); track.parentNode.insertBefore(winBar, track); }
       winBar.hidden = !hasWin;
+      let viewBar = $("r6-view");
+      if (!viewBar) { viewBar = el("div", { id: "r6-view", class: "rt-win pr-viewbar" }); track.parentNode.insertBefore(viewBar, track); }
+      viewBar.replaceChildren(el("span", { class: "rt-wl", text: "View:" }),
+        ...[["Pack", true, "Zoomed in on the pack: easier to see who is ahead"], ["Whole race", false, "From the start line to the 6-hour finish"]].map(([t, v, tip]) => el("button", { type: "button", title: tip, "aria-pressed": String(packView === v), onclick: () => { packView = v; try { localStorage.setItem("pr-view", v ? "pack" : "whole"); } catch { /* fine */ } render(); } }, t)));
+      const xs = rows.map((r) => r.x).filter(Number.isFinite), lo = Math.min(...xs), hi = Math.max(...xs);
+      const PACK = (x) => (hi - lo > 1e-9 ? 0.04 + 0.92 * ((x - lo) / (hi - lo)) : 0.5);   // last place ~left, leader ~right
       if (hasWin) winBar.replaceChildren(el("span", { class: "rt-wl", text: "Places gained / lost over:" }),
         ...R6_WINDOWS.map((ms, i) => el("button", { type: "button", "aria-pressed": String(r6Win === i), onclick: () => { r6Win = i; render(); } }, `${ms / 3600000} h`)),
-        el("button", { type: "button", "aria-pressed": String(r6Win === -1), onclick: () => { r6Win = -1; render(); } }, "Since start"));
+        el("button", { type: "button", "aria-pressed": String(r6Win === -1), onclick: () => { r6Win = -1; render(); } }, "Since last race"));
       let before6 = null;
-      if (hasWin && race.cards && B.ts[0] <= race.start) {
-        const t0 = r6Win === -1 ? race.start + 1000 : Math.max(race.start + 1000, nowT - R6_WINDOWS[r6Win] || nowT);
+      if (hasWin && r6Win === -1) {
+        // each producer's live place against where it finished the race before (the Ruler's places in a Ruler week)
+        const pr = raceObj(race.index - 1), ro = pr.result ? ruledFor(pr, 0) : null;
+        const pl = ro && !ro.pending && Array.isArray(ro.placings) && ro.placings.length ? ro.placings
+          : !ro && pr.result && pr.result.final && Array.isArray(pr.result.standings) && pr.result.standings.length ? pr.result.standings.map((x) => x && x.a) : null;
+        if (pl) before6 = new Map(pl.map((a, j) => [a, j + 1]));
+      } else if (hasWin && race.cards && B.ts[0] <= race.start) {
+        const t0 = Math.max(race.start + 1000, nowT - R6_WINDOWS[r6Win] || nowT);
         if (t0 < nowT - 5000) { const old = M.standings(B, race, race.cards, t0); if (old && old.length) before6 = new Map(old.map((x, j) => [x.a, j + 1])); }
       }
       const latest6 = () => { const lr = raceObj(cur.index); return (lr.cards && M.cardForLeg(lr.cards, M.legOf(lr.start, nowT, M.legsOf(lr.cards)))) || prov; };
@@ -187,7 +204,7 @@
         if (!lane) {
           lane = el("div", { class: "pr-lane", "data-addr": r.a },
             el("div", { class: "pr-who" }, el("span", { class: "pr-rank" }), el("span", { class: "pr-dot" }), el("a", { class: "pr-name", href: EXPLORER + r.a, target: "_blank", rel: "noopener noreferrer" }), el("span", { class: "pr-plus", "aria-hidden": "true" }), el("span", { class: "pr-meta" })),
-            el("div", { class: "pr-run" }, el("div", { class: "pr-trail" }), el("img", { class: "pr-horse", alt: "", "aria-hidden": "true", src: "media/animals/bird.png", width: "30", height: "30" })),
+            el("div", { class: "pr-run" }, el("div", { class: "pr-trail" }), el("img", { class: "pr-horse", alt: "", "aria-hidden": "true", src: "media/animals/horse.png", width: "30", height: "30" }), el("div", { class: "pr-true", title: "Real progress to the 6-hour finish" })),
             el("div", { class: "pr-gap" }));
           lane.querySelector(".pr-dot").style.background = colour(r.a);
           lane.querySelector(".pr-trail").style.background = colour(r.a);
@@ -203,9 +220,10 @@
           plus.classList.add("on"); lane.classList.add("moved");
         } else { plus.classList.remove("on"); lane.classList.remove("moved"); if (!live) plus.textContent = ""; }
         lane.querySelector(".pr-meta").textContent = `${h ? `×${h.h.toFixed(2)} per block` : "no handicap this leg"} · ${fmt(r.blocks)} blocks${share ? ` · ${fmt(share * 100, share < 0.01 ? 2 : 1)}% VHP` : ""}`;
-        const xf = r.x;
+        const xf = packView ? PACK(r.x) : r.x;
         lane.querySelector(".pr-horse").style.left = `calc(${POS(xf)} - 20px)`;   // the animal always sits fully inside the bar; its middle is the progress point
         lane.querySelector(".pr-trail").style.width = POS(xf);
+        lane.querySelector(".pr-true").style.width = `${(Math.min(1, Math.max(0, r.x)) * 100).toFixed(2)}%`;
         const gap = lane.querySelector(".pr-gap");
         const EL = ended ? endLabel(RO6, r.a, i) : null;
         if (ended) gap.replaceChildren(EL.text ? el("b", { text: EL.text }) : `${fmt(r.behind, 1)} behind`, el("br"), el("span", { class: "ago", text: `${fmt(r.steps, 1)} steps` }));
@@ -215,7 +233,7 @@
         const run = lane.querySelector(".pr-run");
         let shade = run.querySelector(".pr-shade");
         if (!shade) { shade = el("div", { class: "pr-shade" }); run.insertBefore(shade, run.firstChild); run.appendChild(el("div", { class: "pr-nowline" })); }
-        shade.style.width = frac > 0 ? POS(frac) : "0"; run.querySelector(".pr-nowline").style.left = POS(frac); run.classList.toggle("over", !live);
+        shade.style.width = frac > 0 ? POS(frac) : "0"; run.querySelector(".pr-nowline").style.left = POS(frac); run.classList.toggle("over", !live); run.classList.toggle("pack", packView);
         // Gained / lost pill
         let pill = lane.querySelector(".rt-pill");
         if (!pill) { pill = el("span", { class: "rt-pill" }); lane.querySelector(".pr-who").insertBefore(pill, lane.querySelector(".pr-meta")); }

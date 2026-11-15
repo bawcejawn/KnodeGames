@@ -331,3 +331,15 @@ Every #G-37 condition is met.
   deadline; only the verify job checks that the source published past it. A Python copy of that rule is worth adding
   later.
 
+
+## Owner decision D-180 (Sat 14 Nov 2026, 6:54 PM ET): 2 to 10 legs
+A card has at least 2 and at most 10 legs; fewer than 10 is always fine. Built in PR #328:
+- `combo-math.js` `MAX_LEGS` 10 (was 6; `HARD_MAX_LEGS` 10 and the base points for 7 to 10 legs, 120 / 240 / 480 / 960,
+  were already there and already used by the recorder, the verify job and the publish job, which accept 2 to 10).
+- Picks game 8 (`bot/picks.ts` `COMBO_GAME`): `maxLegs` 10 with `listSize` 10. Both are announced together; `listSize`
+  can never change.
+- Page, home tile, games list and search text: "2 to 10 calls".
+- Sizes: a 10-leg card is about 760 B in a day file, so a 1,000-card part is at most about 0.76 MB (under the 60% line).
+  A 10-leg card pick is 516 argument bytes, inside the sponsor's 640.
+- Tests: the card-shape test (11 legs refused, 10 and 7 fine), the Picks tool's pinned config (`max_legs` 10), the
+  browser harness.

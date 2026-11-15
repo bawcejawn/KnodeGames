@@ -46,7 +46,7 @@ async function open(opts = {}) {
         if (req.params.contract_id === PICKS && m) {
           const args = await ser.deserialize(req.params.args, m.argument);
           let out = null;
-          if (m.argument.endsWith("get_game_arguments")) out = { game: { id: 8, kind: 4, enabled: true, max_legs: 6, list_size: 10, round_size: "3", lock_mode: 2 } };
+          if (m.argument.endsWith("get_game_arguments")) out = { game: { id: 8, kind: 4, enabled: true, max_legs: 10, list_size: 10, round_size: "3", lock_mode: 2 } };
           if (m.argument.endsWith("get_pick_arguments")) { calls.get_pick++; if (opts.failPick && opts.failPick()) return route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ jsonrpc: "2.0", id: req.id, error: { code: -32603, message: "node busy" } }) }); const p = opts.slots ? opts.slots(Number(args.round), Math.floor(Number(args.round) / 3)) : null; out = p ? { pick: p } : {}; if (opts.delay) await new Promise((r) => setTimeout(r, opts.delay("get_pick", calls.get_pick))); }
           if (m.argument.endsWith("get_usage_arguments")) out = { day: String(Math.floor(now / DAY)), picks_today: 1, max_picks_per_day: 12 };
           if (out) result = { result: utils.encodeBase64url(await ser.serialize(out, m.return)) };

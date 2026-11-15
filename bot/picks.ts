@@ -95,7 +95,7 @@ export const BRACKET_GAME = Object.freeze({ id: 9, name: "Producer Bracket", kin
   lead: 5 * 60000, ahead: 46 * 3600000, numberMax: 2 ** 31 - 1, picksPerDay: 20, maxChanges: 20 });
 /** Combo Card, Picks game 8 (the Combo chat, 12 Nov; the build 8 rules): a CARD game (kind 4, Picks v2 only), locked by
  *  TIME. Three slots a UTC day (round_size 3: one card per slot), each card changeable 3 times, so at most 12 card
- *  transactions a wallet a day. Cards of 2 to 6 legs now (max_legs; the contract's room is 10, list_size, which can
+ *  transactions a wallet a day. Cards of 2 to 10 legs (max_legs 10, owner D-180; list_size 10 is the room on chain, which can
  *  never change). Four leg types, exactly as the recorder requires (bot/games/combo.ts expectedLegTypes, Repo Lens RL-25)
  *  and the page prices them (combo-math.js): Win (1), Show (2), Top half (3) on the 6-hour Producer Race (lock 25 min
  *  before the start, open 24 h ahead), and Block X (4) on blocks that are multiples of 2,400 (lock 500 blocks before,
@@ -105,7 +105,7 @@ export const BRACKET_GAME = Object.freeze({ id: 9, name: "Producer Bracket", kin
 const RACE_MS = 6 * 3600000;
 const comboLeg = (code: number, lock_mode: number, round_size: number, lead: number, ahead: number) =>
   Object.freeze({ code, lock_mode, round_size: String(round_size), round_offset: "0", lead: String(lead), ahead: String(ahead), enabled: true });
-export const COMBO_GAME = Object.freeze({ id: 8, name: "Combo Card", kind: 4, listSize: 10, maxLegs: 6, slotsPerDay: 3, picksPerDay: 12, maxChanges: 3,
+export const COMBO_GAME = Object.freeze({ id: 8, name: "Combo Card", kind: 4, listSize: 10, maxLegs: 10, slotsPerDay: 3, picksPerDay: 12, maxChanges: 3,
   legTypes: Object.freeze([comboLeg(1, 2, RACE_MS, 25 * 60000, DAY_MS), comboLeg(2, 2, RACE_MS, 25 * 60000, DAY_MS), comboLeg(3, 2, RACE_MS, 25 * 60000, DAY_MS), comboLeg(4, 1, 2400, 500, 28800)]) });
 /** Fantasy, Picks games 4 and 5 (the Fantasy chat's values, claude/fantasy/TO-BLOCKX-PICKS-GAMES-4-5-VALUES-2026-11-12.md;
  *  the same as its testnet registration, fantasy-math.js games(); the owner confirms the shapes). Both TIME-locked, one

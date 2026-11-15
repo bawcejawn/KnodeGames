@@ -435,7 +435,7 @@ test("Combo Card, game 8: the pinned card game is the recorder's and the page's,
   assert.equal(g, COMBO_GAME);
   const cfg: any = buildGameConfig(g);
   assert.deepEqual(cfg, { id: 8, name: "Combo Card", kind: 4, list_size: 10, number_min: "0", number_max: "0", lock_mode: 2, round_size: "3", round_offset: "0",
-    lead: "300000", ahead: "86400000", max_picks_per_day: 12, max_changes: 3, enabled: true, max_legs: 6, leg_types: [
+    lead: "300000", ahead: "86400000", max_picks_per_day: 12, max_changes: 3, enabled: true, max_legs: 10, leg_types: [
       { code: 1, lock_mode: 2, round_size: "21600000", round_offset: "0", lead: "1500000", ahead: "86400000", enabled: true },
       { code: 2, lock_mode: 2, round_size: "21600000", round_offset: "0", lead: "1500000", ahead: "86400000", enabled: true },
       { code: 3, lock_mode: 2, round_size: "21600000", round_offset: "0", lead: "1500000", ahead: "86400000", enabled: true },
@@ -458,7 +458,7 @@ test("Combo Card, game 8: the pinned card game is the recorder's and the page's,
   assert.match(String(pendingProblem(moved, g)), /leg_types\[3\]\.lead is 400/);
   const fewer = JSON.parse(JSON.stringify(cfg)); fewer.leg_types.pop();
   assert.match(String(pendingProblem(fewer, g)), /leg_types has 3 entries/);
-  assert.match(String(pendingProblem({ ...cfg, max_legs: 10 }, g)), /max_legs is 10/);
+  assert.match(String(pendingProblem({ ...cfg, max_legs: 9 }, g)), /max_legs is 9/);
   // Games 2, 12, 9, 4 and 5: untouched by the card fields.
   for (const id of [2, 12, 9, 4, 5]) assert.ok(!("leg_types" in (buildGameConfig(mainnet.games.find((x: any) => x.id === id)) as any)), `game ${id}`);
   // On mainnet, game 8 is announced only once the deployment file records Picks v2.

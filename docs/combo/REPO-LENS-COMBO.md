@@ -5,12 +5,12 @@ by the Combo Card chat on Thu 12 Nov 2026 for the Combo pull request and its Rep
 and decisions: `.ai/games/ComboCard.md`. Audit history: `docs/history/AUDIT-2026-10-30-combo-repolens.md`.
 
 ## 1. What it is
-A parlay game for points, never money. A card holds 2 to 6 legs (the contract allows 10) from two other games:
+A parlay game for points, never money. A card holds 2 to 10 legs (owner, D-180) from two other games:
 - **Race legs:** Win, Show (top 3) and Top half on a 6-hour Producer Race.
 - **Block X legs:** "producer P signs target block T" (T a multiple of 2,400).
 
 Every leg must hit. A miss scores 0, and a void leg is dropped. Points are base[legs] × the product of the leg worths,
-with base 3, 7, 15, 30, 60 for 2–6 legs. Each leg's worth is clamp(0.5 ÷ chance, 0.25, 3), priced when the card is
+with base 3, 7, 15, 30, 60, 120, 240, 480, 960 for 2–10 legs. Each leg's worth is clamp(0.5 ÷ chance, 0.25, 3), priced when the card is
 sent. The limits are 3 cards a UTC day, each changeable 3 times.
 
 A week is each player's best 10 cards. There are two boards: Staked, and Free play (anyone, guests included). The
@@ -135,7 +135,7 @@ This round (Thu 12 Nov), on top of `ba2d9b30`:
 ## 4. Key decisions
 | Ref | Decision |
 |---|---|
-| Build 8 brief | 2–6 legs (contract 10); worth clamp 0.25–3; 3 cards/day, 3 changes; no points cap; locks race 25 min, Block X 500 blocks; ≥ 1 point to count |
+| Build 8 brief, D-180 | 2–10 legs (D-180, 14 Nov; was 2–6); worth clamp 0.25–3; 3 cards/day, 3 changes; no points cap; locks race 25 min, Block X 500 blocks; ≥ 1 point to count |
 | D-060 | Cards on mainnet wait for Picks v2 |
 | RL-15 / RL-16 | A horse missing from the field = void leg |
 | C-W-3 / FC-13 | One sponsor row for picks and cards: 0.2 → 0.25 Mana at Combo launch |

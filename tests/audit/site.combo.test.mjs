@@ -1,4 +1,4 @@
-// Combo Card (combo-math.js, shared by the page and the recorder bot/games/combo.ts): the card rules (2 to 6 legs,
+// Combo Card (combo-math.js, shared by the page and the recorder bot/games/combo.ts): the card rules (2 to 10 legs, D-180,
 // one leg per race or block, every leg open, the contract's locks), the price of each leg type from a real race card,
 // exact points with the 150 cap, every leg-type result edge, void legs, and the best-10 leaderboard. Offline.
 import { test } from "node:test";
@@ -23,12 +23,13 @@ const R = M.raceIndex(NOW) + 1;                 // the next race (12:00), opens 
 const B = Math.floor(H / X.ROUND) + 2;          // a Block X target ~4,800 blocks ahead
 const leg = (code, round, producer = TOP) => ({ code, round, producer });
 
-test("card shape: 2 to 6 legs, known codes, valid producers", () => {
+test("card shape: 2 to 10 legs (owner, D-180), known codes, valid producers", () => {
   assert.match(C.cardProblem([leg(C.SHOW, R)], head), /at least 2/);
   assert.match(C.cardProblem([], head), /at least 2/);
-  const seven = Array.from({ length: 7 }, (_, i) => leg(C.BLOCK, B + i, CARD.field[i].a));
-  assert.match(C.cardProblem(seven, head), /at most 6/);
-  assert.equal(C.cardProblem(seven.slice(0, 6), head), null);
+  const eleven = Array.from({ length: 11 }, (_, i) => leg(C.BLOCK, B + i, CARD.field[i].a));
+  assert.match(C.cardProblem(eleven, head), /at most 10/);
+  assert.equal(C.cardProblem(eleven.slice(0, 10), head), null, "10 legs is fine");
+  assert.equal(C.cardProblem(eleven.slice(0, 7), head), null, "fewer than 10 is always fine");
   assert.match(C.cardProblem([leg(5, R), leg(C.BLOCK, B)], head), /Unknown/);
   assert.match(C.cardProblem([leg(C.WIN, R, "nope"), leg(C.BLOCK, B)], head), /invalid producer/);
   assert.match(C.cardProblem([leg(C.WIN, 0), leg(C.BLOCK, B)], head), /Unknown/);
@@ -145,7 +146,7 @@ test("points: base by legs × factors, exact hundredths, no cap; up to the contr
   assert.equal(C.pointsFor(new Array(6).fill(25)), 1, "60 × 0.25^6 = 0.0146 points = 1.46 hundredths, rounded down");
   assert.equal(C.pointsFor([33, 33, 33]), Math.floor(700 * 33 * 33 * 33 / 1e6));
   assert.equal(C.pointsFor([100]), 0); assert.equal(C.pointsFor(new Array(11).fill(100)), 0);
-  assert.equal(C.CAP, null); assert.equal(C.MAX_LEGS, 6); assert.equal(C.HARD_MAX_LEGS, 10);
+  assert.equal(C.CAP, null); assert.equal(C.MAX_LEGS, 10); assert.equal(C.HARD_MAX_LEGS, 10);   // owner, D-180
 });
 
 test("results for every leg type: hit / miss / void / unresolved / pending", () => {

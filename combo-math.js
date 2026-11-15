@@ -2,7 +2,7 @@
  * card priced in the browser and a card scored by the recorder always agree. No network, no page, no wallet.
  * Needs race-math.js and blockx-math.js loaded first. Owner's decisions 2026-10-28 (claude/builds/08-combo-card-plan.md).
  *
- * A CARD is 2 to 6 legs. Every leg must hit for the card to score; one miss and it scores 0.
+ * A CARD is 2 to 10 legs (owner, D-180). Every leg must hit for the card to score; one miss and it scores 0.
  *
  * LEGS (code: what it says)
  *   1 Race Win:      horse P wins race R.
@@ -38,8 +38,8 @@
  *   Lens RL-1: a producer nobody has measured is never priced as a long shot).
  *   Points = base × all factors, with NO cap (owner, 2026-10-28: "if they can build it they can win it"), base by legs:
  *   2 → 3, 3 → 7, 4 → 15, 5 → 30, 6 → 60, 7 → 120, 8 → 240, 9 → 480, 10 → 960 (each leg roughly doubles it, so a
- *   fairly priced leg keeps a card's expected points level). Kept in hundredths. The game runs at up to 6 legs
- *   (MAX_LEGS); the contract allows up to 10 (HARD_MAX_LEGS), opened with 48 hours' notice when more games add legs.
+ *   fairly priced leg keeps a card's expected points level). Kept in hundredths. The game runs at up to 10 legs
+ *   (MAX_LEGS, owner D-180), the contract's limit too (HARD_MAX_LEGS, list_size 10).
  *   Simulated 2026-10-28: removing the cap doesn't change who reaches the top 30%; the week's #1 is then usually
  *   decided by one big card (80% of the leader's week vs 45% with a 150 cap).
  *   Easy legs are worth less than ×1 (down to ×0.25), so stacking near-certain legs is not free points.
@@ -70,7 +70,7 @@
   const CODES = [WIN, SHOW, HALF, BLOCK];
   const NAMES = { 1: "Win", 2: "Show", 3: "Top half", 4: "Block X" };
   const FAMILY = { 1: "race", 2: "race", 3: "race", 4: "block" };
-  const MIN_LEGS = 2, MAX_LEGS = 6;
+  const MIN_LEGS = 2, MAX_LEGS = 10;      // owner, D-180 (14 Nov): at least 2 and at most 10 legs
   const BASE = { 2: 3, 3: 7, 4: 15, 5: 30, 6: 60, 7: 120, 8: 240, 9: 480, 10: 960 };
   const HARD_MAX_LEGS = 10;                // the Picks contract's limit (list_size)
   const CAP = null;                        // no cap on a card's points (owner, 2026-10-28)
@@ -118,7 +118,7 @@
 
   /** Why a card can't be made now (null if it can). legs: [{ code, round, producer }]. Same order as the contract. */
   function cardProblem(legs, head, max = MAX_LEGS) {
-    const most = Math.min(HARD_MAX_LEGS, Math.max(MIN_LEGS, max | 0));   // the game's max_legs on chain (6 at launch)
+    const most = Math.min(HARD_MAX_LEGS, Math.max(MIN_LEGS, max | 0));   // the game's max_legs on chain (10, D-180)
     if (!Array.isArray(legs) || legs.length < MIN_LEGS) return "A card needs at least 2 legs.";
     if (legs.length > most) return `A card has at most ${most} legs.`;
     const seen = new Set(), producers = new Set();

@@ -8,7 +8,7 @@ A staked "parlay" game: combine several predictions from the Producer Race and B
 
 ## Gameplay
 - **Legs:** Win, Show and Top half on 6-hour Producer Race races, plus Block X legs. Up to 3 legs per race (one of each kind); one leg per producer per card, Block X included. 💬
-- **Cards:** 3 a day (a card's round is its slot: UTC day × 3 + slot); each can be changed up to 3 times, only on its own day. **Up to 10 game picks (legs) per card** is the owner's limit (D-167 item 6, the text of PR #232) and Picks game 8's fixed shape (`listSize` 10). The game launches at **6 legs** (`maxLegs` 6, a setting on chain that can be raised with 48 hours' notice); going past 6 also needs base values for 7 to 10 legs (owner). 👤
+- **Cards:** 3 a day (a card's round is its slot: UTC day × 3 + slot); each can be changed up to 3 times, only on its own day. **2 to 10 game picks (legs) per card** (owner, D-180, 14 Nov; D-167 item 6, the text of PR #232); fewer than 10 is always fine. Picks game 8: `listSize` 10 (its fixed shape) and `maxLegs` 10. Base points 3, 7, 15, 30, 60, 120, 240, 480, 960 for 2 to 10 legs. 👤
 - **Locks:** race legs lock 25 minutes before the race and open 24 h ahead; Block X legs lock 500 blocks before the target and open 28,800 blocks ahead. The chain refuses a card unless every leg is open, and refuses changes once any stored leg has locked. 💬
 - Anyone can send a card, guests included (D-081); the stake decides the board. The page blocks sending on stale data and in the last 2 minutes of a UTC day. 💬
 
@@ -40,7 +40,7 @@ A staked "parlay" game: combine several predictions from the Producer Race and B
 ## Size budget (the capacity standard, 12 Nov; measured on the recorder's own output)
 | File | Fixed part | Per item | Reaches 1.2 MB (warning) / 2 MB (cap) |
 |---|---|---|---|
-| `D<day>[-<k>].json` (a day part) | about 0.2 KB | 306 B (2 legs) to 532 B (6 legs) a card; at most 1,000 cards a part | never: a part holds at most about 0.53 MB; more cards make more parts (3 cards × players a day ÷ 1,000) |
+| `D<day>[-<k>].json` (a day part) | about 0.2 KB | 306 B (2 legs) to about 760 B (10 legs) a card; at most 1,000 cards a part | never: a part holds at most about 0.76 MB; more cards make more parts (3 cards × players a day ÷ 1,000) |
 | `board.json` | about 1 KB | 183 B a row: Today and This week top 2,000 each, all-time top 1,000, last week top 100 | never: at most 5,100 rows, about 0.93 MB at any player count |
 | `L<week>.json`, `L<week>-<k>.json` (last week, every row) | about 0.1 KB | 183 B a row; at most 2,000 rows a part | never: a part holds at most about 0.37 MB; more players make more parts (4,500 weekly: 3 parts; 9,000: 5) |
 | `vault/W<week>.json` | about 60 B | about 60 B a staked row | about 20,000 staked scorers (warning); 34,000 (cap) |

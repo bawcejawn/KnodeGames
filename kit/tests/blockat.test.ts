@@ -129,3 +129,16 @@ test("#G-41 G41-4: the kit compares the two nodes' heights itself, so a game tha
   assert.ok(j.rounds.filter((x: any) => x[0] !== "q00000200").every((x: any) => x[3] === "p"), "no round decided on disagreeing blocks");
   assert.ok([...r.alerts.errors, ...r.alerts.warnings].some((x) => /disagree on the first block at/.test(x)), JSON.stringify(r.alerts));
 });
+
+test("#G-50 G50-1: a node whose head read fails at the first ctx.blockAt keeps the round pending (no throw from the run)", async () => {
+  const wd = qworld();
+  const a0 = fakeNode("a", () => wd);
+  let heads = 0;
+  const a = { ...a0, async head() { if (heads++ === 0) throw new Error("a: node down (head)"); return a0.head(); } };
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "g50-"));
+  fs.mkdirSync(path.join(d, "prev")); fs.writeFileSync(path.join(d, "prev", ".fetched"), "");
+  const r = await runGame(g7, exampleCfg(), { nodes: [a as any, fakeNode("b", () => wd)], prev: path.join(d, "prev"), out: path.join(d, "out"), log: () => {} });
+  const j = JSON.parse(fs.readFileSync(path.join(d, "out", "W004.json"), "utf8"));
+  assert.ok(j.rounds.filter((x: any) => x[0] !== "q00000200").every((x: any) => x[3] === "p"), "rounds pending");
+  assert.ok(r.alerts.warnings.some((x) => /head/.test(x)), JSON.stringify(r.alerts));
+});

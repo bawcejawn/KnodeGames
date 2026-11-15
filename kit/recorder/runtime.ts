@@ -28,13 +28,18 @@ import { readVaultStakes } from "./sources/vault-stakes.ts";
 import { readPicksContract } from "./sources/picks-contract.ts";
 import { readPublishedFinals } from "./sources/published.ts";
 import { blockAtFor } from "./sources/block-at.ts";
-import { NotYet, PENDING, VOID, type GameModule, type NodeReader, type Pick, type PicksSource, type Published, type Round, type SourceRead, type States } from "./types.ts";
+import { FALLBACK_GRACE_MS, NotYet, PENDING, VOID, type GameModule, type NodeReader, type Pick, type PicksSource, type Published, type Round, type SourceRead, type States } from "./types.ts";
 
 export type KitGameCfg = {
   slug: string; game: number; genesis: number; weekMs: number;
   sundayFunRound: boolean; payoutRule: "legacy-tied-whole" | "d152"; vaultValues: "dense255" | "points";
   entry: { minRounds: number; minPoints: number }; minPts: number; rowCap: number;
   liveWeek: boolean; roundsCorrectable: boolean; maxRoundPoints?: number; budgets?: Partial<Budgets>;
+  /** K1: weeks in a season (scoreRound's seasonStaked). */ seasonWeeks?: number;
+  /** The first week the game records (game.json firstWeek; Fantasy, 14 Nov). Weeks before it are never read, recorded or
+   *  alerted on, and no inputs file is made for them. Unset: every week, as before. */
+  firstWeek?: number;
+  /** KG parts v1: write the week file as parts, one per UTC day or per round. */ parts?: "d" | "r";
   /** Phase 1b: the game scores from the VHP ruler's published data (manifest vhpData): ctx.vhp. */
   vhpData?: boolean;
   /** #G-24 Info: every decided round of a ruler game uses at least one ruler card (default on with vhpData). */
@@ -46,6 +51,8 @@ export type KitGameCfg = {
 };
 
 export type RunOpts = {
+  /** K4 (internal): this pass writes the open copy of the current week (liveWeek), not last week. */
+  live?: boolean;
   nodes: [KitNode, KitNode];
   prev: string; out: string;
   /** <SLUG>_HOLD_WEEKS and <SLUG>_RELEASE. */
@@ -147,11 +154,25 @@ async function readPicksWeek(m: GameModule<any, any, any>, node: KitNode, vault:
 export const CAPACITY_WARN_BYTES = Math.floor(0.6 * MAX_FILE_BYTES);
 /** #G-78 G78-1: from this long after a week ends, published rounds kept without a full re-read are an emailed error. */
 export const KEPT_ALERT_AFTER_MS = 12 * 3_600_000;
+/** #G-82 G82-3 (owner, 14 Nov: every other hour is fine): the kept-rounds alert above is emailed (an error) on even UTC
+ *  hours and every hour in the last 12 h before the deadline; on other hours it is a warning, so a long outage sends
+ *  about half the emails (about 30 for a Fantasy week, not 60) and the run log still shows it every hour. */
+export const keptAlertEmails = (now: number, due: number) => Math.floor(now / 3_600_000) % 2 === 0 || due - now <= KEPT_ALERT_AFTER_MS;
 /** #G-78 G78-4: a day of blocks (3 s each). */
 export const STALE_ERROR_BLOCKS = 28_800;
 
 export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts): Promise<RunResult> {
-  const r = await runOnce(m, cfg, o);
+  const r = await runOnce(m, cfg, { ...o, live: false });
+  // K4 (Survivor): a liveWeek game also writes an open copy of the current week every run, with the rounds decided so
+  // far, so players see each day's result the next morning. It has no vault file and adds nothing to the all-time
+  // board; it never stops last week's run (a failure is a warning).
+  if (cfg.liveWeek) {
+    try {
+      const lv = await runOnce(m, cfg, { ...o, live: true });
+      r.written.push(...lv.written.filter((x) => !r.written.includes(x)));
+      for (const k of ["errors", "warnings", "notes"] as const) for (const x of lv.alerts[k]) r.alerts[k].push(`live week ${lv.week ?? "?"}: ${x}`);
+    } catch (e) { r.alerts.warnings.push(`the current week's open copy couldn't be written this run (${(e as Error).message})`); }
+  }
   for (const rel of r.written) {
     let n = 0;
     try { n = fs.statSync(path.join(o.out, rel)).size; } catch { continue; }
@@ -207,6 +228,10 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // ctx.vhp whose card() throws NotYet: rounds stay pending and the inputs file waits; nothing is guessed.
   const usedInputCards = new Map<string, any>(), usedWeekCards = new Map<string, any>();
   let vhpIn: any, vhpWk: any, cardList: any = null, vhpRound: ((m: Map<string, any>) => any) | null = null;
+  // #G-69 G69-3: cards already published are re-made from their own stored settings (set once the week is known).
+  let weekPins: Map<string, any> | undefined, vhpInFor: (pins?: Map<string, any>) => any = () => vhpIn, pinsOf: (c: unknown) => Map<string, any> = () => new Map();
+  // #G-69 G69-2: ctx.fallback is offered only when the ruler's data loaded this run.
+  let vhpLoaded = false;
   // #G-69 G69-1 (the Ruler chat): the last block this run's ruler data reaches, recorded in the week file (vhpTo).
   let vhpTo: number | undefined;
   if (cfg.vhpData) {
@@ -217,17 +242,20 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     catch (e) { alerts.warnings.push(`the ruler's data couldn't be loaded this run (${(e as Error).message}): rounds that need it stay pending`); }
     if (L && Number.isSafeInteger(L.to)) vhpTo = L.to;
     const stub = (why: string) => ({ to: -1, loaded: false, ruleVersion: V.RULE_VERSION, card() { throw new V.NotYet(`not yet: ${why}`); } });
+    vhpLoaded = !!L;
+    pinsOf = V.pinsOf;
     vhpIn = L ? V.vhpFor(L, usedInputCards) : stub("the ruler's data isn't loaded this run");
+    vhpInFor = (pins) => (L ? V.vhpFor(L, usedInputCards, pins) : vhpIn);
     vhpWk = L ? V.vhpFor(L, usedWeekCards) : stub("the ruler's data isn't loaded this run");
     // One round's own ctx.vhp (cardPerRound): its cards go to that round's map, then to the week's.
-    vhpRound = (mine) => (L ? V.vhpFor(L, mine) : stub("the ruler's data isn't loaded this run"));
+    vhpRound = (mine) => (L ? V.vhpFor(L, mine, weekPins) : stub("the ruler's data isn't loaded this run"));
   }
   const isNotYet = (e: unknown) => e instanceof NotYet;
   // G7: ctx.blockAt(ms), the first irreversible block at or after a UTC time, per node; both searches pinned to the
   // lower of the two nodes' last irreversible blocks (read once, only if a game asks), so the answers can be compared.
   let pinP: Promise<number> | null = null, bA: ((ms: number) => Promise<number>) | null = null, bB: typeof bA = null;
   let libsDiffer = false;
-  const pin = () => (pinP ??= Promise.all([A.head(), B.head()]).then(([x, y]) => { libsDiffer = x.lib !== y.lib; return Math.min(x.lib, y.lib); }));
+  const pin = () => (pinP ??= Promise.all([charged(A).head(), charged(B).head()]).then(([x, y]) => { libsDiffer = x.lib !== y.lib; return Math.min(x.lib, y.lib); }));   // #G-50 G50-1: a failed head is a ReadFailed
   // #G-41: block reads are reads: charged to the run's budget, failures are ReadFailed (the round stays pending).
   const charged = (n: KitNode): KitNode => ({ ...n, async blockTime(h: number) {
     budget.take(`${n.label} block ${h}`);
@@ -252,14 +280,15 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
 
   // FC-9: next week's inputs file (price list, seeding), made once inside its window before the week opens, on both
   // nodes (they must agree). Write-once: the publish check refuses a changed copy and any copy after the week opens.
-  if (cfg.inputsFile) {
+  if (cfg.inputsFile && !o.live) {
     if (!m.inputsFor) throw new Error(`${cfg.slug}: inputsFile is set but the module has no inputsFor`);
     const lead = cfg.inputsLeadMs ?? DEFAULT_INPUTS_LEAD_MS;
     // G13-2: at most 4 days, so ctx.published (weeks ≤ u − 2, final by Thursday of week u − 1) can't change between
     // the file and the recount.
     if (!(lead > 0 && lead <= MAX_INPUTS_LEAD_MS)) throw new Error(`${cfg.slug}: inputsLeadMs must be above 0 and at most 4 days (#G-13 G13-2)`);
     const u = cw + 1, us = clock.span(u);
-    if (now >= us.start - lead && now < us.start && !prev.inputs(u)) {
+    // firstWeek: no inputs file for a week before the game's first week.
+    if (now >= us.start - lead && now < us.start && !prev.inputs(u) && !(cfg.firstWeek !== undefined && u < cfg.firstWeek)) {
       try {
         usedInputCards.clear();
         const data = toJson(await agree(`week ${u}'s inputs`, () => m.inputsFor!(us, { now, read: va, published: before(u), vhp: vhpIn, blockAt: blockAtA }), () => m.inputsFor!(us, { now, read: vb, published: before(u), vhp: vhpIn, blockAt: blockAtB })));
@@ -277,14 +306,26 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     }
   }
 
-  const w = cw - 1;
+  const w = o.live ? cw : cw - 1;
   if (w < 0) { log(`${cfg.slug}: no week has ended yet.`); return { week: null, state: "none", alerts, written: out.written }; }
+  // firstWeek (Fantasy, 14 Nov): a week before the game's first week is never read, recorded or alerted on, so a game
+  // switched on mid-season doesn't raise the backstop or "no inputs file" every hour for weeks it never played. It can't
+  // skip a week already final (firstWeek moved past a paid week): that is an error and the week is recorded as usual.
+  if (cfg.firstWeek !== undefined && w < cfg.firstWeek) {
+    const fin = prev.finals().map((j) => j.week).filter((x) => x >= w);
+    if (!fin.length) {
+      log(`${cfg.slug}: week ${w} is before the game's first week (${cfg.firstWeek}): nothing to read or record.`);
+      return { week: null, state: "before-first-week", alerts, written: out.written };
+    }
+    alerts.errors.push(`firstWeek is ${cfg.firstWeek}, but week ${Math.min(...fin)} is already final: firstWeek can't move past a recorded week, so week ${w} is recorded as usual. Set firstWeek back in games/${cfg.slug}/game.json`);
+  }
   const span = clock.span(w), due = clock.due(w);
   const pw = prev.week(w);
+  weekPins = pw ? pinsOf(pw.cards) : undefined;
 
   // Holds: the owner's release of a HOLD file must name its week and code exactly (Block X's rule). The publish job
   // checks the same variable itself, so a run can't release its own hold (KC-3).
-  const hf = prev.holdFile(w), released = !!prev.releaseFile(w);
+  const hf = o.live ? null : prev.holdFile(w), released = !!prev.releaseFile(w);
   let held: string | null = null;
   if (hf && !released) {
     if (releaseMatches(o.release, w, hf.reason)) {
@@ -296,7 +337,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
       alerts.errors.push(`week ${w} is held: ${hf.reason}. Check it; to release it set ${REL} = "${w}:${releaseCode(hf.reason)}"`);
     }
   }
-  if (owner.has(w)) {
+  if (owner.has(w) && !o.live) {
     if (pw?.state === "final") alerts.warnings.push(`${HW} lists week ${w}, but it is already final: the hold does nothing (KC-20)`);
     else held = `the owner's hold (${HW})`;
   }
@@ -349,7 +390,8 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     }
     inputs = f.data; inputsHash = sha256(canon(f));
     try {
-      const again = await agree(`week ${w}'s inputs (recount)`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w), vhp: vhpIn, blockAt: blockAtA }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w), vhp: vhpIn, blockAt: blockAtB }));
+      const vin = vhpInFor(pinsOf(f.cards));   // #G-69 G69-3: the inputs file's own card settings
+      const again = await agree(`week ${w}'s inputs (recount)`, () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: va, published: before(w), vhp: vin, blockAt: blockAtA }), () => m.inputsFor!(span, { now, inputs: ra?.inputs, read: vb, published: before(w), vhp: vin, blockAt: blockAtB }));
       if (!sameJson(again, f.data)) {
         inputsHeld = `the inputs recount differs from the published inputs file (FC-9)`;
         alerts.errors.push(`week ${w}: ${inputsHeld}: the week is held pending; check inputs/W${w}.json`);
@@ -374,7 +416,9 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   let carry: States<any> | null = null;
   if (m.nextState) {
     const pwk = prev.week(w - 1);
-    if (pwk && pwk.state !== "final") {
+    // K4: the open copy of the current week may start from last week's pending copy (display only; no vault file).
+    if (pwk && pwk.state !== "final" && o.live) alerts.notes.push(`its carried state comes from week ${w - 1}'s pending copy until that week is final`);
+    else if (pwk && pwk.state !== "final") {
       alerts.errors.push(`week ${w} waits on week ${w - 1}, which isn't final (held or still pending): its carried state isn't known, so nothing is recorded for week ${w} (FC-5)`);
       return { week: w, state: "waiting", alerts, written: out.written };
     }
@@ -383,13 +427,42 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     // went missing (an outage, a missed inputs file, a week that waited): record nothing rather than start everyone
     // from empty.
     const reset = o.resetFromWeek === w;
-    if (!pwk && !reset && prev.weeks().some((x) => x < w - 1)) {
+    if (!pwk && !reset && prev.weeks().some((x) => x < w - 1 && !(cfg.firstWeek !== undefined && x < cfg.firstWeek))) {
       alerts.errors.push(`week ${w} waits on week ${w - 1}, which has no week file although earlier weeks do: its carried state isn't known, so nothing is recorded for week ${w} (FC-5, #G-13 G13-1). Recover week ${w - 1}, or set ${cfg.slug.toUpperCase().replace(/-/g, "_")}_RESET_FROM_WEEK=${w} to start week ${w} from empty state`);
       return { week: w, state: "waiting", alerts, written: out.written };
     }
     if (reset) alerts.warnings.push(`week ${w}: carried state reset by the owner (RESET_FROM_WEEK): every wallet starts empty`);
     const last: States<any> = reset ? new Map() : new Map((pwk?.next ?? []) as [string, unknown][]);
     carry = checkedStates("carryIn", m.carryIn ? m.carryIn(last, span, inputs) : last);
+  }
+
+  // K1 (Survivor): a season game's season start (recorded in each week file: `season`) and seasonStaked, the wallets
+  // with a counted stake (peak >= the week's min, not voided) in any week of the season so far. The first week, a
+  // reset week, or the week after a season's last starts a new season; earlier season weeks must be final (nothing
+  // guessed), except for the current week's open copy (display only).
+  let seasonCtx: { seasonStaked: Set<string>; seasonStart: number; seasonWeek: number } | undefined;
+  if (cfg.seasonWeeks) {
+    const sw = cfg.seasonWeeks, pwk = prev.week(w - 1);
+    const reset = o.resetFromWeek === w;
+    if (!pwk && !reset && prev.weeks().some((x) => x < w - 1 && !(cfg.firstWeek !== undefined && x < cfg.firstWeek))) {
+      alerts.errors.push(`week ${w} waits on week ${w - 1}, which has no week file although earlier weeks do: its season isn't known, so nothing is recorded for week ${w} (K1). Recover week ${w - 1}, or set ${cfg.slug.toUpperCase().replace(/-/g, "_")}_RESET_FROM_WEEK=${w}`);
+      return { week: w, state: "waiting", alerts, written: out.written };
+    }
+    const ps = pwk && Number.isSafeInteger(pwk.season) ? (pwk.season as number) : null;
+    const start = !reset && ps !== null && w - ps < sw ? ps : w;
+    const staked = new Set<string>();
+    const minNow = BigInt(ra.min);
+    for (const [a, st] of ra.stakes) if (!st.voided && BigInt(st.peak) >= minNow) staked.add(a);
+    for (let u = start; u < w; u++) {
+      const f = prev.week(u);
+      if (!f || (f.state !== "final" && !o.live)) {
+        alerts.errors.push(`week ${w} waits on week ${u}, an earlier week of its season, which ${f ? "isn't final" : "has no week file"}: who staked this season isn't known yet (K1)`);
+        return { week: w, state: "waiting", alerts, written: out.written };
+      }
+      const fm = BigInt(f.min);
+      for (const p of f.players as [string, string, string, number][]) if (!p[3] && BigInt(p[2]) >= fm) staked.add(p[0]);
+    }
+    seasonCtx = { seasonStaked: staked, seasonStart: start, seasonWeek: w - start + 1 };
   }
 
   const rounds: Round[] = m.roundsFor(span, { now, inputs, published }).slice().sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
@@ -411,19 +484,37 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // resultOf with ctx.vhp; a card the data doesn't cover yet is PENDING (never a guess).
   // #G-69 G69-1: rounds a run couldn't decide because something wasn't readable yet (NotYet), as opposed to a result
   // the chain itself still shows as undecided.
+  const MAX_FALLBACK_WHY = 200;
+  const dispRows = new Map<string, Map<string, unknown[]>>();
   const notYet = new Set<string>(), lagging = new Set<string>();
+  // K8: rounds decided this run by the game's fallback rule, [round, at, why]; and the published copy's (fixed).
+  const fallbackOf = new Map<string, [string, number, string]>();
+  const pubFallbacks = new Map<string, [string, number, string]>((Array.isArray(pw?.fallbacks) ? pw.fallbacks : []).map((f: any) => [f[0], f]));
   const resultOf = async (r: Round, rd: NodeReader) => {
     if (!cfg.vhpData) {
       try { return await m.resultOf(r, rd, inputs, { blockAt: chainOf(rd) }); }
       catch (e) { if (isNotYet(e)) { notYet.add(r.id); if ((e as any).lagging) lagging.add(r.id); return PENDING; } throw e; }
     }
     const mine = new Map<string, any>();
-    let res: any;
-    try { res = await m.resultOf(r, rd, inputs, { vhp: vhpRound!(mine), blockAt: chainOf(rd) }); }
+    let res: any, fb: [string, number, string] | null = null;
+    // K8, ctx.fallback (#G-69 G69-2): only with the ruler's data loaded this run; never for a round the published copy
+    // decided without one; resolves at the first irreversible block on or after resolvesAt + 48 h.
+    const fallback = async (why: string) => {
+      if (!vhpLoaded) throw new NotYet("not yet: no fallback without the ruler's data this run (#G-69 G69-2)");
+      const pr = pubRounds.get(r.id);
+      if (pr && pr[3] !== "p" && !pubFallbacks.has(r.id)) throw new NotYet(`not yet: round ${r.id} was decided with its card; never re-decided by the fallback (#G-69 G69-2)`);
+      const at = r.resolvesAt + FALLBACK_GRACE_MS;
+      await chainOf(rd)(at);
+      const text = String(why ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_FALLBACK_WHY) || "no ruler card";
+      fb = [r.id, at, text];
+    };
+    try { res = await m.resultOf(r, rd, inputs, { vhp: vhpRound!(mine), blockAt: chainOf(rd), fallback }); }
     catch (e) { if (isNotYet(e)) { notYet.add(r.id); if ((e as any).lagging) lagging.add(r.id); return PENDING; } throw e; }
     for (const [k, v] of mine) usedWeekCards.set(k, v);
-    // #G-24 Info: a decided ruler round must come from at least one ruler card (cardPerRound, on by default).
-    if (cfg.cardPerRound && res !== PENDING && mine.size === 0) throw new Error(`round ${r.id}: decided without a ruler card (cardPerRound; a ruler game's results come from ctx.vhp.card)`);
+    if (fb && res !== PENDING) fallbackOf.set(r.id, fb);
+    // #G-24 Info: a decided ruler round must come from at least one ruler card (cardPerRound, on by default), unless
+    // the game decided it by its fallback rule (K8).
+    if (cfg.cardPerRound && res !== PENDING && mine.size === 0 && !(fb && res !== PENDING)) throw new Error(`round ${r.id}: decided without a ruler card (cardPerRound; a ruler game's results come from ctx.vhp.card, or ctx.fallback after the 48 h grace)`);
     return res;
   };
 
@@ -477,7 +568,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
         if (res === VOID) status = "v";
         else if (res !== PENDING) {
           status = "s";
-          const sc = m.scoreRound(r, picks, res, inputs, st);
+          const sc = seasonCtx ? m.scoreRound(r, picks, res, inputs, st, seasonCtx) : m.scoreRound(r, picks, res, inputs, st);
           if (sc.size !== who.length || who.some((a) => !sc.has(a))) throw new Error(`round ${r.id}: scoreRound must score exactly the wallets that picked${st ? " or carry a state" : ""}`);
           rows = who.map((wa) => {
             const p = { wallet: wa };
@@ -498,6 +589,8 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
       }
     }
     const pr = pubRounds.get(r.id);
+    // K8 / #G-69 G69-2: a round the published copy decided by its fallback rule stays exactly as published.
+    if (pr && pr[3] !== "p" && pubFallbacks.has(r.id)) { status = pr[3]; rows = pr[4]; fallbackOf.set(r.id, pubFallbacks.get(r.id)!); }
     // #G-69 G69-1: a round the published copy decided but this run can't decide (a failed or missing ruler-data
     // fetch, a card() or blockAt "not yet" while one node lags, a rebuilt vhp-data branch) is a read this run couldn't
     // finish, never a change: it keeps its published result and cards, and the week doesn't compare (no HOLD on a
@@ -522,6 +615,11 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
       throw new Error(`round ${r.id} was decided and now reads differently on both nodes (an on-chain correction?). This game's decided rounds can't change: nothing recorded; check the round`);
     }
     roundsOut.push([r.id, day, fun, status, rows.map(([a, p, at]) => (p > 0 ? [idx.get(a), p, at - span.start] : [idx.get(a), p]))]);
+    // partCols (display only, parts games): each wallet's columns for this round, from its pick and its state.
+    if (cfg.parts && m.partCols) {
+      const pm = new Map(picks.map((x) => [x.wallet, x.pick]));
+      dispRows.set(r.id, new Map(rows.map(([a]) => [a, m.partCols!.row(pm.get(a) ?? null, st?.get(a) ?? null)])));
+    }
   }
   const body: any = { v: KIT_FILE_VERSION, game: cfg.game, week: w, start: span.start, end: span.end, min: ra.min, state: "pending", seen: { hash: "", at: 0 }, rounds: roundsOut, players };
   if (inputsHash) body.inputs = inputsHash;
@@ -541,6 +639,13 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
       for (const c of pw.cards) if (!have.has(c[1])) { usedWeekCards.set(`published:${c[1]}`, c); have.add(c[1]); }
     }
     body.cards = cardList(usedWeekCards);
+    // K8: the rounds decided by the game's fallback rule, sorted, each alerted until it's published.
+    const fbs = roundsOut.filter((x: any) => x[3] !== "p" && fallbackOf.has(x[0])).map((x: any) => fallbackOf.get(x[0])!).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    if (fbs.length) body.fallbacks = fbs;
+    for (const f of fbs) if (!pubFallbacks.has(f[0])) alerts.errors.push(`round ${f[0]}: no ruler card 48 h after it ended, so it was decided by the game's fallback rule (${f[2]}); recorded in the week file`);
+  }
+  if (seasonCtx) body.season = seasonCtx.seasonStart;
+  if (cfg.vhpData) {
     // Never backwards: the larger of this run's and the published copy's (a run without data keeps the published one).
     const to = Math.max(vhpTo ?? -1, pubTo ?? -1);
     if (to >= 0) body.vhpTo = to;
@@ -576,7 +681,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
 
   // A published final never changes (RECORDER §3.3, §4.7).
   if (pw?.state === "final") {
-    out.copy(`W${pad3(w)}.json`, pw);
+    if (!cfg.parts) out.copy(`W${pad3(w)}.json`, pw);      // a parts folder that's final stays as published
     // A read that failed or ran out of budget is a warning; the two nodes disagreeing on a final week's round is an
     // error every run, so change detection can't go quiet behind a node that keeps disagreeing (#B-12 NK-12). Both are
     // said whether or not the kept published rounds make the hash match (#G-69 G69-1).
@@ -609,15 +714,27 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   const size = Buffer.byteLength(JSON.stringify(body));
   if (size > MAX_WRITE_BYTES) throw new Error(`week ${w}'s file would be ${Math.round(size / 1024)} KB, over the ${Math.round(MAX_WRITE_BYTES / 1024)} KB the kit writes: this game has outgrown one week file (GAME_KIT.md §6: split it before this happens)`);
   sizeAlert(`week ${w}'s file`, size);
-  out.write(`W${pad3(w)}.json`, body);
+  // KG parts v1: a parts game writes the week as its folder W<NNN>/ (display columns from partCols ride along).
+  const writeWeek = (j: any) => {
+    if (!cfg.parts) { out.write(`W${pad3(w)}.json`, j); return; }
+    const r = out.writeWeekParts(j, cfg, prev.manifest(w), m.partCols ? { cols: m.partCols.cols, rows: dispRows } : null, now);
+    alerts.warnings.push(...r.warnings.map((x) => `${x} (CAPACITY_STANDARD rule 2)`));
+  };
+  if (o.live) {
+    if (d.state !== "open") throw new Error(`week ${w} isn't open by the chain's clock`);
+    writeWeek(body);
+    log(`${cfg.slug} week ${w}: OPEN (live copy); ${rounds.length} rounds.`);
+    return { week: w, state: d.state, alerts, written: out.written };
+  }
+  writeWeek(body);
   writeBoard(boardFor(body, cfg, now));
   const vf = earns ? vaultFileFor(body, cfg, now, due) : null;
   if (vf) out.write(`vault/W${w}.json`, vf);
   writeAllTime(body.state === "final" ? body : null, vf ? w : null);
   // #G-78 G78-1: published rounds kept because this run couldn't re-read them (missing, stale or not-yet data) are a
-  // warning at first, but an ERROR (emailed) every run from 12 h after the week ends, so a lasting vhp-data outage can't
+  // warning at first, but an ERROR (emailed) from 12 h after the week ends (every other hour, then every hour in the last 12 h: G82-3), so a lasting vhp-data outage can't
   // run silently into the backstop. Still no stop.
-  if (d.state !== "final" && keptPublished && !rereadOk && now >= span.end + KEPT_ALERT_AFTER_MS) alerts.errors.push(`week ${w}: decided rounds are still kept from the published copy because this run couldn't re-read them (${d.why}); the week pays nothing at ${new Date(due).toISOString()} unless the data is back: check vhp-data and the nodes (#G-78 G78-1)`);
+  if (d.state !== "final" && keptPublished && !rereadOk && now >= span.end + KEPT_ALERT_AFTER_MS) (keptAlertEmails(now, due) ? alerts.errors : alerts.warnings).push(`week ${w}: decided rounds are still kept from the published copy because this run couldn't re-read them (${d.why}); the week pays nothing at ${new Date(due).toISOString()} unless the data is back: check vhp-data and the nodes (#G-78 G78-1)`);
   if (d.state !== "final" && due - now < DUE_WARN_HOURS * HOUR) alerts.warnings.push(`week ${w}: not final yet (${d.why}); its results are due ${new Date(due).toISOString()}`);
   if (held) alerts.notes.push(`week ${w} held: ${held}`);
   log(`${cfg.slug} week ${w}: ${d.state.toUpperCase()} (${d.why}); ${rounds.length} rounds, ${t.rows.length} players, ${t.vault.rows.length} staked rows, first ${t.vault.first.length}, second ${t.vault.second.length}.`);

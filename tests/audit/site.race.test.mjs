@@ -202,7 +202,8 @@ test("race page: medals only for wallets that earn (the recorder's earns), on bo
 
 test("race page: the staked / free status bar sits at the top of the page, for game 7", () => {
   const h = read("race.html"), js = read("race.js");
-  assert.match(h, /<main class="pr">\s*<div id="stake-badge" hidden><\/div>\s*<h1>Producer Race<\/h1>/);
+  // owner 14 Nov facelift: the title now sits in the hero, still straight after the status bar
+  assert.match(h, /<main class="pr">\s*<div id="stake-badge" hidden><\/div>\s*<section class="rc-hero">[\s\S]*?<h1>Producer Race <span class="rc-tag">Free<\/span><\/h1>/);
   assert.match(js, /window\.KStake\.badge\(document\.getElementById\("stake-badge"\), \{ game: 7 \}\)/);
   assert.ok(h.indexOf('id="stake-badge"') < h.indexOf('id="stake"'), "the bar above the full stake panel");
 });

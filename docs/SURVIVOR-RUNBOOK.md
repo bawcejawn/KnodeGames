@@ -1,119 +1,54 @@
-# Survivor runbook (owner)
+# Survivor runbook (game 3)
 
-> **Out of date (12 Nov 2026).** This page describes the old Survivor recorder (`bot/games/survivor.ts`, `survivor-math.js`: 14-day seasons, the blocks handicap), which `games/survivor/` on the Shared Game Kit replaces. The current rules and design are in `docs/SURVIVOR.md`. This page is rewritten for the kit module before the testnet season and launch.
+How to launch Survivor and look after it. The rules are in `docs/SURVIVOR.md`; the code in `games/survivor/`. Survivor runs on the Shared Game Kit: the hourly `games.yml` job records it and the kit's publish job publishes it to `games-data:survivor/`. Nothing here needs a key except the Picks and vault steps, which run on the owner's PC.
 
-Survivor runs itself: the hourly KnodeGames workflow (`.github/workflows/games.yml`) records each UTC day, publishes
-the handicaps and plays the season with `survivor-math.js`. This page covers launch and the few things that need
-you.
+Every PowerShell block starts in the owner's folder and checks the branch, because several chats share it.
 
-## Launch
-1. The KnodeGames Picks contract is live (Build 3) and `picks-data/deployment.json` on `main` names it.
-2. Register game 3 on the Picks contract with exactly these settings. The recorder checks every setting below except
-   the name, on both nodes, and records no season day while any differs. It also warns while a change to game 3 is
-   announced, and says whether the change would break Survivor:
-
-   | Setting | Value |
-   |---|---|
-   | id | 3 |
-   | name | Survivor |
-   | kind | 1 (one producer) |
-   | list_size | 1 |
-   | lock_mode | 2 (time) |
-   | round_size | 86400000 (one UTC day) |
-   | round_offset | 0 |
-   | lead | 300000 (5 minutes: picks lock at 23:55 UTC) |
-   | ahead | 604800000 (7 days) |
-   | max_picks_per_day | 20 |
-   | max_changes | 5 |
-   | enabled | true (a closed game would make every player miss a pick) |
-
-3. Pick the launch Monday. In `survivor-math.js`, set `FIRST_DAY` to that Monday's UTC day number. In PowerShell:
-
+## Before launch (in order)
+1. **The PRs.** #319 (`kit-next`) merges first, then the Survivor PR after its Repo Lens GO. The owner merges.
+2. **Picks game 3 (by Sat 28 Nov).** On `main`, dry run first:
    ```powershell
-   [math]::Floor(([datetimeoffset]'2026-11-16T00:00:00Z').ToUnixTimeMilliseconds() / 86400000)
+   cd C:\kprediction
+   git branch --show-current
+   git pull
+   npm run picks -- games
    ```
+   Check game 3 isn't registered. The Block X / Picks chat gives the exact `announce 3` and `apply 3` commands with game 3's values (kind 1, list 1, lock mode 2, round 86,400,000 ms, offset 0, lead 300,000 ms, ahead 604,800,000 ms, 5 changes, 20 picks a day, enabled). Announce, wait 48 hours, apply, within 7 days. Registering a shape is permanent: compare every value with `docs/SURVIVOR.md` before sending. Applying by Mon 30 Nov opens day 1 (Mon 7 Dec) for picks on time.
+3. **Sponsor row** for Picks game 3 `pick` (the Mana sponsor chat).
+4. **Free prize OFF** for game 3, before week 7:
+   ```powershell
+   cd C:\kprediction
+   git branch --show-current
+   npm run prizes -- off 3
+   ```
+   It prints what it would send. Then run it again with `--send`.
+5. **Switch the recorder on:** GitHub, Settings, Secrets and variables, Actions, Variables: `SURVIVOR_ENABLED` = `true`. Weeks before week 7 are never recorded, so it can be set any time before Mon 7 Dec 00:00 UTC.
+6. **The page:** the Hub chat sets Survivor live in `games.json`, the menus and the sitemap.
 
-   Commit, open a PR, and merge it at least 7 days before that Monday, so players can pick day 1 ahead.
-4. The vault (Build 1, v6) pays Survivor's staked bucket every week, and the free season prize (4 VHP and 2 VHP)
-   only while the owner's free-prize switch is on for game 3. **It is off for now** (owner, 3 Nov 2026, D-081):
-   - Needs PR #65 (the switch, D-082) merged and running in the bot **before Season 1's winners are due** (after
-     vault week 5, i.e. from Mon 30 Nov). Without it the bot posts the winners the recorder lists.
-   - Switch game 3 off **before vault week 4 starts (Mon 16 Nov 00:00 UTC)**: a change counts from the next week only,
-     so do it by Sun 15 Nov: `npm run prizes -- off 3`, check the preview, then `--send`.
-     Check with `npm run prizes -- list` that game 3 shows "next week: off".
-   - Then add the game with the prize allowed: `game-add 3 "Survivor" --staked --free --season 2` (the recorder refuses
-     a vault entry without `--staked --free` or with other than 2-week seasons).
-   - To turn the prize on later: `npm run prizes -- on 3 --send`. It first pays the first season whose two weeks both
-     start after the change; the page then shows the prize by itself.
-   - The recorder publishes one results file per vault week at `games-data:survivor/vault/W<week>.json` (vault week 0
-     began Monday 19 Oct 2026). A season's first week has no winners; its last week lists the season's 1st and 2nd.
-   - Each file also lists `rows`: Survivor's staked players with their points for that week (the vault pays its
-     stake bucket from them). The recorder reads who is staked with the vault's `get_game_player` (game 3, peak stake
-     at least the minimum) once a day while a week runs, and once more after it ends; both nodes must agree. A season
-     is final only once both of its weeks are over, so an early-ending season's prizes wait for its second week.
-   - In the vault, game 3 is a staked and free-prize game (`game-add 3 "Survivor" --staked --free`) with `season_weeks` 2, and its `from_week` must be Season 1's first
-     week: `floor((FIRST_DAY − 20745) ÷ 7)`. For Monday 16 Nov 2026 that is week 4. If it is off by one week, the vault
-     looks for winners in the wrong week.
-   - `game-data/deployment.json` → `vaultGames`: `"3": { "name": "Survivor", "results": "games-data:survivor/vault" }`.
-   - More than 10 wallets tied for a place: the vault takes at most 10, so that place gets no prize (it returns to the
-     pool) and the recorder warns.
+## Season 2 (the first paid season): the vault
+Do these during Season 1 (by about Sat 12 Dec), on the owner's PC:
+1. `game-add 3 "Survivor" --staked --free --season 2` with **from week 9**. The Vault chat gives the exact command and its dry run. Read the dry run's `from_week` twice: a wrong week silently loses the season prize, and vault weeks can't be undone.
+2. `game-apply` 48 hours later, inside week 8 (a game applied in week W earns from W + 1).
+3. Check with `npm run bot -- games` that game 3 shows from week 9.
+4. GitHub variable `SURVIVOR_PRIZES_FROM_WEEK` = `9`.
 
-## When the workflow warns "season N is stuck"
-The recorder couldn't record a season day for more than 50 days: for example, the two nodes kept disagreeing about
-that day's picks, or the season's file was lost. New days and handicaps keep coming; only that season waits.
+## Every week (nothing to do unless an email comes)
+- Each play day's result is published the morning after (UTC) in the live week copy. Each week goes final from Monday about 02:00 UTC, after two runs at least 2 hours apart agree.
+- The kit emails an alert when something needs you. The common ones:
 
-1. Open the latest **KnodeGames recorders** run on GitHub (Actions tab). Read the warnings just above the stuck one:
-   they say why (nodes disagree, VHP check failed, more than 100,000 picks).
-2. Decide:
-   - **Void the season.** Announce it, then remove its number from `index.json` on the `games-data` branch, and
-     delete its vault files (`survivor/vault/W<week>.json` for the season's two weeks), which the publish job never
-     replaces by itself. If the vault has already sealed one of those weeks, void game 3's week in the vault too
-     (`npm run bot -- game-correct …`, within 24 hours of the seal). Ask Claude to make these changes and show them to
-     you first (Repo Lense S2-14).
-   - **Fix the data.** Only while the season's next day is less than 50 days old. If one node was wrong, set the
-     repository variable `RPC_CHECK` to another public node and let the recorder catch up (3 days a run). The recorder
-     keeps the block counts of the last 60 days only, so a season stuck longer than about 50 days can't catch up by
-     itself any more: void it, or ask Claude for a one-off catch-up run (Repo Lense SV-A15).
+| Alert | What it means | What to do |
+|---|---|---|
+| "no ruler card 48 h after it ended, so it was decided by the game's fallback rule" | The ruler's data stopped; that day doesn't count for anyone | Nothing for Survivor. Tell the Ruler chat the data stopped |
+| "waits on week N, which isn't final" | The season's first week is held or pending, so its second week waits | Find out why week N isn't final (the email before this one) |
+| "the kit's season … isn't math.js's" | The season start drifted (a reset or `firstWeek` changed) | Stop: ask the Survivor chat. Never guess a reset week |
+| "week N is held … release it with SURVIVOR_RELEASE" | A final week reads differently on chain | Ask the Survivor chat to check it; only then set the release value it prints |
 
-## When the workflow warns "game 3's … on the chain is …"
-Game 3's settings on the Picks contract don't match the table above. No season is recorded until they do. Announce the
-right settings with the Picks contract's 48-hour notice, then apply them.
+## Switches (the admin page lists each)
+- `SURVIVOR_ENABLED`: `true` runs the recorder; `false` stops it (stakes are untouched).
+- `SURVIVOR_HOLD_WEEKS`: weeks kept pending (nothing pays for them). A held first week also holds its season's second week.
+- `SURVIVOR_RELEASE`: `<week>:<code>`, lets one held week through once.
+- `SURVIVOR_RESET_FROM_WEEK`: a fresh season start, only at a season's first week (7, 9, 11 …). Ask the Survivor chat first.
+- `SURVIVOR_PRIZES_FROM_WEEK`: the first week the vault pays (9).
 
-## Other warnings
-- **"S001.json is … MB, near or over the 2 MB publish limit"**: a very big season. Over 2 MB, only that file is left
-  out of publishing (the page keeps showing the last copy that went out); days, handicaps and Block X still publish. The
-  run fails, which emails you. Ask Claude to look at it.
-- **"only one node is read this run"**, **"RPC_CHECK is the same node as RPC"** or **"seasons wait for a second
-  node"**: set the repository variable `RPC_CHECK` to a second, different node. Seasons don't move on one node's word
-  (Repo Lense S2-10, S2-11). Days saved meanwhile are checked again on it automatically; a day the second node disagrees
-  with is reported ("saved from one node, and the second node disagrees") and its season waits at that day ("confirmed
-  on one node only") for you to look at.
-- **"no vault results files are written until it is fixed"**: the vault counts weeks, or game 3's seasons, differently
-  from Survivor (Repo Lense S2-7, S2-21): game 3 needs `season_weeks` 2, staked and free prize, and a `from_week` in step
-  with Season 1 (`floor((FIRST_DAY − 20745) ÷ 7)`, or that plus an even number). Fix game 3 in the vault (48-hour notice)
-  before the season's last week; until then its winners can't be posted.
-- **"out of time for season work this run"**: a very busy season; the run stopped season work in time to save what it
-  did, and the next run carries on (Repo Lense S2-3). If it shows every hour for a day, ask Claude.
-- **"vault week N's file is held: its stakes were read late"**: after an outage, wallets that didn't change their stake
-  that week are read at today's stake (Repo Lense S2-9, S3-11). That week's vault file is not published. Ask Claude to
-  check the staked list against the chain and, if it is right, add the file to `games-data` by hand before the week's
-  results deadline (3 days after it ends); otherwise the week rolls over.
-- **"out of time for season work this run"**: the default budget is 8 minutes (the repository variable
-  `SURVIVOR_BUDGET_MS`, in milliseconds, changes it; keep it well under the 15-minute step limit). A day whose checks
-  started in time is always kept (Repo Lense S3-2).
-- **"the second node (RPC_CHECK) didn't answer"**: days and handicaps go on from one node; seasons wait (S3-9).
-- **"game 3 is stopped in the vault"**: weeks after its last earning week pay nothing (S3-30).
-- **Not published: "a … dated after now"**: the publish check refuses anything dated after the job's own clock
-  (Repo Lense S3-1). If you see this, a record run went wrong: ask Claude to look before anything else.
-- **"Couldn't reach the games-data branch; not recording this run"**: GitHub didn't answer; the run stops instead of
-  starting from nothing (Repo Lense S2-15). It is tried again next hour.
-- **"a change to game 3 is announced"**: someone with the Picks owner key announced new settings. If the warning says
-  "once applied, …", cancel the change (`cancel_game_change`) unless you meant it.
-- **"VHP check: …" for the same season day, run after run**: the stake read on the Knode contract keeps failing
-  (for example after a contract change, or a node that refuses it). The day waits rather than wrongly marking stakers;
-  try another node for `RPC_CHECK`, and ask Claude if it lasts more than a day.
-- **"game-data/deployment.json names no Knode contract"**: the Knode contract's address is missing, so stakes can't be
-  checked. No season day is recorded until it is back.
-- **"the two nodes disagree"** about a day: it is tried again every hour. If it lasts more than a day, check both nodes.
-- **"Not publishing survivor this run"**: Survivor's files failed the publish check, so the workflow published the
-  other games and left Survivor's files out. The run fails, which emails you. Ask Claude to look at the run's log.
+## Changing the season dates
+Only before Season 1 starts: `games/survivor/math.js` `FIRST_WEEK` and `games/survivor/game.json` `firstWeek` must change together (a test checks), in a reviewed PR. Once week 7 is recorded, never move `firstWeek` past it.

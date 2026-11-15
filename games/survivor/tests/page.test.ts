@@ -122,6 +122,8 @@ test("page: refuses anything that isn't a kgparts v1 part", () => {
   assert.throws(() => decodePart("{}"), /kgparts/);
   assert.throws(() => decodePart(JSON.stringify({ kgparts: 1, cols: [["player", "a"]], a: ["<script>"], rows: [] })), /address/);
   assert.throws(() => decodePart(JSON.stringify({ kgparts: 1, cols: [["player", "a"]], a: [], rows: [[5]] })), /address index/);
+  assert.throws(() => decodePart(JSON.stringify({ kgparts: 1, cols: [["__proto__", "i"]], a: [], rows: [[1]] })), /column/);
+  assert.throws(() => decodePart(JSON.stringify({ kgparts: 1, cols: [["player", "a"]], a: [], rows: [["length"]] })), /address index/);
   assert.throws(() => weekFromParts([]), /no wk part/);
 });
 

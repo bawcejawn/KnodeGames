@@ -24,11 +24,12 @@ export function decodePart(text) {
   const o = JSON.parse(text);
   if (!o || o.kgparts !== 1 || !Array.isArray(o.cols) || !Array.isArray(o.a) || !Array.isArray(o.rows)) throw new Error("not a kgparts v1 part");
   for (const a of o.a) if (!isAddr(a)) throw new Error("a part's address table holds a non-address");
+  for (const c of o.cols) if (!Array.isArray(c) || !/^[a-z][a-z0-9]{0,15}$/.test(String(c[0])) || !/^[aisnbj]$/.test(String(c[1]))) throw new Error("a part column isn't a kgparts column");
   const rows = o.rows.map((r) => {
     if (!Array.isArray(r) || r.length !== o.cols.length) throw new Error("a part row has the wrong length");
-    const x = {};
+    const x = Object.create(null);                       // column names come from the file: no prototype to reach
     o.cols.forEach(([n, t], i) => {
-      if (t === "a") { const k = r[i]; x[n] = k === -1 ? null : o.a[k]; if (x[n] === undefined) throw new Error("bad address index"); }
+      if (t === "a") { const k = r[i]; if (!Number.isSafeInteger(k) || k < -1 || k >= o.a.length) throw new Error("bad address index"); x[n] = k === -1 ? null : o.a[k]; }
       else if (t === "j") x[n] = JSON.parse(r[i]);
       else x[n] = r[i];
     });
@@ -73,7 +74,9 @@ export function weekFromFile(j) {
 }
 
 /** Is a player row a counted stake (the vault's rule, as the kit's K1 reads it: peak ≥ the week's minimum, not voided)? */
-const staked = (p, min) => !p[3] && BigInt(p[2]) >= BigInt(min);
+const staked = (p, min) => { try { return !p[3] && BigInt(p[2]) >= BigInt(min); } catch { return false; } };
+/** A part's file name as the kit writes it (never a path elsewhere). */
+const PART_FILE = /^(wk|d[1-7]|p\/[0-9a-f]{1,2})\.[0-9a-f]{12}\.json$/;
 
 /** The season so far from its weeks' files (oldest first, the season's own weeks only): every player with
  *  { a, board, standing, days, lives, total, outN, log: [{ n, id, pick, what }] }, and the days decided.
@@ -178,6 +181,7 @@ function start() {
     try {
       const m = await fetchJson(`${DATA}W${pad3(w)}/manifest.json`);
       if (!m || m.kgparts !== 1 || !Array.isArray(m.parts)) throw new Error("not a manifest");
+      if (!m.parts.every((p) => p && PART_FILE.test(String(p.name)))) throw new Error("a part name isn't the kit's");
       const texts = await Promise.all(m.parts.map((p) => fetchText(`${DATA}W${pad3(w)}/${p.name}`)));
       return weekFromParts(texts.map(decodePart));
     } catch { /* no parts folder: the one-file form, or nothing yet */ }

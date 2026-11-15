@@ -166,9 +166,20 @@
           <dt>What it reads from the Ruler</dt><dd>the target's card, fixed in the 6 hours before picks lock: each producer's share of blocks for its size, whether it is in the field, and its recent form.</dd>
           <dt>How that becomes your score</dt><dd>a right pick scores more for a producer that was less likely to sign the block for its size, up to 120 times the base points. A producer whose size moved too far from its card at the target block counts as a miss for that target.</dd>
           <dt>Why it's fair</dt><dd>same Ruler as every game; size-neutral; the card is fixed before the lock; checked again before results are published.</dd>
-          <dt>If the Ruler can't measure a target</dt><dd>the target waits. If it still has no card after 3 days, it is void and no pick on it scores.</dd>
+          <dt>If the Ruler can't measure a target</dt><dd>the target waits up to 48 hours. After that, right picks on it score Block X's usual points from before the Ruler, and that result is final.</dd>
         </dl>
         <p class="muted"><a href="index.html#how/blockx">Who Signs Block X rules</a></p>
+      </article>
+      <article class="panel" id="bracket">
+        <h3>Producer Bracket</h3>
+        <dl class="rg-list">
+          <dt>What the game asks you</dt><dd>pick the winners of head-to-head producer matchups, round by round.</dd>
+          <dt>What it reads from the Ruler</dt><dd>one card per matchup day, fixed in the 6 hours before the day starts, scored over that day's blocks.</dd>
+          <dt>How that becomes your score</dt><dd>in each matchup, the producer with the higher Ruler score that day wins. A producer that signed no block that day, whose size moved too far from its card, or that isn't in the day's field, can't win on the Ruler. If both are in that case, the Bracket's own day measure decides.</dd>
+          <dt>Why it's fair</dt><dd>same Ruler as every game; size-neutral; the card is fixed before the day; checked again before results are published.</dd>
+          <dt>If the Ruler can't measure a day</dt><dd>the day waits up to 48 hours after the week ends; after that, the better seed goes through in each matchup still open. Nobody's result is guessed.</dd>
+        </dl>
+        <p class="muted"><a href="bracket.html">Producer Bracket page and rules</a></p>
       </article>
       <article class="panel" id="fantasy">
         <h3>Fantasy Producers <span class="week-pill">Test weeks</span></h3>
@@ -181,7 +192,7 @@
         </dl>
         <p class="muted"><a href="index.html#how/fantasy">Fantasy Producers rules</a></p>
       </article>
-      <p class="muted">Producer Bracket joins this list when it goes live on the Ruler. Last Node Standing, Combo Card and Survivor will be added when they are built.</p>
+      <p class="muted">Last Node Standing, Combo Card and Survivor will be added when they are built.</p>
     </section>
 
     <section class="start-sec">

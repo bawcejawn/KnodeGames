@@ -1,4 +1,4 @@
-# Every 15 minutes: is the personal node still producing blocks? If it has been silent for 30+ minutes, this run fails
+# Every 30 minutes (Capacity, 13 Nov; owner OK): is the personal node still producing blocks? If it has been silent for 30+ minutes, this run fails
 # and GitHub emails you. All three nodes share one PC, so this is the early warning for all of them.
 # Setup: Settings → Secrets and variables → Actions → Variables → New repository variable
 #   PERSONAL_PRODUCER = your personal node's producer address (the wallet it produces for)
@@ -6,7 +6,7 @@ name: Node watchdog
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/30 * * * *"   # an outage email arrives within about 30-60 min of the node going silent
   workflow_dispatch: {}
 
 permissions:

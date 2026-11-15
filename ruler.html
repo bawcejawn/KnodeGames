@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <!-- Only these sources may run scripts, load data or be framed. 'unsafe-eval' is needed by koilib (its protobuf
        encoder builds functions at run time); CDN scripts are pinned by their integrity hash. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://koinvault.app https://us.i.posthog.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://koinvault.app https://us.i.posthog.com https://data.knodegames.com/ https://live.knodegames.com/live.json; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>How we measure producers fairly · Knode Games</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
@@ -54,6 +54,7 @@
             <a href="blockx.html">Who Signs Block X</a>
             <a href="bracket.html">Producer Bracket</a>
             <a href="golf.html">Block Golf</a>
+            <a href="fantasy.html">Fantasy Producers · Test weeks</a>
           </div>
         </details>
         <a href="index.html#leaderboard">Leaderboards</a>
@@ -65,6 +66,7 @@
             <a href="index.html#how">Rules</a>
             <a href="ruler.html" aria-current="page">Ruler</a>
             <a href="start.html">New to Koinos?</a>
+            <a href="ecosystem.html">Ecosystem</a>
             <a href="get.html">Get VHP</a>
             <a href="names.html">Get an @name</a>
             <a href="swap.html">Swap VHP → KOIN</a>
@@ -89,6 +91,22 @@
     </section>
 
     <section class="start-sec">
+      <h2 class="sec-title">Which games use the Ruler</h2>
+      <article class="panel">
+        <table class="plain">
+          <thead><tr><th scope="col">Game</th><th scope="col">What the Ruler does there</th><th scope="col">When</th></tr></thead>
+          <tbody>
+            <tr><td><a href="race.html">Producer Race</a></td><td>Decides each 6-hour race's 1st, 2nd and 3rd.</td><td>Live from Week 1 (Mon 16 Nov)</td></tr>
+            <tr><td><a href="blockx.html">Who Signs Block X</a></td><td>Sets how much a right pick is worth.</td><td>Planned: Week 2 (Mon 23 Nov), or Week 3 (Mon 30 Nov)</td></tr>
+            <tr><td><a href="bracket.html">Producer Bracket</a></td><td>Decides each matchup by how each producer did against its own size.</td><td>Planned: Week 2 (Mon 23 Nov), or Week 3 (Mon 30 Nov)</td></tr>
+            <tr><td>Fantasy Producers, Last Node Standing, Combo Card</td><td>Measure producers the same way from their first week.</td><td>When each game opens</td></tr>
+          </tbody>
+        </table>
+        <p class="muted">The rules below are the same in every game. A game's own page and its Rules tab say how its points and prizes work. A date shows here as live only once the game has switched.</p>
+      </article>
+    </section>
+
+    <section class="start-sec">
       <h2 class="sec-title">The four rules</h2>
       <article class="panel">
         <h3>Big and small nodes get an equal shot</h3>
@@ -109,7 +127,7 @@
     </section>
 
     <section class="start-sec">
-      <h2 class="sec-title">The limits</h2>
+      <h2 class="sec-title">The limits, by race length</h2>
       <article class="panel">
         <table class="plain">
           <thead><tr><th scope="col">Race length</th><th scope="col">VHP goes down by more than</th><th scope="col">VHP goes up by more than</th></tr></thead>
@@ -124,11 +142,73 @@
       </article>
     </section>
 
+    <section class="start-sec" id="each-game">
+      <h2 class="sec-title">How each game uses the Ruler</h2>
+      <article class="panel">
+        <p><b>Every Knode game that judges block producers uses this same Ruler. No game has its own.</b></p>
+        <p>Every game below is measured by the same Ruler. Before each round it fixes a card with every producer's size and recent form; after the round it checks how each producer did against what its size said it should do. Big and small producers are measured against their own size, so a small node that does its job can beat a big one.</p>
+      </article>
+      <article class="panel" id="race">
+        <h3>Producer Race</h3>
+        <dl class="rg-list">
+          <dt>What the game asks you</dt><dd>pick the producers you think will finish 1st, 2nd and 3rd in a race.</dd>
+          <dt>What it reads from the Ruler</dt><dd>the race's card, fixed in the 6 hours before picks lock (for the 1-hour and 2-hour races, in the race's own length before the lock). After the race, each producer's luck-adjusted score for that race.</dd>
+          <dt>How that becomes your score</dt><dd>the Ruler's top three producers are the race's 1st, 2nd and 3rd, and your picks score the Race's usual points for those places. The live board during a race is an estimate; the Ruler's placings decide.</dd>
+          <dt>Why it's fair</dt><dd>same Ruler as every game; size-neutral; the card is fixed before the race; every card is rebuilt and checked again before results are published.</dd>
+          <dt>If the Ruler can't measure a race</dt><dd>the week waits up to 48 hours after it ends. If the Ruler catches up, the race is scored in full; if not, that race is skipped for everyone. Nobody's result is guessed.</dd>
+        </dl>
+        <p class="muted"><a href="index.html#how/race">Producer Race rules</a></p>
+      </article>
+      <article class="panel" id="blockx">
+        <h3>Who Signs Block X</h3>
+        <dl class="rg-list">
+          <dt>What the game asks you</dt><dd>pick the producer that will sign a target block.</dd>
+          <dt>What it reads from the Ruler</dt><dd>the target's card, fixed in the 6 hours before picks lock: each producer's share of blocks for its size, whether it is in the field, and its recent form.</dd>
+          <dt>How that becomes your score</dt><dd>a right pick scores more for a producer that was less likely to sign the block for its size, up to 120 times the base points. A producer whose size moved too far from its card at the target block counts as a miss for that target.</dd>
+          <dt>Why it's fair</dt><dd>same Ruler as every game; size-neutral; the card is fixed before the lock; checked again before results are published.</dd>
+          <dt>If the Ruler can't measure a target</dt><dd>the target waits up to 48 hours. After that, right picks on it score Block X's usual points from before the Ruler, and that result is final.</dd>
+        </dl>
+        <p class="muted"><a href="index.html#how/blockx">Who Signs Block X rules</a></p>
+      </article>
+      <article class="panel" id="bracket">
+        <h3>Producer Bracket</h3>
+        <dl class="rg-list">
+          <dt>What the game asks you</dt><dd>pick the winners of head-to-head producer matchups, round by round.</dd>
+          <dt>What it reads from the Ruler</dt><dd>one card per matchup day, fixed in the 6 hours before the day starts, scored over that day's blocks.</dd>
+          <dt>How that becomes your score</dt><dd>in each matchup, the producer with the higher Ruler score that day wins. A producer that signed no block that day, whose size moved too far from its card, or that isn't in the day's field, can't win on the Ruler. If both are in that case, the Bracket's own day measure decides.</dd>
+          <dt>Why it's fair</dt><dd>same Ruler as every game; size-neutral; the card is fixed before the day; checked again before results are published.</dd>
+          <dt>If the Ruler can't measure a day</dt><dd>the day waits up to 48 hours after the week ends; after that, the better seed goes through in each matchup still open. Nobody's result is guessed.</dd>
+        </dl>
+        <p class="muted"><a href="bracket.html">Producer Bracket page and rules</a></p>
+      </article>
+      <article class="panel" id="fantasy">
+        <h3>Fantasy Producers <span class="week-pill">Test weeks</span></h3>
+        <dl class="rg-list">
+          <dt>What the game asks you</dt><dd>pick a team of 5 block producers within a budget, with your first pick as captain, who counts double.</dd>
+          <dt>What it reads from the Ruler</dt><dd>each day's card for the UTC day (7:00 PM to 7:00 PM ET), fixed before the day starts. For every producer on the week's list, how many blocks it was expected to make for its size, and how many it was credited with.</dd>
+          <dt>How that becomes your score</dt><dd>a producer's day = 100 × credited ÷ expected, at most 150. The captain counts double. A producer whose size moved too far from its card that day scores 0 for that day. Prices come from the same two numbers over the 7 days before the week.</dd>
+          <dt>Why it's fair</dt><dd>big and small producers are measured against their own size; the card is fixed before the day by the same Ruler every game uses; every card is rebuilt and checked again before results are published.</dd>
+          <dt>If the Ruler can't measure a day</dt><dd>a day the Ruler marks as unreliable scores 0 for every team. A day the Ruler never reaches waits 48 hours, then scores 0 for every team (that rule comes with the next kit version; until then the day waits). Nobody's score is ever guessed.</dd>
+        </dl>
+        <p class="muted"><a href="index.html#how/fantasy">Fantasy Producers rules</a></p>
+      </article>
+      <p class="muted">Last Node Standing, Combo Card and Survivor will be added when they are built.</p>
+    </section>
+
+    <section class="start-sec">
+      <h2 class="sec-title">In the Producer Race</h2>
+      <article class="panel">
+        <p>The Ruler measures each producer's luck against its own size: how many blocks it signed against how many its VHP should give, block by block. Each 6-hour race's 1st, 2nd and 3rd are the producers whose luck in that race was best, among the producers in the race. The points per place don't change.</p>
+        <p>The horses on the track are a live estimate. The final order comes from the Ruler once the race's blocks are in, usually within 1 to 2 hours.</p>
+        <p>A producer whose VHP falls more than 10% below its card size, or rises more than 25% above it, during a 6-hour race is void for that race only. It is in the next race as usual. A pick on a voided producer counts as a loss. If every producer in a race is void, no pick in that race scores. Picks are never returned.</p>
+      </article>
+    </section>
+
     <section class="start-sec">
       <h2 class="sec-title">What a Void means for picks</h2>
       <article class="panel">
         <p>A pick on a producer that is void for that race counts as a loss. The <span class="void-chip">Void</span> mark on the results page shows which producers were voided.</p>
-        <p>If every producer in a race is void, the whole race is void and a whole void race gives picks back. The Mana spent on a pick is not given back.</p>
+        <p>If every producer in a race is void, the whole race is void and no pick in it scores. Picks are never returned, and neither is the Mana spent on them.</p>
         <p class="muted">Before a game switches on, you may see results marked <span class="void-chip">Trial, counts for nothing</span>: the ruler runs beside the race, but its result pays no one.</p>
         <p class="muted">Why bother? So the winner is the producer that did best for its size, and so nobody can improve their chances by moving VHP around mid-race.</p>
       </article>
@@ -149,6 +229,7 @@
       <a href="blockx.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path></svg><span>Who Signs Block X</span></a>
       <a href="bracket.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h5v4H4zM4 15h5v4H4zM15 10h5v4h-5z"></path><path d="M9 7h3v10H9M12 12h3"></path></svg><span>Producer Bracket</span></a>
       <a href="golf.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 21V4l9 4-9 4"></path><path d="M4 21h8"></path></svg><span>Block Golf</span></a>
+      <a href="fantasy.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"></circle><circle cx="5" cy="10" r="2"></circle><circle cx="19" cy="10" r="2"></circle><circle cx="8" cy="18" r="2"></circle><circle cx="16" cy="18" r="2"></circle></svg><span>Fantasy Producers · Test weeks</span></a>
       <a href="index.html#results"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"></path><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"></path></svg><span>Results</span></a>
       <a href="index.html#how"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><path d="M9 9h6M9 13h6"></path></svg><span>Rules</span></a>
       <p class="ms-h">Tools</p>
@@ -162,6 +243,7 @@
       <a href="pulse.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"></path></svg><span>Network pulse</span></a>
       <p class="ms-h">Learn</p>
       <a href="start.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New to Koinos?</span></a>
+      <a href="ecosystem.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><circle cx="5" cy="6" r="2"></circle><circle cx="19" cy="6" r="2"></circle><circle cx="5" cy="18" r="2"></circle><circle cx="19" cy="18" r="2"></circle><path d="M9.8 10.4L6.5 7.4M14.2 10.4l3.3-3M9.8 13.6l-3.3 3M14.2 13.6l3.3 3"></path></svg><span>Ecosystem</span></a>
       <a href="index.html#welcome"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>New here? Quick tour</span></a>
       <a href="ruler.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 15.5l12.5-12.5 5.5 5.5L8.5 21z"></path><path d="M7.5 11l2.5 2.5M10.5 8l2 2M13.5 5l2.5 2.5"></path></svg><span>Ruler</span></a>
       <p class="ms-h">About</p>
@@ -173,12 +255,14 @@
 
   <footer class="foot">
     <div class="wrap">
+      <p class="foot-node"><b>Run your own node:</b> <a href="https://www.koinosai.com/" target="_blank" rel="noopener">Koinos AI, your own AI and node</a> · <a href="run-node.html">Step by step with PowerShell and Docker</a></p>
       <div class="foot-row">
         <span>Knode Games runs fully on Koinos. Source-available.</span>
         <span class="foot-links"><a href="index.html#welcome">New here? Quick tour</a> · <a href="trust.html">Trust</a> · <a href="terms.html">Terms &amp; risks</a> · <a href="install.html">Install app</a> · <a href="https://github.com/bawcejawn/KnodeGames" target="_blank" rel="noopener">Source code</a></span>
       </div>
     </div>
   </footer>
+  <script src="data-source.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js" integrity="sha384-IAL9o3r4bQJvWhvszkorFINY2ct4LBA/LvyXE9NSOPCyYB25BsFV12JITA7Gxbk6" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js" integrity="sha384-WOeNFfSdOron0s4x9jdzLtA7Ic7RSqZCXZAaeQd6HRL6WezQp0KAtIF2XSa+11TL" crossorigin="anonymous"></script>
   <script src="guest.js"></script>

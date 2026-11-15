@@ -47,6 +47,7 @@ The game itself (questions, answers, the page) is unchanged: `index.html`, `app.
 - Plan: store answers as one string per player, one character per question of the week in id order (`"-"` = not answered, `"0"`–`"9"` = the option): 60 characters instead of about 480. A row is then about 120 bytes, so 1.9 MB fits about 15,000 players. For more, split the inputs into `W<NNN>-<part>.json` files with the hash over all parts.
 - `MAX_PLAYERS` (20,000) now counts only players who answered that week (done).
 - Change the format before the player count passes about 2,000, with the publish job's copy and its tests in the same PR.
+- Early warning (done): every run logs a `::warning::` once a week file passes 60% of the cap (`WARN_FILE`, 1.14 MB, about 1,950 players at 60 answers; the capacity harness measured about 585 bytes a player and about 3,200 players at the cap). The cap and the stop at 1.9 MB are unchanged.
 
 ## Running it by hand
 - `npm run questions -- --week <n>`: read-only. Reads any week on both nodes, scores it and compares it with the contract's own settled points (old-rules weeks). Nothing is written. Needs `RPC` and `RPC_CHECK` to be two different nodes (defaults: Armana and koinosblocks).

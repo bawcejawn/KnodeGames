@@ -53,3 +53,12 @@ test("CAP-5 strip every 12 s, hidden tabs skip the strip and the live loop, both
   assert.equal((src.match(/addEventListener\("visibilitychange"/g) || []).length, 2);
   assert.doesNotMatch(src, /setInterval\(ticker, S\.demo \? 3000 : 6000\)/);
 });
+
+test("CAP-6 questions are re-read every minute only while waiting for a result; others at most every 10 minutes", () => {
+  assert.match(src, /const chainReadAt = new Map\(\), SLOW_REREAD_MS = 600000;/);
+  assert.match(src, /waiting = !chainOutcomes\.get\(id\) && !!known && nowMs\(\) >= known\.lock;/);
+  assert.match(src, /const due = !chainReadAt\.has\(id\) \|\| waiting \|\| Date\.now\(\) - chainReadAt\.get\(id\) >= SLOW_REREAD_MS;/);
+  assert.match(src, /if \(!chainHashes\.has\(id\) \|\| \(\(recent \|\| !chainOutcomes\.get\(id\)\) && due\)\) \{/);
+  // The file-vs-chain check itself is unchanged: every question is still hashed and compared with the chain's hash.
+  assert.match(src, /const ok = same && \(await paramsHashOf\(q\)\) === chainHashes\.get\(id\);/);
+});

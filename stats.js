@@ -1,4 +1,4 @@
-/* Live stats (owner, 5 Nov: "build the live stats panel"): reads stats.json, the hourly public summary the stats
+/* Live stats (owner, 5 Nov: "build the live stats panel"): reads stats.json, the public summary (every 2 hours) the stats
    workflow publishes on the stats-data branch (bot/stats.ts), and draws
      - a strip on the home page's first screen (#stats-strip): up to 3 short facts, only ones that read well (launch
        UI research item 18: a small count like "14 players" can put people off, so it waits until it's persuasive);
@@ -119,8 +119,8 @@
     tops.append(topList("Daily Questions", s.top.questions, "point"), topList("Producer Race", s.top.race, "point"), topList("Who Signs Block X", s.top.blockx, "point"));
     const lw = el("h3", "stats-lw", "Last week's top 3");
     box.replaceChildren(head, tiles, lw, tops);
-    if (now >= s.week.end) box.append(el("p", "stats-none", "These are last week's numbers: this week's appear within the hour."));
-    else if (now - Date.parse(s.updated) > STALE_MS) box.append(el("p", "stats-none", "These numbers are more than 6 hours old; they refresh every hour when the update runs."));
+    if (now >= s.week.end) box.append(el("p", "stats-none", "These are last week's numbers: this week's appear within two hours."));
+    else if (now - Date.parse(s.updated) > STALE_MS) box.append(el("p", "stats-none", "These numbers are more than 6 hours old; they refresh every two hours when the update runs."));
     box.hidden = false;
     if (!box.dataset.named && window.KNames && typeof window.KNames.onChange === "function") { box.dataset.named = "1"; window.KNames.onChange(() => panel(box)); }
   }

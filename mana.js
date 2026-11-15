@@ -41,6 +41,9 @@
 
   const lib = window.koilib || window.koinos || window;
   const RPC = "https://koinos.armana.io";
+  // Free read split (Capacity): each page load starts on Armana or koinosblocks at random; the other is the failover.
+  const RPCS = ["https://koinos.armana.io", "https://api.koinosblocks.com"];
+  if (Math.random() < 0.5) RPCS.reverse();
   const KOIN = "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK";
   const SPONSOR = "1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8";
   const EXPLORER = "https://koinosscan.com/address/";
@@ -58,7 +61,7 @@
       max_mana_per_tx: { ...U64, id: 5 }, max_mana_per_account_day: { ...U64, id: 6 }, max_mana_per_account_week: { ...U64, id: 7 },
       max_mana_per_day: { ...U64, id: 8 }, min_vhp: { ...U64, id: 10 }, max_mana_free_day: { ...U64, id: 11 } } },
   } } } };
-  const provider = new lib.Provider([RPC]);
+  const provider = new lib.Provider(RPCS);
   const koin = new lib.Contract({ id: KOIN, provider, abi: { methods: {
     balance_of: { entry_point: 0x5c721497, argument: "t.balance_of_arguments", return: "t.balance_of_result", read_only: true },
   }, koilib_types: types } });

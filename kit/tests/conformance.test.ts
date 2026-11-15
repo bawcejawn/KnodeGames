@@ -1,6 +1,7 @@
 // The conformance suite (GAME_KIT.md §5) passes the kit-example fixture end to end, and catches a module that reads
 // the clock, randomness, the network or the environment, writes files, starts processes, or guesses a result it hasn't
 // seen — in recorder.ts or any file it imports, at import time or in any function (Repo Lens #B-11 KC-12).
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -80,4 +81,11 @@ test("conformance: hidden uses are caught at run time in the sandbox (scoreRound
   const f = await failures(d);
   assert.ok(!fs.existsSync(path.join(os.tmpdir(), "kit-conf-forged.json")), "the sandbox wrote a file");
   assert.ok(f.length > 0, "a module that writes files fails conformance");
+});
+
+test("conformance: the Fantasy-shaped kit-ruler-example passes every check (Picks-contract picks, a carried team, ctx.blockAt, a ruler card per round)", async () => {
+  const RULER_ROOT = fileURLToPath(new URL("../testing/example-ruler/", import.meta.url));
+  const r = await conformance("kit-ruler-example", RULER_ROOT);
+  const bad = r.filter((x) => !x.pass).map((x) => x.msg);
+  assert.deepEqual(bad, [], bad.join("\n"));
 });

@@ -18,7 +18,7 @@
  *   npm run bot -- rehearse-v6 [--snapshot f] [--weeks 3] [--reward 90]   the v6 upgrade on a copy of that state
  *   npm run bot -- testnet-v6 [status]        the Vault's testnet check: Mana of the heaviest calls, key order (testnet only)
  *   Vault v6 commands (dry run unless --send; bot/README.md has the details):
- *     owner     game-add <id> "<name>" [--staked] [--free] [--season <weeks>] · game-apply <id> · game-stop <id>
+ *     owner     game-add <id> "<name>" [--staked] [--free] [--season <weeks>] · game-apply <id> [--allow-test-week] · game-stop <id>
  *               game-correct <id> <week> <player> <points> · game-unprize <id> <week> <player> · game-void <id> <week>
  *               claim-fee-vhp [to] [VHP|all]
  *     operator  game-post <id> <week> [<folder or branch:folder>] · game-seal <id> <week> · game-finalize <id> <week>
@@ -312,6 +312,26 @@ export function vaultWeek(w: number, dep: any = readJson(paths(E.GEN_DIR ?? "gam
   let test = false;
   try { test = testWeeks(dep).includes(w); } catch { /* a bad setting is reported elsewhere */ }
   return `vault week ${w}${test ? " (test week)" : ""}`;
+}
+/** New York time with the weekday, for owner-facing lines ("Sun 15 Nov 7:00 PM ET"). */
+export function etTime(ms: number): string {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", day: "numeric", month: "short",
+    hour: "numeric", minute: "2-digit", hour12: true }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  return `${p.weekday} ${p.day} ${p.month} ${p.hour}:${p.minute} ${p.dayPeriod} ET`;
+}
+/** Owner, 12 Nov (Vault chat): what a game-apply sent now would do, and when it must be refused. A game applied in vault
+ *  week w earns from w + 1 (Kpred.ts apply_game: from = weekOf(now) + 1). Refused: inside a test week (an apply there makes
+ *  the game earn from the first paid week, which games launching after the test week must not), unless the owner says
+ *  --allow-test-week; and within 15 minutes of a week change, when the block time could land either side. `now` is the
+ *  chain's head time, not the PC's clock. */
+export const APPLY_EDGE_MS = 15 * 60_000;
+export function applyCheck(now: number, genesis: number, weekLen: number, tests: number[], allowTest = false): { week: number; earnsFrom: number; text: string; refuse?: string } {
+  if (!(weekLen > 0) || !(now >= genesis)) throw new Error("can't read the vault's week from get_state");
+  const w = Math.floor((now - genesis) / weekLen), next = genesis + (w + 1) * weekLen;
+  const text = `Applied now (chain time ${etTime(now)}, ${vaultWeek(w, { vaultTestWeeks: tests })}), a new game earns from vault week ${w + 1}, which starts ${etTime(next)}. (A game restarted while it is still earning keeps its weeks: Kpred.ts apply_game, audit V6-6.)`;
+  if (next - now < APPLY_EDGE_MS) return { week: w, earnsFrom: w + 1, text, refuse: `Too close to the week change at ${etTime(next)}: the block could land in either week. Wait until after ${etTime(next)}.` };
+  if (tests.includes(w) && !allowTest) return { week: w, earnsFrom: w + 1, text, refuse: `Vault week ${w} is a test week. An apply now makes the game earn from vault week ${w + 1}, the first paid week. A game that should start later applies from ${etTime(next)} (when vault week ${w + 1} begins). If you really want it to earn from vault week ${w + 1}, add --allow-test-week.` };
+  return { week: w, earnsFrom: w + 1, text };
 }
 /** Earliest time (ms) week w can close: close_delay after the week ends and after its latest resolution (v4). */
 const closeAt = (st: { genesis: number; weekLen: number; closeDelay: number }, w: number, wk: any) =>
@@ -1926,7 +1946,17 @@ async function friendly(cmd: string, a: string[], send: boolean): Promise<boolea
       log(`This starts the 48-hour notice; the bot will email you about it (expected). After it, within 7 days:  npm run bot -- game-apply ${id} --send`);
       await act("owner", "propose_game", { game: id, name, staked: a.includes("--staked"), free_prize: a.includes("--free"), season_weeks: season }, send); return true;
     }
-    case "game-apply": await act("owner", "apply_game", { game: Number(need(0, "game id")) }, send); return true;
+    case "game-apply": {
+      // game-apply <id> [--allow-test-week]   register an announced game. It earns from the week after the apply lands.
+      const id = Number(need(0, "game id"));
+      const s = await gameChain().read("get_state", {});
+      const dep = readJson(paths(E.GEN_DIR ?? "game-data").deployment, null);
+      const chk = applyCheck(num(s.time), num(s.config?.genesis_time), num(s.config?.week_length), testWeeks(dep), a.includes("--allow-test-week"));
+      log(chk.text);
+      if (chk.refuse) throw new Error(chk.refuse);
+      if (Math.abs(num(s.time) - Date.now()) > 5 * 60_000) throw new Error(`The node's head time (${etTime(num(s.time))}) is more than 5 minutes from this computer's clock: the node may be behind. Try again, or use another RPC.`);
+      await act("owner", "apply_game", { game: id }, send); return true;
+    }
     case "game-stop": {
       log("The game takes no new stakes from now and earns through this week. Players keep full access to their stake and can still claim what they won.");
       await act("owner", "deactivate_game", { game: Number(need(0, "game id")) }, send); return true;
@@ -2269,6 +2299,7 @@ async function main() {
     // admin <method> key=value key=value … --as owner|seed|operator|player [--send]
     const args: any = {};
     for (const kv of rest.slice(1)) { const m = kv.match(/^([a-z_]+)=(.*)$/); if (m) args[m[1]] = m[2]; }
+    if (rest[0] === "apply_game") throw new Error("use game-apply <id> (it checks the week the game would earn from)");
     return act(opt("--as", "owner")!, rest[0], args, flag("--send"));
   }
   if (cmd === "upgrade") return upgrade(rest[0] && !rest[0].startsWith("--") ? rest[0] : undefined, flag("--send"), flag("--bot-pays"), flag("--safe"));

@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "slug": "kit-ruler-example",
+  "name": "Kit Ruler Example (test fixture)",
+  "vaultGameId": 251,
+  "kinds": [
+    "staked",
+    "free"
+  ],
+  "seasonWeeks": 1,
+  "freePrizeDefault": "off",
+  "status": "building",
+  "picks": {
+    "contract": "picks",
+    "gameId": 40
+  },
+  "sponsor": {
+    "actions": []
+  },
+  "week": {
+    "standard": "WEEK_CYCLE",
+    "sundayFunRound": false,
+    "finalNotBefore": "Mon 00:00 UTC"
+  },
+  "data": {
+    "board": "games-data:kit-ruler-example/board.json",
+    "vaultFolder": "games-data:kit-ruler-example/vault"
+  },
+  "workflow": {
+    "file": "games.yml",
+    "enabledVar": "KIT_RULER_EXAMPLE_ENABLED",
+    "prizesFromVar": "KIT_RULER_EXAMPLE_PRIZES_FROM_WEEK"
+  },
+  "page": "kit-ruler-example.html",
+  "rulesDoc": ".ai/games/KitRulerExample.md",
+  "ownerChat": "Architecture",
+  "payoutRule": "d152",
+  "vaultValues": "dense255",
+  "minPts": 0,
+  "rowCap": 0,
+  "entry": {
+    "minRounds": 1,
+    "minPoints": 1
+  },
+  "roundsCorrectable": false,
+  "vhpData": true
+}

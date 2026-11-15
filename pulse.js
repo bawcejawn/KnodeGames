@@ -26,10 +26,13 @@
 
   const lib = window.koilib || window.koinos || window;
   const RPC = "https://koinos.armana.io";
+  // Free read split (Capacity): each page load starts on Armana or koinosblocks at random; the other is the failover.
+  const RPCS = ["https://koinos.armana.io", "https://api.koinosblocks.com"];
+  if (Math.random() < 0.5) RPCS.reverse();
   const KOIN = "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK", VHP = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq";
   const EXPLORER = "https://koinosscan.com/address/";
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode Games pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Games Swap" };
-  const provider = new lib.Provider([RPC]);
+  const provider = new lib.Provider(RPCS);
   const types = { nested: { t: { nested: { empty: { fields: {} }, supply: { fields: { value: { type: "uint64", id: 1, options: { jstype: "JS_STRING" } } } } } } } };
   const token = (id) => new lib.Contract({ id, provider, abi: { methods: { total_supply: { entry_point: 0xb0da3934, argument: "t.empty", return: "t.supply", read_only: true } }, koilib_types: types } });
 

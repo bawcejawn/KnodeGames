@@ -78,7 +78,15 @@ const TESTNET_CONFIG = path.join("testnet", "blockx.json");
 const DAY_MS = 86400000, WEEK_MS = 7 * DAY_MS;
 export const BRACKET_GAME = Object.freeze({ id: 9, name: "Producer Bracket", kind: 3, round: WEEK_MS, offset: (X.GENESIS + DAY_MS) % WEEK_MS,
   lead: 5 * 60000, ahead: 46 * 3600000, numberMax: 2 ** 31 - 1, picksPerDay: 20, maxChanges: 20 });
-const MAINNET_GAMES: any[] = [{ ...X.MAINNET_GAME, name: "Who Signs Block X" }, { ...X.MAINNET_HOURLY, name: "Who Signs Block X (hourly)" }, BRACKET_GAME];
+/** Fantasy, Picks games 4 and 5 (the Fantasy chat's values, claude/fantasy/TO-BLOCKX-PICKS-GAMES-4-5-VALUES-2026-11-12.md;
+ *  the same as its testnet registration, fantasy-math.js games(); the owner confirms the shapes). Both TIME-locked, one
+ *  round a UTC day (round = day number; the target is 00:00 UTC), locking 5 minutes before (Fantasy's lock block
+ *  L = blockAt(target − lead) − 1 relies on exactly 5 minutes) and opening 7 days ahead. The SHAPE never changes. */
+export const FANTASY_TEAM_GAME = Object.freeze({ id: 4, name: "Fantasy Producers", kind: 2, listSize: 5, lockMode: 2, round: DAY_MS, offset: 0,
+  lead: 5 * 60000, ahead: 7 * DAY_MS, picksPerDay: 20, maxChanges: 20 });
+export const FANTASY_RIVAL_GAME = Object.freeze({ id: 5, name: "Weekly Rival", kind: 1, listSize: 1, lockMode: 2, round: DAY_MS, offset: 0,
+  lead: 5 * 60000, ahead: 7 * DAY_MS, picksPerDay: 10, maxChanges: 5 });
+const MAINNET_GAMES: any[] = [{ ...X.MAINNET_GAME, name: "Who Signs Block X" }, { ...X.MAINNET_HOURLY, name: "Who Signs Block X (hourly)" }, BRACKET_GAME, FANTASY_TEAM_GAME, FANTASY_RIVAL_GAME];
 /** The picks per wallet per day and changes per pick the Picks contract allows at most. */
 const MAX_PICKS_PER_DAY = 50, MAX_CHANGES = 50;
 
@@ -291,6 +299,7 @@ async function findVhp(p: Provider): Promise<string | null> {
 /** The game_config the contract takes for a Block X game (one producer, locked by block height). Exported for the tests. */
 export function buildGameConfig(g: any, enabled = true) {
   if (g.kind === 3) return bracketConfig(g, enabled);
+  if (g.lockMode === 2) return timeListConfig(g, enabled);
   X.forGame(g);   // the contract's own limits for a height game (lead ≥ 100, ahead > lead, ...)
   if (typeof g.name !== "string" || !g.name || Buffer.byteLength(g.name) > 40) throw new Error("A game needs a name of 1 to 40 bytes.");
   if (!(g.id >= 1 && g.id < 128)) throw new Error("Game ids are 1 to 127.");
@@ -329,6 +338,20 @@ export function pendingProblem(pend: any, g: any): string | null {
   }
   return null;
 }
+/** A TIME-locked one-pick (kind 1) or list (kind 2) game, as Fantasy's: every limit the contract's checkGame applies. */
+function timeListConfig(g: any, enabled: boolean) {
+  const ok = (c: boolean, why: string) => { if (!c) throw new Error(`Game ${g.id}: ${why}.`); };
+  if (typeof g.name !== "string" || !g.name || Buffer.byteLength(g.name) > 40) throw new Error("A game needs a name of 1 to 40 bytes.");
+  ok(g.id >= 1 && g.id < 128, "game ids are 1 to 127");
+  ok(g.kind === 1 ? g.listSize === 1 : g.kind === 2 && Number.isInteger(g.listSize) && g.listSize >= 2 && g.listSize <= 10, "a one-pick game has list_size 1, a list game 2 to 10");
+  ok(Number.isSafeInteger(g.round) && Number.isSafeInteger(g.offset) && g.round >= 1 && g.offset >= 0 && g.offset < g.round, "round_size at least 1 and above round_offset");
+  ok(Number.isSafeInteger(g.lead) && g.lead >= 300000, "lead at least 5 minutes");
+  ok(Number.isSafeInteger(g.ahead) && g.ahead > g.lead && g.ahead <= 35 * DAY_MS, "ahead above lead and at most 35 days");
+  if (!(g.picksPerDay >= 1 && g.picksPerDay <= MAX_PICKS_PER_DAY)) throw new Error("Picks per day must be 1 to 50.");
+  if (!(g.maxChanges >= 0 && g.maxChanges <= MAX_CHANGES)) throw new Error("Changes must be 0 to 50.");
+  return { id: g.id, name: g.name, kind: g.kind, list_size: g.listSize, number_min: "0", number_max: "0", lock_mode: 2, round_size: String(g.round), round_offset: String(g.offset),
+    lead: String(g.lead), ahead: String(g.ahead), max_picks_per_day: g.picksPerDay, max_changes: g.maxChanges, enabled };
+}
 /** The next few rounds of a time-locked game, for the announce dry run: target, opens, locks (all UTC). */
 export function timeRounds(g: { round: number; offset: number; lead: number; ahead: number }, now: number, n = 3) {
   const out: { round: number; target: string; opens: string; locks: string }[] = [];
@@ -341,7 +364,7 @@ export function timeRounds(g: { round: number; offset: number; lead: number; ahe
 }
 function gameOf(net: Net, id: number) {
   const g = net.games.find((x) => x.id === id);
-  if (!g) throw new Error(`Game ${id} is not one this tool registers on ${net.testnet ? "the testnet (testnet/blockx.json)" : "mainnet (Who Signs Block X is game 2, hourly game 12; Producer Bracket game 9)"}.`);
+  if (!g) throw new Error(`Game ${id} is not one this tool registers on ${net.testnet ? "the testnet (testnet/blockx.json)" : "mainnet (Who Signs Block X is game 2, hourly game 12; Producer Bracket game 9; Fantasy games 4 and 5)"}.`);
   return g;
 }
 async function sendCall(net: Net, p: Provider, chainId: string, signer: Signer, method: string, args: any, rcKoin = 2) {
@@ -418,8 +441,9 @@ async function announce(id: number, send: boolean) {
   await ownerViews(net, p);   // R-BX-3: the settings' owner is the owner on chain, on both nodes
   const wait = net.testnet ? (readJson(TESTNET_MANIFEST)?.timelockMs ?? 600000) / 60000 + " minutes" : "48 hours";
   log(`Announce game ${id} "${g.name}" on ${net.testnet ? "the testnet" : "MAINNET"} (owner ${s.getAddress()}):`);
-  if (g.kind === 3) {
-    log(`  SHAPE (never changes): kind 3 (number), list_size 0, numbers 0 … ${g.numberMax}, lock by TIME, round ${g.round} ms (${g.round / DAY_MS} days), offset ${g.offset} ms`);
+  if (g.kind === 3 || g.lockMode === 2) {
+    log(g.kind === 3 ? `  SHAPE (never changes): kind 3 (number), list_size 0, numbers 0 … ${g.numberMax}, lock by TIME, round ${g.round} ms (${g.round / DAY_MS} days), offset ${g.offset} ms`
+      : `  SHAPE (never changes): kind ${g.kind} (${g.kind === 1 ? "one pick" : "a list"}), list_size ${g.listSize}, lock by TIME, round ${g.round} ms (${g.round / DAY_MS} days), offset ${g.offset} ms`);
     log(`  lead ${g.lead} ms (${g.lead / 60000} min), ahead ${g.ahead} ms (${g.ahead / 3600000} h)`);
     for (const x of timeRounds(g, Date.now())) log(`    round ${x.round}: opens ${x.opens}, locks ${x.locks}, target ${x.target}`);
   } else log(`  one producer per target; a target every ${g.round} blocks; locks ${g.lead} blocks before; opens ${g.ahead} ahead (${X.forGame(g).openRounds(g.ahead * 10).length} targets open at a time)`);
@@ -460,6 +484,48 @@ async function pause(id: number, send: boolean) {
   if (!send) { log("\nDry run only. Nothing was sent. Add --send to send it."); return; }
   const r = await sendCall(net, p, chainId, ownerKey(net, p), "tighten_game", { game: off });
   log(r.ok ? `✔ game ${id} is off` : `✖ ${r.error}`);
+  if (!r.ok) process.exitCode = 1;
+}
+
+/** tighten (capacity, owner 12 Nov): the game made STRICTER at once, with no 48 h wait (the contract's tighten_game: fewer
+ *  picks a day, fewer changes, a longer lead, a shorter ahead). Anything not stricter is refused here, as the contract
+ *  would. The shape and the name never change. Returns the new config and what changed. */
+export const TIGHTEN_FLAGS: Record<string, string> = { "--per-day": "max_picks_per_day", "--changes": "max_changes", "--lead": "lead", "--ahead": "ahead" };
+export function tightenConfig(g: any, want: Record<string, number>, pinned?: { lead: number } | null) {
+  const n = { ...g }, changed: string[] = [];
+  // Repo Lens #G-35 G35-3: a recorder scores a game with its pinned lead and stops recording one whose lead differs
+  // (Block X: BX-33/BX-46), so a lead other than the pinned one is refused here.
+  if (pinned && want.lead !== undefined && want.lead !== pinned.lead) throw new Error(`lead ${want.lead}: this game's recorder scores lead ${pinned.lead} and stops recording a game whose lead differs; change the recorder first.`);
+  for (const [k, v] of Object.entries(want)) {
+    if (!Object.values(TIGHTEN_FLAGS).includes(k)) throw new Error(`tighten can't change ${k}.`);
+    if (!Number.isSafeInteger(v) || v < 0) throw new Error(`${k} must be a whole number.`);
+    const cur = Number(g[k]);
+    const stricter = k === "lead" ? v >= cur : v <= cur;
+    if (!stricter) throw new Error(`${k} ${v} isn't stricter than ${cur}: loosening needs an announcement and the 48 h wait.`);
+    if (v !== cur) changed.push(`${k} ${cur} → ${v}`);
+    n[k] = typeof g[k] === "string" ? String(v) : v;
+  }
+  if (Number(n.max_picks_per_day) < 1) throw new Error("max_picks_per_day must stay at least 1 (use pause to stop a game).");
+  if (!(Number(n.ahead) > Number(n.lead))) throw new Error("ahead must stay above lead.");
+  if (!changed.length) throw new Error("Nothing to tighten: give at least one stricter value (--per-day, --changes, --lead, --ahead).");
+  return { config: n, changed };
+}
+async function tighten(id: number, want: Record<string, number>, send: boolean) {
+  const net = network();
+  mainnetGuard(net, send);
+  if (!net.picks) throw new Error("No Picks contract yet.");
+  const { p, chainId } = await connect(net);
+  await assertAuditedContract(net, p);
+  const g = (await read(p, net.picks, "get_game", { game: id })).game;
+  if (!g) throw new Error(`Game ${id} isn't registered.`);
+  const { config, changed } = tightenConfig(g, want, net.games.find((x: any) => x.id === id) ?? null);
+  log(`Tighten game ${id} "${g.name}" at once (no wait): ${changed.join(", ")}.`);
+  log("  Picks already made stay recorded. Loosening it again needs an announcement and the 48 h wait.");
+  const pend = (await read(p, net.picks, "list_pending", { limit: 50 })).pending?.find((x: any) => Number(x.game?.id) === id);
+  if (pend) log(`  ⚠ Game ${id} has an announcement pending: the contract CANCELS it when the game is tightened (audit P-2).`);
+  if (!send) { log("\nDry run only. Nothing was sent. Add --send to send it."); return; }
+  const r = await sendCall(net, p, chainId, ownerKey(net, p), "tighten_game", { game: config });
+  log(r.ok ? `✔ game ${id} tightened` : `✖ ${r.error}`);
   if (!r.ok) process.exitCode = 1;
 }
 
@@ -776,13 +842,23 @@ async function main() {
     case "announce": return announce(num(), send);
     case "apply": return apply(num(), send);
     case "pause": return pause(num(), send);
+    case "tighten": {
+      const id = Number(a[0]);
+      if (!/^\d+$/.test(a[0] ?? "")) throw new Error("tighten needs the game id first, e.g. npm run picks -- tighten 12 --per-day 24");
+      const want: Record<string, number> = {};
+      for (let i = 1; i < a.length; i++) if (TIGHTEN_FLAGS[a[i]]) {
+        if (!/^\d+$/.test(a[i + 1] ?? "")) throw new Error(`${a[i]} needs a whole number`);
+        want[TIGHTEN_FLAGS[a[i]]] = Number(a[++i]);
+      }
+      return tighten(id, want, send);
+    }
     case "lock-test": return lockTest(num(), send);
     case "mana-test": return manaTest(num(), send);
     case "owner-propose": return ownerPropose(a.find((x) => !x.startsWith("--")), send);
     case "owner-accept": return ownerAccept(send);
     case "owner-cancel": return ownerCancel(send);
     case "owner-sync": return ownerSync();
-    default: throw new Error(`Unknown command "${cmd}". Commands: keys, build-testnet, status, upload, announce <id>, apply <id>, pause <id>, lock-test <id>, mana-test <id>, owner-propose <address>, owner-accept, owner-cancel, owner-sync`);
+    default: throw new Error(`Unknown command "${cmd}". Commands: keys, build-testnet, status, upload, announce <id>, apply <id>, pause <id>, tighten <id> [--per-day N] [--changes N] [--lead N] [--ahead N], lock-test <id>, mana-test <id>, owner-propose <address>, owner-accept, owner-cancel, owner-sync`);
   }
 }
 if (process.argv[1] && /picks\.ts$/.test(process.argv[1])) {

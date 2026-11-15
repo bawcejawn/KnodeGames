@@ -118,3 +118,8 @@
   .bx-cta { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .bx-blk.new { animation: none; } .bx-bar i { transition: none; } }
+
+/* "Send my picks": shown only when the sponsor's batch numbers are on. */
+.bx-queue { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--violet); border-radius: 12px; background: var(--violet-soft); }
+.bx-queue[hidden] { display: none; }
+.bx-queue span { flex: 1 1 180px; font-weight: 600; }

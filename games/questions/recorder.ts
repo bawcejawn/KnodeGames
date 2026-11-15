@@ -37,6 +37,7 @@ import { withRetry } from "../../common.ts";
 export const GAME = 1;
 export const STABLE_MS = 3_600_000;              // final once two runs at least an hour apart read the same snapshot
 export const MAX_FILE = 1_900_000;               // bytes: under the publish job's 2 MB cap (RECORDER_STANDARD §6.7)
+export const WARN_FILE = Math.floor(MAX_FILE * 0.6); // bytes: from here every run warns, weeks before the cap bites (capacity plan, 12 Nov)
 export const MAX_PLAYERS = 20_000;               // a runaway listing stops the run
 const isAddr = (a: unknown) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 const num = (x: any) => Number(x ?? 0);
@@ -234,7 +235,7 @@ export async function run(o: RunOpts): Promise<{ week: number | null; state: str
       // A final W file whose vault file wasn't published yet (held at publish): write it again from the same snapshot.
       const again = buildWeek(a, prevFile, now);
       if (!again.vault) throw new Error(`week ${w}: the final file can't be rebuilt`);
-      write(o.out, prevFile, again.board, again.vault, w);
+      write(o.out, prevFile, again.board, again.vault, w, log);
       log(`Daily Questions week ${w}: final (copied forward); its vault file written again.`);
       return { week: w, state: "final" };
     }
@@ -242,7 +243,7 @@ export async function run(o: RunOpts): Promise<{ week: number | null; state: str
     return { week: w, state: "final" };
   }
   const built = buildWeek(a, prevFile, now);
-  write(o.out, built.file, built.board, built.vault, w);
+  write(o.out, built.file, built.board, built.vault, w, log);
   const n = built.result.rows.length;
   if (!built.file.final && now >= ka.resultsDue(w) - 24 * STABLE_MS) {
     // Under 24 h left and not final: the alert (Repo Lens C11-4). The files are written and must still go out, or a week
@@ -257,9 +258,17 @@ export async function run(o: RunOpts): Promise<{ week: number | null; state: str
   return { week: w, state: built.file.final ? "final" : "pending" };
 }
 
-function write(out: string, file: WeekFile, board: any, vault: any, w: number) {
+/** The early warning: null while a file is under 60% of the cap, else a GitHub warning line for the run's log. */
+export function sizeWarning(w: number, bytes: number): string | null {
+  if (bytes <= WARN_FILE) return null;
+  return `::warning::Daily Questions week ${w}: a file is ${bytes} bytes, ${Math.round((100 * bytes) / MAX_FILE)}% of the ${MAX_FILE} byte limit. Past the limit no week is written and nobody is paid, so change the answer format first (games/questions/README.md, TODO: size).`;
+}
+
+function write(out: string, file: WeekFile, board: any, vault: any, w: number, log: (s: string) => void) {
   const f = canon(file), b = canon(board);
   if (f.length > MAX_FILE || b.length > MAX_FILE) throw new Error(`week ${w}'s files would be over ${MAX_FILE} bytes: stopping (RECORDER_STANDARD §6.7)`);
+  const warn = sizeWarning(w, Math.max(f.length, b.length));
+  if (warn) log(warn);
   fs.writeFileSync(path.join(out, `W${pad(w)}.json`), f);
   fs.writeFileSync(path.join(out, "board.json"), b);
   if (vault) fs.writeFileSync(path.join(out, "vault", `W${w}.json`), canon(vault));

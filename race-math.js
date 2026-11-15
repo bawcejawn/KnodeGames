@@ -71,11 +71,11 @@
   // ── race types (D-166) ──
   /** len: how long the race runs; step: how often one starts; win / show: its points. Type numbers match the contract. */
   const TYPES = Object.freeze([
-    Object.freeze({ id: 0, key: "6h", name: "6-hour", len: RACE, step: RACE, win: 3, show: 1 }),
-    Object.freeze({ id: 1, key: "1h", name: "1-hour", len: HOUR, step: HOUR, win: 2, show: 1 }),
-    Object.freeze({ id: 2, key: "2h", name: "2-hour", len: 2 * HOUR, step: 2 * HOUR, win: 2, show: 1 }),
-    Object.freeze({ id: 3, key: "day", name: "Daily", len: DAY, step: DAY, win: 6, show: 2 }),
-    Object.freeze({ id: 4, key: "week", name: "Weekly", len: 6 * DAY, step: WEEK, win: 12, show: 4 }),
+    Object.freeze({ id: 0, key: "6h", name: "6-hour", len: RACE, step: RACE, win: 3, show: 1, places: Object.freeze([4, 2, 1]) }),
+    Object.freeze({ id: 1, key: "1h", name: "1-hour", len: HOUR, step: HOUR, win: 2, show: 1, places: Object.freeze([3, 2, 1]) }),
+    Object.freeze({ id: 2, key: "2h", name: "2-hour", len: 2 * HOUR, step: 2 * HOUR, win: 2, show: 1, places: Object.freeze([3, 2, 1]) }),
+    Object.freeze({ id: 3, key: "day", name: "Daily", len: DAY, step: DAY, win: 6, show: 2, places: Object.freeze([6, 3, 2]) }),
+    Object.freeze({ id: 4, key: "week", name: "Weekly", len: 6 * DAY, step: WEEK, win: 12, show: 4, places: Object.freeze([12, 6, 4]) }),
   ]);
   /** The contract's weekly race w starts at 1970-01-05 (the first Monday) + w weeks. */
   const WEEK_OFFSET = 4 * DAY;
@@ -103,7 +103,31 @@
     for (let i = typedIndex(type, from - 1) + 1; typedStart(type, i) < to; i++) out.push(typedRace(type, i));
     return out;
   }
-  const pointsOf = (type) => ({ win: TYPES[type].win, show: TYPES[type].show });
+  /** Points per place (owner, 10 Nov, D-173): 1st / 2nd / 3rd. 1- and 2-hour 3/2/1, 6-hour 4/2/1, daily 6/3/2, weekly 12/6/4.
+   *  They arrive WITH the race types (placesOn = the types are on, typesFrom !== null), not before: until then every race scores
+   *  the old win / show (6-hour 3 / 1, a 2nd or 3rd = a show), exactly as paid so far. Once on, the whole history is scored
+   *  by the new table (the Today and All time boards too), EXCEPT the weeks that were already paid under the old one: a race
+   *  in a week w with paidFrom <= w < typesFrom keeps its old points, so a board never disagrees with what the vault paid.
+   *  week: the race's week; paidFrom: PRIZES_FROM_WEEK (null = none); typesFrom: the week the types start (null = off). */
+  const placesOn = (typesFrom) => typesFrom !== null && typesFrom !== undefined;
+  const legacyWeek = (week, paidFrom, typesFrom) => !placesOn(typesFrom) || (paidFrom !== null && paidFrom !== undefined && week >= paidFrom && week < typesFrom);
+  function pointsOf(type, week = 0, paidFrom = null, typesFrom = null) {
+    const T = TYPES[type];
+    if (legacyWeek(week, paidFrom, typesFrom)) return { win: T.win, second: T.show, third: T.show, show: T.show };
+    return { win: T.places[0], second: T.places[1], third: T.places[2], show: T.places[1] };
+  }
+  /** What a show pick scored: its horse finished 2nd (second) or 3rd (third) in the race's stored standings. */
+  /** For a page: a race's points for what a pick earned (label "1st", "2nd", "3rd" once the types are on; "Win" / "Show" before).
+   *  A page can't read PRIZES_FROM_WEEK, so every week before the types keeps the old numbers on the page; the boards (the recorder's
+   *  numbers) are exact. place: 1, 2 or 3 (0 = no score). */
+  function pagePick(type, start, st, who, right, show) {
+    const placed = placesOn(TYPES_ON_WEEK) && weekOf(start) >= TYPES_ON_WEEK, P = pointsOf(type, weekOf(start), 0, TYPES_ON_WEEK);
+    if (right) return { label: placed ? "1st" : "Win", pts: P.win };
+    if (!show) return { label: "", pts: 0 };
+    const third = placed && showPoints(P, st, who) === P.third && P.third !== P.second;
+    return { label: placed ? (third ? "3rd" : "2nd") : "Show", pts: showPoints(P, st, who) };
+  }
+  const showPoints = (P, st, who) => (Array.isArray(st) && st[2] && st[2].a === who && !(st[1] && st[1].a === who) ? P.third : P.second);
   /** The Race contract v2's race number for a type's race i, as a decimal string: type * 2^48 + i (the type rides
    *  above bit 48, so the pick's arguments stay three fields; type 0 is v1's number, unchanged). Every number is below
    *  5 * 2^48 < 2^53, so koilib's browser bundle (no Long library) and any JSON client carry it exactly (Repo Lens
@@ -117,10 +141,14 @@
   /** The first Knode Games week the race types (1-4) run in: null = not yet (the Race contract v2 isn't uploaded).
    *  The owner sets it with the upload (D-166); until then the recorder, the publish job and the page show only the
    *  6-hour race. */
-  const TYPES_FROM_WEEK = null;
-  /** Repo Lens #D-14 N-2: false until R-RACE-18 is done (the T file split; verified hours and races kept across runs;
-   *  a timed slow-node re-check test). Only that PR may set it to true; a test refuses TYPES_FROM_WEEK until then. */
-  const TYPES_READY = false;
+  const TYPES_FROM_WEEK = 5;   // owner, 13 Nov: all four types from vault week 5 (Mon 23 Nov 2026, Week 2), Ruler mode A
+  /** Repo Lens #D-14 N-2: false until R-RACE-18 is done. Done in PR #287 (owner, 13 Nov: the types start as soon as
+   *  they are ready): one block cache per node per run (the 6-hour re-check reuses the typed one's reads), both nodes
+   *  read at once, and a timed slow-node test (tests/audit/race-verify-timing.test.mjs: about 6.5 minutes at 1 s per
+   *  call, inside the 10-minute budget). The T file split is the Capacity chat's shared standard (due before Mon 7 Dec);
+   *  until then every file warns at 60% of 2 MB and a file over 2 MB is held, never published wrong. The types stay off
+   *  while TYPES_FROM_WEEK is null (TYPES_ON_WEEK below). */
+  const TYPES_READY = true;
   /** Repo Lens #C-12 C12-1: the week the types really start for the recorder and the page: TYPES_FROM_WEEK, but only
    *  once TYPES_READY (null otherwise). The publish job mirrors it with its own TYPES_FROM_WEEK line. */
   const TYPES_ON_WEEK = TYPES_READY ? TYPES_FROM_WEEK : null;
@@ -279,7 +307,7 @@
   root.KRaceMath = {
     HOUR, RACE, LEG, LEGS, DAY, WEEK, GENESIS, MIN_K, SEED, TRIALS,
     raceIndex, raceStart, raceId, parseRaceId, raceAt, legOf, legsOf, weekOf, weekStart, dayOf, RHYTHM_FROM_WEEK, restRace, playEnd,
-    TYPES, TYPES_FROM_WEEK, TYPES_READY, TYPES_ON_WEEK, WEEK_OFFSET, contractRace, typedIndex, typedStart, typedId, parseTypedId, typedRace, typedRacesIn, pointsOf, typeCard, ledgerStandings, ledgerLine,
+    TYPES, TYPES_FROM_WEEK, TYPES_READY, TYPES_ON_WEEK, placesOn, legacyWeek, showPoints, pagePick, WEEK_OFFSET, contractRace, typedIndex, typedStart, typedId, parseTypedId, typedRace, typedRacesIn, pointsOf, typeCard, ledgerStandings, ledgerLine,
     rng, handicapOf, winChances, calibrate, makeCard, cardForLeg, finishLine, standings, winners, shows, POINTS, track, LIVE_MAX, lowerBound,
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -15,6 +15,9 @@ export type World = {
   picks?: Record<string, { player: string; pick: Record<string, unknown> }[]>;
   /** The vault's get_game_player answers by wallet (picks-contract games' stakes). Missing wallet: no stake. */
   gamePlayers?: Record<string, { week_stake: string; peak_stake: string; voided?: boolean }>;
+  /** G7: block times for blockTime(h). Default: block h at blockT0 + h × 3 s (blockT0 default: the world's time − lib × 3 s). */
+  blockTimes?: (h: number) => number;
+  blockT0?: number;
   /** The vault's game registrations (FC-26). Missing: every game is registered and earns from week 0. */
   games?: Record<number, { from_week: number; last_week_plus_one?: number; closed?: number[] } | null>;
 };
@@ -82,6 +85,14 @@ export function fakeNode(label: string, w: () => World, f: Faults = {}): KitNode
       };
     },
     async head() { const wd = w(); return { height: wd.lib ?? 1000, lib: wd.lib ?? 1000, time: wd.time - (f.lagMs ?? 0) }; },
+    async blockTime(h: number) {
+      const wd = w(), lib = wd.lib ?? 1000;
+      f.calls?.push(`${label}:blockTime`);
+      if (fails.has("blockTime")) throw new Error(`${label}: node down (blockTime)`);
+      if (!Number.isSafeInteger(h) || h < 1 || h > lib) throw new Error(`${label}: block ${h} isn't there`);
+      const t = wd.blockTimes ? wd.blockTimes(h) : (wd.blockT0 ?? wd.time - lib * 3000) + h * 3000;
+      return f.tweak ? f.tweak("blockTime", { h }, t) : t;
+    },
   };
 }
 

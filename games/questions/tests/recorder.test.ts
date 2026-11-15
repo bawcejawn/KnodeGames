@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { run, snapshotHash, weekList, type Node } from "../recorder.ts";
+import { run, snapshotHash, weekList, sizeWarning, MAX_FILE, WARN_FILE, type Node } from "../recorder.ts";
 // Windows has `python`, not `python3` (Repo Lens F3-2); its held list ends lines with \r\n, so splits take /\r?\n/.
 const PYTHON = process.platform === "win32" ? "python" : "python3";
 
@@ -411,4 +411,15 @@ test("Repo Lens F3-1: with no time left in the job the recorder is skipped and t
   r = spawnSync("bash", ["-c", body.join("\n")], { encoding: "utf8", env });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.ok(fs.existsSync(path.join(tmp, "npm-ran")));
+});
+
+test("size warning: silent under 60% of the file cap, loud above it, and the cap itself is unchanged", () => {
+  assert.equal(MAX_FILE, 1_900_000);
+  assert.equal(WARN_FILE, 1_140_000);
+  assert.equal(sizeWarning(4, 1_000), null);
+  assert.equal(sizeWarning(4, WARN_FILE), null);
+  const w = sizeWarning(4, WARN_FILE + 1);
+  assert.match(String(w), /^::warning::Daily Questions week 4: a file is 1140001 bytes, 60% of the 1900000 byte limit/);
+  assert.match(String(sizeWarning(5, 1_800_000)), /95% of the 1900000/);
+  assert.ok(!String(w).includes("\n"), "one line, so the workflow annotation is not cut");
 });

@@ -1,5 +1,5 @@
 /**
- * NODE WATCHDOG — runs on GitHub every 15 minutes (.github/workflows/watch.yml). Read-only: no keys, no installs.
+ * NODE WATCHDOG — runs on GitHub every 30 minutes (.github/workflows/watch.yml). Read-only: no keys, no installs.
  *
  * Watches one block-producer address (your personal node's, set as the GitHub variable PERSONAL_PRODUCER). All three
  * nodes run on the same PC, and the personal one produces by far the most often, so when it goes quiet the PC, Docker

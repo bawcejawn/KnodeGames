@@ -6,6 +6,8 @@
   const KOIN = "19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK";
   const VHP = "12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq";
   const EXPLORER = "https://koinosscan.com/address/";
+  const POB = "159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv"; // Koinos Proof-of-Burn system contract (mainnet)
+  const RAW = "https://raw.githubusercontent.com/bawcejawn/KnodeGames/";   // data-source.js sends these to the mirror
   const UNIT = 1e8, MAX_BLOCKS = 201600, WORKERS = 6, REORG = 60, STORE = "nd-blocks-v2";
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode Games pool" };
   const QUICK = [["Knode Games pool", "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr"]];
@@ -16,9 +18,14 @@
     balance_of_arguments: { fields: { owner: { type: "bytes", id: 1, options: { "(koinos.btype)": "ADDRESS" } } } },
     balance_of_result: { fields: { value: { type: "uint64", id: 1, options: { jstype: "JS_STRING" } } } },
     mint_event: { fields: { to: { type: "bytes", id: 1, options: { "(koinos.btype)": "ADDRESS" } }, value: { type: "uint64", id: 2, options: { jstype: "JS_STRING" } } } },
+    get_public_key_arguments: { fields: { producer: { type: "bytes", id: 1, options: { "(koinos.btype)": "ADDRESS" } } } },
+    get_public_key_result: { fields: { value: { type: "bytes", id: 1 } } },
     burn_event: { fields: { from: { type: "bytes", id: 1, options: { "(koinos.btype)": "ADDRESS" } }, value: { type: "uint64", id: 2, options: { jstype: "JS_STRING" } } } },
   } } } };
   const ser = new lib.Serializer(types);
+  const balanceAbi = { methods: { balance_of: { entry_point: 0x5c721497, argument: "t.balance_of_arguments", return: "t.balance_of_result", read_only: true } }, koilib_types: types };
+  const koinToken = new lib.Contract({ id: KOIN, provider, abi: balanceAbi });
+  const pob = new lib.Contract({ id: POB, provider, abi: { methods: { get_public_key: { entry_point: 0x96634f68, argument: "t.get_public_key_arguments", return: "t.get_public_key_result", read_only: true } }, koilib_types: types } });
   const vhpToken = new lib.Contract({ id: VHP, provider, abi: { methods: { balance_of: { entry_point: 0x5c721497, argument: "t.balance_of_arguments", return: "t.balance_of_result", read_only: true } }, koilib_types: types } });
 
   // ── helpers ──
@@ -181,8 +188,70 @@
     bal.set(a, { v, at: Date.now() }); return v;
   }
 
+  // ── the node checklist and the games (owner, 14 Nov 2026) ──
+  /** The producer key registered for the address in the PoB contract: "" = none, null = couldn't read. */
+  async function keyOf(a) {
+    try { const r = await pob.functions.get_public_key({ producer: a }); const v = r && r.result && r.result.value; return v ? String(v) : ""; } catch { return null; }
+  }
+  /** KOIN held by the address (its Mana pays for signing blocks); null = couldn't read. */
+  async function koinOf(a) {
+    try { const r = await koinToken.functions.balance_of({ owner: a }); return Number((r.result && r.result.value) || 0) / UNIT; } catch { return null; }
+  }
+  const WEEK_MS = 6048e5, WEEK3 = Date.UTC(2026, 10, 9);   // vault week 3 = Mon 9 Nov 2026 00:00 UTC
+  const vaultWeek = (t) => 3 + Math.floor((t - WEEK3) / WEEK_MS);
+  async function getJson(url) { try { const r = await fetch(url, { cache: "no-cache" }); return r.ok ? await r.json() : null; } catch { return null; } }
+  /** This producer in this week's Race results (the Ruler's places in a Ruler week, else steps) and Fantasy price list. */
+  async function gamesOf(a, now) {
+    const w = vaultWeek(now), pad = String(w).padStart(3, "0");
+    const [wf, rf, fx] = await Promise.all([getJson(`${RAW}race-data/W${pad}.json`), getJson(`${RAW}race-data/R${pad}.json`), getJson(`${RAW}games-data/fantasy/inputs/W${w}.json`)]);
+    let race = null;
+    if (wf && wf.v === 1 && wf.week === w && Array.isArray(wf.races)) {
+      const ruled = !!(rf && rf.v === 1 && rf.week === w && rf.mode === "on" && Array.isArray(rf.races));
+      const order = [];
+      if (ruled) { for (const e of rf.races) if (e && Array.isArray(e.placings) && e.placings.length) order.push(e.placings); }
+      else for (const r of wf.races) if (r && r.result && r.result.final && Array.isArray(r.result.standings) && r.result.standings.length) order.push(r.result.standings.map((x) => x && x.a));
+      const places = order.map((o) => o.indexOf(a)).filter((i) => i >= 0);
+      race = { ruled, races: order.length, in: places.length, wins: places.filter((i) => i === 0).length, top3: places.filter((i) => i < 3).length };
+    }
+    let fantasy = null;
+    if (fx && fx.week === w && fx.data && Array.isArray(fx.data.pool)) { const e = fx.data.pool.find((x) => x && x.a === a); fantasy = { listed: !!e, price: e ? e.price : null, form: e ? e.form : null, budget: fx.data.budget }; }
+    return { w, race, fantasy };
+  }
+  /** Is the address a smart contract (a pool, a vault) rather than a personal wallet? { contract, abi } or null. */
+  async function metaOf(a) {
+    try { const r = await provider.call("contract_meta_store.get_contract_meta", { contract_id: a }); const m = r && r.meta; return { contract: !!(m && (m.hash || m.abi)), abi: m && m.abi ? String(m.abi) : "" }; } catch { return null; }
+  }
+  const VAULTS = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "the Knode Games vault" };
+  /** The longest stretch between a producer's own blocks in [from, now] (ms), and what is usual for `exp` expected blocks. */
+  const longestGap = (ts, from, now) => { let g = 0, prev = from; for (const t of ts) { g = Math.max(g, t - prev); prev = t; } return Math.max(g, now - prev); };
+  const usualGap = (span, exp) => (exp >= 3 ? (span / exp) * (Math.log(exp) + 0.5772) : NaN);
+  /** Blocks by hour of the day (the viewer's own clock), against the expected count per hour. */
+  function hours(mineTs, expPerHourOfDay, spanH) {
+    const show = spanH >= 47;
+    $("hours-card").hidden = false;
+    if (!show) { $("hours").replaceChildren(); $("hours-sub").textContent = "Pick the last 3 or 7 days to see whether quiet spells fall at the same time each day."; $("hours-note").textContent = ""; return; }
+    const c = new Array(24).fill(0); for (const t of mineTs) c[new Date(t).getHours()]++;
+    const max = Math.max(1, expPerHourOfDay * 1.5, ...c), W = 960, H = 120, bw = W / 24;
+    const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "Blocks by hour of the day, with the expected level");
+    c.forEach((n, h) => {
+      const bh = n ? Math.max(4, (n / max) * (H - 6)) : 2, r = document.createElementNS(ns, "rect");
+      r.setAttribute("x", h * bw + bw * 0.12); r.setAttribute("width", bw * 0.76); r.setAttribute("y", H - bh); r.setAttribute("height", bh); r.setAttribute("rx", 2);
+      r.setAttribute("fill", n ? "var(--violet)" : "var(--line)");
+      const t = document.createElementNS(ns, "title"); t.textContent = `${String(h).padStart(2, "0")}:00: ${n} block${n === 1 ? "" : "s"}`; r.append(t); svg.append(r);
+    });
+    if (expPerHourOfDay > 0) { const y = H - (expPerHourOfDay / max) * (H - 6), l = document.createElementNS(ns, "line"); l.setAttribute("x1", 0); l.setAttribute("x2", W); l.setAttribute("y1", y); l.setAttribute("y2", y); l.setAttribute("stroke", "var(--sun)"); l.setAttribute("stroke-width", 2); l.setAttribute("stroke-dasharray", "8 6"); l.setAttribute("vector-effect", "non-scaling-stroke"); svg.append(l); }
+    $("hours").replaceChildren(svg);
+    $("hours-sub").textContent = `Each bar is one hour of the day on your clock, added up over the window; the dashed line is the expected ${sig(expPerHourOfDay)} per hour.`;
+    const empty = expPerHourOfDay >= 3 ? c.map((n, h) => (n === 0 ? h : -1)).filter((h) => h >= 0) : [];
+    const hh = (h) => new Date(2026, 0, 1, h).toLocaleTimeString(undefined, { hour: "numeric" });
+    $("hours-note").textContent = empty.length && empty.length < 12 ? `No blocks at all around ${empty.map(hh).join(", ")}, where about ${sig(expPerHourOfDay)} were expected each hour. Something that runs at the same time every day (a restart, a backup, a sleeping computer) may be stopping the node.` : "";
+  }
+  let ctx = null;   // the window last shown, for "Compare"
+  const item = (cls, mark, ...kids) => el("li", { class: cls }, el("span", { class: "i", "aria-hidden": "true" }, mark), el("span", {}, ...kids));
+  const link = (href, t) => el("a", { href }, t);
+
   // ── render ──
-  const poissonCdf = (k, mean) => { if (!(mean > 0)) return 1; let p = Math.exp(-mean), c = p; for (let i = 1; i <= k; i++) { p *= mean / i; c += p; } return Math.min(1, c); };
   const ago = (ms) => (ms < 90000 ? "just now" : `${dur(ms)} ago`);
   /** What one block paid its signer: KOIN minted to it, and the VHP burned from it (read from the block's receipt). */
   async function blockPay(height, headId, signer) {
@@ -257,12 +326,13 @@
       const vals = []; for (let i = 0; i < list.length; i += 8) { vals.push(...(await Promise.all(list.slice(i, i + 8).map(vhpOf)))); }
       const vhp = new Map(list.map((a, i) => [a, vals[i]]));
       let reward = NaN; try { reward = await networkReward(head); } catch { /* shown as — */ }
+      const [key, koin, kg, meta] = await Promise.all([keyOf(addr), koinOf(addr), gamesOf(addr, now), metaOf(addr)]);
 
       const myVhp = vhp.get(addr) || 0;
       const activeVhp = producers.reduce((s, [a]) => s + (vhp.get(a) || 0), 0) + (counts.has(me) ? 0 : myVhp);
       const share = activeVhp ? myVhp / activeVhp : 0;
       const perDay = total / spanH * 24; // network blocks a day
-      const mine = mineTs.length, expWin = share * total, luck = expWin > 0 ? mine / expWin : NaN;
+      const mine = mineTs.length, expWin = share * total, ofExp = expWin > 0 ? mine / expWin : NaN;
       const lastTs = mineTs[mine - 1], since = lastTs ? now - lastTs : NaN, every = share > 0 ? 8.64e7 / (share * perDay) : NaN;
       const late = lastTs ? since > every * 3 : expWin >= 3;
       const winName = $("win").selectedOptions[0].textContent.replace(/^Last /, "");
@@ -271,28 +341,58 @@
       const ranked = list.slice().sort((x, y) => (vhp.get(y) || 0) - (vhp.get(x) || 0) || (x < y ? -1 : 1)), rank = ranked.indexOf(addr) + 1;
       const overdue = share > 0 && late, producing = share > 0 && !late;
       const lw = winName.toLowerCase(), wlabel = mode === "week" ? "this Knode Games week" : lw;
-      const pct = expWin >= 1 ? poissonCdf(mine - 1, expWin) + (poissonCdf(mine, expWin) - poissonCdf(mine - 1, expWin)) / 2 : NaN;
       const apr0 = myVhp > 0 ? share * perDay * reward * 365 / myVhp * 100 : NaN;
       const hero = [el("div", {}, el("div", { class: "nm" }, name), el("div", { class: "ad mono" }, addr, " · ", el("a", { href: EXPLORER + addr, target: "_blank", rel: "noopener" }, "explorer")))];
       hero.push(el("div", { class: `pd-pill ${producing ? "good" : "bad"}` }, share <= 0 ? "No VHP: not producing" : producing ? "● Producing" : "● Quiet: check the node"));
       $("hero").replaceChildren(...hero);
-      const story = [el("p", {}, share > 0
-        ? `${name} holds ${fmt(myVhp, 0)} VHP: ${fmt(share * 100, share < 0.01 ? 3 : 2)}% of the ${fmt(activeVhp / 1e6, 1)}M VHP producing, number ${fmt(rank)} of ${fmt(ranked.length)} producers in this window. That's about ${sig(share * 10000)} blocks in every 10,000.`
-        : `${name} has no VHP counted as producing, so the chain should not pick it to sign blocks.`)];
-      if (share > 0) story.push(el("p", {}, `In ${wlabel === lw ? "the last " + lw : wlabel} it signed ${fmt(mine)} block${mine === 1 ? "" : "s"}; its VHP predicts ${sig(expWin)}. ${lastTs ? `The latest was ${ago(since)}, and it usually makes one every ${dur(every)}.` : "It has not signed a block in this window."}${overdue ? " That is longer than usual: if this is your node, check that it is running and in sync." : ""}`));
-      if (Number.isFinite(pct)) {
-        story.push(el("p", {}, `Luck: ${pct >= 0.8 ? "running hot" : pct <= 0.2 ? "running cold" : "right about where its VHP says"}. This count beats ${fmt(pct * 100, 0)}% of the outcomes that VHP would give.`));
-        story.push(el("div", { class: "pd-luck", role: "img", "aria-label": `Luck meter at ${fmt(pct * 100, 0)} out of 100` }, el("b", { style: `left:${Math.min(98, Math.max(2, pct * 100))}%` })));
-        story.push(el("div", { class: "pd-luck-l" }, el("span", {}, "Unlucky"), el("span", {}, "As expected"), el("span", {}, "Lucky")));
-      }
+      // One place per fact (owner, 14 Nov): the tiles hold the numbers; this card only speaks when something needs doing.
+      const story = share <= 0
+        ? [el("p", {}, `${name} has no VHP counted as producing, so the chain should not pick it to sign blocks. To produce, burn KOIN into VHP and register a producer key.`)]
+        : overdue
+          ? [el("p", {}, `${lastTs ? `No block for ${dur(since)}` : `No block in ${wlabel === lw ? "the last " + lw : wlabel}`}, while its VHP says about one every ${dur(every)}. If this is your node, check that it is running, in sync and using its registered producer key.`)]
+          : [];
+      $("story").hidden = story.length === 0;
       $("story").replaceChildren(...story);
       $("tiles").replaceChildren(
         tile("VHP producing", fmt(myVhp, 0), share > 0 ? `${fmt(share * 100, share < 0.01 ? 3 : 2)}% of the network` : "none counted"),
         tile("Rank by VHP", share > 0 ? `#${fmt(rank)}` : "–", `of ${fmt(ranked.length)} producers`),
-        tile(`Blocks, ${wlabel}`, fmt(mine), expWin > 0 ? `expected ${sig(expWin)} · ${fmt(luck * 100, 0)}% of expected` : "no VHP, so no blocks expected"),
-        tile("Last block", lastTs ? ago(since) : "none in window", Number.isFinite(every) ? `usually every ${dur(every)}${late ? " · overdue, check the node" : ""}` : "", late && share > 0 ? "bad" : ""),
-        tile("Earns about", Number.isFinite(apr0) ? `${fmt(apr0, 1)}% a year` : "–", Number.isFinite(reward) ? `${fmt(reward, 3)} KOIN a block, if VHP stays as is` : ""),
+        tile(`Blocks, ${wlabel}`, fmt(mine), expWin > 0 ? `expected ${sig(expWin)} · ${fmt(ofExp * 100, 0)}% of expected` : "no VHP, so no blocks expected"),
+        tile("Last block", lastTs ? ago(since) : "none in window", Number.isFinite(every) ? `usually every ${dur(every)}` : "", late && share > 0 ? "bad" : ""),
+        tile(`KOIN after VHP used, ${wlabel}`, mine && Number.isFinite(reward) ? `≈ ${fmt(mine * reward, 1)}` : mine ? "–" : "0", mine && Number.isFinite(reward) ? `${fmt(mine)} blocks × the network's typical ${fmt(reward, 3)} KOIN` : ""),
+        tile("Yearly rate", Number.isFinite(apr0) ? `${fmt(apr0, 1)}% a year` : "–", Number.isFinite(apr0) ? "of its VHP, as KOIN, if VHP stays as is" : ""),
       );
+      // Node checklist: producer key, KOIN for Mana, what a burn would add, the longest quiet spell.
+      const chk = [];
+      if (VAULTS[addr]) chk.push(item("info", "i", `This is ${VAULTS[addr]}'s contract: the VHP players stake produces blocks here, and the node signs for it.`));
+      else if (meta && meta.contract) chk.push(item("info", "i", `This address is a smart contract, not a personal wallet, so it is most likely a mining pool${/fogata|beneficiar|reburn/i.test(meta.abi) ? ", and it looks like a Fogata pool" : ""}. `, link("https://www.koinscan.io/fogata", "Mining pools on Fogata")));
+      if (key === null) chk.push(item("info", "?", "Couldn't read the producer key right now. Try again in a minute."));
+      else if (!key) chk.push(item("bad", "✗", "No producer key is registered for this address, so no node can sign blocks for it. ", link("producer.html", "Register a producer key")));
+      else chk.push(item("ok", "✓", `Producer key registered: ${key.slice(0, 10)}…. Check that your node's key is this one.`));
+      if (koin === 0) chk.push(item("bad", "✗", "No KOIN in this address. A producer needs some KOIN, for its Mana, to sign blocks."));
+      else if (koin > 0) chk.push(item("ok", "✓", `${fmt(koin, koin < 10 ? 2 : 0)} KOIN in the address. Its Mana pays for signing blocks, so keep some KOIN here.`));
+      if (koin > 0 && share > 0 && Number.isFinite(perDay)) {
+        const amt = Math.min(1000, Math.floor(koin)), more = ((myVhp + amt) / (activeVhp + amt) - share) * perDay;
+        if (amt >= 1) chk.push(item("info", "i", `Burning ${fmt(amt)} KOIN into VHP would add about ${sig(more)} blocks a day (now about ${sig(share * perDay)}). `, link("burn.html", "Burn KOIN into VHP")));
+      }
+      if (share > 0 && rank > 1) {
+        const above = ranked[rank - 2], need = Math.max(1, Math.ceil((vhp.get(above) || 0) - myVhp + 1)), b = share * perDay;
+        const plusOne = b + 1 < perDay ? Math.max(0, ((b + 1) * activeVhp / perDay - myVhp) / (1 - (b + 1) / perDay)) : NaN;
+        chk.push(item("info", "i", `About ${fmt(need)} more VHP would move it up to #${fmt(rank - 1)} by VHP, past ${short(above)}.${Number.isFinite(plusOne) ? ` About ${fmt(Math.ceil(plusOne))} more VHP would add 1 block a day.` : ""}`));
+      } else if (share > 0 && rank === 1) chk.push(item("info", "i", "It is #1 by VHP in this window."));
+      const longest = longestGap(mineTs, t0, now), usual = usualGap(now - t0, expWin);
+      if (Number.isFinite(usual)) chk.push(item(longest > usual * 2 ? "bad" : "ok", longest > usual * 2 ? "✗" : "✓", `Longest quiet spell in ${wlabel === lw ? "the last " + lw : wlabel}: ${dur(longest)}. For its size, about ${dur(usual)} is usual.`));
+      else if (share > 0) chk.push(item("info", "i", "Too few blocks expected in this window to judge quiet spells. Pick a longer window."));
+      $("check").replaceChildren(...chk);
+      const g = [];
+      if (!kg.race) g.push(item("info", "?", "Producer Race: this week's results can't be read yet. ", link("race.html", "Race page")));
+      else if (!kg.race.races) g.push(item("info", "i", "Producer Race: no finished race this week yet. ", link("race.html", "Race page")));
+      else g.push(item(kg.race.in ? "ok" : "info", kg.race.in ? "✓" : "i", kg.race.in
+        ? `Producer Race: in ${fmt(kg.race.in)} of ${fmt(kg.race.races)} finished races this week; 1st in ${fmt(kg.race.wins)}, top 3 in ${fmt(kg.race.top3)} (${kg.race.ruled ? "the Ruler's places" : "by steps"}). `
+        : `Producer Race: not placed in this week's ${fmt(kg.race.races)} finished races. `, link("race.html", "Race page")));
+      if (!kg.fantasy) g.push(item("info", "i", "Fantasy Producers: this week's price list isn't out yet. ", link("fantasy.html", "Fantasy page")));
+      else if (!kg.fantasy.listed) g.push(item("info", "i", "Fantasy Producers: not on this week's price list. ", link("fantasy.html", "Fantasy page")));
+      else g.push(item("ok", "✓", `Fantasy Producers: price ${fmt(kg.fantasy.price)}${kg.fantasy.budget ? ` (a team's budget is ${fmt(kg.fantasy.budget)})` : ""}${Number.isFinite(kg.fantasy.form) ? `, form ${fmt(kg.fantasy.form / 100, 1)} (100 = as expected for its size)` : ""}. `, link("fantasy.html", "Fantasy page")));
+      $("kg").replaceChildren(...g);
       const at = Math.max(0, rank - 1), from0 = Math.max(0, Math.min(at - 3, ranked.length - 7)), near = ranked.slice(from0, from0 + 7);
       $("peers").replaceChildren(...near.map((a) => {
         const pick = el("button", { type: "button", class: "link mono", title: a }, short(a));
@@ -316,22 +416,23 @@
         return el("tr", {}, el("td", {}, label, el("span", { class: "range" }, hint)), el("td", { class: "r" }, sig(m)),
           el("td", { class: "r" }, m > 0 ? (lo === hi ? fmt(lo) : `${fmt(lo)} – ${fmt(hi)}`) : "—"), el("td", { class: "r" }, sig(m * reward)));
       }));
-      const apr = myVhp > 0 ? share * perDay * reward * 365 / myVhp * 100 : NaN;
-      $("fc-sub").textContent = `${name}, if VHP stays as it is now. Knode Games' block questions use windows of 5,000–20,000 blocks.${Number.isFinite(apr) ? ` Earnings ≈ ${fmt(apr, 1)}% a year on its VHP (${fmt(reward, 3)} KOIN a block).` : ""}`;
+      $("fc-sub").textContent = `${name}, if VHP stays as it is now. Knode Games' block questions use windows of 5,000–20,000 blocks.`;
 
       chart(t0, t1, mineTs, share * perDay / 24, spanH);
+      hours(mineTs, share * (total / spanH) * (spanH / 24), spanH);
+      ctx = { i0, t0, t1, now, total, spanH, perDay, activeVhp, ranked, vhp, counts, addr, name, wlabel, lw };
+      if ($("cmp-addr").value.trim() && $("cmp-addr").value.trim() !== addr) compare($("cmp-addr").value.trim(), true); else $("cmp").replaceChildren();
 
       const shown = producers.slice(0, 60); if (!shown.some(([a]) => a === addr)) shown.push([addr, 0]);
       $("top").replaceChildren(...shown.map(([a, c]) => {
-        const v = vhp.get(a), vs = v != null && activeVhp ? v / activeVhp : NaN, l = vs > 0 ? (c / total) / vs : NaN;
+        const v = vhp.get(a), vs = v != null && activeVhp ? v / activeVhp : NaN;
         const rank = producers.findIndex(([x]) => x === a);
         const pick = el("button", { type: "button", class: "link mono", title: a }, short(a));
         pick.onclick = () => { $("addr").value = a; go(); window.scrollTo({ top: 0, behavior: "smooth" }); };
         return el("tr", { class: a === addr ? "me" : "" },
           el("td", {}, rank >= 0 ? String(rank + 1) : "–"), el("td", {}, pick),
           el("td", { class: "r" }, fmt(c)), el("td", { class: "r" }, Number.isFinite(vs) ? `${fmt(vs * 100, 2)}%` : "—"),
-          el("td", { class: "r" }, Number.isFinite(vs) ? sig(vs * 10000) : "—"),
-          el("td", { class: "r" }, Number.isFinite(l) && c + vs * total >= 3 ? `${fmt(l * 100, 0)}%` : "—"));
+          el("td", { class: "r" }, Number.isFinite(vs) ? sig(vs * 10000) : "—"));
       }));
 
       const stat = (k, v) => el("div", {}, el("dt", {}, k), el("dd", {}, v));
@@ -352,6 +453,37 @@
     } finally { busy = false; }
   }
 
+  // ── compare two producers (same window) ──
+  async function compare(b, quiet = false) {
+    if (!ctx) return;
+    if (!isAddr(b)) { $("cmp-note").textContent = "That doesn't look like a Koinos address."; return; }
+    if (b === ctx.addr) { $("cmp-note").textContent = "That is the producer shown above. Paste a different one."; return; }
+    if (!quiet) $("cmp-note").textContent = "Reading…";
+    const C = ctx, row = async (a) => {
+      const v = C.vhp.has(a) ? C.vhp.get(a) : await vhpOf(a).catch(() => NaN);
+      const active = C.activeVhp + (C.vhp.has(a) ? 0 : v || 0), sh = active ? (v || 0) / active : 0, si = sIdx.get(a), ts = [];
+      for (let i = C.i0; i < B.sig.length; i++) if (B.sig[i] === si) ts.push(B.ts[i]);
+      const exp = sh * C.total, rk = C.ranked.indexOf(a);
+      const [k, m] = await Promise.all([keyOf(a), metaOf(a)]);
+      return { a, v, sh, n: ts.length, exp, rk, last: ts.length ? C.now - ts[ts.length - 1] : NaN, gap: longestGap(ts, C.t0, C.now), usual: usualGap(C.now - C.t0, exp), k, pool: !!(VAULTS[a] || (m && m.contract)) };
+    };
+    const [A, Bq] = await Promise.all([row(C.addr), row(b)]);
+    const lines = [
+      ["VHP producing", (r) => fmt(r.v, 0)], ["Share of the network", (r) => `${fmt(r.sh * 100, r.sh < 0.01 ? 3 : 2)}%`],
+      ["Rank by VHP", (r) => (r.rk >= 0 && r.v > 0 ? `#${fmt(r.rk + 1)}` : "–")],
+      [`Blocks, ${C.wlabel}`, (r) => `${fmt(r.n)} (expected ${sig(r.exp)})`],
+      ["Last block", (r) => (Number.isFinite(r.last) ? ago(r.last) : "none in window")],
+      ["Longest quiet spell", (r) => `${dur(r.gap)}${Number.isFinite(r.usual) ? ` (usual ${dur(r.usual)})` : ""}`],
+      ["Producer key", (r) => (r.k === null ? "couldn't read" : r.k ? "registered" : "none")],
+      ["Kind of address", (r) => (r.pool ? "contract (pool or vault)" : "wallet")],
+    ];
+    const pick = (a) => { const x = el("button", { type: "button", class: "link mono", title: a }, short(a)); x.onclick = () => { $("addr").value = a; go(); window.scrollTo({ top: 0, behavior: "smooth" }); }; return x; };
+    $("cmp").replaceChildren(el("thead", {}, el("tr", {}, el("th", {}, ""), el("th", { class: "r" }, pick(C.addr)), el("th", { class: "r" }, pick(b)))),
+      el("tbody", {}, ...lines.map(([k, f]) => el("tr", {}, el("td", {}, k), el("td", { class: "r" }, f(A)), el("td", { class: "r" }, f(Bq))))));
+    $("cmp-note").textContent = "";
+    if (!quiet) { remember("nd-cmp", b); const q = new URLSearchParams(location.search); q.set("b", b); history.replaceState(null, "", `?${q}`); }
+  }
+
   // ── wiring ──
   const remember = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   const recall = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -359,10 +491,12 @@
     const a = $("addr").value.trim(), m = $("win").value;
     if (!isAddr(a)) return say("That doesn't look like a Koinos address (it starts with 1 and has 26–35 characters).");
     remember("nd-addr", a); remember("nd-win", m);
-    history.replaceState(null, "", `?a=${a}&w=${m}`);
+    const b = $("cmp-addr").value.trim();
+    history.replaceState(null, "", `?a=${a}&w=${m}${isAddr(b) && b !== a ? `&b=${b}` : ""}`);
     show(a, m);
   }
   $("form").addEventListener("submit", (e) => { e.preventDefault(); go(); });
+  $("cmp-form").addEventListener("submit", (e) => { e.preventDefault(); compare($("cmp-addr").value.trim()); });
   $("win").addEventListener("change", () => { if (isAddr($("addr").value.trim())) go(); });
   $("share").addEventListener("click", async () => { try { await navigator.clipboard.writeText(location.href); $("shared").textContent = "Link copied."; } catch { $("shared").textContent = "Copy it from the address bar."; } });
   $("quick").replaceChildren(el("span", {}, "Try:"), ...QUICK.map(([label, a]) => { const b = el("button", { type: "button" }, label); b.onclick = () => { $("addr").value = a; go(); }; return b; }));
@@ -370,5 +504,6 @@
   const q = new URLSearchParams(location.search);
   const a0 = q.get("a") || recall("nd-addr") || QUICK[0][1], w0 = q.get("w") || recall("nd-win");
   if (w0 && [...$("win").options].some((o) => o.value === w0)) $("win").value = w0;
+  const b0 = q.get("b"); if (b0 && isAddr(b0)) $("cmp-addr").value = b0;
   $("addr").value = a0; go();
 })();

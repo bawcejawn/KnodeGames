@@ -17,13 +17,16 @@ A week is each player's best 10 cards. There are two boards: Staked, and Free pl
 Staked board earns Combo's share of the Vault's weekly reward. The Free play board pays no VHP until the owner switches
 game 8's free prize on (it ships OFF).
 
-**Status (12 Nov):**
+**Status (Sat 14 Nov):**
 - Nothing is on mainnet or on the live site.
 - The contract (Picks v2) is rated ready in every review.
 - Repo Lens #G-37 (the delta round on `f41f5bec`): **GO with conditions**. Its conditions (G37-1, G37-2, the switch tied
   to the Race's) are built and tested.
 - Repo Lens #G-51 (the #G-37 conditions, at `74d36ed4`): **GO with conditions**. Every #G-37 condition is met; G51-1
   (Low) is fixed.
+- Since #G-51: last week's board in `L<week>` parts (Capacity; owner, 13 Nov), merges of `main` (Block X's `tighten`
+  and Fantasy games 4 and 5 kept in `bot/picks.ts`), the admin cards for game 8, and the owner's leg limit (D-167
+  item 6) written into `.ai/games/ComboCard.md`. These are for the PR's Repo Lens round.
 - Realistic launch: **Mon 7 Dec 2026 (vault week 7)**, after the Picks owner handover (accepted Wed 25 Nov) and the
   Picks v2 upgrade.
 

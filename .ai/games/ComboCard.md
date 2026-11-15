@@ -8,7 +8,7 @@ A staked "parlay" game: combine several predictions from the Producer Race and B
 
 ## Gameplay
 - **Legs:** Win, Show and Top half on 6-hour Producer Race races, plus Block X legs. Up to 3 legs per race (one of each kind); one leg per producer per card, Block X included. 💬
-- **Cards:** 3 a day (a card's round is its slot: UTC day × 3 + slot); each can be changed up to 3 times, only on its own day. The game runs at **6 legs** (the contract allows 10). 💬
+- **Cards:** 3 a day (a card's round is its slot: UTC day × 3 + slot); each can be changed up to 3 times, only on its own day. **Up to 10 game picks (legs) per card** is the owner's limit (D-167 item 6, the text of PR #232) and Picks game 8's fixed shape (`listSize` 10). The game launches at **6 legs** (`maxLegs` 6, a setting on chain that can be raised with 48 hours' notice); going past 6 also needs base values for 7 to 10 legs (owner). 👤
 - **Locks:** race legs lock 25 minutes before the race and open 24 h ahead; Block X legs lock 500 blocks before the target and open 28,800 blocks ahead. The chain refuses a card unless every leg is open, and refuses changes once any stored leg has locked. 💬
 - Anyone can send a card, guests included (D-081); the stake decides the board. The page blocks sending on stale data and in the last 2 minutes of a UTC day. 💬
 

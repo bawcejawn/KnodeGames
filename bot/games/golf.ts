@@ -15,8 +15,11 @@
  *       race       race-data/board.json (this week / last week); final when every race of the week is final AND the
  *                  Race's own vault file for the week (race-data/vault/W<w>.json) is final (Repo Lens G-3); a week the
  *                  Race never finalizes is skipped at the 60-hour deadline.
- *       blockx     games-data/blockx/board.json; final when its last week says final
- *     Survivor, Bracket and the other games add their reader here when they launch (with a test).
+ *       blockx     games-data/blockx/board.json; final when its last week says final. A v 2 board (KG parts) is scored
+ *                  on its week's parts folder (16 player shards), never on the board's own top rows (partsRows).
+ *       bracket    games-data/bracket/W<w>.json (its week file); final when its status is "final"
+ *       standard   any game with "golf": "standard" in games.json: games-data/<id>/board.json, read like Block X
+ *     Survivor and the other games add their reader here when they launch (with a test).
  *     The field of a hole: practice weeks, every wallet that scored on it; staked weeks, the wallets staked in Block
  *     Golf that week (vault v6, game 6, read on two nodes) that scored on it (owner, 2026-10-28). See golf-math.js.
  *  3. Each hole's standings are kept in the week file as they were last read, so a game's board rolling on to a new
@@ -38,8 +41,10 @@ import { Provider, Contract } from "koilib";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
+import * as os from "node:os";
 import { pathToFileURL } from "node:url";
 import { withRetry } from "../../common.ts";
+import { checkParts, shardOf } from "../../kit/parts/parts.inline.mjs";
 await import("../../race-math.js");
 await import("../../golf-math.js");
 await import("../../weeks.js");
@@ -149,16 +154,68 @@ export const STANDARD_ID = /^[a-z][a-z0-9-]{1,30}$/;
 // ── readers: one per game, each turning that game's own published results into hole rows ──
 /** A shared-shape board.json's view of week w: its "week" or "lastWeek". */
 function boardView(b: any, w: number): { view: any; last: boolean } | null {
-  if (!b || b.v !== 1) return null;
+  if (!b || (b.v !== 1 && b.v !== 2)) return null;
   if (b.week && b.week.week === w && Array.isArray(b.week.rows)) return { view: b.week, last: false };
   if (b.lastWeek && b.lastWeek.week === w && Array.isArray(b.lastWeek.rows)) return { view: b.lastWeek, last: true };
   return null;
 }
 /** The board has moved past week w (its oldest week shown is later), so it will never show week w again. */
 function movedOn(b: any, w: number): boolean {
-  if (!b || b.v !== 1) return false;
+  if (!b || (b.v !== 1 && b.v !== 2)) return false;
   const shown = [b.week, b.lastWeek].filter((x: any) => x && Number.isInteger(x.week)).map((x: any) => x.week);
   return shown.length > 0 && Math.min(...shown) > w;
+}
+/** A board in a format this reader doesn't know (not v 1 or 2) is a failed read, never "waiting" (Block X shape doc §5.1). */
+const unknownBoard = (b: any) => !!b && typeof b === "object" && b.v !== 1 && b.v !== 2;
+/** KG parts boards (v 2; claude/blockx/BLOCKX-BOARD-PARTS-SHAPE-2026-11-13.md, kit/parts #295). board.json keeps only the
+ *  top 100 rows of each list (for pages); the full field is in the list's parts folder <dir>/<list.parts>/: a manifest,
+ *  `top` and 16 player shards p/0 ... p/f. THE GUARD: a v 2 list's own `rows` are never used to score. Golf takes the
+ *  16 shards only, after every check below; anything else is a failed read (loud), never a hole on part of its field. */
+const PARTS_FOLDER = /^[A-Za-z0-9][A-Za-z0-9-]{0,31}$/;
+const SHARDS16 = Array.from({ length: 16 }, (_, i) => `p/${i.toString(16)}`);
+export const PARTS_EXPECT = [...SHARDS16, "top"].sort();
+/** The full rows of one v 2 list ({ a, pts, ranked }), or why they can't be used. */
+export function partsRows(dir: string, game: string, list: any, w: number, final: boolean): { rows: any[] } | { error: string } {
+  if (!list || typeof list.parts !== "string" || !PARTS_FOLDER.test(list.parts)) return { error: "names no parts folder (a v 2 board must)" };
+  if (typeof list.hash !== "string" || !/^[0-9a-f]{64}$/.test(list.hash)) return { error: `list for week ${w} has no part-set hash` };
+  if (!Number.isSafeInteger(list.players) || list.players < 0 || list.players > MAX_ROWS) return { error: `list for week ${w} has no usable player count` };
+  const base = path.join(dir, list.parts);
+  // Golf only reads: there is no published copy to compare (that is the game's own publish job), so the published root is
+  // an empty folder of our own. checkParts still checks the manifest, every part's size and SHA-256, the part-set hash,
+  // links and extra files, and decodes every part.
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), "golf-parts-"));
+  let r: any;
+  try { r = checkParts(base, { game, file: list.parts, week: w, full: PARTS_EXPECT, publishedRoot: empty, rel: `${game}/${list.parts}` }); }
+  catch (e: any) { return { error: `${list.parts}: ${String(e?.message || e).slice(0, 200)}` }; }
+  finally { try { fs.rmSync(empty, { recursive: true, force: true }); } catch { /* an empty temp folder */ } }
+  if (!r || !r.ok) return { error: `${list.parts} failed its parts check: ${String((r && r.errors || []).slice(0, 3).join("; ")).slice(0, 300)}` };
+  const m = r.manifest;
+  if (m.hash !== list.hash) return { error: `${list.parts} is from another run than board.json (part-set hash differs)` };
+  if (final && m.state !== "final") return { error: `${list.parts} isn't final but board.json says the week is` };
+  if (m.shards !== 16) return { error: `${list.parts} has ${m.shards} shards, not 16` };
+  const have = new Set(r.parts.map((p: any) => p.part));
+  if ([...have].sort().join(",") !== PARTS_EXPECT.join(",")) return { error: `${list.parts} doesn't hold exactly top and the 16 shards` };
+  const seen = new Set<string>(), rows: any[] = [];
+  for (const p of r.parts) {
+    if (p.part === "top") continue;   // top repeats the top 100: never counted
+    const cols = new Map((p.header.cols as [string, string][]).map(([n, t]) => [n, t]));
+    if (cols.get("player") !== "a" || cols.get("pts") !== "i" || !cols.has("ranked")) return { error: `${list.parts}/${p.part} lacks the player, pts and ranked columns` };
+    const shard = p.part.slice(2);
+    for (const x of p.rows) {
+      if (!isAddr(x.player)) return { error: `${list.parts}/${p.part} has a row that isn't a wallet` };
+      if (seen.has(x.player)) return { error: `${list.parts} lists a wallet twice` };
+      if (shardOf(x.player, 16) !== shard) return { error: `${list.parts}/${p.part} holds a wallet that belongs in another shard` };
+      seen.add(x.player);
+      rows.push({ a: x.player, pts: x.pts, ranked: x.ranked === 1 || x.ranked === true });
+    }
+  }
+  if (rows.length !== list.players) return { error: `${list.parts} has ${rows.length} players but board.json says ${list.players}` };
+  return { rows };
+}
+/** The rows Golf scores for a board view: v 1, the list's own rows; v 2, its parts (or a failed read). */
+function viewRows(dir: string, game: string, b: any, v: { view: any; last: boolean }, w: number): { rows: any[] } | { error: string } {
+  if (b.v === 1) return { rows: v.view.rows };
+  return partsRows(dir, game, v.view, w, v.last && v.view.final === true);
 }
 /** A score as Golf stores it: finite, 0 to 1e12, rounded to 4 decimals. Repo Lens F-2: JS and Python then write it with
  *  the same bytes (Python writes 1e-05 for 0.00001, JS 0.00001), so the week's fingerprint matches on both sides. */
@@ -203,11 +260,16 @@ const READERS: Record<string, (src: Source, w: number, c: Ctx) => Promise<Read>>
   },
 
   async blockx(_s, w, c) {
-    const b = readJson(path.join(c.gamesDir || "", "blockx"), "board.json");
-    if (!b) return { state: "live", rows: [], why: "couldn't read the Block X results this run", failed: true, problem: `games-data ${unreadable(path.join(c.gamesDir || "", "blockx"), "board.json")}` };
+    const dir = path.join(c.gamesDir || "", "blockx");
+    const b = readJson(dir, "board.json");
+    if (!b) return { state: "live", rows: [], why: "couldn't read the Block X results this run", failed: true, problem: `games-data ${unreadable(dir, "board.json")}` };
+    const fail = (why: string) => ({ state: "live" as const, rows: [], why: "couldn't use the Block X results this run", failed: true, problem: `games-data blockx board ${why}` });
+    if (unknownBoard(b)) return fail(`is version ${plain(String(b.v))}, which Golf can't read`);
     const v = boardView(b, w);
     if (!v) return movedOn(b, w) ? { ...KEPT } : { state: "live", rows: [], why: "waiting for the Block X results" };
-    return { state: v.last && v.view.final === true ? "final" : "live", rows: ptsRows(v.view.rows) };
+    const got = viewRows(dir, "blockx", b, v, w);
+    if ("error" in got) return fail(got.error);
+    return { state: v.last && v.view.final === true ? "final" : "live", rows: ptsRows(got.rows) };
   },
 
   // Producer Bracket (the Bracket chat's note, Sat 14 Nov): read its WEEK FILE, never board.json (the board keeps at most
@@ -238,17 +300,20 @@ const READERS: Record<string, (src: Source, w: number, c: Ctx) => Promise<Read>>
     const dir = path.join(c.gamesDir || "", s.id);
     const b = readJson(dir, "board.json");
     if (!b) return { state: "live", rows: [], why: `couldn't read the ${s.name} results this run`, failed: true, problem: `games-data ${unreadable(dir, "board.json")}` };
-    const v = boardView(b, w);
-    if (!v) return movedOn(b, w) ? { ...KEPT } : { state: "live", rows: [], why: `waiting for the ${s.name} results` };
     // Kit games (Fantasy, Bracket; kit/recorder/boards.ts) may keep only part of a very large board (`cut` = rows left
     // out) or say it is not complete: a hole is never scored on a part of its field, so either is a failed read.
     const fail = (why: string) => ({ state: "live" as const, rows: [], why: `couldn't use the ${s.name} results this run`, failed: true, problem: `games-data ${s.id} board ${why}` });
+    if (unknownBoard(b)) return fail(`is version ${plain(String(b.v))}, which Golf can't read`);
+    const v = boardView(b, w);
+    if (!v) return movedOn(b, w) ? { ...KEPT } : { state: "live", rows: [], why: `waiting for the ${s.name} results` };
     if (v.view.cut !== undefined && !(Number.isInteger(v.view.cut) && v.view.cut === 0)) return fail("leaves out some players (cut), so it can't set a hole");
     if (v.view.complete !== undefined && typeof v.view.complete !== "boolean") return fail("has a complete flag that isn't true or false");
+    const got = viewRows(dir, s.id, b, v, w);
+    if ("error" in got) return fail(got.error);
     const seen = new Set<string>();
-    for (const r of v.view.rows) { const a = r && r.a; if (typeof a !== "string") continue; if (seen.has(a)) return fail("lists a wallet twice"); seen.add(a); }
+    for (const r of got.rows) { const a = r && r.a; if (typeof a !== "string") continue; if (seen.has(a)) return fail("lists a wallet twice"); seen.add(a); }
     const final = v.last && v.view.final === true && v.view.complete !== false;
-    return { state: final ? "final" : "live", rows: ptsRows(v.view.rows), why: v.last && v.view.final === true && !final ? `${s.name}'s board isn't complete yet` : undefined };
+    return { state: final ? "final" : "live", rows: ptsRows(got.rows), why: v.last && v.view.final === true && !final ? `${s.name}'s board isn't complete yet` : undefined };
   },
 };
 export const READABLE = Object.keys(READERS);

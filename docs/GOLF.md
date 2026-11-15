@@ -37,7 +37,17 @@ What each hole waits for (a hole is final only when its game's own week is final
 |---|---|---|
 | Daily Questions | the game contract, on two nodes that must agree | the week is closed and every question resolved. Every wallet that answered at least one question has played the hole; with no correct answer it scores 6 strokes, not a lost ball (owner, 28 Oct and 6 Nov). |
 | Producer Race | `race-data/board.json` and `race-data/vault/W<w>.json` | every race is final **and** the Race's own vault file for the week is final (its two-run check, chain re-check and `RACE_HOLD_WEEKS`; Repo Lens G-3). A Race week you hold past 60 hours makes Golf skip the Race hole for everyone that week (Repo Lens I-2). |
-| Who Signs Block X | `games-data/blockx/board.json` | its `lastWeek.final` (set after Block X's own two-run check and week-end re-read). |
+| Who Signs Block X | `games-data/blockx/board.json` (v 1), or that board plus the week's parts folder (v 2) | its `lastWeek.final` (set after Block X's own two-run check and week-end re-read); in v 2 the week's parts folder must also be final. |
+
+**Boards in KG parts (`v: 2`; `claude/blockx/BLOCKX-BOARD-PARTS-SHAPE-2026-11-13.md`, `kit/parts`).** Block X's board
+moves to parts in its parts PR (target Sat 21 Nov); the standard reader reads the same shape. `board.json` then keeps
+only the top 100 rows of each list, for pages. **Golf never scores those rows.** It reads the list's folder
+`games-data/<id>/<parts>/` and uses the 16 player shards `p/0`–`p/f` only, after these checks: `checkParts` passes
+(manifest, every part's size and SHA-256, the part-set hash, no links or extra files); the manifest's hash equals the
+list's `hash`; a final list has a final manifest; the folder holds exactly `top` and the 16 shards; each wallet appears
+once and in its right shard; and the total equals the list's `players`. Anything else, or a board version other than 1
+or 2, is a failed read (said aloud in the run's problems), never a hole scored on part of its field. The workflow takes
+the folders of the board's `week` and `lastWeek` lists (plain files only).
 
 No contract, vault or sponsor change is needed to add a hole. A game with the shared board adds one line to `games.json`; any other game's build adds its reader and a test.
 

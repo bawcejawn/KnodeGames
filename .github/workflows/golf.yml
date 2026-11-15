@@ -66,9 +66,26 @@ jobs:
               if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then git show "FETCH_HEAD:vault/$f" > "$RUNNER_TEMP/race/vault/$f"; fi
             done
           else echo "No race-data branch yet."; fi
+          # A board in KG parts (v 2: Block X's shape doc, kit/parts #295) keeps only the top 100 rows; the full field is in
+          # each list's parts folder, named in board.json. Take the folders of its "week" and "lastWeek" lists: only plain
+          # folder names, only plain files (mode 100644) named as a parts folder may hold them. The recorder checks them all.
+          take_parts() {
+            local id="$1" b="$RUNNER_TEMP/games/$1/board.json"
+            [ -f "$b" ] || return 0
+            for p in $(node -e 'const b=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));if(b&&b.v===2)for(const k of ["week","lastWeek"]){const x=b[k];if(x&&typeof x.parts==="string"&&/^[A-Za-z0-9][A-Za-z0-9-]{0,31}$/.test(x.parts))console.log(x.parts)}' "$b" | sort -u); do
+              git ls-tree -r FETCH_HEAD -- "$id/$p/" | while read -r mode type obj name; do
+                rel="${name#"$id/$p/"}"
+                if [ "$mode" = "100644" ] && [ "$type" = "blob" ] && [[ "$rel" =~ ^(manifest\.json|top\.[0-9a-f]{12}\.json|p/[0-9a-f]\.[0-9a-f]{12}\.json)$ ]]; then
+                  mkdir -p "$(dirname "$RUNNER_TEMP/games/$id/$p/$rel")"
+                  git cat-file blob "$obj" > "$RUNNER_TEMP/games/$id/$p/$rel"
+                fi
+              done
+            done
+          }
           if has_branch games-data; then
             git fetch -q --depth 1 "$url" games-data
             if git cat-file -e "FETCH_HEAD:blockx/board.json" 2>/dev/null; then git show "FETCH_HEAD:blockx/board.json" > "$RUNNER_TEMP/games/blockx/board.json"; fi
+            take_parts blockx
             # Producer Bracket: its week files (the board can leave players out). The newest four, plain names only.
             mkdir -p "$RUNNER_TEMP/games/bracket"
             for f in $(git ls-tree --name-only FETCH_HEAD bracket/ | sed 's#^bracket/##' | grep -E '^W[0-9]{3,4}\.json$' | sort | tail -4); do
@@ -79,6 +96,7 @@ jobs:
             for id in $(node -e 'const g=JSON.parse(require("fs").readFileSync("games.json","utf8")).games||[];for(const x of g)if(x&&x.golf==="standard"&&/^[a-z][a-z0-9-]{1,30}$/.test(x.id))console.log(x.id)'); do
               mkdir -p "$RUNNER_TEMP/games/$id"
               if git cat-file -e "FETCH_HEAD:$id/board.json" 2>/dev/null; then git show "FETCH_HEAD:$id/board.json" > "$RUNNER_TEMP/games/$id/board.json"; fi
+              take_parts "$id"
             done
             for f in $(git ls-tree --name-only FETCH_HEAD:golf 2>/dev/null); do
               if [[ "$f" =~ ^(index|board|W[0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:golf/$f" > "$RUNNER_TEMP/prev/$f"; fi

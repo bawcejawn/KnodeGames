@@ -524,3 +524,12 @@ test("G-35R: the owner's fallback (the switch moved one week later, before the s
   const r = publish(await mondayRace(2, []), bare, NOW + 2 * H, { RACE_RULER_FROM_WEEK: "2" });
   assert.equal(r.ok, false); assert.match(r.out, /ruler switch change is refused/);
 });
+
+test("Capacity (14 Nov): a vhp-data download hiccup doesn't stop the Race run: recording goes on, the ruler's cards and files wait", () => {
+  const yml = fs.readFileSync(path.join(APP, ".github/workflows/race.yml"), "utf8");
+  const fetches = yml.match(/if git -C "\$RUNNER_TEMP\/vhp-data" fetch -q --depth 1 "https:\/\/github\.com\/\$\{GITHUB_REPOSITORY\}\.git" vhp-data; then/g) || [];
+  assert.equal(fetches.length, 2, "record and publish both fetch softly");
+  assert.doesNotMatch(yml, /\n\s*git -C "\$RUNNER_TEMP\/vhp-data" fetch -q --depth 1 [^\n]*vhp-data\n/, "no bare (fatal) fetch left");
+  assert.match(yml, /::warning::The VHP ruler's data \(vhp-data\) didn't download this run: races are recorded/);
+  assert.match(yml, /::warning::The VHP ruler's data \(vhp-data\) didn't download this run: the ruler's files are held/);
+});

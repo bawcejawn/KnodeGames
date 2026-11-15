@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <!-- Only these sources may run scripts, load data or be framed. 'unsafe-eval' is needed by koilib (its protobuf
        encoder builds functions at run time); CDN scripts are pinned by their integrity hash. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://koinos.armana.io https://api.koinos.io https://koinvault.app https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/ https://us.i.posthog.com https://raw.githubusercontent.com/bawcejawn/KnodeGames/stats-data/ https://data.knodegames.com/ https://live.knodegames.com/live.json; manifest-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/koilib@9.4.1/dist/koinos.min.js https://cdn.jsdelivr.net/npm/kondor-js@1.3.0/dist/kondor.min.js https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://koinos.armana.io https://api.koinosblocks.com https://api.koinos.io https://koinvault.app https://raw.githubusercontent.com/bawcejawn/KnodeGames/race-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/games-data/ https://raw.githubusercontent.com/bawcejawn/KnodeGames/names-data/ https://us.i.posthog.com https://raw.githubusercontent.com/bawcejawn/KnodeGames/stats-data/ https://data.knodegames.com/ https://live.knodegames.com/live.json; manifest-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Knode Games: the daily Koinos prediction game</title>
   <!-- seo:start (written by tools/site-seo.mjs; edit there) -->
@@ -58,6 +58,7 @@
             <a href="blockx.html">Who Signs Block X</a>
             <a href="bracket.html">Producer Bracket</a>
             <a href="golf.html">Block Golf</a>
+            <a href="fantasy.html">Fantasy Producers · Test weeks</a>
           </div>
         </details>
         <a href="#leaderboard" data-view="leaderboard">Leaderboards</a>
@@ -120,8 +121,8 @@
           <a class="also-card gtile" href="blockx.html"><span aria-hidden="true">🧱</span><div><b>Who Signs Block X</b><p>Pick who signs the next milestone block.</p></div></a>
           <a class="also-card gtile" href="bracket.html"><span aria-hidden="true">🏆</span><div><b>Producer Bracket</b><p>Pick every matchup in a weekly knockout.</p></div></a>
           <a class="also-card gtile" href="golf.html"><span aria-hidden="true">⛳</span><div><b>Block Golf</b><p>Your places in the other games set your score. Practice in Week 1 (from Mon 16 Nov).</p></div></a>
+          <a class="also-card gtile" href="fantasy.html"><span aria-hidden="true">📋</span><div><b>Fantasy Producers</b><p>Test weeks: draft 5 producers under a salary cap.</p></div></a>
           <div class="also-card gtile soon" aria-disabled="true"><span aria-hidden="true">🎟️</span><div><b>Combo Card</b><p>2 to 6 calls on one card. Every leg must hit.</p></div></div>
-          <div class="also-card gtile soon" aria-disabled="true"><span aria-hidden="true">📋</span><div><b>Fantasy Producers</b><p>Draft 5 producers under a salary cap.</p></div></div>
           <div class="also-card gtile soon" aria-disabled="true"><span aria-hidden="true">🛡️</span><div><b>Survivor</b><p>One producer a day, two lives.</p></div></div>
           <a class="also-more" href="games.html">See every game and your standing →</a>
           <h2 class="game-head">More from Knode Games</h2>
@@ -138,8 +139,8 @@
         <summary>How the Producer Race works</summary>
         <ol class="welcome-steps">
           <li><span>1</span><div><b>Pick a horse (free, no sign-up)</b><p>Open the Race and tap a producer. You're playing as a guest on this device. Nothing to install.</p></div></li>
-          <li><span>2</span><div><b>Watch it run</b><p>Each block a producer signs moves its horse forward. After 6 hours, the horse furthest ahead wins.</p></div></li>
-          <li><span>3</span><div><b>The best free players win VHP</b><p>A win is 3 points and a 2nd or 3rd is 1. Each week the 2 best free players win 2 VHP and 1 VHP, starting with Week 1 (Mon 16 Nov).</p></div></li>
+          <li><span>2</span><div><b>Watch it run</b><p>Each block a producer signs moves its horse forward. <span id="rt-step2">After 6 hours, the horse furthest ahead wins.</span></p></div></li>
+          <li><span>3</span><div><b>The best free players win VHP</b><p><span id="rt-free-pts">A win is 3 points and a 2nd or 3rd is 1.</span> Each week the 2 best free players win 2 VHP and 1 VHP, starting with Week 1 (Mon 16 Nov).</p></div></li>
           <li class="last"><span>4</span><div><b>Want more? Stake to share the pool</b><p>With a Koinos wallet (KOIN Vault on a phone, Kondor on a computer), stake 1 VHP or more in a game to share that game's part of the week's rewards. Your stake is never spent: take it back any time. <a href="get.html">No wallet or VHP yet?</a></p></div></li>
         </ol>
         </details>
@@ -202,7 +203,6 @@
             <p class="ticker-foot" id="ticker-foot">Blocks signed by the game's pool are highlighted. <a id="producers-link" target="_blank" rel="noopener">See all producers</a></p>
           </div>
           <div class="ad ad-box ad-desktop" data-ad-slot="sidebar" aria-label="Advertisement"></div>
-          <a class="panel kit-card" id="kit-card" target="_blank" rel="noopener" hidden></a>
         </aside>
       </div>
     </section>
@@ -271,6 +271,7 @@
         <button type="button" role="tab" id="rt-race" data-rules="race" aria-controls="rp-race"><span aria-hidden="true">🏇</span>Producer Race</button>
         <button type="button" role="tab" id="rt-blockx" data-rules="blockx" aria-controls="rp-blockx"><span aria-hidden="true">🧱</span>Who Signs Block X</button>
         <button type="button" role="tab" id="rt-bracket" data-rules="bracket" aria-controls="rp-bracket"><span aria-hidden="true">🏆</span>Producer Bracket</button>
+        <button type="button" role="tab" id="rt-fantasy" data-rules="fantasy" aria-controls="rp-fantasy"><span aria-hidden="true">📋</span>Fantasy Producers</button>
         <button type="button" role="tab" id="rt-swap" data-rules="swap" aria-controls="rp-swap"><span aria-hidden="true">🔁</span>Knode Games Swap</button>
       </div>
 
@@ -318,12 +319,12 @@
       </div>
 
       <div class="rules-panel" id="rp-race" data-rules-panel="race" role="tabpanel" aria-labelledby="rt-race" hidden>
-        <div class="rules-short"><h2>In short</h2><p>Every Koinos block producer is a horse, and every block it signs moves it forward. A handicap gives every horse the same chance. Pick the winner for 3 points, or score 1 point (a show) if your horse finishes 2nd or 3rd. It's free and just for fun.</p></div>
+        <div class="rules-short"><h2>In short</h2><p>Every Koinos block producer is a horse, and every block it signs moves it forward. A handicap gives every horse the same chance. <span id="rt-short-pts">Pick the winner for 3 points, or score 1 point (a show) if your horse finishes 2nd or 3rd.</span> It's free and just for fun.</p></div>
         <ol class="rules-steps">
-          <li><span class="ri" aria-hidden="true">🏇</span><div><b>Open the Race</b><p>Four 6-hour races a day, every day, starting at 00:00, 06:00, 12:00 and 18:00 UTC (Sunday's races are for fun: they count on All time, not the week)<span class="lt-list" data-utc-hours="0,6,12,18"></span>.</p></div></li>
+          <li><span class="ri" aria-hidden="true">🏇</span><div><b>Open the Race</b><p><span id="rt-open">Four 6-hour races a day, every day, starting at 00:00, 06:00, 12:00 and 18:00 UTC</span> (Sunday's races are for fun: they count on All time, not the week)<span class="lt-list" data-utc-hours="0,6,12,18"></span>.</p></div></li>
           <li><span class="ri" aria-hidden="true">👆</span><div><b>Pick one horse per race</b><p>For any of the next 4 races, so up to 24 hours ahead. Guests can pick too.</p></div></li>
           <li><span class="ri" aria-hidden="true">🔒</span><div><b>Change your mind until it starts</b><p>When the race starts, the chain locks your pick.</p></div></li>
-          <li><span class="ri" aria-hidden="true">📺</span><div><b>Watch it live, then check the board</b><p>A win is 3 points, a show (2nd or 3rd) is 1. Leaderboards for today, this week and all time.</p></div></li>
+          <li><span class="ri" aria-hidden="true">📺</span><div><b>Watch it live, then check the board</b><p><span id="rt-watch-pts">A win is 3 points, a show (2nd or 3rd) is 1.</span> Leaderboards for today, this week and all time.</p></div></li>
         </ol>
         <div class="rules-good"><h3>Good to know</h3><ul>
           <li><b>Free.</b> No entry fee, no wager, no prize pool. Knode Games pays the Mana for picks.</li>
@@ -332,10 +333,10 @@
           <li><b>Scored by the VHP Ruler</b> from Week 1 (Mon 16 Nov): each producer is measured against its own size, so a big and a small producer have the same chance to win. The horses are a live estimate; the final 1st, 2nd and 3rd come from the Ruler once the race's blocks are in (usually 1 to 2 hours). <a href="ruler.html">How the Ruler works</a>.</li>
           <li><b>Results are final</b> once the race's blocks are irreversible and match on two independent Koinos nodes.</li>
         </ul></div>
-        <div class="rules-good rules-soon" id="race-types-soon"><h3>Coming soon: more races</h3><ul>
-          <li><b>Five race lengths, one board.</b> 1-hour, 2-hour, 6-hour (today's race), daily and weekly races will run side by side. Points from every length add up on the same Producer Race board. Pick any length, as often as you like, within your daily Mana.</li>
-          <li><b>Points for 1st, 2nd and 3rd</b> (planned, not live yet): 1-hour and 2-hour 3 / 2 / 1, 6-hour 4 / 2 / 1, daily 6 / 3 / 2, weekly 12 / 6 / 4. A 2nd or 3rd place scores only if that producer signed a block in the race.</li>
-          <li><b>Until this is announced as live, the points above stay as they are today:</b> 3 for a win and 1 for a show in the 6-hour race.</li>
+        <div class="rules-good rules-soon" id="race-types-soon"><h3 id="rt-soon-h">Coming soon: more races</h3><ul>
+          <li id="rt-soon-1"><b>Five race lengths, one board.</b> 1-hour, 2-hour, 6-hour (today's race), daily and weekly races will run side by side. Points from every length add up on the same Producer Race board. Pick any length, as often as you like, within your daily Mana.</li>
+          <li id="rt-soon-2"><b>Points for 1st, 2nd and 3rd</b> (planned, not live yet): 1-hour and 2-hour 3 / 2 / 1, 6-hour 4 / 2 / 1, daily 6 / 3 / 2, weekly 12 / 6 / 4. A 2nd or 3rd place scores only if that producer signed a block in the race.</li>
+          <li id="rt-soon-3"><b>Until this is announced as live, the points above stay as they are today:</b> 3 for a win and 1 for a show in the 6-hour race.</li>
         </ul></div>
         <h3 class="rules-more">The details</h3>
         <details class="rules-d"><summary>How the handicap works</summary>
@@ -377,6 +378,14 @@
         </ul></div>
         <p class="rules-cta"><a class="btn btn-primary btn-big" href="bracket.html">Go to the Bracket</a></p>
       </div>
+      <div class="rules-panel" id="rp-fantasy" data-rules-panel="fantasy" role="tabpanel" aria-labelledby="rt-fantasy" hidden>
+        <div class="rules-short"><h2>In short</h2><p>Test weeks: draft five Koinos block producers under a salary cap, pick a captain, and score on how reliably they sign their blocks. There is a weekly league and a Weekly Rival.</p></div>
+        <div class="rules-good"><h3>Good to know</h3><ul>
+          <li><b>Your score:</b> the total of your five producers' day scores, with the captain counted twice.</li>
+          <li><b>Test weeks:</b> free test play starts Tue 17 Nov. The full rules are on the Fantasy page.</li>
+        </ul></div>
+        <p class="rules-cta"><a class="btn btn-primary btn-big" href="fantasy.html">Go to Fantasy Producers</a></p>
+      </div>
       <div class="rules-panel" id="rp-swap" data-rules-panel="swap" role="tabpanel" aria-labelledby="rt-swap" hidden>
         <div class="rules-short"><h2>In short</h2><p>Turn VHP back into KOIN right now. On its own, VHP only turns back into KOIN slowly as it produces blocks. Knode Games Swap pays you KOIN at once, 1:1 minus a 3% fee.</p></div>
         <ol class="rules-steps">
@@ -413,6 +422,7 @@
       <a href="blockx.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path></svg><span>Who Signs Block X</span></a>
       <a href="bracket.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h5v4H4zM4 15h5v4H4zM15 10h5v4h-5z"></path><path d="M9 7h3v10H9M12 12h3"></path></svg><span>Producer Bracket</span></a>
       <a href="golf.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 21V4l9 4-9 4"></path><path d="M4 21h8"></path></svg><span>Block Golf</span></a>
+      <a href="fantasy.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"></circle><circle cx="5" cy="10" r="2"></circle><circle cx="19" cy="10" r="2"></circle><circle cx="8" cy="18" r="2"></circle><circle cx="16" cy="18" r="2"></circle></svg><span>Fantasy Producers · Test weeks</span></a>
       <a href="#results" data-view="results"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"></path><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"></path></svg><span>Results</span></a>
       <a href="#how" data-view="how"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><path d="M9 9h6M9 13h6"></path></svg><span>Rules</span></a>
       <p class="ms-h">Tools</p>
@@ -438,7 +448,7 @@
 
   <footer class="foot">
     <div class="wrap">
-      <p class="foot-node"><b>Run your own node:</b> <a href="https://koinoskit.site/" target="_blank" rel="noopener">KoinosKit, a few clicks</a> · <a href="run-node.html">Step by step with PowerShell and Docker</a></p>
+      <p class="foot-node"><b>Run your own node:</b> <a href="https://www.koinosai.com/" target="_blank" rel="noopener">Koinos AI, your own AI and node</a> · <a href="run-node.html">Step by step with PowerShell and Docker</a></p>
       <div class="foot-row">
         <span>Knode Games runs fully on Koinos. Source-available.</span>
         <span class="foot-links"><a href="#welcome" data-view="welcome">New here? Quick tour</a> · <a href="trust.html">Trust</a> · <a href="terms.html">Terms &amp; risks</a> · <a href="install.html">Install app</a> · <a href="https://github.com/bawcejawn/KnodeGames" target="_blank" rel="noopener">Source code</a></span>

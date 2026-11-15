@@ -97,9 +97,9 @@ test("checkStats refuses a bad file: text where a number belongs, a non-address,
 });
 
 import fs from "node:fs";
-test("stats.yml: hourly, off until STATS_ENABLED, no secrets; the check is read-only; publish runs no repo code and pushes only stats-data", () => {
+test("stats.yml: every 2 hours, off until STATS_ENABLED, no secrets; the check is read-only; publish runs no repo code and pushes only stats-data", () => {
   const y = fs.readFileSync(".github/workflows/stats.yml", "utf8");
-  assert.match(y, /cron:\s*"17 \* \* \* \*"/); assert.doesNotMatch(y, /pull_request/); assert.doesNotMatch(y, /\$\{\{\s*secrets\./);
+  assert.match(y, /cron:\s*"17 \*\/2 \* \* \*"/); assert.doesNotMatch(y, /pull_request/); assert.doesNotMatch(y, /\$\{\{\s*secrets\./);
   assert.match(y, /vars\.STATS_ENABLED == 'true' && github\.ref == 'refs\/heads\/main'/);
   const check = y.slice(y.indexOf("  check:"), y.indexOf("  publish:")), publish = y.slice(y.indexOf("  publish:"));
   assert.match(check, /permissions:\s*\n\s*contents: read/); assert.doesNotMatch(check, /contents:\s*write/);

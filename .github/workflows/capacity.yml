@@ -1,0 +1,35 @@
+name: Capacity limits
+
+# Daily read-only report of every capacity limit (tools/capacity/limits.mjs, docs/capacity/RUNBOOK.md).
+# The run fails when any published file is at 60% or more of its cap, so GitHub emails the owner weeks before a wall.
+# Reads only the git copies of the public data branches: no secrets, no chain, no writes. One run a day.
+on:
+  schedule:
+    - cron: "23 13 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: capacity-limits
+  cancel-in-progress: false
+
+jobs:
+  limits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Fetch the published data branches (read-only)
+        run: |
+          for b in games-data race-data blocks-data names-data stats-data vhp-data; do
+            git fetch --quiet --depth 1 origin "$b:refs/remotes/origin/$b" || echo "::warning::$b not fetched"
+          done
+      - name: Capacity limits (fails at 60%)
+        run: node tools/capacity/limits.mjs --ci

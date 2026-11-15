@@ -11,7 +11,7 @@
 | **Swap Desk v2** (VHP → KOIN, 3% fee) | `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR` | `309506ccfaadd3427e937aa88cd34c9ea2a9e6088e49e51f014d546489dd5f35` | 28 Oct 2026 | announce → **48 h** → upload; treasury changes 48 h | owner and treasury `1635QU…` (cold owner from the handover; cold treasury planned) | the v5 / Desk v2 audit (Oct); re-check in the full audit |
 | **Mana sponsor v3** (pays players' Mana within caps) | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` | `b84e1add3ffa14a7d1933d5ce5a4ad33caa4bca887a489f87f710b3c121c83a6` | 4 Nov 2026 07:27 UTC | its own key (settings and code) | itself (its own key; D-085, D-148) | sponsor v3 audit (27 Oct) + guest-fix #C-3 GO |
 | **Picks** (Block X; later the other picks games) | `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` | `700c296a1064b904299c156061d6caf8fcabd0b1765968903f29d89d2426c594` | 30 Oct 2026 | `upgrade-schedule` → **48 h** → `upgrade-upload` | owner `1635QU…` (handover later, D-106) | Picks audit + fix-check (27 Oct) |
-| **Race picks** | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` | `61e8f21230e8b4bdb165bacfe7281517a5adf78f6c6b1b8a0d84ce41537afac5` | 27 Oct 2026 | settings by its owner; **code by its own key `RACE_WIF`** (uploaded with no overrides) | owner `1LMV8E…` (cold, since 4 Nov) | Race picks audit (27 Oct) |
+| **Race picks** | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` | `9993581baf822cd070331008441c5ad974f5c0b134520dfb7422b9efd1873864` (v2, race types) | 13 Nov 2026 (v1 `61e8f212…` 27 Oct) | settings by its owner; **code by its own key `RACE_WIF`** (uploaded with no overrides) | owner `1LMV8E…` (cold, since 4 Nov) | Race picks audit (27 Oct); v2: #C-10, #C-12, Repo Lens #G-47 |
 
 ## 2. Builds ready but not live
 | Contract | Build | Purpose | Status |
@@ -27,7 +27,7 @@
 | Swap Desk | v1 `05039d74…` → **v2** `309506cc…` | v2 since 28 Oct | — |
 | Mana sponsor | v2 `fa4659e6…` → v3 `b61ac238…` → **v3 guest fix** `b84e1add…` | since 4 Nov | never re-upload `b61ac238…` while the vault switch is on (it trapped guests) |
 | Picks | **v1** `700c296a…` | since 30 Oct | Picks v2 (CARD type) for Combo, later |
-| Race picks | **v1** `61e8f212…` | since 27 Oct | — |
+| Race picks | **v2** `9993581b…` | since 13 Nov (per-game limit 0) | — |
 
 ## 4. Rules for every contract change
 1. Build from a **tagged commit** (`<contract>-<version>`, e.g. `vault-v6.1`) so anyone can rebuild the hash (target; tags start with v6.1, ARCHITECTURE "Target architecture" A5).

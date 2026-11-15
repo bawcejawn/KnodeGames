@@ -32,7 +32,7 @@
 | **Vault v6.1** (the game contract; the **Knode Games Pool** producer, D-073) | `1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr` ✅ | `11043e1f…` (withdrawals-only `04c27c1a…` ready) | Owner `1635QU…` ✅ → cold owner `1LMV8E…` after Week 1 (handover 4a/4b postponed, owner 10 Nov) |
 | **Swap Desk v2** (Knode Swap) | `1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR` ✅ | `309506cc…` | Owner and treasury `1635QU…` ✅ → cold owner and cold treasury |
 | **Picks** (Block X; later the other picks games) | `1LmgqBGctL9F2YkyjTXgieTXwnYHh8Y6Pm` ✅ | `700c296a…` | `1635QU…` ✅. Handover tool built (#180); date: owner |
-| **Race picks** | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` ✅ | `61e8f212…` | `1LMV8EcR…` ✅ (4 Nov) |
+| **Race picks** | `1EN7xU8R9tQXjHvrX79qZvvvGkkKWVnB5K` ✅ | `9993581b…` (v2, 13 Nov) | `1LMV8EcR…` ✅ (4 Nov) |
 | **Mana sponsor v3** | `1ByDDSBUzy5zkRceELc54Jh8i41yNRoKt8` ✅ | `b84e1add…` | itself (its own key changes its settings): see `SPONSOR.md` |
 
 ### Outside contracts we rely on (no keys of ours)

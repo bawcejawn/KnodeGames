@@ -52,6 +52,7 @@
             <a href="blockx.html">Who Signs Block X</a>
             <a href="bracket.html">Producer Bracket</a>
             <a href="golf.html">Block Golf</a>
+            <a href="fantasy.html">Fantasy Producers · Test weeks</a>
           </div>
         </details>
         <a href="index.html#leaderboard">Leaderboards</a>
@@ -131,7 +132,7 @@
     <!-- bridge walkthrough -->
     <section class="tokens start-sec" id="tokens" aria-labelledby="tokens-title">
         <h2 id="tokens-title" class="sec-title">Official token addresses</h2>
-        <p>Copy these, never from a message or a search result. KOIN and VHP live on Koinos; vKOIN is KOIN on Ethereum or Solana, which the Vortex bridge turns into KOIN on Koinos.</p>
+        <p>Copy these, never from a message or a search result. KOIN and VHP live on Koinos; vKOIN is KOIN on Ethereum or Solana. The Vortex bridge turns vKOIN on Ethereum into KOIN on Koinos. If your vKOIN is on Solana, move it to Ethereum first (see below).</p>
         <ul class="tok-list">
           <li><span class="tok-name"><b>KOIN</b> on Koinos</span><span class="addr"><code id="tok-koin">19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK</code><button class="copy" type="button" data-copy="tok-koin">Copy</button></span><a href="https://koinosscan.com/address/19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK" target="_blank" rel="noopener noreferrer">Check on Koinosscan</a></li>
           <li><span class="tok-name"><b>VHP</b> on Koinos</span><span class="addr"><code id="tok-vhp">12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq</code><button class="copy" type="button" data-copy="tok-vhp">Copy</button></span><a href="https://koinosscan.com/address/12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq" target="_blank" rel="noopener noreferrer">Check on Koinosscan</a></li>
@@ -139,6 +140,25 @@
           <li><span class="tok-name"><b>vKOIN</b> on Solana</span><span class="addr"><code id="tok-vsol">8AUxdPqYU4FBy5rZDhMJxTniPs7gtEfdHjP3UKM71m6G</code><button class="copy" type="button" data-copy="tok-vsol">Copy</button></span><a href="https://solscan.io/token/8AUxdPqYU4FBy5rZDhMJxTniPs7gtEfdHjP3UKM71m6G" target="_blank" rel="noopener noreferrer">Check on Solscan</a></li>
         </ul>
       </section>
+
+    <section id="from-solana" class="start-sec" aria-labelledby="from-solana-title">
+      <h2 id="from-solana-title" class="sec-title">Have vKOIN on Solana? Go through Ethereum first</h2>
+      <div class="bridge">
+        <ol class="bridge-steps">
+          <li><b>Move it to Ethereum with Wormhole.</b> Open <a href="https://portalbridge.com/" target="_blank" rel="noopener noreferrer">Portal, Wormhole's bridge</a>, connect your Solana wallet and MetaMask, choose Solana as the source and Ethereum as the destination, and pick the vKOIN token from the list above.</li>
+          <li><b>Keep a little ETH in MetaMask.</b> Receiving on Ethereum costs a gas fee, paid in ETH.</li>
+          <li><b>Check what arrived.</b> In MetaMask the token should be vKOIN with the Ethereum address in the list above. Check it on Etherscan.</li>
+          <li><b>Then cross the Vortex Bridge</b> from Ethereum to Koinos, as in the steps below. Vortex connects Ethereum and Koinos, so it can't take Solana directly.</li>
+        </ol>
+        <aside class="bridge-note panel">
+          <h3>Good to know</h3>
+          <ul>
+            <li>Send a small test amount first, and only use the official bridge sites.</li>
+            <li>Each hop takes a few minutes: wait until the tokens show in your wallet before the next step.</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
 
     <section id="bridge" class="start-sec" aria-labelledby="bridge-title">
       <h2 id="bridge-title" class="sec-title">Crossing the Vortex Bridge</h2>
@@ -194,6 +214,7 @@
       <a href="blockx.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path></svg><span>Who Signs Block X</span></a>
       <a href="bracket.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h5v4H4zM4 15h5v4H4zM15 10h5v4h-5z"></path><path d="M9 7h3v10H9M12 12h3"></path></svg><span>Producer Bracket</span></a>
       <a href="golf.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 21V4l9 4-9 4"></path><path d="M4 21h8"></path></svg><span>Block Golf</span></a>
+      <a href="fantasy.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"></circle><circle cx="5" cy="10" r="2"></circle><circle cx="19" cy="10" r="2"></circle><circle cx="8" cy="18" r="2"></circle><circle cx="16" cy="18" r="2"></circle></svg><span>Fantasy Producers · Test weeks</span></a>
       <a href="index.html#results"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"></path><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"></path></svg><span>Results</span></a>
       <a href="index.html#how"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><path d="M9 9h6M9 13h6"></path></svg><span>Rules</span></a>
       <p class="ms-h">Tools</p>
@@ -219,7 +240,7 @@
 
   <footer class="foot">
     <div class="wrap">
-      <p class="foot-node"><b>Run your own node:</b> <a href="https://koinoskit.site/" target="_blank" rel="noopener">KoinosKit, a few clicks</a> · <a href="run-node.html">Step by step with PowerShell and Docker</a></p>
+      <p class="foot-node"><b>Run your own node:</b> <a href="https://www.koinosai.com/" target="_blank" rel="noopener">Koinos AI, your own AI and node</a> · <a href="run-node.html">Step by step with PowerShell and Docker</a></p>
       <div class="foot-row">
         <span>Knode Games runs fully on Koinos. Source-available.</span>
         <span class="foot-links"><a href="index.html#welcome">New here? Quick tour</a> · <a href="trust.html">Trust</a> · <a href="terms.html">Terms &amp; risks</a> · <a href="install.html">Install app</a> · <a href="https://github.com/bawcejawn/KnodeGames" target="_blank" rel="noopener">Source code</a></span>

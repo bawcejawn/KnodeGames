@@ -39,7 +39,7 @@ test("G28-1: results.js scores a ruled race with the ruler's places (and waits w
   assert.match(js, /isWin = ruled \? \(p\) => KV\.ruledPick\(RO, p\[1\]\)\.win/);
   assert.match(js, /isShow = ruled \? \(p\) => KV\.ruledPick\(RO, p\[1\]\)\.show/);
   assert.match(js, /if \(status === "final" && RO && RO\.pending\) status = "ruler"/);
-  assert.match(js, /M\.pagePick\(0, r\.start, st, my\[1\], isWin\(my\), isShow\(my\)\)/, "points from the ruled standings");
+  assert.match(js, /M\.pagePick\(type, r\.start, st, my\[1\], isWin\(my\), isShow\(my\)\)/, "points from the ruled standings");
 });
 test("G28-1: race.js's finished pick rows (6-hour and typed) use the ruler's places in an ON week", () => {
   const js = fs.readFileSync(`${APP}race.js`, "utf8");
@@ -68,4 +68,18 @@ test("Repo Lens #G-45 G45-1: no handicap result while the ruler's file is missin
   assert.match(js, /if \(String\(e && e\.message\) !== "404"\) failed\.add\(x\)/, "a failed fetch (not a 404) counts as unknown");
   assert.match(rs, /this\.rulerFailed\.has\(this\.week\) \|\| \(Number\.isInteger\(this\.rulerFrom\) && this\.week >= this\.rulerFrom\) \? \{ pending: true \} : null/);
   assert.match(rs, /this\.rulerFailed\.add\(w\); this\.rtried\.delete\(w\);/, "tried again next time");
+});
+
+test("owner: one result per race on the lane boards too: a finished race in a ruler week never calls the steps leader 'Winner' (6-hour and typed boards, PR #309)", () => {
+  const js = fs.readFileSync(`${APP}race.js`, "utf8");
+  assert.match(js, /function endLabel\(ro, a, i\) \{/);
+  assert.match(js, /if \(ro\.pending\) return \{ text: i === 0 \? "Most steps" : null, win: false \};/);
+  assert.match(js, /return a === ro\.first \? \{ text: "Winner \(Ruler\)", win: true \}/);
+  assert.match(js, /const RO6 = ended \? ruledFor\(race, 0\) : null;/, "6-hour board");
+  assert.match(js, /lane\.classList\.toggle\("win", !!\(EL && EL\.win\)\);/);
+  assert.match(js, /const ROt = ended \? ruledFor\(cur, rtype\) : null;/, "typed board");
+  assert.match(js, /const L = ended \? endLabel\(ROt, a, rk - 1\)/);
+  assert.doesNotMatch(js, /el\("b", \{ text: ended \? "Winner" : "Leading" \}\)/, "no steps-leader Winner left");
+  assert.doesNotMatch(js, /i === 0 \? el\("b", \{ text: "Winner" \}\)/);
+  assert.match(js, /ended && rk && endLabel\(ROt, a, rk - 1\)\.win \? " win" : ""/, "the typed winner's lane is the ruler's 1st");
 });

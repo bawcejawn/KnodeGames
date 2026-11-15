@@ -970,3 +970,6 @@ body.play-wait #view-play > .play-loading { display: block; }
 .foot-node { margin: 18px 0 0; color: var(--muted); font-size: .88rem; line-height: 1.8; }
 .foot-node b { color: var(--ink, inherit); font-weight: 700; }
 .foot-node a { display: inline-block; padding: 2px 2px; }
+.pk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--violet, #6b5bb5); border-radius: 12px; background: var(--violet-soft, #f1eefb); }
+.pk-bar[hidden] { display: none; }
+.pk-bar span { flex: 1 1 180px; font-weight: 600; }

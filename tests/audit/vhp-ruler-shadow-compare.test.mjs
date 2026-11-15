@@ -95,3 +95,15 @@ test("shadow compare: loadGames reads a week's files from games-data and race-da
     assert.match(text, /Bracket: no ruler summary/);
   } finally { fs.rmSync(g, { recursive: true, force: true }); fs.rmSync(rd, { recursive: true, force: true }); }
 });
+
+test("G86-1: a signer missing from the old card scored ×1 under the old rule, never 'nothing' or an infinite ratio", () => {
+  const t = Date.parse("2026-11-17T12:00:00Z");
+  assert.equal(oldMultiplier({ top: 1000, signerVhp: null }, t), 1);
+  assert.equal(oldMultiplier({ top: 1000, signerVhp: 0 }, t), 1);
+  const now = T_RACE + 20 * 86400000, h = S0(1), signer = chain.who[h - FROM], time = chain.ts[h - FROM];
+  const e = BX.entryFor(L, { round: 700, height: h, time, signer }, 100, now);
+  const r = compareBlockX({ v: 1, week: 4, targets: [{ round: 700, height: h, final: true, signer, time, card: { top: 400e8, signerVhp: null }, picks: [] }] }, [{ name: "X004-0.json", file: { targets: [e] } }], BX);
+  assert.equal(r.bothScored, 1);
+  assert.equal(r.rows[0].old, 1);
+  assert.ok(Number.isFinite(r.medianRatio), `median ${r.medianRatio}`);
+});

@@ -58,7 +58,8 @@ const fmtM = (x) => (x == null ? "?" : (Number(BigInt(x) / 10000n) / 100).toFixe
 // ── Block X ──
 /** The old rule's multiplier for the signer from the W file's compact card { top, signerVhp }: min(cap, top ÷ VHP). */
 export function oldMultiplier(card, time) {
-  if (!card || !(card.top > 0) || !(card.signerVhp > 0)) return null;
+  if (!card || !(card.top > 0)) return null;
+  if (!(card.signerVhp > 0)) return 1;          // blockx-math multiplier: a signer missing from the card scores ×1 (audit BX-3)
   return Math.round(Math.min(BXM.capAt(time), card.top / card.signerVhp) * 100) / 100;
 }
 /** wf: blockx W<week>.json; xFiles: [{ name, file }] of X<week>-<d>.json; BX: bot/blockx-ruler.ts (multiplierOf). */

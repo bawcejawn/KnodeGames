@@ -289,7 +289,8 @@ results from the rebuilt card. (`recompute` in Python still returns `(same, diff
 
 ## Review tools (read-only; the Ruler chat, 14 Nov 2026)
 - `node tools/vhp-ruler-race-check.mjs <race-data> --week N [--vhp-data <vhp-data>] [--gh owner/repo] [--since <ISO>]`:
-  checks a ruled Race week. Every race.yml run since `--since` is green; the publish logs have no "differs", "refused" or
+  checks a ruled Race week. Every race.yml run since `--since` is green (all pages); the record and publish logs of
+  every finished run have no "differs", "refused" or
   "held" line; each card in `R<week>.json` / `R<week>-<type>.json` is ruleVersion 4 with no mode / version / include,
   its placings are the card's top three, and (with `--vhp-data`) it rebuilds byte for byte with the Race's settings.
   Races without a card are listed as "not yet", and as late after 3 hours. Exit 0 OK, 1 problems.

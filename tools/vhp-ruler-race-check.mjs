@@ -7,7 +7,7 @@
 //
 // It checks:
 //  1. Every run of race.yml since --since finished green (a run still going is listed, not counted).
-//  2. Their publish logs: no "differs", "refused", "held, not published" or "doesn't match the ruler's data" line; the
+//  2. Their record and publish logs (every finished run since --since, page by page): no "differs", "refused", "held, not published" or "doesn't match the ruler's data" line; the
 //     "ok: the card matches" lines are counted; the ruler's waits and alerts are listed.
 //  3. R<week>.json and R<week>-<type>.json: the header is { week, rulerFrom: 4, mode: "on", shadow: false }; every card is
 //     ruleVersion 4, game 7, its own round and window, with no mode / version / include key; its placings are the
@@ -55,7 +55,9 @@ export function checkRulerFile(f, { week, L = null, now = Date.now() }) {
   for (const e of Array.isArray(f.races) ? f.races : []) {
     const id = e.id;
     if (!e.card) {
-      const start = Date.parse(String(id) + ":00:00Z"), len = (e.window.S1 - e.window.S0 + 1) * BLOCK_MS;
+      // "2026-11-16T00" (6-hour), "H1-2026-11-16T05", "H2-…T04", "D-2026-11-16", "W-2026-11-16" (race-math typedId)
+      const m = /^(?:(?:H1|H2|D|W)-)?(\d{4}-\d\d-\d\d)(?:T(\d\d))?$/.exec(String(id));
+      const start = m ? Date.parse(`${m[1]}T${m[2] ?? "00"}:00:00Z`) : NaN, len = (e.window.S1 - e.window.S0 + 1) * BLOCK_MS;
       const line = `${id}: ${e.note || "no card and no note"}`;
       if (Number.isFinite(start) && now > start + len + LATE) late.push(line); else notYet.push(line);
       if (e.placings && e.placings.length) problems.push(`${id}: placings without a card`);
@@ -107,7 +109,7 @@ export function checkRuns(runs, since) {
 export function report({ files, runs, logs }) {
   const out = [], probs = [];
   if (runs) { out.push(`Race runs: ${runs.green} green of ${runs.counted - runs.running} finished${runs.running ? `, ${runs.running} still running` : ""}.`); probs.push(...runs.problems); }
-  if (logs) { out.push(`Publish logs: ${logs.ok} "card matches" lines.`); probs.push(...logs.problems); if (logs.alerts.length) out.push("Ruler waits and alerts in the logs:", ...logs.alerts.map((a) => "  - " + a)); }
+  if (logs) { out.push(`Record and publish logs${logs.of !== undefined ? ` (read for ${logs.read} of ${logs.of} finished runs)` : ""}: ${logs.ok} "card matches" lines.`); probs.push(...logs.problems); if (logs.alerts.length) out.push("Ruler waits and alerts in the logs:", ...logs.alerts.map((a) => "  - " + a)); }
   for (const f of files) {
     out.push(`${f.name}: ${f.cards} card(s)${f.recomputed !== undefined && f.cards ? `, ${f.recomputed} rebuilt from vhp-data and identical` : ""}; ${f.notYet.length} not yet; ${f.late.length} late.`);
     out.push(...f.notYet.map((x) => "  not yet: " + x), ...f.late.map((x) => "  LATE (over 3 h): " + x));
@@ -118,6 +120,41 @@ export function report({ files, runs, logs }) {
 }
 
 const gh = (p) => execFileSync("gh", ["api", p], { encoding: "utf8", maxBuffer: 1 << 28 });
+
+/** Every race.yml run created since `since` (ms), page by page (Repo Lens G86-3): GitHub gives at most 100 a page and the
+ *  workflow runs hourly, so a week is about 168 runs. get(path) returns parsed JSON (GET only). A list shorter than
+ *  GitHub's total_count is a problem: the check would not cover the whole week. */
+export function listRuns(get, repo, since) {
+  const runs = [], problems = [];
+  let total = null;
+  for (let page = 1; page <= 20; page++) {
+    const r = get(`repos/${repo}/actions/workflows/race.yml/runs?per_page=100&page=${page}&created=%3E%3D${new Date(since).toISOString()}`);
+    total = r.total_count;
+    runs.push(...r.workflow_runs);
+    if (r.workflow_runs.length < 100) break;
+  }
+  if (total !== null && runs.length !== total) problems.push(`runs listed: ${runs.length} of GitHub's ${total}: the check doesn't cover every run since the start`);
+  return { runs, problems };
+}
+
+/** The record and publish logs of every completed run (Repo Lens G86-3 and the Info on the record job: the Race recorder's
+ *  "waiting for the VHP ruler's result" line is in the record job). A log that can't be read is a problem: the report
+ *  says how many runs were read. getText(path) returns the log text. */
+export function readLogs(get, getText, repo, runs) {
+  let text = "", read = 0;
+  const done = runs.filter((r) => r.status === "completed"), problems = [];
+  for (const run of done) {
+    let ok = true;
+    try {
+      const jobs = get(`repos/${repo}/actions/runs/${run.id}/jobs?per_page=50`).jobs.filter((x) => /^(record|publish)\b/i.test(x.name));
+      if (!jobs.length) ok = false;
+      for (const j of jobs) { try { text += getText(`repos/${repo}/actions/jobs/${j.id}/logs`) + "\n"; } catch { ok = false; } }
+    } catch { ok = false; }
+    if (ok) read++;
+  }
+  if (read < done.length) problems.push(`logs read for ${read} of ${done.length} finished runs: the rest couldn't be read, so they weren't checked`);
+  return { text, read, of: done.length, problems };
+}
 
 async function main() {
   const args = process.argv.slice(2), opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
@@ -131,14 +168,13 @@ async function main() {
   const repo = opt("--gh");
   if (repo) {
     const since = Date.parse(opt("--since", "2026-11-16T00:00:00Z"));
-    const list = JSON.parse(gh(`repos/${repo}/actions/workflows/race.yml/runs?per_page=100&created=%3E%3D${new Date(since).toISOString()}`)).workflow_runs;
-    runs = checkRuns(list, since);
-    let text = "";
-    for (const run of list.filter((r) => r.status === "completed").slice(0, 60)) {
-      const jobs = JSON.parse(gh(`repos/${repo}/actions/runs/${run.id}/jobs?per_page=50`)).jobs;
-      for (const j of jobs.filter((x) => /publish/i.test(x.name))) { try { text += gh(`repos/${repo}/actions/jobs/${j.id}/logs`) + "\n"; } catch { text += `::warning::run ${run.id}: the publish log couldn't be read\n`; } }
-    }
-    logs = scanLogs(text);
+    const get = (p) => JSON.parse(gh(p));
+    const listed = listRuns(get, repo, since);
+    runs = checkRuns(listed.runs, since);
+    runs.problems.push(...listed.problems);
+    const got = readLogs(get, gh, repo, listed.runs);
+    logs = { ...scanLogs(got.text), read: got.read, of: got.of };
+    logs.problems.push(...got.problems);
   }
   const r = report({ files, runs, logs });
   console.log(r.text);

@@ -123,3 +123,46 @@ test("race check: loadWeek reads R<week>.json and R<week>-<type>.json, and the r
     assert.match(bad.text, /^PROBLEMS: 1/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+// ── Repo Lens #G-86 ──
+import { listRuns, readLogs } from "../../tools/vhp-ruler-race-check.mjs";
+
+test("G86-2: a card-less race of the newer types (H1-, H2-, D-, W- ids) is listed as late after 3 hours", () => {
+  const f = good(), base = f.races[0];
+  const day = new Date(T_RACE).toISOString().slice(0, 10), hour = new Date(T_RACE).toISOString().slice(0, 13);
+  const ids = [`H1-${hour}`, `H2-${hour}`, `D-${day}`, `W-${day}`];
+  f.races = ids.map((id) => ({ ...base, id, card: null, placings: [], note: "not yet: x" }));
+  const r = checkRulerFile(f, { week: 4, L: null, now: Date.parse(day + "T00:00:00Z") + 30 * 86400000 });
+  assert.equal(r.late.length, 4, r.late.join("\n"));
+  assert.equal(r.notYet.length, 0);
+  const soon = checkRulerFile(f, { week: 4, L: null, now: T_RACE + 60000 });
+  assert.equal(soon.late.length, 0);
+});
+
+test("G86-3: listRuns pages until a short page and refuses a list shorter than GitHub's total_count", () => {
+  const all = Array.from({ length: 168 }, (_, i) => ({ id: i + 1, created_at: "2026-11-16T00:37:00Z", status: "completed", conclusion: "success" }));
+  const pages = [];
+  const get = (total) => (p) => { const n = Number(/[?&]page=(\d+)/.exec(p)[1]); pages.push(n); return { total_count: total, workflow_runs: all.slice((n - 1) * 100, n * 100) }; };
+  const ok = listRuns(get(168), "o/r", Date.parse("2026-11-16T00:00:00Z"));
+  assert.equal(ok.runs.length, 168);
+  assert.deepEqual(pages, [1, 2]);
+  assert.deepEqual(ok.problems, []);
+  const short = listRuns(get(170), "o/r", 0);
+  assert.equal(short.problems.length, 1);
+  assert.match(short.problems[0], /168 of GitHub's 170/);
+});
+
+test("G86-3 and the record-job Info: readLogs reads record and publish logs of every finished run and says when one is missing", () => {
+  const runs = [1, 2, 3].map((id) => ({ id, status: "completed" })).concat([{ id: 4, status: "in_progress" }]);
+  const get = (p) => ({ jobs: [{ id: Number(/runs\/(\d+)/.exec(p)[1]) * 10, name: "record" }, { id: Number(/runs\/(\d+)/.exec(p)[1]) * 10 + 1, name: "publish" }, { id: 99, name: "alert" }] });
+  const asked = [];
+  const getText = (p) => { const j = Number(/jobs\/(\d+)/.exec(p)[1]); asked.push(j); if (j === 31) throw new Error("gone"); return j % 10 === 0 ? "2 race(s) waiting for the VHP ruler's result (a, b): the ruler's data (vhp-data) is behind." : "ok: the card matches the ruler's data"; };
+  const r = readLogs(get, getText, "o/r", runs);
+  assert.deepEqual(asked.sort((a, b) => a - b), [10, 11, 20, 21, 30, 31], "record and publish only, finished runs only");
+  assert.equal(r.read, 2);
+  assert.equal(r.of, 3);
+  assert.match(r.problems[0], /logs read for 2 of 3 finished runs/);
+  const s = scanLogs(r.text);
+  assert.equal(s.ok, 2);
+  assert.equal(s.alerts.length, 3, "the record job's waiting line now reaches the scan");
+});

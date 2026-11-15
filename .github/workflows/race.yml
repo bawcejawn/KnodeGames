@@ -2534,6 +2534,10 @@ jobs:
                       if o and type(o.get("cards")) is list and len(o["cards"]) == len(r["cards"]):
                           for i, c in enumerate(o["cards"]):
                               assert c is None or same(c, r["cards"][i]), f"{f} {r['id']}: a published card would change"
+                          # Repo Lens #G-87 F1-1: a race published final (not missed) with no card at all (Fix 1) keeps no card:
+                          # a card added later would make the week's re-check differ for good.
+                          if all(c is None for c in o["cards"]) and type(o.get("result")) is dict and o["result"].get("final") is True and not o["result"].get("missed"):
+                              assert all(c is None for c in r["cards"]), f"{f} {r['id']}: a card added to a race published final with no card (Fix 1)"
                       # Repo Lens #E-11 H-1 (a): a race's published final result never changes either (the recorder keeps
                       # it as it is). Picks stored before Show existed have 5 fields; the recorder adds the 6th when it
                       # loads them, so those are compared on their first 5.

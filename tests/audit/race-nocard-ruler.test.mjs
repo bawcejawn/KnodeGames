@@ -212,3 +212,19 @@ test("G75-1: the publish step's fetch lines: the same failure, under its set -eu
   assert.match(r.stdout, /after/);
   assert.deepEqual(fs.readdirSync(path.join(r.t, "vhp-data")).filter((f) => f !== ".git"), []);
 });
+
+test("Repo Lens #G-87 F1-1: a card added later to a race published final with no card is refused (the paid week would never re-check)", async () => {
+  const d = await skipped({ noCardFrom: 2, picks: [[W1, P[0], 10]] });
+  const b = onRepo(), r = publish(d, b, NOW, { RACE_RULER_FROM_WEEK: "2", RACE_NOCARD_FROM: "2" });
+  assert.ok(r.ok, r.out);
+  const before = published(b, "W002.json");
+  // a bad or stale run: the same race with the card a usual run takes at 05:37 (inside its leg)
+  const cards = race00(await usual({})).cards, i = cards.findIndex(Boolean);
+  assert.ok(i >= 0, "the usual run took a card");
+  const t = tmp(); fs.cpSync(d, t, { recursive: true });
+  const wf = read(t, "W002.json"); wf.races.find((y) => y.id === "2026-11-02T00").cards[i] = cards[i];
+  fs.writeFileSync(path.join(t, "W002.json"), JSON.stringify(wf) + "\n");
+  const r2 = publish(t, b, NOW + 60000, { RACE_RULER_FROM_WEEK: "2", RACE_NOCARD_FROM: "2" });
+  assert.equal(r2.ok, false); assert.match(r2.out, /a card added to a race published final with no card \(Fix 1\)/);
+  assert.equal(published(b, "W002.json"), before, "nothing published");
+});

@@ -893,16 +893,18 @@ async function recordTypes(tf: TypesFile, raceById: (id: string) => Race | null,
     // An hour with no 6-hour card at all can never be scored (cards are taken live): the race is missed.
     // Repo Lens #D-13 L-5: only once the 6-hour race covering that hour is itself final (scored or missed), so its cards
     // can't still arrive; before that the typed race just waits.
-    let noCard = false, wait = false, bare = false;
+    // Repo Lens #G-87 F1-2: the loop runs over every card-less hour (no early stop), so a later hour whose 6-hour race
+    // isn't final yet still makes the typed race wait, as before Fix 1.
+    let noCard = false, wait = false, other = false;
     for (let h = r.start; h < r.end; h += M.HOUR) if (!baseCard(raceById, h)) {
       const six = raceById(M.raceAt(h).id);
       if (six && !six.result?.final && six.end > c.libT) { wait = true; break; }
       noCard = true;
-      if (noCardHour(raceById, h, tf.week)) bare = true; else { bare = false; break; }
+      if (!noCardHour(raceById, h, tf.week)) other = true;
     }
     if (wait) continue;
     // Fix 1: every hour without a card is a no-card hour of a recorded 6-hour race: scored by the ruler (below).
-    if (noCard && !bare) { r.result = { final: true, missed: true, note: "an hour of this race has no handicap card" }; continue; }
+    if (noCard && other) { r.result = { final: true, missed: true, note: "an hour of this race has no handicap card" }; continue; }
     try {
       const res = await scoreTyped(r, led, typedCardAt(raceById, led, r.type), c, noCard);
       if (!res) continue;                                   // an hour isn't in the ledger yet

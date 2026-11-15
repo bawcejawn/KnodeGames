@@ -25,5 +25,7 @@ test("G4-1 (Low): the stake panel can be told the free prize is off, and the Bra
   assert.doesNotMatch(line, /2 \+ 1 VHP|4 \+ 2 VHP|free players play for/, "with the free prize off, no prize is promised: " + line);
   assert.match(explain(game9, 100000000n), /free players play for the 2 \+ 1 VHP prize/, "other games are unchanged");
   assert.match(src, /explain\(g, min, opts\)/, "mount passes its options to explain");
-  assert.match(read("bracket.js"), /KStake\.mount\(\$\("bracket-stake"\), \{ game: BM\.GAME_ID, freePrize: false \}\)/, "the Bracket page says its free prize is off");
+  // Adjusted by the Bracket chat: owner 14 Nov, the Bracket's free prize is ON (from Week 2), so the page now mounts with
+  // freePrize: true; the panel's off path above stays tested for any game that switches its prize off.
+  assert.match(read("bracket.js"), /KStake\.mount\(\$\("bracket-stake"\), \{ game: BM\.GAME_ID, freePrize: true \}\)/, "the Bracket page says its free prize is on");
 });

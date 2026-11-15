@@ -49,10 +49,11 @@ test("every game can be staked on, stopped and have its free prize switched, fro
   // The planned free-prize switch follows the owner's current decisions: the Vault chat's list of 3 Nov (D-081), with the
   // Bracket changed to OFF on 11 Nov (Repo Lens G30-1). Game 13 (Last Node) is ON in every doc; the stored switch is the
   // thing to check (the glance table flags any difference).
-  assert.deepEqual(GAMES.filter((g) => g.freePrize === "on").map((g) => g.id), [1, 2, 7, 13]);
-  assert.deepEqual(GAMES.filter((g) => g.freePrize === "off").map((g) => g.id), [3, 4, 6, 8, 9]);
+  // Owner 14 Nov: the Bracket is ON again, from vault week 5.
+  assert.deepEqual(GAMES.filter((g) => g.freePrize === "on").map((g) => g.id), [1, 2, 7, 9, 13]);
+  assert.deepEqual(GAMES.filter((g) => g.freePrize === "off").map((g) => g.id), [3, 4, 6, 8]);
   const bracket = LAUNCH.find((l) => l.game === 9)!.steps.map((x) => x.text).join(" ");
-  assert.match(bracket, /free prize OFF first/); assert.doesNotMatch(bracket, /free prize ON/i);
+  assert.match(bracket, /free prize ON \(owner, 14 Nov/); assert.match(bracket, /prizes -- on 9 --send --from 5/); assert.doesNotMatch(bracket, /free prize OFF/i);
   assert.match(bracket, /vault week 4.*Mon 16 to Sun 22 Nov/);
 });
 
@@ -165,7 +166,7 @@ test("Games at a glance and All switches draw every game and every switch, and C
         w.fetch = async (p: string, init: any = {}) => {
           if (p === "/api/actions") return { ok: true, status: 200, json: async () => cat };
           const body = JSON.parse(init.body); ran.push(`${body.action}:${body.send}`);
-          const output = body.action === "glance-vault" ? "game 6 Block Golf: staked + free prize, from week 5\ngame 7 Producer Race: staked + free prize, from week 3\n" : body.action === "glance-prizes" ? "6 Block Golf  this week: off  next week: off\n7 Producer Race  this week: on  next week: on\n9 Producer Bracket  this week: on  next week: on\n" : "ok\n";
+          const output = body.action === "glance-vault" ? "game 6 Block Golf: staked + free prize, from week 5\ngame 7 Producer Race: staked + free prize, from week 3\n" : body.action === "glance-prizes" ? "6 Block Golf  this week: off  next week: off\n7 Producer Race  this week: on  next week: on\n9 Producer Bracket  this week: off  next week: off\n" : "ok\n";
           return { ok: true, status: 200, json: async () => ({ command: "npm run x", code: 0, output, previewed: false }) };
         };
       },
@@ -195,7 +196,8 @@ test("Games at a glance and All switches draw every game and every switch, and C
     const row = (name: string) => ([...main.querySelectorAll("table.tbl tbody tr")].find((r: any) => r.textContent.startsWith(name)) as any).textContent;
     assert.doesNotMatch(row("Producer Race"), /DIFFERS/, "live ON matches the plan: no flag");
     assert.doesNotMatch(row("Block Golf"), /DIFFERS/, "live OFF matches the plan: no flag");
-    assert.match(row("Producer Bracket"), /planned OFF[\s\S]*DIFFERS from the plan \(OFF\)/, "live ON against a plan of OFF is flagged (Repo Lens G30-1)");
+    // owner 14 Nov: the Bracket is planned ON; until the owner sends `prizes on 9`, the live switch is OFF and is flagged
+    assert.match(row("Producer Bracket"), /planned ON[\s\S]*DIFFERS from the plan \(ON\)/, "live OFF against a plan of ON is flagged (Repo Lens G30-1)");
     // All switches lists every variable, and the link is GitHub's variables page only
     click(/All switches/);
     for (const v of VARIABLES) assert.ok(doc.querySelector("#main").textContent.includes(v.name), `switches list ${v.name}`);

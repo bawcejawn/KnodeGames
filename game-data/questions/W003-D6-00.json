@@ -155,7 +155,35 @@
           "seal": "2b015888f86a83aa54d75e74ace53240e2b668950f4d7353cc2c84a9a3e19c31"
         }
       ],
-      "vhpSeal": "509465f212fe6d7382dff6de1aaf4dde220c88bb368a1c571235afd03dd7064c"
+      "vhpSeal": "509465f212fe6d7382dff6de1aaf4dde220c88bb368a1c571235afd03dd7064c",
+      "result": {
+        "void": false,
+        "option": 0,
+        "value": "925",
+        "dataHash": "5a99fc5df073ddc6033ec49355bbd0e46bec751b3228dd819d59c2338d865ae1",
+        "resolvedAt": "2026-11-14T21:51:22.460Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41054305,
+          "decidedHeight": 41079709,
+          "readings": [
+            41070962,
+            41073543,
+            41074086,
+            41076588,
+            41079194
+          ],
+          "readingsInWindow": 5,
+          "values": {
+            "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": {
+              "release": "117476678556321",
+              "end": "116500799082709",
+              "change": "−0.83%",
+              "height": 41079194
+            }
+          }
+        }
+      }
     },
     {
       "id": "W003-D6-00-2",

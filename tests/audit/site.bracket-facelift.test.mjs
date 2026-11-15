@@ -145,3 +145,29 @@ test("results: a real upset says Upset!, losers are struck through, a real champ
   p.$("bk-rounds").querySelectorAll("button")[2].click(); await flush(p.w);
   assert.match(d.querySelector("#bk-list .bk-champ").textContent, /^🏆Champion/);
 });
+
+test("follow a producer: pick one, its games light up, its standing shows, and the page link keeps it (no storage)", async () => {
+  const p = await openPage({ now: SUNDAY, game: GAME });
+  const d = p.w.document, sel = d.querySelector("#bk-follow select");
+  assert.ok(sel, "the Follow picker");
+  assert.equal(sel.options.length, 9, "Nobody + 8 seeds");
+  sel.value = seeds[2]; sel.dispatchEvent(new p.w.Event("change")); await flush(p.w);
+  assert.equal(new URLSearchParams(p.w.location.search).get("follow"), seeds[2]);
+  assert.equal(p.w.localStorage.getItem("bk-follow"), null, "nothing stored");
+  assert.equal(p.$("bk-follow-st").textContent, "Seed #3, still in (Quarterfinals)");
+  const lit = [...d.querySelectorAll("#bk-list .bk-side.follow")];
+  assert.equal(lit.length, 1);
+  assert.match(lit[0].querySelector(".bk-seed").textContent, /^3$/);
+  d.querySelector("#bk-follow select").value = ""; d.querySelector("#bk-follow select").dispatchEvent(new p.w.Event("change")); await flush(p.w);
+  assert.equal(d.querySelectorAll("#bk-list .bk-side.follow").length, 0);
+  assert.equal(new URLSearchParams(p.w.location.search).get("follow"), null);
+});
+
+test("follow a producer: with results, knocked out / champion as the Bracket chat's rule says", async () => {
+  const res = { rounds: [[1, 4, 3, 7], [1, 3], [3]], done: true };   // 1–8, 4–5, 3–6, 2–7
+  const p = await openPage({ now: BM.weekStart(5) - 3600000, weekExtra: { status: "final", picks: { rows: [] }, results: res } });
+  const pick = async (k) => { const s = p.w.document.querySelector("#bk-follow select"); s.value = seeds[k - 1]; s.dispatchEvent(new p.w.Event("change")); await flush(p.w); return p.$("bk-follow-st").textContent; };
+  assert.equal(await pick(2), "Seed #2, knocked out in the Quarterfinals");
+  assert.equal(await pick(1), "Seed #1, knocked out in the Final");
+  assert.equal(await pick(3), "Seed #3, champion! 🏆");
+});

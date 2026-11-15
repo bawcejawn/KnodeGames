@@ -38,3 +38,12 @@ test("ecosystem page: the two node ways, the list from ads.json as text, https o
   assert.doesNotMatch(j, /innerHTML|localStorage|sessionStorage|eval\(|document\.write/);
   assert.doesNotMatch(h + j, /\b(bet|odds|gambl\w*|earn\w*|returns|guaranteed)\b/i, "player-facing words");
 });
+
+test("owner 14 Nov: Fogata mining pools sits in Apps and sites (ads.json), not under Run your own node", () => {
+  const ads = JSON.parse(read("ads.json"));
+  const f = ads.ecosystem.find((x) => x.name === "Fogata mining pools");
+  assert.ok(f && f.link === "https://www.koinscan.io/fogata");
+  assert.doesNotMatch(f.tagline, /\b(earn\w*|bet|odds|gambl\w*|returns?|guarantee\w*|beta)\b/i);
+  const eco = read("ecosystem.html"), node = eco.slice(eco.indexOf('id="eco-node"'), eco.indexOf("</div>", eco.indexOf('id="eco-node"')));
+  assert.doesNotMatch(node, /fogata/i);
+});

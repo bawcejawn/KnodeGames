@@ -81,6 +81,14 @@
     .bk-rounds button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
     .bk-rounds button[aria-pressed="true"] small { color: inherit; opacity: .85; }
     .bk-dayline { font-weight: 600; }
+    /* ── follow a producer ── */
+    .bk-follow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--muted); }
+    .bk-follow:empty { display: none; }
+    .bk-follow select { font: inherit; font-weight: 700; color: var(--ink); padding: 6px 10px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); flex: 1 1 160px; min-width: 0; max-width: 260px; }
+    .bk-follow-st { font-weight: 800; color: var(--ink); }
+    .bk-follow-st.in { color: #0d6b34; } .bk-follow-st.out { color: var(--rose); }
+    .bk-side.follow { box-shadow: 0 0 0 3px var(--sun), 0 0 0 5px color-mix(in srgb, var(--sun) 35%, transparent); }
+    .bk-side.follow .bk-name b::before { content: "👀 "; }
     /* ── quick fill ── */
     .bk-quick { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; font-size: 13px; color: var(--muted); font-weight: 700; }
     .bk-quick[hidden] { display: none; }
@@ -271,6 +279,7 @@
     <section class="card" id="bracket-box" hidden>
       <div class="bk-rounds" id="bk-rounds" role="group" aria-label="Round"></div>
       <p class="note bk-dayline" id="bk-day" style="margin-top:0"></p>
+      <div class="bk-follow" id="bk-follow"></div>
       <div class="bk-quick" id="bk-quick" hidden>
         <span>Quick fill:</span>
         <button type="button" class="chip" id="bk-fill-chalk">Better seeds</button>

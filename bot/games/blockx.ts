@@ -964,7 +964,11 @@ export async function run(o: Opts) {
   // X.CARD_LATE_MS old, or none is left (3 hours), the owner is alerted. An alert only: nothing is held or changed by it.
   if (CARDS === "race" && raceWeeksPresent(RACE, head.time - M.RACE, head.time, head.time)) {
     const now = raceCardAt(RACE, head.time);
-    if (!now) holds.push(`no usable race card in the last ${CARD_MAX_AGE_MS / 3600000} hours: the Block X page offers no producers and new targets wait for a card. Run the race workflow (Actions → race → Run workflow), then games`);
+    // Repo Lens #G-91 L-6: cards taken but all thin (fewer than MIN_CARD_SAMPLES VHP samples) point at the sampler.
+    const thin = now ? [] : raceCards(RACE, [head.time, head.time - M.RACE]).filter((c): c is Card =>
+      X.cardUsable(c, 0) && c.at <= head.time && head.time - c.at <= CARD_MAX_AGE_MS);
+    if (!now && thin.length) holds.push(`the race cards of the last ${CARD_MAX_AGE_MS / 3600000} hours have only ${Math.max(...thin.map((c) => (Number.isInteger(c.samples) ? c.samples! : 0)))} VHP sample(s) (${MIN_CARD_SAMPLES} needed): the Block X page offers no producers and new targets wait for a card. Check the sampler (Actions → Race VHP samples, race-samples.yml), run it by hand if GitHub skipped it, then race, then games`);
+    else if (!now) holds.push(`no usable race card in the last ${CARD_MAX_AGE_MS / 3600000} hours: the Block X page offers no producers and new targets wait for a card. Run the race workflow (Actions → race → Run workflow), then games`);
     else if (head.time - now.at > X.CARD_LATE_MS) holds.push(`the newest race card is ${Math.floor((head.time - now.at) / 60000)} minutes old (late after ${X.CARD_LATE_MS / 60000}): the Block X page still offers its producers, and stops ${CARD_MAX_AGE_MS / 3600000} hours after it was taken. Check the race workflow's runs (Actions → race)`);
   }
   if (rulerLate) holds.push(`the VHP ruler's data is missing or behind: ${rulerLate} ON-week target(s) have waited more than ${RULER_LATE_MS / 3600000} hours for their card; after 3 days a target counts no pick. Check the VHP ruler workflow (vhp-data)`);

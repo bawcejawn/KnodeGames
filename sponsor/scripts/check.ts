@@ -76,11 +76,28 @@ if (fs.existsSync(picksAbiFile)) {
   const picksAbi = JSON.parse(fs.readFileSync(picksAbiFile, "utf8"));
   const f = picksAbi.koilib_types?.nested?.picks?.nested?.pick_arguments?.fields ?? {};
   const shape = Object.entries(f).map(([n, x]: any) => `${x.id}:${x.type}${x.rule === "repeated" ? "[]" : ""}`).join(",");
-  ok(shape === "1:bytes,2:uint32,3:uint64,4:bytes[],5:uint64", `Picks pick_arguments shape is player, game, round, producers[], number (${shape})`);
+  // Picks v1 is fields 1 to 5. Picks v2 (the Combo Card PR) adds field 6, legs (repeated leg): the same pick, and the
+  // sponsor's card config (PICKS_ARG_TYPES_CARDS, used only once picks-data/deployment.json says "cards": true) covers it.
+  const V1 = "1:bytes,2:uint32,3:uint64,4:bytes[],5:uint64";
+  ok(shape === V1 || shape === V1 + ",6:leg[]", `Picks pick_arguments shape is player, game, round, producers[], number (+ legs[] in v2) (${shape})`);
   ok(picksAbi.methods?.pick?.entry_point === 0x8ce33c6c, "Picks pick entry point is 0x8ce33c6c");
   // Fix-check S3-2: no nested messages in the allowlisted arguments (every field is a scalar, bytes or a string).
   const scalars = new Set(["bytes", "string", "uint32", "uint64", "int32", "int64", "bool", "sint32", "sint64", "fixed32", "fixed64", "sfixed32", "sfixed64"]);
-  ok(Object.values(f).every((x: any) => scalars.has(x.type)), "Picks pick_arguments has no nested messages");
+  // Picks v2: the one nested message allowed is field 6, a repeated `leg` of exactly code (uint32), round (uint64) and
+  // producer (bytes), all scalars. To the sponsor it is a repeated length-delimited field (0x13); the Picks contract
+  // checks the legs themselves.
+  const nested = picksAbi.koilib_types?.nested?.picks?.nested ?? {};
+  const legShape = Object.entries(nested.leg?.fields ?? {}).map(([n, x]: any) => `${x.id}:${n}:${x.type}${x.rule ? "[" + x.rule + "]" : ""}`).join(",");
+  ok(Object.values(f).every((x: any) => scalars.has(x.type) || (x.id === 6 && x.type === "leg" && x.rule === "repeated")), "Picks pick_arguments has no nested messages (except v2's repeated legs, field 6)");
+  if (f.legs) ok(legShape === "1:code:uint32,2:round:uint64,3:producer:bytes", `Picks v2 leg is code, round, producer, all scalars, nothing nested (${legShape})`);
+  // The sponsor tool's arg_types strings, worked out from the ABI: one byte per field, wire type + 1, plus 0x10 if repeated.
+  const wire = (x: any) => (x.type === "bytes" || x.type === "string" || !scalars.has(x.type) ? 2 : 0);
+  const argTypes = (fields: any[]) => "0x" + fields.sort((a, b) => a.id - b.id).map((x) => ((wire(x) + 1) | (x.rule === "repeated" ? 0x10 : 0)).toString(16).padStart(2, "0")).join("");
+  const sponsorSrc = fs.readFileSync("../bot/sponsor.ts", "utf8");
+  const pinned = (k: string) => sponsorSrc.match(new RegExp(`export const ${k} = "(0x[0-9a-f]+)"`))?.[1];
+  const all = Object.values(f) as any[];
+  ok(pinned("PICKS_ARG_TYPES") === argTypes(all.filter((x) => x.id <= 5)), `bot/sponsor.ts PICKS_ARG_TYPES = the ABI's fields 1 to 5 (${argTypes(all.filter((x) => x.id <= 5))})`);
+  if (f.legs) ok(pinned("PICKS_ARG_TYPES_CARDS") === argTypes(all), `bot/sponsor.ts PICKS_ARG_TYPES_CARDS = the ABI's fields 1 to 6 (${argTypes(all)})`);
   const picksGenerated = "../picks/assembly/proto/picks.ts";
   // (The generated decoder exists only after building picks/, as for the race; CI checks the ABI, which is committed.)
   if (fs.existsSync(picksGenerated)) ok(body("assembly/__tests__/picks_proto.ts") === body(picksGenerated), "the tests' copy of the Picks decoder is current");

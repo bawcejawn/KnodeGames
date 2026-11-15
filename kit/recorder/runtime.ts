@@ -162,13 +162,16 @@ export const keptAlertEmails = (now: number, due: number) => Math.floor(now / 3_
 export const STALE_ERROR_BLOCKS = 28_800;
 
 export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts): Promise<RunResult> {
-  const r = await runOnce(m, cfg, { ...o, live: false });
+  // Repo Lens #G-79 G79-5: one read budget (reads and minutes) across the main and the live pass, so a liveWeek run
+  // stays inside the job's 30-minute timeout; the live pass gets only what is left (running out is a warning).
+  const budget = new Budget({ ...DEFAULT_BUDGETS, ...(cfg.budgets ?? {}) }, o.wall);
+  const r = await runOnce(m, cfg, { ...o, live: false }, budget);
   // K4 (Survivor): a liveWeek game also writes an open copy of the current week every run, with the rounds decided so
   // far, so players see each day's result the next morning. It has no vault file and adds nothing to the all-time
   // board; it never stops last week's run (a failure is a warning).
   if (cfg.liveWeek) {
     try {
-      const lv = await runOnce(m, cfg, { ...o, live: true });
+      const lv = await runOnce(m, cfg, { ...o, live: true }, budget);
       r.written.push(...lv.written.filter((x) => !r.written.includes(x)));
       for (const k of ["errors", "warnings", "notes"] as const) for (const x of lv.alerts[k]) r.alerts[k].push(`live week ${lv.week ?? "?"}: ${x}`);
     } catch (e) { r.alerts.warnings.push(`the current week's open copy couldn't be written this run (${(e as Error).message})`); }
@@ -181,12 +184,11 @@ export async function runGame(m: GameModule<any, any, any>, cfg: KitGameCfg, o: 
   return r;
 }
 
-async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts): Promise<RunResult> {
+async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts, budget: Budget): Promise<RunResult> {
   const log = o.log ?? ((s: string) => console.log(s));
   const alerts = newAlerts();
   if (m.slug !== cfg.slug) throw new Error(`module slug "${m.slug}" isn't game.json's "${cfg.slug}"`);
   const prev = Prev.load(o.prev, cfg);
-  const budget = new Budget({ ...DEFAULT_BUDGETS, ...(cfg.budgets ?? {}) }, o.wall);
   const [A, B] = o.nodes;
   const va = budgeted(A.vault, budget), vb = budgeted(B.vault, budget);
   const REL = varName(cfg.slug, "RELEASE"), HW = varName(cfg.slug, "HOLD_WEEKS");
@@ -312,12 +314,14 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
   // switched on mid-season doesn't raise the backstop or "no inputs file" every hour for weeks it never played. It can't
   // skip a week already final (firstWeek moved past a paid week): that is an error and the week is recorded as usual.
   if (cfg.firstWeek !== undefined && w < cfg.firstWeek) {
-    const fin = prev.finals().map((j) => j.week).filter((x) => x >= w);
+    // Repo Lens #G-79 G79-2: any published week file at or after this week (pending too, not only finals) means firstWeek
+    // was moved past a recorded week: never dropped silently.
+    const fin = prev.weeks().filter((x) => x >= w);
     if (!fin.length) {
       log(`${cfg.slug}: week ${w} is before the game's first week (${cfg.firstWeek}): nothing to read or record.`);
       return { week: null, state: "before-first-week", alerts, written: out.written };
     }
-    alerts.errors.push(`firstWeek is ${cfg.firstWeek}, but week ${Math.min(...fin)} is already final: firstWeek can't move past a recorded week, so week ${w} is recorded as usual. Set firstWeek back in games/${cfg.slug}/game.json`);
+    alerts.errors.push(`firstWeek is ${cfg.firstWeek}, but week ${Math.min(...fin)} is already published: firstWeek can't move past a recorded week, so week ${w} is recorded as usual. Set firstWeek back in games/${cfg.slug}/game.json`);
   }
   const span = clock.span(w), due = clock.due(w);
   const pw = prev.week(w);
@@ -611,7 +615,9 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     }
     // A decided round changing is only an owner correction on chain (roundsCorrectable); otherwise stop (KC-8).
     // A Sunday fun round never counts, so it may be corrected in any game (NK-13), as the publish check allows.
-    if (pr && pw!.state !== "final" && pr[3] !== "p" && JSON.stringify([status, rows]) !== JSON.stringify([pr[3], pr[4]]) && !cfg.roundsCorrectable && !fun) {
+    // Repo Lens #G-79 G79-1: only a PENDING copy's decided rounds are fixed; an open copy (K4 liveWeek) is display only, so
+    // a round it showed may still read differently (a season game's seasonStaked grows as stakes arrive during the week).
+    if (pr && pw!.state === "pending" && pr[3] !== "p" && JSON.stringify([status, rows]) !== JSON.stringify([pr[3], pr[4]]) && !cfg.roundsCorrectable && !fun) {
       throw new Error(`round ${r.id} was decided and now reads differently on both nodes (an on-chain correction?). This game's decided rounds can't change: nothing recorded; check the round`);
     }
     roundsOut.push([r.id, day, fun, status, rows.map(([a, p, at]) => (p > 0 ? [idx.get(a), p, at - span.start] : [idx.get(a), p]))]);

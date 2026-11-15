@@ -37,7 +37,10 @@ export class Prev {
     // KG parts v1: a week stored as the folder W<NNN>/ is rebuilt into its week file (each part's SHA-256 checked).
     const manifests = new Map<string, any>();
     for (const f of fs.readdirSync(dir).sort()) {
-      if (!/^W([0-9]{3}|[1-9][0-9]{3})$/.test(f) || !fs.existsSync(path.join(dir, f, "manifest.json"))) continue;
+      if (!/^W([0-9]{3}|[1-9][0-9]{3})$/.test(f) || !fs.statSync(path.join(dir, f)).isDirectory()) continue;
+      // Repo Lens #G-79 G79-6: a week folder without its manifest is a broken copy-back, not an absent week: stop, as the
+      // writer does (G61-2), with a clear cause.
+      if (!fs.existsSync(path.join(dir, f, "manifest.json"))) throw new Error(`last run's ${f}/ has no manifest.json (a broken copy-back?): refusing to write`);
       const rel = `${f}.json`;
       if (files.has(rel)) throw new Error(`last run's week ${f} is both a file and a parts folder: refusing to write`);
       let r: any;

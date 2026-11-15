@@ -102,13 +102,21 @@ test("G69-2: a fallback decision stays fixed once published, even when a card tu
   await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L });
   const pub = rp.read("W004.json");
   noCard.clear();                                                     // now the game would make a card
-  wd.players[0].entry.answers[2].option = 1;                          // and would score the round differently
-  wd.time += H;
-  const h = await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L });
-  assert.equal(h.error, undefined, h.error);
-  const j = rp.read("W004.json");
-  assert.deepEqual(roundOf(j, 2), roundOf(pub, 2), "the fallback round is exactly as published");
-  assert.deepEqual(j.fallbacks, pub.fallbacks);
+  // Repo Lens #G-79 G79-4: change round 2's OWN answer (question 202 = answers[1]), so a re-read would score it differently,
+  // and run on through the week-end re-read to final: without the "stays as published" rule this fails.
+  const q = wd.players[0].entry.answers.find((a: any) => n(`q${a.question_id}`) === 2);
+  q.option = q.option === 1 ? 2 : 1;
+  let j: any;
+  for (let i = 0; i < 8; i++) {
+    wd.time += H;
+    const h = await rp.hour(nodes(wd), wd.time + 5 * 60000, { vhpLedger: L });
+    assert.equal(h.error, undefined, h.error);
+    j = rp.read("W004.json");
+    assert.deepEqual(roundOf(j, 2), roundOf(pub, 2), "the fallback round is exactly as published");
+    assert.deepEqual(j.fallbacks, pub.fallbacks);
+    if (j.state === "final") break;
+  }
+  assert.equal(j.state, "final", "the week went final with the published fallback round");
 });
 
 test("G69-2: a round the published copy decided with its card is never re-decided by the fallback", async () => {
@@ -144,6 +152,11 @@ test("K8 publish check: a fallback before its grace, a changed or dropped publis
   const { fallbacks, ...noFb } = pub; void fallbacks;
   assert.match(run(noFb, pub, now), /changes or drops a published fallback|ruler cards \(cardPerRound\)/);
   assert.match(run({ ...pub, fallbacks: [[roundOf(pub, 2)[0], pub.start + 1, "x"]] }, null, now), /bad fallbacks/);
+  // Repo Lens #G-79 G79-3: 48 h after the round's OWN day, not the week's start (round 3's day is a day after the start)
+  const r3 = roundOf(pub, 3);
+  assert.equal(r3[1], pub.start + DAY);
+  assert.match(run({ ...pub, fallbacks: [[r3[0], pub.start + FALLBACK_GRACE_MS, "x"]] }, null, now), /bad fallbacks .*round's own day/);
+  assert.ok(!run({ ...pub, fallbacks: [[r3[0], r3[1] + FALLBACK_GRACE_MS, "x"]] }, null, Math.max(now, r3[1] + FALLBACK_GRACE_MS)).includes("bad fallbacks"), "48 h after its own day is fine");
   const { cards, vhpTo, ...plain } = pub; void cards; void vhpTo;
   assert.match(run(plain, null, now, exampleCfg()), /fallbacks in a game without ruler data/);
 });

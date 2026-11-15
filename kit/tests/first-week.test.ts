@@ -116,7 +116,7 @@ test("firstWeek can't skip a week already final: an error, and the week is recor
   const before = rp.raw("W004.json");
   const moved = new Replay(game, { ...cfg, firstWeek: 6 }, rp.root);
   const h = await hour(moved, wd, at(5, 1, 2));
-  assert.ok(h.result!.alerts.errors.some((e) => /firstWeek is 6, but week 4 is already final/.test(e)), String(h.result!.alerts.errors));
+  assert.ok(h.result!.alerts.errors.some((e) => /firstWeek is 6, but week 4 is already published/.test(e)), String(h.result!.alerts.errors));
   assert.notEqual(h.result!.state, "before-first-week");
   assert.equal(moved.raw("W004.json"), before, "the final week is unchanged");
 });
@@ -146,4 +146,17 @@ test("firstWeek 4, then parts from week 5: week 4 stays one file, week 5 is a pa
   assert.equal(fs.readFileSync(path.join(rp.pub, "W004.json"), "utf8"), w4, "week 4 stays one file, unchanged");
   assert.deepEqual(parts.read("W005.json").carry, rp.read("W004.json").next, "week 5 starts from week 4's teams");
   assert.equal(parts.read("W005.json").state, "final");
+});
+
+test("G79-2: firstWeek moved past a week published PENDING (not yet final): an error, and the week is recorded as usual", async () => {
+  const wd = fworld(at(4) - 2 * DAY + H), rp = new Replay(game, cfg);
+  await hour(rp, wd, at(4) - 2 * DAY + H);
+  await hour(rp, wd, at(5, 0, 2));                                 // week 4 published pending
+  assert.equal(rp.read("W004.json").state, "pending");
+  const moved = new Replay(game, { ...cfg, firstWeek: 5 }, rp.root);
+  const h = await hour(moved, wd, at(5, 0, 3));
+  assert.ok(h.result!.alerts.errors.some((e) => /firstWeek is 5, but week 4 is already published/.test(e)), String(h.result!.alerts.errors));
+  assert.notEqual(h.result!.state, "before-first-week");
+  for (let t = at(5, 0, 4); t < at(5, 0, 8); t += H) await hour(moved, wd, t);
+  assert.equal(moved.read("W004.json").state, "final", "never dropped silently");
 });

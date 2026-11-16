@@ -164,6 +164,8 @@
     .rt-tabs button { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 14px; cursor: pointer; color: inherit; }
     .rt-tabs button[aria-pressed="true"] { background: var(--ink, #1d2a24); color: var(--paper, #fff); border-color: transparent; font-weight: 600; }
     .rt-tabs button small { opacity: .75; margin-left: 4px; }
+    .rt-tabs.soon button[disabled] { opacity: .55; cursor: not-allowed; }
+    .rt-tabs .rt-soon { flex-basis: 100%; margin: 0 0 2px; font-weight: 600; }
     .rt-h3 { font-size: 16px; margin: 18px 0 6px; }
     .rt-table td.num, .rt-table th.num { text-align: right; }
     .pk-when b { display: block; }
@@ -407,7 +409,7 @@
 
     <!-- The VHP ruler (owner, 11 Nov 2026): shown only once the ruler is switched on for the Race (its R<week>.json says so). -->
     <section class="card" id="ruler-box" hidden>
-      <div class="head"><h2>Ruler results</h2><a class="tag" href="ruler.html">How the Ruler works</a></div>
+      <div class="head"><h2>Ruler results</h2><a class="tag" href="ruler.html#race">How the Ruler works</a></div>
       <p class="note" style="margin-top:0" id="ruler-when"></p>
       <p class="note" id="ruler-types" hidden>The 1-hour, 2-hour, daily and weekly races are scored by the Ruler too, each with its own void limit (<a href="ruler.html">see the limits by race length</a>).</p>
       <div id="ruler-list"></div>

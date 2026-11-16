@@ -274,6 +274,21 @@
       .pr-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
       .clock-legs { font-size: 11px; }
     }
+    /* owner 15 Nov: signed-in phones. The pick columns get a desktop grid from race.js's inline style; on a phone each
+       lane becomes: name + gap on top, the full-width track, then the three Pick buttons in a row (time on the button). */
+    .rt-pk-t { display: none; }
+    @media (max-width: 640px) {
+      #track { overflow-x: visible; }
+      #track .pr-headrow.rt-head { display: none; }
+      #track .pr-lane.rt-lane { min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; grid-template-areas: none; gap: 6px 8px; }
+      #track .pr-lane.rt-lane > .pr-who { grid-column: 1 / 3; grid-row: 1; }
+      #track .pr-lane.rt-lane > .pr-gap { grid-column: 3; grid-row: 1; align-self: start; }
+      #track .pr-lane.rt-lane > .pr-run { grid-column: 1 / -1; grid-row: 2; }
+      #track .pr-lane.rt-lane > .rt-pk { grid-row: 3; padding: 6px 0 5px; display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
+      .rt-pk-t { display: block; font-size: 11px; font-weight: 600; opacity: .75; }
+      .pr-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+      .pr-who { flex-wrap: wrap; row-gap: 4px; }
+    }
   </style>
 </head>
 <body>

@@ -244,7 +244,8 @@
         lane.classList.toggle("rt-lane", !!ups.length);
         for (const u of ups) {
           const mineP = myPicks.get(cur.index + u.k), dr = drafts.get(cur.index + u.k), chosen = (dr || mineP) === r.a, inField = !!(u.c && u.c.field.some((x) => x.a === r.a));
-          const b = el("button", { type: "button", class: `rt-pk${chosen ? " on" : ""}`, "aria-pressed": String(chosen), "aria-label": `${chosen ? "Picked" : "Pick"} ${nameOf(r.a)} for the race at ${dayTime(u.r.start)}` }, chosen ? (dr && dr !== mineP ? "Picked" : "Locked in") : "Pick");
+          // phones show each button's race time on the button itself (the time header is hidden there)
+          const b = el("button", { type: "button", class: `rt-pk${chosen ? " on" : ""}`, "aria-pressed": String(chosen), "aria-label": `${chosen ? "Picked" : "Pick"} ${nameOf(r.a)} for the race at ${dayTime(u.r.start)}` }, el("span", { text: chosen ? (dr && dr !== mineP ? "Picked" : "Locked in") : "Pick" }), el("small", { class: "rt-pk-t", text: clock(u.r.start) }));
           if (sending || !inField) b.disabled = true;
           b.addEventListener("click", () => { if (batchOn()) { if (drafts.get(cur.index + u.k) === r.a) drafts.delete(cur.index + u.k); else drafts.set(cur.index + u.k, r.a); renderBar(); render(); return; } sendPick(cur.index + u.k, r.a); });
           lane.appendChild(b);

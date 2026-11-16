@@ -83,3 +83,11 @@ test("top of the page: the game in a line and three steps; the long text is in t
   assert.ok(rules.includes('id="pts-note"'), "the points line the page updates lives in the rules book");
   for (const t of ["Who gets paid:", "Four 6-hour races a day", "Results are final once every block", "steps per block = (biggest VHP"]) assert.ok(rules.includes(t), t);
 });
+
+test("signed-in phones (owner 15 Nov): the pick columns don't squeeze the lane; each Pick button shows its race time", () => {
+  assert.match(js, /el\("span", \{ text: chosen \? \(dr && dr !== mineP \? "Picked" : "Locked in"\) : "Pick" \}\), el\("small", \{ class: "rt-pk-t", text: clock\(u\.r\.start\) \}\)/);
+  const css = html.slice(html.lastIndexOf("owner 15 Nov: signed-in phones"));
+  for (const re of [/#track \.pr-headrow\.rt-head \{ display: none; \}/, /#track \.pr-lane\.rt-lane \{ min-width: 0; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\) !important;/,
+    /#track \.pr-lane\.rt-lane > \.pr-run \{ grid-column: 1 \/ -1; grid-row: 2; \}/, /#track \.pr-lane\.rt-lane > \.rt-pk \{ grid-row: 3;/, /\.rt-pk-t \{ display: block;/]) assert.match(css, re);
+  assert.match(html, /\.rt-pk-t \{ display: none; \}\n    @media \(max-width: 640px\)/, "the time on the button shows on phones only");
+});

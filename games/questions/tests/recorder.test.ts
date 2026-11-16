@@ -59,7 +59,7 @@ const quiet = () => {};
 /** What the publish job does with a run's files: check them against the published copy, then publish (copy) what isn't held. */
 function publish(out: string, pub: string, now: number) {
   const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split(/\r?\n/);
-  const a = y.findIndex((l) => l.includes(`/usr/bin/python3 - "$IN/questions" "$PUB/questions" "$HELD" <<'PY'`));
+  const a = y.findIndex((l) => l.includes(`/usr/bin/python3 - "$IN/questions" "$PUB/questions" "$HELD" "$DEC" <<'PY'`));
   const e = y.findIndex((l, i) => i > a && l.trim() === "PY");
   const src = y.slice(a + 1, e).map((l) => l.replace(/^ {10}/, "")).join("\n");
   const held = path.join(path.dirname(pub), `held-${now}`);
@@ -413,13 +413,14 @@ test("Repo Lens F3-1: with no time left in the job the recorder is skipped and t
   assert.ok(fs.existsSync(path.join(tmp, "npm-ran")));
 });
 
-test("size warning: silent under 60% of the file cap, loud above it, and the cap itself is unchanged", () => {
+test("size warning: silent under 60% of 2 MiB (kit/parts' base), loud from it, and the old file's cap is unchanged", () => {
   assert.equal(MAX_FILE, 1_900_000);
-  assert.equal(WARN_FILE, 1_140_000);
+  assert.equal(WARN_FILE, Math.ceil(0.6 * 2 * 1024 * 1024));
   assert.equal(sizeWarning(4, 1_000), null);
-  assert.equal(sizeWarning(4, WARN_FILE), null);
-  const w = sizeWarning(4, WARN_FILE + 1);
-  assert.match(String(w), /^::warning::Daily Questions week 4: a file is 1140001 bytes, 60% of the 1900000 byte limit/);
-  assert.match(String(sizeWarning(5, 1_800_000)), /95% of the 1900000/);
+  assert.equal(sizeWarning(4, WARN_FILE - 1), null);
+  const w = sizeWarning(4, WARN_FILE, "W004.json");
+  assert.match(String(w), /^::warning::Daily Questions week 4: W004\.json is 1258292 bytes, 60% of the 2 MB publish cap/);
+  assert.match(String(sizeWarning(5, 1_800_000)), /86% of the 2 MB/);
+  assert.match(String(sizeWarning(5, 1_800_000)), /weeks from 6 use the compact parts format/);
   assert.ok(!String(w).includes("\n"), "one line, so the workflow annotation is not cut");
 });

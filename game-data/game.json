@@ -1,15 +1,15 @@
 {
   "rpc": "https://koinos.armana.io",
-  "maxUsesPerWeek": 4,
+  "maxUsesPerWeek": 7,
   "weekOneStart": "2026-10-26",
   "lockBlocks": 14400,
   "questionsPerDay": [
-    5,
-    5,
-    5,
-    5,
-    5,
-    5,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
     0
   ],
   "tierByDay": [

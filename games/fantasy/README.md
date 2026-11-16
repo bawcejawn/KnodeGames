@@ -4,6 +4,14 @@ The first game on the Shared Game Kit (D-158 #4). The rules are in `.ai/games/Fa
 the Claude project under `claude/fantasy/` (the sim and rules note, the port prep note, the G7 lock confirmation, and
 the dated plan).
 
+**Fantasy has no ruler of its own.** Every day is measured by the platform's one VHP Ruler (`vhp-ruler.js` /
+`vhp_ruler.py`), through the kit's `ctx.vhp.card(settings)`. `ruler-view.ts` only asks for and reads those cards;
+`math.js` turns the Ruler's `credited` and `expected` into game points and prices. The publish job rebuilds every card
+from the Ruler's own code before anything is published.
+
+**Parts (kit-next):** the week file is written as day parts (`"parts": "d"`). Each day's rows show the team that played
+(`partCols` p1…p5, p1 the captain; null for a wallet with no team).
+
 | File | What |
 |---|---|
 | `math.js` | Every rule, pure and in whole numbers (the page uses the same file). It holds the price list, the points (cap 150, captain ×2, void 0, a quiet or offline day as earned), one change a day (a producer swapped in may take the captaincy from anyone) and Weekly Rival. |

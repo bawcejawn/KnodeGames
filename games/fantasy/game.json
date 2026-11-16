@@ -8,6 +8,8 @@
     "free"
   ],
   "seasonWeeks": 1,
+  "parts": "d",
+  "firstWeek": 4,
   "freePrizeDefault": "off",
   "status": "building",
   "picks": {

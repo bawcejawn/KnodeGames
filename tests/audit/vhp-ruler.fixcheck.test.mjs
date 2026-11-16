@@ -10,7 +10,10 @@ import { recordHours } from "../../bot/vhp-ruler.ts";
 import { fillAnchor, fillLate } from "../../bot/vhp-fill.ts";
 
 const H = 1200, at = (n) => (n + 1) * H - 1, quiet = () => {};
-const opts = { waitMs: 50, pollMs: 1, log: quiet, rounds: 3 };
+// waitMs: the fake nodes advance 10 blocks per head() call, not by the clock, so settle() always needs about 7 polls;
+// a 50 ms wall-clock limit failed at random on a busy CI runner (#313 Sat 14 Nov, #336 Sun 15 Nov). 60 s never runs out
+// here, and a real hang still fails within the minute.
+const opts = { waitMs: 60000, pollMs: 1, log: quiet, rounds: 3 };
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vhp-fixcheck-"));
 const pyCheck = (prev, t) => {
   fs.writeFileSync(path.join(dir, "p"), prev || ""); fs.writeFileSync(path.join(dir, "h"), t);

@@ -81,3 +81,11 @@ test("Combo Card preview: linked from the home tile, the games list and the menu
   // live-only parts never see it: status, stake, prize, boards, results, Golf's course
   for (const re of [/const free = games\.filter\(\(g\) => g\.status === "live"/, /const boards = games\.filter\(\(g\) => g\.status === "live"/, /if \(!K \|\| !id \|\| g\.status !== "live"\) return null;/]) assert.match(js, re);
 });
+
+test("Block X search description: the Block X chat's line (15 Nov), no stale block count or multiplier", () => {
+  const b = read("blockx.html"), seo = read("tools/site-seo.mjs");
+  const line = "A target about every hour (every 1,200 Koinos blocks). Pick the producer you think signs it; smaller producers score more. Free, with weekly VHP prizes.";
+  assert.ok(seo.includes(line));
+  for (const tag of ['name="description"', 'property="og:description"', 'name="twitter:description"']) assert.ok(b.includes(`<meta ${tag} content="${line}">`), tag);
+  assert.ok(!b.includes("2,400 Koinos blocks"));
+});

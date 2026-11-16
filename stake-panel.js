@@ -537,7 +537,7 @@
           mode === "stake" ? tok : null,
           mode === "move" ? el("label", { class: "field" }, el("span", {}, "To"), to) : null,
           err,
-          el("p", { class: "muted fine-print" }, "Staking is optional; rewards aren't guaranteed. ", el("a", { href: "terms.html", target: "_blank", rel: "noopener" }, "Terms & risks")),
+          el("p", { class: "muted fine-print" }, "Staking is optional; rewards can be zero. ", el("a", { href: "terms.html", target: "_blank", rel: "noopener" }, "Terms & risks")),
           el("div", { class: "dialog-actions" },
             el("button", { class: "btn btn-ghost", value: "cancel", type: "submit", formnovalidate: true }, "Cancel"),
             el("button", { class: "btn btn-primary", value: "go", type: "submit" }, "Continue in your wallet"))));

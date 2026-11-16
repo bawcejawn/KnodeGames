@@ -5,7 +5,7 @@
         Monday, and Add · Withdraw · Move · Claim right on the row.
      3. Stake in a game: the games you're not in yet, each with one Stake button.
    Every action opens one small step-by-step box under its game: the amount, then a sentence saying exactly what will
-   happen ("You'll stake 10 VHP in Producer Race. Your stake there becomes 30 VHP. It starts earning Mon 9 Nov."), then the
+   happen ("You'll stake 10 VHP in Producer Race. Your stake there becomes 30 VHP. It starts counting Mon 9 Nov."), then the
    button. Every transaction is built by stake-panel.js (KStake.send) and signed in the player's own wallet; this file
    builds none. Everything on screen is built with textContent. */
 (() => {
@@ -117,13 +117,13 @@
         if (mode === "stake") lines = [
           `You'll stake ${amt} in ${g.name}${f.token === "KOIN" ? " (your KOIN is burned into VHP 1:1)" : ""}.`,
           `Your stake in ${g.name} becomes ${vhp(g.mine + u)}: ${pct(Number(((g.mine + u) * 1000000n) / (g.total + u)) / 1e6)} of the game.`,
-          `It starts earning ${nextMonday()}. You can withdraw any time.`];
+          `It starts counting ${nextMonday()}. You can withdraw any time.`];
         else if (mode === "withdraw") lines = [
           `You'll take ${amt} out of ${g.name}, straight back to your wallet, right now.`,
           g.mine - u > 0n ? `${vhp(g.mine - u)} stays staked in ${g.name}.` : `Nothing stays staked in ${g.name}.`, drop];
         else lines = [
           `You'll move ${amt} from ${g.name} to ${toName()}. No tokens leave the vault.`,
-          `It starts earning in ${toName()} ${nextMonday()}. You pay this one's Mana yourself.`, drop];
+          `It starts counting in ${toName()} ${nextMonday()}. You pay this one's Mana yourself.`, drop];
       }
       review.replaceChildren(...(bad.trim() ? [el("p", { class: "bad" }, bad)] : lines.filter(Boolean).map((t) => el("p", { class: t === drop ? "warn" : null }, t))));
       review.hidden = !bad.trim() && !lines.length;
@@ -134,11 +134,11 @@
     go.addEventListener("click", () => {
       const u = units(), amt = F.exact(u);
       if (mode === "stake") run("stake", { game: g.id, units: u, koin: f.token === "KOIN" },
-        { head: `Staked ${amt} ${f.token} in ${g.name}`, lines: [`It starts earning ${nextMonday()}.`] });
+        { head: `Staked ${amt} ${f.token} in ${g.name}`, lines: [`It starts counting ${nextMonday()}.`] });
       else if (mode === "withdraw") run("withdraw", { game: g.id, units: u },
         { head: `Withdrew ${amt} VHP from ${g.name}`, lines: ["It's back in your wallet."] });
       else run("move", { game: g.id, to: f.to, units: u },
-        { head: `Moved ${amt} VHP from ${g.name} to ${toName()}`, lines: [`It starts earning there ${nextMonday()}.`] });
+        { head: `Moved ${amt} VHP from ${g.name} to ${toName()}`, lines: [`It starts counting there ${nextMonday()}.`] });
     });
     const title = ({ stake: g.mine > 0n ? `Add to ${g.name}` : `Stake in ${g.name}`, withdraw: `Withdraw from ${g.name}`, move: `Move stake out of ${g.name}` })[mode];
     const have = mode === "stake" ? `In your wallet: ${F.amount(bal)} ${f.token}` : `Staked here: ${vhp(g.mine)}`;
@@ -160,12 +160,12 @@
     return box;
   }
 
-  /** "Earning this week" / "Starts earning Mon 9 Nov" / both, in plain words. */
+  /** "Counting this week" / "Starts counting Mon 9 Nov" / both, in plain words. */
   function status(g) {
     if (!g.active) return ["stopped", "This game has stopped: withdraw any time"];
-    if (g.staked && g.pending > 0n) return ["on", `Earning this week · ${vhp(g.pending)} more starts ${g.pendingFrom}`];
-    if (g.staked) return ["on", "Earning this week"];
-    if (g.mine > 0n) return ["wait", `Starts earning ${g.pendingFrom || nextMonday()}`];
+    if (g.staked && g.pending > 0n) return ["on", `Counting this week · ${vhp(g.pending)} more starts ${g.pendingFrom}`];
+    if (g.staked) return ["on", "Counting this week"];
+    if (g.mine > 0n) return ["wait", `Starts counting ${g.pendingFrom || nextMonday()}`];
     return ["", ""];
   }
 
@@ -240,7 +240,7 @@
       el("div", {},
         el("b", {}, w && w.kind === "guest" ? "Guests play free." : "See and manage your stakes"),
         el("p", { class: "muted" }, w && w.kind === "guest" ? "To stake, connect a Koinos wallet (Kondor or KOIN Vault)." : "Connect your wallet to see where you're staked, how much, and your rewards."),
-        el("ol", { class: "hub-how3" }, el("li", {}, "Pick a game"), el("li", {}, "Stake VHP (it starts earning next Monday)"), el("li", {}, "Claim your rewards each week"))),
+        el("ol", { class: "hub-how3" }, el("li", {}, "Pick a game"), el("li", {}, "Stake VHP (it starts counting next Monday)"), el("li", {}, "Claim your rewards each week"))),
       el("button", { type: "button", class: "btn btn-primary", onclick: () => w && w.connect && w.connect() }, "Connect wallet"));
     const mine = d.games.filter((g) => g.mine > 0n), staked = sum(d.games, (g) => g.mine);
     const all = d.games.flatMap((g) => g.claims.map((c) => ({ g, ...c }))), reward = sum(all, (c) => c.reward);
@@ -287,7 +287,7 @@
     $("hub-body").replaceChildren(
       ...(mine.length ? [el("h2", {}, "Where you're staked"), el("ul", { class: "hub-list" }, ...mine.map(stakedRow))] : []),
       el("h2", {}, mine.length ? "Stake in another game" : "Pick a game to stake in"),
-      el("p", { class: "muted hub-sub" }, `At least ${F.exact(d.min)} VHP in a game makes you a staked player there. A new stake starts earning the next Monday.`),
+      el("p", { class: "muted hub-sub" }, `At least ${F.exact(d.min)} VHP in a game makes you a staked player there. A new stake starts counting the next Monday.`),
       el("ul", { class: "hub-list" }, ...rest.map(otherRow)));
   }
 

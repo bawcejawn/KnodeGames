@@ -34,7 +34,7 @@ test("the horse is the runner again (not the bird)", async () => {
   for (const i of imgs) assert.equal(i.getAttribute("src"), "media/animals/horse.png");
 });
 
-test("Pack view (default): the leader at the right, last place at the left, a thin strip with the real progress", async () => {
+test("Pack view (default): the leader at the right, last place at the left, no extra strip under the lane", async () => {
   const p = await live();
   const order = p.lanes().sort((x, y) => Number(x.rank.replace(/\D/g, "")) - Number(y.rank.replace(/\D/g, ""))).map((l) => l.a);
   assert.deepEqual(order, [A, Bp, C], "live order");
@@ -44,7 +44,7 @@ test("Pack view (default): the leader at the right, last place at the left, a th
   for (const a of [A, Bp, C]) {
     const run = lane(p, a).querySelector(".pr-run");
     assert.ok(run.classList.contains("pack"));
-    assert.match(run.querySelector(".pr-true").style.width, /^[\d.]+%$/);
+    assert.equal(run.querySelector(".pr-true"), null, "owner 14 Nov: the grey strip is gone");
   }
   const vb = p.doc.getElementById("r6-view");
   assert.match(vb.textContent, /View:PackWhole race/);

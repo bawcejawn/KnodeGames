@@ -463,7 +463,7 @@
     S.weekEnd = g + (S.week + 1) * wl;
     S.genesis = g;
     S.closeDelay = num(c.close_delay) || 43200000;
-    // Last week, until this week's pot starts on its own: its earnings keep counting until it closes (a bot run after
+    // Last week, until this week's pot starts on its own: its rewards keep counting until it closes (a bot run after
     // close_delay), then it holds a fixed pot until it is final (settle_end) and players collect.
     S.prev = null;
     if (S.week > 0 && S.chainTime > g) {
@@ -1426,7 +1426,7 @@
           ...(nowMs() >= S.genesis && pts && pts.counted > 0 ? [
             el("dt", {}, "Live place"), el("dd", {}, pts.eligible ? `#${S.board[S.week].scored.filter((x) => x.eligible).indexOf(pts) + 1} of ${S.board[S.week].scored.filter((x) => x.eligible).length}` : "free play (no place)"),
             ...(sharedWeek(S.week) ? [] : [
-              el("dt", { title: "An estimate from what the pool has earned so far this week; the final split is set when the week closes." }, "If the week ended now"),
+              el("dt", { title: "An estimate from what the pool has made so far this week; the final split is set when the week closes." }, "If the week ended now"),
               el("dd", {}, isTestWeek(S.week) ? "nothing: a test week (practice points only)" : prevOpen ? `counts after week ${P.week + 1} closes` : pts.winner && pts.reward !== undefined ? `~${amount(pts.reward)} VHP` : !pts.eligible ? "needs 1 VHP + 2 answers" : "not in the top 30% yet")])] : []),
           el("dt", {}, "Answers given"), el("dd", {}, String((S.entry?.answers || []).length)),
           el("dt", {}, "Wallet"), el("dd", { class: "addr" }, short(S.account))),
@@ -1511,7 +1511,7 @@
       cards.replaceChildren(...list);
     }
     $("#lb-note").textContent = practice
-      ? "Test week: practice standings. Points count as usual, but there are no rewards or prizes this week; its earnings go to Week 1's pool (Week 1 starts Monday 16 November)."
+      ? "Test week: practice standings. Points count as usual, but there are no rewards or prizes this week; they roll into Week 1's pool (Week 1 starts Monday 16 November)."
       : kind === "free"
       ? `Free play: wallets with no stake. 1st and 2nd at the end of the week collect the free-play prize. Only the top ${FREE_SHOW} are shown; everyone else stays private.`
       : week === S.week

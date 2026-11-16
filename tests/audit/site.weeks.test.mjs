@@ -45,7 +45,7 @@ test("the test week banner: on every game page and the Stake page, only from Mon
   const nav = fs.readFileSync(`${APP}/nav.js`, "utf8");
   assert.match(nav, /const FROM = Date\.UTC\(2026, 10, 9\), UNTIL = Date\.UTC\(2026, 10, 16\);/);
   assert.match(nav, /const PAGES = \["index\.html", "race\.html", "blockx\.html", "golf\.html", "games\.html", "stake\.html"\];/);
-  assert.match(nav, /no rewards; this week's earnings go to Week 1's pool/);
+  assert.match(nav, /no rewards this week; they roll into Week 1's pool/);
   assert.match(nav, /now < FROM \|\| now >= UNTIL\) return;/);
   assert.doesNotMatch(nav, /innerHTML|localStorage|fetch\(/);
   for (const p of ["index.html", "race.html", "blockx.html", "golf.html", "games.html", "stake.html"]) assert.match(fs.readFileSync(`${APP}/${p}`, "utf8"), /src="nav\.js"/, `${p} loads nav.js`);

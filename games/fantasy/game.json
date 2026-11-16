@@ -11,7 +11,7 @@
   "parts": "d",
   "firstWeek": 4,
   "freePrizeDefault": "off",
-  "status": "building",
+  "status": "live",
   "picks": {
     "contract": "picks",
     "gameId": 4

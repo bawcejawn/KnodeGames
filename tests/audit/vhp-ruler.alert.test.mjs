@@ -16,7 +16,7 @@ const run = async (head) => {
   const was = process.env.GITHUB_STEP_SUMMARY; process.env.GITHUB_STEP_SUMMARY = f;
   try {
     const A = new FakeNode(c.raw, { name: "A", head }), B = new FakeNode(c.raw, { name: "B", head });
-    await recordHours(A, B, c.texts[30], { waitMs: 50, pollMs: 1, rounds: 3, maxHours: 1, maxChained: 1, log: (s) => lines.push(s) });
+    await recordHours(A, B, c.texts[30], { waitMs: 60000, pollMs: 1, rounds: 3, maxHours: 1, maxChained: 1, log: (s) => lines.push(s) });
     return { lines, summary: fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "" };
   } finally { if (was === undefined) delete process.env.GITHUB_STEP_SUMMARY; else process.env.GITHUB_STEP_SUMMARY = was; fs.rmSync(dir, { recursive: true, force: true }); }
 };

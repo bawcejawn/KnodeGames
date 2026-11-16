@@ -2,13 +2,14 @@
 
 **Why:** GitHub doesn't guarantee scheduled runs. On Fri 13 and Sat 14 Nov 2026 it dropped most of `race.yml`'s hourly runs. The current race then had no card, so the Block X page showed no producers.
 
-This Worker checks every hour whether the ruler's data job and the two recorders ran. If one didn't, it starts it once, exactly like pressing **Run workflow** by hand:
+This Worker checks whether the ruler's data job, the two recorders and the race's VHP sampler ran. If one didn't, it starts it once, exactly like pressing **Run workflow** by hand:
 
 | When (each hour) | Workflow | GitHub's own timer |
 |---|---|---|
 | :22 | `vhp-ruler.yml` (the ruler's data; every ruler game's cards wait on it) | :12 |
 | :41 | `race.yml` | :37 |
 | :51 | `games.yml` | :47 |
+| :07 and :37 | `race-samples.yml` (the race's VHP samples, which the race cards use) | every 15 minutes |
 
 - **"Ran":** a run of that workflow on `main` created in the last 30 minutes. That counts a scheduled run, a manual run, or one this Worker started.
 - **What stays as it is:** GitHub's timers stay on. The workflows' concurrency groups make sure two runs never overlap.
@@ -30,13 +31,18 @@ This Worker checks every hour whether the ruler's data job and the two recorders
 2. Click **Edit code**, delete everything, paste the whole of `tools/cloudflare/kg-dispatch-worker.js` from `main`, then **Deploy**.
 3. Go to **Settings** → **Domains & Routes**. If a `workers.dev` address is on, you can leave it: the Worker answers 404 to every web request.
 4. Go to **Settings** → **Variables and Secrets** → **Add**. Type: **Secret**. Name: `GH_DISPATCH_TOKEN`. Value: the token from step 1. Then **Deploy**.
-5. Go to **Settings** → **Trigger Events** (called "Cron Triggers" in some views) → **Add**. Add `22 * * * *`, then `41 * * * *`, then `51 * * * *`. Save.
+5. Go to **Settings** → **Trigger Events** (called "Cron Triggers" in some views) → **Add**. Add `22 * * * *`, then `41 * * * *`, then `51 * * * *`, then `7,37 * * * *`. Save.
 
 **3. Check it** (the next hour)
-- In Cloudflare, open **kg-dispatch** → **Logs**. At :41 and :51 you should see `kg-dispatch: race.yml: already ran this hour …` (or `… started one`), and the same for `games.yml`; at :22, for `vhp-ruler.yml`.
+- In Cloudflare, open **kg-dispatch** → **Logs**. At :41 and :51 you should see `kg-dispatch: race.yml: already ran this hour …` (or `… started one`), and the same for `games.yml`; at :22, for `vhp-ruler.yml`; at :07 and :37, for `race-samples.yml`.
 - In GitHub → **Actions**, a run this Worker started shows **workflow_dispatch** as its event.
 
 ## If something is wrong
 - **The logs show "GitHub answered 401" or "403":** the token expired or lacks Actions: Read and write. Make a new one (step 1) and replace the secret (step 2.4).
-- **To stop it:** Cloudflare → kg-dispatch → **Settings** → **Trigger Events** → remove the three triggers. Nothing else depends on it.
+- **To stop it:** Cloudflare → kg-dispatch → **Settings** → **Trigger Events** → remove the four triggers. Nothing else depends on it.
 - **By hand, as before:** GitHub → **Actions** → **race** → **Run workflow** (main). When it finishes, about 3 minutes later, do the same for **games**.
+
+## Adding the sampler trigger (Sun 15 Nov 2026, for a Worker already set up)
+1. Cloudflare → **kg-dispatch** → **Edit code**, delete everything, paste the whole of `tools/cloudflare/kg-dispatch-worker.js` from `main`, then **Deploy**.
+2. **Settings** → **Trigger Events** → **Add** → `7,37 * * * *` → Save. Keep the three you have.
+3. **Check:** at the next :07 or :37, **Logs** shows `kg-dispatch: race-samples.yml: …`.

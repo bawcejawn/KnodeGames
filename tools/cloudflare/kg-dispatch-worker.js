@@ -4,14 +4,18 @@
 // Source of truth: this file. To change the live Worker: Cloudflare -> Compute (Workers) -> kg-dispatch -> Edit code ->
 // paste this whole file -> Deploy. Owner steps: docs/ops/RECORDER-BACKSTOP.md. Tests: tests/audit/dispatch-worker.test.mjs.
 //
-// What it does, and only this: on its three Cron Triggers it asks GitHub whether the recorder already ran this hour, and
+// What it does, and only this: on its four Cron Triggers it asks GitHub whether the job already ran recently, and
 // if not, starts it once (workflow_dispatch on main), like the owner pressing "Run workflow" by hand.
 //   - :22 every hour -> vhp-ruler.yml (GitHub's own timer is :12; every ruler game's cards wait on it; Ruler chat, 14 Nov)
 //   - :41 every hour -> race.yml   (GitHub's own timer is :37; the card must be taken before each leg at :00)
 //   - :51 every hour -> games.yml  (GitHub's own timer is :47; after the race recorder)
+//   - :07 and :37    -> race-samples.yml (GitHub's own timer is every 15 minutes; it ran only 3 times on Sun 15 Nov, so
+//                       the race cards had 9-10 samples, not 12, and Block X had no usable card; Block X chat, 15 Nov).
+//                       One run takes up to 12 samples over up to 48 minutes; checking twice an hour keeps a gap without
+//                       samples to about 30 minutes. One Cron Trigger with two minutes ("7,37 * * * *").
 // "Already ran": a run of that workflow on main created in the last 30 minutes (queued, running or finished), from
 // GitHub's timer, a manual run or this Worker. The GitHub timers stay on as they are; the workflows' concurrency groups
-// (knode-vhp-ruler, knode-race, knode-games) mean two runs never overlap. It never changes a file, a setting or a workflow.
+// (knode-vhp-ruler, knode-race, knode-games, knode-race-samples) mean two runs never overlap. It never changes a file, a setting or a workflow.
 // The only secret is GH_DISPATCH_TOKEN, a Worker secret (a fine-grained GitHub token for this one repository with
 // "Actions: Read and write" and nothing else). It is never in this file, never logged, never sent anywhere but GitHub.
 const REPO = "bawcejawn/KnodeGames";
@@ -19,6 +23,7 @@ export const JOBS = {
   "22 * * * *": { workflow: "vhp-ruler.yml", windowMin: 30 },
   "41 * * * *": { workflow: "race.yml", windowMin: 30 },
   "51 * * * *": { workflow: "games.yml", windowMin: 30 },
+  "7,37 * * * *": { workflow: "race-samples.yml", windowMin: 30 },
 };
 const API = "https://api.github.com/repos/" + REPO + "/actions/workflows/";
 

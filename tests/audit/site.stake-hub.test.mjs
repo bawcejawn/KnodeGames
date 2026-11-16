@@ -58,9 +58,9 @@ test("summary: total staked, where, what's earning, wallet, and rewards with one
 test("where you're staked: each game with the amount, its share and whether it's earning, in plain words", async () => {
   const p = await boot(data());
   const race = p.text("#g7"), dq = p.text("#g1");
-  assert.match(race, /Producer Race Earning this week · 5 VHP more starts Mon 9 Nov 20 VHP 4% of 500 VHP/);
+  assert.match(race, /Producer Race Counting this week · 5 VHP more starts Mon 9 Nov 20 VHP 4% of 500 VHP/);
   assert.match(race, /\+ Add Withdraw Move Claim 0\.75 VHP/);
-  assert.match(dq, /Daily Questions Earning this week 10 VHP/);
+  assert.match(dq, /Daily Questions Counting this week 10 VHP/);
   assert.match(dq, /\+ Add Withdraw Move/, "Daily Questions is managed here like every game (owner, 4 Nov)");
   assert.ok(p.$("#g7").classList.contains("mine") && p.$("#g7").classList.contains("on"));
   const heads = p.$$("#hub-body h2").map((h) => h.textContent);
@@ -68,10 +68,10 @@ test("where you're staked: each game with the amount, its share and whether it's
   assert.match(p.text("#g2"), /Who Signs Block X Last week paid 0\.9 VHP per 100 staked 80 VHP staked by everyone Stake/);
 });
 
-test("a stake that hasn't started yet says the Monday it starts earning", async () => {
+test("a stake that hasn't started yet says the Monday it starts counting", async () => {
   const d = data(); Object.assign(d.games[0], { staked: false, counted: 0n, pending: 20n * U, pendingFrom: "Mon 9 Nov" });
   const p = await boot(d);
-  assert.match(p.text("#g7"), /Starts earning Mon 9 Nov/);
+  assert.match(p.text("#g7"), /Starts counting Mon 9 Nov/);
   assert.ok(p.$("#g7").classList.contains("wait"));
 });
 
@@ -81,14 +81,14 @@ test("Add: step 1 amount, then a sentence saying exactly what happens, then a bu
   assert.match(p.text("#g7 .hub-form"), /Add to Producer Race/);
   assert.match(p.text("#g7 .hub-form"), /Step 1: how much\? In your wallet: 42 VHP/);
   p.type("10");
-  assert.match(p.text("#hub-review"), /You'll stake 10 VHP in Producer Race\. Your stake in Producer Race becomes 30 VHP: 5\.9% of the game\. It starts earning Mon 9 Nov\. You can withdraw any time\./);
+  assert.match(p.text("#hub-review"), /You'll stake 10 VHP in Producer Race\. Your stake in Producer Race becomes 30 VHP: 5\.9% of the game\. It starts counting Mon 9 Nov\. You can withdraw any time\./);
   const go = p.button("#g7 .hub-form", "Stake 10 VHP");
   assert.ok(go && !go.disabled);
   go.click(); await tick();
   assert.equal(p.sent.length, 1);
   assert.equal(p.sent[0].action, "stake");
   assert.deepEqual([p.sent[0].a.game, String(p.sent[0].a.units), p.sent[0].a.koin], [7, String(10n * U), false]);
-  assert.match(p.text("#hub-receipt"), /✓ Staked 10 VHP in Producer Race It starts earning Mon 9 Nov\./);
+  assert.match(p.text("#hub-receipt"), /✓ Staked 10 VHP in Producer Race It starts counting Mon 9 Nov\./);
   assert.equal(p.$("#g7 .hub-form"), null, "the box closes after it's sent");
 });
 
@@ -130,7 +130,7 @@ test("Move: pick the game, then the sentence names both games; Daily Questions w
   p.button("#g7", "Move").click();
   p.type("5"); assert.match(p.text("#hub-review"), /Pick the game to move it to\./);
   p.$$("#g7 .hub-to .chip")[1].click(); p.type("5");
-  assert.match(p.text("#hub-review"), /You'll move 5 VHP from Producer Race to Who Signs Block X\. No tokens leave the vault\. It starts earning in Who Signs Block X Mon 9 Nov\./);
+  assert.match(p.text("#hub-review"), /You'll move 5 VHP from Producer Race to Who Signs Block X\. No tokens leave the vault\. It starts counting in Who Signs Block X Mon 9 Nov\./);
   p.button("#g7 .hub-form", "Move 5 VHP").click(); await tick();
   assert.deepEqual([p.sent[0].action, p.sent[0].a.game, p.sent[0].a.to], ["move", 7, 2]);
 });

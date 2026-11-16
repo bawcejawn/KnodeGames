@@ -1,0 +1,254 @@
+{
+  "date": "W004-D1-00",
+  "week": 4,
+  "day": 1,
+  "tier": "Easy",
+  "released": "2026-11-16T00:02:21.656Z",
+  "questions": [
+    {
+      "id": "W004-D1-00-1",
+      "date": "W004-D1-00",
+      "week": 4,
+      "day": 1,
+      "tier": "Easy",
+      "template": "E1s",
+      "releaseHeight": 41110083,
+      "lockHeight": 41125586,
+      "lockTime": 1794830400000,
+      "title": "Core producer over/under",
+      "text": "Will producer 1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU sign more than 789 blocks between block 41,125,587 and block 41,135,586 (about 8 hours)?",
+      "subjects": [
+        "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU"
+      ],
+      "unit": "count",
+      "windowStart": 41125587,
+      "windowEnd": 41135586,
+      "thresholds": [
+        789
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "No — 789 or fewer",
+          "min": null,
+          "max": 789
+        },
+        {
+          "index": 1,
+          "label": "Yes — 790 or more",
+          "min": 790,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.49668141592920356,
+        0.5033185840707964
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {
+          "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": 0.07206597222222222
+        },
+        "forecast": {
+          "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": 0.07861111111111112
+        },
+        "window": 10000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "86297138303007"
+        },
+        "vhpHeight": 41110191,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "12392195fe687073e84e3c467b9914b2a23ea94968cf4b246461ecc60a262a6f",
+      "chainId": 110
+    },
+    {
+      "id": "W004-D1-00-2",
+      "date": "W004-D1-00",
+      "week": 4,
+      "day": 1,
+      "tier": "Easy",
+      "template": "E3",
+      "releaseHeight": 41110083,
+      "lockHeight": 41125586,
+      "lockTime": 1794830400000,
+      "title": "Smaller producer over/under",
+      "text": "Will producer 15CM9Qr4GKREDgqnyXJ8tckPj2biERTM1T sign more than 323 blocks between block 41,125,587 and block 41,145,586 (about 17 hours)?",
+      "subjects": [
+        "15CM9Qr4GKREDgqnyXJ8tckPj2biERTM1T"
+      ],
+      "unit": "count",
+      "windowStart": 41125587,
+      "windowEnd": 41145586,
+      "thresholds": [
+        323
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "No — 323 or fewer",
+          "min": null,
+          "max": 323
+        },
+        {
+          "index": 1,
+          "label": "Yes — 324 or more",
+          "min": 324,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.504424778761062,
+        0.49557522123893805
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {
+          "15CM9Qr4GKREDgqnyXJ8tckPj2biERTM1T": 0.017517361111111112
+        },
+        "forecast": {
+          "15CM9Qr4GKREDgqnyXJ8tckPj2biERTM1T": 0.016493055555555556
+        },
+        "window": 20000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "15CM9Qr4GKREDgqnyXJ8tckPj2biERTM1T": "10468854487082"
+        },
+        "vhpHeight": 41110191,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "5a4a6467dec18b841c6838273d2e5d8bbbd74966b4028c3c9718c7e14e72eefc",
+      "chainId": 111
+    },
+    {
+      "id": "W004-D1-00-3",
+      "date": "W004-D1-00",
+      "week": 4,
+      "day": 1,
+      "tier": "Easy",
+      "template": "E2s",
+      "releaseHeight": 41110083,
+      "lockHeight": 41125586,
+      "lockTime": 1794830400000,
+      "title": "Head-to-head with spread",
+      "text": "Producer 1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531's blocks minus producer 1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW's blocks, between block 41,125,587 and block 41,135,586: will the difference be more than 136?",
+      "subjects": [
+        "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531",
+        "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW"
+      ],
+      "unit": "count",
+      "windowStart": 41125587,
+      "windowEnd": 41135586,
+      "thresholds": [
+        136
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "No — 136 or less",
+          "min": null,
+          "max": 136
+        },
+        {
+          "index": 1,
+          "label": "Yes — 137 or more",
+          "min": 137,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.5,
+        0.5
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {
+          "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": 0.18347222222222223,
+          "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW": 0.17395833333333333
+        },
+        "window": 10000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": "223561695239268",
+          "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW": "214196797341422"
+        },
+        "vhpHeight": 41110191,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "1bf7f154abf8d6bb542f53d2ad962bbb1b0ac55c482f1a71acf4065be07a1156",
+      "chainId": 112
+    },
+    {
+      "id": "W004-D1-00-4",
+      "date": "W004-D1-00",
+      "week": 4,
+      "day": 1,
+      "tier": "Easy",
+      "template": "E1s",
+      "releaseHeight": 41110083,
+      "lockHeight": 41125586,
+      "lockTime": 1794830400000,
+      "title": "Core producer over/under",
+      "text": "Will producer 14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu sign more than 954 blocks between block 41,125,587 and block 41,135,586 (about 8 hours)?",
+      "subjects": [
+        "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu"
+      ],
+      "unit": "count",
+      "windowStart": 41125587,
+      "windowEnd": 41135586,
+      "thresholds": [
+        954
+      ],
+      "options": [
+        {
+          "index": 0,
+          "label": "No — 954 or fewer",
+          "min": null,
+          "max": 954
+        },
+        {
+          "index": 1,
+          "label": "Yes — 955 or more",
+          "min": 955,
+          "max": null
+        }
+      ],
+      "predicted": [
+        0.5011061946902655,
+        0.49889380530973454
+      ],
+      "model": {
+        "version": "v5",
+        "rates": {
+          "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": 0.095
+        },
+        "forecast": {
+          "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": 0.09625
+        },
+        "window": 10000,
+        "voidAlpha": 0.001,
+        "minVoidBlocks": 600,
+        "vhp": {
+          "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": "115315384325156"
+        },
+        "vhpHeight": 41110191,
+        "voidVhpSwing": 0.1,
+        "decidedChance": 1e-9
+      },
+      "hashRule": 2,
+      "paramsHash": "372986adb3e006e569daae3b5f674d67c31ce2a36c18f9eb0cd82829958966ea",
+      "chainId": 113
+    }
+  ],
+  "daySeal": "ae97159949cee4bb4387898160207b7216266699bafcf6e36a9ff93617c76fdf"
+}

@@ -9,12 +9,20 @@ The game itself (questions, answers, the page) is unchanged: `index.html`, `app.
 |---|---|
 | `math.js` | Every scoring rule (pure). The publish job runs its own copy of it (Python, in `games.yml`); `tests/math.test.mjs` checks they agree on 3,000 random weeks. |
 | `recorder.ts` | The hourly run: two-node reads, pending → final, files. `npm run questions`. |
+| `parts.inline.mjs` | From vault week 6: the week as KG parts v1 (`kit/parts`): encode, decode, and the publish job's parts check. The publish job embeds it with kit/parts, byte for byte (`node tools/questions-parts-embed.mjs`; `-- --check` and `tests/parts.test.ts` keep them the same). |
 | `game.json` | The manifest (`npm run game:check -- questions`). `prizesFromVar` isn't used: Daily Questions' free prize follows the free-prize switch (D-136). |
 | `tests/` | Scoring, recorder and end-to-end tests (the publish check's own tests are `tests/audit/questions-publish.test.ts`). |
 
+**Trap (Repo Lens #H-2, I-4):** a change to `kit/parts/parts.inline.mjs` or `games/questions/parts.inline.mjs` needs two re-renders, `npm run kit:render` and `node tools/questions-parts-embed.mjs`; CI fails if either is missed.
+
 ## What it publishes (branch `games-data`, folder `questions/`)
-- `W<NNN>.json`: the week's inputs, as read on both nodes: `questions` `[id, outcome, lock time]`, `players` `[address, stake, peak stake, voided, [[question, option], …]]`, `min` (the week's minimum stake), `seen` (`hash` of the inputs and `at`, the chain time a run first read them) and `final`.
-- `board.json`: `lastWeek` with both boards' rows (`a`, `board` staked/free, `place`, `points`, `counted`, `answers`, `ranked`) and the prize winners. The vault bot checks the results file against it.
+- **From vault week 6 (Sun 29 Nov 2026 7 PM ET on): `W<NNN>/`, a KG parts v1 folder** (`docs/capacity/PARTS-SPEC.md`) instead of `W<NNN>.json`. Weeks 4 and 5 stay single files (a week already paid is never converted).
+  - `manifest.json`: written last; `state` pending or final; `meta.seen` = `{ hash, at }` with `hash` the part-set hash (it replaces the snapshot hash: final after two matching runs an hour apart, as before).
+  - `wk.<h12>.json`: the week's questions `[id, outcome, lock]`; `extra` `{ start, end, min }`.
+  - `p/<x>.<h12>.json`: 16 player shards (`x` = the first hex digit of SHA-256 of the address). Each row `[player, stake, peak, voided, ans]`; `ans` has one character per question of the week, in id order: `.` = no answer, `0`–`f` = the option. All 17 parts are always written (a shard may be empty).
+  - Decoded, the players list is exactly the old file's (answers in question order), so `math.js` and the publish job's Python copy score it unchanged.
+- `W<NNN>.json` (weeks 4 and 5): the week's inputs, as read on both nodes: `questions` `[id, outcome, lock time]`, `players` `[address, stake, peak stake, voided, [[question, option], …]]`, `min` (the week's minimum stake), `seen` (`hash` of the inputs and `at`, the chain time a run first read them) and `final`.
+- `board.json`: `lastWeek` and the prize winners. The vault bot checks the results file against it. Weeks 4 and 5 (`v: 1`): both boards' rows (`a`, `board` staked/free, `place`, `points`, `counted`, `answers`, `ranked`). From week 6 (`v: 2`): the Staked board's rows only, `{ a, place, pts, ranked }` (a Free board row is never in a vault file; the vault bot reads only these columns).
 - `vault/W<w>.json`: the results file (`VAULT_STANDARD.md` §6): staked rows with their real points (the contract checks points ≤ answers), and `first` / `second`, which are always filled. Written once, when the week is final.
   - **Free-prize ties (owner, 5 Nov):** up to 10 wallets per place, ties share; a tie for 1st leaves 2nd empty. More than 10 qualifying for one place: exactly 10 are paid, by the **earlier score time**, then the address. A place is never left empty because of the cap. A player's score time is the lock time of the question that gave them their last point: entries on chain don't store when an answer was sent.
 - `vault/HOLD-W<w>.json` / `RELEASE-W<w>.json`: the owner's hold and release (repo variables `QUESTIONS_HOLD`, `QUESTIONS_HOLD_REASON`, `QUESTIONS_RELEASE`).
@@ -42,12 +50,10 @@ The game itself (questions, answers, the page) is unchanged: `index.html`, `app.
 - On any failed run, the owner's HOLD and RELEASE files still go out; nothing else from that run does (Repo Lens QF-3).
 - The publish job held a file for a reason other than "not yet".
 
-## TODO: size (Repo Lens C11-2, plan only)
-- Today a player's row is `[address, stake, peak, voided, [[question, option], …]]`, about 615 bytes at 60 answers, so the 1.9 MB cap fits about 3,000 players answering everything (5,500 at 30 answers). Past it every run stops with an alert, and no week is paid.
-- Plan: store answers as one string per player, one character per question of the week in id order (`"-"` = not answered, `"0"`–`"9"` = the option): 60 characters instead of about 480. A row is then about 120 bytes, so 1.9 MB fits about 15,000 players. For more, split the inputs into `W<NNN>-<part>.json` files with the hash over all parts.
-- `MAX_PLAYERS` (20,000) now counts only players who answered that week (done).
-- Change the format before the player count passes about 2,000, with the publish job's copy and its tests in the same PR.
-- Early warning (done): every run logs a `::warning::` once a week file passes 60% of the cap (`WARN_FILE`, 1.14 MB, about 1,950 players at 60 answers; the capacity harness measured about 585 bytes a player and about 3,200 players at the cap). The cap and the stop at 1.9 MB are unchanged.
+## Size
+- Cap: 2 MiB per file (the publish job's `find -size +2048k`); every run logs a `::warning::` for any file from 60% (1.2 MB, kit/parts' base) and the run's alert step emails.
+- Weeks 4 and 5 (single file, 1.9 MB stop): about 4,200 weekly players answering all 48 questions; the warning from about 2,500.
+- From week 6 (measured with fake data, every player answering all 48; `claude/questions/SIZER-QUESTIONS-PR-A-2026-11-15.md`): at 9,000 weekly players the biggest shard is about 71 KB (3%) and `board.json` 136 KB (7%) with 20% staked, 688 KB (34%) with everyone staked. The board passes 60% only above about 15,000 all-staked weekly players; past that, split it into `top` + shards (PARTS-SPEC §5) in its own PR. `MAX_PLAYERS` (20,000) still stops a runaway listing.
 
 ## Running it by hand
 - `npm run questions -- --week <n>`: read-only. Reads any week on both nodes, scores it and compares it with the contract's own settled points (old-rules weeks). Nothing is written. Needs `RPC` and `RPC_CHECK` to be two different nodes (defaults: Armana and koinosblocks).

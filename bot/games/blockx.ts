@@ -428,7 +428,7 @@ export function lastVarint(data: unknown, want: number): bigint | null {
 /** The handicap card for a lock at time t (audit BX-3): the latest card TAKEN at or before t (its `at`), no older than
  *  3 hours, so a card made after the lock (with VHP that moved after it) is never used. Race cards come from the race
  *  at t and the one before; self-made cards (testnet) from cards.json. None: the target waits (then void). */
-const CARD_MAX_AGE_MS = 3 * 3600000;
+const CARD_MAX_AGE_MS: number = X.CARD_MAX_AGE_MS;   // late-card rule: the rule itself lives in blockx-math.js (the page uses it too)
 /** Repo Lens E4-3: the week-end re-read reads this many targets at a time. Fix-check L-1: it stops (holding the week,
  *  tried again next run) once the RUN has taken this long, so with in-flight reads it still ends well inside the job's
  *  30 minutes; and inside the re-read each read gets REVERIFY_TRIES tries (a few seconds), not withRetry's minute. */
@@ -446,17 +446,11 @@ export function releaseMatches(release: string | null | undefined, week: number,
   return !!m && Number(m[1]) === week && m[2] === releaseCode(reason);
 }
 /** Audit BX-38: a race card made from fewer than 12 VHP samples is flagged; Block X never scores with it. */
-export const MIN_CARD_SAMPLES = 12;
-const usable = (c: Card | null | undefined, race: boolean): c is Card =>
-  !!c && Number.isFinite(c.at) && Array.isArray(c.field) && c.field.length > 0 && (!race || (Number.isInteger(c.samples) && c.samples >= MIN_CARD_SAMPLES));
-function latestCardAt(cards: (Card | null | undefined)[], t: number, race = false): Card | null {
-  let best: Card | null = null;
-  for (const c of cards) {
-    if (!usable(c, race)) continue;
-    if (c.at <= t && t - c.at <= CARD_MAX_AGE_MS && (!best || c.at > best.at)) best = c;
-  }
-  return best;
-}
+export const MIN_CARD_SAMPLES: number = X.MIN_CARD_SAMPLES;
+const usable = (c: Card | null | undefined, race: boolean): c is Card => X.cardUsable(c, race ? MIN_CARD_SAMPLES : 0);
+/** Late-card rule (BX-24): the page shows producers from this same card (X.cardInForce), so what a player sees is what
+ *  the recorder scores with. */
+const latestCardAt = (cards: (Card | null | undefined)[], t: number, race = false): Card | null => X.cardInForce(cards, t, race ? MIN_CARD_SAMPLES : 0);
 /** Audit BX-35: the first card taken AFTER block X (within 3 hours). A target is scored with the lower multiplier
  *  of this card and the lock's card, so VHP moved in right after the lock card doesn't pay. */
 function firstCardAfter(cards: (Card | null | undefined)[], t: number, race = false, signer = ""): Card | null {
@@ -964,6 +958,18 @@ export async function run(o: Opts) {
       }
       rulerDays.set(RR.xName(wf.week, d), fresh);
     }
+  }
+  // Late-card rule (incident Sat 14 Nov 2026, GitHub skipped the race recorder's runs): the page offers producers from
+  // the race card in force now (X.cardInForce, as the recorder scores). When the newest usable card is more than
+  // X.CARD_LATE_MS old, or none is left (3 hours), the owner is alerted. An alert only: nothing is held or changed by it.
+  if (CARDS === "race" && raceWeeksPresent(RACE, head.time - M.RACE, head.time, head.time)) {
+    const now = raceCardAt(RACE, head.time);
+    // Repo Lens #G-91 L-6: cards taken but all thin (fewer than MIN_CARD_SAMPLES VHP samples) point at the sampler.
+    const thin = now ? [] : raceCards(RACE, [head.time, head.time - M.RACE]).filter((c): c is Card =>
+      X.cardUsable(c, 0) && c.at <= head.time && head.time - c.at <= CARD_MAX_AGE_MS);
+    if (!now && thin.length) holds.push(`the race cards of the last ${CARD_MAX_AGE_MS / 3600000} hours have only ${Math.max(...thin.map((c) => (Number.isInteger(c.samples) ? c.samples! : 0)))} VHP sample(s) (${MIN_CARD_SAMPLES} needed): the Block X page offers no producers and new targets wait for a card. Check the sampler (Actions → Race VHP samples, race-samples.yml), run it by hand if GitHub skipped it, then race, then games`);
+    else if (!now) holds.push(`no usable race card in the last ${CARD_MAX_AGE_MS / 3600000} hours: the Block X page offers no producers and new targets wait for a card. Run the race workflow (Actions → race → Run workflow), then games`);
+    else if (head.time - now.at > X.CARD_LATE_MS) holds.push(`the newest race card is ${Math.floor((head.time - now.at) / 60000)} minutes old (late after ${X.CARD_LATE_MS / 60000}): the Block X page still offers its producers, and stops ${CARD_MAX_AGE_MS / 3600000} hours after it was taken. Check the race workflow's runs (Actions → race)`);
   }
   if (rulerLate) holds.push(`the VHP ruler's data is missing or behind: ${rulerLate} ON-week target(s) have waited more than ${RULER_LATE_MS / 3600000} hours for their card; after 3 days a target counts no pick. Check the VHP ruler workflow (vhp-data)`);
   for (const h of holds) if (!problems.includes(h)) problems.push(h);

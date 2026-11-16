@@ -1,0 +1,783 @@
+# Combo Card recorder: every hour, records the Combo Card's cards and results (bot/games/combo.ts) into the combo/
+# folder of the games-data branch. It reads the chain (two nodes must agree), the race recorder's files (race-data)
+# and the Block X recorder's files (games-data/blockx).
+#
+# Same pattern as games.yml, so repository code never runs next to a write token, plus a verify job (Repo Lens
+# fix-check 3 FC3-3):
+#   record   runs the recorder with a read-only token and no secrets, and hands the files on.
+#   verify   installs nothing (no npm packages), runs only this repository's own scoring (bot/games/combo-score.mjs)
+#            and reads the chain on two nodes: it confirms every newly fixed slot's cards and every new final card,
+#            and hands on the names and sha256 of the day files it confirms (a job output, which only it can set).
+#   publish  runs no repository code: it checks the files' exact shape, publishes only confirmed day files, and pushes
+#            only combo/ to games-data.
+# It shares games.yml's concurrency group, so the two never push to games-data at the same time. It never touches
+# main, holds no key, and does not run on pull requests.
+#
+# Turn it on: Settings → Secrets and variables → Actions → Variables: COMBO_ENABLED = true
+name: Combo Card recorder
+
+on:
+  schedule:
+    - cron: "52 * * * *"     # every hour at minute 52, after the race (:37) and Block X (:47) recorders
+  workflow_dispatch: {}
+
+concurrency:
+  group: knode-games
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  record:
+    if: ${{ vars.COMBO_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      # The last run's files, the Block X results and the race cards and results (public branches; no token).
+      # Only plain JSON files with the expected names are taken.
+      - name: Take the last run's files, Block X results and race files
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/prev/combo/vault" "$RUNNER_TEMP/blockx" "$RUNNER_TEMP/race"
+          repo="https://github.com/${GITHUB_REPOSITORY}.git"
+          # A branch that exists but can't be fetched, or a GitHub that can't be reached, is an outage: stop rather than
+          # record without it (audit FC-1; Repo Lens RL-19: only ls-remote's "no such branch" (2) means no branch).
+          fetch_branch() {
+            if git fetch -q --depth 1 "$repo" "$1" 2>/dev/null; then return 0; fi
+            rc=0; git ls-remote --exit-code --heads "$repo" "$1" >/dev/null 2>&1 || rc=$?
+            if [ "$rc" = 2 ]; then return 1; fi
+            echo "::error::Could not fetch the $1 branch (git: $rc); not recording this run."; exit 1
+          }
+          # Names are read line by line and only expected names are taken (as Block X: BX-34, BX-87).
+          if fetch_branch games-data; then
+            { git ls-tree --name-only FETCH_HEAD:combo 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^(index|board|D[0-9]{5}(-[0-9]{1,3})?)\.json$ ]]; then git show "FETCH_HEAD:combo/$f" > "$RUNNER_TEMP/prev/combo/$f"; fi
+            done
+            # The published Vault files, so the recorder never writes one again (it is write-once).
+            { git ls-tree --name-only FETCH_HEAD:combo/vault 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then git show "FETCH_HEAD:combo/vault/$f" > "$RUNNER_TEMP/prev/combo/vault/$f"; fi
+            done
+            { git ls-tree --name-only FETCH_HEAD:blockx 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:blockx/$f" > "$RUNNER_TEMP/blockx/$f"; fi
+            done
+          else echo "No games-data branch yet."; fi
+          if fetch_branch race-data; then
+            { git ls-tree --name-only FETCH_HEAD 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^[WR][0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/race/$f"; fi   # W: results; R: the Race's ruler cards (D-new A)
+            done
+          else echo "No race-data branch yet: cards wait for race cards."; fi
+      # The recorder exits 1 after writing its files when it raised an error (Repo Lens RL-5): the job turns red (you
+      # are emailed) and its files are still checked and published.
+      - name: Record the Combo Card
+        run: npm run combo
+        env:
+          RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
+          RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
+          COMBO_PREV: ${{ runner.temp }}/prev/combo
+          COMBO_OUT: ${{ runner.temp }}/games-data/combo
+          RACE_DATA: ${{ runner.temp }}/race
+          BLOCKX_DATA: ${{ runner.temp }}/blockx
+          # The VHP ruler switch (D-new A): empty = the Race's handicap standings; vault week N = race legs on the Race's
+          # ruler cards from week N (week N - 1 is the shadow week). Read strictly by all three jobs.
+          COMBO_RULER_FROM_WEEK: ${{ vars.COMBO_RULER_FROM_WEEK }}
+          RACE_RULER_FROM_WEEK: ${{ vars.RACE_RULER_FROM_WEEK }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() }}
+        with:
+          name: combo-data
+          path: ${{ runner.temp }}/games-data/
+          retention-days: 1
+          if-no-files-found: ignore
+
+  verify:
+    needs: record
+    if: ${{ always() && needs.record.result != 'cancelled' && needs.record.result != 'skipped' && vars.COMBO_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      approved: ${{ steps.verify.outputs.approved }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      # (Nothing is installed here: this job runs only the repository's own files, with plain node.)
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: combo-data
+          path: ${{ runner.temp }}/incoming
+      - name: Take the published Combo files, Block X results and race files
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/incoming/combo" "$RUNNER_TEMP/pub/combo" "$RUNNER_TEMP/blockx" "$RUNNER_TEMP/race"
+          repo="https://github.com/${GITHUB_REPOSITORY}.git"
+          fetch_branch() {
+            if git fetch -q --depth 1 "$repo" "$1" 2>/dev/null; then return 0; fi
+            rc=0; git ls-remote --exit-code --heads "$repo" "$1" >/dev/null 2>&1 || rc=$?
+            if [ "$rc" = 2 ]; then return 1; fi
+            echo "::error::Could not fetch the $1 branch (git: $rc); nothing confirmed this run."; exit 1
+          }
+          if fetch_branch games-data; then
+            { git ls-tree --name-only FETCH_HEAD:combo 2>/dev/null || true; } | while IFS= read -r f; do
+              # (Capacity standard, 13 Nov: the L<week> parts too; the Vault stake-flag check reads every row from them.)
+              if [[ "$f" =~ ^(board|D[0-9]{5}(-[0-9]{1,3})?|L[0-9]{1,6}(-[1-9][0-9]{0,3})?)\.json$ ]]; then git show "FETCH_HEAD:combo/$f" > "$RUNNER_TEMP/pub/combo/$f"; fi
+            done
+            mkdir -p "$RUNNER_TEMP/pub/combo/vault"
+            { git ls-tree --name-only FETCH_HEAD:combo/vault 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then git show "FETCH_HEAD:combo/vault/$f" > "$RUNNER_TEMP/pub/combo/vault/$f"; fi
+            done
+            { git ls-tree --name-only FETCH_HEAD:blockx 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:blockx/$f" > "$RUNNER_TEMP/blockx/$f"; fi
+            done
+          fi
+          if fetch_branch race-data; then
+            { git ls-tree --name-only FETCH_HEAD 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^[WR][0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/race/$f"; fi   # W: results; R: the Race's ruler cards (D-new A)
+            done
+          fi
+      - name: Confirm the day files
+        id: verify
+        env:
+          RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
+          RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
+          COMBO_RULER_FROM_WEEK: ${{ vars.COMBO_RULER_FROM_WEEK }}
+          RACE_RULER_FROM_WEEK: ${{ vars.RACE_RULER_FROM_WEEK }}
+        run: |
+          set -euo pipefail
+          node tools/combo-verify.mjs "$RUNNER_TEMP/incoming/combo" "$RUNNER_TEMP/pub/combo" "$RUNNER_TEMP/race" "$RUNNER_TEMP/blockx" "$RUNNER_TEMP/approved.txt"
+          # Only names and sha256 the verifier wrote: one "D<day>[-<k>].json <64 hex>" per line.
+          if grep -Evxq '(D[0-9]{5}(-[0-9]{1,3})?|vault/W[0-9]+)\.json [0-9a-f]{64}' "$RUNNER_TEMP/approved.txt"; then echo "::error::unexpected verifier output"; exit 1; fi
+          eof="EOF_$(openssl rand -hex 16)"
+          { echo "approved<<$eof"; cat "$RUNNER_TEMP/approved.txt"; echo "$eof"; } >> "$GITHUB_OUTPUT"
+      - name: Fail the run on an alert (after the confirmed files are handed on)
+        run: |
+          set -euo pipefail
+          if [ -s "$RUNNER_TEMP/approved.txt.alerts" ]; then
+            while IFS= read -r l; do echo "::error::alert: ${l//::/: }"; done < "$RUNNER_TEMP/approved.txt.alerts"
+            exit 1
+          fi
+
+  publish:
+    needs: [record, verify]
+    if: ${{ always() && needs.record.result != 'cancelled' && needs.record.result != 'skipped' && vars.COMBO_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write         # push the games-data branch (never main)
+    steps:
+      # Node, pinned as in games.yml (Block X BX-131), only for the byte-form check below; no repository code runs here.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: combo-data
+          path: ${{ runner.temp }}/incoming
+      - name: Push games-data/combo (and nothing else)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IN: ${{ runner.temp }}/incoming
+          # Fix-check 3 FC3-3: only day files the verify job confirmed (its job output) are published.
+          COMBO_VERIFY: required
+          VERIFIED: ${{ needs.verify.outputs.approved }}
+          COMBO_RULER_FROM_WEEK: ${{ vars.COMBO_RULER_FROM_WEEK }}
+          RACE_RULER_FROM_WEEK: ${{ vars.RACE_RULER_FROM_WEEK }}
+        run: |
+          set -euo pipefail
+          if [ ! -d "$IN/combo" ]; then echo "Nothing to publish."; exit 0; fi
+          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/combo" ! -path "$IN/combo/vault" \) -o \( -type f ! -regex "$IN/combo/\(index\|board\|D[0-9][0-9][0-9][0-9][0-9]\(-[0-9][0-9]*\)?\|L[0-9][0-9]*\(-[1-9][0-9]*\)?\)\.json" ! -regex "$IN/combo/vault/W[0-9][0-9]*\.json" \) \) -print)
+          if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
+          # Block X round 8 (BX-122), ported for Combo (fix-check 2 FC2-16): every incoming file must be EXACTLY what the
+          # JavaScript recorder writes for its own content (JSON.stringify of its parse, plus a newline).
+          command -v node >/dev/null || { echo "::error::node is missing on this runner; nothing published"; exit 1; }
+          node -e 'const fs=require("fs"),p=require("path"),bad=[];(function w(d){for(const f of fs.readdirSync(d)){const q=p.join(d,f),s=fs.lstatSync(q);if(s.isDirectory()){w(q);continue}if(!f.endsWith(".json"))continue;if(!s.isFile()){bad.push(p.relative(process.argv[1],q));continue}const raw=fs.readFileSync(q);let ok=false;try{ok=Buffer.compare(Buffer.from(JSON.stringify(JSON.parse(raw.toString("utf8")))+"\n","utf8"),raw)===0}catch(e){}if(!ok)bad.push(p.relative(process.argv[1],q))}})(process.argv[1]);if(bad.length){console.log("::error::not in the recorders own JSON form (JSON.stringify of its parse), nothing published: "+bad.join(", "));process.exit(1)}' -- "$IN"
+          # The published branch first (read only here): write-once and fixed files are judged against what is ALREADY
+          # published and this job's own clock, never against this run's own files (as Block X: BX-79/80/81/88).
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          PUB=$(mktemp -d); HELD="$PUB/held"; : > "$HELD"; mkdir -p "$PUB/combo/vault" "$PUB/blockx" "$PUB/race"
+          git init -q work && cd work
+          parent=""
+          if git fetch -q --depth 1 "$remote" games-data 2>/dev/null; then
+            parent=$(git rev-parse FETCH_HEAD)
+            git read-tree FETCH_HEAD
+            # (Fix-check 2 FC2-6: index.json too, or its append-only check never runs.)
+            { git ls-tree --name-only "$parent:combo" 2>/dev/null || true; } | while IFS= read -r f; do
+              # (Capacity standard, 13 Nov: last week's L<week> parts too, for the Vault check and the part clean-up.)
+              if [[ "$f" =~ ^(index|board|D[0-9]{5}(-[0-9]{1,3})?|L[0-9]{1,6}(-[1-9][0-9]{0,3})?)\.json$ ]]; then git show "$parent:combo/$f" > "$PUB/combo/$f"; fi
+            done
+            # The published Block X results, to re-check new final cards' Block X legs (fix-check 2 FC2-1).
+            { git ls-tree --name-only "$parent:blockx" 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]{3}\.json$ ]]; then git show "$parent:blockx/$f" > "$PUB/blockx/$f"; fi
+            done
+            { git ls-tree --name-only "$parent:combo/vault" 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then git show "$parent:combo/vault/$f" > "$PUB/combo/vault/$f"; fi
+            done
+          else git read-tree --empty; fi
+          # The race recorder's published results, to re-check new final cards' race legs (FC2-1). Not readable: new
+          # final cards are held (they can't be checked), everything else is published.
+          if git fetch -q --depth 1 "$remote" race-data 2>/dev/null; then
+            { git ls-tree --name-only FETCH_HEAD 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^[WR][0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$PUB/race/$f"; fi
+            done
+          fi
+          # The content must be the recorder's own shape, consistent with itself and with what is published.
+          /usr/bin/python3 - "$IN/combo" "$PUB/combo" "$HELD" "$PUB/race" "$PUB/blockx" <<'PY'
+          import json, os, re, sys, time
+          d, pub, heldf = sys.argv[1], sys.argv[2], sys.argv[3]
+          raced = sys.argv[4] if len(sys.argv) > 4 else ""; bxd = sys.argv[5] if len(sys.argv) > 5 else ""
+          addr = re.compile(r"1[1-9A-HJ-NP-Za-km-z]{25,34}"); iso = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{3})?Z"); ymd = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+          SAFE = 2 ** 53 - 1
+          nat = lambda x: type(x) is int and 0 <= x <= SAFE
+          isaddr = lambda a: type(a) is str and addr.fullmatch(a) is not None
+          DAY = 86400000; WEEK = 7 * DAY; HOUR = 3600000; GENESIS = 1792368000000   # week 0: 2026-10-19 00:00 UTC
+          CARDS_PER_DAY = 3; MAX_CHANGES = 3; MAX_SIZE = 2048 * 1024; BEST = 10; MIN_WEEK_PTS = 100
+          BASE = {2: 3, 3: 7, 4: 15, 5: 30, 6: 60, 7: 120, 8: 240, 9: 480, 10: 960}
+          RESULTS = ("pending", "hit", "miss", "void", "unresolved")
+          # (CHECK_NOW_MS: the tests' fixed clock; the workflow never sets it.)
+          now = int(os.environ.get("CHECK_NOW_MS") or time.time() * 1000)
+          cw = (now - GENESIS) // WEEK; today = now // DAY
+          first_day = (GENESIS + max(0, cw - 1) * WEEK) // DAY        # Monday of last week
+          # ── The VHP ruler switch (D-new A; docs/VHP-RULER.md "Switching a game onto the ruler"). A copy of vhp_ruler.py's
+          # switch_from / ruler_mode / switch_change (this job runs no repository code); tests/audit/combo-ruler.test.mjs
+          # keeps it equal to vhp_ruler.py, line for line.
+          SWITCH_MAX = 999999
+          def switch_from(v):
+              """The ruler switch (owner, 11 Nov 2026), as switchFrom in vhp-ruler.js: None, or the vault week N."""
+              if v is None or (type(v) is str and v == ""):
+                  return None
+              if type(v) is str and re.fullmatch(r"[1-9][0-9]{0,5}", v):
+                  return int(v)
+              if type(v) is int and 1 <= v <= SWITCH_MAX:
+                  return v
+              raise ValueError("the ruler switch must be empty or a vault week from 1 to 999999")
+          def _switch_week(w):
+              if type(w) is int and 0 <= w <= SWITCH_MAX:
+                  return w
+              raise ValueError("week must be a vault week from 0 to 999999")
+          def _mode_of(w, f):
+              return "off" if f is None or w < f - 1 else "shadow" if w < f else "on"
+          def ruler_mode(week, frm):
+              """as rulerMode: "off", "shadow" (week N − 1) or "on" (from week N)."""
+              return _mode_of(_switch_week(week), switch_from(frm))
+          def switch_change(prev, nxt, week):
+              """as switchChange: None, or why the change would change whether a started week is scored by the ruler."""
+              w, p, n = _switch_week(week), switch_from(prev), switch_from(nxt)
+              if p == n:
+                  return None
+              at = sorted(x for x in (0, w, -1 if p is None else p - 1, -1 if p is None else p, -1 if n is None else n - 1,
+                                      -1 if n is None else n) if 0 <= x <= w)
+              for x in at:
+                  a, b = _mode_of(x, p), _mode_of(x, n)
+                  if (a == "on") != (b == "on"):
+                      return ("the ruler switch moved from %s to %s: week %d has started and would change from %s to %s; whether a "
+                              "started week is scored by the ruler never changes (a first switch-on: %d or later)"
+                              % ("unset" if p is None else p, "unset" if n is None else n, x, a, b, w + 1))
+              return None
+          # (End of the copy.) The switch as the owner set it, strictly: anything odd stops the run, nothing is published.
+          RULER_FROM = switch_from(os.environ.get("COMBO_RULER_FROM_WEEK", ""))
+          # Repo Lens #G-37: never on the ruler before the Race, whose ruler cards Combo's race legs read.
+          RACE_RULER_FROM = switch_from(os.environ.get("RACE_RULER_FROM_WEEK", ""))
+          if RULER_FROM is not None and (RACE_RULER_FROM is None or RULER_FROM < RACE_RULER_FROM):
+              print("::error::COMBO_RULER_FROM_WEEK (%d) needs RACE_RULER_FROM_WEEK set to that week or earlier (it is %s); nothing was published this run." % (RULER_FROM, "unset" if RACE_RULER_FROM is None else RACE_RULER_FROM))
+              sys.exit(1)
+          def ruled_day(day): return ruler_mode((day * DAY - GENESIS) // WEEK, "" if RULER_FROM is None else RULER_FROM) == "on"
+          # A started week never changes whether the ruler scores it: this run's switch against the published board's.
+          _pb = None
+          try: _pb = json.load(open(os.path.join(pub, "board.json"), encoding="utf-8")) if os.path.isfile(os.path.join(pub, "board.json")) else None
+          except Exception: _pb = None
+          if type(_pb) is dict and "rulerFrom" in _pb:
+              _why = switch_change("" if _pb["rulerFrom"] is None else _pb["rulerFrom"], "" if RULER_FROM is None else RULER_FROM, cw)
+              if _why:
+                  print("::error::The ruler switch change is refused, nothing was published this run: " + re.sub(r"[^A-Za-z0-9 ./:,_()'-]", "?", _why)[:300] + ". Set COMBO_RULER_FROM_WEEK back, or to a later week (the owner's check: node tools/vhp-ruler-switch.mjs).")
+                  sys.exit(1)
+          held = []
+          def hold(name, why, alert):
+              if name not in held: held.append(name)
+              print(("::error::" if alert else "::notice::") + "held, not published: " + name + ": " + why)
+              if alert: held.append("!alert")
+          # Fix-check FC-24 (Block X round 7): JavaScript compares with ===, Python's == says True == 1 and 3.0 == 3, so
+          # published content is compared with same(), types included.
+          def same(a, b):
+              if type(a) is not type(b): return False
+              if type(a) is dict: return a.keys() == b.keys() and all(same(a[k], b[k]) for k in a)
+              if type(a) is list: return len(a) == len(b) and all(same(x, y) for x, y in zip(a, b))
+              return a == b
+          def load(path):
+              try: return json.load(open(path, encoding="utf-8"))
+              except Exception: return None
+          def points(fs):
+              if not 2 <= len(fs) <= 10: return 0
+              num = BASE[len(fs)] * 100; den = 1
+              for f in fs: num *= f; den *= 100
+              return num // den
+          def recount(c):
+              # As bot/games/combo.ts recount: a miss decides; else an unresolved leg voids the card (fix-check FC-2).
+              if c["priceAt"] is None: return ("void", 0)
+              if any(l[4] == "miss" or (l[4] == "hit" and not l[3] > 0) for l in c["legs"]): return ("miss", 0)
+              if any(l[4] == "unresolved" for l in c["legs"]): return ("void", 0)
+              kept = [l for l in c["legs"] if l[4] != "void"]
+              if len(kept) < 2: return ("void", 0)
+              if any(l[4] != "hit" or not l[3] > 0 for l in kept): return ("miss", 0)
+              return ("hit", points([l[3] for l in kept]))
+          def leg_ok(l):
+              return type(l) is list and len(l) == 5 and type(l[0]) is int and l[0] in (1, 2, 3, 4) and nat(l[1]) and l[1] > 0 and isaddr(l[2]) and type(l[3]) is int and 0 <= l[3] <= 300 and l[4] in RESULTS
+          CARD = {"player", "round", "time", "changes", "priceAt", "legs", "state", "outcome", "pts", "settled"}
+          def card_ok(c, rnd, day, fixed=True):
+              if type(c) is not dict or set(c) != CARD: return False
+              if not (isaddr(c["player"]) and same(c["round"], rnd) and nat(c["time"]) and day * DAY <= c["time"] < (day + 1) * DAY and c["time"] <= now): return False
+              if not (type(c["changes"]) is int and 0 <= c["changes"] <= MAX_CHANGES): return False
+              if not (c["priceAt"] is None or (nat(c["priceAt"]) and c["priceAt"] <= c["time"] and c["time"] - c["priceAt"] <= 3 * HOUR)): return False
+              legs = c["legs"]
+              if not (type(legs) is list and 2 <= len(legs) <= 10 and all(leg_ok(l) for l in legs)): return False
+              keys = [("race", l[0], l[1]) if l[0] != 4 else ("block", l[1]) for l in legs]
+              if len(set(keys)) != len(keys) or len({l[2] for l in legs}) != len(legs): return False   # one leg per slot, a producer once
+              if c["state"] not in ("pending", "final") or c["outcome"] not in (None, "hit", "miss", "void") or not nat(c["pts"]) or not nat(c["settled"]): return False
+              # Fix-check 3 FC3-3: a hit leg is worth 0 (a horse not in the field when sent: it counts as a miss) or 0.25 to
+              # 3 (f100Of never gives less); a card is final only on a fixed slot (the recorder never makes one final earlier).
+              if any(l[4] == "hit" and not (l[3] == 0 or 25 <= l[3] <= 300) for l in legs): return False
+              if c["state"] == "final":
+                  if fixed is not True: return False
+                  # (A miss decides as soon as the slot is fixed: its other legs may still be pending. FC2-3.)
+                  return (c["outcome"], c["pts"]) == recount(c) and (c["outcome"] == "miss" or all(l[4] != "pending" for l in legs))
+              return c["pts"] == 0                                                         # not final: no points yet
+          def part_of(f):
+              m = re.fullmatch(r"D([0-9]{5})(?:-([0-9]{1,3}))?\.json", f)
+              return (int(m.group(1)), int(m.group(2) or 0)) if m else None
+          def l_of(f):
+              m = re.fullmatch(r"L([0-9]{1,6})(?:-([1-9][0-9]{0,3}))?\.json", f)
+              return (int(m.group(1)), int(m.group(2) or 0)) if m else None
+          def lpart_ok(j, f):
+              # Last week's full board (capacity standard, owner 13 Nov): L<week>.json (part 0, names the part count) and
+              # L<week>-<k>.json, each at most 2,000 rows of the board's shape.
+              lf = l_of(f)
+              if lf is None or type(j) is not dict or not same(j.get("v"), 1) or not nat(j.get("week")) or j["week"] != lf[0]: return False
+              if lf[1] == 0:
+                  if set(j) != {"v", "week", "start", "final", "parts", "rows"} or not same(j["start"], GENESIS + j["week"] * WEEK) or type(j["final"]) is not bool: return False
+                  if not (type(j["parts"]) is int and 1 <= j["parts"] <= 1000): return False
+              elif set(j) != {"v", "week", "part", "rows"} or not same(j["part"], lf[1]): return False
+              return type(j["rows"]) is list and len(j["rows"]) <= 2000 and rows_ok(j["rows"])
+          def l_merge(base, w, skip=()):
+              """Every row of week w from its L parts in `base`, in order, with part 0; None if a part is missing, held or
+              not the shape, or the rows aren't one board (each wallet once, places in order)."""
+              f0 = "L%d.json" % w
+              if not os.path.isfile(os.path.join(base, f0)) or ("combo/" + f0) in skip: return None
+              j0 = load(os.path.join(base, f0))
+              if not lpart_ok(j0, f0): return None
+              rows, sizes = list(j0["rows"]), [len(j0["rows"])]
+              for k in range(1, j0["parts"]):
+                  f = "L%d-%d.json" % (w, k)
+                  if ("combo/" + f) in skip or not os.path.isfile(os.path.join(base, f)): return None
+                  j = load(os.path.join(base, f))
+                  if not lpart_ok(j, f): return None
+                  rows += j["rows"]; sizes.append(len(j["rows"]))
+              # As the recorder cuts them: every part but the last holds exactly 2,000 rows, the last at least one.
+              if any(n != 2000 for n in sizes[:-1]) or (len(sizes) > 1 and sizes[-1] < 1): return None
+              if len({r["a"] for r in rows}) != len(rows) or any(rows[i]["place"] < rows[i - 1]["place"] for i in range(1, len(rows))): return None
+              return j0, rows
+          def day_ok(j, f):
+              # A day file or one of its parts (fix-check 2 FC2-5: at most 1,000 cards each; part 0 has no "part" key).
+              pf = part_of(f)
+              if pf is None or type(j) is not dict or not same(j.get("v"), 2) or not nat(j.get("day")) or j["day"] != pf[0]: return False
+              # (Fix-check 3 FC3-5: part 0 says how many parts the day has; every other part names its number.)
+              if set(j) != ({"v", "day", "start", "parts", "ruled", "slots"} if pf[1] == 0 else {"v", "day", "start", "part", "slots"}) or (pf[1] and not same(j["part"], pf[1])): return False
+              # D-new A: part 0 says whether the ruler scored the day, as the switch says for the day's vault week.
+              if pf[1] == 0 and j["ruled"] is not ruled_day(j["day"]): return False
+              if pf[1] == 0 and not (type(j["parts"]) is int and 1 <= j["parts"] <= 1000): return False
+              # (Fix-check 3 FC3-8: every type checked before it is measured.)
+              if type(j["slots"]) is not list or not all(type(x) is dict and type(x.get("cards")) is list for x in j["slots"]): return False
+              if sum(len(x["cards"]) for x in j["slots"]) > 1000: return False
+              day = j["day"]
+              if not same(j["start"], day * DAY) or day > today: return False
+              sl = j["slots"]
+              if type(sl) is not list or len(sl) > CARDS_PER_DAY: return False
+              rounds = [s.get("round") if type(s) is dict else None for s in sl]
+              if not all(type(r) is int for r in rounds) or rounds != sorted(set(rounds)): return False
+              for s in sl:
+                  if set(s) != {"round", "fixed", "cards"} or not nat(s["round"]) or s["round"] // CARDS_PER_DAY != day or type(s["fixed"]) is not bool: return False
+                  if s["fixed"] and now < (day + 1) * DAY: return False                  # a day not over can't be fixed
+                  cs = s["cards"]
+                  if type(cs) is not list or len(cs) > 100000 or not all(card_ok(c, s["round"], day, s["fixed"]) for c in cs): return False
+                  if len({c["player"] for c in cs}) != len(cs): return False
+              return True
+          # (D-081: boardPlace, the place on the player's own board, Staked or Free play.)
+          ROW = {"a", "place", "boardPlace", "pts", "hits", "cards", "best", "days", "lastHit", "staked", "free", "ranked"}
+          def rows_ok(rows):
+              return type(rows) is list and len(rows) <= 100000 and all(type(x) is dict and set(x) == ROW and isaddr(x["a"]) and all(nat(x[k]) for k in ("place", "boardPlace", "pts", "hits", "cards", "best", "days", "lastHit"))
+                  and x["place"] >= 1 and x["boardPlace"] >= 1 and x["staked"] in (None, True, False) and type(x["staked"]) in (type(None), bool) and x["ranked"] is (x["staked"] is True)
+                  and type(x["free"]) in (type(None), bool) and not (x["staked"] is True and x["free"] is not False) for x in rows) and len({x["a"] for x in rows}) == len(rows)
+          def board_ok(j):
+              if type(j) is not dict or set(j) != {"v", "updated", "rulerFrom", "today", "week", "lastWeek", "allTime"} or not same(j["v"], 1) or not iso.fullmatch(str(j["updated"])): return False
+              if j["rulerFrom"] != RULER_FROM or type(j["rulerFrom"]) is not type(RULER_FROM): return False      # D-new A: the switch as set
+              t, w, lw, at = j["today"], j["week"], j["lastWeek"], j["allTime"]
+              if not (type(t) is dict and set(t) == {"day", "rows"} and type(t["day"]) is str and ymd.fullmatch(t["day"]) and rows_ok(t["rows"])): return False
+              if not (type(w) is dict and set(w) == {"week", "start", "rows"} and nat(w["week"]) and same(w["start"], GENESIS + w["week"] * WEEK) and rows_ok(w["rows"])): return False
+              if not (type(at) is dict and set(at) == {"rows"} and rows_ok(at["rows"])): return False
+              # Last week: the top 100 here; every row in its L<week> parts (checked with them below).
+              return lw is None or (type(lw) is dict and set(lw) == {"week", "start", "final", "parts", "rows"} and nat(lw["week"]) and same(lw["start"], GENESIS + lw["week"] * WEEK)
+                                    and type(lw["final"]) is bool and type(lw["parts"]) is int and 1 <= lw["parts"] <= 1000 and type(lw["rows"]) is list and len(lw["rows"]) <= 100 and rows_ok(lw["rows"]))
+          def day_parts(base, day):
+              """Every part of a day in `base`, merged by slot; None if a part isn't the recorder's shape."""
+              # (Fix-check 3 FC3-5: exactly the parts part 0 names, 0 to parts - 1, every one present.)
+              f0 = "D%05d.json" % day
+              if not os.path.isfile(os.path.join(base, f0)): return []
+              j0 = load(os.path.join(base, f0))
+              if not day_ok(j0, f0): return None
+              merged = {}
+              for k in range(j0["parts"]):
+                  f = f0 if k == 0 else "D%05d-%d.json" % (day, k)
+                  j = j0 if k == 0 else (load(os.path.join(base, f)) if os.path.isfile(os.path.join(base, f)) else None)
+                  if j is None or not day_ok(j, f): return None
+                  for s in j["slots"]:
+                      m = merged.setdefault(s["round"], {"round": s["round"], "fixed": s["fixed"], "cards": []})
+                      m["cards"] += s["cards"]; m["fixed"] = m["fixed"] and s["fixed"]
+              out = sorted(merged.values(), key=lambda s: s["round"])
+              if any(len({c["player"] for c in s["cards"]}) != len(s["cards"]) for s in out): return None
+              return out
+          def week_board(w):
+              # Fix-check FC-6: last week's board recomputed from the PUBLISHED day files' final cards, as bot/games/combo.ts
+              # does (best 10 cards; order: points, hits, the earlier last hit, address; equal on all three: one place).
+              by = {}
+              for day in range((GENESIS + w * WEEK) // DAY, (GENESIS + (w + 1) * WEEK) // DAY):
+                  slots = day_parts(pub, day)
+                  if slots is None: return None
+                  for s in slots:
+                      for c in s["cards"]:
+                          if c["state"] != "final" or c["outcome"] == "void": continue
+                          b = by.setdefault(c["player"], {"list": [], "hits": 0, "lastHit": 0, "days": set()})
+                          b["list"].append(c["pts"]); b["days"].add(s["round"] // CARDS_PER_DAY)
+                          if c["outcome"] == "hit": b["hits"] += 1; b["lastHit"] = max(b["lastHit"], c["settled"])
+              out = [{"a": a, "pts": sum(sorted(b["list"], reverse=True)[:BEST]), "hits": b["hits"], "lastHit": b["lastHit"], "days": len(b["days"])} for a, b in by.items()]
+              out.sort(key=lambda r: (-r["pts"], -r["hits"], r["lastHit"] or float("inf"), r["a"]))
+              place = 0
+              for i, r in enumerate(out):
+                  p = out[i - 1] if i else None
+                  if not p or (p["pts"], p["hits"], p["lastHit"]) != (r["pts"], r["hits"], r["lastHit"]): place = i + 1
+                  r["place"] = place
+              return out
+
+          # 1. Each file: its exact shape. A bad file is held (with an alert); an oversized one too (Repo Lens RL-6:
+          #    one file never stops the rest).
+          names = sorted(os.listdir(d))
+          for f in names:
+              p = os.path.join(d, f)
+              if os.path.isdir(p): continue
+              if os.path.getsize(p) > MAX_SIZE: hold("combo/" + f, "over 2 MB", True); continue
+              j = load(p)
+              if f == "index.json":
+                  ok = type(j) is dict and set(j) == {"v", "updated", "days", "contract"} and same(j["v"], 2) and iso.fullmatch(str(j["updated"])) and type(j["days"]) is list \
+                      and len(j["days"]) <= 100000 and all(nat(x) and x <= today for x in j["days"]) and j["days"] == sorted(set(j["days"])) and (j["contract"] is None or isaddr(j["contract"]))
+              elif f == "board.json": ok = board_ok(j)
+              elif l_of(f): ok = lpart_ok(j, f)
+              else: ok = day_ok(j, f)
+              if not ok: hold("combo/" + f, "not the recorder's shape (or inconsistent: outcomes, points, days, slots)", True)
+          # 1b. Fix-check 3 FC3-3: in the workflow (COMBO_VERIFY=required, set above) a day file is published only if the
+          #     verify job confirmed it, by name and sha256. (The publish-step tests run this script without the
+          #     workflow's env and test the verify job on its own: tests/audit/combo-verify.test.mjs.)
+          import hashlib
+          ok_files = {}
+          if os.environ.get("COMBO_VERIFY") == "required":
+              for line in os.environ.get("VERIFIED", "").splitlines():
+                  m = re.fullmatch(r"(D[0-9]{5}(?:-[0-9]{1,3})?\.json|vault/W[0-9]+\.json) ([0-9a-f]{64})", line)
+                  if m: ok_files[m.group(1)] = m.group(2)
+              for f in names:
+                  if part_of(f) and ("combo/" + f) not in held and ok_files.get(f) != hashlib.sha256(open(os.path.join(d, f), "rb").read()).hexdigest():
+                      hold("combo/" + f, "not confirmed by the verify job (see its log)", True)
+          # 2. Days against the published ones (Repo Lens RL-7), all parts of a day together: a NEW day only for last week
+          #    or this week; a published FIXED slot keeps exactly its cards (who, legs, time, changes); a published FINAL
+          #    card never changes; and a NEW final card's leg results must be what the published race-data and Block X
+          #    files show (fix-check 2 FC2-1: one bad record run can't publish a made-up win). A day that breaks this is
+          #    held ALONE (all its parts), with an alert (FC-5, FC-9).
+          def race_record(rnd):
+              start = rnd * 6 * HOUR; w = (start - GENESIS) // WEEK
+              if w not in RACE_FILES: RACE_FILES[w] = load(os.path.join(raced, "W%03d.json" % w)) if raced and os.path.isfile(os.path.join(raced, "W%03d.json" % w)) else None
+              j = RACE_FILES[w]
+              if type(j) is not dict or type(j.get("races")) is not list: return False
+              rid = time.strftime("%Y-%m-%dT%H", time.gmtime(start // 1000))
+              return next((r for r in j["races"] if type(r) is dict and r.get("id") == rid), None)
+          BX_TARGETS = {}
+          for f in (sorted(os.listdir(bxd)) if bxd and os.path.isdir(bxd) else []):
+              j = load(os.path.join(bxd, f))
+              for t in (j.get("targets") or [] if type(j) is dict else []):
+                  # Repo Lens FC4-2: by block height (Block X's own rounds are 2,400 or, since vault week 3, 1,200 blocks).
+                  if type(t) is dict and type(t.get("height")) is int and t["height"] > 0: BX_TARGETS[t["height"]] = t
+          RACE_FILES = {}
+          def target_of(rnd): return BX_TARGETS.get(rnd * 2400) if type(rnd) is int else None
+          RULER_FILES = {}
+          def ruler_record(rnd):
+              # The Race's ruler entry for a race (R<week>.json, as combo-score.mjs rulerRecord), or None.
+              start = rnd * 6 * HOUR; w = (start - GENESIS) // WEEK
+              if w not in RULER_FILES: RULER_FILES[w] = load(os.path.join(raced, "R%03d.json" % w)) if raced and os.path.isfile(os.path.join(raced, "R%03d.json" % w)) else None
+              j = RULER_FILES[w]
+              if type(j) is not dict or not same(j.get("v"), 1) or j.get("week") != w or type(j.get("races")) is not list or j.get("mode") not in ("on", "shadow"): return None
+              rid = time.strftime("%Y-%m-%dT%H", time.gmtime(start // 1000))
+              return next((e for e in j["races"] if type(e) is dict and e.get("id") == rid), None)
+          def ruled_field(e):
+              # As combo-math.js ruledField: the field of the Race's ruler card by fpct (highest first, then address).
+              if type(e) is not dict or type(e.get("card")) is not str: return None
+              try: card = json.loads(e["card"])
+              except Exception: return None
+              rows = [p for p in (card.get("producers") if type(card) is dict and type(card.get("producers")) is list else []) if type(p) is dict and isaddr(p.get("a"))]
+              field = [p for p in rows if p.get("entry") is True and p.get("void") is not True and p.get("fpct") is not None and re.fullmatch(r"-?[0-9]+", str(p.get("fpct")))]
+              field.sort(key=lambda p: (-int(str(p["fpct"])), p["a"]))
+              sg = lambda v: v if type(v) in (int, float) and type(v) is not bool else 0
+              return [p["a"] for p in field], {p["a"]: sg(p.get("signed")) for p in field}, set(p["a"] for p in rows if p.get("void") is True)
+          def expected(l, ruled=False):
+              # As combo-math.js legResult; False when the source can't be read. ruled: the card's day is in an ON week of
+              # COMBO_RULER_FROM_WEEK (D-new A): race legs by the Race's ruler card.
+              if l[0] != 4:
+                  r = race_record(l[1])
+                  if r is False: return False
+                  res = r.get("result") if type(r) is dict else None
+                  if type(res) is not dict or res.get("final") is not True: return "pending"
+                  if ruled:
+                      if res.get("missed") or res.get("checked") != 2: return "unresolved"
+                      f = ruled_field(ruler_record(l[1]))
+                      if f is None: return "pending"
+                      order, signed, voided = f
+                      if l[2] in voided: return "miss"                           # D-164
+                      if not order: return "void"
+                      if l[2] not in order: return "void"
+                      i = order.index(l[2])
+                      if i > 0 and not (signed.get(l[2], 0) >= 1): return "miss"       # as the Race (D-033): the winner always counts
+                      need = 1 if l[0] == 1 else 3 if l[0] == 2 else len(order) // 2
+                      return "hit" if i < need else "miss"
+                  if res.get("missed") or res.get("void") or type(res.get("standings")) is not list or res.get("checked") != 2: return "unresolved"
+                  st = res["standings"]; i = next((k for k, x in enumerate(st) if type(x) is dict and x.get("a") == l[2]), -1)
+                  if i < 0: return "void"
+                  if not (type(st[i].get("steps")) in (int, float) and st[i]["steps"] > 0): return "miss"
+                  need = 1 if l[0] == 1 else 3 if l[0] == 2 else len(st) // 2
+                  return "hit" if i < need else "miss"
+              if not BX_TARGETS: return False                                  # (FC3-11: no Block X file read)
+              t = target_of(l[1])
+              if type(t) is not dict or t.get("final") is not True: return "pending"
+              if t.get("checked") != 2 or not isaddr(t.get("signer")): return "unresolved"
+              return "hit" if t["signer"] == l[2] else "miss"
+          # Fix-check 3 FC3-3: what a NEW final card shows is checked against what the published files give, as far as they
+          # can tell without the chain: the price card (the latest usable race card at most 3 hours before it was sent),
+          # each leg's result, a hit worth 0 only for a horse not in the field when sent, "unresolved" only with a reason
+          # the files show (or, for a Block X leg the files show as a hit, the chain's: a non-standard transfer or a held
+          # read), and a hit's settled time (when its last leg was decided).
+          def race_cards(t):
+              out = []
+              for w in ((t - GENESIS) // WEEK - 1, (t - GENESIS) // WEEK, (t - GENESIS) // WEEK + 1):
+                  if w not in RACE_FILES: RACE_FILES[w] = load(os.path.join(raced, "W%03d.json" % w)) if raced and os.path.isfile(os.path.join(raced, "W%03d.json" % w)) else None
+                  j = RACE_FILES[w]
+                  for r in (j.get("races") or [] if type(j) is dict else []):
+                      for c in (r.get("cards") or [] if type(r) is dict and type(r.get("cards")) is list else []):
+                          if type(c) is dict: out.append(c)
+              return out
+          def usable(c):
+              return type(c.get("at")) in (int, float) and type(c.get("field")) is list and len(c["field"]) > 0 and type(c.get("samples")) is int and c["samples"] >= 12
+          def flags(c, who):
+              return who is not None and (c.get("topInDoubt") is True or (type(c.get("flagged")) is list and who in c["flagged"]))
+          def price_card(t, who=None):
+              best = None
+              for c in race_cards(t):
+                  if usable(c) and not flags(c, who) and c["at"] <= t and t - c["at"] <= 3 * HOUR and (best is None or c["at"] > best["at"]): best = c
+              return best
+          in_field = lambda c, who: any(type(r) is dict and r.get("a") == who for r in c["field"])
+          def card_supported(c, day):
+              send = price_card(c["time"])
+              if (send["at"] if send else None) != c["priceAt"]: return "its price card isn't the latest usable race card before it was sent"
+              if c["priceAt"] is None: return None if all(l[4] == "void" for l in c["legs"]) else "an unpriced card with leg results"
+              deadline = GENESIS + ((day * DAY - GENESIS) // WEEK + 1) * WEEK + 2 * DAY
+              ends = []
+              for l in c["legs"]:
+                  e = expected(l, ruled_day(day))
+                  if e is False: return "its sources (race-data, Block X) can't be read here"
+                  sc = price_card(c["time"], l[2])
+                  if l[4] == "pending":
+                      if c["outcome"] == "miss": continue                      # a miss decides (FC2-3)
+                      return "a pending leg on a final card that didn't miss"
+                  if l[4] == "unresolved":
+                      race = l[0] != 4
+                      why = e == "unresolved" or sc is None or (e == "pending" and now >= deadline)
+                      if race and e == "hit" and price_card(l[1] * 6 * HOUR - 25 * 60000, l[2]) is None: why = True
+                      if not race and e == "hit": why = True                    # the chain's reasons (moved-VHP reads): the verify job asks both nodes (FC4-1)
+                      if not why: return "leg %s (round %s) is unresolved, but its sources give it a result (%s)" % (l[2], l[1], e)
+                      continue
+                  if l[4] != e: return "leg %s (round %s) is %s but its source shows %s" % (l[2], l[1], l[4], e)
+                  if sc is None:
+                      if l[4] == "miss" and l[3] == 0: continue                # (the recorder keeps a miss, worth 0)
+                      return "leg %s has a result, but no race card priced it when the card was sent" % l[2]
+                  if l[4] == "hit" and l[3] == 0 and not (l[0] != 4 and not in_field(sc, l[2])): return "a hit leg worth 0 whose producer was in the field"
+                  if l[4] != "void": ends.append((l[1] + 1) * 6 * HOUR if l[0] != 4 else (target_of(l[1]) or {}).get("time"))
+              if c["outcome"] == "hit":
+                  if not all(type(x) is int for x in ends) or c["settled"] != max(ends): return "its settled time isn't the time its last leg was decided"
+                  if not (c["time"] <= c["settled"] <= now): return "its settled time is outside its card's life"
+              return None
+          drops = []
+          new_days = sorted({part_of(f)[0] for f in names if part_of(f)})
+          for day in new_days:
+              files = [f for f in names if part_of(f) and part_of(f)[0] == day]
+              if any(("combo/" + f) in held for f in files): 
+                  for f in files: hold("combo/" + f, "another part of its day is held", True)
+                  continue
+              new = day_parts(d, day); old = day_parts(pub, day)
+              why = ""
+              j0 = load(os.path.join(d, "D%05d.json" % day)) if "D%05d.json" % day in names else None
+              want_parts = {"D%05d.json" % day if k == 0 else "D%05d-%d.json" % (day, k) for k in range(j0["parts"])} if type(j0) is dict and type(j0.get("parts")) is int else None
+              if want_parts is None: why = "a day part without its part 0"
+              elif set(files) != want_parts: why = "its parts aren't exactly the %s its part 0 names" % len(want_parts)
+              elif new is None: why = "its parts don't fit together (a player twice in a slot)"
+              elif old is None: why = "the published day can't be read"
+              elif not old and day < first_day: why = "a new file for a day before last week"
+              else:
+                  mine = {s["round"]: s for s in new}
+                  for s in old:
+                      n = mine.get(s["round"])
+                      if s["fixed"] is True:
+                          key = lambda cs: sorted(json.dumps([c.get("player"), [l[:3] for l in c.get("legs") or []], c.get("time"), c.get("changes")]) for c in cs)
+                          if n is None or n["fixed"] is not True or key(n["cards"]) != key(s["cards"]): why = "fixed slot %s changed" % s["round"]; break
+                      nc = {c["player"]: c for c in (n["cards"] if n else [])}
+                      bad = [c["player"] for c in s["cards"] if c["state"] == "final" and not same(nc.get(c["player"]), c)]
+                      if bad: why = "a final card of %s in slot %s changed" % (bad[0], s["round"]); break
+                  if not why:
+                      was = {(s["round"], c["player"]) for s in old for c in s["cards"] if c["state"] == "final"}
+                      for s in new:
+                          for c in s["cards"]:
+                              if c["state"] != "final" or (s["round"], c["player"]) in was: continue
+                              w2 = card_supported(c, day)
+                              if w2: why = "the new final card of %s in slot %s: %s" % (c["player"], s["round"], w2); break
+                          if why: break
+              if why:
+                  for f in files: hold("combo/" + f, why, True)
+              else:
+                  # Published parts this day no longer has are removed with it (FC3-5).
+                  for f in sorted(os.listdir(pub)):
+                      pf = part_of(f)
+                      if pf and pf[0] == day and f not in want_parts: drops.append("combo/" + f)
+          # Fix-check 2 FC2-4: a board for another week than this job's clock is an old (rewound) board.
+          if "combo/board.json" not in held and os.path.isfile(os.path.join(d, "board.json")):
+              bw = load(os.path.join(d, "board.json"))["week"]["week"]
+              if bw != cw and not (bw == cw - 1 and now - (GENESIS + cw * WEEK) < 2 * HOUR): hold("combo/board.json", "its week (%s) isn't this job's week (%s)" % (bw, cw), True)
+          # 2c. Last week's parts and the board agree (capacity standard, 13 Nov): every part the board's lastWeek names is
+          #     here and the recorder's shape, its week, start and final are the board's, and the board's top 100 are the
+          #     parts' first 100 rows. Anything else holds the board and the parts together, with an alert. Parts for any
+          #     other week are held. Published parts the week no longer has are removed with it.
+          incoming_l = [f for f in names if l_of(f)]
+          bj = load(os.path.join(d, "board.json")) if os.path.isfile(os.path.join(d, "board.json")) else None
+          blw = bj.get("lastWeek") if type(bj) is dict and "combo/board.json" not in held else None
+          lw_week = blw["week"] if type(blw) is dict else None
+          for f in incoming_l:
+              if l_of(f)[0] != lw_week: hold("combo/" + f, "not the board's last week (%s)" % lw_week, True)
+          if type(blw) is dict:
+              m = l_merge(d, lw_week, held)
+              why = None
+              if m is None: why = "its L%d parts are missing, held or not one board" % lw_week
+              else:
+                  j0, rows = m
+                  if not (same(j0["parts"], blw["parts"]) and j0["final"] is blw["final"] and same(j0["start"], blw["start"])): why = "its L%d parts don't match the board's last week" % lw_week
+                  elif not same(rows[:100], blw["rows"]): why = "the board's top 100 of last week aren't the L%d parts' first rows" % lw_week
+              if why:
+                  hold("combo/board.json", why, True)
+                  for f in incoming_l: hold("combo/" + f, why, True)
+              else:
+                  for f in sorted(os.listdir(pub)):
+                      lf = l_of(f)
+                      if lf and lf[0] == lw_week and lf[1] >= blw["parts"]: drops.append("combo/" + f)
+          # Fix-check FC-23 (Block X BX-96): index.json's day list is append-only; new days only last week or this week.
+          pi = load(os.path.join(pub, "index.json")) if os.path.isfile(os.path.join(pub, "index.json")) else None
+          if type(pi) is dict and type(pi.get("days")) is list and os.path.isfile(os.path.join(d, "index.json")) and "combo/index.json" not in held:
+              ni = load(os.path.join(d, "index.json"))
+              lost = [x for x in pi["days"] if x not in ni["days"]]
+              added = [x for x in ni["days"] if x not in pi["days"] and not (type(x) is int and first_day <= x <= today)]
+              if lost or added: hold("combo/index.json", ("published days %s are missing" % lost[:5]) if lost else ("new days %s aren't last week or this week" % added[:5]), True)
+          # 3. Vault files: write-once, only for the week that just ended within the Vault's 3 days by this job's clock,
+          #    and exactly the staked players with 1+ point of the PUBLISHED final board, whose points must equal the
+          #    PUBLISHED day files' final cards (fix-check FC-6), mapped by board place (FC-17).
+          vdir = os.path.join(d, "vault")
+          pb = load(os.path.join(pub, "board.json")) if os.path.isfile(os.path.join(pub, "board.json")) else None
+          plw = pb.get("lastWeek") if type(pb) is dict else None
+          for f in (sorted(os.listdir(vdir)) if os.path.isdir(vdir) else []):
+              name = "combo/vault/" + f
+              j = load(os.path.join(vdir, f))
+              if not (type(j) is dict and set(j) == {"game", "week", "final", "rows", "first", "second"} and same(j["game"], 8) and nat(j["week"]) and f == "W%d.json" % j["week"]
+                      and j["final"] is True and type(j["first"]) is list and type(j["second"]) is list and all(isaddr(a) for a in j["first"] + j["second"])
+                      and type(j["rows"]) is list and len(j["rows"]) <= 100000
+                      and all(type(r) is dict and set(r) == {"player", "points"} and isaddr(r["player"]) and type(r["points"]) is int and 1 <= r["points"] <= 255 for r in j["rows"])
+                      and len({r["player"] for r in j["rows"]}) == len(j["rows"])):
+                  hold(name, "not the Vault file's shape", True); continue
+              w = j["week"]; end = GENESIS + (w + 1) * WEEK
+              if os.path.isfile(os.path.join(pub, "vault", f)): continue                  # write-once: the push step skips it
+              # D-081: its stake flags (Staked, Free play prize) confirmed by the verify job against the Vault (two nodes).
+              if os.environ.get("COMBO_VERIFY") == "required" and ok_files.get("vault/" + f) != hashlib.sha256(open(os.path.join(vdir, f), "rb").read()).hexdigest():
+                  hold(name, "not confirmed by the verify job (its stake flags; see its log)", False); continue
+              if w != cw - 1 or not (end <= now <= end + 3 * DAY): hold(name, "not the week that just ended, within the Vault's 3 days, by this job's clock", w != cw); continue
+              if not (type(plw) is dict and board_ok(pb) and same(plw["week"], w) and plw["final"] is True and now >= end + 12 * HOUR): hold(name, "its week isn't final on the published board yet", False); continue
+              truth = week_board(w)
+              if truth is None: hold(name, "a published day file of its week isn't the recorder's shape", True); continue
+              # Every row of the week (the published L<week> parts; the board keeps the top 100 only).
+              pl = l_merge(pub, w)
+              if pl is None or not same(pl[0]["parts"], plw["parts"]) or pl[0]["final"] is not True: hold(name, "its week's published L%d parts are missing or don't match the board" % w, False); continue
+              rows = {r["a"]: r for r in pl[1]}
+              wrong = [t["a"] for t in truth if t["pts"] >= MIN_WEEK_PTS and not (t["a"] in rows and same(rows[t["a"]]["pts"], t["pts"]) and same(rows[t["a"]]["place"], t["place"]))]
+              wrong += [a for a, r in rows.items() if r["pts"] >= MIN_WEEK_PTS and not any(t["a"] == a for t in truth)]
+              if wrong: hold(name, "the published board's last week doesn't match the published final cards (e.g. %s)" % wrong[0], True); continue
+              ok = [t for t in truth if t["pts"] >= MIN_WEEK_PTS and rows[t["a"]]["staked"] is True]
+              distinct = sorted({t["place"] for t in ok}); rank = {pl: max(1, 255 - i) for i, pl in enumerate(distinct)}
+              want = [{"player": t["a"], "points": rank[t["place"]]} for t in ok]
+              if not same(j["rows"], want): hold(name, "its rows aren't the published final board's staked players with 1+ point, by place", True); continue
+              # D-081: first / second, the Free play board's winners (combo-math.js freeWinners): players the published
+              # board shows as not staked (False) and never staked that week (free True), with 1+ point and cards on 3+
+              # days, ranked as the board; ties share a place; 2nd only when one wallet holds 1st; a place over 10 wallets
+              # pays the first 10 by address (D-159). (The stake flags themselves are confirmed by the verify job against the Vault, two nodes.)
+              free = [t for t in truth if rows.get(t["a"], {}).get("staked") is False and rows.get(t["a"], {}).get("free") is True and t["pts"] >= MIN_WEEK_PTS and t["days"] >= 3]
+              groups = []
+              for t in free:
+                  if groups and (groups[-1][0]["pts"], groups[-1][0]["hits"], groups[-1][0]["lastHit"]) == (t["pts"], t["hits"], t["lastHit"]): groups[-1].append(t)
+                  elif len(groups) < 2: groups.append([t])
+                  else: break
+              w1 = sorted(t["a"] for t in groups[0]) if groups else []
+              w2 = sorted(t["a"] for t in groups[1]) if len(groups) > 1 and len(w1) == 1 else []
+              w1 = w1[:10]; w2 = w2[:10]                                        # D-159 (FC4-3): more than 10 tied pays exactly 10, by address
+              if not (same(j["first"], w1) and same(j["second"], w2)): hold(name, "its first / second aren't the published Free play board's top 2", True); continue
+          open(heldf, "w").write("".join(x + "\n" for x in held))
+          open(heldf + ".drop", "w").write("".join(x + "\n" for x in drops))
+          print("combo files checked")
+          PY
+          shopt -s nullglob
+          # Day parts a day no longer has (fix-check 3 FC3-5): removed in the same commit as the day's part 0.
+          while IFS= read -r name; do
+            [[ "$name" =~ ^combo/(D[0-9]{5}-[0-9]{1,3}|L[0-9]{1,6}-[1-9][0-9]{0,3})\.json$ ]] && git update-index --force-remove "$name"
+          done < "$HELD.drop"
+          for f in "$IN"/combo/*.json "$IN"/combo/vault/*.json; do
+            name="${f#"$IN"/}"
+            if grep -qxF "$name" "$HELD"; then continue; fi
+            if [[ "$name" =~ /vault/W[0-9]+\.json$ ]] && git cat-file -e ":$name" 2>/dev/null; then
+              # A Vault file is written once and never replaced; one that differs is an alert.
+              if [ "$(git hash-object "$f")" != "$(git rev-parse ":$name")" ]; then echo "::error::$name differs from the published file: not replaced."; echo '!alert' >> "$HELD"; fi
+              continue
+            fi
+            blob=$(git hash-object -w "$f")
+            git update-index --add --cacheinfo 100644 "$blob" "$name"
+          done
+          tree=$(git write-tree)
+          if [ -n "$parent" ] && [ "$tree" = "$(git rev-parse "$parent^{tree}")" ]; then echo "No changes."
+          else
+            export GIT_AUTHOR_NAME=kpred-bot GIT_AUTHOR_EMAIL=kpred-bot@users.noreply.github.com GIT_COMMITTER_NAME=kpred-bot GIT_COMMITTER_EMAIL=kpred-bot@users.noreply.github.com
+            commit=$(git commit-tree "$tree" ${parent:+-p "$parent"} -m "games: record combo")
+            # One try: if another job pushed games-data in between, this run's files go out with the next run (the
+            # checks above were made against this parent, so a retry would have to repeat them).
+            if ! git push -q "$remote" "$commit:refs/heads/games-data"; then echo "::warning::games-data moved while publishing; the next run publishes these files."; fi
+          fi
+          if grep -qxF '!alert' "$HELD"; then echo "::error::A file was held, or a published file needs your check (see the errors above); everything else was published."; exit 1; fi
+          echo "Combo files published."

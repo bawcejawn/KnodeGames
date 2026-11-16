@@ -206,6 +206,7 @@ const WRITES = {
   "race.yml": { publish: ["contents"] }, "race-samples.yml": { publish: ["contents"] }, "names.yml": { publish: ["contents"] }, "stats.yml": { publish: ["contents"] },
   "vhp-ruler.yml": { publish: ["contents"] },   // the VHP ruler pushes only its vhp-data branch (R-RULER-1)
   "golf.yml": { publish: ["contents"] },        // Block Golf pushes only games-data/golf, like games.yml (R-GO-3)
+  "combo.yml": { publish: ["contents"] },       // Combo Card pushes only games-data/combo, after the read-only verify job (FC3-3)
 };
 const onOf = (doc) => doc && (doc.on ?? doc[true] ?? doc["true"]);
 const jobsOf = (doc) => Object.entries((doc && doc.jobs) || {});

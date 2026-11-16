@@ -976,11 +976,12 @@ test("R-BX-25: week 3 on game 2 (every 2,400 blocks), week 4 on hourly game 12 (
 });
 
 test("R-BX-25: the mainnet schedule, the page and the tool agree on game 12", () => {
-  assert.deepEqual(plain(X.MAINNET_HOURLY), { id: 12, round: 1200, offset: 0, lead: 100, ahead: 28900, picksPerDay: 48, maxChanges: 1 });
+  assert.deepEqual(plain(X.MAINNET_HOURLY), { id: 12, round: 1200, offset: 0, lead: 100, ahead: 14500, picksPerDay: 48, maxChanges: 1 }, "owner 14 Nov: picks open at most 12 hours ahead (tighten 12 --ahead 14500)");
   assert.equal(X.HOURLY_FROM_WEEK, 3); assert.equal(M.weekStart(3), Date.UTC(2026, 10, 9), "owner 5 Nov: from Mon 9 Nov 2026 00:00 UTC (Week 1)");
   assert.equal(X.scheduleOf(2).game.id, 2); assert.equal(X.scheduleOf(3).game.id, 12); assert.equal(X.VAULT_GAME, 2);
   const G12 = X.forGame(X.MAINNET_HOURLY);
-  assert.equal(G12.openRounds(48_000_000).length, 24, "24 open targets a day ahead");
+  assert.equal(G12.openRounds(48_000_000).length, 12, "owner 14 Nov: 12 open targets, 12 hours ahead");
+  for (let h = 48_000_000; h < 48_000_000 + 1200; h += 7) assert.equal(G12.openRounds(h).length, 12, "exactly 12 open at every height (14,500 − 100 = 12 × 1,200)");
   const src = fs.readFileSync(path.resolve(APP, "bot/games/blockx.ts"), "utf8");
   assert.match(src, /schedule: X\.MAINNET_SCHEDULE as any, vaultGame: X\.VAULT_GAME/, "the mainnet run uses the schedule");
 });

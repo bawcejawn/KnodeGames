@@ -1,25 +1,5 @@
 /* Phone navigation: the bottom tab bar (Games · Leaders · Results · Swap · More, written by tools/site-nav.mjs) and the "More" sheet with every other page.
    Marks the tab for the page you're on, and opens/closes the sheet. No data, no storage, no network. */
-/* The test week (owner, 9 Nov 2026: "Week 1 = Mon 16"): during the week of Mon 9 Nov every game page and the Stake page
-   say it pays nothing. The banner shows only between these two times and is never stored or sent anywhere. */
-(function () {
-  "use strict";
-  const FROM = Date.UTC(2026, 10, 9), UNTIL = Date.UTC(2026, 10, 16);   // Mon 9 Nov 00:00 UTC to Mon 16 Nov 00:00 UTC
-  const PAGES = ["index.html", "race.html", "blockx.html", "golf.html", "games.html", "stake.html"];
-  const page = location.pathname.split("/").pop() || "index.html";
-  const now = Date.now();
-  if (!PAGES.includes(page) || now < FROM || now >= UNTIL) return;
-  const main = document.querySelector("main");
-  if (!main || main.querySelector(".test-week")) return;
-  const p = document.createElement("p");
-  p.className = "test-week";
-  p.setAttribute("role", "note");
-  const b = document.createElement("b");
-  b.textContent = "Test week:";
-  p.append(b, " no rewards; this week's earnings go to Week 1's pool. Week 1 starts Monday 16 November.");
-  main.prepend(p);
-})();
-
 /* Fantasy's free test week (owner, 14 Nov 2026: "week 4 is a free test week; week 5, from Sun 22 Nov 7 PM ET, is the
    first real week"). The banner shows on Home, All games and the Fantasy page only during week 4 (Mon 16 Nov 00:00 UTC
    to Mon 23 Nov 00:00 UTC = Sun 15 Nov 7 PM ET to Sun 22 Nov 7 PM ET). Never stored or sent anywhere. */

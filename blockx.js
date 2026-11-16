@@ -146,7 +146,7 @@
   /** R-BX-25: only rounds inside the shown game's weeks, 10 minutes clear of either edge (a block can land a little early
    *  or late; one that lands in the other game's weeks isn't scored). */
   const inPlay = (r) => { const t = about(G.target(r)); return t >= PERIOD.from + 10 * 60000 && t < PERIOD.to - 10 * 60000; };
-  const MAX_OPEN = 12;   // owner, 14 Nov: show at most 12 open targets; when one locks, the next hour joins (the contract still opens about 24)
+  const MAX_OPEN = 12;   // owner, 14 Nov: show at most 12 open targets; when one locks, the next hour joins (on chain too: tighten 12 --ahead 14500)
   const offer = () => G.offerRounds(head.height).filter(inPlay).slice(0, MAX_OPEN);
 
   // ── the producers and their multipliers ──
@@ -160,12 +160,28 @@
         if (c) { card = c; cardAt = c.at; }
         return;
       }
-      const ra = M.raceAt(now), w = M.weekOf(ra.start);
-      const wf = await fetchJson(`${NET.raceData}W${String(w).padStart(3, "0")}.json`);
-      const race = wf && Array.isArray(wf.races) ? wf.races.find((r) => r && r.id === ra.id) : null;
-      const c = race && Array.isArray(race.cards) ? M.cardForLeg(race.cards, M.legOf(ra.start, now, M.legsOf(race.cards))) : null;
-      if (c && Array.isArray(c.field) && c.field.length) { card = c; cardAt = now; }
-    } catch { /* keep the last card */ }
+      // Late-card rule (audit BX-24; incident Sat 14 Nov 2026): the card in force now, by the recorder's own rule
+      // (X.cardInForce: the latest usable card of this race or the one before, taken at most 3 hours ago). When this
+      // leg's card is late, the producers come from the last card the race has; none left, no chips.
+      const races = [M.raceAt(now), M.raceAt(now - M.RACE)], files = new Map();
+      for (const ra of races) {
+        const w = M.weekOf(ra.start);
+        if (!files.has(w)) files.set(w, fetchJson(`${NET.raceData}W${String(w).padStart(3, "0")}.json`).catch(() => undefined));
+      }
+      const all = [];
+      let failed = false;
+      for (const ra of races) {
+        const wf = await files.get(M.weekOf(ra.start));
+        if (wf === undefined) { failed = true; continue; }
+        const race = wf && Array.isArray(wf.races) ? wf.races.find((r) => r && r.id === ra.id) : null;
+        if (race && Array.isArray(race.cards)) all.push(...race.cards);
+      }
+      const c = X.cardInForce(all, now, X.MIN_CARD_SAMPLES);
+      if (c) { card = c; cardAt = c.at; }
+      else if (!failed) { card = null; cardAt = 0; }
+    } catch { /* keep the last card (while it is still in force, below) */ }
+    // A card kept from an earlier load stops once it is 3 hours old, as the recorder's (BX-24).
+    if (!TESTNET && card && !(card.at <= now && now - card.at <= X.CARD_MAX_AGE_MS)) { card = null; cardAt = 0; }
   }
   function producers() {
     // Audit BX-24: on mainnet, pick only from the handicap card (the recorder scores from it); no card, no chips.
@@ -263,6 +279,8 @@
     whoLine.replaceChildren();
     if (!card && ps.length) whoLine.append("Showing the producers signing right now. Multipliers appear with the first handicap card (the recorder takes one within the hour).");
     if (!card && !TESTNET && picksContract && rounds.length) whoLine.append("Picks open when the next handicap card is published (within the hour).");
+    // Late-card rule: the producers come from a card more than 2 hours old (the race recorder is late).
+    if (card && !TESTNET && Date.now() - card.at > X.CARD_LATE_MS) whoLine.append(el("span", { class: "bx-late", text: `Producers from the last handicap card (${dayTime(card.at)}); the next card is late. ` }));
     if (funs) whoLine.append(el("span", { class: "bx-rest", text: " Sunday is review day: results are checked and paid from Monday. Sunday (UTC) targets are fun rounds: they count on Today and All time, not the week." }));
     // R-BX-25: once the every-2-hours game's last target has passed, point to the hourly game.
     const ended = PERIOD.to !== Infinity && about(head.height) >= PERIOD.to - 10 * 60000 - G.LEAD * X.BLOCK_MS;

@@ -41,12 +41,10 @@ test("the pages that show weeks use the shared labels", () => {
   assert.doesNotMatch(idx, /once the Knode Games vault is live/);
 });
 
-test("the test week banner: on every game page and the Stake page, only from Mon 9 to Mon 16 Nov 2026 UTC", () => {
+test("the test week banner (Mon 9 to Mon 16 Nov 2026) is gone after its week (owner, 15 Nov); Fantasy's week-4 banner stays", () => {
   const nav = fs.readFileSync(`${APP}/nav.js`, "utf8");
-  assert.match(nav, /const FROM = Date\.UTC\(2026, 10, 9\), UNTIL = Date\.UTC\(2026, 10, 16\);/);
-  assert.match(nav, /const PAGES = \["index\.html", "race\.html", "blockx\.html", "golf\.html", "games\.html", "stake\.html"\];/);
-  assert.match(nav, /no rewards; this week's earnings go to Week 1's pool/);
-  assert.match(nav, /now < FROM \|\| now >= UNTIL\) return;/);
+  assert.doesNotMatch(nav, /Date\.UTC\(2026, 10, 9\)/);
+  assert.doesNotMatch(nav, /Test week:|Week 1 starts Monday 16 November/);
+  assert.match(nav, /const FX_FROM = Date\.UTC\(2026, 10, 16\), FX_UNTIL = Date\.UTC\(2026, 10, 23\);/, "Fantasy's banner is untouched");
   assert.doesNotMatch(nav, /innerHTML|localStorage|fetch\(/);
-  for (const p of ["index.html", "race.html", "blockx.html", "golf.html", "games.html", "stake.html"]) assert.match(fs.readFileSync(`${APP}/${p}`, "utf8"), /src="nav\.js"/, `${p} loads nav.js`);
 });

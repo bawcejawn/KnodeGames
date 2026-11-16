@@ -136,6 +136,8 @@
     .rt-pc { display: flex; flex-direction: column; text-align: center; line-height: 1.15; }
     .rt-pc span { font-weight: 400; font-size: 11px; }
     img.pr-horse { width: 40px; height: 40px; object-fit: contain; transform: none; font-size: 0; }
+    /* owner 15 Nov: the horse was hard to see on the light-green track: a white outline and a darker shadow */
+    img.pr-horse { filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 2px 3px rgba(0, 0, 0, .5)); }
     .pr-step img.pr-horse { animation: hop2 .5s ease; }
     @keyframes hop2 { 40% { transform: translateY(-6px); } }
     @media (prefers-reduced-motion: reduce) { .pr-step img.pr-horse { animation: none; } }
@@ -230,10 +232,9 @@
     #history { border-top: 6px solid var(--violet); }
     .pr-viewbar { margin-top: -4px; }
     .pr-viewbar button[aria-pressed="true"] { background: #23845E; }
-    /* Pack view: no finish flag, no time shade (the strip under the lane is the real progress) */
+    /* Pack view: no finish flag, no time shade, no hour marks (position is the gap, not the time) */
     .pr-run.pack::after, .pr-run.pack .pr-shade, .pr-run.pack .pr-nowline { display: none; }
-    .pr-true { position: absolute; left: 0; bottom: 0; height: 4px; background: var(--ink); opacity: .35; border-radius: 0 3px 3px 0; transition: width 1.2s ease; pointer-events: none; }
-    .pr-run:not(.pack) .pr-true { display: none; }
+    .pr-packlbl { font-size: 11px; color: var(--muted); text-align: center; align-self: end; padding-bottom: 4px; letter-spacing: .02em; }
     .pr-rank { color: var(--ink); }
     .pr-lane.lead .pr-rank { color: #b07a00; }
     .rc-rules details { border-top: 1px solid var(--line); }
@@ -269,11 +270,27 @@
       .pr-run { height: 46px; }
       .pr-gap { font-size: 12px; line-height: 1.35; }
       .pr-viewbar, #r6-win { gap: 5px; margin-bottom: 8px; }
-      .pr-viewbar .rt-wl, #r6-win .rt-wl { font-size: 12px; width: 100%; margin: 0; }
+      #r6-win .rt-wl { font-size: 12px; width: 100%; margin: 0; }
+      .pr-viewbar .rt-wl { font-size: 12px; margin: 0 2px 0 0; min-width: 34px; }
       .pr-viewbar button, #r6-win button { font-size: 12.5px; padding: 4px 10px; }
       #live h2#race-title { font-size: 17px; line-height: 1.3; }
       .pr-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
       .clock-legs { font-size: 11px; }
+    }
+    /* owner 15 Nov: signed-in phones. The pick columns get a desktop grid from race.js's inline style; on a phone each
+       lane becomes: name + gap on top, the full-width track, then the three Pick buttons in a row (time on the button). */
+    .rt-pk-t { display: none; }
+    @media (max-width: 640px) {
+      #track { overflow-x: visible; }
+      #track .pr-headrow.rt-head { display: none; }
+      #track .pr-lane.rt-lane { min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; grid-template-areas: none; gap: 6px 8px; }
+      #track .pr-lane.rt-lane > .pr-who { grid-column: 1 / 3; grid-row: 1; }
+      #track .pr-lane.rt-lane > .pr-gap { grid-column: 3; grid-row: 1; align-self: start; }
+      #track .pr-lane.rt-lane > .pr-run { grid-column: 1 / -1; grid-row: 2; }
+      #track .pr-lane.rt-lane > .rt-pk { grid-row: 3; padding: 6px 0 5px; display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
+      .rt-pk-t { display: block; font-size: 11px; font-weight: 600; opacity: .75; }
+      .pr-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+      .pr-who { flex-wrap: wrap; row-gap: 4px; }
     }
   </style>
 </head>
@@ -295,6 +312,7 @@
             <a href="bracket.html">Producer Bracket</a>
             <a href="golf.html">Block Golf</a>
             <a href="fantasy.html">Fantasy Producers · Test weeks</a>
+            <a href="combo.html">Combo Card · Preview</a>
           </div>
         </details>
         <a href="index.html#leaderboard">Leaderboards</a>
@@ -425,7 +443,7 @@
       <details><summary>The races</summary><p>Every Koinos block producer is a horse. Each block it signs moves it forward, and smaller producers get a handicap so every horse has the same chance. Four 6-hour races a day, every day, starting at 00:00, 06:00, 12:00 and 18:00 UTC. Free, just for fun.</p></details>
       <details><summary>Points, boards and prizes</summary><p><span id="pts-note">A pick on the winner is a win (3 points). A pick on the horse that finishes 2nd or 3rd is a show (1 point).</span> Ranked by points; ties go to more wins, then more picks placed. Wallets still tied share the place. <b>Who gets paid:</b> on the Staked board, exactly the top 30% of staked players with a point share the Race's bucket, and tied wallets share their level. If a tie crosses that line, the wallets that reached the score first (their last scoring pick was earlier) get the spots. On the Free play board, 1st and 2nd each go to at most 10 wallets, with ties broken the same way. Weeks are Knode Games weeks (Monday 00:00 UTC). Races run every day. Monday to Saturday count for the week. <b>Sunday is review day</b>: the week's results are checked on chain while you keep playing. Sunday's races are <b>fun races</b>: they score on the Today and All time boards, but never on a week's board, medals or prizes. The week's results go final from Monday 00:00 UTC, and rewards can be claimed from Monday evening (Americas) / Tuesday UTC. The <b>Staked</b> board is for wallets with VHP staked in the Producer Race that week; they share the Race's weekly reward bucket. Everyone else plays on the <b>Free play</b> board, where 1st and 2nd win the weekly free-play prize (2 VHP and 1 VHP). Prizes and bucket shares are paid from Week 1 (the week of Mon 16 Nov); winners claim them from the vault. If your Race stake drops below 1 VHP during a week, you sit out that week's share (your VHP stays yours and can always be withdrawn).</p></details>
       <details><summary>Results</summary><p>Results are final once every block of the race is irreversible and matches on two independent Koinos nodes, the same check the question game uses. Days are UTC days; weeks are the Knode Games weeks.</p></details>
-      <details><summary>Reading the board</summary><p>Each lane is a producer, in a fixed order (most VHP first), so the line-up never jumps around. <b>Pack view</b> zooms in on the pack: last place at the left, the leader at the right, so you can see who is ahead; the thin strip under each lane is its real progress to the 6-hour finish. <b>Whole race</b> shows the track from the start line to the finish, with the time passed shaded. The ▲ / ▼ pills are places gained or lost over the last 1 or 3 hours, or since the last race (against where each producer finished it).</p></details>
+      <details><summary>Reading the board</summary><p>Each lane is a producer, in a fixed order (most VHP first), so the line-up never jumps around. <b>Pack view</b> zooms in on the pack: last place at the left, the leader at the right, so you can see who is ahead. <b>Whole race</b> shows the track from the start line to the finish, with the time passed shaded. The ▲ / ▼ pills are places gained or lost over the last 1 or 3 hours, or since the last race (against where each producer finished it).</p></details>
       <details><summary>Handicap: same speed</summary><p>Koinos picks who signs each block in proportion to VHP, so a producer with a third of the leader's VHP signs about a third as many blocks. It moves 3 steps per block, which gives every horse the same expected speed. The biggest producer always moves exactly 1 step per block.</p></details>
       <details><summary>Handicap: same chance</summary><p>A small producer's few blocks come in lucky and unlucky bursts, which would let the smallest horses win most races. A luck trim evens that out:</p><p><code>steps per block = (biggest VHP ÷ your VHP) × (1 − c ÷ √k) ÷ (1 − c ÷ √k of the biggest)</code></p><p>Here <i>k</i> is how many blocks a producer is expected to sign in a 6-hour race (luck in <i>k</i> blocks is about √<i>k</i>). <i>c</i> is re-tuned on every card by thousands of simulated races (the same ones for everyone) to the value where each horse's chance of winning is as equal as it gets.</p></details>
       <details><summary>Handicap: six cards per race</summary><p>The handicap is set from VHP at the start and updated every hour. Each card applies to the blocks signed in its hour, so moving VHP around during a race buys at most an hour. Cards are recorded publicly by the race recorder.</p></details>
@@ -448,6 +466,7 @@
       <a href="bracket.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h5v4H4zM4 15h5v4H4zM15 10h5v4h-5z"></path><path d="M9 7h3v10H9M12 12h3"></path></svg><span>Producer Bracket</span></a>
       <a href="golf.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 21V4l9 4-9 4"></path><path d="M4 21h8"></path></svg><span>Block Golf</span></a>
       <a href="fantasy.html"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"></circle><circle cx="5" cy="10" r="2"></circle><circle cx="19" cy="10" r="2"></circle><circle cx="8" cy="18" r="2"></circle><circle cx="16" cy="18" r="2"></circle></svg><span>Fantasy Producers · Test weeks</span></a>
+      <a href="combo.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 6v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-6z"></path><path d="M14 5v14"></path></svg><span>Combo Card · Preview</span></a>
       <a href="index.html#results"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"></path><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"></path></svg><span>Results</span></a>
       <a href="index.html#how"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><path d="M9 9h6M9 13h6"></path></svg><span>Rules</span></a>
       <p class="ms-h">Tools</p>

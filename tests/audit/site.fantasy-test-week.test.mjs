@@ -47,8 +47,7 @@ test("Fantasy page note and the games list say week 4 is a free test and the fir
   assert.match(f.line, /Free test week now; first real week starts Sun 22 Nov, 7 PM ET\.$/);
 });
 
-test("the old Test-week banner (Mon 9 to Mon 16 Nov) is unchanged and the two never show together", () => {
-  assert.equal(run("index.html", "2026-11-12T12:00:00Z").length, 1);
-  assert.equal(run("index.html", "2026-11-12T12:00:00Z")[0][0], "test-week");
+test("only the Fantasy banner is left: nothing shows in the old test week (its banner is gone), Fantasy's shows from Mon 16 Nov", () => {
+  assert.equal(run("index.html", "2026-11-12T12:00:00Z").length, 0);
   assert.deepEqual(run("index.html", "2026-11-16T00:00:00Z").map(([c]) => c), ["test-week fx-test-week"]);
 });

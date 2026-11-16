@@ -1,7 +1,7 @@
 /* Knode Games: what players call a week (D-063). On chain and in every file a week is the vault week number, counted
    from Mon 19 Oct 2026 00:00 UTC (week 0). Players see the week of Mon 16 Nov 2026 (vault week 4) as "Week 1", the
    first week that pays, and count on from there (owner, 9 Nov 2026: "Week 1 = Mon 16"). The week of Mon 9 Nov (vault
-   week 3) is the "Test week": it pays nothing and its earnings go to Week 1's pool. Earlier weeks are shown by their
+   week 3) is the "Test week": it paid nothing and its rewards rolled into Week 1's pool. Earlier weeks are shown by their
    date ("Week of 2 Nov") so nobody reads them as paying weeks. The table of all labels is in .ai/platform/KOINOS.md → Time.
    KWeeks.label(w) → "Week 1" / "Test week" / "Week of 2 Nov"; KWeeks.short(w) → "1" / "Test" / "2 Nov" (for
    "This week (…)" buttons). KWeeks.isTest(w): the test week. */

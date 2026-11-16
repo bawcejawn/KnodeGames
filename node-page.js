@@ -250,7 +250,16 @@
   function hours(mineTs, expPerHourOfDay, spanH) {
     const show = spanH >= 47;
     $("hours-card").hidden = false;
-    if (!show) { $("hours").replaceChildren(); $("hours-sub").textContent = "Pick the last 3 or 7 days to see whether quiet spells fall at the same time each day."; $("hours-note").textContent = ""; return; }
+    const axis = document.querySelector("#hours-card .axis");
+    if (!show) {
+      // Owner, 16 Nov (H-B8): the card looked dead on the 24-hour window. Offer the longer windows right here.
+      if (axis) axis.hidden = true;
+      $("hours-sub").textContent = "A day is too short to see a pattern. See whether quiet spells fall at the same time each day:";
+      $("hours").replaceChildren(el("div", { class: "nd-quick hours-pick" }, ...[["86400", "Last 3 days"], ["201600", "Last 7 days"]].map(([v, label]) => {
+        const b = el("button", { type: "button" }, label); b.onclick = () => { $("win").value = v; $("win").dispatchEvent(new Event("change")); }; return b; })));
+      $("hours-note").textContent = ""; return;
+    }
+    if (axis) axis.hidden = false;
     const c = new Array(24).fill(0); for (const t of mineTs) c[new Date(t).getHours()]++;
     const max = Math.max(1, expPerHourOfDay * 1.5, ...c), W = 960, H = 120, bw = W / 24;
     const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");

@@ -39,6 +39,7 @@
     .gk-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
     .gk-step { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px; box-shadow: var(--shadow); display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 4px 14px; }
     .gk-num { grid-row: span 3; width: 40px; height: 40px; border-radius: 50%; background: var(--ink); color: var(--surface); display: grid; place-items: center; font-family: var(--display); font-weight: 800; font-size: 18px; }
+    .gk-step > :not(.gk-num) { grid-column: 2; }   /* H-B9 (owner, 16 Nov): a 4th line fell into the 40px number column */
     .gk-step h2 { margin: 0; font-size: 18px; font-family: var(--display); }
     .gk-step p { margin: 4px 0 0; color: var(--muted); }
     .gk-routes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }

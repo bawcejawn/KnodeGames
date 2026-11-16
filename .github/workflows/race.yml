@@ -828,6 +828,34 @@ jobs:
               return None
 
 
+
+          def effective_schedule(all_, own, kind="mode"):
+              """as effectiveSchedule in vhp-ruler.js: the game's own schedule when set (it replaces the all-games one), else the
+              all-games schedule, else None; both checked strictly. kind: "mode" or "version"."""
+              if kind not in ("mode", "version"):
+                  raise ValueError('the schedule kind must be "mode" or "version"')
+              parse = mode_schedule if kind == "mode" else version_schedule
+              parse(all_)
+              parse(own)
+              if own is not None and own != "":
+                  return own
+              if all_ is not None and all_ != "":
+                  return all_
+              return None
+
+
+          def card_mode(week, schedule):
+              """as cardMode: the mode a card's settings carry for the week, or None for A (the key left out)."""
+              m = mode_at(week, "" if schedule is None else schedule)
+              return None if m == "A" else m
+
+
+          def card_version(week, schedule):
+              """as cardVersion: the version a card's settings carry for the week, or None for 4 (the key left out)."""
+              v = version_at(week, "" if schedule is None else schedule)
+              return None if v == RULE_VERSION else v
+
+
           def card_json(card):
               c = dict(card)
               for k in _BIG_TOP:

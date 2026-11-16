@@ -10,8 +10,10 @@ This Worker checks whether the ruler's data job, the two recorders and the race'
 | :41 | `race.yml` | :37 |
 | :51 | `games.yml` | :47 |
 | :07 and :37 | `race-samples.yml` (the race's VHP samples, which the race cards use) | every 15 minutes |
+| :07 and :37 | `kit-games.yml` (the Shared Game Kit's games, Fantasy; its jobs were in `games.yml` until Mon 16 Nov) | :57 |
 
-- **"Ran":** a run of that workflow on `main` created in the last 30 minutes. That counts a scheduled run, a manual run, or one this Worker started.
+- **"Ran":** a run of that workflow on `main` created in the last 30 minutes (45 for `kit-games.yml`, so a normal :57 run is never doubled). That counts a scheduled run, a manual run, or one this Worker started.
+- **A trigger it doesn't know** (for example one typed as `37,7 * * * *`) is an error: the run shows as failed in Cloudflare and Logs says `no job for cron …`.
 - **What stays as it is:** GitHub's timers stay on. The workflows' concurrency groups make sure two runs never overlap.
 - **What it never touches:** files, settings and the workflows themselves.
 - **No web address:** the Worker has no working web page, so nobody can start a run through it.
@@ -34,7 +36,7 @@ This Worker checks whether the ruler's data job, the two recorders and the race'
 5. Go to **Settings** → **Trigger Events** (called "Cron Triggers" in some views) → **Add**. Add `22 * * * *`, then `41 * * * *`, then `51 * * * *`, then `7,37 * * * *`. Save.
 
 **3. Check it** (the next hour)
-- In Cloudflare, open **kg-dispatch** → **Logs**. At :41 and :51 you should see `kg-dispatch: race.yml: already ran this hour …` (or `… started one`), and the same for `games.yml`; at :22, for `vhp-ruler.yml`; at :07 and :37, for `race-samples.yml`.
+- In Cloudflare, open **kg-dispatch** → **Logs**. At :41 and :51 you should see `kg-dispatch: race.yml: already ran in the last 30 minutes …` (or `… started one`), and the same for `games.yml`; at :22, for `vhp-ruler.yml`; at :07 and :37, two lines: `race-samples.yml` and `kit-games.yml`.
 - In GitHub → **Actions**, a run this Worker started shows **workflow_dispatch** as its event.
 
 ## If something is wrong
@@ -46,3 +48,8 @@ This Worker checks whether the ruler's data job, the two recorders and the race'
 1. Cloudflare → **kg-dispatch** → **Edit code**, delete everything, paste the whole of `tools/cloudflare/kg-dispatch-worker.js` from `main`, then **Deploy**.
 2. **Settings** → **Trigger Events** → **Add** → `7,37 * * * *` → Save. Keep the three you have.
 3. **Check:** at the next :07 or :37, **Logs** shows `kg-dispatch: race-samples.yml: …`.
+
+## Adding the kit games (Mon 16 Nov 2026, for a Worker already set up)
+No new trigger: the `7,37 * * * *` trigger now checks `kit-games.yml` too (Cloudflare's Free plan allows 5 triggers per account).
+1. Cloudflare → **kg-dispatch** → **Edit code**, delete everything, paste the whole of `tools/cloudflare/kg-dispatch-worker.js` from `main`, then **Deploy**.
+2. **Check:** at the next :07 or :37, **Logs** shows two lines, `kg-dispatch: race-samples.yml: …` and `kg-dispatch: kit-games.yml: …`. Keep the four triggers as they are.

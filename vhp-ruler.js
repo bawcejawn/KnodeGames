@@ -742,6 +742,34 @@
     return null;
   }
 
+  /** The all-games setting (owner, 14 Nov 2026: one setting for all games, a per-game setting that overrides it):
+   *  RULER_MODE / RULER_VERSION hold the all-games schedule, <GAME>_RULER_MODE / <GAME>_RULER_VERSION the game's own, in
+   *  the same week:value format. The game's own schedule, when set, REPLACES the all-games one for that game (no merge
+   *  week by week); unset or "", the game takes the all-games schedule; both unset: null, byte for byte as before. Both
+   *  are checked strictly, so a bad all-games value stops every game's run. kind: "mode" (default) or "version". A game
+   *  records the result in its week file and checks every change with modeChange / versionChange, so a change of either
+   *  variable can never alter a started week. */
+  function effectiveSchedule(all, own, kind = "mode") {
+    if (kind !== "mode" && kind !== "version") throw new Error('the schedule kind must be "mode" or "version"');
+    const parse = kind === "mode" ? modeSchedule : versionSchedule;
+    parse(all);
+    parse(own);
+    if (own !== undefined && own !== null && own !== "") return own;
+    if (all !== undefined && all !== null && all !== "") return all;
+    return null;
+  }
+  /** What a card's settings carry for a vault week: the mode only when it isn't A, the version only when it isn't 4
+   *  (null = leave the key out). So a schedule's A or version 4 weeks make exactly the cards an unset schedule makes, and
+   *  setting a schedule for future weeks never changes the cards of the week that is running. */
+  function cardMode(week, schedule) {
+    const m = modeAt(week, schedule ?? "");
+    return m === "A" ? null : m;
+  }
+  function cardVersion(week, schedule) {
+    const v = versionAt(week, schedule ?? "");
+    return v === RULE_VERSION ? null : v;
+  }
+
   /** recompute (§13): rebuild a published card FROM THE GAME'S OWN SETTINGS and compare byte for byte (Repo Lens #E-12
    *  M-1: never from the card's own settings, or a card made with the wrong window, c, own rule, paying flag or pooled
    *  list would pass). game = { game, round, window: { W0, W1, L, S0, S1 }, c, minK, poolRule, ownRule, paying, pooled }. */
@@ -801,6 +829,6 @@
     return { same: false, diff: `differs at byte ${i}: published …${b.slice(imax(0, i - 40), i + 40)}… vs recomputed …${a.slice(imax(0, i - 40), i + 40)}…` };
   }
 
-  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, RULE_VERSIONS, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, MODES, MODE_CAP, LIFT_SKIP, LIFT_SPAN, STRETCHES, LIFT_SD, liftForm, checkInclude, versionSchedule, versionAt, versionChange, modeSchedule, modeAt, modeChange, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
+  root.KRuler = { VHP_CONTRACT, DELAY, ACTIVE, HIGH, AVG, FORM, HISTORY, SEED_AFTER, M, MIN_K, FORM_GATE, RULE_VERSION, RULE_VERSIONS, OWN_RULES, POOL_RULES, STEADY_BAND, CORE_LINE, BAND_SD, LUCK_CAP, voidBand, MODES, MODE_CAP, LIFT_SKIP, LIFT_SPAN, STRETCHES, LIFT_SD, liftForm, checkInclude, versionSchedule, versionAt, versionChange, modeSchedule, modeAt, modeChange, effectiveSchedule, cardMode, cardVersion, weekSummary, SWITCH_MAX, switchFrom, rulerMode, switchChange,
     sha256, hex, dec, cardTime, isqrt, trim, pct, fpct, rateOf, creditOf, kOf, vhpDeltas, ledger, own, avg, total, formOf, newcomer, makeCard, scoreCard, cardJson, cardDigest, checkSettings, recompute };
 })(typeof window !== "undefined" ? window : globalThis);

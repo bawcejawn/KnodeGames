@@ -56,7 +56,8 @@ jobs:
             echo "::error::Couldn't read the $1 branch (git ls-remote exit $rc); nothing recorded this run."; exit 1
           }
           # The Clubhouse (claude/golf/CLUBHOUSE-BUILD-PLAN-2026-11-15.md): the @names (names-data names.json) and the
-          # last two days of vhp-data hour files (which producers signed blocks). Plain names only.
+          # newest 49 vhp-data hour files (which producers signed blocks: the oldest is only the first link of the hash
+          # chain the recorder checks with vhp-data.js checkHour). Plain names only.
           mkdir -p "$RUNNER_TEMP/names" "$RUNNER_TEMP/vhp/h"
           if has_branch names-data; then
             git fetch -q --depth 1 "$url" names-data
@@ -64,7 +65,7 @@ jobs:
           fi
           if has_branch vhp-data; then
             git fetch -q --depth 1 "$url" vhp-data
-            for f in $(git ls-tree --name-only FETCH_HEAD h/ 2>/dev/null | sed 's#^h/##' | grep -E '^[0-9]{1,9}\.json$' | sort -V | tail -48); do
+            for f in $(git ls-tree --name-only FETCH_HEAD h/ 2>/dev/null | sed 's#^h/##' | grep -E '^[0-9]{1,9}\.json$' | sort -V | tail -49); do
               git show "FETCH_HEAD:h/$f" > "$RUNNER_TEMP/vhp/h/$f"
             done
           fi

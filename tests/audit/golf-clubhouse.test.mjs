@@ -60,19 +60,17 @@ test("features are earned once and stamped with the week first seen; the record 
 
 test("a run collects every feature it can read and writes the record; the hole counts the features by the week", async () => {
   const names = tmp("names-"); write(names, "names.json", { v: 1, nicknames: { [P[2]]: "two" } });
-  const vhp = tmp("vhp-"); write(path.join(vhp, "h"), "100.json", { v: 1, addrs: [P[3], P[7]], sig: [0, 0, 0] });
   const games = tmp("games-"); write(path.join(games, "blockx"), "board.json", { v: 1, week: { week: W, start: START, rows: [{ a: P[4], pts: 1, days: 3, ranked: true }, { a: P[5], pts: 1, days: 2, ranked: true }] }, lastWeek: null });
   // Last week's recorded holes (a week keeps the holes it was first recorded with, so this week is fresh).
   const prev = prevWith({ club: { v: 1, updated: "", wallets: { [P[0]]: { name: 1, swap: 2 } } }, weeks: [W - 1], course: { questions: W - 1, clubhouse: W },
     files: { "W002.json": { v: 1, week: W - 1, start: M.weekStart(W - 1), end: START, final: true, practice: true, holes: [{ id: "questions", name: "Daily Questions", status: "live", why: "", field: 6, rows: P.slice(0, 6).map((a, i) => [a, 10 - i, 1, 1]) }], cards: [], notFree: [], check: null } } });
   const out = tmp("golf-");
-  const r = await run(base({ now: START + 3 * DAY, prev, out, namesDir: names, vhpDir: vhp, gamesDir: games,
+  const r = await run(base({ now: START + 3 * DAY, prev, out, namesDir: names, gamesDir: games,
     deskOf: async () => ({ total: 7, accounts: [P[1]] }), vaultOf: async (_n, who) => new Map(who.map((a) => [a, { staked: a === P[0], games: a === P[0] ? 2 : 0, claimed: false }])) }));
   const c = club(out).wallets;
   assert.deepEqual(c[P[0]], { name: 1, "play-questions": W, staked: W, swap: 2, "two-games": W });
-  assert.equal(c[P[1]].swap, W); assert.equal(c[P[2]].name, W); assert.equal(c[P[3]].producer, W);
+  assert.equal(c[P[1]].swap, W); assert.equal(c[P[2]].name, W);
   assert.equal(c[P[4]]["blockx-3-days"], W); assert.equal(c[P[5]]["blockx-3-days"], undefined);
-  assert.equal(c[P[7]], undefined, "a producer key in addrs that signed nothing earns nothing");
   const h = hole(out);
   assert.equal(h.status, "live");
   assert.equal(h.rows.find((x) => x[0] === P[0])[1], 5);           // name, swap, play-questions, staked, two-games
@@ -208,4 +206,25 @@ test("only the week's players play the Clubhouse: features alone never make a sc
   assert.ok(!h.rows.some((r) => r[0] === outsider), "a wallet that played no game this week has no Clubhouse row");
   assert.ok(!week(out).cards.some((c) => c.a === outsider));
   assert.ok(club(out).wallets[outsider], "its features are still kept");
+});
+
+// Producers (Ruler chat, 15 Nov): signers = the distinct addrs[sig[i]] of each hour file that passes vhp-data.js
+// checkHour against the file before it; the oldest file is only the first link; tail.sig isn't counted.
+const { makeChain } = await import(path.resolve(APP, "tests/audit/vhp-ruler.fixture.mjs"));
+test("producer: the signers of hour files that pass checkHour (the oldest file is only the first link)", async () => {
+  const ch = makeChain({ seed: 7, hours: 3, np: 4 });
+  const vhp = tmp("vhp-");
+  ch.texts.forEach((t, i) => write(path.join(vhp, "h"), `${ch.n0 + i}.json`, t));
+  const want = new Set(ch.texts.slice(1).flatMap((t) => { const j = JSON.parse(t); return j.sig.map((k) => j.addrs[k]); }));
+  const out = tmp("golf-");
+  const r = await run(base({ now: START + DAY, prev: prevWith(), out, vhpDir: vhp }));
+  const got = new Set(Object.entries(club(out).wallets).filter(([, f]) => f.producer === W).map(([a]) => a));
+  assert.deepEqual([...got].sort(), [...want].sort());
+  assert.ok(want.size >= 1);
+  assert.deepEqual(r.problems.filter((p) => /clubhouse producers/.test(p)), []);
+  // A changed file fails checkHour: it (and the file after it, whose chain it breaks) isn't used, and that's reported.
+  const bad = tmp("vhp-");
+  ch.texts.forEach((t, i) => write(path.join(bad, "h"), `${ch.n0 + i}.json`, i === 1 ? t.replace(/"kind":"live"/, '"kind":"chained"') : t));
+  const r2 = await run(base({ now: START + DAY, prev: prevWith(), out: tmp("golf-"), vhpDir: bad }));
+  assert.ok(r2.problems.some((p) => /clubhouse producers: 2 vhp-data hour file\(s\) didn't pass checkHour/.test(p)));
 });

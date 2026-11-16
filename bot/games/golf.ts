@@ -213,17 +213,30 @@ function blockxDays(dir: string | undefined, now: number): Map<string, number> {
   }
   return out;
 }
-/** Producers that signed a block in the vhp-data hour files given (h/<n>.json: sig[i] indexes addrs). */
-function signers(dir: string | undefined): Set<string> {
+/** Producers that signed a block, from the vhp-data hour files given (Ruler chat, 15 Nov): h/<n>.json is block-hour n
+ *  (blocks n×1200 … n×1200+1199); its signers are the distinct addrs[sig[i]] (addrs also names VHP event parties and
+ *  anchored balances, so it is NOT the signer list; tail.sig belongs to the next hour and isn't counted). Each file is
+ *  checked with vhp-data.js checkHour against the file before it (the hash chain), so the oldest file given is only
+ *  the first link; a file that fails, or follows a gap, is not used and is reported. */
+async function signers(dir: string | undefined, problems: string[]): Promise<Set<string>> {
   const out = new Set<string>();
   const hd = path.join(dir || "", "h");
   let names: string[] = [];
   try { names = fs.readdirSync(hd).filter((f) => /^\d{1,9}\.json$/.test(f)); } catch { throw new Error("vhp-data hour files aren't there"); }
-  for (const f of names) {
-    const j = readJson(hd, f);
-    if (!j || j.v !== 1 || !Array.isArray(j.addrs) || !Array.isArray(j.sig)) throw new Error(`vhp-data h/${f} can't be read`);
-    for (const i of new Set(j.sig)) if (Number.isInteger(i) && i >= 0 && i < j.addrs.length && isAddr(j.addrs[i])) out.add(j.addrs[i]);
+  names.sort((x, y) => parseInt(x) - parseInt(y));
+  await import("../../vhp-ruler.js"); await import("../../vhp-data.js");
+  const K = (globalThis as any).KVhpData;
+  if (!K || typeof K.checkHour !== "function") throw new Error("vhp-data.js checkHour isn't there");
+  const text = (f: string) => { const p = path.join(hd, f); if (fs.lstatSync(p).isSymbolicLink() || fs.statSync(p).size > MAX_FILE) throw new Error(`vhp-data h/${f} isn't a plain file`); return fs.readFileSync(p, "utf8"); };
+  let skipped = 0;
+  for (let i = 1; i < names.length; i++) {
+    if (parseInt(names[i]) !== parseInt(names[i - 1]) + 1) { skipped++; continue; }
+    const r = K.checkHour(text(names[i - 1]), text(names[i]));
+    if (!r || !r.ok) { skipped++; continue; }
+    const j = JSON.parse(text(names[i]));
+    for (const k of new Set(j.sig)) if (Number.isInteger(k) && (k as number) >= 0 && (k as number) < j.addrs.length && isAddr(j.addrs[k as number])) out.add(j.addrs[k as number]);
   }
+  if (skipped) problems.push(`clubhouse producers: ${skipped} vhp-data hour file(s) didn't pass checkHour or followed a gap, and weren't used`);
   return out;
 }
 const DESK_CONTRACT = (() => { try { return JSON.parse(fs.readFileSync(new URL("../../desk-data/deployment.json", import.meta.url), "utf8")).contract as string; } catch { return ""; } })();
@@ -669,7 +682,7 @@ export async function run(o: Opts) {
       if (!j || typeof j.nicknames !== "object" || !j.nicknames) throw new Error("names.json can't be read");
       for (const a of Object.keys(j.nicknames).slice(0, CLUB_MAX_WALLETS)) add("name", a);
     });
-    await collect("producers", () => { if (o.vhpDir) for (const a of signers(o.vhpDir)) add("producer", a); });
+    await collect("producers", async () => { if (o.vhpDir) for (const a of await signers(o.vhpDir, problems)) add("producer", a); });
     await collect("swap desk", async () => {
       const read = o.deskOf ?? ((n: any) => readDesk(n));
       if (!o.deskOf && !o.p) return;

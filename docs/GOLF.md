@@ -72,13 +72,13 @@ The Clubhouse is one more hole, the same weight as a game hole. It's scored by h
   | `all-games` (played every game hole of a week, at least 2) | last week's final file |
   | `blockx-3-days` (Block X picks on 3+ days) | Block X board `days` (v 1 rows, or v 2 parts) |
   | `name` (has an @name) | names-data `names.json` nicknames |
-  | `producer` (signed a block) | the last 48 vhp-data hour files: `addrs[i]` for each `i` in `sig` |
+  | `producer` (signed a block) | the newest 49 vhp-data hour files, each checked with `vhp-data.js` `checkHour` against the one before it (the oldest is only the first link). Signers = the distinct `addrs[sig[i]]`, not `addrs` itself, and not `tail.sig` (Ruler chat, 15 Nov) |
   | `swap` (used the swap desk) | desk `get_recent` (its newest 20) on both nodes. More than 20 swaps since the last run is reported. |
   | `staked`, `two-games`, `claimed` | vault `get_game_player` for every staked game, on both nodes, for at most 20 players a run (the players still missing one of the three) |
 
 - **A feature that can't be read** in a run is said aloud in the run's problems and tried again the next run. It never removes anything already earned, and never holds a week.
 - **Joins** at vault week 6 at the earliest (`JOIN_FROM.clubhouse`), like a new game: the Monday after it's first seen.
-- **Still to add** (they need a wallet's transaction history or a field from another game): moved stake, burned KOIN for VHP, Get VHP, registered a producer key, played on 5+ days, and a second race type. Each one adds a line to `CLUB_FEATURES`, a reader and a test.
+- **Still to add**, in a follow-up PR: moved stake (the vault's `move_stake`), burned KOIN for VHP (PoB `159myq5YUhhoVWu3wsHKHiJYKPKGUrGiyv` `burn`, entry `0x859facc5`), and registered a producer key (PoB `register_public_key`). These come from a wallet's own transactions: `api.koinos.io` serves `account_history.get_account_history` (owner's check, 15 Nov), and only transaction entries count, never block entries. Get VHP is the same feature as the burn: its page does nothing on chain and links to the Burn page (Swap desk chat, 15 Nov). Two more need a field from the Race chat: played on 5+ days, and a second race type. Each one adds a line to `CLUB_FEATURES`, a reader and a test.
 
 ## The week (D-125, D-129; the one home for timing is `.ai/standards/WEEK_CYCLE.md`)
 

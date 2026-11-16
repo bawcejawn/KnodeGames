@@ -2,7 +2,7 @@
 // code): kit/parts/parts.inline.mjs and games/questions/parts.inline.mjs, byte for byte, as base64 data: modules, then
 // one line that runs the check. Run after any change to either file:
 //   node tools/questions-parts-embed.mjs            write the block
-//   node tools/questions-parts-embed.mjs --check    exit 1 if the committed block differs (tests/audit/questions-parts.test.ts too)
+//   node tools/questions-parts-embed.mjs --check    exit 1 if the committed block differs (games/questions/tests/parts.test.ts too)
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,14 +10,18 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const BEGIN = "          # ── BEGIN questions-parts (tools/questions-parts-embed.mjs; edit games/questions/parts.inline.mjs or kit/parts, never these lines) ──";
 export const END = "          # ── END questions-parts ──";
-const ONLY_NODE = /^\s*import\s.+from\s+["'](?!node:(fs|path|crypto)["'])/m;
+// Every module specifier in the file (`from "x"` in any import or export, a bare `import "x"`, split over lines or
+// not) must be node:fs, node:path or node:crypto (Repo Lens #H-2, I-1).
+const SPECIFIERS = /(?:\bfrom\s*|\bimport\s*)["']([^"']+)["']/g;
+const allowedOnly = (src) => [...src.matchAll(SPECIFIERS)].every((m) => /^node:(fs|path|crypto)$/.test(m[1]));
 
 /** The block as it must stand in games.yml. */
+export { allowedOnly };
 export function block(root = ROOT) {
   const kit = fs.readFileSync(path.join(root, "kit/parts/parts.inline.mjs"), "utf8");
   const q = fs.readFileSync(path.join(root, "games/questions/parts.inline.mjs"), "utf8");
   for (const [n, src] of [["kit/parts/parts.inline.mjs", kit], ["games/questions/parts.inline.mjs", q]]) {
-    if (ONLY_NODE.test(src) || /\bimport\s*\(/.test(src)) throw new Error(`${n} may import only node:fs, node:path and node:crypto`);
+    if (!allowedOnly(src) || /\bimport\s*\(/.test(src) || /\brequire\s*\(/.test(src)) throw new Error(`${n} may import only node:fs, node:path and node:crypto`);
   }
   const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
   return [

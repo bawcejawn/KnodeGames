@@ -252,3 +252,24 @@ test("parts: sizes at 9,000 weekly players answering all 48 questions stay under
 test("parts: the publish job's embedded copy is today's kit/parts and parts.inline.mjs", () => {
   execFileSync(process.execPath, [path.join(APP, "tools/questions-parts-embed.mjs"), "--check"], { encoding: "utf8" });
 });
+
+test("parts: the publish job's Python switches at the same week as the recorder (Repo Lens #H-2, I-3)", () => {
+  const m = PY().match(/^PARTS_FROM = (\d+)$/m);
+  assert.ok(m, "the Python check has PARTS_FROM");
+  assert.equal(Number(m![1]), PARTS_FROM_WEEK);
+});
+
+test("parts: the embed tool refuses any import that isn't node:fs, node:path or node:crypto (Repo Lens #H-2, I-1)", async () => {
+  const { allowedOnly } = await import("../../../tools/questions-parts-embed.mjs");
+  assert.equal(allowedOnly('import fs from "node:fs";\nimport path from "node:path";'), true);
+  for (const bad of ['import x from "./y.mjs";', 'import "./side.mjs";', 'export { a } from "./b.mjs";', 'import {\n  a,\n  b,\n} from "../kit.mjs";', 'import os from "node:os";'])
+    assert.equal(allowedOnly(bad), false, bad);
+  for (const f of ["kit/parts/parts.inline.mjs", "games/questions/parts.inline.mjs"]) assert.equal(allowedOnly(fs.readFileSync(path.join(APP, f), "utf8")), true, f);
+});
+
+test("game.json keeps the 30-question week's per-producer cap at 4; the bot passes 4 x total / 30 above 30 (Repo Lens #H-2, H2-1)", () => {
+  const g = JSON.parse(fs.readFileSync(path.join(APP, "game-data/game.json"), "utf8"));
+  assert.equal(g.maxUsesPerWeek, 4);
+  const bot = fs.readFileSync(path.join(APP, "bot/bot.ts"), "utf8");
+  assert.match(bot, /Math\.ceil\(\(4 \* weekTotal\(w, cap\)\) \/ BASE_CAP\)/, "the bot's --max-uses is ceil(4 x the week's total / 30)");
+});

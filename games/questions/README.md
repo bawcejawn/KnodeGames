@@ -13,6 +13,8 @@ The game itself (questions, answers, the page) is unchanged: `index.html`, `app.
 | `game.json` | The manifest (`npm run game:check -- questions`). `prizesFromVar` isn't used: Daily Questions' free prize follows the free-prize switch (D-136). |
 | `tests/` | Scoring, recorder and end-to-end tests (the publish check's own tests are `tests/audit/questions-publish.test.ts`). |
 
+**Trap (Repo Lens #H-2, I-4):** a change to `kit/parts/parts.inline.mjs` or `games/questions/parts.inline.mjs` needs two re-renders, `npm run kit:render` and `node tools/questions-parts-embed.mjs`; CI fails if either is missed.
+
 ## What it publishes (branch `games-data`, folder `questions/`)
 - **From vault week 6 (Sun 29 Nov 2026 7 PM ET on): `W<NNN>/`, a KG parts v1 folder** (`docs/capacity/PARTS-SPEC.md`) instead of `W<NNN>.json`. Weeks 4 and 5 stay single files (a week already paid is never converted).
   - `manifest.json`: written last; `state` pending or final; `meta.seen` = `{ hash, at }` with `hash` the part-set hash (it replaces the snapshot hash: final after two matching runs an hour apart, as before).

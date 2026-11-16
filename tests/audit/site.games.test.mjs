@@ -82,6 +82,14 @@ test("Combo Card preview: linked from the home tile, the games list and the menu
   for (const re of [/const free = games\.filter\(\(g\) => g\.status === "live"/, /const boards = games\.filter\(\(g\) => g\.status === "live"/, /if \(!K \|\| !id \|\| g\.status !== "live"\) return null;/]) assert.match(js, re);
 });
 
+test("free-prize label says plainly who wins and is readable (light text on the dark green pill; owner, 15 Nov)", () => {
+  const js = read("games.js"), html = read("games.html");
+  assert.ok(js.includes('"Free board: 1st wins 2 VHP, 2nd wins 1 VHP"'));
+  assert.ok(js.includes('"No free prizes this week"'));
+  assert.ok(!js.includes("2 + 1 VHP"), "the old shorthand is gone");
+  assert.match(html, /\.pill\.prize-on \{ background: var\(--mint\); color: var\(--paper\); \}/);
+});
+
 test("Block X search description: the Block X chat's line (15 Nov), no stale block count or multiplier", () => {
   const b = read("blockx.html"), seo = read("tools/site-seo.mjs");
   const line = "A target about every hour (every 1,200 Koinos blocks). Pick the producer you think signs it; smaller producers score more. Free, with weekly VHP prizes.";

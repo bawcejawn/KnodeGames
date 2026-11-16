@@ -92,6 +92,29 @@ test("signed-in phones (owner 15 Nov): the pick columns don't squeeze the lane; 
   assert.match(html, /\.rt-pk-t \{ display: none; \}\n    @media \(max-width: 640px\)/, "the time on the button shows on phones only");
 });
 
+test("sort (owner 15 Nov): Most VHP (default), Current place, A–Z; remembered in this browser", async () => {
+  // C signs most here, so the live order (C, A, B) differs from the VHP order (A, B, C)
+  const blocksC = (T) => { const ts = [], sig = []; for (let t = T - 7 * 3600000, i = 0; t <= T; t += 20000, i++) { ts.push(t); sig.push(i % 10 < 6 ? 2 : i % 10 < 9 ? 0 : 1); } return { ts, sig, signers: [A, Bp, C], from: 1, top: ts.length }; };
+  const p = await H.boot({ app: APP, now: NOW, files: { "W002.json": H.weekFile(2, FIN, LIVE, prevSt, field) }, vhp: { [A]: 300, [Bp]: 200, [C]: 100 }, blocks: blocksC });
+  await p.tick(6000);
+  const order = () => [...p.doc.querySelectorAll("#track .pr-lane[data-addr]")].map((l) => l.dataset.addr);
+  const bar = p.doc.getElementById("r6-sort");
+  assert.match(bar.textContent, /^Sort:Most VHPCurrent placeA–Z$/);
+  assert.equal(bar.querySelector('button[aria-pressed="true"]').textContent, "Most VHP");
+  assert.deepEqual(order(), [A, Bp, C], "default: most VHP first");
+  [...bar.querySelectorAll("button")].find((b) => b.textContent === "Current place").click(); await p.settle();
+  assert.deepEqual(order(), [C, A, Bp], "live place order");
+  assert.deepEqual([...p.doc.querySelectorAll("#track .pr-lane[data-addr] .pr-rank")].map((x) => x.textContent), ["1st", "2nd", "3rd"]);
+  assert.equal(p.win.localStorage.getItem("pr-sort"), "place");
+  [...p.doc.getElementById("r6-sort").querySelectorAll("button")].find((b) => b.textContent === "A–Z").click(); await p.settle();
+  const names = [...p.doc.querySelectorAll("#track .pr-lane[data-addr] .pr-name")].map((x) => x.textContent);
+  assert.deepEqual(names, [...names].sort((x, y) => x.localeCompare(y, undefined, { sensitivity: "base" })));
+});
+
+test("horse contrast (owner 15 Nov): a white outline and a darker shadow on the light-green track", () => {
+  assert.match(html, /img\.pr-horse \{ filter: drop-shadow\(0 0 1px #fff\) drop-shadow\(0 0 1px #fff\) drop-shadow\(0 0 1\.5px #fff\) drop-shadow\(0 2px 3px rgba\(0, 0, 0, \.5\)\); \}/);
+});
+
 test("race types: before they start, greyed 'coming soon' tabs with the start time, no picks, no data (owner, 15 Nov)", () => {
   const js = fs.readFileSync(`${APP}/race.js`, "utf8"), html = fs.readFileSync(`${APP}/race.html`, "utf8");
   const tabs = js.slice(js.indexOf("function rtTabs()"), js.indexOf("function rtSelect("));

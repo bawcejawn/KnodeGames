@@ -33,19 +33,11 @@ import * as crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { scoreWeek } from "./math.js";
 import { withRetry } from "../../common.ts";
-import * as kitParts from "../../kit/parts/parts.inline.mjs";
-import { PARTS_FROM_WEEK, encodeWeek, partsMeta, fileOf, useKitParts } from "./parts.inline.mjs";
-useKitParts(kitParts);
-export { PARTS_FROM_WEEK };
 
 export const GAME = 1;
 export const STABLE_MS = 3_600_000;              // final once two runs at least an hour apart read the same snapshot
 export const MAX_FILE = 1_900_000;               // bytes: under the publish job's 2 MB cap (RECORDER_STANDARD §6.7)
-// The 60% warning on kit/parts' base (60% of 2 MiB = 1,258,292 bytes, CAPACITY rule 2), for every file this recorder
-// writes, old format or parts (Capacity, 15 Nov). The old weekly file still stops at MAX_FILE.
-export const WARN_FILE = kitParts.WARN_BYTES;
-/** A week from PARTS_FROM_WEEK on is the parts folder questions/W<NNN>/ (games/questions/parts.inline.mjs). */
-export const isPartsWeek = (w: number) => w >= PARTS_FROM_WEEK;
+export const WARN_FILE = Math.floor(MAX_FILE * 0.6); // bytes: from here every run warns, weeks before the cap bites (capacity plan, 12 Nov)
 export const MAX_PLAYERS = 20_000;               // a runaway listing stops the run
 const isAddr = (a: unknown) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 const num = (x: any) => Number(x ?? 0);
@@ -128,9 +120,6 @@ export async function readSnapshot(node: Node, week: number, any = false): Promi
     const e = r.entry;
     if (!e || !Array.isArray(e.answers) || !e.answers.length) continue;
     const answers: Array<[number, number]> = e.answers.map((x: any) => [num(x.question_id), num(x.option)]);
-    // Parts weeks store one character per question in id order, so the snapshot lists answers in that order too
-    // (the order never changes a score: math.js counts them and takes the latest lock).
-    if (isPartsWeek(week)) answers.sort((x, y) => x[0] - y[0]);
     players.push([r.address, String(big(e.stake)), String(big(e.peak_stake)), e.voided ? 1 : 0, answers]);
   }
   players.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
@@ -146,37 +135,16 @@ export function agree(a: Snapshot, b: Snapshot): string {
   return "";
 }
 
-/** What a later run needs of the last run's week: final or not, and its seen { hash, at } (old file or parts manifest). */
-export type Prev = { final: boolean; seen: { hash: string; at: number } };
-
-/** A parts week's encoded parts and part-set hash (the hash `seen` and the final check use from PARTS_FROM_WEEK on). */
-export function partsOf(s: Snapshot) {
-  const encoded = encodeWeek(s);
-  return { encoded, hash: kitParts.partSetHash({ game: "questions", file: fileOf(s.week), week: s.week }, [...encoded].sort((x: any, y: any) => (x.part < y.part ? -1 : 1))) };
-}
-/** The fingerprint `seen` compares: the snapshot hash (old weeks) or the part-set hash (parts weeks). */
-export const weekHash = (s: Snapshot) => (isPartsWeek(s.week) ? partsOf(s).hash : snapshotHash(s));
-
 /** The files for a week from its snapshot (and the last run's file for it, if any). */
-export function buildWeek(s: Snapshot, prev: Prev | null, now: number) {
+export function buildWeek(s: Snapshot, prev: WeekFile | null, now: number) {
   const r = scoreWeek({ week: { start: s.start }, questions: s.questions, players: s.players, min: s.min });
   if (r.missing.length) throw new Error(`answers to questions not read for week ${s.week}: ${r.missing.slice(0, 10).join(", ")}`);
-  const parts = isPartsWeek(s.week) ? partsOf(s) : null;
-  const hash = parts ? parts.hash : snapshotHash(s);
+  const hash = snapshotHash(s);
   const sameAsPrev = !!prev && prev.seen?.hash === hash;
   const seenAt = sameAsPrev ? prev!.seen.at : now;
   const final = r.complete && now >= s.end && sameAsPrev && now - seenAt >= STABLE_MS;
   const file: WeekFile = { v: 1, game: 1, week: s.week, start: s.start, end: s.end, min: s.min, final, seen: { hash, at: seenAt }, questions: s.questions, players: s.players };
-  // Parts weeks: the board keeps only the Staked board's rows, four columns (the vault bot's staked-list check reads
-  // a, place, pts and ranked; a Free board row is never in a vault file), so it stays one small file (Capacity, 15 Nov).
-  const board = parts ? {
-    v: 2, updated: new Date(now).toISOString(),
-    lastWeek: {
-      week: s.week, start: s.start, final, complete: r.complete,
-      rows: r.rows.filter((x) => x.board === "staked").map((x) => ({ a: x.a, place: x.place, pts: x.pts, ranked: x.ranked })),
-      prizes: r.prizes,
-    },
-  } : {
+  const board = {
     v: 1, updated: new Date(now).toISOString(),
     lastWeek: {
       week: s.week, start: s.start, final, complete: r.complete,
@@ -185,21 +153,7 @@ export function buildWeek(s: Snapshot, prev: Prev | null, now: number) {
     },
   };
   const vault = final ? { game: GAME, week: s.week, final: true, rows: r.vault.rows, first: r.vault.first, second: r.vault.second } : null;
-  const partsOut = parts ? { encoded: parts.encoded, meta: partsMeta(s.week, final ? "final" : "pending", now, { hash, at: seenAt }) } : null;
-  return { file, parts: partsOut, board, vault, complete: r.complete, result: r };
-}
-
-/** The last run's week: the old file, or (parts weeks) the manifest of the folder copied back. */
-function readPrev(prevDir: string, w: number): Prev | null {
-  if (!isPartsWeek(w)) return readJson(path.join(prevDir, `${fileOf(w)}.json`));
-  const m = readJson(path.join(prevDir, fileOf(w), "manifest.json"));
-  if (m === null) {
-    if (fs.existsSync(path.join(prevDir, fileOf(w)))) throw new Error(`${fileOf(w)}/ was copied back without its manifest: stopping (nothing written)`);
-    return null;
-  }
-  const seen = m?.meta?.seen;
-  if (!seen || typeof seen.hash !== "string" || seen.hash !== m.hash || !Number.isSafeInteger(seen.at)) throw new Error(`${fileOf(w)}/manifest.json has no meta.seen for its part set: stopping (nothing written)`);
-  return { final: m.state === "final", seen: { hash: seen.hash, at: seen.at } };
+  return { file, board, vault, complete: r.complete, result: r };
 }
 
 const readJson = (p: string) => (fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : null);
@@ -256,7 +210,7 @@ export async function run(o: RunOpts): Promise<{ week: number | null; state: str
     log(`Daily Questions: week ${w} is not paid from a results file (old rules or no v6.1 yet): nothing to record.`);
     return { week: null, state: "not-shared" };
   }
-  const prevFile: Prev | null = readPrev(o.prev, w);
+  const prevFile: WeekFile | null = readJson(path.join(o.prev, `W${pad(w)}.json`));
   if (now >= ka.resultsDue(w)) {
     // Past due with no final: the stakers' share rolls over. Say so loudly on the runs of the first 3 h past the deadline
     // (3 h, not 1 h, so a delayed scheduled run can't skip it: Repo Lens QF-5).
@@ -276,13 +230,12 @@ export async function run(o: RunOpts): Promise<{ week: number | null; state: str
   if (why) throw new Error(`week ${w}: ${why}. Nothing recorded this run; the next run reads again.`);
   if (prevFile?.final) {
     // Written once: a published final never changes. Its snapshot must still be the chain's.
-    const now_ = weekHash(a);
-    if (now_ !== prevFile.seen.hash) throw new Error(`week ${w} is final, but the chain now reads differently (hash ${now_.slice(0, 12)} vs ${prevFile.seen.hash.slice(0, 12)}): stopping. Check it; the published files stay as they are.`);
+    if (snapshotHash(a) !== prevFile.seen.hash) throw new Error(`week ${w} is final, but the chain now reads differently (hash ${snapshotHash(a).slice(0, 12)} vs ${prevFile.seen.hash.slice(0, 12)}): stopping. Check it; the published files stay as they are.`);
     if (!prevVault) {
       // A final W file whose vault file wasn't published yet (held at publish): write it again from the same snapshot.
       const again = buildWeek(a, prevFile, now);
       if (!again.vault) throw new Error(`week ${w}: the final file can't be rebuilt`);
-      write(o.out, isPartsWeek(w) ? null : (prevFile as WeekFile), again.board, again.vault, w, log, again.parts, o.prev);
+      write(o.out, prevFile, again.board, again.vault, w, log);
       log(`Daily Questions week ${w}: final (copied forward); its vault file written again.`);
       return { week: w, state: "final" };
     }
@@ -290,7 +243,7 @@ export async function run(o: RunOpts): Promise<{ week: number | null; state: str
     return { week: w, state: "final" };
   }
   const built = buildWeek(a, prevFile, now);
-  write(o.out, built.file, built.board, built.vault, w, log, built.parts, o.prev);
+  write(o.out, built.file, built.board, built.vault, w, log);
   const n = built.result.rows.length;
   if (!built.file.final && now >= ka.resultsDue(w) - 24 * STABLE_MS) {
     // Under 24 h left and not final: the alert (Repo Lens C11-4). The files are written and must still go out, or a week
@@ -305,33 +258,18 @@ export async function run(o: RunOpts): Promise<{ week: number | null; state: str
   return { week: w, state: built.file.final ? "final" : "pending" };
 }
 
-/** The early warning: null while a file is under 60% of 2 MiB (kit/parts' base), else a GitHub warning line. */
-export function sizeWarning(w: number, bytes: number, name = "a file"): string | null {
-  if (bytes < WARN_FILE) return null;
-  return `::warning::Daily Questions week ${w}: ${name} is ${bytes} bytes, ${Math.round((100 * bytes) / kitParts.MAX_PART_BYTES)}% of the 2 MB publish cap (60% warning). ${isPartsWeek(w) ? "Check the board's size (games/questions/README.md, Size)." : `The old weekly file stops at ${MAX_FILE} bytes; weeks from ${PARTS_FROM_WEEK} use the compact parts format.`}`;
+/** The early warning: null while a file is under 60% of the cap, else a GitHub warning line for the run's log. */
+export function sizeWarning(w: number, bytes: number): string | null {
+  if (bytes <= WARN_FILE) return null;
+  return `::warning::Daily Questions week ${w}: a file is ${bytes} bytes, ${Math.round((100 * bytes) / MAX_FILE)}% of the ${MAX_FILE} byte limit. Past the limit no week is written and nobody is paid, so change the answer format first (games/questions/README.md, TODO: size).`;
 }
 
-function write(out: string, file: WeekFile | null, board: any, vault: any, w: number, log: (s: string) => void, parts: { encoded: any[]; meta: any } | null = null, prevDir = "") {
-  const b = canon(board);
-  // Bytes, not characters (Repo Lens #G-39 info): an address or a reason with a non-ASCII character counts its UTF-8 size.
-  if (Buffer.byteLength(b) > MAX_FILE) throw new Error(`week ${w}'s board would be over ${MAX_FILE} bytes: stopping (RECORDER_STANDARD §6.7)`);
-  if (parts) {
-    // The folder copied back from the published branch first (the writer then keeps a final unchanged and removes a
-    // pending week's old parts in the same commit), then kit/parts writes the parts and the manifest last.
-    const dir = path.join(out, fileOf(w));
-    const from = path.join(prevDir, fileOf(w));
-    if (prevDir && fs.existsSync(from)) fs.cpSync(from, dir, { recursive: true });
-    const res = kitParts.writeParts(dir, parts.meta, parts.encoded);
-    for (const x of res.warnings) log(`::warning::Daily Questions week ${w}: ${x.message} (60% warning)`);
-  } else if (file) {
-    const f = canon(file);
-    if (Buffer.byteLength(f) > MAX_FILE) throw new Error(`week ${w}'s files would be over ${MAX_FILE} bytes: stopping (RECORDER_STANDARD §6.7)`);
-    const warn = sizeWarning(w, Buffer.byteLength(f), `W${pad(w)}.json`);
-    if (warn) log(warn);
-    fs.writeFileSync(path.join(out, `W${pad(w)}.json`), f);
-  }
-  const bw = sizeWarning(w, Buffer.byteLength(b), "board.json");
-  if (bw) log(bw);
+function write(out: string, file: WeekFile, board: any, vault: any, w: number, log: (s: string) => void) {
+  const f = canon(file), b = canon(board);
+  if (f.length > MAX_FILE || b.length > MAX_FILE) throw new Error(`week ${w}'s files would be over ${MAX_FILE} bytes: stopping (RECORDER_STANDARD §6.7)`);
+  const warn = sizeWarning(w, Math.max(f.length, b.length));
+  if (warn) log(warn);
+  fs.writeFileSync(path.join(out, `W${pad(w)}.json`), f);
   fs.writeFileSync(path.join(out, "board.json"), b);
   if (vault) fs.writeFileSync(path.join(out, "vault", `W${w}.json`), canon(vault));
 }
@@ -354,19 +292,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     if (why) { console.error(`✖ ${why}`); process.exit(1); }
     const r = scoreWeek({ week: { start: a.start }, questions: a.questions, players: a.players, min: a.min });
     console.log(`week ${w}: ${a.questions.length} questions (complete: ${r.complete}), ${r.rows.length} players; staked rows ${r.vault.rows.length}; first ${r.vault.first.join(", ") || "-"}; second ${r.vault.second.join(", ") || "-"}`);
-    // The parts dry-run compare (Questions PR A): this real week through the parts format and back, scored again.
-    // Read-only; nothing is written. Any week can be tried, old or new (answers sorted by question, as parts weeks are).
-    {
-      const sorted = { ...a, players: a.players.map((p) => [p[0], p[1], p[2], p[3], [...p[4]].sort((x, y) => x[0] - y[0])] as Snapshot["players"][number]) };
-      const { decodeWeek } = await import("./parts.inline.mjs");
-      const enc = encodeWeek(sorted);
-      const back = decodeWeek(enc.map((p: any) => ({ part: p.part, ...kitParts.decodePart(p.text) })), w);
-      const r2 = scoreWeek({ week: { start: back.start }, questions: back.questions, players: back.players, min: back.min });
-      const same = JSON.stringify(r2.vault) === JSON.stringify(r.vault) && JSON.stringify(back.players) === JSON.stringify(sorted.players);
-      const old = Buffer.byteLength(canon(buildWeek({ ...a, week: Math.min(w, PARTS_FROM_WEEK - 1) }, null, a.time).file));
-      console.log(`parts compare: ${same ? "SAME results and players" : "✖ DIFFERENT"}; old file ${old} bytes; parts ${enc.length}, largest ${Math.max(...enc.map((p: any) => p.bytes))} bytes, all ${enc.reduce((t: number, p: any) => t + p.bytes, 0)} bytes`);
-      if (!same) process.exit(1);
-    }
     const settled = new Map<string, any>();
     for (const row of await listPlayers(nodes[0], w)) if (row.entry?.settled) settled.set(row.address, row.entry);
     let same = 0, diff = 0;

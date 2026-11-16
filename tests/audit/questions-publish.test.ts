@@ -18,7 +18,7 @@ const A = "1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", B = "1BBBBBBBBBBBBBBBBBBBBBBBBBB
 const S4 = G + 4 * WK, END = S4 + WK, NOW = END + 3 * H;
 const SRC = (() => {
   const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split(/\r?\n/);
-  const a = y.findIndex((l) => l.includes(`/usr/bin/python3 - "$IN/questions" "$PUB/questions" "$HELD" "$DEC" <<'PY'`));
+  const a = y.findIndex((l) => l.includes(`/usr/bin/python3 - "$IN/questions" "$PUB/questions" "$HELD" <<'PY'`));
   const e = y.findIndex((l, i) => i > a && l.trim() === "PY");
   return y.slice(a + 1, e).map((l) => l.replace(/^ {10}/, "")).join("\n");
 })();

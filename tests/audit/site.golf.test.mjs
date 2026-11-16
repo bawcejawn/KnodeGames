@@ -92,3 +92,16 @@ test("npm run golf exists (golf.yml runs it every hour)", () => {
   assert.equal(JSON.parse(read("package.json")).scripts.golf, "tsx bot/games/golf.ts");
   assert.match(read(".github/workflows/golf.yml"), /run: npm run golf\n/);
 });
+
+test("the Clubhouse: the page's ladder text matches the shared rules, and it reads clubhouse.json", () => {
+  const box = { window: {} };
+  vm.runInNewContext(read("golf-math.js"), box);
+  const G = box.window.KGolf;
+  assert.deepEqual([...G.CLUB_LADDER], [7, 6, 5, 4, 4, 3, 3, 2, 2, 1]);
+  assert.match(html, /0 = lost ball, 1 = double bogey, 2 = bogey, 3 or 4 = par, 5 or 6 = birdie, 7 or 8 = eagle, 9 or more = hole in one/);
+  assert.match(html, /earned once, the first week it's seen, and kept for good/);
+  assert.match(js, /fetchJson\(DATA \+ "clubhouse\.json"\)/);
+  assert.match(js, /href: "#clubhouse"/);
+  for (const f of Object.keys(G.CLUB_FEATURES)) assert.ok(G.isFeature(f), f);
+  assert.equal(G.featureName("play-race", "Producer Race"), "Played Producer Race");
+});

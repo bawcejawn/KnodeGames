@@ -55,6 +55,19 @@ jobs:
             if [ "$rc" -eq 2 ]; then return 1; fi
             echo "::error::Couldn't read the $1 branch (git ls-remote exit $rc); nothing recorded this run."; exit 1
           }
+          # The Clubhouse (claude/golf/CLUBHOUSE-BUILD-PLAN-2026-11-15.md): the @names (names-data names.json) and the
+          # last two days of vhp-data hour files (which producers signed blocks). Plain names only.
+          mkdir -p "$RUNNER_TEMP/names" "$RUNNER_TEMP/vhp/h"
+          if has_branch names-data; then
+            git fetch -q --depth 1 "$url" names-data
+            if git cat-file -e "FETCH_HEAD:names.json" 2>/dev/null; then git show "FETCH_HEAD:names.json" > "$RUNNER_TEMP/names/names.json"; fi
+          fi
+          if has_branch vhp-data; then
+            git fetch -q --depth 1 "$url" vhp-data
+            for f in $(git ls-tree --name-only FETCH_HEAD h/ 2>/dev/null | sed 's#^h/##' | grep -E '^[0-9]{1,9}\.json$' | sort -V | tail -48); do
+              git show "FETCH_HEAD:h/$f" > "$RUNNER_TEMP/vhp/h/$f"
+            done
+          fi
           if has_branch race-data; then
             git fetch -q --depth 1 "$url" race-data
             for f in $(git ls-tree --name-only FETCH_HEAD); do
@@ -99,7 +112,7 @@ jobs:
               take_parts "$id"
             done
             for f in $(git ls-tree --name-only FETCH_HEAD:golf 2>/dev/null); do
-              if [[ "$f" =~ ^(index|board|W[0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:golf/$f" > "$RUNNER_TEMP/prev/$f"; fi
+              if [[ "$f" =~ ^(index|board|clubhouse|W[0-9]{3})\.json$ ]]; then git show "FETCH_HEAD:golf/$f" > "$RUNNER_TEMP/prev/$f"; fi
             done
           else echo "No games-data branch yet."; fi
       - name: Record Block Golf
@@ -111,6 +124,8 @@ jobs:
           GOLF_OUT: ${{ runner.temp }}/out/golf
           RACE_DATA: ${{ runner.temp }}/race
           GAMES_DATA: ${{ runner.temp }}/games
+          NAMES_DATA: ${{ runner.temp }}/names
+          VHP_DATA: ${{ runner.temp }}/vhp
           # The first week Block Golf pays prizes (set when the vault is live). Unset: every week is practice.
           GOLF_STAKED_FROM_WEEK: ${{ vars.GOLF_STAKED_FROM_WEEK }}
           # The owner's hold: vault weeks that may not go final, e.g. "5" or "5,6" (§5.5; unset: none).
@@ -142,7 +157,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -d "$IN/golf" ]; then echo "Nothing to publish."; exit 0; fi
-          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/golf" ! -path "$IN/golf/vault" \) -o \( -type f ! -regex "$IN/golf/\(index\|board\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/golf/vault/W[0-9]+\.json" \) \) -print)
+          bad=$(find "$IN" -mindepth 1 \( -type l -o \( -type d ! -path "$IN/golf" ! -path "$IN/golf/vault" \) -o \( -type f ! -regex "$IN/golf/\(index\|board\|clubhouse\|W[0-9][0-9][0-9]\)\.json" ! -regex "$IN/golf/vault/W[0-9]+\.json" \) \) -print)
           if [ -n "$bad" ]; then echo "::error::Refusing to publish unexpected files: $bad"; exit 1; fi
           big=$(find "$IN" -type f -size +8192k -print)
           if [ -n "$big" ]; then echo "::error::Refusing to publish files over 8 MB: $big"; exit 1; fi
@@ -218,6 +233,18 @@ jobs:
                   st = strokes_for(better, same, units - (r["w"] if inf else 0), True) if r["scored"] else 6
                   res[r["a"]] = (ahead + 1, n if inf else n + 1, st)
               return res, n
+          # The Clubhouse (golf-math.js scoreClub): a fixed ladder of the features earned, never skipped; place = the
+          # features, of = None; field = every row (practice) or the rows with Block Golf stake (staked weeks).
+          LADDER = [7, 6, 5, 4, 4, 3, 3, 2, 2, 1]
+          def score_club(rows, everyone):
+              by = {}
+              for a, score, scored, w in rows:
+                  if type(score) is not int or score < 1: continue
+                  w = weight_of(w); o = by.get(a)
+                  if o is None or score > o["score"]: by[a] = {"score": score, "w": max(w, o["w"] if o else 0)}
+                  else: o["w"] = max(o["w"], w)
+              n = len(by) if everyone else sum(1 for r in by.values() if r["w"] > 0)
+              return {a: (r["score"], None, LADDER[min(r["score"], len(LADDER) - 1)]) for a, r in by.items()}, n
           def recompute(j):
               practice = j["practice"] is True
               live, ranked_any = [], set()
@@ -228,7 +255,8 @@ jobs:
               for h in j["holes"]:
                   if h["status"] == "skipped":
                       continue
-                  res, n = score_hole(h["rows"], PRACTICE_MIN_FIELD if practice else MIN_FIELD, practice, 0 if practice else MIN_FIELD_VHP)
+                  if h["id"] == "clubhouse": res, n = score_club(h["rows"], practice)
+                  else: res, n = score_hole(h["rows"], PRACTICE_MIN_FIELD if practice else MIN_FIELD, practice, 0 if practice else MIN_FIELD_VHP)
                   assert h["field"] == n, h["id"] + ": field"
                   if res is None:
                       assert h["status"] != "final", h["id"] + ": a final hole whose field is too small must be skipped"
@@ -280,8 +308,17 @@ jobs:
               f1, f2 = (f1 if len(f1) <= 10 else []), (f2 if len(f2) <= 10 else [])
               assert j["first"] == f1 and j["second"] == f2, "vault/" + f + ": first/second don't match the Free play board"
               assert sorted((r["player"], r["points"]) for r in j["rows"]) == want, "vault/" + f + ": rows don't match the week's scorecards"
+          # The Clubhouse record (clubhouse.json): wallet -> feature -> the vault week it was first seen.
+          fid = re.compile(r"[a-z0-9-]{1,32}")
+          club = None
+          if os.path.exists(os.path.join(d, "clubhouse.json")):
+              club = json.load(open(os.path.join(d, "clubhouse.json"), encoding="utf-8"))
+              assert type(club) is dict and set(club) - {"desk"} == {"v", "updated", "wallets"} and club["v"] == 1 and type(club["updated"]) is str and len(club["updated"]) <= 40, "clubhouse.json"
+              assert "desk" not in club or nat(club["desk"]), "clubhouse.json: desk"
+              wl = club["wallets"]
+              assert type(wl) is dict and len(wl) <= 100000 and all(isaddr(a) and type(fs) is dict and 1 <= len(fs) <= 64 and all(type(k) is str and fid.fullmatch(k) is not None and type(v) is int and 0 <= v <= CW + 1 for k, v in fs.items()) for a, fs in wl.items()), "clubhouse.json: wallets"
           for f in os.listdir(d):
-              if f == "vault": continue
+              if f == "vault" or f == "clubhouse.json": continue
               j = json.load(open(os.path.join(d, f), encoding="utf-8"))
               if f == "index.json":
                   assert set(j) == {"v", "updated", "weeks", "course", "stakedFromWeek"} and j["v"] == 1, f
@@ -315,6 +352,14 @@ jobs:
               # with a port of golf-math.js (differential-tested against it), and must match exactly: strokes, places,
               # the mulligan, points, order, and who is Staked / Free play.
               assert recompute(j) == j["cards"], f + ": the scorecards don't match their holes"
+              # The Clubhouse hole holds exactly each wallet's features earned by the end of its week (from the record).
+              for h in j["holes"]:
+                  if h["id"] != "clubhouse" or h["status"] == "skipped": continue
+                  assert club is not None, f + ": a Clubhouse hole needs clubhouse.json"
+                  # Only the week's players (on any of its game holes) play the Clubhouse.
+                  players = {r[0] for g in j["holes"] if g["id"] != "clubhouse" for r in g["rows"]}
+                  want = sorted((a, n) for a, fs in club["wallets"].items() if a in players for n in [sum(1 for v in fs.values() if v <= j["week"])] if n >= 1)
+                  assert all(r[2] == 1 for r in h["rows"]) and sorted((r[0], r[1]) for r in h["rows"]) == want, f + ": the Clubhouse hole doesn't match clubhouse.json"
           print("golf files ok")
           PY
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
@@ -337,7 +382,7 @@ jobs:
             rm -rf "$RUNNER_TEMP/old" && mkdir -p "$RUNNER_TEMP/old"
             if [ -n "$parent" ]; then
               for f in $(git ls-tree --name-only "$parent:golf" 2>/dev/null); do
-                if [[ "$f" =~ ^(index|W[0-9]{3})\.json$ ]]; then git show "$parent:golf/$f" > "$RUNNER_TEMP/old/$f"; fi
+                if [[ "$f" =~ ^(index|clubhouse|W[0-9]{3})\.json$ ]]; then git show "$parent:golf/$f" > "$RUNNER_TEMP/old/$f"; fi
               done
               mkdir -p "$RUNNER_TEMP/old/vault"
               for f in $(git ls-tree --name-only "$parent:golf/vault" 2>/dev/null); do
@@ -363,6 +408,20 @@ jobs:
               except UnicodeEncodeError: raise AssertionError(f + ": a name in it can't be written as text (half an emoji?): not published") from None
               sig = hashlib.sha256(raw).hexdigest()
               assert c.get("sig") == sig, f + ": what is final isn't what the earlier run checked"
+          # The Clubhouse record only grows: nothing removed, nothing restamped, and anything new is stamped with this
+          # week (or last week, for a run at the turn of the week), so a week that has ended can't gain a feature.
+          CW = (NOW - 1792368000000) // 604800000
+          if os.path.exists(os.path.join(new, "clubhouse.json")):
+              nc = load(new, "clubhouse.json")["wallets"]
+              oc = load(old, "clubhouse.json") if os.path.exists(os.path.join(old, "clubhouse.json")) else {"wallets": {}}
+              for a, fs in oc["wallets"].items():
+                  assert a in nc and all(nc[a].get(k) == v for k, v in fs.items()), "clubhouse.json: " + a + ": an earned feature can't be removed or restamped"
+              for a, fs in nc.items():
+                  for k, v in fs.items():
+                      if oc["wallets"].get(a, {}).get(k) is None: assert v in (CW - 1, CW), "clubhouse.json: " + a + ": a new feature must be stamped with this week"
+              assert "desk" not in oc or oc.get("desk", 0) <= load(new, "clubhouse.json").get("desk", 0), "clubhouse.json: the desk's swap count can't go down"
+          elif os.path.exists(os.path.join(old, "clubhouse.json")):
+              raise AssertionError("clubhouse.json was published before and is missing now")
           if os.path.exists(os.path.join(old, "index.json")):
               oi, ni = load(old, "index.json"), load(new, "index.json")
               assert set(oi["weeks"]) <= set(ni["weeks"]), "the list of weeks can only grow"

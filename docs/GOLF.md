@@ -53,7 +53,32 @@ the folders of the board's `week` and `lastWeek` lists (plain files only).
 
 No contract, vault or sponsor change is needed to add a hole. A game with the shared board adds one line to `games.json`; any other game's build adds its reader and a test.
 
-The Clubhouse hole (a hole scored by how many different platform features a wallet used) is planned in `claude/golf/CLUBHOUSE-PLAN-2026-11-06.md` and is **not built yet**: each feature chat must first say how its action shows up as a public wallet record.
+## The Clubhouse hole (owner, 6 Nov; accumulating, owner 15 Nov)
+
+The Clubhouse is one more hole, the same weight as a game hole. It's scored by how many **different** Knode Games features a wallet has used. Plan: `claude/golf/CLUBHOUSE-BUILD-PLAN-2026-11-15.md`.
+
+- **Accumulating.** A feature is earned once, the first week Golf sees it, and kept for good. Doing it again adds nothing, so spamming can't help.
+- **Who plays it:** the week's players, meaning wallets on any of that week's game holes. A wallet that played no game that week has no Clubhouse row, so features alone never make a scorecard or a payout.
+- **Strokes** come from the features earned by the end of the week, on a fixed ladder (`golf-math.js` `CLUB_LADDER`): 0 = 7 (lost ball), 1 = 6, 2 = 5, 3 or 4 = 4 (par), 5 or 6 = 3, 7 or 8 = 2, 9 or more = 1. It doesn't depend on other players, so it's never skipped for a small field. The mulligan can drop it.
+- **The record** is `games-data:golf/clubhouse.json`: wallet → feature → the vault week it was first seen.
+  - It only grows. The publish job refuses a run that removes or restamps a feature, or stamps a new one with any week but this one (or last week, at the turn of the week).
+  - Every new feature is stamped with the current week, so a week that has ended can't gain a feature, and its Clubhouse hole is final as soon as the week is over.
+  - The publish job checks that each week's Clubhouse rows are exactly the record's counts, and re-scores the hole by the ladder.
+- **Features read today** (`CLUB_FEATURES`, plus one per game):
+
+  | Feature | Source |
+  |---|---|
+  | `play-<game>` (played that game) | Golf's own hole rows, this week and last |
+  | `all-games` (played every game hole of a week, at least 2) | last week's final file |
+  | `blockx-3-days` (Block X picks on 3+ days) | Block X board `days` (v 1 rows, or v 2 parts) |
+  | `name` (has an @name) | names-data `names.json` nicknames |
+  | `producer` (signed a block) | the last 48 vhp-data hour files: `addrs[i]` for each `i` in `sig` |
+  | `swap` (used the swap desk) | desk `get_recent` (its newest 20) on both nodes. More than 20 swaps since the last run is reported. |
+  | `staked`, `two-games`, `claimed` | vault `get_game_player` for every staked game, on both nodes, for at most 20 players a run (the players still missing one of the three) |
+
+- **A feature that can't be read** in a run is said aloud in the run's problems and tried again the next run. It never removes anything already earned, and never holds a week.
+- **Joins** at vault week 6 at the earliest (`JOIN_FROM.clubhouse`), like a new game: the Monday after it's first seen.
+- **Still to add** (they need a wallet's transaction history or a field from another game): moved stake, burned KOIN for VHP, Get VHP, registered a producer key, played on 5+ days, and a second race type. Each one adds a line to `CLUB_FEATURES`, a reader and a test.
 
 ## The week (D-125, D-129; the one home for timing is `.ai/standards/WEEK_CYCLE.md`)
 

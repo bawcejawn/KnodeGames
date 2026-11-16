@@ -224,6 +224,8 @@ is A.
   `mode` in the card's settings, and record the schedule and the week's mode in the week file. The publish job's
   `recompute_main` settings file must carry the same `mode`.
 - **Players aren't told which mode a week uses** (owner, 11 Nov). The card records it for audit.
+- **Which games read it today (checked Sat 14 Nov 2026):** only the Bracket (`BRACKET_RULER_MODE`, from #285). The Race,
+  Block X and Fantasy don't read their `<GAME>_RULER_MODE` yet: setting it does nothing until that game's wiring PR merges.
 - **All games at once (owner, 14 Nov 2026):** `RULER_MODE` (all games) and `<GAME>_RULER_MODE` (one game), the same
   week:mode format. `effectiveSchedule(all, own)` / `effective_schedule`: the game's own value when set **replaces** the
   all-games value for that game (no merge week by week); unset, the game takes the all-games value; both unset, null.
@@ -271,6 +273,8 @@ cost of 5,100–14,700 blocks).
 - **A game reads the variable every run,** records the schedule and the week's version in its week file, checks every
   change with `versionChange` against the last published value, and passes `version: versionAt(week, schedule)` in the
   card settings (and the same in the publish job's settings).
+- **Which games read it today (checked Sat 14 Nov 2026):** none. Turning version 5 on for a game needs that game's
+  wiring PR first (and Fantasy's `ruler-view.ts` accepts only ruleVersion 4 cards today).
 - **A season game** (Survivor) pins one version and one mode at the season's first week, for the whole season.
 - **Each game's publish job reads its own `<GAME>_RULER_VERSION`** (and `<GAME>_RULER_MODE`) and passes the same settings
   to `recompute`. Nothing in the ruler reads the variables.
@@ -294,3 +298,15 @@ results from the rebuilt card. (`recompute` in Python still returns `(same, diff
   publish job derives those results from the rebuilt card and refuses any difference.
 - **Keep the full texts somewhere** (for example a per-day cards file outside the week file): vhp-data keeps 30 days
   (floor 26), so after that a card can be shown, but no longer rebuilt, only from its stored text.
+
+## Review tools (read-only; the Ruler chat, 14 Nov 2026)
+- `node tools/vhp-ruler-race-check.mjs <race-data> --week N [--vhp-data <vhp-data>] [--gh owner/repo] [--since <ISO>]`:
+  checks a ruled Race week. Every race.yml run since `--since` is green (all pages); the record and publish logs of
+  every finished run have no "differs", "refused" or
+  "held" line; each card in `R<week>.json` / `R<week>-<type>.json` is ruleVersion 4 with no mode / version / include,
+  its placings are the card's top three, and (with `--vhp-data`) it rebuilds byte for byte with the Race's settings.
+  Races without a card are listed as "not yet", and as late after 3 hours. Exit 0 OK, 1 problems.
+- `node --import tsx tools/vhp-ruler-shadow-compare.mjs --week N --games-data <games-data> --race-data <race-data>`:
+  sets each game's ruler result against its old rule for a week. The Race: ruler placings vs the handicap standings.
+  Block X: the ruler's multiplier and voids vs the old min(cap, top ÷ VHP). The Bracket: the ruler's winners vs the day
+  index's. It says why each difference happened. `--json <file>` keeps every row.

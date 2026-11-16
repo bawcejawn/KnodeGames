@@ -11,7 +11,10 @@ import { recordHours, blockRecord, rollup } from "../../bot/vhp-ruler.ts";
 import { fillHours, fillChunks } from "../../bot/vhp-fill.ts";
 
 const quiet = () => {};
-const opts = { waitMs: 50, pollMs: 1, log: quiet, rounds: 3 };
+// waitMs: the fake nodes advance 10 blocks per head() call, not by the clock, so settle() always needs about 7 polls;
+// a 50 ms wall-clock limit failed at random on a busy CI runner (#313 Sat 14 Nov, #336 Sun 15 Nov). 60 s never runs out
+// here, and a real hang still fails within the minute.
+const opts = { waitMs: 60000, pollMs: 1, log: quiet, rounds: 3 };
 // a 40-hour chain; the published data stops at hour 30 (written by the fixture), the nodes' heads are near the end
 const c = makeChain({ seed: 17, hours: 40, np: 5, busy: 0.02, write: 31 });
 const H = 1200, at = (n) => (n + 1) * H - 1;

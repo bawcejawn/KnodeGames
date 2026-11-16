@@ -64,7 +64,18 @@
       },
       "hashRule": 2,
       "paramsHash": "12392195fe687073e84e3c467b9914b2a23ea94968cf4b246461ecc60a262a6f",
-      "chainId": 110
+      "chainId": 110,
+      "vhpReadings": [
+        {
+          "height": 41127367,
+          "readAt": "2026-11-16T14:51:29.201Z",
+          "values": {
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": "85782512751394"
+          },
+          "seal": "198ead22e41ef2e7a44d5086e09f43394ae1c0efcd483b2a29e904c56a6cfa92"
+        }
+      ],
+      "vhpSeal": "584696d9469de6e7cfcb6b80d6aa2c75304ec1ca7bc91dfacb9fcfc433a362f8"
     },
     {
       "id": "W004-D1-00-2",
@@ -125,7 +136,18 @@
       },
       "hashRule": 2,
       "paramsHash": "5a4a6467dec18b841c6838273d2e5d8bbbd74966b4028c3c9718c7e14e72eefc",
-      "chainId": 111
+      "chainId": 111,
+      "vhpReadings": [
+        {
+          "height": 41127367,
+          "readAt": "2026-11-16T14:51:29.201Z",
+          "values": {
+            "15CM9Qr4GKREDgqnyXJ8tckPj2biERTM1T": "10415264845086"
+          },
+          "seal": "a7dc9f5dfa8d54dfe31991353ffaaf34fd90889c62467314e8af325fd1ab3b59"
+        }
+      ],
+      "vhpSeal": "d626c46c24561006214ae243290d3bdd5b43086df0b9045b647ea32b8848028e"
     },
     {
       "id": "W004-D1-00-3",
@@ -186,7 +208,19 @@
       },
       "hashRule": 2,
       "paramsHash": "1bf7f154abf8d6bb542f53d2ad962bbb1b0ac55c482f1a71acf4065be07a1156",
-      "chainId": 112
+      "chainId": 112,
+      "vhpReadings": [
+        {
+          "height": 41127367,
+          "readAt": "2026-11-16T14:51:29.201Z",
+          "values": {
+            "1UG4UUn7Da9JqE4PKbYUWgjbNwE5F9531": "222255904809217",
+            "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW": "212998595959128"
+          },
+          "seal": "4155bbdcc9fc919641d11858f55a0f54788f046eb32d3f252571d3fa1a29c82a"
+        }
+      ],
+      "vhpSeal": "60d38174f73fe2328411ccf4c0d29f20e42aa4b45c64f19adc2c87bfd2743239"
     },
     {
       "id": "W004-D1-00-4",
@@ -247,7 +281,18 @@
       },
       "hashRule": 2,
       "paramsHash": "372986adb3e006e569daae3b5f674d67c31ce2a36c18f9eb0cd82829958966ea",
-      "chainId": 113
+      "chainId": 113,
+      "vhpReadings": [
+        {
+          "height": 41127367,
+          "readAt": "2026-11-16T14:51:29.201Z",
+          "values": {
+            "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": "114630580783439"
+          },
+          "seal": "cc9f1b6a829a5606c3ed30288e72027f797e98bb79fd73cfe86203d02f9c5f66"
+        }
+      ],
+      "vhpSeal": "61dd33a006ef0d17bea4eb24414425e5c12f636ebe6e30f382013e4a5d608957"
     }
   ],
   "daySeal": "ae97159949cee4bb4387898160207b7216266699bafcf6e36a9ff93617c76fdf"

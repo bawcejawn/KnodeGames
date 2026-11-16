@@ -337,8 +337,12 @@ jobs:
               if len(kept) < 2: return ("void", 0)
               if any(l[4] != "hit" or not l[3] > 0 for l in kept): return ("miss", 0)
               return ("hit", points([l[3] for l in kept]))
+          # A leg's highest worth (hundredths) by code, as combo-math.js WORTH100 (owner D-188, 15 Nov): race legs 1-3 up
+          # to 3 (300), Block X legs (4) up to 6 (600). Both floors are 0.25 (25). A test holds these equal to the JS.
+          WORTH_MIN = 25
+          WORTH_MAX = {1: 300, 2: 300, 3: 300, 4: 600}
           def leg_ok(l):
-              return type(l) is list and len(l) == 5 and type(l[0]) is int and l[0] in (1, 2, 3, 4) and nat(l[1]) and l[1] > 0 and isaddr(l[2]) and type(l[3]) is int and 0 <= l[3] <= 300 and l[4] in RESULTS
+              return type(l) is list and len(l) == 5 and type(l[0]) is int and l[0] in WORTH_MAX and nat(l[1]) and l[1] > 0 and isaddr(l[2]) and type(l[3]) is int and 0 <= l[3] <= WORTH_MAX[l[0]] and l[4] in RESULTS
           CARD = {"player", "round", "time", "changes", "priceAt", "legs", "state", "outcome", "pts", "settled"}
           def card_ok(c, rnd, day, fixed=True):
               if type(c) is not dict or set(c) != CARD: return False
@@ -351,8 +355,9 @@ jobs:
               if len(set(keys)) != len(keys) or len({l[2] for l in legs}) != len(legs): return False   # one leg per slot, a producer once
               if c["state"] not in ("pending", "final") or c["outcome"] not in (None, "hit", "miss", "void") or not nat(c["pts"]) or not nat(c["settled"]): return False
               # Fix-check 3 FC3-3: a hit leg is worth 0 (a horse not in the field when sent: it counts as a miss) or 0.25 to
-              # 3 (f100Of never gives less); a card is final only on a fixed slot (the recorder never makes one final earlier).
-              if any(l[4] == "hit" and not (l[3] == 0 or 25 <= l[3] <= 300) for l in legs): return False
+              # its family's cap (3 for a race leg, 6 for Block X: D-188; f100Of never gives less); a card is final only on
+              # a fixed slot (the recorder never makes one final earlier).
+              if any(l[4] == "hit" and not (l[3] == 0 or WORTH_MIN <= l[3] <= WORTH_MAX[l[0]]) for l in legs): return False
               if c["state"] == "final":
                   if fixed is not True: return False
                   # (A miss decides as soon as the slot is fixed: its other legs may still be pending. FC2-3.)

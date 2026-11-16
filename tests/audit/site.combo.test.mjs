@@ -117,7 +117,7 @@ test("race chances from the real card: win near-equal, show and top-half spread;
   assert.ok(Math.max(...shows) / Math.min(...shows) > 2, "but not top 3");
 });
 
-test("leg prices: factor = clamp(0.5 / chance, 0.25, 3); Block X by VHP share; unknown horse can't be priced", () => {
+test("leg prices: race factor = clamp(0.5 / chance, 0.25, 3); Block X clamp(0.25 / share, 0.25, 6) (D-188); unknown horse can't be priced", () => {
   // Rounded DOWN to the hundredth (Repo Lens RL-17).
   assert.equal(C.factorOf(0.5), 1); assert.equal(C.factorOf(0.9), 0.55); assert.equal(C.factorOf(0.99), 0.5); assert.equal(C.factorOf(0.3), 1.66);
   assert.equal(C.factorOf(2.5), 0.25); assert.equal(C.factorOf(0.01), 3); assert.equal(C.factorOf(0), 3);
@@ -128,8 +128,10 @@ test("leg prices: factor = clamp(0.5 / chance, 0.25, 3); Block X by VHP share; u
   const bx = C.priceLeg(CARD, leg(C.BLOCK, B, TOP));
   const total = [...CARD.field, ...CARD.paddock].reduce((s, r) => s + r.vhp, 0);
   assert.equal(bx.chance, Math.round(CARD.field[0].vhp / total * 1e4) / 1e4);
-  assert.equal(bx.factor, Math.floor(Math.min(3, 0.5 / bx.chance) * 100 + 1e-9) / 100);
-  assert.equal(C.priceLeg(CARD, leg(C.BLOCK, B, PADDOCK)).factor, 3, "small paddock producer: ×3");
+  assert.equal(bx.factor, Math.floor(Math.min(6, 0.25 / bx.chance) * 100 + 1e-9) / 100);
+  const small = C.priceLeg(CARD, leg(C.BLOCK, B, PADDOCK));
+  assert.equal(small.factor, Math.floor(Math.min(6, 0.25 / small.chance) * 100 + 1e-9) / 100, "small paddock producer: up to ×6 (D-188)");
+  assert.ok(small.factor > 3, "a long shot now pays above the race legs' ×3 cap");
   assert.equal(C.priceLeg(CARD, leg(C.BLOCK, B, STRANGER)).factor, 1, "producer missing from the card: ×1, as Block X BX-3 (Repo Lens RL-1)");
   assert.equal(C.priceLeg(CARD, leg(C.SHOW, R, PADDOCK)), null, "a paddock horse isn't in the race field");
   assert.equal(C.priceLeg(null, leg(C.SHOW, R, TOP)), null);

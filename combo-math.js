@@ -25,7 +25,12 @@
  *   3 cards per wallet per UTC day (slots 0, 1, 2: round = UTC day × 3 + slot); each changeable up to 3 times, only
  *   on its own UTC day and only while every leg of the old and the new card is still open.
  *
- * PRICE: each leg has a factor = clamp(0.5 ÷ chance, 0.25, 3), rounded DOWN to 2 decimals (Repo Lens RL-17). The
+ * PRICE: each leg has a factor (its worth) = clamp(numerator ÷ chance, 0.25, cap), rounded DOWN to 2 decimals (Repo Lens
+ * RL-17), by leg family (WORTH; owner D-188, 15 Nov 2026):
+ *   - race legs (Win, Show, Top half): 0.5 ÷ chance, from ×0.25 to ×3;
+ *   - Block X legs: 0.25 ÷ chance, from ×0.25 to ×6. The biggest producer starts low (17.8% of VHP: ×1.40) and a long
+ *     shot can pay up to ×6 (2.5% or less). A Block X leg's expected worth (chance × worth) is 0.25, half a race leg's.
+ * The
  * chance comes from the PRICE CARD: the latest USABLE Producer Race card taken (card.at) at or before the time the card
  * was made (or last changed), at most 3 hours before it. Usable is Block X's own rule (bot/games/blockx.ts, audits
  * BX-3, BX-38, BX-55, BX-73; Repo Lens RL-8): made from at least 12 VHP samples, no producer flagged (the two nodes
@@ -74,7 +79,14 @@
   const BASE = { 2: 3, 3: 7, 4: 15, 5: 30, 6: 60, 7: 120, 8: 240, 9: 480, 10: 960 };
   const HARD_MAX_LEGS = 10;                // the Picks contract's limit (list_size)
   const CAP = null;                        // no cap on a card's points (owner, 2026-10-28)
-  const PREF = 0.5, F_MIN = 0.25, F_MAX = 3;
+  const PREF = 0.5, F_MIN = 0.25, F_MAX = 3;          // race legs (the original rule; names kept)
+  const BLOCK_PREF = 0.25, BLOCK_F_MAX = 6;           // Block X legs (owner D-188, 15 Nov 2026)
+  /** Each family's worth rule in hundredths: numerator, floor, cap. The publish job's Python (combo.yml, WORTH_MAX)
+   *  checks the same caps; a test holds them equal. */
+  const WORTH100 = Object.freeze({
+    race: Object.freeze({ num: PREF * 100, min: F_MIN * 100, max: F_MAX * 100 }),
+    block: Object.freeze({ num: BLOCK_PREF * 100, min: F_MIN * 100, max: BLOCK_F_MAX * 100 }),
+  });
   const CARDS_PER_DAY = 3, MAX_CHANGES = 3, BEST = 10;
   const RACE_LEAD_MS = 25 * 60000, RACE_AHEAD_MS = 24 * M.HOUR;
   const BLOCK_LEAD = 500, BLOCK_AHEAD = 28800;
@@ -192,9 +204,14 @@
     chanceCache.set(key, out);
     return out;
   }
-  /** The factor in hundredths: clamp(0.5 ÷ chance, 0.25, 3), rounded DOWN (Repo Lens RL-17). */
-  const f100Of = (chance) => (chance > 0 ? Math.min(F_MAX * 100, Math.max(F_MIN * 100, Math.floor((PREF * 100) / chance + 1e-9))) : F_MAX * 100);
-  const factorOf = (chance) => f100Of(chance) / 100;
+  /** The factor in hundredths, by family (WORTH100): race clamp(0.5 ÷ chance, 0.25, 3), block clamp(0.25 ÷ chance,
+   *  0.25, 6), rounded DOWN (Repo Lens RL-17). A chance of 0 gets the family's cap. */
+  function f100Of(chance, family = "race") {
+    const w = WORTH100[family];
+    if (!w) throw new Error(`combo-math: no worth rule for leg family ${family}`);
+    return chance > 0 ? Math.min(w.max, Math.max(w.min, Math.floor(w.num / chance + 1e-9))) : w.max;
+  }
+  const factorOf = (chance, family = "race") => f100Of(chance, family) / 100;
 
   /** A leg's price with a card: { chance, factor } (factor in hundredths as f100), or null if it can't be priced
    *  (a race leg on a horse not in the card's field). */
@@ -205,7 +222,7 @@
       let total = 0; for (const v of m.values()) total += v;
       const v = m.get(leg.producer);
       if (!v || !total) return { chance: null, factor: MISSING_F100 / 100, f100: MISSING_F100 };
-      const chance = round4(v / total), f100 = f100Of(chance);
+      const chance = round4(v / total), f100 = f100Of(chance, "block");
       return { chance, factor: f100 / 100, f100 };
     }
     const c = raceChances(card).get(leg.producer);
@@ -234,7 +251,8 @@
 
   /** Points (hundredths) for legs with these factors (hundredths): base × product, rounded down, no cap. Exact
    *  (BigInt), so the page and the recorder never differ by a rounding. Up to 10 legs (the contract's limit): the
-   *  most a card can score is 960 × 3^10 = 56,687,040 points, well inside exact integers. */
+   *  most a card can score is 960 × 6^10 = 58,047,528,960 points (10 Block X legs at ×6; D-188), about 5.8 × 10^12
+   *  hundredths, and a week of 10 such cards about 5.8 × 10^13: well inside exact integers (2^53 ≈ 9.0 × 10^15). */
   function pointsFor(f100s) {
     const n = f100s.length;
     if (n < MIN_LEGS || n > HARD_MAX_LEGS) return 0;
@@ -390,6 +408,7 @@
 
   root.KCombo = {
     GAME_ID, WIN, SHOW, HALF, BLOCK, CODES, NAMES, FAMILY, MIN_LEGS, MAX_LEGS, HARD_MAX_LEGS, BASE, CAP, PREF, F_MIN, F_MAX,
+    BLOCK_PREF, BLOCK_F_MAX, WORTH100,
     CARDS_PER_DAY, MAX_CHANGES, BEST, RACE_LEAD_MS, RACE_AHEAD_MS, BLOCK_LEAD, BLOCK_AHEAD,
     isWindow, slotKey, slotRound, dayOfRound, utcDay, lockOf, legOpen, cardLockTime, cardProblem,
     CARD_MAX_AGE_MS, MIN_CARD_SAMPLES, TRIALS, MISSING_F100, usableCard, flagsFor, priceCard, cardAfter, withMoved, sortLegs,

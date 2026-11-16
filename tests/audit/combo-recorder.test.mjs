@@ -414,7 +414,7 @@ test("RL-25: the recorder records nothing when game 8's leg types on chain lock 
   assert.match(settingsProblem(null), /not on the Picks contract/);
 });
 test("RL-2: VHP moved into the producer between its lock card and the block counts on both check cards (read on both nodes, the higher)", async () => {
-  // Alice's Block X leg (H2 signs) priced ×3 when sent; 100,000 VHP flows into H2 just before the block.
+  // Alice's Block X leg (H2 signs) priced from the card when sent; 100,000 VHP flows into H2 just before the block.
   const reads = [];
   const vhpMovesOf = async (node, who, from, to) => { reads.push([node, who, from, to]); return node === "check" ? 10000000000000n : 5000000000000n; };
   const out = tmp();
@@ -426,6 +426,6 @@ test("RL-2: VHP moved into the producer between its lock card and the block coun
   assert.ok(mine.some((r) => r[0] === "main") && mine.some((r) => r[0] === "check"), "read on both nodes, up to the block");
   assert.ok(mine.every((r) => r[2] < r[3] && r[3] - r[2] < 2000), "from (about) the lock card's block, less the 25-block margin");
   assert.ok(a.legs[1][3] < C.priceLeg(CARD(0), { code: C.BLOCK, round: a.legs[1][1], producer: H2 }).f100, `worth ${a.legs[1][3]}: the moved VHP lowered it`);
-  // H2: 2,000 + 100,000 (the higher read) of 108,000 VHP → chance 0.9444 → 0.5 / 0.9444 = ×0.52 (rounded down).
-  assert.equal(a.legs[1][3], 52);
+  // H2: 2,000 + 100,000 (the higher read) of 108,000 VHP → chance 0.9444 → 0.25 / 0.9444 = ×0.26 (rounded down; D-188).
+  assert.equal(a.legs[1][3], 26);
 });

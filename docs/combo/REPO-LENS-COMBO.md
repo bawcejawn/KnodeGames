@@ -10,8 +10,8 @@ A parlay game for points, never money. A card holds 2 to 10 legs (owner, D-180) 
 - **Block X legs:** "producer P signs target block T" (T a multiple of 2,400).
 
 Every leg must hit. A miss scores 0, and a void leg is dropped. Points are base[legs] × the product of the leg worths,
-with base 3, 7, 15, 30, 60, 120, 240, 480, 960 for 2–10 legs. Each leg's worth is clamp(0.5 ÷ chance, 0.25, 3), priced when the card is
-sent. The limits are 3 cards a UTC day, each changeable 3 times.
+with base 3, 7, 15, 30, 60, 120, 240, 480, 960 for 2–10 legs. Each leg's worth is clamp(0.5 ÷ chance, 0.25, 3) for a race leg and
+clamp(0.25 ÷ chance, 0.25, 6) for a Block X leg (D-188), priced when the card is sent. The limits are 3 cards a UTC day, each changeable 3 times.
 
 A week is each player's best 10 cards. There are two boards: Staked, and Free play (anyone, guests included). The
 Staked board earns Combo's share of the Vault's weekly reward. The Free play board pays no VHP until the owner switches
@@ -135,7 +135,8 @@ This round (Thu 12 Nov), on top of `ba2d9b30`:
 ## 4. Key decisions
 | Ref | Decision |
 |---|---|
-| Build 8 brief, D-180 | 2–10 legs (D-180, 14 Nov; was 2–6); worth clamp 0.25–3; 3 cards/day, 3 changes; no points cap; locks race 25 min, Block X 500 blocks; ≥ 1 point to count |
+| Build 8 brief, D-180 | 2–10 legs (D-180, 14 Nov; was 2–6); worth clamp 0.25–3 (race legs); 3 cards/day, 3 changes; no points cap; locks race 25 min, Block X 500 blocks; ≥ 1 point to count |
+| D-188 | Block X leg worth = 0.25 ÷ chance, ×0.25 to ×6 (owner, 15 Nov); race legs unchanged. The publish job's `WORTH_MAX` matches `WORTH100` |
 | D-060 | Cards on mainnet wait for Picks v2 |
 | RL-15 / RL-16 | A horse missing from the field = void leg |
 | C-W-3 / FC-13 | One sponsor row for picks and cards: 0.2 → 0.25 Mana at Combo launch |

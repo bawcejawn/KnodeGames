@@ -13,7 +13,7 @@ A staked "parlay" game: combine several predictions from the Producer Race and B
 - Anyone can send a card, guests included (D-081); the stake decides the board. The page blocks sending on stale data and in the last 2 minutes of a UTC day. 💬
 
 ## Scoring
-- **Worth per leg:** clamp(0.5 ÷ chance, 0.25, 3); Block X keeps ×3 as its cap. Race chances come from a seeded simulation (16,000 trials); a Block X chance is the producer's VHP share. 💬
+- **Worth per leg:** race legs clamp(0.5 ÷ chance, 0.25, 3); Block X legs clamp(0.25 ÷ chance, 0.25, 6) (owner, D-188, 15 Nov: the biggest producer starts low, long shots pay up to ×6; a Block X leg's expected worth is 0.25, half a race leg's). Largest card 960 × 6¹⁰ ≈ 5.8 × 10¹² hundredths, an exact integer. The publish job checks each family's cap (`WORTH_MAX`). Race chances come from a seeded simulation (16,000 trials); a Block X chance is the producer's VHP share. 💬
 - **Points by number of legs:** 2→3, 3→7, 4→15, 5→30, 6→60 (up to 10→960); no point cap. 💬
 - **Results (handicap weeks, before the ruler):** a race leg is unresolved if the race was missed, voided or not checked on two nodes; a Block X leg is decided by the target's signer once checked on both nodes. Unresolved legs never let a card score — a miss decides, otherwise void. No usable price card in the 3 h before sending → the card is void. The 10% rule (RL-16) and void-on-missing-horse (RL-15) stand. 💬
 - **A week** = a player's best 10 cards; ties: more hits, the earlier last hit, address. Vault points by board rank. 💬

@@ -26,21 +26,29 @@ const isAddr = (a) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.
 export const DEADLINE_MS = 2 * M.DAY;               // after the card's week ends: unknown results are void then
 export const VAULT_WINDOW_MS = 3 * M.DAY;           // the Vault takes a week's file within 3 days of its end
 /** The Race's own grace for a race with no ruler card (`RULER_GRACE` in bot/race.ts, pinned equal by a test): at its
- *  race's week end + this, the Race skips the race and pays its week. Owner's 48 h standard (Repo Lens #G-91 section 7). */
+ *  race's week end + this, at the earliest, the Race skips the race and pays its week (owner's 48 h standard). Combo no
+ *  longer predicts the skip from this clock; it reads the Race's own skip (raceSkipped; Repo Lens #J-10, J10-2). */
 export const RACE_RULER_GRACE_MS = 48 * M.HOUR;
-/** When the Race skips a race with no ruler card: its week's end + the Race's grace. */
-export const raceRulerSkip = (round) => M.weekStart(M.weekOf(M.raceStart(round)) + 1) + RACE_RULER_GRACE_MS;
 /** The FC2-3 / G51-1 edge: 6 h before the card's own week's Vault window closes. */
 export const comboVaultEdge = (cardDay) => M.weekStart(M.weekOf(cardDay * M.DAY) + 1) + VAULT_WINDOW_MS - 6 * M.HOUR;
-/** A ruled race leg whose race is final but has no ruler card is given up (unresolved):
- *  - when the Race skips that race: at raceRulerSkip, if the Race's published ruler file lists the race with no card
- *    (the Race is publishing, so it skips it in the same run; owner's 48 h standard, Repo Lens #G-91 section 7); never
- *    earlier;
- *  - in any case at comboVaultEdge (G51-1), so the card's week keeps its Vault file. That comes first only for a race in
- *    the next vault week (a Sunday card's Monday race), or when the Race publishes no ruler file at all (its outage:
- *    until then the card waits, RL-9 / G37-1). */
-export const ruledGiveUp = (cardDay, round, listedNoCard) =>
-  Math.min(listedNoCard ? raceRulerSkip(round) : Infinity, comboVaultEdge(cardDay));
+/** The Race's own Vault file for week w (race-data `vault/W<w>.json`, the race recorder's VaultFile), copied into the
+ *  race folder's `vault/` by the Combo jobs. */
+export const raceVaultName = (w) => `vault/W${w}.json`;
+/** Repo Lens #J-10 (J10-2): the Race has skipped race `round`. Its Vault file for the race's week is final and lists the
+ *  race in `skipped`. Exact: the Race writes that list in the run that skips the race, and a final file never changes.
+ *  A race the Race counted (a ruler card that landed while its week was held) is never in it. */
+export function raceSkipped(raceDir, round) {
+  const w = M.weekOf(M.raceStart(round)), f = readJson(raceDir, raceVaultName(w));
+  return !!f && f.week === w && f.final === true && Array.isArray(f.skipped) && f.skipped.includes(M.raceId(round));
+}
+/** A ruled race leg still pending at the deadline (its ruler card hasn't come) is given up (unresolved):
+ *  - when the Race has skipped that race (raceSkipped), in the same hour: Combo never counts a race the Race skipped and
+ *    never gives up one the Race counts;
+ *  - otherwise at comboVaultEdge (G51-1), if the race is final in the W file, so the card's week keeps its Vault file.
+ *    That covers a next-week race (a Sunday card's Monday race: the Race decides it a week later), a Race week still held
+ *    at the edge, and the Race's own outage (no Vault file). Until then the card waits (RL-9). */
+export const ruledGiveUp = (raceDir, cardDay, round, now) =>
+  raceSkipped(raceDir, round) || (now >= comboVaultEdge(cardDay) && raceRecord(raceDir, round)?.result?.final === true);
 export const wName = (w) => `W${String(w).padStart(3, "0")}.json`;
 export const rName = (w) => `R${String(w).padStart(3, "0")}.json`;
 /** Last week's full board: every row of week w from its L<w> parts in `dir` (part 0 names the count), in board order;
@@ -135,17 +143,6 @@ export function raceSourcePast(raceDir, round) {
   }
   return false;
 }
-/** Repo Lens G37-1: the Race's ruler has published past race `round` (a ruler card for a later race, its week or the
- *  next), so a missing ruler card is the ruler giving up, not an outage. */
-export function rulerSourcePast(raceDir, round) {
-  const w = M.weekOf(M.raceStart(round));
-  for (const k of [0, 1]) {
-    const rf = readJson(raceDir, rName(w + k));
-    if (!rf || rf.v !== 1 || rf.week !== w + k || !Array.isArray(rf.races) || (rf.mode !== "on" && rf.mode !== "shadow")) continue;
-    for (const e of rf.races) { const i = e && typeof e.id === "string" ? M.parseRaceId(e.id) : null; if (i !== null && i > round && typeof e.card === "string") return true; }
-  }
-  return false;
-}
 /** Block X targets by block HEIGHT (Repo Lens FC4-2). Block X's files number their rounds by their own round size: 2,400
  *  blocks before vault week 3, 1,200 (hourly, Picks game 12) since. A Combo Block X leg keeps its 2,400-block round and
  *  is looked up by its block, X.target(round); every 2,400th block is also an hourly target. */
@@ -210,11 +207,10 @@ export function makeScorer({ race: RACE, targets, head, agreed, movedInto, probl
       if (r === "pending" && late) {
         // At the deadline: unresolved if the leg's source has published past it (it gave up on it), else its recorder
         // stopped and the card waits (RL-9). Both are errors: someone should look.
-        // A ruled race whose W result is final but whose ruler card still hasn't come is given up when the Race itself
-        // skips it (its week's end + the Race's 48 h grace; Repo Lens #G-91 section 7, owner 15 Nov), so Combo never
-        // counts a race the Race skipped. A next-week race gives up at the FC2-3 edge instead (G51-1), so the card's
-        // own week keeps its Vault file. A card made final is kept as published, so a later ruler card changes nothing.
-        const past = isRace ? (ruled ? rulerSourcePast(RACE, l[1]) || (head.time >= ruledGiveUp(day, l[1], (rulerRecord(RACE, l[1]) ?? null) !== null) && raceRecord(RACE, l[1])?.result?.final === true) : raceSourcePast(RACE, l[1])) : [...targets.values()].some((x) => x.height > X.target(l[1]) && x.final === true);
+        // A ruled race whose ruler card hasn't come is given up when the Race itself has skipped it (its own Vault file;
+        // Repo Lens #J-10, J10-2), else at the FC2-3 edge if the race is final (G51-1), so the card's week keeps its
+        // Vault file (ruledGiveUp). A card made final is kept as published, so a later ruler card changes nothing.
+        const past = isRace ? (ruled ? ruledGiveUp(RACE, day, l[1], head.time) : raceSourcePast(RACE, l[1])) : [...targets.values()].some((x) => x.height > X.target(l[1]) && x.final === true);
         if (past) { unresolved(l, `its ${isRace ? "race" : "block"} (round ${l[1]}) was never decided by the deadline`, true); continue; }
         errors.push(`slot ${c.round}: the ${isRace ? "race" : "Block X"} recorder hasn't published past a leg of ${c.player}'s card (round ${l[1]}); it waits`);
       }

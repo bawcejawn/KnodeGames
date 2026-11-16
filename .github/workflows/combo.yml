@@ -76,6 +76,10 @@ jobs:
             { git ls-tree --name-only FETCH_HEAD 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^[WR][0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/race/$f"; fi   # W: results; R: the Race's ruler cards (D-new A)
             done
+            # The Race's own Vault files (vault/W<week>.json): its final skip list (Repo Lens #J-10, J10-2).
+            { git ls-tree --name-only FETCH_HEAD:vault 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then mkdir -p "$RUNNER_TEMP/race/vault"; git show "FETCH_HEAD:vault/$f" > "$RUNNER_TEMP/race/vault/$f"; fi
+            done
           else echo "No race-data branch yet: cards wait for race cards."; fi
       # The recorder exits 1 after writing its files when it raised an error (Repo Lens RL-5): the job turns red (you
       # are emailed) and its files are still checked and published.
@@ -150,6 +154,10 @@ jobs:
           if fetch_branch race-data; then
             { git ls-tree --name-only FETCH_HEAD 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^[WR][0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$RUNNER_TEMP/race/$f"; fi   # W: results; R: the Race's ruler cards (D-new A)
+            done
+            # The Race's own Vault files (vault/W<week>.json): its final skip list (Repo Lens #J-10, J10-2).
+            { git ls-tree --name-only FETCH_HEAD:vault 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then mkdir -p "$RUNNER_TEMP/race/vault"; git show "FETCH_HEAD:vault/$f" > "$RUNNER_TEMP/race/vault/$f"; fi
             done
           fi
       - name: Confirm the day files
@@ -236,6 +244,9 @@ jobs:
           if git fetch -q --depth 1 "$remote" race-data 2>/dev/null; then
             { git ls-tree --name-only FETCH_HEAD 2>/dev/null || true; } | while IFS= read -r f; do
               if [[ "$f" =~ ^[WR][0-9]{3}\.json$ ]]; then git show "FETCH_HEAD:$f" > "$PUB/race/$f"; fi
+            done
+            { git ls-tree --name-only FETCH_HEAD:vault 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W[0-9]+\.json$ ]]; then mkdir -p "$PUB/race/vault"; git show "FETCH_HEAD:vault/$f" > "$PUB/race/vault/$f"; fi
             done
           fi
           # The content must be the recorder's own shape, consistent with itself and with what is published.
@@ -534,6 +545,19 @@ jobs:
               if type(j) is not dict or not same(j.get("v"), 1) or j.get("week") != w or type(j.get("races")) is not list or j.get("mode") not in ("on", "shadow"): return None
               rid = time.strftime("%Y-%m-%dT%H", time.gmtime(start // 1000))
               return next((e for e in j["races"] if type(e) is dict and e.get("id") == rid), None)
+          RACE_VAULT = {}
+          def race_skipped(rnd):
+              # As combo-score.mjs raceSkipped (Repo Lens #J-10, J10-2): the Race's own final Vault file for the race's week
+              # (race-data vault/W<week>.json) lists the race in "skipped".
+              start = rnd * 6 * HOUR; w = (start - GENESIS) // WEEK
+              f = os.path.join(raced, "vault", "W%d.json" % w) if raced else ""
+              if w not in RACE_VAULT: RACE_VAULT[w] = load(f) if f and os.path.isfile(f) else None
+              j = RACE_VAULT[w]
+              rid = time.strftime("%Y-%m-%dT%H", time.gmtime(start // 1000))
+              return type(j) is dict and j.get("week") == w and j.get("final") is True and type(j.get("skipped")) is list and rid in j["skipped"]
+          def race_final(rnd):
+              r = race_record(rnd)
+              return type(r) is dict and type(r.get("result")) is dict and r["result"].get("final") is True
           def ruled_field(e):
               # As combo-math.js ruledField: the field of the Race's ruler card by fpct (highest first, then address).
               if type(e) is not dict or type(e.get("card")) is not str: return None
@@ -604,9 +628,11 @@ jobs:
               if (send["at"] if send else None) != c["priceAt"]: return "its price card isn't the latest usable race card before it was sent"
               if c["priceAt"] is None: return None if all(l[4] == "void" for l in c["legs"]) else "an unpriced card with leg results"
               deadline = GENESIS + ((day * DAY - GENESIS) // WEEK + 1) * WEEK + 2 * DAY
+              edge = GENESIS + ((day * DAY - GENESIS) // WEEK + 1) * WEEK + 3 * DAY - 6 * HOUR   # combo-score.mjs comboVaultEdge
+              ruled = ruled_day(day)
               ends = []
               for l in c["legs"]:
-                  e = expected(l, ruled_day(day))
+                  e = expected(l, ruled)
                   if e is False: return "its sources (race-data, Block X) can't be read here"
                   sc = price_card(c["time"], l[2])
                   if l[4] == "pending":
@@ -614,7 +640,10 @@ jobs:
                       return "a pending leg on a final card that didn't miss"
                   if l[4] == "unresolved":
                       race = l[0] != 4
-                      why = e == "unresolved" or sc is None or (e == "pending" and now >= deadline)
+                      # A pending ruled race leg: as combo-score.mjs ruledGiveUp (Repo Lens #J-10, J10-2 and J10-4), only once the Race
+                      # has skipped the race, or at the G51-1 edge if the race is final. Any other pending leg: from the deadline.
+                      gave_up = (race_skipped(l[1]) or (now >= edge and race_final(l[1]))) if (race and ruled) else now >= deadline
+                      why = e == "unresolved" or sc is None or (e == "pending" and now >= deadline and gave_up)
                       if race and e == "hit" and price_card(l[1] * 6 * HOUR - 25 * 60000, l[2]) is None: why = True
                       if not race and e == "hit": why = True                    # the chain's reasons (moved-VHP reads): the verify job asks both nodes (FC4-1)
                       if not why: return "leg %s (round %s) is unresolved, but its sources give it a result (%s)" % (l[2], l[1], e)

@@ -663,7 +663,12 @@ export async function run(o: Opts) {
       for (const w of [nowW - 1, nowW]) {
         const j = readJson(PREV, wName(w));
         if (!j || j.v !== 1 || !Array.isArray(j.holes)) continue;
-        for (const h of j.holes) if (h && h.id !== G.CLUBHOUSE && /^[a-z0-9-]{1,24}$/.test(h.id) && Array.isArray(h.rows)) for (const r of h.rows) if (Array.isArray(r) && isAddr(r[0])) { add(`play-${h.id}`, r[0]); players.add(r[0]); }
+        for (const h of j.holes) if (h && h.id !== G.CLUBHOUSE && /^[a-z0-9-]{1,24}$/.test(h.id) && Array.isArray(h.rows)) for (const r of h.rows) if (Array.isArray(r) && isAddr(r[0])) {
+          add(`play-${h.id}`, r[0]); players.add(r[0]);
+          // Repo Lens #J-11 J11-1: in a staked week a row's weight is its Block Golf stake (read on both nodes, every run, for
+          // every player), so every staked player earns `staked` in the same run, never by the vault rotation's order.
+          if (j.practice === false && G.weightOf(r[3]) > 0) add("staked", r[0]);
+        }
       }
     });
     // Played every game hole of a finished week (at least 2 game holes that weren't skipped).
@@ -700,7 +705,8 @@ export async function run(o: Opts) {
       const budget = Math.max(1, o.clubBudget ?? 20), start = need.length > budget ? Math.floor(now / HOUR) * budget % need.length : 0;
       const who = need.length > budget ? [...need.slice(start), ...need.slice(0, start)].slice(0, budget) : need;
       const read = o.vaultOf ?? ((n: any, list: string[], wk: number) => readVaultFacts(n, KNODE, list, wk));
-      if (!o.vaultOf && (!KNODE || !o.p)) return;
+      // Repo Lens #J-11 J11-7: say so, rather than skip quietly, when the vault can't be read at all.
+      if (!o.vaultOf && (!KNODE || !o.p)) throw new Error(KNODE ? "no node to read the vault from" : "the vault contract isn't known");
       const a = await read(o.p, who, nowW), b = o.check ? await read(o.check, who, nowW) : a;
       if (JSON.stringify([...a]) !== JSON.stringify([...b])) throw new Error("the two nodes don't agree yet");
       for (const [x, v] of a) { if (v.staked) add("staked", x); if (v.games >= 2) add("two-games", x); if (v.claimed) add("claimed", x); }

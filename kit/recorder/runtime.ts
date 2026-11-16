@@ -422,7 +422,7 @@ async function runOnce(m: GameModule<any, any, any>, cfg: KitGameCfg, o: RunOpts
     const pwk = prev.week(w - 1);
     // K4: the open copy of the current week may start from last week's pending copy (display only; no vault file).
     if (pwk && pwk.state !== "final" && o.live) alerts.notes.push(`its carried state comes from week ${w - 1}'s pending copy until that week is final`);
-    else if (pwk && pwk.state !== "final") {
+    else if (pwk && pwk.state !== "final" && o.resetFromWeek !== w) {
       alerts.errors.push(`week ${w} waits on week ${w - 1}, which isn't final (held or still pending): its carried state isn't known, so nothing is recorded for week ${w} (FC-5)`);
       return { week: w, state: "waiting", alerts, written: out.written };
     }

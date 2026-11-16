@@ -100,6 +100,32 @@
     const s = wf() && wf().seeding; if (!s || !s.size) return 0;
     return Math.max(0, Math.min(BM.roundsOf(s.size) - 1, Math.floor((Date.now() - BM.roundDay(view, 0, s.size)) / BM.DAY)));
   }
+  // ── follow a producer (owner, 14 Nov): its games light up and its status shows. Kept in the page link (?follow=…),
+  //    not in browser storage (fix-check 2 W-1: the page's only stored thing is the open-wallet-request lock) ──
+  const followAddr = () => { try { const a = new URLSearchParams(location.search).get("follow") || ""; return isAddr(a) ? a : ""; } catch { return ""; } };
+  const setFollow = (a) => { try { const q = new URLSearchParams(location.search); if (a) q.set("follow", a); else q.delete("follow"); const t = q.toString(); history.replaceState(null, "", `${location.pathname}${t ? `?${t}` : ""}${location.hash}`); } catch { /* fine */ } };
+  /** Seed k's standing from the week file's results only (Bracket chat's rule, TO-HUB-BRACKET-FILE-SHAPE §3). */
+  function standingOf(k, size, res) {
+    const names = BM.ROUND_NAMES[size] || [], rounds = res && Array.isArray(res.rounds) ? res.rounds : [];
+    for (let r = 0; r < rounds.length; r++) if (!rounds[r].includes(k)) return { out: true, text: `knocked out in the ${names[r] || `round ${r + 1}`}` };
+    if (res && res.done && rounds.length) return { champ: true, text: "champion! 🏆" };
+    return { text: `still in (${names[rounds.length] || "next round"})` };
+  }
+  function renderFollow(s, res) {
+    const box = $("bk-follow"); if (!box) return 0;
+    const fa = followAddr(), fk = fa ? s.seeds.indexOf(fa) + 1 : 0, key = `${view}:${s.seeds.join(",")}`;
+    let sel = box.querySelector("select");
+    if (!sel || sel.dataset.key !== key) {
+      sel = el("select", { "aria-label": "Follow a producer", "data-key": key, onchange: (e) => { setFollow(e.target.value); render(); } },
+        el("option", { value: "", text: "Nobody" }), ...s.seeds.map((a, i) => el("option", { value: a, text: `#${i + 1} ${nameOf(a)}` })));
+      box.replaceChildren(el("label", { text: "Follow:" }), sel, el("span", { class: "bk-follow-st", id: "bk-follow-st" }));
+    }
+    sel.value = fk ? fa : "";
+    const st = fk ? standingOf(fk, s.size, res) : null;
+    $("bk-follow-st").textContent = st ? `Seed #${fk}, ${st.text}` : fa ? "not in this week's bracket" : "";
+    $("bk-follow-st").className = "bk-follow-st" + (st && st.out ? " out" : st ? " in" : "");
+    return fk;
+  }
   /** Wide screens show the whole bracket as columns; phones one round at a time. */
   const wide = () => typeof window.matchMedia === "function" && window.matchMedia("(min-width: 1000px)").matches;
   let wasWide = null;
@@ -226,6 +252,7 @@
     $("bk-day").textContent = `${BM.ROUND_NAMES[s.size][round]} · played ${dayName(BM.roundDay(view, round, s.size))} (UTC)${di0 && di0.hours && !di0.done ? ` · ${di0.hours} of 24 hours in` : ""} · ${ptsOf(round)}${decidedOf(round)}`;
     $("bk-day").hidden = tree;
     $("bk-quick").hidden = !open;
+    const fk = renderFollow(s, res);
     /** One matchup card: "Game n", two producer rows (tap to pick), region colour, upset tags. */
     const matchEl = (r, m) => {
       const [a, b] = open || !res ? pairOf(r, m) : realPair(r, m);
@@ -236,7 +263,7 @@
       const side = (seed, other, k) => {
         if (!seed) return el("div", { class: "bk-side tbd" }, el("span", { class: "bk-seed", text: "" }), el("span", { text: bye ? "Bye" : r > 0 ? `Winner of ${BM.ROUND_NAMES[s.size][r - 1].replace(/^Round of /, "R")} game ${2 * m + k + 1}` : "Winner of the match before" }));
         const p = info(seed), ix = di && di.idx ? di.idx.get(p.a) : null, pooled = (s.pooled || []).includes(p.a);
-        const cls = ["bk-side", myPick === seed ? "picked" : "", winner === seed ? "won" : "", winner && winner !== seed ? "lost" : ""].join(" ").trim();
+        const cls = ["bk-side", myPick === seed ? "picked" : "", winner === seed ? "won" : "", winner && winner !== seed ? "lost" : "", fk && seed === fk ? "follow" : ""].join(" ").trim();
         const meta = [`${fmt(p.share * 100, p.share < 0.01 ? 2 : 1)}% VHP`, `~${fmt(p.perDay)} blocks/day`, p.form !== null ? `recent form ${fmt(p.form * 100)}%` : null].filter(Boolean).join(" · ");
         const upset = other && seed > other && (winner ? winner === seed : myPick === seed);
         const kids = [el("span", { class: `bk-seed t${seed <= 4 ? 1 : seed <= 8 ? 2 : seed <= 16 ? 3 : 4}`, text: String(seed) }),
@@ -472,8 +499,8 @@
   const lb = window.KBoard ? window.KBoard.create($("bk-board"), {
     label: "Bracket leaderboard", hide: ["today"],
     // Staked: wallets with 1 VHP or more staked in the Bracket that week (the Vault's player rule); Free play: the rest
-    // owner 11 Nov: the free prize is OFF for now (the recorder gives free-play medals only when game 9's switch is on)
-    free: { show: 6, prize: "The Free play board pays no VHP prize for now. Players staked in the Producer Bracket share its weekly bucket." },
+    // owner 14 Nov: the free prize is ON from Week 2 (vault week 5; the recorder gives free-play medals only when game 9's switch is on)
+    free: { show: 6, prize: "1st and 2nd at the end of the week win 2 and 1 VHP (from Week 2, the week of Mon 23 Nov; at least 1 point)." },
     unranked: "To be on the Staked board, stake at least 1 VHP in the Producer Bracket before the week starts.",
     columns: [{ key: "pts", label: "Points" }, { key: "correct", label: "Right" }],
     scored: (r) => r.pts > 0,
@@ -489,7 +516,7 @@
     if (prizesFrom === undefined) return "";
     if (prizesFrom !== null && w >= prizesFrom) return "";
     return `${weekLabel(w)} is a practice week: brackets, points and both leaderboards count for fun only, and no VHP is paid for it. `
-      + (prizesFrom === null ? "The first paid week will be announced here." : `Staked rewards start ${weekLabel(prizesFrom)}, the week of ${weekDate(prizesFrom)}.`);
+      + (prizesFrom === null ? "The first paid week will be announced here." : `Staked rewards and the Free play prize start ${weekLabel(prizesFrom)}, the week of ${weekDate(prizesFrom)}.`);
   }
   /** R-BR-7 (owner 11 Nov): what the VHP ruler does for the week on show, from which Monday, and in the shadow week how
    *  often it would have picked another winner so far. Empty while the switch isn't set. */
@@ -524,12 +551,14 @@
   if (W && W.subscribe) W.subscribe(() => { loadMine(); renderBoard(); });
   // the shared stake badge and panel (R-ALL-7), game 9
   if (window.KStake && typeof window.KStake.badge === "function" && $("stake-badge")) window.KStake.badge($("stake-badge"), { game: BM.GAME_ID });
-  if (window.KStake && typeof window.KStake.mount === "function" && $("bracket-stake")) window.KStake.mount($("bracket-stake"), { game: BM.GAME_ID, freePrize: false });   // owner 11 Nov: free prize OFF (#G-4 G4-1)
   if (window.KNames && typeof window.KNames.onChange === "function") window.KNames.onChange(() => { render(); renderBoard(); });
   (async () => {
     say("Loading the bracket…");
     await Promise.all([loadWeeks(), loadForm(), setupPicks().catch(() => {})]);
     view = pickView(); round = currentRound(); say("");
+    // owner 14 Nov: free prize ON from Week 2 (was OFF, #G-4 G4-1). The panel names it only for a week on show from the first
+    // paid week on (index.json prizesFromWeek), never in a practice week or before index.json is read (Repo Lens #H-1 H1-1)
+    if (window.KStake && typeof window.KStake.mount === "function" && $("bracket-stake")) window.KStake.mount($("bracket-stake"), { game: BM.GAME_ID, freePrize: Number.isInteger(prizesFrom) && view >= prizesFrom });
     await loadMine(); renderBoard();
     setInterval(() => { if (!document.hidden) loadWeeks().then(() => { render(); renderBoard(); }); }, 300000);
     setInterval(() => { if (!document.hidden) render(); }, 60000);

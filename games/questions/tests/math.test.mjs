@@ -113,7 +113,7 @@ test("questions: answers to a question not read are reported (the recorder never
 // ── The publish job's copy (Python) must agree with math.js over random weeks ──
 const cut = () => {
   const y = fs.readFileSync(path.join(APP, ".github/workflows/games.yml"), "utf8").split(/\r?\n/);
-  const a = y.findIndex((l) => l.includes(`/usr/bin/python3 - "$IN/questions" "$PUB/questions" "$HELD" <<'PY'`));
+  const a = y.findIndex((l) => l.includes(`/usr/bin/python3 - "$IN/questions" "$PUB/questions" "$HELD" "$DEC" <<'PY'`));
   const e = y.findIndex((l, i) => i > a && l.trim() === "PY");
   assert.ok(a > 0 && e > a, "the Daily Questions publish check is in games.yml");
   return y.slice(a + 1, e).map((l) => l.replace(/^ {10}/, "")).join("\n");

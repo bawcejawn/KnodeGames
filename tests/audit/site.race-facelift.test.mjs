@@ -34,7 +34,7 @@ test("the horse is the runner again (not the bird)", async () => {
   for (const i of imgs) assert.equal(i.getAttribute("src"), "media/animals/horse.png");
 });
 
-test("Pack view (default): the leader at the right, last place at the left, a thin strip with the real progress", async () => {
+test("Pack view (default): the leader at the right, last place at the left, no extra strip under the lane", async () => {
   const p = await live();
   const order = p.lanes().sort((x, y) => Number(x.rank.replace(/\D/g, "")) - Number(y.rank.replace(/\D/g, ""))).map((l) => l.a);
   assert.deepEqual(order, [A, Bp, C], "live order");
@@ -44,7 +44,7 @@ test("Pack view (default): the leader at the right, last place at the left, a th
   for (const a of [A, Bp, C]) {
     const run = lane(p, a).querySelector(".pr-run");
     assert.ok(run.classList.contains("pack"));
-    assert.match(run.querySelector(".pr-true").style.width, /^[\d.]+%$/);
+    assert.equal(run.querySelector(".pr-true"), null, "owner 14 Nov: the grey strip is gone");
   }
   const vb = p.doc.getElementById("r6-view");
   assert.match(vb.textContent, /View:PackWhole race/);
@@ -82,4 +82,45 @@ test("top of the page: the game in a line and three steps; the long text is in t
   for (const t of ["The races", "Points, boards and prizes", "Results", "Reading the board", "Handicap: same speed", "Handicap: same chance", "Handicap: six cards per race", "The finish line"]) assert.match(rules, new RegExp(`<summary>${t}</summary>`));
   assert.ok(rules.includes('id="pts-note"'), "the points line the page updates lives in the rules book");
   for (const t of ["Who gets paid:", "Four 6-hour races a day", "Results are final once every block", "steps per block = (biggest VHP"]) assert.ok(rules.includes(t), t);
+});
+
+test("signed-in phones (owner 15 Nov): the pick columns don't squeeze the lane; each Pick button shows its race time", () => {
+  assert.match(js, /el\("span", \{ text: chosen \? \(dr && dr !== mineP \? "Picked" : "Locked in"\) : "Pick" \}\), el\("small", \{ class: "rt-pk-t", text: clock\(u\.r\.start\) \}\)/);
+  const css = html.slice(html.lastIndexOf("owner 15 Nov: signed-in phones"));
+  for (const re of [/#track \.pr-headrow\.rt-head \{ display: none; \}/, /#track \.pr-lane\.rt-lane \{ min-width: 0; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\) !important;/,
+    /#track \.pr-lane\.rt-lane > \.pr-run \{ grid-column: 1 \/ -1; grid-row: 2; \}/, /#track \.pr-lane\.rt-lane > \.rt-pk \{ grid-row: 3;/, /\.rt-pk-t \{ display: block;/]) assert.match(css, re);
+  assert.match(html, /\.rt-pk-t \{ display: none; \}\n    @media \(max-width: 640px\)/, "the time on the button shows on phones only");
+});
+
+test("sort (owner 15 Nov): Most VHP (default), Current place, A–Z; remembered in this browser", async () => {
+  // C signs most here, so the live order (C, A, B) differs from the VHP order (A, B, C)
+  const blocksC = (T) => { const ts = [], sig = []; for (let t = T - 7 * 3600000, i = 0; t <= T; t += 20000, i++) { ts.push(t); sig.push(i % 10 < 6 ? 2 : i % 10 < 9 ? 0 : 1); } return { ts, sig, signers: [A, Bp, C], from: 1, top: ts.length }; };
+  const p = await H.boot({ app: APP, now: NOW, files: { "W002.json": H.weekFile(2, FIN, LIVE, prevSt, field) }, vhp: { [A]: 300, [Bp]: 200, [C]: 100 }, blocks: blocksC });
+  await p.tick(6000);
+  const order = () => [...p.doc.querySelectorAll("#track .pr-lane[data-addr]")].map((l) => l.dataset.addr);
+  const bar = p.doc.getElementById("r6-sort");
+  assert.match(bar.textContent, /^Sort:Most VHPCurrent placeA–Z$/);
+  assert.equal(bar.querySelector('button[aria-pressed="true"]').textContent, "Most VHP");
+  assert.deepEqual(order(), [A, Bp, C], "default: most VHP first");
+  [...bar.querySelectorAll("button")].find((b) => b.textContent === "Current place").click(); await p.settle();
+  assert.deepEqual(order(), [C, A, Bp], "live place order");
+  assert.deepEqual([...p.doc.querySelectorAll("#track .pr-lane[data-addr] .pr-rank")].map((x) => x.textContent), ["1st", "2nd", "3rd"]);
+  assert.equal(p.win.localStorage.getItem("pr-sort"), "place");
+  [...p.doc.getElementById("r6-sort").querySelectorAll("button")].find((b) => b.textContent === "A–Z").click(); await p.settle();
+  const names = [...p.doc.querySelectorAll("#track .pr-lane[data-addr] .pr-name")].map((x) => x.textContent);
+  assert.deepEqual(names, [...names].sort((x, y) => x.localeCompare(y, undefined, { sensitivity: "base" })));
+});
+
+test("horse contrast (owner 15 Nov): a white outline and a darker shadow on the light-green track", () => {
+  assert.match(html, /img\.pr-horse \{ filter: drop-shadow\(0 0 1px #fff\) drop-shadow\(0 0 1px #fff\) drop-shadow\(0 0 1\.5px #fff\) drop-shadow\(0 2px 3px rgba\(0, 0, 0, \.5\)\); \}/);
+});
+
+test("race types: before they start, greyed 'coming soon' tabs with the start time, no picks, no data (owner, 15 Nov)", () => {
+  const js = fs.readFileSync(`${APP}/race.js`, "utf8"), html = fs.readFileSync(`${APP}/race.html`, "utf8");
+  const tabs = js.slice(js.indexOf("function rtTabs()"), js.indexOf("function rtSelect("));
+  assert.match(tabs, /M\.TYPES_ON_WEEK !== null && M\.weekOf\(Date\.now\(\)\) < M\.TYPES_ON_WEEK/);
+  assert.match(tabs, /disabled: "", "aria-disabled": "true"/);
+  assert.ok(!/rtSelect|rtLoad|fetch/.test(tabs.slice(0, tabs.indexOf("return;"))), "the coming-soon tabs can't be clicked or load anything");
+  assert.match(tabs, /timeZone: "America\/New_York"/);
+  assert.match(html, /\.rt-tabs\.soon button\[disabled\] \{ opacity: \.55; cursor: not-allowed; \}/);
 });

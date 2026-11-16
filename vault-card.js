@@ -1,4 +1,4 @@
-/* Knode Games: "The Knode pool" card (owner, 12 Nov: "VHP funds earning ... needs a better home"; it is called the pool).
+/* Knode Games: "The Knode pool" card (owner, 12 Nov: "VHP funds ... needs a better home"; it is called the pool).
    One card for the whole platform, not for one game: the pool's VHP (players' stake plus the seed VHP that never plays),
    how the stake is split across the games, the block rewards the pool has made this week, and the time left. It reads
    stats.json (the hourly public summary, via stats.js): no chain reads, no wallet, nothing stored. `rewards.soFar`

@@ -1,4 +1,4 @@
-// Owner 11 Nov: Week 1 (vault week 4, Mon 16 Nov) is practice, and the free prize is OFF. The page says a week before
+// Owner 11 Nov: Week 1 (vault week 4, Mon 16 Nov) is practice (owner 14 Nov: the free prize is ON from Week 2). The page says a week before
 // index.json's prizesFromWeek is a practice week (no VHP paid), names the first paid week with its date, and says nothing
 // once prizes have started. openPage() from site.bracket-repolens-e26.test.mjs, with index.json served when given.
 import { test, after } from "node:test";
@@ -81,7 +81,7 @@ const note = (p) => p.$("bk-practice");
 test("practice notice: Week 1 with prizes from vault week 5 says practice, no VHP, and when staked rewards start", async () => {
   const p = await openPage({ now: SUNDAY, index: idx(5) });
   assert.equal(note(p).hidden, false);
-  assert.match(note(p).textContent, /^Week 1 is a practice week: brackets, points and both leaderboards count for fun only, and no VHP is paid for it\. Staked rewards start Week 2, the week of Mon, Nov 23\.$/);
+  assert.match(note(p).textContent, /^Week 1 is a practice week: brackets, points and both leaderboards count for fun only, and no VHP is paid for it\. Staked rewards and the Free play prize start Week 2, the week of Mon, Nov 23\.$/);
 });
 
 test("practice notice: no first paid week set yet says practice too", async () => {

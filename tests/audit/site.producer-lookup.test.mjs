@@ -46,13 +46,15 @@ const FILES = {
   "race-data/R004.json": { v: 1, week: 4, mode: "on", races: [{ id: "2026-11-16T00", placings: [ME, OTHERS[0], OTHERS[1]] }, { id: "2026-11-16T06", placings: [OTHERS[0], OTHERS[1], OTHERS[2], ME] }, { id: "2026-11-16T12" }] },
   "games-data/fantasy/inputs/W4.json": { week: 4, data: { budget: 100, pool: [{ a: ME, price: 26, form: 10341 }, { a: OTHERS[0], price: 40, form: 9900 }] } },
 };
-async function open(meLastAgoBlocks, opts, { win = "28800", a = ME } = {}) {
+async function open(meLastAgoBlocks, opts, { win = "28800", a = ME, extraFiles = null } = {}) {
   const c = chain(28800, meLastAgoBlocks, opts);
   const dom = new JSDOM(HTML.replace(/<script[\s\S]*?<\/script>/g, ""), { url: `https://knodegames.com/node.html?a=${a}&w=${win}`, runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window; opened.push(w);
   w.koilib = c.lib;
-  w.fetch = async (url) => { const k = Object.keys(FILES).find((f) => String(url).endsWith(f)); return k ? { ok: true, json: async () => FILES[k] } : { ok: false, json: async () => null }; };
+  const asked = (w.__asked = []);
+  w.fetch = async (url) => { asked.push(String(url)); const all = { ...FILES, ...(extraFiles || {}) }; const k = Object.keys(all).find((f) => String(url).endsWith(f)); return k && all[k] ? { ok: true, json: async () => all[k] } : { ok: false, json: async () => null }; };
   w.Date.now = () => c.now;
+  for (const f of ["vhp-standard.js", "bracket-math.js"]) w.eval(fs.readFileSync(`${APP}/${f}`, "utf8"));
   w.eval(JS);
   for (let i = 0; i < 400 && w.document.getElementById("out").hidden; i++) await new Promise((r) => setTimeout(r, 10));
   assert.equal(w.document.getElementById("out").hidden, false, `page rendered: ${w.document.getElementById("status").textContent}`);
@@ -119,7 +121,8 @@ test("this week in Knode Games: Race places from the Ruler file, Fantasy price a
 
 test("profit in the window and the yearly rate are shown once each, and no banned words", async () => {
   const d = await open(5), tiles = d.getElementById("tiles").textContent, all = d.getElementById("out").textContent;
-  assert.match(tiles, /KOIN after VHP used, 24 hours≈ [0-9.,]+/);
+  assert.match(tiles, /KOIN gained, 24 hours≈ [0-9.,]+New KOIN minted to it, minus the VHP its blocks used up: [0-9,]+ blocks × about [0-9.]+ each/);
+  assert.match(tiles, /Yearly rate[0-9.]+% a yeara year of KOIN gained, as a share of its VHP, if VHP stays as is/);
   assert.equal(count(all, /% a year/g), 1);
   assert.doesNotMatch(all, /\b(bet|odds|gambl\w*|earn\w*|returns|guaranteed|beta)\b/i);
 });
@@ -137,11 +140,18 @@ test("pool check: the Knode Games vault is named; a contract address is called a
   assert.ok(d2.querySelector('#check a[href="https://www.koinscan.io/fogata"]'));
 });
 
-test("daily pattern: asks for 3 or 7 days in a 24-hour window; with 3 days, 24 bars and the quiet hours named", async () => {
+test("daily pattern: in a 24-hour window, 3-day and 7-day buttons in the card (H-B8); with 3 days, 24 bars and the quiet hours named", async () => {
   const d = await open(5);
   assert.equal(d.getElementById("hours-card").hidden, false);
-  assert.match(d.getElementById("hours-sub").textContent, /Pick the last 3 or 7 days/);
+  assert.match(d.getElementById("hours-sub").textContent, /A day is too short to see a pattern/);
   assert.equal(d.querySelectorAll("#hours rect").length, 0);
+  assert.equal(d.querySelector("#hours-card .axis").hidden, true, "no empty axis under no bars");
+  const btns = [...d.querySelectorAll("#hours .hours-pick button")];
+  assert.deepEqual(btns.map((b) => b.textContent), ["Last 3 days", "Last 7 days"]);
+  btns[0].click();
+  await wait(() => d.querySelectorAll("#hours rect").length === 24);
+  assert.equal(d.getElementById("win").value, "86400", "the page's window follows the button");
+  assert.equal(d.querySelector("#hours-card .axis").hidden, false);
   const d3 = await open(5, {}, { win: "86400" });
   assert.equal(d3.querySelectorAll("#hours rect").length, 24);
   assert.match(d3.getElementById("hours-sub").textContent, /Each bar is one hour of the day on your clock/);
@@ -160,4 +170,41 @@ test("compare: a second address side by side in the same window, and it stays in
   d.getElementById("cmp-addr").value = ME;
   d.getElementById("cmp-form").dispatchEvent(new w.Event("submit", { cancelable: true }));
   assert.match(d.getElementById("cmp-note").textContent, /That is the producer shown above/);
+});
+
+// The Bracket line (Bracket chat's rule, claude/bracket/TO-HUB-BRACKET-FILE-SHAPE-2026-11-14.md §3), on its two examples.
+const S16 = Array.from({ length: 16 }, (_, i) => (i === 0 ? ME : "1Seed" + String.fromCharCode(65 + i).repeat(29)));
+const bk = (seeds, results, extra = {}) => ({ "games-data/bracket/W004.json": { v: 5, week: 4, status: "locked", seeding: { size: 16, seeds, vhp: seeds.map(() => 1), out: [OTHERS[1]] }, results, ...extra }, "games-data/bracket/W005.json": null });
+const EX = { rounds: [[1, 9, 4, 12, 2, 10, 3, 6], [9, 4, 2, 6]], done: false };   // the note's example, after Wed and Thu
+const at = (k) => { const s = S16.slice(); [s[0], s[k - 1]] = [s[k - 1], s[0]]; return s; };   // ME as seed k
+const kgText = (d) => d.getElementById("kg").textContent;
+
+test("Bracket line: before any result: seeded #k, still in (Round of 16)", async () => {
+  const d = await open(5, {}, { extraFiles: bk(S16, null) });
+  assert.match(kgText(d), /Producer Bracket this week: seed #1, still in \(Round of 16\)\./);
+});
+test("Bracket line: the note's example: seed 1 knocked out in the Quarterfinals, seed 9 still in (Semifinals), seed 16 out in the Round of 16", async () => {
+  assert.match(kgText(await open(5, {}, { extraFiles: bk(S16, EX) })), /seed #1, knocked out in the Quarterfinals\./);
+  const d9 = await open(5, {}, { extraFiles: bk(at(9), EX) });
+  assert.match(kgText(d9), /seed #9, still in \(Semifinals\)\. Follow it on the Bracket/);
+  assert.equal(d9.querySelector('#kg a[href^="bracket.html"]').getAttribute("href"), `bracket.html?follow=${ME}`, "opens the Bracket already following it");
+  assert.match(kgText(await open(5, {}, { extraFiles: bk(at(16), EX) })), /seed #16, knocked out in the Round of 16\./);
+});
+test("Bracket line: champion when done; not seeded but in the field; a void week; not in it at all shows nothing", async () => {
+  const done = { rounds: [[1, 9, 4, 12, 2, 10, 3, 6], [9, 4, 2, 6], [9, 2], [9]], done: true };
+  assert.match(kgText(await open(5, {}, { extraFiles: bk(at(9), done) })), /seed #9, champion!/);
+  assert.match(kgText(await open(5, {}, { a: OTHERS[1], extraFiles: bk(S16, null) })), /Producer Bracket this week: in the field, not seeded\./);
+  assert.match(kgText(await open(5, {}, { extraFiles: bk(S16, null, { status: "void" }) })), /Producer Bracket: no Bracket this week\./);
+  assert.doesNotMatch(kgText(await open(5, {}, { a: OTHERS[0], extraFiles: bk(S16, null) })), /Producer Bracket/);
+});
+test("Bracket line: next week's bracket once it is seeded (Sunday), and the ruler/ files are never read", async () => {
+  const files = { ...bk(S16, EX), "games-data/bracket/W005.json": { v: 5, week: 5, status: "open", seeding: { size: 16, seeds: at(3), vhp: [], out: [] }, results: null } };
+  const d = await open(5, {}, { extraFiles: files });
+  assert.match(kgText(d), /Producer Bracket next week: seed #3, still in \(Round of 16\)\./);
+  assert.ok(!d.defaultView.__asked.some((u) => /bracket\/ruler\//.test(u)), "no ruler file read");
+});
+
+test("Get VHP: every line of a step sits in the text column, never in the 40px number column (H-B9, owner 16 Nov)", () => {
+  const g = fs.readFileSync(`${APP}get.html`, "utf8");
+  assert.match(g, /\.gk-step > :not\(\.gk-num\) \{ grid-column: 2; \}/);
 });

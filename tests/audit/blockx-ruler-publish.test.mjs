@@ -46,12 +46,13 @@ const dayFile = (rulerFrom, mode, e = entry()) => ({ v: 1, week: 4, day: 1, rule
 const pubWith = (extra = {}) => { const p = tmp(); write(p, "W004.json", weekFile); for (const [k, v] of Object.entries(extra)) write(p, k, v); return p; };
 const NOW = W4 + 2 * DAY;   // Wed 18 Nov: vault week 4 is running
 
-test("the publish job embeds vhp_ruler.py byte for byte (tools/blockx-ruler-embed.mjs), so it runs no repository code", () => {
+test("the publish job embeds vhp_ruler.py byte for byte (tools/games-ruler-embed.mjs), so it runs no repository code", () => {
   const ind = "          ", a = yml.indexOf(ind + "# BEGIN vhp_ruler.py\n"), b = yml.indexOf(ind + "# END vhp_ruler.py\n");
   assert.ok(a > 0 && b > a);
   const body = yml.slice(a + ind.length + "# BEGIN vhp_ruler.py\n".length, b).split("\n").map((l) => (l.startsWith(ind) ? l.slice(ind.length) : l)).join("\n");
-  assert.equal(body, fs.readFileSync(path.join(APP, "vhp_ruler.py"), "utf8"), "run: node tools/blockx-ruler-embed.mjs");
-  // (Repo Lens #G-35 G35-2: the code is written on every run; only the data waits for the switch, tested below)
+  assert.equal(body, fs.readFileSync(path.join(APP, "vhp_ruler.py"), "utf8"), "run: node tools/games-ruler-embed.mjs");
+  // (Repo Lens #G-35 G35-2: the code is written on every run, and the data is fetched on every run too since #285; Block X's
+  // RULER_VHP_DATA stays empty while its switch is unset, tested in g70-2-blockx-data-unset.test.mjs)
   // (Bracket #285 merged second: the one shared step is "The VHP ruler's code and data (Block X and the Producer Bracket)")
   assert.match(yml, /- name: The VHP ruler's code and data \(Block X and the Producer Bracket\)\n(?:\s+#[^\n]*\n)+\s+run: \|\n\s+set -euo pipefail\n\s+mkdir -p "\$RUNNER_TEMP\/ruler-code"/);
 });

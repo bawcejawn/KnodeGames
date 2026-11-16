@@ -2,7 +2,8 @@
  *
  * Reads (games-data branch, fantasy/ folder, written by the kit's recorder and checked by its publish job):
  *   inputs/W<w>.json   the week's write-once price list (published Saturday 00:00 UTC before the week; FC-9)
- *   W<NNN>.json        the week: players, each day's points per player, the carried teams (`next`), Weekly Rival (`extras`)
+ *   W<NNN>/ (parts)    the week as day parts (manifest.json + parts, read by games/fantasy/parts-web.js); W<NNN>.json
+ *                      for a week written as one file: players, each day's points per player, the carried teams (`next`), Weekly Rival (`extras`)
  *   board.json         the Staked / Free play board of the latest week
  *   alltime.json       every final week, added up
  * and your picks from the Picks contract. It sends two things, each confirmed in your wallet: your team for a day
@@ -10,6 +11,7 @@
  * Monday day number). The rules are games/fantasy/math.js, the same file the recorder uses. Everything on screen is
  * built with textContent: no HTML strings. Points in the files are hundredths (15000 = 150.00); shown as points. */
 import * as F from "./games/fantasy/math.js";
+import { loadWeekParts } from "./games/fantasy/parts-web.js";
 
 const $ = (id) => document.getElementById(id);
 if (typeof document !== "undefined" && $("fx-slots")) start();
@@ -24,6 +26,9 @@ function start() {
   let GENESIS = window.KWeeks ? window.KWeeks.GENESIS_MS : 1792368000000, WEEK = 7 * DAY;
   /** Knode's own nodes: in the pool like any other producer, and marked (owner decision 27 Oct). */
   const NAMES = { "1Mpmf2ERhjYpX7CCiM11WERuM4j17uT1sr": "Knode pool", "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "Knode Swap" };
+  /** The week 4 test-week note goes once week 4 is over (Sun 22 Nov 7 PM ET = Mon 23 Nov 00:00 UTC; D-174). */
+  const TEST_WEEK_ENDS = Date.UTC(2026, 10, 23);
+  if (Date.now() >= TEST_WEEK_ENDS && $("fx-testweeks")) $("fx-testweeks").hidden = true;
 
   // ── small helpers ──
   const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (v == null) continue; if (k === "text") e.textContent = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids) if (c != null && c !== false) e.append(c); return e; };
@@ -103,8 +108,13 @@ function start() {
     files.board = board && board.v === 1 ? board : null;
     files.alltime = alltime && alltime.v === 1 ? alltime : null;
     await Promise.all([wNow - 1, wNow, wNow + 1].filter((w) => w >= 0).map(async (w) => {
-      const [wf, inp] = await Promise.all([get(`W${pad(w)}.json`), get(`inputs/W${w}.json`)]);
-      if (wf && wf.week === w && wf.start === weekStart(w)) files.weeks.set(w, wf); else files.weeks.delete(w);
+      // Day parts (from the parts PR): the week is the folder W<NNN>/; a week written before parts is one file.
+      const getText = async (u) => { const r = await fetch(DATA + u, { cache: "no-cache" }); if (!r.ok) throw new Error(String(r.status)); return r.text(); };
+      const [wp, inp] = await Promise.all([loadWeekParts(getText, `W${pad(w)}`), get(`inputs/W${w}.json`)]);
+      const wf = wp || (await get(`W${pad(w)}.json`));
+      // Repo Lens #J-4 J4-2: a load that fails (e.g. a cached manifest naming parts the publish job just replaced) keeps
+      // the week the page already had; only a file for another week is dropped.
+      if (wf && wf.week === w && wf.start === weekStart(w)) files.weeks.set(w, wf); else if (wf) files.weeks.delete(w);
       if (inp && inp.week === w && inp.data && inp.data.start === weekStart(w) && Array.isArray(inp.data.pool)) files.lists.set(w, inp.data); else files.lists.delete(w);
     }));
   }
@@ -124,9 +134,10 @@ function start() {
   /** The team a wallet carries into week w (when it fits w's list): the previous week's final `next`; while that week
    *  isn't final yet, its Saturday team as the page works it out (`saturday`, from your picks), else its pending `next`. */
   function carriedInto(w, who, saturday = null) {
+    if (w === F.FIRST_REAL_WEEK) return null;   // the first real week starts with no teams, as in the recorder (J4-1)
     const prev = files.weeks.get(w - 1), list = listOf(w);
     const fromFile = prev && Array.isArray(prev.next) ? (prev.next.find((x) => x[0] === who) || [])[1] : null;
-    const t = prev && prev.final ? fromFile && fromFile.t : saturday || (fromFile && fromFile.t);
+    const t = prev && prev.state === "final" ? fromFile && fromFile.t : saturday || (fromFile && fromFile.t);
     return Array.isArray(t) && list && F.checkTeam(t, list).ok ? t : null;
   }
 

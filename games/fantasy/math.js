@@ -19,6 +19,9 @@
 //   (void days left out); price = 20 + 1.5 × (form − median) ÷ 100, rounded half up, between 8 and 40; no form → 20.
 // - Weekly Rival (game 5): one challenge a week, records only. A match counts when both are staked and both scored.
 
+/** The first real (staked) week: it starts with no teams, whatever the test week before it held (owner, Sat 14 Nov;
+ *  D-174). One constant for the recorder (carryIn) and the page (carriedInto): Repo Lens #J-4 J4-1. */
+export const FIRST_REAL_WEEK = 5;
 export const TEAM = 5;
 export const BUDGET = 100;
 export const CAP = 15000;                     // 150.00: the most a producer scores in a day (owner 11 Nov; was 130)

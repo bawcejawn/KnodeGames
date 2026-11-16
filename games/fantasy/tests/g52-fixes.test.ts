@@ -66,3 +66,12 @@ test("no ruler card: pending within 48 hours and without the kit's hook; 0 for e
   const broken = { ruleVersion: 4, card: () => { throw new Error("bad card"); } };
   await assert.rejects(game.resultOf(round, null as any, inputs, { vhp: broken, blockAt: libAt(START + 3 * DAY), fallback } as any), /bad card/);
 });
+
+test("G73-1: the kit's no-data stand-in (ctx.vhp.loaded false) never triggers the 48-hour fallback", async () => {
+  const inputs = await game.inputsFor!(week, { now: START - DAY, vhp: vhpOf("ok"), blockAt } as any);
+  const round = { id: "d", day: START, locksAt: START + 1, resolvesAt: START + DAY } as any;
+  const why: string[] = [];
+  const stub = { ruleVersion: 4, loaded: false, card: () => { throw new NotYet("not yet: the ruler's data isn't loaded this run"); } };
+  await assert.rejects(game.resultOf(round, null as any, inputs, { vhp: stub, blockAt, fallback: async (w: string) => { why.push(w); } } as any), (e: unknown) => e instanceof NotYet);
+  assert.deepEqual(why, []);
+});

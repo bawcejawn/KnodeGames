@@ -1916,7 +1916,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           IN: ${{ runner.temp }}/incoming
           LIST: ${{ runner.temp }}/kit-publish.txt
-          KIT_GAMES: '[{"slug":"fantasy","game":4,"genesis":1792368000000,"weekMs":604800000,"sundayFunRound":true,"payoutRule":"d152","vaultValues":"dense255","entry":{"minRounds":1,"minPoints":1},"minPts":0,"rowCap":0,"maxRoundPoints":90000,"liveWeek":false,"roundsCorrectable":false,"inputsFile":true,"vhpData":true,"cardPerRound":true}]'
+          KIT_GAMES: '[{"slug":"fantasy","game":4,"genesis":1792368000000,"weekMs":604800000,"sundayFunRound":true,"payoutRule":"d152","vaultValues":"dense255","entry":{"minRounds":1,"minPoints":1},"minPts":0,"rowCap":0,"maxRoundPoints":90000,"liveWeek":false,"roundsCorrectable":false,"inputsFile":true,"vhpData":true,"cardPerRound":true,"parts":"d"}]'
           CHECK_NOW_MS: ""      # the job's own clock, always (KC-29)
           # The owner's releases, read by the check itself: a recorder run can't release its own hold (KC-3).
           KIT_RELEASE_FANTASY: ${{ vars.FANTASY_RELEASE }}

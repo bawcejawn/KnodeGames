@@ -28,9 +28,9 @@ test("Producer Bracket: the Ruler chat's entry, including the no-block line", ()
   assert.match(b, /A producer that signed no block that day, whose size moved too far from its card, or that isn't in the day's field, can't win on the Ruler\./);
   assert.match(b, /the better seed goes through in each matchup still open\. Nobody's result is guessed\./);
 });
-test("the opening line and the Fantasy 'Test weeks' mark are there", () => {
+test("the opening line is there, and Fantasy has no 'Test weeks' mark (real from week 5, D-174)", () => {
   assert.match(text, /Every Knode game that judges block producers uses this same Ruler\. No game has its own\./);
-  assert.match(sec.match(/id="fantasy"[\s\S]*?<\/h3>/)[0], /Test weeks/);
+  assert.doesNotMatch(sec.match(/id="fantasy"[\s\S]*?<\/h3>/)[0], /Test weeks/);
 });
 test("wording rules: no bet, odds, gambling, earn, returns, guaranteed, and no Ruler modes in the section", () => {
   const t = sec.replace(/<[^>]+>/g, " ");

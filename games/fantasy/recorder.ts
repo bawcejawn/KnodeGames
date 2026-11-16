@@ -17,6 +17,9 @@ import * as F from "./math.js";
 import { CARD, dayCard, flagged, rowsOf, sourcesOf } from "./ruler-view.ts";
 import { NotYet } from "../../kit/recorder/types.ts";
 
+/** The first real (staked) week: it starts with no teams, whatever the test week before it held (owner, Sat 14 Nov). */
+export const FIRST_REAL_WEEK = F.FIRST_REAL_WEEK;
+
 export const VAULT_GAME = 4;                 // FC-29: one constant
 export const RIVAL_GAME = 5;
 export { CARD };
@@ -110,10 +113,18 @@ export const game: GameModule<RawPick, DayResult, PriceList> = {
     return out;
   },
 
-  /** Last week's final Saturday team plays on into Monday only if it still fits this week's price list (FC-5). */
-  carryIn(last, _week, inputs) {
+  // Parts (kit-next): each day part shows the team that played that day: the wallet's state for the round (the same
+  // state scoreRound scored), p1 = the captain. null for a wallet with no team (it scored 0).
+  partCols: {
+    cols: [["p1", "a"], ["p2", "a"], ["p3", "a"], ["p4", "a"], ["p5", "a"]],
+    row: (_pick, state) => (state as TeamState | null)?.t ?? [null, null, null, null, null],
+  },
+
+  /** Last week's final Saturday team plays on into Monday only if it still fits this week's price list (FC-5). The
+   *  first real week starts with no teams (owner, 14 Nov): test week 4's teams never carry into week 5. */
+  carryIn(last, week, inputs) {
     const out: States<TeamState> = new Map();
-    if (!inputs) return out;
+    if (!inputs || week.week === FIRST_REAL_WEEK) return out;
     for (const [a, s] of last as States<TeamState>) if (s && F.checkTeam(s.t, inputs).ok) out.set(a, s);
     return out;
   },

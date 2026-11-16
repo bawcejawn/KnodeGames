@@ -39,12 +39,15 @@ test("Fantasy test week banner: the words follow the site's rules and the owner'
   assert.doesNotMatch(NAV.slice(NAV.indexOf("Fantasy's free test week")), /innerHTML|localStorage|sessionStorage|fetch\(/);
 });
 
-test("Fantasy page note and the games list say week 4 is a free test and the first real week starts Sun 22 Nov 7 PM ET", () => {
+test("Fantasy page note and the games list say week 4 is a free test and every week is real from Sun 22 Nov 7 PM ET", () => {
   const h = fs.readFileSync(`${APP}/fantasy.html`, "utf8"), g = JSON.parse(fs.readFileSync(`${APP}/games.json`, "utf8"));
-  assert.match(h, /free test week; free test play starts with the Tue 17 Nov round \(first lock Mon 16 Nov, 6:55 PM ET\)\. The first real week starts Sun 22 Nov, 7 PM ET\./);
-  assert.doesNotMatch(h, /planned for Mon 30 Nov/);
+  assert.match(h, /<b>Week 4 is a free test week\.<\/b>[^<]*test play starts with the Tue 17 Nov round \(first lock Mon 16 Nov, 6:55 PM ET\)\. From Sun 22 Nov, 7 PM ET \(week 5\) every week is real\. Week 5 starts with no teams: pick yours before Sun 22 Nov, 6:55 PM ET\./);
+  assert.doesNotMatch(h, /planned for Mon 30 Nov|Test weeks/);
   const f = (g.games || g).find((x) => x.id === "fantasy");
-  assert.match(f.line, /Free test week now; first real week starts Sun 22 Nov, 7 PM ET\.$/);
+  assert.match(f.line, /Week 4 is a free test week; from Sun 22 Nov, 7 PM ET every week is real\.$/);
+  assert.doesNotMatch(f.line, /Test weeks/);
+  // The page hides its note from Mon 23 Nov 00:00 UTC (Sun 22 Nov 7 PM ET), the end of week 4.
+  assert.match(fs.readFileSync(`${APP}/fantasy.js`, "utf8"), /TEST_WEEK_ENDS = Date\.UTC\(2026, 10, 23\);\n  if \(Date\.now\(\) >= TEST_WEEK_ENDS && \$\("fx-testweeks"\)\) \$\("fx-testweeks"\)\.hidden = true;/);
 });
 
 test("only the Fantasy banner is left: nothing shows in the old test week (its banner is gone), Fantasy's shows from Mon 16 Nov", () => {

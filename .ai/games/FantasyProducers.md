@@ -36,7 +36,13 @@ Fantasy football for block producers: draft five producers under a salary cap, c
 - **Vault:** `game-add 4 "Fantasy Producers" --staked --free --season 1`, free-prize switch OFF; `vaultGames.4` with its `boardCap`. 💬
 - **Switches:** `FANTASY_ENABLED`; `FANTASY_RULER_FROM_WEEK` = the first live week (the practice week is the shadow week). 💬
 
-## Current status (11 Nov)
+## Current status (16 Nov)
+- **Live on the Shared Game Kit:** #266 (the port), #313, #319 (kit-next) merged; the parts PR adds day parts (`"parts": "d"`), `"firstWeek": 4`, the week-5 fresh start, `"status": "live"`, and the ruler mode/version pass-through (`ctx.ruler`, D-175). `FANTASY_ENABLED` is on. 💬
+- **Weeks (D-174):** week 4 (Sun 15 – Sun 22 Nov) is a free test; vault week 5 (from Sun 22 Nov 7 PM ET) is the first real, staked week, and it starts with no teams. Free prize for game 4: OFF. 💬
+- **Ruler:** mode A, version 4 (D-175). When the kit passes `ctx.ruler` (`{ mode?: "B"|"C"|"D", version?: 5 }`, only non-default keys), Fantasy carries it into every card and checks the card's version; unset is byte for byte as before. 💬
+- **Capacity (sim `sims/fantasy/capacity.ts`):** final and green up to about 4,000 weekly wallets; see the capacity note in the parts PR for the kit limit above that. 💬
+
+## Status before 16 Nov (11 Nov)
 - **The kit port is built in PR #266** (12 Nov): the rules (`games/fantasy/math.js`), the kit module (`recorder.ts`, `ruler-view.ts`) on kit Phase 1b's ruler source (#267, merged) and the planned `ctx.blockAt` (G7), the page (`fantasy.html`/`.js`/`.css`) on the kit's files, the rendered workflow jobs, the `vaultGames.4.kit` pin, and tests (end to end on the real ruler). Until G7 merges it makes no price list and decides no day (nothing is guessed). 💬
 - **Still open:** the kit's conformance sample for a ruler game (needs G7 in the runtime), the #B-10 failing tests (the owner's zip), per-producer day scores on the page (kit G8). 💬
 - PR #188 (old recorder) is closed unmerged; branch `fantasy` @ `a60da0b` is kept as the reference. 💬

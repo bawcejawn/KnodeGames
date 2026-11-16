@@ -29,7 +29,7 @@ test("page: builds nothing from HTML strings; reads only the kit's files and the
   assert.doesNotMatch(js, /index\.json|days\.json|rivals\.json/, "no files of the old recorder");
   const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];
   assert.match(csp, /connect-src [^;]*https:\/\/raw\.githubusercontent\.com\/bawcejawn\/KnodeGames\/games-data\//);
-  assert.match(html, /<meta name="robots" content="noindex">/, "hidden until launch");
+  assert.doesNotMatch(html, /name="robots" content="noindex/, "searchable: in the menus as Test weeks (Hub #314)");
 });
 
 test("page: sends Picks game 4 for a day (round = the day number) and game 5 for a week (round = its Monday)", () => {

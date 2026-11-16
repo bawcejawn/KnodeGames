@@ -102,7 +102,16 @@ export type Opts = {
   questionsOf?: (node: any, week: number) => Promise<QWeek>;           // for the tests
   golfStakersOf?: (node: any, who: string[], week: number) => Promise<Map<string, number> | Stakes>;   // for the tests
   holdWeeks?: string;                                  // GOLF_HOLD_WEEKS (tests); default: the environment
+  namesDir?: string; vhpDir?: string;                  // names-data and vhp-data files (Clubhouse features)
+  deskOf?: (node: any) => Promise<DeskRecent>;          // the swap desk's recent swaps (tests)
+  vaultOf?: (node: any, who: string[], week: number) => Promise<Map<string, VaultFacts>>;   // vault facts per wallet (tests)
+  clubBudget?: number;                                 // wallets whose vault facts are read per run (tests)
 };
+/** The swap desk's recent swaps: the accounts of its newest swaps and its total swap count (to spot a gap). */
+export type DeskRecent = { total: number; accounts: string[] };
+/** What the vault says about a wallet, for the Clubhouse: staked (peak at least the minimum in some game, this week),
+ *  games (how many games it has at least the minimum counted in this week), claimed (a reward claimed, last week). */
+export type VaultFacts = { staked: boolean; games: number; claimed: boolean };
 
 // ── files ──
 const MAX_FILE = 20 * 1024 * 1024;
@@ -147,9 +156,129 @@ export function sourcesFromGames(file: URL | string = new URL("../../games.json"
 /** The earliest vault week a game may join the course, whatever the Monday-after-live rule says. Bracket: its first
  *  scorable week is week 4 (final about Mon 23 Nov) and it joins from Mon 30 Nov = vault week 6 (the Bracket chat, 14 Nov;
  *  owner to confirm). Applied once, when the game is first seen; the join week is then fixed in the index. */
-export const JOIN_FROM: Record<string, number> = { bracket: 6 };
+export const JOIN_FROM: Record<string, number> = { bracket: 6, clubhouse: 6 };
 export const STANDARD = "standard";
 export const STANDARD_ID = /^[a-z][a-z0-9-]{1,23}$/;   // Repo Lens G92-2: the course and the publish job keep ids of at most 24
+
+// ── the Clubhouse: the accumulated record and the feature readers (claude/golf/CLUBHOUSE-BUILD-PLAN-2026-11-15.md) ──
+export const CLUB_SOURCE: Source = { id: G.CLUBHOUSE, name: "Clubhouse", reader: "clubhouse", live: true };
+/** clubhouse.json: every wallet's features, each with the vault week it was first seen. Only ever grows. */
+export type Club = { v: 1; updated: string; wallets: Record<string, Record<string, number>>; desk?: number };   // desk: the swap desk's swap count at the last read
+const CLUB_MAX_WALLETS = 100000, CLUB_MAX_FEATURES = 64;
+/** The last run's record: null if there is none yet; an error if it is there but can't be used (never a fresh start). */
+export function loadClub(dir: string | undefined): Club | null {
+  if (!exists(dir, "clubhouse.json")) return null;
+  const j = readJson(dir, "clubhouse.json");
+  if (!j || j.v !== 1 || !j.wallets || typeof j.wallets !== "object" || Array.isArray(j.wallets)) throw new Error("the last run's clubhouse.json is there but can't be read: stopping rather than starting over");
+  const wallets: Record<string, Record<string, number>> = {};
+  for (const [a, f] of Object.entries(j.wallets)) {
+    if (!isAddr(a) || !f || typeof f !== "object" || Array.isArray(f)) throw new Error(`clubhouse.json: wallet ${plain(a)} isn't a wallet and its features`);
+    const ok: Record<string, number> = {};
+    for (const [k, w] of Object.entries(f as any)) { if (!G.isFeature(k) || !Number.isInteger(w) || (w as number) < 0 || (w as number) >= 10000) throw new Error(`clubhouse.json: ${plain(a)} has a bad feature ${plain(k)}`); ok[k] = w as number; }
+    wallets[a] = ok;
+  }
+  return { v: 1, updated: String(j.updated ?? ""), wallets, ...(Number.isSafeInteger(j.desk) && j.desk >= 0 ? { desk: j.desk } : {}) } as Club;
+}
+/** Adds what was seen this run, stamped with week w. Never removes or restamps anything. */
+export function growClub(old: Club | null, seen: Map<string, Set<string>>, w: number, now: number, problems: string[]): Club {
+  const wallets: Record<string, Record<string, number>> = {};
+  for (const [a, f] of Object.entries(old?.wallets ?? {})) wallets[a] = { ...f };
+  let n = Object.keys(wallets).length, full = false;
+  for (const [feature, who] of [...seen].sort((x, y) => (x[0] < y[0] ? -1 : 1))) {
+    if (!G.isFeature(feature)) continue;
+    for (const a of [...who].sort()) {
+      if (!isAddr(a)) continue;
+      let f = wallets[a];
+      if (!f) { if (n >= CLUB_MAX_WALLETS) { full = true; continue; } f = wallets[a] = {}; n++; }
+      if (f[feature] === undefined && Object.keys(f).length < CLUB_MAX_FEATURES) f[feature] = w;
+    }
+  }
+  if (full) problems.push(`clubhouse: the record holds ${CLUB_MAX_WALLETS.toLocaleString("en-US")} wallets; new wallets weren't added (raise the limit)`);
+  const sorted: Record<string, Record<string, number>> = {};
+  for (const a of Object.keys(wallets).sort()) sorted[a] = Object.fromEntries(Object.entries(wallets[a]).sort((x, y) => (x[0] < y[0] ? -1 : 1)));
+  return { v: 1, updated: new Date(now).toISOString(), wallets: sorted };
+}
+/** Block X's board rows with their days (v 1 rows; v 2 from its parts). */
+function blockxDays(dir: string | undefined, now: number): Map<string, number> {
+  const out = new Map<string, number>();
+  const b = readJson(path.join(dir || "", "blockx"), "board.json");
+  if (!b) return out;
+  for (const k of ["week", "lastWeek"]) {
+    const v = b[k];
+    if (!v || !Number.isInteger(v.week)) continue;
+    let rows: any[] = [];
+    if (b.v === 1) rows = Array.isArray(v.rows) ? v.rows : [];
+    else if (b.v === 2) { const got = partsRows(path.join(dir || "", "blockx"), "blockx", v, v.week, k === "lastWeek" && v.final === true); if ("error" in got) throw new Error(`Block X board: ${got.error}`); rows = got.rows; }
+    for (const r of rows) if (r && isAddr(r.a) && Number.isInteger(r.days)) out.set(r.a, Math.max(out.get(r.a) ?? 0, r.days));
+  }
+  return out;
+}
+/** Producers that signed a block, from the vhp-data hour files given (Ruler chat, 15 Nov): h/<n>.json is block-hour n
+ *  (blocks n×1200 … n×1200+1199); its signers are the distinct addrs[sig[i]] (addrs also names VHP event parties and
+ *  anchored balances, so it is NOT the signer list; tail.sig belongs to the next hour and isn't counted). Each file is
+ *  checked with vhp-data.js checkHour against the file before it (the hash chain), so the oldest file given is only
+ *  the first link; a file that fails, or follows a gap, is not used and is reported. */
+async function signers(dir: string | undefined, problems: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  const hd = path.join(dir || "", "h");
+  let names: string[] = [];
+  try { names = fs.readdirSync(hd).filter((f) => /^\d{1,9}\.json$/.test(f)); } catch { throw new Error("vhp-data hour files aren't there"); }
+  names.sort((x, y) => parseInt(x) - parseInt(y));
+  await import("../../vhp-ruler.js"); await import("../../vhp-data.js");
+  const K = (globalThis as any).KVhpData;
+  if (!K || typeof K.checkHour !== "function") throw new Error("vhp-data.js checkHour isn't there");
+  const text = (f: string) => { const p = path.join(hd, f); if (fs.lstatSync(p).isSymbolicLink() || fs.statSync(p).size > MAX_FILE) throw new Error(`vhp-data h/${f} isn't a plain file`); return fs.readFileSync(p, "utf8"); };
+  let skipped = 0;
+  for (let i = 1; i < names.length; i++) {
+    if (parseInt(names[i]) !== parseInt(names[i - 1]) + 1) { skipped++; continue; }
+    const r = K.checkHour(text(names[i - 1]), text(names[i]));
+    if (!r || !r.ok) { skipped++; continue; }
+    const j = JSON.parse(text(names[i]));
+    for (const k of new Set(j.sig)) if (Number.isInteger(k) && (k as number) >= 0 && (k as number) < j.addrs.length && isAddr(j.addrs[k as number])) out.add(j.addrs[k as number]);
+  }
+  if (skipped) problems.push(`clubhouse producers: ${skipped} vhp-data hour file(s) didn't pass checkHour or followed a gap, and weren't used`);
+  return out;
+}
+const DESK_CONTRACT = (() => { try { return JSON.parse(fs.readFileSync(new URL("../../desk-data/deployment.json", import.meta.url), "utf8")).contract as string; } catch { return ""; } })();
+async function readDesk(node: any): Promise<DeskRecent> {
+  if (!DESK_CONTRACT) throw new Error("no swap desk contract");
+  const abi = JSON.parse(fs.readFileSync(new URL("../../desk/abi/desk.koilib.json", import.meta.url), "utf8"));
+  const f: any = new Contract({ id: DESK_CONTRACT, abi, provider: node }).functions;
+  const st: any = await withRetry("swap desk state", () => f.get_state({}));
+  const r: any = await withRetry("swap desk recent swaps", () => f.get_recent({}));
+  const total = Number(st?.result?.totals?.swaps ?? 0);
+  if (!Number.isSafeInteger(total)) throw new Error("no swap count in the desk's state");
+  return { total, accounts: (r?.result?.swaps ?? []).map((x: any) => x.account).filter(isAddr).sort() };
+}
+/** Vault facts for wallets (vault v6 get_game_player, every staked game): the reading behind three features. */
+async function readVaultFacts(node: any, vault: string | null, who: string[], w: number): Promise<Map<string, VaultFacts>> {
+  const out = new Map<string, VaultFacts>();
+  if (!who.length) return out;
+  if (!vault) throw new Error("no vault contract");
+  const f: any = new Contract({ id: vault, abi: GAME_ABI(), provider: node }).functions;
+  if (typeof f.get_game_player !== "function") throw new Error("the vault (v6) isn't live: its ABI has no get_game_player");
+  const st: any = await withRetry("vault state", () => f.get_state({}));
+  const config = st?.result?.config;
+  if (!config || typeof config !== "object") throw new Error("no answer reading the vault's config");
+  const lg: any = await withRetry("vault games", () => f.list_games({}));
+  const games: number[] = (lg?.result?.games ?? []).filter((g: any) => g && g.staked === true && Number.isInteger(g.id)).map((g: any) => g.id).sort((x: number, y: number) => x - y);
+  const min = minStakeFor(config, w), big = (x: any) => (/^\d{1,30}$/.test(String(x ?? "")) ? BigInt(String(x)) : 0n);
+  for (const a of who) {
+    let staked = false, n = 0, claimed = false;
+    for (const g of games) {
+      const r: any = await withRetry(`vault stake of ${a} in game ${g}`, () => f.get_game_player({ player: a, game: g, week: String(w) }));
+      if (!r || typeof r !== "object") throw new Error(`no answer reading the vault for ${a}`);
+      if (big(peakOf(r.result)) >= min) staked = true;
+      if (big(r.result?.week_stake) >= min) n++;
+      if (w > 0) {
+        const p: any = await withRetry(`vault claim of ${a} in game ${g}`, () => f.get_game_player({ player: a, game: g, week: String(w - 1) }));
+        if (p?.result?.entry?.claimed === true) claimed = true;
+      }
+    }
+    out.set(a, { staked, games: n, claimed });
+  }
+  return out;
+}
 
 // ── readers: one per game, each turning that game's own published results into hole rows ──
 /** A shared-shape board.json's view of week w: its "week" or "lastWeek". */
@@ -207,7 +336,7 @@ export function partsRows(dir: string, game: string, list: any, w: number, final
       if (seen.has(x.player)) return { error: `${list.parts} lists a wallet twice` };
       if (shardOf(x.player, 16) !== shard) return { error: `${list.parts}/${p.part} holds a wallet that belongs in another shard` };
       seen.add(x.player);
-      rows.push({ a: x.player, pts: x.pts, ranked: x.ranked === 1 || x.ranked === true });
+      rows.push({ a: x.player, pts: x.pts, ranked: x.ranked === 1 || x.ranked === true, ...(Number.isInteger(x.days) ? { days: x.days } : {}) });
     }
   }
   if (rows.length !== list.players) return { error: `${list.parts} has ${rows.length} players but board.json says ${list.players}` };
@@ -230,7 +359,7 @@ const ptsRows = (rows: any[], key = "pts"): Row[] => rows.slice(0, MAX_ROWS).fil
   .map((r) => { const score = cleanScore(r[key])!; return { a: r.a, score, scored: score > 0, ranked: r.ranked === true }; });
 const KEPT: Read = { state: "final", rows: [], why: "standings kept from an earlier run", stale: true };
 
-type Ctx = { now: number; raceDir?: string; gamesDir?: string; o: Opts; questions: (w: number) => Promise<Read> };
+type Ctx = { now: number; raceDir?: string; gamesDir?: string; o: Opts; questions: (w: number) => Promise<Read>; club?: Club | null };
 const READERS: Record<string, (src: Source, w: number, c: Ctx) => Promise<Read>> = {
   async questions(_s, w, c) { return c.questions(w); },
 
@@ -293,6 +422,20 @@ const READERS: Record<string, (src: Source, w: number, c: Ctx) => Promise<Read>>
       seen.add(r[0]); rows.push({ a: r[0], score: r[1], scored: r[1] > 0, ranked: false });
     }
     return { state: "final", rows };
+  },
+
+  // The Clubhouse (owner, 6 and 15 Nov): every wallet's features earned by the end of week w, from the accumulated
+  // record (clubhouse.json). A feature is stamped with the week it was first seen, which is always the current week,
+  // so a week that has ended can't gain or lose a feature: its hole is final as soon as the week is over.
+  async clubhouse(_s, w, c) {
+    if (!c.club) return { state: "live", rows: [], why: "the Clubhouse record couldn't be read this run", failed: true, problem: "clubhouse.json: no record" };
+    const rows: Row[] = [];
+    for (const [a, fs_] of Object.entries(c.club.wallets)) {
+      const n = Object.values(fs_).filter((fw) => fw <= w).length;
+      if (n >= 1 && isAddr(a)) rows.push({ a, score: n, scored: true, ranked: true });
+    }
+    rows.sort((x, y) => (x.a < y.a ? -1 : 1));
+    return { state: c.now >= M.weekStart(w + 1) ? "final" : "live", rows };
   },
 
   // Any game that opted in with "golf": "standard" (see sourcesFromGames). Its folder is games-data/<id>/, named by its id
@@ -454,7 +597,7 @@ export async function run(o: Opts) {
   const ruleOf = (w: number) => { const r = G.rule(w, STAKED_FROM); return { ...r, minField: o.minField ?? r.minField }; };
   const weekPractice = (w: number) => { const j = readJson(PREV, wName(w)); return j && typeof j.practice === "boolean" ? j.practice : G.rule(w, STAKED_FROM).practice; };
   const ruleFixed = (practice: boolean) => { const r = G.rule(0, practice ? null : 0); return { ...r, minField: o.minField ?? r.minField }; };
-  const sources = (o.sources ?? sourcesFromGames()).filter((s) => READERS[s.reader]);
+  const sources = (o.sources ?? [...sourcesFromGames(), CLUB_SOURCE]).filter((s) => READERS[s.reader]);
   const KNODE = o.knodeGame === undefined ? MAINNET_KNODE_GAME || null : o.knodeGame;
   const nowW = M.weekOf(now);
   const problems: string[] = [];
@@ -505,7 +648,73 @@ export async function run(o: Opts) {
     qCache.set(w, r);
     return r;
   };
-  const ctx: Ctx = { now, raceDir: o.raceDir, gamesDir: o.gamesDir, o, questions };
+  // The Clubhouse record: last run's, plus every feature seen this run (stamped with this week). It is only built
+  // while the Clubhouse is a source; a feature that can't be read this run is said aloud and tried again next run,
+  // and never removes anything already earned.
+  let club: Club | null = null, deskTotal: number | null = null;
+  if (sources.some((s) => s.reader === "clubhouse")) {
+    const old = loadClub(PREV);
+    const seen = new Map<string, Set<string>>();
+    const add = (f: string, a: string) => { if (!isAddr(a)) return; let s = seen.get(f); if (!s) seen.set(f, (s = new Set())); s.add(a); };
+    const collect = async (what: string, fn: () => Promise<void> | void) => { try { await fn(); } catch (e) { problems.push(`clubhouse ${what}: ${(e as Error).message} (tried again next run; nothing earned is lost)`); } };
+    // Played each game (one feature per game hole), from this week's and last week's recorded holes.
+    const players = new Set<string>();
+    await collect("games played", () => {
+      for (const w of [nowW - 1, nowW]) {
+        const j = readJson(PREV, wName(w));
+        if (!j || j.v !== 1 || !Array.isArray(j.holes)) continue;
+        for (const h of j.holes) if (h && h.id !== G.CLUBHOUSE && /^[a-z0-9-]{1,24}$/.test(h.id) && Array.isArray(h.rows)) for (const r of h.rows) if (Array.isArray(r) && isAddr(r[0])) {
+          add(`play-${h.id}`, r[0]); players.add(r[0]);
+          // Repo Lens #J-11 J11-1: in a staked week a row's weight is its Block Golf stake (read on both nodes, every run, for
+          // every player), so every staked player earns `staked` in the same run, never by the vault rotation's order.
+          if (j.practice === false && G.weightOf(r[3]) > 0) add("staked", r[0]);
+        }
+      }
+    });
+    // Played every game hole of a finished week (at least 2 game holes that weren't skipped).
+    await collect("every game in a week", () => {
+      const j = readJson(PREV, wName(nowW - 1));
+      if (!j || j.v !== 1 || j.final !== true || !Array.isArray(j.holes)) return;
+      const hs = j.holes.filter((h: any) => h && h.id !== G.CLUBHOUSE && h.status !== "skipped" && Array.isArray(h.rows));
+      if (hs.length < 2) return;
+      const sets = hs.map((h: any) => new Set(h.rows.map((r: any) => r[0])));
+      for (const a of sets[0]) if (sets.every((x: Set<unknown>) => x.has(a))) add("all-games", a as string);
+    });
+    await collect("Block X days", () => { for (const [a, d] of blockxDays(o.gamesDir, now)) if (d >= 3) add("blockx-3-days", a); });
+    await collect("@names", () => {
+      if (!o.namesDir) return;
+      const j = readJson(o.namesDir, "names.json");
+      if (!j || typeof j.nicknames !== "object" || !j.nicknames) throw new Error("names.json can't be read");
+      for (const a of Object.keys(j.nicknames).slice(0, CLUB_MAX_WALLETS)) add("name", a);
+    });
+    await collect("producers", async () => { if (o.vhpDir) for (const a of await signers(o.vhpDir, problems)) add("producer", a); });
+    await collect("swap desk", async () => {
+      const read = o.deskOf ?? ((n: any) => readDesk(n));
+      if (!o.deskOf && !o.p) return;
+      const a = await read(o.p), b = o.check ? await read(o.check) : a;
+      if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("the two nodes don't agree yet");
+      const before = Number.isSafeInteger(old?.desk) ? old!.desk! : null;
+      if (before !== null && a.total - before > 20) problems.push(`clubhouse swap desk: ${a.total - before} swaps since the last run, but the desk keeps only its newest 20; some swappers may be counted a run later or missed`);
+      for (const x of a.accounts) add("swap", x);
+      deskTotal = a.total;
+    });
+    // Vault facts: a few wallets a run (the players that still lack one of the three), on two nodes that must agree.
+    await collect("vault", async () => {
+      const need = [...players].filter((a) => { const f = old?.wallets[a] ?? {}; return f.staked === undefined || f["two-games"] === undefined || f.claimed === undefined; }).sort();
+      if (!need.length) return;
+      const budget = Math.max(1, o.clubBudget ?? 20), start = need.length > budget ? Math.floor(now / HOUR) * budget % need.length : 0;
+      const who = need.length > budget ? [...need.slice(start), ...need.slice(0, start)].slice(0, budget) : need;
+      const read = o.vaultOf ?? ((n: any, list: string[], wk: number) => readVaultFacts(n, KNODE, list, wk));
+      // Repo Lens #J-11 J11-7: say so, rather than skip quietly, when the vault can't be read at all.
+      if (!o.vaultOf && (!KNODE || !o.p)) throw new Error(KNODE ? "no node to read the vault from" : "the vault contract isn't known");
+      const a = await read(o.p, who, nowW), b = o.check ? await read(o.check, who, nowW) : a;
+      if (JSON.stringify([...a]) !== JSON.stringify([...b])) throw new Error("the two nodes don't agree yet");
+      for (const [x, v] of a) { if (v.staked) add("staked", x); if (v.games >= 2) add("two-games", x); if (v.claimed) add("claimed", x); }
+    });
+    club = growClub(old, seen, nowW, now, problems);
+    if (deskTotal !== null) club.desk = deskTotal; else if (Number.isSafeInteger(old?.desk)) club.desk = old!.desk;
+  }
+  const ctx: Ctx = { now, raceDir: o.raceDir, gamesDir: o.gamesDir, o, questions, club };
 
   // 2–4. last week (until final) and this week
   const weeks = new Map<number, WeekFile>();
@@ -607,6 +816,14 @@ export async function run(o: Opts) {
         d.rows = d.rows.map((r) => ({ ...r, ranked: stakers ? stakers.get(r.a) ?? 0 : lastWeight.get(r.a) ?? 0 }) as any);
       }
     }
+    // B2. The Clubhouse is a hole for the week's players: only wallets on one of the week's game holes play it (a
+    //     wallet that played no game that week has no Clubhouse row, so it gets no scorecard from it alone).
+    const club_ = drafts.find((d) => d.id === G.CLUBHOUSE && !d.keptFinal);
+    if (club_) {
+      const players = new Set<string>();
+      for (const d of drafts) if (d.id !== G.CLUBHOUSE) for (const r of d.keptFinal ? d.keptFinal.rows.map((x) => ({ a: x[0] })) : d.rows) players.add(r.a);
+      club_.rows = club_.rows.filter((r) => players.has(r.a));
+    }
     // C. Score each hole. Staked weeks: a hole's field needs MIN_FIELD_VHP of Block Golf stake among its scorers (a
     //    fixed number, so nobody can move it and a final hole always scores the same: fix-check V2, V3).
     const minW = R.practice ? 0 : G.MIN_FIELD_VHP;
@@ -620,7 +837,7 @@ export async function run(o: Opts) {
         if (now >= end + FORCE_MS) { status = "skipped"; why = "the Block Golf stakes couldn't be read in time"; }
         else if (status === "final") { status = "live"; why = "waiting to read the Block Golf stakes"; }
       }
-      const scored = status === "skipped" ? null : G.scoreHole(d.rows, R.minField, R.everyone, minW);
+      const scored = status === "skipped" ? null : G.scoreHoleFor(d.id, d.rows, R.minField, R.everyone, minW);
       if (scored && scored.skipped && status === "final") { status = "skipped"; why = scored.why; }
       holes.push({
         id: d.id, name: d.name, status, why: status === "final" ? "" : why || (scored && scored.skipped ? scored.why : ""),
@@ -630,7 +847,7 @@ export async function run(o: Opts) {
     }
     const scoredHoles = holes.map((h) => {
       if (h.status === "skipped") return { id: h.id, skipped: true, results: {} };
-      const s = G.scoreHole(h.rows.map(([a, score, sc, rk]) => ({ a, score, scored: !!sc, ranked: G.weightOf(rk) })), R.minField, R.everyone, minW);
+      const s = G.scoreHoleFor(h.id, h.rows.map(([a, score, sc, rk]) => ({ a, score, scored: !!sc, ranked: G.weightOf(rk) })), R.minField, R.everyone, minW);
       return { id: h.id, skipped: s.skipped, results: s.results };
     });
     // Staked board = staked in Block Golf that week (staked weeks); Free play = everyone else (D-081). Practice weeks:
@@ -686,6 +903,7 @@ export async function run(o: Opts) {
   }
   const weekList = [...known].sort((a, b) => a - b);
   fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify({ v: 1, updated: new Date(now).toISOString(), weeks: weekList, course, stakedFromWeek: STAKED_FROM }) + "\n");
+  if (club) fs.writeFileSync(path.join(OUT, "clubhouse.json"), JSON.stringify(club) + "\n");
 
   // boardPlace (Repo Lens B13-B1): the place on the row's own board (Staked or Free play) by Golf's tie key (points,
   // fewer lost balls, more under par, best hole), ties sharing it; the pages give medals by it, matching the vault file.
@@ -782,6 +1000,7 @@ if (isMain && process.argv[2] !== undefined && process.argv[2] !== "status") {
   const RPC_CHECK = E.RPC_CHECK && E.RPC_CHECK !== "off" && E.RPC_CHECK !== RPC ? E.RPC_CHECK : "";
   run({
     prev: E.GOLF_PREV, out: E.GOLF_OUT, stakedFromWeek: sf, raceDir: E.RACE_DATA, gamesDir: E.GAMES_DATA, holdWeeks: E.GOLF_HOLD_WEEKS,
+    namesDir: E.NAMES_DATA, vhpDir: E.VHP_DATA,
     p: new Provider([RPC]), check: RPC_CHECK ? new Provider([RPC_CHECK]) : null,
   }).catch((e) => { console.error(e); process.exit(1); });
 }

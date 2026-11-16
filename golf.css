@@ -79,3 +79,7 @@ tr.gf-off td { color: var(--muted); font-style: italic; }
   .gf-table th, .gf-table td { padding: 9px 5px; }
 }
 @media (max-width: 760px) { #card-box, #board-box, #how { scroll-margin-top: 124px; } }
+/* The Clubhouse: features earned (kept for good) and still to earn */
+.gf-club span { font-size: 14px; font-weight: 600; padding: 7px 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--paper); }
+.gf-club .gf-club-on { color: var(--ink); border-color: var(--muted); }
+.gf-club .gf-club-off { color: var(--muted); }

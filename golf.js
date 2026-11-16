@@ -31,7 +31,7 @@
   let games = new Map();          // id → { name, href }
   let weeks = { this: null, last: null };
   let showing = "this";
-  let board = null, lb = null;
+  let board = null, lb = null, club = null;
   const me = () => (window.KWallet && isAddr(window.KWallet.address) ? window.KWallet.address : "");
 
   // The key in How it works: one row per score.
@@ -42,6 +42,7 @@
   function mark(s) { return el("span", { class: `gf-mark s${s}`, title: G.NAMES[s], text: String(s) }); }
 
   function gameCell(id, name) {
+    if (id === G.CLUBHOUSE) return el("td", { class: "gf-game" }, el("a", { href: "#clubhouse", text: name || "Clubhouse" }));
     const g = games.get(id);
     const label = (g && g.name) || name || id;
     const href = g && typeof g.href === "string" && /^[a-z0-9-]+\.html(#[a-z0-9/-]*)?$/.test(g.href) ? g.href : null;
@@ -91,7 +92,8 @@
       const x = byHole.get(h.id);
       const s = x ? x[1] : G.LOST;
       const dropped = card && card.mulligan === h.id;
-      const placeText = x && x[2] ? `${ord(x[2])} of ${x[3]}` : card || whose === "me-empty" ? "Didn't play" : "–";
+      const placeText = h.id === G.CLUBHOUSE ? (x && x[2] ? `${x[2]} feature${x[2] === 1 ? "" : "s"}` : card || whose === "me-empty" ? "No features yet" : "–")
+        : x && x[2] ? `${ord(x[2])} of ${x[3]}` : card || whose === "me-empty" ? "Didn't play" : "–";
       const scoreCell = card || whose === "me-empty"
         ? el("td", { class: "num" }, mark(s), el("span", { class: "gf-name", text: dropped ? `${G.NAMES[s]} · mulligan` : G.NAMES[s] }))
         : el("td", { class: "num", text: "–" });
@@ -133,6 +135,7 @@
     box.hidden = !todo.length;
     $("todo").replaceChildren(...todo.map((h) => {
       const g = games.get(h.id);
+      if (h.id === G.CLUBHOUSE) return el("a", { href: "#clubhouse", text: "Earn Clubhouse features" });
       const href = g && typeof g.href === "string" && /^[a-z0-9-]+\.html(#[a-z0-9/-]*)?$/.test(g.href) ? g.href : "games.html";
       return el("a", { href, text: `Play ${(g && g.name) || h.name}` });
     }));
@@ -158,7 +161,24 @@
     if (board) lb.set(board);
   }
 
-  function drawAll() { drawCard(); drawTodo(); drawBoard(); }
+  // The Clubhouse (golf-math.js CLUB_FEATURES): the features this wallet has earned (kept for good) and the ones still
+  // to earn, from clubhouse.json. Shown only once the Clubhouse is on the course.
+  function drawClub() {
+    const box = $("clubhouse"), who = me(), wf = weeks.this;
+    const on = !!(wf && wf.holes.some((h) => h.id === G.CLUBHOUSE));
+    box.hidden = !on;
+    if (!on) return;
+    const mine = who && club && club.wallets && club.wallets[who] && typeof club.wallets[who] === "object" ? club.wallets[who] : {};
+    const course = wf.holes.filter((h) => h.id !== G.CLUBHOUSE).map((h) => `play-${h.id}`);
+    const all = [...Object.keys(G.CLUB_FEATURES), ...course];
+    for (const f of Object.keys(mine)) if (G.isFeature(f) && !all.includes(f)) all.push(f);
+    const nameOfF = (f) => G.featureName(f, f.startsWith("play-") ? games.get(f.slice(5))?.name : "");
+    const n = Object.keys(mine).filter(G.isFeature).length;
+    $("club-sub").textContent = !who ? "Connect a wallet to see your Clubhouse. Each feature you use is earned once and kept for good."
+      : `${n} feature${n === 1 ? "" : "s"} earned: ${G.NAMES[G.clubStrokes(n)]} on the Clubhouse hole. Each one is kept for good; doing it again adds nothing.`;
+    $("club-list").replaceChildren(...all.map((f) => el("span", { class: mine[f] !== undefined ? "gf-club-on" : "gf-club-off", text: `${mine[f] !== undefined ? "✓" : "○"} ${nameOfF(f)}` })));
+  }
+  function drawAll() { drawCard(); drawTodo(); drawClub(); drawBoard(); }
 
   $("wk-this").addEventListener("click", () => { showing = "this"; drawCard(); });
   $("wk-last").addEventListener("click", () => { if (weeks.last) { showing = "last"; drawCard(); } });
@@ -187,6 +207,7 @@
       weeks.this = ok[ok.length - 1] || null;
       weeks.last = ok.length > 1 ? ok[ok.length - 2] : null;
       board = await fetchJson(DATA + "board.json").catch(() => null);
+      club = await fetchJson(DATA + "clubhouse.json").catch(() => null);
       say(weeks.this ? "" : "No Block Golf week yet.");
     } catch {
       say("The first Block Golf scorecards appear within an hour of the course opening. Until then, play the games: every one of them is a hole.");

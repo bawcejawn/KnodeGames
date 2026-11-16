@@ -132,6 +132,12 @@
       <div class="gf-todo-list" id="todo"></div>
     </section>
 
+    <section class="gf-todo" id="clubhouse" hidden aria-labelledby="club-title">
+      <h2 id="club-title">Your Clubhouse</h2>
+      <p class="gf-sub" id="club-sub">Each Knode Games feature you use is earned once and kept for good. The more different features you've used, the better your Clubhouse hole.</p>
+      <div class="gf-todo-list gf-club" id="club-list"></div>
+    </section>
+
     <section class="gf-board" id="board-box" aria-labelledby="board-title">
       <h2 id="board-title">Leaderboard</h2>
       <div id="gf-board"></div>
@@ -154,6 +160,7 @@
         </div>
         <p><b>Who you're placed against.</b> Other Block Golf players: everyone staked in Block Golf that week (at least the vault's minimum stake, 1 VHP today) who scored on that game, <b>counted by the VHP they have staked</b>, not by wallets. "Top 25%" means a quarter of the other players' stake is ahead of you. Your own stake never moves you up or down, so a big staker and a small one with the same result get the same score. Wallets not staked in Block Golf, or that scored nothing, don't count. If you played but scored nothing, it's a double bogey. Players on the same score share the middle of their places. A hole needs at least 5 Block Golf stakers with at least 10 VHP between them among the players who scored; otherwise it's skipped for everyone. (In practice weeks every player who scored counts, and 3 make a hole.)</p>
         <p><b>Practice weeks.</b> Until Block Golf pays prizes, every player who scored counts and 3 are enough for a hole, so early weeks still get scorecards.</p>
+        <p><b>The Clubhouse hole.</b> One more hole, worth the same as a game hole, scored by how many <b>different</b> Knode Games features your wallet has used: staking, claiming a reward, staking in two games in one week, a swap on the swap desk, an @name, running a producer that signed a block, playing each game, playing every game in a week, and Block X picks on 3 or more days. Each one is earned once, the first week it's seen, and kept for good, so doing it again adds nothing. Features: 0 = lost ball, 1 = double bogey, 2 = bogey, 3 or 4 = par, 5 or 6 = birdie, 7 or 8 = eagle, 9 or more = hole in one. A feature counts from the week Golf first sees it. Staking shows up the same hour; claiming a reward and staking in two games can take a few days to show.</p>
         <p><b>The mulligan.</b> Your worst hole is dropped each week, whatever it was: a bad week in a game, or a game you missed.</p>
         <p><b>The week.</b> Lowest score wins. Points (what the vault uses) are 7 for each counted hole minus your strokes. Ties: more points, then fewer lost balls, then more holes under par, then your best hole.</p>
         <p><b>Two boards.</b> <b>Staked</b>: players staked in Block Golf that week (at least the vault's minimum stake, 1 VHP today, once Block Golf joins the Knode Games vault); the top 30% share Block Golf's weekly bucket. <b>Free play</b>: everyone else. A wallet staked in Block Golf at any point that week is never on the Free play prize list, even if it withdrew. Free play is ranked the same way, but <b>pays no VHP prize for now</b>; the owner may switch on a weekly 2 + 1 VHP Free play prize later, from the week after it's announced. Until Block Golf joins the Knode Games vault, every week is a practice week and everyone is on the Free play board.</p>

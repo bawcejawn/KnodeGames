@@ -14,7 +14,7 @@ const code = ["bot/bot.ts", "bot/vault.ts"].map(read).join("\n");
 
 test("G2-2: every quoted piece (16+ chars) of the F9-1 rows appears in the bot's code", () => {
   const starts = ["the question file no longer matches", "its VHP readings are not the list", "its VHP readings are an older list",
-    "the question file was not generated", "The pool's last block is unknown", "already has N points on chain"];
+    "the question file was not generated", "The pool's last block is unknown", "the chain already differs from the results file"];   // audit AB-060 replaced "already has N points on chain"
   const rows = read(".ai/platform/ALERTS.md").split("\n").filter((l) => l.startsWith("|") && starts.some((s) => l.includes(s)));
   assert.ok(rows.length >= 4, `expected the F9-1 rows, found ${rows.length}`);
   let checked = 0;

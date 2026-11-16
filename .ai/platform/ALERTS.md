@@ -114,13 +114,30 @@ The bot compares the chain with the records on `main` (`game-data/deployment.jso
 | changed | a final file changed after the first read | **don't post**; game chat + Vault chat; then `game-post` |
 | refused | the vault reverted a send | paste to the Vault chat; don't retry by hand |
 | board / staked-list / not-on-board / order | results don't match the game's published board | game chat (R-ALL-3) |
+| "… the chain already differs from the results file: …" (chain-differs; audit AB-060) | before anything is sent, the chain holds a row or prize winner the file doesn't have, or points that differ (`… has N on chain, the file says …`) | **if you didn't post it, the operator or owner key may be compromised**: Vault chat now; remove a wrong row with `game-correct <id> <week> <wallet> 0 --send` (a prize winner: `game-unprize`) |
+| "… after the bot's posts the chain still differs from the results file" (after-post) | the chain doesn't show what the bot just posted | Vault chat; nothing was sealed |
+| "… the two nodes disagree about …" (nodes-disagree; audit AB-065) | `RPC` and `RPC_CHECK` give different stakes or results | one node is wrong or lying: Vault chat; the week waits (nothing posted, sealed or finalized) |
+| "… there is no second node (RPC_CHECK) to confirm it …" (one-node-left-out) | a file row the chain calls not staked, with only one node | check `RPC_CHECK`; or `game-post <id> <week>` by hand if the chain is right |
+| "… the owner corrected this week's results on chain …" (owner-corrected) | you corrected an unsealed week | `game-seal <id> <week> --send` when it's right |
+
+**Once per vault week:**
+| Alert | When | What you can do |
+|---|---|---|
+| "RPC_CHECK is off, missing, or the same host as RPC …" (audit AB-065) | the hourly bot has only one node: it posts and finalizes nothing | set `RPC_CHECK` back to an independent node (GitHub → Settings → Secrets and variables → Actions → Variables), or post by hand |
+
+**Sealed weeks (until final, once per difference):**
+| Alert | When | What you can do |
+|---|---|---|
+| "… is SEALED on chain with results that differ from its published file: …" (audit AB-060) | every hourly run from the seal; the bot won't finalize it | **if you didn't do this, a key may be compromised**: Vault chat now; `game-correct` / `game-void` before the window closes (the alert gives the time) |
+| "… is SEALED on chain, but its results file can't be used …" | a sealed week with no usable file | same |
+| "… NOT finalized: …" | the finalize check found a difference | as above; if the chain is right, `game-finalize <id> <week>` by hand |
+| "… row(s) of the results file are not staked … Both nodes agree, so they are left out" | both nodes call a file row not staked | usually a wallet that wasn't staked that week; if it should be paid, `game-correct` before the week is final |
 
 **Every hourly run:**
 | Alert | When | What you can do |
 |---|---|---|
 | "results are not ready (…) and are due …" | **only in the last 12 h** before the deadline (before that: silent, §10) | game chat; under 12 h it's urgent |
 | "… its results file carries a VHP-ruler shadow mark (…), so the vault won't post it" | **at once**, once per game-week (a shadow mark never clears by itself; Repo Lens #G-17 G-SH-1) | game chat: the recorder published the ruler's shadow result as the vault file; it must publish the real week's file before the deadline, or the week rolls over |
-| "… already has N points on chain; the results file says …" (with its `game-correct …` line) | posted points differ | `game-correct` (owner) if the chat confirms |
 | "free-prize switches can't be read" | the `prize-settings` file broken | `npm run prizes -- list`; resend the setting. Under 6 h the bot seals without free winners |
 | prize winner already has a result / was staked / too many tied | free-prize list problem | game chat |
 | "didn't go through" | network or Mana; retried | wait; Vault chat if it repeats |

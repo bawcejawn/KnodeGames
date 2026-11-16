@@ -41,6 +41,18 @@ test("allowlist: the Bracket's ruler day cards and shadow summary pass its own c
   assert.doesNotMatch(r.out, /Refusing to publish/);
 });
 
+test("allowlist: a Daily Questions parts folder (vault week 6 on: manifest, wk, 16 shards) passes; anything else in it doesn't", () => {
+  const h = "0123456789ab";
+  const folder = ["questions/W006/manifest.json", `questions/W006/wk.${h}.json`, ...[..."0123456789abcdef"].map((x) => `questions/W006/p/${x}.${h}.json`)];
+  const ok = run(["blockx/index.json", "questions/board.json", ...folder], []);
+  assert.equal(ok.status, 0, ok.out);
+  for (const bad of [`questions/W006/wk.${h.slice(1)}.json`, `questions/W006/p/ab.${h}.json`, `questions/W006/d1.${h}.json`, "questions/W006/notes.json", `questions/W006/x/p/${h}.json`, `questions/W06/manifest.json`]) {
+    const r = run(["blockx/index.json", ...folder, bad], []);
+    assert.notEqual(r.status, 0, `${bad} was let through`);
+    assert.match(r.out, /Refusing to publish unexpected files/, bad);
+  }
+});
+
 test("allowlist: names that are not a recorder's are still refused", () => {
   for (const bad of ["questions/vault/HOLDW4.json", "questions/vault/HOLD-RELEASE-W4.json", "questions/vault/X-W4.json", "questions/vault/W4.json.bak", "questions/notes.json"]) {
     const r = run(["blockx/index.json", bad], []);

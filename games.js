@@ -60,7 +60,7 @@
     return Array.isArray(list) ? list.filter(ok).slice(0, 40) : [];
   }
 
-  // ── free-prize label: "Free prizes on" or "Practice", from the owner's switch (same rule as bot/free-prizes.ts) ──
+  // ── free-prize label: "Free board: 1st wins 2 VHP, 2nd wins 1 VHP" or "No free prizes this week" (owner, 15 Nov), from the owner's switch (same rule as bot/free-prizes.ts) ──
   let switches = null;   // the checked file, or null (unreachable or not the right shape: then no prize label is drawn)
   function checkSwitches(s) {
     if (!s || s.v !== 1 || !s.games || typeof s.games !== "object" || Array.isArray(s.games)) return null;
@@ -94,7 +94,7 @@
       const g = gameList.find((x) => x.id === b.dataset.prize), st = g && prizeState(g, now);
       if (!st) { b.hidden = true; continue; }
       b.className = `pill ${st === "on" ? "prize-on" : "practice"}`;
-      b.textContent = st === "on" ? "Free prizes on · 2 + 1 VHP" : "Practice · no free prizes";
+      b.textContent = st === "on" ? "Free board: 1st wins 2 VHP, 2nd wins 1 VHP" : "No free prizes this week";
       b.hidden = false;
     }
   }

@@ -120,6 +120,7 @@ The bot compares the chain with the records on `main` (`game-data/deployment.jso
 | "… the two nodes disagree about …" (nodes-disagree; audit AB-065) | `RPC` and `RPC_CHECK` give different stakes or results | one node is wrong or lying: Vault chat; the week waits (nothing posted, sealed or finalized) |
 | "… there is no second node (RPC_CHECK) to confirm it …" (one-node-left-out) | a file row the chain calls not staked, with only one node | check `RPC_CHECK`; or `game-post <id> <week>` by hand if the chain is right |
 | "… the owner corrected this week's results on chain …" (owner-corrected) | you corrected an unsealed week | `game-seal <id> <week> --send` when it's right |
+| "… isn't sealed by the publish job …" (unsealed / board-unsealed / release-unsealed; audit AB-058) | with `resultsSealKey` set, a results file, board or RELEASE file has no good seal | if nobody changed the data branch: check the `RESULTS_SEAL_KEY` secret and the game's last publish run (`docs/ops/RESULTS-SEAL.md`); if someone did: Vault chat now |
 
 **Once per vault week:**
 | Alert | When | What you can do |

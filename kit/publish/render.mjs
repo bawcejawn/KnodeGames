@@ -8,6 +8,9 @@ import { DATA_BRANCHES, JOB_WAIT_MS } from "./check.inline.mjs";
 export const BEGIN = "  # ── BEGIN kit-rendered jobs (tools/kit-render-workflows.mjs; edit kit/, never these lines) ──";
 export const END = "  # ── END kit-rendered jobs ──";
 export const HEREDOC = "KIT_CHECK_INLINE";
+/** Audit AB-058: the seal lines every publish job runs before it writes its tree (the same text in race.yml, games.yml,
+ *  golf.yml and combo.yml; tests/audit/results-seal.test.mjs checks every copy). */
+export const SEAL_SH = fs.readFileSync(new URL("./results-seal.sh", import.meta.url), "utf8").replace(/\n$/, "");
 const CHECKOUT = "actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0";
 const NODE = "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0";
 const UP = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2";
@@ -336,6 +339,9 @@ ${vhpGames.length ? RULER_STEP(ruler) : ""}      - name: Check and push the kit 
         env:
           KIT_CARDS_DIR: \${{ runner.temp }}/kit-cards
           GH_TOKEN: \${{ github.token }}
+          # Audit AB-058: seals the vault results files and boards it publishes (kit/publish/results-seal.sh).
+          RESULTS_SEAL_KEY: \${{ secrets.RESULTS_SEAL_KEY }}
+          SEAL_BRANCH: ${branch}
           IN: \${{ runner.temp }}/incoming
           LIST: \${{ runner.temp }}/kit-publish.txt
           KIT_GAMES: '${kitGames}'
@@ -394,6 +400,7 @@ ${ind(script, 10).replace(/\n$/, "")}
             h=$(git hash-object -w "$IN/$name")
             git update-index --add --cacheinfo "100644,$h,$name"
           done < "$LIST"
+${ind(SEAL_SH, 10)}
           tree=$(git write-tree)
           if [ -n "$parent" ] && [ "$tree" = "$(git rev-parse "$parent^{tree}")" ]; then echo "No changes."
           else

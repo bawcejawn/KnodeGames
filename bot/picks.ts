@@ -21,6 +21,14 @@
  *   npm run picks -- lock-test <id> --testnet --send      send one pick per block across a target's lock, report each
  *   npm run picks -- mana-test <id> --testnet --send      send 1, 3 and 7 picks in one transaction each, report the Mana
  *
+ * The Picks v2 upgrade (Combo Card; docs/blockx/MAINNET-LAUNCH.md "Later: the Picks v2 upgrade", steps 2-4). Each one is
+ * a dry run without --send; a mainnet send also needs --mainnet and --code 92d555d0 (the first 8 characters of v2's
+ * sha256, typed by you), and every check runs on two nodes:
+ *   npm run picks -- upgrade-schedule [--send]   owner announces v2's sha256; it can be uploaded 48 hours later, for 7 days
+ *   npm run picks -- upgrade-upload [--send]     owner uploads v2 (PAYER_WIF, if set, pays the Mana); checks the code, the
+ *                                                overrides, the owner and every game on both nodes afterwards
+ *   npm run picks -- upgrade-clear [--send]      owner clears the announced hash, so the same code can't be uploaded again
+ *
  * Keys come from the root .env / .env.testnet (never GitHub, never printed):
  *   PICKS_WIF   a brand-new wallet that becomes the Picks contract. Needed for the upload only; once uploaded, the
  *               contract decides for its own account (it refuses to move anything or pay Mana; new code needs the
@@ -52,6 +60,12 @@ const writeJson = (f: string, v: any) => { fs.mkdirSync(path.dirname(f), { recur
 
 /** The audited Picks build (picks/README.md "Build"; audit + fix-check 2026-10-27). Mainnet upload refuses any other. */
 export const PICKS_SHA256 = "700c296a1064b904299c156061d6caf8fcabd0b1765968903f29d89d2426c594";
+/** Picks v2 (the CARD type, for the Combo Card): formal audit 2026-10-28 and Repo Lens final audit 2026-10-30, "ready for
+ *  mainnet" (docs/history/AUDIT-2026-10-28-combo.md, AUDIT-2026-10-30-combo-repolens.md). It is uploaded over v1 by the
+ *  owner's timelocked upgrade; this tool accepts it as the audited code on chain and its ABI for owner calls (audit
+ *  BX-19 / BX-21, with the Combo chat 2026-10-30). Block X's calls encode the same bytes with either ABI. */
+export const PICKS_V2_SHA256 = "92d555d0680157854452e35162c1b1c5c100904996194b8c1c848df50e5e1c3d";
+export const AUDITED_PICKS = [PICKS_SHA256, PICKS_V2_SHA256];
 /** The owner built into the audited code (before any handover). After a handover the owner is read from
  *  picks-data/deployment.json ("owner"), and every owner command checks it against the chain (R-BX-3, D-096). */
 export const MAINNET_OWNER = "1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717";
@@ -63,6 +77,7 @@ const MAINNET_RPCS = ["https://koinos.armana.io", "https://api.koinosblocks.com"
 const MAINNET_CHECK_RPC = () => E.RPC_CHECK && E.RPC_CHECK !== "off" ? E.RPC_CHECK : "https://api.koinosblocks.com";
 /** Audit BX-21: the Picks ABI the owner calls are encoded with (picks/abi/picks.koilib.json, from the audited build). */
 export const PICKS_ABI_SHA256 = "8efa3ad40d3d0bd9a3bfe22533fa2f9ca14445174095c66d3d34b1fc88e0a1ff";
+export const PICKS_V2_ABI_SHA256 = "cea9b0736ce989e9b995735bf1330d6891861c999109c8ad7afacb1ce0f96aed";
 const ABI_FILE = "picks/abi/picks.koilib.json";
 const MAINNET_WASM = "picks/build/release/contract.wasm";
 const TESTNET_WASM = "picks/build/testnet/contract.wasm", TESTNET_MANIFEST = "picks/build/testnet/manifest.json";
@@ -78,6 +93,20 @@ const TESTNET_CONFIG = path.join("testnet", "blockx.json");
 const DAY_MS = 86400000, WEEK_MS = 7 * DAY_MS;
 export const BRACKET_GAME = Object.freeze({ id: 9, name: "Producer Bracket", kind: 3, round: WEEK_MS, offset: (X.GENESIS + DAY_MS) % WEEK_MS,
   lead: 5 * 60000, ahead: 46 * 3600000, numberMax: 2 ** 31 - 1, picksPerDay: 20, maxChanges: 20 });
+/** Combo Card, Picks game 8 (the Combo chat, 12 Nov; the build 8 rules): a CARD game (kind 4, Picks v2 only), locked by
+ *  TIME. Three slots a UTC day (round_size 3: one card per slot), each card changeable 3 times, so at most 12 card
+ *  transactions a wallet a day. Cards of 2 to 10 legs (max_legs 10, owner D-180; list_size 10 is the room on chain, which can
+ *  never change). Four leg types, exactly as the recorder requires (bot/games/combo.ts expectedLegTypes, Repo Lens RL-25)
+ *  and the page prices them (combo-math.js): Win (1), Show (2), Top half (3) on the 6-hour Producer Race (lock 25 min
+ *  before the start, open 24 h ahead), and Block X (4) on blocks that are multiples of 2,400 (lock 500 blocks before,
+ *  open 28,800 ahead). The SHAPE (id, kind, list_size, lock_mode, round_size, round_offset, the leg types' codes and
+ *  clocks) can never change once applied; tighten_game can only make it stricter. Announced only once
+ *  picks-data/deployment.json records Picks v2 (runbook step 5). */
+const RACE_MS = 6 * 3600000;
+const comboLeg = (code: number, lock_mode: number, round_size: number, lead: number, ahead: number) =>
+  Object.freeze({ code, lock_mode, round_size: String(round_size), round_offset: "0", lead: String(lead), ahead: String(ahead), enabled: true });
+export const COMBO_GAME = Object.freeze({ id: 8, name: "Combo Card", kind: 4, listSize: 10, maxLegs: 10, slotsPerDay: 3, picksPerDay: 12, maxChanges: 3,
+  legTypes: Object.freeze([comboLeg(1, 2, RACE_MS, 25 * 60000, DAY_MS), comboLeg(2, 2, RACE_MS, 25 * 60000, DAY_MS), comboLeg(3, 2, RACE_MS, 25 * 60000, DAY_MS), comboLeg(4, 1, 2400, 500, 28800)]) });
 /** Fantasy, Picks games 4 and 5 (the Fantasy chat's values, claude/fantasy/TO-BLOCKX-PICKS-GAMES-4-5-VALUES-2026-11-12.md;
  *  the same as its testnet registration, fantasy-math.js games(); the owner confirms the shapes). Both TIME-locked, one
  *  round a UTC day (round = day number; the target is 00:00 UTC), locking 5 minutes before (Fantasy's lock block
@@ -86,14 +115,14 @@ export const FANTASY_TEAM_GAME = Object.freeze({ id: 4, name: "Fantasy Producers
   lead: 5 * 60000, ahead: 7 * DAY_MS, picksPerDay: 20, maxChanges: 20 });
 export const FANTASY_RIVAL_GAME = Object.freeze({ id: 5, name: "Weekly Rival", kind: 1, listSize: 1, lockMode: 2, round: DAY_MS, offset: 0,
   lead: 5 * 60000, ahead: 7 * DAY_MS, picksPerDay: 10, maxChanges: 5 });
-const MAINNET_GAMES: any[] = [{ ...X.MAINNET_GAME, name: "Who Signs Block X" }, { ...X.MAINNET_HOURLY, name: "Who Signs Block X (hourly)" }, BRACKET_GAME, FANTASY_TEAM_GAME, FANTASY_RIVAL_GAME];
+const MAINNET_GAMES: any[] = [{ ...X.MAINNET_GAME, name: "Who Signs Block X" }, { ...X.MAINNET_HOURLY, name: "Who Signs Block X (hourly)" }, BRACKET_GAME, FANTASY_TEAM_GAME, FANTASY_RIVAL_GAME, COMBO_GAME];
 /** The picks per wallet per day and changes per pick the Picks contract allows at most. */
 const MAX_PICKS_PER_DAY = 50, MAX_CHANGES = 50;
 
 const loadAbi = () => {
   if (!fs.existsSync(ABI_FILE)) throw new Error(`${ABI_FILE} not found: in the picks folder run npm ci --ignore-scripts, npm test`);
   const raw = fs.readFileSync(ABI_FILE);
-  if (sha256hex(raw) !== PICKS_ABI_SHA256) throw new Error(`${ABI_FILE} is not the audited Picks ABI (sha256 ${sha256hex(raw)}). Restore it: git checkout -- ${ABI_FILE}`);
+  if (![PICKS_ABI_SHA256, PICKS_V2_ABI_SHA256].includes(sha256hex(raw))) throw new Error(`${ABI_FILE} is not the audited Picks ABI (sha256 ${sha256hex(raw)}). Restore it: git checkout -- ${ABI_FILE}`);
   return JSON.parse(raw.toString("utf8"));
 };
 const need = (k: string) => { if (!E[k]) throw new Error(`${k} is missing from ${TESTNET ? ".env.testnet" : ".env"} (npm run picks -- keys${TESTNET ? " --testnet" : ""})`); return E[k]!; };
@@ -178,9 +207,9 @@ async function status() {
   log(`Picks ${net.picks} on ${net.testnet ? "the Koinos TESTNET" : "MAINNET"} (${net.rpc[0]}, chain ${chainId})`);
   const m = await contractMetadata(p, net.picks);
   if (!m.exists) { log("  Contract       not uploaded yet (npm run picks -- upload)"); return; }
-  const want = net.testnet ? readJson(TESTNET_MANIFEST)?.sha256 : PICKS_SHA256;
+  const want: string[] = net.testnet ? [readJson(TESTNET_MANIFEST)?.sha256] : AUDITED_PICKS;
   const have = m.hash.replace(/^0x1220/, "");
-  log(`  Code           sha256 ${have} ${have === want ? "✔ (the expected build)" : "⚠ NOT the expected build " + want}`);
+  log(`  Code           sha256 ${have} ${want.includes(have) ? `✔ (the audited ${have === PICKS_V2_SHA256 ? "v2" : "build"})` : "⚠ NOT the expected build " + want.join(" or ")}`);
   log(`  Overrides      ${m.call && m.tx && m.upload ? "✔ all three ON (the contract decides for its own account)" : "⚠ NOT all on: the upload key still controls it. Do not announce games."}`);
   try { const n = await assertAuditedContract(net, p); log(`  Checked on     ${n} node${n > 1 ? "s (both agree)" : " (the testnet has one public node)"} ✔`); }
   catch (e) { log(`  ⚠ ${(e as Error).message}`); }
@@ -190,7 +219,9 @@ async function status() {
   if (cfg.upgrade_eta && cfg.upgrade_eta !== "0") log(`  Upgrade        announced: ${cfg.upgrade_hash}, from ${new Date(Number(cfg.upgrade_eta)).toISOString()}`);
   const games = (await read(p, net.picks, "list_games")).games ?? [];
   log(`  Games          ${games.length ? "" : "none yet (npm run picks -- announce 2)"}`);
-  for (const g of games) log(Number(g.lock_mode) === 2
+  for (const g of games) log(Number(g.kind) === 4
+    ? `    ${g.id} ${g.name}: ${g.enabled ? "ON" : "off"}, kind 4 (card), ${g.round_size} cards a day, ${g.max_legs} legs (up to ${g.list_size}), ${g.leg_types?.length ?? 0} leg types, ${g.max_picks_per_day} sends a day, ${g.max_changes} changes`
+    : Number(g.lock_mode) === 2
     ? `    ${g.id} ${g.name}: ${g.enabled ? "ON" : "off"}, kind ${g.kind}, a round every ${Number(g.round_size) / 3600000} h (offset ${g.round_offset} ms), locks ${Number(g.lead) / 60000} min before, opens ${Number(g.ahead) / 3600000} h ahead, ${g.max_picks_per_day} picks a day, ${g.max_changes} changes`
     : `    ${g.id} ${g.name}: ${g.enabled ? "ON" : "off"}, every ${g.round_size} blocks, locks ${g.lead} before, opens ${g.ahead} ahead, ${g.max_picks_per_day} picks a day, ${g.max_changes} changes`);
   const pend = (await read(p, net.picks, "list_pending", { limit: 50 })).pending ?? [];
@@ -204,15 +235,15 @@ export function uploadBuild(testnet: boolean, files = { mainnet: MAINNET_WASM, t
   if (!testnet) {
     if (!fs.existsSync(files.mainnet)) throw new Error(`${files.mainnet} not found: in the picks folder run npm ci --ignore-scripts, npm test`);
     const wasm = fs.readFileSync(files.mainnet), h = sha256hex(wasm);
-    if (h !== PICKS_SHA256) throw new Error(`${files.mainnet} is not the audited Picks build (sha256 ${h}, expected ${PICKS_SHA256}). Rebuild: cd picks, npm ci --ignore-scripts, npm test (best in a clean copy with no .env).`);
+    if (!AUDITED_PICKS.includes(h)) throw new Error(`${files.mainnet} is not the audited Picks build (sha256 ${h}, expected ${AUDITED_PICKS.join(" or ")}). Rebuild: cd picks, npm ci --ignore-scripts, npm test (best in a clean copy with no .env).`);
     return { wasm, sha256: h, what: "the audited mainnet build" };
   }
   const man = readJson(files.manifest);
   if (!man || !fs.existsSync(files.testnet)) throw new Error("No testnet build yet: npm run picks -- build-testnet --testnet");
   const wasm = fs.readFileSync(files.testnet), h = sha256hex(wasm);
-  if (man.auditedSha256 !== PICKS_SHA256) throw new Error(`The testnet build was made from ${man.auditedSha256}, not the audited ${PICKS_SHA256}. Rebuild it.`);
+  if (!AUDITED_PICKS.includes(man.auditedSha256)) throw new Error(`The testnet build was made from ${man.auditedSha256}, not the audited ${AUDITED_PICKS.join(" or ")}. Rebuild it.`);
   if (man.sha256 !== h) throw new Error("The testnet build doesn't match its manifest. Rebuild it: npm run picks -- build-testnet --testnet");
-  if (h === PICKS_SHA256) throw new Error("The testnet build is the mainnet build (its owner would be the mainnet owner). Rebuild it.");
+  if (AUDITED_PICKS.includes(h)) throw new Error("The testnet build is the mainnet build (its owner would be the mainnet owner). Rebuild it.");
   return { wasm, sha256: h, what: `the testnet build (audited code, owner ${man.owner}, waits of ${man.timelockMs / 60000} min)` };
 }
 
@@ -299,6 +330,7 @@ async function findVhp(p: Provider): Promise<string | null> {
 /** The game_config the contract takes for a Block X game (one producer, locked by block height). Exported for the tests. */
 export function buildGameConfig(g: any, enabled = true) {
   if (g.kind === 3) return bracketConfig(g, enabled);
+  if (g.kind === 4) return cardConfig(g, enabled);
   if (g.lockMode === 2) return timeListConfig(g, enabled);
   X.forGame(g);   // the contract's own limits for a height game (lead ≥ 100, ahead > lead, ...)
   if (typeof g.name !== "string" || !g.name || Buffer.byteLength(g.name) > 40) throw new Error("A game needs a name of 1 to 40 bytes.");
@@ -324,19 +356,54 @@ function bracketConfig(g: any, enabled: boolean) {
   return { id: g.id, name: g.name, kind: 3, list_size: 0, number_min: "0", number_max: String(g.numberMax), lock_mode: 2, round_size: String(g.round), round_offset: String(g.offset),
     lead: String(g.lead), ahead: String(g.ahead), max_picks_per_day: g.picksPerDay, max_changes: g.maxChanges, enabled };
 }
+/** A CARD game (kind 4, Picks v2): every limit the contract's checkGame / checkCardGame applies. */
+function cardConfig(g: any, enabled: boolean) {
+  const ok = (c: boolean, why: string) => { if (!c) throw new Error(`Card game: ${why}.`); };
+  if (typeof g.name !== "string" || !g.name || Buffer.byteLength(g.name) > 40) throw new Error("A game needs a name of 1 to 40 bytes.");
+  ok(g.id >= 1 && g.id < 128, "game ids are 1 to 127");
+  ok(Number.isSafeInteger(g.listSize) && g.listSize >= 2 && g.listSize <= 10, "list_size (the most legs ever) 2 to 10");
+  ok(Number.isSafeInteger(g.maxLegs) && g.maxLegs >= 2 && g.maxLegs <= g.listSize, "max_legs 2 to list_size");
+  ok(Number.isSafeInteger(g.slotsPerDay) && g.slotsPerDay >= 1 && g.slotsPerDay <= 10, "1 to 10 cards a day (round_size)");
+  if (!(g.picksPerDay >= 1 && g.picksPerDay <= MAX_PICKS_PER_DAY)) throw new Error("Picks per day must be 1 to 50.");
+  if (!(g.maxChanges >= 0 && g.maxChanges <= MAX_CHANGES)) throw new Error("Changes must be 0 to 50.");
+  const legs = Array.isArray(g.legTypes) ? g.legTypes : [];
+  ok(legs.length >= 1 && legs.length <= 16, "1 to 16 leg types");
+  legs.forEach((t: any, i: number) => {
+    ok(Number.isInteger(t.code) && t.code >= 1 && t.code <= 255 && !legs.slice(0, i).some((u: any) => u.code === t.code), "leg codes 1 to 255, distinct");
+    ok(t.lock_mode === 1 || t.lock_mode === 2, "a leg's lock_mode is 1 (blocks) or 2 (ms)");
+    const size = Number(t.round_size), off = Number(t.round_offset), lead = Number(t.lead), ahead = Number(t.ahead);
+    ok(Number.isSafeInteger(size) && size >= 1 && Number.isSafeInteger(off) && off >= 0 && off < size, "a leg's round_size at least 1 and above its offset");
+    ok(Number.isSafeInteger(lead) && Number.isSafeInteger(ahead) && lead >= (t.lock_mode === 1 ? 100 : 300000) && ahead > lead && ahead <= (t.lock_mode === 1 ? 28800 : DAY_MS),
+      "a leg locks at least 100 blocks (5 minutes) ahead and opens at most a day (28,800 blocks) ahead");
+    ok(t.enabled === true, "every leg type starts switched on");
+  });
+  return { id: g.id, name: g.name, kind: 4, list_size: g.listSize, number_min: "0", number_max: "0", lock_mode: 2, round_size: String(g.slotsPerDay), round_offset: "0",
+    lead: String(300000), ahead: String(DAY_MS), max_picks_per_day: g.picksPerDay, max_changes: g.maxChanges, enabled,
+    leg_types: legs.map((t: any) => ({ code: t.code, lock_mode: t.lock_mode, round_size: String(t.round_size), round_offset: String(t.round_offset), lead: String(t.lead), ahead: String(t.ahead), enabled: t.enabled })),
+    max_legs: g.maxLegs };
+}
 /** Repo Lens #G-7 (G7-1): the announced game must be exactly the game this tool would announce, field by field, before an
  *  apply. A field the chain leaves out is its zero value ("", 0, "0", false). null = they match; otherwise why not. */
 export function pendingProblem(pend: any, g: any): string | null {
   if (pend == null) return "nothing is announced for this game";
   const want: any = buildGameConfig(g);
-  for (const k of Object.keys(want)) {
-    const w = want[k];
-    const zero = typeof w === "boolean" ? false : typeof w === "number" ? 0 : k === "name" ? "" : "0";
-    const h = pend[k] ?? zero;
-    const same = typeof w === "boolean" ? Boolean(h) === w : typeof w === "number" ? Number(h) === w : String(h) === w;
-    if (!same) return `the announced ${k} is ${h}, this tool's is ${w}`;
-  }
-  return null;
+  const diff = (have: any, wantObj: any, where: string): string | null => {
+    for (const k of Object.keys(wantObj)) {
+      const w = wantObj[k];
+      if (Array.isArray(w)) {        // a card game's leg types, in order, each field by field
+        const h = Array.isArray(have?.[k]) ? have[k] : [];
+        if (h.length !== w.length) return `the announced ${where}${k} has ${h.length} entries, this tool's ${w.length}`;
+        for (let i = 0; i < w.length; i++) { const d = diff(h[i] ?? {}, w[i], `${where}${k}[${i}].`); if (d) return d; }
+        continue;
+      }
+      const zero = typeof w === "boolean" ? false : typeof w === "number" ? 0 : k === "name" ? "" : "0";
+      const h = have?.[k] ?? zero;
+      const same = typeof w === "boolean" ? Boolean(h) === w : typeof w === "number" ? Number(h) === w : String(h) === w;
+      if (!same) return `the announced ${where}${k} is ${h}, this tool's is ${w}`;
+    }
+    return null;
+  };
+  return diff(pend, want, "");
 }
 /** A TIME-locked one-pick (kind 1) or list (kind 2) game, as Fantasy's: every limit the contract's checkGame applies. */
 function timeListConfig(g: any, enabled: boolean) {
@@ -364,7 +431,7 @@ export function timeRounds(g: { round: number; offset: number; lead: number; ahe
 }
 function gameOf(net: Net, id: number) {
   const g = net.games.find((x) => x.id === id);
-  if (!g) throw new Error(`Game ${id} is not one this tool registers on ${net.testnet ? "the testnet (testnet/blockx.json)" : "mainnet (Who Signs Block X is game 2, hourly game 12; Producer Bracket game 9; Fantasy games 4 and 5)"}.`);
+  if (!g) throw new Error(`Game ${id} is not one this tool registers on ${net.testnet ? "the testnet (testnet/blockx.json)" : "mainnet (Who Signs Block X is game 2, hourly game 12; Producer Bracket game 9; Fantasy games 4 and 5; Combo Card game 8)"}.`);
   return g;
 }
 async function sendCall(net: Net, p: Provider, chainId: string, signer: Signer, method: string, args: any, rcKoin = 2) {
@@ -403,10 +470,14 @@ export async function sendOps(p: Provider, chainId: string, signer: Signer, ops:
  *  three overrides on. A wrong or edited deployment file can't make the owner sign for another contract. */
 /** Audit BX-47: two node addresses are the same node when they match after trimming case and trailing slashes. */
 export const sameNode = (a: string, b: string) => a.trim().toLowerCase().replace(/\/+$/, "") === b.trim().toLowerCase().replace(/\/+$/, "");
-export async function assertAuditedContract(net: { testnet: boolean; picks: string | null; cfg?: any; rpc?: string[] }, p: Provider, meta = contractMetadata, want?: string, checkNodes?: Provider[]) {
+export async function assertAuditedContract(net: { testnet: boolean; picks: string | null; cfg?: any; rpc?: string[] }, p: Provider, meta = contractMetadata, wantOne?: string, checkNodes?: Provider[]) {
   if (!net.picks) throw new Error("No Picks contract yet.");
-  want = want ?? (net.testnet ? (readJson(TESTNET_MANIFEST)?.sha256 ?? net.cfg?.picksSha256) : PICKS_SHA256);
-  if (!want) throw new Error("No expected build for the testnet Picks contract (picks/build/testnet/manifest.json).");
+  const one = wantOne ?? (net.testnet ? (readJson(TESTNET_MANIFEST)?.sha256 ?? net.cfg?.picksSha256) : null);
+  if (net.testnet && !one) throw new Error("No expected build for the testnet Picks contract (picks/build/testnet/manifest.json).");
+  // Fix-check FC-27: once picks-data/deployment.json records the v2 code (the upgrade step writes wasmSha256), only v2
+  // is accepted on chain: v1 there would be a downgrade.
+  const v2Live = !net.testnet && readJson(MAINNET_STATE)?.wasmSha256 === PICKS_V2_SHA256;
+  const want: string[] = one ? [one] : v2Live ? [PICKS_V2_SHA256] : AUDITED_PICKS;
   // Audit BX-9/BX-20: on mainnet a second, independent node must say the same (the testnet has one public node).
   // Audit BX-47: it must be a different node from the first, and on the mainnet chain too.
   let extra = checkNodes;
@@ -424,7 +495,7 @@ export async function assertAuditedContract(net: { testnet: boolean; picks: stri
     const m = await meta(node, net.picks);
     if (!m.exists) throw new Error(`${net.picks} has no contract on chain${where}. Nothing was signed.`);
     const have = String(m.hash).replace(/^0x1220/, "");
-    if (have !== want) throw new Error(`${net.picks} holds code ${have}${where}, not the expected Picks build ${want}. Nothing was signed.`);
+    if (!want.includes(have)) throw new Error(`${net.picks} holds code ${have}${where}, not the expected Picks build ${want.join(" or ")}. Nothing was signed.`);
     if (!(m.call && m.tx && m.upload)) throw new Error(`${net.picks} does not have all three overrides on${where}. Nothing was signed.`);
   }
   return nodes.length;
@@ -437,18 +508,24 @@ async function announce(id: number, send: boolean) {
   const { p, chainId } = await connect(net);
   await assertAuditedContract(net, p);
   const g = gameOf(net, id), cfg = buildGameConfig(g);
+  // A card game exists only on Picks v2: v1 would refuse it (or, read with v1's ABI, lose its leg types).
+  if (g.kind === 4 && !net.testnet && readJson(MAINNET_STATE)?.wasmSha256 !== PICKS_V2_SHA256)
+    throw new Error(`Game ${id} is a card game: it can be announced only once picks-data/deployment.json records Picks v2 (runbook "Later: the Picks v2 upgrade", step 5). Nothing was sent.`);
   const s = ownerKey(net, p);
   await ownerViews(net, p);   // R-BX-3: the settings' owner is the owner on chain, on both nodes
   const wait = net.testnet ? (readJson(TESTNET_MANIFEST)?.timelockMs ?? 600000) / 60000 + " minutes" : "48 hours";
   log(`Announce game ${id} "${g.name}" on ${net.testnet ? "the testnet" : "MAINNET"} (owner ${s.getAddress()}):`);
-  if (g.kind === 3 || g.lockMode === 2) {
+  if (g.kind === 4) {
+    log(`  SHAPE (never changes): kind 4 (card), up to ${g.listSize} legs ever (${g.maxLegs} now), lock by TIME, ${g.slotsPerDay} cards a UTC day (one per slot), offset 0`);
+    for (const t of g.legTypes) log(`    leg type ${t.code}: ${t.lock_mode === 1 ? `every ${t.round_size} blocks, locks ${t.lead} blocks before, opens ${t.ahead} blocks ahead` : `every ${Number(t.round_size) / 3600000} h, locks ${Number(t.lead) / 60000} min before, opens ${Number(t.ahead) / 3600000} h ahead`}`);
+  } else if (g.kind === 3 || g.lockMode === 2) {
     log(g.kind === 3 ? `  SHAPE (never changes): kind 3 (number), list_size 0, numbers 0 … ${g.numberMax}, lock by TIME, round ${g.round} ms (${g.round / DAY_MS} days), offset ${g.offset} ms`
       : `  SHAPE (never changes): kind ${g.kind} (${g.kind === 1 ? "one pick" : "a list"}), list_size ${g.listSize}, lock by TIME, round ${g.round} ms (${g.round / DAY_MS} days), offset ${g.offset} ms`);
     log(`  lead ${g.lead} ms (${g.lead / 60000} min), ahead ${g.ahead} ms (${g.ahead / 3600000} h)`);
     for (const x of timeRounds(g, Date.now())) log(`    round ${x.round}: opens ${x.opens}, locks ${x.locks}, target ${x.target}`);
   } else log(`  one producer per target; a target every ${g.round} blocks; locks ${g.lead} blocks before; opens ${g.ahead} ahead (${X.forGame(g).openRounds(g.ahead * 10).length} targets open at a time)`);
   log(`  exact config sent: ${JSON.stringify(cfg)}`);
-  log(`  ${g.picksPerDay} picks a day per wallet, ${g.maxChanges} changes per pick. It can be applied ${wait} after it is announced (anyone may apply it).`);
+  log(`  ${g.picksPerDay} ${g.kind === 4 ? "card sends and changes" : "picks"} a day per wallet, ${g.maxChanges} changes per ${g.kind === 4 ? "card" : "pick"}. It can be applied ${wait} after it is announced (anyone may apply it).`);
   if (!send) { log("\nDry run only. Nothing was sent. Add --send to send it."); return; }
   const r = await sendCall(net, p, chainId, s, "announce_game", { game: cfg });
   log(r.ok ? `✔ announced (Mana used ${showKoin(r.rcUsed)}, block ${r.block}). Then: npm run picks -- apply ${id}${net.testnet ? " --testnet" : ""} --send` : `✖ ${r.error}`);
@@ -485,6 +562,190 @@ async function pause(id: number, send: boolean) {
   const r = await sendCall(net, p, chainId, ownerKey(net, p), "tighten_game", { game: off });
   log(r.ok ? `✔ game ${id} is off` : `✖ ${r.error}`);
   if (!r.ok) process.exitCode = 1;
+}
+
+// ═══════════════════════════════ the Picks v2 upgrade ═══════════════════════════════
+/** The testnet v2 build (tools/combo-testnet.mjs build): the audited v2 source with the test owner and 10-minute waits. */
+const TESTNET_V2_DIR = path.join("picks", "build", "testnet-v2");
+/** Does compiled AssemblyScript hold this address as a string literal (UTF-16)? (Repo Lens RL-23.) */
+export const wasmHasAddress = (wasm: Uint8Array, a: string) => !!a && Buffer.from(wasm).indexOf(Buffer.from(a, "utf16le")) >= 0;
+/** What the upgrade replaces (`from`, the code on chain now) and uploads (`to`). Mainnet: v1 → the audited v2, by hash.
+ *  Testnet: the testnet v1 build → the testnet v2 build, which must come from the audited v2 source, hold its manifest's
+ *  owner and not the mainnet owner. Exported for the tests. */
+export function upgradeBuilds(testnet: boolean, files = { mainnet: MAINNET_WASM, v2dir: TESTNET_V2_DIR, v1manifest: TESTNET_MANIFEST }, cfg: any = null) {
+  if (!testnet) {
+    if (!fs.existsSync(files.mainnet)) throw new Error(`${files.mainnet} not found: in the picks folder run npm ci --ignore-scripts, npm test`);
+    const wasm = fs.readFileSync(files.mainnet), h = sha256hex(wasm);
+    if (h !== PICKS_V2_SHA256) throw new Error(`${files.mainnet} is not the audited Picks v2 build (sha256 ${h}, expected ${PICKS_V2_SHA256}). Build it on the combo branch: cd picks, npm ci --ignore-scripts, npm test.`);
+    return { from: PICKS_SHA256, to: { wasm, sha256: h, what: "the audited Picks v2 build" } };
+  }
+  const m = path.join(files.v2dir, "manifest.json"), w = path.join(files.v2dir, "contract.wasm");
+  if (!fs.existsSync(m) || !fs.existsSync(w)) throw new Error(`No testnet v2 build yet (${files.v2dir}): node tools/combo-testnet.mjs build --home <dir>`);
+  const man = readJson(m), wasm = fs.readFileSync(w), h = sha256hex(wasm);
+  if (man?.version !== 2 || man.network !== "koinos-foundation-testnet" || man.sha256 !== h) throw new Error(`${files.v2dir} doesn't match its manifest: build it again.`);
+  if (man.auditedSha256 !== PICKS_V2_SHA256) throw new Error(`The testnet v2 build was made from ${man.auditedSha256}, not the audited v2 ${PICKS_V2_SHA256}. Build it again.`);
+  if (h === PICKS_V2_SHA256 || wasmHasAddress(wasm, MAINNET_OWNER)) throw new Error("The testnet v2 build holds the MAINNET owner. Build it again with the test owner.");
+  if (!wasmHasAddress(wasm, man.owner)) throw new Error(`The testnet v2 build doesn't hold the owner ${man.owner} its manifest names. Build it again.`);
+  const from = readJson(files.v1manifest)?.sha256 ?? cfg?.picksSha256;
+  if (!from) throw new Error("No testnet v1 build is known (picks/build/testnet/manifest.json or testnet/blockx.json picksSha256).");
+  return { from, to: { wasm, sha256: h, what: `the testnet v2 build (audited v2 source, owner ${man.owner})` } };
+}
+/** A mainnet upgrade send needs --code with the first 8 characters of the code's sha256, typed on the command line, so
+ *  nobody sends it by running a command from history or a copied line by mistake. Exported for the tests. */
+export function codeGuard(net: { testnet: boolean }, send: boolean, sha: string, argv = process.argv) {
+  if (!send || net.testnet) return;
+  const i = argv.indexOf("--code"), typed = i >= 0 ? argv[i + 1] : undefined;
+  if (typed !== sha.slice(0, 8)) throw new Error(`To send this to MAINNET, add --code ${sha.slice(0, 8)} (the first 8 characters of the new code's sha256). Nothing was sent.`);
+}
+/** Where an announced upgrade stands at chain time `now`. Exported for the tests. */
+export function upgradeWindow(cfg: any, want: string, now: number, lockMs = 2 * 86400000, expiryMs = 7 * 86400000) {
+  const hash = String(cfg?.upgrade_hash ?? "").replace(/^0x/, "").toLowerCase(), eta = Number(cfg?.upgrade_eta ?? 0);
+  if (!hash || !eta) return { state: "none" as const, eta: 0, hash: "" };
+  if (now >= eta + expiryMs) return { state: "expired" as const, eta, hash };
+  if (hash !== want) return { state: "other" as const, eta, hash };
+  return { state: now < eta ? ("waiting" as const) : ("open" as const), eta, hash, closes: eta + expiryMs, announcedAt: eta - lockMs };
+}
+/** The Picks contract's config, its games and the chain's head time, on every node (mainnet: two). They must agree.
+ *  Returns the agreed values and the earliest head time (the chain decides the upgrade window, not this PC's clock). */
+async function readEverywhere(net: Net, p: Provider) {
+  const nodes = [p];
+  if (!net.testnet) nodes.push(new Provider([MAINNET_CHECK_RPC()]));
+  const got = [];
+  for (const n of nodes) {
+    const head: any = await n.getHeadInfo();
+    got.push({ cfg: await read(n, net.picks!, "get_config"), games: (await read(n, net.picks!, "list_games")).games ?? [], time: Number(head.head_block_time) });
+  }
+  const key = (x: any) => JSON.stringify([x.cfg.owner, x.cfg.upgrade_hash ?? "", String(x.cfg.upgrade_eta ?? "0"), x.cfg.pending_owner ?? "", x.games]);
+  if (got.some((x) => key(x) !== key(got[0]))) throw new Error("The two nodes disagree about the Picks contract's settings or games. Nothing was signed; try again in a few minutes.");
+  return { cfg: got[0].cfg, games: got[0].games, now: Math.min(...got.map((x) => x.time)) };
+}
+const when = (t: number) => new Date(t).toISOString().replace("T", " ").replace(/:\d\d\.\d+Z$/, " UTC");
+/** Repo Lens #G-16 (Info, D-083): accepting a new Picks owner clears any announced upgrade, and the new owner should be
+ *  the one to approve v2. So no upgrade is announced while a handover is planned (the deployment file's "nextOwner",
+ *  pinned by a reviewed pull request) or proposed on chain (pending_owner). Exported for the tests. */
+export function handoverBlocksUpgrade(cfg: any, nextOwner: string | null | undefined): string | null {
+  if (isAddr(cfg?.pending_owner)) return `a new Picks owner (${cfg.pending_owner}) is proposed on chain: accepting it would clear the announcement. Finish the handover (owner-accept) or cancel it (owner-cancel) first. Nothing was sent.`;
+  if (isAddr(nextOwner)) return `a Picks owner handover to ${nextOwner} is planned ("nextOwner" in the deployment file): accepting it would clear the announcement. Finish the handover first, so the new owner announces v2. Nothing was sent.`;
+  return null;
+}
+
+/** upgrade-schedule: the owner announces v2's sha256 (runbook step 2). */
+async function upgradeSchedule(send: boolean) {
+  const net = network();
+  mainnetGuard(net, send);
+  if (!net.picks) throw new Error("No Picks contract yet.");
+  const { p, chainId } = await connect(net);
+  const b = upgradeBuilds(net.testnet, undefined, net.cfg);
+  codeGuard(net, send, b.to.sha256);
+  const n = await assertAuditedContract(net, p, contractMetadata, b.from);            // still the code it replaces
+  const s = ownerKey(net, p);
+  const { cfg, games, now } = await readEverywhere(net, p);
+  if (cfg.owner !== s.getAddress()) throw new Error(`The contract's owner is ${cfg.owner}, not OWNER_WIF's ${s.getAddress()}.`);
+  const hand = handoverBlocksUpgrade(cfg, net.nextOwner);
+  if (hand) throw new Error(`Not now: ${hand}`);
+  const w = upgradeWindow(cfg, b.to.sha256, now);
+  if (w.state === "waiting" || w.state === "open") throw new Error(`v2 is already announced: it can be uploaded from ${when(w.eta)} until ${when(w.closes!)}. Next: npm run picks -- upgrade-upload`);
+  if (w.state === "other") throw new Error(`Other code (${w.hash}) is announced. Clear it first (npm run picks -- upgrade-clear) and check why it was announced.`);
+  const wait = net.testnet ? "10 minutes" : "48 hours";
+  log(`Announce new code for the Picks contract ${net.picks} on ${net.testnet ? "the testnet" : "MAINNET"} (checked on ${n} node${n > 1 ? "s" : ""}):`);
+  log(`  now on chain   ${b.from} (v1)`);
+  log(`  new code       ${b.to.sha256} (${b.to.what}, ${b.to.wasm.length.toLocaleString("en-US")} bytes)`);
+  log(`  owner          ${s.getAddress()} signs and pays (about 0.1 Mana)`);
+  log(`  then           it can be uploaded ${wait} after this lands, for 7 days. Games now: ${games.map((g: any) => `${g.id} ${g.name}`).join(", ") || "none"}.`);
+  log(`  public         everyone sees the announcement (the upgrade event). Publish the v2 source and its build first (runbook step 1).`);
+  if (!send) { log(`\nDry run only. Nothing was sent. To send: add --send${net.testnet ? "" : ` --mainnet --code ${b.to.sha256.slice(0, 8)}`}`); return; }
+  const r = await sendCall(net, p, chainId, s, "schedule_upgrade", { hash: "0x" + b.to.sha256 });
+  if (!r.ok) { log(`✖ ${r.error}`); process.exitCode = 1; return; }
+  const after = await readEverywhere(net, p), w2 = upgradeWindow(after.cfg, b.to.sha256, after.now);
+  log(w2.state === "waiting" || w2.state === "open" ? `✔ announced (Mana used ${showKoin(r.rcUsed)}, block ${r.block}). Upload from ${when(w2.eta)} until ${when(w2.closes!)}: npm run picks -- upgrade-upload${net.testnet ? " --testnet" : ""}`
+    : `⚠ sent, but the nodes don't show the announcement yet (${w2.state}). Run npm run picks -- status in a minute.`);
+}
+
+/** The upgrade's upload transaction: the owner signs (the contract allows its own upload only with the owner's signature,
+ *  the announced sha256, after the wait, with all three overrides kept on); the payer signs to pay the Mana (the owner,
+ *  unless another wallet is given). Exported for the tests (with a nonce given, it needs no node until it is sent). */
+export async function upgradeTx(p: Provider, picks: string, owner: Signer, payer: Signer, wasm: Uint8Array, abi: any, chainId: string, rc: bigint, nonce?: string) {
+  const c = new Contract({ id: picks, abi, provider: p, signer: owner, bytecode: new Uint8Array(wasm) });
+  const { operation } = await c.deploy({ abi: JSON.stringify(abi), authorizesCallContract: true, authorizesTransactionApplication: true, authorizesUploadContract: true, onlyOperation: true } as any);
+  const tx = new Transaction({ signer: owner, provider: p, options: { payer: payer.getAddress(), chainId, rcLimit: rc.toString(), ...(nonce ? { nonce } : {}) } });
+  await tx.pushOperation(operation);
+  await tx.prepare();
+  await tx.sign();                                                   // the owner authorizes the upload
+  if (payer.getAddress() !== owner.getAddress()) await payer.signTransaction(tx.transaction as any);   // the payer, its Mana
+  return tx;
+}
+
+/** upgrade-upload: the owner uploads v2 inside the window and checks everything on both nodes (runbook step 3). */
+async function upgradeUpload(send: boolean) {
+  const net = network();
+  mainnetGuard(net, send);
+  if (!net.picks) throw new Error("No Picks contract yet.");
+  const { p, chainId } = await connect(net);
+  const b = upgradeBuilds(net.testnet, undefined, net.cfg);
+  codeGuard(net, send, b.to.sha256);
+  await assertAuditedContract(net, p, contractMetadata, b.from);
+  const s = ownerKey(net, p);
+  const before = await readEverywhere(net, p);
+  if (before.cfg.owner !== s.getAddress()) throw new Error(`The contract's owner is ${before.cfg.owner}, not OWNER_WIF's ${s.getAddress()}.`);
+  const w = upgradeWindow(before.cfg, b.to.sha256, before.now);
+  if (w.state === "none") throw new Error("Nothing is announced. Run npm run picks -- upgrade-schedule first.");
+  if (w.state === "other") throw new Error(`The announced code is ${w.hash}, not this build's ${b.to.sha256}. Nothing was sent.`);
+  if (w.state === "expired") throw new Error(`The announcement expired at ${when(w.eta + 7 * 86400000)}. Announce again (upgrade-schedule).`);
+  if (w.state === "waiting") throw new Error(`Too early: the chain allows the upload from ${when(w.eta)} (${Math.ceil((w.eta - before.now) / 60000)} min from now).`);
+  if (w.closes! - before.now < 10 * 60000) throw new Error(`The window closes at ${when(w.closes!)}, in under 10 minutes: too close to send safely. Announce again.`);
+  const abi = loadAbi();
+  const payerKey = E.PAYER_WIF ? "PAYER_WIF" : "OWNER_WIF";
+  const payer = payerKey === "PAYER_WIF" ? signerOf("PAYER_WIF", p) : s, PA = payer.getAddress();
+  if (PA === net.picks) throw new Error("PAYER_WIF is the Picks contract itself (it never pays Mana).");
+  const have = BigInt(await p.getAccountRc(PA));
+  const needRc = toSat(Math.ceil(b.to.wasm.length / 1024 * (net.testnet ? 0.35 : 1.2) + (net.testnet ? 5 : 10)));
+  log(`Upload the new code to the Picks contract ${net.picks} on ${net.testnet ? "the testnet" : "MAINNET"}:`);
+  log(`  now on chain   ${b.from} (v1)  →  new code ${b.to.sha256} (${b.to.what})`);
+  log(`  window         open since ${when(w.eta)}, closes ${when(w.closes!)} (chain time)`);
+  log(`  signed by      the owner ${s.getAddress()}; Mana paid by ${PA} (${payerKey}): has ${showKoin(have)}, may use up to ${showKoin(needRc)}`);
+  log(`  overrides      all three stay ON (the contract refuses the upload otherwise)`);
+  log(`  games          ${before.games.length} (${before.games.map((g: any) => `${g.id} ${g.name}`).join(", ") || "none"}): each must read back the same under v2`);
+  if (have < needRc) throw new Error(`${PA} needs at least ${showKoin(needRc)} Mana; it has ${showKoin(have)}.`);
+  if (!send) { log(`\nDry run only. Nothing was sent. To send: add --send${net.testnet ? "" : ` --mainnet --code ${b.to.sha256.slice(0, 8)}`}`); return; }
+  const tx = await upgradeTx(p, net.picks, s, payer, b.to.wasm, abi, chainId, needRc);
+  const receipt: any = await tx.send();
+  if (receipt?.reverted) throw new Error(`the upload reverted: ${JSON.stringify(receipt.logs)}. Nothing changed.`);
+  await tx.wait("byBlock", 300_000).catch(() => { throw new Error("Sent but not confirmed within 5 minutes. Run npm run picks -- status in a few minutes; don't send it again."); });
+  const problems: string[] = [];
+  try { await assertAuditedContract(net, p, contractMetadata, b.to.sha256); } catch (e) { problems.push((e as Error).message); }
+  const after = await readEverywhere(net, p).catch((e) => { problems.push((e as Error).message); return null; });
+  if (after && after.cfg.owner !== before.cfg.owner) problems.push(`the owner reads ${after.cfg.owner} under v2, was ${before.cfg.owner}`);
+  if (after && JSON.stringify(after.games) !== JSON.stringify(before.games)) problems.push(`the games read differently under v2:\n    before ${JSON.stringify(before.games)}\n    after  ${JSON.stringify(after.games)}`);
+  if (problems.length) { log(`⚠ uploaded (tx ${tx.transaction?.id}), but: ${problems.join("; ")}. Stop here and tell Claude; don't announce game 8.`); process.exitCode = 1; return; }
+  log(`✔ v2 is live (Mana used ${showKoin(receipt?.rc_used)}): code ${b.to.sha256}, all three overrides ON, the owner and all ${after!.games.length} game(s) unchanged, on ${net.testnet ? "the node" : "both nodes"}.`);
+  log(`Next: npm run picks -- upgrade-clear${net.testnet ? " --testnet" : ""} (runbook step 4).`);
+  if (!net.testnet) {
+    log(`Then runbook step 5, by a pull request to main (Claude opens it): in picks-data/deployment.json set`);
+    log(`  "wasmSha256": "${b.to.sha256}",\n  "uploadTx": "${tx.transaction?.id}",\n  "uploadedAt": "${new Date().toISOString()}"`);
+  }
+}
+
+/** upgrade-clear: once v2 runs, the owner clears the announced hash, so the same code can't be uploaded again (step 4). */
+async function upgradeClear(send: boolean) {
+  const net = network();
+  mainnetGuard(net, send);
+  if (!net.picks) throw new Error("No Picks contract yet.");
+  const { p, chainId } = await connect(net);
+  const b = upgradeBuilds(net.testnet, undefined, net.cfg);
+  codeGuard(net, send, b.to.sha256);                     // Repo Lens #G-16 Info: --code on mainnet, as schedule and upload
+  await assertAuditedContract(net, p, contractMetadata, b.to.sha256);                // v2 must already run
+  const s = ownerKey(net, p);
+  const { cfg, now } = await readEverywhere(net, p);
+  const w = upgradeWindow(cfg, b.to.sha256, now);
+  if (w.state === "none") { log("✔ Nothing is announced: there is nothing to clear."); return; }
+  log(`Clear the announced code ${w.hash} on the Picks contract ${net.picks} (${net.testnet ? "testnet" : "MAINNET"}), signed by the owner ${s.getAddress()} (about 0.1 Mana).`);
+  log("  After this, no code can be uploaded until a new announcement and its 48-hour wait.");
+  if (!send) { log(`\nDry run only. Nothing was sent. To send: add --send${net.testnet ? "" : ` --mainnet --code ${b.to.sha256.slice(0, 8)}`}`); return; }
+  const r = await sendCall(net, p, chainId, s, "schedule_upgrade", { hash: "0x" });
+  if (!r.ok) { log(`✖ ${r.error}`); process.exitCode = 1; return; }
+  const after = await readEverywhere(net, p);
+  if (upgradeWindow(after.cfg, b.to.sha256, after.now).state !== "none") { log("⚠ sent, but the nodes still show an announced code. Run npm run picks -- status in a minute."); process.exitCode = 1; return; }
+  log(`✔ cleared (Mana used ${showKoin(r.rcUsed)}). Next: runbook step 5 (the deployment file), then npm run picks -- status${net.testnet ? " --testnet" : " --mainnet"}.`);
 }
 
 /** tighten (capacity, owner 12 Nov): the game made STRICTER at once, with no 48 h wait (the contract's tighten_game: fewer
@@ -854,11 +1115,14 @@ async function main() {
     }
     case "lock-test": return lockTest(num(), send);
     case "mana-test": return manaTest(num(), send);
+    case "upgrade-schedule": return upgradeSchedule(send);
+    case "upgrade-upload": return upgradeUpload(send);
+    case "upgrade-clear": return upgradeClear(send);
     case "owner-propose": return ownerPropose(a.find((x) => !x.startsWith("--")), send);
     case "owner-accept": return ownerAccept(send);
     case "owner-cancel": return ownerCancel(send);
     case "owner-sync": return ownerSync();
-    default: throw new Error(`Unknown command "${cmd}". Commands: keys, build-testnet, status, upload, announce <id>, apply <id>, pause <id>, tighten <id> [--per-day N] [--changes N] [--lead N] [--ahead N], lock-test <id>, mana-test <id>, owner-propose <address>, owner-accept, owner-cancel, owner-sync`);
+    default: throw new Error(`Unknown command "${cmd}". Commands: keys, build-testnet, status, upload, announce <id>, apply <id>, pause <id>, tighten <id> [--per-day N] [--changes N] [--lead N] [--ahead N], lock-test <id>, mana-test <id>, owner-propose <address>, owner-accept, owner-cancel, owner-sync, upgrade-schedule, upgrade-upload, upgrade-clear`);
   }
 }
 if (process.argv[1] && /picks\.ts$/.test(process.argv[1])) {

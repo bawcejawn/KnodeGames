@@ -75,7 +75,9 @@
    *  The vault game stays 2 (stakes, the vault file, the prize file). A target belongs to the game whose weeks its block
    *  falls in (the block's real time). */
   const HOURLY_FROM_WEEK = 3;   // owner, 5 Nov: from the week of Mon 9 Nov ("Week 1"), was 4
-  const MAINNET_HOURLY = Object.freeze({ id: 12, round: 1200, offset: 0, lead: 100, ahead: 28900, picksPerDay: 48, maxChanges: 1 });
+  /** Owner, 14 Nov 2026: picks open at most 12 hours ahead (on chain: npm run picks -- tighten 12 --ahead 14500). The
+   *  contract takes a pick while target − ahead ≤ head < target − lead, so 14,500 − 100 = 14,400 blocks = 12 targets. */
+  const MAINNET_HOURLY = Object.freeze({ id: 12, round: 1200, offset: 0, lead: 100, ahead: 14500, picksPerDay: 48, maxChanges: 1 });
   const VAULT_GAME = 2;
   const MAINNET_SCHEDULE = Object.freeze([
     Object.freeze({ game: MAINNET_GAME, fromWeek: 0, toWeek: HOURLY_FROM_WEEK }),
@@ -115,6 +117,27 @@
   }
   /** Points (hundredths) for a pick: the multiplier if it named the signer, else 0 (t: the target block's time). */
   const pointsOf = (card, picked, signer, t) => (picked && picked === signer ? Math.round(multiplier(card, picked, t) * 100) : 0);
+
+  // ── the handicap card in force (one rule for the page and the recorder: audit BX-3, BX-24, BX-38) ──
+  /** A card is used only if it was TAKEN at or before the time asked about and is at most this old. */
+  const CARD_MAX_AGE_MS = 3 * 3600000;
+  /** Audit BX-38: a race card made from fewer VHP samples than this is never used (self-made testnet cards: no minimum). */
+  const MIN_CARD_SAMPLES = 12;
+  /** Late-card rule (incident 14 Nov 2026): the newest usable card older than this is late. The page says so, and the
+   *  recorder alerts the owner. Picks still use it (the same card the recorder scores with) until it is 3 hours old. */
+  const CARD_LATE_MS = 2 * 3600000;
+  const cardUsable = (c, minSamples = 0) =>
+    !!c && Number.isFinite(c.at) && Array.isArray(c.field) && c.field.length > 0 && (minSamples <= 0 || (Number.isInteger(c.samples) && c.samples >= minSamples));
+  /** The card in force at time t: the latest usable card taken at or before t, at most CARD_MAX_AGE_MS old (the first
+   *  one listed wins a tie). minSamples: MIN_CARD_SAMPLES for race cards, 0 for self-made ones. None: null. */
+  function cardInForce(cards, t, minSamples = 0) {
+    let best = null;
+    for (const c of cards || []) {
+      if (!cardUsable(c, minSamples)) continue;
+      if (c.at <= t && t - c.at <= CARD_MAX_AGE_MS && (!best || c.at > best.at)) best = c;
+    }
+    return best;
+  }
 
   // ── time ──
   const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
@@ -176,7 +199,7 @@
     ...MAIN, MAINNET_GAME, forGame,
     HOURLY_FROM_WEEK, MAINNET_HOURLY, VAULT_GAME, MAINNET_SCHEDULE, scheduleOf, periodOf,
     CAP, OPEN, MIN_PRIZE_DAYS, BLOCK_MS, DAY, WEEK, GENESIS,
-    aboutTime, vhpOf, multiplier, pointsOf, capAt, CAP_FROM_WEEK, CAP_NEW, dayOf, weekOf, board, places, prizes,
+    aboutTime, vhpOf, multiplier, pointsOf, capAt, CARD_MAX_AGE_MS, MIN_CARD_SAMPLES, CARD_LATE_MS, cardUsable, cardInForce, CAP_FROM_WEEK, CAP_NEW, dayOf, weekOf, board, places, prizes,
     RHYTHM_FROM_WEEK, restDay, playEnd,
   };
 })(typeof window !== "undefined" ? window : globalThis);

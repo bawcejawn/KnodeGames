@@ -326,7 +326,7 @@ test("disclaimers: a short notice before the steps and a full disclaimer at the 
   assert.ok(legal > html.indexOf('id="step-10"'), "the full disclaimer comes after the steps");
   const block = html.slice(legal, html.indexOf("</section>", legal));
   for (const need of [/isn't financial, investment, tax or legal advice/, /at your own risk/, /provided as is, without any warranty/,
-    /not liable for any loss or damage/, /isn't affiliated with them/, /rewards aren't guaranteed/, /will never ask for your private key or recovery words/,
+    /not liable for any loss or damage/, /isn't affiliated with them/, /rewards can be small or zero/, /will never ask for your private key or recovery words/,
     /href="terms\.html"/]) assert.match(block, need);
   assert.match(html.slice(notice, first), /href="#disclaimer"/);
 });

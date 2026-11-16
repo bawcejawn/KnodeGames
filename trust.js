@@ -45,7 +45,7 @@
     fact(dl, "Holds (VHP + KOIN)", `${amount(holdings)}`);
     for (const [k, v] of parts) if (big(v) > 0n) fact(dl, `· owes ${k.charAt(0).toLowerCase() + k.slice(1)}`, amount(v));
     fact(dl, "Owes in total", amount(owed));
-    fact(dl, "Earned this week, not yet split", amount(ok ? holdings - owed : 0n));
+    fact(dl, "Made this week, not yet split", amount(ok ? holdings - owed : 0n));
     card.replaceChildren(
       el("h2", {}, "Game pool"),
       el("div", { class: "solv" }, el("b", {}, ok ? "Fully covered" : "Short"), el("span", { class: ok ? "ok-pill" : "bad-pill" }, ok ? "holds ≥ owes" : "holds < owes")),

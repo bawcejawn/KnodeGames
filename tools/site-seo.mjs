@@ -33,6 +33,8 @@ export const PAGES = [
     desc: "Draft five Koinos block producers under a salary cap, pick a captain who scores double, and score on how reliably they sign their blocks. Weekly league and Weekly Rival.", image: "og-knode.png", priority: "0.6" },
   { file: "blockx.html", path: "blockx.html", title: "Who Signs Block X · Pick the Koinos producer of the next big blocks", short: "Who Signs Block X",
     desc: "Every 2,400 Koinos blocks is a target. Pick the producer you think signs it; smaller producers score more, up to 3×. Free, with weekly VHP prizes.", image: "og-knode.png", priority: "0.6" },
+  { file: "combo.html", path: "combo.html", title: "Combo Card · Build a parlay of Koinos producer calls", short: "Combo Card",
+    desc: "Build a card of 2 to 10 calls on Koinos producers: race wins, top-3 finishes, top half and who signs a block. Every leg must hit; harder legs pay more.", image: "og-knode.png", priority: "0.5" },
   { file: "pulse.html", path: "pulse.html", title: "Koinos network pulse · Blocks, transactions and producers, live", short: "Koinos network pulse",
     desc: "The Koinos chain right now: block time, transactions per hour, who is producing blocks, and how much KOIN is burned into VHP.", image: "og-knode.png", priority: "0.6" },
   { file: "mana.html", path: "mana.html", title: "Mana levels · Check any Koinos wallet's Mana", short: "Koinos Mana levels",

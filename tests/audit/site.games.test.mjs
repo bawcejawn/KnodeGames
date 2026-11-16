@@ -14,10 +14,11 @@ test("games.json: known kinds and statuses, plain text, live games link to this 
   for (const g of games) {
     assert.match(g.id, /^[a-z0-9-]{1,24}$/); assert.ok(!ids.has(g.id), `${g.id} listed once`); ids.add(g.id);
     assert.ok(g.kinds.length && g.kinds.every((k) => k === "free" || k === "staked"), g.id);
-    assert.ok(g.status === "live" || g.status === "soon", g.id);
+    assert.ok(g.status === "live" || g.status === "soon" || g.status === "preview", g.id);
+    if (g.opens !== undefined) assert.ok(typeof g.opens === "string" && g.opens.length <= 30, `${g.id}: opens`);
     assert.ok(g.status === "soon" ? g.href === "" : /^[a-z0-9-]+\.html(#[a-z/]+)?$/.test(g.href), `${g.id}: link`);
     assert.doesNotMatch(g.name + g.line, /[<>]/, `${g.id}: plain text`);
-    if (g.status === "live" && g.href.includes(".html")) assert.ok(fs.existsSync(`${APP}/${g.href.split("#")[0]}`), `${g.id}: page exists`);
+    if ((g.status === "live" || g.status === "preview") && g.href.includes(".html")) assert.ok(fs.existsSync(`${APP}/${g.href.split("#")[0]}`), `${g.id}: page exists`);
   }
   assert.deepEqual(games.filter((g) => g.status === "live").map((g) => g.id).sort(), ["blockx", "bracket", "fantasy", "golf", "questions", "race"]);
 });
@@ -62,4 +63,29 @@ test("every game card offers Free play; live cards carry a prize/practice label 
   assert.match(js, /if \(w < K\.FIRST\) return "practice"/, "before Week 1 nothing pays");
   assert.match(js, /if \(!switches\) return null/, "an unreadable switch file draws no prize promise");
   assert.match(read("games.html"), /<script src="weeks\.js"><\/script>\s*<script src="games\.js">/);
+});
+
+// Combo chat, 15 Nov: Combo Card is on main as a preview (cards can be built and shared, not sent until Mon 7 Dec).
+test("Combo Card preview: linked from the home tile, the games list and the menus, marked Preview, never live", () => {
+  const c = games.find((g) => g.id === "combo");
+  assert.equal(c.status, "preview"); assert.equal(c.href, "combo.html"); assert.equal(c.opens, "Opens Mon 7 Dec");
+  assert.match(c.line, /Preview: build and share cards now; sending opens Mon 7 Dec\.$/);
+  const h = read("index.html");
+  assert.match(h, /<a class="also-card gtile" href="combo\.html">[^]*?<b>Combo Card<\/b><p><span class="tile-tag">Preview<\/span>[^<]*Opens Mon 7 Dec\./);
+  assert.doesNotMatch(h, /gtile soon" aria-disabled="true"><span aria-hidden="true">🎟️/);
+  const nav = read("tools/site-nav.mjs");
+  assert.equal((nav.match(/\["Combo Card · Preview", "combo\.html"/g) || []).length, 2, "Play group and Games menu");
+  const js = read("games.js");
+  assert.match(js, /preview \? el\("span", \{ class: "pill preview", text: g\.opens \? `Preview · \$\{g\.opens\}` : "Preview" \}\)/);
+  assert.match(js, /\$\("g-soon"\)\.replaceChildren\(\.\.\.games\.filter\(\(g\) => g\.status === "preview"\)\.map\(card\)/);
+  // live-only parts never see it: status, stake, prize, boards, results, Golf's course
+  for (const re of [/const free = games\.filter\(\(g\) => g\.status === "live"/, /const boards = games\.filter\(\(g\) => g\.status === "live"/, /if \(!K \|\| !id \|\| g\.status !== "live"\) return null;/]) assert.match(js, re);
+});
+
+test("free-prize label says plainly who wins and is readable (light text on the dark green pill; owner, 15 Nov)", () => {
+  const js = read("games.js"), html = read("games.html");
+  assert.ok(js.includes('"Free board: 1st wins 2 VHP, 2nd wins 1 VHP"'));
+  assert.ok(js.includes('"No free prizes this week"'));
+  assert.ok(!js.includes("2 + 1 VHP"), "the old shorthand is gone");
+  assert.match(html, /\.pill\.prize-on \{ background: var\(--mint\); color: var\(--paper\); \}/);
 });

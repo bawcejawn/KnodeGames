@@ -50,8 +50,7 @@ test("Fantasy page note and the games list say week 4 is a free test and every w
   assert.match(fs.readFileSync(`${APP}/fantasy.js`, "utf8"), /TEST_WEEK_ENDS = Date\.UTC\(2026, 10, 23\);\n  if \(Date\.now\(\) >= TEST_WEEK_ENDS && \$\("fx-testweeks"\)\) \$\("fx-testweeks"\)\.hidden = true;/);
 });
 
-test("the old Test-week banner (Mon 9 to Mon 16 Nov) is unchanged and the two never show together", () => {
-  assert.equal(run("index.html", "2026-11-12T12:00:00Z").length, 1);
-  assert.equal(run("index.html", "2026-11-12T12:00:00Z")[0][0], "test-week");
+test("only the Fantasy banner is left: nothing shows in the old test week (its banner is gone), Fantasy's shows from Mon 16 Nov", () => {
+  assert.equal(run("index.html", "2026-11-12T12:00:00Z").length, 0);
   assert.deepEqual(run("index.html", "2026-11-16T00:00:00Z").map(([c]) => c), ["test-week fx-test-week"]);
 });

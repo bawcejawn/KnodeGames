@@ -7,7 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
-import { buildGameConfig, BRACKET_GAME, timeRounds, uploadBuild, encodeNonce, network, mainnetGuard, uploadTx, assertAuditedContract, PICKS_SHA256, PICKS_ABI_SHA256, MAINNET_CHAIN_ID } from "../../bot/picks.ts";
+import { upgradeBuilds, codeGuard, upgradeWindow, upgradeTx, wasmHasAddress, handoverBlocksUpgrade, COMBO_GAME, pendingProblem } from "../../bot/picks.ts";
+import { buildGameConfig, BRACKET_GAME, timeRounds, uploadBuild, encodeNonce, network, mainnetGuard, uploadTx, assertAuditedContract, PICKS_SHA256, PICKS_ABI_SHA256, PICKS_V2_SHA256, PICKS_V2_ABI_SHA256, MAINNET_CHAIN_ID } from "../../bot/picks.ts";
 
 const require = createRequire(import.meta.url);
 const sha = (b: Buffer) => crypto.createHash("sha256").update(b).digest("hex");
@@ -25,7 +26,8 @@ test("mainnet upload: only the audited build", () => {
   fs.writeFileSync(f, Buffer.from("not the audited build"));
   assert.throws(() => uploadBuild(false, { mainnet: f, testnet: "", manifest: "" }), /not the audited Picks build/);
   assert.throws(() => uploadBuild(false, { mainnet: path.join(d, "missing.wasm"), testnet: "", manifest: "" }), /not found/);
-  if (fs.existsSync("picks/build/release/contract.wasm")) assert.equal(uploadBuild(false).sha256, PICKS_SHA256);
+  // (The Combo branch builds Picks v2, also audited: Repo Lens final audit 2026-10-30.)
+  if (fs.existsSync("picks/build/release/contract.wasm")) assert.ok([PICKS_SHA256, PICKS_V2_SHA256].includes(uploadBuild(false).sha256));
 });
 
 test("testnet upload: only a build whose manifest says it came from the audited source, and never the mainnet build", () => {
@@ -70,10 +72,11 @@ test("the Block X game config: game 2 on mainnet is exactly the plan's settings;
   assert.throws(() => buildGameConfig({ ...base, id: 128 }), /1 to 127/);
   assert.throws(() => buildGameConfig({ ...base, name: "x".repeat(41) }), /1 to 40 bytes/);
   const mainnet = network(false);
-  assert.equal(mainnet.games.length, 5, "on mainnet the tool registers Who Signs Block X (game 2, hourly game 12), Producer Bracket (game 9) and Fantasy (games 4 and 5)");
+  // Combo chat, 13 Nov: Combo Card (game 8, a card game, announced only after Picks v2) joins Fantasy's games 4 and 5; see its own test.
+  assert.equal(mainnet.games.length, 6, "on mainnet the tool registers Who Signs Block X (game 2, hourly game 12), Producer Bracket (game 9), Fantasy (games 4 and 5) and Combo Card (game 8)");
   assert.deepEqual(buildGameConfig(mainnet.games[0]), c);
   assert.deepEqual(buildGameConfig(mainnet.games[1]), { id: 12, name: "Who Signs Block X (hourly)", kind: 1, list_size: 1, number_min: "0", number_max: "0", lock_mode: 1,
-    round_size: "1200", round_offset: "0", lead: "100", ahead: "28900", max_picks_per_day: 48, max_changes: 1, enabled: true }, "R-BX-25: every 1,200 blocks, 48 picks a day");
+    round_size: "1200", round_offset: "0", lead: "100", ahead: "14500", max_picks_per_day: 48, max_changes: 1, enabled: true }, "R-BX-25: every 1,200 blocks, 48 picks a day; owner 14 Nov: 12 hours ahead (on chain by tighten 12 --ahead 14500)");
   assert.equal(mainnet.owner, "1635QUrBNDp7WqmFkRvrkGwjJXTtFvH717");
 });
 
@@ -128,8 +131,9 @@ test("upload: another wallet pays the Mana, so the Picks wallet never needs KOIN
 });
 
 test("BX-21: the Picks ABI used for owner calls is pinned to the audited one", () => {
-  assert.equal(sha(fs.readFileSync("picks/abi/picks.koilib.json")), PICKS_ABI_SHA256);
-  assert.match(fs.readFileSync("bot/picks.ts", "utf8"), /sha256hex\(raw\) !== PICKS_ABI_SHA256/);
+  // v1's ABI, or v2's (a superset: the Combo branch builds v2; Block X's calls encode the same bytes with either).
+  assert.ok([PICKS_ABI_SHA256, PICKS_V2_ABI_SHA256].includes(sha(fs.readFileSync("picks/abi/picks.koilib.json"))));
+  assert.match(fs.readFileSync("bot/picks.ts", "utf8"), /!\[PICKS_ABI_SHA256, PICKS_V2_ABI_SHA256\]\.includes\(sha256hex\(raw\)\)/);
 });
 test("BX-9/BX-20: the contract must check out on BOTH mainnet nodes before the owner signs", async () => {
   const good = { exists: true, hash: "0x1220" + PICKS_SHA256, call: true, tx: true, upload: true };
@@ -150,6 +154,92 @@ test("audit BX-47: the check node must be a different node from the primary", as
   const src = fs.readFileSync("bot/picks.ts", "utf8");
   assert.match(src, /is the same node as RPC: the check needs a second, independent node/);
   assert.match(src, /rpc: \[E\.RPC \|\| MAINNET_RPCS\[0\]\]/, "one primary node (no quiet fallback to the check node)");
+});
+
+// ── the Picks v2 upgrade (runbook "Later: the Picks v2 upgrade", steps 2-4) ──
+const utf16 = (a: string) => Buffer.from(a, "utf16le");
+const TEST_OWNER = "1HsM33pF8DbXPr8Vsd4vD7hQgvZ1SHY3Vv";
+function v2dir(o: { wasm?: Buffer; man?: any } = {}) {
+  const d = tmp(), wasm = o.wasm ?? Buffer.concat([Buffer.from("\0asm testnet v2 "), utf16(TEST_OWNER)]);
+  fs.writeFileSync(path.join(d, "contract.wasm"), wasm);
+  fs.writeFileSync(path.join(d, "manifest.json"), JSON.stringify({ network: "koinos-foundation-testnet", version: 2, sha256: sha(wasm), auditedSha256: PICKS_V2_SHA256, owner: TEST_OWNER, ...(o.man ?? {}) }));
+  const v1 = path.join(d, "v1.json"); fs.writeFileSync(v1, JSON.stringify({ sha256: "ab".repeat(32) }));
+  return { mainnet: "", v2dir: d, v1manifest: v1 };
+}
+
+test("upgrade: mainnet uploads only the audited v2 build, over v1", () => {
+  const d = tmp(), f = path.join(d, "c.wasm");
+  fs.writeFileSync(f, Buffer.from("not v2"));
+  assert.throws(() => upgradeBuilds(false, { mainnet: f, v2dir: "", v1manifest: "" }), /not the audited Picks v2 build/);
+  assert.throws(() => upgradeBuilds(false, { mainnet: path.join(d, "none.wasm"), v2dir: "", v1manifest: "" }), /not found/);
+  if (fs.existsSync("picks/build/release/contract.wasm") && sha(fs.readFileSync("picks/build/release/contract.wasm")) === PICKS_V2_SHA256) {
+    const b = upgradeBuilds(false);
+    assert.equal(b.from, PICKS_SHA256); assert.equal(b.to.sha256, PICKS_V2_SHA256);
+  }
+});
+
+test("upgrade: the testnet v2 build must come from the audited v2 source, hold its own owner and never the mainnet owner", () => {
+  const ok = upgradeBuilds(true, v2dir());
+  assert.equal(ok.from, "ab".repeat(32));
+  assert.throws(() => upgradeBuilds(true, v2dir({ man: { auditedSha256: "00".repeat(32) } })), /not the audited v2/);
+  assert.throws(() => upgradeBuilds(true, v2dir({ man: { auditedSha256: undefined } })), /not the audited v2/);
+  assert.throws(() => upgradeBuilds(true, v2dir({ man: { sha256: "11".repeat(32) } })), /doesn't match its manifest/);
+  assert.throws(() => upgradeBuilds(true, v2dir({ man: { version: 1 } })), /doesn't match its manifest/);
+  assert.throws(() => upgradeBuilds(true, v2dir({ wasm: Buffer.concat([utf16(TEST_OWNER), utf16(MAINNET_OWNER)]) })), /MAINNET owner/);
+  assert.throws(() => upgradeBuilds(true, v2dir({ wasm: Buffer.from("no owner in it") })), /doesn't hold the owner/);
+  assert.ok(wasmHasAddress(utf16(TEST_OWNER), TEST_OWNER)); assert.ok(!wasmHasAddress(Buffer.from(TEST_OWNER), TEST_OWNER), "UTF-16, as AssemblyScript stores it");
+});
+
+test("upgrade: a mainnet send needs --code with the first 8 characters of the new code's sha256", () => {
+  const main = { testnet: false }, argv = (...a: string[]) => ["node", "picks.ts", "upgrade-upload", "--send", "--mainnet", ...a];
+  assert.throws(() => codeGuard(main, true, PICKS_V2_SHA256, argv()), /add --code 92d555d0/);
+  assert.throws(() => codeGuard(main, true, PICKS_V2_SHA256, argv("--code", "92d555d")), /add --code/);
+  assert.throws(() => codeGuard(main, true, PICKS_V2_SHA256, argv("--code", "700c296a")), /add --code/);
+  assert.doesNotThrow(() => codeGuard(main, true, PICKS_V2_SHA256, argv("--code", "92d555d0")));
+  assert.doesNotThrow(() => codeGuard(main, false, PICKS_V2_SHA256, argv()), "a dry run needs nothing");
+  assert.doesNotThrow(() => codeGuard({ testnet: true }, true, PICKS_V2_SHA256, argv()), "the testnet needs nothing");
+});
+
+test("upgrade: the window is read from the chain's config at chain time (48 hours, then 7 days)", () => {
+  const H = 3600000, eta = 1_800_000_000_000, cfg = { upgrade_hash: "0x" + PICKS_V2_SHA256.toUpperCase(), upgrade_eta: String(eta) };
+  assert.equal(upgradeWindow({}, PICKS_V2_SHA256, eta).state, "none");
+  assert.equal(upgradeWindow({ upgrade_hash: "0x", upgrade_eta: "0" }, PICKS_V2_SHA256, eta).state, "none");
+  assert.equal(upgradeWindow(cfg, PICKS_V2_SHA256, eta - 1).state, "waiting");
+  assert.equal(upgradeWindow(cfg, PICKS_V2_SHA256, eta).state, "open", "the contract allows it from eta (now >= eta)");
+  assert.equal(upgradeWindow(cfg, PICKS_V2_SHA256, eta + 168 * H - 1).state, "open");
+  assert.equal(upgradeWindow(cfg, PICKS_V2_SHA256, eta + 168 * H).state, "expired", "and refuses it from eta + 7 days");
+  assert.equal(upgradeWindow(cfg, PICKS_SHA256, eta).state, "other", "other code announced");
+  assert.equal(upgradeWindow(cfg, PICKS_V2_SHA256, eta).closes, eta + 168 * H);
+});
+
+test("upgrade: the upload is signed by the owner (and the payer, when another wallet pays), keeps all three overrides on", async () => {
+  const { Signer, Provider } = await import("koilib");
+  const owner = Signer.fromSeed("owner for the upgrade test"), payer = Signer.fromSeed("payer for the upgrade test"), picks = Signer.fromSeed("picks for the upgrade test").getAddress();
+  const p: any = new Provider(["http://127.0.0.1:1"]);
+  const abi = JSON.parse(fs.readFileSync("picks/abi/picks.koilib.json", "utf8"));
+  const wasm = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]), chain = "EiAIKVvm6-V2qmsmUvPJy09vCCLbtn9lHFpwrJbcTIEWRQ==";
+  const t: any = (await upgradeTx(p, picks, owner, payer, wasm, abi, chain, 5500000000n, encodeNonce(7))).transaction;
+  const up = t.operations[0].upload_contract;
+  assert.equal(t.operations.length, 1);
+  assert.equal(up.contract_id, picks, "uploads to the Picks contract's own address");
+  assert.ok(up.authorizes_call_contract && up.authorizes_transaction_application && up.authorizes_upload_contract, "all three overrides on");
+  assert.equal(t.header.payer, payer.getAddress()); assert.equal(t.header.rc_limit, "5500000000");
+  assert.deepEqual((await Signer.recoverAddresses(t)).sort(), [owner.getAddress(), payer.getAddress()].sort(), "owner and payer signed");
+  const t2: any = (await upgradeTx(p, picks, owner, owner, wasm, abi, chain, 5500000000n, encodeNonce(8))).transaction;
+  assert.deepEqual(await Signer.recoverAddresses(t2), [owner.getAddress()], "the owner alone when it pays");
+});
+
+test("upgrade: the three commands are wired, and the runbook's steps name them", () => {
+  const src = fs.readFileSync("bot/picks.ts", "utf8");
+  for (const c of ["upgrade-schedule", "upgrade-upload", "upgrade-clear"]) assert.match(src, new RegExp(`case "${c}"`));
+  // Every send is guarded: mainnetGuard (--mainnet, CONFIRM_MAINNET) in all three; codeGuard before schedule and upload.
+  for (const f of ["upgradeSchedule", "upgradeUpload", "upgradeClear"]) {
+    const body = src.slice(src.indexOf(`async function ${f}(`), src.indexOf("\n}\n", src.indexOf(`async function ${f}(`)));
+    assert.match(body, /mainnetGuard\(net, send\)/, f);
+    assert.match(body, /assertAuditedContract\(/, f);
+    assert.match(body, /readEverywhere\(net, p\)/, f + " reads both nodes");
+    if (f !== "upgradeClear") assert.match(body, /codeGuard\(net, send, b\.to\.sha256\)/, f);
+  }
 });
 
 // ── R-BX-3 (D-096, docs/blockx/OWNER-HANDOVER-PLAN.md): the owner handover commands ──
@@ -315,6 +405,66 @@ test("G7-1 (Low): apply refuses a pending game that isn't exactly the pinned con
   assert.match(m.pendingProblem(null, g), /nothing/i);
   const src = fs.readFileSync("bot/picks.ts", "utf8");
   assert.match(src, /async function apply[\s\S]{0,900}pendingProblem\(pend\.game, /, "apply checks it before sending");
+});
+
+test("Repo Lens #G-16 (D-083): upgrade-schedule refuses while a Picks owner handover is planned or proposed", () => {
+  assert.equal(handoverBlocksUpgrade({ owner: MAINNET_OWNER }, null), null);
+  assert.match(String(handoverBlocksUpgrade({ owner: MAINNET_OWNER, pending_owner: NEW }, null)), /proposed on chain/);
+  assert.match(String(handoverBlocksUpgrade({ owner: MAINNET_OWNER }, NEW)), /planned/);
+  assert.equal(handoverBlocksUpgrade({ owner: MAINNET_OWNER, pending_owner: "" }, ""), null, "an empty pending owner is none");
+  const src = fs.readFileSync("bot/picks.ts", "utf8");
+  const body = src.slice(src.indexOf("async function upgradeSchedule"), src.indexOf("export async function upgradeTx"));
+  assert.match(body, /handoverBlocksUpgrade\(cfg, net\.nextOwner\)[\s\S]*sendCall\(net, p, chainId, s, "schedule_upgrade"/, "checked before anything is sent");
+  assert.match(src, /x\.cfg\.pending_owner \?\? ""/, "both nodes must agree about a pending owner");
+});
+
+test("Repo Lens #G-16 (Info): all three upgrade commands need --code before a mainnet send", () => {
+  const src = fs.readFileSync("bot/picks.ts", "utf8");
+  for (const fn of ["async function upgradeSchedule", "async function upgradeUpload", "async function upgradeClear"]) {
+    const i = src.indexOf(fn), body = src.slice(i, src.indexOf("\n}\n", i));
+    assert.ok(i >= 0, fn);
+    assert.match(body, /codeGuard\(net, send, b\.to\.sha256\)/, `${fn} checks --code`);
+    assert.ok(body.indexOf("codeGuard(") < body.indexOf("if (!send)"), `${fn}: before the dry-run line, so before anything is sent`);
+    assert.match(body, /--mainnet --code \$\{b\.to\.sha256\.slice\(0, 8\)\}/, `${fn}: the dry run names the --code to type`);
+  }
+});
+
+test("Combo Card, game 8: the pinned card game is the recorder's and the page's, and passes every contract limit", async () => {
+  const mainnet = network(false);
+  const g = mainnet.games.find((x: any) => x.id === 8);
+  assert.equal(g, COMBO_GAME);
+  const cfg: any = buildGameConfig(g);
+  assert.deepEqual(cfg, { id: 8, name: "Combo Card", kind: 4, list_size: 10, number_min: "0", number_max: "0", lock_mode: 2, round_size: "3", round_offset: "0",
+    lead: "300000", ahead: "86400000", max_picks_per_day: 12, max_changes: 3, enabled: true, max_legs: 10, leg_types: [
+      { code: 1, lock_mode: 2, round_size: "21600000", round_offset: "0", lead: "1500000", ahead: "86400000", enabled: true },
+      { code: 2, lock_mode: 2, round_size: "21600000", round_offset: "0", lead: "1500000", ahead: "86400000", enabled: true },
+      { code: 3, lock_mode: 2, round_size: "21600000", round_offset: "0", lead: "1500000", ahead: "86400000", enabled: true },
+      { code: 4, lock_mode: 1, round_size: "2400", round_offset: "0", lead: "500", ahead: "28800", enabled: true }] });
+  // The same leg types the Combo recorder refuses to record without (RL-25), and the page's limits (combo-math.js).
+  const R: any = await import("../../bot/games/combo.ts");
+  const C: any = (globalThis as any).KCombo;
+  assert.deepEqual(cfg.leg_types.map(({ enabled, ...t }: any) => t), R.expectedLegTypes());
+  assert.equal(R.settingsProblem(cfg), null);
+  assert.equal(cfg.max_legs, C.MAX_LEGS); assert.equal(cfg.list_size, C.HARD_MAX_LEGS); assert.equal(Number(cfg.round_size), C.CARDS_PER_DAY);
+  assert.equal(cfg.max_changes, C.MAX_CHANGES); assert.equal(cfg.max_picks_per_day, C.CARDS_PER_DAY * (1 + C.MAX_CHANGES), "every card and every change of a day fits");
+  // Every limit is checked before anything is sent.
+  for (const bad of [{ listSize: 11 }, { maxLegs: 1 }, { maxLegs: 11 }, { slotsPerDay: 0 }, { slotsPerDay: 11 }, { picksPerDay: 0 }, { maxChanges: 51 }, { legTypes: [] },
+    { legTypes: [g.legTypes[0], g.legTypes[0]] }, { legTypes: [{ ...g.legTypes[3], ahead: "28801" }] }, { legTypes: [{ ...g.legTypes[0], lead: "299999" }] },
+    { legTypes: [{ ...g.legTypes[0], enabled: false }] }, { name: "x".repeat(41) }])
+    assert.throws(() => buildGameConfig({ ...g, ...bad }), undefined, JSON.stringify(bad));
+  // An apply compares the announced card game field by field, leg types included.
+  assert.equal(pendingProblem(JSON.parse(JSON.stringify(cfg)), g), null);
+  const moved = JSON.parse(JSON.stringify(cfg)); moved.leg_types[3].lead = "400";
+  assert.match(String(pendingProblem(moved, g)), /leg_types\[3\]\.lead is 400/);
+  const fewer = JSON.parse(JSON.stringify(cfg)); fewer.leg_types.pop();
+  assert.match(String(pendingProblem(fewer, g)), /leg_types has 3 entries/);
+  assert.match(String(pendingProblem({ ...cfg, max_legs: 9 }, g)), /max_legs is 9/);
+  // Games 2, 12, 9, 4 and 5: untouched by the card fields.
+  for (const id of [2, 12, 9, 4, 5]) assert.ok(!("leg_types" in (buildGameConfig(mainnet.games.find((x: any) => x.id === id)) as any)), `game ${id}`);
+  // On mainnet, game 8 is announced only once the deployment file records Picks v2.
+  const src = fs.readFileSync("bot/picks.ts", "utf8"), body = src.slice(src.indexOf("async function announce("), src.indexOf("async function apply("));
+  assert.match(body, /g\.kind === 4 && !net\.testnet && readJson\(MAINNET_STATE\)\?\.wasmSha256 !== PICKS_V2_SHA256/);
+  assert.ok(body.indexOf("g.kind === 4 && !net.testnet") < body.indexOf("sendCall("));
 });
 
 test("tighten (capacity, owner 12 Nov): only stricter values, at once; the shape and the name never change", async () => {

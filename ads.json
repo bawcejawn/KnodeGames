@@ -81,6 +81,12 @@
       "cta": "Explore"
     },
     {
+      "name": "Fogata mining pools",
+      "tagline": "Join a mining pool with KOIN or VHP without running a node, or put your node in one. On KoinScan, by Armana.",
+      "link": "https://www.koinscan.io/fogata",
+      "cta": "Open Fogata"
+    },
+    {
       "name": "Kondor",
       "tagline": "The Koinos wallet for your browser (Chrome Web Store).",
       "link": "https://chromewebstore.google.com/detail/kondor/ghipkefkpgkladckmlmdnadmcchefhjl",

@@ -48,10 +48,10 @@ test("render: kit-games.yml runs hourly at :57 and never beside the host (the ho
   assert.deepEqual(kit.concurrency, host.concurrency, "the same concurrency group as the host");
   assert.equal(kit.concurrency["cancel-in-progress"], false);
   assert.deepEqual(kit.permissions, { contents: "read" });
-  assert.deepEqual(Object.keys(kit.jobs).sort(), ["kit-alerts", "publish-kit", "record-fantasy"]);
-  for (const j of ["kit-alerts", "publish-kit", "record-fantasy"]) assert.ok(!(j in host.jobs), `${j} is not in games.yml`);
+  assert.deepEqual(Object.keys(kit.jobs).sort(), ["kit-alerts", "publish-kit", "record-fantasy", "record-survivor"]);
+  for (const j of ["kit-alerts", "publish-kit", "record-fantasy", "record-survivor"]) assert.ok(!(j in host.jobs), `${j} is not in games.yml`);
 
-  assert.deepEqual(kit.jobs["publish-kit"].needs, ["record-fantasy"], "it no longer waits on a job in another file");
+  assert.deepEqual(kit.jobs["publish-kit"].needs, ["record-fantasy", "record-survivor"], "it no longer waits on a job in another file");
   // The publish check's freshness window (NK-11) still covers the kit's own record job: it now starts after the host ends.
   assert.ok(RECORD_TIMEOUT_MIN <= LEGACY_WAIT_MAX_MIN);
   assert.equal(kitFileName("games.yml"), "kit-games.yml");

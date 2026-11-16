@@ -91,3 +91,13 @@ test("signed-in phones (owner 15 Nov): the pick columns don't squeeze the lane; 
     /#track \.pr-lane\.rt-lane > \.pr-run \{ grid-column: 1 \/ -1; grid-row: 2; \}/, /#track \.pr-lane\.rt-lane > \.rt-pk \{ grid-row: 3;/, /\.rt-pk-t \{ display: block;/]) assert.match(css, re);
   assert.match(html, /\.rt-pk-t \{ display: none; \}\n    @media \(max-width: 640px\)/, "the time on the button shows on phones only");
 });
+
+test("race types: before they start, greyed 'coming soon' tabs with the start time, no picks, no data (owner, 15 Nov)", () => {
+  const js = fs.readFileSync(`${APP}/race.js`, "utf8"), html = fs.readFileSync(`${APP}/race.html`, "utf8");
+  const tabs = js.slice(js.indexOf("function rtTabs()"), js.indexOf("function rtSelect("));
+  assert.match(tabs, /M\.TYPES_ON_WEEK !== null && M\.weekOf\(Date\.now\(\)\) < M\.TYPES_ON_WEEK/);
+  assert.match(tabs, /disabled: "", "aria-disabled": "true"/);
+  assert.ok(!/rtSelect|rtLoad|fetch/.test(tabs.slice(0, tabs.indexOf("return;"))), "the coming-soon tabs can't be clicked or load anything");
+  assert.match(tabs, /timeZone: "America\/New_York"/);
+  assert.match(html, /\.rt-tabs\.soon button\[disabled\] \{ opacity: \.55; cursor: not-allowed; \}/);
+});

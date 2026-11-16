@@ -793,8 +793,19 @@
   }
   function rtTabs() {
     const nav = $("race-types");
-    if (!typesLive()) { nav.hidden = true; return; }
-    nav.hidden = false;
+    if (!typesLive()) {
+      // Owner, 15 Nov: before the race types start, show them as greyed "coming soon" tabs (no picks, no data loaded).
+      const soon = M.TYPES_ON_WEEK !== null && M.weekOf(Date.now()) < M.TYPES_ON_WEEK;
+      nav.hidden = !soon; nav.classList.toggle("soon", soon);
+      if (soon) {
+        const at = new Date(M.weekStart(M.TYPES_ON_WEEK)).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+        nav.replaceChildren(el("p", { class: "rt-soon", text: `Coming ${at} ET: 1-hour, 2-hour, daily and weekly races.` }),
+          ...ORDER.filter((t) => t !== 0).map((t) => el("button", { type: "button", disabled: "", "aria-disabled": "true", title: `Opens ${at} ET` },
+            M.TYPES[t].name, el("small", { text: "Opens soon" }))));
+      }
+      return;
+    }
+    nav.hidden = false; nav.classList.remove("soon");
     nav.replaceChildren(...ORDER.map((t) => el("button", { type: "button", "aria-pressed": String(t === rtype), onclick: () => rtSelect(t) },
       M.TYPES[t].name, el("small", { text: `1st ${M.TYPES[t].places[0]} · 2nd ${M.TYPES[t].places[1]} · 3rd ${M.TYPES[t].places[2]}` }))));
   }
@@ -870,6 +881,7 @@
   // ── start ──
   (async () => {
     // The wallet's settings (Mana sponsor, guest play) first, so Connect offers everything at once.
+    if (!typesLive()) rtTabs();   // the coming-soon tabs need no network: draw them at once
     const picksReady = setupPicks().catch(() => {});
     try { await refresh(true); }
     catch (e) { say("Couldn't reach the Koinos network. Trying again in a moment…"); }

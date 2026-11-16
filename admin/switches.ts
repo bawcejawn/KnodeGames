@@ -39,7 +39,7 @@ export const GAMES: Game[] = [
   { id: 6, name: "Block Golf", area: "golf", season: 1, freePrize: "off", addable: true },
   { id: 7, name: "Producer Race", area: "race", season: 1, freePrize: "on", addable: true },
   { id: 8, name: "Combo Card", area: "combo", season: 1, freePrize: "off", addable: true },
-  { id: 9, name: "Producer Bracket", area: "bracket", season: 1, freePrize: "off", addable: true },
+  { id: 9, name: "Producer Bracket", area: "bracket", season: 1, freePrize: "on", addable: true },
   { id: 13, name: "Last Node Standing", area: "lastnode", season: 1, freePrize: "on", addable: true },
 ];
 
@@ -139,6 +139,6 @@ export const LAUNCH: Launch[] = [
   { game: 6, steps: [{ text: "Game 6 is added (12 Nov, about 3:16 PM ET). Apply it in vault week 4 (Sun 15 Nov 7:00 PM ET to Sat 21 Nov before 3:16 PM ET; aim for Mon 16 Nov), then set GOLF_STAKED_FROM_WEEK to the week the status shows (5) before Sun 22 Nov 7:57 PM ET.", check: "glance-golf" }], dates: "Applying before Sun 15 Nov 7:00 PM ET is wrong: Golf would earn from Week 1 while it is practice-only. After Sat 21 Nov 3:16 PM ET the announcement has expired." },
   { game: 7, steps: [{ text: "Live and staked. Scored by the Ruler from Week 1: RACE_RULER_FROM_WEEK = 4 (Mon 16 Nov).", check: "glance-race" }], dates: "Ruler live from Week 1 (Mon 16 Nov)." },
   { game: 8, steps: [{ text: "Needs the Combo PR merged (Repo Lens GO), then the Picks v2 (CARD) upgrade after the Picks owner handover is accepted, then announce and apply Picks game 8. Then: free prize OFF, Add a game, apply, in vault week 6.", check: "glance-vault" }], dates: "Launches on the Ruler from its first week: vault week 7, Mon 7 Dec (owner, 11 Nov; Library, 12 Nov)." },
-  { game: 9, steps: [{ text: "Needs its fix-check, then: free prize OFF first (owner, 11 Nov: the Bracket's pages say no free prize is paid), then Add a game, then apply it during vault week 4 (Week 1: Mon 16 to Sun 22 Nov) so its practice week and first paid week match its page, then BRACKET_PRIZES_FROM_WEEK, and its Ruler switch with its own Repo Lens GO.", check: "glance-vault" }], dates: "Ruler switch: PR by Fri 20 Nov 12:00 ET to be live from Week 2 (Mon 23 Nov), otherwise Week 3 (Mon 30 Nov)." },
+  { game: 9, steps: [{ text: "Needs its fix-check, then: free prize ON (owner, 14 Nov; it was OFF from 11 Nov): npm run prizes -- on 9 --send --from 5, after Sun 15 Nov 7:30 PM ET and before Sun 22 Nov 6:30 PM ET (later, it starts Week 3 and Week 2 pays no free prize though the pages promise one), then Add a game, then apply it during vault week 4 (Week 1: Mon 16 to Sun 22 Nov) so its practice week and first paid week match its page, then BRACKET_PRIZES_FROM_WEEK, and its Ruler switch with its own Repo Lens GO.", check: "glance-vault" }], dates: "Ruler switch: PR by Fri 20 Nov 12:00 ET to be live from Week 2 (Mon 23 Nov), otherwise Week 3 (Mon 30 Nov)." },
   { game: 13, steps: [{ text: "Needs its round-3 review and 48 hours of sampler readings. Then: Add a game (free prize ON), apply.", check: "glance-vault" }], dates: "Launches on the Ruler (owner, 11 Nov)." },
 ];

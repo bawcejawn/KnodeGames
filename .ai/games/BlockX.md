@@ -31,7 +31,7 @@ Guess which block producer will sign a future target block. Simple to play, root
   - **Files:** `X<week>-<d>.json` (d = 0 Monday … 6 Sunday, UTC), one entry per target: `{round, height, lock, cardRound, window, card (canonical text) | null, note, signer, points, void, why}`. A card once published never changes. The W files are unchanged (old-rule points; Combo reads them).
   - **ON weeks:** the board and the vault take each pick's points from the entries. A target not scored yet keeps the week open; after 3 days without the ruler's data it counts no pick (void).
   - **Publish job (`games.yml`):**
-    - `vhp_ruler.py` is embedded (`node tools/blockx-ruler-embed.mjs` after any change; a test keeps it byte for byte).
+    - `vhp_ruler.py` is embedded (`node tools/games-ruler-embed.mjs` after any change, the one embed tool for the hand-written jobs; `npm run kit:render` for the kit copy; a test keeps it byte for byte).
     - Every new card is rebuilt from Block X's own settings (`recompute`), and every entry's points are recounted in Python.
     - A switch change that would change a started week stops the publish.
     - An ON week's board is recounted from the W file and the entries; a mismatch holds the board, prize and vault files.

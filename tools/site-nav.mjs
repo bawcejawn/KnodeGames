@@ -48,7 +48,7 @@ const I = {
 export const TABS = [["Games", "games.html", "games"], ["Stake", "stake.html", "stake"], ["Leaders", "#leaderboard", "leaders"]];
 // The More sheet, in groups (each group a heading, then its links).
 export const MORE_GROUPS = [
-  ["Play", [["Daily Questions", "#play", "play"], ["Producer Race", "race.html", "race"], ["Who Signs Block X", "blockx.html", "blockx"], ["Producer Bracket", "bracket.html", "bracket"], ["Block Golf", "golf.html", "golf"], ["Fantasy Producers · Test weeks", "fantasy.html", "fantasy"], ["Combo Card · Preview", "combo.html", "combo"], ["Results", "#results", "results"], ["Rules", "#how", "rules"]]],
+  ["Play", [["Daily Questions", "#play", "play"], ["Producer Race", "race.html", "race"], ["Who Signs Block X", "blockx.html", "blockx"], ["Producer Bracket", "bracket.html", "bracket"], ["Block Golf", "golf.html", "golf"], ["Fantasy Producers", "fantasy.html", "fantasy"], ["Combo Card · Preview", "combo.html", "combo"], ["Results", "#results", "results"], ["Rules", "#how", "rules"]]],
   ["Tools", [["Get VHP", "get.html", "get"], ["Get an @name", "names.html", "name"], ["Swap VHP → KOIN", "swap.html", "swap"], ["Burn KOIN", "burn.html", "burn"], ["Mana levels", "mana.html", "mana"], ["Producer lookup", "node.html", "lookup"], ["Run a node", "run-node.html", "server"], ["Network pulse", "pulse.html", "pulse"]]],
   ["Learn", [["New to Koinos?", "start.html", "welcome"], ["Ecosystem", "ecosystem.html", "eco"], ["New here? Quick tour", "#welcome", "welcome"], ["Ruler", "ruler.html", "ruler"]]],
   ["About", [["Install app", "install.html", "install"], ["Trust", "trust.html", "trust"], ["Terms &amp; risks", "terms.html", "terms"]]],
@@ -57,7 +57,7 @@ export const MORE = MORE_GROUPS.flatMap(([, links]) => links);
 // The top menu: a link, or a dropdown { label, items }. Add a new live game to the Games dropdown when it ships.
 const TOOLS_ITEMS = [["Get VHP", "get.html"], ["Get an @name", "names.html"], ["Swap VHP → KOIN", "swap.html"], ["Burn KOIN", "burn.html"], ["Mana levels", "mana.html"], ["Producer lookup", "node.html"], ["Run a node", "run-node.html"], ["Network pulse", "pulse.html"]];
 export const TOP = [
-  { label: "Games", items: [["All games", "games.html"], ["Daily Questions", "#play"], ["Producer Race", "race.html"], ["Who Signs Block X", "blockx.html"], ["Producer Bracket", "bracket.html"], ["Block Golf", "golf.html"], ["Fantasy Producers · Test weeks", "fantasy.html"], ["Combo Card · Preview", "combo.html"]] },
+  { label: "Games", items: [["All games", "games.html"], ["Daily Questions", "#play"], ["Producer Race", "race.html"], ["Who Signs Block X", "blockx.html"], ["Producer Bracket", "bracket.html"], ["Block Golf", "golf.html"], ["Fantasy Producers", "fantasy.html"], ["Combo Card · Preview", "combo.html"]] },
   { label: "Leaderboards", link: "#leaderboard" },
   { label: "Stake", link: "stake.html" },
   { label: "More", items: [["Results", "#results"], ["Rules", "#how"], ["Ruler", "ruler.html"], ["New to Koinos?", "start.html"], ["Ecosystem", "ecosystem.html"], ...TOOLS_ITEMS] },

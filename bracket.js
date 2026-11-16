@@ -499,8 +499,8 @@
   const lb = window.KBoard ? window.KBoard.create($("bk-board"), {
     label: "Bracket leaderboard", hide: ["today"],
     // Staked: wallets with 1 VHP or more staked in the Bracket that week (the Vault's player rule); Free play: the rest
-    // owner 11 Nov: the free prize is OFF for now (the recorder gives free-play medals only when game 9's switch is on)
-    free: { show: 6, prize: "The Free play board pays no VHP prize for now. Players staked in the Producer Bracket share its weekly bucket." },
+    // owner 14 Nov: the free prize is ON from Week 2 (vault week 5; the recorder gives free-play medals only when game 9's switch is on)
+    free: { show: 6, prize: "1st and 2nd at the end of the week win 2 and 1 VHP (from Week 2, the week of Mon 23 Nov; at least 1 point)." },
     unranked: "To be on the Staked board, stake at least 1 VHP in the Producer Bracket before the week starts.",
     columns: [{ key: "pts", label: "Points" }, { key: "correct", label: "Right" }],
     scored: (r) => r.pts > 0,
@@ -516,7 +516,7 @@
     if (prizesFrom === undefined) return "";
     if (prizesFrom !== null && w >= prizesFrom) return "";
     return `${weekLabel(w)} is a practice week: brackets, points and both leaderboards count for fun only, and no VHP is paid for it. `
-      + (prizesFrom === null ? "The first paid week will be announced here." : `Staked rewards start ${weekLabel(prizesFrom)}, the week of ${weekDate(prizesFrom)}.`);
+      + (prizesFrom === null ? "The first paid week will be announced here." : `Staked rewards and the Free play prize start ${weekLabel(prizesFrom)}, the week of ${weekDate(prizesFrom)}.`);
   }
   /** R-BR-7 (owner 11 Nov): what the VHP ruler does for the week on show, from which Monday, and in the shadow week how
    *  often it would have picked another winner so far. Empty while the switch isn't set. */
@@ -551,12 +551,14 @@
   if (W && W.subscribe) W.subscribe(() => { loadMine(); renderBoard(); });
   // the shared stake badge and panel (R-ALL-7), game 9
   if (window.KStake && typeof window.KStake.badge === "function" && $("stake-badge")) window.KStake.badge($("stake-badge"), { game: BM.GAME_ID });
-  if (window.KStake && typeof window.KStake.mount === "function" && $("bracket-stake")) window.KStake.mount($("bracket-stake"), { game: BM.GAME_ID, freePrize: false });   // owner 11 Nov: free prize OFF (#G-4 G4-1)
   if (window.KNames && typeof window.KNames.onChange === "function") window.KNames.onChange(() => { render(); renderBoard(); });
   (async () => {
     say("Loading the bracket…");
     await Promise.all([loadWeeks(), loadForm(), setupPicks().catch(() => {})]);
     view = pickView(); round = currentRound(); say("");
+    // owner 14 Nov: free prize ON from Week 2 (was OFF, #G-4 G4-1). The panel names it only for a week on show from the first
+    // paid week on (index.json prizesFromWeek), never in a practice week or before index.json is read (Repo Lens #H-1 H1-1)
+    if (window.KStake && typeof window.KStake.mount === "function" && $("bracket-stake")) window.KStake.mount($("bracket-stake"), { game: BM.GAME_ID, freePrize: Number.isInteger(prizesFrom) && view >= prizesFrom });
     await loadMine(); renderBoard();
     setInterval(() => { if (!document.hidden) loadWeeks().then(() => { render(); renderBoard(); }); }, 300000);
     setInterval(() => { if (!document.hidden) render(); }, 60000);

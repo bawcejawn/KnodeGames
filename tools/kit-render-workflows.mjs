@@ -1,4 +1,5 @@
-// Writes the kit games' jobs into their workflows (Shared Game Kit, D-158): every games/<slug>/game.json whose recorder
+// Writes the kit games' jobs into their own workflow file kit-<host>.yml (Shared Game Kit, D-158; split out of the host
+// on Mon 16 Nov 2026 because games.yml passed GitHub's 500 KB limit): every games/<slug>/game.json whose recorder
 // is a kit GameModule, grouped by workflow file and data branch. The publish job embeds kit/publish/check.inline.mjs
 // byte for byte (it runs no repository code). Run after any change to kit/publish/ or a kit game's manifest:
 //   npm run kit:render            write the workflows
@@ -7,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ROOT, listManifests, readManifest, validateManifest, duplicateKeys } from "./game-manifest.mjs";
-import { renderJobs, inlineScript, rulerPy, BEGIN, END, LEGACY_WAIT_MAX_MIN } from "../kit/publish/render.mjs";
+import { renderJobs, inlineScript, rulerPy, BEGIN, END, LEGACY_WAIT_MAX_MIN, kitFileName, renderKitFile } from "../kit/publish/render.mjs";
 import { publishConfig, dataFolder, readDeployment } from "../kit/recorder/manifest.ts";
 
 /** The kit games, by workflow file: [{ file, branch, games }]. */
@@ -68,13 +69,37 @@ export function renderWorkflow(text, block) {
   return text.replace(/\n*$/, "\n\n") + block;
 }
 
+/** The host workflow without its kit block (for comparing hand-written lines; the kit's jobs are in kit-<host>). */
+export function stripKitBlock(text) {
+  const a = text.indexOf(BEGIN), b = text.indexOf(END);
+  if (a < 0 && b < 0) return text;
+  if (!(a >= 0 && b > a)) throw new Error("the kit block's markers are broken");
+  return text.slice(0, a).replace(/\n+$/, "\n") + text.slice(b + END.length).replace(/^\n+/, "");
+}
+
+/** The host's workflow name and concurrency group, which the kit's file follows. */
+export function hostInfo(text, file) {
+  const name = /^name:\s*(.+?)\s*$/m.exec(text)?.[1]?.replace(/^["']|["']$/g, "");
+  const group = /^concurrency:\s*\n\s+group:\s*([a-z0-9-]+)\s*$/m.exec(text)?.[1];
+  if (!name || !group) throw new Error(`${file}: needs a top-level name and concurrency group for its kit file to follow`);
+  return { name, group };
+}
+
+/** Every file the kit writes: per host workflow, the host without a kit block, and the kit's own file kit-<host>. */
 export function renderAll(root = ROOT) {
-  const script = inlineScript(pathToFileURL(root.endsWith("/") ? root : root + "/"));
-  return kitGames(root).map(({ file, branch, games }) => {
+  const url = pathToFileURL(root.endsWith("/") ? root : root + "/");
+  const script = inlineScript(url);
+  return kitGames(root).flatMap(({ file, branch, games }) => {
     const p = path.join(root, ".github/workflows", file);
     const now = fs.readFileSync(p, "utf8");
     checkHost(now, file);
-    return { file: p, now, want: renderWorkflow(now, renderJobs({ branch, games, script, ruler: games.some((g) => g.cfg.vhpData) ? rulerPy(pathToFileURL(root.endsWith("/") ? root : root + "/")) : null })) };
+    const { name, group } = hostInfo(now, file);
+    const kp = path.join(root, ".github/workflows", kitFileName(file));
+    const block = renderJobs({ branch, games, script, ruler: games.some((g) => g.cfg.vhpData) ? rulerPy(url) : null });
+    return [
+      { file: p, now, want: stripKitBlock(now) },
+      { file: kp, now: fs.existsSync(kp) ? fs.readFileSync(kp, "utf8") : "", want: renderKitFile({ host: file, hostName: name, group, block }) },
+    ];
   });
 }
 

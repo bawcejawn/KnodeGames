@@ -23,7 +23,14 @@ prize switch), D-125 / D-129 (weekly rhythm), D-138 (launch order). Game file: `
 1. The game is marked `"status": "live"` in `games.json`.
 2. `bot/games/golf.ts` has a reader for it (today: `questions`, `race`, `blockx`). Last Node, Fantasy, Bracket, Survivor
    and the other games add theirs when they launch, with a test (Survivor's should recompute the standings at the
-   week's last season day with `survivor-math.js`, not keep a snapshot: audit H4).
+   week's last season day with `survivor-math.js`, not keep a snapshot: audit H4). **Or the standard reader:** a game
+   that publishes the shared board at `games-data/<id>/board.json` (Block X's shape, with `lastWeek.final`) adds
+   `"golf": "standard"` to its `games.json` entry and needs no reader of its own. It is opt-in on purpose: a game's
+   board is trusted as a hole only after its own chat and Repo Lens say so. Its id must be a plain lower-case name of at
+   most 24 characters (the workflow and the recorder both refuse anything else; Repo Lens G92-2). **Each opt-in is its
+   own small PR with its own Repo Lens round**, which checks that the game's board says `final` no earlier than its own
+   payout file is final, with no hold or correction possible after that (Repo Lens #G-92 check 4, as the Race's #G-3), and it must be in `COURSE_ORDER` in `golf-math.js`. A kit board that has `cut` rows left out, is not `complete`, or lists a wallet twice is a failed read, never scored.
+   **Producer Bracket** has its own reader: it reads the week file `games-data/bracket/W<week>.json` (`points` = `[wallet, pts, champion, correct]`), never `board.json` (capped at 1,000 rows a side, with no flag). Only `status: "final"` scores; `void` and `none` skip the hole for everyone; `waiting`, `open`, `locked` and anything unknown wait. It joins from vault week 6 (Mon 30 Nov) (`JOIN_FROM` in `bot/games/golf.ts`).
 3. It plays from the **Monday after** it went live, so nobody loses strokes on a game that didn't exist all week.
 
 What each hole waits for (a hole is final only when its game's own week is final):
@@ -32,9 +39,21 @@ What each hole waits for (a hole is final only when its game's own week is final
 |---|---|---|
 | Daily Questions | the game contract, on two nodes that must agree | the week is closed and every question resolved. Every wallet that answered at least one question has played the hole; with no correct answer it scores 6 strokes, not a lost ball (owner, 28 Oct and 6 Nov). |
 | Producer Race | `race-data/board.json` and `race-data/vault/W<w>.json` | every race is final **and** the Race's own vault file for the week is final (its two-run check, chain re-check and `RACE_HOLD_WEEKS`; Repo Lens G-3). A Race week you hold past 60 hours makes Golf skip the Race hole for everyone that week (Repo Lens I-2). |
-| Who Signs Block X | `games-data/blockx/board.json` | its `lastWeek.final` (set after Block X's own two-run check and week-end re-read). |
+| Who Signs Block X | `games-data/blockx/board.json` (v 1), or that board plus the week's parts folder (v 2) | its `lastWeek.final` (set after Block X's own two-run check and week-end re-read); in v 2 the week's parts folder must also be final. |
 
-No contract, vault or sponsor change is needed to add a hole. A new game's own build adds its reader and a test.
+**Boards in KG parts (`v: 2`; `claude/blockx/BLOCKX-BOARD-PARTS-SHAPE-2026-11-13.md`, `kit/parts`).** Block X's board
+moves to parts in its parts PR (target Sat 21 Nov); the standard reader reads the same shape. `board.json` then keeps
+only the top 100 rows of each list, for pages. **Golf never scores those rows.** It reads the list's folder
+`games-data/<id>/<parts>/` and uses the 16 player shards `p/0`–`p/f` only, after these checks: `checkParts` passes
+(manifest, every part's size and SHA-256, the part-set hash, no links or extra files); the manifest's hash equals the
+list's `hash`; a final list has a final manifest; the folder holds exactly `top` and the 16 shards; each wallet appears
+once and in its right shard; and the total equals the list's `players`. Anything else, or a board version other than 1
+or 2, is a failed read (said aloud in the run's problems), never a hole scored on part of its field. The workflow takes
+the folders of the board's `week` and `lastWeek` lists (plain files only).
+
+No contract, vault or sponsor change is needed to add a hole. A game with the shared board adds one line to `games.json`; any other game's build adds its reader and a test.
+
+The Clubhouse hole (a hole scored by how many different platform features a wallet used) is planned in `claude/golf/CLUBHOUSE-PLAN-2026-11-06.md` and is **not built yet**: each feature chat must first say how its action shows up as a public wallet record.
 
 ## The week (D-125, D-129; the one home for timing is `.ai/standards/WEEK_CYCLE.md`)
 

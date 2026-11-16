@@ -89,3 +89,11 @@ test("free-prize label says plainly who wins and is readable (light text on the 
   assert.ok(!js.includes("2 + 1 VHP"), "the old shorthand is gone");
   assert.match(html, /\.pill\.prize-on \{ background: var\(--mint\); color: var\(--paper\); \}/);
 });
+
+test("Block X search description: the Block X chat's line (15 Nov), no stale block count or multiplier", () => {
+  const b = read("blockx.html"), seo = read("tools/site-seo.mjs");
+  const line = "A target about every hour (every 1,200 Koinos blocks). Pick the producer you think signs it; smaller producers score more. Free, with weekly VHP prizes.";
+  assert.ok(seo.includes(line));
+  for (const tag of ['name="description"', 'property="og:description"', 'name="twitter:description"']) assert.ok(b.includes(`<meta ${tag} content="${line}">`), tag);
+  assert.ok(!b.includes("2,400 Koinos blocks"));
+});

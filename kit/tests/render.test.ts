@@ -1,4 +1,4 @@
-// The rendered workflow (tools/kit-render-workflows.mjs): the committed games.yml equals what the kit renders; its
+// The rendered workflow (tools/kit-render-workflows.mjs): the committed kit-games.yml and games.yml equal what the kit renders; its
 // publish job embeds kit/publish/check.inline.mjs byte for byte and imports nothing else; the embedded copy RUNS and
 // gives the same verdicts as the kit's file; the hand-written Block X jobs are untouched; the shell parses.
 import test from "node:test";
@@ -9,9 +9,9 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { renderAll, kitGames } from "../../tools/kit-render-workflows.mjs";
+import { renderAll, kitGames, stripKitBlock } from "../../tools/kit-render-workflows.mjs";
 import YAML from "yaml";
-import { PARTS_PREFIX, inlineScript, renderJobs, BEGIN, END, HEREDOC, TRAILER, RECORD_TIMEOUT_MIN, SETUP_MIN, LEGACY_WAIT_MAX_MIN } from "../publish/render.mjs";
+import { PARTS_PREFIX, inlineScript, renderJobs, kitFileName, KIT_CRON, BEGIN, END, HEREDOC, TRAILER, RECORD_TIMEOUT_MIN, SETUP_MIN, LEGACY_WAIT_MAX_MIN } from "../publish/render.mjs";
 import { canon, boardOf, tally, FRESH_MS, MAX_BEHIND_MS } from "../publish/check.inline.mjs";
 import { validateManifest, BUDGET_MAX } from "../../tools/game-manifest.mjs";
 import { dataFolder } from "../recorder/manifest.ts";
@@ -25,15 +25,37 @@ test("render: every committed kit workflow is exactly what the kit renders (run 
   for (const r of renderAll(ROOT)) assert.equal(r.now, r.want, `${r.file} differs from the kit's render`);
 });
 
-// D-160, since the first kit game (Fantasy, #266): kit games live only between the kit's markers; every hand-written
-// line of games.yml stays exactly as it is on main.
-test("render: kit games change games.yml only between the kit's markers; the hand-written jobs are main's (D-160)", () => {
+// D-160, since the first kit game (Fantasy, #266): the kit never changes a hand-written line. Since Mon 16 Nov 2026 the
+// kit games' jobs live in their own file, kit-games.yml (games.yml had passed GitHub's 500 KB limit); games.yml holds
+// no kit block, and every hand-written line of it stays exactly as it is on main.
+test("render: kit games live in kit-games.yml; games.yml holds no kit block and its hand-written jobs are main's (D-160)", () => {
   assert.deepEqual(kitGames(ROOT).flatMap((x: any) => x.games.map((g: any) => `${x.file}:${g.slug}`)), ["games.yml:fantasy", "games.yml:survivor"], "the kit games are exactly the games with a GameModule");
-  const strip = (t: string) => { const a = t.indexOf(BEGIN); if (a < 0) return t; const b = t.indexOf(END, a) + END.length; return t.slice(0, a).replace(/\n+$/, "\n") + t.slice(b).replace(/^\n/, ""); };
   const now = fs.readFileSync(path.join(ROOT, ".github/workflows/games.yml"), "utf8");
-  assert.ok(now.includes(BEGIN) && now.includes(END), "the kit block is there");
+  assert.ok(!now.includes(BEGIN) && !now.includes(END), "no kit block in the host");
+  const kit = fs.readFileSync(path.join(ROOT, ".github/workflows/kit-games.yml"), "utf8");
+  assert.ok(kit.includes(BEGIN) && kit.includes(END), "the kit block is in kit-games.yml");
   const main = spawnSync("git", ["show", "origin/main:.github/workflows/games.yml"], { cwd: ROOT, encoding: "utf8" });
-  if (main.status === 0) assert.equal(strip(now), strip(main.stdout));
+  if (main.status === 0) assert.equal(stripKitBlock(now), stripKitBlock(main.stdout), "games.yml's hand-written lines are main's");
+});
+
+test("render: kit-games.yml runs hourly at :57 and never beside the host (the host's concurrency group)", () => {
+  const host = YAML.parse(fs.readFileSync(path.join(ROOT, ".github/workflows/games.yml"), "utf8"));
+  const kit = YAML.parse(fs.readFileSync(path.join(ROOT, ".github/workflows/kit-games.yml"), "utf8"), { uniqueKeys: true });
+  assert.deepEqual(kit.on, { schedule: [{ cron: KIT_CRON }], workflow_dispatch: {} }, "its own hour; no workflow_run (audit L-9)");
+  assert.equal(KIT_CRON, "57 * * * *");
+  assert.deepEqual(host.on.schedule, [{ cron: "47 * * * *" }], "ten minutes after the host");
+  assert.equal(kit.name, `${host.name} (kit games)`);
+  assert.deepEqual(kit.concurrency, host.concurrency, "the same concurrency group as the host");
+  assert.equal(kit.concurrency["cancel-in-progress"], false);
+  assert.deepEqual(kit.permissions, { contents: "read" });
+  assert.deepEqual(Object.keys(kit.jobs).sort(), ["kit-alerts", "publish-kit", "record-fantasy"]);
+  for (const j of ["kit-alerts", "publish-kit", "record-fantasy"]) assert.ok(!(j in host.jobs), `${j} is not in games.yml`);
+
+  assert.deepEqual(kit.jobs["publish-kit"].needs, ["record-fantasy"], "it no longer waits on a job in another file");
+  // The publish check's freshness window (NK-11) still covers the kit's own record job: it now starts after the host ends.
+  assert.ok(RECORD_TIMEOUT_MIN <= LEGACY_WAIT_MAX_MIN);
+  assert.equal(kitFileName("games.yml"), "kit-games.yml");
+  assert.throws(() => kitFileName("../x.yml"));
 });
 
 /** A repo-shaped temp root: today's games.yml and deployment.json, with the kit-example fixture as its one kit game. */
@@ -44,14 +66,17 @@ const FIX = (() => {
   fs.cpSync(path.join(ROOT, "kit"), path.join(d, "kit"), { recursive: true });
   fs.mkdirSync(path.join(d, "game-data")); fs.copyFileSync(path.join(ROOT, "game-data/deployment.json"), path.join(d, "game-data/deployment.json"));
   fs.cpSync(path.join(EXAMPLE_ROOT, "games"), path.join(d, "games"), { recursive: true });
-  const [r] = renderAll(d);
-  fs.writeFileSync(r.file, r.want);
-  return { root: d, yml: r.want, again: renderAll(d)[0] };
+  const rs = renderAll(d);
+  for (const r of rs) fs.writeFileSync(r.file, r.want);
+  const kit = rs.find((r: any) => path.basename(r.file) === "kit-games.yml")!;
+  const host = rs.find((r: any) => path.basename(r.file) === "games.yml")!;
+  return { root: d, yml: kit.want, host, again: renderAll(d) };
 })();
 const yml = FIX.yml;
 
 test("render: rendering twice changes nothing (the block sits between its markers)", () => {
-  assert.equal(FIX.again.now, FIX.again.want);
+  assert.equal(FIX.again.length, 2);
+  for (const r of FIX.again) assert.equal(r.now, r.want);
 });
 
 /** The embedded script, de-indented, as the shell feeds it to node. */
@@ -100,11 +125,9 @@ test("render: the hand-written Block X jobs are untouched, and the kit jobs sit 
   // Compared with this checkout's own games.yml (not origin/main, which moves under every open PR): rendering a kit game
   // changes only what sits between the markers.
   const mine = fs.readFileSync(path.join(ROOT, ".github/workflows/games.yml"), "utf8");
-  if (mine.includes(BEGIN)) {
-    const head = mine.slice(0, mine.indexOf(BEGIN)), tail = mine.slice(mine.indexOf(END) + END.length);
-    assert.ok(yml.startsWith(head), "everything before the kit block is the checkout's games.yml unchanged");
-    assert.ok(yml.endsWith(tail), "everything after the kit block is unchanged");
-  } else assert.ok(yml.startsWith(mine.replace(/\n*$/, "\n")), "the checkout's games.yml is unchanged, the kit block added after it");
+  assert.equal(stripKitBlock(FIX.host.want), stripKitBlock(mine), "rendering a kit game leaves the host's hand-written lines as they are");
+  assert.ok(!FIX.host.want.includes(BEGIN), "the host keeps no kit block");
+  assert.ok(yml.startsWith("# GENERATED by tools/kit-render-workflows.mjs"), "the kit's file is wholly generated");
   assert.ok(yml.indexOf(BEGIN) > 0 && yml.indexOf(END) > yml.indexOf(BEGIN));
 });
 
@@ -139,7 +162,7 @@ test("render: one record job per kit game, each with its own timeout, artifact a
 
 test("render: the publish job takes each game's files only from that game's artifact, and reads the owner's releases itself (KC-3, KC-13, KC-29)", () => {
   const p = TWO["publish-kit"];
-  assert.deepEqual(p.needs, ["record-kit-example", "record-kit-other", "publish"]);
+  assert.deepEqual(p.needs, ["record-kit-example", "record-kit-other"]);
   assert.match(p.if, /needs\.record-kit-example\.result == 'success' \|\| needs\.record-kit-other\.result == 'success'/, "runs when any one game recorded");
   assert.deepEqual(p.permissions, { contents: "write" });
   const dl = p.steps.filter((s: any) => String(s.uses).startsWith("actions/download-artifact@"));

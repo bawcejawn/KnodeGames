@@ -114,3 +114,13 @@ test("sort (owner 15 Nov): Most VHP (default), Current place, A–Z; remembered 
 test("horse contrast (owner 15 Nov): a white outline and a darker shadow on the light-green track", () => {
   assert.match(html, /img\.pr-horse \{ filter: drop-shadow\(0 0 1px #fff\) drop-shadow\(0 0 1px #fff\) drop-shadow\(0 0 1\.5px #fff\) drop-shadow\(0 2px 3px rgba\(0, 0, 0, \.5\)\); \}/);
 });
+
+test("race types: before they start, greyed 'coming soon' tabs with the start time, no picks, no data (owner, 15 Nov)", () => {
+  const js = fs.readFileSync(`${APP}/race.js`, "utf8"), html = fs.readFileSync(`${APP}/race.html`, "utf8");
+  const tabs = js.slice(js.indexOf("function rtTabs()"), js.indexOf("function rtSelect("));
+  assert.match(tabs, /M\.TYPES_ON_WEEK !== null && M\.weekOf\(Date\.now\(\)\) < M\.TYPES_ON_WEEK/);
+  assert.match(tabs, /disabled: "", "aria-disabled": "true"/);
+  assert.ok(!/rtSelect|rtLoad|fetch/.test(tabs.slice(0, tabs.indexOf("return;"))), "the coming-soon tabs can't be clicked or load anything");
+  assert.match(tabs, /timeZone: "America\/New_York"/);
+  assert.match(html, /\.rt-tabs\.soon button\[disabled\] \{ opacity: \.55; cursor: not-allowed; \}/);
+});

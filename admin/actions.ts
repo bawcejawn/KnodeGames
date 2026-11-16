@@ -88,7 +88,7 @@ export const AREAS: Area[] = [
     contract: "Race picks contract (owner wallet OWNER_WIF)" },
   { id: "combo", name: "Combo Card", section: "Games", status: "planned", gameId: 8,
     what: "A card of several picks across games, scored together.",
-    later: "Staked + Free play (free prize off for now). Needs fix-check 4 and the Picks v2 (CARD) upgrade and its audit first; controls appear here then." },
+    later: "Staked + Free play (free prize off for now). Needs the Combo PR merged (Repo Lens GO) and the Picks v2 (CARD) upgrade first; controls appear here then. Launch: vault week 7, Mon 7 Dec." },
   { id: "bracket", name: "Producer Bracket", section: "Games", status: "planned", gameId: 9,
     what: "A knockout bracket of producers.",
     later: "Staked + Free play (free prize on). Its Repo Lens audit (3 Nov) said fix first (branch kg-09-bracket); it launches when its fix-check passes. Controls appear here then." },

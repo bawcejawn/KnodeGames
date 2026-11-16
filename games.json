@@ -32,6 +32,8 @@
       "board": { "data": "games-data/bracket/board.json", "earns": true, "hide": ["today"],
         "unranked": "The Staked board is for wallets with at least 1 VHP staked in the Producer Bracket that week.",
         "free": { "show": 6, "prize": "The Free play board pays no VHP prize for now. Players staked in the Producer Bracket share its weekly bucket." },
-        "columns": [{ "key": "pts", "label": "Points" }, { "key": "correct", "label": "Right" }] } }
+        "columns": [{ "key": "pts", "label": "Points" }, { "key": "correct", "label": "Right" }] } },
+    { "id": "combo", "name": "Combo Card", "kinds": ["free", "staked"], "status": "soon", "href": "",
+      "line": "Build a card of 2 to 10 calls from the races and Block X. Every leg must hit; harder legs pay more." }
   ]
 }

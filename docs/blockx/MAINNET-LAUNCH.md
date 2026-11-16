@@ -283,6 +283,10 @@ opens the pull request to `main`; once merged and live, `npm run sponsor -- conf
 v2 is `92d555d0680157854452e35162c1b1c5c100904996194b8c1c848df50e5e1c3d` (the Combo chat's release; full steps in
 `picks/README.md` on the `combo` branch). It replaces the code at the same address (`1LmgqB…`), signed by the owner.
 
+0. **Not during a Picks owner handover.** Accepting a new owner clears an announced upgrade (D-083), so
+   `upgrade-schedule` refuses while `picks-data/deployment.json` has a `"nextOwner"` or the chain shows a proposed
+   owner. The Picks calendar (Block X chat, 12 Nov): handover accepted Wed 25 Nov, then this upgrade, signed by the new
+   owner (`OWNER_WIF` = the new owner's key from then on).
 1. Publish the v2 source and a reproducible build; check its sha256 is the one above.
 2. **Announce** (owner): `npm run picks -- upgrade-schedule` (dry run), then
    `npm run picks -- upgrade-schedule --send --mainnet --code 92d555d0`. Wait 48 hours; the upload must follow within
@@ -290,7 +294,8 @@ v2 is `92d555d0680157854452e35162c1b1c5c100904996194b8c1c848df50e5e1c3d` (the Co
 3. **Upload** (owner): `npm run picks -- upgrade-upload` (dry run), then
    `npm run picks -- upgrade-upload --send --mainnet --code 92d555d0`. It checks on two nodes that the code's sha256 is
    v2's and all three overrides are on, and prints the three lines for step 5.
-4. **Clear** (owner): `npm run picks -- upgrade-clear` (dry run), then `npm run picks -- upgrade-clear --send --mainnet`.
+4. **Clear** (owner): `npm run picks -- upgrade-clear` (dry run), then
+   `npm run picks -- upgrade-clear --send --mainnet --code 92d555d0`.
    It clears the announced hash, so the same bytes can't be uploaded again (audit CC-A3).
 5. **Write v2's sha256 into `picks-data/deployment.json` (Repo Lens FC2-13).** Use the three lines `upgrade-upload`
    printed: `"wasmSha256"` = `92d555d0680157854452e35162c1b1c5c100904996194b8c1c848df50e5e1c3d`, and `"uploadTx"` /
@@ -305,10 +310,12 @@ v2 is `92d555d0680157854452e35162c1b1c5c100904996194b8c1c848df50e5e1c3d` (the Co
    then Claude opens the pull request for the site's `sponsor.rcLimits`, and after it merges,
    `npm run sponsor -- config --send`. Check a real mainnet card with `npm run sponsor -- mana-report` a day after
    launch.
-8. Only then announce game 8 (Combo Card). Wait 48 hours, then `apply_game`.
+8. Only then announce game 8 (Combo Card): `npm run picks -- announce 8` (dry run: check the printed shape), then
+   `npm run picks -- announce 8 --send --mainnet`. Wait 48 hours, then `npm run picks -- apply 8 --send --mainnet`.
+   The config is pinned in `bot/picks.ts` (`COMBO_GAME`); the tool refuses it until step 5 is merged.
 
-The upgrade commands (`upgrade-schedule`, `upgrade-upload`, `upgrade-clear`) are on the `combo` branch (5052fa6). They
-reach `picks` and `main` only when Combo merges, after Repo Lens has reviewed them.
+The upgrade commands (`upgrade-schedule`, `upgrade-upload`, `upgrade-clear`) come to `main` with the Combo Card pull
+request, after its Repo Lens GO. Overview: `docs/combo/REPO-LENS-COMBO.md`.
 
 ## Every hour
 

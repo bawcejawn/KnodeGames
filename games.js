@@ -25,6 +25,7 @@
     fantasy: ["M12 5a3 3 0 1 1 0 6a3 3 0 1 1 0-6z", "M5 20c1-4 4-6 7-6s6 2 7 6"],
     golf: ["M7 21V4l9 4-9 4", "M4 21h8"],
     bracket: ["M4 5h5v4H4z", "M4 15h5v4H4z", "M15 10h5v4h-5z", "M9 7h3v10H9", "M12 12h3"],
+    combo: ["M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 6v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-6z", "M14 5v14"],
   };
   const KINDS = { free: "Free play", staked: "Staked" };
 
@@ -53,8 +54,9 @@
   function clean(list) {
     const ok = (g) => g && typeof g.id === "string" && /^[a-z0-9-]{1,24}$/.test(g.id) && typeof g.name === "string" && g.name.length <= 40
       && typeof g.line === "string" && g.line.length <= 200 && Array.isArray(g.kinds) && g.kinds.length && g.kinds.every((k) => k in KINDS)
-      && (g.status === "live" || g.status === "soon") && typeof g.href === "string"
-      && (g.status === "soon" ? g.href === "" : /^[a-z0-9-]+\.html(#[a-z/]+)?$/.test(g.href));
+      && (g.status === "live" || g.status === "soon" || g.status === "preview") && typeof g.href === "string"
+      && (g.status === "soon" ? g.href === "" : /^[a-z0-9-]+\.html(#[a-z/]+)?$/.test(g.href))
+      && (g.opens === undefined || (typeof g.opens === "string" && g.opens.length <= 30));
     return Array.isArray(list) ? list.filter(ok).slice(0, 40) : [];
   }
 
@@ -167,16 +169,18 @@
   }
 
   function card(g) {
-    const live = g.status === "live";
-    const pills = [...g.kinds.map((k) => el("span", { class: `pill ${k}`, text: KINDS[k] })), live ? el("span", { class: "pill", "data-prize": g.id, hidden: "" }) : el("span", { class: "pill soon", text: "Soon" })];
+    const live = g.status === "live", preview = g.status === "preview";
+    // "preview" (Combo, owner 15 Nov): the page opens, but nothing is live yet: no status, stake or prize, just a link
+    const pills = [...g.kinds.map((k) => el("span", { class: `pill ${k}`, text: KINDS[k] })), live ? el("span", { class: "pill", "data-prize": g.id, hidden: "" })
+      : preview ? el("span", { class: "pill preview", text: g.opens ? `Preview · ${g.opens}` : "Preview" }) : el("span", { class: "pill soon", text: "Soon" })];
     const body = el("span", { class: "g-bd" },
       el("span", { class: "g-t" }, el("span", { class: "g-name", text: g.name }), ...pills),
       el("span", { class: "g-line", text: typesLive() && typeof g.lineTypes === "string" && g.lineTypes.length <= 200 ? g.lineTypes : g.line }),
       live && status[g.id] ? el("span", { class: "g-st", "data-status": g.id }) : null,
       live && VAULT_IDS[g.id] ? el("span", { class: "g-stake", "data-stake": String(VAULT_IDS[g.id]), hidden: "" }) : null);
     const ic = el("span", { class: "g-ic" }); ic.append(icon(g.id));
-    return live
-      ? el("a", { class: "g", href: g.href, "data-game": g.id }, ic, body, el("span", { class: "g-go", "aria-hidden": "true", text: "›" }))
+    return live || preview
+      ? el("a", { class: "g" + (preview ? " preview" : ""), href: g.href, "data-game": g.id }, ic, body, el("span", { class: "g-go", "aria-hidden": "true", text: "›" }))
       : el("div", { class: "g soon", "data-game": g.id }, ic, body);
   }
 
@@ -205,7 +209,7 @@
       $("g-results").replaceChildren(el("b", { text: "Results: " }), ...links);
       $("g-results").hidden = false;
     }
-    $("g-soon").replaceChildren(...games.filter((g) => g.status === "soon").map(card));
+    $("g-soon").replaceChildren(...games.filter((g) => g.status === "preview").map(card), ...games.filter((g) => g.status === "soon").map(card));
     // "Where to stake": every game's stake side by side (stake-panel.js; hidden until the Knode Games vault is live).
     // Each live game links to its own page's stake panel (#stake); Daily Questions to its card on the Stake page.
     const stakeBox = $("stake-list");
@@ -214,7 +218,7 @@
       for (const g of games) if (g.status === "live" && VAULT_IDS[g.id]) links[VAULT_IDS[g.id]] = g.id === "questions" ? "stake.html#g1" : `${g.href.split("#")[0]}#stake`;
       window.KStake.mountList(stakeBox, { links });
     }
-    $("soon-box").hidden = !games.some((g) => g.status === "soon");
+    $("soon-box").hidden = !games.some((g) => g.status === "soon" || g.status === "preview");
     refresh();
     loadRace(); loadQuestions(); drawPrizeLabels(); loadPrizes();
     setInterval(() => { week(); refresh(); }, 60000);

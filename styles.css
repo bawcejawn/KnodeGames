@@ -688,6 +688,7 @@ body[data-view="welcome"] .foot .eco { display: none; }
 .welcome-also { display: flex; flex-direction: column; gap: 10px; }
 .welcome-also h2 { font-size: 1.15rem; }
 .also-card { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 16px; text-decoration: none; color: var(--ink); }
+.tile-tag { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; background: var(--sun); color: #1b1206; padding: 1px 7px; border-radius: 99px; margin-right: 4px; vertical-align: 1px; }
 .also-card:hover { border-color: var(--violet); }
 .also-card > span { width: 44px; height: 44px; border-radius: 50%; background: var(--violet-soft); display: grid; place-items: center; font-size: 1.3rem; }
 .also-card b { font: 700 1.02rem/1.25 var(--display); }

@@ -136,6 +136,8 @@
     .rt-pc { display: flex; flex-direction: column; text-align: center; line-height: 1.15; }
     .rt-pc span { font-weight: 400; font-size: 11px; }
     img.pr-horse { width: 40px; height: 40px; object-fit: contain; transform: none; font-size: 0; }
+    /* owner 15 Nov: the horse was hard to see on the light-green track: a white outline and a darker shadow */
+    img.pr-horse { filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 2px 3px rgba(0, 0, 0, .5)); }
     .pr-step img.pr-horse { animation: hop2 .5s ease; }
     @keyframes hop2 { 40% { transform: translateY(-6px); } }
     @media (prefers-reduced-motion: reduce) { .pr-step img.pr-horse { animation: none; } }
@@ -268,7 +270,8 @@
       .pr-run { height: 46px; }
       .pr-gap { font-size: 12px; line-height: 1.35; }
       .pr-viewbar, #r6-win { gap: 5px; margin-bottom: 8px; }
-      .pr-viewbar .rt-wl, #r6-win .rt-wl { font-size: 12px; width: 100%; margin: 0; }
+      #r6-win .rt-wl { font-size: 12px; width: 100%; margin: 0; }
+      .pr-viewbar .rt-wl { font-size: 12px; margin: 0 2px 0 0; min-width: 34px; }
       .pr-viewbar button, #r6-win button { font-size: 12.5px; padding: 4px 10px; }
       #live h2#race-title { font-size: 17px; line-height: 1.3; }
       .pr-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }

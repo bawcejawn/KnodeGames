@@ -111,6 +111,10 @@
   // no extra strip under the lane). "Whole race" is the old 0-to-finish scale with the hour marks.
   let packView = true;
   try { packView = localStorage.getItem("pr-view") !== "whole"; } catch { /* default */ }
+  // Owner 15 Nov: a couple of sort options. "Most VHP" (the fixed line-up, default), "Current place" (live order), "A–Z".
+  const SORTS = [["vhp", "Most VHP"], ["place", "Current place"], ["name", "A–Z"]];
+  let sortBy = "vhp";
+  try { const v = localStorage.getItem("pr-sort"); if (SORTS.some(([k]) => k === v)) sortBy = v; } catch { /* default */ }
   const R6_WINDOWS = [3600000, 3 * 3600000];
   function render() {
     if (!B) return;                                     // the blocks aren't loaded yet (the picks panel can be first)
@@ -159,7 +163,10 @@
       if (!fixed) { fixed = [...rows].sort((p, q) => (vhpOf.get(q.a) || 0) - (vhpOf.get(p.a) || 0) || (p.a < q.a ? -1 : 1)).map((r) => r.a); if (c0) r6Fixed.set(race.id, fixed); }
       const extra = rows.filter((r) => !fixed.includes(r.a)).map((r) => r.a).sort();
       if (extra.length) { fixed = fixed.concat(extra); if (c0) r6Fixed.set(race.id, fixed); }
-      const at = new Map(fixed.map((a, k) => [a, k])), ordered = [...rows].sort((p, q) => at.get(p.a) - at.get(q.a));
+      const at = new Map(fixed.map((a, k) => [a, k]));
+      const ordered = sortBy === "place" ? [...rows]   // rows are in live place order
+        : sortBy === "name" ? [...rows].sort((p, q) => nameOf(p.a).localeCompare(nameOf(q.a), undefined, { sensitivity: "base" }) || (p.a < q.a ? -1 : 1))
+        : [...rows].sort((p, q) => at.get(p.a) - at.get(q.a));
       const RO6 = ended ? ruledFor(race, 0) : null;   // a ruler week: the ruler's places, not the steps, decide
       const existing = new Map([...track.querySelectorAll(".pr-lane")].map((c) => [c.dataset.addr, c]));
       // Who moved since the last refresh (only while watching the live race; a new race or view starts clean).
@@ -177,6 +184,10 @@
       if (!viewBar) { viewBar = el("div", { id: "r6-view", class: "rt-win pr-viewbar" }); track.parentNode.insertBefore(viewBar, track); }
       viewBar.replaceChildren(el("span", { class: "rt-wl", text: "View:" }),
         ...[["Pack", true, "Zoomed in on the pack: easier to see who is ahead"], ["Whole race", false, "From the start line to the 6-hour finish"]].map(([t, v, tip]) => el("button", { type: "button", title: tip, "aria-pressed": String(packView === v), onclick: () => { packView = v; try { localStorage.setItem("pr-view", v ? "pack" : "whole"); } catch { /* fine */ } render(); } }, t)));
+      let sortBar = $("r6-sort");
+      if (!sortBar) { sortBar = el("div", { id: "r6-sort", class: "rt-win pr-viewbar" }); track.parentNode.insertBefore(sortBar, track); }
+      sortBar.replaceChildren(el("span", { class: "rt-wl", text: "Sort:" }),
+        ...SORTS.map(([k, t]) => el("button", { type: "button", "aria-pressed": String(sortBy === k), onclick: () => { sortBy = k; try { localStorage.setItem("pr-sort", k); } catch { /* fine */ } render(); } }, t)));
       const xs = rows.map((r) => r.x).filter(Number.isFinite), lo = Math.min(...xs), hi = Math.max(...xs);
       const PACK = (x) => (hi - lo > 1e-9 ? 0.04 + 0.92 * ((x - lo) / (hi - lo)) : 0.5);   // last place ~left, leader ~right
       if (hasWin) winBar.replaceChildren(el("span", { class: "rt-wl", text: "Places gained / lost over:" }),

@@ -112,7 +112,9 @@ function start() {
       const getText = async (u) => { const r = await fetch(DATA + u, { cache: "no-cache" }); if (!r.ok) throw new Error(String(r.status)); return r.text(); };
       const [wp, inp] = await Promise.all([loadWeekParts(getText, `W${pad(w)}`), get(`inputs/W${w}.json`)]);
       const wf = wp || (await get(`W${pad(w)}.json`));
-      if (wf && wf.week === w && wf.start === weekStart(w)) files.weeks.set(w, wf); else files.weeks.delete(w);
+      // Repo Lens #J-4 J4-2: a load that fails (e.g. a cached manifest naming parts the publish job just replaced) keeps
+      // the week the page already had; only a file for another week is dropped.
+      if (wf && wf.week === w && wf.start === weekStart(w)) files.weeks.set(w, wf); else if (wf) files.weeks.delete(w);
       if (inp && inp.week === w && inp.data && inp.data.start === weekStart(w) && Array.isArray(inp.data.pool)) files.lists.set(w, inp.data); else files.lists.delete(w);
     }));
   }
@@ -132,6 +134,7 @@ function start() {
   /** The team a wallet carries into week w (when it fits w's list): the previous week's final `next`; while that week
    *  isn't final yet, its Saturday team as the page works it out (`saturday`, from your picks), else its pending `next`. */
   function carriedInto(w, who, saturday = null) {
+    if (w === F.FIRST_REAL_WEEK) return null;   // the first real week starts with no teams, as in the recorder (J4-1)
     const prev = files.weeks.get(w - 1), list = listOf(w);
     const fromFile = prev && Array.isArray(prev.next) ? (prev.next.find((x) => x[0] === who) || [])[1] : null;
     const t = prev && prev.state === "final" ? fromFile && fromFile.t : saturday || (fromFile && fromFile.t);

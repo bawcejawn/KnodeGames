@@ -18,7 +18,7 @@ import { CARD, dayCard, flagged, rowsOf, sourcesOf } from "./ruler-view.ts";
 import { NotYet } from "../../kit/recorder/types.ts";
 
 /** The first real (staked) week: it starts with no teams, whatever the test week before it held (owner, Sat 14 Nov). */
-export const FIRST_REAL_WEEK = 5;
+export const FIRST_REAL_WEEK = F.FIRST_REAL_WEEK;
 
 export const VAULT_GAME = 4;                 // FC-29: one constant
 export const RIVAL_GAME = 5;

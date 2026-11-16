@@ -72,3 +72,11 @@ test("Bracket joins from vault week 6 at the earliest; the workflow fetches its 
   const y = fs.readFileSync(path.resolve(process.env.APP || ".", ".github/workflows/golf.yml"), "utf8");
   assert.match(y, /bracket\//); assert.match(y, /W\[0-9\]\{3,4\}/);
 });
+
+test("Repo Lens G92-3: more than 100,000 points rows is a failed read, never a cut field", async () => {
+  const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  const uniq = (i) => { let s = "", n = i; for (let k = 0; k < 6; k++) { s = B58[n % 58] + s; n = Math.floor(n / 58); } return "1" + "K".repeat(27) + s; };
+  const many = Array.from({ length: 100001 }, (_, i) => [uniq(i), 1, 0, 1]);   // every wallet different
+  const h = await twice(games(week({ points: many })));
+  assert.notEqual(h.status, "final"); assert.equal(h.rows.length, 0);
+});

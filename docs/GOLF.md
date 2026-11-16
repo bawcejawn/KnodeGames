@@ -26,8 +26,10 @@ prize switch), D-125 / D-129 (weekly rhythm), D-138 (launch order). Game file: `
    week's last season day with `survivor-math.js`, not keep a snapshot: audit H4). **Or the standard reader:** a game
    that publishes the shared board at `games-data/<id>/board.json` (Block X's shape, with `lastWeek.final`) adds
    `"golf": "standard"` to its `games.json` entry and needs no reader of its own. It is opt-in on purpose: a game's
-   board is trusted as a hole only after its own chat and Repo Lens say so. Its id must be a plain lower-case name
-   (the workflow and the recorder both refuse anything else), and it must be in `COURSE_ORDER` in `golf-math.js`. A kit board that has `cut` rows left out, is not `complete`, or lists a wallet twice is a failed read, never scored.
+   board is trusted as a hole only after its own chat and Repo Lens say so. Its id must be a plain lower-case name of at
+   most 24 characters (the workflow and the recorder both refuse anything else; Repo Lens G92-2). **Each opt-in is its
+   own small PR with its own Repo Lens round**, which checks that the game's board says `final` no earlier than its own
+   payout file is final, with no hold or correction possible after that (Repo Lens #G-92 check 4, as the Race's #G-3), and it must be in `COURSE_ORDER` in `golf-math.js`. A kit board that has `cut` rows left out, is not `complete`, or lists a wallet twice is a failed read, never scored.
    **Producer Bracket** has its own reader: it reads the week file `games-data/bracket/W<week>.json` (`points` = `[wallet, pts, champion, correct]`), never `board.json` (capped at 1,000 rows a side, with no flag). Only `status: "final"` scores; `void` and `none` skip the hole for everyone; `waiting`, `open`, `locked` and anything unknown wait. It joins from vault week 6 (Mon 30 Nov) (`JOIN_FROM` in `bot/games/golf.ts`).
 3. It plays from the **Monday after** it went live, so nobody loses strokes on a game that didn't exist all week.
 

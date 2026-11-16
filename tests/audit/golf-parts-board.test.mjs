@@ -161,3 +161,15 @@ test("the workflow takes each v 2 list's folder: plain files only, nothing else"
   const b = JSON.parse(fs.readFileSync(path.join(rt, "games", "blockx", "board.json"), "utf8"));
   assert.ok(!("error" in partsRows(path.join(rt, "games", "blockx"), "blockx", b.lastWeek, W, true)), "what the workflow took passes the reader's checks");
 });
+
+test("Repo Lens G92-1: a shard row with a score Golf can't store is a failed read, never a wallet dropped", async () => {
+  for (const bad of [-1, 2e12]) {
+    const edit = (m) => { const k = [...m.keys()].find((x) => m.get(x).length); m.get(k)[0][3] = bad; return m; };
+    failed(await twice(v2(tmp("games-"), "blockx", { edit }).gamesDir), /score Golf can't store/);
+  }
+});
+
+test("Repo Lens G92-5: the newest Bracket week files are picked in number order (sort -V)", () => {
+  const y = fs.readFileSync(path.resolve(APP, ".github/workflows/golf.yml"), "utf8");
+  assert.match(y, /W\[0-9\]\{3,4\}\\\.json\$' \| sort -V \| tail -4/);
+});

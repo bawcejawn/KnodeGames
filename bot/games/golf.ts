@@ -149,7 +149,7 @@ export function sourcesFromGames(file: URL | string = new URL("../../games.json"
  *  owner to confirm). Applied once, when the game is first seen; the join week is then fixed in the index. */
 export const JOIN_FROM: Record<string, number> = { bracket: 6 };
 export const STANDARD = "standard";
-export const STANDARD_ID = /^[a-z][a-z0-9-]{1,30}$/;
+export const STANDARD_ID = /^[a-z][a-z0-9-]{1,23}$/;   // Repo Lens G92-2: the course and the publish job keep ids of at most 24
 
 // ── readers: one per game, each turning that game's own published results into hole rows ──
 /** A shared-shape board.json's view of week w: its "week" or "lastWeek". */
@@ -203,6 +203,7 @@ export function partsRows(dir: string, game: string, list: any, w: number, final
     const shard = p.part.slice(2);
     for (const x of p.rows) {
       if (!isAddr(x.player)) return { error: `${list.parts}/${p.part} has a row that isn't a wallet` };
+      if (cleanScore(x.pts) === null) return { error: `${list.parts}/${p.part} has a score Golf can't store` };   // Repo Lens G92-1: never drop a wallet later
       if (seen.has(x.player)) return { error: `${list.parts} lists a wallet twice` };
       if (shardOf(x.player, 16) !== shard) return { error: `${list.parts}/${p.part} holds a wallet that belongs in another shard` };
       seen.add(x.player);
@@ -284,6 +285,7 @@ const READERS: Record<string, (src: Source, w: number, c: Ctx) => Promise<Read>>
     if (j.status === "void" || j.status === "none") return { state: "none", rows: [], why: j.status === "void" ? `the ${s.name} results couldn't be completed` : `there was no ${s.name} this week` };
     if (j.status !== "final") return { state: "live", rows: [], why: `waiting for the ${s.name} results` };
     if (!Array.isArray(j.points)) return fail(`${file} has no points list`);
+    if (j.points.length > MAX_ROWS) return fail(`${file} has more players than Golf reads`);   // Repo Lens G92-3: never a part of the field
     const seen = new Set<string>(), rows: Row[] = [];
     for (const r of j.points.slice(0, MAX_ROWS)) {
       if (!Array.isArray(r) || !isAddr(r[0]) || !Number.isInteger(r[1]) || r[1] < 0 || r[1] > 1e6) return fail(`${file} has a points row that isn't a wallet and a whole score`);

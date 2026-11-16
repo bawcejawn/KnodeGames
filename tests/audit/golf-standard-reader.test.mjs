@@ -68,7 +68,7 @@ test("a source whose id is not a plain name is not read (no path out of games-da
 test("the workflow fetches each opted-in game's board with a plain-id check", () => {
   const y = fs.readFileSync(path.resolve(process.env.APP || ".", ".github/workflows/golf.yml"), "utf8");
   assert.match(y, /x\.golf==="standard"/);
-  assert.match(y, /\^\[a-z\]\[a-z0-9-\]\{1,30\}\$/);
+  assert.match(y, /\^\[a-z\]\[a-z0-9-\]\{1,23\}\$/);
 });
 
 // ── kit games (Fantasy, Bracket's kit board): kit/recorder/boards.ts shape, rows { a, board, place, pts, ranked } ──
@@ -98,4 +98,11 @@ test("a board listing a wallet twice is a failed read, never half-scored", async
   const rowsTwice = [...P.map(kitRow), kitRow(P[0], 9)];
   const { hole: h } = await kitHole(kitBoard({ rows: rowsTwice }));
   assert.notEqual(h.status, "final"); assert.equal(h.rows.length, 0);
+});
+
+test("Repo Lens G92-2: a standard id is at most 24 characters (the course and the publish job keep no longer)", () => {
+  const f = path.join(tmp("g-"), "games.json");
+  const id24 = "a" + "b".repeat(23), id25 = "a" + "b".repeat(24);
+  write(path.dirname(f), "games.json", { v: 1, games: [{ id: id24, name: "X", status: "live", golf: "standard" }, { id: id25, name: "Y", status: "live", golf: "standard" }] });
+  assert.deepEqual(sourcesFromGames(f).map((x) => x.id), [id24]);
 });

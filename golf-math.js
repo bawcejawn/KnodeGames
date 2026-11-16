@@ -38,6 +38,14 @@
  * - Places: more points, then fewer lost balls, then more holes under par, then the better best hole. Players equal on
  *   all four share the place.
  *
+ * THE CLUBHOUSE (owner, 6 Nov; accumulating: owner, 15 Nov; claude/golf/CLUBHOUSE-BUILD-PLAN-2026-11-15.md)
+ * - One more hole, the same weight as a game hole, scored by how many DIFFERENT Knode Games features a wallet has
+ *   used. Each feature is earned once, the first week it is seen, and kept for good: nothing resets and doing a
+ *   feature again adds nothing, so there is nothing to gain by spamming.
+ * - Strokes from the number of features earned by the end of the week (a fixed ladder, not a place among players, so
+ *   the hole is never skipped for a small field): 0 = 7 (lost ball), 1 = 6, 2 = 5, 3-4 = 4 (par), 5-6 = 3,
+ *   7-8 = 2, 9 or more = 1. The mulligan can drop it like any hole.
+ *
  * Every number here is a small integer, so the page and the recorder can't round differently.
  */
 (function (root) {
@@ -50,7 +58,30 @@
   const ICON = Object.freeze({ 1: "⛳", 2: "🦅", 3: "🐦", 4: "⚪", 5: "🟧", 6: "🟥", 7: "⬛" });
   // The course, in the order holes are played. A game joins only when it is live in games.json AND has a reader here
   // (bot/games/golf.ts). New games add their id here and their reader in the recorder, with a test.
-  const COURSE_ORDER = Object.freeze(["questions", "race", "blockx", "survivor", "lastnode", "bracket", "fantasy", "combo"]);
+  const COURSE_ORDER = Object.freeze(["questions", "race", "blockx", "survivor", "lastnode", "bracket", "fantasy", "combo", "clubhouse"]);
+  // The Clubhouse: its hole id, the ladder (features earned → strokes) and the features it counts. A feature id is
+  // [a-z0-9-]{1,32}; "play-<game>" is one per game on the course. New features add a line here and a reader in
+  // the recorder, with a test.
+  const CLUBHOUSE = "clubhouse";
+  const CLUB_LADDER = Object.freeze([7, 6, 5, 4, 4, 3, 3, 2, 2, 1]);
+  const CLUB_FEATURES = Object.freeze({
+    "staked": "Staked VHP in a Knode game",
+    "claimed": "Claimed a reward",
+    "two-games": "Staked in 2 or more games in one week",
+    "swap": "Swapped VHP for KOIN on the swap desk",
+    "name": "Got an @name",
+    "producer": "Ran a producer that signed a block",
+    "all-games": "Played every game on the course in one week",
+    "blockx-3-days": "Made Block X picks on 3 or more days of a week",
+  });
+  const isFeature = (f) => typeof f === "string" && /^[a-z0-9-]{1,32}$/.test(f);
+  /** A feature's name for the page: the list above, or "Played <game name>" for play-<game>. */
+  function featureName(f, gameName) {
+    if (Object.prototype.hasOwnProperty.call(CLUB_FEATURES, f)) return CLUB_FEATURES[f];
+    return /^play-[a-z0-9-]{1,24}$/.test(f) ? `Played ${gameName || f.slice(5)}` : f;
+  }
+  /** Clubhouse strokes for a number of features earned. */
+  const clubStrokes = (n) => (Number.isInteger(n) && n > 0 ? CLUB_LADDER[Math.min(n, CLUB_LADDER.length - 1)] : LOST);
   const isAddr = (a) => typeof a === "string" && /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a);
 
   /** Strokes for a place, counted in units (a wallet in practice weeks, a whole VHP of Block Golf stake in staked
@@ -101,6 +132,28 @@
       results[r.a] = { place: ahead + 1, of: inField ? n : n + 1, strokes };
     }
     return { skipped: false, why: "", field: n, weight: units, results };
+  }
+
+  /** The Clubhouse hole. rows: [{ a, score (features earned), scored, ranked }]. Never skipped: the ladder doesn't
+   *  depend on anyone else. place = the wallet's features, of = null (shown as "N features"). field = wallets that
+   *  count: practice, every row; staked, the rows with Block Golf stake (as on any hole). */
+  function scoreClub(rows, everyone = false) {
+    const by = new Map();
+    for (const r of Array.isArray(rows) ? rows : []) {
+      if (!r || !isAddr(r.a) || !Number.isInteger(r.score) || r.score < 1) continue;
+      const old = by.get(r.a), w = weightOf(r.ranked);
+      if (!old || r.score > old.score) by.set(r.a, { a: r.a, score: r.score, w: Math.max(w, old ? old.w : 0) });
+      else old.w = Math.max(old.w, w);
+    }
+    const all = [...by.values()];
+    const field = everyone ? all.length : all.filter((r) => r.w > 0).length;
+    const results = {};
+    for (const r of all) results[r.a] = { place: r.score, of: null, strokes: clubStrokes(r.score) };
+    return { skipped: false, why: "", field, weight: 0, results };
+  }
+  /** A hole by its id: the Clubhouse by its ladder, every other hole by place. */
+  function scoreHoleFor(id, rows, minField = MIN_FIELD, everyone = false, minWeight = 0) {
+    return id === CLUBHOUSE ? scoreClub(rows, everyone) : scoreHole(rows, minField, everyone, minWeight);
   }
 
   /** One player's week. holes: [{ id, skipped, results }] in course order. Null if they played no counted hole or the
@@ -185,5 +238,6 @@
   root.KGolf = {
     PAR, LOST, MIN_FIELD, PRACTICE_MIN_FIELD, MIN_FIELD_VHP, rule, weightOf, BANDS, NAMES, SHORT, ICON, COURSE_ORDER,
     strokesFor, scoreHole, card, cards, toParText, shareText, freeMedals, courseFor, orderOf, isAddr,
+    CLUBHOUSE, CLUB_LADDER, CLUB_FEATURES, isFeature, featureName, clubStrokes, scoreClub, scoreHoleFor,
   };
 })(typeof window !== "undefined" ? window : globalThis);

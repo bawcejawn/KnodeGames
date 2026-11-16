@@ -28,7 +28,7 @@ test("render: every committed kit workflow is exactly what the kit renders (run 
 // D-160, since the first kit game (Fantasy, #266): kit games live only between the kit's markers; every hand-written
 // line of games.yml stays exactly as it is on main.
 test("render: kit games change games.yml only between the kit's markers; the hand-written jobs are main's (D-160)", () => {
-  assert.deepEqual(kitGames(ROOT).flatMap((x: any) => x.games.map((g: any) => `${x.file}:${g.slug}`)), ["games.yml:fantasy"], "the kit games are exactly the games with a GameModule");
+  assert.deepEqual(kitGames(ROOT).flatMap((x: any) => x.games.map((g: any) => `${x.file}:${g.slug}`)), ["games.yml:fantasy", "games.yml:survivor"], "the kit games are exactly the games with a GameModule");
   const strip = (t: string) => { const a = t.indexOf(BEGIN); if (a < 0) return t; const b = t.indexOf(END, a) + END.length; return t.slice(0, a).replace(/\n+$/, "\n") + t.slice(b).replace(/^\n/, ""); };
   const now = fs.readFileSync(path.join(ROOT, ".github/workflows/games.yml"), "utf8");
   assert.ok(now.includes(BEGIN) && now.includes(END), "the kit block is there");

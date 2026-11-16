@@ -102,8 +102,9 @@ jobs:
         run: |
           set -uo pipefail
           git init -q "$RUNNER_TEMP/vhp-data"
+          # Repo Lens #G-75 G75-1: a failure after the download (the checkout) is soft and loud too: an empty folder, a warning.
           if git -C "$RUNNER_TEMP/vhp-data" fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" vhp-data; then
-            git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD
+            git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD || { rm -rf "$RUNNER_TEMP/vhp-data"; git init -q "$RUNNER_TEMP/vhp-data"; echo "::warning::The VHP ruler's data (vhp-data) downloaded but didn't unpack this run: races are recorded, the ruler's cards wait for the next run."; }
           else
             echo "::warning::The VHP ruler's data (vhp-data) didn't download this run: races are recorded, the ruler's cards wait for the next run."
           fi
@@ -1883,7 +1884,7 @@ jobs:
           git init -q "$RUNNER_TEMP/vhp-data"
           # Capacity (14 Nov): a download hiccup holds only the ruler's files (each fails its check alone), not the run.
           if git -C "$RUNNER_TEMP/vhp-data" fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" vhp-data; then
-            git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD
+            git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD || { rm -rf "$RUNNER_TEMP/vhp-data"; git init -q "$RUNNER_TEMP/vhp-data"; echo "::warning::The VHP ruler's data (vhp-data) downloaded but didn't unpack this run (G75-1): the ruler's files are held until the next run."; }
           else
             echo "::warning::The VHP ruler's data (vhp-data) didn't download this run: the ruler's files are held until the next run."
           fi
@@ -2049,6 +2050,8 @@ jobs:
           # while it is null; tests only set RACE_TYPES_FROM). Before it a T file is refused; from it a final vault week
           # needs its T file with every typed race final.
           TYPES_OFF = 1000000
+          NOCARD_FROM_WEEK = 5   # = NOCARD_FROM_WEEK in bot/race.ts (Fix 1, owner 14 Nov: from Week 2; a test checks they match)
+          NOCARD_FROM = int(os.environ.get("RACE_NOCARD_FROM") or NOCARD_FROM_WEEK)   # the tests set RACE_NOCARD_FROM; the workflow never does
           TYPES_FROM_WEEK = 5   # = M.TYPES_FROM_WEEK (owner, 13 Nov: vault week 5, Mon 23 Nov 2026; a test checks they match)
           TYPES_FROM = int(os.environ.get("RACE_TYPES_FROM") or TYPES_FROM_WEEK)
           DAY_S = 86400
@@ -2296,6 +2299,19 @@ jobs:
                       and sum(h["n"].values()) == h["b"] - h["a"] + 1, f + ": an hour's block counts"
                   assert type(h["l"]) is dict and set(h["l"]) <= set(h["n"]) and all(type(v) is int and h["t"] <= v < h["t"] + 3600000 for v in h["l"].values()), f + ": an hour's last block times"
                   assert type(h["c"]) is list and len(h["c"]) == 4 and all(num(v) and 0 <= v <= 2.5 for v in h["c"]), f + ": an hour's luck trims"
+              # Fix 1: an hour whose 6-hour race has no handicap card at all is in the ledger only from NOCARD_FROM, in a week
+              # the ruler is on, with no luck trims (no card to tune them from); its typed races carry no handicap standings.
+              _wj = week_json(j["week"])
+              _bare = {r.get("start"): r for r in (_wj.get("races") if type(_wj) is dict and type(_wj.get("races")) is list else [])
+                       if type(r) is dict and type(r.get("cards")) is list and r["cards"] and all(c is None for c in r["cards"]) and type(r.get("start")) is int}
+              def _bare_at(t0): return _bare.get(t0 - (t0 - j["start"]) % 21600000)
+              for h in hs:
+                  if _bare_at(h["t"]) is not None:
+                      assert j["week"] >= NOCARD_FROM and ruler_mode(j["week"]) == "on" and h["c"] == [0, 0, 0, 0], f + ": a ledger hour with no handicap card (Fix 1: only from NOCARD_FROM, in a week the ruler is on, with no luck trims)"
+              for r in j["races"]:
+                  x = r["result"]
+                  if type(x) is dict and x.get("final") is True and not x.get("missed") and any(_bare_at(t0) is not None for t0 in range(r["start"], r["end"], 3600000)):
+                      assert x.get("standings") == [] and x.get("winner") is None, f + " " + r["id"] + ": a typed race over an hour with no handicap card has no handicap standings (Fix 1)"
               def iso(ms, fmt): return datetime.datetime.fromtimestamp(ms / 1000, datetime.timezone.utc).strftime(fmt)
               want = []
               for ty, step, ln, pre, fmt in ((1, 3600000, 3600000, "H1-", "%Y-%m-%dT%H"), (2, 7200000, 7200000, "H2-", "%Y-%m-%dT%H"), (3, 86400000, 86400000, "D-", "%Y-%m-%d"), (4, 7 * 86400000, 6 * 86400000, "W-", "%Y-%m-%d")):
@@ -2523,6 +2539,11 @@ jobs:
               for r in j["races"]:
                   assert set(r) == {"id", "start", "end", "cards", "result"} and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T(00|06|12|18)", r["id"]), f
                   assert type(r["cards"]) is list and len(r["cards"]) in (3, 6) and all(card_ok(c) for c in r["cards"]) and result_ok(r["result"]), f + " " + r["id"]
+                  # Fix 1: a race with no handicap card at all is final only as missed, except from NOCARD_FROM in a week the
+                  # ruler is on: then it is recorded from its blocks and picks, with no handicap standings (the ruler decides it).
+                  if all(c is None for c in r["cards"]) and type(r["result"]) is dict and not r["result"].get("missed"):
+                      assert j["week"] >= NOCARD_FROM and ruler_mode(j["week"]) == "on" and r["result"].get("standings") == [] and r["result"].get("winner") is None \
+                          and type(r["result"].get("heights")) is list, f + " " + r["id"] + ": a race with no handicap card is recorded only from NOCARD_FROM, in a week the ruler is on (Fix 1)"
                   # D-129 (owner, 4 Nov): Sunday races on the rhythm run and are scored for fun (Today and All time boards). They
                   # never count for the week: the recompute below leaves them out of the week's rows and winners.
                   # Audit BX-54: a card's time fits its leg: taken at most 2 hours before the leg starts and before it ends.
@@ -2541,6 +2562,10 @@ jobs:
                       if o and type(o.get("cards")) is list and len(o["cards"]) == len(r["cards"]):
                           for i, c in enumerate(o["cards"]):
                               assert c is None or same(c, r["cards"][i]), f"{f} {r['id']}: a published card would change"
+                          # Repo Lens #G-87 F1-1: a race published final (not missed) with no card at all (Fix 1) keeps no card:
+                          # a card added later would make the week's re-check differ for good.
+                          if all(c is None for c in o["cards"]) and type(o.get("result")) is dict and o["result"].get("final") is True and not o["result"].get("missed"):
+                              assert all(c is None for c in r["cards"]), f"{f} {r['id']}: a card added to a race published final with no card (Fix 1)"
                       # Repo Lens #E-11 H-1 (a): a race's published final result never changes either (the recorder keeps
                       # it as it is). Picks stored before Show existed have 5 fields; the recorder adds the 6th when it
                       # loads them, so those are compared on their first 5.

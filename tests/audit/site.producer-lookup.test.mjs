@@ -140,11 +140,18 @@ test("pool check: the Knode Games vault is named; a contract address is called a
   assert.ok(d2.querySelector('#check a[href="https://www.koinscan.io/fogata"]'));
 });
 
-test("daily pattern: asks for 3 or 7 days in a 24-hour window; with 3 days, 24 bars and the quiet hours named", async () => {
+test("daily pattern: in a 24-hour window, 3-day and 7-day buttons in the card (H-B8); with 3 days, 24 bars and the quiet hours named", async () => {
   const d = await open(5);
   assert.equal(d.getElementById("hours-card").hidden, false);
-  assert.match(d.getElementById("hours-sub").textContent, /Pick the last 3 or 7 days/);
+  assert.match(d.getElementById("hours-sub").textContent, /A day is too short to see a pattern/);
   assert.equal(d.querySelectorAll("#hours rect").length, 0);
+  assert.equal(d.querySelector("#hours-card .axis").hidden, true, "no empty axis under no bars");
+  const btns = [...d.querySelectorAll("#hours .hours-pick button")];
+  assert.deepEqual(btns.map((b) => b.textContent), ["Last 3 days", "Last 7 days"]);
+  btns[0].click();
+  await wait(() => d.querySelectorAll("#hours rect").length === 24);
+  assert.equal(d.getElementById("win").value, "86400", "the page's window follows the button");
+  assert.equal(d.querySelector("#hours-card .axis").hidden, false);
   const d3 = await open(5, {}, { win: "86400" });
   assert.equal(d3.querySelectorAll("#hours rect").length, 24);
   assert.match(d3.getElementById("hours-sub").textContent, /Each bar is one hour of the day on your clock/);
@@ -195,4 +202,9 @@ test("Bracket line: next week's bracket once it is seeded (Sunday), and the rule
   const d = await open(5, {}, { extraFiles: files });
   assert.match(kgText(d), /Producer Bracket next week: seed #3, still in \(Round of 16\)\./);
   assert.ok(!d.defaultView.__asked.some((u) => /bracket\/ruler\//.test(u)), "no ruler file read");
+});
+
+test("Get VHP: every line of a step sits in the text column, never in the 40px number column (H-B9, owner 16 Nov)", () => {
+  const g = fs.readFileSync(`${APP}get.html`, "utf8");
+  assert.match(g, /\.gk-step > :not\(\.gk-num\) \{ grid-column: 2; \}/);
 });

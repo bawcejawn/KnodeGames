@@ -33,7 +33,7 @@ unless the owner decides to move one (GAME_KIT §6: replay, two shadow weeks wit
 | `recorder/boards.ts`, `payout.ts`, `vaultfile.ts`, `alerts.ts` | board.json, the paid set and vault values, the vault file, alerts |
 | `recorder/manifest.ts`, `recorder/cli.ts` | a game's settings from its `game.json`; `npm run kit -- <slug>` |
 | `publish/check.inline.mjs` | the publish job's check AND the week tally the recorder uses (one copy); imports only `node:fs/path/crypto` |
-| `publish/render.mjs` | renders a data branch's kit jobs (record jobs, the ruler step, the publish job); `npm run kit:render` writes them into the workflow |
+| `publish/render.mjs` | renders a data branch's kit jobs (record jobs, the ruler step, the publish job); `npm run kit:render` writes them into the kit's own workflow file `kit-<host>.yml` (today `kit-games.yml`, hourly at :57, sharing `games.yml`'s concurrency group). Since Mon 16 Nov 2026 they are no longer inside `games.yml`: with them it passed GitHub's 500 KB limit (`tests/audit/workflow-size.test.mjs` fails above 450 KB) |
 | `testing/` | fake nodes and clock, hour-by-hour replay through the real publish check, the conformance suite, the ruler test chain, the `kit-example` and `kit-ruler-example` fixtures |
 | `tests/` | the kit's own tests (run by `npm run test:audit` through `tests/audit/kit-suite.test.ts`) |
 

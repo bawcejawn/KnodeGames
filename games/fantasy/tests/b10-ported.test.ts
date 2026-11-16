@@ -140,9 +140,12 @@ test("FC-14 (Medium): copies tying the leader still fill 1st (up to 10 wallets, 
 });
 
 test("FC-2 / FC-3 (High): Fantasy runs in its own job with its own timeout, and publishes in its own job: a slow or bad Fantasy run can't stop Block X", () => {
-  const yml = fs.readFileSync(path.join(REPO, ".github/workflows/games.yml"), "utf8");
-  const job = (name: string) => { const a = yml.indexOf(`\n  ${name}:\n`); assert.ok(a > 0, name); const b = yml.slice(a + 1).search(/\n  [a-z][\w-]*:\n/); return yml.slice(a, b < 0 ? undefined : a + 1 + b); };
-  const rec = job("record-fantasy"), pubk = job("publish-kit"), blockx = job("record"), pubx = job("publish");
+  // Since Mon 16 Nov 2026 the kit's jobs live in their own file, kit-games.yml (games.yml passed GitHub's 500 KB limit).
+  const read = (f: string) => fs.readFileSync(path.join(REPO, ".github/workflows", f), "utf8");
+  const yml = read("games.yml"), kit = read("kit-games.yml");
+  const jobIn = (text: string, name: string) => { const a = text.indexOf(`\n  ${name}:\n`); assert.ok(a > 0, name); const b = text.slice(a + 1).search(/\n  [a-z][\w-]*:\n/); return text.slice(a, b < 0 ? undefined : a + 1 + b); };
+  const rec = jobIn(kit, "record-fantasy"), pubk = jobIn(kit, "publish-kit"), blockx = jobIn(yml, "record"), pubx = jobIn(yml, "publish");
+  assert.doesNotMatch(yml, /record-fantasy|publish-kit/, "games.yml has no Fantasy job");
   const t = Number(rec.match(/\n    timeout-minutes:\s*(\d+)/)?.[1]);
   assert.ok(t > 0 && t <= 30, `record-fantasy timeout ${t}`);
   assert.ok(Number(pubk.match(/\n    timeout-minutes:\s*(\d+)/)?.[1]) > 0, "publish-kit has a timeout");

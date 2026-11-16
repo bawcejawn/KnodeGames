@@ -78,7 +78,8 @@ const staked = (p, min) => { try { return !p[3] && BigInt(p[2]) >= BigInt(min); 
 /** A part's file name as the kit writes it (never a path elsewhere). */
 const PART_FILE = /^(wk|d[1-7]|p\/[0-9a-f]{1,2})\.[0-9a-f]{12}\.json$/;
 
-/** The season so far from its weeks' files (oldest first, the season's own weeks only): every player with
+/** The season so far from its weeks' files (oldest first, the season's own weeks only; the staked board is the first
+ *  week's counted stakes): every player with
  *  { a, board, standing, days, lives, total, outN, log: [{ n, id, pick, what }] }, and the days decided.
  *  what: "safe" (a day played, no life lost), "life" (a life lost), "skip" (the day didn't count), "pending". */
 export function seasonView(weeks) {
@@ -86,7 +87,8 @@ export function seasonView(weeks) {
   let decided = 0;
   const dayList = [];
   for (const wk of weeks) {
-    for (const p of wk.players) if (staked(p, wk.min)) boardOf.add(p[0]);
+    // The staked board is the season's FIRST week's stakers (owner 16 Nov, J12-1): a later stake changes nothing.
+    if (wk === weeks[0]) for (const p of wk.players) if (staked(p, wk.min)) boardOf.add(p[0]);
     const run = new Map();                             // this week's points so far
     wk.rounds.forEach(([id, day, , status, rows]) => {
       const n = dayList.length + 1;
@@ -470,7 +472,7 @@ function start() {
     const who = me(), rows = placesOf(view.players, board);
     const inNow = view.players.filter((x) => x.outN === null).length;
     $("standings-title").textContent = `Season ${viewSeason} standings`;
-    $("standings-sub").textContent = `after day ${view.decided} of ${S.SEASON_DAYS} · ${inNow} of ${view.players.length} still in`;
+    $("standings-sub").textContent = `after day ${view.decided} of ${S.SEASON_DAYS} · ${inNow} of ${view.players.length} still in · the boards are set by the season's first week and are final when that week ends`;
     $("board-note").textContent = board === "staked"
       ? `${rows.length} staked player${rows.length === 1 ? "" : "s"}. ${viewSeason === 1 ? "Season 1 is practice: nothing is paid. " : ""}Each paid week the vault pays the top 30% of that week's staked players from Survivor's bucket.`
       : pays(viewSeason) ? `${rows.length} free player${rows.length === 1 ? "" : "s"}. Free players play for the season prize.`

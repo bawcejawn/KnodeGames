@@ -23,7 +23,8 @@
 // - A day with no ruler card 48 hours after it ends doesn't count (owner 14 Nov; the platform's 48 h rule): nobody loses a
 //   life, no pick is used, and the season's day numbers don't move (the next day is still day n + 1). Recorded by the kit
 //   as a fallback round (K8), alerted, and never re-decided once published.
-// - Two boards (owner 30 Oct): wallets staked in Survivor in either week of the season play the staked board; everyone
+// - Two boards (owner 30 Oct; owner 16 Nov, Repo Lens J12-1): wallets staked in Survivor in the season's FIRST week play the
+//   staked board (a stake made only in the second week leaves you on Free play all season); everyone
 //   else the free board. Each board has its own safety net and its own end, so one board never changes the other.
 //   Safety net: if nobody on a board is safe that day (every pick landed in the out-zone or couldn't count), nobody on
 //   that board loses a life for the out-zone; a pick that couldn't count still costs its life. A board ends after the
@@ -170,7 +171,7 @@ const pickOn = (picks, n) => { for (const [m, a] of picks) if (m === n) return a
 
 /** Play a season from its days in order (days: [{ n, field, out, void, skip? }] for n = 1, 2, … without gaps; it stops at the
  *  first missing day) and each wallet's picks (Map wallet → [[n, producer]]; a wallet is in the season if it has a pick
- *  for day 1). staked: a Set of wallets on the staked board (staked in Survivor in either week of the season).
+ *  for day 1). staked: a Set of wallets on the staked board (staked in Survivor in the season's first week).
  * Returns { players: Map wallet → { board, lives, outN, total, days, used, log, standing }, endN, ends: { staked,
  *  free } } where standing is after the last day played (see POINTS above). */
 export function playSeason(days, picks, staked) {

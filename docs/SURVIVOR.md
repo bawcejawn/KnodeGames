@@ -28,7 +28,7 @@ Rules in plain language: `.ai/games/Survivor.md`. The rules in code: `games/surv
 - **Lives: 2.** You lose one for an out-zone pick, no pick, a producer not in the day's field, or a producer you already used this season.
 - **A void producer** (its VHP moved more than −12% / +50% during the day) is out of that day's field only. **A pick on it costs no life, and the producer still counts as used** (owner, 12 Nov).
 - **A day with no ruler card** 48 hours after it ends **doesn't count** (owner, 14 Nov; the platform's 48 h rule): nobody loses a life, no pick is used, and the next day is still the next season day. It is recorded in the week file's `fallbacks`, alerted, and never re-decided once published.
-- **Two boards** (owner, 30 Oct). Wallets staked in Survivor in either week of the season play the Staked board; everyone else plays Free play. Each board has its own **safety net** and its own **end**:
+- **Two boards** (owner, 30 Oct). Wallets staked in Survivor in the season's **first** week play the Staked board for the whole season; everyone else plays Free play, including a wallet that stakes only in the second week (owner, 16 Nov, Repo Lens J12-1: a later stake never changes a day already published, and the second week pays only the Staked board). Each board has its own **safety net** and its own **end**:
   - Safety net: if nobody on a board is safe that day, nobody on that board loses a life for the out-zone. A pick that couldn't count (none, not in the field, reused) still costs its life. A void pick counts as safe for the net.
   - End: after the day that leaves 2 or fewer of the board's players in (if it started with more than 2), when none is left, or after day 12.
 - **Ranking** (per board): lasted longest, then more lives, then the higher total of your counted picks' scores. Equal on all three share a place.
@@ -46,7 +46,7 @@ The kit does every chain read on two nodes, the stakes, the clock, the files, pe
 | Inputs | Every play day of the season so far: a day's points depend on the season's earlier days. A round waits until its earlier days are all in |
 | State | Each wallet's picks for the season (`[[n, producer], …]`), carried from the season's first week to its second; a new season starts empty |
 | Points | The day's change in the wallet's **season standing** = (days × 3 + lives) × 2^14 + total. The week's first play day carries the whole standing, so a week's points add up to the standing at the week's end, which orders players exactly as the ranking does. Never negative, at most 638,975 (`maxRoundPoints`) |
-| Season | The kit's season context (K1): `seasonStaked` (the Staked board) and the season's first week. Every round checks that the kit's season start is `math.js`'s; if not, the run stops (no mis-scored season) |
+| Season | The kit's season context (K1): the Staked board = the season's first week's stakers (`seasonStaked` in week 1, `firstStaked` from week 2, K1b) and the season's first week. Every round checks that the kit's season start is `math.js`'s; if not, the run stops (no mis-scored season) |
 | Live week | `liveWeek` (K4): the current week's open copy is written every hour, so players see each day's result the next morning |
 | Files | KG parts v1, one part a day (`parts: "d"`), with a display column `pk` (each player's pick that day) |
 
@@ -70,6 +70,7 @@ About 1,020 bytes per player. As one file Survivor would stop at about 1,900 pla
 | G7 | `ctx.blockAt(ms)` | On `main` (#280) |
 | K4 | `liveWeek` | In #319 |
 | K8 | `ctx.fallback` | In #319 |
+| K1b | `firstStaked` in the season context: the wallets with a counted stake in the season's first week; and the kit's paid set in a season's later weeks limited to them (owner 16 Nov, Repo Lens J12-1) | **Asked of Architecture** (16 Nov). Needed before Season 1's second week (week 8, Mon 14 Dec); until then a second week's run stops instead of guessing a board |
 | K9 | `ctx.decided` in `inputsFor` and `resultOf`: each of the season's published rounds by id, decided with its `"card"` or by the game's `"fallback"` | **Asked of Architecture** (14 Nov). Needed only for the no-card rule; until then a day with no card stays pending |
 | Pin | `vaultGames.3.kit` (with `liveWeek: true`, `seasonWeeks: 2`) | In this PR; the Vault chat confirms |
 | K3, K5 | Free-prize conditions | Later; the free prize is OFF |

@@ -16,7 +16,7 @@ A two-week elimination game: pick one producer a day and avoid the day's unlucki
 - **Lives:** 2. You lose a life for an out-zone pick, no pick, a producer not in the field, or one already used. ✅
 - **Void producer** (VHP moved more than −12% / +50% in the day): out of that day's field only. **A pick on it costs no life; the producer still counts as used** (owner 12 Nov). 👤 ✅
 - **No ruler card** 48 hours after a day ends: **the day doesn't count** — no life lost, no pick used (owner 14 Nov; the platform's 48 h rule). Recorded and alerted. 👤
-- **Boards:** Staked (staked in Survivor in either week of the season) and Free play. Each has its own safety net and its own end (SV-A10):
+- **Boards:** Staked (staked in Survivor in the season's **first** week; a stake made only in the second week leaves you on Free play all season, owner 16 Nov, J12-1) and Free play. Each has its own safety net and its own end (SV-A10):
   - safety net: nobody safe on that board means nobody loses a life for the out-zone; a pick that can't count still costs its life;
   - end: after the day that leaves 2 or fewer in (if more than 2 started), when none is left, or after day 12. ✅
 

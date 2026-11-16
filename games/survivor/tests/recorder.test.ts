@@ -99,6 +99,9 @@ test("scoreRound refuses to guess the boards (K1) and stops when the kit's seaso
   assert.equal((g.scoreRound as any)(r, [], res, inp, new Map(), { seasonStaked: new Set(), seasonStart: WEEK, seasonWeek: 1 }).size, 0);
   const r2 = { ...r, day: S.weekStart(WEEK + 1) };
   assert.throws(() => (g.scoreRound as any)(r2, [], { ...res, n: 7 }, inp, new Map(), { seasonStaked: new Set(), seasonStart: WEEK + 1, seasonWeek: 1 }), /isn't math.js's/, "the kit started a new season on the season's second week");
+  // J12-1 (owner 16 Nov, option a): in the season's second week the board is the first week's stakers (kit K1b).
+  const wk2 = { seasonStaked: new Set([W[0], W[1]]), seasonStart: WEEK, seasonWeek: 2 };
+  assert.throws(() => (g.scoreRound as any)(r2, [], { ...res, n: 7 }, inp, new Map(), wk2), /K1b/, "no board guessed in week 2");
 });
 
 // ── a day with no ruler card (owner 14 Nov: the day doesn't count) ──

@@ -16,7 +16,8 @@
 //   season day 1 (nobody joins later); carried from the season's first week to its second; empty at a season's start.
 // SCORE: math.js roundPoints: a round's points are the day's change in the wallet's season standing (the week's first
 //   play day carries the whole standing), so the week's tally ranks the season as it stands at the week's end.
-//   The two boards (staked in Survivor in either week of the season, or free) come from the kit's season context (K1),
+//   The two boards (staked in Survivor in the season's FIRST week, or free: owner 16 Nov, Repo Lens J12-1) come from the
+//   kit's season context (K1, and K1b firstStaked from the season's second week),
 //   whose season start must be math.js's (checked every round: a drifted season stops the run).
 // NO CARD (owner 14 Nov, the platform's 48 h rule): a day with no ruler card 48 h after it ends doesn't count
 //   (math.js skipDay). The round is decided through the kit's ctx.fallback (K8), so it is recorded in the week file's
@@ -46,7 +47,21 @@ type RulerCtx = {
   decided?: Map<string, "card" | "fallback">;
 };
 /** The kit's season context (K1). */
-type SeasonCtx = { seasonStaked?: Set<string>; seasonStart?: number; seasonWeek?: number };
+/** The kit's season context (K1; K1b firstStaked: the wallets with a counted stake in the season's first week). */
+type SeasonCtx = { seasonStaked?: Set<string>; firstStaked?: Set<string>; seasonStart?: number; seasonWeek?: number };
+
+/** The season's staked board (owner 16 Nov, Repo Lens J12-1, option a): the wallets with a counted stake in the season's
+ *  FIRST week. A wallet that stakes only in the second week plays Free play all season, so a later stake never changes a
+ *  day already published. In the first week that is the kit's seasonStaked (only that week so far); from the second
+ *  week it must be the kit's firstStaked (K1b): without it, no board is guessed and the run stops. */
+export function stakedBoard(season: SeasonCtx | undefined): Set<string> {
+  const all = season?.seasonStaked;
+  if (!(all instanceof Set)) throw new Error("Survivor needs the season's staked wallets in scoreRound (kit need K1: docs/SURVIVOR.md \"Kit needs\")");
+  if (season!.seasonWeek === 1) return all;
+  const first = season!.firstStaked;
+  if (!(first instanceof Set)) throw new Error("Survivor needs the season's first-week stakers from the kit in its second week (kit need K1b firstStaked: docs/SURVIVOR.md \"Kit needs\"); no board is guessed");
+  return first;
+}
 
 /** A play day's round id (the kit's round, the Picks round is its UTC day number). */
 export const roundId = (day: number) => `d${S.ymd(day)}`;
@@ -179,12 +194,13 @@ export function makeGame(first: number | null = S.FIRST_WEEK): GameModule<RawPic
   scoreRound(round, picks, result, inputs, state, ctx?: unknown): Score {
     const sd = dayOf(round.day);
     if (!sd || sd.n !== result.n) throw new Error(`Survivor: round ${round.id} isn't season day ${result.n}`);
-    const season = ctx as SeasonCtx | undefined, staked = season?.seasonStaked;
-    if (!(staked instanceof Set)) throw new Error("Survivor needs the season's staked wallets in scoreRound (kit need K1: docs/SURVIVOR.md \"Kit needs\")");
+    const season = ctx as SeasonCtx | undefined;
+    if (!(season?.seasonStaked instanceof Set)) throw new Error("Survivor needs the season's staked wallets in scoreRound (kit need K1: docs/SURVIVOR.md \"Kit needs\")");
     // The kit counts seasons from the game's first recorded week (or a reset week); math.js from FIRST_WEEK. They must be
     // the same week, or the boards and the season's days would be a week apart: stop rather than mis-score.
     const want = S.seasonOfWeek(S.weekOf(round.day), first);
     if (!want || season!.seasonStart !== want.startWeek || season!.seasonWeek !== want.k + 1) throw new Error(`Survivor: the kit's season (starts week ${season!.seasonStart}, week ${season!.seasonWeek} of it) isn't math.js's (starts week ${want?.startWeek ?? "?"}, week ${want ? want.k + 1 : "?"}): set game.json firstWeek = math.js FIRST_WEEK, or SURVIVOR_RESET_FROM_WEEK to a season's first week`);
+    const staked = stakedBoard(season);
     const earlier = (inputs?.days ?? []).filter((d) => d.n < sd.n);
     if (earlier.length !== sd.n - 1 || earlier.some((d, i) => d.n !== i + 1)) throw new Error(`Survivor: day ${sd.n} is decided but the season's earlier days aren't all ready this run (${inputs?.waiting ?? "?"}); the next run tries again`);
     const mine = (inputs?.days ?? []).find((d) => d.n === sd.n);

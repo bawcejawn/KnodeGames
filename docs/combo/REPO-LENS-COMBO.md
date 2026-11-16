@@ -167,9 +167,15 @@ This round (Thu 12 Nov), on top of `ba2d9b30`:
   the publish job each refuse `COMBO_RULER_FROM_WEEK` < `RACE_RULER_FROM_WEEK`, or a Combo switch with the Race's unset.
 - **A ruler card that never comes is an outage, not a void (G37-1).** In a ruled week, a race leg is given up
   ("unresolved") only once the Race's ruler has published a card for a later race. Until then the card waits, with an
-  error, as for any other source outage (RL-9). If the ruler card still hasn't come 6 h before the week's Vault window
-  closes and the race is final in the W file, the leg is given up then, so the week keeps its Vault file (Repo Lens
-  #G-51, G51-1).
+  error, as for any other source outage (RL-9). If the race is final in the W file but its ruler card never comes:
+  - **when the Race skips it** (its week's end + the Race's `RULER_GRACE`, 48 h; owner, 15 Nov; Repo Lens #G-91
+    section 7), the leg is given up in the same run, provided the Race's published ruler file lists the race with no
+    card. Combo never counts a race the Race skipped, and never gives up earlier than the Race;
+  - **in any case 6 h before the card's week's Vault window closes** (G51-1), so the week keeps its Vault file. This
+    comes first only for a race in the next vault week (a Sunday card's Monday race), or when the Race publishes no
+    ruler file at all (its outage).
+
+  `ruledGiveUp` in `bot/games/combo-score.mjs`; test `tests/audit/combo-ruler-grace.test.mjs`.
 - **At launch:** N = 7 (vault week 7, Mon 7 Dec), set by Sun 6 Dec 23:59 UTC (6:59 PM ET), with or before
   `COMBO_ENABLED`. `RACE_RULER_FROM_WEEK` must be 7 or lower. Check first with `node tools/vhp-ruler-switch.mjs 7`.
 

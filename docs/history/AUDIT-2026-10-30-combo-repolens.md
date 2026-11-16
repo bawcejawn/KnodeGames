@@ -343,3 +343,19 @@ A card has at least 2 and at most 10 legs; fewer than 10 is always fine. Built i
   A 10-leg card pick is 516 argument bytes, inside the sponsor's 640.
 - Tests: the card-shape test (11 legs refused, 10 and 7 fine), the Picks tool's pinned config (`max_legs` 10), the
   browser harness.
+
+## Repo Lens #G-91 (PR #328 at `751ac83a`, 15 Nov 2026): GO; merged Sun 15 Nov 7:47 PM ET (`60f869cb`)
+No findings above Info (G91-1 the ladder at 10 legs; G91-2 the sponsor tests' v1 decoder copy, for sponsor v4; G91-3
+past weeks' L parts are kept; G60-2, G60-3 still open).
+
+**Section 7, the owner's 48 h standard (owner: yes, 15 Nov):** a ruled race leg whose race is final but has no ruler
+card is now given up when the Race skips that race: its week's end + the Race's own `RULER_GRACE` (48 h), in the same
+run. This applies only when the Race's published ruler file lists the race with no card; with no ruler file at all,
+that's the Race's outage and the card waits (RL-9, G37-1).
+- In any case the leg is given up 6 h before the card's week's Vault window closes (G51-1).
+- Before this change it was always the G51-1 edge (66 h), so a ruler card arriving 48–66 h after the week ends could
+  count in Combo for a race the Race had already skipped. (The Race still writes such a late card into its R file.)
+- A card made final is kept as published, so a later card changes nothing.
+- `ruledGiveUp`, `raceRulerSkip` and `comboVaultEdge` are in `bot/games/combo-score.mjs`. Tests in
+  `tests/audit/combo-ruler-grace.test.mjs`: `RACE_RULER_GRACE_MS` equals the Race's `RULER_GRACE`; still pending 1 min
+  before, given up 1 min after; the next-week race; no R file.

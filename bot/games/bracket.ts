@@ -466,7 +466,7 @@ export async function run(o: Opts) {
   const PRIZES_FROM = o.prizesFromWeek !== undefined ? o.prizesFromWeek : prizesFromEnv(E.BRACKET_PRIZES_FROM_WEEK);
   const PREV = o.prev ?? E.BRACKET_PREV ?? "";
   // Free-play medals and the free prize list follow the owner's switch for game 9, the same rule the vault bot uses to
-  // post free winners (prizeOn); no readable switches file = off (owner 11 Nov: free prize OFF for now)
+  // post free winners (prizeOn); no readable switches file = off (owner 14 Nov: free prize ON from vault week 5)
   const SWITCHES = o.freeSwitches !== undefined ? o.freeSwitches : switchesFromFile(E.BRACKET_FREE_SWITCHES);
   const freeOn = (w: number) => SWITCHES !== null && prizeOn(SWITCHES, 9, w);   // 9: the Bracket's vault game id
   const problems: string[] = [];

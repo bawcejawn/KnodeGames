@@ -112,7 +112,40 @@
           "seal": "2b503fa2d4af4838939dcddbb91df9b79943b818ba4c4714bf517cac45711cb2"
         }
       ],
-      "vhpSeal": "3b2be43f5439c89f092676103b5a1f64c55b25451842d8807c38db060d0de47a"
+      "vhpSeal": "3b2be43f5439c89f092676103b5a1f64c55b25451842d8807c38db060d0de47a",
+      "result": {
+        "void": false,
+        "option": 1,
+        "value": "-37",
+        "dataHash": "262d76da6b50cf089a7096c665b273664cedcdffb6088083aafabea62b7bd29f",
+        "resolvedAt": "2026-11-17T09:50:19.940Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41124107,
+          "decidedHeight": 41149226,
+          "readings": [
+            41140648,
+            41142540,
+            41144235,
+            41146812
+          ],
+          "readingsInWindow": 5,
+          "values": {
+            "1GGxRhLN7Ek54xycG5XaZBE4bCgwV2xtvk": {
+              "release": "120175627491335",
+              "end": "119278863251094",
+              "change": "−0.75%",
+              "height": 41146812
+            },
+            "14f34kUNZugf2DK4hPJGy4AkmBM7Y4pvVu": {
+              "release": "114759444949110",
+              "end": "118947735563480",
+              "change": "+3.65%",
+              "height": 41140648
+            }
+          }
+        }
+      }
     },
     {
       "id": "W004-D1-2",
@@ -214,9 +247,17 @@
             "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "1734849201168"
           },
           "seal": "d8c5cd85a666697a554e0b08ac82bb170f87b8e0f0c1a2c96e315587232634e8"
+        },
+        {
+          "height": 41151900,
+          "readAt": "2026-11-17T11:50:27.145Z",
+          "values": {
+            "1FKTpXBhhHEbu5vVchM8UsVbAvPArJsRmR": "1732803542953"
+          },
+          "seal": "d88b6a1b2b25b299a362f2c0a5794c122e8369e8aa2c1f406099914105941d48"
         }
       ],
-      "vhpSeal": "9b731a13952cbe088b3f625b1bb60212f27a28ea6e6f63ca65c24ba99c19938b"
+      "vhpSeal": "d5a55062cd01cc6170f0e0ac1400160b47af06c5f5df4bdd4bbf5c54367f32ee"
     },
     {
       "id": "W004-D1-3",
@@ -320,7 +361,34 @@
           "seal": "6d09bb900bc485e0cb953311ce9881b7bfc3a87fd43960a8b76693ccee4d8d72"
         }
       ],
-      "vhpSeal": "7b4d7a832ef55cf9fa2784b88208d4c630dce2781949c96f1a2cf0ab8ad381eb"
+      "vhpSeal": "7b4d7a832ef55cf9fa2784b88208d4c630dce2781949c96f1a2cf0ab8ad381eb",
+      "result": {
+        "void": false,
+        "option": 0,
+        "value": "1,359",
+        "dataHash": "262d76da6b50cf089a7096c665b273664cedcdffb6088083aafabea62b7bd29f",
+        "resolvedAt": "2026-11-17T09:50:19.940Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41124107,
+          "decidedHeight": 41149346,
+          "readings": [
+            41140648,
+            41142540,
+            41144235,
+            41146812
+          ],
+          "readingsInWindow": 5,
+          "values": {
+            "15NZhQoewzsbVUcSVsZ8BEBEKgaBNPLLgZ": {
+              "release": "167093523287794",
+              "end": "165811789884394",
+              "change": "−0.77%",
+              "height": 41146812
+            }
+          }
+        }
+      }
     },
     {
       "id": "W004-D1-4",
@@ -429,7 +497,40 @@
           "seal": "bf8269d2f59a37102ddc717f6f82effcf1a45be11b5633951f4bf0129f4bc8a9"
         }
       ],
-      "vhpSeal": "495f4be1988503fa0fde4fff67e11b24a3dacb40cba4308ba791439b787fbb36"
+      "vhpSeal": "495f4be1988503fa0fde4fff67e11b24a3dacb40cba4308ba791439b787fbb36",
+      "result": {
+        "void": false,
+        "option": 1,
+        "value": "1,059",
+        "dataHash": "262d76da6b50cf089a7096c665b273664cedcdffb6088083aafabea62b7bd29f",
+        "resolvedAt": "2026-11-17T09:50:19.940Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41124107,
+          "decidedHeight": 41149305,
+          "readings": [
+            41140648,
+            41142540,
+            41144235,
+            41146812
+          ],
+          "readingsInWindow": 5,
+          "values": {
+            "1MbsVfNw6yzQqA8499d8KQj8qdLyRs8CzW": {
+              "release": "213232187932089",
+              "end": "219361253845411",
+              "change": "+2.87%",
+              "height": 41146812
+            },
+            "1G2QjRtNwEfqGwX7SMD8LNjWgJdWA7XtSU": {
+              "release": "85888467755989",
+              "end": "89002615238007",
+              "change": "+3.63%",
+              "height": 41140648
+            }
+          }
+        }
+      }
     }
   ],
   "daySeal": "cbf4c7d1b7212f16da5d4e2f35b4107e9ac621627af142ebe9c6a6542935606b"

@@ -3,7 +3,7 @@
   "orphans": [],
   "lastCompound": 41120101,
   "warnings": [],
-  "lastProduced": 41143841,
+  "lastProduced": 41146632,
   "producedByDay": {
     "1420": 55,
     "1421": 39,
@@ -13,16 +13,16 @@
     "1425": 40,
     "1426": 61,
     "1427": 52,
-    "1428": 25
+    "1428": 32
   },
-  "producerScannedTo": 41144181,
+  "producerScannedTo": 41146776,
   "settings": "{\"min_stake\":\"100000000\",\"min_stake_next\":\"0\",\"min_stake_next_week\":\"0\",\"max_sponsor_rc\":\"0\",\"min_sponsor_rc\":\"0\",\"paused\":false}",
-  "sealedAt": 41144175,
+  "sealedAt": 41146752,
   "desk": {
     "settings": "{\"fee_bps\":300,\"min_swap\":\"100000000\",\"max_swap\":\"0\",\"paused\":false,\"timelock\":\"172800000\"}",
-    "koin": "392227313682",
+    "koin": "396478681314",
     "koinOut": "291097000000",
-    "at": 1794892556920
+    "at": 1794900696500
   },
   "deskProducerKey": "AzCYCDLDa49PPVHKk60xQbOErS6XY1TcEA8bkSo8Sk6E",
   "notified": [],
@@ -32,20 +32,20 @@
       "last": 41144235
     },
     "cfe92c2a50e2edac1aa829c0d441d264f2892bbdbd43a27195f1672e8d5f4d37": {
-      "n": 3,
-      "last": 41144235
+      "n": 4,
+      "last": 41146812
     },
     "ff8285da86ff5523c75e6c6f815255b8378a4d5da89b952a9d4d5d2da423e02b": {
-      "n": 3,
-      "last": 41144235
+      "n": 4,
+      "last": 41146812
     },
     "dc11474305c060a0faaccebc4d2fb3d77f60db2d3c5915848575357086ea2d18": {
-      "n": 3,
-      "last": 41144235
+      "n": 4,
+      "last": 41146812
     },
     "de3216909d2bc36c549a557ba18c3026afe90fcf419b90837b39a8d9665db424": {
-      "n": 3,
-      "last": 41144235
+      "n": 4,
+      "last": 41146812
     }
   },
   "manaByDay": {
@@ -67,7 +67,7 @@
     "2026-11-14": "537070793",
     "2026-11-15": "275750971",
     "2026-11-16": "525536609",
-    "2026-11-17": "301790951"
+    "2026-11-17": "342516562"
   },
   "games": "[[1,true,true,true,0,0,0],[2,true,true,true,1,3,0],[6,true,true,true,1,5,0],[7,true,true,true,1,3,0],[9,true,true,true,1,5,0]]",
   "vault": {},
@@ -99,7 +99,8 @@
     1794741667180,
     1794873095038,
     1794873122786,
-    1794873153019
+    1794873153019,
+    1794900676814
   ],
-  "seal": "c1bd9bb654ece5a980b49e851ddf75abf3dd68722ec2d3e96c93ddee10ba8217"
+  "seal": "56bc01226106829067abde8faf3ee9a1a05e0fbb926517e0f775806222dad584"
 }

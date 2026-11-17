@@ -256,7 +256,34 @@
           "seal": "41008bd97fa45ebfbf75eb8189ea7f8a92b40e838242348d266dd94497f7110c"
         }
       ],
-      "vhpSeal": "f8d1ce43f94d968f81f7365071d2f216e1dc30c2f6ea2c59b39fb0f5f4dd182e"
+      "vhpSeal": "f8d1ce43f94d968f81f7365071d2f216e1dc30c2f6ea2c59b39fb0f5f4dd182e",
+      "result": {
+        "void": false,
+        "option": 0,
+        "value": "167",
+        "dataHash": "8c56d0bb2eb8c34f4079fac7caa6815334fa8f3128933f2e384c7107466d29f1",
+        "resolvedAt": "2026-11-17T06:27:33.920Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41110191,
+          "decidedHeight": 41136470,
+          "readings": [
+            41127367,
+            41130204,
+            41133885,
+            41134891
+          ],
+          "readingsInWindow": 8,
+          "values": {
+            "15CM9Qr4GKREDgqnyXJ8tckPj2biERTM1T": {
+              "release": "10468854487082",
+              "end": "10384991435280",
+              "change": "−0.80%",
+              "height": 41134891
+            }
+          }
+        }
+      }
     },
     {
       "id": "W004-D1-00-3",

@@ -126,7 +126,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1,
+      "chainDataHash": "0xd8eb39a2817daa990d8e425d5129837f1dc7d3b143e48efce0f1afb6b917e1ed"
     },
     {
       "id": "W004-D1-00-2",
@@ -228,9 +230,17 @@
             "15CM9Qr4GKREDgqnyXJ8tckPj2biERTM1T": "10378036580793"
           },
           "seal": "7d3ba017ef59f80ca9a13d1162b0eb1afe5e32977c6d051433f305c23866ae8a"
+        },
+        {
+          "height": 41140648,
+          "readAt": "2026-11-17T02:10:39.614Z",
+          "values": {
+            "15CM9Qr4GKREDgqnyXJ8tckPj2biERTM1T": "10367399643590"
+          },
+          "seal": "6e704d6438ee9b6e1737e9eb45ce238ae645ee8dabf79bb932db9dab04593274"
         }
       ],
-      "vhpSeal": "02f485592b3c791810a182fff99734fcbbf5072a4356153a2b7b556843a0e0c7"
+      "vhpSeal": "9f1bd4e24fb92d0e4551122cc8ddd5acef153f942d39d9ce7bdbe16852c41c75"
     },
     {
       "id": "W004-D1-00-3",
@@ -363,7 +373,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1,
+      "chainDataHash": "0xd8eb39a2817daa990d8e425d5129837f1dc7d3b143e48efce0f1afb6b917e1ed"
     },
     {
       "id": "W004-D1-00-4",
@@ -486,7 +498,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1,
+      "chainDataHash": "0xd8eb39a2817daa990d8e425d5129837f1dc7d3b143e48efce0f1afb6b917e1ed"
     }
   ],
   "daySeal": "ae97159949cee4bb4387898160207b7216266699bafcf6e36a9ff93617c76fdf"

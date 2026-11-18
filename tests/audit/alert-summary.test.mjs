@@ -83,7 +83,8 @@ test("wired in: the bot, the watchdog, the heal alert and every game workflow wr
 
 test("Repo Lens #F-9 F9-1: the rows whose quoted pieces were too short match their real alerts again", () => {
   const cases = [
-    ["Block X week 4: 1Abc already has 3 points on chain; the results file says 4. If the file is right, correct it: npm run bot -- game-correct 2 4 1Abc 4 --send", 4],
+    // Audit AB-060 (16 Nov 2026): points that differ from the file now hold the week (chain-differs) instead of a skip.
+    ["Who Signs Block X week 4: held, nothing posted: the chain already differs from the results file: points differ from the file: 1Abc has 3 on chain, the file says 4. If you did not do this, the operator or owner key may be compromised.", 4],
     ["W004-D1-0 (#95): the question file no longer matches the on-chain params_hash (file abc, chain def). Not resolving it from that file", 3],
     ["W004-D1-0 (#95): its VHP readings are not the list this bot recorded (a VHP reading was removed, added or changed)", 3],
     ["W004-D1-0 (#95): its VHP readings are an older list than the one this bot last recorded (an earlier copy of the file was put back)", 3],

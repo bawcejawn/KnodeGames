@@ -74,6 +74,8 @@ if (TESTNET) {
 const E = process.env;
 /** Is this RPC the real network? Only the testnet flag or a Harbinger address says no. */
 export const isMainnet = (rpc: string) => E.NETWORK !== "testnet" && !/harbinger/i.test(rpc);
+/** A node URL's host (lower case), so two spellings of one node never count as two nodes (audit AB-065). */
+export const hostOf = (url: string) => { try { return new URL(url).hostname.toLowerCase(); } catch { return String(url).trim().toLowerCase(); } };
 
 export const DAY = 28_800;               // blocks per day (3-second blocks) — used for block-history bookkeeping only
 export const HOUR_MS = 3_600_000, DAY_MS = 24 * HOUR_MS;
@@ -268,6 +270,10 @@ export type Ctx = {
   /** The same window read from a second, independent node (RPC_CHECK). When set, a result is posted only if both
    *  nodes give the same blocks (audit M-9). */
   crossCheckBlocks?: (from: number, to: number) => Promise<Blk[]>;
+  /** Audit AB-065: the game contract on the second, independent node (RPC_CHECK), for the vault passes. */
+  check?: Chain;
+  /** The bot's RPC is mainnet: the hourly vault passes then refuse to post or finalize without `check`. */
+  mainnet?: boolean;
   /** VHP of these addresses ("network" = the whole network) right now, with the block height (read after the values,
    *  so the values are from that block or an earlier one). */
   vhp?: (who: string[]) => Promise<VhpReading>;
@@ -379,7 +385,7 @@ async function sendOp(ctx: Ctx, what: string, calls: Call[], opts: { sponsored?:
 /** The bot's context as the vault passes need it (bot/vault.ts). */
 const vaultCtx = (ctx: Ctx, memo?: VaultMemo): VaultCtx => ({
   chain: ctx.chain, operator: ctx.operator, dryRun: ctx.dryRun, problems: ctx.problems, quiet: ctx.quiet,
-  deployment: readJson(ctx.P.deployment, null), memo,
+  deployment: readJson(ctx.P.deployment, null), memo, check: ctx.check, requireCheck: !!ctx.mainnet,
 });
 /** sendOp for the vault passes: also hands back the chain's reason when a send is refused (I-052). */
 const vaultSend = (ctx: Ctx) => async (what: string, calls: Call[]): Promise<SendResult> => {
@@ -442,7 +448,8 @@ export async function tick(ctx: Ctx) {
   // The memo is kept in bot-state.json only on a real run (a dry run never saves): checks that wait for a second run
   // (a results file must be the same on two runs) then simply wait in a dry run.
   await step("other games' results", () => vaultResultsPass(vaultCtx(ctx, (bs.vault ??= {})), vaultSend(ctx)));
-  if (!safe) await step("finalizing other games", () => vaultFinalizePass(vaultCtx(ctx), vaultSend(ctx)));
+  // Audit AB-060: the same memo, so a held week's alert emails once (not every hour).
+  if (!safe) await step("finalizing other games", () => vaultFinalizePass(vaultCtx(ctx, (bs.vault ??= {})), vaultSend(ctx)));
   // The alerts run before the settle pass (audit L-6): a week with a great many entries to settle must never delay an
   // alert about an announced upgrade or owner change. The settle pass also has its own time budget.
   await step("health check", () => healthPass(ctx, bs));
@@ -1855,7 +1862,10 @@ async function vaultCommand(role: string, sendIt: boolean, fn: (v: VaultCtx, sen
   signer.provider = chain.provider;
   log(`As ${role} (${signer.getAddress()}) on ${chain.rpc}, to the game contract ${chain.contractId}:`);
   const problems: string[] = [];
-  await fn({ chain, operator: signer, dryRun: !sendIt, problems, deployment: dep }, async (what, calls) => {
+  // Audit AB-065: by hand too, a second node in .env (RPC_CHECK) is read alongside RPC; without one, the owner decides.
+  const check = E.RPC_CHECK && E.RPC_CHECK !== "off" && hostOf(E.RPC_CHECK) !== hostOf(chain.rpc) ? new KoinosChain(E.RPC_CHECK, chain.contractId) : undefined;
+  if (!check) log("  (only one node: RPC_CHECK isn't set in .env, so nothing is cross-checked on a second node)");
+  await fn({ chain, operator: signer, dryRun: !sendIt, problems, deployment: dep, check }, async (what, calls) => {
     if (!sendIt) { log(`  [dry run] would send: ${what}`); for (const c of calls) log(`      ${c.method} ${JSON.stringify(c.args)}`); return true; }
     const r = await chain.send(calls, [signer], { rcLimitKoin: 5 });
     log(r.ok ? `  ✔ ${what}  (Mana used ${showKoin(r.rcUsed)})  transaction ${r.txId}` : `  ✖ ${what}: ${r.error}`);
@@ -2196,7 +2206,8 @@ function liveCtx(dryRun: boolean): Ctx {
     throw new Error(`${P.deployment} names the game contract ${contract}, not ${PINNED_MAINNET.game}. If that change is intended, set CONTRACT_ADDRESS (and update PINNED_MAINNET in bot/bot.ts).`);
   if (dep) pinDeployment("game", { ...dep, contract }, rpc, P.deployment);
   // A second, independent node for cross-checks (audit M-4). The workflow sets one by default; "off" turns it off.
-  const rpcCheck = E.RPC_CHECK && E.RPC_CHECK !== "off" && E.RPC_CHECK !== rpc ? E.RPC_CHECK : "";
+  // Audit AB-065 / earlier QA5 M-4: "independent" means another host, not just another spelling of the same URL.
+  const rpcCheck = E.RPC_CHECK && E.RPC_CHECK !== "off" && hostOf(E.RPC_CHECK) !== hostOf(rpc) ? E.RPC_CHECK : "";
   const chain = new KoinosChain(rpc, contract);
   const operator = E.OPERATOR_WIF ? Signer.fromWif(E.OPERATOR_WIF) : Signer.fromSeed("read-only placeholder");
   operator.provider = chain.provider;
@@ -2208,6 +2219,7 @@ function liveCtx(dryRun: boolean): Ctx {
   const pob = new Contract({ id: dep?.pob ?? MAINNET.pob, abi: pobAbi as any, provider: chain.provider });
   return {
     chain, operator, P, dryRun, generator: generatorRunner(P.dir), checkpoint: gitCheckpoint(P.dir), problems: [], noSealKey: !E.OPERATOR_WIF,
+    check: rpcCheck ? new KoinosChain(rpcCheck, contract) : undefined, mainnet: isMainnet(rpc),
     releaseWaitMs: 12 * 60_000,
     previousOperator: E.PREVIOUS_OPERATOR_WIF ? Signer.fromWif(E.PREVIOUS_OPERATOR_WIF) : undefined,
     // Window blocks are read fresh from the chain for every resolution; the cached blocks.csv is never trusted for that.

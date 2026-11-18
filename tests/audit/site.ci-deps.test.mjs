@@ -63,10 +63,20 @@ test("(guard) no workflow holds an issues permission (R-HUB-5: the name-claim fl
   }
 });
 
+/** Audit AB-058 (16 Nov 2026): the one secret outside bot.yml's tick job. RESULTS_SEAL_KEY seals the vault results files
+ *  and boards (kit/publish/results-seal.sh), so each data-branch publish job reads it, and only that job, on a workflow
+ *  that never runs on pull requests. It can't move funds or post anything: a sealed file still has to match the chain. */
+const SEAL_SECRET = "RESULTS_SEAL_KEY";
+const SEAL_JOBS = { "race.yml": "publish", "games.yml": "publish", "golf.yml": "publish", "combo.yml": "publish", "kit-games.yml": "publish-kit" };
+
 test("(guard) secrets live only in bot.yml's tick job, never in a workflow that runs on pull requests", () => {
   for (const { f, y } of workflows) {
     const uses = [...y.matchAll(/secrets\.([A-Za-z_][A-Za-z0-9_-]*)/g)].map((m) => m[1]);   // any case (audit PN-8)
-    if (f !== "bot.yml") assert.deepEqual(uses, [], `${f} uses secrets`);
+    if (f !== "bot.yml" && SEAL_JOBS[f]) {
+      // Only the seal key, exactly once, and only inside that file's publish job.
+      assert.deepEqual(uses, [SEAL_SECRET], `${f} uses secrets other than ${SEAL_SECRET} once`);
+      assert.equal([...job(y, SEAL_JOBS[f]).matchAll(/secrets\./gi)].length, 1, `${f}: ${SEAL_SECRET} outside its ${SEAL_JOBS[f]} job`);
+    } else if (f !== "bot.yml") assert.deepEqual(uses, [], `${f} uses secrets`);
     if (/\n\s*pull_request:/.test(y)) { assert.deepEqual(uses, [], `${f}: secrets on PRs`); assert.match(y, /contents:\s*read/, `${f}: PR token must be read-only`); }
   }
   assert.ok(!/\n\s*pull_request/.test(bot) && !/\n\s*push:/.test(bot), "bot.yml must not run on pushes/PRs");
@@ -162,7 +172,9 @@ test("(guard, parsed YAML) secrets are never handed on whole, and only bot.yml u
     for (const [j, job] of Object.entries((doc && doc.jobs) || {})) assert.ok(!(job && typeof job.secrets === "string" && /inherit/i.test(job.secrets)), `${f} ${j}: secrets: inherit`);
     const all = strings(doc).join("\n");
     assert.doesNotMatch(all, /tojson\s*\(\s*secrets\s*\)|secrets\s*\[|\bsecrets\s*\}\}/i, `${f}: all secrets in an expression`);
-    if (f !== "bot.yml") assert.doesNotMatch(all, /\$\{\{[^}]*\bsecrets\./i, `${f}: uses secrets`);
+    // Audit AB-058: a publish job's one plain `${{ secrets.RESULTS_SEAL_KEY }}` (placed and counted by the test above).
+    const rest = SEAL_JOBS[f] ? all.split(`\${{ secrets.${SEAL_SECRET} }}`).join("") : all;
+    if (f !== "bot.yml") assert.doesNotMatch(rest, /\$\{\{[^}]*\bsecrets\./i, `${f}: uses secrets`);
   }
 });
 
@@ -216,8 +228,14 @@ test("(guard, expressions) the secrets context, in any spelling, only in bot.yml
   const bad = [];
   for (const { f, doc } of parsed) {
     for (const e of exprsOf(doc)) if (SECRETS_WHOLE.test(e)) bad.push(`${f}: all secrets at once: \${{ ${e} }}`);
-    const outside = { ...doc, jobs: Object.fromEntries(jobsOf(doc).filter(([j]) => !(f === "bot.yml" && j === "tick"))) };
-    for (const e of exprsOf(outside)) if (SECRETS_ANY.test(e)) bad.push(`${f}: secrets outside bot.yml's tick job: \${{ ${e} }}`);
+    const { jobs: _jobs, ...top } = doc || {};
+    for (const e of exprsOf(top)) if (SECRETS_ANY.test(e)) bad.push(`${f}: secrets outside bot.yml's tick job: \${{ ${e} }}`);
+    for (const [j, v] of jobsOf(doc)) {
+      if (f === "bot.yml" && j === "tick") continue;
+      // Audit AB-058: the publish job may read exactly `secrets.RESULTS_SEAL_KEY`, spelled plainly, and nothing else.
+      const sealOk = (e) => SEAL_JOBS[f] === j && e === `secrets.${SEAL_SECRET.toLowerCase()}`;   // expressions() lower-cases
+      for (const e of exprsOf(v)) if (SECRETS_ANY.test(e) && !sealOk(e)) bad.push(`${f}: secrets outside bot.yml's tick job: \${{ ${e} }}`);
+    }
     for (const [j, v] of jobsOf(doc)) {
       const env = v && v.environment, name = env && typeof env === "object" ? env.name : env;
       if (name != null && !(f === "bot.yml" && j === "tick")) bad.push(`${f} ${j}: environment ${JSON.stringify(name)} (the bot's key lives in an environment)`);

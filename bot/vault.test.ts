@@ -411,7 +411,7 @@ test("orderBreak, boardSpec, boardScore, hashOf and readSpec (missing ≠ unread
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vault-read-"));
   fs.writeFileSync(path.join(dir, "ok.json"), "{\"x\":1}");
   fs.writeFileSync(path.join(dir, "bad.json"), "{not json");
-  assert.deepEqual(readSpec(path.join(dir, "ok.json")), { state: "ok", data: { x: 1 } });
+  assert.deepEqual(readSpec(path.join(dir, "ok.json")), { state: "ok", data: { x: 1 }, raw: "{\"x\":1}" }, "the exact text comes too (audit AB-058 seal check)");
   assert.deepEqual(readSpec(path.join(dir, "none.json")), { state: "missing" });
   assert.equal(readSpec(path.join(dir, "bad.json")).state, "error");
   assert.equal(readSpec("bad/branch:x.json").state, "error", "a malformed spec is an error, not missing");
@@ -885,4 +885,25 @@ test("L1-4: with no second node, a file row the chain calls not staked holds the
   await vaultResultsPass(v, sendAs(sim, operator, s));
   assert.deepEqual(s.filter((x) => x.startsWith("Fantasy")), []);
   assert.match(v.problems.join(" | "), /Fantasy week 1: held, nothing posted: 1 row\(s\) of the results file are not staked .*no second node \(RPC_CHECK\)/);
+});
+
+// ═══════════════ Audit AB-058: with deployment.json resultsSealKey, unsealed files are never posted or finalized ═══════════════
+test("AB-058: with a seal key set, an unsealed results file holds the week, and a sealed week whose file isn't sealed isn't finalized", { skip: !fs.existsSync(NEW) && `${NEW} missing` }, async () => {
+  const { generateKeyPairSync } = await import("node:crypto");
+  const pub = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" }).toString("base64");
+  const { sim, at } = await weekOneClosed();
+  const v = fctx(sim, allFiles()), s: string[] = [];
+  v.deployment.resultsSealKey = pub;
+  await vaultResultsPass(v, sendAs(sim, operator, s));
+  assert.deepEqual(s.filter((x) => x.startsWith("Fantasy")), [], "nothing posted");
+  assert.match(v.problems.join(" | "), /Fantasy week 1: held, nothing posted: the results file mem:fantasy\/vault\/W1\.json isn't sealed by the publish job/);
+  // Without the key (as before the owner sets it) the same files post and seal; with it, the bot won't finalize them.
+  await vaultResultsPass(fctx(sim, allFiles()), sendAs(sim, operator, s));
+  assert.ok(s.includes(fantasySends[1]));
+  at(sim.time + 24 * HOUR + 1);
+  const fin: string[] = [], v2 = fctx(sim, allFiles());
+  v2.deployment.resultsSealKey = pub;
+  await vaultFinalizePass(v2, sendAs(sim, operator, fin));
+  assert.ok(!fin.some((x) => x.startsWith("Fantasy")));
+  assert.match(v2.problems.join(" | "), /Fantasy week 1: NOT finalized: its results file can't be used \(the results file .* isn't sealed/);
 });

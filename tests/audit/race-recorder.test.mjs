@@ -283,7 +283,10 @@ test("workflow: the recorder holds no secret and no write token; only the publis
   // The VHP ruler: vhp_ruler.py is embedded in the publish job as data (tests/audit/race-ruler.test.mjs keeps it the
   // repository's file byte for byte); its own text is left out of the checks here.
   const rec = job("record"), pub = job("publish").replace(/# BEGIN vhp_ruler\.py\n[\s\S]*?# END vhp_ruler\.py\n/, "");
-  assert.doesNotMatch(yml, /secrets\./);
+  // Audit AB-058: the one secret is the results seal key, once, in the publish job (tests/audit/site.ci-deps.test.mjs).
+  assert.deepEqual([...yml.matchAll(/secrets\.[A-Za-z_]+/g)].map((m) => m[0]), ["secrets.RESULTS_SEAL_KEY"]);
+  assert.doesNotMatch(rec, /secrets\./, "the recorder holds no secret");
+  assert.match(pub, /\n          RESULTS_SEAL_KEY: \$\{\{ secrets\.RESULTS_SEAL_KEY \}\}\n/);
   assert.doesNotMatch(yml, /\n\s*(pull_request|push):/);
   assert.match(rec, /permissions:\s*\n\s*contents:\s*read/); assert.match(rec, /persist-credentials:\s*false/); assert.match(rec, /npm ci\b[^\n]*--ignore-scripts/);
   assert.match(pub, /permissions:\s*\n\s*contents:\s*write/);

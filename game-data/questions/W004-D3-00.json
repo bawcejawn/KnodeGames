@@ -109,7 +109,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1,
+      "chainDataHash": "0x3ea6cb382cc2e908096c35d8ee1e413deb750e4c5a17b37cc7c99346e065710e"
     },
     {
       "id": "W004-D3-00-2",
@@ -223,7 +225,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 3,
+      "chainDataHash": "0x3ea6cb382cc2e908096c35d8ee1e413deb750e4c5a17b37cc7c99346e065710e"
     },
     {
       "id": "W004-D3-00-3",
@@ -337,7 +341,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 4,
+      "chainDataHash": "0x3ea6cb382cc2e908096c35d8ee1e413deb750e4c5a17b37cc7c99346e065710e"
     },
     {
       "id": "W004-D3-00-4",
@@ -451,7 +457,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 1,
+      "chainDataHash": "0x3ea6cb382cc2e908096c35d8ee1e413deb750e4c5a17b37cc7c99346e065710e"
     }
   ],
   "daySeal": "330efa40ab7464b3544a361d9b7e827dffa4edb6ae5069c9d0fc91f638a3a904"

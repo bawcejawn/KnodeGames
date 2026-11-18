@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   # ── BEGIN kit-rendered jobs (tools/kit-render-workflows.mjs; edit kit/, never these lines) ──
-  # Games on the Shared Game Kit (.ai/standards/GAME_KIT.md): Fantasy Producers. One record job per game
+  # Games on the Shared Game Kit (.ai/standards/GAME_KIT.md): Fantasy Producers, Survivor. One record job per game
   # (its own timeout and artifact); each runs only when its own variable is on. The publish job runs no repository code.
   record-fantasy:
     name: "Record Fantasy Producers (kit)"
@@ -104,11 +104,94 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
+  record-survivor:
+    name: "Record Survivor (kit)"
+    if: ${{ vars.SURVIVOR_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      rc: ${{ steps.rec.outputs.rc }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Take survivor's last files
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/prev"; mkdir -p "$P/vault" "$P/inputs"
+          if git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" games-data 2>/dev/null; then
+            { git ls-tree --name-only FETCH_HEAD:survivor 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^(board|alltime|W([0-9]{3}|[1-9][0-9]{3}))\.json$ ]]; then git show "FETCH_HEAD:survivor/$f" > "$P/$f"; fi
+              # KG parts v1: a parts week's folder (manifest, parts, p/ shards)
+              if [[ "$f" =~ ^W([0-9]{3}|[1-9][0-9]{3})$ ]]; then
+                mkdir -p "$P/$f/p"
+                { git ls-tree -r --name-only "FETCH_HEAD:survivor/$f" 2>/dev/null || true; } | while IFS= read -r x; do
+                  if [[ "$x" =~ ^(manifest|(wk|d[1-7]|r[0-9]{3,5})[.][0-9a-f]{12}|p/[0-9a-f]{1,2}[.][0-9a-f]{12})\.json$ ]]; then git show "FETCH_HEAD:survivor/$f/$x" > "$P/$f/$x"; fi
+                done
+                rmdir "$P/$f/p" 2>/dev/null || true
+              fi
+            done
+            { git ls-tree --name-only FETCH_HEAD:survivor/vault 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^((HOLD-|RELEASE-)?W(0|[1-9][0-9]{0,3}))\.json$ ]]; then git show "FETCH_HEAD:survivor/vault/$f" > "$P/vault/$f"; fi
+            done
+            { git ls-tree --name-only FETCH_HEAD:survivor/inputs 2>/dev/null || true; } | while IFS= read -r f; do
+              if [[ "$f" =~ ^W(0|[1-9][0-9]{0,3})\.json$ ]]; then git show "FETCH_HEAD:survivor/inputs/$f" > "$P/inputs/$f"; fi
+            done
+          else
+            set +e; git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/games-data >/dev/null 2>&1; rc=$?; set -e
+            if [ "$rc" -ne 2 ]; then echo "::error::The games-data branch could not be fetched (git ls-remote exit $rc). Nothing recorded this run."; exit 1; fi
+            echo "No games-data branch yet."
+          fi
+          touch "$P/.fetched"
+      - name: Take the ruler's data (vhp-data, read-only)
+        run: |
+          set -euo pipefail
+          git init -q "$RUNNER_TEMP/vhp-data"
+          if git -C "$RUNNER_TEMP/vhp-data" fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" vhp-data 2>/dev/null; then
+            git -C "$RUNNER_TEMP/vhp-data" checkout -q FETCH_HEAD
+          else
+            echo "::warning::vhp-data couldn't be fetched this run"
+          fi
+      - name: Record
+        id: rec
+        # GitHub runs this as bash -e: the recorder's exit code is captured, never fatal, so the files it wrote (a HOLD
+        # included) are always uploaded and outputs.rc always carries 0, 1 or 2 (#B-12 NK-1).
+        run: |
+          set -uo pipefail
+          O="$RUNNER_TEMP/out"; rm -rf "$O"; mkdir -p "$O"
+          rc=0; npm run kit -- survivor || rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 1 ]; then rm -rf "$O"; mkdir -p "$O"; echo "rc $rc: a stop, nothing uploaded"; fi
+        env:
+          RPC: ${{ vars.RPC || 'https://koinos.armana.io' }}
+          RPC_CHECK: ${{ vars.RPC_CHECK || 'https://api.koinosblocks.com' }}
+          KIT_PREV: ${{ runner.temp }}/prev
+          KIT_OUT: ${{ runner.temp }}/out
+          KIT_VHP_DATA: ${{ runner.temp }}/vhp-data
+          # The owner's holds (GAME_KIT.md §3): weeks kept pending, and the one-off release of a held week ("<week>:<code>").
+          SURVIVOR_HOLD_WEEKS: ${{ vars.SURVIVOR_HOLD_WEEKS }}
+          SURVIVOR_RELEASE: ${{ vars.SURVIVOR_RELEASE }}
+          SURVIVOR_RESET_FROM_WEEK: ${{ vars.SURVIVOR_RESET_FROM_WEEK }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ steps.rec.outputs.rc == '0' || steps.rec.outputs.rc == '1' }}
+        with:
+          name: kit-games-data-survivor
+          path: ${{ runner.temp }}/out/
+          retention-days: 1
+          if-no-files-found: ignore
+
   publish-kit:
     # This file and the hand-written host share one concurrency group, so the two publish jobs never push games-data at
     # the same time.
-    needs: [record-fantasy]
-    if: ${{ always() && github.ref == 'refs/heads/main' && (needs.record-fantasy.result == 'success') }}
+    needs: [record-fantasy, record-survivor]
+    if: ${{ always() && github.ref == 'refs/heads/main' && (needs.record-fantasy.result == 'success' || needs.record-survivor.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -119,6 +202,11 @@ jobs:
         with:
           name: kit-games-data-fantasy
           path: ${{ runner.temp }}/incoming/fantasy
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: kit-games-data-survivor
+          path: ${{ runner.temp }}/incoming/survivor
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -1944,10 +2032,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           IN: ${{ runner.temp }}/incoming
           LIST: ${{ runner.temp }}/kit-publish.txt
-          KIT_GAMES: '[{"slug":"fantasy","game":4,"genesis":1792368000000,"weekMs":604800000,"sundayFunRound":true,"payoutRule":"d152","vaultValues":"dense255","entry":{"minRounds":1,"minPoints":1},"minPts":0,"rowCap":0,"maxRoundPoints":90000,"liveWeek":false,"roundsCorrectable":false,"inputsFile":true,"vhpData":true,"cardPerRound":true,"parts":"d"}]'
+          KIT_GAMES: '[{"slug":"fantasy","game":4,"genesis":1792368000000,"weekMs":604800000,"sundayFunRound":true,"payoutRule":"d152","vaultValues":"dense255","entry":{"minRounds":1,"minPoints":1},"minPts":0,"rowCap":0,"maxRoundPoints":90000,"liveWeek":false,"roundsCorrectable":false,"inputsFile":true,"vhpData":true,"cardPerRound":true,"parts":"d"},{"slug":"survivor","game":3,"genesis":1792368000000,"weekMs":604800000,"sundayFunRound":false,"payoutRule":"d152","vaultValues":"dense255","entry":{"minRounds":1,"minPoints":1},"minPts":0,"rowCap":0,"maxRoundPoints":638975,"liveWeek":true,"roundsCorrectable":false,"vhpData":true,"cardPerRound":true,"seasonWeeks":2,"parts":"d"}]'
           CHECK_NOW_MS: ""      # the job's own clock, always (KC-29)
           # The owner's releases, read by the check itself: a recorder run can't release its own hold (KC-3).
           KIT_RELEASE_FANTASY: ${{ vars.FANTASY_RELEASE }}
+          KIT_RELEASE_SURVIVOR: ${{ vars.SURVIVOR_RELEASE }}
         run: |
           set -euo pipefail
           if [ ! -d "$IN" ]; then echo "Nothing to publish."; exit 0; fi
@@ -1958,7 +2047,7 @@ jobs:
           parent=""
           if git fetch -q --depth 1 "$remote" games-data 2>/dev/null; then
             parent=$(git rev-parse FETCH_HEAD); git read-tree FETCH_HEAD
-            for g in fantasy; do
+            for g in fantasy survivor; do
               mkdir -p "$PUB/$g/vault" "$PUB/$g/inputs"
               { git ls-tree --name-only "$parent:$g" 2>/dev/null || true; } | while IFS= read -r f; do
                 if [[ "$f" =~ ^(board|alltime|W([0-9]{3}|[1-9][0-9]{3}))\.json$ ]]; then git show "$parent:$g/$f" > "$PUB/$g/$f"; fi
@@ -1983,7 +2072,7 @@ jobs:
             git read-tree --empty
           fi
           # G3: rebuild every new ruler card with the embedded vhp_ruler.py (no repository code); the check holds the rest.
-          for g in fantasy; do
+          for g in fantasy survivor; do
             python3 -I -B "$RUNNER_TEMP/ruler-code/kit_cards.py" "$RUNNER_TEMP/vhp-data" "$IN/$g" "$PUB/$g" "$RUNNER_TEMP/kit-cards/$g.json" || echo "::error::$g: its ruler cards couldn't be rebuilt this run; its new files are held"
           done
           # The kit's publish check, inline (kit/publish/check.inline.mjs byte for byte): it judges every file against the
@@ -2926,19 +3015,19 @@ jobs:
   kit-alerts:
     # Its own job, always run (#B-12 NK-16): the alerts fire even when publish-kit is skipped (every kit job failed,
     # timed out or was cancelled). Failing this job is what emails the owner; the two cases say different things (KC-28).
-    needs: [record-fantasy, publish-kit]
+    needs: [record-fantasy, record-survivor, publish-kit]
     if: ${{ always() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {}
     steps:
       - name: Alert on a kit recorder that stopped
-        if: ${{ (needs.record-fantasy.result == 'success' && needs.record-fantasy.outputs.rc != '0' && needs.record-fantasy.outputs.rc != '1') || needs.record-fantasy.result == 'failure' || needs.record-fantasy.result == 'cancelled' }}
+        if: ${{ (needs.record-fantasy.result == 'success' && needs.record-fantasy.outputs.rc != '0' && needs.record-fantasy.outputs.rc != '1') || needs.record-fantasy.result == 'failure' || needs.record-fantasy.result == 'cancelled' || (needs.record-survivor.result == 'success' && needs.record-survivor.outputs.rc != '0' && needs.record-survivor.outputs.rc != '1') || needs.record-survivor.result == 'failure' || needs.record-survivor.result == 'cancelled' }}
         run: |
           echo "::error::A kit game's recorder stopped (or its job failed, timed out or was cancelled): nothing from that game was recorded this run. See its record job."
           exit 1
       - name: Alert on a kit recorder that needs the owner
-        if: ${{ needs.record-fantasy.outputs.rc == '1' }}
+        if: ${{ needs.record-fantasy.outputs.rc == '1' || needs.record-survivor.outputs.rc == '1' }}
         run: |
           echo "::error::A kit game's recorder raised an alert that needs the owner (see its record job). Its files were checked and published as usual."
           exit 1

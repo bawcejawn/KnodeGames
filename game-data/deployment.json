@@ -68,7 +68,8 @@
     "3": {
       "name": "Survivor",
       "results": "games-data:survivor/vault",
-      "board": "none"
+      "board": "none",
+      "kit": { "payoutRule": "d152", "vaultValues": "dense255", "entry": { "minRounds": 1, "minPoints": 1 }, "sundayFunRound": false, "roundsCorrectable": false, "liveWeek": true, "seasonWeeks": 2 }
     },
     "4": {
       "name": "Fantasy Producers",

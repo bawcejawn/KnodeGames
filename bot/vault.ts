@@ -556,6 +556,9 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
     const places: Array<{ place: number; players: string[] }> = [];
     const prizeWeek = g.free_prize && (gw.closed ? big(gw.prize) > 0n : seasonEnds(g, w));
     let holdSeal = false;
+    // Repo Lens L1-3: the file's own winners, kept for the check before the seal. The switch rules below may empty the
+    // lists (nothing new is posted), but winners an earlier run posted are still the file's, not foreign.
+    const asFiled = { ...r, first: [...(r.first ?? [])], second: [...(r.second ?? [])] };
     if (prizeWeek && ((r.first ?? []).length || (r.second ?? []).length)) {
       const x = sw();
       if ("error" in x) {
@@ -623,13 +626,18 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
     if (ok && !holdSeal && !ctx.dryRun) {
       const sentNow = rows.length > 0 || places.length > 0;
       const now1 = (await ctx.chain.read("get_game", { game: id, week: String(w) })).week ?? {};
-      const v1 = await chainVsFile(now1, r, min, stakedGame, true, async (a) => ctx.chain.read("get_game_player", { player: a, game: id, week: String(w) }));
+      const v1 = await chainVsFile(now1, asFiled, min, stakedGame, true, async (a) => ctx.chain.read("get_game_player", { player: a, game: id, week: String(w) }));
       if (v1.diffs.length) { hold("after-post", `after the bot's posts the chain still differs from the results file: ${v1.diffs.join("; ")}`); continue; }
       if (ctx.check) {
         const chk = ctx.check;
         const now2 = (await chk.read("get_game", { game: id, week: String(w) })).week ?? {};
-        const v2 = await chainVsFile(now2, r, min, stakedGame, true, async (a) => chk.read("get_game_player", { player: a, game: id, week: String(w) }));
-        if (v2.diffs.length && sentNow) { log(ctx, `  ${name} week ${w}: the second node hasn't caught up with this run's posts yet; sealing on the next run`); continue; }
+        const v2 = await chainVsFile(now2, asFiled, min, stakedGame, true, async (a) => chk.read("get_game_player", { player: a, game: id, week: String(w) }));
+        if (v2.diffs.length && sentNow) {
+          log(ctx, `  ${name} week ${w}: the second node hasn't caught up with this run's posts yet; sealing on the next run`);
+          // Repo Lens L1-1: the next hourly run may be past the deadline (dropped runs too): say so now, never in silence.
+          if (due - k.time < 2 * HOUR_MS) alert(`${key}:seal-lag`, `${name} week ${w}: points posted, but the second node (RPC_CHECK) doesn't show them yet and the results are due ${utc(due)}, so the next hourly run may be too late to seal. Check both nodes show the rows (npm run bot -- status), then seal by hand: npm run bot -- game-seal ${id} ${w} --send`);
+          continue;
+        }
         if (v2.diffs.length) { hold("nodes-disagree", `the second node (RPC_CHECK) differs from the results file while the first matches: ${v2.diffs.join("; ")}. One node is wrong or lying: check both`); continue; }
       }
     }
@@ -639,7 +647,7 @@ export async function vaultResultsPass(ctx: VaultCtx, send: Send, only?: { game:
       const what = `${g.name ?? `game ${num(g.id)}`} week ${only ? only.week : k.week - 1}`;
       if (only) throw new Error(`${what} is held: ${e.message}`);
       log(ctx, `  ${what}: HELD (${e.message})`);
-      alert(`${num(g.id)}:${k.week - 1}:nodes-disagree`, `${what}: held, nothing posted, sealed or finalized: ${e.message}.`);
+      alert(`${num(g.id)}:${k.week - 1}:nodes-disagree:${hashOf(e.message).slice(0, 12)}`, `${what}: held, nothing posted, sealed or finalized: ${e.message}.`);
     }
   }
 }
@@ -730,12 +738,15 @@ export async function vaultFinalizePass(ctx: VaultCtx, send: Send) {
     for (let w = Math.max(0, k.weeksClosed - 12); w < k.weeksClosed; w++) {
       if (!vaultHandles(id, k.c, w)) continue;
       for (let page = 0; page < 20; page++) {
-        const gw = await readWeek(ctx, id, w).catch((e) => { if (e instanceof NodesDisagree) { alert(`${id}:${w}:final-nodes`, `${g.name ?? `game ${id}`} week ${w}: NOT finalized: ${e.message}.`); return null; } throw e; });
-        if (!gw || !gw.closed || gw.finalized) break;
-        const ready = gw.voided || gw.fin_started || (gw.sealed
-          ? k.time >= num(gw.seal_time) + 2 * k.closeDelay && k.time >= num(gw.last_change_time) + k.closeDelay
+        const isReady = (x: any) => x.voided || x.fin_started || (x.sealed
+          ? k.time >= num(x.seal_time) + 2 * k.closeDelay && k.time >= num(x.last_change_time) + k.closeDelay
           : k.time >= k.resultsDue(w));
-        if (!ready) break;
+        // Repo Lens L1-2: the primary node decides whether there is anything to do; only then are both nodes compared
+        // (a week sealed seconds ago, or one that isn't due, is not a disagreement).
+        const gw1 = (await ctx.chain.read("get_game", { game: id, week: String(w) })).week ?? {};
+        if (!gw1.closed || gw1.finalized || !isReady(gw1)) break;
+        const gw = await readWeek(ctx, id, w).catch((e) => { if (e instanceof NodesDisagree) { alert(`${id}:${w}:final-nodes:${hashOf(e.message).slice(0, 12)}`, `${g.name ?? `game ${id}`} week ${w}: NOT finalized: ${e.message}.`); return null; } throw e; });
+        if (!gw || !gw.closed || gw.finalized || !isReady(gw)) break;
         if (page === 0 && !(await verified(g, w, gw))) break;
         const what = gw.sealed && !gw.voided ? "find the winners" : "no results: roll the week over";
         // Repo Lens VB-2: a send's result is an object on failure ({ ok: false }), so it must go through sent().

@@ -65,7 +65,18 @@
       },
       "hashRule": 2,
       "paramsHash": "3436fa35a54380ee0819a1e82f29b9817a5569d429e3bce7b6375a6bc8ace4f3",
-      "chainId": 126
+      "chainId": 126,
+      "vhpReadings": [
+        {
+          "height": 41182217,
+          "readAt": "2026-11-18T13:53:43.628Z",
+          "values": {
+            "network": "2288249572104017"
+          },
+          "seal": "152a11f9fb867073db223a4c96991c3f8723708660c816b28571dcbaaf875cfb"
+        }
+      ],
+      "vhpSeal": "0eb7cff3bb2695a301bf1e1bc82bc05ee62a04f613bccb3b59caddd32cbd8117"
     },
     {
       "id": "W004-D3-00-2",
@@ -135,7 +146,18 @@
       },
       "hashRule": 2,
       "paramsHash": "00d8f2234f712782b1daa7e500191e89712a0418ee2dd73664e5f6d8552ff150",
-      "chainId": 127
+      "chainId": 127,
+      "vhpReadings": [
+        {
+          "height": 41182217,
+          "readAt": "2026-11-18T13:53:43.628Z",
+          "values": {
+            "network": "2288249572104017"
+          },
+          "seal": "248d7f89c770f4687bd9e08a971225ebb98f6f7813710004406395e58dcacc58"
+        }
+      ],
+      "vhpSeal": "47899b84806294c8f125bda9428ceff8232a2aba4004e1f4b1975a57879c7d2d"
     },
     {
       "id": "W004-D3-00-3",
@@ -205,7 +227,18 @@
       },
       "hashRule": 2,
       "paramsHash": "55e142635428fc8b6e7f073d964cec1c8f1c421612830d3cba035ec32b1a4416",
-      "chainId": 128
+      "chainId": 128,
+      "vhpReadings": [
+        {
+          "height": 41182217,
+          "readAt": "2026-11-18T13:53:43.628Z",
+          "values": {
+            "network": "2288249572104017"
+          },
+          "seal": "b994648b922b88b1fcdd5a79eb955dae14a8f7e6278df4284c4f21951c5783ab"
+        }
+      ],
+      "vhpSeal": "cfc1b4dee616b1161b6720d35c28213fddb47d42bb5a4238893b7c7115ae9e48"
     },
     {
       "id": "W004-D3-00-4",
@@ -275,7 +308,18 @@
       },
       "hashRule": 2,
       "paramsHash": "e2d8d1e2dfcde3745e09dfc5549c780d27fe1cdc7dfb3a077acda5fe95212131",
-      "chainId": 129
+      "chainId": 129,
+      "vhpReadings": [
+        {
+          "height": 41182217,
+          "readAt": "2026-11-18T13:53:43.628Z",
+          "values": {
+            "network": "2288249572104017"
+          },
+          "seal": "708086158c70fafbc79332eb4f3bccf19febae19b2ef608ae985088de5938a1b"
+        }
+      ],
+      "vhpSeal": "925a390c102845c59dbb2745338fb443c50efb35283ffbeb1f5e666447bdc6e2"
     }
   ],
   "daySeal": "330efa40ab7464b3544a361d9b7e827dffa4edb6ae5069c9d0fc91f638a3a904"

@@ -43,19 +43,31 @@ const key = () => {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   return { pem: privateKey.export({ type: "pkcs8", format: "pem" }), pub: publicKey.export({ type: "spki", format: "der" }).toString("base64") };
 };
-/** A scratch publish: the branch's index already holds `staged` (path → text); the run's own files are `own`. */
-function publish(own, staged, env) {
+/** A scratch publish: the branch's index already holds `staged` (path → text); the run's own files are `own`.
+ *  `parentFiles` (Repo Lens L2-1): the branch's last commit; it is read into the index first and named in $parent,
+ *  as the publish jobs do. */
+function publish(own, staged, env, parentFiles) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "seal-"));
   const IN = path.join(dir, "incoming"), work = path.join(dir, "work"), tmp = path.join(dir, "tmp");
   fs.mkdirSync(work); fs.mkdirSync(tmp);
   for (const [p, t] of Object.entries(own)) { fs.mkdirSync(path.dirname(path.join(IN, p)), { recursive: true }); fs.writeFileSync(path.join(IN, p), t); }
   const git = (...a) => execFileSync("git", a, { cwd: work, encoding: "utf8", input: a.includes("--stdin") ? a.input : undefined });
   git("init", "-q");
+  let parent = "";
+  if (parentFiles) {
+    for (const [p, t] of Object.entries(parentFiles)) {
+      const blob = execFileSync("git", ["hash-object", "-w", "--stdin"], { cwd: work, input: t, encoding: "utf8" }).trim();
+      git("update-index", "--add", "--cacheinfo", `100644,${blob},${p}`);
+    }
+    const tree = git("write-tree").trim();
+    parent = execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "commit-tree", tree, "-m", "branch"], { cwd: work, encoding: "utf8" }).trim();
+    git("read-tree", parent);
+  }
   for (const [p, t] of Object.entries(staged)) {
     const blob = execFileSync("git", ["hash-object", "-w", "--stdin"], { cwd: work, input: t, encoding: "utf8" }).trim();
     git("update-index", "--add", "--cacheinfo", `100644,${blob},${p}`);
   }
-  const r = spawnSync("bash", ["-e", "-c", SEAL], { cwd: work, encoding: "utf8", env: { ...process.env, IN, RUNNER_TEMP: tmp, ...env } });
+  const r = spawnSync("bash", ["-e", "-c", `parent=${JSON.stringify(parent)}\n${SEAL}`], { cwd: work, encoding: "utf8", env: { ...process.env, IN, RUNNER_TEMP: tmp, ...env } });
   const files = Object.fromEntries(git("ls-files").split("\n").filter(Boolean).map((p) => [p, execFileSync("git", ["show", `:${p}`], { cwd: work, encoding: "utf8" })]));
   return { r, files, tmp };
 }
@@ -102,4 +114,34 @@ test("a key that can't sign stops the publish (nothing goes out half sealed)", (
   const { r } = publish({ "vault/W5.json": W5 }, { "vault/W5.json": W5 }, { RESULTS_SEAL_KEY: "not a key", SEAL_BRANCH: "race-data" });
   assert.notEqual(r.status, 0);
   assert.match(r.stdout, /::error::could not seal vault\/W5\.json/);
+});
+
+// ── Repo Lens #L-2 L2-1 (17 Nov 2026): a recorder that copies a published file forward must not get it sealed ──
+test("L2-1: a results file the branch already holds (copied forward by the recorder) is never sealed by this run", () => {
+  const k = key();
+  // A forger pushed a final W5 to the branch; the Race / kit recorders copy published final files forward unchanged,
+  // so this run's $IN holds the same bytes, and read-tree stages them.
+  const branch = { "vault/W5.json": FORGED, "board.json": BOARD };
+  const { r, files } = publish({ "vault/W5.json": FORGED, "board.json": BOARD + " " }, { "board.json": BOARD + " " }, { RESULTS_SEAL_KEY: k.pem, SEAL_BRANCH: "race-data" }, branch);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!("vault/W5.json.seal" in files), "the copied-forward file stays unsealed");
+  assert.ok("board.json.seal" in files, "the board this run rebuilt (new bytes) is sealed");
+});
+
+test("L2-1: a file sealed earlier and copied forward keeps its old seal, which still checks", () => {
+  const k = key();
+  const first = publish({ "vault/W5.json": W5 }, { "vault/W5.json": W5 }, { RESULTS_SEAL_KEY: k.pem, SEAL_BRANCH: "race-data" });
+  const branch = { "vault/W5.json": W5, "vault/W5.json.seal": first.files["vault/W5.json.seal"] };
+  const { r, files } = publish({ "vault/W5.json": W5 }, {}, { RESULTS_SEAL_KEY: k.pem, SEAL_BRANCH: "race-data" }, branch);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(files["vault/W5.json.seal"], first.files["vault/W5.json.seal"], "the old seal is kept (read-tree)");
+  const read = readerOf("race-data", files);
+  assert.equal(V.sealProblem(read, "race-data:vault/W5.json", read("race-data:vault/W5.json"), k.pub), "");
+});
+
+test("L2-1: a new results file this run writes (not on the branch yet) is sealed, with a parent commit present", () => {
+  const k = key();
+  const { r, files } = publish({ "vault/W5.json": W5 }, { "vault/W5.json": W5 }, { RESULTS_SEAL_KEY: k.pem, SEAL_BRANCH: "race-data" }, { "races.json": "{}\n" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok("vault/W5.json.seal" in files);
 });

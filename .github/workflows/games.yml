@@ -3587,6 +3587,9 @@ jobs:
               rel="${f#"$IN"/}"
               [[ "$rel" =~ (^|/)(board|vault/(RELEASE-)?W[0-9]+)\.json$ ]] || continue
               [ "$(git rev-parse -q --verify ":$rel" || true)" = "$(git hash-object "$f")" ] || continue
+              # Repo Lens L2-1: bytes the branch already holds were not produced by this run (a recorder copied them forward):
+              # they keep the seal they have, if any, and are never sealed here.
+              [ -z "${parent:-}" ] || [ "$(git rev-parse -q --verify "$parent:$rel" || true)" != "$(git hash-object "$f")" ] || continue
               { printf 'knodegames-results-v1\n%s:%s\n' "$SEAL_BRANCH" "$rel"; cat "$f"; } > "$RUNNER_TEMP/seal.msg"
               sig=$(openssl pkeyutl -sign -inkey "$RUNNER_TEMP/seal.pem" -rawin -in "$RUNNER_TEMP/seal.msg" | base64 -w0 || true)
               if [ -z "$sig" ]; then rm -f "$RUNNER_TEMP/seal.pem"; echo "::error::could not seal $rel (check the RESULTS_SEAL_KEY secret)"; exit 1; fi

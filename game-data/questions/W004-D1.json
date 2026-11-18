@@ -419,7 +419,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 2,
+      "chainDataHash": "0xf51807ede14e980bf9cc18d7719d49af66ef489cddbe9f793085d6cb08953c79"
     },
     {
       "id": "W004-D1-3",

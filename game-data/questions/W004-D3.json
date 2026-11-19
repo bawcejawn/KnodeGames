@@ -92,7 +92,31 @@
           "seal": "e77e80839f971442e02102637e8c21197faeb4e98553f951a1c5a5962473638b"
         }
       ],
-      "vhpSeal": "673a73414364e7e54a236dbe78be53a9760e37eef4c825be433d3d95dfbd48b2"
+      "vhpSeal": "673a73414364e7e54a236dbe78be53a9760e37eef4c825be433d3d95dfbd48b2",
+      "result": {
+        "void": false,
+        "option": 2,
+        "value": "31.930 s",
+        "dataHash": "629a420cac34397932ca6cd5124b9aca8440aca8c2fc5d8e8da264c460cfe837",
+        "resolvedAt": "2026-11-19T05:34:02.870Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41180147,
+          "decidedHeight": 41197726,
+          "readings": [
+            41196443
+          ],
+          "readingsInWindow": 3,
+          "values": {
+            "network": {
+              "release": "2288852991260160",
+              "end": "2282709181017969",
+              "change": "−0.27%",
+              "height": 41196443
+            }
+          }
+        }
+      }
     },
     {
       "id": "W004-D3-2",
@@ -189,7 +213,33 @@
           "seal": "b834964653611be58046e31e23d7b91dbe4db1ca0926719934652a3afaa2f4e1"
         }
       ],
-      "vhpSeal": "261e556baf5eab839cc3092db89acc835c31280616a395a3e839aa85a114f8a3"
+      "vhpSeal": "261e556baf5eab839cc3092db89acc835c31280616a395a3e839aa85a114f8a3",
+      "result": {
+        "void": false,
+        "option": 2,
+        "value": "99.3%",
+        "dataHash": "629a420cac34397932ca6cd5124b9aca8440aca8c2fc5d8e8da264c460cfe837",
+        "resolvedAt": "2026-11-19T05:34:02.870Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41180147,
+          "decidedHeight": 41200546,
+          "readings": [
+            41196443,
+            41197948,
+            41199320
+          ],
+          "readingsInWindow": 3,
+          "values": {
+            "network": {
+              "release": "2288852991260160",
+              "end": "2281554819068147",
+              "change": "−0.32%",
+              "height": 41199320
+            }
+          }
+        }
+      }
     },
     {
       "id": "W004-D3-3",
@@ -286,7 +336,33 @@
           "seal": "e8d6c9ffcf35bb76ea4b17cc6eb50dcebe73c2af8afb43225440110d1bdd0071"
         }
       ],
-      "vhpSeal": "fc21ffcd337ca0c34a568b1ac72c5d22eda0ba723a8afedc464bc538e9e94e9e"
+      "vhpSeal": "fc21ffcd337ca0c34a568b1ac72c5d22eda0ba723a8afedc464bc538e9e94e9e",
+      "result": {
+        "void": false,
+        "option": 1,
+        "value": "34",
+        "dataHash": "629a420cac34397932ca6cd5124b9aca8440aca8c2fc5d8e8da264c460cfe837",
+        "resolvedAt": "2026-11-19T05:34:02.870Z",
+        "vhpCheck": {
+          "limit": 0.1,
+          "releaseHeight": 41180147,
+          "decidedHeight": 41200554,
+          "readings": [
+            41196443,
+            41197948,
+            41199320
+          ],
+          "readingsInWindow": 3,
+          "values": {
+            "network": {
+              "release": "2288852991260160",
+              "end": "2281554819068147",
+              "change": "−0.32%",
+              "height": 41199320
+            }
+          }
+        }
+      }
     },
     {
       "id": "W004-D3-4",
@@ -388,9 +464,17 @@
             "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1028741698625"
           },
           "seal": "721c0ddfc34beaf20bdbea850257189d5ea7eb97a1ba168615aa5deedede87c0"
+        },
+        {
+          "height": 41201928,
+          "readAt": "2026-11-19T06:45:33.410Z",
+          "values": {
+            "1GJxaZw2BPU7NhB7fuVGKfQxaQ3tkhVKb8": "1028334886459"
+          },
+          "seal": "091e8e38e9445b0a421314b62ab046e6ef2f8593fb084cd485cd3e95766bf78e"
         }
       ],
-      "vhpSeal": "5d292d17a9c42f8bcafc4010411712d94f8020eb1e63925bc122001d7e305c1e"
+      "vhpSeal": "3274a9ee34f3f997525fb7b02d1e626f5d0ab101e361fa55375a437fcec4a63c"
     }
   ],
   "daySeal": "d002725219383af30d5ef7e17e2f68bf3b18024cd27e7731ed9100496b19c009"

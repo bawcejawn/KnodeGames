@@ -151,7 +151,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 3,
+      "chainDataHash": "0x8a5c38376fb8f391d96ef273c28a4f8cdaddc9c87efbdd809edbcea41fe27142"
     },
     {
       "id": "W004-D4-2",
@@ -394,9 +396,17 @@
             "13iFaqgdnsoqUTCwZC9GtRXwh8ZvdiiPwm": "9934619395166"
           },
           "seal": "5b6732a6b578b75963698bb571a29a8e4d7df3680b691eb50b9c95e8dd579bf3"
+        },
+        {
+          "height": 41235564,
+          "readAt": "2026-11-20T11:34:28.110Z",
+          "values": {
+            "13iFaqgdnsoqUTCwZC9GtRXwh8ZvdiiPwm": "9930936058530"
+          },
+          "seal": "b886cf5fe0251581a2fa261c1286796fed9abd7354f6db911d5a0433cdde2eed"
         }
       ],
-      "vhpSeal": "92fb185a94aac0675e262d7b4b9349c329faa3ea527d1648025996acff4b9def"
+      "vhpSeal": "56694ef8b4e6206d883a91338be226736c61d669319c05a26cd445ec5683297f"
     },
     {
       "id": "W004-D4-4",

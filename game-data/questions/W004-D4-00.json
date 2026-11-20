@@ -178,7 +178,9 @@
             }
           }
         }
-      }
+      },
+      "chainOutcome": 2,
+      "chainDataHash": "0xe46c97d14af0882bf2d5634cb404af8eff98cf6520000c9e62b7f3ca0556ff1a"
     },
     {
       "id": "W004-D4-00-2",
